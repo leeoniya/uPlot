@@ -1,0 +1,69 @@
+.vt,
+.hz {
+	position: absolute;
+	left: 0;
+	top: 0;
+	pointer-events: none;
+	will-change: transform;
+	z-index: 100;
+}
+
+.vt {
+	height: 100%;
+	border-right: 1px solid #ddd;
+}
+
+.hz {
+	width: 100%;
+	border-bottom: 1px solid #ddd;
+}
+
+.chart {
+	position: relative;
+}
+
+.legend {
+	position: absolute;
+	top: 0;
+	left: 0;
+	padding: 8px;
+}
+
+.legend > * {
+	display: inline-block;
+	margin-right: 20px;
+}
+
+.region {
+	background: rgba(0,0,0,0.07);
+	height: 100%;
+	position: absolute;
+	top: 0;
+	pointer-events: none;
+}
+
+.info {
+	white-space: pre;
+	font-size: 12px;
+	font-family: monospace;
+	position: absolute;
+	bottom: 100%;
+	left: 0;
+	pointer-events: none;
+	user-select: none;
+}
+
+.dot {
+	width: 5px;
+	height: 5px;
+	margin-left: -2px;
+	margin-top: -2px;
+	border-radius: 5px;
+	position: absolute;
+	top: 0;
+	left: 0;
+	pointer-events: none;
+	user-select: none;
+	will-change: transform;
+	z-index: 100;
+}

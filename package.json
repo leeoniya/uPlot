@@ -1,0 +1,35 @@
+{
+  "name": "plotty",
+  "version": "0.1.0",
+  "description": "An exceptionally fast, tiny time series chart",
+  "main": "./dist/plotty.cjs.js",
+  "scripts": {
+    "build": "rollup -c",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leeoniya/plotty.git"
+  },
+  "keywords": [
+    "micro",
+    "time",
+    "series",
+    "plot",
+    "chart"
+  ],
+  "author": "Leon Sorokin <leeoniya@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/leeoniya/plotty/issues"
+  },
+  "homepage": "https://github.com/leeoniya/plotty#readme",
+  "devDependencies": {
+    "rollup": "^1.21.4",
+    "rollup-plugin-buble": "^0.19.8",
+    "rollup-plugin-terser": "^5.1.2"
+  },
+  "dependencies": {
+    "tinydate": "^1.2.0"
+  }
+}

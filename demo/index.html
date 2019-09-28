@@ -1,0 +1,140 @@
+<!doctype html>
+<html>
+	<head>
+		<title></title>
+		<style>
+			*,
+			*::before,
+			*::after {
+				box-sizing: border-box;
+			}
+
+			body {
+				margin: 0;
+				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+				font-size: 1rem;
+				font-weight: 400;
+				line-height: 1.5;
+				color: #212529;
+				background-color: #fff;
+				-webkit-text-size-adjust: 100%;
+				-webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+			}
+		</style>
+		<link rel="stylesheet" href="../src/plotty.css">
+	</head>
+	<body>
+		<script src="../dist/plotty.iife.min.js"></script>
+
+		<script>
+			function fetchPastDays(num) {
+				// epoch,idl,recv,send,read,writ,used,free
+
+				var tzOffset = -6 * 3600;
+
+				var today = Math.floor((+(new Date) / 1e3 + tzOffset) / 3600 / 24);
+
+				var range = [];
+
+				for (var i = num; i > -1; i--)
+					range.push(today - i);
+
+				return Promise.all(range.map(day => fetch("data/" + day + ".json"))).then(resps => Promise.all(resps.map(r => r.json())))
+			}
+
+			function round2(val) {
+				return Math.round(val * 100) / 100;
+			}
+
+			function round3(val) {
+				return Math.round(val * 1000) / 1000;
+			}
+
+			function prepData(parts) {
+				console.time('prep');
+
+				var packed = parts[0];
+
+				for (var i = 1; i < parts.length; i++)
+					packed.push.apply(packed, parts[i].slice(parts[i][0]+1));
+
+				const numFields = packed[0];
+
+				let headLen = numFields + 1;
+				let newNumFields = 4;
+
+				packed = packed.slice(headLen);
+
+				let data = [
+					Array(packed.length/numFields),
+					Array(packed.length/numFields),
+					Array(packed.length/numFields),
+					Array(packed.length/numFields),
+				];
+
+				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
+					data[0][j] = packed[i] * 60;
+					data[1][j] = round3(100 - packed[i+1]);
+					data[2][j] = round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]));
+					data[3][j] = packed[i+3];
+				}
+			/*
+				data[0] = data[0].slice(0, 1000);
+				data[1] = data[1].slice(0, 1000);
+				data[2] = data[2].slice(0, 1000);
+				data[3] = data[3].slice(0, 1000);
+
+				data[1][35] = null;
+				data[2][730] = null;
+			*/
+				console.timeEnd('prep');
+
+				return data;
+			}
+
+			fetchPastDays(30).then(prepData).then(data => {
+				console.time('chart');
+
+				const opts = {
+					width: 1920,
+					height: 600,
+					data: data,
+
+					// TODO: move into series
+					label: "Time",
+					color: "black",
+					format: '{YYYY}-{MM}-{DD} {HH}:{mm}:{ss}',
+
+					cursor: true,
+
+					series: [
+						{
+							label: "CPU %",
+							scale: "%",
+							color: "red",
+							format: v => v.toFixed(1) + "%",
+						},
+						{
+							label: "Mem %",
+							scale: "%",
+							color: "blue",
+							format: v => v.toFixed(1) + "%",
+						},
+						{
+							label: "TCP Out",
+							scale: "mb",
+							color: "green",
+							format: v => v.toFixed(2) + "MB",
+						}
+					],
+				};
+
+				let plotty = new Plotty(opts);
+
+				document.body.appendChild(plotty.root);
+
+				console.timeEnd('chart');
+			});
+		</script>
+	</body>
+</html>
