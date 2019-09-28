@@ -16,10 +16,14 @@ Plotty is a very fast and memory-efficient [time series](https://en.wikipedia.or
 - Tiny lib size
 - Starts fast and stays fast
 - Easily handles 150k+ data points
-- Multiple series, with live values in legend
+- Multiple series (with varying units)
+- Legend with live values
 - Zooming with auto-rescaling
 - Support for gaps in data
 - Crosshair cursor
+- [WIP] Major/minor grids
+- [WIP] Multi-axes with labels
+- [WIP] API for programmatic interaction
 
 ---
 ### Goals & Non-goals
