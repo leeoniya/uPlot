@@ -22,6 +22,10 @@
 	position: relative;
 }
 
+.chart canvas {
+	display: block;
+}
+
 .legend {
 	position: absolute;
 	top: 0;
