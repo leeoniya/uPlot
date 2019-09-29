@@ -27,21 +27,6 @@
 		<script src="../dist/plotty.iife.min.js"></script>
 
 		<script>
-			function fetchPastDays(num) {
-				// epoch,idl,recv,send,read,writ,used,free
-
-				var tzOffset = -6 * 3600;
-
-				var today = Math.floor((+(new Date) / 1e3 + tzOffset) / 3600 / 24);
-
-				var range = [];
-
-				for (var i = num; i > -1; i--)
-					range.push(today - i);
-
-				return Promise.all(range.map(day => fetch("data/" + day + ".json"))).then(resps => Promise.all(resps.map(r => r.json())))
-			}
-
 			function round2(val) {
 				return Math.round(val * 100) / 100;
 			}
@@ -50,21 +35,16 @@
 				return Math.round(val * 1000) / 1000;
 			}
 
-			function prepData(parts) {
+			function prepData(packed) {
 				console.time('prep');
 
-				var packed = parts[0];
-
-				for (var i = 1; i < parts.length; i++)
-					packed.push.apply(packed, parts[i].slice(parts[i][0]+1));
+				// epoch,idl,recv,send,read,writ,used,free
 
 				const numFields = packed[0];
 
-				let headLen = numFields + 1;
-				let newNumFields = 4;
+				packed = packed.slice(numFields + 1);
 
-				packed = packed.slice(headLen);
-
+				// 55,550 data points x 3 series = 166,650
 				let data = [
 					Array(packed.length/numFields),
 					Array(packed.length/numFields),
@@ -92,7 +72,7 @@
 				return data;
 			}
 
-			fetchPastDays(30).then(prepData).then(data => {
+			fetch("data.json").then(r => r.json()).then(prepData).then(data => {
 				console.time('chart');
 
 				const opts = {
