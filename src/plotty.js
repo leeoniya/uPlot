@@ -1,4 +1,4 @@
-import tinydate from '../node_modules/tinydate/dist/tinydate.mjs';
+import fmtdate from './fmtdate';
 
 export default function Plotty(opts) {
 	// todo shallow-copy opts?
@@ -16,7 +16,7 @@ export default function Plotty(opts) {
 
 	// TODO: series[0].format
 	if (typeof opts.format == "string") {
-		let stamp = tinydate(opts.format);
+		let stamp = fmtdate(opts.format);
 		opts.format = v => stamp(new Date(v * 1e3));
 	}
 
@@ -351,4 +351,4 @@ export default function Plotty(opts) {
 	this.root = root;
 }
 
-Plotty.tinydate = tinydate;
+Plotty.fmtdate = fmtdate;

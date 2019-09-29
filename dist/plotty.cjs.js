@@ -9,45 +9,125 @@
 
 'use strict';
 
-var RGX = /([^{]*?)\w(?=\})/g;
+var months = [
+	"January",
+	"February",
+	"March",
+	"April",
+	"May",
+	"June",
+	"July",
+	"August",
+	"September",
+	"October",
+	"November",
+	"December" ];
 
-var MAP = {
-	YYYY: 'getFullYear',
-	YY: 'getYear',
-	MM: function (d) {
-		return d.getMonth() + 1;
-	},
-	DD: 'getDate',
-	HH: 'getHours',
-	mm: 'getMinutes',
-	ss: 'getSeconds',
-	fff: 'getMilliseconds'
+var days = [
+	"Sunday",
+	"Monday",
+	"Tuesday",
+	"Wednesday",
+	"Thursday",
+	"Friday",
+	"Saturday" ];
+
+function slice3(str) {
+	return str.slice(0, 3);
+}
+
+var days3 = days.map(slice3);
+
+var months3 = months.map(slice3);
+
+function zeroPad2(int) {
+	return (int < 10 ? '0' : '') + int;
+}
+
+function zeroPad3(int) {
+	return (int < 10 ? '00' : int < 100 ? '0' : '') + int;
+}
+
+/*
+function suffix(int) {
+	let mod10 = int % 10;
+
+	return int + (
+		mod10 == 1 && int != 11 ? "st" :
+		mod10 == 2 && int != 12 ? "nd" :
+		mod10 == 3 && int != 13 ? "rd" : "th"
+	);
+}
+*/
+
+var year = 'getFullYear';
+var month = 'getMonth';
+var date = 'getDate';
+var day = 'getDay';
+var hrs = 'getHours';
+var mins = 'getMinutes';
+var secs = 'getSeconds';
+var msecs = 'getMilliseconds';
+
+var subs = {
+	// 2019
+	YYYY:	function (d) { return d[year](); },
+	// 19
+	YY:		function (d) { return (d[year]()+'').slice(2); },
+	// July
+	MMMM:	function (d) { return months[d[month]()]; },
+	// Jul
+	MMM:	function (d) { return months3[d[month]()]; },
+	// 07
+	MM:		function (d) { return zeroPad2(d[month]()+1); },
+	// 7
+	M:		function (d) { return d[month]()+1; },
+	// 09
+	DD:		function (d) { return zeroPad2(d[date]()); },
+	// 9
+	D:		function (d) { return d[date](); },
+	// Monday
+	WWWW:	function (d) { return days[d[day]()]; },
+	// Mon
+	WWW:	function (d) { return days3[d[day]()]; },
+	// 03
+	HH:		function (d) { return zeroPad2(d[hrs]()); },
+	// 3
+	H:		function (d) { return d[hrs](); },
+	// 9 (12hr, unpadded)
+	h:		function (d) {var h = d[hrs](); return h > 12 ? h - 12 : h;},
+	// AM
+	AA:		function (d) { return d[hrs]() >= 12 ? 'PM' : 'AM'; },
+	// am
+	aa:		function (d) { return d[hrs]() >= 12 ? 'pm' : 'am'; },
+	// 09
+	mm:		function (d) { return zeroPad2(d[mins]()); },
+	// 9
+	m:		function (d) { return d[mins](); },
+	// 09
+	ss:		function (d) { return zeroPad2(d[secs]()); },
+	// 9
+	s:		function (d) { return d[secs](); },
+	// 374
+	fff:	function (d) { return zeroPad3(d[msecs]()); },
 };
 
-function tinydate (str, custom) {
-	var parts=[], offset=0;
+function fmtdate(tpl) {
+	var parts = [];
 
-	str.replace(RGX, function (key, _, idx) {
-		// save preceding string
-		parts.push(str.substring(offset, idx - 1));
-		offset = idx += key.length + 1;
-		// save function
-		parts.push(custom && custom[key] || function (d) {
-			return ('00' + (typeof MAP[key] === 'string' ? d[MAP[key]]() : MAP[key](d))).slice(-key.length);
-		});
-	});
+	var R = /\{([a-z]+)\}|[^{]+/yi, m;
 
-	if (offset !== str.length) {
-		parts.push(str.substring(offset));
-	}
+	while (m = R.exec(tpl))
+		{ parts.push(m[0][0] == '{' ? subs[m[1]] : m[0]); }
 
-	return function (arg) {
-		var out='', i=0, d=arg||new Date();
-		for (; i<parts.length; i++) {
-			out += (typeof parts[i]==='string') ? parts[i] : parts[i](d);
-		}
+	return function (d) {
+		var out = '';
+
+		for (var i = 0; i < parts.length; i++)
+			{ out += typeof parts[i] == "string" ? parts[i] : parts[i](d); }
+
 		return out;
-	};
+	}
 }
 
 function Plotty(opts) {
@@ -66,7 +146,7 @@ function Plotty(opts) {
 
 	// TODO: series[0].format
 	if (typeof opts.format == "string") {
-		var stamp = tinydate(opts.format);
+		var stamp = fmtdate(opts.format);
 		opts.format = function (v) { return stamp(new Date(v * 1e3)); };
 	}
 
@@ -403,6 +483,6 @@ function Plotty(opts) {
 	this.root = root;
 }
 
-Plotty.tinydate = tinydate;
+Plotty.fmtdate = fmtdate;
 
 module.exports = Plotty;

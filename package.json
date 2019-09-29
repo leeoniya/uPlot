@@ -25,11 +25,8 @@
   },
   "homepage": "https://github.com/leeoniya/plotty#readme",
   "devDependencies": {
-    "rollup": "^1.21.4",
+    "rollup": "^1.22.0",
     "rollup-plugin-buble": "^0.19.8",
     "rollup-plugin-terser": "^5.1.2"
   },
-  "dependencies": {
-    "tinydate": "^1.2.0"
-  }
 }
