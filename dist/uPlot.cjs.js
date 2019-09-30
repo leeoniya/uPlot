@@ -112,7 +112,7 @@ var subs = {
 	fff:	function (d) { return zeroPad3(d[msecs]()); },
 };
 
-function fmtdate(tpl) {
+function fmtDate(tpl) {
 	var parts = [];
 
 	var R = /\{([a-z]+)\}|[^{]+/yi, m;
@@ -146,7 +146,7 @@ function uPlot(opts) {
 
 	// TODO: series[0].format
 	if (typeof opts.format == "string") {
-		var stamp = fmtdate(opts.format);
+		var stamp = fmtDate(opts.format);
 		opts.format = function (v) { return stamp(new Date(v * 1e3)); };
 	}
 
@@ -483,6 +483,6 @@ function uPlot(opts) {
 	this.root = root;
 }
 
-uPlot.fmtdate = fmtdate;
+uPlot.fmtDate = fmtDate;
 
 module.exports = uPlot;

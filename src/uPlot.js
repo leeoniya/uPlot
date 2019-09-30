@@ -1,4 +1,4 @@
-import fmtdate from './fmtdate';
+import fmtDate from './fmtDate';
 
 export default function uPlot(opts) {
 	// todo shallow-copy opts?
@@ -16,7 +16,7 @@ export default function uPlot(opts) {
 
 	// TODO: series[0].format
 	if (typeof opts.format == "string") {
-		let stamp = fmtdate(opts.format);
+		let stamp = fmtDate(opts.format);
 		opts.format = v => stamp(new Date(v * 1e3));
 	}
 
@@ -351,4 +351,4 @@ export default function uPlot(opts) {
 	this.root = root;
 }
 
-uPlot.fmtdate = fmtdate;
+uPlot.fmtDate = fmtDate;
