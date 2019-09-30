@@ -130,7 +130,7 @@ function fmtdate(tpl) {
 	}
 }
 
-function Plotty(opts) {
+function uPlot(opts) {
 	// todo shallow-copy opts?
 	var doc = document;
 
@@ -483,6 +483,6 @@ function Plotty(opts) {
 	this.root = root;
 }
 
-Plotty.fmtdate = fmtdate;
+uPlot.fmtdate = fmtdate;
 
-module.exports = Plotty;
+module.exports = uPlot;

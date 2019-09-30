@@ -1,15 +1,15 @@
 {
-  "name": "plotty",
+  "name": "uplot",
   "version": "0.1.0",
   "description": "An exceptionally fast, tiny time series chart",
-  "main": "./dist/plotty.cjs.js",
+  "main": "./dist/uPlot.cjs.js",
   "scripts": {
     "build": "rollup -c",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/leeoniya/plotty.git"
+    "url": "git+https://github.com/leeoniya/uPlot.git"
   },
   "keywords": [
     "micro",
@@ -21,9 +21,9 @@
   "author": "Leon Sorokin <leeoniya@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/leeoniya/plotty/issues"
+    "url": "https://github.com/leeoniya/uPlot/issues"
   },
-  "homepage": "https://github.com/leeoniya/plotty#readme",
+  "homepage": "https://github.com/leeoniya/uPlot#readme",
   "devDependencies": {
     "rollup": "^1.22.0",
     "rollup-plugin-buble": "^0.19.8",

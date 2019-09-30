@@ -1,6 +1,6 @@
-## 📈 Plotty
+## 📈 μPlot
 
-An [exceptionally fast](#performance), tiny ([~5 KB min](https://github.com/leeoniya/plotty/tree/master/dist/plotty.iife.min.js)) time series chart _(MIT Licensed)_
+An [exceptionally fast](#performance), tiny ([~5 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)) time series chart _(MIT Licensed)_
 
 ---
 ### Introduction
@@ -8,7 +8,7 @@ An [exceptionally fast](#performance), tiny ([~5 KB min](https://github.com/leeo
 Plotty is a very fast and memory-efficient [time series](https://en.wikipedia.org/wiki/Time_series) chart based on [Canvas 2D](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D); from a cold start it can create an interactive chart containing 150,000 data points in 50ms. In addition to fast initial render, the zooming and cursor performance is by far the best of any similar charting lib; at ~5 KB (min), it's likely the smallest and fastest time series plotter that doesn't make use of WebGL shaders or WASM, both of which have much higher startup cost and code size.
 
 ---
-<h3 align="center">166,650 point demo: <a href="https://leeoniya.github.io/plotty/demo/">https://leeoniya.github.io/plotty/demo/</a></h3>
+<h3 align="center">166,650 point demo: <a href="https://leeoniya.github.io/uPlot/demo/">https://leeoniya.github.io/uPlot/demo/</a></h3>
 
 ---
 ### Features
@@ -34,7 +34,7 @@ Plotty is a very fast and memory-efficient [time series](https://en.wikipedia.or
 ### Installation
 
 ```html
-<script src="dist/plotty.iife.min.js"></script>
+<script src="dist/uPlot.iife.min.js"></script>
 ```
 
 ---
@@ -50,4 +50,4 @@ Plotty is a very fast and memory-efficient [time series](https://en.wikipedia.or
 ---
 ### Acknowledgements
 
-- Dan Vanderkam's [dygraphs](https://github.com/danvk/dygraphs) was a big inspiration; in fact, my stale [pull request #948](https://github.com/danvk/dygraphs/pull/948) was a primary motivator for Plotty's inception.
+- Dan Vanderkam's [dygraphs](https://github.com/danvk/dygraphs) was a big inspiration; in fact, my stale [pull request #948](https://github.com/danvk/dygraphs/pull/948) was a primary motivator for μPlot's inception.

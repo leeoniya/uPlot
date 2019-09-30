@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
 	<head>
-		<title></title>
+		<title>μPlot Demo</title>
 		<style>
 			*,
 			*::before,
@@ -26,10 +26,10 @@
 				padding: 20px;
 			}
 		</style>
-		<link rel="stylesheet" href="../src/plotty.css">
+		<link rel="stylesheet" href="../src/uPlot.css">
 	</head>
 	<body>
-		<script src="../dist/plotty.iife.min.js"></script>
+		<script src="../dist/uPlot.iife.min.js"></script>
 		<h2 id="wait">Fetching data.json (2.07MB)....</h2>
 
 		<script>
@@ -118,9 +118,9 @@
 					],
 				};
 
-				let plotty = new Plotty(opts);
+				let uplot = new uPlot(opts);
 
-				document.body.appendChild(plotty.root);
+				document.body.appendChild(uplot.root);
 
 				console.timeEnd('chart');
 			});

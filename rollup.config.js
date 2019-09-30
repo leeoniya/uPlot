@@ -21,10 +21,10 @@ const banner = [
 
 export default [
 	{
-		input: './src/plotty.js',
+		input: './src/uPlot.js',
 		output: {
-			name: 'Plotty',
-			file: './dist/plotty.iife.js',
+			name: 'uPlot',
+			file: './dist/uPlot.iife.js',
 			format: 'iife',
 			banner,
 		},
@@ -33,10 +33,10 @@ export default [
 		]
 	},
 	{
-		input: './src/plotty.js',
+		input: './src/uPlot.js',
 		output: {
-			name: 'Plotty',
-			file: './dist/plotty.cjs.js',
+			name: 'uPlot',
+			file: './dist/uPlot.cjs.js',
 			format: 'cjs',
 			banner,
 		},
@@ -45,10 +45,10 @@ export default [
 		]
 	},
 	{
-		input: './src/plotty.js',
+		input: './src/uPlot.js',
 		output: {
-			name: 'Plotty',
-			file: './dist/plotty.iife.min.js',
+			name: 'uPlot',
+			file: './dist/uPlot.iife.min.js',
 			format: 'iife',
 			banner: "/*! " + urlVer + " */",
 		},

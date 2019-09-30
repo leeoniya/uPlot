@@ -1,6 +1,6 @@
 import fmtdate from './fmtdate';
 
-export default function Plotty(opts) {
+export default function uPlot(opts) {
 	// todo shallow-copy opts?
 	const doc = document;
 
@@ -351,4 +351,4 @@ export default function Plotty(opts) {
 	this.root = root;
 }
 
-Plotty.fmtdate = fmtdate;
+uPlot.fmtdate = fmtdate;

@@ -7,7 +7,7 @@
 * https://github.com/leeoniya/plotty (v0.1.0)
 */
 
-var Plotty = (function () {
+var uPlot = (function () {
 	'use strict';
 
 	var months = [
@@ -131,7 +131,7 @@ var Plotty = (function () {
 		}
 	}
 
-	function Plotty(opts) {
+	function uPlot(opts) {
 		// todo shallow-copy opts?
 		var doc = document;
 
@@ -484,8 +484,8 @@ var Plotty = (function () {
 		this.root = root;
 	}
 
-	Plotty.fmtdate = fmtdate;
+	uPlot.fmtdate = fmtdate;
 
-	return Plotty;
+	return uPlot;
 
 }());
