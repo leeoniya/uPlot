@@ -261,8 +261,6 @@ var uPlot = (function () {
 
 		// with clear?
 		function drawGraphs() {
-			setScales();
-			ctx.clearRect(0, 0, can.width, can.height);
 			series.forEach(function (s, i) {
 				drawGraph(
 					data[0],
@@ -305,7 +303,82 @@ var uPlot = (function () {
 			ctx.stroke();
 		}
 
-		drawGraphs();
+		// min # of pixels between grid lines
+		var minSpace = 40;
+
+		var minSecs = 60, hourSecs = minSecs * minSecs, daySecs = hourSecs * 24;
+
+		var xIncrs = [
+			1,
+			5,
+			10,
+			15,
+			30,
+			minSecs,
+			minSecs * 5,
+			minSecs * 10,
+			minSecs * 15,
+			minSecs * 30,
+			hourSecs,
+			hourSecs * 2,
+			hourSecs * 3,
+			hourSecs * 4,
+			hourSecs * 6,
+			hourSecs * 8,
+			hourSecs * 12,
+			daySecs,
+			// TODO?: weeks
+			// TODO: months
+			// TODO: years
+			daySecs * 365 ];
+
+		function drawGrid() {
+			// x-axis/vt grid
+			var min = data[0][i0];
+			var max = data[0][i1];
+
+			var d = max - min;
+
+			var pxPerSec = can.width / d;
+
+			for (var i = 0; i < xIncrs.length; i++) {
+				if (xIncrs[i] * pxPerSec >= minSpace)
+					{ break; }
+			}
+
+			var majSecs = xIncrs[i];
+
+			// use an anchor (12am on day of i0 timestamp)
+			var minDate = new Date(min * 1000);
+			minDate = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
+			var offsetSecs = min - (+minDate/1000);
+			var offsetMaj = -offsetSecs * pxPerSec;
+
+			var pxPerMaj = pxPerSec * majSecs;
+
+			ctx.lineWidth = 1;
+			ctx.strokeStyle = "#eee";
+
+			ctx.beginPath();
+
+			for (var pos = offsetMaj + pxPerMaj; pos < can.width; pos += pxPerMaj) {
+				ctx.moveTo(pos, 0);
+				ctx.lineTo(pos, can.height);
+			}
+
+			ctx.stroke();
+		}
+
+		function setWindow(_i0, _i1) {
+			i0 = _i0;
+			i1 = _i1;
+			setScales(true);
+			ctx.clearRect(0, 0, can.width, can.height);
+			drawGrid();
+			drawGraphs();
+		}
+
+		setWindow(i0, i1);
 
 		root.appendChild(can);
 
@@ -411,13 +484,6 @@ var uPlot = (function () {
 
 		function on(ev, el, cb) {
 			el.addEventListener(ev, cb, {passive: true});
-		}
-
-		function setWindow(_i0, _i1) {
-			i0 = _i0;
-			i1 = _i1;
-			setScales(true);
-			drawGraphs();
 		}
 
 		// binary search for index of closest value
