@@ -95,7 +95,7 @@ var subs = {
 	// 3
 	H:		function (d) { return d[hrs](); },
 	// 9 (12hr, unpadded)
-	h:		function (d) {var h = d[hrs](); return h > 12 ? h - 12 : h;},
+	h:		function (d) {var h = d[hrs](); return h == 0 ? 12 : h > 12 ? h - 12 : h;},
 	// AM
 	AA:		function (d) { return d[hrs]() >= 12 ? 'PM' : 'AM'; },
 	// am
@@ -165,6 +165,9 @@ function uPlot(opts) {
 	var ref = makeCanvas(opts.width, opts.height);
 	var can = ref.can;
 	var ctx = ref.ctx;
+
+	var xlabels = placeDiv("x-labels", root);
+	xlabels.style.top = opts.height + "px";
 
 	var data = opts.data;
 
@@ -258,7 +261,6 @@ function uPlot(opts) {
 		s.max = max(incrRoundUp(s.max, incr), s.max);
 	}
 
-	// with clear?
 	function drawGraphs() {
 		series.forEach(function (s, i) {
 			drawGraph(
@@ -302,7 +304,7 @@ function uPlot(opts) {
 		ctx.stroke();
 	}
 
-	// min # of pixels between grid lines
+	// min # of logical pixels between grid lines
 	var minSpace = 40;
 
 	var minSecs = 60, hourSecs = minSecs * minSecs, daySecs = hourSecs * 24;
@@ -338,7 +340,8 @@ function uPlot(opts) {
 
 		var d = max - min;
 
-		var pxPerSec = can.width / d;
+		// (logical screen pixels) this may fail for huge timespans and/or small widths due to precision
+		var pxPerSec = opts.width / d;
 
 		for (var i = 0; i < xIncrs.length; i++) {
 			if (xIncrs[i] * pxPerSec >= minSpace)
@@ -347,22 +350,34 @@ function uPlot(opts) {
 
 		var majSecs = xIncrs[i];
 
-		// use an anchor (12am on day of i0 timestamp)
+		// get ts of 12am on day of i0 timestamp
 		var minDate = new Date(min * 1000);
-		minDate = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
-		var offsetSecs = min - (+minDate/1000);
-		var offsetMaj = -offsetSecs * pxPerSec;
-
+		var min00 = +(new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate())) / 1000;
+		var offsetSecs = min - min00;
+		var fromSecs = min00 + incrRoundUp(offsetSecs, majSecs);
 		var pxPerMaj = pxPerSec * majSecs;
+
+		var stamp = (
+			majSecs >= daySecs ? fmtDate('{M}/{DD}') :
+			// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
+			majSecs >= hourSecs ? fmtDate('{M}/{DD}\n{h}{aa}') :
+			majSecs >= minSecs ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
+			fmtDate('{M}/{DD}\n{h}:{mm}:{ss}{aa}')
+		);
 
 		ctx.lineWidth = 1;
 		ctx.strokeStyle = "#eee";
 
 		ctx.beginPath();
 
-		for (var pos = offsetMaj + pxPerMaj; pos < can.width; pos += pxPerMaj) {
-			ctx.moveTo(pos, 0);
-			ctx.lineTo(pos, can.height);
+		for (var s = fromSecs, pos = (fromSecs - min) * pxPerSec; s <= max; s += majSecs, pos += pxPerMaj) {
+			var div = placeDiv(null, xlabels);
+			div.textContent = stamp(new Date(s * 1e3));
+			div.style.left = pos + "px";
+
+			var canX = round(pos * rat);
+			ctx.moveTo(canX, 0);
+			ctx.lineTo(canX, can.height);
 		}
 
 		ctx.stroke();
@@ -373,6 +388,8 @@ function uPlot(opts) {
 		i1 = _i1;
 		setScales(true);
 		ctx.clearRect(0, 0, can.width, can.height);
+		while (xlabels.firstChild)
+			{ xlabels.firstChild.remove(); }
 		drawGrid();
 		drawGraphs();
 	}

@@ -71,3 +71,15 @@
 	will-change: transform;
 	z-index: 100;
 }
+
+.x-labels {
+	position: absolute;
+}
+
+.x-labels > * {
+	position: absolute;
+	transform: translateX(-50%);
+	font-size: 12px;
+	white-space: pre-line;
+	text-align: center;
+}

@@ -86,7 +86,7 @@ const subs = {
 	// 3
 	H:		d => d[hrs](),
 	// 9 (12hr, unpadded)
-	h:		d => {let h = d[hrs](); return h > 12 ? h - 12 : h;},
+	h:		d => {let h = d[hrs](); return h == 0 ? 12 : h > 12 ? h - 12 : h;},
 	// AM
 	AA:		d => d[hrs]() >= 12 ? 'PM' : 'AM',
 	// am

@@ -34,6 +34,9 @@ export default function uPlot(opts) {
 
 	const { can, ctx } = makeCanvas(opts.width, opts.height);
 
+	const xlabels = placeDiv("x-labels", root);
+	xlabels.style.top = opts.height + "px";
+
 	const data = opts.data;
 
 	let dataLen = data[0].length;
@@ -126,7 +129,6 @@ export default function uPlot(opts) {
 		s.max = max(incrRoundUp(s.max, incr), s.max);
 	}
 
-	// with clear?
 	function drawGraphs() {
 		series.forEach((s, i) => {
 			drawGraph(
@@ -170,7 +172,7 @@ export default function uPlot(opts) {
 		ctx.stroke();
 	}
 
-	// min # of pixels between grid lines
+	// min # of logical pixels between grid lines
 	let minSpace = 40;
 
 	let minSecs = 60, hourSecs = minSecs * minSecs, daySecs = hourSecs * 24;
@@ -207,7 +209,8 @@ export default function uPlot(opts) {
 
 		let d = max - min;
 
-		const pxPerSec = can.width / d;
+		// (logical screen pixels) this may fail for huge timespans and/or small widths due to precision
+		const pxPerSec = opts.width / d;
 
 		for (var i = 0; i < xIncrs.length; i++) {
 			if (xIncrs[i] * pxPerSec >= minSpace)
@@ -216,22 +219,34 @@ export default function uPlot(opts) {
 
 		let majSecs = xIncrs[i];
 
-		// use an anchor (12am on day of i0 timestamp)
+		// get ts of 12am on day of i0 timestamp
 		let minDate = new Date(min * 1000);
-		minDate = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
-		let offsetSecs = min - (+minDate/1000);
-		let offsetMaj = -offsetSecs * pxPerSec;
-
+		let min00 = +(new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate())) / 1000;
+		let offsetSecs = min - min00;
+		let fromSecs = min00 + incrRoundUp(offsetSecs, majSecs);
 		let pxPerMaj = pxPerSec * majSecs;
+
+		let stamp = (
+			majSecs >= daySecs ? fmtDate('{M}/{DD}') :
+			// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
+			majSecs >= hourSecs ? fmtDate('{M}/{DD}\n{h}{aa}') :
+			majSecs >= minSecs ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
+			fmtDate('{M}/{DD}\n{h}:{mm}:{ss}{aa}')
+		);
 
 		ctx.lineWidth = 1;
 		ctx.strokeStyle = "#eee";
 
 		ctx.beginPath();
 
-		for (var pos = offsetMaj + pxPerMaj; pos < can.width; pos += pxPerMaj) {
-			ctx.moveTo(pos, 0);
-			ctx.lineTo(pos, can.height);
+		for (let s = fromSecs, pos = (fromSecs - min) * pxPerSec; s <= max; s += majSecs, pos += pxPerMaj) {
+			let div = placeDiv(null, xlabels);
+			div.textContent = stamp(new Date(s * 1e3));
+			div.style.left = pos + "px";
+
+			let canX = round(pos * rat);
+			ctx.moveTo(canX, 0);
+			ctx.lineTo(canX, can.height);
 		}
 
 		ctx.stroke();
@@ -242,6 +257,8 @@ export default function uPlot(opts) {
 		i1 = _i1;
 		setScales(true);
 		ctx.clearRect(0, 0, can.width, can.height);
+		while (xlabels.firstChild)
+			xlabels.firstChild.remove();
 		drawGrid();
 		drawGraphs();
 	}
