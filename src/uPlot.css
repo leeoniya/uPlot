@@ -72,8 +72,13 @@
 	z-index: 100;
 }
 
-.x-labels {
+.x-labels,
+.y-labels {
 	position: absolute;
+}
+
+.y-labels {
+	height: 100%;
 }
 
 .x-labels > * {
@@ -82,4 +87,11 @@
 	font-size: 12px;
 	white-space: pre-line;
 	text-align: center;
+}
+
+.y-labels > * {
+	position: absolute;
+	transform: translateY(-50%);
+	font-size: 12px;
+	white-space: pre-line;
 }

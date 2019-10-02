@@ -170,6 +170,8 @@ var uPlot = (function () {
 		var xlabels = placeDiv("x-labels", root);
 		xlabels.style.top = opts.height + "px";
 
+		var ylabels = placeDiv("y-labels", root);
+
 		var data = opts.data;
 
 		var dataLen = data[0].length;
@@ -307,6 +309,7 @@ var uPlot = (function () {
 
 		// min # of logical pixels between grid lines
 		var minSpace = 40;
+	//	let minSpaceY = 30;
 
 		var minSecs = 60, hourSecs = minSecs * minSecs, daySecs = hourSecs * 24;
 
@@ -333,6 +336,42 @@ var uPlot = (function () {
 			// TODO: months
 			// TODO: years
 			daySecs * 365 ];
+
+		var yIncrs = [
+			0.01,
+			0.02,
+			0.05,
+			0.1,
+			0.2,
+			0.5,
+			1,
+			2,
+			5,
+			10,
+			20,
+			50,
+			1e2,
+			2e2,
+			5e2,
+			1e3,
+			2e3,
+			5e3,
+			1e4,
+			2e4,
+			5e4,
+			1e5,
+			2e5,
+			5e5,
+			1e6,
+			2e6,
+			5e6,
+			1e7,
+			2e7,
+			5e7,
+			1e8,
+			2e8,
+			5e8,
+			1e9 ];
 
 		function drawGrid() {
 			// x-axis/vt grid
@@ -376,12 +415,51 @@ var uPlot = (function () {
 				div.textContent = stamp(new Date(s * 1e3));
 				div.style.left = pos + "px";
 
-				var canX = round(pos * rat);
+				var canX = round(pos * rat);		// use getXpos?
 				ctx.moveTo(canX, 0);
 				ctx.lineTo(canX, can.height);
 			}
 
 			ctx.stroke();
+
+			// foreach scales != t
+
+		//	scales['%'], scales['mb']);
+
+			var sc = scales['%'];
+
+			var pxPerUnit = can.height / (sc.max - sc.min);
+
+			for (var i = 0; i < yIncrs.length; i++) {
+				if (yIncrs[i] * pxPerUnit >= minSpace)
+					{ break; }
+			}
+
+			console.log(yIncrs[i]);
+
+			ctx.lineWidth = 1;
+			ctx.strokeStyle = "#eee";
+
+			ctx.beginPath();
+
+			for (var val = sc.min; val <= sc.max; val += yIncrs[i]) {
+				var canY = getYPos(val, sc, can.height);
+				ctx.moveTo(0, canY);
+				ctx.lineTo(can.width, canY);
+
+				var div$1 = placeDiv(null, ylabels);
+				div$1.textContent = val;
+				div$1.style.top = canY/rat + "px";
+			}
+
+		//	getYPos
+
+			ctx.stroke();
+		}
+
+		function clearChildren(el) {
+			while (el.firstChild)
+				{ el.firstChild.remove(); }
 		}
 
 		function setWindow(_i0, _i1) {
@@ -389,8 +467,8 @@ var uPlot = (function () {
 			i1 = _i1;
 			setScales(true);
 			ctx.clearRect(0, 0, can.width, can.height);
-			while (xlabels.firstChild)
-				{ xlabels.firstChild.remove(); }
+			clearChildren(xlabels);
+			clearChildren(ylabels);
 			drawGrid();
 			drawGraphs();
 		}
