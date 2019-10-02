@@ -306,152 +306,165 @@ function uPlot(opts) {
 		ctx.stroke();
 	}
 
-	// min # of logical pixels between grid lines
-	var minSpace = 40;
-//	let minSpaceY = 30;
+	function findIncr(min, max, incrs, dim, minSpace) {
+		var pxPerUnit = dim / (max - min);
 
-	var minSecs = 60, hourSecs = minSecs * minSecs, daySecs = hourSecs * 24;
-
-	var xIncrs = [
-		1,
-		5,
-		10,
-		15,
-		30,
-		minSecs,
-		minSecs * 5,
-		minSecs * 10,
-		minSecs * 15,
-		minSecs * 30,
-		hourSecs,
-		hourSecs * 2,
-		hourSecs * 3,
-		hourSecs * 4,
-		hourSecs * 6,
-		hourSecs * 8,
-		hourSecs * 12,
-		daySecs,
-		// TODO?: weeks
-		// TODO: months
-		// TODO: years
-		daySecs * 365 ];
-
-	var yIncrs = [
-		0.01,
-		0.02,
-		0.05,
-		0.1,
-		0.2,
-		0.5,
-		1,
-		2,
-		5,
-		10,
-		20,
-		50,
-		1e2,
-		2e2,
-		5e2,
-		1e3,
-		2e3,
-		5e3,
-		1e4,
-		2e4,
-		5e4,
-		1e5,
-		2e5,
-		5e5,
-		1e6,
-		2e6,
-		5e6,
-		1e7,
-		2e7,
-		5e7,
-		1e8,
-		2e8,
-		5e8,
-		1e9 ];
-
-	function drawGrid() {
-		// x-axis/vt grid
-		var min = data[0][i0];
-		var max = data[0][i1];
-
-		var d = max - min;
-
-		// (logical screen pixels) this may fail for huge timespans and/or small widths due to precision
-		var pxPerSec = opts.width / d;
-
-		for (var i = 0; i < xIncrs.length; i++) {
-			if (xIncrs[i] * pxPerSec >= minSpace)
-				{ break; }
+		for (var i = 0; i < incrs.length; i++) {
+			if (incrs[i] * pxPerUnit >= minSpace)
+				{ return incrs[i]; }
 		}
+	}
 
-		var majSecs = xIncrs[i];
+	// dim is logical (getClientBoundingRect) pixels, not canvas pixels
+	function gridVals(min, max, incr) {
+		var vals = [];
+
+		for (var val = min; val <= max; val += incr)
+			{ vals.push(val); }
+
+		return vals;
+	}
+
+	function gridValsY(min, max) {
+		var minSpace = 30;
+		var incrs = [
+			0.01,
+			0.02,
+			0.05,
+			0.1,
+			0.2,
+			0.5,
+			1,
+			2,
+			5,
+			10,
+			20,
+			50,
+			1e2,
+			2e2,
+			5e2,
+			1e3,
+			2e3,
+			5e3,
+			1e4,
+			2e4,
+			5e4,
+			1e5,
+			2e5,
+			5e5,
+			1e6,
+			2e6,
+			5e6,
+			1e7,
+			2e7,
+			5e7,
+			1e8,
+			2e8,
+			5e8,
+			1e9 ];
+
+		var incr = findIncr(min, max, incrs, opts.height, minSpace);
+
+		return gridVals(min, max, incr);
+	}
+
+	var minSecs = 60,
+		hourSecs = minSecs * minSecs,
+		daySecs = hourSecs * 24;
+
+	function gridValsX(min, max) {
+		var minSpace = 40;
+		var incrs = [
+			1,
+			5,
+			10,
+			15,
+			30,
+			minSecs,
+			minSecs * 5,
+			minSecs * 10,
+			minSecs * 15,
+			minSecs * 30,
+			hourSecs,
+			hourSecs * 2,
+			hourSecs * 3,
+			hourSecs * 4,
+			hourSecs * 6,
+			hourSecs * 8,
+			hourSecs * 12,
+			daySecs,
+			// TODO?: weeks
+			// TODO: months
+			// TODO: years
+			daySecs * 365 ];
+
+		var incr = findIncr(min, max, incrs, opts.width, minSpace);
 
 		// get ts of 12am on day of i0 timestamp
 		var minDate = new Date(min * 1000);
 		var min00 = +(new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate())) / 1000;
-		var offsetSecs = min - min00;
-		var fromSecs = min00 + incrRoundUp(offsetSecs, majSecs);
-		var pxPerMaj = pxPerSec * majSecs;
+		var offset = min - min00;
+		var newMin = min00 + incrRoundUp(offset, incr);
 
+		return gridVals(newMin, max, incr);
+	}
+
+	function gridLabel(par, val, side, pxVal) {
+		var div = placeDiv(null, par);
+		div.textContent = val;
+		div.style[side] = pxVal + "px";
+	}
+
+	function xValFmtr(incr) {
 		var stamp = (
-			majSecs >= daySecs ? fmtDate('{M}/{DD}') :
+			incr >= daySecs ? fmtDate('{M}/{DD}') :
 			// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
-			majSecs >= hourSecs ? fmtDate('{M}/{DD}\n{h}{aa}') :
-			majSecs >= minSecs ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
+			incr >= hourSecs ? fmtDate('{M}/{DD}\n{h}{aa}') :
+			incr >= minSecs ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
 			fmtDate('{M}/{DD}\n{h}:{mm}:{ss}{aa}')
 		);
 
-		ctx.lineWidth = 1;
-		ctx.strokeStyle = "#eee";
+		return function (val) { return stamp(new Date(val * 1e3)); };
+	}
 
-		ctx.beginPath();
+	function yValFmtr(incr) {
+		return function (val) { return val + '%'; };
+	}
 
-		for (var s = fromSecs, pos = (fromSecs - min) * pxPerSec; s <= max; s += majSecs, pos += pxPerMaj) {
-			var div = placeDiv(null, xlabels);
-			div.textContent = stamp(new Date(s * 1e3));
-			div.style.left = pos + "px";
+	function drawGrid() {
+		var xScale = scales['t'];
+		var xVals = gridValsX(data[0][i0], data[0][i1]);
+		var xIncr = xVals[1] - xVals[0];
+		var xFmt = xValFmtr(xIncr);
 
-			var canX = round(pos * rat);		// use getXpos?
-			ctx.moveTo(canX, 0);
-			ctx.lineTo(canX, can.height);
-		}
-
-		ctx.stroke();
-
-		// foreach scales != t
-
-	//	scales['%'], scales['mb']);
-
-		var sc = scales['%'];
-
-		var pxPerUnit = can.height / (sc.max - sc.min);
-
-		for (var i = 0; i < yIncrs.length; i++) {
-			if (yIncrs[i] * pxPerUnit >= minSpace)
-				{ break; }
-		}
-
-		console.log(yIncrs[i]);
+		var yScale = scales['%'];
+		var yVals = gridValsY(yScale.min, yScale.max);
+		var yFmt = yValFmtr();
 
 		ctx.lineWidth = 1;
 		ctx.strokeStyle = "#eee";
 
 		ctx.beginPath();
 
-		for (var val = sc.min; val <= sc.max; val += yIncrs[i]) {
-			var canY = getYPos(val, sc, can.height);
-			ctx.moveTo(0, canY);
-			ctx.lineTo(can.width, canY);
+		for (var i = 0; i < xVals.length; i++) {
+			var val = xVals[i];
+			var xPos = getXPos(val, xScale, can.width);
 
-			var div$1 = placeDiv(null, ylabels);
-			div$1.textContent = val;
-			div$1.style.top = canY/rat + "px";
+			gridLabel(xlabels, xFmt(val), "left", round(xPos/rat));
+
+			ctx.moveTo(xPos, 0);
+			ctx.lineTo(xPos, can.height);
 		}
 
-	//	getYPos
+		for (var i$1 = 0; i$1 < yVals.length; i$1++) {
+			var val$1 = yVals[i$1];
+			var yPos = getYPos(val$1, yScale, can.height);
+
+			gridLabel(ylabels, yFmt(val$1), "top", round(yPos/rat));
+
+			ctx.moveTo(0, yPos);
+			ctx.lineTo(can.width, yPos);
+		}
 
 		ctx.stroke();
 	}
