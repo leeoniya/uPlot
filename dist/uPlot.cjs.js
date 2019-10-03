@@ -257,7 +257,7 @@ function uPlot(opts) {
 		var delta = s.max - s.min;
 		var mag = log10(delta);
 		var exp = floor(mag);
-		var incr = pow(10, exp);
+		var incr = pow(10, exp) / 2;
 
 		s.min = min(incrRoundDn(s.min, incr), s.min);
 		s.max = max(incrRoundUp(s.max, incr), s.max);

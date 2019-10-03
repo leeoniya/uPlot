@@ -125,7 +125,7 @@ export default function uPlot(opts) {
 		const delta = s.max - s.min;
 		const mag = log10(delta);
 		const exp = floor(mag);
-		const incr = pow(10, exp);
+		const incr = pow(10, exp) / 2;
 
 		s.min = min(incrRoundDn(s.min, incr), s.min);
 		s.max = max(incrRoundUp(s.max, incr), s.max);
