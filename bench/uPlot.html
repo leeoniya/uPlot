@@ -2,35 +2,13 @@
 <html>
 	<head>
 		<title>μPlot Demo</title>
-		<style>
-			*,
-			*::before,
-			*::after {
-				box-sizing: border-box;
-			}
 
-			body {
-				margin: 0;
-				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-				font-size: 1rem;
-				font-weight: 400;
-				line-height: 1.5;
-				color: #212529;
-				background-color: #fff;
-				-webkit-text-size-adjust: 100%;
-				-webkit-tap-highlight-color: rgba(0, 0, 0, 0);
-			}
-
-			h2 {
-				text-align: center;
-				padding: 20px;
-			}
-		</style>
+		<link rel="stylesheet" href="style.css">
 		<link rel="stylesheet" href="../src/uPlot.css">
 	</head>
 	<body>
-		<script src="../dist/uPlot.iife.js"></script>
-		<h2 id="wait">Fetching data.json (2.07MB)....</h2>
+		<script src="../dist/uPlot.iife.min.js"></script>
+		<h2 id="wait">Loading lib....</h2>
 
 		<script>
 			function round2(val) {
@@ -78,10 +56,7 @@
 				return data;
 			}
 
-			fetch("data.json").then(r => r.json()).then(packed => {
-				document.getElementById("wait").style.display = "none";
-				return prepData(packed);
-			}).then(data => {
+			function makeChart(data) {
 				console.time('chart');
 
 				const opts = {
@@ -122,7 +97,16 @@
 
 				document.body.appendChild(uplot.root);
 
+				wait.textContent = "Done!";
 				console.timeEnd('chart');
+			}
+
+			let wait = document.getElementById("wait");
+			wait.textContent = "Fetching data.json (2.07MB)....";
+			fetch("data.json").then(r => r.json()).then(packed => {
+				wait.textContent = "Rendering...";
+				let data = prepData(packed);
+				setTimeout(() => makeChart(data), 0);
 			});
 		</script>
 	</body>

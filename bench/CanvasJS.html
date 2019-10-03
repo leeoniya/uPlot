@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+	<head>
+		<title>CanvasJS Demo</title>
+
+		<link rel="stylesheet" href="style.css">
+	</head>
+	<body>
+		<h2 id="wait">Loading lib....</h2>
+
+		<script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
+
+		<div id="chartContainer" style="height: 600px; max-width: 1920px; margin: 0px auto;"></div>
+
+		<script>
+			function round2(val) {
+				return Math.round(val * 100) / 100;
+			}
+
+			function round3(val) {
+				return Math.round(val * 1000) / 1000;
+			}
+
+			function prepData(packed) {
+				console.time('prep');
+
+				// epoch,idl,recv,send,read,writ,used,free
+
+				const numFields = packed[0];
+				packed = packed.slice(numFields + 1);
+
+				var cpu = Array(packed.length/numFields);
+				var ram = Array(packed.length/numFields);
+				var tcp = Array(packed.length/numFields);
+
+				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
+					let date = packed[i] * 60 * 1000;
+					cpu[j] = {x: date, y: round3(100 - packed[i+1])};
+					ram[j] = {x: date, y: round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))};
+					tcp[j] = {x: date, y: packed[i+3]};
+				}
+
+				console.timeEnd('prep');
+
+				return [cpu, ram, tcp];
+			}
+
+			function makeChart(data) {
+				console.time('chart');
+
+				var chart = new CanvasJS.Chart("chartContainer", {
+					zoomEnabled: true,
+					animationEnabled: false,
+					title: {
+						text: 'CanvasJS (' + data[0].length * 3 + ' points)'
+					},
+					axisY: {
+						includeZero: false,
+						lineThickness: 1
+					},
+					data: [
+						{
+							type: "line",
+							xValueType: "dateTime",
+							dataPoints: data[0],
+						},
+						{
+							type: "line",
+							xValueType: "dateTime",
+							dataPoints: data[1],
+						},
+						{
+							type: "line",
+							xValueType: "dateTime",
+							dataPoints: data[2],
+						},
+					],
+				});
+				chart.render();
+
+				wait.textContent = "Done!";
+				console.timeEnd('chart');
+			}
+
+			let wait = document.getElementById("wait");
+			wait.textContent = "Fetching data.json (2.07MB)....";
+			fetch("data.json").then(r => r.json()).then(packed => {
+				wait.textContent = "Rendering...";
+				let data = prepData(packed);
+				setTimeout(() => makeChart(data), 0);
+			});
+		</script>
+
+		<p>
+			Code based on<br>
+			<a href="https://canvasjs.com/docs/charts/intro/high-performance-javascript-charts/">https://canvasjs.com/docs/charts/intro/high-performance-javascript-charts/</a><br>
+			<a href="https://canvasjs.com/javascript-charts/performance-demo-chart/">https://canvasjs.com/javascript-charts/performance-demo-chart/</a>
+		</p>
+	</body>
+</html>
