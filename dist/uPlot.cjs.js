@@ -2,9 +2,9 @@
 * Copyright (c) 2019, Leon Sorokin
 * All rights reserved. (MIT Licensed)
 *
-* plotty.js (Plotty)
+* uPlot.js (μPlot)
 * An exceptionally fast, tiny time series chart
-* https://github.com/leeoniya/plotty (v0.1.0)
+* https://github.com/leeoniya/uPlot (v0.1.0)
 */
 
 'use strict';

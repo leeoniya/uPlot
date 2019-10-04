@@ -5,13 +5,13 @@ import { terser } from 'rollup-plugin-terser';
 
 const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
 const ver = "v" + pkg.version;
-const urlVer = "https://github.com/leeoniya/plotty (" + ver + ")";
+const urlVer = "https://github.com/leeoniya/uPlot (" + ver + ")";
 const banner = [
 	"/**",
 	"* Copyright (c) " + new Date().getFullYear() + ", Leon Sorokin",
 	"* All rights reserved. (MIT Licensed)",
 	"*",
-	"* plotty.js (Plotty)",
+	"* uPlot.js (μPlot)",
 	"* An exceptionally fast, tiny time series chart",
 	"* " + urlVer,
 	"*/",
