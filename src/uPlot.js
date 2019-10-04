@@ -14,10 +14,13 @@ export default function uPlot(opts) {
 	const pow = M.pow;
 	const log10 = M.log10;
 
-	// TODO: series[0].format
-	if (typeof opts.format == "string") {
-		let stamp = fmtDate(opts.format);
-		opts.format = v => stamp(new Date(v * 1e3));
+	const series = opts.series;
+
+	const xOpts = series[0];
+
+	if (typeof xOpts.format == "string") {
+		let stamp = fmtDate(xOpts.format);
+		xOpts.format = v => stamp(new Date(v * 1e3));
 	}
 
 	const cursor = opts.cursor;
@@ -46,8 +49,6 @@ export default function uPlot(opts) {
 	// rendered data window
 	let i0 = 0;
 	let i1 = dataLen - 1;
-
-	const series = opts.series;
 
 	let scales = {};
 
@@ -95,14 +96,16 @@ export default function uPlot(opts) {
 		if (reset)
 			scales = {};
 
-		// fast-path special case for time axis, which is assumed ordered ASC
-		scales['t'] = {
-			min: data[0][i0],
-			max: data[0][i1],
-		};
-
 		series.forEach((s, i) => {
-			setScale(s.scale, data[i+1]);
+			// fast-path special case for time axis, which is assumed ordered ASC
+			if (i == 0) {
+				scales['t'] = {
+					min: data[0][i0],
+					max: data[0][i1],
+				};
+			}
+			else
+				setScale(s.scale, data[i]);
 		});
 	}
 
@@ -133,13 +136,15 @@ export default function uPlot(opts) {
 
 	function drawGraphs() {
 		series.forEach((s, i) => {
-			drawGraph(
-				data[0],
-				data[i+1],
-				s.color,
-				scales['t'],
-				scales[s.scale],
-			);
+			if (i > 0) {
+				drawGraph(
+					data[0],
+					data[i],
+					s.color,
+					scales['t'],
+					scales[s.scale],
+				);
+			}
 		});
 	}
 
@@ -384,10 +389,7 @@ export default function uPlot(opts) {
 
 	const leg = placeDiv("legend", root);
 
-	const labels = [{
-		color: opts.color,
-		label: opts.label,
-	}].concat(series).map((s, i) => {
+	const labels = series.map((s, i) => {
 		let label = placeDiv("label", leg);
 		label.style.color = s.color;
 		label.textContent = s.label + ': -';
@@ -395,10 +397,12 @@ export default function uPlot(opts) {
 	});
 
 	// series-intersection markers
-	const pts = series.map(s => {
-		let dot = placeDiv("dot", root);
-		dot.style.background = s.color;
-		return dot;
+	const pts = series.map((s, i) => {
+		if (i > 0) {
+			let dot = placeDiv("dot", root);
+			dot.style.background = s.color;
+			return dot;
+		}
 	});
 
 	let rafPending = false;
@@ -429,12 +433,13 @@ export default function uPlot(opts) {
 
 		let xPos = getXPos(data[0][idx], scales['t'], opts.width);
 
-		labels[0].firstChild.nodeValue = opts.label + ': ' + opts.format(data[0][idx]);
-
 		for (let i = 0; i < series.length; i++) {
-			let yPos = getYPos(data[i+1][idx], scales[series[i].scale], opts.height);
-			trans(pts[i], xPos, yPos);
-			labels[i+1].firstChild.nodeValue = series[i].label + ': ' + series[i].format(data[i+1][idx]);
+			if (i > 0) {
+				let yPos = getYPos(data[i][idx], scales[series[i].scale], opts.height);
+				trans(pts[i], xPos, yPos);
+			}
+
+			labels[i].firstChild.nodeValue = series[i].label + ': ' + series[i].format(data[i][idx]);
 		}
 
 		if (dragging) {
@@ -533,8 +538,6 @@ export default function uPlot(opts) {
 		);
 	}
 
-	const win = window;
-
 	function debounce(fn, time) {
 		let pending = null;
 
@@ -553,6 +556,8 @@ export default function uPlot(opts) {
 	on("mousedown", can, mouseDown);
 	on("mouseup", can, mouseUp);
 	on("dblclick", can, dblclick);
+
+	const win = window;
 
 	on("resize", win, debounce(syncRect, 100));
 	on("scroll", win, debounce(syncRect, 100));

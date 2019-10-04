@@ -145,10 +145,13 @@ var uPlot = (function () {
 		var pow = M.pow;
 		var log10 = M.log10;
 
-		// TODO: series[0].format
-		if (typeof opts.format == "string") {
-			var stamp = fmtDate(opts.format);
-			opts.format = function (v) { return stamp(new Date(v * 1e3)); };
+		var series = opts.series;
+
+		var xOpts = series[0];
+
+		if (typeof xOpts.format == "string") {
+			var stamp = fmtDate(xOpts.format);
+			xOpts.format = function (v) { return stamp(new Date(v * 1e3)); };
 		}
 
 		var cursor = opts.cursor;
@@ -179,8 +182,6 @@ var uPlot = (function () {
 		// rendered data window
 		var i0 = 0;
 		var i1 = dataLen - 1;
-
-		var series = opts.series;
 
 		var scales = {};
 
@@ -228,14 +229,16 @@ var uPlot = (function () {
 			if (reset)
 				{ scales = {}; }
 
-			// fast-path special case for time axis, which is assumed ordered ASC
-			scales['t'] = {
-				min: data[0][i0],
-				max: data[0][i1],
-			};
-
 			series.forEach(function (s, i) {
-				setScale(s.scale, data[i+1]);
+				// fast-path special case for time axis, which is assumed ordered ASC
+				if (i == 0) {
+					scales['t'] = {
+						min: data[0][i0],
+						max: data[0][i1],
+					};
+				}
+				else
+					{ setScale(s.scale, data[i]); }
 			});
 		}
 
@@ -266,13 +269,15 @@ var uPlot = (function () {
 
 		function drawGraphs() {
 			series.forEach(function (s, i) {
-				drawGraph(
-					data[0],
-					data[i+1],
-					s.color,
-					scales['t'],
-					scales[s.scale]
-				);
+				if (i > 0) {
+					drawGraph(
+						data[0],
+						data[i],
+						s.color,
+						scales['t'],
+						scales[s.scale]
+					);
+				}
 			});
 		}
 
@@ -508,10 +513,7 @@ var uPlot = (function () {
 
 		var leg = placeDiv("legend", root);
 
-		var labels = [{
-			color: opts.color,
-			label: opts.label,
-		}].concat(series).map(function (s, i) {
+		var labels = series.map(function (s, i) {
 			var label = placeDiv("label", leg);
 			label.style.color = s.color;
 			label.textContent = s.label + ': -';
@@ -519,10 +521,12 @@ var uPlot = (function () {
 		});
 
 		// series-intersection markers
-		var pts = series.map(function (s) {
-			var dot = placeDiv("dot", root);
-			dot.style.background = s.color;
-			return dot;
+		var pts = series.map(function (s, i) {
+			if (i > 0) {
+				var dot = placeDiv("dot", root);
+				dot.style.background = s.color;
+				return dot;
+			}
 		});
 
 		var rafPending = false;
@@ -553,12 +557,13 @@ var uPlot = (function () {
 
 			var xPos = getXPos(data[0][idx], scales['t'], opts.width);
 
-			labels[0].firstChild.nodeValue = opts.label + ': ' + opts.format(data[0][idx]);
-
 			for (var i = 0; i < series.length; i++) {
-				var yPos = getYPos(data[i+1][idx], scales[series[i].scale], opts.height);
-				trans(pts[i], xPos, yPos);
-				labels[i+1].firstChild.nodeValue = series[i].label + ': ' + series[i].format(data[i+1][idx]);
+				if (i > 0) {
+					var yPos = getYPos(data[i][idx], scales[series[i].scale], opts.height);
+					trans(pts[i], xPos, yPos);
+				}
+
+				labels[i].firstChild.nodeValue = series[i].label + ': ' + series[i].format(data[i][idx]);
 			}
 
 			if (dragging) {
@@ -657,8 +662,6 @@ var uPlot = (function () {
 			);
 		}
 
-		var win = window;
-
 		function debounce(fn, time) {
 			var pending = null;
 
@@ -677,6 +680,8 @@ var uPlot = (function () {
 		on("mousedown", can, mouseDown);
 		on("mouseup", can, mouseUp);
 		on("dblclick", can, dblclick);
+
+		var win = window;
 
 		on("resize", win, debounce(syncRect, 100));
 		on("scroll", win, debounce(syncRect, 100));
