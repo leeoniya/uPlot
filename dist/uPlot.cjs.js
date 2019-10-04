@@ -146,12 +146,17 @@ function uPlot(opts) {
 
 	var series = opts.series;
 
-	var xOpts = series[0];
-
-	if (typeof xOpts.format == "string") {
-		var stamp = fmtDate(xOpts.format);
-		xOpts.format = function (v) { return stamp(new Date(v * 1e3)); };
-	}
+	// TODO: share a forEachSeries()
+	series.forEach(function (s, i) {
+		if (i > 0) {
+			s.style = s.style || function(ctx) {
+				ctx.lineWidth = s.width || 1;
+				ctx.strokeStyle = s.color || "#1976D2";
+				ctx.fillStyle = s.fill || "#2196F3";
+				ctx.setLineDash(s.dash || []);
+			};
+		}
+	});
 
 	var cursor = opts.cursor;
 
@@ -272,7 +277,7 @@ function uPlot(opts) {
 				drawGraph(
 					data[0],
 					data[i],
-					s.color,
+					s.style,
 					scales['t'],
 					scales[s.scale]
 				);
@@ -280,9 +285,8 @@ function uPlot(opts) {
 		});
 	}
 
-	function drawGraph(xdata, ydata, stroke, scaleX, scaleY) {
-		ctx.lineWidth = 1;
-		ctx.strokeStyle = stroke;
+	function drawGraph(xdata, ydata, setStyle, scaleX, scaleY) {
+		setStyle(ctx);
 
 		var yOk;
 		var gap = false;
@@ -562,7 +566,7 @@ function uPlot(opts) {
 				trans(pts[i], xPos, yPos);
 			}
 
-			labels[i].firstChild.nodeValue = series[i].label + ': ' + series[i].format(data[i][idx]);
+			labels[i].firstChild.nodeValue = series[i].label + ': ' + series[i].value(data[i][idx]);
 		}
 
 		if (dragging) {

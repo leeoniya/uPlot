@@ -16,12 +16,17 @@ export default function uPlot(opts) {
 
 	const series = opts.series;
 
-	const xOpts = series[0];
-
-	if (typeof xOpts.format == "string") {
-		let stamp = fmtDate(xOpts.format);
-		xOpts.format = v => stamp(new Date(v * 1e3));
-	}
+	// TODO: share a forEachSeries()
+	series.forEach((s, i) => {
+		if (i > 0) {
+			s.style = s.style || function(ctx) {
+				ctx.lineWidth = s.width || 1;
+				ctx.strokeStyle = s.color || "#1976D2";
+				ctx.fillStyle = s.fill || "#2196F3";
+				ctx.setLineDash(s.dash || []);
+			}
+		}
+	});
 
 	const cursor = opts.cursor;
 
@@ -140,7 +145,7 @@ export default function uPlot(opts) {
 				drawGraph(
 					data[0],
 					data[i],
-					s.color,
+					s.style,
 					scales['t'],
 					scales[s.scale],
 				);
@@ -148,9 +153,8 @@ export default function uPlot(opts) {
 		});
 	}
 
-	function drawGraph(xdata, ydata, stroke, scaleX, scaleY) {
-		ctx.lineWidth = 1;
-		ctx.strokeStyle = stroke;
+	function drawGraph(xdata, ydata, setStyle, scaleX, scaleY) {
+		setStyle(ctx);
 
 		let yOk;
 		let gap = false;
@@ -439,7 +443,7 @@ export default function uPlot(opts) {
 				trans(pts[i], xPos, yPos);
 			}
 
-			labels[i].firstChild.nodeValue = series[i].label + ': ' + series[i].format(data[i][idx]);
+			labels[i].firstChild.nodeValue = series[i].label + ': ' + series[i].value(data[i][idx]);
 		}
 
 		if (dragging) {

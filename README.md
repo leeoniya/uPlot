@@ -28,12 +28,14 @@ An [exceptionally fast](#performance), tiny ([~6 KB min](https://github.com/leeo
 ---
 ### Usage & API
 
-Example: https://jsfiddle.net/xegw14v0/
+Example: https://jsfiddle.net/juhLmgr5
 
 ```html
 <link rel="stylesheet" href="src/uPlot.css">
 <script src="dist/uPlot.iife.min.js"></script>
 <script>
+    let fmtDate = uPlot.fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+
     let opts = {
         width: 800,
         height: 400,
@@ -47,27 +49,29 @@ Example: https://jsfiddle.net/xegw14v0/
         series: [
             {
                 label: "Time",
+                value: v => fmtDate(new Date(v * 1e3)),
                 color: "black",
-                format: '{YYYY}-{MM}-{DD} {h}:{mm}{aa}',
             },
             {
                 label: "CPU",
+                value: v => v.toFixed(1) + "%",
                 scale: "%",
                 color: "red",
-                format: v => v.toFixed(1) + "%",
+                width: 2,
+                dash: [10, 5],
             },
             {
                 label: "RAM",
+                value: v => v.toFixed(1) + "%",
                 scale: "%",
                 color: "blue",
-                format: v => v.toFixed(1) + "%",
             },
             {
                 label: "TCP Out",
+                value: v => v.toFixed(2) + "MB",
                 scale: "mb",
                 color: "green",
-                format: v => v.toFixed(2) + "MB",
-            },
+            }
         ],
     };
 
