@@ -83,7 +83,7 @@ Example: https://jsfiddle.net/xegw14v0/
 <table>
 	<thead>
 		<tr>
-			<th></th>
+			<th>Bench Demo</th>
 			<th>Size (min)</th>
 			<th>Render (167k)</th>
 			<th>Total</th>
