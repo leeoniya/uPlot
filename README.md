@@ -40,7 +40,48 @@ An [exceptionally fast](#performance), tiny ([~5 KB min](https://github.com/leeo
 ---
 ### Usage & API
 
-[TODO]
+```js
+let opts = {
+    width: 800,
+    height: 400,
+    cursor: true,
+    data: [
+        [1566453600, 1566457260, 1566460860, 1566464460],   // Unix timestamps
+        [0.54,       0.15,       3.27,       7.51      ],   // CPU
+        [12.85,      13.21,      13.65,      14.01     ],   // RAM
+        [0.52,       1.25,       0.75,       3.62      ],   // TCP Out
+    ],
+    series: [
+        {
+            label: "Time",
+            color: "black",
+            format: '{YYYY}-{MM}-{DD} {h}:{mm}{aa}',
+        },
+        {
+            label: "CPU",
+            scale: "%",
+            color: "red",
+            format: v => v.toFixed(1) + "%",
+        },
+        {
+            label: "RAM",
+            scale: "%",
+            color: "blue",
+            format: v => v.toFixed(1) + "%",
+        },
+        {
+            label: "TCP Out",
+            scale: "mb",
+            color: "green",
+            format: v => v.toFixed(2) + "MB",
+        },
+    ],
+};
+
+let uplot = new uPlot(opts);
+
+document.body.appendChild(uplot.root);
+```
 
 ---
 ### Performance
