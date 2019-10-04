@@ -577,9 +577,16 @@ function uPlot(opts) {
 
 	var dragging = false;
 
-	var rect = can.getBoundingClientRect();
+	var rect = null;
+
+	function syncRect() {
+		rect = can.getBoundingClientRect();
+	}
 
 	function mouseMove(e) {
+		if (rect == null)
+			{ syncRect(); }
+
 		x = e.clientX - rect.left;
 		y = e.clientY - rect.top;
 
@@ -649,10 +656,38 @@ function uPlot(opts) {
 		);
 	}
 
+	var win = window;
+	var sTo = setTimeout;
+	var cTo = clearTimeout;
+
+	function debounce(fn, time) {
+		var pending = null;
+
+		return function() {
+			if (pending)
+				{ cTo(pending); }
+
+			pending = sTo(run, time);
+
+			return function() {
+				cTo(pending);
+				pending = null;
+			}
+		}
+
+		function run() {
+			pending = null;
+			fn();
+		}
+	}
+
 	on("mousemove", can, mouseMove);
 	on("mousedown", can, mouseDown);
 	on("mouseup", can, mouseUp);
 	on("dblclick", can, dblclick);
+
+	on("resize", win, debounce(syncRect, 100));
+	on("scroll", win, debounce(syncRect, 100));
 
 	this.root = root;
 }
