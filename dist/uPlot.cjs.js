@@ -657,27 +657,18 @@ function uPlot(opts) {
 	}
 
 	var win = window;
-	var sTo = setTimeout;
-	var cTo = clearTimeout;
 
 	function debounce(fn, time) {
 		var pending = null;
 
-		return function() {
-			if (pending)
-				{ cTo(pending); }
-
-			pending = sTo(run, time);
-
-			return function() {
-				cTo(pending);
-				pending = null;
-			}
-		}
-
 		function run() {
 			pending = null;
 			fn();
+		}
+
+		return function() {
+			clearTimeout(pending);
+			pending = setTimeout(run, time);
 		}
 	}
 

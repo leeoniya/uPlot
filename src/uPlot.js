@@ -534,27 +534,18 @@ export default function uPlot(opts) {
 	}
 
 	const win = window;
-	const sTo = setTimeout;
-	const cTo = clearTimeout;
 
 	function debounce(fn, time) {
-		var pending = null;
-
-		return function() {
-			if (pending)
-				cTo(pending);
-
-			pending = sTo(run, time);
-
-			return function() {
-				cTo(pending);
-				pending = null;
-			}
-		}
+		let pending = null;
 
 		function run() {
 			pending = null;
 			fn();
+		}
+
+		return function() {
+			clearTimeout(pending);
+			pending = setTimeout(run, time);
 		}
 	}
 
