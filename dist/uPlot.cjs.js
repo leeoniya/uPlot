@@ -60,56 +60,56 @@ function suffix(int) {
 }
 */
 
-var year = 'getFullYear';
-var month = 'getMonth';
-var date = 'getDate';
-var day = 'getDay';
-var hrs = 'getHours';
-var mins = 'getMinutes';
-var secs = 'getSeconds';
-var msecs = 'getMilliseconds';
+var getFullYear = 'getFullYear';
+var getMonth = 'getMonth';
+var getDate = 'getDate';
+var getDay = 'getDay';
+var getHours = 'getHours';
+var getMinutes = 'getMinutes';
+var getSeconds = 'getSeconds';
+var getMilliseconds = 'getMilliseconds';
 
 var subs = {
 	// 2019
-	YYYY:	function (d) { return d[year](); },
+	YYYY:	function (d) { return d[getFullYear](); },
 	// 19
-	YY:		function (d) { return (d[year]()+'').slice(2); },
+	YY:		function (d) { return (d[getFullYear]()+'').slice(2); },
 	// July
-	MMMM:	function (d) { return months[d[month]()]; },
+	MMMM:	function (d) { return months[d[getMonth]()]; },
 	// Jul
-	MMM:	function (d) { return months3[d[month]()]; },
+	MMM:	function (d) { return months3[d[getMonth]()]; },
 	// 07
-	MM:		function (d) { return zeroPad2(d[month]()+1); },
+	MM:		function (d) { return zeroPad2(d[getMonth]()+1); },
 	// 7
-	M:		function (d) { return d[month]()+1; },
+	M:		function (d) { return d[getMonth]()+1; },
 	// 09
-	DD:		function (d) { return zeroPad2(d[date]()); },
+	DD:		function (d) { return zeroPad2(d[getDate]()); },
 	// 9
-	D:		function (d) { return d[date](); },
+	D:		function (d) { return d[getDate](); },
 	// Monday
-	WWWW:	function (d) { return days[d[day]()]; },
+	WWWW:	function (d) { return days[d[getDay]()]; },
 	// Mon
-	WWW:	function (d) { return days3[d[day]()]; },
+	WWW:	function (d) { return days3[d[getDay]()]; },
 	// 03
-	HH:		function (d) { return zeroPad2(d[hrs]()); },
+	HH:		function (d) { return zeroPad2(d[getHours]()); },
 	// 3
-	H:		function (d) { return d[hrs](); },
+	H:		function (d) { return d[getHours](); },
 	// 9 (12hr, unpadded)
-	h:		function (d) {var h = d[hrs](); return h == 0 ? 12 : h > 12 ? h - 12 : h;},
+	h:		function (d) {var h = d[getHours](); return h == 0 ? 12 : h > 12 ? h - 12 : h;},
 	// AM
-	AA:		function (d) { return d[hrs]() >= 12 ? 'PM' : 'AM'; },
+	AA:		function (d) { return d[getHours]() >= 12 ? 'PM' : 'AM'; },
 	// am
-	aa:		function (d) { return d[hrs]() >= 12 ? 'pm' : 'am'; },
+	aa:		function (d) { return d[getHours]() >= 12 ? 'pm' : 'am'; },
 	// 09
-	mm:		function (d) { return zeroPad2(d[mins]()); },
+	mm:		function (d) { return zeroPad2(d[getMinutes]()); },
 	// 9
-	m:		function (d) { return d[mins](); },
+	m:		function (d) { return d[getMinutes](); },
 	// 09
-	ss:		function (d) { return zeroPad2(d[secs]()); },
+	ss:		function (d) { return zeroPad2(d[getSeconds]()); },
 	// 9
-	s:		function (d) { return d[secs](); },
+	s:		function (d) { return d[getSeconds](); },
 	// 374
-	fff:	function (d) { return zeroPad3(d[msecs]()); },
+	fff:	function (d) { return zeroPad3(d[getMilliseconds]()); },
 };
 
 function fmtDate(tpl) {
@@ -129,6 +129,70 @@ function fmtDate(tpl) {
 		return out;
 	}
 }
+
+function debounce(fn, time) {
+	var pending = null;
+
+	function run() {
+		pending = null;
+		fn();
+	}
+
+	return function() {
+		clearTimeout(pending);
+		pending = setTimeout(run, time);
+	}
+}
+
+// binary search for index of closest value
+function closestIdx(num, arr, lo, hi) {
+	var mid;
+	lo = lo || 0;
+	hi = hi || arr.length - 1;
+	var bitwise = hi <= 2147483647;
+
+	while (hi - lo > 1) {
+		mid = bitwise ? (lo + hi) >> 1 : floor((lo + hi) / 2);
+
+		if (arr[mid] < num)
+			{ lo = mid; }
+		else
+			{ hi = mid; }
+	}
+
+	if (num - arr[lo] <= arr[hi] - num)
+		{ return lo; }
+
+	return hi;
+}
+
+var rAF = requestAnimationFrame;
+var doc = document;
+var win = window;
+var pxRatio = devicePixelRatio;
+
+var M = Math;
+
+var floor = M.floor;
+var round = M.round;
+var ceil = M.ceil;
+var min = M.min;
+var max = M.max;
+var pow = M.pow;
+var log10 = M.log10;
+
+function incrRoundUp(num, incr) {
+	return ceil(num/incr)*incr;
+}
+
+function incrRoundDn(num, incr) {
+	return floor(num/incr)*incr;
+}
+
+var WIDTH = "width";
+var HEIGHT = "height";
+var firstChild = "firstChild";
+var createElement = "createElement";
 
 //export const series = [];
 
@@ -215,68 +279,6 @@ export const scales = {
 };
 */
 
-function debounce(fn, time) {
-	var pending = null;
-
-	function run() {
-		pending = null;
-		fn();
-	}
-
-	return function() {
-		clearTimeout(pending);
-		pending = setTimeout(run, time);
-	}
-}
-
-// binary search for index of closest value
-function closestIdx(num, arr, lo, hi) {
-	var mid;
-	lo = lo || 0;
-	hi = hi || arr.length - 1;
-	var bitwise = hi <= 2147483647;
-
-	while (hi - lo > 1) {
-		mid = bitwise ? (lo + hi) >> 1 : floor((lo + hi) / 2);
-
-		if (arr[mid] < num)
-			{ lo = mid; }
-		else
-			{ hi = mid; }
-	}
-
-	if (num - arr[lo] <= arr[hi] - num)
-		{ return lo; }
-
-	return hi;
-}
-
-var rAF = requestAnimationFrame;
-var doc = document;
-var win = window;
-var pxRatio = devicePixelRatio;
-
-var M = Math;
-
-var floor = M.floor;
-var round = M.round;
-var ceil = M.ceil;
-var min = M.min;
-var max = M.max;
-var pow = M.pow;
-var log10 = M.log10;
-
-function incrRoundUp(num, incr) {
-	return ceil(num/incr)*incr;
-}
-
-function incrRoundDn(num, incr) {
-	return floor(num/incr)*incr;
-}
-
-var WIDTH = "width";
-var HEIGHT = "height";
-
 function uPlot(opts) {
 	var series = opts.series;
 	var axes = opts.axes;
@@ -318,7 +320,7 @@ function uPlot(opts) {
 	var scales = {};
 
 	function makeCanvas(wid, hgt) {
-		var can = doc.createElement("canvas");
+		var can = doc[createElement]("canvas");
 		var ctx = can.getContext("2d");
 
 		can[WIDTH] = round(wid * pxRatio);
@@ -333,7 +335,7 @@ function uPlot(opts) {
 	}
 
 	function placeDiv(cls, targ) {
-		var div = doc.createElement("div");
+		var div = doc[createElement]("div");
 
 		if (cls != null)
 			{ div.className = cls; }
@@ -461,7 +463,7 @@ function uPlot(opts) {
 	function reframeDateRange(min, max, incr) {
 		// get ts of 12am on day of i0 timestamp
 		var minDate = new Date(min * 1000);
-		var min00 = +(new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate())) / 1000;
+		var min00 = +(new Date(minDate[getFullYear](), minDate[getMonth](), minDate[getDate]())) / 1000;
 		var offset = min - min00;
 		var newMin = min00 + incrRoundUp(offset, incr);
 		return [newMin, max];
@@ -537,8 +539,8 @@ function uPlot(opts) {
 	}
 
 	function clearChildren(el) {
-		while (el.firstChild)
-			{ el.firstChild.remove(); }
+		while (el[firstChild])
+			{ el[firstChild].remove(); }
 	}
 
 	function setWindow(_i0, _i1) {
@@ -623,7 +625,7 @@ function uPlot(opts) {
 				trans(pts[i], xPos, yPos);
 			}
 
-			labels[i].firstChild.nodeValue = series[i].label + ': ' + series[i].value(data[i][idx]);
+			labels[i][firstChild].nodeValue = series[i].label + ': ' + series[i].value(data[i][idx]);
 		}
 
 		if (dragging) {

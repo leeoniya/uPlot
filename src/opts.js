@@ -1,4 +1,4 @@
-import fmtDate from './fmtDate';
+import { fmtDate } from './fmtDate';
 
 //export const series = [];
 

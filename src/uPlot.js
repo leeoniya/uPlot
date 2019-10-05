@@ -1,5 +1,15 @@
-import fmtDate from './fmtDate';
-import {xOpts, yOpts} from './opts';
+import {
+	fmtDate,
+	getFullYear,
+	getMonth,
+	getDate,
+	getDay,
+	getHours,
+	getMinutes,
+	getSeconds,
+	getMilliseconds,
+} from './fmtDate';
+
 import {
 	floor,
 	round,
@@ -10,15 +20,20 @@ import {
 	log10,
 	debounce,
 	closestIdx,
-	WIDTH,
-	HEIGHT,
 	rAF,
 	doc,
 	win,
 	pxRatio,
 	incrRoundUp,
 	incrRoundDn,
+
+	WIDTH,
+	HEIGHT,
+	firstChild,
+	createElement,
 } from './utils';
+
+import { xOpts, yOpts } from './opts';
 
 export default function uPlot(opts) {
 	const series = opts.series;
@@ -59,7 +74,7 @@ export default function uPlot(opts) {
 	let scales = {};
 
 	function makeCanvas(wid, hgt) {
-		const can = doc.createElement("canvas");
+		const can = doc[createElement]("canvas");
 		const ctx = can.getContext("2d");
 
 		can[WIDTH] = round(wid * pxRatio);
@@ -74,7 +89,7 @@ export default function uPlot(opts) {
 	}
 
 	function placeDiv(cls, targ) {
-		let div = doc.createElement("div");
+		let div = doc[createElement]("div");
 
 		if (cls != null)
 			div.className = cls;
@@ -202,7 +217,7 @@ export default function uPlot(opts) {
 	function reframeDateRange(min, max, incr) {
 		// get ts of 12am on day of i0 timestamp
 		let minDate = new Date(min * 1000);
-		let min00 = +(new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate())) / 1000;
+		let min00 = +(new Date(minDate[getFullYear](), minDate[getMonth](), minDate[getDate]())) / 1000;
 		let offset = min - min00;
 		let newMin = min00 + incrRoundUp(offset, incr);
 		return [newMin, max];
@@ -273,8 +288,8 @@ export default function uPlot(opts) {
 	}
 
 	function clearChildren(el) {
-		while (el.firstChild)
-			el.firstChild.remove();
+		while (el[firstChild])
+			el[firstChild].remove();
 	}
 
 	function setWindow(_i0, _i1) {
@@ -359,7 +374,7 @@ export default function uPlot(opts) {
 				trans(pts[i], xPos, yPos);
 			}
 
-			labels[i].firstChild.nodeValue = series[i].label + ': ' + series[i].value(data[i][idx]);
+			labels[i][firstChild].nodeValue = series[i].label + ': ' + series[i].value(data[i][idx]);
 		}
 
 		if (dragging) {

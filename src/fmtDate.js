@@ -51,59 +51,59 @@ function suffix(int) {
 }
 */
 
-const year = 'getFullYear';
-const month = 'getMonth';
-const date = 'getDate';
-const day = 'getDay';
-const hrs = 'getHours';
-const mins = 'getMinutes';
-const secs = 'getSeconds';
-const msecs = 'getMilliseconds';
+export const getFullYear = 'getFullYear';
+export const getMonth = 'getMonth';
+export const getDate = 'getDate';
+export const getDay = 'getDay';
+export const getHours = 'getHours';
+export const getMinutes = 'getMinutes';
+export const getSeconds = 'getSeconds';
+export const getMilliseconds = 'getMilliseconds';
 
 const subs = {
 	// 2019
-	YYYY:	d => d[year](),
+	YYYY:	d => d[getFullYear](),
 	// 19
-	YY:		d => (d[year]()+'').slice(2),
+	YY:		d => (d[getFullYear]()+'').slice(2),
 	// July
-	MMMM:	d => months[d[month]()],
+	MMMM:	d => months[d[getMonth]()],
 	// Jul
-	MMM:	d => months3[d[month]()],
+	MMM:	d => months3[d[getMonth]()],
 	// 07
-	MM:		d => zeroPad2(d[month]()+1),
+	MM:		d => zeroPad2(d[getMonth]()+1),
 	// 7
-	M:		d => d[month]()+1,
+	M:		d => d[getMonth]()+1,
 	// 09
-	DD:		d => zeroPad2(d[date]()),
+	DD:		d => zeroPad2(d[getDate]()),
 	// 9
-	D:		d => d[date](),
+	D:		d => d[getDate](),
 	// Monday
-	WWWW:	d => days[d[day]()],
+	WWWW:	d => days[d[getDay]()],
 	// Mon
-	WWW:	d => days3[d[day]()],
+	WWW:	d => days3[d[getDay]()],
 	// 03
-	HH:		d => zeroPad2(d[hrs]()),
+	HH:		d => zeroPad2(d[getHours]()),
 	// 3
-	H:		d => d[hrs](),
+	H:		d => d[getHours](),
 	// 9 (12hr, unpadded)
-	h:		d => {let h = d[hrs](); return h == 0 ? 12 : h > 12 ? h - 12 : h;},
+	h:		d => {let h = d[getHours](); return h == 0 ? 12 : h > 12 ? h - 12 : h;},
 	// AM
-	AA:		d => d[hrs]() >= 12 ? 'PM' : 'AM',
+	AA:		d => d[getHours]() >= 12 ? 'PM' : 'AM',
 	// am
-	aa:		d => d[hrs]() >= 12 ? 'pm' : 'am',
+	aa:		d => d[getHours]() >= 12 ? 'pm' : 'am',
 	// 09
-	mm:		d => zeroPad2(d[mins]()),
+	mm:		d => zeroPad2(d[getMinutes]()),
 	// 9
-	m:		d => d[mins](),
+	m:		d => d[getMinutes](),
 	// 09
-	ss:		d => zeroPad2(d[secs]()),
+	ss:		d => zeroPad2(d[getSeconds]()),
 	// 9
-	s:		d => d[secs](),
+	s:		d => d[getSeconds](),
 	// 374
-	fff:	d => zeroPad3(d[msecs]()),
+	fff:	d => zeroPad3(d[getMilliseconds]()),
 };
 
-export default function(tpl) {
+export function fmtDate(tpl) {
 	let parts = [];
 
 	let R = /\{([a-z]+)\}|[^{]+/yi, m;
