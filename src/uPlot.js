@@ -1,4 +1,5 @@
 import fmtDate from './fmtDate';
+import {xOpts, yOpts} from './opts';
 
 export default function uPlot(opts) {
 	// todo shallow-copy opts?
@@ -15,18 +16,18 @@ export default function uPlot(opts) {
 	const log10 = M.log10;
 
 	const series = opts.series;
+	const axes = opts.axes;
 
-	// TODO: share a forEachSeries()
-	series.forEach((s, i) => {
-		if (i > 0) {
-			s.style = s.style || function(ctx) {
-				ctx.lineWidth = s.width || 1;
-				ctx.strokeStyle = s.color || "#1976D2";
-				ctx.fillStyle = s.fill || "#2196F3";
-				ctx.setLineDash(s.dash || []);
-			}
-		}
-	});
+	function setStyle(color, width, dash, fill) {
+		if (color)
+			ctx.strokeStyle = color;
+		if (width)
+			ctx.lineWidth = width;
+		if (dash)
+			ctx.setLineDash(dash);
+		if (fill)
+			ctx.fillStyle = fill;
+	}
 
 	const cursor = opts.cursor;
 
@@ -42,10 +43,13 @@ export default function uPlot(opts) {
 
 	const { can, ctx } = makeCanvas(opts.width, opts.height);
 
-	const xlabels = placeDiv("x-labels", root);
-	xlabels.style.top = opts.height + "px";
-
-	const ylabels = placeDiv("y-labels", root);
+	// init axis label containers
+	axes.forEach((axis, i) => {
+		let el = placeDiv((i == 0 ? "x" : "y") + "-labels", root);
+		if (i == 0)
+			el.style.top = opts.height + "px";
+		axis.root = el;
+	});
 
 	const data = opts.data;
 
@@ -104,7 +108,7 @@ export default function uPlot(opts) {
 		series.forEach((s, i) => {
 			// fast-path special case for time axis, which is assumed ordered ASC
 			if (i == 0) {
-				scales['t'] = {
+				scales[s.scale] = {
 					min: data[0][i0],
 					max: data[0][i1],
 				};
@@ -139,22 +143,25 @@ export default function uPlot(opts) {
 		s.max = max(incrRoundUp(s.max, incr), s.max);
 	}
 
-	function drawGraphs() {
+	function drawSeries() {
 		series.forEach((s, i) => {
 			if (i > 0) {
-				drawGraph(
+				drawLine(
 					data[0],
 					data[i],
-					s.style,
-					scales['t'],
+					scales[series[0].scale],
 					scales[s.scale],
+					s.color,
+					s.width,
+					s.dash,
+					s.fill,
 				);
 			}
 		});
 	}
 
-	function drawGraph(xdata, ydata, setStyle, scaleX, scaleY) {
-		setStyle(ctx);
+	function drawLine(xdata, ydata, scaleX, scaleY, color, width, dash, fill) {
+		setStyle(color, width, dash, fill);
 
 		let yOk;
 		let gap = false;
@@ -183,115 +190,25 @@ export default function uPlot(opts) {
 		ctx.stroke();
 	}
 
-	function findIncr(min, max, incrs, dim, minSpace) {
-		let pxPerUnit = dim / (max - min);
+	// dim is logical (getClientBoundingRect) pixels, not canvas pixels
+	function findIncr(valDelta, incrs, dim, minSpace) {
+		let pxPerUnit = dim / valDelta;
 
 		for (var i = 0; i < incrs.length; i++) {
-			if (incrs[i] * pxPerUnit >= minSpace)
-				return incrs[i];
+			let space = incrs[i] * pxPerUnit;
+
+			if (space >= minSpace)
+				return [incrs[i], space];
 		}
 	}
 
-	// dim is logical (getClientBoundingRect) pixels, not canvas pixels
-	function gridVals(min, max, incr) {
-		let vals = [];
-
-		for (let val = min; val <= max; val += incr)
-			vals.push(val);
-
-		return vals;
-	}
-
-	// returns array of labels
-	function gridLabels(vals) {
-
-
-	}
-
-	function gridValsY(min, max) {
-		let minSpace = 30;
-		let incrs = [
-			0.01,
-			0.02,
-			0.05,
-			0.1,
-			0.2,
-			0.5,
-			1,
-			2,
-			5,
-			10,
-			20,
-			50,
-			1e2,
-			2e2,
-			5e2,
-			1e3,
-			2e3,
-			5e3,
-			1e4,
-			2e4,
-			5e4,
-			1e5,
-			2e5,
-			5e5,
-			1e6,
-			2e6,
-			5e6,
-			1e7,
-			2e7,
-			5e7,
-			1e8,
-			2e8,
-			5e8,
-			1e9,
-		];
-
-		let incr = findIncr(min, max, incrs, opts.height, minSpace);
-
-		return gridVals(min, max, incr);
-	}
-
-	let minSecs = 60,
-		hourSecs = minSecs * minSecs,
-		daySecs = hourSecs * 24;
-
-	function gridValsX(min, max) {
-		let minSpace = 40;
-		let incrs = [
-			1,
-			5,
-			10,
-			15,
-			30,
-			minSecs,
-			minSecs * 5,
-			minSecs * 10,
-			minSecs * 15,
-			minSecs * 30,
-			hourSecs,
-			hourSecs * 2,
-			hourSecs * 3,
-			hourSecs * 4,
-			hourSecs * 6,
-			hourSecs * 8,
-			hourSecs * 12,
-			daySecs,
-			// TODO?: weeks
-			// TODO: months
-			// TODO: years
-			daySecs * 365,
-		];
-
-		let incr = findIncr(min, max, incrs, opts.width, minSpace);
-
+	function reframeDateRange(min, max, incr) {
 		// get ts of 12am on day of i0 timestamp
 		let minDate = new Date(min * 1000);
 		let min00 = +(new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate())) / 1000;
 		let offset = min - min00;
 		let newMin = min00 + incrRoundUp(offset, incr);
-
-		return gridVals(newMin, max, incr);
+		return [newMin, max];
 	}
 
 	function gridLabel(par, val, side, pxVal) {
@@ -300,59 +217,65 @@ export default function uPlot(opts) {
 		div.style[side] = pxVal + "px";
 	}
 
-	function xValFmtr(incr) {
-		let stamp = (
-			incr >= daySecs ? fmtDate('{M}/{DD}') :
-			// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
-			incr >= hourSecs ? fmtDate('{M}/{DD}\n{h}{aa}') :
-			incr >= minSecs ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
-			fmtDate('{M}/{DD}\n{h}:{mm}:{ss}{aa}')
-		);
+	const WIDTH = "width";
+	const HEIGHT = "height";
 
-		return val => stamp(new Date(val * 1e3));
-	}
+	function drawChart() {
+		axes.forEach((axis, i) => {
+			let ori = i == 0 ? 0 : 1;
+			let dim = ori == 0 ? WIDTH : HEIGHT;
+			let xDim = ori == 0 ? HEIGHT : WIDTH;
+			let scale = scales[axis.scale];
+			let {min, max} = scale;
 
-	function yValFmtr(incr) {
-		return val => val + '%';
-	}
+			let [incr, space] = findIncr(max - min, axis.incrs, opts[dim], axis.space);
 
-	function drawGrid() {
-		let xScale = scales['t'];
-		let xVals = gridValsX(data[0][i0], data[0][i1]);
-		let xIncr = xVals[1] - xVals[0];
-		let xFmt = xValFmtr(xIncr);
+			if (i == 0)
+				[min, max] = reframeDateRange(min, max, incr);
 
-		let yScale = scales['%'];
-		let yVals = gridValsY(yScale.min, yScale.max);
-		let yIncr = yVals[1] - yVals[0];
-		let yFmt = yValFmtr(yIncr);
+			let ticks = [];
 
-		ctx.lineWidth = 1;
-		ctx.strokeStyle = "#eee";
+			for (let val = min; val <= max; val += incr)
+				ticks.push(val);
 
-		ctx.beginPath();
+			let labels = axis.values(ticks, space);
 
-		for (let i = 0; i < xVals.length; i++) {
-			let val = xVals[i];
-			let xPos = getXPos(val, xScale, can.width);
+			let getPos = ori == 0 ? getXPos : getYPos;
+			let cssProp = ori == 0 ? "left" : "top";
+			let canOffs = ticks.map(val => getPos(val, scale, can[dim]));		// bit of waste if we're not drawing a grid
 
-			gridLabel(xlabels, xFmt(val), "left", round(xPos/rat));
+			canOffs.forEach((off, i) => {
+				gridLabel(axis.root, labels[i], cssProp, round(off/rat));
+			});
 
-			ctx.moveTo(xPos, 0);
-			ctx.lineTo(xPos, can.height);
-		}
+			let grid = axis.grid;
 
-		for (let i = 0; i < yVals.length; i++) {
-			let val = yVals[i];
-			let yPos = getYPos(val, yScale, can.height);
+			if (grid) {
+				setStyle(grid.color || "#eee", grid.width, grid.dash);
 
-			gridLabel(ylabels, yFmt(val), "top", round(yPos/rat));
+				ctx.beginPath();
 
-			ctx.moveTo(0, yPos);
-			ctx.lineTo(can.width, yPos);
-		}
+				canOffs.forEach((off, i) => {
+					let mx, my, lx, ly;
 
-		ctx.stroke();
+					if (ori == 0) {
+						my = 0;
+						ly = can[xDim];
+						mx = lx = off;
+					}
+					else {
+						mx = 0;
+						lx = can[xDim];
+						my = ly = off;
+					}
+
+					ctx.moveTo(mx, my);
+					ctx.lineTo(lx, ly);
+				});
+
+				ctx.stroke();
+			}
+		});
 	}
 
 	function clearChildren(el) {
@@ -365,10 +288,11 @@ export default function uPlot(opts) {
 		i1 = _i1;
 		setScales(true);
 		ctx.clearRect(0, 0, can.width, can.height);
-		clearChildren(xlabels);
-		clearChildren(ylabels);
-		drawGrid();
-		drawGraphs();
+		axes.forEach(axis => {
+			clearChildren(axis.root);
+		});
+		drawChart();
+		drawSeries();
 	}
 
 	setWindow(i0, i1);
@@ -435,7 +359,7 @@ export default function uPlot(opts) {
 
 		let idx = closestIdxFromXpos(x);
 
-		let xPos = getXPos(data[0][idx], scales['t'], opts.width);
+		let xPos = getXPos(data[0][idx], scales[series[0].scale], opts.width);
 
 		for (let i = 0; i < series.length; i++) {
 			if (i > 0) {
@@ -567,3 +491,5 @@ export default function uPlot(opts) {
 }
 
 uPlot.fmtDate = fmtDate;
+uPlot.xOpts = xOpts;
+uPlot.yOpts = yOpts;

@@ -66,30 +66,30 @@
 				const opts = {
 					width: 1920,
 					height: 600,
-					data: data,
 					cursor: true,
+					data: data,
+				//	class: null,
+				//	id: null,
+//					scales: {},
+					axes: [
+						Object.assign({}, uPlot.xOpts),
+						Object.assign({}, uPlot.yOpts, {
+							scale: '%',
+							values: (vals, space) => vals.map(v => v.toFixed(1) + "%"),
+						}),
+					],
 					series: [
 						{
 							label: "Time",
 							value: v => fmtDate(new Date(v * 1e3)),
 							color: "black",
+							scale: "x",
 						},
 						{
 							label: "CPU",
 							value: v => v.toFixed(1) + "%",
 							scale: "%",
 							color: "red",
-						//	width: 2,
-						//	fill: "red",
-						//	dash: [10, 5],
-
-
-						//	https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Applying_styles_and_colors
-						//	style: ctx => {
-						//		ctx.lineWidth = 2;
-						//		ctx.strokeStyle = "#1976D2";
-						//		ctx.fillStyle = "#2196F3";
-						//	},
 						},
 						{
 							label: "RAM",

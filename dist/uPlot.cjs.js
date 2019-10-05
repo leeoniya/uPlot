@@ -130,6 +130,91 @@ function fmtDate(tpl) {
 	}
 }
 
+//export const series = [];
+
+// default formatters:
+
+var grid = {
+	color: "#eee",
+	width: 1,
+//	dash: [],
+};
+
+var m = 60,
+	h = m * m,
+	d = h * 24;
+
+var timeIncrs = [
+	// minute divisors (# of secs)
+	1,
+	5,
+	10,
+	15,
+	30,
+	// hour divisors (# of mins)
+	m,
+	m * 5,
+	m * 10,
+	m * 15,
+	m * 30,
+	// day divisors (# of hrs)
+	h,
+	h * 2,
+	h * 3,
+	h * 4,
+	h * 6,
+	h * 8,
+	h * 12,
+	// month divisors TODO: need more?
+	d,
+	// year divisors
+	d * 365 ];
+
+var xOpts = {
+	scale: 'x',
+	space: 40,
+	class: "x-time",
+	incrs: timeIncrs,
+	values: function (vals, space) {
+		var incr = vals[1] - vals[0];
+
+		var stamp = (
+			incr >= d ? fmtDate('{M}/{DD}') :
+			// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
+			incr >= h ? fmtDate('{M}/{DD}\n{h}{aa}') :
+			incr >= m ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
+			fmtDate('{M}/{DD}\n{h}:{mm}:{ss}{aa}')
+		);
+
+		return vals.map(function (val) { return stamp(new Date(val * 1e3)); });
+	},
+	grid: grid,
+};
+
+var numIncrs = [0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9];
+
+var yOpts = {
+	scale: 'y',
+	space: 30,
+	class: "y-vals",
+	incrs: numIncrs,
+	values: function (vals, space) { return vals; },
+	grid: grid,
+};
+
+/*
+export const scales = {
+	x: {
+		min: Infinity,
+		max: -Infinity,
+	},
+	y: {
+		min: Infinity,
+		max: -Infinity,
+	},
+};
+*/
+
 function uPlot(opts) {
 	// todo shallow-copy opts?
 	var doc = document;
@@ -145,18 +230,18 @@ function uPlot(opts) {
 	var log10 = M.log10;
 
 	var series = opts.series;
+	var axes = opts.axes;
 
-	// TODO: share a forEachSeries()
-	series.forEach(function (s, i) {
-		if (i > 0) {
-			s.style = s.style || function(ctx) {
-				ctx.lineWidth = s.width || 1;
-				ctx.strokeStyle = s.color || "#1976D2";
-				ctx.fillStyle = s.fill || "#2196F3";
-				ctx.setLineDash(s.dash || []);
-			};
-		}
-	});
+	function setStyle(color, width, dash, fill) {
+		if (color)
+			{ ctx.strokeStyle = color; }
+		if (width)
+			{ ctx.lineWidth = width; }
+		if (dash)
+			{ ctx.setLineDash(dash); }
+		if (fill)
+			{ ctx.fillStyle = fill; }
+	}
 
 	var cursor = opts.cursor;
 
@@ -174,10 +259,13 @@ function uPlot(opts) {
 	var can = ref.can;
 	var ctx = ref.ctx;
 
-	var xlabels = placeDiv("x-labels", root);
-	xlabels.style.top = opts.height + "px";
-
-	var ylabels = placeDiv("y-labels", root);
+	// init axis label containers
+	axes.forEach(function (axis, i) {
+		var el = placeDiv((i == 0 ? "x" : "y") + "-labels", root);
+		if (i == 0)
+			{ el.style.top = opts.height + "px"; }
+		axis.root = el;
+	});
 
 	var data = opts.data;
 
@@ -236,7 +324,7 @@ function uPlot(opts) {
 		series.forEach(function (s, i) {
 			// fast-path special case for time axis, which is assumed ordered ASC
 			if (i == 0) {
-				scales['t'] = {
+				scales[s.scale] = {
 					min: data[0][i0],
 					max: data[0][i1],
 				};
@@ -271,22 +359,25 @@ function uPlot(opts) {
 		s.max = max(incrRoundUp(s.max, incr), s.max);
 	}
 
-	function drawGraphs() {
+	function drawSeries() {
 		series.forEach(function (s, i) {
 			if (i > 0) {
-				drawGraph(
+				drawLine(
 					data[0],
 					data[i],
-					s.style,
-					scales['t'],
-					scales[s.scale]
+					scales[series[0].scale],
+					scales[s.scale],
+					s.color,
+					s.width,
+					s.dash,
+					s.fill
 				);
 			}
 		});
 	}
 
-	function drawGraph(xdata, ydata, setStyle, scaleX, scaleY) {
-		setStyle(ctx);
+	function drawLine(xdata, ydata, scaleX, scaleY, color, width, dash, fill) {
+		setStyle(color, width, dash, fill);
 
 		var yOk;
 		var gap = false;
@@ -315,107 +406,25 @@ function uPlot(opts) {
 		ctx.stroke();
 	}
 
-	function findIncr(min, max, incrs, dim, minSpace) {
-		var pxPerUnit = dim / (max - min);
+	// dim is logical (getClientBoundingRect) pixels, not canvas pixels
+	function findIncr(valDelta, incrs, dim, minSpace) {
+		var pxPerUnit = dim / valDelta;
 
 		for (var i = 0; i < incrs.length; i++) {
-			if (incrs[i] * pxPerUnit >= minSpace)
-				{ return incrs[i]; }
+			var space = incrs[i] * pxPerUnit;
+
+			if (space >= minSpace)
+				{ return [incrs[i], space]; }
 		}
 	}
 
-	// dim is logical (getClientBoundingRect) pixels, not canvas pixels
-	function gridVals(min, max, incr) {
-		var vals = [];
-
-		for (var val = min; val <= max; val += incr)
-			{ vals.push(val); }
-
-		return vals;
-	}
-
-	function gridValsY(min, max) {
-		var minSpace = 30;
-		var incrs = [
-			0.01,
-			0.02,
-			0.05,
-			0.1,
-			0.2,
-			0.5,
-			1,
-			2,
-			5,
-			10,
-			20,
-			50,
-			1e2,
-			2e2,
-			5e2,
-			1e3,
-			2e3,
-			5e3,
-			1e4,
-			2e4,
-			5e4,
-			1e5,
-			2e5,
-			5e5,
-			1e6,
-			2e6,
-			5e6,
-			1e7,
-			2e7,
-			5e7,
-			1e8,
-			2e8,
-			5e8,
-			1e9 ];
-
-		var incr = findIncr(min, max, incrs, opts.height, minSpace);
-
-		return gridVals(min, max, incr);
-	}
-
-	var minSecs = 60,
-		hourSecs = minSecs * minSecs,
-		daySecs = hourSecs * 24;
-
-	function gridValsX(min, max) {
-		var minSpace = 40;
-		var incrs = [
-			1,
-			5,
-			10,
-			15,
-			30,
-			minSecs,
-			minSecs * 5,
-			minSecs * 10,
-			minSecs * 15,
-			minSecs * 30,
-			hourSecs,
-			hourSecs * 2,
-			hourSecs * 3,
-			hourSecs * 4,
-			hourSecs * 6,
-			hourSecs * 8,
-			hourSecs * 12,
-			daySecs,
-			// TODO?: weeks
-			// TODO: months
-			// TODO: years
-			daySecs * 365 ];
-
-		var incr = findIncr(min, max, incrs, opts.width, minSpace);
-
+	function reframeDateRange(min, max, incr) {
 		// get ts of 12am on day of i0 timestamp
 		var minDate = new Date(min * 1000);
 		var min00 = +(new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate())) / 1000;
 		var offset = min - min00;
 		var newMin = min00 + incrRoundUp(offset, incr);
-
-		return gridVals(newMin, max, incr);
+		return [newMin, max];
 	}
 
 	function gridLabel(par, val, side, pxVal) {
@@ -424,58 +433,70 @@ function uPlot(opts) {
 		div.style[side] = pxVal + "px";
 	}
 
-	function xValFmtr(incr) {
-		var stamp = (
-			incr >= daySecs ? fmtDate('{M}/{DD}') :
-			// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
-			incr >= hourSecs ? fmtDate('{M}/{DD}\n{h}{aa}') :
-			incr >= minSecs ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
-			fmtDate('{M}/{DD}\n{h}:{mm}:{ss}{aa}')
-		);
+	var WIDTH = "width";
+	var HEIGHT = "height";
 
-		return function (val) { return stamp(new Date(val * 1e3)); };
-	}
+	function drawChart() {
+		axes.forEach(function (axis, i) {
+			var assign;
 
-	function yValFmtr(incr) {
-		return function (val) { return val + '%'; };
-	}
+			var ori = i == 0 ? 0 : 1;
+			var dim = ori == 0 ? WIDTH : HEIGHT;
+			var xDim = ori == 0 ? HEIGHT : WIDTH;
+			var scale = scales[axis.scale];
+			var min = scale.min;
+			var max = scale.max;
 
-	function drawGrid() {
-		var xScale = scales['t'];
-		var xVals = gridValsX(data[0][i0], data[0][i1]);
-		var xIncr = xVals[1] - xVals[0];
-		var xFmt = xValFmtr(xIncr);
+			var ref = findIncr(max - min, axis.incrs, opts[dim], axis.space);
+			var incr = ref[0];
+			var space = ref[1];
 
-		var yScale = scales['%'];
-		var yVals = gridValsY(yScale.min, yScale.max);
-		var yFmt = yValFmtr();
+			if (i == 0)
+				{ (assign = reframeDateRange(min, max, incr), min = assign[0], max = assign[1]); }
 
-		ctx.lineWidth = 1;
-		ctx.strokeStyle = "#eee";
+			var ticks = [];
 
-		ctx.beginPath();
+			for (var val = min; val <= max; val += incr)
+				{ ticks.push(val); }
 
-		for (var i = 0; i < xVals.length; i++) {
-			var val = xVals[i];
-			var xPos = getXPos(val, xScale, can.width);
+			var labels = axis.values(ticks, space);
 
-			gridLabel(xlabels, xFmt(val), "left", round(xPos/rat));
+			var getPos = ori == 0 ? getXPos : getYPos;
+			var cssProp = ori == 0 ? "left" : "top";
+			var canOffs = ticks.map(function (val) { return getPos(val, scale, can[dim]); });		// bit of waste if we're not drawing a grid
 
-			ctx.moveTo(xPos, 0);
-			ctx.lineTo(xPos, can.height);
-		}
+			canOffs.forEach(function (off, i) {
+				gridLabel(axis.root, labels[i], cssProp, round(off/rat));
+			});
 
-		for (var i$1 = 0; i$1 < yVals.length; i$1++) {
-			var val$1 = yVals[i$1];
-			var yPos = getYPos(val$1, yScale, can.height);
+			var grid = axis.grid;
 
-			gridLabel(ylabels, yFmt(val$1), "top", round(yPos/rat));
+			if (grid) {
+				setStyle(grid.color || "#eee", grid.width, grid.dash);
 
-			ctx.moveTo(0, yPos);
-			ctx.lineTo(can.width, yPos);
-		}
+				ctx.beginPath();
 
-		ctx.stroke();
+				canOffs.forEach(function (off, i) {
+					var mx, my, lx, ly;
+
+					if (ori == 0) {
+						my = 0;
+						ly = can[xDim];
+						mx = lx = off;
+					}
+					else {
+						mx = 0;
+						lx = can[xDim];
+						my = ly = off;
+					}
+
+					ctx.moveTo(mx, my);
+					ctx.lineTo(lx, ly);
+				});
+
+				ctx.stroke();
+			}
+		});
 	}
 
 	function clearChildren(el) {
@@ -488,10 +509,11 @@ function uPlot(opts) {
 		i1 = _i1;
 		setScales(true);
 		ctx.clearRect(0, 0, can.width, can.height);
-		clearChildren(xlabels);
-		clearChildren(ylabels);
-		drawGrid();
-		drawGraphs();
+		axes.forEach(function (axis) {
+			clearChildren(axis.root);
+		});
+		drawChart();
+		drawSeries();
 	}
 
 	setWindow(i0, i1);
@@ -558,7 +580,7 @@ function uPlot(opts) {
 
 		var idx = closestIdxFromXpos(x);
 
-		var xPos = getXPos(data[0][idx], scales['t'], opts.width);
+		var xPos = getXPos(data[0][idx], scales[series[0].scale], opts.width);
 
 		for (var i = 0; i < series.length; i++) {
 			if (i > 0) {
@@ -690,5 +712,7 @@ function uPlot(opts) {
 }
 
 uPlot.fmtDate = fmtDate;
+uPlot.xOpts = xOpts;
+uPlot.yOpts = yOpts;
 
 module.exports = uPlot;
