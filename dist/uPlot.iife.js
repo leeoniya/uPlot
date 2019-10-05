@@ -660,10 +660,7 @@ var uPlot = (function () {
 			if (i0 == 0 && i1 == dataLen - 1)
 				{ return; }
 
-			setWindow(
-				0,
-				dataLen - 1
-			);
+			setWindow(0, dataLen - 1);
 		}
 
 		function debounce(fn, time) {
