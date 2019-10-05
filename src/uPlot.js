@@ -1,22 +1,29 @@
 import fmtDate from './fmtDate';
 import {xOpts, yOpts} from './opts';
+import {
+	floor,
+	round,
+	ceil,
+	min,
+	max,
+	pow,
+	log10,
+	debounce,
+	closestIdx,
+	WIDTH,
+	HEIGHT,
+	rAF,
+	doc,
+	win,
+	pxRatio,
+	incrRoundUp,
+	incrRoundDn,
+} from './utils';
 
 export default function uPlot(opts) {
-	// todo shallow-copy opts?
-	const doc = document;
-
-	const rat = devicePixelRatio;
-	const M = Math;
-	const floor = M.floor;
-	const round = M.round;
-	const ceil = M.ceil;
-	const min = M.min;
-	const max = M.max;
-	const pow = M.pow;
-	const log10 = M.log10;
-
 	const series = opts.series;
 	const axes = opts.axes;
+	const cursor = opts.cursor;
 
 	function setStyle(color, width, dash, fill) {
 		if (color)
@@ -29,25 +36,15 @@ export default function uPlot(opts) {
 			ctx.fillStyle = fill;
 	}
 
-	const cursor = opts.cursor;
-
-	function incrRoundUp(num, incr) {
-		return ceil(num/incr)*incr;
-	}
-
-	function incrRoundDn(num, incr) {
-		return floor(num/incr)*incr;
-	}
-
 	const root = placeDiv("chart");
 
-	const { can, ctx } = makeCanvas(opts.width, opts.height);
+	const { can, ctx } = makeCanvas(opts[WIDTH], opts[HEIGHT]);
 
 	// init axis label containers
 	axes.forEach((axis, i) => {
 		let el = placeDiv((i == 0 ? "x" : "y") + "-labels", root);
 		if (i == 0)
-			el.style.top = opts.height + "px";
+			el.style.top = opts[HEIGHT] + "px";
 		axis.root = el;
 	});
 
@@ -65,10 +62,10 @@ export default function uPlot(opts) {
 		const can = doc.createElement("canvas");
 		const ctx = can.getContext("2d");
 
-		can.width = round(wid * rat);
-		can.height = round(hgt * rat);
-		can.style.width = wid + "px";
-		can.style.height = hgt + "px";
+		can[WIDTH] = round(wid * pxRatio);
+		can[HEIGHT] = round(hgt * pxRatio);
+		can.style[WIDTH] = wid + "px";
+		can.style[HEIGHT] = hgt + "px";
 
 		return {
 			can,
@@ -152,7 +149,7 @@ export default function uPlot(opts) {
 					scales[series[0].scale],
 					scales[s.scale],
 					s.color,
-					s.width,
+					s[WIDTH],
 					s.dash,
 					s.fill,
 				);
@@ -169,8 +166,8 @@ export default function uPlot(opts) {
 		ctx.beginPath();
 
 		for (let i = i0; i <= i1; i++) {
-			let xPos = getXPos(xdata[i], scaleX, can.width);
-			let yPos = getYPos(ydata[i], scaleY, can.height);
+			let xPos = getXPos(xdata[i], scaleX, can[WIDTH]);
+			let yPos = getYPos(ydata[i], scaleY, can[HEIGHT]);
 
 			if (yPos == null) {				// data gaps
 				gap = true;
@@ -217,10 +214,7 @@ export default function uPlot(opts) {
 		div.style[side] = pxVal + "px";
 	}
 
-	const WIDTH = "width";
-	const HEIGHT = "height";
-
-	function drawChart() {
+	function drawAxesGrid() {
 		axes.forEach((axis, i) => {
 			let ori = i == 0 ? 0 : 1;
 			let dim = ori == 0 ? WIDTH : HEIGHT;
@@ -245,13 +239,13 @@ export default function uPlot(opts) {
 			let canOffs = ticks.map(val => getPos(val, scale, can[dim]));		// bit of waste if we're not drawing a grid
 
 			canOffs.forEach((off, i) => {
-				gridLabel(axis.root, labels[i], cssProp, round(off/rat));
+				gridLabel(axis.root, labels[i], cssProp, round(off/pxRatio));
 			});
 
 			let grid = axis.grid;
 
 			if (grid) {
-				setStyle(grid.color || "#eee", grid.width, grid.dash);
+				setStyle(grid.color || "#eee", grid[WIDTH], grid.dash);
 
 				ctx.beginPath();
 
@@ -287,11 +281,11 @@ export default function uPlot(opts) {
 		i0 = _i0;
 		i1 = _i1;
 		setScales(true);
-		ctx.clearRect(0, 0, can.width, can.height);
+		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 		axes.forEach(axis => {
 			clearChildren(axis.root);
 		});
-		drawChart();
+		drawAxesGrid();
 		drawSeries();
 	}
 
@@ -300,8 +294,6 @@ export default function uPlot(opts) {
 	root.appendChild(can);
 
 //	INTERACTION
-
-	const rAF = requestAnimationFrame;
 
 	let vt;
 	let hz;
@@ -336,7 +328,7 @@ export default function uPlot(opts) {
 	let rafPending = false;
 
 	function closestIdxFromXpos(x) {
-		let pctX = x / opts.width;
+		let pctX = x / opts[WIDTH];
 		let d = data[0][i1] - data[0][i0];
 		let t = data[0][i0] + pctX * d;
 		let idx = closestIdx(t, data[0], i0, i1);
@@ -355,15 +347,15 @@ export default function uPlot(opts) {
 			trans(hz,0,y);
 		}
 
-	//	let pctY = 1 - (y / rect.height);
+	//	let pctY = 1 - (y / rect[HEIGHT]);
 
 		let idx = closestIdxFromXpos(x);
 
-		let xPos = getXPos(data[0][idx], scales[series[0].scale], opts.width);
+		let xPos = getXPos(data[0][idx], scales[series[0].scale], opts[WIDTH]);
 
 		for (let i = 0; i < series.length; i++) {
 			if (i > 0) {
-				let yPos = getYPos(data[i][idx], scales[series[i].scale], opts.height);
+				let yPos = getYPos(data[i][idx], scales[series[i].scale], opts[HEIGHT]);
 				trans(pts[i], xPos, yPos);
 			}
 
@@ -375,7 +367,7 @@ export default function uPlot(opts) {
 			let maxX = max(x0, x);
 
 			region.style.left = minX + "px";
-			region.style.width = (maxX - minX) + "px";
+			region.style[WIDTH] = (maxX - minX) + "px";
 		}
 	}
 
@@ -410,28 +402,6 @@ export default function uPlot(opts) {
 		el.addEventListener(ev, cb, {passive: true});
 	}
 
-	// binary search for index of closest value
-	function closestIdx(num, arr, lo, hi) {
-		let mid;
-		lo = lo || 0;
-		hi = hi || arr.length - 1;
-		let bitwise = hi <= 2147483647;
-
-		while (hi - lo > 1) {
-			mid = bitwise ? (lo + hi) >> 1 : floor((lo + hi) / 2);
-
-			if (arr[mid] < num)
-				lo = mid;
-			else
-				hi = mid;
-		}
-
-		if (num - arr[lo] <= arr[hi] - num)
-			return lo;
-
-		return hi;
-	}
-
 	function mouseDown(e) {
 		x0 = e.clientX - rect.left;
 		y0 = e.clientY - rect.top;
@@ -445,7 +415,7 @@ export default function uPlot(opts) {
 			return;
 
 		region.style.left = 0;
-		region.style.width = 0;
+		region.style[WIDTH] = 0;
 
 		let minX = min(x0, x);
 		let maxX = max(x0, x);
@@ -463,26 +433,10 @@ export default function uPlot(opts) {
 		setWindow(0, dataLen - 1);
 	}
 
-	function debounce(fn, time) {
-		let pending = null;
-
-		function run() {
-			pending = null;
-			fn();
-		}
-
-		return function() {
-			clearTimeout(pending);
-			pending = setTimeout(run, time);
-		}
-	}
-
 	on("mousemove", can, mouseMove);
 	on("mousedown", can, mouseDown);
 	on("mouseup", can, mouseUp);
 	on("dblclick", can, dblclick);
-
-	const win = window;
 
 	on("resize", win, debounce(syncRect, 100));
 	on("scroll", win, debounce(syncRect, 100));

@@ -216,22 +216,72 @@ var uPlot = (function () {
 	};
 	*/
 
+	function debounce(fn, time) {
+		var pending = null;
+
+		function run() {
+			pending = null;
+			fn();
+		}
+
+		return function() {
+			clearTimeout(pending);
+			pending = setTimeout(run, time);
+		}
+	}
+
+	// binary search for index of closest value
+	function closestIdx(num, arr, lo, hi) {
+		var mid;
+		lo = lo || 0;
+		hi = hi || arr.length - 1;
+		var bitwise = hi <= 2147483647;
+
+		while (hi - lo > 1) {
+			mid = bitwise ? (lo + hi) >> 1 : floor((lo + hi) / 2);
+
+			if (arr[mid] < num)
+				{ lo = mid; }
+			else
+				{ hi = mid; }
+		}
+
+		if (num - arr[lo] <= arr[hi] - num)
+			{ return lo; }
+
+		return hi;
+	}
+
+	var rAF = requestAnimationFrame;
+	var doc = document;
+	var win = window;
+	var pxRatio = devicePixelRatio;
+
+	var M = Math;
+
+	var floor = M.floor;
+	var round = M.round;
+	var ceil = M.ceil;
+	var min = M.min;
+	var max = M.max;
+	var pow = M.pow;
+	var log10 = M.log10;
+
+	function incrRoundUp(num, incr) {
+		return ceil(num/incr)*incr;
+	}
+
+	function incrRoundDn(num, incr) {
+		return floor(num/incr)*incr;
+	}
+
+	var WIDTH = "width";
+	var HEIGHT = "height";
+
 	function uPlot(opts) {
-		// todo shallow-copy opts?
-		var doc = document;
-
-		var rat = devicePixelRatio;
-		var M = Math;
-		var floor = M.floor;
-		var round = M.round;
-		var ceil = M.ceil;
-		var min = M.min;
-		var max = M.max;
-		var pow = M.pow;
-		var log10 = M.log10;
-
 		var series = opts.series;
 		var axes = opts.axes;
+		var cursor = opts.cursor;
 
 		function setStyle(color, width, dash, fill) {
 			if (color)
@@ -244,19 +294,9 @@ var uPlot = (function () {
 				{ ctx.fillStyle = fill; }
 		}
 
-		var cursor = opts.cursor;
-
-		function incrRoundUp(num, incr) {
-			return ceil(num/incr)*incr;
-		}
-
-		function incrRoundDn(num, incr) {
-			return floor(num/incr)*incr;
-		}
-
 		var root = placeDiv("chart");
 
-		var ref = makeCanvas(opts.width, opts.height);
+		var ref = makeCanvas(opts[WIDTH], opts[HEIGHT]);
 		var can = ref.can;
 		var ctx = ref.ctx;
 
@@ -264,7 +304,7 @@ var uPlot = (function () {
 		axes.forEach(function (axis, i) {
 			var el = placeDiv((i == 0 ? "x" : "y") + "-labels", root);
 			if (i == 0)
-				{ el.style.top = opts.height + "px"; }
+				{ el.style.top = opts[HEIGHT] + "px"; }
 			axis.root = el;
 		});
 
@@ -282,10 +322,10 @@ var uPlot = (function () {
 			var can = doc.createElement("canvas");
 			var ctx = can.getContext("2d");
 
-			can.width = round(wid * rat);
-			can.height = round(hgt * rat);
-			can.style.width = wid + "px";
-			can.style.height = hgt + "px";
+			can[WIDTH] = round(wid * pxRatio);
+			can[HEIGHT] = round(hgt * pxRatio);
+			can.style[WIDTH] = wid + "px";
+			can.style[HEIGHT] = hgt + "px";
 
 			return {
 				can: can,
@@ -369,7 +409,7 @@ var uPlot = (function () {
 						scales[series[0].scale],
 						scales[s.scale],
 						s.color,
-						s.width,
+						s[WIDTH],
 						s.dash,
 						s.fill
 					);
@@ -386,8 +426,8 @@ var uPlot = (function () {
 			ctx.beginPath();
 
 			for (var i = i0; i <= i1; i++) {
-				var xPos = getXPos(xdata[i], scaleX, can.width);
-				var yPos = getYPos(ydata[i], scaleY, can.height);
+				var xPos = getXPos(xdata[i], scaleX, can[WIDTH]);
+				var yPos = getYPos(ydata[i], scaleY, can[HEIGHT]);
 
 				if (yPos == null) {				// data gaps
 					gap = true;
@@ -434,10 +474,7 @@ var uPlot = (function () {
 			div.style[side] = pxVal + "px";
 		}
 
-		var WIDTH = "width";
-		var HEIGHT = "height";
-
-		function drawChart() {
+		function drawAxesGrid() {
 			axes.forEach(function (axis, i) {
 				var assign;
 
@@ -467,13 +504,13 @@ var uPlot = (function () {
 				var canOffs = ticks.map(function (val) { return getPos(val, scale, can[dim]); });		// bit of waste if we're not drawing a grid
 
 				canOffs.forEach(function (off, i) {
-					gridLabel(axis.root, labels[i], cssProp, round(off/rat));
+					gridLabel(axis.root, labels[i], cssProp, round(off/pxRatio));
 				});
 
 				var grid = axis.grid;
 
 				if (grid) {
-					setStyle(grid.color || "#eee", grid.width, grid.dash);
+					setStyle(grid.color || "#eee", grid[WIDTH], grid.dash);
 
 					ctx.beginPath();
 
@@ -509,11 +546,11 @@ var uPlot = (function () {
 			i0 = _i0;
 			i1 = _i1;
 			setScales(true);
-			ctx.clearRect(0, 0, can.width, can.height);
+			ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 			axes.forEach(function (axis) {
 				clearChildren(axis.root);
 			});
-			drawChart();
+			drawAxesGrid();
 			drawSeries();
 		}
 
@@ -522,8 +559,6 @@ var uPlot = (function () {
 		root.appendChild(can);
 
 	//	INTERACTION
-
-		var rAF = requestAnimationFrame;
 
 		var vt;
 		var hz;
@@ -558,7 +593,7 @@ var uPlot = (function () {
 		var rafPending = false;
 
 		function closestIdxFromXpos(x) {
-			var pctX = x / opts.width;
+			var pctX = x / opts[WIDTH];
 			var d = data[0][i1] - data[0][i0];
 			var t = data[0][i0] + pctX * d;
 			var idx = closestIdx(t, data[0], i0, i1);
@@ -577,15 +612,15 @@ var uPlot = (function () {
 				trans(hz,0,y);
 			}
 
-		//	let pctY = 1 - (y / rect.height);
+		//	let pctY = 1 - (y / rect[HEIGHT]);
 
 			var idx = closestIdxFromXpos(x);
 
-			var xPos = getXPos(data[0][idx], scales[series[0].scale], opts.width);
+			var xPos = getXPos(data[0][idx], scales[series[0].scale], opts[WIDTH]);
 
 			for (var i = 0; i < series.length; i++) {
 				if (i > 0) {
-					var yPos = getYPos(data[i][idx], scales[series[i].scale], opts.height);
+					var yPos = getYPos(data[i][idx], scales[series[i].scale], opts[HEIGHT]);
 					trans(pts[i], xPos, yPos);
 				}
 
@@ -597,7 +632,7 @@ var uPlot = (function () {
 				var maxX = max(x0, x);
 
 				region.style.left = minX + "px";
-				region.style.width = (maxX - minX) + "px";
+				region.style[WIDTH] = (maxX - minX) + "px";
 			}
 		}
 
@@ -632,28 +667,6 @@ var uPlot = (function () {
 			el.addEventListener(ev, cb, {passive: true});
 		}
 
-		// binary search for index of closest value
-		function closestIdx(num, arr, lo, hi) {
-			var mid;
-			lo = lo || 0;
-			hi = hi || arr.length - 1;
-			var bitwise = hi <= 2147483647;
-
-			while (hi - lo > 1) {
-				mid = bitwise ? (lo + hi) >> 1 : floor((lo + hi) / 2);
-
-				if (arr[mid] < num)
-					{ lo = mid; }
-				else
-					{ hi = mid; }
-			}
-
-			if (num - arr[lo] <= arr[hi] - num)
-				{ return lo; }
-
-			return hi;
-		}
-
 		function mouseDown(e) {
 			x0 = e.clientX - rect.left;
 			y0 = e.clientY - rect.top;
@@ -667,7 +680,7 @@ var uPlot = (function () {
 				{ return; }
 
 			region.style.left = 0;
-			region.style.width = 0;
+			region.style[WIDTH] = 0;
 
 			var minX = min(x0, x);
 			var maxX = max(x0, x);
@@ -685,26 +698,10 @@ var uPlot = (function () {
 			setWindow(0, dataLen - 1);
 		}
 
-		function debounce(fn, time) {
-			var pending = null;
-
-			function run() {
-				pending = null;
-				fn();
-			}
-
-			return function() {
-				clearTimeout(pending);
-				pending = setTimeout(run, time);
-			}
-		}
-
 		on("mousemove", can, mouseMove);
 		on("mousedown", can, mouseDown);
 		on("mouseup", can, mouseUp);
 		on("dblclick", can, dblclick);
-
-		var win = window;
 
 		on("resize", win, debounce(syncRect, 100));
 		on("scroll", win, debounce(syncRect, 100));
