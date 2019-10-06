@@ -231,6 +231,15 @@ var timeIncrs = [
 	h * 12,
 	// month divisors TODO: need more?
 	d,
+	d * 2,
+	d * 3,
+	d * 4,
+	d * 5,
+	d * 6,
+	d * 7,
+	d * 8,
+	d * 9,
+	d * 10,
 	// year divisors
 	d * 365 ];
 
@@ -243,7 +252,7 @@ var xOpts = {
 		var incr = vals[1] - vals[0];
 
 		var stamp = (
-			incr >= d ? fmtDate('{M}/{DD}') :
+			incr >= d ? fmtDate('{M}/{D}') :
 			// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
 			incr >= h ? fmtDate('{M}/{DD}\n{h}{aa}') :
 			incr >= m ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
