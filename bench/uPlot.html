@@ -75,7 +75,13 @@
 						Object.assign({}, uPlot.xOpts),
 						Object.assign({}, uPlot.yOpts, {
 							scale: '%',
-							values: (vals, space) => vals.map(v => v.toFixed(1) + "%"),
+							values: (vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+						}),
+						Object.assign({}, uPlot.yOpts, {
+							pos: 3,
+							scale: 'mb',
+							values: (vals, space) => vals.map(v => +v.toFixed(2) + "MB"),
+							grid: null,
 						}),
 					],
 					series: [

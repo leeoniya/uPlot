@@ -1,4 +1,4 @@
-## 📈 μPlot
+## 📈 μPlot (WIP!)
 
 An [exceptionally fast](#performance), tiny ([~6 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)) time series chart _(MIT Licensed)_
 
@@ -21,8 +21,7 @@ An [exceptionally fast](#performance), tiny ([~6 KB min](https://github.com/leeo
 - Zooming with auto-rescaling
 - Support for gaps in data
 - Crosshair cursor
-- Grid & Axis Labels
-- [WIP] Multi-axis
+- Grid & Multi-axis with different scales
 - [WIP] API for programmatic interaction
 
 ---

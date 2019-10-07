@@ -53,15 +53,94 @@ export default function uPlot(opts) {
 
 	const root = placeDiv("chart");
 
-	const { can, ctx } = makeCanvas(opts[WIDTH], opts[HEIGHT]);
+	const plot = placeDiv("plot", root);
 
-	// init axis label containers
+	let fullCssWidth = opts[WIDTH];
+	let fullCssHeight = opts[HEIGHT];
+
+	let canCssWidth = fullCssWidth;
+	let canCssHeight = fullCssHeight;
+
+	// plot margins to account for axes
+	let plotLft = 0;
+	let plotTop = 0;
+
+	const AXIS_WIDTH = 40;
+	const AXIS_HEIGHT = 30;
+
+	// accumulate axis offsets, reduce canvas width
 	axes.forEach((axis, i) => {
-		let el = placeDiv((i == 0 ? "x" : "y") + "-labels", root);
-		if (i == 0)
-			el.style.top = opts[HEIGHT] + "px";
-		axis.root = el;
+		let pos = axis.pos;
+		let isVt = pos % 2;
+
+		if (isVt) {
+			let w = (axis[WIDTH] = axis[WIDTH] || AXIS_WIDTH);
+			canCssWidth -= w;
+
+			if (pos == 1)
+				plotLft += w;
+		}
+		else {
+			let h = (axis[HEIGHT] = axis[HEIGHT] || AXIS_HEIGHT);
+			canCssHeight -= h;
+
+			if (pos == 2)
+				plotTop += h;
+		}
 	});
+
+	// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
+	let off1 = fullCssWidth - plotLft;
+	let off2 = fullCssHeight - plotTop;
+	let off3 = plotLft + canCssWidth;
+	let off0 = plotTop + canCssHeight;
+
+	// init axis containers, set axis positions
+	axes.forEach((axis, i) => {
+		let pos = axis.pos;
+		let isVt = pos % 2;
+
+		let el = axis.root = placeDiv((isVt ? "y" : "x") + "-labels", root);
+
+		if (isVt) {
+			let w = axis[WIDTH];
+			el.style[WIDTH] = w + "px";
+			el.style[HEIGHT] = canCssHeight + "px";
+			el.style.top = plotTop + "px";
+
+			if (pos == 1) {
+				el.style.right = off1 + "px";
+				off1 += w;
+			}
+			else {
+				el.style.left = off3 + "px";
+				off3 += w;
+			}
+		}
+		else {
+			let h = axis[HEIGHT];
+			el.style[HEIGHT] = h + "px";
+			el.style[WIDTH] = canCssWidth + "px";
+			el.style.left = plotLft + "px";
+
+			if (pos == 2) {
+				el.style.bottom = off2 + "px";
+				off2 += h;
+			}
+			else {
+				el.style.top = off0 + "px";
+				off0 += h;
+			}
+
+		}
+	});
+
+	plot.style.top = plotTop + "px";
+	plot.style.left = plotLft + "px";
+	root.style[WIDTH] = fullCssWidth + "px";
+	root.style[HEIGHT] = fullCssHeight + "px";
+
+	const { can, ctx } = makeCanvas(canCssWidth, canCssHeight);
 
 	const data = opts.data;
 
@@ -306,7 +385,7 @@ export default function uPlot(opts) {
 
 	setWindow(i0, i1);
 
-	root.appendChild(can);
+	plot.appendChild(can);
 
 //	INTERACTION
 
@@ -315,12 +394,12 @@ export default function uPlot(opts) {
 
 	if (cursor) {
 		// cursor
-		vt = placeDiv("vt", root);
-		hz = placeDiv("hz", root);
+		vt = placeDiv("vt", plot);
+		hz = placeDiv("hz", plot);
 	}
 
 	// zoom region
-	const region = placeDiv("region", root);
+	const region = placeDiv("region", plot);
 
 	const leg = placeDiv("legend", root);
 
@@ -334,7 +413,7 @@ export default function uPlot(opts) {
 	// series-intersection markers
 	const pts = series.map((s, i) => {
 		if (i > 0) {
-			let dot = placeDiv("dot", root);
+			let dot = placeDiv("dot", plot);
 			dot.style.background = s.color;
 			return dot;
 		}
@@ -343,7 +422,7 @@ export default function uPlot(opts) {
 	let rafPending = false;
 
 	function closestIdxFromXpos(x) {
-		let pctX = x / opts[WIDTH];
+		let pctX = x / canCssWidth;
 		let d = data[0][i1] - data[0][i0];
 		let t = data[0][i0] + pctX * d;
 		let idx = closestIdx(t, data[0], i0, i1);
@@ -366,11 +445,11 @@ export default function uPlot(opts) {
 
 		let idx = closestIdxFromXpos(x);
 
-		let xPos = getXPos(data[0][idx], scales[series[0].scale], opts[WIDTH]);
+		let xPos = getXPos(data[0][idx], scales[series[0].scale], canCssWidth);
 
 		for (let i = 0; i < series.length; i++) {
 			if (i > 0) {
-				let yPos = getYPos(data[i][idx], scales[series[i].scale], opts[HEIGHT]);
+				let yPos = getYPos(data[i][idx], scales[series[i].scale], canCssHeight);
 				trans(pts[i], xPos, yPos);
 			}
 

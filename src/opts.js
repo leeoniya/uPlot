@@ -53,6 +53,8 @@ const timeIncrs = [
 export const xOpts = {
 	scale: 'x',
 	space: 40,
+	height: 30,
+	pos: 0,
 	class: "x-time",
 	incrs: timeIncrs,
 	values: (vals, space) => {
@@ -76,6 +78,8 @@ const numIncrs = [0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,
 export const yOpts = {
 	scale: 'y',
 	space: 30,
+	width: 40,
+	pos: 1,
 	class: "y-vals",
 	incrs: numIncrs,
 	values: (vals, space) => vals,

@@ -247,6 +247,8 @@ var uPlot = (function () {
 	var xOpts = {
 		scale: 'x',
 		space: 40,
+		height: 30,
+		pos: 0,
 		class: "x-time",
 		incrs: timeIncrs,
 		values: function (vals, space) {
@@ -270,6 +272,8 @@ var uPlot = (function () {
 	var yOpts = {
 		scale: 'y',
 		space: 30,
+		width: 40,
+		pos: 1,
 		class: "y-vals",
 		incrs: numIncrs,
 		values: function (vals, space) { return vals; },
@@ -307,17 +311,96 @@ var uPlot = (function () {
 
 		var root = placeDiv("chart");
 
-		var ref = makeCanvas(opts[WIDTH], opts[HEIGHT]);
+		var plot = placeDiv("plot", root);
+
+		var fullCssWidth = opts[WIDTH];
+		var fullCssHeight = opts[HEIGHT];
+
+		var canCssWidth = fullCssWidth;
+		var canCssHeight = fullCssHeight;
+
+		// plot margins to account for axes
+		var plotLft = 0;
+		var plotTop = 0;
+
+		var AXIS_WIDTH = 40;
+		var AXIS_HEIGHT = 30;
+
+		// accumulate axis offsets, reduce canvas width
+		axes.forEach(function (axis, i) {
+			var pos = axis.pos;
+			var isVt = pos % 2;
+
+			if (isVt) {
+				var w = (axis[WIDTH] = axis[WIDTH] || AXIS_WIDTH);
+				canCssWidth -= w;
+
+				if (pos == 1)
+					{ plotLft += w; }
+			}
+			else {
+				var h = (axis[HEIGHT] = axis[HEIGHT] || AXIS_HEIGHT);
+				canCssHeight -= h;
+
+				if (pos == 2)
+					{ plotTop += h; }
+			}
+		});
+
+		// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
+		var off1 = fullCssWidth - plotLft;
+		var off2 = fullCssHeight - plotTop;
+		var off3 = plotLft + canCssWidth;
+		var off0 = plotTop + canCssHeight;
+
+		// init axis containers, set axis positions
+		axes.forEach(function (axis, i) {
+			var pos = axis.pos;
+			var isVt = pos % 2;
+
+			var el = axis.root = placeDiv((isVt ? "y" : "x") + "-labels", root);
+
+			if (isVt) {
+				var w = axis[WIDTH];
+				el.style[WIDTH] = w + "px";
+				el.style[HEIGHT] = canCssHeight + "px";
+				el.style.top = plotTop + "px";
+
+				if (pos == 1) {
+					el.style.right = off1 + "px";
+					off1 += w;
+				}
+				else {
+					el.style.left = off3 + "px";
+					off3 += w;
+				}
+			}
+			else {
+				var h = axis[HEIGHT];
+				el.style[HEIGHT] = h + "px";
+				el.style[WIDTH] = canCssWidth + "px";
+				el.style.left = plotLft + "px";
+
+				if (pos == 2) {
+					el.style.bottom = off2 + "px";
+					off2 += h;
+				}
+				else {
+					el.style.top = off0 + "px";
+					off0 += h;
+				}
+
+			}
+		});
+
+		plot.style.top = plotTop + "px";
+		plot.style.left = plotLft + "px";
+		root.style[WIDTH] = fullCssWidth + "px";
+		root.style[HEIGHT] = fullCssHeight + "px";
+
+		var ref = makeCanvas(canCssWidth, canCssHeight);
 		var can = ref.can;
 		var ctx = ref.ctx;
-
-		// init axis label containers
-		axes.forEach(function (axis, i) {
-			var el = placeDiv((i == 0 ? "x" : "y") + "-labels", root);
-			if (i == 0)
-				{ el.style.top = opts[HEIGHT] + "px"; }
-			axis.root = el;
-		});
 
 		var data = opts.data;
 
@@ -567,7 +650,7 @@ var uPlot = (function () {
 
 		setWindow(i0, i1);
 
-		root.appendChild(can);
+		plot.appendChild(can);
 
 	//	INTERACTION
 
@@ -576,12 +659,12 @@ var uPlot = (function () {
 
 		if (cursor) {
 			// cursor
-			vt = placeDiv("vt", root);
-			hz = placeDiv("hz", root);
+			vt = placeDiv("vt", plot);
+			hz = placeDiv("hz", plot);
 		}
 
 		// zoom region
-		var region = placeDiv("region", root);
+		var region = placeDiv("region", plot);
 
 		var leg = placeDiv("legend", root);
 
@@ -595,7 +678,7 @@ var uPlot = (function () {
 		// series-intersection markers
 		var pts = series.map(function (s, i) {
 			if (i > 0) {
-				var dot = placeDiv("dot", root);
+				var dot = placeDiv("dot", plot);
 				dot.style.background = s.color;
 				return dot;
 			}
@@ -604,7 +687,7 @@ var uPlot = (function () {
 		var rafPending = false;
 
 		function closestIdxFromXpos(x) {
-			var pctX = x / opts[WIDTH];
+			var pctX = x / canCssWidth;
 			var d = data[0][i1] - data[0][i0];
 			var t = data[0][i0] + pctX * d;
 			var idx = closestIdx(t, data[0], i0, i1);
@@ -627,11 +710,11 @@ var uPlot = (function () {
 
 			var idx = closestIdxFromXpos(x);
 
-			var xPos = getXPos(data[0][idx], scales[series[0].scale], opts[WIDTH]);
+			var xPos = getXPos(data[0][idx], scales[series[0].scale], canCssWidth);
 
 			for (var i = 0; i < series.length; i++) {
 				if (i > 0) {
-					var yPos = getYPos(data[i][idx], scales[series[i].scale], opts[HEIGHT]);
+					var yPos = getYPos(data[i][idx], scales[series[i].scale], canCssHeight);
 					trans(pts[i], xPos, yPos);
 				}
 
