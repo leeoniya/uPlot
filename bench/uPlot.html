@@ -9,7 +9,7 @@
 		<link rel="stylesheet" href="../src/uPlot.css">
 	</head>
 	<body>
-		<script src="../dist/uPlot.iife.min.js"></script>
+		<script src="../dist/uPlot.iife.js"></script>
 		<h2 id="wait">Loading lib....</h2>
 
 		<script>
@@ -61,8 +61,55 @@
 			function makeChart(data) {
 				console.time('chart');
 
-				let fmtDate = uPlot.fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
-
+				const opts = {
+					width: 1920,
+					height: 600,
+					cursor: true,
+//					scales: {},
+					series: {
+						x: {
+							data: data[0],
+						},
+						y: [
+							{
+								label: "CPU",
+								data: data[1],
+								scale: "%",
+								value: v => v.toFixed(1) + "%",
+								color: "red",
+							},
+							{
+								label: "RAM",
+								data: data[2],
+								scale: "%",
+								value: v => v.toFixed(1) + "%",
+								color: "blue",
+							},
+							{
+								label: "TCP Out",
+								data: data[3],
+								scale: "mb",
+								value: v => v.toFixed(2) + "MB",
+								color: "green",
+							}
+						],
+					},
+					axes: {
+						y: [
+							{
+								scale: '%',
+								values: (vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+							},
+							{
+								side: 3,
+								scale: 'mb',
+								values: (vals, space) => vals.map(v => +v.toFixed(2) + "MB"),
+								grid: null,
+							},
+						],
+					}
+				};
+/*
 				const opts = {
 					width: 1920,
 					height: 600,
@@ -111,7 +158,7 @@
 						}
 					],
 				};
-
+*/
 				let uplot = new uPlot(opts);
 
 				document.body.appendChild(uplot.root);

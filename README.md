@@ -1,11 +1,11 @@
-## 📈 μPlot (WIP!)
+## 📈 μPlot
 
-An [exceptionally fast](#performance), tiny ([~6 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)) time series chart _(MIT Licensed)_
+An [exceptionally fast](#performance), tiny ([~7 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)) time series chart _(MIT Licensed)_
 
 ---
 ### Introduction
 
-μPlot is a very fast and memory-efficient [time series](https://en.wikipedia.org/wiki/Time_series) chart based on [Canvas 2D](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D); from a cold start it can create an interactive chart containing 150,000 data points in 50ms. In addition to fast initial render, the zooming and cursor performance is by far the best of any similar charting lib; at ~6 KB (min), it's likely the smallest and fastest time series plotter that doesn't make use of WebGL shaders or WASM, both of which have much higher startup cost and code size.
+μPlot is a very fast and memory-efficient [time series](https://en.wikipedia.org/wiki/Time_series) chart based on [Canvas 2D](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D); from a cold start it can create an interactive chart containing 150,000 data points in 50ms. In addition to fast initial render, the zooming and cursor performance is by far the best of any similar charting lib; at ~7 KB (min), it's likely the smallest and fastest time series plotter that doesn't make use of WebGL shaders or WASM, both of which have much higher startup cost and code size.
 
 ---
 <h3 align="center">166,650 point bench: <a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">https://leeoniya.github.io/uPlot/bench/uPlot.html</a></h3>
@@ -13,15 +13,12 @@ An [exceptionally fast](#performance), tiny ([~6 KB min](https://github.com/leeo
 ---
 ### Features
 
-- Tiny size
-- Starts fast and stays fast
-- Easily handles 150k+ data points
-- Multiple series (with varying units)
-- Legend with live values
-- Zooming with auto-rescaling
+- Multiple series
+- Multiple y-axes & grids
+- Zooming with auto-rescale
 - Support for gaps in data
+- Legend with live values
 - Crosshair cursor
-- Grid & Multi-axis with different scales
 - [WIP] API for programmatic interaction
 
 ---
@@ -33,59 +30,61 @@ Example: https://jsfiddle.net/8f51qhcn/
 <link rel="stylesheet" href="src/uPlot.css">
 <script src="dist/uPlot.iife.min.js"></script>
 <script>
-    let fmtDate = uPlot.fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+    const data = [
+        [1566453600, 1566457260, 1566460860, 1566464460],   // Unix timestamps
+        [0.54,       0.15,       3.27,       7.51      ],   // CPU
+        [12.85,      13.21,      13.65,      14.01     ],   // RAM
+        [0.52,       1.25,       0.75,       3.62      ],   // TCP Out
+    ];
 
-    let opts = {
+    const opts = {
         width: 800,
         height: 400,
         cursor: true,
-        data: [
-            [1566453600, 1566457260, 1566460860, 1566464460],   // Unix timestamps
-            [0.54,       0.15,       3.27,       7.51      ],   // CPU
-            [12.85,      13.21,      13.65,      14.01     ],   // RAM
-            [0.52,       1.25,       0.75,       3.62      ],   // TCP Out
-        ],
-        axes: [
-            Object.assign({}, uPlot.xOpts),
-            Object.assign({}, uPlot.yOpts, {
-                scale: '%',
-                values: (vals, space) => vals.map(v => +v.toFixed(1) + "%"),
-            }),
-            Object.assign({}, uPlot.yOpts, {
-                pos: 3,
-                scale: 'mb',
-                values: (vals, space) => vals.map(v => +v.toFixed(2) + "MB"),
-                grid: null,
-            }),
-        ],
-        series: [
-            {
-                label: "Time",
-                scale: "x",
-                value: v => fmtDate(new Date(v * 1e3)),
-                color: "black",
+        series: {
+            x: {
+                data: data[0],
             },
-            {
-                label: "CPU",
-                scale: "%",
-                value: v => v.toFixed(1) + "%",
-                color: "red",
-                width: 2,
-                dash: [10, 5],
-            },
-            {
-                label: "RAM",
-                scale: "%",
-                value: v => v.toFixed(1) + "%",
-                color: "blue",
-            },
-            {
-                label: "TCP Out",
-                scale: "mb",
-                value: v => v.toFixed(2) + "MB",
-                color: "green",
-            }
-        ],
+            y: [
+                {
+                    label: "CPU",
+                    data: data[1],
+                    scale: "%",
+                    value: v => v.toFixed(1) + "%",
+                    color: "red",
+                    width: 2,
+                    dash: [10, 5],
+                },
+                {
+                    label: "RAM",
+                    data: data[2],
+                    scale: "%",
+                    value: v => v.toFixed(1) + "%",
+                    color: "blue",
+                },
+                {
+                    label: "TCP Out",
+                    data: data[3],
+                    scale: "mb",
+                    value: v => v.toFixed(2) + "MB",
+                    color: "green",
+                }
+            ],
+        },
+        axes: {
+            y: [
+                {
+                    scale: '%',
+                    values: (vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+                },
+                {
+                    side: 3,
+                    scale: 'mb',
+                    values: (vals, space) => vals.map(v => +v.toFixed(2) + "MB"),
+                    grid: null,
+                },
+            ],
+        },
     };
 
     let uplot = new uPlot(opts);

@@ -200,6 +200,37 @@ var uPlot = (function () {
 	var createElement = "createElement";
 	var hexBlack = "#000";
 
+	var assign = Object.assign;
+
+	/*
+	function isObj(v) {
+		return typeof v === 'object' && v !== null;
+	}
+
+	// https://stackoverflow.com/a/34624648
+	function copy(o) {
+		var _out, v, _key;
+		_out = Array.isArray(o) ? [] : {};
+		for (_key in o) {
+			v = o[_key];
+			_out[_key] = isObj(v) ? copy(v) : v;
+		}
+		return _out;
+	}
+
+	// https://github.com/jaredreich/tread
+	function merge(oldObject, newObject) {
+		var obj = oldObject
+		for (var key in newObject) {
+			if (isObj(obj[key]))
+				merge(obj[key], newObject[key]);
+			else
+				obj[key] = newObject[key];
+		}
+		return obj;
+	}
+	*/
+
 	//export const series = [];
 
 	// default formatters:
@@ -249,7 +280,7 @@ var uPlot = (function () {
 		// year divisors
 		d * 365 ];
 
-	var xOpts = {
+	var xAxisOpts = {
 		scale: 'x',
 		space: 40,
 		height: 30,
@@ -272,9 +303,17 @@ var uPlot = (function () {
 		grid: grid,
 	};
 
+	var stamp = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+
+	var xSeriesOpts = {
+		label: "Time",
+		scale: "x",
+		value: function (v) { return stamp(new Date(v * 1e3)); },
+	};
+
 	var numIncrs = [0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9];
 
-	var yOpts = {
+	var yAxisOpts = {
 		scale: 'y',
 		space: 30,
 		width: 40,
@@ -283,6 +322,12 @@ var uPlot = (function () {
 		incrs: numIncrs,
 		values: function (vals, space) { return vals; },
 		grid: grid,
+	};
+
+	var ySeriesOpts = {
+		label: "Value",
+		scale: "y",
+		value: function (v) { return v; },
 	};
 
 	/*
@@ -299,9 +344,22 @@ var uPlot = (function () {
 	*/
 
 	function uPlot(opts) {
-		var series = opts.series;
-		var axes = opts.axes;
+		function setDefaults(d, xo, yo) {
+			return [d.x].concat(d.y).map(function (o, i) { return assign({}, (i == 0 ? xo : yo), o); });
+		}
+
+		var series = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
+		var axes = setDefaults(opts.axes, xAxisOpts, yAxisOpts);
+		var data = series.map(function (s) { return s.data; });
+		var scales = {};
+
 		var cursor = opts.cursor;
+
+		var dataLen = data[0].length;
+
+		// rendered data window
+		var i0 = 0;
+		var i1 = dataLen - 1;
 
 		function setStylePx(el, name, value) {
 			el.style[name] = value + "px";
@@ -333,21 +391,21 @@ var uPlot = (function () {
 
 		// accumulate axis offsets, reduce canvas width
 		axes.forEach(function (axis, i) {
-			var pos = axis.pos;
-			var isVt = pos % 2;
+			var side = axis.side;
+			var isVt = side % 2;
 
 			if (isVt) {
 				var w = (axis[WIDTH] = axis[WIDTH] || AXIS_WIDTH);
 				canCssWidth -= w;
 
-				if (pos == 1)
+				if (side == 1)
 					{ plotLft += w; }
 			}
 			else {
 				var h = (axis[HEIGHT] = axis[HEIGHT] || AXIS_HEIGHT);
 				canCssHeight -= h;
 
-				if (pos == 2)
+				if (side == 2)
 					{ plotTop += h; }
 			}
 		});
@@ -360,8 +418,8 @@ var uPlot = (function () {
 
 		// init axis containers, set axis positions
 		axes.forEach(function (axis, i) {
-			var pos = axis.pos;
-			var isVt = pos % 2;
+			var side = axis.side;
+			var isVt = side % 2;
 
 			var el = axis.root = placeDiv((isVt ? "y" : "x") + "-labels", root);
 
@@ -371,7 +429,7 @@ var uPlot = (function () {
 				setStylePx(el, HEIGHT, canCssHeight);
 				setStylePx(el, TOP, plotTop);
 
-				if (pos == 1) {
+				if (side == 1) {
 					setStylePx(el, RIGHT, off1);
 					off1 += w;
 				}
@@ -386,7 +444,7 @@ var uPlot = (function () {
 				setStylePx(el, WIDTH, canCssWidth);
 				setStylePx(el, LEFT, plotLft);
 
-				if (pos == 2) {
+				if (side == 2) {
 					setStylePx(el, BOTTOM, off2);
 					off2 += h;
 				}
@@ -406,16 +464,6 @@ var uPlot = (function () {
 		var ref = makeCanvas(canCssWidth, canCssHeight);
 		var can = ref.can;
 		var ctx = ref.ctx;
-
-		var data = opts.data;
-
-		var dataLen = data[0].length;
-
-		// rendered data window
-		var i0 = 0;
-		var i1 = dataLen - 1;
-
-		var scales = {};
 
 		function makeCanvas(wid, hgt) {
 			var can = doc[createElement]("canvas");
@@ -811,8 +859,6 @@ var uPlot = (function () {
 	}
 
 	uPlot.fmtDate = fmtDate;
-	uPlot.xOpts = xOpts;
-	uPlot.yOpts = yOpts;
 
 	return uPlot;
 

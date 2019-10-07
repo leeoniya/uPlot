@@ -36,14 +36,29 @@ import {
 	firstChild,
 	createElement,
 	hexBlack,
+
+	assign,
 } from './utils';
 
-import { xOpts, yOpts } from './opts';
+import { xAxisOpts, yAxisOpts, xSeriesOpts, ySeriesOpts } from './opts';
 
 export default function uPlot(opts) {
-	const series = opts.series;
-	const axes = opts.axes;
+	function setDefaults(d, xo, yo) {
+		return [d.x].concat(d.y).map((o, i) => assign({}, (i == 0 ? xo : yo), o));
+	}
+
+	const series = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
+	const axes = setDefaults(opts.axes, xAxisOpts, yAxisOpts);
+	const data = series.map(s => s.data);
+	let scales = {};
+
 	const cursor = opts.cursor;
+
+	let dataLen = data[0].length;
+
+	// rendered data window
+	let i0 = 0;
+	let i1 = dataLen - 1;
 
 	function setStylePx(el, name, value) {
 		el.style[name] = value + "px";
@@ -75,21 +90,21 @@ export default function uPlot(opts) {
 
 	// accumulate axis offsets, reduce canvas width
 	axes.forEach((axis, i) => {
-		let pos = axis.pos;
-		let isVt = pos % 2;
+		let side = axis.side;
+		let isVt = side % 2;
 
 		if (isVt) {
 			let w = (axis[WIDTH] = axis[WIDTH] || AXIS_WIDTH);
 			canCssWidth -= w;
 
-			if (pos == 1)
+			if (side == 1)
 				plotLft += w;
 		}
 		else {
 			let h = (axis[HEIGHT] = axis[HEIGHT] || AXIS_HEIGHT);
 			canCssHeight -= h;
 
-			if (pos == 2)
+			if (side == 2)
 				plotTop += h;
 		}
 	});
@@ -102,8 +117,8 @@ export default function uPlot(opts) {
 
 	// init axis containers, set axis positions
 	axes.forEach((axis, i) => {
-		let pos = axis.pos;
-		let isVt = pos % 2;
+		let side = axis.side;
+		let isVt = side % 2;
 
 		let el = axis.root = placeDiv((isVt ? "y" : "x") + "-labels", root);
 
@@ -113,7 +128,7 @@ export default function uPlot(opts) {
 			setStylePx(el, HEIGHT, canCssHeight);
 			setStylePx(el, TOP, plotTop);
 
-			if (pos == 1) {
+			if (side == 1) {
 				setStylePx(el, RIGHT, off1);
 				off1 += w;
 			}
@@ -128,7 +143,7 @@ export default function uPlot(opts) {
 			setStylePx(el, WIDTH, canCssWidth);
 			setStylePx(el, LEFT, plotLft);
 
-			if (pos == 2) {
+			if (side == 2) {
 				setStylePx(el, BOTTOM, off2);
 				off2 += h;
 			}
@@ -146,16 +161,6 @@ export default function uPlot(opts) {
 	setStylePx(root, HEIGHT, fullCssHeight);
 
 	const { can, ctx } = makeCanvas(canCssWidth, canCssHeight);
-
-	const data = opts.data;
-
-	let dataLen = data[0].length;
-
-	// rendered data window
-	let i0 = 0;
-	let i1 = dataLen - 1;
-
-	let scales = {};
 
 	function makeCanvas(wid, hgt) {
 		const can = doc[createElement]("canvas");
@@ -546,5 +551,3 @@ export default function uPlot(opts) {
 }
 
 uPlot.fmtDate = fmtDate;
-uPlot.xOpts = xOpts;
-uPlot.yOpts = yOpts;

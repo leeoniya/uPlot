@@ -66,3 +66,34 @@ export const RIGHT = "right";
 export const firstChild = "firstChild";
 export const createElement = "createElement";
 export const hexBlack = "#000";
+
+export const assign = Object.assign;
+
+/*
+function isObj(v) {
+	return typeof v === 'object' && v !== null;
+}
+
+// https://stackoverflow.com/a/34624648
+function copy(o) {
+	var _out, v, _key;
+	_out = Array.isArray(o) ? [] : {};
+	for (_key in o) {
+		v = o[_key];
+		_out[_key] = isObj(v) ? copy(v) : v;
+	}
+	return _out;
+}
+
+// https://github.com/jaredreich/tread
+function merge(oldObject, newObject) {
+	var obj = oldObject
+	for (var key in newObject) {
+		if (isObj(obj[key]))
+			merge(obj[key], newObject[key]);
+		else
+			obj[key] = newObject[key];
+	}
+	return obj;
+}
+*/
