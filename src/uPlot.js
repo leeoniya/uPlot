@@ -29,6 +29,10 @@ import {
 
 	WIDTH,
 	HEIGHT,
+	TOP,
+	BOTTOM,
+	LEFT,
+	RIGHT,
 	firstChild,
 	createElement,
 } from './utils';
@@ -40,7 +44,11 @@ export default function uPlot(opts) {
 	const axes = opts.axes;
 	const cursor = opts.cursor;
 
-	function setStyle(color, width, dash, fill) {
+	function setStylePx(el, name, value) {
+		el.style[name] = value + "px";
+	}
+
+	function setCtxStyle(color, width, dash, fill) {
 		if (color)
 			ctx.strokeStyle = color;
 		if (width)
@@ -104,41 +112,41 @@ export default function uPlot(opts) {
 
 		if (isVt) {
 			let w = axis[WIDTH];
-			el.style[WIDTH] = w + "px";
-			el.style[HEIGHT] = canCssHeight + "px";
-			el.style.top = plotTop + "px";
+			setStylePx(el, WIDTH, w);
+			setStylePx(el, HEIGHT, canCssHeight);
+			setStylePx(el, TOP, plotTop);
 
 			if (pos == 1) {
-				el.style.right = off1 + "px";
+				setStylePx(el, RIGHT, off1);
 				off1 += w;
 			}
 			else {
-				el.style.left = off3 + "px";
+				setStylePx(el, LEFT, off3);
 				off3 += w;
 			}
 		}
 		else {
 			let h = axis[HEIGHT];
-			el.style[HEIGHT] = h + "px";
-			el.style[WIDTH] = canCssWidth + "px";
-			el.style.left = plotLft + "px";
+			setStylePx(el, HEIGHT, h);
+			setStylePx(el, WIDTH, canCssWidth);
+			setStylePx(el, LEFT, plotLft);
 
 			if (pos == 2) {
-				el.style.bottom = off2 + "px";
+				setStylePx(el, BOTTOM, off2);
 				off2 += h;
 			}
 			else {
-				el.style.top = off0 + "px";
+				setStylePx(el, TOP, off0);
 				off0 += h;
 			}
 
 		}
 	});
 
-	plot.style.top = plotTop + "px";
-	plot.style.left = plotLft + "px";
-	root.style[WIDTH] = fullCssWidth + "px";
-	root.style[HEIGHT] = fullCssHeight + "px";
+	setStylePx(plot, TOP, plotTop);
+	setStylePx(plot, LEFT, plotLft);
+	setStylePx(root, WIDTH, fullCssWidth);
+	setStylePx(root, HEIGHT, fullCssHeight);
 
 	const { can, ctx } = makeCanvas(canCssWidth, canCssHeight);
 
@@ -158,8 +166,8 @@ export default function uPlot(opts) {
 
 		can[WIDTH] = round(wid * pxRatio);
 		can[HEIGHT] = round(hgt * pxRatio);
-		can.style[WIDTH] = wid + "px";
-		can.style[HEIGHT] = hgt + "px";
+		setStylePx(can, WIDTH, wid);
+		setStylePx(can, HEIGHT, hgt);
 
 		return {
 			can,
@@ -252,7 +260,7 @@ export default function uPlot(opts) {
 	}
 
 	function drawLine(xdata, ydata, scaleX, scaleY, color, width, dash, fill) {
-		setStyle(color, width, dash, fill);
+		setCtxStyle(color, width, dash, fill);
 
 		let yOk;
 		let gap = false;
@@ -305,7 +313,7 @@ export default function uPlot(opts) {
 	function gridLabel(par, val, side, pxVal) {
 		let div = placeDiv(null, par);
 		div.textContent = val;
-		div.style[side] = pxVal + "px";
+		setStylePx(div, side, pxVal);
 	}
 
 	function drawAxesGrid() {
@@ -329,7 +337,7 @@ export default function uPlot(opts) {
 			let labels = axis.values(ticks, space);
 
 			let getPos = ori == 0 ? getXPos : getYPos;
-			let cssProp = ori == 0 ? "left" : "top";
+			let cssProp = ori == 0 ? LEFT : TOP;
 			let canOffs = ticks.map(val => getPos(val, scale, can[dim]));		// bit of waste if we're not drawing a grid
 
 			canOffs.forEach((off, i) => {
@@ -339,7 +347,7 @@ export default function uPlot(opts) {
 			let grid = axis.grid;
 
 			if (grid) {
-				setStyle(grid.color || "#eee", grid[WIDTH], grid.dash);
+				setCtxStyle(grid.color || "#eee", grid[WIDTH], grid.dash);
 
 				ctx.beginPath();
 
@@ -460,8 +468,8 @@ export default function uPlot(opts) {
 			let minX = min(x0, x);
 			let maxX = max(x0, x);
 
-			region.style.left = minX + "px";
-			region.style[WIDTH] = (maxX - minX) + "px";
+			setStylePx(region, LEFT, minX);
+			setStylePx(region, WIDTH, maxX - minX);
 		}
 	}
 
@@ -508,8 +516,8 @@ export default function uPlot(opts) {
 		if (x == x0 && y == y0)
 			return;
 
-		region.style.left = 0;
-		region.style[WIDTH] = 0;
+		setStylePx(region, LEFT, 0);
+		setStylePx(region, WIDTH, 0);
 
 		let minX = min(x0, x);
 		let maxX = max(x0, x);
@@ -532,8 +540,10 @@ export default function uPlot(opts) {
 	on("mouseup", can, mouseUp);
 	on("dblclick", can, dblclick);
 
-	on("resize", win, debounce(syncRect, 100));
-	on("scroll", win, debounce(syncRect, 100));
+	let deb = debounce(syncRect, 100);
+
+	on("resize", win, deb);
+	on("scroll", win, deb);
 
 	this.root = root;
 }

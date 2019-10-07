@@ -59,5 +59,9 @@ export function incrRoundDn(num, incr) {
 
 export const WIDTH = "width";
 export const HEIGHT = "height";
+export const TOP = "top";
+export const BOTTOM = "bottom";
+export const LEFT = "left";
+export const RIGHT = "right";
 export const firstChild = "firstChild";
 export const createElement = "createElement";

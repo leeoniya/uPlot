@@ -192,6 +192,10 @@ var uPlot = (function () {
 
 	var WIDTH = "width";
 	var HEIGHT = "height";
+	var TOP = "top";
+	var BOTTOM = "bottom";
+	var LEFT = "left";
+	var RIGHT = "right";
 	var firstChild = "firstChild";
 	var createElement = "createElement";
 
@@ -298,7 +302,11 @@ var uPlot = (function () {
 		var axes = opts.axes;
 		var cursor = opts.cursor;
 
-		function setStyle(color, width, dash, fill) {
+		function setStylePx(el, name, value) {
+			el.style[name] = value + "px";
+		}
+
+		function setCtxStyle(color, width, dash, fill) {
 			if (color)
 				{ ctx.strokeStyle = color; }
 			if (width)
@@ -362,41 +370,41 @@ var uPlot = (function () {
 
 			if (isVt) {
 				var w = axis[WIDTH];
-				el.style[WIDTH] = w + "px";
-				el.style[HEIGHT] = canCssHeight + "px";
-				el.style.top = plotTop + "px";
+				setStylePx(el, WIDTH, w);
+				setStylePx(el, HEIGHT, canCssHeight);
+				setStylePx(el, TOP, plotTop);
 
 				if (pos == 1) {
-					el.style.right = off1 + "px";
+					setStylePx(el, RIGHT, off1);
 					off1 += w;
 				}
 				else {
-					el.style.left = off3 + "px";
+					setStylePx(el, LEFT, off3);
 					off3 += w;
 				}
 			}
 			else {
 				var h = axis[HEIGHT];
-				el.style[HEIGHT] = h + "px";
-				el.style[WIDTH] = canCssWidth + "px";
-				el.style.left = plotLft + "px";
+				setStylePx(el, HEIGHT, h);
+				setStylePx(el, WIDTH, canCssWidth);
+				setStylePx(el, LEFT, plotLft);
 
 				if (pos == 2) {
-					el.style.bottom = off2 + "px";
+					setStylePx(el, BOTTOM, off2);
 					off2 += h;
 				}
 				else {
-					el.style.top = off0 + "px";
+					setStylePx(el, TOP, off0);
 					off0 += h;
 				}
 
 			}
 		});
 
-		plot.style.top = plotTop + "px";
-		plot.style.left = plotLft + "px";
-		root.style[WIDTH] = fullCssWidth + "px";
-		root.style[HEIGHT] = fullCssHeight + "px";
+		setStylePx(plot, TOP, plotTop);
+		setStylePx(plot, LEFT, plotLft);
+		setStylePx(root, WIDTH, fullCssWidth);
+		setStylePx(root, HEIGHT, fullCssHeight);
 
 		var ref = makeCanvas(canCssWidth, canCssHeight);
 		var can = ref.can;
@@ -418,8 +426,8 @@ var uPlot = (function () {
 
 			can[WIDTH] = round(wid * pxRatio);
 			can[HEIGHT] = round(hgt * pxRatio);
-			can.style[WIDTH] = wid + "px";
-			can.style[HEIGHT] = hgt + "px";
+			setStylePx(can, WIDTH, wid);
+			setStylePx(can, HEIGHT, hgt);
 
 			return {
 				can: can,
@@ -512,7 +520,7 @@ var uPlot = (function () {
 		}
 
 		function drawLine(xdata, ydata, scaleX, scaleY, color, width, dash, fill) {
-			setStyle(color, width, dash, fill);
+			setCtxStyle(color, width, dash, fill);
 
 			var yOk;
 			var gap = false;
@@ -565,7 +573,7 @@ var uPlot = (function () {
 		function gridLabel(par, val, side, pxVal) {
 			var div = placeDiv(null, par);
 			div.textContent = val;
-			div.style[side] = pxVal + "px";
+			setStylePx(div, side, pxVal);
 		}
 
 		function drawAxesGrid() {
@@ -594,7 +602,7 @@ var uPlot = (function () {
 				var labels = axis.values(ticks, space);
 
 				var getPos = ori == 0 ? getXPos : getYPos;
-				var cssProp = ori == 0 ? "left" : "top";
+				var cssProp = ori == 0 ? LEFT : TOP;
 				var canOffs = ticks.map(function (val) { return getPos(val, scale, can[dim]); });		// bit of waste if we're not drawing a grid
 
 				canOffs.forEach(function (off, i) {
@@ -604,7 +612,7 @@ var uPlot = (function () {
 				var grid = axis.grid;
 
 				if (grid) {
-					setStyle(grid.color || "#eee", grid[WIDTH], grid.dash);
+					setCtxStyle(grid.color || "#eee", grid[WIDTH], grid.dash);
 
 					ctx.beginPath();
 
@@ -725,8 +733,8 @@ var uPlot = (function () {
 				var minX = min(x0, x);
 				var maxX = max(x0, x);
 
-				region.style.left = minX + "px";
-				region.style[WIDTH] = (maxX - minX) + "px";
+				setStylePx(region, LEFT, minX);
+				setStylePx(region, WIDTH, maxX - minX);
 			}
 		}
 
@@ -773,8 +781,8 @@ var uPlot = (function () {
 			if (x == x0 && y == y0)
 				{ return; }
 
-			region.style.left = 0;
-			region.style[WIDTH] = 0;
+			setStylePx(region, LEFT, 0);
+			setStylePx(region, WIDTH, 0);
 
 			var minX = min(x0, x);
 			var maxX = max(x0, x);
@@ -797,8 +805,10 @@ var uPlot = (function () {
 		on("mouseup", can, mouseUp);
 		on("dblclick", can, dblclick);
 
-		on("resize", win, debounce(syncRect, 100));
-		on("scroll", win, debounce(syncRect, 100));
+		var deb = debounce(syncRect, 100);
+
+		on("resize", win, deb);
+		on("scroll", win, deb);
 
 		this.root = root;
 	}
