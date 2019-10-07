@@ -27,7 +27,7 @@ An [exceptionally fast](#performance), tiny ([~6 KB min](https://github.com/leeo
 ---
 ### Usage & API
 
-Example: https://jsfiddle.net/juhLmgr5
+Example: https://jsfiddle.net/8f51qhcn/
 
 ```html
 <link rel="stylesheet" href="src/uPlot.css">
@@ -61,27 +61,28 @@ Example: https://jsfiddle.net/juhLmgr5
         series: [
             {
                 label: "Time",
+                scale: "x",
                 value: v => fmtDate(new Date(v * 1e3)),
                 color: "black",
             },
             {
                 label: "CPU",
-                value: v => v.toFixed(1) + "%",
                 scale: "%",
+                value: v => v.toFixed(1) + "%",
                 color: "red",
                 width: 2,
                 dash: [10, 5],
             },
             {
                 label: "RAM",
-                value: v => v.toFixed(1) + "%",
                 scale: "%",
+                value: v => v.toFixed(1) + "%",
                 color: "blue",
             },
             {
                 label: "TCP Out",
-                value: v => v.toFixed(2) + "MB",
                 scale: "mb",
+                value: v => v.toFixed(2) + "MB",
                 color: "green",
             }
         ],

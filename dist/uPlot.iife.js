@@ -198,6 +198,7 @@ var uPlot = (function () {
 	var RIGHT = "right";
 	var firstChild = "firstChild";
 	var createElement = "createElement";
+	var hexBlack = "#000";
 
 	//export const series = [];
 
@@ -307,14 +308,10 @@ var uPlot = (function () {
 		}
 
 		function setCtxStyle(color, width, dash, fill) {
-			if (color)
-				{ ctx.strokeStyle = color; }
-			if (width)
-				{ ctx.lineWidth = width; }
-			if (dash)
-				{ ctx.setLineDash(dash); }
-			if (fill)
-				{ ctx.fillStyle = fill; }
+			ctx.strokeStyle = color || hexBlack;
+			ctx.lineWidth = width || 1;
+			ctx.setLineDash(dash || []);
+			ctx.fillStyle = fill || hexBlack;
 		}
 
 		var root = placeDiv("chart");

@@ -35,6 +35,7 @@ import {
 	RIGHT,
 	firstChild,
 	createElement,
+	hexBlack,
 } from './utils';
 
 import { xOpts, yOpts } from './opts';
@@ -49,14 +50,10 @@ export default function uPlot(opts) {
 	}
 
 	function setCtxStyle(color, width, dash, fill) {
-		if (color)
-			ctx.strokeStyle = color;
-		if (width)
-			ctx.lineWidth = width;
-		if (dash)
-			ctx.setLineDash(dash);
-		if (fill)
-			ctx.fillStyle = fill;
+		ctx.strokeStyle = color || hexBlack;
+		ctx.lineWidth = width || 1;
+		ctx.setLineDash(dash || []);
+		ctx.fillStyle = fill || hexBlack;
 	}
 
 	const root = placeDiv("chart");

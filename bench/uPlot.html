@@ -87,26 +87,26 @@
 					series: [
 						{
 							label: "Time",
+							scale: "x",
 							value: v => fmtDate(new Date(v * 1e3)),
 							color: "black",
-							scale: "x",
 						},
 						{
 							label: "CPU",
-							value: v => v.toFixed(1) + "%",
 							scale: "%",
+							value: v => v.toFixed(1) + "%",
 							color: "red",
 						},
 						{
 							label: "RAM",
-							value: v => v.toFixed(1) + "%",
 							scale: "%",
+							value: v => v.toFixed(1) + "%",
 							color: "blue",
 						},
 						{
 							label: "TCP Out",
-							value: v => v.toFixed(2) + "MB",
 							scale: "mb",
+							value: v => v.toFixed(2) + "MB",
 							color: "green",
 						}
 					],
