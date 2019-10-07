@@ -24,7 +24,7 @@ An [exceptionally fast](#performance), tiny ([~7 KB min](https://github.com/leeo
 ---
 ### Usage & API
 
-Example: https://jsfiddle.net/8f51qhcn/
+Example: https://jsfiddle.net/v439aL1k/
 
 ```html
 <link rel="stylesheet" href="src/uPlot.css">
