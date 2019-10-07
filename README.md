@@ -151,9 +151,9 @@ Example: https://jsfiddle.net/8f51qhcn/
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/Chart.js.html">Chart.js</a></td>
             <td>153 KB</td>
-            <td>2355 ms</td>
-            <td>2516 ms</td>
-            <td>122 MB</td>
+            <td>1430 ms</td>
+            <td>1505 ms</td>
+            <td>134 MB</td>
             <td>7217 ms</td>
         </tr>
         <tr>
