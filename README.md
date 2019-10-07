@@ -110,7 +110,7 @@ Example: https://jsfiddle.net/v439aL1k/
     <tbody>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">uPlot</a></td>
-            <td>6 KB</td>
+            <td>7 KB</td>
             <td>50 ms</td>
             <td>85 ms</td>
             <td>15.2 MB</td>
@@ -155,6 +155,14 @@ Example: https://jsfiddle.net/v439aL1k/
             <td>1505 ms</td>
             <td>134 MB</td>
             <td>7217 ms</td>
+        </tr>
+        <tr>
+            <td><a href="https://leeoniya.github.io/uPlot/bench/ApexCharts.html">ApexCharts</a></td>
+            <td>430 KB</td>
+            <td>1440 ms</td>
+            <td>2794 ms</td>
+            <td>165 MB</td>
+            <td>7644 ms</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/amCharts.html">amCharts</a></td>

@@ -9,7 +9,7 @@
 		<link rel="stylesheet" href="../src/uPlot.css">
 	</head>
 	<body>
-		<script src="../dist/uPlot.iife.js"></script>
+		<script src="../dist/uPlot.iife.min.js"></script>
 		<h2 id="wait">Loading lib....</h2>
 
 		<script>
@@ -109,56 +109,7 @@
 						],
 					}
 				};
-/*
-				const opts = {
-					width: 1920,
-					height: 600,
-					cursor: true,
-					data: data,
-				//	class: null,
-				//	id: null,
-//					scales: {},
-					axes: [
-						Object.assign({}, uPlot.xOpts),
-						Object.assign({}, uPlot.yOpts, {
-							scale: '%',
-							values: (vals, space) => vals.map(v => +v.toFixed(1) + "%"),
-						}),
-						Object.assign({}, uPlot.yOpts, {
-							pos: 3,
-							scale: 'mb',
-							values: (vals, space) => vals.map(v => +v.toFixed(2) + "MB"),
-							grid: null,
-						}),
-					],
-					series: [
-						{
-							label: "Time",
-							scale: "x",
-							value: v => fmtDate(new Date(v * 1e3)),
-							color: "black",
-						},
-						{
-							label: "CPU",
-							scale: "%",
-							value: v => v.toFixed(1) + "%",
-							color: "red",
-						},
-						{
-							label: "RAM",
-							scale: "%",
-							value: v => v.toFixed(1) + "%",
-							color: "blue",
-						},
-						{
-							label: "TCP Out",
-							scale: "mb",
-							value: v => v.toFixed(2) + "MB",
-							color: "green",
-						}
-					],
-				};
-*/
+
 				let uplot = new uPlot(opts);
 
 				document.body.appendChild(uplot.root);

@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>ApexCharts Demo</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="style.css">
+	</head>
+	<body>
+		<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+		<h2 id="wait">Loading lib....</h2>
+
+		<div id="chart"></div>
+
+		<script>
+			function round2(val) {
+				return Math.round(val * 100) / 100;
+			}
+
+			function round3(val) {
+				return Math.round(val * 1000) / 1000;
+			}
+
+			function prepData(packed) {
+				console.time('prep');
+
+				// epoch,idl,recv,send,read,writ,used,free
+
+				const numFields = packed[0];
+
+				packed = packed.slice(numFields + 1);
+
+				// 55,550 data points x 3 series = 166,650
+				var cpu = Array(packed.length/numFields);
+				var ram = Array(packed.length/numFields);
+				var tcp = Array(packed.length/numFields);
+
+				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
+					let date = packed[i] * 60 * 1000;
+					cpu[j] = [date, round3(100 - packed[i+1])];
+					ram[j] = [date, round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))];
+					tcp[j] = [date, packed[i+3]];
+				}
+
+				console.timeEnd('prep');
+
+				return [cpu, ram, tcp];
+			}
+
+			function makeChart(data) {
+				console.time('chart');
+
+				var options = {
+					chart: {
+						animations: {
+							enabled: false,
+						},
+						type: 'line',
+						stacked: false,
+						width: 1920,
+						height: 600,
+						zoom: {
+							type: 'x',
+							enabled: true,
+							autoScaleYaxis: true
+						},
+					},
+					dataLabels: {
+						enabled: false
+					},
+					stroke: {
+						curve: 'straight',
+						width: 1,
+					},
+					series: [
+						{
+							name: 'CPU',
+							data: data[0],
+
+						},
+						{
+							name: 'RAM',
+							data: data[1],
+						},
+						{
+							name: 'TCP Out',
+							data: data[2],
+						},
+					],
+					markers: {
+						size: 0,
+					},
+					yaxis: {
+						labels: {
+							formatter: function (val) {
+								val;
+							},
+						},
+					},
+					xaxis: {
+						type: 'datetime',
+					},
+					tooltip: {
+						shared: false,
+						y: {
+							formatter: function (val) {
+								return val;
+							}
+						}
+					}
+				}
+
+				var chart = new ApexCharts(
+					document.querySelector("#chart"),
+					options
+				);
+
+				chart.render();
+
+				wait.textContent = "Done!";
+				console.timeEnd('chart');
+			}
+
+			let wait = document.getElementById("wait");
+			wait.textContent = "Fetching data.json (2.07MB)....";
+			fetch("data.json").then(r => r.json()).then(packed => {
+				wait.textContent = "Rendering...";
+				let data = prepData(packed);
+				setTimeout(() => makeChart(data), 0);
+			});
+		</script>
+	</body>
+</html>
