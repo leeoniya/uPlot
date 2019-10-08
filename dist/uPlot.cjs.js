@@ -283,7 +283,7 @@ var xAxisOpts = {
 	scale: 'x',
 	space: 40,
 	height: 30,
-	pos: 0,
+	side: 0,
 	class: "x-time",
 	incrs: timeIncrs,
 	values: function (vals, space) {
@@ -316,7 +316,7 @@ var yAxisOpts = {
 	scale: 'y',
 	space: 30,
 	width: 40,
-	pos: 1,
+	side: 1,
 	class: "y-vals",
 	incrs: numIncrs,
 	values: function (vals, space) { return vals; },

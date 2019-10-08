@@ -54,7 +54,7 @@ export const xAxisOpts = {
 	scale: 'x',
 	space: 40,
 	height: 30,
-	pos: 0,
+	side: 0,
 	class: "x-time",
 	incrs: timeIncrs,
 	values: (vals, space) => {
@@ -87,7 +87,7 @@ export const yAxisOpts = {
 	scale: 'y',
 	space: 30,
 	width: 40,
-	pos: 1,
+	side: 1,
 	class: "y-vals",
 	incrs: numIncrs,
 	values: (vals, space) => vals,
