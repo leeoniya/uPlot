@@ -120,7 +120,7 @@ export default function uPlot(opts) {
 		let side = axis.side;
 		let isVt = side % 2;
 
-		let el = axis.root = placeDiv((isVt ? "y" : "x") + "-labels", root);
+		let el = axis.root = placeDiv((isVt ? "y" : "x") + "-labels-" + side, root);
 
 		if (isVt) {
 			let w = axis[WIDTH];

@@ -77,30 +77,86 @@
 	z-index: 100;
 }
 
-.x-labels,
-.y-labels {
+.x-labels-0,
+.x-labels-2,
+.y-labels-1,
+.y-labels-3 {
 	position: absolute;
 }
 
-.y-labels {
+.y-labels-1,
+.y-labels-3 {
 	top: 0;
 	height: 100%;
 }
 
-.x-labels > * {
+.x-labels-0 > *,
+.x-labels-2 > * {
 	position: absolute;
 	transform: translateX(-50%);
 	font-size: 12px;
 	white-space: pre-line;
 	text-align: center;
+	height: 100%;
 }
 
-.y-labels > * {
+.x-labels-0 > * {
+	padding-top: 10px;
+}
+
+.x-labels-2 > * {
+	padding-bottom: 10px;
+}
+
+.x-labels-0 > *::before,
+.x-labels-2 > *::before {
+	content: "";
+	height: 10px;
+	border-left: 2px solid #eee;
+	position: absolute;
+	left: calc(50% - 1px);
+}
+
+.x-labels-0 > *::before {
+	top: 0;
+}
+
+.x-labels-2 > *::before {
+	bottom: 0;
+}
+
+.y-labels-1 > *,
+.y-labels-3 > * {
 	position: absolute;
 	transform: translateY(-50%);
 	font-size: 12px;
 	white-space: pre-line;
-
-	text-align: right;
 	width: 100%;
+}
+
+.y-labels-1 > * {
+	padding-right: 10px;
+	text-align: right;
+}
+
+.y-labels-3 > * {
+	padding-left: 10px;
+	text-align: left;
+}
+
+.y-labels-1 > *::before,
+.y-labels-3 > *::before {
+	content: "";
+	width: 10px;
+	border-top: 2px solid #eee;
+	position: absolute;
+	top: calc(50% - 1px);
+}
+
+.y-labels-1 > *::before {
+	right: 0;
+}
+
+.y-labels-3 > *::before {
+	left: 0;
 }

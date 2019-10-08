@@ -86,7 +86,7 @@ const numIncrs = [0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,
 export const yAxisOpts = {
 	scale: 'y',
 	space: 30,
-	width: 40,
+	width: 50,
 	side: 1,
 	class: "y-vals",
 	incrs: numIncrs,

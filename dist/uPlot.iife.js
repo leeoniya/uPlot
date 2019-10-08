@@ -316,7 +316,7 @@ var uPlot = (function () {
 	var yAxisOpts = {
 		scale: 'y',
 		space: 30,
-		width: 40,
+		width: 50,
 		side: 1,
 		class: "y-vals",
 		incrs: numIncrs,
@@ -421,7 +421,7 @@ var uPlot = (function () {
 			var side = axis.side;
 			var isVt = side % 2;
 
-			var el = axis.root = placeDiv((isVt ? "y" : "x") + "-labels", root);
+			var el = axis.root = placeDiv((isVt ? "y" : "x") + "-labels-" + side, root);
 
 			if (isVt) {
 				var w = axis[WIDTH];
