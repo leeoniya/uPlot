@@ -406,6 +406,8 @@ export default function uPlot(opts) {
 		// cursor
 		vt = placeDiv("vt", plot);
 		hz = placeDiv("hz", plot);
+		trans(vt, canCssWidth/2, 0);
+		trans(hz, 0, canCssHeight/2);
 	}
 
 	// zoom region
