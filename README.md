@@ -178,6 +178,14 @@ Example: https://jsfiddle.net/v439aL1k/
             <td>7644 ms</td>
         </tr>
         <tr>
+            <td><a href="https://leeoniya.github.io/uPlot/bench/ZingChart.html">ZingChart</a></td>
+            <td>682 KB</td>
+            <td>2585 ms</td>
+            <td>2812 ms</td>
+            <td>206 MB</td>
+            <td>--</td>
+        </tr>
+        <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/amCharts.html">amCharts</a></td>
             <td>1,034 KB</td>
             <td>5134 ms</td>
