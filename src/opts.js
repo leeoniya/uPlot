@@ -95,6 +95,7 @@ export const yAxisOpts = {
 };
 
 export const ySeriesOpts = {
+	shown: true,
 	label: "Value",
 	scale: "y",
 	value: v => v,

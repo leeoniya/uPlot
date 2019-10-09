@@ -43,6 +43,15 @@
 	margin-right: 20px;
 }
 
+.legend > *+*:hover {
+	cursor: pointer;
+	text-decoration: underline;
+}
+
+.legend .off {
+	color: silver !important;
+}
+
 .region {
 	background: rgba(0,0,0,0.07);
 	height: 100%;

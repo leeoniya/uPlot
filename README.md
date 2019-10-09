@@ -11,7 +11,7 @@ An [exceptionally fast](#performance), tiny ([~7 KB min](https://github.com/leeo
 <h3 align="center">166,650 point bench: <a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">https://leeoniya.github.io/uPlot/bench/uPlot.html</a></h3>
 
 ---
-### Features
+### Features (so far)
 
 - Multiple series
 - Line styles (color, width, dash)
@@ -19,6 +19,7 @@ An [exceptionally fast](#performance), tiny ([~7 KB min](https://github.com/leeo
 - Zooming with auto-rescale
 - Support for gaps in data
 - Legend with live values
+- Toggle series on/off
 - Crosshair cursor
 
 ---

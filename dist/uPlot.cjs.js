@@ -324,6 +324,7 @@ var yAxisOpts = {
 };
 
 var ySeriesOpts = {
+	shown: true,
 	label: "Value",
 	scale: "y",
 	value: function (v) { return v; },
@@ -516,7 +517,7 @@ function uPlot(opts) {
 					max: data[0][i1],
 				};
 			}
-			else
+			else if (s.shown)
 				{ setScale(s.scale, data[i]); }
 		});
 	}
@@ -548,7 +549,7 @@ function uPlot(opts) {
 
 	function drawSeries() {
 		series.forEach(function (s, i) {
-			if (i > 0) {
+			if (i > 0 && s.shown) {
 				drawLine(
 					data[0],
 					data[i],
@@ -628,6 +629,11 @@ function uPlot(opts) {
 			var dim = ori == 0 ? WIDTH : HEIGHT;
 			var xDim = ori == 0 ? HEIGHT : WIDTH;
 			var scale = scales[axis.scale];
+
+			// this will happen if all series using a specific scale are toggled off
+			if (scale == null)
+				{ return; }
+
 			var min = scale.min;
 			var max = scale.max;
 
@@ -726,12 +732,21 @@ function uPlot(opts) {
 		var label = placeDiv("label", leg);
 		label.style.color = s.color;
 		label.textContent = s.label + ': -';
+
+		if (i > 0) {
+			on("click", label, function () {
+				s.shown = !s.shown;
+				label.classList.toggle('off');
+				setWindow(i0, i1);
+			});
+		}
+
 		return label;
 	});
 
 	// series-intersection markers
 	var pts = series.map(function (s, i) {
-		if (i > 0) {
+		if (i > 0 && s.shown) {
 			var dot = placeDiv("dot", plot);
 			dot.style.background = s.color;
 			return dot;
@@ -767,12 +782,14 @@ function uPlot(opts) {
 		var xPos = getXPos(data[0][idx], scales[series[0].scale], canCssWidth);
 
 		for (var i = 0; i < series.length; i++) {
-			if (i > 0) {
-				var yPos = getYPos(data[i][idx], scales[series[i].scale], canCssHeight);
+			var s = series[i];
+
+			if (i > 0 && s.shown) {
+				var yPos = getYPos(data[i][idx], scales[s.scale], canCssHeight);
 				trans(pts[i], xPos, yPos);
 			}
 
-			labels[i][firstChild].nodeValue = series[i].label + ': ' + series[i].value(data[i][idx]);
+			labels[i][firstChild].nodeValue = s.label + ': ' + s.value(data[i][idx]);
 		}
 
 		if (dragging) {
