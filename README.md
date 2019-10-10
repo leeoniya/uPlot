@@ -135,7 +135,7 @@ Example: https://jsfiddle.net/v439aL1k/
             <td>139 ms</td>
             <td>224 ms</td>
             <td>46.2 MB</td>
-            <td></td>
+            <td>--</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/dygraphs.html">dygraphs</a></td>
@@ -160,6 +160,14 @@ Example: https://jsfiddle.net/v439aL1k/
             <td>648 ms</td>
             <td>100 MB</td>
             <td>588 ms</td>
+        </tr>
+        <tr>
+            <td><a href="https://leeoniya.github.io/uPlot/bench/ECharts.html">ECharts</a></td>
+            <td>734 KB</td>
+            <td>570 ms</td>
+            <td>850 ms</td>
+            <td>176 MB</td>
+            <td>--</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/Highcharts.html">Highcharts</a></td>
