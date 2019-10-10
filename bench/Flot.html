@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Flot Demo</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="style.css">
+
+		<style>
+			.demo-container {
+				width: 1920px;
+				height: 600px;
+			}
+			.demo-placeholder {
+				width: 100%;
+				height: 100%;
+			}
+		</style>
+	</head>
+	<body>
+		<h2 id="wait">Loading lib....</h2>
+
+		<script src="https://www.flotcharts.org/flot/lib/globalize.js"></script>
+		<script src="https://www.flotcharts.org/flot/source/jquery.js"></script>
+		<script src="https://www.flotcharts.org/flot/source/jquery.canvaswrapper.js"></script>
+		<script src="https://www.flotcharts.org/flot/source/jquery.colorhelpers.js"></script>
+		<script src="https://www.flotcharts.org/flot/source/jquery.flot.js"></script>
+		<script src="https://www.flotcharts.org/flot/source/jquery.flot.saturated.js"></script>
+		<script src="https://www.flotcharts.org/flot/source/jquery.flot.browser.js"></script>
+		<script src="https://www.flotcharts.org/flot/source/jquery.flot.drawSeries.js"></script>
+		<script src="https://www.flotcharts.org/flot/source/jquery.flot.uiConstants.js"></script>
+		<script src="https://www.flotcharts.org/flot/source/jquery.flot.time.js"></script>
+
+		<div class="demo-container">
+			<div id="placeholder" class="demo-placeholder"></div>
+		</div>
+
+		<script>
+			function round2(val) {
+				return Math.round(val * 100) / 100;
+			}
+
+			function round3(val) {
+				return Math.round(val * 1000) / 1000;
+			}
+
+			function prepData(packed) {
+				console.time('prep');
+
+				// epoch,idl,recv,send,read,writ,used,free
+
+				const numFields = packed[0];
+				packed = packed.slice(numFields + 1);
+
+				var cpu = Array(packed.length/numFields);
+				var ram = Array(packed.length/numFields);
+				var tcp = Array(packed.length/numFields);
+
+				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
+					let date = packed[i] * 60 * 1000;
+					cpu[j] = [date, round3(100 - packed[i+1])];
+					ram[j] = [date, round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))];
+					tcp[j] = [date, packed[i+3]];
+				}
+
+				console.timeEnd('prep');
+
+				return [cpu, ram, tcp];
+			}
+
+			function makeChart(data) {
+				console.time('chart');
+
+				$.plot("#placeholder", data, {
+					xaxis: { mode: "time", timeBase: "milliseconds"},
+					hooks: {
+						drawOverlay: [
+							() => {
+								wait.textContent = "Done!";
+								console.timeEnd('chart');
+							}
+						]
+					}
+				});
+			}
+
+			let wait = document.getElementById("wait");
+			wait.textContent = "Fetching data.json (2.07MB)....";
+			fetch("data.json").then(r => r.json()).then(packed => {
+				wait.textContent = "Rendering...";
+				let data = prepData(packed);
+				setTimeout(() => makeChart(data), 0);
+			});
+		</script>
+	</body>
+</html>
