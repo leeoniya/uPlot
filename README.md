@@ -126,8 +126,16 @@ Example: https://jsfiddle.net/v439aL1k/
             <td>7 KB</td>
             <td>50 ms</td>
             <td>85 ms</td>
-            <td>15.2 MB</td>
+            <td>20 MB</td>
             <td>254 ms</td>
+        </tr>
+        <tr>
+            <td><a href="https://leeoniya.github.io/uPlot/bench/Flot.html">Flot</a></td>
+            <td>2,606 KB</td>
+            <td>139 ms</td>
+            <td>224 ms</td>
+            <td>46.2 MB</td>
+            <td></td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/dygraphs.html">dygraphs</a></td>
