@@ -3,6 +3,11 @@
 An [exceptionally fast](#performance), tiny ([~7 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)) time series chart _(MIT Licensed)_
 
 ---
+### 🚧 NOTICE 🚧
+
+μPlot is currently under heavy development, so expect to encounter missing and stale or incomplete docs/examples, unimplemented features, unhandled corner cases, and rough edges. v1.0 and API stabilization are loosely targetted for sometime before 2020-01-01. Until then, feedback, feature suggestions and real use-cases can be submitted to the issue tracker for consideration & further discussion.
+
+---
 ### Introduction
 
 μPlot is a very fast and memory-efficient [time series](https://en.wikipedia.org/wiki/Time_series) chart based on [Canvas 2D](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D); from a cold start it can create an interactive chart containing 150,000 data points in 50ms. In addition to fast initial render, the zooming and cursor performance is by far the best of any similar charting lib; at ~7 KB (min), it's likely the smallest and fastest time series plotter that doesn't make use of WebGL shaders or WASM, both of which have much higher startup cost and code size.
@@ -208,6 +213,38 @@ Example: https://jsfiddle.net/v439aL1k/
             <td>5174 ms</td>
             <td>368 MB</td>
             <td>3516 ms</td>
+        </tr>
+        <tr>
+            <td>Chartist.js</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+        </tr>
+        <tr>
+            <td>C3.js (d3-based)</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+        </tr>
+        <tr>
+            <td>Plotly (d3-based)</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+        </tr>
+        <tr>
+            <td>MetricsGraphics (d3-based)</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
         </tr>
     </tbody>
 </table>
