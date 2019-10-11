@@ -33,7 +33,6 @@ An [exceptionally fast](#performance), tiny ([~7 KB min](https://github.com/leeo
 In order to stay lean, fast and focused the following features will not be added:
 
 - No data parsing, aggregation, summation or statistical processing - just do it in advance. e.g. https://simplestatistics.org/, https://www.papaparse.com/
-- No validation of inputs or helpful error messages - study the examples, read the docs.
 - No transitions or animations - they're always pure distractions.
 - No DOM measuring; uPlot does not know how much space your dynamic labels & values will occupy, so requires explicit sizing and/or some CSS authoring.
 - No [area fills](https://www.chartphp.com/wp-content/uploads/area.png), [stacked series](https://everydayanalytics.ca/2014/08/stacked-area-graphs-are-not-your-friend.html) or [line smoothing](http://www.vizwiz.com/2011/12/when-you-use-smoothed-line-chart-your.html). See links for how these are each terrible at actually communicating information.
