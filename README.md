@@ -230,6 +230,14 @@ Example: https://jsfiddle.net/v439aL1k/
             <td>--</td>
         </tr>
         <tr>
+            <td>dc.js (d3-based)</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+        </tr>
+        <tr>
             <td>Plotly (d3-based)</td>
             <td>--</td>
             <td>--</td>
