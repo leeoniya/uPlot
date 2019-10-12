@@ -264,27 +264,42 @@ export default function uPlot(opts) {
 	function drawLine(xdata, ydata, scaleX, scaleY, color, width, dash, fill) {
 		setCtxStyle(color, width, dash, fill);
 
-		let yOk;
 		let gap = false;
 
 		ctx.beginPath();
 
-		for (let i = i0; i <= i1; i++) {
-			let xPos = getXPos(xdata[i], scaleX, can[WIDTH]);
-			let yPos = getYPos(ydata[i], scaleY, can[HEIGHT]);
+		let prevX, minY, maxY, prevY, x, y;
 
-			if (yPos == null) {				// data gaps
+		for (let i = i0; i <= i1; i++) {
+			x = getXPos(xdata[i], scaleX, can[WIDTH]);
+			y = getYPos(ydata[i], scaleY, can[HEIGHT]);
+
+			if (y == null) {				// data gaps
 				gap = true;
-				ctx.moveTo(xPos, yOk);
+				ctx.moveTo(x, prevY);
 			}
 			else {
-				yOk = yPos;
-				if (gap) {
-					ctx.moveTo(xPos, yPos);
-					gap = false;
+				if (x != prevX) {
+					if (gap) {
+						ctx.moveTo(x, y);
+						gap = false;
+					}
+					else if (i > i0) {
+						ctx.moveTo(prevX, maxY);
+						ctx.lineTo(prevX, minY);
+						ctx.moveTo(prevX, prevY);
+						ctx.lineTo(x, y);
+					}
+
+					minY = maxY = y;
+					prevX = x;
 				}
-				else
-					ctx.lineTo(xPos, yPos);
+				else {
+					minY = min(y, minY);
+					maxY = max(y, maxY);
+				}
+
+				prevY = y;
 			}
 		}
 
