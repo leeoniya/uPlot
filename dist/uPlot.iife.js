@@ -182,6 +182,12 @@ var uPlot = (function () {
 	var pow = M.pow;
 	var log10 = M.log10;
 
+	/*
+	export function incrRound() {
+		return round(num/incr)*incr;
+	}
+	*/
+
 	function incrRoundUp(num, incr) {
 		return ceil(num/incr)*incr;
 	}
@@ -237,7 +243,7 @@ var uPlot = (function () {
 
 	var grid = {
 		color: "#eee",
-		width: 1,
+		width: 2,
 	//	dash: [],
 	};
 
@@ -498,12 +504,12 @@ var uPlot = (function () {
 				{ return val; }
 
 			var pctY = (val - scale.min) / (scale.max - scale.min);
-			return round((1 - pctY) * hgt);
+			return round((1 - pctY) * hgt) + 0.5;
 		}
 
 		function getXPos(val, scale, wid) {
 			var pctX = (val - scale.min) / (scale.max - scale.min);
-			return round(pctX * wid);
+			return round(pctX * wid) + 0.5;
 		}
 
 		function setScales(reset) {

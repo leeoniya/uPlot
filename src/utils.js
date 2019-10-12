@@ -49,6 +49,12 @@ export const max = M.max;
 export const pow = M.pow;
 export const log10 = M.log10;
 
+/*
+export function incrRound() {
+	return round(num/incr)*incr;
+}
+*/
+
 export function incrRoundUp(num, incr) {
 	return ceil(num/incr)*incr;
 }

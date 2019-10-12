@@ -194,12 +194,12 @@ export default function uPlot(opts) {
 			return val;
 
 		let pctY = (val - scale.min) / (scale.max - scale.min);
-		return round((1 - pctY) * hgt);
+		return round((1 - pctY) * hgt) + 0.5;
 	}
 
 	function getXPos(val, scale, wid) {
 		let pctX = (val - scale.min) / (scale.max - scale.min);
-		return round(pctX * wid);
+		return round(pctX * wid) + 0.5;
 	}
 
 	function setScales(reset) {

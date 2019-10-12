@@ -74,8 +74,8 @@
 .dot {
 	width: 5px;
 	height: 5px;
-	margin-left: -2px;
-	margin-top: -2px;
+	margin-left: -2.5px;
+	margin-top: -2.5px;
 	border-radius: 5px;
 	position: absolute;
 	top: 0;

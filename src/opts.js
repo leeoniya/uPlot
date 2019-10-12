@@ -6,7 +6,7 @@ import { fmtDate } from './fmtDate';
 
 const grid = {
 	color: "#eee",
-	width: 1,
+	width: 2,
 //	dash: [],
 };
 
