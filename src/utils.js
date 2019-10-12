@@ -73,6 +73,11 @@ export const firstChild = "firstChild";
 export const createElement = "createElement";
 export const hexBlack = "#000";
 
+export const mousemove = "mousemove";
+export const mousedown = "mousedown";
+export const mouseup = "mouseup";
+export const dblclick = "dblclick";
+
 export const assign = Object.assign;
 
 /*

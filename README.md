@@ -26,6 +26,7 @@ An [exceptionally fast](#performance), tiny ([~7 KB min](https://github.com/leeo
 - Legend with live values
 - Toggle series on/off
 - Crosshair cursor
+- Cursor sync across multiple charts
 
 ---
 ### Non-Features

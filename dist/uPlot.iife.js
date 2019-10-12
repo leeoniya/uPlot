@@ -206,6 +206,11 @@ var uPlot = (function () {
 	var createElement = "createElement";
 	var hexBlack = "#000";
 
+	var mousemove = "mousemove";
+	var mousedown = "mousedown";
+	var mouseup = "mouseup";
+	var dblclick = "dblclick";
+
 	var assign = Object.assign;
 
 	/*
@@ -350,6 +355,23 @@ var uPlot = (function () {
 	};
 	*/
 
+	function _sync(opts) {
+		var clients = [];
+
+		return {
+			sub: function sub(client) {
+				clients.push(client);
+			},
+			pub: function pub(type, self, x, y, w, h, i) {
+				if (clients.length > 1) {
+					clients.forEach(function (client) {
+						client != self && client.pub(type, self, x, y, w, h, i);
+					});
+				}
+			}
+		};
+	}
+
 	function uPlot(opts) {
 		function setDefaults(d, xo, yo) {
 			return [d.x].concat(d.y).map(function (o, i) { return assign({}, (i == 0 ? xo : yo), o); });
@@ -358,6 +380,7 @@ var uPlot = (function () {
 		var series = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
 		var axes = setDefaults(opts.axes, xAxisOpts, yAxisOpts);
 		var data = series.map(function (s) { return s.data; });
+
 		var scales = {};
 
 		var cursor = opts.cursor;
@@ -791,7 +814,9 @@ var uPlot = (function () {
 			el.style.transform = "translate(" + xPos + "px," + yPos + "px)";
 		}
 
-		function update() {
+		var self = this;
+
+		function update(pub) {
 			rafPending = false;
 
 			if (cursor) {
@@ -823,6 +848,8 @@ var uPlot = (function () {
 				setStylePx(region, LEFT, minX);
 				setStylePx(region, WIDTH, maxX - minX);
 			}
+
+			pub !== false && sync.pub(mousemove, self, x, y, canCssWidth, canCssHeight, idx);
 		}
 
 		var x0 = null;
@@ -839,16 +866,23 @@ var uPlot = (function () {
 			rect = can.getBoundingClientRect();
 		}
 
-		function mouseMove(e) {
+		function mouseMove(e, src, _x, _y, _w, _h, _i) {
 			if (rect == null)
 				{ syncRect(); }
 
-			x = e.clientX - rect.left;
-			y = e.clientY - rect.top;
+			if (e != null) {
+				x = e.clientX - rect.left;
+				y = e.clientY - rect.top;
 
-			if (!rafPending) {
-				rafPending = true;
-				rAF(update);
+				if (!rafPending) {
+					rafPending = true;
+					rAF(update);
+				}
+			}
+			else {
+				x = canCssWidth * (_x/_w);
+				y = canCssHeight * (_y/_h);
+				update(false);
 			}
 		}
 
@@ -856,41 +890,59 @@ var uPlot = (function () {
 			el.addEventListener(ev, cb, {passive: true});
 		}
 
-		function mouseDown(e) {
-			x0 = e.clientX - rect.left;
-			y0 = e.clientY - rect.top;
+		function mouseDown(e, src, _x, _y, _w, _h, _i) {
 			dragging = true;
+
+			if (e != null) {
+				x0 = e.clientX - rect.left;
+				y0 = e.clientY - rect.top;
+				sync.pub(mousedown, self, x0, y0, canCssWidth, canCssHeight, null);
+			}
+			else {
+				x0 = canCssWidth * (_x/_w);
+				y0 = canCssHeight * (_y/_h);
+			}
 		}
 
-		function mouseUp(e) {
+		function mouseUp(e, src, _x, _y, _w, _h, _i) {
 			dragging = false;
 
-			if (x == x0 && y == y0)
-				{ return; }
+			if (x != x0 || y != y0) {
+				setStylePx(region, LEFT, 0);
+				setStylePx(region, WIDTH, 0);
 
-			setStylePx(region, LEFT, 0);
-			setStylePx(region, WIDTH, 0);
+				var minX = min(x0, x);
+				var maxX = max(x0, x);
 
-			var minX = min(x0, x);
-			var maxX = max(x0, x);
+				setWindow(
+					closestIdxFromXpos(minX),
+					closestIdxFromXpos(maxX)
+				);
+			}
 
-			setWindow(
-				closestIdxFromXpos(minX),
-				closestIdxFromXpos(maxX)
-			);
+			if (e != null)
+				{ sync.pub(mouseup, self, x, y, canCssWidth, canCssHeight, null); }
 		}
 
-		function dblclick(e) {
+		function dblClick(e, src, _x, _y, _w, _h, _i) {
 			if (i0 == 0 && i1 == dataLen - 1)
 				{ return; }
 
 			setWindow(0, dataLen - 1);
+
+			if (e != null)
+				{ sync.pub(dblclick, self, x, y, canCssWidth, canCssHeight, null); }
 		}
 
-		on("mousemove", can, mouseMove);
-		on("mousedown", can, mouseDown);
-		on("mouseup", can, mouseUp);
-		on("dblclick", can, dblclick);
+		var events = {};
+
+		events[mousemove] = mouseMove;
+		events[mousedown] = mouseDown;
+		events[mouseup] = mouseUp;
+		events[dblclick] = dblClick;
+
+		for (var ev in events)
+			{ on(ev, can, events[ev]); }
 
 		var deb = debounce(syncRect, 100);
 
@@ -898,9 +950,19 @@ var uPlot = (function () {
 		on("scroll", win, deb);
 
 		this.root = root;
+
+		var sync = opts.sync || _sync();
+		sync.sub(this);
+
+		function pub(type, src, x, y, w, h, i) {
+			events[type](null, src, x, y, w, h, i);
+		}
+
+		this.pub = pub;
 	}
 
 	uPlot.fmtDate = fmtDate;
+	uPlot.sync = _sync;
 
 	return uPlot;
 
