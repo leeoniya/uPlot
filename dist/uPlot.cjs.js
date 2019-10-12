@@ -588,6 +588,8 @@ function uPlot(opts) {
 				ctx.moveTo(x, prevY);
 			}
 			else {
+				// maybe should be (x - prevX >= width), but doesnt seem to make much perf difference.
+				// visual difference is slight at width = 2
 				if (x != prevX) {
 					if (gap) {
 						ctx.moveTo(x, y);
