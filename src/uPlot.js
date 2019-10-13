@@ -261,12 +261,13 @@ export default function uPlot(opts) {
 
 		// auto-scale Y
 		const delta = s.max - s.min;
-		const mag = log10(delta);
+		const mag = log10(delta || s.max);
 		const exp = floor(mag);
 		const incr = pow(10, exp) / 2;
+		const buf = delta == 0 ? incr : 0;
 
-		s.min = min(incrRoundDn(s.min, incr), s.min);
-		s.max = max(incrRoundUp(s.max, incr), s.max);
+		s.min = min(incrRoundDn(s.min - buf, incr), s.min);
+		s.max = max(incrRoundUp(s.max + buf, incr), s.max);
 	}
 
 	function drawSeries() {

@@ -570,12 +570,13 @@ function uPlot(opts) {
 
 		// auto-scale Y
 		var delta = s.max - s.min;
-		var mag = log10(delta);
+		var mag = log10(delta || s.max);
 		var exp = floor(mag);
 		var incr = pow(10, exp) / 2;
+		var buf = delta == 0 ? incr : 0;
 
-		s.min = min(incrRoundDn(s.min, incr), s.min);
-		s.max = max(incrRoundUp(s.max, incr), s.max);
+		s.min = min(incrRoundDn(s.min - buf, incr), s.min);
+		s.max = max(incrRoundUp(s.max + buf, incr), s.max);
 	}
 
 	function drawSeries() {
