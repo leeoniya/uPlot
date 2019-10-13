@@ -761,11 +761,8 @@ var uPlot = (function () {
 			});
 			drawAxesGrid();
 			drawSeries();
+			updatePointer();
 		}
-
-		setData(data);
-
-		plot.appendChild(can);
 
 	//	INTERACTION
 
@@ -826,7 +823,7 @@ var uPlot = (function () {
 
 		var self = this;
 
-		function update(pub) {
+		function updatePointer(pub) {
 			rafPending = false;
 
 			if (cursor) {
@@ -886,13 +883,13 @@ var uPlot = (function () {
 
 				if (!rafPending) {
 					rafPending = true;
-					rAF(update);
+					rAF(updatePointer);
 				}
 			}
 			else {
 				x = canCssWidth * (_x/_w);
 				y = canCssHeight * (_y/_h);
-				update(false);
+				updatePointer(false);
 			}
 		}
 
@@ -972,6 +969,10 @@ var uPlot = (function () {
 		}
 
 		this.pub = pub;
+
+		setData(data);
+
+		plot.appendChild(can);
 	}
 
 	uPlot.fmtDate = fmtDate;
