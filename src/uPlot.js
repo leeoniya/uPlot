@@ -78,11 +78,19 @@ export default function uPlot(opts, data) {
 
 	const cursor = opts.cursor;
 
-	let dataLen = data[0].length;
+	let dataLen;
 
 	// rendered data window
-	let i0 = 0;
-	let i1 = dataLen - 1;
+	let i0;
+	let i1;
+
+	function setData(_data, _i0, _i1) {
+		data = _data;
+		dataLen = data[0].length;
+		setWindow(_i0 != null ? _i0 : 0, _i1 != null ? _i1 : dataLen - 1);
+	}
+
+	this.setData = setData;
 
 	function setStylePx(el, name, value) {
 		el.style[name] = value + "px";
@@ -440,7 +448,7 @@ export default function uPlot(opts, data) {
 		drawSeries();
 	}
 
-	setWindow(i0, i1);
+	setData(data);
 
 	plot.appendChild(can);
 

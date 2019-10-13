@@ -27,6 +27,7 @@ An [exceptionally fast](#performance), tiny ([~7 KB min](https://github.com/leeo
 - Toggle series on/off
 - Crosshair cursor
 - Cursor sync across multiple charts
+- Data streaming (live update)
 
 ---
 ### Non-Features

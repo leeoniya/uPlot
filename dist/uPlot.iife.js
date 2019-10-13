@@ -386,11 +386,19 @@ var uPlot = (function () {
 
 		var cursor = opts.cursor;
 
-		var dataLen = data[0].length;
+		var dataLen;
 
 		// rendered data window
-		var i0 = 0;
-		var i1 = dataLen - 1;
+		var i0;
+		var i1;
+
+		function setData(_data, _i0, _i1) {
+			data = _data;
+			dataLen = data[0].length;
+			setWindow(_i0 != null ? _i0 : 0, _i1 != null ? _i1 : dataLen - 1);
+		}
+
+		this.setData = setData;
 
 		function setStylePx(el, name, value) {
 			el.style[name] = value + "px";
@@ -755,7 +763,7 @@ var uPlot = (function () {
 			drawSeries();
 		}
 
-		setWindow(i0, i1);
+		setData(data);
 
 		plot.appendChild(can);
 

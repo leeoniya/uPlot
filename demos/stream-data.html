@@ -1,0 +1,190 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Data Stream</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../bench/style.css">
+		<link rel="stylesheet" href="../src/uPlot.css">
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<h2 id="wait">Loading lib....</h2>
+
+		<script>
+			function round2(val) {
+				return Math.round(val * 100) / 100;
+			}
+
+			function round3(val) {
+				return Math.round(val * 1000) / 1000;
+			}
+
+			function prepData(packed) {
+				console.time('prep');
+
+				// epoch,idl,recv,send,read,writ,used,free
+
+				const numFields = packed[0];
+
+				packed = packed.slice(numFields + 1);
+
+				// 55,550 data points x 3 series = 166,650
+				let data = [
+					Array(packed.length/numFields),
+					Array(packed.length/numFields),
+					Array(packed.length/numFields),
+					Array(packed.length/numFields),
+				];
+
+				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
+					data[0][j] = packed[i] * 60;
+					data[1][j] = round3(100 - packed[i+1]);
+					data[2][j] = round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]));
+					data[3][j] = packed[i+3];
+				}
+
+				console.timeEnd('prep');
+
+				return data;
+			}
+
+			function makeChart(data) {
+				console.time('chart');
+
+				function sliceData(start, end) {
+					let d = [];
+
+					for (let i = 0; i < data.length; i++)
+						d.push(data[i].slice(start, end));
+
+					return d;
+				}
+
+				const opts = {
+					width: 960,
+					height: 600,
+					cursor: true,
+					series: {
+						y: [
+							{
+								label: "CPU",
+								scale: "%",
+								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								color: "red",
+							},
+							{
+								label: "RAM",
+								scale: "%",
+								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								color: "blue",
+							},
+							{
+								label: "TCP Out",
+								scale: "mb",
+								value: v => v == null ? "-" : v.toFixed(2) + " MB",
+								color: "green",
+							}
+						],
+					},
+					axes: {
+						y: [
+							{
+								scale: '%',
+								values: (vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+							},
+							{
+								side: 3,
+								scale: 'mb',
+								values: (vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
+								grid: null,
+							},
+						],
+					}
+				};
+
+				let start1 = 0;
+				let len1 = 3000;
+
+				let data1 = sliceData(start1, start1 + len1);
+				let uplot1 = new uPlot(opts, data1);
+
+				document.body.appendChild(uplot1.root);
+
+				setInterval(function() {
+					start1 += 10;
+					let data1 = sliceData(start1, start1 + len1);
+					uplot1.setData(data1);
+				}, 1000);
+
+				const opts2 = {
+					width: 960,
+					height: 600,
+					cursor: true,
+					series: {
+						y: [
+							{
+								label: "CPU",
+								scale: "%",
+								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								color: "red",
+							},
+							{
+								label: "RAM",
+								scale: "%",
+								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								color: "blue",
+							},
+							{
+								label: "TCP Out",
+								scale: "mb",
+								value: v => v == null ? "-" : v.toFixed(2) + " MB",
+								color: "green",
+							}
+						],
+					},
+					axes: {
+						y: [
+							{
+								scale: '%',
+								values: (vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+							},
+							{
+								side: 3,
+								scale: 'mb',
+								values: (vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
+								grid: null,
+							},
+						],
+					}
+				};
+
+				let start2 = 0;
+				let len2 = 3000;
+
+				let data2 = sliceData(start2, start2 + len2);
+				let uplot2 = new uPlot(opts2, data2);
+
+				document.body.appendChild(uplot2.root);
+
+				setInterval(function() {
+					len2 += 10;
+					let data2 = sliceData(start2, start2 + len2);
+					uplot2.setData(data2);
+				}, 1000);
+
+				wait.textContent = "Done!";
+				console.timeEnd('chart');
+			}
+
+			let wait = document.getElementById("wait");
+			wait.textContent = "Fetching data.json (2.07MB)....";
+			fetch("../bench/data.json").then(r => r.json()).then(packed => {
+				wait.textContent = "Rendering...";
+				let data = prepData(packed);
+				setTimeout(() => makeChart(data), 0);
+			});
+		</script>
+	</body>
+</html>
