@@ -394,10 +394,7 @@ function uPlot(opts, data) {
 	function setData(_data, _i0, _i1, rel) {
 		data = _data;
 		dataLen = data[0].length;
-		setView(
-			_i0 != null ? _i0 + (rel ? i0 : 0) : i0,
-			_i1 != null ? _i1 + (rel ? i1 : 0) : i1
-		);
+		setView(_i0, _i1, rel);
 	}
 
 	this.setData = setData;
@@ -753,9 +750,10 @@ function uPlot(opts, data) {
 			{ el[firstChild].remove(); }
 	}
 
-	function setView(_i0, _i1) {
-		i0 = _i0;
-		i1 = _i1;
+	function setView(_i0, _i1, rel) {
+		i0 = _i0 != null ? _i0 + (rel ? i0 : 0) : i0;
+		i1 = _i1 != null ? _i1 + (rel ? i1 : 0) : i1;
+
 		setScales(true);
 		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 		axes.forEach(function (axis) {
