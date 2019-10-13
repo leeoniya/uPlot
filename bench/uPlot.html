@@ -79,27 +79,21 @@
 					cursor: true,
 //					scales: {},
 					series: {
-						x: {
-							data: data[0],
-						},
 						y: [
 							{
 								label: "CPU",
-								data: data[1],
 								scale: "%",
 								value: v => v == null ? "-" : v.toFixed(1) + "%",
 								color: "red",
 							},
 							{
 								label: "RAM",
-								data: data[2],
 								scale: "%",
 								value: v => v == null ? "-" : v.toFixed(1) + "%",
 								color: "blue",
 							},
 							{
 								label: "TCP Out",
-								data: data[3],
 								scale: "mb",
 								value: v => v == null ? "-" : v.toFixed(2) + " MB",
 								color: "green",
@@ -122,7 +116,7 @@
 					}
 				};
 
-				let uplot = new uPlot(opts);
+				let uplot = new uPlot(opts, data);
 
 				document.body.appendChild(uplot.root);
 

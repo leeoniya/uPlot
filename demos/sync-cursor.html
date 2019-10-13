@@ -70,20 +70,15 @@
 					cursor: true,
 					sync: "moo",
 					series: {
-						x: {
-							data: data[0],
-						},
 						y: [
 							{
 								label: "RAM",
-								data: data[2],
 								scale: "%",
 								value: v => v == null ? "-" : v.toFixed(1) + "%",
 								color: "blue",
 							},
 							{
 								label: "TCP Out",
-								data: data[3],
 								scale: "mb",
 								value: v => v == null ? "-" : v.toFixed(2) + " MB",
 								color: "green",
@@ -106,7 +101,12 @@
 					}
 				};
 
-				let uplot1 = new uPlot(opts);
+				let uplot1 = new uPlot(opts, [
+					data[0],
+					data[2],
+					data[3],
+				]);
+
 				document.body.appendChild(uplot1.root);
 
 				const opts2 = {
@@ -115,13 +115,9 @@
 					cursor: true,
 					sync: "moo",
 					series: {
-						x: {
-							data: data[0],
-						},
 						y: [
 							{
 								label: "CPU",
-								data: data[1],
 								scale: "%",
 								value: v => v == null ? "-" : v.toFixed(1) + "%",
 								color: "red",
@@ -138,7 +134,11 @@
 					}
 				};
 
-				let uplot2 = new uPlot(opts2);
+				let uplot2 = new uPlot(opts2, [
+					data[0],
+					data[1],
+				]);
+
 				document.body.appendChild(uplot2.root);
 
 				wait.textContent = "Done!";

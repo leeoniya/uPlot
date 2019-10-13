@@ -373,14 +373,13 @@ function _sync(opts) {
 	};
 }
 
-function uPlot(opts) {
+function uPlot(opts, data) {
 	function setDefaults(d, xo, yo) {
 		return [d.x].concat(d.y).map(function (o, i) { return assign({}, (i == 0 ? xo : yo), o); });
 	}
 
 	var series = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
 	var axes = setDefaults(opts.axes, xAxisOpts, yAxisOpts);
-	var data = series.map(function (s) { return s.data; });
 
 	var scales = {};
 

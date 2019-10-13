@@ -42,7 +42,7 @@ In order to stay lean, fast and focused the following features will not be added
 ---
 ### Usage & API
 
-Example: https://jsfiddle.net/v439aL1k/
+Example: https://jsfiddle.net/oh0xtzn5/
 
 ```html
 <link rel="stylesheet" href="src/uPlot.css">
@@ -60,13 +60,9 @@ Example: https://jsfiddle.net/v439aL1k/
         height: 400,
         cursor: true,
         series: {
-            x: {
-                data: data[0],
-            },
             y: [
                 {
                     label: "CPU",
-                    data: data[1],
                     scale: "%",
                     value: v => v.toFixed(1) + "%",
                     color: "red",
@@ -75,14 +71,12 @@ Example: https://jsfiddle.net/v439aL1k/
                 },
                 {
                     label: "RAM",
-                    data: data[2],
                     scale: "%",
                     value: v => v.toFixed(1) + "%",
                     color: "blue",
                 },
                 {
                     label: "TCP Out",
-                    data: data[3],
                     scale: "mb",
                     value: v => v.toFixed(2) + "MB",
                     color: "green",
@@ -105,7 +99,7 @@ Example: https://jsfiddle.net/v439aL1k/
         },
     };
 
-    let uplot = new uPlot(opts);
+    let uplot = new uPlot(opts, data);
 
     document.body.appendChild(uplot.root);
 </script>

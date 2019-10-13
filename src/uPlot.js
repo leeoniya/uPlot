@@ -66,14 +66,13 @@ function _sync(opts) {
 	};
 }
 
-export default function uPlot(opts) {
+export default function uPlot(opts, data) {
 	function setDefaults(d, xo, yo) {
 		return [d.x].concat(d.y).map((o, i) => assign({}, (i == 0 ? xo : yo), o));
 	}
 
 	const series = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
 	const axes = setDefaults(opts.axes, xAxisOpts, yAxisOpts);
-	const data = series.map(s => s.data);
 
 	let scales = {};
 
