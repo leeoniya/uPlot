@@ -47,6 +47,8 @@ import {
 
 import { xAxisOpts, yAxisOpts, xSeriesOpts, ySeriesOpts } from './opts';
 
+let syncs = {};
+
 function _sync(opts) {
 	let clients = [];
 
@@ -636,7 +638,10 @@ export default function uPlot(opts) {
 
 	this.root = root;
 
-	const sync = opts.sync || _sync();
+	let syncKey = opts.sync;
+
+	let sync = syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync();
+
 	sync.sub(this);
 
 	function pub(type, src, x, y, w, h, i) {
@@ -647,4 +652,3 @@ export default function uPlot(opts) {
 }
 
 uPlot.fmtDate = fmtDate;
-uPlot.sync = _sync;

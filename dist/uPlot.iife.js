@@ -355,6 +355,8 @@ var uPlot = (function () {
 	};
 	*/
 
+	var syncs = {};
+
 	function _sync(opts) {
 		var clients = [];
 
@@ -951,7 +953,10 @@ var uPlot = (function () {
 
 		this.root = root;
 
-		var sync = opts.sync || _sync();
+		var syncKey = opts.sync;
+
+		var sync = syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync();
+
 		sync.sub(this);
 
 		function pub(type, src, x, y, w, h, i) {
@@ -962,7 +967,6 @@ var uPlot = (function () {
 	}
 
 	uPlot.fmtDate = fmtDate;
-	uPlot.sync = _sync;
 
 	return uPlot;
 

@@ -354,6 +354,8 @@ export const scales = {
 };
 */
 
+var syncs = {};
+
 function _sync(opts) {
 	var clients = [];
 
@@ -950,7 +952,10 @@ function uPlot(opts) {
 
 	this.root = root;
 
-	var sync = opts.sync || _sync();
+	var syncKey = opts.sync;
+
+	var sync = syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync();
+
 	sync.sub(this);
 
 	function pub(type, src, x, y, w, h, i) {
@@ -961,6 +966,5 @@ function uPlot(opts) {
 }
 
 uPlot.fmtDate = fmtDate;
-uPlot.sync = _sync;
 
 module.exports = uPlot;
