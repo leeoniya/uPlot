@@ -576,8 +576,8 @@ var uPlot = (function () {
 			var incr = pow(10, exp) / 2;
 			var buf = delta == 0 ? incr : 0;
 
-			s.min = min(incrRoundDn(s.min - buf, incr), s.min);
-			s.max = max(incrRoundUp(s.max + buf, incr), s.max);
+			s.min = incrRoundDn(s.min - buf, incr);
+			s.max = incrRoundUp(s.max + buf, incr);
 		}
 
 		function drawSeries() {
