@@ -171,7 +171,7 @@
 				setInterval(function() {
 					len2 += 10;
 					let data2 = sliceData(start2, start2 + len2);
-					uplot2.setData(data2);
+					uplot2.setData(data2, null, 10, true);
 				}, 1000);
 
 				wait.textContent = "Done!";

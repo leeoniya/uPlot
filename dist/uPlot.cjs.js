@@ -391,10 +391,13 @@ function uPlot(opts, data) {
 	var i0;
 	var i1;
 
-	function setData(_data, _i0, _i1) {
+	function setData(_data, _i0, _i1, rel) {
 		data = _data;
 		dataLen = data[0].length;
-		setWindow(_i0 != null ? _i0 : 0, _i1 != null ? _i1 : dataLen - 1);
+		setView(
+			_i0 != null ? _i0 + (rel ? i0 : 0) : i0,
+			_i1 != null ? _i1 + (rel ? i1 : 0) : i1
+		);
 	}
 
 	this.setData = setData;
@@ -750,7 +753,7 @@ function uPlot(opts, data) {
 			{ el[firstChild].remove(); }
 	}
 
-	function setWindow(_i0, _i1) {
+	function setView(_i0, _i1) {
 		i0 = _i0;
 		i1 = _i1;
 		setScales(true);
@@ -762,6 +765,8 @@ function uPlot(opts, data) {
 		drawSeries();
 		updatePointer();
 	}
+
+	this.setView = setView;
 
 //	INTERACTION
 
@@ -790,7 +795,7 @@ function uPlot(opts, data) {
 			on("click", label, function () {
 				s.shown = !s.shown;
 				label.classList.toggle('off');
-				setWindow(i0, i1);
+				setView(i0, i1);
 			});
 		}
 
@@ -920,7 +925,7 @@ function uPlot(opts, data) {
 			var minX = min(x0, x);
 			var maxX = max(x0, x);
 
-			setWindow(
+			setView(
 				closestIdxFromXpos(minX),
 				closestIdxFromXpos(maxX)
 			);
@@ -934,7 +939,7 @@ function uPlot(opts, data) {
 		if (i0 == 0 && i1 == dataLen - 1)
 			{ return; }
 
-		setWindow(0, dataLen - 1);
+		setView(0, dataLen - 1);
 
 		if (e != null)
 			{ sync.pub(dblclick, self, x, y, canCssWidth, canCssHeight, null); }
@@ -969,7 +974,7 @@ function uPlot(opts, data) {
 
 	this.pub = pub;
 
-	setData(data);
+	setData(data, 0, data[0].length - 1);
 
 	plot.appendChild(can);
 }
