@@ -116,7 +116,7 @@
 					start1 += 10;
 					let data1 = sliceData(start1, start1 + len1);
 					uplot1.setData(data1);
-				}, 1000);
+				}, 100);
 
 				const opts2 = {
 					width: 960,
@@ -172,7 +172,7 @@
 					len2 += 10;
 					let data2 = sliceData(start2, start2 + len2);
 					uplot2.setData(data2, null, 10, true);
-				}, 1000);
+				}, 100);
 
 				wait.textContent = "Done!";
 				console.timeEnd('chart');

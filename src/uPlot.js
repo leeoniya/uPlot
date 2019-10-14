@@ -34,6 +34,7 @@ import {
 	LEFT,
 	RIGHT,
 	firstChild,
+	nextSibling,
 	createElement,
 	hexBlack,
 
@@ -362,10 +363,11 @@ export default function uPlot(opts, data) {
 		return [newMin, max];
 	}
 
-	function gridLabel(par, val, side, pxVal) {
-		let div = placeDiv(null, par);
+	function gridLabel(el, par, val, side, pxVal) {
+		let div = el || placeDiv(null, par);
 		div.textContent = val;
 		setStylePx(div, side, pxVal);
+		return div;
 	}
 
 	function drawAxesGrid() {
@@ -397,9 +399,18 @@ export default function uPlot(opts, data) {
 			let cssProp = ori == 0 ? LEFT : TOP;
 			let canOffs = ticks.map(val => getPos(val, scale, can[dim]));		// bit of waste if we're not drawing a grid
 
+			let ch = axis.root[firstChild];
+
 			canOffs.forEach((off, i) => {
-				gridLabel(axis.root, labels[i], cssProp, round(off/pxRatio));
+				ch = gridLabel(ch, axis.root, labels[i], cssProp, round(off/pxRatio))[nextSibling];
 			});
+
+			if (ch) {
+				let next;
+				while (next = ch[nextSibling])
+					next.remove();
+				ch.remove();
+			}
 
 			let grid = axis.grid;
 
@@ -431,20 +442,15 @@ export default function uPlot(opts, data) {
 		});
 	}
 
-	function clearChildren(el) {
-		while (el[firstChild])
-			el[firstChild].remove();
-	}
-
 	function setView(_i0, _i1, rel) {
 		i0 = _i0 != null ? _i0 + (rel ? i0 : 0) : i0;
 		i1 = _i1 != null ? _i1 + (rel ? i1 : 0) : i1;
 
 		setScales(true);
 		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
-		axes.forEach(axis => {
-			clearChildren(axis.root);
-		});
+	//	axes.forEach(axis => {
+	//		clearChildren(axis.root);
+	//	});
 		drawAxesGrid();
 		drawSeries();
 		updatePointer();

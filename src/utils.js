@@ -70,6 +70,7 @@ export const BOTTOM = "bottom";
 export const LEFT = "left";
 export const RIGHT = "right";
 export const firstChild = "firstChild";
+export const nextSibling = "nextSibling";
 export const createElement = "createElement";
 export const hexBlack = "#000";
 
