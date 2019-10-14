@@ -18,16 +18,14 @@ An [exceptionally fast](#performance), tiny ([< 10 KB min](https://github.com/le
 ---
 ### Features (so far)
 
-- Multiple series
-- Line styles (color, width, dash)
+- Multiple series w/toggle
 - Multiple y-axes & grids
-- Zooming with auto-rescale
-- Support for gaps in data
+- Line styles (color, width, dash)
+- Zoom with auto-rescale
 - Legend with live values
-- Toggle series on/off
-- Crosshair cursor
-- Cursor sync across multiple charts
-- Data streaming (live update)
+- [Support for missing data](https://leeoniya.github.io/uPlot/demos/missing-data.html)
+- [Cursor sync for multiple charts](https://leeoniya.github.io/uPlot/demos/sync-cursor.html)
+- [Data streaming (live update)](https://leeoniya.github.io/uPlot/demos/stream-data.html)
 
 ---
 ### Non-Features
@@ -243,6 +241,14 @@ Example: https://jsfiddle.net/oh0xtzn5/
         </tr>
         <tr>
             <td>MetricsGraphics (d3-based)</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+            <td>--</td>
+        </tr>
+        <tr>
+            <td>rickshaw (d3-based)</td>
             <td>--</td>
             <td>--</td>
             <td>--</td>
