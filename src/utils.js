@@ -41,6 +41,7 @@ export const pxRatio = devicePixelRatio;
 
 const M = Math;
 
+export const abs = M.abs;
 export const floor = M.floor;
 export const round = M.round;
 export const ceil = M.ceil;
@@ -69,6 +70,10 @@ export function round2(val) {
 
 export function round3(val) {
 	return round(val * 1e3) / 1e3;
+}
+
+export function round6(val) {
+	return round(val * 1e6) / 1e6;
 }
 
 export const WIDTH = "width";

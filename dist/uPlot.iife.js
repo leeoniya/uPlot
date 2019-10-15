@@ -174,6 +174,7 @@ var uPlot = (function () {
 
 	var M = Math;
 
+	var abs = M.abs;
 	var floor = M.floor;
 	var round = M.round;
 	var ceil = M.ceil;
@@ -196,8 +197,8 @@ var uPlot = (function () {
 		return floor(num/incr)*incr;
 	}
 
-	function round3(val) {
-		return round(val * 1e3) / 1e3;
+	function round6(val) {
+		return round(val * 1e6) / 1e6;
 	}
 
 	var WIDTH = "width";
@@ -646,13 +647,18 @@ var uPlot = (function () {
 
 			// auto-scale Y
 			var delta = s.max - s.min;
-			var mag = log10(delta || s.max || 1);
+			var mag = log10(delta || abs(s.max) || 1);
 			var exp = floor(mag);
 			var incr = pow(10, exp) / 2;
 			var buf = delta == 0 ? incr : 0;
 
-			s.min = incrRoundDn(s.min - buf, incr);
-			s.max = incrRoundUp(s.max + buf, incr);
+			var origMin = s.min;
+
+			s.min = round6(incrRoundDn(s.min - buf, incr));
+			s.max = round6(incrRoundUp(s.max + buf, incr));
+
+			if (origMin >= 0 && s.min < 0)
+				{ s.min = 0; }
 		}
 
 		function drawSeries() {
@@ -763,7 +769,7 @@ var uPlot = (function () {
 
 				var ticks = [];
 
-				for (var val = min; val <= max; val = round3(val + incr))
+				for (var val = min; val <= max; val = round6(val + incr))
 					{ ticks.push(val); }
 
 				var labels = axis.values(ticks, space);

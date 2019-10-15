@@ -11,10 +11,10 @@ import {
 } from './fmtDate';
 
 import {
+	abs,
 	floor,
 	round,
-	round2,
-	round3,
+	round6,
 	ceil,
 	min,
 	max,
@@ -317,13 +317,18 @@ export default function uPlot(opts, data) {
 
 		// auto-scale Y
 		const delta = s.max - s.min;
-		const mag = log10(delta || s.max || 1);
+		const mag = log10(delta || abs(s.max) || 1);
 		const exp = floor(mag);
 		const incr = pow(10, exp) / 2;
 		const buf = delta == 0 ? incr : 0;
 
-		s.min = incrRoundDn(s.min - buf, incr);
-		s.max = incrRoundUp(s.max + buf, incr);
+		const origMin = s.min;
+
+		s.min = round6(incrRoundDn(s.min - buf, incr));
+		s.max = round6(incrRoundUp(s.max + buf, incr));
+
+		if (origMin >= 0 && s.min < 0)
+			s.min = 0;
 	}
 
 	function drawSeries() {
@@ -428,7 +433,7 @@ export default function uPlot(opts, data) {
 
 			let ticks = [];
 
-			for (let val = min; val <= max; val = round3(val + incr))
+			for (let val = min; val <= max; val = round6(val + incr))
 				ticks.push(val);
 
 			let labels = axis.values(ticks, space);
