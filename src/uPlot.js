@@ -46,7 +46,23 @@ import {
 	assign,
 } from './utils';
 
-import { xAxisOpts, yAxisOpts, xSeriesOpts, ySeriesOpts } from './opts';
+import {
+	xAxisOpts,
+	yAxisOpts,
+	xSeriesOpts,
+	ySeriesOpts,
+
+	timeIncrs,
+	numIncrs,
+	timeAxisVals,
+	numAxisVals,
+
+	timeSeriesVal,
+	numSeriesVal,
+
+	timeSeriesLabel,
+	numSeriesLabel,
+} from './opts';
 
 let syncs = {};
 
@@ -74,6 +90,14 @@ export default function uPlot(opts, data) {
 
 	const series = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
 	const axes = setDefaults(opts.axes, xAxisOpts, yAxisOpts);
+
+	// set default value
+	series.forEach(s => {
+		let isTime = s.type == "t";
+
+		s.value = s.value || (isTime ? timeSeriesVal : numSeriesVal);
+		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
+	});
 
 	let scales = {};
 
@@ -140,6 +164,11 @@ export default function uPlot(opts, data) {
 			if (side == 2)
 				plotTop += h;
 		}
+
+		// also set defaults for incrs & values based on axis type
+		let isTime = axis.type == "t";
+		axis.incrs = axis.incrs || (isTime ? timeIncrs : numIncrs);
+		axis.values = axis.values || (isTime ? timeAxisVals : numAxisVals);
 	});
 
 	// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
@@ -235,33 +264,50 @@ export default function uPlot(opts, data) {
 		return round(pctX * wid) + 0.5;
 	}
 
+	function reScale(min, max, incr) {
+		return [min, max];
+	}
+
+	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
+	// setMinMax() serves the same purpose for non-temporal/numeric y-axes due to incr-snapped padding added above/below
+	function snapMinDate(min, max, incr) {
+		// get ts of 12am on day of i0 timestamp
+		let minDate = new Date(min * 1000);
+		let min00 = +(new Date(minDate[getFullYear](), minDate[getMonth](), minDate[getDate]())) / 1000;
+		let offset = min - min00;
+		let newMin = min00 + incrRoundUp(offset, incr);
+		return [newMin, max];
+	}
+
 	function setScales(reset) {
 		if (reset)
-			scales = {};
+			scales = {};		// TODO: use original opts scales if they exist
 
 		series.forEach((s, i) => {
-			// fast-path special case for time axis, which is assumed ordered ASC
-			if (i == 0) {
-				scales[s.scale] = {
-					min: data[0][i0],
-					max: data[0][i1],
+			const key = s.scale;
+
+			if (!(key in scales)) {
+				scales[key] = {
+					min:  Infinity,
+					max: -Infinity,
 				};
 			}
+
+			const sc = scales[key];
+
+			sc.adj = sc.adj || (s.type == "t" ? snapMinDate : reScale);
+
+			// fast-path for x axis, which is assumed ordered ASC and will not get padded
+			if (i == 0) {
+				sc.min = data[0][i0];
+				sc.max = data[0][i1];
+			}
 			else if (s.shown)
-				setScale(s.scale, data[i]);
+				setMinMax(sc, data[i])
 		});
 	}
 
-	function setScale(key, data) {
-		if (!(key in scales)) {
-			scales[key] = {
-				min: Infinity,
-				max: -Infinity,
-			};
-		}
-
-		const s = scales[key];
-
+	function setMinMax(s, data) {
 		for (let i = i0; i <= i1; i++) {
 			s.min = min(s.min, data[i]);
 			s.max = max(s.max, data[i]);
@@ -354,15 +400,6 @@ export default function uPlot(opts, data) {
 		}
 	}
 
-	function reframeDateRange(min, max, incr) {
-		// get ts of 12am on day of i0 timestamp
-		let minDate = new Date(min * 1000);
-		let min00 = +(new Date(minDate[getFullYear](), minDate[getMonth](), minDate[getDate]())) / 1000;
-		let offset = min - min00;
-		let newMin = min00 + incrRoundUp(offset, incr);
-		return [newMin, max];
-	}
-
 	function gridLabel(el, par, val, side, pxVal) {
 		let div = el || placeDiv(null, par);
 		div.textContent = val;
@@ -381,12 +418,11 @@ export default function uPlot(opts, data) {
 			if (scale == null)
 				return;
 
-			let {min, max} = scale;
+			let {min, max, adj} = scale;
 
 			let [incr, space] = findIncr(max - min, axis.incrs, opts[dim], axis.space);
 
-			if (i == 0)
-				[min, max] = reframeDateRange(min, max, incr);
+			[min, max] = adj(min, max, incr);
 
 			let ticks = [];
 

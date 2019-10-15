@@ -14,7 +14,19 @@ let m = 60,
 	h = m * m,
 	d = h * 24;
 
-const timeIncrs = [
+const dec = [
+	0.001,
+	0.002,
+	0.005,
+	0.010,
+	0.020,
+	0.050,
+	0.100,
+	0.200,
+	0.500,
+];
+
+export const timeIncrs = dec.concat([
 	// minute divisors (# of secs)
 	1,
 	5,
@@ -48,57 +60,79 @@ const timeIncrs = [
 	d * 10,
 	// year divisors
 	d * 365,
-];
+]);
+
+export function timeAxisVals(vals, space) {
+	let incr = vals[1] - vals[0];
+
+	let stamp = (
+		incr >= d ? fmtDate('{M}/{D}') :
+		// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
+		incr >= h ? fmtDate('{M}/{DD}\n{h}{aa}') :
+		incr >= m ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
+		incr >= 1 ? fmtDate('{M}/{DD}\n{h}:{mm}:{ss}{aa}') :
+		fmtDate('{h}:{mm}:{ss}.{fff}{aa}')
+	);
+
+	return vals.map(val => stamp(new Date(val * 1e3)));
+}
+
+let stamp = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+
+export function timeSeriesVal(val) {
+	return stamp(new Date(val * 1e3));
+}
 
 export const xAxisOpts = {
+	type: "t",		// t, n
 	scale: 'x',
 	space: 40,
 	height: 30,
 	side: 0,
-	class: "x-time",
-	incrs: timeIncrs,
-	values: (vals, space) => {
-		let incr = vals[1] - vals[0];
-
-		let stamp = (
-			incr >= d ? fmtDate('{M}/{D}') :
-			// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
-			incr >= h ? fmtDate('{M}/{DD}\n{h}{aa}') :
-			incr >= m ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
-			fmtDate('{M}/{DD}\n{h}:{mm}:{ss}{aa}')
-		);
-
-		return vals.map(val => stamp(new Date(val * 1e3)));
-	},
+	class: "x-vals",
+//	incrs: timeIncrs,
+//	values: timeVals,
 	grid,
 };
 
-let stamp = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+export const numSeriesLabel = "Value";
+export const timeSeriesLabel = "Time";
 
 export const xSeriesOpts = {
-	label: "Time",
+	type: "t",
 	scale: "x",
-	value: v => stamp(new Date(v * 1e3)),
+//	label: "Time",
+//	value: v => stamp(new Date(v * 1e3)),
 };
 
-const numIncrs = [0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9];
+export const numIncrs = dec.concat([1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9]);
+
+export function numAxisVals(vals, space) {
+	return vals;
+}
+
+export function numSeriesVal(val) {
+	return val;
+}
 
 export const yAxisOpts = {
+	type: "n",		// t, n
 	scale: 'y',
 	space: 30,
 	width: 50,
 	side: 1,
 	class: "y-vals",
-	incrs: numIncrs,
-	values: (vals, space) => vals,
+//	incrs: numIncrs,
+//	values: (vals, space) => vals,
 	grid,
 };
 
 export const ySeriesOpts = {
-	shown: true,
-	label: "Value",
+	type: "n",
 	scale: "y",
-	value: v => v,
+	shown: true,
+//	label: "Value",
+//	value: v => v,
 };
 
 /*

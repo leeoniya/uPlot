@@ -256,7 +256,18 @@ var m = 60,
 	h = m * m,
 	d = h * 24;
 
-var timeIncrs = [
+var dec = [
+	0.001,
+	0.002,
+	0.005,
+	0.010,
+	0.020,
+	0.050,
+	0.100,
+	0.200,
+	0.500 ];
+
+var timeIncrs = dec.concat([
 	// minute divisors (# of secs)
 	1,
 	5,
@@ -289,57 +300,79 @@ var timeIncrs = [
 	d * 9,
 	d * 10,
 	// year divisors
-	d * 365 ];
+	d * 365 ]);
+
+function timeAxisVals(vals, space) {
+	var incr = vals[1] - vals[0];
+
+	var stamp = (
+		incr >= d ? fmtDate('{M}/{D}') :
+		// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
+		incr >= h ? fmtDate('{M}/{DD}\n{h}{aa}') :
+		incr >= m ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
+		incr >= 1 ? fmtDate('{M}/{DD}\n{h}:{mm}:{ss}{aa}') :
+		fmtDate('{h}:{mm}:{ss}.{fff}{aa}')
+	);
+
+	return vals.map(function (val) { return stamp(new Date(val * 1e3)); });
+}
+
+var stamp = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+
+function timeSeriesVal(val) {
+	return stamp(new Date(val * 1e3));
+}
 
 var xAxisOpts = {
+	type: "t",		// t, n
 	scale: 'x',
 	space: 40,
 	height: 30,
 	side: 0,
-	class: "x-time",
-	incrs: timeIncrs,
-	values: function (vals, space) {
-		var incr = vals[1] - vals[0];
-
-		var stamp = (
-			incr >= d ? fmtDate('{M}/{D}') :
-			// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
-			incr >= h ? fmtDate('{M}/{DD}\n{h}{aa}') :
-			incr >= m ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
-			fmtDate('{M}/{DD}\n{h}:{mm}:{ss}{aa}')
-		);
-
-		return vals.map(function (val) { return stamp(new Date(val * 1e3)); });
-	},
+	class: "x-vals",
+//	incrs: timeIncrs,
+//	values: timeVals,
 	grid: grid,
 };
 
-var stamp = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+var numSeriesLabel = "Value";
+var timeSeriesLabel = "Time";
 
 var xSeriesOpts = {
-	label: "Time",
+	type: "t",
 	scale: "x",
-	value: function (v) { return stamp(new Date(v * 1e3)); },
+//	label: "Time",
+//	value: v => stamp(new Date(v * 1e3)),
 };
 
-var numIncrs = [0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9];
+var numIncrs = dec.concat([1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9]);
+
+function numAxisVals(vals, space) {
+	return vals;
+}
+
+function numSeriesVal(val) {
+	return val;
+}
 
 var yAxisOpts = {
+	type: "n",		// t, n
 	scale: 'y',
 	space: 30,
 	width: 50,
 	side: 1,
 	class: "y-vals",
-	incrs: numIncrs,
-	values: function (vals, space) { return vals; },
+//	incrs: numIncrs,
+//	values: (vals, space) => vals,
 	grid: grid,
 };
 
 var ySeriesOpts = {
-	shown: true,
-	label: "Value",
+	type: "n",
 	scale: "y",
-	value: function (v) { return v; },
+	shown: true,
+//	label: "Value",
+//	value: v => v,
 };
 
 /*
@@ -381,6 +414,14 @@ function uPlot(opts, data) {
 
 	var series = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
 	var axes = setDefaults(opts.axes, xAxisOpts, yAxisOpts);
+
+	// set default value
+	series.forEach(function (s) {
+		var isTime = s.type == "t";
+
+		s.value = s.value || (isTime ? timeSeriesVal : numSeriesVal);
+		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
+	});
 
 	var scales = {};
 
@@ -447,6 +488,11 @@ function uPlot(opts, data) {
 			if (side == 2)
 				{ plotTop += h; }
 		}
+
+		// also set defaults for incrs & values based on axis type
+		var isTime = axis.type == "t";
+		axis.incrs = axis.incrs || (isTime ? timeIncrs : numIncrs);
+		axis.values = axis.values || (isTime ? timeAxisVals : numAxisVals);
 	});
 
 	// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
@@ -544,33 +590,50 @@ function uPlot(opts, data) {
 		return round(pctX * wid) + 0.5;
 	}
 
+	function reScale(min, max, incr) {
+		return [min, max];
+	}
+
+	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
+	// setMinMax() serves the same purpose for non-temporal/numeric y-axes due to incr-snapped padding added above/below
+	function snapMinDate(min, max, incr) {
+		// get ts of 12am on day of i0 timestamp
+		var minDate = new Date(min * 1000);
+		var min00 = +(new Date(minDate[getFullYear](), minDate[getMonth](), minDate[getDate]())) / 1000;
+		var offset = min - min00;
+		var newMin = min00 + incrRoundUp(offset, incr);
+		return [newMin, max];
+	}
+
 	function setScales(reset) {
 		if (reset)
-			{ scales = {}; }
+			{ scales = {}; }		// TODO: use original opts scales if they exist
 
 		series.forEach(function (s, i) {
-			// fast-path special case for time axis, which is assumed ordered ASC
-			if (i == 0) {
-				scales[s.scale] = {
-					min: data[0][i0],
-					max: data[0][i1],
+			var key = s.scale;
+
+			if (!(key in scales)) {
+				scales[key] = {
+					min:  Infinity,
+					max: -Infinity,
 				};
 			}
+
+			var sc = scales[key];
+
+			sc.adj = sc.adj || (s.type == "t" ? snapMinDate : reScale);
+
+			// fast-path for x axis, which is assumed ordered ASC and will not get padded
+			if (i == 0) {
+				sc.min = data[0][i0];
+				sc.max = data[0][i1];
+			}
 			else if (s.shown)
-				{ setScale(s.scale, data[i]); }
+				{ setMinMax(sc, data[i]); }
 		});
 	}
 
-	function setScale(key, data) {
-		if (!(key in scales)) {
-			scales[key] = {
-				min: Infinity,
-				max: -Infinity,
-			};
-		}
-
-		var s = scales[key];
-
+	function setMinMax(s, data) {
 		for (var i = i0; i <= i1; i++) {
 			s.min = min(s.min, data[i]);
 			s.max = max(s.max, data[i]);
@@ -663,15 +726,6 @@ function uPlot(opts, data) {
 		}
 	}
 
-	function reframeDateRange(min, max, incr) {
-		// get ts of 12am on day of i0 timestamp
-		var minDate = new Date(min * 1000);
-		var min00 = +(new Date(minDate[getFullYear](), minDate[getMonth](), minDate[getDate]())) / 1000;
-		var offset = min - min00;
-		var newMin = min00 + incrRoundUp(offset, incr);
-		return [newMin, max];
-	}
-
 	function gridLabel(el, par, val, side, pxVal) {
 		var div = el || placeDiv(null, par);
 		div.textContent = val;
@@ -694,13 +748,13 @@ function uPlot(opts, data) {
 
 			var min = scale.min;
 			var max = scale.max;
+			var adj = scale.adj;
 
 			var ref = findIncr(max - min, axis.incrs, opts[dim], axis.space);
 			var incr = ref[0];
 			var space = ref[1];
 
-			if (i == 0)
-				{ (assign = reframeDateRange(min, max, incr), min = assign[0], max = assign[1]); }
+			(assign = adj(min, max, incr), min = assign[0], max = assign[1]);
 
 			var ticks = [];
 
