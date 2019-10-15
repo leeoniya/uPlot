@@ -195,6 +195,10 @@ function incrRoundDn(num, incr) {
 	return floor(num/incr)*incr;
 }
 
+function round3(val) {
+	return round(val * 1e3) / 1e3;
+}
+
 var WIDTH = "width";
 var HEIGHT = "height";
 var TOP = "top";
@@ -641,7 +645,7 @@ function uPlot(opts, data) {
 
 		// auto-scale Y
 		var delta = s.max - s.min;
-		var mag = log10(delta || s.max);
+		var mag = log10(delta || s.max || 1);
 		var exp = floor(mag);
 		var incr = pow(10, exp) / 2;
 		var buf = delta == 0 ? incr : 0;
@@ -758,7 +762,7 @@ function uPlot(opts, data) {
 
 			var ticks = [];
 
-			for (var val = min; val <= max; val += incr)
+			for (var val = min; val <= max; val = round3(val + incr))
 				{ ticks.push(val); }
 
 			var labels = axis.values(ticks, space);

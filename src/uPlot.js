@@ -13,6 +13,8 @@ import {
 import {
 	floor,
 	round,
+	round2,
+	round3,
 	ceil,
 	min,
 	max,
@@ -315,7 +317,7 @@ export default function uPlot(opts, data) {
 
 		// auto-scale Y
 		const delta = s.max - s.min;
-		const mag = log10(delta || s.max);
+		const mag = log10(delta || s.max || 1);
 		const exp = floor(mag);
 		const incr = pow(10, exp) / 2;
 		const buf = delta == 0 ? incr : 0;
@@ -426,7 +428,7 @@ export default function uPlot(opts, data) {
 
 			let ticks = [];
 
-			for (let val = min; val <= max; val += incr)
+			for (let val = min; val <= max; val = round3(val + incr))
 				ticks.push(val);
 
 			let labels = axis.values(ticks, space);

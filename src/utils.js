@@ -63,6 +63,14 @@ export function incrRoundDn(num, incr) {
 	return floor(num/incr)*incr;
 }
 
+export function round2(val) {
+	return round(val * 1e2) / 1e2;
+}
+
+export function round3(val) {
+	return round(val * 1e3) / 1e3;
+}
+
 export const WIDTH = "width";
 export const HEIGHT = "height";
 export const TOP = "top";
