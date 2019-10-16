@@ -307,25 +307,40 @@ var timeIncrs = dec.concat([
 	// year divisors
 	d * 365 ]);
 
+var md = '{M}/{D}';
+var hr = '{h}';
+var mm = ':{mm}';
+var ss = ':{ss}';
+var ms = '.{fff}';
+var ampm = '{aa}';
+
+var mdhr = md + '\n' + hr;
+
+var shortDate = fmtDate(md);
+var shortDateHour = fmtDate(mdhr + ampm);
+var shortDateHourMin = fmtDate(mdhr + mm + ampm);
+var shortDateHourMinSec = fmtDate(mdhr + mm + ss + ampm);
+var shortHourMinSecMilli = fmtDate(hr + mm + ss + ms + ampm);
+
 function timeAxisVals(vals, space) {
 	var incr = vals[1] - vals[0];
 
 	var stamp = (
-		incr >= d ? fmtDate('{M}/{D}') :
+		incr >= d ? shortDate :
 		// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
-		incr >= h ? fmtDate('{M}/{DD}\n{h}{aa}') :
-		incr >= m ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
-		incr >= 1 ? fmtDate('{M}/{DD}\n{h}:{mm}:{ss}{aa}') :
-		fmtDate('{h}:{mm}:{ss}.{fff}{aa}')
+		incr >= h ? shortDateHour :
+		incr >= m ? shortDateHourMin :
+		incr >= 1 ? shortDateHourMinSec :
+		shortHourMinSecMilli
 	);
 
 	return vals.map(function (val) { return stamp(new Date(val * 1e3)); });
 }
 
-var stamp = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+var longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
 
 function timeSeriesVal(val) {
-	return stamp(new Date(val * 1e3));
+	return longDateHourMin(new Date(val * 1e3));
 }
 
 var xAxisOpts = {

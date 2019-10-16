@@ -62,25 +62,40 @@ export const timeIncrs = dec.concat([
 	d * 365,
 ]);
 
+const md = '{M}/{D}';
+const hr = '{h}';
+const mm = ':{mm}';
+const ss = ':{ss}';
+const ms = '.{fff}';
+const ampm = '{aa}';
+
+const mdhr = md + '\n' + hr;
+
+const shortDate = fmtDate(md);
+const shortDateHour = fmtDate(mdhr + ampm);
+const shortDateHourMin = fmtDate(mdhr + mm + ampm);
+const shortDateHourMinSec = fmtDate(mdhr + mm + ss + ampm);
+const shortHourMinSecMilli = fmtDate(hr + mm + ss + ms + ampm);
+
 export function timeAxisVals(vals, space) {
 	let incr = vals[1] - vals[0];
 
 	let stamp = (
-		incr >= d ? fmtDate('{M}/{D}') :
+		incr >= d ? shortDate :
 		// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
-		incr >= h ? fmtDate('{M}/{DD}\n{h}{aa}') :
-		incr >= m ? fmtDate('{M}/{DD}\n{h}:{mm}{aa}') :
-		incr >= 1 ? fmtDate('{M}/{DD}\n{h}:{mm}:{ss}{aa}') :
-		fmtDate('{h}:{mm}:{ss}.{fff}{aa}')
+		incr >= h ? shortDateHour :
+		incr >= m ? shortDateHourMin :
+		incr >= 1 ? shortDateHourMinSec :
+		shortHourMinSecMilli
 	);
 
 	return vals.map(val => stamp(new Date(val * 1e3)));
 }
 
-let stamp = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+let longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
 
 export function timeSeriesVal(val) {
-	return stamp(new Date(val * 1e3));
+	return longDateHourMin(new Date(val * 1e3));
 }
 
 export const xAxisOpts = {
