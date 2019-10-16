@@ -52,6 +52,10 @@
 				console.time('chart');
 
 				Highcharts.chart('container', {
+					boost: {
+						useGPUTranslations: true,
+						seriesThreshold: 1,
+					},
 					chart: {
 						zoomType: 'x'
 					},
@@ -67,21 +71,34 @@
 					xAxis: {
 						type: 'datetime'
 					},
+					plotOptions: {
+						line: {
+							marker: {
+								enabled: false
+							}
+						}
+					},
 					series: [
 						{
 							data: data[0],
 							lineWidth: 1,
-							name: 'CPU'
+							name: 'CPU',
+							boostThreshold: 1,
+							turboThreshold: 1,
 						},
 						{
 							data: data[1],
 							lineWidth: 1,
-							name: 'RAM'
+							name: 'RAM',
+							boostThreshold: 1,
+							turboThreshold: 1,
 						},
 						{
 							data: data[2],
 							lineWidth: 1,
-							name: 'TCP Out'
+							name: 'TCP Out',
+							boostThreshold: 1,
+							turboThreshold: 1,
 						}
 					]
 				});
