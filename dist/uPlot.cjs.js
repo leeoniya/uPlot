@@ -182,6 +182,8 @@ var max = M.max;
 var pow = M.pow;
 var log10 = M.log10;
 
+var inf = Infinity;
+
 /*
 export function incrRound() {
 	return round(num/incr)*incr;
@@ -635,8 +637,8 @@ function uPlot(opts, data) {
 
 			if (!(key in scales)) {
 				scales[key] = {
-					min:  Infinity,
-					max: -Infinity,
+					min:  inf,
+					max: -inf,
 				};
 			}
 
@@ -700,7 +702,11 @@ function uPlot(opts, data) {
 
 		ctx.beginPath();
 
-		var prevX, minY, maxY, prevY, x, y, halfStroke = width/2;
+		var minY = inf,
+			maxY = -inf,
+			halfStroke = width/2,
+			prevX = halfStroke,
+			prevY, x, y;
 
 		for (var i = i0; i <= i1; i++) {
 			x = getXPos(xdata[i], scaleX, can[WIDTH]) + halfStroke;

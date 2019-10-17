@@ -11,6 +11,8 @@ import {
 } from './fmtDate';
 
 import {
+	inf,
+
 	abs,
 	floor,
 	round,
@@ -291,8 +293,8 @@ export default function uPlot(opts, data) {
 
 			if (!(key in scales)) {
 				scales[key] = {
-					min:  Infinity,
-					max: -Infinity,
+					min:  inf,
+					max: -inf,
 				};
 			}
 
@@ -356,7 +358,11 @@ export default function uPlot(opts, data) {
 
 		ctx.beginPath();
 
-		let prevX, minY, maxY, prevY, x, y, halfStroke = width/2;
+		let minY = inf,
+			maxY = -inf,
+			halfStroke = width/2,
+			prevX = halfStroke,
+			prevY, x, y;
 
 		for (let i = i0; i <= i1; i++) {
 			x = getXPos(xdata[i], scaleX, can[WIDTH]) + halfStroke;
