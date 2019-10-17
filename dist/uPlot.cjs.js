@@ -710,13 +710,15 @@ function uPlot(opts, data) {
 
 		for (var i = i0; i <= i1; i++) {
 			x = getXPos(xdata[i], scaleX, can[WIDTH]) + halfStroke;
-			y = getYPos(ydata[i], scaleY, can[HEIGHT]) + halfStroke;
+			y = getYPos(ydata[i], scaleY, can[HEIGHT]);
 
 			if (y == null) {				// data gaps
 				gap = true;
 				ctx.moveTo(x, prevY);
 			}
 			else {
+				y += halfStroke;
+
 				if (x - prevX >= width) {
 					if (gap) {
 						ctx.moveTo(x, y);
@@ -936,6 +938,10 @@ function uPlot(opts, data) {
 
 			if (i > 0 && s.shown) {
 				var yPos = getYPos(data[i][idx], scales[s.scale], canCssHeight);
+
+				if (yPos == null)
+					{ yPos = -10; }
+
 				trans(pts[i], xPos, yPos);
 			}
 

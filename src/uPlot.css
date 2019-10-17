@@ -25,6 +25,7 @@
 
 .plot {
 	outline: 1px solid silver;
+	overflow-y: hidden;
 }
 
 .chart canvas {
