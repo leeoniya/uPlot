@@ -865,12 +865,14 @@ function uPlot(opts, data) {
 	var vt;
 	var hz;
 
+	var x = null;
+	var y = null;
+
 	if (cursor) {
-		// cursor
 		vt = placeDiv("vt", plot);
 		hz = placeDiv("hz", plot);
-		trans(vt, canCssWidth/2, 0);
-		trans(hz, 0, canCssHeight/2);
+		x = canCssWidth/2;
+		y = canCssHeight/2;
 	}
 
 	// zoom region
@@ -961,9 +963,6 @@ function uPlot(opts, data) {
 
 	var x0 = null;
 	var y0 = null;
-
-	var x = null;
-	var y = null;
 
 	var dragging = false;
 

@@ -515,12 +515,14 @@ export default function uPlot(opts, data) {
 	let vt;
 	let hz;
 
+	let x = null;
+	let y = null;
+
 	if (cursor) {
-		// cursor
 		vt = placeDiv("vt", plot);
 		hz = placeDiv("hz", plot);
-		trans(vt, canCssWidth/2, 0);
-		trans(hz, 0, canCssHeight/2);
+		x = canCssWidth/2;
+		y = canCssHeight/2;
 	}
 
 	// zoom region
@@ -611,9 +613,6 @@ export default function uPlot(opts, data) {
 
 	let x0 = null;
 	let y0 = null;
-
-	let x = null;
-	let y = null;
 
 	let dragging = false;
 
