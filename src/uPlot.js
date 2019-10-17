@@ -99,6 +99,7 @@ export default function uPlot(opts, data) {
 
 		s.value = s.value || (isTime ? timeSeriesVal : numSeriesVal);
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
+		s.width = s.width || 1;
 	});
 
 	let scales = {};
@@ -258,12 +259,12 @@ export default function uPlot(opts, data) {
 			return val;
 
 		let pctY = (val - scale.min) / (scale.max - scale.min);
-		return round((1 - pctY) * hgt) + 0.5;
+		return round((1 - pctY) * hgt);
 	}
 
 	function getXPos(val, scale, wid) {
 		let pctX = (val - scale.min) / (scale.max - scale.min);
-		return round(pctX * wid) + 0.5;
+		return round(pctX * wid);
 	}
 
 	function reScale(min, max, incr) {
@@ -355,11 +356,11 @@ export default function uPlot(opts, data) {
 
 		ctx.beginPath();
 
-		let prevX, minY, maxY, prevY, x, y;
+		let prevX, minY, maxY, prevY, x, y, halfStroke = width/2;
 
 		for (let i = i0; i <= i1; i++) {
-			x = getXPos(xdata[i], scaleX, can[WIDTH]);
-			y = getYPos(ydata[i], scaleY, can[HEIGHT]);
+			x = getXPos(xdata[i], scaleX, can[WIDTH]) + halfStroke;
+			y = getYPos(ydata[i], scaleY, can[HEIGHT]) + halfStroke;
 
 			if (y == null) {				// data gaps
 				gap = true;
@@ -458,6 +459,8 @@ export default function uPlot(opts, data) {
 			let grid = axis.grid;
 
 			if (grid) {
+				let halfStroke = grid[WIDTH]/2;
+
 				setCtxStyle(grid.color || "#eee", grid[WIDTH], grid.dash);
 
 				ctx.beginPath();
@@ -476,8 +479,8 @@ export default function uPlot(opts, data) {
 						my = ly = off;
 					}
 
-					ctx.moveTo(mx, my);
-					ctx.lineTo(lx, ly);
+					ctx.moveTo(mx + halfStroke, my + halfStroke);
+					ctx.lineTo(lx + halfStroke, ly + halfStroke);
 				});
 
 				ctx.stroke();

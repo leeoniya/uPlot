@@ -442,6 +442,7 @@ var uPlot = (function () {
 
 			s.value = s.value || (isTime ? timeSeriesVal : numSeriesVal);
 			s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
+			s.width = s.width || 1;
 		});
 
 		var scales = {};
@@ -603,12 +604,12 @@ var uPlot = (function () {
 				{ return val; }
 
 			var pctY = (val - scale.min) / (scale.max - scale.min);
-			return round((1 - pctY) * hgt) + 0.5;
+			return round((1 - pctY) * hgt);
 		}
 
 		function getXPos(val, scale, wid) {
 			var pctX = (val - scale.min) / (scale.max - scale.min);
-			return round(pctX * wid) + 0.5;
+			return round(pctX * wid);
 		}
 
 		function reScale(min, max, incr) {
@@ -700,11 +701,11 @@ var uPlot = (function () {
 
 			ctx.beginPath();
 
-			var prevX, minY, maxY, prevY, x, y;
+			var prevX, minY, maxY, prevY, x, y, halfStroke = width/2;
 
 			for (var i = i0; i <= i1; i++) {
-				x = getXPos(xdata[i], scaleX, can[WIDTH]);
-				y = getYPos(ydata[i], scaleY, can[HEIGHT]);
+				x = getXPos(xdata[i], scaleX, can[WIDTH]) + halfStroke;
+				y = getYPos(ydata[i], scaleY, can[HEIGHT]) + halfStroke;
 
 				if (y == null) {				// data gaps
 					gap = true;
@@ -809,6 +810,8 @@ var uPlot = (function () {
 				var grid = axis.grid;
 
 				if (grid) {
+					var halfStroke = grid[WIDTH]/2;
+
 					setCtxStyle(grid.color || "#eee", grid[WIDTH], grid.dash);
 
 					ctx.beginPath();
@@ -827,8 +830,8 @@ var uPlot = (function () {
 							my = ly = off;
 						}
 
-						ctx.moveTo(mx, my);
-						ctx.lineTo(lx, ly);
+						ctx.moveTo(mx + halfStroke, my + halfStroke);
+						ctx.lineTo(lx + halfStroke, ly + halfStroke);
 					});
 
 					ctx.stroke();
