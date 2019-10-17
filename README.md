@@ -3,7 +3,7 @@
 An [exceptionally fast](#performance), tiny ([< 10 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)) time series chart _(MIT Licensed)_
 
 ---
-### 🚧 NOTICE 🚧
+<h3 align="center">🚧 UNDER CONSTRUCTION 🚧</h3>
 
 μPlot is currently under heavy development, so expect to encounter missing and stale or incomplete docs/examples, unimplemented features, unhandled corner cases, and rough edges. v1.0 and API stabilization are loosely targetted for sometime before 2020-01-01. Until then, feedback, feature suggestions and real use-cases can be submitted to the issue tracker for consideration & further discussion.
 
