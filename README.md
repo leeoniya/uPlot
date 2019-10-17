@@ -107,6 +107,12 @@ Example: https://jsfiddle.net/oh0xtzn5/
 ---
 ### Performance
 
+Benchmarks were done on:
+
+- Windows 10 x64, Chrome 77.0.3865.120
+- Core i5-7500T @ 2.70GHz, 8GB RAM
+- Intel HD 630 GPU, 1920x1080 res
+
 <table>
     <thead>
         <tr>
@@ -122,90 +128,90 @@ Example: https://jsfiddle.net/oh0xtzn5/
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">uPlot</a></td>
             <td>10 KB</td>
-            <td>50 ms</td>
-            <td>85 ms</td>
-            <td>20 MB</td>
-            <td>254 ms</td>
+            <td>37 ms</td>
+            <td>80 ms</td>
+            <td>17.3 MB</td>
+            <td>216 ms</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/Flot.html">Flot</a></td>
             <td>2,606 KB</td>
-            <td>139 ms</td>
-            <td>224 ms</td>
-            <td>46.2 MB</td>
+            <td>138 ms</td>
+            <td>213 ms</td>
+            <td>41.5 MB</td>
             <td>--</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/dygraphs.html">dygraphs</a></td>
             <td>121 KB</td>
-            <td>195 ms</td>
-            <td>287 ms</td>
-            <td>113 MB</td>
-            <td>2019 ms</td>
+            <td>190 ms</td>
+            <td>272 ms</td>
+            <td>119 MB</td>
+            <td>1930 ms</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/CanvasJS.html">CanvasJS</a></td>
             <td>448 KB</td>
-            <td>367 ms</td>
-            <td>396 ms</td>
-            <td>81.7 MB</td>
-            <td>3418 ms</td>
+            <td>329 ms</td>
+            <td>423 ms</td>
+            <td>50.8 MB</td>
+            <td>4001 ms</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/jqChart.html">jqChart</a></td>
             <td>270 KB</td>
-            <td>525 ms</td>
-            <td>648 ms</td>
-            <td>100 MB</td>
-            <td>588 ms</td>
+            <td>496 ms</td>
+            <td>662 ms</td>
+            <td>129 MB</td>
+            <td>538 ms</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/ECharts.html">ECharts</a></td>
             <td>734 KB</td>
-            <td>570 ms</td>
-            <td>850 ms</td>
+            <td>583 ms</td>
+            <td>880 ms</td>
             <td>176 MB</td>
-            <td>--</td>
+            <td>2259 ms</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/Highcharts.html">Highcharts</a></td>
             <td>270 KB</td>
-            <td>621 ms</td>
-            <td>777 ms</td>
-            <td>72.8 MB</td>
-            <td>1275 ms</td>
+            <td>629 ms</td>
+            <td>792 ms</td>
+            <td>61.6 MB</td>
+            <td>1257 ms</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/Chart.js.html">Chart.js</a></td>
             <td>153 KB</td>
-            <td>1430 ms</td>
-            <td>1505 ms</td>
-            <td>134 MB</td>
-            <td>7217 ms</td>
+            <td>1386 ms</td>
+            <td>1514 ms</td>
+            <td>125 MB</td>
+            <td>7116 ms</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/ApexCharts.html">ApexCharts</a></td>
             <td>430 KB</td>
-            <td>1440 ms</td>
-            <td>2794 ms</td>
-            <td>165 MB</td>
-            <td>7644 ms</td>
+            <td>1452 ms</td>
+            <td>2740 ms</td>
+            <td>155 MB</td>
+            <td>7559 ms</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/ZingChart.html">ZingChart</a></td>
             <td>682 KB</td>
-            <td>2585 ms</td>
-            <td>2812 ms</td>
-            <td>206 MB</td>
+            <td>2566 ms</td>
+            <td>2785 ms</td>
+            <td>222 MB</td>
             <td>--</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/amCharts.html">amCharts</a></td>
             <td>1,034 KB</td>
-            <td>5134 ms</td>
-            <td>5174 ms</td>
-            <td>368 MB</td>
-            <td>3516 ms</td>
+            <td>8596 ms</td>
+            <td>9120 ms</td>
+            <td>425 MB</td>
+            <td>3248 ms</td>
         </tr>
         <tr>
             <td>Chartist.js</td>
