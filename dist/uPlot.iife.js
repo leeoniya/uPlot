@@ -530,7 +530,7 @@ var uPlot = (function () {
 			var side = axis.side;
 			var isVt = side % 2;
 
-			var el = axis.root = placeDiv((isVt ? "y" : "x") + "-labels-" + side, root);
+			var el = axis.root = placeDiv((isVt ? "y" : "x") + "-values-" + side, root);
 
 			if (isVt) {
 				var w = axis[WIDTH];
