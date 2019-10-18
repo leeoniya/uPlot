@@ -147,20 +147,23 @@ export default function uPlot(opts, data) {
 	let plotLft = 0;
 	let plotTop = 0;
 
+	const LABEL_HEIGHT = 30;
+
 	// accumulate axis offsets, reduce canvas width
 	axes.forEach((axis, i) => {
 		let side = axis.side;
 		let isVt = side % 2;
+		let lab = axis.label != null ? LABEL_HEIGHT : 0;
 
 		if (isVt) {
-			let w = axis[WIDTH];
+			let w = axis[WIDTH] + lab;
 			canCssWidth -= w;
 
 			if (side == 1)
 				plotLft += w;
 		}
 		else {
-			let h = axis[HEIGHT];
+			let h = axis[HEIGHT] + lab;
 			canCssHeight -= h;
 
 			if (side == 2)
@@ -179,15 +182,14 @@ export default function uPlot(opts, data) {
 	let off3 = plotLft + canCssWidth;
 	let off0 = plotTop + canCssHeight;
 
-	// init axis containers, set axis positions
-	axes.forEach((axis, i) => {
+	function placeAxis(axis, part, crossDim) {
 		let side = axis.side;
 		let isVt = side % 2;
 
-		let el = axis.root = placeDiv((isVt ? "y" : "x") + "-values-" + side, root);
+		let el = placeDiv((isVt ? "y-" : "x-") + part + "-" + side, root);
 
 		if (isVt) {
-			let w = axis[WIDTH];
+			let w = crossDim || axis[WIDTH];
 			setStylePx(el, WIDTH, w);
 			setStylePx(el, HEIGHT, canCssHeight);
 			setStylePx(el, TOP, plotTop);
@@ -202,7 +204,7 @@ export default function uPlot(opts, data) {
 			}
 		}
 		else {
-			let h = axis[HEIGHT];
+			let h = crossDim || axis[HEIGHT];
 			setStylePx(el, HEIGHT, h);
 			setStylePx(el, WIDTH, canCssWidth);
 			setStylePx(el, LEFT, plotLft);
@@ -214,6 +216,39 @@ export default function uPlot(opts, data) {
 			else {
 				setStylePx(el, TOP, off0);
 				off0 += h;
+			}
+		}
+
+		return el;
+	}
+
+	function setOriRotTrans(style, origin, rot, trans) {
+		style.transformOrigin = origin;
+		style.transform = "rotate(" + rot + "deg) translateY(" + trans + "px)";
+	}
+
+	// init axis containers, set axis positions
+	axes.forEach((axis, i) => {
+		axis.vals = placeAxis(axis, "values");
+
+		if (axis.label != null) {
+			let side = axis.side;
+			let isVt = side % 2;
+
+			let lbl = placeAxis(axis, "labels", LABEL_HEIGHT);
+			let txt = placeDiv("label", lbl);
+			txt.textContent = axis.label;
+			setStylePx(txt, HEIGHT, LABEL_HEIGHT);
+
+			if (isVt) {
+				setStylePx(txt, WIDTH, canCssHeight);
+
+				let style = txt.style;
+
+				if (side == 3)
+					setOriRotTrans(style, "0 0", 90, -LABEL_HEIGHT);
+				else
+					setOriRotTrans(style, "100% 0", -90, -canCssHeight);
 			}
 		}
 	});
@@ -445,10 +480,10 @@ export default function uPlot(opts, data) {
 			let cssProp = ori == 0 ? LEFT : TOP;
 			let canOffs = ticks.map(val => getPos(val, scale, can[dim]));		// bit of waste if we're not drawing a grid
 
-			let ch = axis.root[firstChild];
+			let ch = axis.vals[firstChild];
 
 			canOffs.forEach((off, i) => {
-				ch = gridLabel(ch, axis.root, labels[i], cssProp, round(off/pxRatio))[nextSibling];
+				ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
 			});
 
 			if (ch) {

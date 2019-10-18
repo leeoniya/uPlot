@@ -489,20 +489,23 @@ function uPlot(opts, data) {
 	var plotLft = 0;
 	var plotTop = 0;
 
+	var LABEL_HEIGHT = 30;
+
 	// accumulate axis offsets, reduce canvas width
 	axes.forEach(function (axis, i) {
 		var side = axis.side;
 		var isVt = side % 2;
+		var lab = axis.label != null ? LABEL_HEIGHT : 0;
 
 		if (isVt) {
-			var w = axis[WIDTH];
+			var w = axis[WIDTH] + lab;
 			canCssWidth -= w;
 
 			if (side == 1)
 				{ plotLft += w; }
 		}
 		else {
-			var h = axis[HEIGHT];
+			var h = axis[HEIGHT] + lab;
 			canCssHeight -= h;
 
 			if (side == 2)
@@ -521,15 +524,14 @@ function uPlot(opts, data) {
 	var off3 = plotLft + canCssWidth;
 	var off0 = plotTop + canCssHeight;
 
-	// init axis containers, set axis positions
-	axes.forEach(function (axis, i) {
+	function placeAxis(axis, part, crossDim) {
 		var side = axis.side;
 		var isVt = side % 2;
 
-		var el = axis.root = placeDiv((isVt ? "y" : "x") + "-values-" + side, root);
+		var el = placeDiv((isVt ? "y-" : "x-") + part + "-" + side, root);
 
 		if (isVt) {
-			var w = axis[WIDTH];
+			var w = crossDim || axis[WIDTH];
 			setStylePx(el, WIDTH, w);
 			setStylePx(el, HEIGHT, canCssHeight);
 			setStylePx(el, TOP, plotTop);
@@ -544,7 +546,7 @@ function uPlot(opts, data) {
 			}
 		}
 		else {
-			var h = axis[HEIGHT];
+			var h = crossDim || axis[HEIGHT];
 			setStylePx(el, HEIGHT, h);
 			setStylePx(el, WIDTH, canCssWidth);
 			setStylePx(el, LEFT, plotLft);
@@ -556,6 +558,39 @@ function uPlot(opts, data) {
 			else {
 				setStylePx(el, TOP, off0);
 				off0 += h;
+			}
+		}
+
+		return el;
+	}
+
+	function setOriRotTrans(style, origin, rot, trans) {
+		style.transformOrigin = origin;
+		style.transform = "rotate(" + rot + "deg) translateY(" + trans + "px)";
+	}
+
+	// init axis containers, set axis positions
+	axes.forEach(function (axis, i) {
+		axis.vals = placeAxis(axis, "values");
+
+		if (axis.label != null) {
+			var side = axis.side;
+			var isVt = side % 2;
+
+			var lbl = placeAxis(axis, "labels", LABEL_HEIGHT);
+			var txt = placeDiv("label", lbl);
+			txt.textContent = axis.label;
+			setStylePx(txt, HEIGHT, LABEL_HEIGHT);
+
+			if (isVt) {
+				setStylePx(txt, WIDTH, canCssHeight);
+
+				var style = txt.style;
+
+				if (side == 3)
+					{ setOriRotTrans(style, "0 0", 90, -LABEL_HEIGHT); }
+				else
+					{ setOriRotTrans(style, "100% 0", -90, -canCssHeight); }
 			}
 		}
 	});
@@ -795,10 +830,10 @@ function uPlot(opts, data) {
 			var cssProp = ori == 0 ? LEFT : TOP;
 			var canOffs = ticks.map(function (val) { return getPos(val, scale, can[dim]); });		// bit of waste if we're not drawing a grid
 
-			var ch = axis.root[firstChild];
+			var ch = axis.vals[firstChild];
 
 			canOffs.forEach(function (off, i) {
-				ch = gridLabel(ch, axis.root, labels[i], cssProp, round(off/pxRatio))[nextSibling];
+				ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
 			});
 
 			if (ch) {
