@@ -516,6 +516,7 @@ function uPlot(opts, data) {
 		var isTime = axis.type == "t";
 		axis.incrs = axis.incrs || (isTime ? timeIncrs : numIncrs);
 		axis.values = axis.values || (isTime ? timeAxisVals : numAxisVals);
+		axis.range = axis.range || (isTime ? snapMinDate : snapNone);
 	});
 
 	// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
@@ -644,19 +645,39 @@ function uPlot(opts, data) {
 		return round(pctX * wid);
 	}
 
-	function reScale(min, max, incr) {
-		return [min, max];
+	function snapNone(dataMin, dataMax) {
+		return [dataMin, dataMax];
+	}
+
+	// this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
+	// TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
+	function snapHalfMag(dataMin, dataMax) {
+		// auto-scale Y
+		var delta = dataMax - dataMin;
+		var mag = log10(delta || abs(dataMax) || 1);
+		var exp = floor(mag);
+		var incr = pow(10, exp) / 2;
+		var buf = delta == 0 ? incr : 0;
+
+		var origMin = dataMin;
+
+		dataMin = round6(incrRoundDn(dataMin - buf, incr));
+		dataMax = round6(incrRoundUp(dataMax + buf, incr));
+
+		if (origMin >= 0 && dataMin < 0)
+			{ dataMin = 0; }
+
+		return [dataMin, dataMax];
 	}
 
 	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
-	// setMinMax() serves the same purpose for non-temporal/numeric y-axes due to incr-snapped padding added above/below
-	function snapMinDate(min, max, incr) {
+	function snapMinDate(scaleMin, scaleMax, incr) {
 		// get ts of 12am on day of i0 timestamp
-		var minDate = new Date(min * 1000);
+		var minDate = new Date(scaleMin * 1000);
 		var min00 = +(new Date(minDate[getFullYear](), minDate[getMonth](), minDate[getDate]())) / 1000;
-		var offset = min - min00;
-		var newMin = min00 + incrRoundUp(offset, incr);
-		return [newMin, max];
+		var offset = scaleMin - min00;
+		scaleMin = min00 + incrRoundUp(offset, incr);
+		return [scaleMin, scaleMax];
 	}
 
 	function setScales(reset) {
@@ -668,45 +689,43 @@ function uPlot(opts, data) {
 
 			if (!(key in scales)) {
 				scales[key] = {
+					auto: true,
 					min:  inf,
 					max: -inf,
+					type: s.type,
 				};
 			}
 
 			var sc = scales[key];
 
-			sc.adj = sc.adj || (s.type == "t" ? snapMinDate : reScale);
+			// by default, numeric y scales snap to half magnitude of range
+			sc.range = sc.range || (i > 0 && sc.type == "n" ? snapHalfMag : snapNone);
 
 			// fast-path for x axis, which is assumed ordered ASC and will not get padded
 			if (i == 0) {
 				sc.min = data[0][i0];
 				sc.max = data[0][i1];
 			}
-			else if (s.shown)
-				{ setMinMax(sc, data[i]); }
+			else if (s.shown) {
+				var minMax = sc.auto ? getMinMax(data[i], i0, i1) : [0,100];
+
+				minMax = sc.range.apply(null, minMax);
+				sc.min = min(sc.min, minMax[0]);
+				sc.max = max(sc.max, minMax[1]);
+			}
 		});
 	}
 
-	function setMinMax(s, data) {
-		for (var i = i0; i <= i1; i++) {
-			s.min = min(s.min, data[i]);
-			s.max = max(s.max, data[i]);
+	function getMinMax(data, _i0, _i1) {
+		var _min = inf;
+		var _max = -inf;
+
+		for (var i = _i0; i <= _i1; i++) {
+			_min = min(_min, data[i]);
+			_max = max(_max, data[i]);
 		}
 
-		// auto-scale Y
-		var delta = s.max - s.min;
-		var mag = log10(delta || abs(s.max) || 1);
-		var exp = floor(mag);
-		var incr = pow(10, exp) / 2;
-		var buf = delta == 0 ? incr : 0;
-
-		var origMin = s.min;
-
-		s.min = round6(incrRoundDn(s.min - buf, incr));
-		s.max = round6(incrRoundUp(s.max + buf, incr));
-
-		if (origMin >= 0 && s.min < 0)
-			{ s.min = 0; }
+		return [_min, _max];
 	}
 
 	function drawSeries() {
@@ -811,13 +830,12 @@ function uPlot(opts, data) {
 
 			var min = scale.min;
 			var max = scale.max;
-			var adj = scale.adj;
 
 			var ref = findIncr(max - min, axis.incrs, opts[dim], axis.space);
 			var incr = ref[0];
 			var space = ref[1];
 
-			(assign = adj(min, max, incr), min = assign[0], max = assign[1]);
+			(assign = axis.range(min, max, incr), min = assign[0], max = assign[1]);
 
 			var ticks = [];
 
