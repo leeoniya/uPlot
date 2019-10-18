@@ -490,23 +490,20 @@ var uPlot = (function () {
 		var plotLft = 0;
 		var plotTop = 0;
 
-		var AXIS_WIDTH = 40;
-		var AXIS_HEIGHT = 30;
-
 		// accumulate axis offsets, reduce canvas width
 		axes.forEach(function (axis, i) {
 			var side = axis.side;
 			var isVt = side % 2;
 
 			if (isVt) {
-				var w = (axis[WIDTH] = axis[WIDTH] || AXIS_WIDTH);
+				var w = axis[WIDTH];
 				canCssWidth -= w;
 
 				if (side == 1)
 					{ plotLft += w; }
 			}
 			else {
-				var h = (axis[HEIGHT] = axis[HEIGHT] || AXIS_HEIGHT);
+				var h = axis[HEIGHT];
 				canCssHeight -= h;
 
 				if (side == 2)

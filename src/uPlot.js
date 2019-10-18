@@ -147,23 +147,20 @@ export default function uPlot(opts, data) {
 	let plotLft = 0;
 	let plotTop = 0;
 
-	const AXIS_WIDTH = 40;
-	const AXIS_HEIGHT = 30;
-
 	// accumulate axis offsets, reduce canvas width
 	axes.forEach((axis, i) => {
 		let side = axis.side;
 		let isVt = side % 2;
 
 		if (isVt) {
-			let w = (axis[WIDTH] = axis[WIDTH] || AXIS_WIDTH);
+			let w = axis[WIDTH];
 			canCssWidth -= w;
 
 			if (side == 1)
 				plotLft += w;
 		}
 		else {
-			let h = (axis[HEIGHT] = axis[HEIGHT] || AXIS_HEIGHT);
+			let h = axis[HEIGHT];
 			canCssHeight -= h;
 
 			if (side == 2)
