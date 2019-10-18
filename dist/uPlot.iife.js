@@ -437,17 +437,33 @@ var uPlot = (function () {
 
 		var series = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
 		var axes = setDefaults(opts.axes, xAxisOpts, yAxisOpts);
+		var scales = (opts.scales = opts.scales || {});
 
 		// set default value
-		series.forEach(function (s) {
+		series.forEach(function (s, i) {
 			var isTime = s.type == "t";
 
 			s.value = s.value || (isTime ? timeSeriesVal : numSeriesVal);
 			s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 			s.width = s.width || 1;
-		});
 
-		var scales = {};
+			// init scales & defaults
+			var key = s.scale;
+
+			if (!(key in scales)) {
+				scales[key] = {
+					auto: true,
+					min:  inf,
+					max: -inf,
+					type: s.type,
+				};
+			}
+
+			var sc = scales[key];
+
+			// by default, numeric y scales snap to half magnitude of range
+			sc.range = sc.range || (i > 0 && sc.type == "n" ? snapHalfMag : snapNone);
+		});
 
 		var cursor = opts.cursor;
 
@@ -682,37 +698,26 @@ var uPlot = (function () {
 		}
 
 		function setScales(reset) {
-			if (reset)
-				{ scales = {}; }		// TODO: use original opts scales if they exist
-
 			series.forEach(function (s, i) {
-				var key = s.scale;
+				var sc = scales[s.scale];
 
-				if (!(key in scales)) {
-					scales[key] = {
-						auto: true,
-						min:  inf,
-						max: -inf,
-						type: s.type,
-					};
+				if (reset && s.shown) {
+					sc.min = inf;
+					sc.max = -inf;
 				}
-
-				var sc = scales[key];
-
-				// by default, numeric y scales snap to half magnitude of range
-				sc.range = sc.range || (i > 0 && sc.type == "n" ? snapHalfMag : snapNone);
 
 				// fast-path for x axis, which is assumed ordered ASC and will not get padded
 				if (i == 0) {
-					sc.min = data[0][i0];
-					sc.max = data[0][i1];
+					var minMax = sc.range(data[0][i0], data[0][i1]);
+					sc.min = minMax[0];
+					sc.max = minMax[1];
 				}
 				else if (s.shown) {
-					var minMax = sc.auto ? getMinMax(data[i], i0, i1) : [0,100];
+					var minMax$1 = sc.auto ? getMinMax(data[i], i0, i1) : [0,100];
 
-					minMax = sc.range.apply(null, minMax);
-					sc.min = min(sc.min, minMax[0]);
-					sc.max = max(sc.max, minMax[1]);
+					minMax$1 = sc.range(minMax$1[0], minMax$1[1]);
+					sc.min = min(sc.min, minMax$1[0]);
+					sc.max = max(sc.max, minMax$1[1]);
 				}
 			});
 		}
@@ -959,8 +964,9 @@ var uPlot = (function () {
 
 		function closestIdxFromXpos(x) {
 			var pctX = x / canCssWidth;
-			var d = data[0][i1] - data[0][i0];
-			var t = data[0][i0] + pctX * d;
+			var xsc = scales[series[0].scale];
+			var d = xsc.max - xsc.min;
+			var t = xsc.min + pctX * d;
 			var idx = closestIdx(t, data[0], i0, i1);
 			return idx;
 		}

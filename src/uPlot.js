@@ -94,17 +94,33 @@ export default function uPlot(opts, data) {
 
 	const series = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
 	const axes = setDefaults(opts.axes, xAxisOpts, yAxisOpts);
+	const scales = (opts.scales = opts.scales || {});
 
 	// set default value
-	series.forEach(s => {
+	series.forEach((s, i) => {
 		let isTime = s.type == "t";
 
 		s.value = s.value || (isTime ? timeSeriesVal : numSeriesVal);
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 		s.width = s.width || 1;
-	});
 
-	let scales = {};
+		// init scales & defaults
+		const key = s.scale;
+
+		if (!(key in scales)) {
+			scales[key] = {
+				auto: true,
+				min:  inf,
+				max: -inf,
+				type: s.type,
+			};
+		}
+
+		const sc = scales[key];
+
+		// by default, numeric y scales snap to half magnitude of range
+		sc.range = sc.range || (i > 0 && sc.type == "n" ? snapHalfMag : snapNone);
+	});
 
 	const cursor = opts.cursor;
 
@@ -337,35 +353,24 @@ export default function uPlot(opts, data) {
 	}
 
 	function setScales(reset) {
-		if (reset)
-			scales = {};		// TODO: use original opts scales if they exist
-
 		series.forEach((s, i) => {
-			const key = s.scale;
+			const sc = scales[s.scale];
 
-			if (!(key in scales)) {
-				scales[key] = {
-					auto: true,
-					min:  inf,
-					max: -inf,
-					type: s.type,
-				};
+			if (reset && s.shown) {
+				sc.min = inf;
+				sc.max = -inf;
 			}
-
-			const sc = scales[key];
-
-			// by default, numeric y scales snap to half magnitude of range
-			sc.range = sc.range || (i > 0 && sc.type == "n" ? snapHalfMag : snapNone);
 
 			// fast-path for x axis, which is assumed ordered ASC and will not get padded
 			if (i == 0) {
-				sc.min = data[0][i0];
-				sc.max = data[0][i1];
+				let minMax = sc.range(data[0][i0], data[0][i1]);
+				sc.min = minMax[0];
+				sc.max = minMax[1];
 			}
 			else if (s.shown) {
 				let minMax = sc.auto ? getMinMax(data[i], i0, i1) : [0,100];
 
-				minMax = sc.range.apply(null, minMax);
+				minMax = sc.range(minMax[0], minMax[1]);
 				sc.min = min(sc.min, minMax[0]);
 				sc.max = max(sc.max, minMax[1]);
 			}
@@ -609,8 +614,9 @@ export default function uPlot(opts, data) {
 
 	function closestIdxFromXpos(x) {
 		let pctX = x / canCssWidth;
-		let d = data[0][i1] - data[0][i0];
-		let t = data[0][i0] + pctX * d;
+		let xsc = scales[series[0].scale];
+		let d = xsc.max - xsc.min;
+		let t = xsc.min + pctX * d;
 		let idx = closestIdx(t, data[0], i0, i1);
 		return idx;
 	}

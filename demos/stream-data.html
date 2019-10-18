@@ -7,6 +7,11 @@
 
 		<link rel="stylesheet" href="../bench/style.css">
 		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			.chart {
+				margin: 40px;
+			}
+		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.min.js"></script>
@@ -62,8 +67,10 @@
 					return d;
 				}
 
+				let interval = 100;
+
 				const opts = {
-					width: 960,
+					width: 1600,
 					height: 600,
 					cursor: true,
 					series: {
@@ -116,10 +123,10 @@
 					start1 += 10;
 					let data1 = sliceData(start1, start1 + len1);
 					uplot1.setData(data1);
-				}, 100);
+				}, interval);
 
 				const opts2 = {
-					width: 960,
+					width: 1600,
 					height: 600,
 					cursor: true,
 					series: {
@@ -172,7 +179,74 @@
 					len2 += 10;
 					let data2 = sliceData(start2, start2 + len2);
 					uplot2.setData(data2, null, 10, true);
-				}, 100);
+				}, interval);
+
+
+				const opts3 = {
+					width: 1600,
+					height: 600,
+					cursor: true,
+					scales: {
+						'x': {
+							auto: false,
+							range: (min, max) => [1566453600, 1566813540],
+						},
+						'%': {
+							auto: false,
+							range: (min, max) => [0, 100],
+						},
+					},
+					series: {
+						y: [
+							{
+								label: "CPU",
+								scale: "%",
+								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								color: "red",
+							},
+							{
+								label: "RAM",
+								scale: "%",
+								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								color: "blue",
+							},
+							{
+								label: "TCP Out",
+								scale: "mb",
+								value: v => v == null ? "-" : v.toFixed(2) + " MB",
+								color: "green",
+							}
+						],
+					},
+					axes: {
+						y: [
+							{
+								scale: '%',
+								values: (vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+							},
+							{
+								side: 3,
+								scale: 'mb',
+								values: (vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
+								grid: null,
+							},
+						],
+					}
+				};
+
+				let start3 = 0;
+				let len3 = 10;
+
+				let data3 = sliceData(start3, start3 + len3);
+				let uplot3 = new uPlot(opts3, data3);
+
+				document.body.appendChild(uplot3.root);
+
+				setInterval(function() {
+					len3 += 10;
+					let data3 = sliceData(start3, start3 + len3);
+					uplot3.setData(data3, null, 10, true);
+				}, interval);
 
 				wait.textContent = "Done!";
 				console.timeEnd('chart');
