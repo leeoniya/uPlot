@@ -218,7 +218,6 @@ export default function uPlot(opts, data) {
 				setStylePx(el, TOP, off0);
 				off0 += h;
 			}
-
 		}
 	});
 

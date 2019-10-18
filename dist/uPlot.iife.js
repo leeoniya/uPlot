@@ -561,7 +561,6 @@ var uPlot = (function () {
 					setStylePx(el, TOP, off0);
 					off0 += h;
 				}
-
 			}
 		});
 
