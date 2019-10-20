@@ -719,6 +719,17 @@ function uPlot(opts, data) {
 				sc.max = max(sc.max, minMax$1[1]);
 			}
 		});
+
+		for (var key in scales) {
+			var sc = scales[key];
+
+			if (sc.base != null) {
+				var base = scales[sc.base];
+				var minMax = sc.range(base.min, base.max);
+				sc.min = minMax[0];
+				sc.max = minMax[1];
+			}
+		}
 	}
 
 	function getMinMax(data, _i0, _i1) {
@@ -847,11 +858,13 @@ function uPlot(opts, data) {
 			for (var val = min; val <= max; val = round6(val + incr))
 				{ ticks.push(val); }
 
-			var labels = axis.values(ticks, space);
-
 			var getPos = ori == 0 ? getXPos : getYPos;
 			var cssProp = ori == 0 ? LEFT : TOP;
+
+			// TODO: filter ticks & offsets that will end up off-canvas
 			var canOffs = ticks.map(function (val) { return getPos(val, scale, can[dim]); });		// bit of waste if we're not drawing a grid
+
+			var labels = axis.values(ticks, space);
 
 			var ch = axis.vals[firstChild];
 

@@ -375,6 +375,17 @@ export default function uPlot(opts, data) {
 				sc.max = max(sc.max, minMax[1]);
 			}
 		});
+
+		for (let key in scales) {
+			const sc = scales[key];
+
+			if (sc.base != null) {
+				let base = scales[sc.base];
+				let minMax = sc.range(base.min, base.max);
+				sc.min = minMax[0];
+				sc.max = minMax[1];
+			}
+		}
 	}
 
 	function getMinMax(data, _i0, _i1) {
@@ -498,11 +509,13 @@ export default function uPlot(opts, data) {
 			for (let val = min; val <= max; val = round6(val + incr))
 				ticks.push(val);
 
-			let labels = axis.values(ticks, space);
-
 			let getPos = ori == 0 ? getXPos : getYPos;
 			let cssProp = ori == 0 ? LEFT : TOP;
+
+			// TODO: filter ticks & offsets that will end up off-canvas
 			let canOffs = ticks.map(val => getPos(val, scale, can[dim]));		// bit of waste if we're not drawing a grid
+
+			let labels = axis.values(ticks, space);
 
 			let ch = axis.vals[firstChild];
 
