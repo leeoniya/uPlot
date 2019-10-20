@@ -532,7 +532,7 @@ function uPlot(opts, data) {
 		var isTime = axis.type == "t";
 		axis.incrs = axis.incrs || (isTime ? timeIncrs : numIncrs);
 		axis.values = axis.values || (isTime ? timeAxisVals : numAxisVals);
-		axis.range = axis.range || (isTime ? snapMinDate : snapNone);
+		axis.range = axis.range || (isTime ? snapMinDate : snapMinNum);
 	});
 
 	// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
@@ -694,6 +694,10 @@ function uPlot(opts, data) {
 		var offset = scaleMin - min00;
 		scaleMin = min00 + incrRoundUp(offset, incr);
 		return [scaleMin, scaleMax];
+	}
+
+	function snapMinNum(scaleMin, scaleMax, incr) {
+		return [round6(incrRoundUp(scaleMin, incr)), scaleMax];
 	}
 
 	function setScales(reset) {
