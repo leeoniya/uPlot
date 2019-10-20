@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Flat Data</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../bench/style.css">
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			.chart {
+				margin-top: 40px;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			var loop = 130000;
+
+			let data = [
+				Array(loop),
+				Array(loop),
+			];
+
+			for (var i = 0; i < loop; i++) {
+				let x = 2 * Math.PI * i / loop;
+				let y = Math.sin(x);
+
+				data[0][i] = x;
+				data[1][i] = y;
+			}
+
+			const opts = {
+				width: 1048,
+				height: 600,
+				cursor: true,
+				scales: {
+					x: {
+						type: "n",
+					//	auto: false,
+					//	range: (min, max) => [0, 6],
+					},
+					y: {
+						auto: false,
+						range: (min, max) => [-1.2, 1.2],
+					},
+				},
+				series: {
+					x: {
+						type: "n",
+						label: "x",
+					},
+					y: [
+						{
+							label: "sin(x)",
+							color: "red",
+							width: 2,
+						}
+					],
+				},
+				axes: {
+					x: {
+						type: "n",
+						label: "X Axis",
+					},
+					y: [
+						{
+							space: 50,
+							label: "Y Axis",
+						}
+					],
+				 }
+			};
+
+			let u = new uPlot(opts, data);
+			document.body.appendChild(u.root);
+		</script>
+	</body>
+</html>
