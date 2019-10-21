@@ -333,18 +333,36 @@ export default function uPlot(opts, data) {
 		const delta = dataMax - dataMin;
 		const mag = log10(delta || abs(dataMax) || 1);
 		const exp = floor(mag);
-		const incr = pow(10, exp) / 2;
+		const incr = pow(10, exp) / 5;
 		const buf = delta == 0 ? incr : 0;
 
-		const origMin = dataMin;
+		let snappedMin = round6(incrRoundDn(dataMin - buf, incr));
+		let snappedMax = round6(incrRoundUp(dataMax + buf, incr));
 
-		dataMin = round6(incrRoundDn(dataMin - buf, incr));
-		dataMax = round6(incrRoundUp(dataMax + buf, incr));
+		// for flat data, always use 0 as one chart extreme
+		if (delta == 0) {
+			if (dataMax > 0)
+				snappedMin = 0;
+			else if (dataMax < 0)
+				snappedMax = 0;
+		}
+		else {
+			// if buffer is too small, increase it
+			if (snappedMax - dataMax < incr)
+				snappedMax += incr;
 
-		if (origMin >= 0 && dataMin < 0)
-			dataMin = 0;
+			if (dataMin - snappedMin < incr)
+				snappedMin -= incr;
 
-		return [dataMin, dataMax];
+			// if original data never crosses 0, use 0 as one chart extreme
+			if (dataMin >= 0 && snappedMin < 0)
+				snappedMin = 0;
+
+			if (dataMax <= 0 && snappedMax > 0)
+				snappedMax = 0;
+		}
+
+		return [snappedMin, snappedMax];
 	}
 
 	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
@@ -379,14 +397,27 @@ export default function uPlot(opts, data) {
 			else if (s.shown) {
 				let minMax = sc.auto ? getMinMax(data[i], i0, i1) : [0,100];
 
-				minMax = sc.range(minMax[0], minMax[1]);
+				// this is temp data min/max
 				sc.min = min(sc.min, minMax[0]);
 				sc.max = max(sc.max, minMax[1]);
 			}
 		});
 
-		for (let key in scales) {
-			const sc = scales[key];
+		// snap non-derived scales
+		for (let k in scales) {
+			const sc = scales[k];
+
+			if (sc.base == null) {
+				let minMax = sc.range(sc.min, sc.max);
+
+				sc.min = minMax[0];
+				sc.max = minMax[1];
+			}
+		}
+
+		// snap derived scales
+		for (let k in scales) {
+			const sc = scales[k];
 
 			if (sc.base != null) {
 				let base = scales[sc.base];

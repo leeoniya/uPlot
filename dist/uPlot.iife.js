@@ -678,18 +678,36 @@ var uPlot = (function () {
 			var delta = dataMax - dataMin;
 			var mag = log10(delta || abs(dataMax) || 1);
 			var exp = floor(mag);
-			var incr = pow(10, exp) / 2;
+			var incr = pow(10, exp) / 5;
 			var buf = delta == 0 ? incr : 0;
 
-			var origMin = dataMin;
+			var snappedMin = round6(incrRoundDn(dataMin - buf, incr));
+			var snappedMax = round6(incrRoundUp(dataMax + buf, incr));
 
-			dataMin = round6(incrRoundDn(dataMin - buf, incr));
-			dataMax = round6(incrRoundUp(dataMax + buf, incr));
+			// for flat data, always use 0 as one chart extreme
+			if (delta == 0) {
+				if (dataMax > 0)
+					{ snappedMin = 0; }
+				else if (dataMax < 0)
+					{ snappedMax = 0; }
+			}
+			else {
+				// if buffer is too small, increase it
+				if (snappedMax - dataMax < incr)
+					{ snappedMax += incr; }
 
-			if (origMin >= 0 && dataMin < 0)
-				{ dataMin = 0; }
+				if (dataMin - snappedMin < incr)
+					{ snappedMin -= incr; }
 
-			return [dataMin, dataMax];
+				// if original data never crosses 0, use 0 as one chart extreme
+				if (dataMin >= 0 && snappedMin < 0)
+					{ snappedMin = 0; }
+
+				if (dataMax <= 0 && snappedMax > 0)
+					{ snappedMax = 0; }
+			}
+
+			return [snappedMin, snappedMax];
 		}
 
 		// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
@@ -724,20 +742,33 @@ var uPlot = (function () {
 				else if (s.shown) {
 					var minMax$1 = sc.auto ? getMinMax(data[i], i0, i1) : [0,100];
 
-					minMax$1 = sc.range(minMax$1[0], minMax$1[1]);
+					// this is temp data min/max
 					sc.min = min(sc.min, minMax$1[0]);
 					sc.max = max(sc.max, minMax$1[1]);
 				}
 			});
 
-			for (var key in scales) {
-				var sc = scales[key];
+			// snap non-derived scales
+			for (var k$1 in scales) {
+				var sc = scales[k$1];
 
-				if (sc.base != null) {
-					var base = scales[sc.base];
-					var minMax = sc.range(base.min, base.max);
+				if (sc.base == null) {
+					var minMax = sc.range(sc.min, sc.max);
+
 					sc.min = minMax[0];
 					sc.max = minMax[1];
+				}
+			}
+
+			// snap derived scales
+			for (var k$2 in scales) {
+				var sc$1 = scales[k$2];
+
+				if (sc$1.base != null) {
+					var base = scales[sc$1.base];
+					var minMax$1 = sc$1.range(base.min, base.max);
+					sc$1.min = minMax$1[0];
+					sc$1.max = minMax$1[1];
 				}
 			}
 		}
