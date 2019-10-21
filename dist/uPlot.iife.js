@@ -347,7 +347,7 @@ var uPlot = (function () {
 	}
 
 	var xAxisOpts = {
-		type: "t",		// t, n
+	//	type: "t",		// t, n
 		scale: 'x',
 		space: 40,
 		height: 30,
@@ -362,7 +362,7 @@ var uPlot = (function () {
 	var timeSeriesLabel = "Time";
 
 	var xSeriesOpts = {
-		type: "t",
+	//	type: "t",
 		scale: "x",
 	//	label: "Time",
 	//	value: v => stamp(new Date(v * 1e3)),
@@ -379,7 +379,7 @@ var uPlot = (function () {
 	}
 
 	var yAxisOpts = {
-		type: "n",		// t, n
+	//	type: "n",		// t, n
 		scale: 'y',
 		space: 30,
 		width: 50,
@@ -391,7 +391,7 @@ var uPlot = (function () {
 	};
 
 	var ySeriesOpts = {
-		type: "n",
+	//	type: "n",
 		scale: "y",
 		shown: true,
 	//	label: "Value",
@@ -436,17 +436,11 @@ var uPlot = (function () {
 		}
 
 		var series = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
-		var axes = setDefaults(opts.axes, xAxisOpts, yAxisOpts);
+		var axes = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
 		var scales = (opts.scales = opts.scales || {});
 
 		// set default value
 		series.forEach(function (s, i) {
-			var isTime = s.type == "t";
-
-			s.value = s.value || (isTime ? timeSeriesVal : numSeriesVal);
-			s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
-			s.width = s.width || 1;
-
 			// init scales & defaults
 			var key = s.scale;
 
@@ -455,14 +449,23 @@ var uPlot = (function () {
 					auto: true,
 					min:  inf,
 					max: -inf,
-					type: s.type,
 				};
 			}
 
 			var sc = scales[key];
 
+			sc.type = sc.type || (i == 0 ? "t" : "n");
+
 			// by default, numeric y scales snap to half magnitude of range
 			sc.range = sc.range || (i > 0 && sc.type == "n" ? snapHalfMag : snapNone);
+
+			s.type = s.type || sc.type;
+
+			var isTime = s.type == "t";
+
+			s.value = s.value || (isTime ? timeSeriesVal : numSeriesVal);
+			s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
+			s.width = s.width || 1;
 		});
 
 		var cursor = opts.cursor;
@@ -528,6 +531,8 @@ var uPlot = (function () {
 				if (side == 2)
 					{ plotTop += h; }
 			}
+
+			axis.type = axis.type || scales[axis.scale].type;
 
 			// also set defaults for incrs & values based on axis type
 			var isTime = axis.type == "t";
@@ -701,14 +706,14 @@ var uPlot = (function () {
 			return [round6(incrRoundUp(scaleMin, incr)), scaleMax];
 		}
 
-		function setScales(reset) {
+		function setScales() {
+			for (var k in scales) {
+				scales[k].min = inf;
+				scales[k].max = -inf;
+			}
+
 			series.forEach(function (s, i) {
 				var sc = scales[s.scale];
-
-				if (reset && s.shown) {
-					sc.min = inf;
-					sc.max = -inf;
-				}
 
 				// fast-path for x axis, which is assumed ordered ASC and will not get padded
 				if (i == 0) {
@@ -846,8 +851,8 @@ var uPlot = (function () {
 				var scale = scales[axis.scale];
 
 				// this will happen if all series using a specific scale are toggled off
-				if (scale == null)
-					{ return; }
+			//	if (scale == null)
+			//		return;
 
 				var min = scale.min;
 				var max = scale.max;
@@ -920,7 +925,7 @@ var uPlot = (function () {
 			i0 = _i0 != null ? _i0 + (rel ? i0 : 0) : i0;
 			i1 = _i1 != null ? _i1 + (rel ? i1 : 0) : i1;
 
-			setScales(true);
+			setScales();
 			ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 		//	axes.forEach(axis => {
 		//		clearChildren(axis.root);

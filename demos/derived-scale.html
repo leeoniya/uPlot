@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>Flat Data</title>
+		<title>Derived Scale</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<link rel="stylesheet" href="../bench/style.css">
@@ -19,36 +19,31 @@
 			function makeChart() {
 				console.time('chart');
 
-				let bad_opts = {
+				let opts = {
 					width: 600,
 					height: 400,
 					cursor: true,
 					scales: {
-						'z': {
+						x: {
+							type: 'n'
+						},
+						z: {
 							base: 'y',
 							range: (min, max) => [(min - 32) * 5/9, (max - 32) * 5/9],
 						}
 					},
 					series: {
-						x: {
-							type: 'n',
-						},
 						y: [
 							{
 								label: "blah",
-								scale: "y",
 								width: 1,
 								color: "green",
 							},
 						]
 					},
 					axes: {
-						x: {
-							type: 'n',
-						},
 						y: [
 							{
-								scale: 'y',
 								values: (vals, space) => vals.map(v => v + '° F'),
 							},
 							{
@@ -67,8 +62,8 @@
 					[40,43,60,65,71,73,80],
 				];
 
-				let uplot_bad = new uPlot(bad_opts, data);
-				document.body.appendChild(uplot_bad.root);
+				let u = new uPlot(opts, data);
+				document.body.appendChild(u.root);
 
 				console.timeEnd('chart');
 			}

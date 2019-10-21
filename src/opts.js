@@ -99,7 +99,7 @@ export function timeSeriesVal(val) {
 }
 
 export const xAxisOpts = {
-	type: "t",		// t, n
+//	type: "t",		// t, n
 	scale: 'x',
 	space: 40,
 	height: 30,
@@ -114,7 +114,7 @@ export const numSeriesLabel = "Value";
 export const timeSeriesLabel = "Time";
 
 export const xSeriesOpts = {
-	type: "t",
+//	type: "t",
 	scale: "x",
 //	label: "Time",
 //	value: v => stamp(new Date(v * 1e3)),
@@ -131,7 +131,7 @@ export function numSeriesVal(val) {
 }
 
 export const yAxisOpts = {
-	type: "n",		// t, n
+//	type: "n",		// t, n
 	scale: 'y',
 	space: 30,
 	width: 50,
@@ -143,7 +143,7 @@ export const yAxisOpts = {
 };
 
 export const ySeriesOpts = {
-	type: "n",
+//	type: "n",
 	scale: "y",
 	shown: true,
 //	label: "Value",
