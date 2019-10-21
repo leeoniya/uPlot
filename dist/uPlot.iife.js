@@ -476,10 +476,10 @@ var uPlot = (function () {
 		var i0;
 		var i1;
 
-		function setData(_data, _i0, _i1, rel) {
+		function setData(_data, _i0, _i1) {
 			data = _data;
 			dataLen = data[0].length;
-			setView(_i0, _i1, rel);
+			setView(_i0 != null ? _i0 : i0, _i1 != null ? _i1 : i1);
 		}
 
 		this.setData = setData;
@@ -952,21 +952,24 @@ var uPlot = (function () {
 			});
 		}
 
-		function setView(_i0, _i1, rel) {
-			i0 = _i0 != null ? _i0 + (rel ? i0 : 0) : i0;
-			i1 = _i1 != null ? _i1 + (rel ? i1 : 0) : i1;
+		function setView(_i0, _i1) {
+			i0 = _i0;
+			i1 = _i1;
 
 			setScales();
 			ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
-		//	axes.forEach(axis => {
-		//		clearChildren(axis.root);
-		//	});
 			drawAxesGrid();
 			drawSeries();
 			updatePointer();
 		}
 
 		this.setView = setView;
+
+		function getView() {
+			return [i0, i1];
+		}
+
+		this.getView = getView;
 
 	//	INTERACTION
 
