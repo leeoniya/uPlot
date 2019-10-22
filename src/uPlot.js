@@ -772,7 +772,7 @@ export default function uPlot(opts, data) {
 	}
 
 	function mouseDown(e, src, _x, _y, _w, _h, _i) {
-		if (e.button == 0) {
+		if (e == null || e.button == 0) {
 			dragging = true;
 
 			if (e != null) {
@@ -788,7 +788,7 @@ export default function uPlot(opts, data) {
 	}
 
 	function mouseUp(e, src, _x, _y, _w, _h, _i) {
-		if (e.button == 0 && dragging) {
+		if ((e == null || e.button == 0) && dragging) {
 			dragging = false;
 
 			if (x != x0 || y != y0) {
