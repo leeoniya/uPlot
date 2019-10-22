@@ -58,6 +58,10 @@ export function incrRound() {
 }
 */
 
+export function fnOrSelf(v) {
+	return typeof v == "function" ? v : () => v;
+}
+
 export function incrRoundUp(num, incr) {
 	return ceil(num/incr)*incr;
 }

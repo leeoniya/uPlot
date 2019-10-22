@@ -48,6 +48,8 @@ import {
 	dblclick,
 
 	assign,
+
+	fnOrSelf,
 } from './utils';
 
 import {
@@ -114,7 +116,7 @@ export default function uPlot(opts, data) {
 		sc.type = sc.type || (i == 0 ? "t" : "n");
 
 		// by default, numeric y scales snap to half magnitude of range
-		sc.range = sc.range || (i > 0 && sc.type == "n" ? snapHalfMag : snapNone);
+		sc.range = fnOrSelf(sc.range || (i > 0 && sc.type == "n" ? snapHalfMag : snapNone));
 
 		s.type = s.type || sc.type;
 
@@ -195,7 +197,8 @@ export default function uPlot(opts, data) {
 		let isTime = axis.type == "t";
 		axis.incrs = axis.incrs || (isTime ? timeIncrs : numIncrs);
 		axis.values = axis.values || (isTime ? timeAxisVals : numAxisVals);
-		axis.range = axis.range || (isTime ? snapMinDate : snapMinNum);
+		axis.range = fnOrSelf(axis.range || (isTime ? snapMinDate : snapMinNum));
+		axis.space = fnOrSelf(axis.space);
 	});
 
 	// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
@@ -540,7 +543,7 @@ export default function uPlot(opts, data) {
 
 			let {min, max} = scale;
 
-			let [incr, space] = findIncr(max - min, axis.incrs, opts[dim], axis.space);
+			let [incr, space] = findIncr(max - min, axis.incrs, can[dim], axis.space(min, max, can[dim]));
 
 			[min, max] = axis.range(min, max, incr);
 

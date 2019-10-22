@@ -191,6 +191,10 @@ var uPlot = (function () {
 	}
 	*/
 
+	function fnOrSelf(v) {
+		return typeof v == "function" ? v : function () { return v; };
+	}
+
 	function incrRoundUp(num, incr) {
 		return ceil(num/incr)*incr;
 	}
@@ -495,7 +499,7 @@ var uPlot = (function () {
 			sc.type = sc.type || (i == 0 ? "t" : "n");
 
 			// by default, numeric y scales snap to half magnitude of range
-			sc.range = sc.range || (i > 0 && sc.type == "n" ? snapHalfMag : snapNone);
+			sc.range = fnOrSelf(sc.range || (i > 0 && sc.type == "n" ? snapHalfMag : snapNone));
 
 			s.type = s.type || sc.type;
 
@@ -576,7 +580,8 @@ var uPlot = (function () {
 			var isTime = axis.type == "t";
 			axis.incrs = axis.incrs || (isTime ? timeIncrs : numIncrs);
 			axis.values = axis.values || (isTime ? timeAxisVals : numAxisVals);
-			axis.range = axis.range || (isTime ? snapMinDate : snapMinNum);
+			axis.range = fnOrSelf(axis.range || (isTime ? snapMinDate : snapMinNum));
+			axis.space = fnOrSelf(axis.space);
 		});
 
 		// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
@@ -926,7 +931,7 @@ var uPlot = (function () {
 				var min = scale.min;
 				var max = scale.max;
 
-				var ref = findIncr(max - min, axis.incrs, opts[dim], axis.space);
+				var ref = findIncr(max - min, axis.incrs, can[dim], axis.space(min, max, can[dim]));
 				var incr = ref[0];
 				var space = ref[1];
 
