@@ -36,14 +36,16 @@
 
 .legend {
 	position: absolute;
-	bottom: 100%;
-	right: 0;
+	font-size: 14px;
+	top: 0;
+	left: 50px;
 	padding: 8px;
+	background: rgba(0,0,0,0.05);
 }
 
 .legend > * {
 	display: inline-block;
-	margin-right: 20px;
+	margin-right: 8px;
 }
 
 .legend > *+*:hover {
