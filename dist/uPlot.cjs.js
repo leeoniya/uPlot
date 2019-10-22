@@ -1151,37 +1151,41 @@ function uPlot(opts, data) {
 	}
 
 	function mouseDown(e, src, _x, _y, _w, _h, _i) {
-		dragging = true;
+		if (e.button == 0) {
+			dragging = true;
 
-		if (e != null) {
-			x0 = e.clientX - rect.left;
-			y0 = e.clientY - rect.top;
-			sync.pub(mousedown, self, x0, y0, canCssWidth, canCssHeight, null);
-		}
-		else {
-			x0 = canCssWidth * (_x/_w);
-			y0 = canCssHeight * (_y/_h);
+			if (e != null) {
+				x0 = e.clientX - rect.left;
+				y0 = e.clientY - rect.top;
+				sync.pub(mousedown, self, x0, y0, canCssWidth, canCssHeight, null);
+			}
+			else {
+				x0 = canCssWidth * (_x/_w);
+				y0 = canCssHeight * (_y/_h);
+			}
 		}
 	}
 
 	function mouseUp(e, src, _x, _y, _w, _h, _i) {
-		dragging = false;
+		if (e.button == 0) {
+			dragging = false;
 
-		if (x != x0 || y != y0) {
-			setStylePx(region, LEFT, 0);
-			setStylePx(region, WIDTH, 0);
+			if (x != x0 || y != y0) {
+				setStylePx(region, LEFT, 0);
+				setStylePx(region, WIDTH, 0);
 
-			var minX = min(x0, x);
-			var maxX = max(x0, x);
+				var minX = min(x0, x);
+				var maxX = max(x0, x);
 
-			setView(
-				closestIdxFromXpos(minX),
-				closestIdxFromXpos(maxX)
-			);
+				setView(
+					closestIdxFromXpos(minX),
+					closestIdxFromXpos(maxX)
+				);
+			}
+
+			if (e != null)
+				{ sync.pub(mouseup, self, x, y, canCssWidth, canCssHeight, null); }
 		}
-
-		if (e != null)
-			{ sync.pub(mouseup, self, x, y, canCssWidth, canCssHeight, null); }
 	}
 
 	function dblClick(e, src, _x, _y, _w, _h, _i) {
