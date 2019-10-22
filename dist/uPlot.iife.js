@@ -1168,7 +1168,7 @@ var uPlot = (function () {
 		}
 
 		function mouseUp(e, src, _x, _y, _w, _h, _i) {
-			if (e.button == 0) {
+			if (e.button == 0 && dragging) {
 				dragging = false;
 
 				if (x != x0 || y != y0) {
@@ -1207,7 +1207,7 @@ var uPlot = (function () {
 		events[dblclick] = dblClick;
 
 		for (var ev in events)
-			{ on(ev, can, events[ev]); }
+			{ on(ev, ev == mouseup ? doc : can, events[ev]); }
 
 		var deb = debounce(syncRect, 100);
 

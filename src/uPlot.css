@@ -27,6 +27,7 @@
 	outline: 1px solid silver;
 	overflow-y: hidden;
 	overflow-x: hidden;
+	user-select: none;
 }
 
 .chart canvas {

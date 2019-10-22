@@ -778,7 +778,7 @@ export default function uPlot(opts, data) {
 	}
 
 	function mouseUp(e, src, _x, _y, _w, _h, _i) {
-		if (e.button == 0) {
+		if (e.button == 0 && dragging) {
 			dragging = false;
 
 			if (x != x0 || y != y0) {
@@ -817,7 +817,7 @@ export default function uPlot(opts, data) {
 	events[dblclick] = dblClick;
 
 	for (let ev in events)
-		on(ev, can, events[ev]);
+		on(ev, ev == mouseup ? doc : can, events[ev]);
 
 	let deb = debounce(syncRect, 100);
 
