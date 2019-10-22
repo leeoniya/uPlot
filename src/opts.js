@@ -1,4 +1,9 @@
-import { fmtDate } from './fmtDate';
+import {
+	fmtDate,
+	getFullYear,
+	getMonth,
+	getDate,
+} from './fmtDate';
 
 //export const series = [];
 
@@ -12,7 +17,8 @@ const grid = {
 
 let m = 60,
 	h = m * m,
-	d = h * 24;
+	d = h * 24,
+	y = d * 365;
 
 const dec = [
 	0.001,
@@ -59,37 +65,74 @@ export const timeIncrs = dec.concat([
 	d * 9,
 	d * 10,
 	// year divisors
-	d * 365,
+	y,
+	y * 2,
+	y * 5,
+	y * 10,
+	y * 25,
+	y * 50,
+	y * 100,
 ]);
 
 const md = '{M}/{D}';
+const yr = '{YYYY}';
 const hr = '{h}';
 const mm = ':{mm}';
 const ss = ':{ss}';
-const ms = '.{fff}';
 const ampm = '{aa}';
 
-const mdhr = md + '\n' + hr;
+const year = fmtDate(yr);
+const monthDate = fmtDate(md);
+const monthDateYear = fmtDate(md + '\n' + yr);
 
-const shortDate = fmtDate(md);
-const shortDateHour = fmtDate(mdhr + ampm);
-const shortDateHourMin = fmtDate(mdhr + mm + ampm);
-const shortDateHourMinSec = fmtDate(mdhr + mm + ss + ampm);
-const shortHourMinSecMilli = fmtDate(hr + mm + ss + ms + ampm);
+const _hour   = hr +           ampm;
+const _minute = hr + mm +      ampm;
+const _second = hr + mm + ss + ampm;
+
+const hour =   fmtDate(_hour);
+const minute = fmtDate(_minute);
+const second = fmtDate(_second);
+
+const md2 = '\n' + md;
+
+const hourDate	= fmtDate(_hour   + md2);
+const minDate	= fmtDate(_minute + md2);
+const secDate	= fmtDate(_second + md2);
 
 export function timeAxisVals(vals, space) {
 	let incr = vals[1] - vals[0];
 
-	let stamp = (
-		incr >= d ? shortDate :
-		// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
-		incr >= h ? shortDateHour :
-		incr >= m ? shortDateHourMin :
-		incr >= 1 ? shortDateHourMinSec :
-		shortHourMinSecMilli
-	);
+	// these track boundaries when a full label is needed again
+	let prevYear = null;
+	let prevDate = null;
 
-	return vals.map(val => stamp(new Date(val * 1e3)));
+	return vals.map((val, i) => {
+		let date = new Date(val * 1e3);
+
+		let newYear = date[getFullYear]();
+		let newDate = date[getDate]();
+
+		let diffYear = newYear != prevYear;
+		let diffDate = newDate != prevDate;
+
+		let stamp;
+
+		if (incr >= y)
+			stamp = year;
+		else if (incr >= d)
+			stamp = diffYear ? monthDateYear : monthDate;
+		else if (incr >= h)
+			stamp = diffDate ? hourDate : hour;
+		else if (incr >= m)
+			stamp = diffDate ? minDate : minute;
+		else if (incr >= s)
+			stamp = diffDate ? secDate :  second;
+
+		prevYear = newYear;
+		prevDate = newDate;
+
+		return stamp(date);
+	});
 }
 
 let longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
@@ -102,7 +145,7 @@ export const xAxisOpts = {
 //	type: "t",		// t, n
 	scale: 'x',
 	space: 40,
-	height: 30,
+	height: 53,
 	side: 0,
 	class: "x-vals",
 //	incrs: timeIncrs,

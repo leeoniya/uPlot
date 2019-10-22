@@ -262,7 +262,8 @@ var uPlot = (function () {
 
 	var m = 60,
 		h = m * m,
-		d = h * 24;
+		d = h * 24,
+		y = d * 365;
 
 	var dec = [
 		0.001,
@@ -308,36 +309,73 @@ var uPlot = (function () {
 		d * 9,
 		d * 10,
 		// year divisors
-		d * 365 ]);
+		y,
+		y * 2,
+		y * 5,
+		y * 10,
+		y * 25,
+		y * 50,
+		y * 100 ]);
 
 	var md = '{M}/{D}';
+	var yr = '{YYYY}';
 	var hr = '{h}';
 	var mm = ':{mm}';
 	var ss = ':{ss}';
-	var ms = '.{fff}';
 	var ampm = '{aa}';
 
-	var mdhr = md + '\n' + hr;
+	var year = fmtDate(yr);
+	var monthDate = fmtDate(md);
+	var monthDateYear = fmtDate(md + '\n' + yr);
 
-	var shortDate = fmtDate(md);
-	var shortDateHour = fmtDate(mdhr + ampm);
-	var shortDateHourMin = fmtDate(mdhr + mm + ampm);
-	var shortDateHourMinSec = fmtDate(mdhr + mm + ss + ampm);
-	var shortHourMinSecMilli = fmtDate(hr + mm + ss + ms + ampm);
+	var _hour   = hr +           ampm;
+	var _minute = hr + mm +      ampm;
+	var _second = hr + mm + ss + ampm;
+
+	var hour =   fmtDate(_hour);
+	var minute = fmtDate(_minute);
+	var second = fmtDate(_second);
+
+	var md2 = '\n' + md;
+
+	var hourDate	= fmtDate(_hour   + md2);
+	var minDate	= fmtDate(_minute + md2);
+	var secDate	= fmtDate(_second + md2);
 
 	function timeAxisVals(vals, space) {
 		var incr = vals[1] - vals[0];
 
-		var stamp = (
-			incr >= d ? shortDate :
-			// {M}/{DD}/{YY} should only be prepended at 12a?		// {YY} only at year boundaries?
-			incr >= h ? shortDateHour :
-			incr >= m ? shortDateHourMin :
-			incr >= 1 ? shortDateHourMinSec :
-			shortHourMinSecMilli
-		);
+		// these track boundaries when a full label is needed again
+		var prevYear = null;
+		var prevDate = null;
 
-		return vals.map(function (val) { return stamp(new Date(val * 1e3)); });
+		return vals.map(function (val, i) {
+			var date = new Date(val * 1e3);
+
+			var newYear = date[getFullYear]();
+			var newDate = date[getDate]();
+
+			var diffYear = newYear != prevYear;
+			var diffDate = newDate != prevDate;
+
+			var stamp;
+
+			if (incr >= y)
+				{ stamp = year; }
+			else if (incr >= d)
+				{ stamp = diffYear ? monthDateYear : monthDate; }
+			else if (incr >= h)
+				{ stamp = diffDate ? hourDate : hour; }
+			else if (incr >= m)
+				{ stamp = diffDate ? minDate : minute; }
+			else if (incr >= s)
+				{ stamp = diffDate ? secDate :  second; }
+
+			prevYear = newYear;
+			prevDate = newDate;
+
+			return stamp(date);
+		});
 	}
 
 	var longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
@@ -350,7 +388,7 @@ var uPlot = (function () {
 	//	type: "t",		// t, n
 		scale: 'x',
 		space: 40,
-		height: 30,
+		height: 53,
 		side: 0,
 		class: "x-vals",
 	//	incrs: timeIncrs,
