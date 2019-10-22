@@ -595,6 +595,9 @@ function uPlot(opts, data) {
 
 		var el = placeDiv((isVt ? "y-" : "x-") + part + "-" + side, root);
 
+		el.style.color = axis.color;
+		el.classList.add(axis.class);
+
 		if (isVt) {
 			var w = crossDim || axis[WIDTH];
 			setStylePx(el, WIDTH, w);

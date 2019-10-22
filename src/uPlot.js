@@ -213,6 +213,9 @@ export default function uPlot(opts, data) {
 
 		let el = placeDiv((isVt ? "y-" : "x-") + part + "-" + side, root);
 
+		el.style.color = axis.color;
+		el.classList.add(axis.class);
+
 		if (isVt) {
 			let w = crossDim || axis[WIDTH];
 			setStylePx(el, WIDTH, w);
