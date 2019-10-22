@@ -156,7 +156,14 @@ export default function uPlot(opts, data) {
 
 	const root = placeDiv("chart");
 
-	const plot = placeDiv("plot", root);
+	if (opts.title != null) {
+		let title = placeDiv("title", root);
+		title.textContent = opts.title;
+	}
+
+	const wrap = placeDiv("wrap", root);
+
+	const plot = placeDiv("plot", wrap);
 
 	let fullCssWidth = opts[WIDTH];
 	let fullCssHeight = opts[HEIGHT];
@@ -211,7 +218,7 @@ export default function uPlot(opts, data) {
 		let side = axis.side;
 		let isVt = side % 2;
 
-		let el = placeDiv((isVt ? "y-" : "x-") + part + "-" + side, root);
+		let el = placeDiv((isVt ? "y-" : "x-") + part + "-" + side, wrap);
 
 		el.style.color = axis.color;
 		el.classList.add(axis.class);
@@ -283,8 +290,8 @@ export default function uPlot(opts, data) {
 
 	setStylePx(plot, TOP, plotTop);
 	setStylePx(plot, LEFT, plotLft);
-	setStylePx(root, WIDTH, fullCssWidth);
-	setStylePx(root, HEIGHT, fullCssHeight);
+	setStylePx(wrap, WIDTH, fullCssWidth);
+	setStylePx(wrap, HEIGHT, fullCssHeight);
 
 	const { can, ctx } = makeCanvas(canCssWidth, canCssHeight);
 

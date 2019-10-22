@@ -18,6 +18,17 @@
 	border-bottom: 1px dashed #607D8B;
 }
 
+.wrap {
+	position: relative;
+}
+
+.title {
+	text-align: center;
+	padding: 16px;
+	font-size: 18px;
+	font-weight: bold;
+}
+
 .chart, .plot {
 	position: relative;
 	display: inline-block;
@@ -35,17 +46,13 @@
 }
 
 .legend {
-	position: absolute;
 	font-size: 14px;
-	top: 0;
-	left: 50px;
-	padding: 8px;
-	background: rgba(0,0,0,0.05);
+	text-align: center;
 }
 
 .legend > * {
 	display: inline-block;
-	margin-right: 8px;
+	margin: 0 8px;
 }
 
 .legend > *+*:hover {

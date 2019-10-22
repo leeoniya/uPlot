@@ -539,7 +539,14 @@ var uPlot = (function () {
 
 		var root = placeDiv("chart");
 
-		var plot = placeDiv("plot", root);
+		if (opts.title != null) {
+			var title = placeDiv("title", root);
+			title.textContent = opts.title;
+		}
+
+		var wrap = placeDiv("wrap", root);
+
+		var plot = placeDiv("plot", wrap);
 
 		var fullCssWidth = opts[WIDTH];
 		var fullCssHeight = opts[HEIGHT];
@@ -594,7 +601,7 @@ var uPlot = (function () {
 			var side = axis.side;
 			var isVt = side % 2;
 
-			var el = placeDiv((isVt ? "y-" : "x-") + part + "-" + side, root);
+			var el = placeDiv((isVt ? "y-" : "x-") + part + "-" + side, wrap);
 
 			el.style.color = axis.color;
 			el.classList.add(axis.class);
@@ -666,8 +673,8 @@ var uPlot = (function () {
 
 		setStylePx(plot, TOP, plotTop);
 		setStylePx(plot, LEFT, plotLft);
-		setStylePx(root, WIDTH, fullCssWidth);
-		setStylePx(root, HEIGHT, fullCssHeight);
+		setStylePx(wrap, WIDTH, fullCssWidth);
+		setStylePx(wrap, HEIGHT, fullCssHeight);
 
 		var ref = makeCanvas(canCssWidth, canCssHeight);
 		var can = ref.can;
