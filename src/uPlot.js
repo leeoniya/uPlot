@@ -157,7 +157,7 @@ export default function uPlot(opts, data) {
 		ctx.fillStyle = fill || hexBlack;
 	}
 
-	const root = placeDiv("chart");
+	const root = placeDiv("uplot");
 
 	if (opts.title != null) {
 		let title = placeDiv("title", root);
@@ -320,7 +320,7 @@ export default function uPlot(opts, data) {
 	function placeDiv(cls, targ) {
 		let div = doc[createElement]("div");
 
-	//	if (cls != null)
+		if (cls != null)
 			addClass(div, cls);
 
 		if (targ != null)
@@ -670,8 +670,9 @@ export default function uPlot(opts, data) {
 	const leg = placeDiv("legend", root);
 
 	const legendLabels = legend.show ? series.map((s, i) => {
-		let label = placeDiv("label", leg);
+		let label = placeDiv(null, leg);
 		label.style.color = s.color;
+		label.style.borderBottom = (s.width + "px ") + (s.dash == null ? "solid " : "dashed ") + s.color;
 		label.textContent = s.label + ': -';
 
 		if (i > 0 && legend.toggle) {

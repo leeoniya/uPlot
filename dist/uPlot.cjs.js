@@ -539,7 +539,7 @@ function uPlot(opts, data) {
 		ctx.fillStyle = fill || hexBlack;
 	}
 
-	var root = placeDiv("chart");
+	var root = placeDiv("uplot");
 
 	if (opts.title != null) {
 		var title = placeDiv("title", root);
@@ -704,8 +704,8 @@ function uPlot(opts, data) {
 	function placeDiv(cls, targ) {
 		var div = doc[createElement]("div");
 
-	//	if (cls != null)
-			addClass(div, cls);
+		if (cls != null)
+			{ addClass(div, cls); }
 
 		if (targ != null)
 			{ targ.appendChild(div); }		// TODO: chart.appendChild()
@@ -1059,8 +1059,9 @@ function uPlot(opts, data) {
 	var leg = placeDiv("legend", root);
 
 	var legendLabels = legend.show ? series.map(function (s, i) {
-		var label = placeDiv("label", leg);
+		var label = placeDiv(null, leg);
 		label.style.color = s.color;
+		label.style.borderBottom = (s.width + "px ") + (s.dash == null ? "solid " : "dashed ") + s.color;
 		label.textContent = s.label + ': -';
 
 		if (i > 0 && legend.toggle) {
