@@ -434,7 +434,7 @@ var yAxisOpts = {
 var ySeriesOpts = {
 //	type: "n",
 	scale: "y",
-	shown: true,
+	show: true,
 //	label: "Value",
 //	value: v => v,
 };
@@ -791,7 +791,7 @@ function uPlot(opts, data) {
 				sc.min = minMax[0];
 				sc.max = minMax[1];
 			}
-			else if (s.shown) {
+			else if (s.show) {
 				var minMax$1 = sc.auto ? getMinMax(data[i], i0, i1) : [0,100];
 
 				// this is temp data min/max
@@ -839,7 +839,7 @@ function uPlot(opts, data) {
 
 	function drawSeries() {
 		series.forEach(function (s, i) {
-			if (i > 0 && s.shown) {
+			if (i > 0 && s.show) {
 				drawLine(
 					data[0],
 					data[i],
@@ -1050,7 +1050,7 @@ function uPlot(opts, data) {
 
 		if (i > 0) {
 			on("click", label, function () {
-				s.shown = !s.shown;
+				s.show = !s.show;
 				label.classList.toggle('off');
 				setView(i0, i1);
 			});
@@ -1061,7 +1061,7 @@ function uPlot(opts, data) {
 
 	// series-intersection markers
 	var pts = series.map(function (s, i) {
-		if (i > 0 && s.shown) {
+		if (i > 0 && s.show) {
 			var dot = placeDiv("dot", plot);
 			dot.style.background = s.color;
 			return dot;
@@ -1102,7 +1102,7 @@ function uPlot(opts, data) {
 		for (var i = 0; i < series.length; i++) {
 			var s = series[i];
 
-			if (i > 0 && s.shown) {
+			if (i > 0 && s.show) {
 				var yPos = getYPos(data[i][idx], scales[s.scale], canCssHeight);
 
 				if (yPos == null)

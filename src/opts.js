@@ -188,7 +188,7 @@ export const yAxisOpts = {
 export const ySeriesOpts = {
 //	type: "n",
 	scale: "y",
-	shown: true,
+	show: true,
 //	label: "Value",
 //	value: v => v,
 };

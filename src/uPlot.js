@@ -407,7 +407,7 @@ export default function uPlot(opts, data) {
 				sc.min = minMax[0];
 				sc.max = minMax[1];
 			}
-			else if (s.shown) {
+			else if (s.show) {
 				let minMax = sc.auto ? getMinMax(data[i], i0, i1) : [0,100];
 
 				// this is temp data min/max
@@ -455,7 +455,7 @@ export default function uPlot(opts, data) {
 
 	function drawSeries() {
 		series.forEach((s, i) => {
-			if (i > 0 && s.shown) {
+			if (i > 0 && s.show) {
 				drawLine(
 					data[0],
 					data[i],
@@ -661,7 +661,7 @@ export default function uPlot(opts, data) {
 
 		if (i > 0) {
 			on("click", label, () => {
-				s.shown = !s.shown;
+				s.show = !s.show;
 				label.classList.toggle('off');
 				setView(i0, i1);
 			});
@@ -672,7 +672,7 @@ export default function uPlot(opts, data) {
 
 	// series-intersection markers
 	const pts = series.map((s, i) => {
-		if (i > 0 && s.shown) {
+		if (i > 0 && s.show) {
 			let dot = placeDiv("dot", plot);
 			dot.style.background = s.color;
 			return dot;
@@ -713,7 +713,7 @@ export default function uPlot(opts, data) {
 		for (let i = 0; i < series.length; i++) {
 			let s = series[i];
 
-			if (i > 0 && s.shown) {
+			if (i > 0 && s.show) {
 				let yPos = getYPos(data[i][idx], scales[s.scale], canCssHeight);
 
 				if (yPos == null)
