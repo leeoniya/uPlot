@@ -542,6 +542,12 @@ var uPlot = (function () {
 
 		var root = placeDiv("uplot");
 
+		if (opts.id != null)
+			{ root.id = opts.id; }
+
+		if (opts.class != null)
+			{ root[classList].add(opts.class); }
+
 		if (opts.title != null) {
 			var title = placeDiv("title", root);
 			title.textContent = opts.title;
@@ -1070,7 +1076,7 @@ var uPlot = (function () {
 					if (filtMouse(e)) {
 						s.show = !s.show;
 						label[classList].toggle('off');
-						!s.show && trans(pts[i], 0, -10);
+						!s.show && trans(cursorPts[i], 0, -10);
 						setView(i0, i1);
 					}
 				});
@@ -1080,11 +1086,11 @@ var uPlot = (function () {
 		}) : null;
 
 		// series-intersection markers
-		var pts = series.map(function (s, i) {
+		var cursorPts = series.map(function (s, i) {
 			if (i > 0 && s.show) {
-				var dot = placeDiv("dot", plot);
-				dot.style.background = s.color;
-				return dot;
+				var pt = placeDiv("point", plot);
+				pt.style.background = s.color;
+				return pt;
 			}
 		});
 
@@ -1128,7 +1134,7 @@ var uPlot = (function () {
 					if (yPos == null)
 						{ yPos = -10; }
 
-					trans(pts[i], xPos, yPos);
+					trans(cursorPts[i], xPos, yPos);
 				}
 
 				if (legend.show)
