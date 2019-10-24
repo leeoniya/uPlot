@@ -551,6 +551,13 @@ export default function uPlot(opts, data) {
 		return e.button == 0;
 	}
 
+	function clearFrom(ch) {
+		let next;
+		while (next = ch[nextSibling])
+			next.remove();
+		ch.remove();
+	}
+
 	function drawAxesGrid() {
 		axes.forEach((axis, i) => {
 			let ori = i == 0 ? 0 : 1;
@@ -558,9 +565,13 @@ export default function uPlot(opts, data) {
 			let xDim = ori == 0 ? HEIGHT : WIDTH;
 			let scale = scales[axis.scale];
 
+			let ch = axis.vals[firstChild];
+
 			// this will happen if all series using a specific scale are toggled off
-		//	if (scale == null)
-		//		return;
+			if (isNaN(scale.min)) {
+				clearFrom(ch);
+				return;
+			}
 
 			let {min, max} = scale;
 
@@ -581,18 +592,11 @@ export default function uPlot(opts, data) {
 
 			let labels = axis.values(ticks, space);
 
-			let ch = axis.vals[firstChild];
-
 			canOffs.forEach((off, i) => {
 				ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
 			});
 
-			if (ch) {
-				let next;
-				while (next = ch[nextSibling])
-					next.remove();
-				ch.remove();
-			}
+			ch && clearFrom(ch);
 
 			let grid = axis.grid;
 

@@ -935,6 +935,13 @@ function uPlot(opts, data) {
 		return e.button == 0;
 	}
 
+	function clearFrom(ch) {
+		var next;
+		while (next = ch[nextSibling])
+			{ next.remove(); }
+		ch.remove();
+	}
+
 	function drawAxesGrid() {
 		axes.forEach(function (axis, i) {
 			var assign;
@@ -944,9 +951,13 @@ function uPlot(opts, data) {
 			var xDim = ori == 0 ? HEIGHT : WIDTH;
 			var scale = scales[axis.scale];
 
+			var ch = axis.vals[firstChild];
+
 			// this will happen if all series using a specific scale are toggled off
-		//	if (scale == null)
-		//		return;
+			if (isNaN(scale.min)) {
+				clearFrom(ch);
+				return;
+			}
 
 			var min = scale.min;
 			var max = scale.max;
@@ -970,18 +981,11 @@ function uPlot(opts, data) {
 
 			var labels = axis.values(ticks, space);
 
-			var ch = axis.vals[firstChild];
-
 			canOffs.forEach(function (off, i) {
 				ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
 			});
 
-			if (ch) {
-				var next;
-				while (next = ch[nextSibling])
-					{ next.remove(); }
-				ch.remove();
-			}
+			ch && clearFrom(ch);
 
 			var grid = axis.grid;
 
