@@ -1064,6 +1064,7 @@ function uPlot(opts, data) {
 				if (filtMouse(e)) {
 					s.show = !s.show;
 					label[classList].toggle('off');
+					!s.show && trans(pts[i], 0, -10);
 					setView(i0, i1);
 				}
 			});
