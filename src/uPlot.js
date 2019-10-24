@@ -99,7 +99,7 @@ export default function uPlot(opts, data) {
 	const axes = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
 	const scales = (opts.scales = opts.scales || {});
 
-	const legend = assign({}, {show: true, toggle: true}, opts.legend);
+	const legend = assign({}, {show: true}, opts.legend);
 
 	// set default value
 	series.forEach((s, i) => {
@@ -675,7 +675,7 @@ export default function uPlot(opts, data) {
 		label.style.borderBottom = (s.width + "px ") + (s.dash == null ? "solid " : "dashed ") + s.color;
 		label.textContent = s.label + ': -';
 
-		if (i > 0 && legend.toggle) {
+		if (i > 0) {
 			on("click", label, e => {
 				if (filtMouse(e)) {
 					s.show = !s.show;

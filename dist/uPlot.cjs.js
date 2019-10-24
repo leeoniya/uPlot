@@ -481,7 +481,7 @@ function uPlot(opts, data) {
 	var axes = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
 	var scales = (opts.scales = opts.scales || {});
 
-	var legend = assign({}, {show: true, toggle: true}, opts.legend);
+	var legend = assign({}, {show: true}, opts.legend);
 
 	// set default value
 	series.forEach(function (s, i) {
@@ -1064,7 +1064,7 @@ function uPlot(opts, data) {
 		label.style.borderBottom = (s.width + "px ") + (s.dash == null ? "solid " : "dashed ") + s.color;
 		label.textContent = s.label + ': -';
 
-		if (i > 0 && legend.toggle) {
+		if (i > 0) {
 			on("click", label, function (e) {
 				if (filtMouse(e)) {
 					s.show = !s.show;
