@@ -41,6 +41,7 @@ import {
 	nextSibling,
 	createElement,
 	hexBlack,
+	classList,
 
 	mousemove,
 	mousedown,
@@ -221,7 +222,7 @@ export default function uPlot(opts, data) {
 		let el = placeDiv((isVt ? "y-" : "x-") + part + "-" + side, wrap);
 
 		el.style.color = axis.color;
-		el.classList.add(axis.class);
+		addClass(el, axis.class);
 
 		if (isVt) {
 			let w = crossDim || axis[WIDTH];
@@ -295,6 +296,10 @@ export default function uPlot(opts, data) {
 
 	const { can, ctx } = makeCanvas(canCssWidth, canCssHeight);
 
+	function addClass(el, c) {
+		el[classList].add(c);
+	}
+
 	function makeCanvas(wid, hgt) {
 		const can = doc[createElement]("canvas");
 		const ctx = can.getContext("2d");
@@ -313,8 +318,8 @@ export default function uPlot(opts, data) {
 	function placeDiv(cls, targ) {
 		let div = doc[createElement]("div");
 
-		if (cls != null)
-			div.className = cls;
+	//	if (cls != null)
+			addClass(div, cls);
 
 		if (targ != null)
 			targ.appendChild(div);		// TODO: chart.appendChild()
@@ -540,6 +545,10 @@ export default function uPlot(opts, data) {
 		return div;
 	}
 
+	function filtMouse(e) {
+		return e.button == 0;
+	}
+
 	function drawAxesGrid() {
 		axes.forEach((axis, i) => {
 			let ori = i == 0 ? 0 : 1;
@@ -660,10 +669,12 @@ export default function uPlot(opts, data) {
 		label.textContent = s.label + ': -';
 
 		if (i > 0) {
-			on("click", label, () => {
-				s.show = !s.show;
-				label.classList.toggle('off');
-				setView(i0, i1);
+			on("click", label, e => {
+				if (filtMouse(e)) {
+					s.show = !s.show;
+					label[classList].toggle('off');
+					setView(i0, i1);
+				}
 			});
 		}
 
@@ -772,7 +783,7 @@ export default function uPlot(opts, data) {
 	}
 
 	function mouseDown(e, src, _x, _y, _w, _h, _i) {
-		if (e == null || e.button == 0) {
+		if (e == null || filtMouse(e)) {
 			dragging = true;
 
 			if (e != null) {
@@ -788,7 +799,7 @@ export default function uPlot(opts, data) {
 	}
 
 	function mouseUp(e, src, _x, _y, _w, _h, _i) {
-		if ((e == null || e.button == 0) && dragging) {
+		if ((e == null || filtMouse(e)) && dragging) {
 			dragging = false;
 
 			if (x != x0 || y != y0) {
