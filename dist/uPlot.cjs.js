@@ -481,6 +481,8 @@ function uPlot(opts, data) {
 	var axes = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
 	var scales = (opts.scales = opts.scales || {});
 
+	var legend = assign({}, {show: true, toggle: true}, opts.legend);
+
 	// set default value
 	series.forEach(function (s, i) {
 		// init scales & defaults
@@ -1052,12 +1054,12 @@ function uPlot(opts, data) {
 
 	var leg = placeDiv("legend", root);
 
-	var labels = series.map(function (s, i) {
+	var legendLabels = legend.show ? series.map(function (s, i) {
 		var label = placeDiv("label", leg);
 		label.style.color = s.color;
 		label.textContent = s.label + ': -';
 
-		if (i > 0) {
+		if (i > 0 && legend.toggle) {
 			on("click", label, function (e) {
 				if (filtMouse(e)) {
 					s.show = !s.show;
@@ -1068,7 +1070,7 @@ function uPlot(opts, data) {
 		}
 
 		return label;
-	});
+	}) : null;
 
 	// series-intersection markers
 	var pts = series.map(function (s, i) {
@@ -1122,7 +1124,8 @@ function uPlot(opts, data) {
 				trans(pts[i], xPos, yPos);
 			}
 
-			labels[i][firstChild].nodeValue = s.label + ': ' + s.value(data[i][idx]);
+			if (legend.show)
+				{ legendLabels[i][firstChild].nodeValue = s.label + ': ' + s.value(data[i][idx]); }
 		}
 
 		if (dragging) {
