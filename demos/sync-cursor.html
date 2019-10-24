@@ -15,7 +15,7 @@
 		</style>
 	</head>
 	<body>
-		<script src="../dist/uPlot.iife.min.js"></script>
+		<script src="../dist/uPlot.iife.js"></script>
 		<h2 id="wait">Loading lib....</h2>
 
 		<script>
@@ -67,8 +67,9 @@
 				const opts = {
 					width: 1120,
 					height: 800,
-					cursor: true,
-					sync: "moo",
+					cursor: {
+						sync: "moo",
+					},
 					series: {
 						y: [
 							{
@@ -112,8 +113,9 @@
 				const opts2 = {
 					width: 800,
 					height: 600,
-					cursor: true,
-					sync: "moo",
+					cursor: {
+						sync: "moo",
+					},
 					series: {
 						y: [
 							{

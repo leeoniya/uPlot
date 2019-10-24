@@ -57,7 +57,6 @@ Example: https://jsfiddle.net/oh0xtzn5/
     const opts = {
         width: 800,
         height: 400,
-        cursor: true,
         series: {
             y: [
                 {

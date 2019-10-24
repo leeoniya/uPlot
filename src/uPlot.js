@@ -127,7 +127,7 @@ export default function uPlot(opts, data) {
 		s.width = s.width || 1;
 	});
 
-	const cursor = opts.cursor;
+	const cursor = assign({}, {show: true}, opts.cursor);
 
 	let dataLen;
 
@@ -642,7 +642,7 @@ export default function uPlot(opts, data) {
 	let x = null;
 	let y = null;
 
-	if (cursor) {
+	if (cursor.show) {
 		vt = placeDiv("vt", plot);
 		hz = placeDiv("hz", plot);
 		x = canCssWidth/2;
@@ -699,7 +699,7 @@ export default function uPlot(opts, data) {
 	function updatePointer(pub) {
 		rafPending = false;
 
-		if (cursor) {
+		if (cursor.show) {
 			trans(vt,x,0);
 			trans(hz,0,y);
 		}
@@ -836,7 +836,7 @@ export default function uPlot(opts, data) {
 
 	this.root = root;
 
-	let syncKey = opts.sync;
+	let syncKey = cursor.sync;
 
 	let sync = syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync();
 

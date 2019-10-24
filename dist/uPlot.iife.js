@@ -391,7 +391,7 @@ var uPlot = (function () {
 	var xAxisOpts = {
 	//	type: "t",		// t, n
 		scale: 'x',
-		space: 40,
+		space: 50,
 		height: 53,
 		side: 0,
 		class: "x-vals",
@@ -423,7 +423,7 @@ var uPlot = (function () {
 	var yAxisOpts = {
 	//	type: "n",		// t, n
 		scale: 'y',
-		space: 30,
+		space: 40,
 		width: 50,
 		side: 1,
 		class: "y-vals",
@@ -510,7 +510,7 @@ var uPlot = (function () {
 			s.width = s.width || 1;
 		});
 
-		var cursor = opts.cursor;
+		var cursor = assign({}, {show: true}, opts.cursor);
 
 		var dataLen;
 
@@ -1032,7 +1032,7 @@ var uPlot = (function () {
 		var x = null;
 		var y = null;
 
-		if (cursor) {
+		if (cursor.show) {
 			vt = placeDiv("vt", plot);
 			hz = placeDiv("hz", plot);
 			x = canCssWidth/2;
@@ -1089,7 +1089,7 @@ var uPlot = (function () {
 		function updatePointer(pub) {
 			rafPending = false;
 
-			if (cursor) {
+			if (cursor.show) {
 				trans(vt,x,0);
 				trans(hz,0,y);
 			}
@@ -1226,7 +1226,7 @@ var uPlot = (function () {
 
 		this.root = root;
 
-		var syncKey = opts.sync;
+		var syncKey = cursor.sync;
 
 		var sync = syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync();
 

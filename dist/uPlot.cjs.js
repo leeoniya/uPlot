@@ -390,7 +390,7 @@ function timeSeriesVal(val) {
 var xAxisOpts = {
 //	type: "t",		// t, n
 	scale: 'x',
-	space: 40,
+	space: 50,
 	height: 53,
 	side: 0,
 	class: "x-vals",
@@ -422,7 +422,7 @@ function numSeriesVal(val) {
 var yAxisOpts = {
 //	type: "n",		// t, n
 	scale: 'y',
-	space: 30,
+	space: 40,
 	width: 50,
 	side: 1,
 	class: "y-vals",
@@ -509,7 +509,7 @@ function uPlot(opts, data) {
 		s.width = s.width || 1;
 	});
 
-	var cursor = opts.cursor;
+	var cursor = assign({}, {show: true}, opts.cursor);
 
 	var dataLen;
 
@@ -1031,7 +1031,7 @@ function uPlot(opts, data) {
 	var x = null;
 	var y = null;
 
-	if (cursor) {
+	if (cursor.show) {
 		vt = placeDiv("vt", plot);
 		hz = placeDiv("hz", plot);
 		x = canCssWidth/2;
@@ -1088,7 +1088,7 @@ function uPlot(opts, data) {
 	function updatePointer(pub) {
 		rafPending = false;
 
-		if (cursor) {
+		if (cursor.show) {
 			trans(vt,x,0);
 			trans(hz,0,y);
 		}
@@ -1225,7 +1225,7 @@ function uPlot(opts, data) {
 
 	this.root = root;
 
-	var syncKey = opts.sync;
+	var syncKey = cursor.sync;
 
 	var sync = syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync();
 

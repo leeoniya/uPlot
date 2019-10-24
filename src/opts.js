@@ -144,7 +144,7 @@ export function timeSeriesVal(val) {
 export const xAxisOpts = {
 //	type: "t",		// t, n
 	scale: 'x',
-	space: 40,
+	space: 50,
 	height: 53,
 	side: 0,
 	class: "x-vals",
@@ -176,7 +176,7 @@ export function numSeriesVal(val) {
 export const yAxisOpts = {
 //	type: "n",		// t, n
 	scale: 'y',
-	space: 30,
+	space: 40,
 	width: 50,
 	side: 1,
 	class: "y-vals",
