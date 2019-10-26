@@ -1084,6 +1084,14 @@ function uPlot(opts, data) {
 
 	var leg = placeDiv("legend", root);
 
+	function toggle(i) {
+		var s = series[i];
+		var label = legendLabels[i];
+		s.show = !s.show;
+		label[classList].toggle('off');
+		!s.show && trans(cursorPts[i], 0, -10);
+	}
+
 	var legendLabels = legend.show ? series.map(function (s, i) {
 		var label = placeDiv(null, leg);
 		label.style.color = s.color;
@@ -1093,9 +1101,14 @@ function uPlot(opts, data) {
 		if (i > 0) {
 			on("click", label, function (e) {
 				if (filtMouse(e)) {
-					s.show = !s.show;
-					label[classList].toggle('off');
-					!s.show && trans(cursorPts[i], 0, -10);
+					toggle(i);
+
+					if (s.band) {
+						// not super robust, will break if two bands are adjacent
+						var pairedSeries = series[i+1].band ? i+1 : i-1;
+						toggle(pairedSeries);
+					}
+
 					setView(i0, i1);
 				}
 			});

@@ -694,6 +694,14 @@ export default function uPlot(opts, data) {
 
 	const leg = placeDiv("legend", root);
 
+	function toggle(i) {
+		let s = series[i];
+		let label = legendLabels[i];
+		s.show = !s.show;
+		label[classList].toggle('off');
+		!s.show && trans(cursorPts[i], 0, -10);
+	}
+
 	const legendLabels = legend.show ? series.map((s, i) => {
 		let label = placeDiv(null, leg);
 		label.style.color = s.color;
@@ -703,9 +711,14 @@ export default function uPlot(opts, data) {
 		if (i > 0) {
 			on("click", label, e => {
 				if (filtMouse(e)) {
-					s.show = !s.show;
-					label[classList].toggle('off');
-					!s.show && trans(cursorPts[i], 0, -10);
+					toggle(i);
+
+					if (s.band) {
+						// not super robust, will break if two bands are adjacent
+						let pairedSeries = series[i+1].band ? i+1 : i-1;
+						toggle(pairedSeries);
+					}
+
 					setView(i0, i1);
 				}
 			});
