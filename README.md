@@ -1,11 +1,11 @@
 ## 📈 μPlot
 
-An [exceptionally fast](#performance), tiny ([< 10 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)) time series chart _(MIT Licensed)_
+An [exceptionally fast](#performance), tiny ([~10 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)) time series chart _(MIT Licensed)_
 
 ---
 ### Introduction
 
-μPlot is a [fast, memory-efficient](#performance) [time series](https://en.wikipedia.org/wiki/Time_series) chart based on [Canvas 2D](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D); from a cold start it can create an interactive chart containing 150,000 data points in 40ms. In addition to fast initial render, the zooming and cursor performance is by far the best of any similar charting lib; at < 10 KB, it's likely the smallest and fastest time series plotter that doesn't make use of WebGL shaders or WASM, both of which have much higher startup cost and code size.
+μPlot is a [fast, memory-efficient](#performance) [time series](https://en.wikipedia.org/wiki/Time_series) chart based on [Canvas 2D](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D); from a cold start it can create an interactive chart containing 150,000 data points in 40ms. In addition to fast initial render, the zooming and cursor performance is by far the best of any similar charting lib; at ~10 KB, it's likely the smallest and fastest time series plotter that doesn't make use of WebGL shaders or WASM, both of which have much higher startup cost and code size.
 
 ---
 ![uPlot Chart](uPlot.png "uPlot Chart")
@@ -23,13 +23,14 @@ v1.0 and API stabilization are loosely targetted for sometime before 2020-01-01.
 ### Features (so far)
 
 - Multiple series w/toggle
-- Multiple y-axes & grids
+- Multiple y-axes, scales & grids
 - Line styles (color, width, dash)
 - Zoom with auto-rescale
 - Legend with live values
 - [Support for missing data](https://leeoniya.github.io/uPlot/demos/missing-data.html)
 - [Cursor sync for multiple charts](https://leeoniya.github.io/uPlot/demos/sync-cursor.html)
 - [Data streaming (live update)](https://leeoniya.github.io/uPlot/demos/stream-data.html)
+- [High / Low Bands](https://leeoniya.github.io/uPlot/demos/high-low-bands.html)
 
 ---
 ### Non-Features
