@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Min/Max Bands</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../bench/style.css">
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			.uplot {
+				margin-top: 40px;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			var loop = 4000;
+
+			let data = [
+				Array(loop),	// x
+				Array(loop),	// min
+				Array(loop),	// max
+				Array(loop),	// val
+			];
+
+			for (var i = 0; i < loop; i++) {
+				let x = 2 * Math.PI * i / loop;
+				let y = Math.sin(x);
+
+				data[0][i] = x;
+				data[1][i] = y - .5;
+				data[2][i] = y + .5;
+				data[3][i] = y;
+			}
+
+			const opts = {
+				width: 1048,
+				height: 600,
+				scales: {
+					x: {
+						type: "n",
+					//	auto: false,
+					//	range: [0, 6],
+					},
+					y: {
+						auto: false,
+						range: [-1.5, 1.5],
+					},
+				},
+				series: {
+					x: {
+						label: "x",
+					},
+					y: [
+						{
+							label: "lower",
+							color: "red",
+							fill: "rgba(255, 192, 203, .5)",
+							width: 0,
+							band: true,
+						},
+						{
+							label: "upper",
+							color: "red",
+							fill: "rgba(255, 192, 203, .5)",
+							width: 0,
+							band: true,
+						},
+						{
+							label: "sin(x)",
+							color: "red",
+							width: 2,
+						},
+					],
+				},
+				axes: {
+					x: {
+						label: "X Axis",
+					},
+					y: [
+						{
+							space: 50,
+							label: "Y Axis",
+						}
+					],
+				 }
+			};
+
+			let u = new uPlot(opts, data);
+			document.body.appendChild(u.root);
+		</script>
+	</body>
+</html>

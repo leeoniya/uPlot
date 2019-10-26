@@ -437,6 +437,7 @@ var uPlot = (function () {
 	//	type: "n",
 		scale: "y",
 		show: true,
+		band: false,
 	//	label: "Value",
 	//	value: v => v,
 	};
@@ -862,29 +863,37 @@ var uPlot = (function () {
 						s.color,
 						s[WIDTH],
 						s.dash,
-						s.fill
+						s.fill,
+						s.band
 					);
 				}
 			});
 		}
 
-		function drawLine(xdata, ydata, scaleX, scaleY, color, width, dash, fill) {
+		var dir = 1;
+
+		function drawLine(xdata, ydata, scaleX, scaleY, color, width, dash, fill, band) {
 			setCtxStyle(color, width, dash, fill);
 
 			var gap = false;
 
-			ctx.beginPath();
+			if (dir == 1)
+				{ ctx.beginPath(); }
 
 			var minY = inf,
 				maxY = -inf,
 				halfStroke = width/2,
-				prevX = halfStroke,
+				prevX = dir == 1 ? halfStroke : can[WIDTH] - halfStroke,
 				prevY, x, y;
 
-			for (var i = i0; i <= i1; i++) {
+			for (var i = dir == 1 ? i0 : i1; dir == 1 ? i <= i1 : i >= i0; i += dir) {
 				x = getXPos(xdata[i], scaleX, can[WIDTH]) + halfStroke;
 				y = getYPos(ydata[i], scaleY, can[HEIGHT]);
 
+				if (dir == -1 && i == i1)
+					{ ctx.lineTo(x, y); }
+
+				// bug: will break filled areas due to moveTo
 				if (y == null) {				// data gaps
 					gap = true;
 					ctx.moveTo(x, prevY);
@@ -892,15 +901,15 @@ var uPlot = (function () {
 				else {
 					y += halfStroke;
 
-					if (x - prevX >= width) {
+					if ((dir == 1 ? x - prevX : prevX - x) >= width) {
 						if (gap) {
 							ctx.moveTo(x, y);
 							gap = false;
 						}
-						else if (i > i0) {
-							ctx.moveTo(prevX, maxY);
+						else if (dir == 1 ? i > i0 : i < i1) {
+							ctx.lineTo(prevX, maxY);		// cannot be moveTo if we intend to fill the path
 							ctx.lineTo(prevX, minY);
-							ctx.moveTo(prevX, prevY);
+							ctx.lineTo(prevX, prevY);		// cannot be moveTo if we intend to fill the path
 							ctx.lineTo(x, y);
 						}
 
@@ -916,7 +925,18 @@ var uPlot = (function () {
 				}
 			}
 
-			ctx.stroke();
+			if (band) {
+				if (dir == -1) {
+					ctx.strokeStyle = "rgba(0,0,0,0)";
+					ctx.closePath();
+					ctx.fill();
+					ctx.stroke();
+				}
+
+				dir *= -1;
+			}
+			else
+				{ ctx.stroke(); }
 		}
 
 		// dim is logical (getClientBoundingRect) pixels, not canvas pixels
