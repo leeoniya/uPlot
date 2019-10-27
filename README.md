@@ -20,17 +20,18 @@ An [exceptionally fast](#performance), tiny ([~10 KB min](https://github.com/lee
 v1.0 and API stabilization are loosely targetted for sometime before 2020-01-01. Until then, feedback, feature suggestions and real use-cases can be submitted to the issue tracker for consideration & further discussion.
 
 ---
-### Features (so far)
+### Features
 
 - Multiple series w/toggle
 - Multiple y-axes, scales & grids
+- Temporal or numeric x-axis
 - Line styles (color, width, dash)
 - Zoom with auto-rescale
 - Legend with live values
 - [Support for missing data](https://leeoniya.github.io/uPlot/demos/missing-data.html)
 - [Cursor sync for multiple charts](https://leeoniya.github.io/uPlot/demos/sync-cursor.html)
 - [Data streaming (live update)](https://leeoniya.github.io/uPlot/demos/stream-data.html)
-- [High / Low Bands](https://leeoniya.github.io/uPlot/demos/high-low-bands.html)
+- [High / Low bands](https://leeoniya.github.io/uPlot/demos/high-low-bands.html)
 
 ---
 ### Non-Features
