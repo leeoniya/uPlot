@@ -536,6 +536,7 @@ function uPlot(opts, data) {
 	function setCtxStyle(color, width, dash, fill) {
 		ctx.strokeStyle = color || hexBlack;
 		ctx.lineWidth = width || 1;
+		ctx.lineJoin = "round";
 		ctx.setLineDash(dash || []);
 		ctx.fillStyle = fill || hexBlack;
 	}
@@ -874,6 +875,9 @@ function uPlot(opts, data) {
 	function drawLine(xdata, ydata, scaleX, scaleY, color, width, dash, fill, band) {
 		setCtxStyle(color, width, dash, fill);
 
+		var offset = (width % 2) / 2;
+		ctx.translate(offset, offset);
+
 		var gap = false;
 
 		if (dir == 1)
@@ -881,12 +885,11 @@ function uPlot(opts, data) {
 
 		var minY = inf,
 			maxY = -inf,
-			halfStroke = width/2,
-			prevX = dir == 1 ? halfStroke : can[WIDTH] - halfStroke,
+			prevX = dir == 1 ? offset : can[WIDTH] + offset,
 			prevY, x, y;
 
 		for (var i = dir == 1 ? i0 : i1; dir == 1 ? i <= i1 : i >= i0; i += dir) {
-			x = getXPos(xdata[i], scaleX, can[WIDTH]) + halfStroke;
+			x = getXPos(xdata[i], scaleX, can[WIDTH]);
 			y = getYPos(ydata[i], scaleY, can[HEIGHT]);
 
 			if (dir == -1 && i == i1)
@@ -898,8 +901,6 @@ function uPlot(opts, data) {
 				ctx.moveTo(x, prevY);
 			}
 			else {
-				y += halfStroke;
-
 				if ((dir == 1 ? x - prevX : prevX - x) >= width) {
 					if (gap) {
 						ctx.moveTo(x, y);
@@ -936,6 +937,8 @@ function uPlot(opts, data) {
 		}
 		else
 			{ ctx.stroke(); }
+
+		ctx.translate(-offset, -offset);
 	}
 
 	// dim is logical (getClientBoundingRect) pixels, not canvas pixels
@@ -1016,7 +1019,8 @@ function uPlot(opts, data) {
 			var grid = axis.grid;
 
 			if (grid) {
-				var halfStroke = grid[WIDTH]/2;
+				var offset = (grid[WIDTH] % 2) / 2;
+				ctx.translate(offset, offset);
 
 				setCtxStyle(grid.color || "#eee", grid[WIDTH], grid.dash);
 
@@ -1036,11 +1040,13 @@ function uPlot(opts, data) {
 						my = ly = off;
 					}
 
-					ctx.moveTo(mx + halfStroke, my + halfStroke);
-					ctx.lineTo(lx + halfStroke, ly + halfStroke);
+					ctx.moveTo(mx, my);
+					ctx.lineTo(lx, ly);
 				});
 
 				ctx.stroke();
+
+				ctx.translate(-offset, -offset);
 			}
 		});
 	}

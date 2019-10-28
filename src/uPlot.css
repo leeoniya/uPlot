@@ -142,6 +142,7 @@
 	content: "";
 	height: 10px;
 	border-left: 2px solid #eee;
+	transform: translateX(-50%);
 	position: absolute;
 	left: 50%;
 }
@@ -178,6 +179,7 @@
 	content: "";
 	width: 10px;
 	border-top: 2px solid #eee;
+	transform: translateY(-50%);
 	position: absolute;
 	top: 50%;
 }
