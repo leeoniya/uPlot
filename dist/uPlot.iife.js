@@ -464,6 +464,9 @@ var uPlot = (function () {
 			sub: function sub(client) {
 				clients.push(client);
 			},
+			unsub: function unsub(client) {
+				clients = clients.filter(function (c) { return c != client; });
+			},
 			pub: function pub(type, self, x, y, w, h, i) {
 				if (clients.length > 1) {
 					clients.forEach(function (client) {
@@ -1222,8 +1225,14 @@ var uPlot = (function () {
 			}
 		}
 
+		var evOpts = {passive: true};
+
 		function on(ev, el, cb) {
-			el.addEventListener(ev, cb, {passive: true});
+			el.addEventListener(ev, cb, evOpts);
+		}
+
+		function off(ev, el, cb) {
+			el.removeEventListener(ev, cb, evOpts);
 		}
 
 		function mouseDown(e, src, _x, _y, _w, _h, _i) {
@@ -1233,6 +1242,8 @@ var uPlot = (function () {
 				if (e != null) {
 					x0 = e.clientX - rect.left;
 					y0 = e.clientY - rect.top;
+
+					on(mouseup, doc, mouseUp);
 					sync.pub(mousedown, self, x0, y0, canCssWidth, canCssHeight, null);
 				}
 				else {
@@ -1259,8 +1270,10 @@ var uPlot = (function () {
 					);
 				}
 
-				if (e != null)
-					{ sync.pub(mouseup, self, x, y, canCssWidth, canCssHeight, null); }
+				if (e != null) {
+					off(mouseup, doc, mouseUp);
+					sync.pub(mouseup, self, x, y, canCssWidth, canCssHeight, null);
+				}
 			}
 		}
 
@@ -1282,7 +1295,7 @@ var uPlot = (function () {
 		events[dblclick] = dblClick;
 
 		for (var ev in events)
-			{ on(ev, ev == mouseup ? doc : can, events[ev]); }
+			{ ev != mouseup && on(ev, can, events[ev]); }
 
 		var deb = debounce(syncRect, 100);
 
@@ -1304,6 +1317,13 @@ var uPlot = (function () {
 		this.pub = pub;
 
 		setData(data, 0, data[0].length - 1);
+
+		function destroy() {
+			sync.unsub(this);
+			root.remove();
+		}
+
+		this.destroy = destroy;
 
 		plot.appendChild(can);
 	}
