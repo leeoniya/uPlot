@@ -47,6 +47,8 @@ import {
 	mousedown,
 	mouseup,
 	dblclick,
+	resize,
+	scroll,
 
 	assign,
 
@@ -908,8 +910,8 @@ export default function uPlot(opts, data) {
 
 	let deb = debounce(syncRect, 100);
 
-	on("resize", win, deb);
-	on("scroll", win, deb);
+	on(resize, win, deb);
+	on(scroll, win, deb);
 
 	this.root = root;
 
@@ -929,6 +931,8 @@ export default function uPlot(opts, data) {
 
 	function destroy() {
 		sync.unsub(this);
+		off(resize, win, deb);
+		off(scroll, win, deb);
 		root.remove();
 	}
 

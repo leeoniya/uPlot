@@ -222,6 +222,8 @@ var mousemove = "mousemove";
 var mousedown = "mousedown";
 var mouseup = "mouseup";
 var dblclick = "dblclick";
+var resize = "dblclick";
+var scroll = "dblclick";
 
 var assign = Object.assign;
 
@@ -1298,8 +1300,8 @@ function uPlot(opts, data) {
 
 	var deb = debounce(syncRect, 100);
 
-	on("resize", win, deb);
-	on("scroll", win, deb);
+	on(resize, win, deb);
+	on(scroll, win, deb);
 
 	this.root = root;
 
@@ -1319,6 +1321,8 @@ function uPlot(opts, data) {
 
 	function destroy() {
 		sync.unsub(this);
+		off(resize, win, deb);
+		off(scroll, win, deb);
 		root.remove();
 	}
 
