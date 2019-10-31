@@ -472,38 +472,51 @@ export default function uPlot(opts, data) {
 		return [_min, _max];
 	}
 
+	let dir = 1;
+
 	function drawSeries() {
-		let d = 1;
+		series.forEach((s, i) => {
+			if (i > 0 && s.show)		//  && s.path == null
+				buildPath(i, data[0], data[i], scales[series[0].scale], scales[s.scale]);
+		});
 
 		series.forEach((s, i) => {
-			if (i > 0 && s.show) {
-				s.path = d == 1 ? new Path2D() : series[i-1].path;
-				s.band && (d *= -1);
-
-				drawLine(
-					s,
-					data[0],
-					data[i],
-					scales[series[0].scale],
-					scales[s.scale],
-				);
-			}
+			if (i > 0 && s.show)
+				drawPath(i);
 		});
 	}
 
-	let dir = 1;
+	function drawPath(is) {
+		const s = series[is];
 
-	function drawLine(s, xdata, ydata, scaleX, scaleY) {
+		if (dir == 1) {
+			const path = s.path;
+			const width = s[WIDTH];
+			const offset = (width % 2) / 2;
+
+			setCtxStyle(s.color, width, s.dash, s.fill);
+
+			ctx.translate(offset, offset);
+
+			if (s.band)
+				ctx.fill(path);
+			else
+				ctx.stroke(path);
+
+			ctx.translate(-offset, -offset);
+		}
+
+		if (s.band)
+			dir *= -1;
+	}
+
+	function buildPath(is, xdata, ydata, scaleX, scaleY) {
+		const s = series[is];
+		const path = s.path = dir == 1 ? new Path2D() : series[is-1].path;
 		const width = s[WIDTH];
-		const path = s.path;
-
 		const offset = (width % 2) / 2;
-		ctx.translate(offset, offset);
 
 		let gap = false;
-
-	//	if (dir == 1)
-	//		ctx.beginPath();
 
 		let minY = inf,
 			maxY = -inf,
@@ -547,22 +560,12 @@ export default function uPlot(opts, data) {
 			}
 		}
 
-		setCtxStyle(s.color, width, s.dash, s.fill);
-
 		if (s.band) {
-			if (dir == -1) {
-				ctx.strokeStyle = "rgba(0,0,0,0)";
+			if (dir == -1)
 				path.closePath();
-				ctx.fill(path);
-				ctx.stroke(path);
-			}
 
 			dir *= -1;
 		}
-		else
-			ctx.stroke(path);
-
-		ctx.translate(-offset, -offset);
 	}
 
 	// dim is logical (getClientBoundingRect) pixels, not canvas pixels
@@ -638,6 +641,8 @@ export default function uPlot(opts, data) {
 			let grid = axis.grid;
 
 			if (grid) {
+				// note: the grid is cheap to build & redraw unconditionally, so does not
+				// use the retained Path2D optimization or additional invalidation logic
 				let offset = (grid[WIDTH] % 2) / 2;
 				ctx.translate(offset, offset);
 
