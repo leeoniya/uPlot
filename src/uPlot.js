@@ -97,13 +97,15 @@ function _sync(opts) {
 }
 
 export default function uPlot(opts, data) {
+	const self = this;
+
 	function setDefaults(d, xo, yo) {
 		return [d.x].concat(d.y).map((o, i) => assign({}, (i == 0 ? xo : yo), o));
 	}
 
-	const series = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
-	const axes = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
-	const scales = (opts.scales = opts.scales || {});
+	const series  = self.series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
+	const axes    = self.axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
+	const scales  = self.scales  =(opts.scales = opts.scales || {});
 
 	const legend = assign({}, {show: true}, opts.legend);
 
@@ -150,7 +152,7 @@ export default function uPlot(opts, data) {
 		setView(_i0 != null ? _i0 : i0, _i1 != null ? _i1 : i1);
 	}
 
-	this.setData = setData;
+	self.setData = setData;
 
 	function setStylePx(el, name, value) {
 		el.style[name] = value + "px";
@@ -694,13 +696,13 @@ export default function uPlot(opts, data) {
 		updatePointer();
 	}
 
-	this.setView = setView;
+	self.setView = setView;
 
 	function getView() {
 		return [i0, i1];
 	}
 
-	this.getView = getView;
+	self.getView = getView;
 
 //	INTERACTION
 
@@ -751,7 +753,7 @@ export default function uPlot(opts, data) {
 		setView(i0, i1);
 	}
 
-	this.toggle = toggle;
+	self.toggle = toggle;
 
 	const legendLabels = legend.show ? series.map((s, i) => {
 		let label = placeDiv(null, leg);
@@ -791,8 +793,6 @@ export default function uPlot(opts, data) {
 	function trans(el, xPos, yPos) {
 		el.style.transform = "translate(" + xPos + "px," + yPos + "px)";
 	}
-
-	let self = this;
 
 	function updatePointer(pub) {
 		rafPending = false;
@@ -943,30 +943,30 @@ export default function uPlot(opts, data) {
 	on(resize, win, deb);
 	on(scroll, win, deb);
 
-	this.root = root;
+	self.root = root;
 
 	let syncKey = cursor.sync;
 
 	let sync = syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync();
 
-	sync.sub(this);
+	sync.sub(self);
 
 	function pub(type, src, x, y, w, h, i) {
 		events[type](null, src, x, y, w, h, i);
 	}
 
-	this.pub = pub;
+	self.pub = pub;
 
 	setData(data, 0, data[0].length - 1);
 
 	function destroy() {
-		sync.unsub(this);
+		sync.unsub(self);
 		off(resize, win, deb);
 		off(scroll, win, deb);
 		root.remove();
 	}
 
-	this.destroy = destroy;
+	self.destroy = destroy;
 
 	plot.appendChild(can);
 }
