@@ -266,7 +266,8 @@ var grid = {
 //	dash: [],
 };
 
-var m = 60,
+var s = 1,
+	m = 60,
 	h = m * m,
 	d = h * 24,
 	y = d * 365;
