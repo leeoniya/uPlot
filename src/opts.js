@@ -15,7 +15,8 @@ const grid = {
 //	dash: [],
 };
 
-let m = 60,
+let s = 1,
+	m = 60,
 	h = m * m,
 	d = h * 24,
 	y = d * 365;
