@@ -222,8 +222,8 @@ var mousemove = "mousemove";
 var mousedown = "mousedown";
 var mouseup = "mouseup";
 var dblclick = "dblclick";
-var resize = "dblclick";
-var scroll = "dblclick";
+var resize = "resize";
+var scroll = "scroll";
 
 var assign = Object.assign;
 

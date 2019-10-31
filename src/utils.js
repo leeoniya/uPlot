@@ -98,8 +98,8 @@ export const mousemove = "mousemove";
 export const mousedown = "mousedown";
 export const mouseup = "mouseup";
 export const dblclick = "dblclick";
-export const resize = "dblclick";
-export const scroll = "dblclick";
+export const resize = "resize";
+export const scroll = "scroll";
 
 export const assign = Object.assign;
 
