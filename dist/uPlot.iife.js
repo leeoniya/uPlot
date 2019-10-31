@@ -862,15 +862,11 @@ var uPlot = (function () {
 			series.forEach(function (s, i) {
 				if (i > 0 && s.show) {
 					drawLine(
+						s,
 						data[0],
 						data[i],
 						scales[series[0].scale],
-						scales[s.scale],
-						s.color,
-						s[WIDTH],
-						s.dash,
-						s.fill,
-						s.band
+						scales[s.scale]
 					);
 				}
 			});
@@ -878,8 +874,8 @@ var uPlot = (function () {
 
 		var dir = 1;
 
-		function drawLine(xdata, ydata, scaleX, scaleY, color, width, dash, fill, band) {
-			setCtxStyle(color, width, dash, fill);
+		function drawLine(s, xdata, ydata, scaleX, scaleY) {
+			var width = s[WIDTH];
 
 			var offset = (width % 2) / 2;
 			ctx.translate(offset, offset);
@@ -931,7 +927,9 @@ var uPlot = (function () {
 				}
 			}
 
-			if (band) {
+			setCtxStyle(s.color, width, s.dash, s.fill);
+
+			if (s.band) {
 				if (dir == -1) {
 					ctx.strokeStyle = "rgba(0,0,0,0)";
 					ctx.closePath();
