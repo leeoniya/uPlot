@@ -797,6 +797,7 @@ var uPlot = (function () {
 			return [round6(incrRoundUp(scaleMin, incr)), scaleMax];
 		}
 
+		// TODO: add ability to recompute & invalidate only specific scales. e.g. for series toggle
 		function setScales() {
 			for (var k in scales) {
 				scales[k].min = inf;
@@ -862,7 +863,7 @@ var uPlot = (function () {
 
 		function drawSeries() {
 			series.forEach(function (s, i) {
-				if (i > 0 && s.show)		//  && s.path == null
+				if (i > 0 && s.show && s.path == null)
 					{ buildPath(i, data[0], data[i], scales[series[0].scale], scales[s.scale]); }
 			});
 
@@ -1067,6 +1068,12 @@ var uPlot = (function () {
 		}
 
 		function setView(_i0, _i1) {
+			if (_i0 != i0 || _i1 != i1) {
+				series.forEach(function (s) {
+					s.path = null;
+				});
+			}
+
 			i0 = _i0;
 			i1 = _i1;
 
