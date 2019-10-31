@@ -473,8 +473,13 @@ export default function uPlot(opts, data) {
 	}
 
 	function drawSeries() {
+		let d = 1;
+
 		series.forEach((s, i) => {
 			if (i > 0 && s.show) {
+				s.path = d == 1 ? new Path2D() : series[i-1].path;
+				s.band && (d *= -1);
+
 				drawLine(
 					s,
 					data[0],
@@ -490,14 +495,15 @@ export default function uPlot(opts, data) {
 
 	function drawLine(s, xdata, ydata, scaleX, scaleY) {
 		const width = s[WIDTH];
+		const path = s.path;
 
 		const offset = (width % 2) / 2;
 		ctx.translate(offset, offset);
 
 		let gap = false;
 
-		if (dir == 1)
-			ctx.beginPath();
+	//	if (dir == 1)
+	//		ctx.beginPath();
 
 		let minY = inf,
 			maxY = -inf,
@@ -509,24 +515,24 @@ export default function uPlot(opts, data) {
 			y = getYPos(ydata[i], scaleY, can[HEIGHT]);
 
 			if (dir == -1 && i == i1)
-				ctx.lineTo(x, y);
+				path.lineTo(x, y);
 
 			// bug: will break filled areas due to moveTo
 			if (y == null) {				// data gaps
 				gap = true;
-				ctx.moveTo(x, prevY);
+				path.moveTo(x, prevY);
 			}
 			else {
 				if ((dir == 1 ? x - prevX : prevX - x) >= width) {
 					if (gap) {
-						ctx.moveTo(x, y);
+						path.moveTo(x, y);
 						gap = false;
 					}
 					else if (dir == 1 ? i > i0 : i < i1) {
-						ctx.lineTo(prevX, maxY);		// cannot be moveTo if we intend to fill the path
-						ctx.lineTo(prevX, minY);
-						ctx.lineTo(prevX, prevY);		// cannot be moveTo if we intend to fill the path
-						ctx.lineTo(x, y);
+						path.lineTo(prevX, maxY);		// cannot be moveTo if we intend to fill the path
+						path.lineTo(prevX, minY);
+						path.lineTo(prevX, prevY);		// cannot be moveTo if we intend to fill the path
+						path.lineTo(x, y);
 					}
 
 					minY = maxY = y;
@@ -546,15 +552,15 @@ export default function uPlot(opts, data) {
 		if (s.band) {
 			if (dir == -1) {
 				ctx.strokeStyle = "rgba(0,0,0,0)";
-				ctx.closePath();
-				ctx.fill();
-				ctx.stroke();
+				path.closePath();
+				ctx.fill(path);
+				ctx.stroke(path);
 			}
 
 			dir *= -1;
 		}
 		else
-			ctx.stroke();
+			ctx.stroke(path);
 
 		ctx.translate(-offset, -offset);
 	}
