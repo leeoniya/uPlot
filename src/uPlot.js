@@ -51,6 +51,7 @@ import {
 	scroll,
 
 	assign,
+	isArr,
 
 	fnOrSelf,
 } from './utils';
@@ -721,13 +722,36 @@ export default function uPlot(opts, data) {
 
 	const leg = placeDiv("legend", root);
 
-	function toggle(i) {
+	function toggleDOM(i, onOff) {
 		let s = series[i];
 		let label = legendLabels[i];
-		s.show = !s.show;
-		label[classList].toggle('off');
-		!s.show && trans(cursorPts[i], 0, -10);
+		s.show = onOff != null ? onOff : !s.show;
+
+		if (s.show)
+			label[classList].remove("off")
+		else {
+			label[classList].add("off");
+			trans(cursorPts[i], 0, -10)
+		}
 	}
+
+	function toggle(idxs, onOff) {
+		(isArr(idxs) ? idxs : [idxs]).forEach(i => {
+			let s = series[i];
+
+			toggleDOM(i, onOff);
+
+			if (s.band) {
+				// not super robust, will break if two bands are adjacent
+				let ip = series[i+1].band ? i+1 : i-1;
+				toggleDOM(ip, onOff);
+			}
+		});
+
+		setView(i0, i1);
+	}
+
+	this.toggle = toggle;
 
 	const legendLabels = legend.show ? series.map((s, i) => {
 		let label = placeDiv(null, leg);
@@ -737,17 +761,7 @@ export default function uPlot(opts, data) {
 
 		if (i > 0) {
 			on("click", label, e => {
-				if (filtMouse(e)) {
-					toggle(i);
-
-					if (s.band) {
-						// not super robust, will break if two bands are adjacent
-						let pairedSeries = series[i+1].band ? i+1 : i-1;
-						toggle(pairedSeries);
-					}
-
-					setView(i0, i1);
-				}
+				filtMouse(e) && toggle(i);
 			});
 		}
 

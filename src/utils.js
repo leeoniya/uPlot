@@ -103,6 +103,8 @@ export const scroll = "dblclick";
 
 export const assign = Object.assign;
 
+export const isArr = Array.isArray;
+
 /*
 function isObj(v) {
 	return typeof v === 'object' && v !== null;

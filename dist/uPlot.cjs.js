@@ -227,6 +227,8 @@ var scroll = "dblclick";
 
 var assign = Object.assign;
 
+var isArr = Array.isArray;
+
 /*
 function isObj(v) {
 	return typeof v === 'object' && v !== null;
@@ -1112,13 +1114,36 @@ function uPlot(opts, data) {
 
 	var leg = placeDiv("legend", root);
 
-	function toggle(i) {
+	function toggleDOM(i, onOff) {
 		var s = series[i];
 		var label = legendLabels[i];
-		s.show = !s.show;
-		label[classList].toggle('off');
-		!s.show && trans(cursorPts[i], 0, -10);
+		s.show = onOff != null ? onOff : !s.show;
+
+		if (s.show)
+			{ label[classList].remove("off"); }
+		else {
+			label[classList].add("off");
+			trans(cursorPts[i], 0, -10);
+		}
 	}
+
+	function toggle(idxs, onOff) {
+		(isArr(idxs) ? idxs : [idxs]).forEach(function (i) {
+			var s = series[i];
+
+			toggleDOM(i, onOff);
+
+			if (s.band) {
+				// not super robust, will break if two bands are adjacent
+				var ip = series[i+1].band ? i+1 : i-1;
+				toggleDOM(ip, onOff);
+			}
+		});
+
+		setView(i0, i1);
+	}
+
+	this.toggle = toggle;
 
 	var legendLabels = legend.show ? series.map(function (s, i) {
 		var label = placeDiv(null, leg);
@@ -1128,17 +1153,7 @@ function uPlot(opts, data) {
 
 		if (i > 0) {
 			on("click", label, function (e) {
-				if (filtMouse(e)) {
-					toggle(i);
-
-					if (s.band) {
-						// not super robust, will break if two bands are adjacent
-						var pairedSeries = series[i+1].band ? i+1 : i-1;
-						toggle(pairedSeries);
-					}
-
-					setView(i0, i1);
-				}
+				filtMouse(e) && toggle(i);
 			});
 		}
 
