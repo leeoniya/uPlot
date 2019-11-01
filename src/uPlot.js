@@ -154,13 +154,14 @@ export default function uPlot(opts, data) {
 	let dataLen;
 
 	// rendered data window
-	let i0;
-	let i1;
+	self.i0 = null;
+	self.i1 = null;
 
 	function setData(_data, _i0, _i1) {
 		data = _data;
 		dataLen = data[0].length;
-		setView(_i0 != null ? _i0 : i0, _i1 != null ? _i1 : i1);
+		resetScales();
+		setView(_i0 != null ? _i0 : self.i0, _i1 != null ? _i1 : self.i1);
 	}
 
 	self.setData = setData;
@@ -413,7 +414,7 @@ export default function uPlot(opts, data) {
 
 	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
 	function snapMinDate(scaleMin, scaleMax, incr) {
-		// get ts of 12am on day of i0 timestamp
+		// get ts of 12am on day of self.i0 timestamp
 		let minDate = new Date(scaleMin * 1000);
 		let min00 = +(new Date(minDate[getFullYear](), minDate[getMonth](), minDate[getDate]())) / 1000;
 		let offset = scaleMin - min00;
@@ -427,50 +428,60 @@ export default function uPlot(opts, data) {
 
 	// TODO: add ability to recompute & invalidate only specific scales. e.g. for series toggle
 	function setScales() {
+		let scs = {};
+
 		for (let k in scales) {
-			scales[k].min = inf;
-			scales[k].max = -inf;
+			if (scales[k].min == inf)
+				scs[k] = true;
 		}
 
 		series.forEach((s, i) => {
-			const sc = scales[s.scale];
+			let k = s.scale;
 
-			// fast-path for x axis, which is assumed ordered ASC and will not get padded
-			if (i == 0) {
-				let minMax = sc.range(data[0][i0], data[0][i1]);
-				sc.min = minMax[0];
-				sc.max = minMax[1];
-			}
-			else if (s.show) {
-				let minMax = sc.auto ? getMinMax(data[i], i0, i1) : [0,100];
+			if (k in scs) {
+				let sc = scales[k];
 
-				// this is temp data min/max
-				sc.min = min(sc.min, minMax[0]);
-				sc.max = max(sc.max, minMax[1]);
+				// fast-path for x axis, which is assumed ordered ASC and will not get padded
+				if (i == 0) {
+					let minMax = sc.range(data[0][self.i0], data[0][self.i1]);
+					sc.min = minMax[0];
+					sc.max = minMax[1];
+				}
+				else if (s.show) {
+					let minMax = sc.auto ? getMinMax(data[i], self.i0, self.i1) : [0,100];
+
+					// this is temp data min/max
+					sc.min = min(sc.min, minMax[0]);
+					sc.max = max(sc.max, minMax[1]);
+				}
 			}
 		});
 
 		// snap non-derived scales
 		for (let k in scales) {
-			const sc = scales[k];
+			if (k in scs) {
+				let sc = scales[k];
 
-			if (sc.base == null) {
-				let minMax = sc.range(sc.min, sc.max);
+				if (sc.base == null) {
+					let minMax = sc.range(sc.min, sc.max);
 
-				sc.min = minMax[0];
-				sc.max = minMax[1];
+					sc.min = minMax[0];
+					sc.max = minMax[1];
+				}
 			}
 		}
 
 		// snap derived scales
 		for (let k in scales) {
-			const sc = scales[k];
+			if (k in scs) {
+				let sc = scales[k];
 
-			if (sc.base != null) {
-				let base = scales[sc.base];
-				let minMax = sc.range(base.min, base.max);
-				sc.min = minMax[0];
-				sc.max = minMax[1];
+				if (sc.base != null) {
+					let base = scales[sc.base];
+					let minMax = sc.range(base.min, base.max);
+					sc.min = minMax[0];
+					sc.max = minMax[1];
+				}
 			}
 		}
 	}
@@ -538,11 +549,11 @@ export default function uPlot(opts, data) {
 			prevX = dir == 1 ? offset : can[WIDTH] + offset,
 			prevY, x, y;
 
-		for (let i = dir == 1 ? i0 : i1; dir == 1 ? i <= i1 : i >= i0; i += dir) {
+		for (let i = dir == 1 ? self.i0 : self.i1; dir == 1 ? i <= self.i1 : i >= self.i0; i += dir) {
 			x = getXPos(xdata[i], scaleX, can[WIDTH]);
 			y = getYPos(ydata[i], scaleY, can[HEIGHT]);
 
-			if (dir == -1 && i == i1)
+			if (dir == -1 && i == self.i1)
 				path.lineTo(x, y);
 
 			// bug: will break filled areas due to moveTo
@@ -556,7 +567,7 @@ export default function uPlot(opts, data) {
 						path.moveTo(x, y);
 						gap = false;
 					}
-					else if (dir == 1 ? i > i0 : i < i1) {
+					else if (dir == 1 ? i > self.i0 : i < self.i1) {
 						path.lineTo(prevX, maxY);		// cannot be moveTo if we intend to fill the path
 						path.lineTo(prevX, minY);
 						path.lineTo(prevX, prevY);		// cannot be moveTo if we intend to fill the path
@@ -690,15 +701,35 @@ export default function uPlot(opts, data) {
 		});
 	}
 
-	function setView(_i0, _i1) {
-		if (_i0 != i0 || _i1 != i1) {
-			series.forEach(s => {
-				s.path = null;
-			});
-		}
+	function resetScales() {
+		for (let key in scales)
+			resetScale(key);
+	}
 
-		i0 = _i0;
-		i1 = _i1;
+	function resetScale(key) {
+		let sc = scales[key];
+
+		// if not already reset
+		if (sc.min != inf) {
+			sc.min =  inf;
+			sc.max = -inf;
+
+			// invalidate paths that use this scale
+			series.forEach(s => {
+				if (s.scale == key)
+					s.path = null;
+			});
+
+			// TODO: derived scales
+		}
+	}
+
+	function setView(_i0, _i1) {
+		if (_i0 != self.i0 || _i1 != self.i1)
+			resetScales();
+
+		self.i0 = _i0;
+		self.i1 = _i1;
 
 		setScales();
 		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
@@ -708,12 +739,6 @@ export default function uPlot(opts, data) {
 	}
 
 	self.setView = setView;
-
-	function getView() {
-		return [i0, i1];
-	}
-
-	self.getView = getView;
 
 //	INTERACTION
 
@@ -759,9 +784,11 @@ export default function uPlot(opts, data) {
 				let ip = series[i+1].band ? i+1 : i-1;
 				toggleDOM(ip, onOff);
 			}
+
+			resetScale(s.scale);
 		});
 
-		setView(i0, i1);
+		setView(self.i0, self.i1);
 	}
 
 	self.toggle = toggle;
@@ -797,7 +824,7 @@ export default function uPlot(opts, data) {
 		let xsc = scales[series[0].scale];
 		let d = xsc.max - xsc.min;
 		let t = xsc.min + pctX * d;
-		let idx = closestIdx(t, data[0], i0, i1);
+		let idx = closestIdx(t, data[0], self.i0, self.i1);
 		return idx;
 	}
 
@@ -930,7 +957,7 @@ export default function uPlot(opts, data) {
 	}
 
 	function dblClick(e, src, _x, _y, _w, _h, _i) {
-		if (i0 == 0 && i1 == dataLen - 1)
+		if (self.i0 == 0 && self.i1 == dataLen - 1)
 			return;
 
 		setView(0, dataLen - 1);

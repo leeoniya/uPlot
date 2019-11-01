@@ -176,8 +176,7 @@
 				setInterval(function() {
 					len2 += 10;
 					let data2 = sliceData(start2, start2 + len2);
-					let [min, max] = uplot2.getView();
-					uplot2.setData(data2, min, max + 10);
+					uplot2.setData(data2, uplot2.i0, uplot2.i1 + 10);
 				}, interval);
 
 
@@ -243,8 +242,7 @@
 				setInterval(function() {
 					len3 += 10;
 					let data3 = sliceData(start3, start3 + len3);
-					let [min, max] = uplot3.getView();
-					uplot3.setData(data3, min, max + 10);
+					uplot3.setData(data3, uplot3.i0, uplot3.i1 + 10);
 				}, interval);
 
 				wait.textContent = "Done!";
