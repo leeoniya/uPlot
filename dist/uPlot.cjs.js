@@ -481,16 +481,27 @@ function _sync(opts) {
 	};
 }
 
+function setDefaults(d, xo, yo) {
+	return [d.x].concat(d.y).map(function (o, i) { return assign({}, (i == 0 ? xo : yo), o); });
+}
+
+function splitXY(d) {
+	return {
+		x: d[0],
+		y: d.slice(1),
+	};
+}
+
 function uPlot(opts, data) {
 	var self = this;
 
-	function setDefaults(d, xo, yo) {
-		return [d.x].concat(d.y).map(function (o, i) { return assign({}, (i == 0 ? xo : yo), o); });
-	}
+	var series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
+	var axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
+	var scales  = (opts.scales = opts.scales || {});
 
-	var series  = self.series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
-	var axes    = self.axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
-	var scales  = self.scales  =(opts.scales = opts.scales || {});
+	self.series = splitXY(series);
+	self.axes = splitXY(axes);
+	self.scales = scales;
 
 	var legend = assign({}, {show: true}, opts.legend);
 

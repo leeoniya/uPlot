@@ -96,16 +96,27 @@ function _sync(opts) {
 	};
 }
 
+function setDefaults(d, xo, yo) {
+	return [d.x].concat(d.y).map((o, i) => assign({}, (i == 0 ? xo : yo), o));
+}
+
+function splitXY(d) {
+	return {
+		x: d[0],
+		y: d.slice(1),
+	};
+}
+
 export default function uPlot(opts, data) {
 	const self = this;
 
-	function setDefaults(d, xo, yo) {
-		return [d.x].concat(d.y).map((o, i) => assign({}, (i == 0 ? xo : yo), o));
-	}
+	const series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
+	const axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
+	const scales  = (opts.scales = opts.scales || {});
 
-	const series  = self.series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
-	const axes    = self.axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
-	const scales  = self.scales  =(opts.scales = opts.scales || {});
+	self.series = splitXY(series);
+	self.axes = splitXY(axes);
+	self.scales = scales;
 
 	const legend = assign({}, {show: true}, opts.legend);
 
