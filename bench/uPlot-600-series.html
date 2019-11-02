@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>600 Series</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="style.css">
+		<link rel="stylesheet" href="../src/uPlot.css">
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<h2 id="wait">Loading lib....</h2>
+
+		<script>
+			// https://github.com/highcharts/highcharts/issues/5948
+			// http://jsfiddle.net/aygnmvLr/
+
+			function randColor(){
+				return "#000000".replace(/0/g,function(){return (~~(Math.random()*16)).toString(16);});
+			}
+
+			function prepData(packed) {
+				function getData(seriesIndex, n) {
+					var arr = [],
+						i,
+						a,
+						b,
+						c,
+						spike;
+
+					for (i = 0; i < n; i = i + 1) {
+						if (i % 100 === 0) {
+							a = 2 * Math.random();
+						}
+						if (i % 1000 === 0) {
+							b = 2 * Math.random();
+						}
+						if (i % 10000 === 0) {
+							c = 2 * Math.random();
+						}
+						if (i % 50000 === 0) {
+							spike = 10;
+						} else {
+							spike = 0;
+						}
+						arr.push(seriesIndex + 2 * Math.sin(i / 100) + a + b + c + spike + Math.random());
+					}
+
+					return arr;
+				}
+
+				function getSeries(seriesLength, dataLength) {
+					var data = [
+							[...Array(dataLength).keys()]
+						],
+						i = 0;
+
+					for (i = 0; i < seriesLength; i++)
+						data.push(getData(i, dataLength));
+
+					return data;
+				}
+
+				var seriesLength = 600,
+					dataLength = 8000;
+
+				return getSeries(seriesLength, dataLength);
+			}
+
+			function makeChart(data) {
+				console.time('chart');
+
+				let series = [];
+
+				for (let i = 1; i < data.length; i++) {
+					series.push({
+						label: i,
+						width: 1,
+						color: randColor(),
+					});
+				}
+
+				let opts = {
+					width: 1920,
+					height: 5000,
+					scales: {
+						x: {
+							type: 'n'
+						}
+					},
+					series: {
+						y: series
+					},
+				};
+
+				let uplot = new uPlot(opts, data);
+				document.body.appendChild(uplot.root);
+			}
+
+			makeChart(prepData());
+		</script>
+	</body>
+</html>
