@@ -462,7 +462,7 @@ export default function uPlot(opts, data) {
 			if (k in scs) {
 				let sc = scales[k];
 
-				if (sc.base == null) {
+				if (sc.base == null && sc.min != inf) {
 					let minMax = sc.range(sc.min, sc.max);
 
 					sc.min = minMax[0];
@@ -478,9 +478,11 @@ export default function uPlot(opts, data) {
 
 				if (sc.base != null) {
 					let base = scales[sc.base];
-					let minMax = sc.range(base.min, base.max);
-					sc.min = minMax[0];
-					sc.max = minMax[1];
+					if (base.min != inf) {
+						let minMax = sc.range(base.min, base.max);
+						sc.min = minMax[0];
+						sc.max = minMax[1];
+					}
 				}
 			}
 		}
@@ -634,7 +636,7 @@ export default function uPlot(opts, data) {
 			let ch = axis.vals[firstChild];
 
 			// this will happen if all series using a specific scale are toggled off
-			if (isNaN(scale.min)) {
+			if (scale.min == inf) {
 				clearFrom(ch);
 				return;
 			}

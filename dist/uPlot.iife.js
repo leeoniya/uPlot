@@ -850,7 +850,7 @@ var uPlot = (function () {
 				if (k$1 in scs) {
 					var sc = scales[k$1];
 
-					if (sc.base == null) {
+					if (sc.base == null && sc.min != inf) {
 						var minMax = sc.range(sc.min, sc.max);
 
 						sc.min = minMax[0];
@@ -866,9 +866,11 @@ var uPlot = (function () {
 
 					if (sc$1.base != null) {
 						var base = scales[sc$1.base];
-						var minMax$1 = sc$1.range(base.min, base.max);
-						sc$1.min = minMax$1[0];
-						sc$1.max = minMax$1[1];
+						if (base.min != inf) {
+							var minMax$1 = sc$1.range(base.min, base.max);
+							sc$1.min = minMax$1[0];
+							sc$1.max = minMax$1[1];
+						}
 					}
 				}
 			}
@@ -1024,7 +1026,7 @@ var uPlot = (function () {
 				var ch = axis.vals[firstChild];
 
 				// this will happen if all series using a specific scale are toggled off
-				if (isNaN(scale.min)) {
+				if (scale.min == inf) {
 					clearFrom(ch);
 					return;
 				}
