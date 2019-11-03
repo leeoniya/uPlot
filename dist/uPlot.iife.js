@@ -131,6 +131,11 @@ var uPlot = (function () {
 		}
 	}
 
+	// https://stackoverflow.com/questions/15141762/how-to-initialize-a-javascript-date-to-a-particular-time-zone/53652131#53652131
+	function tzDate(date, tz) {
+		return new Date(date.toLocaleString('en-US', {timeZone: tz}));
+	}
+
 	function debounce(fn, time) {
 		var pending = null;
 
@@ -352,7 +357,7 @@ var uPlot = (function () {
 	var minDate	= fmtDate(_minute + md2);
 	var secDate	= fmtDate(_second + md2);
 
-	function timeAxisVals(vals, space) {
+	function timeAxisVals(vals, space, mkDate) {
 		var incr = vals[1] - vals[0];
 
 		// these track boundaries when a full label is needed again
@@ -360,7 +365,7 @@ var uPlot = (function () {
 		var prevDate = null;
 
 		return vals.map(function (val, i) {
-			var date = new Date(val * 1e3);
+			var date = mkDate(val);
 
 			var newYear = date[getFullYear]();
 			var newDate = date[getDate]();
@@ -390,8 +395,8 @@ var uPlot = (function () {
 
 	var longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
 
-	function timeSeriesVal(val) {
-		return longDateHourMin(new Date(val * 1e3));
+	function timeSeriesVal(val, mkDate) {
+		return longDateHourMin(mkDate(val));
 	}
 
 	var xAxisOpts = {
@@ -499,6 +504,8 @@ var uPlot = (function () {
 		var series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
 		var axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
 		var scales  = (opts.scales = opts.scales || {});
+
+		var mkDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
 
 		self.series = splitXY(series);
 		self.axes = splitXY(axes);
@@ -802,11 +809,13 @@ var uPlot = (function () {
 
 		// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
 		function snapMinDate(scaleMin, scaleMax, incr) {
-			// get ts of 12am on day of self.i0 timestamp
-			var minDate = new Date(scaleMin * 1000);
+			// get the timezone-adjusted date
+			var minDate = mkDate(scaleMin);
+			// get ts of 12am (this lands us at or before the original scaleMin)
 			var min00 = +(new Date(minDate[getFullYear](), minDate[getMonth](), minDate[getDate]())) / 1000;
-			var offset = scaleMin - min00;
-			scaleMin = min00 + incrRoundUp(offset, incr);
+			minDate /= 1000;
+			var tzOffset = scaleMin - minDate;
+			scaleMin = min00 + tzOffset + incrRoundUp(minDate - min00, incr);
 			return [scaleMin, scaleMax];
 		}
 
@@ -1051,7 +1060,7 @@ var uPlot = (function () {
 				// TODO: filter ticks & offsets that will end up off-canvas
 				var canOffs = ticks.map(function (val) { return getPos(val, scale, can[dim]); });		// bit of waste if we're not drawing a grid
 
-				var labels = axis.values(ticks, space);
+				var labels = axis.values(ticks, space, mkDate);
 
 				canOffs.forEach(function (off, i) {
 					ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
@@ -1254,7 +1263,7 @@ var uPlot = (function () {
 				}
 
 				if (legend.show)
-					{ legendLabels[i][firstChild].nodeValue = s.label + ': ' + s.value(data[i][idx]); }
+					{ legendLabels[i][firstChild].nodeValue = s.label + ': ' + s.value(data[i][idx], mkDate); }
 			}
 
 			if (dragging) {
@@ -1405,6 +1414,7 @@ var uPlot = (function () {
 	}
 
 	uPlot.fmtDate = fmtDate;
+	uPlot.tzDate = tzDate;
 
 	return uPlot;
 

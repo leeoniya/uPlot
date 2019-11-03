@@ -120,3 +120,8 @@ export function fmtDate(tpl) {
 		return out;
 	}
 }
+
+// https://stackoverflow.com/questions/15141762/how-to-initialize-a-javascript-date-to-a-particular-time-zone/53652131#53652131
+export function tzDate(date, tz) {
+	return new Date(date.toLocaleString('en-US', {timeZone: tz}));
+}

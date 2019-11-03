@@ -1,5 +1,7 @@
 import {
 	fmtDate,
+	tzDate,
+
 	getFullYear,
 	getMonth,
 	getDate,
@@ -113,6 +115,8 @@ export default function uPlot(opts, data) {
 	const series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
 	const axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
 	const scales  = (opts.scales = opts.scales || {});
+
+	const mkDate = opts.tzDate || (ts => new Date(ts * 1e3));
 
 	self.series = splitXY(series);
 	self.axes = splitXY(axes);
@@ -414,11 +418,13 @@ export default function uPlot(opts, data) {
 
 	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
 	function snapMinDate(scaleMin, scaleMax, incr) {
-		// get ts of 12am on day of self.i0 timestamp
-		let minDate = new Date(scaleMin * 1000);
+		// get the timezone-adjusted date
+		let minDate = mkDate(scaleMin);
+		// get ts of 12am (this lands us at or before the original scaleMin)
 		let min00 = +(new Date(minDate[getFullYear](), minDate[getMonth](), minDate[getDate]())) / 1000;
-		let offset = scaleMin - min00;
-		scaleMin = min00 + incrRoundUp(offset, incr);
+		minDate /= 1000;
+		let tzOffset = scaleMin - minDate;
+		scaleMin = min00 + tzOffset + incrRoundUp(minDate - min00, incr);
 		return [scaleMin, scaleMax];
 	}
 
@@ -658,7 +664,7 @@ export default function uPlot(opts, data) {
 			// TODO: filter ticks & offsets that will end up off-canvas
 			let canOffs = ticks.map(val => getPos(val, scale, can[dim]));		// bit of waste if we're not drawing a grid
 
-			let labels = axis.values(ticks, space);
+			let labels = axis.values(ticks, space, mkDate);
 
 			canOffs.forEach((off, i) => {
 				ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
@@ -861,7 +867,7 @@ export default function uPlot(opts, data) {
 			}
 
 			if (legend.show)
-				legendLabels[i][firstChild].nodeValue = s.label + ': ' + s.value(data[i][idx]);
+				legendLabels[i][firstChild].nodeValue = s.label + ': ' + s.value(data[i][idx], mkDate);
 		}
 
 		if (dragging) {
@@ -1012,3 +1018,4 @@ export default function uPlot(opts, data) {
 }
 
 uPlot.fmtDate = fmtDate;
+uPlot.tzDate = tzDate;
