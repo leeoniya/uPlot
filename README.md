@@ -28,6 +28,7 @@ v1.0 and API stabilization are loosely targetted for sometime before 2020-01-01.
 - Line styles (color, width, dash)
 - Zoom with auto-rescale
 - Legend with live values
+- Support for [IANA Time Zone Names](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
 - [Support for missing data](https://leeoniya.github.io/uPlot/demos/missing-data.html)
 - [Cursor sync for multiple charts](https://leeoniya.github.io/uPlot/demos/sync-cursor.html)
 - [Data streaming (live update)](https://leeoniya.github.io/uPlot/demos/stream-data.html)
