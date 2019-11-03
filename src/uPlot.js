@@ -132,8 +132,6 @@ export default function uPlot(opts, data) {
 		if (!(key in scales)) {
 			scales[key] = {
 				auto: true,
-				rawMin:  inf,
-				rawMax: -inf,
 				min:  inf,
 				max: -inf,
 			};
@@ -168,8 +166,11 @@ export default function uPlot(opts, data) {
 		dataLen = data[0].length;
 		resetScales();
 
-		// resets minMax for series
-		series.forEach((s, i) => { s.minMax = null; })
+		// resets min and max for series
+		series.forEach((s) => { 
+			s.min = inf; 
+			s.max = -inf; 
+		})
 
 		setView(_i0 != null ? _i0 : self.i0, _i1 != null ? _i1 : self.i1);
 	}
@@ -439,10 +440,12 @@ export default function uPlot(opts, data) {
 	}
 
 	function getSerieMinMax(serie, data, _i0, _i1) {
-		if (serie.minMax == null) {
-			serie.minMax = getMinMax(data, _i0, _i1)
+		if (serie.min == inf || serie.max == -inf) {
+			let minMax = getMinMax(data, _i0, _i1)
+			serie.min = minMax[0]
+			serie.max = minMax[1]
 		}
-		return serie.minMax
+		return [serie.min, serie.max]
 	}
 
 	function setScales() {
@@ -467,11 +470,7 @@ export default function uPlot(opts, data) {
 				}
 				else if (s.show) {
 					let minMax = sc.auto ? getSerieMinMax(s, data[i], self.i0, self.i1) : [0,100];
-					
-					// keep rawMin and rawMax before snapping to compare when toggling
-					sc.rawMin = min(sc.rawMin, minMax[0]);
-					sc.rawMax = max(sc.rawMax, minMax[1]);
-					
+						
 					// this is temp data min/max
 					sc.min = min(sc.min, minMax[0]);
 					sc.max = max(sc.max, minMax[1]);
@@ -738,8 +737,6 @@ export default function uPlot(opts, data) {
 
 		// if not already reset
 		if (sc.min != inf) {
-			sc.rawMin =  inf;
-			sc.rawMax = -inf;
 			sc.min =  inf;
 			sc.max = -inf;
 
@@ -806,6 +803,16 @@ export default function uPlot(opts, data) {
 		(isArr(idxs) ? idxs : [idxs]).forEach(i => {
 			let s = series[i];
 
+			// computes current scale min and max 
+			var scaleMin = inf
+			var scaleMax = -inf
+			series.forEach((s) => {
+				if (s.show) {
+					scaleMin = min(scaleMin, s.min);
+					scaleMax = max(scaleMax, s.max);
+				}
+			})
+
 			toggleDOM(i, onOff);
 
 			if (s.band) {
@@ -815,8 +822,9 @@ export default function uPlot(opts, data) {
 			}
 
 			// reset scale if current serie is actually the min or max bound
-			let sc = scales[s.scale]
-			if (!s.minMax || sc.rawMin >= s.minMax[0] || sc.rawMax <= s.minMax[1])
+			// if the toggled serie was the lower bound then s.min == scaleMin (same for max)
+			// the test then must be `s.min <= scaleMin` (or `s.max >= scaleMax`).
+			if (s.min <= scaleMin || s.max >= scaleMax) 
 				resetScale(s.scale);
 		});
 

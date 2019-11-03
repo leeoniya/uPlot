@@ -522,8 +522,6 @@ var uPlot = (function () {
 			if (!(key in scales)) {
 				scales[key] = {
 					auto: true,
-					rawMin:  inf,
-					rawMax: -inf,
 					min:  inf,
 					max: -inf,
 				};
@@ -558,8 +556,11 @@ var uPlot = (function () {
 			dataLen = data[0].length;
 			resetScales();
 
-			// resets minMax for series
-			series.forEach(function (s, i) { s.minMax = null; });
+			// resets min and max for series
+			series.forEach(function (s) { 
+				s.min = inf; 
+				s.max = -inf; 
+			});
 
 			setView(_i0 != null ? _i0 : self.i0, _i1 != null ? _i1 : self.i1);
 		}
@@ -831,10 +832,12 @@ var uPlot = (function () {
 		}
 
 		function getSerieMinMax(serie, data, _i0, _i1) {
-			if (serie.minMax == null) {
-				serie.minMax = getMinMax(data, _i0, _i1);
+			if (serie.min == inf || serie.max == -inf) {
+				var minMax = getMinMax(data, _i0, _i1);
+				serie.min = minMax[0];
+				serie.max = minMax[1];
 			}
-			return serie.minMax
+			return [serie.min, serie.max]
 		}
 
 		function setScales() {
@@ -859,11 +862,7 @@ var uPlot = (function () {
 					}
 					else if (s.show) {
 						var minMax$1 = sc.auto ? getSerieMinMax(s, data[i], self.i0, self.i1) : [0,100];
-						
-						// keep rawMin and rawMax before snapping to compare when toggling
-						sc.rawMin = min(sc.rawMin, minMax$1[0]);
-						sc.rawMax = max(sc.rawMax, minMax$1[1]);
-						
+							
 						// this is temp data min/max
 						sc.min = min(sc.min, minMax$1[0]);
 						sc.max = max(sc.max, minMax$1[1]);
@@ -1135,8 +1134,6 @@ var uPlot = (function () {
 
 			// if not already reset
 			if (sc.min != inf) {
-				sc.rawMin =  inf;
-				sc.rawMax = -inf;
 				sc.min =  inf;
 				sc.max = -inf;
 
@@ -1203,6 +1200,16 @@ var uPlot = (function () {
 			(isArr(idxs) ? idxs : [idxs]).forEach(function (i) {
 				var s = series[i];
 
+				// computes current scale min and max 
+				var scaleMin = inf;
+				var scaleMax = -inf;
+				series.forEach(function (s) {
+					if (s.show) {
+						scaleMin = min(scaleMin, s.min);
+						scaleMax = max(scaleMax, s.max);
+					}
+				});
+
 				toggleDOM(i, onOff);
 
 				if (s.band) {
@@ -1212,8 +1219,9 @@ var uPlot = (function () {
 				}
 
 				// reset scale if current serie is actually the min or max bound
-				var sc = scales[s.scale];
-				if (!s.minMax || sc.rawMin >= s.minMax[0] || sc.rawMax <= s.minMax[1])
+				// if the toggled serie was the lower bound then s.min == scaleMin (same for max)
+				// the test then must be `s.min <= scaleMin` (or `s.max >= scaleMax`).
+				if (s.min <= scaleMin || s.max >= scaleMax) 
 					{ resetScale(s.scale); }
 			});
 
@@ -1445,3 +1453,4 @@ var uPlot = (function () {
 	return uPlot;
 
 }());
+//# sourceMappingURL=uPlot.iife.js.map
