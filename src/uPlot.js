@@ -662,7 +662,7 @@ export default function uPlot(opts, data) {
 
 			// this will happen if all series using a specific scale are toggled off
 			if (scale.min == inf) {
-				clearFrom(ch);
+				ch && clearFrom(ch);
 				return;
 			}
 
@@ -887,7 +887,8 @@ export default function uPlot(opts, data) {
 				if (yPos == null)
 					yPos = -10;
 
-				trans(cursorPts[i], xPos, yPos);
+				if (cursorPts[i] != null) 
+					trans(cursorPts[i], xPos, yPos);
 			}
 
 			if (legend.show)
