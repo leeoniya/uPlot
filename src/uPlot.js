@@ -132,6 +132,8 @@ export default function uPlot(opts, data) {
 		if (!(key in scales)) {
 			scales[key] = {
 				auto: true,
+				rawMin:  inf,
+				rawMax: -inf,
 				min:  inf,
 				max: -inf,
 			};
@@ -165,6 +167,10 @@ export default function uPlot(opts, data) {
 		data = _data;
 		dataLen = data[0].length;
 		resetScales();
+
+		// resets minMax for series
+		series.forEach((s, i) => { s.minMax = null; })
+
 		setView(_i0 != null ? _i0 : self.i0, _i1 != null ? _i1 : self.i1);
 	}
 
@@ -432,7 +438,13 @@ export default function uPlot(opts, data) {
 		return [round6(incrRoundUp(scaleMin, incr)), scaleMax];
 	}
 
-	// TODO: add ability to recompute & invalidate only specific scales. e.g. for series toggle
+	function getSerieMinMax(serie, data, _i0, _i1) {
+		if (serie.minMax == null) {
+			serie.minMax = getMinMax(data, _i0, _i1)
+		}
+		return serie.minMax
+	}
+
 	function setScales() {
 		let scs = {};
 
@@ -454,8 +466,12 @@ export default function uPlot(opts, data) {
 					sc.max = minMax[1];
 				}
 				else if (s.show) {
-					let minMax = sc.auto ? getMinMax(data[i], self.i0, self.i1) : [0,100];
-
+					let minMax = sc.auto ? getSerieMinMax(s, data[i], self.i0, self.i1) : [0,100];
+					
+					// keep rawMin and rawMax before snapping to compare when toggling
+					sc.rawMin = min(sc.rawMin, minMax[0]);
+					sc.rawMax = max(sc.rawMax, minMax[1]);
+					
 					// this is temp data min/max
 					sc.min = min(sc.min, minMax[0]);
 					sc.max = max(sc.max, minMax[1]);
@@ -546,6 +562,9 @@ export default function uPlot(opts, data) {
 
 	function buildPath(is, xdata, ydata, scaleX, scaleY) {
 		const s = series[is];
+		// build path wasn't invalidate, no need to rebuild it
+		if (path != null) return;
+
 		const path = s.path = dir == 1 ? new Path2D() : series[is-1].path;
 		const width = s[WIDTH];
 		const offset = (width % 2) / 2;
@@ -719,6 +738,8 @@ export default function uPlot(opts, data) {
 
 		// if not already reset
 		if (sc.min != inf) {
+			sc.rawMin =  inf;
+			sc.rawMax = -inf;
 			sc.min =  inf;
 			sc.max = -inf;
 
@@ -793,7 +814,10 @@ export default function uPlot(opts, data) {
 				toggleDOM(ip, onOff);
 			}
 
-			resetScale(s.scale);
+			// reset scale if current serie is actually the min or max bound
+			let sc = scales[s.scale]
+			if (!s.minMax || sc.rawMin >= s.minMax[0] || sc.rawMax <= s.minMax[1])
+				resetScale(s.scale);
 		});
 
 		setView(self.i0, self.i1);
