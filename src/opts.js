@@ -100,7 +100,8 @@ const hourDate	= fmtDate(_hour   + md2);
 const minDate	= fmtDate(_minute + md2);
 const secDate	= fmtDate(_second + md2);
 
-export function timeAxisVals(vals, space, mkDate) {
+export function timeAxisVals(vals, space) {
+	let self = this;
 	let incr = vals[1] - vals[0];
 
 	// these track boundaries when a full label is needed again
@@ -108,7 +109,7 @@ export function timeAxisVals(vals, space, mkDate) {
 	let prevDate = null;
 
 	return vals.map((val, i) => {
-		let date = mkDate(val);
+		let date = self.tzDate(val);
 
 		let newYear = date[getFullYear]();
 		let newDate = date[getDate]();
@@ -138,8 +139,8 @@ export function timeAxisVals(vals, space, mkDate) {
 
 let longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
 
-export function timeSeriesVal(val, mkDate) {
-	return longDateHourMin(mkDate(val));
+export function timeSeriesVal(val) {
+	return longDateHourMin(this.tzDate(val));
 }
 
 export const xAxisOpts = {

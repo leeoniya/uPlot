@@ -357,7 +357,8 @@ var uPlot = (function () {
 	var minDate	= fmtDate(_minute + md2);
 	var secDate	= fmtDate(_second + md2);
 
-	function timeAxisVals(vals, space, mkDate) {
+	function timeAxisVals(vals, space) {
+		var self = this;
 		var incr = vals[1] - vals[0];
 
 		// these track boundaries when a full label is needed again
@@ -365,7 +366,7 @@ var uPlot = (function () {
 		var prevDate = null;
 
 		return vals.map(function (val, i) {
-			var date = mkDate(val);
+			var date = self.tzDate(val);
 
 			var newYear = date[getFullYear]();
 			var newDate = date[getDate]();
@@ -395,8 +396,8 @@ var uPlot = (function () {
 
 	var longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
 
-	function timeSeriesVal(val, mkDate) {
-		return longDateHourMin(mkDate(val));
+	function timeSeriesVal(val) {
+		return longDateHourMin(this.tzDate(val));
 	}
 
 	var xAxisOpts = {
@@ -505,7 +506,7 @@ var uPlot = (function () {
 		var axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
 		var scales  = (opts.scales = opts.scales || {});
 
-		var mkDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
+		self.tzDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
 
 		self.series = splitXY(series);
 		self.axes = splitXY(axes);
@@ -810,7 +811,7 @@ var uPlot = (function () {
 		// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
 		function snapMinDate(scaleMin, scaleMax, incr) {
 			// get the timezone-adjusted date
-			var minDate = mkDate(scaleMin);
+			var minDate = self.tzDate(scaleMin);
 			// get ts of 12am (this lands us at or before the original scaleMin)
 			var min00 = +(new Date(minDate[getFullYear](), minDate[getMonth](), minDate[getDate]())) / 1000;
 			minDate /= 1000;
@@ -1060,7 +1061,7 @@ var uPlot = (function () {
 				// TODO: filter ticks & offsets that will end up off-canvas
 				var canOffs = ticks.map(function (val) { return getPos(val, scale, can[dim]); });		// bit of waste if we're not drawing a grid
 
-				var labels = axis.values(ticks, space, mkDate);
+				var labels = axis.values.call(self, ticks, space);
 
 				canOffs.forEach(function (off, i) {
 					ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
@@ -1263,7 +1264,7 @@ var uPlot = (function () {
 				}
 
 				if (legend.show)
-					{ legendLabels[i][firstChild].nodeValue = s.label + ': ' + s.value(data[i][idx], mkDate); }
+					{ legendLabels[i][firstChild].nodeValue = s.label + ': ' + s.value.call(self, data[i][idx]); }
 			}
 
 			if (dragging) {
