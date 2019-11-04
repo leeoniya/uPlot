@@ -236,11 +236,44 @@ export default function uPlot(opts, data) {
 
 		// also set defaults for incrs & values based on axis type
 		let isTime = axis.type == "t";
-		axis.incrs = axis.incrs || (isTime ? timeIncrs : numIncrs);
+		axis.incrs = parseDivisors(axis, isTime);
 		axis.values = axis.values || (isTime ? timeAxisVals : numAxisVals);
 		axis.range = fnOrSelf(axis.range || (isTime ? snapMinDate : snapMinNum));
 		axis.space = fnOrSelf(axis.space);
 	});
+
+	/**
+	 * Parses divisors in the user options provided, into an array of increments
+	 *   Divisors are provided in the "divisors" option
+	 *   as an object with the optional properties: "minute", "hour", "day", "month", "year"
+	 *   each property is an array of integers (seconds)
+	 * 
+	 * @param {object} axis element in the axes array
+	 * @param {boolean} isTime True if axis.type is "t"
+	 * @returns {array} Array of integers, as expected by axis.incrs
+	 */
+	function parseDivisors(axis, isTime) {
+		// If the user provided the option, parse it
+		if (axis.hasOwnProperty("divisors")) {
+			if (isTime) {
+				let inc = dec;
+				const props = ["minute", "hour", "day", "month", "year"];
+				const defs  = [[9, 14], [14, 19], [19, 26], [26, 35], [35, 42]];
+				for (let i = 0 ; i < 5 ; i++) {
+					if (axis.divisors.hasOwnProperty(props[i])) {
+						inc.concat(axis.divisors[props[i]]);
+					} else {
+						inc.concat(timeIncrs.slice(defs[i][0], defs[i][1]));
+					}
+				}
+				return inc;
+			}
+			else {
+				return axis.increments;
+			}
+		}
+		return (isTime ? timeIncrs : numIncrs);
+	}
 
 	// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
 	let off1 = fullCssWidth - plotLft;
