@@ -439,7 +439,7 @@ export default function uPlot(opts, data) {
 		return [round6(incrRoundUp(scaleMin, incr)), scaleMax];
 	}
 
-	function getSerieMinMax(serie, data, _i0, _i1) {
+	function computeSeriesMinMax(serie, data, _i0, _i1) {
 		if (serie.min == inf || serie.max == -inf) {
 			let minMax = getMinMax(data, _i0, _i1)
 			serie.min = minMax[0]
@@ -469,7 +469,7 @@ export default function uPlot(opts, data) {
 					sc.max = minMax[1];
 				}
 				else if (s.show) {
-					let minMax = sc.auto ? getSerieMinMax(s, data[i], self.i0, self.i1) : [0,100];
+					let minMax = sc.auto ? computeSeriesMinMax(s, data[i], self.i0, self.i1) : [0,100];
 						
 					// this is temp data min/max
 					sc.min = min(sc.min, minMax[0]);
@@ -803,16 +803,6 @@ export default function uPlot(opts, data) {
 		(isArr(idxs) ? idxs : [idxs]).forEach(i => {
 			let s = series[i];
 
-			// computes current scale min and max 
-			var scaleMin = inf
-			var scaleMax = -inf
-			series.forEach((s) => {
-				if (s.show) {
-					scaleMin = min(scaleMin, s.min);
-					scaleMax = max(scaleMax, s.max);
-				}
-			})
-
 			toggleDOM(i, onOff);
 
 			if (s.band) {
@@ -821,10 +811,21 @@ export default function uPlot(opts, data) {
 				toggleDOM(ip, onOff);
 			}
 
-			// reset scale if current serie is actually the min or max bound
-			// if the toggled serie was the lower bound then s.min == scaleMin (same for max)
-			// the test then must be `s.min <= scaleMin` (or `s.max >= scaleMax`).
-			if (s.min <= scaleMin || s.max >= scaleMax) 
+			// compute new scale min and max 
+			let scaleMin = inf
+			let scaleMax = -inf
+			series.forEach((cs) => {
+				if (cs.show) {
+					scaleMin = min(scaleMin, cs.min);
+					scaleMax = max(scaleMax, cs.max);
+				}
+			})
+			// snap scale
+			let sc = scales[s.scale]
+			let minMax = sc.range(scaleMin, scaleMax)
+			
+			// compare previous scale to new one
+			if (sc.min !== minMax[0] || sc.max !== minMax[1]) 
 				resetScale(s.scale);
 		});
 

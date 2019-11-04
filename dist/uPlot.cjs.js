@@ -830,7 +830,7 @@ function uPlot(opts, data) {
 		return [round6(incrRoundUp(scaleMin, incr)), scaleMax];
 	}
 
-	function getSerieMinMax(serie, data, _i0, _i1) {
+	function computeSeriesMinMax(serie, data, _i0, _i1) {
 		if (serie.min == inf || serie.max == -inf) {
 			var minMax = getMinMax(data, _i0, _i1);
 			serie.min = minMax[0];
@@ -860,7 +860,7 @@ function uPlot(opts, data) {
 					sc.max = minMax[1];
 				}
 				else if (s.show) {
-					var minMax$1 = sc.auto ? getSerieMinMax(s, data[i], self.i0, self.i1) : [0,100];
+					var minMax$1 = sc.auto ? computeSeriesMinMax(s, data[i], self.i0, self.i1) : [0,100];
 						
 					// this is temp data min/max
 					sc.min = min(sc.min, minMax$1[0]);
@@ -1199,16 +1199,6 @@ function uPlot(opts, data) {
 		(isArr(idxs) ? idxs : [idxs]).forEach(function (i) {
 			var s = series[i];
 
-			// computes current scale min and max 
-			var scaleMin = inf;
-			var scaleMax = -inf;
-			series.forEach(function (s) {
-				if (s.show) {
-					scaleMin = min(scaleMin, s.min);
-					scaleMax = max(scaleMax, s.max);
-				}
-			});
-
 			toggleDOM(i, onOff);
 
 			if (s.band) {
@@ -1217,10 +1207,21 @@ function uPlot(opts, data) {
 				toggleDOM(ip, onOff);
 			}
 
-			// reset scale if current serie is actually the min or max bound
-			// if the toggled serie was the lower bound then s.min == scaleMin (same for max)
-			// the test then must be `s.min <= scaleMin` (or `s.max >= scaleMax`).
-			if (s.min <= scaleMin || s.max >= scaleMax) 
+			// compute new scale min and max 
+			var scaleMin = inf;
+			var scaleMax = -inf;
+			series.forEach(function (cs) {
+				if (cs.show) {
+					scaleMin = min(scaleMin, cs.min);
+					scaleMax = max(scaleMax, cs.max);
+				}
+			});
+			// snap scale
+			var sc = scales[s.scale];
+			var minMax = sc.range(scaleMin, scaleMax);
+			
+			// compare previous scale to new one
+			if (sc.min !== minMax[0] || sc.max !== minMax[1]) 
 				{ resetScale(s.scale); }
 		});
 
@@ -1450,4 +1451,3 @@ uPlot.fmtDate = fmtDate;
 uPlot.tzDate = tzDate;
 
 module.exports = uPlot;
-//# sourceMappingURL=uPlot.cjs.js.map
