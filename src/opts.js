@@ -5,6 +5,8 @@ import {
 	getDate,
 } from './fmtDate';
 
+import { inf } from './utils';
+
 //export const series = [];
 
 // default formatters:
@@ -163,6 +165,10 @@ export const xSeriesOpts = {
 	scale: "x",
 //	label: "Time",
 //	value: v => stamp(new Date(v * 1e3)),
+
+	// internal caches
+	min: inf,
+	max: -inf,
 };
 
 export const numIncrs = dec.concat([1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9]);
@@ -194,6 +200,12 @@ export const ySeriesOpts = {
 	band: false,
 //	label: "Value",
 //	value: v => v,
+
+	// internal caches
+	min: inf,
+	max: -inf,
+
+	path: null,
 };
 
 /*

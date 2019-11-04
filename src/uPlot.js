@@ -129,17 +129,12 @@ export default function uPlot(opts, data) {
 		// init scales & defaults
 		const key = s.scale;
 
-		if (!(key in scales)) {
-			scales[key] = {
-				auto: true,
-				min:  inf,
-				max: -inf,
-			};
-		}
-
-		const sc = scales[key];
-
-		sc.type = sc.type || (i == 0 ? "t" : "n");
+		const sc = scales[key] = assign({
+			type: i == 0 ? "t" : "n",
+			auto: true,
+			min:  inf,
+			max: -inf,
+		}, scales[key]);
 
 		// by default, numeric y scales snap to half magnitude of range
 		sc.range = fnOrSelf(sc.range || (i > 0 && sc.type == "n" ? snapHalfMag : snapNone));
@@ -164,7 +159,7 @@ export default function uPlot(opts, data) {
 	function setData(_data, _i0, _i1) {
 		data = _data;
 		dataLen = data[0].length;
-		resetScales();
+		resetSeries();
 		setView(_i0 != null ? _i0 : self.i0, _i1 != null ? _i1 : self.i1);
 	}
 
@@ -432,68 +427,74 @@ export default function uPlot(opts, data) {
 		return [round6(incrRoundUp(scaleMin, incr)), scaleMax];
 	}
 
-	// TODO: add ability to recompute & invalidate only specific scales. e.g. for series toggle
 	function setScales() {
-		let scs = {};
-
-		for (let k in scales) {
-			if (scales[k].min == inf)
-				scs[k] = true;
-		}
+		// original scales' min/maxes
+		let minMaxes = {};
 
 		series.forEach((s, i) => {
 			let k = s.scale;
+			let sc = scales[k];
 
-			if (k in scs) {
-				let sc = scales[k];
+			if (minMaxes[k] == null) {
+				minMaxes[k] = {min: sc.min, max: sc.max};
+				sc.min = inf;
+				sc.max = -inf;
+			}
 
-				// fast-path for x axis, which is assumed ordered ASC and will not get padded
-				if (i == 0) {
-					let minMax = sc.range(data[0][self.i0], data[0][self.i1]);
-					sc.min = minMax[0];
-					sc.max = minMax[1];
-				}
-				else if (s.show) {
-					let minMax = sc.auto ? getMinMax(data[i], self.i0, self.i1) : [0,100];
+			// fast-path for x axis, which is assumed ordered ASC and will not get padded
+			if (i == 0) {
+				let minMax = sc.range(data[0][self.i0], data[0][self.i1]);
+				sc.min = s.min = minMax[0];
+				sc.max = s.max = minMax[1];
+			}
+			else if (s.show) {
+				// only run getMinMax() for invalidated series data, else reuse
+				let minMax = s.min == inf ? (sc.auto ? getMinMax(data[i], self.i0, self.i1) : [0,100]) : [s.min, s.max];
 
-					// this is temp data min/max
-					sc.min = min(sc.min, minMax[0]);
-					sc.max = max(sc.max, minMax[1]);
-				}
+				// initial min/max
+				sc.min = min(sc.min, s.min = minMax[0]);
+				sc.max = max(sc.max, s.max = minMax[1]);
 			}
 		});
 
 		// snap non-derived scales
 		for (let k in scales) {
-			if (k in scs) {
-				let sc = scales[k];
+			let sc = scales[k];
 
-				if (sc.base == null && sc.min != inf) {
-					let minMax = sc.range(sc.min, sc.max);
+			if (sc.base == null && sc.min != inf) {
+				let minMax = sc.range(sc.min, sc.max);
 
+				sc.min = minMax[0];
+				sc.max = minMax[1];
+			}
+		}
+
+		// snap derived scales
+		for (let k in scales) {
+			let sc = scales[k];
+
+			if (sc.base != null) {
+				let base = scales[sc.base];
+
+				if (base.min != inf) {
+					let minMax = sc.range(base.min, base.max);
 					sc.min = minMax[0];
 					sc.max = minMax[1];
 				}
 			}
 		}
 
-		// snap derived scales
-		for (let k in scales) {
-			if (k in scs) {
-				let sc = scales[k];
+		// invalidate paths of all series on changed scales
+		series.forEach((s, i) => {
+			let k = s.scale;
+			let sc = scales[k];
 
-				if (sc.base != null) {
-					let base = scales[sc.base];
-					if (base.min != inf) {
-						let minMax = sc.range(base.min, base.max);
-						sc.min = minMax[0];
-						sc.max = minMax[1];
-					}
-				}
-			}
-		}
+			if (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)
+				s.path = null;
+		});
 	}
 
+	// TODO: ability to get only min or only max
 	function getMinMax(data, _i0, _i1) {
 		let _min = inf;
 		let _max = -inf;
@@ -643,7 +644,7 @@ export default function uPlot(opts, data) {
 
 			// this will happen if all series using a specific scale are toggled off
 			if (scale.min == inf) {
-				clearFrom(ch);
+				ch && clearFrom(ch);
 				return;
 			}
 
@@ -709,32 +710,17 @@ export default function uPlot(opts, data) {
 		});
 	}
 
-	function resetScales() {
-		for (let key in scales)
-			resetScale(key);
-	}
-
-	function resetScale(key) {
-		let sc = scales[key];
-
-		// if not already reset
-		if (sc.min != inf) {
-			sc.min =  inf;
-			sc.max = -inf;
-
-			// invalidate paths that use this scale
-			series.forEach(s => {
-				if (s.scale == key)
-					s.path = null;
-			});
-
-			// TODO: derived scales
-		}
+	function resetSeries() {
+		series.forEach(s => {
+			s.min = inf;
+			s.max = -inf;
+			s.path = null;
+		});
 	}
 
 	function setView(_i0, _i1) {
 		if (_i0 != self.i0 || _i1 != self.i1)
-			resetScales();
+			resetSeries();
 
 		self.i0 = _i0;
 		self.i1 = _i1;
@@ -771,7 +757,6 @@ export default function uPlot(opts, data) {
 	function toggleDOM(i, onOff) {
 		let s = series[i];
 		let label = legendLabels[i];
-		s.show = onOff != null ? onOff : !s.show;
 
 		if (s.show)
 			label[classList].remove("off")
@@ -785,15 +770,15 @@ export default function uPlot(opts, data) {
 		(isArr(idxs) ? idxs : [idxs]).forEach(i => {
 			let s = series[i];
 
+			s.show = onOff != null ? onOff : !s.show;
 			toggleDOM(i, onOff);
 
 			if (s.band) {
 				// not super robust, will break if two bands are adjacent
 				let ip = series[i+1].band ? i+1 : i-1;
+				series[ip].show = s.show;
 				toggleDOM(ip, onOff);
 			}
-
-			resetScale(s.scale);
 		});
 
 		setView(self.i0, self.i1);
