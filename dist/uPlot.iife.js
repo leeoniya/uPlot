@@ -530,18 +530,19 @@ var uPlot = (function () {
 			var key = s.scale;
 
 			var sc = scales[key] = assign({
-				type: i == 0 ? "t" : "n",
+				time: i == 0,
 				auto: true,
 				min:  inf,
 				max: -inf,
 			}, scales[key]);
 
 			// by default, numeric y scales snap to half magnitude of range
-			sc.range = fnOrSelf(sc.range || (i > 0 && sc.type == "n" ? snapHalfMag : snapNone));
+			sc.range = fnOrSelf(sc.range || (i > 0 && !sc.time ? snapHalfMag : snapNone));
 
-			s.type = s.type || sc.type;
+			if (s.time == null)
+				{ s.time = sc.time; }
 
-			var isTime = s.type == "t";
+			var isTime = s.time;
 
 			s.value = s.value || (isTime ? timeSeriesVal : numSeriesVal);
 			s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
@@ -627,10 +628,12 @@ var uPlot = (function () {
 					{ plotTop += h; }
 			}
 
-			axis.type = axis.type || scales[axis.scale].type;
+			if (axis.time == null)
+				{ axis.time = scales[axis.scale].time; }
 
 			// also set defaults for incrs & values based on axis type
-			var isTime = axis.type == "t";
+			var isTime = axis.time;
+
 			axis.incrs = axis.incrs || (isTime ? timeIncrs : numIncrs);
 			axis.values = axis.values || (isTime ? timeAxisVals : numAxisVals);
 			axis.range = fnOrSelf(axis.range || (isTime ? snapMinDate : snapMinNum));
