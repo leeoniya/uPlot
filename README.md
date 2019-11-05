@@ -190,9 +190,9 @@ Benchmarks done on a ThinkPad T480S:
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/Chart.js.html">Chart.js</a></td>
             <td>153 KB</td>
-            <td>862 ms</td>
-            <td>957 ms</td>
-            <td>115 MB</td>
+            <td>747 ms</td>
+            <td>818 ms</td>
+            <td>141 MB</td>
             <td>5408 ms</td>
         </tr>
         <tr>
