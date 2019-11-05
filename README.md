@@ -126,7 +126,8 @@ Benchmarks done on a ThinkPad T480S:
             <th>Size (min)</th>
             <th>Render (167k)</th>
             <th>Total</th>
-            <th>JS Heap</th>
+            <th>Mem (peak)</th>
+            <th>Mem (retained)</th>
             <th>Interact (10s)</th>
         </tr>
     </thead>
@@ -136,7 +137,8 @@ Benchmarks done on a ThinkPad T480S:
             <td>15 KB</td>
             <td>39 ms</td>
             <td>71 ms</td>
-            <td>19.1 MB</td>
+            <td>19.6 MB</td>
+            <td>3.7 MB</td>
             <td>154 ms</td>
         </tr>
         <tr>
@@ -145,6 +147,7 @@ Benchmarks done on a ThinkPad T480S:
             <td>130 ms</td>
             <td>190 ms</td>
             <td>42.7 MB</td>
+            <td>17.3 MB</td>
             <td>--</td>
         </tr>
         <tr>
@@ -153,6 +156,7 @@ Benchmarks done on a ThinkPad T480S:
             <td>168 ms</td>
             <td>251 ms</td>
             <td>113 MB</td>
+            <td>66.0 MB</td>
             <td>2569 ms</td>
         </tr>
         <tr>
@@ -161,6 +165,7 @@ Benchmarks done on a ThinkPad T480S:
             <td>295 ms</td>
             <td>414 ms</td>
             <td>49.2 MB</td>
+            <td>39.1 MB</td>
             <td>2401 ms</td>
         </tr>
         <tr>
@@ -169,6 +174,7 @@ Benchmarks done on a ThinkPad T480S:
             <td>450 ms</td>
             <td>577 ms</td>
             <td>142 MB</td>
+            <td>99.9 MB</td>
             <td>600 ms</td>
         </tr>
         <tr>
@@ -177,6 +183,7 @@ Benchmarks done on a ThinkPad T480S:
             <td>513 ms</td>
             <td>765 ms</td>
             <td>179 MB</td>
+            <td>118.8 MB</td>
             <td>2194 ms</td>
         </tr>
         <tr>
@@ -185,6 +192,7 @@ Benchmarks done on a ThinkPad T480S:
             <td>573 ms</td>
             <td>717 ms</td>
             <td>71.7 MB</td>
+            <td>40.7 MB</td>
             <td>1122 ms</td>
         </tr>
         <tr>
@@ -193,6 +201,7 @@ Benchmarks done on a ThinkPad T480S:
             <td>747 ms</td>
             <td>818 ms</td>
             <td>141 MB</td>
+            <td>82.8 MB</td>
             <td>5408 ms</td>
         </tr>
         <tr>
@@ -201,6 +210,7 @@ Benchmarks done on a ThinkPad T480S:
             <td>1269 ms</td>
             <td>2441 ms</td>
             <td>142 MB</td>
+            <td>157.9 MB</td>
             <td>7559 ms</td>
         </tr>
         <tr>
@@ -209,6 +219,7 @@ Benchmarks done on a ThinkPad T480S:
             <td>2324 ms</td>
             <td>2518 ms</td>
             <td>220 MB</td>
+            <td>175.7 MB</td>
             <td>--</td>
         </tr>
         <tr>
@@ -217,10 +228,12 @@ Benchmarks done on a ThinkPad T480S:
             <td>6514 ms</td>
             <td>6730 ms</td>
             <td>397 MB</td>
+            <td>430.0 MB</td>
             <td>7539 ms</td>
         </tr>
         <tr>
             <td>Chartist.js</td>
+            <td>--</td>
             <td>--</td>
             <td>--</td>
             <td>--</td>
@@ -234,9 +247,11 @@ Benchmarks done on a ThinkPad T480S:
             <td>--</td>
             <td>--</td>
             <td>--</td>
+            <td>--</td>
         </tr>
         <tr>
             <td>dc.js (d3-based)</td>
+            <td>--</td>
             <td>--</td>
             <td>--</td>
             <td>--</td>
@@ -250,6 +265,7 @@ Benchmarks done on a ThinkPad T480S:
             <td>--</td>
             <td>--</td>
             <td>--</td>
+            <td>--</td>
         </tr>
         <tr>
             <td>MetricsGraphics (d3-based)</td>
@@ -258,9 +274,11 @@ Benchmarks done on a ThinkPad T480S:
             <td>--</td>
             <td>--</td>
             <td>--</td>
+            <td>--</td>
         </tr>
         <tr>
             <td>rickshaw (d3-based)</td>
+            <td>--</td>
             <td>--</td>
             <td>--</td>
             <td>--</td>
