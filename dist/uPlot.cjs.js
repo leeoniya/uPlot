@@ -508,7 +508,7 @@ function splitXY(d) {
 	};
 }
 
-function uPlot(opts, data) {
+function Line(opts, data) {
 	var self = this;
 
 	var series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
@@ -1411,7 +1411,6 @@ function uPlot(opts, data) {
 	plot.appendChild(can);
 }
 
-uPlot.fmtDate = fmtDate;
-uPlot.tzDate = tzDate;
-
-module.exports = uPlot;
+exports.Line = Line;
+exports.fmtDate = fmtDate;
+exports.tzDate = tzDate;

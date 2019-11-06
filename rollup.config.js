@@ -26,6 +26,7 @@ export default [
 			name: 'uPlot',
 			file: './dist/uPlot.iife.js',
 			format: 'iife',
+			esModule: false,
 			banner,
 		},
 		plugins: [
@@ -38,6 +39,7 @@ export default [
 			name: 'uPlot',
 			file: './dist/uPlot.cjs.js',
 			format: 'cjs',
+			esModule: false,
 			banner,
 		},
 		plugins: [
@@ -50,6 +52,7 @@ export default [
 			name: 'uPlot',
 			file: './dist/uPlot.iife.min.js',
 			format: 'iife',
+			esModule: false,
 			banner: "/*! " + urlVer + " */",
 		},
 		plugins: [

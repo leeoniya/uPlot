@@ -7,7 +7,7 @@
 * https://github.com/leeoniya/uPlot (v0.1.0)
 */
 
-var uPlot = (function () {
+var uPlot = (function (exports) {
 	'use strict';
 
 	var months = [
@@ -509,7 +509,7 @@ var uPlot = (function () {
 		};
 	}
 
-	function uPlot(opts, data) {
+	function Line(opts, data) {
 		var self = this;
 
 		var series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
@@ -1412,9 +1412,10 @@ var uPlot = (function () {
 		plot.appendChild(can);
 	}
 
-	uPlot.fmtDate = fmtDate;
-	uPlot.tzDate = tzDate;
+	exports.Line = Line;
+	exports.fmtDate = fmtDate;
+	exports.tzDate = tzDate;
 
-	return uPlot;
+	return exports;
 
-}());
+}({}));

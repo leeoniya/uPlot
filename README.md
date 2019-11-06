@@ -48,7 +48,7 @@ In order to stay lean, fast and focused the following features will not be added
 ---
 ### Usage & API
 
-Example: https://jsfiddle.net/oh0xtzn5/
+Example: https://jsfiddle.net/4o0ge9wx/
 
 ```html
 <link rel="stylesheet" href="src/uPlot.css">
@@ -104,7 +104,7 @@ Example: https://jsfiddle.net/oh0xtzn5/
         },
     };
 
-    let uplot = new uPlot(opts, data);
+    let uplot = new uPlot.Line(opts, data);
 
     document.body.appendChild(uplot.root);
 </script>
