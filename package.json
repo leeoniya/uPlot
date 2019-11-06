@@ -1,7 +1,7 @@
 {
   "name": "uplot",
   "version": "0.1.0",
-  "description": "An exceptionally fast, tiny time series chart",
+  "description": "An exceptionally fast, tiny time series & line chart",
   "main": "./dist/uPlot.cjs.js",
   "scripts": {
     "build": "rollup -c",
