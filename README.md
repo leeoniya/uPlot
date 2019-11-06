@@ -33,6 +33,9 @@ v1.0 and API stabilization are loosely targetted for sometime before 2020-01-01.
 - [Cursor sync for multiple charts](https://leeoniya.github.io/uPlot/demos/sync-cursor.html)
 - [Data streaming (live update)](https://leeoniya.github.io/uPlot/demos/stream-data.html)
 - [High / Low bands](https://leeoniya.github.io/uPlot/demos/high-low-bands.html)
+- WIP: [.resize()](https://github.com/leeoniya/uPlot/issues/36)
+- WIP: [.focus()](https://github.com/leeoniya/uPlot/issues/26)
+- WIP: [range, point & line annotations](https://github.com/leeoniya/uPlot/issues/27)
 
 ---
 ### Non-Features
@@ -109,6 +112,11 @@ Example: https://jsfiddle.net/4o0ge9wx/
     document.body.appendChild(uplot.root);
 </script>
 ```
+
+---
+### Documentation
+
+WIP: https://github.com/leeoniya/uPlot/issues/48
 
 ---
 ### Performance
