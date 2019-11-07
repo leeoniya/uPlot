@@ -70,9 +70,11 @@
 					],
 				},
 				axes: {
-					y: {
-						values: vals => vals.map(v => fmtUSD(v, 0))
-					}
+					y: [
+						{
+							values: vals => vals.map(v => fmtUSD(v, 0))
+						}
+					]
 				}
 			};
 
