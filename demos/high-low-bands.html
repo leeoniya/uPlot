@@ -42,6 +42,11 @@
 				height: 600,
 				title: "Gold",
 				tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), 'Etc/UTC'),
+				scales: {
+					x: {
+						distr: 2,
+					}
+				},
 				series: {
 					y: [
 						{
