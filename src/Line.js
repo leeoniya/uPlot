@@ -71,6 +71,9 @@ import {
 
 	timeSeriesLabel,
 	numSeriesLabel,
+
+	getDateTicks,
+	getNumTicks,
 } from './opts';
 
 import {
@@ -220,7 +223,7 @@ export function Line(opts, data) {
 
 		axis.incrs = axis.incrs || (isTime && sc.distr == 1 ? timeIncrs : numIncrs);
 		axis.values = axis.values || (isTime ? timeAxisVals : numAxisVals);
-		axis.range = fnOrSelf(axis.range || (isTime && sc.distr == 1 ? snapMinDate : snapMinNum));
+		axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.distr == 1 ? getDateTicks : getNumTicks));
 		axis.space = fnOrSelf(axis.space);
 	});
 
@@ -396,22 +399,6 @@ export function Line(opts, data) {
 		}
 
 		return [snappedMin, snappedMax];
-	}
-
-	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
-	function snapMinDate(scaleMin, scaleMax, incr) {
-		// get the timezone-adjusted date
-		let minDate = self.tzDate(scaleMin);
-		// get ts of 12am (this lands us at or before the original scaleMin)
-		let min00 = +(new Date(minDate[getFullYear](), minDate[getMonth](), minDate[getDate]())) / 1000;
-		minDate /= 1000;
-		let tzOffset = scaleMin - minDate;
-		scaleMin = min00 + tzOffset + incrRoundUp(minDate - min00, incr);
-		return [scaleMin, scaleMax];
-	}
-
-	function snapMinNum(scaleMin, scaleMax, incr) {
-		return [round6(incrRoundUp(scaleMin, incr)), scaleMax];
 	}
 
 	function setScales() {
@@ -642,12 +629,7 @@ export function Line(opts, data) {
 
 			let [incr, space] = findIncr(max - min, axis.incrs, can[dim], axis.space(min, max, can[dim]));
 
-			[min, max] = axis.range(min, max, incr);
-
-			let ticks = [];
-
-			for (let val = min; val <= max; val = round6(val + incr))
-				ticks.push(val);
+			let ticks = axis.ticks.call(self, min, max, incr);
 
 			let getPos = ori == 0 ? getXPos : getYPos;
 			let cssProp = ori == 0 ? LEFT : TOP;

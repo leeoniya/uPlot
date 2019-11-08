@@ -277,6 +277,7 @@ var s = 1,
 	m = 60,
 	h = m * m,
 	d = h * 24,
+	mo = d * 30,
 	y = d * 365;
 
 var dec = [
@@ -322,7 +323,14 @@ var timeIncrs = dec.concat([
 	d * 8,
 	d * 9,
 	d * 10,
-	// year divisors
+	d * 15,
+	// year divisors (# months, approx)
+	mo,
+	mo * 2,
+	mo * 3,
+	mo * 4,
+	mo * 6,
+	// century divisors
 	y,
 	y * 2,
 	y * 5,
@@ -332,6 +340,7 @@ var timeIncrs = dec.concat([
 	y * 100 ]);
 
 var md = '{M}/{D}';
+var MMM = '{MMM}';
 var yr = '{YYYY}';
 var hr = '{h}';
 var mm = ':{mm}';
@@ -341,6 +350,8 @@ var ampm = '{aa}';
 var year = fmtDate(yr);
 var monthDate = fmtDate(md);
 var monthDateYear = fmtDate(md + '\n' + yr);
+var month = fmtDate(MMM);
+var monthYear = fmtDate(MMM + '\n' + yr);
 
 var _hour   = hr +           ampm;
 var _minute = hr + mm +      ampm;
@@ -356,6 +367,8 @@ var hourDate	= fmtDate(_hour   + md2);
 var minDate	= fmtDate(_minute + md2);
 var secDate	= fmtDate(_second + md2);
 
+// TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
+// currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 function timeAxisVals(vals, space) {
 	var self = this;
 	var incr = vals[1] - vals[0];
@@ -377,6 +390,8 @@ function timeAxisVals(vals, space) {
 
 		if (incr >= y)
 			{ stamp = year; }
+		else if (incr >= d * 28)
+			{ stamp = diffYear ? monthYear : month; }
 		else if (incr >= d)
 			{ stamp = diffYear ? monthDateYear : monthDate; }
 		else if (incr >= h)
@@ -391,6 +406,47 @@ function timeAxisVals(vals, space) {
 
 		return stamp(date);
 	});
+}
+
+function mkDate(y, m, d) {
+	return new Date(y, m, d);
+}
+
+// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
+function getDateTicks(scaleMin, scaleMax, incr) {
+	var ticks = [];
+	var isMo = incr >= mo && incr < y;
+
+	// get the timezone-adjusted date
+	var minDate = this.tzDate(scaleMin);
+	var minDateTs = minDate / 1e3;
+
+	// get ts of 12am (this lands us at or before the original scaleMin)
+	var minMin = mkDate(minDate[getFullYear](), minDate[getMonth](), isMo ? 1 : minDate[getDate]());
+	var minMinTs = minMin / 1e3;
+
+	if (isMo) {
+		var moIncr = incr / mo;
+	//	let tzOffset = scaleMin - minDateTs;		// needed?
+		var tick = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
+		var tickDate = new Date(tick * 1e3);
+		var baseYear = tickDate[getFullYear]();
+		var baseMonth = tickDate[getMonth]();
+
+		for (var i = 0; tick <= scaleMax; i++) {
+			var next = mkDate(baseYear, baseMonth + moIncr * i, 1);
+			ticks.push(tick = next / 1e3);
+		}
+	}
+	else {
+		var tzOffset = scaleMin - minDateTs;
+		var tick$1 = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr);
+
+		for (; tick$1 <= scaleMax; tick$1 += incr)
+			{ ticks.push(tick$1); }
+	}
+
+	return ticks;
 }
 
 var longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
@@ -429,6 +485,17 @@ var numIncrs = dec.concat([1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e
 
 function numAxisVals(vals, space) {
 	return vals;
+}
+
+function getNumTicks(scaleMin, scaleMax, incr) {
+	scaleMin = round6(incrRoundUp(scaleMin, incr));
+
+	var ticks = [];
+
+	for (var val = scaleMin; val <= scaleMax; val = round6(val + incr))
+		{ ticks.push(val); }
+
+	return ticks;
 }
 
 function numSeriesVal(val) {
@@ -638,7 +705,7 @@ function Line(opts, data) {
 
 		axis.incrs = axis.incrs || (isTime && sc.distr == 1 ? timeIncrs : numIncrs);
 		axis.values = axis.values || (isTime ? timeAxisVals : numAxisVals);
-		axis.range = fnOrSelf(axis.range || (isTime && sc.distr == 1 ? snapMinDate : snapMinNum));
+		axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.distr == 1 ? getDateTicks : getNumTicks));
 		axis.space = fnOrSelf(axis.space);
 	});
 
@@ -816,22 +883,6 @@ function Line(opts, data) {
 		}
 
 		return [snappedMin, snappedMax];
-	}
-
-	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
-	function snapMinDate(scaleMin, scaleMax, incr) {
-		// get the timezone-adjusted date
-		var minDate = self.tzDate(scaleMin);
-		// get ts of 12am (this lands us at or before the original scaleMin)
-		var min00 = +(new Date(minDate[getFullYear](), minDate[getMonth](), minDate[getDate]())) / 1000;
-		minDate /= 1000;
-		var tzOffset = scaleMin - minDate;
-		scaleMin = min00 + tzOffset + incrRoundUp(minDate - min00, incr);
-		return [scaleMin, scaleMax];
-	}
-
-	function snapMinNum(scaleMin, scaleMax, incr) {
-		return [round6(incrRoundUp(scaleMin, incr)), scaleMax];
 	}
 
 	function setScales() {
@@ -1045,8 +1096,6 @@ function Line(opts, data) {
 
 	function drawAxesGrid() {
 		axes.forEach(function (axis, i) {
-			var assign;
-
 			var ori = i == 0 ? 0 : 1;
 			var dim = ori == 0 ? WIDTH : HEIGHT;
 			var xDim = ori == 0 ? HEIGHT : WIDTH;
@@ -1067,12 +1116,7 @@ function Line(opts, data) {
 			var incr = ref[0];
 			var space = ref[1];
 
-			(assign = axis.range(min, max, incr), min = assign[0], max = assign[1]);
-
-			var ticks = [];
-
-			for (var val = min; val <= max; val = round6(val + incr))
-				{ ticks.push(val); }
+			var ticks = axis.ticks.call(self, min, max, incr);
 
 			var getPos = ori == 0 ? getXPos : getYPos;
 			var cssProp = ori == 0 ? LEFT : TOP;

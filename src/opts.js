@@ -5,7 +5,11 @@ import {
 	getDate,
 } from './fmtDate';
 
-import { inf } from './utils';
+import {
+	inf,
+	incrRoundUp,
+	round6,
+} from './utils';
 
 //export const series = [];
 
@@ -21,6 +25,7 @@ let s = 1,
 	m = 60,
 	h = m * m,
 	d = h * 24,
+	mo = d * 30,
 	y = d * 365;
 
 const dec = [
@@ -67,7 +72,14 @@ export const timeIncrs = dec.concat([
 	d * 8,
 	d * 9,
 	d * 10,
-	// year divisors
+	d * 15,
+	// year divisors (# months, approx)
+	mo,
+	mo * 2,
+	mo * 3,
+	mo * 4,
+	mo * 6,
+	// century divisors
 	y,
 	y * 2,
 	y * 5,
@@ -78,6 +90,7 @@ export const timeIncrs = dec.concat([
 ]);
 
 const md = '{M}/{D}';
+const MMM = '{MMM}';
 const yr = '{YYYY}';
 const hr = '{h}';
 const mm = ':{mm}';
@@ -87,6 +100,8 @@ const ampm = '{aa}';
 const year = fmtDate(yr);
 const monthDate = fmtDate(md);
 const monthDateYear = fmtDate(md + '\n' + yr);
+const month = fmtDate(MMM);
+const monthYear = fmtDate(MMM + '\n' + yr);
 
 const _hour   = hr +           ampm;
 const _minute = hr + mm +      ampm;
@@ -102,6 +117,8 @@ const hourDate	= fmtDate(_hour   + md2);
 const minDate	= fmtDate(_minute + md2);
 const secDate	= fmtDate(_second + md2);
 
+// TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
+// currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 export function timeAxisVals(vals, space) {
 	let self = this;
 	let incr = vals[1] - vals[0];
@@ -123,6 +140,8 @@ export function timeAxisVals(vals, space) {
 
 		if (incr >= y)
 			stamp = year;
+		else if (incr >= d * 28)
+			stamp = diffYear ? monthYear : month;
 		else if (incr >= d)
 			stamp = diffYear ? monthDateYear : monthDate;
 		else if (incr >= h)
@@ -137,6 +156,47 @@ export function timeAxisVals(vals, space) {
 
 		return stamp(date);
 	});
+}
+
+function mkDate(y, m, d) {
+	return new Date(y, m, d);
+}
+
+// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
+export function getDateTicks(scaleMin, scaleMax, incr) {
+	let ticks = [];
+	let isMo = incr >= mo && incr < y;
+
+	// get the timezone-adjusted date
+	let minDate = this.tzDate(scaleMin);
+	let minDateTs = minDate / 1e3;
+
+	// get ts of 12am (this lands us at or before the original scaleMin)
+	let minMin = mkDate(minDate[getFullYear](), minDate[getMonth](), isMo ? 1 : minDate[getDate]());
+	let minMinTs = minMin / 1e3;
+
+	if (isMo) {
+		let moIncr = incr / mo;
+	//	let tzOffset = scaleMin - minDateTs;		// needed?
+		let tick = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
+		let tickDate = new Date(tick * 1e3);
+		let baseYear = tickDate[getFullYear]();
+		let baseMonth = tickDate[getMonth]();
+
+		for (let i = 0; tick <= scaleMax; i++) {
+			let next = mkDate(baseYear, baseMonth + moIncr * i, 1);
+			ticks.push(tick = next / 1e3);
+		}
+	}
+	else {
+		let tzOffset = scaleMin - minDateTs;
+		let tick = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr);
+
+		for (; tick <= scaleMax; tick += incr)
+			ticks.push(tick);
+	}
+
+	return ticks;
 }
 
 let longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
@@ -175,6 +235,17 @@ export const numIncrs = dec.concat([1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2
 
 export function numAxisVals(vals, space) {
 	return vals;
+}
+
+export function getNumTicks(scaleMin, scaleMax, incr) {
+	scaleMin = round6(incrRoundUp(scaleMin, incr));
+
+	let ticks = [];
+
+	for (let val = scaleMin; val <= scaleMax; val = round6(val + incr))
+		ticks.push(val);
+
+	return ticks;
 }
 
 export function numSeriesVal(val) {
