@@ -1098,6 +1098,7 @@ function Line(opts, data) {
 		axes.forEach(function (axis, i) {
 			var ori = i == 0 ? 0 : 1;
 			var dim = ori == 0 ? WIDTH : HEIGHT;
+			var canDim = ori == 0 ? canCssWidth : canCssHeight;
 			var xDim = ori == 0 ? HEIGHT : WIDTH;
 			var scale = scales[axis.scale];
 
@@ -1112,7 +1113,7 @@ function Line(opts, data) {
 			var min = scale.min;
 			var max = scale.max;
 
-			var ref = findIncr(max - min, axis.incrs, can[dim], axis.space(min, max, can[dim]));
+			var ref = findIncr(max - min, axis.incrs, canDim, axis.space(min, max, canDim));
 			var incr = ref[0];
 			var space = ref[1];
 

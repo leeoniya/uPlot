@@ -614,6 +614,7 @@ export function Line(opts, data) {
 		axes.forEach((axis, i) => {
 			let ori = i == 0 ? 0 : 1;
 			let dim = ori == 0 ? WIDTH : HEIGHT;
+			let canDim = ori == 0 ? canCssWidth : canCssHeight;
 			let xDim = ori == 0 ? HEIGHT : WIDTH;
 			let scale = scales[axis.scale];
 
@@ -627,7 +628,7 @@ export function Line(opts, data) {
 
 			let {min, max} = scale;
 
-			let [incr, space] = findIncr(max - min, axis.incrs, can[dim], axis.space(min, max, can[dim]));
+			let [incr, space] = findIncr(max - min, axis.incrs, canDim, axis.space(min, max, canDim));
 
 			let ticks = axis.ticks.call(self, min, max, incr);
 
