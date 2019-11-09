@@ -775,7 +775,7 @@ export function Line(opts, data) {
 		series[i].alpha = legendLabels[i].style.opacity = value;
 	}
 
-	function _setAlpha(i, value, draw) {
+	function _setAlpha(i, value) {
 		let s = series[i];
 
 		_alpha(i, value);
@@ -785,17 +785,19 @@ export function Line(opts, data) {
 			let ip = series[i+1].band ? i+1 : i-1;
 			_alpha(ip, value);
 		}
-
-		draw && setView(self.i0, self.i1);
 	}
 
-	self.setAlpha = function(idxs, value) {
-		(isArr(idxs) ? idxs : [idxs]).forEach(i => {
-			_setAlpha(i, value, false);
+	function setFocus(i, alpha, doDraw) {
+		series.forEach((s, i2) => {
+			_setAlpha(i2, i == null || i == i2 ? 1 : alpha);
 		});
 
-		setView(self.i0, self.i1);
-	};
+		focused = i;
+
+		doDraw !== false && setView(self.i0, self.i1);
+	}
+
+	self.focus = setFocus;
 
 	const legendLabels = legend.show ? series.map((s, i) => {
 		let label = placeDiv(null, leg);
@@ -894,28 +896,21 @@ export function Line(opts, data) {
 
 			let fi = null;
 
-			for (let i = 0; i < series.length; i++) {
-				let s = series[i];
-
-				_setAlpha(i, 1, false);
-
-				if (minDist <= focus.prox) {
-					if (distsToCursor[i] > minDist)
-						_setAlpha(i, focus.alpha, false);
-					else
-						fi = i;
-				}
+			if (minDist <= focus.prox) {
+				distsToCursor.some((dist, i) => {
+					if (dist == minDist)
+						return fi = i;
+				});
 			}
 
 			// FIXME: this could end up in double redraw since setView() calls updatePointer followed by the same thing that's below
 			// TODO: reuse setView()
 			if (fi != focused) {
+				setFocus(fi, focus.alpha, false);
 				ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 				drawAxesGrid();
 				drawSeries();
 			}
-
-			focused = fi;
 
 			// TODO: pub
 		}
