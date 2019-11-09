@@ -519,6 +519,7 @@ var ySeriesOpts = {
 	scale: "y",
 	show: true,
 	band: false,
+	alpha: 1,
 //	label: "Value",
 //	value: v => v,
 
@@ -1000,6 +1001,8 @@ function Line(opts, data) {
 
 			setCtxStyle(s.color, width, s.dash, s.fill);
 
+			ctx.globalAlpha = s.alpha;
+
 			ctx.translate(offset, offset);
 
 			if (s.band)
@@ -1008,6 +1011,8 @@ function Line(opts, data) {
 				{ ctx.stroke(path); }
 
 			ctx.translate(-offset, -offset);
+
+			ctx.globalAlpha = 1;
 		}
 
 		if (s.band)

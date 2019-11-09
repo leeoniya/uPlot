@@ -269,6 +269,7 @@ export const ySeriesOpts = {
 	scale: "y",
 	show: true,
 	band: false,
+	alpha: 1,
 //	label: "Value",
 //	value: v => v,
 

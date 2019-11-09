@@ -520,6 +520,7 @@ var uPlot = (function (exports) {
 		scale: "y",
 		show: true,
 		band: false,
+		alpha: 1,
 	//	label: "Value",
 	//	value: v => v,
 
@@ -1001,6 +1002,8 @@ var uPlot = (function (exports) {
 
 				setCtxStyle(s.color, width, s.dash, s.fill);
 
+				ctx.globalAlpha = s.alpha;
+
 				ctx.translate(offset, offset);
 
 				if (s.band)
@@ -1009,6 +1012,8 @@ var uPlot = (function (exports) {
 					{ ctx.stroke(path); }
 
 				ctx.translate(-offset, -offset);
+
+				ctx.globalAlpha = 1;
 			}
 
 			if (s.band)
