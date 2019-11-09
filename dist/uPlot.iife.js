@@ -618,7 +618,7 @@ var uPlot = (function (exports) {
 			s.width = s.width || 1;
 		});
 
-		var cursor = assign({}, {show: true}, opts.cursor);
+		var cursor = assign({}, {show: true}, opts.cursor);		// focus: {alpha, prox}
 
 		var dataLen;
 
@@ -1264,23 +1264,27 @@ var uPlot = (function (exports) {
 			series[i].alpha = legendLabels[i].style.opacity = value;
 		}
 
-		function setAlpha(idxs, value) {
+		function _setAlpha(i, value, draw) {
+			var s = series[i];
+
+			_alpha(i, value);
+
+			if (s.band) {
+				// not super robust, will break if two bands are adjacent
+				var ip = series[i+1].band ? i+1 : i-1;
+				_alpha(ip, value);
+			}
+
+			draw && setView(self.i0, self.i1);
+		}
+
+		self.setAlpha = function(idxs, value) {
 			(isArr(idxs) ? idxs : [idxs]).forEach(function (i) {
-				var s = series[i];
-
-				_alpha(i, value);
-
-				if (s.band) {
-					// not super robust, will break if two bands are adjacent
-					var ip = series[i+1].band ? i+1 : i-1;
-					_alpha(ip, value);
-				}
+				_setAlpha(i, value, false);
 			});
 
 			setView(self.i0, self.i1);
-		}
-
-		self.setAlpha = setAlpha;
+		};
 
 		var legendLabels = legend.show ? series.map(function (s, i) {
 			var label = placeDiv(null, leg);
@@ -1321,6 +1325,13 @@ var uPlot = (function (exports) {
 			el.style.transform = "translate(" + xPos + "px," + yPos + "px)";
 		}
 
+		var focus = cursor.focus;
+
+		// y-distance
+		var distsToCursor = Array(series.length);
+
+		var focused = null;
+
 		function updatePointer(pub) {
 			rafPending = false;
 
@@ -1346,8 +1357,12 @@ var uPlot = (function (exports) {
 					if (yPos == null)
 						{ yPos = -10; }
 
+					distsToCursor[i] = yPos > 0 ? abs(yPos - y) : inf;
+
 					trans(cursorPts[i], xPos, yPos);
 				}
+				else
+					{ distsToCursor[i] = inf; }
 
 				if (legend.show)
 					{ legendLabels[i][firstChild].nodeValue = s.label + ': ' + s.value.call(self, data[i][idx]); }
@@ -1362,6 +1377,36 @@ var uPlot = (function (exports) {
 			}
 
 			pub !== false && sync.pub(mousemove, self, x, y, canCssWidth, canCssHeight, idx);
+
+			if (focus) {
+				var minDist = min.apply(null, distsToCursor);
+
+				var fi = null;
+
+				for (var i$1 = 0; i$1 < series.length; i$1++) {
+
+					_setAlpha(i$1, 1, false);
+
+					if (minDist <= focus.prox) {
+						if (distsToCursor[i$1] > minDist)
+							{ _setAlpha(i$1, focus.alpha, false); }
+						else
+							{ fi = i$1; }
+					}
+				}
+
+				// FIXME: this could end up in double redraw since setView() calls updatePointer followed by the same thing that's below
+				// TODO: reuse setView()
+				if (fi != focused) {
+					ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
+					drawAxesGrid();
+					drawSeries();
+				}
+
+				focused = fi;
+
+				// TODO: pub
+			}
 		}
 
 		var x0 = null;

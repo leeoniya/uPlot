@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Cursor Focus</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../bench/style.css">
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			.uplot {
+				margin-top: 40px;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			var loop = 130000;
+
+			let data = [
+				Array(loop),
+				Array(loop),
+				Array(loop),
+				Array(loop),
+			];
+
+			for (var i = 0; i < loop; i++) {
+				let x = 2 * Math.PI * i / loop;
+				let y = Math.sin(x);
+				let y2 = Math.cos(x);
+				let y3 = Math.log(x);
+
+				data[0][i] = x;
+				data[1][i] = y;
+				data[2][i] = y2;
+				data[3][i] = y3;
+			}
+
+			const opts = {
+				width: 882,
+				height: 400,
+				title: "sin(x), cos(x), log(x)",
+				cursor: {
+					focus: {
+						alpha: 0.3,
+						prox: 30,
+					}
+				},
+				scales: {
+					x: {
+						time: false,
+					//	range: [0, 2 * Math.PI],
+					},
+					y: {
+						range: [-2, 2]
+					}
+				},
+				series: {
+					x: {
+						label: "x",
+					},
+					y: [
+						{
+							label: "sin(x)",
+							color: "red",
+							width: 2,
+						},
+						{
+							label: "cos(x)",
+							color: "blue",
+							width: 2,
+						},
+						{
+							label: "log(x)",
+							color: "green",
+							width: 2,
+						}
+					],
+				},
+			};
+
+			let u = new uPlot.Line(opts, data);
+			document.body.appendChild(u.root);
+		</script>
+	</body>
+</html>
