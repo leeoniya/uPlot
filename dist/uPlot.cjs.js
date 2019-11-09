@@ -1259,6 +1259,28 @@ function Line(opts, data) {
 
 	self.toggle = toggle;
 
+	function _alpha(i, value) {
+		series[i].alpha = legendLabels[i].style.opacity = value;
+	}
+
+	function setAlpha(idxs, value) {
+		(isArr(idxs) ? idxs : [idxs]).forEach(function (i) {
+			var s = series[i];
+
+			_alpha(i, value);
+
+			if (s.band) {
+				// not super robust, will break if two bands are adjacent
+				var ip = series[i+1].band ? i+1 : i-1;
+				_alpha(ip, value);
+			}
+		});
+
+		setView(self.i0, self.i1);
+	}
+
+	self.setAlpha = setAlpha;
+
 	var legendLabels = legend.show ? series.map(function (s, i) {
 		var label = placeDiv(null, leg);
 		label.style.color = s.color;
