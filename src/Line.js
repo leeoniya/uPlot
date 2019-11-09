@@ -192,6 +192,9 @@ export function Line(opts, data) {
 
 	const LABEL_HEIGHT = 30;
 
+	// easement for rightmost x label if no right y axis exists
+	let hasRightAxis = false;
+
 	// accumulate axis offsets, reduce canvas width
 	axes.forEach((axis, i) => {
 		let side = axis.side;
@@ -204,6 +207,8 @@ export function Line(opts, data) {
 
 			if (side == 1)
 				plotLft += w;
+			else
+				hasRightAxis = true;
 		}
 		else {
 			let h = axis[HEIGHT] + lab;
@@ -226,6 +231,9 @@ export function Line(opts, data) {
 		axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.distr == 1 ? getDateTicks : getNumTicks));
 		axis.space = fnOrSelf(axis.space);
 	});
+
+	if (!hasRightAxis)
+		canCssWidth -= yAxisOpts.width;
 
 	// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
 	let off1 = fullCssWidth - plotLft;

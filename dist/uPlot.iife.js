@@ -675,6 +675,9 @@ var uPlot = (function (exports) {
 
 		var LABEL_HEIGHT = 30;
 
+		// easement for rightmost x label if no right y axis exists
+		var hasRightAxis = false;
+
 		// accumulate axis offsets, reduce canvas width
 		axes.forEach(function (axis, i) {
 			var side = axis.side;
@@ -687,6 +690,8 @@ var uPlot = (function (exports) {
 
 				if (side == 1)
 					{ plotLft += w; }
+				else
+					{ hasRightAxis = true; }
 			}
 			else {
 				var h = axis[HEIGHT] + lab;
@@ -709,6 +714,9 @@ var uPlot = (function (exports) {
 			axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.distr == 1 ? getDateTicks : getNumTicks));
 			axis.space = fnOrSelf(axis.space);
 		});
+
+		if (!hasRightAxis)
+			{ canCssWidth -= yAxisOpts.width; }
 
 		// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
 		var off1 = fullCssWidth - plotLft;
