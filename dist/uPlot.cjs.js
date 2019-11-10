@@ -1191,13 +1191,19 @@ function Line(opts, data) {
 		});
 	}
 
+	var didPaint;
+
 	function paint() {
+	//	console.log("paint!");
 		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 		drawAxesGrid();
 		drawSeries();
+		didPaint = true;
 	}
 
 	function setView(_i0, _i1) {
+		didPaint = false;
+
 		if (_i0 != self.i0 || _i1 != self.i1)
 			{ resetSeries(); }
 
@@ -1205,8 +1211,9 @@ function Line(opts, data) {
 		self.i1 = _i1;
 
 		setScales();
-		paint();
 		cursor.show && updatePointer();
+		!didPaint && paint();
+		didPaint = false;
 	}
 
 	self.setView = setView;
@@ -1287,13 +1294,14 @@ function Line(opts, data) {
 	var focused = null;
 
 	function setFocus(i, alpha) {
-		series.forEach(function (s, i2) {
-			_setAlpha(i2, i == null || i2 == 0 || i2 == i ? 1 : alpha);
-		});
+		if (i != focused) {
+			series.forEach(function (s, i2) {
+				_setAlpha(i2, i == null || i2 == 0 || i2 == i ? 1 : alpha);
+			});
 
-		focused = i;
-
-		paint();
+			focused = i;
+			paint();
+		}
 	}
 
 	self.focus = setFocus;
@@ -1408,8 +1416,6 @@ function Line(opts, data) {
 				});
 			}
 
-			// FIXME: this results in double paint() during setView() & setDate() calls
-			// since setView() calls both updatePointer() & paint()
 			if (fi != focused)
 				{ setFocus(fi, focus.alpha); }
 
