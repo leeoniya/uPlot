@@ -597,7 +597,7 @@ function Line(opts, data) {
 		var key = s.scale;
 
 		var sc = scales[key] = assign({
-			distr: 1,
+			type: 1,
 			time: i == 0,
 			auto: true,
 			min:  inf,
@@ -709,9 +709,9 @@ function Line(opts, data) {
 		// also set defaults for incrs & values based on axis type
 		var isTime = axis.time;
 
-		axis.incrs = axis.incrs || (isTime && sc.distr == 1 ? timeIncrs : numIncrs);
+		axis.incrs = axis.incrs || (isTime && sc.type == 1 ? timeIncrs : numIncrs);
 		axis.values = axis.values || (isTime ? timeAxisVals : numAxisVals);
-		axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.distr == 1 ? getDateTicks : getNumTicks));
+		axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.type == 1 ? getDateTicks : getNumTicks));
 		axis.space = fnOrSelf(axis.space);
 	});
 
@@ -911,8 +911,8 @@ function Line(opts, data) {
 			// fast-path for x axis, which is assumed ordered ASC and will not get padded
 			if (i == 0) {
 				var minMax = sc.range(
-					sc.distr == 2 ? self.i0 : data[0][self.i0],
-					sc.distr == 2 ? self.i1 : data[0][self.i1]
+					sc.type == 2 ? self.i0 : data[0][self.i0],
+					sc.type == 2 ? self.i1 : data[0][self.i1]
 				);
 				sc.min = s.min = minMax[0];
 				sc.max = s.max = minMax[1];
@@ -1033,7 +1033,7 @@ function Line(opts, data) {
 			prevY, x, y;
 
 		for (var i = dir == 1 ? self.i0 : self.i1; dir == 1 ? i <= self.i1 : i >= self.i0; i += dir) {
-			x = getXPos(scaleX.distr == 2 ? i : xdata[i], scaleX, can[WIDTH]);
+			x = getXPos(scaleX.type == 2 ? i : xdata[i], scaleX, can[WIDTH]);
 			y = getYPos(ydata[i],                         scaleY, can[HEIGHT]);
 
 			if (dir == -1 && i == self.i1)
@@ -1138,7 +1138,7 @@ function Line(opts, data) {
 			// TODO: filter ticks & offsets that will end up off-canvas
 			var canOffs = ticks.map(function (val) { return getPos(val, scale, can[dim]); });		// bit of waste if we're not drawing a grid
 
-			var labels = axis.values.call(self, scale.distr == 2 ? ticks.map(function (i) { return data[0][i]; }) : ticks, space);		// BOO this assumes a specific data/series
+			var labels = axis.values.call(self, scale.type == 2 ? ticks.map(function (i) { return data[0][i]; }) : ticks, space);		// BOO this assumes a specific data/series
 
 			canOffs.forEach(function (off, i) {
 				ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
@@ -1350,7 +1350,7 @@ function Line(opts, data) {
 		var xsc = scales[series[0].scale];
 		var d = xsc.max - xsc.min;
 		var t = xsc.min + pctX * d;
-		var idx = xsc.distr == 2 ? round(t) : closestIdx(t, data[0], self.i0, self.i1);
+		var idx = xsc.type == 2 ? round(t) : closestIdx(t, data[0], self.i0, self.i1);
 		return idx;
 	}
 
@@ -1372,7 +1372,7 @@ function Line(opts, data) {
 
 		var scX = scales[series[0].scale];
 
-		var xPos = getXPos(scX.distr == 2 ? idx : data[0][idx], scX, canCssWidth);
+		var xPos = getXPos(scX.type == 2 ? idx : data[0][idx], scX, canCssWidth);
 
 		for (var i = 0; i < series.length; i++) {
 			var s = series[i];
