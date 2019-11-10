@@ -34,9 +34,8 @@ v1.0 and API stabilization are loosely targetted for sometime before 2020-01-01.
 - [Focus closest series](https://leeoniya.github.io/uPlot/demos/focus-cursor.html)
 - [Data streaming (live update)](https://leeoniya.github.io/uPlot/demos/stream-data.html)
 - [High / Low bands](https://leeoniya.github.io/uPlot/demos/high-low-bands.html)
+- WIP: [Range, point & line annotations](https://github.com/leeoniya/uPlot/issues/27)
 - WIP: [.resize()](https://github.com/leeoniya/uPlot/issues/36)
-- WIP: [.focus()](https://github.com/leeoniya/uPlot/issues/26)
-- WIP: [range, point & line annotations](https://github.com/leeoniya/uPlot/issues/27)
 
 ---
 ### Non-Features
