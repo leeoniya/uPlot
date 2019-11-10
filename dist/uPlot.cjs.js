@@ -1191,6 +1191,12 @@ function Line(opts, data) {
 		});
 	}
 
+	function paint() {
+		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
+		drawAxesGrid();
+		drawSeries();
+	}
+
 	function setView(_i0, _i1) {
 		if (_i0 != self.i0 || _i1 != self.i1)
 			{ resetSeries(); }
@@ -1199,10 +1205,8 @@ function Line(opts, data) {
 		self.i1 = _i1;
 
 		setScales();
-		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
-		drawAxesGrid();
-		drawSeries();
-		updatePointer();
+		paint();
+		cursor.show && updatePointer();
 	}
 
 	self.setView = setView;
@@ -1275,14 +1279,21 @@ function Line(opts, data) {
 		}
 	}
 
-	function setFocus(i, alpha, doDraw) {
+	var focus = cursor.focus;
+
+	// y-distance
+	var distsToCursor = Array(series.length);
+
+	var focused = null;
+
+	function setFocus(i, alpha) {
 		series.forEach(function (s, i2) {
-			_setAlpha(i2, i == null || i == i2 ? 1 : alpha);
+			_setAlpha(i2, i == null || i2 == 0 || i2 == i ? 1 : alpha);
 		});
 
 		focused = i;
 
-		doDraw !== false && setView(self.i0, self.i1);
+		paint();
 	}
 
 	self.focus = setFocus;
@@ -1297,10 +1308,23 @@ function Line(opts, data) {
 			on("click", label, function (e) {
 				filtMouse(e) && toggle(i);
 			});
+
+			if (focus) {
+				on("mouseenter", label, function (e) {
+					setFocus(i, focus.alpha);
+				});
+			}
 		}
 
 		return label;
 	}) : null;
+
+	if (focus) {
+		on("mouseleave", leg, function (e) {
+		//	setFocus(null, 1);
+			updatePointer();
+		});
+	}
 
 	// series-intersection markers
 	var cursorPts = series.map(function (s, i) {
@@ -1325,13 +1349,6 @@ function Line(opts, data) {
 	function trans(el, xPos, yPos) {
 		el.style.transform = "translate(" + xPos + "px," + yPos + "px)";
 	}
-
-	var focus = cursor.focus;
-
-	// y-distance
-	var distsToCursor = Array(series.length);
-
-	var focused = null;
 
 	function updatePointer(pub) {
 		rafPending = false;
@@ -1391,14 +1408,10 @@ function Line(opts, data) {
 				});
 			}
 
-			// FIXME: this could end up in double redraw since setView() calls updatePointer followed by the same thing that's below
-			// TODO: reuse setView()
-			if (fi != focused) {
-				setFocus(fi, focus.alpha, false);
-				ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
-				drawAxesGrid();
-				drawSeries();
-			}
+			// FIXME: this results in double paint() during setView() & setDate() calls
+			// since setView() calls both updatePointer() & paint()
+			if (fi != focused)
+				{ setFocus(fi, focus.alpha); }
 
 			// TODO: pub
 		}
