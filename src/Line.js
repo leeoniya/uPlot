@@ -410,6 +410,13 @@ export function Line(opts, data) {
 	}
 
 	function setScales() {
+		if (inBatch) {
+			shouldSetScales = true;
+			return;
+		}
+
+	//	console.log("setScales()");
+
 		// original scales' min/maxes
 		let minMaxes = {};
 
@@ -706,7 +713,13 @@ export function Line(opts, data) {
 	let didPaint;
 
 	function paint() {
-	//	console.log("paint!");
+		if (inBatch) {
+			shouldPaint = true;
+			return;
+		}
+
+	//	console.log("paint()");
+
 		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 		drawAxesGrid();
 		drawSeries();
@@ -866,11 +879,36 @@ export function Line(opts, data) {
 		return idx;
 	}
 
+	let inBatch = false;
+	let shouldPaint = false;
+	let shouldSetScales = false;
+	let shouldUpdatePointer = false;
+
+	// defers calling expensive functions
+	function batch(fn) {
+		inBatch = true;
+		fn(self);
+		inBatch = false;
+		shouldSetScales && setScales();
+		shouldUpdatePointer && updatePointer();
+		shouldPaint && !didPaint && paint();
+		shouldSetScales = shouldUpdatePointer = shouldPaint = didPaint = inBatch;
+	}
+
+	self.batch = batch;
+
 	function trans(el, xPos, yPos) {
 		el.style.transform = "translate(" + xPos + "px," + yPos + "px)";
 	}
 
 	function updatePointer(pub) {
+		if (inBatch) {
+			shouldUpdatePointer = true;
+			return;
+		}
+
+	//	console.log("updatePointer()");
+
 		rafPending = false;
 
 		if (cursor.show) {
