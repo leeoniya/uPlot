@@ -106,7 +106,7 @@ export function Line(opts, data) {
 	self.axes = splitXY(axes);
 	self.scales = scales;
 
-	const legend = assign({}, {show: true}, opts.legend);
+	const legend = assign({show: true}, opts.legend);
 
 	// set default value
 	series.forEach((s, i) => {
@@ -134,7 +134,7 @@ export function Line(opts, data) {
 		s.width = s.width || 1;
 	});
 
-	const cursor = assign({}, {show: true}, opts.cursor);		// focus: {alpha, prox}
+	const cursor = assign({show: true}, opts.cursor);		// focus: {alpha, prox}
 
 	let dataLen;
 
@@ -775,7 +775,7 @@ export function Line(opts, data) {
 		}
 	}
 
-	function toggle(idxs, onOff) {
+	function toggle(idxs, onOff, pub) {
 		(isArr(idxs) ? idxs : [idxs]).forEach(i => {
 			let s = series[i];
 
@@ -791,6 +791,8 @@ export function Line(opts, data) {
 		});
 
 		setView(self.i0, self.i1);
+
+		pub && sync.pub("toggle", idxs, onOff);
 	}
 
 	self.toggle = toggle;
@@ -818,14 +820,19 @@ export function Line(opts, data) {
 
 	let focused = null;
 
-	function setFocus(i, alpha) {
+	// kill alpha?
+	function setFocus(i, alpha, pub) {
 		if (i != focused) {
+		//	console.log("setFocus()");
+
 			series.forEach((s, i2) => {
 				_setAlpha(i2, i == null || i2 == 0 || i2 == i ? 1 : alpha);
 			});
 
 			focused = i;
 			paint();
+
+			pub && sync.pub("focus", i);
 		}
 	}
 
@@ -839,12 +846,18 @@ export function Line(opts, data) {
 
 		if (i > 0) {
 			on("click", label, e => {
-				filtMouse(e) && toggle(i);
+				if (locked)
+					return;
+
+				filtMouse(e) && toggle(i, null, syncOpts.toggle);
 			});
 
 			if (focus) {
 				on("mouseenter", label, e => {
-					setFocus(i, focus.alpha);
+					if (locked)
+						return;
+
+					setFocus(i, focus.alpha, syncOpts.focus);
 				});
 			}
 		}
@@ -854,6 +867,8 @@ export function Line(opts, data) {
 
 	if (focus) {
 		on("mouseleave", leg, e => {
+			if (locked)
+				return;
 		//	setFocus(null, 1);
 			updatePointer();
 		});
@@ -952,24 +967,23 @@ export function Line(opts, data) {
 			setStylePx(region, WIDTH, maxX - minX);
 		}
 
-		pub !== false && sync.pub(mousemove, self, x, y, canCssWidth, canCssHeight, idx);
+		if (pub !== false) {
+			sync.pub(mousemove, self, x, y, canCssWidth, canCssHeight, idx);
 
-		if (focus) {
-			let minDist = min.apply(null, distsToCursor);
+			if (focus) {
+				let minDist = min.apply(null, distsToCursor);
 
-			let fi = null;
+				let fi = null;
 
-			if (minDist <= focus.prox) {
-				distsToCursor.some((dist, i) => {
-					if (dist == minDist)
-						return fi = i;
-				});
+				if (minDist <= focus.prox) {
+					distsToCursor.some((dist, i) => {
+						if (dist == minDist)
+							return fi = i;
+					});
+				}
+
+				setFocus(fi, focus.alpha, syncOpts.focus);
 			}
-
-			if (fi != focused)
-				setFocus(fi, focus.alpha);
-
-			// TODO: pub
 		}
 	}
 
@@ -1096,6 +1110,12 @@ export function Line(opts, data) {
 	events[mousedown] = mouseDown;
 	events[mouseup] = mouseUp;
 	events[dblclick] = dblClick;
+	events["focus"] = (e, i) => {
+		setFocus(i, focus.alpha);
+	};
+	events["toggle"] = (e, idxs, onOff) => {
+		toggle(idxs, onOff);
+	};
 
 	for (let ev in events)
 		ev != mouseup && on(ev, can, events[ev]);
@@ -1107,9 +1127,15 @@ export function Line(opts, data) {
 
 	self.root = root;
 
-	let syncKey = cursor.sync;
+	const syncOpts = assign({
+		key: null,
+		toggle: false,
+		focus: false,
+	}, cursor.sync);
 
-	let sync = syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync();
+	const syncKey = syncOpts.key;
+
+	const sync = syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync();
 
 	sync.sub(self);
 

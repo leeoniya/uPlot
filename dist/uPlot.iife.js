@@ -590,7 +590,7 @@ var uPlot = (function (exports) {
 		self.axes = splitXY(axes);
 		self.scales = scales;
 
-		var legend = assign({}, {show: true}, opts.legend);
+		var legend = assign({show: true}, opts.legend);
 
 		// set default value
 		series.forEach(function (s, i) {
@@ -618,7 +618,7 @@ var uPlot = (function (exports) {
 			s.width = s.width || 1;
 		});
 
-		var cursor = assign({}, {show: true}, opts.cursor);		// focus: {alpha, prox}
+		var cursor = assign({show: true}, opts.cursor);		// focus: {alpha, prox}
 
 		var dataLen;
 
@@ -1264,7 +1264,7 @@ var uPlot = (function (exports) {
 			}
 		}
 
-		function toggle(idxs, onOff) {
+		function toggle(idxs, onOff, pub) {
 			(isArr(idxs) ? idxs : [idxs]).forEach(function (i) {
 				var s = series[i];
 
@@ -1280,6 +1280,8 @@ var uPlot = (function (exports) {
 			});
 
 			setView(self.i0, self.i1);
+
+			pub && sync.pub("toggle", idxs, onOff);
 		}
 
 		self.toggle = toggle;
@@ -1307,14 +1309,19 @@ var uPlot = (function (exports) {
 
 		var focused = null;
 
-		function setFocus(i, alpha) {
+		// kill alpha?
+		function setFocus(i, alpha, pub) {
 			if (i != focused) {
+			//	console.log("setFocus()");
+
 				series.forEach(function (s, i2) {
 					_setAlpha(i2, i == null || i2 == 0 || i2 == i ? 1 : alpha);
 				});
 
 				focused = i;
 				paint();
+
+				pub && sync.pub("focus", i);
 			}
 		}
 
@@ -1328,12 +1335,18 @@ var uPlot = (function (exports) {
 
 			if (i > 0) {
 				on("click", label, function (e) {
-					filtMouse(e) && toggle(i);
+					if (locked)
+						{ return; }
+
+					filtMouse(e) && toggle(i, null, syncOpts.toggle);
 				});
 
 				if (focus) {
 					on("mouseenter", label, function (e) {
-						setFocus(i, focus.alpha);
+						if (locked)
+							{ return; }
+
+						setFocus(i, focus.alpha, syncOpts.focus);
 					});
 				}
 			}
@@ -1343,6 +1356,8 @@ var uPlot = (function (exports) {
 
 		if (focus) {
 			on("mouseleave", leg, function (e) {
+				if (locked)
+					{ return; }
 			//	setFocus(null, 1);
 				updatePointer();
 			});
@@ -1441,24 +1456,23 @@ var uPlot = (function (exports) {
 				setStylePx(region, WIDTH, maxX - minX);
 			}
 
-			pub !== false && sync.pub(mousemove, self, x, y, canCssWidth, canCssHeight, idx);
+			if (pub !== false) {
+				sync.pub(mousemove, self, x, y, canCssWidth, canCssHeight, idx);
 
-			if (focus) {
-				var minDist = min.apply(null, distsToCursor);
+				if (focus) {
+					var minDist = min.apply(null, distsToCursor);
 
-				var fi = null;
+					var fi = null;
 
-				if (minDist <= focus.prox) {
-					distsToCursor.some(function (dist, i) {
-						if (dist == minDist)
-							{ return fi = i; }
-					});
+					if (minDist <= focus.prox) {
+						distsToCursor.some(function (dist, i) {
+							if (dist == minDist)
+								{ return fi = i; }
+						});
+					}
+
+					setFocus(fi, focus.alpha, syncOpts.focus);
 				}
-
-				if (fi != focused)
-					{ setFocus(fi, focus.alpha); }
-
-				// TODO: pub
 			}
 		}
 
@@ -1585,6 +1599,12 @@ var uPlot = (function (exports) {
 		events[mousedown] = mouseDown;
 		events[mouseup] = mouseUp;
 		events[dblclick] = dblClick;
+		events["focus"] = function (e, i) {
+			setFocus(i, focus.alpha);
+		};
+		events["toggle"] = function (e, idxs, onOff) {
+			toggle(idxs, onOff);
+		};
 
 		for (var ev in events)
 			{ ev != mouseup && on(ev, can, events[ev]); }
@@ -1596,7 +1616,13 @@ var uPlot = (function (exports) {
 
 		self.root = root;
 
-		var syncKey = cursor.sync;
+		var syncOpts = assign({
+			key: null,
+			toggle: false,
+			focus: false,
+		}, cursor.sync);
+
+		var syncKey = syncOpts.key;
 
 		var sync = syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync();
 

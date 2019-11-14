@@ -51,97 +51,157 @@
 					data[3][j] = packed[i+3];
 				}
 
-				data[0] = data[0].slice(0, 1000);
-				data[1] = data[1].slice(0, 1000);
-				data[2] = data[2].slice(0, 1000);
-				data[3] = data[3].slice(0, 1000);
+				let _d = [
+					[
+						data[0].slice(0, 1000),
+						data[1].slice(0, 1000),			// CPU1
+						data[1].slice(1000, 2000),		// CPU2
+						data[1].slice(2000, 3000),		// CPU3
+					],
+					[
+						data[0].slice(0, 1000),
+						data[2].slice(0, 1000),			// RAM1
+						data[2].slice(1000, 2000),		// RAM2
+						data[2].slice(2000, 3000),		// RAM3
+					],
+					[
+						data[0].slice(0, 1000),
+						data[3].slice(0, 1000),			// TCP1
+						data[3].slice(1000, 2000),		// TCP2
+						data[3].slice(2000, 3000),		// TCP3
+					],
+				];
 
 				console.timeEnd('prep');
 
-				return data;
+				return _d;
 			}
 
 			function makeChart(data) {
 				console.time('chart');
 
-				const opts = {
-					width: 1120,
-					height: 800,
-					cursor: {
-						sync: "moo",
+				const cursorOpts = {
+					focus: {
+						prox: 16,
+						alpha: 0.3,
 					},
+					sync: {
+						key: "moo",
+						toggle: true,
+						focus: true,
+					},
+				};
+
+				const opts = {
+					title: "CPU",
+					width: 1920,
+					height: 400,
+					cursor: cursorOpts,
 					series: {
 						y: [
 							{
-								label: "RAM",
-								scale: "%",
+								label: "CPU 1",
 								value: v => v == null ? "-" : v.toFixed(1) + "%",
-								color: "blue",
+								color: "red",
 							},
 							{
-								label: "TCP Out",
-								scale: "mb",
-								value: v => v == null ? "-" : v.toFixed(2) + " MB",
+								label: "CPU 2",
+								value: v => v == null ? "-" : v.toFixed(1) + "%",
 								color: "green",
+							},
+							{
+								label: "CPU 3",
+								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								color: "blue",
 							}
 						],
 					},
 					axes: {
 						y: [
 							{
-								scale: '%',
 								values: (vals, space) => vals.map(v => +v.toFixed(1) + "%"),
-							},
-							{
-								side: 3,
-								scale: 'mb',
-								values: (vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
-								grid: null,
 							},
 						],
 					}
 				};
 
-				let uplot1 = new uPlot.Line(opts, [
-					data[0],
-					data[2],
-					data[3],
-				]);
+				let uplot1 = new uPlot.Line(opts, data[0]);
 
 				document.body.appendChild(uplot1.root);
 
 				const opts2 = {
-					width: 800,
-					height: 600,
-					cursor: {
-						sync: "moo",
-					},
+					title: "RAM",
+					width: 950,
+					height: 400,
+					cursor: cursorOpts,
 					series: {
 						y: [
 							{
-								label: "CPU",
-								scale: "%",
+								label: "RAM 1",
 								value: v => v == null ? "-" : v.toFixed(1) + "%",
 								color: "red",
 							},
+							{
+								label: "RAM 2",
+								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								color: "green",
+							},
+							{
+								label: "RAM 3",
+								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								color: "blue",
+							}
 						],
 					},
 					axes: {
 						y: [
 							{
-								scale: '%',
 								values: (vals, space) => vals.map(v => +v.toFixed(1) + "%"),
 							},
 						],
 					}
 				};
 
-				let uplot2 = new uPlot.Line(opts2, [
-					data[0],
-					data[1],
-				]);
+				let uplot2 = new uPlot.Line(opts2, data[1]);
 
 				document.body.appendChild(uplot2.root);
+
+				const opts3 = {
+					title: "TCP",
+					width: 950,
+					height: 400,
+					cursor: cursorOpts,
+					series: {
+						y: [
+							{
+								label: "TCP 1",
+								value: v => v == null ? "-" : v.toFixed(1) + " MB",
+								color: "red",
+							},
+							{
+								label: "TCP 2",
+								value: v => v == null ? "-" : v.toFixed(1) + " MB",
+								color: "green",
+							},
+							{
+								label: "TCP 3",
+								value: v => v == null ? "-" : v.toFixed(1) + " MB",
+								color: "blue",
+							}
+						],
+					},
+					axes: {
+						y: [
+							{
+								values: (vals, space) => vals.map(v => +v.toFixed(1) + " MB"),
+							},
+						],
+					}
+				};
+
+				let uplot3 = new uPlot.Line(opts3, data[2]);
+
+				document.body.appendChild(uplot3.root);
 
 				wait.textContent = "Done!";
 				console.timeEnd('chart');
