@@ -985,23 +985,22 @@ export function Line(opts, data) {
 	}
 
 	function mouseMove(e, src, _x, _y, _w, _h, _i) {
+		if (locked)
+			return;
+
 		if (rect == null)
 			syncRect();
 
-		if (e != null) {
-			x = e.clientX - rect.left;
-			y = e.clientY - rect.top;
+		syncPos(e, src, _x, _y, _w, _h, _i, false);
 
+		if (e != null) {
 			if (!rafPending) {
 				rafPending = true;
 				rAF(updatePointer);
 			}
 		}
-		else {
-			x = canCssWidth * (_x/_w);
-			y = canCssHeight * (_y/_h);
+		else
 			updatePointer(false);
-		}
 	}
 
 	const evOpts = {passive: true};
@@ -1014,27 +1013,46 @@ export function Line(opts, data) {
 		el.removeEventListener(ev, cb, evOpts);
 	}
 
+	function syncPos(e, src, _x, _y, _w, _h, _i, initial) {
+		if (e != null) {
+			_x = e.clientX - rect.left;
+			_y = e.clientY - rect.top;
+		}
+		else {
+			_x = canCssWidth * (_x/_w);
+			_y = canCssHeight * (_y/_h);
+		}
+
+		if (initial) {
+			x0 = _x;
+			y0 = _y;
+		}
+		else {
+			x = _x;
+			y = _y;
+		}
+	}
+
 	function mouseDown(e, src, _x, _y, _w, _h, _i) {
 		if (e == null || filtMouse(e)) {
 			dragging = true;
 
-			if (e != null) {
-				x0 = e.clientX - rect.left;
-				y0 = e.clientY - rect.top;
+			syncPos(e, src, _x, _y, _w, _h, _i, true);
 
+			if (e != null) {
 				on(mouseup, doc, mouseUp);
 				sync.pub(mousedown, self, x0, y0, canCssWidth, canCssHeight, null);
-			}
-			else {
-				x0 = canCssWidth * (_x/_w);
-				y0 = canCssHeight * (_y/_h);
 			}
 		}
 	}
 
+	let locked = false;
+
 	function mouseUp(e, src, _x, _y, _w, _h, _i) {
-		if ((e == null || filtMouse(e)) && dragging) {
+		if ((e == null || filtMouse(e))) {
 			dragging = false;
+
+			syncPos(e, src, _x, _y, _w, _h, _i, false);
 
 			if (x != x0 || y != y0) {
 				setStylePx(region, LEFT, 0);
@@ -1047,6 +1065,12 @@ export function Line(opts, data) {
 					closestIdxFromXpos(minX),
 					closestIdxFromXpos(maxX),
 				);
+			}
+			else {
+				locked = !locked
+
+				if (!locked)
+					updatePointer();
 			}
 
 			if (e != null) {
