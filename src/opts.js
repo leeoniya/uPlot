@@ -238,8 +238,8 @@ export function numAxisVals(vals, space) {
 	return vals;
 }
 
-export function getNumTicks(scaleMin, scaleMax, incr) {
-	scaleMin = round6(incrRoundUp(scaleMin, incr));
+export function getNumTicks(scaleMin, scaleMax, incr, forceMin) {
+	scaleMin = forceMin ? scaleMin : round6(incrRoundUp(scaleMin, incr));
 
 	let ticks = [];
 

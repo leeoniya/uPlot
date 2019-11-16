@@ -659,7 +659,10 @@ export function Line(opts, data) {
 
 			let [incr, space] = findIncr(max - min, axis.incrs, canDim, axis.space(min, max, canDim));
 
-			let ticks = axis.ticks.call(self, min, max, incr);
+			// if we're using index positions, force first tick to match passed index
+			let forceMin = scale.type == 2;
+
+			let ticks = axis.ticks.call(self, min, max, incr, forceMin);
 
 			let getPos = ori == 0 ? getXPos : getYPos;
 			let cssProp = ori == 0 ? LEFT : TOP;

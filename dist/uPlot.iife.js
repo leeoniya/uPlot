@@ -493,8 +493,8 @@ var uPlot = (function (exports) {
 		return vals;
 	}
 
-	function getNumTicks(scaleMin, scaleMax, incr) {
-		scaleMin = round6(incrRoundUp(scaleMin, incr));
+	function getNumTicks(scaleMin, scaleMax, incr, forceMin) {
+		scaleMin = forceMin ? scaleMin : round6(incrRoundUp(scaleMin, incr));
 
 		var ticks = [];
 
@@ -1152,7 +1152,10 @@ var uPlot = (function (exports) {
 				var incr = ref[0];
 				var space = ref[1];
 
-				var ticks = axis.ticks.call(self, min, max, incr);
+				// if we're using index positions, force first tick to match passed index
+				var forceMin = scale.type == 2;
+
+				var ticks = axis.ticks.call(self, min, max, incr, forceMin);
 
 				var getPos = ori == 0 ? getXPos : getYPos;
 				var cssProp = ori == 0 ? LEFT : TOP;
