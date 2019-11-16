@@ -439,8 +439,9 @@ function getDateTicks(scaleMin, scaleMax, incr) {
 		}
 	}
 	else {
+		var incr0 = incr >= d ? d : incr >= h ? h : incr >= m ? m : 1;
 		var tzOffset = scaleMin - minDateTs;
-		var tick$1 = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr);
+		var tick$1 = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
 
 		for (; tick$1 <= scaleMax; tick$1 += incr)
 			{ ticks.push(tick$1); }

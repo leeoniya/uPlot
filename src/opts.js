@@ -189,8 +189,9 @@ export function getDateTicks(scaleMin, scaleMax, incr) {
 		}
 	}
 	else {
+		let incr0 = incr >= d ? d : incr >= h ? h : incr >= m ? m : 1;
 		let tzOffset = scaleMin - minDateTs;
-		let tick = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr);
+		let tick = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
 
 		for (; tick <= scaleMax; tick += incr)
 			ticks.push(tick);
