@@ -58,6 +58,10 @@ export function incrRound() {
 }
 */
 
+export function clamp(num, _min, _max) {
+	return min(max(num, _min), _max);
+}
+
 export function fnOrSelf(v) {
 	return typeof v == "function" ? v : () => v;
 }

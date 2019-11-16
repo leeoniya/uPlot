@@ -195,6 +195,10 @@ export function incrRound() {
 }
 */
 
+function clamp(num, _min, _max) {
+	return min(max(num, _min), _max);
+}
+
 function fnOrSelf(v) {
 	return typeof v == "function" ? v : function () { return v; };
 }
@@ -1384,7 +1388,7 @@ function Line(opts, data) {
 	var rafPending = false;
 
 	function closestIdxFromXpos(x) {
-		var pctX = x / canCssWidth;
+		var pctX = clamp(x / canCssWidth, 0, 1);
 		var xsc = scales[series[0].scale];
 		var d = xsc.max - xsc.min;
 		var t = xsc.min + pctX * d;

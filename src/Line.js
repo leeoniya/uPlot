@@ -19,6 +19,7 @@ import {
 	ceil,
 	min,
 	max,
+	clamp,
 	pow,
 	log10,
 	debounce,
@@ -895,7 +896,7 @@ export function Line(opts, data) {
 	let rafPending = false;
 
 	function closestIdxFromXpos(x) {
-		let pctX = x / canCssWidth;
+		let pctX = clamp(x / canCssWidth, 0, 1);
 		let xsc = scales[series[0].scale];
 		let d = xsc.max - xsc.min;
 		let t = xsc.min + pctX * d;
