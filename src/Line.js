@@ -529,8 +529,17 @@ export function Line(opts, data) {
 
 			if (s.band)
 				ctx.fill(path);
-			else
+			else {
 				ctx.stroke(path);
+
+				if (s.fill != null) {
+					let zeroY = getYPos(0, scales[s.scale], can[HEIGHT]);
+
+					path.lineTo(can[WIDTH], zeroY);
+					path.lineTo(0, zeroY);
+					ctx.fill(path);
+				}
+			}
 
 			ctx.translate(-offset, -offset);
 
@@ -556,7 +565,7 @@ export function Line(opts, data) {
 
 		for (let i = dir == 1 ? self.i0 : self.i1; dir == 1 ? i <= self.i1 : i >= self.i0; i += dir) {
 			x = getXPos(scaleX.type == 2 ? i : xdata[i], scaleX, can[WIDTH]);
-			y = getYPos(ydata[i],                         scaleY, can[HEIGHT]);
+			y = getYPos(ydata[i],                        scaleY, can[HEIGHT]);
 
 			if (dir == -1 && i == self.i1)
 				path.lineTo(x, y);

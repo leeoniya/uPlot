@@ -25,7 +25,7 @@ v1.0 and API stabilization are loosely targetted for sometime before 2020-01-01.
 - Multiple series w/toggle
 - Multiple y-axes, scales & grids
 - Temporal or numeric x-axis
-- Line styles (color, width, dash)
+- Line & Area styles (color, fill, width, dash)
 - Zoom with auto-rescale
 - Legend with live values
 - Support for [IANA Time Zone Names](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
@@ -45,7 +45,7 @@ In order to stay lean, fast and focused the following features will not be added
 - No data parsing, aggregation, summation or statistical processing - just do it in advance. e.g. https://simplestatistics.org/, https://www.papaparse.com/
 - No transitions or animations - they're always pure distractions.
 - No DOM measuring; uPlot does not know how much space your dynamic labels & values will occupy, so requires explicit sizing and/or some CSS authoring.
-- No [area fills](https://www.chartphp.com/wp-content/uploads/area.png), [stacked series](https://everydayanalytics.ca/2014/08/stacked-area-graphs-are-not-your-friend.html) or [line smoothing](http://www.vizwiz.com/2011/12/when-you-use-smoothed-line-chart-your.html). See links for how these are each terrible at actually communicating information.
+- No [stacked series](https://everydayanalytics.ca/2014/08/stacked-area-graphs-are-not-your-friend.html) or [line smoothing](http://www.vizwiz.com/2011/12/when-you-use-smoothed-line-chart-your.html). See links for how these are each terrible at actually communicating information.
 - Probably no drag scrolling/panning. Maintaining good perf with huge datasets would require a lot of extra code & multiple `<canvas>` elements to avoid continuous redraw and rescaling on each dragged pixel. However, since uPlot's performance allows rendering of very wide canvases, they can be scrolled naturally with CSS's `overflow-x: auto` applied to a narrower containing element. Pagination of data also works well.
 
 ---
