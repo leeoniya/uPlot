@@ -189,7 +189,7 @@ export function getDateTicks(scaleMin, scaleMax, incr) {
 		}
 	}
 	else {
-		let incr0 = incr >= d ? d : incr >= h ? h : incr >= m ? m : 1;
+		let incr0 = incr >= d ? d : incr;
 		let tzOffset = scaleMin - minDateTs;
 		let tick = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
 
