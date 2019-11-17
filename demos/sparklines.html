@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Sparklines</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../bench/style.css">
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			th {
+				text-align: right;
+			}
+
+			#heading {
+				text-align: center;
+				padding-bottom: 10px;
+			}
+
+			th canvas {
+				display: block;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.1.0/papaparse.min.js"></script>
+		<script src="../dist/uPlot.iife.js"></script>
+		<table id="stocks">
+			<tr>
+				<th colspan="3" id="heading">Sparklines</th>
+			</tr>
+		</table>
+		<script>
+			let table = document.getElementById("stocks");
+
+			let syms = ["AAPL","AMD","AMZN","CSCO","FB","MSFT","QCOM","SBUX","TSLA","ZNGA"];
+
+			let proms = syms.map(sym =>
+				fetch("./data/" + sym + ".csv").then(r => r.text()).then(csv =>
+					Papa.parse(csv, {
+						delimiter: ", ",
+						skipEmptyLines: true,
+					})
+				)
+			);
+
+			Promise.all(proms).then(parsed => {
+				parsed.forEach((recs, i) => {
+					let tr = document.createElement("tr");
+					let th = document.createElement("th");
+					th.textContent = syms[i];
+					tr.appendChild(th);
+
+					recs.data.shift();
+
+					// volume
+					let x = [];
+					let y = [];
+
+					recs.data.forEach((r, i) => {
+						x.push(i);
+						y.push(+r[2]);
+					});
+
+					let td = document.createElement("td");
+					let can = makeSpark([x, y]).root.querySelector("canvas");
+					td.appendChild(can);
+					tr.appendChild(td);
+
+					// close
+					x = [];
+					y = [];
+
+					recs.data.forEach((r, i) => {
+						x.push(i);
+						y.push(+r[1].slice(1));
+					});
+
+					td = document.createElement("td");
+					can = makeSpark([x, y]).root.querySelector("canvas");
+					td.appendChild(can);
+					tr.appendChild(td);
+
+					table.appendChild(tr);
+				});
+			});
+
+			function makeSpark(data) {
+				const opts = {
+					width: 100,
+					height: 20,
+					class: "spark",
+					cursor: {
+						show: false
+					},
+					legend: {
+						show: false,
+					},
+					scales: {
+						x: {
+							time: false,
+						},
+					},
+					axes: {
+						x: {
+							show: false,
+						},
+						y: [
+							{
+								show: false,
+							}
+						]
+					},
+					series: {
+						y: [
+							{
+								color: "#03a9f4",
+								fill: "#b3e5fc",
+							},
+						],
+					},
+				};
+
+				let u = new uPlot.Line(opts, data);
+				return u;
+			}
+		</script>
+	</body>
+</html>
