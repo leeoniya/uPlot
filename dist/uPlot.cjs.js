@@ -461,7 +461,7 @@ function timeSeriesVal(val) {
 }
 
 var xAxisOpts = {
-//	type: "t",		// t, n
+	show: true,
 	scale: 'x',
 	space: 50,
 	height: 53,
@@ -508,7 +508,7 @@ function numSeriesVal(val) {
 }
 
 var yAxisOpts = {
-//	type: "n",		// t, n
+	show: true,
 	scale: 'y',
 	space: 40,
 	width: 50,
@@ -622,7 +622,7 @@ function Line(opts, data) {
 		s.width = s.width || 1;
 	});
 
-	var cursor = assign({show: true}, opts.cursor);		// focus: {alpha, prox}
+	var cursor = assign({show: true, cross: true}, opts.cursor);		// focus: {alpha, prox}
 
 	var dataLen;
 
@@ -682,9 +682,13 @@ function Line(opts, data) {
 
 	// easement for rightmost x label if no right y axis exists
 	var hasRightAxis = false;
+	var hasLeftAxis = false;
 
 	// accumulate axis offsets, reduce canvas width
 	axes.forEach(function (axis, i) {
+		if (!axis.show)
+			{ return; }
+
 		var side = axis.side;
 		var isVt = side % 2;
 		var lab = axis.label != null ? LABEL_HEIGHT : 0;
@@ -693,8 +697,10 @@ function Line(opts, data) {
 			var w = axis[WIDTH] + lab;
 			canCssWidth -= w;
 
-			if (side == 1)
-				{ plotLft += w; }
+			if (side == 1) {
+				plotLft += w;
+				hasLeftAxis = true;
+			}
 			else
 				{ hasRightAxis = true; }
 		}
@@ -720,8 +726,14 @@ function Line(opts, data) {
 		axis.space = fnOrSelf(axis.space);
 	});
 
-	if (!hasRightAxis)
-		{ canCssWidth -= yAxisOpts.width; }
+	if (hasLeftAxis || hasRightAxis) {
+		if (!hasRightAxis)
+			{ canCssWidth -= yAxisOpts[WIDTH]; }
+		if (!hasLeftAxis) {
+			canCssWidth -= yAxisOpts[WIDTH];
+			plotLft += yAxisOpts[WIDTH];
+		}
+	}
 
 	// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
 	var off1 = fullCssWidth - plotLft;
@@ -779,6 +791,9 @@ function Line(opts, data) {
 
 	// init axis containers, set axis positions
 	axes.forEach(function (axis, i) {
+		if (!axis.show)
+			{ return; }
+
 		axis.vals = placeAxis(axis, "values");
 
 		if (axis.label != null) {
@@ -1130,6 +1145,9 @@ function Line(opts, data) {
 
 	function drawAxesGrid() {
 		axes.forEach(function (axis, i) {
+			if (!axis.show)
+				{ return; }
+
 			var ori = i == 0 ? 0 : 1;
 			var dim = ori == 0 ? WIDTH : HEIGHT;
 			var canDim = ori == 0 ? canCssWidth : canCssHeight;
@@ -1256,17 +1274,16 @@ function Line(opts, data) {
 	var x = null;
 	var y = null;
 
-	if (cursor.show) {
+	if (cursor.show && cursor.cross) {
 		vt = placeDiv("vt", plot);
 		hz = placeDiv("hz", plot);
 		x = canCssWidth/2;
 		y = canCssHeight/2;
 	}
 
-	// zoom region
-	var region = placeDiv("region", plot);
+	var zoom = cursor.show ? placeDiv("zoom", plot) : null;
 
-	var leg = placeDiv("legend", root);
+	var leg = legend.show ? placeDiv("legend", root) : null;
 
 	function toggleDOM(i, onOff) {
 		var s = series[i];
@@ -1276,7 +1293,7 @@ function Line(opts, data) {
 			{ label[classList].remove("off"); }
 		else {
 			label[classList].add("off");
-			trans(cursorPts[i], 0, -10);
+			cursor.show && trans(cursorPts[i], 0, -10);
 		}
 	}
 
@@ -1380,13 +1397,13 @@ function Line(opts, data) {
 	}
 
 	// series-intersection markers
-	var cursorPts = series.map(function (s, i) {
+	var cursorPts = cursor.show ? series.map(function (s, i) {
 		if (i > 0 && s.show) {
 			var pt = placeDiv("point", plot);
 			pt.style.background = s.color;
 			return pt;
 		}
-	});
+	}) : null;
 
 	var rafPending = false;
 
@@ -1431,7 +1448,7 @@ function Line(opts, data) {
 
 		rafPending = false;
 
-		if (cursor.show) {
+		if (cursor.show && cursor.cross) {
 			trans(vt,x,0);
 			trans(hz,0,y);
 		}
@@ -1455,7 +1472,7 @@ function Line(opts, data) {
 
 				distsToCursor[i] = yPos > 0 ? abs(yPos - y) : inf;
 
-				trans(cursorPts[i], xPos, yPos);
+				cursor.show && trans(cursorPts[i], xPos, yPos);
 			}
 			else
 				{ distsToCursor[i] = inf; }
@@ -1468,8 +1485,8 @@ function Line(opts, data) {
 			var minX = min(x0, x);
 			var maxX = max(x0, x);
 
-			setStylePx(region, LEFT, minX);
-			setStylePx(region, WIDTH, maxX - minX);
+			setStylePx(zoom, LEFT, minX);
+			setStylePx(zoom, WIDTH, maxX - minX);
 		}
 
 		if (pub !== false) {
@@ -1574,8 +1591,8 @@ function Line(opts, data) {
 			syncPos(e, src, _x, _y, _w, _h, _i, false);
 
 			if (x != x0 || y != y0) {
-				setStylePx(region, LEFT, 0);
-				setStylePx(region, WIDTH, 0);
+				setStylePx(zoom, LEFT, 0);
+				setStylePx(zoom, WIDTH, 0);
 
 				var minX = min(x0, x);
 				var maxX = max(x0, x);
@@ -1611,8 +1628,8 @@ function Line(opts, data) {
 
 	var events = {};
 
-	events[mousemove] = mouseMove;
 	events[mousedown] = mouseDown;
+	events[mousemove] = mouseMove;
 	events[mouseup] = mouseUp;
 	events[dblclick] = dblClick;
 	events["focus"] = function (e, i) {
@@ -1622,13 +1639,16 @@ function Line(opts, data) {
 		toggle(idxs, onOff);
 	};
 
-	for (var ev in events)
-		{ ev != mouseup && on(ev, can, events[ev]); }
+	if (cursor.show) {
+		on(mousedown, can, mouseDown);
+		on(mousemove, can, mouseMove);
+		on(dblclick, can, dblClick);
 
-	var deb = debounce(syncRect, 100);
+		var deb$1 = debounce(syncRect, 100);
 
-	on(resize, win, deb);
-	on(scroll, win, deb);
+		on(resize, win, deb$1);
+		on(scroll, win, deb$1);
+	}
 
 	self.root = root;
 

@@ -135,7 +135,7 @@ export function Line(opts, data) {
 		s.width = s.width || 1;
 	});
 
-	const cursor = assign({show: true}, opts.cursor);		// focus: {alpha, prox}
+	const cursor = assign({show: true, cross: true}, opts.cursor);		// focus: {alpha, prox}
 
 	let dataLen;
 
@@ -195,9 +195,13 @@ export function Line(opts, data) {
 
 	// easement for rightmost x label if no right y axis exists
 	let hasRightAxis = false;
+	let hasLeftAxis = false;
 
 	// accumulate axis offsets, reduce canvas width
 	axes.forEach((axis, i) => {
+		if (!axis.show)
+			return;
+
 		let side = axis.side;
 		let isVt = side % 2;
 		let lab = axis.label != null ? LABEL_HEIGHT : 0;
@@ -206,8 +210,10 @@ export function Line(opts, data) {
 			let w = axis[WIDTH] + lab;
 			canCssWidth -= w;
 
-			if (side == 1)
+			if (side == 1) {
 				plotLft += w;
+				hasLeftAxis = true;
+			}
 			else
 				hasRightAxis = true;
 		}
@@ -233,8 +239,14 @@ export function Line(opts, data) {
 		axis.space = fnOrSelf(axis.space);
 	});
 
-	if (!hasRightAxis)
-		canCssWidth -= yAxisOpts.width;
+	if (hasLeftAxis || hasRightAxis) {
+		if (!hasRightAxis)
+			canCssWidth -= yAxisOpts[WIDTH];
+		if (!hasLeftAxis) {
+			canCssWidth -= yAxisOpts[WIDTH];
+			plotLft += yAxisOpts[WIDTH];
+		}
+	}
 
 	// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
 	let off1 = fullCssWidth - plotLft;
@@ -292,6 +304,9 @@ export function Line(opts, data) {
 
 	// init axis containers, set axis positions
 	axes.forEach((axis, i) => {
+		if (!axis.show)
+			return;
+
 		axis.vals = placeAxis(axis, "values");
 
 		if (axis.label != null) {
@@ -641,6 +656,9 @@ export function Line(opts, data) {
 
 	function drawAxesGrid() {
 		axes.forEach((axis, i) => {
+			if (!axis.show)
+				return;
+
 			let ori = i == 0 ? 0 : 1;
 			let dim = ori == 0 ? WIDTH : HEIGHT;
 			let canDim = ori == 0 ? canCssWidth : canCssHeight;
@@ -764,17 +782,16 @@ export function Line(opts, data) {
 	let x = null;
 	let y = null;
 
-	if (cursor.show) {
+	if (cursor.show && cursor.cross) {
 		vt = placeDiv("vt", plot);
 		hz = placeDiv("hz", plot);
 		x = canCssWidth/2;
 		y = canCssHeight/2;
 	}
 
-	// zoom region
-	const region = placeDiv("region", plot);
+	const zoom = cursor.show ? placeDiv("zoom", plot) : null;
 
-	const leg = placeDiv("legend", root);
+	const leg = legend.show ? placeDiv("legend", root) : null;
 
 	function toggleDOM(i, onOff) {
 		let s = series[i];
@@ -784,7 +801,7 @@ export function Line(opts, data) {
 			label[classList].remove("off")
 		else {
 			label[classList].add("off");
-			trans(cursorPts[i], 0, -10)
+			cursor.show && trans(cursorPts[i], 0, -10)
 		}
 	}
 
@@ -888,13 +905,13 @@ export function Line(opts, data) {
 	}
 
 	// series-intersection markers
-	const cursorPts = series.map((s, i) => {
+	const cursorPts = cursor.show ? series.map((s, i) => {
 		if (i > 0 && s.show) {
 			let pt = placeDiv("point", plot);
 			pt.style.background = s.color;
 			return pt;
 		}
-	});
+	}) : null;
 
 	let rafPending = false;
 
@@ -939,7 +956,7 @@ export function Line(opts, data) {
 
 		rafPending = false;
 
-		if (cursor.show) {
+		if (cursor.show && cursor.cross) {
 			trans(vt,x,0);
 			trans(hz,0,y);
 		}
@@ -963,7 +980,7 @@ export function Line(opts, data) {
 
 				distsToCursor[i] = yPos > 0 ? abs(yPos - y) : inf;
 
-				trans(cursorPts[i], xPos, yPos);
+				cursor.show && trans(cursorPts[i], xPos, yPos);
 			}
 			else
 				distsToCursor[i] = inf;
@@ -976,8 +993,8 @@ export function Line(opts, data) {
 			let minX = min(x0, x);
 			let maxX = max(x0, x);
 
-			setStylePx(region, LEFT, minX);
-			setStylePx(region, WIDTH, maxX - minX);
+			setStylePx(zoom, LEFT, minX);
+			setStylePx(zoom, WIDTH, maxX - minX);
 		}
 
 		if (pub !== false) {
@@ -1082,8 +1099,8 @@ export function Line(opts, data) {
 			syncPos(e, src, _x, _y, _w, _h, _i, false);
 
 			if (x != x0 || y != y0) {
-				setStylePx(region, LEFT, 0);
-				setStylePx(region, WIDTH, 0);
+				setStylePx(zoom, LEFT, 0);
+				setStylePx(zoom, WIDTH, 0);
 
 				let minX = min(x0, x);
 				let maxX = max(x0, x);
@@ -1119,8 +1136,8 @@ export function Line(opts, data) {
 
 	let events = {};
 
-	events[mousemove] = mouseMove;
 	events[mousedown] = mouseDown;
+	events[mousemove] = mouseMove;
 	events[mouseup] = mouseUp;
 	events[dblclick] = dblClick;
 	events["focus"] = (e, i) => {
@@ -1130,13 +1147,16 @@ export function Line(opts, data) {
 		toggle(idxs, onOff);
 	};
 
-	for (let ev in events)
-		ev != mouseup && on(ev, can, events[ev]);
+	if (cursor.show) {
+		on(mousedown, can, mouseDown);
+		on(mousemove, can, mouseMove);
+		on(dblclick, can, dblClick);
 
-	let deb = debounce(syncRect, 100);
+		let deb = debounce(syncRect, 100);
 
-	on(resize, win, deb);
-	on(scroll, win, deb);
+		on(resize, win, deb);
+		on(scroll, win, deb);
+	}
 
 	self.root = root;
 

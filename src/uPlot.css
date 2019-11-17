@@ -66,7 +66,7 @@
 	border-bottom-color: silver !important;
 }
 
-.uplot .region {
+.uplot .zoom {
 	background: rgba(0,0,0,0.07);
 	height: 100%;
 	position: absolute;
