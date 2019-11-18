@@ -34,10 +34,17 @@ export function closestIdx(num, arr, lo, hi) {
 	return hi;
 }
 
-export const rAF = requestAnimationFrame;
-export const doc = document;
-export const win = window
-export const pxRatio = devicePixelRatio;
+export function getMinMax(data, _i0, _i1) {
+	let _min = inf;
+	let _max = -inf;
+
+	for (let i = _i0; i <= _i1; i++) {
+		_min = min(_min, data[i]);
+		_max = max(_max, data[i]);
+	}
+
+	return [_min, _max];
+}
 
 const M = Math;
 
@@ -85,25 +92,6 @@ export function round3(val) {
 export function round6(val) {
 	return round(val * 1e6) / 1e6;
 }
-
-export const WIDTH = "width";
-export const HEIGHT = "height";
-export const TOP = "top";
-export const BOTTOM = "bottom";
-export const LEFT = "left";
-export const RIGHT = "right";
-export const firstChild = "firstChild";
-export const nextSibling = "nextSibling";
-export const createElement = "createElement";
-export const hexBlack = "#000";
-export const classList = "classList";
-
-export const mousemove = "mousemove";
-export const mousedown = "mousedown";
-export const mouseup = "mouseup";
-export const dblclick = "dblclick";
-export const resize = "resize";
-export const scroll = "scroll";
 
 export const assign = Object.assign;
 

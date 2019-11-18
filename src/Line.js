@@ -1,17 +1,5 @@
 import {
-	getFullYear,
-	getMonth,
-	getDate,
-	getDay,
-	getHours,
-	getMinutes,
-	getSeconds,
-	getMilliseconds,
-} from './fmtDate';
-
-import {
 	inf,
-
 	abs,
 	floor,
 	round,
@@ -24,24 +12,24 @@ import {
 	log10,
 	debounce,
 	closestIdx,
-	rAF,
-	doc,
-	win,
-	pxRatio,
+	getMinMax,
 	incrRoundUp,
 	incrRoundDn,
+	assign,
+	isArr,
+	fnOrSelf,
+} from './utils';
 
+import {
 	WIDTH,
 	HEIGHT,
 	TOP,
 	BOTTOM,
 	LEFT,
 	RIGHT,
+	hexBlack,
 	firstChild,
 	nextSibling,
-	createElement,
-	hexBlack,
-	classList,
 
 	mousemove,
 	mousedown,
@@ -49,12 +37,25 @@ import {
 	dblclick,
 	resize,
 	scroll,
+} from './strings';
 
-	assign,
-	isArr,
+import {
+	rAF,
+	doc,
+	win,
+	pxRatio,
 
-	fnOrSelf,
-} from './utils';
+	addClass,
+	remClass,
+	setStylePx,
+	setOriRotTrans,
+	makeCanvas,
+	placeDiv,
+	clearFrom,
+	trans,
+	on,
+	off,
+} from './dom';
 
 import {
 	xAxisOpts,
@@ -94,6 +95,85 @@ function splitXY(d) {
 	};
 }
 
+function getYPos(val, scale, hgt) {
+	if (val == null)
+		return val;
+
+	let pctY = (val - scale.min) / (scale.max - scale.min);
+	return round((1 - pctY) * hgt);
+}
+
+function getXPos(val, scale, wid) {
+	let pctX = (val - scale.min) / (scale.max - scale.min);
+	return round(pctX * wid);
+}
+
+function snapNone(dataMin, dataMax) {
+	return [dataMin, dataMax];
+}
+
+// this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
+// TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
+function snapFifthMag(dataMin, dataMax) {
+	// auto-scale Y
+	const delta = dataMax - dataMin;
+	const mag = log10(delta || abs(dataMax) || 1);
+	const exp = floor(mag);
+	const incr = pow(10, exp) / 5;
+	const buf = delta == 0 ? incr : 0;
+
+	let snappedMin = round6(incrRoundDn(dataMin - buf, incr));
+	let snappedMax = round6(incrRoundUp(dataMax + buf, incr));
+
+	// for flat data, always use 0 as one chart extreme
+	if (delta == 0) {
+		if (dataMax > 0)
+			snappedMin = 0;
+		else if (dataMax < 0)
+			snappedMax = 0;
+	}
+	else {
+		// if buffer is too small, increase it
+		if (snappedMax - dataMax < incr)
+			snappedMax += incr;
+
+		if (dataMin - snappedMin < incr)
+			snappedMin -= incr;
+
+		// if original data never crosses 0, use 0 as one chart extreme
+		if (dataMin >= 0 && snappedMin < 0)
+			snappedMin = 0;
+
+		if (dataMax <= 0 && snappedMax > 0)
+			snappedMax = 0;
+	}
+
+	return [snappedMin, snappedMax];
+}
+
+// dim is logical (getClientBoundingRect) pixels, not canvas pixels
+function findIncr(valDelta, incrs, dim, minSpace) {
+	let pxPerUnit = dim / valDelta;
+
+	for (var i = 0; i < incrs.length; i++) {
+		let space = incrs[i] * pxPerUnit;
+
+		if (space >= minSpace)
+			return [incrs[i], space];
+	}
+}
+
+function gridLabel(el, par, val, side, pxVal) {
+	let div = el || placeDiv(null, par);
+	div.textContent = val;
+	setStylePx(div, side, pxVal);
+	return div;
+}
+
+function filtMouse(e) {
+	return e.button == 0;
+}
+
 export function Line(opts, data) {
 	const self = this;
 
@@ -123,7 +203,7 @@ export function Line(opts, data) {
 		}, scales[key]);
 
 		// by default, numeric y scales snap to half magnitude of range
-		sc.range = fnOrSelf(sc.range || (i > 0 && !sc.time ? snapHalfMag : snapNone));
+		sc.range = fnOrSelf(sc.range || (i > 0 && !sc.time ? snapFifthMag : snapNone));
 
 		if (s.time == null)
 			s.time = sc.time;
@@ -152,10 +232,6 @@ export function Line(opts, data) {
 
 	self.setData = setData;
 
-	function setStylePx(el, name, value) {
-		el.style[name] = value + "px";
-	}
-
 	function setCtxStyle(color, width, dash, fill) {
 		ctx.strokeStyle = color || hexBlack;
 		ctx.lineWidth = width || 1;
@@ -170,7 +246,7 @@ export function Line(opts, data) {
 		root.id = opts.id;
 
 	if (opts.class != null)
-		root[classList].add(opts.class);
+		addClass(root, opts.class);
 
 	if (opts.title != null) {
 		let title = placeDiv("title", root);
@@ -297,11 +373,6 @@ export function Line(opts, data) {
 		return el;
 	}
 
-	function setOriRotTrans(style, origin, rot, trans) {
-		style.transformOrigin = origin;
-		style.transform = "rotate(" + rot + "deg) translateY(" + trans + "px)";
-	}
-
 	// init axis containers, set axis positions
 	axes.forEach((axis, i) => {
 		if (!axis.show)
@@ -337,93 +408,6 @@ export function Line(opts, data) {
 	setStylePx(wrap, HEIGHT, fullCssHeight);
 
 	const { can, ctx } = makeCanvas(canCssWidth, canCssHeight);
-
-	function addClass(el, c) {
-		el[classList].add(c);
-	}
-
-	function makeCanvas(wid, hgt) {
-		const can = doc[createElement]("canvas");
-		const ctx = can.getContext("2d");
-
-		can[WIDTH] = round(wid * pxRatio);
-		can[HEIGHT] = round(hgt * pxRatio);
-		setStylePx(can, WIDTH, wid);
-		setStylePx(can, HEIGHT, hgt);
-
-		return {
-			can,
-			ctx,
-		};
-	}
-
-	function placeDiv(cls, targ) {
-		let div = doc[createElement]("div");
-
-		if (cls != null)
-			addClass(div, cls);
-
-		if (targ != null)
-			targ.appendChild(div);		// TODO: chart.appendChild()
-
-		return div;
-	}
-
-	function getYPos(val, scale, hgt) {
-		if (val == null)
-			return val;
-
-		let pctY = (val - scale.min) / (scale.max - scale.min);
-		return round((1 - pctY) * hgt);
-	}
-
-	function getXPos(val, scale, wid) {
-		let pctX = (val - scale.min) / (scale.max - scale.min);
-		return round(pctX * wid);
-	}
-
-	function snapNone(dataMin, dataMax) {
-		return [dataMin, dataMax];
-	}
-
-	// this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
-	// TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
-	function snapHalfMag(dataMin, dataMax) {
-		// auto-scale Y
-		const delta = dataMax - dataMin;
-		const mag = log10(delta || abs(dataMax) || 1);
-		const exp = floor(mag);
-		const incr = pow(10, exp) / 5;
-		const buf = delta == 0 ? incr : 0;
-
-		let snappedMin = round6(incrRoundDn(dataMin - buf, incr));
-		let snappedMax = round6(incrRoundUp(dataMax + buf, incr));
-
-		// for flat data, always use 0 as one chart extreme
-		if (delta == 0) {
-			if (dataMax > 0)
-				snappedMin = 0;
-			else if (dataMax < 0)
-				snappedMax = 0;
-		}
-		else {
-			// if buffer is too small, increase it
-			if (snappedMax - dataMax < incr)
-				snappedMax += incr;
-
-			if (dataMin - snappedMin < incr)
-				snappedMin -= incr;
-
-			// if original data never crosses 0, use 0 as one chart extreme
-			if (dataMin >= 0 && snappedMin < 0)
-				snappedMin = 0;
-
-			if (dataMax <= 0 && snappedMax > 0)
-				snappedMax = 0;
-		}
-
-		return [snappedMin, snappedMax];
-	}
 
 	function setScales() {
 		if (inBatch) {
@@ -500,19 +484,6 @@ export function Line(opts, data) {
 			if (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)
 				s.path = null;
 		});
-	}
-
-	// TODO: ability to get only min or only max
-	function getMinMax(data, _i0, _i1) {
-		let _min = inf;
-		let _max = -inf;
-
-		for (let i = _i0; i <= _i1; i++) {
-			_min = min(_min, data[i]);
-			_max = max(_max, data[i]);
-		}
-
-		return [_min, _max];
 	}
 
 	let dir = 1;
@@ -622,36 +593,6 @@ export function Line(opts, data) {
 
 			dir *= -1;
 		}
-	}
-
-	// dim is logical (getClientBoundingRect) pixels, not canvas pixels
-	function findIncr(valDelta, incrs, dim, minSpace) {
-		let pxPerUnit = dim / valDelta;
-
-		for (var i = 0; i < incrs.length; i++) {
-			let space = incrs[i] * pxPerUnit;
-
-			if (space >= minSpace)
-				return [incrs[i], space];
-		}
-	}
-
-	function gridLabel(el, par, val, side, pxVal) {
-		let div = el || placeDiv(null, par);
-		div.textContent = val;
-		setStylePx(div, side, pxVal);
-		return div;
-	}
-
-	function filtMouse(e) {
-		return e.button == 0;
-	}
-
-	function clearFrom(ch) {
-		let next;
-		while (next = ch[nextSibling])
-			next.remove();
-		ch.remove();
 	}
 
 	function drawAxesGrid() {
@@ -798,9 +739,9 @@ export function Line(opts, data) {
 		let label = legendLabels[i];
 
 		if (s.show)
-			label[classList].remove("off")
+			remClass(label, "off");
 		else {
-			label[classList].add("off");
+			addClass(label, "off");
 			cursor.show && trans(cursorPts[i], 0, -10)
 		}
 	}
@@ -942,10 +883,6 @@ export function Line(opts, data) {
 
 	self.batch = batch;
 
-	function trans(el, xPos, yPos) {
-		el.style.transform = "translate(" + xPos + "px," + yPos + "px)";
-	}
-
 	function updatePointer(pub) {
 		if (inBatch) {
 			shouldUpdatePointer = true;
@@ -1045,16 +982,6 @@ export function Line(opts, data) {
 		}
 		else
 			updatePointer(false);
-	}
-
-	const evOpts = {passive: true};
-
-	function on(ev, el, cb) {
-		el.addEventListener(ev, cb, evOpts);
-	}
-
-	function off(ev, el, cb) {
-		el.removeEventListener(ev, cb, evOpts);
 	}
 
 	function syncPos(e, src, _x, _y, _w, _h, _i, initial) {
