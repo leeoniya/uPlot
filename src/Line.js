@@ -181,6 +181,7 @@ export function Line(opts, data) {
 	const axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
 	const scales  = (opts.scales = opts.scales || {});
 
+//	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 	self.tzDate = opts.tzDate || (ts => new Date(ts * 1e3));
 
 	self.series = splitXY(series);

@@ -494,6 +494,10 @@ var uPlot = (function (exports) {
 		return new Date(y, m, d);
 	}
 
+	function getTzOffset(ts) {
+		return (new Date(ts * 1e3)).getTimezoneOffset();
+	}
+
 	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
 	function getDateTicks(scaleMin, scaleMax, incr) {
 		var ticks = [];
@@ -525,8 +529,22 @@ var uPlot = (function (exports) {
 			var tzOffset = scaleMin - minDateTs;
 			var tick$1 = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
 
-			for (; tick$1 <= scaleMax; tick$1 += incr)
-				{ ticks.push(tick$1); }
+			var tzo0 = getTzOffset.call(this, tick$1);
+
+			for (; tick$1 <= scaleMax; tick$1 += incr) {
+				// for now we only handle DST adjustments when ticks are local timezone
+				if (tzOffset == 0) {
+					var tzo1 = getTzOffset.call(this, tick$1);
+					var dstShift = tzo1 - tzo0;
+
+					if (dstShift != 0) {
+						tick$1 += dstShift * m;
+						tzo0 = tzo1;
+					}
+				}
+
+				ticks.push(tick$1);
+			}
 		}
 
 		return ticks;
@@ -745,6 +763,7 @@ var uPlot = (function (exports) {
 		var axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
 		var scales  = (opts.scales = opts.scales || {});
 
+	//	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 		self.tzDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
 
 		self.series = splitXY(series);

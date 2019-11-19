@@ -162,6 +162,10 @@ function mkDate(y, m, d) {
 	return new Date(y, m, d);
 }
 
+function getTzOffset(ts) {
+	return (new Date(ts * 1e3)).getTimezoneOffset();
+}
+
 // the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
 export function getDateTicks(scaleMin, scaleMax, incr) {
 	let ticks = [];
@@ -193,8 +197,22 @@ export function getDateTicks(scaleMin, scaleMax, incr) {
 		let tzOffset = scaleMin - minDateTs;
 		let tick = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
 
-		for (; tick <= scaleMax; tick += incr)
+		let tzo0 = getTzOffset.call(this, tick);
+
+		for (; tick <= scaleMax; tick += incr) {
+			// for now we only handle DST adjustments when ticks are local timezone
+			if (tzOffset == 0) {
+				let tzo1 = getTzOffset.call(this, tick);
+				let dstShift = tzo1 - tzo0;
+
+				if (dstShift != 0) {
+					tick += dstShift * m;
+					tzo0 = tzo1;
+				}
+			}
+
 			ticks.push(tick);
+		}
 	}
 
 	return ticks;
