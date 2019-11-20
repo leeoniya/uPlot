@@ -1,0 +1,163 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Timezones &amp; DST</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../bench/style.css">
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			.uplot .title {
+				padding: 8px;
+			}
+
+			h3 {
+				text-align: center;
+				padding: 25px;
+				background: #E1F5FE;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			// Jan 1 2019 UTC
+			let start = 1546300800;
+
+			let times = [];
+
+			for (let h = 0; h < 365 * 24; h++)
+				times.push(start + h * 3600);
+
+			let values = Array(times.length);
+
+			for (let i = 0; i < times.length; i++)
+				values[i] = i % 24 == 0 ? 1 : 0.5;
+
+			let data0 = [
+				times,
+				values,
+			];
+
+			function sliceRange(fromTs, numDays) {
+				return [
+					times.slice(fromTs, fromTs + 24 * numDays),
+					values.slice(fromTs, fromTs + 24 * numDays),
+				];
+			}
+
+			function putHeader(text) {
+				let h = document.createElement("h3");
+				h.textContent = text;
+				document.body.appendChild(h);
+			}
+
+			function genOpts(title, tz, syncKey) {
+				return {
+					title: title,
+					tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), tz),
+					cursor: {
+						sync: {
+							key: syncKey,
+							toggle: true,
+						},
+					},
+					width: 600,
+					height: 300,
+					series: {
+						y: [
+							{
+								label: "2019",
+								color: "red",
+							},
+						],
+					},
+				}
+			}
+
+			let data;
+
+
+			putHeader('London\'s 2019 "spring forward" time range');
+			data = sliceRange(times.findIndex(v => v == 1553774400), 6);
+			syncKey = 0;
+
+			document.body.appendChild(new uPlot.Line(
+				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+				data
+			).root);
+
+			document.body.appendChild(new uPlot.Line(
+				genOpts("Europe/London (Mar 31, 2019: 1am -> 2am)", 'Europe/London', syncKey),
+				data
+			).root);
+
+			document.body.appendChild(new uPlot.Line(
+				genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
+				data
+			).root);
+
+
+			putHeader('London\'s 2019 "fall back" time range');
+			data = sliceRange(times.findIndex(v => v == 1571918400), 6);
+			syncKey = 1;
+
+			document.body.appendChild(new uPlot.Line(
+				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+				data
+			).root);
+
+			document.body.appendChild(new uPlot.Line(
+				genOpts("Europe/London (Oct 27, 2019: 2am -> 1am)", 'Europe/London', syncKey),
+				data
+			).root);
+
+			document.body.appendChild(new uPlot.Line(
+				genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
+				data
+			).root);
+
+
+
+
+			putHeader('Chicago\'s 2019 "spring forward" time range');
+			data = sliceRange(times.findIndex(v => v == 1551960000), 6);
+			syncKey = 2;
+
+			document.body.appendChild(new uPlot.Line(
+				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+				data
+			).root);
+
+			document.body.appendChild(new uPlot.Line(
+				genOpts("America/Chicago (Mar 10, 2019: 2am -> 3am)", 'America/Chicago', syncKey),
+				data
+			).root);
+
+			document.body.appendChild(new uPlot.Line(
+				genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
+				data
+			).root);
+
+			putHeader('Chicago\'s 2019 "fall back" time range');
+			data = sliceRange(times.findIndex(v => v == 1572523200), 6);
+			syncKey = 3;
+
+			document.body.appendChild(new uPlot.Line(
+				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+				data
+			).root);
+
+			document.body.appendChild(new uPlot.Line(
+				genOpts("America/Chicago (Nov 3, 2019: 2am -> 1am)", 'America/Chicago', syncKey),
+				data
+			).root);
+
+			document.body.appendChild(new uPlot.Line(
+				genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
+				data
+			).root);
+		</script>
+	</body>
+</html>

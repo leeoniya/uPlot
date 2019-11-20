@@ -3,12 +3,16 @@ import {
 	getFullYear,
 	getMonth,
 	getDate,
+	getHours,
+	getMinutes,
+	getSeconds,
 } from './fmtDate';
 
 import {
 	inf,
 	incrRoundUp,
 	round6,
+	floor,
 } from './utils';
 
 //export const series = [];
@@ -166,8 +170,14 @@ function getTzOffset(ts) {
 	return (new Date(ts * 1e3)).getTimezoneOffset();
 }
 
+function floatHour(d) {
+	return d[getHours]() + (d[getMinutes]() / m) + (d[getSeconds]() / h);
+}
+
 // the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
-export function getDateTicks(scaleMin, scaleMax, incr) {
+// https://www.timeanddate.com/time/dst/
+// https://www.timeanddate.com/time/dst/2019.html
+export function getDateTicks(scaleMin, scaleMax, incr, pctSpace) {
 	let ticks = [];
 	let isMo = incr >= mo && incr < y;
 
@@ -196,22 +206,38 @@ export function getDateTicks(scaleMin, scaleMax, incr) {
 		let incr0 = incr >= d ? d : incr;
 		let tzOffset = scaleMin - minDateTs;
 		let tick = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
+		ticks.push(tick);
 
-		let tzo0 = getTzOffset.call(this, tick);
+		let date0 = this.tzDate(tick);
 
-		for (; tick <= scaleMax; tick += incr) {
-			// for now we only handle DST adjustments when ticks are local timezone
-			if (tzOffset == 0) {
-				let tzo1 = getTzOffset.call(this, tick);
-				let dstShift = tzo1 - tzo0;
+		let prevHour = floatHour(date0);
+		let incrHours = incr / h;
 
-				if (dstShift != 0) {
-					tick += dstShift * m;
-					tzo0 = tzo1;
-				}
-			}
+		while (1) {
+			tick += incr;
 
-			ticks.push(tick);
+			let expectedHour = floor(prevHour + incrHours) % 24;
+			let tickDate = this.tzDate(tick);
+			let actualHour = tickDate.getHours();
+
+			let dstShift = actualHour - expectedHour;
+
+			if (dstShift > 1)
+				dstShift = -1;
+
+			tick -= dstShift * h;
+
+			if (tick > scaleMax)
+				break;
+
+			prevHour = (prevHour + incrHours) % 24;
+
+			// add a tick only if it's further than 70% of the min allowed label spacing
+			let prevTick = ticks[ticks.length - 1];
+			let pctIncr = (tick - prevTick) / incr;
+
+			if (pctIncr * pctSpace >= .7)
+				ticks.push(tick);
 		}
 	}
 
@@ -256,7 +282,7 @@ export function numAxisVals(vals, space) {
 	return vals;
 }
 
-export function getNumTicks(scaleMin, scaleMax, incr, forceMin) {
+export function getNumTicks(scaleMin, scaleMax, incr, pctSpace, forceMin) {
 	scaleMin = forceMin ? scaleMin : round6(incrRoundUp(scaleMin, incr));
 
 	let ticks = [];

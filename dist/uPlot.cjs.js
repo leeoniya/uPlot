@@ -493,12 +493,14 @@ function mkDate(y, m, d) {
 	return new Date(y, m, d);
 }
 
-function getTzOffset(ts) {
-	return (new Date(ts * 1e3)).getTimezoneOffset();
+function floatHour(d) {
+	return d[getHours]() + (d[getMinutes]() / m) + (d[getSeconds]() / h);
 }
 
 // the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
-function getDateTicks(scaleMin, scaleMax, incr) {
+// https://www.timeanddate.com/time/dst/
+// https://www.timeanddate.com/time/dst/2019.html
+function getDateTicks(scaleMin, scaleMax, incr, pctSpace) {
 	var ticks = [];
 	var isMo = incr >= mo && incr < y;
 
@@ -527,22 +529,38 @@ function getDateTicks(scaleMin, scaleMax, incr) {
 		var incr0 = incr >= d ? d : incr;
 		var tzOffset = scaleMin - minDateTs;
 		var tick$1 = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
+		ticks.push(tick$1);
 
-		var tzo0 = getTzOffset.call(this, tick$1);
+		var date0 = this.tzDate(tick$1);
 
-		for (; tick$1 <= scaleMax; tick$1 += incr) {
-			// for now we only handle DST adjustments when ticks are local timezone
-			if (tzOffset == 0) {
-				var tzo1 = getTzOffset.call(this, tick$1);
-				var dstShift = tzo1 - tzo0;
+		var prevHour = floatHour(date0);
+		var incrHours = incr / h;
 
-				if (dstShift != 0) {
-					tick$1 += dstShift * m;
-					tzo0 = tzo1;
-				}
-			}
+		while (1) {
+			tick$1 += incr;
 
-			ticks.push(tick$1);
+			var expectedHour = floor(prevHour + incrHours) % 24;
+			var tickDate$1 = this.tzDate(tick$1);
+			var actualHour = tickDate$1.getHours();
+
+			var dstShift = actualHour - expectedHour;
+
+			if (dstShift > 1)
+				{ dstShift = -1; }
+
+			tick$1 -= dstShift * h;
+
+			if (tick$1 > scaleMax)
+				{ break; }
+
+			prevHour = (prevHour + incrHours) % 24;
+
+			// add a tick only if it's further than 70% of the min allowed label spacing
+			var prevTick = ticks[ticks.length - 1];
+			var pctIncr = (tick$1 - prevTick) / incr;
+
+			if (pctIncr * pctSpace >= .7)
+				{ ticks.push(tick$1); }
 		}
 	}
 
@@ -587,7 +605,7 @@ function numAxisVals(vals, space) {
 	return vals;
 }
 
-function getNumTicks(scaleMin, scaleMax, incr, forceMin) {
+function getNumTicks(scaleMin, scaleMax, incr, pctSpace, forceMin) {
 	scaleMin = forceMin ? scaleMin : round6(incrRoundUp(scaleMin, incr));
 
 	var ticks = [];
@@ -1201,14 +1219,16 @@ function Line(opts, data) {
 			var min = scale.min;
 			var max = scale.max;
 
-			var ref = findIncr(max - min, axis.incrs, canDim, axis.space(min, max, canDim));
+			var minSpace = axis.space(min, max, canDim);
+
+			var ref = findIncr(max - min, axis.incrs, canDim, minSpace);
 			var incr = ref[0];
 			var space = ref[1];
 
 			// if we're using index positions, force first tick to match passed index
 			var forceMin = scale.type == 2;
 
-			var ticks = axis.ticks.call(self, min, max, incr, forceMin);
+			var ticks = axis.ticks.call(self, min, max, incr, space/minSpace, forceMin);
 
 			var getPos = ori == 0 ? getXPos : getYPos;
 			var cssProp = ori == 0 ? LEFT : TOP;
