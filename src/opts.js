@@ -166,14 +166,6 @@ function mkDate(y, m, d) {
 	return new Date(y, m, d);
 }
 
-function getTzOffset(ts) {
-	return (new Date(ts * 1e3)).getTimezoneOffset();
-}
-
-function floatHour(d) {
-	return d[getHours]() + (d[getMinutes]() / m) + (d[getSeconds]() / h);
-}
-
 // the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
 // https://www.timeanddate.com/time/dst/
 // https://www.timeanddate.com/time/dst/2019.html
@@ -199,7 +191,10 @@ export function getDateTicks(scaleMin, scaleMax, incr, pctSpace) {
 
 		for (let i = 0; tick <= scaleMax; i++) {
 			let next = mkDate(baseYear, baseMonth + moIncr * i, 1);
-			ticks.push(tick = next / 1e3);
+			tick = next / 1e3;
+
+			if (tick <= scaleMax)
+				ticks.push(tick);
 		}
 	}
 	else {
@@ -210,7 +205,7 @@ export function getDateTicks(scaleMin, scaleMax, incr, pctSpace) {
 
 		let date0 = this.tzDate(tick);
 
-		let prevHour = floatHour(date0);
+		let prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
 		let incrHours = incr / h;
 
 		while (1) {
