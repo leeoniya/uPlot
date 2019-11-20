@@ -1370,7 +1370,7 @@ function Line(opts, data) {
 
 		setView(self.i0, self.i1);
 
-		pub && sync.pub("toggle", idxs, onOff);
+		pub && sync.pub("toggle", self, idxs, onOff);
 	}
 
 	self.toggle = toggle;
@@ -1410,7 +1410,7 @@ function Line(opts, data) {
 			focused = i;
 			paint();
 
-			pub && sync.pub("focus", i);
+			pub && sync.pub("focus", self, i);
 		}
 	}
 
@@ -1674,10 +1674,10 @@ function Line(opts, data) {
 	events[mousemove] = mouseMove;
 	events[mouseup] = mouseUp;
 	events[dblclick] = dblClick;
-	events["focus"] = function (e, i) {
+	events["focus"] = function (e, src, i) {
 		setFocus(i, focus.alpha);
 	};
-	events["toggle"] = function (e, idxs, onOff) {
+	events["toggle"] = function (e, src, idxs, onOff) {
 		toggle(idxs, onOff);
 	};
 

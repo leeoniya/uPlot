@@ -1371,7 +1371,7 @@ var uPlot = (function (exports) {
 
 			setView(self.i0, self.i1);
 
-			pub && sync.pub("toggle", idxs, onOff);
+			pub && sync.pub("toggle", self, idxs, onOff);
 		}
 
 		self.toggle = toggle;
@@ -1411,7 +1411,7 @@ var uPlot = (function (exports) {
 				focused = i;
 				paint();
 
-				pub && sync.pub("focus", i);
+				pub && sync.pub("focus", self, i);
 			}
 		}
 
@@ -1675,10 +1675,10 @@ var uPlot = (function (exports) {
 		events[mousemove] = mouseMove;
 		events[mouseup] = mouseUp;
 		events[dblclick] = dblClick;
-		events["focus"] = function (e, i) {
+		events["focus"] = function (e, src, i) {
 			setFocus(i, focus.alpha);
 		};
-		events["toggle"] = function (e, idxs, onOff) {
+		events["toggle"] = function (e, src, idxs, onOff) {
 			toggle(idxs, onOff);
 		};
 

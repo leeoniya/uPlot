@@ -766,7 +766,7 @@ export function Line(opts, data) {
 
 		setView(self.i0, self.i1);
 
-		pub && sync.pub("toggle", idxs, onOff);
+		pub && sync.pub("toggle", self, idxs, onOff);
 	}
 
 	self.toggle = toggle;
@@ -806,7 +806,7 @@ export function Line(opts, data) {
 			focused = i;
 			paint();
 
-			pub && sync.pub("focus", i);
+			pub && sync.pub("focus", self, i);
 		}
 	}
 
@@ -1070,10 +1070,10 @@ export function Line(opts, data) {
 	events[mousemove] = mouseMove;
 	events[mouseup] = mouseUp;
 	events[dblclick] = dblClick;
-	events["focus"] = (e, i) => {
+	events["focus"] = (e, src, i) => {
 		setFocus(i, focus.alpha);
 	};
-	events["toggle"] = (e, idxs, onOff) => {
+	events["toggle"] = (e, src, idxs, onOff) => {
 		toggle(idxs, onOff);
 	};
 
