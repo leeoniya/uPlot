@@ -48,22 +48,44 @@
 
 .uplot .legend {
 	font-size: 14px;
+	margin: auto;
 	text-align: center;
 }
 
-.uplot .legend > * {
+.uplot .legend.inline {
+	display: block;
+}
+
+.uplot .legend.inline * {
 	display: inline-block;
-	margin: 0 8px;
 }
 
-.uplot .legend > *+*:hover {
+.uplot .legend.inline tr {
+	margin-right: 16px;
+}
+
+.uplot .legend th {
+	font-weight: 600;
+}
+
+.uplot .legend .series th:hover {
+	text-decoration: underline;
+}
+
+.uplot .legend.inline th::after {
+	content: ":";
+}
+
+.uplot .legend .series > * {
+	padding: 4px;
+}
+
+.uplot .legend .series th {
 	cursor: pointer;
-/*	text-decoration: underline;*/
 }
 
-.uplot .legend .off {
+.uplot .legend .off > * {
 	color: silver !important;
-	border-bottom-color: silver !important;
 }
 
 .uplot .zoom {

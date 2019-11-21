@@ -123,43 +123,44 @@ const secDate	= fmtDate(_second + md2);
 
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
-export function timeAxisVals(vals, space) {
-	let self = this;
-	let incr = vals[1] - vals[0];
+export function timeAxisVals(tzDate) {
+	return (vals, space) => {
+		let incr = vals[1] - vals[0];
 
-	// these track boundaries when a full label is needed again
-	let prevYear = null;
-	let prevDate = null;
+		// these track boundaries when a full label is needed again
+		let prevYear = null;
+		let prevDate = null;
 
-	return vals.map((val, i) => {
-		let date = self.tzDate(val);
+		return vals.map((val, i) => {
+			let date = tzDate(val);
 
-		let newYear = date[getFullYear]();
-		let newDate = date[getDate]();
+			let newYear = date[getFullYear]();
+			let newDate = date[getDate]();
 
-		let diffYear = newYear != prevYear;
-		let diffDate = newDate != prevDate;
+			let diffYear = newYear != prevYear;
+			let diffDate = newDate != prevDate;
 
-		let stamp;
+			let stamp;
 
-		if (incr >= y)
-			stamp = year;
-		else if (incr >= d * 28)
-			stamp = diffYear ? monthYear : month;
-		else if (incr >= d)
-			stamp = diffYear ? monthDateYear : monthDate;
-		else if (incr >= h)
-			stamp = diffDate ? hourDate : hour;
-		else if (incr >= m)
-			stamp = diffDate ? minDate : minute;
-		else if (incr >= s)
-			stamp = diffDate ? secDate :  second;
+			if (incr >= y)
+				stamp = year;
+			else if (incr >= d * 28)
+				stamp = diffYear ? monthYear : month;
+			else if (incr >= d)
+				stamp = diffYear ? monthDateYear : monthDate;
+			else if (incr >= h)
+				stamp = diffDate ? hourDate : hour;
+			else if (incr >= m)
+				stamp = diffDate ? minDate : minute;
+			else if (incr >= s)
+				stamp = diffDate ? secDate :  second;
 
-		prevYear = newYear;
-		prevDate = newDate;
+			prevYear = newYear;
+			prevDate = newDate;
 
-		return stamp(date);
-	});
+			return stamp(date);
+		});
+	}
 }
 
 function mkDate(y, m, d) {
@@ -169,80 +170,82 @@ function mkDate(y, m, d) {
 // the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
 // https://www.timeanddate.com/time/dst/
 // https://www.timeanddate.com/time/dst/2019.html
-export function getDateTicks(scaleMin, scaleMax, incr, pctSpace) {
-	let ticks = [];
-	let isMo = incr >= mo && incr < y;
+export function timeAxisTicks(tzDate) {
+	return (scaleMin, scaleMax, incr, pctSpace) => {
+		let ticks = [];
+		let isMo = incr >= mo && incr < y;
 
-	// get the timezone-adjusted date
-	let minDate = this.tzDate(scaleMin);
-	let minDateTs = minDate / 1e3;
+		// get the timezone-adjusted date
+		let minDate = tzDate(scaleMin);
+		let minDateTs = minDate / 1e3;
 
-	// get ts of 12am (this lands us at or before the original scaleMin)
-	let minMin = mkDate(minDate[getFullYear](), minDate[getMonth](), isMo ? 1 : minDate[getDate]());
-	let minMinTs = minMin / 1e3;
+		// get ts of 12am (this lands us at or before the original scaleMin)
+		let minMin = mkDate(minDate[getFullYear](), minDate[getMonth](), isMo ? 1 : minDate[getDate]());
+		let minMinTs = minMin / 1e3;
 
-	if (isMo) {
-		let moIncr = incr / mo;
-	//	let tzOffset = scaleMin - minDateTs;		// needed?
-		let tick = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
-		let tickDate = new Date(tick * 1e3);
-		let baseYear = tickDate[getFullYear]();
-		let baseMonth = tickDate[getMonth]();
+		if (isMo) {
+			let moIncr = incr / mo;
+		//	let tzOffset = scaleMin - minDateTs;		// needed?
+			let tick = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
+			let tickDate = new Date(tick * 1e3);
+			let baseYear = tickDate[getFullYear]();
+			let baseMonth = tickDate[getMonth]();
 
-		for (let i = 0; tick <= scaleMax; i++) {
-			let next = mkDate(baseYear, baseMonth + moIncr * i, 1);
-			tick = next / 1e3;
+			for (let i = 0; tick <= scaleMax; i++) {
+				let next = mkDate(baseYear, baseMonth + moIncr * i, 1);
+				tick = next / 1e3;
 
-			if (tick <= scaleMax)
-				ticks.push(tick);
+				if (tick <= scaleMax)
+					ticks.push(tick);
+			}
 		}
-	}
-	else {
-		let incr0 = incr >= d ? d : incr;
-		let tzOffset = scaleMin - minDateTs;
-		let tick = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
-		ticks.push(tick);
+		else {
+			let incr0 = incr >= d ? d : incr;
+			let tzOffset = scaleMin - minDateTs;
+			let tick = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
+			ticks.push(tick);
 
-		let date0 = this.tzDate(tick);
+			let date0 = tzDate(tick);
 
-		let prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
-		let incrHours = incr / h;
+			let prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
+			let incrHours = incr / h;
 
-		while (1) {
-			tick += incr;
+			while (1) {
+				tick += incr;
 
-			let expectedHour = floor(prevHour + incrHours) % 24;
-			let tickDate = this.tzDate(tick);
-			let actualHour = tickDate.getHours();
+				let expectedHour = floor(prevHour + incrHours) % 24;
+				let tickDate = tzDate(tick);
+				let actualHour = tickDate.getHours();
 
-			let dstShift = actualHour - expectedHour;
+				let dstShift = actualHour - expectedHour;
 
-			if (dstShift > 1)
-				dstShift = -1;
+				if (dstShift > 1)
+					dstShift = -1;
 
-			tick -= dstShift * h;
+				tick -= dstShift * h;
 
-			if (tick > scaleMax)
-				break;
+				if (tick > scaleMax)
+					break;
 
-			prevHour = (prevHour + incrHours) % 24;
+				prevHour = (prevHour + incrHours) % 24;
 
-			// add a tick only if it's further than 70% of the min allowed label spacing
-			let prevTick = ticks[ticks.length - 1];
-			let pctIncr = (tick - prevTick) / incr;
+				// add a tick only if it's further than 70% of the min allowed label spacing
+				let prevTick = ticks[ticks.length - 1];
+				let pctIncr = (tick - prevTick) / incr;
 
-			if (pctIncr * pctSpace >= .7)
-				ticks.push(tick);
+				if (pctIncr * pctSpace >= .7)
+					ticks.push(tick);
+			}
 		}
-	}
 
-	return ticks;
+		return ticks;
+	}
 }
 
 let longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
 
-export function timeSeriesVal(val) {
-	return longDateHourMin(this.tzDate(val));
+export function timeSeriesVal(tzDate) {
+	return (val) => longDateHourMin(tzDate(val));
 }
 
 export const xAxisOpts = {
@@ -277,7 +280,7 @@ export function numAxisVals(vals, space) {
 	return vals;
 }
 
-export function getNumTicks(scaleMin, scaleMax, incr, pctSpace, forceMin) {
+export function numAxisTicks(scaleMin, scaleMax, incr, pctSpace, forceMin) {
 	scaleMin = forceMin ? scaleMin : round6(incrRoundUp(scaleMin, incr));
 
 	let ticks = [];
@@ -312,6 +315,7 @@ export const ySeriesOpts = {
 	alpha: 1,
 //	label: "Value",
 //	value: v => v,
+	values: null,
 
 	// internal caches
 	min: inf,

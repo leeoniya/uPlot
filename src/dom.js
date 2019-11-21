@@ -48,16 +48,20 @@ export function makeCanvas(wid, hgt) {
 	};
 }
 
-export function placeDiv(cls, targ) {
-	let div = doc[createElement]("div");
+export function placeTag(tag, cls, targ) {
+	let el = doc[createElement](tag);
 
 	if (cls != null)
-		addClass(div, cls);
+		addClass(el, cls);
 
 	if (targ != null)
-		targ.appendChild(div);
+		targ.appendChild(el);
 
-	return div;
+	return el;
+}
+
+export function placeDiv(cls, targ) {
+	return placeTag("div", cls, targ);
 }
 
 export function clearFrom(ch) {

@@ -91,6 +91,8 @@ const subs = {
 	AA:		d => d[getHours]() >= 12 ? 'PM' : 'AM',
 	// am
 	aa:		d => d[getHours]() >= 12 ? 'pm' : 'am',
+	// a
+	a:		d => d[getHours]() >= 12 ? 'p' : 'a',
 	// 09
 	mm:		d => zeroPad2(d[getMinutes]()),
 	// 9

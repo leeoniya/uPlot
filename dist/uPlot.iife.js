@@ -101,6 +101,8 @@ var uPlot = (function (exports) {
 		AA:		function (d) { return d[getHours]() >= 12 ? 'PM' : 'AM'; },
 		// am
 		aa:		function (d) { return d[getHours]() >= 12 ? 'pm' : 'am'; },
+		// a
+		a:		function (d) { return d[getHours]() >= 12 ? 'p' : 'a'; },
 		// 09
 		mm:		function (d) { return zeroPad2(d[getMinutes]()); },
 		// 9
@@ -312,16 +314,20 @@ var uPlot = (function (exports) {
 		};
 	}
 
-	function placeDiv(cls, targ) {
-		var div = doc[createElement]("div");
+	function placeTag(tag, cls, targ) {
+		var el = doc[createElement](tag);
 
 		if (cls != null)
-			{ addClass(div, cls); }
+			{ addClass(el, cls); }
 
 		if (targ != null)
-			{ targ.appendChild(div); }
+			{ targ.appendChild(el); }
 
-		return div;
+		return el;
+	}
+
+	function placeDiv(cls, targ) {
+		return placeTag("div", cls, targ);
 	}
 
 	function clearFrom(ch) {
@@ -451,43 +457,44 @@ var uPlot = (function (exports) {
 
 	// TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 	// currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
-	function timeAxisVals(vals, space) {
-		var self = this;
-		var incr = vals[1] - vals[0];
+	function timeAxisVals(tzDate) {
+		return function (vals, space) {
+			var incr = vals[1] - vals[0];
 
-		// these track boundaries when a full label is needed again
-		var prevYear = null;
-		var prevDate = null;
+			// these track boundaries when a full label is needed again
+			var prevYear = null;
+			var prevDate = null;
 
-		return vals.map(function (val, i) {
-			var date = self.tzDate(val);
+			return vals.map(function (val, i) {
+				var date = tzDate(val);
 
-			var newYear = date[getFullYear]();
-			var newDate = date[getDate]();
+				var newYear = date[getFullYear]();
+				var newDate = date[getDate]();
 
-			var diffYear = newYear != prevYear;
-			var diffDate = newDate != prevDate;
+				var diffYear = newYear != prevYear;
+				var diffDate = newDate != prevDate;
 
-			var stamp;
+				var stamp;
 
-			if (incr >= y)
-				{ stamp = year; }
-			else if (incr >= d * 28)
-				{ stamp = diffYear ? monthYear : month; }
-			else if (incr >= d)
-				{ stamp = diffYear ? monthDateYear : monthDate; }
-			else if (incr >= h)
-				{ stamp = diffDate ? hourDate : hour; }
-			else if (incr >= m)
-				{ stamp = diffDate ? minDate : minute; }
-			else if (incr >= s)
-				{ stamp = diffDate ? secDate :  second; }
+				if (incr >= y)
+					{ stamp = year; }
+				else if (incr >= d * 28)
+					{ stamp = diffYear ? monthYear : month; }
+				else if (incr >= d)
+					{ stamp = diffYear ? monthDateYear : monthDate; }
+				else if (incr >= h)
+					{ stamp = diffDate ? hourDate : hour; }
+				else if (incr >= m)
+					{ stamp = diffDate ? minDate : minute; }
+				else if (incr >= s)
+					{ stamp = diffDate ? secDate :  second; }
 
-			prevYear = newYear;
-			prevDate = newDate;
+				prevYear = newYear;
+				prevDate = newDate;
 
-			return stamp(date);
-		});
+				return stamp(date);
+			});
+		}
 	}
 
 	function mkDate(y, m, d) {
@@ -497,80 +504,82 @@ var uPlot = (function (exports) {
 	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
 	// https://www.timeanddate.com/time/dst/
 	// https://www.timeanddate.com/time/dst/2019.html
-	function getDateTicks(scaleMin, scaleMax, incr, pctSpace) {
-		var ticks = [];
-		var isMo = incr >= mo && incr < y;
+	function timeAxisTicks(tzDate) {
+		return function (scaleMin, scaleMax, incr, pctSpace) {
+			var ticks = [];
+			var isMo = incr >= mo && incr < y;
 
-		// get the timezone-adjusted date
-		var minDate = this.tzDate(scaleMin);
-		var minDateTs = minDate / 1e3;
+			// get the timezone-adjusted date
+			var minDate = tzDate(scaleMin);
+			var minDateTs = minDate / 1e3;
 
-		// get ts of 12am (this lands us at or before the original scaleMin)
-		var minMin = mkDate(minDate[getFullYear](), minDate[getMonth](), isMo ? 1 : minDate[getDate]());
-		var minMinTs = minMin / 1e3;
+			// get ts of 12am (this lands us at or before the original scaleMin)
+			var minMin = mkDate(minDate[getFullYear](), minDate[getMonth](), isMo ? 1 : minDate[getDate]());
+			var minMinTs = minMin / 1e3;
 
-		if (isMo) {
-			var moIncr = incr / mo;
-		//	let tzOffset = scaleMin - minDateTs;		// needed?
-			var tick = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
-			var tickDate = new Date(tick * 1e3);
-			var baseYear = tickDate[getFullYear]();
-			var baseMonth = tickDate[getMonth]();
+			if (isMo) {
+				var moIncr = incr / mo;
+			//	let tzOffset = scaleMin - minDateTs;		// needed?
+				var tick = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
+				var tickDate = new Date(tick * 1e3);
+				var baseYear = tickDate[getFullYear]();
+				var baseMonth = tickDate[getMonth]();
 
-			for (var i = 0; tick <= scaleMax; i++) {
-				var next = mkDate(baseYear, baseMonth + moIncr * i, 1);
-				tick = next / 1e3;
+				for (var i = 0; tick <= scaleMax; i++) {
+					var next = mkDate(baseYear, baseMonth + moIncr * i, 1);
+					tick = next / 1e3;
 
-				if (tick <= scaleMax)
-					{ ticks.push(tick); }
+					if (tick <= scaleMax)
+						{ ticks.push(tick); }
+				}
 			}
-		}
-		else {
-			var incr0 = incr >= d ? d : incr;
-			var tzOffset = scaleMin - minDateTs;
-			var tick$1 = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
-			ticks.push(tick$1);
+			else {
+				var incr0 = incr >= d ? d : incr;
+				var tzOffset = scaleMin - minDateTs;
+				var tick$1 = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
+				ticks.push(tick$1);
 
-			var date0 = this.tzDate(tick$1);
+				var date0 = tzDate(tick$1);
 
-			var prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
-			var incrHours = incr / h;
+				var prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
+				var incrHours = incr / h;
 
-			while (1) {
-				tick$1 += incr;
+				while (1) {
+					tick$1 += incr;
 
-				var expectedHour = floor(prevHour + incrHours) % 24;
-				var tickDate$1 = this.tzDate(tick$1);
-				var actualHour = tickDate$1.getHours();
+					var expectedHour = floor(prevHour + incrHours) % 24;
+					var tickDate$1 = tzDate(tick$1);
+					var actualHour = tickDate$1.getHours();
 
-				var dstShift = actualHour - expectedHour;
+					var dstShift = actualHour - expectedHour;
 
-				if (dstShift > 1)
-					{ dstShift = -1; }
+					if (dstShift > 1)
+						{ dstShift = -1; }
 
-				tick$1 -= dstShift * h;
+					tick$1 -= dstShift * h;
 
-				if (tick$1 > scaleMax)
-					{ break; }
+					if (tick$1 > scaleMax)
+						{ break; }
 
-				prevHour = (prevHour + incrHours) % 24;
+					prevHour = (prevHour + incrHours) % 24;
 
-				// add a tick only if it's further than 70% of the min allowed label spacing
-				var prevTick = ticks[ticks.length - 1];
-				var pctIncr = (tick$1 - prevTick) / incr;
+					// add a tick only if it's further than 70% of the min allowed label spacing
+					var prevTick = ticks[ticks.length - 1];
+					var pctIncr = (tick$1 - prevTick) / incr;
 
-				if (pctIncr * pctSpace >= .7)
-					{ ticks.push(tick$1); }
+					if (pctIncr * pctSpace >= .7)
+						{ ticks.push(tick$1); }
+				}
 			}
-		}
 
-		return ticks;
+			return ticks;
+		}
 	}
 
 	var longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
 
-	function timeSeriesVal(val) {
-		return longDateHourMin(this.tzDate(val));
+	function timeSeriesVal(tzDate) {
+		return function (val) { return longDateHourMin(tzDate(val)); };
 	}
 
 	var xAxisOpts = {
@@ -605,7 +614,7 @@ var uPlot = (function (exports) {
 		return vals;
 	}
 
-	function getNumTicks(scaleMin, scaleMax, incr, pctSpace, forceMin) {
+	function numAxisTicks(scaleMin, scaleMax, incr, pctSpace, forceMin) {
 		scaleMin = forceMin ? scaleMin : round6(incrRoundUp(scaleMin, incr));
 
 		var ticks = [];
@@ -640,6 +649,7 @@ var uPlot = (function (exports) {
 		alpha: 1,
 	//	label: "Value",
 	//	value: v => v,
+		values: null,
 
 		// internal caches
 		min: inf,
@@ -781,13 +791,17 @@ var uPlot = (function (exports) {
 		var scales  = (opts.scales = opts.scales || {});
 
 	//	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
-		self.tzDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
+		var tzDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
+
+		var _timeAxisTicks = timeAxisTicks(tzDate);
+		var _timeAxisVals = timeAxisVals(tzDate);
+		var _timeSeriesVal = timeSeriesVal(tzDate);
 
 		self.series = splitXY(series);
 		self.axes = splitXY(axes);
 		self.scales = scales;
 
-		var legend = assign({show: true}, opts.legend);
+		var legendOpts = assign({show: true}, opts.legend);
 
 		// set default value
 		series.forEach(function (s, i) {
@@ -810,12 +824,14 @@ var uPlot = (function (exports) {
 
 			var isTime = s.time;
 
-			s.value = s.value || (isTime ? timeSeriesVal : numSeriesVal);
+			s.value = s.value || (isTime ? _timeSeriesVal  : numSeriesVal);
 			s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 			s.width = s.width || 1;
 		});
 
 		var cursor = assign({show: true, cross: true}, opts.cursor);		// focus: {alpha, prox}
+
+		var focus = cursor.focus;
 
 		var dataLen;
 
@@ -909,10 +925,10 @@ var uPlot = (function (exports) {
 			// also set defaults for incrs & values based on axis type
 			var isTime = axis.time;
 
-			axis.incrs = axis.incrs || (isTime && sc.type == 1 ? timeIncrs : numIncrs);
-			axis.values = axis.values || (isTime ? timeAxisVals : numAxisVals);
-			axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.type == 1 ? getDateTicks : getNumTicks));
 			axis.space = fnOrSelf(axis.space);
+			axis.incrs = axis.incrs          || (isTime && sc.type == 1 ? timeIncrs      : numIncrs);
+			axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.type == 1 ? _timeAxisTicks : numAxisTicks));
+			axis.values = axis.values        || (isTime                 ? _timeAxisVals  : numAxisVals);
 		});
 
 		if (hasLeftAxis || hasRightAxis) {
@@ -1228,7 +1244,7 @@ var uPlot = (function (exports) {
 				// if we're using index positions, force first tick to match passed index
 				var forceMin = scale.type == 2;
 
-				var ticks = axis.ticks.call(self, min, max, incr, space/minSpace, forceMin);
+				var ticks = axis.ticks(min, max, incr, space/minSpace, forceMin);
 
 				var getPos = ori == 0 ? getXPos : getYPos;
 				var cssProp = ori == 0 ? LEFT : TOP;
@@ -1236,7 +1252,7 @@ var uPlot = (function (exports) {
 				// TODO: filter ticks & offsets that will end up off-canvas
 				var canOffs = ticks.map(function (val) { return getPos(val, scale, can[dim]); });		// bit of waste if we're not drawing a grid
 
-				var labels = axis.values.call(self, scale.type == 2 ? ticks.map(function (i) { return data[0][i]; }) : ticks, space);		// BOO this assumes a specific data/series
+				var labels = axis.values(scale.type == 2 ? ticks.map(function (i) { return data[0][i]; }) : ticks, space);		// BOO this assumes a specific data/series
 
 				canOffs.forEach(function (off, i) {
 					ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
@@ -1339,11 +1355,77 @@ var uPlot = (function (exports) {
 
 		var zoom = cursor.show ? placeDiv("zoom", plot) : null;
 
-		var leg = legend.show ? placeDiv("legend", root) : null;
+		var legend = null;
+		var legendLabels = null;	// TODO: legendValues?
+		var multiValLegend = false;
+
+		if (legendOpts.show) {
+			legend = placeTag("table", "legend", root);
+
+			var vals = series[1].values;
+			multiValLegend = vals != null;
+
+			var keys;
+
+			if (multiValLegend) {
+				var head = placeTag("tr", "labels", legend);
+				placeTag("th", null, head);
+				keys = vals(0);
+
+				for (var key in keys)
+					{ placeTag("th", null, head).textContent = key; }
+			}
+			else {
+				keys = {_: 0};
+				addClass(legend, "inline");
+			}
+
+			legendLabels = series.map(function (s, i) {
+				if (i == 0 && multiValLegend)
+					{ return null; }
+
+				var _row = [];
+
+				var row = placeTag("tr", "series", legend);
+
+				var label = placeTag("th", null, row);
+				label.textContent = s.label;
+
+				label.style.color = s.color;
+			//	label.style.borderLeft = "4px " + (s.dash == null ? "solid " : "dashed ") + s.color;
+			//	label.style.borderBottom = (s.width + "px ") + (s.dash == null ? "solid " : "dashed ") + s.color;
+
+				if (i > 0) {
+					on("click", label, function (e) {
+						if (locked)
+							{ return; }
+
+						filtMouse(e) && toggle(i, null, syncOpts.toggle);
+					});
+
+					if (focus) {
+						on("mouseenter", label, function (e) {
+							if (locked)
+								{ return; }
+
+							setFocus(i, focus.alpha, syncOpts.focus);
+						});
+					}
+				}
+
+				for (var key in keys) {
+					var v = placeTag("td", null, row);
+					v.textContent = "--";
+					_row.push(v);
+				}
+
+				return _row;
+			});
+		}
 
 		function toggleDOM(i, onOff) {
 			var s = series[i];
-			var label = legendLabels[i];
+			var label = legendLabels[i][0].parentNode;
 
 			if (s.show)
 				{ remClass(label, "off"); }
@@ -1376,7 +1458,7 @@ var uPlot = (function (exports) {
 		self.toggle = toggle;
 
 		function _alpha(i, value) {
-			series[i].alpha = legendLabels[i].style.opacity = value;
+			series[i].alpha = legendLabels[i][0].parentNode.style.opacity = value;
 		}
 
 		function _setAlpha(i, value) {
@@ -1390,8 +1472,6 @@ var uPlot = (function (exports) {
 				_alpha(ip, value);
 			}
 		}
-
-		var focus = cursor.focus;
 
 		// y-distance
 		var distsToCursor = Array(series.length);
@@ -1416,35 +1496,8 @@ var uPlot = (function (exports) {
 
 		self.focus = setFocus;
 
-		var legendLabels = legend.show ? series.map(function (s, i) {
-			var label = placeDiv(null, leg);
-			label.style.color = s.color;
-			label.style.borderBottom = (s.width + "px ") + (s.dash == null ? "solid " : "dashed ") + s.color;
-			label.textContent = s.label + ': -';
-
-			if (i > 0) {
-				on("click", label, function (e) {
-					if (locked)
-						{ return; }
-
-					filtMouse(e) && toggle(i, null, syncOpts.toggle);
-				});
-
-				if (focus) {
-					on("mouseenter", label, function (e) {
-						if (locked)
-							{ return; }
-
-						setFocus(i, focus.alpha, syncOpts.focus);
-					});
-				}
-			}
-
-			return label;
-		}) : null;
-
 		if (focus) {
-			on("mouseleave", leg, function (e) {
+			on("mouseleave", legend, function (e) {
 				if (locked)
 					{ return; }
 			//	setFocus(null, 1);
@@ -1529,8 +1582,17 @@ var uPlot = (function (exports) {
 				else
 					{ distsToCursor[i] = inf; }
 
-				if (legend.show)
-					{ legendLabels[i][firstChild].nodeValue = s.label + ': ' + s.value.call(self, data[i][idx]); }
+				if (legendOpts.show) {
+					if (i == 0 && multiValLegend)
+						{ continue; }
+
+					var vals = multiValLegend ? s.values(idx) : {_: s.value(data[i][idx])};
+
+					var j = 0;
+
+					for (var k in vals)
+						{ legendLabels[i][j++][firstChild].nodeValue = vals[k]; }
+				}
 			}
 
 			if (dragging) {

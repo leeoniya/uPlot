@@ -50,6 +50,7 @@ import {
 	setStylePx,
 	setOriRotTrans,
 	makeCanvas,
+	placeTag,
 	placeDiv,
 	clearFrom,
 	trans,
@@ -74,8 +75,8 @@ import {
 	timeSeriesLabel,
 	numSeriesLabel,
 
-	getDateTicks,
-	getNumTicks,
+	timeAxisTicks,
+	numAxisTicks,
 } from './opts';
 
 import {
@@ -182,13 +183,17 @@ export function Line(opts, data) {
 	const scales  = (opts.scales = opts.scales || {});
 
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
-	self.tzDate = opts.tzDate || (ts => new Date(ts * 1e3));
+	const tzDate = opts.tzDate || (ts => new Date(ts * 1e3));
+
+	const _timeAxisTicks = timeAxisTicks(tzDate);
+	const _timeAxisVals = timeAxisVals(tzDate);
+	const _timeSeriesVal = timeSeriesVal(tzDate);
 
 	self.series = splitXY(series);
 	self.axes = splitXY(axes);
 	self.scales = scales;
 
-	const legend = assign({show: true}, opts.legend);
+	const legendOpts = assign({show: true}, opts.legend);
 
 	// set default value
 	series.forEach((s, i) => {
@@ -211,12 +216,14 @@ export function Line(opts, data) {
 
 		let isTime = s.time;
 
-		s.value = s.value || (isTime ? timeSeriesVal : numSeriesVal);
+		s.value = s.value || (isTime ? _timeSeriesVal  : numSeriesVal);
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 		s.width = s.width || 1;
 	});
 
 	const cursor = assign({show: true, cross: true}, opts.cursor);		// focus: {alpha, prox}
+
+	const focus = cursor.focus;
 
 	let dataLen;
 
@@ -310,10 +317,10 @@ export function Line(opts, data) {
 		// also set defaults for incrs & values based on axis type
 		let isTime = axis.time;
 
-		axis.incrs = axis.incrs || (isTime && sc.type == 1 ? timeIncrs : numIncrs);
-		axis.values = axis.values || (isTime ? timeAxisVals : numAxisVals);
-		axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.type == 1 ? getDateTicks : getNumTicks));
 		axis.space = fnOrSelf(axis.space);
+		axis.incrs = axis.incrs          || (isTime && sc.type == 1 ? timeIncrs      : numIncrs);
+		axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.type == 1 ? _timeAxisTicks : numAxisTicks));
+		axis.values = axis.values        || (isTime                 ? _timeAxisVals  : numAxisVals);
 	});
 
 	if (hasLeftAxis || hasRightAxis) {
@@ -624,7 +631,7 @@ export function Line(opts, data) {
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.type == 2;
 
-			let ticks = axis.ticks.call(self, min, max, incr, space/minSpace, forceMin);
+			let ticks = axis.ticks(min, max, incr, space/minSpace, forceMin);
 
 			let getPos = ori == 0 ? getXPos : getYPos;
 			let cssProp = ori == 0 ? LEFT : TOP;
@@ -632,7 +639,7 @@ export function Line(opts, data) {
 			// TODO: filter ticks & offsets that will end up off-canvas
 			let canOffs = ticks.map(val => getPos(val, scale, can[dim]));		// bit of waste if we're not drawing a grid
 
-			let labels = axis.values.call(self, scale.type == 2 ? ticks.map(i => data[0][i]) : ticks, space);		// BOO this assumes a specific data/series
+			let labels = axis.values(scale.type == 2 ? ticks.map(i => data[0][i]) : ticks, space);		// BOO this assumes a specific data/series
 
 			canOffs.forEach((off, i) => {
 				ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
@@ -735,11 +742,77 @@ export function Line(opts, data) {
 
 	const zoom = cursor.show ? placeDiv("zoom", plot) : null;
 
-	const leg = legend.show ? placeDiv("legend", root) : null;
+	let legend = null;
+	let legendLabels = null;	// TODO: legendValues?
+	let multiValLegend = false;
+
+	if (legendOpts.show) {
+		legend = placeTag("table", "legend", root);
+
+		let vals = series[1].values;
+		multiValLegend = vals != null;
+
+		let keys;
+
+		if (multiValLegend) {
+			let head = placeTag("tr", "labels", legend);
+			placeTag("th", null, head);
+			keys = vals(0);
+
+			for (var key in keys)
+				placeTag("th", null, head).textContent = key;
+		}
+		else {
+			keys = {_: 0};
+			addClass(legend, "inline");
+		}
+
+		legendLabels = series.map((s, i) => {
+			if (i == 0 && multiValLegend)
+				return null;
+
+			let _row = [];
+
+			let row = placeTag("tr", "series", legend);
+
+			let label = placeTag("th", null, row);
+			label.textContent = s.label;
+
+			label.style.color = s.color;
+		//	label.style.borderLeft = "4px " + (s.dash == null ? "solid " : "dashed ") + s.color;
+		//	label.style.borderBottom = (s.width + "px ") + (s.dash == null ? "solid " : "dashed ") + s.color;
+
+			if (i > 0) {
+				on("click", label, e => {
+					if (locked)
+						return;
+
+					filtMouse(e) && toggle(i, null, syncOpts.toggle);
+				});
+
+				if (focus) {
+					on("mouseenter", label, e => {
+						if (locked)
+							return;
+
+						setFocus(i, focus.alpha, syncOpts.focus);
+					});
+				}
+			}
+
+			for (var key in keys) {
+				let v = placeTag("td", null, row);
+				v.textContent = "--";
+				_row.push(v);
+			}
+
+			return _row;
+		});
+	}
 
 	function toggleDOM(i, onOff) {
 		let s = series[i];
-		let label = legendLabels[i];
+		let label = legendLabels[i][0].parentNode;
 
 		if (s.show)
 			remClass(label, "off");
@@ -772,7 +845,7 @@ export function Line(opts, data) {
 	self.toggle = toggle;
 
 	function _alpha(i, value) {
-		series[i].alpha = legendLabels[i].style.opacity = value;
+		series[i].alpha = legendLabels[i][0].parentNode.style.opacity = value;
 	}
 
 	function _setAlpha(i, value) {
@@ -786,8 +859,6 @@ export function Line(opts, data) {
 			_alpha(ip, value);
 		}
 	}
-
-	let focus = cursor.focus;
 
 	// y-distance
 	const distsToCursor = Array(series.length);
@@ -812,35 +883,8 @@ export function Line(opts, data) {
 
 	self.focus = setFocus;
 
-	const legendLabels = legend.show ? series.map((s, i) => {
-		let label = placeDiv(null, leg);
-		label.style.color = s.color;
-		label.style.borderBottom = (s.width + "px ") + (s.dash == null ? "solid " : "dashed ") + s.color;
-		label.textContent = s.label + ': -';
-
-		if (i > 0) {
-			on("click", label, e => {
-				if (locked)
-					return;
-
-				filtMouse(e) && toggle(i, null, syncOpts.toggle);
-			});
-
-			if (focus) {
-				on("mouseenter", label, e => {
-					if (locked)
-						return;
-
-					setFocus(i, focus.alpha, syncOpts.focus);
-				});
-			}
-		}
-
-		return label;
-	}) : null;
-
 	if (focus) {
-		on("mouseleave", leg, e => {
+		on("mouseleave", legend, e => {
 			if (locked)
 				return;
 		//	setFocus(null, 1);
@@ -925,8 +969,17 @@ export function Line(opts, data) {
 			else
 				distsToCursor[i] = inf;
 
-			if (legend.show)
-				legendLabels[i][firstChild].nodeValue = s.label + ': ' + s.value.call(self, data[i][idx]);
+			if (legendOpts.show) {
+				if (i == 0 && multiValLegend)
+					continue;
+
+				let vals = multiValLegend ? s.values(idx) : {_: s.value(data[i][idx])};
+
+				let j = 0;
+
+				for (let k in vals)
+					legendLabels[i][j++][firstChild].nodeValue = vals[k];
+			}
 		}
 
 		if (dragging) {
