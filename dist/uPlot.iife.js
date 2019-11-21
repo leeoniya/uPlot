@@ -694,7 +694,7 @@ var uPlot = (function (exports) {
 	}
 
 	function setDefaults(d, xo, yo) {
-		return [d.x].concat(d.y).map(function (o, i) { return assign({}, (i == 0 ? xo : yo), o); });
+		return [].concat(d.x, d.y).map(function (o, i) { return assign({}, (i == 0 ? xo : yo), o); });
 	}
 
 	function splitXY(d) {

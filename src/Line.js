@@ -86,7 +86,7 @@ import {
 
 
 function setDefaults(d, xo, yo) {
-	return [d.x].concat(d.y).map((o, i) => assign({}, (i == 0 ? xo : yo), o));
+	return [].concat(d.x, d.y).map((o, i) => assign({}, (i == 0 ? xo : yo), o));
 }
 
 function splitXY(d) {
