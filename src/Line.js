@@ -734,8 +734,10 @@ export function Line(opts, data) {
 	let y = null;
 
 	if (cursor.show && cursor.cross) {
-		vt = placeDiv("vt", plot);
-		hz = placeDiv("hz", plot);
+		let c = "cursor-";
+
+		vt = placeDiv(c + "vt", plot);
+		hz = placeDiv(c + "hz", plot);
 		x = canCssWidth/2;
 		y = canCssHeight/2;
 	}

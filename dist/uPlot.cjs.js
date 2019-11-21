@@ -1346,8 +1346,10 @@ function Line(opts, data) {
 	var y = null;
 
 	if (cursor.show && cursor.cross) {
-		vt = placeDiv("vt", plot);
-		hz = placeDiv("hz", plot);
+		var c = "cursor-";
+
+		vt = placeDiv(c + "vt", plot);
+		hz = placeDiv(c + "hz", plot);
 		x = canCssWidth/2;
 		y = canCssHeight/2;
 	}
