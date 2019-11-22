@@ -427,17 +427,22 @@ var uPlot = (function (exports) {
 		y * 50,
 		y * 100 ]);
 
+	var yyyy = "{YYYY}";
+	var NLyyyy = "\n" + yyyy;
+	var md = "{M}/{D}";
+	var NLmd = "\n" + md;
+
 	var timeAxisStamps = [
-		[y,        "{YYYY}",               1,   "{YYYY}" ],
-		[d * 28,   "{MMM}",                1,   "{MMM}\n{YYYY}" ],
-		[d,        "{M}/{D}",              1,   "{M}/{D}\n{YYYY}" ],
-		[h,        "{h}{aa}",              2,   "{h}{aa}\n{M}/{D}" ],
-		[m,        "{h}:{mm}{aa}",         2,   "{h}:{mm}{aa}\n{M}/{D}" ],
-		[s,        "{h}:{mm}:{ss}{aa}",    2,   "{h}:{mm}:{ss}{aa}\n{M}/{D}" ] ];
+		[y,        yyyy,                 1,   "" ],
+		[d * 28,   "{MMM}",              1,   NLyyyy ],
+		[d,        md,                   1,   NLyyyy ],
+		[h,        "{h}{aa}",            2,   NLmd ],
+		[m,        "{h}:{mm}{aa}",       2,   NLmd ],
+		[s,        "{h}:{mm}:{ss}{aa}",  2,   NLmd ] ];
 
 	timeAxisStamps.forEach(function (s) {
+		s[3] = fmtDate(s[1] + s[3]);
 		s[1] = fmtDate(s[1]);
-		s[3] = fmtDate(s[3]);
 	});
 
 	// TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
