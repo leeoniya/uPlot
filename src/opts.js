@@ -93,33 +93,19 @@ export const timeIncrs = dec.concat([
 	y * 100,
 ]);
 
-const md = '{M}/{D}';
-const MMM = '{MMM}';
-const yr = '{YYYY}';
-const hr = '{h}';
-const mm = ':{mm}';
-const ss = ':{ss}';
-const ampm = '{aa}';
+const timeAxisStamps = [
+	[y,        "{YYYY}",               1,   "{YYYY}",                     ],
+	[d * 28,   "{MMM}",                1,   "{MMM}\n{YYYY}",              ],
+	[d,        "{M}/{D}",              1,   "{M}/{D}\n{YYYY}",            ],
+	[h,        "{h}{aa}",              2,   "{h}{aa}\n{M}/{D}",           ],
+	[m,        "{h}:{mm}{aa}",         2,   "{h}:{mm}{aa}\n{M}/{D}",      ],
+	[s,        "{h}:{mm}:{ss}{aa}",    2,   "{h}:{mm}:{ss}{aa}\n{M}/{D}", ],
+];
 
-const year = fmtDate(yr);
-const monthDate = fmtDate(md);
-const monthDateYear = fmtDate(md + '\n' + yr);
-const month = fmtDate(MMM);
-const monthYear = fmtDate(MMM + '\n' + yr);
-
-const _hour   = hr +           ampm;
-const _minute = hr + mm +      ampm;
-const _second = hr + mm + ss + ampm;
-
-const hour =   fmtDate(_hour);
-const minute = fmtDate(_minute);
-const second = fmtDate(_second);
-
-const md2 = '\n' + md;
-
-const hourDate	= fmtDate(_hour   + md2);
-const minDate	= fmtDate(_minute + md2);
-const secDate	= fmtDate(_second + md2);
+timeAxisStamps.forEach(s => {
+	s[1] = fmtDate(s[1]);
+	s[3] = fmtDate(s[3]);
+});
 
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
@@ -140,20 +126,8 @@ export function timeAxisVals(tzDate) {
 			let diffYear = newYear != prevYear;
 			let diffDate = newDate != prevDate;
 
-			let stamp;
-
-			if (incr >= y)
-				stamp = year;
-			else if (incr >= d * 28)
-				stamp = diffYear ? monthYear : month;
-			else if (incr >= d)
-				stamp = diffYear ? monthDateYear : monthDate;
-			else if (incr >= h)
-				stamp = diffDate ? hourDate : hour;
-			else if (incr >= m)
-				stamp = diffDate ? minDate : minute;
-			else if (incr >= s)
-				stamp = diffDate ? secDate :  second;
+			let s = timeAxisStamps.find(e => incr >= e[0]);
+			let stamp = s[2] == 1 && diffYear || s[2] == 2 && diffDate ? s[3] : s[1];
 
 			prevYear = newYear;
 			prevDate = newDate;

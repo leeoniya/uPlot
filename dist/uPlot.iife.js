@@ -427,33 +427,18 @@ var uPlot = (function (exports) {
 		y * 50,
 		y * 100 ]);
 
-	var md = '{M}/{D}';
-	var MMM = '{MMM}';
-	var yr = '{YYYY}';
-	var hr = '{h}';
-	var mm = ':{mm}';
-	var ss = ':{ss}';
-	var ampm = '{aa}';
+	var timeAxisStamps = [
+		[y,        "{YYYY}",               1,   "{YYYY}" ],
+		[d * 28,   "{MMM}",                1,   "{MMM}\n{YYYY}" ],
+		[d,        "{M}/{D}",              1,   "{M}/{D}\n{YYYY}" ],
+		[h,        "{h}{aa}",              2,   "{h}{aa}\n{M}/{D}" ],
+		[m,        "{h}:{mm}{aa}",         2,   "{h}:{mm}{aa}\n{M}/{D}" ],
+		[s,        "{h}:{mm}:{ss}{aa}",    2,   "{h}:{mm}:{ss}{aa}\n{M}/{D}" ] ];
 
-	var year = fmtDate(yr);
-	var monthDate = fmtDate(md);
-	var monthDateYear = fmtDate(md + '\n' + yr);
-	var month = fmtDate(MMM);
-	var monthYear = fmtDate(MMM + '\n' + yr);
-
-	var _hour   = hr +           ampm;
-	var _minute = hr + mm +      ampm;
-	var _second = hr + mm + ss + ampm;
-
-	var hour =   fmtDate(_hour);
-	var minute = fmtDate(_minute);
-	var second = fmtDate(_second);
-
-	var md2 = '\n' + md;
-
-	var hourDate	= fmtDate(_hour   + md2);
-	var minDate	= fmtDate(_minute + md2);
-	var secDate	= fmtDate(_second + md2);
+	timeAxisStamps.forEach(function (s) {
+		s[1] = fmtDate(s[1]);
+		s[3] = fmtDate(s[3]);
+	});
 
 	// TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 	// currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
@@ -474,20 +459,8 @@ var uPlot = (function (exports) {
 				var diffYear = newYear != prevYear;
 				var diffDate = newDate != prevDate;
 
-				var stamp;
-
-				if (incr >= y)
-					{ stamp = year; }
-				else if (incr >= d * 28)
-					{ stamp = diffYear ? monthYear : month; }
-				else if (incr >= d)
-					{ stamp = diffYear ? monthDateYear : monthDate; }
-				else if (incr >= h)
-					{ stamp = diffDate ? hourDate : hour; }
-				else if (incr >= m)
-					{ stamp = diffDate ? minDate : minute; }
-				else if (incr >= s)
-					{ stamp = diffDate ? secDate :  second; }
+				var s = timeAxisStamps.find(function (e) { return incr >= e[0]; });
+				var stamp = s[2] == 1 && diffYear || s[2] == 2 && diffDate ? s[3] : s[1];
 
 				prevYear = newYear;
 				prevDate = newDate;
