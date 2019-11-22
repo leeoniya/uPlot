@@ -426,36 +426,44 @@ var timeIncrs = dec.concat([
 	y * 50,
 	y * 100 ]);
 
+function timeAxisStamps(stampCfg) {
+	return stampCfg.map(function (s) { return [
+		s[0],
+		fmtDate(s[1]),
+		s[2],
+		fmtDate(s[4] ? s[1] + s[3] : s[3]) ]; });
+}
+
 var yyyy = "{YYYY}";
 var NLyyyy = "\n" + yyyy;
 var md = "{M}/{D}";
 var NLmd = "\n" + md;
 
-var timeAxisStamps = [
-	[y,        yyyy,                 1,   "" ],
-	[d * 28,   "{MMM}",              1,   NLyyyy ],
-	[d,        md,                   1,   NLyyyy ],
-	[h,        "{h}{aa}",            2,   NLmd ],
-	[m,        "{h}:{mm}{aa}",       2,   NLmd ],
-	[s,        "{h}:{mm}:{ss}{aa}",  2,   NLmd ] ];
-
-timeAxisStamps.forEach(function (s) {
-	s[3] = fmtDate(s[1] + s[3]);
-	s[1] = fmtDate(s[1]);
-});
+// [0]: minimum num secs in the tick incr
+// [1]: normal tick format
+// [2]: when a differing <x> is encountered - 1: sec, 2: min, 3: hour, 4: day, 5: week, 6: month, 7: year
+// [3]: use a longer more contextual format
+// [4]: modes: 0: replace [1] -> [3], 1: concat [1] + [3]
+var _timeAxisStamps = timeAxisStamps([
+	[y,        yyyy,                 7,   "",       1],
+	[d * 28,   "{MMM}",              7,   NLyyyy,   1],
+	[d,        md,                   7,   NLyyyy,   1],
+	[h,        "{h}{aa}",            4,   NLmd,     1],
+	[m,        "{h}:{mm}{aa}",       4,   NLmd,     1],
+	[s,        "{h}:{mm}:{ss}{aa}",  4,   NLmd,     1] ]);
 
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
-function timeAxisVals(tzDate) {
-	return function (vals, space) {
-		var incr = vals[1] - vals[0];
+function timeAxisVals(tzDate, stamps) {
+	return function (ticks, space) {
+		var incr = ticks[1] - ticks[0];
 
 		// these track boundaries when a full label is needed again
 		var prevYear = null;
 		var prevDate = null;
 
-		return vals.map(function (val, i) {
-			var date = tzDate(val);
+		return ticks.map(function (tick, i) {
+			var date = tzDate(tick);
 
 			var newYear = date[getFullYear]();
 			var newDate = date[getDate]();
@@ -463,8 +471,8 @@ function timeAxisVals(tzDate) {
 			var diffYear = newYear != prevYear;
 			var diffDate = newDate != prevDate;
 
-			var s = timeAxisStamps.find(function (e) { return incr >= e[0]; });
-			var stamp = s[2] == 1 && diffYear || s[2] == 2 && diffDate ? s[3] : s[1];
+			var s = stamps.find(function (e) { return incr >= e[0]; });
+			var stamp = s[2] == 7 && diffYear || s[2] == 4 && diffDate ? s[3] : s[1];
 
 			prevYear = newYear;
 			prevDate = newDate;
@@ -587,8 +595,8 @@ var xSeriesOpts = {
 
 var numIncrs = dec.concat([1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9]);
 
-function numAxisVals(vals, space) {
-	return vals;
+function numAxisVals(ticks, space) {
+	return ticks;
 }
 
 function numAxisTicks(scaleMin, scaleMax, incr, pctSpace, forceMin) {
@@ -771,7 +779,7 @@ function Line(opts, data) {
 	var tzDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
 
 	var _timeAxisTicks = timeAxisTicks(tzDate);
-	var _timeAxisVals = timeAxisVals(tzDate);
+	var _timeAxisVals = timeAxisVals(tzDate, _timeAxisStamps);
 	var _timeSeriesVal = timeSeriesVal(tzDate);
 
 	self.series = splitXY(series);
@@ -905,7 +913,8 @@ function Line(opts, data) {
 		axis.space = fnOrSelf(axis.space);
 		axis.incrs = axis.incrs          || (isTime && sc.type == 1 ? timeIncrs      : numIncrs);
 		axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.type == 1 ? _timeAxisTicks : numAxisTicks));
-		axis.values = axis.values        || (isTime                 ? _timeAxisVals  : numAxisVals);
+		var av = axis.values;
+		axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
 	});
 
 	if (hasLeftAxis || hasRightAxis) {

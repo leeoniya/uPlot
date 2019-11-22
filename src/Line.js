@@ -77,6 +77,9 @@ import {
 
 	timeAxisTicks,
 	numAxisTicks,
+
+	timeAxisStamps,
+	_timeAxisStamps,
 } from './opts';
 
 import {
@@ -186,7 +189,7 @@ export function Line(opts, data) {
 	const tzDate = opts.tzDate || (ts => new Date(ts * 1e3));
 
 	const _timeAxisTicks = timeAxisTicks(tzDate);
-	const _timeAxisVals = timeAxisVals(tzDate);
+	const _timeAxisVals = timeAxisVals(tzDate, _timeAxisStamps);
 	const _timeSeriesVal = timeSeriesVal(tzDate);
 
 	self.series = splitXY(series);
@@ -320,7 +323,8 @@ export function Line(opts, data) {
 		axis.space = fnOrSelf(axis.space);
 		axis.incrs = axis.incrs          || (isTime && sc.type == 1 ? timeIncrs      : numIncrs);
 		axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.type == 1 ? _timeAxisTicks : numAxisTicks));
-		axis.values = axis.values        || (isTime                 ? _timeAxisVals  : numAxisVals);
+		let av = axis.values;
+		axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
 	});
 
 	if (hasLeftAxis || hasRightAxis) {
