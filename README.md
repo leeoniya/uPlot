@@ -159,6 +159,15 @@ Benchmarks done on a ThinkPad T480S:
             <td>--</td>
         </tr>
         <tr>
+            <td><a href="https://leeoniya.github.io/uPlot/bench/LightningChart.html">LightningChart</a></td>
+            <td>883 KB</td>
+            <td>135 ms</td>
+            <td>500 ms</td>
+            <td>43.5 MB</td>
+            <td>21.5 MB</td>
+            <td>9446 ms</td>
+        </tr>
+        <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/dygraphs.html">dygraphs</a></td>
             <td>121 KB</td>
             <td>168 ms</td>
