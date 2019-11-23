@@ -57,7 +57,13 @@
 						seriesThreshold: 1,
 					},
 					chart: {
-						zoomType: 'x'
+						zoomType: 'x',
+						events: {
+							render: () => {
+								wait.textContent = "Done!";
+								console.timeEnd('chart');
+							}
+						},
 					},
 					title: {
 						text: 'Highcharts (' + data[0].length * 3 + ' points)'
@@ -102,9 +108,6 @@
 						}
 					]
 				});
-
-				wait.textContent = "Done!";
-				console.timeEnd('chart');
 			}
 
 			let wait = document.getElementById("wait");

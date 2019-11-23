@@ -151,21 +151,12 @@ Benchmarks done on a ThinkPad T480S:
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/Flot.html">Flot</a></td>
-            <td>2,606 KB</td>
+            <td>172 KB</td>
             <td>130 ms</td>
             <td>190 ms</td>
             <td>42.7 MB</td>
             <td>17.3 MB</td>
             <td>--</td>
-        </tr>
-        <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/LightningChart.html">LightningChart</a></td>
-            <td>883 KB</td>
-            <td>135 ms</td>
-            <td>500 ms</td>
-            <td>43.5 MB</td>
-            <td>21.5 MB</td>
-            <td>9446 ms</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/dygraphs.html">dygraphs</a></td>
@@ -186,6 +177,15 @@ Benchmarks done on a ThinkPad T480S:
             <td>2401 ms</td>
         </tr>
         <tr>
+            <td><a href="https://leeoniya.github.io/uPlot/bench/LightningChart.html">LightningChart</a></td>
+            <td>883 KB</td>
+            <td>--</td>
+            <td>500 ms</td>
+            <td>43.5 MB</td>
+            <td>21.5 MB</td>
+            <td>9446 ms</td>
+        </tr>
+        <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/jqChart.html">jqChart</a></td>
             <td>270 KB</td>
             <td>450 ms</td>
@@ -193,6 +193,15 @@ Benchmarks done on a ThinkPad T480S:
             <td>142 MB</td>
             <td>99.9 MB</td>
             <td>600 ms</td>
+        </tr>
+        <tr>
+            <td><a href="https://leeoniya.github.io/uPlot/bench/Highcharts.html">Highcharts</a></td>
+            <td>270 KB</td>
+            <td>--</td>
+            <td>717 ms</td>
+            <td>71.7 MB</td>
+            <td>40.7 MB</td>
+            <td>1122 ms</td>
         </tr>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/ECharts.html">ECharts</a></td>
@@ -204,17 +213,8 @@ Benchmarks done on a ThinkPad T480S:
             <td>2194 ms</td>
         </tr>
         <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/Highcharts.html">Highcharts</a></td>
-            <td>270 KB</td>
-            <td>573 ms</td>
-            <td>717 ms</td>
-            <td>71.7 MB</td>
-            <td>40.7 MB</td>
-            <td>1122 ms</td>
-        </tr>
-        <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/Chart.js.html">Chart.js</a></td>
-            <td>153 KB</td>
+            <td>239 KB</td>
             <td>653 ms</td>
             <td>741 ms</td>
             <td>117 MB</td>
@@ -304,6 +304,25 @@ Benchmarks done on a ThinkPad T480S:
         </tr>
     </tbody>
 </table>
+
+```
+Chrome 78.0.3904.108 (2019-11-23)
+
+                   rend       js      sys     size  heap max  heap ret
+----------------------------------------------------------------------
+uPlot             40 ms    72 ms    71 ms    15 KB   19.7 MB    3.8 MB
+dygraphs         180 ms   241 ms   183 ms   123 KB  113.0 MB   64.1 MB
+Flot             338 ms   182 ms   290 ms   172 KB   43.5 MB   17.2 MB
+CanvasJS         327 ms   374 ms    60 ms   448 KB   48.5 MB   38.2 MB
+LightningChart   --- ms   490 ms    78 ms   883 KB   42.4 MB   21.1 MB
+jqChart          506 ms   574 ms    96 ms   269 KB  134.0 MB  100.3 MB
+Highcharts       --- ms   707 ms    62 ms   272 KB   80.4 MB   77.2 MB
+Chart.js         650 ms   700 ms   178 ms   239 KB  141.0 MB  122.2 MB
+ECharts          515 ms   769 ms  1043 ms   734 KB  182.0 MB  125.0 MB
+ApexCharts      1255 ms  2360 ms    67 ms   435 KB  159.4 MB  159.4 MB
+ZingChart       5820 ms  5957 ms    72 ms   690 KB  182.0 MB  162.8 MB
+amCharts        6732 ms  6697 ms    88 ms  1024 KB  405.8 MB  405.8 MB
+```
 
 ---
 ### Acknowledgements
