@@ -118,6 +118,36 @@ Example: https://jsfiddle.net/4o0ge9wx/
 
 WIP: https://github.com/leeoniya/uPlot/issues/48
 
+- [Data Format](#data-format)
+
+
+#### Data Format
+
+```js
+let data = [
+  [1546300800, 1546387200],  // x-values (timestamps)
+  [        35,         71],  // y-values (series 1)
+  [        90,         15],  // y-values (series 2)
+];
+```
+
+uPlot expects a columnar data format as shown above.
+
+- x-values must be numbers, unique, and in ascending order.
+- y-values must be numbers or `null` for missing data.
+- x-values and y-values arrays must be of equal lengths.
+
+By default, x-values are assumed to be [unix timestamps](https://en.wikipedia.org/wiki/Unix_time) but can be treated as plain numbers via `scales.x.time = false`.
+
+This format has implications that can make uPlot an awkward choice for multi-series datasets which cannot be easily aligned along their x-values.
+If one series is data-dense and the other is sparse, then the latter will need to be filled in with mostly `null` y-values.
+If each series has data at arbitrary x-values, then the x-values array must be augmented with all x-values, and all y-values arrays must be augmented with `null`s, potentially leading to exponential growth in dataset size, and a structure consisting of mostly `null`s.
+
+This does not mean that all series must have identical x-values - just that they are alignable.
+For instance, it is possible to plot [series that express different time periods](https://leeoniya.github.io/uPlot/demos/time-periods.html), because the data is equally spaced.
+
+**When choosing uPlot, ensure your data can conform to these requirements. You've been warned!**
+
 ---
 ### Performance
 
