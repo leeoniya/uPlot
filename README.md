@@ -116,9 +116,18 @@ Example: https://jsfiddle.net/4o0ge9wx/
 ---
 ### Documentation
 
+- [Installation](#installation)
 - [Data Format](#data-format)
 - [Basics](#basics)
 - WIP: [#48](https://github.com/leeoniya/uPlot/issues/48)
+
+---
+#### Installation
+
+```html
+<link rel="stylesheet" href="src/uPlot.css">
+<script src="dist/uPlot.iife.min.js"></script>
+```
 
 ---
 #### Data Format
@@ -154,6 +163,8 @@ For instance, it is possible to plot [series that express different time periods
 ```js
 let opts = {
   title: "My Chart",
+  id: "chart1",
+  class: "my-chart",
   width: 800,
   height: 600,
   spanGaps: false,
@@ -172,9 +183,14 @@ let opts = {
       }
     ]
   }
-}
+};
+
+let uplot = new uPlot.Line(opts, data);
+
+document.body.appendChild(uplot.root);
 ```
 
+- `id` and `class` are optional HTML attributes to set on the chart's container `<div>` (`uplot.root`).
 - `width` and `height` are required dimensions in *logical* [CSS] pixels of the plotting area & axes, but **excluding** `title` or `legend` dimensions (which can be variable based on user CSS).
 - `spanGaps` can be set to `true` to connect `null` data points.
 - For a series to be rendered, it **must** be specified in the opts; simply having it in the data is insufficient.
