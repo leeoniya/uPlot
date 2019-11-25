@@ -117,9 +117,10 @@ Example: https://jsfiddle.net/4o0ge9wx/
 ### Documentation
 
 - [Data Format](#data-format)
-- ...WIP: https://github.com/leeoniya/uPlot/issues/48
+- [Basics](#basics)
+- WIP: [#48](https://github.com/leeoniya/uPlot/issues/48)
 
-
+---
 #### Data Format
 
 ```js
@@ -146,6 +147,40 @@ This does not mean that all series must have identical x-values - just that they
 For instance, it is possible to plot [series that express different time periods](https://leeoniya.github.io/uPlot/demos/time-periods.html), because the data is equally spaced.
 
 **When choosing uPlot, ensure your data can conform to these requirements. You've been warned!**
+
+---
+#### Basics
+
+```js
+let opts = {
+  title: "My Chart",
+  width: 800,
+  height: 600,
+  spanGaps: false,
+  series: {
+    y: [
+      {
+        // in-legend display
+        label: "RAM",
+        value: dataValue => "$" + dataValue.toFixed(2),
+
+        // series style
+        color: "red",
+        width: 1,
+        fill: "rgba(255, 0, 0, 0.3)",
+        dash: [10, 5],
+      }
+    ]
+  }
+}
+```
+
+- `width` and `height` are required dimensions in *logical* [CSS] pixels of the plotting area & axes, but **excluding** `title` or `legend` dimensions (which can be variable based on user CSS).
+- `spanGaps` can be set to `true` to connect `null` data points.
+- For a series to be rendered, it **must** be specified in the opts; simply having it in the data is insufficient.
+- All series' options are optional; `label` will default to "Value" and `color` will default to "black".
+- Series' line `width` is specified in *physical* [device] pixels (e.g. on high-DPI displays with a pixel ratio = 2, `width: 1` will draw a line with an effective width of 0.5 logical [CSS] pixels).
+- `color`, `width`, `fill`, and `dash` map directly to Canvas API's [ctx.strokeStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeStyle), [ctx.lineWidth](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineWidth), [ctx.fillStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fillStyle), and [ctx.setLineDash](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash).
 
 ---
 ### Performance
