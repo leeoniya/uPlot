@@ -798,6 +798,8 @@ var uPlot = (function (exports) {
 		var axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
 		var scales  = (opts.scales = opts.scales || {});
 
+		var spanGaps = opts.spanGaps || false;
+
 	//	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 		var tzDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
 
@@ -1184,15 +1186,12 @@ var uPlot = (function (exports) {
 				if (dir == -1 && i == self.i1)
 					{ path.lineTo(x, y); }
 
-				// bug: will break filled areas due to moveTo
-				if (y == null) {				// data gaps
-					gap = true;
-					path.moveTo(x, prevY);
-				}
+				if (y == null)
+					{ gap = true; }
 				else {
 					if ((dir == 1 ? x - prevX : prevX - x) >= width) {
 						if (gap) {
-							path.moveTo(x, y);
+							spanGaps ? path.lineTo(x, y) : path.moveTo(x, y);	// bug: will break filled areas due to moveTo
 							gap = false;
 						}
 						else if (dir == 1 ? i > self.i0 : i < self.i1) {

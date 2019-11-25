@@ -189,6 +189,8 @@ export function Line(opts, data) {
 	const axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
 	const scales  = (opts.scales = opts.scales || {});
 
+	const spanGaps = opts.spanGaps || false;
+
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const tzDate = opts.tzDate || (ts => new Date(ts * 1e3));
 
@@ -573,15 +575,12 @@ export function Line(opts, data) {
 			if (dir == -1 && i == self.i1)
 				path.lineTo(x, y);
 
-			// bug: will break filled areas due to moveTo
-			if (y == null) {				// data gaps
+			if (y == null)
 				gap = true;
-				path.moveTo(x, prevY);
-			}
 			else {
 				if ((dir == 1 ? x - prevX : prevX - x) >= width) {
 					if (gap) {
-						path.moveTo(x, y);
+						spanGaps ? path.lineTo(x, y) : path.moveTo(x, y);	// bug: will break filled areas due to moveTo
 						gap = false;
 					}
 					else if (dir == 1 ? i > self.i0 : i < self.i1) {
