@@ -116,9 +116,8 @@ Example: https://jsfiddle.net/4o0ge9wx/
 ---
 ### Documentation
 
-WIP: https://github.com/leeoniya/uPlot/issues/48
-
 - [Data Format](#data-format)
+- ...WIP: https://github.com/leeoniya/uPlot/issues/48
 
 
 #### Data Format
@@ -134,7 +133,7 @@ let data = [
 uPlot expects a columnar data format as shown above.
 
 - x-values must be numbers, unique, and in ascending order.
-- y-values must be numbers or `null` for missing data.
+- y-values must be numbers (or `null`s for missing data).
 - x-values and y-values arrays must be of equal lengths.
 
 By default, x-values are assumed to be [unix timestamps](https://en.wikipedia.org/wiki/Unix_time) but can be treated as plain numbers via `scales.x.time = false`.

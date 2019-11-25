@@ -97,6 +97,26 @@ export const assign = Object.assign;
 
 export const isArr = Array.isArray;
 
+function isObj(v) {
+	return typeof v === 'object' && v !== null;
+}
+
+export function copy(o) {
+	let out;
+
+	if (isArr(o))
+		out = o.map(copy);
+	else if (isObj(o)) {
+		out = {};
+		for (var k in o)
+			out[k] = copy(o[k]);
+	}
+	else
+		out = o;
+
+	return out;
+}
+
 /*
 function isObj(v) {
 	return typeof v === 'object' && v !== null;

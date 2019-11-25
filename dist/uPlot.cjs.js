@@ -228,6 +228,26 @@ var assign = Object.assign;
 
 var isArr = Array.isArray;
 
+function isObj(v) {
+	return typeof v === 'object' && v !== null;
+}
+
+function copy(o) {
+	var out;
+
+	if (isArr(o))
+		{ out = o.map(copy); }
+	else if (isObj(o)) {
+		out = {};
+		for (var k in o)
+			{ out[k] = copy(o[k]); }
+	}
+	else
+		{ out = o; }
+
+	return out;
+}
+
 /*
 function isObj(v) {
 	return typeof v === 'object' && v !== null;
@@ -769,6 +789,8 @@ function filtMouse(e) {
 }
 
 function Line(opts, data) {
+	opts = copy(opts);
+
 	var self = this;
 
 	var series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);

@@ -1,4 +1,6 @@
 import {
+	copy,
+
 	inf,
 	abs,
 	floor,
@@ -179,6 +181,8 @@ function filtMouse(e) {
 }
 
 export function Line(opts, data) {
+	opts = copy(opts);
+
 	const self = this;
 
 	const series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
