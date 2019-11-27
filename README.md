@@ -134,9 +134,9 @@ Example: https://jsfiddle.net/4o0ge9wx/
 
 ```js
 let data = [
-  [1546300800, 1546387200],  // x-values (timestamps)
-  [        35,         71],  // y-values (series 1)
-  [        90,         15],  // y-values (series 2)
+  [1546300800, 1546387200],    // x-values (timestamps)
+  [        35,         71],    // y-values (series 1)
+  [        90,         15],    // y-values (series 2)
 ];
 ```
 
@@ -155,7 +155,7 @@ If each series has data at arbitrary x-values, then the x-values array must be a
 This does not mean that all series must have identical x-values - just that they are alignable.
 For instance, it is possible to plot [series that express different time periods](https://leeoniya.github.io/uPlot/demos/time-periods.html), because the data is equally spaced.
 
-**When choosing uPlot, ensure your data can conform to these requirements. You've been warned!**
+**Before choosing uPlot, ensure your data can conform to these requirements.**
 
 ---
 #### Basics
@@ -173,7 +173,7 @@ let opts = {
       {
         // in-legend display
         label: "RAM",
-        value: dataValue => "$" + dataValue.toFixed(2),
+        value: rawValue => "$" + rawValue.toFixed(2),
 
         // series style
         color: "red",
