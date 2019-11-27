@@ -698,6 +698,8 @@ function _sync(opts) {
 	};
 }
 
+// TODO: reduce need to locate indexes for redraw or resetting / unzoom
+
 function setDefaults(d, xo, yo) {
 	return [].concat(d.x, d.y).map(function (o, i) { return assign({}, (i == 0 ? xo : yo), o); });
 }
@@ -838,6 +840,9 @@ function Line(opts, data) {
 		s.width = s.width || 1;
 	});
 
+	var xScaleKey = series[0].scale;
+	var xScaleType = scales[xScaleKey].type;
+
 	var cursor = assign({show: true, cross: true}, opts.cursor);		// focus: {alpha, prox}
 
 	var focus = cursor.focus;
@@ -845,14 +850,24 @@ function Line(opts, data) {
 	var dataLen;
 
 	// rendered data window
-	self.i0 = null;
-	self.i1 = null;
+	var i0 = null;
+	var i1 = null;
 
-	function setData(_data, _i0, _i1) {
-		data = _data;
-		dataLen = data[0].length;
-		resetSeries();
-		setView(_i0 != null ? _i0 : self.i0, _i1 != null ? _i1 : self.i1);
+	var data0 = null;
+
+	function setData(_data, _min, _max) {
+		data = _data.slice();
+		data0 = data[0];
+		dataLen = data0.length;
+
+		if (xScaleType == 2)
+			{ data[0] = data0.map(function (v, i) { return i; }); }
+
+		setScale(
+			xScaleKey,
+			_min != null ? _min : data[0][0],
+			_max != null ? _max : data[0][dataLen - 1]
+		);
 	}
 
 	self.setData = setData;
@@ -1037,6 +1052,8 @@ function Line(opts, data) {
 	var can = ref.can;
 	var ctx = ref.ctx;
 
+	var pendScales = {};
+
 	function setScales() {
 		if (inBatch) {
 			shouldSetScales = true;
@@ -1054,22 +1071,37 @@ function Line(opts, data) {
 
 			if (minMaxes[k] == null) {
 				minMaxes[k] = {min: sc.min, max: sc.max};
-				sc.min = inf;
-				sc.max = -inf;
+
+				if (pendScales[k] != null)
+					{ assign(sc, pendScales[k]); }
+				else {
+					sc.min = inf;
+					sc.max = -inf;
+				}
 			}
 
 			// fast-path for x axis, which is assumed ordered ASC and will not get padded
 			if (i == 0) {
-				var minMax = sc.range(
-					sc.type == 2 ? self.i0 : data[0][self.i0],
-					sc.type == 2 ? self.i1 : data[0][self.i1]
-				);
-				sc.min = s.min = minMax[0];
-				sc.max = s.max = minMax[1];
+				i0 = closestIdx(sc.min, data[0]);
+				i1 = closestIdx(sc.max, data[0]);
+
+				// closest indices can be outside of view
+				if (data[0][i0] < sc.min)
+					{ i0++; }
+				if (data[0][i1] > sc.max)
+					{ i1--; }
+
+				s.min = data0[i0];
+				s.max = data0[i1];
+
+				var minMax = sc.range(sc.min, sc.max);
+
+				sc.min = minMax[0];
+				sc.max = minMax[1];
 			}
 			else if (s.show) {
 				// only run getMinMax() for invalidated series data, else reuse
-				var minMax$1 = s.min == inf ? (sc.auto ? getMinMax(data[i], self.i0, self.i1) : [0,100]) : [s.min, s.max];
+				var minMax$1 = s.min == inf ? (sc.auto ? getMinMax(data[i], i0, i1) : [0,100]) : [s.min, s.max];
 
 				// initial min/max
 				sc.min = min(sc.min, s.min = minMax$1[0]);
@@ -1081,15 +1113,17 @@ function Line(opts, data) {
 		for (var k in scales) {
 			var sc = scales[k];
 
-			if (sc.base == null && sc.min != inf) {
+			if (sc.base == null && sc.min != inf && pendScales[k] == null) {
 				var minMax = sc.range(sc.min, sc.max);
 
 				sc.min = minMax[0];
 				sc.max = minMax[1];
 			}
+
+			pendScales[k] = null;
 		}
 
-		// snap derived scales
+		// range derived scales
 		for (var k$1 in scales) {
 			var sc$1 = scales[k$1];
 
@@ -1119,7 +1153,7 @@ function Line(opts, data) {
 	function drawSeries() {
 		series.forEach(function (s, i) {
 			if (i > 0 && s.show && s.path == null)
-				{ buildPath(i, data[0], data[i], scales[series[0].scale], scales[s.scale]); }
+				{ buildPath(i, data[0], data[i], scales[xScaleKey], scales[s.scale]); }
 		});
 
 		series.forEach(function (s, i) {
@@ -1169,20 +1203,24 @@ function Line(opts, data) {
 		var s = series[is];
 		var path = s.path = dir == 1 ? new Path2D() : series[is-1].path;
 		var width = s[WIDTH];
-		var offset = (width % 2) / 2;
 
 		var gap = false;
 
 		var minY = inf,
 			maxY = -inf,
-			prevX = dir == 1 ? offset : can[WIDTH] + offset,
-			prevY, x, y;
+			x, y;
 
-		for (var i = dir == 1 ? self.i0 : self.i1; dir == 1 ? i <= self.i1 : i >= self.i0; i += dir) {
-			x = getXPos(scaleX.type == 2 ? i : xdata[i], scaleX, can[WIDTH]);
-			y = getYPos(ydata[i],                        scaleY, can[HEIGHT]);
+		var _i0 = clamp(i0 - 1, 0, dataLen - 1);
+		var _i1 = clamp(i1 + 1, 0, dataLen - 1);
 
-			if (dir == -1 && i == self.i1)
+		var prevX = getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, can[WIDTH]),
+			prevY;
+
+		for (var i = dir == 1 ? _i0 : _i1; dir == 1 ? i <= _i1 : i >= _i0; i += dir) {
+			x = getXPos(xdata[i], scaleX, can[WIDTH]);
+			y = getYPos(ydata[i], scaleY, can[HEIGHT]);
+
+			if (dir == -1 && i == _i1)
 				{ path.lineTo(x, y); }
 
 			if (y == null)
@@ -1193,7 +1231,7 @@ function Line(opts, data) {
 						spanGaps ? path.lineTo(x, y) : path.moveTo(x, y);	// bug: will break filled areas due to moveTo
 						gap = false;
 					}
-					else if (dir == 1 ? i > self.i0 : i < self.i1) {
+					else if (dir == 1 ? i > _i0 : i < _i1) {
 						path.lineTo(prevX, maxY);		// cannot be moveTo if we intend to fill the path
 						path.lineTo(prevX, minY);
 						path.lineTo(prevX, prevY);		// cannot be moveTo if we intend to fill the path
@@ -1259,7 +1297,7 @@ function Line(opts, data) {
 			// TODO: filter ticks & offsets that will end up off-canvas
 			var canOffs = ticks.map(function (val) { return getPos(val, scale, can[dim]); });		// bit of waste if we're not drawing a grid
 
-			var labels = axis.values(scale.type == 2 ? ticks.map(function (i) { return data[0][i]; }) : ticks, space);		// BOO this assumes a specific data/series
+			var labels = axis.values(scale.type == 2 ? ticks.map(function (i) { return data0[i]; }) : ticks, space);		// BOO this assumes a specific data/series
 
 			canOffs.forEach(function (off, i) {
 				ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
@@ -1305,6 +1343,8 @@ function Line(opts, data) {
 	}
 
 	function resetSeries() {
+	//	console.log("resetSeries()");
+
 		series.forEach(function (s) {
 			s.min = inf;
 			s.max = -inf;
@@ -1328,22 +1368,27 @@ function Line(opts, data) {
 		didPaint = true;
 	}
 
-	function setView(_i0, _i1) {
-		didPaint = false;
+	// redraw() => setScale('x', scales.x.min, scales.x.max);
 
-		if (_i0 != self.i0 || _i1 != self.i1)
-			{ resetSeries(); }
+	// explicit, never re-ranged
+	function setScale(key, min, max) {
+		var sc = scales[key];
 
-		self.i0 = _i0;
-		self.i1 = _i1;
+		if (sc.base == null) {
+			pendScales[key] = {min: min, max: max};
 
-		setScales();
-		cursor.show && updatePointer();
-		!didPaint && paint();
-		didPaint = false;
+			if (key == xScaleKey && (min != sc.min || max != sc.max))
+				{ resetSeries(); }
+
+			didPaint = false;
+			setScales();
+			cursor.show && updatePointer();
+			!didPaint && paint();
+			didPaint = false;
+		}
 	}
 
-	self.setView = setView;
+	self.setScale = setScale;
 
 //	INTERACTION
 
@@ -1459,7 +1504,7 @@ function Line(opts, data) {
 			}
 		});
 
-		setView(self.i0, self.i1);
+		setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);		// redraw
 
 		pub && sync.pub("toggle", self, idxs, onOff);
 	}
@@ -1525,13 +1570,18 @@ function Line(opts, data) {
 
 	var rafPending = false;
 
-	function closestIdxFromXpos(x) {
-		var pctX = clamp(x / canCssWidth, 0, 1);
-		var xsc = scales[series[0].scale];
-		var d = xsc.max - xsc.min;
-		var t = xsc.min + pctX * d;
-		var idx = xsc.type == 2 ? round(t) : closestIdx(t, data[0], self.i0, self.i1);
-		return idx;
+	function scaleValueAtPos(scale, pos) {
+		var dim = scale == xScaleKey ? canCssWidth : canCssHeight;
+		var pct = clamp(pos / dim, 0, 1);
+
+		var sc = scales[scale];
+		var d = sc.max - sc.min;
+		return sc.min + pct * d;
+	}
+
+	function closestIdxFromXpos(pos) {
+		var v = scaleValueAtPos(xScaleKey, pos);
+		return closestIdx(v, data[0], i0, i1);
 	}
 
 	var inBatch = false;
@@ -1571,9 +1621,9 @@ function Line(opts, data) {
 
 		var idx = closestIdxFromXpos(x);
 
-		var scX = scales[series[0].scale];
+		var scX = scales[xScaleKey];
 
-		var xPos = getXPos(scX.type == 2 ? idx : data[0][idx], scX, canCssWidth);
+		var xPos = getXPos(data[0][idx], scX, canCssWidth);
 
 		for (var i = 0; i < series.length; i++) {
 			var s = series[i];
@@ -1595,7 +1645,9 @@ function Line(opts, data) {
 				if (i == 0 && multiValLegend)
 					{ continue; }
 
-				var vals = multiValLegend ? s.values(idx) : {_: s.value(data[i][idx])};
+				var src = i == 0 && xScaleType == 2 ? data0 : data[i];
+
+				var vals = multiValLegend ? s.values(idx) : {_: s.value(src[idx])};
 
 				var j = 0;
 
@@ -1710,9 +1762,9 @@ function Line(opts, data) {
 				var minX = min(x0, x);
 				var maxX = max(x0, x);
 
-				setView(
-					closestIdxFromXpos(minX),
-					closestIdxFromXpos(maxX)
+				setScale(xScaleKey,
+					xScaleType == 2 ? closestIdxFromXpos(minX) : scaleValueAtPos(xScaleKey, minX),
+					xScaleType == 2 ? closestIdxFromXpos(maxX) : scaleValueAtPos(xScaleKey, maxX)
 				);
 			}
 			else {
@@ -1730,10 +1782,7 @@ function Line(opts, data) {
 	}
 
 	function dblClick(e, src, _x, _y, _w, _h, _i) {
-		if (self.i0 == 0 && self.i1 == dataLen - 1)
-			{ return; }
-
-		setView(0, dataLen - 1);
+		setScale(xScaleKey, data[0][0], data[0][dataLen - 1]);
 
 		if (e != null)
 			{ sync.pub(dblclick, self, x, y, canCssWidth, canCssHeight, null); }
@@ -1783,7 +1832,13 @@ function Line(opts, data) {
 
 	self.pub = pub;
 
-	setData(data, 0, data[0].length - 1);
+	var _i0 = 0,
+		_i1 = data[0].length - 1;
+
+	setData(data,
+		xScaleType == 2 ? _i0 : data[0][_i0],
+		xScaleType == 2 ? _i1 : data[0][_i1]
+	);
 
 	function destroy() {
 		sync.unsub(self);

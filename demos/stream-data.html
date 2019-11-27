@@ -14,7 +14,7 @@
 		</style>
 	</head>
 	<body>
-		<script src="../dist/uPlot.iife.min.js"></script>
+		<script src="../dist/uPlot.iife.js"></script>
 		<h2 id="wait">Loading lib....</h2>
 
 		<script>
@@ -124,6 +124,7 @@
 					uplot1.setData(data1);
 				}, interval);
 
+
 				const opts2 = {
 					width: 1600,
 					height: 600,
@@ -176,7 +177,7 @@
 				setInterval(function() {
 					len2 += 10;
 					let data2 = sliceData(start2, start2 + len2);
-					uplot2.setData(data2, uplot2.i0, uplot2.i1 + 10);
+					uplot2.setData(data2);
 				}, interval);
 
 
@@ -242,7 +243,7 @@
 				setInterval(function() {
 					len3 += 10;
 					let data3 = sliceData(start3, start3 + len3);
-					uplot3.setData(data3, uplot3.i0, uplot3.i1 + 10);
+					uplot3.setData(data3);
 				}, interval);
 
 				wait.textContent = "Done!";
