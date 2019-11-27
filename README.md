@@ -119,6 +119,7 @@ Example: https://jsfiddle.net/4o0ge9wx/
 - [Installation](#installation)
 - [Data Format](#data-format)
 - [Basics](#basics)
+- [Scales, Axes, Grid](#scales-axes-grid)
 - WIP: [#48](https://github.com/leeoniya/uPlot/issues/48)
 
 ---
@@ -197,6 +198,17 @@ document.body.appendChild(uplot.root);
 - All series' options are optional; `label` will default to "Value" and `color` will default to "black".
 - Series' line `width` is specified in *physical* [device] pixels (e.g. on high-DPI displays with a pixel ratio = 2, `width: 1` will draw a line with an effective width of 0.5 logical [CSS] pixels).
 - `color`, `width`, `fill`, and `dash` map directly to Canvas API's [ctx.strokeStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeStyle), [ctx.lineWidth](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineWidth), [ctx.fillStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fillStyle), and [ctx.setLineDash](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash).
+
+---
+#### Scales, Axes, Grid
+
+uPlot's API strives for brevity, uniformity and logical consistency.
+Understanding the roles and processing order of `data`, `series`, `scales`, and `axes` will help with the remaining topics. The high-level rendering flow is this:
+
+1. `data` is the first input into the system.
+0. `series` hold the config of each dataset, such as visibility, styling, labels & value display in the legend, and the `scale` key along which they should be drawn. Implicit scale keys are `x` for the `data[0]` series and `y` for `data[1..N]`.
+0. `scales` reflect the min/max ranges visible within the view. All view range adjustments such as zooming and pagination are done here. If not explicitly set via opts, `scales` are automatically initialized using the `series` config and auto-ranged using the provided `data`.
+0. `axes` render the ticks, values, labels and grid along their `scale`. Tick & grid spacing, value granularity & formatting, timezone & DST handling is done here.
 
 ---
 ### Performance
