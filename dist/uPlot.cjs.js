@@ -174,6 +174,8 @@ function closestIdx(num, arr, lo, hi) {
 }
 
 function getMinMax(data, _i0, _i1) {
+//	console.log("getMinMax()");
+
 	var _min = inf;
 	var _max = -inf;
 
