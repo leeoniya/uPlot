@@ -863,6 +863,8 @@ function Line(opts, data) {
 		if (xScaleType == 2)
 			{ data[0] = data0.map(function (v, i) { return i; }); }
 
+		resetSeries();
+
 		setScale(
 			xScaleKey,
 			_min != null ? _min : data[0][0],
