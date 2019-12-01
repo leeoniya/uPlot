@@ -378,6 +378,7 @@ var uPlot = (function (exports) {
 	// default formatters:
 
 	var grid = {
+		show: true,
 		color: "#eee",
 		width: 2,
 	//	dash: [],
@@ -1312,7 +1313,7 @@ var uPlot = (function (exports) {
 
 				var grid = axis.grid;
 
-				if (grid) {
+				if (grid.show) {
 					// note: the grid is cheap to build & redraw unconditionally, so does not
 					// use the retained Path2D optimization or additional invalidation logic
 					var offset = (grid[WIDTH] % 2) / 2;

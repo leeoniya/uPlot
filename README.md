@@ -190,7 +190,7 @@ let opts = {
         scale: 'mb',
         values: ticks => ticks.map(rawValue => rawValue.toFixed(2) + "MB"),
         side: 3,
-        grid: null,
+        grid: {show: false},
       },
     ]
   },
@@ -198,7 +198,6 @@ let opts = {
 ```
 
 - `side` is the where to place the axis (0: bottom, 1: left, 2: top, 3: right).
-- `grid: null` disables grid display along an axis.
 
 
 #### Axes for Alternate Units
@@ -226,7 +225,7 @@ let opts = {
         scale: 'C',
         values: ticks => ticks.map(rawValue => rawValue.map(v => v + '° C'),
         side: 3,
-        grid: null,
+        grid: {show: false},
       }
     ],
   },

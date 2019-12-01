@@ -377,6 +377,7 @@ function off(ev, el, cb) {
 // default formatters:
 
 var grid = {
+	show: true,
 	color: "#eee",
 	width: 2,
 //	dash: [],
@@ -1311,7 +1312,7 @@ function Line(opts, data) {
 
 			var grid = axis.grid;
 
-			if (grid) {
+			if (grid.show) {
 				// note: the grid is cheap to build & redraw unconditionally, so does not
 				// use the retained Path2D optimization or additional invalidation logic
 				var offset = (grid[WIDTH] % 2) / 2;

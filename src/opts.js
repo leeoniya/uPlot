@@ -20,6 +20,7 @@ import {
 // default formatters:
 
 const grid = {
+	show: true,
 	color: "#eee",
 	width: 2,
 //	dash: [],
