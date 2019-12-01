@@ -49,77 +49,14 @@ In order to stay lean, fast and focused the following features will not be added
 - Probably no drag scrolling/panning. Maintaining good perf with huge datasets would require a lot of extra code & multiple `<canvas>` elements to avoid continuous redraw and rescaling on each dragged pixel. However, since uPlot's performance allows rendering of very wide canvases, they can be scrolled naturally with CSS's `overflow-x: auto` applied to a narrower containing element. Pagination of data also works well.
 
 ---
-### Usage & API
-
-Example: https://jsfiddle.net/4o0ge9wx/
-
-```html
-<link rel="stylesheet" href="src/uPlot.css">
-<script src="dist/uPlot.iife.min.js"></script>
-<script>
-    const data = [
-        [1566453600, 1566457260, 1566460860, 1566464460],   // Unix timestamps
-        [0.54,       0.15,       3.27,       7.51      ],   // CPU
-        [12.85,      13.21,      13.65,      14.01     ],   // RAM
-        [0.52,       1.25,       0.75,       3.62      ],   // TCP Out
-    ];
-
-    const opts = {
-        width: 800,
-        height: 400,
-        series: {
-            y: [
-                {
-                    label: "CPU",
-                    scale: "%",
-                    value: v => v.toFixed(1) + "%",
-                    color: "red",
-                    width: 2,
-                    dash: [10, 5],
-                },
-                {
-                    label: "RAM",
-                    scale: "%",
-                    value: v => v.toFixed(1) + "%",
-                    color: "blue",
-                },
-                {
-                    label: "TCP Out",
-                    scale: "mb",
-                    value: v => v.toFixed(2) + "MB",
-                    color: "green",
-                }
-            ],
-        },
-        axes: {
-            y: [
-                {
-                    scale: '%',
-                    values: (vals, space) => vals.map(v => +v.toFixed(1) + "%"),
-                },
-                {
-                    side: 3,
-                    scale: 'mb',
-                    values: (vals, space) => vals.map(v => +v.toFixed(2) + "MB"),
-                    grid: null,
-                },
-            ],
-        },
-    };
-
-    let uplot = new uPlot.Line(opts, data);
-
-    document.body.appendChild(uplot.root);
-</script>
-```
-
----
 ### Documentation
 
 - [Installation](#installation)
 - [Data Format](#data-format)
 - [Basics](#basics)
 - [Scales, Axes, Grid](#scales-axes-grid)
+- [Multiple Scales & Axes](#multiple-scales--axes)
+- [Fixed Scales](#fixed-scales)
 - WIP: [#48](https://github.com/leeoniya/uPlot/issues/48)
 
 ---
@@ -209,6 +146,119 @@ Understanding the roles and processing order of `data`, `series`, `scales`, and 
 0. `series` hold the config of each dataset, such as visibility, styling, labels & value display in the legend, and the `scale` key along which they should be drawn. Implicit scale keys are `x` for the `data[0]` series and `y` for `data[1..N]`.
 0. `scales` reflect the min/max ranges visible within the view. All view range adjustments such as zooming and pagination are done here. If not explicitly set via opts, `scales` are automatically initialized using the `series` config and auto-ranged using the provided `data`.
 0. `axes` render the ticks, values, labels and grid along their `scale`. Tick & grid spacing, value granularity & formatting, timezone & DST handling is done here.
+
+---
+#### Multiple Scales & Axes
+
+Series with differing units can be plotted along additional scales and display corresponding y-axes.
+
+1. Use the same `series.scale` key.
+2. Optionally, specify an additional `axis` with the `scale` key.
+
+```js
+let opts = {
+  series: {
+    y: [
+      {
+        label: "CPU",
+        color: "red",
+        scale: '%',
+        value: rawValue => rawValue.toFixed(1) + "%",
+      }
+      {
+        label: "RAM",
+        color: "blue",
+        scale: '%',
+        value: rawValue => rawValue.toFixed(1) + "%",
+      },
+      {
+        label: "TCP",
+        color: "green",
+        scale: 'mb',
+        value: rawValue => rawValue.toFixed(2) + "MB",
+      },
+    ]
+  },
+  axes: {
+    y: [
+      {
+        scale: '%',
+        values: ticks => ticks.map(rawValue => rawValue.toFixed(1) + "%"),
+      },
+      {
+        scale: 'mb',
+        values: ticks => ticks.map(rawValue => rawValue.toFixed(2) + "MB"),
+        side: 3,
+        grid: null,
+      },
+    ]
+  },
+};
+```
+
+- `side` is the where to place the axis (0: bottom, 1: left, 2: top, 3: right).
+- `grid: null` disables grid display along an axis.
+
+
+#### Axes for Alternate Units
+
+Sometimes it's useful to provide an additional axis to display alternate units, e.g. °F / °C. This is done using derived scales.
+
+```js
+let opts = {
+  series: {
+    y: [
+      {
+        label: "Temp",
+        color: "red",
+        scale: 'F',
+      },
+    ]
+  },
+  axes: {
+    y: [
+      {
+        scale: 'F',
+        values: ticks => ticks.map(rawValue => rawValue.map(v => v + '° F'),
+      },
+      {
+        scale: 'C',
+        values: ticks => ticks.map(rawValue => rawValue.map(v => v + '° C'),
+        side: 3,
+        grid: null,
+      }
+    ],
+  },
+  scales: {
+    'C': {
+      base: 'F',
+      range: (baseMin, baseMax) => [
+        (baseMin - 32) * 5/9,
+        (baseMax - 32) * 5/9,
+      ],
+    }
+  },
+```
+
+- `base` specifies the key of the scale from which another is derived.
+- `range` converts the base scale's min/max into the new scales' min/max.
+
+---
+#### Fixed Scales
+
+If a scale does not need auto-ranging from the visible data, you can explicitly specify the min/max values.
+This is also a performance optimization, since the data does not need to be scanned on every view change.
+
+```js
+let opts = {
+  scales: {
+    '%': {
+      auto: false,
+      range: [0, 100],
+    }
+  },
+}
+```
 
 ---
 ### Performance
