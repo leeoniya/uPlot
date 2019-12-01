@@ -54,6 +54,7 @@ In order to stay lean, fast and focused the following features will not be added
 - [Installation](#installation)
 - [Data Format](#data-format)
 - [Basics](#basics)
+- [High/Low Bands](#highlow-bands)
 - [Scales, Axes, Grid](#scales-axes-grid)
 - [Multiple Scales & Axes](#multiple-scales--axes)
 - [Scale Opts](#scale-opts)
@@ -136,6 +137,31 @@ document.body.appendChild(uplot.root);
 - All series' options are optional; `label` will default to "Value" and `color` will default to "black".
 - Series' line `width` is specified in *physical* [device] pixels (e.g. on high-DPI displays with a pixel ratio = 2, `width: 1` will draw a line with an effective width of 0.5 logical [CSS] pixels).
 - `color`, `width`, `fill`, and `dash` map directly to Canvas API's [ctx.strokeStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeStyle), [ctx.lineWidth](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineWidth), [ctx.fillStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fillStyle), and [ctx.setLineDash](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash).
+
+---
+#### High/Low Bands
+
+High/Low bands are defined as two adjacent series in the `data` (in high,low order) and setting `series.band = true` in the opts.
+
+```js
+const opts = {
+  series: {
+    y: [
+      {
+        label: "Low",
+        fill: "rgba(0, 255, 0, .2)",
+        band: true,
+
+      },
+      {
+        label: "High",
+        fill: "rgba(0, 255, 0, .2)",
+        band: true,
+      },
+    ],
+  },
+};
+```
 
 ---
 #### Scales, Axes, Grid
