@@ -56,7 +56,8 @@ In order to stay lean, fast and focused the following features will not be added
 - [Basics](#basics)
 - [Scales, Axes, Grid](#scales-axes-grid)
 - [Multiple Scales & Axes](#multiple-scales--axes)
-- [Scale Control](#scale-control)
+- [Scale Opts](#scale-opts)
+- [Axis & Grid Opts](#axis--grid-opts)
 - WIP: [#48](https://github.com/leeoniya/uPlot/issues/48)
 
 ---
@@ -143,7 +144,7 @@ uPlot's API strives for brevity, uniformity and logical consistency.
 Understanding the roles and processing order of `data`, `series`, `scales`, and `axes` will help with the remaining topics. The high-level rendering flow is this:
 
 1. `data` is the first input into the system.
-0. `series` hold the config of each dataset, such as visibility, styling, labels & value display in the legend, and the `scale` key along which they should be drawn. Implicit scale keys are `x` for the `data[0]` series and `y` for `data[1..N]`.
+0. `series` holds the config of each dataset, such as visibility, styling, labels & value display in the legend, and the `scale` key along which they should be drawn. Implicit scale keys are `x` for the `data[0]` series and `y` for `data[1..N]`.
 0. `scales` reflect the min/max ranges visible within the view. All view range adjustments such as zooming and pagination are done here. If not explicitly set via opts, `scales` are automatically initialized using the `series` config and auto-ranged using the provided `data`.
 0. `axes` render the ticks, values, labels and grid along their `scale`. Tick & grid spacing, value granularity & formatting, timezone & DST handling is done here.
 
@@ -244,7 +245,7 @@ let opts = {
 - `range` converts the base scale's min/max into the new scale's min/max.
 
 ---
-#### Scale Control
+#### Scale Opts
 
 If a scale does not need auto-ranging from the visible data, you can provide static min/max values.
 This is also a performance optimization, since the data does not need to be scanned on every view change.
@@ -285,6 +286,75 @@ let opts = {
   },
 }
 ```
+
+---
+#### Axis & Grid Opts
+
+Most options are self-explanatory:
+
+```js
+let opts = {
+  axes: {
+    y: [
+      {
+        show: true,
+        label: "Population",
+        width: 50,
+        class: 'my-y',
+        color: 'red',
+        grid: {
+          show: true,
+          color: "#eee",
+          width: 2,
+          dash: [],
+        }
+      }
+    ]
+  },
+}
+```
+
+Customizing the tick/grid spacing, value formatting and granularity is somewhat more involved:
+
+```js
+let opts = {
+  axes: {
+    x: {
+      space: 40,
+      incrs: [
+         // minute divisors (# of secs)
+         1,
+         5,
+         10,
+         15,
+         30,
+         // hour divisors
+         60,
+         60 * 5,
+         60 * 10,
+         60 * 15,
+         60 * 30,
+         // day divisors
+         3600,
+      // ...
+      ],
+      values: [
+        [3600 * 24 * 365,    "{YYYY}",               7    "{YYYY}"                    ],
+        [3600 * 24 * 28,     "{MMM}",                7,   "{MMM}\n{YYYY}"             ],
+        [3600 * 24,          "{M}/{D}",              7,   "{M}/{D}\n{YYYY}"           ],
+        [3600,               "{h}{aa}",              4,   "{h}{aa}\n{M}/{D}"          ],
+        [60,                 "{h}:{mm}{aa}",         4,   "{h}:{mm}{aa}\n{M}/{D}"     ],
+        [1,                  "{h}:{mm}:{ss}{aa}",    4,   "{h}:{mm}:{ss}{aa}\n{M}/{D}"],
+      ];
+  //  ticks:
+    }
+  },
+}
+```
+
+- `space` is the minumum space between adjacent ticks; a smaller number will result in smaller selected divisors.
+- `incrs` are divisors available for segmenting the axis to produce ticks.
+- `values` can be an array of tick formatters with breakpoints. more format details can be found in the source: https://github.com/leeoniya/uPlot/blob/master/src/opts.js#L110
 
 ---
 ### Performance
