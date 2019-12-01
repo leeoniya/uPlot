@@ -56,7 +56,7 @@ In order to stay lean, fast and focused the following features will not be added
 - [Basics](#basics)
 - [Scales, Axes, Grid](#scales-axes-grid)
 - [Multiple Scales & Axes](#multiple-scales--axes)
-- [Fixed Scales](#fixed-scales)
+- [Scale Control](#scale-control)
 - WIP: [#48](https://github.com/leeoniya/uPlot/issues/48)
 
 ---
@@ -241,12 +241,12 @@ let opts = {
 ```
 
 - `base` specifies the key of the scale from which another is derived.
-- `range` converts the base scale's min/max into the new scales' min/max.
+- `range` converts the base scale's min/max into the new scale's min/max.
 
 ---
-#### Fixed Scales
+#### Scale Control
 
-If a scale does not need auto-ranging from the visible data, you can explicitly specify the min/max values.
+If a scale does not need auto-ranging from the visible data, you can provide static min/max values.
 This is also a performance optimization, since the data does not need to be scanned on every view change.
 
 ```js
@@ -255,6 +255,32 @@ let opts = {
     '%': {
       auto: false,
       range: [0, 100],
+    }
+  },
+}
+```
+
+The default x scale is temporal, but can be switched to plain numbers. This can be used to plot functions.
+
+```js
+let opts = {
+  scales: {
+    'x': {
+      time: false,
+    }
+  },
+}
+```
+
+A scale's default distribution is linear `type: 1`, but can be switched to indexed/evenly-spaced.
+This is useful when you'd like to squash periods with no data, such as weekends.
+Keep in mind that this will prevent logical temporal tick baselines such as start of day or start of month.
+
+```js
+let opts = {
+  scales: {
+    'x': {
+      type: 2,
     }
   },
 }
