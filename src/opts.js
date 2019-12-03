@@ -253,7 +253,7 @@ export const numSeriesLabel = "Value";
 export const timeSeriesLabel = "Time";
 
 export const xSeriesOpts = {
-//	type: "t",
+	show: true,
 	scale: "x",
 //	label: "Time",
 //	value: v => stamp(new Date(v * 1e3)),

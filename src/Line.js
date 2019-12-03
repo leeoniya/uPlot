@@ -830,6 +830,9 @@ export function Line(opts, data) {
 
 			let row = placeTag("tr", "series", legend);
 
+			if (!s.show)
+				addClass(row, "off");
+
 			let label = placeTag("th", null, row);
 			label.textContent = s.label;
 
@@ -949,7 +952,7 @@ export function Line(opts, data) {
 
 	// series-intersection markers
 	const cursorPts = cursor.show ? series.map((s, i) => {
-		if (i > 0 && s.show) {
+		if (i > 0) {
 			let pt = placeDiv("point", plot);
 			pt.style.background = s.color;
 			return pt;

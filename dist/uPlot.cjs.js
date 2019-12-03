@@ -606,7 +606,7 @@ var numSeriesLabel = "Value";
 var timeSeriesLabel = "Time";
 
 var xSeriesOpts = {
-//	type: "t",
+	show: true,
 	scale: "x",
 //	label: "Time",
 //	value: v => stamp(new Date(v * 1e3)),
@@ -1447,6 +1447,9 @@ function Line(opts, data) {
 
 			var row = placeTag("tr", "series", legend);
 
+			if (!s.show)
+				{ addClass(row, "off"); }
+
 			var label = placeTag("th", null, row);
 			label.textContent = s.label;
 
@@ -1566,7 +1569,7 @@ function Line(opts, data) {
 
 	// series-intersection markers
 	var cursorPts = cursor.show ? series.map(function (s, i) {
-		if (i > 0 && s.show) {
+		if (i > 0) {
 			var pt = placeDiv("point", plot);
 			pt.style.background = s.color;
 			return pt;
