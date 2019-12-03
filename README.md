@@ -86,7 +86,11 @@ uPlot expects a columnar data format as shown above.
 - y-values must be numbers (or `null`s for missing data).
 - x-values and y-values arrays must be of equal lengths.
 
-By default, x-values are assumed to be [unix timestamps](https://en.wikipedia.org/wiki/Unix_time) but can be treated as plain numbers via `scales.x.time = false`.
+By default, x-values are assumed to be [unix timestamps](https://en.wikipedia.org/wiki/Unix_time) (seconds since 1970-01-01 00:00:00) but can be treated as plain numbers via `scales.x.time = false`.
+JavaScript uses millisecond-precision timestamps, but this precision is rarely necessary on calendar-aware `time: true` scales/plots, which honor DST, timezones, leap years, etc.
+For sub-second periods, it's recommended to set `time: false` and simply use ms offsets from 0.
+If you truly need calendar-aware ms level precision, simply provide the timestamps as floats, e.g. `1575354886.419`.
+[More info...](https://github.com/leeoniya/uPlot/issues/60#issuecomment-561158077).
 
 This format has implications that can make uPlot an awkward choice for multi-series datasets which cannot be easily aligned along their x-values.
 If one series is data-dense and the other is sparse, then the latter will need to be filled in with mostly `null` y-values.
