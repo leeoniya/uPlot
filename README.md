@@ -115,6 +115,9 @@ let opts = {
   series: {
     y: [
       {
+        // initial toggled state (optional)
+        show: true,
+
         // in-legend display
         label: "RAM",
         value: rawValue => "$" + rawValue.toFixed(2),
