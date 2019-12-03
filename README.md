@@ -145,7 +145,7 @@ document.body.appendChild(uplot.root);
 ---
 #### High/Low Bands
 
-High/Low bands are defined as two adjacent series in the `data` (in high,low order) and setting `series.band = true` in the opts.
+High/Low bands are defined by two adjacent `data` series in low,high order and matching opts with `series.band = true`.
 
 ```js
 const opts = {
