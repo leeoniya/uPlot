@@ -964,7 +964,7 @@ export function Line(opts, data) {
 
 	let rafPending = false;
 
-	function scaleValueAtPos(scale, pos) {
+	function scaleValueAtPos(pos, scale) {
 		let dim = scale == xScaleKey ? canCssWidth : canCssHeight;
 		let pct = clamp(pos / dim, 0, 1);
 
@@ -974,9 +974,13 @@ export function Line(opts, data) {
 	}
 
 	function closestIdxFromXpos(pos) {
-		let v = scaleValueAtPos(xScaleKey, pos);
+		let v = scaleValueAtPos(pos, xScaleKey);
 		return closestIdx(v, data[0], i0, i1);
 	}
+
+	self.idxAt = closestIdxFromXpos;
+	self.valAt = (val, scale) => scaleValueAtPos(scale == xScaleKey ? val : canCssHeight - val, scale);
+	self.posOf = (val, scale) => (scale == xScaleKey ? getXPos(val, scales[scale], canCssWidth) : getYPos(val, scales[scale], canCssHeight));
 
 	let inBatch = false;
 	let shouldPaint = false;
@@ -1057,6 +1061,8 @@ export function Line(opts, data) {
 			setStylePx(zoom, LEFT, minX);
 			setStylePx(zoom, WIDTH, maxX - minX);
 		}
+
+		fire("cursormove", x, y, idx);
 
 		if (pub !== false) {
 			sync.pub(mousemove, self, x, y, canCssWidth, canCssHeight, idx);
@@ -1156,9 +1162,11 @@ export function Line(opts, data) {
 				let minX = min(x0, x);
 				let maxX = max(x0, x);
 
+				let fn = xScaleType == 2 ? closestIdxFromXpos : scaleValueAtPos;
+
 				setScale(xScaleKey,
-					xScaleType == 2 ? closestIdxFromXpos(minX) : scaleValueAtPos(xScaleKey, minX),
-					xScaleType == 2 ? closestIdxFromXpos(maxX) : scaleValueAtPos(xScaleKey, maxX),
+					fn(minX, xScaleKey),
+					fn(maxX, xScaleKey),
 				);
 			}
 			else {
@@ -1182,7 +1190,8 @@ export function Line(opts, data) {
 			sync.pub(dblclick, self, x, y, canCssWidth, canCssHeight, null);
 	}
 
-	let events = {};
+	// internal pub/sub
+	const events = {};
 
 	events[mousedown] = mouseDown;
 	events[mousemove] = mouseMove;
@@ -1208,6 +1217,28 @@ export function Line(opts, data) {
 
 	self.root = root;
 
+	// external on/off
+	const events2 = opts.events || {};
+
+	function fire(evName) {
+		if (evName in events2) {
+			let args = Array.prototype.slice.call(arguments, 1);
+
+			events2[evName].forEach(fn => {
+				fn.apply(self, args)
+			});
+		}
+	}
+
+	self.on = (evName, fn) => {
+		events2[evName] = new Set(events2[evName]);		// bit of waste but meh
+		events2[evName].add(fn);
+	};
+
+	self.off = (evName, fn) => {
+		events2[evName].delete(fn);
+	};
+
 	const syncOpts = assign({
 		key: null,
 		toggle: false,
@@ -1229,11 +1260,6 @@ export function Line(opts, data) {
 	let _i0 = 0,
 		_i1 = data[0].length - 1;
 
-	setData(data,
-		xScaleType == 2 ? _i0 : data[0][_i0],
-		xScaleType == 2 ? _i1 : data[0][_i1],
-	);
-
 	function destroy() {
 		sync.unsub(self);
 		off(resize, win, deb);
@@ -1243,5 +1269,16 @@ export function Line(opts, data) {
 
 	self.destroy = destroy;
 
-	plot.appendChild(can);
+	// this is wrapped in batch to prevent "cursormove" event from firing
+	// ahead of init() in case there's setup there that expects to catch them
+	batch(() => {
+		setData(data,
+			xScaleType == 2 ? _i0 : data[0][_i0],
+			xScaleType == 2 ? _i1 : data[0][_i1],
+		);
+
+		plot.appendChild(can);
+
+		opts.init && opts.init.call(self, opts, data);
+	});
 }

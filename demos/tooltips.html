@@ -1,0 +1,111 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Tooltips</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../bench/style.css">
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			.uplot {
+				margin-top: 50px;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			function makeChart() {
+				console.time('chart');
+
+				let opts = {
+					width: 600,
+					height: 400,
+					init(opts, data) {
+						let u = this;
+						let plot = u.root.querySelector(".plot");
+
+						let ttc = u.cursortt = document.createElement("div");
+						ttc.className = "tooltip";
+						ttc.textContent = "(x,y)";
+						ttc.style.pointerEvents = "none";
+						ttc.style.position = "absolute";
+						ttc.style.background = "rgba(0,0,255,0.1)";
+						plot.appendChild(ttc);
+
+						u.seriestt = opts.series.y.map(s => {
+							let tt = document.createElement("div");
+							tt.className = "tooltip";
+							tt.textContent = "Tooltip!";
+							tt.style.pointerEvents = "none";
+							tt.style.position = "absolute";
+							tt.style.background = "rgba(255,0,0,0.1)";
+							plot.appendChild(tt);
+							return tt;
+						});
+					},
+					events: {
+						cursormove: [
+							function(left, top, idx) {
+								this.cursortt.style.left = left + "px";
+								this.cursortt.style.top = top + "px";
+								this.cursortt.textContent = "(" + this.valAt(left, "x").toFixed(2) + ", " + this.valAt(top, "y").toFixed(2) + ")";
+
+								// can optimize further by not applying styles if idx did not change
+								this.seriestt.forEach((tt, i) => {
+									let xVal = data[  0][idx];
+									let yVal = data[i+1][idx];
+
+									tt.textContent = "(" + xVal + ", " + yVal + ")";
+
+									tt.style.left = this.posOf(xVal, 'x') + "px";
+									tt.style.top = this.posOf(yVal, 'y') + "px";
+
+								});
+							}
+						]
+					},
+					scales: {
+						x: {
+							time: false,
+						}
+					},
+					series: {
+						y: [
+							{
+								label: "blah",
+								width: 1,
+								color: "green",
+							},
+						]
+					},
+					axes: {
+						y: [
+							{
+								values: (vals, space) => vals.map(v => v + '° F'),
+							},
+						],
+					},
+				};
+
+				const data = [
+					[ 1, 2, 3, 4, 5, 6, 7],
+					[40,43,60,65,71,73,80],
+				];
+
+				let u = new uPlot.Line(opts, data);
+/*
+				u.on("cursormove", (left, top, idx) => {
+					console.log(left, top, idx);
+				});
+*/
+				document.body.appendChild(u.root);
+
+				console.timeEnd('chart');
+			}
+
+			makeChart();
+		</script>
+	</body>
+</html>

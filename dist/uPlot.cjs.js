@@ -1581,7 +1581,7 @@ function Line(opts, data) {
 
 	var rafPending = false;
 
-	function scaleValueAtPos(scale, pos) {
+	function scaleValueAtPos(pos, scale) {
 		var dim = scale == xScaleKey ? canCssWidth : canCssHeight;
 		var pct = clamp(pos / dim, 0, 1);
 
@@ -1591,9 +1591,13 @@ function Line(opts, data) {
 	}
 
 	function closestIdxFromXpos(pos) {
-		var v = scaleValueAtPos(xScaleKey, pos);
+		var v = scaleValueAtPos(pos, xScaleKey);
 		return closestIdx(v, data[0], i0, i1);
 	}
+
+	self.idxAt = closestIdxFromXpos;
+	self.valAt = function (val, scale) { return scaleValueAtPos(scale == xScaleKey ? val : canCssHeight - val, scale); };
+	self.posOf = function (val, scale) { return (scale == xScaleKey ? getXPos(val, scales[scale], canCssWidth) : getYPos(val, scales[scale], canCssHeight)); };
 
 	var inBatch = false;
 	var shouldPaint = false;
@@ -1674,6 +1678,8 @@ function Line(opts, data) {
 			setStylePx(zoom, LEFT, minX);
 			setStylePx(zoom, WIDTH, maxX - minX);
 		}
+
+		fire("cursormove", x, y, idx);
 
 		if (pub !== false) {
 			sync.pub(mousemove, self, x, y, canCssWidth, canCssHeight, idx);
@@ -1773,9 +1779,11 @@ function Line(opts, data) {
 				var minX = min(x0, x);
 				var maxX = max(x0, x);
 
+				var fn = xScaleType == 2 ? closestIdxFromXpos : scaleValueAtPos;
+
 				setScale(xScaleKey,
-					xScaleType == 2 ? closestIdxFromXpos(minX) : scaleValueAtPos(xScaleKey, minX),
-					xScaleType == 2 ? closestIdxFromXpos(maxX) : scaleValueAtPos(xScaleKey, maxX)
+					fn(minX, xScaleKey),
+					fn(maxX, xScaleKey)
 				);
 			}
 			else {
@@ -1799,6 +1807,7 @@ function Line(opts, data) {
 			{ sync.pub(dblclick, self, x, y, canCssWidth, canCssHeight, null); }
 	}
 
+	// internal pub/sub
 	var events = {};
 
 	events[mousedown] = mouseDown;
@@ -1825,6 +1834,28 @@ function Line(opts, data) {
 
 	self.root = root;
 
+	// external on/off
+	var events2 = opts.events || {};
+
+	function fire(evName) {
+		if (evName in events2) {
+			var args = Array.prototype.slice.call(arguments, 1);
+
+			events2[evName].forEach(function (fn) {
+				fn.apply(self, args);
+			});
+		}
+	}
+
+	self.on = function (evName, fn) {
+		events2[evName] = new Set(events2[evName]);		// bit of waste but meh
+		events2[evName].add(fn);
+	};
+
+	self.off = function (evName, fn) {
+		events2[evName].delete(fn);
+	};
+
 	var syncOpts = assign({
 		key: null,
 		toggle: false,
@@ -1846,11 +1877,6 @@ function Line(opts, data) {
 	var _i0 = 0,
 		_i1 = data[0].length - 1;
 
-	setData(data,
-		xScaleType == 2 ? _i0 : data[0][_i0],
-		xScaleType == 2 ? _i1 : data[0][_i1]
-	);
-
 	function destroy() {
 		sync.unsub(self);
 		off(resize, win, deb);
@@ -1860,7 +1886,18 @@ function Line(opts, data) {
 
 	self.destroy = destroy;
 
-	plot.appendChild(can);
+	// this is wrapped in batch to prevent "cursormove" event from firing
+	// ahead of init() in case there's setup there that expects to catch them
+	batch(function () {
+		setData(data,
+			xScaleType == 2 ? _i0 : data[0][_i0],
+			xScaleType == 2 ? _i1 : data[0][_i1]
+		);
+
+		plot.appendChild(can);
+
+		opts.init && opts.init.call(self, opts, data);
+	});
 }
 
 exports.Line = Line;
