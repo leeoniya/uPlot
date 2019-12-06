@@ -167,6 +167,7 @@
 	transform: translateX(-50%);
 	position: absolute;
 	left: 50%;
+	z-index: -1;
 }
 
 .uplot .x-values-0 > *::before {
@@ -204,6 +205,7 @@
 	transform: translateY(-50%);
 	position: absolute;
 	top: 50%;
+	z-index: -1;
 }
 
 .uplot .y-values-1 > *::before {
