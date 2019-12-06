@@ -192,6 +192,8 @@ export function Line(opts, data) {
 
 	const spanGaps = opts.spanGaps || false;
 
+	const gutters = assign({x: yAxisOpts[WIDTH], y: xAxisOpts[HEIGHT]}, opts.gutters);
+
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const tzDate = opts.tzDate || (ts => new Date(ts * 1e3));
 
@@ -349,12 +351,13 @@ export function Line(opts, data) {
 		axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
 	});
 
+	// hz gutters
 	if (hasLeftAxis || hasRightAxis) {
 		if (!hasRightAxis)
-			canCssWidth -= yAxisOpts[WIDTH];
+			canCssWidth -= gutters.x;
 		if (!hasLeftAxis) {
-			canCssWidth -= yAxisOpts[WIDTH];
-			plotLft += yAxisOpts[WIDTH];
+			canCssWidth -= gutters.x;
+			plotLft += gutters.x;
 		}
 	}
 

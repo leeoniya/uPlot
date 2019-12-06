@@ -804,6 +804,8 @@ function Line(opts, data) {
 
 	var spanGaps = opts.spanGaps || false;
 
+	var gutters = assign({x: yAxisOpts[WIDTH], y: xAxisOpts[HEIGHT]}, opts.gutters);
+
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 	var tzDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
 
@@ -961,12 +963,13 @@ function Line(opts, data) {
 		axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
 	});
 
+	// hz gutters
 	if (hasLeftAxis || hasRightAxis) {
 		if (!hasRightAxis)
-			{ canCssWidth -= yAxisOpts[WIDTH]; }
+			{ canCssWidth -= gutters.x; }
 		if (!hasLeftAxis) {
-			canCssWidth -= yAxisOpts[WIDTH];
-			plotLft += yAxisOpts[WIDTH];
+			canCssWidth -= gutters.x;
+			plotLft += gutters.x;
 		}
 	}
 
