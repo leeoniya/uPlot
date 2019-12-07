@@ -1838,12 +1838,14 @@ var uPlot = (function (exports) {
 		// external on/off
 		var events2 = opts.events || {};
 
+		var evArg0 = [self];
+
 		function fire(evName) {
 			if (evName in events2) {
-				var args = Array.prototype.slice.call(arguments, 1);
+				var args = evArg0.concat(Array.prototype.slice.call(arguments, 1));
 
 				events2[evName].forEach(function (fn) {
-					fn.apply(self, args);
+					fn.apply(null, args);
 				});
 			}
 		}
@@ -1897,7 +1899,7 @@ var uPlot = (function (exports) {
 
 			plot.appendChild(can);
 
-			opts.init && opts.init.call(self, opts, data);
+			opts.init && opts.init(self, opts, data);
 		});
 	}
 

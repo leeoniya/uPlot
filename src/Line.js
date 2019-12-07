@@ -1220,12 +1220,14 @@ export function Line(opts, data) {
 	// external on/off
 	const events2 = opts.events || {};
 
+	const evArg0 = [self];
+
 	function fire(evName) {
 		if (evName in events2) {
-			let args = Array.prototype.slice.call(arguments, 1);
+			let args = evArg0.concat(Array.prototype.slice.call(arguments, 1));
 
 			events2[evName].forEach(fn => {
-				fn.apply(self, args)
+				fn.apply(null, args);
 			});
 		}
 	}
@@ -1279,6 +1281,6 @@ export function Line(opts, data) {
 
 		plot.appendChild(can);
 
-		opts.init && opts.init.call(self, opts, data);
+		opts.init && opts.init(self, opts, data);
 	});
 }

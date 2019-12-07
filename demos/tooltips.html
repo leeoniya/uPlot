@@ -22,8 +22,7 @@
 				let opts = {
 					width: 600,
 					height: 400,
-					init(opts, data) {
-						let u = this;
+					init(u, opts, data) {
 						let plot = u.root.querySelector(".plot");
 
 						let ttc = u.cursortt = document.createElement("div");
@@ -47,20 +46,20 @@
 					},
 					events: {
 						cursormove: [
-							function(left, top, idx) {
-								this.cursortt.style.left = left + "px";
-								this.cursortt.style.top = top + "px";
-								this.cursortt.textContent = "(" + this.valAt(left, "x").toFixed(2) + ", " + this.valAt(top, "y").toFixed(2) + ")";
+							function(u, left, top, idx) {
+								u.cursortt.style.left = left + "px";
+								u.cursortt.style.top = top + "px";
+								u.cursortt.textContent = "(" + u.valAt(left, "x").toFixed(2) + ", " + u.valAt(top, "y").toFixed(2) + ")";
 
 								// can optimize further by not applying styles if idx did not change
-								this.seriestt.forEach((tt, i) => {
+								u.seriestt.forEach((tt, i) => {
 									let xVal = data[  0][idx];
 									let yVal = data[i+1][idx];
 
 									tt.textContent = "(" + xVal + ", " + yVal + ")";
 
-									tt.style.left = this.posOf(xVal, 'x') + "px";
-									tt.style.top = this.posOf(yVal, 'y') + "px";
+									tt.style.left = u.posOf(xVal, 'x') + "px";
+									tt.style.top = u.posOf(yVal, 'y') + "px";
 
 								});
 							}
