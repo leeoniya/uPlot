@@ -345,7 +345,7 @@ export function Line(opts, data) {
 		let isTime = axis.time;
 
 		axis.space = fnOrSelf(axis.space);
-		axis.incrs = axis.incrs          || (isTime && sc.type == 1 ? timeIncrs      : numIncrs);
+		axis.incrs = fnOrSelf(axis.incrs || (isTime && sc.type == 1 ? timeIncrs      : numIncrs));
 		axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.type == 1 ? _timeAxisTicks : numAxisTicks));
 		let av = axis.values;
 		axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
@@ -675,7 +675,7 @@ export function Line(opts, data) {
 
 			let minSpace = axis.space(min, max, canDim);
 
-			let [incr, space] = findIncr(max - min, axis.incrs, canDim, minSpace);
+			let [incr, space] = findIncr(max - min, axis.incrs(), canDim, minSpace);
 
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.type == 2;

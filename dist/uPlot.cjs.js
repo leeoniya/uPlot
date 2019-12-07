@@ -957,7 +957,7 @@ function Line(opts, data) {
 		var isTime = axis.time;
 
 		axis.space = fnOrSelf(axis.space);
-		axis.incrs = axis.incrs          || (isTime && sc.type == 1 ? timeIncrs      : numIncrs);
+		axis.incrs = fnOrSelf(axis.incrs || (isTime && sc.type == 1 ? timeIncrs      : numIncrs));
 		axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.type == 1 ? _timeAxisTicks : numAxisTicks));
 		var av = axis.values;
 		axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
@@ -1290,7 +1290,7 @@ function Line(opts, data) {
 
 			var minSpace = axis.space(min, max, canDim);
 
-			var ref = findIncr(max - min, axis.incrs, canDim, minSpace);
+			var ref = findIncr(max - min, axis.incrs(), canDim, minSpace);
 			var incr = ref[0];
 			var space = ref[1];
 
