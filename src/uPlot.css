@@ -1,5 +1,5 @@
-.uplot .cursor-vt,
-.uplot .cursor-hz {
+.uplot .cursor-x,
+.uplot .cursor-y {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -8,12 +8,12 @@
 	z-index: 100;
 }
 
-.uplot .cursor-vt {
+.uplot .cursor-x {
 	height: 100%;
 	border-right: 1px dashed #607D8B;
 }
 
-.uplot .cursor-hz {
+.uplot .cursor-y {
 	width: 100%;
 	border-bottom: 1px dashed #607D8B;
 }
