@@ -17,7 +17,7 @@ export const win = window;
 export const pxRatio = devicePixelRatio;
 
 export function addClass(el, c) {
-	el[classList].add(c);
+	c != null && el[classList].add(c);
 }
 
 export function remClass(el, c) {

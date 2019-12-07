@@ -367,11 +367,11 @@ export function Line(opts, data) {
 	let off3 = plotLft + canCssWidth;
 	let off0 = plotTop + canCssHeight;
 
-	function placeAxis(axis, part, crossDim) {
+	function placeAxis(axis, prefix, crossDim) {
 		let side = axis.side;
 		let isVt = side % 2;
 
-		let el = placeDiv((isVt ? "y-" : "x-") + part + "-" + side, wrap);
+		let el = placeDiv(prefix + "-" + (isVt ? "y-" : "x-") + side, wrap);
 
 		el.style.color = axis.color;
 		addClass(el, axis.class);

@@ -304,7 +304,7 @@ var win = window;
 var pxRatio = devicePixelRatio;
 
 function addClass(el, c) {
-	el[classList].add(c);
+	c != null && el[classList].add(c);
 }
 
 function remClass(el, c) {
@@ -596,7 +596,7 @@ var xAxisOpts = {
 	space: 50,
 	height: 53,
 	side: 0,
-	class: "x-vals",
+//	class: "x-vals",
 //	incrs: timeIncrs,
 //	values: timeVals,
 	grid: grid,
@@ -643,7 +643,7 @@ var yAxisOpts = {
 	space: 40,
 	width: 50,
 	side: 1,
-	class: "y-vals",
+//	class: "y-vals",
 //	incrs: numIncrs,
 //	values: (vals, space) => vals,
 	grid: grid,
@@ -979,11 +979,11 @@ function Line(opts, data) {
 	var off3 = plotLft + canCssWidth;
 	var off0 = plotTop + canCssHeight;
 
-	function placeAxis(axis, part, crossDim) {
+	function placeAxis(axis, prefix, crossDim) {
 		var side = axis.side;
 		var isVt = side % 2;
 
-		var el = placeDiv((isVt ? "y-" : "x-") + part + "-" + side, wrap);
+		var el = placeDiv(prefix + "-" + (isVt ? "y-" : "x-") + side, wrap);
 
 		el.style.color = axis.color;
 		addClass(el, axis.class);
