@@ -61,8 +61,10 @@
 						}
 
 						plot.addEventListener("mouseleave", () => {
-							u.moveCursor(-10, -10);
-							hideTips();
+							if (!u.cursor.locked) {
+								u.moveCursor(-10, -10);
+								hideTips();
+							}
 						});
 
 						plot.addEventListener("mouseenter", () => {

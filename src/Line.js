@@ -236,9 +236,15 @@ export function Line(opts, data) {
 	const xScaleKey = series[0].scale;
 	const xScaleType = scales[xScaleKey].type;
 
-	const cursor = assign({show: true, cross: true}, opts.cursor);		// focus: {alpha, prox}
+	const cursor = self.cursor = assign({
+		show: true,
+		cross: true,
+		locked: false,
+		left: 0,
+		top: 0,
+	}, opts.cursor);
 
-	const focus = cursor.focus;
+	const focus = cursor.focus;		// focus: {alpha, prox}
 
 	let dataLen;
 
@@ -786,14 +792,15 @@ export function Line(opts, data) {
 	let vt;
 	let hz;
 
-	let x = -10;
-	let y = -10;
-
 	if (cursor.show && cursor.cross) {
+		cursor.left = -10;
+		cursor.top = -10;
+
 		let c = "cursor-";
 
 		vt = placeDiv(c + "x", plot);
 		hz = placeDiv(c + "y", plot);
+
 	//	x = canCssWidth/2;
 	//	y = canCssHeight/2;
 	}
@@ -845,7 +852,7 @@ export function Line(opts, data) {
 
 			if (i > 0) {
 				on("click", label, e => {
-					if (locked)
+					if (cursor.locked)
 						return;
 
 					filtMouse(e) && toggle(i, null, syncOpts.toggle);
@@ -853,7 +860,7 @@ export function Line(opts, data) {
 
 				if (focus) {
 					on("mouseenter", label, e => {
-						if (locked)
+						if (cursor.locked)
 							return;
 
 						setFocus(i, focus.alpha, syncOpts.focus);
@@ -946,7 +953,7 @@ export function Line(opts, data) {
 
 	if (focus) {
 		on("mouseleave", legend, e => {
-			if (locked)
+			if (cursor.locked)
 				return;
 		//	setFocus(null, 1);
 			updatePointer();
@@ -1000,9 +1007,9 @@ export function Line(opts, data) {
 
 	self.batch = batch;
 
-	self.moveCursor = (_x, _y) => {
-		x = _x;
-		y = _y;
+	self.moveCursor = (left, top) => {
+		cursor.left = left;
+		cursor.top = top;
 		updatePointer(true);
 	};
 
@@ -1017,14 +1024,14 @@ export function Line(opts, data) {
 		rafPending = false;
 
 		if (cursor.show && cursor.cross) {
-			trans(vt,x,0);
-			trans(hz,0,y);
+			trans(vt,cursor.left,0);
+			trans(hz,0,cursor.top);
 		}
 
 		let idx;
 
 		// if cursor hidden, hide points & clear legend vals
-		if (x < 0) {
+		if (cursor.left < 0) {
 			idx = null;
 
 			for (let i = 0; i < series.length; i++) {
@@ -1045,7 +1052,7 @@ export function Line(opts, data) {
 		else {
 		//	let pctY = 1 - (y / rect[HEIGHT]);
 
-			idx = closestIdxFromXpos(x);
+			idx = closestIdxFromXpos(cursor.left);
 
 			let scX = scales[xScaleKey];
 
@@ -1060,7 +1067,7 @@ export function Line(opts, data) {
 					if (yPos == null)
 						yPos = -10;
 
-					distsToCursor[i] = yPos > 0 ? abs(yPos - y) : inf;
+					distsToCursor[i] = yPos > 0 ? abs(yPos - cursor.top) : inf;
 
 					cursor.show && trans(cursorPts[i], xPos, yPos);
 				}
@@ -1083,18 +1090,18 @@ export function Line(opts, data) {
 			}
 
 			if (dragging) {
-				let minX = min(x0, x);
-				let maxX = max(x0, x);
+				let minX = min(x0, cursor.left);
+				let maxX = max(x0, cursor.left);
 
 				setStylePx(zoom, LEFT, minX);
 				setStylePx(zoom, WIDTH, maxX - minX);
 			}
 		}
 
-		fire("cursormove", x, y, idx);
+		fire("cursormove", cursor.left, cursor.top, idx);
 
 		if (pub !== false) {
-			sync.pub(mousemove, self, x, y, canCssWidth, canCssHeight, idx);
+			sync.pub(mousemove, self, cursor.left, cursor.top, canCssWidth, canCssHeight, idx);
 
 			if (focus) {
 				let minDist = min.apply(null, distsToCursor);
@@ -1125,7 +1132,7 @@ export function Line(opts, data) {
 	}
 
 	function mouseMove(e, src, _x, _y, _w, _h, _i) {
-		if (locked)
+		if (cursor.locked)
 			return;
 
 		if (rect == null)
@@ -1158,8 +1165,8 @@ export function Line(opts, data) {
 			y0 = _y;
 		}
 		else {
-			x = _x;
-			y = _y;
+			cursor.left = _x;
+			cursor.top = _y;
 		}
 	}
 
@@ -1176,20 +1183,18 @@ export function Line(opts, data) {
 		}
 	}
 
-	let locked = false;
-
 	function mouseUp(e, src, _x, _y, _w, _h, _i) {
 		if ((e == null || filtMouse(e))) {
 			dragging = false;
 
 			syncPos(e, src, _x, _y, _w, _h, _i, false);
 
-			if (x != x0 || y != y0) {
+			if (cursor.left != x0 || cursor.top != y0) {
 				setStylePx(zoom, LEFT, 0);
 				setStylePx(zoom, WIDTH, 0);
 
-				let minX = min(x0, x);
-				let maxX = max(x0, x);
+				let minX = min(x0, cursor.left);
+				let maxX = max(x0, cursor.left);
 
 				let fn = xScaleType == 2 ? closestIdxFromXpos : scaleValueAtPos;
 
@@ -1199,15 +1204,15 @@ export function Line(opts, data) {
 				);
 			}
 			else {
-				locked = !locked
+				cursor.locked = !cursor.locked
 
-				if (!locked)
+				if (!cursor.locked)
 					updatePointer();
 			}
 
 			if (e != null) {
 				off(mouseup, doc, mouseUp);
-				sync.pub(mouseup, self, x, y, canCssWidth, canCssHeight, null);
+				sync.pub(mouseup, self, cursor.left, cursor.top, canCssWidth, canCssHeight, null);
 			}
 		}
 	}
@@ -1216,7 +1221,7 @@ export function Line(opts, data) {
 		setScale(xScaleKey, data[0][0], data[0][dataLen - 1]);
 
 		if (e != null)
-			sync.pub(dblclick, self, x, y, canCssWidth, canCssHeight, null);
+			sync.pub(dblclick, self, cursor.left, cursor.top, canCssWidth, canCssHeight, null);
 	}
 
 	// internal pub/sub
