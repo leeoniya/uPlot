@@ -23,6 +23,8 @@
 					width: 600,
 					height: 400,
 					init(u, opts, data) {
+					//	u.moveCursor(100, 100);				// initial cursor position
+
 						let plot = u.root.querySelector(".plot");
 
 						let ttc = u.cursortt = document.createElement("div");
@@ -43,10 +45,35 @@
 							plot.appendChild(tt);
 							return tt;
 						});
+
+						function hideTips() {
+							ttc.style.display = "none";
+							u.seriestt.forEach(tt => {
+								tt.style.display = "none";
+							});
+						}
+
+						function showTips() {
+							ttc.style.display = null;
+							u.seriestt.forEach(tt => {
+								tt.style.display = null;
+							});
+						}
+
+						plot.addEventListener("mouseleave", () => {
+							u.moveCursor(-10, -10);
+							hideTips();
+						});
+
+						plot.addEventListener("mouseenter", () => {
+							showTips();
+						});
+
+						hideTips();
 					},
 					events: {
 						cursormove: [
-							function(u, left, top, idx) {
+							(u, left, top, idx) => {
 								u.cursortt.style.left = left + "px";
 								u.cursortt.style.top = top + "px";
 								u.cursortt.textContent = "(" + u.valAt(left, "x").toFixed(2) + ", " + u.valAt(top, "y").toFixed(2) + ")";

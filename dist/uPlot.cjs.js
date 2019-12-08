@@ -1403,16 +1403,16 @@ function Line(opts, data) {
 	var vt;
 	var hz;
 
-	var x = null;
-	var y = null;
+	var x = -10;
+	var y = -10;
 
 	if (cursor.show && cursor.cross) {
 		var c = "cursor-";
 
 		vt = placeDiv(c + "x", plot);
 		hz = placeDiv(c + "y", plot);
-		x = canCssWidth/2;
-		y = canCssHeight/2;
+	//	x = canCssWidth/2;
+	//	y = canCssHeight/2;
 	}
 
 	var zoom = cursor.show ? placeDiv("zoom", plot) : null;
@@ -1617,6 +1617,12 @@ function Line(opts, data) {
 
 	self.batch = batch;
 
+	self.moveCursor = function (_x, _y) {
+		x = _x;
+		y = _y;
+		updatePointer(true);
+	};
+
 	function updatePointer(pub) {
 		if (inBatch) {
 			shouldUpdatePointer = true;
@@ -1632,51 +1638,74 @@ function Line(opts, data) {
 			trans(hz,0,y);
 		}
 
-	//	let pctY = 1 - (y / rect[HEIGHT]);
+		var idx;
 
-		var idx = closestIdxFromXpos(x);
+		// if cursor hidden, hide points & clear legend vals
+		if (x < 0) {
+			idx = null;
 
-		var scX = scales[xScaleKey];
+			for (var i = 0; i < series.length; i++) {
+				if (i > 0) {
+					distsToCursor[i] = inf;
+					trans(cursorPts[i], -10, -10);
+				}
 
-		var xPos = getXPos(data[0][idx], scX, canCssWidth);
+				if (legendOpts.show) {
+					if (i == 0 && multiValLegend)
+						{ continue; }
 
-		for (var i = 0; i < series.length; i++) {
-			var s = series[i];
-
-			if (i > 0 && s.show) {
-				var yPos = getYPos(data[i][idx], scales[s.scale], canCssHeight);
-
-				if (yPos == null)
-					{ yPos = -10; }
-
-				distsToCursor[i] = yPos > 0 ? abs(yPos - y) : inf;
-
-				cursor.show && trans(cursorPts[i], xPos, yPos);
-			}
-			else
-				{ distsToCursor[i] = inf; }
-
-			if (legendOpts.show) {
-				if (i == 0 && multiValLegend)
-					{ continue; }
-
-				var src = i == 0 && xScaleType == 2 ? data0 : data[i];
-
-				var vals = multiValLegend ? s.values(idx) : {_: s.value(src[idx])};
-
-				var j = 0;
-
-				for (var k in vals)
-					{ legendLabels[i][j++][firstChild].nodeValue = vals[k]; }
+					for (var j = 0; j < legendLabels[i].length; j++)
+						{ legendLabels[i][j][firstChild].nodeValue = '--'; }
+				}
 			}
 		}
+		else {
+		//	let pctY = 1 - (y / rect[HEIGHT]);
 
-		if (dragging) {
-			var minX = min(x0, x);
-			var maxX = max(x0, x);
+			idx = closestIdxFromXpos(x);
 
-			setStylePx(zoom, LEFT, minX);
-			setStylePx(zoom, WIDTH, maxX - minX);
+			var scX = scales[xScaleKey];
+
+			var xPos = getXPos(data[0][idx], scX, canCssWidth);
+
+			for (var i$1 = 0; i$1 < series.length; i$1++) {
+				var s = series[i$1];
+
+				if (i$1 > 0 && s.show) {
+					var yPos = getYPos(data[i$1][idx], scales[s.scale], canCssHeight);
+
+					if (yPos == null)
+						{ yPos = -10; }
+
+					distsToCursor[i$1] = yPos > 0 ? abs(yPos - y) : inf;
+
+					cursor.show && trans(cursorPts[i$1], xPos, yPos);
+				}
+				else
+					{ distsToCursor[i$1] = inf; }
+
+				if (legendOpts.show) {
+					if (i$1 == 0 && multiValLegend)
+						{ continue; }
+
+					var src = i$1 == 0 && xScaleType == 2 ? data0 : data[i$1];
+
+					var vals = multiValLegend ? s.values(idx) : {_: s.value(src[idx])};
+
+					var j$1 = 0;
+
+					for (var k in vals)
+						{ legendLabels[i$1][j$1++][firstChild].nodeValue = vals[k]; }
+				}
+			}
+
+			if (dragging) {
+				var minX = min(x0, x);
+				var maxX = max(x0, x);
+
+				setStylePx(zoom, LEFT, minX);
+				setStylePx(zoom, WIDTH, maxX - minX);
+			}
 		}
 
 		fire("cursormove", x, y, idx);
