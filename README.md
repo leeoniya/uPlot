@@ -1,11 +1,11 @@
 ## 📈 μPlot
 
-An [exceptionally fast](#performance), tiny ([< 15 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)) time series & line chart _(MIT Licensed)_
+An [exceptionally fast](#performance), tiny ([< 20 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)) time series & line chart _(MIT Licensed)_
 
 ---
 ### Introduction
 
-μPlot is a [fast, memory-efficient](#performance) [time series](https://en.wikipedia.org/wiki/Time_series) & line chart based on [Canvas 2D](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D); from a cold start it can create an interactive chart containing 150,000 data points in 40ms, scaling linearly at ~4,000 pts/ms. In addition to fast initial render, the zooming and cursor performance is by far the best of any similar charting lib; at < 15 KB, it's likely the smallest and fastest time series plotter that doesn't make use of WebGL shaders or WASM, both of which have much higher startup cost and code size.
+μPlot is a [fast, memory-efficient](#performance) [time series](https://en.wikipedia.org/wiki/Time_series) & line chart based on [Canvas 2D](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D); from a cold start it can create an interactive chart containing 150,000 data points in 40ms, scaling linearly at ~4,000 pts/ms. In addition to fast initial render, the zooming and cursor performance is by far the best of any similar charting lib; at < 20 KB, it's likely the smallest and fastest time series plotter that doesn't make use of WebGL shaders or WASM, both of which have much higher startup cost and code size.
 
 <h3 align="center">166,650 point bench: <a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">https://leeoniya.github.io/uPlot/bench/uPlot.html</a></h3>
 
@@ -412,7 +412,7 @@ Benchmarks done on a ThinkPad T480S:
     <tbody>
         <tr>
             <td><a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">uPlot</a></td>
-            <td>15 KB</td>
+            <td>20 KB</td>
             <td>39 ms</td>
             <td>71 ms</td>
             <td>19.6 MB</td>
@@ -580,7 +580,7 @@ Chrome 78.0.3904.108 (2019-11-23)
 
                    rend       js      sys     size  heap max  heap ret
 ----------------------------------------------------------------------
-uPlot             40 ms    72 ms    71 ms    15 KB   19.7 MB    3.8 MB
+uPlot             40 ms    72 ms    71 ms    20 KB   19.7 MB    3.8 MB
 dygraphs         180 ms   241 ms   183 ms   123 KB  113.0 MB   64.1 MB
 Flot             338 ms   182 ms   290 ms   172 KB   43.5 MB   17.2 MB
 CanvasJS         327 ms   374 ms    60 ms   448 KB   48.5 MB   38.2 MB
