@@ -853,8 +853,8 @@ var uPlot = (function (exports) {
 			show: true,
 			cross: true,
 			locked: false,
-			left: 0,
-			top: 0,
+			left: -10,
+			top: -10,
 		}, opts.cursor);
 
 		var focus = cursor.focus;		// focus: {alpha, prox}
@@ -1411,7 +1411,7 @@ var uPlot = (function (exports) {
 		var hz;
 
 		if (cursor.show && cursor.cross) {
-			_syncCursor(-10, -10);
+			_syncCursor(cursor.left, cursor.top);
 
 			var c = "cursor-";
 
