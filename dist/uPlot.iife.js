@@ -1411,8 +1411,7 @@ var uPlot = (function (exports) {
 		var hz;
 
 		if (cursor.show && cursor.cross) {
-			cursor.left = -10;
-			cursor.top = -10;
+			_syncCursor(-10, -10);
 
 			var c = "cursor-";
 
@@ -1625,9 +1624,16 @@ var uPlot = (function (exports) {
 
 		self.batch = batch;
 
+		var cursorLeft;
+		var cursorTop;
+
+		function _syncCursor(left, top) {
+			cursor.left = cursorLeft = left;
+			cursor.top = cursorTop = top;
+		}
+
 		self.moveCursor = function (left, top) {
-			cursor.left = left;
-			cursor.top = top;
+			_syncCursor(left, top);
 			updatePointer(true);
 		};
 
@@ -1642,14 +1648,14 @@ var uPlot = (function (exports) {
 			rafPending = false;
 
 			if (cursor.show && cursor.cross) {
-				trans(vt,cursor.left,0);
-				trans(hz,0,cursor.top);
+				trans(vt,cursorLeft,0);
+				trans(hz,0,cursorTop);
 			}
 
 			var idx;
 
 			// if cursor hidden, hide points & clear legend vals
-			if (cursor.left < 0) {
+			if (cursorLeft < 0) {
 				idx = null;
 
 				for (var i = 0; i < series.length; i++) {
@@ -1670,7 +1676,7 @@ var uPlot = (function (exports) {
 			else {
 			//	let pctY = 1 - (y / rect[HEIGHT]);
 
-				idx = closestIdxFromXpos(cursor.left);
+				idx = closestIdxFromXpos(cursorLeft);
 
 				var scX = scales[xScaleKey];
 
@@ -1685,7 +1691,7 @@ var uPlot = (function (exports) {
 						if (yPos == null)
 							{ yPos = -10; }
 
-						distsToCursor[i$1] = yPos > 0 ? abs(yPos - cursor.top) : inf;
+						distsToCursor[i$1] = yPos > 0 ? abs(yPos - cursorTop) : inf;
 
 						cursor.show && trans(cursorPts[i$1], xPos, yPos);
 					}
@@ -1708,18 +1714,18 @@ var uPlot = (function (exports) {
 				}
 
 				if (dragging) {
-					var minX = min(x0, cursor.left);
-					var maxX = max(x0, cursor.left);
+					var minX = min(x0, cursorLeft);
+					var maxX = max(x0, cursorLeft);
 
 					setStylePx(zoom, LEFT, minX);
 					setStylePx(zoom, WIDTH, maxX - minX);
 				}
 			}
 
-			fire("cursormove", cursor.left, cursor.top, idx);
+			fire("cursormove", cursorLeft, cursorTop, idx);
 
 			if (pub !== false) {
-				sync.pub(mousemove, self, cursor.left, cursor.top, canCssWidth, canCssHeight, idx);
+				sync.pub(mousemove, self, cursorLeft, cursorTop, canCssWidth, canCssHeight, idx);
 
 				if (focus) {
 					var minDist = min.apply(null, distsToCursor);
@@ -1782,10 +1788,8 @@ var uPlot = (function (exports) {
 				x0 = _x;
 				y0 = _y;
 			}
-			else {
-				cursor.left = _x;
-				cursor.top = _y;
-			}
+			else
+				{ _syncCursor(_x, _y); }
 		}
 
 		function mouseDown(e, src, _x, _y, _w, _h, _i) {
@@ -1807,12 +1811,12 @@ var uPlot = (function (exports) {
 
 				syncPos(e, src, _x, _y, _w, _h, _i, false);
 
-				if (cursor.left != x0 || cursor.top != y0) {
+				if (cursorLeft != x0 || cursorTop != y0) {
 					setStylePx(zoom, LEFT, 0);
 					setStylePx(zoom, WIDTH, 0);
 
-					var minX = min(x0, cursor.left);
-					var maxX = max(x0, cursor.left);
+					var minX = min(x0, cursorLeft);
+					var maxX = max(x0, cursorLeft);
 
 					var fn = xScaleType == 2 ? closestIdxFromXpos : scaleValueAtPos;
 
@@ -1830,7 +1834,7 @@ var uPlot = (function (exports) {
 
 				if (e != null) {
 					off(mouseup, doc, mouseUp);
-					sync.pub(mouseup, self, cursor.left, cursor.top, canCssWidth, canCssHeight, null);
+					sync.pub(mouseup, self, cursorLeft, cursorTop, canCssWidth, canCssHeight, null);
 				}
 			}
 		}
@@ -1839,7 +1843,7 @@ var uPlot = (function (exports) {
 			setScale(xScaleKey, data[0][0], data[0][dataLen - 1]);
 
 			if (e != null)
-				{ sync.pub(dblclick, self, cursor.left, cursor.top, canCssWidth, canCssHeight, null); }
+				{ sync.pub(dblclick, self, cursorLeft, cursorTop, canCssWidth, canCssHeight, null); }
 		}
 
 		// internal pub/sub

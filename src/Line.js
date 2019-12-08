@@ -793,8 +793,7 @@ export function Line(opts, data) {
 	let hz;
 
 	if (cursor.show && cursor.cross) {
-		cursor.left = -10;
-		cursor.top = -10;
+		_syncCursor(-10, -10);
 
 		let c = "cursor-";
 
@@ -1007,9 +1006,16 @@ export function Line(opts, data) {
 
 	self.batch = batch;
 
+	let cursorLeft;
+	let cursorTop;
+
+	function _syncCursor(left, top) {
+		cursor.left = cursorLeft = left;
+		cursor.top = cursorTop = top;
+	}
+
 	self.moveCursor = (left, top) => {
-		cursor.left = left;
-		cursor.top = top;
+		_syncCursor(left, top);
 		updatePointer(true);
 	};
 
@@ -1024,14 +1030,14 @@ export function Line(opts, data) {
 		rafPending = false;
 
 		if (cursor.show && cursor.cross) {
-			trans(vt,cursor.left,0);
-			trans(hz,0,cursor.top);
+			trans(vt,cursorLeft,0);
+			trans(hz,0,cursorTop);
 		}
 
 		let idx;
 
 		// if cursor hidden, hide points & clear legend vals
-		if (cursor.left < 0) {
+		if (cursorLeft < 0) {
 			idx = null;
 
 			for (let i = 0; i < series.length; i++) {
@@ -1052,7 +1058,7 @@ export function Line(opts, data) {
 		else {
 		//	let pctY = 1 - (y / rect[HEIGHT]);
 
-			idx = closestIdxFromXpos(cursor.left);
+			idx = closestIdxFromXpos(cursorLeft);
 
 			let scX = scales[xScaleKey];
 
@@ -1067,7 +1073,7 @@ export function Line(opts, data) {
 					if (yPos == null)
 						yPos = -10;
 
-					distsToCursor[i] = yPos > 0 ? abs(yPos - cursor.top) : inf;
+					distsToCursor[i] = yPos > 0 ? abs(yPos - cursorTop) : inf;
 
 					cursor.show && trans(cursorPts[i], xPos, yPos);
 				}
@@ -1090,18 +1096,18 @@ export function Line(opts, data) {
 			}
 
 			if (dragging) {
-				let minX = min(x0, cursor.left);
-				let maxX = max(x0, cursor.left);
+				let minX = min(x0, cursorLeft);
+				let maxX = max(x0, cursorLeft);
 
 				setStylePx(zoom, LEFT, minX);
 				setStylePx(zoom, WIDTH, maxX - minX);
 			}
 		}
 
-		fire("cursormove", cursor.left, cursor.top, idx);
+		fire("cursormove", cursorLeft, cursorTop, idx);
 
 		if (pub !== false) {
-			sync.pub(mousemove, self, cursor.left, cursor.top, canCssWidth, canCssHeight, idx);
+			sync.pub(mousemove, self, cursorLeft, cursorTop, canCssWidth, canCssHeight, idx);
 
 			if (focus) {
 				let minDist = min.apply(null, distsToCursor);
@@ -1164,10 +1170,8 @@ export function Line(opts, data) {
 			x0 = _x;
 			y0 = _y;
 		}
-		else {
-			cursor.left = _x;
-			cursor.top = _y;
-		}
+		else
+			_syncCursor(_x, _y);
 	}
 
 	function mouseDown(e, src, _x, _y, _w, _h, _i) {
@@ -1189,12 +1193,12 @@ export function Line(opts, data) {
 
 			syncPos(e, src, _x, _y, _w, _h, _i, false);
 
-			if (cursor.left != x0 || cursor.top != y0) {
+			if (cursorLeft != x0 || cursorTop != y0) {
 				setStylePx(zoom, LEFT, 0);
 				setStylePx(zoom, WIDTH, 0);
 
-				let minX = min(x0, cursor.left);
-				let maxX = max(x0, cursor.left);
+				let minX = min(x0, cursorLeft);
+				let maxX = max(x0, cursorLeft);
 
 				let fn = xScaleType == 2 ? closestIdxFromXpos : scaleValueAtPos;
 
@@ -1212,7 +1216,7 @@ export function Line(opts, data) {
 
 			if (e != null) {
 				off(mouseup, doc, mouseUp);
-				sync.pub(mouseup, self, cursor.left, cursor.top, canCssWidth, canCssHeight, null);
+				sync.pub(mouseup, self, cursorLeft, cursorTop, canCssWidth, canCssHeight, null);
 			}
 		}
 	}
@@ -1221,7 +1225,7 @@ export function Line(opts, data) {
 		setScale(xScaleKey, data[0][0], data[0][dataLen - 1]);
 
 		if (e != null)
-			sync.pub(dblclick, self, cursor.left, cursor.top, canCssWidth, canCssHeight, null);
+			sync.pub(dblclick, self, cursorLeft, cursorTop, canCssWidth, canCssHeight, null);
 	}
 
 	// internal pub/sub
