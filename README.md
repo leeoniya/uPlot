@@ -84,7 +84,7 @@ uPlot expects a columnar data format as shown above.
 
 - x-values must be numbers, unique, and in ascending order.
 - y-values must be numbers (or `null`s for missing data).
-- x-values and y-values arrays must be of equal lengths.
+- x-values and y-values arrays must be of equal lengths >= 2.
 
 By default, x-values are assumed to be [unix timestamps](https://en.wikipedia.org/wiki/Unix_time) (seconds since 1970-01-01 00:00:00) but can be treated as plain numbers via `scales.x.time = false`.
 JavaScript uses millisecond-precision timestamps, but this precision is rarely necessary on calendar-aware `time: true` scales/plots, which honor DST, timezones, leap years, etc.
