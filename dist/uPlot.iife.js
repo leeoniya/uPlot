@@ -596,7 +596,7 @@ var uPlot = (function (exports) {
 		scale: 'x',
 		space: 50,
 		height: 53,
-		side: 0,
+		side: 2,
 	//	class: "x-vals",
 	//	incrs: timeIncrs,
 	//	values: timeVals,
@@ -643,7 +643,7 @@ var uPlot = (function (exports) {
 		scale: 'y',
 		space: 40,
 		width: 50,
-		side: 1,
+		side: 3,
 	//	class: "y-vals",
 	//	incrs: numIncrs,
 	//	values: (vals, space) => vals,
@@ -849,16 +849,6 @@ var uPlot = (function (exports) {
 		var xScaleKey = series[0].scale;
 		var xScaleType = scales[xScaleKey].type;
 
-		var cursor = self.cursor = assign({
-			show: true,
-			cross: true,
-			locked: false,
-			left: -10,
-			top: -10,
-		}, opts.cursor);
-
-		var focus = cursor.focus;		// focus: {alpha, prox}
-
 		var dataLen;
 
 		// rendered data window
@@ -877,7 +867,7 @@ var uPlot = (function (exports) {
 
 			resetSeries();
 
-			setScale(
+			_setScale(
 				xScaleKey,
 				_min != null ? _min : data[0][0],
 				_max != null ? _max : data[0][dataLen - 1]
@@ -940,7 +930,7 @@ var uPlot = (function (exports) {
 				var w = axis[WIDTH] + lab;
 				canCssWidth -= w;
 
-				if (side == 1) {
+				if (side == 3) {
 					plotLft += w;
 					hasLeftAxis = true;
 				}
@@ -951,7 +941,7 @@ var uPlot = (function (exports) {
 				var h = axis[HEIGHT] + lab;
 				canCssHeight -= h;
 
-				if (side == 2)
+				if (side == 0)
 					{ plotTop += h; }
 			}
 
@@ -1001,7 +991,7 @@ var uPlot = (function (exports) {
 				setStylePx(el, HEIGHT, canCssHeight);
 				setStylePx(el, TOP, plotTop);
 
-				if (side == 1) {
+				if (side == 3) {
 					setStylePx(el, RIGHT, off1);
 					off1 += w;
 				}
@@ -1016,7 +1006,7 @@ var uPlot = (function (exports) {
 				setStylePx(el, WIDTH, canCssWidth);
 				setStylePx(el, LEFT, plotLft);
 
-				if (side == 2) {
+				if (side == 0) {
 					setStylePx(el, BOTTOM, off2);
 					off2 += h;
 				}
@@ -1050,7 +1040,7 @@ var uPlot = (function (exports) {
 
 					var style = txt.style;
 
-					if (side == 3)
+					if (side == 1)
 						{ setOriRotTrans(style, "0 0", 90, -LABEL_HEIGHT); }
 					else
 						{ setOriRotTrans(style, "100% 0", -90, -canCssHeight); }
@@ -1075,7 +1065,7 @@ var uPlot = (function (exports) {
 				return;
 			}
 
-		//	console.log("setScales()");
+		//	log("setScales()", arguments);
 
 			// original scales' min/maxes
 			var minMaxes = {};
@@ -1153,14 +1143,21 @@ var uPlot = (function (exports) {
 				}
 			}
 
+			var changed = {};
+
 			// invalidate paths of all series on changed scales
 			series.forEach(function (s, i) {
 				var k = s.scale;
 				var sc = scales[k];
 
-				if (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)
-					{ s.path = null; }
+				if (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max) {
+					changed[k] = true;
+					s.path = null;
+				}
 			});
+
+			for (var k$2 in changed)
+				{ fire("setScale", k$2, scales[k$2]); }
 		}
 
 		var dir = 1;
@@ -1358,7 +1355,7 @@ var uPlot = (function (exports) {
 		}
 
 		function resetSeries() {
-		//	console.log("resetSeries()");
+		//	log("resetSeries()", arguments);
 
 			series.forEach(function (s) {
 				s.min = inf;
@@ -1375,7 +1372,7 @@ var uPlot = (function (exports) {
 				return;
 			}
 
-		//	console.log("paint()");
+		//	log("paint()", arguments);
 
 			ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 			drawAxesGrid();
@@ -1386,18 +1383,23 @@ var uPlot = (function (exports) {
 		// redraw() => setScale('x', scales.x.min, scales.x.max);
 
 		// explicit, never re-ranged
-		function setScale(key, min, max) {
+		function setScale(key, opts) {
 			var sc = scales[key];
 
 			if (sc.base == null) {
-				pendScales[key] = {min: min, max: max};
+			//	log("setScale()", arguments);
+
+				pendScales[key] = opts;
+
+				var min = opts.min;
+				var max = opts.max;
 
 				if (key == xScaleKey && (min != sc.min || max != sc.max))
 					{ resetSeries(); }
 
 				didPaint = false;
 				setScales();
-				cursor.show && updatePointer();
+				cursor.show && updateCursor();
 				!didPaint && paint();
 				didPaint = false;
 			}
@@ -1410,8 +1412,30 @@ var uPlot = (function (exports) {
 		var vt;
 		var hz;
 
+		// starting position
+		var mouseLeft0;
+		var mouseTop0;
+
+		// current position
+		var mouseLeft1;
+		var mouseTop1;
+
+		var dragging = false;
+
+		var cursor = self.cursor = assign({
+			show: true,
+			cross: true,
+			locked: false,
+			left: -10,
+			top: -10,
+			idx: null,
+		}, opts.cursor);
+
+		var focus = cursor.focus;		// focus: {alpha, prox}
+
 		if (cursor.show && cursor.cross) {
-			_syncCursor(cursor.left, cursor.top);
+			mouseLeft1 = cursor.left;
+			mouseTop1 = cursor.top;
 
 			var c = "cursor-";
 
@@ -1472,7 +1496,7 @@ var uPlot = (function (exports) {
 						if (cursor.locked)
 							{ return; }
 
-						filtMouse(e) && toggle(i, null, syncOpts.toggle);
+						filtMouse(e) && setSeries(i, {show: !s.show}, syncOpts.setSeries);
 					});
 
 					if (focus) {
@@ -1480,7 +1504,7 @@ var uPlot = (function (exports) {
 							if (cursor.locked)
 								{ return; }
 
-							setFocus(i, focus.alpha, syncOpts.focus);
+							setSeries(i, {focus: true}, syncOpts.setSeries);
 						});
 					}
 				}
@@ -1507,27 +1531,47 @@ var uPlot = (function (exports) {
 			}
 		}
 
-		function toggle(idxs, onOff, pub) {
-			(isArr(idxs) ? idxs : [idxs]).forEach(function (i) {
-				var s = series[i];
+		var _scaleOpts = {min: null, max: null};
 
-				s.show = onOff != null ? onOff : !s.show;
-				toggleDOM(i);
-
-				if (s.band) {
-					// not super robust, will break if two bands are adjacent
-					var ip = series[i+1].band ? i+1 : i-1;
-					series[ip].show = s.show;
-					toggleDOM(ip);
-				}
-			});
-
-			setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);		// redraw
-
-			pub && sync.pub("toggle", self, idxs, onOff);
+		function _setScale(key, min, max) {
+			_scaleOpts.min = min;
+			_scaleOpts.max = max;
+			setScale(key, _scaleOpts);
 		}
 
-		self.toggle = toggle;
+		function setSeries(i, opts, pub) {
+		//	log("setSeries()", arguments);
+
+			var s = series[i];
+
+		//	batch(() => {
+				// will this cause redundant paint() if both show and focus are set?
+				if (opts.focus != null)
+					{ setFocus(i); }
+
+				if (opts.show != null) {
+					s.show = opts.show;
+					toggleDOM(i, opts.show);
+
+					if (s.band) {
+						// not super robust, will break if two bands are adjacent
+						var ip = series[i+1].band ? i+1 : i-1;
+						series[ip].show = s.show;
+						toggleDOM(ip, opts.show);
+					}
+
+					_setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);		// redraw
+				}
+		//	});
+
+			// firing setSeries after setScale seems out of order, but provides access to the updated props
+			// could improve by predefining firing order and building a queue
+			fire("setSeries", i, opts);
+
+			pub && sync.pub("setSeries", self, i, opts);
+		}
+
+		self.setSeries = setSeries;
 
 		function _alpha(i, value) {
 			series[i].alpha = legendLabels[i][0].parentNode.style.opacity = value;
@@ -1550,30 +1594,25 @@ var uPlot = (function (exports) {
 
 		var focused = null;
 
-		// kill alpha?
-		function setFocus(i, alpha, pub) {
+		function setFocus(i) {
 			if (i != focused) {
-			//	console.log("setFocus()");
+			//	log("setFocus()", arguments);
 
 				series.forEach(function (s, i2) {
-					_setAlpha(i2, i == null || i2 == 0 || i2 == i ? 1 : alpha);
+					_setAlpha(i2, i == null || i2 == 0 || i2 == i ? 1 : focus.alpha);
 				});
 
 				focused = i;
 				paint();
-
-				pub && sync.pub("focus", self, i);
 			}
 		}
-
-		self.focus = setFocus;
 
 		if (focus) {
 			on("mouseleave", legend, function (e) {
 				if (cursor.locked)
 					{ return; }
-			//	setFocus(null, 1);
-				updatePointer();
+				setSeries(null, {focus: false}, syncOpts.setSeries);
+				updateCursor();
 			});
 		}
 
@@ -1609,7 +1648,7 @@ var uPlot = (function (exports) {
 		var inBatch = false;
 		var shouldPaint = false;
 		var shouldSetScales = false;
-		var shouldUpdatePointer = false;
+		var shouldUpdateCursor = false;
 
 		// defers calling expensive functions
 		function batch(fn) {
@@ -1617,45 +1656,40 @@ var uPlot = (function (exports) {
 			fn(self);
 			inBatch = false;
 			shouldSetScales && setScales();
-			shouldUpdatePointer && updatePointer();
+			shouldUpdateCursor && updateCursor();
 			shouldPaint && !didPaint && paint();
-			shouldSetScales = shouldUpdatePointer = shouldPaint = didPaint = inBatch;
+			shouldSetScales = shouldUpdateCursor = shouldPaint = didPaint = inBatch;
 		}
 
 		self.batch = batch;
 
-		var cursorLeft;
-		var cursorTop;
 
-		function _syncCursor(left, top) {
-			cursor.left = cursorLeft = left;
-			cursor.top = cursorTop = top;
-		}
-
-		self.moveCursor = function (left, top) {
-			_syncCursor(left, top);
-			updatePointer(true);
+		self.setCursor = function (opts) {
+			mouseLeft1 = opts.left;
+			mouseTop1 = opts.top;
+		//	assign(cursor, opts);
+			updateCursor();
 		};
 
-		function updatePointer(pub) {
+		function updateCursor(ts) {
 			if (inBatch) {
-				shouldUpdatePointer = true;
+				shouldUpdateCursor = true;
 				return;
 			}
 
-		//	console.log("updatePointer()");
+		//	ts == null && log("updateCursor()", arguments);
 
 			rafPending = false;
 
 			if (cursor.show && cursor.cross) {
-				trans(vt,cursorLeft,0);
-				trans(hz,0,cursorTop);
+				trans(vt,mouseLeft1,0);
+				trans(hz,0,mouseTop1);
 			}
 
 			var idx;
 
 			// if cursor hidden, hide points & clear legend vals
-			if (cursorLeft < 0) {
+			if (mouseLeft1 < 0) {
 				idx = null;
 
 				for (var i = 0; i < series.length; i++) {
@@ -1676,7 +1710,7 @@ var uPlot = (function (exports) {
 			else {
 			//	let pctY = 1 - (y / rect[HEIGHT]);
 
-				idx = closestIdxFromXpos(cursorLeft);
+				idx = closestIdxFromXpos(mouseLeft1);
 
 				var scX = scales[xScaleKey];
 
@@ -1691,7 +1725,7 @@ var uPlot = (function (exports) {
 						if (yPos == null)
 							{ yPos = -10; }
 
-						distsToCursor[i$1] = yPos > 0 ? abs(yPos - cursorTop) : inf;
+						distsToCursor[i$1] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
 
 						cursor.show && trans(cursorPts[i$1], xPos, yPos);
 					}
@@ -1714,18 +1748,19 @@ var uPlot = (function (exports) {
 				}
 
 				if (dragging) {
-					var minX = min(x0, cursorLeft);
-					var maxX = max(x0, cursorLeft);
+					var minX = min(mouseLeft0, mouseLeft1);
+					var maxX = max(mouseLeft0, mouseLeft1);
 
 					setStylePx(zoom, LEFT, minX);
 					setStylePx(zoom, WIDTH, maxX - minX);
 				}
 			}
 
-			fire("cursormove", cursorLeft, cursorTop, idx);
-
-			if (pub !== false) {
-				sync.pub(mousemove, self, cursorLeft, cursorTop, canCssWidth, canCssHeight, idx);
+			// if ts is present, means we're implicitly syncing own cursor as a result of debounced rAF
+			if (ts != null) {
+				// this is not technically a "mousemove" event, since it's debounced, rename to setCursor?
+				// since this is internal, we can tweak it later
+				sync.pub(mousemove, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, idx);
 
 				if (focus) {
 					var minDist = min.apply(null, distsToCursor);
@@ -1739,15 +1774,17 @@ var uPlot = (function (exports) {
 						});
 					}
 
-					setFocus(fi, focus.alpha, syncOpts.focus);
+					setSeries(fi, {focus: true}, syncOpts.setSeries);
 				}
 			}
+
+			cursor.idx = idx;
+			cursor.left = mouseLeft1;
+			cursor.top = mouseTop1;
+
+			// todo: would be good to isolate only the opts that were changed
+			fire("setCursor", cursor);
 		}
-
-		var x0 = null;
-		var y0 = null;
-
-		var dragging = false;
 
 		var rect = null;
 
@@ -1762,19 +1799,19 @@ var uPlot = (function (exports) {
 			if (rect == null)
 				{ syncRect(); }
 
-			syncPos(e, src, _x, _y, _w, _h, _i, false);
+			cacheMouse(e, src, _x, _y, _w, _h, _i, false);
 
 			if (e != null) {
 				if (!rafPending) {
 					rafPending = true;
-					rAF(updatePointer);
+					rAF(updateCursor);
 				}
 			}
 			else
-				{ updatePointer(false); }
+				{ updateCursor(); }
 		}
 
-		function syncPos(e, src, _x, _y, _w, _h, _i, initial) {
+		function cacheMouse(e, src, _x, _y, _w, _h, _i, initial) {
 			if (e != null) {
 				_x = e.clientX - rect.left;
 				_y = e.clientY - rect.top;
@@ -1785,22 +1822,24 @@ var uPlot = (function (exports) {
 			}
 
 			if (initial) {
-				x0 = _x;
-				y0 = _y;
+				mouseLeft0 = _x;
+				mouseTop0 = _y;
 			}
-			else
-				{ _syncCursor(_x, _y); }
+			else {
+				mouseLeft1 = _x;
+				mouseTop1 = _y;
+			}
 		}
 
 		function mouseDown(e, src, _x, _y, _w, _h, _i) {
 			if (e == null || filtMouse(e)) {
 				dragging = true;
 
-				syncPos(e, src, _x, _y, _w, _h, _i, true);
+				cacheMouse(e, src, _x, _y, _w, _h, _i, true);
 
 				if (e != null) {
 					on(mouseup, doc, mouseUp);
-					sync.pub(mousedown, self, x0, y0, canCssWidth, canCssHeight, null);
+					sync.pub(mousedown, self, mouseLeft0, mouseTop0, canCssWidth, canCssHeight, null);
 				}
 			}
 		}
@@ -1809,18 +1848,18 @@ var uPlot = (function (exports) {
 			if ((e == null || filtMouse(e))) {
 				dragging = false;
 
-				syncPos(e, src, _x, _y, _w, _h, _i, false);
+				cacheMouse(e, src, _x, _y, _w, _h, _i, false);
 
-				if (cursorLeft != x0 || cursorTop != y0) {
+				if (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0) {
 					setStylePx(zoom, LEFT, 0);
 					setStylePx(zoom, WIDTH, 0);
 
-					var minX = min(x0, cursorLeft);
-					var maxX = max(x0, cursorLeft);
+					var minX = min(mouseLeft0, mouseLeft1);
+					var maxX = max(mouseLeft0, mouseLeft1);
 
 					var fn = xScaleType == 2 ? closestIdxFromXpos : scaleValueAtPos;
 
-					setScale(xScaleKey,
+					_setScale(xScaleKey,
 						fn(minX, xScaleKey),
 						fn(maxX, xScaleKey)
 					);
@@ -1829,21 +1868,22 @@ var uPlot = (function (exports) {
 					cursor.locked = !cursor.locked;
 
 					if (!cursor.locked)
-						{ updatePointer(); }
+						{ updateCursor(); }
 				}
 
 				if (e != null) {
 					off(mouseup, doc, mouseUp);
-					sync.pub(mouseup, self, cursorLeft, cursorTop, canCssWidth, canCssHeight, null);
+					sync.pub(mouseup, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, null);
 				}
 			}
 		}
 
 		function dblClick(e, src, _x, _y, _w, _h, _i) {
-			setScale(xScaleKey, data[0][0], data[0][dataLen - 1]);
+			// TODO: can optimize by testing if already at full x-scale range and exit early
+			_setScale(xScaleKey, data[0][0], data[0][dataLen - 1]);
 
 			if (e != null)
-				{ sync.pub(dblclick, self, cursorLeft, cursorTop, canCssWidth, canCssHeight, null); }
+				{ sync.pub(dblclick, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, null); }
 		}
 
 		// internal pub/sub
@@ -1853,11 +1893,8 @@ var uPlot = (function (exports) {
 		events[mousemove] = mouseMove;
 		events[mouseup] = mouseUp;
 		events[dblclick] = dblClick;
-		events["focus"] = function (e, src, i) {
-			setFocus(i, focus.alpha);
-		};
-		events["toggle"] = function (e, src, idxs, onOff) {
-			toggle(idxs, onOff);
+		events["setSeries"] = function (e, src, idx, opts) {
+			setSeries(idx, opts);
 		};
 
 		if (cursor.show) {
@@ -1874,33 +1911,23 @@ var uPlot = (function (exports) {
 		self.root = root;
 
 		// external on/off
-		var events2 = opts.events || {};
+		var hooks = self.hooks = opts.hooks || {};
 
 		var evArg0 = [self];
 
 		function fire(evName) {
-			if (evName in events2) {
+			if (evName in hooks) {
 				var args = evArg0.concat(Array.prototype.slice.call(arguments, 1));
 
-				events2[evName].forEach(function (fn) {
+				hooks[evName].forEach(function (fn) {
 					fn.apply(null, args);
 				});
 			}
 		}
 
-		self.on = function (evName, fn) {
-			events2[evName] = new Set(events2[evName]);		// bit of waste but meh
-			events2[evName].add(fn);
-		};
-
-		self.off = function (evName, fn) {
-			events2[evName].delete(fn);
-		};
-
 		var syncOpts = assign({
 			key: null,
-			toggle: false,
-			focus: false,
+			setSeries: false,
 		}, cursor.sync);
 
 		var syncKey = syncOpts.key;

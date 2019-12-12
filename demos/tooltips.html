@@ -45,7 +45,9 @@
 							tt.textContent = "Tooltip!";
 							tt.style.pointerEvents = "none";
 							tt.style.position = "absolute";
-							tt.style.background = "rgba(255,0,0,0.1)";
+							tt.style.background = "rgba(0,0,0,0.1)";
+							tt.style.color = s.color;
+							tt.style.display = s.show ? null : "none";
 							plot.appendChild(tt);
 							return tt;
 						});
@@ -59,14 +61,15 @@
 
 						function showTips() {
 							ttc.style.display = null;
-							u.seriestt.forEach(tt => {
-								tt.style.display = null;
+							u.seriestt.forEach((tt, i) => {
+								let s = u.series.y[i];
+								tt.style.display = s.show ? null : "none";
 							});
 						}
 
 						plot.addEventListener("mouseleave", () => {
 							if (!u.cursor.locked) {
-								u.moveCursor(-10, -10);
+								u.setCursor({left: -10, top: -10});
 								hideTips();
 							}
 						});
@@ -77,26 +80,41 @@
 
 						hideTips();
 					},
-					events: {
-						cursormove: [
-							(u, left, top, idx) => {
+					hooks: {
+						setCursor: [
+							u => {
+								const {left, top, idx} = u.cursor;
+
 								u.cursortt.style.left = left + "px";
 								u.cursortt.style.top = top + "px";
 								u.cursortt.textContent = "(" + u.valAt(left, "x").toFixed(2) + ", " + u.valAt(top, "y").toFixed(2) + ")";
 
 								// can optimize further by not applying styles if idx did not change
 								u.seriestt.forEach((tt, i) => {
-									let xVal = data[  0][idx];
-									let yVal = data[i+1][idx];
+									let s = u.series.y[i];
 
-									tt.textContent = "(" + xVal + ", " + yVal + ")";
+									if (s.show) {
+										let xVal = data[  0][idx];
+										let yVal = data[i+1][idx];
 
-									tt.style.left = u.posOf(xVal, 'x') + "px";
-									tt.style.top = u.posOf(yVal, 'y') + "px";
+										tt.textContent = "(" + xVal + ", " + yVal + ")";
 
+										tt.style.left = u.posOf(xVal, 'x') + "px";
+										tt.style.top = u.posOf(yVal, 'y') + "px";
+									}
 								});
 							}
-						]
+						],
+						setScale: [
+							(u, key, opts) => {
+								console.log('setScale', key, opts);
+							}
+						],
+						setSeries: [
+							(u, idx, opts) => {
+								console.log('setSeries', idx, opts);
+							}
+						],
 					},
 					scales: {
 						x: {
@@ -106,24 +124,22 @@
 					series: {
 						y: [
 							{
-								label: "blah",
-								width: 1,
-								color: "green",
+								label: "One",
+								color: "red",
+							},
+							{
+								label: "Two",
+								color: "blue",
+								show: false,
 							},
 						]
-					},
-					axes: {
-						y: [
-							{
-								values: (vals, space) => vals.map(v => v + '° F'),
-							},
-						],
 					},
 				};
 
 				const data = [
 					[ 1, 2, 3, 4, 5, 6, 7],
 					[40,43,60,65,71,73,80],
+					[18,24,37,55,55,60,63],
 				];
 
 				let u = new uPlot.Line(opts, data);
