@@ -125,7 +125,7 @@ export const _timeAxisStamps = timeAxisStamps([
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 export function timeAxisVals(tzDate, stamps) {
-	return (ticks, space) => {
+	return (self, ticks, space) => {
 		let incr = ticks[1] - ticks[0];
 
 		// these track boundaries when a full label is needed again
@@ -160,7 +160,7 @@ function mkDate(y, m, d) {
 // https://www.timeanddate.com/time/dst/
 // https://www.timeanddate.com/time/dst/2019.html
 export function timeAxisTicks(tzDate) {
-	return (scaleMin, scaleMax, incr, pctSpace) => {
+	return (self, scaleMin, scaleMax, incr, pctSpace) => {
 		let ticks = [];
 		let isMo = incr >= mo && incr < y;
 
@@ -234,7 +234,7 @@ export function timeAxisTicks(tzDate) {
 let longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
 
 export function timeSeriesVal(tzDate) {
-	return (val) => longDateHourMin(tzDate(val));
+	return (self, val) => longDateHourMin(tzDate(val));
 }
 
 export const xAxisOpts = {
@@ -265,11 +265,11 @@ export const xSeriesOpts = {
 
 export const numIncrs = dec.concat([1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9]);
 
-export function numAxisVals(ticks, space) {
+export function numAxisVals(self, ticks, space) {
 	return ticks;
 }
 
-export function numAxisTicks(scaleMin, scaleMax, incr, pctSpace, forceMin) {
+export function numAxisTicks(self, scaleMin, scaleMax, incr, pctSpace, forceMin) {
 	scaleMin = forceMin ? scaleMin : round6(incrRoundUp(scaleMin, incr));
 
 	let ticks = [];
@@ -280,7 +280,7 @@ export function numAxisTicks(scaleMin, scaleMax, incr, pctSpace, forceMin) {
 	return ticks;
 }
 
-export function numSeriesVal(val) {
+export function numSeriesVal(self, val) {
 	return val;
 }
 

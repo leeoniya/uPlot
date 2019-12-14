@@ -48,6 +48,47 @@ export function getMinMax(data, _i0, _i1) {
 	return [_min, _max];
 }
 
+// this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
+// TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
+export function rangeNum(min, max, mult, extra) {
+	// auto-scale Y
+	const delta = max - min;
+	const mag = log10(delta || abs(max) || 1);
+	const exp = floor(mag);
+	const incr = pow(10, exp) * mult;
+	const buf = delta == 0 ? incr : 0;
+
+	let snappedMin = round6(incrRoundDn(min - buf, incr));
+	let snappedMax = round6(incrRoundUp(max + buf, incr));
+
+	if (extra) {
+		// for flat data, always use 0 as one chart extreme
+		if (delta == 0) {
+			if (max > 0)
+				snappedMin = 0;
+			else if (max < 0)
+				snappedMax = 0;
+		}
+		else {
+			// if buffer is too small, increase it
+			if (snappedMax - max < incr)
+				snappedMax += incr;
+
+			if (min - snappedMin < incr)
+				snappedMin -= incr;
+
+			// if original data never crosses 0, use 0 as one chart extreme
+			if (min >= 0 && snappedMin < 0)
+				snappedMin = 0;
+
+			if (max <= 0 && snappedMax > 0)
+				snappedMax = 0;
+		}
+	}
+
+	return [snappedMin, snappedMax];
+}
+
 const M = Math;
 
 export const abs = M.abs;

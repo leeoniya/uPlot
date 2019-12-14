@@ -5,7 +5,6 @@ import {
 	abs,
 	floor,
 	round,
-	round6,
 	ceil,
 	min,
 	max,
@@ -15,6 +14,7 @@ import {
 	debounce,
 	closestIdx,
 	getMinMax,
+	rangeNum,
 	incrRoundUp,
 	incrRoundDn,
 	assign,
@@ -119,47 +119,14 @@ function getXPos(val, scale, wid) {
 	return round(pctX * wid);
 }
 
-function snapNone(dataMin, dataMax) {
+function snapNone(self, dataMin, dataMax) {
 	return [dataMin, dataMax];
 }
 
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
-function snapFifthMag(dataMin, dataMax) {
-	// auto-scale Y
-	const delta = dataMax - dataMin;
-	const mag = log10(delta || abs(dataMax) || 1);
-	const exp = floor(mag);
-	const incr = pow(10, exp) / 5;
-	const buf = delta == 0 ? incr : 0;
-
-	let snappedMin = round6(incrRoundDn(dataMin - buf, incr));
-	let snappedMax = round6(incrRoundUp(dataMax + buf, incr));
-
-	// for flat data, always use 0 as one chart extreme
-	if (delta == 0) {
-		if (dataMax > 0)
-			snappedMin = 0;
-		else if (dataMax < 0)
-			snappedMax = 0;
-	}
-	else {
-		// if buffer is too small, increase it
-		if (snappedMax - dataMax < incr)
-			snappedMax += incr;
-
-		if (dataMin - snappedMin < incr)
-			snappedMin -= incr;
-
-		// if original data never crosses 0, use 0 as one chart extreme
-		if (dataMin >= 0 && snappedMin < 0)
-			snappedMin = 0;
-
-		if (dataMax <= 0 && snappedMax > 0)
-			snappedMax = 0;
-	}
-
-	return [snappedMin, snappedMax];
+function snapFifthMag(self, dataMin, dataMax) {
+	return rangeNum(dataMin, dataMax, 0.2, true);
 }
 
 // dim is logical (getClientBoundingRect) pixels, not canvas pixels
@@ -248,7 +215,7 @@ export function Line(opts, data) {
 
 	let data0 = null;
 
-	function setData(_data, _min, _max) {
+	function setData(_data, _autoScaleX) {
 		data = _data.slice();
 		data0 = data[0];
 		dataLen = data0.length;
@@ -256,16 +223,24 @@ export function Line(opts, data) {
 		if (xScaleType == 2)
 			data[0] = data0.map((v, i) => i);
 
-		resetSeries();
+		resetYSeries();
 
-		_setScale(
-			xScaleKey,
-			_min != null ? _min : data[0][0],
-			_max != null ? _max : data[0][dataLen - 1],
-		);
+		if (_autoScaleX !== false)
+			autoScaleX();
 	}
 
 	self.setData = setData;
+
+	function autoScaleX() {
+		i0 = 0;
+		i1 = dataLen - 1;
+
+		_setScale(
+			xScaleKey,
+			xScaleType == 2 ? i0 : data[0][i0],
+			xScaleType == 2 ? i1 : data[0][i1],
+		);
+	}
 
 	function setCtxStyle(color, width, dash, fill) {
 		ctx.strokeStyle = color || hexBlack;
@@ -446,6 +421,8 @@ export function Line(opts, data) {
 
 	const { can, ctx } = makeCanvas(canCssWidth, canCssHeight);
 
+	plot.appendChild(can);
+
 	const pendScales = {};
 
 	function setScales() {
@@ -456,25 +433,34 @@ export function Line(opts, data) {
 
 	//	log("setScales()", arguments);
 
-		// original scales' min/maxes
+		// cache original scales' min/max & reset
 		let minMaxes = {};
 
+		for (let k in scales) {
+			let sc = scales[k];
+			let psc = pendScales[k];
+
+			minMaxes[k] = {min: sc.min, max: sc.max};
+
+			if (psc != null) {
+				assign(sc, psc);
+
+				// explicitly setting the x-scale invalidates everything (acts as redraw)
+				if (k == xScaleKey)
+					resetYSeries();
+			}
+			else if (k != xScaleKey) {
+				sc.min = inf;
+				sc.max = -inf;
+			}
+		}
+
+		// pre-range y-scales from y series' data values
 		series.forEach((s, i) => {
 			let k = s.scale;
 			let sc = scales[k];
 
-			if (minMaxes[k] == null) {
-				minMaxes[k] = {min: sc.min, max: sc.max};
-
-				if (pendScales[k] != null)
-					assign(sc, pendScales[k]);
-				else {
-					sc.min = inf;
-					sc.max = -inf;
-				}
-			}
-
-			// fast-path for x axis, which is assumed ordered ASC and will not get padded
+			// setting the x scale invalidates everything
 			if (i == 0) {
 				i0 = closestIdx(sc.min, data[0]);
 				i1 = closestIdx(sc.max, data[0]);
@@ -488,12 +474,12 @@ export function Line(opts, data) {
 				s.min = data0[i0];
 				s.max = data0[i1];
 
-				let minMax = sc.range(sc.min, sc.max);
+				let minMax = sc.range(self, sc.min, sc.max);
 
 				sc.min = minMax[0];
 				sc.max = minMax[1];
 			}
-			else if (s.show) {
+			else if (s.show && pendScales[k] == null) {
 				// only run getMinMax() for invalidated series data, else reuse
 				let minMax = s.min == inf ? (sc.auto ? getMinMax(data[i], i0, i1) : [0,100]) : [s.min, s.max];
 
@@ -508,7 +494,7 @@ export function Line(opts, data) {
 			let sc = scales[k];
 
 			if (sc.base == null && sc.min != inf && pendScales[k] == null) {
-				let minMax = sc.range(sc.min, sc.max);
+				let minMax = sc.range(self, sc.min, sc.max);
 
 				sc.min = minMax[0];
 				sc.max = minMax[1];
@@ -525,7 +511,7 @@ export function Line(opts, data) {
 				let base = scales[sc.base];
 
 				if (base.min != inf) {
-					let minMax = sc.range(base.min, base.max);
+					let minMax = sc.range(self, base.min, base.max);
 					sc.min = minMax[0];
 					sc.max = minMax[1];
 				}
@@ -539,7 +525,7 @@ export function Line(opts, data) {
 			let k = s.scale;
 			let sc = scales[k];
 
-			if (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max) {
+			if (minMaxes[k] != null && (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)) {
 				changed[k] = true;
 				s.path = null;
 			}
@@ -547,6 +533,8 @@ export function Line(opts, data) {
 
 		for (let k in changed)
 			fire("setScale", k, scales[k]);
+
+		cursor.show && updateCursor();
 	}
 
 	let dir = 1;
@@ -680,14 +668,14 @@ export function Line(opts, data) {
 
 			let {min, max} = scale;
 
-			let minSpace = axis.space(min, max, canDim);
+			let minSpace = axis.space(self, min, max, canDim);
 
-			let [incr, space] = findIncr(max - min, axis.incrs(), canDim, minSpace);
+			let [incr, space] = findIncr(max - min, axis.incrs(self), canDim, minSpace);
 
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.type == 2;
 
-			let ticks = axis.ticks(min, max, incr, space/minSpace, forceMin);
+			let ticks = axis.ticks(self, min, max, incr, space/minSpace, forceMin);
 
 			let getPos = ori == 0 ? getXPos : getYPos;
 			let cssProp = ori == 0 ? LEFT : TOP;
@@ -695,7 +683,7 @@ export function Line(opts, data) {
 			// TODO: filter ticks & offsets that will end up off-canvas
 			let canOffs = ticks.map(val => getPos(val, scale, can[dim]));		// bit of waste if we're not drawing a grid
 
-			let labels = axis.values(scale.type == 2 ? ticks.map(i => data0[i]) : ticks, space);		// BOO this assumes a specific data/series
+			let labels = axis.values(self, scale.type == 2 ? ticks.map(i => data0[i]) : ticks, space);		// BOO this assumes a specific data/series
 
 			canOffs.forEach((off, i) => {
 				ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
@@ -740,13 +728,15 @@ export function Line(opts, data) {
 		});
 	}
 
-	function resetSeries() {
-	//	log("resetSeries()", arguments);
+	function resetYSeries() {
+	//	log("resetYSeries()", arguments);
 
-		series.forEach(s => {
-			s.min = inf;
-			s.max = -inf;
-			s.path = null;
+		series.forEach((s, i) => {
+			if (i > 0) {
+				s.min = inf;
+				s.max = -inf;
+				s.path = null;
+			}
 		});
 	}
 
@@ -777,14 +767,8 @@ export function Line(opts, data) {
 
 			pendScales[key] = opts;
 
-			const {min, max} = opts;
-
-			if (key == xScaleKey && (min != sc.min || max != sc.max))
-				resetSeries();
-
 			didPaint = false;
 			setScales();
-			cursor.show && updateCursor();
 			!didPaint && paint();
 			didPaint = false;
 		}
@@ -1006,6 +990,7 @@ export function Line(opts, data) {
 		if (i > 0) {
 			let pt = placeDiv("point", plot);
 			pt.style.background = s.color;
+			trans(pt, -10, -10);
 			return pt;
 		}
 	}) : null;
@@ -1044,6 +1029,10 @@ export function Line(opts, data) {
 		shouldUpdateCursor && updateCursor();
 		shouldPaint && !didPaint && paint();
 		shouldSetScales = shouldUpdateCursor = shouldPaint = didPaint = inBatch;
+
+//		let h;
+//		while (h = hookQueue.shift())
+//			fire.apply(null, h);
 	}
 
 	self.batch = batch;
@@ -1123,7 +1112,7 @@ export function Line(opts, data) {
 
 					let src = i == 0 && xScaleType == 2 ? data0 : data[i];
 
-					let vals = multiValLegend ? s.values(idx) : {_: s.value(src[idx])};
+					let vals = multiValLegend ? s.values(self, idx) : {_: s.value(self, src[idx])};
 
 					let j = 0;
 
@@ -1264,11 +1253,16 @@ export function Line(opts, data) {
 	}
 
 	function dblClick(e, src, _x, _y, _w, _h, _i) {
-		// TODO: can optimize by testing if already at full x-scale range and exit early
-		_setScale(xScaleKey, data[0][0], data[0][dataLen - 1]);
+		let min = data[0][0];
+		let max = data[0][dataLen - 1];
+	//	let sc = scales[xScaleKey];
 
-		if (e != null)
-			sync.pub(dblclick, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, null);
+	//	if (min != sc.min || max != sc.max) {
+			_setScale(xScaleKey, min, max);
+
+			if (e != null)
+				sync.pub(dblclick, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, null);
+	//	}
 	}
 
 	// internal pub/sub
@@ -1298,14 +1292,21 @@ export function Line(opts, data) {
 	// external on/off
 	const hooks = self.hooks = opts.hooks || {};
 
+//	let hookQueue = [];
+
 	const evArg0 = [self];
 
 	function fire(evName) {
+		let args = arguments;
+
+//		if (inBatch)
+//			hookQueue.push(args);
+//		else if (evName in hooks) {
 		if (evName in hooks) {
-			let args = evArg0.concat(Array.prototype.slice.call(arguments, 1));
+			let args2 = evArg0.concat(Array.prototype.slice.call(args, 1));
 
 			hooks[evName].forEach(fn => {
-				fn.apply(null, args);
+				fn.apply(null, args2);
 			});
 		}
 	}
@@ -1327,9 +1328,6 @@ export function Line(opts, data) {
 
 	self.pub = pub;
 
-	let _i0 = 0,
-		_i1 = data[0].length - 1;
-
 	function destroy() {
 		sync.unsub(self);
 		off(resize, win, deb);
@@ -1339,16 +1337,7 @@ export function Line(opts, data) {
 
 	self.destroy = destroy;
 
-	// this is wrapped in batch to prevent "cursormove" event from firing
-	// ahead of init() in case there's setup there that expects to catch them
-	batch(() => {
-		setData(data,
-			xScaleType == 2 ? _i0 : data[0][_i0],
-			xScaleType == 2 ? _i1 : data[0][_i1],
-		);
+	fire("init", opts, data);
 
-		plot.appendChild(can);
-
-		opts.init && opts.init(self, opts, data);
-	});
+	setData(data);
 }

@@ -188,6 +188,47 @@ var uPlot = (function (exports) {
 		return [_min, _max];
 	}
 
+	// this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
+	// TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
+	function rangeNum(min, max, mult, extra) {
+		// auto-scale Y
+		var delta = max - min;
+		var mag = log10(delta || abs(max) || 1);
+		var exp = floor(mag);
+		var incr = pow(10, exp) * mult;
+		var buf = delta == 0 ? incr : 0;
+
+		var snappedMin = round6(incrRoundDn(min - buf, incr));
+		var snappedMax = round6(incrRoundUp(max + buf, incr));
+
+		if (extra) {
+			// for flat data, always use 0 as one chart extreme
+			if (delta == 0) {
+				if (max > 0)
+					{ snappedMin = 0; }
+				else if (max < 0)
+					{ snappedMax = 0; }
+			}
+			else {
+				// if buffer is too small, increase it
+				if (snappedMax - max < incr)
+					{ snappedMax += incr; }
+
+				if (min - snappedMin < incr)
+					{ snappedMin -= incr; }
+
+				// if original data never crosses 0, use 0 as one chart extreme
+				if (min >= 0 && snappedMin < 0)
+					{ snappedMin = 0; }
+
+				if (max <= 0 && snappedMax > 0)
+					{ snappedMax = 0; }
+			}
+		}
+
+		return [snappedMin, snappedMax];
+	}
+
 	var M = Math;
 
 	var abs = M.abs;
@@ -479,7 +520,7 @@ var uPlot = (function (exports) {
 	// TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 	// currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 	function timeAxisVals(tzDate, stamps) {
-		return function (ticks, space) {
+		return function (self, ticks, space) {
 			var incr = ticks[1] - ticks[0];
 
 			// these track boundaries when a full label is needed again
@@ -514,7 +555,7 @@ var uPlot = (function (exports) {
 	// https://www.timeanddate.com/time/dst/
 	// https://www.timeanddate.com/time/dst/2019.html
 	function timeAxisTicks(tzDate) {
-		return function (scaleMin, scaleMax, incr, pctSpace) {
+		return function (self, scaleMin, scaleMax, incr, pctSpace) {
 			var ticks = [];
 			var isMo = incr >= mo && incr < y;
 
@@ -588,7 +629,7 @@ var uPlot = (function (exports) {
 	var longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
 
 	function timeSeriesVal(tzDate) {
-		return function (val) { return longDateHourMin(tzDate(val)); };
+		return function (self, val) { return longDateHourMin(tzDate(val)); };
 	}
 
 	var xAxisOpts = {
@@ -619,11 +660,11 @@ var uPlot = (function (exports) {
 
 	var numIncrs = dec.concat([1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9]);
 
-	function numAxisVals(ticks, space) {
+	function numAxisVals(self, ticks, space) {
 		return ticks;
 	}
 
-	function numAxisTicks(scaleMin, scaleMax, incr, pctSpace, forceMin) {
+	function numAxisTicks(self, scaleMin, scaleMax, incr, pctSpace, forceMin) {
 		scaleMin = forceMin ? scaleMin : round6(incrRoundUp(scaleMin, incr));
 
 		var ticks = [];
@@ -634,7 +675,7 @@ var uPlot = (function (exports) {
 		return ticks;
 	}
 
-	function numSeriesVal(val) {
+	function numSeriesVal(self, val) {
 		return val;
 	}
 
@@ -728,47 +769,14 @@ var uPlot = (function (exports) {
 		return round(pctX * wid);
 	}
 
-	function snapNone(dataMin, dataMax) {
+	function snapNone(self, dataMin, dataMax) {
 		return [dataMin, dataMax];
 	}
 
 	// this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 	// TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
-	function snapFifthMag(dataMin, dataMax) {
-		// auto-scale Y
-		var delta = dataMax - dataMin;
-		var mag = log10(delta || abs(dataMax) || 1);
-		var exp = floor(mag);
-		var incr = pow(10, exp) / 5;
-		var buf = delta == 0 ? incr : 0;
-
-		var snappedMin = round6(incrRoundDn(dataMin - buf, incr));
-		var snappedMax = round6(incrRoundUp(dataMax + buf, incr));
-
-		// for flat data, always use 0 as one chart extreme
-		if (delta == 0) {
-			if (dataMax > 0)
-				{ snappedMin = 0; }
-			else if (dataMax < 0)
-				{ snappedMax = 0; }
-		}
-		else {
-			// if buffer is too small, increase it
-			if (snappedMax - dataMax < incr)
-				{ snappedMax += incr; }
-
-			if (dataMin - snappedMin < incr)
-				{ snappedMin -= incr; }
-
-			// if original data never crosses 0, use 0 as one chart extreme
-			if (dataMin >= 0 && snappedMin < 0)
-				{ snappedMin = 0; }
-
-			if (dataMax <= 0 && snappedMax > 0)
-				{ snappedMax = 0; }
-		}
-
-		return [snappedMin, snappedMax];
+	function snapFifthMag(self, dataMin, dataMax) {
+		return rangeNum(dataMin, dataMax, 0.2, true);
 	}
 
 	// dim is logical (getClientBoundingRect) pixels, not canvas pixels
@@ -857,7 +865,7 @@ var uPlot = (function (exports) {
 
 		var data0 = null;
 
-		function setData(_data, _min, _max) {
+		function setData(_data, _autoScaleX) {
 			data = _data.slice();
 			data0 = data[0];
 			dataLen = data0.length;
@@ -865,16 +873,24 @@ var uPlot = (function (exports) {
 			if (xScaleType == 2)
 				{ data[0] = data0.map(function (v, i) { return i; }); }
 
-			resetSeries();
+			resetYSeries();
 
-			_setScale(
-				xScaleKey,
-				_min != null ? _min : data[0][0],
-				_max != null ? _max : data[0][dataLen - 1]
-			);
+			if (_autoScaleX !== false)
+				{ autoScaleX(); }
 		}
 
 		self.setData = setData;
+
+		function autoScaleX() {
+			i0 = 0;
+			i1 = dataLen - 1;
+
+			_setScale(
+				xScaleKey,
+				xScaleType == 2 ? i0 : data[0][i0],
+				xScaleType == 2 ? i1 : data[0][i1]
+			);
+		}
 
 		function setCtxStyle(color, width, dash, fill) {
 			ctx.strokeStyle = color || hexBlack;
@@ -1057,6 +1073,8 @@ var uPlot = (function (exports) {
 		var can = ref.can;
 		var ctx = ref.ctx;
 
+		plot.appendChild(can);
+
 		var pendScales = {};
 
 		function setScales() {
@@ -1067,25 +1085,34 @@ var uPlot = (function (exports) {
 
 		//	log("setScales()", arguments);
 
-			// original scales' min/maxes
+			// cache original scales' min/max & reset
 			var minMaxes = {};
 
+			for (var k in scales) {
+				var sc = scales[k];
+				var psc = pendScales[k];
+
+				minMaxes[k] = {min: sc.min, max: sc.max};
+
+				if (psc != null) {
+					assign(sc, psc);
+
+					// explicitly setting the x-scale invalidates everything (acts as redraw)
+					if (k == xScaleKey)
+						{ resetYSeries(); }
+				}
+				else if (k != xScaleKey) {
+					sc.min = inf;
+					sc.max = -inf;
+				}
+			}
+
+			// pre-range y-scales from y series' data values
 			series.forEach(function (s, i) {
 				var k = s.scale;
 				var sc = scales[k];
 
-				if (minMaxes[k] == null) {
-					minMaxes[k] = {min: sc.min, max: sc.max};
-
-					if (pendScales[k] != null)
-						{ assign(sc, pendScales[k]); }
-					else {
-						sc.min = inf;
-						sc.max = -inf;
-					}
-				}
-
-				// fast-path for x axis, which is assumed ordered ASC and will not get padded
+				// setting the x scale invalidates everything
 				if (i == 0) {
 					i0 = closestIdx(sc.min, data[0]);
 					i1 = closestIdx(sc.max, data[0]);
@@ -1099,12 +1126,12 @@ var uPlot = (function (exports) {
 					s.min = data0[i0];
 					s.max = data0[i1];
 
-					var minMax = sc.range(sc.min, sc.max);
+					var minMax = sc.range(self, sc.min, sc.max);
 
 					sc.min = minMax[0];
 					sc.max = minMax[1];
 				}
-				else if (s.show) {
+				else if (s.show && pendScales[k] == null) {
 					// only run getMinMax() for invalidated series data, else reuse
 					var minMax$1 = s.min == inf ? (sc.auto ? getMinMax(data[i], i0, i1) : [0,100]) : [s.min, s.max];
 
@@ -1115,30 +1142,30 @@ var uPlot = (function (exports) {
 			});
 
 			// snap non-derived scales
-			for (var k in scales) {
-				var sc = scales[k];
-
-				if (sc.base == null && sc.min != inf && pendScales[k] == null) {
-					var minMax = sc.range(sc.min, sc.max);
-
-					sc.min = minMax[0];
-					sc.max = minMax[1];
-				}
-
-				pendScales[k] = null;
-			}
-
-			// range derived scales
 			for (var k$1 in scales) {
 				var sc$1 = scales[k$1];
 
-				if (sc$1.base != null) {
-					var base = scales[sc$1.base];
+				if (sc$1.base == null && sc$1.min != inf && pendScales[k$1] == null) {
+					var minMax = sc$1.range(self, sc$1.min, sc$1.max);
+
+					sc$1.min = minMax[0];
+					sc$1.max = minMax[1];
+				}
+
+				pendScales[k$1] = null;
+			}
+
+			// range derived scales
+			for (var k$2 in scales) {
+				var sc$2 = scales[k$2];
+
+				if (sc$2.base != null) {
+					var base = scales[sc$2.base];
 
 					if (base.min != inf) {
-						var minMax$1 = sc$1.range(base.min, base.max);
-						sc$1.min = minMax$1[0];
-						sc$1.max = minMax$1[1];
+						var minMax$1 = sc$2.range(self, base.min, base.max);
+						sc$2.min = minMax$1[0];
+						sc$2.max = minMax$1[1];
 					}
 				}
 			}
@@ -1150,14 +1177,16 @@ var uPlot = (function (exports) {
 				var k = s.scale;
 				var sc = scales[k];
 
-				if (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max) {
+				if (minMaxes[k] != null && (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)) {
 					changed[k] = true;
 					s.path = null;
 				}
 			});
 
-			for (var k$2 in changed)
-				{ fire("setScale", k$2, scales[k$2]); }
+			for (var k$3 in changed)
+				{ fire("setScale", k$3, scales[k$3]); }
+
+			cursor.show && updateCursor();
 		}
 
 		var dir = 1;
@@ -1292,16 +1321,16 @@ var uPlot = (function (exports) {
 				var min = scale.min;
 				var max = scale.max;
 
-				var minSpace = axis.space(min, max, canDim);
+				var minSpace = axis.space(self, min, max, canDim);
 
-				var ref = findIncr(max - min, axis.incrs(), canDim, minSpace);
+				var ref = findIncr(max - min, axis.incrs(self), canDim, minSpace);
 				var incr = ref[0];
 				var space = ref[1];
 
 				// if we're using index positions, force first tick to match passed index
 				var forceMin = scale.type == 2;
 
-				var ticks = axis.ticks(min, max, incr, space/minSpace, forceMin);
+				var ticks = axis.ticks(self, min, max, incr, space/minSpace, forceMin);
 
 				var getPos = ori == 0 ? getXPos : getYPos;
 				var cssProp = ori == 0 ? LEFT : TOP;
@@ -1309,7 +1338,7 @@ var uPlot = (function (exports) {
 				// TODO: filter ticks & offsets that will end up off-canvas
 				var canOffs = ticks.map(function (val) { return getPos(val, scale, can[dim]); });		// bit of waste if we're not drawing a grid
 
-				var labels = axis.values(scale.type == 2 ? ticks.map(function (i) { return data0[i]; }) : ticks, space);		// BOO this assumes a specific data/series
+				var labels = axis.values(self, scale.type == 2 ? ticks.map(function (i) { return data0[i]; }) : ticks, space);		// BOO this assumes a specific data/series
 
 				canOffs.forEach(function (off, i) {
 					ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
@@ -1354,13 +1383,15 @@ var uPlot = (function (exports) {
 			});
 		}
 
-		function resetSeries() {
-		//	log("resetSeries()", arguments);
+		function resetYSeries() {
+		//	log("resetYSeries()", arguments);
 
-			series.forEach(function (s) {
-				s.min = inf;
-				s.max = -inf;
-				s.path = null;
+			series.forEach(function (s, i) {
+				if (i > 0) {
+					s.min = inf;
+					s.max = -inf;
+					s.path = null;
+				}
 			});
 		}
 
@@ -1391,15 +1422,8 @@ var uPlot = (function (exports) {
 
 				pendScales[key] = opts;
 
-				var min = opts.min;
-				var max = opts.max;
-
-				if (key == xScaleKey && (min != sc.min || max != sc.max))
-					{ resetSeries(); }
-
 				didPaint = false;
 				setScales();
-				cursor.show && updateCursor();
 				!didPaint && paint();
 				didPaint = false;
 			}
@@ -1621,6 +1645,7 @@ var uPlot = (function (exports) {
 			if (i > 0) {
 				var pt = placeDiv("point", plot);
 				pt.style.background = s.color;
+				trans(pt, -10, -10);
 				return pt;
 			}
 		}) : null;
@@ -1659,6 +1684,10 @@ var uPlot = (function (exports) {
 			shouldUpdateCursor && updateCursor();
 			shouldPaint && !didPaint && paint();
 			shouldSetScales = shouldUpdateCursor = shouldPaint = didPaint = inBatch;
+
+	//		let h;
+	//		while (h = hookQueue.shift())
+	//			fire.apply(null, h);
 		}
 
 		self.batch = batch;
@@ -1738,7 +1767,7 @@ var uPlot = (function (exports) {
 
 						var src = i$1 == 0 && xScaleType == 2 ? data0 : data[i$1];
 
-						var vals = multiValLegend ? s.values(idx) : {_: s.value(src[idx])};
+						var vals = multiValLegend ? s.values(self, idx) : {_: s.value(self, src[idx])};
 
 						var j$1 = 0;
 
@@ -1879,11 +1908,16 @@ var uPlot = (function (exports) {
 		}
 
 		function dblClick(e, src, _x, _y, _w, _h, _i) {
-			// TODO: can optimize by testing if already at full x-scale range and exit early
-			_setScale(xScaleKey, data[0][0], data[0][dataLen - 1]);
+			var min = data[0][0];
+			var max = data[0][dataLen - 1];
+		//	let sc = scales[xScaleKey];
 
-			if (e != null)
-				{ sync.pub(dblclick, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, null); }
+		//	if (min != sc.min || max != sc.max) {
+				_setScale(xScaleKey, min, max);
+
+				if (e != null)
+					{ sync.pub(dblclick, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, null); }
+		//	}
 		}
 
 		// internal pub/sub
@@ -1913,14 +1947,21 @@ var uPlot = (function (exports) {
 		// external on/off
 		var hooks = self.hooks = opts.hooks || {};
 
+	//	let hookQueue = [];
+
 		var evArg0 = [self];
 
 		function fire(evName) {
+			var args = arguments;
+
+	//		if (inBatch)
+	//			hookQueue.push(args);
+	//		else if (evName in hooks) {
 			if (evName in hooks) {
-				var args = evArg0.concat(Array.prototype.slice.call(arguments, 1));
+				var args2 = evArg0.concat(Array.prototype.slice.call(args, 1));
 
 				hooks[evName].forEach(function (fn) {
-					fn.apply(null, args);
+					fn.apply(null, args2);
 				});
 			}
 		}
@@ -1942,9 +1983,6 @@ var uPlot = (function (exports) {
 
 		self.pub = pub;
 
-		var _i0 = 0,
-			_i1 = data[0].length - 1;
-
 		function destroy() {
 			sync.unsub(self);
 			off(resize, win, deb);
@@ -1954,22 +1992,14 @@ var uPlot = (function (exports) {
 
 		self.destroy = destroy;
 
-		// this is wrapped in batch to prevent "cursormove" event from firing
-		// ahead of init() in case there's setup there that expects to catch them
-		batch(function () {
-			setData(data,
-				xScaleType == 2 ? _i0 : data[0][_i0],
-				xScaleType == 2 ? _i1 : data[0][_i1]
-			);
+		fire("init", opts, data);
 
-			plot.appendChild(can);
-
-			opts.init && opts.init(self, opts, data);
-		});
+		setData(data);
 	}
 
 	exports.Line = Line;
 	exports.fmtDate = fmtDate;
+	exports.rangeNum = rangeNum;
 	exports.tzDate = tzDate;
 
 	return exports;

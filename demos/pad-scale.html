@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Pad Scale</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../bench/style.css">
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			.uplot {
+				margin-top: 50px;
+			}
+
+			.uplot .plot {
+				outline: none;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			function makeChart() {
+				console.time('chart');
+
+				let opts = {
+					width: 600,
+					height: 400,
+					scales: {
+						x: {
+							time: false,
+						//	range:
+						},
+						y: {
+							range: (u, dataMin, dataMax) => {
+								// this is what uPlot does internally to pad numeric scales
+								let [min, max] = uPlot.rangeNum(dataMin, dataMax, 0.2, true);
+
+								if (min == 0) {
+									// series line width is in canvas units
+									let hgt = u.root.querySelector("canvas").height;
+									let unitsPerPx = (max - min) / hgt;
+									let lnWidth = u.series.y[0].width;
+
+									// half line width
+									let pad = unitsPerPx * lnWidth/2;
+
+									// add extra for half a point diameter
+									let ptDia = 5 * devicePixelRatio;
+									pad += unitsPerPx * ptDia/2;
+
+									min -= pad;
+								}
+
+								return [min, max];
+							},
+						}
+					},
+					series: {
+						y: [
+							{
+								label: "One",
+								width: 4,
+								color: "rgb(0, 188, 212)",
+								fill: "rgba(0, 188, 212, 0.1)",
+							},
+						]
+					},
+				};
+
+				const data = [
+					[1,2,3,4,5,6,7],
+					[0,0,0,3,3,5,5],
+				];
+
+				let u = new uPlot.Line(opts, data);
+
+				document.body.appendChild(u.root);
+
+				console.timeEnd('chart');
+			}
+
+			makeChart();
+		</script>
+	</body>
+</html>

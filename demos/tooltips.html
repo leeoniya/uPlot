@@ -7,11 +7,6 @@
 
 		<link rel="stylesheet" href="../bench/style.css">
 		<link rel="stylesheet" href="../src/uPlot.css">
-		<style>
-			.uplot {
-				margin-top: 50px;
-			}
-		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
@@ -20,70 +15,76 @@
 				console.time('chart');
 
 				let opts = {
+					title: "Tooltips",
 					width: 600,
 					height: 400,
 				//	cursor: {
 				//		top: 100,
 				//		left: 100,
 				//	},
-					init(u, opts, data) {
-					//	u.moveCursor(100, 100);				// initial cursor position
-
-						let plot = u.root.querySelector(".plot");
-
-						let ttc = u.cursortt = document.createElement("div");
-						ttc.className = "tooltip";
-						ttc.textContent = "(x,y)";
-						ttc.style.pointerEvents = "none";
-						ttc.style.position = "absolute";
-						ttc.style.background = "rgba(0,0,255,0.1)";
-						plot.appendChild(ttc);
-
-						u.seriestt = opts.series.y.map(s => {
-							let tt = document.createElement("div");
-							tt.className = "tooltip";
-							tt.textContent = "Tooltip!";
-							tt.style.pointerEvents = "none";
-							tt.style.position = "absolute";
-							tt.style.background = "rgba(0,0,0,0.1)";
-							tt.style.color = s.color;
-							tt.style.display = s.show ? null : "none";
-							plot.appendChild(tt);
-							return tt;
-						});
-
-						function hideTips() {
-							ttc.style.display = "none";
-							u.seriestt.forEach(tt => {
-								tt.style.display = "none";
-							});
-						}
-
-						function showTips() {
-							ttc.style.display = null;
-							u.seriestt.forEach((tt, i) => {
-								let s = u.series.y[i];
-								tt.style.display = s.show ? null : "none";
-							});
-						}
-
-						plot.addEventListener("mouseleave", () => {
-							if (!u.cursor.locked) {
-								u.setCursor({left: -10, top: -10});
-								hideTips();
-							}
-						});
-
-						plot.addEventListener("mouseenter", () => {
-							showTips();
-						});
-
-						hideTips();
-					},
 					hooks: {
+						init: [
+							(u, opts, data) => {
+								let plot = u.root.querySelector(".plot");
+
+								let ttc = u.cursortt = document.createElement("div");
+								ttc.className = "tooltip";
+								ttc.textContent = "(x,y)";
+								ttc.style.pointerEvents = "none";
+								ttc.style.position = "absolute";
+								ttc.style.background = "rgba(0,0,255,0.1)";
+								plot.appendChild(ttc);
+
+								u.seriestt = opts.series.y.map(s => {
+									let tt = document.createElement("div");
+									tt.className = "tooltip";
+									tt.textContent = "Tooltip!";
+									tt.style.pointerEvents = "none";
+									tt.style.position = "absolute";
+									tt.style.background = "rgba(0,0,0,0.1)";
+									tt.style.color = s.color;
+									tt.style.display = s.show ? null : "none";
+									plot.appendChild(tt);
+									return tt;
+								});
+
+								function hideTips() {
+									ttc.style.display = "none";
+									u.seriestt.forEach(tt => {
+										tt.style.display = "none";
+									});
+								}
+
+								function showTips() {
+									ttc.style.display = null;
+									u.seriestt.forEach((tt, i) => {
+										let s = u.series.y[i];
+										tt.style.display = s.show ? null : "none";
+									});
+								}
+
+								plot.addEventListener("mouseleave", () => {
+									if (!u.cursor.locked) {
+										u.setCursor({left: -10, top: -10});
+										hideTips();
+									}
+								});
+
+								plot.addEventListener("mouseenter", () => {
+									showTips();
+								});
+
+								hideTips();
+							},
+						],
 						setCursor: [
 							u => {
 								const {left, top, idx} = u.cursor;
+
+								// this is here to handle if initial cursor position is set
+								// not great (can be optimized by doing more enter/leave state transition tracking)
+							//	if (left > 0)
+							//		u.cursortt.style.display = null;
 
 								u.cursortt.style.left = left + "px";
 								u.cursortt.style.top = top + "px";
@@ -94,6 +95,11 @@
 									let s = u.series.y[i];
 
 									if (s.show) {
+										// this is here to handle if initial cursor position is set
+										// not great (can be optimized by doing more enter/leave state transition tracking)
+									//	if (left > 0)
+									//		tt.style.display = null;
+
 										let xVal = data[  0][idx];
 										let yVal = data[i+1][idx];
 
@@ -143,11 +149,7 @@
 				];
 
 				let u = new uPlot.Line(opts, data);
-/*
-				u.on("cursormove", (left, top, idx) => {
-					console.log(left, top, idx);
-				});
-*/
+
 				document.body.appendChild(u.root);
 
 				console.timeEnd('chart');

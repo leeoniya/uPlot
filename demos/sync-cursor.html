@@ -100,17 +100,17 @@
 						y: [
 							{
 								label: "CPU 1",
-								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
 								color: "red",
 							},
 							{
 								label: "CPU 2",
-								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
 								color: "green",
 							},
 							{
 								label: "CPU 3",
-								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
 								color: "blue",
 							}
 						],
@@ -118,7 +118,7 @@
 					axes: {
 						y: [
 							{
-								values: (vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+								values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
 							},
 						],
 					}
@@ -137,17 +137,17 @@
 						y: [
 							{
 								label: "RAM 1",
-								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
 								color: "red",
 							},
 							{
 								label: "RAM 2",
-								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
 								color: "green",
 							},
 							{
 								label: "RAM 3",
-								value: v => v == null ? "-" : v.toFixed(1) + "%",
+								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
 								color: "blue",
 							}
 						],
@@ -155,7 +155,7 @@
 					axes: {
 						y: [
 							{
-								values: (vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+								values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
 							},
 						],
 					}
@@ -174,17 +174,17 @@
 						y: [
 							{
 								label: "TCP 1",
-								value: v => v == null ? "-" : v.toFixed(1) + " MB",
+								value: (u, v) => v == null ? "-" : v.toFixed(1) + " MB",
 								color: "red",
 							},
 							{
 								label: "TCP 2",
-								value: v => v == null ? "-" : v.toFixed(1) + " MB",
+								value: (u, v) => v == null ? "-" : v.toFixed(1) + " MB",
 								color: "green",
 							},
 							{
 								label: "TCP 3",
-								value: v => v == null ? "-" : v.toFixed(1) + " MB",
+								value: (u, v) => v == null ? "-" : v.toFixed(1) + " MB",
 								color: "blue",
 							}
 						],
@@ -192,7 +192,7 @@
 					axes: {
 						y: [
 							{
-								values: (vals, space) => vals.map(v => +v.toFixed(1) + " MB"),
+								values: (u, vals, space) => vals.map(v => +v.toFixed(1) + " MB"),
 							},
 						],
 					}

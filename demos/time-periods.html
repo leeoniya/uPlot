@@ -129,7 +129,7 @@
 								label: "2019",
 								color: "rgba(5, 141, 199, 1)",
 								fill:  "rgba(5, 141, 199, 0.1)",
-								values: idx => {
+								values: (u, idx) => {
 								//	let date = self.tzDate(data[0][idx]);
 									let date = new Date(data[0][idx] * 1e3);
 
@@ -142,7 +142,7 @@
 							{
 								label: "2018",
 								color: "rgba(237, 126, 23, 1)",
-								values: idx => {
+								values: (u, idx) => {
 									let date = new Date(ts18[idx] * 1e3);
 
 									return {
@@ -154,7 +154,7 @@
 							{
 								label: "2017",
 								color: "rgba(255, 0, 0, 1)",
-								values: idx => {
+								values: (u, idx) => {
 									let date = new Date(ts17[idx] * 1e3);
 
 									return {
@@ -199,7 +199,7 @@
 								label: "Jan 2019",
 								color: "rgba(5, 141, 199, 1)",
 								fill:  "rgba(5, 141, 199, 0.1)",
-								values: idx => {
+								values: (u, idx) => {
 								//	let date = self.tzDate(data[0][idx]);
 									let date = new Date(tsJan[idx] * 1e3);
 
@@ -212,7 +212,7 @@
 							{
 								label: "Feb 2019",
 								color: "rgba(237, 126, 23, 1)",
-								values: idx => {
+								values: (u, idx) => {
 									let ts = tsFeb[idx];
 									let date = ts > 0 ? new Date(ts * 1e3) : null;
 

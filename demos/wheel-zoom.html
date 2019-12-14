@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Wheel Zoom</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../bench/style.css">
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			.uplot {
+				margin-top: 50px;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			function makeChart() {
+				console.time('chart');
+
+				let opts = {
+					title: "Wheel Zoom",
+					width: 600,
+					height: 400,
+					hooks: {
+						init: [
+							(u, opts, data) => {
+								let plot = u.root.querySelector(".plot");
+
+								let factor = 0.75;
+
+								plot.addEventListener("wheel", e => {
+									let {left, top} = u.cursor;
+									let rect = plot.getBoundingClientRect();
+									let leftPct = left/rect.width;
+									let btmPct = 1 - top/rect.height;
+									let xVal = u.valAt(left, "x");
+									let yVal = u.valAt(top, "y");
+									let oxRange = u.scales.x.max - u.scales.x.min;
+									let oyRange = u.scales.y.max - u.scales.y.min;
+
+									let nxRange = e.deltaY < 0 ? oxRange * factor : oxRange / factor;
+									let nxMin = xVal - leftPct * nxRange;
+									let nxMax = nxMin + nxRange;
+
+									let nyRange = e.deltaY < 0 ? oyRange * factor : oyRange / factor;
+									let nyMin = yVal - btmPct * nyRange;
+									let nyMax = nyMin + nyRange;
+
+									u.batch(() => {
+										u.setScale('x', {
+											min: nxMin,
+											max: nxMax,
+										});
+
+										u.setScale('y', {
+											min: nyMin,
+											max: nyMax,
+										});
+									});
+								});
+							},
+						]
+					},
+					scales: {
+						x: {
+							time: false,
+						},
+					//	y: {
+					//		auto: false,
+					//	}
+					},
+					series: {
+						y: [
+							{
+								label: "One",
+								color: "red",
+							},
+							{
+								label: "Two",
+								color: "blue",
+							},
+						]
+					},
+				};
+
+				const data = [
+					[ 1, 2, 3, 4, 5, 6, 7],
+					[40,43,60,65,71,73,80],
+					[18,24,37,55,55,60,63],
+				];
+
+				let u = new uPlot.Line(opts, data);
+
+				document.body.appendChild(u.root);
+
+				console.timeEnd('chart');
+			}
+
+			makeChart();
+		</script>
+	</body>
+</html>

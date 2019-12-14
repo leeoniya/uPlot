@@ -53,28 +53,28 @@
 							label: "Low",
 							color: "green",
 							fill: "rgba(0, 255, 0, .2)",
-							value: v => fmtUSD(v, 2),
+							value: (u, v) => fmtUSD(v, 2),
 							band: true,
 						},
 						{
 							label: "High",
 							color: "green",
 							fill: "rgba(0, 255, 0, .2)",
-							value: v => fmtUSD(v, 2),
+							value: (u, v) => fmtUSD(v, 2),
 							band: true,
 						},
 						{
 							label: "Close",
 							color: "green",
 							width: 2,
-							value: v => fmtUSD(v, 2),
+							value: (u, v) => fmtUSD(v, 2),
 						},
 					],
 				},
 				axes: {
 					y: [
 						{
-							values: vals => vals.map(v => fmtUSD(v, 0))
+							values: (u, vals) => vals.map(v => fmtUSD(v, 0))
 						}
 					]
 				}
