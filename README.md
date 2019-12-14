@@ -120,7 +120,7 @@ let opts = {
 
         // in-legend display
         label: "RAM",
-        value: rawValue => "$" + rawValue.toFixed(2),
+        value: (self, rawValue) => "$" + rawValue.toFixed(2),
 
         // series style
         color: "red",
@@ -197,19 +197,19 @@ let opts = {
         label: "CPU",
         color: "red",
         scale: '%',
-        value: rawValue => rawValue.toFixed(1) + "%",
+        value: (self, rawValue) => rawValue.toFixed(1) + "%",
       }
       {
         label: "RAM",
         color: "blue",
         scale: '%',
-        value: rawValue => rawValue.toFixed(1) + "%",
+        value: (self, rawValue) => rawValue.toFixed(1) + "%",
       },
       {
         label: "TCP",
         color: "green",
         scale: 'mb',
-        value: rawValue => rawValue.toFixed(2) + "MB",
+        value: (self, rawValue) => rawValue.toFixed(2) + "MB",
       },
     ]
   },
@@ -217,11 +217,11 @@ let opts = {
     y: [
       {
         scale: '%',
-        values: ticks => ticks.map(rawValue => rawValue.toFixed(1) + "%"),
+        values: (self, ticks) => ticks.map(rawValue => rawValue.toFixed(1) + "%"),
       },
       {
         scale: 'mb',
-        values: ticks => ticks.map(rawValue => rawValue.toFixed(2) + "MB"),
+        values: (self, ticks) => ticks.map(rawValue => rawValue.toFixed(2) + "MB"),
         side: 1,
         grid: {show: false},
       },
@@ -252,11 +252,11 @@ let opts = {
     y: [
       {
         scale: 'F',
-        values: ticks => ticks.map(rawValue => rawValue.map(v => v + '° F'),
+        values: (self, ticks) => ticks.map(rawValue => rawValue + '° F'),
       },
       {
         scale: 'C',
-        values: ticks => ticks.map(rawValue => rawValue.map(v => v + '° C'),
+        values: (self, ticks) => ticks.map(rawValue => rawValue + '° C'),
         side: 1,
         grid: {show: false},
       }
@@ -265,7 +265,7 @@ let opts = {
   scales: {
     'C': {
       base: 'F',
-      range: (baseMin, baseMax) => [
+      range: (self, baseMin, baseMax) => [
         (baseMin - 32) * 5/9,
         (baseMax - 32) * 5/9,
       ],
