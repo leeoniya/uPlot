@@ -742,8 +742,6 @@ function _sync(opts) {
 	};
 }
 
-// TODO: reduce need to locate indexes for redraw or resetting / unzoom
-
 function setDefaults(d, xo, yo) {
 	return [].concat(d.x, d.y).map(function (o, i) { return assign({}, (i == 0 ? xo : yo), o); });
 }
@@ -1464,15 +1462,12 @@ function Line(opts, data) {
 
 		vt = placeDiv(c + "x", plot);
 		hz = placeDiv(c + "y", plot);
-
-	//	x = canCssWidth/2;
-	//	y = canCssHeight/2;
 	}
 
 	var zoom = cursor.show ? placeDiv("zoom", plot) : null;
 
 	var legend = null;
-	var legendLabels = null;	// TODO: legendValues?
+	var legendRows = null;
 	var multiValLegend = false;
 
 	if (legendOpts.show) {
@@ -1496,7 +1491,7 @@ function Line(opts, data) {
 			addClass(legend, "inline");
 		}
 
-		legendLabels = series.map(function (s, i) {
+		legendRows = series.map(function (s, i) {
 			if (i == 0 && multiValLegend)
 				{ return null; }
 
@@ -1511,8 +1506,6 @@ function Line(opts, data) {
 			label.textContent = s.label;
 
 			label.style.color = s.color;
-		//	label.style.borderLeft = "4px " + (s.dash == null ? "solid " : "dashed ") + s.color;
-		//	label.style.borderBottom = (s.width + "px ") + (s.dash == null ? "solid " : "dashed ") + s.color;
 
 			if (i > 0) {
 				on("click", label, function (e) {
@@ -1544,7 +1537,7 @@ function Line(opts, data) {
 
 	function toggleDOM(i, onOff) {
 		var s = series[i];
-		var label = legendLabels[i][0].parentNode;
+		var label = legendRows[i][0].parentNode;
 
 		if (s.show)
 			{ remClass(label, "off"); }
@@ -1597,7 +1590,7 @@ function Line(opts, data) {
 	self.setSeries = setSeries;
 
 	function _alpha(i, value) {
-		series[i].alpha = legendLabels[i][0].parentNode.style.opacity = value;
+		series[i].alpha = legendRows[i][0].parentNode.style.opacity = value;
 	}
 
 	function _setAlpha(i, value) {
@@ -1683,10 +1676,6 @@ function Line(opts, data) {
 		shouldUpdateCursor && updateCursor();
 		shouldPaint && !didPaint && paint();
 		shouldSetScales = shouldUpdateCursor = shouldPaint = didPaint = inBatch;
-
-//		let h;
-//		while (h = hookQueue.shift())
-//			fire.apply(null, h);
 	}
 
 	self.batch = batch;
@@ -1730,8 +1719,8 @@ function Line(opts, data) {
 					if (i == 0 && multiValLegend)
 						{ continue; }
 
-					for (var j = 0; j < legendLabels[i].length; j++)
-						{ legendLabels[i][j][firstChild].nodeValue = '--'; }
+					for (var j = 0; j < legendRows[i].length; j++)
+						{ legendRows[i][j][firstChild].nodeValue = '--'; }
 				}
 			}
 		}
@@ -1771,7 +1760,7 @@ function Line(opts, data) {
 					var j$1 = 0;
 
 					for (var k in vals)
-						{ legendLabels[i$1][j$1++][firstChild].nodeValue = vals[k]; }
+						{ legendRows[i$1][j$1++][firstChild].nodeValue = vals[k]; }
 				}
 			}
 
@@ -1810,7 +1799,7 @@ function Line(opts, data) {
 		cursor.left = mouseLeft1;
 		cursor.top = mouseTop1;
 
-		// todo: would be good to isolate only the opts that were changed
+		// TODO: would be good to isolate only the opts that were changed
 		fire("setCursor", cursor);
 	}
 
@@ -1946,18 +1935,11 @@ function Line(opts, data) {
 	// external on/off
 	var hooks = self.hooks = opts.hooks || {};
 
-//	let hookQueue = [];
-
 	var evArg0 = [self];
 
 	function fire(evName) {
-		var args = arguments;
-
-//		if (inBatch)
-//			hookQueue.push(args);
-//		else if (evName in hooks) {
 		if (evName in hooks) {
-			var args2 = evArg0.concat(Array.prototype.slice.call(args, 1));
+			var args2 = evArg0.concat(Array.prototype.slice.call(arguments, 1));
 
 			hooks[evName].forEach(function (fn) {
 				fn.apply(null, args2);
