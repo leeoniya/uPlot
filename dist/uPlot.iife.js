@@ -264,6 +264,10 @@ var uPlot = (function (exports) {
 		return floor(num/incr)*incr;
 	}
 
+	function round2(val) {
+		return round(val * 1e2) / 1e2;
+	}
+
 	function round6(val) {
 		return round(val * 1e6) / 1e6;
 	}
@@ -759,12 +763,12 @@ var uPlot = (function (exports) {
 			{ return val; }
 
 		var pctY = (val - scale.min) / (scale.max - scale.min);
-		return round((1 - pctY) * hgt);
+		return (1 - pctY) * hgt;
 	}
 
 	function getXPos(val, scale, wid) {
 		var pctX = (val - scale.min) / (scale.max - scale.min);
-		return round(pctX * wid);
+		return pctX * wid;
 	}
 
 	function snapNone(self, dataMin, dataMax) {
@@ -1221,7 +1225,7 @@ var uPlot = (function (exports) {
 					ctx.stroke(path);
 
 					if (s.fill != null) {
-						var zeroY = getYPos(0, scales[s.scale], can[HEIGHT]);
+						var zeroY = round(getYPos(0, scales[s.scale], can[HEIGHT]));
 
 						path.lineTo(can[WIDTH], zeroY);
 						path.lineTo(0, zeroY);
@@ -1252,12 +1256,12 @@ var uPlot = (function (exports) {
 			var _i0 = clamp(i0 - 1, 0, dataLen - 1);
 			var _i1 = clamp(i1 + 1, 0, dataLen - 1);
 
-			var prevX = getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, can[WIDTH]),
+			var prevX = round(getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, can[WIDTH])),
 				prevY;
 
 			for (var i = dir == 1 ? _i0 : _i1; dir == 1 ? i <= _i1 : i >= _i0; i += dir) {
-				x = getXPos(xdata[i], scaleX, can[WIDTH]);
-				y = getYPos(ydata[i], scaleY, can[HEIGHT]);
+				x = round(getXPos(xdata[i], scaleX, can[WIDTH]));
+				y = round(getYPos(ydata[i], scaleY, can[HEIGHT]));
 
 				if (dir == -1 && i == _i1)
 					{ path.lineTo(x, y); }
@@ -1334,7 +1338,7 @@ var uPlot = (function (exports) {
 				var cssProp = ori == 0 ? LEFT : TOP;
 
 				// TODO: filter ticks & offsets that will end up off-canvas
-				var canOffs = ticks.map(function (val) { return getPos(val, scale, can[dim]); });		// bit of waste if we're not drawing a grid
+				var canOffs = ticks.map(function (val) { return round2(getPos(val, scale, can[dim])); });		// bit of waste if we're not drawing a grid
 
 				var labels = axis.values(self, scale.type == 2 ? ticks.map(function (i) { return data0[i]; }) : ticks, space);		// BOO this assumes a specific data/series
 
@@ -1661,7 +1665,7 @@ var uPlot = (function (exports) {
 
 		self.posToIdx = closestIdxFromXpos;
 		self.posToVal = function (pos, scale) { return scaleValueAtPos(scale == xScaleKey ? pos : canCssHeight - pos, scale); };
-		self.valToPos = function (val, scale) { return (scale == xScaleKey ? getXPos(val, scales[scale], canCssWidth) : getYPos(val, scales[scale], canCssHeight)); };
+		self.valToPos = function (val, scale) { return (scale == xScaleKey ? round(getXPos(val, scales[scale], canCssWidth)) : round(getYPos(val, scales[scale], canCssHeight))); };
 
 		var inBatch = false;
 		var shouldPaint = false;
@@ -1700,8 +1704,8 @@ var uPlot = (function (exports) {
 			rafPending = false;
 
 			if (cursor.show && cursor.cross) {
-				trans(vt,mouseLeft1,0);
-				trans(hz,0,mouseTop1);
+				trans(vt,round(mouseLeft1),0);
+				trans(hz,0,round(mouseTop1));
 			}
 
 			var idx;
@@ -1732,13 +1736,13 @@ var uPlot = (function (exports) {
 
 				var scX = scales[xScaleKey];
 
-				var xPos = getXPos(data[0][idx], scX, canCssWidth);
+				var xPos = round2(getXPos(data[0][idx], scX, canCssWidth));
 
 				for (var i$1 = 0; i$1 < series.length; i$1++) {
 					var s = series[i$1];
 
 					if (i$1 > 0 && s.show) {
-						var yPos = getYPos(data[i$1][idx], scales[s.scale], canCssHeight);
+						var yPos = round2(getYPos(data[i$1][idx], scales[s.scale], canCssHeight));
 
 						if (yPos == null)
 							{ yPos = -10; }

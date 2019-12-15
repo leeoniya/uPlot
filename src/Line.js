@@ -5,6 +5,7 @@ import {
 	abs,
 	floor,
 	round,
+	round2,
 	ceil,
 	min,
 	max,
@@ -109,12 +110,12 @@ function getYPos(val, scale, hgt) {
 		return val;
 
 	let pctY = (val - scale.min) / (scale.max - scale.min);
-	return round((1 - pctY) * hgt);
+	return (1 - pctY) * hgt;
 }
 
 function getXPos(val, scale, wid) {
 	let pctX = (val - scale.min) / (scale.max - scale.min);
-	return round(pctX * wid);
+	return pctX * wid;
 }
 
 function snapNone(self, dataMin, dataMax) {
@@ -569,7 +570,7 @@ export function Line(opts, data) {
 				ctx.stroke(path);
 
 				if (s.fill != null) {
-					let zeroY = getYPos(0, scales[s.scale], can[HEIGHT]);
+					let zeroY = round(getYPos(0, scales[s.scale], can[HEIGHT]));
 
 					path.lineTo(can[WIDTH], zeroY);
 					path.lineTo(0, zeroY);
@@ -600,12 +601,12 @@ export function Line(opts, data) {
 		let _i0 = clamp(i0 - 1, 0, dataLen - 1);
 		let _i1 = clamp(i1 + 1, 0, dataLen - 1);
 
-		let prevX = getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, can[WIDTH]),
+		let prevX = round(getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, can[WIDTH])),
 			prevY;
 
 		for (let i = dir == 1 ? _i0 : _i1; dir == 1 ? i <= _i1 : i >= _i0; i += dir) {
-			x = getXPos(xdata[i], scaleX, can[WIDTH]);
-			y = getYPos(ydata[i], scaleY, can[HEIGHT]);
+			x = round(getXPos(xdata[i], scaleX, can[WIDTH]));
+			y = round(getYPos(ydata[i], scaleY, can[HEIGHT]));
 
 			if (dir == -1 && i == _i1)
 				path.lineTo(x, y);
@@ -679,7 +680,7 @@ export function Line(opts, data) {
 			let cssProp = ori == 0 ? LEFT : TOP;
 
 			// TODO: filter ticks & offsets that will end up off-canvas
-			let canOffs = ticks.map(val => getPos(val, scale, can[dim]));		// bit of waste if we're not drawing a grid
+			let canOffs = ticks.map(val => round2(getPos(val, scale, can[dim])));		// bit of waste if we're not drawing a grid
 
 			let labels = axis.values(self, scale.type == 2 ? ticks.map(i => data0[i]) : ticks, space);		// BOO this assumes a specific data/series
 
@@ -1006,7 +1007,7 @@ export function Line(opts, data) {
 
 	self.posToIdx = closestIdxFromXpos;
 	self.posToVal = (pos, scale) => scaleValueAtPos(scale == xScaleKey ? pos : canCssHeight - pos, scale);
-	self.valToPos = (val, scale) => (scale == xScaleKey ? getXPos(val, scales[scale], canCssWidth) : getYPos(val, scales[scale], canCssHeight));
+	self.valToPos = (val, scale) => (scale == xScaleKey ? round(getXPos(val, scales[scale], canCssWidth)) : round(getYPos(val, scales[scale], canCssHeight)));
 
 	let inBatch = false;
 	let shouldPaint = false;
@@ -1045,8 +1046,8 @@ export function Line(opts, data) {
 		rafPending = false;
 
 		if (cursor.show && cursor.cross) {
-			trans(vt,mouseLeft1,0);
-			trans(hz,0,mouseTop1);
+			trans(vt,round(mouseLeft1),0);
+			trans(hz,0,round(mouseTop1));
 		}
 
 		let idx;
@@ -1077,13 +1078,13 @@ export function Line(opts, data) {
 
 			let scX = scales[xScaleKey];
 
-			let xPos = getXPos(data[0][idx], scX, canCssWidth);
+			let xPos = round2(getXPos(data[0][idx], scX, canCssWidth));
 
 			for (let i = 0; i < series.length; i++) {
 				let s = series[i];
 
 				if (i > 0 && s.show) {
-					let yPos = getYPos(data[i][idx], scales[s.scale], canCssHeight);
+					let yPos = round2(getYPos(data[i][idx], scales[s.scale], canCssHeight));
 
 					if (yPos == null)
 						yPos = -10;
