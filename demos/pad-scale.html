@@ -42,8 +42,9 @@
 									// half line width
 									let pad = unitsPerPx * lnWidth/2;
 
-									// add extra for half a point diameter
-									let ptDia = 5 * devicePixelRatio;
+									// add extra for half cursor point diameter
+									let ptDia = Math.max(5, lnWidth * 2 - 1);	// (matches internal uPlot logic)
+									ptDia *= devicePixelRatio;
 									pad += unitsPerPx * ptDia/2;
 
 									min -= pad;
