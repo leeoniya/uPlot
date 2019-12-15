@@ -907,8 +907,7 @@ var uPlot = (function (exports) {
 		if (opts.id != null)
 			{ root.id = opts.id; }
 
-		if (opts.class != null)
-			{ addClass(root, opts.class); }
+		addClass(root, opts.class);
 
 		if (opts.title != null) {
 			var title = placeDiv("title", root);
@@ -1504,6 +1503,8 @@ var uPlot = (function (exports) {
 
 				var row = placeTag("tr", "series", legend);
 
+				addClass(row, s.class);
+
 				if (!s.show)
 					{ addClass(row, "off"); }
 
@@ -1641,7 +1642,20 @@ var uPlot = (function (exports) {
 		var cursorPts = cursor.show ? series.map(function (s, i) {
 			if (i > 0) {
 				var pt = placeDiv("point", plot);
+
+				addClass(pt, s.class);
+
 				pt.style.background = s.color;
+
+				var size = max(5, s.width * 2 - 1);
+				var mar = (size - 1) / -2;
+
+				setStylePx(pt, WIDTH, size);
+				setStylePx(pt, HEIGHT, size);
+				setStylePx(pt, "borderRadius", size);
+				setStylePx(pt, "marginLeft", mar);
+				setStylePx(pt, "marginTop", mar);
+
 				trans(pt, -10, -10);
 				return pt;
 			}

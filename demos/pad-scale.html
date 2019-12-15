@@ -8,10 +8,6 @@
 		<link rel="stylesheet" href="../bench/style.css">
 		<link rel="stylesheet" href="../src/uPlot.css">
 		<style>
-			.uplot {
-				margin-top: 50px;
-			}
-
 			.uplot .plot {
 				outline: none;
 			}
@@ -24,6 +20,7 @@
 				console.time('chart');
 
 				let opts = {
+					title: "Padded Scale",
 					width: 600,
 					height: 400,
 					scales: {

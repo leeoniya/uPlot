@@ -254,8 +254,7 @@ export function Line(opts, data) {
 	if (opts.id != null)
 		root.id = opts.id;
 
-	if (opts.class != null)
-		addClass(root, opts.class);
+	addClass(root, opts.class);
 
 	if (opts.title != null) {
 		let title = placeDiv("title", root);
@@ -846,6 +845,8 @@ export function Line(opts, data) {
 
 			let row = placeTag("tr", "series", legend);
 
+			addClass(row, s.class);
+
 			if (!s.show)
 				addClass(row, "off");
 
@@ -983,7 +984,20 @@ export function Line(opts, data) {
 	const cursorPts = cursor.show ? series.map((s, i) => {
 		if (i > 0) {
 			let pt = placeDiv("point", plot);
+
+			addClass(pt, s.class);
+
 			pt.style.background = s.color;
+
+			let size = max(5, s.width * 2 - 1);
+			let mar = (size - 1) / -2;
+
+			setStylePx(pt, WIDTH, size);
+			setStylePx(pt, HEIGHT, size);
+			setStylePx(pt, "borderRadius", size);
+			setStylePx(pt, "marginLeft", mar);
+			setStylePx(pt, "marginTop", mar);
+
 			trans(pt, -10, -10);
 			return pt;
 		}
