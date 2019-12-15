@@ -1004,9 +1004,9 @@ export function Line(opts, data) {
 		return closestIdx(v, data[0], i0, i1);
 	}
 
-	self.idxAt = closestIdxFromXpos;
-	self.valAt = (val, scale) => scaleValueAtPos(scale == xScaleKey ? val : canCssHeight - val, scale);
-	self.posOf = (val, scale) => (scale == xScaleKey ? getXPos(val, scales[scale], canCssWidth) : getYPos(val, scales[scale], canCssHeight));
+	self.posToIdx = closestIdxFromXpos;
+	self.posToVal = (pos, scale) => scaleValueAtPos(scale == xScaleKey ? pos : canCssHeight - pos, scale);
+	self.valToPos = (val, scale) => (scale == xScaleKey ? getXPos(val, scales[scale], canCssWidth) : getYPos(val, scales[scale], canCssHeight));
 
 	let inBatch = false;
 	let shouldPaint = false;

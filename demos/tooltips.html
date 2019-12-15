@@ -88,7 +88,7 @@
 
 								u.cursortt.style.left = left + "px";
 								u.cursortt.style.top = top + "px";
-								u.cursortt.textContent = "(" + u.valAt(left, "x").toFixed(2) + ", " + u.valAt(top, "y").toFixed(2) + ")";
+								u.cursortt.textContent = "(" + u.posToVal(left, "x").toFixed(2) + ", " + u.posToVal(top, "y").toFixed(2) + ")";
 
 								// can optimize further by not applying styles if idx did not change
 								u.seriestt.forEach((tt, i) => {
@@ -105,8 +105,8 @@
 
 										tt.textContent = "(" + xVal + ", " + yVal + ")";
 
-										tt.style.left = u.posOf(xVal, 'x') + "px";
-										tt.style.top = u.posOf(yVal, 'y') + "px";
+										tt.style.left = u.valToPos(xVal, 'x') + "px";
+										tt.style.top = u.valToPos(yVal, 'y') + "px";
 									}
 								});
 							}

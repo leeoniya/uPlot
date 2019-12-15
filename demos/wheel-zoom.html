@@ -7,11 +7,6 @@
 
 		<link rel="stylesheet" href="../bench/style.css">
 		<link rel="stylesheet" href="../src/uPlot.css">
-		<style>
-			.uplot {
-				margin-top: 50px;
-			}
-		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
@@ -35,8 +30,8 @@
 									let rect = plot.getBoundingClientRect();
 									let leftPct = left/rect.width;
 									let btmPct = 1 - top/rect.height;
-									let xVal = u.valAt(left, "x");
-									let yVal = u.valAt(top, "y");
+									let xVal = u.posToVal(left, "x");
+									let yVal = u.posToVal(top, "y");
 									let oxRange = u.scales.x.max - u.scales.x.min;
 									let oyRange = u.scales.y.max - u.scales.y.min;
 

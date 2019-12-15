@@ -1658,9 +1658,9 @@ function Line(opts, data) {
 		return closestIdx(v, data[0], i0, i1);
 	}
 
-	self.idxAt = closestIdxFromXpos;
-	self.valAt = function (val, scale) { return scaleValueAtPos(scale == xScaleKey ? val : canCssHeight - val, scale); };
-	self.posOf = function (val, scale) { return (scale == xScaleKey ? getXPos(val, scales[scale], canCssWidth) : getYPos(val, scales[scale], canCssHeight)); };
+	self.posToIdx = closestIdxFromXpos;
+	self.posToVal = function (pos, scale) { return scaleValueAtPos(scale == xScaleKey ? pos : canCssHeight - pos, scale); };
+	self.valToPos = function (val, scale) { return (scale == xScaleKey ? getXPos(val, scales[scale], canCssWidth) : getYPos(val, scales[scale], canCssHeight)); };
 
 	var inBatch = false;
 	var shouldPaint = false;
