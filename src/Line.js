@@ -309,10 +309,16 @@ export function Line(opts, data) {
 				plotTop += h;
 		}
 
-		if (axis.time == null)
-			axis.time = scales[axis.scale].time;
-
 		let sc = scales[axis.scale];
+
+		// this can occur if all series specify non-default scales
+		if (sc == null) {
+			axis.scale = isVt ? series[1].scale : series[0].scale;
+			sc = scales[axis.scale];
+		}
+
+		if (axis.time == null)
+			axis.time = sc.time;
 
 		// also set defaults for incrs & values based on axis type
 		let isTime = axis.time;
