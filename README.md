@@ -15,8 +15,6 @@ An [exceptionally fast](#performance), tiny ([< 20 KB min](https://github.com/le
 ---
 ### 🚧 UNDER CONSTRUCTION 🚧
 
-**2019-10-24:** μPlot is now mostly feature-complete and its declarative `opts` API is in pretty good, future-accommodating shape. Its imperative API, docs and additional examples are still in progress.
-
 v1.0 and API stabilization are loosely targetted for sometime before 2020-01-01. Until then, feedback, feature suggestions and real use-cases can be submitted to the issue tracker for consideration & further discussion.
 
 ---
@@ -34,8 +32,6 @@ v1.0 and API stabilization are loosely targetted for sometime before 2020-01-01.
 - [Focus closest series](https://leeoniya.github.io/uPlot/demos/focus-cursor.html)
 - [Data streaming (live update)](https://leeoniya.github.io/uPlot/demos/stream-data.html)
 - [High / Low bands](https://leeoniya.github.io/uPlot/demos/high-low-bands.html)
-- WIP: [Range, point & line annotations](https://github.com/leeoniya/uPlot/issues/27)
-- WIP: [.resize()](https://github.com/leeoniya/uPlot/issues/36)
 
 ---
 ### Non-Features
