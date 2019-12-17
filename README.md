@@ -393,202 +393,35 @@ Benchmarks done on a ThinkPad T480S:
 - Core i5-8350U @ 1.70GHz, 8GB RAM
 - Intel HD 620 GPU, 2560x1440 res
 
-<table>
-    <thead>
-        <tr>
-            <th>Bench Demo</th>
-            <th>Size (min)</th>
-            <th>Render (167k)</th>
-            <th>Total</th>
-            <th>Mem (peak)</th>
-            <th>Mem (retained)</th>
-            <th>Interact (10s)</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">uPlot</a></td>
-            <td>20 KB</td>
-            <td>39 ms</td>
-            <td>71 ms</td>
-            <td>19.6 MB</td>
-            <td>3.7 MB</td>
-            <td>154 ms</td>
-        </tr>
-        <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/Flot.html">Flot</a></td>
-            <td>172 KB</td>
-            <td>130 ms</td>
-            <td>190 ms</td>
-            <td>42.7 MB</td>
-            <td>17.3 MB</td>
-            <td>--</td>
-        </tr>
-        <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/dygraphs.html">dygraphs</a></td>
-            <td>121 KB</td>
-            <td>168 ms</td>
-            <td>251 ms</td>
-            <td>113 MB</td>
-            <td>66.0 MB</td>
-            <td>2569 ms</td>
-        </tr>
-        <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/CanvasJS.html">CanvasJS</a></td>
-            <td>448 KB</td>
-            <td>295 ms</td>
-            <td>414 ms</td>
-            <td>49.2 MB</td>
-            <td>39.1 MB</td>
-            <td>2401 ms</td>
-        </tr>
-        <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/LightningChart.html">LightningChart</a></td>
-            <td>883 KB</td>
-            <td>--</td>
-            <td>500 ms</td>
-            <td>43.5 MB</td>
-            <td>21.5 MB</td>
-            <td>9446 ms</td>
-        </tr>
-        <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/jqChart.html">jqChart</a></td>
-            <td>270 KB</td>
-            <td>450 ms</td>
-            <td>577 ms</td>
-            <td>142 MB</td>
-            <td>99.9 MB</td>
-            <td>600 ms</td>
-        </tr>
-        <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/Highcharts.html">Highcharts</a></td>
-            <td>270 KB</td>
-            <td>--</td>
-            <td>717 ms</td>
-            <td>71.7 MB</td>
-            <td>40.7 MB</td>
-            <td>1122 ms</td>
-        </tr>
-        <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/ECharts.html">ECharts</a></td>
-            <td>734 KB</td>
-            <td>513 ms</td>
-            <td>765 ms</td>
-            <td>179 MB</td>
-            <td>118.8 MB</td>
-            <td>2194 ms</td>
-        </tr>
-        <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/Chart.js.html">Chart.js</a></td>
-            <td>239 KB</td>
-            <td>653 ms</td>
-            <td>741 ms</td>
-            <td>117 MB</td>
-            <td>78.9 MB</td>
-            <td>5408 ms</td>
-        </tr>
-        <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/ApexCharts.html">ApexCharts</a></td>
-            <td>430 KB</td>
-            <td>1269 ms</td>
-            <td>2441 ms</td>
-            <td>142 MB</td>
-            <td>157.9 MB</td>
-            <td>7559 ms</td>
-        </tr>
-        <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/ZingChart.html">ZingChart</a></td>
-            <td>682 KB</td>
-            <td>2324 ms</td>
-            <td>2518 ms</td>
-            <td>220 MB</td>
-            <td>175.7 MB</td>
-            <td>--</td>
-        </tr>
-        <tr>
-            <td><a href="https://leeoniya.github.io/uPlot/bench/amCharts.html">amCharts</a></td>
-            <td>1,034 KB</td>
-            <td>6514 ms</td>
-            <td>6730 ms</td>
-            <td>397 MB</td>
-            <td>430.0 MB</td>
-            <td>7539 ms</td>
-        </tr>
-        <tr>
-            <td>Chartist.js</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-        </tr>
-        <tr>
-            <td>C3.js (d3-based)</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-        </tr>
-        <tr>
-            <td>dc.js (d3-based)</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-        </tr>
-        <tr>
-            <td>Plotly (d3-based)</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-        </tr>
-        <tr>
-            <td>MetricsGraphics (d3-based)</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-        </tr>
-        <tr>
-            <td>rickshaw (d3-based)</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-            <td>--</td>
-        </tr>
-    </tbody>
-</table>
+<pre>
+Chrome 79.0.3945.88 (2019-12-17)
 
-```
-Chrome 78.0.3904.108 (2019-11-23)
+| lib            | size    | done    | js,rend,paint,sys | heap peak,final | interact (10s)      |
+| -------------- | ------- | ------- | ----------------- | --------------- | ------------------- |
+| uPlot          |   20 KB |   42 ms |   71   6   3   72 |  20 MB   4 MB   |  153  517  129  259 |
+| Flot           |  172 KB |  320 ms |  192   5   5  306 |  40 MB  17 MB   | ---                 |
+| dygraphs       |  121 KB |  170 ms |  239   4   5  172 | 113 MB  64 MB   | 2365  260  316  328 |
+| Chart.js-next  |  239 KB |  290 ms |  368   6   4   81 |  56 MB  49 MB   | 3705   36   93 4553 |
+| CanvasJS       |  448 KB |  321 ms |  398   5   4  103 |  48 MB  37 MB   | 2030  714  350  445 |
+| LightningChart |  883 KB |  --- ms |  472   3   3   78 |  67 MB  21 MB   | 9725   25   47   98 |
+| jqChart        |  270 KB |  455 ms |  564   4   2   85 | 141 MB  97 MB   |  675  665  328  485 |
+| Highcharts     |  270 KB |  --- ms |  687   7   2   72 |  82 MB  28 MB   | 1150  581  194  276 |
+| Chart.js       |  239 KB |  680 ms |  726   6   4  175 | 113 MB  91 MB   | 5564    5   13 4067 |
+| ECharts        |  734 KB |  505 ms |  778   5   9 1074 | 182 MB 124 MB   | 2472   51   52 7333 |
+| ApexCharts     |  430 KB | 1265 ms | 2398  26 152   60 | 144 MB 123 MB   | 1815  205 8119   57 |
+| ZingChart      |  682 KB | 5858 ms | 6007   9   1   80 | 206 MB 174 MB   | ---                 |
+| amCharts       | 1034 KB | 6915 ms | 6953  37  12  102 | 441 MB 441 MB   | 4522 1237 2977  518 |
+</pre>
 
-                   rend       js      sys     size  heap max  heap ret
-----------------------------------------------------------------------
-uPlot             40 ms    72 ms    71 ms    20 KB   19.7 MB    3.8 MB
-dygraphs         180 ms   241 ms   183 ms   123 KB  113.0 MB   64.1 MB
-Flot             338 ms   182 ms   290 ms   172 KB   43.5 MB   17.2 MB
-CanvasJS         327 ms   374 ms    60 ms   448 KB   48.5 MB   38.2 MB
-LightningChart   --- ms   490 ms    78 ms   883 KB   42.4 MB   21.1 MB
-jqChart          506 ms   574 ms    96 ms   269 KB  134.0 MB  100.3 MB
-Highcharts       --- ms   707 ms    62 ms   272 KB   80.4 MB   77.2 MB
-Chart.js         650 ms   700 ms   178 ms   239 KB  141.0 MB  122.2 MB
-ECharts          515 ms   769 ms  1043 ms   734 KB  182.0 MB  125.0 MB
-ApexCharts      1255 ms  2360 ms    67 ms   435 KB  159.4 MB  159.4 MB
-ZingChart       5820 ms  5957 ms    72 ms   690 KB  182.0 MB  162.8 MB
-amCharts        6732 ms  6697 ms    88 ms  1024 KB  405.8 MB  405.8 MB
-```
+TODO (all of these use SVG, so performance should be similar to Highcharts):
+
+- Chartist.js
+- d3-based
+  - C3.js
+  - dc.js
+  - Plotly
+  - MetricsGraphics
+  - rickshaw
 
 ---
 ### Acknowledgements
