@@ -1,5 +1,4 @@
-.uplot .cursor-x,
-.uplot .cursor-y {
+.uplot [class*=cursor] {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -106,45 +105,31 @@
 	z-index: 100;
 }
 
-.uplot .axis-x-0.off,
-.uplot .axis-x-2.off,
-.uplot .axis-y-1.off,
-.uplot .axis-y-3.off {
+.uplot [class*=axis].off {
 	display: none;
 }
 
-.uplot .axis-x-0 .labels,
-.uplot .axis-x-2 .labels,
-.uplot .axis-y-1 .labels,
-.uplot .axis-y-3 .labels {
+.uplot [class*=axis] .labels {
 	text-align: center;
 	position: absolute;
 	font-size: 12px;
 }
 
-.uplot .axis-x-0 .labels > *,
-.uplot .axis-x-2 .labels > *,
-.uplot .axis-y-1 .labels > *,
-.uplot .axis-y-3 .labels > * {
+.uplot [class*=axis] .labels > * {
 	padding-top: 6px;
 	font-weight: bold;
 }
 
-.uplot .axis-x-0 .values,
-.uplot .axis-x-2 .values,
-.uplot .axis-y-1 .values,
-.uplot .axis-y-3 .values {
+.uplot [class*=axis] .values {
 	position: absolute;
 }
 
-.uplot .axis-y-1 .values,
-.uplot .axis-y-3 .values {
+.uplot [class*=axis-y] .values {
 	top: 0;
 	height: 100%;
 }
 
-.uplot .axis-x-0 .values > *,
-.uplot .axis-x-2 .values > * {
+.uplot [class*=axis-x] .values > * {
 	position: absolute;
 	transform: translateX(-50%);
 	font-size: 12px;
@@ -161,8 +146,7 @@
 	padding-bottom: 10px;
 }
 
-.uplot .axis-x-0 .values > *::before,
-.uplot .axis-x-2 .values > *::before {
+.uplot [class*=axis-x] .values > *::before {
 	content: "";
 	height: 10px;
 	border-left: 2px solid #eee;
@@ -180,8 +164,7 @@
 	bottom: 0;
 }
 
-.uplot .axis-y-1 .values > *,
-.uplot .axis-y-3 .values > * {
+.uplot [class*=axis-y] .values > * {
 	position: absolute;
 	transform: translateY(-50%);
 	font-size: 12px;
@@ -199,8 +182,7 @@
 	text-align: left;
 }
 
-.uplot .axis-y-1 .values > *::before,
-.uplot .axis-y-3 .values > *::before {
+.uplot [class*=axis-y] .values > *::before {
 	content: "";
 	width: 10px;
 	border-top: 2px solid #eee;
