@@ -998,11 +998,8 @@ function Line(opts, data) {
 	var off3 = plotLft + canCssWidth;
 	var off0 = plotTop + canCssHeight;
 
-	function placeAxis(axis, prefix, crossDim) {
-		var side = axis.side;
-		var isVt = side % 2;
-
-		var el = placeDiv(prefix + "-" + (isVt ? "y-" : "x-") + side, wrap);
+	function placeAxis(axis, prefix, side, isVt, crossDim) {
+		var el = placeDiv(prefix, axis.root);
 
 		el.style.color = axis.color;
 		addClass(el, axis.class);
@@ -1046,13 +1043,15 @@ function Line(opts, data) {
 		if (!axis.show)
 			{ return; }
 
-		axis.vals = placeAxis(axis, "values");
+		var side = axis.side;
+		var isVt = side % 2;
+
+		axis.root = placeDiv("axis-" + (isVt ? "y-" : "x-") + side, wrap);
+
+		axis.vals = placeAxis(axis, "values", side, isVt);
 
 		if (axis.label != null) {
-			var side = axis.side;
-			var isVt = side % 2;
-
-			var lbl = placeAxis(axis, "labels", LABEL_HEIGHT);
+			var lbl = placeAxis(axis, "labels", side, isVt, LABEL_HEIGHT);
 			var txt = placeDiv("label", lbl);
 			txt.textContent = axis.label;
 			setStylePx(txt, HEIGHT, LABEL_HEIGHT);
@@ -1316,13 +1315,15 @@ function Line(opts, data) {
 			var xDim = ori == 0 ? HEIGHT : WIDTH;
 			var scale = scales[axis.scale];
 
-			var ch = axis.vals[firstChild];
-
 			// this will happen if all series using a specific scale are toggled off
 			if (scale.min == inf) {
-				ch && clearFrom(ch);
+				addClass(axis.root, "off");
 				return;
 			}
+
+			remClass(axis.root, "off");
+
+			var ch = axis.vals[firstChild];
 
 			var min = scale.min;
 			var max = scale.max;

@@ -106,38 +106,45 @@
 	z-index: 100;
 }
 
-.uplot .labels-x-0,
-.uplot .labels-x-2,
-.uplot .labels-y-1,
-.uplot .labels-y-3 {
+.uplot .axis-x-0.off,
+.uplot .axis-x-2.off,
+.uplot .axis-y-1.off,
+.uplot .axis-y-3.off {
+	display: none;
+}
+
+.uplot .axis-x-0 .labels,
+.uplot .axis-x-2 .labels,
+.uplot .axis-y-1 .labels,
+.uplot .axis-y-3 .labels {
 	text-align: center;
 	position: absolute;
 	font-size: 12px;
 }
 
-.uplot .labels-x-0 > *,
-.uplot .labels-x-2 > *,
-.uplot .labels-y-1 > *,
-.uplot .labels-y-3 > * {
+.uplot .axis-x-0 .labels > *,
+.uplot .axis-x-2 .labels > *,
+.uplot .axis-y-1 .labels > *,
+.uplot .axis-y-3 .labels > * {
 	padding-top: 6px;
 	font-weight: bold;
 }
 
-.uplot .values-x-0,
-.uplot .values-x-2,
-.uplot .values-y-1,
-.uplot .values-y-3 {
+.uplot .axis-x-0 .values,
+.uplot .axis-x-2 .values,
+.uplot .axis-y-1 .values,
+.uplot .axis-y-3 .values {
 	position: absolute;
 }
 
-.uplot .values-y-1,
-.uplot .values-y-3 {
+.uplot .axis-y-1 .values,
+.uplot .axis-y-3 .values {
 	top: 0;
 	height: 100%;
 }
 
-.uplot .values-x-0 > *,
-.uplot .values-x-2 > * {
+.uplot .axis-x-0 .values > *,
+.uplot .axis-x-2 .values > * {
 	position: absolute;
 	transform: translateX(-50%);
 	font-size: 12px;
@@ -146,16 +153,16 @@
 	height: 100%;
 }
 
-.uplot .values-x-2 > * {
+.uplot .axis-x-2 .values > * {
 	padding-top: 10px;
 }
 
-.uplot .values-x-0 > * {
+.uplot .axis-x-0 .values > * {
 	padding-bottom: 10px;
 }
 
-.uplot .values-x-0 > *::before,
-.uplot .values-x-2 > *::before {
+.uplot .axis-x-0 .values > *::before,
+.uplot .axis-x-2 .values > *::before {
 	content: "";
 	height: 10px;
 	border-left: 2px solid #eee;
@@ -165,16 +172,16 @@
 	z-index: -1;
 }
 
-.uplot .values-x-2 > *::before {
+.uplot .axis-x-2 .values > *::before {
 	top: 0;
 }
 
-.uplot .values-x-0 > *::before {
+.uplot .axis-x-0 .values > *::before {
 	bottom: 0;
 }
 
-.uplot .values-y-1 > *,
-.uplot .values-y-3 > * {
+.uplot .axis-y-1 .values > *,
+.uplot .axis-y-3 .values > * {
 	position: absolute;
 	transform: translateY(-50%);
 	font-size: 12px;
@@ -182,18 +189,18 @@
 	width: 100%;
 }
 
-.uplot .values-y-3 > * {
+.uplot .axis-y-3 .values > * {
 	padding-right: 10px;
 	text-align: right;
 }
 
-.uplot .values-y-1 > * {
+.uplot .axis-y-1 .values > * {
 	padding-left: 10px;
 	text-align: left;
 }
 
-.uplot .values-y-1 > *::before,
-.uplot .values-y-3 > *::before {
+.uplot .axis-y-1 .values > *::before,
+.uplot .axis-y-3 .values > *::before {
 	content: "";
 	width: 10px;
 	border-top: 2px solid #eee;
@@ -203,10 +210,10 @@
 	z-index: -1;
 }
 
-.uplot .values-y-3 > *::before {
+.uplot .axis-y-3 .values > *::before {
 	right: 0;
 }
 
-.uplot .values-y-1 > *::before {
+.uplot .axis-y-1 .values > *::before {
 	left: 0;
 }

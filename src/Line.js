@@ -346,11 +346,8 @@ export function Line(opts, data) {
 	let off3 = plotLft + canCssWidth;
 	let off0 = plotTop + canCssHeight;
 
-	function placeAxis(axis, prefix, crossDim) {
-		let side = axis.side;
-		let isVt = side % 2;
-
-		let el = placeDiv(prefix + "-" + (isVt ? "y-" : "x-") + side, wrap);
+	function placeAxis(axis, prefix, side, isVt, crossDim) {
+		let el = placeDiv(prefix, axis.root);
 
 		el.style.color = axis.color;
 		addClass(el, axis.class);
@@ -394,13 +391,15 @@ export function Line(opts, data) {
 		if (!axis.show)
 			return;
 
-		axis.vals = placeAxis(axis, "values");
+		let side = axis.side;
+		let isVt = side % 2;
+
+		axis.root = placeDiv("axis-" + (isVt ? "y-" : "x-") + side, wrap);
+
+		axis.vals = placeAxis(axis, "values", side, isVt);
 
 		if (axis.label != null) {
-			let side = axis.side;
-			let isVt = side % 2;
-
-			let lbl = placeAxis(axis, "labels", LABEL_HEIGHT);
+			let lbl = placeAxis(axis, "labels", side, isVt, LABEL_HEIGHT);
 			let txt = placeDiv("label", lbl);
 			txt.textContent = axis.label;
 			setStylePx(txt, HEIGHT, LABEL_HEIGHT);
@@ -662,13 +661,15 @@ export function Line(opts, data) {
 			let xDim = ori == 0 ? HEIGHT : WIDTH;
 			let scale = scales[axis.scale];
 
-			let ch = axis.vals[firstChild];
-
 			// this will happen if all series using a specific scale are toggled off
 			if (scale.min == inf) {
-				ch && clearFrom(ch);
+				addClass(axis.root, "off");
 				return;
 			}
+
+			remClass(axis.root, "off");
+
+			let ch = axis.vals[firstChild];
 
 			let {min, max} = scale;
 
