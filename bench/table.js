@@ -30,8 +30,6 @@ function padLeft(str, padStr, len) {
 
 const widths = heads.map(h => h.length);
 
-const links = [];
-
 const texts = results.map((res, i) => {
 	let out = [
 		res[0],
@@ -44,8 +42,6 @@ const texts = results.map((res, i) => {
 		res[4].map(v => padLeft(Math.round(v), " ", 3)).join(" MB ") + " MB",
 		res[5] == null ? '---' : res[5].map(v => padLeft(Math.round(v), " ", 4)).join(" "),
 	];
-
-	links.push("["+(i+1)+"]: https://leeoniya.github.io/uPlot/bench/" + res[0] + ".html");
 
 	widths.forEach((w, i) => {
 		widths[i] = Math.max(w, out[i].length);
@@ -70,9 +66,12 @@ texts.forEach((res, i) => {
 	widths.forEach((w, i) => {
 		table += "| " + padRight(res[i], " ", widths[i] + 1);
 	});
+
 	table += "|\n";
 });
 
-table += "\n" + links.join("\n");
+texts.forEach((res, i) => {
+	table = table.replace(" " + res[0], ` <a href="https://leeoniya.github.io/uPlot/bench/${res[0]}.html">${res[0]}</a>`);
+});
 
 fs.writeFileSync("table.md", table, 'utf8');
