@@ -389,13 +389,11 @@ let opts = {
 
 Benchmarks done on a ThinkPad T480S:
 
-- Windows 10 x64, Chrome 78.0.3904.70
+- Windows 10 x64, Chrome 79.0.3945.88
 - Core i5-8350U @ 1.70GHz, 8GB RAM
 - Intel HD 620 GPU, 2560x1440 res
 
 <pre>
-Chrome 79.0.3945.88 (2019-12-17)
-
 | lib            | size    | done    | js,rend,paint,sys | heap peak,final | interact (10s)      |
 | -------------- | ------- | ------- | ----------------- | --------------- | ------------------- |
 | <a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">uPlot</a>          |   19 KB |   42 ms |   71   6   3   72 |  20 MB   4 MB   |  153  517  129  259 |
@@ -413,7 +411,8 @@ Chrome 79.0.3945.88 (2019-12-17)
 | <a href="https://leeoniya.github.io/uPlot/bench/amCharts.html">amCharts</a>       | 1034 KB | 6915 ms | 6953  37  12  102 | 441 MB 441 MB   | 4522 1237 2977  518 |
 </pre>
 
-\* Flot does not make available any minified assets and all their examples use the uncompressed sources; they also use an uncompressed version of jQuery :/
+- `size` includes the lib itself plus any dependencies required to render the benchmark, e.g. Moment, jQuery, etc.
+- Flot does not make available any minified assets and all their examples use the uncompressed sources; they also use an uncompressed version of jQuery :/
 
 TODO (all of these use SVG, so performance should be similar to Highcharts):
 
