@@ -28,11 +28,6 @@ export function setStylePx(el, name, value) {
 	el.style[name] = value + "px";
 }
 
-export function setOriRotTrans(style, origin, rot, trans) {
-	style.transformOrigin = origin;
-	style.transform = "rotate(" + rot + "deg) translateY(" + trans + "px)";
-}
-
 export function makeCanvas(wid, hgt) {
 	const can = doc[createElement]("canvas");
 	const ctx = can.getContext("2d");

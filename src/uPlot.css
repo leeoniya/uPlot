@@ -113,11 +113,22 @@
 	text-align: center;
 	position: absolute;
 	font-size: 12px;
+	font-weight: bold;
 }
 
 .uplot [class*=axis] .labels > * {
-	padding-top: 6px;
-	font-weight: bold;
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+}
+
+.uplot [class*=axis-y-1] .labels > * {
+	transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.uplot [class*=axis-y-3] .labels > * {
+	transform: translate(-50%, -50%) rotate(-90deg);
 }
 
 .uplot [class*=axis] .values {
@@ -173,12 +184,12 @@
 }
 
 .uplot .axis-y-3 .values > * {
-	padding-right: 10px;
+	padding-right: 14px;
 	text-align: right;
 }
 
 .uplot .axis-y-1 .values > * {
-	padding-left: 10px;
+	padding-left: 14px;
 	text-align: left;
 }
 

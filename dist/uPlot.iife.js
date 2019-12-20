@@ -361,11 +361,6 @@ var uPlot = (function (exports) {
 		el.style[name] = value + "px";
 	}
 
-	function setOriRotTrans(style, origin, rot, trans) {
-		style.transformOrigin = origin;
-		style.transform = "rotate(" + rot + "deg) translateY(" + trans + "px)";
-	}
-
 	function makeCanvas(wid, hgt) {
 		var can = doc[createElement]("canvas");
 		var ctx = can.getContext("2d");
@@ -1055,18 +1050,6 @@ var uPlot = (function (exports) {
 				var lbl = placeAxis(axis, "labels", side, isVt, LABEL_HEIGHT);
 				var txt = placeDiv("label", lbl);
 				txt.textContent = axis.label;
-				setStylePx(txt, HEIGHT, LABEL_HEIGHT);
-
-				if (isVt) {
-					setStylePx(txt, WIDTH, canCssHeight);
-
-					var style = txt.style;
-
-					if (side == 1)
-						{ setOriRotTrans(style, "0 0", 90, -LABEL_HEIGHT); }
-					else
-						{ setOriRotTrans(style, "100% 0", -90, -canCssHeight); }
-				}
 			}
 		});
 

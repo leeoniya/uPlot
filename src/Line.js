@@ -51,7 +51,6 @@ import {
 	addClass,
 	remClass,
 	setStylePx,
-	setOriRotTrans,
 	makeCanvas,
 	placeTag,
 	placeDiv,
@@ -402,18 +401,6 @@ export function Line(opts, data) {
 			let lbl = placeAxis(axis, "labels", side, isVt, LABEL_HEIGHT);
 			let txt = placeDiv("label", lbl);
 			txt.textContent = axis.label;
-			setStylePx(txt, HEIGHT, LABEL_HEIGHT);
-
-			if (isVt) {
-				setStylePx(txt, WIDTH, canCssHeight);
-
-				let style = txt.style;
-
-				if (side == 1)
-					setOriRotTrans(style, "0 0", 90, -LABEL_HEIGHT);
-				else
-					setOriRotTrans(style, "100% 0", -90, -canCssHeight);
-			}
 		}
 	});
 
