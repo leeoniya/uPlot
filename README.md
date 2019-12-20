@@ -327,7 +327,8 @@ let opts = {
       {
         show: true,
         label: "Population",
-        width: 50,
+        labelSize: 30,
+        size: 50,
         class: 'my-y',
         color: 'red',
         grid: {
@@ -341,6 +342,8 @@ let opts = {
   },
 }
 ```
+
+- `size` & `labelSize` represent the perpendicular dimensions assigned to `values` and `labels` DOM elements, respectively. In the above example, the full width of this y-axis would be 30 + 50; for an x-axis, it would be its height.
 
 Customizing the tick/grid spacing, value formatting and granularity is somewhat more involved:
 
@@ -380,9 +383,11 @@ let opts = {
 }
 ```
 
-- `space` is the minumum space between adjacent ticks; a smaller number will result in smaller selected divisors.
-- `incrs` are divisors available for segmenting the axis to produce ticks.
-- `values` can be an array of tick formatters with breakpoints. more format details can be found in the source: https://github.com/leeoniya/uPlot/blob/master/src/opts.js#L110
+- `space` is the minumum space between adjacent ticks; a smaller number will result in smaller selected divisors. can also be a function of the form `(self, scaleMin, scaleMax, dim) => space` where `dim` is the dimension of the plot along the axis in CSS pixels.
+- `incrs` are divisors available for segmenting the axis to produce ticks. can also be a function of the form `(self) => divisors`.
+- `values` can be:
+  - a function with the form `(self, ticks, space) => values` where `ticks` is an array of raw values along the axis' scale, `space` is the determined tick spacing in CSS pixels and `values` is an array of formated tick labels.
+  - array of tick formatters with breakpoints. more format details can be found in the source: https://github.com/leeoniya/uPlot/blob/master/src/opts.js#L110
 
 ---
 ### Performance
