@@ -121,6 +121,7 @@
 	left: 50%;
 	top: 50%;
 	transform: translate(-50%, -50%);
+	white-space: nowrap;
 }
 
 .uplot [class*=axis-y-1] .labels > * {

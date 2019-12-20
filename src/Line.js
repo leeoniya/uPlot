@@ -161,7 +161,7 @@ export function Line(opts, data) {
 
 	const spanGaps = opts.spanGaps || false;
 
-	const gutters = assign({x: yAxisOpts[WIDTH], y: xAxisOpts[HEIGHT]}, opts.gutters);
+	const gutters = assign({x: yAxisOpts.size, y: xAxisOpts.size}, opts.gutters);
 
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const tzDate = opts.tzDate || (ts => new Date(ts * 1e3));
@@ -274,8 +274,6 @@ export function Line(opts, data) {
 	let plotLft = 0;
 	let plotTop = 0;
 
-	const LABEL_HEIGHT = 30;
-
 	// easement for rightmost x label if no right y axis exists
 	let hasRightAxis = false;
 	let hasLeftAxis = false;
@@ -285,27 +283,27 @@ export function Line(opts, data) {
 		if (!axis.show)
 			return;
 
-		let side = axis.side;
+		let {side, size} = axis;
 		let isVt = side % 2;
-		let lab = axis.label != null ? LABEL_HEIGHT : 0;
+		let labelSize = axis.labelSize = (axis.label != null ? (axis.labelSize || 30) : 0);
+
+		let fullSize = size + labelSize;
 
 		if (isVt) {
-			let w = axis[WIDTH] + lab;
-			canCssWidth -= w;
+			canCssWidth -= fullSize;
 
 			if (side == 3) {
-				plotLft += w;
+				plotLft += fullSize;
 				hasLeftAxis = true;
 			}
 			else
 				hasRightAxis = true;
 		}
 		else {
-			let h = axis[HEIGHT] + lab;
-			canCssHeight -= h;
+			canCssHeight -= fullSize;
 
 			if (side == 0)
-				plotTop += h;
+				plotTop += fullSize;
 		}
 
 		let sc = scales[axis.scale];
@@ -345,40 +343,35 @@ export function Line(opts, data) {
 	let off3 = plotLft + canCssWidth;
 	let off0 = plotTop + canCssHeight;
 
-	function placeAxis(axis, prefix, side, isVt, crossDim) {
-		let el = placeDiv(prefix, axis.root);
-
-		el.style.color = axis.color;
-		addClass(el, axis.class);
+	function placeAxisPart(aroot, prefix, side, isVt, size) {
+		let el = placeDiv(prefix, aroot);
 
 		if (isVt) {
-			let w = crossDim || axis[WIDTH];
-			setStylePx(el, WIDTH, w);
+			setStylePx(el, WIDTH, size);
 			setStylePx(el, HEIGHT, canCssHeight);
 			setStylePx(el, TOP, plotTop);
 
 			if (side == 3) {
 				setStylePx(el, RIGHT, off1);
-				off1 += w;
+				off1 += size;
 			}
 			else {
 				setStylePx(el, LEFT, off3);
-				off3 += w;
+				off3 += size;
 			}
 		}
 		else {
-			let h = crossDim || axis[HEIGHT];
-			setStylePx(el, HEIGHT, h);
+			setStylePx(el, HEIGHT, size);
 			setStylePx(el, WIDTH, canCssWidth);
 			setStylePx(el, LEFT, plotLft);
 
 			if (side == 0) {
 				setStylePx(el, BOTTOM, off2);
-				off2 += h;
+				off2 += size;
 			}
 			else {
 				setStylePx(el, TOP, off0);
-				off0 += h;
+				off0 += size;
 			}
 		}
 
@@ -393,13 +386,16 @@ export function Line(opts, data) {
 		let side = axis.side;
 		let isVt = side % 2;
 
-		axis.root = placeDiv("axis-" + (isVt ? "y-" : "x-") + side, wrap);
+		let aroot = axis.root = placeDiv("axis-" + (isVt ? "y-" : "x-") + side, wrap);
 
-		axis.vals = placeAxis(axis, "values", side, isVt);
+		addClass(aroot, axis.class);
+		aroot.style.color = axis.color;
+
+		axis.vals = placeAxisPart(aroot, "values", side, isVt, axis.size);
 
 		if (axis.label != null) {
-			let lbl = placeAxis(axis, "labels", side, isVt, LABEL_HEIGHT);
-			let txt = placeDiv("label", lbl);
+			let lbl = placeAxisPart(aroot, "labels", side, isVt, axis.labelSize);
+			let txt = placeDiv(null, lbl);
 			txt.textContent = axis.label;
 		}
 	});

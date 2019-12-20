@@ -635,7 +635,7 @@ var uPlot = (function (exports) {
 		show: true,
 		scale: 'x',
 		space: 50,
-		height: 53,
+		size: 53,
 		side: 2,
 	//	class: "x-vals",
 	//	incrs: timeIncrs,
@@ -682,7 +682,7 @@ var uPlot = (function (exports) {
 		show: true,
 		scale: 'y',
 		space: 40,
-		width: 50,
+		size: 50,
 		side: 3,
 	//	class: "y-vals",
 	//	incrs: numIncrs,
@@ -810,7 +810,7 @@ var uPlot = (function (exports) {
 
 		var spanGaps = opts.spanGaps || false;
 
-		var gutters = assign({x: yAxisOpts[WIDTH], y: xAxisOpts[HEIGHT]}, opts.gutters);
+		var gutters = assign({x: yAxisOpts.size, y: xAxisOpts.size}, opts.gutters);
 
 	//	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 		var tzDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
@@ -923,8 +923,6 @@ var uPlot = (function (exports) {
 		var plotLft = 0;
 		var plotTop = 0;
 
-		var LABEL_HEIGHT = 30;
-
 		// easement for rightmost x label if no right y axis exists
 		var hasRightAxis = false;
 		var hasLeftAxis = false;
@@ -935,26 +933,27 @@ var uPlot = (function (exports) {
 				{ return; }
 
 			var side = axis.side;
+			var size = axis.size;
 			var isVt = side % 2;
-			var lab = axis.label != null ? LABEL_HEIGHT : 0;
+			var labelSize = axis.labelSize = (axis.label != null ? (axis.labelSize || 30) : 0);
+
+			var fullSize = size + labelSize;
 
 			if (isVt) {
-				var w = axis[WIDTH] + lab;
-				canCssWidth -= w;
+				canCssWidth -= fullSize;
 
 				if (side == 3) {
-					plotLft += w;
+					plotLft += fullSize;
 					hasLeftAxis = true;
 				}
 				else
 					{ hasRightAxis = true; }
 			}
 			else {
-				var h = axis[HEIGHT] + lab;
-				canCssHeight -= h;
+				canCssHeight -= fullSize;
 
 				if (side == 0)
-					{ plotTop += h; }
+					{ plotTop += fullSize; }
 			}
 
 			var sc = scales[axis.scale];
@@ -994,40 +993,35 @@ var uPlot = (function (exports) {
 		var off3 = plotLft + canCssWidth;
 		var off0 = plotTop + canCssHeight;
 
-		function placeAxis(axis, prefix, side, isVt, crossDim) {
-			var el = placeDiv(prefix, axis.root);
-
-			el.style.color = axis.color;
-			addClass(el, axis.class);
+		function placeAxisPart(aroot, prefix, side, isVt, size) {
+			var el = placeDiv(prefix, aroot);
 
 			if (isVt) {
-				var w = crossDim || axis[WIDTH];
-				setStylePx(el, WIDTH, w);
+				setStylePx(el, WIDTH, size);
 				setStylePx(el, HEIGHT, canCssHeight);
 				setStylePx(el, TOP, plotTop);
 
 				if (side == 3) {
 					setStylePx(el, RIGHT, off1);
-					off1 += w;
+					off1 += size;
 				}
 				else {
 					setStylePx(el, LEFT, off3);
-					off3 += w;
+					off3 += size;
 				}
 			}
 			else {
-				var h = crossDim || axis[HEIGHT];
-				setStylePx(el, HEIGHT, h);
+				setStylePx(el, HEIGHT, size);
 				setStylePx(el, WIDTH, canCssWidth);
 				setStylePx(el, LEFT, plotLft);
 
 				if (side == 0) {
 					setStylePx(el, BOTTOM, off2);
-					off2 += h;
+					off2 += size;
 				}
 				else {
 					setStylePx(el, TOP, off0);
-					off0 += h;
+					off0 += size;
 				}
 			}
 
@@ -1042,13 +1036,16 @@ var uPlot = (function (exports) {
 			var side = axis.side;
 			var isVt = side % 2;
 
-			axis.root = placeDiv("axis-" + (isVt ? "y-" : "x-") + side, wrap);
+			var aroot = axis.root = placeDiv("axis-" + (isVt ? "y-" : "x-") + side, wrap);
 
-			axis.vals = placeAxis(axis, "values", side, isVt);
+			addClass(aroot, axis.class);
+			aroot.style.color = axis.color;
+
+			axis.vals = placeAxisPart(aroot, "values", side, isVt, axis.size);
 
 			if (axis.label != null) {
-				var lbl = placeAxis(axis, "labels", side, isVt, LABEL_HEIGHT);
-				var txt = placeDiv("label", lbl);
+				var lbl = placeAxisPart(aroot, "labels", side, isVt, axis.labelSize);
+				var txt = placeDiv(null, lbl);
 				txt.textContent = axis.label;
 			}
 		});
