@@ -1076,6 +1076,9 @@ export function Line(opts, data) {
 						legendRows[i][j][firstChild].nodeValue = '--';
 				}
 			}
+
+			if (focus)
+				setSeries(null, {focus: true}, syncOpts.setSeries);
 		}
 		else {
 		//	let pctY = 1 - (y / rect[HEIGHT]);
