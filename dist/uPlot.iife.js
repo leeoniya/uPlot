@@ -340,6 +340,7 @@ var uPlot = (function (exports) {
 	var mousemove = "mousemove";
 	var mousedown = "mousedown";
 	var mouseup = "mouseup";
+	var mouseleave = "mouseleave";
 	var dblclick = "dblclick";
 	var resize = "resize";
 	var scroll = "scroll";
@@ -1445,14 +1446,16 @@ var uPlot = (function (exports) {
 
 		var focus = cursor.focus;		// focus: {alpha, prox}
 
-		if (cursor.show && cursor.cross) {
-			mouseLeft1 = cursor.left;
-			mouseTop1 = cursor.top;
+		if (cursor.show) {
+			if (cursor.cross) {
+				mouseLeft1 = cursor.left;
+				mouseTop1 = cursor.top;
 
-			var c = "cursor-";
+				var c = "cursor-";
 
-			vt = placeDiv(c + "x", plot);
-			hz = placeDiv(c + "y", plot);
+				vt = placeDiv(c + "x", plot);
+				hz = placeDiv(c + "y", plot);
+			}
 		}
 
 		var zoom = cursor.show ? placeDiv("zoom", plot) : null;
@@ -1686,7 +1689,6 @@ var uPlot = (function (exports) {
 
 		self.batch = batch;
 
-
 		self.setCursor = function (opts) {
 			mouseLeft1 = opts.left;
 			mouseTop1 = opts.top;
@@ -1901,6 +1903,11 @@ var uPlot = (function (exports) {
 			}
 		}
 
+		function mouseLeave(e, src, _x, _y, _w, _h, _i) {
+			if (!cursor.locked && !dragging)
+				{ self.setCursor({left: -10, top: -10}); }
+		}
+
 		function dblClick(e, src, _x, _y, _w, _h, _i) {
 			var min = data[0][0];
 			var max = data[0][dataLen - 1];
@@ -1928,6 +1935,7 @@ var uPlot = (function (exports) {
 		if (cursor.show) {
 			on(mousedown, can, mouseDown);
 			on(mousemove, can, mouseMove);
+			on(mouseleave, can, mouseLeave);
 			on(dblclick, can, dblClick);
 
 			var deb$1 = debounce(syncRect, 100);

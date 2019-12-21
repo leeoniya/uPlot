@@ -37,6 +37,7 @@ import {
 	mousemove,
 	mousedown,
 	mouseup,
+	mouseleave,
 	dblclick,
 	resize,
 	scroll,
@@ -790,14 +791,16 @@ export function Line(opts, data) {
 
 	const focus = cursor.focus;		// focus: {alpha, prox}
 
-	if (cursor.show && cursor.cross) {
-		mouseLeft1 = cursor.left;
-		mouseTop1 = cursor.top;
+	if (cursor.show) {
+		if (cursor.cross) {
+			mouseLeft1 = cursor.left;
+			mouseTop1 = cursor.top;
 
-		let c = "cursor-";
+			let c = "cursor-";
 
-		vt = placeDiv(c + "x", plot);
-		hz = placeDiv(c + "y", plot);
+			vt = placeDiv(c + "x", plot);
+			hz = placeDiv(c + "y", plot);
+		}
 	}
 
 	const zoom = cursor.show ? placeDiv("zoom", plot) : null;
@@ -1031,7 +1034,6 @@ export function Line(opts, data) {
 
 	self.batch = batch;
 
-
 	self.setCursor = opts => {
 		mouseLeft1 = opts.left;
 		mouseTop1 = opts.top;
@@ -1246,6 +1248,11 @@ export function Line(opts, data) {
 		}
 	}
 
+	function mouseLeave(e, src, _x, _y, _w, _h, _i) {
+		if (!cursor.locked && !dragging)
+			self.setCursor({left: -10, top: -10});
+	}
+
 	function dblClick(e, src, _x, _y, _w, _h, _i) {
 		let min = data[0][0];
 		let max = data[0][dataLen - 1];
@@ -1273,6 +1280,7 @@ export function Line(opts, data) {
 	if (cursor.show) {
 		on(mousedown, can, mouseDown);
 		on(mousemove, can, mouseMove);
+		on(mouseleave, can, mouseLeave);
 		on(dblclick, can, dblClick);
 
 		let deb = debounce(syncRect, 100);
