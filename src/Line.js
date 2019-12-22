@@ -1280,13 +1280,15 @@ export function Line(opts, data) {
 		setSeries(idx, opts);
 	};
 
+	let deb;
+
 	if (cursor.show) {
 		on(mousedown, can, mouseDown);
 		on(mousemove, can, mouseMove);
 		on(mouseleave, can, mouseLeave);
 		on(dblclick, can, dblClick);
 
-		let deb = debounce(syncRect, 100);
+		deb = debounce(syncRect, 100);
 
 		on(resize, win, deb);
 		on(scroll, win, deb);
