@@ -1312,6 +1312,11 @@ export function Line(opts, data) {
 		}
 	}
 
+	(opts.plugins || []).forEach(phooks => {
+		for (let evName in phooks)
+			hooks[evName] = (hooks[evName] || []).concat(phooks[evName]);
+	});
+
 	const syncOpts = assign({
 		key: null,
 		setSeries: false,

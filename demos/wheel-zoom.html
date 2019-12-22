@@ -11,6 +11,51 @@
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
+			function wheelZoomPlugin(opts) {
+				let factor = opts.factor || 0.75;
+
+				return {
+					init: [
+						(u, opts, data) => {
+							let plot = u.root.querySelector(".plot");
+
+							let factor = 0.75;
+
+							plot.addEventListener("wheel", e => {
+								let {left, top} = u.cursor;
+								let rect = plot.getBoundingClientRect();
+								let leftPct = left/rect.width;
+								let btmPct = 1 - top/rect.height;
+								let xVal = u.posToVal(left, "x");
+								let yVal = u.posToVal(top, "y");
+								let oxRange = u.scales.x.max - u.scales.x.min;
+								let oyRange = u.scales.y.max - u.scales.y.min;
+
+								let nxRange = e.deltaY < 0 ? oxRange * factor : oxRange / factor;
+								let nxMin = xVal - leftPct * nxRange;
+								let nxMax = nxMin + nxRange;
+
+								let nyRange = e.deltaY < 0 ? oyRange * factor : oyRange / factor;
+								let nyMin = yVal - btmPct * nyRange;
+								let nyMax = nyMin + nyRange;
+
+								u.batch(() => {
+									u.setScale('x', {
+										min: nxMin,
+										max: nxMax,
+									});
+
+									u.setScale('y', {
+										min: nyMin,
+										max: nyMax,
+									});
+								});
+							});
+						},
+					]
+				};
+			}
+
 			function makeChart() {
 				console.time('chart');
 
@@ -18,46 +63,9 @@
 					title: "Wheel Zoom",
 					width: 600,
 					height: 400,
-					hooks: {
-						init: [
-							(u, opts, data) => {
-								let plot = u.root.querySelector(".plot");
-
-								let factor = 0.75;
-
-								plot.addEventListener("wheel", e => {
-									let {left, top} = u.cursor;
-									let rect = plot.getBoundingClientRect();
-									let leftPct = left/rect.width;
-									let btmPct = 1 - top/rect.height;
-									let xVal = u.posToVal(left, "x");
-									let yVal = u.posToVal(top, "y");
-									let oxRange = u.scales.x.max - u.scales.x.min;
-									let oyRange = u.scales.y.max - u.scales.y.min;
-
-									let nxRange = e.deltaY < 0 ? oxRange * factor : oxRange / factor;
-									let nxMin = xVal - leftPct * nxRange;
-									let nxMax = nxMin + nxRange;
-
-									let nyRange = e.deltaY < 0 ? oyRange * factor : oyRange / factor;
-									let nyMin = yVal - btmPct * nyRange;
-									let nyMax = nyMin + nyRange;
-
-									u.batch(() => {
-										u.setScale('x', {
-											min: nxMin,
-											max: nxMax,
-										});
-
-										u.setScale('y', {
-											min: nyMin,
-											max: nyMax,
-										});
-									});
-								});
-							},
-						]
-					},
+					plugins: [
+						wheelZoomPlugin({factor: 0.75})
+					],
 					scales: {
 						x: {
 							time: false,

@@ -1966,6 +1966,11 @@ function Line(opts, data) {
 		}
 	}
 
+	(opts.plugins || []).forEach(function (phooks) {
+		for (var evName in phooks)
+			{ hooks[evName] = (hooks[evName] || []).concat(phooks[evName]); }
+	});
+
 	var syncOpts = assign({
 		key: null,
 		setSeries: false,
