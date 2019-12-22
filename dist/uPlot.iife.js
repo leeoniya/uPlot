@@ -1989,6 +1989,7 @@ var uPlot = (function (exports) {
 			off(resize, win, deb);
 			off(scroll, win, deb);
 			root.remove();
+			fire("destroy");
 		}
 
 		self.destroy = destroy;
