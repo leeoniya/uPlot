@@ -873,6 +873,8 @@ function Line(opts, data) {
 
 		resetYSeries();
 
+		fire("setData");
+
 		if (_autoScaleX !== false)
 			{ autoScaleX(); }
 	}
@@ -1810,8 +1812,7 @@ function Line(opts, data) {
 		cursor.left = mouseLeft1;
 		cursor.top = mouseTop1;
 
-		// TODO: would be good to isolate only the opts that were changed
-		fire("setCursor", cursor);
+		fire("setCursor");
 	}
 
 	var rect = null;
