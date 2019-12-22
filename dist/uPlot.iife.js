@@ -864,6 +864,7 @@ var uPlot = (function (exports) {
 		var data0 = null;
 
 		function setData(_data, _autoScaleX) {
+			self.data = _data;
 			data = _data.slice();
 			data0 = data[0];
 			dataLen = data0.length;
