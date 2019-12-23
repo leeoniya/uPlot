@@ -411,6 +411,8 @@ export function Line(opts, data) {
 
 	const { can, ctx } = makeCanvas(canCssWidth, canCssHeight);
 
+	self.ctx = ctx;
+
 	plot.appendChild(can);
 
 	const pendScales = {};
@@ -536,8 +538,10 @@ export function Line(opts, data) {
 		});
 
 		series.forEach((s, i) => {
-			if (i > 0 && s.show)
+			if (i > 0 && s.show) {
 				drawPath(i);
+				fire("drawSeries", i);
+            }
 		});
 	}
 
@@ -572,7 +576,7 @@ export function Line(opts, data) {
 			ctx.translate(-offset, -offset);
 
 			ctx.globalAlpha = 1;
-		}
+        }
 
 		if (s.band)
 			dir *= -1;
@@ -716,6 +720,7 @@ export function Line(opts, data) {
 				ctx.stroke();
 
 				ctx.translate(-offset, -offset);
+				fire("drawGrid", axis.scale);
 			}
 		});
 	}
@@ -743,9 +748,11 @@ export function Line(opts, data) {
 	//	log("paint()", arguments);
 
 		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
-		drawAxesGrid();
+		fire("drawClear");
+		drawAxesGrid();     
 		drawSeries();
 		didPaint = true;
+		fire("draw");
 	}
 
 	// redraw() => setScale('x', scales.x.min, scales.x.max);
