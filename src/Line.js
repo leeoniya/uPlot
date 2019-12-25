@@ -576,7 +576,7 @@ export function Line(opts, data) {
 			ctx.translate(-offset, -offset);
 
 			ctx.globalAlpha = 1;
-        }
+		}
 
 		if (s.band)
 			dir *= -1;
