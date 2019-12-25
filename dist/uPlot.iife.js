@@ -1063,6 +1063,8 @@ var uPlot = (function (exports) {
 		var can = ref.can;
 		var ctx = ref.ctx;
 
+		self.ctx = ctx;
+
 		plot.appendChild(can);
 
 		var pendScales = {};
@@ -1188,8 +1190,10 @@ var uPlot = (function (exports) {
 			});
 
 			series.forEach(function (s, i) {
-				if (i > 0 && s.show)
-					{ drawPath(i); }
+				if (i > 0 && s.show) {
+					drawPath(i);
+					fire("drawSeries", i);
+				}
 			});
 		}
 
@@ -1371,6 +1375,7 @@ var uPlot = (function (exports) {
 					ctx.stroke();
 
 					ctx.translate(-offset, -offset);
+					fire("drawGrid", axis.scale);
 				}
 			});
 		}
@@ -1398,9 +1403,11 @@ var uPlot = (function (exports) {
 		//	log("paint()", arguments);
 
 			ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
+			fire("drawClear");
 			drawAxesGrid();
 			drawSeries();
 			didPaint = true;
+			fire("draw");
 		}
 
 		// redraw() => setScale('x', scales.x.min, scales.x.max);

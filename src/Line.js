@@ -541,7 +541,7 @@ export function Line(opts, data) {
 			if (i > 0 && s.show) {
 				drawPath(i);
 				fire("drawSeries", i);
-            }
+			}
 		});
 	}
 
@@ -749,7 +749,7 @@ export function Line(opts, data) {
 
 		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 		fire("drawClear");
-		drawAxesGrid();     
+		drawAxesGrid();
 		drawSeries();
 		didPaint = true;
 		fire("draw");

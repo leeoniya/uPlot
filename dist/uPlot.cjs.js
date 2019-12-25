@@ -1062,6 +1062,8 @@ function Line(opts, data) {
 	var can = ref.can;
 	var ctx = ref.ctx;
 
+	self.ctx = ctx;
+
 	plot.appendChild(can);
 
 	var pendScales = {};
@@ -1187,8 +1189,10 @@ function Line(opts, data) {
 		});
 
 		series.forEach(function (s, i) {
-			if (i > 0 && s.show)
-				{ drawPath(i); }
+			if (i > 0 && s.show) {
+				drawPath(i);
+				fire("drawSeries", i);
+			}
 		});
 	}
 
@@ -1370,6 +1374,7 @@ function Line(opts, data) {
 				ctx.stroke();
 
 				ctx.translate(-offset, -offset);
+				fire("drawGrid", axis.scale);
 			}
 		});
 	}
@@ -1397,9 +1402,11 @@ function Line(opts, data) {
 	//	log("paint()", arguments);
 
 		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
+		fire("drawClear");
 		drawAxesGrid();
 		drawSeries();
 		didPaint = true;
+		fire("draw");
 	}
 
 	// redraw() => setScale('x', scales.x.min, scales.x.max);
