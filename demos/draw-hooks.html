@@ -77,6 +77,7 @@
 					let { width, height } = ctx.canvas;
 
 					let gradient = u.ctx.createLinearGradient(0, 0, 0, height);
+
 					gradient.addColorStop(0, "#666");
 					gradient.addColorStop(1, "#000");
 
@@ -88,9 +89,9 @@
 
 				function drawSeriesMedian(u, i) {
 					let { ctx } = u;
-					let { width, height } = ctx.canvas;
+					let { width } = ctx.canvas;
 					// why i-1: https://github.com/leeoniya/uPlot/issues/77
-					let { label, color, min: minVal, max: maxVal, scale } = u.series.y[i-1];
+					let { color, scale } = u.series.y[i-1];
 
 					let cy = u.valToPos(medians[i], scale) * devicePixelRatio;
 
@@ -101,14 +102,14 @@
 
 					ctx.beginPath();
 					ctx.moveTo(0, cy);
-					ctx.lineTo(ctx.canvas.width, cy);
+					ctx.lineTo(width, cy);
 					ctx.closePath();
 					ctx.stroke();
 					ctx.restore();
 				}
 
 				function enableBlurBeforeGridRender(u) {
-					let {ctx} = u;
+					let { ctx } = u;
 					ctx.save();
 					ctx.filter = 'blur(2px)';
 				}
@@ -180,7 +181,6 @@
 			}
 
 			function makeChart() {
-
 				const data = [
 					[ 1, 2, 3, 4, 5, 6, 7, 9,10],
 					[40,43,60,65,71,73,40,22,20],
@@ -194,7 +194,7 @@
 					width: 1,
 				};
 
-				let opts ={
+				let opts = {
 					width: 600,
 					height: 400,
 					axes: {
