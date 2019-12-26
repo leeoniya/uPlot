@@ -16,242 +16,221 @@
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
+			"use strict";
 
-            function addCrazyVisualsPlugin() {
+			function hexToRgbA(hex, a) {
+				hex = hex.replace('#', '');
 
-                // Source: https://stackoverflow.com/questions/21646738/convert-hex-to-rgba
-                function hexToRgbA(hex, a='1') {
-                    let c;
-                    if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
-                        c= hex.substring(1).split('');
-                        if(c.length== 3){
-                            c= [c[0], c[0], c[1], c[1], c[2], c[2]];
-                        }
-                        c= '0x'+c.join('');
-                        return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+',' + a +')';
-                    }
-                    throw new Error('Bad Hex');
-                }
+				if (hex.length == 3)
+					hex = hex.split('').map(c => c.repeat(2)).join('');
 
-                // Source: https://stackoverflow.com/questions/25837158/how-to-draw-a-star-by-using-canvas-html5
-                function drawStar(ctx, cx,cy,spikes=6,outerRadius=8,innerRadius=4){
+				let r = parseInt(hex.substring(0, 2), 16);
+				let g = parseInt(hex.substring(2, 4), 16);
+				let b = parseInt(hex.substring(4, 6), 16);
 
-                    outerRadius = outerRadius * devicePixelRatio;
-                    innerRadius = innerRadius * devicePixelRatio
+				return 'rgba('+r+','+g+','+b+','+a+')';
+			}
 
-                    var rot=Math.PI/2*3;
-                    var x=cx;
-                    var y=cy;
-                    var step=Math.PI/spikes;
+			// https://stackoverflow.com/questions/25837158/how-to-draw-a-star-by-using-canvas-html5
+			function drawStar(ctx, cx, cy, spikes = 6, outerRadius = 8, innerRadius = 4) {
+				outerRadius *= devicePixelRatio;
+				innerRadius *= devicePixelRatio;
 
-                    ctx.beginPath();
-                    ctx.moveTo(cx,cy-outerRadius)
-                    for(i=0;i<spikes;i++){
-                        x=cx+Math.cos(rot)*outerRadius;
-                        y=cy+Math.sin(rot)*outerRadius;
-                        ctx.lineTo(x,y)
-                        rot+=step
+				let rot = Math.PI / 2 * 3;
+				let x = cx;
+				let y = cy;
+				let step = Math.PI / spikes;
 
-                        x=cx+Math.cos(rot)*innerRadius;
-                        y=cy+Math.sin(rot)*innerRadius;
-                        ctx.lineTo(x,y)
-                        rot+=step
-                    }
-                    ctx.lineTo(cx,cy-outerRadius);
-                    ctx.closePath();
-                }
+				ctx.beginPath();
+				ctx.moveTo(cx, cy - outerRadius);
 
-                let medians = [];
+				for (let i = 0; i < spikes; i++) {
+					x = cx + Math.cos(rot) * outerRadius;
+					y = cy + Math.sin(rot) * outerRadius;
+					ctx.lineTo(x, y);
+					rot += step;
 
-                // https://www.jstips.co/en/javascript/array-average-and-median/
-                function calculateMedians(u)
-                {
-                    medians = u.data.map((data) => {
-                        data = [...data];
+					x = cx + Math.cos(rot) * innerRadius;
+					y = cy + Math.sin(rot) * innerRadius;
+					ctx.lineTo(x, y);
+					rot += step;
+				}
+
+				ctx.lineTo(cx, cy - outerRadius);
+				ctx.closePath();
+			}
+
+			function addCrazyVisualsPlugin() {
+				let medians;
+
+				// https://www.jstips.co/en/javascript/array-average-and-median/
+				function calculateMedians(u) {
+					medians = u.data.map(data => {
+						data = [...data];
                         data.sort((a, b) => a - b);
-                        return (data[(data.length - 1) >> 1] + data[data.length >> 1]) / 2
-                    });
-                }
+						return (data[(data.length - 1) >> 1] + data[data.length >> 1]) / 2
+					});
+				}
 
-                function drawBackgroundGradient(u)
-                {
-                    let {ctx} = u;
-                    let {width, height} = ctx.canvas;
+				function drawBackgroundGradient(u) {
+					let { ctx } = u;
+					let { width, height } = ctx.canvas;
 
-                    let gradient = u.ctx.createLinearGradient(0, 0, 0, height);
-                    gradient.addColorStop(0, "#666");
-                    gradient.addColorStop(1, "#000");
+					let gradient = u.ctx.createLinearGradient(0, 0, 0, height);
+					gradient.addColorStop(0, "#666");
+					gradient.addColorStop(1, "#000");
 
-                    ctx.save();
-                    ctx.fillStyle = gradient;
-                    ctx.fillRect(0,0,width,height);
-                    ctx.restore();
-                }
+					ctx.save();
+					ctx.fillStyle = gradient;
+					ctx.fillRect(0, 0, width, height);
+					ctx.restore();
+				}
 
-                function drawSeriesMedian(u, i)
-                {
-                    // https://github.com/leeoniya/uPlot/issues/77
-                    i -= 1;
+				function drawSeriesMedian(u, i) {
+					let { ctx } = u;
+					let { width, height } = ctx.canvas;
+					// why i-1: https://github.com/leeoniya/uPlot/issues/77
+					let { label, color, min: minVal, max: maxVal, scale } = u.series.y[i-1];
 
-                    let {ctx} = u;
-                    let {width, height} = ctx.canvas;
-                    let {label, color, min:minVal, max:maxVal, scale} = u.series.y[i];
+					let cy = u.valToPos(medians[i], scale) * devicePixelRatio;
 
-                    cy = u.valToPos(medians[i+1], scale) * devicePixelRatio;
+					ctx.save();
+					ctx.strokeStyle = hexToRgbA(color, 0.2);
+					ctx.lineWidth = 50 * devicePixelRatio;
+					ctx.filter = 'blur(6px)';
 
-                    ctx.save();
-                    ctx.strokeStyle = hexToRgbA(color, 0.2);
-                    ctx.lineWidth = 50 * devicePixelRatio;
-                    ctx.filter = 'blur(6px)';
+					ctx.beginPath();
+					ctx.moveTo(0, cy);
+					ctx.lineTo(ctx.canvas.width, cy);
+					ctx.closePath();
+					ctx.stroke();
+					ctx.restore();
+				}
 
-                    ctx.beginPath();
-                    ctx.moveTo(0, cy);
-                    ctx.lineTo(ctx.canvas.width, cy);
-                    ctx.closePath();
-                    ctx.stroke();
-                    ctx.restore();
-                }
+				function enableBlurBeforeGridRender(u) {
+					let {ctx} = u;
+					ctx.save();
+					ctx.filter = 'blur(2px)';
+				}
 
-                function logDrawGridAxis(u, a)
-                {
-                    // TODO - Think of something creative to do here
-                    let axis = u.axes[a];
-                    console.log("Draw Grid Axis", a, axis);
-                }
+				function disableBlurAfterGridRender(u, axis) {
+					let { ctx } = u;
+					// This is a bit buggy. There are some cases where the y axis will not be rendered
+					// Resulting in the the canvas to be rendered with the previously applied blur
+					if (axis == 'y')
+						ctx.restore();
+				}
 
-                function enableBlurBeforeGridRender(u)
-                {
-                    let {ctx} = u;
-                    ctx.save();
-                    ctx.filter = 'blur(2px)';
-                }
+				function drawPointsAsStars(u, i) {
+					let { ctx } = u;
+					// why i-1: https://github.com/leeoniya/uPlot/issues/77
+					let { label, color, scale } = u.series.y[i-1];
+					let yVals = u.data[i];
 
-                function disableBlurAfterGridRender(u, axis)
-                {
-                    let {ctx} = u;
-                    // This is a bit buggy. There are some cases where the y axis will not be rendered
-                    // Resulting in the the canvas to be rendered with the previously applied blur
-                    if (axis == 'y')
-                        ctx.restore();
-                }
+					ctx.save();
+					ctx.fillStyle = color;
+					yVals.forEach((val, i) => {
+						// Can add additional check if visible on Canvas before drawing
+						let cx = u.valToPos(u.data[0][i], 'x') * devicePixelRatio;
+						let cy = u.valToPos(val, scale) * devicePixelRatio;
+						drawStar(ctx, cx, cy);
+						ctx.fill();
+					});
 
-                function drawPointsAsStars(u, i)
-                {
-                    // https://github.com/leeoniya/uPlot/issues/77
-                    i -= 1;
+					ctx.restore();
+				}
 
-                    let {ctx} = u;
-                    let {label, color, scale} = u.series.y[i];
-                    let yVals = u.data[i+1];
+				let startRenderTime;
 
-                    ctx.save();
-                    ctx.fillStyle = color;
-                    yVals.forEach((val, i) => {
-                        // Can add additional check if visible on Canvas before drawing
-                        let cx = u.valToPos(u.data[0][i], 'x') * devicePixelRatio;
-                        let cy = u.valToPos(val, scale) * devicePixelRatio;
-                        drawStar(ctx, cx, cy);
-                        ctx.fill();
-                    });
+				function setStartRenderTime() {
+					startRenderTime = Date.now();
+				}
 
-                    ctx.restore();
-                }
+				function drawRenderStats(u) {
+					let { ctx } = u;
+					let text = "Time to Draw: " + (Date.now() - startRenderTime) + "ms";
 
-                let startRenderTime = null;
+					ctx.save();
+					ctx.font = '12px Arial';
+					ctx.fillStyle = 'white';
+					ctx.fillText(text, 6, 18);
+					ctx.restore();
+				}
 
-                function setStartRenderTime()
-                {
-                    startRenderTime = Date.now();
-                }
-
-                function drawRenderStats(u)
-                {
-                    let {ctx} = u;
-                    let {width:canWidth} = ctx.canvas;
-                    let text = "Time to Draw: " + (Date.now() - startRenderTime) + "ms";
-
-                    ctx.save();
-                    ctx.font = '12px Arial';
-                    ctx.fillStyle = 'white';
-                    ctx.fillText(text, 6, 18);
-                    ctx.restore();
-                }
-
-                return {
-                    setData: [
-                        calculateMedians
-                    ],
-                    drawClear: [
-                        setStartRenderTime,
-                        drawBackgroundGradient,
-                        enableBlurBeforeGridRender
-                    ],
-                    drawGrid: [
-                        disableBlurAfterGridRender
-                    ],
-                    drawSeries: [
-                        drawSeriesMedian,
-                        drawPointsAsStars
-                    ],
-                    draw: [
-                        drawRenderStats
-                    ]
-                }
-            }
+				return {
+					setData: [
+						calculateMedians
+					],
+					drawClear: [
+						setStartRenderTime,
+						drawBackgroundGradient,
+						enableBlurBeforeGridRender
+					],
+					drawGrid: [
+						disableBlurAfterGridRender
+					],
+					drawSeries: [
+						drawSeriesMedian,
+						drawPointsAsStars
+					],
+					draw: [
+						drawRenderStats
+					]
+				}
+			}
 
 			function makeChart() {
 
-                const data = [
+				const data = [
 					[ 1, 2, 3, 4, 5, 6, 7, 9,10],
-                    [40,43,60,65,71,73,40,22,20],
-                    [30,23,35,27,11,13,30,32,30],
-                    [15,13,39,17,21,53,10,11,13],
-                ];
+					[40,43,60,65,71,73,40,22,20],
+					[30,23,35,27,11,13,30,32,30],
+					[15,13,39,17,21,53,10,11,13],
+				];
 
-                let opts =
-                {
+				const grid = {
+					show: true,
+					color: '#000',
+					width: 1,
+				};
+
+				let opts ={
 					width: 600,
-                    height: 400,
-                    axes: {
-                        y: [
-                            {grid:{show:true, color:'#000', width:1}},
-                        ],
-                        x: [
-                            {grid:{show:true, color:'#000', width:1}}
-                        ]
-                    },
-                    scales: {
-                        x: {
-							time: false,
-						},
-                    },
-                    plugins: [
-                        addCrazyVisualsPlugin(),
-                    ],
-                    series: {
-                        y: [
-                            {
-                                label: "blah",
-                                color: "#ff3333",
-                            },
-                            {
-                                label: "yerp",
-                                color: "#33ccff",
-                            },
-                            {
-                                label: "zort",
-                                color: "#ffcc33",
-                            }
-                        ]
+					height: 400,
+					axes: {
+						y: [{grid}],
+						x: [{grid}],
+					},
+					scales: {
+						x: {time: false},
+					},
+					plugins: [
+						addCrazyVisualsPlugin(),
+					],
+					series: {
+						y: [
+							{
+								label: "blah",
+								color: "#ff3333",
+							},
+							{
+								label: "yerp",
+								color: "#33ccff",
+							},
+							{
+								label: "zort",
+								color: "#ffcc33",
+							}
+						]
 					}
 				};
 
 				let u = new uPlot.Line(opts, data);
+
 				document.body.appendChild(u.root);
 			}
 
 			makeChart();
-        </script>
-
+		</script>
 	</body>
 </html>
