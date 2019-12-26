@@ -106,9 +106,6 @@ function splitXY(d) {
 }
 
 function getYPos(val, scale, hgt) {
-	if (val == null)
-		return val;
-
 	let pctY = (val - scale.min) / (scale.max - scale.min);
 	return (1 - pctY) * hgt;
 }
@@ -602,7 +599,7 @@ export function Line(opts, data) {
 			if (dir == -1 && i == _i1)
 				path.lineTo(x, y);
 
-			if (y == null)
+			if (ydata[i] == null)
 				gap = true;
 			else {
 				if ((dir == 1 ? x - prevX : prevX - x) >= width) {
