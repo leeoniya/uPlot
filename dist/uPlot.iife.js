@@ -1176,7 +1176,7 @@ var uPlot = (function (exports) {
 			});
 
 			for (var k$3 in changed)
-				{ fire("setScale", k$3, scales[k$3]); }
+				{ fire("setScale", k$3); }
 
 			cursor.show && updateCursor();
 		}

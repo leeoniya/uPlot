@@ -524,7 +524,7 @@ export function Line(opts, data) {
 		});
 
 		for (let k in changed)
-			fire("setScale", k, scales[k]);
+			fire("setScale", k);
 
 		cursor.show && updateCursor();
 	}
