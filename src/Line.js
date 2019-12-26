@@ -307,7 +307,7 @@ export function Line(opts, data) {
 
 		// this can occur if all series specify non-default scales
 		if (sc == null) {
-			axis.scale = isVt ? series[1].scale : series[0].scale;
+			axis.scale = isVt ? series[1].scale : xScaleKey;
 			sc = scales[axis.scale];
 		}
 
@@ -425,7 +425,10 @@ export function Line(opts, data) {
 			let sc = scales[k];
 			let psc = pendScales[k];
 
-			minMaxes[k] = {min: sc.min, max: sc.max};
+			minMaxes[k] = {
+				min: sc.min,
+				max: sc.max
+			};
 
 			if (psc != null) {
 				assign(sc, psc);

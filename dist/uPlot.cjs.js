@@ -633,7 +633,7 @@ function timeSeriesVal(tzDate) {
 
 var xAxisOpts = {
 	show: true,
-	scale: 'x',
+	scale: "x",
 	space: 50,
 	size: 53,
 	side: 2,
@@ -680,7 +680,7 @@ function numSeriesVal(self, val) {
 
 var yAxisOpts = {
 	show: true,
-	scale: 'y',
+	scale: "y",
 	space: 40,
 	size: 50,
 	side: 3,
@@ -956,7 +956,7 @@ function Line(opts, data) {
 
 		// this can occur if all series specify non-default scales
 		if (sc == null) {
-			axis.scale = isVt ? series[1].scale : series[0].scale;
+			axis.scale = isVt ? series[1].scale : xScaleKey;
 			sc = scales[axis.scale];
 		}
 
@@ -1076,7 +1076,10 @@ function Line(opts, data) {
 			var sc = scales[k];
 			var psc = pendScales[k];
 
-			minMaxes[k] = {min: sc.min, max: sc.max};
+			minMaxes[k] = {
+				min: sc.min,
+				max: sc.max
+			};
 
 			if (psc != null) {
 				assign(sc, psc);

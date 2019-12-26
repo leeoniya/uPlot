@@ -634,7 +634,7 @@ var uPlot = (function (exports) {
 
 	var xAxisOpts = {
 		show: true,
-		scale: 'x',
+		scale: "x",
 		space: 50,
 		size: 53,
 		side: 2,
@@ -681,7 +681,7 @@ var uPlot = (function (exports) {
 
 	var yAxisOpts = {
 		show: true,
-		scale: 'y',
+		scale: "y",
 		space: 40,
 		size: 50,
 		side: 3,
@@ -957,7 +957,7 @@ var uPlot = (function (exports) {
 
 			// this can occur if all series specify non-default scales
 			if (sc == null) {
-				axis.scale = isVt ? series[1].scale : series[0].scale;
+				axis.scale = isVt ? series[1].scale : xScaleKey;
 				sc = scales[axis.scale];
 			}
 
@@ -1077,7 +1077,10 @@ var uPlot = (function (exports) {
 				var sc = scales[k];
 				var psc = pendScales[k];
 
-				minMaxes[k] = {min: sc.min, max: sc.max};
+				minMaxes[k] = {
+					min: sc.min,
+					max: sc.max
+				};
 
 				if (psc != null) {
 					assign(sc, psc);

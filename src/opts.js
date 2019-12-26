@@ -239,7 +239,7 @@ export function timeSeriesVal(tzDate) {
 
 export const xAxisOpts = {
 	show: true,
-	scale: 'x',
+	scale: "x",
 	space: 50,
 	size: 53,
 	side: 2,
@@ -286,7 +286,7 @@ export function numSeriesVal(self, val) {
 
 export const yAxisOpts = {
 	show: true,
-	scale: 'y',
+	scale: "y",
 	space: 40,
 	size: 50,
 	side: 3,
