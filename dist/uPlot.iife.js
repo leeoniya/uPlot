@@ -789,7 +789,7 @@ var uPlot = (function (exports) {
 		}
 	}
 
-	function gridLabel(el, par, val, side, pxVal) {
+	function axisValue(el, par, val, side, pxVal) {
 		var div = el || placeDiv(null, par);
 		div.textContent = val;
 		setStylePx(div, side, pxVal);
@@ -1298,10 +1298,6 @@ var uPlot = (function (exports) {
 				if (!axis.show)
 					{ return; }
 
-				var ori = i == 0 ? 0 : 1;
-				var dim = ori == 0 ? WIDTH : HEIGHT;
-				var canDim = ori == 0 ? canCssWidth : canCssHeight;
-				var xDim = ori == 0 ? HEIGHT : WIDTH;
 				var scale = scales[axis.scale];
 
 				// this will happen if all series using a specific scale are toggled off
@@ -1311,6 +1307,10 @@ var uPlot = (function (exports) {
 				}
 
 				remClass(axis.root, "off");
+
+				var ori = axis.side % 2;
+				var dim = ori == 0 ? WIDTH : HEIGHT;
+				var canDim = ori == 0 ? canCssWidth : canCssHeight;
 
 				var ch = axis.vals[firstChild];
 
@@ -1337,7 +1337,7 @@ var uPlot = (function (exports) {
 				var labels = axis.values(self, scale.type == 2 ? ticks.map(function (i) { return data0[i]; }) : ticks, space);		// BOO this assumes a specific data/series
 
 				canOffs.forEach(function (off, i) {
-					ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
+					ch = axisValue(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
 				});
 
 				ch && clearFrom(ch);
@@ -1359,12 +1359,12 @@ var uPlot = (function (exports) {
 
 						if (ori == 0) {
 							my = 0;
-							ly = can[xDim];
+							ly = can[HEIGHT];
 							mx = lx = off;
 						}
 						else {
 							mx = 0;
-							lx = can[xDim];
+							lx = can[WIDTH];
 							my = ly = off;
 						}
 
@@ -1375,9 +1375,10 @@ var uPlot = (function (exports) {
 					ctx.stroke();
 
 					ctx.translate(-offset, -offset);
-					fire("drawGrid", axis.scale);
 				}
 			});
+
+			fire("drawGrid");
 		}
 
 		function resetYSeries() {

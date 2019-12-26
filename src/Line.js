@@ -140,7 +140,7 @@ function findIncr(valDelta, incrs, dim, minSpace) {
 	}
 }
 
-function gridLabel(el, par, val, side, pxVal) {
+function axisValue(el, par, val, side, pxVal) {
 	let div = el || placeDiv(null, par);
 	div.textContent = val;
 	setStylePx(div, side, pxVal);
@@ -646,10 +646,6 @@ export function Line(opts, data) {
 			if (!axis.show)
 				return;
 
-			let ori = i == 0 ? 0 : 1;
-			let dim = ori == 0 ? WIDTH : HEIGHT;
-			let canDim = ori == 0 ? canCssWidth : canCssHeight;
-			let xDim = ori == 0 ? HEIGHT : WIDTH;
 			let scale = scales[axis.scale];
 
 			// this will happen if all series using a specific scale are toggled off
@@ -659,6 +655,10 @@ export function Line(opts, data) {
 			}
 
 			remClass(axis.root, "off");
+
+			let ori = axis.side % 2;
+			let dim = ori == 0 ? WIDTH : HEIGHT;
+			let canDim = ori == 0 ? canCssWidth : canCssHeight;
 
 			let ch = axis.vals[firstChild];
 
@@ -682,7 +682,7 @@ export function Line(opts, data) {
 			let labels = axis.values(self, scale.type == 2 ? ticks.map(i => data0[i]) : ticks, space);		// BOO this assumes a specific data/series
 
 			canOffs.forEach((off, i) => {
-				ch = gridLabel(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
+				ch = axisValue(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
 			});
 
 			ch && clearFrom(ch);
@@ -704,12 +704,12 @@ export function Line(opts, data) {
 
 					if (ori == 0) {
 						my = 0;
-						ly = can[xDim];
+						ly = can[HEIGHT];
 						mx = lx = off;
 					}
 					else {
 						mx = 0;
-						lx = can[xDim];
+						lx = can[WIDTH];
 						my = ly = off;
 					}
 
@@ -720,9 +720,10 @@ export function Line(opts, data) {
 				ctx.stroke();
 
 				ctx.translate(-offset, -offset);
-				fire("drawGrid", axis.scale);
 			}
 		});
+
+		fire("drawGrid");
 	}
 
 	function resetYSeries() {
