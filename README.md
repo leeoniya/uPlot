@@ -51,7 +51,7 @@ In order to stay lean, fast and focused the following features will not be added
 - [Data Format](#data-format)
 - [Basics](#basics)
 - [High/Low Bands](#highlow-bands)
-- [Scales, Axes, Grid](#scales-axes-grid)
+- [Series, Scales, Axes, Grid](#series-scales-axes-grid)
 - [Multiple Scales & Axes](#multiple-scales--axes)
 - [Scale Opts](#scale-opts)
 - [Axis & Grid Opts](#axis--grid-opts)
@@ -165,15 +165,42 @@ const opts = {
 ```
 
 ---
-#### Scales, Axes, Grid
+#### Series, Scales, Axes, Grid
 
 uPlot's API strives for brevity, uniformity and logical consistency.
-Understanding the roles and processing order of `data`, `series`, `scales`, and `axes` will help with the remaining topics. The high-level rendering flow is this:
+Understanding the roles and processing order of `data`, `series`, `scales`, and `axes` will help with the remaining topics.
+The high-level rendering flow is this:
 
 1. `data` is the first input into the system.
 0. `series` holds the config of each dataset, such as visibility, styling, labels & value display in the legend, and the `scale` key along which they should be drawn. Implicit scale keys are `x` for the `data[0]` series and `y` for `data[1..N]`.
 0. `scales` reflect the min/max ranges visible within the view. All view range adjustments such as zooming and pagination are done here. If not explicitly set via opts, `scales` are automatically initialized using the `series` config and auto-ranged using the provided `data`.
 0. `axes` render the ticks, values, labels and grid along their `scale`. Tick & grid spacing, value granularity & formatting, timezone & DST handling is done here.
+
+You may have noticed in the previous examples that `series` and `axes` arrays begin with `{}`.
+This represents options/overrides for the `x` series and axis.
+They are required due to the way uPlot sets defaults:
+
+- `data[0]`, `series[0]` and `axes[0]` represent & inherit `x` defaults, e.g:
+
+  - `"x"` scale w/ `auto: false`
+  - temporal
+  - hz orientation, bottom position
+  - larger minimum tick spacing
+
+- `data[1..N]`, `series[1..N]` and `axes[1..N]` represent & inherit `y` defaults, e.g:
+
+  - `"y"` scale w/ `auto: true`
+  - numeric
+  - vt orientation, left position
+  - smaller minimum tick spacing
+
+While somewhat unusual, keeping x & y opts in flat arrays [rather than splitting them] serves several purposes:
+
+- API & structural uniformity. e.g. `series[i]` maps to `data[i]`
+- Hooks recieve an unambiguous `i` into the arrays without needing futher context
+- Internals don't need added complexity to conceal the fact that everything is merged & DRY
+
+More thoughts in [#76](https://github.com/leeoniya/uPlot/pull/76) & [#77](https://github.com/leeoniya/uPlot/issues/77).
 
 ---
 #### Multiple Scales & Axes
