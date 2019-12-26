@@ -68,6 +68,7 @@ import {
 	ySeriesOpts,
 
 	timeIncrs,
+	intIncrs,
 	numIncrs,
 	timeAxisVals,
 	numAxisVals,
@@ -308,8 +309,8 @@ export function Line(opts, data) {
 		let isTime = axis.time;
 
 		axis.space = fnOrSelf(axis.space);
-		axis.incrs = fnOrSelf(axis.incrs || (isTime && sc.type == 1 ? timeIncrs      : numIncrs));
-		axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.type == 1 ? _timeAxisTicks : numAxisTicks));
+		axis.incrs = fnOrSelf(axis.incrs || (sc.type == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
+		axis.ticks = fnOrSelf(axis.ticks || (sc.type == 1 && isTime ? _timeAxisTicks : numAxisTicks));
 		let av = axis.values;
 		axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
 	});

@@ -431,7 +431,7 @@ var s = 1,
 	mo = d * 30,
 	y = d * 365;
 
-var dec = [
+var decIncrs = [
 	0.001,
 	0.002,
 	0.005,
@@ -442,7 +442,7 @@ var dec = [
 	0.200,
 	0.500 ];
 
-var timeIncrs = dec.concat([
+var timeIncrs = decIncrs.concat([
 	// minute divisors (# of secs)
 	1,
 	5,
@@ -657,7 +657,9 @@ var xSeriesOpts = {
 	max: -inf,
 };
 
-var numIncrs = dec.concat([1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9]);
+var intIncrs = [1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9];
+
+var numIncrs = decIncrs.concat(intIncrs);
 
 function numAxisVals(self, ticks, space) {
 	return ticks;
@@ -957,8 +959,8 @@ function Line(opts, data) {
 		var isTime = axis.time;
 
 		axis.space = fnOrSelf(axis.space);
-		axis.incrs = fnOrSelf(axis.incrs || (isTime && sc.type == 1 ? timeIncrs      : numIncrs));
-		axis.ticks = fnOrSelf(axis.ticks || (isTime && sc.type == 1 ? _timeAxisTicks : numAxisTicks));
+		axis.incrs = fnOrSelf(axis.incrs || (sc.type == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
+		axis.ticks = fnOrSelf(axis.ticks || (sc.type == 1 && isTime ? _timeAxisTicks : numAxisTicks));
 		var av = axis.values;
 		axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
 	});
