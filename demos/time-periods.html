@@ -113,58 +113,55 @@
 				//	tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), 'Europe/London'),
 					width: 1920,
 					height: 200,
-					axes: {
-					//	x: {
+					axes: [
+						{
 					//		space: 100,
-					//	},
-						y: [
-							{
-								space: 20
+						},
+						{
+							space: 20
+						}
+					],
+					series: [
+						{},
+						{
+							label: "2019",
+							color: "rgba(5, 141, 199, 1)",
+							fill:  "rgba(5, 141, 199, 0.1)",
+							values: (u, idx) => {
+							//	let date = self.tzDate(data[0][idx]);
+								let date = new Date(data[0][idx] * 1e3);
+
+								return {
+									Time: longDateHourMin(date),
+									Users: data[1][idx],
+								};
 							}
-						]
-					},
-					series: {
-						y: [
-							{
-								label: "2019",
-								color: "rgba(5, 141, 199, 1)",
-								fill:  "rgba(5, 141, 199, 0.1)",
-								values: (u, idx) => {
-								//	let date = self.tzDate(data[0][idx]);
-									let date = new Date(data[0][idx] * 1e3);
+						},
+						{
+							label: "2018",
+							color: "rgba(237, 126, 23, 1)",
+							values: (u, idx) => {
+								let date = new Date(ts18[idx] * 1e3);
 
-									return {
-										Time: longDateHourMin(date),
-										Users: data[1][idx],
-									};
-								}
-							},
-							{
-								label: "2018",
-								color: "rgba(237, 126, 23, 1)",
-								values: (u, idx) => {
-									let date = new Date(ts18[idx] * 1e3);
+								return {
+									Time: longDateHourMin(date),
+									Users: data[2][idx],
+								};
+							}
+						},
+						{
+							label: "2017",
+							color: "rgba(255, 0, 0, 1)",
+							values: (u, idx) => {
+								let date = new Date(ts17[idx] * 1e3);
 
-									return {
-										Time: longDateHourMin(date),
-										Users: data[2][idx],
-									};
-								}
-							},
-							{
-								label: "2017",
-								color: "rgba(255, 0, 0, 1)",
-								values: (u, idx) => {
-									let date = new Date(ts17[idx] * 1e3);
-
-									return {
-										Time: longDateHourMin(date),
-										Users: data[3][idx],
-									};
-								}
-							},
-						],
-					},
+								return {
+									Time: longDateHourMin(date),
+									Users: data[3][idx],
+								};
+							}
+						},
+					],
 				}, data);
 
 				document.body.appendChild(u.root);
@@ -186,44 +183,42 @@
 					title: "Jan vs Feb 2019",
 					width: 1920,
 					height: 200,
-					axes: {
-						y: [
-							{
-								space: 20
+					axes: [
+						{},
+						{
+							space: 20
+						}
+					],
+					series: [
+						{},
+						{
+							label: "Jan 2019",
+							color: "rgba(5, 141, 199, 1)",
+							fill:  "rgba(5, 141, 199, 0.1)",
+							values: (u, idx) => {
+							//	let date = self.tzDate(data[0][idx]);
+								let date = new Date(tsJan[idx] * 1e3);
+
+								return {
+									Time: longDateHourMin(date),
+									Users: data1[1][idx],
+								};
 							}
-						]
-					},
-					series: {
-						y: [
-							{
-								label: "Jan 2019",
-								color: "rgba(5, 141, 199, 1)",
-								fill:  "rgba(5, 141, 199, 0.1)",
-								values: (u, idx) => {
-								//	let date = self.tzDate(data[0][idx]);
-									let date = new Date(tsJan[idx] * 1e3);
+						},
+						{
+							label: "Feb 2019",
+							color: "rgba(237, 126, 23, 1)",
+							values: (u, idx) => {
+								let ts = tsFeb[idx];
+								let date = ts > 0 ? new Date(ts * 1e3) : null;
 
-									return {
-										Time: longDateHourMin(date),
-										Users: data1[1][idx],
-									};
-								}
-							},
-							{
-								label: "Feb 2019",
-								color: "rgba(237, 126, 23, 1)",
-								values: (u, idx) => {
-									let ts = tsFeb[idx];
-									let date = ts > 0 ? new Date(ts * 1e3) : null;
-
-									return {
-										Time: date ? longDateHourMin(date) : null,
-										Users: date ? data1[2][idx] : null,
-									};
-								}
-							},
-						],
-					},
+								return {
+									Time: date ? longDateHourMin(date) : null,
+									Users: date ? data1[2][idx] : null,
+								};
+							}
+						},
+					],
 				}, data1);
 
 				document.body.appendChild(u1.root);
@@ -237,33 +232,30 @@
 				//	tz: 'Etc/UTC',
 					width: 1920,
 					height: 200,
-					axes: {
-						x: {
+					axes: [
+						{
 							space: 100,
 						},
-						y: [
-							{
-								space: 20
-							}
-						]
-					},
-					series: {
-						y: [
-							{
-								label: "2019",
-								color: "rgba(5, 141, 199, 1)",
-								fill:  "rgba(5, 141, 199, 0.1)",
-							},
-							{
-								label: "2018",
-								color: "rgba(237, 126, 23, 1)",
-							},
-							{
-								label: "2017",
-								color: "rgba(255, 0, 0, 1)",
-							},
-						],
-					},
+						{
+							space: 20
+						}
+					],
+					series: [
+						{},
+						{
+							label: "2019",
+							color: "rgba(5, 141, 199, 1)",
+							fill:  "rgba(5, 141, 199, 0.1)",
+						},
+						{
+							label: "2018",
+							color: "rgba(237, 126, 23, 1)",
+						},
+						{
+							label: "2017",
+							color: "rgba(255, 0, 0, 1)",
+						},
+					],
 				}, aggDays(data));
 
 				document.body.appendChild(u2.root);

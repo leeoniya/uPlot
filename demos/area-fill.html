@@ -35,22 +35,21 @@
 						time: false,
 					},
 				},
-				series: {
-					y: [
-						{
-							color: "red",
-							fill: "rgba(255,0,0,0.1)",
-						},
-						{
-							color: "green",
-							fill: "rgba(0,255,0,0.1)",
-						},
-						{
-							color: "blue",
-							fill: "rgba(0,0,255,0.1)",
-						},
-					],
-				},
+				series: [
+					{},
+					{
+						color: "red",
+						fill: "rgba(255,0,0,0.1)",
+					},
+					{
+						color: "green",
+						fill: "rgba(0,255,0,0.1)",
+					},
+					{
+						color: "blue",
+						fill: "rgba(0,0,255,0.1)",
+					},
+				],
 			};
 
 			let u = new uPlot.Line(opts, data);

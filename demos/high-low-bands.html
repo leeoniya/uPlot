@@ -7,11 +7,6 @@
 
 		<link rel="stylesheet" href="../bench/style.css">
 		<link rel="stylesheet" href="../src/uPlot.css">
-		<style>
-			.uplot {
-				margin-top: 40px;
-			}
-		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
@@ -47,37 +42,35 @@
 						type: 2,
 					}
 				},
-				series: {
-					y: [
-						{
-							label: "Low",
-							color: "green",
-							fill: "rgba(0, 255, 0, .2)",
-							value: (u, v) => fmtUSD(v, 2),
-							band: true,
-						},
-						{
-							label: "High",
-							color: "green",
-							fill: "rgba(0, 255, 0, .2)",
-							value: (u, v) => fmtUSD(v, 2),
-							band: true,
-						},
-						{
-							label: "Close",
-							color: "green",
-							width: 2,
-							value: (u, v) => fmtUSD(v, 2),
-						},
-					],
-				},
-				axes: {
-					y: [
-						{
-							values: (u, vals) => vals.map(v => fmtUSD(v, 0))
-						}
-					]
-				}
+				series: [
+					{},
+					{
+						label: "Low",
+						color: "green",
+						fill: "rgba(0, 255, 0, .2)",
+						value: (u, v) => fmtUSD(v, 2),
+						band: true,
+					},
+					{
+						label: "High",
+						color: "green",
+						fill: "rgba(0, 255, 0, .2)",
+						value: (u, v) => fmtUSD(v, 2),
+						band: true,
+					},
+					{
+						label: "Close",
+						color: "green",
+						width: 2,
+						value: (u, v) => fmtUSD(v, 2),
+					},
+				],
+				axes: [
+					{},
+					{
+						values: (u, vals) => vals.map(v => fmtUSD(v, 0))
+					}
+				]
 			};
 
 			let u = new uPlot.Line(opts, data);

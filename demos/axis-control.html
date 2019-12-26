@@ -45,35 +45,31 @@
 						range: [-1.5, 1.5],
 					},
 				},
-				series: {
-					x: {
+				series: [
+					{
 						label: "x",
 					},
-					y: [
-						{
-							label: "sin(x)",
-							color: "red",
-						}
-					],
-				},
-				axes: {
-					x: {
+					{
+						label: "sin(x)",
+						color: "red",
+					}
+				],
+				axes: [
+					{
 						size: 30,
 						label: "X Axis Label",
 						labelSize: 20,
 					},
-					y: [
-						{
-							space: 50,
-							size: 40,
-							side: 1,
-							label: "Y Axis Label",
-							labelSize: 20,
-							color: "red",
-							class: "foo",
-						}
-					],
-				 }
+					{
+						space: 50,
+						size: 40,
+						side: 1,
+						label: "Y Axis Label",
+						labelSize: 20,
+						color: "red",
+						class: "foo",
+					}
+				],
 			};
 
 			let u = new uPlot.Line(opts, data);

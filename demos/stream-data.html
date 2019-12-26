@@ -72,42 +72,40 @@
 				const opts = {
 					width: 1600,
 					height: 600,
-					series: {
-						y: [
-							{
-								label: "CPU",
-								scale: "%",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "red",
-							},
-							{
-								label: "RAM",
-								scale: "%",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "blue",
-							},
-							{
-								label: "TCP Out",
-								scale: "mb",
-								value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
-								color: "green",
-							}
-						],
-					},
-					axes: {
-						y: [
-							{
-								scale: '%',
-								values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
-							},
-							{
-								side: 1,
-								scale: 'mb',
-								values: (u, vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
-								grid: {show: false},
-							},
-						],
-					}
+					series: [
+						{},
+						{
+							label: "CPU",
+							scale: "%",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "red",
+						},
+						{
+							label: "RAM",
+							scale: "%",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "blue",
+						},
+						{
+							label: "TCP Out",
+							scale: "mb",
+							value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
+							color: "green",
+						}
+					],
+					axes: [
+						{},
+						{
+							scale: '%',
+							values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+						},
+						{
+							side: 1,
+							scale: 'mb',
+							values: (u, vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
+							grid: {show: false},
+						},
+					]
 				};
 
 				let start1 = 0;
@@ -128,42 +126,40 @@
 				const opts2 = {
 					width: 1600,
 					height: 600,
-					series: {
-						y: [
-							{
-								label: "CPU",
-								scale: "%",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "red",
-							},
-							{
-								label: "RAM",
-								scale: "%",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "blue",
-							},
-							{
-								label: "TCP Out",
-								scale: "mb",
-								value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
-								color: "green",
-							}
-						],
-					},
-					axes: {
-						y: [
-							{
-								scale: '%',
-								values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
-							},
-							{
-								side: 1,
-								scale: 'mb',
-								values: (u, vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
-								grid: {show: false},
-							},
-						],
-					}
+					series: [
+						{},
+						{
+							label: "CPU",
+							scale: "%",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "red",
+						},
+						{
+							label: "RAM",
+							scale: "%",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "blue",
+						},
+						{
+							label: "TCP Out",
+							scale: "mb",
+							value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
+							color: "green",
+						}
+					],
+					axes: [
+						{},
+						{
+							scale: '%',
+							values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+						},
+						{
+							side: 1,
+							scale: 'mb',
+							values: (u, vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
+							grid: {show: false},
+						},
+					],
 				};
 
 				let start2 = 0;
@@ -198,42 +194,40 @@
 							range: (min, max) => [0, 60],
 						},*/
 					},
-					series: {
-						y: [
-							{
-								label: "CPU",
-								scale: "%",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "red",
-							},
-							{
-								label: "RAM",
-								scale: "%",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "blue",
-							},
-							{
-								label: "TCP Out",
-								scale: "mb",
-								value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
-								color: "green",
-							}
-						],
-					},
-					axes: {
-						y: [
-							{
-								scale: '%',
-								values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
-							},
-							{
-								side: 1,
-								scale: 'mb',
-								values: (u, vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
-								grid: {show: false},
-							},
-						],
-					}
+					series: [
+						{},
+						{
+							label: "CPU",
+							scale: "%",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "red",
+						},
+						{
+							label: "RAM",
+							scale: "%",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "blue",
+						},
+						{
+							label: "TCP Out",
+							scale: "mb",
+							value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
+							color: "green",
+						}
+					],
+					axes: [
+						{},
+						{
+							scale: '%',
+							values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+						},
+						{
+							side: 1,
+							scale: 'mb',
+							values: (u, vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
+							grid: {show: false},
+						},
+					],
 				};
 
 				let start3 = 0;

@@ -25,7 +25,9 @@
 							ttc.style.background = "rgba(0,0,255,0.1)";
 							plot.appendChild(ttc);
 
-							u.seriestt = opts.series.y.map(s => {
+							u.seriestt = opts.series.map((s, i) => {
+								if (i == 0) return;
+
 								let tt = document.createElement("div");
 								tt.className = "tooltip";
 								tt.textContent = "Tooltip!";
@@ -40,7 +42,9 @@
 
 							function hideTips() {
 								ttc.style.display = "none";
-								u.seriestt.forEach(tt => {
+								u.seriestt.forEach((tt, i) => {
+									if (i == 0) return;
+
 									tt.style.display = "none";
 								});
 							}
@@ -48,7 +52,9 @@
 							function showTips() {
 								ttc.style.display = null;
 								u.seriestt.forEach((tt, i) => {
-									let s = u.series.y[i];
+									if (i == 0) return;
+
+									let s = u.series[i];
 									tt.style.display = s.show ? null : "none";
 								});
 							}
@@ -82,7 +88,9 @@
 
 							// can optimize further by not applying styles if idx did not change
 							u.seriestt.forEach((tt, i) => {
-								let s = u.series.y[i];
+								if (i == 0) return;
+
+								let s = u.series[i];
 
 								if (s.show) {
 									// this is here to handle if initial cursor position is set
@@ -90,8 +98,8 @@
 								//	if (left > 0)
 								//		tt.style.display = null;
 
-									let xVal = u.data[  0][idx];
-									let yVal = u.data[i+1][idx];
+									let xVal = u.data[0][idx];
+									let yVal = u.data[i][idx];
 
 									tt.textContent = "(" + xVal + ", " + yVal + ")";
 
@@ -102,13 +110,13 @@
 						}
 					],
 					setScale: [
-						(u, key, opts) => {
-							console.log('setScale', key, opts);
+						(u, key) => {
+							console.log('setScale', key);
 						}
 					],
 					setSeries: [
-						(u, idx, opts) => {
-							console.log('setSeries', idx, opts);
+						(u, idx) => {
+							console.log('setSeries', idx);
 						}
 					],
 				};
@@ -133,19 +141,18 @@
 							time: false,
 						}
 					},
-					series: {
-						y: [
-							{
-								label: "One",
-								color: "red",
-							},
-							{
-								label: "Two",
-								color: "blue",
-								show: false,
-							},
-						]
-					},
+					series: [
+						{},
+						{
+							label: "One",
+							color: "red",
+						},
+						{
+							label: "Two",
+							color: "blue",
+							show: false,
+						},
+					]
 				};
 
 				const data = [

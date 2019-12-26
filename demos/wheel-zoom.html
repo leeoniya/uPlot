@@ -40,12 +40,12 @@
 								let nyMax = nyMin + nyRange;
 
 								u.batch(() => {
-									u.setScale('x', {
+									u.setScale("x", {
 										min: nxMin,
 										max: nxMax,
 									});
 
-									u.setScale('y', {
+									u.setScale("y", {
 										min: nyMin,
 										max: nyMax,
 									});
@@ -74,18 +74,17 @@
 					//		auto: false,
 					//	}
 					},
-					series: {
-						y: [
-							{
-								label: "One",
-								color: "red",
-							},
-							{
-								label: "Two",
-								color: "blue",
-							},
-						]
-					},
+					series: [
+						{},
+						{
+							label: "One",
+							color: "red",
+						},
+						{
+							label: "Two",
+							color: "blue",
+						},
+					]
 				};
 
 				const data = [

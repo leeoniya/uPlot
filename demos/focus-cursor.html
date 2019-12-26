@@ -7,11 +7,6 @@
 
 		<link rel="stylesheet" href="../bench/style.css">
 		<link rel="stylesheet" href="../src/uPlot.css">
-		<style>
-			.uplot {
-				margin-top: 40px;
-			}
-		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
@@ -38,9 +33,9 @@
 			}
 
 			const opts = {
+				title: "Cursor Focus",
 				width: 1920,
 				height: 600,
-				title: "sin(x), cos(x), log(x)",
 				cursor: {
 					focus: {
 						alpha: 0.3,
@@ -56,28 +51,26 @@
 						range: [-2, 2]
 					}
 				},
-				series: {
-					x: {
+				series: [
+					{
 						label: "x",
 					},
-					y: [
-						{
-							label: "sin(x)",
-							color: "red",
-							fill: "rgba(255,0,0,0.1)",
-						},
-						{
-							label: "cos(x)",
-							color: "blue",
-							fill: "rgba(0,0,255,0.1)",
-						},
-						{
-							label: "log(x)",
-							color: "green",
-							fill: "rgba(0,255,0,0.1)",
-						}
-					],
-				},
+					{
+						label: "sin(x)",
+						color: "red",
+						fill: "rgba(255,0,0,0.1)",
+					},
+					{
+						label: "cos(x)",
+						color: "blue",
+						fill: "rgba(0,0,255,0.1)",
+					},
+					{
+						label: "log(x)",
+						color: "green",
+						fill: "rgba(0,255,0,0.1)",
+					}
+				],
 			};
 
 			let u = new uPlot.Line(opts, data);

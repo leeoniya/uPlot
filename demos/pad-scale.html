@@ -7,11 +7,6 @@
 
 		<link rel="stylesheet" href="../bench/style.css">
 		<link rel="stylesheet" href="../src/uPlot.css">
-		<style>
-			.uplot .plot {
-				outline: none;
-			}
-		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
@@ -37,7 +32,7 @@
 									// series line width is in canvas units
 									let hgt = u.root.querySelector("canvas").height;
 									let unitsPerPx = (max - min) / hgt;
-									let lnWidth = u.series.y[0].width;
+									let lnWidth = u.series[1].width;
 
 									// half line width
 									let pad = unitsPerPx * lnWidth/2;
@@ -54,16 +49,15 @@
 							},
 						}
 					},
-					series: {
-						y: [
-							{
-								label: "One",
-								width: 4,
-								color: "rgb(0, 188, 212)",
-								fill: "rgba(0, 188, 212, 0.1)",
-							},
-						]
-					},
+					series: [
+						{},
+						{
+							label: "One",
+							width: 4,
+							color: "rgb(0, 188, 212)",
+							fill: "rgba(0, 188, 212, 0.1)",
+						},
+					]
 				};
 
 				const data = [

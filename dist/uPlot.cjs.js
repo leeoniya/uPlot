@@ -743,14 +743,7 @@ function _sync(opts) {
 }
 
 function setDefaults(d, xo, yo) {
-	return [].concat(d.x, d.y).map(function (o, i) { return assign({}, (i == 0 ? xo : yo), o); });
-}
-
-function splitXY(d) {
-	return {
-		x: d[0],
-		y: d.slice(1),
-	};
+	return [d[0], d[1]].concat(d.slice(2)).map(function (o, i) { return assign({}, (i == 0 ? xo : yo), o); });
 }
 
 function getYPos(val, scale, hgt) {
@@ -795,7 +788,7 @@ function Line(opts, data) {
 	var self = this;
 
 	var series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
-	var axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
+	var axes    = setDefaults(opts.axes || [], xAxisOpts, yAxisOpts);
 	var scales  = (opts.scales = opts.scales || {});
 
 	var spanGaps = opts.spanGaps || false;
@@ -809,8 +802,8 @@ function Line(opts, data) {
 	var _timeAxisVals = timeAxisVals(tzDate, _timeAxisStamps);
 	var _timeSeriesVal = timeSeriesVal(tzDate);
 
-	self.series = splitXY(series);
-	self.axes = splitXY(axes);
+	self.series = series;
+	self.axes = axes;
 	self.scales = scales;
 
 	var legendOpts = assign({show: true}, opts.legend);

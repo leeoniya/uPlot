@@ -7,11 +7,6 @@
 
 		<link rel="stylesheet" href="../bench/style.css">
 		<link rel="stylesheet" href="../src/uPlot.css">
-		<style>
-			.uplot {
-				margin-top: 50px;
-			}
-		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
@@ -20,6 +15,7 @@
 				console.time('chart');
 
 				let opts = {
+					title: "Derived Scale",
 					width: 600,
 					height: 400,
 					scales: {
@@ -31,28 +27,26 @@
 							range: (u, min, max) => [(min - 32) * 5/9, (max - 32) * 5/9],
 						}
 					},
-					series: {
-						y: [
-							{
-								label: "blah",
-								color: "green",
-							},
-						]
-					},
-					axes: {
-						y: [
-							{
-								values: (u, vals, space) => vals.map(v => v + '° F'),
-							},
-							{
-								scale: 'z',
-								range: (u, min, max) => [Math.ceil(min), Math.ceil(max)],
-								values: (u, vals, space) => vals.map(v => v + '° C'),
-								side: 1,
-								grid: {show: false},
-							}
-						],
-					},
+					series: [
+						{},
+						{
+							label: "blah",
+							color: "green",
+						},
+					],
+					axes: [
+						{},
+						{
+							values: (u, vals, space) => vals.map(v => v + '° F'),
+						},
+						{
+							scale: 'z',
+							range: (u, min, max) => [Math.ceil(min), Math.ceil(max)],
+							values: (u, vals, space) => vals.map(v => v + '° C'),
+							side: 1,
+							grid: {show: false},
+						}
+					],
 				};
 
 				const data = [

@@ -7,11 +7,6 @@
 
 		<link rel="stylesheet" href="../bench/style.css">
 		<link rel="stylesheet" href="../src/uPlot.css">
-		<style>
-			.uplot {
-				margin-top: 50px;
-			}
-		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
@@ -90,8 +85,7 @@
 				function drawSeriesMedian(u, i) {
 					let { ctx } = u;
 					let { width } = ctx.canvas;
-					// why i-1: https://github.com/leeoniya/uPlot/issues/77
-					let { color, scale } = u.series.y[i-1];
+					let { color, scale } = u.series[i];
 
 					let cy = u.valToPos(medians[i], scale) * devicePixelRatio;
 
@@ -114,18 +108,14 @@
 					ctx.filter = 'blur(2px)';
 				}
 
-				function disableBlurAfterGridRender(u, axis) {
+				function disableBlurAfterGridRender(u) {
 					let { ctx } = u;
-					// This is a bit buggy. There are some cases where the y axis will not be rendered
-					// Resulting in the the canvas to be rendered with the previously applied blur
-					if (axis == 'y')
-						ctx.restore();
+					ctx.restore();
 				}
 
 				function drawPointsAsStars(u, i) {
 					let { ctx } = u;
-					// why i-1: https://github.com/leeoniya/uPlot/issues/77
-					let { label, color, scale } = u.series.y[i-1];
+					let { label, color, scale } = u.series[i];
 					let yVals = u.data[i];
 
 					ctx.save();
@@ -195,34 +185,36 @@
 				};
 
 				let opts = {
+					title: "Draw Hooks",
 					width: 600,
 					height: 400,
-					axes: {
-						y: [{grid}],
-						x: [{grid}],
-					},
+					axes: [
+						{grid},
+						{grid},
+					],
 					scales: {
-						x: {time: false},
+						x: {
+							time: false
+						},
 					},
 					plugins: [
 						addCrazyVisualsPlugin(),
 					],
-					series: {
-						y: [
-							{
-								label: "blah",
-								color: "#ff3333",
-							},
-							{
-								label: "yerp",
-								color: "#33ccff",
-							},
-							{
-								label: "zort",
-								color: "#ffcc33",
-							}
-						]
-					}
+					series: [
+						{},
+						{
+							label: "blah",
+							color: "#ff3333",
+						},
+						{
+							label: "yerp",
+							color: "#33ccff",
+						},
+						{
+							label: "zort",
+							color: "#ffcc33",
+						}
+					]
 				};
 
 				let u = new uPlot.Line(opts, data);

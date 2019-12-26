@@ -108,24 +108,23 @@ let opts = {
   width: 800,
   height: 600,
   spanGaps: false,
-  series: {
-    y: [
-      {
-        // initial toggled state (optional)
-        show: true,
+  series: [
+    {},
+    {
+      // initial toggled state (optional)
+      show: true,
 
-        // in-legend display
-        label: "RAM",
-        value: (self, rawValue) => "$" + rawValue.toFixed(2),
+      // in-legend display
+      label: "RAM",
+      value: (self, rawValue) => "$" + rawValue.toFixed(2),
 
-        // series style
-        color: "red",
-        width: 1,
-        fill: "rgba(255, 0, 0, 0.3)",
-        dash: [10, 5],
-      }
-    ]
-  }
+      // series style
+      color: "red",
+      width: 1,
+      fill: "rgba(255, 0, 0, 0.3)",
+      dash: [10, 5],
+    }
+  ],
 };
 
 let uplot = new uPlot.Line(opts, data);
@@ -148,21 +147,20 @@ High/Low bands are defined by two adjacent `data` series in low,high order and m
 
 ```js
 const opts = {
-  series: {
-    y: [
-      {
-        label: "Low",
-        fill: "rgba(0, 255, 0, .2)",
-        band: true,
+  series: [
+    {},
+    {
+      label: "Low",
+      fill: "rgba(0, 255, 0, .2)",
+      band: true,
 
-      },
-      {
-        label: "High",
-        fill: "rgba(0, 255, 0, .2)",
-        band: true,
-      },
-    ],
-  },
+    },
+    {
+      label: "High",
+      fill: "rgba(0, 255, 0, .2)",
+      band: true,
+    },
+  ],
 };
 ```
 
@@ -187,42 +185,40 @@ Series with differing units can be plotted along additional scales and display c
 
 ```js
 let opts = {
-  series: {
-    y: [
-      {
-        label: "CPU",
-        color: "red",
-        scale: '%',
-        value: (self, rawValue) => rawValue.toFixed(1) + "%",
-      }
-      {
-        label: "RAM",
-        color: "blue",
-        scale: '%',
-        value: (self, rawValue) => rawValue.toFixed(1) + "%",
-      },
-      {
-        label: "TCP",
-        color: "green",
-        scale: 'mb',
-        value: (self, rawValue) => rawValue.toFixed(2) + "MB",
-      },
-    ]
-  },
-  axes: {
-    y: [
-      {
-        scale: '%',
-        values: (self, ticks) => ticks.map(rawValue => rawValue.toFixed(1) + "%"),
-      },
-      {
-        scale: 'mb',
-        values: (self, ticks) => ticks.map(rawValue => rawValue.toFixed(2) + "MB"),
-        side: 1,
-        grid: {show: false},
-      },
-    ]
-  },
+  series: [
+    {},
+    {
+      label: "CPU",
+      color: "red",
+      scale: "%",
+      value: (self, rawValue) => rawValue.toFixed(1) + "%",
+    }
+    {
+      label: "RAM",
+      color: "blue",
+      scale: "%",
+      value: (self, rawValue) => rawValue.toFixed(1) + "%",
+    },
+    {
+      label: "TCP",
+      color: "green",
+      scale: "mb",
+      value: (self, rawValue) => rawValue.toFixed(2) + "MB",
+    },
+  ],
+  axes: [
+    {},
+    {
+      scale: "%",
+      values: (self, ticks) => ticks.map(rawValue => rawValue.toFixed(1) + "%"),
+    },
+    {
+      scale: "mb",
+      values: (self, ticks) => ticks.map(rawValue => rawValue.toFixed(2) + "MB"),
+      side: 1,
+      grid: {show: false},
+    },
+  ],
 };
 ```
 
@@ -235,32 +231,30 @@ Sometimes it's useful to provide an additional axis to display alternate units, 
 
 ```js
 let opts = {
-  series: {
-    y: [
-      {
-        label: "Temp",
-        color: "red",
-        scale: 'F',
-      },
-    ]
-  },
-  axes: {
-    y: [
-      {
-        scale: 'F',
-        values: (self, ticks) => ticks.map(rawValue => rawValue + '° F'),
-      },
-      {
-        scale: 'C',
-        values: (self, ticks) => ticks.map(rawValue => rawValue + '° C'),
-        side: 1,
-        grid: {show: false},
-      }
-    ],
-  },
+  series: [
+    {},
+    {
+      label: "Temp",
+      color: "red",
+      scale: "F",
+    },
+  ],
+  axes: [
+    {},
+    {
+      scale: "F",
+      values: (self, ticks) => ticks.map(rawValue => rawValue + "° F"),
+    },
+    {
+      scale: "C",
+      values: (self, ticks) => ticks.map(rawValue => rawValue + "° C"),
+      side: 1,
+      grid: {show: false},
+    }
+  ],
   scales: {
-    'C': {
-      base: 'F',
+    "C": {
+      base: "F",
       range: (self, baseMin, baseMax) => [
         (baseMin - 32) * 5/9,
         (baseMax - 32) * 5/9,
@@ -281,7 +275,7 @@ This is also a performance optimization, since the data does not need to be scan
 ```js
 let opts = {
   scales: {
-    '%': {
+    "%": {
       auto: false,
       range: [0, 100],
     }
@@ -294,7 +288,7 @@ The default x scale is temporal, but can be switched to plain numbers. This can 
 ```js
 let opts = {
   scales: {
-    'x': {
+    "x": {
       time: false,
     }
   },
@@ -308,7 +302,7 @@ Keep in mind that this will prevent logical temporal tick baselines such as star
 ```js
 let opts = {
   scales: {
-    'x': {
+    "x": {
       type: 2,
     }
   },
@@ -322,24 +316,23 @@ Most options are self-explanatory:
 
 ```js
 let opts = {
-  axes: {
-    y: [
-      {
+  axes: [
+    {},
+    {
+      show: true,
+      label: "Population",
+      labelSize: 30,
+      size: 50,
+      class: "my-y",
+      color: "red",
+      grid: {
         show: true,
-        label: "Population",
-        labelSize: 30,
-        size: 50,
-        class: 'my-y',
-        color: 'red',
-        grid: {
-          show: true,
-          color: "#eee",
-          width: 2,
-          dash: [],
-        }
+        color: "#eee",
+        width: 2,
+        dash: [],
       }
-    ]
-  },
+    }
+  ]
 }
 ```
 
@@ -349,8 +342,8 @@ Customizing the tick/grid spacing, value formatting and granularity is somewhat 
 
 ```js
 let opts = {
-  axes: {
-    x: {
+  axes: [
+    {
       space: 40,
       incrs: [
          // minute divisors (# of secs)
@@ -379,7 +372,7 @@ let opts = {
       ],
   //  ticks:
     }
-  },
+  ],
 }
 ```
 

@@ -96,32 +96,30 @@
 					width: 1920,
 					height: 400,
 					cursor: cursorOpts,
-					series: {
-						y: [
-							{
-								label: "CPU 1",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "red",
-							},
-							{
-								label: "CPU 2",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "green",
-							},
-							{
-								label: "CPU 3",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "blue",
-							}
-						],
-					},
-					axes: {
-						y: [
-							{
-								values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
-							},
-						],
-					}
+					series: [
+						{},
+						{
+							label: "CPU 1",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "red",
+						},
+						{
+							label: "CPU 2",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "green",
+						},
+						{
+							label: "CPU 3",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "blue",
+						}
+					],
+					axes: [
+						{},
+						{
+							values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+						},
+					],
 				};
 
 				let uplot1 = new uPlot.Line(opts, data[0]);
@@ -133,32 +131,30 @@
 					width: 950,
 					height: 400,
 					cursor: cursorOpts,
-					series: {
-						y: [
-							{
-								label: "RAM 1",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "red",
-							},
-							{
-								label: "RAM 2",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "green",
-							},
-							{
-								label: "RAM 3",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "blue",
-							}
-						],
-					},
-					axes: {
-						y: [
-							{
-								values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
-							},
-						],
-					}
+					series: [
+						{},
+						{
+							label: "RAM 1",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "red",
+						},
+						{
+							label: "RAM 2",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "green",
+						},
+						{
+							label: "RAM 3",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "blue",
+						}
+					],
+					axes: [
+						{},
+						{
+							values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+						},
+					]
 				};
 
 				let uplot2 = new uPlot.Line(opts2, data[1]);
@@ -170,32 +166,30 @@
 					width: 950,
 					height: 400,
 					cursor: cursorOpts,
-					series: {
-						y: [
-							{
-								label: "TCP 1",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + " MB",
-								color: "red",
-							},
-							{
-								label: "TCP 2",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + " MB",
-								color: "green",
-							},
-							{
-								label: "TCP 3",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + " MB",
-								color: "blue",
-							}
-						],
-					},
-					axes: {
-						y: [
-							{
-								values: (u, vals, space) => vals.map(v => +v.toFixed(1) + " MB"),
-							},
-						],
-					}
+					series: [
+						{},
+						{
+							label: "TCP 1",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + " MB",
+							color: "red",
+						},
+						{
+							label: "TCP 2",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + " MB",
+							color: "green",
+						},
+						{
+							label: "TCP 3",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + " MB",
+							color: "blue",
+						}
+					],
+					axes: [
+						{},
+						{
+							values: (u, vals, space) => vals.map(v => +v.toFixed(1) + " MB"),
+						},
+					],
 				};
 
 				let uplot3 = new uPlot.Line(opts3, data[2]);

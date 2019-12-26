@@ -7,11 +7,6 @@
 
 		<link rel="stylesheet" href="../bench/style.css">
 		<link rel="stylesheet" href="../src/uPlot.css">
-		<style>
-			.uplot {
-				margin-top: 40px;
-			}
-		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
@@ -41,13 +36,12 @@
 				height: 600,
 				title: "Months",
 				tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), 'Etc/UTC'),
-				series: {
-					y: [
-						{
-							color: "red",
-						},
-					],
-				},
+				series: [
+					{},
+					{
+						color: "red",
+					},
+				]
 			};
 
 			let u = new uPlot.Line(opts, data);

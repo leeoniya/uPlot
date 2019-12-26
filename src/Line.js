@@ -95,14 +95,7 @@ function log(name, args) {
 }
 
 function setDefaults(d, xo, yo) {
-	return [].concat(d.x, d.y).map((o, i) => assign({}, (i == 0 ? xo : yo), o));
-}
-
-function splitXY(d) {
-	return {
-		x: d[0],
-		y: d.slice(1),
-	};
+	return [d[0], d[1]].concat(d.slice(2)).map((o, i) => assign({}, (i == 0 ? xo : yo), o));
 }
 
 function getYPos(val, scale, hgt) {
@@ -147,7 +140,7 @@ export function Line(opts, data) {
 	const self = this;
 
 	const series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
-	const axes    = setDefaults(opts.axes || {}, xAxisOpts, yAxisOpts);
+	const axes    = setDefaults(opts.axes || [], xAxisOpts, yAxisOpts);
 	const scales  = (opts.scales = opts.scales || {});
 
 	const spanGaps = opts.spanGaps || false;
@@ -161,8 +154,8 @@ export function Line(opts, data) {
 	const _timeAxisVals = timeAxisVals(tzDate, _timeAxisStamps);
 	const _timeSeriesVal = timeSeriesVal(tzDate);
 
-	self.series = splitXY(series);
-	self.axes = splitXY(axes);
+	self.series = series;
+	self.axes = axes;
 	self.scales = scales;
 
 	const legendOpts = assign({show: true}, opts.legend);

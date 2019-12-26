@@ -80,42 +80,40 @@
 //					cursor: {
 //						cross: false
 //					},
-					series: {
-						y: [
-							{
-								label: "CPU",
-								scale: "%",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "red",
-							},
-							{
-								label: "RAM",
-								scale: "%",
-								value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-								color: "blue",
-							},
-							{
-								label: "TCP Out",
-								scale: "mb",
-								value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
-								color: "green",
-							}
-						],
-					},
-					axes: {
-						y: [
-							{
-								scale: '%',
-								values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
-							},
-							{
-								side: 1,
-								scale: 'mb',
-								values: (u, vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
-								grid: {show: false},
-							},
-						],
-					}
+					series: [
+						{},
+						{
+							label: "CPU",
+							scale: "%",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "red",
+						},
+						{
+							label: "RAM",
+							scale: "%",
+							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							color: "blue",
+						},
+						{
+							label: "TCP Out",
+							scale: "mb",
+							value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
+							color: "green",
+						}
+					],
+					axes: [
+						{},
+						{
+							scale: '%',
+							values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
+						},
+						{
+							side: 1,
+							scale: 'mb',
+							values: (u, vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
+							grid: {show: false},
+						},
+					],
 				};
 
 				let uplot = new uPlot.Line(opts, data);

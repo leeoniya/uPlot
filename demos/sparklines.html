@@ -101,27 +101,25 @@
 							time: false,
 						},
 					},
-					axes: {
-						x: {
+					axes: [
+						{
 							show: false,
 						},
-						y: [
-							{
-								show: false,
-							}
-						]
-					},
-					series: {
-						y: [
-							{
-								color: "#03a9f4",
-								fill: "#b3e5fc",
-							},
-						],
-					},
+						{
+							show: false,
+						}
+					],
+					series: [
+						{},
+						{
+							color: "#03a9f4",
+							fill: "#b3e5fc",
+						},
+					],
 				};
 
 				let u = new uPlot.Line(opts, data);
+
 				return u;
 			}
 		</script>
