@@ -2009,7 +2009,7 @@ var uPlot = (function (exports) {
 
 		fire("init", opts, data);
 
-		setData(data);
+		setData(data || opts.data);
 	}
 
 	exports.Line = Line;
