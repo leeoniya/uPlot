@@ -140,13 +140,6 @@ function findIncr(valDelta, incrs, dim, minSpace) {
 	}
 }
 
-function axisValue(el, par, val, side, pxVal) {
-	let div = el || placeDiv(null, par);
-	div.textContent = val;
-	setStylePx(div, side, pxVal);
-	return div;
-}
-
 function filtMouse(e) {
 	return e.button == 0;
 }
@@ -660,8 +653,6 @@ export function Line(opts, data) {
 			let dim = ori == 0 ? WIDTH : HEIGHT;
 			let canDim = ori == 0 ? canCssWidth : canCssHeight;
 
-			let ch = axis.vals[firstChild];
-
 			let {min, max} = scale;
 
 			let minSpace = axis.space(self, min, max, canDim);
@@ -679,10 +670,15 @@ export function Line(opts, data) {
 			// TODO: filter ticks & offsets that will end up off-canvas
 			let canOffs = ticks.map(val => round2(getPos(val, scale, can[dim])));		// bit of waste if we're not drawing a grid
 
-			let labels = axis.values(self, scale.type == 2 ? ticks.map(i => data0[i]) : ticks, space);		// BOO this assumes a specific data/series
+			let values = axis.values(self, scale.type == 2 ? ticks.map(i => data0[i]) : ticks, space);		// BOO this assumes a specific data/series
+
+			let ch = axis.vals[firstChild];
 
 			canOffs.forEach((off, i) => {
-				ch = axisValue(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
+				let div = ch || placeDiv(null, axis.vals);
+				div.textContent = values[i];
+				setStylePx(div, cssProp, round(off/pxRatio));
+				ch = div[nextSibling];
 			});
 
 			ch && clearFrom(ch);

@@ -788,13 +788,6 @@ function findIncr(valDelta, incrs, dim, minSpace) {
 	}
 }
 
-function axisValue(el, par, val, side, pxVal) {
-	var div = el || placeDiv(null, par);
-	div.textContent = val;
-	setStylePx(div, side, pxVal);
-	return div;
-}
-
 function filtMouse(e) {
 	return e.button == 0;
 }
@@ -1311,8 +1304,6 @@ function Line(opts, data) {
 			var dim = ori == 0 ? WIDTH : HEIGHT;
 			var canDim = ori == 0 ? canCssWidth : canCssHeight;
 
-			var ch = axis.vals[firstChild];
-
 			var min = scale.min;
 			var max = scale.max;
 
@@ -1333,10 +1324,15 @@ function Line(opts, data) {
 			// TODO: filter ticks & offsets that will end up off-canvas
 			var canOffs = ticks.map(function (val) { return round2(getPos(val, scale, can[dim])); });		// bit of waste if we're not drawing a grid
 
-			var labels = axis.values(self, scale.type == 2 ? ticks.map(function (i) { return data0[i]; }) : ticks, space);		// BOO this assumes a specific data/series
+			var values = axis.values(self, scale.type == 2 ? ticks.map(function (i) { return data0[i]; }) : ticks, space);		// BOO this assumes a specific data/series
+
+			var ch = axis.vals[firstChild];
 
 			canOffs.forEach(function (off, i) {
-				ch = axisValue(ch, axis.vals, labels[i], cssProp, round(off/pxRatio))[nextSibling];
+				var div = ch || placeDiv(null, axis.vals);
+				div.textContent = values[i];
+				setStylePx(div, cssProp, round(off/pxRatio));
+				ch = div[nextSibling];
 			});
 
 			ch && clearFrom(ch);
