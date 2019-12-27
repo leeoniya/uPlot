@@ -832,7 +832,7 @@ function Line(opts, data) {
 		s.width = s.width || 1;
 	});
 
-	// derived scales inherit
+	// dependent scales inherit
 	for (var k in scales) {
 		var sc = scales[k];
 
@@ -1121,7 +1121,7 @@ function Line(opts, data) {
 			}
 		});
 
-		// snap non-derived scales
+		// snap non-dependent scales
 		for (var k$1 in scales) {
 			var sc$1 = scales[k$1];
 
@@ -1135,7 +1135,7 @@ function Line(opts, data) {
 			pendScales[k$1] = null;
 		}
 
-		// range derived scales
+		// range dependent scales
 		for (var k$2 in scales) {
 			var sc$2 = scales[k$2];
 

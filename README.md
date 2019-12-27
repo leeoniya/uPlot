@@ -255,7 +255,7 @@ let opts = {
 #### Axes for Alternate Units
 
 Sometimes it's useful to provide an additional axis to display alternate units, e.g. °F / °C.
-This is done using derived scales.
+This is done using dependent scales.
 
 ```js
 let opts = {
@@ -291,8 +291,8 @@ let opts = {
   },
 ```
 
-- `from` specifies the key of the scale from which another is derived.
-- `range` converts `from`'s min/max into the derived's min/max.
+- `from` specifies the scale on which this one depends.
+- `range` converts `from`'s min/max into this one's min/max.
 
 ---
 #### Scale Opts

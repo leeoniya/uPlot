@@ -183,7 +183,7 @@ export function Line(opts, data) {
 		s.width = s.width || 1;
 	});
 
-	// derived scales inherit
+	// dependent scales inherit
 	for (let k in scales) {
 		let sc = scales[k];
 
@@ -469,7 +469,7 @@ export function Line(opts, data) {
 			}
 		});
 
-		// snap non-derived scales
+		// snap non-dependent scales
 		for (let k in scales) {
 			let sc = scales[k];
 
@@ -483,7 +483,7 @@ export function Line(opts, data) {
 			pendScales[k] = null;
 		}
 
-		// range derived scales
+		// range dependent scales
 		for (let k in scales) {
 			let sc = scales[k];
 
