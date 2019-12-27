@@ -189,7 +189,7 @@ export function Line(opts, data) {
 		let sc = scales[k];
 
 		if (sc.base != null)
-			scales[k] = assign(copy(scales[sc.base]), sc);
+			scales[k] = assign({}, scales[sc.base], sc);
 	}
 
 	const xScaleKey = series[0].scale;

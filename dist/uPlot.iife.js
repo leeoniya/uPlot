@@ -839,7 +839,7 @@ var uPlot = (function (exports) {
 			var sc = scales[k];
 
 			if (sc.base != null)
-				{ scales[k] = assign(copy(scales[sc.base]), sc); }
+				{ scales[k] = assign({}, scales[sc.base], sc); }
 		}
 
 		var xScaleKey = series[0].scale;
