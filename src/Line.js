@@ -66,6 +66,8 @@ import {
 	yAxisOpts,
 	xSeriesOpts,
 	ySeriesOpts,
+	xScaleOpts,
+	yScaleOpts,
 
 	timeIncrs,
 	intIncrs,
@@ -96,7 +98,7 @@ function log(name, args) {
 }
 
 function setDefaults(d, xo, yo) {
-	return [d[0], d[1]].concat(d.slice(2)).map((o, i) => assign({}, (i == 0 ? xo : yo), o));
+	return [d[0], d[1]].concat(d.slice(2)).map((o, i) => assign({}, (i == 0 || o.type == "x" ? xo : yo), o));
 }
 
 function getYPos(val, scale, hgt) {
@@ -166,13 +168,7 @@ export function Line(opts, data) {
 		// init scales & defaults
 		const scKey = s.scale;
 
-		const sc = scales[scKey] = assign({
-			time: i == 0,
-			auto: true,
-			dstr: 1,
-			min:  inf,
-			max: -inf,
-		}, scales[scKey]);
+		const sc = scales[scKey] = assign({}, (i == 0 ? xScaleOpts : yScaleOpts), scales[scKey]);
 
 		let isTime = sc.time;
 

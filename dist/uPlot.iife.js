@@ -633,6 +633,7 @@ var uPlot = (function (exports) {
 	}
 
 	var xAxisOpts = {
+		type: "x",
 		show: true,
 		scale: "x",
 		space: 50,
@@ -682,6 +683,7 @@ var uPlot = (function (exports) {
 	}
 
 	var yAxisOpts = {
+		type: "y",
 		show: true,
 		scale: "y",
 		space: 40,
@@ -709,6 +711,19 @@ var uPlot = (function (exports) {
 
 		path: null,
 	};
+
+	var xScaleOpts = {
+		time: true,
+		auto: false,
+		dstr: 1,
+		min:  inf,
+		max: -inf,
+	};
+
+	var yScaleOpts = assign({}, xScaleOpts, {
+		time: false,
+		auto: true,
+	});
 
 	/*
 	export const scales = {
@@ -746,7 +761,7 @@ var uPlot = (function (exports) {
 	}
 
 	function setDefaults(d, xo, yo) {
-		return [d[0], d[1]].concat(d.slice(2)).map(function (o, i) { return assign({}, (i == 0 ? xo : yo), o); });
+		return [d[0], d[1]].concat(d.slice(2)).map(function (o, i) { return assign({}, (i == 0 || o.type == "x" ? xo : yo), o); });
 	}
 
 	function getYPos(val, scale, hgt) {
@@ -816,13 +831,7 @@ var uPlot = (function (exports) {
 			// init scales & defaults
 			var scKey = s.scale;
 
-			var sc = scales[scKey] = assign({
-				time: i == 0,
-				auto: true,
-				dstr: 1,
-				min:  inf,
-				max: -inf,
-			}, scales[scKey]);
+			var sc = scales[scKey] = assign({}, (i == 0 ? xScaleOpts : yScaleOpts), scales[scKey]);
 
 			var isTime = sc.time;
 

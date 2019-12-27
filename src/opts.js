@@ -9,6 +9,8 @@ import {
 } from './fmtDate';
 
 import {
+	assign,
+
 	inf,
 	incrRoundUp,
 	round6,
@@ -238,6 +240,7 @@ export function timeSeriesVal(tzDate) {
 }
 
 export const xAxisOpts = {
+	type: "x",
 	show: true,
 	scale: "x",
 	space: 50,
@@ -287,6 +290,7 @@ export function numSeriesVal(self, val) {
 }
 
 export const yAxisOpts = {
+	type: "y",
 	show: true,
 	scale: "y",
 	space: 40,
@@ -314,6 +318,19 @@ export const ySeriesOpts = {
 
 	path: null,
 };
+
+export const xScaleOpts = {
+	time: true,
+	auto: false,
+	dstr: 1,
+	min:  inf,
+	max: -inf,
+};
+
+export const yScaleOpts = assign({}, xScaleOpts, {
+	time: false,
+	auto: true,
+});
 
 /*
 export const scales = {
