@@ -184,6 +184,14 @@ export function Line(opts, data) {
 		s.width = s.width || 1;
 	});
 
+	// derived scales inherit
+	for (let k in scales) {
+		let sc = scales[k];
+
+		if (sc.base != null)
+			scales[k] = assign(copy(scales[sc.base]), sc);
+	}
+
 	const xScaleKey = series[0].scale;
 	const xScaleType = scales[xScaleKey].type;
 

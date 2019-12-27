@@ -833,6 +833,14 @@ function Line(opts, data) {
 		s.width = s.width || 1;
 	});
 
+	// derived scales inherit
+	for (var k in scales) {
+		var sc = scales[k];
+
+		if (sc.base != null)
+			{ scales[k] = assign(copy(scales[sc.base]), sc); }
+	}
+
 	var xScaleKey = series[0].scale;
 	var xScaleType = scales[xScaleKey].type;
 
