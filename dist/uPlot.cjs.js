@@ -823,13 +823,10 @@ function Line(opts, data) {
 			max: -inf,
 		}, scales[key]);
 
+		var isTime = sc.time;
+
 		// by default, numeric y scales snap to half magnitude of range
-		sc.range = fnOrSelf(sc.range || (i > 0 && !sc.time ? snapFifthMag : snapNone));
-
-		if (s.time == null)
-			{ s.time = sc.time; }
-
-		var isTime = s.time;
+		sc.range = fnOrSelf(sc.range || (i > 0 && !isTime ? snapFifthMag : snapNone));
 
 		s.value = s.value || (isTime ? _timeSeriesVal  : numSeriesVal);
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
@@ -952,11 +949,8 @@ function Line(opts, data) {
 			sc = scales[axis.scale];
 		}
 
-		if (axis.time == null)
-			{ axis.time = sc.time; }
-
 		// also set defaults for incrs & values based on axis type
-		var isTime = axis.time;
+		var isTime = sc.time;
 
 		axis.space = fnOrSelf(axis.space);
 		axis.incrs = fnOrSelf(axis.incrs || (sc.type == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
