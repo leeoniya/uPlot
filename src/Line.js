@@ -164,20 +164,19 @@ export function Line(opts, data) {
 	// set default value
 	series.forEach((s, i) => {
 		// init scales & defaults
-		const key = s.scale;
+		const scKey = s.scale;
 
-		const sc = scales[key] = assign({
-			type: 1,
+		const sc = scales[scKey] = assign({
 			time: i == 0,
 			auto: true,
+			dstr: 1,
 			min:  inf,
 			max: -inf,
-		}, scales[key]);
+		}, scales[scKey]);
 
 		let isTime = sc.time;
 
-		// by default, numeric y scales snap to half magnitude of range
-		sc.range = fnOrSelf(sc.range || (i > 0 && !isTime ? snapFifthMag : snapNone));
+		sc.range = fnOrSelf(sc.range || (isTime ? snapNone : snapFifthMag));
 
 		s.value = s.value || (isTime ? _timeSeriesVal  : numSeriesVal);
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
@@ -193,7 +192,7 @@ export function Line(opts, data) {
 	}
 
 	const xScaleKey = series[0].scale;
-	const xScaleType = scales[xScaleKey].type;
+	const xScaleDstr = scales[xScaleKey].dstr;
 
 	let dataLen;
 
@@ -209,7 +208,7 @@ export function Line(opts, data) {
 		data0 = data[0];
 		dataLen = data0.length;
 
-		if (xScaleType == 2)
+		if (xScaleDstr == 2)
 			data[0] = data0.map((v, i) => i);
 
 		resetYSeries();
@@ -228,8 +227,8 @@ export function Line(opts, data) {
 
 		_setScale(
 			xScaleKey,
-			xScaleType == 2 ? i0 : data[0][i0],
-			xScaleType == 2 ? i1 : data[0][i1],
+			xScaleDstr == 2 ? i0 : data[0][i0],
+			xScaleDstr == 2 ? i1 : data[0][i1],
 		);
 	}
 
@@ -307,12 +306,12 @@ export function Line(opts, data) {
 			sc = scales[axis.scale];
 		}
 
-		// also set defaults for incrs & values based on axis type
+		// also set defaults for incrs & values based on axis dstr
 		let isTime = sc.time;
 
 		axis.space = fnOrSelf(axis.space);
-		axis.incrs = fnOrSelf(axis.incrs || (sc.type == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
-		axis.ticks = fnOrSelf(axis.ticks || (sc.type == 1 && isTime ? _timeAxisTicks : numAxisTicks));
+		axis.incrs = fnOrSelf(axis.incrs || (sc.dstr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
+		axis.ticks = fnOrSelf(axis.ticks || (sc.dstr == 1 && isTime ? _timeAxisTicks : numAxisTicks));
 		let av = axis.values;
 		axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
 	});
@@ -656,7 +655,7 @@ export function Line(opts, data) {
 			let [incr, space] = findIncr(max - min, axis.incrs(self), canDim, minSpace);
 
 			// if we're using index positions, force first tick to match passed index
-			let forceMin = scale.type == 2;
+			let forceMin = scale.dstr == 2;
 
 			let ticks = axis.ticks(self, min, max, incr, space/minSpace, forceMin);
 
@@ -666,7 +665,7 @@ export function Line(opts, data) {
 			// TODO: filter ticks & offsets that will end up off-canvas
 			let canOffs = ticks.map(val => round2(getPos(val, scale, can[dim])));		// bit of waste if we're not drawing a grid
 
-			let values = axis.values(self, scale.type == 2 ? ticks.map(i => data0[i]) : ticks, space);		// BOO this assumes a specific data/series
+			let values = axis.values(self, scale.dstr == 2 ? ticks.map(i => data0[i]) : ticks, space);		// BOO this assumes a specific data/series
 
 			let ch = axis.vals[firstChild];
 
@@ -1112,7 +1111,7 @@ export function Line(opts, data) {
 					if (i == 0 && multiValLegend)
 						continue;
 
-					let src = i == 0 && xScaleType == 2 ? data0 : data[i];
+					let src = i == 0 && xScaleDstr == 2 ? data0 : data[i];
 
 					let vals = multiValLegend ? s.values(self, idx) : {_: s.value(self, src[idx])};
 
@@ -1232,7 +1231,7 @@ export function Line(opts, data) {
 				let minX = min(mouseLeft0, mouseLeft1);
 				let maxX = max(mouseLeft0, mouseLeft1);
 
-				let fn = xScaleType == 2 ? closestIdxFromXpos : scaleValueAtPos;
+				let fn = xScaleDstr == 2 ? closestIdxFromXpos : scaleValueAtPos;
 
 				_setScale(xScaleKey,
 					fn(minX, xScaleKey),
