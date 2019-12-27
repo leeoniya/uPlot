@@ -170,34 +170,60 @@
 					return arr.concat(Array(len - arr.length).fill(0));
 				}
 
+				let jan0 = 0;
+				let jan1 = 743;
+				let feb0 = 744;
+				let feb1 = 1416;
+				let febLen = feb1 - feb0;
+
+				let tsJan = data[0].slice(jan0, jan1);
+				let tsFeb = data[0].slice(feb0, feb0 + (jan1 - jan0));
+
 				let data1 = [
-					data[0].slice(0, 743),
-					data[1].slice(0, 743),
-					padWith0s(data[1].slice(744, 1416), 744),
+					tsFeb,
+					padWith0s(data[1].slice(feb0, feb1), jan1 - jan0),
+					data[1].slice(jan0, jan1)
 				];
 
-				let tsJan = data[0].slice(0, 743);
-				let tsFeb = padWith0s(data[0].slice(744, 1416), 744);
-
 				let u1 = new uPlot.Line({
-					title: "Jan vs Feb 2019",
+					title: "Feb vs Jan 2019",
 					width: 1920,
 					height: 200,
+					scales: {
+						"x2": {
+							from: "x",
+							range: (u, min, max) => [min - 3600 * 24 * 31, max - 3600 * 24 * 31]
+						}
+					},
 					axes: [
 						{},
 						{
 							space: 20
-						}
+						},
+						{
+							type: "x",
+						//	side: 0,
+							scale: "x2",
+							grid: {show: false},
+							color: "rgba(237, 126, 23, 1)",
+						},
 					],
 					series: [
 						{},
 						{
-							label: "Jan 2019",
+							label: "Feb 2019",
 							color: "rgba(5, 141, 199, 1)",
 							fill:  "rgba(5, 141, 199, 0.1)",
 							values: (u, idx) => {
-							//	let date = self.tzDate(data[0][idx]);
-								let date = new Date(tsJan[idx] * 1e3);
+								if (idx >= febLen) {
+									return {
+										Time: '---',
+										Users: '---',
+									};
+								}
+
+								let ts = tsFeb[idx];
+								let date = new Date(ts * 1e3);
 
 								return {
 									Time: longDateHourMin(date),
@@ -206,15 +232,15 @@
 							}
 						},
 						{
-							label: "Feb 2019",
+							label: "Jan 2019",
 							color: "rgba(237, 126, 23, 1)",
 							values: (u, idx) => {
-								let ts = tsFeb[idx];
-								let date = ts > 0 ? new Date(ts * 1e3) : null;
+							//	let date = self.tzDate(data[0][idx]);
+								let date = new Date(tsJan[idx] * 1e3);
 
 								return {
-									Time: date ? longDateHourMin(date) : null,
-									Users: date ? data1[2][idx] : null,
+									Time: longDateHourMin(date),
+									Users: data1[2][idx],
 								};
 							}
 						},
