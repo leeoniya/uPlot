@@ -254,7 +254,8 @@ let opts = {
 
 #### Axes for Alternate Units
 
-Sometimes it's useful to provide an additional axis to display alternate units, e.g. °F / °C. This is done using derived scales.
+Sometimes it's useful to provide an additional axis to display alternate units, e.g. °F / °C.
+This is done using derived scales.
 
 ```js
 let opts = {
@@ -281,17 +282,17 @@ let opts = {
   ],
   scales: {
     "C": {
-      base: "F",
-      range: (self, baseMin, baseMax) => [
-        (baseMin - 32) * 5/9,
-        (baseMax - 32) * 5/9,
+      from: "F",
+      range: (self, fromMin, fromMax) => [
+        (fromMin - 32) * 5/9,
+        (fromMax - 32) * 5/9,
       ],
     }
   },
 ```
 
-- `base` specifies the key of the scale from which another is derived.
-- `range` converts the base scale's min/max into the new scale's min/max.
+- `from` specifies the key of the scale from which another is derived.
+- `range` converts `from`'s min/max into the derived's min/max.
 
 ---
 #### Scale Opts

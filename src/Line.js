@@ -187,8 +187,8 @@ export function Line(opts, data) {
 	for (let k in scales) {
 		let sc = scales[k];
 
-		if (sc.base != null)
-			scales[k] = assign({}, scales[sc.base], sc);
+		if (sc.from != null)
+			scales[k] = assign({}, scales[sc.from], sc);
 	}
 
 	const xScaleKey = series[0].scale;
@@ -473,7 +473,7 @@ export function Line(opts, data) {
 		for (let k in scales) {
 			let sc = scales[k];
 
-			if (sc.base == null && sc.min != inf && pendScales[k] == null) {
+			if (sc.from == null && sc.min != inf && pendScales[k] == null) {
 				let minMax = sc.range(self, sc.min, sc.max);
 
 				sc.min = minMax[0];
@@ -487,8 +487,8 @@ export function Line(opts, data) {
 		for (let k in scales) {
 			let sc = scales[k];
 
-			if (sc.base != null) {
-				let base = scales[sc.base];
+			if (sc.from != null) {
+				let base = scales[sc.from];
 
 				if (base.min != inf) {
 					let minMax = sc.range(self, base.min, base.max);
@@ -753,7 +753,7 @@ export function Line(opts, data) {
 	function setScale(key, opts) {
 		let sc = scales[key];
 
-		if (sc.base == null) {
+		if (sc.from == null) {
 		//	log("setScale()", arguments);
 
 			pendScales[key] = opts;

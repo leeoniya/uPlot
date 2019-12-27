@@ -837,8 +837,8 @@ var uPlot = (function (exports) {
 		for (var k in scales) {
 			var sc = scales[k];
 
-			if (sc.base != null)
-				{ scales[k] = assign({}, scales[sc.base], sc); }
+			if (sc.from != null)
+				{ scales[k] = assign({}, scales[sc.from], sc); }
 		}
 
 		var xScaleKey = series[0].scale;
@@ -1126,7 +1126,7 @@ var uPlot = (function (exports) {
 			for (var k$1 in scales) {
 				var sc$1 = scales[k$1];
 
-				if (sc$1.base == null && sc$1.min != inf && pendScales[k$1] == null) {
+				if (sc$1.from == null && sc$1.min != inf && pendScales[k$1] == null) {
 					var minMax = sc$1.range(self, sc$1.min, sc$1.max);
 
 					sc$1.min = minMax[0];
@@ -1140,8 +1140,8 @@ var uPlot = (function (exports) {
 			for (var k$2 in scales) {
 				var sc$2 = scales[k$2];
 
-				if (sc$2.base != null) {
-					var base = scales[sc$2.base];
+				if (sc$2.from != null) {
+					var base = scales[sc$2.from];
 
 					if (base.min != inf) {
 						var minMax$1 = sc$2.range(self, base.min, base.max);
@@ -1409,7 +1409,7 @@ var uPlot = (function (exports) {
 		function setScale(key, opts) {
 			var sc = scales[key];
 
-			if (sc.base == null) {
+			if (sc.from == null) {
 			//	log("setScale()", arguments);
 
 				pendScales[key] = opts;
