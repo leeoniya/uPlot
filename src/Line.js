@@ -98,7 +98,7 @@ function log(name, args) {
 }
 
 function setDefaults(d, xo, yo) {
-	return [d[0], d[1]].concat(d.slice(2)).map((o, i) => assign({}, (i == 0 || o.type == "x" ? xo : yo), o));
+	return [d[0], d[1]].concat(d.slice(2)).map((o, i) => assign({}, (i == 0 || o && o.type == "x" ? xo : yo), o));
 }
 
 function getYPos(val, scale, hgt) {
@@ -172,7 +172,7 @@ export function Line(opts, data) {
 
 		let isTime = sc.time;
 
-		sc.range = fnOrSelf(sc.range || (isTime ? snapNone : snapFifthMag));
+		sc.range = fnOrSelf(sc.range || (i > 0 && !isTime ? snapFifthMag : snapNone));
 
 		s.value = s.value || (isTime ? _timeSeriesVal  : numSeriesVal);
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
