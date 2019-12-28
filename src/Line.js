@@ -137,10 +137,16 @@ function filtMouse(e) {
 	return e.button == 0;
 }
 
-export function Line(opts, data) {
+function call2(u, r) {
+	r();
+}
+
+export function Line(opts, data, ready) {
 	opts = copy(opts);
 
 	const self = this;
+
+	ready = ready || call2;
 
 	const series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
 	const axes    = setDefaults(opts.axes || [], xAxisOpts, yAxisOpts);
@@ -1340,7 +1346,9 @@ export function Line(opts, data) {
 
 	self.destroy = destroy;
 
-	fire("init", opts, data);
+	ready(self, () => {
+		fire("init", opts, data);
 
-	setData(data || opts.data);
+		setData(data || opts.data);
+	});
 }

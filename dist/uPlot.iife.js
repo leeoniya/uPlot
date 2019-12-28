@@ -800,10 +800,16 @@ var uPlot = (function (exports) {
 		return e.button == 0;
 	}
 
-	function Line(opts, data) {
+	function call2(u, r) {
+		r();
+	}
+
+	function Line(opts, data, ready) {
 		opts = copy(opts);
 
 		var self = this;
+
+		ready = ready || call2;
 
 		var series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
 		var axes    = setDefaults(opts.axes || [], xAxisOpts, yAxisOpts);
@@ -2009,9 +2015,11 @@ var uPlot = (function (exports) {
 
 		self.destroy = destroy;
 
-		fire("init", opts, data);
+		ready(self, function () {
+			fire("init", opts, data);
 
-		setData(data || opts.data);
+			setData(data || opts.data);
+		});
 	}
 
 	exports.Line = Line;
