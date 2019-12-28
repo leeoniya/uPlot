@@ -112,9 +112,7 @@
 				let len1 = 3000;
 
 				let data1 = sliceData(start1, start1 + len1);
-				let uplot1 = new uPlot.Line(opts, data1);
-
-				document.body.appendChild(uplot1.root);
+				let uplot1 = new uPlot.Line(opts, data1, document.body);
 
 				setInterval(function() {
 					start1 += 10;
@@ -166,9 +164,7 @@
 				let len2 = 3000;
 
 				let data2 = sliceData(start2, start2 + len2);
-				let uplot2 = new uPlot.Line(opts2, data2);
-
-				document.body.appendChild(uplot2.root);
+				let uplot2 = new uPlot.Line(opts2, data2, document.body);
 
 				setInterval(function() {
 					len2 += 10;
@@ -234,9 +230,7 @@
 				let len3 = 10;
 
 				let data3 = sliceData(start3, start3 + len3);
-				let uplot3 = new uPlot.Line(opts3, data3);
-
-				document.body.appendChild(uplot3.root);
+				let uplot3 = new uPlot.Line(opts3, data3, document.body);
 
 				setInterval(function() {
 					len3 += 10;

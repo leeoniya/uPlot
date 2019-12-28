@@ -22,7 +22,7 @@
 			}
 
 			function prepData(packed) {
-				console.time('prep');
+				console.time("prep");
 
 				// epoch,idl,recv,send,read,writ,used,free
 
@@ -65,13 +65,13 @@
 				data[1][36] = null;
 				data[2][730] = null;
 			*/
-				console.timeEnd('prep');
+				console.timeEnd("prep");
 
 				return data;
 			}
 
 			function makeChart(data) {
-				console.time('chart');
+				console.time("chart");
 
 				const opts = {
 					title: "Server Events",
@@ -104,24 +104,22 @@
 					axes: [
 						{},
 						{
-							scale: '%',
+							scale: "%",
 							values: (u, vals, space) => vals.map(v => +v.toFixed(1) + "%"),
 						},
 						{
 							side: 1,
-							scale: 'mb',
+							scale: "mb",
 							values: (u, vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
 							grid: {show: false},
 						},
 					],
 				};
 
-				let uplot = new uPlot.Line(opts, data);
-
-				document.body.appendChild(uplot.root);
+				let uplot = new uPlot.Line(opts, data, document.body);
 
 				wait.textContent = "Done!";
-				console.timeEnd('chart');
+				console.timeEnd("chart");
 			}
 
 			let wait = document.getElementById("wait");

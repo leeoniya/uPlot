@@ -82,81 +82,91 @@
 			data = sliceRange(times.findIndex(v => v == 1553774400), 6);
 			syncKey = 0;
 
-			document.body.appendChild(new uPlot.Line(
+			new uPlot.Line(
 				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
-				data
-			).root);
+				data,
+				document.body
+			);
 
-			document.body.appendChild(new uPlot.Line(
+			new uPlot.Line(
 				genOpts("Europe/London (Mar 31, 2019: 1am -> 2am)", 'Europe/London', syncKey),
-				data
-			).root);
+				data,
+				document.body
+			);
 
-			document.body.appendChild(new uPlot.Line(
+			new uPlot.Line(
 				genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
-				data
-			).root);
+				data,
+				document.body
+			);
 
 
 			putHeader('London\'s 2019 "fall back" time range');
 			data = sliceRange(times.findIndex(v => v == 1571918400), 6);
 			syncKey = 1;
 
-			document.body.appendChild(new uPlot.Line(
+			new uPlot.Line(
 				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
-				data
-			).root);
+				data,
+				document.body
+			);
 
-			document.body.appendChild(new uPlot.Line(
+			new uPlot.Line(
 				genOpts("Europe/London (Oct 27, 2019: 2am -> 1am)", 'Europe/London', syncKey),
-				data
-			).root);
+				data,
+				document.body
+			);
 
-			document.body.appendChild(new uPlot.Line(
+			new uPlot.Line(
 				genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
-				data
-			).root);
-
-
+				data,
+				document.body
+			);
 
 
 			putHeader('Chicago\'s 2019 "spring forward" time range');
 			data = sliceRange(times.findIndex(v => v == 1551960000), 6);
 			syncKey = 2;
 
-			document.body.appendChild(new uPlot.Line(
+			new uPlot.Line(
 				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
-				data
-			).root);
+				data,
+				document.body
+			);
 
-			document.body.appendChild(new uPlot.Line(
+			new uPlot.Line(
 				genOpts("America/Chicago (Mar 10, 2019: 2am -> 3am)", 'America/Chicago', syncKey),
-				data
-			).root);
+				data,
+				document.body
+			);
 
-			document.body.appendChild(new uPlot.Line(
+			new uPlot.Line(
 				genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
-				data
-			).root);
+				data,
+				document.body
+			);
 
 			putHeader('Chicago\'s 2019 "fall back" time range');
 			data = sliceRange(times.findIndex(v => v == 1572523200), 6);
 			syncKey = 3;
 
-			document.body.appendChild(new uPlot.Line(
+			new uPlot.Line(
 				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
-				data
-			).root);
+				data,
+				document.body
+			);
 
-			document.body.appendChild(new uPlot.Line(
+			new uPlot.Line(
 				genOpts("America/Chicago (Nov 3, 2019: 2am -> 1am)", 'America/Chicago', syncKey),
-				data
-			).root);
+				data,
+				document.body
+			);
 
-			document.body.appendChild(new uPlot.Line(
+			new uPlot.Line(
 				genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
-				data
-			).root);
+				data,
+				document.body
+			);
 		</script>
 	</body>
 </html>

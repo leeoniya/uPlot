@@ -122,9 +122,7 @@
 					],
 				};
 
-				let uplot1 = new uPlot.Line(opts, data[0]);
-
-				document.body.appendChild(uplot1.root);
+				let uplot1 = new uPlot.Line(opts, data[0], document.body);
 
 				const opts2 = {
 					title: "RAM",
@@ -157,9 +155,7 @@
 					]
 				};
 
-				let uplot2 = new uPlot.Line(opts2, data[1]);
-
-				document.body.appendChild(uplot2.root);
+				let uplot2 = new uPlot.Line(opts2, data[1], document.body);
 
 				const opts3 = {
 					title: "TCP",
@@ -192,9 +188,7 @@
 					],
 				};
 
-				let uplot3 = new uPlot.Line(opts3, data[2]);
-
-				document.body.appendChild(uplot3.root);
+				let uplot3 = new uPlot.Line(opts3, data[2], document.body);
 
 				wait.textContent = "Done!";
 				console.timeEnd('chart');

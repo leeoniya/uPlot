@@ -65,9 +65,7 @@
 					[0,0,0,3,3,5,5],
 				];
 
-				let u = new uPlot.Line(opts, data);
-
-				document.body.appendChild(u.root);
+				let u = new uPlot.Line(opts, data, document.body);
 
 				console.timeEnd('chart');
 			}

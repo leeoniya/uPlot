@@ -113,8 +113,7 @@
 					],
 				};
 
-				let uplot1 = new uPlot.Line(opts, data);
-				document.body.appendChild(uplot1.root);
+				let u = new uPlot.Line(opts, data, document.body);
 
 				wait.textContent = "Done!";
 				console.timeEnd('chart');

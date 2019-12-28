@@ -162,9 +162,7 @@
 							}
 						},
 					],
-				}, data);
-
-				document.body.appendChild(u.root);
+				}, data, document.body);
 
 				function padWith0s(arr, len) {
 					return arr.concat(Array(len - arr.length).fill(0));
@@ -244,9 +242,7 @@
 							}
 						},
 					],
-				}, data1);
-
-				document.body.appendChild(u1.root);
+				}, data1, document.body);
 
 				// tzDate normalization is useful for aggregated data, where aggregation
 				// ranges and ts need to land on exact 12am without DST shifting goofiness
@@ -281,9 +277,7 @@
 							color: "rgba(255, 0, 0, 1)",
 						},
 					],
-				}, aggDays(data));
-
-				document.body.appendChild(u2.root);
+				}, aggDays(data), document.body);
 			});
 		</script>
 	</body>

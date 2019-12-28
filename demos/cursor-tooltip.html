@@ -105,10 +105,7 @@
 				[40, 43, 60, 65, 71, 73, 80]
 			];
 
-			let u = new uPlot.Line(opts, data, (u, ready) => {
-				document.body.appendChild(u.root);
-				ready();
-			});
+			let u = new uPlot.Line(opts, data, document.body);
 		</script>
 	</body>
 </html>
