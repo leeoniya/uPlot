@@ -761,7 +761,7 @@ var uPlot = (function (exports) {
 	}
 
 	function setDefaults(d, xo, yo) {
-		return [d[0], d[1]].concat(d.slice(2)).map(function (o, i) { return assign({}, (i == 0 || o && o.type == "x" ? xo : yo), o); });
+		return [d[0], d[1]].concat(d.slice(2)).map(function (o, i) { return assign({}, (i == 0 || o && o.side % 2 == 0 ? xo : yo), o); });
 	}
 
 	function getYPos(val, scale, hgt) {
