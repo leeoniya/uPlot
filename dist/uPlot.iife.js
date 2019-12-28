@@ -851,7 +851,7 @@ var uPlot = (function (exports) {
 		}
 
 		var xScaleKey = series[0].scale;
-		var xScaleDstr = scales[xScaleKey].dstr;
+		var xScaleDistr = scales[xScaleKey].distr;
 
 		var dataLen;
 
@@ -867,7 +867,7 @@ var uPlot = (function (exports) {
 			data0 = data[0];
 			dataLen = data0.length;
 
-			if (xScaleDstr == 2)
+			if (xScaleDistr == 2)
 				{ data[0] = data0.map(function (v, i) { return i; }); }
 
 			resetYSeries();
@@ -886,8 +886,8 @@ var uPlot = (function (exports) {
 
 			_setScale(
 				xScaleKey,
-				xScaleDstr == 2 ? i0 : data[0][i0],
-				xScaleDstr == 2 ? i1 : data[0][i1]
+				xScaleDistr == 2 ? i0 : data[0][i0],
+				xScaleDistr == 2 ? i1 : data[0][i1]
 			);
 		}
 
@@ -966,12 +966,12 @@ var uPlot = (function (exports) {
 				sc = scales[axis.scale];
 			}
 
-			// also set defaults for incrs & values based on axis dstr
+			// also set defaults for incrs & values based on axis distr
 			var isTime = sc.time;
 
 			axis.space = fnOrSelf(axis.space);
-			axis.incrs = fnOrSelf(axis.incrs || (sc.dstr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
-			axis.ticks = fnOrSelf(axis.ticks || (sc.dstr == 1 && isTime ? _timeAxisTicks : numAxisTicks));
+			axis.incrs = fnOrSelf(axis.incrs || (sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
+			axis.ticks = fnOrSelf(axis.ticks || (sc.distr == 1 && isTime ? _timeAxisTicks : numAxisTicks));
 			var av = axis.values;
 			axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
 		});
@@ -1320,7 +1320,7 @@ var uPlot = (function (exports) {
 				var space = ref[1];
 
 				// if we're using index positions, force first tick to match passed index
-				var forceMin = scale.dstr == 2;
+				var forceMin = scale.distr == 2;
 
 				var ticks = axis.ticks(self, min, max, incr, space/minSpace, forceMin);
 
@@ -1330,7 +1330,7 @@ var uPlot = (function (exports) {
 				// TODO: filter ticks & offsets that will end up off-canvas
 				var canOffs = ticks.map(function (val) { return round2(getPos(val, scale, can[dim])); });		// bit of waste if we're not drawing a grid
 
-				var values = axis.values(self, scale.dstr == 2 ? ticks.map(function (i) { return data0[i]; }) : ticks, space);		// BOO this assumes a specific data/series
+				var values = axis.values(self, scale.distr == 2 ? ticks.map(function (i) { return data0[i]; }) : ticks, space);		// BOO this assumes a specific data/series
 
 				var ch = axis.vals[firstChild];
 
@@ -1776,7 +1776,7 @@ var uPlot = (function (exports) {
 						if (i$1 == 0 && multiValLegend)
 							{ continue; }
 
-						var src = i$1 == 0 && xScaleDstr == 2 ? data0 : data[i$1];
+						var src = i$1 == 0 && xScaleDistr == 2 ? data0 : data[i$1];
 
 						var vals = multiValLegend ? s.values(self, idx) : {_: s.value(self, src[idx])};
 
@@ -1896,7 +1896,7 @@ var uPlot = (function (exports) {
 					var minX = min(mouseLeft0, mouseLeft1);
 					var maxX = max(mouseLeft0, mouseLeft1);
 
-					var fn = xScaleDstr == 2 ? closestIdxFromXpos : scaleValueAtPos;
+					var fn = xScaleDistr == 2 ? closestIdxFromXpos : scaleValueAtPos;
 
 					_setScale(xScaleKey,
 						fn(minX, xScaleKey),

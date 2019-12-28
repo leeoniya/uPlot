@@ -323,7 +323,7 @@ let opts = {
 }
 ```
 
-A scale's default distribution is linear `dstr: 1`, but can be switched to indexed/evenly-spaced.
+A scale's default distribution is linear `distr: 1`, but can be switched to indexed/evenly-spaced.
 This is useful when you'd like to squash periods with no data, such as weekends.
 Keep in mind that this will prevent logical temporal tick baselines such as start of day or start of month.
 
@@ -331,7 +331,7 @@ Keep in mind that this will prevent logical temporal tick baselines such as star
 let opts = {
   scales: {
     "x": {
-      dstr: 2,
+      distr: 2,
     }
   },
 }

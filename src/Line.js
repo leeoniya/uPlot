@@ -188,7 +188,7 @@ export function Line(opts, data) {
 	}
 
 	const xScaleKey = series[0].scale;
-	const xScaleDstr = scales[xScaleKey].dstr;
+	const xScaleDistr = scales[xScaleKey].distr;
 
 	let dataLen;
 
@@ -204,7 +204,7 @@ export function Line(opts, data) {
 		data0 = data[0];
 		dataLen = data0.length;
 
-		if (xScaleDstr == 2)
+		if (xScaleDistr == 2)
 			data[0] = data0.map((v, i) => i);
 
 		resetYSeries();
@@ -223,8 +223,8 @@ export function Line(opts, data) {
 
 		_setScale(
 			xScaleKey,
-			xScaleDstr == 2 ? i0 : data[0][i0],
-			xScaleDstr == 2 ? i1 : data[0][i1],
+			xScaleDistr == 2 ? i0 : data[0][i0],
+			xScaleDistr == 2 ? i1 : data[0][i1],
 		);
 	}
 
@@ -302,12 +302,12 @@ export function Line(opts, data) {
 			sc = scales[axis.scale];
 		}
 
-		// also set defaults for incrs & values based on axis dstr
+		// also set defaults for incrs & values based on axis distr
 		let isTime = sc.time;
 
 		axis.space = fnOrSelf(axis.space);
-		axis.incrs = fnOrSelf(axis.incrs || (sc.dstr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
-		axis.ticks = fnOrSelf(axis.ticks || (sc.dstr == 1 && isTime ? _timeAxisTicks : numAxisTicks));
+		axis.incrs = fnOrSelf(axis.incrs || (sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
+		axis.ticks = fnOrSelf(axis.ticks || (sc.distr == 1 && isTime ? _timeAxisTicks : numAxisTicks));
 		let av = axis.values;
 		axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
 	});
@@ -651,7 +651,7 @@ export function Line(opts, data) {
 			let [incr, space] = findIncr(max - min, axis.incrs(self), canDim, minSpace);
 
 			// if we're using index positions, force first tick to match passed index
-			let forceMin = scale.dstr == 2;
+			let forceMin = scale.distr == 2;
 
 			let ticks = axis.ticks(self, min, max, incr, space/minSpace, forceMin);
 
@@ -661,7 +661,7 @@ export function Line(opts, data) {
 			// TODO: filter ticks & offsets that will end up off-canvas
 			let canOffs = ticks.map(val => round2(getPos(val, scale, can[dim])));		// bit of waste if we're not drawing a grid
 
-			let values = axis.values(self, scale.dstr == 2 ? ticks.map(i => data0[i]) : ticks, space);		// BOO this assumes a specific data/series
+			let values = axis.values(self, scale.distr == 2 ? ticks.map(i => data0[i]) : ticks, space);		// BOO this assumes a specific data/series
 
 			let ch = axis.vals[firstChild];
 
@@ -1107,7 +1107,7 @@ export function Line(opts, data) {
 					if (i == 0 && multiValLegend)
 						continue;
 
-					let src = i == 0 && xScaleDstr == 2 ? data0 : data[i];
+					let src = i == 0 && xScaleDistr == 2 ? data0 : data[i];
 
 					let vals = multiValLegend ? s.values(self, idx) : {_: s.value(self, src[idx])};
 
@@ -1227,7 +1227,7 @@ export function Line(opts, data) {
 				let minX = min(mouseLeft0, mouseLeft1);
 				let maxX = max(mouseLeft0, mouseLeft1);
 
-				let fn = xScaleDstr == 2 ? closestIdxFromXpos : scaleValueAtPos;
+				let fn = xScaleDistr == 2 ? closestIdxFromXpos : scaleValueAtPos;
 
 				_setScale(xScaleKey,
 					fn(minX, xScaleKey),
