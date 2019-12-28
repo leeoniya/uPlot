@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Cursor Tooltip w/placement.js</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../bench/style.css">
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			#overlay {
+				position: absolute;
+				background: rgba(0, 0, 0, 0.8);
+				padding: 0.5rem;
+				margin: 0.75rem;
+				color: #fff;
+				z-index: 10;
+				pointer-events: none;
+			}
+
+			.cursor-hz {
+				display: none;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script src="https://tobyzerner.github.io/placement.js/dist/index.js"></script>
+		<script>
+			function awaitSelector(selector) {
+				return new Promise((resolve, reject) => {
+					function chk() {
+						let el = document.querySelector(selector);
+
+						if (el) {
+							resolve(el);
+							return true;
+						}
+					};
+
+					if (!chk()) {
+						new MutationObserver((recs, o) => {
+							chk() && o.disconnect();
+						}).observe(document.documentElement, {
+							childList: true,
+							subtree: true
+						});
+					}
+				});
+			}
+
+			function tooltipPlugin(opts) {
+				let bound, bLeft, bTop;
+				let inDom = false;
+
+				const overlay = document.createElement("div");
+				overlay.id = "overlay";
+				overlay.style.display = "none";
+				overlay.style.position = "absolute";
+				document.body.appendChild(overlay);
+
+				function setTooltip(u) {
+					const { left, top, idx } = u.cursor;
+					const x = u.data[0][idx];
+					const y = u.data[1][idx];
+					const anchor = { left: left + bLeft, top: top + bTop };
+					overlay.textContent = `${x},${y} at ${left},${top}`;
+					placement(overlay, anchor, "right", "start", { bound });
+				}
+
+				return {
+					init: [
+						u => {
+							awaitSelector("#chart").then(el => {
+								inDom = true;
+								let can = u.ctx.canvas;
+
+								bound = can;
+							//	bound = document.body;
+
+								can.onmouseenter = () => {
+									overlay.style.display = "block";
+								};
+
+								can.onmouseleave = () => {
+									overlay.style.display = "none";
+								};
+
+								let bbox = can.getBoundingClientRect();
+								bLeft = bbox.left;
+								bTop = bbox.top;
+							});
+						}
+					],
+					setCursor: [
+						u => {
+							if (inDom)
+								setTooltip(u);
+							else {
+								// initial position is set
+								requestAnimationFrame(() => {
+									overlay.style.display = "block";
+									setTooltip(u);
+								});
+							}
+						}
+					],
+				};
+			}
+
+			let opts = {
+				id: "chart",
+				title: "placement.js tooltip",
+				width: 600,
+				height: 400,
+				cursor: {
+					top: 100,
+					left: 100,
+				},
+				plugins: [
+					tooltipPlugin(),
+				],
+				scales: {
+					x: {
+						time: false,
+					}
+				},
+				series: [
+					{},
+					{
+						label: "blah",
+						width: 1,
+						color: "green"
+					}
+				]
+			};
+
+			const data = [
+				[ 1,  2,  3,  4,  5,  6,  7],
+				[40, 43, 60, 65, 71, 73, 80]
+			];
+
+			let u = new uPlot.Line(opts, data);
+
+			document.body.appendChild(u.root);
+		</script>
+	</body>
+</html>
