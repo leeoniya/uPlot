@@ -13,11 +13,6 @@ An [exceptionally fast](#performance), tiny ([< 20 KB min](https://github.com/le
 ![uPlot Chart](uPlot.png "uPlot Chart")
 
 ---
-### 🚧 UNDER CONSTRUCTION 🚧
-
-v1.0 and API stabilization are loosely targetted for sometime before 2020-01-01. Until then, feedback, feature suggestions and real use-cases can be submitted to the issue tracker for consideration & further discussion.
-
----
 ### Features
 
 - Multiple series w/toggle
