@@ -799,16 +799,10 @@ function filtMouse(e) {
 	return e.button == 0;
 }
 
-function call2(u, r) {
-	r();
-}
-
 function Line(opts, data, ready) {
 	opts = copy(opts);
 
 	var self = this;
-
-	ready = ready || call2;
 
 	var series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
 	var axes    = setDefaults(opts.axes || [], xAxisOpts, yAxisOpts);
@@ -2014,11 +2008,22 @@ function Line(opts, data, ready) {
 
 	self.destroy = destroy;
 
-	ready(self, function () {
+	function _init() {
 		fire("init", opts, data);
 
 		setData(data || opts.data);
-	});
+	}
+
+	if (ready) {
+		if (ready instanceof HTMLElement) {
+			ready.appendChild(root);
+			_init();
+		}
+		else
+			{ ready(self, _init); }
+	}
+	else
+		{ _init(); }
 }
 
 exports.Line = Line;
