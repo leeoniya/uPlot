@@ -129,6 +129,7 @@ export const _timeAxisStamps = timeAxisStamps([
 export function timeAxisVals(tzDate, stamps) {
 	return (self, ticks, space) => {
 		let incr = ticks[1] - ticks[0];
+		let s = stamps.find(e => incr >= e[0]);
 
 		// these track boundaries when a full label is needed again
 		let prevYear = null;
@@ -143,7 +144,6 @@ export function timeAxisVals(tzDate, stamps) {
 			let diffYear = newYear != prevYear;
 			let diffDate = newDate != prevDate;
 
-			let s = stamps.find(e => incr >= e[0]);
 			let stamp = s[2] == 7 && diffYear || s[2] == 4 && diffDate ? s[3] : s[1];
 
 			prevYear = newYear;
