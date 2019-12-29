@@ -122,9 +122,7 @@ let opts = {
   ],
 };
 
-let uplot = new uPlot.Line(opts, data);
-
-document.body.appendChild(uplot.root);
+let uplot = new uPlot.Line(opts, data, document.body);
 ```
 
 - `id` and `class` are optional HTML attributes to set on the chart's container `<div>` (`uplot.root`).
