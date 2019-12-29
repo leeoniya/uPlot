@@ -714,7 +714,7 @@ var ySeriesOpts = {
 var xScaleOpts = {
 	time: true,
 	auto: false,
-	dstr: 1,
+	distr: 1,
 	min:  inf,
 	max: -inf,
 };

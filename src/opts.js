@@ -322,7 +322,7 @@ export const ySeriesOpts = {
 export const xScaleOpts = {
 	time: true,
 	auto: false,
-	dstr: 1,
+	distr: 1,
 	min:  inf,
 	max: -inf,
 };
