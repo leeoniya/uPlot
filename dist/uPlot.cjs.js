@@ -596,7 +596,7 @@ function timeAxisTicks(tzDate) {
 			while (1) {
 				tick$1 += incr;
 
-				var expectedHour = floor(prevHour + incrHours) % 24;
+				var expectedHour = floor(round6(prevHour + incrHours)) % 24;
 				var tickDate$1 = tzDate(tick$1);
 				var actualHour = tickDate$1.getHours();
 

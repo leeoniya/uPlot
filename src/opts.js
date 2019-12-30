@@ -204,7 +204,7 @@ export function timeAxisTicks(tzDate) {
 			while (1) {
 				tick += incr;
 
-				let expectedHour = floor(prevHour + incrHours) % 24;
+				let expectedHour = floor(round6(prevHour + incrHours)) % 24;
 				let tickDate = tzDate(tick);
 				let actualHour = tickDate.getHours();
 
