@@ -521,6 +521,7 @@ var _timeAxisStamps = timeAxisStamps([
 function timeAxisVals(tzDate, stamps) {
 	return function (self, ticks, space) {
 		var incr = ticks[1] - ticks[0];
+		var s = stamps.find(function (e) { return incr >= e[0]; });
 
 		// these track boundaries when a full label is needed again
 		var prevYear = null;
@@ -535,7 +536,6 @@ function timeAxisVals(tzDate, stamps) {
 			var diffYear = newYear != prevYear;
 			var diffDate = newDate != prevDate;
 
-			var s = stamps.find(function (e) { return incr >= e[0]; });
 			var stamp = s[2] == 7 && diffYear || s[2] == 4 && diffDate ? s[3] : s[1];
 
 			prevYear = newYear;
