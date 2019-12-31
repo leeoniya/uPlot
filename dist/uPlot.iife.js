@@ -1412,6 +1412,8 @@ var uPlot = (function (exports) {
 			fire("draw");
 		}
 
+		self.redraw = paint;
+
 		// redraw() => setScale('x', scales.x.min, scales.x.max);
 
 		// explicit, never re-ranged
