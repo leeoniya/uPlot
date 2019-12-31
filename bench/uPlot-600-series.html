@@ -5,12 +5,10 @@
 		<title>600 Series</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
-		<link rel="stylesheet" href="style.css">
 		<link rel="stylesheet" href="../src/uPlot.css">
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
-		<h2 id="wait">Loading lib....</h2>
 
 		<script>
 			// https://github.com/highcharts/highcharts/issues/5948
@@ -82,20 +80,21 @@
 				}
 
 				let opts = {
+					title: "600 Series x 8,000 points",
 					width: 1920,
 					height: 5000,
 					scales: {
 						x: {
-							type: 'n'
+							time: false
 						}
 					},
-					series: {
-						y: series
-					},
+					series: [
+						{},
+						...series
+					]
 				};
 
-				let uplot = new uPlot.Line(opts, data);
-				document.body.appendChild(uplot.root);
+				let uplot = new uPlot.Line(opts, data, document.body);
 			}
 
 			makeChart(prepData());

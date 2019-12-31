@@ -5,13 +5,7 @@
 		<title>Data Stream</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
-		<link rel="stylesheet" href="../bench/style.css">
 		<link rel="stylesheet" href="../src/uPlot.css">
-		<style>
-			.uplot {
-				margin: 40px;
-			}
-		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
@@ -70,6 +64,7 @@
 				let interval = 100;
 
 				const opts = {
+					title: "Fixed length / sliding data slices",
 					width: 1600,
 					height: 600,
 					series: [
@@ -122,6 +117,7 @@
 
 
 				const opts2 = {
+					title: "Increasing length data",
 					width: 1600,
 					height: 600,
 					series: [
@@ -174,6 +170,7 @@
 
 
 				const opts3 = {
+					title: "Increasing length data, static x scale",
 					width: 1600,
 					height: 600,
 					scales: {
@@ -185,10 +182,10 @@
 							auto: false,
 							range: (min, max) => [0, 100],
 						},
-					/*	'%': {
+						'mb': {
 							auto: false,
-							range: (min, max) => [0, 60],
-						},*/
+							range: (min, max) => [0, 70],
+						},
 					},
 					series: [
 						{},
