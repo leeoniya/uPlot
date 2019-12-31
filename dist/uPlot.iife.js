@@ -1920,8 +1920,12 @@ var uPlot = (function (exports) {
 		}
 
 		function mouseLeave(e, src, _x, _y, _w, _h, _i) {
-			if (!cursor.locked && !dragging)
-				{ self.setCursor({left: -10, top: -10}); }
+			if (!cursor.locked && !dragging) {
+				mouseLeft1 = -10;
+				mouseTop1 = -10;
+				// passing a non-null timestamp to force sync/mousemove event
+				updateCursor(1);
+			}
 		}
 
 		function dblClick(e, src, _x, _y, _w, _h, _i) {
