@@ -1914,9 +1914,8 @@ var uPlot = (function (exports) {
 						fn(maxX, xScaleKey)
 					);
 				}
-				else {
-					if (cursor.lock)
-						{ cursor.locked = !cursor.locked; }
+				else if (cursor.lock) {
+					cursor.locked = !cursor.locked;
 
 					if (!cursor.locked)
 						{ updateCursor(); }
