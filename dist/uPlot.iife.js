@@ -1460,6 +1460,7 @@ var uPlot = (function (exports) {
 		var cursor = self.cursor = assign({
 			show: true,
 			cross: true,
+			lock: false,
 			locked: false,
 			left: -10,
 			top: -10,
@@ -1914,7 +1915,8 @@ var uPlot = (function (exports) {
 					);
 				}
 				else {
-					cursor.locked = !cursor.locked;
+					if (cursor.lock)
+						{ cursor.locked = !cursor.locked; }
 
 					if (!cursor.locked)
 						{ updateCursor(); }

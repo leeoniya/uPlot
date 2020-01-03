@@ -1459,6 +1459,7 @@ function Line(opts, data, ready) {
 	var cursor = self.cursor = assign({
 		show: true,
 		cross: true,
+		lock: false,
 		locked: false,
 		left: -10,
 		top: -10,
@@ -1913,7 +1914,8 @@ function Line(opts, data, ready) {
 				);
 			}
 			else {
-				cursor.locked = !cursor.locked;
+				if (cursor.lock)
+					{ cursor.locked = !cursor.locked; }
 
 				if (!cursor.locked)
 					{ updateCursor(); }

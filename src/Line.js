@@ -788,6 +788,7 @@ export function Line(opts, data, ready) {
 	const cursor = self.cursor = assign({
 		show: true,
 		cross: true,
+		lock: false,
 		locked: false,
 		left: -10,
 		top: -10,
@@ -1242,7 +1243,8 @@ export function Line(opts, data, ready) {
 				);
 			}
 			else {
-				cursor.locked = !cursor.locked
+				if (cursor.lock)
+					cursor.locked = !cursor.locked
 
 				if (!cursor.locked)
 					updateCursor();
