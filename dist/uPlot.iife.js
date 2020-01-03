@@ -1,5 +1,5 @@
 /**
-* Copyright (c) 2019, Leon Sorokin
+* Copyright (c) 2020, Leon Sorokin
 * All rights reserved. (MIT Licensed)
 *
 * uPlot.js (μPlot)
@@ -275,6 +275,10 @@ var uPlot = (function (exports) {
 	var assign = Object.assign;
 
 	var isArr = Array.isArray;
+
+	function isStr(v) {
+		return typeof v === 'string';
+	}
 
 	function isObj(v) {
 		return typeof v === 'object' && v !== null;
@@ -626,10 +630,13 @@ var uPlot = (function (exports) {
 		}
 	}
 
-	var longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+	function timeSeriesStamp(stampCfg) {
+		return fmtDate(stampCfg);
+	}
+	var _timeSeriesStamp = timeSeriesStamp('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
 
-	function timeSeriesVal(tzDate) {
-		return function (self, val) { return longDateHourMin(tzDate(val)); };
+	function timeSeriesVal(tzDate, stamp) {
+		return function (self, val) { return stamp(tzDate(val)); };
 	}
 
 	var xAxisOpts = {
@@ -818,7 +825,7 @@ var uPlot = (function (exports) {
 
 		var _timeAxisTicks = timeAxisTicks(tzDate);
 		var _timeAxisVals = timeAxisVals(tzDate, _timeAxisStamps);
-		var _timeSeriesVal = timeSeriesVal(tzDate);
+		var _timeSeriesVal = timeSeriesVal(tzDate, _timeSeriesStamp);
 
 		self.series = series;
 		self.axes = axes;
@@ -837,7 +844,8 @@ var uPlot = (function (exports) {
 
 			sc.range = fnOrSelf(sc.range || (i > 0 && !isTime ? snapFifthMag : snapNone));
 
-			s.value = s.value || (isTime ? _timeSeriesVal  : numSeriesVal);
+			var sv = s.value;
+			s.value = isTime ? (isStr(sv) ? timeSeriesVal(tzDate, timeSeriesStamp(sv)) : sv || _timeSeriesVal) : sv || numSeriesVal;
 			s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 			s.width = s.width || 1;
 		});

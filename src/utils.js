@@ -140,6 +140,10 @@ export const assign = Object.assign;
 
 export const isArr = Array.isArray;
 
+export function isStr(v) {
+	return typeof v === 'string';
+}
+
 function isObj(v) {
 	return typeof v === 'object' && v !== null;
 }

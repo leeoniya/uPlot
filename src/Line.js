@@ -20,6 +20,7 @@ import {
 	incrRoundDn,
 	assign,
 	isArr,
+	isStr,
 	fnOrSelf,
 } from './utils';
 
@@ -86,6 +87,9 @@ import {
 
 	timeAxisStamps,
 	_timeAxisStamps,
+
+	timeSeriesStamp,
+	_timeSeriesStamp,
 } from './opts';
 
 import {
@@ -155,7 +159,7 @@ export function Line(opts, data, ready) {
 
 	const _timeAxisTicks = timeAxisTicks(tzDate);
 	const _timeAxisVals = timeAxisVals(tzDate, _timeAxisStamps);
-	const _timeSeriesVal = timeSeriesVal(tzDate);
+	const _timeSeriesVal = timeSeriesVal(tzDate, _timeSeriesStamp);
 
 	self.series = series;
 	self.axes = axes;
@@ -174,7 +178,8 @@ export function Line(opts, data, ready) {
 
 		sc.range = fnOrSelf(sc.range || (i > 0 && !isTime ? snapFifthMag : snapNone));
 
-		s.value = s.value || (isTime ? _timeSeriesVal  : numSeriesVal);
+		let sv = s.value;
+		s.value = isTime ? (isStr(sv) ? timeSeriesVal(tzDate, timeSeriesStamp(sv)) : sv || _timeSeriesVal) : sv || numSeriesVal;
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 		s.width = s.width || 1;
 	});

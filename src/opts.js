@@ -233,10 +233,14 @@ export function timeAxisTicks(tzDate) {
 	}
 }
 
-let longDateHourMin = fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+export function timeSeriesStamp(stampCfg) {
+	return fmtDate(stampCfg);
+};
 
-export function timeSeriesVal(tzDate) {
-	return (self, val) => longDateHourMin(tzDate(val));
+export const _timeSeriesStamp = timeSeriesStamp('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+
+export function timeSeriesVal(tzDate, stamp) {
+	return (self, val) => stamp(tzDate(val));
 }
 
 export const xAxisOpts = {
