@@ -1491,13 +1491,21 @@ function Line(opts, data, ready) {
 
 	var select = placeDiv("select", plot);
 
-	addClass(select, "off");
+	var _select = self.select = assign({
+		show: false,
+		left: null,
+		width: null,
+		top: null,
+		height: null,
+	}, opts.select);
 
-	function setSelect(opts) {
+	function setSelect(opts, _fire) {
 		for (var prop in opts) {
 			var v = opts[prop];
 
 			if (v != null) {
+				_select[prop] = v;
+
 				if (prop == "show")
 					{ (v ? remClass : addClass)(select, "off"); }
 				else
@@ -1505,7 +1513,7 @@ function Line(opts, data, ready) {
 			}
 		}
 
-		fire("setSelect");
+		_fire !== false && fire("setSelect");
 	}
 
 	self.setSelect = setSelect;
@@ -1920,13 +1928,13 @@ function Line(opts, data, ready) {
 			dragging = true;
 
 			if (drag.x || drag.y) {
-				var o = setSelect({
+				setSelect({
 					show:	true,
 					left:	drag.x ? 0 : null,
 					width:	drag.x ? 0 : null,
 					top:	drag.y ? 0 : null,
 					height:	drag.y ? 0 : null,
-				});
+				}, false);
 			}
 
 			cacheMouse(e, src, _x, _y, _w, _h, _i, true);
@@ -1944,40 +1952,47 @@ function Line(opts, data, ready) {
 
 			cacheMouse(e, src, _x, _y, _w, _h, _i, false);
 
-			if (drag.setScale && (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0)) {
+			if (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0) {
+				var left = min(mouseLeft0, mouseLeft1);
+				var right = max(mouseLeft0, mouseLeft1);
+
+				var bottom = max(mouseTop0, mouseTop1);
+				var top = min(mouseTop0, mouseTop1);
+
 				setSelect({
-					show: false
+					left:	drag.x ? left : null,
+					width:	drag.x ? right - left : null,
+					top:	drag.y ? top : null,
+					height:	drag.y ? bottom - top : null,
 				});
 
-				batch(function () {
-					if (drag.x) {
-						var minX = min(mouseLeft0, mouseLeft1);
-						var maxX = max(mouseLeft0, mouseLeft1);
+				if (drag.setScale) {
+					setSelect({show: false}, false);
 
-						var fn = xScaleDistr == 2 ? closestIdxFromXpos : scaleValueAtPos;
+					batch(function () {
+						if (drag.x) {
+							var fn = xScaleDistr == 2 ? closestIdxFromXpos : scaleValueAtPos;
 
-						_setScale(xScaleKey,
-							fn(minX, xScaleKey),
-							fn(maxX, xScaleKey)
-						);
-					}
+							_setScale(xScaleKey,
+								fn(left, xScaleKey),
+								fn(right, xScaleKey)
+							);
+						}
 
-					if (drag.y) {
-						var minY = max(mouseTop0, mouseTop1);
-						var maxY = min(mouseTop0, mouseTop1);
+						if (drag.y) {
+							for (var k in scales) {
+								var sc = scales[k];
 
-						for (var k in scales) {
-							var sc = scales[k];
-
-							if (k != xScaleKey && sc.from == null) {
-								_setScale(k,
-									scaleValueAtPos(canCssHeight - minY, k),
-									scaleValueAtPos(canCssHeight - maxY, k)
-								);
+								if (k != xScaleKey && sc.from == null) {
+									_setScale(k,
+										scaleValueAtPos(canCssHeight - bottom, k),
+										scaleValueAtPos(canCssHeight - top, k)
+									);
+								}
 							}
 						}
-					}
-				});
+					});
+				}
 			}
 			else if (cursor.lock) {
 				cursor.locked = !cursor.locked;
@@ -2093,6 +2108,8 @@ function Line(opts, data, ready) {
 		fire("init", opts, data);
 
 		setData(data || opts.data);
+
+		setSelect(_select, false);		// should this fire before init?
 	}
 
 	if (ready) {
