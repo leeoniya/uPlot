@@ -1258,7 +1258,7 @@ export function Line(opts, data, ready) {
 			dragging = true;
 
 			if (drag.x || drag.y) {
-				let o = setSelect({
+				setSelect({
 					show:	true,
 					left:	drag.x ? 0 : null,
 					width:	drag.x ? 0 : null,
