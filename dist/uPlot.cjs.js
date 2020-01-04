@@ -881,22 +881,23 @@ function Line(opts, data, ready) {
 
 		fire("setData");
 
-		if (_autoScaleX !== false)
-			{ autoScaleX(); }
+		var xsc = scales[xScaleKey];
+
+		var _min = xsc.min,
+			_max = xsc.max;
+
+		if (_autoScaleX !== false) {
+			i0 = 0;
+			i1 = dataLen - 1;
+
+			_min = xScaleDistr == 2 ? i0 : data[0][i0];
+			_max = xScaleDistr == 2 ? i1 : data[0][i1];
+		}
+
+		_setScale(xScaleKey, _min, _max);
 	}
 
 	self.setData = setData;
-
-	function autoScaleX() {
-		i0 = 0;
-		i1 = dataLen - 1;
-
-		_setScale(
-			xScaleKey,
-			xScaleDistr == 2 ? i0 : data[0][i0],
-			xScaleDistr == 2 ? i1 : data[0][i1]
-		);
-	}
 
 	function setCtxStyle(color, width, dash, fill) {
 		ctx.strokeStyle = color || hexBlack;
@@ -2107,7 +2108,12 @@ function Line(opts, data, ready) {
 	function _init() {
 		fire("init", opts, data);
 
-		setData(data || opts.data);
+		var xsc = scales[xScaleKey];
+
+		setData(
+			data || opts.data,
+			xsc.min == inf || xsc.max == -inf
+		);
 
 		setSelect(_select, false);		// should this fire before init?
 	}
