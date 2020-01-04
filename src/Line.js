@@ -818,9 +818,26 @@ export function Line(opts, data, ready) {
 		}
 	}
 
-	const select = cursor.show ? placeDiv("select", plot) : null;
+	const select = placeDiv("select", plot);
 
-	select && addClass(select, "off");
+	addClass(select, "off");
+
+	function setSelect(opts) {
+		for (let prop in opts) {
+			let v = opts[prop];
+
+			if (v != null) {
+				if (prop == "show")
+					(v ? remClass : addClass)(select, "off");
+				else
+					setStylePx(select, prop, v);
+			}
+		}
+
+		fire("setSelect");
+	}
+
+	self.setSelect = setSelect;
 
 	let legend = null;
 	let legendRows = null;
@@ -1136,6 +1153,7 @@ export function Line(opts, data, ready) {
 			}
 
 			if (dragging) {
+				// setSelect should not be triggered on move events
 				if (drag.x) {
 					let minX = min(mouseLeft0, mouseLeft1);
 					let maxX = max(mouseLeft0, mouseLeft1);
@@ -1230,18 +1248,15 @@ export function Line(opts, data, ready) {
 		if (e == null || filtMouse(e)) {
 			dragging = true;
 
-			if (drag.x) {
-				setStylePx(select, LEFT, 0);
-				setStylePx(select, WIDTH, 0);
+			if (drag.x || drag.y) {
+				let o = setSelect({
+					show:	true,
+					left:	drag.x ? 0 : null,
+					width:	drag.x ? 0 : null,
+					top:	drag.y ? 0 : null,
+					height:	drag.y ? 0 : null,
+				});
 			}
-
-			// this is setSelect({left: 0, width: 0});
-			if (drag.y) {
-				setStylePx(select, TOP, 0);
-				setStylePx(select, HEIGHT, 0);
-			}
-
-			remClass(select, "off");
 
 			cacheMouse(e, src, _x, _y, _w, _h, _i, true);
 
@@ -1259,7 +1274,9 @@ export function Line(opts, data, ready) {
 			cacheMouse(e, src, _x, _y, _w, _h, _i, false);
 
 			if (drag.setScale && (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0)) {
-				addClass(select, "off");
+				setSelect({
+					show: false
+				});
 
 				batch(() => {
 					if (drag.x) {
@@ -1275,16 +1292,16 @@ export function Line(opts, data, ready) {
 					}
 
 					if (drag.y) {
-						let minY = min(mouseTop0, mouseTop1);
-						let maxY = max(mouseTop0, mouseTop1);
+						let minY = max(mouseTop0, mouseTop1);
+						let maxY = min(mouseTop0, mouseTop1);
 
 						for (let k in scales) {
 							let sc = scales[k];
 
-							if (k !== xScaleKey && sc.from == null) {
+							if (k != xScaleKey && sc.from == null) {
 								_setScale(k,
-									scaleValueAtPos(minY, k),
-									scaleValueAtPos(maxY, k),
+									scaleValueAtPos(canCssHeight - minY, k),
+									scaleValueAtPos(canCssHeight - maxY, k),
 								);
 							}
 						}
