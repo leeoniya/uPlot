@@ -1461,6 +1461,14 @@ var uPlot = (function (exports) {
 			show: true,
 			cross: true,
 			lock: false,
+			points: true,
+
+			drag: {
+				setScale: true,
+				x: true,
+				y: false,
+			},
+
 			locked: false,
 			left: -10,
 			top: -10,
@@ -1468,6 +1476,7 @@ var uPlot = (function (exports) {
 		}, opts.cursor);
 
 		var focus = cursor.focus;		// focus: {alpha, prox}
+		var drag = cursor.drag;
 
 		if (cursor.show) {
 			if (cursor.cross) {
@@ -1481,7 +1490,9 @@ var uPlot = (function (exports) {
 			}
 		}
 
-		var zoom = cursor.show ? placeDiv("zoom", plot) : null;
+		var select = cursor.show ? placeDiv("select", plot) : null;
+
+		select && addClass(select, "off");
 
 		var legend = null;
 		var legendRows = null;
@@ -1562,16 +1573,12 @@ var uPlot = (function (exports) {
 				{ remClass(label, "off"); }
 			else {
 				addClass(label, "off");
-				cursor.show && trans(cursorPts[i], 0, -10);
+				showPoints && trans(cursorPts[i], 0, -10);
 			}
 		}
 
-		var _scaleOpts = {min: null, max: null};
-
 		function _setScale(key, min, max) {
-			_scaleOpts.min = min;
-			_scaleOpts.max = max;
-			setScale(key, _scaleOpts);
+			setScale(key, {min: min, max: max});
 		}
 
 		function setSeries(i, opts, pub) {
@@ -1651,8 +1658,10 @@ var uPlot = (function (exports) {
 			});
 		}
 
+		var showPoints = cursor.show && cursor.points;
+
 		// series-intersection markers
-		var cursorPts = cursor.show ? series.map(function (s, i) {
+		var cursorPts = showPoints ? series.map(function (s, i) {
 			if (i > 0) {
 				var pt = placeDiv("point", plot);
 
@@ -1743,7 +1752,7 @@ var uPlot = (function (exports) {
 				for (var i = 0; i < series.length; i++) {
 					if (i > 0) {
 						distsToCursor[i] = inf;
-						trans(cursorPts[i], -10, -10);
+						showPoints && trans(cursorPts[i], -10, -10);
 					}
 
 					if (legendOpts.show) {
@@ -1778,7 +1787,7 @@ var uPlot = (function (exports) {
 
 						distsToCursor[i$1] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
 
-						cursor.show && trans(cursorPts[i$1], xPos, yPos);
+						showPoints && trans(cursorPts[i$1], xPos, yPos);
 					}
 					else
 						{ distsToCursor[i$1] = inf; }
@@ -1799,11 +1808,19 @@ var uPlot = (function (exports) {
 				}
 
 				if (dragging) {
-					var minX = min(mouseLeft0, mouseLeft1);
-					var maxX = max(mouseLeft0, mouseLeft1);
+					if (drag.x) {
+						var minX = min(mouseLeft0, mouseLeft1);
+						var maxX = max(mouseLeft0, mouseLeft1);
+						setStylePx(select, LEFT, minX);
+						setStylePx(select, WIDTH, maxX - minX);
+					}
 
-					setStylePx(zoom, LEFT, minX);
-					setStylePx(zoom, WIDTH, maxX - minX);
+					if (drag.y) {
+						var minY = min(mouseTop0, mouseTop1);
+						var maxY = max(mouseTop0, mouseTop1);
+						setStylePx(select, TOP, minY);
+						setStylePx(select, HEIGHT, maxY - minY);
+					}
 				}
 			}
 
@@ -1885,6 +1902,19 @@ var uPlot = (function (exports) {
 			if (e == null || filtMouse(e)) {
 				dragging = true;
 
+				if (drag.x) {
+					setStylePx(select, LEFT, 0);
+					setStylePx(select, WIDTH, 0);
+				}
+
+				// this is setSelect({left: 0, width: 0});
+				if (drag.y) {
+					setStylePx(select, TOP, 0);
+					setStylePx(select, HEIGHT, 0);
+				}
+
+				remClass(select, "off");
+
 				cacheMouse(e, src, _x, _y, _w, _h, _i, true);
 
 				if (e != null) {
@@ -1900,19 +1930,38 @@ var uPlot = (function (exports) {
 
 				cacheMouse(e, src, _x, _y, _w, _h, _i, false);
 
-				if (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0) {
-					setStylePx(zoom, LEFT, 0);
-					setStylePx(zoom, WIDTH, 0);
+				if (drag.setScale && (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0)) {
+					addClass(select, "off");
 
-					var minX = min(mouseLeft0, mouseLeft1);
-					var maxX = max(mouseLeft0, mouseLeft1);
+					batch(function () {
+						if (drag.x) {
+							var minX = min(mouseLeft0, mouseLeft1);
+							var maxX = max(mouseLeft0, mouseLeft1);
 
-					var fn = xScaleDistr == 2 ? closestIdxFromXpos : scaleValueAtPos;
+							var fn = xScaleDistr == 2 ? closestIdxFromXpos : scaleValueAtPos;
 
-					_setScale(xScaleKey,
-						fn(minX, xScaleKey),
-						fn(maxX, xScaleKey)
-					);
+							_setScale(xScaleKey,
+								fn(minX, xScaleKey),
+								fn(maxX, xScaleKey)
+							);
+						}
+
+						if (drag.y) {
+							var minY = min(mouseTop0, mouseTop1);
+							var maxY = max(mouseTop0, mouseTop1);
+
+							for (var k in scales) {
+								var sc = scales[k];
+
+								if (k !== xScaleKey && sc.from == null) {
+									_setScale(k,
+										scaleValueAtPos(minY, k),
+										scaleValueAtPos(maxY, k)
+									);
+								}
+							}
+						}
+					});
 				}
 				else if (cursor.lock) {
 					cursor.locked = !cursor.locked;
