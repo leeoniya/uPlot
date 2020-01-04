@@ -830,6 +830,16 @@ function Line(opts, data, ready) {
 	self.axes = axes;
 	self.scales = scales;
 
+	var pendScales = {};
+
+	// explicitly-set initial scales
+	for (var k in scales) {
+		var sc = scales[k];
+
+		if (sc.min != null || sc.max != null)
+			{ pendScales[k] = {min: sc.min, max: sc.max}; }
+	}
+
 	var legendOpts = assign({show: true}, opts.legend);
 
 	// set default value
@@ -850,11 +860,11 @@ function Line(opts, data, ready) {
 	});
 
 	// dependent scales inherit
-	for (var k in scales) {
-		var sc = scales[k];
+	for (var k$1 in scales) {
+		var sc$1 = scales[k$1];
 
-		if (sc.from != null)
-			{ scales[k] = assign({}, scales[sc.from], sc); }
+		if (sc$1.from != null)
+			{ scales[k$1] = assign({}, scales[sc$1.from], sc$1); }
 	}
 
 	var xScaleKey = series[0].scale;
@@ -881,22 +891,23 @@ function Line(opts, data, ready) {
 
 		fire("setData");
 
-		if (_autoScaleX !== false)
-			{ autoScaleX(); }
+		var xsc = scales[xScaleKey];
+
+		var _min = xsc.min,
+			_max = xsc.max;
+
+		if (_autoScaleX !== false) {
+			i0 = 0;
+			i1 = dataLen - 1;
+
+			_min = xScaleDistr == 2 ? i0 : data[0][i0];
+			_max = xScaleDistr == 2 ? i1 : data[0][i1];
+		}
+
+		_setScale(xScaleKey, _min, _max);
 	}
 
 	self.setData = setData;
-
-	function autoScaleX() {
-		i0 = 0;
-		i1 = dataLen - 1;
-
-		_setScale(
-			xScaleKey,
-			xScaleDistr == 2 ? i0 : data[0][i0],
-			xScaleDistr == 2 ? i1 : data[0][i1]
-		);
-	}
 
 	function setCtxStyle(color, width, dash, fill) {
 		ctx.strokeStyle = color || hexBlack;
@@ -1068,8 +1079,6 @@ function Line(opts, data, ready) {
 	self.ctx = ctx;
 
 	plot.appendChild(can);
-
-	var pendScales = {};
 
 	function setScales() {
 		if (inBatch) {
@@ -2092,7 +2101,10 @@ function Line(opts, data, ready) {
 	function _init() {
 		fire("init", opts, data);
 
-		setData(data || opts.data);
+		setData(
+			data || opts.data,
+			pendScales[xScaleKey] == null
+		);
 	}
 
 	if (ready) {

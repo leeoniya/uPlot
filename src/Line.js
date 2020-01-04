@@ -165,6 +165,16 @@ export function Line(opts, data, ready) {
 	self.axes = axes;
 	self.scales = scales;
 
+	const pendScales = {};
+
+	// explicitly-set initial scales
+	for (let k in scales) {
+		let sc = scales[k];
+
+		if (sc.min != null || sc.max != null)
+			pendScales[k] = {min: sc.min, max: sc.max};
+	}
+
 	const legendOpts = assign({show: true}, opts.legend);
 
 	// set default value
@@ -216,22 +226,23 @@ export function Line(opts, data, ready) {
 
 		fire("setData");
 
-		if (_autoScaleX !== false)
-			autoScaleX();
+		let xsc = scales[xScaleKey];
+
+		let _min = xsc.min,
+			_max = xsc.max;
+
+		if (_autoScaleX !== false) {
+			i0 = 0;
+			i1 = dataLen - 1;
+
+			_min = xScaleDistr == 2 ? i0 : data[0][i0];
+			_max = xScaleDistr == 2 ? i1 : data[0][i1];
+		}
+
+		_setScale(xScaleKey, _min, _max);
 	}
 
 	self.setData = setData;
-
-	function autoScaleX() {
-		i0 = 0;
-		i1 = dataLen - 1;
-
-		_setScale(
-			xScaleKey,
-			xScaleDistr == 2 ? i0 : data[0][i0],
-			xScaleDistr == 2 ? i1 : data[0][i1],
-		);
-	}
 
 	function setCtxStyle(color, width, dash, fill) {
 		ctx.strokeStyle = color || hexBlack;
@@ -400,8 +411,6 @@ export function Line(opts, data, ready) {
 	self.ctx = ctx;
 
 	plot.appendChild(can);
-
-	const pendScales = {};
 
 	function setScales() {
 		if (inBatch) {
@@ -1421,7 +1430,10 @@ export function Line(opts, data, ready) {
 	function _init() {
 		fire("init", opts, data);
 
-		setData(data || opts.data);
+		setData(
+			data || opts.data,
+			pendScales[xScaleKey] == null,
+		);
 	}
 
 	if (ready) {
