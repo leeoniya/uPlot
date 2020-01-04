@@ -1282,40 +1282,47 @@ export function Line(opts, data, ready) {
 
 			cacheMouse(e, src, _x, _y, _w, _h, _i, false);
 
-			if (drag.setScale && (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0)) {
+			if (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0) {
+				let left = min(mouseLeft0, mouseLeft1);
+				let right = max(mouseLeft0, mouseLeft1);
+
+				let bottom = max(mouseTop0, mouseTop1);
+				let top = min(mouseTop0, mouseTop1);
+
 				setSelect({
-					show: false
+					left:	drag.x ? left : null,
+					width:	drag.x ? right - left : null,
+					top:	drag.y ? top : null,
+					height:	drag.y ? bottom - top : null,
 				});
 
-				batch(() => {
-					if (drag.x) {
-						let minX = min(mouseLeft0, mouseLeft1);
-						let maxX = max(mouseLeft0, mouseLeft1);
+				if (drag.setScale) {
+					setSelect({show: false});
 
-						let fn = xScaleDistr == 2 ? closestIdxFromXpos : scaleValueAtPos;
+					batch(() => {
+						if (drag.x) {
+							let fn = xScaleDistr == 2 ? closestIdxFromXpos : scaleValueAtPos;
 
-						_setScale(xScaleKey,
-							fn(minX, xScaleKey),
-							fn(maxX, xScaleKey),
-						);
-					}
+							_setScale(xScaleKey,
+								fn(left, xScaleKey),
+								fn(right, xScaleKey),
+							);
+						}
 
-					if (drag.y) {
-						let minY = max(mouseTop0, mouseTop1);
-						let maxY = min(mouseTop0, mouseTop1);
+						if (drag.y) {
+							for (let k in scales) {
+								let sc = scales[k];
 
-						for (let k in scales) {
-							let sc = scales[k];
-
-							if (k != xScaleKey && sc.from == null) {
-								_setScale(k,
-									scaleValueAtPos(canCssHeight - minY, k),
-									scaleValueAtPos(canCssHeight - maxY, k),
-								);
+								if (k != xScaleKey && sc.from == null) {
+									_setScale(k,
+										scaleValueAtPos(canCssHeight - bottom, k),
+										scaleValueAtPos(canCssHeight - top, k),
+									);
+								}
 							}
 						}
-					}
-				})
+					})
+				}
 			}
 			else if (cursor.lock) {
 				cursor.locked = !cursor.locked
