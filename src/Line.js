@@ -165,6 +165,16 @@ export function Line(opts, data, ready) {
 	self.axes = axes;
 	self.scales = scales;
 
+	const pendScales = {};
+
+	// explicitly-set initial scales
+	for (let k in scales) {
+		let sc = scales[k];
+
+		if (sc.min != null || sc.max != null)
+			pendScales[k] = {min: sc.min, max: sc.max};
+	}
+
 	const legendOpts = assign({show: true}, opts.legend);
 
 	// set default value
@@ -401,8 +411,6 @@ export function Line(opts, data, ready) {
 	self.ctx = ctx;
 
 	plot.appendChild(can);
-
-	const pendScales = {};
 
 	function setScales() {
 		if (inBatch) {
@@ -1437,11 +1445,9 @@ export function Line(opts, data, ready) {
 	function _init() {
 		fire("init", opts, data);
 
-		let xsc = scales[xScaleKey];
-
 		setData(
 			data || opts.data,
-			xsc.min == inf || xsc.max == -inf,
+			pendScales[xScaleKey] == null,
 		);
 
 		setSelect(_select, false);		// should this fire before init?

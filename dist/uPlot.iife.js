@@ -831,6 +831,16 @@ var uPlot = (function (exports) {
 		self.axes = axes;
 		self.scales = scales;
 
+		var pendScales = {};
+
+		// explicitly-set initial scales
+		for (var k in scales) {
+			var sc = scales[k];
+
+			if (sc.min != null || sc.max != null)
+				{ pendScales[k] = {min: sc.min, max: sc.max}; }
+		}
+
 		var legendOpts = assign({show: true}, opts.legend);
 
 		// set default value
@@ -851,11 +861,11 @@ var uPlot = (function (exports) {
 		});
 
 		// dependent scales inherit
-		for (var k in scales) {
-			var sc = scales[k];
+		for (var k$1 in scales) {
+			var sc$1 = scales[k$1];
 
-			if (sc.from != null)
-				{ scales[k] = assign({}, scales[sc.from], sc); }
+			if (sc$1.from != null)
+				{ scales[k$1] = assign({}, scales[sc$1.from], sc$1); }
 		}
 
 		var xScaleKey = series[0].scale;
@@ -1070,8 +1080,6 @@ var uPlot = (function (exports) {
 		self.ctx = ctx;
 
 		plot.appendChild(can);
-
-		var pendScales = {};
 
 		function setScales() {
 			if (inBatch) {
@@ -2109,11 +2117,9 @@ var uPlot = (function (exports) {
 		function _init() {
 			fire("init", opts, data);
 
-			var xsc = scales[xScaleKey];
-
 			setData(
 				data || opts.data,
-				xsc.min == inf || xsc.max == -inf
+				pendScales[xScaleKey] == null
 			);
 
 			setSelect(_select, false);		// should this fire before init?
