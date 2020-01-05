@@ -829,21 +829,24 @@ export function Line(opts, data, ready) {
 
 	const select = placeDiv("select", plot);
 
-	addClass(select, "off");
+	const _select = self.select = {
+		left:	0,
+		width:	0,
+		top:	0,
+		height:	0,
+	};
 
-	function setSelect(opts) {
-		for (let prop in opts) {
-			let v = opts[prop];
+	function setSelect(opts, _fire) {
+		if (opts[WIDTH] == null && drag.y)
+			opts[WIDTH] = canCssWidth;
 
-			if (v != null) {
-				if (prop == "show")
-					(v ? remClass : addClass)(select, "off");
-				else
-					setStylePx(select, prop, v);
-			}
-		}
+		if (opts[HEIGHT] == null && drag.x)
+			opts[HEIGHT] = canCssHeight;
 
-		fire("setSelect");
+		for (let prop in opts)
+			setStylePx(select, prop, _select[prop] = opts[prop]);
+
+		_fire !== false && fire("setSelect");
 	}
 
 	self.setSelect = setSelect;
@@ -1166,15 +1169,15 @@ export function Line(opts, data, ready) {
 				if (drag.x) {
 					let minX = min(mouseLeft0, mouseLeft1);
 					let maxX = max(mouseLeft0, mouseLeft1);
-					setStylePx(select, LEFT, minX);
-					setStylePx(select, WIDTH, maxX - minX);
+					setStylePx(select, LEFT, _select[LEFT] = minX);
+					setStylePx(select, WIDTH, _select[WIDTH] = maxX - minX);
 				}
 
 				if (drag.y) {
 					let minY = min(mouseTop0, mouseTop1);
 					let maxY = max(mouseTop0, mouseTop1);
-					setStylePx(select, TOP, minY);
-					setStylePx(select, HEIGHT, maxY - minY);
+					setStylePx(select, TOP, _select[TOP] = minY);
+					setStylePx(select, HEIGHT, _select[HEIGHT] = maxY - minY);
 				}
 			}
 		}
@@ -1253,21 +1256,21 @@ export function Line(opts, data, ready) {
 		}
 	}
 
+	function hideSelect() {
+		setSelect({
+			width:	!drag.x ? canCssWidth : 0,
+			height:	!drag.y ? canCssHeight : 0,
+		}, false);
+	}
+
 	function mouseDown(e, src, _x, _y, _w, _h, _i) {
 		if (e == null || filtMouse(e)) {
 			dragging = true;
 
-			if (drag.x || drag.y) {
-				setSelect({
-					show:	true,
-					left:	drag.x ? 0 : null,
-					width:	drag.x ? 0 : null,
-					top:	drag.y ? 0 : null,
-					height:	drag.y ? 0 : null,
-				});
-			}
-
 			cacheMouse(e, src, _x, _y, _w, _h, _i, true);
+
+			if (drag.x || drag.y)
+				hideSelect();
 
 			if (e != null) {
 				on(mouseup, doc, mouseUp);
@@ -1283,29 +1286,16 @@ export function Line(opts, data, ready) {
 			cacheMouse(e, src, _x, _y, _w, _h, _i, false);
 
 			if (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0) {
-				let left = min(mouseLeft0, mouseLeft1);
-				let right = max(mouseLeft0, mouseLeft1);
-
-				let bottom = max(mouseTop0, mouseTop1);
-				let top = min(mouseTop0, mouseTop1);
-
-				setSelect({
-					left:	drag.x ? left : null,
-					width:	drag.x ? right - left : null,
-					top:	drag.y ? top : null,
-					height:	drag.y ? bottom - top : null,
-				});
+				setSelect(_select);
 
 				if (drag.setScale) {
-					setSelect({show: false});
-
 					batch(() => {
 						if (drag.x) {
 							let fn = xScaleDistr == 2 ? closestIdxFromXpos : scaleValueAtPos;
 
 							_setScale(xScaleKey,
-								fn(left, xScaleKey),
-								fn(right, xScaleKey),
+								fn(_select[LEFT], xScaleKey),
+								fn(_select[LEFT] + _select[WIDTH], xScaleKey),
 							);
 						}
 
@@ -1315,13 +1305,15 @@ export function Line(opts, data, ready) {
 
 								if (k != xScaleKey && sc.from == null) {
 									_setScale(k,
-										scaleValueAtPos(canCssHeight - bottom, k),
-										scaleValueAtPos(canCssHeight - top, k),
+										scaleValueAtPos(canCssHeight - _select[TOP] - _select[HEIGHT], k),
+										scaleValueAtPos(canCssHeight - _select[TOP], k),
 									);
 								}
 							}
 						}
-					})
+					});
+
+					hideSelect();
 				}
 			}
 			else if (cursor.lock) {
@@ -1441,6 +1433,8 @@ export function Line(opts, data, ready) {
 			data || opts.data,
 			pendScales[xScaleKey] == null,
 		);
+
+		setSelect(_select);
 	}
 
 	if (ready) {

@@ -1500,21 +1500,24 @@ function Line(opts, data, ready) {
 
 	var select = placeDiv("select", plot);
 
-	addClass(select, "off");
+	var _select = self.select = {
+		left:	0,
+		width:	0,
+		top:	0,
+		height:	0,
+	};
 
-	function setSelect(opts) {
-		for (var prop in opts) {
-			var v = opts[prop];
+	function setSelect(opts, _fire) {
+		if (opts[WIDTH] == null && drag.y)
+			{ opts[WIDTH] = canCssWidth; }
 
-			if (v != null) {
-				if (prop == "show")
-					{ (v ? remClass : addClass)(select, "off"); }
-				else
-					{ setStylePx(select, prop, v); }
-			}
-		}
+		if (opts[HEIGHT] == null && drag.x)
+			{ opts[HEIGHT] = canCssHeight; }
 
-		fire("setSelect");
+		for (var prop in opts)
+			{ setStylePx(select, prop, _select[prop] = opts[prop]); }
+
+		_fire !== false && fire("setSelect");
 	}
 
 	self.setSelect = setSelect;
@@ -1837,15 +1840,15 @@ function Line(opts, data, ready) {
 				if (drag.x) {
 					var minX = min(mouseLeft0, mouseLeft1);
 					var maxX = max(mouseLeft0, mouseLeft1);
-					setStylePx(select, LEFT, minX);
-					setStylePx(select, WIDTH, maxX - minX);
+					setStylePx(select, LEFT, _select[LEFT] = minX);
+					setStylePx(select, WIDTH, _select[WIDTH] = maxX - minX);
 				}
 
 				if (drag.y) {
 					var minY = min(mouseTop0, mouseTop1);
 					var maxY = max(mouseTop0, mouseTop1);
-					setStylePx(select, TOP, minY);
-					setStylePx(select, HEIGHT, maxY - minY);
+					setStylePx(select, TOP, _select[TOP] = minY);
+					setStylePx(select, HEIGHT, _select[HEIGHT] = maxY - minY);
 				}
 			}
 		}
@@ -1924,21 +1927,21 @@ function Line(opts, data, ready) {
 		}
 	}
 
+	function hideSelect() {
+		setSelect({
+			width:	!drag.x ? canCssWidth : 0,
+			height:	!drag.y ? canCssHeight : 0,
+		}, false);
+	}
+
 	function mouseDown(e, src, _x, _y, _w, _h, _i) {
 		if (e == null || filtMouse(e)) {
 			dragging = true;
 
-			if (drag.x || drag.y) {
-				setSelect({
-					show:	true,
-					left:	drag.x ? 0 : null,
-					width:	drag.x ? 0 : null,
-					top:	drag.y ? 0 : null,
-					height:	drag.y ? 0 : null,
-				});
-			}
-
 			cacheMouse(e, src, _x, _y, _w, _h, _i, true);
+
+			if (drag.x || drag.y)
+				{ hideSelect(); }
 
 			if (e != null) {
 				on(mouseup, doc, mouseUp);
@@ -1954,29 +1957,16 @@ function Line(opts, data, ready) {
 			cacheMouse(e, src, _x, _y, _w, _h, _i, false);
 
 			if (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0) {
-				var left = min(mouseLeft0, mouseLeft1);
-				var right = max(mouseLeft0, mouseLeft1);
-
-				var bottom = max(mouseTop0, mouseTop1);
-				var top = min(mouseTop0, mouseTop1);
-
-				setSelect({
-					left:	drag.x ? left : null,
-					width:	drag.x ? right - left : null,
-					top:	drag.y ? top : null,
-					height:	drag.y ? bottom - top : null,
-				});
+				setSelect(_select);
 
 				if (drag.setScale) {
-					setSelect({show: false});
-
 					batch(function () {
 						if (drag.x) {
 							var fn = xScaleDistr == 2 ? closestIdxFromXpos : scaleValueAtPos;
 
 							_setScale(xScaleKey,
-								fn(left, xScaleKey),
-								fn(right, xScaleKey)
+								fn(_select[LEFT], xScaleKey),
+								fn(_select[LEFT] + _select[WIDTH], xScaleKey)
 							);
 						}
 
@@ -1986,13 +1976,15 @@ function Line(opts, data, ready) {
 
 								if (k != xScaleKey && sc.from == null) {
 									_setScale(k,
-										scaleValueAtPos(canCssHeight - bottom, k),
-										scaleValueAtPos(canCssHeight - top, k)
+										scaleValueAtPos(canCssHeight - _select[TOP] - _select[HEIGHT], k),
+										scaleValueAtPos(canCssHeight - _select[TOP], k)
 									);
 								}
 							}
 						}
 					});
+
+					hideSelect();
 				}
 			}
 			else if (cursor.lock) {
@@ -2112,6 +2104,8 @@ function Line(opts, data, ready) {
 			data || opts.data,
 			pendScales[xScaleKey] == null
 		);
+
+		setSelect(_select);
 	}
 
 	if (ready) {
