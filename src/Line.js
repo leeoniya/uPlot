@@ -1340,6 +1340,7 @@ export function Line(opts, data, ready) {
 	}
 
 	function dblClick(e, src, _x, _y, _w, _h, _i) {
+		fire("beginDblClick");
 		let min = data[0][0];
 		let max = data[0][dataLen - 1];
 	//	let sc = scales[xScaleKey];
