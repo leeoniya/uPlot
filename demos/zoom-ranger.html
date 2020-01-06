@@ -1,0 +1,162 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Zoom Ranger</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			.uplot {
+				display: block;
+				width: 800px;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			var loop = 100;
+
+			let data = [
+				Array(loop),
+				Array(loop),
+			];
+
+			for (var i = 0; i < loop; i++) {
+				let x = 2 * Math.PI * i / loop;
+				let y = Math.sin(x);
+
+				data[0][i] = x;
+				data[1][i] = y;
+			}
+
+			let allReady = false;
+			let initXmin = 1;
+			let initXmax = 4.5;
+
+			let viaRanger = false;
+			let viaZoom = false;
+
+			const fullOpts = {
+			//	title: "Full Range",
+				width: 800,
+				height: 100,
+				// this cannot be set here since we need the data & valToPos()
+				// to calc the proper coords (same issue with top/left of cursor)
+			//	select: {left, width}
+				cursor: {
+					points: false,
+					drag: {
+						setScale: false,
+						x: true,
+						y: false,
+					},
+				},
+				legend: {show: false},
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{
+						label: "x",
+					},
+					{
+						label: "sin(x)",
+						color: "red",
+					}
+				],
+				hooks: {
+					setSelect: [
+						u2 => {
+							if (!allReady)
+								return;
+
+							if (!viaZoom) {
+								// pass false to prevent re-trigger?
+								viaRanger = true;
+								u.setScale('x', {
+									min: u2.posToVal(u2.select.left, 'x'),
+									max: u2.posToVal(u2.select.left + u2.select.width, 'x'),
+								});
+								viaRanger = false;
+							}
+						}
+					]
+				}
+			};
+
+			let u2 = new uPlot.Line(fullOpts, data, document.body);
+
+			// set initial selection range
+			u2.setSelect({
+				left:  u2.valToPos(initXmin, 'x'),
+				width: u2.valToPos(initXmax, 'x') - u2.valToPos(initXmin, 'x'),
+			});
+
+			const zoomedOpts = {
+			//	title: "Zoomed Area",
+				width: 800,
+				height: 400,
+			/*
+				cursor: {
+					drag: {
+						setScale: true,
+						x: true,
+						y: true,
+					},
+				},
+			*/
+				scales: {
+					x: {
+						time: false,
+						min: 1,
+						max: 4.5,
+					},
+				//	y: {
+				//		min: 0.5,
+				//		max: 1,
+				//	}
+				},
+				series: [
+					{
+						label: "x",
+					},
+					{
+						label: "sin(x)",
+						color: "red",
+					}
+				],
+				hooks: {
+					setScale: [
+						(u, key) => {
+							if (!allReady)
+								return;
+
+							if (key == 'x' && !viaRanger) {
+								let left = u2.valToPos(u.scales.x.min, 'x');
+								let right = u2.valToPos(u.scales.x.max, 'x');
+
+								// pass false to prevent re-trigger?
+								viaZoom = true;
+								u2.setSelect({
+									left,
+									width: right - left,
+								//	height: 100,
+								//	top: 0,
+								});
+								viaZoom = false;
+							}
+						}
+					]
+				}
+			};
+
+			let u = new uPlot.Line(zoomedOpts, data, document.body);
+
+			allReady = true;
+		</script>
+	</body>
+</html>
