@@ -63,7 +63,6 @@
 				console.time('chart');
 
 				var ctx = document.getElementById('chart1').getContext('2d');
-				Chart.defaults.global.animation = false;
 				var color = Chart.helpers.color;
 				var cfg = {
 					data: {
@@ -101,6 +100,7 @@
 						]
 					},
 					options: {
+						animation: false,
 						maintainAspectRatio: false,
 						parsing: false,
 						tooltips: {
@@ -108,7 +108,8 @@
 							intersect: false
 						},
 						hover: {
-							axis: 'x'
+							axis: 'x',
+							intersect: false
 						},
 						scales: {
 							x: {
