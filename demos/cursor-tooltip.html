@@ -50,9 +50,6 @@
 							let bbox = can.getBoundingClientRect();
 							bLeft = bbox.left;
 							bTop = bbox.top;
-
-							if (opts.cursor.left > 0)
-								overlay.style.display = "block";
 						}
 					],
 					setCursor: [
@@ -73,10 +70,6 @@
 				title: "placement.js tooltip",
 				width: 600,
 				height: 400,
-				cursor: {
-					top: 100,
-					left: 100,
-				},
 				plugins: [
 					tooltipPlugin(),
 				],

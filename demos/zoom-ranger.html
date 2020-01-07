@@ -31,20 +31,15 @@
 				data[1][i] = y;
 			}
 
-			let allReady = false;
 			let initXmin = 1;
 			let initXmax = 4.5;
 
 			let viaRanger = false;
 			let viaZoom = false;
 
-			const fullOpts = {
-			//	title: "Full Range",
+			const rangerOpts = {
 				width: 800,
 				height: 100,
-				// this cannot be set here since we need the data & valToPos()
-				// to calc the proper coords (same issue with top/left of cursor)
-			//	select: {left, width}
 				cursor: {
 					points: false,
 					drag: {
@@ -53,72 +48,54 @@
 						y: false,
 					},
 				},
-				legend: {show: false},
+				legend: {
+					show: false
+				},
 				scales: {
 					x: {
 						time: false,
 					},
 				},
 				series: [
+					{},
 					{
-						label: "x",
-					},
-					{
-						label: "sin(x)",
 						color: "red",
 					}
 				],
 				hooks: {
 					setSelect: [
-						u2 => {
-							if (!allReady)
-								return;
-
+						uRanger => {
 							if (!viaZoom) {
-								// pass false to prevent re-trigger?
 								viaRanger = true;
-								u.setScale('x', {
-									min: u2.posToVal(u2.select.left, 'x'),
-									max: u2.posToVal(u2.select.left + u2.select.width, 'x'),
-								});
+								let min = uRanger.posToVal(uRanger.select.left, 'x');
+								let max = uRanger.posToVal(uRanger.select.left + uRanger.select.width, 'x');
+								uZoomed.setScale('x', {min, max});
 								viaRanger = false;
 							}
+						}
+					],
+					ready: [
+						uRanger => {
+							let left = uRanger.valToPos(initXmin, 'x');
+							let width = uRanger.valToPos(initXmax, 'x') - left;
+							uRanger.setSelect({left, width}, false);
 						}
 					]
 				}
 			};
 
-			let u2 = new uPlot.Line(fullOpts, data, document.body);
-
-			// set initial selection range
-			u2.setSelect({
-				left:  u2.valToPos(initXmin, 'x'),
-				width: u2.valToPos(initXmax, 'x') - u2.valToPos(initXmin, 'x'),
-			});
+			let uRanger = new uPlot.Line(rangerOpts, data, document.body);
 
 			const zoomedOpts = {
 			//	title: "Zoomed Area",
 				width: 800,
 				height: 400,
-			/*
-				cursor: {
-					drag: {
-						setScale: true,
-						x: true,
-						y: true,
-					},
-				},
-			*/
 				scales: {
 					x: {
 						time: false,
-						min: 1,
-						max: 4.5,
+						min: initXmin,
+						max: initXmax,
 					},
-				//	y: {
-				//		min: 0.5,
-				//		max: 1,
-				//	}
 				},
 				series: [
 					{
@@ -131,22 +108,12 @@
 				],
 				hooks: {
 					setScale: [
-						(u, key) => {
-							if (!allReady)
-								return;
-
+						(uZoomed, key) => {
 							if (key == 'x' && !viaRanger) {
-								let left = u2.valToPos(u.scales.x.min, 'x');
-								let right = u2.valToPos(u.scales.x.max, 'x');
-
-								// pass false to prevent re-trigger?
 								viaZoom = true;
-								u2.setSelect({
-									left,
-									width: right - left,
-								//	height: 100,
-								//	top: 0,
-								});
+								let left = uRanger.valToPos(uZoomed.scales.x.min, 'x');
+								let right = uRanger.valToPos(uZoomed.scales.x.max, 'x');
+								uRanger.setSelect({left, width: right - left});
 								viaZoom = false;
 							}
 						}
@@ -154,9 +121,7 @@
 				}
 			};
 
-			let u = new uPlot.Line(zoomedOpts, data, document.body);
-
-			allReady = true;
+			let uZoomed = new uPlot.Line(zoomedOpts, data, document.body);
 		</script>
 	</body>
 </html>

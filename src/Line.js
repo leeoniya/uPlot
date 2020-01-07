@@ -141,10 +141,12 @@ function filtMouse(e) {
 	return e.button == 0;
 }
 
-export function Line(opts, data, ready) {
+export function Line(opts, data, then) {
 	opts = copy(opts);
 
 	const self = this;
+
+	let ready = false;
 
 	const series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
 	const axes    = setDefaults(opts.axes || [], xAxisOpts, yAxisOpts);
@@ -226,23 +228,20 @@ export function Line(opts, data, ready) {
 
 		fire("setData");
 
-		let xsc = scales[xScaleKey];
-
-		let _min = xsc.min,
-			_max = xsc.max;
-
-		if (_autoScaleX !== false) {
-			i0 = 0;
-			i1 = dataLen - 1;
-
-			_min = xScaleDistr == 2 ? i0 : data[0][i0];
-			_max = xScaleDistr == 2 ? i1 : data[0][i1];
-		}
-
-		_setScale(xScaleKey, _min, _max);
+		_autoScaleX !== false && autoScaleX();
 	}
 
 	self.setData = setData;
+
+	function autoScaleX() {
+		i0 = 0;
+		i1 = dataLen - 1;
+
+		let _min = xScaleDistr == 2 ? i0 : data[0][i0],
+			_max = xScaleDistr == 2 ? i1 : data[0][i1];
+
+		_setScale(xScaleKey, _min, _max);
+	}
 
 	function setCtxStyle(color, width, dash, fill) {
 		ctx.strokeStyle = color || hexBlack;
@@ -796,7 +795,8 @@ export function Line(opts, data, ready) {
 
 	const cursor = self.cursor = assign({
 		show: true,
-		cross: true,
+		x: true,
+		y: true,
 		lock: false,
 		points: true,
 
@@ -816,13 +816,15 @@ export function Line(opts, data, ready) {
 	const drag = cursor.drag;
 
 	if (cursor.show) {
-		if (cursor.cross) {
+		let c = "cursor-";
+
+		if (cursor.x) {
 			mouseLeft1 = cursor.left;
-			mouseTop1 = cursor.top;
-
-			let c = "cursor-";
-
 			vt = placeDiv(c + "x", plot);
+		}
+
+		if (cursor.y) {
+			mouseTop1 = cursor.top;
 			hz = placeDiv(c + "y", plot);
 		}
 	}
@@ -1095,9 +1097,9 @@ export function Line(opts, data, ready) {
 
 		rafPending = false;
 
-		if (cursor.show && cursor.cross) {
-			trans(vt,round(mouseLeft1),0);
-			trans(hz,0,round(mouseTop1));
+		if (cursor.show) {
+			cursor.x && trans(vt,round(mouseLeft1),0);
+			cursor.y && trans(hz,0,round(mouseTop1));
 		}
 
 		let idx;
@@ -1208,7 +1210,7 @@ export function Line(opts, data, ready) {
 		cursor.left = mouseLeft1;
 		cursor.top = mouseTop1;
 
-		fire("setCursor");
+		ready && fire("setCursor");
 	}
 
 	let rect = null;
@@ -1340,16 +1342,10 @@ export function Line(opts, data, ready) {
 	}
 
 	function dblClick(e, src, _x, _y, _w, _h, _i) {
-		let min = data[0][0];
-		let max = data[0][dataLen - 1];
-	//	let sc = scales[xScaleKey];
+		autoScaleX();
 
-	//	if (min != sc.min || max != sc.max) {
-			_setScale(xScaleKey, min, max);
-
-			if (e != null)
-				sync.pub(dblclick, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, null);
-	//	}
+		if (e != null)
+			sync.pub(dblclick, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, null);
 	}
 
 	// internal pub/sub
@@ -1369,7 +1365,7 @@ export function Line(opts, data, ready) {
 		on(mousedown, can, mouseDown);
 		on(mousemove, can, mouseMove);
 		on(mouseleave, can, mouseLeave);
-		on(dblclick, can, dblClick);
+		drag.setScale && on(dblclick, can, dblClick);
 
 		deb = debounce(syncRect, 100);
 
@@ -1429,21 +1425,27 @@ export function Line(opts, data, ready) {
 	function _init() {
 		fire("init", opts, data);
 
-		setData(
-			data || opts.data,
-			pendScales[xScaleKey] == null,
-		);
+		setData(data || opts.data, false);
 
-		setSelect(_select);
+		if (pendScales[xScaleKey])
+			setScale(xScaleKey, pendScales[xScaleKey]);
+		else
+			autoScaleX();
+
+		setSelect(_select, false);
+
+		ready = true;
+
+		fire("ready");
 	}
 
-	if (ready) {
-		if (ready instanceof HTMLElement) {
-			ready.appendChild(root);
+	if (then) {
+		if (then instanceof HTMLElement) {
+			then.appendChild(root);
 			_init();
 		}
 		else
-			ready(self, _init);
+			then(self, _init);
 	}
 	else
 		_init();

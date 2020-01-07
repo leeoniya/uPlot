@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Fetch Zoom</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../src/uPlot.css">
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			const opts = {
+				width: 800,
+				height: 400,
+				cursor: {
+					drag: {
+						setScale: false,
+						x: true,
+						y: false,
+					}
+				},
+				scales: {
+					x: {
+						time: false,
+					}
+				},
+				series: [
+					{},
+					{
+						color: "red"
+					}
+				],
+				hooks: {
+					init: [
+						u => {
+							u.ctx.canvas.ondblclick = e => {
+								console.log("Fetching data for full range");
+
+								u.setData(data);
+							}
+						}
+					],
+					setSelect: [
+						u => {
+							let min = u.posToVal(u.select.left, 'x');
+							let max = u.posToVal(u.select.left + u.select.width, 'x');
+
+							console.log("Fetching data for range...", {min, max});
+
+							// set new data
+							u.setData([
+								[ 3, 4, 5, 6],
+								[30,23,35,27],
+							], false);
+
+							// zoom to selection
+							u.setScale('x', {min, max});
+
+							// reset selection
+							u.setSelect({width: 0}, false);
+						}
+					]
+				}
+			};
+
+			const data = [
+				[ 1, 2, 3, 4, 5, 6, 7, 9,10],
+				[40,43,60,65,71,73,40,22,20],
+				[30,23,35,27,11,13,30,32,30],
+				[15,13,39,17,21,53,10,11,13],
+			];
+
+			let u = new uPlot.Line(opts, data, document.body);
+		</script>
+	</body>
+</html>
