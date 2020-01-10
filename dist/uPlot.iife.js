@@ -508,18 +508,23 @@ var uPlot = (function (exports) {
 	var md = "{M}/{D}";
 	var NLmd = "\n" + md;
 
+	var aa = "{aa}";
+	var hmm = "{h}:{mm}";
+	var hmmss = hmm + ":{ss}";
+
 	// [0]: minimum num secs in the tick incr
 	// [1]: normal tick format
 	// [2]: when a differing <x> is encountered - 1: sec, 2: min, 3: hour, 4: day, 5: week, 6: month, 7: year
 	// [3]: use a longer more contextual format
 	// [4]: modes: 0: replace [1] -> [3], 1: concat [1] + [3]
 	var _timeAxisStamps = timeAxisStamps([
-		[y,        yyyy,                 7,   "",       1],
-		[d * 28,   "{MMM}",              7,   NLyyyy,   1],
-		[d,        md,                   7,   NLyyyy,   1],
-		[h,        "{h}{aa}",            4,   NLmd,     1],
-		[m,        "{h}:{mm}{aa}",       4,   NLmd,     1],
-		[s,        "{h}:{mm}:{ss}{aa}",  4,   NLmd,     1] ]);
+		[y,        yyyy,                   7,   "",       1],
+		[d * 28,   "{MMM}",                7,   NLyyyy,   1],
+		[d,        md,                     7,   NLyyyy,   1],
+		[h,        "{h}" + aa,             4,   NLmd,     1],
+		[m,        hmm   + aa,             4,   NLmd,     1],
+		[s,        hmmss + aa,             4,   NLmd,     1],
+		[1e-3,     hmmss + ".{fff}" + aa,  4,   NLmd,     1] ]);
 
 	// TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 	// currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
