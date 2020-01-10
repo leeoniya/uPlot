@@ -112,7 +112,8 @@ const NLmd = "\n" + md;
 
 const aa = "{aa}";
 const hmm = "{h}:{mm}";
-const hmmss = hmm + ":{ss}";
+const hmmaa = hmm + aa;
+const ss = ":{ss}";
 
 // [0]: minimum num secs in the tick incr
 // [1]: normal tick format
@@ -120,13 +121,13 @@ const hmmss = hmm + ":{ss}";
 // [3]: use a longer more contextual format
 // [4]: modes: 0: replace [1] -> [3], 1: concat [1] + [3]
 export const _timeAxisStamps = timeAxisStamps([
-	[y,        yyyy,                   7,   "",       1],
-	[d * 28,   "{MMM}",                7,   NLyyyy,   1],
-	[d,        md,                     7,   NLyyyy,   1],
-	[h,        "{h}" + aa,             4,   NLmd,     1],
-	[m,        hmm   + aa,             4,   NLmd,     1],
-	[s,        hmmss + aa,             4,   NLmd,     1],
-	[1e-3,     hmmss + ".{fff}" + aa,  4,   NLmd,     1],
+	[y,        yyyy,            7,   "",                    1],
+	[d * 28,   "{MMM}",         7,   NLyyyy,                1],
+	[d,        md,              7,   NLyyyy,                1],
+	[h,        "{h}" + aa,      4,   NLmd,                  1],
+	[m,        hmmaa,           4,   NLmd,                  1],
+	[s,        ss,              2,   NLmd  + " " + hmmaa,   1],
+	[1e-3,     ss + ".{fff}",   2,   NLmd  + " " + hmmaa,   1],
 ]);
 
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
@@ -139,20 +140,24 @@ export function timeAxisVals(tzDate, stamps) {
 		// these track boundaries when a full label is needed again
 		let prevYear = null;
 		let prevDate = null;
+		let prevMinu = null;
 
 		return ticks.map((tick, i) => {
 			let date = tzDate(tick);
 
 			let newYear = date[getFullYear]();
 			let newDate = date[getDate]();
+			let newMinu = date[getMinutes]();
 
 			let diffYear = newYear != prevYear;
 			let diffDate = newDate != prevDate;
+			let diffMinu = newMinu != prevMinu;
 
-			let stamp = s[2] == 7 && diffYear || s[2] == 4 && diffDate ? s[3] : s[1];
+			let stamp = s[2] == 7 && diffYear || s[2] == 4 && diffDate || s[2] == 2 && diffMinu ? s[3] : s[1];
 
 			prevYear = newYear;
 			prevDate = newDate;
+			prevMinu = newMinu;
 
 			return stamp(date);
 		});
@@ -197,7 +202,7 @@ export function timeAxisTicks(tzDate) {
 		}
 		else {
 			let incr0 = incr >= d ? d : incr;
-			let tzOffset = scaleMin - minDateTs;
+			let tzOffset = floor(scaleMin) - floor(minDateTs);
 			let tick = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
 			ticks.push(tick);
 
