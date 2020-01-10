@@ -268,6 +268,10 @@ var uPlot = (function (exports) {
 		return round(val * 1e2) / 1e2;
 	}
 
+	function round3(val) {
+		return round(val * 1e3) / 1e3;
+	}
+
 	function round6(val) {
 		return round(val * 1e6) / 1e6;
 	}
@@ -609,7 +613,7 @@ var uPlot = (function (exports) {
 				var incrHours = incr / h;
 
 				while (1) {
-					tick$1 += incr;
+					tick$1 = round3(tick$1 + incr);
 
 					var expectedHour = floor(round6(prevHour + incrHours)) % 24;
 					var tickDate$1 = tzDate(tick$1);
@@ -629,7 +633,7 @@ var uPlot = (function (exports) {
 
 					// add a tick only if it's further than 70% of the min allowed label spacing
 					var prevTick = ticks[ticks.length - 1];
-					var pctIncr = (tick$1 - prevTick) / incr;
+					var pctIncr = round3((tick$1 - prevTick) / incr);
 
 					if (pctIncr * pctSpace >= .7)
 						{ ticks.push(tick$1); }

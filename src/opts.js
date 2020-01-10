@@ -13,6 +13,7 @@ import {
 
 	inf,
 	incrRoundUp,
+	round3,
 	round6,
 	floor,
 } from './utils';
@@ -212,7 +213,7 @@ export function timeAxisTicks(tzDate) {
 			let incrHours = incr / h;
 
 			while (1) {
-				tick += incr;
+				tick = round3(tick + incr);
 
 				let expectedHour = floor(round6(prevHour + incrHours)) % 24;
 				let tickDate = tzDate(tick);
@@ -232,7 +233,7 @@ export function timeAxisTicks(tzDate) {
 
 				// add a tick only if it's further than 70% of the min allowed label spacing
 				let prevTick = ticks[ticks.length - 1];
-				let pctIncr = (tick - prevTick) / incr;
+				let pctIncr = round3((tick - prevTick) / incr);
 
 				if (pctIncr * pctSpace >= .7)
 					ticks.push(tick);
