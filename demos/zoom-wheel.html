@@ -18,8 +18,6 @@
 						(u, opts, data) => {
 							let plot = u.root.querySelector(".plot");
 
-							let factor = 0.75;
-
 							plot.addEventListener("wheel", e => {
 								let {left, top} = u.cursor;
 								let rect = plot.getBoundingClientRect();
