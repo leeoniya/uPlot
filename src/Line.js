@@ -517,6 +517,7 @@ export function Line(opts, data, then) {
 			if (minMaxes[k] != null && (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)) {
 				changed[k] = true;
 				s.path = null;
+				s.clip = null;
 			}
 		});
 
@@ -556,6 +557,13 @@ export function Line(opts, data, then) {
 
 			ctx.translate(offset, offset);
 
+			const clip = s.clip;
+
+			if (clip != null) {
+				ctx.save();
+				ctx.clip(clip);
+			}
+
 			if (s.band)
 				ctx.fill(path);
 			else {
@@ -569,6 +577,9 @@ export function Line(opts, data, then) {
 					ctx.fill(path);
 				}
 			}
+
+			if (clip != null)
+				ctx.restore();
 
 			ctx.translate(-offset, -offset);
 
@@ -584,7 +595,8 @@ export function Line(opts, data, then) {
 		const path = s.path = dir == 1 ? new Path2D() : series[is-1].path;
 		const width = s[WIDTH];
 
-		let gap = false;
+		let gaps = [];
+		let gapMin;
 
 		let minY = inf,
 			maxY = -inf,
@@ -603,13 +615,19 @@ export function Line(opts, data, then) {
 			if (dir == -1 && i == _i1)
 				path.lineTo(x, y);
 
-			if (ydata[i] == null)
-				gap = true;
+			if (ydata[i] == null) {
+				if (gapMin == null)
+					gapMin = prevX;
+			}
 			else {
 				if ((dir == 1 ? x - prevX : prevX - x) >= width) {
-					if (gap) {
-						spanGaps ? path.lineTo(x, y) : path.moveTo(x, y);	// bug: will break filled areas due to moveTo
-						gap = false;
+					if (gapMin != null) {
+						path.lineTo(x, y);
+
+						if (!spanGaps)
+							gaps.push([gapMin, x]);
+
+						gapMin = null;
 					}
 					else if (dir == 1 ? i > _i0 : i < _i1) {
 						path.lineTo(prevX, maxY);		// cannot be moveTo if we intend to fill the path
@@ -627,6 +645,28 @@ export function Line(opts, data, then) {
 				}
 
 				prevY = y;
+			}
+		}
+
+		if (dir == 1) {
+			if (gapMin != null)
+				gaps.push([gapMin, can[WIDTH]]);
+
+			// create clip path (invert gaps and non-gaps)
+			if (gaps.length > 0) {
+				const clip = s.clip = new Path2D();
+
+				let prevGapEnd = 0;
+
+				for (let i = 0; i < gaps.length; i++) {
+					let g = gaps[i];
+
+					clip.rect(prevGapEnd, 0, g[0] - prevGapEnd, can[HEIGHT]);
+
+					prevGapEnd = g[1];
+				}
+
+				clip.rect(prevGapEnd, 0, can[WIDTH] - prevGapEnd, can[HEIGHT]);
 			}
 		}
 
@@ -734,6 +774,7 @@ export function Line(opts, data, then) {
 				s.min = inf;
 				s.max = -inf;
 				s.path = null;
+				s.clip = null;
 			}
 		});
 	}
@@ -1139,10 +1180,9 @@ export function Line(opts, data, then) {
 				let s = series[i];
 
 				if (i > 0 && s.show) {
-					let yPos = round2(getYPos(data[i][idx], scales[s.scale], canCssHeight));
+					let valAtIdx = data[i][idx];
 
-					if (yPos == null)
-						yPos = -10;
+					let yPos = valAtIdx == null ? -10 : round2(getYPos(valAtIdx, scales[s.scale], canCssHeight))
 
 					distsToCursor[i] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
 

@@ -731,6 +731,7 @@ var uPlot = (function (exports) {
 		max: -inf,
 
 		path: null,
+		clip: null,
 	};
 
 	var xScaleOpts = {
@@ -1200,6 +1201,7 @@ var uPlot = (function (exports) {
 				if (minMaxes[k] != null && (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)) {
 					changed[k] = true;
 					s.path = null;
+					s.clip = null;
 				}
 			});
 
@@ -1239,6 +1241,13 @@ var uPlot = (function (exports) {
 
 				ctx.translate(offset, offset);
 
+				var clip = s.clip;
+
+				if (clip != null) {
+					ctx.save();
+					ctx.clip(clip);
+				}
+
 				if (s.band)
 					{ ctx.fill(path); }
 				else {
@@ -1252,6 +1261,9 @@ var uPlot = (function (exports) {
 						ctx.fill(path);
 					}
 				}
+
+				if (clip != null)
+					{ ctx.restore(); }
 
 				ctx.translate(-offset, -offset);
 
@@ -1267,7 +1279,8 @@ var uPlot = (function (exports) {
 			var path = s.path = dir == 1 ? new Path2D() : series[is-1].path;
 			var width = s[WIDTH];
 
-			var gap = false;
+			var gaps = [];
+			var gapMin;
 
 			var minY = inf,
 				maxY = -inf,
@@ -1286,13 +1299,19 @@ var uPlot = (function (exports) {
 				if (dir == -1 && i == _i1)
 					{ path.lineTo(x, y); }
 
-				if (ydata[i] == null)
-					{ gap = true; }
+				if (ydata[i] == null) {
+					if (gapMin == null)
+						{ gapMin = prevX; }
+				}
 				else {
 					if ((dir == 1 ? x - prevX : prevX - x) >= width) {
-						if (gap) {
-							spanGaps ? path.lineTo(x, y) : path.moveTo(x, y);	// bug: will break filled areas due to moveTo
-							gap = false;
+						if (gapMin != null) {
+							path.lineTo(x, y);
+
+							if (!spanGaps)
+								{ gaps.push([gapMin, x]); }
+
+							gapMin = null;
 						}
 						else if (dir == 1 ? i > _i0 : i < _i1) {
 							path.lineTo(prevX, maxY);		// cannot be moveTo if we intend to fill the path
@@ -1310,6 +1329,28 @@ var uPlot = (function (exports) {
 					}
 
 					prevY = y;
+				}
+			}
+
+			if (dir == 1) {
+				if (gapMin != null)
+					{ gaps.push([gapMin, can[WIDTH]]); }
+
+				// create clip path (invert gaps and non-gaps)
+				if (gaps.length > 0) {
+					var clip = s.clip = new Path2D();
+
+					var prevGapEnd = 0;
+
+					for (var i$1 = 0; i$1 < gaps.length; i$1++) {
+						var g = gaps[i$1];
+
+						clip.rect(prevGapEnd, 0, g[0] - prevGapEnd, can[HEIGHT]);
+
+						prevGapEnd = g[1];
+					}
+
+					clip.rect(prevGapEnd, 0, can[WIDTH] - prevGapEnd, can[HEIGHT]);
 				}
 			}
 
@@ -1420,6 +1461,7 @@ var uPlot = (function (exports) {
 					s.min = inf;
 					s.max = -inf;
 					s.path = null;
+					s.clip = null;
 				}
 			});
 		}
@@ -1825,10 +1867,9 @@ var uPlot = (function (exports) {
 					var s = series[i$1];
 
 					if (i$1 > 0 && s.show) {
-						var yPos = round2(getYPos(data[i$1][idx], scales[s.scale], canCssHeight));
+						var valAtIdx = data[i$1][idx];
 
-						if (yPos == null)
-							{ yPos = -10; }
+						var yPos = valAtIdx == null ? -10 : round2(getYPos(valAtIdx, scales[s.scale], canCssHeight));
 
 						distsToCursor[i$1] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
 

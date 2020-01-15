@@ -332,6 +332,7 @@ export const ySeriesOpts = {
 	max: -inf,
 
 	path: null,
+	clip: null,
 };
 
 export const xScaleOpts = {
