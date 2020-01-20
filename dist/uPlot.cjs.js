@@ -1280,6 +1280,7 @@ function Line(opts, data, then) {
 
 		var gaps = [];
 		var gapMin;
+		var lastDataAt;
 
 		var minY = inf,
 			maxY = -inf,
@@ -1307,7 +1308,7 @@ function Line(opts, data, then) {
 					if (gapMin != null) {
 						path.lineTo(x, y);
 
-						if (!spanGaps)
+						if (x - lastDataAt > 1 && !spanGaps)
 							{ gaps.push([gapMin, x]); }
 
 						gapMin = null;
@@ -1327,6 +1328,7 @@ function Line(opts, data, then) {
 					maxY = max(y, maxY);
 				}
 
+				lastDataAt = x;
 				prevY = y;
 			}
 		}

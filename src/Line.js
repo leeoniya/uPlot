@@ -597,6 +597,7 @@ export function Line(opts, data, then) {
 
 		let gaps = [];
 		let gapMin;
+		let lastDataAt;
 
 		let minY = inf,
 			maxY = -inf,
@@ -624,7 +625,7 @@ export function Line(opts, data, then) {
 					if (gapMin != null) {
 						path.lineTo(x, y);
 
-						if (!spanGaps)
+						if (x - lastDataAt > 1 && !spanGaps)
 							gaps.push([gapMin, x]);
 
 						gapMin = null;
@@ -644,6 +645,7 @@ export function Line(opts, data, then) {
 					maxY = max(y, maxY);
 				}
 
+				lastDataAt = x;
 				prevY = y;
 			}
 		}

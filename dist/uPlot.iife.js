@@ -1281,6 +1281,7 @@ var uPlot = (function (exports) {
 
 			var gaps = [];
 			var gapMin;
+			var lastDataAt;
 
 			var minY = inf,
 				maxY = -inf,
@@ -1308,7 +1309,7 @@ var uPlot = (function (exports) {
 						if (gapMin != null) {
 							path.lineTo(x, y);
 
-							if (!spanGaps)
+							if (x - lastDataAt > 1 && !spanGaps)
 								{ gaps.push([gapMin, x]); }
 
 							gapMin = null;
@@ -1328,6 +1329,7 @@ var uPlot = (function (exports) {
 						maxY = max(y, maxY);
 					}
 
+					lastDataAt = x;
 					prevY = y;
 				}
 			}
