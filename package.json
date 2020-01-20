@@ -25,8 +25,8 @@
   },
   "homepage": "https://github.com/leeoniya/uPlot#readme",
   "devDependencies": {
-    "rollup": "^1.28.0",
+    "rollup": "^1.29.0",
     "rollup-plugin-buble": "^0.19.8",
-    "rollup-plugin-terser": "^5.1.3"
+    "rollup-plugin-terser": "^5.2.0"
   }
 }
