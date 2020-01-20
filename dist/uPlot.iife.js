@@ -1309,7 +1309,7 @@ var uPlot = (function (exports) {
 						if (gapMin != null) {
 							path.lineTo(x, y);
 
-							if (x - lastDataAt > 1 && !spanGaps)
+							if (!spanGaps && x - lastDataAt > 1)
 								{ gaps.push([gapMin, x]); }
 
 							gapMin = null;
