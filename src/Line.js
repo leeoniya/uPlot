@@ -60,6 +60,7 @@ import {
 	trans,
 	on,
 	off,
+	resizeCanvas,
 } from './dom';
 
 import {
@@ -280,9 +281,8 @@ export function Line(opts, data, then) {
 	// easement for rightmost x label if no right y axis exists
 	let hasRightAxis = false;
 	let hasLeftAxis = false;
-
-	// accumulate axis offsets, reduce canvas width
-	axes.forEach((axis, i) => {
+	
+	function calculateAxis(axis, i) {
 		if (!axis.show)
 			return;
 
@@ -325,17 +325,24 @@ export function Line(opts, data, then) {
 		axis.ticks = fnOrSelf(axis.ticks || (sc.distr == 1 && isTime ? _timeAxisTicks : numAxisTicks));
 		let av = axis.values;
 		axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
-	});
-
-	// hz gutters
-	if (hasLeftAxis || hasRightAxis) {
-		if (!hasRightAxis)
-			canCssWidth -= gutters.x;
-		if (!hasLeftAxis) {
-			canCssWidth -= gutters.x;
-			plotLft += gutters.x;
+	}
+	
+	function calculateGutters() {
+		if (hasLeftAxis || hasRightAxis) {
+			if (!hasRightAxis)
+				canCssWidth -= gutters.x;
+			if (!hasLeftAxis) {
+				canCssWidth -= gutters.x;
+				plotLft += gutters.x;
+			}
 		}
 	}
+
+	// accumulate axis offsets, reduce canvas width
+	axes.forEach(calculateAxis);
+
+	// hz gutters
+	calculateGutters();
 
 	// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
 	let off1 = fullCssWidth - plotLft;
@@ -343,9 +350,15 @@ export function Line(opts, data, then) {
 	let off3 = plotLft + canCssWidth;
 	let off0 = plotTop + canCssHeight;
 
-	function placeAxisPart(aroot, prefix, side, isVt, size) {
-		let el = placeDiv(prefix, aroot);
+	function calculateOffsets()
+	{
+		off1 = fullCssWidth - plotLft;
+		off2 = fullCssHeight - plotTop;
+		off3 = plotLft + canCssWidth;
+		off0 = plotTop + canCssHeight;
+	}
 
+	function updateAxisPart(el, side, isVt, size) {
 		if (isVt) {
 			setStylePx(el, WIDTH, size);
 			setStylePx(el, HEIGHT, canCssHeight);
@@ -374,8 +387,19 @@ export function Line(opts, data, then) {
 				off0 += size;
 			}
 		}
+	}
 
-		return el;
+	function updateAxisCoordinates(axis, i) {
+		if (!axis.show)
+			return;
+
+		let side = axis.side;
+		let isVt = side % 2;
+		
+		updateAxisPart(axis.vals, side, isVt, axis.size);
+		
+		if (axis.labelEl)
+			updateAxisPart(axis.labelEl, side, isVt, axis.labelSize);
 	}
 
 	// init axis containers, set axis positions
@@ -391,13 +415,15 @@ export function Line(opts, data, then) {
 		addClass(aroot, axis.class);
 		aroot.style.color = axis.color;
 
-		axis.vals = placeAxisPart(aroot, "values", side, isVt, axis.size);
+		axis.vals = placeDiv("values", aroot);//placeAxisPart(aroot, "values", side, isVt, axis.size);        
 
 		if (axis.label != null) {
-			let lbl = placeAxisPart(aroot, "labels", side, isVt, axis.labelSize);
-			let txt = placeDiv(null, lbl);
+			axis.labelEl = placeDiv("labels", aroot);
+			let txt = placeDiv(null, axis.labelEl);
 			txt.textContent = axis.label;
 		}
+		
+		updateAxisCoordinates(axis);
 	});
 
 	setStylePx(plot, TOP, plotTop);
@@ -410,6 +436,43 @@ export function Line(opts, data, then) {
 	self.ctx = ctx;
 
 	plot.appendChild(can);
+	
+	self.resize = updateChartDimensions;
+
+	function resize(newWidth, newHeight) {
+		updateChartDimensions(newWidth, newHeight);
+		Object.keys(scales).forEach(id => setScale(id, scales[id].min, scales[id].max));
+	}
+	
+	function updateChartDimensions(newWidth, newHeight)	{               
+		plotLft = 0;
+		plotTop = 0;
+	
+		hasRightAxis = false;
+		hasLeftAxis = false;
+		
+		opts[WIDTH] = newWidth;
+		opts[HEIGHT] = newHeight;
+
+		fullCssWidth = opts[WIDTH];
+		fullCssHeight = opts[HEIGHT];
+
+		canCssWidth = fullCssWidth;
+		canCssHeight = fullCssHeight;
+
+		axes.forEach(calculateAxis);
+		calculateGutters();
+		calculateOffsets();
+		
+		axes.forEach(updateAxisCoordinates);
+		
+		resizeCanvas(can, canCssWidth, canCssHeight);      
+		
+		setStylePx(plot, TOP, plotTop);
+		setStylePx(plot, LEFT, plotLft);
+		setStylePx(wrap, WIDTH, fullCssWidth);
+		setStylePx(wrap, HEIGHT, fullCssHeight);
+	}
 
 	function setScales() {
 		if (inBatch) {

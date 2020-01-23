@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Draw Hooks</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <link rel="stylesheet" href="../src/uPlot.css">
+        <style type="text/css">
+            #resizeForm {
+                background:red;
+                position:fixed;
+                bottom:10px;
+                left: 10px;
+
+            }
+
+            #chartWrapper {
+                position: fixed;
+                top:0;
+                right:0;
+                bottom:30px;
+                left:0;          
+                border:5px solid #ccc;      
+                box-sizing: border-box;
+                overflow: hidden;
+            }
+
+            .uplot .legend {
+                position: fixed;
+                left:0;
+                right:0;                
+                bottom:0;
+                height:30px;
+                background:#f3f3f3;
+            }
+
+        </style>
+	</head>
+	<body>
+        <div id="chartWrapper"></div>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+            "use strict";
+
+			function makeChart(domContainer) {
+				const data = [
+					[ 1, 2, 3, 4, 5, 6, 7, 9,10],
+					[0,1,8,16,20,25,18,19,6],
+				];
+
+				const grid = {
+					show: true,
+					color: '#000',
+					width: 1,
+				};
+
+				let opts = {
+					width: domContainer.clientWidth,
+					height: domContainer.clientHeight,
+					scales: {
+						x: {
+							time: false
+						},
+                    },
+                    axes:[
+                        {
+                            label: "Rock"
+                        },
+                        {
+                            label: "Roll"
+                        }
+                    ],
+					series: [
+						{
+                            label:"Rock"
+                        },
+						{
+							label: "Roll",
+							color: "red",
+						}
+					]
+				};
+
+				return new uPlot.Line(opts, data, domContainer);
+			}
+
+            let resizeTimeoutId = null;
+
+            function handleWindowResize(evt)
+            {
+                clearTimeout(resizeTimeoutId);
+
+                resizeTimeoutId = setTimeout(() => {
+                    let width = chartWrapperEl.clientWidth;
+                    let height = chartWrapperEl.clientHeight;
+                    chartInstance.resize(width, height);
+
+                    chartInstance.setScale('x', chartInstance.scales.x.min, chartInstance.scales.x.max);
+                    chartInstance.setScale('y', chartInstance.scales.y.min, chartInstance.scales.y.max);
+
+                }, 100);
+            }
+
+            let chartWrapperEl = document.getElementById('chartWrapper');
+            let chartInstance = makeChart(chartWrapperEl);
+
+            window.addEventListener('resize', handleWindowResize);
+
+		</script>
+	</body>
+</html>
