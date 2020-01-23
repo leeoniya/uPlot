@@ -350,8 +350,7 @@ export function Line(opts, data, then) {
 	let off3 = plotLft + canCssWidth;
 	let off0 = plotTop + canCssHeight;
 
-	function calculateOffsets()
-	{
+	function calculateOffsets()	{
 		off1 = fullCssWidth - plotLft;
 		off2 = fullCssHeight - plotTop;
 		off3 = plotLft + canCssWidth;
