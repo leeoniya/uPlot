@@ -181,8 +181,10 @@ var uPlot = (function (exports) {
 		var _max = -inf;
 
 		for (var i = _i0; i <= _i1; i++) {
-			_min = min(_min, data[i]);
-			_max = max(_max, data[i]);
+			if (data[i] != null) {
+				_min = min(_min, data[i]);
+				_max = max(_max, data[i]);
+			}
 		}
 
 		return [_min, _max];

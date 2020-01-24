@@ -41,8 +41,10 @@ export function getMinMax(data, _i0, _i1) {
 	let _max = -inf;
 
 	for (let i = _i0; i <= _i1; i++) {
-		_min = min(_min, data[i]);
-		_max = max(_max, data[i]);
+		if (data[i] != null) {
+			_min = min(_min, data[i]);
+			_max = max(_max, data[i]);
+		}
 	}
 
 	return [_min, _max];
