@@ -1707,9 +1707,9 @@ function Line(opts, data, then) {
 
 	function _alpha(i, value) {
 		series[i].alpha = value;
-		if (legendRows) {
-			legendRows[i][0].parentNode.style.opacity = value;
-		}
+
+		if (legendRows)
+			{ legendRows[i][0].parentNode.style.opacity = value; }
 	}
 
 	function _setAlpha(i, value) {
