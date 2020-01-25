@@ -1018,7 +1018,10 @@ export function Line(opts, data, then) {
 	self.setSeries = setSeries;
 
 	function _alpha(i, value) {
-		series[i].alpha = legendRows[i][0].parentNode.style.opacity = value;
+		series[i].alpha = value;
+		if (legendRows) {
+			legendRows[i][0].parentNode.style.opacity = value;
+		}
 	}
 
 	function _setAlpha(i, value) {
@@ -1051,8 +1054,8 @@ export function Line(opts, data, then) {
 		}
 	}
 
-	if (focus) {
-		on("mouseleave", legend, e => {
+	if (focus && legend) {
+		on(mouseleave, legend, e => {
 			if (cursor.locked)
 				return;
 			setSeries(null, {focus: false}, syncOpts.setSeries);
