@@ -258,6 +258,10 @@ var uPlot = (function (exports) {
 		return typeof v == "function" ? v : function () { return v; };
 	}
 
+	function retArg2(a, b) {
+		return b;
+	}
+
 	function incrRoundUp(num, incr) {
 		return ceil(num/incr)*incr;
 	}
@@ -835,8 +839,6 @@ var uPlot = (function (exports) {
 		var axes    = setDefaults(opts.axes || [], xAxisOpts, yAxisOpts);
 		var scales  = (opts.scales = opts.scales || {});
 
-		var spanGaps = opts.spanGaps || false;
-
 		var gutters = assign({x: yAxisOpts.size, y: xAxisOpts.size}, opts.gutters);
 
 	//	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -872,6 +874,8 @@ var uPlot = (function (exports) {
 			var isTime = sc.time;
 
 			sc.range = fnOrSelf(sc.range || (i > 0 && !isTime ? snapFifthMag : snapNone));
+
+			s.spanGaps = s.spanGaps === true ? retArg2 : fnOrSelf(s.spanGaps || []);
 
 			var sv = s.value;
 			s.value = isTime ? (isStr(sv) ? timeSeriesVal(tzDate, timeSeriesStamp(sv)) : sv || _timeSeriesVal) : sv || numSeriesVal;
@@ -1276,87 +1280,101 @@ var uPlot = (function (exports) {
 				{ dir *= -1; }
 		}
 
+		function buildClip(s, gaps) {
+			var toSpan = new Set(s.spanGaps(self, gaps));
+			gaps = gaps.filter(function (g) { return !toSpan.has(g); });
+
+			// create clip path (invert gaps and non-gaps)
+			if (gaps.length > 0) {
+				var clip = s.clip = new Path2D();
+
+				var prevGapEnd = 0;
+
+				for (var i = 0; i < gaps.length; i++) {
+					var g = gaps[i];
+
+					clip.rect(prevGapEnd, 0, g[0] - prevGapEnd, can[HEIGHT]);
+
+					prevGapEnd = g[1];
+				}
+
+				clip.rect(prevGapEnd, 0, can[WIDTH] - prevGapEnd, can[HEIGHT]);
+			}
+		}
+
+		// grabs the nearest indices with y data outside of x-scale limits
+		function getOuterIdxs(ydata) {
+			var _i0 = clamp(i0 - 1, 0, dataLen - 1);
+			var _i1 = clamp(i1 + 1, 0, dataLen - 1);
+
+			while (ydata[_i0] == null && _i0 > 0)
+				{ _i0--; }
+
+			while (ydata[_i1] == null && _i1 < dataLen - 1)
+				{ _i1++; }
+
+			return [_i0, _i1];
+		}
+
 		function buildPath(is, xdata, ydata, scaleX, scaleY) {
 			var s = series[is];
 			var path = s.path = dir == 1 ? new Path2D() : series[is-1].path;
 			var width = s[WIDTH];
 
-			var gaps = [];
-			var gapMin;
-			var lastDataAt;
+			var ref = getOuterIdxs(ydata);
+			var _i0 = ref[0];
+			var _i1 = ref[1];
 
 			var minY = inf,
 				maxY = -inf,
-				x, y;
+				outY, outX;
 
-			var _i0 = clamp(i0 - 1, 0, dataLen - 1);
-			var _i1 = clamp(i1 + 1, 0, dataLen - 1);
+			var gaps = [];
 
-			var prevX = round(getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, can[WIDTH])),
-				prevY;
+			var accX = round(getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, can[WIDTH]));
 
-			for (var i = dir == 1 ? _i0 : _i1; dir == 1 ? i <= _i1 : i >= _i0; i += dir) {
-				x = round(getXPos(xdata[i], scaleX, can[WIDTH]));
-				y = round(getYPos(ydata[i], scaleY, can[HEIGHT]));
+			for (var i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
+				var x = round(getXPos(xdata[i], scaleX, can[WIDTH]));
 
-				if (dir == -1 && i == _i1)
-					{ path.lineTo(x, y); }
-
-				if (ydata[i] == null) {
-					if (gapMin == null)
-						{ gapMin = prevX; }
+				if (x == accX) {
+					if (ydata[i] != null) {
+						outY = round(getYPos(ydata[i], scaleY, can[HEIGHT]));
+						minY = min(outY, minY);
+						maxY = max(outY, maxY);
+					}
 				}
 				else {
-					if ((dir == 1 ? x - prevX : prevX - x) >= width) {
-						if (gapMin != null) {
-							path.lineTo(x, y);
-
-							if (!spanGaps && x - lastDataAt > 1)
-								{ gaps.push([gapMin, x]); }
-
-							gapMin = null;
-						}
-						else if (dir == 1 ? i > _i0 : i < _i1) {
-							path.lineTo(prevX, maxY);		// cannot be moveTo if we intend to fill the path
-							path.lineTo(prevX, minY);
-							path.lineTo(prevX, prevY);		// cannot be moveTo if we intend to fill the path
-							path.lineTo(x, y);
-						}
-
-						minY = maxY = y;
-						prevX = x;
+					if (minY != inf) {
+						path.lineTo(accX, minY);
+						path.lineTo(accX, maxY);
+						path.lineTo(accX, outY);
+						outX = accX;
 					}
 					else {
-						minY = min(y, minY);
-						maxY = max(y, maxY);
+						var prevGap = gaps[gaps.length - 1];
+
+						if (prevGap && prevGap[0] == outX)			// TODO: gaps must be encoded at stroke widths?
+							{ prevGap[1] = x; }
+						else
+							{ gaps.push([outX, x]); }
 					}
 
-					lastDataAt = x;
-					prevY = y;
+					if (ydata[i] != null) {
+						outY = round(getYPos(ydata[i], scaleY, can[HEIGHT]));
+						path.lineTo(x, outY);
+						minY = maxY = outY;
+					}
+					else {
+						minY = inf;
+						maxY = -inf;
+					}
+
+					accX = x;
 				}
 			}
 
-			if (dir == 1) {
-				if (gapMin != null)
-					{ gaps.push([gapMin, can[WIDTH]]); }
-
-				// create clip path (invert gaps and non-gaps)
-				if (gaps.length > 0) {
-					var clip = s.clip = new Path2D();
-
-					var prevGapEnd = 0;
-
-					for (var i$1 = 0; i$1 < gaps.length; i$1++) {
-						var g = gaps[i$1];
-
-						clip.rect(prevGapEnd, 0, g[0] - prevGapEnd, can[HEIGHT]);
-
-						prevGapEnd = g[1];
-					}
-
-					clip.rect(prevGapEnd, 0, can[WIDTH] - prevGapEnd, can[HEIGHT]);
-				}
-			}
+			if (dir == 1)
+				{ buildClip(s, gaps); }
 
 			if (s.band) {
 				if (dir == -1)
