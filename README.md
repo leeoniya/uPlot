@@ -102,12 +102,13 @@ let opts = {
   class: "my-chart",
   width: 800,
   height: 600,
-  spanGaps: false,
   series: [
     {},
     {
       // initial toggled state (optional)
       show: true,
+
+      spanGaps: false,
 
       // in-legend display
       label: "RAM",
