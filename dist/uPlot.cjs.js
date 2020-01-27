@@ -431,6 +431,28 @@ function off(ev, el, cb) {
 
 // default formatters:
 
+function genIncrs(min, max, mults) {
+	var incrs = [];
+
+	var loop = function ( i ) {
+		mults.forEach(function (m) {
+			incrs.push(i*m);
+		});
+	};
+
+	for (var i = min; i < max; i *= 10) loop( i );
+
+	return incrs;
+}
+
+var incrMults = [1,2,5];
+
+var decIncrs = genIncrs(1e-5, 1, incrMults);
+
+var intIncrs = genIncrs(1, 1e12, incrMults);
+
+var numIncrs = decIncrs.concat(intIncrs);
+
 var grid = {
 	show: true,
 	color: "#eee",
@@ -444,17 +466,6 @@ var s = 1,
 	d = h * 24,
 	mo = d * 30,
 	y = d * 365;
-
-var decIncrs = [
-	0.001,
-	0.002,
-	0.005,
-	0.010,
-	0.020,
-	0.050,
-	0.100,
-	0.200,
-	0.500 ];
 
 var timeIncrs = decIncrs.concat([
 	// minute divisors (# of secs)
@@ -684,10 +695,6 @@ var xSeriesOpts = {
 	min: inf,
 	max: -inf,
 };
-
-var intIncrs = [1,2,5,10,20,50,1e2,2e2,5e2,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9];
-
-var numIncrs = decIncrs.concat(intIncrs);
 
 function numAxisVals(self, ticks, space) {
 	return ticks;
