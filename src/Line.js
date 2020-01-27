@@ -716,7 +716,9 @@ export function Line(opts, data, then) {
 
 			let minSpace = axis.space(self, min, max, canDim);
 
-			let [incr, space] = findIncr(max - min, axis.incrs(self), canDim, minSpace);
+			let incrs = axis.incrs(self, min, max, canDim, minSpace);
+
+			let [incr, space] = findIncr(max - min, incrs, canDim, minSpace);
 
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.distr == 2;

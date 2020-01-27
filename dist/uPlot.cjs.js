@@ -1414,7 +1414,9 @@ function Line(opts, data, then) {
 
 			var minSpace = axis.space(self, min, max, canDim);
 
-			var ref = findIncr(max - min, axis.incrs(self), canDim, minSpace);
+			var incrs = axis.incrs(self, min, max, canDim, minSpace);
+
+			var ref = findIncr(max - min, incrs, canDim, minSpace);
 			var incr = ref[0];
 			var space = ref[1];
 
