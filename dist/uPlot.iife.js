@@ -1964,7 +1964,7 @@ var uPlot = (function (exports) {
 
 						var src = i$1 == 0 && xScaleDistr == 2 ? data0 : data[i$1];
 
-						var vals = multiValLegend ? s.values(self, idx) : {_: s.value(self, src[idx])};
+						var vals = multiValLegend ? s.values(self, idx) : {_: s.value(self, src[idx], idx, i$1)};
 
 						var j$1 = 0;
 

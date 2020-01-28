@@ -1259,7 +1259,7 @@ export function Line(opts, data, then) {
 
 					let src = i == 0 && xScaleDistr == 2 ? data0 : data[i];
 
-					let vals = multiValLegend ? s.values(self, idx) : {_: s.value(self, src[idx])};
+					let vals = multiValLegend ? s.values(self, idx) : {_: s.value(self, src[idx], idx, i)};
 
 					let j = 0;
 

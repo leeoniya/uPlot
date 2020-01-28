@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Stacked Series</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			body {
+				background-color: #fff;
+				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+				line-height: 1.5;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<p>So you think you want a stacked series chart? Trust me, <a href="https://everydayanalytics.ca/2014/08/stacked-area-graphs-are-not-your-friend.html"><strong>you don't</strong></a>. uPlot does not provide this functionality in the core, both out of principle and because it requires inter-series data aggregation. However, if you really need to mislead people with shitty charts, you can still technically get it done.</p>
+		<p>The two charts below <strong>show exactly the same data</strong> (did you notice?)</p>
+		<script>
+			let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
+			let d1 = xs.map(t => 5);
+			let d2 = xs.map(t => 5);
+			let d3 = xs.map(t => 10);
+			let d4 = xs.map(t => 10);
+			let d5 = xs.map((t, i) => i < 15 ? 20 + i : i == 15 ? 15 : i == 16 ? 14 : 30);
+
+			let data = [
+				xs,
+				d5,
+				d4,
+				d3,
+				d2,
+				d1,
+			];
+
+			function stacked(data) {
+				let data2 = [];
+				let accum = data[0].map(t => 0);
+
+				for (let i = 1; i < data.length; i++)
+					data2.push(data[i].map((v, i) => (accum[i] += v)));
+
+				return [data[0]].concat(data2.reverse());
+			}
+
+			const opts = {
+				width: 800,
+				height: 400,
+				title: "Stacked Series",
+				scales: {
+					x: {
+						time: false,
+					},
+					y: {
+						auto: false,
+						range: [0, 70],
+					}
+				},
+				series: [
+					{},
+					{
+						fill: "red",
+						color: "red",
+						value: (u, v, i) => data[5][i],
+					},
+					{
+						fill: "green",
+						color: "green",
+						value: (u, v, i) => data[4][i],
+					},
+					{
+						fill: "blue",
+						color: "blue",
+						value: (u, v, i) => data[3][i],
+					},
+					{
+						fill: "orange",
+						color: "orange",
+						value: (u, v, i) => data[2][i],
+					},
+					{
+						fill: "purple",
+						color: "purple",
+						value: (u, v, i) => data[1][i],
+					},
+				],
+			};
+
+			let u = new uPlot.Line(opts, stacked(data), document.body);
+
+			let data2 = [
+				xs,
+				d1,
+				d2,
+				d3,
+				d4,
+				d5,
+			];
+
+			const opts2 = {
+				width: 800,
+				height: 400,
+				title: "Stacked Series",
+				scales: {
+					x: {
+						time: false,
+					},
+					y: {
+						auto: false,
+						range: [0, 70],
+					}
+				},
+				series: [
+					{},
+					{
+						fill: "purple",
+						color: "purple",
+						value: (u, v, i) => data2[5][i],
+					},
+					{
+						fill: "orange",
+						color: "orange",
+						value: (u, v, i) => data2[4][i],
+					},
+					{
+						fill: "blue",
+						color: "blue",
+						value: (u, v, i) => data2[3][i],
+					},
+					{
+						fill: "green",
+						color: "green",
+						value: (u, v, i) => data2[2][i],
+					},
+					{
+						fill: "red",
+						color: "red",
+						value: (u, v, i) => data2[1][i],
+					},
+				],
+			};
+
+			let u2 = new uPlot.Line(opts2, stacked(data2), document.body);
+		</script>
+		<p>In summary, <strong>JUST DON'T.</strong></p>
+	</body>
+</html>
