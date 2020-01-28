@@ -55,6 +55,7 @@ import {
 	remClass,
 	setStylePx,
 	makeCanvas,
+	sizeCanvas,
 	placeTag,
 	placeDiv,
 	clearFrom,
@@ -208,6 +209,67 @@ export function Line(opts, data, then) {
 	const xScaleKey = series[0].scale;
 	const xScaleDistr = scales[xScaleKey].distr;
 
+	// set axis defaults
+	axes.forEach((axis, i) => {
+		if (axis.show) {
+			let isVt = axis.side % 2;
+
+			let sc = scales[axis.scale];
+
+			// this can occur if all series specify non-default scales
+			if (sc == null) {
+				axis.scale = isVt ? series[1].scale : xScaleKey;
+				sc = scales[axis.scale];
+			}
+
+			// also set defaults for incrs & values based on axis distr
+			let isTime = sc.time;
+
+			axis.space = fnOrSelf(axis.space);
+			axis.incrs = fnOrSelf(axis.incrs || (sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
+			axis.ticks = fnOrSelf(axis.ticks || (sc.distr == 1 && isTime ? _timeAxisTicks : numAxisTicks));
+			let av = axis.values;
+			axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
+		}
+	});
+
+	const root = placeDiv("uplot");
+
+	if (opts.id != null)
+		root.id = opts.id;
+
+	addClass(root, opts.class);
+
+	if (opts.title != null) {
+		let title = placeDiv("title", root);
+		title.textContent = opts.title;
+	}
+
+	const wrap = placeDiv("wrap", root);
+
+	const plot = placeDiv("plot", wrap);
+
+	// init axis containers
+	axes.forEach((axis, i) => {
+		if (axis.show) {
+			let side = axis.side;
+			let isVt = side % 2;
+
+			let aroot = axis.root = placeDiv("axis-" + (isVt ? "y-" : "x-") + side, wrap);
+
+			addClass(aroot, axis.class);
+			aroot.style.color = axis.color;
+
+			axis.vals = placeDiv("values", aroot);
+
+			if (axis.label != null) {
+				let lbl = axis.lbl = placeDiv("labels", aroot);
+				let txt = placeDiv(null, lbl);
+				txt.textContent = axis.label;
+			}
+		}
+	});
+
 	let dataLen;
 
 	// rendered data window
@@ -252,161 +314,141 @@ export function Line(opts, data, then) {
 		ctx.fillStyle = fill || hexBlack;
 	}
 
-	const root = placeDiv("uplot");
+	let fullCssWidth;
+	let fullCssHeight;
 
-	if (opts.id != null)
-		root.id = opts.id;
-
-	addClass(root, opts.class);
-
-	if (opts.title != null) {
-		let title = placeDiv("title", root);
-		title.textContent = opts.title;
-	}
-
-	const wrap = placeDiv("wrap", root);
-
-	const plot = placeDiv("plot", wrap);
-
-	let fullCssWidth = opts[WIDTH];
-	let fullCssHeight = opts[HEIGHT];
-
-	let canCssWidth = fullCssWidth;
-	let canCssHeight = fullCssHeight;
+	let canCssWidth;
+	let canCssHeight;
 
 	// plot margins to account for axes
-	let plotLft = 0;
-	let plotTop = 0;
+	let plotLft;
+	let plotTop;
 
-	// easement for rightmost x label if no right y axis exists
-	let hasRightAxis = false;
-	let hasLeftAxis = false;
+	function _setSize(width, height) {
+		self.width  = fullCssWidth  = canCssWidth  = width;
+		self.height = fullCssHeight = canCssHeight = height;
+		plotLft = plotTop = 0;
+
+		calcPlotRect();
+		setAxesRects();
+		setPlotRect();
+		sizeCanvas(can, canCssWidth, canCssHeight);
+
+		ready && autoScaleX();
+
+		fire("setSize");
+	}
+
+	function setSize({width, height}) {
+		_setSize(width, height);
+	}
+
+	self.setSize = setSize;
 
 	// accumulate axis offsets, reduce canvas width
-	axes.forEach((axis, i) => {
-		if (!axis.show)
-			return;
+	function calcPlotRect() {
+		// easement for rightmost x label if no right y axis exists
+		let hasRightAxis = false;
+		let hasLeftAxis = false;
 
-		let {side, size} = axis;
-		let isVt = side % 2;
-		let labelSize = axis.labelSize = (axis.label != null ? (axis.labelSize || 30) : 0);
+		axes.forEach((axis, i) => {
+			if (axis.show) {
+				let {side, size} = axis;
+				let isVt = side % 2;
+				let labelSize = axis.labelSize = (axis.label != null ? (axis.labelSize || 30) : 0);
 
-		let fullSize = size + labelSize;
+				let fullSize = size + labelSize;
 
-		if (isVt) {
-			canCssWidth -= fullSize;
+				if (isVt) {
+					canCssWidth -= fullSize;
 
-			if (side == 3) {
-				plotLft += fullSize;
-				hasLeftAxis = true;
+					if (side == 3) {
+						plotLft += fullSize;
+						hasLeftAxis = true;
+					}
+					else
+						hasRightAxis = true;
+				}
+				else {
+					canCssHeight -= fullSize;
+
+					if (side == 0)
+						plotTop += fullSize;
+				}
 			}
-			else
-				hasRightAxis = true;
-		}
-		else {
-			canCssHeight -= fullSize;
+		});
 
-			if (side == 0)
-				plotTop += fullSize;
-		}
-
-		let sc = scales[axis.scale];
-
-		// this can occur if all series specify non-default scales
-		if (sc == null) {
-			axis.scale = isVt ? series[1].scale : xScaleKey;
-			sc = scales[axis.scale];
-		}
-
-		// also set defaults for incrs & values based on axis distr
-		let isTime = sc.time;
-
-		axis.space = fnOrSelf(axis.space);
-		axis.incrs = fnOrSelf(axis.incrs || (sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
-		axis.ticks = fnOrSelf(axis.ticks || (sc.distr == 1 && isTime ? _timeAxisTicks : numAxisTicks));
-		let av = axis.values;
-		axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
-	});
-
-	// hz gutters
-	if (hasLeftAxis || hasRightAxis) {
-		if (!hasRightAxis)
-			canCssWidth -= gutters.x;
-		if (!hasLeftAxis) {
-			canCssWidth -= gutters.x;
-			plotLft += gutters.x;
+		// hz gutters
+		if (hasLeftAxis || hasRightAxis) {
+			if (!hasRightAxis)
+				canCssWidth -= gutters.x;
+			if (!hasLeftAxis) {
+				canCssWidth -= gutters.x;
+				plotLft += gutters.x;
+			}
 		}
 	}
 
-	// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
-	let off1 = fullCssWidth - plotLft;
-	let off2 = fullCssHeight - plotTop;
-	let off3 = plotLft + canCssWidth;
-	let off0 = plotTop + canCssHeight;
+	function setAxesRects() {
+		// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
+		let off1 = fullCssWidth - plotLft;
+		let off2 = fullCssHeight - plotTop;
+		let off3 = plotLft + canCssWidth;
+		let off0 = plotTop + canCssHeight;
 
-	function placeAxisPart(aroot, prefix, side, isVt, size) {
-		let el = placeDiv(prefix, aroot);
+		function posAxisPart(el, side, isVt, size) {
+			if (isVt) {
+				setStylePx(el, WIDTH, size);
+				setStylePx(el, HEIGHT, canCssHeight);
+				setStylePx(el, TOP, plotTop);
 
-		if (isVt) {
-			setStylePx(el, WIDTH, size);
-			setStylePx(el, HEIGHT, canCssHeight);
-			setStylePx(el, TOP, plotTop);
-
-			if (side == 3) {
-				setStylePx(el, RIGHT, off1);
-				off1 += size;
+				if (side == 3) {
+					setStylePx(el, RIGHT, off1);
+					off1 += size;
+				}
+				else {
+					setStylePx(el, LEFT, off3);
+					off3 += size;
+				}
 			}
 			else {
-				setStylePx(el, LEFT, off3);
-				off3 += size;
-			}
-		}
-		else {
-			setStylePx(el, HEIGHT, size);
-			setStylePx(el, WIDTH, canCssWidth);
-			setStylePx(el, LEFT, plotLft);
+				setStylePx(el, HEIGHT, size);
+				setStylePx(el, WIDTH, canCssWidth);
+				setStylePx(el, LEFT, plotLft);
 
-			if (side == 0) {
-				setStylePx(el, BOTTOM, off2);
-				off2 += size;
-			}
-			else {
-				setStylePx(el, TOP, off0);
-				off0 += size;
+				if (side == 0) {
+					setStylePx(el, BOTTOM, off2);
+					off2 += size;
+				}
+				else {
+					setStylePx(el, TOP, off0);
+					off0 += size;
+				}
 			}
 		}
 
-		return el;
+		// set axis positions
+		axes.forEach((axis, i) => {
+			if (axis.show) {
+				let side = axis.side;
+				let isVt = side % 2;
+
+				posAxisPart(axis.vals, side, isVt, axis.size);
+
+				if (axis.label != null)
+					posAxisPart(axis.lbl, side, isVt, axis.labelSize);
+			}
+		});
 	}
 
-	// init axis containers, set axis positions
-	axes.forEach((axis, i) => {
-		if (!axis.show)
-			return;
+	function setPlotRect() {
+		setStylePx(plot, TOP, plotTop);
+		setStylePx(plot, LEFT, plotLft);
+		setStylePx(wrap, WIDTH, fullCssWidth);
+		setStylePx(wrap, HEIGHT, fullCssHeight);
+	}
 
-		let side = axis.side;
-		let isVt = side % 2;
-
-		let aroot = axis.root = placeDiv("axis-" + (isVt ? "y-" : "x-") + side, wrap);
-
-		addClass(aroot, axis.class);
-		aroot.style.color = axis.color;
-
-		axis.vals = placeAxisPart(aroot, "values", side, isVt, axis.size);
-
-		if (axis.label != null) {
-			let lbl = placeAxisPart(aroot, "labels", side, isVt, axis.labelSize);
-			let txt = placeDiv(null, lbl);
-			txt.textContent = axis.label;
-		}
-	});
-
-	setStylePx(plot, TOP, plotTop);
-	setStylePx(plot, LEFT, plotLft);
-	setStylePx(wrap, WIDTH, fullCssWidth);
-	setStylePx(wrap, HEIGHT, fullCssHeight);
-
-	const { can, ctx } = makeCanvas(canCssWidth, canCssHeight);
+	const { can, ctx } = makeCanvas();
 
 	self.ctx = ctx;
 
@@ -1483,6 +1525,8 @@ export function Line(opts, data, then) {
 	self.destroy = destroy;
 
 	function _init() {
+		_setSize(opts[WIDTH], opts[HEIGHT]);
+
 		fire("init", opts, data);
 
 		setData(data || opts.data, false);

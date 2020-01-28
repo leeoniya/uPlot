@@ -28,19 +28,21 @@ export function setStylePx(el, name, value) {
 	el.style[name] = value + "px";
 }
 
-export function makeCanvas(wid, hgt) {
+export function makeCanvas() {
 	const can = doc[createElement]("canvas");
 	const ctx = can.getContext("2d");
-
-	can[WIDTH] = round(wid * pxRatio);
-	can[HEIGHT] = round(hgt * pxRatio);
-	setStylePx(can, WIDTH, wid);
-	setStylePx(can, HEIGHT, hgt);
 
 	return {
 		can,
 		ctx,
 	};
+}
+
+export function sizeCanvas(can, wid, hgt) {
+	can[WIDTH] = round(wid * pxRatio);
+	can[HEIGHT] = round(hgt * pxRatio);
+	setStylePx(can, WIDTH, wid);
+	setStylePx(can, HEIGHT, hgt);
 }
 
 export function placeTag(tag, cls, targ) {
