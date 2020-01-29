@@ -80,12 +80,20 @@
 	font-weight: 600;
 }
 
-.uplot .legend .series th:hover {
-	text-decoration: underline;
+.uplot .legend th > * {
+	vertical-align: middle;
+}
+
+.uplot .legend .ident {
+	width: 1em;
+	height: 1em;
+	margin-right: 4px;
+	border: 2px solid transparent;
 }
 
 .uplot .legend.inline th::after {
 	content: ":";
+	vertical-align: middle;
 }
 
 .uplot .legend .series > * {
@@ -97,7 +105,7 @@
 }
 
 .uplot .legend .off > * {
-	color: silver !important;
+	opacity: 0.3;
 }
 
 .uplot .select {

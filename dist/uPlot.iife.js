@@ -1697,9 +1697,13 @@ var uPlot = (function (exports) {
 					{ addClass(row, "off"); }
 
 				var label = placeTag("th", null, row);
-				label.textContent = s.label;
 
-				label.style.color = s.color;
+				var indic = placeDiv("ident", label);
+				indic.style.borderColor = s.color;
+				indic.style.backgroundColor = s.fill;
+
+				var text = placeDiv("text", label);
+				text.textContent = s.label;
 
 				if (i > 0) {
 					on("click", label, function (e) {

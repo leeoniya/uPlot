@@ -992,9 +992,13 @@ export function Line(opts, data, then) {
 				addClass(row, "off");
 
 			let label = placeTag("th", null, row);
-			label.textContent = s.label;
 
-			label.style.color = s.color;
+			let indic = placeDiv("ident", label);
+			indic.style.borderColor = s.color;
+			indic.style.backgroundColor = s.fill;
+
+			let text = placeDiv("text", label);
+			text.textContent = s.label;
 
 			if (i > 0) {
 				on("click", label, e => {
