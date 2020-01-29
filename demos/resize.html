@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Resize</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../src/uPlot.css">
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			var loop = 1e4;
+
+			let data = [
+				Array(loop),
+				Array(loop),
+			];
+
+			for (var i = 0; i < loop; i++) {
+				let x = 2 * Math.PI * i / loop;
+				let y = Math.sin(x);
+
+				data[0][i] = x;
+				data[1][i] = y;
+			}
+
+			function getSize() {
+				return {
+					width: window.innerWidth - 100,
+					height: window.innerHeight - 200,
+				}
+			}
+
+			const opts = {
+				title: "Resize",
+				...getSize(),
+				scales: {
+					x: {
+						time: false,
+					},
+					y: {
+						auto: false,
+						range: [-1.5, 1.5],
+					},
+				},
+				series: [
+					{
+						label: "x",
+					},
+					{
+						label: "sin(x)",
+						color: "red",
+					}
+				],
+			};
+
+			let u = new uPlot.Line(opts, data, document.body);
+
+			function throttle(cb, limit) {
+				var wait = false;
+
+				return () => {
+					if (!wait) {
+						requestAnimationFrame(cb);
+						wait = true;
+						setTimeout(() => {
+							wait = false;
+						}, limit);
+					}
+				}
+			}
+
+			window.addEventListener("resize", throttle(() => u.setSize(getSize()), 100));
+		</script>
+	</body>
+</html>
