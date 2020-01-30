@@ -346,7 +346,7 @@ let opts = {
       labelSize: 30,
       size: 50,
       class: "my-y",
-      color: "red",
+      stroke: "red",
       grid: {
         show: true,
         stroke: "#eee",

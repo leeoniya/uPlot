@@ -951,7 +951,7 @@ function Line(opts, data, then) {
 			var aroot = axis.root = placeDiv("axis-" + (isVt ? "y-" : "x-") + side, wrap);
 
 			addClass(aroot, axis.class);
-			aroot.style.color = axis.color;
+			aroot.style.color = axis.stroke;
 
 			axis.vals = placeDiv("values", aroot);
 
