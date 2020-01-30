@@ -82,6 +82,7 @@
 
 .uplot .legend th > * {
 	vertical-align: middle;
+	display: inline-block;
 }
 
 .uplot .legend .ident {
