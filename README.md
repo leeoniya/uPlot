@@ -18,7 +18,7 @@ An [exceptionally fast](#performance), tiny ([< 20 KB min](https://github.com/le
 - Multiple series w/toggle
 - Multiple y-axes, scales & grids
 - Temporal or numeric x-axis
-- Line & Area styles (color, fill, width, dash)
+- Line & Area styles (stroke, fill, width, dash)
 - Zoom with auto-rescale
 - Legend with live values
 - Support for [IANA Time Zone Names](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) & DST
@@ -115,7 +115,7 @@ let opts = {
       value: (self, rawValue) => "$" + rawValue.toFixed(2),
 
       // series style
-      color: "red",
+      stroke: "red",
       width: 1,
       fill: "rgba(255, 0, 0, 0.3)",
       dash: [10, 5],
@@ -130,9 +130,9 @@ let uplot = new uPlot.Line(opts, data, document.body);
 - `width` and `height` are required dimensions in *logical* [CSS] pixels of the plotting area & axes, but **excluding** `title` or `legend` dimensions (which can be variable based on user CSS).
 - `spanGaps` can be set to `true` to connect `null` data points.
 - For a series to be rendered, it **must** be specified in the opts; simply having it in the data is insufficient.
-- All series' options are optional; `label` will default to "Value" and `color` will default to "black".
+- All series' options are optional; `label` will default to "Value" and `stroke` will default to "black".
 - Series' line `width` is specified in *physical* [device] pixels (e.g. on high-DPI displays with a pixel ratio = 2, `width: 1` will draw a line with an effective width of 0.5 logical [CSS] pixels).
-- `color`, `width`, `fill`, and `dash` map directly to Canvas API's [ctx.strokeStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeStyle), [ctx.lineWidth](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineWidth), [ctx.fillStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fillStyle), and [ctx.setLineDash](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash).
+- `stroke`, `width`, `fill`, and `dash` map directly to Canvas API's [ctx.strokeStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeStyle), [ctx.lineWidth](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineWidth), [ctx.fillStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fillStyle), and [ctx.setLineDash](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash).
 
 ---
 #### High/Low Bands
@@ -210,19 +210,19 @@ let opts = {
     {},
     {
       label: "CPU",
-      color: "red",
+      stroke: "red",
       scale: "%",
       value: (self, rawValue) => rawValue.toFixed(1) + "%",
     }
     {
       label: "RAM",
-      color: "blue",
+      stroke: "blue",
       scale: "%",
       value: (self, rawValue) => rawValue.toFixed(1) + "%",
     },
     {
       label: "TCP",
-      color: "green",
+      stroke: "green",
       scale: "mb",
       value: (self, rawValue) => rawValue.toFixed(2) + "MB",
     },
@@ -257,7 +257,7 @@ let opts = {
     {},
     {
       label: "Temp",
-      color: "red",
+      stroke: "red",
       scale: "F",
     },
   ],
@@ -349,7 +349,7 @@ let opts = {
       color: "red",
       grid: {
         show: true,
-        color: "#eee",
+        stroke: "#eee",
         width: 2,
         dash: [],
       }

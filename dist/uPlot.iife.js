@@ -1000,8 +1000,8 @@ var uPlot = (function (exports) {
 			_setScale(xScaleKey, _min, _max);
 		}
 
-		function setCtxStyle(color, width, dash, fill) {
-			ctx.strokeStyle = color || hexBlack;
+		function setCtxStyle(stroke, width, dash, fill) {
+			ctx.strokeStyle = stroke || hexBlack;
 			ctx.lineWidth = width || 1;
 			ctx.lineJoin = "round";
 			ctx.setLineDash(dash || []);
@@ -1294,7 +1294,7 @@ var uPlot = (function (exports) {
 				var width = s[WIDTH];
 				var offset = (width % 2) / 2;
 
-				setCtxStyle(s.color, width, s.dash, s.fill);
+				setCtxStyle(s.stroke, width, s.dash, s.fill);
 
 				ctx.globalAlpha = s.alpha;
 
@@ -1499,7 +1499,7 @@ var uPlot = (function (exports) {
 					var offset = (grid[WIDTH] % 2) / 2;
 					ctx.translate(offset, offset);
 
-					setCtxStyle(grid.color || "#eee", grid[WIDTH], grid.dash);
+					setCtxStyle(grid.stroke || "#eee", grid[WIDTH], grid.dash);
 
 					ctx.beginPath();
 
@@ -1699,7 +1699,7 @@ var uPlot = (function (exports) {
 				var label = placeTag("th", null, row);
 
 				var indic = placeDiv("ident", label);
-				indic.style.borderColor = s.color;
+				indic.style.borderColor = s.stroke;
 				indic.style.backgroundColor = s.fill;
 
 				var text = placeDiv("text", label);
@@ -1834,18 +1834,17 @@ var uPlot = (function (exports) {
 		// series-intersection markers
 		var cursorPts = showPoints ? series.map(function (s, i) {
 			if (i > 0) {
-				var pt = placeDiv("point", plot);
+				var pt = placeDiv("hover-point", plot);
 
 				addClass(pt, s.class);
 
-				pt.style.background = s.color;
+				pt.style.background = s.stroke;
 
 				var size = max(5, s.width * 2 - 1);
 				var mar = (size - 1) / -2;
 
 				setStylePx(pt, WIDTH, size);
 				setStylePx(pt, HEIGHT, size);
-				setStylePx(pt, "borderRadius", size);
 				setStylePx(pt, "marginLeft", mar);
 				setStylePx(pt, "marginTop", mar);
 

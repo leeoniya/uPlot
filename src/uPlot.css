@@ -118,10 +118,12 @@
 	display: none;
 }
 
-.uplot .point {
+.uplot .hover-point {
 	position: absolute;
 	top: 0;
 	left: 0;
+	border-radius: 50%;
+	filter: brightness(85%);
 	pointer-events: none;
 	user-select: none;
 	will-change: transform;

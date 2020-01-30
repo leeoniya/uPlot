@@ -306,8 +306,8 @@ export function Line(opts, data, then) {
 		_setScale(xScaleKey, _min, _max);
 	}
 
-	function setCtxStyle(color, width, dash, fill) {
-		ctx.strokeStyle = color || hexBlack;
+	function setCtxStyle(stroke, width, dash, fill) {
+		ctx.strokeStyle = stroke || hexBlack;
 		ctx.lineWidth = width || 1;
 		ctx.lineJoin = "round";
 		ctx.setLineDash(dash || []);
@@ -594,7 +594,7 @@ export function Line(opts, data, then) {
 			const width = s[WIDTH];
 			const offset = (width % 2) / 2;
 
-			setCtxStyle(s.color, width, s.dash, s.fill);
+			setCtxStyle(s.stroke, width, s.dash, s.fill);
 
 			ctx.globalAlpha = s.alpha;
 
@@ -794,7 +794,7 @@ export function Line(opts, data, then) {
 				let offset = (grid[WIDTH] % 2) / 2;
 				ctx.translate(offset, offset);
 
-				setCtxStyle(grid.color || "#eee", grid[WIDTH], grid.dash);
+				setCtxStyle(grid.stroke || "#eee", grid[WIDTH], grid.dash);
 
 				ctx.beginPath();
 
@@ -994,7 +994,7 @@ export function Line(opts, data, then) {
 			let label = placeTag("th", null, row);
 
 			let indic = placeDiv("ident", label);
-			indic.style.borderColor = s.color;
+			indic.style.borderColor = s.stroke;
 			indic.style.backgroundColor = s.fill;
 
 			let text = placeDiv("text", label);
@@ -1129,18 +1129,17 @@ export function Line(opts, data, then) {
 	// series-intersection markers
 	const cursorPts = showPoints ? series.map((s, i) => {
 		if (i > 0) {
-			let pt = placeDiv("point", plot);
+			let pt = placeDiv("hover-point", plot);
 
 			addClass(pt, s.class);
 
-			pt.style.background = s.color;
+			pt.style.background = s.stroke;
 
 			let size = max(5, s.width * 2 - 1);
 			let mar = (size - 1) / -2;
 
 			setStylePx(pt, WIDTH, size);
 			setStylePx(pt, HEIGHT, size);
-			setStylePx(pt, "borderRadius", size);
 			setStylePx(pt, "marginLeft", mar);
 			setStylePx(pt, "marginTop", mar);
 

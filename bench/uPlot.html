@@ -85,19 +85,19 @@
 							label: "CPU",
 							scale: "%",
 							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-							color: "red",
+							stroke: "red",
 						},
 						{
 							label: "RAM",
 							scale: "%",
 							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
-							color: "blue",
+							stroke: "blue",
 						},
 						{
 							label: "TCP Out",
 							scale: "mb",
 							value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
-							color: "green",
+							stroke: "green",
 						}
 					],
 					axes: [
