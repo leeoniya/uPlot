@@ -1509,12 +1509,12 @@ var uPlot = (function (exports) {
 						if (ori == 0) {
 							my = 0;
 							ly = can[HEIGHT];
-							mx = lx = off;
+							mx = lx = round(off);
 						}
 						else {
 							mx = 0;
 							lx = can[WIDTH];
-							my = ly = off;
+							my = ly = round(off);
 						}
 
 						ctx.moveTo(mx, my);
