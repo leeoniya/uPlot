@@ -12,6 +12,8 @@ import {
 	assign,
 
 	inf,
+	pow,
+	abs,
 	incrRoundUp,
 	round3,
 	round6,
@@ -22,13 +24,14 @@ import {
 
 // default formatters:
 
-function genIncrs(min, max, mults) {
+function genIncrs(minExp, maxExp, mults) {
 	let incrs = [];
 
-	for (let i = min; i < max; i *= 10) {
-		mults.forEach(m => {
-			incrs.push(i*m);
-		});
+	for (let exp = minExp; exp < maxExp; exp++) {
+		for (let i = 0; i < mults.length; i++) {
+			let incr = mults[i] * pow(10, exp);
+			incrs.push(+incr.toFixed(abs(exp)));
+		}
 	}
 
 	return incrs;
@@ -36,9 +39,9 @@ function genIncrs(min, max, mults) {
 
 const incrMults = [1,2,5];
 
-const decIncrs = genIncrs(1e-5, 1, incrMults);
+const decIncrs = genIncrs(-12, 0, incrMults);
 
-export const intIncrs = genIncrs(1, 1e12, incrMults);
+export const intIncrs = genIncrs(0, 12, incrMults);
 
 export const numIncrs = decIncrs.concat(intIncrs);
 

@@ -434,25 +434,24 @@ var uPlot = (function (exports) {
 
 	// default formatters:
 
-	function genIncrs(min, max, mults) {
+	function genIncrs(minExp, maxExp, mults) {
 		var incrs = [];
 
-		var loop = function ( i ) {
-			mults.forEach(function (m) {
-				incrs.push(i*m);
-			});
-		};
-
-		for (var i = min; i < max; i *= 10) loop( i );
+		for (var exp = minExp; exp < maxExp; exp++) {
+			for (var i = 0; i < mults.length; i++) {
+				var incr = mults[i] * pow(10, exp);
+				incrs.push(+incr.toFixed(abs(exp)));
+			}
+		}
 
 		return incrs;
 	}
 
 	var incrMults = [1,2,5];
 
-	var decIncrs = genIncrs(1e-5, 1, incrMults);
+	var decIncrs = genIncrs(-12, 0, incrMults);
 
-	var intIncrs = genIncrs(1, 1e12, incrMults);
+	var intIncrs = genIncrs(0, 12, incrMults);
 
 	var numIncrs = decIncrs.concat(intIncrs);
 
