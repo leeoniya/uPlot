@@ -703,11 +703,11 @@ var uPlot = (function (exports) {
 	}
 
 	function numAxisTicks(self, scaleMin, scaleMax, incr, pctSpace, forceMin) {
-		scaleMin = forceMin ? scaleMin : round6(incrRoundUp(scaleMin, incr));
+		scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, incr).toFixed(12);
 
 		var ticks = [];
 
-		for (var val = scaleMin; val <= scaleMax; val = round6(val + incr))
+		for (var val = scaleMin; val <= scaleMax; val = +(val + incr).toFixed(12))
 			{ ticks.push(val); }
 
 		return ticks;
