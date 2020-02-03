@@ -1438,6 +1438,14 @@ var uPlot = (function (exports) {
 			}
 		}
 
+		function getIncrSpace(axis, min, max, canDim) {
+			var minSpace = axis.space(self, min, max, canDim);
+			var incrs = axis.incrs(self, min, max, canDim, minSpace);
+			var incrSpace = findIncr(max - min, incrs, canDim, minSpace);
+			incrSpace.push(incrSpace[1]/minSpace);
+			return incrSpace;
+		}
+
 		function drawAxesGrid() {
 			axes.forEach(function (axis, i) {
 				if (!axis.show)
@@ -1460,18 +1468,15 @@ var uPlot = (function (exports) {
 				var min = scale.min;
 				var max = scale.max;
 
-				var minSpace = axis.space(self, min, max, canDim);
-
-				var incrs = axis.incrs(self, min, max, canDim, minSpace);
-
-				var ref = findIncr(max - min, incrs, canDim, minSpace);
+				var ref = getIncrSpace(axis, min, max, canDim);
 				var incr = ref[0];
 				var space = ref[1];
+				var pctSpace = ref[2];
 
 				// if we're using index positions, force first tick to match passed index
 				var forceMin = scale.distr == 2;
 
-				var ticks = axis.ticks(self, min, max, incr, space/minSpace, forceMin);
+				var ticks = axis.ticks(self, min, max, incr, pctSpace, forceMin);
 
 				var getPos = ori == 0 ? getXPos : getYPos;
 				var cssProp = ori == 0 ? LEFT : TOP;
@@ -1569,6 +1574,15 @@ var uPlot = (function (exports) {
 		// explicit, never re-ranged
 		function setScale(key, opts) {
 			var sc = scales[key];
+
+			// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
+			if (key == xScaleKey && sc.time) {
+				// since scales and axes are loosly coupled, we have to make some assumptions here :(
+				var incr = getIncrSpace(axes[0], opts.min, opts.max, canCssWidth)[0];
+
+				if (incr < 1e-3)
+					{ return; }
+			}
 
 			if (sc.from == null) {
 			//	log("setScale()", arguments);

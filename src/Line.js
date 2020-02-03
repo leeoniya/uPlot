@@ -735,6 +735,14 @@ export function Line(opts, data, then) {
 		}
 	}
 
+	function getIncrSpace(axis, min, max, canDim) {
+		let minSpace = axis.space(self, min, max, canDim);
+		let incrs = axis.incrs(self, min, max, canDim, minSpace);
+		let incrSpace = findIncr(max - min, incrs, canDim, minSpace);
+		incrSpace.push(incrSpace[1]/minSpace);
+		return incrSpace;
+	}
+
 	function drawAxesGrid() {
 		axes.forEach((axis, i) => {
 			if (!axis.show)
@@ -756,16 +764,12 @@ export function Line(opts, data, then) {
 
 			let {min, max} = scale;
 
-			let minSpace = axis.space(self, min, max, canDim);
-
-			let incrs = axis.incrs(self, min, max, canDim, minSpace);
-
-			let [incr, space] = findIncr(max - min, incrs, canDim, minSpace);
+			let [incr, space, pctSpace] = getIncrSpace(axis, min, max, canDim);
 
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.distr == 2;
 
-			let ticks = axis.ticks(self, min, max, incr, space/minSpace, forceMin);
+			let ticks = axis.ticks(self, min, max, incr, pctSpace, forceMin);
 
 			let getPos = ori == 0 ? getXPos : getYPos;
 			let cssProp = ori == 0 ? LEFT : TOP;
@@ -863,6 +867,15 @@ export function Line(opts, data, then) {
 	// explicit, never re-ranged
 	function setScale(key, opts) {
 		let sc = scales[key];
+
+		// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
+		if (key == xScaleKey && sc.time) {
+			// since scales and axes are loosly coupled, we have to make some assumptions here :(
+			let incr = getIncrSpace(axes[0], opts.min, opts.max, canCssWidth)[0];
+
+			if (incr < 1e-3)
+				return;
+		}
 
 		if (sc.from == null) {
 		//	log("setScale()", arguments);
