@@ -12,86 +12,84 @@
 		<script>
 			"use strict";
 
-			function hexToRgbA(hex, a) {
-				hex = hex.replace('#', '');
+			function bgGradientPlugin({ stops = ['#FFFFFF', '#CCCCCC'] } = {}) {
 
-				if (hex.length == 3)
-					hex = hex.split('').map(c => c.repeat(2)).join('');
+				function drawBg(u) {
+					let { width, height } = u.ctx.canvas;
+					let gradient = u.ctx.createLinearGradient(0, 0, 0, height);
 
-				let r = parseInt(hex.substring(0, 2), 16);
-				let g = parseInt(hex.substring(2, 4), 16);
-				let b = parseInt(hex.substring(4, 6), 16);
+					for (let c = 0; c < stops.length; c++)
+					{
+						gradient.addColorStop(c, stops[c]);
+					}
 
-				return 'rgba('+r+','+g+','+b+','+a+')';
-			}
-
-			// https://stackoverflow.com/questions/25837158/how-to-draw-a-star-by-using-canvas-html5
-			function drawStar(ctx, cx, cy, spikes = 6, outerRadius = 8, innerRadius = 4) {
-				outerRadius *= devicePixelRatio;
-				innerRadius *= devicePixelRatio;
-
-				let rot = Math.PI / 2 * 3;
-				let x = cx;
-				let y = cy;
-				let step = Math.PI / spikes;
-
-				ctx.beginPath();
-				ctx.moveTo(cx, cy - outerRadius);
-
-				for (let i = 0; i < spikes; i++) {
-					x = cx + Math.cos(rot) * outerRadius;
-					y = cy + Math.sin(rot) * outerRadius;
-					ctx.lineTo(x, y);
-					rot += step;
-
-					x = cx + Math.cos(rot) * innerRadius;
-					y = cy + Math.sin(rot) * innerRadius;
-					ctx.lineTo(x, y);
-					rot += step;
+					u.ctx.save();
+					u.ctx.fillStyle = gradient;
+					u.ctx.fillRect(0, 0, width, height);
+					u.ctx.restore();
 				}
 
-				ctx.lineTo(cx, cy - outerRadius);
-				ctx.closePath();
+				return {
+					drawClear: [drawBg],
+				}
 			}
 
-			function addCrazyVisualsPlugin() {
+			function gridBlurPlugin({ radius = 2 } = {}) {
+
+				function applyBlur(u) {
+					u.ctx.save();
+					u.ctx.filter = 'blur(' + radius + 'px)';
+				}
+
+				function stopBlur(u) {
+					u.ctx.restore();
+				}
+
+				return {
+					drawClear: [applyBlur],
+					drawGrid: [stopBlur]
+				}
+			}
+
+			function seriesMediansPlugin({ lineWidth = 50, blur = 6 } = {})
+			{
 				let medians;
+
+				function hexToRgbA(hex, a) {
+					hex = hex.replace('#', '');
+
+					if (hex.length == 3)
+						hex = hex.split('').map(c => c.repeat(2)).join('');
+
+					let r = parseInt(hex.substring(0, 2), 16);
+					let g = parseInt(hex.substring(2, 4), 16);
+					let b = parseInt(hex.substring(4, 6), 16);
+
+					return 'rgba('+r+','+g+','+b+','+a+')';
+				}
 
 				// https://www.jstips.co/en/javascript/array-average-and-median/
 				function calculateMedians(u) {
 					medians = u.data.map(data => {
 						data = [...data];
-                        data.sort((a, b) => a - b);
+						data.sort((a, b) => a - b);
 						return (data[(data.length - 1) >> 1] + data[data.length >> 1]) / 2
 					});
-				}
-
-				function drawBackgroundGradient(u) {
-					let { ctx } = u;
-					let { width, height } = ctx.canvas;
-
-					let gradient = u.ctx.createLinearGradient(0, 0, 0, height);
-
-					gradient.addColorStop(0, "#666");
-					gradient.addColorStop(1, "#000");
-
-					ctx.save();
-					ctx.fillStyle = gradient;
-					ctx.fillRect(0, 0, width, height);
-					ctx.restore();
 				}
 
 				function drawSeriesMedian(u, i) {
 					let { ctx } = u;
 					let { width } = ctx.canvas;
-					let { color, scale } = u.series[i];
+					let { stroke, scale } = u.series[i];
 
 					let cy = u.valToPos(medians[i], scale) * devicePixelRatio;
 
 					ctx.save();
-					ctx.strokeStyle = hexToRgbA(color, 0.2);
-					ctx.lineWidth = 50 * devicePixelRatio;
-					ctx.filter = 'blur(6px)';
+					ctx.strokeStyle = hexToRgbA(stroke, 0.2);
+					ctx.lineWidth = lineWidth * devicePixelRatio;
+
+					if (blur)
+						ctx.filter = 'blur(' + blur + 'px)';
 
 					ctx.beginPath();
 					ctx.moveTo(0, cy);
@@ -101,24 +99,50 @@
 					ctx.restore();
 				}
 
-				function enableBlurBeforeGridRender(u) {
-					let { ctx } = u;
-					ctx.save();
-					ctx.filter = 'blur(2px)';
+				return {
+					setData: [calculateMedians],
+					drawSeries: [drawSeriesMedian]
 				}
+			}
 
-				function disableBlurAfterGridRender(u) {
-					let { ctx } = u;
-					ctx.restore();
+			function seriesPointsPlugin({ spikes = 4, outerRadius = 8, innerRadius = 4} = {})
+			{
+				// https://stackoverflow.com/questions/25837158/how-to-draw-a-star-by-using-canvas-html5
+				function drawStar(ctx, cx, cy) {
+					outerRadius *= devicePixelRatio;
+					innerRadius *= devicePixelRatio;
+
+					let rot = Math.PI / 2 * 3;
+					let x = cx;
+					let y = cy;
+					let step = Math.PI / spikes;
+
+					ctx.beginPath();
+					ctx.moveTo(cx, cy - outerRadius);
+
+					for (let i = 0; i < spikes; i++) {
+						x = cx + Math.cos(rot) * outerRadius;
+						y = cy + Math.sin(rot) * outerRadius;
+						ctx.lineTo(x, y);
+						rot += step;
+
+						x = cx + Math.cos(rot) * innerRadius;
+						y = cy + Math.sin(rot) * innerRadius;
+						ctx.lineTo(x, y);
+						rot += step;
+					}
+
+					ctx.lineTo(cx, cy - outerRadius);
+					ctx.closePath();
 				}
 
 				function drawPointsAsStars(u, i) {
 					let { ctx } = u;
-					let { label, color, scale } = u.series[i];
+					let { label, stroke, scale } = u.series[i];
 					let yVals = u.data[i];
 
 					ctx.save();
-					ctx.fillStyle = color;
+					ctx.fillStyle = stroke;
 					yVals.forEach((val, i) => {
 						// Can add additional check if visible on Canvas before drawing
 						let cx = u.valToPos(u.data[0][i], 'x') * devicePixelRatio;
@@ -130,42 +154,33 @@
 					ctx.restore();
 				}
 
+				return {
+					drawSeries: [drawPointsAsStars]
+				}
+			}
+
+			function renderStatsPlugin({ textColor = 'red', font = '12px Arial'} = {})
+			{
 				let startRenderTime;
 
-				function setStartRenderTime() {
+				function setStartTime() {
 					startRenderTime = Date.now();
 				}
 
-				function drawRenderStats(u) {
+				function drawStats(u) {
 					let { ctx } = u;
-					let text = "Time to Draw: " + (Date.now() - startRenderTime) + "ms";
+					let displayText = "Time to Draw: " + (Date.now() - startRenderTime) + "ms";
 
 					ctx.save();
-					ctx.font = '12px Arial';
-					ctx.fillStyle = 'white';
-					ctx.fillText(text, 6, 18);
+					ctx.font = font;
+					ctx.fillStyle = textColor;
+					ctx.fillText(displayText, 6, 18);
 					ctx.restore();
 				}
 
 				return {
-					setData: [
-						calculateMedians
-					],
-					drawClear: [
-						setStartRenderTime,
-						drawBackgroundGradient,
-						enableBlurBeforeGridRender
-					],
-					drawGrid: [
-						disableBlurAfterGridRender
-					],
-					drawSeries: [
-						drawSeriesMedian,
-						drawPointsAsStars
-					],
-					draw: [
-						drawRenderStats
-					]
+					drawClear: [setStartTime],
+					draw: [drawStats]
 				}
 			}
 
@@ -197,7 +212,11 @@
 						},
 					},
 					plugins: [
-						addCrazyVisualsPlugin(),
+						bgGradientPlugin({ stops: ['#666', '#000'] }),
+						gridBlurPlugin(),
+						seriesMediansPlugin(),
+						seriesPointsPlugin({ spikes: 6}),
+						renderStatsPlugin({ textColor: 'white' }),
 					],
 					series: [
 						{},
