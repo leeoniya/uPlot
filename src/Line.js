@@ -574,12 +574,12 @@ export function Line(opts, data, then) {
 
 	function drawSeries() {
 		series.forEach((s, i) => {
-			if (i > 0 && s.show && s.path == null)
+			if (i > 0 && s.show && s.draw && s.path == null)
 				buildPath(i, data[0], data[i], scales[xScaleKey], scales[s.scale]);
 		});
 
 		series.forEach((s, i) => {
-			if (i > 0 && s.show) {
+			if (i > 0 && s.show && s.draw) {
 				drawPath(i);
 				fire("drawSeries", i);
 			}
