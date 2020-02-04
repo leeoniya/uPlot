@@ -59,7 +59,7 @@ let s = 1,
 	mo = d * 30,
 	y = d * 365;
 
-export const timeIncrs = decIncrs.concat([
+export const timeIncrs = genIncrs(-3, 0, incrMults).concat([
 	// minute divisors (# of secs)
 	1,
 	5,

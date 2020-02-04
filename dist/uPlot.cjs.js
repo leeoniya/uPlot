@@ -470,7 +470,7 @@ var s = 1,
 	mo = d * 30,
 	y = d * 365;
 
-var timeIncrs = decIncrs.concat([
+var timeIncrs = genIncrs(-3, 0, incrMults).concat([
 	// minute divisors (# of secs)
 	1,
 	5,
@@ -1574,16 +1574,16 @@ function Line(opts, data, then) {
 	function setScale(key, opts) {
 		var sc = scales[key];
 
-		// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
-		if (key == xScaleKey && sc.time) {
-			// since scales and axes are loosly coupled, we have to make some assumptions here :(
-			var incr = getIncrSpace(axes[0], opts.min, opts.max, canCssWidth)[0];
-
-			if (incr < 1e-3)
-				{ return; }
-		}
-
 		if (sc.from == null) {
+			// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
+			if (key == xScaleKey && sc.time) {
+				// since scales and axes are loosly coupled, we have to make some assumptions here :(
+				var incr = getIncrSpace(axes[0], opts.min, opts.max, canCssWidth)[0];
+
+				if (incr < 1e-3)
+					{ return; }
+			}
+
 		//	log("setScale()", arguments);
 
 			pendScales[key] = opts;
