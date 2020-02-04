@@ -59,7 +59,8 @@ let s = 1,
 	mo = d * 30,
 	y = d * 365;
 
-export const timeIncrs = genIncrs(-3, 0, incrMults).concat([
+// starting below 1e-3 is a hack to allow the incr finder to choose & bail out at incr < 1ms
+export const timeIncrs = [5e-4].concat(genIncrs(-3, 0, incrMults), [
 	// minute divisors (# of secs)
 	1,
 	5,
