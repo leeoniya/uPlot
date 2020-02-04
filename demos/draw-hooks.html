@@ -19,9 +19,7 @@
 					let gradient = u.ctx.createLinearGradient(0, 0, 0, height);
 
 					for (let c = 0; c < stops.length; c++)
-					{
 						gradient.addColorStop(c, stops[c]);
-					}
 
 					u.ctx.save();
 					u.ctx.fillStyle = gradient;
@@ -31,7 +29,7 @@
 
 				return {
 					drawClear: [drawBg],
-				}
+				};
 			}
 
 			function gridBlurPlugin({ radius = 2 } = {}) {
@@ -48,11 +46,10 @@
 				return {
 					drawClear: [applyBlur],
 					drawGrid: [stopBlur]
-				}
+				};
 			}
 
-			function seriesMediansPlugin({ lineWidth = 50, blur = 6 } = {})
-			{
+			function seriesMediansPlugin({ lineWidth = 50, blur = 6 } = {}) {
 				let medians;
 
 				function hexToRgbA(hex, a) {
@@ -102,11 +99,10 @@
 				return {
 					setData: [calculateMedians],
 					drawSeries: [drawSeriesMedian]
-				}
+				};
 			}
 
-			function seriesPointsPlugin({ spikes = 4, outerRadius = 8, innerRadius = 4} = {})
-			{
+			function seriesPointsPlugin({ spikes = 4, outerRadius = 8, innerRadius = 4} = {}) {
 				// https://stackoverflow.com/questions/25837158/how-to-draw-a-star-by-using-canvas-html5
 				function drawStar(ctx, cx, cy) {
 					outerRadius *= devicePixelRatio;
@@ -156,11 +152,10 @@
 
 				return {
 					drawSeries: [drawPointsAsStars]
-				}
+				};
 			}
 
-			function renderStatsPlugin({ textColor = 'red', font = '12px Arial'} = {})
-			{
+			function renderStatsPlugin({ textColor = 'red', font = '12px Arial'} = {}) {
 				let startRenderTime;
 
 				function setStartTime() {
@@ -181,7 +176,7 @@
 				return {
 					drawClear: [setStartTime],
 					draw: [drawStats]
-				}
+				};
 			}
 
 			function makeChart() {
