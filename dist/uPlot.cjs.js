@@ -1868,7 +1868,7 @@ function Line(opts, data, then) {
 		}
 	}) : null;
 
-	var rafPending = false;
+	var cursorRaf = 0;
 
 	function scaleValueAtPos(pos, scale) {
 		var dim = scale == xScaleKey ? canCssWidth : canCssHeight;
@@ -1921,7 +1921,7 @@ function Line(opts, data, then) {
 
 	//	ts == null && log("updateCursor()", arguments);
 
-		rafPending = false;
+		cursorRaf = 0;
 
 		if (cursor.show) {
 			cursor.x && trans(vt,round(mouseLeft1),0);
@@ -2054,10 +2054,8 @@ function Line(opts, data, then) {
 		cacheMouse(e, src, _x, _y, _w, _h, _i, false);
 
 		if (e != null) {
-			if (!rafPending) {
-				rafPending = true;
-				rAF(updateCursor);
-			}
+			if (cursorRaf == 0)
+				{ cursorRaf = rAF(updateCursor); }
 		}
 		else
 			{ updateCursor(); }

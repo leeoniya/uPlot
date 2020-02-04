@@ -1869,7 +1869,7 @@ var uPlot = (function (exports) {
 			}
 		}) : null;
 
-		var rafPending = false;
+		var cursorRaf = 0;
 
 		function scaleValueAtPos(pos, scale) {
 			var dim = scale == xScaleKey ? canCssWidth : canCssHeight;
@@ -1922,7 +1922,7 @@ var uPlot = (function (exports) {
 
 		//	ts == null && log("updateCursor()", arguments);
 
-			rafPending = false;
+			cursorRaf = 0;
 
 			if (cursor.show) {
 				cursor.x && trans(vt,round(mouseLeft1),0);
@@ -2055,10 +2055,8 @@ var uPlot = (function (exports) {
 			cacheMouse(e, src, _x, _y, _w, _h, _i, false);
 
 			if (e != null) {
-				if (!rafPending) {
-					rafPending = true;
-					rAF(updateCursor);
-				}
+				if (cursorRaf == 0)
+					{ cursorRaf = rAF(updateCursor); }
 			}
 			else
 				{ updateCursor(); }
