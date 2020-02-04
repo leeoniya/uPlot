@@ -555,7 +555,7 @@ var _timeAxisStamps = timeAxisStamps([
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 function timeAxisVals(tzDate, stamps) {
 	return function (self, ticks, space) {
-		var incr = ticks[1] - ticks[0];
+		var incr = round3(ticks[1] - ticks[0]);
 		var s = stamps.find(function (e) { return incr >= e[0]; });
 
 		// these track boundaries when a full label is needed again

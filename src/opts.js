@@ -147,7 +147,7 @@ export const _timeAxisStamps = timeAxisStamps([
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 export function timeAxisVals(tzDate, stamps) {
 	return (self, ticks, space) => {
-		let incr = ticks[1] - ticks[0];
+		let incr = round3(ticks[1] - ticks[0]);
 		let s = stamps.find(e => incr >= e[0]);
 
 		// these track boundaries when a full label is needed again
