@@ -1043,12 +1043,15 @@ export function Line(opts, data, then) {
 
 	function toggleDOM(i, onOff) {
 		let s = series[i];
-		let label = legendRows[i][0].parentNode;
+		let label;
+		if (legendOpts.show) {
+			label = legendRows[i][0].parentNode;
+		}
 
-		if (s.show)
-			remClass(label, "off");
-		else {
-			addClass(label, "off");
+		if (s.show) {
+			if (label) remClass(label, "off");
+		} else {
+			if (label) addClass(label, "off");
 			showPoints && trans(cursorPts[i], 0, -10)
 		}
 	}
