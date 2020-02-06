@@ -1033,7 +1033,7 @@ var uPlot = (function (exports) {
 
 			ready && autoScaleX();
 
-			fire("setSize");
+			ready && fire("setSize");
 		}
 
 		function setSize(ref) {
