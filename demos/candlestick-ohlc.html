@@ -134,8 +134,13 @@
 					u.series.forEach(series => series.draw = false);
 				}
 
+			//	const width = 1;
+			//	const offset = (width % 2) / 2;
+
 				function drawCandles(u) {
 					u.ctx.save();
+
+				//	u.ctx.translate(offset, offset);
 
 					u.data[0].forEach((ts, i) => {
 						let open = u.data[1][i];
@@ -155,10 +160,15 @@
 						let shadowY      = Math.min(highAsY, lowAsY);
 
 						u.ctx.fillStyle = shadowColor;
-						u.ctx.fillRect(shadowX, shadowY, shadowWidth, shadowHeight);
+						u.ctx.fillRect(
+							Math.round(shadowX),
+							Math.round(shadowY),
+							Math.round(shadowWidth),
+							Math.round(shadowHeight),
+						);
 
 						// body rect
-						let columnWidth  = Math.round(u.ctx.canvas.width / (u.scales.x.max - u.scales.x.min));
+						let columnWidth  = u.ctx.canvas.width / (u.scales.x.max - u.scales.x.min);
 						let bodyWidth    = Math.min(bodyMaxWidth, columnWidth - gap);
 						let bodyHeight   = Math.max(closeAsY, openAsY) - Math.min(closeAsY, openAsY);
 						let bodyX        = timeAsX - (bodyWidth / 2);
@@ -167,15 +177,27 @@
 
 						if (bodyHeight > 2) {
 							u.ctx.fillStyle = bodyColor;
-							u.ctx.fillRect(bodyX, bodyY, bodyWidth, bodyHeight);
+							u.ctx.fillRect(
+								Math.round(bodyX),
+								Math.round(bodyY),
+								Math.round(bodyWidth),
+								Math.round(bodyHeight),
+							);
 						}
 
 						let bodyOutline = 1;
 
 						u.ctx.lineWidth = bodyOutline;
 						u.ctx.strokeStyle = shadowColor;
-						u.ctx.strokeRect(bodyX + bodyOutline, bodyY + bodyOutline, bodyWidth - bodyOutline * 2, bodyHeight - bodyOutline * 2);
+						u.ctx.strokeRect(
+							Math.round(bodyX + bodyOutline),
+							Math.round(bodyY + bodyOutline),
+							Math.round(bodyWidth - bodyOutline * 2),
+							Math.round(bodyHeight - bodyOutline * 2),
+						);
 					});
+
+				//	u.ctx.translate(-offset, -offset);
 
 					u.ctx.restore();
 				}
