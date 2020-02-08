@@ -10,19 +10,26 @@
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
-			var loop = 130000;
+			const loop = 500000;
 
-			let data = [
-				Array(loop),
-				Array(loop),
-			];
+			const data = getData(loop);
 
-			for (var i = 0; i < loop; i++) {
-				let x = 2 * Math.PI * i / loop;
-				let y = Math.sin(x);
+			function f(x) {
+				return Math.random() - 0.5 + Math.sin(x * 0.00002) * 40 + Math.sin(x * 0.001) * 5 + Math.sin(x * 0.1) * 2;
+			}
 
-				data[0][i] = x;
-				data[1][i] = y;
+			function getData(max) {
+				const data = [
+					Array(loop),
+					Array(loop)
+				];
+
+				for (let x = 0; x < max; x++) {
+					data[0][x] = x;
+					data[1][x] = f(x);
+				}
+
+				return data;
 			}
 
 			const opts = {
@@ -37,7 +44,7 @@
 					},
 					y: {
 						auto: false,
-						range: [-1.5, 1.5],
+						range: [-50, 50],
 					},
 				},
 				series: [
