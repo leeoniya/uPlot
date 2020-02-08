@@ -613,7 +613,7 @@ export function Line(opts, data, then) {
 				width && ctx.stroke(path);
 			}
 			else {
-				ctx.stroke(path);
+				width && ctx.stroke(path);
 
 				if (s.fill != null) {
 					let zeroY = round(getYPos(0, scales[s.scale], can[HEIGHT]));
@@ -1019,7 +1019,7 @@ export function Line(opts, data, then) {
 			let label = placeTag("th", null, row);
 
 			let indic = placeDiv("ident", label);
-			indic.style.borderColor = s.stroke;
+			s.width && (indic.style.borderColor = s.stroke);
 			indic.style.backgroundColor = s.fill;
 
 			let text = placeDiv("text", label);

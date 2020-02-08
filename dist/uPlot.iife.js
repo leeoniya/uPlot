@@ -1313,7 +1313,7 @@ var uPlot = (function (exports) {
 					width && ctx.stroke(path);
 				}
 				else {
-					ctx.stroke(path);
+					width && ctx.stroke(path);
 
 					if (s.fill != null) {
 						var zeroY = round(getYPos(0, scales[s.scale], can[HEIGHT]));
@@ -1725,7 +1725,7 @@ var uPlot = (function (exports) {
 				var label = placeTag("th", null, row);
 
 				var indic = placeDiv("ident", label);
-				indic.style.borderColor = s.stroke;
+				s.width && (indic.style.borderColor = s.stroke);
 				indic.style.backgroundColor = s.fill;
 
 				var text = placeDiv("text", label);

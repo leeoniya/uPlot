@@ -1312,7 +1312,7 @@ function Line(opts, data, then) {
 				width && ctx.stroke(path);
 			}
 			else {
-				ctx.stroke(path);
+				width && ctx.stroke(path);
 
 				if (s.fill != null) {
 					var zeroY = round(getYPos(0, scales[s.scale], can[HEIGHT]));
@@ -1724,7 +1724,7 @@ function Line(opts, data, then) {
 			var label = placeTag("th", null, row);
 
 			var indic = placeDiv("ident", label);
-			indic.style.borderColor = s.stroke;
+			s.width && (indic.style.borderColor = s.stroke);
 			indic.style.backgroundColor = s.fill;
 
 			var text = placeDiv("text", label);
