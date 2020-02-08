@@ -103,11 +103,11 @@
 			}
 
 			function seriesPointsPlugin({ spikes = 4, outerRadius = 8, innerRadius = 4} = {}) {
+				outerRadius *= devicePixelRatio;
+				innerRadius *= devicePixelRatio;
+
 				// https://stackoverflow.com/questions/25837158/how-to-draw-a-star-by-using-canvas-html5
 				function drawStar(ctx, cx, cy) {
-					outerRadius *= devicePixelRatio;
-					innerRadius *= devicePixelRatio;
-
 					let rot = Math.PI / 2 * 3;
 					let x = cx;
 					let y = cy;
