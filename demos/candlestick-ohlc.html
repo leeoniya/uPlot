@@ -10,90 +10,76 @@
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
 			function fmtUSD(val, dec) {
-				return "$" + val.toFixed(dec).replace(/\d(?=(\d{3})+(?:\.|$))/g, '$&,');
+				return "$" + val.toFixed(dec).replace(/\d(?=(\d{3})+(?:\.|$))/g, "$&,");
 			}
 
-			// A plugin which highlights the hovered X axis.
-			function columnHighlightPlugin({ className, style = {backgroundColor:'rgba(51,204,255,0.3)'} }={}) {
-				let canEl, plotEl, highlightEl, currIdx;
+			// column-highlights the hovered x index
+			function columnHighlightPlugin({ className, style = {backgroundColor: "rgba(51,204,255,0.3)"} } = {}) {
+				let canEl, highlightEl, currIdx;
 
 				function init(u) {
-					// Create DOM elements
 					canEl = u.ctx.canvas;
-					plotEl = canEl.parentElement;
-					highlightEl = document.createElement('div');
+					highlightEl = document.createElement("div");
+
+					className && highlightEl.classList.add(className);
 
 					Object.assign(highlightEl.style, {
-						pointerEvents:'none',
-						width: 0
+						pointerEvents: "none",
+						display: "none",
+						position: "absolute",
+						left: 0,
+						top: 0,
+						height: "100%",
+						...style
 					});
 
-					if (style)
-						Object.assign(highlightEl.style, style);
+					const plotEl = canEl.parentNode;
 
-					if (className)
-						highlightEl.classList.add(className);
+					plotEl.insertBefore(highlightEl, canEl);
 
-					updateSize(u);
-					canEl.parentNode.insertBefore(highlightEl, canEl);
+					// show/hide highlight on enter/exit
+					plotEl.addEventListener("mouseenter", () => {highlightEl.style.display = null;});
+					plotEl.addEventListener("mouseleave", () => {highlightEl.style.display = "none";});
 				}
 
-				function updateSize(u) {
-					Object.assign(highlightEl.style, {
-						height: plotEl.clientHeight + 'px',
-						marginBottom: '-' + plotEl.clientHeight + 'px',
-					});
-				}
-
-				function updatePosition(u) {
-					const columnWidth = Math.round(canEl.width / (u.scales.x.max - u.scales.x.min)) / devicePixelRatio;
-					const leftPos = (u.valToPos(currIdx, 'x') - (columnWidth/2));
-
-					highlightEl.style.marginLeft = leftPos + 'px';
-					highlightEl.style.width = columnWidth + 'px';
-				}
-
-				function updateVisibility() {
-					highlightEl.style.opacity = currIdx ? 1 : 0;
-				}
-
-				function checkUpdateRequired(u) {
+				function update(u) {
 					if (currIdx !== u.cursor.idx) {
 						currIdx = u.cursor.idx;
 
-						updateVisibility();
+						const dx    = u.scales.x.max - u.scales.x.min;
+						const width = (canEl.width / dx) / devicePixelRatio;
+						const left  = u.valToPos(currIdx, "x") - width / 2;
 
-						if (currIdx)
-							updatePosition(u);
+						highlightEl.style.transform = "translateX(" + Math.round(left) + "px)";
+						highlightEl.style.width = Math.round(width) + "px";
 					}
 				}
 
 				return {
 					init: [init],
-					setSize: [updateSize],
-					setCursor: [checkUpdateRequired]
+					setCursor: [update],
 				};
 			}
 
-			// A plugin which converts the legend into a simple tooltip
-			function legendAsTooltipPlugin({ className, style = { backgroundColor:'rgba(255, 249, 196, 0.92)', color: 'black' } } = {}) {
+			// converts the legend into a simple tooltip
+			function legendAsTooltipPlugin({ className, style = { backgroundColor:"rgba(255, 249, 196, 0.92)", color: "black" } } = {}) {
 				let legendEl;
 
 				function init(u, opts) {
-					legendEl = u.root.querySelector('.legend');
+					legendEl = u.root.querySelector(".legend");
 
-					legendEl.classList.remove('inline');
-					legendEl.classList.add('hidden');
+					legendEl.classList.remove("inline");
+					legendEl.classList.add("hidden");
 					className && legendEl.classList.add(className);
 
 					Object.assign(legendEl.style, {
-						pointerEvents: 'none',
-						position: 'absolute',
+						pointerEvents: "none",
 						display: "none",
-						zIndex: 100,
-						boxShadow: "2px 2px 10px rgba(0,0,0,0.5)",
+						position: "absolute",
 						left: 0,
 						top: 0,
+						zIndex: 100,
+						boxShadow: "2px 2px 10px rgba(0,0,0,0.5)",
 						...style
 					});
 
@@ -103,7 +89,7 @@
 					for (let i = 0; i < idents.length; i++)
 						idents[i].style.display = "none";
 
-					const plotEl = u.root.querySelector('.plot');
+					const plotEl = u.ctx.canvas.parentNode;
 
 					// move legend into plot bounds
 					plotEl.appendChild(legendEl);
@@ -127,32 +113,27 @@
 				}
 			}
 
-			// A plugin which draws candlestick symbols
-			function candlestickPlugin({ gap = 2, shadowColor = '#000000', bearishColor = '#e54245', bullishColor = '#4ab650', bodyMaxWidth = 20, shadowWidth = 2 } = {}) {
+			// draws candlestick symbols (expects data in OHLC order)
+			function candlestickPlugin({ gap = 2, shadowColor = "#000000", bearishColor = "#e54245", bullishColor = "#4ab650", bodyMaxWidth = 20, shadowWidth = 2 } = {}) {
 
 				function init(u, opts) {
 					u.series.forEach(series => series.draw = false);
 				}
 
-			//	const width = 1;
-			//	const offset = (width % 2) / 2;
-
 				function drawCandles(u) {
 					u.ctx.save();
 
-				//	u.ctx.translate(offset, offset);
-
 					u.data[0].forEach((ts, i) => {
-						let open = u.data[1][i];
-						let high = u.data[2][i];
-						let low = u.data[3][i];
-						let close = u.data[4][i];
+						let open         = u.data[1][i];
+						let high         = u.data[2][i];
+						let low          = u.data[3][i];
+						let close        = u.data[4][i];
 
-						let timeAsX      = u.valToPos(i,     'x') * devicePixelRatio;
-						let lowAsY       = u.valToPos(low,   'y') * devicePixelRatio;
-						let highAsY      = u.valToPos(high,  'y') * devicePixelRatio;
-						let openAsY      = u.valToPos(open,  'y') * devicePixelRatio;
-						let closeAsY     = u.valToPos(close, 'y') * devicePixelRatio;
+						let timeAsX      = u.valToPos(i,     "x") * devicePixelRatio;
+						let lowAsY       = u.valToPos(low,   "y") * devicePixelRatio;
+						let highAsY      = u.valToPos(high,  "y") * devicePixelRatio;
+						let openAsY      = u.valToPos(open,  "y") * devicePixelRatio;
+						let closeAsY     = u.valToPos(close, "y") * devicePixelRatio;
 
 						// shadow rect
 						let shadowHeight = Math.max(highAsY, lowAsY) - Math.min(highAsY, lowAsY);
@@ -175,15 +156,13 @@
 						let bodyY        = Math.min(closeAsY, openAsY);
 						let bodyColor    = open > close ? bearishColor : bullishColor;
 
-						if (bodyHeight > 2) {
-							u.ctx.fillStyle = bodyColor;
-							u.ctx.fillRect(
-								Math.round(bodyX),
-								Math.round(bodyY),
-								Math.round(bodyWidth),
-								Math.round(bodyHeight),
-							);
-						}
+						u.ctx.fillStyle = bodyColor;
+						u.ctx.fillRect(
+							Math.round(bodyX),
+							Math.round(bodyY),
+							Math.round(bodyWidth),
+							Math.round(bodyHeight),
+						);
 
 						let bodyOutline = 1;
 
@@ -197,8 +176,6 @@
 						);
 					});
 
-				//	u.ctx.translate(-offset, -offset);
-
 					u.ctx.restore();
 				}
 
@@ -210,7 +187,6 @@
 
 			// gold prices from https://www.investing.com/commodities/gold-historical-data
 			// Date,Open,High,Low,Close
-			// candlestickPlugin expects data OHLC order
 			const data = [
 				[1546300800,1546387200,1546473600,1546560000,1546819200,1546905600,1546992000,1547078400,1547164800,1547424000,1547510400,1547596800,1547683200,1547769600,1547942400,1548028800,1548115200,1548201600,1548288000,1548374400,1548633600,1548720000,1548806400,1548892800,1548979200,1549238400,1549324800,1549411200,1549497600,1549584000,1549843200,1549929600,1550016000,1550102400,1550188800,1550361600,1550448000,1550534400,1550620800,1550707200,1550793600,1551052800,1551139200,1551225600,1551312000,1551398400,1551657600,1551744000,1551830400,1551916800,1552003200,1552262400,1552348800,1552435200,1552521600,1552608000,1552867200,1552953600,1553040000,1553126400,1553212800,1553472000,1553558400,1553644800,1553731200,1553817600,1554076800,1554163200,1554249600,1554336000,1554422400,1554681600,1554768000,1554854400,1554940800,1555027200,1555286400,1555372800,1555459200,1555545600,1555632000,1555891200,1555977600,1556064000,1556150400,1556236800,1556496000,1556582400,1556668800,1556755200,1556841600,1557100800,1557187200,1557273600,1557360000,1557446400,1557705600,1557792000,1557878400,1557964800,1558051200,1558310400,1558396800,1558483200,1558569600,1558656000,1558828800,1558915200,1559001600,1559088000,1559174400,1559260800,1559520000,1559606400,1559692800,1559779200,1559865600,1560124800,1560211200,1560297600,1560384000,1560470400,1560729600,1560816000,1560902400,1560988800,1561075200,1561334400,1561420800,1561507200,1561593600,1561680000,1561939200,1562025600,1562112000,1562198400,1562284800,1562544000,1562630400,1562716800,1562803200,1562889600,1563148800,1563235200,1563321600,1563408000,1563494400,1563753600,1563840000,1563926400,1564012800,1564099200,1564358400,1564444800,1564531200,1564617600,1564704000,1564963200,1565049600,1565136000,1565222400,1565308800,1565568000,1565654400,1565740800,1565827200,1565913600,1566172800,1566259200,1566345600,1566432000,1566518400,1566777600,1566864000,1566950400,1567036800,1567123200,1567296000,1567382400,1567468800,1567555200,1567641600,1567728000,1567987200,1568073600,1568160000,1568246400,1568332800,1568592000,1568678400,1568764800,1568851200,1568937600,1569196800,1569283200,1569369600,1569456000,1569542400,1569801600,1569888000,1569974400,1570060800,1570147200,1570406400,1570492800,1570579200,1570665600,1570752000,1571011200,1571097600,1571184000,1571270400,1571356800,1571616000,1571702400,1571788800,1571875200,1571961600],
 				[1284.7,1319.9,1318.7,1328,1317.6,1321.6,1314.3,1325,1319.3,1323.1,1324.7,1321.3,1323.5,1322,1281.3,1281.95,1311.1,1315,1314,1313.1,1331.9,1334.2,1341.3,1350.6,1349.8,1346.4,1343.4,1344.9,1335.6,1337.9,1342.5,1337,1338.6,1337,1340.4,1324.65,1324.35,1349.5,1371.3,1367.9,1351.3,1357.8,1356.1,1356,1347.6,1339.1,1320.6,1311.8,1314,1312.4,1312.3,1323.5,1319.1,1327.2,1332.1,1320.3,1323.1,1328,1330.9,1338,1333,1335.3,1345.2,1341.1,1332.5,1314,1314.4,1310.7,1314,1313.1,1315,1313.7,1320,1326.5,1329.2,1314.2,1312.3,1309.5,1297.4,1293.7,1277.9,1295.8,1295.2,1290.3,1294.2,1298,1306.4,1299.8,1302.3,1297,1289.6,1302,1300.7,1303.5,1300.5,1303.2,1306,1318.7,1315,1314.5,1304.1,1294.7,1293.7,1291.2,1290.2,1300.4,1284.2,1284.25,1301.8,1295.9,1296.2,1304.4,1323.1,1340.9,1341,1348,1351.4,1351.4,1343.5,1342.3,1349,1357.6,1357.1,1354.7,1361.4,1375.2,1403.5,1414.7,1433.2,1438,1423.6,1424.4,1418,1399.5,1435.5,1421.25,1434.1,1412.4,1409.8,1412.2,1433.4,1418.4,1429,1428.8,1420.6,1441,1460.4,1441.7,1438.4,1431,1439.3,1427.4,1431.9,1439.5,1443.7,1425.6,1457.5,1451.2,1481.1,1486.7,1512.1,1515.9,1509.2,1522.3,1513,1526.6,1533.9,1523,1506.3,1518.4,1512.4,1508.8,1545.4,1537.3,1551.8,1549.4,1536.9,1535.25,1537.95,1535.2,1556,1561.4,1525.6,1516.4,1507,1493.9,1504.9,1506.5,1513.1,1506.5,1509.7,1502,1506.8,1521.5,1529.8,1539.8,1510.9,1511.8,1501.7,1478,1485.4,1505.6,1511.6,1518.6,1498.7,1510.9,1510.8,1498.3,1492,1497.7,1484.8,1494.2,1495.6,1495.6,1487.5,1491.1,1495.1,1506.4],
@@ -223,7 +199,7 @@
 				width: 1920,
 				height: 600,
 				title: "Gold",
-				tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), 'Etc/UTC'),
+				tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), "Etc/UTC"),
 				plugins: [
 					columnHighlightPlugin(),
 					legendAsTooltipPlugin(),
@@ -259,12 +235,9 @@
 					},
 				],
 				axes: [
-					{
-						grid:{show:true, stroke:'rgba(0,0,0,0.1)', width:2}
-					},
+					{},
 					{
 						values: (u, vals) => vals.map(v => fmtUSD(v, 0)),
-						grid:{show:true, stroke:'rgba(0,0,0,0.1)', width:2}
 					}
 				]
 			};

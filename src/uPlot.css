@@ -56,6 +56,7 @@
 
 .uplot canvas {
 	display: block;
+	position: relative;
 }
 
 .uplot .legend {
