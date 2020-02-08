@@ -245,11 +245,9 @@ var log10 = M.log10;
 
 var inf = Infinity;
 
-/*
-export function incrRound() {
+function incrRound(num, incr) {
 	return round(num/incr)*incr;
 }
-*/
 
 function clamp(num, _min, _max) {
 	return min(max(num, _min), _max);
@@ -2071,6 +2069,12 @@ function Line(opts, data, then) {
 			_x = canCssWidth * (_x/_w);
 			_y = canCssHeight * (_y/_h);
 		}
+
+		if (_x <= 1 || _x >= canCssWidth - 1)
+			{ _x = incrRound(_x, canCssWidth); }
+
+		if (_y <= 1 || _y >= canCssHeight - 1)
+			{ _y = incrRound(_y, canCssHeight); }
 
 		if (initial) {
 			mouseLeft0 = _x;

@@ -104,11 +104,9 @@ export const log10 = M.log10;
 
 export const inf = Infinity;
 
-/*
-export function incrRound() {
+export function incrRound(num, incr) {
 	return round(num/incr)*incr;
 }
-*/
 
 export function clamp(num, _min, _max) {
 	return min(max(num, _min), _max);
