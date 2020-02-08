@@ -128,61 +128,56 @@
 			}
 
 			// A plugin which draws candlestick symbols
-			function candlestickPlugin({ gap = 2, shadowColor = '#000000', bearishColor = '#e54245', bullishColor = '#4ab650', bodyMaxWidth = 20, shadowWidth = 1 }={}) {
+			function candlestickPlugin({ gap = 2, shadowColor = '#000000', bearishColor = '#e54245', bullishColor = '#4ab650', bodyMaxWidth = 20, shadowWidth = 2 } = {}) {
 
 				function init(u, opts) {
 					u.series.forEach(series => series.draw = false);
 				}
 
 				function drawCandles(u) {
+					u.ctx.save();
 
-					u.data[0].forEach( (timestamp, i) => {
-						let time = u.data[0][i];
+					u.data[0].forEach((ts, i) => {
 						let open = u.data[1][i];
 						let high = u.data[2][i];
 						let low = u.data[3][i];
 						let close = u.data[4][i];
 
-						let timeAsX = u.valToPos(i, 'x') * devicePixelRatio;
-						let lowAsY = u.valToPos(low, 'y') * devicePixelRatio;
-						let highAsY = u.valToPos(high, 'y') * devicePixelRatio;
-						let openAsY = u.valToPos(open, 'y') * devicePixelRatio;
-						let closeAsY = u.valToPos(close, 'y') * devicePixelRatio;
+						let timeAsX      = u.valToPos(i,     'x') * devicePixelRatio;
+						let lowAsY       = u.valToPos(low,   'y') * devicePixelRatio;
+						let highAsY      = u.valToPos(high,  'y') * devicePixelRatio;
+						let openAsY      = u.valToPos(open,  'y') * devicePixelRatio;
+						let closeAsY     = u.valToPos(close, 'y') * devicePixelRatio;
 
-						// Calculate body rectangle
-						let columnWidth = Math.round(u.ctx.canvas.width / (u.scales.x.max - u.scales.x.min));
-						let bodyWidth = Math.min(bodyMaxWidth, columnWidth - gap);
-						let bodyHeight = Math.max(closeAsY, openAsY) - Math.min(closeAsY, openAsY);
-						let bodyX = timeAsX - (bodyWidth / 2);
-						let bodyY = Math.min(closeAsY, openAsY);
-						let bodyColor = open > close ? bearishColor : bullishColor;
-
-						// Calculate shadow rectangle
+						// shadow rect
 						let shadowHeight = Math.max(highAsY, lowAsY) - Math.min(highAsY, lowAsY);
-						let shadowX = timeAsX - (shadowWidth / 2);
-						let shadowY = Math.min(highAsY, lowAsY);
+						let shadowX      = timeAsX - (shadowWidth / 2);
+						let shadowY      = Math.min(highAsY, lowAsY);
 
-						u.ctx.save();
-
-						// Draw shadow
-						u.ctx.strokeStyle = shadowColor;
-						u.ctx.beginPath();
-						u.ctx.moveTo(timeAsX, shadowY);
-						u.ctx.lineTo(timeAsX, shadowY + shadowHeight);
-						u.ctx.stroke();
-
-						// Draw body keyline
 						u.ctx.fillStyle = shadowColor;
-						u.ctx.fillRect(bodyX, bodyY, bodyWidth, bodyHeight);
+						u.ctx.fillRect(shadowX, shadowY, shadowWidth, shadowHeight);
 
-						// Draw body fill taking into account keyline thickness
+						// body rect
+						let columnWidth  = Math.round(u.ctx.canvas.width / (u.scales.x.max - u.scales.x.min));
+						let bodyWidth    = Math.min(bodyMaxWidth, columnWidth - gap);
+						let bodyHeight   = Math.max(closeAsY, openAsY) - Math.min(closeAsY, openAsY);
+						let bodyX        = timeAsX - (bodyWidth / 2);
+						let bodyY        = Math.min(closeAsY, openAsY);
+						let bodyColor    = open > close ? bearishColor : bullishColor;
+
 						if (bodyHeight > 2) {
 							u.ctx.fillStyle = bodyColor;
-							u.ctx.fillRect(bodyX+1, bodyY+1, bodyWidth-2, bodyHeight-2);
+							u.ctx.fillRect(bodyX, bodyY, bodyWidth, bodyHeight);
 						}
 
-						u.ctx.restore();
+						let bodyOutline = 1;
+
+						u.ctx.lineWidth = bodyOutline;
+						u.ctx.strokeStyle = shadowColor;
+						u.ctx.strokeRect(bodyX + bodyOutline, bodyY + bodyOutline, bodyWidth - bodyOutline * 2, bodyHeight - bodyOutline * 2);
 					});
+
+					u.ctx.restore();
 				}
 
 				return {
