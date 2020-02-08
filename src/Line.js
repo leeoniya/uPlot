@@ -196,7 +196,7 @@ export function Line(opts, data, then) {
 		let sv = s.value;
 		s.value = isTime ? (isStr(sv) ? timeSeriesVal(tzDate, timeSeriesStamp(sv)) : sv || _timeSeriesVal) : sv || numSeriesVal;
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
-		s.width = s.width || 1;
+		s.width = s.width == null ? 1 : s.width;
 	});
 
 	// dependent scales inherit
@@ -608,8 +608,10 @@ export function Line(opts, data, then) {
 				ctx.clip(clip);
 			}
 
-			if (s.band)
+			if (s.band) {
 				ctx.fill(path);
+				width && ctx.stroke(path);
+			}
 			else {
 				ctx.stroke(path);
 
@@ -685,6 +687,10 @@ export function Line(opts, data, then) {
 
 		let accX = round(getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, can[WIDTH]));
 
+		// the moves the shape edge outside the canvas so stroke doesnt bleed in
+		if (s.band && dir == 1 && width && _i0 == i0)
+			path.lineTo(-width, round(getYPos(ydata[_i0], scaleY, can[HEIGHT])));
+
 		for (let i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
 			let x = round(getXPos(xdata[i], scaleX, can[WIDTH]));
 
@@ -729,8 +735,13 @@ export function Line(opts, data, then) {
 			buildClip(s, gaps);
 
 		if (s.band) {
-			if (dir == -1)
+			if (dir == -1) {
+				// the moves the shape edge outside the canvas so stroke doesnt bleed in
+				if (width && _i0 == i0)
+					path.lineTo(-width, round(getYPos(ydata[_i0], scaleY, can[HEIGHT])));
+
 				path.closePath();
+			}
 
 			dir *= -1;
 		}
@@ -1074,7 +1085,7 @@ export function Line(opts, data, then) {
 
 				if (s.band) {
 					// not super robust, will break if two bands are adjacent
-					let ip = series[i+1].band ? i+1 : i-1;
+					let ip = series[i+1] && series[i+1].band ? i+1 : i-1;
 					series[ip].show = s.show;
 					toggleDOM(ip, opts.show);
 				}
