@@ -1055,13 +1055,13 @@ export function Line(opts, data, then) {
 
 	function toggleDOM(i, onOff) {
 		let s = series[i];
-		let label = legendRows[i][0].parentNode;
+		let label = legendOpts.show ? legendRows[i][0].parentNode : null;
 
 		if (s.show)
-			remClass(label, "off");
+			label && remClass(label, "off");
 		else {
-			addClass(label, "off");
-			showPoints && trans(cursorPts[i], 0, -10)
+			label && addClass(label, "off");
+			showPoints && trans(cursorPts[i], 0, -10);
 		}
 	}
 
@@ -1140,7 +1140,7 @@ export function Line(opts, data, then) {
 		}
 	}
 
-	if (focus && legend) {
+	if (focus && legendOpts.show) {
 		on(mouseleave, legend, e => {
 			if (cursor.locked)
 				return;
