@@ -32,8 +32,8 @@
 				document.body.appendChild(overlay);
 
 				return {
-					init: [
-						(u, opts) => {
+					hooks: {
+						init: u => {
 							let can = u.ctx.canvas;
 
 							bound = can;
@@ -50,10 +50,8 @@
 							let bbox = can.getBoundingClientRect();
 							bLeft = bbox.left;
 							bTop = bbox.top;
-						}
-					],
-					setCursor: [
-						u => {
+						},
+						setCursor: u => {
 							const { left, top, idx } = u.cursor;
 							const x = u.data[0][idx];
 							const y = u.data[1][idx];
@@ -61,11 +59,11 @@
 							overlay.textContent = `${x},${y} at ${left},${top}`;
 							placement(overlay, anchor, "right", "start", { bound });
 						}
-					],
+					}
 				};
 			}
 
-			let opts = {
+			const opts = {
 				id: "chart",
 				title: "placement.js tooltip",
 				width: 600,
@@ -93,7 +91,7 @@
 				[40, 43, 60, 65, 71, 73, 80]
 			];
 
-			let u = new uPlot.Line(opts, data, document.body);
+			const u = new uPlot.Line(opts, data, document.body);
 		</script>
 	</body>
 </html>

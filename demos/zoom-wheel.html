@@ -14,8 +14,8 @@
 				let factor = opts.factor || 0.75;
 
 				return {
-					init: [
-						(u, opts, data) => {
+					hooks: {
+						init: (u, opts, data) => {
 							let plot = u.root.querySelector(".plot");
 
 							plot.addEventListener("wheel", e => {
@@ -49,7 +49,7 @@
 								});
 							});
 						},
-					]
+					}
 				};
 			}
 

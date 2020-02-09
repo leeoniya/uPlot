@@ -145,9 +145,14 @@ function filtMouse(e) {
 }
 
 export function Line(opts, data, then) {
+	const self = this;
+
 	opts = copy(opts);
 
-	const self = this;
+	(opts.plugins || []).forEach(p => {
+		if (p.opts)
+			opts = p.opts(self, opts) || opts;
+	});
 
 	let ready = false;
 
@@ -1526,9 +1531,9 @@ export function Line(opts, data, then) {
 		}
 	}
 
-	(opts.plugins || []).forEach(phooks => {
-		for (let evName in phooks)
-			hooks[evName] = (hooks[evName] || []).concat(phooks[evName]);
+	(opts.plugins || []).forEach(p => {
+		for (let evName in p.hooks)
+			hooks[evName] = (hooks[evName] || []).concat(p.hooks[evName]);
 	});
 
 	const syncOpts = assign({

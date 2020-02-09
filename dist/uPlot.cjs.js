@@ -841,9 +841,14 @@ function filtMouse(e) {
 }
 
 function Line(opts, data, then) {
+	var self = this;
+
 	opts = copy(opts);
 
-	var self = this;
+	(opts.plugins || []).forEach(function (p) {
+		if (p.opts)
+			{ opts = p.opts(self, opts) || opts; }
+	});
 
 	var ready = false;
 
@@ -2234,9 +2239,9 @@ function Line(opts, data, then) {
 		}
 	}
 
-	(opts.plugins || []).forEach(function (phooks) {
-		for (var evName in phooks)
-			{ hooks[evName] = (hooks[evName] || []).concat(phooks[evName]); }
+	(opts.plugins || []).forEach(function (p) {
+		for (var evName in p.hooks)
+			{ hooks[evName] = (hooks[evName] || []).concat(p.hooks[evName]); }
 	});
 
 	var syncOpts = assign({

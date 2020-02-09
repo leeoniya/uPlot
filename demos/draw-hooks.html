@@ -28,7 +28,9 @@
 				}
 
 				return {
-					drawClear: [drawBg],
+					hooks: {
+						drawClear: drawBg,
+					}
 				};
 			}
 
@@ -44,8 +46,10 @@
 				}
 
 				return {
-					drawClear: [applyBlur],
-					drawGrid: [stopBlur]
+					hooks: {
+						drawClear: applyBlur,
+						drawGrid: stopBlur,
+					}
 				};
 			}
 
@@ -97,8 +101,10 @@
 				}
 
 				return {
-					setData: [calculateMedians],
-					drawSeries: [drawSeriesMedian]
+					hooks: {
+						setData: calculateMedians,
+						drawSeries: drawSeriesMedian,
+					}
 				};
 			}
 
@@ -151,7 +157,9 @@
 				}
 
 				return {
-					drawSeries: [drawPointsAsStars]
+					hooks: {
+						drawSeries: drawPointsAsStars,
+					}
 				};
 			}
 
@@ -174,8 +182,10 @@
 				}
 
 				return {
-					drawClear: [setStartTime],
-					draw: [drawStats]
+					hooks: {
+						drawClear: setStartTime,
+						draw: drawStats,
+					}
 				};
 			}
 
@@ -197,6 +207,9 @@
 					title: "Draw Hooks",
 					width: 600,
 					height: 400,
+					cursor: {
+						points: false,
+					},
 					axes: [
 						{grid},
 						{grid},

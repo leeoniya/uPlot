@@ -56,8 +56,16 @@
 				}
 
 				return {
-					init: [init],
-					setCursor: [update],
+					opts: (u, opts) => {
+						opts.cursor = Object.assign(opts.cursor || {}, {
+							x: false,
+							y: false
+						});
+					},
+					hooks: {
+						init: init,
+						setCursor: update,
+					}
 				};
 			}
 
@@ -108,17 +116,15 @@
 				}
 
 				return {
-					init: [init],
-					setCursor: [update]
-				}
+					hooks: {
+						init: init,
+						setCursor: update,
+					}
+				};
 			}
 
 			// draws candlestick symbols (expects data in OHLC order)
 			function candlestickPlugin({ gap = 2, shadowColor = "#000000", bearishColor = "#e54245", bullishColor = "#4ab650", bodyMaxWidth = 20, shadowWidth = 2 } = {}) {
-
-				function init(u, opts) {
-					u.series.forEach(series => series.draw = false);
-				}
 
 				function drawCandles(u) {
 					u.ctx.save();
@@ -180,8 +186,18 @@
 				}
 
 				return {
-					init: [init],
-					draw: [drawCandles]
+					opts: (u, opts) => {
+						opts.cursor = Object.assign(opts.cursor || {}, {
+							points: false,
+						});
+
+						opts.series.forEach(series => {
+							series.draw = false;
+						});
+					},
+					hooks: {
+						draw: drawCandles,
+					}
 				};
 			}
 
@@ -205,11 +221,6 @@
 					legendAsTooltipPlugin(),
 					candlestickPlugin()
 				],
-				cursor: {
-					points: false,
-					x: false,
-					y: false
-				},
 				scales: {
 					x: {
 						distr: 2,
@@ -243,6 +254,8 @@
 			};
 
 			let u = new uPlot.Line(opts, data, document.body);
+
+			console.log(u);
 		</script>
 	</body>
 </html>

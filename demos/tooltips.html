@@ -11,113 +11,115 @@
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
 			function tooltipsPlugin(opts) {
-				return {
-					init: [
-						(u, opts, data) => {
-							let plot = u.root.querySelector(".plot");
+				function init(u, opts, data) {
+					let plot = u.root.querySelector(".plot");
 
-							let ttc = u.cursortt = document.createElement("div");
-							ttc.className = "tooltip";
-							ttc.textContent = "(x,y)";
-							ttc.style.pointerEvents = "none";
-							ttc.style.position = "absolute";
-							ttc.style.background = "rgba(0,0,255,0.1)";
-							plot.appendChild(ttc);
+					let ttc = u.cursortt = document.createElement("div");
+					ttc.className = "tooltip";
+					ttc.textContent = "(x,y)";
+					ttc.style.pointerEvents = "none";
+					ttc.style.position = "absolute";
+					ttc.style.background = "rgba(0,0,255,0.1)";
+					plot.appendChild(ttc);
 
-							u.seriestt = opts.series.map((s, i) => {
-								if (i == 0) return;
+					u.seriestt = opts.series.map((s, i) => {
+						if (i == 0) return;
 
-								let tt = document.createElement("div");
-								tt.className = "tooltip";
-								tt.textContent = "Tooltip!";
-								tt.style.pointerEvents = "none";
-								tt.style.position = "absolute";
-								tt.style.background = "rgba(0,0,0,0.1)";
-								tt.style.color = s.color;
-								tt.style.display = s.show ? null : "none";
-								plot.appendChild(tt);
-								return tt;
-							});
+						let tt = document.createElement("div");
+						tt.className = "tooltip";
+						tt.textContent = "Tooltip!";
+						tt.style.pointerEvents = "none";
+						tt.style.position = "absolute";
+						tt.style.background = "rgba(0,0,0,0.1)";
+						tt.style.color = s.color;
+						tt.style.display = s.show ? null : "none";
+						plot.appendChild(tt);
+						return tt;
+					});
 
-							function hideTips() {
-								ttc.style.display = "none";
-								u.seriestt.forEach((tt, i) => {
-									if (i == 0) return;
+					function hideTips() {
+						ttc.style.display = "none";
+						u.seriestt.forEach((tt, i) => {
+							if (i == 0) return;
 
-									tt.style.display = "none";
-								});
-							}
+							tt.style.display = "none";
+						});
+					}
 
-							function showTips() {
-								ttc.style.display = null;
-								u.seriestt.forEach((tt, i) => {
-									if (i == 0) return;
+					function showTips() {
+						ttc.style.display = null;
+						u.seriestt.forEach((tt, i) => {
+							if (i == 0) return;
 
-									let s = u.series[i];
-									tt.style.display = s.show ? null : "none";
-								});
-							}
+							let s = u.series[i];
+							tt.style.display = s.show ? null : "none";
+						});
+					}
 
-							plot.addEventListener("mouseleave", () => {
-								if (!u.cursor.locked) {
-								//	u.setCursor({left: -10, top: -10});
-									hideTips();
-								}
-							});
-
-							plot.addEventListener("mouseenter", () => {
-								showTips();
-							});
-
+					plot.addEventListener("mouseleave", () => {
+						if (!u.cursor.locked) {
+						//	u.setCursor({left: -10, top: -10});
 							hideTips();
-						},
-					],
-					setCursor: [
-						u => {
-							const {left, top, idx} = u.cursor;
+						}
+					});
 
+					plot.addEventListener("mouseenter", () => {
+						showTips();
+					});
+
+					hideTips();
+				}
+
+				function setCursor(u) {
+					const {left, top, idx} = u.cursor;
+
+					// this is here to handle if initial cursor position is set
+					// not great (can be optimized by doing more enter/leave state transition tracking)
+				//	if (left > 0)
+				//		u.cursortt.style.display = null;
+
+					u.cursortt.style.left = left + "px";
+					u.cursortt.style.top = top + "px";
+					u.cursortt.textContent = "(" + u.posToVal(left, "x").toFixed(2) + ", " + u.posToVal(top, "y").toFixed(2) + ")";
+
+					// can optimize further by not applying styles if idx did not change
+					u.seriestt.forEach((tt, i) => {
+						if (i == 0) return;
+
+						let s = u.series[i];
+
+						if (s.show) {
 							// this is here to handle if initial cursor position is set
 							// not great (can be optimized by doing more enter/leave state transition tracking)
 						//	if (left > 0)
-						//		u.cursortt.style.display = null;
+						//		tt.style.display = null;
 
-							u.cursortt.style.left = left + "px";
-							u.cursortt.style.top = top + "px";
-							u.cursortt.textContent = "(" + u.posToVal(left, "x").toFixed(2) + ", " + u.posToVal(top, "y").toFixed(2) + ")";
+							let xVal = u.data[0][idx];
+							let yVal = u.data[i][idx];
 
-							// can optimize further by not applying styles if idx did not change
-							u.seriestt.forEach((tt, i) => {
-								if (i == 0) return;
+							tt.textContent = "(" + xVal + ", " + yVal + ")";
 
-								let s = u.series[i];
-
-								if (s.show) {
-									// this is here to handle if initial cursor position is set
-									// not great (can be optimized by doing more enter/leave state transition tracking)
-								//	if (left > 0)
-								//		tt.style.display = null;
-
-									let xVal = u.data[0][idx];
-									let yVal = u.data[i][idx];
-
-									tt.textContent = "(" + xVal + ", " + yVal + ")";
-
-									tt.style.left = u.valToPos(xVal, 'x') + "px";
-									tt.style.top = u.valToPos(yVal, 'y') + "px";
-								}
-							});
+							tt.style.left = u.valToPos(xVal, 'x') + "px";
+							tt.style.top = u.valToPos(yVal, 'y') + "px";
 						}
-					],
-					setScale: [
-						(u, key) => {
-							console.log('setScale', key);
-						}
-					],
-					setSeries: [
-						(u, idx) => {
-							console.log('setSeries', idx);
-						}
-					],
+					});
+				}
+
+				return {
+					hooks: {
+						init,
+						setCursor,
+						setScale: [
+							(u, key) => {
+								console.log('setScale', key);
+							}
+						],
+						setSeries: [
+							(u, idx) => {
+								console.log('setSeries', idx);
+							}
+						],
+					},
 				};
 			}
 
