@@ -2065,7 +2065,7 @@ var uPlot = (function (exports) {
 			if (rect == null)
 				{ syncRect(); }
 
-			cacheMouse(e, src, _x, _y, _w, _h, _i, false);
+			cacheMouse(e, src, _x, _y, _w, _h, _i, false, e != null);
 
 			if (e != null) {
 				if (cursorRaf == 0)
@@ -2075,7 +2075,7 @@ var uPlot = (function (exports) {
 				{ updateCursor(); }
 		}
 
-		function cacheMouse(e, src, _x, _y, _w, _h, _i, initial) {
+		function cacheMouse(e, src, _x, _y, _w, _h, _i, initial, snap) {
 			if (e != null) {
 				_x = e.clientX - rect.left;
 				_y = e.clientY - rect.top;
@@ -2085,11 +2085,13 @@ var uPlot = (function (exports) {
 				_y = canCssHeight * (_y/_h);
 			}
 
-			if (_x <= 1 || _x >= canCssWidth - 1)
-				{ _x = incrRound(_x, canCssWidth); }
+			if (snap) {
+				if (_x <= 1 || _x >= canCssWidth - 1)
+					{ _x = incrRound(_x, canCssWidth); }
 
-			if (_y <= 1 || _y >= canCssHeight - 1)
-				{ _y = incrRound(_y, canCssHeight); }
+				if (_y <= 1 || _y >= canCssHeight - 1)
+					{ _y = incrRound(_y, canCssHeight); }
+			}
 
 			if (initial) {
 				mouseLeft0 = _x;
@@ -2112,7 +2114,7 @@ var uPlot = (function (exports) {
 			if (e == null || filtMouse(e)) {
 				dragging = true;
 
-				cacheMouse(e, src, _x, _y, _w, _h, _i, true);
+				cacheMouse(e, src, _x, _y, _w, _h, _i, true, true);
 
 				if (drag.x || drag.y)
 					{ hideSelect(); }
@@ -2128,7 +2130,7 @@ var uPlot = (function (exports) {
 			if ((e == null || filtMouse(e))) {
 				dragging = false;
 
-				cacheMouse(e, src, _x, _y, _w, _h, _i, false);
+				cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
 
 				if (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0) {
 					setSelect(_select);
