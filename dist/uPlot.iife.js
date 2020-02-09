@@ -591,6 +591,7 @@ var uPlot = (function (exports) {
 	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
 	// https://www.timeanddate.com/time/dst/
 	// https://www.timeanddate.com/time/dst/2019.html
+	// https://www.epochconverter.com/timezones
 	function timeAxisTicks(tzDate) {
 		return function (self, scaleMin, scaleMax, incr, pctSpace) {
 			var ticks = [];
@@ -614,7 +615,9 @@ var uPlot = (function (exports) {
 
 				for (var i = 0; tick <= scaleMax; i++) {
 					var next = mkDate(baseYear, baseMonth + moIncr * i, 1);
-					tick = next / 1e3;
+					var offs = next - tzDate(next / 1e3);
+
+					tick = (+next + offs) / 1e3;
 
 					if (tick <= scaleMax)
 						{ ticks.push(tick); }
