@@ -1412,29 +1412,38 @@ var uPlot = (function (exports) {
 					}
 				}
 				else {
+					var addGap = false;
+
 					if (minY != inf) {
 						path.lineTo(accX, minY);
 						path.lineTo(accX, maxY);
 						path.lineTo(accX, outY);
 						outX = accX;
 					}
+					else
+						{ addGap = true; }
+
+					if (ydata[i] != null) {
+						outY = round(getYPos(ydata[i], scaleY, can[HEIGHT]));
+						path.lineTo(x, outY);
+						minY = maxY = outY;
+
+						// prior pixel can have data but still start a gap if ends with null
+						if (x - accX > 1 && ydata[i-1] == null)
+							{ addGap = true; }
+					}
 					else {
+						minY = inf;
+						maxY = -inf;
+					}
+
+					if (addGap) {
 						var prevGap = gaps[gaps.length - 1];
 
 						if (prevGap && prevGap[0] == outX)			// TODO: gaps must be encoded at stroke widths?
 							{ prevGap[1] = x; }
 						else
 							{ gaps.push([outX, x]); }
-					}
-
-					if (ydata[i] != null) {
-						outY = round(getYPos(ydata[i], scaleY, can[HEIGHT]));
-						path.lineTo(x, outY);
-						minY = maxY = outY;
-					}
-					else {
-						minY = inf;
-						maxY = -inf;
 					}
 
 					accX = x;
