@@ -1,0 +1,94 @@
+<!doctype html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Highlight Weekends</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../src/uPlot.css">
+</head>
+
+<body>
+	<script src="../dist/uPlot.iife.js"></script>
+	<script>
+		function highlightWeekendsPlugin(fillStyle = 'rgba(255,255,204') {
+			const oneDay = 60 * 60 * 24;
+
+			function drawClear(u) {
+				const { ctx, valToPos, data } = u;
+				const timestamps = data[0];
+				const columnWidth = (valToPos(oneDay * 2, 'x') - valToPos(oneDay, 'x')) * devicePixelRatio;
+
+				ctx.save();
+				ctx.fillStyle = fillStyle;
+
+				timestamps.forEach(timestamp => {
+					const day = new Date(timestamp * 1000).getDay();
+
+					if (day == 6 || day == 0) { // Saturday = 6, Sunday = 0
+						const startX = (valToPos(timestamp, 'x') * devicePixelRatio) - (columnWidth / 2);
+						const startY = 0;
+						const width = columnWidth;
+						const height = ctx.canvas.height;
+
+						ctx.fillRect(startX, startY, width, height);
+					}
+				});
+
+				ctx.restore();
+			}
+
+			return {
+				hooks: { drawClear }
+			};
+		}
+
+		function genTimestamps(totalDays) {
+			const oneDay = 60 * 60 * 24; // sec * min * hour
+			const startDate = Date.now() / 1000;
+
+			const timestamps = [];
+
+			for (let d = 0; d < totalDays; d++)
+				timestamps.push(startDate + (d * oneDay));
+
+			return timestamps;
+		}
+
+		function genRandomValues(total) {
+			const values = [];
+
+			for (let d = 0; d < total; d++)
+				values.push(Math.floor(Math.random() * 100));
+
+			return values
+		}
+
+		const opts = {
+			title: "Highlighted Weekends",
+			width: 600,
+			height: 400,
+			plugins: [
+				highlightWeekendsPlugin('yellow')
+			],
+			series: [
+				{
+					value: (u, v) => new Date(v * 1000).toDateString(),
+				},
+				{
+					label: "Rads",
+					stroke: "red",
+				}
+			]
+		};
+
+		const data = [
+			genTimestamps(30),
+			genRandomValues(30)
+		];
+
+		const u = new uPlot.Line(opts, data, document.body);
+	</script>
+</body>
+
+</html>
