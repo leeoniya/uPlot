@@ -48,7 +48,7 @@
 }
 
 .uplot .plot {
-	outline: 1px solid #eee;
+	outline: 1px solid rgba(0,0,0,0.07);
 	overflow-y: hidden;
 	overflow-x: hidden;
 	user-select: none;
@@ -188,7 +188,7 @@
 .uplot [class*=axis-x] .values > *::before {
 	content: "";
 	height: 10px;
-	border-left: 2px solid #eee;
+	border-left: 2px solid rgba(0,0,0,0.07);
 	transform: translateX(-50%);
 	position: absolute;
 	left: 50%;
@@ -224,7 +224,7 @@
 .uplot [class*=axis-y] .values > *::before {
 	content: "";
 	width: 10px;
-	border-top: 2px solid #eee;
+	border-top: 2px solid rgba(0,0,0,0.07);
 	transform: translateY(-50%);
 	position: absolute;
 	top: 50%;

@@ -824,7 +824,7 @@ export function Line(opts, data, then) {
 				let offset = (grid[WIDTH] % 2) / 2;
 				ctx.translate(offset, offset);
 
-				setCtxStyle(grid.stroke || "#eee", grid[WIDTH], grid.dash);
+				setCtxStyle(grid.stroke || "rgba(0,0,0,0.07)", grid[WIDTH], grid.dash);
 
 				ctx.beginPath();
 
