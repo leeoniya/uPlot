@@ -1914,7 +1914,7 @@ var uPlot = (function (exports) {
 
 		self.posToIdx = closestIdxFromXpos;
 		self.posToVal = function (pos, scale) { return scaleValueAtPos(scale == xScaleKey ? pos : canCssHeight - pos, scale); };
-		self.valToPos = function (val, scale) { return (scale == xScaleKey ? round(getXPos(val, scales[scale], canCssWidth)) : round(getYPos(val, scales[scale], canCssHeight))); };
+		self.valToPos = function (val, scale) { return scale == xScaleKey ? getXPos(val, scales[scale], canCssWidth) : getYPos(val, scales[scale], canCssHeight); };
 
 		var inBatch = false;
 		var shouldPaint = false;

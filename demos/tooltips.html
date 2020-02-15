@@ -99,8 +99,8 @@
 
 							tt.textContent = "(" + xVal + ", " + yVal + ")";
 
-							tt.style.left = u.valToPos(xVal, 'x') + "px";
-							tt.style.top = u.valToPos(yVal, 'y') + "px";
+							tt.style.left = Math.round(u.valToPos(xVal, 'x')) + "px";
+							tt.style.top = Math.round(u.valToPos(yVal, 'y')) + "px";
 						}
 					});
 				}

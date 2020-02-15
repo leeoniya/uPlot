@@ -83,7 +83,7 @@
 					let { width } = ctx.canvas;
 					let { stroke, scale } = u.series[i];
 
-					let cy = u.valToPos(medians[i], scale) * devicePixelRatio;
+					let cy = Math.round(u.valToPos(medians[i], scale) * devicePixelRatio);
 
 					ctx.save();
 					ctx.strokeStyle = hexToRgbA(stroke, 0.2);
@@ -147,8 +147,8 @@
 					ctx.fillStyle = stroke;
 					yVals.forEach((val, i) => {
 						// Can add additional check if visible on Canvas before drawing
-						let cx = u.valToPos(u.data[0][i], 'x') * devicePixelRatio;
-						let cy = u.valToPos(val, scale) * devicePixelRatio;
+						let cx = Math.round(u.valToPos(u.data[0][i], 'x') * devicePixelRatio);
+						let cy = Math.round(u.valToPos(val, scale) * devicePixelRatio);
 						drawStar(ctx, cx, cy);
 						ctx.fill();
 					});

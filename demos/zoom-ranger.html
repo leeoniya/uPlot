@@ -76,8 +76,8 @@
 					],
 					ready: [
 						uRanger => {
-							let left = uRanger.valToPos(initXmin, 'x');
-							let width = uRanger.valToPos(initXmax, 'x') - left;
+							let left = Math.round(uRanger.valToPos(initXmin, 'x'));
+							let width = Math.round(uRanger.valToPos(initXmax, 'x')) - left;
 							uRanger.setSelect({left, width}, false);
 						}
 					]
@@ -111,8 +111,8 @@
 						(uZoomed, key) => {
 							if (key == 'x' && !viaRanger) {
 								viaZoom = true;
-								let left = uRanger.valToPos(uZoomed.scales.x.min, 'x');
-								let right = uRanger.valToPos(uZoomed.scales.x.max, 'x');
+								let left = Math.round(uRanger.valToPos(uZoomed.scales.x.min, 'x'));
+								let right = Math.round(uRanger.valToPos(uZoomed.scales.x.max, 'x'));
 								uRanger.setSelect({left, width: right - left});
 								viaZoom = false;
 							}
