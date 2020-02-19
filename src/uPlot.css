@@ -6,12 +6,13 @@
 }
 
 .uplot {
-	background-color: #fff;
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 	line-height: 1.5;
+	width: max-content;
 }
 
-.uplot [class*=cursor] {
+.uplot .cursor-x,
+.uplot .cursor-y {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -32,31 +33,26 @@
 
 .uplot .title {
 	text-align: center;
-	padding: 16px;
 	font-size: 18px;
 	font-weight: bold;
 }
 
 .uplot .wrap {
 	position: relative;
-}
-
-.uplot,
-.uplot .plot {
-	position: relative;
-	display: inline-block;
-}
-
-.uplot .plot {
-	outline: 1px solid rgba(0,0,0,0.07);
-	overflow-y: hidden;
-	overflow-x: hidden;
 	user-select: none;
+}
+
+.uplot .over,
+.uplot .under {
+	position: absolute;
+	overflow: hidden;
 }
 
 .uplot canvas {
 	display: block;
 	position: relative;
+	width: 100%;
+	height: 100%;
 }
 
 .uplot .legend {
@@ -127,114 +123,6 @@
 	border-radius: 50%;
 	filter: brightness(85%);
 	pointer-events: none;
-	user-select: none;
 	will-change: transform;
 	z-index: 100;
-}
-
-.uplot [class*=axis].off {
-	display: none;
-}
-
-.uplot [class*=axis] .labels {
-	text-align: center;
-	position: absolute;
-	font-size: 12px;
-	font-weight: bold;
-}
-
-.uplot [class*=axis] .labels > * {
-	position: absolute;
-	left: 50%;
-	top: 50%;
-	transform: translate(-50%, -50%);
-	white-space: nowrap;
-}
-
-.uplot [class*=axis-y-1] .labels > * {
-	transform: translate(-50%, -50%) rotate(90deg);
-}
-
-.uplot [class*=axis-y-3] .labels > * {
-	transform: translate(-50%, -50%) rotate(-90deg);
-}
-
-.uplot [class*=axis] .values {
-	position: absolute;
-}
-
-.uplot [class*=axis-y] .values {
-	top: 0;
-	height: 100%;
-}
-
-.uplot [class*=axis-x] .values > * {
-	position: absolute;
-	transform: translateX(-50%);
-	font-size: 12px;
-	white-space: pre-line;
-	text-align: center;
-	height: 100%;
-}
-
-.uplot .axis-x-2 .values > * {
-	padding-top: 10px;
-}
-
-.uplot .axis-x-0 .values > * {
-	padding-bottom: 10px;
-}
-
-.uplot [class*=axis-x] .values > *::before {
-	content: "";
-	height: 10px;
-	border-left: 2px solid rgba(0,0,0,0.07);
-	transform: translateX(-50%);
-	position: absolute;
-	left: 50%;
-	z-index: -1;
-}
-
-.uplot .axis-x-2 .values > *::before {
-	top: 0;
-}
-
-.uplot .axis-x-0 .values > *::before {
-	bottom: 0;
-}
-
-.uplot [class*=axis-y] .values > * {
-	position: absolute;
-	transform: translateY(-50%);
-	font-size: 12px;
-	white-space: pre-line;
-	width: 100%;
-}
-
-.uplot .axis-y-3 .values > * {
-	padding-right: 14px;
-	text-align: right;
-}
-
-.uplot .axis-y-1 .values > * {
-	padding-left: 14px;
-	text-align: left;
-}
-
-.uplot [class*=axis-y] .values > *::before {
-	content: "";
-	width: 10px;
-	border-top: 2px solid rgba(0,0,0,0.07);
-	transform: translateY(-50%);
-	position: absolute;
-	top: 50%;
-	z-index: -1;
-}
-
-.uplot .axis-y-3 .values > *::before {
-	right: 0;
-}
-
-.uplot .axis-y-1 .values > *::before {
-	left: 0;
 }

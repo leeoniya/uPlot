@@ -1,6 +1,7 @@
 import {
 	copy,
 
+	PI,
 	inf,
 	abs,
 	floor,
@@ -35,7 +36,6 @@ import {
 	RIGHT,
 	hexBlack,
 	firstChild,
-	nextSibling,
 
 	mousemove,
 	mousedown,
@@ -55,17 +55,16 @@ import {
 	addClass,
 	remClass,
 	setStylePx,
-	makeCanvas,
-	sizeCanvas,
 	placeTag,
 	placeDiv,
-	clearFrom,
 	trans,
 	on,
 	off,
 } from './dom';
 
 import {
+	lineMult,
+
 	xAxisOpts,
 	yAxisOpts,
 	xSeriesOpts,
@@ -108,14 +107,14 @@ function setDefaults(d, xo, yo) {
 	return [d[0], d[1]].concat(d.slice(2)).map((o, i) => assign({}, (i == 0 || o && o.side % 2 == 0 ? xo : yo), o));
 }
 
-function getYPos(val, scale, hgt) {
+function getYPos(val, scale, hgt, top) {
 	let pctY = (val - scale.min) / (scale.max - scale.min);
-	return (1 - pctY) * hgt;
+	return top + (1 - pctY) * hgt;
 }
 
-function getXPos(val, scale, wid) {
+function getXPos(val, scale, wid, lft) {
 	let pctX = (val - scale.min) / (scale.max - scale.min);
-	return pctX * wid;
+	return lft + pctX * wid;
 }
 
 function snapNone(self, dataMin, dataMax) {
@@ -144,6 +143,12 @@ function filtMouse(e) {
 	return e.button == 0;
 }
 
+function pxRatioFont(font) {
+	let fontSize;
+	font = font.replace(/\d+/, m => (fontSize = round(m * pxRatio)));
+	return [font, fontSize];
+}
+
 export function Line(opts, data, then) {
 	const self = this;
 
@@ -160,7 +165,8 @@ export function Line(opts, data, then) {
 	const axes    = setDefaults(opts.axes || [], xAxisOpts, yAxisOpts);
 	const scales  = (opts.scales = opts.scales || {});
 
-	const gutters = assign({x: yAxisOpts.size, y: xAxisOpts.size}, opts.gutters);
+	const gutters = assign({x: round(yAxisOpts.size/2), y: round(xAxisOpts.size/3)}, opts.gutters);
+//	const gutters = assign({x: yAxisOpts.size, y: xAxisOpts.size}, opts.gutters);
 
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const tzDate = opts.tzDate || (ts => new Date(ts * 1e3));
@@ -236,45 +242,23 @@ export function Line(opts, data, then) {
 			axis.ticks = fnOrSelf(axis.ticks || (sc.distr == 1 && isTime ? _timeAxisTicks : numAxisTicks));
 			let av = axis.values;
 			axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
+
+			axis.font      = pxRatioFont(axis.font);
+			axis.labelFont = pxRatioFont(axis.labelFont);
 		}
 	});
 
-	const root = placeDiv("uplot");
+	const root = self.root = placeDiv("uplot");
 
 	if (opts.id != null)
 		root.id = opts.id;
 
 	addClass(root, opts.class);
 
-	if (opts.title != null) {
+	if (opts.title) {
 		let title = placeDiv("title", root);
 		title.textContent = opts.title;
 	}
-
-	const wrap = placeDiv("wrap", root);
-
-	const plot = placeDiv("plot", wrap);
-
-	// init axis containers
-	axes.forEach((axis, i) => {
-		if (axis.show) {
-			let side = axis.side;
-			let isVt = side % 2;
-
-			let aroot = axis.root = placeDiv("axis-" + (isVt ? "y-" : "x-") + side, wrap);
-
-			addClass(aroot, axis.class);
-			aroot.style.color = axis.stroke;
-
-			axis.vals = placeDiv("values", aroot);
-
-			if (axis.label != null) {
-				let lbl = axis.lbl = placeDiv("labels", aroot);
-				let txt = placeDiv(null, lbl);
-				txt.textContent = axis.label;
-			}
-		}
-	});
 
 	let dataLen;
 
@@ -320,25 +304,53 @@ export function Line(opts, data, then) {
 		ctx.fillStyle = fill || hexBlack;
 	}
 
-	let fullCssWidth;
-	let fullCssHeight;
+	let fullWidCss;
+	let fullHgtCss;
 
-	let canCssWidth;
-	let canCssHeight;
+	let plotWidCss;
+	let plotHgtCss;
 
 	// plot margins to account for axes
+	let plotLftCss;
+	let plotTopCss;
+
 	let plotLft;
 	let plotTop;
+	let plotWid;
+	let plotHgt;
+
+	self.bbox = {};
 
 	function _setSize(width, height) {
-		self.width  = fullCssWidth  = canCssWidth  = width;
-		self.height = fullCssHeight = canCssHeight = height;
-		plotLft = plotTop = 0;
+		self.width  = fullWidCss = plotWidCss = width;
+		self.height = fullHgtCss = plotHgtCss = height;
+		plotLftCss  = plotTopCss = 0;
 
 		calcPlotRect();
-		setAxesRects();
-		setPlotRect();
-		sizeCanvas(can, canCssWidth, canCssHeight);
+		calcAxesRects();
+
+		let bb = self.bbox;
+
+		plotLft = bb[LEFT]   = incrRound(plotLftCss * pxRatio, 0.5);
+		plotTop = bb[TOP]    = incrRound(plotTopCss * pxRatio, 0.5);
+		plotWid = bb[WIDTH]  = incrRound(plotWidCss * pxRatio, 0.5);
+		plotHgt = bb[HEIGHT] = incrRound(plotHgtCss * pxRatio, 0.5);
+
+		setStylePx(under, LEFT,   plotLftCss);
+		setStylePx(under, TOP,    plotTopCss);
+		setStylePx(under, WIDTH,  plotWidCss);
+		setStylePx(under, HEIGHT, plotHgtCss);
+
+		setStylePx(over, LEFT,    plotLftCss);
+		setStylePx(over, TOP,     plotTopCss);
+		setStylePx(over, WIDTH,   plotWidCss);
+		setStylePx(over, HEIGHT,  plotHgtCss);
+
+		setStylePx(wrap, WIDTH,   fullWidCss);
+		setStylePx(wrap, HEIGHT,  fullHgtCss);
+
+		can[WIDTH]  = round(fullWidCss * pxRatio);
+		can[HEIGHT] = round(fullHgtCss * pxRatio);
 
 		ready && autoScaleX();
 
@@ -353,9 +365,11 @@ export function Line(opts, data, then) {
 
 	// accumulate axis offsets, reduce canvas width
 	function calcPlotRect() {
-		// easement for rightmost x label if no right y axis exists
-		let hasRightAxis = false;
-		let hasLeftAxis = false;
+		// easements for edge labels
+		let hasTopAxis = false;
+		let hasBtmAxis = false;
+		let hasRgtAxis = false;
+		let hasLftAxis = false;
 
 		axes.forEach((axis, i) => {
 			if (axis.show) {
@@ -366,99 +380,85 @@ export function Line(opts, data, then) {
 				let fullSize = size + labelSize;
 
 				if (isVt) {
-					canCssWidth -= fullSize;
+					plotWidCss -= fullSize;
 
 					if (side == 3) {
-						plotLft += fullSize;
-						hasLeftAxis = true;
+						plotLftCss += fullSize;
+						hasLftAxis = true;
 					}
 					else
-						hasRightAxis = true;
+						hasRgtAxis = true;
 				}
 				else {
-					canCssHeight -= fullSize;
+					plotHgtCss -= fullSize;
 
-					if (side == 0)
-						plotTop += fullSize;
+					if (side == 0) {
+						plotTopCss += fullSize;
+						hasTopAxis = true;
+					}
+					else
+						hasBtmAxis = true;
 				}
 			}
 		});
 
 		// hz gutters
-		if (hasLeftAxis || hasRightAxis) {
-			if (!hasRightAxis)
-				canCssWidth -= gutters.x;
-			if (!hasLeftAxis) {
-				canCssWidth -= gutters.x;
-				plotLft += gutters.x;
+		if (hasTopAxis || hasBtmAxis) {
+			if (!hasRgtAxis)
+				plotWidCss -= gutters.x;
+			if (!hasLftAxis) {
+				plotWidCss -= gutters.x;
+				plotLftCss += gutters.x;
+			}
+		}
+
+		// vt gutters
+		if (hasLftAxis || hasRgtAxis) {
+			if (!hasBtmAxis)
+				plotHgtCss -= gutters.y;
+			if (!hasTopAxis) {
+				plotHgtCss -= gutters.y;
+				plotTopCss += gutters.y;
 			}
 		}
 	}
 
-	function setAxesRects() {
-		// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
-		let off1 = fullCssWidth - plotLft;
-		let off2 = fullCssHeight - plotTop;
-		let off3 = plotLft + canCssWidth;
-		let off0 = plotTop + canCssHeight;
+	function calcAxesRects() {
+		// will accum +
+		let off1 = plotLftCss + plotWidCss;
+		let off2 = plotTopCss + plotHgtCss;
+		// will accum -
+		let off3 = plotLftCss;
+		let off0 = plotTopCss;
 
-		function posAxisPart(el, side, isVt, size) {
-			if (isVt) {
-				setStylePx(el, WIDTH, size);
-				setStylePx(el, HEIGHT, canCssHeight);
-				setStylePx(el, TOP, plotTop);
+		function incrOffset(side, size) {
+			let ret;
 
-				if (side == 3) {
-					setStylePx(el, RIGHT, off1);
-					off1 += size;
-				}
-				else {
-					setStylePx(el, LEFT, off3);
-					off3 += size;
-				}
-			}
-			else {
-				setStylePx(el, HEIGHT, size);
-				setStylePx(el, WIDTH, canCssWidth);
-				setStylePx(el, LEFT, plotLft);
-
-				if (side == 0) {
-					setStylePx(el, BOTTOM, off2);
-					off2 += size;
-				}
-				else {
-					setStylePx(el, TOP, off0);
-					off0 += size;
-				}
+			switch (side) {
+				case 1: off1 += size; return off1 - size;
+				case 2: off2 += size; return off2 - size;
+				case 3: off3 -= size; return off3 + size;
+				case 0: off0 -= size; return off0 + size;
 			}
 		}
 
-		// set axis positions
 		axes.forEach((axis, i) => {
-			if (axis.show) {
-				let side = axis.side;
-				let isVt = side % 2;
+			let side = axis.side;
 
-				posAxisPart(axis.vals, side, isVt, axis.size);
+			axis._pos = incrOffset(side, axis.size);
 
-				if (axis.label != null)
-					posAxisPart(axis.lbl, side, isVt, axis.labelSize);
-			}
+			if (axis.label != null)
+				axis._lpos = incrOffset(side, axis.labelSize);
 		});
 	}
 
-	function setPlotRect() {
-		setStylePx(plot, TOP, plotTop);
-		setStylePx(plot, LEFT, plotLft);
-		setStylePx(wrap, WIDTH, fullCssWidth);
-		setStylePx(wrap, HEIGHT, fullCssHeight);
-	}
+	const can = placeTag("canvas");
+	const ctx = self.ctx = can.getContext("2d");
 
-	const { can, ctx } = makeCanvas();
-
-	self.ctx = ctx;
-
-	plot.appendChild(can);
+	const wrap = placeDiv("wrap", root);
+	const under = placeDiv("under", wrap);
+	wrap.appendChild(can);
+	const over = placeDiv("over", wrap);
 
 	function setScales() {
 		if (inBatch) {
@@ -606,12 +606,15 @@ export function Line(opts, data, then) {
 
 			ctx.translate(offset, offset);
 
+			ctx.save();
+
+			ctx.rect(plotLft, plotTop, plotWid, plotHgt);
+			ctx.clip();
+
 			const clip = s.clip;
 
-			if (clip != null) {
-				ctx.save();
+			if (clip != null)
 				ctx.clip(clip);
-			}
 
 			if (s.band) {
 				ctx.fill(path);
@@ -620,17 +623,11 @@ export function Line(opts, data, then) {
 			else {
 				width && ctx.stroke(path);
 
-				if (s.fill != null) {
-					let zeroY = round(getYPos(0, scales[s.scale], can[HEIGHT]));
-
-					path.lineTo(can[WIDTH], zeroY);
-					path.lineTo(0, zeroY);
-					ctx.fill(path);
-				}
+				if (s.fill != null)
+					ctx.fill(s.path.fill);
 			}
 
-			if (clip != null)
-				ctx.restore();
+			ctx.restore();
 
 			ctx.translate(-offset, -offset);
 
@@ -649,17 +646,17 @@ export function Line(opts, data, then) {
 		if (gaps.length > 0) {
 			const clip = s.clip = new Path2D();
 
-			let prevGapEnd = 0;
+			let prevGapEnd = plotLft;
 
 			for (let i = 0; i < gaps.length; i++) {
 				let g = gaps[i];
 
-				clip.rect(prevGapEnd, 0, g[0] - prevGapEnd, can[HEIGHT]);
+				clip.rect(prevGapEnd, plotTop, g[0] - prevGapEnd, plotTop + plotHgt);
 
 				prevGapEnd = g[1];
 			}
 
-			clip.rect(prevGapEnd, 0, can[WIDTH] - prevGapEnd, can[HEIGHT]);
+			clip.rect(prevGapEnd, plotTop, plotLft + plotWid - prevGapEnd, plotTop + plotHgt);
 		}
 	}
 
@@ -690,18 +687,18 @@ export function Line(opts, data, then) {
 
 		let gaps = [];
 
-		let accX = round(getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, can[WIDTH]));
+		let accX = round(getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, plotWid, plotLft));
 
 		// the moves the shape edge outside the canvas so stroke doesnt bleed in
 		if (s.band && dir == 1 && width && _i0 == i0)
-			path.lineTo(-width, round(getYPos(ydata[_i0], scaleY, can[HEIGHT])));
+			path.lineTo(-width, round(getYPos(ydata[_i0], scaleY, plotHgt, plotTop)));
 
 		for (let i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
-			let x = round(getXPos(xdata[i], scaleX, can[WIDTH]));
+			let x = round(getXPos(xdata[i], scaleX, plotWid, plotLft));
 
 			if (x == accX) {
 				if (ydata[i] != null) {
-					outY = round(getYPos(ydata[i], scaleY, can[HEIGHT]));
+					outY = round(getYPos(ydata[i], scaleY, plotHgt, plotTop));
 					minY = min(outY, minY);
 					maxY = max(outY, maxY);
 				}
@@ -719,7 +716,7 @@ export function Line(opts, data, then) {
 					addGap = true;
 
 				if (ydata[i] != null) {
-					outY = round(getYPos(ydata[i], scaleY, can[HEIGHT]));
+					outY = round(getYPos(ydata[i], scaleY, plotHgt, plotTop));
 					path.lineTo(x, outY);
 					minY = maxY = outY;
 
@@ -745,17 +742,35 @@ export function Line(opts, data, then) {
 			}
 		}
 
-		if (dir == 1)
+		if (dir == 1) {
 			buildClip(s, gaps);
 
-		if (s.band) {
-			if (dir == -1) {
-				// the moves the shape edge outside the canvas so stroke doesnt bleed in
-				if (width && _i0 == i0)
-					path.lineTo(-width, round(getYPos(ydata[_i0], scaleY, can[HEIGHT])));
+			if (s.fill != null) {
+				let fill = path.fill = new Path2D(path);
 
-				path.closePath();
+				let zeroY = round(getYPos(0, scaleY, plotHgt, plotTop));
+				fill.lineTo(plotLft + plotWid, zeroY);
+				fill.lineTo(plotLft, zeroY);
 			}
+		}
+
+		// todo: don't build gaps on dir = -1 pass
+
+		if (s.band) {
+			let overShoot = width * 100, _iy, _x;
+
+			// the moves the shape edge outside the canvas so stroke doesnt bleed in
+			if (dir == -1 && _i0 == i0) {
+				_x = plotLft - overShoot;
+				_iy = _i0;
+			}
+
+			if (dir == 1 && _i1 == i1) {
+				_x = plotLft + plotWid + overShoot;
+				_iy = _i1;
+			}
+
+			path.lineTo(_x, round(getYPos(ydata[_iy], scaleY, plotHgt, plotTop)));
 
 			dir *= -1;
 		}
@@ -769,6 +784,41 @@ export function Line(opts, data, then) {
 		return incrSpace;
 	}
 
+	function drawOrthoLines(offs, ori, side, pos0, len, width, stroke, dash) {
+		let offset = (width % 2) / 2;
+
+		ctx.translate(offset, offset);
+
+		setCtxStyle(stroke, width, dash);
+
+		ctx.beginPath();
+
+		let x0, y0, x1, y1, pos1 = pos0 + (side == 0 || side == 3 ? -len : len);
+
+		if (ori == 0) {
+			y0 = pos0;
+			y1 = pos1;
+		}
+		else {
+			x0 = pos0;
+			x1 = pos1;
+		}
+
+		offs.forEach((off, i) => {
+			if (ori == 0)
+				x0 = x1 = off;
+			else
+				y0 = y1 = off;
+
+			ctx.moveTo(x0, y0);
+			ctx.lineTo(x1, y1);
+		});
+
+		ctx.stroke();
+
+		ctx.translate(-offset, -offset);
+	}
+
 	function drawAxesGrid() {
 		axes.forEach((axis, i) => {
 			if (!axis.show)
@@ -777,82 +827,122 @@ export function Line(opts, data, then) {
 			let scale = scales[axis.scale];
 
 			// this will happen if all series using a specific scale are toggled off
-			if (scale.min == inf) {
-				addClass(axis.root, "off");
+			if (scale.min == inf)
 				return;
-			}
 
-			remClass(axis.root, "off");
-
-			let ori = axis.side % 2;
-			let dim = ori == 0 ? WIDTH : HEIGHT;
-			let canDim = ori == 0 ? canCssWidth : canCssHeight;
+			let side = axis.side;
+			let ori = side % 2;
 
 			let {min, max} = scale;
 
-			let [incr, space, pctSpace] = getIncrSpace(axis, min, max, canDim);
+			let [incr, space, pctSpace] = getIncrSpace(axis, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.distr == 2;
 
 			let ticks = axis.ticks(self, min, max, incr, pctSpace, forceMin);
 
-			let getPos = ori == 0 ? getXPos : getYPos;
-			let cssProp = ori == 0 ? LEFT : TOP;
+			let getPos  = ori == 0 ? getXPos : getYPos;
+			let plotDim = ori == 0 ? plotWid : plotHgt;
+			let plotOff = ori == 0 ? plotLft : plotTop;
 
-			// TODO: filter ticks & offsets that will end up off-canvas
-			let canOffs = ticks.map(val => round2(getPos(val, scale, can[dim])));		// bit of waste if we're not drawing a grid
+			let canOffs = ticks.map(val => round(getPos(val, scale, plotDim, plotOff)));
 
+			let axisGap  = round(axis.gap * pxRatio);
+
+			let tick = axis.tick;
+			let tickSize = tick.show ? round(tick.size * pxRatio) : 0;
+
+			// tick labels
 			let values = axis.values(self, scale.distr == 2 ? ticks.map(i => data0[i]) : ticks, space);		// BOO this assumes a specific data/series
 
-			let ch = axis.vals[firstChild];
+			let basePos  = round(axis._pos * pxRatio);
+			let shiftAmt = tickSize + axisGap;
+			let shiftDir = ori == 0 && side == 0 || ori == 1 && side == 3 ? -1 : 1;
+			let finalPos = basePos + shiftAmt * shiftDir;
+			let y        = ori == 0 ? finalPos : 0;
+			let x        = ori == 1 ? finalPos : 0;
+
+			ctx.font         = axis.font[0];
+			ctx.fillStyle    = axis.stroke || hexBlack;									// rgba?
+			ctx.textAlign    = ori == 0 ? "center" : side == 3 ? RIGHT : LEFT;
+			ctx.textBaseline = ori == 1 ? "middle" : side == 2 ? TOP   : BOTTOM;
+
+			let lineHeight   = axis.font[1] * lineMult;
 
 			canOffs.forEach((off, i) => {
-				let div = ch || placeDiv(null, axis.vals);
-				div.textContent = values[i];
-				setStylePx(div, cssProp, round(off/pxRatio));
-				ch = div[nextSibling];
+				if (ori == 0)
+					x = off
+				else
+					y = off;
+
+				(""+values[i]).split(/\n/gm).forEach((text, j) => {
+					ctx.fillText(text, x, y + j * lineHeight);
+				});
 			});
 
-			ch && clearFrom(ch);
+			// axis label
+			if (axis.label) {
+				ctx.save();
 
+				let baseLpos = round(axis._lpos * pxRatio);
+
+				if (ori == 1) {
+					x = y = 0;
+
+					ctx.translate(
+						baseLpos,
+						round(plotTop + plotHgt / 2),
+					);
+					ctx.rotate((side == 3 ? -PI : PI) / 2);
+
+				}
+				else {
+					x = round(plotLft + plotWid / 2);
+					y = baseLpos;
+				}
+
+				ctx.font         = axis.labelFont[0];
+			//	ctx.fillStyle    = axis.labelStroke || hexBlack;						// rgba?
+				ctx.textAlign    = "center";
+				ctx.textBaseline = side == 2 ? TOP : BOTTOM;
+
+				ctx.fillText(axis.label, x, y);
+
+				ctx.restore();
+			}
+
+			// ticks
+			if (tick.show) {
+				drawOrthoLines(
+					canOffs,
+					ori,
+					side,
+					basePos,
+					tickSize,
+					tick[WIDTH],
+					tick.stroke,
+				);
+			}
+
+			// grid
 			let grid = axis.grid;
 
 			if (grid.show) {
-				// note: the grid is cheap to build & redraw unconditionally, so does not
-				// use the retained Path2D optimization or additional invalidation logic
-				let offset = (grid[WIDTH] % 2) / 2;
-				ctx.translate(offset, offset);
-
-				setCtxStyle(grid.stroke || "rgba(0,0,0,0.07)", grid[WIDTH], grid.dash);
-
-				ctx.beginPath();
-
-				canOffs.forEach((off, i) => {
-					let mx, my, lx, ly;
-
-					if (ori == 0) {
-						my = 0;
-						ly = can[HEIGHT];
-						mx = lx = round(off);
-					}
-					else {
-						mx = 0;
-						lx = can[WIDTH];
-						my = ly = round(off);
-					}
-
-					ctx.moveTo(mx, my);
-					ctx.lineTo(lx, ly);
-				});
-
-				ctx.stroke();
-
-				ctx.translate(-offset, -offset);
+				drawOrthoLines(
+					canOffs,
+					ori,
+					ori == 0 ? 2 : 1,
+					ori == 0 ? plotTop : plotLft,
+					ori == 0 ? plotHgt : plotWid,
+					grid[WIDTH],
+					grid.stroke,
+					grid.dash,
+				);
 			}
 		});
 
-		fire("drawGrid");
+		fire("drawAxes");
 	}
 
 	function resetYSeries() {
@@ -898,7 +988,7 @@ export function Line(opts, data, then) {
 			// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
 			if (key == xScaleKey && sc.time) {
 				// since scales and axes are loosly coupled, we have to make some assumptions here :(
-				let incr = getIncrSpace(axes[0], opts.min, opts.max, canCssWidth)[0];
+				let incr = getIncrSpace(axes[0], opts.min, opts.max, plotWidCss)[0];
 
 				if (incr < 1e-3)
 					return;
@@ -959,16 +1049,16 @@ export function Line(opts, data, then) {
 
 		if (cursor.x) {
 			mouseLeft1 = cursor.left;
-			vt = placeDiv(c + "x", plot);
+			vt = placeDiv(c + "x", over);
 		}
 
 		if (cursor.y) {
 			mouseTop1 = cursor.top;
-			hz = placeDiv(c + "y", plot);
+			hz = placeDiv(c + "y", over);
 		}
 	}
 
-	const select = placeDiv("select", plot);
+	const select = placeDiv("select", over);
 
 	const _select = self.select = {
 		left:	0,
@@ -979,10 +1069,10 @@ export function Line(opts, data, then) {
 
 	function setSelect(opts, _fire) {
 		if (opts[WIDTH] == null && drag.y)
-			opts[WIDTH] = canCssWidth;
+			opts[WIDTH] = plotWidCss;
 
 		if (opts[HEIGHT] == null && drag.x)
-			opts[HEIGHT] = canCssHeight;
+			opts[HEIGHT] = plotHgtCss;
 
 		for (let prop in opts)
 			setStylePx(select, prop, _select[prop] = opts[prop]);
@@ -1168,7 +1258,7 @@ export function Line(opts, data, then) {
 	// series-intersection markers
 	const cursorPts = showPoints ? series.map((s, i) => {
 		if (i > 0) {
-			let pt = placeDiv("hover-point", plot);
+			let pt = placeDiv("hover-point", over);
 
 			addClass(pt, s.class);
 
@@ -1190,7 +1280,7 @@ export function Line(opts, data, then) {
 	let cursorRaf = 0;
 
 	function scaleValueAtPos(pos, scale) {
-		let dim = scale == xScaleKey ? canCssWidth : canCssHeight;
+		let dim = scale == xScaleKey ? plotWidCss : plotHgtCss;
 		let pct = clamp(pos / dim, 0, 1);
 
 		let sc = scales[scale];
@@ -1204,8 +1294,8 @@ export function Line(opts, data, then) {
 	}
 
 	self.posToIdx = closestIdxFromXpos;
-	self.posToVal = (pos, scale) => scaleValueAtPos(scale == xScaleKey ? pos : canCssHeight - pos, scale);
-	self.valToPos = (val, scale) => scale == xScaleKey ? getXPos(val, scales[scale], canCssWidth) : getYPos(val, scales[scale], canCssHeight);
+	self.posToVal = (pos, scale) => scaleValueAtPos(scale == xScaleKey ? pos : plotHgtCss - pos, scale);
+	self.valToPos = (val, scale) => scale == xScaleKey ? getXPos(val, scales[scale], plotWidCss, 0) : getYPos(val, scales[scale], plotHgtCss, 0);
 
 	let inBatch = false;
 	let shouldPaint = false;
@@ -1278,7 +1368,7 @@ export function Line(opts, data, then) {
 
 			let scX = scales[xScaleKey];
 
-			let xPos = round2(getXPos(data[0][idx], scX, canCssWidth));
+			let xPos = round2(getXPos(data[0][idx], scX, plotWidCss, 0));
 
 			for (let i = 0; i < series.length; i++) {
 				let s = series[i];
@@ -1286,7 +1376,7 @@ export function Line(opts, data, then) {
 				if (i > 0 && s.show) {
 					let valAtIdx = data[i][idx];
 
-					let yPos = valAtIdx == null ? -10 : round2(getYPos(valAtIdx, scales[s.scale], canCssHeight))
+					let yPos = valAtIdx == null ? -10 : round2(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0));
 
 					distsToCursor[i] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
 
@@ -1332,7 +1422,7 @@ export function Line(opts, data, then) {
 		if (ts != null) {
 			// this is not technically a "mousemove" event, since it's debounced, rename to setCursor?
 			// since this is internal, we can tweak it later
-			sync.pub(mousemove, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, idx);
+			sync.pub(mousemove, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, idx);
 
 			if (focus) {
 				let minDist = min.apply(null, distsToCursor);
@@ -1360,7 +1450,7 @@ export function Line(opts, data, then) {
 	let rect = null;
 
 	function syncRect() {
-		rect = can.getBoundingClientRect();
+		rect = over.getBoundingClientRect();
 	}
 
 	function mouseMove(e, src, _x, _y, _w, _h, _i) {
@@ -1386,16 +1476,16 @@ export function Line(opts, data, then) {
 			_y = e.clientY - rect.top;
 		}
 		else {
-			_x = canCssWidth * (_x/_w);
-			_y = canCssHeight * (_y/_h);
+			_x = plotWidCss * (_x/_w);
+			_y = plotHgtCss * (_y/_h);
 		}
 
 		if (snap) {
-			if (_x <= 1 || _x >= canCssWidth - 1)
-				_x = incrRound(_x, canCssWidth);
+			if (_x <= 1 || _x >= plotWidCss - 1)
+				_x = incrRound(_x, plotWidCss);
 
-			if (_y <= 1 || _y >= canCssHeight - 1)
-				_y = incrRound(_y, canCssHeight);
+			if (_y <= 1 || _y >= plotHgtCss - 1)
+				_y = incrRound(_y, plotHgtCss);
 		}
 
 		if (initial) {
@@ -1410,8 +1500,8 @@ export function Line(opts, data, then) {
 
 	function hideSelect() {
 		setSelect({
-			width:	!drag.x ? canCssWidth : 0,
-			height:	!drag.y ? canCssHeight : 0,
+			width:	!drag.x ? plotWidCss : 0,
+			height:	!drag.y ? plotHgtCss : 0,
 		}, false);
 	}
 
@@ -1426,7 +1516,7 @@ export function Line(opts, data, then) {
 
 			if (e != null) {
 				on(mouseup, doc, mouseUp);
-				sync.pub(mousedown, self, mouseLeft0, mouseTop0, canCssWidth, canCssHeight, null);
+				sync.pub(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
 			}
 		}
 	}
@@ -1457,8 +1547,8 @@ export function Line(opts, data, then) {
 
 								if (k != xScaleKey && sc.from == null) {
 									_setScale(k,
-										scaleValueAtPos(canCssHeight - _select[TOP] - _select[HEIGHT], k),
-										scaleValueAtPos(canCssHeight - _select[TOP], k),
+										scaleValueAtPos(plotHgtCss - _select[TOP] - _select[HEIGHT], k),
+										scaleValueAtPos(plotHgtCss - _select[TOP], k),
 									);
 								}
 							}
@@ -1477,7 +1567,7 @@ export function Line(opts, data, then) {
 
 			if (e != null) {
 				off(mouseup, doc, mouseUp);
-				sync.pub(mouseup, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, null);
+				sync.pub(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 			}
 		}
 	}
@@ -1495,7 +1585,7 @@ export function Line(opts, data, then) {
 		autoScaleX();
 
 		if (e != null)
-			sync.pub(dblclick, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, null);
+			sync.pub(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 	}
 
 	// internal pub/sub
@@ -1512,18 +1602,16 @@ export function Line(opts, data, then) {
 	let deb;
 
 	if (cursor.show) {
-		on(mousedown, can, mouseDown);
-		on(mousemove, can, mouseMove);
-		on(mouseleave, can, mouseLeave);
-		drag.setScale && on(dblclick, can, dblClick);
+		on(mousedown, over, mouseDown);
+		on(mousemove, over, mouseMove);
+		on(mouseleave, over, mouseLeave);
+		drag.setScale && on(dblclick, over, dblClick);
 
 		deb = debounce(syncRect, 100);
 
 		on(resize, win, deb);
 		on(scroll, win, deb);
 	}
-
-	self.root = root;
 
 	// external on/off
 	const hooks = self.hooks = opts.hooks || {};

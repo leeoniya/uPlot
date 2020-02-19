@@ -101,6 +101,7 @@ export const min = M.min;
 export const max = M.max;
 export const pow = M.pow;
 export const log10 = M.log10;
+export const PI = M.PI;
 
 export const inf = Infinity;
 

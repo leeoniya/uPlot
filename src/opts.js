@@ -15,10 +15,15 @@ import {
 	pow,
 	abs,
 	incrRoundUp,
+	round,
 	round3,
 	round6,
 	floor,
 } from './utils';
+
+import {
+	pxRatio,
+} from './dom';
 
 //export const series = [];
 
@@ -44,13 +49,6 @@ const decIncrs = genIncrs(-12, 0, incrMults);
 export const intIncrs = genIncrs(0, 12, incrMults);
 
 export const numIncrs = decIncrs.concat(intIncrs);
-
-const grid = {
-	show: true,
-	color: "#eee",
-	width: 2,
-//	dash: [],
-};
 
 let s = 1,
 	m = 60,
@@ -269,17 +267,35 @@ export function timeSeriesVal(tzDate, stamp) {
 	return (self, val) => stamp(tzDate(val));
 }
 
+const grid = {
+	show: true,
+	stroke: "rgba(0,0,0,0.07)",
+	width: 2,
+//	dash: [],
+};
+
+const tick = assign({}, grid, {size: 10});
+
+const font      = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
+const labelFont = "bold " + font;
+export const lineMult = 1.5;		// font-size multiplier
+
 export const xAxisOpts = {
 	type: "x",
 	show: true,
 	scale: "x",
 	space: 50,
-	size: 53,
+	gap: 5,
+	size: 50,
+	labelSize: 30,
+	labelFont,
 	side: 2,
 //	class: "x-vals",
 //	incrs: timeIncrs,
 //	values: timeVals,
 	grid,
+	tick,
+	font,
 };
 
 export const numSeriesLabel = "Value";
@@ -320,12 +336,17 @@ export const yAxisOpts = {
 	show: true,
 	scale: "y",
 	space: 40,
+	gap: 5,
 	size: 50,
+	labelSize: 30,
+	labelFont,
 	side: 3,
 //	class: "y-vals",
 //	incrs: numIncrs,
 //	values: (vals, space) => vals,
 	grid,
+	tick,
+	font,
 };
 
 export const ySeriesOpts = {

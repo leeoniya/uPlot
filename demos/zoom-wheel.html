@@ -16,7 +16,7 @@
 				return {
 					hooks: {
 						init: (u, opts, data) => {
-							let plot = u.root.querySelector(".plot");
+							let plot = u.root.querySelector(".over");
 
 							plot.addEventListener("wheel", e => {
 								let {left, top} = u.cursor;

@@ -60,7 +60,7 @@ export default [
 			terser({
 				compress: {
 					inline: 0,
-					passes: 3,
+					passes: 2,
 					keep_fargs: false,
 					pure_getters: true,
 					unsafe: true,

@@ -243,6 +243,7 @@ var uPlot = (function (exports) {
 	var max = M.max;
 	var pow = M.pow;
 	var log10 = M.log10;
+	var PI = M.PI;
 
 	var inf = Infinity;
 
@@ -346,7 +347,6 @@ var uPlot = (function (exports) {
 	var LEFT = "left";
 	var RIGHT = "right";
 	var firstChild = "firstChild";
-	var nextSibling = "nextSibling";
 	var createElement = "createElement";
 	var hexBlack = "#000";
 	var classList = "classList";
@@ -376,23 +376,6 @@ var uPlot = (function (exports) {
 		el.style[name] = value + "px";
 	}
 
-	function makeCanvas() {
-		var can = doc[createElement]("canvas");
-		var ctx = can.getContext("2d");
-
-		return {
-			can: can,
-			ctx: ctx,
-		};
-	}
-
-	function sizeCanvas(can, wid, hgt) {
-		can[WIDTH] = round(wid * pxRatio);
-		can[HEIGHT] = round(hgt * pxRatio);
-		setStylePx(can, WIDTH, wid);
-		setStylePx(can, HEIGHT, hgt);
-	}
-
 	function placeTag(tag, cls, targ) {
 		var el = doc[createElement](tag);
 
@@ -407,13 +390,6 @@ var uPlot = (function (exports) {
 
 	function placeDiv(cls, targ) {
 		return placeTag("div", cls, targ);
-	}
-
-	function clearFrom(ch) {
-		var next;
-		while (next = ch[nextSibling])
-			{ next.remove(); }
-		ch.remove();
 	}
 
 	function trans(el, xPos, yPos) {
@@ -454,13 +430,6 @@ var uPlot = (function (exports) {
 	var intIncrs = genIncrs(0, 12, incrMults);
 
 	var numIncrs = decIncrs.concat(intIncrs);
-
-	var grid = {
-		show: true,
-		color: "#eee",
-		width: 2,
-	//	dash: [],
-	};
 
 	var s = 1,
 		m = 60,
@@ -675,17 +644,35 @@ var uPlot = (function (exports) {
 		return function (self, val) { return stamp(tzDate(val)); };
 	}
 
+	var grid = {
+		show: true,
+		stroke: "rgba(0,0,0,0.07)",
+		width: 2,
+	//	dash: [],
+	};
+
+	var tick = assign({}, grid, {size: 10});
+
+	var font      = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
+	var labelFont = "bold " + font;
+	var lineMult = 1.5;		// font-size multiplier
+
 	var xAxisOpts = {
 		type: "x",
 		show: true,
 		scale: "x",
 		space: 50,
-		size: 53,
+		gap: 5,
+		size: 50,
+		labelSize: 30,
+		labelFont: labelFont,
 		side: 2,
 	//	class: "x-vals",
 	//	incrs: timeIncrs,
 	//	values: timeVals,
 		grid: grid,
+		tick: tick,
+		font: font,
 	};
 
 	var numSeriesLabel = "Value";
@@ -726,12 +713,17 @@ var uPlot = (function (exports) {
 		show: true,
 		scale: "y",
 		space: 40,
+		gap: 5,
 		size: 50,
+		labelSize: 30,
+		labelFont: labelFont,
 		side: 3,
 	//	class: "y-vals",
 	//	incrs: numIncrs,
 	//	values: (vals, space) => vals,
 		grid: grid,
+		tick: tick,
+		font: font,
 	};
 
 	var ySeriesOpts = {
@@ -805,14 +797,14 @@ var uPlot = (function (exports) {
 		return [d[0], d[1]].concat(d.slice(2)).map(function (o, i) { return assign({}, (i == 0 || o && o.side % 2 == 0 ? xo : yo), o); });
 	}
 
-	function getYPos(val, scale, hgt) {
+	function getYPos(val, scale, hgt, top) {
 		var pctY = (val - scale.min) / (scale.max - scale.min);
-		return (1 - pctY) * hgt;
+		return top + (1 - pctY) * hgt;
 	}
 
-	function getXPos(val, scale, wid) {
+	function getXPos(val, scale, wid, lft) {
 		var pctX = (val - scale.min) / (scale.max - scale.min);
-		return pctX * wid;
+		return lft + pctX * wid;
 	}
 
 	function snapNone(self, dataMin, dataMax) {
@@ -841,6 +833,12 @@ var uPlot = (function (exports) {
 		return e.button == 0;
 	}
 
+	function pxRatioFont(font) {
+		var fontSize;
+		font = font.replace(/\d+/, function (m) { return (fontSize = round(m * pxRatio)); });
+		return [font, fontSize];
+	}
+
 	function Line(opts, data, then) {
 		var self = this;
 
@@ -857,7 +855,8 @@ var uPlot = (function (exports) {
 		var axes    = setDefaults(opts.axes || [], xAxisOpts, yAxisOpts);
 		var scales  = (opts.scales = opts.scales || {});
 
-		var gutters = assign({x: yAxisOpts.size, y: xAxisOpts.size}, opts.gutters);
+		var gutters = assign({x: round(yAxisOpts.size/2), y: round(xAxisOpts.size/3)}, opts.gutters);
+	//	const gutters = assign({x: yAxisOpts.size, y: xAxisOpts.size}, opts.gutters);
 
 	//	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 		var tzDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
@@ -933,45 +932,23 @@ var uPlot = (function (exports) {
 				axis.ticks = fnOrSelf(axis.ticks || (sc.distr == 1 && isTime ? _timeAxisTicks : numAxisTicks));
 				var av = axis.values;
 				axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
+
+				axis.font      = pxRatioFont(axis.font);
+				axis.labelFont = pxRatioFont(axis.labelFont);
 			}
 		});
 
-		var root = placeDiv("uplot");
+		var root = self.root = placeDiv("uplot");
 
 		if (opts.id != null)
 			{ root.id = opts.id; }
 
 		addClass(root, opts.class);
 
-		if (opts.title != null) {
+		if (opts.title) {
 			var title = placeDiv("title", root);
 			title.textContent = opts.title;
 		}
-
-		var wrap = placeDiv("wrap", root);
-
-		var plot = placeDiv("plot", wrap);
-
-		// init axis containers
-		axes.forEach(function (axis, i) {
-			if (axis.show) {
-				var side = axis.side;
-				var isVt = side % 2;
-
-				var aroot = axis.root = placeDiv("axis-" + (isVt ? "y-" : "x-") + side, wrap);
-
-				addClass(aroot, axis.class);
-				aroot.style.color = axis.stroke;
-
-				axis.vals = placeDiv("values", aroot);
-
-				if (axis.label != null) {
-					var lbl = axis.lbl = placeDiv("labels", aroot);
-					var txt = placeDiv(null, lbl);
-					txt.textContent = axis.label;
-				}
-			}
-		});
 
 		var dataLen;
 
@@ -1017,25 +994,53 @@ var uPlot = (function (exports) {
 			ctx.fillStyle = fill || hexBlack;
 		}
 
-		var fullCssWidth;
-		var fullCssHeight;
+		var fullWidCss;
+		var fullHgtCss;
 
-		var canCssWidth;
-		var canCssHeight;
+		var plotWidCss;
+		var plotHgtCss;
 
 		// plot margins to account for axes
+		var plotLftCss;
+		var plotTopCss;
+
 		var plotLft;
 		var plotTop;
+		var plotWid;
+		var plotHgt;
+
+		self.bbox = {};
 
 		function _setSize(width, height) {
-			self.width  = fullCssWidth  = canCssWidth  = width;
-			self.height = fullCssHeight = canCssHeight = height;
-			plotLft = plotTop = 0;
+			self.width  = fullWidCss = plotWidCss = width;
+			self.height = fullHgtCss = plotHgtCss = height;
+			plotLftCss  = plotTopCss = 0;
 
 			calcPlotRect();
-			setAxesRects();
-			setPlotRect();
-			sizeCanvas(can, canCssWidth, canCssHeight);
+			calcAxesRects();
+
+			var bb = self.bbox;
+
+			plotLft = bb[LEFT]   = incrRound(plotLftCss * pxRatio, 0.5);
+			plotTop = bb[TOP]    = incrRound(plotTopCss * pxRatio, 0.5);
+			plotWid = bb[WIDTH]  = incrRound(plotWidCss * pxRatio, 0.5);
+			plotHgt = bb[HEIGHT] = incrRound(plotHgtCss * pxRatio, 0.5);
+
+			setStylePx(under, LEFT,   plotLftCss);
+			setStylePx(under, TOP,    plotTopCss);
+			setStylePx(under, WIDTH,  plotWidCss);
+			setStylePx(under, HEIGHT, plotHgtCss);
+
+			setStylePx(over, LEFT,    plotLftCss);
+			setStylePx(over, TOP,     plotTopCss);
+			setStylePx(over, WIDTH,   plotWidCss);
+			setStylePx(over, HEIGHT,  plotHgtCss);
+
+			setStylePx(wrap, WIDTH,   fullWidCss);
+			setStylePx(wrap, HEIGHT,  fullHgtCss);
+
+			can[WIDTH]  = round(fullWidCss * pxRatio);
+			can[HEIGHT] = round(fullHgtCss * pxRatio);
 
 			ready && autoScaleX();
 
@@ -1053,9 +1058,11 @@ var uPlot = (function (exports) {
 
 		// accumulate axis offsets, reduce canvas width
 		function calcPlotRect() {
-			// easement for rightmost x label if no right y axis exists
-			var hasRightAxis = false;
-			var hasLeftAxis = false;
+			// easements for edge labels
+			var hasTopAxis = false;
+			var hasBtmAxis = false;
+			var hasRgtAxis = false;
+			var hasLftAxis = false;
 
 			axes.forEach(function (axis, i) {
 				if (axis.show) {
@@ -1067,101 +1074,84 @@ var uPlot = (function (exports) {
 					var fullSize = size + labelSize;
 
 					if (isVt) {
-						canCssWidth -= fullSize;
+						plotWidCss -= fullSize;
 
 						if (side == 3) {
-							plotLft += fullSize;
-							hasLeftAxis = true;
+							plotLftCss += fullSize;
+							hasLftAxis = true;
 						}
 						else
-							{ hasRightAxis = true; }
+							{ hasRgtAxis = true; }
 					}
 					else {
-						canCssHeight -= fullSize;
+						plotHgtCss -= fullSize;
 
-						if (side == 0)
-							{ plotTop += fullSize; }
+						if (side == 0) {
+							plotTopCss += fullSize;
+							hasTopAxis = true;
+						}
+						else
+							{ hasBtmAxis = true; }
 					}
 				}
 			});
 
 			// hz gutters
-			if (hasLeftAxis || hasRightAxis) {
-				if (!hasRightAxis)
-					{ canCssWidth -= gutters.x; }
-				if (!hasLeftAxis) {
-					canCssWidth -= gutters.x;
-					plotLft += gutters.x;
+			if (hasTopAxis || hasBtmAxis) {
+				if (!hasRgtAxis)
+					{ plotWidCss -= gutters.x; }
+				if (!hasLftAxis) {
+					plotWidCss -= gutters.x;
+					plotLftCss += gutters.x;
+				}
+			}
+
+			// vt gutters
+			if (hasLftAxis || hasRgtAxis) {
+				if (!hasBtmAxis)
+					{ plotHgtCss -= gutters.y; }
+				if (!hasTopAxis) {
+					plotHgtCss -= gutters.y;
+					plotTopCss += gutters.y;
 				}
 			}
 		}
 
-		function setAxesRects() {
-			// left & top axes are positioned using "right" & "bottom", so to go outwards from plot
-			var off1 = fullCssWidth - plotLft;
-			var off2 = fullCssHeight - plotTop;
-			var off3 = plotLft + canCssWidth;
-			var off0 = plotTop + canCssHeight;
+		function calcAxesRects() {
+			// will accum +
+			var off1 = plotLftCss + plotWidCss;
+			var off2 = plotTopCss + plotHgtCss;
+			// will accum -
+			var off3 = plotLftCss;
+			var off0 = plotTopCss;
 
-			function posAxisPart(el, side, isVt, size) {
-				if (isVt) {
-					setStylePx(el, WIDTH, size);
-					setStylePx(el, HEIGHT, canCssHeight);
-					setStylePx(el, TOP, plotTop);
+			function incrOffset(side, size) {
 
-					if (side == 3) {
-						setStylePx(el, RIGHT, off1);
-						off1 += size;
-					}
-					else {
-						setStylePx(el, LEFT, off3);
-						off3 += size;
-					}
-				}
-				else {
-					setStylePx(el, HEIGHT, size);
-					setStylePx(el, WIDTH, canCssWidth);
-					setStylePx(el, LEFT, plotLft);
-
-					if (side == 0) {
-						setStylePx(el, BOTTOM, off2);
-						off2 += size;
-					}
-					else {
-						setStylePx(el, TOP, off0);
-						off0 += size;
-					}
+				switch (side) {
+					case 1: off1 += size; return off1 - size;
+					case 2: off2 += size; return off2 - size;
+					case 3: off3 -= size; return off3 + size;
+					case 0: off0 -= size; return off0 + size;
 				}
 			}
 
-			// set axis positions
 			axes.forEach(function (axis, i) {
-				if (axis.show) {
-					var side = axis.side;
-					var isVt = side % 2;
+				var side = axis.side;
 
-					posAxisPart(axis.vals, side, isVt, axis.size);
+				axis._pos = incrOffset(side, axis.size);
 
-					if (axis.label != null)
-						{ posAxisPart(axis.lbl, side, isVt, axis.labelSize); }
-				}
+				if (axis.label != null)
+					{ axis._lpos = incrOffset(side, axis.labelSize); }
 			});
 		}
 
-		function setPlotRect() {
-			setStylePx(plot, TOP, plotTop);
-			setStylePx(plot, LEFT, plotLft);
-			setStylePx(wrap, WIDTH, fullCssWidth);
-			setStylePx(wrap, HEIGHT, fullCssHeight);
-		}
+		var can = placeTag("canvas");
+		var ctx = self.ctx = can.getContext("2d");
 
-		var ref = makeCanvas();
-		var can = ref.can;
-		var ctx = ref.ctx;
-
-		self.ctx = ctx;
-
-		plot.appendChild(can);
+		var wrap = placeDiv("wrap", root);
+		var under = placeDiv("under", wrap);
+		wrap.appendChild(can);
+		var over = placeDiv("over", wrap);
 
 		function setScales() {
 			if (inBatch) {
@@ -1309,12 +1299,15 @@ var uPlot = (function (exports) {
 
 				ctx.translate(offset, offset);
 
+				ctx.save();
+
+				ctx.rect(plotLft, plotTop, plotWid, plotHgt);
+				ctx.clip();
+
 				var clip = s.clip;
 
-				if (clip != null) {
-					ctx.save();
-					ctx.clip(clip);
-				}
+				if (clip != null)
+					{ ctx.clip(clip); }
 
 				if (s.band) {
 					ctx.fill(path);
@@ -1323,17 +1316,11 @@ var uPlot = (function (exports) {
 				else {
 					width && ctx.stroke(path);
 
-					if (s.fill != null) {
-						var zeroY = round(getYPos(0, scales[s.scale], can[HEIGHT]));
-
-						path.lineTo(can[WIDTH], zeroY);
-						path.lineTo(0, zeroY);
-						ctx.fill(path);
-					}
+					if (s.fill != null)
+						{ ctx.fill(s.path.fill); }
 				}
 
-				if (clip != null)
-					{ ctx.restore(); }
+				ctx.restore();
 
 				ctx.translate(-offset, -offset);
 
@@ -1352,17 +1339,17 @@ var uPlot = (function (exports) {
 			if (gaps.length > 0) {
 				var clip = s.clip = new Path2D();
 
-				var prevGapEnd = 0;
+				var prevGapEnd = plotLft;
 
 				for (var i = 0; i < gaps.length; i++) {
 					var g = gaps[i];
 
-					clip.rect(prevGapEnd, 0, g[0] - prevGapEnd, can[HEIGHT]);
+					clip.rect(prevGapEnd, plotTop, g[0] - prevGapEnd, plotTop + plotHgt);
 
 					prevGapEnd = g[1];
 				}
 
-				clip.rect(prevGapEnd, 0, can[WIDTH] - prevGapEnd, can[HEIGHT]);
+				clip.rect(prevGapEnd, plotTop, plotLft + plotWid - prevGapEnd, plotTop + plotHgt);
 			}
 		}
 
@@ -1395,18 +1382,18 @@ var uPlot = (function (exports) {
 
 			var gaps = [];
 
-			var accX = round(getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, can[WIDTH]));
+			var accX = round(getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, plotWid, plotLft));
 
 			// the moves the shape edge outside the canvas so stroke doesnt bleed in
 			if (s.band && dir == 1 && width && _i0 == i0)
-				{ path.lineTo(-width, round(getYPos(ydata[_i0], scaleY, can[HEIGHT]))); }
+				{ path.lineTo(-width, round(getYPos(ydata[_i0], scaleY, plotHgt, plotTop))); }
 
 			for (var i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
-				var x = round(getXPos(xdata[i], scaleX, can[WIDTH]));
+				var x = round(getXPos(xdata[i], scaleX, plotWid, plotLft));
 
 				if (x == accX) {
 					if (ydata[i] != null) {
-						outY = round(getYPos(ydata[i], scaleY, can[HEIGHT]));
+						outY = round(getYPos(ydata[i], scaleY, plotHgt, plotTop));
 						minY = min(outY, minY);
 						maxY = max(outY, maxY);
 					}
@@ -1424,7 +1411,7 @@ var uPlot = (function (exports) {
 						{ addGap = true; }
 
 					if (ydata[i] != null) {
-						outY = round(getYPos(ydata[i], scaleY, can[HEIGHT]));
+						outY = round(getYPos(ydata[i], scaleY, plotHgt, plotTop));
 						path.lineTo(x, outY);
 						minY = maxY = outY;
 
@@ -1450,17 +1437,35 @@ var uPlot = (function (exports) {
 				}
 			}
 
-			if (dir == 1)
-				{ buildClip(s, gaps); }
+			if (dir == 1) {
+				buildClip(s, gaps);
+
+				if (s.fill != null) {
+					var fill = path.fill = new Path2D(path);
+
+					var zeroY = round(getYPos(0, scaleY, plotHgt, plotTop));
+					fill.lineTo(plotLft + plotWid, zeroY);
+					fill.lineTo(plotLft, zeroY);
+				}
+			}
+
+			// todo: don't build gaps on dir = -1 pass
 
 			if (s.band) {
-				if (dir == -1) {
-					// the moves the shape edge outside the canvas so stroke doesnt bleed in
-					if (width && _i0 == i0)
-						{ path.lineTo(-width, round(getYPos(ydata[_i0], scaleY, can[HEIGHT]))); }
+				var overShoot = width * 100, _iy, _x;
 
-					path.closePath();
+				// the moves the shape edge outside the canvas so stroke doesnt bleed in
+				if (dir == -1 && _i0 == i0) {
+					_x = plotLft - overShoot;
+					_iy = _i0;
 				}
+
+				if (dir == 1 && _i1 == i1) {
+					_x = plotLft + plotWid + overShoot;
+					_iy = _i1;
+				}
+
+				path.lineTo(_x, round(getYPos(ydata[_iy], scaleY, plotHgt, plotTop)));
 
 				dir *= -1;
 			}
@@ -1474,6 +1479,41 @@ var uPlot = (function (exports) {
 			return incrSpace;
 		}
 
+		function drawOrthoLines(offs, ori, side, pos0, len, width, stroke, dash) {
+			var offset = (width % 2) / 2;
+
+			ctx.translate(offset, offset);
+
+			setCtxStyle(stroke, width, dash);
+
+			ctx.beginPath();
+
+			var x0, y0, x1, y1, pos1 = pos0 + (side == 0 || side == 3 ? -len : len);
+
+			if (ori == 0) {
+				y0 = pos0;
+				y1 = pos1;
+			}
+			else {
+				x0 = pos0;
+				x1 = pos1;
+			}
+
+			offs.forEach(function (off, i) {
+				if (ori == 0)
+					{ x0 = x1 = off; }
+				else
+					{ y0 = y1 = off; }
+
+				ctx.moveTo(x0, y0);
+				ctx.lineTo(x1, y1);
+			});
+
+			ctx.stroke();
+
+			ctx.translate(-offset, -offset);
+		}
+
 		function drawAxesGrid() {
 			axes.forEach(function (axis, i) {
 				if (!axis.show)
@@ -1482,21 +1522,16 @@ var uPlot = (function (exports) {
 				var scale = scales[axis.scale];
 
 				// this will happen if all series using a specific scale are toggled off
-				if (scale.min == inf) {
-					addClass(axis.root, "off");
-					return;
-				}
+				if (scale.min == inf)
+					{ return; }
 
-				remClass(axis.root, "off");
-
-				var ori = axis.side % 2;
-				var dim = ori == 0 ? WIDTH : HEIGHT;
-				var canDim = ori == 0 ? canCssWidth : canCssHeight;
+				var side = axis.side;
+				var ori = side % 2;
 
 				var min = scale.min;
 				var max = scale.max;
 
-				var ref = getIncrSpace(axis, min, max, canDim);
+				var ref = getIncrSpace(axis, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 				var incr = ref[0];
 				var space = ref[1];
 				var pctSpace = ref[2];
@@ -1506,62 +1541,107 @@ var uPlot = (function (exports) {
 
 				var ticks = axis.ticks(self, min, max, incr, pctSpace, forceMin);
 
-				var getPos = ori == 0 ? getXPos : getYPos;
-				var cssProp = ori == 0 ? LEFT : TOP;
+				var getPos  = ori == 0 ? getXPos : getYPos;
+				var plotDim = ori == 0 ? plotWid : plotHgt;
+				var plotOff = ori == 0 ? plotLft : plotTop;
 
-				// TODO: filter ticks & offsets that will end up off-canvas
-				var canOffs = ticks.map(function (val) { return round2(getPos(val, scale, can[dim])); });		// bit of waste if we're not drawing a grid
+				var canOffs = ticks.map(function (val) { return round(getPos(val, scale, plotDim, plotOff)); });
 
+				var axisGap  = round(axis.gap * pxRatio);
+
+				var tick = axis.tick;
+				var tickSize = tick.show ? round(tick.size * pxRatio) : 0;
+
+				// tick labels
 				var values = axis.values(self, scale.distr == 2 ? ticks.map(function (i) { return data0[i]; }) : ticks, space);		// BOO this assumes a specific data/series
 
-				var ch = axis.vals[firstChild];
+				var basePos  = round(axis._pos * pxRatio);
+				var shiftAmt = tickSize + axisGap;
+				var shiftDir = ori == 0 && side == 0 || ori == 1 && side == 3 ? -1 : 1;
+				var finalPos = basePos + shiftAmt * shiftDir;
+				var y        = ori == 0 ? finalPos : 0;
+				var x        = ori == 1 ? finalPos : 0;
+
+				ctx.font         = axis.font[0];
+				ctx.fillStyle    = axis.stroke || hexBlack;									// rgba?
+				ctx.textAlign    = ori == 0 ? "center" : side == 3 ? RIGHT : LEFT;
+				ctx.textBaseline = ori == 1 ? "middle" : side == 2 ? TOP   : BOTTOM;
+
+				var lineHeight   = axis.font[1] * lineMult;
 
 				canOffs.forEach(function (off, i) {
-					var div = ch || placeDiv(null, axis.vals);
-					div.textContent = values[i];
-					setStylePx(div, cssProp, round(off/pxRatio));
-					ch = div[nextSibling];
+					if (ori == 0)
+						{ x = off; }
+					else
+						{ y = off; }
+
+					(""+values[i]).split(/\n/gm).forEach(function (text, j) {
+						ctx.fillText(text, x, y + j * lineHeight);
+					});
 				});
 
-				ch && clearFrom(ch);
+				// axis label
+				if (axis.label) {
+					ctx.save();
 
+					var baseLpos = round(axis._lpos * pxRatio);
+
+					if (ori == 1) {
+						x = y = 0;
+
+						ctx.translate(
+							baseLpos,
+							round(plotTop + plotHgt / 2)
+						);
+						ctx.rotate((side == 3 ? -PI : PI) / 2);
+
+					}
+					else {
+						x = round(plotLft + plotWid / 2);
+						y = baseLpos;
+					}
+
+					ctx.font         = axis.labelFont[0];
+				//	ctx.fillStyle    = axis.labelStroke || hexBlack;						// rgba?
+					ctx.textAlign    = "center";
+					ctx.textBaseline = side == 2 ? TOP : BOTTOM;
+
+					ctx.fillText(axis.label, x, y);
+
+					ctx.restore();
+				}
+
+				// ticks
+				if (tick.show) {
+					drawOrthoLines(
+						canOffs,
+						ori,
+						side,
+						basePos,
+						tickSize,
+						tick[WIDTH],
+						tick.stroke
+					);
+				}
+
+				// grid
 				var grid = axis.grid;
 
 				if (grid.show) {
-					// note: the grid is cheap to build & redraw unconditionally, so does not
-					// use the retained Path2D optimization or additional invalidation logic
-					var offset = (grid[WIDTH] % 2) / 2;
-					ctx.translate(offset, offset);
-
-					setCtxStyle(grid.stroke || "rgba(0,0,0,0.07)", grid[WIDTH], grid.dash);
-
-					ctx.beginPath();
-
-					canOffs.forEach(function (off, i) {
-						var mx, my, lx, ly;
-
-						if (ori == 0) {
-							my = 0;
-							ly = can[HEIGHT];
-							mx = lx = round(off);
-						}
-						else {
-							mx = 0;
-							lx = can[WIDTH];
-							my = ly = round(off);
-						}
-
-						ctx.moveTo(mx, my);
-						ctx.lineTo(lx, ly);
-					});
-
-					ctx.stroke();
-
-					ctx.translate(-offset, -offset);
+					drawOrthoLines(
+						canOffs,
+						ori,
+						ori == 0 ? 2 : 1,
+						ori == 0 ? plotTop : plotLft,
+						ori == 0 ? plotHgt : plotWid,
+						grid[WIDTH],
+						grid.stroke,
+						grid.dash
+					);
 				}
 			});
 
-			fire("drawGrid");
+			fire("drawAxes");
 		}
 
 		function resetYSeries() {
@@ -1607,7 +1687,7 @@ var uPlot = (function (exports) {
 				// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
 				if (key == xScaleKey && sc.time) {
 					// since scales and axes are loosly coupled, we have to make some assumptions here :(
-					var incr = getIncrSpace(axes[0], opts.min, opts.max, canCssWidth)[0];
+					var incr = getIncrSpace(axes[0], opts.min, opts.max, plotWidCss)[0];
 
 					if (incr < 1e-3)
 						{ return; }
@@ -1668,16 +1748,16 @@ var uPlot = (function (exports) {
 
 			if (cursor.x) {
 				mouseLeft1 = cursor.left;
-				vt = placeDiv(c + "x", plot);
+				vt = placeDiv(c + "x", over);
 			}
 
 			if (cursor.y) {
 				mouseTop1 = cursor.top;
-				hz = placeDiv(c + "y", plot);
+				hz = placeDiv(c + "y", over);
 			}
 		}
 
-		var select = placeDiv("select", plot);
+		var select = placeDiv("select", over);
 
 		var _select = self.select = {
 			left:	0,
@@ -1688,10 +1768,10 @@ var uPlot = (function (exports) {
 
 		function setSelect(opts, _fire) {
 			if (opts[WIDTH] == null && drag.y)
-				{ opts[WIDTH] = canCssWidth; }
+				{ opts[WIDTH] = plotWidCss; }
 
 			if (opts[HEIGHT] == null && drag.x)
-				{ opts[HEIGHT] = canCssHeight; }
+				{ opts[HEIGHT] = plotHgtCss; }
 
 			for (var prop in opts)
 				{ setStylePx(select, prop, _select[prop] = opts[prop]); }
@@ -1877,7 +1957,7 @@ var uPlot = (function (exports) {
 		// series-intersection markers
 		var cursorPts = showPoints ? series.map(function (s, i) {
 			if (i > 0) {
-				var pt = placeDiv("hover-point", plot);
+				var pt = placeDiv("hover-point", over);
 
 				addClass(pt, s.class);
 
@@ -1899,7 +1979,7 @@ var uPlot = (function (exports) {
 		var cursorRaf = 0;
 
 		function scaleValueAtPos(pos, scale) {
-			var dim = scale == xScaleKey ? canCssWidth : canCssHeight;
+			var dim = scale == xScaleKey ? plotWidCss : plotHgtCss;
 			var pct = clamp(pos / dim, 0, 1);
 
 			var sc = scales[scale];
@@ -1913,8 +1993,8 @@ var uPlot = (function (exports) {
 		}
 
 		self.posToIdx = closestIdxFromXpos;
-		self.posToVal = function (pos, scale) { return scaleValueAtPos(scale == xScaleKey ? pos : canCssHeight - pos, scale); };
-		self.valToPos = function (val, scale) { return scale == xScaleKey ? getXPos(val, scales[scale], canCssWidth) : getYPos(val, scales[scale], canCssHeight); };
+		self.posToVal = function (pos, scale) { return scaleValueAtPos(scale == xScaleKey ? pos : plotHgtCss - pos, scale); };
+		self.valToPos = function (val, scale) { return scale == xScaleKey ? getXPos(val, scales[scale], plotWidCss, 0) : getYPos(val, scales[scale], plotHgtCss, 0); };
 
 		var inBatch = false;
 		var shouldPaint = false;
@@ -1987,7 +2067,7 @@ var uPlot = (function (exports) {
 
 				var scX = scales[xScaleKey];
 
-				var xPos = round2(getXPos(data[0][idx], scX, canCssWidth));
+				var xPos = round2(getXPos(data[0][idx], scX, plotWidCss, 0));
 
 				for (var i$1 = 0; i$1 < series.length; i$1++) {
 					var s = series[i$1];
@@ -1995,7 +2075,7 @@ var uPlot = (function (exports) {
 					if (i$1 > 0 && s.show) {
 						var valAtIdx = data[i$1][idx];
 
-						var yPos = valAtIdx == null ? -10 : round2(getYPos(valAtIdx, scales[s.scale], canCssHeight));
+						var yPos = valAtIdx == null ? -10 : round2(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0));
 
 						distsToCursor[i$1] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
 
@@ -2041,7 +2121,7 @@ var uPlot = (function (exports) {
 			if (ts != null) {
 				// this is not technically a "mousemove" event, since it's debounced, rename to setCursor?
 				// since this is internal, we can tweak it later
-				sync.pub(mousemove, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, idx);
+				sync.pub(mousemove, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, idx);
 
 				if (focus) {
 					var minDist = min.apply(null, distsToCursor);
@@ -2069,7 +2149,7 @@ var uPlot = (function (exports) {
 		var rect = null;
 
 		function syncRect() {
-			rect = can.getBoundingClientRect();
+			rect = over.getBoundingClientRect();
 		}
 
 		function mouseMove(e, src, _x, _y, _w, _h, _i) {
@@ -2095,16 +2175,16 @@ var uPlot = (function (exports) {
 				_y = e.clientY - rect.top;
 			}
 			else {
-				_x = canCssWidth * (_x/_w);
-				_y = canCssHeight * (_y/_h);
+				_x = plotWidCss * (_x/_w);
+				_y = plotHgtCss * (_y/_h);
 			}
 
 			if (snap) {
-				if (_x <= 1 || _x >= canCssWidth - 1)
-					{ _x = incrRound(_x, canCssWidth); }
+				if (_x <= 1 || _x >= plotWidCss - 1)
+					{ _x = incrRound(_x, plotWidCss); }
 
-				if (_y <= 1 || _y >= canCssHeight - 1)
-					{ _y = incrRound(_y, canCssHeight); }
+				if (_y <= 1 || _y >= plotHgtCss - 1)
+					{ _y = incrRound(_y, plotHgtCss); }
 			}
 
 			if (initial) {
@@ -2119,8 +2199,8 @@ var uPlot = (function (exports) {
 
 		function hideSelect() {
 			setSelect({
-				width:	!drag.x ? canCssWidth : 0,
-				height:	!drag.y ? canCssHeight : 0,
+				width:	!drag.x ? plotWidCss : 0,
+				height:	!drag.y ? plotHgtCss : 0,
 			}, false);
 		}
 
@@ -2135,7 +2215,7 @@ var uPlot = (function (exports) {
 
 				if (e != null) {
 					on(mouseup, doc, mouseUp);
-					sync.pub(mousedown, self, mouseLeft0, mouseTop0, canCssWidth, canCssHeight, null);
+					sync.pub(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
 				}
 			}
 		}
@@ -2166,8 +2246,8 @@ var uPlot = (function (exports) {
 
 									if (k != xScaleKey && sc.from == null) {
 										_setScale(k,
-											scaleValueAtPos(canCssHeight - _select[TOP] - _select[HEIGHT], k),
-											scaleValueAtPos(canCssHeight - _select[TOP], k)
+											scaleValueAtPos(plotHgtCss - _select[TOP] - _select[HEIGHT], k),
+											scaleValueAtPos(plotHgtCss - _select[TOP], k)
 										);
 									}
 								}
@@ -2186,7 +2266,7 @@ var uPlot = (function (exports) {
 
 				if (e != null) {
 					off(mouseup, doc, mouseUp);
-					sync.pub(mouseup, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, null);
+					sync.pub(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 				}
 			}
 		}
@@ -2204,7 +2284,7 @@ var uPlot = (function (exports) {
 			autoScaleX();
 
 			if (e != null)
-				{ sync.pub(dblclick, self, mouseLeft1, mouseTop1, canCssWidth, canCssHeight, null); }
+				{ sync.pub(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null); }
 		}
 
 		// internal pub/sub
@@ -2221,18 +2301,16 @@ var uPlot = (function (exports) {
 		var deb;
 
 		if (cursor.show) {
-			on(mousedown, can, mouseDown);
-			on(mousemove, can, mouseMove);
-			on(mouseleave, can, mouseLeave);
-			drag.setScale && on(dblclick, can, dblClick);
+			on(mousedown, over, mouseDown);
+			on(mousemove, over, mouseMove);
+			on(mouseleave, over, mouseLeave);
+			drag.setScale && on(dblclick, over, dblClick);
 
 			deb = debounce(syncRect, 100);
 
 			on(resize, win, deb);
 			on(scroll, win, deb);
 		}
-
-		self.root = root;
 
 		// external on/off
 		var hooks = self.hooks = opts.hooks || {};

@@ -34,7 +34,7 @@
 				return {
 					hooks: {
 						init: u => {
-							let can = u.ctx.canvas;
+							let can = u.root.querySelector(".over");
 
 							bound = can;
 						//	bound = document.body;
@@ -56,7 +56,7 @@
 							const x = u.data[0][idx];
 							const y = u.data[1][idx];
 							const anchor = { left: left + bLeft, top: top + bTop };
-							overlay.textContent = `${x},${y} at ${left},${top}`;
+							overlay.textContent = `${x},${y} at ${Math.round(left)},${Math.round(top)}`;
 							placement(overlay, anchor, "right", "start", { bound });
 						}
 					}

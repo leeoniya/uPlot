@@ -344,14 +344,23 @@ let opts = {
       show: true,
       label: "Population",
       labelSize: 30,
+      labelFont: "bold 12px Arial",
+      font: "12px Arial",
+      gap: 5,
       size: 50,
-      class: "my-y",
       stroke: "red",
       grid: {
         show: true,
         stroke: "#eee",
         width: 2,
         dash: [],
+      },
+      tick: {
+        show: true,
+        stroke: "#eee",
+        width: 2,
+        dash: [],
+        size: 10,
       }
     }
   ]
@@ -359,6 +368,7 @@ let opts = {
 ```
 
 - `size` & `labelSize` represent the perpendicular dimensions assigned to `values` and `labels` DOM elements, respectively. In the above example, the full width of this y-axis would be 30 + 50; for an x-axis, it would be its height.
+- `gap` is the space between axis ticks and `values`.
 
 Customizing the tick/grid spacing, value formatting and granularity is somewhat more involved:
 
