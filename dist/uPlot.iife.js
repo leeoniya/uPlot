@@ -730,7 +730,6 @@ var uPlot = (function (exports) {
 	//	type: "n",
 		scale: "y",
 		show: true,
-		draw: true,
 		band: false,
 		alpha: 1,
 	//	label: "Value",
@@ -1276,12 +1275,12 @@ var uPlot = (function (exports) {
 
 		function drawSeries() {
 			series.forEach(function (s, i) {
-				if (i > 0 && s.show && s.draw && s._paths == null)
+				if (i > 0 && s.show && s._paths == null)
 					{ s._paths = s.paths(self, i, data[0], data[i], scales[xScaleKey], scales[s.scale]); }
 			});
 
 			series.forEach(function (s, i) {
-				if (i > 0 && s.show && s.draw) {
+				if (i > 0 && s.show && s._paths) {
 					drawPath(i);
 					fire("drawSeries", i);
 				}

@@ -196,7 +196,7 @@
 						});
 
 						opts.series.forEach(series => {
-							series.draw = false;
+							series.paths = () => null;
 						});
 					},
 					hooks: {
