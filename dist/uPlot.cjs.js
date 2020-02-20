@@ -854,8 +854,10 @@ function Line(opts, data, then) {
 	var axes    = setDefaults(opts.axes || [], xAxisOpts, yAxisOpts);
 	var scales  = (opts.scales = opts.scales || {});
 
-	var gutters = assign({x: round(yAxisOpts.size/2), y: round(xAxisOpts.size/3)}, opts.gutters);
-//	const gutters = assign({x: yAxisOpts.size, y: xAxisOpts.size}, opts.gutters);
+	var gutters = assign({
+		x: round(yAxisOpts.size / 2),
+		y: round(xAxisOpts.size / 3),
+	}, opts.gutters);
 
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 	var tzDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
@@ -1956,7 +1958,7 @@ function Line(opts, data, then) {
 	// series-intersection markers
 	var cursorPts = showPoints ? series.map(function (s, i) {
 		if (i > 0) {
-			var pt = placeDiv("hover-point", over);
+			var pt = placeDiv("cursor-pt", over);
 
 			addClass(pt, s.class);
 

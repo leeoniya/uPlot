@@ -165,8 +165,10 @@ export function Line(opts, data, then) {
 	const axes    = setDefaults(opts.axes || [], xAxisOpts, yAxisOpts);
 	const scales  = (opts.scales = opts.scales || {});
 
-	const gutters = assign({x: round(yAxisOpts.size/2), y: round(xAxisOpts.size/3)}, opts.gutters);
-//	const gutters = assign({x: yAxisOpts.size, y: xAxisOpts.size}, opts.gutters);
+	const gutters = assign({
+		x: round(yAxisOpts.size / 2),
+		y: round(xAxisOpts.size / 3),
+	}, opts.gutters);
 
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const tzDate = opts.tzDate || (ts => new Date(ts * 1e3));
@@ -1258,7 +1260,7 @@ export function Line(opts, data, then) {
 	// series-intersection markers
 	const cursorPts = showPoints ? series.map((s, i) => {
 		if (i > 0) {
-			let pt = placeDiv("hover-point", over);
+			let pt = placeDiv("cursor-pt", over);
 
 			addClass(pt, s.class);
 
