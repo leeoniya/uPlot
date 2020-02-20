@@ -269,6 +269,7 @@ export function Line(opts, data, then) {
 	// rendered data window
 	let i0 = null;
 	let i1 = null;
+	const idxs = self.idxs = [i0, i1];
 
 	let data0 = null;
 
@@ -291,8 +292,8 @@ export function Line(opts, data, then) {
 	self.setData = setData;
 
 	function autoScaleX() {
-		i0 = 0;
-		i1 = dataLen - 1;
+		i0 = idxs[0] = 0;
+		i1 = idxs[1] = dataLen - 1;
 
 		let _min = xScaleDistr == 2 ? i0 : data[0][i0],
 			_max = xScaleDistr == 2 ? i1 : data[0][i1];
@@ -512,6 +513,9 @@ export function Line(opts, data, then) {
 					i0++;
 				if (data[0][i1] > sc.max)
 					i1--;
+
+				idxs[0] = i0;
+				idxs[1] = i1;
 
 				s.min = data0[i0];
 				s.max = data0[i1];
