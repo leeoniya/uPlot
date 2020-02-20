@@ -1306,7 +1306,17 @@ export function Line(opts, data, then) {
 
 	self.posToIdx = closestIdxFromXpos;
 	self.posToVal = (pos, scale) => scaleValueAtPos(scale == xScaleKey ? pos : plotHgtCss - pos, scale);
-	self.valToPos = (val, scale) => scale == xScaleKey ? getXPos(val, scales[scale], plotWidCss, 0) : getYPos(val, scales[scale], plotHgtCss, 0);
+	self.valToPos = (val, scale, can) => (
+		scale == xScaleKey ?
+		getXPos(val, scales[scale],
+			can ? plotWid : plotWidCss,
+			can ? plotLft : 0,
+		) :
+		getYPos(val, scales[scale],
+			can ? plotHgt : plotHgtCss,
+			can ? plotTop : 0,
+		)
+	);
 
 	let inBatch = false;
 	let shouldPaint = false;

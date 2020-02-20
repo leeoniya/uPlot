@@ -958,6 +958,7 @@ var uPlot = (function (exports) {
 		// rendered data window
 		var i0 = null;
 		var i1 = null;
+		var idxs = self.idxs = [i0, i1];
 
 		var data0 = null;
 
@@ -980,8 +981,8 @@ var uPlot = (function (exports) {
 		self.setData = setData;
 
 		function autoScaleX() {
-			i0 = 0;
-			i1 = dataLen - 1;
+			i0 = idxs[0] = 0;
+			i1 = idxs[1] = dataLen - 1;
 
 			var _min = xScaleDistr == 2 ? i0 : data[0][i0],
 				_max = xScaleDistr == 2 ? i1 : data[0][i1];
@@ -1204,6 +1205,9 @@ var uPlot = (function (exports) {
 						{ i0++; }
 					if (data[0][i1] > sc.max)
 						{ i1--; }
+
+					idxs[0] = i0;
+					idxs[1] = i1;
 
 					s.min = data0[i0];
 					s.max = data0[i1];
@@ -2003,7 +2007,17 @@ var uPlot = (function (exports) {
 
 		self.posToIdx = closestIdxFromXpos;
 		self.posToVal = function (pos, scale) { return scaleValueAtPos(scale == xScaleKey ? pos : plotHgtCss - pos, scale); };
-		self.valToPos = function (val, scale) { return scale == xScaleKey ? getXPos(val, scales[scale], plotWidCss, 0) : getYPos(val, scales[scale], plotHgtCss, 0); };
+		self.valToPos = function (val, scale, can) { return (
+			scale == xScaleKey ?
+			getXPos(val, scales[scale],
+				can ? plotWid : plotWidCss,
+				can ? plotLft : 0
+			) :
+			getYPos(val, scales[scale],
+				can ? plotHgt : plotHgtCss,
+				can ? plotTop : 0
+			)
+		); };
 
 		var inBatch = false;
 		var shouldPaint = false;
