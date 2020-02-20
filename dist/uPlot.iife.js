@@ -900,6 +900,8 @@ var uPlot = (function (exports) {
 			s.value = isTime ? (isStr(sv) ? timeSeriesVal(tzDate, timeSeriesStamp(sv)) : sv || _timeSeriesVal) : sv || numSeriesVal;
 			s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 			s.width = s.width == null ? 1 : s.width;
+			s.paths = s.paths || buildPaths;
+			s._paths = null;
 		});
 
 		// dependent scales inherit
@@ -1260,8 +1262,7 @@ var uPlot = (function (exports) {
 
 				if (minMaxes[k] != null && (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)) {
 					changed[k] = true;
-					s.path = null;
-					s.clip = null;
+					s._paths = null;
 				}
 			});
 
@@ -1275,8 +1276,8 @@ var uPlot = (function (exports) {
 
 		function drawSeries() {
 			series.forEach(function (s, i) {
-				if (i > 0 && s.show && s.draw && s.path == null)
-					{ buildPath(i, data[0], data[i], scales[xScaleKey], scales[s.scale]); }
+				if (i > 0 && s.show && s.draw && s._paths == null)
+					{ s._paths = s.paths(self, i, data[0], data[i], scales[xScaleKey], scales[s.scale]); }
 			});
 
 			series.forEach(function (s, i) {
@@ -1291,7 +1292,10 @@ var uPlot = (function (exports) {
 			var s = series[is];
 
 			if (dir == 1) {
-				var path = s.path;
+				var ref = s._paths;
+				var stroke = ref.stroke;
+				var fill = ref.fill;
+				var clip = ref.clip;
 				var width = s[WIDTH];
 				var offset = (width % 2) / 2;
 
@@ -1306,20 +1310,18 @@ var uPlot = (function (exports) {
 				ctx.rect(plotLft, plotTop, plotWid, plotHgt);
 				ctx.clip();
 
-				var clip = s.clip;
-
 				if (clip != null)
 					{ ctx.clip(clip); }
 
 				if (s.band) {
-					ctx.fill(path);
-					width && ctx.stroke(path);
+					ctx.fill(stroke);
+					width && ctx.stroke(stroke);
 				}
 				else {
-					width && ctx.stroke(path);
+					width && ctx.stroke(stroke);
 
 					if (s.fill != null)
-						{ ctx.fill(s.path.fill); }
+						{ ctx.fill(fill); }
 				}
 
 				ctx.restore();
@@ -1337,9 +1339,11 @@ var uPlot = (function (exports) {
 			var toSpan = new Set(s.spanGaps(self, gaps));
 			gaps = gaps.filter(function (g) { return !toSpan.has(g); });
 
+			var clip = null;
+
 			// create clip path (invert gaps and non-gaps)
 			if (gaps.length > 0) {
-				var clip = s.clip = new Path2D();
+				clip = new Path2D();
 
 				var prevGapEnd = plotLft;
 
@@ -1353,6 +1357,8 @@ var uPlot = (function (exports) {
 
 				clip.rect(prevGapEnd, plotTop, plotLft + plotWid - prevGapEnd, plotTop + plotHgt);
 			}
+
+			return clip;
 		}
 
 		// grabs the nearest indices with y data outside of x-scale limits
@@ -1369,9 +1375,10 @@ var uPlot = (function (exports) {
 			return [_i0, _i1];
 		}
 
-		function buildPath(is, xdata, ydata, scaleX, scaleY) {
+		function buildPaths(self, is, xdata, ydata, scaleX, scaleY) {
 			var s = series[is];
-			var path = s.path = dir == 1 ? new Path2D() : series[is-1].path;
+			var _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : series[is-1]._paths;
+			var stroke = _paths.stroke;
 			var width = s[WIDTH];
 
 			var ref = getOuterIdxs(ydata);
@@ -1388,7 +1395,7 @@ var uPlot = (function (exports) {
 
 			// the moves the shape edge outside the canvas so stroke doesnt bleed in
 			if (s.band && dir == 1 && width && _i0 == i0)
-				{ path.lineTo(-width, round(getYPos(ydata[_i0], scaleY, plotHgt, plotTop))); }
+				{ stroke.lineTo(-width, round(getYPos(ydata[_i0], scaleY, plotHgt, plotTop))); }
 
 			for (var i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
 				var x = round(getXPos(xdata[i], scaleX, plotWid, plotLft));
@@ -1404,9 +1411,9 @@ var uPlot = (function (exports) {
 					var addGap = false;
 
 					if (minY != inf) {
-						path.lineTo(accX, minY);
-						path.lineTo(accX, maxY);
-						path.lineTo(accX, outY);
+						stroke.lineTo(accX, minY);
+						stroke.lineTo(accX, maxY);
+						stroke.lineTo(accX, outY);
 						outX = accX;
 					}
 					else
@@ -1414,7 +1421,7 @@ var uPlot = (function (exports) {
 
 					if (ydata[i] != null) {
 						outY = round(getYPos(ydata[i], scaleY, plotHgt, plotTop));
-						path.lineTo(x, outY);
+						stroke.lineTo(x, outY);
 						minY = maxY = outY;
 
 						// prior pixel can have data but still start a gap if ends with null
@@ -1440,10 +1447,10 @@ var uPlot = (function (exports) {
 			}
 
 			if (dir == 1) {
-				buildClip(s, gaps);
+				_paths.clip = buildClip(s, gaps);
 
 				if (s.fill != null) {
-					var fill = path.fill = new Path2D(path);
+					var fill = _paths.fill = new Path2D(stroke);
 
 					var zeroY = round(getYPos(0, scaleY, plotHgt, plotTop));
 					fill.lineTo(plotLft + plotWid, zeroY);
@@ -1467,10 +1474,12 @@ var uPlot = (function (exports) {
 					_iy = _i1;
 				}
 
-				path.lineTo(_x, round(getYPos(ydata[_iy], scaleY, plotHgt, plotTop)));
+				stroke.lineTo(_x, round(getYPos(ydata[_iy], scaleY, plotHgt, plotTop)));
 
 				dir *= -1;
 			}
+
+			return _paths;
 		}
 
 		function getIncrSpace(axis, min, max, canDim) {
@@ -1653,8 +1662,7 @@ var uPlot = (function (exports) {
 				if (i > 0) {
 					s.min = inf;
 					s.max = -inf;
-					s.path = null;
-					s.clip = null;
+					s._paths = null;
 				}
 			});
 		}

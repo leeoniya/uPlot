@@ -210,6 +210,8 @@ export function Line(opts, data, then) {
 		s.value = isTime ? (isStr(sv) ? timeSeriesVal(tzDate, timeSeriesStamp(sv)) : sv || _timeSeriesVal) : sv || numSeriesVal;
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 		s.width = s.width == null ? 1 : s.width;
+		s.paths = s.paths || buildPaths;
+		s._paths = null;
 	});
 
 	// dependent scales inherit
@@ -567,8 +569,7 @@ export function Line(opts, data, then) {
 
 			if (minMaxes[k] != null && (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)) {
 				changed[k] = true;
-				s.path = null;
-				s.clip = null;
+				s._paths = null;
 			}
 		});
 
@@ -582,8 +583,8 @@ export function Line(opts, data, then) {
 
 	function drawSeries() {
 		series.forEach((s, i) => {
-			if (i > 0 && s.show && s.draw && s.path == null)
-				buildPath(i, data[0], data[i], scales[xScaleKey], scales[s.scale]);
+			if (i > 0 && s.show && s.draw && s._paths == null)
+				s._paths = s.paths(self, i, data[0], data[i], scales[xScaleKey], scales[s.scale]);
 		});
 
 		series.forEach((s, i) => {
@@ -598,7 +599,7 @@ export function Line(opts, data, then) {
 		const s = series[is];
 
 		if (dir == 1) {
-			const path = s.path;
+			const { stroke, fill, clip } = s._paths;
 			const width = s[WIDTH];
 			const offset = (width % 2) / 2;
 
@@ -613,20 +614,18 @@ export function Line(opts, data, then) {
 			ctx.rect(plotLft, plotTop, plotWid, plotHgt);
 			ctx.clip();
 
-			const clip = s.clip;
-
 			if (clip != null)
 				ctx.clip(clip);
 
 			if (s.band) {
-				ctx.fill(path);
-				width && ctx.stroke(path);
+				ctx.fill(stroke);
+				width && ctx.stroke(stroke);
 			}
 			else {
-				width && ctx.stroke(path);
+				width && ctx.stroke(stroke);
 
 				if (s.fill != null)
-					ctx.fill(s.path.fill);
+					ctx.fill(fill);
 			}
 
 			ctx.restore();
@@ -644,9 +643,11 @@ export function Line(opts, data, then) {
 		let toSpan = new Set(s.spanGaps(self, gaps));
 		gaps = gaps.filter(g => !toSpan.has(g));
 
+		let clip = null;
+
 		// create clip path (invert gaps and non-gaps)
 		if (gaps.length > 0) {
-			const clip = s.clip = new Path2D();
+			clip = new Path2D();
 
 			let prevGapEnd = plotLft;
 
@@ -660,6 +661,8 @@ export function Line(opts, data, then) {
 
 			clip.rect(prevGapEnd, plotTop, plotLft + plotWid - prevGapEnd, plotTop + plotHgt);
 		}
+
+		return clip;
 	}
 
 	// grabs the nearest indices with y data outside of x-scale limits
@@ -676,9 +679,10 @@ export function Line(opts, data, then) {
 		return [_i0, _i1];
 	}
 
-	function buildPath(is, xdata, ydata, scaleX, scaleY) {
+	function buildPaths(self, is, xdata, ydata, scaleX, scaleY) {
 		const s = series[is];
-		const path = s.path = dir == 1 ? new Path2D() : series[is-1].path;
+		const _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : series[is-1]._paths;
+		const stroke = _paths.stroke;
 		const width = s[WIDTH];
 
 		let [_i0, _i1] = getOuterIdxs(ydata);
@@ -693,7 +697,7 @@ export function Line(opts, data, then) {
 
 		// the moves the shape edge outside the canvas so stroke doesnt bleed in
 		if (s.band && dir == 1 && width && _i0 == i0)
-			path.lineTo(-width, round(getYPos(ydata[_i0], scaleY, plotHgt, plotTop)));
+			stroke.lineTo(-width, round(getYPos(ydata[_i0], scaleY, plotHgt, plotTop)));
 
 		for (let i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
 			let x = round(getXPos(xdata[i], scaleX, plotWid, plotLft));
@@ -709,9 +713,9 @@ export function Line(opts, data, then) {
 				let addGap = false;
 
 				if (minY != inf) {
-					path.lineTo(accX, minY);
-					path.lineTo(accX, maxY);
-					path.lineTo(accX, outY);
+					stroke.lineTo(accX, minY);
+					stroke.lineTo(accX, maxY);
+					stroke.lineTo(accX, outY);
 					outX = accX;
 				}
 				else
@@ -719,7 +723,7 @@ export function Line(opts, data, then) {
 
 				if (ydata[i] != null) {
 					outY = round(getYPos(ydata[i], scaleY, plotHgt, plotTop));
-					path.lineTo(x, outY);
+					stroke.lineTo(x, outY);
 					minY = maxY = outY;
 
 					// prior pixel can have data but still start a gap if ends with null
@@ -745,10 +749,10 @@ export function Line(opts, data, then) {
 		}
 
 		if (dir == 1) {
-			buildClip(s, gaps);
+			_paths.clip = buildClip(s, gaps);
 
 			if (s.fill != null) {
-				let fill = path.fill = new Path2D(path);
+				let fill = _paths.fill = new Path2D(stroke);
 
 				let zeroY = round(getYPos(0, scaleY, plotHgt, plotTop));
 				fill.lineTo(plotLft + plotWid, zeroY);
@@ -772,10 +776,12 @@ export function Line(opts, data, then) {
 				_iy = _i1;
 			}
 
-			path.lineTo(_x, round(getYPos(ydata[_iy], scaleY, plotHgt, plotTop)));
+			stroke.lineTo(_x, round(getYPos(ydata[_iy], scaleY, plotHgt, plotTop)));
 
 			dir *= -1;
 		}
+
+		return _paths;
 	}
 
 	function getIncrSpace(axis, min, max, canDim) {
@@ -954,8 +960,7 @@ export function Line(opts, data, then) {
 			if (i > 0) {
 				s.min = inf;
 				s.max = -inf;
-				s.path = null;
-				s.clip = null;
+				s._paths = null;
 			}
 		});
 	}
