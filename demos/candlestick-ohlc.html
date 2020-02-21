@@ -140,15 +140,15 @@
 						let low          = u.data[3][i];
 						let close        = u.data[4][i];
 
-						let timeAsX      = u.valToPos(i,     "x") * devicePixelRatio;
-						let lowAsY       = u.valToPos(low,   "y") * devicePixelRatio;
-						let highAsY      = u.valToPos(high,  "y") * devicePixelRatio;
-						let openAsY      = u.valToPos(open,  "y") * devicePixelRatio;
-						let closeAsY     = u.valToPos(close, "y") * devicePixelRatio;
+						let timeAsX      = u.valToPos(i,     "x", true);
+						let lowAsY       = u.valToPos(low,   "y", true);
+						let highAsY      = u.valToPos(high,  "y", true);
+						let openAsY      = u.valToPos(open,  "y", true);
+						let closeAsY     = u.valToPos(close, "y", true);
 
 						// shadow rect
 						let shadowHeight = Math.max(highAsY, lowAsY) - Math.min(highAsY, lowAsY);
-						let shadowX      = u.bbox.left + timeAsX - (shadowWidth / 2);
+						let shadowX      = timeAsX - (shadowWidth / 2);
 						let shadowY      = Math.min(highAsY, lowAsY);
 
 						u.ctx.fillStyle = shadowColor;
@@ -163,7 +163,7 @@
 						let columnWidth  = u.bbox.width / (u.scales.x.max - u.scales.x.min);
 						let bodyWidth    = Math.min(bodyMaxWidth, columnWidth - gap);
 						let bodyHeight   = Math.max(closeAsY, openAsY) - Math.min(closeAsY, openAsY);
-						let bodyX        = u.bbox.left + timeAsX - (bodyWidth / 2);
+						let bodyX        = timeAsX - (bodyWidth / 2);
 						let bodyY        = Math.min(closeAsY, openAsY);
 						let bodyColor    = open > close ? bearishColor : bullishColor;
 
