@@ -583,12 +583,28 @@ export function Line(opts, data, then) {
 		cursor.show && updateCursor();
 	}
 
+	// grabs the nearest indices with y data outside of x-scale limits
+	function getOuterIdxs(ydata) {
+		let _i0 = clamp(i0 - 1, 0, dataLen - 1);
+		let _i1 = clamp(i1 + 1, 0, dataLen - 1);
+
+		while (ydata[_i0] == null && _i0 > 0)
+			_i0--;
+
+		while (ydata[_i1] == null && _i1 < dataLen - 1)
+			_i1++;
+
+		return [_i0, _i1];
+	}
+
 	let dir = 1;
 
 	function drawSeries() {
 		series.forEach((s, i) => {
-			if (i > 0 && s.show && s._paths == null)
-				s._paths = s.paths(self, i, data[0], data[i], scales[xScaleKey], scales[s.scale]);
+			if (i > 0 && s.show && s._paths == null) {
+				let _idxs = getOuterIdxs(data[i]);
+				s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
+			}
 		});
 
 		series.forEach((s, i) => {
@@ -669,27 +685,17 @@ export function Line(opts, data, then) {
 		return clip;
 	}
 
-	// grabs the nearest indices with y data outside of x-scale limits
-	function getOuterIdxs(ydata) {
-		let _i0 = clamp(i0 - 1, 0, dataLen - 1);
-		let _i1 = clamp(i1 + 1, 0, dataLen - 1);
-
-		while (ydata[_i0] == null && _i0 > 0)
-			_i0--;
-
-		while (ydata[_i1] == null && _i1 < dataLen - 1)
-			_i1++;
-
-		return [_i0, _i1];
-	}
-
-	function buildPaths(self, is, xdata, ydata, scaleX, scaleY) {
+	function buildPaths(self, is, _i0, _i1) {
 		const s = series[is];
+
+		const xdata  = data[0];
+		const ydata  = data[is];
+		const scaleX = scales[xScaleKey];
+		const scaleY = scales[s.scale];
+
 		const _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : series[is-1]._paths;
 		const stroke = _paths.stroke;
 		const width = s[WIDTH];
-
-		let [_i0, _i1] = getOuterIdxs(ydata);
 
 		let minY = inf,
 			maxY = -inf,

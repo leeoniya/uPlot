@@ -1275,12 +1275,28 @@ var uPlot = (function (exports) {
 			cursor.show && updateCursor();
 		}
 
+		// grabs the nearest indices with y data outside of x-scale limits
+		function getOuterIdxs(ydata) {
+			var _i0 = clamp(i0 - 1, 0, dataLen - 1);
+			var _i1 = clamp(i1 + 1, 0, dataLen - 1);
+
+			while (ydata[_i0] == null && _i0 > 0)
+				{ _i0--; }
+
+			while (ydata[_i1] == null && _i1 < dataLen - 1)
+				{ _i1++; }
+
+			return [_i0, _i1];
+		}
+
 		var dir = 1;
 
 		function drawSeries() {
 			series.forEach(function (s, i) {
-				if (i > 0 && s.show && s._paths == null)
-					{ s._paths = s.paths(self, i, data[0], data[i], scales[xScaleKey], scales[s.scale]); }
+				if (i > 0 && s.show && s._paths == null) {
+					var _idxs = getOuterIdxs(data[i]);
+					s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
+				}
 			});
 
 			series.forEach(function (s, i) {
@@ -1364,29 +1380,17 @@ var uPlot = (function (exports) {
 			return clip;
 		}
 
-		// grabs the nearest indices with y data outside of x-scale limits
-		function getOuterIdxs(ydata) {
-			var _i0 = clamp(i0 - 1, 0, dataLen - 1);
-			var _i1 = clamp(i1 + 1, 0, dataLen - 1);
-
-			while (ydata[_i0] == null && _i0 > 0)
-				{ _i0--; }
-
-			while (ydata[_i1] == null && _i1 < dataLen - 1)
-				{ _i1++; }
-
-			return [_i0, _i1];
-		}
-
-		function buildPaths(self, is, xdata, ydata, scaleX, scaleY) {
+		function buildPaths(self, is, _i0, _i1) {
 			var s = series[is];
+
+			var xdata  = data[0];
+			var ydata  = data[is];
+			var scaleX = scales[xScaleKey];
+			var scaleY = scales[s.scale];
+
 			var _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : series[is-1]._paths;
 			var stroke = _paths.stroke;
 			var width = s[WIDTH];
-
-			var ref = getOuterIdxs(ydata);
-			var _i0 = ref[0];
-			var _i1 = ref[1];
 
 			var minY = inf,
 				maxY = -inf,
