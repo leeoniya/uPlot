@@ -13,10 +13,34 @@
 			function wheelZoomPlugin(opts) {
 				let factor = opts.factor || 0.75;
 
+				function getDataBounds(data) {
+
+					const bounds = {
+						minX : null,
+						minY : null,
+						maxX : null,
+						maxY : null,
+					};
+
+					data.forEach((series, i) => {
+
+						let minVar = i == 0 ? "minX" : "minY";
+						let maxVar = i == 0 ? "maxX" : "maxY";
+
+						series.forEach((val) => {
+							bounds[minVar] = (bounds[minVar] === null) ? val : Math.min(bounds[minVar], val);
+							bounds[maxVar] = (bounds[maxVar] === null) ? val : Math.max(bounds[maxVar], val);
+						});
+					});
+
+					return bounds;
+				}
+
 				return {
 					hooks: {
 						init: (u, opts, data) => {
 							let plot = u.root.querySelector(".over");
+							let bounds = getDataBounds(data);
 
 							plot.addEventListener("wheel", e => {
 								let {left, top} = u.cursor;
@@ -38,13 +62,13 @@
 
 								u.batch(() => {
 									u.setScale("x", {
-										min: nxMin,
-										max: nxMax,
+										min: Math.max(nxMin, bounds.minX),
+										max: Math.min(nxMax, bounds.maxX)
 									});
 
 									u.setScale("y", {
-										min: nyMin,
-										max: nyMax,
+										min: Math.max(nyMin, bounds.minY),
+										max: Math.min(nyMax, bounds.maxY)
 									});
 								});
 							});
