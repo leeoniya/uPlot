@@ -1003,7 +1003,7 @@ export function Line(opts, data, then) {
 
 		if (sc.from == null) {
 			// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
-			if (key == xScaleKey && sc.time) {
+			if (key == xScaleKey && sc.time && axes[0].show) {
 				// since scales and axes are loosly coupled, we have to make some assumptions here :(
 				let incr = getIncrSpace(axes[0], opts.min, opts.max, plotWidCss)[0];
 
