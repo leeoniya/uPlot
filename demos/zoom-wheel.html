@@ -12,43 +12,39 @@
 		<script>
 			function wheelZoomPlugin(opts) {
 				let factor = opts.factor || 0.75;
-
-				function getDataBounds(data) {
-
-					const bounds = {
-						minX : null,
-						minY : null,
-						maxX : null,
-						maxY : null,
-					};
-
-					data.forEach((series, i) => {
-
-						let minVar = i == 0 ? "minX" : "minY";
-						let maxVar = i == 0 ? "maxX" : "maxY";
-
-						series.forEach((val) => {
-							bounds[minVar] = (bounds[minVar] === null) ? val : Math.min(bounds[minVar], val);
-							bounds[maxVar] = (bounds[maxVar] === null) ? val : Math.max(bounds[maxVar], val);
-						});
-					});
-
-					return bounds;
-				}
+				let bounds = null;
 
 				return {
 					hooks: {
+						setScale: (u) => {
+							// Use the same values uplot internally calculates for resetting scale
+							if (!bounds) {
+								bounds = {
+									minX: u.scales.x.min,
+									maxX: u.scales.x.max,
+									minY: u.scales.y.min,
+									maxY: u.scales.y.max
+								}
+							};
+						},
 						init: (u, opts, data) => {
+
 							let plot = u.root.querySelector(".over");
-							let bounds = getDataBounds(data);
 
 							plot.addEventListener("wheel", e => {
+
+								e.preventDefault(); // Prevent page scroll
+
 								let {left, top} = u.cursor;
 								let rect = plot.getBoundingClientRect();
 								let leftPct = left/rect.width;
 								let btmPct = 1 - top/rect.height;
 								let xVal = u.posToVal(left, "x");
 								let yVal = u.posToVal(top, "y");
+
+								let bxRange = bounds.maxX - bounds.minX;
+								let byRange = bounds.maxY - bounds.minY;
+
 								let oxRange = u.scales.x.max - u.scales.x.min;
 								let oyRange = u.scales.y.max - u.scales.y.min;
 
@@ -59,16 +55,51 @@
 								let nyRange = e.deltaY < 0 ? oyRange * factor : oyRange / factor;
 								let nyMin = yVal - btmPct * nyRange;
 								let nyMax = nyMin + nyRange;
+								let offset = null;
+
+								if (nxRange > bxRange)
+								{
+									nxMin = bounds.minX;
+									nxMax = bounds.maxX;
+								}
+								else if (nxMin < bounds.minX)
+								{
+									offset = bounds.minX - nxMin;
+									nxMin += offset
+									nxMax += offset;
+								}
+								else if (nxMax > bounds.maxX) {
+									offset = nxMax - bounds.maxX;
+									nxMax -= offset;
+									nxMin -= offset;
+								}
+
+								if (nyRange > byRange)
+								{
+									nyMin = bounds.minY;
+									nyMax = bounds.maxY;
+								}
+								else if (nyMin < bounds.minY)
+								{
+									offset = bounds.minY - nyMin;
+									nyMin += offset
+									nyMax += offset;
+								}
+								else if (nyMax > bounds.maxY) {
+									offset = nyMax - bounds.maxY;
+									nyMax -= offset;
+									nyMin -= offset;
+								}
 
 								u.batch(() => {
 									u.setScale("x", {
-										min: Math.max(nxMin, bounds.minX),
-										max: Math.min(nxMax, bounds.maxX)
+										min: nxMin,
+										max: nxMax,
 									});
 
 									u.setScale("y", {
-										min: Math.max(nyMin, bounds.minY),
-										max: Math.min(nyMax, bounds.maxY)
+										min: nyMin,
+										max: nyMax,
 									});
 								});
 							});
