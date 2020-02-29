@@ -701,13 +701,19 @@ export function Line(opts, data, then) {
 			maxY = -inf,
 			outY, outX;
 
+		// todo: don't build gaps on dir = -1 pass
 		let gaps = [];
 
 		let accX = round(getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, plotWid, plotLft));
 
 		// the moves the shape edge outside the canvas so stroke doesnt bleed in
-		if (s.band && dir == 1 && width && _i0 == i0)
-			stroke.lineTo(-width, round(getYPos(ydata[_i0], scaleY, plotHgt, plotTop)));
+		if (s.band && dir == 1 && _i0 == i0) {
+			if (width)
+				stroke.lineTo(-width, round(getYPos(ydata[_i0], scaleY, plotHgt, plotTop)));
+
+			if (scaleX.min < xdata[0])
+				gaps.push([plotLft, accX - 1]);
+		}
 
 		for (let i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
 			let x = round(getXPos(xdata[i], scaleX, plotWid, plotLft));
@@ -758,20 +764,6 @@ export function Line(opts, data, then) {
 			}
 		}
 
-		if (dir == 1) {
-			_paths.clip = buildClip(s, gaps);
-
-			if (s.fill != null) {
-				let fill = _paths.fill = new Path2D(stroke);
-
-				let zeroY = round(getYPos(0, scaleY, plotHgt, plotTop));
-				fill.lineTo(plotLft + plotWid, zeroY);
-				fill.lineTo(plotLft, zeroY);
-			}
-		}
-
-		// todo: don't build gaps on dir = -1 pass
-
 		if (s.band) {
 			let overShoot = width * 100, _iy, _x;
 
@@ -784,12 +776,28 @@ export function Line(opts, data, then) {
 			if (dir == 1 && _i1 == i1) {
 				_x = plotLft + plotWid + overShoot;
 				_iy = _i1;
+
+				if (scaleX.max > xdata[dataLen - 1])
+					gaps.push([accX, plotLft + plotWid]);
 			}
 
 			stroke.lineTo(_x, round(getYPos(ydata[_iy], scaleY, plotHgt, plotTop)));
-
-			dir *= -1;
 		}
+
+		if (dir == 1) {
+			_paths.clip = buildClip(s, gaps);
+
+			if (s.fill != null) {
+				let fill = _paths.fill = new Path2D(stroke);
+
+				let zeroY = round(getYPos(0, scaleY, plotHgt, plotTop));
+				fill.lineTo(plotLft + plotWid, zeroY);
+				fill.lineTo(plotLft, zeroY);
+			}
+		}
+
+		if (s.band)
+			dir *= -1;
 
 		return _paths;
 	}
