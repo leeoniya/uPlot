@@ -127,11 +127,11 @@ let uplot = new uPlot.Line(opts, data, document.body);
 ```
 
 - `id` and `class` are optional HTML attributes to set on the chart's container `<div>` (`uplot.root`).
-- `width` and `height` are required dimensions in *logical* [CSS] pixels of the plotting area & axes, but **excluding** `title` or `legend` dimensions (which can be variable based on user CSS).
+- `width` and `height` are required dimensions in plotting area, axes & ticks, but **excluding** `title` or `legend` dimensions (which can be variable based on user CSS).
 - `spanGaps` can be set to `true` to connect `null` data points.
 - For a series to be rendered, it **must** be specified in the opts; simply having it in the data is insufficient.
 - All series' options are optional; `label` will default to "Value" and `stroke` will default to "black".
-- Series' line `width` is specified in *physical* [device] pixels (e.g. on high-DPI displays with a pixel ratio = 2, `width: 1` will draw a line with an effective width of 0.5 logical [CSS] pixels).
+- `width` is the series' line width in CSS pixels.
 - `stroke`, `width`, `fill`, and `dash` map directly to Canvas API's [ctx.strokeStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeStyle), [ctx.lineWidth](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineWidth), [ctx.fillStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fillStyle), and [ctx.setLineDash](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash).
 
 ---

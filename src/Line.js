@@ -7,6 +7,7 @@ import {
 	floor,
 	round,
 	round2,
+	round3,
 	ceil,
 	min,
 	max,
@@ -303,7 +304,7 @@ export function Line(opts, data, then) {
 
 	function setCtxStyle(stroke, width, dash, fill) {
 		ctx.strokeStyle = stroke || hexBlack;
-		ctx.lineWidth = width || 1;
+		ctx.lineWidth = width;
 		ctx.lineJoin = "round";
 		ctx.setLineDash(dash || []);
 		ctx.fillStyle = fill || hexBlack;
@@ -620,7 +621,7 @@ export function Line(opts, data, then) {
 
 		if (dir == 1) {
 			const { stroke, fill, clip } = s._paths;
-			const width = s[WIDTH];
+			const width = round3(s[WIDTH] * pxRatio);
 			const offset = (width % 2) / 2;
 
 			setCtxStyle(s.stroke, width, s.dash, s.fill);
@@ -695,7 +696,7 @@ export function Line(opts, data, then) {
 
 		const _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : series[is-1]._paths;
 		const stroke = _paths.stroke;
-		const width = s[WIDTH];
+		const width = round3(s[WIDTH] * pxRatio);
 
 		let minY = inf,
 			maxY = -inf,
@@ -946,7 +947,7 @@ export function Line(opts, data, then) {
 					side,
 					basePos,
 					tickSize,
-					tick[WIDTH],
+					round3(tick[WIDTH] * pxRatio),
 					tick.stroke,
 				);
 			}
@@ -961,7 +962,7 @@ export function Line(opts, data, then) {
 					ori == 0 ? 2 : 1,
 					ori == 0 ? plotTop : plotLft,
 					ori == 0 ? plotHgt : plotWid,
-					grid[WIDTH],
+					round3(grid[WIDTH] * pxRatio),
 					grid.stroke,
 					grid.dash,
 				);
@@ -1289,7 +1290,9 @@ export function Line(opts, data, then) {
 
 			pt.style.background = s.stroke;
 
-			let size = max(5, s.width * 2 - 1);
+			let width = round3(s[WIDTH] * pxRatio);
+
+			let size = max(5, width * 2 - 1);
 			let mar = (size - 1) / -2;
 
 			setStylePx(pt, WIDTH, size);

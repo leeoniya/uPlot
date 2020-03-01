@@ -992,7 +992,7 @@ var uPlot = (function (exports) {
 
 		function setCtxStyle(stroke, width, dash, fill) {
 			ctx.strokeStyle = stroke || hexBlack;
-			ctx.lineWidth = width || 1;
+			ctx.lineWidth = width;
 			ctx.lineJoin = "round";
 			ctx.setLineDash(dash || []);
 			ctx.fillStyle = fill || hexBlack;
@@ -1315,7 +1315,7 @@ var uPlot = (function (exports) {
 				var stroke = ref.stroke;
 				var fill = ref.fill;
 				var clip = ref.clip;
-				var width = s[WIDTH];
+				var width = round3(s[WIDTH] * pxRatio);
 				var offset = (width % 2) / 2;
 
 				setCtxStyle(s.stroke, width, s.dash, s.fill);
@@ -1390,7 +1390,7 @@ var uPlot = (function (exports) {
 
 			var _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : series[is-1]._paths;
 			var stroke = _paths.stroke;
-			var width = s[WIDTH];
+			var width = round3(s[WIDTH] * pxRatio);
 
 			var minY = inf,
 				maxY = -inf,
@@ -1645,7 +1645,7 @@ var uPlot = (function (exports) {
 						side,
 						basePos,
 						tickSize,
-						tick[WIDTH],
+						round3(tick[WIDTH] * pxRatio),
 						tick.stroke
 					);
 				}
@@ -1660,7 +1660,7 @@ var uPlot = (function (exports) {
 						ori == 0 ? 2 : 1,
 						ori == 0 ? plotTop : plotLft,
 						ori == 0 ? plotHgt : plotWid,
-						grid[WIDTH],
+						round3(grid[WIDTH] * pxRatio),
 						grid.stroke,
 						grid.dash
 					);
@@ -1988,7 +1988,9 @@ var uPlot = (function (exports) {
 
 				pt.style.background = s.stroke;
 
-				var size = max(5, s.width * 2 - 1);
+				var width = round3(s[WIDTH] * pxRatio);
+
+				var size = max(5, width * 2 - 1);
 				var mar = (size - 1) / -2;
 
 				setStylePx(pt, WIDTH, size);
