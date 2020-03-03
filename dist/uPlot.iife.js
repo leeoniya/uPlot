@@ -118,7 +118,7 @@ var uPlot = (function (exports) {
 	function fmtDate(tpl) {
 		var parts = [];
 
-		var R = /\{([a-z]+)\}|[^{]+/yi, m;
+		var R = /\{([a-z]+)\}|[^{]+/gi, m;
 
 		while (m = R.exec(tpl))
 			{ parts.push(m[0][0] == '{' ? subs[m[1]] : m[0]); }

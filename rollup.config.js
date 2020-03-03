@@ -30,7 +30,7 @@ export default [
 			banner,
 		},
 		plugins: [
-			buble({transforms: { stickyRegExp: false }})
+			buble()
 		]
 	},
 	{
@@ -43,7 +43,7 @@ export default [
 			banner,
 		},
 		plugins: [
-			buble({transforms: { stickyRegExp: false }})
+			buble()
 		]
 	},
 	{
@@ -56,7 +56,7 @@ export default [
 			banner: "/*! " + urlVer + " */",
 		},
 		plugins: [
-			buble({transforms: { stickyRegExp: false }}),
+			buble(),
 			terser({
 				compress: {
 					inline: 0,

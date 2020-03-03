@@ -108,7 +108,7 @@ const subs = {
 export function fmtDate(tpl) {
 	let parts = [];
 
-	let R = /\{([a-z]+)\}|[^{]+/yi, m;
+	let R = /\{([a-z]+)\}|[^{]+/gi, m;
 
 	while (m = R.exec(tpl))
 		parts.push(m[0][0] == '{' ? subs[m[1]] : m[0]);
