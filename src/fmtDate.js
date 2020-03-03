@@ -107,11 +107,35 @@ const subs = {
 
 export function fmtDate(tpl) {
 	let parts = [];
+	let index = 0;
 
-	let R = /\{([a-z]+)\}|[^{]+/yi, m;
+	while(index < tpl.length) {
+		let literal = '';
+		while(tpl[index] !== '{' && index < tpl.length) {
+			literal += tpl[index];
+			index += 1;
+		}
+		parts.push(literal);
 
-	while (m = R.exec(tpl))
-		parts.push(m[0][0] == '{' ? subs[m[1]] : m[0]);
+		if(index < tpl.length && tpl[index] === '{') {
+			let template = '';
+			index += 1;
+			while(index < tpl.length) {
+				const char = tpl[index].toLowerCase();
+				if(char < 'a' || 'z' < char) break;
+				template += tpl[index];
+				index += 1;
+			}
+			if(tpl[index] !== '}') {
+				break;
+			}
+			if(template.length === 0) {
+				break;
+			}
+			parts.push(subs[template]);
+			index += 1;
+		}
+	}
 
 	return d => {
 		let out = '';
