@@ -349,12 +349,21 @@ export const yAxisOpts = {
 	font,
 };
 
+const point = {
+	show: true,
+//	path: null,
+//	stroke: "rgba(0,0,0,0.07)",
+//	fill: "#fff",
+//	width: 0,
+};
+
 export const ySeriesOpts = {
 //	type: "n",
 	scale: "y",
 	show: true,
 	band: false,
 	alpha: 1,
+	point,
 //	label: "Value",
 //	value: v => v,
 	values: null,

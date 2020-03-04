@@ -17,6 +17,7 @@ import {
 	debounce,
 	closestIdx,
 	getMinMax,
+	range,
 	rangeNum,
 	incrRoundUp,
 	incrRoundDn,
@@ -212,6 +213,7 @@ export function Line(opts, data, then) {
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 		s.width = s.width == null ? 1 : s.width;
 		s.paths = s.paths || buildPaths;
+		s.points = s.points || seriesPoints;
 		s._paths = null;
 	});
 
@@ -584,6 +586,63 @@ export function Line(opts, data, then) {
 		cursor.show && updateCursor();
 	}
 
+	function seriesPoints(self, si) {
+		let s = series[si];
+		const dia = ptDia(s);
+		let maxPts = plotWid / dia / 2;
+
+		return i1 - i0 <= maxPts ? range(i0, i1) : null;
+	}
+
+	function ptDia(s, mult) {
+		mult = mult || pxRatio;
+		return max(5, round3(s[WIDTH] * mult) * 2 - 1);
+	}
+
+	// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
+
+	function drawPoints(si, ptIdxs) {
+	//	log("drawPoints()", arguments);
+
+		let s = series[si];
+
+		const dia = ptDia(s);
+
+		const width = round3(s[WIDTH] * pxRatio);
+		const offset = (width % 2) / 2;
+
+		ctx.translate(offset, offset);
+
+		ctx.save();
+
+		ctx.beginPath();
+		ctx.rect(plotLft - dia, plotTop - dia, plotWid + dia*2, plotHgt + dia*2);
+		ctx.clip();
+
+		ctx.globalAlpha = s.alpha;
+
+		const pi2 = PI * 2;
+
+		ctx.beginPath();
+
+		ptIdxs.forEach(pi => {
+			let x = round(getXPos(data[0][pi],  scales[xScaleKey], plotWid, plotLft));
+			let y = round(getYPos(data[si][pi], scales[s.scale],   plotHgt, plotTop));
+
+			ctx.moveTo(x + dia/2, y);
+			ctx.arc(x, y, dia/2, 0, pi2);
+		});
+
+		ctx.fillStyle = s.stroke || hexBlack;
+		ctx.fill();
+
+		ctx.globalAlpha = 1;
+
+		ctx.restore();
+
+		ctx.translate(-offset, -offset);
+	}
+
 	// grabs the nearest indices with y data outside of x-scale limits
 	function getOuterIdxs(ydata) {
 		let _i0 = clamp(i0 - 1, 0, dataLen - 1);
@@ -601,6 +660,7 @@ export function Line(opts, data, then) {
 	let dir = 1;
 
 	function drawSeries() {
+		// path building loop must be before draw loop to ensure that all bands are fully constructed
 		series.forEach((s, i) => {
 			if (i > 0 && s.show && s._paths == null) {
 				let _idxs = getOuterIdxs(data[i]);
@@ -609,15 +669,24 @@ export function Line(opts, data, then) {
 		});
 
 		series.forEach((s, i) => {
-			if (i > 0 && s.show && s._paths) {
-				drawPath(i);
+			if (i > 0 && s.show) {
+				if (s._paths)
+					drawPath(i);
+
+				if (s.point.show) {
+					let ptIdxs = s.points(self, i);
+
+					if (ptIdxs)
+						drawPoints(i, ptIdxs);
+				}
+
 				fire("drawSeries", i);
 			}
 		});
 	}
 
-	function drawPath(is) {
-		const s = series[is];
+	function drawPath(si) {
+		const s = series[si];
 
 		if (dir == 1) {
 			const { stroke, fill, clip } = s._paths;
@@ -632,7 +701,23 @@ export function Line(opts, data, then) {
 
 			ctx.save();
 
-			ctx.rect(plotLft, plotTop, plotWid, plotHgt);
+			let lft = plotLft,
+				top = plotTop,
+				wid = plotWid,
+				hgt = plotHgt;
+
+			let halfWid = width * pxRatio / 2;
+
+			if (s.min == 0)
+				hgt += halfWid;
+
+			if (s.max == 0) {
+				top -= halfWid;
+				hgt += halfWid;
+			}
+
+			ctx.beginPath();
+			ctx.rect(lft, top, wid, hgt);
 			ctx.clip();
 
 			if (clip != null)
@@ -1288,15 +1373,13 @@ export function Line(opts, data, then) {
 
 			addClass(pt, s.class);
 
-			pt.style.background = s.stroke;
+			pt.style.background = s.stroke || hexBlack;
 
-			let width = round3(s[WIDTH] * pxRatio);
+			let dia = ptDia(s, 1);
+			let mar = (dia - 1) / -2;
 
-			let size = max(5, width * 2 - 1);
-			let mar = (size - 1) / -2;
-
-			setStylePx(pt, WIDTH, size);
-			setStylePx(pt, HEIGHT, size);
+			setStylePx(pt, WIDTH, dia);
+			setStylePx(pt, HEIGHT, dia);
 			setStylePx(pt, "marginLeft", mar);
 			setStylePx(pt, "marginTop", mar);
 
@@ -1406,7 +1489,7 @@ export function Line(opts, data, then) {
 
 			let scX = scales[xScaleKey];
 
-			let xPos = round2(getXPos(data[0][idx], scX, plotWidCss, 0));
+			let xPos = round3(getXPos(data[0][idx], scX, plotWidCss, 0));
 
 			for (let i = 0; i < series.length; i++) {
 				let s = series[i];
@@ -1414,7 +1497,7 @@ export function Line(opts, data, then) {
 				if (i > 0 && s.show) {
 					let valAtIdx = data[i][idx];
 
-					let yPos = valAtIdx == null ? -10 : round2(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0));
+					let yPos = valAtIdx == null ? -10 : round3(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0));
 
 					distsToCursor[i] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
 

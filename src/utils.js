@@ -50,6 +50,11 @@ export function getMinMax(data, _i0, _i1) {
 	return [_min, _max];
 }
 
+// max-inclusive
+export function range(min, max) {
+	return Array(max-min + 1).fill(min).map((v, i) => v + i);
+}
+
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 export function rangeNum(min, max, mult, extra) {

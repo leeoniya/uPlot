@@ -191,6 +191,11 @@ function getMinMax(data, _i0, _i1) {
 	return [_min, _max];
 }
 
+// max-inclusive
+function range(min, max) {
+	return Array(max-min + 1).fill(min).map(function (v, i) { return v + i; });
+}
+
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 function rangeNum(min, max, mult, extra) {
@@ -268,10 +273,6 @@ function incrRoundUp(num, incr) {
 
 function incrRoundDn(num, incr) {
 	return floor(num/incr)*incr;
-}
-
-function round2(val) {
-	return round(val * 1e2) / 1e2;
 }
 
 function round3(val) {
@@ -725,12 +726,21 @@ var yAxisOpts = {
 	font: font,
 };
 
+var point = {
+	show: true,
+//	path: null,
+//	stroke: "rgba(0,0,0,0.07)",
+//	fill: "#fff",
+//	width: 0,
+};
+
 var ySeriesOpts = {
 //	type: "n",
 	scale: "y",
 	show: true,
 	band: false,
 	alpha: 1,
+	point: point,
 //	label: "Value",
 //	value: v => v,
 	values: null,
@@ -899,6 +909,7 @@ function Line(opts, data, then) {
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 		s.width = s.width == null ? 1 : s.width;
 		s.paths = s.paths || buildPaths;
+		s.points = s.points || seriesPoints;
 		s._paths = null;
 	});
 
@@ -1274,6 +1285,63 @@ function Line(opts, data, then) {
 		cursor.show && updateCursor();
 	}
 
+	function seriesPoints(self, si) {
+		var s = series[si];
+		var dia = ptDia(s);
+		var maxPts = plotWid / dia / 2;
+
+		return i1 - i0 <= maxPts ? range(i0, i1) : null;
+	}
+
+	function ptDia(s, mult) {
+		mult = mult || pxRatio;
+		return max(5, round3(s[WIDTH] * mult) * 2 - 1);
+	}
+
+	// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
+
+	function drawPoints(si, ptIdxs) {
+	//	log("drawPoints()", arguments);
+
+		var s = series[si];
+
+		var dia = ptDia(s);
+
+		var width = round3(s[WIDTH] * pxRatio);
+		var offset = (width % 2) / 2;
+
+		ctx.translate(offset, offset);
+
+		ctx.save();
+
+		ctx.beginPath();
+		ctx.rect(plotLft - dia, plotTop - dia, plotWid + dia*2, plotHgt + dia*2);
+		ctx.clip();
+
+		ctx.globalAlpha = s.alpha;
+
+		var pi2 = PI * 2;
+
+		ctx.beginPath();
+
+		ptIdxs.forEach(function (pi) {
+			var x = round(getXPos(data[0][pi],  scales[xScaleKey], plotWid, plotLft));
+			var y = round(getYPos(data[si][pi], scales[s.scale],   plotHgt, plotTop));
+
+			ctx.moveTo(x + dia/2, y);
+			ctx.arc(x, y, dia/2, 0, pi2);
+		});
+
+		ctx.fillStyle = s.stroke || hexBlack;
+		ctx.fill();
+
+		ctx.globalAlpha = 1;
+
+		ctx.restore();
+
+		ctx.translate(-offset, -offset);
+	}
+
 	// grabs the nearest indices with y data outside of x-scale limits
 	function getOuterIdxs(ydata) {
 		var _i0 = clamp(i0 - 1, 0, dataLen - 1);
@@ -1291,6 +1359,7 @@ function Line(opts, data, then) {
 	var dir = 1;
 
 	function drawSeries() {
+		// path building loop must be before draw loop to ensure that all bands are fully constructed
 		series.forEach(function (s, i) {
 			if (i > 0 && s.show && s._paths == null) {
 				var _idxs = getOuterIdxs(data[i]);
@@ -1299,15 +1368,24 @@ function Line(opts, data, then) {
 		});
 
 		series.forEach(function (s, i) {
-			if (i > 0 && s.show && s._paths) {
-				drawPath(i);
+			if (i > 0 && s.show) {
+				if (s._paths)
+					{ drawPath(i); }
+
+				if (s.point.show) {
+					var ptIdxs = s.points(self, i);
+
+					if (ptIdxs)
+						{ drawPoints(i, ptIdxs); }
+				}
+
 				fire("drawSeries", i);
 			}
 		});
 	}
 
-	function drawPath(is) {
-		var s = series[is];
+	function drawPath(si) {
+		var s = series[si];
 
 		if (dir == 1) {
 			var ref = s._paths;
@@ -1325,7 +1403,23 @@ function Line(opts, data, then) {
 
 			ctx.save();
 
-			ctx.rect(plotLft, plotTop, plotWid, plotHgt);
+			var lft = plotLft,
+				top = plotTop,
+				wid = plotWid,
+				hgt = plotHgt;
+
+			var halfWid = width * pxRatio / 2;
+
+			if (s.min == 0)
+				{ hgt += halfWid; }
+
+			if (s.max == 0) {
+				top -= halfWid;
+				hgt += halfWid;
+			}
+
+			ctx.beginPath();
+			ctx.rect(lft, top, wid, hgt);
 			ctx.clip();
 
 			if (clip != null)
@@ -1985,15 +2079,13 @@ function Line(opts, data, then) {
 
 			addClass(pt, s.class);
 
-			pt.style.background = s.stroke;
+			pt.style.background = s.stroke || hexBlack;
 
-			var width = round3(s[WIDTH] * pxRatio);
+			var dia = ptDia(s, 1);
+			var mar = (dia - 1) / -2;
 
-			var size = max(5, width * 2 - 1);
-			var mar = (size - 1) / -2;
-
-			setStylePx(pt, WIDTH, size);
-			setStylePx(pt, HEIGHT, size);
+			setStylePx(pt, WIDTH, dia);
+			setStylePx(pt, HEIGHT, dia);
 			setStylePx(pt, "marginLeft", mar);
 			setStylePx(pt, "marginTop", mar);
 
@@ -2103,7 +2195,7 @@ function Line(opts, data, then) {
 
 			var scX = scales[xScaleKey];
 
-			var xPos = round2(getXPos(data[0][idx], scX, plotWidCss, 0));
+			var xPos = round3(getXPos(data[0][idx], scX, plotWidCss, 0));
 
 			for (var i$1 = 0; i$1 < series.length; i$1++) {
 				var s = series[i$1];
@@ -2111,7 +2203,7 @@ function Line(opts, data, then) {
 				if (i$1 > 0 && s.show) {
 					var valAtIdx = data[i$1][idx];
 
-					var yPos = valAtIdx == null ? -10 : round2(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0));
+					var yPos = valAtIdx == null ? -10 : round3(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0));
 
 					distsToCursor[i$1] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
 

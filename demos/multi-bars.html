@@ -1,0 +1,152 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Multi-Bars</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			.uplot .under {
+				background: rgb(234, 234, 242);
+			}
+
+			.uplot .title {
+				white-space: pre-line;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			const labels = ["Censys", "Gharchive", "NYTimes", "Reddit", "Rosie", "TPCH", "Wikidata", "Yelp", "geomean"];
+
+			const data = [
+				labels.map((v,i) => i + 1),
+				[3.09, 2.70, 2.92, 3.34, 3.13, 3.40, 2.36, 3.04, 2.98],
+				[1.93, 1.60, 2.02, 1.79, 2.44, 2.13, 1.90, 1.89, 1.95],
+				[1.06, 0.93, 1.22, 0.96, 1.38, 1.22, 1.16, 1.26, 1.14],
+			];
+
+			const barWid = Math.round(24 * devicePixelRatio);
+
+			function drawThings(u, sidx, i0, i1, draw) {
+				const s       = u.series[sidx];
+				const xdata   = u.data[0];
+				const ydata   = u.data[sidx];
+				const scaleX  = 'x';
+				const scaleY  = s.scale;
+
+				const totalWidth = (u.series.length - 1) * barWid;		//.show
+				const offs	 = (sidx-1) * barWid;
+
+				for (let i = i0; i <= i1; i++) {
+					let x0 = Math.round(u.valToPos(xdata[i], scaleX, true));
+					let y0 = Math.round(u.valToPos(ydata[i], scaleY, true));
+
+					draw(i, x0, y0, offs, totalWidth);
+				}
+			}
+
+			function drawBars(u, sidx, i0, i1) {
+				const scaleY  = u.series[sidx].scale;
+				const zeroY = Math.round(u.valToPos(0, scaleY, true));
+				const fill = new Path2D();
+
+				drawThings(u, sidx, i0, i1, (i, x0, y0, offs, totalWidth) => {
+					fill.rect(
+						x0 - totalWidth/2 + offs,
+						y0,
+						barWid,
+						zeroY-y0
+					);
+				});
+
+				return {
+					fill,
+			//		clip,
+				};
+			}
+
+			function drawPoints(u, sidx) {
+				u.ctx.font = Math.round(11 * devicePixelRatio) + "px Arial";
+				u.ctx.textAlign = "center";
+				u.ctx.textBaseline = "bottom";
+				u.ctx.fillStyle = "black";
+
+				drawThings(u, sidx, u.idxs[0], u.idxs[1], (i, x0, y0, offs, totalWidth) => {
+					u.ctx.fillText(
+						u.data[sidx][i],
+						x0 + offs - barWid,
+						y0
+					);
+				});
+			}
+
+			const opts = {
+				width: 1000,
+				height: 600,
+				title: "JSON decoding time\ncomparison of techniques (normalized to PyPyFull)",
+				cursor: {
+					show: false,
+					points: false,
+				},
+				axes: [
+					{
+						label: "Benchmark",
+						ticks: () => data[0],
+						values: () => labels,
+						grid: {
+							show: false,
+						}
+					},
+					{
+						label: "time [normalized to PyPyFull], lower is better",
+						grid: {
+							show: true,
+							stroke: "white"
+						}
+					},
+				],
+				scales: {
+					x: {
+						time: false,
+						range: [
+							data[0][0]                  - 0.5,
+							data[0][data[0].length - 1] + 0.5,
+						],
+					},
+				//	y: {
+				//		range: (self, dataMin, dataMax) => [0, dataMax]
+				//	}
+				},
+				series: [
+					{},
+					{
+						label: "PyPyBaseline",
+						width: 0,
+						fill: "rgb(78, 119, 162)",
+						paths: drawBars,
+						points: drawPoints,
+					},
+					{
+						label:	"PyPyKeyStringCaching",
+						width: 0,
+						fill: "rgb(213, 135, 101)",
+						paths: drawBars,
+						points: drawPoints,
+					},
+					{
+						label:	"PyPyMapNoCache",
+						width: 0,
+						fill: "rgb(82, 158, 112)",
+						paths: drawBars,
+						points: drawPoints,
+					},
+				],
+			};
+
+			let u = new uPlot.Line(opts, data, document.body);
+		</script>
+	</body>
+</html>

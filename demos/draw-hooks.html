@@ -91,6 +91,7 @@
 					let cy = Math.round(u.valToPos(medians[i], scale, true));
 
 					ctx.save();
+					ctx.beginPath();
 					ctx.rect(left, top, width, height);
 					ctx.clip();
 					ctx.strokeStyle = hexToRgbA(stroke, 0.2);
