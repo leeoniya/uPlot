@@ -1069,7 +1069,7 @@ var uPlot = (function (exports) {
 			can[WIDTH]  = round(fullWidCss * pxRatio);
 			can[HEIGHT] = round(fullHgtCss * pxRatio);
 
-			ready && autoScaleX();
+			ready && _setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);
 
 			ready && fire("setSize");
 		}
