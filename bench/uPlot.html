@@ -87,18 +87,21 @@
 							scale: "%",
 							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
 							stroke: "red",
+							width: 1/devicePixelRatio,
 						},
 						{
 							label: "RAM",
 							scale: "%",
 							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
 							stroke: "blue",
+							width: 1/devicePixelRatio,
 						},
 						{
 							label: "TCP Out",
 							scale: "mb",
 							value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
 							stroke: "green",
+							width: 1/devicePixelRatio,
 						}
 					],
 					axes: [
