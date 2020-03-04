@@ -684,8 +684,11 @@ var xSeriesOpts = {
 	max: -inf,
 };
 
+// alternative: https://stackoverflow.com/a/2254896
+var fmtNum = new Intl.NumberFormat(navigator.language);
+
 function numAxisVals(self, ticks, space) {
-	return ticks;
+	return ticks.map(fmtNum.format);
 }
 
 function numAxisTicks(self, scaleMin, scaleMax, incr, pctSpace, forceMin) {

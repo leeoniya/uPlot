@@ -313,8 +313,11 @@ export const xSeriesOpts = {
 	max: -inf,
 };
 
+// alternative: https://stackoverflow.com/a/2254896
+let fmtNum = new Intl.NumberFormat(navigator.language);
+
 export function numAxisVals(self, ticks, space) {
-	return ticks;
+	return ticks.map(fmtNum.format);
 }
 
 export function numAxisTicks(self, scaleMin, scaleMax, incr, pctSpace, forceMin) {
