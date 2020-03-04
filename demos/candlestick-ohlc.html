@@ -197,7 +197,7 @@
 
 						opts.series.forEach(series => {
 							series.paths = () => null;
-							series.point = {show: false};
+							series.points = {show: false};
 						});
 					},
 					hooks: {
@@ -265,8 +265,6 @@
 			};
 
 			let u = new uPlot.Line(opts, data, document.body);
-
-			console.log(u);
 		</script>
 	</body>
 </html>

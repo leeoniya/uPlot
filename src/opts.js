@@ -14,6 +14,7 @@ import {
 	inf,
 	pow,
 	abs,
+	max,
 	incrRoundUp,
 	round,
 	round3,
@@ -349,13 +350,16 @@ export const yAxisOpts = {
 	font,
 };
 
-const point = {
-	show: true,
-//	path: null,
-//	stroke: "rgba(0,0,0,0.07)",
-//	fill: "#fff",
-//	width: 0,
-};
+// takes stroke width
+export function ptDia(width, mult) {
+	return max(round3(5 * mult), round3(width * mult) * 2 - 1);
+}
+
+function seriesPoints(self, si) {
+	const dia = ptDia(self.series[si].width, pxRatio);
+	let maxPts = self.bbox.width / dia / 2;
+	return self.idxs[1] - self.idxs[0] <= maxPts;
+}
 
 export const ySeriesOpts = {
 //	type: "n",
@@ -363,7 +367,13 @@ export const ySeriesOpts = {
 	show: true,
 	band: false,
 	alpha: 1,
-	point,
+	points: {
+		show: seriesPoints,
+	//	stroke: "#000",
+		fill: "#fff",
+	//	width: 1,
+	//	size: 10,
+	},
 //	label: "Value",
 //	value: v => v,
 	values: null,

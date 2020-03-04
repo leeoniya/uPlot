@@ -191,11 +191,6 @@ function getMinMax(data, _i0, _i1) {
 	return [_min, _max];
 }
 
-// max-inclusive
-function range(min, max) {
-	return Array(max-min + 1).fill(min).map(function (v, i) { return v + i; });
-}
-
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 function rangeNum(min, max, mult, extra) {
@@ -726,13 +721,16 @@ var yAxisOpts = {
 	font: font,
 };
 
-var point = {
-	show: true,
-//	path: null,
-//	stroke: "rgba(0,0,0,0.07)",
-//	fill: "#fff",
-//	width: 0,
-};
+// takes stroke width
+function ptDia(width, mult) {
+	return max(round3(5 * mult), round3(width * mult) * 2 - 1);
+}
+
+function seriesPoints(self, si) {
+	var dia = ptDia(self.series[si].width, pxRatio);
+	var maxPts = self.bbox.width / dia / 2;
+	return self.idxs[1] - self.idxs[0] <= maxPts;
+}
 
 var ySeriesOpts = {
 //	type: "n",
@@ -740,7 +738,13 @@ var ySeriesOpts = {
 	show: true,
 	band: false,
 	alpha: 1,
-	point: point,
+	points: {
+		show: seriesPoints,
+	//	stroke: "#000",
+		fill: "#fff",
+	//	width: 1,
+	//	size: 10,
+	},
 //	label: "Value",
 //	value: v => v,
 	values: null,
@@ -907,10 +911,18 @@ function Line(opts, data, then) {
 		var sv = s.value;
 		s.value = isTime ? (isStr(sv) ? timeSeriesVal(tzDate, timeSeriesStamp(sv)) : sv || _timeSeriesVal) : sv || numSeriesVal;
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
-		s.width = s.width == null ? 1 : s.width;
-		s.paths = s.paths || buildPaths;
-		s.points = s.points || seriesPoints;
-		s._paths = null;
+
+		if (i > 0) {
+			s.width = s.width == null ? 1 : s.width;
+			s.paths = s.paths || buildPaths;
+			var _ptDia = ptDia(s.width, 1);
+			s.points = assign({}, {
+				size: _ptDia,
+				width: max(1, _ptDia * .2),
+			}, s.points);
+			s.points.show = fnOrSelf(s.points.show);
+			s._paths = null;
+		}
 	});
 
 	// dependent scales inherit
@@ -1285,55 +1297,54 @@ function Line(opts, data, then) {
 		cursor.show && updateCursor();
 	}
 
-	function seriesPoints(self, si) {
-		var s = series[si];
-		var dia = ptDia(s);
-		var maxPts = plotWid / dia / 2;
-
-		return i1 - i0 <= maxPts ? range(i0, i1) : null;
-	}
-
-	function ptDia(s, mult) {
-		mult = mult || pxRatio;
-		return max(5, round3(s[WIDTH] * mult) * 2 - 1);
-	}
-
 	// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
 
-	function drawPoints(si, ptIdxs) {
+	function drawPoints(si) {
 	//	log("drawPoints()", arguments);
 
 		var s = series[si];
-
-		var dia = ptDia(s);
+		var p = s.points;
 
 		var width = round3(s[WIDTH] * pxRatio);
 		var offset = (width % 2) / 2;
+
+		var outerDia = p.size * pxRatio;
+		var innerDia = p.width ? (p.size - p.width * 2) * pxRatio : null;
 
 		ctx.translate(offset, offset);
 
 		ctx.save();
 
 		ctx.beginPath();
-		ctx.rect(plotLft - dia, plotTop - dia, plotWid + dia*2, plotHgt + dia*2);
+		ctx.rect(plotLft - outerDia, plotTop - outerDia, plotWid + outerDia*2, plotHgt + outerDia*2);
 		ctx.clip();
 
 		ctx.globalAlpha = s.alpha;
 
-		var pi2 = PI * 2;
+		var pOuter = new Path2D();
+		var pInner = innerDia ? new Path2D() : null;
 
-		ctx.beginPath();
-
-		ptIdxs.forEach(function (pi) {
+		for (var pi = i0; pi <= i1; pi++) {
 			var x = round(getXPos(data[0][pi],  scales[xScaleKey], plotWid, plotLft));
 			var y = round(getYPos(data[si][pi], scales[s.scale],   plotHgt, plotTop));
 
-			ctx.moveTo(x + dia/2, y);
-			ctx.arc(x, y, dia/2, 0, pi2);
-		});
+			pOuter.moveTo(x + outerDia/2, y);
+			pOuter.arc(x, y, outerDia/2, 0, PI * 2);
 
-		ctx.fillStyle = s.stroke || hexBlack;
-		ctx.fill();
+			if (innerDia) {
+				pInner.moveTo(x + innerDia/2, y);
+				pInner.arc(x, y, innerDia/2, 0, PI * 2);
+			}
+		}
+
+		// outer fill
+		ctx.fillStyle = (innerDia ? p.stroke : p.fill) || s.stroke || hexBlack;
+		ctx.fill(pOuter);
+
+		if (innerDia) {
+			ctx.fillStyle = p.fill || s.fill || hexBlack;
+			ctx.fill(pInner);
+		}
 
 		ctx.globalAlpha = 1;
 
@@ -1372,12 +1383,8 @@ function Line(opts, data, then) {
 				if (s._paths)
 					{ drawPath(i); }
 
-				if (s.point.show) {
-					var ptIdxs = s.points(self, i);
-
-					if (ptIdxs)
-						{ drawPoints(i, ptIdxs); }
-				}
+				if (s.points.show(self, i))
+					{ drawPoints(i); }
 
 				fire("drawSeries", i);
 			}
@@ -2081,7 +2088,7 @@ function Line(opts, data, then) {
 
 			pt.style.background = s.stroke || hexBlack;
 
-			var dia = ptDia(s, 1);
+			var dia = ptDia(s.width, 1);
 			var mar = (dia - 1) / -2;
 
 			setStylePx(pt, WIDTH, dia);

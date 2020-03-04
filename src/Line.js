@@ -17,7 +17,6 @@ import {
 	debounce,
 	closestIdx,
 	getMinMax,
-	range,
 	rangeNum,
 	incrRoundUp,
 	incrRoundDn,
@@ -66,6 +65,7 @@ import {
 
 import {
 	lineMult,
+	ptDia,
 
 	xAxisOpts,
 	yAxisOpts,
@@ -211,10 +211,18 @@ export function Line(opts, data, then) {
 		let sv = s.value;
 		s.value = isTime ? (isStr(sv) ? timeSeriesVal(tzDate, timeSeriesStamp(sv)) : sv || _timeSeriesVal) : sv || numSeriesVal;
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
-		s.width = s.width == null ? 1 : s.width;
-		s.paths = s.paths || buildPaths;
-		s.points = s.points || seriesPoints;
-		s._paths = null;
+
+		if (i > 0) {
+			s.width = s.width == null ? 1 : s.width;
+			s.paths = s.paths || buildPaths;
+			let _ptDia = ptDia(s.width, 1);
+			s.points = assign({}, {
+				size: _ptDia,
+				width: max(1, _ptDia * .2),
+			}, s.points);
+			s.points.show = fnOrSelf(s.points.show);
+			s._paths = null;
+		}
 	});
 
 	// dependent scales inherit
@@ -586,55 +594,54 @@ export function Line(opts, data, then) {
 		cursor.show && updateCursor();
 	}
 
-	function seriesPoints(self, si) {
-		let s = series[si];
-		const dia = ptDia(s);
-		let maxPts = plotWid / dia / 2;
-
-		return i1 - i0 <= maxPts ? range(i0, i1) : null;
-	}
-
-	function ptDia(s, mult) {
-		mult = mult || pxRatio;
-		return max(5, round3(s[WIDTH] * mult) * 2 - 1);
-	}
-
 	// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
 
-	function drawPoints(si, ptIdxs) {
+	function drawPoints(si) {
 	//	log("drawPoints()", arguments);
 
 		let s = series[si];
-
-		const dia = ptDia(s);
+		let p = s.points;
 
 		const width = round3(s[WIDTH] * pxRatio);
 		const offset = (width % 2) / 2;
+
+		let outerDia = p.size * pxRatio;
+		let innerDia = p.width ? (p.size - p.width * 2) * pxRatio : null;
 
 		ctx.translate(offset, offset);
 
 		ctx.save();
 
 		ctx.beginPath();
-		ctx.rect(plotLft - dia, plotTop - dia, plotWid + dia*2, plotHgt + dia*2);
+		ctx.rect(plotLft - outerDia, plotTop - outerDia, plotWid + outerDia*2, plotHgt + outerDia*2);
 		ctx.clip();
 
 		ctx.globalAlpha = s.alpha;
 
-		const pi2 = PI * 2;
+		let pOuter = new Path2D();
+		let pInner = innerDia ? new Path2D() : null;
 
-		ctx.beginPath();
-
-		ptIdxs.forEach(pi => {
+		for (let pi = i0; pi <= i1; pi++) {
 			let x = round(getXPos(data[0][pi],  scales[xScaleKey], plotWid, plotLft));
 			let y = round(getYPos(data[si][pi], scales[s.scale],   plotHgt, plotTop));
 
-			ctx.moveTo(x + dia/2, y);
-			ctx.arc(x, y, dia/2, 0, pi2);
-		});
+			pOuter.moveTo(x + outerDia/2, y);
+			pOuter.arc(x, y, outerDia/2, 0, PI * 2);
 
-		ctx.fillStyle = s.stroke || hexBlack;
-		ctx.fill();
+			if (innerDia) {
+				pInner.moveTo(x + innerDia/2, y);
+				pInner.arc(x, y, innerDia/2, 0, PI * 2);
+			}
+		}
+
+		// outer fill
+		ctx.fillStyle = (innerDia ? p.stroke : p.fill) || s.stroke || hexBlack;
+		ctx.fill(pOuter);
+
+		if (innerDia) {
+			ctx.fillStyle = p.fill || s.fill || hexBlack;
+			ctx.fill(pInner);
+		}
 
 		ctx.globalAlpha = 1;
 
@@ -673,12 +680,8 @@ export function Line(opts, data, then) {
 				if (s._paths)
 					drawPath(i);
 
-				if (s.point.show) {
-					let ptIdxs = s.points(self, i);
-
-					if (ptIdxs)
-						drawPoints(i, ptIdxs);
-				}
+				if (s.points.show(self, i))
+					drawPoints(i);
 
 				fire("drawSeries", i);
 			}
@@ -1375,7 +1378,7 @@ export function Line(opts, data, then) {
 
 			pt.style.background = s.stroke || hexBlack;
 
-			let dia = ptDia(s, 1);
+			let dia = ptDia(s.width, 1);
 			let mar = (dia - 1) / -2;
 
 			setStylePx(pt, WIDTH, dia);
