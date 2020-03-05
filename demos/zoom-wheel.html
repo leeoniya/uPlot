@@ -13,14 +13,44 @@
 			function wheelZoomPlugin(opts) {
 				let factor = opts.factor || 0.75;
 
+				let xMin, xMax, yMin, yMax, xRange, yRange;
+
+				function clamp(nRange, nMin, nMax, fRange, fMin, fMax) {
+					if (nRange > fRange) {
+						nMin = fMin;
+						nMax = fMax;
+					}
+					else if (nMin < fMin) {
+						nMin = fMin;
+						nMax = fMin + nRange;
+					}
+					else if (nMax > fMax) {
+						nMax = fMax;
+						nMin = fMax - nRange;
+					}
+
+					return [nMin, nMax];
+				}
+
 				return {
 					hooks: {
-						init: (u, opts, data) => {
+						ready: u => {
+							xMin = u.scales.x.min;
+							xMax = u.scales.x.max;
+							yMin = u.scales.y.min;
+							yMax = u.scales.y.max;
+
+							xRange = xMax - xMin;
+							yRange = yMax - yMin;
+
 							let plot = u.root.querySelector(".over");
+							let rect = plot.getBoundingClientRect();
 
 							plot.addEventListener("wheel", e => {
+								e.preventDefault();
+
 								let {left, top} = u.cursor;
-								let rect = plot.getBoundingClientRect();
+
 								let leftPct = left/rect.width;
 								let btmPct = 1 - top/rect.height;
 								let xVal = u.posToVal(left, "x");
@@ -31,10 +61,12 @@
 								let nxRange = e.deltaY < 0 ? oxRange * factor : oxRange / factor;
 								let nxMin = xVal - leftPct * nxRange;
 								let nxMax = nxMin + nxRange;
+								[nxMin, nxMax] = clamp(nxRange, nxMin, nxMax, xRange, xMin, xMax);
 
 								let nyRange = e.deltaY < 0 ? oyRange * factor : oyRange / factor;
 								let nyMin = yVal - btmPct * nyRange;
 								let nyMax = nyMin + nyRange;
+								[nyMin, nyMax] = clamp(nyRange, nyMin, nyMax, yRange, yMin, yMax);
 
 								u.batch(() => {
 									u.setScale("x", {
@@ -48,7 +80,7 @@
 									});
 								});
 							});
-						},
+						}
 					}
 				};
 			}
