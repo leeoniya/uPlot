@@ -165,8 +165,16 @@
 				}
 
 				return {
-					hooks: {
-						drawSeries: drawPointsAsStars,
+					opts: (u, opts) => {
+						opts.series.forEach((s, i) => {
+							if (i > 0) {
+								uPlot.assign(s, {
+									points: {
+										show: drawPointsAsStars,
+									}
+								});
+							}
+						});
 					}
 				};
 			}
