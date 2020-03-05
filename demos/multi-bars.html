@@ -25,142 +25,149 @@
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
-			const labels = ["Censys", "Gharchive", "NYTimes", "Reddit", "Rosie", "TPCH", "Wikidata", "Yelp", "geomean"];
+			function seriesBarsPlugin(opts) {
+				const labels   = opts.labels;
+				const barWidth = Math.round(24 * devicePixelRatio);
+				const font     = Math.round(11 * devicePixelRatio) + "px Arial";
+				const margin   = 0.5;
+
+				function drawThings(u, sidx, i0, i1, draw) {
+					const s       = u.series[sidx];
+					const xdata   = u.data[0];
+					const ydata   = u.data[sidx];
+					const scaleX  = 'x';
+					const scaleY  = s.scale;
+
+					const totalWidth = (u.series.length - 1) * barWidth;		//.show
+					const offs	     = (sidx-1) * barWidth;
+
+					for (let i = i0; i <= i1; i++) {
+						let x0 = Math.round(u.valToPos(xdata[i], scaleX, true));
+						let y0 = Math.round(u.valToPos(ydata[i], scaleY, true));
+
+						draw(i, x0, y0, offs, totalWidth);
+					}
+				}
+
+				function drawBars(u, sidx, i0, i1) {
+					const scaleY  = u.series[sidx].scale;
+					const zeroY = Math.round(u.valToPos(0, scaleY, true));
+					const fill = new Path2D();
+
+					drawThings(u, sidx, i0, i1, (i, x0, y0, offs, totalWidth) => {
+						fill.rect(
+							x0 - totalWidth/2 + offs,
+							y0,
+							barWidth,
+							zeroY-y0
+						);
+					});
+
+					return {fill};
+				}
+
+				function drawPoints(u, sidx) {
+					u.ctx.font = font;
+					u.ctx.textAlign = "center";
+					u.ctx.textBaseline = "bottom";
+					u.ctx.fillStyle = "black";
+
+					drawThings(u, sidx, u.idxs[0], u.idxs[1], (i, x0, y0, offs, totalWidth) => {
+						u.ctx.fillText(
+							u.data[sidx][i],
+							x0 + offs - barWidth,
+							y0
+						);
+					});
+				}
+
+				return {
+					opts: (u, opts) => {
+						uPlot.assign(opts, {
+							cursor: {show: false},
+							scales: {
+								x: {
+									time: false,
+									range: u => [
+										u.data[0][0]                    - margin,
+										u.data[0][u.data[0].length - 1] + margin,
+									],
+								},
+								y: {
+									range: (u, dataMin, dataMax) => {
+										let [min, max] = uPlot.rangeNum(dataMin, dataMax, 0.2, true);
+										return [0, max];
+									}
+								}
+							}
+						});
+
+						uPlot.assign(opts.axes[0], {
+							splits:     () => u.data[0],
+							values:     () => labels,
+							gap:        15,
+							size:       40,
+							labelSize:  20,
+							grid:       {show: false},
+							ticks:      {show: false},
+						});
+
+						opts.series.forEach(s => {
+							uPlot.assign(s, {
+								paths: drawBars,
+								points: {
+									show: drawPoints
+								}
+							});
+						});
+					}
+				};
+			}
 
 			const data = [
-				labels.map((v,i) => i + 1),
+				[   1,    2,    3,    4,    5,    6,    7,    8,    9],
 				[3.09, 2.70, 2.92, 3.34, 3.13, 3.40, 2.36, 3.04, 2.98],
 				[1.93, 1.60, 2.02, 1.79, 2.44, 2.13, 1.90, 1.89, 1.95],
 				[1.06, 0.93, 1.22, 0.96, 1.38, 1.22, 1.16, 1.26, 1.14],
 			];
 
-			const barWid = Math.round(24 * devicePixelRatio);
-
-			function drawThings(u, sidx, i0, i1, draw) {
-				const s       = u.series[sidx];
-				const xdata   = u.data[0];
-				const ydata   = u.data[sidx];
-				const scaleX  = 'x';
-				const scaleY  = s.scale;
-
-				const totalWidth = (u.series.length - 1) * barWid;		//.show
-				const offs	 = (sidx-1) * barWid;
-
-				for (let i = i0; i <= i1; i++) {
-					let x0 = Math.round(u.valToPos(xdata[i], scaleX, true));
-					let y0 = Math.round(u.valToPos(ydata[i], scaleY, true));
-
-					draw(i, x0, y0, offs, totalWidth);
-				}
-			}
-
-			function drawBars(u, sidx, i0, i1) {
-				const scaleY  = u.series[sidx].scale;
-				const zeroY = Math.round(u.valToPos(0, scaleY, true));
-				const fill = new Path2D();
-
-				drawThings(u, sidx, i0, i1, (i, x0, y0, offs, totalWidth) => {
-					fill.rect(
-						x0 - totalWidth/2 + offs,
-						y0,
-						barWid,
-						zeroY-y0
-					);
-				});
-
-				return {
-					fill,
-			//		clip,
-				};
-			}
-
-			function drawPoints(u, sidx) {
-				u.ctx.font = Math.round(11 * devicePixelRatio) + "px Arial";
-				u.ctx.textAlign = "center";
-				u.ctx.textBaseline = "bottom";
-				u.ctx.fillStyle = "black";
-
-				drawThings(u, sidx, u.idxs[0], u.idxs[1], (i, x0, y0, offs, totalWidth) => {
-					u.ctx.fillText(
-						u.data[sidx][i],
-						x0 + offs - barWid,
-						y0
-					);
-				});
-			}
-
 			const opts = {
 				width: 1000,
 				height: 600,
 				title: "JSON decoding time\ncomparison of techniques (normalized to PyPyFull)",
-				cursor: {
-					show: false,
-					points: false,
-				},
 				axes: [
 					{
 						label: "Benchmark",
-						splits: () => data[0],
-						values: () => labels,
-						gap: 15,
-						size: 40,
-						labelSize: 20,
-						grid: {
-							show: false,
-						},
-						ticks: {
-							show: false,
-						},
 					},
 					{
 						label: "time [normalized to PyPyFull], lower is better",
 						grid: {
-							show: true,
-							stroke: "white"
+							stroke: "#fff"
 						}
 					},
 				],
-				scales: {
-					x: {
-						time: false,
-						range: [
-							data[0][0]                  - 0.5,
-							data[0][data[0].length - 1] + 0.5,
-						],
-					},
-				//	y: {
-				//		range: (self, dataMin, dataMax) => [0, dataMax]
-				//	}
-				},
 				series: [
 					{},
 					{
 						label: "PyPyBaseline",
 						width: 0,
 						fill: "rgb(78, 119, 162)",
-						paths: drawBars,
-						points: {
-							show: drawPoints
-						},
 					},
 					{
 						label:	"PyPyKeyStringCaching",
 						width: 0,
 						fill: "rgb(213, 135, 101)",
-						paths: drawBars,
-						points: {
-							show: drawPoints
-						},
 					},
 					{
 						label:	"PyPyMapNoCache",
 						width: 0,
 						fill: "rgb(82, 158, 112)",
-						paths: drawBars,
-						points: {
-							show: drawPoints
-						},
 					},
+				],
+				plugins: [
+					seriesBarsPlugin({
+						labels: ["Censys", "Gharchive", "NYTimes", "Reddit", "Rosie", "TPCH", "Wikidata", "Yelp", "geomean"],
+					}),
 				],
 			};
 
