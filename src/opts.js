@@ -145,8 +145,8 @@ export const _timeAxisStamps = timeAxisStamps([
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 export function timeAxisVals(tzDate, stamps) {
-	return (self, ticks, space) => {
-		let incr = round3(ticks[1] - ticks[0]);
+	return (self, splits, space) => {
+		let incr = round3(splits[1] - splits[0]);
 		let s = stamps.find(e => incr >= e[0]);
 
 		// these track boundaries when a full label is needed again
@@ -154,8 +154,8 @@ export function timeAxisVals(tzDate, stamps) {
 		let prevDate = null;
 		let prevMinu = null;
 
-		return ticks.map((tick, i) => {
-			let date = tzDate(tick);
+		return splits.map((split, i) => {
+			let date = tzDate(split);
 
 			let newYear = date[getFullYear]();
 			let newDate = date[getDate]();
@@ -184,9 +184,9 @@ function mkDate(y, m, d) {
 // https://www.timeanddate.com/time/dst/
 // https://www.timeanddate.com/time/dst/2019.html
 // https://www.epochconverter.com/timezones
-export function timeAxisTicks(tzDate) {
+export function timeAxisSplits(tzDate) {
 	return (self, scaleMin, scaleMax, incr, pctSpace) => {
-		let ticks = [];
+		let splits = [];
 		let isMo = incr >= mo && incr < y;
 
 		// get the timezone-adjusted date
@@ -200,61 +200,61 @@ export function timeAxisTicks(tzDate) {
 		if (isMo) {
 			let moIncr = incr / mo;
 		//	let tzOffset = scaleMin - minDateTs;		// needed?
-			let tick = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
-			let tickDate = new Date(tick * 1e3);
-			let baseYear = tickDate[getFullYear]();
-			let baseMonth = tickDate[getMonth]();
+			let split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
+			let splitDate = new Date(split * 1e3);
+			let baseYear = splitDate[getFullYear]();
+			let baseMonth = splitDate[getMonth]();
 
-			for (let i = 0; tick <= scaleMax; i++) {
+			for (let i = 0; split <= scaleMax; i++) {
 				let next = mkDate(baseYear, baseMonth + moIncr * i, 1);
 				let offs = next - tzDate(next / 1e3);
 
-				tick = (+next + offs) / 1e3;
+				split = (+next + offs) / 1e3;
 
-				if (tick <= scaleMax)
-					ticks.push(tick);
+				if (split <= scaleMax)
+					splits.push(split);
 			}
 		}
 		else {
 			let incr0 = incr >= d ? d : incr;
 			let tzOffset = floor(scaleMin) - floor(minDateTs);
-			let tick = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
-			ticks.push(tick);
+			let split = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
+			splits.push(split);
 
-			let date0 = tzDate(tick);
+			let date0 = tzDate(split);
 
 			let prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
 			let incrHours = incr / h;
 
 			while (1) {
-				tick = round3(tick + incr);
+				split = round3(split + incr);
 
 				let expectedHour = floor(round6(prevHour + incrHours)) % 24;
-				let tickDate = tzDate(tick);
-				let actualHour = tickDate.getHours();
+				let splitDate = tzDate(split);
+				let actualHour = splitDate.getHours();
 
 				let dstShift = actualHour - expectedHour;
 
 				if (dstShift > 1)
 					dstShift = -1;
 
-				tick -= dstShift * h;
+				split -= dstShift * h;
 
-				if (tick > scaleMax)
+				if (split > scaleMax)
 					break;
 
 				prevHour = (prevHour + incrHours) % 24;
 
 				// add a tick only if it's further than 70% of the min allowed label spacing
-				let prevTick = ticks[ticks.length - 1];
-				let pctIncr = round3((tick - prevTick) / incr);
+				let prevSplit = splits[splits.length - 1];
+				let pctIncr = round3((split - prevSplit) / incr);
 
 				if (pctIncr * pctSpace >= .7)
-					ticks.push(tick);
+					splits.push(split);
 			}
 		}
 
-		return ticks;
+		return splits;
 	}
 }
 
@@ -275,7 +275,7 @@ const grid = {
 //	dash: [],
 };
 
-const tick = assign({}, grid, {size: 10});
+const ticks = assign({}, grid, {size: 10});
 
 const font      = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
 const labelFont = "bold " + font;
@@ -295,7 +295,7 @@ export const xAxisOpts = {
 //	incrs: timeIncrs,
 //	values: timeVals,
 	grid,
-	tick,
+	ticks,
 	font,
 };
 
@@ -316,19 +316,19 @@ export const xSeriesOpts = {
 // alternative: https://stackoverflow.com/a/2254896
 let fmtNum = new Intl.NumberFormat(navigator.language);
 
-export function numAxisVals(self, ticks, space) {
-	return ticks.map(fmtNum.format);
+export function numAxisVals(self, splits, space) {
+	return splits.map(fmtNum.format);
 }
 
-export function numAxisTicks(self, scaleMin, scaleMax, incr, pctSpace, forceMin) {
+export function numAxisSplits(self, scaleMin, scaleMax, incr, pctSpace, forceMin) {
 	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, incr).toFixed(12);
 
-	let ticks = [];
+	let splits = [];
 
 	for (let val = scaleMin; val <= scaleMax; val = +(val + incr).toFixed(12))
-		ticks.push(val);
+		splits.push(val);
 
-	return ticks;
+	return splits;
 }
 
 export function numSeriesVal(self, val) {
@@ -349,7 +349,7 @@ export const yAxisOpts = {
 //	incrs: numIncrs,
 //	values: (vals, space) => vals,
 	grid,
-	tick,
+	ticks,
 	font,
 };
 

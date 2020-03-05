@@ -100,11 +100,17 @@
 				axes: [
 					{
 						label: "Benchmark",
-						ticks: () => data[0],
+						splits: () => data[0],
 						values: () => labels,
+						gap: 15,
+						size: 40,
+						labelSize: 20,
 						grid: {
 							show: false,
-						}
+						},
+						ticks: {
+							show: false,
+						},
 					},
 					{
 						label: "time [normalized to PyPyFull], lower is better",

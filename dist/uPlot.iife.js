@@ -518,8 +518,8 @@ var uPlot = (function (exports) {
 	// TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 	// currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 	function timeAxisVals(tzDate, stamps) {
-		return function (self, ticks, space) {
-			var incr = round3(ticks[1] - ticks[0]);
+		return function (self, splits, space) {
+			var incr = round3(splits[1] - splits[0]);
 			var s = stamps.find(function (e) { return incr >= e[0]; });
 
 			// these track boundaries when a full label is needed again
@@ -527,8 +527,8 @@ var uPlot = (function (exports) {
 			var prevDate = null;
 			var prevMinu = null;
 
-			return ticks.map(function (tick, i) {
-				var date = tzDate(tick);
+			return splits.map(function (split, i) {
+				var date = tzDate(split);
 
 				var newYear = date[getFullYear]();
 				var newDate = date[getDate]();
@@ -557,9 +557,9 @@ var uPlot = (function (exports) {
 	// https://www.timeanddate.com/time/dst/
 	// https://www.timeanddate.com/time/dst/2019.html
 	// https://www.epochconverter.com/timezones
-	function timeAxisTicks(tzDate) {
+	function timeAxisSplits(tzDate) {
 		return function (self, scaleMin, scaleMax, incr, pctSpace) {
-			var ticks = [];
+			var splits = [];
 			var isMo = incr >= mo && incr < y;
 
 			// get the timezone-adjusted date
@@ -573,61 +573,61 @@ var uPlot = (function (exports) {
 			if (isMo) {
 				var moIncr = incr / mo;
 			//	let tzOffset = scaleMin - minDateTs;		// needed?
-				var tick = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
-				var tickDate = new Date(tick * 1e3);
-				var baseYear = tickDate[getFullYear]();
-				var baseMonth = tickDate[getMonth]();
+				var split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
+				var splitDate = new Date(split * 1e3);
+				var baseYear = splitDate[getFullYear]();
+				var baseMonth = splitDate[getMonth]();
 
-				for (var i = 0; tick <= scaleMax; i++) {
+				for (var i = 0; split <= scaleMax; i++) {
 					var next = mkDate(baseYear, baseMonth + moIncr * i, 1);
 					var offs = next - tzDate(next / 1e3);
 
-					tick = (+next + offs) / 1e3;
+					split = (+next + offs) / 1e3;
 
-					if (tick <= scaleMax)
-						{ ticks.push(tick); }
+					if (split <= scaleMax)
+						{ splits.push(split); }
 				}
 			}
 			else {
 				var incr0 = incr >= d ? d : incr;
 				var tzOffset = floor(scaleMin) - floor(minDateTs);
-				var tick$1 = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
-				ticks.push(tick$1);
+				var split$1 = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
+				splits.push(split$1);
 
-				var date0 = tzDate(tick$1);
+				var date0 = tzDate(split$1);
 
 				var prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
 				var incrHours = incr / h;
 
 				while (1) {
-					tick$1 = round3(tick$1 + incr);
+					split$1 = round3(split$1 + incr);
 
 					var expectedHour = floor(round6(prevHour + incrHours)) % 24;
-					var tickDate$1 = tzDate(tick$1);
-					var actualHour = tickDate$1.getHours();
+					var splitDate$1 = tzDate(split$1);
+					var actualHour = splitDate$1.getHours();
 
 					var dstShift = actualHour - expectedHour;
 
 					if (dstShift > 1)
 						{ dstShift = -1; }
 
-					tick$1 -= dstShift * h;
+					split$1 -= dstShift * h;
 
-					if (tick$1 > scaleMax)
+					if (split$1 > scaleMax)
 						{ break; }
 
 					prevHour = (prevHour + incrHours) % 24;
 
 					// add a tick only if it's further than 70% of the min allowed label spacing
-					var prevTick = ticks[ticks.length - 1];
-					var pctIncr = round3((tick$1 - prevTick) / incr);
+					var prevSplit = splits[splits.length - 1];
+					var pctIncr = round3((split$1 - prevSplit) / incr);
 
 					if (pctIncr * pctSpace >= .7)
-						{ ticks.push(tick$1); }
+						{ splits.push(split$1); }
 				}
 			}
 
-			return ticks;
+			return splits;
 		}
 	}
 
@@ -647,7 +647,7 @@ var uPlot = (function (exports) {
 	//	dash: [],
 	};
 
-	var tick = assign({}, grid, {size: 10});
+	var ticks = assign({}, grid, {size: 10});
 
 	var font      = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
 	var labelFont = "bold " + font;
@@ -667,7 +667,7 @@ var uPlot = (function (exports) {
 	//	incrs: timeIncrs,
 	//	values: timeVals,
 		grid: grid,
-		tick: tick,
+		ticks: ticks,
 		font: font,
 	};
 
@@ -688,19 +688,19 @@ var uPlot = (function (exports) {
 	// alternative: https://stackoverflow.com/a/2254896
 	var fmtNum = new Intl.NumberFormat(navigator.language);
 
-	function numAxisVals(self, ticks, space) {
-		return ticks.map(fmtNum.format);
+	function numAxisVals(self, splits, space) {
+		return splits.map(fmtNum.format);
 	}
 
-	function numAxisTicks(self, scaleMin, scaleMax, incr, pctSpace, forceMin) {
+	function numAxisSplits(self, scaleMin, scaleMax, incr, pctSpace, forceMin) {
 		scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, incr).toFixed(12);
 
-		var ticks = [];
+		var splits = [];
 
 		for (var val = scaleMin; val <= scaleMax; val = +(val + incr).toFixed(12))
-			{ ticks.push(val); }
+			{ splits.push(val); }
 
-		return ticks;
+		return splits;
 	}
 
 	function numSeriesVal(self, val) {
@@ -721,7 +721,7 @@ var uPlot = (function (exports) {
 	//	incrs: numIncrs,
 	//	values: (vals, space) => vals,
 		grid: grid,
-		tick: tick,
+		ticks: ticks,
 		font: font,
 	};
 
@@ -879,7 +879,7 @@ var uPlot = (function (exports) {
 	//	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 		var tzDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
 
-		var _timeAxisTicks = timeAxisTicks(tzDate);
+		var _timeAxisSplits = timeAxisSplits(tzDate);
 		var _timeAxisVals = timeAxisVals(tzDate, _timeAxisStamps);
 		var _timeSeriesVal = timeSeriesVal(tzDate, _timeSeriesStamp);
 
@@ -958,7 +958,7 @@ var uPlot = (function (exports) {
 
 				axis.space = fnOrSelf(axis.space);
 				axis.incrs = fnOrSelf(axis.incrs || (sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
-				axis.ticks = fnOrSelf(axis.ticks || (sc.distr == 1 && isTime ? _timeAxisTicks : numAxisTicks));
+				axis.split = fnOrSelf(axis.split || (sc.distr == 1 && isTime ? _timeAxisSplits : numAxisSplits));
 				var av = axis.values;
 				axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
 
@@ -1669,21 +1669,21 @@ var uPlot = (function (exports) {
 				// if we're using index positions, force first tick to match passed index
 				var forceMin = scale.distr == 2;
 
-				var ticks = axis.ticks(self, min, max, incr, pctSpace, forceMin);
+				var splits = axis.split(self, min, max, incr, pctSpace, forceMin);
 
 				var getPos  = ori == 0 ? getXPos : getYPos;
 				var plotDim = ori == 0 ? plotWid : plotHgt;
 				var plotOff = ori == 0 ? plotLft : plotTop;
 
-				var canOffs = ticks.map(function (val) { return round(getPos(val, scale, plotDim, plotOff)); });
+				var canOffs = splits.map(function (val) { return round(getPos(val, scale, plotDim, plotOff)); });
 
 				var axisGap  = round(axis.gap * pxRatio);
 
-				var tick = axis.tick;
-				var tickSize = tick.show ? round(tick.size * pxRatio) : 0;
+				var ticks = axis.ticks;
+				var tickSize = ticks.show ? round(ticks.size * pxRatio) : 0;
 
 				// tick labels
-				var values = axis.values(self, scale.distr == 2 ? ticks.map(function (i) { return data0[i]; }) : ticks, space);		// BOO this assumes a specific data/series
+				var values = axis.values(self, scale.distr == 2 ? splits.map(function (i) { return data0[i]; }) : splits, space);		// BOO this assumes a specific data/series
 
 				var basePos  = round(axis._pos * pxRatio);
 				var shiftAmt = tickSize + axisGap;
@@ -1742,15 +1742,15 @@ var uPlot = (function (exports) {
 				}
 
 				// ticks
-				if (tick.show) {
+				if (ticks.show) {
 					drawOrthoLines(
 						canOffs,
 						ori,
 						side,
 						basePos,
 						tickSize,
-						round3(tick[WIDTH] * pxRatio),
-						tick.stroke
+						round3(ticks[WIDTH] * pxRatio),
+						ticks.stroke
 					);
 				}
 

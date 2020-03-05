@@ -86,8 +86,8 @@ import {
 	timeSeriesLabel,
 	numSeriesLabel,
 
-	timeAxisTicks,
-	numAxisTicks,
+	timeAxisSplits,
+	numAxisSplits,
 
 	timeAxisStamps,
 	_timeAxisStamps,
@@ -175,7 +175,7 @@ export function Line(opts, data, then) {
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const tzDate = opts.tzDate || (ts => new Date(ts * 1e3));
 
-	const _timeAxisTicks = timeAxisTicks(tzDate);
+	const _timeAxisSplits = timeAxisSplits(tzDate);
 	const _timeAxisVals = timeAxisVals(tzDate, _timeAxisStamps);
 	const _timeSeriesVal = timeSeriesVal(tzDate, _timeSeriesStamp);
 
@@ -254,7 +254,7 @@ export function Line(opts, data, then) {
 
 			axis.space = fnOrSelf(axis.space);
 			axis.incrs = fnOrSelf(axis.incrs || (sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
-			axis.ticks = fnOrSelf(axis.ticks || (sc.distr == 1 && isTime ? _timeAxisTicks : numAxisTicks));
+			axis.split = fnOrSelf(axis.split || (sc.distr == 1 && isTime ? _timeAxisSplits : numAxisSplits));
 			let av = axis.values;
 			axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
 
@@ -955,21 +955,21 @@ export function Line(opts, data, then) {
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.distr == 2;
 
-			let ticks = axis.ticks(self, min, max, incr, pctSpace, forceMin);
+			let splits = axis.split(self, min, max, incr, pctSpace, forceMin);
 
 			let getPos  = ori == 0 ? getXPos : getYPos;
 			let plotDim = ori == 0 ? plotWid : plotHgt;
 			let plotOff = ori == 0 ? plotLft : plotTop;
 
-			let canOffs = ticks.map(val => round(getPos(val, scale, plotDim, plotOff)));
+			let canOffs = splits.map(val => round(getPos(val, scale, plotDim, plotOff)));
 
 			let axisGap  = round(axis.gap * pxRatio);
 
-			let tick = axis.tick;
-			let tickSize = tick.show ? round(tick.size * pxRatio) : 0;
+			let ticks = axis.ticks;
+			let tickSize = ticks.show ? round(ticks.size * pxRatio) : 0;
 
 			// tick labels
-			let values = axis.values(self, scale.distr == 2 ? ticks.map(i => data0[i]) : ticks, space);		// BOO this assumes a specific data/series
+			let values = axis.values(self, scale.distr == 2 ? splits.map(i => data0[i]) : splits, space);		// BOO this assumes a specific data/series
 
 			let basePos  = round(axis._pos * pxRatio);
 			let shiftAmt = tickSize + axisGap;
@@ -1028,15 +1028,15 @@ export function Line(opts, data, then) {
 			}
 
 			// ticks
-			if (tick.show) {
+			if (ticks.show) {
 				drawOrthoLines(
 					canOffs,
 					ori,
 					side,
 					basePos,
 					tickSize,
-					round3(tick[WIDTH] * pxRatio),
-					tick.stroke,
+					round3(ticks[WIDTH] * pxRatio),
+					ticks.stroke,
 				);
 			}
 
