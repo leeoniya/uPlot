@@ -66,6 +66,7 @@ import {
 import {
 	lineMult,
 	ptDia,
+	cursorOpts,
 
 	xAxisOpts,
 	yAxisOpts,
@@ -1094,7 +1095,7 @@ export function Line(opts, data, then) {
 
 	// redraw() => setScale('x', scales.x.min, scales.x.max);
 
-	// explicit, never re-ranged
+	// explicit, never re-ranged (is this actually true? for x and y)
 	function setScale(key, opts) {
 		let sc = scales[key];
 
@@ -1136,24 +1137,7 @@ export function Line(opts, data, then) {
 
 	let dragging = false;
 
-	const cursor = self.cursor = assign({
-		show: true,
-		x: true,
-		y: true,
-		lock: false,
-		points: true,
-
-		drag: {
-			setScale: true,
-			x: true,
-			y: false,
-		},
-
-		locked: false,
-		left: -10,
-		top: -10,
-		idx: null,
-	}, opts.cursor);
+	const cursor = self.cursor = assign({}, cursorOpts, opts.cursor);
 
 	const focus = cursor.focus;		// focus: {alpha, prox}
 	const drag = cursor.drag;

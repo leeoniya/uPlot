@@ -4,6 +4,7 @@ export {
 } from './fmtDate';
 
 export {
+	assign,
 	rangeNum,
 } from './utils';
 

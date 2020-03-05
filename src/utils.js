@@ -141,7 +141,7 @@ export function round6(val) {
 	return round(val * 1e6) / 1e6;
 }
 
-export const assign = Object.assign;
+//export const assign = Object.assign;
 
 export const isArr = Array.isArray;
 
@@ -169,31 +169,19 @@ export function copy(o) {
 	return out;
 }
 
-/*
-function isObj(v) {
-	return typeof v === 'object' && v !== null;
-}
+export function assign(targ) {
+	let args = arguments;
 
-// https://stackoverflow.com/a/34624648
-function copy(o) {
-	var _out, v, _key;
-	_out = Array.isArray(o) ? [] : {};
-	for (_key in o) {
-		v = o[_key];
-		_out[_key] = isObj(v) ? copy(v) : v;
-	}
-	return _out;
-}
+	for (let i = 1; i < args.length; i++) {
+		let src = args[i];
 
-// https://github.com/jaredreich/tread
-function merge(oldObject, newObject) {
-	var obj = oldObject
-	for (var key in newObject) {
-		if (isObj(obj[key]))
-			merge(obj[key], newObject[key]);
-		else
-			obj[key] = newObject[key];
+		for (let key in src) {
+			if (isObj(targ[key]))
+				assign(targ[key], copy(src[key]));
+			else
+				targ[key] = copy(src[key]);
+		}
 	}
-	return obj;
+
+	return targ;
 }
-*/

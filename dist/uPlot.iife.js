@@ -279,7 +279,7 @@ var uPlot = (function (exports) {
 		return round(val * 1e6) / 1e6;
 	}
 
-	var assign = Object.assign;
+	//export const assign = Object.assign;
 
 	var isArr = Array.isArray;
 
@@ -307,34 +307,22 @@ var uPlot = (function (exports) {
 		return out;
 	}
 
-	/*
-	function isObj(v) {
-		return typeof v === 'object' && v !== null;
-	}
+	function assign(targ) {
+		var args = arguments;
 
-	// https://stackoverflow.com/a/34624648
-	function copy(o) {
-		var _out, v, _key;
-		_out = Array.isArray(o) ? [] : {};
-		for (_key in o) {
-			v = o[_key];
-			_out[_key] = isObj(v) ? copy(v) : v;
-		}
-		return _out;
-	}
+		for (var i = 1; i < args.length; i++) {
+			var src = args[i];
 
-	// https://github.com/jaredreich/tread
-	function merge(oldObject, newObject) {
-		var obj = oldObject
-		for (var key in newObject) {
-			if (isObj(obj[key]))
-				merge(obj[key], newObject[key]);
-			else
-				obj[key] = newObject[key];
+			for (var key in src) {
+				if (isObj(targ[key]))
+					{ assign(targ[key], copy(src[key])); }
+				else
+					{ targ[key] = copy(src[key]); }
+			}
 		}
-		return obj;
+
+		return targ;
 	}
-	*/
 
 	var WIDTH = "width";
 	var HEIGHT = "height";
@@ -639,6 +627,25 @@ var uPlot = (function (exports) {
 	function timeSeriesVal(tzDate, stamp) {
 		return function (self, val) { return stamp(tzDate(val)); };
 	}
+
+	var cursorOpts = {
+		show: true,
+		x: true,
+		y: true,
+		lock: false,
+		points: true,
+
+		drag: {
+			setScale: true,
+			x: true,
+			y: false,
+		},
+
+		locked: false,
+		left: -10,
+		top: -10,
+		idx: null,
+	};
 
 	var grid = {
 		show: true,
@@ -1808,7 +1815,7 @@ var uPlot = (function (exports) {
 
 		// redraw() => setScale('x', scales.x.min, scales.x.max);
 
-		// explicit, never re-ranged
+		// explicit, never re-ranged (is this actually true? for x and y)
 		function setScale(key, opts) {
 			var sc = scales[key];
 
@@ -1850,24 +1857,7 @@ var uPlot = (function (exports) {
 
 		var dragging = false;
 
-		var cursor = self.cursor = assign({
-			show: true,
-			x: true,
-			y: true,
-			lock: false,
-			points: true,
-
-			drag: {
-				setScale: true,
-				x: true,
-				y: false,
-			},
-
-			locked: false,
-			left: -10,
-			top: -10,
-			idx: null,
-		}, opts.cursor);
+		var cursor = self.cursor = assign({}, cursorOpts, opts.cursor);
 
 		var focus = cursor.focus;		// focus: {alpha, prox}
 		var drag = cursor.drag;
@@ -2530,6 +2520,7 @@ var uPlot = (function (exports) {
 	}
 
 	exports.Line = Line;
+	exports.assign = assign;
 	exports.fmtDate = fmtDate;
 	exports.rangeNum = rangeNum;
 	exports.tzDate = tzDate;

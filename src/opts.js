@@ -268,6 +268,25 @@ export function timeSeriesVal(tzDate, stamp) {
 	return (self, val) => stamp(tzDate(val));
 }
 
+export const cursorOpts = {
+	show: true,
+	x: true,
+	y: true,
+	lock: false,
+	points: true,
+
+	drag: {
+		setScale: true,
+		x: true,
+		y: false,
+	},
+
+	locked: false,
+	left: -10,
+	top: -10,
+	idx: null,
+};
+
 const grid = {
 	show: true,
 	stroke: "rgba(0,0,0,0.07)",
