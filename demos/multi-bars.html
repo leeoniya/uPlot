@@ -75,7 +75,7 @@
 					drawThings(u, sidx, u.idxs[0], u.idxs[1], (i, x0, y0, offs, totalWidth) => {
 						u.ctx.fillText(
 							u.data[sidx][i],
-							x0 + offs - barWidth,
+							x0 - totalWidth/2 + offs + barWidth/2,
 							y0
 						);
 					});
