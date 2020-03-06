@@ -1336,15 +1336,17 @@ var uPlot = (function (exports) {
 			var pInner = innerDia ? new Path2D() : null;
 
 			for (var pi = i0; pi <= i1; pi++) {
-				var x = round(getXPos(data[0][pi],  scales[xScaleKey], plotWid, plotLft));
-				var y = round(getYPos(data[si][pi], scales[s.scale],   plotHgt, plotTop));
+				if (data[si][pi] != null) {
+					var x = round(getXPos(data[0][pi],  scales[xScaleKey], plotWid, plotLft));
+					var y = round(getYPos(data[si][pi], scales[s.scale],   plotHgt, plotTop));
 
-				pOuter.moveTo(x + outerDia/2, y);
-				pOuter.arc(x, y, outerDia/2, 0, PI * 2);
+					pOuter.moveTo(x + outerDia/2, y);
+					pOuter.arc(x, y, outerDia/2, 0, PI * 2);
 
-				if (innerDia) {
-					pInner.moveTo(x + innerDia/2, y);
-					pInner.arc(x, y, innerDia/2, 0, PI * 2);
+					if (innerDia) {
+						pInner.moveTo(x + innerDia/2, y);
+						pInner.arc(x, y, innerDia/2, 0, PI * 2);
+					}
 				}
 			}
 

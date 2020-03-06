@@ -623,15 +623,17 @@ export function Line(opts, data, then) {
 		let pInner = innerDia ? new Path2D() : null;
 
 		for (let pi = i0; pi <= i1; pi++) {
-			let x = round(getXPos(data[0][pi],  scales[xScaleKey], plotWid, plotLft));
-			let y = round(getYPos(data[si][pi], scales[s.scale],   plotHgt, plotTop));
+			if (data[si][pi] != null) {
+				let x = round(getXPos(data[0][pi],  scales[xScaleKey], plotWid, plotLft));
+				let y = round(getYPos(data[si][pi], scales[s.scale],   plotHgt, plotTop));
 
-			pOuter.moveTo(x + outerDia/2, y);
-			pOuter.arc(x, y, outerDia/2, 0, PI * 2);
+				pOuter.moveTo(x + outerDia/2, y);
+				pOuter.arc(x, y, outerDia/2, 0, PI * 2);
 
-			if (innerDia) {
-				pInner.moveTo(x + innerDia/2, y);
-				pInner.arc(x, y, innerDia/2, 0, PI * 2);
+				if (innerDia) {
+					pInner.moveTo(x + innerDia/2, y);
+					pInner.arc(x, y, innerDia/2, 0, PI * 2);
+				}
 			}
 		}
 
