@@ -7,138 +7,8 @@
 * https://github.com/leeoniya/uPlot (v0.1.0)
 */
 
-var uPlot = (function (exports) {
+var uPlot = (function () {
 	'use strict';
-
-	var months = [
-		"January",
-		"February",
-		"March",
-		"April",
-		"May",
-		"June",
-		"July",
-		"August",
-		"September",
-		"October",
-		"November",
-		"December" ];
-
-	var days = [
-		"Sunday",
-		"Monday",
-		"Tuesday",
-		"Wednesday",
-		"Thursday",
-		"Friday",
-		"Saturday" ];
-
-	function slice3(str) {
-		return str.slice(0, 3);
-	}
-
-	var days3 = days.map(slice3);
-
-	var months3 = months.map(slice3);
-
-	function zeroPad2(int) {
-		return (int < 10 ? '0' : '') + int;
-	}
-
-	function zeroPad3(int) {
-		return (int < 10 ? '00' : int < 100 ? '0' : '') + int;
-	}
-
-	/*
-	function suffix(int) {
-		let mod10 = int % 10;
-
-		return int + (
-			mod10 == 1 && int != 11 ? "st" :
-			mod10 == 2 && int != 12 ? "nd" :
-			mod10 == 3 && int != 13 ? "rd" : "th"
-		);
-	}
-	*/
-
-	var getFullYear = 'getFullYear';
-	var getMonth = 'getMonth';
-	var getDate = 'getDate';
-	var getDay = 'getDay';
-	var getHours = 'getHours';
-	var getMinutes = 'getMinutes';
-	var getSeconds = 'getSeconds';
-	var getMilliseconds = 'getMilliseconds';
-
-	var subs = {
-		// 2019
-		YYYY:	function (d) { return d[getFullYear](); },
-		// 19
-		YY:		function (d) { return (d[getFullYear]()+'').slice(2); },
-		// July
-		MMMM:	function (d) { return months[d[getMonth]()]; },
-		// Jul
-		MMM:	function (d) { return months3[d[getMonth]()]; },
-		// 07
-		MM:		function (d) { return zeroPad2(d[getMonth]()+1); },
-		// 7
-		M:		function (d) { return d[getMonth]()+1; },
-		// 09
-		DD:		function (d) { return zeroPad2(d[getDate]()); },
-		// 9
-		D:		function (d) { return d[getDate](); },
-		// Monday
-		WWWW:	function (d) { return days[d[getDay]()]; },
-		// Mon
-		WWW:	function (d) { return days3[d[getDay]()]; },
-		// 03
-		HH:		function (d) { return zeroPad2(d[getHours]()); },
-		// 3
-		H:		function (d) { return d[getHours](); },
-		// 9 (12hr, unpadded)
-		h:		function (d) {var h = d[getHours](); return h == 0 ? 12 : h > 12 ? h - 12 : h;},
-		// AM
-		AA:		function (d) { return d[getHours]() >= 12 ? 'PM' : 'AM'; },
-		// am
-		aa:		function (d) { return d[getHours]() >= 12 ? 'pm' : 'am'; },
-		// a
-		a:		function (d) { return d[getHours]() >= 12 ? 'p' : 'a'; },
-		// 09
-		mm:		function (d) { return zeroPad2(d[getMinutes]()); },
-		// 9
-		m:		function (d) { return d[getMinutes](); },
-		// 09
-		ss:		function (d) { return zeroPad2(d[getSeconds]()); },
-		// 9
-		s:		function (d) { return d[getSeconds](); },
-		// 374
-		fff:	function (d) { return zeroPad3(d[getMilliseconds]()); },
-	};
-
-	function fmtDate(tpl) {
-		var parts = [];
-
-		var R = /\{([a-z]+)\}|[^{]+/gi, m;
-
-		while (m = R.exec(tpl))
-			{ parts.push(m[0][0] == '{' ? subs[m[1]] : m[0]); }
-
-		return function (d) {
-			var out = '';
-
-			for (var i = 0; i < parts.length; i++)
-				{ out += typeof parts[i] == "string" ? parts[i] : parts[i](d); }
-
-			return out;
-		}
-	}
-
-	// https://stackoverflow.com/questions/15141762/how-to-initialize-a-javascript-date-to-a-particular-time-zone/53652131#53652131
-	function tzDate(date, tz) {
-		var date2 = new Date(date.toLocaleString('en-US', {timeZone: tz}));
-		date2.setMilliseconds(date[getMilliseconds]());
-		return date2;
-	}
 
 	function debounce(fn, time) {
 		var pending = null;
@@ -388,6 +258,136 @@ var uPlot = (function (exports) {
 
 	function off(ev, el, cb) {
 		el.removeEventListener(ev, cb, evOpts);
+	}
+
+	var months = [
+		"January",
+		"February",
+		"March",
+		"April",
+		"May",
+		"June",
+		"July",
+		"August",
+		"September",
+		"October",
+		"November",
+		"December" ];
+
+	var days = [
+		"Sunday",
+		"Monday",
+		"Tuesday",
+		"Wednesday",
+		"Thursday",
+		"Friday",
+		"Saturday" ];
+
+	function slice3(str) {
+		return str.slice(0, 3);
+	}
+
+	var days3 = days.map(slice3);
+
+	var months3 = months.map(slice3);
+
+	function zeroPad2(int) {
+		return (int < 10 ? '0' : '') + int;
+	}
+
+	function zeroPad3(int) {
+		return (int < 10 ? '00' : int < 100 ? '0' : '') + int;
+	}
+
+	/*
+	function suffix(int) {
+		let mod10 = int % 10;
+
+		return int + (
+			mod10 == 1 && int != 11 ? "st" :
+			mod10 == 2 && int != 12 ? "nd" :
+			mod10 == 3 && int != 13 ? "rd" : "th"
+		);
+	}
+	*/
+
+	var getFullYear = 'getFullYear';
+	var getMonth = 'getMonth';
+	var getDate = 'getDate';
+	var getDay = 'getDay';
+	var getHours = 'getHours';
+	var getMinutes = 'getMinutes';
+	var getSeconds = 'getSeconds';
+	var getMilliseconds = 'getMilliseconds';
+
+	var subs = {
+		// 2019
+		YYYY:	function (d) { return d[getFullYear](); },
+		// 19
+		YY:		function (d) { return (d[getFullYear]()+'').slice(2); },
+		// July
+		MMMM:	function (d) { return months[d[getMonth]()]; },
+		// Jul
+		MMM:	function (d) { return months3[d[getMonth]()]; },
+		// 07
+		MM:		function (d) { return zeroPad2(d[getMonth]()+1); },
+		// 7
+		M:		function (d) { return d[getMonth]()+1; },
+		// 09
+		DD:		function (d) { return zeroPad2(d[getDate]()); },
+		// 9
+		D:		function (d) { return d[getDate](); },
+		// Monday
+		WWWW:	function (d) { return days[d[getDay]()]; },
+		// Mon
+		WWW:	function (d) { return days3[d[getDay]()]; },
+		// 03
+		HH:		function (d) { return zeroPad2(d[getHours]()); },
+		// 3
+		H:		function (d) { return d[getHours](); },
+		// 9 (12hr, unpadded)
+		h:		function (d) {var h = d[getHours](); return h == 0 ? 12 : h > 12 ? h - 12 : h;},
+		// AM
+		AA:		function (d) { return d[getHours]() >= 12 ? 'PM' : 'AM'; },
+		// am
+		aa:		function (d) { return d[getHours]() >= 12 ? 'pm' : 'am'; },
+		// a
+		a:		function (d) { return d[getHours]() >= 12 ? 'p' : 'a'; },
+		// 09
+		mm:		function (d) { return zeroPad2(d[getMinutes]()); },
+		// 9
+		m:		function (d) { return d[getMinutes](); },
+		// 09
+		ss:		function (d) { return zeroPad2(d[getSeconds]()); },
+		// 9
+		s:		function (d) { return d[getSeconds](); },
+		// 374
+		fff:	function (d) { return zeroPad3(d[getMilliseconds]()); },
+	};
+
+	function fmtDate(tpl) {
+		var parts = [];
+
+		var R = /\{([a-z]+)\}|[^{]+/gi, m;
+
+		while (m = R.exec(tpl))
+			{ parts.push(m[0][0] == '{' ? subs[m[1]] : m[0]); }
+
+		return function (d) {
+			var out = '';
+
+			for (var i = 0; i < parts.length; i++)
+				{ out += typeof parts[i] == "string" ? parts[i] : parts[i](d); }
+
+			return out;
+		}
+	}
+
+	// https://stackoverflow.com/questions/15141762/how-to-initialize-a-javascript-date-to-a-particular-time-zone/53652131#53652131
+	function tzDate(date, tz) {
+		var date2 = new Date(date.toLocaleString('en-US', {timeZone: tz}));
+		date2.setMilliseconds(date[getMilliseconds]());
+		return date2;
 	}
 
 	//export const series = [];
@@ -871,7 +871,7 @@ var uPlot = (function (exports) {
 		return [font, fontSize];
 	}
 
-	function Line(opts, data, then) {
+	function uPlot(opts, data, then) {
 		var self = this;
 
 		opts = copy(opts);
@@ -2522,12 +2522,11 @@ var uPlot = (function (exports) {
 			{ _init(); }
 	}
 
-	exports.Line = Line;
-	exports.assign = assign;
-	exports.fmtDate = fmtDate;
-	exports.rangeNum = rangeNum;
-	exports.tzDate = tzDate;
+	uPlot.assign = assign;
+	uPlot.tzDate = tzDate;
+	uPlot.assign = assign;
+	uPlot.rangeNum = rangeNum;
 
-	return exports;
+	return uPlot;
 
-}({}));
+}());

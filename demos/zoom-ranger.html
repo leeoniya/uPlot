@@ -86,7 +86,7 @@
 				}
 			};
 
-			let uRanger = new uPlot.Line(rangerOpts, data, document.body);
+			let uRanger = new uPlot(rangerOpts, data, document.body);
 
 			const zoomedOpts = {
 			//	title: "Zoomed Area",
@@ -123,7 +123,7 @@
 				}
 			};
 
-			let uZoomed = new uPlot.Line(zoomedOpts, data, document.body);
+			let uZoomed = new uPlot(zoomedOpts, data, document.body);
 		</script>
 	</body>
 </html>

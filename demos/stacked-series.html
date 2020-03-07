@@ -92,7 +92,7 @@
 				],
 			};
 
-			let u = new uPlot.Line(opts, stacked(data), document.body);
+			let u = new uPlot(opts, stacked(data), document.body);
 
 			let data2 = [
 				xs,
@@ -146,7 +146,7 @@
 				],
 			};
 
-			let u2 = new uPlot.Line(opts2, stacked(data2), document.body);
+			let u2 = new uPlot(opts2, stacked(data2), document.body);
 		</script>
 		<p>In summary, <strong>JUST DON'T.</strong></p>
 	</body>

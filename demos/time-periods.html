@@ -106,7 +106,7 @@
 			let ts17 = tsRange(new Date(2017,0)/1000, yrHours, hrSecs);
 
 			fetch("./data/traffic.json").then(r => r.json()).then(data => {
-				let u = new uPlot.Line({
+				let u = new uPlot({
 					title: "Hourly Users",
 				//	tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), 'Etc/UTC'),
 				//	tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), 'Europe/London'),
@@ -182,7 +182,7 @@
 					data[1].slice(jan0, jan1)
 				];
 
-				let u1 = new uPlot.Line({
+				let u1 = new uPlot({
 					title: "Feb vs Jan 2019",
 					width: 1920,
 					height: 200,
@@ -246,7 +246,7 @@
 				// tzDate normalization is useful for aggregated data, where aggregation
 				// ranges and ts need to land on exact 12am without DST shifting goofiness
 
-				let u2 = new uPlot.Line({
+				let u2 = new uPlot({
 					title: "Daily Users",
 					tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), 'Etc/UTC'),
 				//	tz: 'Etc/UTC',

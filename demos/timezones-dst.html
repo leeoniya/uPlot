@@ -81,19 +81,19 @@
 			data = sliceRange(times.findIndex(v => v == 1553774400), 6);
 			syncKey = 0;
 
-			new uPlot.Line(
+			new uPlot(
 				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
 				data,
 				document.body
 			);
 
-			new uPlot.Line(
+			new uPlot(
 				genOpts("Europe/London (Mar 31, 2019: 1am -> 2am)", 'Europe/London', syncKey),
 				data,
 				document.body
 			);
 
-			new uPlot.Line(
+			new uPlot(
 				genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
 				data,
 				document.body
@@ -104,19 +104,19 @@
 			data = sliceRange(times.findIndex(v => v == 1571918400), 6);
 			syncKey = 1;
 
-			new uPlot.Line(
+			new uPlot(
 				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
 				data,
 				document.body
 			);
 
-			new uPlot.Line(
+			new uPlot(
 				genOpts("Europe/London (Oct 27, 2019: 2am -> 1am)", 'Europe/London', syncKey),
 				data,
 				document.body
 			);
 
-			new uPlot.Line(
+			new uPlot(
 				genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
 				data,
 				document.body
@@ -127,19 +127,19 @@
 			data = sliceRange(times.findIndex(v => v == 1551960000), 6);
 			syncKey = 2;
 
-			new uPlot.Line(
+			new uPlot(
 				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
 				data,
 				document.body
 			);
 
-			new uPlot.Line(
+			new uPlot(
 				genOpts("America/Chicago (Mar 10, 2019: 2am -> 3am)", 'America/Chicago', syncKey),
 				data,
 				document.body
 			);
 
-			new uPlot.Line(
+			new uPlot(
 				genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
 				data,
 				document.body
@@ -149,19 +149,19 @@
 			data = sliceRange(times.findIndex(v => v == 1572523200), 6);
 			syncKey = 3;
 
-			new uPlot.Line(
+			new uPlot(
 				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
 				data,
 				document.body
 			);
 
-			new uPlot.Line(
+			new uPlot(
 				genOpts("America/Chicago (Nov 3, 2019: 2am -> 1am)", 'America/Chicago', syncKey),
 				data,
 				document.body
 			);
 
-			new uPlot.Line(
+			new uPlot(
 				genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
 				data,
 				document.body
