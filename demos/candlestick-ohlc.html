@@ -57,9 +57,11 @@
 
 				return {
 					opts: (u, opts) => {
-						opts.cursor = Object.assign(opts.cursor || {}, {
-							x: false,
-							y: false
+						uPlot.assign(opts, {
+							cursor: {
+								x: false,
+								y: false,
+							}
 						});
 					},
 					hooks: {
@@ -191,8 +193,12 @@
 
 				return {
 					opts: (u, opts) => {
-						opts.cursor = Object.assign(opts.cursor || {}, {
-							points: false,
+						uPlot.assign(opts, {
+							cursor: {
+								points: {
+									show: false,
+								}
+							}
 						});
 
 						opts.series.forEach(series => {

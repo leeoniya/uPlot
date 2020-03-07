@@ -1,14 +1,4 @@
 import {
-	fmtDate,
-	getFullYear,
-	getMonth,
-	getDate,
-	getHours,
-	getMinutes,
-	getSeconds,
-} from './fmtDate';
-
-import {
 	assign,
 
 	inf,
@@ -23,8 +13,26 @@ import {
 } from './utils';
 
 import {
+	hexBlack,
+	WIDTH,
+	HEIGHT,
+} from './strings';
+
+import {
 	pxRatio,
+	placeDiv,
+	setStylePx,
 } from './dom';
+
+import {
+	fmtDate,
+	getFullYear,
+	getMonth,
+	getDate,
+	getHours,
+	getMinutes,
+	getSeconds,
+} from './fmtDate';
 
 //export const series = [];
 
@@ -268,12 +276,34 @@ export function timeSeriesVal(tzDate, stamp) {
 	return (self, val) => stamp(tzDate(val));
 }
 
+function cursorPoints(self) {
+	return self.series.map((s, i) => {
+		if (i > 0) {
+			let pt = placeDiv();
+
+			pt.style.background = s.stroke || hexBlack;
+
+			let dia = ptDia(s.width, 1);
+			let mar = (dia - 1) / -2;
+
+			setStylePx(pt, WIDTH, dia);
+			setStylePx(pt, HEIGHT, dia);
+			setStylePx(pt, "marginLeft", mar);
+			setStylePx(pt, "marginTop", mar);
+
+			return pt;
+		}
+	});
+}
+
 export const cursorOpts = {
 	show: true,
 	x: true,
 	y: true,
 	lock: false,
-	points: true,
+	points: {
+		show: cursorPoints,
+	},
 
 	drag: {
 		setScale: true,
@@ -420,16 +450,3 @@ export const yScaleOpts = assign({}, xScaleOpts, {
 	time: false,
 	auto: true,
 });
-
-/*
-export const scales = {
-	x: {
-		min: Infinity,
-		max: -Infinity,
-	},
-	y: {
-		min: Infinity,
-		max: -Infinity,
-	},
-};
-*/

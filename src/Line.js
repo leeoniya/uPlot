@@ -1141,6 +1141,8 @@ export function Line(opts, data, then) {
 
 	const cursor = self.cursor = assign({}, cursorOpts, opts.cursor);
 
+	cursor.points.show = fnOrSelf(cursor.points.show);
+
 	const focus = cursor.focus;		// focus: {alpha, prox}
 	const drag = cursor.drag;
 
@@ -1265,7 +1267,7 @@ export function Line(opts, data, then) {
 			label && remClass(label, "off");
 		else {
 			label && addClass(label, "off");
-			showPoints && trans(cursorPts[i], 0, -10);
+			cursorPts && trans(cursorPts[i], 0, -10);
 		}
 	}
 
@@ -1353,29 +1355,19 @@ export function Line(opts, data, then) {
 		});
 	}
 
-	let showPoints = cursor.show && cursor.points;
-
 	// series-intersection markers
-	const cursorPts = showPoints ? series.map((s, i) => {
-		if (i > 0) {
-			let pt = placeDiv("cursor-pt", over);
+	let cursorPts = cursor.points.show(self);
 
-			addClass(pt, s.class);
-
-			pt.style.background = s.stroke || hexBlack;
-
-			let dia = ptDia(s.width, 1);
-			let mar = (dia - 1) / -2;
-
-			setStylePx(pt, WIDTH, dia);
-			setStylePx(pt, HEIGHT, dia);
-			setStylePx(pt, "marginLeft", mar);
-			setStylePx(pt, "marginTop", mar);
-
-			trans(pt, -10, -10);
-			return pt;
-		}
-	}) : null;
+	if (cursorPts) {
+		cursorPts.forEach((pt, i) => {
+			if (i > 0) {
+				addClass(pt, "cursor-pt");
+				addClass(pt, series[i].class);
+				trans(pt, -10, -10);
+				over.appendChild(pt);
+			}
+		});
+	}
 
 	let cursorRaf = 0;
 
@@ -1456,7 +1448,7 @@ export function Line(opts, data, then) {
 			for (let i = 0; i < series.length; i++) {
 				if (i > 0) {
 					distsToCursor[i] = inf;
-					showPoints && trans(cursorPts[i], -10, -10);
+					cursorPts && trans(cursorPts[i], -10, -10);
 				}
 
 				if (legendOpts.show) {
@@ -1490,7 +1482,7 @@ export function Line(opts, data, then) {
 
 					distsToCursor[i] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
 
-					showPoints && trans(cursorPts[i], xPos, yPos);
+					cursorPts && trans(cursorPts[i], xPos, yPos);
 				}
 				else
 					distsToCursor[i] = inf;

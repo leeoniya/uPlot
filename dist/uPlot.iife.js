@@ -628,12 +628,34 @@ var uPlot = (function (exports) {
 		return function (self, val) { return stamp(tzDate(val)); };
 	}
 
+	function cursorPoints(self) {
+		return self.series.map(function (s, i) {
+			if (i > 0) {
+				var pt = placeDiv();
+
+				pt.style.background = s.stroke || hexBlack;
+
+				var dia = ptDia(s.width, 1);
+				var mar = (dia - 1) / -2;
+
+				setStylePx(pt, WIDTH, dia);
+				setStylePx(pt, HEIGHT, dia);
+				setStylePx(pt, "marginLeft", mar);
+				setStylePx(pt, "marginTop", mar);
+
+				return pt;
+			}
+		});
+	}
+
 	var cursorOpts = {
 		show: true,
 		x: true,
 		y: true,
 		lock: false,
-		points: true,
+		points: {
+			show: cursorPoints,
+		},
 
 		drag: {
 			setScale: true,
@@ -780,19 +802,6 @@ var uPlot = (function (exports) {
 		time: false,
 		auto: true,
 	});
-
-	/*
-	export const scales = {
-		x: {
-			min: Infinity,
-			max: -Infinity,
-		},
-		y: {
-			min: Infinity,
-			max: -Infinity,
-		},
-	};
-	*/
 
 	var syncs = {};
 
@@ -1861,6 +1870,8 @@ var uPlot = (function (exports) {
 
 		var cursor = self.cursor = assign({}, cursorOpts, opts.cursor);
 
+		cursor.points.show = fnOrSelf(cursor.points.show);
+
 		var focus = cursor.focus;		// focus: {alpha, prox}
 		var drag = cursor.drag;
 
@@ -1985,7 +1996,7 @@ var uPlot = (function (exports) {
 				{ label && remClass(label, "off"); }
 			else {
 				label && addClass(label, "off");
-				showPoints && trans(cursorPts[i], 0, -10);
+				cursorPts && trans(cursorPts[i], 0, -10);
 			}
 		}
 
@@ -2073,29 +2084,19 @@ var uPlot = (function (exports) {
 			});
 		}
 
-		var showPoints = cursor.show && cursor.points;
-
 		// series-intersection markers
-		var cursorPts = showPoints ? series.map(function (s, i) {
-			if (i > 0) {
-				var pt = placeDiv("cursor-pt", over);
+		var cursorPts = cursor.points.show(self);
 
-				addClass(pt, s.class);
-
-				pt.style.background = s.stroke || hexBlack;
-
-				var dia = ptDia(s.width, 1);
-				var mar = (dia - 1) / -2;
-
-				setStylePx(pt, WIDTH, dia);
-				setStylePx(pt, HEIGHT, dia);
-				setStylePx(pt, "marginLeft", mar);
-				setStylePx(pt, "marginTop", mar);
-
-				trans(pt, -10, -10);
-				return pt;
-			}
-		}) : null;
+		if (cursorPts) {
+			cursorPts.forEach(function (pt, i) {
+				if (i > 0) {
+					addClass(pt, "cursor-pt");
+					addClass(pt, series[i].class);
+					trans(pt, -10, -10);
+					over.appendChild(pt);
+				}
+			});
+		}
 
 		var cursorRaf = 0;
 
@@ -2176,7 +2177,7 @@ var uPlot = (function (exports) {
 				for (var i = 0; i < series.length; i++) {
 					if (i > 0) {
 						distsToCursor[i] = inf;
-						showPoints && trans(cursorPts[i], -10, -10);
+						cursorPts && trans(cursorPts[i], -10, -10);
 					}
 
 					if (legendOpts.show) {
@@ -2210,7 +2211,7 @@ var uPlot = (function (exports) {
 
 						distsToCursor[i$1] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
 
-						showPoints && trans(cursorPts[i$1], xPos, yPos);
+						cursorPts && trans(cursorPts[i$1], xPos, yPos);
 					}
 					else
 						{ distsToCursor[i$1] = inf; }
