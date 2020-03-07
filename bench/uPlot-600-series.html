@@ -74,7 +74,7 @@
 				for (let i = 1; i < data.length; i++) {
 					series.push({
 						label: i,
-						width: 1,
+						width: 1/devicePixelRatio,
 						stroke: randColor(),
 					});
 				}
@@ -94,7 +94,7 @@
 					]
 				};
 
-				let uplot = new uPlot.Line(opts, data, document.body);
+				let uplot = new uPlot(opts, data, document.body);
 			}
 
 			makeChart(prepData());
