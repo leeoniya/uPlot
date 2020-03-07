@@ -123,7 +123,7 @@ let opts = {
   ],
 };
 
-let uplot = new uPlot.Line(opts, data, document.body);
+let uplot = new uPlot(opts, data, document.body);
 ```
 
 - `id` and `class` are optional HTML attributes to set on the chart's container `<div>` (`uplot.root`).
@@ -355,7 +355,7 @@ let opts = {
         width: 2,
         dash: [],
       },
-      tick: {
+      ticks: {
         show: true,
         stroke: "#eee",
         width: 2,
@@ -402,7 +402,7 @@ let opts = {
         [60,                 "{h}:{mm}{aa}",         4,   "{h}:{mm}{aa}\n{M}/{D}"     ],
         [1,                  "{h}:{mm}:{ss}{aa}",    4,   "{h}:{mm}:{ss}{aa}\n{M}/{D}"],
       ],
-  //  ticks:
+  //  split:
     }
   ],
 }
