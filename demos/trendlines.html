@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Trendlines</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../src/uPlot.css">
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			let data = [
+				[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99],
+				[309,317,322,304,305,317,319,321,317,321,322,329,319,313,313,321,308,308,300,303,313,310,307,305,299,293,287,283,291,285,281,269,276,261,263,274,276,268,255,261,248,239,254,244,237,230,222,233,229,221,222,243,247,233,247,228,229,231,232,235,237,225,195,186,193,186,193,182,182,182,184,159,178,170,173,170,153,151,153,158,145,166,173,178,177,166,177,168,164,153,167,168,182,177,179,167,161,179,182,173],
+				[293,291,281,258,257,265,252,258,242,246,240,242,227,221,227,227,258,241,260,262,254,257,261,246,238,229,233,241,243,248,268,274,277,285,275,280,262,258,263,252,265,270,249,233,242,233,223,215,209,200,210,213,216,224,222,223,230,237,229,241,255,260,259,264,259,246,253,240,240,233,228,237,247,235,238,243,236,240,254,269,259,272,266,258,281,282,280,280,277,277,297,301,310,313,305,306,298,308,317,290],
+				null,	// blue trend
+				null,	// red trend
+			];
+
+			// copies original series data into trend data,
+			// nulling out all values in a given index range
+			function setTrends(data, i0, i1) {
+				data[3] = data[1].map((v, i) =>
+					(i > i0 && i < i1) ? null : v
+				);
+
+				data[4] = data[2].map((v, i) =>
+					(i > i0 && i < i1) ? null : v
+				);
+
+				return data;
+			}
+
+			const opts = {
+				width: 800,
+				height: 600,
+				title: "Trendlines",
+				cursor: {
+					drag: {
+						setSelect: true,
+						setScale: false,
+						x: true,
+						y: false,
+					}
+				},
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				hooks: {
+					init: [
+						u => {
+							// zoom reset
+							u.root.querySelector(".over").addEventListener("dblclick", () => {
+								u.setData(setTrends(data, 0, data[1].length - 1), false);
+								u.setScale('x', {min: 0, max: data[0].length - 1});
+							});
+						}
+					],
+					setSelect: [
+						u => {
+							let lft = u.select.left;
+							let rgt = u.select.width + lft;
+
+							let i0 = u.posToIdx(lft);
+							let i1 = u.posToIdx(rgt);
+
+							// update data, preventing auto setScale (false)
+							u.setData(setTrends(data, i0, i1), false);
+							u.setScale('x', {min: i0, max: i1});
+							u.setSelect({left: 0, width: 0}, false);
+						}
+					]
+				},
+				series: [
+					{},
+					{
+						label: "Data 1",
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+					},
+					{
+						label: "Data 2",
+						stroke: "blue",
+						fill: "rgba(0,0,255,0.1)",
+					},
+					// trendlines
+					{
+						label: "Trend 1",
+						stroke: "red",
+						dash: [5,5],
+						spanGaps: true,
+					},
+					{
+						label: "Trend 2",
+						stroke: "blue",
+						dash: [5,5],
+						spanGaps: true,
+					},
+				],
+			};
+
+			let u = new uPlot.Line(opts, setTrends(data, 0, data[1].length - 1), document.body);
+		</script>
+	</body>
+</html>
