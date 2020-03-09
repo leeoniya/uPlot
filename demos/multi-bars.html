@@ -7,14 +7,6 @@
 
 		<link rel="stylesheet" href="../src/uPlot.css">
 		<style>
-			.uplot .under {
-				background: rgb(234, 234, 242);
-			}
-
-			.uplot .title {
-				white-space: pre-line;
-			}
-
 			.uplot .legend .series:first-child,
 			.uplot .legend .series th::after,
 			.uplot .legend .series td {
@@ -27,8 +19,8 @@
 		<script>
 			function seriesBarsPlugin(opts) {
 				const labels   = opts.labels;
-				const barWidth = Math.round(24 * devicePixelRatio);
-				const font     = Math.round(11 * devicePixelRatio) + "px Arial";
+				const barWidth = Math.round(20 * devicePixelRatio);
+				const font     = Math.round(10 * devicePixelRatio) + "px Arial";
 				const margin   = 0.5;
 
 				function drawThings(u, sidx, i0, i1, draw) {
@@ -81,6 +73,11 @@
 					});
 				}
 
+				function range(u, dataMin, dataMax) {
+					let [min, max] = uPlot.rangeNum(dataMin, dataMax, 0.2, true);
+					return [0, max];
+				}
+
 				return {
 					opts: (u, opts) => {
 						uPlot.assign(opts, {
@@ -93,12 +90,11 @@
 										u.data[0][u.data[0].length - 1] + margin,
 									],
 								},
-								y: {
-									range: (u, dataMin, dataMax) => {
-										let [min, max] = uPlot.rangeNum(dataMin, dataMax, 0.2, true);
-										return [0, max];
-									}
-								}
+								rend: {range},
+								size: {range},
+								mem:  {range},
+								inter:{range},
+								toggle:{range},
 							}
 						});
 
@@ -112,66 +108,89 @@
 							ticks:      {show: false},
 						});
 
-						opts.series.forEach(s => {
-							uPlot.assign(s, {
-								paths: drawBars,
-								points: {
-									show: drawPoints
-								}
-							});
+						opts.series.forEach((s, i) => {
+							if (i > 0) {
+								uPlot.assign(s, {
+									width: 0,
+									paths: drawBars,
+									points: {
+										show: drawPoints
+									}
+								});
+							}
 						});
 					}
 				};
 			}
 
-			const data = [
-				[   1,    2,    3,    4,    5,    6,    7,    8,    9],
-				[3.09, 2.70, 2.92, 3.34, 3.13, 3.40, 2.36, 3.04, 2.98],
-				[1.93, 1.60, 2.02, 1.79, 2.44, 2.13, 1.90, 1.89, 1.95],
-				[1.06, 0.93, 1.22, 0.96, 1.38, 1.22, 1.16, 1.26, 1.14],
-			];
+			fetch("../bench/results.json").then(r => r.json()).then(d => {
+				const opts = {
+					width: 1800,
+					height: 600,
+					title: "Line Charts (166,650 points)",
+					axes: [
+						{
+							grid: {show: false},
+						},
+						{
+							show: false,
+						},
+					],
+					gutters: {
+						x: false,
+					},
+					series: [
+						{},
+						{
+							label: "Lib Size (KB)",
+							fill: "#33BB55",
+							scale: 'size',
+						},
+						{
+							label:	"Render Time (ms)",
+							fill: "#B56FAB",
+							scale: 'rend',
+						},
+						{
+							label:	"Peak Heap (MB)",
+							fill: "#BB1133",
+							scale: 'mem',
+						},
+						{
+							label:	"Final Heap (MB)",
+							fill: "#F79420",
+							scale: 'mem',
+						},
+						{
+							label:	"Interact 10s (ms)",
+							fill: "#558AB5",
+							scale: 'inter',
+						},
+						{
+							label:	"Toggle 6x (ms)",
+							fill: "#FAD55C",
+							scale: 'toggle',
+						},
+					],
+					plugins: [
+						seriesBarsPlugin({
+							labels: d.map(lib => lib[0]),
+						}),
+					],
+				};
 
-			const opts = {
-				width: 1000,
-				height: 600,
-				title: "JSON decoding time\ncomparison of techniques (normalized to PyPyFull)",
-				axes: [
-					{
-						label: "Benchmark",
-					},
-					{
-						label: "time [normalized to PyPyFull], lower is better",
-						grid: {
-							stroke: "#fff"
-						}
-					},
-				],
-				series: [
-					{},
-					{
-						label: "PyPyBaseline",
-						width: 0,
-						fill: "rgb(78, 119, 162)",
-					},
-					{
-						label:	"PyPyKeyStringCaching",
-						width: 0,
-						fill: "rgb(213, 135, 101)",
-					},
-					{
-						label:	"PyPyMapNoCache",
-						width: 0,
-						fill: "rgb(82, 158, 112)",
-					},
-				],
-				plugins: [
-					seriesBarsPlugin({
-						labels: ["Censys", "Gharchive", "NYTimes", "Reddit", "Rosie", "TPCH", "Wikidata", "Yelp", "geomean"],
-					}),
-				],
-			};
+				const data = [
+					d.map((lib, i) => i+1),
+					d.map(lib => lib[1]),
+					d.map(lib => lib[3].reduce((total, num) => total + num, 0)),
+					d.map(lib => lib[4][0]),
+					d.map(lib => lib[4][1]),
+					d.map(lib => lib[5] && lib[5].reduce((total, num) => total + num, 0)),
+					d.map(lib => lib[6] && lib[6].reduce((total, num) => total + num, 0)),
+				];
 
-			let u = new uPlot(opts, data, document.body);
+				let u = new uPlot(opts, data, document.body);
+			});
 		</script>
 	</body>
 </html>
