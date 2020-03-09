@@ -1,5 +1,18 @@
 const fs = require('fs');
 
+function cssmin(css) {
+	return css
+		.replace(/\s{1,}/g, ' ')
+		.replace(/\{\s{1,}/g,"{")
+		.replace(/\}\s{1,}/g,"}")
+		.replace(/\;\s{1,}/g,";")
+		.replace(/\/\*\s{1,}/g,"/*")
+		.replace(/\*\/\s{1,}/g,"*/");
+}
+
+let minicss = cssmin(fs.readFileSync('./src/uPlot.css', 'utf8'));
+fs.writeFileSync('./dist/uPlot.min.css', minicss);
+
 import buble from 'rollup-plugin-buble';
 import { terser } from 'rollup-plugin-terser';
 
