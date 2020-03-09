@@ -11,12 +11,24 @@
     "type": "git",
     "url": "git+https://github.com/leeoniya/uPlot.git"
   },
+  "files": [
+    "package.json",
+    "README.md",
+    "LICENSE",
+    "dist"
+  ],
   "keywords": [
     "micro",
     "time",
     "series",
+    "line",
+    "area",
+    "trend",
+    "bar",
+    "ohlc",
     "plot",
-    "chart"
+    "chart",
+    "graph"
   ],
   "author": "Leon Sorokin <leeoniya@gmail.com>",
   "license": "MIT",
