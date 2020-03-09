@@ -20,7 +20,7 @@
 
 			temps.push(avgs);
 
-			let d = new Date(2010,0,1)/1000;
+			let d = Date.UTC(2010,0,1)/1000;
 			let num = 365;
 			let ts = [];
 
@@ -41,6 +41,7 @@
 				width: 1920,
 				height: 600,
 				title: "Temps",
+				tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), 'Etc/UTC'),
 				series: [
 					{},
 					{
