@@ -6,6 +6,11 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			body {
+				margin: 0;
+			}
+		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.min.js"></script>
@@ -113,6 +118,7 @@
 						{
 							side: 1,
 							scale: "mb",
+							size: 60,
 							values: (u, vals, space) => vals.map(v => +v.toFixed(2) + " MB"),
 							grid: {show: false},
 						},
