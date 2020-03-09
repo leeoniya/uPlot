@@ -14,7 +14,7 @@
 #### Installation
 
 ```html
-<link rel="stylesheet" href="src/uPlot.css">
+<link rel="stylesheet" href="dist/uPlot.min.css">
 <script src="dist/uPlot.iife.min.js"></script>
 ```
 
