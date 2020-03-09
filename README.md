@@ -53,6 +53,12 @@ Benchmarks done on a ThinkPad T480S:
 - Core i5-8350U @ 1.70GHz, 8GB RAM
 - Intel HD 620 GPU, 2560x1440 res
 
+![uPlot Performance](perf.png "uPlot Performance")
+
+Full size: https://leeoniya.github.io/uPlot/demos/multi-bars.html
+
+Raw data: https://github.com/leeoniya/uPlot/blob/master/bench/results.json
+
 <pre>
 | lib            | size    | done    | js,rend,paint,sys | heap peak,final | interact (10s)      |
 | -------------- | ------- | ------- | ----------------- | --------------- | ------------------- |
