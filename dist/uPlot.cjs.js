@@ -4,7 +4,7 @@
 *
 * uPlot.js (μPlot)
 * An exceptionally fast, tiny time series chart
-* https://github.com/leeoniya/uPlot (v1.0.0)
+* https://github.com/leeoniya/uPlot (v1.0.1-dev)
 */
 
 'use strict';
@@ -2084,7 +2084,7 @@ function uPlot(opts, data, then) {
 	}
 
 	// series-intersection markers
-	var cursorPts = cursor.points.show(self);
+	var cursorPts = cursor.show && cursor.points.show(self);
 
 	if (cursorPts) {
 		cursorPts.forEach(function (pt, i) {

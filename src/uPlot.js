@@ -1355,7 +1355,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	// series-intersection markers
-	let cursorPts = cursor.points.show(self);
+	let cursorPts = cursor.show && cursor.points.show(self);
 
 	if (cursorPts) {
 		cursorPts.forEach((pt, i) => {
