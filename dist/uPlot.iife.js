@@ -1889,26 +1889,29 @@ var uPlot = (function () {
 			}
 		}
 
-		var select = placeDiv("select", over);
-
-		var _select = self.select = {
+		var select = self.select = assign({
+			show:   true,
 			left:	0,
 			width:	0,
 			top:	0,
 			height:	0,
-		};
+		}, opts.select);
+
+		var selectDiv = select.show ? placeDiv("select", over) : null;
 
 		function setSelect(opts, _fire) {
-			if (opts[WIDTH] == null && drag.y)
-				{ opts[WIDTH] = plotWidCss; }
+			if (select.show) {
+				if (opts[WIDTH] == null && drag.y)
+					{ opts[WIDTH] = plotWidCss; }
 
-			if (opts[HEIGHT] == null && drag.x)
-				{ opts[HEIGHT] = plotHgtCss; }
+				if (opts[HEIGHT] == null && drag.x)
+					{ opts[HEIGHT] = plotHgtCss; }
 
-			for (var prop in opts)
-				{ setStylePx(select, prop, _select[prop] = opts[prop]); }
+				for (var prop in opts)
+					{ setStylePx(selectDiv, prop, select[prop] = opts[prop]); }
 
-			_fire !== false && fire("setSelect");
+				_fire !== false && fire("setSelect");
+			}
 		}
 
 		self.setSelect = setSelect;
@@ -2231,20 +2234,21 @@ var uPlot = (function () {
 					}
 				}
 
-				if (dragging) {
+				// nit: cursor.drag.setSelect is assumed always true
+				if (select.show && dragging) {
 					// setSelect should not be triggered on move events
 					if (drag.x) {
 						var minX = min(mouseLeft0, mouseLeft1);
 						var maxX = max(mouseLeft0, mouseLeft1);
-						setStylePx(select, LEFT, _select[LEFT] = minX);
-						setStylePx(select, WIDTH, _select[WIDTH] = maxX - minX);
+						setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
+						setStylePx(selectDiv, WIDTH, select[WIDTH] = maxX - minX);
 					}
 
 					if (drag.y) {
 						var minY = min(mouseTop0, mouseTop1);
 						var maxY = max(mouseTop0, mouseTop1);
-						setStylePx(select, TOP, _select[TOP] = minY);
-						setStylePx(select, HEIGHT, _select[HEIGHT] = maxY - minY);
+						setStylePx(selectDiv, TOP,    select[TOP] = minY);
+						setStylePx(selectDiv, HEIGHT, select[HEIGHT] = maxY - minY);
 					}
 				}
 			}
@@ -2359,7 +2363,7 @@ var uPlot = (function () {
 				cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
 
 				if (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0) {
-					setSelect(_select);
+					setSelect(select);
 
 					if (drag.setScale) {
 						batch(function () {
@@ -2367,8 +2371,8 @@ var uPlot = (function () {
 								var fn = xScaleDistr == 2 ? closestIdxFromXpos : scaleValueAtPos;
 
 								_setScale(xScaleKey,
-									fn(_select[LEFT], xScaleKey),
-									fn(_select[LEFT] + _select[WIDTH], xScaleKey)
+									fn(select[LEFT], xScaleKey),
+									fn(select[LEFT] + select[WIDTH], xScaleKey)
 								);
 							}
 
@@ -2378,8 +2382,8 @@ var uPlot = (function () {
 
 									if (k != xScaleKey && sc.from == null) {
 										_setScale(k,
-											scaleValueAtPos(plotHgtCss - _select[TOP] - _select[HEIGHT], k),
-											scaleValueAtPos(plotHgtCss - _select[TOP], k)
+											scaleValueAtPos(plotHgtCss - select[TOP] - select[HEIGHT], k),
+											scaleValueAtPos(plotHgtCss - select[TOP], k)
 										);
 									}
 								}
@@ -2503,7 +2507,7 @@ var uPlot = (function () {
 			else
 				{ autoScaleX(); }
 
-			setSelect(_select, false);
+			setSelect(select, false);
 
 			ready = true;
 
