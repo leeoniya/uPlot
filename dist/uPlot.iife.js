@@ -4,7 +4,7 @@
 *
 * uPlot.js (μPlot)
 * An exceptionally fast, tiny time series chart
-* https://github.com/leeoniya/uPlot (v0.1.0)
+* https://github.com/leeoniya/uPlot (v1.0.0)
 */
 
 var uPlot = (function () {

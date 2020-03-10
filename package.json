@@ -1,8 +1,9 @@
 {
   "name": "uplot",
-  "version": "0.1.0",
-  "description": "An exceptionally fast, tiny time series & line chart",
+  "version": "1.0.0",
+  "description": "A small, fast chart for time series, lines, areas, ohlc & bars",
   "main": "./dist/uPlot.cjs.js",
+  "module": "./dist/uPlot.esm.js",
   "scripts": {
     "build": "rollup -c",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -39,6 +40,6 @@
   "devDependencies": {
     "rollup": "^2.0.2",
     "rollup-plugin-buble": "^0.19.8",
-    "rollup-plugin-terser": "^5.2.0"
+    "rollup-plugin-terser": "^5.3.0"
   }
 }

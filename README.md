@@ -1,11 +1,11 @@
 ## 📈 μPlot
 
-An [fast](#performance), tiny ([< 25 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)) time series & line chart _(MIT Licensed)_
+A small ([< 25 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)), [fast](#performance) chart for time series, lines, areas, ohlc & bars _(MIT Licensed)_
 
 ---
 ### Introduction
 
-μPlot is a [fast, memory-efficient](#performance) [time series](https://en.wikipedia.org/wiki/Time_series) & line chart based on [Canvas 2D](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D); from a cold start it can create an interactive chart containing 150,000 data points in 50ms, scaling linearly at ~4,000 pts/ms. In addition to fast initial render, the zooming and cursor performance is by far the best of any similar charting lib; at < 25 KB, it's likely the smallest and fastest time series plotter that doesn't make use of [context-limited](https://bugs.chromium.org/p/chromium/issues/detail?id=771792) WebGL shaders or WASM, both of which have much higher startup cost and code size.
+μPlot is a [fast, memory-efficient](#performance) [Canvas 2D](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D)-based chart for plotting [time series](https://en.wikipedia.org/wiki/Time_series), lines, areas, ohlc & bars; from a cold start it can create an interactive chart containing 150,000 data points in 60ms, scaling linearly at ~4,000 pts/ms. In addition to fast initial render, the zooming and cursor performance is by far the best of any similar charting lib; at < 25 KB, it's likely the smallest and fastest time series plotter that doesn't make use of [context-limited](https://bugs.chromium.org/p/chromium/issues/detail?id=771792) WebGL shaders or WASM, both of which have much higher startup cost and code size.
 
 <h3 align="center">166,650 point bench: <a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">https://leeoniya.github.io/uPlot/bench/uPlot.html</a></h3>
 
@@ -27,6 +27,7 @@ An [fast](#performance), tiny ([< 25 KB min](https://github.com/leeoniya/uPlot/t
 - [Focus closest series](https://leeoniya.github.io/uPlot/demos/focus-cursor.html)
 - [Data streaming (live update)](https://leeoniya.github.io/uPlot/demos/stream-data.html)
 - [High / Low bands](https://leeoniya.github.io/uPlot/demos/high-low-bands.html)
+- A lean, consistent, and powerful API with hooks & plugins
 
 ---
 ### Non-Features
@@ -42,7 +43,9 @@ In order to stay lean, fast and focused the following features will not be added
 ---
 ### Documentation (WIP)
 
-https://github.com/leeoniya/uPlot/tree/master/docs
+The docs are a work in progress: https://github.com/leeoniya/uPlot/tree/master/docs
+
+An outline of the API can be found in [issue #48](https://github.com/leeoniya/uPlot/issues/48). For the time being, visit the ever-expanding collection of [/demos](https://leeoniya.github.io/uPlot/demos/index.html) which covers the vast majority of uPlot's config & API.
 
 ---
 ### Performance

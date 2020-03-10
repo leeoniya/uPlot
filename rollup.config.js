@@ -50,6 +50,16 @@ export default [
 		input: './src/uPlot.js',
 		output: {
 			name: 'uPlot',
+			file: './dist/uPlot.esm.js',
+			format: 'es',
+			esModule: false,
+			banner,
+		},
+	},
+	{
+		input: './src/uPlot.js',
+		output: {
+			name: 'uPlot',
 			file: './dist/uPlot.cjs.js',
 			format: 'cjs',
 			esModule: false,
