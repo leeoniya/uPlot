@@ -1716,13 +1716,13 @@ function uPlot(opts, data, then) {
 
 			var lineHeight   = axis.font[1] * lineMult;
 
-			canOffs.forEach(function (off, i) {
+			values.forEach(function (val, i) {
 				if (ori == 0)
-					{ x = off; }
+					{ x = canOffs[i]; }
 				else
-					{ y = off; }
+					{ y = canOffs[i]; }
 
-				(""+values[i]).split(/\n/gm).forEach(function (text, j) {
+				(""+val).split(/\n/gm).forEach(function (text, j) {
 					ctx.fillText(text, x, y + j * lineHeight);
 				});
 			});

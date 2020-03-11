@@ -1708,13 +1708,13 @@ function uPlot(opts, data, then) {
 
 			let lineHeight   = axis.font[1] * lineMult;
 
-			canOffs.forEach((off, i) => {
+			values.forEach((val, i) => {
 				if (ori == 0)
-					x = off;
+					x = canOffs[i];
 				else
-					y = off;
+					y = canOffs[i];
 
-				(""+values[i]).split(/\n/gm).forEach((text, j) => {
+				(""+val).split(/\n/gm).forEach((text, j) => {
 					ctx.fillText(text, x, y + j * lineHeight);
 				});
 			});
