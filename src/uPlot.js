@@ -1796,13 +1796,13 @@ export default function uPlot(opts, data, then) {
 		_init();
 }
 
+uPlot.assign = assign;
+uPlot.rangeNum = rangeNum;
+
 import {
 	fmtDate,
 	tzDate,
 } from './fmtDate';
 
-uPlot.assign = assign;
-uPlot.tzDate = tzDate;
 uPlot.fmtDate = fmtDate;
-uPlot.assign = assign;
-uPlot.rangeNum = rangeNum;
+uPlot.tzDate = tzDate;

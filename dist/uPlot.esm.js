@@ -2518,9 +2518,9 @@ function uPlot(opts, data, then) {
 }
 
 uPlot.assign = assign;
-uPlot.tzDate = tzDate;
-uPlot.fmtDate = fmtDate;
-uPlot.assign = assign;
 uPlot.rangeNum = rangeNum;
+
+uPlot.fmtDate = fmtDate;
+uPlot.tzDate = tzDate;
 
 export default uPlot;
