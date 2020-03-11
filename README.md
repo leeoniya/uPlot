@@ -52,7 +52,7 @@ An outline of the API can be found in [issue #48](https://github.com/leeoniya/uP
 
 Benchmarks done on a ThinkPad T480S:
 
-- Windows 10 x64, 80.0.3987.132 (Official Build) (64-bit)
+- Windows 10 x64, Chrome 80.0.3987.132 (Official Build) (64-bit)
 - Core i5-8350U @ 1.70GHz, 8GB RAM
 - Intel HD 620 GPU, 2560x1440 res
 
