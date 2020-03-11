@@ -1905,12 +1905,6 @@ function uPlot(opts, data, then) {
 
 	function setSelect(opts, _fire) {
 		if (select.show) {
-			if (opts[WIDTH] == null && drag.y)
-				{ opts[WIDTH] = plotWidCss; }
-
-			if (opts[HEIGHT] == null && drag.x)
-				{ opts[HEIGHT] = plotHgtCss; }
-
 			for (var prop in opts)
 				{ setStylePx(selectDiv, prop, select[prop] = opts[prop]); }
 
@@ -2350,7 +2344,7 @@ function uPlot(opts, data, then) {
 
 			cacheMouse(e, src, _x, _y, _w, _h, _i, true, true);
 
-			if (drag.x || drag.y)
+			if (select.show && (drag.x || drag.y))
 				{ hideSelect(); }
 
 			if (e != null) {
