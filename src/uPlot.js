@@ -173,11 +173,11 @@ export default function uPlot(opts, data, then) {
 	}, opts.gutters);
 
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
-	const tzDate = opts.tzDate || (ts => new Date(ts * 1e3));
+	const tzDate = FEAT_TIME && (opts.tzDate || (ts => new Date(ts * 1e3)));
 
-	const _timeAxisSplits = timeAxisSplits(tzDate);
-	const _timeAxisVals = timeAxisVals(tzDate, _timeAxisStamps);
-	const _timeSeriesVal = timeSeriesVal(tzDate, _timeSeriesStamp);
+	const _timeAxisSplits = FEAT_TIME && timeAxisSplits(tzDate);
+	const _timeAxisVals   = FEAT_TIME && timeAxisVals(tzDate, _timeAxisStamps);
+	const _timeSeriesVal  = FEAT_TIME && timeSeriesVal(tzDate, _timeSeriesStamp);
 
 	self.series = series;
 	self.axes = axes;
@@ -202,9 +202,9 @@ export default function uPlot(opts, data, then) {
 
 		const sc = scales[scKey] = assign({}, (i == 0 ? xScaleOpts : yScaleOpts), scales[scKey]);
 
-		let isTime = sc.time;
+		let isTime = FEAT_TIME && sc.time;
 
-		sc.range = fnOrSelf(sc.range || (i > 0 && !isTime ? snapFifthMag : snapNone));
+		sc.range = fnOrSelf(sc.range || (isTime || i == 0 ? snapNone : snapFifthMag));
 
 		s.spanGaps = s.spanGaps === true ? retArg2 : fnOrSelf(s.spanGaps || []);
 
@@ -250,11 +250,11 @@ export default function uPlot(opts, data, then) {
 			}
 
 			// also set defaults for incrs & values based on axis distr
-			let isTime = sc.time;
+			let isTime = FEAT_TIME && sc.time;
 
 			axis.space = fnOrSelf(axis.space);
-			axis.incrs = fnOrSelf(axis.incrs || (sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
-			axis.split = fnOrSelf(axis.split || (sc.distr == 1 && isTime ? _timeAxisSplits : numAxisSplits));
+			axis.incrs = fnOrSelf(axis.incrs || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
+			axis.split = fnOrSelf(axis.split || (isTime && sc.distr == 1 ? _timeAxisSplits : numAxisSplits));
 			let av = axis.values;
 			axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
 
@@ -1102,7 +1102,7 @@ export default function uPlot(opts, data, then) {
 
 		if (sc.from == null) {
 			// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
-			if (key == xScaleKey && sc.time && axes[0].show) {
+			if (FEAT_TIME && key == xScaleKey && sc.time && axes[0].show) {
 				// since scales and axes are loosly coupled, we have to make some assumptions here :(
 				let incr = getIncrSpace(axes[0], opts.min, opts.max, plotWidCss)[0];
 
@@ -1804,5 +1804,5 @@ import {
 	tzDate,
 } from './fmtDate';
 
-uPlot.fmtDate = fmtDate;
-uPlot.tzDate = tzDate;
+uPlot.fmtDate = FEAT_TIME && fmtDate;
+uPlot.tzDate  = FEAT_TIME && tzDate;

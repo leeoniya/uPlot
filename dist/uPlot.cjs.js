@@ -286,9 +286,9 @@ function slice3(str) {
 	return str.slice(0, 3);
 }
 
-var days3 = days.map(slice3);
+var days3 =  days.map(slice3);
 
-var months3 = months.map(slice3);
+var months3 =  months.map(slice3);
 
 function zeroPad2(int) {
 	return (int < 10 ? '0' : '') + int;
@@ -422,7 +422,7 @@ var s = 1,
 	y = d * 365;
 
 // starting below 1e-3 is a hack to allow the incr finder to choose & bail out at incr < 1ms
-var timeIncrs = [5e-4].concat(genIncrs(-3, 0, incrMults), [
+var timeIncrs =  [5e-4].concat(genIncrs(-3, 0, incrMults), [
 	// minute divisors (# of secs)
 	1,
 	5,
@@ -493,7 +493,7 @@ var ss = ":{ss}";
 // [2]: when a differing <x> is encountered - 1: sec, 2: min, 3: hour, 4: day, 5: week, 6: month, 7: year
 // [3]: use a longer more contextual format
 // [4]: modes: 0: replace [1] -> [3], 1: concat [1] + [3]
-var _timeAxisStamps = timeAxisStamps([
+var _timeAxisStamps =  timeAxisStamps([
 	[y,        yyyy,            7,   "",                    1],
 	[d * 28,   "{MMM}",         7,   NLyyyy,                1],
 	[d,        md,              7,   NLyyyy,                1],
@@ -621,7 +621,7 @@ function timeAxisSplits(tzDate) {
 function timeSeriesStamp(stampCfg) {
 	return fmtDate(stampCfg);
 }
-var _timeSeriesStamp = timeSeriesStamp('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+var _timeSeriesStamp =  timeSeriesStamp('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
 
 function timeSeriesVal(tzDate, stamp) {
 	return function (self, val) { return stamp(tzDate(val)); };
@@ -892,11 +892,11 @@ function uPlot(opts, data, then) {
 	}, opts.gutters);
 
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
-	var tzDate = opts.tzDate || (function (ts) { return new Date(ts * 1e3); });
+	var tzDate =  (opts.tzDate || (function (ts) { return new Date(ts * 1e3); }));
 
-	var _timeAxisSplits = timeAxisSplits(tzDate);
-	var _timeAxisVals = timeAxisVals(tzDate, _timeAxisStamps);
-	var _timeSeriesVal = timeSeriesVal(tzDate, _timeSeriesStamp);
+	var _timeAxisSplits =  timeAxisSplits(tzDate);
+	var _timeAxisVals   =  timeAxisVals(tzDate, _timeAxisStamps);
+	var _timeSeriesVal  =  timeSeriesVal(tzDate, _timeSeriesStamp);
 
 	self.series = series;
 	self.axes = axes;
@@ -921,9 +921,9 @@ function uPlot(opts, data, then) {
 
 		var sc = scales[scKey] = assign({}, (i == 0 ? xScaleOpts : yScaleOpts), scales[scKey]);
 
-		var isTime = sc.time;
+		var isTime =  sc.time;
 
-		sc.range = fnOrSelf(sc.range || (i > 0 && !isTime ? snapFifthMag : snapNone));
+		sc.range = fnOrSelf(sc.range || (isTime || i == 0 ? snapNone : snapFifthMag));
 
 		s.spanGaps = s.spanGaps === true ? retArg2 : fnOrSelf(s.spanGaps || []);
 
@@ -969,11 +969,11 @@ function uPlot(opts, data, then) {
 			}
 
 			// also set defaults for incrs & values based on axis distr
-			var isTime = sc.time;
+			var isTime =  sc.time;
 
 			axis.space = fnOrSelf(axis.space);
-			axis.incrs = fnOrSelf(axis.incrs || (sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
-			axis.split = fnOrSelf(axis.split || (sc.distr == 1 && isTime ? _timeAxisSplits : numAxisSplits));
+			axis.incrs = fnOrSelf(axis.incrs || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
+			axis.split = fnOrSelf(axis.split || (isTime && sc.distr == 1 ? _timeAxisSplits : numAxisSplits));
 			var av = axis.values;
 			axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
 
@@ -1831,7 +1831,7 @@ function uPlot(opts, data, then) {
 
 		if (sc.from == null) {
 			// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
-			if (key == xScaleKey && sc.time && axes[0].show) {
+			if ( key == xScaleKey && sc.time && axes[0].show) {
 				// since scales and axes are loosly coupled, we have to make some assumptions here :(
 				var incr = getIncrSpace(axes[0], opts.min, opts.max, plotWidCss)[0];
 
@@ -2528,7 +2528,7 @@ function uPlot(opts, data, then) {
 uPlot.assign = assign;
 uPlot.rangeNum = rangeNum;
 
-uPlot.fmtDate = fmtDate;
-uPlot.tzDate = tzDate;
+uPlot.fmtDate =  fmtDate;
+uPlot.tzDate  =  tzDate;
 
 module.exports = uPlot;

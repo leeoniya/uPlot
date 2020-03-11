@@ -27,9 +27,9 @@ function slice3(str) {
 	return str.slice(0, 3);
 }
 
-const days3 = days.map(slice3);
+const days3 = FEAT_TIME && days.map(slice3);
 
-const months3 = months.map(slice3);
+const months3 = FEAT_TIME && months.map(slice3);
 
 function zeroPad2(int) {
 	return (int < 10 ? '0' : '') + int;

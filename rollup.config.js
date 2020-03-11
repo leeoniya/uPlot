@@ -14,6 +14,7 @@ let minicss = cssmin(fs.readFileSync('./src/uPlot.css', 'utf8'));
 fs.writeFileSync('./dist/uPlot.min.css', minicss);
 
 import buble from 'rollup-plugin-buble';
+import replace from 'rollup-plugin-replace';
 import { terser } from 'rollup-plugin-terser';
 
 const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
@@ -32,6 +33,10 @@ const banner = [
 ].join("\n");
 
 
+const FEATS = {
+	FEAT_TIME: true,
+};
+
 export default [
 	{
 		input: './src/uPlot.js',
@@ -43,7 +48,8 @@ export default [
 			banner,
 		},
 		plugins: [
-			buble()
+			replace(FEATS),
+			buble(),
 		]
 	},
 	{
@@ -55,6 +61,9 @@ export default [
 			esModule: false,
 			banner,
 		},
+		plugins: [
+			replace(FEATS),
+		]
 	},
 	{
 		input: './src/uPlot.js',
@@ -66,7 +75,8 @@ export default [
 			banner,
 		},
 		plugins: [
-			buble()
+			replace(FEATS),
+			buble(),
 		]
 	},
 	{
@@ -79,6 +89,7 @@ export default [
 			banner: "/*! " + urlVer + " */",
 		},
 		plugins: [
+			replace(FEATS),
 			buble(),
 			terser({
 				compress: {

@@ -67,7 +67,7 @@ let s = 1,
 	y = d * 365;
 
 // starting below 1e-3 is a hack to allow the incr finder to choose & bail out at incr < 1ms
-export const timeIncrs = [5e-4].concat(genIncrs(-3, 0, incrMults), [
+export const timeIncrs = FEAT_TIME && [5e-4].concat(genIncrs(-3, 0, incrMults), [
 	// minute divisors (# of secs)
 	1,
 	5,
@@ -140,7 +140,7 @@ const ss = ":{ss}";
 // [2]: when a differing <x> is encountered - 1: sec, 2: min, 3: hour, 4: day, 5: week, 6: month, 7: year
 // [3]: use a longer more contextual format
 // [4]: modes: 0: replace [1] -> [3], 1: concat [1] + [3]
-export const _timeAxisStamps = timeAxisStamps([
+export const _timeAxisStamps = FEAT_TIME && timeAxisStamps([
 	[y,        yyyy,            7,   "",                    1],
 	[d * 28,   "{MMM}",         7,   NLyyyy,                1],
 	[d,        md,              7,   NLyyyy,                1],
@@ -270,7 +270,7 @@ export function timeSeriesStamp(stampCfg) {
 	return fmtDate(stampCfg);
 };
 
-export const _timeSeriesStamp = timeSeriesStamp('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+export const _timeSeriesStamp = FEAT_TIME && timeSeriesStamp('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
 
 export function timeSeriesVal(tzDate, stamp) {
 	return (self, val) => stamp(tzDate(val));
@@ -439,7 +439,7 @@ export const ySeriesOpts = {
 };
 
 export const xScaleOpts = {
-	time: true,
+	time: FEAT_TIME,
 	auto: false,
 	distr: 1,
 	min:  inf,
