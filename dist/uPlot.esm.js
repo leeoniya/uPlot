@@ -1864,11 +1864,10 @@ function uPlot(opts, data, then) {
 	let dragging = false;
 
 	const cursor = self.cursor = assign({}, cursorOpts, opts.cursor);
-	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, cursor.focus);
-	const cursorFocus = focus.prox >= 0;
-
 	cursor.points.show = fnOrSelf(cursor.points.show);
 
+	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, cursor.focus);
+	const cursorFocus = focus.prox >= 0;
 	const drag = cursor.drag;
 
 	if (cursor.show) {
