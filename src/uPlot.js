@@ -1139,10 +1139,11 @@ export default function uPlot(opts, data, then) {
 	let dragging = false;
 
 	const cursor = self.cursor = assign({}, cursorOpts, opts.cursor);
+	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, cursor.focus);
+	const cursorFocus = focus.prox >= 0;
 
 	cursor.points.show = fnOrSelf(cursor.points.show);
 
-	const focus = cursor.focus;		// focus: {alpha, prox}
 	const drag = cursor.drag;
 
 	if (cursor.show) {
@@ -1241,7 +1242,7 @@ export default function uPlot(opts, data, then) {
 					filtMouse(e) && setSeries(i, {show: !s.show}, syncOpts.setSeries);
 				});
 
-				if (focus) {
+				if (cursorFocus) {
 					on("mouseenter", label, e => {
 						if (cursor.locked)
 							return;
@@ -1348,7 +1349,7 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
-	if (focus && legendOpts.show) {
+	if (cursorFocus && legendOpts.show) {
 		on(mouseleave, legend, e => {
 			if (cursor.locked)
 				return;
@@ -1462,7 +1463,7 @@ export default function uPlot(opts, data, then) {
 				}
 			}
 
-			if (focus)
+			if (cursorFocus)
 				setSeries(null, {focus: true}, syncOpts.setSeries);
 		}
 		else {
@@ -1529,7 +1530,7 @@ export default function uPlot(opts, data, then) {
 			// since this is internal, we can tweak it later
 			sync.pub(mousemove, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, idx);
 
-			if (focus) {
+			if (cursorFocus) {
 				let minDist = min.apply(null, distsToCursor);
 
 				let fi = null;

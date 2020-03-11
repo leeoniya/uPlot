@@ -663,6 +663,10 @@ var uPlot = (function () {
 			y: false,
 		},
 
+		focus: {
+			prox: -1,
+		},
+
 		locked: false,
 		left: -10,
 		top: -10,
@@ -1869,10 +1873,11 @@ var uPlot = (function () {
 		var dragging = false;
 
 		var cursor = self.cursor = assign({}, cursorOpts, opts.cursor);
+		var focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, cursor.focus);
+		var cursorFocus = focus.prox >= 0;
 
 		cursor.points.show = fnOrSelf(cursor.points.show);
 
-		var focus = cursor.focus;		// focus: {alpha, prox}
 		var drag = cursor.drag;
 
 		if (cursor.show) {
@@ -1971,7 +1976,7 @@ var uPlot = (function () {
 						filtMouse(e) && setSeries(i, {show: !s.show}, syncOpts.setSeries);
 					});
 
-					if (focus) {
+					if (cursorFocus) {
 						on("mouseenter", label, function (e) {
 							if (cursor.locked)
 								{ return; }
@@ -2078,7 +2083,7 @@ var uPlot = (function () {
 			}
 		}
 
-		if (focus && legendOpts.show) {
+		if (cursorFocus && legendOpts.show) {
 			on(mouseleave, legend, function (e) {
 				if (cursor.locked)
 					{ return; }
@@ -2192,7 +2197,7 @@ var uPlot = (function () {
 					}
 				}
 
-				if (focus)
+				if (cursorFocus)
 					{ setSeries(null, {focus: true}, syncOpts.setSeries); }
 			}
 			else {
@@ -2259,7 +2264,7 @@ var uPlot = (function () {
 				// since this is internal, we can tweak it later
 				sync.pub(mousemove, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, idx);
 
-				if (focus) {
+				if (cursorFocus) {
 					var minDist = min.apply(null, distsToCursor);
 
 					var fi = null;

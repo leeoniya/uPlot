@@ -311,6 +311,10 @@ export const cursorOpts = {
 		y: false,
 	},
 
+	focus: {
+		prox: -1,
+	},
+
 	locked: false,
 	left: -10,
 	top: -10,
