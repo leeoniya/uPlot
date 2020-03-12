@@ -80,7 +80,8 @@
 						uRanger => {
 							let left = Math.round(uRanger.valToPos(initXmin, 'x'));
 							let width = Math.round(uRanger.valToPos(initXmax, 'x')) - left;
-							uRanger.setSelect({left, width}, false);
+							let height = uRanger.root.querySelector(".over").getBoundingClientRect().height;
+							uRanger.setSelect({left, width, height}, false);
 						}
 					]
 				}
