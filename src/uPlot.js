@@ -591,7 +591,7 @@ export default function uPlot(opts, data, then) {
 		for (let k in changed)
 			fire("setScale", k);
 
-		cursor.show && updateCursor();
+		FEAT_CURSOR && cursor.show && updateCursor();
 	}
 
 	// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
@@ -1138,14 +1138,16 @@ export default function uPlot(opts, data, then) {
 
 	let dragging = false;
 
-	const cursor = self.cursor = assign({}, cursorOpts, opts.cursor);
-	cursor.points.show = fnOrSelf(cursor.points.show);
+	const cursor = FEAT_CURSOR && (self.cursor = assign({}, cursorOpts, opts.cursor));
 
-	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, cursor.focus);
-	const cursorFocus = focus.prox >= 0;
-	const drag = cursor.drag;
+	FEAT_CURSOR && (cursor.points.show = fnOrSelf(cursor.points.show));
 
-	if (cursor.show) {
+	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, FEAT_CURSOR && cursor.focus);
+	const cursorFocus = FEAT_CURSOR && focus.prox >= 0;
+
+	const drag = FEAT_CURSOR && cursor.drag;
+
+	if (FEAT_CURSOR && cursor.show) {
 		let c = "cursor-";
 
 		if (cursor.x) {
@@ -1229,10 +1231,10 @@ export default function uPlot(opts, data, then) {
 
 			if (i > 0) {
 				on("click", label, e => {
-					if (cursor.locked)
+					if (FEAT_CURSOR && cursor.locked)
 						return;
 
-					filtMouse(e) && setSeries(i, {show: !s.show}, syncOpts.setSeries);
+					filtMouse(e) && setSeries(i, {show: !s.show}, FEAT_CURSOR && syncOpts.setSeries);
 				});
 
 				if (cursorFocus) {
@@ -1263,7 +1265,7 @@ export default function uPlot(opts, data, then) {
 			label && remClass(label, "off");
 		else {
 			label && addClass(label, "off");
-			cursorPts && trans(cursorPts[i], 0, -10);
+			FEAT_CURSOR && cursorPts && trans(cursorPts[i], 0, -10);
 		}
 	}
 
@@ -1300,7 +1302,7 @@ export default function uPlot(opts, data, then) {
 		// could improve by predefining firing order and building a queue
 		fire("setSeries", i, opts);
 
-		pub && sync.pub("setSeries", self, i, opts);
+		FEAT_CURSOR && pub && sync.pub("setSeries", self, i, opts);
 	}
 
 	self.setSeries = setSeries;
@@ -1325,7 +1327,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	// y-distance
-	const distsToCursor = Array(series.length);
+	const distsToCursor = FEAT_CURSOR && Array(series.length);
 
 	let focused = null;
 
@@ -1352,9 +1354,9 @@ export default function uPlot(opts, data, then) {
 	}
 
 	// series-intersection markers
-	let cursorPts = cursor.show && cursor.points.show(self);
+	let cursorPts = FEAT_CURSOR && cursor.show && cursor.points.show(self);
 
-	if (cursorPts) {
+	if (FEAT_CURSOR && cursorPts) {
 		cursorPts.forEach((pt, i) => {
 			if (i > 0) {
 				addClass(pt, "cursor-pt");
@@ -1406,19 +1408,19 @@ export default function uPlot(opts, data, then) {
 		fn(self);
 		inBatch = false;
 		shouldSetScales && setScales();
-		shouldUpdateCursor && updateCursor();
+		FEAT_CURSOR && shouldUpdateCursor && updateCursor();
 		shouldPaint && !didPaint && paint();
 		shouldSetScales = shouldUpdateCursor = shouldPaint = didPaint = inBatch;
 	}
 
 	self.batch = batch;
 
-	self.setCursor = opts => {
+	FEAT_CURSOR && (self.setCursor = opts => {
 		mouseLeft1 = opts.left;
 		mouseTop1 = opts.top;
 	//	assign(cursor, opts);
 		updateCursor();
-	};
+	});
 
 	function updateCursor(ts) {
 		if (inBatch) {
@@ -1700,7 +1702,7 @@ export default function uPlot(opts, data, then) {
 
 	let deb;
 
-	if (cursor.show) {
+	if (FEAT_CURSOR && cursor.show) {
 		on(mousedown, over, mouseDown);
 		on(mousemove, over, mouseMove);
 		on(mouseleave, over, mouseLeave);
@@ -1732,27 +1734,27 @@ export default function uPlot(opts, data, then) {
 			hooks[evName] = (hooks[evName] || []).concat(p.hooks[evName]);
 	});
 
-	const syncOpts = assign({
+	const syncOpts = FEAT_CURSOR && assign({
 		key: null,
 		setSeries: false,
 	}, cursor.sync);
 
-	const syncKey = syncOpts.key;
+	const syncKey = FEAT_CURSOR && syncOpts.key;
 
-	const sync = syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync();
+	const sync = FEAT_CURSOR && (syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync());
 
-	sync.sub(self);
+	FEAT_CURSOR && sync.sub(self);
 
 	function pub(type, src, x, y, w, h, i) {
 		events[type](null, src, x, y, w, h, i);
 	}
 
-	self.pub = pub;
+	FEAT_CURSOR && (self.pub = pub);
 
 	function destroy() {
-		sync.unsub(self);
-		off(resize, win, deb);
-		off(scroll, win, deb);
+		FEAT_CURSOR && sync.unsub(self);
+		FEAT_CURSOR && off(resize, win, deb);
+		FEAT_CURSOR && off(scroll, win, deb);
 		root.remove();
 		fire("destroy");
 	}

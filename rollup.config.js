@@ -35,6 +35,7 @@ const banner = [
 
 const FEATS = {
 	FEAT_TIME: true,
+	FEAT_CURSOR: true,
 };
 
 export default [

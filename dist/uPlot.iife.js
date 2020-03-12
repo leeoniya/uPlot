@@ -1318,7 +1318,7 @@ var uPlot = (function () {
 			for (var k$3 in changed)
 				{ fire("setScale", k$3); }
 
-			cursor.show && updateCursor();
+			 cursor.show && updateCursor();
 		}
 
 		// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
@@ -1872,14 +1872,16 @@ var uPlot = (function () {
 
 		var dragging = false;
 
-		var cursor = self.cursor = assign({}, cursorOpts, opts.cursor);
-		cursor.points.show = fnOrSelf(cursor.points.show);
+		var cursor =  (self.cursor = assign({}, cursorOpts, opts.cursor));
 
-		var focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, cursor.focus);
-		var cursorFocus = focus.prox >= 0;
-		var drag = cursor.drag;
+		 (cursor.points.show = fnOrSelf(cursor.points.show));
 
-		if (cursor.show) {
+		var focus = self.focus = assign({}, opts.focus || {alpha: 0.3},  cursor.focus);
+		var cursorFocus =  focus.prox >= 0;
+
+		var drag =  cursor.drag;
+
+		if ( cursor.show) {
 			var c = "cursor-";
 
 			if (cursor.x) {
@@ -1963,10 +1965,10 @@ var uPlot = (function () {
 
 				if (i > 0) {
 					on("click", label, function (e) {
-						if (cursor.locked)
+						if ( cursor.locked)
 							{ return; }
 
-						filtMouse(e) && setSeries(i, {show: !s.show}, syncOpts.setSeries);
+						filtMouse(e) && setSeries(i, {show: !s.show},  syncOpts.setSeries);
 					});
 
 					if (cursorFocus) {
@@ -1997,7 +1999,7 @@ var uPlot = (function () {
 				{ label && remClass(label, "off"); }
 			else {
 				label && addClass(label, "off");
-				cursorPts && trans(cursorPts[i], 0, -10);
+				 cursorPts && trans(cursorPts[i], 0, -10);
 			}
 		}
 
@@ -2034,7 +2036,7 @@ var uPlot = (function () {
 			// could improve by predefining firing order and building a queue
 			fire("setSeries", i, opts);
 
-			pub && sync.pub("setSeries", self, i, opts);
+			 pub && sync.pub("setSeries", self, i, opts);
 		}
 
 		self.setSeries = setSeries;
@@ -2059,7 +2061,7 @@ var uPlot = (function () {
 		}
 
 		// y-distance
-		var distsToCursor = Array(series.length);
+		var distsToCursor =  Array(series.length);
 
 		var focused = null;
 
@@ -2086,9 +2088,9 @@ var uPlot = (function () {
 		}
 
 		// series-intersection markers
-		var cursorPts = cursor.show && cursor.points.show(self);
+		var cursorPts =  cursor.show && cursor.points.show(self);
 
-		if (cursorPts) {
+		if ( cursorPts) {
 			cursorPts.forEach(function (pt, i) {
 				if (i > 0) {
 					addClass(pt, "cursor-pt");
@@ -2140,19 +2142,19 @@ var uPlot = (function () {
 			fn(self);
 			inBatch = false;
 			shouldSetScales && setScales();
-			shouldUpdateCursor && updateCursor();
+			 shouldUpdateCursor && updateCursor();
 			shouldPaint && !didPaint && paint();
 			shouldSetScales = shouldUpdateCursor = shouldPaint = didPaint = inBatch;
 		}
 
 		self.batch = batch;
 
-		self.setCursor = function (opts) {
+		 (self.setCursor = function (opts) {
 			mouseLeft1 = opts.left;
 			mouseTop1 = opts.top;
 		//	assign(cursor, opts);
 			updateCursor();
-		};
+		});
 
 		function updateCursor(ts) {
 			if (inBatch) {
@@ -2434,7 +2436,7 @@ var uPlot = (function () {
 
 		var deb;
 
-		if (cursor.show) {
+		if ( cursor.show) {
 			on(mousedown, over, mouseDown);
 			on(mousemove, over, mouseMove);
 			on(mouseleave, over, mouseLeave);
@@ -2466,27 +2468,27 @@ var uPlot = (function () {
 				{ hooks[evName] = (hooks[evName] || []).concat(p.hooks[evName]); }
 		});
 
-		var syncOpts = assign({
+		var syncOpts =  assign({
 			key: null,
 			setSeries: false,
 		}, cursor.sync);
 
-		var syncKey = syncOpts.key;
+		var syncKey =  syncOpts.key;
 
-		var sync = syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync();
+		var sync =  (syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync());
 
-		sync.sub(self);
+		 sync.sub(self);
 
 		function pub(type, src, x, y, w, h, i) {
 			events[type](null, src, x, y, w, h, i);
 		}
 
-		self.pub = pub;
+		 (self.pub = pub);
 
 		function destroy() {
-			sync.unsub(self);
-			off(resize, win, deb);
-			off(scroll, win, deb);
+			 sync.unsub(self);
+			 off(resize, win, deb);
+			 off(scroll, win, deb);
 			root.remove();
 			fire("destroy");
 		}

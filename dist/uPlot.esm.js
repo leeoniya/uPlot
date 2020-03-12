@@ -1316,7 +1316,7 @@ function uPlot(opts, data, then) {
 		for (let k in changed)
 			fire("setScale", k);
 
-		cursor.show && updateCursor();
+		 cursor.show && updateCursor();
 	}
 
 	// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
@@ -1863,14 +1863,16 @@ function uPlot(opts, data, then) {
 
 	let dragging = false;
 
-	const cursor = self.cursor = assign({}, cursorOpts, opts.cursor);
-	cursor.points.show = fnOrSelf(cursor.points.show);
+	const cursor =  (self.cursor = assign({}, cursorOpts, opts.cursor));
 
-	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, cursor.focus);
-	const cursorFocus = focus.prox >= 0;
-	const drag = cursor.drag;
+	 (cursor.points.show = fnOrSelf(cursor.points.show));
 
-	if (cursor.show) {
+	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3},  cursor.focus);
+	const cursorFocus =  focus.prox >= 0;
+
+	const drag =  cursor.drag;
+
+	if ( cursor.show) {
 		let c = "cursor-";
 
 		if (cursor.x) {
@@ -1954,10 +1956,10 @@ function uPlot(opts, data, then) {
 
 			if (i > 0) {
 				on("click", label, e => {
-					if (cursor.locked)
+					if ( cursor.locked)
 						return;
 
-					filtMouse(e) && setSeries(i, {show: !s.show}, syncOpts.setSeries);
+					filtMouse(e) && setSeries(i, {show: !s.show},  syncOpts.setSeries);
 				});
 
 				if (cursorFocus) {
@@ -1988,7 +1990,7 @@ function uPlot(opts, data, then) {
 			label && remClass(label, "off");
 		else {
 			label && addClass(label, "off");
-			cursorPts && trans(cursorPts[i], 0, -10);
+			 cursorPts && trans(cursorPts[i], 0, -10);
 		}
 	}
 
@@ -2025,7 +2027,7 @@ function uPlot(opts, data, then) {
 		// could improve by predefining firing order and building a queue
 		fire("setSeries", i, opts);
 
-		pub && sync.pub("setSeries", self, i, opts);
+		 pub && sync.pub("setSeries", self, i, opts);
 	}
 
 	self.setSeries = setSeries;
@@ -2050,7 +2052,7 @@ function uPlot(opts, data, then) {
 	}
 
 	// y-distance
-	const distsToCursor = Array(series.length);
+	const distsToCursor =  Array(series.length);
 
 	let focused = null;
 
@@ -2077,9 +2079,9 @@ function uPlot(opts, data, then) {
 	}
 
 	// series-intersection markers
-	let cursorPts = cursor.show && cursor.points.show(self);
+	let cursorPts =  cursor.show && cursor.points.show(self);
 
-	if (cursorPts) {
+	if ( cursorPts) {
 		cursorPts.forEach((pt, i) => {
 			if (i > 0) {
 				addClass(pt, "cursor-pt");
@@ -2131,19 +2133,19 @@ function uPlot(opts, data, then) {
 		fn(self);
 		inBatch = false;
 		shouldSetScales && setScales();
-		shouldUpdateCursor && updateCursor();
+		 shouldUpdateCursor && updateCursor();
 		shouldPaint && !didPaint && paint();
 		shouldSetScales = shouldUpdateCursor = shouldPaint = didPaint = inBatch;
 	}
 
 	self.batch = batch;
 
-	self.setCursor = opts => {
+	 (self.setCursor = opts => {
 		mouseLeft1 = opts.left;
 		mouseTop1 = opts.top;
 	//	assign(cursor, opts);
 		updateCursor();
-	};
+	});
 
 	function updateCursor(ts) {
 		if (inBatch) {
@@ -2425,7 +2427,7 @@ function uPlot(opts, data, then) {
 
 	let deb;
 
-	if (cursor.show) {
+	if ( cursor.show) {
 		on(mousedown, over, mouseDown);
 		on(mousemove, over, mouseMove);
 		on(mouseleave, over, mouseLeave);
@@ -2457,27 +2459,27 @@ function uPlot(opts, data, then) {
 			hooks[evName] = (hooks[evName] || []).concat(p.hooks[evName]);
 	});
 
-	const syncOpts = assign({
+	const syncOpts =  assign({
 		key: null,
 		setSeries: false,
 	}, cursor.sync);
 
-	const syncKey = syncOpts.key;
+	const syncKey =  syncOpts.key;
 
-	const sync = syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync();
+	const sync =  (syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync());
 
-	sync.sub(self);
+	 sync.sub(self);
 
 	function pub(type, src, x, y, w, h, i) {
 		events[type](null, src, x, y, w, h, i);
 	}
 
-	self.pub = pub;
+	 (self.pub = pub);
 
 	function destroy() {
-		sync.unsub(self);
-		off(resize, win, deb);
-		off(scroll, win, deb);
+		 sync.unsub(self);
+		 off(resize, win, deb);
+		 off(scroll, win, deb);
 		root.remove();
 		fire("destroy");
 	}
