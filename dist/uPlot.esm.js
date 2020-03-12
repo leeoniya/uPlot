@@ -1121,25 +1121,27 @@ function uPlot(opts, data, then) {
 
 				let fullSize = size + labelSize;
 
-				if (isVt) {
-					plotWidCss -= fullSize;
+				if (fullSize > 0) {
+					if (isVt) {
+						plotWidCss -= fullSize;
 
-					if (side == 3) {
-						plotLftCss += fullSize;
-						hasLftAxis = true;
+						if (side == 3) {
+							plotLftCss += fullSize;
+							hasLftAxis = true;
+						}
+						else
+							hasRgtAxis = true;
 					}
-					else
-						hasRgtAxis = true;
-				}
-				else {
-					plotHgtCss -= fullSize;
+					else {
+						plotHgtCss -= fullSize;
 
-					if (side == 0) {
-						plotTopCss += fullSize;
-						hasTopAxis = true;
+						if (side == 0) {
+							plotTopCss += fullSize;
+							hasTopAxis = true;
+						}
+						else
+							hasBtmAxis = true;
 					}
-					else
-						hasBtmAxis = true;
 				}
 			}
 		});
