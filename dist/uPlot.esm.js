@@ -940,7 +940,7 @@ function uPlot(opts, data, then) {
 
 		if (i > 0) {
 			s.width = s.width == null ? 1 : s.width;
-			s.paths = s.paths || buildPaths;
+			s.paths = s.paths || ( buildPaths);
 			let _ptDia = ptDia(s.width, 1);
 			s.points = assign({}, {
 				size: _ptDia,
@@ -1405,10 +1405,10 @@ function uPlot(opts, data, then) {
 		series.forEach((s, i) => {
 			if (i > 0 && s.show) {
 				if (s._paths)
-					drawPath(i);
+					 drawPath(i);
 
 				if (s.points.show(self, i))
-					drawPoints(i);
+					 drawPoints(i);
 
 				fire("drawSeries", i);
 			}
