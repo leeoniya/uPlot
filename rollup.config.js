@@ -38,6 +38,7 @@ const FEATS = {
 	FEAT_CURSOR: true,
 	FEAT_PATHS: true,
 	FEAT_POINTS: true,
+	FEAT_LEGEND: true,
 //	FEAT_GAPS: false,
 };
 

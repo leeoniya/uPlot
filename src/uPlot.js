@@ -193,7 +193,7 @@ export default function uPlot(opts, data, then) {
 			pendScales[k] = {min: sc.min, max: sc.max};
 	}
 
-	const legendOpts = assign({show: true}, opts.legend);
+	const legendOpts = FEAT_LEGEND && assign({show: true}, opts.legend);
 
 	// set default value
 	series.forEach((s, i) => {
@@ -1186,7 +1186,7 @@ export default function uPlot(opts, data, then) {
 	let legendRows = null;
 	let multiValLegend = false;
 
-	if (legendOpts.show) {
+	if (FEAT_LEGEND && legendOpts.show) {
 		legend = placeTag("table", "legend", root);
 
 		let vals = series[1].values;
@@ -1285,13 +1285,13 @@ export default function uPlot(opts, data, then) {
 
 			if (opts.show != null) {
 				s.show = opts.show;
-				toggleDOM(i, opts.show);
+				FEAT_LEGEND && toggleDOM(i, opts.show);
 
 				if (s.band) {
 					// not super robust, will break if two bands are adjacent
 					let ip = series[i+1] && series[i+1].band ? i+1 : i-1;
 					series[ip].show = s.show;
-					toggleDOM(ip, opts.show);
+					FEAT_LEGEND && toggleDOM(ip, opts.show);
 				}
 
 				_setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);		// redraw
@@ -1345,7 +1345,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	if (cursorFocus && legendOpts.show) {
-		on(mouseleave, legend, e => {
+		FEAT_LEGEND && on(mouseleave, legend, e => {
 			if (cursor.locked)
 				return;
 			setSeries(null, {focus: false}, syncOpts.setSeries);
@@ -1449,7 +1449,7 @@ export default function uPlot(opts, data, then) {
 					cursorPts && trans(cursorPts[i], -10, -10);
 				}
 
-				if (legendOpts.show) {
+				if (FEAT_LEGEND && legendOpts.show) {
 					if (i == 0 && multiValLegend)
 						continue;
 
@@ -1485,7 +1485,7 @@ export default function uPlot(opts, data, then) {
 				else
 					distsToCursor[i] = inf;
 
-				if (legendOpts.show) {
+				if (FEAT_LEGEND && legendOpts.show) {
 					if (i == 0 && multiValLegend)
 						continue;
 

@@ -917,7 +917,7 @@ var uPlot = (function () {
 				{ pendScales[k] = {min: sc.min, max: sc.max}; }
 		}
 
-		var legendOpts = assign({show: true}, opts.legend);
+		var legendOpts =  assign({show: true}, opts.legend);
 
 		// set default value
 		series.forEach(function (s, i) {
@@ -1920,7 +1920,7 @@ var uPlot = (function () {
 		var legendRows = null;
 		var multiValLegend = false;
 
-		if (legendOpts.show) {
+		if ( legendOpts.show) {
 			legend = placeTag("table", "legend", root);
 
 			var vals = series[1].values;
@@ -2019,13 +2019,13 @@ var uPlot = (function () {
 
 				if (opts.show != null) {
 					s.show = opts.show;
-					toggleDOM(i, opts.show);
+					 toggleDOM(i, opts.show);
 
 					if (s.band) {
 						// not super robust, will break if two bands are adjacent
 						var ip = series[i+1] && series[i+1].band ? i+1 : i-1;
 						series[ip].show = s.show;
-						toggleDOM(ip, opts.show);
+						 toggleDOM(ip, opts.show);
 					}
 
 					_setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);		// redraw
@@ -2079,7 +2079,7 @@ var uPlot = (function () {
 		}
 
 		if (cursorFocus && legendOpts.show) {
-			on(mouseleave, legend, function (e) {
+			 on(mouseleave, legend, function (e) {
 				if (cursor.locked)
 					{ return; }
 				setSeries(null, {focus: false}, syncOpts.setSeries);
@@ -2183,7 +2183,7 @@ var uPlot = (function () {
 						cursorPts && trans(cursorPts[i], -10, -10);
 					}
 
-					if (legendOpts.show) {
+					if ( legendOpts.show) {
 						if (i == 0 && multiValLegend)
 							{ continue; }
 
@@ -2219,7 +2219,7 @@ var uPlot = (function () {
 					else
 						{ distsToCursor[i$1] = inf; }
 
-					if (legendOpts.show) {
+					if ( legendOpts.show) {
 						if (i$1 == 0 && multiValLegend)
 							{ continue; }
 
