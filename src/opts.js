@@ -364,6 +364,7 @@ export const xSeriesOpts = {
 	// internal caches
 	min: inf,
 	max: -inf,
+	idxs: [],
 };
 
 // alternative: https://stackoverflow.com/a/2254896
@@ -414,7 +415,8 @@ export function ptDia(width, mult) {
 function seriesPoints(self, si) {
 	const dia = ptDia(self.series[si].width, pxRatio);
 	let maxPts = self.bbox.width / dia / 2;
-	return self.idxs[1] - self.idxs[0] <= maxPts;
+	let idxs = self.series[0].idxs;
+	return idxs[1] - idxs[0] <= maxPts;
 }
 
 export const ySeriesOpts = {
@@ -437,6 +439,7 @@ export const ySeriesOpts = {
 	// internal caches
 	min: inf,
 	max: -inf,
+	idxs: [],
 
 	path: null,
 	clip: null,

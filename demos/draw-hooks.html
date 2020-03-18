@@ -152,9 +152,10 @@
 
 					ctx.fillStyle = stroke;
 
-					let j = u.idxs[0];
+					let idxs = u.series[0].idxs;
+					let j = idxs[0];
 
-					while (j < u.idxs[1] + 1) {
+					while (j < idxs[1] + 1) {
 						let val = u.data[i][j];
 						let cx = Math.round(u.valToPos(u.data[0][j], 'x', true));
 						let cy = Math.round(u.valToPos(val, scale, true));

@@ -716,6 +716,7 @@ var uPlot = (function () {
 		// internal caches
 		min: inf,
 		max: -inf,
+		idxs: [],
 	};
 
 	// alternative: https://stackoverflow.com/a/2254896
@@ -766,7 +767,8 @@ var uPlot = (function () {
 	function seriesPoints(self, si) {
 		var dia = ptDia(self.series[si].width, pxRatio);
 		var maxPts = self.bbox.width / dia / 2;
-		return self.idxs[1] - self.idxs[0] <= maxPts;
+		var idxs = self.series[0].idxs;
+		return idxs[1] - idxs[0] <= maxPts;
 	}
 
 	var ySeriesOpts = {
@@ -789,6 +791,7 @@ var uPlot = (function () {
 		// internal caches
 		min: inf,
 		max: -inf,
+		idxs: [],
 
 		path: null,
 		clip: null,
@@ -1004,7 +1007,7 @@ var uPlot = (function () {
 		// rendered data window
 		var i0 = null;
 		var i1 = null;
-		var idxs = self.idxs = [i0, i1];
+		var idxs = series[0].idxs;
 
 		var data0 = null;
 
@@ -1245,6 +1248,11 @@ var uPlot = (function () {
 
 				// setting the x scale invalidates everything
 				if (i == 0) {
+					var minMax = sc.range(self, sc.min, sc.max);
+
+					sc.min = minMax[0];
+					sc.max = minMax[1];
+
 					i0 = closestIdx(sc.min, data[0]);
 					i1 = closestIdx(sc.max, data[0]);
 
@@ -1254,16 +1262,8 @@ var uPlot = (function () {
 					if (data[0][i1] > sc.max)
 						{ i1--; }
 
-					idxs[0] = i0;
-					idxs[1] = i1;
-
 					s.min = data0[i0];
 					s.max = data0[i1];
-
-					var minMax = sc.range(self, sc.min, sc.max);
-
-					sc.min = minMax[0];
-					sc.max = minMax[1];
 				}
 				else if (s.show && pendScales[k] == null) {
 					// only run getMinMax() for invalidated series data, else reuse
@@ -1273,6 +1273,9 @@ var uPlot = (function () {
 					sc.min = min(sc.min, s.min = minMax$1[0]);
 					sc.max = max(sc.max, s.max = minMax$1[1]);
 				}
+
+				s.idxs[0] = i0;
+				s.idxs[1] = i1;
 			});
 
 			// snap non-dependent scales

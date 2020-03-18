@@ -280,7 +280,7 @@ export default function uPlot(opts, data, then) {
 	// rendered data window
 	let i0 = null;
 	let i1 = null;
-	const idxs = self.idxs = [i0, i1];
+	const idxs = series[0].idxs;
 
 	let data0 = null;
 
@@ -518,6 +518,11 @@ export default function uPlot(opts, data, then) {
 
 			// setting the x scale invalidates everything
 			if (i == 0) {
+				let minMax = sc.range(self, sc.min, sc.max);
+
+				sc.min = minMax[0];
+				sc.max = minMax[1];
+
 				i0 = closestIdx(sc.min, data[0]);
 				i1 = closestIdx(sc.max, data[0]);
 
@@ -527,16 +532,8 @@ export default function uPlot(opts, data, then) {
 				if (data[0][i1] > sc.max)
 					i1--;
 
-				idxs[0] = i0;
-				idxs[1] = i1;
-
 				s.min = data0[i0];
 				s.max = data0[i1];
-
-				let minMax = sc.range(self, sc.min, sc.max);
-
-				sc.min = minMax[0];
-				sc.max = minMax[1];
 			}
 			else if (s.show && pendScales[k] == null) {
 				// only run getMinMax() for invalidated series data, else reuse
@@ -546,6 +543,9 @@ export default function uPlot(opts, data, then) {
 				sc.min = min(sc.min, s.min = minMax[0]);
 				sc.max = max(sc.max, s.max = minMax[1]);
 			}
+
+			s.idxs[0] = i0;
+			s.idxs[1] = i1;
 		});
 
 		// snap non-dependent scales

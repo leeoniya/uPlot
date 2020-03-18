@@ -64,7 +64,9 @@
 					u.ctx.textBaseline = "bottom";
 					u.ctx.fillStyle = "black";
 
-					drawThings(u, sidx, u.idxs[0], u.idxs[1], (i, x0, y0, offs, totalWidth) => {
+					let idxs = u.series[0].idxs;
+
+					drawThings(u, sidx, idxs[0], idxs[1], (i, x0, y0, offs, totalWidth) => {
 						u.ctx.fillText(
 							u.data[sidx][i],
 							x0 - totalWidth/2 + offs + barWidth/2,
