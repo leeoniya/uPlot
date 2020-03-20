@@ -146,16 +146,15 @@
 					ctx.closePath();
 				}
 
-				function drawPointsAsStars(u, i) {
+				function drawPointsAsStars(u, i, i0, i1) {
 					let { ctx } = u;
 					let { stroke, scale } = u.series[i];
 
 					ctx.fillStyle = stroke;
 
-					let idxs = u.series[0].idxs;
-					let j = idxs[0];
+					let j = i0;
 
-					while (j < idxs[1] + 1) {
+					while (j <= i1) {
 						let val = u.data[i][j];
 						let cx = Math.round(u.valToPos(u.data[0][j], 'x', true));
 						let cy = Math.round(u.valToPos(val, scale, true));

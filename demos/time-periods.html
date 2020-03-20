@@ -126,32 +126,32 @@
 							label: "2019",
 							stroke: "rgba(5, 141, 199, 1)",
 							fill:  "rgba(5, 141, 199, 0.1)",
-							values: (u, idx) => {
+							values: (u, sidx, idx) => {
 							//	let date = self.tzDate(data[0][idx]);
 								let date = new Date(data[0][idx] * 1e3);
 
 								return {
 									Time: longDateHourMin(date),
-									Users: data[1][idx],
+									Users: data[sidx][idx],
 								};
 							}
 						},
 						{
 							label: "2018",
 							stroke: "rgba(237, 126, 23, 1)",
-							values: (u, idx) => {
+							values: (u, sidx, idx) => {
 								let date = new Date(ts18[idx] * 1e3);
 
 								return {
 									Time: longDateHourMin(date),
-									Users: data[2][idx],
+									Users: data[sidx][idx],
 								};
 							}
 						},
 						{
 							label: "2017",
 							stroke: "rgba(255, 0, 0, 1)",
-							values: (u, idx) => {
+							values: (u, sidx, idx) => {
 								let date = new Date(ts17[idx] * 1e3);
 
 								return {
@@ -210,7 +210,7 @@
 							label: "Feb 2019",
 							stroke: "rgba(5, 141, 199, 1)",
 							fill:  "rgba(5, 141, 199, 0.1)",
-							values: (u, idx) => {
+							values: (u, sidx, idx) => {
 								if (idx >= febLen) {
 									return {
 										Time: '---',
@@ -223,20 +223,20 @@
 
 								return {
 									Time: longDateHourMin(date),
-									Users: data1[1][idx],
+									Users: data1[sidx][idx],
 								};
 							}
 						},
 						{
 							label: "Jan 2019",
 							stroke: "rgba(237, 126, 23, 1)",
-							values: (u, idx) => {
+							values: (u, sidx, idx) => {
 							//	let date = self.tzDate(data[0][idx]);
 								let date = new Date(tsJan[idx] * 1e3);
 
 								return {
 									Time: longDateHourMin(date),
-									Users: data1[2][idx],
+									Users: data1[sidx][idx],
 								};
 							}
 						},

@@ -58,15 +58,13 @@
 					return {fill};
 				}
 
-				function drawPoints(u, sidx) {
+				function drawPoints(u, sidx, i0, i1) {
 					u.ctx.font = font;
 					u.ctx.textAlign = "center";
 					u.ctx.textBaseline = "bottom";
 					u.ctx.fillStyle = "black";
 
-					let idxs = u.series[0].idxs;
-
-					drawThings(u, sidx, idxs[0], idxs[1], (i, x0, y0, offs, totalWidth) => {
+					drawThings(u, sidx, i0, i1, (i, x0, y0, offs, totalWidth) => {
 						u.ctx.fillText(
 							u.data[sidx][i],
 							x0 - totalWidth/2 + offs + barWidth/2,

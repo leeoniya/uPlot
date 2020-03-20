@@ -1413,7 +1413,7 @@ function uPlot(opts, data, then) {
 				if (s._paths)
 					{  drawPath(i); }
 
-				if (s.points.show(self, i))
+				if (s.points.show(self, i, i0, i1))
 					{  drawPoints(i); }
 
 				fire("drawSeries", i);
@@ -1484,8 +1484,9 @@ function uPlot(opts, data, then) {
 			{ dir *= -1; }
 	}
 
-	function buildClip(s, gaps) {
-		var toSpan = new Set(s.spanGaps(self, gaps));
+	function buildClip(is, gaps) {
+		var s = series[is];
+		var toSpan = new Set(s.spanGaps(self, gaps, is));
 		gaps = gaps.filter(function (g) { return !toSpan.has(g); });
 
 		var clip = null;
@@ -1610,7 +1611,7 @@ function uPlot(opts, data, then) {
 		}
 
 		if (dir == 1) {
-			_paths.clip = buildClip(s, gaps);
+			_paths.clip = buildClip(is, gaps);
 
 			if (s.fill != null) {
 				var fill = _paths.fill = new Path2D(stroke);
@@ -1935,7 +1936,7 @@ function uPlot(opts, data, then) {
 		if (multiValLegend) {
 			var head = placeTag("tr", "labels", legend);
 			placeTag("th", null, head);
-			keys = vals(0);
+			keys = vals(self, 1, 0);
 
 			for (var key in keys)
 				{ placeTag("th", null, head).textContent = key; }
@@ -2229,7 +2230,7 @@ function uPlot(opts, data, then) {
 
 					var src = i$1 == 0 && xScaleDistr == 2 ? data0 : data[i$1];
 
-					var vals = multiValLegend ? s.values(self, idx) : {_: s.value(self, src[idx], idx, i$1)};
+					var vals = multiValLegend ? s.values(self, i$1, idx) : {_: s.value(self, src[idx], i$1, idx)};
 
 					var j$1 = 0;
 
