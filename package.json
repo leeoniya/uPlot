@@ -4,6 +4,7 @@
   "description": "A small, fast chart for time series, lines, areas, ohlc & bars",
   "main": "./dist/uPlot.cjs.js",
   "module": "./dist/uPlot.esm.js",
+  "typings": "./dist/uPlot.esm.d.ts",
   "scripts": {
     "build": "rollup -c",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -38,7 +39,7 @@
   },
   "homepage": "https://github.com/leeoniya/uPlot#readme",
   "devDependencies": {
-    "rollup": "^2.0.5",
+    "rollup": "^2.1.0",
     "rollup-plugin-buble": "^0.19.8",
     "rollup-plugin-replace": "^2.2.0",
     "rollup-plugin-terser": "^5.3.0"
