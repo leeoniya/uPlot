@@ -1628,10 +1628,10 @@ function uPlot(opts, data, then) {
 		return _paths;
 	}
 
-	function getIncrSpace(axis, min, max, canDim) {
-		var minSpace = axis.space(self, min, max, canDim);
-		var incrs = axis.incrs(self, min, max, canDim, minSpace);
-		var incrSpace = findIncr(max - min, incrs, canDim, minSpace);
+	function getIncrSpace(axis, min, max, fullDim) {
+		var minSpace = axis.space(self, min, max, fullDim);
+		var incrs = axis.incrs(self, min, max, fullDim, minSpace);
+		var incrSpace = findIncr(max - min, incrs, fullDim, minSpace);
 		incrSpace.push(incrSpace[1]/minSpace);
 		return incrSpace;
 	}
