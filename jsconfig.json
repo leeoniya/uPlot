@@ -1,0 +1,7 @@
+{
+  "compilerOptions": {
+    "checkJs": true
+  },
+  "include": ["src/*", "dist/*"],
+  "exclude": ["node_modules"]
+}
