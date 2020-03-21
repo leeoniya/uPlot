@@ -266,8 +266,8 @@ declare namespace uPlot {
 		/** legend label */
 		label?: string;
 
-		/** inline-legend value formatter */
-		value?: (self: uPlot, rawValue: number, seriesIdx: number, idx: number) => string | number;
+		/** inline-legend value formatter. can be an fmtDate formatting string when scale.time: true */
+		value?: string | ((self: uPlot, rawValue: number, seriesIdx: number, idx: number) => string | number);
 
 		/** table-legend multi-values formatter */
 		values?: (self: uPlot, seriesIdx: number, idx: number) => object;
