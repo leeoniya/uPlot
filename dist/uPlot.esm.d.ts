@@ -1,5 +1,5 @@
 declare class uPlot {
-	/** when passing a function for @then, call init() after attaching self.root to the DOM */
+	/** when passing a function for @targ, call init() after attaching self.root to the DOM */
 	constructor(
 		opts: uPlot.Options,
 		data: uPlot.AlignedData,
@@ -427,7 +427,7 @@ declare namespace uPlot {
 		/** fires after the chart is resized */
 		setSize?:    ((self: uPlot) => void)[];
 
-		/** firest at start of every redraw */
+		/** fires at start of every redraw */
 		drawClear?:  ((self: uPlot) => void)[];
 
 		/** fires after all axes are drawn */
