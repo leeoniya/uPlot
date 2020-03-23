@@ -428,7 +428,7 @@ export const ySeriesOpts = {
 	points: {
 		show: seriesPoints,
 	//	stroke: "#000",
-		fill: "#fff",
+	//	fill: "#fff",
 	//	width: 1,
 	//	size: 10,
 	},

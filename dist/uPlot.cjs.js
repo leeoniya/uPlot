@@ -779,7 +779,7 @@ var ySeriesOpts = {
 	points: {
 		show: seriesPoints,
 	//	stroke: "#000",
-		fill: "#fff",
+	//	fill: "#fff",
 	//	width: 1,
 	//	size: 10,
 	},
@@ -1335,46 +1335,47 @@ function uPlot(opts, data, then) {
 
 		var width = round3(s[WIDTH] * pxRatio);
 		var offset = (width % 2) / 2;
+		var isStroked = p.width > 0;
 
-		var outerDia = p.size * pxRatio;
-		var innerDia = p.width ? (p.size - p.width * 2) * pxRatio : null;
+		var rad = (p.size - p.width) / 2 * pxRatio;
+		var dia = round3(rad * 2);
 
 		ctx.translate(offset, offset);
 
 		ctx.save();
 
 		ctx.beginPath();
-		ctx.rect(plotLft - outerDia, plotTop - outerDia, plotWid + outerDia*2, plotHgt + outerDia*2);
+		ctx.rect(
+			plotLft - dia,
+			plotTop - dia,
+			plotWid + dia * 2,
+			plotHgt + dia * 2
+		);
 		ctx.clip();
 
 		ctx.globalAlpha = s.alpha;
 
-		var pOuter = new Path2D();
-		var pInner = innerDia ? new Path2D() : null;
+		var path = new Path2D();
 
 		for (var pi = i0; pi <= i1; pi++) {
 			if (data[si][pi] != null) {
 				var x = round(getXPos(data[0][pi],  scales[xScaleKey], plotWid, plotLft));
 				var y = round(getYPos(data[si][pi], scales[s.scale],   plotHgt, plotTop));
 
-				pOuter.moveTo(x + outerDia/2, y);
-				pOuter.arc(x, y, outerDia/2, 0, PI * 2);
-
-				if (innerDia) {
-					pInner.moveTo(x + innerDia/2, y);
-					pInner.arc(x, y, innerDia/2, 0, PI * 2);
-				}
+				path.moveTo(x + rad, y);
+				path.arc(x, y, rad, 0, PI * 2);
 			}
 		}
 
-		// outer fill
-		ctx.fillStyle = (innerDia ? p.stroke : p.fill) || s.stroke || hexBlack;
-		ctx.fill(pOuter);
+		setCtxStyle(
+			p.stroke || s.stroke || hexBlack,
+			width,
+			null,
+			p.fill || (isStroked ? "#fff" : s.stroke || hexBlack)
+		);
 
-		if (innerDia) {
-			ctx.fillStyle = p.fill || s.fill || hexBlack;
-			ctx.fill(pInner);
-		}
+		ctx.fill(path);
+		isStroked && ctx.stroke(path);
 
 		ctx.globalAlpha = 1;
 
