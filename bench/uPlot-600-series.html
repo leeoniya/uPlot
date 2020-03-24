@@ -18,7 +18,9 @@
 				return "#000000".replace(/0/g,function(){return (~~(Math.random()*16)).toString(16);});
 			}
 
-			function prepData(packed) {
+			function prepData() {
+				console.time("prep");
+
 				function getData(seriesIndex, n) {
 					var arr = [],
 						i,
@@ -63,7 +65,11 @@
 				var seriesLength = 600,
 					dataLength = 8000;
 
-				return getSeries(seriesLength, dataLength);
+				let series = getSeries(seriesLength, dataLength);
+
+				console.timeEnd("prep");
+
+				return series;
 			}
 
 			function makeChart(data) {
@@ -82,7 +88,7 @@
 				let opts = {
 					title: "600 Series x 8,000 points",
 					width: 1920,
-					height: 5000,
+					height: 800,
 					scales: {
 						x: {
 							time: false
