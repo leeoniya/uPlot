@@ -152,7 +152,7 @@ function pxRatioFont(font) {
 }
 
 export default function uPlot(opts, data, then) {
-	const self = this;
+	const self = {};
 
 	opts = copy(opts);
 
@@ -1794,6 +1794,8 @@ export default function uPlot(opts, data, then) {
 	}
 	else
 		_init();
+
+	return self;
 }
 
 uPlot.assign = assign;

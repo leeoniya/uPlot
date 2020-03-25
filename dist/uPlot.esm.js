@@ -881,7 +881,7 @@ function pxRatioFont(font) {
 }
 
 function uPlot(opts, data, then) {
-	const self = this;
+	const self = {};
 
 	opts = copy(opts);
 
@@ -2522,6 +2522,8 @@ function uPlot(opts, data, then) {
 	}
 	else
 		_init();
+
+	return self;
 }
 
 uPlot.assign = assign;

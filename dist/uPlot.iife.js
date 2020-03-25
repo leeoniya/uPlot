@@ -879,7 +879,7 @@ var uPlot = (function () {
 	}
 
 	function uPlot(opts, data, then) {
-		var self = this;
+		var self = {};
 
 		opts = copy(opts);
 
@@ -2531,6 +2531,8 @@ var uPlot = (function () {
 		}
 		else
 			{ _init(); }
+
+		return self;
 	}
 
 	uPlot.assign = assign;
