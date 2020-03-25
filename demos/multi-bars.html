@@ -7,10 +7,26 @@
 
 		<link rel="stylesheet" href="../src/uPlot.css">
 		<style>
+			body {
+				text-align: center;
+			}
+
+			.uplot {
+				margin-bottom: 20px;
+			}
+
 			.uplot .legend .series:first-child,
 			.uplot .legend .series th::after,
 			.uplot .legend .series td {
 				display: none;
+			}
+
+			button {
+				margin: 10px;
+			}
+
+			.hide {
+				color: silver;
 			}
 		</style>
 	</head>
@@ -101,7 +117,7 @@
 
 						uPlot.assign(opts.axes[0], {
 							split:      () => u.data[0],
-							values:     () => labels,
+							values:     () => labels(),
 							gap:        15,
 							size:       40,
 							labelSize:  20,
@@ -175,22 +191,41 @@
 					],
 					plugins: [
 						seriesBarsPlugin({
-							labels: d.map(lib => lib[0]),
+							labels: () => d.filter((lib, i) => enabled[i]).map(lib => lib[0]),
 						}),
 					],
 				};
 
-				const data = [
-					d.map((lib, i) => i+1),
-					d.map(lib => lib[1]),
-					d.map(lib => lib[3].reduce((total, num) => total + num, 0)),
-					d.map(lib => lib[4][0]),
-					d.map(lib => lib[4][1]),
-					d.map(lib => lib[5] && lib[5].reduce((total, num) => total + num, 0)),
-					d.map(lib => lib[6] && lib[6].reduce((total, num) => total + num, 0)),
-				];
+				const body = document.body;
 
-				let u = new uPlot(opts, data, document.body);
+				const enabled = Array(d.length).fill(true);
+
+				function makeData() {
+					return [
+						d.filter((lib, i) => enabled[i]).map((lib, i) => i+1),
+						d.filter((lib, i) => enabled[i]).map(lib => lib[1]),
+						d.filter((lib, i) => enabled[i]).map(lib => lib[3].reduce((total, num) => total + num, 0)),
+						d.filter((lib, i) => enabled[i]).map(lib => lib[4][0]),
+						d.filter((lib, i) => enabled[i]).map(lib => lib[4][1]),
+						d.filter((lib, i) => enabled[i]).map(lib => lib[5] && lib[5].reduce((total, num) => total + num, 0)),
+						d.filter((lib, i) => enabled[i]).map(lib => lib[6] && lib[6].reduce((total, num) => total + num, 0)),
+					];
+				}
+
+				let u = new uPlot(opts, makeData(), document.body);
+
+				d.forEach((lib, i) => {
+					let btn = document.createElement("button");
+					btn.textContent = lib[0];
+
+					btn.onclick = e => {
+						enabled[i] = !enabled[i];
+						btn.classList.toggle("hide");
+						u.setData(makeData());
+					};
+
+					body.appendChild(btn);
+				});
 			});
 		</script>
 	</body>
