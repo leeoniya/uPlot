@@ -116,7 +116,7 @@ export const timeIncrs = FEAT_TIME && [5e-4].concat(genIncrs(-3, 0, incrMults), 
 	y * 100,
 ]);
 
-export function timeAxisStamps(stampCfg) {
+export function timeAxisStamps(stampCfg, fmtDate) {
 	return stampCfg.map(s => [
 		s[0],
 		fmtDate(s[1]),
@@ -140,7 +140,7 @@ const ss = ":{ss}";
 // [2]: when a differing <x> is encountered - 1: sec, 2: min, 3: hour, 4: day, 5: week, 6: month, 7: year
 // [3]: use a longer more contextual format
 // [4]: modes: 0: replace [1] -> [3], 1: concat [1] + [3]
-export const _timeAxisStamps = FEAT_TIME && timeAxisStamps([
+export const _timeAxisStamps = [
 	[y,        yyyy,            7,   "",                    1],
 	[d * 28,   "{MMM}",         7,   NLyyyy,                1],
 	[d,        md,              7,   NLyyyy,                1],
@@ -148,7 +148,7 @@ export const _timeAxisStamps = FEAT_TIME && timeAxisStamps([
 	[m,        hmmaa,           4,   NLmd,                  1],
 	[s,        ss,              2,   NLmd  + " " + hmmaa,   1],
 	[1e-3,     ss + ".{fff}",   2,   NLmd  + " " + hmmaa,   1],
-]);
+];
 
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
@@ -266,11 +266,11 @@ export function timeAxisSplits(tzDate) {
 	}
 }
 
-export function timeSeriesStamp(stampCfg) {
+export function timeSeriesStamp(stampCfg, fmtDate) {
 	return fmtDate(stampCfg);
 };
 
-export const _timeSeriesStamp = FEAT_TIME && timeSeriesStamp('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+export const _timeSeriesStamp = '{YYYY}-{MM}-{DD} {h}:{mm}{aa}';
 
 export function timeSeriesVal(tzDate, stamp) {
 	return (self, val) => stamp(tzDate(val));

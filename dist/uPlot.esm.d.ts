@@ -94,7 +94,7 @@ declare class uPlot {
 	static rangeNum(min: number, max: number, mult: number, extra: boolean): uPlot.MinMax;
 
 	/** creates an efficient formatter for Date objects from a template string, e.g. {YYYY}-{MM}-{DD} */
-	static fmtDate(tpl: string): (date: Date) => string;
+	static fmtDate(tpl: string, names: uPlot.DateNames): (date: Date) => string;
 
 	/** converts a Date into new Date that's time-adjusted for the given IANA Time Zone Name */
 	static tzDate(date: Date, tzName: string): Date;
@@ -104,6 +104,20 @@ declare namespace uPlot {
 	export type AlignedData = readonly number[][];
 
 	export type MinMax = [number, number];
+
+	export interface DateNames {
+		/** long month names */
+		MMMM: string[];
+
+		/** short month names */
+		MMM:  string[];
+
+		/** long weekday names (0: Sunday) */
+		WWWW: string[];
+
+		/** short weekday names (0: Sun) */
+		WWW:  string[];
+	};
 
 //	export type ScatteredData = readonly number[][][];
 
@@ -128,6 +142,9 @@ declare namespace uPlot {
 
 		/** converts a unix timestamp to Date that's time-adjusted for the desired timezone */
 		tzDate?: (ts) => Date;
+
+		/** creates an efficient formatter for Date objects from a template string, e.g. {YYYY}-{MM}-{DD} */
+		fmtDate(tpl: string): (date: Date) => string;
 
 		series: Series[];
 

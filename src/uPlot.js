@@ -63,6 +63,11 @@ import {
 } from './dom';
 
 import {
+	fmtDate,
+	tzDate,
+} from './fmtDate';
+
+import {
 	lineMult,
 	ptDia,
 	cursorOpts,
@@ -173,11 +178,12 @@ export default function uPlot(opts, data, then) {
 	}, opts.gutters);
 
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
-	const tzDate = FEAT_TIME && (opts.tzDate || (ts => new Date(ts * 1e3)));
+	const _tzDate  = FEAT_TIME && (opts.tzDate || (ts => new Date(ts * 1e3)));
+	const _fmtDate = FEAT_TIME && (opts.fmtDate || fmtDate);
 
-	const _timeAxisSplits = FEAT_TIME && timeAxisSplits(tzDate);
-	const _timeAxisVals   = FEAT_TIME && timeAxisVals(tzDate, _timeAxisStamps);
-	const _timeSeriesVal  = FEAT_TIME && timeSeriesVal(tzDate, _timeSeriesStamp);
+	const _timeAxisSplits = FEAT_TIME && timeAxisSplits(_tzDate);
+	const _timeAxisVals   = FEAT_TIME && timeAxisVals(_tzDate, timeAxisStamps(_timeAxisStamps, _fmtDate));
+	const _timeSeriesVal  = FEAT_TIME && timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
 
 	self.series = series;
 	self.axes = axes;
@@ -209,7 +215,7 @@ export default function uPlot(opts, data, then) {
 		s.spanGaps = s.spanGaps === true ? retArg2 : fnOrSelf(s.spanGaps || []);
 
 		let sv = s.value;
-		s.value = isTime ? (isStr(sv) ? timeSeriesVal(tzDate, timeSeriesStamp(sv)) : sv || _timeSeriesVal) : sv || numSeriesVal;
+		s.value = isTime ? (isStr(sv) ? timeSeriesVal(_tzDate, timeSeriesStamp(sv, _fmtDate)) : sv || _timeSeriesVal) : sv || numSeriesVal;
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 
 		if (i > 0) {
@@ -256,7 +262,7 @@ export default function uPlot(opts, data, then) {
 			axis.incrs = fnOrSelf(axis.incrs || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
 			axis.split = fnOrSelf(axis.split || (isTime && sc.distr == 1 ? _timeAxisSplits : numAxisSplits));
 			let av = axis.values;
-			axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
+			axis.values = isTime ? (isArr(av) ? timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) : av || _timeAxisVals) : av || numAxisVals;
 
 			axis.font      = pxRatioFont(axis.font);
 			axis.labelFont = pxRatioFont(axis.labelFont);
@@ -1801,10 +1807,7 @@ export default function uPlot(opts, data, then) {
 uPlot.assign = assign;
 uPlot.rangeNum = rangeNum;
 
-import {
-	fmtDate,
-	tzDate,
-} from './fmtDate';
-
-uPlot.fmtDate = FEAT_TIME && fmtDate;
-uPlot.tzDate  = FEAT_TIME && tzDate;
+if (FEAT_TIME) {
+	uPlot.fmtDate = fmtDate;
+	uPlot.tzDate  = tzDate;
+}

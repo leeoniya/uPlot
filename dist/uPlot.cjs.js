@@ -290,6 +290,13 @@ var days3 =  days.map(slice3);
 
 var months3 =  months.map(slice3);
 
+var engNames = {
+	MMMM: months,
+	MMM:  months3,
+	WWWW: days,
+	WWW:  days3,
+};
+
 function zeroPad2(int) {
 	return (int < 10 ? '0' : '') + int;
 }
@@ -325,9 +332,9 @@ var subs = {
 	// 19
 	YY:		function (d) { return (d[getFullYear]()+'').slice(2); },
 	// July
-	MMMM:	function (d) { return months[d[getMonth]()]; },
+	MMMM:	function (d, names) { return names.MMMM[d[getMonth]()]; },
 	// Jul
-	MMM:	function (d) { return months3[d[getMonth]()]; },
+	MMM:	function (d, names) { return names.MMM[d[getMonth]()]; },
 	// 07
 	MM:		function (d) { return zeroPad2(d[getMonth]()+1); },
 	// 7
@@ -337,9 +344,9 @@ var subs = {
 	// 9
 	D:		function (d) { return d[getDate](); },
 	// Monday
-	WWWW:	function (d) { return days[d[getDay]()]; },
+	WWWW:	function (d, names) { return names.WWWW[d[getDay]()]; },
 	// Mon
-	WWW:	function (d) { return days3[d[getDay]()]; },
+	WWW:	function (d, names) { return names.WWW[d[getDay]()]; },
 	// 03
 	HH:		function (d) { return zeroPad2(d[getHours]()); },
 	// 3
@@ -364,7 +371,8 @@ var subs = {
 	fff:	function (d) { return zeroPad3(d[getMilliseconds]()); },
 };
 
-function fmtDate(tpl) {
+function fmtDate(tpl, names) {
+	names = names || engNames;
 	var parts = [];
 
 	var R = /\{([a-z]+)\}|[^{]+/gi, m;
@@ -376,7 +384,7 @@ function fmtDate(tpl) {
 		var out = '';
 
 		for (var i = 0; i < parts.length; i++)
-			{ out += typeof parts[i] == "string" ? parts[i] : parts[i](d); }
+			{ out += typeof parts[i] == "string" ? parts[i] : parts[i](d, names); }
 
 		return out;
 	}
@@ -470,7 +478,7 @@ var timeIncrs =  [5e-4].concat(genIncrs(-3, 0, incrMults), [
 	y * 50,
 	y * 100 ]);
 
-function timeAxisStamps(stampCfg) {
+function timeAxisStamps(stampCfg, fmtDate) {
 	return stampCfg.map(function (s) { return [
 		s[0],
 		fmtDate(s[1]),
@@ -493,14 +501,14 @@ var ss = ":{ss}";
 // [2]: when a differing <x> is encountered - 1: sec, 2: min, 3: hour, 4: day, 5: week, 6: month, 7: year
 // [3]: use a longer more contextual format
 // [4]: modes: 0: replace [1] -> [3], 1: concat [1] + [3]
-var _timeAxisStamps =  timeAxisStamps([
+var _timeAxisStamps = [
 	[y,        yyyy,            7,   "",                    1],
 	[d * 28,   "{MMM}",         7,   NLyyyy,                1],
 	[d,        md,              7,   NLyyyy,                1],
 	[h,        "{h}" + aa,      4,   NLmd,                  1],
 	[m,        hmmaa,           4,   NLmd,                  1],
 	[s,        ss,              2,   NLmd  + " " + hmmaa,   1],
-	[1e-3,     ss + ".{fff}",   2,   NLmd  + " " + hmmaa,   1] ]);
+	[1e-3,     ss + ".{fff}",   2,   NLmd  + " " + hmmaa,   1] ];
 
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
@@ -618,10 +626,10 @@ function timeAxisSplits(tzDate) {
 	}
 }
 
-function timeSeriesStamp(stampCfg) {
+function timeSeriesStamp(stampCfg, fmtDate) {
 	return fmtDate(stampCfg);
 }
-var _timeSeriesStamp =  timeSeriesStamp('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+var _timeSeriesStamp = '{YYYY}-{MM}-{DD} {h}:{mm}{aa}';
 
 function timeSeriesVal(tzDate, stamp) {
 	return function (self, val) { return stamp(tzDate(val)); };
@@ -899,11 +907,12 @@ function uPlot(opts, data, then) {
 	}, opts.gutters);
 
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
-	var tzDate =  (opts.tzDate || (function (ts) { return new Date(ts * 1e3); }));
+	var _tzDate  =  (opts.tzDate || (function (ts) { return new Date(ts * 1e3); }));
+	var _fmtDate =  (opts.fmtDate || fmtDate);
 
-	var _timeAxisSplits =  timeAxisSplits(tzDate);
-	var _timeAxisVals   =  timeAxisVals(tzDate, _timeAxisStamps);
-	var _timeSeriesVal  =  timeSeriesVal(tzDate, _timeSeriesStamp);
+	var _timeAxisSplits =  timeAxisSplits(_tzDate);
+	var _timeAxisVals   =  timeAxisVals(_tzDate, timeAxisStamps(_timeAxisStamps, _fmtDate));
+	var _timeSeriesVal  =  timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
 
 	self.series = series;
 	self.axes = axes;
@@ -935,7 +944,7 @@ function uPlot(opts, data, then) {
 		s.spanGaps = s.spanGaps === true ? retArg2 : fnOrSelf(s.spanGaps || []);
 
 		var sv = s.value;
-		s.value = isTime ? (isStr(sv) ? timeSeriesVal(tzDate, timeSeriesStamp(sv)) : sv || _timeSeriesVal) : sv || numSeriesVal;
+		s.value = isTime ? (isStr(sv) ? timeSeriesVal(_tzDate, timeSeriesStamp(sv, _fmtDate)) : sv || _timeSeriesVal) : sv || numSeriesVal;
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 
 		if (i > 0) {
@@ -982,7 +991,7 @@ function uPlot(opts, data, then) {
 			axis.incrs = fnOrSelf(axis.incrs || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
 			axis.split = fnOrSelf(axis.split || (isTime && sc.distr == 1 ? _timeAxisSplits : numAxisSplits));
 			var av = axis.values;
-			axis.values = isTime ? (isArr(av) ? timeAxisVals(tzDate, timeAxisStamps(av)) : av || _timeAxisVals) : av || numAxisVals;
+			axis.values = isTime ? (isArr(av) ? timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) : av || _timeAxisVals) : av || numAxisVals;
 
 			axis.font      = pxRatioFont(axis.font);
 			axis.labelFont = pxRatioFont(axis.labelFont);
@@ -2537,7 +2546,9 @@ function uPlot(opts, data, then) {
 uPlot.assign = assign;
 uPlot.rangeNum = rangeNum;
 
-uPlot.fmtDate =  fmtDate;
-uPlot.tzDate  =  tzDate;
+{
+	uPlot.fmtDate = fmtDate;
+	uPlot.tzDate  = tzDate;
+}
 
 module.exports = uPlot;

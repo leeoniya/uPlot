@@ -31,6 +31,13 @@ const days3 = FEAT_TIME && days.map(slice3);
 
 const months3 = FEAT_TIME && months.map(slice3);
 
+const engNames = {
+	MMMM: months,
+	MMM:  months3,
+	WWWW: days,
+	WWW:  days3,
+};
+
 function zeroPad2(int) {
 	return (int < 10 ? '0' : '') + int;
 }
@@ -66,9 +73,9 @@ const subs = {
 	// 19
 	YY:		d => (d[getFullYear]()+'').slice(2),
 	// July
-	MMMM:	d => months[d[getMonth]()],
+	MMMM:	(d, names) => names.MMMM[d[getMonth]()],
 	// Jul
-	MMM:	d => months3[d[getMonth]()],
+	MMM:	(d, names) => names.MMM[d[getMonth]()],
 	// 07
 	MM:		d => zeroPad2(d[getMonth]()+1),
 	// 7
@@ -78,9 +85,9 @@ const subs = {
 	// 9
 	D:		d => d[getDate](),
 	// Monday
-	WWWW:	d => days[d[getDay]()],
+	WWWW:	(d, names) => names.WWWW[d[getDay]()],
 	// Mon
-	WWW:	d => days3[d[getDay]()],
+	WWW:	(d, names) => names.WWW[d[getDay]()],
 	// 03
 	HH:		d => zeroPad2(d[getHours]()),
 	// 3
@@ -105,7 +112,8 @@ const subs = {
 	fff:	d => zeroPad3(d[getMilliseconds]()),
 };
 
-export function fmtDate(tpl) {
+export function fmtDate(tpl, names) {
+	names = names || engNames;
 	let parts = [];
 
 	let R = /\{([a-z]+)\}|[^{]+/gi, m;
@@ -117,7 +125,7 @@ export function fmtDate(tpl) {
 		let out = '';
 
 		for (let i = 0; i < parts.length; i++)
-			out += typeof parts[i] == "string" ? parts[i] : parts[i](d);
+			out += typeof parts[i] == "string" ? parts[i] : parts[i](d, names);
 
 		return out;
 	}
