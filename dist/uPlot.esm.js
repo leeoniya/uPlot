@@ -2453,6 +2453,8 @@ function uPlot(opts, data, then) {
 
 		on(resize, win, deb);
 		on(scroll, win, deb);
+
+		self.syncRect = syncRect;
 	}
 
 	// external on/off

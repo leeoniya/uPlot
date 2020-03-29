@@ -2462,6 +2462,8 @@ var uPlot = (function () {
 
 			on(resize, win, deb);
 			on(scroll, win, deb);
+
+			self.syncRect = syncRect;
 		}
 
 		// external on/off

@@ -87,6 +87,9 @@ declare class uPlot {
 	/** converts a value along the given scale to a CSS (default) or canvas pixel position */
 	valToPos(val: number, scaleKey: string, canvasPixels: bool = false): number;
 
+	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
+	syncRect(): void;
+
 	/** a deep merge util fn */
 	static assign(targ: object, ...srcs: object[]): object;
 
@@ -141,7 +144,7 @@ declare namespace uPlot {
 		data?: AlignedData,
 
 		/** converts a unix timestamp to Date that's time-adjusted for the desired timezone */
-		tzDate?: (ts) => Date;
+		tzDate?: (ts: number) => Date;
 
 		/** creates an efficient formatter for Date objects from a template string, e.g. {YYYY}-{MM}-{DD} */
 		fmtDate(tpl: string): (date: Date) => string;
