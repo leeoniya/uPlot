@@ -374,6 +374,8 @@ export default function uPlot(opts, data, then) {
 		can[WIDTH]  = round(fullWidCss * pxRatio);
 		can[HEIGHT] = round(fullHgtCss * pxRatio);
 
+		syncRect();
+
 		ready && _setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);
 
 		ready && fire("setSize");
@@ -1567,9 +1569,6 @@ export default function uPlot(opts, data, then) {
 	function mouseMove(e, src, _x, _y, _w, _h, _i) {
 		if (cursor.locked)
 			return;
-
-		if (rect == null)
-			syncRect();
 
 		cacheMouse(e, src, _x, _y, _w, _h, _i, false, e != null);
 
