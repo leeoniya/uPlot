@@ -1023,6 +1023,26 @@ function uPlot(opts, data, then) {
 		return _row;
 	}
 
+	var cursor =  (self.cursor = assign({}, cursorOpts, opts.cursor));
+
+	 (cursor.points.show = fnOrSelf(cursor.points.show));
+
+	// series-intersection markers
+	var cursorPts = [];
+
+	function initCursorPt(s, si) {
+		if (si > 0) {
+			var pt = cursor.points.show(self, si);
+
+			addClass(pt, "cursor-pt");
+			addClass(pt, s.class);
+			trans(pt, -10, -10);
+			over.appendChild(pt);
+
+			return pt;
+		}
+	}
+
 	function initSeries(s, i) {
 		// init scales & defaults
 		var scKey = s.scale;
@@ -1053,6 +1073,9 @@ function uPlot(opts, data, then) {
 
 		if (showLegend)
 			{ legendRows.push(initLegendRow(s, i)); }
+
+		if ( cursor.show)
+			{ cursorPts.push(initCursorPt(s, i)); }
 	}
 
 	// set default value
@@ -1969,10 +1992,6 @@ function uPlot(opts, data, then) {
 
 	var dragging = false;
 
-	var cursor =  (self.cursor = assign({}, cursorOpts, opts.cursor));
-
-	 (cursor.points.show = fnOrSelf(cursor.points.show));
-
 	var focus = self.focus = assign({}, opts.focus || {alpha: 0.3},  cursor.focus);
 	var cursorFocus =  focus.prox >= 0;
 
@@ -2108,25 +2127,6 @@ function uPlot(opts, data, then) {
 			updateCursor();
 		});
 	}
-
-	// series-intersection markers
-	var cursorPts;
-
-	function initCursorPt(s, si) {
-		if (si > 0) {
-			var pt = cursor.points.show(self, si);
-
-			addClass(pt, "cursor-pt");
-			addClass(pt, s.class);
-			trans(pt, -10, -10);
-			over.appendChild(pt);
-
-			return pt;
-		}
-	}
-
-	if ( cursor.show)
-		{ cursorPts = series.map(initCursorPt); }
 
 	function scaleValueAtPos(pos, scale) {
 		var dim = scale == xScaleKey ? plotWidCss : plotHgtCss;
