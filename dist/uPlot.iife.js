@@ -1940,6 +1940,55 @@ var uPlot = (function () {
 		var legendCols;
 		var multiValLegend = false;
 
+		function initLegendRow(s, i) {
+			if (i == 0 && multiValLegend)
+				{ return null; }
+
+			var _row = [];
+
+			var row = placeTag("tr", "series", legendEl);
+
+			addClass(row, s.class);
+
+			if (!s.show)
+				{ addClass(row, "off"); }
+
+			var label = placeTag("th", null, row);
+
+			var indic = placeDiv("ident", label);
+			s.width && (indic.style.borderColor = s.stroke);
+			indic.style.backgroundColor = s.fill;
+
+			var text = placeDiv("text", label);
+			text.textContent = s.label;
+
+			if (i > 0) {
+				on("click", label, function (e) {
+					if ( cursor.locked)
+						{ return; }
+
+					filtMouse(e) && setSeries(i, {show: !s.show},  syncOpts.setSeries);
+				});
+
+				if (cursorFocus) {
+					on("mouseenter", label, function (e) {
+						if (cursor.locked)
+							{ return; }
+
+						setSeries(i, {focus: true}, syncOpts.setSeries);
+					});
+				}
+			}
+
+			for (var key in legendCols) {
+				var v = placeTag("td", null, row);
+				v.textContent = "--";
+				_row.push(v);
+			}
+
+			return _row;
+		}
+
 		if (showLegend) {
 			legendEl = placeTag("table", "legend", root);
 
@@ -1959,54 +2008,7 @@ var uPlot = (function () {
 				addClass(legendEl, "inline");
 			}
 
-			legendRows = series.map(function (s, i) {
-				if (i == 0 && multiValLegend)
-					{ return null; }
-
-				var _row = [];
-
-				var row = placeTag("tr", "series", legendEl);
-
-				addClass(row, s.class);
-
-				if (!s.show)
-					{ addClass(row, "off"); }
-
-				var label = placeTag("th", null, row);
-
-				var indic = placeDiv("ident", label);
-				s.width && (indic.style.borderColor = s.stroke);
-				indic.style.backgroundColor = s.fill;
-
-				var text = placeDiv("text", label);
-				text.textContent = s.label;
-
-				if (i > 0) {
-					on("click", label, function (e) {
-						if ( cursor.locked)
-							{ return; }
-
-						filtMouse(e) && setSeries(i, {show: !s.show},  syncOpts.setSeries);
-					});
-
-					if (cursorFocus) {
-						on("mouseenter", label, function (e) {
-							if (cursor.locked)
-								{ return; }
-
-							setSeries(i, {focus: true}, syncOpts.setSeries);
-						});
-					}
-				}
-
-				for (var key in legendCols) {
-					var v = placeTag("td", null, row);
-					v.textContent = "--";
-					_row.push(v);
-				}
-
-				return _row;
-			});
+			legendRows = series.map(initLegendRow);
 		}
 
 		function toggleDOM(i, onOff) {

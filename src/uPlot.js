@@ -1200,6 +1200,55 @@ export default function uPlot(opts, data, then) {
 	let legendCols;
 	let multiValLegend = false;
 
+	function initLegendRow(s, i) {
+		if (i == 0 && multiValLegend)
+			return null;
+
+		let _row = [];
+
+		let row = placeTag("tr", "series", legendEl);
+
+		addClass(row, s.class);
+
+		if (!s.show)
+			addClass(row, "off");
+
+		let label = placeTag("th", null, row);
+
+		let indic = placeDiv("ident", label);
+		s.width && (indic.style.borderColor = s.stroke);
+		indic.style.backgroundColor = s.fill;
+
+		let text = placeDiv("text", label);
+		text.textContent = s.label;
+
+		if (i > 0) {
+			on("click", label, e => {
+				if (FEAT_CURSOR && cursor.locked)
+					return;
+
+				filtMouse(e) && setSeries(i, {show: !s.show}, FEAT_CURSOR && syncOpts.setSeries);
+			});
+
+			if (cursorFocus) {
+				on("mouseenter", label, e => {
+					if (cursor.locked)
+						return;
+
+					setSeries(i, {focus: true}, syncOpts.setSeries);
+				});
+			}
+		}
+
+		for (var key in legendCols) {
+			let v = placeTag("td", null, row);
+			v.textContent = "--";
+			_row.push(v);
+		}
+
+		return _row;
+	}
+
 	if (showLegend) {
 		legendEl = placeTag("table", "legend", root);
 
@@ -1219,54 +1268,7 @@ export default function uPlot(opts, data, then) {
 			addClass(legendEl, "inline");
 		}
 
-		legendRows = series.map((s, i) => {
-			if (i == 0 && multiValLegend)
-				return null;
-
-			let _row = [];
-
-			let row = placeTag("tr", "series", legendEl);
-
-			addClass(row, s.class);
-
-			if (!s.show)
-				addClass(row, "off");
-
-			let label = placeTag("th", null, row);
-
-			let indic = placeDiv("ident", label);
-			s.width && (indic.style.borderColor = s.stroke);
-			indic.style.backgroundColor = s.fill;
-
-			let text = placeDiv("text", label);
-			text.textContent = s.label;
-
-			if (i > 0) {
-				on("click", label, e => {
-					if (FEAT_CURSOR && cursor.locked)
-						return;
-
-					filtMouse(e) && setSeries(i, {show: !s.show}, FEAT_CURSOR && syncOpts.setSeries);
-				});
-
-				if (cursorFocus) {
-					on("mouseenter", label, e => {
-						if (cursor.locked)
-							return;
-
-						setSeries(i, {focus: true}, syncOpts.setSeries);
-					});
-				}
-			}
-
-			for (var key in legendCols) {
-				let v = placeTag("td", null, row);
-				v.textContent = "--";
-				_row.push(v);
-			}
-
-			return _row;
-		});
+		legendRows = series.map(initLegendRow);
 	}
 
 	function toggleDOM(i, onOff) {
