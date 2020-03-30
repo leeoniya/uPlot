@@ -1195,28 +1195,27 @@ export default function uPlot(opts, data, then) {
 
 	self.setSelect = setSelect;
 
-	let legendEl = null;
-	let legendRows = null;
+	let legendEl;
+	let legendRows = [];
+	let legendCols;
 	let multiValLegend = false;
 
 	if (showLegend) {
 		legendEl = placeTag("table", "legend", root);
 
-		let vals = series[1].values;
-		multiValLegend = vals != null;
-
-		let keys;
+		const getMultiVals = series[1].values;
+		multiValLegend = getMultiVals != null;
 
 		if (multiValLegend) {
 			let head = placeTag("tr", "labels", legendEl);
 			placeTag("th", null, head);
-			keys = vals(self, 1, 0);
+			legendCols = getMultiVals(self, 1, 0);
 
-			for (var key in keys)
+			for (var key in legendCols)
 				placeTag("th", null, head).textContent = key;
 		}
 		else {
-			keys = {_: 0};
+			legendCols = {_: 0};
 			addClass(legendEl, "inline");
 		}
 
@@ -1260,7 +1259,7 @@ export default function uPlot(opts, data, then) {
 				}
 			}
 
-			for (var key in keys) {
+			for (var key in legendCols) {
 				let v = placeTag("td", null, row);
 				v.textContent = "--";
 				_row.push(v);

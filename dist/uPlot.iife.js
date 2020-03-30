@@ -1935,28 +1935,27 @@ var uPlot = (function () {
 
 		self.setSelect = setSelect;
 
-		var legendEl = null;
-		var legendRows = null;
+		var legendEl;
+		var legendRows = [];
+		var legendCols;
 		var multiValLegend = false;
 
 		if (showLegend) {
 			legendEl = placeTag("table", "legend", root);
 
-			var vals = series[1].values;
-			multiValLegend = vals != null;
-
-			var keys;
+			var getMultiVals = series[1].values;
+			multiValLegend = getMultiVals != null;
 
 			if (multiValLegend) {
 				var head = placeTag("tr", "labels", legendEl);
 				placeTag("th", null, head);
-				keys = vals(self, 1, 0);
+				legendCols = getMultiVals(self, 1, 0);
 
-				for (var key in keys)
+				for (var key in legendCols)
 					{ placeTag("th", null, head).textContent = key; }
 			}
 			else {
-				keys = {_: 0};
+				legendCols = {_: 0};
 				addClass(legendEl, "inline");
 			}
 
@@ -2000,7 +1999,7 @@ var uPlot = (function () {
 					}
 				}
 
-				for (var key in keys) {
+				for (var key in legendCols) {
 					var v = placeTag("td", null, row);
 					v.textContent = "--";
 					_row.push(v);
