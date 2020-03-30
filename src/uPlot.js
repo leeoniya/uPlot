@@ -1391,8 +1391,6 @@ export default function uPlot(opts, data, then) {
 	if (FEAT_CURSOR && cursor.show)
 		cursorPts = series.map(initCursorPt);
 
-	let cursorRaf = 0;
-
 	function scaleValueAtPos(pos, scale) {
 		let dim = scale == xScaleKey ? plotWidCss : plotHgtCss;
 		let pct = clamp(pos / dim, 0, 1);
@@ -1445,6 +1443,8 @@ export default function uPlot(opts, data, then) {
 	//	assign(cursor, opts);
 		updateCursor();
 	});
+
+	let cursorRaf = 0;
 
 	function updateCursor(ts) {
 		if (inBatch) {

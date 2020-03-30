@@ -2129,8 +2129,6 @@ var uPlot = (function () {
 		if ( cursor.show)
 			{ cursorPts = series.map(initCursorPt); }
 
-		var cursorRaf = 0;
-
 		function scaleValueAtPos(pos, scale) {
 			var dim = scale == xScaleKey ? plotWidCss : plotHgtCss;
 			var pct = clamp(pos / dim, 0, 1);
@@ -2183,6 +2181,8 @@ var uPlot = (function () {
 		//	assign(cursor, opts);
 			updateCursor();
 		});
+
+		var cursorRaf = 0;
 
 		function updateCursor(ts) {
 			if (inBatch) {
