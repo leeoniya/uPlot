@@ -932,8 +932,7 @@ function uPlot(opts, data, then) {
 	const legend     =  assign({show: true}, opts.legend);
 	const showLegend =  legend.show;
 
-	// set default value
-	series.forEach((s, i) => {
+	function initSeries(s, i) {
 		// init scales & defaults
 		const scKey = s.scale;
 
@@ -960,7 +959,10 @@ function uPlot(opts, data, then) {
 			s.points.show = fnOrSelf(s.points.show);
 			s._paths = null;
 		}
-	});
+	}
+
+	// set default value
+	series.forEach(initSeries);
 
 	// dependent scales inherit
 	for (let k in scales) {

@@ -202,8 +202,7 @@ export default function uPlot(opts, data, then) {
 	const legend     = FEAT_LEGEND && assign({show: true}, opts.legend);
 	const showLegend = FEAT_LEGEND && legend.show;
 
-	// set default value
-	series.forEach((s, i) => {
+	function initSeries(s, i) {
 		// init scales & defaults
 		const scKey = s.scale;
 
@@ -230,7 +229,10 @@ export default function uPlot(opts, data, then) {
 			s.points.show = fnOrSelf(s.points.show);
 			s._paths = null;
 		}
-	});
+	}
+
+	// set default value
+	series.forEach(initSeries);
 
 	// dependent scales inherit
 	for (let k in scales) {
