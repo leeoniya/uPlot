@@ -1368,18 +1368,23 @@ export default function uPlot(opts, data, then) {
 	}
 
 	// series-intersection markers
-	let cursorPts = FEAT_CURSOR && cursor.show && cursor.points.show(self);
+	let cursorPts;
 
-	if (FEAT_CURSOR && cursorPts) {
-		cursorPts.forEach((pt, i) => {
-			if (i > 0) {
-				addClass(pt, "cursor-pt");
-				addClass(pt, series[i].class);
-				trans(pt, -10, -10);
-				over.appendChild(pt);
-			}
-		});
+	function initCursorPt(s, si) {
+		if (si > 0) {
+			let pt = cursor.points.show(self, si);
+
+			addClass(pt, "cursor-pt");
+			addClass(pt, s.class);
+			trans(pt, -10, -10);
+			over.appendChild(pt);
+
+			return pt;
+		}
 	}
+
+	if (FEAT_CURSOR && cursor.show)
+		cursorPts = series.map(initCursorPt);
 
 	let cursorRaf = 0;
 

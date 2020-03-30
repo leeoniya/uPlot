@@ -216,7 +216,7 @@ declare namespace uPlot {
 
 		/** series hover points */
 		points?: {
-			show?: boolean | ((self: uPlot) => HTMLElement[]);
+			show?: boolean | ((self: uPlot, seriesIdx: number) => HTMLElement);
 		};
 
 		/** determines vt/hz cursor dragging to set selection & setScale (zoom) */

@@ -636,24 +636,22 @@ var uPlot = (function () {
 		return function (self, val) { return stamp(tzDate(val)); };
 	}
 
-	function cursorPoints(self) {
-		return self.series.map(function (s, i) {
-			if (i > 0) {
-				var pt = placeDiv();
+	function cursorPoint(self, si) {
+		var s = self.series[si];
 
-				pt.style.background = s.stroke || hexBlack;
+		var pt = placeDiv();
 
-				var dia = ptDia(s.width, 1);
-				var mar = (dia - 1) / -2;
+		pt.style.background = s.stroke || hexBlack;
 
-				setStylePx(pt, WIDTH, dia);
-				setStylePx(pt, HEIGHT, dia);
-				setStylePx(pt, "marginLeft", mar);
-				setStylePx(pt, "marginTop", mar);
+		var dia = ptDia(s.width, 1);
+		var mar = (dia - 1) / -2;
 
-				return pt;
-			}
-		});
+		setStylePx(pt, WIDTH, dia);
+		setStylePx(pt, HEIGHT, dia);
+		setStylePx(pt, "marginLeft", mar);
+		setStylePx(pt, "marginTop", mar);
+
+		return pt;
 	}
 
 	var cursorOpts = {
@@ -662,7 +660,7 @@ var uPlot = (function () {
 		y: true,
 		lock: false,
 		points: {
-			show: cursorPoints,
+			show: cursorPoint,
 		},
 
 		drag: {
@@ -2108,18 +2106,23 @@ var uPlot = (function () {
 		}
 
 		// series-intersection markers
-		var cursorPts =  cursor.show && cursor.points.show(self);
+		var cursorPts;
 
-		if ( cursorPts) {
-			cursorPts.forEach(function (pt, i) {
-				if (i > 0) {
-					addClass(pt, "cursor-pt");
-					addClass(pt, series[i].class);
-					trans(pt, -10, -10);
-					over.appendChild(pt);
-				}
-			});
+		function initCursorPt(s, si) {
+			if (si > 0) {
+				var pt = cursor.points.show(self, si);
+
+				addClass(pt, "cursor-pt");
+				addClass(pt, s.class);
+				trans(pt, -10, -10);
+				over.appendChild(pt);
+
+				return pt;
+			}
 		}
+
+		if ( cursor.show)
+			{ cursorPts = series.map(initCursorPt); }
 
 		var cursorRaf = 0;
 

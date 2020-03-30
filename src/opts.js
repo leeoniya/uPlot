@@ -276,24 +276,22 @@ export function timeSeriesVal(tzDate, stamp) {
 	return (self, val) => stamp(tzDate(val));
 }
 
-function cursorPoints(self) {
-	return self.series.map((s, i) => {
-		if (i > 0) {
-			let pt = placeDiv();
+function cursorPoint(self, si) {
+	let s = self.series[si];
 
-			pt.style.background = s.stroke || hexBlack;
+	let pt = placeDiv();
 
-			let dia = ptDia(s.width, 1);
-			let mar = (dia - 1) / -2;
+	pt.style.background = s.stroke || hexBlack;
 
-			setStylePx(pt, WIDTH, dia);
-			setStylePx(pt, HEIGHT, dia);
-			setStylePx(pt, "marginLeft", mar);
-			setStylePx(pt, "marginTop", mar);
+	let dia = ptDia(s.width, 1);
+	let mar = (dia - 1) / -2;
 
-			return pt;
-		}
-	});
+	setStylePx(pt, WIDTH, dia);
+	setStylePx(pt, HEIGHT, dia);
+	setStylePx(pt, "marginLeft", mar);
+	setStylePx(pt, "marginTop", mar);
+
+	return pt;
 }
 
 export const cursorOpts = {
@@ -302,7 +300,7 @@ export const cursorOpts = {
 	y: true,
 	lock: false,
 	points: {
-		show: cursorPoints,
+		show: cursorPoint,
 	},
 
 	drag: {

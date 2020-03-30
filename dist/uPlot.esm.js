@@ -638,24 +638,22 @@ function timeSeriesVal(tzDate, stamp) {
 	return (self, val) => stamp(tzDate(val));
 }
 
-function cursorPoints(self) {
-	return self.series.map((s, i) => {
-		if (i > 0) {
-			let pt = placeDiv();
+function cursorPoint(self, si) {
+	let s = self.series[si];
 
-			pt.style.background = s.stroke || hexBlack;
+	let pt = placeDiv();
 
-			let dia = ptDia(s.width, 1);
-			let mar = (dia - 1) / -2;
+	pt.style.background = s.stroke || hexBlack;
 
-			setStylePx(pt, WIDTH, dia);
-			setStylePx(pt, HEIGHT, dia);
-			setStylePx(pt, "marginLeft", mar);
-			setStylePx(pt, "marginTop", mar);
+	let dia = ptDia(s.width, 1);
+	let mar = (dia - 1) / -2;
 
-			return pt;
-		}
-	});
+	setStylePx(pt, WIDTH, dia);
+	setStylePx(pt, HEIGHT, dia);
+	setStylePx(pt, "marginLeft", mar);
+	setStylePx(pt, "marginTop", mar);
+
+	return pt;
 }
 
 const cursorOpts = {
@@ -664,7 +662,7 @@ const cursorOpts = {
 	y: true,
 	lock: false,
 	points: {
-		show: cursorPoints,
+		show: cursorPoint,
 	},
 
 	drag: {
@@ -2099,18 +2097,23 @@ function uPlot(opts, data, then) {
 	}
 
 	// series-intersection markers
-	let cursorPts =  cursor.show && cursor.points.show(self);
+	let cursorPts;
 
-	if ( cursorPts) {
-		cursorPts.forEach((pt, i) => {
-			if (i > 0) {
-				addClass(pt, "cursor-pt");
-				addClass(pt, series[i].class);
-				trans(pt, -10, -10);
-				over.appendChild(pt);
-			}
-		});
+	function initCursorPt(s, si) {
+		if (si > 0) {
+			let pt = cursor.points.show(self, si);
+
+			addClass(pt, "cursor-pt");
+			addClass(pt, s.class);
+			trans(pt, -10, -10);
+			over.appendChild(pt);
+
+			return pt;
+		}
 	}
+
+	if ( cursor.show)
+		cursorPts = series.map(initCursorPt);
 
 	let cursorRaf = 0;
 
