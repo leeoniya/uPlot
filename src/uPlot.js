@@ -199,7 +199,8 @@ export default function uPlot(opts, data, then) {
 			pendScales[k] = {min: sc.min, max: sc.max};
 	}
 
-	const legendOpts = FEAT_LEGEND && assign({show: true}, opts.legend);
+	const legend     = FEAT_LEGEND && assign({show: true}, opts.legend);
+	const showLegend = FEAT_LEGEND && legend.show;
 
 	// set default value
 	series.forEach((s, i) => {
@@ -1194,12 +1195,12 @@ export default function uPlot(opts, data, then) {
 
 	self.setSelect = setSelect;
 
-	let legend = null;
+	let legendEl = null;
 	let legendRows = null;
 	let multiValLegend = false;
 
-	if (FEAT_LEGEND && legendOpts.show) {
-		legend = placeTag("table", "legend", root);
+	if (showLegend) {
+		legendEl = placeTag("table", "legend", root);
 
 		let vals = series[1].values;
 		multiValLegend = vals != null;
@@ -1207,7 +1208,7 @@ export default function uPlot(opts, data, then) {
 		let keys;
 
 		if (multiValLegend) {
-			let head = placeTag("tr", "labels", legend);
+			let head = placeTag("tr", "labels", legendEl);
 			placeTag("th", null, head);
 			keys = vals(self, 1, 0);
 
@@ -1216,7 +1217,7 @@ export default function uPlot(opts, data, then) {
 		}
 		else {
 			keys = {_: 0};
-			addClass(legend, "inline");
+			addClass(legendEl, "inline");
 		}
 
 		legendRows = series.map((s, i) => {
@@ -1225,7 +1226,7 @@ export default function uPlot(opts, data, then) {
 
 			let _row = [];
 
-			let row = placeTag("tr", "series", legend);
+			let row = placeTag("tr", "series", legendEl);
 
 			addClass(row, s.class);
 
@@ -1271,7 +1272,7 @@ export default function uPlot(opts, data, then) {
 
 	function toggleDOM(i, onOff) {
 		let s = series[i];
-		let label = legendOpts.show ? legendRows[i][0].parentNode : null;
+		let label = showLegend ? legendRows[i][0].parentNode : null;
 
 		if (s.show)
 			label && remClass(label, "off");
@@ -1356,8 +1357,8 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
-	if (cursorFocus && legendOpts.show) {
-		FEAT_LEGEND && on(mouseleave, legend, e => {
+	if (showLegend && cursorFocus) {
+		on(mouseleave, legendEl, e => {
 			if (cursor.locked)
 				return;
 			setSeries(null, {focus: false}, syncOpts.setSeries);
@@ -1461,7 +1462,7 @@ export default function uPlot(opts, data, then) {
 					cursorPts && trans(cursorPts[i], -10, -10);
 				}
 
-				if (FEAT_LEGEND && legendOpts.show) {
+				if (showLegend) {
 					if (i == 0 && multiValLegend)
 						continue;
 
@@ -1497,7 +1498,7 @@ export default function uPlot(opts, data, then) {
 				else
 					distsToCursor[i] = inf;
 
-				if (FEAT_LEGEND && legendOpts.show) {
+				if (showLegend) {
 					if (i == 0 && multiValLegend)
 						continue;
 

@@ -929,7 +929,8 @@ var uPlot = (function () {
 				{ pendScales[k] = {min: sc.min, max: sc.max}; }
 		}
 
-		var legendOpts =  assign({show: true}, opts.legend);
+		var legend     =  assign({show: true}, opts.legend);
+		var showLegend =  legend.show;
 
 		// set default value
 		series.forEach(function (s, i) {
@@ -1934,12 +1935,12 @@ var uPlot = (function () {
 
 		self.setSelect = setSelect;
 
-		var legend = null;
+		var legendEl = null;
 		var legendRows = null;
 		var multiValLegend = false;
 
-		if ( legendOpts.show) {
-			legend = placeTag("table", "legend", root);
+		if (showLegend) {
+			legendEl = placeTag("table", "legend", root);
 
 			var vals = series[1].values;
 			multiValLegend = vals != null;
@@ -1947,7 +1948,7 @@ var uPlot = (function () {
 			var keys;
 
 			if (multiValLegend) {
-				var head = placeTag("tr", "labels", legend);
+				var head = placeTag("tr", "labels", legendEl);
 				placeTag("th", null, head);
 				keys = vals(self, 1, 0);
 
@@ -1956,7 +1957,7 @@ var uPlot = (function () {
 			}
 			else {
 				keys = {_: 0};
-				addClass(legend, "inline");
+				addClass(legendEl, "inline");
 			}
 
 			legendRows = series.map(function (s, i) {
@@ -1965,7 +1966,7 @@ var uPlot = (function () {
 
 				var _row = [];
 
-				var row = placeTag("tr", "series", legend);
+				var row = placeTag("tr", "series", legendEl);
 
 				addClass(row, s.class);
 
@@ -2011,7 +2012,7 @@ var uPlot = (function () {
 
 		function toggleDOM(i, onOff) {
 			var s = series[i];
-			var label = legendOpts.show ? legendRows[i][0].parentNode : null;
+			var label = showLegend ? legendRows[i][0].parentNode : null;
 
 			if (s.show)
 				{ label && remClass(label, "off"); }
@@ -2096,8 +2097,8 @@ var uPlot = (function () {
 			}
 		}
 
-		if (cursorFocus && legendOpts.show) {
-			 on(mouseleave, legend, function (e) {
+		if (showLegend && cursorFocus) {
+			on(mouseleave, legendEl, function (e) {
 				if (cursor.locked)
 					{ return; }
 				setSeries(null, {focus: false}, syncOpts.setSeries);
@@ -2201,7 +2202,7 @@ var uPlot = (function () {
 						cursorPts && trans(cursorPts[i], -10, -10);
 					}
 
-					if ( legendOpts.show) {
+					if (showLegend) {
 						if (i == 0 && multiValLegend)
 							{ continue; }
 
@@ -2237,7 +2238,7 @@ var uPlot = (function () {
 					else
 						{ distsToCursor[i$1] = inf; }
 
-					if ( legendOpts.show) {
+					if (showLegend) {
 						if (i$1 == 0 && multiValLegend)
 							{ continue; }
 
