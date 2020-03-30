@@ -841,7 +841,11 @@ function _sync(opts) {
 }
 
 function setDefaults(d, xo, yo) {
-	return [d[0], d[1]].concat(d.slice(2)).map((o, i) => assign({}, (i == 0 || o && o.side % 2 == 0 ? xo : yo), o));
+	return [d[0], d[1]].concat(d.slice(2)).map((o, i) => setDefault(o, i, xo, yo));
+}
+
+function setDefault(o, i, xo, yo) {
+	return assign({}, (i == 0 || o && o.side % 2 == 0 ? xo : yo), o);
 }
 
 function getYPos(val, scale, hgt, top) {
@@ -1081,7 +1085,28 @@ function uPlot(opts, data, then) {
 			cursorPts.push(initCursorPt(s, i));
 	}
 
-	// set default value
+	function addSeries(opts, _data) {
+		let si = series.length;
+
+		opts = setDefault(opts, si, xSeriesOpts, ySeriesOpts);
+		series.push(opts);
+		initSeries(series[si], si);
+		_data && data.push(_data) && setData(data);		//, false?
+	}
+
+	self.addSeries = addSeries;
+
+	function delSeries(i, _delData) {
+		series.splice(i, 1);
+		legendRows.splice(i, 1)[0][0].parentNode.remove();
+		cursorPts.splice(i, 1)[0].remove();
+		_delData && data.splice(i, 1) && setData(data);	//, false?
+
+		// TODO: de-init no-longer-needed scales?
+	}
+
+	self.delSeries = delSeries;
+
 	series.forEach(initSeries);
 
 	// dependent scales inherit

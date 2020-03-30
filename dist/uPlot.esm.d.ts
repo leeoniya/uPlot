@@ -72,6 +72,12 @@ declare class uPlot {
 	/** toggles series visibility or focus */
 	setSeries(opts: {show?: boolean, focus?: boolean}): void;
 
+	/** adds a series */
+	addSeries(opts: uPlot.Series, data: number[] = null): void;
+
+	/** deletes a series */
+	delSeries(seriesIdx: number, delData: boolean = false): void;
+
 	/** sets visually selected region without triggering setScale (zoom) */
 	setSelect(opts: {left: number, top: number, width: number, height: number}, fireHook?: boolean = true): void;
 
