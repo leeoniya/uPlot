@@ -887,6 +887,26 @@ var uPlot = (function () {
 	function uPlot(opts, data, then) {
 		var self = {};
 
+		var root = self.root = placeDiv("uplot");
+
+		if (opts.id != null)
+			{ root.id = opts.id; }
+
+		addClass(root, opts.class);
+
+		if (opts.title) {
+			var title = placeDiv("title", root);
+			title.textContent = opts.title;
+		}
+
+		var can = placeTag("canvas");
+		var ctx = self.ctx = can.getContext("2d");
+
+		var wrap = placeDiv("wrap", root);
+		var under = placeDiv("under", wrap);
+		wrap.appendChild(can);
+		var over = placeDiv("over", wrap);
+
 		opts = copy(opts);
 
 		(opts.plugins || []).forEach(function (p) {
@@ -930,6 +950,80 @@ var uPlot = (function () {
 		var legend     =  assign({show: true}, opts.legend);
 		var showLegend =  legend.show;
 
+		var legendEl;
+		var legendRows = [];
+		var legendCols;
+		var multiValLegend = false;
+
+		if (showLegend) {
+			legendEl = placeTag("table", "legend", root);
+
+			var getMultiVals = series[1].values;
+			multiValLegend = getMultiVals != null;
+
+			if (multiValLegend) {
+				var head = placeTag("tr", "labels", legendEl);
+				placeTag("th", null, head);
+				legendCols = getMultiVals(self, 1, 0);
+
+				for (var key in legendCols)
+					{ placeTag("th", null, head).textContent = key; }
+			}
+			else {
+				legendCols = {_: 0};
+				addClass(legendEl, "inline");
+			}
+		}
+
+		function initLegendRow(s, i) {
+			if (i == 0 && multiValLegend)
+				{ return null; }
+
+			var _row = [];
+
+			var row = placeTag("tr", "series", legendEl);
+
+			addClass(row, s.class);
+
+			if (!s.show)
+				{ addClass(row, "off"); }
+
+			var label = placeTag("th", null, row);
+
+			var indic = placeDiv("ident", label);
+			s.width && (indic.style.borderColor = s.stroke);
+			indic.style.backgroundColor = s.fill;
+
+			var text = placeDiv("text", label);
+			text.textContent = s.label;
+
+			if (i > 0) {
+				on("click", label, function (e) {
+					if ( cursor.locked)
+						{ return; }
+
+					filtMouse(e) && setSeries(i, {show: !s.show},  syncOpts.setSeries);
+				});
+
+				if (cursorFocus) {
+					on("mouseenter", label, function (e) {
+						if (cursor.locked)
+							{ return; }
+
+						setSeries(i, {focus: true}, syncOpts.setSeries);
+					});
+				}
+			}
+
+			for (var key in legendCols) {
+				var v = placeTag("td", null, row);
+				v.textContent = "--";
+				_row.push(v);
+			}
+
+			return _row;
+		}
+
 		function initSeries(s, i) {
 			// init scales & defaults
 			var scKey = s.scale;
@@ -957,6 +1051,9 @@ var uPlot = (function () {
 				s.points.show = fnOrSelf(s.points.show);
 				s._paths = null;
 			}
+
+			if (showLegend)
+				{ legendRows.push(initLegendRow(s, i)); }
 		}
 
 		// set default value
@@ -999,18 +1096,6 @@ var uPlot = (function () {
 				axis.labelFont = pxRatioFont(axis.labelFont);
 			}
 		});
-
-		var root = self.root = placeDiv("uplot");
-
-		if (opts.id != null)
-			{ root.id = opts.id; }
-
-		addClass(root, opts.class);
-
-		if (opts.title) {
-			var title = placeDiv("title", root);
-			title.textContent = opts.title;
-		}
 
 		var dataLen;
 
@@ -1211,14 +1296,6 @@ var uPlot = (function () {
 					{ axis._lpos = incrOffset(side, axis.labelSize); }
 			});
 		}
-
-		var can = placeTag("canvas");
-		var ctx = self.ctx = can.getContext("2d");
-
-		var wrap = placeDiv("wrap", root);
-		var under = placeDiv("under", wrap);
-		wrap.appendChild(can);
-		var over = placeDiv("over", wrap);
 
 		function setScales() {
 			if (inBatch) {
@@ -1934,82 +2011,6 @@ var uPlot = (function () {
 		}
 
 		self.setSelect = setSelect;
-
-		var legendEl;
-		var legendRows = [];
-		var legendCols;
-		var multiValLegend = false;
-
-		function initLegendRow(s, i) {
-			if (i == 0 && multiValLegend)
-				{ return null; }
-
-			var _row = [];
-
-			var row = placeTag("tr", "series", legendEl);
-
-			addClass(row, s.class);
-
-			if (!s.show)
-				{ addClass(row, "off"); }
-
-			var label = placeTag("th", null, row);
-
-			var indic = placeDiv("ident", label);
-			s.width && (indic.style.borderColor = s.stroke);
-			indic.style.backgroundColor = s.fill;
-
-			var text = placeDiv("text", label);
-			text.textContent = s.label;
-
-			if (i > 0) {
-				on("click", label, function (e) {
-					if ( cursor.locked)
-						{ return; }
-
-					filtMouse(e) && setSeries(i, {show: !s.show},  syncOpts.setSeries);
-				});
-
-				if (cursorFocus) {
-					on("mouseenter", label, function (e) {
-						if (cursor.locked)
-							{ return; }
-
-						setSeries(i, {focus: true}, syncOpts.setSeries);
-					});
-				}
-			}
-
-			for (var key in legendCols) {
-				var v = placeTag("td", null, row);
-				v.textContent = "--";
-				_row.push(v);
-			}
-
-			return _row;
-		}
-
-		if (showLegend) {
-			legendEl = placeTag("table", "legend", root);
-
-			var getMultiVals = series[1].values;
-			multiValLegend = getMultiVals != null;
-
-			if (multiValLegend) {
-				var head = placeTag("tr", "labels", legendEl);
-				placeTag("th", null, head);
-				legendCols = getMultiVals(self, 1, 0);
-
-				for (var key in legendCols)
-					{ placeTag("th", null, head).textContent = key; }
-			}
-			else {
-				legendCols = {_: 0};
-				addClass(legendEl, "inline");
-			}
-
-			legendRows = series.map(initLegendRow);
-		}
 
 		function toggleDOM(i, onOff) {
 			var s = series[i];
