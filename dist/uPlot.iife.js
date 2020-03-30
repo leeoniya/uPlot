@@ -1070,8 +1070,7 @@ var uPlot = (function () {
 		var xScaleKey = series[0].scale;
 		var xScaleDistr = scales[xScaleKey].distr;
 
-		// set axis defaults
-		axes.forEach(function (axis, i) {
+		function initAxis(axis, i) {
 			if (axis.show) {
 				var isVt = axis.side % 2;
 
@@ -1095,7 +1094,10 @@ var uPlot = (function () {
 				axis.font      = pxRatioFont(axis.font);
 				axis.labelFont = pxRatioFont(axis.labelFont);
 			}
-		});
+		}
+
+		// set axis defaults
+		axes.forEach(initAxis);
 
 		var dataLen;
 
