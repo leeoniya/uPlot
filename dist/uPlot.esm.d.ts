@@ -73,7 +73,7 @@ declare class uPlot {
 	setSeries(opts: {show?: boolean, focus?: boolean}): void;
 
 	/** adds a series */
-	addSeries(opts: uPlot.Series, seriesIdx: number): void;
+	addSeries(opts: uPlot.Series, seriesIdx?: number): void;
 
 	/** deletes a series */
 	delSeries(seriesIdx: number): void;
