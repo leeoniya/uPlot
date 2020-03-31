@@ -1033,18 +1033,20 @@ var uPlot = (function () {
 		 (cursor.points.show = fnOrSelf(cursor.points.show));
 
 		// series-intersection markers
-		var cursorPts = [];
+		var cursorPts = [null];
 
 		function initCursorPt(s, si) {
 			if (si > 0) {
 				var pt = cursor.points.show(self, si);
 
-				addClass(pt, "cursor-pt");
-				addClass(pt, s.class);
-				trans(pt, -10, -10);
-				over.insertBefore(pt, cursorPts[si]);
+				if (pt) {
+					addClass(pt, "cursor-pt");
+					addClass(pt, s.class);
+					trans(pt, -10, -10);
+					over.insertBefore(pt, cursorPts[si]);
 
-				return pt;
+					return pt;
+				}
 			}
 		}
 
@@ -1079,8 +1081,10 @@ var uPlot = (function () {
 			if (showLegend)
 				{ legendRows.splice(i, 0, initLegendRow(s, i)); }
 
-			if ( cursor.show)
-				{ cursorPts.splice(i, 0, initCursorPt(s, i)); }
+			if ( cursor.show) {
+				var pt = initCursorPt(s, i);
+				pt && cursorPts.splice(i, 0, pt);
+			}
 		}
 
 		function addSeries(opts, si) {
@@ -2064,7 +2068,7 @@ var uPlot = (function () {
 				{ label && remClass(label, "off"); }
 			else {
 				label && addClass(label, "off");
-				 cursorPts && trans(cursorPts[i], 0, -10);
+				 cursorPts.length > 1 && trans(cursorPts[i], 0, -10);
 			}
 		}
 
@@ -2231,7 +2235,7 @@ var uPlot = (function () {
 				for (var i = 0; i < series.length; i++) {
 					if (i > 0) {
 						distsToCursor[i] = inf;
-						cursorPts && trans(cursorPts[i], -10, -10);
+						 cursorPts.length > 1 && trans(cursorPts[i], -10, -10);
 					}
 
 					if (showLegend) {
@@ -2265,7 +2269,7 @@ var uPlot = (function () {
 
 						distsToCursor[i$1] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
 
-						cursorPts && trans(cursorPts[i$1], xPos, yPos);
+						 cursorPts.length > 1 && trans(cursorPts[i$1], xPos, yPos);
 					}
 					else
 						{ distsToCursor[i$1] = inf; }

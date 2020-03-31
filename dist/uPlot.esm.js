@@ -1035,18 +1035,20 @@ function uPlot(opts, data, then) {
 	 (cursor.points.show = fnOrSelf(cursor.points.show));
 
 	// series-intersection markers
-	let cursorPts = [];
+	let cursorPts = [null];
 
 	function initCursorPt(s, si) {
 		if (si > 0) {
 			let pt = cursor.points.show(self, si);
 
-			addClass(pt, "cursor-pt");
-			addClass(pt, s.class);
-			trans(pt, -10, -10);
-			over.insertBefore(pt, cursorPts[si]);
+			if (pt) {
+				addClass(pt, "cursor-pt");
+				addClass(pt, s.class);
+				trans(pt, -10, -10);
+				over.insertBefore(pt, cursorPts[si]);
 
-			return pt;
+				return pt;
+			}
 		}
 	}
 
@@ -1081,8 +1083,10 @@ function uPlot(opts, data, then) {
 		if (showLegend)
 			legendRows.splice(i, 0, initLegendRow(s, i));
 
-		if ( cursor.show)
-			cursorPts.splice(i, 0, initCursorPt(s, i));
+		if ( cursor.show) {
+			let pt = initCursorPt(s, i);
+			pt && cursorPts.splice(i, 0, pt);
+		}
 	}
 
 	function addSeries(opts, si) {
@@ -2055,7 +2059,7 @@ function uPlot(opts, data, then) {
 			label && remClass(label, "off");
 		else {
 			label && addClass(label, "off");
-			 cursorPts && trans(cursorPts[i], 0, -10);
+			 cursorPts.length > 1 && trans(cursorPts[i], 0, -10);
 		}
 	}
 
@@ -2222,7 +2226,7 @@ function uPlot(opts, data, then) {
 			for (let i = 0; i < series.length; i++) {
 				if (i > 0) {
 					distsToCursor[i] = inf;
-					cursorPts && trans(cursorPts[i], -10, -10);
+					 cursorPts.length > 1 && trans(cursorPts[i], -10, -10);
 				}
 
 				if (showLegend) {
@@ -2256,7 +2260,7 @@ function uPlot(opts, data, then) {
 
 					distsToCursor[i] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
 
-					cursorPts && trans(cursorPts[i], xPos, yPos);
+					 cursorPts.length > 1 && trans(cursorPts[i], xPos, yPos);
 				}
 				else
 					distsToCursor[i] = inf;
