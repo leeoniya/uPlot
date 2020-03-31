@@ -227,14 +227,14 @@ function setStylePx(el, name, value) {
 	el.style[name] = value + "px";
 }
 
-function placeTag(tag, cls, targ) {
+function placeTag(tag, cls, targ, refEl) {
 	let el = doc[createElement](tag);
 
 	if (cls != null)
 		addClass(el, cls);
 
 	if (targ != null)
-		targ.appendChild(el);
+		targ.insertBefore(el, refEl);
 
 	return el;
 }
@@ -987,7 +987,7 @@ function uPlot(opts, data, then) {
 
 		let _row = [];
 
-		let row = placeTag("tr", "series", legendEl);
+		let row = placeTag("tr", "series", legendEl, legendEl.childNodes[i]);
 
 		addClass(row, s.class);
 
@@ -1008,7 +1008,7 @@ function uPlot(opts, data, then) {
 				if ( cursor.locked)
 					return;
 
-				filtMouse(e) && setSeries(i, {show: !s.show},  syncOpts.setSeries);
+				filtMouse(e) && setSeries(series.indexOf(s), {show: !s.show},  syncOpts.setSeries);
 			});
 
 			if (cursorFocus) {
@@ -1016,7 +1016,7 @@ function uPlot(opts, data, then) {
 					if (cursor.locked)
 						return;
 
-					setSeries(i, {focus: true}, syncOpts.setSeries);
+					setSeries(series.indexOf(s), {focus: true}, syncOpts.setSeries);
 				});
 			}
 		}
@@ -1044,7 +1044,7 @@ function uPlot(opts, data, then) {
 			addClass(pt, "cursor-pt");
 			addClass(pt, s.class);
 			trans(pt, -10, -10);
-			over.appendChild(pt);
+			over.insertBefore(pt, cursorPts[si]);
 
 			return pt;
 		}
@@ -1079,28 +1079,26 @@ function uPlot(opts, data, then) {
 		}
 
 		if (showLegend)
-			legendRows.push(initLegendRow(s, i));
+			legendRows.splice(i, 0, initLegendRow(s, i));
 
 		if ( cursor.show)
-			cursorPts.push(initCursorPt(s, i));
+			cursorPts.splice(i, 0, initCursorPt(s, i));
 	}
 
-	function addSeries(opts, _data) {
-		let si = series.length;
+	function addSeries(opts, si) {
+		si = si == null ? series.length : si;
 
 		opts = setDefault(opts, si, xSeriesOpts, ySeriesOpts);
-		series.push(opts);
+		series.splice(si, 0, opts);
 		initSeries(series[si], si);
-		_data && data.push(_data) && setData(data);		//, false?
 	}
 
 	self.addSeries = addSeries;
 
-	function delSeries(i, _delData) {
+	function delSeries(i) {
 		series.splice(i, 1);
 		legendRows.splice(i, 1)[0][0].parentNode.remove();
 		cursorPts.splice(i, 1)[0].remove();
-		_delData && data.splice(i, 1) && setData(data);	//, false?
 
 		// TODO: de-init no-longer-needed scales?
 	}

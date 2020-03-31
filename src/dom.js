@@ -27,14 +27,14 @@ export function setStylePx(el, name, value) {
 	el.style[name] = value + "px";
 }
 
-export function placeTag(tag, cls, targ) {
+export function placeTag(tag, cls, targ, refEl) {
 	let el = doc[createElement](tag);
 
 	if (cls != null)
 		addClass(el, cls);
 
 	if (targ != null)
-		targ.appendChild(el);
+		targ.insertBefore(el, refEl);
 
 	return el;
 }

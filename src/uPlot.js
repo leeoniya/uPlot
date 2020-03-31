@@ -257,7 +257,7 @@ export default function uPlot(opts, data, then) {
 
 		let _row = [];
 
-		let row = placeTag("tr", "series", legendEl);
+		let row = placeTag("tr", "series", legendEl, legendEl.childNodes[i]);
 
 		addClass(row, s.class);
 
@@ -278,7 +278,7 @@ export default function uPlot(opts, data, then) {
 				if (FEAT_CURSOR && cursor.locked)
 					return;
 
-				filtMouse(e) && setSeries(i, {show: !s.show}, FEAT_CURSOR && syncOpts.setSeries);
+				filtMouse(e) && setSeries(series.indexOf(s), {show: !s.show}, FEAT_CURSOR && syncOpts.setSeries);
 			});
 
 			if (cursorFocus) {
@@ -286,7 +286,7 @@ export default function uPlot(opts, data, then) {
 					if (cursor.locked)
 						return;
 
-					setSeries(i, {focus: true}, syncOpts.setSeries);
+					setSeries(series.indexOf(s), {focus: true}, syncOpts.setSeries);
 				});
 			}
 		}
@@ -314,7 +314,7 @@ export default function uPlot(opts, data, then) {
 			addClass(pt, "cursor-pt");
 			addClass(pt, s.class);
 			trans(pt, -10, -10);
-			over.appendChild(pt);
+			over.insertBefore(pt, cursorPts[si]);
 
 			return pt;
 		}
@@ -349,28 +349,26 @@ export default function uPlot(opts, data, then) {
 		}
 
 		if (showLegend)
-			legendRows.push(initLegendRow(s, i));
+			legendRows.splice(i, 0, initLegendRow(s, i));
 
 		if (FEAT_CURSOR && cursor.show)
-			cursorPts.push(initCursorPt(s, i));
+			cursorPts.splice(i, 0, initCursorPt(s, i));
 	}
 
-	function addSeries(opts, _data) {
-		let si = series.length;
+	function addSeries(opts, si) {
+		si = si == null ? series.length : si;
 
 		opts = setDefault(opts, si, xSeriesOpts, ySeriesOpts);
-		series.push(opts);
+		series.splice(si, 0, opts);
 		initSeries(series[si], si);
-		_data && data.push(_data) && setData(data);		//, false?
 	}
 
 	self.addSeries = addSeries;
 
-	function delSeries(i, _delData) {
+	function delSeries(i) {
 		series.splice(i, 1);
 		legendRows.splice(i, 1)[0][0].parentNode.remove();
 		cursorPts.splice(i, 1)[0].remove();
-		_delData && data.splice(i, 1) && setData(data);	//, false?
 
 		// TODO: de-init no-longer-needed scales?
 	}

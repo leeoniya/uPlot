@@ -54,17 +54,24 @@
 
 		<script>
 			document.querySelector("#add").onclick = () => {
-				u.addSeries(
-					{
-						stroke: "orange",
-						fill: "rgba(255,165,0,0.1)",
-					},
-					xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
-				);
+				let sidx = 2;
+
+				u.addSeries({
+					stroke: "orange",
+					fill: "rgba(255,165,0,0.1)",
+				}, sidx);
+
+				let newData = xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]);
+				data.splice(sidx, 0, newData);
+				u.setData(data);
 			};
 
 			document.querySelector("#del").onclick = () => {
-				u.delSeries(u.series.length - 1, true);
+				let sidx = 2;
+
+				u.delSeries(sidx);
+				data.splice(sidx, 1);
+				u.setData(data);
 			};
 		</script>
 	</body>
