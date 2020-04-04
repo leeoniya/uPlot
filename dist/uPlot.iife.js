@@ -1554,10 +1554,10 @@ var uPlot = (function () {
 			series.forEach(function (s, i) {
 				if (i > 0 && s.show) {
 					if (s._paths)
-						{  drawPath(i); }
+						 { drawPath(i); }
 
 					if (s.points.show(self, i, i0, i1))
-						{  drawPoints(i); }
+						 { drawPoints(i); }
 
 					fire("drawSeries", i);
 				}
