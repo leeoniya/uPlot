@@ -430,7 +430,7 @@ export default function uPlot(opts, data, then) {
 
 	let data0 = null;
 
-	function setData(_data, _autoScaleX) {
+	function setData(_data, _resetScales) {
 		self.data = _data;
 		data = _data.slice();
 		data0 = data[0];
@@ -443,7 +443,7 @@ export default function uPlot(opts, data, then) {
 
 		fire("setData");
 
-		_autoScaleX !== false && autoScaleX();
+		_resetScales !== false && autoScaleX();
 	}
 
 	self.setData = setData;
