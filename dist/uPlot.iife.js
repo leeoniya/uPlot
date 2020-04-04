@@ -1099,8 +1099,8 @@ var uPlot = (function () {
 
 		function delSeries(i) {
 			series.splice(i, 1);
-			legendRows.splice(i, 1)[0][0].parentNode.remove();
-			cursorPts.splice(i, 1)[0].remove();
+			 legendRows.splice(i, 1)[0][0].parentNode.remove();
+			 cursorPts.splice(i, 1)[0].remove();
 
 			// TODO: de-init no-longer-needed scales?
 		}
@@ -2113,7 +2113,7 @@ var uPlot = (function () {
 		function _alpha(i, value) {
 			series[i].alpha = value;
 
-			if (legendRows)
+			if ( legendRows)
 				{ legendRows[i][0].parentNode.style.opacity = value; }
 		}
 
