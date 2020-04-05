@@ -304,6 +304,9 @@ export default function uPlot(opts, data, then) {
 
 	FEAT_CURSOR && (cursor.points.show = fnOrSelf(cursor.points.show));
 
+	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, FEAT_CURSOR && cursor.focus);
+	const cursorFocus = FEAT_CURSOR && focus.prox >= 0;
+
 	// series-intersection markers
 	let cursorPts = [null];
 
@@ -1281,9 +1284,6 @@ export default function uPlot(opts, data, then) {
 	let mouseTop1;
 
 	let dragging = false;
-
-	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, FEAT_CURSOR && cursor.focus);
-	const cursorFocus = FEAT_CURSOR && focus.prox >= 0;
 
 	const drag = FEAT_CURSOR && cursor.drag;
 

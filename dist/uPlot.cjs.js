@@ -1031,6 +1031,9 @@ function uPlot(opts, data, then) {
 
 	 (cursor.points.show = fnOrSelf(cursor.points.show));
 
+	var focus = self.focus = assign({}, opts.focus || {alpha: 0.3},  cursor.focus);
+	var cursorFocus =  focus.prox >= 0;
+
 	// series-intersection markers
 	var cursorPts = [null];
 
@@ -2018,9 +2021,6 @@ function uPlot(opts, data, then) {
 	var mouseTop1;
 
 	var dragging = false;
-
-	var focus = self.focus = assign({}, opts.focus || {alpha: 0.3},  cursor.focus);
-	var cursorFocus =  focus.prox >= 0;
 
 	var drag =  cursor.drag;
 
