@@ -1,11 +1,14 @@
 const { Console } = require("console");
 const { promises: fs } = require("fs");
-const { Transform } = require("stream");
 const { JSDOM, VirtualConsole } = require("jsdom");
+const PNG = require("pngjs").PNG;
+const pixelmatch = require("pixelmatch");
+const { Transform } = require("stream");
 require("canvas-5-polyfill");
 
 const rootDir = `${__dirname}/..`;
 const snapshotDir = `${__dirname}/snapshots`;
+const diffDir = `${__dirname}/diffs`;
 const demosDir = `${rootDir}/demos`;
 const { mkdir, readdir, readFile, writeFile } = fs;
 
@@ -85,10 +88,23 @@ const demoRunner = async () => {
 	};
 };
 
+const loadSnapshot = async (demo, canvasIndex) =>
+	await readFile(
+		`${snapshotDir}/${demo.replace(/\.html$/, "")}.${canvasIndex}.png`
+	);
+
 const saveSnapshot = async (demo, canvasIndex, buffer) => {
 	await mkdir(snapshotDir, { recursive: true });
 	await writeFile(
 		`${snapshotDir}/${demo.replace(/\.html$/, "")}.${canvasIndex}.png`,
+		buffer
+	);
+};
+
+const saveDiff = async (demo, canvasIndex, buffer) => {
+	await mkdir(diffDir, { recursive: true });
+	await writeFile(
+		`${diffDir}/${demo.replace(/\.html$/, "")}.${canvasIndex}.png`,
 		buffer
 	);
 };
@@ -103,7 +119,25 @@ const main = async () => {
 		try {
 			const images = await runDemo(demo);
 			for (let i = 0; i < images.length; i++) {
-				await saveSnapshot(demo, i, images[0]);
+				const snapshot = await loadSnapshot(demo, i);
+				const img1 = PNG.sync.read(snapshot);
+				const img2 = PNG.sync.read(images[0]);
+				const { width, height } = img1;
+				const diff = new PNG({ width, height });
+				const mismatch = pixelmatch(
+					img1.data,
+					img2.data,
+					diff.data,
+					width,
+					height,
+					{
+						threshold: 0.1,
+					}
+				);
+				if (mismatch > 0) {
+					await saveDiff(demo, i, PNG.sync.write(diff));
+				}
+				// await saveSnapshot(demo, i, images[0]);
 			}
 		} catch (err) {
 			console.error(err);
