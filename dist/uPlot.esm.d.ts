@@ -110,7 +110,7 @@ declare class uPlot {
 }
 
 declare namespace uPlot {
-	export type AlignedData = readonly number[][];
+	export type AlignedData = readonly (number | null)[][];
 
 	export type MinMax = [number, number];
 
