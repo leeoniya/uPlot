@@ -38,8 +38,9 @@
 							const scaleY = s.scale;
 
 							const stroke = new Path2D();
+							stroke.moveTo(xdata[0], ydata[0]);
 
-							for (let i = i0; i <= i1; i++) {
+							for (let i = i0; i <= i1 - 1; i++) {
 								let x0 = u.valToPos(xdata[i], scaleX, true);
 								let y0 = u.valToPos(ydata[i], scaleY, true);
 								let x1 = u.valToPos(xdata[i+1], scaleX, true);
@@ -48,7 +49,7 @@
 								let midX = (x0 + x1) / 2;
 								let midY = (y0 + y1) / 2;
 
-								stroke.quadraticCurveTo(x0, y0, midX, midY);
+								stroke.bezierCurveTo(midX, y0, midX, y1, x1, y1);
 							}
 
 							const fill = new Path2D(stroke);
