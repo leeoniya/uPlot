@@ -110,6 +110,8 @@ const saveDiff = async (demo, canvasIndex, buffer) => {
 };
 
 const main = async () => {
+	const updateSnapshots = process.argv[2] === "-u";
+
 	const runDemo = await demoRunner();
 	const demos = (await readdir(demosDir)).filter(
 		(entry) => entry.endsWith(".html") && entry !== "index.html"
@@ -119,28 +121,36 @@ const main = async () => {
 		try {
 			const images = await runDemo(demo);
 			for (let i = 0; i < images.length; i++) {
-				const snapshot = await loadSnapshot(demo, i);
-				const img1 = PNG.sync.read(snapshot);
-				const img2 = PNG.sync.read(images[0]);
-				const { width, height } = img1;
-				const diff = new PNG({ width, height });
-				const mismatch = pixelmatch(
-					img1.data,
-					img2.data,
-					diff.data,
-					width,
-					height,
-					{
-						threshold: 0.1,
+				if (updateSnapshots) {
+					await saveSnapshot(demo, i, images[i]);
+				} else {
+					const snapshot = await loadSnapshot(demo, i);
+					const img1 = PNG.sync.read(snapshot);
+					const img2 = PNG.sync.read(images[i]);
+					const { width, height } = img1;
+					const diff = new PNG({ width, height });
+					const mismatch = pixelmatch(
+						img1.data,
+						img2.data,
+						diff.data,
+						width,
+						height,
+						{
+							threshold: 0.1,
+						}
+					);
+					if (mismatch > 0) {
+						await saveDiff(demo, i, PNG.sync.write(diff));
+						console.error(
+							`${demo} ${i}. canvas does not match snapshot. ${mismatch} different pixels. Diff saved. Run with "-u" to update snapshot.`
+						);
+						process.exitCode = 1;
 					}
-				);
-				if (mismatch > 0) {
-					await saveDiff(demo, i, PNG.sync.write(diff));
 				}
-				// await saveSnapshot(demo, i, images[0]);
 			}
 		} catch (err) {
 			console.error(err);
+			process.exitCode = 1;
 		}
 	}
 };
