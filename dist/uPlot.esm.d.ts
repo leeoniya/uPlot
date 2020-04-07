@@ -445,7 +445,7 @@ declare namespace uPlot {
 		setSelect?:  ((self: uPlot) => void)[];
 
 		/** fires after a series is toggled or focused */
-		setSeries?:  ((self: uPlot, seriesIndex: number, opts: Series) => void)[];
+		setSeries?:  ((self: uPlot, seriesIdx: number, opts: Series) => void)[];
 
 		/** fires after data is updated updated */
 		setData?:    ((self: uPlot) => void)[];
