@@ -183,7 +183,7 @@ declare namespace uPlot {
 
 		plugins?: {
 			/** can mutate provided opts as necessary */
-			opts: (self: uPlot, opts: Options) => void;
+			opts?: (self: uPlot, opts: Options) => void;
 			hooks: Hooks;
 		}[];
 	}
