@@ -11,6 +11,7 @@ function cssmin(css) {
 }
 
 let minicss = cssmin(fs.readFileSync('./src/uPlot.css', 'utf8'));
+fs.mkdirSync("./dist", { recursive: true });
 fs.writeFileSync('./dist/uPlot.min.css', minicss);
 
 import buble from 'rollup-plugin-buble';

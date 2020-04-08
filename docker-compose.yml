@@ -1,0 +1,9 @@
+version: "3.7"
+services:
+    test:
+        build: .
+        command: node ./test/demos.js
+        volumes:
+            - ./bench:/uplot/bench
+            - ./demos:/uplot/demos
+            - ./test:/uplot/test

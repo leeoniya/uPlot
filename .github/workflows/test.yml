@@ -3,18 +3,14 @@ name: Test
 on: [push]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+    test:
+        runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v2
-	  - uses: actions/setup-node@v1
-        with:
-          node-version: 12.x
-	  - run: npm install
-      - run: node ./test/demos.js
-	  - uses: actions/upload-artifact@v1
-	    if: failure()
-        with:
-          name: Snapshot Diffs
-          path: ./test/diffs/
+        steps:
+            - uses: actions/checkout@v2
+            - run: docker-compose run test
+            - uses: actions/upload-artifact@v1
+              if: failure()
+              with:
+                  name: snapshot-diffs
+                  path: ./test/diffs/
