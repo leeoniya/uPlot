@@ -128,13 +128,25 @@ function getXPos(val, scale, wid, lft) {
 	return lft + pctX * wid;
 }
 
-function snapNone(self, dataMin, dataMax) {
-	return [dataMin, dataMax];
+function snapTimeX(self, dataMin, dataMax) {
+	return [dataMin, dataMax > dataMin ? dataMax : dataMax + 86400];
+}
+
+function snapNumX(self, dataMin, dataMax) {
+	const delta = dataMax - dataMin;
+
+	if (delta == 0) {
+		const mag = log10(delta || abs(dataMax) || 1);
+		const exp = floor(mag) + 1;
+		return [dataMin, incrRoundUp(dataMax, pow(10, exp))];
+	}
+	else
+		return [dataMin, dataMax];
 }
 
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
-function snapFifthMag(self, dataMin, dataMax) {
+function snapNumY(self, dataMin, dataMax) {
 	return rangeNum(dataMin, dataMax, 0.2, true);
 }
 
@@ -333,7 +345,7 @@ export default function uPlot(opts, data, then) {
 
 		let isTime = FEAT_TIME && sc.time;
 
-		sc.range = fnOrSelf(sc.range || (isTime || i == 0 ? snapNone : snapFifthMag));
+		sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : i == 0 ? snapNumX : snapNumY));
 
 		s.spanGaps = s.spanGaps === true ? retArg2 : fnOrSelf(s.spanGaps || []);
 
@@ -1249,7 +1261,7 @@ export default function uPlot(opts, data, then) {
 
 		if (sc.from == null) {
 			// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
-			if (FEAT_TIME && key == xScaleKey && sc.time && axes[0].show) {
+			if (FEAT_TIME && key == xScaleKey && sc.time && axes[0].show && opts.max > opts.min) {
 				// since scales and axes are loosly coupled, we have to make some assumptions here :(
 				let incr = getIncrSpace(axes[0], opts.min, opts.max, plotWidCss)[0];
 

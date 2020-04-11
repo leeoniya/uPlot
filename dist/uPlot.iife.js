@@ -76,12 +76,16 @@ var uPlot = (function () {
 		var snappedMax = round6(incrRoundUp(max + buf, incr));
 
 		if (extra) {
-			// for flat data, always use 0 as one chart extreme
+			// for flat data, always use 0 as one chart extreme & place data in center
 			if (delta == 0) {
-				if (max > 0)
-					{ snappedMin = 0; }
-				else if (max < 0)
-					{ snappedMax = 0; }
+				if (max > 0) {
+					snappedMin = 0;
+					snappedMax = max * 2;
+				}
+				else if (max < 0) {
+					snappedMax = 0;
+					snappedMin = min * 2;
+				}
 			}
 			else {
 				// if buffer is too small, increase it
@@ -856,13 +860,25 @@ var uPlot = (function () {
 		return lft + pctX * wid;
 	}
 
-	function snapNone(self, dataMin, dataMax) {
-		return [dataMin, dataMax];
+	function snapTimeX(self, dataMin, dataMax) {
+		return [dataMin, dataMax > dataMin ? dataMax : dataMax + 86400];
+	}
+
+	function snapNumX(self, dataMin, dataMax) {
+		var delta = dataMax - dataMin;
+
+		if (delta == 0) {
+			var mag = log10(delta || abs(dataMax) || 1);
+			var exp = floor(mag) + 1;
+			return [dataMin, incrRoundUp(dataMax, pow(10, exp))];
+		}
+		else
+			{ return [dataMin, dataMax]; }
 	}
 
 	// this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 	// TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
-	function snapFifthMag(self, dataMin, dataMax) {
+	function snapNumY(self, dataMin, dataMax) {
 		return rangeNum(dataMin, dataMax, 0.2, true);
 	}
 
@@ -1061,7 +1077,7 @@ var uPlot = (function () {
 
 			var isTime =  sc.time;
 
-			sc.range = fnOrSelf(sc.range || (isTime || i == 0 ? snapNone : snapFifthMag));
+			sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : i == 0 ? snapNumX : snapNumY));
 
 			s.spanGaps = s.spanGaps === true ? retArg2 : fnOrSelf(s.spanGaps || []);
 
@@ -1987,7 +2003,7 @@ var uPlot = (function () {
 
 			if (sc.from == null) {
 				// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
-				if ( key == xScaleKey && sc.time && axes[0].show) {
+				if ( key == xScaleKey && sc.time && axes[0].show && opts.max > opts.min) {
 					// since scales and axes are loosly coupled, we have to make some assumptions here :(
 					var incr = getIncrSpace(axes[0], opts.min, opts.max, plotWidCss)[0];
 

@@ -64,12 +64,16 @@ export function rangeNum(min, max, mult, extra) {
 	let snappedMax = round6(incrRoundUp(max + buf, incr));
 
 	if (extra) {
-		// for flat data, always use 0 as one chart extreme
+		// for flat data, always use 0 as one chart extreme & place data in center
 		if (delta == 0) {
-			if (max > 0)
+			if (max > 0) {
 				snappedMin = 0;
-			else if (max < 0)
+				snappedMax = max * 2;
+			}
+			else if (max < 0) {
 				snappedMax = 0;
+				snappedMin = min * 2;
+			}
 		}
 		else {
 			// if buffer is too small, increase it
