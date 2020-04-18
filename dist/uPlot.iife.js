@@ -2245,7 +2245,7 @@ var uPlot = (function () {
 			var idx;
 
 			// if cursor hidden, hide points & clear legend vals
-			if (mouseLeft1 < 0) {
+			if (mouseLeft1 < 0 || dataLen == 0) {
 				idx = null;
 
 				for (var i = 0; i < series.length; i++) {
@@ -2304,23 +2304,23 @@ var uPlot = (function () {
 							{ legendRows[i$1][j$1++][firstChild].nodeValue = vals[k]; }
 					}
 				}
+			}
 
-				// nit: cursor.drag.setSelect is assumed always true
-				if (select.show && dragging) {
-					// setSelect should not be triggered on move events
-					if (drag.x) {
-						var minX = min(mouseLeft0, mouseLeft1);
-						var maxX = max(mouseLeft0, mouseLeft1);
-						setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
-						setStylePx(selectDiv, WIDTH, select[WIDTH] = maxX - minX);
-					}
+			// nit: cursor.drag.setSelect is assumed always true
+			if (mouseLeft1 >= 0 && select.show && dragging) {
+				// setSelect should not be triggered on move events
+				if (drag.x) {
+					var minX = min(mouseLeft0, mouseLeft1);
+					var maxX = max(mouseLeft0, mouseLeft1);
+					setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
+					setStylePx(selectDiv, WIDTH, select[WIDTH] = maxX - minX);
+				}
 
-					if (drag.y) {
-						var minY = min(mouseTop0, mouseTop1);
-						var maxY = max(mouseTop0, mouseTop1);
-						setStylePx(selectDiv, TOP,    select[TOP] = minY);
-						setStylePx(selectDiv, HEIGHT, select[HEIGHT] = maxY - minY);
-					}
+				if (drag.y) {
+					var minY = min(mouseTop0, mouseTop1);
+					var maxY = max(mouseTop0, mouseTop1);
+					setStylePx(selectDiv, TOP,    select[TOP] = minY);
+					setStylePx(selectDiv, HEIGHT, select[HEIGHT] = maxY - minY);
 				}
 			}
 
