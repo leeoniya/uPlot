@@ -348,6 +348,7 @@ export const xAxisOpts = {
 	grid,
 	ticks,
 	font,
+	rotate: 0,
 };
 
 export const numSeriesLabel = "Value";
@@ -403,6 +404,7 @@ export const yAxisOpts = {
 	grid,
 	ticks,
 	font,
+	rotate: 0,
 };
 
 // takes stroke width

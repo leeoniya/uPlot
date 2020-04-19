@@ -711,6 +711,7 @@ var xAxisOpts = {
 	grid: grid,
 	ticks: ticks,
 	font: font,
+	rotate: 0,
 };
 
 var numSeriesLabel = "Value";
@@ -766,6 +767,7 @@ var yAxisOpts = {
 	grid: grid,
 	ticks: ticks,
 	font: font,
+	rotate: 0,
 };
 
 // takes stroke width
@@ -1154,6 +1156,7 @@ function uPlot(opts, data, then) {
 			var isTime =  sc.time;
 
 			axis.space = fnOrSelf(axis.space);
+			axis.rotate = fnOrSelf(axis.rotate);
 			axis.incrs = fnOrSelf(axis.incrs || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
 			axis.split = fnOrSelf(axis.split || (isTime && sc.distr == 1 ? _timeAxisSplits : numAxisSplits));
 			var av = axis.values;
@@ -1873,6 +1876,9 @@ function uPlot(opts, data, then) {
 			// tick labels
 			var values = axis.values(self, scale.distr == 2 ? splits.map(function (i) { return data0[i]; }) : splits, space);		// BOO this assumes a specific data/series
 
+			// rotating of labels only supported on bottom x axis
+			var angle = side == 2 && axis.rotate(self, values, space);
+
 			var basePos  = round(axis._pos * pxRatio);
 			var shiftAmt = tickSize + axisGap;
 			var shiftDir = ori == 0 && side == 0 || ori == 1 && side == 3 ? -1 : 1;
@@ -1882,8 +1888,11 @@ function uPlot(opts, data, then) {
 
 			ctx.font         = axis.font[0];
 			ctx.fillStyle    = axis.stroke || hexBlack;									// rgba?
-			ctx.textAlign    = ori == 0 ? "center" : side == 3 ? RIGHT : LEFT;
-			ctx.textBaseline = ori == 1 ? "middle" : side == 2 ? TOP   : BOTTOM;
+			ctx.textAlign    = angle > 0 ? LEFT :
+			                   angle < 0 ? RIGHT :
+			                   ori == 0 ? "center" : side == 3 ? RIGHT : LEFT;
+			ctx.textBaseline = angle ||
+			                   ori == 1 ? "middle" : side == 2 ? TOP   : BOTTOM;
 
 			var lineHeight   = axis.font[1] * lineMult;
 
@@ -1894,7 +1903,15 @@ function uPlot(opts, data, then) {
 					{ y = canOffs[i]; }
 
 				(""+val).split(/\n/gm).forEach(function (text, j) {
-					ctx.fillText(text, x, y + j * lineHeight);
+					if (angle) {
+						ctx.save();
+						ctx.translate(x, y + j * lineHeight);
+						ctx.rotate(angle);
+						ctx.fillText(text, 0, 0);
+						ctx.restore();
+					}
+					else
+						{ ctx.fillText(text, x, y + j * lineHeight); }
 				});
 			});
 
