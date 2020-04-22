@@ -44,18 +44,21 @@
 						scale: "%",
 						value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
 						stroke: "red",
+						fill: "rgba(255,0,0,0.05)",
 					},
 					{
 						label: "RAM",
 						scale: "%",
 						value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
 						stroke: "blue",
+						fill: "rgba(0,0,255,0.05)",
 					},
 					{
 						label: "TCP Out",
 						scale: "mb",
 						value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
 						stroke: "green",
+						fill: "rgba(0,255,0,0.05)",
 					}
 				],
 				axes: [
