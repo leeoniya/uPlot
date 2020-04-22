@@ -50,8 +50,8 @@ declare class uPlot {
 	readonly data: uPlot.AlignedData;
 
 
-	/** clears and redraws the canvas from cache without re-computing anything. triggers all draw* hooks. */
-	redraw(): void;
+	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
+	redraw(rebuildPaths: boolean = true): void;
 
 	/** defers recalc & redraw for multiple ops, e.g. setScale('x', ...) && setScale('y', ...) */
 	batch(txn: Function): void;

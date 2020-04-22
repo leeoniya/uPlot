@@ -1266,7 +1266,12 @@ export default function uPlot(opts, data, then) {
 		fire("draw");
 	}
 
-	self.redraw = paint;
+	self.redraw = rebuildPaths => {
+		if (rebuildPaths !== false)
+			_setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);
+		else
+			paint();
+	};
 
 	// redraw() => setScale('x', scales.x.min, scales.x.max);
 
