@@ -1377,112 +1377,114 @@ function uPlot(opts, data, then) {
 
 	//	log("setScales()", arguments);
 
-		// cache original scales' min/max & reset
-		let minMaxes = {};
+		if (dataLen > 0) {
+			// cache original scales' min/max & reset
+			let minMaxes = {};
 
-		for (let k in scales) {
-			let sc = scales[k];
-			let psc = pendScales[k];
+			for (let k in scales) {
+				let sc = scales[k];
+				let psc = pendScales[k];
 
-			minMaxes[k] = {
-				min: sc.min,
-				max: sc.max
-			};
+				minMaxes[k] = {
+					min: sc.min,
+					max: sc.max
+				};
 
-			if (psc != null) {
-				assign(sc, psc);
+				if (psc != null) {
+					assign(sc, psc);
 
-				// explicitly setting the x-scale invalidates everything (acts as redraw)
-				if (k == xScaleKey)
-					resetYSeries();
-			}
-			else if (k != xScaleKey) {
-				sc.min = inf;
-				sc.max = -inf;
-			}
-		}
-
-		// pre-range y-scales from y series' data values
-		series.forEach((s, i) => {
-			let k = s.scale;
-			let sc = scales[k];
-
-			// setting the x scale invalidates everything
-			if (i == 0) {
-				let minMax = sc.range(self, sc.min, sc.max);
-
-				sc.min = minMax[0];
-				sc.max = minMax[1];
-
-				i0 = closestIdx(sc.min, data[0]);
-				i1 = closestIdx(sc.max, data[0]);
-
-				// closest indices can be outside of view
-				if (data[0][i0] < sc.min)
-					i0++;
-				if (data[0][i1] > sc.max)
-					i1--;
-
-				s.min = data0[i0];
-				s.max = data0[i1];
-			}
-			else if (s.show && pendScales[k] == null) {
-				// only run getMinMax() for invalidated series data, else reuse
-				let minMax = s.min == inf ? (sc.auto ? getMinMax(data[i], i0, i1) : [0,100]) : [s.min, s.max];
-
-				// initial min/max
-				sc.min = min(sc.min, s.min = minMax[0]);
-				sc.max = max(sc.max, s.max = minMax[1]);
+					// explicitly setting the x-scale invalidates everything (acts as redraw)
+					if (k == xScaleKey)
+						resetYSeries();
+				}
+				else if (k != xScaleKey) {
+					sc.min = inf;
+					sc.max = -inf;
+				}
 			}
 
-			s.idxs[0] = i0;
-			s.idxs[1] = i1;
-		});
+			// pre-range y-scales from y series' data values
+			series.forEach((s, i) => {
+				let k = s.scale;
+				let sc = scales[k];
 
-		// snap non-dependent scales
-		for (let k in scales) {
-			let sc = scales[k];
+				// setting the x scale invalidates everything
+				if (i == 0) {
+					let minMax = sc.range(self, sc.min, sc.max);
 
-			if (sc.from == null && sc.min != inf && pendScales[k] == null) {
-				let minMax = sc.range(self, sc.min, sc.max);
+					sc.min = minMax[0];
+					sc.max = minMax[1];
 
-				sc.min = minMax[0];
-				sc.max = minMax[1];
-			}
+					i0 = closestIdx(sc.min, data[0]);
+					i1 = closestIdx(sc.max, data[0]);
 
-			pendScales[k] = null;
-		}
+					// closest indices can be outside of view
+					if (data[0][i0] < sc.min)
+						i0++;
+					if (data[0][i1] > sc.max)
+						i1--;
 
-		// range dependent scales
-		for (let k in scales) {
-			let sc = scales[k];
+					s.min = data0[i0];
+					s.max = data0[i1];
+				}
+				else if (s.show && pendScales[k] == null) {
+					// only run getMinMax() for invalidated series data, else reuse
+					let minMax = s.min == inf ? (sc.auto ? getMinMax(data[i], i0, i1) : [0,100]) : [s.min, s.max];
 
-			if (sc.from != null) {
-				let base = scales[sc.from];
+					// initial min/max
+					sc.min = min(sc.min, s.min = minMax[0]);
+					sc.max = max(sc.max, s.max = minMax[1]);
+				}
 
-				if (base.min != inf) {
-					let minMax = sc.range(self, base.min, base.max);
+				s.idxs[0] = i0;
+				s.idxs[1] = i1;
+			});
+
+			// snap non-dependent scales
+			for (let k in scales) {
+				let sc = scales[k];
+
+				if (sc.from == null && sc.min != inf && pendScales[k] == null) {
+					let minMax = sc.range(self, sc.min, sc.max);
+
 					sc.min = minMax[0];
 					sc.max = minMax[1];
 				}
+
+				pendScales[k] = null;
 			}
+
+			// range dependent scales
+			for (let k in scales) {
+				let sc = scales[k];
+
+				if (sc.from != null) {
+					let base = scales[sc.from];
+
+					if (base.min != inf) {
+						let minMax = sc.range(self, base.min, base.max);
+						sc.min = minMax[0];
+						sc.max = minMax[1];
+					}
+				}
+			}
+
+			let changed = {};
+
+			// invalidate paths of all series on changed scales
+			series.forEach((s, i) => {
+				let k = s.scale;
+				let sc = scales[k];
+
+				if (minMaxes[k] != null && (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)) {
+					changed[k] = true;
+					s._paths = null;
+				}
+			});
+
+			for (let k in changed)
+				fire("setScale", k);
 		}
-
-		let changed = {};
-
-		// invalidate paths of all series on changed scales
-		series.forEach((s, i) => {
-			let k = s.scale;
-			let sc = scales[k];
-
-			if (minMaxes[k] != null && (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)) {
-				changed[k] = true;
-				s._paths = null;
-			}
-		});
-
-		for (let k in changed)
-			fire("setScale", k);
 
 		 cursor.show && updateCursor();
 	}

@@ -1379,112 +1379,114 @@ var uPlot = (function () {
 
 		//	log("setScales()", arguments);
 
-			// cache original scales' min/max & reset
-			var minMaxes = {};
+			if (dataLen > 0) {
+				// cache original scales' min/max & reset
+				var minMaxes = {};
 
-			for (var k in scales) {
-				var sc = scales[k];
-				var psc = pendScales[k];
+				for (var k in scales) {
+					var sc = scales[k];
+					var psc = pendScales[k];
 
-				minMaxes[k] = {
-					min: sc.min,
-					max: sc.max
-				};
+					minMaxes[k] = {
+						min: sc.min,
+						max: sc.max
+					};
 
-				if (psc != null) {
-					assign(sc, psc);
+					if (psc != null) {
+						assign(sc, psc);
 
-					// explicitly setting the x-scale invalidates everything (acts as redraw)
-					if (k == xScaleKey)
-						{ resetYSeries(); }
-				}
-				else if (k != xScaleKey) {
-					sc.min = inf;
-					sc.max = -inf;
-				}
-			}
-
-			// pre-range y-scales from y series' data values
-			series.forEach(function (s, i) {
-				var k = s.scale;
-				var sc = scales[k];
-
-				// setting the x scale invalidates everything
-				if (i == 0) {
-					var minMax = sc.range(self, sc.min, sc.max);
-
-					sc.min = minMax[0];
-					sc.max = minMax[1];
-
-					i0 = closestIdx(sc.min, data[0]);
-					i1 = closestIdx(sc.max, data[0]);
-
-					// closest indices can be outside of view
-					if (data[0][i0] < sc.min)
-						{ i0++; }
-					if (data[0][i1] > sc.max)
-						{ i1--; }
-
-					s.min = data0[i0];
-					s.max = data0[i1];
-				}
-				else if (s.show && pendScales[k] == null) {
-					// only run getMinMax() for invalidated series data, else reuse
-					var minMax$1 = s.min == inf ? (sc.auto ? getMinMax(data[i], i0, i1) : [0,100]) : [s.min, s.max];
-
-					// initial min/max
-					sc.min = min(sc.min, s.min = minMax$1[0]);
-					sc.max = max(sc.max, s.max = minMax$1[1]);
-				}
-
-				s.idxs[0] = i0;
-				s.idxs[1] = i1;
-			});
-
-			// snap non-dependent scales
-			for (var k$1 in scales) {
-				var sc$1 = scales[k$1];
-
-				if (sc$1.from == null && sc$1.min != inf && pendScales[k$1] == null) {
-					var minMax = sc$1.range(self, sc$1.min, sc$1.max);
-
-					sc$1.min = minMax[0];
-					sc$1.max = minMax[1];
-				}
-
-				pendScales[k$1] = null;
-			}
-
-			// range dependent scales
-			for (var k$2 in scales) {
-				var sc$2 = scales[k$2];
-
-				if (sc$2.from != null) {
-					var base = scales[sc$2.from];
-
-					if (base.min != inf) {
-						var minMax$1 = sc$2.range(self, base.min, base.max);
-						sc$2.min = minMax$1[0];
-						sc$2.max = minMax$1[1];
+						// explicitly setting the x-scale invalidates everything (acts as redraw)
+						if (k == xScaleKey)
+							{ resetYSeries(); }
+					}
+					else if (k != xScaleKey) {
+						sc.min = inf;
+						sc.max = -inf;
 					}
 				}
-			}
 
-			var changed = {};
+				// pre-range y-scales from y series' data values
+				series.forEach(function (s, i) {
+					var k = s.scale;
+					var sc = scales[k];
 
-			// invalidate paths of all series on changed scales
-			series.forEach(function (s, i) {
-				var k = s.scale;
-				var sc = scales[k];
+					// setting the x scale invalidates everything
+					if (i == 0) {
+						var minMax = sc.range(self, sc.min, sc.max);
 
-				if (minMaxes[k] != null && (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)) {
-					changed[k] = true;
-					s._paths = null;
+						sc.min = minMax[0];
+						sc.max = minMax[1];
+
+						i0 = closestIdx(sc.min, data[0]);
+						i1 = closestIdx(sc.max, data[0]);
+
+						// closest indices can be outside of view
+						if (data[0][i0] < sc.min)
+							{ i0++; }
+						if (data[0][i1] > sc.max)
+							{ i1--; }
+
+						s.min = data0[i0];
+						s.max = data0[i1];
+					}
+					else if (s.show && pendScales[k] == null) {
+						// only run getMinMax() for invalidated series data, else reuse
+						var minMax$1 = s.min == inf ? (sc.auto ? getMinMax(data[i], i0, i1) : [0,100]) : [s.min, s.max];
+
+						// initial min/max
+						sc.min = min(sc.min, s.min = minMax$1[0]);
+						sc.max = max(sc.max, s.max = minMax$1[1]);
+					}
+
+					s.idxs[0] = i0;
+					s.idxs[1] = i1;
+				});
+
+				// snap non-dependent scales
+				for (var k$1 in scales) {
+					var sc$1 = scales[k$1];
+
+					if (sc$1.from == null && sc$1.min != inf && pendScales[k$1] == null) {
+						var minMax = sc$1.range(self, sc$1.min, sc$1.max);
+
+						sc$1.min = minMax[0];
+						sc$1.max = minMax[1];
+					}
+
+					pendScales[k$1] = null;
 				}
-			});
 
-			for (var k$3 in changed)
-				{ fire("setScale", k$3); }
+				// range dependent scales
+				for (var k$2 in scales) {
+					var sc$2 = scales[k$2];
+
+					if (sc$2.from != null) {
+						var base = scales[sc$2.from];
+
+						if (base.min != inf) {
+							var minMax$1 = sc$2.range(self, base.min, base.max);
+							sc$2.min = minMax$1[0];
+							sc$2.max = minMax$1[1];
+						}
+					}
+				}
+
+				var changed = {};
+
+				// invalidate paths of all series on changed scales
+				series.forEach(function (s, i) {
+					var k = s.scale;
+					var sc = scales[k];
+
+					if (minMaxes[k] != null && (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)) {
+						changed[k] = true;
+						s._paths = null;
+					}
+				});
+
+				for (var k$3 in changed)
+					{ fire("setScale", k$3); }
+			}
 
 			 cursor.show && updateCursor();
 		}
