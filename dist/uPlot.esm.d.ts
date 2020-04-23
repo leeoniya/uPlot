@@ -397,7 +397,7 @@ declare namespace uPlot {
 		/** formats splits values for rendering */
 		values?: (self: uPlot, splits: number[], foundSpace: number) => array<string|number>;
 
-		/** values rotation in radians (only bottom axes w/ side: 2) */
+		/** values rotation in degrees off horizontal (only bottom axes w/ side: 2) */
 		rotate?: number | ((self: uPlot, values: array<string|number>, foundSpace: number) => number);
 
 		/** gridlines to draw from this axis' splits */

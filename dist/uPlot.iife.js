@@ -1878,7 +1878,7 @@ var uPlot = (function () {
 				var values = axis.values(self, scale.distr == 2 ? splits.map(function (i) { return data0[i]; }) : splits, space);		// BOO this assumes a specific data/series
 
 				// rotating of labels only supported on bottom x axis
-				var angle = side == 2 && axis.rotate(self, values, space);
+				var angle = side == 2 ? axis.rotate(self, values, space) * -PI/180 : 0;
 
 				var basePos  = round(axis._pos * pxRatio);
 				var shiftAmt = tickSize + axisGap;
