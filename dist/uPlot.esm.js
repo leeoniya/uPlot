@@ -1791,10 +1791,17 @@ function uPlot(opts, data, then) {
 	}
 
 	function getIncrSpace(axis, min, max, fullDim) {
-		let minSpace = axis.space(self, min, max, fullDim);
-		let incrs = axis.incrs(self, min, max, fullDim, minSpace);
-		let incrSpace = findIncr(max - min, incrs, fullDim, minSpace);
-		incrSpace.push(incrSpace[1]/minSpace);
+		let incrSpace;
+
+		if (fullDim <= 0)
+			incrSpace = [0, 0];
+		else {
+			let minSpace = axis.space(self, min, max, fullDim);
+			let incrs = axis.incrs(self, min, max, fullDim, minSpace);
+			incrSpace = findIncr(max - min, incrs, fullDim, minSpace);
+			incrSpace.push(incrSpace[1]/minSpace);
+		}
+
 		return incrSpace;
 	}
 
