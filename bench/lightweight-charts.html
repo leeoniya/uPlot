@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>lightweight-charts Demo</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<style>
+			.chart-container {
+				position: relative;
+				margin: auto;
+				height: 600px;
+				width: 1920px;
+			}
+		</style>
+	</head>
+	<body>
+		<h2 id="wait">Loading lib....</h2>
+
+		<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+
+		<script>
+			function round2(val) {
+				return Math.round(val * 100) / 100;
+			}
+
+			function round3(val) {
+				return Math.round(val * 1000) / 1000;
+			}
+
+			function prepData(packed) {
+				console.time('prep');
+
+				// epoch,idl,recv,send,read,writ,used,free
+
+				const numFields = packed[0];
+				packed = packed.slice(numFields + 1);
+
+				var cpu = Array(packed.length/numFields);
+				var ram = Array(packed.length/numFields);
+				var tcp = Array(packed.length/numFields);
+
+				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
+					let date = packed[i] * 60;
+					cpu[j] = {time: date, value: round3(100 - packed[i+1])};
+					ram[j] = {time: date, value: round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))};
+					tcp[j] = {time: date, value: packed[i+3]};
+				}
+
+				console.timeEnd('prep');
+
+				return [cpu, ram, tcp];
+			}
+
+			function makeChart(data) {
+				console.time('chart');
+
+				const chart = LightweightCharts.createChart(document.body, {
+					width: 1920,
+					height: 600
+				});
+
+				chart.timeScale().setVisibleRange({
+					from: data[0][0].time,
+					to: data[0][data[0].length - 1].time,
+				});
+
+				// CPU
+				const cpu = chart.addLineSeries({
+					lineWidth: 1,
+					color: 'red',
+				});
+				cpu.setData(data[0]);
+
+				// RAM
+				const ram = chart.addLineSeries({
+					lineWidth: 1,
+					color: 'blue',
+				});
+				ram.setData(data[1]);
+
+				// TCP Out
+				const tcp = chart.addLineSeries({
+					lineWidth: 1,
+					color: 'green',
+				});
+				tcp.setData(data[2]);
+
+				wait.textContent = "Done!";
+				console.timeEnd('chart');
+			}
+
+			let wait = document.getElementById("wait");
+			wait.textContent = "Fetching data.json (2.07MB)....";
+			fetch("data.json").then(r => r.json()).then(packed => {
+				wait.textContent = "Rendering...";
+				let data = prepData(packed);
+				setTimeout(() => makeChart(data), 0);
+			});
+		</script>
+	</body>
+</html>
