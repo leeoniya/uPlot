@@ -209,6 +209,7 @@ const classList = "classList";
 const mousemove = "mousemove";
 const mousedown = "mousedown";
 const mouseup = "mouseup";
+const mouseenter = "mouseenter";
 const mouseleave = "mouseleave";
 const dblclick = "dblclick";
 const resize = "resize";
@@ -1030,7 +1031,7 @@ function uPlot(opts, data, then) {
 			});
 
 			if (cursorFocus) {
-				on("mouseenter", label, e => {
+				on(mouseenter, label, e => {
 					if (cursor.locked)
 						return;
 
@@ -2529,6 +2530,7 @@ function uPlot(opts, data, then) {
 	if ( cursor.show) {
 		on(mousedown, over, mouseDown);
 		on(mousemove, over, mouseMove);
+		on(mouseenter, over, syncRect);
 		on(mouseleave, over, mouseLeave);
 		drag.setScale && on(dblclick, over, dblClick);
 

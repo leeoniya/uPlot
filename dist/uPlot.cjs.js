@@ -211,6 +211,7 @@ var classList = "classList";
 var mousemove = "mousemove";
 var mousedown = "mousedown";
 var mouseup = "mouseup";
+var mouseenter = "mouseenter";
 var mouseleave = "mouseleave";
 var dblclick = "dblclick";
 var resize = "resize";
@@ -1027,7 +1028,7 @@ function uPlot(opts, data, then) {
 			});
 
 			if (cursorFocus) {
-				on("mouseenter", label, function (e) {
+				on(mouseenter, label, function (e) {
 					if (cursor.locked)
 						{ return; }
 
@@ -2537,6 +2538,7 @@ function uPlot(opts, data, then) {
 	if ( cursor.show) {
 		on(mousedown, over, mouseDown);
 		on(mousemove, over, mouseMove);
+		on(mouseenter, over, syncRect);
 		on(mouseleave, over, mouseLeave);
 		drag.setScale && on(dblclick, over, dblClick);
 

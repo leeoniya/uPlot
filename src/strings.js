@@ -12,6 +12,7 @@ export const classList = "classList";
 export const mousemove = "mousemove";
 export const mousedown = "mousedown";
 export const mouseup = "mouseup";
+export const mouseenter = "mouseenter";
 export const mouseleave = "mouseleave";
 export const dblclick = "dblclick";
 export const resize = "resize";

@@ -41,6 +41,7 @@ import {
 	mousedown,
 	mouseup,
 	mouseleave,
+	mouseenter,
 	dblclick,
 	resize,
 	scroll,
@@ -294,7 +295,7 @@ export default function uPlot(opts, data, then) {
 			});
 
 			if (cursorFocus) {
-				on("mouseenter", label, e => {
+				on(mouseenter, label, e => {
 					if (cursor.locked)
 						return;
 
@@ -1794,6 +1795,7 @@ export default function uPlot(opts, data, then) {
 	if (FEAT_CURSOR && cursor.show) {
 		on(mousedown, over, mouseDown);
 		on(mousemove, over, mouseMove);
+		on(mouseenter, over, syncRect);
 		on(mouseleave, over, mouseLeave);
 		drag.setScale && on(dblclick, over, dblClick);
 
