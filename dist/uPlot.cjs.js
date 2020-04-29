@@ -1469,7 +1469,7 @@ function uPlot(opts, data, then) {
 				var wsc$3 = wipScales[k$3];
 				var sc = scales[k$3];
 
-				if (sc != null && (sc.min != wsc$3.min || sc.max != wsc$3.max)) {
+				if (sc.min != wsc$3.min || sc.max != wsc$3.max) {
 					sc.min = wsc$3.min;
 					sc.max = wsc$3.max;
 					changed[k$3] = true;

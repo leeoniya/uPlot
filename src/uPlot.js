@@ -733,7 +733,7 @@ export default function uPlot(opts, data, then) {
 				let wsc = wipScales[k];
 				let sc = scales[k];
 
-				if (sc != null && (sc.min != wsc.min || sc.max != wsc.max)) {
+				if (sc.min != wsc.min || sc.max != wsc.max) {
 					sc.min = wsc.min;
 					sc.max = wsc.max;
 					changed[k] = true;
