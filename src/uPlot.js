@@ -644,50 +644,45 @@ export default function uPlot(opts, data, then) {
 	//	log("setScales()", arguments);
 
 		if (dataLen > 0) {
-			// cache original scales' min/max & reset
-			let minMaxes = {};
+			// wip scales
+			let wipScales = copy(scales);
 
-			for (let k in scales) {
-				let sc = scales[k];
+			for (let k in wipScales) {
+				let wsc = wipScales[k];
 				let psc = pendScales[k];
 
-				minMaxes[k] = {
-					min: sc.min,
-					max: sc.max
-				};
-
 				if (psc != null) {
-					assign(sc, psc);
+					assign(wsc, psc);
 
 					// explicitly setting the x-scale invalidates everything (acts as redraw)
 					if (k == xScaleKey)
 						resetYSeries();
 				}
 				else if (k != xScaleKey) {
-					sc.min = inf;
-					sc.max = -inf;
+					wsc.min = inf;
+					wsc.max = -inf;
 				}
 			}
 
 			// pre-range y-scales from y series' data values
 			series.forEach((s, i) => {
 				let k = s.scale;
-				let sc = scales[k];
+				let wsc = wipScales[k];
 
 				// setting the x scale invalidates everything
 				if (i == 0) {
-					let minMax = sc.range(self, sc.min, sc.max);
+					let minMax = wsc.range(self, wsc.min, wsc.max);
 
-					sc.min = minMax[0];
-					sc.max = minMax[1];
+					wsc.min = minMax[0];
+					wsc.max = minMax[1];
 
-					i0 = closestIdx(sc.min, data[0]);
-					i1 = closestIdx(sc.max, data[0]);
+					i0 = closestIdx(wsc.min, data[0]);
+					i1 = closestIdx(wsc.max, data[0]);
 
 					// closest indices can be outside of view
-					if (data[0][i0] < sc.min)
+					if (data[0][i0] < wsc.min)
 						i0++;
-					if (data[0][i1] > sc.max)
+					if (data[0][i1] > wsc.max)
 						i1--;
 
 					s.min = data0[i0];
@@ -695,57 +690,62 @@ export default function uPlot(opts, data, then) {
 				}
 				else if (s.show && pendScales[k] == null) {
 					// only run getMinMax() for invalidated series data, else reuse
-					let minMax = s.min == inf ? (sc.auto ? getMinMax(data[i], i0, i1) : [0,100]) : [s.min, s.max];
+					let minMax = s.min == inf ? (wsc.auto ? getMinMax(data[i], i0, i1) : [0,100]) : [s.min, s.max];
 
 					// initial min/max
-					sc.min = min(sc.min, s.min = minMax[0]);
-					sc.max = max(sc.max, s.max = minMax[1]);
+					wsc.min = min(wsc.min, s.min = minMax[0]);
+					wsc.max = max(wsc.max, s.max = minMax[1]);
 				}
 
 				s.idxs[0] = i0;
 				s.idxs[1] = i1;
 			});
 
-			// snap non-dependent scales
-			for (let k in scales) {
-				let sc = scales[k];
+			// range independent scales
+			for (let k in wipScales) {
+				let wsc = wipScales[k];
 
-				if (sc.from == null && sc.min != inf && pendScales[k] == null) {
-					let minMax = sc.range(self, sc.min, sc.max);
-
-					sc.min = minMax[0];
-					sc.max = minMax[1];
+				if (wsc.from == null && wsc.min != inf && pendScales[k] == null) {
+					let minMax = wsc.range(self, wsc.min, wsc.max);
+					wsc.min = minMax[0];
+					wsc.max = minMax[1];
 				}
-
-				pendScales[k] = null;
 			}
 
 			// range dependent scales
-			for (let k in scales) {
-				let sc = scales[k];
+			for (let k in wipScales) {
+				let wsc = wipScales[k];
 
-				if (sc.from != null) {
-					let base = scales[sc.from];
+				if (wsc.from != null) {
+					let base = wipScales[wsc.from];
 
 					if (base.min != inf) {
-						let minMax = sc.range(self, base.min, base.max);
-						sc.min = minMax[0];
-						sc.max = minMax[1];
+						let minMax = wsc.range(self, base.min, base.max);
+						wsc.min = minMax[0];
+						wsc.max = minMax[1];
 					}
 				}
 			}
 
 			let changed = {};
 
-			// invalidate paths of all series on changed scales
-			series.forEach((s, i) => {
-				let k = s.scale;
+			for (let k in wipScales) {
+				let wsc = wipScales[k];
 				let sc = scales[k];
 
-				if (minMaxes[k] != null && (sc.min != minMaxes[k].min || sc.max != minMaxes[k].max)) {
+				if (sc != null && (sc.min != wsc.min || sc.max != wsc.max)) {
+					sc.min = wsc.min;
+					sc.max = wsc.max;
 					changed[k] = true;
-					s._paths = null;
 				}
+
+				pendScales[k] = null;
+			}
+
+			// invalidate paths of all series on changed scales
+			series.forEach(s => {
+				if (changed[s.scale])
+					s._paths = null;
 			});
 
 			for (let k in changed)
