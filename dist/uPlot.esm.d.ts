@@ -33,7 +33,7 @@ declare class uPlot {
 //	readonly focus: uPlot.Focus;
 
 	/** series state & opts */
-	readonly series: array<uPlot.Series>;
+	readonly series: Array<uPlot.Series>;
 
 	/** scales state & opts */
 	readonly scales: {
@@ -41,7 +41,7 @@ declare class uPlot {
 	};
 
 	/** axes state & opts */
-	readonly axes: array<uPlot.Axis>;
+	readonly axes: Array<uPlot.Axis>;
 
 	/** hooks, including any added by plugins */
 	readonly hooks: uPlot.Hooks;
@@ -103,7 +103,7 @@ declare class uPlot {
 	static rangeNum(min: number, max: number, mult: number, extra: boolean): uPlot.MinMax;
 
 	/** creates an efficient formatter for Date objects from a template string, e.g. {YYYY}-{MM}-{DD} */
-	static fmtDate(tpl: string, names: uPlot.DateNames): (date: Date) => string;
+	static fmtDate(tpl: string, names?: uPlot.DateNames): (date: Date) => string;
 
 	/** converts a Date into new Date that's time-adjusted for the given IANA Time Zone Name */
 	static tzDate(date: Date, tzName: string): Date;
@@ -153,7 +153,7 @@ declare namespace uPlot {
 		tzDate?: (ts: number) => Date;
 
 		/** creates an efficient formatter for Date objects from a template string, e.g. {YYYY}-{MM}-{DD} */
-		fmtDate(tpl: string): (date: Date) => string;
+		fmtDate?: (tpl: string) => (date: Date) => string;
 
 		series: Series[];
 
@@ -227,9 +227,9 @@ declare namespace uPlot {
 
 		/** determines vt/hz cursor dragging to set selection & setScale (zoom) */
 		drag?: {
-			setScale?: boolean = true;
-			x?: boolean = true;
-			y?: boolean = false;
+			setScale?: boolean; // true
+			x?: boolean; // true
+			y?: boolean; // false
 		};
 
 		/** sync cursor between multiple charts */
@@ -237,7 +237,7 @@ declare namespace uPlot {
 			/** sync key must match between all charts in a synced group */
 			key: string;
 			/** determines if series toggling and focus via cursor is synced across charts */
-			setSeries?: boolean = true;
+			setSeries?: boolean; // true
 		};
 
 		/** focus series closest to cursor */
@@ -247,7 +247,7 @@ declare namespace uPlot {
 		};
 
 		/** lock cursor on mouse click in plotting area */
-		lock?: boolean = false;
+		lock?: boolean; // false
 
 		/** locked state */
 		locked?: false;
@@ -287,7 +287,7 @@ declare namespace uPlot {
 		scale?: string;
 
 		/** when true, null data values will not cause line breaks. when fn, should filter and return gaps to span */
-		spanGaps?: boolean | ((self: uPlot, foundGaps: array, seriesIdx: number) => array);
+		spanGaps?: boolean | ((self: uPlot, foundGaps: Array, seriesIdx: number) => Array);
 
 		/** legend label */
 		label?: string;
@@ -395,15 +395,15 @@ declare namespace uPlot {
 		split?: number[] | ((self: uPlot, scaleMin: number, scaleMax: number, foundIncr: number, pctSpace: number) => number[]);
 
 		/** formats splits values for rendering */
-		values?: (self: uPlot, splits: number[], foundSpace: number) => array<string|number>;
+		values?: (self: uPlot, splits: number[], foundSpace: number) => Array<string|number>;
 
 		/** values rotation in degrees off horizontal (only bottom axes w/ side: 2) */
-		rotate?: number | ((self: uPlot, values: array<string|number>, foundSpace: number) => number);
+		rotate?: number | ((self: uPlot, values: Array<string|number>, foundSpace: number) => number);
 
 		/** gridlines to draw from this axis' splits */
 		grid?: {
 			/** grid on/off */
-			show?: boolean = true;
+			show?: boolean; // true
 
 			/** gridline color */
 			stroke?: CanvasRenderingContext2D['strokeStyle'];
@@ -418,7 +418,7 @@ declare namespace uPlot {
 		/** ticks to draw from this axis' splits */
 		ticks?: {
 			/** ticks on/off */
-			show?: boolean = true;
+			show?: boolean; // true
 
 			/** tick color */
 			stroke?: CanvasRenderingContext2D['strokeStyle'];
