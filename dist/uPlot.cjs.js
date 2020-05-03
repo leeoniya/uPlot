@@ -3,8 +3,8 @@
 * All rights reserved. (MIT Licensed)
 *
 * uPlot.js (μPlot)
-* An exceptionally fast, tiny time series chart
-* https://github.com/leeoniya/uPlot (v1.0.7)
+* A small, fast chart for time series, lines, areas, ohlc & bars
+* https://github.com/leeoniya/uPlot (v1.0.8)
 */
 
 'use strict';

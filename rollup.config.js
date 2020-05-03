@@ -26,7 +26,7 @@ const banner = [
 	"* All rights reserved. (MIT Licensed)",
 	"*",
 	"* uPlot.js (μPlot)",
-	"* An exceptionally fast, tiny time series chart",
+	"* A small, fast chart for time series, lines, areas, ohlc & bars",
 	"* " + urlVer,
 	"*/",
 	"",
