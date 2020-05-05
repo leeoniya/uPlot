@@ -50,10 +50,7 @@ declare class uPlot {
 	readonly data: uPlot.AlignedData;
 
 
-	/** 
-	 * clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects
-	 * @param {boolean} rebuildPaths Defaults to "true"
-	 */
+	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
 	redraw(rebuildPaths?: boolean): void;
 
 	/** defers recalc & redraw for multiple ops, e.g. setScale('x', ...) && setScale('y', ...) */
@@ -62,10 +59,7 @@ declare class uPlot {
 	/** destroys DOM, removes resize & scroll listeners, etc. */
 	destroy(): void;
 
-	/** 
-	 * sets the chart data & redraws
-	 * @param {boolean} resetScales Defaults to "true"
-	 */
+	/** sets the chart data & redraws. (default resetScales = true) */
 	setData(data: uPlot.AlignedData, resetScales?: boolean): void;
 
 	/** sets the limits of a scale & redraws (used for zooming) */
@@ -84,10 +78,7 @@ declare class uPlot {
 	/** deletes a series */
 	delSeries(seriesIdx: number): void;
 
-	/** 
-	 * sets visually selected region without triggering setScale (zoom)
-	 * @param {boolean} fireHook Defaults to "true"
-	 */
+	/** sets visually selected region without triggering setScale (zoom). (default fireHook = true) */
 	setSelect(opts: {left: number, top: number, width: number, height: number}, fireHook?: boolean): void;
 
 	/** sets the width & height of the plotting area + axes (excludes title & legend height) */
@@ -99,10 +90,7 @@ declare class uPlot {
 	/** converts a CSS pixel position (relative to plotting area) to a value along the given scale */
 	posToVal(leftTop: number, scaleKey: string): number;
 
-	/** 
-	 * converts a value along the given scale to a CSS (default) or canvas pixel position
-	 * @param  {boolean} canvasPixels Defaults to "false"
-	 */
+	/** converts a value along the given scale to a CSS (default) or canvas pixel position. (default canvasPixels = false) */
 	valToPos(val: number, scaleKey: string, canvasPixels?: boolean): number;
 
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
