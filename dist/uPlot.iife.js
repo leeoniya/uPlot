@@ -2554,14 +2554,10 @@ var uPlot = (function () {
 		// external on/off
 		var hooks = self.hooks = opts.hooks || {};
 
-		var evArg0 = [self];
-
-		function fire(evName) {
+		function fire(evName, a1, a2) {
 			if (evName in hooks) {
-				var args2 = evArg0.concat(Array.prototype.slice.call(arguments, 1));
-
 				hooks[evName].forEach(function (fn) {
-					fn.apply(null, args2);
+					fn.call(null, self, a1, a2);
 				});
 			}
 		}
