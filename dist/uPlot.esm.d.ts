@@ -51,7 +51,7 @@ declare class uPlot {
 
 
 	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
-	redraw(rebuildPaths?: boolean = true): void;
+	redraw(rebuildPaths?: boolean): void;
 
 	/** defers recalc & redraw for multiple ops, e.g. setScale('x', ...) && setScale('y', ...) */
 	batch(txn: Function): void;
@@ -60,7 +60,7 @@ declare class uPlot {
 	destroy(): void;
 
 	/** sets the chart data & redraws */
-	setData(data: uPlot.AlignedData, resetScales?: boolean = true): void;
+	setData(data: uPlot.AlignedData, resetScales?: boolean): void;
 
 	/** sets the limits of a scale & redraws (used for zooming) */
 	setScale(scaleKey: string, limits: { min: number; max: number }): void;
@@ -79,7 +79,7 @@ declare class uPlot {
 	delSeries(seriesIdx: number): void;
 
 	/** sets visually selected region without triggering setScale (zoom) */
-	setSelect(opts: {left: number, top: number, width: number, height: number}, fireHook?: boolean = true): void;
+	setSelect(opts: {left: number, top: number, width: number, height: number}, fireHook?: boolean): void;
 
 	/** sets the width & height of the plotting area + axes (excludes title & legend height) */
 	setSize(opts: { width: number; height: number }): void;
@@ -91,7 +91,7 @@ declare class uPlot {
 	posToVal(leftTop: number, scaleKey: string): number;
 
 	/** converts a value along the given scale to a CSS (default) or canvas pixel position */
-	valToPos(val: number, scaleKey: string, canvasPixels: bool = false): number;
+	valToPos(val: number, scaleKey: string, canvasPixels: boolean): number;
 
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
 	syncRect(): void;
@@ -126,7 +126,7 @@ declare namespace uPlot {
 
 		/** short weekday names (0: Sun) */
 		WWW:  string[];
-	};
+	}
 
 //	export type ScatteredData = readonly number[][][];
 
@@ -287,7 +287,7 @@ declare namespace uPlot {
 		scale?: string;
 
 		/** when true, null data values will not cause line breaks. when fn, should filter and return gaps to span */
-		spanGaps?: boolean | ((self: uPlot, foundGaps: Array, seriesIdx: number) => Array);
+		spanGaps?: boolean | ((self: uPlot, foundGaps: Array<any>, seriesIdx: number) => Array<any>);
 
 		/** legend label */
 		label?: string;
