@@ -1,0 +1,94 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>10M Points</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.min.js"></script>
+
+		<script>
+			// https://github.com/highcharts/highcharts/issues/5948
+			// http://jsfiddle.net/aygnmvLr/
+
+			function randColor(){
+				return "#000000".replace(/0/g,function(){return (~~(Math.random()*16)).toString(16);});
+			}
+
+			function prepData(n) {
+				console.time("prep");
+
+				let x = [],
+					y = [],
+					i,
+					a,
+					b,
+					c,
+					spike;
+
+				for (i = 0; i < n; i++) {
+					if (i % 100 === 0)
+						a = 2 * Math.random();
+					if (i % 1000 === 0)
+						b = 2 * Math.random();
+					if (i % 10000 === 0)
+						c = 2 * Math.random();
+					if (i % 50000 === 0)
+						spike = 10;
+					else
+						spike = 0;
+
+					x.push(i);
+					y.push(2 * Math.sin(i / 100) + a + b + c + spike + Math.random());
+				}
+
+				console.timeEnd("prep");
+
+				return [x, y];
+			}
+
+			function makeChart(data) {
+				let series = [];
+
+				for (let i = 1; i < data.length; i++) {
+					series.push({
+						label: i,
+						width: 1/devicePixelRatio,
+						stroke: randColor(),
+					});
+				}
+
+				let opts = {
+					title: "10M points",
+					width: 1920,
+					height: 800,
+					scales: {
+						x: {
+							time: false
+						}
+					},
+					series: [
+						{},
+						...series
+					]
+				};
+
+				let uplot = new uPlot(opts, data, document.body);
+			}
+
+		//	let data = prepData(10);
+		//	let data = prepData(5e6);
+			let data = prepData(1e7);
+
+			setTimeout(() => {
+				console.time('chart');
+				makeChart(data);
+				console.timeEnd('chart')
+				data = null;
+			}, 500);
+		</script>
+	</body>
+</html>
