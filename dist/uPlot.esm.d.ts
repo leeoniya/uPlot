@@ -50,7 +50,10 @@ declare class uPlot {
 	readonly data: uPlot.AlignedData;
 
 
-	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
+	/** 
+	 * clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects
+	 * @param {boolean} rebuildPaths Defaults to "true"
+	 */
 	redraw(rebuildPaths?: boolean): void;
 
 	/** defers recalc & redraw for multiple ops, e.g. setScale('x', ...) && setScale('y', ...) */
@@ -59,7 +62,10 @@ declare class uPlot {
 	/** destroys DOM, removes resize & scroll listeners, etc. */
 	destroy(): void;
 
-	/** sets the chart data & redraws */
+	/** 
+	 * sets the chart data & redraws
+	 * @param {boolean} resetScales Defaults to "true"
+	 */
 	setData(data: uPlot.AlignedData, resetScales?: boolean): void;
 
 	/** sets the limits of a scale & redraws (used for zooming) */
@@ -78,7 +84,10 @@ declare class uPlot {
 	/** deletes a series */
 	delSeries(seriesIdx: number): void;
 
-	/** sets visually selected region without triggering setScale (zoom) */
+	/** 
+	 * sets visually selected region without triggering setScale (zoom)
+	 * @param {boolean} fireHook Defaults to "true"
+	 */
 	setSelect(opts: {left: number, top: number, width: number, height: number}, fireHook?: boolean): void;
 
 	/** sets the width & height of the plotting area + axes (excludes title & legend height) */
@@ -90,8 +99,11 @@ declare class uPlot {
 	/** converts a CSS pixel position (relative to plotting area) to a value along the given scale */
 	posToVal(leftTop: number, scaleKey: string): number;
 
-	/** converts a value along the given scale to a CSS (default) or canvas pixel position */
-	valToPos(val: number, scaleKey: string, canvasPixels: boolean): number;
+	/** 
+	 * converts a value along the given scale to a CSS (default) or canvas pixel position
+	 * @param  {boolean} canvasPixels Defaults to "false"
+	 */
+	valToPos(val: number, scaleKey: string, canvasPixels?: boolean): number;
 
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
 	syncRect(): void;
@@ -287,7 +299,7 @@ declare namespace uPlot {
 		scale?: string;
 
 		/** when true, null data values will not cause line breaks. when fn, should filter and return gaps to span */
-		spanGaps?: boolean | ((self: uPlot, foundGaps: Array<any>, seriesIdx: number) => Array<any>);
+		spanGaps?: boolean | ((self: uPlot, foundGaps: Array, seriesIdx: number) => Array);
 
 		/** legend label */
 		label?: string;
