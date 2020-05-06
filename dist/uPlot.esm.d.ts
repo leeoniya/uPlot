@@ -395,7 +395,7 @@ declare namespace uPlot {
 		split?: number[] | ((self: uPlot, scaleMin: number, scaleMax: number, foundIncr: number, pctSpace: number) => number[]);
 
 		/** formats splits values for rendering */
-		values?: (self: uPlot, splits: number[], foundSpace: number) => Array<string|number>;
+		values?: (self: uPlot, splits: number[], foundSpace: number, foundIncr: number) => Array<string|number>;
 
 		/** values rotation in degrees off horizontal (only bottom axes w/ side: 2) */
 		rotate?: number | ((self: uPlot, values: Array<string|number>, foundSpace: number) => number);

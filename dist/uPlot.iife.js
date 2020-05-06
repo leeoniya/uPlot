@@ -519,8 +519,7 @@ var uPlot = (function () {
 	// TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 	// currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 	function timeAxisVals(tzDate, stamps) {
-		return function (self, splits, space) {
-			var incr = round3(splits[1] - splits[0]);
+		return function (self, splits, space, incr) {
 			var s = stamps.find(function (e) { return incr >= e[0]; });
 
 			// these track boundaries when a full label is needed again
@@ -734,7 +733,7 @@ var uPlot = (function () {
 	// alternative: https://stackoverflow.com/a/2254896
 	var fmtNum = new Intl.NumberFormat(navigator.language);
 
-	function numAxisVals(self, splits, space) {
+	function numAxisVals(self, splits, space, incr) {
 		return splits.map(fmtNum.format);
 	}
 
@@ -1885,7 +1884,7 @@ var uPlot = (function () {
 				var tickSize = ticks.show ? round(ticks.size * pxRatio) : 0;
 
 				// tick labels
-				var values = axis.values(self, scale.distr == 2 ? splits.map(function (i) { return data0[i]; }) : splits, space);		// BOO this assumes a specific data/series
+				var values = axis.values(self, scale.distr == 2 ? splits.map(function (i) { return data0[i]; }) : splits, space, incr);		// BOO this assumes a specific data/series
 
 				// rotating of labels only supported on bottom x axis
 				var angle = side == 2 ? axis.rotate(self, values, space) * -PI/180 : 0;
