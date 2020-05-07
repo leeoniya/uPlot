@@ -22,7 +22,7 @@
 		</style>
 	</head>
 	<body>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.1.0/papaparse.min.js"></script>
+		<script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
 		<script src="../dist/uPlot.iife.js"></script>
 		<table id="stocks">
 			<tr>
@@ -31,6 +31,9 @@
 		</table>
 		<script>
 			let table = document.getElementById("stocks");
+
+			let width = 150;
+			let height = 30;
 
 			let syms = ["AAPL","AMD","AMZN","CSCO","FB","MSFT","QCOM","SBUX","TSLA","ZNGA"];
 
@@ -44,39 +47,26 @@
 			);
 
 			Promise.all(proms).then(parsed => {
+				let can, td;
+
 				parsed.forEach((recs, i) => {
 					let tr = document.createElement("tr");
 					let th = document.createElement("th");
 					th.textContent = syms[i];
 					tr.appendChild(th);
 
+					// chop headers
 					recs.data.shift();
 
 					// volume
-					let x = [];
-					let y = [];
-
-					recs.data.forEach((r, i) => {
-						x.push(i);
-						y.push(+r[2]);
-					});
-
-					let td = document.createElement("td");
-					let can = makeSpark([x, y]).root.querySelector("canvas");
+					can = makeSpark(recs, r => +r[2]);
+					td  = document.createElement("td");
 					td.appendChild(can);
 					tr.appendChild(td);
 
 					// close
-					x = [];
-					y = [];
-
-					recs.data.forEach((r, i) => {
-						x.push(i);
-						y.push(+r[1].slice(1));
-					});
-
-					td = document.createElement("td");
-					can = makeSpark([x, y]).root.querySelector("canvas");
+					can = makeSpark(recs, r => +r[1].slice(1));
+					td  = document.createElement("td");
 					td.appendChild(can);
 					tr.appendChild(td);
 
@@ -84,10 +74,18 @@
 				});
 			});
 
-			function makeSpark(data) {
+			function makeSpark(recs, yVal) {
+				let x = [];
+				let y = [];
+
+				recs.data.forEach((r, i) => {
+					x.push(i);
+					y.push(yVal(r));
+				});
+
 				const opts = {
-					width: 100,
-					height: 20,
+					width,
+					height,
 					class: "spark",
 					cursor: {
 						show: false
@@ -120,9 +118,11 @@
 					],
 				};
 
-				let u = new uPlot(opts, data);
+				let can = new uPlot(opts, [x, y]).ctx.canvas;
+				can.style.width = width + "px";
+				can.style.height = height + "px";
 
-				return u;
+				return can;
 			}
 		</script>
 	</body>
