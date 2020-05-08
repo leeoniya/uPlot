@@ -46,9 +46,12 @@
 					if (currIdx !== u.cursor.idx) {
 						currIdx = u.cursor.idx;
 
-						const dx    = u.scales.x.max - u.scales.x.min;
+						let [iMin, iMax] = u.series[0].idxs;
+
+						const dx    = iMax - iMin;
 						const width = (u.bbox.width / dx) / devicePixelRatio;
-						const left  = u.valToPos(currIdx, "x") - width / 2;
+						const xVal  = u.scales.x.distr == 2 ? currIdx : u.data[0][currIdx];
+						const left  = u.valToPos(xVal, "x") - width / 2;
 
 						highlightEl.style.transform = "translateX(" + Math.round(left) + "px)";
 						highlightEl.style.width = Math.round(width) + "px";
@@ -137,13 +140,16 @@
 
 					u.ctx.translate(offset, offset);
 
-					for (let i = u.scales.x.min; i <= u.scales.x.max; i++) {
+					let [iMin, iMax] = u.series[0].idxs;
+
+					for (let i = iMin; i <= iMax; i++) {
+						let xVal         = u.scales.x.distr == 2 ? i : u.data[0][i];
 						let open         = u.data[1][i];
 						let high         = u.data[2][i];
 						let low          = u.data[3][i];
 						let close        = u.data[4][i];
 
-						let timeAsX      = u.valToPos(i,     "x", true);
+						let timeAsX      = u.valToPos(xVal,  "x", true);
 						let lowAsY       = u.valToPos(low,   "y", true);
 						let highAsY      = u.valToPos(high,  "y", true);
 						let openAsY      = u.valToPos(open,  "y", true);
@@ -163,7 +169,7 @@
 						);
 
 						// body rect
-						let columnWidth  = u.bbox.width / (u.scales.x.max - u.scales.x.min);
+						let columnWidth  = u.bbox.width / (iMax - iMin);
 						let bodyWidth    = Math.min(bodyMaxWidth, columnWidth - gap);
 						let bodyHeight   = Math.max(closeAsY, openAsY) - Math.min(closeAsY, openAsY);
 						let bodyX        = timeAsX - (bodyWidth / 2);

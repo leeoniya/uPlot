@@ -9,6 +9,7 @@
 | <a href="https://leeoniya.github.io/uPlot/bench/jqChart.html">jqChart</a>        |  280 KB |  509 ms |  654   7   6  106 |  92 MB  53 MB   | 1277  400  300  369 |
 | <a href="https://leeoniya.github.io/uPlot/bench/Highcharts.html">Highcharts</a>     |  292 KB |  --- ms |  746   8   2   72 |  46 MB  30 MB   | 2102  778  200  290 |
 | <a href="https://leeoniya.github.io/uPlot/bench/Chart.js.html">Chart.js</a>       |  245 KB |  695 ms |  755   7   6  185 |  78 MB  78 MB   | 6230    4   10 3009 |
+| <a href="https://leeoniya.github.io/uPlot/bench/Plotly.js.html">Plotly.js</a>      | 3400 KB |  492 ms |  884  11   2   90 |  51 MB  48 MB   | 1676  242   61  234 |
 | <a href="https://leeoniya.github.io/uPlot/bench/ECharts.html">ECharts</a>        |  752 KB |  --- ms |  777   5  11 1132 | 120 MB  81 MB   | 2425   60   54 7650 |
 | <a href="https://leeoniya.github.io/uPlot/bench/ApexCharts.html">ApexCharts</a>     |  458 KB |  --- ms | 2357  31  69   64 | 162 MB  96 MB   | 2179  219 7806   59 |
 | <a href="https://leeoniya.github.io/uPlot/bench/ZingChart.html">ZingChart</a>      |  699 KB | 2720 ms | 2992   8   1   65 | 202 MB 119 MB   | ---                 |

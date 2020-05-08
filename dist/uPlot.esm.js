@@ -521,8 +521,7 @@ const _timeAxisStamps = [
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 function timeAxisVals(tzDate, stamps) {
-	return (self, splits, space) => {
-		let incr = round3(splits[1] - splits[0]);
+	return (self, splits, space, incr) => {
 		let s = stamps.find(e => incr >= e[0]);
 
 		// these track boundaries when a full label is needed again
@@ -736,7 +735,7 @@ const xSeriesOpts = {
 // alternative: https://stackoverflow.com/a/2254896
 let fmtNum = new Intl.NumberFormat(navigator.language);
 
-function numAxisVals(self, splits, space) {
+function numAxisVals(self, splits, space, incr) {
 	return splits.map(fmtNum.format);
 }
 
@@ -1876,7 +1875,13 @@ function uPlot(opts, data, then) {
 			let tickSize = ticks.show ? round(ticks.size * pxRatio) : 0;
 
 			// tick labels
-			let values = axis.values(self, scale.distr == 2 ? splits.map(i => data0[i]) : splits, space);		// BOO this assumes a specific data/series
+			// BOO this assumes a specific data/series
+			let values = axis.values(
+				self,
+				scale.distr == 2 ? splits.map(i => data0[i]) : splits,
+				space,
+				scale.distr == 2 ? data0[splits[1]] -  data0[splits[0]] : incr,
+			);
 
 			// rotating of labels only supported on bottom x axis
 			let angle = side == 2 ? axis.rotate(self, values, space) * -PI/180 : 0;
@@ -2545,14 +2550,10 @@ function uPlot(opts, data, then) {
 	// external on/off
 	const hooks = self.hooks = opts.hooks || {};
 
-	const evArg0 = [self];
-
-	function fire(evName) {
+	function fire(evName, a1, a2) {
 		if (evName in hooks) {
-			let args2 = evArg0.concat(Array.prototype.slice.call(arguments, 1));
-
 			hooks[evName].forEach(fn => {
-				fn.apply(null, args2);
+				fn.call(null, self, a1, a2);
 			});
 		}
 	}

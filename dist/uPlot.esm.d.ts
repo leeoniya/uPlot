@@ -51,7 +51,7 @@ declare class uPlot {
 
 
 	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
-	redraw(rebuildPaths?: boolean = true): void;
+	redraw(rebuildPaths?: boolean): void;
 
 	/** defers recalc & redraw for multiple ops, e.g. setScale('x', ...) && setScale('y', ...) */
 	batch(txn: Function): void;
@@ -59,8 +59,8 @@ declare class uPlot {
 	/** destroys DOM, removes resize & scroll listeners, etc. */
 	destroy(): void;
 
-	/** sets the chart data & redraws */
-	setData(data: uPlot.AlignedData, resetScales?: boolean = true): void;
+	/** sets the chart data & redraws. (default resetScales = true) */
+	setData(data: uPlot.AlignedData, resetScales?: boolean): void;
 
 	/** sets the limits of a scale & redraws (used for zooming) */
 	setScale(scaleKey: string, limits: { min: number; max: number }): void;
@@ -78,8 +78,8 @@ declare class uPlot {
 	/** deletes a series */
 	delSeries(seriesIdx: number): void;
 
-	/** sets visually selected region without triggering setScale (zoom) */
-	setSelect(opts: {left: number, top: number, width: number, height: number}, fireHook?: boolean = true): void;
+	/** sets visually selected region without triggering setScale (zoom). (default fireHook = true) */
+	setSelect(opts: {left: number, top: number, width: number, height: number}, fireHook?: boolean): void;
 
 	/** sets the width & height of the plotting area + axes (excludes title & legend height) */
 	setSize(opts: { width: number; height: number }): void;
@@ -90,8 +90,8 @@ declare class uPlot {
 	/** converts a CSS pixel position (relative to plotting area) to a value along the given scale */
 	posToVal(leftTop: number, scaleKey: string): number;
 
-	/** converts a value along the given scale to a CSS (default) or canvas pixel position */
-	valToPos(val: number, scaleKey: string, canvasPixels: bool = false): number;
+	/** converts a value along the given scale to a CSS (default) or canvas pixel position. (default canvasPixels = false) */
+	valToPos(val: number, scaleKey: string, canvasPixels?: boolean): number;
 
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
 	syncRect(): void;
@@ -126,7 +126,7 @@ declare namespace uPlot {
 
 		/** short weekday names (0: Sun) */
 		WWW:  string[];
-	};
+	}
 
 //	export type ScatteredData = readonly number[][][];
 
@@ -395,7 +395,7 @@ declare namespace uPlot {
 		split?: number[] | ((self: uPlot, scaleMin: number, scaleMax: number, foundIncr: number, pctSpace: number) => number[]);
 
 		/** formats splits values for rendering */
-		values?: (self: uPlot, splits: number[], foundSpace: number) => Array<string|number>;
+		values?: (self: uPlot, splits: number[], foundSpace: number, foundIncr: number) => Array<string|number>;
 
 		/** values rotation in degrees off horizontal (only bottom axes w/ side: 2) */
 		rotate?: number | ((self: uPlot, values: Array<string|number>, foundSpace: number) => number);

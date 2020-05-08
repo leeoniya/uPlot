@@ -153,8 +153,7 @@ export const _timeAxisStamps = [
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 export function timeAxisVals(tzDate, stamps) {
-	return (self, splits, space) => {
-		let incr = round3(splits[1] - splits[0]);
+	return (self, splits, space, incr) => {
 		let s = stamps.find(e => incr >= e[0]);
 
 		// these track boundaries when a full label is needed again
@@ -369,7 +368,7 @@ export const xSeriesOpts = {
 // alternative: https://stackoverflow.com/a/2254896
 let fmtNum = new Intl.NumberFormat(navigator.language);
 
-export function numAxisVals(self, splits, space) {
+export function numAxisVals(self, splits, space, incr) {
 	return splits.map(fmtNum.format);
 }
 

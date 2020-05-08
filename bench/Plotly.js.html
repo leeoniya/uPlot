@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Plotly.js Demo</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+	</head>
+	<body>
+		<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
+		<h2 id="wait">Loading lib....</h2>
+
+		<div id='chart'></div>
+
+		<script>
+			function round2(val) {
+				return Math.round(val * 100) / 100;
+			}
+
+			function round3(val) {
+				return Math.round(val * 1000) / 1000;
+			}
+
+			function prepData(packed) {
+				console.time("prep");
+
+				// epoch,idl,recv,send,read,writ,used,free
+
+				const numFields = packed[0];
+
+				packed = packed.slice(numFields + 1);
+
+				// 55,550 data points x 3 series = 166,650
+				let data = [
+					Array(packed.length/numFields),
+					Array(packed.length/numFields),
+					Array(packed.length/numFields),
+					Array(packed.length/numFields),
+				];
+
+				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
+					data[0][j] = new Date(packed[i] * 60 * 1000);
+					data[1][j] = round3(100 - packed[i+1]);
+					data[2][j] = round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]));
+					data[3][j] = packed[i+3];
+				}
+
+			/*
+				function filter(d) {
+					return d.filter((d, i) => Math.round(i/1000) % 5 != 2);
+				}
+
+				data[0] = filter(data[0]);
+				data[1] = filter(data[1]);
+				data[2] = filter(data[2]);
+				data[3] = filter(data[3]);
+			*/
+			/*
+				data[0] = data[0].slice(0, 1000);
+				data[1] = data[1].slice(0, 1000);
+				data[2] = data[2].slice(0, 1000);
+				data[3] = data[3].slice(0, 1000);
+
+				data[1][35] = null;
+				data[1][36] = null;
+				data[2][730] = null;
+			*/
+				console.timeEnd("prep");
+
+				return data;
+			}
+
+			function makeChart(data) {
+				console.time("chart");
+
+				let data2 = [
+					{
+						name: "CPU",
+						type: "scattergl",
+						mode: "line",
+						x: data[0],
+						y: data[1],
+						line: {width: 1/devicePixelRatio, color: "red"},
+					},
+					{
+						name: "RAM",
+						type: "scattergl",
+						mode: "line",
+						x: data[0],
+						y: data[2],
+						line: {width: 1/devicePixelRatio, color: "blue"},
+					},
+					{
+						name: "TCP Out",
+						type: "scattergl",
+						mode: "line",
+						x: data[0],
+						y: data[3],
+						line: {width: 1/devicePixelRatio, color: "green"},
+						yaxis: 'y2'
+					}
+				];
+
+				let layout = {
+					width: 1920,
+					height: 600,
+					margin: {
+						l: 0,
+						r: 0,
+						b: 0,
+						t: 40,
+						pad: 0
+					},
+				};
+
+				Plotly.newPlot('chart', data2, layout);
+
+				wait.textContent = "Done!";
+				console.timeEnd("chart");
+			}
+
+			let wait = document.getElementById("wait");
+			wait.textContent = "Fetching data.json (2.07MB)....";
+			fetch("data.json").then(r => r.json()).then(packed => {
+				wait.textContent = "Rendering...";
+				let data = prepData(packed);
+				setTimeout(() => makeChart(data), 0);
+			});
+		</script>
+	</body>
+</html>

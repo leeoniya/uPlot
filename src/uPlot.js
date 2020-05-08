@@ -1141,7 +1141,13 @@ export default function uPlot(opts, data, then) {
 			let tickSize = ticks.show ? round(ticks.size * pxRatio) : 0;
 
 			// tick labels
-			let values = axis.values(self, scale.distr == 2 ? splits.map(i => data0[i]) : splits, space);		// BOO this assumes a specific data/series
+			// BOO this assumes a specific data/series
+			let values = axis.values(
+				self,
+				scale.distr == 2 ? splits.map(i => data0[i]) : splits,
+				space,
+				scale.distr == 2 ? data0[splits[1]] -  data0[splits[0]] : incr,
+			);
 
 			// rotating of labels only supported on bottom x axis
 			let angle = side == 2 ? axis.rotate(self, values, space) * -PI/180 : 0;
@@ -1810,14 +1816,10 @@ export default function uPlot(opts, data, then) {
 	// external on/off
 	const hooks = self.hooks = opts.hooks || {};
 
-	const evArg0 = [self];
-
-	function fire(evName) {
+	function fire(evName, a1, a2) {
 		if (evName in hooks) {
-			let args2 = evArg0.concat(Array.prototype.slice.call(arguments, 1));
-
 			hooks[evName].forEach(fn => {
-				fn.apply(null, args2);
+				fn.call(null, self, a1, a2);
 			});
 		}
 	}
