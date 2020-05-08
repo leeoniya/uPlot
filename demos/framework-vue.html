@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../dist/uPlot.iife.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue"></script>
+	<link rel="stylesheet" href="../dist/uPlot.min.css">
+    <title>μPlot as Vue.js Component</title>
+</head>
+<body>
+    <script type="text/javascript">
+        let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
+        let vals = [-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10];
+        let plotData = [
+            xs,
+            xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+            xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+            xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+        ];
+        const opts = {
+            width: 800,
+            height: 600,
+            title: "Area Fill",
+            scales: {
+                x: {
+                    time: false,
+                },
+            },
+            series: [
+                {},
+                {
+                    stroke: "red",
+                    fill: "rgba(255,0,0,0.1)",
+                },
+                {
+                    stroke: "green",
+                    fill: "rgba(0,255,0,0.1)",
+                },
+                {
+                    stroke: "blue",
+                    fill: "rgba(0,0,255,0.1)",
+                },
+            ]
+        };    
+    </script>
+    <template id="uPlot-vue">
+        <div></div>
+    </template>
+    <div id="app">
+        <h1>{{ appTitle }}</h1>
+        <p>{{ appDescription }}</p>
+        <div style="max-width:80%;margin:0 auto">
+            <u-plot :data=plotData :opts=opts></u-plot>        
+        </div>
+    </div>    
+    <script type="text/javascript">
+        var uPlotVue = Vue.component('u-plot',{
+            template:'#uPlot-vue',
+            props:{
+                data:{
+                    type:Object,
+                    required:true
+                },
+                opts:{
+                    type:Object,
+                    required:true
+                },
+                hooks:{
+                    type:Object,
+                    required:false
+                }
+            },
+            mounted:function(){
+                const logHook = function(evtName){
+                    return (function(){
+                        console.log(evtName+' hook',this,arguments);
+                    });
+                };
+                const evtNames = ['ready','setData','setSelect','drawSeries','drawAxes','draw','drawClear'];
+                let hooks = {};
+                evtNames.forEach( evtName => {
+                    hooks[evtName] = [logHook(evtName).bind(this)];
+                });
+                this.$props.opts['hooks'] = hooks;
+                this.$data.uPlot = new uPlot(this.$props.opts,this.$props.data,this.$el);
+            }
+        });
+        var app = new Vue({
+            el:'#app',
+            components:[uPlotVue],
+            data: {
+                appTitle:'uPlot as Vue Component',
+                appDescription: 'The chart below is a Vue Component'
+            }
+        });        
+
+        
+    </script>
+</body>
+</html>
