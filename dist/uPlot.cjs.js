@@ -1883,7 +1883,13 @@ function uPlot(opts, data, then) {
 			var tickSize = ticks.show ? round(ticks.size * pxRatio) : 0;
 
 			// tick labels
-			var values = axis.values(self, scale.distr == 2 ? splits.map(function (i) { return data0[i]; }) : splits, space, incr);		// BOO this assumes a specific data/series
+			// BOO this assumes a specific data/series
+			var values = axis.values(
+				self,
+				scale.distr == 2 ? splits.map(function (i) { return data0[i]; }) : splits,
+				space,
+				scale.distr == 2 ? data0[splits[1]] -  data0[splits[0]] : incr
+			);
 
 			// rotating of labels only supported on bottom x axis
 			var angle = side == 2 ? axis.rotate(self, values, space) * -PI/180 : 0;
