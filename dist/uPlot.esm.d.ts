@@ -279,7 +279,8 @@ declare namespace uPlot {
 		max?: number,
 	}
 
-	export type DataGap = [number, number]
+	/** a min,max tuple of canvas pixel offsets */
+	export type DataGap = [number, number];
 
 	export interface Series {
 		/** series on/off. when off, it will not affect its scale */
