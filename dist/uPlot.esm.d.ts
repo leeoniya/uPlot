@@ -279,6 +279,8 @@ declare namespace uPlot {
 		max?: number,
 	}
 
+	export type DataGap = [number, number]
+
 	export interface Series {
 		/** series on/off. when off, it will not affect its scale */
 		show?: boolean;
@@ -290,7 +292,7 @@ declare namespace uPlot {
 		scale?: string;
 
 		/** when true, null data values will not cause line breaks. when fn, should filter and return gaps to span */
-		spanGaps?: boolean | ((self: uPlot, foundGaps: Array, seriesIdx: number) => Array);
+		spanGaps?: boolean | ((self: uPlot, foundGaps: Array<DataGap>, seriesIdx: number) => Array<DataGap>);
 
 		/** legend label */
 		label?: string;
