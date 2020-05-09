@@ -2222,6 +2222,7 @@ function uPlot(opts, data, then) {
 		return closestIdx(v, data[0], i0, i1);
 	}
 
+	self.valToIdx = function (pos) { return closestIdx(pos, data[0]); };
 	self.posToIdx = closestIdxFromXpos;
 	self.posToVal = function (pos, scale) { return scaleValueAtPos(scale == xScaleKey ? pos : plotHgtCss - pos, scale); };
 	self.valToPos = function (val, scale, can) { return (

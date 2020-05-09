@@ -93,6 +93,9 @@ declare class uPlot {
 	/** converts a value along the given scale to a CSS (default) or canvas pixel position. (default canvasPixels = false) */
 	valToPos(val: number, scaleKey: string, canvasPixels?: boolean): number;
 
+	/** converts a value along x to the closest data index */
+	valToIdx(val: number): number;
+
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
 	syncRect(): void;
 

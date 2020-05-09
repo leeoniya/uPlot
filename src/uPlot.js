@@ -1480,6 +1480,7 @@ export default function uPlot(opts, data, then) {
 		return closestIdx(v, data[0], i0, i1);
 	}
 
+	self.valToIdx = pos => closestIdx(pos, data[0]);
 	self.posToIdx = closestIdxFromXpos;
 	self.posToVal = (pos, scale) => scaleValueAtPos(scale == xScaleKey ? pos : plotHgtCss - pos, scale);
 	self.valToPos = (val, scale, can) => (
