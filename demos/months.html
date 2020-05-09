@@ -40,7 +40,18 @@
 					{
 						stroke: "red",
 					},
-				]
+				],
+				axes: [
+					{
+						space: (self, scaleMin, scaleMax, plotDim) => {
+							let rangeSecs = scaleMax - scaleMin;
+							let rangeDays = rangeSecs / 86400;
+							let pxPerDay = plotDim / rangeDays;
+							// ensure min split space is 28 days worth of pixels
+							return pxPerDay * 28;
+						},
+					},
+				],
 			};
 
 			let u = new uPlot(opts, data, document.body);
