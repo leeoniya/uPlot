@@ -2039,13 +2039,20 @@ var uPlot = (function () {
 			var sc = scales[key];
 
 			if (sc.from == null) {
-				// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
-				if ( key == xScaleKey && sc.time && axes[0].show && opts.max > opts.min) {
-					// since scales and axes are loosly coupled, we have to make some assumptions here :(
-					var incr = getIncrSpace(axes[0], opts.min, opts.max, plotWidCss)[0];
+				if (key == xScaleKey) {
+					if (sc.distr == 2) {
+						opts.min = closestIdx(opts.min, data[0]);
+						opts.max = closestIdx(opts.max, data[0]);
+					}
 
-					if (incr < 1e-3)
-						{ return; }
+					// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
+					if ( sc.time && axes[0].show && opts.max > opts.min) {
+						// since scales and axes are loosly coupled, we have to make some assumptions here :(
+						var incr = getIncrSpace(axes[0], opts.min, opts.max, plotWidCss)[0];
+
+						if (incr < 1e-3)
+							{ return; }
+					}
 				}
 
 			//	log("setScale()", arguments);
@@ -2223,7 +2230,7 @@ var uPlot = (function () {
 			return closestIdx(v, data[0], i0, i1);
 		}
 
-		self.valToIdx = function (pos) { return closestIdx(pos, data[0]); };
+		self.valToIdx = function (val) { return closestIdx(val, data[0]); };
 		self.posToIdx = closestIdxFromXpos;
 		self.posToVal = function (pos, scale) { return scaleValueAtPos(scale == xScaleKey ? pos : plotHgtCss - pos, scale); };
 		self.valToPos = function (val, scale, can) { return (
@@ -2474,11 +2481,9 @@ var uPlot = (function () {
 					if (drag.setScale) {
 						batch(function () {
 							if (drag.x) {
-								var fn = xScaleDistr == 2 ? closestIdxFromXpos : scaleValueAtPos;
-
 								_setScale(xScaleKey,
-									fn(select[LEFT], xScaleKey),
-									fn(select[LEFT] + select[WIDTH], xScaleKey)
+									scaleValueAtPos(select[LEFT], xScaleKey),
+									scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
 								);
 							}
 

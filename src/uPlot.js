@@ -1296,13 +1296,20 @@ export default function uPlot(opts, data, then) {
 		let sc = scales[key];
 
 		if (sc.from == null) {
-			// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
-			if (FEAT_TIME && key == xScaleKey && sc.time && axes[0].show && opts.max > opts.min) {
-				// since scales and axes are loosly coupled, we have to make some assumptions here :(
-				let incr = getIncrSpace(axes[0], opts.min, opts.max, plotWidCss)[0];
+			if (key == xScaleKey) {
+				if (sc.distr == 2) {
+					opts.min = closestIdx(opts.min, data[0]);
+					opts.max = closestIdx(opts.max, data[0]);
+				}
 
-				if (incr < 1e-3)
-					return;
+				// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
+				if (FEAT_TIME && sc.time && axes[0].show && opts.max > opts.min) {
+					// since scales and axes are loosly coupled, we have to make some assumptions here :(
+					let incr = getIncrSpace(axes[0], opts.min, opts.max, plotWidCss)[0];
+
+					if (incr < 1e-3)
+						return;
+				}
 			}
 
 		//	log("setScale()", arguments);
@@ -1480,7 +1487,7 @@ export default function uPlot(opts, data, then) {
 		return closestIdx(v, data[0], i0, i1);
 	}
 
-	self.valToIdx = pos => closestIdx(pos, data[0]);
+	self.valToIdx = val => closestIdx(val, data[0]);
 	self.posToIdx = closestIdxFromXpos;
 	self.posToVal = (pos, scale) => scaleValueAtPos(scale == xScaleKey ? pos : plotHgtCss - pos, scale);
 	self.valToPos = (val, scale, can) => (
@@ -1731,11 +1738,9 @@ export default function uPlot(opts, data, then) {
 				if (drag.setScale) {
 					batch(() => {
 						if (drag.x) {
-							let fn = xScaleDistr == 2 ? closestIdxFromXpos : scaleValueAtPos;
-
 							_setScale(xScaleKey,
-								fn(select[LEFT], xScaleKey),
-								fn(select[LEFT] + select[WIDTH], xScaleKey),
+								scaleValueAtPos(select[LEFT], xScaleKey),
+								scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey),
 							);
 						}
 
