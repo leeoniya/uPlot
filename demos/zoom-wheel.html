@@ -63,6 +63,11 @@
 								let nxMax = nxMin + nxRange;
 								[nxMin, nxMax] = clamp(nxRange, nxMin, nxMax, xRange, xMin, xMax);
 
+								if (u.scales.x.distr == 2) {
+									nxMin = u.valToIdx(nxMin);
+									nxMax = u.valToIdx(nxMax);
+								}
+
 								let nyRange = e.deltaY < 0 ? oyRange * factor : oyRange / factor;
 								let nyMin = yVal - btmPct * nyRange;
 								let nyMax = nyMin + nyRange;
