@@ -843,8 +843,9 @@ function _sync(opts) {
 	};
 }
 
-function setDefaults(d, xo, yo) {
-	return [d[0], d[1]].concat(d.slice(2)).map(function (o, i) { return setDefault(o, i, xo, yo); });
+function setDefaults(d, xo, yo, initY) {
+	var d2 = initY ? [d[0], d[1]].concat(d.slice(2)) : [d[0]].concat(d.slice(1));
+	return d2.map(function (o, i) { return setDefault(o, i, xo, yo); });
 }
 
 function setDefault(o, i, xo, yo) {
@@ -937,8 +938,8 @@ function uPlot(opts, data, then) {
 
 	var ready = false;
 
-	var series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
-	var axes    = setDefaults(opts.axes || [], xAxisOpts, yAxisOpts);
+	var series  = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
+	var axes    = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
 	var scales  = (opts.scales = opts.scales || {});
 
 	var gutters = assign({
@@ -979,7 +980,7 @@ function uPlot(opts, data, then) {
 	if (showLegend) {
 		legendEl = placeTag("table", "legend", root);
 
-		var getMultiVals = series[1].values;
+		var getMultiVals = series[1] ? series[1].values : null;
 		multiValLegend = getMultiVals != null;
 
 		if (multiValLegend) {
@@ -1111,14 +1112,12 @@ function uPlot(opts, data, then) {
 		si = si == null ? series.length : si;
 
 		opts = setDefault(opts, si, xSeriesOpts, ySeriesOpts);
-		series.splice(si, 0, opts);
 		initSeries(series[si], si);
 	}
 
 	self.addSeries = addSeries;
 
 	function delSeries(i) {
-		series.splice(i, 1);
 		 legendRows.splice(i, 1)[0][0].parentNode.remove();
 		 cursorPts.splice(i, 1)[0].remove();
 
@@ -1180,6 +1179,9 @@ function uPlot(opts, data, then) {
 	var data0 = null;
 
 	function setData(_data, _resetScales) {
+		_data = _data || [];
+		_data[0] = _data[0] || [];
+
 		self.data = _data;
 		data = _data.slice();
 		data0 = data[0];
