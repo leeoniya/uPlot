@@ -206,9 +206,9 @@ export default function uPlot(opts, data, then) {
 
 	let ready = false;
 
-	const series  = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
-	const axes    = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
-	const scales  = (opts.scales = opts.scales || {});
+	const series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
+	const axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
+	const scales  = self.scales = (opts.scales = opts.scales || {});
 
 	const gutters = assign({
 		x: round(yAxisOpts.size / 2),
@@ -222,10 +222,6 @@ export default function uPlot(opts, data, then) {
 	const _timeAxisSplits = FEAT_TIME && timeAxisSplits(_tzDate);
 	const _timeAxisVals   = FEAT_TIME && timeAxisVals(_tzDate, timeAxisStamps(_timeAxisStamps, _fmtDate));
 	const _timeSeriesVal  = FEAT_TIME && timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
-
-	self.series = series;
-	self.axes = axes;
-	self.scales = scales;
 
 	const pendScales = {};
 

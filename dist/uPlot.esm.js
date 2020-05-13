@@ -941,9 +941,9 @@ function uPlot(opts, data, then) {
 
 	let ready = false;
 
-	const series  = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
-	const axes    = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
-	const scales  = (opts.scales = opts.scales || {});
+	const series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
+	const axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
+	const scales  = self.scales = (opts.scales = opts.scales || {});
 
 	const gutters = assign({
 		x: round(yAxisOpts.size / 2),
@@ -957,10 +957,6 @@ function uPlot(opts, data, then) {
 	const _timeAxisSplits =  timeAxisSplits(_tzDate);
 	const _timeAxisVals   =  timeAxisVals(_tzDate, timeAxisStamps(_timeAxisStamps, _fmtDate));
 	const _timeSeriesVal  =  timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
-
-	self.series = series;
-	self.axes = axes;
-	self.scales = scales;
 
 	const pendScales = {};
 
@@ -1115,12 +1111,14 @@ function uPlot(opts, data, then) {
 		si = si == null ? series.length : si;
 
 		opts = setDefault(opts, si, xSeriesOpts, ySeriesOpts);
+		series.splice(si, 0, opts);
 		initSeries(series[si], si);
 	}
 
 	self.addSeries = addSeries;
 
 	function delSeries(i) {
+		series.splice(i, 1);
 		 legendRows.splice(i, 1)[0][0].parentNode.remove();
 		 cursorPts.splice(i, 1)[0].remove();
 
