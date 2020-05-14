@@ -233,6 +233,7 @@ declare namespace uPlot {
 			setScale?: boolean; // true
 			x?: boolean; // true
 			y?: boolean; // false
+			uni?: number; // null
 		};
 
 		/** sync cursor between multiple charts */
