@@ -306,6 +306,7 @@ export const cursorOpts = {
 		setScale: true,
 		x: true,
 		y: false,
+		uni: null
 	},
 
 	focus: {
