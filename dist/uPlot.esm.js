@@ -2077,6 +2077,8 @@ function uPlot(opts, data, then) {
 
 	const drag =  cursor.drag;
 
+	let dragX =  drag.x;
+	let dragY =  drag.y;
 	if ( cursor.show) {
 		let c = "cursor-";
 
@@ -2347,8 +2349,9 @@ function uPlot(opts, data, then) {
 		if (mouseLeft1 >= 0 && select.show && dragging) {
 			// setSelect should not be triggered on move events
 
-			let dragX = drag.x;
-			let dragY = drag.y;
+			dragX = drag.x;
+			dragY = drag.y;
+
 			let uni = drag.uni;
 
 			if (uni != null) {
@@ -2503,14 +2506,14 @@ function uPlot(opts, data, then) {
 
 				if (drag.setScale) {
 					batch(() => {
-						if (drag.x) {
+						if (dragX) {
 							_setScale(xScaleKey,
 								scaleValueAtPos(select[LEFT], xScaleKey),
 								scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey),
 							);
 						}
 
-						if (drag.y) {
+						if (dragY) {
 							for (let k in scales) {
 								let sc = scales[k];
 
