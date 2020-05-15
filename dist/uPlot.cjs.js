@@ -670,6 +670,7 @@ var cursorOpts = {
 		setScale: true,
 		x: true,
 		y: false,
+		uni: null
 	},
 
 	focus: {
@@ -2353,18 +2354,51 @@ function uPlot(opts, data, then) {
 		// nit: cursor.drag.setSelect is assumed always true
 		if (mouseLeft1 >= 0 && select.show && dragging) {
 			// setSelect should not be triggered on move events
-			if (drag.x) {
+
+			var dragX = drag.x;
+			var dragY = drag.y;
+			var uni = drag.uni;
+
+			if (uni != null) {
+				var xDistance = abs(mouseLeft0 - mouseLeft1);
+				var yDistance = abs(mouseTop0 - mouseTop1);
+
+				if (xDistance < uni)
+					{ dragX = false; }
+				if (yDistance < uni)
+					{ dragY = false; }
+
+				// neither x or y passed the threshold, we are in the magenta box (#219). In this
+				// scenario, we choose a unidirectional zoom based on which point is furthest from
+				// the origin M0
+				if (!dragX && !dragY) {
+					if (xDistance > yDistance)
+						{ dragX = true; }
+					else
+						{ dragY = true; }
+				}
+			}
+
+			if (dragX) {
 				var minX = min(mouseLeft0, mouseLeft1);
 				var maxX = max(mouseLeft0, mouseLeft1);
 				setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
 				setStylePx(selectDiv, WIDTH, select[WIDTH] = maxX - minX);
+				if (uni != null && !dragY) {
+					setStylePx(selectDiv, TOP, select[TOP] = 0);
+					setStylePx(selectDiv, HEIGHT, select[HEIGHT] = plotHgtCss);
+				}
 			}
 
-			if (drag.y) {
+			if (dragY) {
 				var minY = min(mouseTop0, mouseTop1);
 				var maxY = max(mouseTop0, mouseTop1);
 				setStylePx(selectDiv, TOP,    select[TOP] = minY);
 				setStylePx(selectDiv, HEIGHT, select[HEIGHT] = maxY - minY);
+				if (uni != null && !dragX) {
+					setStylePx(selectDiv, LEFT, select[LEFT] = 0);
+					setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
+				}
 			}
 		}
 
