@@ -231,8 +231,11 @@ declare namespace uPlot {
 		/** determines vt/hz cursor dragging to set selection & setScale (zoom) */
 		drag?: {
 			setScale?: boolean; // true
+			/** toggles dragging in along x */
 			x?: boolean; // true
+			/** toggles dragging in along y */
 			y?: boolean; // false
+			/** when x & y are true, sets an upper drag limit in CSS px for adaptive/unidirectional behavior */
 			uni?: number; // null
 		};
 

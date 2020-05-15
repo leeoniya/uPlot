@@ -1,61 +1,60 @@
 <!doctype html>
 <html>
+	<head>
+		<meta charset="utf-8">
+		<title>Zoom Variations</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<head>
-	<meta charset="utf-8">
-	<title>Zoom Variations</title>
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			.uplot {
+				display: inline-block;
+				margin-bottom: 20px;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
+			let vals = [-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10];
 
-	<link rel="stylesheet" href="../dist/uPlot.min.css">
-	<style>
-		.uplot {
-			display: inline-block;
-			width: 400px;
-		}
-	</style>
-</head>
+			let data = [
+				xs,
+				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)])
+			];
 
-<body>
-	<script src="../dist/uPlot.iife.js"></script>
-	<script>
-		let xs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30];
-		let vals = [-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+			let variations = [
+				['X only', { x: true, y: false }],
+				['Y only', { x: false, y: true }],
+				['X or Y (adaptive)', { x: true, y: true, uni: Infinity }],
+				['X or Y (omni)', { x: true, y: true }],
+				['X or Y (adaptive + omni)', { x: true, y: true, uni: 50 }],
+			];
 
-		let data = [
-			xs,
-			xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)])
-		];
+			variations.forEach(([title, dragOpts]) => {
+				let opts = {
+					title: title,
+					width: 600,
+					height: 400,
+					scales: {
+						x: {
+							time: false,
+						},
+					},
+					cursor: {
+						drag: dragOpts
+					},
+					series: [
+						{},
+						{
+							stroke: "purple"
+						}
+					],
+				};
 
-		const opts = (title, dragOpts) => ({
-			title: title,
-			width: 400,
-			height: 200,
-			scales: {
-				x: {
-					time: false,
-				},
-			},
-			cursor: {
-				drag: dragOpts
-			},
-			series: [
-				{},
-				{
-					stroke: "purple"
-				}
-			],
-		});
-
-		let variations = [
-			['X only', { x: true, y: false }],
-			['Y only', { x: false, y: true }],
-			['X or Y (adaptive)', { x: true, y: true, uni: Infinity }],
-			['X or Y (omni)', { x: true, y: true }],
-			['X or Y (adaptive + omni)', { x: true, y: true, uni: 50 }],
-		];
-
-		variations.forEach((variation) => new uPlot(opts(...variation), data, document.body));
-	</script>
-</body>
-
+				let u = new uPlot(opts, data, document.body);
+			});
+		</script>
+	</body>
 </html>
