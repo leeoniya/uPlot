@@ -34,9 +34,6 @@
 			let initXmin = 1;
 			let initXmax = 4.5;
 
-			let viaRanger = false;
-			let viaZoom = false;
-
 			const rangerOpts = {
 				width: 800,
 				height: 100,
@@ -49,6 +46,9 @@
 						x: true,
 						y: false,
 					},
+					sync: {
+						key: "moo"
+					}
 				},
 				legend: {
 					show: false
@@ -65,22 +65,11 @@
 					}
 				],
 				hooks: {
-					setSelect: [
-						uRanger => {
-							if (!viaZoom) {
-								viaRanger = true;
-								let min = uRanger.posToVal(uRanger.select.left, 'x');
-								let max = uRanger.posToVal(uRanger.select.left + uRanger.select.width, 'x');
-								uZoomed.setScale('x', {min, max});
-								viaRanger = false;
-							}
-						}
-					],
 					ready: [
 						uRanger => {
 							let left = Math.round(uRanger.valToPos(initXmin, 'x'));
 							let width = Math.round(uRanger.valToPos(initXmax, 'x')) - left;
-							let height = uRanger.root.querySelector(".over").getBoundingClientRect().height;
+							let height = uRanger.bbox.height / devicePixelRatio;
 							uRanger.setSelect({left, width, height}, false);
 						}
 					]
@@ -93,6 +82,11 @@
 			//	title: "Zoomed Area",
 				width: 800,
 				height: 400,
+				cursor: {
+					sync: {
+						key: "moo"
+					}
+				},
 				scales: {
 					x: {
 						time: false,
@@ -108,20 +102,7 @@
 						label: "sin(x)",
 						stroke: "red",
 					}
-				],
-				hooks: {
-					setScale: [
-						(uZoomed, key) => {
-							if (key == 'x' && !viaRanger) {
-								viaZoom = true;
-								let left = Math.round(uRanger.valToPos(uZoomed.scales.x.min, 'x'));
-								let right = Math.round(uRanger.valToPos(uZoomed.scales.x.max, 'x'));
-								uRanger.setSelect({left, width: right - left});
-								viaZoom = false;
-							}
-						}
-					]
-				}
+				]
 			};
 
 			let uZoomed = new uPlot(zoomedOpts, data, document.body);

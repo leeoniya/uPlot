@@ -115,6 +115,8 @@ declare class uPlot {
 declare namespace uPlot {
 	export type AlignedData = readonly (number | null)[][];
 
+	export type SyncScales = [string, string];
+
 	export type MinMax = [number, number];
 
 	export interface DateNames {
@@ -245,6 +247,8 @@ declare namespace uPlot {
 			key: string;
 			/** determines if series toggling and focus via cursor is synced across charts */
 			setSeries?: boolean; // true
+			/** sets the x and y scales to sync by values. null will sync by relative (%) position */
+			scales?: SyncScales; // [xScaleKey, null]
 		};
 
 		/** focus series closest to cursor */
