@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>Zoom Ranger</title>
+		<title>Zoom Ranger XY</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
@@ -10,6 +10,10 @@
 			.uplot {
 				display: block;
 				width: 800px;
+			}
+
+			.uplot .select {
+				background: rgba(127,0,256,0.3);
 			}
 		</style>
 	</head>
@@ -38,17 +42,18 @@
 				width: 800,
 				height: 100,
 				cursor: {
-					y: false,
 					points: {
 						show: false,
 					},
 					drag: {
 						setScale: false,
 						x: true,
-						y: false,
+						y: true,
+						uni: 10
 					},
 					sync: {
-						key: "moo"
+						key: "moo",
+						scales: ["x", "y"]
 					}
 				},
 				legend: {
@@ -62,7 +67,7 @@
 				series: [
 					{},
 					{
-						stroke: "red",
+						stroke: "rgba(0,0,0,0.8)",
 					}
 				],
 				hooks: {
@@ -86,10 +91,12 @@
 				cursor: {
 					drag: {
 						x: true,
-						y: false
+						y: true,
+						uni: 40
 					},
 					sync: {
-						key: "moo"
+						key: "moo",
+						scales: ["x", "y"]
 					}
 				},
 				scales: {
@@ -105,7 +112,7 @@
 					},
 					{
 						label: "sin(x)",
-						stroke: "red",
+						stroke: "purple",
 					}
 				]
 			};

@@ -1343,7 +1343,7 @@ export default function uPlot(opts, data, then) {
 	const drag = FEAT_CURSOR && cursor.drag;
 
 	let dragX = FEAT_CURSOR && drag.x;
-	let dragY = FEAT_CURSOR && drag.y;;
+	let dragY = FEAT_CURSOR && drag.y;
 
 	if (FEAT_CURSOR && cursor.show) {
 		let c = "cursor-";
@@ -1477,8 +1477,14 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function scaleValueAtPos(pos, scale) {
-		let dim = scale == xScaleKey ? plotWidCss : plotHgtCss;
-		let pct = clamp(pos / dim, 0, 1);
+		let dim = plotWidCss;
+		if (scale != xScaleKey) {
+			dim = plotHgtCss;
+			// invert the pos on the y axis
+			pos = dim - pos;
+		}
+
+		let pct = pos / dim;
 
 		let sc = scales[scale];
 		let d = sc.max - sc.min;
@@ -1492,7 +1498,7 @@ export default function uPlot(opts, data, then) {
 
 	self.valToIdx = val => closestIdx(val, data[0]);
 	self.posToIdx = closestIdxFromXpos;
-	self.posToVal = (pos, scale) => scaleValueAtPos(scale == xScaleKey ? pos : plotHgtCss - pos, scale);
+	self.posToVal = scaleValueAtPos;
 	self.valToPos = (val, scale, can) => (
 		scale == xScaleKey ?
 		getXPos(val, scales[scale],
@@ -1532,7 +1538,7 @@ export default function uPlot(opts, data, then) {
 
 	let cursorRaf = 0;
 
-	function updateCursor(ts) {
+	function updateCursor(ts, src) {
 		if (inBatch) {
 			shouldUpdateCursor = true;
 			return;
@@ -1612,51 +1618,86 @@ export default function uPlot(opts, data, then) {
 		}
 
 		// nit: cursor.drag.setSelect is assumed always true
-		if (mouseLeft1 >= 0 && select.show && dragging) {
-			// setSelect should not be triggered on move events
+		if (select.show && dragging) {
+			if (src != null) {
+				let [xKey, yKey] = syncOpts.scales;
 
-			dragX = drag.x;
-			dragY = drag.y;
+				if (xKey) {
+					let sc = scales[xKey];
+					let srcLeft = src.posToVal(src.select[LEFT], xKey);
+					let srcRight = src.posToVal(src.select[LEFT] + src.select[WIDTH], xKey);
 
-			let uni = drag.uni;
+					select[LEFT] = getXPos(srcLeft, sc, plotWidCss, 0);
+					select[WIDTH] = abs(select[LEFT] - getXPos(srcRight, sc, plotWidCss, 0));
 
-			if (uni != null) {
-				let dx = abs(mouseLeft0 - mouseLeft1);
-				let dy = abs(mouseTop0 - mouseTop1);
+					setStylePx(selectDiv, LEFT, select[LEFT]);
+					setStylePx(selectDiv, WIDTH, select[WIDTH]);
 
-				dragX = dx >= uni;
-				dragY = dy >= uni;
-
-				// force unidirectionality when both are under uni limit
-				if (!dragX && !dragY) {
-					if (dy > dx)
-						dragY = true;
-					else
-						dragX = true;
+					if (!yKey) {
+						setStylePx(selectDiv, TOP, select[TOP] = 0);
+						setStylePx(selectDiv, HEIGHT, select[HEIGHT] = plotHgtCss);
+					}
 				}
-			}
 
-			if (dragX) {
-				let minX = min(mouseLeft0, mouseLeft1);
-				let maxX = max(mouseLeft0, mouseLeft1);
-				setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
-				setStylePx(selectDiv, WIDTH, select[WIDTH] = maxX - minX);
+				if (yKey) {
+					let sc = scales[yKey];
+					let srcTop = src.posToVal(src.select[TOP], yKey);
+					let srcBottom = src.posToVal(src.select[TOP] + src.select[HEIGHT], yKey);
 
-				if (uni != null && !dragY) {
-					setStylePx(selectDiv, TOP, select[TOP] = 0);
-					setStylePx(selectDiv, HEIGHT, select[HEIGHT] = plotHgtCss);
+					select[TOP] = getYPos(srcTop, sc, plotHgtCss, 0);
+					select[HEIGHT] = abs(select[TOP] - getYPos(srcBottom, sc, plotHgtCss, 0));
+
+					setStylePx(selectDiv, TOP, select[TOP]);
+					setStylePx(selectDiv, HEIGHT, select[HEIGHT]);
+
+					if (!xKey) {
+						setStylePx(selectDiv, LEFT, select[LEFT] = 0);
+						setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
+					}
 				}
-			}
 
-			if (dragY) {
-				let minY = min(mouseTop0, mouseTop1);
-				let maxY = max(mouseTop0, mouseTop1);
-				setStylePx(selectDiv, TOP,    select[TOP] = minY);
-				setStylePx(selectDiv, HEIGHT, select[HEIGHT] = maxY - minY);
-
-				if (uni != null && !dragX) {
-					setStylePx(selectDiv, LEFT, select[LEFT] = 0);
-					setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
+			} else {
+				// setSelect should not be triggered on move events	
+				let uni = drag.uni;
+	
+				if (uni != null) {
+					let dx = abs(mouseLeft0 - mouseLeft1);
+					let dy = abs(mouseTop0 - mouseTop1);
+	
+					dragX = dx >= uni;
+					dragY = dy >= uni;
+	
+					// force unidirectionality when both are under uni limit
+					if (!dragX && !dragY) {
+						if (dy > dx)
+							dragY = true;
+						else
+							dragX = true;
+					}
+				}
+	
+				if (dragX) {
+					let minX = min(mouseLeft0, mouseLeft1);
+					let maxX = max(mouseLeft0, mouseLeft1);
+					setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
+					setStylePx(selectDiv, WIDTH, select[WIDTH] = maxX - minX);
+	
+					if (!dragY) {
+						setStylePx(selectDiv, TOP, select[TOP] = 0);
+						setStylePx(selectDiv, HEIGHT, select[HEIGHT] = plotHgtCss);
+					}
+				}
+	
+				if (dragY) {
+					let minY = min(mouseTop0, mouseTop1);
+					let maxY = max(mouseTop0, mouseTop1);
+					setStylePx(selectDiv, TOP,    select[TOP] = minY);
+					setStylePx(selectDiv, HEIGHT, select[HEIGHT] = maxY - minY);
+	
+					if (!dragX) {
+						setStylePx(selectDiv, LEFT, select[LEFT] = 0);
+						setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
+					}
 				}
 			}
 		}
@@ -1707,17 +1748,32 @@ export default function uPlot(opts, data, then) {
 				cursorRaf = rAF(updateCursor);
 		}
 		else
-			updateCursor();
+			updateCursor(null, src);
 	}
 
 	function cacheMouse(e, src, _x, _y, _w, _h, _i, initial, snap) {
+		if (_x < 0 || _y < 0) {
+			mouseLeft1 = -10;
+			mouseTop1 = -10;
+			return;
+		}
+
 		if (e != null) {
 			_x = e.clientX - rect.left;
 			_y = e.clientY - rect.top;
 		}
 		else {
-			_x = plotWidCss * (_x/_w);
-			_y = plotHgtCss * (_y/_h);
+			let [xKey, yKey] = syncOpts.scales;
+
+			if (xKey != null)
+				_x = getXPos(src.posToVal(_x, xKey), scales[xKey], plotWidCss, 0);
+			else
+				_x = plotWidCss * (_x/_w);
+
+			if (yKey != null)
+				_y = getYPos(src.posToVal(_y, yKey), scales[yKey], plotHgtCss, 0);
+			else
+				_y = plotHgtCss * (_y/_h);
 		}
 
 		if (snap) {
@@ -1740,19 +1796,16 @@ export default function uPlot(opts, data, then) {
 
 	function hideSelect() {
 		setSelect({
-			width:	!drag.x ? plotWidCss : 0,
-			height:	!drag.y ? plotHgtCss : 0,
+			width: 0,
+			height: 0,
 		}, false);
 	}
 
 	function mouseDown(e, src, _x, _y, _w, _h, _i) {
-		if (e == null || filtMouse(e)) {
+		if (src != null || filtMouse(e)) {
 			dragging = true;
 
-			cacheMouse(e, src, _x, _y, _w, _h, _i, true, true);
-
-			if (select.show && (drag.x || drag.y))
-				hideSelect();
+			cacheMouse(e, src, _x, _y, _w, _h, _i, true, false);
 
 			if (e != null) {
 				on(mouseup, doc, mouseUp);
@@ -1762,51 +1815,54 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function mouseUp(e, src, _x, _y, _w, _h, _i) {
-		if ((e == null || filtMouse(e))) {
+		if (src != null || filtMouse(e)) {
 			dragging = false;
 
 			cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
+			setSelect(select);
 
-			if (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0) {
-				setSelect(select);
+			if (drag.setScale && (select[WIDTH] || select[HEIGHT])) {
 
-				if (drag.setScale) {
-					batch(() => {
-						if (dragX) {
-							_setScale(xScaleKey,
-								scaleValueAtPos(select[LEFT], xScaleKey),
-								scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey),
-							);
-						}
+				if (syncKey != null) {
+					dragX = drag.x;
+					dragY = drag.y;
+				}
 
-						if (dragY) {
-							for (let k in scales) {
-								let sc = scales[k];
+				batch(() => {
+					if (dragX) {
+						_setScale(xScaleKey,
+							scaleValueAtPos(select[LEFT], xScaleKey),
+							scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
+						);
+					}
 
-								if (k != xScaleKey && sc.from == null) {
-									_setScale(k,
-										scaleValueAtPos(plotHgtCss - select[TOP] - select[HEIGHT], k),
-										scaleValueAtPos(plotHgtCss - select[TOP], k),
-									);
-								}
+					if (dragY) {
+						for (let k in scales) {
+							let sc = scales[k];
+
+							if (k != xScaleKey && sc.from == null) {
+								_setScale(k,
+									scaleValueAtPos(select[TOP] + select[HEIGHT], k),
+									scaleValueAtPos(select[TOP], k)
+								);
 							}
 						}
-					});
+					}
+				});
 
-					hideSelect();
-				}
+				hideSelect();
 			}
 			else if (cursor.lock) {
-				cursor.locked = !cursor.locked
+				cursor.locked = !cursor.locked;
 
 				if (!cursor.locked)
 					updateCursor();
 			}
+		}
 
-			if (e != null) {
-				off(mouseup, doc, mouseUp);
-				sync.pub(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
-			}
+		if (e != null) {
+			off(mouseup, doc, mouseUp);
+			sync.pub(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 		}
 	}
 
@@ -1821,6 +1877,18 @@ export default function uPlot(opts, data, then) {
 
 	function dblClick(e, src, _x, _y, _w, _h, _i) {
 		autoScaleX();
+		
+		if (src != null && select.show && (drag.x || drag.y)) {
+			if (drag.setScale)
+				hideSelect();
+			else
+				setSelect({
+					[LEFT]: 0,
+					[WIDTH]: plotWidCss,
+					[TOP]: 0,
+					[HEIGHT]: plotHgtCss
+				});
+		}
 
 		if (e != null)
 			sync.pub(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
@@ -1873,6 +1941,7 @@ export default function uPlot(opts, data, then) {
 	const syncOpts = FEAT_CURSOR && assign({
 		key: null,
 		setSeries: false,
+		scales: [xScaleKey, null]
 	}, cursor.sync);
 
 	const syncKey = FEAT_CURSOR && syncOpts.key;
