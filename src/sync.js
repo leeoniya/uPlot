@@ -10,10 +10,10 @@ export function _sync(opts) {
 		unsub(client) {
 			clients = clients.filter(c => c != client);
 		},
-		pub(type, self, x, y, w, h, i) {
+		pub(type, self, x, y, w, h, i, s) {
 			if (clients.length > 1) {
 				clients.forEach(client => {
-					client != self && client.pub(type, self, x, y, w, h, i);
+					client != self && client.pub(type, self, x, y, w, h, i, s);
 				});
 			}
 		}
