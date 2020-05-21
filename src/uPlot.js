@@ -1738,11 +1738,12 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
-	function hideSelect() {
+	function hideSelect(_fire) {
 		setSelect({
 			width:	!drag.x ? plotWidCss : 0,
 			height:	!drag.y ? plotHgtCss : 0,
 		}, false);
+		_fire !== false && fire("hideSelect");
 	}
 
 	function mouseDown(e, src, _x, _y, _w, _h, _i) {
@@ -1752,7 +1753,7 @@ export default function uPlot(opts, data, then) {
 			cacheMouse(e, src, _x, _y, _w, _h, _i, true, true);
 
 			if (select.show && (drag.x || drag.y))
-				hideSelect();
+				hideSelect(true);
 
 			if (e != null) {
 				on(mouseup, doc, mouseUp);
