@@ -321,19 +321,19 @@ declare namespace uPlot {
 
 		points?: {
 			/** if boolean or returns boolean, round points are drawn with defined options, else fn should draw own custom points via self.ctx */
-			show: boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
+			show?: boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
 
 			/** diameter of point in CSS pixels */
-			size: number;
+			size?: number;
 
 			/** line width of circle outline in CSS pixels */
-			width: CanvasRenderingContext2D['lineWidth'];
+			width?: CanvasRenderingContext2D['lineWidth'];
 
 			/** line color of circle outline (defaults to series.stroke) */
-			stroke: CanvasRenderingContext2D['strokeStyle'];
+			stroke?: CanvasRenderingContext2D['strokeStyle'];
 
 			/** fill color of circle (defaults to #fff) */
-			fill: CanvasRenderingContext2D['fillStyle'];
+			fill?: CanvasRenderingContext2D['fillStyle'];
 		};
 
 		/** any two adjacent series with band: true, are filled as a single low/high band */
