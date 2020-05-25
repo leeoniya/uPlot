@@ -522,7 +522,7 @@ const _timeAxisStamps = [
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 function timeAxisVals(tzDate, stamps) {
 	return (self, splits, space, incr) => {
-		let s = stamps.find(e => incr >= e[0]);
+		let s = stamps.find(e => incr >= e[0]) || stamps[stamps.length - 1];
 
 		// these track boundaries when a full label is needed again
 		let prevYear = null;

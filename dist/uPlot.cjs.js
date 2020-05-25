@@ -519,7 +519,7 @@ var _timeAxisStamps = [
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 function timeAxisVals(tzDate, stamps) {
 	return function (self, splits, space, incr) {
-		var s = stamps.find(function (e) { return incr >= e[0]; });
+		var s = stamps.find(function (e) { return incr >= e[0]; }) || stamps[stamps.length - 1];
 
 		// these track boundaries when a full label is needed again
 		var prevYear = null;
