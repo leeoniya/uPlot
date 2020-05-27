@@ -1658,29 +1658,37 @@ export default function uPlot(opts, data, then) {
 			}
 			else {
 				// setSelect should not be triggered on move events
+				let dx = abs(mouseLeft0 - mouseLeft1);
+				let dy = abs(mouseTop0 - mouseTop1);
+
+				dragX = drag.x && dx >= drag.dist;
+				dragY = drag.y && dy >= drag.dist;
+
 				let uni = drag.uni;
 
 				if (uni != null) {
-					let dx = abs(mouseLeft0 - mouseLeft1);
-					let dy = abs(mouseTop0 - mouseTop1);
-
-					dragX = dx >= uni;
-					dragY = dy >= uni;
-
-					// force unidirectionality when both are under uni limit
-					if (!dragX && !dragY) {
-						if (dy > dx)
-							dragY = true;
-						else
-							dragX = true;
+					// only calc drag status if they pass the dist thresh
+					if (dragX && dragY) {
+						dragX = dx >= uni;
+						dragY = dy >= uni;
+	
+						// force unidirectionality when both are under uni limit
+						if (!dragX && !dragY) {
+							if (dy > dx)
+								dragY = true;
+							else
+								dragX = true;
+						}
 					}
 				}
+				else if (drag.x && drag.y && dragX != dragY)
+					// if omni with no uni then both dragX / dragY should be true if either is true
+					dragX = dragY = true;
 
 				if (dragX) {
 					let minX = min(mouseLeft0, mouseLeft1);
-					let maxX = max(mouseLeft0, mouseLeft1);
 					setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
-					setStylePx(selectDiv, WIDTH, select[WIDTH] = maxX - minX);
+					setStylePx(selectDiv, WIDTH, select[WIDTH] = dx);
 
 					if (!dragY) {
 						setStylePx(selectDiv, TOP, select[TOP] = 0);
@@ -1690,14 +1698,19 @@ export default function uPlot(opts, data, then) {
 
 				if (dragY) {
 					let minY = min(mouseTop0, mouseTop1);
-					let maxY = max(mouseTop0, mouseTop1);
 					setStylePx(selectDiv, TOP,    select[TOP] = minY);
-					setStylePx(selectDiv, HEIGHT, select[HEIGHT] = maxY - minY);
+					setStylePx(selectDiv, HEIGHT, select[HEIGHT] = dy);
 
 					if (!dragX) {
 						setStylePx(selectDiv, LEFT, select[LEFT] = 0);
 						setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
 					}
+				}
+
+				if (!dragX && !dragY) {
+					// the drag didn't pass the dist requirement
+					setStylePx(selectDiv, HEIGHT, select[HEIGHT] = 0);
+					setStylePx(selectDiv, WIDTH,  select[WIDTH]  = 0);
 				}
 			}
 		}

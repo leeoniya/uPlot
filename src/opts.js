@@ -306,6 +306,7 @@ export const cursorOpts = {
 		setScale: true,
 		x: true,
 		y: false,
+		dist: 0,
 		uni: null
 	},
 
