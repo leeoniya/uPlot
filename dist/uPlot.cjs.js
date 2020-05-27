@@ -2615,9 +2615,33 @@ function uPlot(opts, data, then) {
 	}
 
 	function mouseLeave(e, src, _x, _y, _w, _h, _i) {
-		if (!cursor.locked && !dragging) {
+		if (!cursor.locked) {
+			if (dragging) {
+				// handle case when mousemove aren't fired all the way to edges by browser
+				var dLft = mouseLeft1;
+				var dRgt = plotWidCss - mouseLeft1;
+				var dTop = mouseTop1;
+				var dBtm = plotHgtCss - mouseTop1;
+
+				var dMin = min(dLft, dRgt, dTop, dBtm);
+
+				if (dMin == dLft)
+					{ mouseLeft1 = 0; }
+				if (dMin == dRgt)
+					{ mouseLeft1 = plotWidCss; }
+				if (dMin == dTop)
+					{ mouseTop1 = 0; }
+				if (dMin == dBtm)
+					{ mouseTop1 = plotHgtCss; }
+
+				updateCursor(1);
+
+				dragging = false;
+			}
+
 			mouseLeft1 = -10;
 			mouseTop1 = -10;
+
 			// passing a non-null timestamp to force sync/mousemove event
 			updateCursor(1);
 		}
