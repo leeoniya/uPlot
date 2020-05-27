@@ -2221,9 +2221,9 @@ function uPlot(opts, data, then) {
 
 	function scaleValueAtPos(pos, scale) {
 		var dim = plotWidCss;
+
 		if (scale != xScaleKey) {
 			dim = plotHgtCss;
-			// invert the pos on the y axis
 			pos = dim - pos;
 		}
 
@@ -2400,18 +2400,18 @@ function uPlot(opts, data, then) {
 						setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
 					}
 				}
-
-			} else {
-				// setSelect should not be triggered on move events	
+			}
+			else {
+				// setSelect should not be triggered on move events
 				var uni = drag.uni;
-	
+
 				if (uni != null) {
 					var dx = abs(mouseLeft0 - mouseLeft1);
 					var dy = abs(mouseTop0 - mouseTop1);
-	
+
 					dragX = dx >= uni;
 					dragY = dy >= uni;
-	
+
 					// force unidirectionality when both are under uni limit
 					if (!dragX && !dragY) {
 						if (dy > dx)
@@ -2420,25 +2420,25 @@ function uPlot(opts, data, then) {
 							{ dragX = true; }
 					}
 				}
-	
+
 				if (dragX) {
 					var minX = min(mouseLeft0, mouseLeft1);
 					var maxX = max(mouseLeft0, mouseLeft1);
 					setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
 					setStylePx(selectDiv, WIDTH, select[WIDTH] = maxX - minX);
-	
+
 					if (!dragY) {
 						setStylePx(selectDiv, TOP, select[TOP] = 0);
 						setStylePx(selectDiv, HEIGHT, select[HEIGHT] = plotHgtCss);
 					}
 				}
-	
+
 				if (dragY) {
 					var minY = min(mouseTop0, mouseTop1);
 					var maxY = max(mouseTop0, mouseTop1);
 					setStylePx(selectDiv, TOP,    select[TOP] = minY);
 					setStylePx(selectDiv, HEIGHT, select[HEIGHT] = maxY - minY);
-	
+
 					if (!dragX) {
 						setStylePx(selectDiv, LEFT, select[LEFT] = 0);
 						setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
@@ -2497,17 +2497,17 @@ function uPlot(opts, data, then) {
 	}
 
 	function cacheMouse(e, src, _x, _y, _w, _h, _i, initial, snap) {
-		if (_x < 0 || _y < 0) {
-			mouseLeft1 = -10;
-			mouseTop1 = -10;
-			return;
-		}
-
 		if (e != null) {
 			_x = e.clientX - rect.left;
 			_y = e.clientY - rect.top;
 		}
 		else {
+			if (_x < 0 || _y < 0) {
+				mouseLeft1 = -10;
+				mouseTop1 = -10;
+				return;
+			}
+
 			var ref = syncOpts.scales;
 			var xKey = ref[0];
 			var yKey = ref[1];
@@ -2566,6 +2566,7 @@ function uPlot(opts, data, then) {
 			dragging = false;
 
 			cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
+
 			setSelect(select);
 
 			if (drag.setScale && (select[WIDTH] || select[HEIGHT])) {
@@ -2626,7 +2627,7 @@ function uPlot(opts, data, then) {
 		var obj;
 
 		autoScaleX();
-		
+
 		if (src != null && select.show && (drag.x || drag.y)) {
 			if (drag.setScale)
 				{ hideSelect(); }
@@ -2656,6 +2657,7 @@ function uPlot(opts, data, then) {
 		on(mousemove, over, mouseMove);
 		on(mouseenter, over, syncRect);
 		on(mouseleave, over, mouseLeave);
+
 		drag.setScale && on(dblclick, over, dblClick);
 
 		deb = debounce(syncRect, 100);
