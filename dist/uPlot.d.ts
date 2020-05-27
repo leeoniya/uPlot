@@ -115,6 +115,8 @@ declare class uPlot {
 declare namespace uPlot {
 	export type AlignedData = readonly (number | null)[][];
 
+	export type SyncScales = [string, string];
+
 	export type MinMax = [number, number];
 
 	export interface DateNames {
@@ -231,8 +233,12 @@ declare namespace uPlot {
 		/** determines vt/hz cursor dragging to set selection & setScale (zoom) */
 		drag?: {
 			setScale?: boolean; // true
+			/** toggles dragging in along x */
 			x?: boolean; // true
+			/** toggles dragging in along y */
 			y?: boolean; // false
+			/** when x & y are true, sets an upper drag limit in CSS px for adaptive/unidirectional behavior */
+			uni?: number; // null
 		};
 
 		/** sync cursor between multiple charts */
@@ -241,6 +247,8 @@ declare namespace uPlot {
 			key: string;
 			/** determines if series toggling and focus via cursor is synced across charts */
 			setSeries?: boolean; // true
+			/** sets the x and y scales to sync by values. null will sync by relative (%) position */
+			scales?: SyncScales; // [xScaleKey, null]
 		};
 
 		/** focus series closest to cursor */
@@ -317,19 +325,19 @@ declare namespace uPlot {
 
 		points?: {
 			/** if boolean or returns boolean, round points are drawn with defined options, else fn should draw own custom points via self.ctx */
-			show: boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
+			show?: boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
 
 			/** diameter of point in CSS pixels */
-			size: number;
+			size?: number;
 
 			/** line width of circle outline in CSS pixels */
-			width: CanvasRenderingContext2D['lineWidth'];
+			width?: CanvasRenderingContext2D['lineWidth'];
 
 			/** line color of circle outline (defaults to series.stroke) */
-			stroke: CanvasRenderingContext2D['strokeStyle'];
+			stroke?: CanvasRenderingContext2D['strokeStyle'];
 
 			/** fill color of circle (defaults to #fff) */
-			fill: CanvasRenderingContext2D['fillStyle'];
+			fill?: CanvasRenderingContext2D['fillStyle'];
 		};
 
 		/** any two adjacent series with band: true, are filled as a single low/high band */

@@ -520,7 +520,7 @@ var uPlot = (function () {
 	// currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 	function timeAxisVals(tzDate, stamps) {
 		return function (self, splits, space, incr) {
-			var s = stamps.find(function (e) { return incr >= e[0]; });
+			var s = stamps.find(function (e) { return incr >= e[0]; }) || stamps[stamps.length - 1];
 
 			// these track boundaries when a full label is needed again
 			var prevYear = null;
@@ -671,6 +671,7 @@ var uPlot = (function () {
 			setScale: true,
 			x: true,
 			y: false,
+			uni: null
 		},
 
 		focus: {
@@ -844,8 +845,9 @@ var uPlot = (function () {
 		};
 	}
 
-	function setDefaults(d, xo, yo) {
-		return [d[0], d[1]].concat(d.slice(2)).map(function (o, i) { return setDefault(o, i, xo, yo); });
+	function setDefaults(d, xo, yo, initY) {
+		var d2 = initY ? [d[0], d[1]].concat(d.slice(2)) : [d[0]].concat(d.slice(1));
+		return d2.map(function (o, i) { return setDefault(o, i, xo, yo); });
 	}
 
 	function setDefault(o, i, xo, yo) {
@@ -938,9 +940,9 @@ var uPlot = (function () {
 
 		var ready = false;
 
-		var series  = setDefaults(opts.series, xSeriesOpts, ySeriesOpts);
-		var axes    = setDefaults(opts.axes || [], xAxisOpts, yAxisOpts);
-		var scales  = (opts.scales = opts.scales || {});
+		var series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
+		var axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
+		var scales  = self.scales = (opts.scales = opts.scales || {});
 
 		var gutters = assign({
 			x: round(yAxisOpts.size / 2),
@@ -954,10 +956,6 @@ var uPlot = (function () {
 		var _timeAxisSplits =  timeAxisSplits(_tzDate);
 		var _timeAxisVals   =  timeAxisVals(_tzDate, timeAxisStamps(_timeAxisStamps, _fmtDate));
 		var _timeSeriesVal  =  timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
-
-		self.series = series;
-		self.axes = axes;
-		self.scales = scales;
 
 		var pendScales = {};
 
@@ -980,7 +978,7 @@ var uPlot = (function () {
 		if (showLegend) {
 			legendEl = placeTag("table", "legend", root);
 
-			var getMultiVals = series[1].values;
+			var getMultiVals = series[1] ? series[1].values : null;
 			multiValLegend = getMultiVals != null;
 
 			if (multiValLegend) {
@@ -1181,6 +1179,9 @@ var uPlot = (function () {
 		var data0 = null;
 
 		function setData(_data, _resetScales) {
+			_data = _data || [];
+			_data[0] = _data[0] || [];
+
 			self.data = _data;
 			data = _data.slice();
 			data0 = data[0];
@@ -2085,6 +2086,9 @@ var uPlot = (function () {
 
 		var drag =  cursor.drag;
 
+		var dragX =  drag.x;
+		var dragY =  drag.y;
+
 		if ( cursor.show) {
 			var c = "cursor-";
 
@@ -2217,8 +2221,14 @@ var uPlot = (function () {
 		}
 
 		function scaleValueAtPos(pos, scale) {
-			var dim = scale == xScaleKey ? plotWidCss : plotHgtCss;
-			var pct = clamp(pos / dim, 0, 1);
+			var dim = plotWidCss;
+
+			if (scale != xScaleKey) {
+				dim = plotHgtCss;
+				pos = dim - pos;
+			}
+
+			var pct = pos / dim;
 
 			var sc = scales[scale];
 			var d = sc.max - sc.min;
@@ -2232,7 +2242,7 @@ var uPlot = (function () {
 
 		self.valToIdx = function (val) { return closestIdx(val, data[0]); };
 		self.posToIdx = closestIdxFromXpos;
-		self.posToVal = function (pos, scale) { return scaleValueAtPos(scale == xScaleKey ? pos : plotHgtCss - pos, scale); };
+		self.posToVal = scaleValueAtPos;
 		self.valToPos = function (val, scale, can) { return (
 			scale == xScaleKey ?
 			getXPos(val, scales[scale],
@@ -2272,7 +2282,7 @@ var uPlot = (function () {
 
 		var cursorRaf = 0;
 
-		function updateCursor(ts) {
+		function updateCursor(ts, src) {
 			if (inBatch) {
 				shouldUpdateCursor = true;
 				return;
@@ -2339,9 +2349,9 @@ var uPlot = (function () {
 						if (i$1 == 0 && multiValLegend)
 							{ continue; }
 
-						var src = i$1 == 0 && xScaleDistr == 2 ? data0 : data[i$1];
+						var src$1 = i$1 == 0 && xScaleDistr == 2 ? data0 : data[i$1];
 
-						var vals = multiValLegend ? s.values(self, i$1, idx) : {_: s.value(self, src[idx], i$1, idx)};
+						var vals = multiValLegend ? s.values(self, i$1, idx) : {_: s.value(self, src$1[idx], i$1, idx)};
 
 						var j$1 = 0;
 
@@ -2352,20 +2362,89 @@ var uPlot = (function () {
 			}
 
 			// nit: cursor.drag.setSelect is assumed always true
-			if (mouseLeft1 >= 0 && select.show && dragging) {
-				// setSelect should not be triggered on move events
-				if (drag.x) {
-					var minX = min(mouseLeft0, mouseLeft1);
-					var maxX = max(mouseLeft0, mouseLeft1);
-					setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
-					setStylePx(selectDiv, WIDTH, select[WIDTH] = maxX - minX);
-				}
+			if (select.show && dragging) {
+				if (src != null) {
+					var ref = syncOpts.scales;
+					var xKey = ref[0];
+					var yKey = ref[1];
 
-				if (drag.y) {
-					var minY = min(mouseTop0, mouseTop1);
-					var maxY = max(mouseTop0, mouseTop1);
-					setStylePx(selectDiv, TOP,    select[TOP] = minY);
-					setStylePx(selectDiv, HEIGHT, select[HEIGHT] = maxY - minY);
+					if (xKey) {
+						var sc = scales[xKey];
+						var srcLeft = src.posToVal(src.select[LEFT], xKey);
+						var srcRight = src.posToVal(src.select[LEFT] + src.select[WIDTH], xKey);
+
+						select[LEFT] = getXPos(srcLeft, sc, plotWidCss, 0);
+						select[WIDTH] = abs(select[LEFT] - getXPos(srcRight, sc, plotWidCss, 0));
+
+						setStylePx(selectDiv, LEFT, select[LEFT]);
+						setStylePx(selectDiv, WIDTH, select[WIDTH]);
+
+						if (!yKey) {
+							setStylePx(selectDiv, TOP, select[TOP] = 0);
+							setStylePx(selectDiv, HEIGHT, select[HEIGHT] = plotHgtCss);
+						}
+					}
+
+					if (yKey) {
+						var sc$1 = scales[yKey];
+						var srcTop = src.posToVal(src.select[TOP], yKey);
+						var srcBottom = src.posToVal(src.select[TOP] + src.select[HEIGHT], yKey);
+
+						select[TOP] = getYPos(srcTop, sc$1, plotHgtCss, 0);
+						select[HEIGHT] = abs(select[TOP] - getYPos(srcBottom, sc$1, plotHgtCss, 0));
+
+						setStylePx(selectDiv, TOP, select[TOP]);
+						setStylePx(selectDiv, HEIGHT, select[HEIGHT]);
+
+						if (!xKey) {
+							setStylePx(selectDiv, LEFT, select[LEFT] = 0);
+							setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
+						}
+					}
+				}
+				else {
+					// setSelect should not be triggered on move events
+					var uni = drag.uni;
+
+					if (uni != null) {
+						var dx = abs(mouseLeft0 - mouseLeft1);
+						var dy = abs(mouseTop0 - mouseTop1);
+
+						dragX = dx >= uni;
+						dragY = dy >= uni;
+
+						// force unidirectionality when both are under uni limit
+						if (!dragX && !dragY) {
+							if (dy > dx)
+								{ dragY = true; }
+							else
+								{ dragX = true; }
+						}
+					}
+
+					if (dragX) {
+						var minX = min(mouseLeft0, mouseLeft1);
+						var maxX = max(mouseLeft0, mouseLeft1);
+						setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
+						setStylePx(selectDiv, WIDTH, select[WIDTH] = maxX - minX);
+
+						if (!dragY) {
+							setStylePx(selectDiv, TOP, select[TOP] = 0);
+							setStylePx(selectDiv, HEIGHT, select[HEIGHT] = plotHgtCss);
+						}
+					}
+
+					if (dragY) {
+						var minY = min(mouseTop0, mouseTop1);
+						var maxY = max(mouseTop0, mouseTop1);
+						setStylePx(selectDiv, TOP,    select[TOP] = minY);
+						setStylePx(selectDiv, HEIGHT, select[HEIGHT] = maxY - minY);
+
+						if (!dragX) {
+							setStylePx(selectDiv, LEFT, select[LEFT] = 0);
+							setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
+						}
+					}
 				}
 			}
 
@@ -2415,7 +2494,7 @@ var uPlot = (function () {
 					{ cursorRaf = rAF(updateCursor); }
 			}
 			else
-				{ updateCursor(); }
+				{ updateCursor(null, src); }
 		}
 
 		function cacheMouse(e, src, _x, _y, _w, _h, _i, initial, snap) {
@@ -2424,8 +2503,25 @@ var uPlot = (function () {
 				_y = e.clientY - rect.top;
 			}
 			else {
-				_x = plotWidCss * (_x/_w);
-				_y = plotHgtCss * (_y/_h);
+				if (_x < 0 || _y < 0) {
+					mouseLeft1 = -10;
+					mouseTop1 = -10;
+					return;
+				}
+
+				var ref = syncOpts.scales;
+				var xKey = ref[0];
+				var yKey = ref[1];
+
+				if (xKey != null)
+					{ _x = getXPos(src.posToVal(_x, xKey), scales[xKey], plotWidCss, 0); }
+				else
+					{ _x = plotWidCss * (_x/_w); }
+
+				if (yKey != null)
+					{ _y = getYPos(src.posToVal(_y, yKey), scales[yKey], plotHgtCss, 0); }
+				else
+					{ _y = plotHgtCss * (_y/_h); }
 			}
 
 			if (snap) {
@@ -2448,19 +2544,16 @@ var uPlot = (function () {
 
 		function hideSelect() {
 			setSelect({
-				width:	!drag.x ? plotWidCss : 0,
-				height:	!drag.y ? plotHgtCss : 0,
+				width: 0,
+				height: 0,
 			}, false);
 		}
 
 		function mouseDown(e, src, _x, _y, _w, _h, _i) {
-			if (e == null || filtMouse(e)) {
+			if (src != null || filtMouse(e)) {
 				dragging = true;
 
-				cacheMouse(e, src, _x, _y, _w, _h, _i, true, true);
-
-				if (select.show && (drag.x || drag.y))
-					{ hideSelect(); }
+				cacheMouse(e, src, _x, _y, _w, _h, _i, true, false);
 
 				if (e != null) {
 					on(mouseup, doc, mouseUp);
@@ -2470,39 +2563,43 @@ var uPlot = (function () {
 		}
 
 		function mouseUp(e, src, _x, _y, _w, _h, _i) {
-			if ((e == null || filtMouse(e))) {
+			if (src != null || filtMouse(e)) {
 				dragging = false;
 
 				cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
 
-				if (mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0) {
-					setSelect(select);
+				setSelect(select);
 
-					if (drag.setScale) {
-						batch(function () {
-							if (drag.x) {
-								_setScale(xScaleKey,
-									scaleValueAtPos(select[LEFT], xScaleKey),
-									scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
-								);
-							}
+				if (drag.setScale && (select[WIDTH] || select[HEIGHT])) {
 
-							if (drag.y) {
-								for (var k in scales) {
-									var sc = scales[k];
+					if (syncKey != null) {
+						dragX = drag.x;
+						dragY = drag.y;
+					}
 
-									if (k != xScaleKey && sc.from == null) {
-										_setScale(k,
-											scaleValueAtPos(plotHgtCss - select[TOP] - select[HEIGHT], k),
-											scaleValueAtPos(plotHgtCss - select[TOP], k)
-										);
-									}
+					batch(function () {
+						if (dragX) {
+							_setScale(xScaleKey,
+								scaleValueAtPos(select[LEFT], xScaleKey),
+								scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
+							);
+						}
+
+						if (dragY) {
+							for (var k in scales) {
+								var sc = scales[k];
+
+								if (k != xScaleKey && sc.from == null) {
+									_setScale(k,
+										scaleValueAtPos(select[TOP] + select[HEIGHT], k),
+										scaleValueAtPos(select[TOP], k)
+									);
 								}
 							}
-						});
+						}
+					});
 
-						hideSelect();
-					}
+					hideSelect();
 				}
 				else if (cursor.lock) {
 					cursor.locked = !cursor.locked;
@@ -2510,11 +2607,11 @@ var uPlot = (function () {
 					if (!cursor.locked)
 						{ updateCursor(); }
 				}
+			}
 
-				if (e != null) {
-					off(mouseup, doc, mouseUp);
-					sync.pub(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
-				}
+			if (e != null) {
+				off(mouseup, doc, mouseUp);
+				sync.pub(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 			}
 		}
 
@@ -2528,7 +2625,16 @@ var uPlot = (function () {
 		}
 
 		function dblClick(e, src, _x, _y, _w, _h, _i) {
+			var obj;
+
 			autoScaleX();
+
+			if (src != null && select.show && (drag.x || drag.y)) {
+				if (drag.setScale)
+					{ hideSelect(); }
+				else
+					{ setSelect(( obj = {}, obj[LEFT] = 0, obj[WIDTH] = plotWidCss, obj[TOP] = 0, obj[HEIGHT] = plotHgtCss, obj )); }
+			}
 
 			if (e != null)
 				{ sync.pub(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null); }
@@ -2552,6 +2658,7 @@ var uPlot = (function () {
 			on(mousemove, over, mouseMove);
 			on(mouseenter, over, syncRect);
 			on(mouseleave, over, mouseLeave);
+
 			drag.setScale && on(dblclick, over, dblClick);
 
 			deb = debounce(syncRect, 100);
@@ -2581,6 +2688,7 @@ var uPlot = (function () {
 		var syncOpts =  assign({
 			key: null,
 			setSeries: false,
+			scales: [xScaleKey, null]
 		}, cursor.sync);
 
 		var syncKey =  syncOpts.key;
