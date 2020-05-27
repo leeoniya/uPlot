@@ -2616,6 +2616,8 @@ function uPlot(opts, data, then) {
 
 	function mouseLeave(e, src, _x, _y, _w, _h, _i) {
 		if (!cursor.locked) {
+			var _dragging = dragging;
+
 			if (dragging) {
 				// handle case when mousemove aren't fired all the way to edges by browser
 				var dLft = mouseLeft1;
@@ -2644,6 +2646,9 @@ function uPlot(opts, data, then) {
 
 			// passing a non-null timestamp to force sync/mousemove event
 			updateCursor(1);
+
+			if (_dragging)
+				{ dragging = _dragging; }
 		}
 	}
 
