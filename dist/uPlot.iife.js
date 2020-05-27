@@ -2616,11 +2616,57 @@ var uPlot = (function () {
 		}
 
 		function mouseLeave(e, src, _x, _y, _w, _h, _i) {
-			if (!cursor.locked && !dragging) {
+			if (!cursor.locked) {
+				var _dragging = dragging;
+
+				if (dragging) {
+					// handle case when mousemove aren't fired all the way to edges by browser
+					var dLft = mouseLeft1;
+					var dRgt = plotWidCss - mouseLeft1;
+					var dTop = mouseTop1;
+					var dBtm = plotHgtCss - mouseTop1;
+
+					var snapX = true;
+					var snapY = true;
+					var snapProx = 10;
+
+					if (dragX && dragY) {
+						// maybe omni corner snap
+						snapX = mouseLeft1 <= snapProx || mouseLeft1 >= plotWidCss - snapProx;
+						snapY = mouseTop1  <= snapProx || mouseTop1  >= plotHgtCss - snapProx;
+					}
+					
+					if (dragX && snapX) {	
+						var xMin = min(dLft, dRgt);
+
+						if (xMin == dLft)
+							{ mouseLeft1 = 0; }
+						if (xMin == dRgt)
+							{ mouseLeft1 = plotWidCss; }
+					}
+					
+					if (dragY && snapY) {
+						var yMin = min(dTop, dBtm);
+						
+						if (yMin == dTop)
+							{ mouseTop1 = 0; }
+						if (yMin == dBtm)
+							{ mouseTop1 = plotHgtCss; }
+					}
+
+					updateCursor(1);
+
+					dragging = false;
+				}
+
 				mouseLeft1 = -10;
 				mouseTop1 = -10;
+
 				// passing a non-null timestamp to force sync/mousemove event
 				updateCursor(1);
+
+				if (_dragging)
+					{ dragging = _dragging; }
 			}
 		}
 
