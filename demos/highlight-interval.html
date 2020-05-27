@@ -87,7 +87,7 @@
 					return u.valToPos(val, "x", true);
 				}
 
-				let [s, end] = [u.data[0][0], u.data[0][u.data[0].length - 1]]
+				let [s, end] = [u.scales.x.min, u.scales.x.max]
 				while (s < end) {
 					// left = [shouldHighlight, startOfDay (unix)]
 					let left = shouldHighlight(s);
