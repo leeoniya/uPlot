@@ -2586,10 +2586,11 @@ var uPlot = (function () {
 
 				cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
 
-				setSelect(select);
+				var hasSelect = select[WIDTH] > 0 || select[HEIGHT] > 0;
 
-				if (drag.setScale && (select[WIDTH] || select[HEIGHT])) {
+				hasSelect && setSelect(select);
 
+				if (drag.setScale && hasSelect) {
 					if (syncKey != null) {
 						dragX = drag.x;
 						dragY = drag.y;
@@ -2689,15 +2690,19 @@ var uPlot = (function () {
 		}
 
 		function dblClick(e, src, _x, _y, _w, _h, _i) {
-			var obj;
-
 			autoScaleX();
 
 			if (src != null && select.show && (drag.x || drag.y)) {
 				if (drag.setScale)
 					{ hideSelect(); }
-				else
-					{ setSelect(( obj = {}, obj[LEFT] = 0, obj[WIDTH] = plotWidCss, obj[TOP] = 0, obj[HEIGHT] = plotHgtCss, obj )); }
+				else {
+					setSelect({
+						left: 0,
+						width: plotWidCss,
+						top: 0,
+						height: plotHgtCss
+					});
+				}
 			}
 
 			if (e != null)
