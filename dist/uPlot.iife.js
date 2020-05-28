@@ -2409,8 +2409,8 @@ var uPlot = (function () {
 				}
 				else {
 					// setSelect should not be triggered on move events
-					var dx = abs(mouseLeft0 - mouseLeft1);
-					var dy = abs(mouseTop0 - mouseTop1);
+					var dx = abs(mouseLeft1 - mouseLeft0);
+					var dy = abs(mouseTop1 - mouseTop0);
 
 					dragX = drag.x && dx >= drag.dist;
 					dragY = drag.y && dy >= drag.dist;
@@ -2438,6 +2438,7 @@ var uPlot = (function () {
 
 					if (dragX) {
 						var minX = min(mouseLeft0, mouseLeft1);
+
 						setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
 						setStylePx(selectDiv, WIDTH, select[WIDTH] = dx);
 
@@ -2449,6 +2450,7 @@ var uPlot = (function () {
 
 					if (dragY) {
 						var minY = min(mouseTop0, mouseTop1);
+
 						setStylePx(selectDiv, TOP,    select[TOP] = minY);
 						setStylePx(selectDiv, HEIGHT, select[HEIGHT] = dy);
 
@@ -2640,11 +2642,6 @@ var uPlot = (function () {
 
 				if (dragging) {
 					// handle case when mousemove aren't fired all the way to edges by browser
-					var dLft = mouseLeft1;
-					var dRgt = plotWidCss - mouseLeft1;
-					var dTop = mouseTop1;
-					var dBtm = plotHgtCss - mouseTop1;
-
 					var snapX = true;
 					var snapY = true;
 					var snapProx = 10;
@@ -2656,6 +2653,9 @@ var uPlot = (function () {
 					}
 
 					if (dragX && snapX) {
+						var dLft = mouseLeft1;
+						var dRgt = plotWidCss - mouseLeft1;
+
 						var xMin = min(dLft, dRgt);
 
 						if (xMin == dLft)
@@ -2665,6 +2665,9 @@ var uPlot = (function () {
 					}
 
 					if (dragY && snapY) {
+						var dTop = mouseTop1;
+						var dBtm = plotHgtCss - mouseTop1;
+
 						var yMin = min(dTop, dBtm);
 
 						if (yMin == dTop)
@@ -2726,7 +2729,8 @@ var uPlot = (function () {
 			on(mousedown, over, mouseDown);
 			on(mousemove, over, mouseMove);
 			on(mouseenter, over, syncRect);
-			on(mouseleave, over, mouseLeave);
+			// this has to be rAF'd so it always fires after the last queued/rAF'd updateCursor
+			on(mouseleave, over, function (e) { rAF(mouseLeave); });
 
 			drag.setScale && on(dblclick, over, dblClick);
 

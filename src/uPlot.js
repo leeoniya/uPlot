@@ -1662,8 +1662,8 @@ export default function uPlot(opts, data, then) {
 			}
 			else {
 				// setSelect should not be triggered on move events
-				let dx = abs(mouseLeft0 - mouseLeft1);
-				let dy = abs(mouseTop0 - mouseTop1);
+				let dx = abs(mouseLeft1 - mouseLeft0);
+				let dy = abs(mouseTop1 - mouseTop0);
 
 				dragX = drag.x && dx >= drag.dist;
 				dragY = drag.y && dy >= drag.dist;
@@ -1691,6 +1691,7 @@ export default function uPlot(opts, data, then) {
 
 				if (dragX) {
 					let minX = min(mouseLeft0, mouseLeft1);
+
 					setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
 					setStylePx(selectDiv, WIDTH, select[WIDTH] = dx);
 
@@ -1702,6 +1703,7 @@ export default function uPlot(opts, data, then) {
 
 				if (dragY) {
 					let minY = min(mouseTop0, mouseTop1);
+
 					setStylePx(selectDiv, TOP,    select[TOP] = minY);
 					setStylePx(selectDiv, HEIGHT, select[HEIGHT] = dy);
 
@@ -1891,11 +1893,6 @@ export default function uPlot(opts, data, then) {
 
 			if (dragging) {
 				// handle case when mousemove aren't fired all the way to edges by browser
-				let dLft = mouseLeft1;
-				let dRgt = plotWidCss - mouseLeft1;
-				let dTop = mouseTop1;
-				let dBtm = plotHgtCss - mouseTop1;
-
 				let snapX = true;
 				let snapY = true;
 				let snapProx = 10;
@@ -1907,6 +1904,9 @@ export default function uPlot(opts, data, then) {
 				}
 
 				if (dragX && snapX) {
+					let dLft = mouseLeft1;
+					let dRgt = plotWidCss - mouseLeft1;
+
 					let xMin = min(dLft, dRgt);
 
 					if (xMin == dLft)
@@ -1916,6 +1916,9 @@ export default function uPlot(opts, data, then) {
 				}
 
 				if (dragY && snapY) {
+					let dTop = mouseTop1;
+					let dBtm = plotHgtCss - mouseTop1;
+
 					let yMin = min(dTop, dBtm);
 
 					if (yMin == dTop)
@@ -1977,7 +1980,8 @@ export default function uPlot(opts, data, then) {
 		on(mousedown, over, mouseDown);
 		on(mousemove, over, mouseMove);
 		on(mouseenter, over, syncRect);
-		on(mouseleave, over, mouseLeave);
+		// this has to be rAF'd so it always fires after the last queued/rAF'd updateCursor
+		on(mouseleave, over, e => { rAF(mouseLeave); });
 
 		drag.setScale && on(dblclick, over, dblClick);
 
