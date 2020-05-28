@@ -2300,8 +2300,12 @@ var uPlot = (function () {
 
 			var idx;
 
+			// when zooming to an x scale range between datapoints the binary search
+			// for nearest min/max indices results in this condition. cheap hack :D
+			var noDataInRange = i0 > i1;
+
 			// if cursor hidden, hide points & clear legend vals
-			if (mouseLeft1 < 0 || dataLen == 0) {
+			if (mouseLeft1 < 0 || dataLen == 0 || noDataInRange) {
 				idx = null;
 
 				for (var i = 0; i < series.length; i++) {
