@@ -1671,7 +1671,7 @@ export default function uPlot(opts, data, then) {
 					if (dragX && dragY) {
 						dragX = dx >= uni;
 						dragY = dy >= uni;
-	
+
 						// force unidirectionality when both are under uni limit
 						if (!dragX && !dragY) {
 							if (dy > dx)
@@ -1681,7 +1681,7 @@ export default function uPlot(opts, data, then) {
 						}
 					}
 				}
-				else if (drag.x && drag.y && dragX != dragY)
+				else if (drag.x && drag.y && (dragX || dragY))
 					// if omni with no uni then both dragX / dragY should be true if either is true
 					dragX = dragY = true;
 
@@ -1900,8 +1900,8 @@ export default function uPlot(opts, data, then) {
 					snapX = mouseLeft1 <= snapProx || mouseLeft1 >= plotWidCss - snapProx;
 					snapY = mouseTop1  <= snapProx || mouseTop1  >= plotHgtCss - snapProx;
 				}
-				
-				if (dragX && snapX) {	
+
+				if (dragX && snapX) {
 					let xMin = min(dLft, dRgt);
 
 					if (xMin == dLft)
@@ -1909,10 +1909,10 @@ export default function uPlot(opts, data, then) {
 					if (xMin == dRgt)
 						mouseLeft1 = plotWidCss;
 				}
-				
+
 				if (dragY && snapY) {
 					let yMin = min(dTop, dBtm);
-					
+
 					if (yMin == dTop)
 						mouseTop1 = 0;
 					if (yMin == dBtm)
