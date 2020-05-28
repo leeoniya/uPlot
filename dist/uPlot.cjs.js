@@ -2694,18 +2694,7 @@ function uPlot(opts, data, then) {
 	function dblClick(e, src, _x, _y, _w, _h, _i) {
 		autoScaleX();
 
-		if (src != null && select.show && (drag.x || drag.y)) {
-			if (drag.setScale)
-				{ hideSelect(); }
-			else {
-				setSelect({
-					left: 0,
-					width: plotWidCss,
-					top: 0,
-					height: plotHgtCss
-				});
-			}
-		}
+		hideSelect();
 
 		if (e != null)
 			{ sync.pub(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null); }
