@@ -34,7 +34,7 @@
 				hooks: {
 					init: [
 						u => {
-							u.ctx.canvas.ondblclick = e => {
+							u.root.querySelector(".over").ondblclick = e => {
 								console.log("Fetching data for full range");
 
 								u.setData(data);
