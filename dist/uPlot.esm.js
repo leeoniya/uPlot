@@ -2680,7 +2680,7 @@ function uPlot(opts, data, then) {
 	}
 
 	function dblClick(e, src, _x, _y, _w, _h, _i) {
-		drag.setScale && autoScaleX();
+		autoScaleX();
 
 		hideSelect();
 
@@ -2708,7 +2708,7 @@ function uPlot(opts, data, then) {
 		// this has to be rAF'd so it always fires after the last queued/rAF'd updateCursor
 		on(mouseleave, over, e => { rAF(mouseLeave); });
 
-		drag.setScale && on(dblclick, over, dblClick);
+		on(dblclick, over, dblClick);
 
 		deb = debounce(syncRect, 100);
 
