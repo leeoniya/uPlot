@@ -2680,7 +2680,7 @@ function uPlot(opts, data, then) {
 	}
 
 	function dblClick(e, src, _x, _y, _w, _h, _i) {
-		autoScaleX();
+		drag.setScale && autoScaleX();
 
 		hideSelect();
 
