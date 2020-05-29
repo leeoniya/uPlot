@@ -779,7 +779,8 @@ const yAxisOpts = {
 
 // takes stroke width
 function ptDia(width, mult) {
-	return max(round3(5 * mult), round3(width * mult) * 2 - 1);
+	let dia = 3 + (width || 1) * 2;
+	return round3(dia * mult);
 }
 
 function seriesPoints(self, si) {
@@ -1501,7 +1502,7 @@ function uPlot(opts, data, then) {
 		let s = series[si];
 		let p = s.points;
 
-		const width = round3(s[WIDTH] * pxRatio);
+		const width = round3(p.width * pxRatio);
 		const offset = (width % 2) / 2;
 		const isStroked = p.width > 0;
 

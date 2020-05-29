@@ -777,7 +777,8 @@ var uPlot = (function () {
 
 	// takes stroke width
 	function ptDia(width, mult) {
-		return max(round3(5 * mult), round3(width * mult) * 2 - 1);
+		var dia = 3 + (width || 1) * 2;
+		return round3(dia * mult);
 	}
 
 	function seriesPoints(self, si) {
@@ -1503,7 +1504,7 @@ var uPlot = (function () {
 			var s = series[si];
 			var p = s.points;
 
-			var width = round3(s[WIDTH] * pxRatio);
+			var width = round3(p.width * pxRatio);
 			var offset = (width % 2) / 2;
 			var isStroked = p.width > 0;
 

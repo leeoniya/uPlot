@@ -412,7 +412,8 @@ export const yAxisOpts = {
 
 // takes stroke width
 export function ptDia(width, mult) {
-	return max(round3(5 * mult), round3(width * mult) * 2 - 1);
+	let dia = 3 + (width || 1) * 2;
+	return round3(dia * mult);
 }
 
 function seriesPoints(self, si) {

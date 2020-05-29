@@ -763,7 +763,7 @@ export default function uPlot(opts, data, then) {
 		let s = series[si];
 		let p = s.points;
 
-		const width = round3(s[WIDTH] * pxRatio);
+		const width = round3(p.width * pxRatio);
 		const offset = (width % 2) / 2;
 		const isStroked = p.width > 0;
 
