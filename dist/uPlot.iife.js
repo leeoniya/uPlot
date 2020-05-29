@@ -2368,10 +2368,21 @@ var uPlot = (function () {
 
 			// nit: cursor.drag.setSelect is assumed always true
 			if (select.show && dragging) {
+				var dx = abs(mouseLeft1 - mouseLeft0);
+				var dy = abs(mouseTop1 - mouseTop0);
+
 				if (src != null) {
 					var ref = syncOpts.scales;
 					var xKey = ref[0];
 					var yKey = ref[1];
+
+					// match the dragX/dragY implicitness/explicitness of src
+					// using bit of a hack since the drag state is not exposed or published
+					var sbox = src.bbox;
+					var ssel = src.select;
+
+					dragX = ssel[WIDTH]  < sbox[WIDTH]  / pxRatio;
+					dragY = ssel[HEIGHT] < sbox[HEIGHT] / pxRatio;
 
 					if (xKey) {
 						var sc = scales[xKey];
@@ -2408,10 +2419,6 @@ var uPlot = (function () {
 					}
 				}
 				else {
-					// setSelect should not be triggered on move events
-					var dx = abs(mouseLeft1 - mouseLeft0);
-					var dy = abs(mouseTop1 - mouseTop0);
-
 					dragX = drag.x && dx >= drag.dist;
 					dragY = drag.y && dy >= drag.dist;
 
@@ -2593,10 +2600,10 @@ var uPlot = (function () {
 				hasSelect && setSelect(select);
 
 				if (drag.setScale && hasSelect) {
-					if (syncKey != null) {
-						dragX = drag.x;
-						dragY = drag.y;
-					}
+				//	if (syncKey != null) {
+				//		dragX = drag.x;
+				//		dragY = drag.y;
+				//	}
 
 					batch(function () {
 						if (dragX) {

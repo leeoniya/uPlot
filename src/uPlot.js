@@ -1623,8 +1623,19 @@ export default function uPlot(opts, data, then) {
 
 		// nit: cursor.drag.setSelect is assumed always true
 		if (select.show && dragging) {
+			let dx = abs(mouseLeft1 - mouseLeft0);
+			let dy = abs(mouseTop1 - mouseTop0);
+
 			if (src != null) {
 				let [xKey, yKey] = syncOpts.scales;
+
+				// match the dragX/dragY implicitness/explicitness of src
+				// using bit of a hack since the drag state is not exposed or published
+				let sbox = src.bbox;
+				let ssel = src.select;
+
+				dragX = ssel[WIDTH]  < sbox[WIDTH]  / pxRatio;
+				dragY = ssel[HEIGHT] < sbox[HEIGHT] / pxRatio;
 
 				if (xKey) {
 					let sc = scales[xKey];
@@ -1661,10 +1672,6 @@ export default function uPlot(opts, data, then) {
 				}
 			}
 			else {
-				// setSelect should not be triggered on move events
-				let dx = abs(mouseLeft1 - mouseLeft0);
-				let dy = abs(mouseTop1 - mouseTop0);
-
 				dragX = drag.x && dx >= drag.dist;
 				dragY = drag.y && dy >= drag.dist;
 
@@ -1844,10 +1851,10 @@ export default function uPlot(opts, data, then) {
 			hasSelect && setSelect(select);
 
 			if (drag.setScale && hasSelect) {
-				if (syncKey != null) {
-					dragX = drag.x;
-					dragY = drag.y;
-				}
+			//	if (syncKey != null) {
+			//		dragX = drag.x;
+			//		dragY = drag.y;
+			//	}
 
 				batch(() => {
 					if (dragX) {

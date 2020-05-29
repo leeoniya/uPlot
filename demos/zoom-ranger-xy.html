@@ -35,8 +35,10 @@
 				data[1][i] = y;
 			}
 
-			let initXmin = 1;
-			let initXmax = 4.5;
+			let initXmin =  1.0;
+			let initXmax =  4.5;
+		//	let initYmin = -1.5;
+		//	let initYmax =  1.5;
 
 			const rangerOpts = {
 				width: 800,
@@ -64,11 +66,17 @@
 					x: {
 						time: false,
 					},
+				//	y: {
+				//		auto: false,
+				//		min: initYmin,
+				//		max: initYmax,
+				//		range: () => [initYmin, initYmax],
+				//	},
 				},
 				series: [
 					{},
 					{
-						stroke: "rgba(0,0,0,0.8)",
+						stroke: "purple",
 					}
 				],
 				hooks: {
@@ -93,8 +101,8 @@
 					drag: {
 						x: true,
 						y: true,
-						dist: 40,
-						uni: 40
+						dist: 10,
+						uni: 20
 					},
 					sync: {
 						key: "moo",
@@ -107,6 +115,12 @@
 						min: initXmin,
 						max: initXmax,
 					},
+				//	y: {
+				//		auto: false,
+				//		min: initYmin,
+				//		max: initYmax,
+				//		range: () => [initYmin, initYmax],
+				//	},
 				},
 				series: [
 					{
