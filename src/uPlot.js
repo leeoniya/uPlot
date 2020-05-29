@@ -1529,6 +1529,65 @@ export default function uPlot(opts, data, then) {
 
 	self.batch = batch;
 
+	const _rect = {left: 0, top: 0, width: 0, height: 0};
+
+	function toLocalRect(src, lft, top, wid, hgt, targ) {
+		targ = targ || _rect;
+
+		let [xKey, yKey] = syncOpts.scales;
+
+		if (xKey) {
+			let sc         = scales[xKey];
+			let srcLft     = src.posToVal(lft,       xKey);
+			let srcRgt     = src.posToVal(lft + wid, xKey);
+
+			targ[LEFT]     = getXPos(srcLft, sc, plotWidCss, 0);
+			targ[WIDTH]    = abs(targ[LEFT] - getXPos(srcRgt, sc, plotWidCss, 0));
+
+			if (targ == select) {
+				setStylePx(selectDiv, LEFT,  targ[LEFT]);
+				setStylePx(selectDiv, WIDTH, targ[WIDTH]);
+			}
+
+			if (!yKey) {
+				targ[TOP]    = 0;
+				targ[HEIGHT] = plotHgtCss;
+
+				if (targ == select) {
+					setStylePx(selectDiv, TOP,    targ[TOP]);
+					setStylePx(selectDiv, HEIGHT, targ[HEIGHT]);
+				}
+			}
+		}
+
+		if (yKey) {
+			let sc         = scales[yKey];
+			let srcTop     = src.posToVal(top,       yKey);
+			let srcBtm     = src.posToVal(top + hgt, yKey);
+
+			targ[TOP]      = getYPos(srcTop, sc, plotHgtCss, 0);
+			targ[HEIGHT]   = abs(targ[TOP] - getYPos(srcBtm, sc, plotHgtCss, 0));
+
+			if (targ == select) {
+				setStylePx(selectDiv, TOP,    targ[TOP]);
+				setStylePx(selectDiv, HEIGHT, targ[HEIGHT]);
+			}
+
+			if (!xKey) {
+				targ[LEFT]  = 0;
+				targ[WIDTH] = plotWidCss;
+
+				if (targ == select) {
+					setStylePx(selectDiv, LEFT,  targ[LEFT]);
+					setStylePx(selectDiv, WIDTH, targ[WIDTH]);
+				}
+			}
+		}
+
+
+		return targ;
+	}
+
 	FEAT_CURSOR && (self.setCursor = opts => {
 		mouseLeft1 = opts.left;
 		mouseTop1 = opts.top;
@@ -1624,41 +1683,8 @@ export default function uPlot(opts, data, then) {
 		// nit: cursor.drag.setSelect is assumed always true
 		if (select.show && dragging) {
 			if (src != null) {
-				let [xKey, yKey] = syncOpts.scales;
-
-				if (xKey) {
-					let sc = scales[xKey];
-					let srcLeft = src.posToVal(src.select[LEFT], xKey);
-					let srcRight = src.posToVal(src.select[LEFT] + src.select[WIDTH], xKey);
-
-					select[LEFT] = getXPos(srcLeft, sc, plotWidCss, 0);
-					select[WIDTH] = abs(select[LEFT] - getXPos(srcRight, sc, plotWidCss, 0));
-
-					setStylePx(selectDiv, LEFT, select[LEFT]);
-					setStylePx(selectDiv, WIDTH, select[WIDTH]);
-
-					if (!yKey) {
-						setStylePx(selectDiv, TOP, select[TOP] = 0);
-						setStylePx(selectDiv, HEIGHT, select[HEIGHT] = plotHgtCss);
-					}
-				}
-
-				if (yKey) {
-					let sc = scales[yKey];
-					let srcTop = src.posToVal(src.select[TOP], yKey);
-					let srcBottom = src.posToVal(src.select[TOP] + src.select[HEIGHT], yKey);
-
-					select[TOP] = getYPos(srcTop, sc, plotHgtCss, 0);
-					select[HEIGHT] = abs(select[TOP] - getYPos(srcBottom, sc, plotHgtCss, 0));
-
-					setStylePx(selectDiv, TOP, select[TOP]);
-					setStylePx(selectDiv, HEIGHT, select[HEIGHT]);
-
-					if (!xKey) {
-						setStylePx(selectDiv, LEFT, select[LEFT] = 0);
-						setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
-					}
-				}
+				let sel = src.select;
+				toLocalRect(src, sel[LEFT], sel[TOP], sel[WIDTH], sel[HEIGHT], select);
 			}
 			else {
 				// setSelect should not be triggered on move events
@@ -1833,6 +1859,30 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
+	function setRectScales(_rect) {
+		batch(() => {
+			if (dragX) {
+				_setScale(xScaleKey,
+					scaleValueAtPos(_rect[LEFT], xScaleKey),
+					scaleValueAtPos(_rect[LEFT] + _rect[WIDTH], xScaleKey)
+				);
+			}
+
+			if (dragY) {
+				for (let k in scales) {
+					let sc = scales[k];
+
+					if (k != xScaleKey && sc.from == null) {
+						_setScale(k,
+							scaleValueAtPos(_rect[TOP] + _rect[HEIGHT], k),
+							scaleValueAtPos(_rect[TOP], k)
+						);
+					}
+				}
+			}
+		});
+	}
+
 	function mouseUp(e, src, _x, _y, _w, _h, _i) {
 		if (src != null || filtMouse(e)) {
 			dragging = false;
@@ -1849,27 +1899,7 @@ export default function uPlot(opts, data, then) {
 					dragY = drag.y;
 				}
 
-				batch(() => {
-					if (dragX) {
-						_setScale(xScaleKey,
-							scaleValueAtPos(select[LEFT], xScaleKey),
-							scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
-						);
-					}
-
-					if (dragY) {
-						for (let k in scales) {
-							let sc = scales[k];
-
-							if (k != xScaleKey && sc.from == null) {
-								_setScale(k,
-									scaleValueAtPos(select[TOP] + select[HEIGHT], k),
-									scaleValueAtPos(select[TOP], k)
-								);
-							}
-						}
-					}
-				});
+				setRectScales(select);
 
 				hideSelect();
 			}
@@ -1944,12 +1974,16 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function dblClick(e, src, _x, _y, _w, _h, _i) {
-		autoScaleX();
+		if (src == null) {
+			autoScaleX();
+			sync.pub(dblclick, self, 0, 0, plotWidCss, plotHgtCss, null);
+		}
+		else if (select.show) {
+			if (drag.setScale)
+				setRectScales(toLocalRect(src, _x, _y, _w, _h));
 
-		hideSelect();
-
-		if (e != null)
-			sync.pub(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
+			hideSelect();
+		}
 	}
 
 	// internal pub/sub
