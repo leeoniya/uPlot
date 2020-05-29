@@ -672,7 +672,9 @@ var uPlot = (function () {
 			x: true,
 			y: false,
 			dist: 0,
-			uni: null
+			uni: null,
+			_x: false,
+			_y: false,
 		},
 
 		focus: {
@@ -2377,12 +2379,9 @@ var uPlot = (function () {
 					var yKey = ref[1];
 
 					// match the dragX/dragY implicitness/explicitness of src
-					// using bit of a hack since the drag state is not exposed or published
-					var sbox = src.bbox;
-					var ssel = src.select;
-
-					dragX = ssel[WIDTH]  < sbox[WIDTH]  / pxRatio;
-					dragY = ssel[HEIGHT] < sbox[HEIGHT] / pxRatio;
+					var sdrag = src.cursor.drag;
+					dragX = sdrag._x;
+					dragY = sdrag._y;
 
 					if (xKey) {
 						var sc = scales[xKey];
@@ -2475,6 +2474,12 @@ var uPlot = (function () {
 				}
 			}
 
+			cursor.idx = idx;
+			cursor.left = mouseLeft1;
+			cursor.top = mouseTop1;
+			drag._x = dragX;
+			drag._y = dragY;
+
 			// if ts is present, means we're implicitly syncing own cursor as a result of debounced rAF
 			if (ts != null) {
 				// this is not technically a "mousemove" event, since it's debounced, rename to setCursor?
@@ -2496,10 +2501,6 @@ var uPlot = (function () {
 					setSeries(fi, {focus: true}, syncOpts.setSeries);
 				}
 			}
-
-			cursor.idx = idx;
-			cursor.left = mouseLeft1;
-			cursor.top = mouseTop1;
 
 			ready && fire("setCursor");
 		}
@@ -2579,6 +2580,7 @@ var uPlot = (function () {
 		function mouseDown(e, src, _x, _y, _w, _h, _i) {
 			if (src != null || filtMouse(e)) {
 				dragging = true;
+				dragX = dragY = drag._x = drag._y = false;
 
 				cacheMouse(e, src, _x, _y, _w, _h, _i, true, false);
 
@@ -2591,7 +2593,7 @@ var uPlot = (function () {
 
 		function mouseUp(e, src, _x, _y, _w, _h, _i) {
 			if (src != null || filtMouse(e)) {
-				dragging = false;
+				dragging = drag._x = drag._y = false;
 
 				cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
 

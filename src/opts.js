@@ -307,7 +307,9 @@ export const cursorOpts = {
 		x: true,
 		y: false,
 		dist: 0,
-		uni: null
+		uni: null,
+		_x: false,
+		_y: false,
 	},
 
 	focus: {
