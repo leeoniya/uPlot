@@ -453,8 +453,8 @@ export const xScaleOpts = {
 	time: FEAT_TIME,
 	auto: false,
 	distr: 1,
-	min:  inf,
-	max: -inf,
+	min: null,
+	max: null,
 };
 
 export const yScaleOpts = assign({}, xScaleOpts, {

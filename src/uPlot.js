@@ -208,7 +208,7 @@ export default function uPlot(opts, data, then) {
 
 	const series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
 	const axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
-	const scales  = self.scales = (opts.scales = opts.scales || {});
+	const scales  = self.scales = assign({}, {x: xScaleOpts, y: yScaleOpts}, opts.scales);
 
 	const gutters = assign({
 		x: round(yAxisOpts.size / 2),

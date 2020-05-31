@@ -817,8 +817,8 @@ var xScaleOpts = {
 	time: true,
 	auto: false,
 	distr: 1,
-	min:  inf,
-	max: -inf,
+	min: null,
+	max: null,
 };
 
 var yScaleOpts = assign({}, xScaleOpts, {
@@ -945,7 +945,7 @@ function uPlot(opts, data, then) {
 
 	var series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
 	var axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
-	var scales  = self.scales = (opts.scales = opts.scales || {});
+	var scales  = self.scales = assign({}, {x: xScaleOpts, y: yScaleOpts}, opts.scales);
 
 	var gutters = assign({
 		x: round(yAxisOpts.size / 2),
