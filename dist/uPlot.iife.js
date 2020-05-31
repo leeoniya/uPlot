@@ -2354,7 +2354,7 @@ var uPlot = (function () {
 						{ distsToCursor[i$1] = inf; }
 
 					if (showLegend) {
-						if (i$1 == 0 && multiValLegend)
+						if (idx == cursor.idx || i$1 == 0 && multiValLegend)
 							{ continue; }
 
 						var src$1 = i$1 == 0 && xScaleDistr == 2 ? data0 : data[i$1];

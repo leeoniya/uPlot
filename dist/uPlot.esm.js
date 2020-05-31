@@ -2345,7 +2345,7 @@ function uPlot(opts, data, then) {
 					distsToCursor[i] = inf;
 
 				if (showLegend) {
-					if (i == 0 && multiValLegend)
+					if (idx == cursor.idx || i == 0 && multiValLegend)
 						continue;
 
 					let src = i == 0 && xScaleDistr == 2 ? data0 : data[i];
