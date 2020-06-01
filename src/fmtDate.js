@@ -133,7 +133,15 @@ export function fmtDate(tpl, names) {
 
 // https://stackoverflow.com/questions/15141762/how-to-initialize-a-javascript-date-to-a-particular-time-zone/53652131#53652131
 export function tzDate(date, tz) {
-	let date2 = new Date(date.toLocaleString('en-US', {timeZone: tz}));
-	date2.setMilliseconds(date[getMilliseconds]());
+	let date2;
+
+	// perf optimization
+	if (tz == 'Etc/UTC')
+		date2 = new Date(date.getTime() + date.getTimezoneOffset() * 6e4);
+	else {
+		date2 = new Date(date.toLocaleString('en-US', {timeZone: tz}));
+		date2.setMilliseconds(date[getMilliseconds]());
+	}
+
 	return date2;
 }
