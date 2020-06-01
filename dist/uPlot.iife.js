@@ -402,7 +402,7 @@ var uPlot = (function () {
 
 		// perf optimization
 		if (tz == 'Etc/UTC')
-			{ date2 = new Date(date.getTime() + date.getTimezoneOffset() * 6e4); }
+			{ date2 = new Date(+date + date.getTimezoneOffset() * 6e4); }
 		else {
 			date2 = new Date(date.toLocaleString('en-US', {timeZone: tz}));
 			date2.setMilliseconds(date[getMilliseconds]());
