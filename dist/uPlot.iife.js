@@ -133,10 +133,6 @@ var uPlot = (function () {
 		return typeof v == "function" ? v : function () { return v; };
 	}
 
-	function retArg2(a, b) {
-		return b;
-	}
-
 	function incrRoundUp(num, incr) {
 		return ceil(num/incr)*incr;
 	}
@@ -801,6 +797,7 @@ var uPlot = (function () {
 		scale: "y",
 		show: true,
 		band: false,
+		spanGaps: false,
 		alpha: 1,
 		points: {
 			show: seriesPoints,
@@ -1090,8 +1087,6 @@ var uPlot = (function () {
 			var isTime =  sc.time;
 
 			sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : i == 0 ? snapNumX : snapNumY));
-
-			s.spanGaps = s.spanGaps === true ? retArg2 : fnOrSelf(s.spanGaps || []);
 
 			var sv = s.value;
 			s.value = isTime ? (isStr(sv) ? timeSeriesVal(_tzDate, timeSeriesStamp(sv, _fmtDate)) : sv || _timeSeriesVal) : sv || numSeriesVal;
@@ -1664,10 +1659,19 @@ var uPlot = (function () {
 				{ dir *= -1; }
 		}
 
-		function buildClip(is, gaps) {
+		function buildClip(is, gaps, nullHead, nullTail) {
 			var s = series[is];
-			var toSpan = new Set(s.spanGaps(self, gaps, is));
-			gaps = gaps.filter(function (g) { return !toSpan.has(g); });
+
+			if (s.spanGaps) {
+				var headGap = gaps[0];
+				var tailGap = gaps[gaps.length - 1];
+				gaps = [];
+
+				if (nullHead)
+					{ gaps.push(headGap); }
+				if (nullTail)
+					{ gaps.push(tailGap); }
+			}
 
 			var clip = null;
 
@@ -1791,7 +1795,7 @@ var uPlot = (function () {
 			}
 
 			if (dir == 1) {
-				_paths.clip = buildClip(is, gaps);
+				_paths.clip = buildClip(is, gaps, ydata[_i0] == null, ydata[_i1] == null);
 
 				if (s.fill != null) {
 					var fill = _paths.fill = new Path2D(stroke);

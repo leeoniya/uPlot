@@ -428,6 +428,7 @@ export const ySeriesOpts = {
 	scale: "y",
 	show: true,
 	band: false,
+	spanGaps: false,
 	alpha: 1,
 	points: {
 		show: seriesPoints,

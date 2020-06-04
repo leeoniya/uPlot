@@ -289,9 +289,6 @@ declare namespace uPlot {
 		max?: number,
 	}
 
-	/** a min,max tuple of canvas pixel offsets */
-	export type DataGap = [number, number];
-
 	export interface Series {
 		/** series on/off. when off, it will not affect its scale */
 		show?: boolean;
@@ -302,8 +299,8 @@ declare namespace uPlot {
 		/** scale key */
 		scale?: string;
 
-		/** when true, null data values will not cause line breaks. when fn, should filter and return gaps to span */
-		spanGaps?: boolean | ((self: uPlot, foundGaps: Array<DataGap>, seriesIdx: number) => Array<DataGap>);
+		/** when true, null data values will not cause line breaks */
+		spanGaps?: boolean;
 
 		/** legend label */
 		label?: string;
