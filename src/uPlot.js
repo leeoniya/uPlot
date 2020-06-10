@@ -945,6 +945,15 @@ export default function uPlot(opts, data, then) {
 		return clip;
 	}
 
+	function addGap(gaps, outX, x) {
+		let prevGap = gaps[gaps.length - 1];
+
+		if (prevGap && prevGap[0] == outX)			// TODO: gaps must be encoded at stroke widths?
+			prevGap[1] = x;
+		else
+			gaps.push([outX, x]);
+	}
+
 	function buildPaths(self, is, _i0, _i1) {
 		const s = series[is];
 
@@ -986,7 +995,7 @@ export default function uPlot(opts, data, then) {
 				}
 			}
 			else {
-				let addGap = false;
+				let _addGap = false;
 
 				if (minY != inf) {
 					stroke.lineTo(accX, minY);
@@ -995,7 +1004,7 @@ export default function uPlot(opts, data, then) {
 					outX = accX;
 				}
 				else
-					addGap = true;
+					_addGap = true;
 
 				if (ydata[i] != null) {
 					outY = round(getYPos(ydata[i], scaleY, plotHgt, plotTop));
@@ -1004,25 +1013,22 @@ export default function uPlot(opts, data, then) {
 
 					// prior pixel can have data but still start a gap if ends with null
 					if (x - accX > 1 && ydata[i-1] == null)
-						addGap = true;
+						_addGap = true;
 				}
 				else {
 					minY = inf;
 					maxY = -inf;
 				}
 
-				if (addGap) {
-					let prevGap = gaps[gaps.length - 1];
-
-					if (prevGap && prevGap[0] == outX)			// TODO: gaps must be encoded at stroke widths?
-						prevGap[1] = x;
-					else
-						gaps.push([outX, x]);
-				}
+				_addGap && addGap(gaps, outX, x);
 
 				accX = x;
 			}
 		}
+
+		// extend or insert rightmost gap if no data exists to the right
+		if (ydata[_i1] == null)
+			addGap(gaps, outX, accX);
 
 		if (s.band) {
 			let overShoot = width * 100, _iy, _x;
