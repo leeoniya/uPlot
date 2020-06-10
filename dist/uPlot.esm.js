@@ -1657,21 +1657,21 @@ function uPlot(opts, data, then) {
 	function buildClip(is, gaps, nullHead, nullTail) {
 		let s = series[is];
 
-		if (s.spanGaps) {
-			let headGap = gaps[0];
-			let tailGap = gaps[gaps.length - 1];
-			gaps = [];
-
-			if (nullHead)
-				gaps.push(headGap);
-			if (nullTail)
-				gaps.push(tailGap);
-		}
-
 		let clip = null;
 
 		// create clip path (invert gaps and non-gaps)
 		if (gaps.length > 0) {
+			if (s.spanGaps) {
+				let headGap = gaps[0];
+				let tailGap = gaps[gaps.length - 1];
+				gaps = [];
+
+				if (nullHead)
+					gaps.push(headGap);
+				if (nullTail)
+					gaps.push(tailGap);
+			}
+
 			clip = new Path2D();
 
 			let prevGapEnd = plotLft;

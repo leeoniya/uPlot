@@ -1662,21 +1662,21 @@ var uPlot = (function () {
 		function buildClip(is, gaps, nullHead, nullTail) {
 			var s = series[is];
 
-			if (s.spanGaps) {
-				var headGap = gaps[0];
-				var tailGap = gaps[gaps.length - 1];
-				gaps = [];
-
-				if (nullHead)
-					{ gaps.push(headGap); }
-				if (nullTail)
-					{ gaps.push(tailGap); }
-			}
-
 			var clip = null;
 
 			// create clip path (invert gaps and non-gaps)
 			if (gaps.length > 0) {
+				if (s.spanGaps) {
+					var headGap = gaps[0];
+					var tailGap = gaps[gaps.length - 1];
+					gaps = [];
+
+					if (nullHead)
+						{ gaps.push(headGap); }
+					if (nullTail)
+						{ gaps.push(tailGap); }
+				}
+
 				clip = new Path2D();
 
 				var prevGapEnd = plotLft;
