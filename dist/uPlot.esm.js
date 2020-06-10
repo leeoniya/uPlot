@@ -1575,7 +1575,7 @@ function uPlot(opts, data, then) {
 	function drawSeries() {
 		// path building loop must be before draw loop to ensure that all bands are fully constructed
 		series.forEach((s, i) => {
-			if (i > 0 && s.show && s._paths == null) {
+			if (i > 0 && s.show && dataLen > 0 && s._paths == null) {
 				let _idxs = getOuterIdxs(data[i]);
 				s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
 			}
