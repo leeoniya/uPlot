@@ -52,11 +52,11 @@ import {
 	win,
 	pxRatio,
 
-	addClass,
-	remClass,
+	addClass as addClassOrig,
+	remClass as remClassOrig,
 	setStylePx,
-	placeTag,
-	placeDiv,
+	placeTag as placeTagOrig,
+	placeDiv as placeDivOrig,
 	trans,
 	on,
 	off,
@@ -175,6 +175,12 @@ function pxRatioFont(font) {
 
 export default function uPlot(opts, data, then) {
 	const self = {};
+
+	const classMap = opts.classMap || (c => c);
+	const addClass = (el, c) => addClassOrig(el, classMap(c));
+	const remClass = (el, c) => remClassOrig(el, classMap(c));
+	const placeTag = (tag, cls, targ, refEl) => placeTagOrig(tag, classMap(cls), targ, refEl);
+	const placeDiv = (cls, targ) => placeDivOrig(classMap(cls), targ);
 
 	const root = self.root = placeDiv("uplot");
 

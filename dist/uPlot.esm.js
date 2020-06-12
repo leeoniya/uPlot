@@ -922,25 +922,31 @@ function pxRatioFont(font) {
 function uPlot(opts, data, then) {
 	const self = {};
 
-	const root = self.root = placeDiv("uplot");
+	const classMap = opts.classMap || (c => c);
+	const addClass$1 = (el, c) => addClass(el, classMap(c));
+	const remClass$1 = (el, c) => remClass(el, classMap(c));
+	const placeTag$1 = (tag, cls, targ, refEl) => placeTag(tag, classMap(cls), targ, refEl);
+	const placeDiv$1 = (cls, targ) => placeDiv(classMap(cls), targ);
+
+	const root = self.root = placeDiv$1("uplot");
 
 	if (opts.id != null)
 		root.id = opts.id;
 
-	addClass(root, opts.class);
+	addClass$1(root, opts.class);
 
 	if (opts.title) {
-		let title = placeDiv("title", root);
+		let title = placeDiv$1("title", root);
 		title.textContent = opts.title;
 	}
 
-	const can = placeTag("canvas");
+	const can = placeTag$1("canvas");
 	const ctx = self.ctx = can.getContext("2d");
 
-	const wrap = placeDiv("wrap", root);
-	const under = placeDiv("under", wrap);
+	const wrap = placeDiv$1("wrap", root);
+	const under = placeDiv$1("under", wrap);
 	wrap.appendChild(can);
-	const over = placeDiv("over", wrap);
+	const over = placeDiv$1("over", wrap);
 
 	opts = copy(opts);
 
@@ -987,22 +993,22 @@ function uPlot(opts, data, then) {
 	let multiValLegend = false;
 
 	if (showLegend) {
-		legendEl = placeTag("table", "legend", root);
+		legendEl = placeTag$1("table", "legend", root);
 
 		const getMultiVals = series[1] ? series[1].values : null;
 		multiValLegend = getMultiVals != null;
 
 		if (multiValLegend) {
-			let head = placeTag("tr", "labels", legendEl);
-			placeTag("th", null, head);
+			let head = placeTag$1("tr", "labels", legendEl);
+			placeTag$1("th", null, head);
 			legendCols = getMultiVals(self, 1, 0);
 
 			for (var key in legendCols)
-				placeTag("th", null, head).textContent = key;
+				placeTag$1("th", null, head).textContent = key;
 		}
 		else {
 			legendCols = {_: 0};
-			addClass(legendEl, "inline");
+			addClass$1(legendEl, "inline");
 		}
 	}
 
@@ -1012,20 +1018,20 @@ function uPlot(opts, data, then) {
 
 		let _row = [];
 
-		let row = placeTag("tr", "series", legendEl, legendEl.childNodes[i]);
+		let row = placeTag$1("tr", "series", legendEl, legendEl.childNodes[i]);
 
-		addClass(row, s.class);
+		addClass$1(row, s.class);
 
 		if (!s.show)
-			addClass(row, "off");
+			addClass$1(row, "off");
 
-		let label = placeTag("th", null, row);
+		let label = placeTag$1("th", null, row);
 
-		let indic = placeDiv("ident", label);
+		let indic = placeDiv$1("ident", label);
 		s.width && (indic.style.borderColor = s.stroke);
 		indic.style.backgroundColor = s.fill;
 
-		let text = placeDiv("text", label);
+		let text = placeDiv$1("text", label);
 		text.textContent = s.label;
 
 		if (i > 0) {
@@ -1047,7 +1053,7 @@ function uPlot(opts, data, then) {
 		}
 
 		for (var key in legendCols) {
-			let v = placeTag("td", null, row);
+			let v = placeTag$1("td", null, row);
 			v.textContent = "--";
 			_row.push(v);
 		}
@@ -1070,8 +1076,8 @@ function uPlot(opts, data, then) {
 			let pt = cursor.points.show(self, si);
 
 			if (pt) {
-				addClass(pt, "cursor-pt");
-				addClass(pt, s.class);
+				addClass$1(pt, "cursor-pt");
+				addClass$1(pt, s.class);
 				trans(pt, -10, -10);
 				over.insertBefore(pt, cursorPts[si]);
 
@@ -2107,12 +2113,12 @@ function uPlot(opts, data, then) {
 
 		if (cursor.x) {
 			mouseLeft1 = cursor.left;
-			vt = placeDiv(c + "x", over);
+			vt = placeDiv$1(c + "x", over);
 		}
 
 		if (cursor.y) {
 			mouseTop1 = cursor.top;
-			hz = placeDiv(c + "y", over);
+			hz = placeDiv$1(c + "y", over);
 		}
 	}
 
@@ -2124,7 +2130,7 @@ function uPlot(opts, data, then) {
 		height:	0,
 	}, opts.select);
 
-	const selectDiv = select.show ? placeDiv("select", over) : null;
+	const selectDiv = select.show ? placeDiv$1("select", over) : null;
 
 	function setSelect(opts, _fire) {
 		if (select.show) {
@@ -2142,9 +2148,9 @@ function uPlot(opts, data, then) {
 		let label = showLegend ? legendRows[i][0].parentNode : null;
 
 		if (s.show)
-			label && remClass(label, "off");
+			label && remClass$1(label, "off");
 		else {
-			label && addClass(label, "off");
+			label && addClass$1(label, "off");
 			 cursorPts.length > 1 && trans(cursorPts[i], 0, -10);
 		}
 	}

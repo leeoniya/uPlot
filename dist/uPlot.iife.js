@@ -920,25 +920,31 @@ var uPlot = (function () {
 	function uPlot(opts, data, then) {
 		var self = {};
 
-		var root = self.root = placeDiv("uplot");
+		var classMap = opts.classMap || (function (c) { return c; });
+		var addClass$1 = function (el, c) { return addClass(el, classMap(c)); };
+		var remClass$1 = function (el, c) { return remClass(el, classMap(c)); };
+		var placeTag$1 = function (tag, cls, targ, refEl) { return placeTag(tag, classMap(cls), targ, refEl); };
+		var placeDiv$1 = function (cls, targ) { return placeDiv(classMap(cls), targ); };
+
+		var root = self.root = placeDiv$1("uplot");
 
 		if (opts.id != null)
 			{ root.id = opts.id; }
 
-		addClass(root, opts.class);
+		addClass$1(root, opts.class);
 
 		if (opts.title) {
-			var title = placeDiv("title", root);
+			var title = placeDiv$1("title", root);
 			title.textContent = opts.title;
 		}
 
-		var can = placeTag("canvas");
+		var can = placeTag$1("canvas");
 		var ctx = self.ctx = can.getContext("2d");
 
-		var wrap = placeDiv("wrap", root);
-		var under = placeDiv("under", wrap);
+		var wrap = placeDiv$1("wrap", root);
+		var under = placeDiv$1("under", wrap);
 		wrap.appendChild(can);
-		var over = placeDiv("over", wrap);
+		var over = placeDiv$1("over", wrap);
 
 		opts = copy(opts);
 
@@ -985,22 +991,22 @@ var uPlot = (function () {
 		var multiValLegend = false;
 
 		if (showLegend) {
-			legendEl = placeTag("table", "legend", root);
+			legendEl = placeTag$1("table", "legend", root);
 
 			var getMultiVals = series[1] ? series[1].values : null;
 			multiValLegend = getMultiVals != null;
 
 			if (multiValLegend) {
-				var head = placeTag("tr", "labels", legendEl);
-				placeTag("th", null, head);
+				var head = placeTag$1("tr", "labels", legendEl);
+				placeTag$1("th", null, head);
 				legendCols = getMultiVals(self, 1, 0);
 
 				for (var key in legendCols)
-					{ placeTag("th", null, head).textContent = key; }
+					{ placeTag$1("th", null, head).textContent = key; }
 			}
 			else {
 				legendCols = {_: 0};
-				addClass(legendEl, "inline");
+				addClass$1(legendEl, "inline");
 			}
 		}
 
@@ -1010,20 +1016,20 @@ var uPlot = (function () {
 
 			var _row = [];
 
-			var row = placeTag("tr", "series", legendEl, legendEl.childNodes[i]);
+			var row = placeTag$1("tr", "series", legendEl, legendEl.childNodes[i]);
 
-			addClass(row, s.class);
+			addClass$1(row, s.class);
 
 			if (!s.show)
-				{ addClass(row, "off"); }
+				{ addClass$1(row, "off"); }
 
-			var label = placeTag("th", null, row);
+			var label = placeTag$1("th", null, row);
 
-			var indic = placeDiv("ident", label);
+			var indic = placeDiv$1("ident", label);
 			s.width && (indic.style.borderColor = s.stroke);
 			indic.style.backgroundColor = s.fill;
 
-			var text = placeDiv("text", label);
+			var text = placeDiv$1("text", label);
 			text.textContent = s.label;
 
 			if (i > 0) {
@@ -1045,7 +1051,7 @@ var uPlot = (function () {
 			}
 
 			for (var key in legendCols) {
-				var v = placeTag("td", null, row);
+				var v = placeTag$1("td", null, row);
 				v.textContent = "--";
 				_row.push(v);
 			}
@@ -1068,8 +1074,8 @@ var uPlot = (function () {
 				var pt = cursor.points.show(self, si);
 
 				if (pt) {
-					addClass(pt, "cursor-pt");
-					addClass(pt, s.class);
+					addClass$1(pt, "cursor-pt");
+					addClass$1(pt, s.class);
 					trans(pt, -10, -10);
 					over.insertBefore(pt, cursorPts[si]);
 
@@ -2116,12 +2122,12 @@ var uPlot = (function () {
 
 			if (cursor.x) {
 				mouseLeft1 = cursor.left;
-				vt = placeDiv(c + "x", over);
+				vt = placeDiv$1(c + "x", over);
 			}
 
 			if (cursor.y) {
 				mouseTop1 = cursor.top;
-				hz = placeDiv(c + "y", over);
+				hz = placeDiv$1(c + "y", over);
 			}
 		}
 
@@ -2133,7 +2139,7 @@ var uPlot = (function () {
 			height:	0,
 		}, opts.select);
 
-		var selectDiv = select.show ? placeDiv("select", over) : null;
+		var selectDiv = select.show ? placeDiv$1("select", over) : null;
 
 		function setSelect(opts, _fire) {
 			if (select.show) {
@@ -2151,9 +2157,9 @@ var uPlot = (function () {
 			var label = showLegend ? legendRows[i][0].parentNode : null;
 
 			if (s.show)
-				{ label && remClass(label, "off"); }
+				{ label && remClass$1(label, "off"); }
 			else {
-				label && addClass(label, "off");
+				label && addClass$1(label, "off");
 				 cursorPts.length > 1 && trans(cursorPts[i], 0, -10);
 			}
 		}
