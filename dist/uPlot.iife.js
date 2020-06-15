@@ -1482,8 +1482,6 @@ var uPlot = (function () {
 						sc.max = wsc$3.max;
 						changed[k$3] = true;
 					}
-
-					pendScales[k$3] = null;
 				}
 
 				// invalidate paths of all series on changed scales
@@ -1495,6 +1493,9 @@ var uPlot = (function () {
 				for (var k$4 in changed)
 					{ fire("setScale", k$4); }
 			}
+
+			for (var k$5 in pendScales)
+				{ pendScales[k$5] = null; }
 
 			 cursor.show && updateCursor();
 		}
