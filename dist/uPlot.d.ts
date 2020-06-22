@@ -189,7 +189,7 @@ declare namespace uPlot {
 		plugins?: {
 			/** can mutate provided opts as necessary */
 			opts?: (self: uPlot, opts: Options) => void;
-			hooks: Hooks;
+			hooks: PluginHooks;
 		}[];
 	}
 
@@ -447,46 +447,49 @@ declare namespace uPlot {
 		};
 	}
 
-	export interface Hooks {
+	interface HooksDescription {
 		/** fires after opts are defaulted & merged but data has not been set and scales have not been ranged */
-		init?:       ((self: uPlot, opts: Options, data: AlignedData) => void)[];
+		init?:       (self: uPlot, opts: Options, data: AlignedData) => void;
 
 		/** fires after any scale has changed */
-		setScale?:   ((self: uPlot, scaleKey: string) => void)[];
+		setScale?:   (self: uPlot, scaleKey: string) => void;
 
 		/** fires after the cursor is moved (debounced by rAF) */
-		setCursor?:  ((self: uPlot) => void)[];
+		setCursor?:  (self: uPlot) => void;
 
 		/** fires after a selection is completed */
-		setSelect?:  ((self: uPlot) => void)[];
+		setSelect?:  (self: uPlot) => void;
 
 		/** fires after a series is toggled or focused */
-		setSeries?:  ((self: uPlot, seriesIdx: number, opts: Series) => void)[];
+		setSeries?:  (self: uPlot, seriesIdx: number, opts: Series) => void;
 
 		/** fires after data is updated updated */
-		setData?:    ((self: uPlot) => void)[];
+		setData?:    (self: uPlot) => void;
 
 		/** fires after the chart is resized */
-		setSize?:    ((self: uPlot) => void)[];
+		setSize?:    (self: uPlot) => void;
 
 		/** fires at start of every redraw */
-		drawClear?:  ((self: uPlot) => void)[];
+		drawClear?:  (self: uPlot) => void;
 
 		/** fires after all axes are drawn */
-		drawAxes?:   ((self: uPlot) => void)[];
+		drawAxes?:   (self: uPlot) => void;
 
 		/** fires after each series is drawn */
-		drawSeries?: ((self: uPlot, seriesKey: string) => void)[];
+		drawSeries?: (self: uPlot, seriesKey: string) => void;
 
 		/** fires after everything is drawn */
-		draw?:       ((self: uPlot) => void)[];
+		draw?:       (self: uPlot) => void;
 
 		/** fires after the chart is fully initialized and in the DOM */
-		ready?:      ((self: uPlot) => void)[];
+		ready?:      (self: uPlot) => void;
 
 		/** fires after the chart is destroyed */
-		destroy?:    ((self: uPlot) => void)[];
+		destroy?:    (self: uPlot) => void;
 	}
+
+	export type Hooks = { [P in keyof HooksDescription]: HooksDescription[P][] }
+	export type PluginHooks = { [P in keyof HooksDescription]: HooksDescription[P] | HooksDescription[P][] }
 }
 
 export default uPlot;
