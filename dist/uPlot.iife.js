@@ -412,6 +412,8 @@ var uPlot = (function () {
 		}
 	}
 
+	var localTz = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 	// https://stackoverflow.com/questions/15141762/how-to-initialize-a-javascript-date-to-a-particular-time-zone/53652131#53652131
 	function tzDate(date, tz) {
 		var date2;
@@ -419,6 +421,8 @@ var uPlot = (function () {
 		// perf optimization
 		if (tz == 'Etc/UTC')
 			{ date2 = new Date(+date + date.getTimezoneOffset() * 6e4); }
+		else if (tz == localTz)
+			{ date2 = date; }
 		else {
 			date2 = new Date(date.toLocaleString('en-US', {timeZone: tz}));
 			date2.setMilliseconds(date[getMilliseconds]());
