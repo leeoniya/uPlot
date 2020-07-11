@@ -6,24 +6,24 @@
 }
 
 .uplot {
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+	font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 	line-height: 1.5;
 	width: max-content;
 }
 
-.uplot .title {
+.u-title {
 	text-align: center;
 	font-size: 18px;
 	font-weight: bold;
 }
 
-.uplot .wrap {
+.u-wrap {
 	position: relative;
 	user-select: none;
 }
 
-.uplot .over,
-.uplot .under {
+.u-over,
+.u-under {
 	position: absolute;
 	overflow: hidden;
 }
@@ -35,69 +35,69 @@
 	height: 100%;
 }
 
-.uplot .legend {
+.u-legend {
 	font-size: 14px;
 	margin: auto;
 	text-align: center;
 }
 
-.uplot .legend.inline {
+.u-inline {
 	display: block;
 }
 
-.uplot .legend.inline * {
+.u-inline * {
 	display: inline-block;
 }
 
-.uplot .legend.inline tr {
+.u-inline tr {
 	margin-right: 16px;
 }
 
-.uplot .legend th {
+.u-legend th {
 	font-weight: 600;
 }
 
-.uplot .legend th > * {
+.u-legend th > * {
 	vertical-align: middle;
 	display: inline-block;
 }
 
-.uplot .legend .ident {
+.u-legend .u-marker {
 	width: 1em;
 	height: 1em;
 	margin-right: 4px;
 	border: 2px solid transparent;
 }
 
-.uplot .legend.inline th::after {
+.u-inline th::after {
 	content: ":";
 	vertical-align: middle;
 }
 
-.uplot .legend .series > * {
+.u-series > * {
 	padding: 4px;
 }
 
-.uplot .legend .series th {
+.u-series th {
 	cursor: pointer;
 }
 
-.uplot .legend .off > * {
+.u-legend .u-off > * {
 	opacity: 0.3;
 }
 
-.uplot .select {
+.u-select {
 	background: rgba(0,0,0,0.07);
 	position: absolute;
 	pointer-events: none;
 }
 
-.uplot .select.off {
+.u-select.u-off {
 	display: none;
 }
 
-.uplot .cursor-x,
-.uplot .cursor-y {
+.u-cursor-x,
+.u-cursor-y {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -106,17 +106,17 @@
 	z-index: 100;
 }
 
-.uplot .cursor-x {
+.u-cursor-x {
 	height: 100%;
 	border-right: 1px dashed #607D8B;
 }
 
-.uplot .cursor-y {
+.u-cursor-y {
 	width: 100%;
 	border-bottom: 1px dashed #607D8B;
 }
 
-.uplot .cursor-pt {
+.u-cursor-pt {
 	position: absolute;
 	top: 0;
 	left: 0;

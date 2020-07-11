@@ -47,6 +47,26 @@ import {
 } from './strings';
 
 import {
+	UPLOT,
+	TITLE,
+	WRAP,
+	UNDER,
+	OVER,
+	OFF,
+	SELECT,
+	CURSOR_X,
+	CURSOR_Y,
+	CURSOR_PT,
+	LEGEND,
+	LEGEND_INLINE,
+	LEGEND_THEAD,
+	LEGEND_SERIES,
+	LEGEND_MARKER,
+	LEGEND_LABEL,
+	LEGEND_VALUE,
+} from './domClasses';
+
+import {
 	rAF,
 	doc,
 	win,
@@ -176,7 +196,7 @@ function pxRatioFont(font) {
 export default function uPlot(opts, data, then) {
 	const self = {};
 
-	const root = self.root = placeDiv("uplot");
+	const root = self.root = placeDiv(UPLOT);
 
 	if (opts.id != null)
 		root.id = opts.id;
@@ -184,17 +204,17 @@ export default function uPlot(opts, data, then) {
 	addClass(root, opts.class);
 
 	if (opts.title) {
-		let title = placeDiv("title", root);
+		let title = placeDiv(TITLE, root);
 		title.textContent = opts.title;
 	}
 
 	const can = placeTag("canvas");
 	const ctx = self.ctx = can.getContext("2d");
 
-	const wrap = placeDiv("wrap", root);
-	const under = placeDiv("under", wrap);
+	const wrap = placeDiv(WRAP, root);
+	const under = placeDiv(UNDER, wrap);
 	wrap.appendChild(can);
-	const over = placeDiv("over", wrap);
+	const over = placeDiv(OVER, wrap);
 
 	opts = copy(opts);
 
@@ -241,22 +261,22 @@ export default function uPlot(opts, data, then) {
 	let multiValLegend = false;
 
 	if (showLegend) {
-		legendEl = placeTag("table", "legend", root);
+		legendEl = placeTag("table", LEGEND, root);
 
 		const getMultiVals = series[1] ? series[1].values : null;
 		multiValLegend = getMultiVals != null;
 
 		if (multiValLegend) {
-			let head = placeTag("tr", "labels", legendEl);
+			let head = placeTag("tr", LEGEND_THEAD, legendEl);
 			placeTag("th", null, head);
 			legendCols = getMultiVals(self, 1, 0);
 
 			for (var key in legendCols)
-				placeTag("th", null, head).textContent = key;
+				placeTag("th", LEGEND_LABEL, head).textContent = key;
 		}
 		else {
 			legendCols = {_: 0};
-			addClass(legendEl, "inline");
+			addClass(legendEl, LEGEND_INLINE);
 		}
 	}
 
@@ -266,20 +286,20 @@ export default function uPlot(opts, data, then) {
 
 		let _row = [];
 
-		let row = placeTag("tr", "series", legendEl, legendEl.childNodes[i]);
+		let row = placeTag("tr", LEGEND_SERIES, legendEl, legendEl.childNodes[i]);
 
 		addClass(row, s.class);
 
 		if (!s.show)
-			addClass(row, "off");
+			addClass(row, OFF);
 
 		let label = placeTag("th", null, row);
 
-		let indic = placeDiv("ident", label);
+		let indic = placeDiv(LEGEND_MARKER, label);
 		s.width && (indic.style.borderColor = s.stroke);
 		indic.style.backgroundColor = s.fill;
 
-		let text = placeDiv("text", label);
+		let text = placeDiv(LEGEND_LABEL, label);
 		text.textContent = s.label;
 
 		if (i > 0) {
@@ -301,7 +321,7 @@ export default function uPlot(opts, data, then) {
 		}
 
 		for (var key in legendCols) {
-			let v = placeTag("td", null, row);
+			let v = placeTag("td", LEGEND_VALUE, row);
 			v.textContent = "--";
 			_row.push(v);
 		}
@@ -324,7 +344,7 @@ export default function uPlot(opts, data, then) {
 			let pt = cursor.points.show(self, si);
 
 			if (pt) {
-				addClass(pt, "cursor-pt");
+				addClass(pt, CURSOR_PT);
 				addClass(pt, s.class);
 				trans(pt, -10, -10);
 				over.insertBefore(pt, cursorPts[si]);
@@ -1359,16 +1379,14 @@ export default function uPlot(opts, data, then) {
 	let dragY = FEAT_CURSOR && drag.y;
 
 	if (FEAT_CURSOR && cursor.show) {
-		let c = "cursor-";
-
 		if (cursor.x) {
 			mouseLeft1 = cursor.left;
-			vt = placeDiv(c + "x", over);
+			vt = placeDiv(CURSOR_X, over);
 		}
 
 		if (cursor.y) {
 			mouseTop1 = cursor.top;
-			hz = placeDiv(c + "y", over);
+			hz = placeDiv(CURSOR_Y, over);
 		}
 	}
 
@@ -1380,7 +1398,7 @@ export default function uPlot(opts, data, then) {
 		height:	0,
 	}, opts.select);
 
-	const selectDiv = select.show ? placeDiv("select", over) : null;
+	const selectDiv = select.show ? placeDiv(SELECT, over) : null;
 
 	function setSelect(opts, _fire) {
 		if (select.show) {
@@ -1398,9 +1416,9 @@ export default function uPlot(opts, data, then) {
 		let label = showLegend ? legendRows[i][0].parentNode : null;
 
 		if (s.show)
-			label && remClass(label, "off");
+			label && remClass(label, OFF);
 		else {
-			label && addClass(label, "off");
+			label && addClass(label, OFF);
 			FEAT_CURSOR && cursorPts.length > 1 && trans(cursorPts[i], 0, -10);
 		}
 	}

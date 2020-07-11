@@ -214,6 +214,26 @@ var uPlot = (function () {
 	var resize = "resize";
 	var scroll = "scroll";
 
+	var pre = "u-";
+
+	var UPLOT          =       "uplot";
+	var TITLE          = pre + "title";
+	var WRAP           = pre + "wrap";
+	var UNDER          = pre + "under";
+	var OVER           = pre + "over";
+	var OFF            = pre + "off";
+	var SELECT         = pre + "select";
+	var CURSOR_X       = pre + "cursor-x";
+	var CURSOR_Y       = pre + "cursor-y";
+	var CURSOR_PT      = pre + "cursor-pt";
+	var LEGEND         = pre + "legend";
+	var LEGEND_INLINE  = pre + "inline";
+	var LEGEND_THEAD   = pre + "thead";
+	var LEGEND_SERIES  = pre + "series";
+	var LEGEND_MARKER  = pre + "marker";
+	var LEGEND_LABEL   = pre + "label";
+	var LEGEND_VALUE   = pre + "value";
+
 	var rAF = requestAnimationFrame;
 	var doc = document;
 	var win = window;
@@ -700,7 +720,7 @@ var uPlot = (function () {
 
 	var ticks = assign({}, grid, {size: 10});
 
-	var font      = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
+	var font      = '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
 	var labelFont = "bold " + font;
 	var lineMult = 1.5;		// font-size multiplier
 
@@ -920,7 +940,7 @@ var uPlot = (function () {
 	function uPlot(opts, data, then) {
 		var self = {};
 
-		var root = self.root = placeDiv("uplot");
+		var root = self.root = placeDiv(UPLOT);
 
 		if (opts.id != null)
 			{ root.id = opts.id; }
@@ -928,17 +948,17 @@ var uPlot = (function () {
 		addClass(root, opts.class);
 
 		if (opts.title) {
-			var title = placeDiv("title", root);
+			var title = placeDiv(TITLE, root);
 			title.textContent = opts.title;
 		}
 
 		var can = placeTag("canvas");
 		var ctx = self.ctx = can.getContext("2d");
 
-		var wrap = placeDiv("wrap", root);
-		var under = placeDiv("under", wrap);
+		var wrap = placeDiv(WRAP, root);
+		var under = placeDiv(UNDER, wrap);
 		wrap.appendChild(can);
-		var over = placeDiv("over", wrap);
+		var over = placeDiv(OVER, wrap);
 
 		opts = copy(opts);
 
@@ -985,22 +1005,22 @@ var uPlot = (function () {
 		var multiValLegend = false;
 
 		if (showLegend) {
-			legendEl = placeTag("table", "legend", root);
+			legendEl = placeTag("table", LEGEND, root);
 
 			var getMultiVals = series[1] ? series[1].values : null;
 			multiValLegend = getMultiVals != null;
 
 			if (multiValLegend) {
-				var head = placeTag("tr", "labels", legendEl);
+				var head = placeTag("tr", LEGEND_THEAD, legendEl);
 				placeTag("th", null, head);
 				legendCols = getMultiVals(self, 1, 0);
 
 				for (var key in legendCols)
-					{ placeTag("th", null, head).textContent = key; }
+					{ placeTag("th", LEGEND_LABEL, head).textContent = key; }
 			}
 			else {
 				legendCols = {_: 0};
-				addClass(legendEl, "inline");
+				addClass(legendEl, LEGEND_INLINE);
 			}
 		}
 
@@ -1010,20 +1030,20 @@ var uPlot = (function () {
 
 			var _row = [];
 
-			var row = placeTag("tr", "series", legendEl, legendEl.childNodes[i]);
+			var row = placeTag("tr", LEGEND_SERIES, legendEl, legendEl.childNodes[i]);
 
 			addClass(row, s.class);
 
 			if (!s.show)
-				{ addClass(row, "off"); }
+				{ addClass(row, OFF); }
 
 			var label = placeTag("th", null, row);
 
-			var indic = placeDiv("ident", label);
+			var indic = placeDiv(LEGEND_MARKER, label);
 			s.width && (indic.style.borderColor = s.stroke);
 			indic.style.backgroundColor = s.fill;
 
-			var text = placeDiv("text", label);
+			var text = placeDiv(LEGEND_LABEL, label);
 			text.textContent = s.label;
 
 			if (i > 0) {
@@ -1045,7 +1065,7 @@ var uPlot = (function () {
 			}
 
 			for (var key in legendCols) {
-				var v = placeTag("td", null, row);
+				var v = placeTag("td", LEGEND_VALUE, row);
 				v.textContent = "--";
 				_row.push(v);
 			}
@@ -1068,7 +1088,7 @@ var uPlot = (function () {
 				var pt = cursor.points.show(self, si);
 
 				if (pt) {
-					addClass(pt, "cursor-pt");
+					addClass(pt, CURSOR_PT);
 					addClass(pt, s.class);
 					trans(pt, -10, -10);
 					over.insertBefore(pt, cursorPts[si]);
@@ -2113,16 +2133,14 @@ var uPlot = (function () {
 		var dragY =  drag.y;
 
 		if ( cursor.show) {
-			var c = "cursor-";
-
 			if (cursor.x) {
 				mouseLeft1 = cursor.left;
-				vt = placeDiv(c + "x", over);
+				vt = placeDiv(CURSOR_X, over);
 			}
 
 			if (cursor.y) {
 				mouseTop1 = cursor.top;
-				hz = placeDiv(c + "y", over);
+				hz = placeDiv(CURSOR_Y, over);
 			}
 		}
 
@@ -2134,7 +2152,7 @@ var uPlot = (function () {
 			height:	0,
 		}, opts.select);
 
-		var selectDiv = select.show ? placeDiv("select", over) : null;
+		var selectDiv = select.show ? placeDiv(SELECT, over) : null;
 
 		function setSelect(opts, _fire) {
 			if (select.show) {
@@ -2152,9 +2170,9 @@ var uPlot = (function () {
 			var label = showLegend ? legendRows[i][0].parentNode : null;
 
 			if (s.show)
-				{ label && remClass(label, "off"); }
+				{ label && remClass(label, OFF); }
 			else {
-				label && addClass(label, "off");
+				label && addClass(label, OFF);
 				 cursorPts.length > 1 && trans(cursorPts[i], 0, -10);
 			}
 		}

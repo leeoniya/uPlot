@@ -24,8 +24,8 @@
 				let underEl, overEl, highlightEl, currIdx;
 
 				function init(u) {
-					underEl = u.root.querySelector(".under");
-					overEl = u.root.querySelector(".over");
+					underEl = u.root.querySelector(".u-under");
+					overEl = u.root.querySelector(".u-over");
 
 					highlightEl = document.createElement("div");
 
@@ -85,10 +85,9 @@
 				let legendEl;
 
 				function init(u, opts) {
-					legendEl = u.root.querySelector(".legend");
+					legendEl = u.root.querySelector(".u-legend");
 
-					legendEl.classList.remove("inline");
-					legendEl.classList.add("hidden");
+					legendEl.classList.remove("u-inline");
 					className && legendEl.classList.add(className);
 
 					uPlot.assign(legendEl.style, {
@@ -104,12 +103,12 @@
 					});
 
 					// hide series color markers
-					const idents = legendEl.querySelectorAll(".ident");
+					const idents = legendEl.querySelectorAll(".u-marker");
 
 					for (let i = 0; i < idents.length; i++)
 						idents[i].style.display = "none";
 
-					const overEl = u.root.querySelector(".over");
+					const overEl = u.root.querySelector(".u-over");
 					overEl.style.overflow = "visible";
 
 					// move legend into plot bounds
