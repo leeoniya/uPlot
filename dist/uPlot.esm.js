@@ -1189,8 +1189,8 @@ function uPlot(opts, data, then) {
 
 			axis.space = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
-			axis.incrs = fnOrSelf(axis.incrs || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
-			axis.split = fnOrSelf(axis.split || (isTime && sc.distr == 1 ? _timeAxisSplits : numAxisSplits));
+			axis.incrs = fnOrSelf(axis.incrs || (            sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
+			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : numAxisSplits));
 			let av = axis.values;
 			axis.values = isTime ? (isArr(av) ? timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) : av || _timeAxisVals) : av || numAxisVals;
 
@@ -1909,7 +1909,7 @@ function uPlot(opts, data, then) {
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.distr == 2;
 
-			let splits = axis.split(self, min, max, incr, pctSpace, forceMin);
+			let splits = axis.splits(self, min, max, incr, pctSpace, forceMin);
 
 			let getPos  = ori == 0 ? getXPos : getYPos;
 			let plotDim = ori == 0 ? plotWid : plotHgt;

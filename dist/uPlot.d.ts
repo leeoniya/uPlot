@@ -405,9 +405,9 @@ declare namespace uPlot {
 		incrs?: number[] | ((self: uPlot, scaleMin: number, scaleMax: number, fullDim: number, minSpace: number) => number[]);
 
 		/** determines how and where the axis must be split for placing ticks, values, grid */
-		split?: number[] | ((self: uPlot, scaleMin: number, scaleMax: number, foundIncr: number, pctSpace: number) => number[]);
+		splits?: number[] | ((self: uPlot, scaleMin: number, scaleMax: number, foundIncr: number, pctSpace: number) => number[]);
 
-		/** formats splits values for rendering */
+		/** formats values for rendering */
 		values?: (self: uPlot, splits: number[], foundSpace: number, foundIncr: number) => Array<string|number>;
 
 		/** values rotation in degrees off horizontal (only bottom axes w/ side: 2) */
