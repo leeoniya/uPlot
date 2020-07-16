@@ -34,16 +34,26 @@ export function closestIdx(num, arr, lo, hi) {
 	return hi;
 }
 
-export function getMinMax(data, _i0, _i1) {
+export function getMinMax(data, _i0, _i1, sorted) {
 //	console.log("getMinMax()");
 
 	let _min = inf;
 	let _max = -inf;
 
-	for (let i = _i0; i <= _i1; i++) {
-		if (data[i] != null) {
-			_min = min(_min, data[i]);
-			_max = max(_max, data[i]);
+	if (sorted == 1) {
+		_min = data[_i0];
+		_max = data[_i1];
+	}
+	else if (sorted == -1) {
+		_min = data[_i1];
+		_max = data[_i0];
+	}
+	else {
+		for (let i = _i0; i <= _i1; i++) {
+			if (data[i] != null) {
+				_min = min(_min, data[i]);
+				_max = max(_max, data[i]);
+			}
 		}
 	}
 

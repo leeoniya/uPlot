@@ -360,6 +360,7 @@ export const timeSeriesLabel = "Time";
 export const xSeriesOpts = {
 	show: true,
 	scale: "x",
+	sorted: 1,
 //	label: "Time",
 //	value: v => stamp(new Date(v * 1e3)),
 
@@ -426,6 +427,7 @@ function seriesPoints(self, si) {
 export const ySeriesOpts = {
 //	type: "n",
 	scale: "y",
+	sorted: 0,
 	show: true,
 	band: false,
 	spanGaps: false,
@@ -452,7 +454,7 @@ export const ySeriesOpts = {
 
 export const xScaleOpts = {
 	time: FEAT_TIME,
-	auto: false,
+	auto: true,
 	distr: 1,
 	min: null,
 	max: null,
@@ -460,5 +462,4 @@ export const xScaleOpts = {
 
 export const yScaleOpts = assign({}, xScaleOpts, {
 	time: false,
-	auto: true,
 });

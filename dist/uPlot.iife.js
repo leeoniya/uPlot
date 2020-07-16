@@ -46,16 +46,26 @@ var uPlot = (function () {
 		return hi;
 	}
 
-	function getMinMax(data, _i0, _i1) {
+	function getMinMax(data, _i0, _i1, sorted) {
 	//	console.log("getMinMax()");
 
 		var _min = inf;
 		var _max = -inf;
 
-		for (var i = _i0; i <= _i1; i++) {
-			if (data[i] != null) {
-				_min = min(_min, data[i]);
-				_max = max(_max, data[i]);
+		if (sorted == 1) {
+			_min = data[_i0];
+			_max = data[_i1];
+		}
+		else if (sorted == -1) {
+			_min = data[_i1];
+			_max = data[_i0];
+		}
+		else {
+			for (var i = _i0; i <= _i1; i++) {
+				if (data[i] != null) {
+					_min = min(_min, data[i]);
+					_max = max(_max, data[i]);
+				}
 			}
 		}
 
@@ -753,6 +763,7 @@ var uPlot = (function () {
 	var xSeriesOpts = {
 		show: true,
 		scale: "x",
+		sorted: 1,
 	//	label: "Time",
 	//	value: v => stamp(new Date(v * 1e3)),
 
@@ -819,6 +830,7 @@ var uPlot = (function () {
 	var ySeriesOpts = {
 	//	type: "n",
 		scale: "y",
+		sorted: 0,
 		show: true,
 		band: false,
 		spanGaps: false,
@@ -845,7 +857,7 @@ var uPlot = (function () {
 
 	var xScaleOpts = {
 		time: true,
-		auto: false,
+		auto: true,
 		distr: 1,
 		min: null,
 		max: null,
@@ -853,7 +865,6 @@ var uPlot = (function () {
 
 	var yScaleOpts = assign({}, xScaleOpts, {
 		time: false,
-		auto: true,
 	});
 
 	var syncs = {};
@@ -1458,7 +1469,7 @@ var uPlot = (function () {
 					}
 					else if (s.show && pendScales[k] == null) {
 						// only run getMinMax() for invalidated series data, else reuse
-						var minMax$1 = s.min == inf ? (wsc.auto ? getMinMax(data[i], i0, i1) : [0,100]) : [s.min, s.max];
+						var minMax$1 = s.min == inf ? (wsc.auto ? getMinMax(data[i], i0, i1, s.sorted) : [0,100]) : [s.min, s.max];
 
 						// initial min/max
 						wsc.min = min(wsc.min, s.min = minMax$1[0]);

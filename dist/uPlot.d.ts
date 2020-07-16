@@ -6,7 +6,7 @@ declare class uPlot {
 		targ?: HTMLElement | ((self: uPlot, init: Function) => void)
 	);
 
-	/** width of the plotting area + axes in CSS pixels */
+	/** chart container */
 	readonly root: HTMLElement;
 
 	/** width of the plotting area + axes in CSS pixels */
@@ -270,7 +270,7 @@ declare namespace uPlot {
 		/** is this scale temporal, with series' data in UNIX timestamps? */
 		time?: boolean;
 
-		/** determines whether all series' data on this scale be scanned to find the full min/max range */
+		/** determines whether all series' data on this scale will be scanned to find the full min/max range */
 		auto?: boolean;
 
 		/** can define a static scale range or re-range an initially-determined range from series data */
@@ -298,6 +298,9 @@ declare namespace uPlot {
 
 		/** scale key */
 		scale?: string;
+
+		/** if & how the data is pre-sorted (scale.auto optimization) */
+		sorted?: 0 | 1 | -1;
 
 		/** when true, null data values will not cause line breaks */
 		spanGaps?: boolean;
