@@ -1236,7 +1236,14 @@ var uPlot = (function () {
 
 			fire("setData");
 
-			_resetScales !== false && autoScaleX();
+			if (_resetScales !== false) {
+				var xsc = scales[xScaleKey];
+
+				if (xsc.auto)
+					{ autoScaleX(); }
+				else
+					{ _setScale(xScaleKey, xsc.min, xsc.max); }
+			}
 		}
 
 		self.setData = setData;
