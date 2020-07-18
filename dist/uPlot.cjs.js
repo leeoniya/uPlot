@@ -556,7 +556,7 @@ var _timeAxisStamps = [
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 function timeAxisVals(tzDate, stamps) {
-	return function (self, splits, space, incr) {
+	return function (self, splits, axisIdx, space, incr) {
 		var s = stamps.find(function (e) { return incr >= e[0]; }) || stamps[stamps.length - 1];
 
 		// these track boundaries when a full label is needed again
@@ -595,7 +595,7 @@ function mkDate(y, m, d) {
 // https://www.timeanddate.com/time/dst/2019.html
 // https://www.epochconverter.com/timezones
 function timeAxisSplits(tzDate) {
-	return function (self, scaleMin, scaleMax, incr, pctSpace) {
+	return function (self, axisIdx, scaleMin, scaleMax, incr, pctSpace) {
 		var splits = [];
 		var isMo = incr >= mo && incr < y;
 
@@ -775,11 +775,11 @@ var xSeriesOpts = {
 // alternative: https://stackoverflow.com/a/2254896
 var fmtNum = new Intl.NumberFormat(navigator.language);
 
-function numAxisVals(self, splits, space, incr) {
+function numAxisVals(self, splits, axisIdx, space, incr) {
 	return splits.map(fmtNum.format);
 }
 
-function numAxisSplits(self, scaleMin, scaleMax, incr, pctSpace, forceMin) {
+function numAxisSplits(self, axisIdx, scaleMin, scaleMax, incr, pctSpace, forceMin) {
 	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, incr).toFixed(12);
 
 	var splits = [];
@@ -1456,7 +1456,7 @@ function uPlot(opts, data, then) {
 
 				// setting the x scale invalidates everything
 				if (i == 0) {
-					var minMax = wsc.range(self, wsc.min, wsc.max);
+					var minMax = wsc.range(self, wsc.min, wsc.max, k);
 
 					wsc.min = minMax[0];
 					wsc.max = minMax[1];
@@ -1491,7 +1491,7 @@ function uPlot(opts, data, then) {
 				var wsc$1 = wipScales[k$1];
 
 				if (wsc$1.from == null && wsc$1.min != inf && pendScales[k$1] == null) {
-					var minMax = wsc$1.range(self, wsc$1.min, wsc$1.max);
+					var minMax = wsc$1.range(self, wsc$1.min, wsc$1.max, k$1);
 					wsc$1.min = minMax[0];
 					wsc$1.max = minMax[1];
 				}
@@ -1505,7 +1505,7 @@ function uPlot(opts, data, then) {
 					var base = wipScales[wsc$2.from];
 
 					if (base.min != inf) {
-						var minMax$1 = wsc$2.range(self, base.min, base.max);
+						var minMax$1 = wsc$2.range(self, base.min, base.max, k$2);
 						wsc$2.min = minMax$1[0];
 						wsc$2.max = minMax$1[1];
 					}
@@ -1860,14 +1860,16 @@ function uPlot(opts, data, then) {
 		return _paths;
 	}
 
-	function getIncrSpace(axis, min, max, fullDim) {
+	function getIncrSpace(axisIdx, min, max, fullDim) {
+		var axis = axes[axisIdx];
+
 		var incrSpace;
 
 		if (fullDim <= 0)
 			{ incrSpace = [0, 0]; }
 		else {
-			var minSpace = axis.space(self, min, max, fullDim);
-			var incrs = axis.incrs(self, min, max, fullDim, minSpace);
+			var minSpace = axis.space(self, axisIdx, min, max, fullDim);
+			var incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
 			incrSpace = findIncr(max - min, incrs, fullDim, minSpace);
 			incrSpace.push(incrSpace[1]/minSpace);
 		}
@@ -1927,7 +1929,7 @@ function uPlot(opts, data, then) {
 			var min = scale.min;
 			var max = scale.max;
 
-			var ref = getIncrSpace(axis, min, max, ori == 0 ? plotWidCss : plotHgtCss);
+			var ref = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 			var incr = ref[0];
 			var space = ref[1];
 			var pctSpace = ref[2];
@@ -1935,7 +1937,7 @@ function uPlot(opts, data, then) {
 			// if we're using index positions, force first tick to match passed index
 			var forceMin = scale.distr == 2;
 
-			var splits = axis.splits(self, min, max, incr, pctSpace, forceMin);
+			var splits = axis.splits(self, i, min, max, incr, pctSpace, forceMin);
 
 			var getPos  = ori == 0 ? getXPos : getYPos;
 			var plotDim = ori == 0 ? plotWid : plotHgt;
@@ -1953,12 +1955,13 @@ function uPlot(opts, data, then) {
 			var values = axis.values(
 				self,
 				scale.distr == 2 ? splits.map(function (i) { return data0[i]; }) : splits,
+				i,
 				space,
 				scale.distr == 2 ? data0[splits[1]] -  data0[splits[0]] : incr
 			);
 
 			// rotating of labels only supported on bottom x axis
-			var angle = side == 2 ? axis.rotate(self, values, space) * -PI/180 : 0;
+			var angle = side == 2 ? axis.rotate(self, values, i, space) * -PI/180 : 0;
 
 			var basePos  = round(axis._pos * pxRatio);
 			var shiftAmt = tickSize + axisGap;
@@ -2113,7 +2116,7 @@ function uPlot(opts, data, then) {
 				// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
 				if ( sc.time && axes[0].show && opts.max > opts.min) {
 					// since scales and axes are loosly coupled, we have to make some assumptions here :(
-					var incr = getIncrSpace(axes[0], opts.min, opts.max, plotWidCss)[0];
+					var incr = getIncrSpace(0, opts.min, opts.max, plotWidCss)[0];
 
 					if (incr < 1e-3)
 						{ return; }

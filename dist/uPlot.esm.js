@@ -559,7 +559,7 @@ const _timeAxisStamps = [
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 function timeAxisVals(tzDate, stamps) {
-	return (self, splits, space, incr) => {
+	return (self, splits, axisIdx, space, incr) => {
 		let s = stamps.find(e => incr >= e[0]) || stamps[stamps.length - 1];
 
 		// these track boundaries when a full label is needed again
@@ -598,7 +598,7 @@ function mkDate(y, m, d) {
 // https://www.timeanddate.com/time/dst/2019.html
 // https://www.epochconverter.com/timezones
 function timeAxisSplits(tzDate) {
-	return (self, scaleMin, scaleMax, incr, pctSpace) => {
+	return (self, axisIdx, scaleMin, scaleMax, incr, pctSpace) => {
 		let splits = [];
 		let isMo = incr >= mo && incr < y;
 
@@ -778,11 +778,11 @@ const xSeriesOpts = {
 // alternative: https://stackoverflow.com/a/2254896
 let fmtNum = new Intl.NumberFormat(navigator.language);
 
-function numAxisVals(self, splits, space, incr) {
+function numAxisVals(self, splits, axisIdx, space, incr) {
 	return splits.map(fmtNum.format);
 }
 
-function numAxisSplits(self, scaleMin, scaleMax, incr, pctSpace, forceMin) {
+function numAxisSplits(self, axisIdx, scaleMin, scaleMax, incr, pctSpace, forceMin) {
 	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, incr).toFixed(12);
 
 	let splits = [];
@@ -1455,7 +1455,7 @@ function uPlot(opts, data, then) {
 
 				// setting the x scale invalidates everything
 				if (i == 0) {
-					let minMax = wsc.range(self, wsc.min, wsc.max);
+					let minMax = wsc.range(self, wsc.min, wsc.max, k);
 
 					wsc.min = minMax[0];
 					wsc.max = minMax[1];
@@ -1490,7 +1490,7 @@ function uPlot(opts, data, then) {
 				let wsc = wipScales[k];
 
 				if (wsc.from == null && wsc.min != inf && pendScales[k] == null) {
-					let minMax = wsc.range(self, wsc.min, wsc.max);
+					let minMax = wsc.range(self, wsc.min, wsc.max, k);
 					wsc.min = minMax[0];
 					wsc.max = minMax[1];
 				}
@@ -1504,7 +1504,7 @@ function uPlot(opts, data, then) {
 					let base = wipScales[wsc.from];
 
 					if (base.min != inf) {
-						let minMax = wsc.range(self, base.min, base.max);
+						let minMax = wsc.range(self, base.min, base.max, k);
 						wsc.min = minMax[0];
 						wsc.max = minMax[1];
 					}
@@ -1856,14 +1856,16 @@ function uPlot(opts, data, then) {
 		return _paths;
 	}
 
-	function getIncrSpace(axis, min, max, fullDim) {
+	function getIncrSpace(axisIdx, min, max, fullDim) {
+		let axis = axes[axisIdx];
+
 		let incrSpace;
 
 		if (fullDim <= 0)
 			incrSpace = [0, 0];
 		else {
-			let minSpace = axis.space(self, min, max, fullDim);
-			let incrs = axis.incrs(self, min, max, fullDim, minSpace);
+			let minSpace = axis.space(self, axisIdx, min, max, fullDim);
+			let incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
 			incrSpace = findIncr(max - min, incrs, fullDim, minSpace);
 			incrSpace.push(incrSpace[1]/minSpace);
 		}
@@ -1922,12 +1924,12 @@ function uPlot(opts, data, then) {
 
 			let {min, max} = scale;
 
-			let [incr, space, pctSpace] = getIncrSpace(axis, min, max, ori == 0 ? plotWidCss : plotHgtCss);
+			let [incr, space, pctSpace] = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.distr == 2;
 
-			let splits = axis.splits(self, min, max, incr, pctSpace, forceMin);
+			let splits = axis.splits(self, i, min, max, incr, pctSpace, forceMin);
 
 			let getPos  = ori == 0 ? getXPos : getYPos;
 			let plotDim = ori == 0 ? plotWid : plotHgt;
@@ -1945,12 +1947,13 @@ function uPlot(opts, data, then) {
 			let values = axis.values(
 				self,
 				scale.distr == 2 ? splits.map(i => data0[i]) : splits,
+				i,
 				space,
 				scale.distr == 2 ? data0[splits[1]] -  data0[splits[0]] : incr,
 			);
 
 			// rotating of labels only supported on bottom x axis
-			let angle = side == 2 ? axis.rotate(self, values, space) * -PI/180 : 0;
+			let angle = side == 2 ? axis.rotate(self, values, i, space) * -PI/180 : 0;
 
 			let basePos  = round(axis._pos * pxRatio);
 			let shiftAmt = tickSize + axisGap;
@@ -2105,7 +2108,7 @@ function uPlot(opts, data, then) {
 				// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
 				if ( sc.time && axes[0].show && opts.max > opts.min) {
 					// since scales and axes are loosly coupled, we have to make some assumptions here :(
-					let incr = getIncrSpace(axes[0], opts.min, opts.max, plotWidCss)[0];
+					let incr = getIncrSpace(0, opts.min, opts.max, plotWidCss)[0];
 
 					if (incr < 1e-3)
 						return;

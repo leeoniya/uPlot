@@ -43,7 +43,7 @@
 				],
 				axes: [
 					{
-						space: (self, scaleMin, scaleMax, plotDim) => {
+						space: (self, axisIdx, scaleMin, scaleMax, plotDim) => {
 							let rangeSecs = scaleMax - scaleMin;
 							let rangeDays = rangeSecs / 86400;
 							let pxPerDay = plotDim / rangeDays;

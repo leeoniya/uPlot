@@ -274,7 +274,7 @@ declare namespace uPlot {
 		auto?: boolean;
 
 		/** can define a static scale range or re-range an initially-determined range from series data */
-		range?: MinMax | ((self: uPlot, initMin: number, initMax: number) => MinMax);
+		range?: MinMax | ((self: uPlot, initMin: number, initMax: number, scaleKey: string) => MinMax);
 
 		/** scale key from which this scale is derived */
 		from?: string,
@@ -402,19 +402,19 @@ declare namespace uPlot {
 		labelFont?: CanvasRenderingContext2D['font'];
 
 		/** minimum grid & tick spacing in CSS pixels */
-		space?: number | ((self: uPlot, scaleMin: number, scaleMax: number, plotDim: number) => number);
+		space?: number | ((self: uPlot, axisIdx: number, scaleMin: number, scaleMax: number, plotDim: number) => number);
 
 		/** available divisors for axis ticks, values, grid */
-		incrs?: number[] | ((self: uPlot, scaleMin: number, scaleMax: number, fullDim: number, minSpace: number) => number[]);
+		incrs?: number[] | ((self: uPlot, axisIdx: number, scaleMin: number, scaleMax: number, fullDim: number, minSpace: number) => number[]);
 
 		/** determines how and where the axis must be split for placing ticks, values, grid */
-		splits?: number[] | ((self: uPlot, scaleMin: number, scaleMax: number, foundIncr: number, pctSpace: number) => number[]);
+		splits?: number[] | ((self: uPlot, axisIdx: number, scaleMin: number, scaleMax: number, foundIncr: number, pctSpace: number) => number[]);
 
 		/** formats values for rendering */
-		values?: (self: uPlot, splits: number[], foundSpace: number, foundIncr: number) => Array<string|number>;
+		values?: (self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => Array<string|number>;
 
 		/** values rotation in degrees off horizontal (only bottom axes w/ side: 2) */
-		rotate?: number | ((self: uPlot, values: Array<string|number>, foundSpace: number) => number);
+		rotate?: number | ((self: uPlot, values: Array<string|number>, axisIdx: number, foundSpace: number) => number);
 
 		/** gridlines to draw from this axis' splits */
 		grid?: {

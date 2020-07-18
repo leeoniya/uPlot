@@ -153,7 +153,7 @@ export const _timeAxisStamps = [
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 export function timeAxisVals(tzDate, stamps) {
-	return (self, splits, space, incr) => {
+	return (self, splits, axisIdx, space, incr) => {
 		let s = stamps.find(e => incr >= e[0]) || stamps[stamps.length - 1];
 
 		// these track boundaries when a full label is needed again
@@ -192,7 +192,7 @@ function mkDate(y, m, d) {
 // https://www.timeanddate.com/time/dst/2019.html
 // https://www.epochconverter.com/timezones
 export function timeAxisSplits(tzDate) {
-	return (self, scaleMin, scaleMax, incr, pctSpace) => {
+	return (self, axisIdx, scaleMin, scaleMax, incr, pctSpace) => {
 		let splits = [];
 		let isMo = incr >= mo && incr < y;
 
@@ -373,11 +373,11 @@ export const xSeriesOpts = {
 // alternative: https://stackoverflow.com/a/2254896
 let fmtNum = new Intl.NumberFormat(navigator.language);
 
-export function numAxisVals(self, splits, space, incr) {
+export function numAxisVals(self, splits, axisIdx, space, incr) {
 	return splits.map(fmtNum.format);
 }
 
-export function numAxisSplits(self, scaleMin, scaleMax, incr, pctSpace, forceMin) {
+export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, incr, pctSpace, forceMin) {
 	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, incr).toFixed(12);
 
 	let splits = [];
