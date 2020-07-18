@@ -70,7 +70,7 @@ declare class uPlot {
 
 	// TODO: include other series style opts which are dynamically pulled?
 	/** toggles series visibility or focus */
-	setSeries(opts: {show?: boolean, focus?: boolean}): void;
+	setSeries(seriesIdx: number, opts: {show?: boolean, focus?: boolean}): void;
 
 	/** adds a series */
 	addSeries(opts: uPlot.Series, seriesIdx?: number): void;
@@ -279,7 +279,7 @@ declare namespace uPlot {
 		/** scale key from which this scale is derived */
 		from?: string,
 
-		/** treat the data distribution along this scale as linear (1) or equidistant (2)? */
+		/** scale distribution. 1: linear, 2: uniform */
 		distr?: 1 | 2;
 
 		/** current min scale value */
@@ -401,7 +401,7 @@ declare namespace uPlot {
 		/** font used for axis label */
 		labelFont?: CanvasRenderingContext2D['font'];
 
-		/** minimum divisor/tick spacing in CSS pixels */
+		/** minimum grid & tick spacing in CSS pixels */
 		space?: number | ((self: uPlot, scaleMin: number, scaleMax: number, plotDim: number) => number);
 
 		/** available divisors for axis ticks, values, grid */
