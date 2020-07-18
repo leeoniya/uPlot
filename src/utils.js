@@ -60,6 +60,21 @@ export function getMinMax(data, _i0, _i1, sorted) {
 	return [_min, _max];
 }
 
+export function rangeLog(min, max, fullMags) {
+	if (fullMags) {
+		min = pow(10, floor(log10(min)));
+		max = pow(10,  ceil(log10(max)));
+	}
+	else {
+		let minMag = pow(10, floor(log10(min)));
+		min = incrRoundDn(min, minMag);
+		let maxMag = pow(10, floor(log10(max)));
+		max = incrRoundUp(max, maxMag);
+	}
+
+	return [+min.toFixed(12), +max.toFixed(12)];
+}
+
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 export function rangeNum(min, max, mult, extra) {
@@ -67,7 +82,8 @@ export function rangeNum(min, max, mult, extra) {
 	const delta = max - min;
 	const mag = log10(delta || abs(max) || 1);
 	const exp = floor(mag);
-	const incr = pow(10, exp) * mult;
+	const base = pow(10, exp);
+	const incr = base * mult;
 	const buf = delta == 0 ? incr : 0;
 
 	let snappedMin = round6(incrRoundDn(min - buf, incr));
@@ -104,6 +120,9 @@ export function rangeNum(min, max, mult, extra) {
 
 	return [snappedMin, snappedMax];
 }
+
+// alternative: https://stackoverflow.com/a/2254896
+export const fmtNum = new Intl.NumberFormat(navigator.language).format;
 
 const M = Math;
 
@@ -149,6 +168,20 @@ export function round3(val) {
 
 export function round6(val) {
 	return round(val * 1e6) / 1e6;
+}
+
+export function genIncrs(minExp, maxExp, mults) {
+	let incrs = [];
+
+	for (let exp = minExp; exp < maxExp; exp++) {
+		let mag = pow(10, exp);
+		for (let i = 0; i < mults.length; i++) {
+			let incr = mults[i] * mag;
+			incrs.push(+incr.toFixed(abs(exp)));
+		}
+	}
+
+	return incrs;
 }
 
 //export const assign = Object.assign;

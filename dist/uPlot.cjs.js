@@ -71,6 +71,21 @@ function getMinMax(data, _i0, _i1, sorted) {
 	return [_min, _max];
 }
 
+function rangeLog(min, max, fullMags) {
+	if (fullMags) {
+		min = pow(10, floor(log10(min)));
+		max = pow(10,  ceil(log10(max)));
+	}
+	else {
+		var minMag = pow(10, floor(log10(min)));
+		min = incrRoundDn(min, minMag);
+		var maxMag = pow(10, floor(log10(max)));
+		max = incrRoundUp(max, maxMag);
+	}
+
+	return [+min.toFixed(12), +max.toFixed(12)];
+}
+
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 function rangeNum(min, max, mult, extra) {
@@ -78,7 +93,8 @@ function rangeNum(min, max, mult, extra) {
 	var delta = max - min;
 	var mag = log10(delta || abs(max) || 1);
 	var exp = floor(mag);
-	var incr = pow(10, exp) * mult;
+	var base = pow(10, exp);
+	var incr = base * mult;
 	var buf = delta == 0 ? incr : 0;
 
 	var snappedMin = round6(incrRoundDn(min - buf, incr));
@@ -115,6 +131,9 @@ function rangeNum(min, max, mult, extra) {
 
 	return [snappedMin, snappedMax];
 }
+
+// alternative: https://stackoverflow.com/a/2254896
+var fmtNum = new Intl.NumberFormat(navigator.language).format;
 
 var M = Math;
 
@@ -156,6 +175,20 @@ function round3(val) {
 
 function round6(val) {
 	return round(val * 1e6) / 1e6;
+}
+
+function genIncrs(minExp, maxExp, mults) {
+	var incrs = [];
+
+	for (var exp = minExp; exp < maxExp; exp++) {
+		var mag = pow(10, exp);
+		for (var i = 0; i < mults.length; i++) {
+			var incr = mults[i] * mag;
+			incrs.push(+incr.toFixed(abs(exp)));
+		}
+	}
+
+	return incrs;
 }
 
 //export const assign = Object.assign;
@@ -443,19 +476,6 @@ function tzDate(date, tz) {
 //export const series = [];
 
 // default formatters:
-
-function genIncrs(minExp, maxExp, mults) {
-	var incrs = [];
-
-	for (var exp = minExp; exp < maxExp; exp++) {
-		for (var i = 0; i < mults.length; i++) {
-			var incr = mults[i] * pow(10, exp);
-			incrs.push(+incr.toFixed(abs(exp)));
-		}
-	}
-
-	return incrs;
-}
 
 var incrMults = [1,2,5];
 
@@ -772,17 +792,14 @@ var xSeriesOpts = {
 	idxs: [],
 };
 
-// alternative: https://stackoverflow.com/a/2254896
-var fmtNum = new Intl.NumberFormat(navigator.language);
-
 function numAxisVals(self, splits, axisIdx, space, incr) {
-	return splits.map(fmtNum.format);
+	return splits.map(fmtNum);
 }
 
 function numAxisSplits(self, axisIdx, scaleMin, scaleMax, incr, pctSpace, forceMin) {
-	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, incr).toFixed(12);
-
 	var splits = [];
+
+	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, incr).toFixed(12);
 
 	for (var val = scaleMin; val <= scaleMax; val = +(val + incr).toFixed(12))
 		{ splits.push(val); }
@@ -790,8 +807,54 @@ function numAxisSplits(self, axisIdx, scaleMin, scaleMax, incr, pctSpace, forceM
 	return splits;
 }
 
+function logAxisSplits(self, axisIdx, scaleMin, scaleMax, incr, pctSpace, forceMin) {
+	var splits = [];
+
+	incr = pow(10, floor(log10(scaleMin)));
+
+	var split = scaleMin;
+
+	do {
+		splits.push(split);
+		split = +(split + incr).toFixed(12);
+		if (split >= incr * 10)
+			{ incr = split; }
+	} while (split <= scaleMax);
+
+	return splits;
+}
+
+var RE_ALL   = /./;
+var RE_12357 = /[12357]/;
+var RE_125   = /[125]/;
+var RE_1     = /1/;
+
+function logAxisVals(self, splits, axisIdx, space, incr) {
+	var axis = self.axes[axisIdx];
+	var scaleKey = axis.scale;
+	var valToPos = self.valToPos;
+
+	var _10 = valToPos(10, scaleKey);
+	var _09 = valToPos(9,  scaleKey);
+	var _07 = valToPos(7,  scaleKey);
+	var _05 = valToPos(5,  scaleKey);
+
+	// TODO: this will only work for statically-defined axis.space, since it lacks
+	// the full args for a dynamic space: (self, axisIdx, scaleMin, scaleMax, fullDim)
+	var minSpace = axis.space();
+
+	var re = (
+		_09 - _10 >= minSpace ? RE_ALL :
+		_07 - _10 >= minSpace ? RE_12357 :
+		_05 - _10 >= minSpace ? RE_125 :
+		RE_1
+	);
+
+	return splits.map(function (v) { return re.test(v) ? fmtNum(v) : ""; });
+}
+
 function numSeriesVal(self, val) {
-	return val;
+	return fmtNum(val);
 }
 
 var yAxisOpts = {
@@ -897,13 +960,21 @@ function setDefault(o, i, xo, yo) {
 	return assign({}, (i == 0 || o && o.side % 2 == 0 ? xo : yo), o);
 }
 
+function getValPct(val, scale) {
+	return (
+		scale.distr == 3
+		? log10(val / scale.min) / log10(scale.max / scale.min)
+		: (val - scale.min) / (scale.max - scale.min)
+	);
+}
+
 function getYPos(val, scale, hgt, top) {
-	var pctY = (val - scale.min) / (scale.max - scale.min);
+	var pctY = getValPct(val, scale);
 	return top + (1 - pctY) * hgt;
 }
 
 function getXPos(val, scale, wid, lft) {
-	var pctX = (val - scale.min) / (scale.max - scale.min);
+	var pctX = getValPct(val, scale);
 	return lft + pctX * wid;
 }
 
@@ -927,6 +998,14 @@ function snapNumX(self, dataMin, dataMax) {
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 function snapNumY(self, dataMin, dataMax) {
 	return rangeNum(dataMin, dataMax, 0.2, true);
+}
+
+function snapLogX(self, dataMin, dataMax) {
+	return rangeLog(dataMin, dataMax);
+}
+
+function snapLogY(self, dataMin, dataMax) {
+	return rangeLog(dataMin, dataMax);
 }
 
 // dim is logical (getClientBoundingRect) pixels, not canvas pixels
@@ -1119,8 +1198,9 @@ function uPlot(opts, data, then) {
 		var sc = scales[scKey] = assign({}, (i == 0 ? xScaleOpts : yScaleOpts), scales[scKey]);
 
 		var isTime =  sc.time;
+		var isLog  = sc.distr == 3;
 
-		sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : i == 0 ? snapNumX : snapNumY));
+		sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : i == 0 ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
 
 		var sv = s.value;
 		s.value = isTime ? (isStr(sv) ? timeSeriesVal(_tzDate, timeSeriesStamp(sv, _fmtDate)) : sv || _timeSeriesVal) : sv || numSeriesVal;
@@ -1169,6 +1249,9 @@ function uPlot(opts, data, then) {
 
 	series.forEach(initSeries);
 
+	var xScaleKey = series[0].scale;
+	var xScaleDistr = scales[xScaleKey].distr;
+
 	// dependent scales inherit
 	for (var k$1 in scales) {
 		var sc$1 = scales[k$1];
@@ -1176,9 +1259,6 @@ function uPlot(opts, data, then) {
 		if (sc$1.from != null)
 			{ scales[k$1] = assign({}, scales[sc$1.from], sc$1); }
 	}
-
-	var xScaleKey = series[0].scale;
-	var xScaleDistr = scales[xScaleKey].distr;
 
 	function initAxis(axis, i) {
 		if (axis.show) {
@@ -1197,10 +1277,10 @@ function uPlot(opts, data, then) {
 
 			axis.space = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
-			axis.incrs = fnOrSelf(axis.incrs || (            sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
-			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : numAxisSplits));
+			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
+			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
 			var av = axis.values;
-			axis.values = isTime ? (isArr(av) ? timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) : av || _timeAxisVals) : av || numAxisVals;
+			axis.values = isTime ? (isArr(av) ? timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) : av || _timeAxisVals) : av || (sc.distr == 3 ? logAxisVals : numAxisVals);
 
 			axis.font      = pxRatioFont(axis.font);
 			axis.labelFont = pxRatioFont(axis.labelFont);
@@ -2295,9 +2375,17 @@ function uPlot(opts, data, then) {
 
 		var pct = pos / dim;
 
-		var sc = scales[scale];
-		var d = sc.max - sc.min;
-		return sc.min + pct * d;
+		var sc = scales[scale],
+			_min = sc.min,
+			_max = sc.max;
+
+		if (sc.distr == 3) {
+			_min = log10(_min);
+			_max = log10(_max);
+			return pow(10, _min + (_max - _min) * pct);
+		}
+		else
+			{ return _min + (_max - _min) * pct; }
 	}
 
 	function closestIdxFromXpos(pos) {
@@ -2880,7 +2968,9 @@ function uPlot(opts, data, then) {
 }
 
 uPlot.assign = assign;
+uPlot.fmtNum = fmtNum;
 uPlot.rangeNum = rangeNum;
+uPlot.rangeLog = rangeLog;
 
 {
 	uPlot.fmtDate = fmtDate;

@@ -105,6 +105,12 @@ declare class uPlot {
 	/** re-ranges a given min/max by a multiple of the range's magnitude (used internally to expand/snap/pad numeric y scales) */
 	static rangeNum(min: number, max: number, mult: number, extra: boolean): uPlot.MinMax;
 
+	/** re-ranges a given min/max outwards to nearest 10% of given min/max's magnitudes, unless fullMags = true */
+	static rangeLog(min: number, max: number, fullMags: boolean): uPlot.MinMax;
+
+	/** default numeric formatter using browser's locale: new Intl.NumberFormat(navigator.language).format */
+	static fmtNum(val: number): string;
+
 	/** creates an efficient formatter for Date objects from a template string, e.g. {YYYY}-{MM}-{DD} */
 	static fmtDate(tpl: string, names?: uPlot.DateNames): (date: Date) => string;
 
@@ -279,8 +285,8 @@ declare namespace uPlot {
 		/** scale key from which this scale is derived */
 		from?: string,
 
-		/** scale distribution. 1: linear, 2: uniform */
-		distr?: 1 | 2;
+		/** scale distribution. 1: linear, 2: uniform, 3: logarithmic */
+		distr?: 1 | 2 | 3;
 
 		/** current min scale value */
 		min?: number,

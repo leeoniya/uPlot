@@ -18,12 +18,14 @@ import {
 	closestIdx,
 	getMinMax,
 	rangeNum,
+	rangeLog,
 	incrRoundUp,
 	incrRoundDn,
 	incrRound,
 	isArr,
 	isStr,
 	fnOrSelf,
+	fmtNum,
 } from './utils';
 
 import {
@@ -104,6 +106,7 @@ import {
 	numIncrs,
 	timeAxisVals,
 	numAxisVals,
+	logAxisVals,
 
 	timeSeriesVal,
 	numSeriesVal,
@@ -113,6 +116,7 @@ import {
 
 	timeAxisSplits,
 	numAxisSplits,
+	logAxisSplits,
 
 	timeAxisStamps,
 	_timeAxisStamps,
@@ -139,13 +143,21 @@ function setDefault(o, i, xo, yo) {
 	return assign({}, (i == 0 || o && o.side % 2 == 0 ? xo : yo), o);
 }
 
+function getValPct(val, scale) {
+	return (
+		scale.distr == 3
+		? log10(val / scale.min) / log10(scale.max / scale.min)
+		: (val - scale.min) / (scale.max - scale.min)
+	);
+}
+
 function getYPos(val, scale, hgt, top) {
-	let pctY = (val - scale.min) / (scale.max - scale.min);
+	let pctY = getValPct(val, scale);
 	return top + (1 - pctY) * hgt;
 }
 
 function getXPos(val, scale, wid, lft) {
-	let pctX = (val - scale.min) / (scale.max - scale.min);
+	let pctX = getValPct(val, scale);
 	return lft + pctX * wid;
 }
 
@@ -169,6 +181,14 @@ function snapNumX(self, dataMin, dataMax) {
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 function snapNumY(self, dataMin, dataMax) {
 	return rangeNum(dataMin, dataMax, 0.2, true);
+}
+
+function snapLogX(self, dataMin, dataMax) {
+	return rangeLog(dataMin, dataMax);
+}
+
+function snapLogY(self, dataMin, dataMax) {
+	return rangeLog(dataMin, dataMax);
 }
 
 // dim is logical (getClientBoundingRect) pixels, not canvas pixels
@@ -361,8 +381,9 @@ export default function uPlot(opts, data, then) {
 		const sc = scales[scKey] = assign({}, (i == 0 ? xScaleOpts : yScaleOpts), scales[scKey]);
 
 		let isTime = FEAT_TIME && sc.time;
+		let isLog  = sc.distr == 3;
 
-		sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : i == 0 ? snapNumX : snapNumY));
+		sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : i == 0 ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
 
 		let sv = s.value;
 		s.value = isTime ? (isStr(sv) ? timeSeriesVal(_tzDate, timeSeriesStamp(sv, _fmtDate)) : sv || _timeSeriesVal) : sv || numSeriesVal;
@@ -411,6 +432,9 @@ export default function uPlot(opts, data, then) {
 
 	series.forEach(initSeries);
 
+	const xScaleKey = series[0].scale;
+	const xScaleDistr = scales[xScaleKey].distr;
+
 	// dependent scales inherit
 	for (let k in scales) {
 		let sc = scales[k];
@@ -418,9 +442,6 @@ export default function uPlot(opts, data, then) {
 		if (sc.from != null)
 			scales[k] = assign({}, scales[sc.from], sc);
 	}
-
-	const xScaleKey = series[0].scale;
-	const xScaleDistr = scales[xScaleKey].distr;
 
 	function initAxis(axis, i) {
 		if (axis.show) {
@@ -439,10 +460,10 @@ export default function uPlot(opts, data, then) {
 
 			axis.space = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
-			axis.incrs = fnOrSelf(axis.incrs || (            sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
-			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : numAxisSplits));
+			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
+			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
 			let av = axis.values;
-			axis.values = isTime ? (isArr(av) ? timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) : av || _timeAxisVals) : av || numAxisVals;
+			axis.values = isTime ? (isArr(av) ? timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) : av || _timeAxisVals) : av || (sc.distr == 3 ? logAxisVals : numAxisVals);
 
 			axis.font      = pxRatioFont(axis.font);
 			axis.labelFont = pxRatioFont(axis.labelFont);
@@ -1527,9 +1548,17 @@ export default function uPlot(opts, data, then) {
 
 		let pct = pos / dim;
 
-		let sc = scales[scale];
-		let d = sc.max - sc.min;
-		return sc.min + pct * d;
+		let sc = scales[scale],
+			_min = sc.min,
+			_max = sc.max;
+
+		if (sc.distr == 3) {
+			_min = log10(_min);
+			_max = log10(_max);
+			return pow(10, _min + (_max - _min) * pct);
+		}
+		else
+			return _min + (_max - _min) * pct;
 	}
 
 	function closestIdxFromXpos(pos) {
@@ -2108,7 +2137,9 @@ export default function uPlot(opts, data, then) {
 }
 
 uPlot.assign = assign;
+uPlot.fmtNum = fmtNum;
 uPlot.rangeNum = rangeNum;
+uPlot.rangeLog = rangeLog;
 
 if (FEAT_TIME) {
 	uPlot.fmtDate = fmtDate;

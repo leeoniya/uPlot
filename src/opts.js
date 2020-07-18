@@ -3,6 +3,8 @@ import {
 
 	inf,
 	pow,
+	log10,
+	genIncrs,
 	abs,
 	max,
 	incrRoundUp,
@@ -10,6 +12,7 @@ import {
 	round3,
 	round6,
 	floor,
+	fmtNum,
 } from './utils';
 
 import {
@@ -37,19 +40,6 @@ import {
 //export const series = [];
 
 // default formatters:
-
-function genIncrs(minExp, maxExp, mults) {
-	let incrs = [];
-
-	for (let exp = minExp; exp < maxExp; exp++) {
-		for (let i = 0; i < mults.length; i++) {
-			let incr = mults[i] * pow(10, exp);
-			incrs.push(+incr.toFixed(abs(exp)));
-		}
-	}
-
-	return incrs;
-}
 
 const incrMults = [1,2,5];
 
@@ -370,17 +360,14 @@ export const xSeriesOpts = {
 	idxs: [],
 };
 
-// alternative: https://stackoverflow.com/a/2254896
-let fmtNum = new Intl.NumberFormat(navigator.language);
-
 export function numAxisVals(self, splits, axisIdx, space, incr) {
-	return splits.map(fmtNum.format);
+	return splits.map(fmtNum);
 }
 
 export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, incr, pctSpace, forceMin) {
-	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, incr).toFixed(12);
-
 	let splits = [];
+
+	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, incr).toFixed(12);
 
 	for (let val = scaleMin; val <= scaleMax; val = +(val + incr).toFixed(12))
 		splits.push(val);
@@ -388,8 +375,54 @@ export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, incr, pctSpace,
 	return splits;
 }
 
+export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, incr, pctSpace, forceMin) {
+	const splits = [];
+
+	incr = pow(10, floor(log10(scaleMin)));
+
+	let split = scaleMin;
+
+	do {
+		splits.push(split);
+		split = +(split + incr).toFixed(12);
+		if (split >= incr * 10)
+			incr = split;
+	} while (split <= scaleMax);
+
+	return splits;
+}
+
+const RE_ALL   = /./;
+const RE_12357 = /[12357]/;
+const RE_125   = /[125]/;
+const RE_1     = /1/;
+
+export function logAxisVals(self, splits, axisIdx, space, incr) {
+	let axis = self.axes[axisIdx];
+	let scaleKey = axis.scale;
+	let valToPos = self.valToPos;
+
+	let _10 = valToPos(10, scaleKey);
+	let _09 = valToPos(9,  scaleKey);
+	let _07 = valToPos(7,  scaleKey);
+	let _05 = valToPos(5,  scaleKey);
+
+	// TODO: this will only work for statically-defined axis.space, since it lacks
+	// the full args for a dynamic space: (self, axisIdx, scaleMin, scaleMax, fullDim)
+	let minSpace = axis.space();
+
+	let re = (
+		_09 - _10 >= minSpace ? RE_ALL :
+		_07 - _10 >= minSpace ? RE_12357 :
+		_05 - _10 >= minSpace ? RE_125 :
+		RE_1
+	);
+
+	return splits.map(v => re.test(v) ? fmtNum(v) : "");
+}
+
 export function numSeriesVal(self, val) {
-	return val;
+	return fmtNum(val);
 }
 
 export const yAxisOpts = {
