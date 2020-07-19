@@ -22,7 +22,7 @@ Try [danchitnis/webgl-plot](https://github.com/danchitnis/webgl-plot) or [huww98
 - Multiple series w/toggle
 - Multiple y-axes, scales & grids
 - Temporal or numeric x-axis
-- Linear, uniform or (logarithmic)[https://leeoniya.github.io/uPlot/demos/log-scales.html] scales
+- Linear, uniform or [logarithmic](https://leeoniya.github.io/uPlot/demos/log-scales.html) scales
 - Line & Area styles (stroke, fill, width, dash)
 - Zoom with auto-rescale
 - Legend with live values
