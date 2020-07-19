@@ -92,6 +92,7 @@ export default [
 			name: 'uPlot',
 			file: './dist/uPlot.cjs.js',
 			format: 'cjs',
+			exports: "auto",
 			esModule: false,
 			banner,
 		},

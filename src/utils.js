@@ -80,35 +80,26 @@ export function rangeLog(min, max, fullMags) {
 export function rangeNum(min, max, mult, extra) {
 	// auto-scale Y
 	const delta = max - min;
-	const mag = log10(delta || abs(max) || 1);
-	const exp = floor(mag);
-	const base = pow(10, exp);
-	const incr = base * mult;
-	const buf = delta == 0 ? incr : 0;
+	const nonZeroDelta = delta || abs(max) || 1e3;
+	const mag = log10(nonZeroDelta);
+	const base = pow(10, floor(mag));
 
-	let snappedMin = round6(incrRoundDn(min - buf, incr));
-	let snappedMax = round6(incrRoundUp(max + buf, incr));
+	const padding = nonZeroDelta * mult;
+	const newMin = min - padding;
+	const newMax = max + padding;
+
+	let snappedMin = round6(incrRoundDn(newMin, base/100));
+	let snappedMax = round6(incrRoundUp(newMax, base/100));
 
 	if (extra) {
 		// for flat data, always use 0 as one chart extreme & place data in center
 		if (delta == 0) {
-			if (max > 0) {
+			if (max > 0)
 				snappedMin = 0;
-				snappedMax = max * 2;
-			}
-			else if (max < 0) {
+			else if (max < 0)
 				snappedMax = 0;
-				snappedMin = min * 2;
-			}
 		}
 		else {
-			// if buffer is too small, increase it
-			if (snappedMax - max < incr)
-				snappedMax += incr;
-
-			if (min - snappedMin < incr)
-				snappedMin -= incr;
-
 			// if original data never crosses 0, use 0 as one chart extreme
 			if (min >= 0 && snappedMin < 0)
 				snappedMin = 0;

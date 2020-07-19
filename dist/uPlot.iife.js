@@ -92,35 +92,26 @@ var uPlot = (function () {
 	function rangeNum(min, max, mult, extra) {
 		// auto-scale Y
 		var delta = max - min;
-		var mag = log10(delta || abs(max) || 1);
-		var exp = floor(mag);
-		var base = pow(10, exp);
-		var incr = base * mult;
-		var buf = delta == 0 ? incr : 0;
+		var nonZeroDelta = delta || abs(max) || 1e3;
+		var mag = log10(nonZeroDelta);
+		var base = pow(10, floor(mag));
 
-		var snappedMin = round6(incrRoundDn(min - buf, incr));
-		var snappedMax = round6(incrRoundUp(max + buf, incr));
+		var padding = nonZeroDelta * mult;
+		var newMin = min - padding;
+		var newMax = max + padding;
+
+		var snappedMin = round6(incrRoundDn(newMin, base/100));
+		var snappedMax = round6(incrRoundUp(newMax, base/100));
 
 		if (extra) {
 			// for flat data, always use 0 as one chart extreme & place data in center
 			if (delta == 0) {
-				if (max > 0) {
-					snappedMin = 0;
-					snappedMax = max * 2;
-				}
-				else if (max < 0) {
-					snappedMax = 0;
-					snappedMin = min * 2;
-				}
+				if (max > 0)
+					{ snappedMin = 0; }
+				else if (max < 0)
+					{ snappedMax = 0; }
 			}
 			else {
-				// if buffer is too small, increase it
-				if (snappedMax - max < incr)
-					{ snappedMax += incr; }
-
-				if (min - snappedMin < incr)
-					{ snappedMin -= incr; }
-
 				// if original data never crosses 0, use 0 as one chart extreme
 				if (min >= 0 && snappedMin < 0)
 					{ snappedMin = 0; }
@@ -998,7 +989,7 @@ var uPlot = (function () {
 	// this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 	// TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 	function snapNumY(self, dataMin, dataMax) {
-		return rangeNum(dataMin, dataMax, 0.2, true);
+		return rangeNum(dataMin, dataMax, 0.1, true);
 	}
 
 	function snapLogX(self, dataMin, dataMax) {

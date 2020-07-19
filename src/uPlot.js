@@ -180,7 +180,7 @@ function snapNumX(self, dataMin, dataMax) {
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 function snapNumY(self, dataMin, dataMax) {
-	return rangeNum(dataMin, dataMax, 0.2, true);
+	return rangeNum(dataMin, dataMax, 0.1, true);
 }
 
 function snapLogX(self, dataMin, dataMax) {

@@ -115,7 +115,7 @@
 				...msg.graphData,
 			];
 
-			const opts = {
+			const optsLog = {
 				width: 1600,
 				height: 600,
 				title: "Log Y Scale",
@@ -141,7 +141,30 @@
 				],
 			};
 
-			let u = new uPlot(opts, data, document.body);
+			let uLog = new uPlot(optsLog, data, document.body);
+
+			const optsLinear = {
+				width: 1600,
+				height: 600,
+				title: "Linear Y Scale",
+				axes: [
+					{},
+					{
+						size: 60,
+						space: 15,
+					}
+				],
+				series: [
+					{},
+					...msg.servers.map(s => ({
+						label: s.name,
+						stroke: s.color,
+						spanGaps: true,
+					}))
+				],
+			};
+
+			let uLinear = new uPlot(optsLinear, data, document.body);
 		</script>
 	</body>
 </html>
