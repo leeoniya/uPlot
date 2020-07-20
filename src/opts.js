@@ -288,6 +288,7 @@ export const cursorOpts = {
 	x: true,
 	y: true,
 	lock: false,
+	snap: false,
 	points: {
 		show: cursorPoint,
 	},

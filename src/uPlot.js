@@ -1879,6 +1879,9 @@ export default function uPlot(opts, data, then) {
 				_y = incrRound(_y, plotHgtCss);
 		}
 
+		if (cursor.snap)
+			_x = getXPos(data[0][closestIdxFromXpos(_x)], scales[xScaleKey], plotWidCss, 0);
+
 		if (initial) {
 			mouseLeft0 = _x;
 			mouseTop0 = _y;

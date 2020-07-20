@@ -712,6 +712,7 @@ var uPlot = (function () {
 		x: true,
 		y: true,
 		lock: false,
+		snap: false,
 		points: {
 			show: cursorPoint,
 		},
@@ -2701,6 +2702,9 @@ var uPlot = (function () {
 				if (_y <= 1 || _y >= plotHgtCss - 1)
 					{ _y = incrRound(_y, plotHgtCss); }
 			}
+
+			if (cursor.snap)
+				{ _x = getXPos(data[0][closestIdxFromXpos(_x)], scales[xScaleKey], plotWidCss, 0); }
 
 			if (initial) {
 				mouseLeft0 = _x;
