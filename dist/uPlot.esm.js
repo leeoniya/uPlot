@@ -2305,7 +2305,7 @@ function uPlot(opts, data, then) {
 	function _alpha(i, value) {
 		series[i].alpha = value;
 
-		if ( legendRows)
+		if ( showLegend)
 			legendRows[i][0].parentNode.style.opacity = value;
 	}
 
