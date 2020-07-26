@@ -182,7 +182,7 @@ function mkDate(y, m, d) {
 // https://www.timeanddate.com/time/dst/2019.html
 // https://www.epochconverter.com/timezones
 export function timeAxisSplits(tzDate) {
-	return (self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace) => {
+	return (self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace) => {
 		let splits = [];
 		let isMo = foundIncr >= mo && foundIncr < y;
 
@@ -223,6 +223,9 @@ export function timeAxisSplits(tzDate) {
 			let prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
 			let incrHours = foundIncr / h;
 
+			let minSpace = self.axes[axisIdx].space();		// TOFIX: only works for static space:
+			let pctSpace = foundSpace / minSpace;
+
 			while (1) {
 				split = round3(split + foundIncr);
 
@@ -246,8 +249,10 @@ export function timeAxisSplits(tzDate) {
 				let prevSplit = splits[splits.length - 1];
 				let pctIncr = round3((split - prevSplit) / foundIncr);
 
-				if (pctIncr * pctSpace >= .7)
+				if (pctIncr * pctSpace >= .7) {
+					console.log("!");
 					splits.push(split);
+				}
 			}
 		}
 
@@ -364,7 +369,7 @@ export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 	return splits.map(fmtNum);
 }
 
-export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace, forceMin) {
+export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	let splits = [];
 
 	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(12);
@@ -375,7 +380,7 @@ export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, pctS
 	return splits;
 }
 
-export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace, forceMin) {
+export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	const splits = [];
 
 	foundIncr = pow(10, floor(log10(scaleMin)));
@@ -407,9 +412,7 @@ export function logAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 	let _07 = valToPos(7,  scaleKey);
 	let _05 = valToPos(5,  scaleKey);
 
-	// TODO: this will only work for statically-defined axis.space, since it lacks
-	// the full args for a dynamic space: (self, axisIdx, scaleMin, scaleMax, fullDim)
-	let minSpace = axis.space();
+	let minSpace = axis.space();			// TOFIX: only works for static space:
 
 	let re = (
 		_09 - _10 >= minSpace ? RE_ALL :

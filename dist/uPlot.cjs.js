@@ -606,7 +606,7 @@ function mkDate(y, m, d) {
 // https://www.timeanddate.com/time/dst/2019.html
 // https://www.epochconverter.com/timezones
 function timeAxisSplits(tzDate) {
-	return function (self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace) {
+	return function (self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace) {
 		var splits = [];
 		var isMo = foundIncr >= mo && foundIncr < y;
 
@@ -647,6 +647,9 @@ function timeAxisSplits(tzDate) {
 			var prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
 			var incrHours = foundIncr / h;
 
+			var minSpace = self.axes[axisIdx].space();		// TOFIX: only works for static space:
+			var pctSpace = foundSpace / minSpace;
+
 			while (1) {
 				split$1 = round3(split$1 + foundIncr);
 
@@ -670,8 +673,10 @@ function timeAxisSplits(tzDate) {
 				var prevSplit = splits[splits.length - 1];
 				var pctIncr = round3((split$1 - prevSplit) / foundIncr);
 
-				if (pctIncr * pctSpace >= .7)
-					{ splits.push(split$1); }
+				if (pctIncr * pctSpace >= .7) {
+					console.log("!");
+					splits.push(split$1);
+				}
 			}
 		}
 
@@ -787,7 +792,7 @@ function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 	return splits.map(fmtNum);
 }
 
-function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace, forceMin) {
+function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	var splits = [];
 
 	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(12);
@@ -798,7 +803,7 @@ function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace, f
 	return splits;
 }
 
-function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace, forceMin) {
+function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	var splits = [];
 
 	foundIncr = pow(10, floor(log10(scaleMin)));
@@ -830,9 +835,7 @@ function logAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 	var _07 = valToPos(7,  scaleKey);
 	var _05 = valToPos(5,  scaleKey);
 
-	// TODO: this will only work for statically-defined axis.space, since it lacks
-	// the full args for a dynamic space: (self, axisIdx, scaleMin, scaleMax, fullDim)
-	var minSpace = axis.space();
+	var minSpace = axis.space();			// TOFIX: only works for static space:
 
 	var re = (
 		_09 - _10 >= minSpace ? RE_ALL :
@@ -1942,7 +1945,6 @@ function uPlot(opts, data, then) {
 			var minSpace = axis.space(self, axisIdx, min, max, fullDim);
 			var incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
 			incrSpace = findIncr(max - min, incrs, fullDim, minSpace);
-			incrSpace.push(incrSpace[1]/minSpace);
 		}
 
 		return incrSpace;
@@ -2003,12 +2005,11 @@ function uPlot(opts, data, then) {
 			var ref = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 			var incr = ref[0];
 			var space = ref[1];
-			var pctSpace = ref[2];
 
 			// if we're using index positions, force first tick to match passed index
 			var forceMin = scale.distr == 2;
 
-			var splits = axis.splits(self, i, min, max, incr, pctSpace, forceMin);
+			var splits = axis.splits(self, i, min, max, incr, space, forceMin);
 
 			var getPos  = ori == 0 ? getXPos : getYPos;
 			var plotDim = ori == 0 ? plotWid : plotHgt;

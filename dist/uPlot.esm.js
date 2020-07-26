@@ -609,7 +609,7 @@ function mkDate(y, m, d) {
 // https://www.timeanddate.com/time/dst/2019.html
 // https://www.epochconverter.com/timezones
 function timeAxisSplits(tzDate) {
-	return (self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace) => {
+	return (self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace) => {
 		let splits = [];
 		let isMo = foundIncr >= mo && foundIncr < y;
 
@@ -650,6 +650,9 @@ function timeAxisSplits(tzDate) {
 			let prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
 			let incrHours = foundIncr / h;
 
+			let minSpace = self.axes[axisIdx].space();		// TOFIX: only works for static space:
+			let pctSpace = foundSpace / minSpace;
+
 			while (1) {
 				split = round3(split + foundIncr);
 
@@ -673,8 +676,10 @@ function timeAxisSplits(tzDate) {
 				let prevSplit = splits[splits.length - 1];
 				let pctIncr = round3((split - prevSplit) / foundIncr);
 
-				if (pctIncr * pctSpace >= .7)
+				if (pctIncr * pctSpace >= .7) {
+					console.log("!");
 					splits.push(split);
+				}
 			}
 		}
 
@@ -790,7 +795,7 @@ function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 	return splits.map(fmtNum);
 }
 
-function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace, forceMin) {
+function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	let splits = [];
 
 	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(12);
@@ -801,7 +806,7 @@ function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace, f
 	return splits;
 }
 
-function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace, forceMin) {
+function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	const splits = [];
 
 	foundIncr = pow(10, floor(log10(scaleMin)));
@@ -833,9 +838,7 @@ function logAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 	let _07 = valToPos(7,  scaleKey);
 	let _05 = valToPos(5,  scaleKey);
 
-	// TODO: this will only work for statically-defined axis.space, since it lacks
-	// the full args for a dynamic space: (self, axisIdx, scaleMin, scaleMax, fullDim)
-	let minSpace = axis.space();
+	let minSpace = axis.space();			// TOFIX: only works for static space:
 
 	let re = (
 		_09 - _10 >= minSpace ? RE_ALL :
@@ -1938,7 +1941,6 @@ function uPlot(opts, data, then) {
 			let minSpace = axis.space(self, axisIdx, min, max, fullDim);
 			let incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
 			incrSpace = findIncr(max - min, incrs, fullDim, minSpace);
-			incrSpace.push(incrSpace[1]/minSpace);
 		}
 
 		return incrSpace;
@@ -1995,12 +1997,12 @@ function uPlot(opts, data, then) {
 
 			let {min, max} = scale;
 
-			let [incr, space, pctSpace] = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
+			let [incr, space] = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.distr == 2;
 
-			let splits = axis.splits(self, i, min, max, incr, pctSpace, forceMin);
+			let splits = axis.splits(self, i, min, max, incr, space, forceMin);
 
 			let getPos  = ori == 0 ? getXPos : getYPos;
 			let plotDim = ori == 0 ? plotWid : plotHgt;

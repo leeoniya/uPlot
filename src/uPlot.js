@@ -1128,7 +1128,6 @@ export default function uPlot(opts, data, then) {
 			let minSpace = axis.space(self, axisIdx, min, max, fullDim);
 			let incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
 			incrSpace = findIncr(max - min, incrs, fullDim, minSpace);
-			incrSpace.push(incrSpace[1]/minSpace);
 		}
 
 		return incrSpace;
@@ -1185,12 +1184,12 @@ export default function uPlot(opts, data, then) {
 
 			let {min, max} = scale;
 
-			let [incr, space, pctSpace] = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
+			let [incr, space] = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.distr == 2;
 
-			let splits = axis.splits(self, i, min, max, incr, pctSpace, forceMin);
+			let splits = axis.splits(self, i, min, max, incr, space, forceMin);
 
 			let getPos  = ori == 0 ? getXPos : getYPos;
 			let plotDim = ori == 0 ? plotWid : plotHgt;
