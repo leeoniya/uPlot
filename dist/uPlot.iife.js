@@ -831,17 +831,14 @@ var uPlot = (function () {
 		var scaleKey = axis.scale;
 		var valToPos = self.valToPos;
 
-		var _10 = valToPos(10, scaleKey);
-		var _09 = valToPos(9,  scaleKey);
-		var _07 = valToPos(7,  scaleKey);
-		var _05 = valToPos(5,  scaleKey);
-
 		var minSpace = axis.space();			// TOFIX: only works for static space:
 
+		var _10 = valToPos(10, scaleKey);
+
 		var re = (
-			_09 - _10 >= minSpace ? RE_ALL :
-			_07 - _10 >= minSpace ? RE_12357 :
-			_05 - _10 >= minSpace ? RE_125 :
+			valToPos(9,  scaleKey) - _10 >= minSpace ? RE_ALL :
+			valToPos(7,  scaleKey) - _10 >= minSpace ? RE_12357 :
+			valToPos(5,  scaleKey) - _10 >= minSpace ? RE_125 :
 			RE_1
 		);
 

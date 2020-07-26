@@ -407,17 +407,14 @@ export function logAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 	let scaleKey = axis.scale;
 	let valToPos = self.valToPos;
 
-	let _10 = valToPos(10, scaleKey);
-	let _09 = valToPos(9,  scaleKey);
-	let _07 = valToPos(7,  scaleKey);
-	let _05 = valToPos(5,  scaleKey);
-
 	let minSpace = axis.space();			// TOFIX: only works for static space:
 
+	let _10 = valToPos(10, scaleKey);
+
 	let re = (
-		_09 - _10 >= minSpace ? RE_ALL :
-		_07 - _10 >= minSpace ? RE_12357 :
-		_05 - _10 >= minSpace ? RE_125 :
+		valToPos(9,  scaleKey) - _10 >= minSpace ? RE_ALL :
+		valToPos(7,  scaleKey) - _10 >= minSpace ? RE_12357 :
+		valToPos(5,  scaleKey) - _10 >= minSpace ? RE_125 :
 		RE_1
 	);
 
