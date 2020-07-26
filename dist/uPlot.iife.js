@@ -568,8 +568,8 @@ var uPlot = (function () {
 	// TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 	// currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 	function timeAxisVals(tzDate, stamps) {
-		return function (self, splits, axisIdx, space, incr) {
-			var s = stamps.find(function (e) { return incr >= e[0]; }) || stamps[stamps.length - 1];
+		return function (self, splits, axisIdx, foundSpace, foundIncr) {
+			var s = stamps.find(function (e) { return foundIncr >= e[0]; }) || stamps[stamps.length - 1];
 
 			// these track boundaries when a full label is needed again
 			var prevYear = null;
@@ -607,9 +607,9 @@ var uPlot = (function () {
 	// https://www.timeanddate.com/time/dst/2019.html
 	// https://www.epochconverter.com/timezones
 	function timeAxisSplits(tzDate) {
-		return function (self, axisIdx, scaleMin, scaleMax, incr, pctSpace) {
+		return function (self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace) {
 			var splits = [];
-			var isMo = incr >= mo && incr < y;
+			var isMo = foundIncr >= mo && foundIncr < y;
 
 			// get the timezone-adjusted date
 			var minDate = tzDate(scaleMin);
@@ -620,7 +620,7 @@ var uPlot = (function () {
 			var minMinTs = minMin / 1e3;
 
 			if (isMo) {
-				var moIncr = incr / mo;
+				var moIncr = foundIncr / mo;
 			//	let tzOffset = scaleMin - minDateTs;		// needed?
 				var split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
 				var splitDate = new Date(split * 1e3);
@@ -638,7 +638,7 @@ var uPlot = (function () {
 				}
 			}
 			else {
-				var incr0 = incr >= d ? d : incr;
+				var incr0 = foundIncr >= d ? d : foundIncr;
 				var tzOffset = floor(scaleMin) - floor(minDateTs);
 				var split$1 = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
 				splits.push(split$1);
@@ -646,10 +646,10 @@ var uPlot = (function () {
 				var date0 = tzDate(split$1);
 
 				var prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
-				var incrHours = incr / h;
+				var incrHours = foundIncr / h;
 
 				while (1) {
-					split$1 = round3(split$1 + incr);
+					split$1 = round3(split$1 + foundIncr);
 
 					var expectedHour = floor(round6(prevHour + incrHours)) % 24;
 					var splitDate$1 = tzDate(split$1);
@@ -669,7 +669,7 @@ var uPlot = (function () {
 
 					// add a tick only if it's further than 70% of the min allowed label spacing
 					var prevSplit = splits[splits.length - 1];
-					var pctIncr = round3((split$1 - prevSplit) / incr);
+					var pctIncr = round3((split$1 - prevSplit) / foundIncr);
 
 					if (pctIncr * pctSpace >= .7)
 						{ splits.push(split$1); }
@@ -784,33 +784,33 @@ var uPlot = (function () {
 		idxs: [],
 	};
 
-	function numAxisVals(self, splits, axisIdx, space, incr) {
+	function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 		return splits.map(fmtNum);
 	}
 
-	function numAxisSplits(self, axisIdx, scaleMin, scaleMax, incr, pctSpace, forceMin) {
+	function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace, forceMin) {
 		var splits = [];
 
-		scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, incr).toFixed(12);
+		scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(12);
 
-		for (var val = scaleMin; val <= scaleMax; val = +(val + incr).toFixed(12))
+		for (var val = scaleMin; val <= scaleMax; val = +(val + foundIncr).toFixed(12))
 			{ splits.push(val); }
 
 		return splits;
 	}
 
-	function logAxisSplits(self, axisIdx, scaleMin, scaleMax, incr, pctSpace, forceMin) {
+	function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace, forceMin) {
 		var splits = [];
 
-		incr = pow(10, floor(log10(scaleMin)));
+		foundIncr = pow(10, floor(log10(scaleMin)));
 
 		var split = scaleMin;
 
 		do {
 			splits.push(split);
-			split = +(split + incr).toFixed(12);
-			if (split >= incr * 10)
-				{ incr = split; }
+			split = +(split + foundIncr).toFixed(12);
+			if (split >= foundIncr * 10)
+				{ foundIncr = split; }
 		} while (split <= scaleMax);
 
 		return splits;
@@ -821,7 +821,7 @@ var uPlot = (function () {
 	var RE_125   = /[125]/;
 	var RE_1     = /1/;
 
-	function logAxisVals(self, splits, axisIdx, space, incr) {
+	function logAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 		var axis = self.axes[axisIdx];
 		var scaleKey = axis.scale;
 		var valToPos = self.valToPos;

@@ -143,8 +143,8 @@ export const _timeAxisStamps = [
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 export function timeAxisVals(tzDate, stamps) {
-	return (self, splits, axisIdx, space, incr) => {
-		let s = stamps.find(e => incr >= e[0]) || stamps[stamps.length - 1];
+	return (self, splits, axisIdx, foundSpace, foundIncr) => {
+		let s = stamps.find(e => foundIncr >= e[0]) || stamps[stamps.length - 1];
 
 		// these track boundaries when a full label is needed again
 		let prevYear = null;
@@ -182,9 +182,9 @@ function mkDate(y, m, d) {
 // https://www.timeanddate.com/time/dst/2019.html
 // https://www.epochconverter.com/timezones
 export function timeAxisSplits(tzDate) {
-	return (self, axisIdx, scaleMin, scaleMax, incr, pctSpace) => {
+	return (self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace) => {
 		let splits = [];
-		let isMo = incr >= mo && incr < y;
+		let isMo = foundIncr >= mo && foundIncr < y;
 
 		// get the timezone-adjusted date
 		let minDate = tzDate(scaleMin);
@@ -195,7 +195,7 @@ export function timeAxisSplits(tzDate) {
 		let minMinTs = minMin / 1e3;
 
 		if (isMo) {
-			let moIncr = incr / mo;
+			let moIncr = foundIncr / mo;
 		//	let tzOffset = scaleMin - minDateTs;		// needed?
 			let split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
 			let splitDate = new Date(split * 1e3);
@@ -213,7 +213,7 @@ export function timeAxisSplits(tzDate) {
 			}
 		}
 		else {
-			let incr0 = incr >= d ? d : incr;
+			let incr0 = foundIncr >= d ? d : foundIncr;
 			let tzOffset = floor(scaleMin) - floor(minDateTs);
 			let split = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
 			splits.push(split);
@@ -221,10 +221,10 @@ export function timeAxisSplits(tzDate) {
 			let date0 = tzDate(split);
 
 			let prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
-			let incrHours = incr / h;
+			let incrHours = foundIncr / h;
 
 			while (1) {
-				split = round3(split + incr);
+				split = round3(split + foundIncr);
 
 				let expectedHour = floor(round6(prevHour + incrHours)) % 24;
 				let splitDate = tzDate(split);
@@ -244,7 +244,7 @@ export function timeAxisSplits(tzDate) {
 
 				// add a tick only if it's further than 70% of the min allowed label spacing
 				let prevSplit = splits[splits.length - 1];
-				let pctIncr = round3((split - prevSplit) / incr);
+				let pctIncr = round3((split - prevSplit) / foundIncr);
 
 				if (pctIncr * pctSpace >= .7)
 					splits.push(split);
@@ -360,33 +360,33 @@ export const xSeriesOpts = {
 	idxs: [],
 };
 
-export function numAxisVals(self, splits, axisIdx, space, incr) {
+export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 	return splits.map(fmtNum);
 }
 
-export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, incr, pctSpace, forceMin) {
+export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace, forceMin) {
 	let splits = [];
 
-	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, incr).toFixed(12);
+	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(12);
 
-	for (let val = scaleMin; val <= scaleMax; val = +(val + incr).toFixed(12))
+	for (let val = scaleMin; val <= scaleMax; val = +(val + foundIncr).toFixed(12))
 		splits.push(val);
 
 	return splits;
 }
 
-export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, incr, pctSpace, forceMin) {
+export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, pctSpace, forceMin) {
 	const splits = [];
 
-	incr = pow(10, floor(log10(scaleMin)));
+	foundIncr = pow(10, floor(log10(scaleMin)));
 
 	let split = scaleMin;
 
 	do {
 		splits.push(split);
-		split = +(split + incr).toFixed(12);
-		if (split >= incr * 10)
-			incr = split;
+		split = +(split + foundIncr).toFixed(12);
+		if (split >= foundIncr * 10)
+			foundIncr = split;
 	} while (split <= scaleMax);
 
 	return splits;
@@ -397,7 +397,7 @@ const RE_12357 = /[12357]/;
 const RE_125   = /[125]/;
 const RE_1     = /1/;
 
-export function logAxisVals(self, splits, axisIdx, space, incr) {
+export function logAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
 	let valToPos = self.valToPos;
