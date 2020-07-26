@@ -673,10 +673,8 @@ function timeAxisSplits(tzDate) {
 				var prevSplit = splits[splits.length - 1];
 				var pctIncr = round3((split$1 - prevSplit) / foundIncr);
 
-				if (pctIncr * pctSpace >= .7) {
-					console.log("!");
-					splits.push(split$1);
-				}
+				if (pctIncr * pctSpace >= .7)
+					{ splits.push(split$1); }
 			}
 		}
 
