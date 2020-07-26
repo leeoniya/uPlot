@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>Multi-Boxes</title>
+		<title>Box &amp; Whisker</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
 		<style>
@@ -131,7 +131,6 @@
 				};
 			}
 
-			// draws candlestick symbols (expects data in OHLC order)
 			function boxesPlugin({ gap = 2, shadowColor = "#000000", bearishColor = "#e54245", bullishColor = "#4ab650", bodyMaxWidth = 20, shadowWidth = 2, bodyOutline = 1 } = {}) {
 
 				function drawBoxes(u) {
@@ -142,7 +141,7 @@
 					u.ctx.translate(offset, offset);
 
 					for (let i = u.scales.x.min; i <= u.scales.x.max; i++) {
-						let median       = u.data[1][i];
+						let med          = u.data[1][i];
 						let q1           = u.data[2][i];
 						let q3           = u.data[3][i];
 						let min          = u.data[4][i];
@@ -153,19 +152,26 @@
 						let highAsY      = u.valToPos(max,   "y", true);
 						let openAsY      = u.valToPos(q1,    "y", true);
 						let closeAsY     = u.valToPos(q3,    "y", true);
+						let medAsY       = u.valToPos(med,   "y", true);
 
 						// shadow rect
 						let shadowHeight = Math.max(highAsY, lowAsY) - Math.min(highAsY, lowAsY);
-						let shadowX      = timeAsX - (shadowWidth / 2);
+						let shadowX      = timeAsX;
 						let shadowY      = Math.min(highAsY, lowAsY);
 
-						u.ctx.fillStyle = shadowColor;
-						u.ctx.fillRect(
+						u.ctx.beginPath();
+						u.ctx.setLineDash([4, 4]);
+						u.ctx.lineWidth = shadowWidth;
+						u.ctx.strokeStyle = shadowColor;
+						u.ctx.moveTo(
 							Math.round(shadowX),
 							Math.round(shadowY),
-							Math.round(shadowWidth),
-							Math.round(shadowHeight),
 						);
+						u.ctx.lineTo(
+							Math.round(shadowX),
+							Math.round(shadowY + shadowHeight),
+						);
+						u.ctx.stroke();
 
 						// body rect
 						let columnWidth  = u.bbox.width / (u.scales.x.max - u.scales.x.min);
@@ -190,6 +196,38 @@
 							Math.round(bodyWidth - bodyOutline * 2),
 							Math.round(bodyHeight - bodyOutline * 2),
 						);
+
+						u.ctx.fillStyle = "#000";
+						u.ctx.fillRect(
+							Math.round(bodyX),
+							Math.round(medAsY - 1),
+							Math.round(bodyWidth),
+							Math.round(2),
+						);
+
+						// hz min/max whiskers
+						u.ctx.beginPath();
+						u.ctx.setLineDash([]);
+						u.ctx.lineWidth = shadowWidth;
+						u.ctx.strokeStyle = shadowColor;
+						u.ctx.moveTo(
+							Math.round(bodyX),
+							Math.round(highAsY),
+						);
+						u.ctx.lineTo(
+							Math.round(bodyX + bodyWidth),
+							Math.round(highAsY),
+						);
+						u.ctx.moveTo(
+							Math.round(bodyX),
+							Math.round(lowAsY),
+						);
+						u.ctx.lineTo(
+							Math.round(bodyX + bodyWidth),
+							Math.round(lowAsY),
+						);
+						u.ctx.stroke();
+
 					}
 
 					u.ctx.translate(-offset, -offset);
