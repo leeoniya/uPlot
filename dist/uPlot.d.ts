@@ -228,8 +228,11 @@ declare namespace uPlot {
 		/** cursor position top offset in CSS pixels (relative to plotting area) */
 		top?: number;
 
-		/** closest data index to cursor */
+		/** closest data index to cursor (hoveredIdx) */
 		idx?: number;
+
+		/** returns data idx used for hover points & legend display (defaults to hoveredIdx) */
+		dataIdx?: (self: uPlot, seriesIdx: number, hoveredIdx: number) => number;
 
 		/** series hover points */
 		points?: {
@@ -239,9 +242,9 @@ declare namespace uPlot {
 		/** determines vt/hz cursor dragging to set selection & setScale (zoom) */
 		drag?: {
 			setScale?: boolean; // true
-			/** toggles dragging in along x */
+			/** toggles dragging along x */
 			x?: boolean; // true
-			/** toggles dragging in along y */
+			/** toggles dragging along y */
 			y?: boolean; // false
 			/** min drag distance threshold */
 			dist?: number; // 0

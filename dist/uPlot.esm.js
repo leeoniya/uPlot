@@ -712,6 +712,10 @@ function cursorPoint(self, si) {
 	return pt;
 }
 
+function dataIdx(self, seriesIdx, cursorIdx) {
+	return cursorIdx;
+}
+
 const cursorOpts = {
 	show: true,
 	x: true,
@@ -739,6 +743,7 @@ const cursorOpts = {
 	left: -10,
 	top: -10,
 	idx: null,
+	dataIdx,
 };
 
 const grid = {
@@ -2470,25 +2475,28 @@ function uPlot(opts, data, then) {
 			for (let i = 0; i < series.length; i++) {
 				let s = series[i];
 
+				let idx2 = cursor.dataIdx(self, i, idx);
+				let xPos2 = idx2 == idx ? xPos : round3(getXPos(data[0][idx2], scX, plotWidCss, 0));
+
 				if (i > 0 && s.show) {
-					let valAtIdx = data[i][idx];
+					let valAtIdx = data[i][idx2];
 
 					let yPos = valAtIdx == null ? -10 : round3(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0));
 
 					distsToCursor[i] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
 
-					 cursorPts.length > 1 && trans(cursorPts[i], xPos, yPos);
+					 cursorPts.length > 1 && trans(cursorPts[i], xPos2, yPos);
 				}
 				else
 					distsToCursor[i] = inf;
 
 				if (showLegend) {
-					if (idx == cursor.idx || i == 0 && multiValLegend)
+					if (idx2 == cursor.idx || i == 0 && multiValLegend)
 						continue;
 
 					let src = i == 0 && xScaleDistr == 2 ? data0 : data[i];
 
-					let vals = multiValLegend ? s.values(self, i, idx) : {_: s.value(self, src[idx], i, idx)};
+					let vals = multiValLegend ? s.values(self, i, idx2) : {_: s.value(self, src[idx2], i, idx2)};
 
 					let j = 0;
 

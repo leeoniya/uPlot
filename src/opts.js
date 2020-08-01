@@ -286,6 +286,10 @@ function cursorPoint(self, si) {
 	return pt;
 }
 
+function dataIdx(self, seriesIdx, cursorIdx) {
+	return cursorIdx;
+}
+
 export const cursorOpts = {
 	show: true,
 	x: true,
@@ -313,6 +317,7 @@ export const cursorOpts = {
 	left: -10,
 	top: -10,
 	idx: null,
+	dataIdx,
 };
 
 const grid = {
