@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>Wheel Zoom</title>
+		<title>Wheel Zoom &amp; Drag</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
@@ -46,6 +46,45 @@
 							let plot = u.root.querySelector(".u-over");
 							let rect = plot.getBoundingClientRect();
 
+							// wheel drag pan
+							plot.addEventListener("mousedown", e => {
+								if (e.button == 1) {
+								//	plot.style.cursor = "move";
+									e.preventDefault();
+
+									let left0 = e.clientX;
+								//	let top0 = e.clientY;
+
+									let scXMin0 = u.scales.x.min;
+									let scXMax0 = u.scales.x.max;
+
+									let xUnitsPerPx = u.posToVal(1, 'x') - u.posToVal(0, 'x');
+
+									function onmove(e) {
+										e.preventDefault();
+
+										let left1 = e.clientX;
+									//	let top1 = e.clientY;
+
+										let dx = xUnitsPerPx * (left1 - left0);
+
+										u.setScale('x', {
+											min: scXMin0 - dx,
+											max: scXMax0 - dx,
+										});
+									}
+
+									function onup(e) {
+										document.removeEventListener("mousemove", onmove);
+										document.removeEventListener("mouseup", onup);
+									}
+
+									document.addEventListener("mousemove", onmove);
+									document.addEventListener("mouseup", onup);
+								}
+							});
+
+							// wheel scroll zoom
 							plot.addEventListener("wheel", e => {
 								e.preventDefault();
 
@@ -89,7 +128,7 @@
 				console.time('chart');
 
 				let opts = {
-					title: "Wheel Zoom",
+					title: "Wheel Zoom & Drag",
 					width: 600,
 					height: 400,
 					plugins: [
