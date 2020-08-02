@@ -17,10 +17,8 @@
 	<body>
 		<h2 id="wait">Loading lib....</h2>
 
-		<script src="https://cdn.jsdelivr.net/npm/luxon@1.22.0"></script>
-		<script src="https://cdn.jsdelivr.net/npm/chart.js@3.0.0-alpha"></script>
-		<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@0.2.0"></script>
-		<script src="https://www.chartjs.org/samples/next/utils.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chart.js@3.0.0-alpha.2"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@1.1.0-alpha.3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
 		<div class="chart-container">
 			<canvas id="chart1"></canvas>
@@ -63,13 +61,12 @@
 				console.time('chart');
 
 				var ctx = document.getElementById('chart1').getContext('2d');
-				var color = Chart.helpers.color;
 				var cfg = {
 					data: {
 						datasets: [
 							{
 								label: 'CPU',
-								borderColor: window.chartColors.red,
+								borderColor: 'rgb(255, 99, 132)',
 								data: data[0],
 								type: 'line',
 								pointRadius: 0,
@@ -79,7 +76,7 @@
 							},
 							{
 								label: 'RAM',
-								borderColor: window.chartColors.blue,
+								borderColor: 'rgb(54, 162, 235)',
 								data: data[1],
 								type: 'line',
 								pointRadius: 0,
@@ -89,7 +86,7 @@
 							},
 							{
 								label: 'TCP Out',
-								borderColor: window.chartColors.green,
+								borderColor: 'rgb(75, 192, 192)',
 								data: data[2],
 								type: 'line',
 								pointRadius: 0,
@@ -103,6 +100,7 @@
 						animation: false,
 						maintainAspectRatio: false,
 						parsing: false,
+						normalized: true,
 						tooltips: {
 							mode: 'index',
 							intersect: false
@@ -113,8 +111,7 @@
 						},
 						scales: {
 							x: {
-								type: 'time',
-								distribution: 'series',
+								type: 'timeseries',
 								ticks: {
 									source: 'auto',
 									maxRotation: 0,
