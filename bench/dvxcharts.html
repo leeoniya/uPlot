@@ -2,14 +2,14 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>jqChart Demo</title>
+		<title>dvxcharts Demo</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 	</head>
 	<body>
 		<h2 id="wait">Loading lib....</h2>
 
-        <link rel="stylesheet" href="http://www.jqchart.com/javascript/chart/Content/dataviz.chart.css">
-        <script src="http://www.jqchart.com/javascript/chart/Scripts/dataviz.chart.min.js"></script>
+        <link rel="stylesheet" href="https://www.dvxcharts.com/Content/dvxCharts.chart.min.css">
+        <script src="https://www.dvxcharts.com/Scripts/dvxCharts.chart.min.js"></script>
 
 		<div id="container" style="width: 1920px; height: 600px;"></div>
 
@@ -49,9 +49,9 @@
 			function makeChart(data) {
 				console.time('chart');
 
-				var chart = new DataViz.Chart({
+				var chart = new dvxCharts.Chart({
 						title: {
-							text: 'jqChart (' + data[0].length * 3 + ' points)',
+							text: 'dvxcharts (' + data[0].length * 3 + ' points)',
 						//	font: '18px sans-serif'
 						},
 						axes: [

@@ -360,7 +360,7 @@ let opts = {
         [60,                 "{h}:{mm}{aa}",         4,   "{h}:{mm}{aa}\n{M}/{D}"     ],
         [1,                  "{h}:{mm}:{ss}{aa}",    4,   "{h}:{mm}:{ss}{aa}\n{M}/{D}"],
       ],
-  //  split:
+  //  splits:
     }
   ],
 }
