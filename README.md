@@ -48,9 +48,10 @@ In order to stay lean, fast and focused the following features will not be added
 ---
 ### Documentation (WIP)
 
-The docs are a work in progress: https://github.com/leeoniya/uPlot/tree/master/docs
-
-An outline of the API can be found in [issue #48](https://github.com/leeoniya/uPlot/issues/48). For the time being, visit the ever-expanding collection of [/demos](https://leeoniya.github.io/uPlot/demos/index.html) which covers the vast majority of uPlot's config & API.
+The docs are a perpetual work in progress, it seems.
+Start with [/docs/README.md](https://github.com/leeoniya/uPlot/tree/master/docs) for a conceptual overview.
+The full API is further documented via comments in [/dist/uPlot.d.ts](https://github.com/leeoniya/uPlot/blob/master/dist/uPlot.d.ts).
+Additionally, an ever-expanding collection of runnable [/demos](https://leeoniya.github.io/uPlot/demos/index.html) covers the vast majority of uPlot's API.
 
 ---
 ### Performance
@@ -69,6 +70,8 @@ Full size: https://leeoniya.github.io/uPlot/demos/multi-bars.html
 Raw data: https://github.com/leeoniya/uPlot/blob/master/bench/results.json
 
 <pre>
+| lib            | size    | done    | js,rend,paint,sys | heap peak,final | interact (10s)      |
+| -------------- | ------- | ------- | ----------------- | --------------- | ------------------- |
 | <a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">uPlot</a>          |   26 KB |   68 ms |   99   3   4   68 |  12 MB   4 MB   |  196  458  135  264 |
 | <a href="https://leeoniya.github.io/uPlot/bench/Chart.js-next.html">Chart.js-next</a>  |  222 KB |  189 ms |  275   3   3   95 |  32 MB  21 MB   | 3411   35  112 6322 |
 | <a href="https://leeoniya.github.io/uPlot/bench/LightningChart.html">LightningChart</a> |  964 KB |  --- ms |  378   4   2   70 |  24 MB  18 MB   | 9647   32   59  113 |
