@@ -470,9 +470,9 @@ function tzDate(date, tz) {
 
 const incrMults = [1,2,5];
 
-const decIncrs = genIncrs(-12, 0, incrMults);
+const decIncrs = genIncrs(-16, 0, incrMults);
 
-const intIncrs = genIncrs(0, 12, incrMults);
+const intIncrs = genIncrs(0, 16, incrMults);
 
 const numIncrs = decIncrs.concat(intIncrs);
 

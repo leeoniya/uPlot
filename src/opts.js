@@ -43,9 +43,9 @@ import {
 
 const incrMults = [1,2,5];
 
-const decIncrs = genIncrs(-12, 0, incrMults);
+const decIncrs = genIncrs(-16, 0, incrMults);
 
-export const intIncrs = genIncrs(0, 12, incrMults);
+export const intIncrs = genIncrs(0, 16, incrMults);
 
 export const numIncrs = decIncrs.concat(intIncrs);
 

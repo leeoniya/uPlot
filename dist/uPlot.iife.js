@@ -471,9 +471,9 @@ var uPlot = (function () {
 
 	var incrMults = [1,2,5];
 
-	var decIncrs = genIncrs(-12, 0, incrMults);
+	var decIncrs = genIncrs(-16, 0, incrMults);
 
-	var intIncrs = genIncrs(0, 12, incrMults);
+	var intIncrs = genIncrs(0, 16, incrMults);
 
 	var numIncrs = decIncrs.concat(intIncrs);
 
