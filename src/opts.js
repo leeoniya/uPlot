@@ -334,7 +334,6 @@ const labelFont = "bold " + font;
 export const lineMult = 1.5;		// font-size multiplier
 
 export const xAxisOpts = {
-	type: "x",
 	show: true,
 	scale: "x",
 	space: 50,
@@ -429,7 +428,6 @@ export function numSeriesVal(self, val) {
 }
 
 export const yAxisOpts = {
-	type: "y",
 	show: true,
 	scale: "y",
 	space: 40,
@@ -461,7 +459,6 @@ function seriesPoints(self, si) {
 }
 
 export const ySeriesOpts = {
-//	type: "n",
 	scale: "y",
 	sorted: 0,
 	show: true,

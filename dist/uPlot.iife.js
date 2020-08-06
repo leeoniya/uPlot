@@ -758,7 +758,6 @@ var uPlot = (function () {
 	var lineMult = 1.5;		// font-size multiplier
 
 	var xAxisOpts = {
-		type: "x",
 		show: true,
 		scale: "x",
 		space: 50,
@@ -853,7 +852,6 @@ var uPlot = (function () {
 	}
 
 	var yAxisOpts = {
-		type: "y",
 		show: true,
 		scale: "y",
 		space: 40,
@@ -885,7 +883,6 @@ var uPlot = (function () {
 	}
 
 	var ySeriesOpts = {
-	//	type: "n",
 		scale: "y",
 		sorted: 0,
 		show: true,

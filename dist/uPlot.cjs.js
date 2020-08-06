@@ -757,7 +757,6 @@ var labelFont = "bold " + font;
 var lineMult = 1.5;		// font-size multiplier
 
 var xAxisOpts = {
-	type: "x",
 	show: true,
 	scale: "x",
 	space: 50,
@@ -852,7 +851,6 @@ function numSeriesVal(self, val) {
 }
 
 var yAxisOpts = {
-	type: "y",
 	show: true,
 	scale: "y",
 	space: 40,
@@ -884,7 +882,6 @@ function seriesPoints(self, si) {
 }
 
 var ySeriesOpts = {
-//	type: "n",
 	scale: "y",
 	sorted: 0,
 	show: true,
