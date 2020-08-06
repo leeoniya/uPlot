@@ -69,9 +69,13 @@
 	border: 2px solid transparent;
 }
 
-.u-inline th::after {
+.u-inline.u-live th::after {
 	content: ":";
 	vertical-align: middle;
+}
+
+.u-inline:not(.u-live) .u-value {
+	display: none;
 }
 
 .u-series > * {

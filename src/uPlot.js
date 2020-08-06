@@ -60,6 +60,7 @@ import {
 	CURSOR_Y,
 	CURSOR_PT,
 	LEGEND,
+	LEGEND_LIVE,
 	LEGEND_INLINE,
 	LEGEND_THEAD,
 	LEGEND_SERIES,
@@ -272,7 +273,7 @@ export default function uPlot(opts, data, then) {
 			pendScales[k] = {min: sc.min, max: sc.max};
 	}
 
-	const legend     = FEAT_LEGEND && assign({show: true}, opts.legend);
+	const legend     = FEAT_LEGEND && assign({show: true, live: true}, opts.legend);
 	const showLegend = FEAT_LEGEND && legend.show;
 
 	let legendEl;
@@ -297,11 +298,12 @@ export default function uPlot(opts, data, then) {
 		else {
 			legendCols = {_: 0};
 			addClass(legendEl, LEGEND_INLINE);
+			legend.live && addClass(legendEl, LEGEND_LIVE);
 		}
 	}
 
 	function initLegendRow(s, i) {
-		if (i == 0 && multiValLegend)
+		if (i == 0 && (multiValLegend || !legend.live))
 			return null;
 
 		let _row = [];
@@ -1494,7 +1496,7 @@ export default function uPlot(opts, data, then) {
 	function _alpha(i, value) {
 		series[i].alpha = value;
 
-		if (FEAT_LEGEND && showLegend)
+		if (FEAT_LEGEND && showLegend && legendRows[i])
 			legendRows[i][0].parentNode.style.opacity = value;
 	}
 
@@ -1638,7 +1640,7 @@ export default function uPlot(opts, data, then) {
 					FEAT_CURSOR && cursorPts.length > 1 && trans(cursorPts[i], -10, -10);
 				}
 
-				if (showLegend) {
+				if (showLegend && legend.live) {
 					if (i == 0 && multiValLegend)
 						continue;
 
@@ -1677,7 +1679,7 @@ export default function uPlot(opts, data, then) {
 				else
 					distsToCursor[i] = inf;
 
-				if (showLegend) {
+				if (showLegend && legend.live) {
 					if (idx2 == cursor.idx || i == 0 && multiValLegend)
 						continue;
 

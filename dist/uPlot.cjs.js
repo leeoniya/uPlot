@@ -260,6 +260,7 @@ var CURSOR_X       = pre + "cursor-x";
 var CURSOR_Y       = pre + "cursor-y";
 var CURSOR_PT      = pre + "cursor-pt";
 var LEGEND         = pre + "legend";
+var LEGEND_LIVE    = pre + "live";
 var LEGEND_INLINE  = pre + "inline";
 var LEGEND_THEAD   = pre + "thead";
 var LEGEND_SERIES  = pre + "series";
@@ -1080,7 +1081,7 @@ function uPlot(opts, data, then) {
 			{ pendScales[k] = {min: sc.min, max: sc.max}; }
 	}
 
-	var legend     =  assign({show: true}, opts.legend);
+	var legend     =  assign({show: true, live: true}, opts.legend);
 	var showLegend =  legend.show;
 
 	var legendEl;
@@ -1105,11 +1106,12 @@ function uPlot(opts, data, then) {
 		else {
 			legendCols = {_: 0};
 			addClass(legendEl, LEGEND_INLINE);
+			legend.live && addClass(legendEl, LEGEND_LIVE);
 		}
 	}
 
 	function initLegendRow(s, i) {
-		if (i == 0 && multiValLegend)
+		if (i == 0 && (multiValLegend || !legend.live))
 			{ return null; }
 
 		var _row = [];
@@ -2311,7 +2313,7 @@ function uPlot(opts, data, then) {
 	function _alpha(i, value) {
 		series[i].alpha = value;
 
-		if ( showLegend)
+		if ( showLegend && legendRows[i])
 			{ legendRows[i][0].parentNode.style.opacity = value; }
 	}
 
@@ -2455,7 +2457,7 @@ function uPlot(opts, data, then) {
 					 cursorPts.length > 1 && trans(cursorPts[i], -10, -10);
 				}
 
-				if (showLegend) {
+				if (showLegend && legend.live) {
 					if (i == 0 && multiValLegend)
 						{ continue; }
 
@@ -2494,7 +2496,7 @@ function uPlot(opts, data, then) {
 				else
 					{ distsToCursor[i$1] = inf; }
 
-				if (showLegend) {
+				if (showLegend && legend.live) {
 					if (idx2 == cursor.idx || i$1 == 0 && multiValLegend)
 						{ continue; }
 

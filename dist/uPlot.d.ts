@@ -183,7 +183,9 @@ declare namespace uPlot {
 		select?: BBox;
 
 		legend?: {
-			show?: boolean;
+			show?: boolean;	// true
+			/** show series values at current cursor.idx */
+			live?: boolean;	// true
 		};
 
 		cursor?: Cursor;
