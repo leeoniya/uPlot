@@ -2314,6 +2314,9 @@ var uPlot = (function () {
 		function _alpha(i, value) {
 			series[i].alpha = value;
 
+			if ( cursor.show && cursorPts[i])
+				{ cursorPts[i].style.opacity = value; }
+
 			if ( showLegend && legendRows[i])
 				{ legendRows[i][0].parentNode.style.opacity = value; }
 		}

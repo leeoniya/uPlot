@@ -1496,6 +1496,9 @@ export default function uPlot(opts, data, then) {
 	function _alpha(i, value) {
 		series[i].alpha = value;
 
+		if (FEAT_CURSOR && cursor.show && cursorPts[i])
+			cursorPts[i].style.opacity = value;
+
 		if (FEAT_LEGEND && showLegend && legendRows[i])
 			legendRows[i][0].parentNode.style.opacity = value;
 	}
