@@ -1292,6 +1292,8 @@ function uPlot(opts, data, then) {
 
 	var data0 = null;
 
+	var forceUpdateLegend = false;
+
 	function setData(_data, _resetScales) {
 		_data = _data || [];
 		_data[0] = _data[0] || [];
@@ -1307,6 +1309,8 @@ function uPlot(opts, data, then) {
 		resetYSeries();
 
 		fire("setData");
+
+		forceUpdateLegend = true;
 
 		if (_resetScales !== false) {
 			var xsc = scales[xScaleKey];
@@ -2500,7 +2504,7 @@ function uPlot(opts, data, then) {
 					{ distsToCursor[i$1] = inf; }
 
 				if (showLegend && legend.live) {
-					if (idx2 == cursor.idx || i$1 == 0 && multiValLegend)
+					if ((idx2 == cursor.idx && !forceUpdateLegend) || i$1 == 0 && multiValLegend)
 						{ continue; }
 
 					var src$1 = i$1 == 0 && xScaleDistr == 2 ? data0 : data[i$1];
@@ -2513,6 +2517,8 @@ function uPlot(opts, data, then) {
 						{ legendRows[i$1][j$1++][firstChild].nodeValue = vals[k]; }
 				}
 			}
+
+			forceUpdateLegend = false;
 		}
 
 		// nit: cursor.drag.setSelect is assumed always true
