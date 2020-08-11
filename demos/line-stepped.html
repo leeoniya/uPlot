@@ -42,7 +42,10 @@
 							const scaleY = s.scale;
 
 							const stroke = new Path2D();
-							stroke.moveTo(Math.round(u.valToPos(xdata[0], scaleX, true)), Math.round(u.valToPos(ydata[0], scaleY, true)));
+							stroke.moveTo(
+								Math.round(u.valToPos(xdata[0], scaleX, true)),
+								Math.round(u.valToPos(ydata[0], scaleY, true))
+							);
 
 							for (let i = i0; i <= i1 - 1; i++) {
 								let x0 = Math.round(u.valToPos(xdata[i], scaleX, true));
@@ -52,6 +55,7 @@
 
 								stroke.lineTo(x0, y0);
 								stroke.lineTo(x1, y0);
+
 								if (i == i1 - 1)
   									stroke.lineTo(x1, y1);
 							}
