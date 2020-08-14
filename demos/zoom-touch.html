@@ -18,6 +18,8 @@
 		</style>
 	</head>
 	<body>
+	<!--<script src="lib/touch-emulator.js"></script>-->
+	<!--<script>TouchEmulator();</script>-->
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
 			function touchZoomPlugin(opts) {
@@ -37,7 +39,7 @@
 						if (ts.length == 1) {
 							t.x = t0x;
 							t.y = t0y;
-							t.d = 0;
+							t.d = t.dx = t.dy = 1;
 						}
 						else {
 							let t1 = e.touches[1];
