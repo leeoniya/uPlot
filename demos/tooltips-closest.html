@@ -1,0 +1,289 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Tooltips (closest)</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="stylesheet" href="../dist/uPlot.min.css">
+	<style>
+		.uplot {
+			display: inline-block;
+			vertical-align: top;
+			width: min-content;
+		}
+
+		.u-over {
+			box-shadow: 0px 0px 0px 0.5px #ccc;
+		}
+
+		.u-legend {
+			text-align: left;
+			padding-left: 50px;
+		}
+
+		.u-inline tr {
+			margin-right: 8px;
+		}
+
+		.u-label {
+			font-size: 12px;
+		}
+
+		.u-tooltip {
+			font-size: 10pt;
+			position: absolute;
+			background: #fff;
+			display: none;
+			border: 2px solid black;
+			padding: 4px;
+			pointer-events: none;
+			z-index: 100;
+			white-space: pre;
+			font-family: monospace;
+		}
+	</style>
+</head>
+<body>
+	<script src="../dist/uPlot.iife.js"></script>
+	<script>
+		const seriesColors = ["#7cb5ec", "#434348", "#90ed7d", "#f7a35c", "#8085e9", "#f15c80", "#e4d354", "#2b908f", "#f45b5b", "#91e8e1"];
+		const interpolatedColor = "#fcb0f1";
+
+		function tooltipPlugin({onclick, commits, isInterpolated, shiftX = 10, shiftY = 10}) {
+			let tooltipLeftOffset = 0;
+			let tooltipTopOffset = 0;
+
+			const tooltip = document.createElement("div");
+			tooltip.className = "u-tooltip";
+
+			let seriesIdx = null;
+			let dataIdx = null;
+
+			const fmtDate = uPlot.fmtDate("{M}/{D}/{YY} {h}:{mm}:{ss} {AA}");
+
+			function setTooltip(u) {
+				let top = u.valToPos(u.data[seriesIdx][dataIdx], 'y');
+				let lft = u.valToPos(u.data[        0][dataIdx], 'x');
+
+				tooltip.style.top  = (tooltipTopOffset  + top + shiftX) + "px";
+				tooltip.style.left = (tooltipLeftOffset + lft + shiftY) + "px";
+
+				tooltip.style.borderColor = isInterpolated(dataIdx) ? interpolatedColor : seriesColors[seriesIdx - 1];
+				let pctSinceStart = (((u.data[seriesIdx][dataIdx] - u.data[seriesIdx][0]) / u.data[seriesIdx][0]) * 100).toFixed(2);
+				tooltip.textContent = (
+					fmtDate(new Date(u.data[0][dataIdx] * 1e3)) + " - " + commits[dataIdx][1].slice(0,10) + "\n" +
+					uPlot.fmtNum(u.data[seriesIdx][dataIdx]) + "(" + pctSinceStart + "% since start)"
+				);
+			}
+
+			return {
+				hooks: {
+					ready: [
+						u => {
+							let over = u.root.querySelector(".u-over");
+							tooltipLeftOffset = parseFloat(over.style.left);
+							tooltipTopOffset = parseFloat(over.style.top);
+							u.root.querySelector(".u-wrap").appendChild(tooltip);
+
+							let clientX;
+							let clientY;
+
+							over.addEventListener("mousedown", e => {
+								clientX = e.clientX;
+								clientY = e.clientY;
+							});
+
+							over.addEventListener("mouseup", e => {
+								// clicked in-place
+								if (e.clientX == clientX && e.clientY == clientY) {
+									if (seriesIdx != null && dataIdx != null) {
+										onclick(u, seriesIdx, dataIdx);
+									}
+								}
+							});
+						}
+					],
+					setCursor: [
+						u => {
+							let c = u.cursor;
+
+							if (c.idx != dataIdx) {
+								dataIdx = c.idx;
+
+								if (seriesIdx != null)
+									setTooltip(u, setTooltip);
+							}
+						}
+					],
+					setSeries: [
+						(u, sidx) => {
+							if (seriesIdx != sidx) {
+								seriesIdx = sidx;
+
+								if (sidx == null)
+									tooltip.style.display = "none";
+								else if (dataIdx != null) {
+									tooltip.style.display = "block";
+									setTooltip(u);
+								}
+							}
+						}
+					],
+				}
+			};
+		}
+
+		function genPlotOpts({title, width, height, yAxisLabel, series, commits, stat, isInterpolated, alpha = 0.3, prox = 5}) {
+			return {
+				title,
+				width,
+				height,
+				series,
+				legend: {
+					live: false,
+				},
+				focus: {
+					alpha,
+				},
+				cursor: {
+					focus: {
+						prox,
+					},
+					drag: {
+						x: true,
+						y: true,
+					},
+				},
+				scales: {
+					y: {
+						range: (self, dataMin, dataMax) => uPlot.rangeNum(0, dataMax, 0.2, true)
+					}
+				},
+				axes: [
+					{
+						grid: {
+							show: false,
+						}
+					},
+					{
+						label: yAxisLabel,
+						space: 24,
+						values: (self, splits) => {
+							return splits.map(v => {
+								return (
+									v >= 1e12 ? v/1e12 + "T" :
+									v >= 1e9  ? v/1e9  + "G" :
+									v >= 1e6  ? v/1e6  + "M" :
+									v >= 1e3  ? v/1e3  + "k" :
+									v
+								);
+							});
+						},
+					},
+				],
+				plugins: [
+					tooltipPlugin({
+						onclick(u, seriesIdx, dataIdx) {
+							let thisCommit = commits[dataIdx][1];
+							let prevCommit = (commits[dataIdx-1] || [null,null])[1];
+							window.open(`https://perf.rust-lang.org/compare.html?start=${prevCommit}&end=${thisCommit}&stat=${stat}`);
+						},
+						commits,
+						isInterpolated,
+					}),
+				],
+			};
+		}
+
+		function renderPlots(data, state) {
+			for (let benchName in data.benchmarks) {
+				let benchKinds = data.benchmarks[benchName];
+
+				let i = 0;
+
+				for (let benchKind in benchKinds) {
+					let cacheStates = benchKinds[benchKind];
+
+					let yAxisLabel = i == 0 ? "Value" : null;
+
+					let seriesOpts = [{}];
+
+					let xVals = data.commits.map(c => c[0]);
+
+					let plotData = [xVals];
+
+					let j = 0;
+
+					for (let cacheState in cacheStates) {
+						let yVals = cacheStates[cacheState].points;
+
+						plotData.push(yVals);
+
+						seriesOpts.push({
+							label: cacheState,
+							width: devicePixelRatio,
+							stroke: seriesColors[j],
+						});
+
+						j++;
+					}
+
+					let plotOpts = genPlotOpts({
+						title: benchName + "-" + benchKind,
+						width: Math.floor(window.innerWidth / 3) - 16,
+						height: 300,
+						yAxisLabel,
+						series: seriesOpts,
+						commits: data.commits,
+						stat: state.stat,
+						isInterpolated(dataIdx) {
+							return cacheStates.full.is_interpolated.has(dataIdx);
+						},
+					});
+
+					let u = new uPlot(plotOpts, plotData, document.body);
+
+					i++;
+				}
+			}
+		}
+
+		function prepData(data) {
+			let sortedBenchNames = Object.keys(data.benchmarks).sort();
+
+			let benchmarks = {};
+
+			function optInterpolated(buildKind) {
+				for (let cacheState in buildKind)
+					buildKind[cacheState].is_interpolated = new Set(buildKind[cacheState].is_interpolated);
+
+				return buildKind;
+			}
+
+			sortedBenchNames.forEach(name => {
+				const { Check, Debug, Opt } = data.benchmarks[name];
+
+				benchmarks[name] = {
+				//	check: optInterpolated(Check),
+				//	debug: optInterpolated(Debug),
+					opt:   optInterpolated(Opt),
+				}
+			});
+
+			data.benchmarks = benchmarks;
+
+			return data;
+		}
+
+		const state = {
+			start: "",
+			end: "",
+			stat: "instructions:u",
+			absolute: true,
+		};
+
+		fetch("data/rustc-perf.json", state).then(r => r.json()).then(prepData).then(data => renderPlots(data, state));
+	</script>
+</body>
+</html>
