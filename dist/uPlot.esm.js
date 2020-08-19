@@ -2330,19 +2330,19 @@ function uPlot(opts, data, then) {
 	}
 
 	// y-distance
-	const distsToCursor =  Array(series.length);
-
-	let focused = null;
+	let closestDist;
+	let closestSeries;
+	let focusedSeries;
 
 	function setFocus(i) {
-		if (i != focused) {
+		if (i != focusedSeries) {
 		//	log("setFocus()", arguments);
 
 			series.forEach((s, i2) => {
 				_setAlpha(i2, i == null || i2 == 0 || i2 == i ? 1 : focus.alpha);
 			});
 
-			focused = i;
+			focusedSeries = i;
 			paint();
 		}
 	}
@@ -2447,13 +2447,14 @@ function uPlot(opts, data, then) {
 		// for nearest min/max indices results in this condition. cheap hack :D
 		let noDataInRange = i0 > i1;
 
+		closestDist = inf;
+
 		// if cursor hidden, hide points & clear legend vals
 		if (mouseLeft1 < 0 || dataLen == 0 || noDataInRange) {
 			idx = null;
 
 			for (let i = 0; i < series.length; i++) {
 				if (i > 0) {
-					distsToCursor[i] = inf;
 					 cursorPts.length > 1 && trans(cursorPts[i], -10, -10);
 				}
 
@@ -2489,12 +2490,17 @@ function uPlot(opts, data, then) {
 
 					let yPos = valAtIdx == null ? -10 : round3(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0));
 
-					distsToCursor[i] = yPos > 0 ? abs(yPos - mouseTop1) : inf;
+					if (yPos > 0) {
+						let dist = abs(yPos - mouseTop1);
+
+						if (dist <= closestDist) {
+							closestDist = dist;
+							closestSeries = i;
+						}
+					}
 
 					 cursorPts.length > 1 && trans(cursorPts[i], xPos2, yPos);
 				}
-				else
-					distsToCursor[i] = inf;
 
 				if (showLegend && legend.live) {
 					if ((idx2 == cursor.idx && !forceUpdateLegend) || i == 0 && multiValLegend)
@@ -2631,18 +2637,7 @@ function uPlot(opts, data, then) {
 			sync.pub(mousemove, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, idx);
 
 			if (cursorFocus) {
-				let minDist = min.apply(null, distsToCursor);
-
-				let fi = null;
-
-				if (minDist <= focus.prox) {
-					distsToCursor.some((dist, i) => {
-						if (dist == minDist)
-							return fi = i;
-					});
-				}
-
-				setSeries(fi, {focus: true}, syncOpts.setSeries);
+				setSeries(closestDist <= focus.prox ? closestSeries : null, {focus: true}, syncOpts.setSeries);
 			}
 		}
 
