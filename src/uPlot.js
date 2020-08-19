@@ -1399,9 +1399,17 @@ export default function uPlot(opts, data, then) {
 	let vt;
 	let hz;
 
+	// starting position before cursor.move
+	let rawMouseLeft0;
+	let rawMouseTop0;
+
 	// starting position
 	let mouseLeft0;
 	let mouseTop0;
+
+	// current position before cursor.move
+	let rawMouseLeft1;
+	let rawMouseTop1;
 
 	// current position
 	let mouseLeft1;
@@ -1626,6 +1634,9 @@ export default function uPlot(opts, data, then) {
 
 		cursorRaf = 0;
 
+		rawMouseLeft1 = mouseLeft1;
+		rawMouseTop1 = mouseTop1;
+
 		[mouseLeft1, mouseTop1] = cursor.move(self, mouseLeft1, mouseTop1);
 
 		if (cursor.show) {
@@ -1714,9 +1725,6 @@ export default function uPlot(opts, data, then) {
 
 		// nit: cursor.drag.setSelect is assumed always true
 		if (select.show && dragging) {
-			let dx = abs(mouseLeft1 - mouseLeft0);
-			let dy = abs(mouseTop1 - mouseTop0);
-
 			if (src != null) {
 				let [xKey, yKey] = syncOpts.scales;
 
@@ -1760,20 +1768,23 @@ export default function uPlot(opts, data, then) {
 				}
 			}
 			else {
-				dragX = drag.x && dx >= drag.dist;
-				dragY = drag.y && dy >= drag.dist;
+				let rawDX = abs(rawMouseLeft1 - rawMouseLeft0);
+				let rawDY = abs(rawMouseTop1 - rawMouseTop0);
+
+				dragX = drag.x && rawDX >= drag.dist;
+				dragY = drag.y && rawDY >= drag.dist;
 
 				let uni = drag.uni;
 
 				if (uni != null) {
 					// only calc drag status if they pass the dist thresh
 					if (dragX && dragY) {
-						dragX = dx >= uni;
-						dragY = dy >= uni;
+						dragX = rawDX >= uni;
+						dragY = rawDY >= uni;
 
 						// force unidirectionality when both are under uni limit
 						if (!dragX && !dragY) {
-							if (dy > dx)
+							if (rawDY > rawDX)
 								dragY = true;
 							else
 								dragX = true;
@@ -1786,6 +1797,7 @@ export default function uPlot(opts, data, then) {
 
 				if (dragX) {
 					let minX = min(mouseLeft0, mouseLeft1);
+					let dx = abs(mouseLeft1 - mouseLeft0);
 
 					setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
 					setStylePx(selectDiv, WIDTH, select[WIDTH] = dx);
@@ -1798,6 +1810,7 @@ export default function uPlot(opts, data, then) {
 
 				if (dragY) {
 					let minY = min(mouseTop0, mouseTop1);
+					let dy = abs(mouseTop1 - mouseTop0);
 
 					setStylePx(selectDiv, TOP,    select[TOP] = minY);
 					setStylePx(selectDiv, HEIGHT, select[HEIGHT] = dy);
@@ -1890,8 +1903,10 @@ export default function uPlot(opts, data, then) {
 		}
 
 		if (initial) {
-			mouseLeft0 = _x;
-			mouseTop0 = _y;
+			rawMouseLeft0 = _x;
+			rawMouseTop0 = _y;
+
+			[mouseLeft0, mouseTop0] = cursor.move(self, _x, _y);
 		}
 		else {
 			mouseLeft1 = _x;

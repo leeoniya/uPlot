@@ -2226,9 +2226,17 @@ var uPlot = (function () {
 		var vt;
 		var hz;
 
+		// starting position before cursor.move
+		var rawMouseLeft0;
+		var rawMouseTop0;
+
 		// starting position
 		var mouseLeft0;
 		var mouseTop0;
+
+		// current position before cursor.move
+		var rawMouseLeft1;
+		var rawMouseTop1;
 
 		// current position
 		var mouseLeft1;
@@ -2455,6 +2463,9 @@ var uPlot = (function () {
 
 			cursorRaf = 0;
 
+			rawMouseLeft1 = mouseLeft1;
+			rawMouseTop1 = mouseTop1;
+
 			(assign = cursor.move(self, mouseLeft1, mouseTop1), mouseLeft1 = assign[0], mouseTop1 = assign[1]);
 
 			if (cursor.show) {
@@ -2543,9 +2554,6 @@ var uPlot = (function () {
 
 			// nit: cursor.drag.setSelect is assumed always true
 			if (select.show && dragging) {
-				var dx = abs(mouseLeft1 - mouseLeft0);
-				var dy = abs(mouseTop1 - mouseTop0);
-
 				if (src != null) {
 					var ref = syncOpts.scales;
 					var xKey = ref[0];
@@ -2591,20 +2599,23 @@ var uPlot = (function () {
 					}
 				}
 				else {
-					dragX = drag.x && dx >= drag.dist;
-					dragY = drag.y && dy >= drag.dist;
+					var rawDX = abs(rawMouseLeft1 - rawMouseLeft0);
+					var rawDY = abs(rawMouseTop1 - rawMouseTop0);
+
+					dragX = drag.x && rawDX >= drag.dist;
+					dragY = drag.y && rawDY >= drag.dist;
 
 					var uni = drag.uni;
 
 					if (uni != null) {
 						// only calc drag status if they pass the dist thresh
 						if (dragX && dragY) {
-							dragX = dx >= uni;
-							dragY = dy >= uni;
+							dragX = rawDX >= uni;
+							dragY = rawDY >= uni;
 
 							// force unidirectionality when both are under uni limit
 							if (!dragX && !dragY) {
-								if (dy > dx)
+								if (rawDY > rawDX)
 									{ dragY = true; }
 								else
 									{ dragX = true; }
@@ -2617,6 +2628,7 @@ var uPlot = (function () {
 
 					if (dragX) {
 						var minX = min(mouseLeft0, mouseLeft1);
+						var dx = abs(mouseLeft1 - mouseLeft0);
 
 						setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
 						setStylePx(selectDiv, WIDTH, select[WIDTH] = dx);
@@ -2629,6 +2641,7 @@ var uPlot = (function () {
 
 					if (dragY) {
 						var minY = min(mouseTop0, mouseTop1);
+						var dy = abs(mouseTop1 - mouseTop0);
 
 						setStylePx(selectDiv, TOP,    select[TOP] = minY);
 						setStylePx(selectDiv, HEIGHT, select[HEIGHT] = dy);
@@ -2688,6 +2701,8 @@ var uPlot = (function () {
 		}
 
 		function cacheMouse(e, src, _x, _y, _w, _h, _i, initial, snap) {
+			var assign;
+
 			if (e != null) {
 				_x = e.clientX - rect.left;
 				_y = e.clientY - rect.top;
@@ -2723,8 +2738,10 @@ var uPlot = (function () {
 			}
 
 			if (initial) {
-				mouseLeft0 = _x;
-				mouseTop0 = _y;
+				rawMouseLeft0 = _x;
+				rawMouseTop0 = _y;
+
+				(assign = cursor.move(self, _x, _y), mouseLeft0 = assign[0], mouseTop0 = assign[1]);
 			}
 			else {
 				mouseLeft1 = _x;
