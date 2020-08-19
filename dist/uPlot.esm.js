@@ -717,11 +717,20 @@ function dataIdx(self, seriesIdx, cursorIdx) {
 	return cursorIdx;
 }
 
+const moveTuple = [0,0];
+
+function cursorMove(self, mouseLeft1, mouseTop1) {
+	moveTuple[0] = mouseLeft1;
+	moveTuple[1] = mouseTop1;
+	return moveTuple;
+}
+
 const cursorOpts = {
 	show: true,
 	x: true,
 	y: true,
 	lock: false,
+	move: cursorMove,
 	points: {
 		show: cursorPoint,
 	},
@@ -2435,6 +2444,8 @@ function uPlot(opts, data, then) {
 	//	ts == null && log("updateCursor()", arguments);
 
 		cursorRaf = 0;
+
+		[mouseLeft1, mouseTop1] = cursor.move(self, mouseLeft1, mouseTop1);
 
 		if (cursor.show) {
 			cursor.x && trans(vt,round(mouseLeft1),0);

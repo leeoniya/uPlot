@@ -290,11 +290,20 @@ function dataIdx(self, seriesIdx, cursorIdx) {
 	return cursorIdx;
 }
 
+const moveTuple = [0,0];
+
+function cursorMove(self, mouseLeft1, mouseTop1) {
+	moveTuple[0] = mouseLeft1;
+	moveTuple[1] = mouseTop1;
+	return moveTuple;
+}
+
 export const cursorOpts = {
 	show: true,
 	x: true,
 	y: true,
 	lock: false,
+	move: cursorMove,
 	points: {
 		show: cursorPoint,
 	},

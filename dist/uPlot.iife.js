@@ -715,11 +715,20 @@ var uPlot = (function () {
 		return cursorIdx;
 	}
 
+	var moveTuple = [0,0];
+
+	function cursorMove(self, mouseLeft1, mouseTop1) {
+		moveTuple[0] = mouseLeft1;
+		moveTuple[1] = mouseTop1;
+		return moveTuple;
+	}
+
 	var cursorOpts = {
 		show: true,
 		x: true,
 		y: true,
 		lock: false,
+		move: cursorMove,
 		points: {
 			show: cursorPoint,
 		},
@@ -2435,6 +2444,8 @@ var uPlot = (function () {
 		var cursorRaf = 0;
 
 		function updateCursor(ts, src) {
+			var assign;
+
 			if (inBatch) {
 				shouldUpdateCursor = true;
 				return;
@@ -2443,6 +2454,8 @@ var uPlot = (function () {
 		//	ts == null && log("updateCursor()", arguments);
 
 			cursorRaf = 0;
+
+			(assign = cursor.move(self, mouseLeft1, mouseTop1), mouseLeft1 = assign[0], mouseTop1 = assign[1]);
 
 			if (cursor.show) {
 				cursor.x && trans(vt,round(mouseLeft1),0);

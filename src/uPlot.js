@@ -1626,6 +1626,8 @@ export default function uPlot(opts, data, then) {
 
 		cursorRaf = 0;
 
+		[mouseLeft1, mouseTop1] = cursor.move(self, mouseLeft1, mouseTop1);
+
 		if (cursor.show) {
 			cursor.x && trans(vt,round(mouseLeft1),0);
 			cursor.y && trans(hz,0,round(mouseTop1));

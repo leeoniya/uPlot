@@ -125,6 +125,8 @@ declare namespace uPlot {
 
 	export type MinMax = [number, number];
 
+	export type LeftTop = [number, number];
+
 	export interface DateNames {
 		/** long month names */
 		MMMM: string[];
@@ -235,6 +237,9 @@ declare namespace uPlot {
 
 		/** returns data idx used for hover points & legend display (defaults to hoveredIdx) */
 		dataIdx?: (self: uPlot, seriesIdx: number, hoveredIdx: number) => number;
+
+		/** fires on debounced mousemove events; returns refined [left, top] tuple to snap cursor position */
+		move?: (self: uPlot, mouseLeft: number, mouseTop: number) => LeftTop;
 
 		/** series hover points */
 		points?: {
