@@ -73,7 +73,7 @@
 				let pctSinceStart = (((u.data[seriesIdx][dataIdx] - u.data[seriesIdx][0]) / u.data[seriesIdx][0]) * 100).toFixed(2);
 				tooltip.textContent = (
 					fmtDate(new Date(u.data[0][dataIdx] * 1e3)) + " - " + commits[dataIdx][1].slice(0,10) + "\n" +
-					uPlot.fmtNum(u.data[seriesIdx][dataIdx]) + "(" + pctSinceStart + "% since start)"
+					uPlot.fmtNum(u.data[seriesIdx][dataIdx]) + " (" + pctSinceStart + "% since start)"
 				);
 			}
 
@@ -129,6 +129,30 @@
 								}
 							}
 						}
+					],
+					drawAxes: [
+						u => {
+							let { ctx } = u;
+							let { left, top, width, height } = u.bbox;
+
+							const interpolatedColorWithAlpha = "#fcb0f17a";
+
+							ctx.save();
+							ctx.strokeStyle = interpolatedColorWithAlpha;
+							ctx.beginPath();
+
+							u.data[0].forEach((v, j) => {
+								if (isInterpolated(j)) {
+									let cx = Math.round(u.valToPos(v, 'x', true));
+									ctx.moveTo(cx, top);
+									ctx.lineTo(cx, top + height);
+								}
+							});
+
+							ctx.closePath();
+							ctx.stroke();
+							ctx.restore();
+						},
 					],
 				}
 			};
@@ -200,9 +224,16 @@
 			for (let benchName in data.benchmarks) {
 				let benchKinds = data.benchmarks[benchName];
 
+				function isInterpolated(dataIdx) {
+					return benchKinds.interpolated.has(dataIdx);
+				}
+
 				let i = 0;
 
 				for (let benchKind in benchKinds) {
+					if (benchKind == "interpolated")
+						continue;
+
 					let cacheStates = benchKinds[benchKind];
 
 					let yAxisLabel = i == 0 ? "Value" : null;
@@ -216,7 +247,7 @@
 					let j = 0;
 
 					for (let cacheState in cacheStates) {
-						let yVals = cacheStates[cacheState].points;
+						let yVals = cacheStates[cacheState];
 
 						plotData.push(yVals);
 
@@ -237,9 +268,7 @@
 						series: seriesOpts,
 						commits: data.commits,
 						stat: state.stat,
-						isInterpolated(dataIdx) {
-							return cacheStates.full.is_interpolated.has(dataIdx);
-						},
+						isInterpolated,
 					});
 
 					let u = new uPlot(plotOpts, plotData, document.body);
@@ -254,20 +283,14 @@
 
 			let benchmarks = {};
 
-			function optInterpolated(buildKind) {
-				for (let cacheState in buildKind)
-					buildKind[cacheState].is_interpolated = new Set(buildKind[cacheState].is_interpolated);
-
-				return buildKind;
-			}
-
 			sortedBenchNames.forEach(name => {
 				const { Check, Debug, Opt } = data.benchmarks[name];
 
 				benchmarks[name] = {
-				//	check: optInterpolated(Check),
-				//	debug: optInterpolated(Debug),
-					opt:   optInterpolated(Opt),
+					interpolated: new Set(data.benchmarks[name].interpolated),
+				//	check: Check,
+				//	debug: Debug,
+					opt:   Opt,
 				}
 			});
 
