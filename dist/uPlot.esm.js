@@ -1214,6 +1214,7 @@ function uPlot(opts, data, then) {
 		if (i > 0) {
 			s.width = s.width == null ? 1 : s.width;
 			s.paths = s.paths || ( buildPaths);
+			s.fillTo = fnOrSelf(s.fillTo || 0);
 			let _ptDia = ptDia(s.width, 1);
 			s.points = assign({}, {
 				size: _ptDia,
@@ -1930,9 +1931,9 @@ function uPlot(opts, data, then) {
 			if (s.fill != null) {
 				let fill = _paths.fill = new Path2D(stroke);
 
-				let zeroY = round(getYPos(0, scaleY, plotHgt, plotTop));
-				fill.lineTo(plotLft + plotWid, zeroY);
-				fill.lineTo(plotLft, zeroY);
+				let fillTo = round(getYPos(s.fillTo(self, is, s.min, s.max), scaleY, plotHgt, plotTop));
+				fill.lineTo(plotLft + plotWid, fillTo);
+				fill.lineTo(plotLft, fillTo);
 			}
 		}
 

@@ -370,6 +370,9 @@ declare namespace uPlot {
 		/** area fill & legend color */
 		fill?: CanvasRenderingContext2D['fillStyle'];
 
+		/** area fill baseline (default: 0) */
+		fillTo?: number | ((self: uPlot, seriesIdx: number, dataMin: number, dataMax: number) => number);
+
 		/** line dash segment array */
 		dash?: number[];					// CanvasRenderingContext2D['setLineDash'];
 
