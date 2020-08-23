@@ -1013,13 +1013,13 @@ function snapLogY(self, dataMin, dataMax) {
 }
 
 // dim is logical (getClientBoundingRect) pixels, not canvas pixels
-function findIncr(valDelta, incrs, dim, minSpace) {
-	let pxPerUnit = dim / valDelta;
+function findIncr(min, max, incrs, dim, minSpace) {
+	let pxPerUnit = dim / (max - min);
 
 	for (var i = 0; i < incrs.length; i++) {
 		let space = incrs[i] * pxPerUnit;
 
-		if (space >= minSpace)
+		if (space >= minSpace && min + incrs[i] > min)
 			return [incrs[i], space];
 	}
 }
@@ -1953,7 +1953,7 @@ function uPlot(opts, data, then) {
 		else {
 			let minSpace = axis.space(self, axisIdx, min, max, fullDim);
 			let incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
-			incrSpace = findIncr(max - min, incrs, fullDim, minSpace);
+			incrSpace = findIncr(min, max, incrs, fullDim, minSpace);
 		}
 
 		return incrSpace;
@@ -2200,6 +2200,9 @@ function uPlot(opts, data, then) {
 						return;
 				}
 			}
+
+			if (opts.max - opts.min < 1e-16)
+				return;
 
 		//	log("setScale()", arguments);
 
