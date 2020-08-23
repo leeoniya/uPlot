@@ -72,7 +72,7 @@ export function rangeLog(min, max, fullMags) {
 		max = incrRoundUp(max, maxMag);
 	}
 
-	return [+min.toFixed(12), +max.toFixed(12)];
+	return [+min.toFixed(16), +max.toFixed(16)];
 }
 
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
