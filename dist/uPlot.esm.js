@@ -810,9 +810,9 @@ function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	let splits = [];
 
-	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(12);
+	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(16);
 
-	for (let val = scaleMin; val <= scaleMax; val = +(val + foundIncr).toFixed(12))
+	for (let val = scaleMin; val <= scaleMax; val = +(val + foundIncr).toFixed(16))
 		splits.push(val);
 
 	return splits;
@@ -827,7 +827,7 @@ function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 
 	do {
 		splits.push(split);
-		split = +(split + foundIncr).toFixed(12);
+		split = +(split + foundIncr).toFixed(16);
 		if (split >= foundIncr * 10)
 			foundIncr = split;
 	} while (split <= scaleMax);
@@ -1344,7 +1344,7 @@ function uPlot(opts, data, then) {
 		let _min = xScaleDistr == 2 ? i0 : data[0][i0],
 			_max = xScaleDistr == 2 ? i1 : data[0][i1];
 
-		_setScale(xScaleKey, _min, _max);
+		_min != null && _max != null && _setScale(xScaleKey, _min, _max);
 	}
 
 	function setCtxStyle(stroke, width, dash, fill) {

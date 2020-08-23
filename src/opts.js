@@ -383,9 +383,9 @@ export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	let splits = [];
 
-	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(12);
+	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(16);
 
-	for (let val = scaleMin; val <= scaleMax; val = +(val + foundIncr).toFixed(12))
+	for (let val = scaleMin; val <= scaleMax; val = +(val + foundIncr).toFixed(16))
 		splits.push(val);
 
 	return splits;
@@ -400,7 +400,7 @@ export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 
 	do {
 		splits.push(split);
-		split = +(split + foundIncr).toFixed(12);
+		split = +(split + foundIncr).toFixed(16);
 		if (split >= foundIncr * 10)
 			foundIncr = split;
 	} while (split <= scaleMax);

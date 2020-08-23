@@ -524,7 +524,7 @@ export default function uPlot(opts, data, then) {
 		let _min = xScaleDistr == 2 ? i0 : data[0][i0],
 			_max = xScaleDistr == 2 ? i1 : data[0][i1];
 
-		_setScale(xScaleKey, _min, _max);
+		_min != null && _max != null && _setScale(xScaleKey, _min, _max);
 	}
 
 	function setCtxStyle(stroke, width, dash, fill) {
