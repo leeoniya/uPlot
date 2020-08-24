@@ -159,20 +159,20 @@
 
 							ctx.save();
 
-							let clip = new Path2D();
-							clip.rect(left, top, width, height);
-							ctx.clip(clip);
-
 							ctx.strokeStyle = interpolatedColorWithAlpha;
 							ctx.beginPath();
 
-							u.data[0].forEach((v, j) => {
+							let [ i0, i1 ] = u.series[0].idxs;
+
+							for (let j = i0; j <= i1; j++) {
+								let v = u.data[0][j];
+
 								if (isInterpolated(j)) {
 									let cx = Math.round(u.valToPos(v, 'x', true));
 									ctx.moveTo(cx, top);
 									ctx.lineTo(cx, top + height);
 								}
-							});
+							}
 
 							ctx.closePath();
 							ctx.stroke();
