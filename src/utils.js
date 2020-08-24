@@ -61,18 +61,29 @@ export function getMinMax(data, _i0, _i1, sorted) {
 }
 
 export function rangeLog(min, max, fullMags) {
-	if (fullMags) {
-		min = pow(10, floor(log10(min)));
-		max = pow(10,  ceil(log10(max)));
-	}
-	else {
-		let minMag = pow(10, floor(log10(min)));
-		min = incrRoundDn(min, minMag);
-		let maxMag = pow(10, floor(log10(max)));
-		max = incrRoundUp(max, maxMag);
+	if (min == max) {
+		min /= 10;
+		max *= 10;
 	}
 
-	return [+min.toFixed(16), +max.toFixed(16)];
+	let minIncr, maxIncr;
+
+	if (fullMags) {
+		min = minIncr = pow(10, floor(log10(min)));
+		max = maxIncr = pow(10,  ceil(log10(max)));
+	}
+	else {
+		minIncr       = pow(10, floor(log10(min)));
+		maxIncr       = pow(10, floor(log10(max)));
+
+		min           = incrRoundDn(min, minIncr);
+		max           = incrRoundUp(max, maxIncr);
+	}
+
+	return [
+		+min.toFixed(fixedDec.get(minIncr)),
+		+max.toFixed(fixedDec.get(maxIncr)),
+	];
 }
 
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
@@ -161,14 +172,19 @@ export function round6(val) {
 	return round(val * 1e6) / 1e6;
 }
 
+export const fixedDec = new Map();
+
 export function genIncrs(minExp, maxExp, mults) {
 	let incrs = [];
 
 	for (let exp = minExp; exp < maxExp; exp++) {
 		let mag = pow(10, exp);
+		let expa = abs(exp);
+
 		for (let i = 0; i < mults.length; i++) {
-			let incr = mults[i] * mag;
-			incrs.push(+incr.toFixed(abs(exp)));
+			let incr = +(mults[i] * mag).toFixed(expa);
+			incrs.push(incr);
+			fixedDec.set(incr, incr < 1 ? expa : 0);
 		}
 	}
 

@@ -73,18 +73,28 @@ var uPlot = (function () {
 	}
 
 	function rangeLog(min, max, fullMags) {
-		if (fullMags) {
-			min = pow(10, floor(log10(min)));
-			max = pow(10,  ceil(log10(max)));
-		}
-		else {
-			var minMag = pow(10, floor(log10(min)));
-			min = incrRoundDn(min, minMag);
-			var maxMag = pow(10, floor(log10(max)));
-			max = incrRoundUp(max, maxMag);
+		if (min == max) {
+			min /= 10;
+			max *= 10;
 		}
 
-		return [+min.toFixed(16), +max.toFixed(16)];
+		var minIncr, maxIncr;
+
+		if (fullMags) {
+			min = minIncr = pow(10, floor(log10(min)));
+			max = maxIncr = pow(10,  ceil(log10(max)));
+		}
+		else {
+			minIncr       = pow(10, floor(log10(min)));
+			maxIncr       = pow(10, floor(log10(max)));
+
+			min           = incrRoundDn(min, minIncr);
+			max           = incrRoundUp(max, maxIncr);
+		}
+
+		return [
+			+min.toFixed(fixedDec.get(minIncr)),
+			+max.toFixed(fixedDec.get(maxIncr)) ];
 	}
 
 	// this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
@@ -169,14 +179,19 @@ var uPlot = (function () {
 		return round(val * 1e6) / 1e6;
 	}
 
+	var fixedDec = new Map();
+
 	function genIncrs(minExp, maxExp, mults) {
 		var incrs = [];
 
 		for (var exp = minExp; exp < maxExp; exp++) {
 			var mag = pow(10, exp);
+			var expa = abs(exp);
+
 			for (var i = 0; i < mults.length; i++) {
-				var incr = mults[i] * mag;
-				incrs.push(+incr.toFixed(abs(exp)));
+				var incr = +(mults[i] * mag).toFixed(expa);
+				incrs.push(incr);
+				fixedDec.set(incr, incr < 1 ? expa : 0);
 			}
 		}
 
@@ -808,9 +823,11 @@ var uPlot = (function () {
 	function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 		var splits = [];
 
-		scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(16);
+		var numDec = fixedDec.get(foundIncr);
 
-		for (var val = scaleMin; val <= scaleMax; val = +(val + foundIncr).toFixed(16))
+		scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(numDec);
+
+		for (var val = scaleMin; val <= scaleMax; val = +(val + foundIncr).toFixed(numDec))
 			{ splits.push(val); }
 
 		return splits;
@@ -825,7 +842,7 @@ var uPlot = (function () {
 
 		do {
 			splits.push(split);
-			split = +(split + foundIncr).toFixed(16);
+			split = +(split + foundIncr).toFixed(fixedDec.get(foundIncr));
 			if (split >= foundIncr * 10)
 				{ foundIncr = split; }
 		} while (split <= scaleMax);

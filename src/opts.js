@@ -13,6 +13,7 @@ import {
 	round6,
 	floor,
 	fmtNum,
+	fixedDec,
 } from './utils';
 
 import {
@@ -383,9 +384,11 @@ export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	let splits = [];
 
-	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(16);
+	let numDec = fixedDec.get(foundIncr);
 
-	for (let val = scaleMin; val <= scaleMax; val = +(val + foundIncr).toFixed(16))
+	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(numDec);
+
+	for (let val = scaleMin; val <= scaleMax; val = +(val + foundIncr).toFixed(numDec))
 		splits.push(val);
 
 	return splits;
@@ -400,7 +403,7 @@ export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 
 	do {
 		splits.push(split);
-		split = +(split + foundIncr).toFixed(16);
+		split = +(split + foundIncr).toFixed(fixedDec.get(foundIncr));
 		if (split >= foundIncr * 10)
 			foundIncr = split;
 	} while (split <= scaleMax);
