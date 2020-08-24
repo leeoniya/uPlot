@@ -669,27 +669,31 @@ function timeAxisSplits(tzDate) {
 			while (1) {
 				split$1 = round3(split$1 + foundIncr);
 
-				var expectedHour = floor(round6(prevHour + incrHours)) % 24;
-				var splitDate$1 = tzDate(split$1);
-				var actualHour = splitDate$1.getHours();
-
-				var dstShift = actualHour - expectedHour;
-
-				if (dstShift > 1)
-					{ dstShift = -1; }
-
-				split$1 -= dstShift * h;
-
 				if (split$1 > scaleMax)
 					{ break; }
 
-				prevHour = (prevHour + incrHours) % 24;
+				if (incrHours > 1) {
+					var expectedHour = floor(round6(prevHour + incrHours)) % 24;
+					var splitDate$1 = tzDate(split$1);
+					var actualHour = splitDate$1.getHours();
 
-				// add a tick only if it's further than 70% of the min allowed label spacing
-				var prevSplit = splits[splits.length - 1];
-				var pctIncr = round3((split$1 - prevSplit) / foundIncr);
+					var dstShift = actualHour - expectedHour;
 
-				if (pctIncr * pctSpace >= .7)
+					if (dstShift > 1)
+						{ dstShift = -1; }
+
+					split$1 -= dstShift * h;
+
+					prevHour = (prevHour + incrHours) % 24;
+
+					// add a tick only if it's further than 70% of the min allowed label spacing
+					var prevSplit = splits[splits.length - 1];
+					var pctIncr = round3((split$1 - prevSplit) / foundIncr);
+
+					if (pctIncr * pctSpace >= .7)
+						{ splits.push(split$1); }
+				}
+				else
 					{ splits.push(split$1); }
 			}
 		}

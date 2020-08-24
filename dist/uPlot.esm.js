@@ -673,27 +673,31 @@ function timeAxisSplits(tzDate) {
 			while (1) {
 				split = round3(split + foundIncr);
 
-				let expectedHour = floor(round6(prevHour + incrHours)) % 24;
-				let splitDate = tzDate(split);
-				let actualHour = splitDate.getHours();
-
-				let dstShift = actualHour - expectedHour;
-
-				if (dstShift > 1)
-					dstShift = -1;
-
-				split -= dstShift * h;
-
 				if (split > scaleMax)
 					break;
 
-				prevHour = (prevHour + incrHours) % 24;
+				if (incrHours > 1) {
+					let expectedHour = floor(round6(prevHour + incrHours)) % 24;
+					let splitDate = tzDate(split);
+					let actualHour = splitDate.getHours();
 
-				// add a tick only if it's further than 70% of the min allowed label spacing
-				let prevSplit = splits[splits.length - 1];
-				let pctIncr = round3((split - prevSplit) / foundIncr);
+					let dstShift = actualHour - expectedHour;
 
-				if (pctIncr * pctSpace >= .7)
+					if (dstShift > 1)
+						dstShift = -1;
+
+					split -= dstShift * h;
+
+					prevHour = (prevHour + incrHours) % 24;
+
+					// add a tick only if it's further than 70% of the min allowed label spacing
+					let prevSplit = splits[splits.length - 1];
+					let pctIncr = round3((split - prevSplit) / foundIncr);
+
+					if (pctIncr * pctSpace >= .7)
+						splits.push(split);
+				}
+				else
 					splits.push(split);
 			}
 		}
