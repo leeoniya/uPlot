@@ -62,7 +62,29 @@
 
 			const fmtDate = uPlot.fmtDate("{M}/{D}/{YY} {h}:{mm}:{ss} {AA}");
 
+			let over;
+
+			let tooltipVisible = false;
+
+			function showTooltip() {
+				if (!tooltipVisible) {
+					tooltip.style.display = "block";
+					over.style.cursor = "pointer";
+					tooltipVisible = true;
+				}
+			}
+
+			function hideTooltip() {
+				if (tooltipVisible) {
+					tooltip.style.display = "none";
+					over.style.cursor = null;
+					tooltipVisible = false;
+				}
+			}
+
 			function setTooltip(u) {
+				showTooltip();
+
 				let top = u.valToPos(u.data[seriesIdx][dataIdx], 'y');
 				let lft = u.valToPos(u.data[        0][dataIdx], 'x');
 
@@ -81,7 +103,7 @@
 				hooks: {
 					ready: [
 						u => {
-							let over = u.root.querySelector(".u-over");
+							over = u.root.querySelector(".u-over");
 							tooltipLeftOffset = parseFloat(over.style.left);
 							tooltipTopOffset = parseFloat(over.style.top);
 							u.root.querySelector(".u-wrap").appendChild(tooltip);
@@ -108,11 +130,11 @@
 						u => {
 							let c = u.cursor;
 
-							if (c.idx != dataIdx) {
+							if (dataIdx != c.idx) {
 								dataIdx = c.idx;
 
 								if (seriesIdx != null)
-									setTooltip(u, setTooltip);
+									setTooltip(u);
 							}
 						}
 					],
@@ -122,11 +144,9 @@
 								seriesIdx = sidx;
 
 								if (sidx == null)
-									tooltip.style.display = "none";
-								else if (dataIdx != null) {
-									tooltip.style.display = "block";
+									hideTooltip();
+								else if (dataIdx != null)
 									setTooltip(u);
-								}
 							}
 						}
 					],
@@ -138,6 +158,11 @@
 							const interpolatedColorWithAlpha = "#fcb0f17a";
 
 							ctx.save();
+
+							let clip = new Path2D();
+							clip.rect(left, top, width, height);
+							ctx.clip(clip);
+
 							ctx.strokeStyle = interpolatedColorWithAlpha;
 							ctx.beginPath();
 
