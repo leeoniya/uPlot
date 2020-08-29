@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>No Data</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			let opts = {
+				title: "Plot without data",
+				width: 800,
+				height: 400,
+				scales: {
+					x: {
+						range(u, dataMin, dataMax) {
+							if (dataMin == null)
+								return [1566453600, 1566497660];
+
+							return [dataMin, dataMax];
+						}
+					},
+					y: {
+						range(u, dataMin, dataMax) {
+							if (dataMin == null)
+								return [0, 100];
+
+							return uPlot.rangeNum(dataMin, dataMax, 0.1, true);
+						}
+					},
+				},
+			};
+
+			let u = new uPlot(opts, null, document.body);
+		</script>
+	</body>
+</html>

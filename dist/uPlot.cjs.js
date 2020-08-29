@@ -1356,13 +1356,21 @@ function uPlot(opts, data, then) {
 	self.setData = setData;
 
 	function autoScaleX() {
-		i0 = idxs[0] = 0;
-		i1 = idxs[1] = dataLen - 1;
+		var _min, _max;
 
-		var _min = xScaleDistr == 2 ? i0 : data[0][i0],
+		if (dataLen > 0) {
+			i0 = idxs[0] = 0;
+			i1 = idxs[1] = dataLen - 1;
+
+			_min = xScaleDistr == 2 ? i0 : data[0][i0];
 			_max = xScaleDistr == 2 ? i1 : data[0][i1];
+		}
+		else {
+			i0 = idxs[0] = _min = null;
+			i1 = idxs[1] = _max = null;
+		}
 
-		_min != null && _max != null && _setScale(xScaleKey, _min, _max);
+		_setScale(xScaleKey, _min, _max);
 	}
 
 	function setCtxStyle(stroke, width, dash, fill) {
@@ -1536,33 +1544,39 @@ function uPlot(opts, data, then) {
 
 	//	log("setScales()", arguments);
 
-		if (dataLen > 0) {
-			// wip scales
-			var wipScales = copy(scales);
+		// wip scales
+		var wipScales = copy(scales);
 
-			for (var k in wipScales) {
-				var wsc = wipScales[k];
-				var psc = pendScales[k];
+		for (var k in wipScales) {
+			var wsc = wipScales[k];
+			var psc = pendScales[k];
 
-				if (psc != null) {
-					assign(wsc, psc);
+			if (psc != null) {
+				assign(wsc, psc);
 
-					// explicitly setting the x-scale invalidates everything (acts as redraw)
-					if (k == xScaleKey)
-						{ resetYSeries(); }
+				// explicitly setting the x-scale invalidates everything (acts as redraw)
+				if (k == xScaleKey)
+					{ resetYSeries(); }
+			}
+			else if (k != xScaleKey) {
+				if (dataLen == 0 && wsc.from == null) {
+					var minMax = wsc.range(self, null, null, k);
+					wsc.min = minMax[0];
+					wsc.max = minMax[1];
 				}
-				else if (k != xScaleKey) {
+				else {
 					wsc.min = inf;
 					wsc.max = -inf;
 				}
 			}
+		}
 
+		if (dataLen > 0) {
 			// pre-range y-scales from y series' data values
 			series.forEach(function (s, i) {
 				var k = s.scale;
 				var wsc = wipScales[k];
 
-				// setting the x scale invalidates everything
 				if (i == 0) {
 					var minMax = wsc.range(self, wsc.min, wsc.max, k);
 
@@ -1599,49 +1613,49 @@ function uPlot(opts, data, then) {
 				var wsc$1 = wipScales[k$1];
 
 				if (wsc$1.from == null && wsc$1.min != inf && pendScales[k$1] == null) {
-					var minMax = wsc$1.range(self, wsc$1.min, wsc$1.max, k$1);
-					wsc$1.min = minMax[0];
-					wsc$1.max = minMax[1];
+					var minMax$1 = wsc$1.range(self, wsc$1.min, wsc$1.max, k$1);
+					wsc$1.min = minMax$1[0];
+					wsc$1.max = minMax$1[1];
 				}
 			}
-
-			// range dependent scales
-			for (var k$2 in wipScales) {
-				var wsc$2 = wipScales[k$2];
-
-				if (wsc$2.from != null) {
-					var base = wipScales[wsc$2.from];
-
-					if (base.min != inf) {
-						var minMax$1 = wsc$2.range(self, base.min, base.max, k$2);
-						wsc$2.min = minMax$1[0];
-						wsc$2.max = minMax$1[1];
-					}
-				}
-			}
-
-			var changed = {};
-
-			for (var k$3 in wipScales) {
-				var wsc$3 = wipScales[k$3];
-				var sc = scales[k$3];
-
-				if (sc.min != wsc$3.min || sc.max != wsc$3.max) {
-					sc.min = wsc$3.min;
-					sc.max = wsc$3.max;
-					changed[k$3] = true;
-				}
-			}
-
-			// invalidate paths of all series on changed scales
-			series.forEach(function (s) {
-				if (changed[s.scale])
-					{ s._paths = null; }
-			});
-
-			for (var k$4 in changed)
-				{ fire("setScale", k$4); }
 		}
+
+		// range dependent scales
+		for (var k$2 in wipScales) {
+			var wsc$2 = wipScales[k$2];
+
+			if (wsc$2.from != null) {
+				var base = wipScales[wsc$2.from];
+
+				if (base.min != inf) {
+					var minMax$2 = wsc$2.range(self, base.min, base.max, k$2);
+					wsc$2.min = minMax$2[0];
+					wsc$2.max = minMax$2[1];
+				}
+			}
+		}
+
+		var changed = {};
+
+		for (var k$3 in wipScales) {
+			var wsc$3 = wipScales[k$3];
+			var sc = scales[k$3];
+
+			if (sc.min != wsc$3.min || sc.max != wsc$3.max) {
+				sc.min = wsc$3.min;
+				sc.max = wsc$3.max;
+				changed[k$3] = true;
+			}
+		}
+
+		// invalidate paths of all series on changed scales
+		series.forEach(function (s) {
+			if (changed[s.scale])
+				{ s._paths = null; }
+		});
+
+		for (var k$4 in changed)
+			{ fire("setScale", k$4); }
 
 		for (var k$5 in pendScales)
 			{ pendScales[k$5] = null; }
@@ -2213,8 +2227,14 @@ function uPlot(opts, data, then) {
 		var sc = scales[key];
 
 		if (sc.from == null) {
+			if (dataLen == 0) {
+				var minMax = sc.range(self, opts.min, opts.max, key);
+				opts.min = minMax[0];
+				opts.max = minMax[1];
+			}
+
 			if (key == xScaleKey) {
-				if (sc.distr == 2) {
+				if (sc.distr == 2 && dataLen > 0) {
 					opts.min = closestIdx(opts.min, data[0]);
 					opts.max = closestIdx(opts.max, data[0]);
 				}

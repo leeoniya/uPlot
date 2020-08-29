@@ -1360,13 +1360,21 @@ function uPlot(opts, data, then) {
 	self.setData = setData;
 
 	function autoScaleX() {
-		i0 = idxs[0] = 0;
-		i1 = idxs[1] = dataLen - 1;
+		let _min, _max;
 
-		let _min = xScaleDistr == 2 ? i0 : data[0][i0],
+		if (dataLen > 0) {
+			i0 = idxs[0] = 0;
+			i1 = idxs[1] = dataLen - 1;
+
+			_min = xScaleDistr == 2 ? i0 : data[0][i0];
 			_max = xScaleDistr == 2 ? i1 : data[0][i1];
+		}
+		else {
+			i0 = idxs[0] = _min = null;
+			i1 = idxs[1] = _max = null;
+		}
 
-		_min != null && _max != null && _setScale(xScaleKey, _min, _max);
+		_setScale(xScaleKey, _min, _max);
 	}
 
 	function setCtxStyle(stroke, width, dash, fill) {
@@ -1536,33 +1544,39 @@ function uPlot(opts, data, then) {
 
 	//	log("setScales()", arguments);
 
-		if (dataLen > 0) {
-			// wip scales
-			let wipScales = copy(scales);
+		// wip scales
+		let wipScales = copy(scales);
 
-			for (let k in wipScales) {
-				let wsc = wipScales[k];
-				let psc = pendScales[k];
+		for (let k in wipScales) {
+			let wsc = wipScales[k];
+			let psc = pendScales[k];
 
-				if (psc != null) {
-					assign(wsc, psc);
+			if (psc != null) {
+				assign(wsc, psc);
 
-					// explicitly setting the x-scale invalidates everything (acts as redraw)
-					if (k == xScaleKey)
-						resetYSeries();
+				// explicitly setting the x-scale invalidates everything (acts as redraw)
+				if (k == xScaleKey)
+					resetYSeries();
+			}
+			else if (k != xScaleKey) {
+				if (dataLen == 0 && wsc.from == null) {
+					let minMax = wsc.range(self, null, null, k);
+					wsc.min = minMax[0];
+					wsc.max = minMax[1];
 				}
-				else if (k != xScaleKey) {
+				else {
 					wsc.min = inf;
 					wsc.max = -inf;
 				}
 			}
+		}
 
+		if (dataLen > 0) {
 			// pre-range y-scales from y series' data values
 			series.forEach((s, i) => {
 				let k = s.scale;
 				let wsc = wipScales[k];
 
-				// setting the x scale invalidates everything
 				if (i == 0) {
 					let minMax = wsc.range(self, wsc.min, wsc.max, k);
 
@@ -1604,44 +1618,44 @@ function uPlot(opts, data, then) {
 					wsc.max = minMax[1];
 				}
 			}
-
-			// range dependent scales
-			for (let k in wipScales) {
-				let wsc = wipScales[k];
-
-				if (wsc.from != null) {
-					let base = wipScales[wsc.from];
-
-					if (base.min != inf) {
-						let minMax = wsc.range(self, base.min, base.max, k);
-						wsc.min = minMax[0];
-						wsc.max = minMax[1];
-					}
-				}
-			}
-
-			let changed = {};
-
-			for (let k in wipScales) {
-				let wsc = wipScales[k];
-				let sc = scales[k];
-
-				if (sc.min != wsc.min || sc.max != wsc.max) {
-					sc.min = wsc.min;
-					sc.max = wsc.max;
-					changed[k] = true;
-				}
-			}
-
-			// invalidate paths of all series on changed scales
-			series.forEach(s => {
-				if (changed[s.scale])
-					s._paths = null;
-			});
-
-			for (let k in changed)
-				fire("setScale", k);
 		}
+
+		// range dependent scales
+		for (let k in wipScales) {
+			let wsc = wipScales[k];
+
+			if (wsc.from != null) {
+				let base = wipScales[wsc.from];
+
+				if (base.min != inf) {
+					let minMax = wsc.range(self, base.min, base.max, k);
+					wsc.min = minMax[0];
+					wsc.max = minMax[1];
+				}
+			}
+		}
+
+		let changed = {};
+
+		for (let k in wipScales) {
+			let wsc = wipScales[k];
+			let sc = scales[k];
+
+			if (sc.min != wsc.min || sc.max != wsc.max) {
+				sc.min = wsc.min;
+				sc.max = wsc.max;
+				changed[k] = true;
+			}
+		}
+
+		// invalidate paths of all series on changed scales
+		series.forEach(s => {
+			if (changed[s.scale])
+				s._paths = null;
+		});
+
+		for (let k in changed)
+			fire("setScale", k);
 
 		for (let k in pendScales)
 			pendScales[k] = null;
@@ -2207,8 +2221,14 @@ function uPlot(opts, data, then) {
 		let sc = scales[key];
 
 		if (sc.from == null) {
+			if (dataLen == 0) {
+				let minMax = sc.range(self, opts.min, opts.max, key);
+				opts.min = minMax[0];
+				opts.max = minMax[1];
+			}
+
 			if (key == xScaleKey) {
-				if (sc.distr == 2) {
+				if (sc.distr == 2 && dataLen > 0) {
 					opts.min = closestIdx(opts.min, data[0]);
 					opts.max = closestIdx(opts.max, data[0]);
 				}
