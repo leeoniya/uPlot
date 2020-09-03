@@ -892,27 +892,25 @@ export default function uPlot(opts, data, then) {
 	let dir = 1;
 
 	function drawSeries() {
-		if (dataLen > 0) {
-			// path building loop must be before draw loop to ensure that all bands are fully constructed
-			series.forEach((s, i) => {
-				if (i > 0 && s.show && dataLen > 0 && s._paths == null) {
-					let _idxs = getOuterIdxs(data[i]);
-					s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
-				}
-			});
+		// path building loop must be before draw loop to ensure that all bands are fully constructed
+		series.forEach((s, i) => {
+			if (i > 0 && s.show && s._paths == null) {
+				let _idxs = getOuterIdxs(data[i]);
+				s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
+			}
+		});
 
-			series.forEach((s, i) => {
-				if (i > 0 && s.show) {
-					if (s._paths)
-						FEAT_PATHS && drawPath(i);
+		series.forEach((s, i) => {
+			if (i > 0 && s.show) {
+				if (s._paths)
+					FEAT_PATHS && drawPath(i);
 
-					if (s.points.show(self, i, i0, i1))
-						FEAT_POINTS && drawPoints(i);
+				if (s.points.show(self, i, i0, i1))
+					FEAT_POINTS && drawPoints(i);
 
-					fire("drawSeries", i);
-				}
-			});
-		}
+				fire("drawSeries", i);
+			}
+		});
 	}
 
 	function drawPath(si) {
@@ -1357,7 +1355,7 @@ export default function uPlot(opts, data, then) {
 		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 		fire("drawClear");
 		drawAxesGrid();
-		drawSeries();
+		dataLen > 0 && drawSeries();
 		didPaint = true;
 		fire("draw");
 	}
