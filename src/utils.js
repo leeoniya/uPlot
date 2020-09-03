@@ -89,7 +89,9 @@ export function rangeLog(min, max, fullMags) {
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 export function rangeNum(min, max, mult, extra) {
-	// auto-scale Y
+	if (min == max && (min == null || min == 0))
+		return [0, 100];
+
 	const delta = max - min;
 	const nonZeroDelta = delta || abs(max) || 1e3;
 	const mag = log10(nonZeroDelta);

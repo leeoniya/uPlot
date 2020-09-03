@@ -6,6 +6,11 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			.uplot {
+				display: inline-block;
+			}
+		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
@@ -35,6 +40,55 @@
 			};
 
 			let u = new uPlot(opts, null, document.body);
+
+			let onePoint = [
+				[[-1], [  -1]],
+				[[-1], [   0]],
+				[[-1], [   1]],
+				[[ 0], [  -1]],
+				[[ 0], [   0]],
+				[[ 0], [   1]],
+				[[ 1], [  -1]],
+				[[ 1], [   0]],
+				[[ 1], [   1]],
+			];
+
+			onePoint.forEach(data => {
+				new uPlot({
+					width: 800,
+					height: 400,
+					title: "1 point - " + JSON.stringify(data),
+					scales: {x: {time: false}},
+					series: [{},{}],
+				}, data, document.body);
+			})
+
+			let twoPointsFlat = [
+				[[0, 1], [-100, -100]],
+				[[0, 1], [ -10,  -10]],
+				[[0, 1], [  -1,   -1]],
+				[[0, 1], [-0.1, -0.1]],
+				[[0, 1], [   0,    0]],
+				[[0, 1], [ 0.1,  0.1]],
+				[[0, 1], [   1,    1]],
+				[[0, 1], [  10,   10]],
+				[[0, 1], [ 100,  100]],
+			];
+
+
+			let zeroPoints = [
+				null,
+				[],
+				[[]],
+				[[],[]],
+			];
+
+			let series = [
+				null,
+				[],
+				[{}],
+				[{},{}],
+			];
 		</script>
 	</body>
 </html>

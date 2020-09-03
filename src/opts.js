@@ -446,7 +446,7 @@ export function numSeriesVal(self, val) {
 export const yAxisOpts = {
 	show: true,
 	scale: "y",
-	space: 40,
+	space: 30,
 	gap: 5,
 	size: 50,
 	labelSize: 30,

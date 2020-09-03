@@ -98,7 +98,9 @@ function rangeLog(min, max, fullMags) {
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 function rangeNum(min, max, mult, extra) {
-	// auto-scale Y
+	if (min == max && (min == null || min == 0))
+		return [0, 100];
+
 	const delta = max - min;
 	const nonZeroDelta = delta || abs(max) || 1e3;
 	const mag = log10(nonZeroDelta);
@@ -888,7 +890,7 @@ function numSeriesVal(self, val) {
 const yAxisOpts = {
 	show: true,
 	scale: "y",
-	space: 40,
+	space: 30,
 	gap: 5,
 	size: 50,
 	labelSize: 30,
@@ -1011,13 +1013,7 @@ function snapTimeX(self, dataMin, dataMax) {
 function snapNumX(self, dataMin, dataMax) {
 	const delta = dataMax - dataMin;
 
-	if (delta == 0) {
-		const mag = log10(delta || abs(dataMax) || 1);
-		const exp = floor(mag) + 1;
-		return [dataMin, incrRoundUp(dataMax, pow(10, exp))];
-	}
-	else
-		return [dataMin, dataMax];
+	return delta == 0 ? rangeNum(dataMin, dataMax, 0, true) : [dataMin, dataMax];
 }
 
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
@@ -1597,7 +1593,7 @@ function uPlot(opts, data, then) {
 				}
 				else if (s.show && pendScales[k] == null) {
 					// only run getMinMax() for invalidated series data, else reuse
-					let minMax = s.min == inf ? (wsc.auto ? getMinMax(data[i], i0, i1, s.sorted) : [0,100]) : [s.min, s.max];
+					let minMax = s.min == inf ? (wsc.auto ? getMinMax(data[i], i0, i1, s.sorted) : [null,null]) : [s.min, s.max];
 
 					// initial min/max
 					wsc.min = min(wsc.min, s.min = minMax[0]);
@@ -2243,7 +2239,7 @@ function uPlot(opts, data, then) {
 				}
 			}
 
-			if (opts.max - opts.min < 1e-16)
+			if (dataLen > 1 && opts.max - opts.min < 1e-16)
 				return;
 
 		//	log("setScale()", arguments);
