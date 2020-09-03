@@ -1735,25 +1735,27 @@ function uPlot(opts, data, then) {
 	let dir = 1;
 
 	function drawSeries() {
-		// path building loop must be before draw loop to ensure that all bands are fully constructed
-		series.forEach((s, i) => {
-			if (i > 0 && s.show && dataLen > 0 && s._paths == null) {
-				let _idxs = getOuterIdxs(data[i]);
-				s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
-			}
-		});
+		if (dataLen > 0) {
+			// path building loop must be before draw loop to ensure that all bands are fully constructed
+			series.forEach((s, i) => {
+				if (i > 0 && s.show && dataLen > 0 && s._paths == null) {
+					let _idxs = getOuterIdxs(data[i]);
+					s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
+				}
+			});
 
-		series.forEach((s, i) => {
-			if (i > 0 && s.show) {
-				if (s._paths)
-					 drawPath(i);
+			series.forEach((s, i) => {
+				if (i > 0 && s.show) {
+					if (s._paths)
+						 drawPath(i);
 
-				if (s.points.show(self, i, i0, i1))
-					 drawPoints(i);
+					if (s.points.show(self, i, i0, i1))
+						 drawPoints(i);
 
-				fire("drawSeries", i);
-			}
-		});
+					fire("drawSeries", i);
+				}
+			});
+		}
 	}
 
 	function drawPath(si) {
