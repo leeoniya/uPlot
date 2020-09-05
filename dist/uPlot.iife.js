@@ -552,64 +552,80 @@ var uPlot = (function () {
 		y * 100 ]);
 
 	function timeAxisStamps(stampCfg, fmtDate) {
-		return stampCfg.map(function (s) { return [
-			s[0],
-			fmtDate(s[1]),
-			s[2],
-			fmtDate(s[4] ? s[1] + s[3] : s[3]) ]; });
+		return stampCfg.map(function (s) { return s.map(function (v, i) { return i == 0 || i == 8 || v == null ? v : fmtDate(i == 1 || s[8] == 0 ? v : s[1] + v); }
+		); });
 	}
 
+	var NL = "\n";
+
 	var yyyy = "{YYYY}";
-	var NLyyyy = "\n" + yyyy;
+	var NLyyyy = NL + yyyy;
 	var md = "{M}/{D}";
-	var NLmd = "\n" + md;
+	var NLmd = NL + md;
+	var NLmdyy = NLmd + "/{YY}";
 
 	var aa = "{aa}";
 	var hmm = "{h}:{mm}";
 	var hmmaa = hmm + aa;
+	var NLhmmaa = NL + hmmaa;
 	var ss = ":{ss}";
 
-	// [0]: minimum num secs in the tick incr
-	// [1]: normal tick format
-	// [2]: when a differing <x> is encountered - 1: sec, 2: min, 3: hour, 4: day, 5: week, 6: month, 7: year
-	// [3]: use a longer more contextual format
-	// [4]: modes: 0: replace [1] -> [3], 1: concat [1] + [3]
+	var _ = null;
+
+	// [0]:   minimum num secs in the tick incr
+	// [1]:   default tick format
+	// [2-7]: rollover tick formats
+	// [8]:   mode: 0: replace [1] -> [2-7], 1: concat [1] + [2-7]
 	var _timeAxisStamps = [
-		[y,        yyyy,            7,   "",                    1],
-		[d * 28,   "{MMM}",         7,   NLyyyy,                1],
-		[d,        md,              7,   NLyyyy,                1],
-		[h,        "{h}" + aa,      4,   NLmd,                  1],
-		[m,        hmmaa,           4,   NLmd,                  1],
-		[s,        ss,              2,   NLmd  + " " + hmmaa,   1],
-		[1e-3,     ss + ".{fff}",   2,   NLmd  + " " + hmmaa,   1] ];
+	//   tick incr    default          year                    month   day                   hour    min       sec   mode
+		[y,           yyyy,            _,                      _,      _,                    _,      _,        _,       1],
+		[d * 28,      "{MMM}",         NLyyyy,                 _,      _,                    _,      _,        _,       1],
+		[d,           md,              NLyyyy,                 _,      _,                    _,      _,        _,       1],
+		[h,           "{h}" + aa,      NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
+		[m,           hmmaa,           NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
+		[s,           ss,              NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1],
+		[1e-3,        ss + ".{fff}",   NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1] ];
 
 	// TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 	// currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
 	function timeAxisVals(tzDate, stamps) {
 		return function (self, splits, axisIdx, foundSpace, foundIncr) {
-			var s = stamps.find(function (e) { return foundIncr >= e[0]; }) || stamps[stamps.length - 1];
+			var s = stamps.find(function (s) { return foundIncr >= s[0]; }) || stamps[stamps.length - 1];
 
 			// these track boundaries when a full label is needed again
-			var prevYear = null;
-			var prevDate = null;
-			var prevMinu = null;
+			var prevYear;
+			var prevMnth;
+			var prevDate;
+			var prevHour;
+			var prevMins;
+			var prevSecs;
 
-			return splits.map(function (split, i) {
+			return splits.map(function (split) {
 				var date = tzDate(split);
 
 				var newYear = date[getFullYear]();
+				var newMnth = date[getMonth]();
 				var newDate = date[getDate]();
-				var newMinu = date[getMinutes]();
+				var newHour = date[getHours]();
+				var newMins = date[getMinutes]();
+				var newSecs = date[getSeconds]();
 
-				var diffYear = newYear != prevYear;
-				var diffDate = newDate != prevDate;
-				var diffMinu = newMinu != prevMinu;
-
-				var stamp = s[2] == 7 && diffYear || s[2] == 4 && diffDate || s[2] == 2 && diffMinu ? s[3] : s[1];
+				var stamp = (
+					newYear != prevYear && s[2] ||
+					newMnth != prevMnth && s[3] ||
+					newDate != prevDate && s[4] ||
+					newHour != prevHour && s[5] ||
+					newMins != prevMins && s[6] ||
+					newSecs != prevSecs && s[7] ||
+					                       s[1]
+				);
 
 				prevYear = newYear;
+				prevMnth = newMnth;
 				prevDate = newDate;
-				prevMinu = newMinu;
+				prevHour = newHour;
+				prevMins = newMins;
+				prevSecs = newSecs;
 
 				return stamp(date);
 			});
