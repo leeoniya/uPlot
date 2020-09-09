@@ -387,6 +387,7 @@ export const timeSeriesLabel = "Time";
 export const xSeriesOpts = {
 	show: true,
 	scale: "x",
+	auto: false,
 	sorted: 1,
 //	label: "Time",
 //	value: v => stamp(new Date(v * 1e3)),
@@ -492,6 +493,7 @@ function seriesPoints(self, si) {
 
 export const ySeriesOpts = {
 	scale: "y",
+	auto: true,
 	sorted: 0,
 	show: true,
 	band: false,

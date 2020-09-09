@@ -315,6 +315,9 @@ declare namespace uPlot {
 		/** scale key */
 		scale?: string;
 
+		/** whether this series' data is scanned during auto-ranging of its scale */
+		auto?: boolean;  // true
+
 		/** if & how the data is pre-sorted (scale.auto optimization) */
 		sorted?: 0 | 1 | -1;
 

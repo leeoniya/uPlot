@@ -831,6 +831,7 @@ const timeSeriesLabel = "Time";
 const xSeriesOpts = {
 	show: true,
 	scale: "x",
+	auto: false,
 	sorted: 1,
 //	label: "Time",
 //	value: v => stamp(new Date(v * 1e3)),
@@ -936,6 +937,7 @@ function seriesPoints(self, si) {
 
 const ySeriesOpts = {
 	scale: "y",
+	auto: true,
 	sorted: 0,
 	show: true,
 	band: false,
@@ -1609,7 +1611,7 @@ function uPlot(opts, data, then) {
 				}
 				else if (s.show && pendScales[k] == null) {
 					// only run getMinMax() for invalidated series data, else reuse
-					let minMax = s.min == inf ? (wsc.auto ? getMinMax(data[i], i0, i1, s.sorted) : [null,null]) : [s.min, s.max];
+					let minMax = s.min == inf ? (wsc.auto && s.auto ? getMinMax(data[i], i0, i1, s.sorted) : [null,null]) : [s.min, s.max];
 
 					// initial min/max
 					wsc.min = min(wsc.min, s.min = minMax[0]);
