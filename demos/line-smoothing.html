@@ -6,6 +6,11 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			.uplot {
+				display: inline-block;
+			}
+		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
@@ -14,6 +19,32 @@
 				[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99],
 				[309,317,322,304,305,317,319,321,317,321,322,329,319,313,313,321,308,308,300,303,313,310,307,305,299,293,287,283,291,285,281,269,276,261,263,274,276,268,255,261,248,239,254,244,237,230,222,233,229,221,222,243,247,233,247,228,229,231,232,235,237,225,195,186,193,186,193,182,182,182,184,159,178,170,173,170,153,151,153,158,145,166,173,178,177,166,177,168,164,153,167,168,182,177,179,167,161,179,182,173],
 			];
+
+			const opts = {
+				width: 800,
+				height: 600,
+				title: "Linear interpolation (no smoothing)",
+				cursor: {
+					sync: {
+						key: 1
+					}
+				},
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					{
+						label: "Data 1",
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+					},
+				],
+			};
+
+			let u = new uPlot(opts, data, document.body);
 
 			// adapted from https://gist.github.com/nicholaswmin/c2661eb11cad5671d816
 			/**
@@ -97,10 +128,15 @@
 				return path;
 			};
 
-			const opts = {
+			const opts2 = {
 				width: 800,
 				height: 600,
 				title: "Catmull-Rom Spline (Centripetal)",
+				cursor: {
+					sync: {
+						key: 1
+					}
+				},
 				scales: {
 					x: {
 						time: false,
@@ -154,7 +190,7 @@
 				],
 			};
 
-			let u = new uPlot(opts, data, document.body);
+			let u2 = new uPlot(opts2, data, document.body);
 		</script>
 	</body>
 </html>
