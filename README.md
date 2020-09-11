@@ -11,7 +11,7 @@ A small ([< 30 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.
 
 However, if you're looking for true real-time 60fps performance with massive datasets, uPlot [can only get you so far](https://huww98.github.io/TimeChart/docs/performance).
 WebGL should still be the tool of choice for applications like realtime signal or waveform visualizations:
-Try [danchitnis/webgl-plot](https://github.com/danchitnis/webgl-plot) or [huww98/TimeChart](https://github.com/huww98/TimeChart).
+Try [danchitnis/webgl-plot](https://github.com/danchitnis/webgl-plot), [huww98/TimeChart](https://github.com/huww98/TimeChart), [epezent/implot](https://github.com/epezent/implot).
 
 ---
 ![uPlot Chart](uPlot.png "uPlot Chart")
