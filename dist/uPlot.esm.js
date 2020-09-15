@@ -317,8 +317,13 @@ function placeDiv(cls, targ) {
 	return placeTag("div", cls, targ);
 }
 
-function trans(el, xPos, yPos) {
+function trans(el, xPos, yPos, xMax, yMax) {
 	el.style.transform = "translate(" + xPos + "px," + yPos + "px)";
+
+	if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
+		addClass(el, OFF);
+	else
+		remClass(el, OFF);
 }
 
 const evOpts = {passive: true};
@@ -1224,7 +1229,7 @@ function uPlot(opts, data, then) {
 			if (pt) {
 				addClass(pt, CURSOR_PT);
 				addClass(pt, s.class);
-				trans(pt, -10, -10);
+				trans(pt, -10, -10, plotWidCss, plotHgtCss);
 				over.insertBefore(pt, cursorPts[si]);
 
 				return pt;
@@ -2342,7 +2347,7 @@ function uPlot(opts, data, then) {
 			label && remClass(label, OFF);
 		else {
 			label && addClass(label, OFF);
-			 cursorPts.length > 1 && trans(cursorPts[i], 0, -10);
+			 cursorPts.length > 1 && trans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
 		}
 	}
 
@@ -2519,8 +2524,8 @@ function uPlot(opts, data, then) {
 		[mouseLeft1, mouseTop1] = cursor.move(self, mouseLeft1, mouseTop1);
 
 		if (cursor.show) {
-			cursor.x && trans(vt,round(mouseLeft1),0);
-			cursor.y && trans(hz,0,round(mouseTop1));
+			cursor.x && trans(vt, round(mouseLeft1), 0, plotWidCss, plotHgtCss);
+			cursor.y && trans(hz, 0, round(mouseTop1), plotWidCss, plotHgtCss);
 		}
 
 		let idx;
@@ -2537,7 +2542,7 @@ function uPlot(opts, data, then) {
 
 			for (let i = 0; i < series.length; i++) {
 				if (i > 0) {
-					 cursorPts.length > 1 && trans(cursorPts[i], -10, -10);
+					 cursorPts.length > 1 && trans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
 				}
 
 				if (showLegend && legend.live) {
@@ -2581,7 +2586,7 @@ function uPlot(opts, data, then) {
 						}
 					}
 
-					 cursorPts.length > 1 && trans(cursorPts[i], xPos2, yPos);
+					 cursorPts.length > 1 && trans(cursorPts[i], xPos2, yPos, plotWidCss, plotHgtCss);
 				}
 
 				if (showLegend && legend.live) {

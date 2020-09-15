@@ -10,6 +10,10 @@ import {
 	round,
 } from './utils';
 
+import {
+	OFF,
+} from './domClasses';
+
 export const rAF = requestAnimationFrame;
 export const doc = document;
 export const win = window;
@@ -43,8 +47,13 @@ export function placeDiv(cls, targ) {
 	return placeTag("div", cls, targ);
 }
 
-export function trans(el, xPos, yPos) {
+export function trans(el, xPos, yPos, xMax, yMax) {
 	el.style.transform = "translate(" + xPos + "px," + yPos + "px)";
+
+	if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
+		addClass(el, OFF);
+	else
+		remClass(el, OFF);
 }
 
 const evOpts = {passive: true};

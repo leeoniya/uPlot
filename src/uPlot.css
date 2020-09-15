@@ -25,6 +25,9 @@
 .u-over,
 .u-under {
 	position: absolute;
+}
+
+.u-under {
 	overflow: hidden;
 }
 
@@ -96,10 +99,6 @@
 	pointer-events: none;
 }
 
-.u-select.u-off {
-	display: none;
-}
-
 .u-cursor-x,
 .u-cursor-y {
 	position: absolute;
@@ -129,4 +128,11 @@
 	pointer-events: none;
 	will-change: transform;
 	z-index: 100;
+}
+
+.u-select.u-off,
+.u-cursor-x.u-off,
+.u-cursor-y.u-off,
+.u-cursor-pt.u-off {
+	display: none;
 }
