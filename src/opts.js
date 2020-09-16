@@ -496,6 +496,11 @@ function seriesPoints(self, si) {
 	return idxs[1] - idxs[0] <= maxPts;
 }
 
+export function seriesFillTo(self, seriesIdx, dataMin, dataMax) {
+	let scale = self.scales[self.series[seriesIdx].scale];
+	return scale.distr == 3 ? scale.min : 0;
+}
+
 export const ySeriesOpts = {
 	scale: "y",
 	auto: true,

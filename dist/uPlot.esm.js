@@ -947,6 +947,11 @@ function seriesPoints(self, si) {
 	return idxs[1] - idxs[0] <= maxPts;
 }
 
+function seriesFillTo(self, seriesIdx, dataMin, dataMax) {
+	let scale = self.scales[self.series[seriesIdx].scale];
+	return scale.distr == 3 ? scale.min : 0;
+}
+
 const ySeriesOpts = {
 	scale: "y",
 	auto: true,
@@ -1262,7 +1267,7 @@ function uPlot(opts, data, then) {
 		if (i > 0) {
 			s.width = s.width == null ? 1 : s.width;
 			s.paths = s.paths || ( buildPaths);
-			s.fillTo = fnOrSelf(s.fillTo || 0);
+			s.fillTo = s.fillTo || seriesFillTo;
 			let _ptDia = ptDia(s.width, 1);
 			s.points = assign({}, {
 				size: _ptDia,

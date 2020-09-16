@@ -96,6 +96,7 @@ import {
 	lineMult,
 	ptDia,
 	cursorOpts,
+	seriesFillTo,
 
 	xAxisOpts,
 	yAxisOpts,
@@ -391,7 +392,7 @@ export default function uPlot(opts, data, then) {
 		if (i > 0) {
 			s.width = s.width == null ? 1 : s.width;
 			s.paths = s.paths || (FEAT_PATHS && buildPaths);
-			s.fillTo = fnOrSelf(s.fillTo || 0);
+			s.fillTo = s.fillTo || seriesFillTo;
 			let _ptDia = ptDia(s.width, 1);
 			s.points = assign({}, {
 				size: _ptDia,
