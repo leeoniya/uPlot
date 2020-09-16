@@ -352,13 +352,19 @@ let opts = {
          3600,
       // ...
       ],
+      // [0]:   minimum num secs in found axis split (tick incr)
+      // [1]:   default tick format
+      // [2-7]: rollover tick formats
+      // [8]:   mode: 0: replace [1] -> [2-7], 1: concat [1] + [2-7]
       values: [
-        [3600 * 24 * 365,    "{YYYY}",               7,   "{YYYY}"                    ],
-        [3600 * 24 * 28,     "{MMM}",                7,   "{MMM}\n{YYYY}"             ],
-        [3600 * 24,          "{M}/{D}",              7,   "{M}/{D}\n{YYYY}"           ],
-        [3600,               "{h}{aa}",              4,   "{h}{aa}\n{M}/{D}"          ],
-        [60,                 "{h}:{mm}{aa}",         4,   "{h}:{mm}{aa}\n{M}/{D}"     ],
-        [1,                  "{h}:{mm}:{ss}{aa}",    4,   "{h}:{mm}:{ss}{aa}\n{M}/{D}"],
+      // tick incr          default           year                             month    day                        hour     min                sec       mode
+        [3600 * 24 * 365,   "{YYYY}",         null,                            null,    null,                      null,    null,              null,        1],
+        [3600 * 24 * 28,    "{MMM}",          "\n{YYYY}",                      null,    null,                      null,    null,              null,        1],
+        [3600 * 24,         "{M}/{D}",        "\n{YYYY}",                      null,    null,                      null,    null,              null,        1],
+        [3600,              "{h}{aa}",        "\n{M}/{D}/{YY}",                null,    "\n{M}/{D}",               null,    null,              null,        1],
+        [60,                "{h}:{mm}{aa}",   "\n{M}/{D}/{YY}",                null,    "\n{M}/{D}",               null,    null,              null,        1],
+        [1,                 ":{ss}",          "\n{M}/{D}/{YY} {h}:{mm}{aa}",   null,    "\n{M}/{D} {h}:{mm}{aa}",  null,    "\n{h}:{mm}{aa}",  null,        1],
+        [0.001,             ":{ss}.{fff}",    "\n{M}/{D}/{YY} {h}:{mm}{aa}",   null,    "\n{M}/{D} {h}:{mm}{aa}",  null,    "\n{h}:{mm}{aa}",  null,        1],
       ],
   //  splits:
     }
@@ -370,4 +376,4 @@ let opts = {
 - `incrs` are divisors available for segmenting the axis to produce ticks. can also be a function of the form `(self) => divisors`.
 - `values` can be:
   - a function with the form `(self, ticks, space) => values` where `ticks` is an array of raw values along the axis' scale, `space` is the determined tick spacing in CSS pixels and `values` is an array of formated tick labels.
-  - array of tick formatters with breakpoints. more format details can be found in the source: https://github.com/leeoniya/uPlot/blob/master/src/opts.js#L110
+  - array of tick formatters with breakpoints.
