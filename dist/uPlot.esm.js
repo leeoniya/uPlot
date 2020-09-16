@@ -2326,7 +2326,7 @@ function uPlot(opts, data, then) {
 		height:	0,
 	}, opts.select);
 
-	const selectDiv = select.show ? placeDiv(SELECT, over) : null;
+	const selectDiv = select.show ? placeDiv(SELECT, under) : null;
 
 	function setSelect(opts, _fire) {
 		if (select.show) {

@@ -2333,7 +2333,7 @@ var uPlot = (function () {
 			height:	0,
 		}, opts.select);
 
-		var selectDiv = select.show ? placeDiv(SELECT, over) : null;
+		var selectDiv = select.show ? placeDiv(SELECT, under) : null;
 
 		function setSelect(opts, _fire) {
 			if (select.show) {
