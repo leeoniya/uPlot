@@ -2326,13 +2326,14 @@ function uPlot(opts, data, then) {
 
 	var select = self.select = assign({
 		show:   true,
+		over:   true,
 		left:	0,
 		width:	0,
 		top:	0,
 		height:	0,
 	}, opts.select);
 
-	var selectDiv = select.show ? placeDiv(SELECT, under) : null;
+	var selectDiv = select.show ? placeDiv(SELECT, select.over ? over : under) : null;
 
 	function setSelect(opts, _fire) {
 		if (select.show) {

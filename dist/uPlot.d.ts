@@ -182,7 +182,7 @@ declare namespace uPlot {
 			y?: number;
 		};
 
-		select?: BBox;
+		select?: Select;
 
 		legend?: {
 			show?: boolean;	// true
@@ -214,6 +214,11 @@ declare namespace uPlot {
 		top: number;
 		width: number;
 		height: number;
+	}
+
+	interface Select extends BBox {
+		/** div into which .u-select will be placed: .u-over or .u-under */
+		over?: boolean; // true
 	}
 
 	export interface Cursor {
