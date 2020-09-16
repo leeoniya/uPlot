@@ -163,6 +163,10 @@ function fnOrSelf(v) {
 	return typeof v == "function" ? v : () => v;
 }
 
+function retArg1(_0, _1) {
+	return _1;
+}
+
 function incrRoundUp(num, incr) {
 	return ceil(num/incr)*incr;
 }
@@ -804,6 +808,7 @@ const grid = {
 	stroke: "rgba(0,0,0,0.07)",
 	width: 2,
 //	dash: [],
+	filter: retArg1,
 };
 
 const ticks = assign({}, grid, {size: 10});
@@ -824,6 +829,7 @@ const xAxisOpts = {
 //	class: "x-vals",
 //	incrs: timeIncrs,
 //	values: timeVals,
+//	filter: retArg1,
 	grid,
 	ticks,
 	font,
@@ -848,7 +854,7 @@ const xSeriesOpts = {
 };
 
 function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
-	return splits.map(fmtNum);
+	return splits.map(v => v == null ? "" : fmtNum(v));
 }
 
 function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
@@ -886,7 +892,7 @@ const RE_12357 = /[12357]/;
 const RE_125   = /[125]/;
 const RE_1     = /1/;
 
-function logAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
+function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
 	let valToPos = self.valToPos;
@@ -902,7 +908,7 @@ function logAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 		RE_1
 	);
 
-	return splits.map(v => re.test(v) ? fmtNum(v) : "");
+	return splits.map(v => re.test(v) ? v : null);
 }
 
 function numSeriesVal(self, val) {
@@ -921,6 +927,7 @@ const yAxisOpts = {
 //	class: "y-vals",
 //	incrs: numIncrs,
 //	values: (vals, space) => vals,
+//	filter: retArg1,
 	grid,
 	ticks,
 	font,
@@ -1327,7 +1334,8 @@ function uPlot(opts, data, then) {
 			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
 			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
 			let av = axis.values;
-			axis.values = isTime ? (isArr(av) ? timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) : av || _timeAxisVals) : av || (sc.distr == 3 ? logAxisVals : numAxisVals);
+			axis.values = isTime ? (isArr(av) ? timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) : av || _timeAxisVals) : av || numAxisVals;
+			axis.filter = fnOrSelf(axis.filter || (          sc.distr == 3 ? logAxisValsFilt : retArg1));
 
 			axis.font      = pxRatioFont(axis.font);
 			axis.labelFont = pxRatioFont(axis.labelFont);
@@ -2014,7 +2022,7 @@ function uPlot(opts, data, then) {
 		return incrSpace;
 	}
 
-	function drawOrthoLines(offs, ori, side, pos0, len, width, stroke, dash) {
+	function drawOrthoLines(offs, filts, ori, side, pos0, len, width, stroke, dash) {
 		let offset = (width % 2) / 2;
 
 		ctx.translate(offset, offset);
@@ -2035,6 +2043,9 @@ function uPlot(opts, data, then) {
 		}
 
 		offs.forEach((off, i) => {
+			if (filts[i] == null)
+				return;
+
 			if (ori == 0)
 				x0 = x1 = off;
 			else
@@ -2085,13 +2096,10 @@ function uPlot(opts, data, then) {
 
 			// tick labels
 			// BOO this assumes a specific data/series
-			let values = axis.values(
-				self,
-				scale.distr == 2 ? splits.map(i => data0[i]) : splits,
-				i,
-				space,
-				scale.distr == 2 ? data0[splits[1]] -  data0[splits[0]] : incr,
-			);
+			let _splits = scale.distr == 2 ? splits.map(i => data0[i]) : splits;
+			let _incr   = scale.distr == 2 ? data0[splits[1]] - data0[splits[0]] : incr;
+
+			let values = axis.values(self, axis.filter(self, _splits, i, space, _incr), i, space, _incr);
 
 			// rotating of labels only supported on bottom x axis
 			let angle = side == 2 ? axis.rotate(self, values, i, space) * -PI/180 : 0;
@@ -2114,6 +2122,9 @@ function uPlot(opts, data, then) {
 			let lineHeight   = axis.font[1] * lineMult;
 
 			values.forEach((val, i) => {
+				if (val == null)
+					return;
+
 				if (ori == 0)
 					x = canOffs[i];
 				else
@@ -2167,6 +2178,7 @@ function uPlot(opts, data, then) {
 			if (ticks.show) {
 				drawOrthoLines(
 					canOffs,
+					ticks.filter(self, _splits, i, space, _incr),
 					ori,
 					side,
 					basePos,
@@ -2182,6 +2194,7 @@ function uPlot(opts, data, then) {
 			if (grid.show) {
 				drawOrthoLines(
 					canOffs,
+					grid.filter(self, _splits, i, space, _incr),
 					ori,
 					ori == 0 ? 2 : 1,
 					ori == 0 ? plotTop : plotLft,

@@ -26,6 +26,8 @@ import {
 	isStr,
 	fnOrSelf,
 	fmtNum,
+
+	retArg1,
 } from './utils';
 
 import {
@@ -107,7 +109,8 @@ import {
 	numIncrs,
 	timeAxisVals,
 	numAxisVals,
-	logAxisVals,
+
+	logAxisValsFilt,
 
 	timeSeriesVal,
 	numSeriesVal,
@@ -460,7 +463,8 @@ export default function uPlot(opts, data, then) {
 			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
 			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
 			let av = axis.values;
-			axis.values = isTime ? (isArr(av) ? timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) : av || _timeAxisVals) : av || (sc.distr == 3 ? logAxisVals : numAxisVals);
+			axis.values = isTime ? (isArr(av) ? timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) : av || _timeAxisVals) : av || numAxisVals;
+			axis.filter = fnOrSelf(axis.filter || (          sc.distr == 3 ? logAxisValsFilt : retArg1));
 
 			axis.font      = pxRatioFont(axis.font);
 			axis.labelFont = pxRatioFont(axis.labelFont);
@@ -1148,7 +1152,7 @@ export default function uPlot(opts, data, then) {
 		return incrSpace;
 	}
 
-	function drawOrthoLines(offs, ori, side, pos0, len, width, stroke, dash) {
+	function drawOrthoLines(offs, filts, ori, side, pos0, len, width, stroke, dash) {
 		let offset = (width % 2) / 2;
 
 		ctx.translate(offset, offset);
@@ -1169,6 +1173,9 @@ export default function uPlot(opts, data, then) {
 		}
 
 		offs.forEach((off, i) => {
+			if (filts[i] == null)
+				return;
+
 			if (ori == 0)
 				x0 = x1 = off;
 			else
@@ -1219,13 +1226,10 @@ export default function uPlot(opts, data, then) {
 
 			// tick labels
 			// BOO this assumes a specific data/series
-			let values = axis.values(
-				self,
-				scale.distr == 2 ? splits.map(i => data0[i]) : splits,
-				i,
-				space,
-				scale.distr == 2 ? data0[splits[1]] -  data0[splits[0]] : incr,
-			);
+			let _splits = scale.distr == 2 ? splits.map(i => data0[i]) : splits;
+			let _incr   = scale.distr == 2 ? data0[splits[1]] - data0[splits[0]] : incr;
+
+			let values = axis.values(self, axis.filter(self, _splits, i, space, _incr), i, space, _incr);
 
 			// rotating of labels only supported on bottom x axis
 			let angle = side == 2 ? axis.rotate(self, values, i, space) * -PI/180 : 0;
@@ -1248,6 +1252,9 @@ export default function uPlot(opts, data, then) {
 			let lineHeight   = axis.font[1] * lineMult;
 
 			values.forEach((val, i) => {
+				if (val == null)
+					return;
+
 				if (ori == 0)
 					x = canOffs[i];
 				else
@@ -1301,6 +1308,7 @@ export default function uPlot(opts, data, then) {
 			if (ticks.show) {
 				drawOrthoLines(
 					canOffs,
+					ticks.filter(self, _splits, i, space, _incr),
 					ori,
 					side,
 					basePos,
@@ -1316,6 +1324,7 @@ export default function uPlot(opts, data, then) {
 			if (grid.show) {
 				drawOrthoLines(
 					canOffs,
+					grid.filter(self, _splits, i, space, _incr),
 					ori,
 					ori == 0 ? 2 : 1,
 					ori == 0 ? plotTop : plotLft,

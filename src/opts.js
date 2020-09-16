@@ -14,6 +14,8 @@ import {
 	floor,
 	fmtNum,
 	fixedDec,
+
+	retArg1,
 } from './utils';
 
 import {
@@ -355,6 +357,7 @@ const grid = {
 	stroke: "rgba(0,0,0,0.07)",
 	width: 2,
 //	dash: [],
+	filter: retArg1,
 };
 
 const ticks = assign({}, grid, {size: 10});
@@ -375,6 +378,7 @@ export const xAxisOpts = {
 //	class: "x-vals",
 //	incrs: timeIncrs,
 //	values: timeVals,
+//	filter: retArg1,
 	grid,
 	ticks,
 	font,
@@ -399,7 +403,7 @@ export const xSeriesOpts = {
 };
 
 export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
-	return splits.map(fmtNum);
+	return splits.map(v => v == null ? "" : fmtNum(v));
 }
 
 export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
@@ -437,7 +441,7 @@ const RE_12357 = /[12357]/;
 const RE_125   = /[125]/;
 const RE_1     = /1/;
 
-export function logAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
+export function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
 	let valToPos = self.valToPos;
@@ -453,7 +457,7 @@ export function logAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 		RE_1
 	);
 
-	return splits.map(v => re.test(v) ? fmtNum(v) : "");
+	return splits.map(v => re.test(v) ? v : null);
 }
 
 export function numSeriesVal(self, val) {
@@ -472,6 +476,7 @@ export const yAxisOpts = {
 //	class: "y-vals",
 //	incrs: numIncrs,
 //	values: (vals, space) => vals,
+//	filter: retArg1,
 	grid,
 	ticks,
 	font,

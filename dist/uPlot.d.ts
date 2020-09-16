@@ -397,6 +397,9 @@ declare namespace uPlot {
 		max?: number,
 	}
 
+	/** must return an array of same length as splits, e.g. via splits.map() */
+	type AxisSplitsFilter = (self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => Array<number|null>;
+
 	export interface Axis {
 		/** axis on/off */
 		show?: boolean;
@@ -437,8 +440,11 @@ declare namespace uPlot {
 		/** determines how and where the axis must be split for placing ticks, values, grid */
 		splits?: number[] | ((self: uPlot, axisIdx: number, scaleMin: number, scaleMax: number, foundIncr: number, pctSpace: number) => number[]);
 
+		/** can filter which splits are passed to axis.values() for rendering. e.g splits.map(v => v % 2 == 0 ? v : null) */
+		filter?: AxisSplitsFilter;
+
 		/** formats values for rendering */
-		values?: ((self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => Array<string|number>) | (string | number | null)[][];
+		values?: ((self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => Array<string|number|null>) | (string | number | null)[][];
 
 		/** values rotation in degrees off horizontal (only bottom axes w/ side: 2) */
 		rotate?: number | ((self: uPlot, values: Array<string|number>, axisIdx: number, foundSpace: number) => number);
@@ -447,6 +453,9 @@ declare namespace uPlot {
 		grid?: {
 			/** grid on/off */
 			show?: boolean; // true
+
+			/** can filter which splits render gridlines. e.g splits.map(v => v % 2 == 0 ? v : null) */
+			filter?: AxisSplitsFilter;
 
 			/** gridline color */
 			stroke?: CanvasRenderingContext2D['strokeStyle'];
@@ -462,6 +471,9 @@ declare namespace uPlot {
 		ticks?: {
 			/** ticks on/off */
 			show?: boolean; // true
+
+			/** can filter which splits render ticks. e.g splits.map(v => v % 2 == 0 ? v : null) */
+			filter?: AxisSplitsFilter;
 
 			/** tick color */
 			stroke?: CanvasRenderingContext2D['strokeStyle'];

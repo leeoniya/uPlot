@@ -154,6 +154,10 @@ export function fnOrSelf(v) {
 	return typeof v == "function" ? v : () => v;
 }
 
+export function retArg1(_0, _1) {
+	return _1;
+}
+
 export function incrRoundUp(num, incr) {
 	return ceil(num/incr)*incr;
 }
