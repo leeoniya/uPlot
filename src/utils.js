@@ -60,21 +60,23 @@ export function getMinMax(data, _i0, _i1, sorted) {
 	return [_min, _max];
 }
 
-export function rangeLog(min, max, fullMags) {
+export function rangeLog(min, max, base, fullMags) {
+	let logFn = base == 10 ? log10 : log2;
+
 	if (min == max) {
-		min /= 10;
-		max *= 10;
+		min /= base;
+		max *= base;
 	}
 
 	let minIncr, maxIncr;
 
 	if (fullMags) {
-		min = minIncr = pow(10, floor(log10(min)));
-		max = maxIncr = pow(10,  ceil(log10(max)));
+		min = minIncr = pow(base, floor(logFn(min)));
+		max = maxIncr = pow(base,  ceil(logFn(max)));
 	}
 	else {
-		minIncr       = pow(10, floor(log10(min)));
-		maxIncr       = pow(10, floor(log10(max)));
+		minIncr       = pow(base, floor(logFn(min)));
+		maxIncr       = pow(base, floor(logFn(max)));
 
 		min           = incrRoundDn(min, minIncr);
 		max           = incrRoundUp(max, maxIncr);
@@ -138,6 +140,7 @@ export const min = M.min;
 export const max = M.max;
 export const pow = M.pow;
 export const log10 = M.log10;
+export const log2 = M.log2;
 export const PI = M.PI;
 
 export const inf = Infinity;
@@ -180,11 +183,11 @@ export function round6(val) {
 
 export const fixedDec = new Map();
 
-export function genIncrs(minExp, maxExp, mults) {
+export function genIncrs(base, minExp, maxExp, mults) {
 	let incrs = [];
 
 	for (let exp = minExp; exp < maxExp; exp++) {
-		let mag = pow(10, exp);
+		let mag = pow(base, exp);
 		let expa = abs(exp);
 
 		for (let i = 0; i < mults.length; i++) {

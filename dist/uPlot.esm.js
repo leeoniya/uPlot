@@ -69,21 +69,23 @@ function getMinMax(data, _i0, _i1, sorted) {
 	return [_min, _max];
 }
 
-function rangeLog(min, max, fullMags) {
+function rangeLog(min, max, base, fullMags) {
+	let logFn = base == 10 ? log10 : log2;
+
 	if (min == max) {
-		min /= 10;
-		max *= 10;
+		min /= base;
+		max *= base;
 	}
 
 	let minIncr, maxIncr;
 
 	if (fullMags) {
-		min = minIncr = pow(10, floor(log10(min)));
-		max = maxIncr = pow(10,  ceil(log10(max)));
+		min = minIncr = pow(base, floor(logFn(min)));
+		max = maxIncr = pow(base,  ceil(logFn(max)));
 	}
 	else {
-		minIncr       = pow(10, floor(log10(min)));
-		maxIncr       = pow(10, floor(log10(max)));
+		minIncr       = pow(base, floor(logFn(min)));
+		maxIncr       = pow(base, floor(logFn(max)));
 
 		min           = incrRoundDn(min, minIncr);
 		max           = incrRoundUp(max, maxIncr);
@@ -147,6 +149,7 @@ const min = M.min;
 const max = M.max;
 const pow = M.pow;
 const log10 = M.log10;
+const log2 = M.log2;
 const PI = M.PI;
 
 const inf = Infinity;
@@ -185,11 +188,11 @@ function round6(val) {
 
 const fixedDec = new Map();
 
-function genIncrs(minExp, maxExp, mults) {
+function genIncrs(base, minExp, maxExp, mults) {
 	let incrs = [];
 
 	for (let exp = minExp; exp < maxExp; exp++) {
-		let mag = pow(10, exp);
+		let mag = pow(base, exp);
 		let expa = abs(exp);
 
 		for (let i = 0; i < mults.length; i++) {
@@ -498,9 +501,12 @@ function tzDate(date, tz) {
 
 const incrMults = [1,2,5];
 
-const decIncrs = genIncrs(-16, 0, incrMults);
+const decIncrs = genIncrs(10, -16, 0, incrMults);
 
-const intIncrs = genIncrs(0, 16, incrMults);
+// base 2
+const binIncrs = genIncrs(2, -53, 53, [1]);
+
+const intIncrs = genIncrs(10, 0, 16, incrMults);
 
 const numIncrs = decIncrs.concat(intIncrs);
 
@@ -512,7 +518,7 @@ let s = 1,
 	y = d * 365;
 
 // starting below 1e-3 is a hack to allow the incr finder to choose & bail out at incr < 1ms
-const timeIncrs =  [5e-4].concat(genIncrs(-3, 0, incrMults), [
+const timeIncrs =  [5e-4].concat(genIncrs(10, -3, 0, incrMults), [
 	// minute divisors (# of secs)
 	1,
 	5,
@@ -873,15 +879,21 @@ function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	const splits = [];
 
-	foundIncr = pow(10, floor(log10(scaleMin)));
+	const logFn = self.scales[self.axes[axisIdx].scale].log;
+
+	const base = logFn == log10 ? 10 : 2;
+
+	foundIncr = pow(base, floor(logFn(scaleMin)));
 
 	let split = scaleMin;
 
 	do {
 		splits.push(split);
 		split = +(split + foundIncr).toFixed(fixedDec.get(foundIncr));
-		if (split >= foundIncr * 10)
+
+		if (split >= foundIncr * base)
 			foundIncr = split;
+
 	} while (split <= scaleMax);
 
 	return splits;
@@ -895,6 +907,10 @@ const RE_1     = /1/;
 function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
+
+	if (self.scales[scaleKey].log == log2)
+		return splits;
+
 	let valToPos = self.valToPos;
 
 	let minSpace = axis.space();			// TOFIX: only works for static space:
@@ -902,9 +918,9 @@ function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let _10 = valToPos(10, scaleKey);
 
 	let re = (
-		valToPos(9,  scaleKey) - _10 >= minSpace ? RE_ALL :
-		valToPos(7,  scaleKey) - _10 >= minSpace ? RE_12357 :
-		valToPos(5,  scaleKey) - _10 >= minSpace ? RE_125 :
+		valToPos(9, scaleKey) - _10 >= minSpace ? RE_ALL :
+		valToPos(7, scaleKey) - _10 >= minSpace ? RE_12357 :
+		valToPos(5, scaleKey) - _10 >= minSpace ? RE_125 :
 		RE_1
 	);
 
@@ -984,6 +1000,7 @@ const xScaleOpts = {
 	time: true,
 	auto: true,
 	distr: 1,
+	log: log10,
 	min: null,
 	max: null,
 };
@@ -1026,7 +1043,7 @@ function setDefault(o, i, xo, yo) {
 function getValPct(val, scale) {
 	return (
 		scale.distr == 3
-		? log10(val / scale.min) / log10(scale.max / scale.min)
+		? scale.log(val / scale.min) / scale.log(scale.max / scale.min)
 		: (val - scale.min) / (scale.max - scale.min)
 	);
 }
@@ -1057,13 +1074,12 @@ function snapNumY(self, dataMin, dataMax) {
 	return rangeNum(dataMin, dataMax, 0.1, true);
 }
 
-function snapLogX(self, dataMin, dataMax) {
-	return rangeLog(dataMin, dataMax);
+function snapLogY(self, dataMin, dataMax, scale) {
+	let base = self.scales[scale].log == log10 ? 10 : 2;
+	return rangeLog(dataMin, dataMax, base, false);
 }
 
-function snapLogY(self, dataMin, dataMax) {
-	return rangeLog(dataMin, dataMax);
-}
+const snapLogX = snapLogY;
 
 // dim is logical (getClientBoundingRect) pixels, not canvas pixels
 function findIncr(min, max, incrs, dim, minSpace) {
@@ -2472,9 +2488,10 @@ function uPlot(opts, data, then) {
 			_max = sc.max;
 
 		if (sc.distr == 3) {
-			_min = log10(_min);
-			_max = log10(_max);
-			return pow(10, _min + (_max - _min) * pct);
+			let base = sc.log == log10 ? 10 : 2;
+			_min = sc.log(_min);
+			_max = sc.log(_max);
+			return pow(base, _min + (_max - _min) * pct);
 		}
 		else
 			return _min + (_max - _min) * pct;

@@ -13,6 +13,7 @@ import {
 	max,
 	clamp,
 	pow,
+	log2,
 	log10,
 	debounce,
 	closestIdx,
@@ -151,7 +152,7 @@ function setDefault(o, i, xo, yo) {
 function getValPct(val, scale) {
 	return (
 		scale.distr == 3
-		? log10(val / scale.min) / log10(scale.max / scale.min)
+		? scale.log(val / scale.min) / scale.log(scale.max / scale.min)
 		: (val - scale.min) / (scale.max - scale.min)
 	);
 }
@@ -182,13 +183,12 @@ function snapNumY(self, dataMin, dataMax) {
 	return rangeNum(dataMin, dataMax, 0.1, true);
 }
 
-function snapLogX(self, dataMin, dataMax) {
-	return rangeLog(dataMin, dataMax);
+function snapLogY(self, dataMin, dataMax, scale) {
+	let base = self.scales[scale].log == log10 ? 10 : 2;
+	return rangeLog(dataMin, dataMax, base, false);
 }
 
-function snapLogY(self, dataMin, dataMax) {
-	return rangeLog(dataMin, dataMax);
-}
+const snapLogX = snapLogY;
 
 // dim is logical (getClientBoundingRect) pixels, not canvas pixels
 function findIncr(min, max, incrs, dim, minSpace) {
@@ -1598,9 +1598,10 @@ export default function uPlot(opts, data, then) {
 			_max = sc.max;
 
 		if (sc.distr == 3) {
-			_min = log10(_min);
-			_max = log10(_max);
-			return pow(10, _min + (_max - _min) * pct);
+			let base = sc.log == log10 ? 10 : 2;
+			_min = sc.log(_min);
+			_max = sc.log(_max);
+			return pow(base, _min + (_max - _min) * pct);
 		}
 		else
 			return _min + (_max - _min) * pct;
