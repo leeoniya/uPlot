@@ -1220,6 +1220,161 @@ function uPlot(opts, data, then) {
 		return _row;
 	}
 
+	var fullWidCss = 0;
+	var fullHgtCss = 0;
+
+	var plotWidCss = 0;
+	var plotHgtCss = 0;
+
+	// plot margins to account for axes
+	var plotLftCss = 0;
+	var plotTopCss = 0;
+
+	var plotLft = 0;
+	var plotTop = 0;
+	var plotWid = 0;
+	var plotHgt = 0;
+
+	self.bbox = {};
+
+	function _setSize(width, height) {
+		self.width  = fullWidCss = plotWidCss = width;
+		self.height = fullHgtCss = plotHgtCss = height;
+		plotLftCss  = plotTopCss = 0;
+
+		calcPlotRect();
+		calcAxesRects();
+
+		var bb = self.bbox;
+
+		plotLft = bb[LEFT]   = incrRound(plotLftCss * pxRatio, 0.5);
+		plotTop = bb[TOP]    = incrRound(plotTopCss * pxRatio, 0.5);
+		plotWid = bb[WIDTH]  = incrRound(plotWidCss * pxRatio, 0.5);
+		plotHgt = bb[HEIGHT] = incrRound(plotHgtCss * pxRatio, 0.5);
+
+		setStylePx(under, LEFT,   plotLftCss);
+		setStylePx(under, TOP,    plotTopCss);
+		setStylePx(under, WIDTH,  plotWidCss);
+		setStylePx(under, HEIGHT, plotHgtCss);
+
+		setStylePx(over, LEFT,    plotLftCss);
+		setStylePx(over, TOP,     plotTopCss);
+		setStylePx(over, WIDTH,   plotWidCss);
+		setStylePx(over, HEIGHT,  plotHgtCss);
+
+		setStylePx(wrap, WIDTH,   fullWidCss);
+		setStylePx(wrap, HEIGHT,  fullHgtCss);
+
+		can[WIDTH]  = round(fullWidCss * pxRatio);
+		can[HEIGHT] = round(fullHgtCss * pxRatio);
+
+		syncRect();
+
+		ready && _setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);
+
+		ready && fire("setSize");
+	}
+
+	function setSize(ref) {
+		var width = ref.width;
+		var height = ref.height;
+
+		_setSize(width, height);
+	}
+
+	self.setSize = setSize;
+
+	// accumulate axis offsets, reduce canvas width
+	function calcPlotRect() {
+		// easements for edge labels
+		var hasTopAxis = false;
+		var hasBtmAxis = false;
+		var hasRgtAxis = false;
+		var hasLftAxis = false;
+
+		axes.forEach(function (axis, i) {
+			if (axis.show) {
+				var side = axis.side;
+				var size = axis.size;
+				var isVt = side % 2;
+				var labelSize = axis.labelSize = (axis.label != null ? (axis.labelSize || 30) : 0);
+
+				var fullSize = size + labelSize;
+
+				if (fullSize > 0) {
+					if (isVt) {
+						plotWidCss -= fullSize;
+
+						if (side == 3) {
+							plotLftCss += fullSize;
+							hasLftAxis = true;
+						}
+						else
+							{ hasRgtAxis = true; }
+					}
+					else {
+						plotHgtCss -= fullSize;
+
+						if (side == 0) {
+							plotTopCss += fullSize;
+							hasTopAxis = true;
+						}
+						else
+							{ hasBtmAxis = true; }
+					}
+				}
+			}
+		});
+
+		// hz gutters
+		if (hasTopAxis || hasBtmAxis) {
+			if (!hasRgtAxis)
+				{ plotWidCss -= gutters.x; }
+			if (!hasLftAxis) {
+				plotWidCss -= gutters.x;
+				plotLftCss += gutters.x;
+			}
+		}
+
+		// vt gutters
+		if (hasLftAxis || hasRgtAxis) {
+			if (!hasBtmAxis)
+				{ plotHgtCss -= gutters.y; }
+			if (!hasTopAxis) {
+				plotHgtCss -= gutters.y;
+				plotTopCss += gutters.y;
+			}
+		}
+	}
+
+	function calcAxesRects() {
+		// will accum +
+		var off1 = plotLftCss + plotWidCss;
+		var off2 = plotTopCss + plotHgtCss;
+		// will accum -
+		var off3 = plotLftCss;
+		var off0 = plotTopCss;
+
+		function incrOffset(side, size) {
+
+			switch (side) {
+				case 1: off1 += size; return off1 - size;
+				case 2: off2 += size; return off2 - size;
+				case 3: off3 -= size; return off3 + size;
+				case 0: off0 -= size; return off0 + size;
+			}
+		}
+
+		axes.forEach(function (axis, i) {
+			var side = axis.side;
+
+			axis._pos = incrOffset(side, axis.size);
+
+			if (axis.label != null)
+				{ axis._lpos = incrOffset(side, axis.labelSize); }
+		});
+	}
+
 	var cursor =  (self.cursor = assign({}, cursorOpts, opts.cursor));
 
 	 (cursor.points.show = fnOrSelf(cursor.points.show));
@@ -1411,161 +1566,6 @@ function uPlot(opts, data, then) {
 		ctx.lineJoin = "round";
 		ctx.setLineDash(dash || []);
 		ctx.fillStyle = fill || hexBlack;
-	}
-
-	var fullWidCss;
-	var fullHgtCss;
-
-	var plotWidCss;
-	var plotHgtCss;
-
-	// plot margins to account for axes
-	var plotLftCss;
-	var plotTopCss;
-
-	var plotLft;
-	var plotTop;
-	var plotWid;
-	var plotHgt;
-
-	self.bbox = {};
-
-	function _setSize(width, height) {
-		self.width  = fullWidCss = plotWidCss = width;
-		self.height = fullHgtCss = plotHgtCss = height;
-		plotLftCss  = plotTopCss = 0;
-
-		calcPlotRect();
-		calcAxesRects();
-
-		var bb = self.bbox;
-
-		plotLft = bb[LEFT]   = incrRound(plotLftCss * pxRatio, 0.5);
-		plotTop = bb[TOP]    = incrRound(plotTopCss * pxRatio, 0.5);
-		plotWid = bb[WIDTH]  = incrRound(plotWidCss * pxRatio, 0.5);
-		plotHgt = bb[HEIGHT] = incrRound(plotHgtCss * pxRatio, 0.5);
-
-		setStylePx(under, LEFT,   plotLftCss);
-		setStylePx(under, TOP,    plotTopCss);
-		setStylePx(under, WIDTH,  plotWidCss);
-		setStylePx(under, HEIGHT, plotHgtCss);
-
-		setStylePx(over, LEFT,    plotLftCss);
-		setStylePx(over, TOP,     plotTopCss);
-		setStylePx(over, WIDTH,   plotWidCss);
-		setStylePx(over, HEIGHT,  plotHgtCss);
-
-		setStylePx(wrap, WIDTH,   fullWidCss);
-		setStylePx(wrap, HEIGHT,  fullHgtCss);
-
-		can[WIDTH]  = round(fullWidCss * pxRatio);
-		can[HEIGHT] = round(fullHgtCss * pxRatio);
-
-		syncRect();
-
-		ready && _setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);
-
-		ready && fire("setSize");
-	}
-
-	function setSize(ref) {
-		var width = ref.width;
-		var height = ref.height;
-
-		_setSize(width, height);
-	}
-
-	self.setSize = setSize;
-
-	// accumulate axis offsets, reduce canvas width
-	function calcPlotRect() {
-		// easements for edge labels
-		var hasTopAxis = false;
-		var hasBtmAxis = false;
-		var hasRgtAxis = false;
-		var hasLftAxis = false;
-
-		axes.forEach(function (axis, i) {
-			if (axis.show) {
-				var side = axis.side;
-				var size = axis.size;
-				var isVt = side % 2;
-				var labelSize = axis.labelSize = (axis.label != null ? (axis.labelSize || 30) : 0);
-
-				var fullSize = size + labelSize;
-
-				if (fullSize > 0) {
-					if (isVt) {
-						plotWidCss -= fullSize;
-
-						if (side == 3) {
-							plotLftCss += fullSize;
-							hasLftAxis = true;
-						}
-						else
-							{ hasRgtAxis = true; }
-					}
-					else {
-						plotHgtCss -= fullSize;
-
-						if (side == 0) {
-							plotTopCss += fullSize;
-							hasTopAxis = true;
-						}
-						else
-							{ hasBtmAxis = true; }
-					}
-				}
-			}
-		});
-
-		// hz gutters
-		if (hasTopAxis || hasBtmAxis) {
-			if (!hasRgtAxis)
-				{ plotWidCss -= gutters.x; }
-			if (!hasLftAxis) {
-				plotWidCss -= gutters.x;
-				plotLftCss += gutters.x;
-			}
-		}
-
-		// vt gutters
-		if (hasLftAxis || hasRgtAxis) {
-			if (!hasBtmAxis)
-				{ plotHgtCss -= gutters.y; }
-			if (!hasTopAxis) {
-				plotHgtCss -= gutters.y;
-				plotTopCss += gutters.y;
-			}
-		}
-	}
-
-	function calcAxesRects() {
-		// will accum +
-		var off1 = plotLftCss + plotWidCss;
-		var off2 = plotTopCss + plotHgtCss;
-		// will accum -
-		var off3 = plotLftCss;
-		var off0 = plotTopCss;
-
-		function incrOffset(side, size) {
-
-			switch (side) {
-				case 1: off1 += size; return off1 - size;
-				case 2: off2 += size; return off2 - size;
-				case 3: off3 -= size; return off3 + size;
-				case 0: off0 -= size; return off0 + size;
-			}
-		}
-
-		axes.forEach(function (axis, i) {
-			var side = axis.side;
-
-			axis._pos = incrOffset(side, axis.size);
-
-			if (axis.label != null)
-				{ axis._lpos = incrOffset(side, axis.labelSize); }
-		});
 	}
 
 	function setScales() {
