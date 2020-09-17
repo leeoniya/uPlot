@@ -300,8 +300,11 @@ declare namespace uPlot {
 		/** scale key from which this scale is derived */
 		from?: string,
 
-		/** scale distribution. 1: linear, 2: uniform, 3: logarithmic */
+		/** scale distribution. 1: linear, 2: ordinal, 3: logarithmic */
 		distr?: 1 | 2 | 3;
+
+		/** logarithmic base */
+		log?: 10 | 2; // 10
 
 		/** current min scale value */
 		min?: number,

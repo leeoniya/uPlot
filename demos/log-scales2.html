@@ -1,0 +1,127 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Log Scales 2</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			let vals = [];
+
+			function round6(val) {
+				return Math.round(val * 1e6) / 1e6;
+			}
+
+			let mags = [-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7];
+
+			mags.forEach(m => {
+				for (let i = 1; i < 10; i++)
+					vals.push(round6(i * Math.pow(10, m)));
+			});
+
+			vals.push(round6(10 * Math.pow(10, mags[mags.length - 1])));
+
+			let data = [
+				vals.map((v, i) => i + 1),
+				vals,
+			];
+
+			const opts = {
+				width: 1600,
+				height: 600,
+				title: "Linear Scale (0.000001 -> 100,000,000)",
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				axes: [
+					{},
+					{
+						size: 80,
+					}
+				],
+				series: [
+					{},
+					{
+						stroke: "magenta",
+					},
+				],
+			};
+
+			let u = new uPlot(opts, data, document.body);
+
+			const opts2 = {
+				width: 1600,
+				height: 600,
+				title: "Log10 Y Scale (0.000001 -> 100,000,000)",
+				scales: {
+					x: {
+						time: false,
+					},
+					y: {
+						distr: 3,
+					//	log: 10,
+					},
+				},
+				axes: [
+					{},
+					{
+						size: 80,
+						values: (self, splits) => splits.map(v => v == null ? null : v.toExponential())
+					}
+				],
+				series: [
+					{},
+					{
+						stroke: "orange",
+					},
+				],
+			};
+
+			let u2 = new uPlot(opts2, data, document.body);
+
+			const sups = '⁰¹²³⁴⁵⁶⁷⁸⁹'.split('');
+			const neg = '⁻';
+
+			const opts3 = {
+				width: 1600,
+				height: 600,
+				title: "Log2 Y Scale (0.000001 -> 100,000,000)",
+				scales: {
+					x: {
+						time: false,
+					},
+					y: {
+						distr: 3,
+						log: 2,
+					},
+				},
+				axes: [
+					{},
+					{
+						size: 80,
+						values: (self, splits) => splits.map(v => {
+							let exp = Math.log2(v);
+							let aexp = Math.abs(exp);
+							let supExp = ("" + aexp).split("").map(s => sups[+s]).join("");
+							return "2" + (exp < 0 ? neg : "") + supExp;
+						})
+					}
+				],
+				series: [
+					{},
+					{
+						stroke: "purple",
+					},
+				],
+			};
+
+			let u3 = new uPlot(opts3, data, document.body);
+		</script>
+	</body>
+</html>
