@@ -63,8 +63,8 @@ export function getMinMax(data, _i0, _i1, sorted) {
 const _fixedTuple = [0, 0];
 
 function fixIncr(minIncr, maxIncr, minExp, maxExp) {
-	_fixedTuple[0] = minExp < 0 ? +minIncr.toFixed(-minExp) : minIncr;
-	_fixedTuple[1] = maxExp < 0 ? +maxIncr.toFixed(-maxExp) : maxIncr;
+	_fixedTuple[0] = minExp < 0 ? roundDec(minIncr, -minExp) : minIncr;
+	_fixedTuple[1] = maxExp < 0 ? roundDec(maxIncr, -maxExp) : maxIncr;
 	return _fixedTuple;
 }
 
@@ -115,8 +115,8 @@ export function rangeNum(min, max, mult, extra) {
 	const newMin = min - padding;
 	const newMax = max + padding;
 
-	let snappedMin = round6(incrRoundDn(newMin, base/100));
-	let snappedMax = round6(incrRoundUp(newMax, base/100));
+	let snappedMin = roundDec(incrRoundDn(newMin, base/100), 6);
+	let snappedMax = roundDec(incrRoundUp(newMax, base/100), 6);
 
 	if (extra) {
 		// for flat data, always use 0 as one chart extreme & place data in center
@@ -181,16 +181,8 @@ export function incrRoundDn(num, incr) {
 	return floor(num/incr)*incr;
 }
 
-export function round2(val) {
-	return round(val * 1e2) / 1e2;
-}
-
-export function round3(val) {
-	return round(val * 1e3) / 1e3;
-}
-
-export function round6(val) {
-	return round(val * 1e6) / 1e6;
+export function roundDec(val, dec) {
+	return round(val * (dec = 10**dec)) / dec;
 }
 
 export const fixedDec = new Map();
@@ -203,7 +195,7 @@ export function genIncrs(base, minExp, maxExp, mults) {
 		let expa = abs(exp);
 
 		for (let i = 0; i < mults.length; i++) {
-			let incr = +(mults[i] * mag).toFixed(expa);
+			let incr = roundDec(mults[i] * mag, expa);
 			incrs.push(incr);
 			fixedDec.set(incr, incr < 1 ? expa : 0);
 		}

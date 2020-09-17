@@ -72,8 +72,8 @@ function getMinMax(data, _i0, _i1, sorted) {
 const _fixedTuple = [0, 0];
 
 function fixIncr(minIncr, maxIncr, minExp, maxExp) {
-	_fixedTuple[0] = minExp < 0 ? +minIncr.toFixed(-minExp) : minIncr;
-	_fixedTuple[1] = maxExp < 0 ? +maxIncr.toFixed(-maxExp) : maxIncr;
+	_fixedTuple[0] = minExp < 0 ? roundDec(minIncr, -minExp) : minIncr;
+	_fixedTuple[1] = maxExp < 0 ? roundDec(maxIncr, -maxExp) : maxIncr;
 	return _fixedTuple;
 }
 
@@ -124,8 +124,8 @@ function rangeNum(min, max, mult, extra) {
 	const newMin = min - padding;
 	const newMax = max + padding;
 
-	let snappedMin = round6(incrRoundDn(newMin, base/100));
-	let snappedMax = round6(incrRoundUp(newMax, base/100));
+	let snappedMin = roundDec(incrRoundDn(newMin, base/100), 6);
+	let snappedMax = roundDec(incrRoundUp(newMax, base/100), 6);
 
 	if (extra) {
 		// for flat data, always use 0 as one chart extreme & place data in center
@@ -190,12 +190,8 @@ function incrRoundDn(num, incr) {
 	return floor(num/incr)*incr;
 }
 
-function round3(val) {
-	return round(val * 1e3) / 1e3;
-}
-
-function round6(val) {
-	return round(val * 1e6) / 1e6;
+function roundDec(val, dec) {
+	return round(val * (dec = 10**dec)) / dec;
 }
 
 const fixedDec = new Map();
@@ -208,7 +204,7 @@ function genIncrs(base, minExp, maxExp, mults) {
 		let expa = abs(exp);
 
 		for (let i = 0; i < mults.length; i++) {
-			let incr = +(mults[i] * mag).toFixed(expa);
+			let incr = roundDec(mults[i] * mag, expa);
 			incrs.push(incr);
 			fixedDec.set(incr, incr < 1 ? expa : 0);
 		}
@@ -716,13 +712,13 @@ function timeAxisSplits(tzDate) {
 			let pctSpace = foundSpace / minSpace;
 
 			while (1) {
-				split = round3(split + foundIncr);
+				split = roundDec(split + foundIncr, 3);
 
 				if (split > scaleMax)
 					break;
 
 				if (incrHours > 1) {
-					let expectedHour = floor(round6(prevHour + incrHours)) % 24;
+					let expectedHour = floor(roundDec(prevHour + incrHours, 6)) % 24;
 					let splitDate = tzDate(split);
 					let actualHour = splitDate.getHours();
 
@@ -737,7 +733,7 @@ function timeAxisSplits(tzDate) {
 
 					// add a tick only if it's further than 70% of the min allowed label spacing
 					let prevSplit = splits[splits.length - 1];
-					let pctIncr = round3((split - prevSplit) / foundIncr);
+					let pctIncr = roundDec((split - prevSplit) / foundIncr, 3);
 
 					if (pctIncr * pctSpace >= .7)
 						splits.push(split);
@@ -880,9 +876,9 @@ function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 
 	let numDec = fixedDec.get(foundIncr);
 
-	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(numDec);
+	scaleMin = forceMin ? scaleMin : roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
 
-	for (let val = scaleMin; val <= scaleMax; val = +(val + foundIncr).toFixed(numDec))
+	for (let val = scaleMin; val <= scaleMax; val = roundDec(val + foundIncr, numDec))
 		splits.push(val);
 
 	return splits;
@@ -900,13 +896,13 @@ function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 	foundIncr = pow(logBase, exp);
 
 	if (exp < 0)
-		foundIncr = +foundIncr.toFixed(-exp);
+		foundIncr = roundDec(foundIncr, -exp);
 
 	let split = scaleMin;
 
 	do {
 		splits.push(split);
-		split = +(split + foundIncr).toFixed(fixedDec.get(foundIncr));
+		split = roundDec(split + foundIncr, fixedDec.get(foundIncr));
 
 		if (split >= foundIncr * logBase)
 			foundIncr = split;
@@ -970,7 +966,7 @@ const yAxisOpts = {
 // takes stroke width
 function ptDia(width, mult) {
 	let dia = 3 + (width || 1) * 2;
-	return round3(dia * mult);
+	return roundDec(dia * mult, 3);
 }
 
 function seriesPoints(self, si) {
@@ -1735,12 +1731,12 @@ function uPlot(opts, data, then) {
 		let s = series[si];
 		let p = s.points;
 
-		const width = round3(p.width * pxRatio);
+		const width = roundDec(p.width * pxRatio, 3);
 		const offset = (width % 2) / 2;
 		const isStroked = p.width > 0;
 
 		let rad = (p.size - p.width) / 2 * pxRatio;
-		let dia = round3(rad * 2);
+		let dia = roundDec(rad * 2, 3);
 
 		ctx.translate(offset, offset);
 
@@ -1829,7 +1825,7 @@ function uPlot(opts, data, then) {
 
 		if (dir == 1) {
 			const { stroke, fill, clip } = s._paths;
-			const width = round3(s[WIDTH] * pxRatio);
+			const width = roundDec(s[WIDTH] * pxRatio, 3);
 			const offset = (width % 2) / 2;
 
 			setCtxStyle(s.stroke, width, s.dash, s.fill);
@@ -1939,7 +1935,7 @@ function uPlot(opts, data, then) {
 
 		const _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : series[is-1]._paths;
 		const stroke = _paths.stroke;
-		const width = round3(s[WIDTH] * pxRatio);
+		const width = roundDec(s[WIDTH] * pxRatio, 3);
 
 		let minY = inf,
 			maxY = -inf,
@@ -2220,7 +2216,7 @@ function uPlot(opts, data, then) {
 					side,
 					basePos,
 					tickSize,
-					round3(ticks[WIDTH] * pxRatio),
+					roundDec(ticks[WIDTH] * pxRatio, 3),
 					ticks.stroke,
 				);
 			}
@@ -2236,7 +2232,7 @@ function uPlot(opts, data, then) {
 					ori == 0 ? 2 : 1,
 					ori == 0 ? plotTop : plotLft,
 					ori == 0 ? plotHgt : plotWid,
-					round3(grid[WIDTH] * pxRatio),
+					roundDec(grid[WIDTH] * pxRatio, 3),
 					grid.stroke,
 					grid.dash,
 				);
@@ -2615,18 +2611,18 @@ function uPlot(opts, data, then) {
 
 			let scX = scales[xScaleKey];
 
-			let xPos = round3(getXPos(data[0][idx], scX, plotWidCss, 0));
+			let xPos = roundDec(getXPos(data[0][idx], scX, plotWidCss, 0), 3);
 
 			for (let i = 0; i < series.length; i++) {
 				let s = series[i];
 
 				let idx2 = cursor.dataIdx(self, i, idx);
-				let xPos2 = idx2 == idx ? xPos : round3(getXPos(data[0][idx2], scX, plotWidCss, 0));
+				let xPos2 = idx2 == idx ? xPos : roundDec(getXPos(data[0][idx2], scX, plotWidCss, 0), 3);
 
 				if (i > 0 && s.show) {
 					let valAtIdx = data[i][idx2];
 
-					let yPos = valAtIdx == null ? -10 : round3(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0));
+					let yPos = valAtIdx == null ? -10 : roundDec(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 3);
 
 					if (yPos > 0) {
 						let dist = abs(yPos - mouseTop1);

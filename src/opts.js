@@ -10,8 +10,7 @@ import {
 	max,
 	incrRoundUp,
 	round,
-	round3,
-	round6,
+	roundDec,
 	floor,
 	fmtNum,
 	fixedDec,
@@ -250,13 +249,13 @@ export function timeAxisSplits(tzDate) {
 			let pctSpace = foundSpace / minSpace;
 
 			while (1) {
-				split = round3(split + foundIncr);
+				split = roundDec(split + foundIncr, 3);
 
 				if (split > scaleMax)
 					break;
 
 				if (incrHours > 1) {
-					let expectedHour = floor(round6(prevHour + incrHours)) % 24;
+					let expectedHour = floor(roundDec(prevHour + incrHours, 6)) % 24;
 					let splitDate = tzDate(split);
 					let actualHour = splitDate.getHours();
 
@@ -271,7 +270,7 @@ export function timeAxisSplits(tzDate) {
 
 					// add a tick only if it's further than 70% of the min allowed label spacing
 					let prevSplit = splits[splits.length - 1];
-					let pctIncr = round3((split - prevSplit) / foundIncr);
+					let pctIncr = roundDec((split - prevSplit) / foundIncr, 3);
 
 					if (pctIncr * pctSpace >= .7)
 						splits.push(split);
@@ -415,9 +414,9 @@ export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 
 	let numDec = fixedDec.get(foundIncr);
 
-	scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(numDec);
+	scaleMin = forceMin ? scaleMin : roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
 
-	for (let val = scaleMin; val <= scaleMax; val = +(val + foundIncr).toFixed(numDec))
+	for (let val = scaleMin; val <= scaleMax; val = roundDec(val + foundIncr, numDec))
 		splits.push(val);
 
 	return splits;
@@ -435,13 +434,13 @@ export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 	foundIncr = pow(logBase, exp);
 
 	if (exp < 0)
-		foundIncr = +foundIncr.toFixed(-exp);
+		foundIncr = roundDec(foundIncr, -exp);
 
 	let split = scaleMin;
 
 	do {
 		splits.push(split);
-		split = +(split + foundIncr).toFixed(fixedDec.get(foundIncr));
+		split = roundDec(split + foundIncr, fixedDec.get(foundIncr));
 
 		if (split >= foundIncr * logBase)
 			foundIncr = split;
@@ -505,7 +504,7 @@ export const yAxisOpts = {
 // takes stroke width
 export function ptDia(width, mult) {
 	let dia = 3 + (width || 1) * 2;
-	return round3(dia * mult);
+	return roundDec(dia * mult, 3);
 }
 
 function seriesPoints(self, si) {

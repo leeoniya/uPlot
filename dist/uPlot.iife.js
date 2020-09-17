@@ -75,8 +75,8 @@ var uPlot = (function () {
 	var _fixedTuple = [0, 0];
 
 	function fixIncr(minIncr, maxIncr, minExp, maxExp) {
-		_fixedTuple[0] = minExp < 0 ? +minIncr.toFixed(-minExp) : minIncr;
-		_fixedTuple[1] = maxExp < 0 ? +maxIncr.toFixed(-maxExp) : maxIncr;
+		_fixedTuple[0] = minExp < 0 ? roundDec(minIncr, -minExp) : minIncr;
+		_fixedTuple[1] = maxExp < 0 ? roundDec(maxIncr, -maxExp) : maxIncr;
 		return _fixedTuple;
 	}
 
@@ -127,8 +127,8 @@ var uPlot = (function () {
 		var newMin = min - padding;
 		var newMax = max + padding;
 
-		var snappedMin = round6(incrRoundDn(newMin, base/100));
-		var snappedMax = round6(incrRoundUp(newMax, base/100));
+		var snappedMin = roundDec(incrRoundDn(newMin, base/100), 6);
+		var snappedMax = roundDec(incrRoundUp(newMax, base/100), 6);
 
 		if (extra) {
 			// for flat data, always use 0 as one chart extreme & place data in center
@@ -193,12 +193,8 @@ var uPlot = (function () {
 		return floor(num/incr)*incr;
 	}
 
-	function round3(val) {
-		return round(val * 1e3) / 1e3;
-	}
-
-	function round6(val) {
-		return round(val * 1e6) / 1e6;
+	function roundDec(val, dec) {
+		return round(val * (dec = Math.pow( 10, dec ))) / dec;
 	}
 
 	var fixedDec = new Map();
@@ -211,7 +207,7 @@ var uPlot = (function () {
 			var expa = abs(exp);
 
 			for (var i = 0; i < mults.length; i++) {
-				var incr = +(mults[i] * mag).toFixed(expa);
+				var incr = roundDec(mults[i] * mag, expa);
 				incrs.push(incr);
 				fixedDec.set(incr, incr < 1 ? expa : 0);
 			}
@@ -714,13 +710,13 @@ var uPlot = (function () {
 				var pctSpace = foundSpace / minSpace;
 
 				while (1) {
-					split$1 = round3(split$1 + foundIncr);
+					split$1 = roundDec(split$1 + foundIncr, 3);
 
 					if (split$1 > scaleMax)
 						{ break; }
 
 					if (incrHours > 1) {
-						var expectedHour = floor(round6(prevHour + incrHours)) % 24;
+						var expectedHour = floor(roundDec(prevHour + incrHours, 6)) % 24;
 						var splitDate$1 = tzDate(split$1);
 						var actualHour = splitDate$1.getHours();
 
@@ -735,7 +731,7 @@ var uPlot = (function () {
 
 						// add a tick only if it's further than 70% of the min allowed label spacing
 						var prevSplit = splits[splits.length - 1];
-						var pctIncr = round3((split$1 - prevSplit) / foundIncr);
+						var pctIncr = roundDec((split$1 - prevSplit) / foundIncr, 3);
 
 						if (pctIncr * pctSpace >= .7)
 							{ splits.push(split$1); }
@@ -878,9 +874,9 @@ var uPlot = (function () {
 
 		var numDec = fixedDec.get(foundIncr);
 
-		scaleMin = forceMin ? scaleMin : +incrRoundUp(scaleMin, foundIncr).toFixed(numDec);
+		scaleMin = forceMin ? scaleMin : roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
 
-		for (var val = scaleMin; val <= scaleMax; val = +(val + foundIncr).toFixed(numDec))
+		for (var val = scaleMin; val <= scaleMax; val = roundDec(val + foundIncr, numDec))
 			{ splits.push(val); }
 
 		return splits;
@@ -898,13 +894,13 @@ var uPlot = (function () {
 		foundIncr = pow(logBase, exp);
 
 		if (exp < 0)
-			{ foundIncr = +foundIncr.toFixed(-exp); }
+			{ foundIncr = roundDec(foundIncr, -exp); }
 
 		var split = scaleMin;
 
 		do {
 			splits.push(split);
-			split = +(split + foundIncr).toFixed(fixedDec.get(foundIncr));
+			split = roundDec(split + foundIncr, fixedDec.get(foundIncr));
 
 			if (split >= foundIncr * logBase)
 				{ foundIncr = split; }
@@ -968,7 +964,7 @@ var uPlot = (function () {
 	// takes stroke width
 	function ptDia(width, mult) {
 		var dia = 3 + (width || 1) * 2;
-		return round3(dia * mult);
+		return roundDec(dia * mult, 3);
 	}
 
 	function seriesPoints(self, si) {
@@ -1737,12 +1733,12 @@ var uPlot = (function () {
 			var s = series[si];
 			var p = s.points;
 
-			var width = round3(p.width * pxRatio);
+			var width = roundDec(p.width * pxRatio, 3);
 			var offset = (width % 2) / 2;
 			var isStroked = p.width > 0;
 
 			var rad = (p.size - p.width) / 2 * pxRatio;
-			var dia = round3(rad * 2);
+			var dia = roundDec(rad * 2, 3);
 
 			ctx.translate(offset, offset);
 
@@ -1834,7 +1830,7 @@ var uPlot = (function () {
 				var stroke = ref.stroke;
 				var fill = ref.fill;
 				var clip = ref.clip;
-				var width = round3(s[WIDTH] * pxRatio);
+				var width = roundDec(s[WIDTH] * pxRatio, 3);
 				var offset = (width % 2) / 2;
 
 				setCtxStyle(s.stroke, width, s.dash, s.fill);
@@ -1944,7 +1940,7 @@ var uPlot = (function () {
 
 			var _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : series[is-1]._paths;
 			var stroke = _paths.stroke;
-			var width = round3(s[WIDTH] * pxRatio);
+			var width = roundDec(s[WIDTH] * pxRatio, 3);
 
 			var minY = inf,
 				maxY = -inf,
@@ -2228,7 +2224,7 @@ var uPlot = (function () {
 						side,
 						basePos,
 						tickSize,
-						round3(ticks[WIDTH] * pxRatio),
+						roundDec(ticks[WIDTH] * pxRatio, 3),
 						ticks.stroke
 					);
 				}
@@ -2244,7 +2240,7 @@ var uPlot = (function () {
 						ori == 0 ? 2 : 1,
 						ori == 0 ? plotTop : plotLft,
 						ori == 0 ? plotHgt : plotWid,
-						round3(grid[WIDTH] * pxRatio),
+						roundDec(grid[WIDTH] * pxRatio, 3),
 						grid.stroke,
 						grid.dash
 					);
@@ -2625,18 +2621,18 @@ var uPlot = (function () {
 
 				var scX = scales[xScaleKey];
 
-				var xPos = round3(getXPos(data[0][idx], scX, plotWidCss, 0));
+				var xPos = roundDec(getXPos(data[0][idx], scX, plotWidCss, 0), 3);
 
 				for (var i$1 = 0; i$1 < series.length; i$1++) {
 					var s = series[i$1];
 
 					var idx2 = cursor.dataIdx(self, i$1, idx);
-					var xPos2 = idx2 == idx ? xPos : round3(getXPos(data[0][idx2], scX, plotWidCss, 0));
+					var xPos2 = idx2 == idx ? xPos : roundDec(getXPos(data[0][idx2], scX, plotWidCss, 0), 3);
 
 					if (i$1 > 0 && s.show) {
 						var valAtIdx = data[i$1][idx2];
 
-						var yPos = valAtIdx == null ? -10 : round3(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0));
+						var yPos = valAtIdx == null ? -10 : roundDec(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 3);
 
 						if (yPos > 0) {
 							var dist = abs(yPos - mouseTop1);

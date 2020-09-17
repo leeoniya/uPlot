@@ -6,8 +6,7 @@ import {
 	abs,
 	floor,
 	round,
-	round2,
-	round3,
+	roundDec,
 	ceil,
 	min,
 	max,
@@ -827,12 +826,12 @@ export default function uPlot(opts, data, then) {
 		let s = series[si];
 		let p = s.points;
 
-		const width = round3(p.width * pxRatio);
+		const width = roundDec(p.width * pxRatio, 3);
 		const offset = (width % 2) / 2;
 		const isStroked = p.width > 0;
 
 		let rad = (p.size - p.width) / 2 * pxRatio;
-		let dia = round3(rad * 2);
+		let dia = roundDec(rad * 2, 3);
 
 		ctx.translate(offset, offset);
 
@@ -921,7 +920,7 @@ export default function uPlot(opts, data, then) {
 
 		if (dir == 1) {
 			const { stroke, fill, clip } = s._paths;
-			const width = round3(s[WIDTH] * pxRatio);
+			const width = roundDec(s[WIDTH] * pxRatio, 3);
 			const offset = (width % 2) / 2;
 
 			setCtxStyle(s.stroke, width, s.dash, s.fill);
@@ -1031,7 +1030,7 @@ export default function uPlot(opts, data, then) {
 
 		const _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : series[is-1]._paths;
 		const stroke = _paths.stroke;
-		const width = round3(s[WIDTH] * pxRatio);
+		const width = roundDec(s[WIDTH] * pxRatio, 3);
 
 		let minY = inf,
 			maxY = -inf,
@@ -1312,7 +1311,7 @@ export default function uPlot(opts, data, then) {
 					side,
 					basePos,
 					tickSize,
-					round3(ticks[WIDTH] * pxRatio),
+					roundDec(ticks[WIDTH] * pxRatio, 3),
 					ticks.stroke,
 				);
 			}
@@ -1328,7 +1327,7 @@ export default function uPlot(opts, data, then) {
 					ori == 0 ? 2 : 1,
 					ori == 0 ? plotTop : plotLft,
 					ori == 0 ? plotHgt : plotWid,
-					round3(grid[WIDTH] * pxRatio),
+					roundDec(grid[WIDTH] * pxRatio, 3),
 					grid.stroke,
 					grid.dash,
 				);
@@ -1707,18 +1706,18 @@ export default function uPlot(opts, data, then) {
 
 			let scX = scales[xScaleKey];
 
-			let xPos = round3(getXPos(data[0][idx], scX, plotWidCss, 0));
+			let xPos = roundDec(getXPos(data[0][idx], scX, plotWidCss, 0), 3);
 
 			for (let i = 0; i < series.length; i++) {
 				let s = series[i];
 
 				let idx2 = cursor.dataIdx(self, i, idx);
-				let xPos2 = idx2 == idx ? xPos : round3(getXPos(data[0][idx2], scX, plotWidCss, 0));
+				let xPos2 = idx2 == idx ? xPos : roundDec(getXPos(data[0][idx2], scX, plotWidCss, 0), 3);
 
 				if (i > 0 && s.show) {
 					let valAtIdx = data[i][idx2];
 
-					let yPos = valAtIdx == null ? -10 : round3(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0));
+					let yPos = valAtIdx == null ? -10 : roundDec(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 3);
 
 					if (yPos > 0) {
 						let dist = abs(yPos - mouseTop1);
