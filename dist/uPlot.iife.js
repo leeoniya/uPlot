@@ -72,6 +72,14 @@ var uPlot = (function () {
 		return [_min, _max];
 	}
 
+	var _fixedTuple = [0, 0];
+
+	function fixIncr(minIncr, maxIncr, minExp, maxExp) {
+		_fixedTuple[0] = minExp < 0 ? +minIncr.toFixed(-minExp) : minIncr;
+		_fixedTuple[1] = maxExp < 0 ? +maxIncr.toFixed(-maxExp) : maxIncr;
+		return _fixedTuple;
+	}
+
 	function rangeLog(min, max, base, fullMags) {
 		var logFn = base == 10 ? log10 : log2;
 
@@ -80,23 +88,28 @@ var uPlot = (function () {
 			max *= base;
 		}
 
-		var minIncr, maxIncr;
+		var minExp, maxExp, minMaxIncrs;
 
 		if (fullMags) {
-			min = minIncr = pow(base, floor(logFn(min)));
-			max = maxIncr = pow(base,  ceil(logFn(max)));
+			minExp = floor(logFn(min));
+			maxExp =  ceil(logFn(max));
+
+			minMaxIncrs = fixIncr(pow(base, minExp), pow(base, maxExp), minExp, maxExp);
+
+			min = minMaxIncrs[0];
+			max = minMaxIncrs[1];
 		}
 		else {
-			minIncr       = pow(base, floor(logFn(min)));
-			maxIncr       = pow(base, floor(logFn(max)));
+			minExp = floor(logFn(min));
+			maxExp = floor(logFn(max));
 
-			min           = incrRoundDn(min, minIncr);
-			max           = incrRoundUp(max, maxIncr);
+			minMaxIncrs = fixIncr(pow(base, minExp), pow(base, maxExp), minExp, maxExp);
+
+			min = incrRoundDn(min, minMaxIncrs[0]);
+			max = incrRoundUp(max, minMaxIncrs[1]);
 		}
 
-		return [
-			+min.toFixed(fixedDec.get(minIncr)),
-			+max.toFixed(fixedDec.get(maxIncr)) ];
+		return [min, max];
 	}
 
 	// this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
@@ -879,6 +892,13 @@ var uPlot = (function () {
 		var logBase = self.scales[self.axes[axisIdx].scale].log;
 
 		var logFn = logBase == 10 ? log10 : log2;
+
+		var exp = floor(logFn(scaleMin));
+
+		foundIncr = pow(logBase, exp);
+
+		if (exp < 0)
+			{ foundIncr = +foundIncr.toFixed(-exp); }
 
 		foundIncr = pow(logBase, floor(logFn(scaleMin)));
 

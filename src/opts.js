@@ -430,6 +430,13 @@ export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 
 	const logFn = logBase == 10 ? log10 : log2;
 
+	const exp = floor(logFn(scaleMin));
+
+	foundIncr = pow(logBase, exp);
+
+	if (exp < 0)
+		foundIncr = +foundIncr.toFixed(-exp);
+
 	foundIncr = pow(logBase, floor(logFn(scaleMin)));
 
 	let split = scaleMin;
