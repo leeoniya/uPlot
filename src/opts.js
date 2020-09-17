@@ -426,11 +426,11 @@ export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	const splits = [];
 
-	const logFn = self.scales[self.axes[axisIdx].scale].log;
+	const logBase = self.scales[self.axes[axisIdx].scale].log;
 
-	const base = logFn == log10 ? 10 : 2;
+	const logFn = logBase == 10 ? log10 : log2;
 
-	foundIncr = pow(base, floor(logFn(scaleMin)));
+	foundIncr = pow(logBase, floor(logFn(scaleMin)));
 
 	let split = scaleMin;
 
@@ -438,7 +438,7 @@ export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 		splits.push(split);
 		split = +(split + foundIncr).toFixed(fixedDec.get(foundIncr));
 
-		if (split >= foundIncr * base)
+		if (split >= foundIncr * logBase)
 			foundIncr = split;
 
 	} while (split <= scaleMax);
@@ -455,7 +455,7 @@ export function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
 
-	if (self.scales[scaleKey].log == log2)
+	if (self.scales[scaleKey].log == 2)
 		return splits;
 
 	let valToPos = self.valToPos;
@@ -547,7 +547,7 @@ export const xScaleOpts = {
 	time: FEAT_TIME,
 	auto: true,
 	distr: 1,
-	log: log10,
+	log: 10,
 	min: null,
 	max: null,
 };

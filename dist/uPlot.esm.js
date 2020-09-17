@@ -879,11 +879,11 @@ function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	const splits = [];
 
-	const logFn = self.scales[self.axes[axisIdx].scale].log;
+	const logBase = self.scales[self.axes[axisIdx].scale].log;
 
-	const base = logFn == log10 ? 10 : 2;
+	const logFn = logBase == 10 ? log10 : log2;
 
-	foundIncr = pow(base, floor(logFn(scaleMin)));
+	foundIncr = pow(logBase, floor(logFn(scaleMin)));
 
 	let split = scaleMin;
 
@@ -891,7 +891,7 @@ function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 		splits.push(split);
 		split = +(split + foundIncr).toFixed(fixedDec.get(foundIncr));
 
-		if (split >= foundIncr * base)
+		if (split >= foundIncr * logBase)
 			foundIncr = split;
 
 	} while (split <= scaleMax);
@@ -908,7 +908,7 @@ function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
 
-	if (self.scales[scaleKey].log == log2)
+	if (self.scales[scaleKey].log == 2)
 		return splits;
 
 	let valToPos = self.valToPos;
@@ -1000,7 +1000,7 @@ const xScaleOpts = {
 	time: true,
 	auto: true,
 	distr: 1,
-	log: log10,
+	log: 10,
 	min: null,
 	max: null,
 };
@@ -1043,7 +1043,7 @@ function setDefault(o, i, xo, yo) {
 function getValPct(val, scale) {
 	return (
 		scale.distr == 3
-		? scale.log(val / scale.min) / scale.log(scale.max / scale.min)
+		? log10(val / scale.min) / log10(scale.max / scale.min)
 		: (val - scale.min) / (scale.max - scale.min)
 	);
 }
@@ -1075,8 +1075,7 @@ function snapNumY(self, dataMin, dataMax) {
 }
 
 function snapLogY(self, dataMin, dataMax, scale) {
-	let base = self.scales[scale].log == log10 ? 10 : 2;
-	return rangeLog(dataMin, dataMax, base, false);
+	return rangeLog(dataMin, dataMax, self.scales[scale].log, false);
 }
 
 const snapLogX = snapLogY;
@@ -2488,10 +2487,9 @@ function uPlot(opts, data, then) {
 			_max = sc.max;
 
 		if (sc.distr == 3) {
-			let base = sc.log == log10 ? 10 : 2;
-			_min = sc.log(_min);
-			_max = sc.log(_max);
-			return pow(base, _min + (_max - _min) * pct);
+			_min = log10(_min);
+			_max = log10(_max);
+			return pow(10, _min + (_max - _min) * pct);
 		}
 		else
 			return _min + (_max - _min) * pct;

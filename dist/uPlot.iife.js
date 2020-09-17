@@ -876,11 +876,11 @@ var uPlot = (function () {
 	function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 		var splits = [];
 
-		var logFn = self.scales[self.axes[axisIdx].scale].log;
+		var logBase = self.scales[self.axes[axisIdx].scale].log;
 
-		var base = logFn == log10 ? 10 : 2;
+		var logFn = logBase == 10 ? log10 : log2;
 
-		foundIncr = pow(base, floor(logFn(scaleMin)));
+		foundIncr = pow(logBase, floor(logFn(scaleMin)));
 
 		var split = scaleMin;
 
@@ -888,7 +888,7 @@ var uPlot = (function () {
 			splits.push(split);
 			split = +(split + foundIncr).toFixed(fixedDec.get(foundIncr));
 
-			if (split >= foundIncr * base)
+			if (split >= foundIncr * logBase)
 				{ foundIncr = split; }
 
 		} while (split <= scaleMax);
@@ -905,7 +905,7 @@ var uPlot = (function () {
 		var axis = self.axes[axisIdx];
 		var scaleKey = axis.scale;
 
-		if (self.scales[scaleKey].log == log2)
+		if (self.scales[scaleKey].log == 2)
 			{ return splits; }
 
 		var valToPos = self.valToPos;
@@ -997,7 +997,7 @@ var uPlot = (function () {
 		time: true,
 		auto: true,
 		distr: 1,
-		log: log10,
+		log: 10,
 		min: null,
 		max: null,
 	};
@@ -1040,7 +1040,7 @@ var uPlot = (function () {
 	function getValPct(val, scale) {
 		return (
 			scale.distr == 3
-			? scale.log(val / scale.min) / scale.log(scale.max / scale.min)
+			? log10(val / scale.min) / log10(scale.max / scale.min)
 			: (val - scale.min) / (scale.max - scale.min)
 		);
 	}
@@ -1072,8 +1072,7 @@ var uPlot = (function () {
 	}
 
 	function snapLogY(self, dataMin, dataMax, scale) {
-		var base = self.scales[scale].log == log10 ? 10 : 2;
-		return rangeLog(dataMin, dataMax, base, false);
+		return rangeLog(dataMin, dataMax, self.scales[scale].log, false);
 	}
 
 	var snapLogX = snapLogY;
@@ -2495,10 +2494,9 @@ var uPlot = (function () {
 				_max = sc.max;
 
 			if (sc.distr == 3) {
-				var base = sc.log == log10 ? 10 : 2;
-				_min = sc.log(_min);
-				_max = sc.log(_max);
-				return pow(base, _min + (_max - _min) * pct);
+				_min = log10(_min);
+				_max = log10(_max);
+				return pow(10, _min + (_max - _min) * pct);
 			}
 			else
 				{ return _min + (_max - _min) * pct; }
