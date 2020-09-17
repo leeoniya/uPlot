@@ -900,8 +900,6 @@ var uPlot = (function () {
 		if (exp < 0)
 			{ foundIncr = +foundIncr.toFixed(-exp); }
 
-		foundIncr = pow(logBase, floor(logFn(scaleMin)));
-
 		var split = scaleMin;
 
 		do {

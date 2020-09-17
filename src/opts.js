@@ -437,8 +437,6 @@ export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 	if (exp < 0)
 		foundIncr = +foundIncr.toFixed(-exp);
 
-	foundIncr = pow(logBase, floor(logFn(scaleMin)));
-
 	let split = scaleMin;
 
 	do {
