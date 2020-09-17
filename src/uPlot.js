@@ -182,13 +182,11 @@ function snapNumY(self, dataMin, dataMax) {
 	return rangeNum(dataMin, dataMax, 0.1, true);
 }
 
-function snapLogX(self, dataMin, dataMax) {
-	return rangeLog(dataMin, dataMax);
+function snapLogY(self, dataMin, dataMax, scale) {
+	return rangeLog(dataMin, dataMax, self.scales[scale].log, false);
 }
 
-function snapLogY(self, dataMin, dataMax) {
-	return rangeLog(dataMin, dataMax);
-}
+const snapLogX = snapLogY;
 
 // dim is logical (getClientBoundingRect) pixels, not canvas pixels
 function findIncr(min, max, incrs, dim, minSpace) {

@@ -3,6 +3,7 @@ import {
 
 	inf,
 	pow,
+	log2,
 	log10,
 	genIncrs,
 	abs,
@@ -46,9 +47,12 @@ import {
 
 const incrMults = [1,2,5];
 
-const decIncrs = genIncrs(-16, 0, incrMults);
+const decIncrs = genIncrs(10, -16, 0, incrMults);
 
-export const intIncrs = genIncrs(0, 16, incrMults);
+// base 2
+const binIncrs = genIncrs(2, -53, 53, [1]);
+
+export const intIncrs = genIncrs(10, 0, 16, incrMults);
 
 export const numIncrs = decIncrs.concat(intIncrs);
 
@@ -60,7 +64,7 @@ let s = 1,
 	y = d * 365;
 
 // starting below 1e-3 is a hack to allow the incr finder to choose & bail out at incr < 1ms
-export const timeIncrs = FEAT_TIME && [5e-4].concat(genIncrs(-3, 0, incrMults), [
+export const timeIncrs = FEAT_TIME && [5e-4].concat(genIncrs(10, -3, 0, incrMults), [
 	// minute divisors (# of secs)
 	1,
 	5,
@@ -422,15 +426,21 @@ export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	const splits = [];
 
-	foundIncr = pow(10, floor(log10(scaleMin)));
+	const logBase = self.scales[self.axes[axisIdx].scale].log;
+
+	const logFn = logBase == 10 ? log10 : log2;
+
+	foundIncr = pow(logBase, floor(logFn(scaleMin)));
 
 	let split = scaleMin;
 
 	do {
 		splits.push(split);
 		split = +(split + foundIncr).toFixed(fixedDec.get(foundIncr));
-		if (split >= foundIncr * 10)
+
+		if (split >= foundIncr * logBase)
 			foundIncr = split;
+
 	} while (split <= scaleMax);
 
 	return splits;
@@ -444,6 +454,10 @@ const RE_1     = /1/;
 export function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
+
+	if (self.scales[scaleKey].log == 2)
+		return splits;
+
 	let valToPos = self.valToPos;
 
 	let minSpace = axis.space();			// TOFIX: only works for static space:
@@ -451,9 +465,9 @@ export function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let _10 = valToPos(10, scaleKey);
 
 	let re = (
-		valToPos(9,  scaleKey) - _10 >= minSpace ? RE_ALL :
-		valToPos(7,  scaleKey) - _10 >= minSpace ? RE_12357 :
-		valToPos(5,  scaleKey) - _10 >= minSpace ? RE_125 :
+		valToPos(9, scaleKey) - _10 >= minSpace ? RE_ALL :
+		valToPos(7, scaleKey) - _10 >= minSpace ? RE_12357 :
+		valToPos(5, scaleKey) - _10 >= minSpace ? RE_125 :
 		RE_1
 	);
 
@@ -533,6 +547,7 @@ export const xScaleOpts = {
 	time: FEAT_TIME,
 	auto: true,
 	distr: 1,
+	log: 10,
 	min: null,
 	max: null,
 };
