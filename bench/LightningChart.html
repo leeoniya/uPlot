@@ -10,8 +10,6 @@
 
 		<script src="https://www.arction.com/lightningchart-js-interactive-examples//js/lcjs.iife.js"></script>
 
-		<div id="chart" style="width: 1920px; height: 600px;"></div>
-
 		<script>
 			function round2(val) {
 				return Math.round(val * 100) / 100;
@@ -63,11 +61,9 @@
 
 				const dateOrigin = new Date(1566453600000);
 
-				const chart = lightningChart().ChartXY({
-					containerId: 'chart',
-					defaultAxisXTickStrategy: AxisTickStrategies.DateTime(dateOrigin),
-				});
+				const chart = lightningChart().ChartXY();
 
+				chart.getDefaultAxisX().setTickStrategy(AxisTickStrategies.DateTime, tickStrategy => tickStrategy.setDateOrigin(dateOrigin));
 				chart.getDefaultAxisX().setAnimationScroll(undefined);
 				chart.getDefaultAxisX().setAnimationZoom(undefined);
 				chart.getDefaultAxisY().setAnimationScroll(undefined);
