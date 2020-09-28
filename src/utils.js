@@ -206,6 +206,8 @@ export function genIncrs(base, minExp, maxExp, mults) {
 
 //export const assign = Object.assign;
 
+export const EMPTY_OBJ = {};
+
 export const isArr = Array.isArray;
 
 export function isStr(v) {

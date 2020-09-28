@@ -217,6 +217,8 @@ function genIncrs(base, minExp, maxExp, mults) {
 
 //export const assign = Object.assign;
 
+var EMPTY_OBJ = {};
+
 var isArr = Array.isArray;
 
 function isStr(v) {
@@ -1148,7 +1150,10 @@ function uPlot(opts, data, then) {
 
 	var series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
 	var axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
-	var scales  = self.scales = assign({}, {x: xScaleOpts, y: yScaleOpts}, opts.scales);
+	var scales  = self.scales = {};
+
+	initScale("x", true, opts.scales);
+	initScale("y", false, opts.scales);
 
 	var gutters = assign({
 		x: round(yAxisOpts.size / 2),
@@ -1431,16 +1436,26 @@ function uPlot(opts, data, then) {
 		}
 	}
 
+	function initScale(scaleKey, isX, opts) {
+		var sc = scales[scaleKey];
+
+		if (sc == null) {
+			sc = scales[scaleKey] = assign({}, (isX ? xScaleOpts : yScaleOpts), (opts || EMPTY_OBJ)[scaleKey]);
+
+			var isTime =  sc.time;
+			var isLog  = sc.distr == 3;
+
+			sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : isX ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
+		}
+
+		return sc;
+	}
+
 	function initSeries(s, i) {
 		// init scales & defaults
-		var scKey = s.scale;
-
-		var sc = scales[scKey] = assign({}, (i == 0 ? xScaleOpts : yScaleOpts), scales[scKey]);
+		var sc = initScale(s.scale, i == 0);
 
 		var isTime =  sc.time;
-		var isLog  = sc.distr == 3;
-
-		sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : i == 0 ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
 
 		var sv = s.value;
 		s.value = isTime ? (isStr(sv) ? timeSeriesVal(_tzDate, timeSeriesStamp(sv, _fmtDate)) : sv || _timeSeriesVal) : sv || numSeriesVal;

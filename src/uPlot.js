@@ -27,6 +27,7 @@ import {
 	fmtNum,
 
 	retArg1,
+	EMPTY_OBJ,
 } from './utils';
 
 import {
@@ -243,7 +244,10 @@ export default function uPlot(opts, data, then) {
 
 	const series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
 	const axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
-	const scales  = self.scales = assign({}, {x: xScaleOpts, y: yScaleOpts}, opts.scales);
+	const scales  = self.scales = {};
+
+	initScale("x", true, opts.scales);
+	initScale("y", false, opts.scales);
 
 	const gutters = assign({
 		x: round(yAxisOpts.size / 2),
@@ -523,16 +527,26 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
+	function initScale(scaleKey, isX, opts) {
+		let sc = scales[scaleKey];
+
+		if (sc == null) {
+			sc = scales[scaleKey] = assign({}, (isX ? xScaleOpts : yScaleOpts), (opts || EMPTY_OBJ)[scaleKey]);
+
+			let isTime = FEAT_TIME && sc.time;
+			let isLog  = sc.distr == 3;
+
+			sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : isX ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
+		}
+
+		return sc;
+	}
+
 	function initSeries(s, i) {
 		// init scales & defaults
-		const scKey = s.scale;
-
-		const sc = scales[scKey] = assign({}, (i == 0 ? xScaleOpts : yScaleOpts), scales[scKey]);
+		let sc = initScale(s.scale, i == 0);
 
 		let isTime = FEAT_TIME && sc.time;
-		let isLog  = sc.distr == 3;
-
-		sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : i == 0 ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
 
 		let sv = s.value;
 		s.value = isTime ? (isStr(sv) ? timeSeriesVal(_tzDate, timeSeriesStamp(sv, _fmtDate)) : sv || _timeSeriesVal) : sv || numSeriesVal;
