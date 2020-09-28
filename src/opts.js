@@ -206,6 +206,7 @@ function mkDate(y, m, d) {
 export function timeAxisSplits(tzDate) {
 	return (self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace) => {
 		let splits = [];
+		let isYr = foundIncr >= y;
 		let isMo = foundIncr >= mo && foundIncr < y;
 
 		// get the timezone-adjusted date
@@ -213,19 +214,20 @@ export function timeAxisSplits(tzDate) {
 		let minDateTs = minDate / 1e3;
 
 		// get ts of 12am (this lands us at or before the original scaleMin)
-		let minMin = mkDate(minDate[getFullYear](), minDate[getMonth](), isMo ? 1 : minDate[getDate]());
+		let minMin = mkDate(minDate[getFullYear](), isYr ? 0 : minDate[getMonth](), isMo || isYr ? 1 : minDate[getDate]());
 		let minMinTs = minMin / 1e3;
 
-		if (isMo) {
-			let moIncr = foundIncr / mo;
+		if (isMo || isYr) {
+			let moIncr = isMo ? foundIncr / mo : 0;
+			let yrIncr = isYr ? foundIncr / y  : 0;
 		//	let tzOffset = scaleMin - minDateTs;		// needed?
-			let split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
+			let split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear]() + yrIncr, minMin[getMonth]() + moIncr, 1) / 1e3;
 			let splitDate = new Date(split * 1e3);
 			let baseYear = splitDate[getFullYear]();
 			let baseMonth = splitDate[getMonth]();
 
 			for (let i = 0; split <= scaleMax; i++) {
-				let next = mkDate(baseYear, baseMonth + moIncr * i, 1);
+				let next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
 				let offs = next - tzDate(next / 1e3);
 
 				split = (+next + offs) / 1e3;

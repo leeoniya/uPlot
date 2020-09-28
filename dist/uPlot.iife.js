@@ -667,6 +667,7 @@ var uPlot = (function () {
 	function timeAxisSplits(tzDate) {
 		return function (self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace) {
 			var splits = [];
+			var isYr = foundIncr >= y;
 			var isMo = foundIncr >= mo && foundIncr < y;
 
 			// get the timezone-adjusted date
@@ -674,19 +675,20 @@ var uPlot = (function () {
 			var minDateTs = minDate / 1e3;
 
 			// get ts of 12am (this lands us at or before the original scaleMin)
-			var minMin = mkDate(minDate[getFullYear](), minDate[getMonth](), isMo ? 1 : minDate[getDate]());
+			var minMin = mkDate(minDate[getFullYear](), isYr ? 0 : minDate[getMonth](), isMo || isYr ? 1 : minDate[getDate]());
 			var minMinTs = minMin / 1e3;
 
-			if (isMo) {
-				var moIncr = foundIncr / mo;
+			if (isMo || isYr) {
+				var moIncr = isMo ? foundIncr / mo : 0;
+				var yrIncr = isYr ? foundIncr / y  : 0;
 			//	let tzOffset = scaleMin - minDateTs;		// needed?
-				var split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear](), minMin[getMonth]() + moIncr, 1) / 1e3;
+				var split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear]() + yrIncr, minMin[getMonth]() + moIncr, 1) / 1e3;
 				var splitDate = new Date(split * 1e3);
 				var baseYear = splitDate[getFullYear]();
 				var baseMonth = splitDate[getMonth]();
 
 				for (var i = 0; split <= scaleMax; i++) {
-					var next = mkDate(baseYear, baseMonth + moIncr * i, 1);
+					var next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
 					var offs = next - tzDate(next / 1e3);
 
 					split = (+next + offs) / 1e3;
