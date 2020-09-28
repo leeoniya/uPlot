@@ -237,11 +237,11 @@ declare namespace uPlot {
 		/** cursor position top offset in CSS pixels (relative to plotting area) */
 		top?: number;
 
-		/** closest data index to cursor (hoveredIdx) */
+		/** closest data index to cursor (closestIdx) */
 		idx?: number;
 
-		/** returns data idx used for hover points & legend display (defaults to hoveredIdx) */
-		dataIdx?: (self: uPlot, seriesIdx: number, hoveredIdx: number) => number;
+		/** returns data idx used for hover points & legend display (defaults to closestIdx) */
+		dataIdx?: (self: uPlot, seriesIdx: number, closestIdx: number, xValue: number) => number;
 
 		/** fires on debounced mousemove events; returns refined [left, top] tuple to snap cursor position */
 		move?: (self: uPlot, mouseLeft: number, mouseTop: number) => LeftTop;

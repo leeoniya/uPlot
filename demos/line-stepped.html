@@ -22,6 +22,11 @@
 				width: 800,
 				height: 600,
 				title: "Stepped Line",
+				cursor: {
+					// this shows how to maintain the hover points at the previous step level
+					// essentially, it translates idx's Math.round() hover behavior into Math.floor()
+					dataIdx: (u, seriesIdx, idx, xVal) => xVal < u.data[0][idx] ? idx - 1 : idx
+				},
 				scales: {
 					x: {
 						time: false,

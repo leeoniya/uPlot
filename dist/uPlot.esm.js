@@ -2609,7 +2609,9 @@ function uPlot(opts, data, then) {
 		else {
 		//	let pctY = 1 - (y / rect[HEIGHT]);
 
-			idx = closestIdxFromXpos(mouseLeft1);
+			let valAtPos = scaleValueAtPos(mouseLeft1, xScaleKey);
+
+			idx = closestIdx(valAtPos, data[0], i0, i1);
 
 			let scX = scales[xScaleKey];
 
@@ -2618,7 +2620,7 @@ function uPlot(opts, data, then) {
 			for (let i = 0; i < series.length; i++) {
 				let s = series[i];
 
-				let idx2 = cursor.dataIdx(self, i, idx);
+				let idx2  = cursor.dataIdx(self, i, idx, valAtPos);
 				let xPos2 = idx2 == idx ? xPos : roundDec(getXPos(data[0][idx2], scX, plotWidCss, 0), 3);
 
 				if (i > 0 && s.show) {

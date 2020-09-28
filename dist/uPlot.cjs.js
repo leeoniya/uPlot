@@ -2618,7 +2618,9 @@ function uPlot(opts, data, then) {
 		else {
 		//	let pctY = 1 - (y / rect[HEIGHT]);
 
-			idx = closestIdxFromXpos(mouseLeft1);
+			var valAtPos = scaleValueAtPos(mouseLeft1, xScaleKey);
+
+			idx = closestIdx(valAtPos, data[0], i0, i1);
 
 			var scX = scales[xScaleKey];
 
@@ -2627,7 +2629,7 @@ function uPlot(opts, data, then) {
 			for (var i$1 = 0; i$1 < series.length; i$1++) {
 				var s = series[i$1];
 
-				var idx2 = cursor.dataIdx(self, i$1, idx);
+				var idx2  = cursor.dataIdx(self, i$1, idx, valAtPos);
 				var xPos2 = idx2 == idx ? xPos : roundDec(getXPos(data[0][idx2], scX, plotWidCss, 0), 3);
 
 				if (i$1 > 0 && s.show) {
