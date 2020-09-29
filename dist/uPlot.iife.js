@@ -1153,8 +1153,52 @@ var uPlot = (function () {
 		var axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
 		var scales  = self.scales = {};
 
-		initScale("x", true, opts.scales);
-		initScale("y", false, opts.scales);
+		var xScaleKey = series[0].scale;
+
+		function initScale(scaleKey) {
+			var sc = scales[scaleKey];
+
+			if (sc == null) {
+				var scaleOpts = (opts.scales || EMPTY_OBJ)[scaleKey] || EMPTY_OBJ;
+
+				if (scaleOpts.from != null) {
+					// ensure parent is initialized
+					initScale(scaleOpts.from);
+					// dependent scales inherit
+					scales[scaleKey] = assign({}, scales[scaleOpts.from], scaleOpts);
+				}
+				else {
+					sc = scales[scaleKey] = assign({}, (scaleKey == xScaleKey ? xScaleOpts : yScaleOpts), scaleOpts);
+
+					var isTime =  sc.time;
+					var isLog  = sc.distr == 3;
+
+					sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : scaleKey == xScaleKey ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
+				}
+			}
+		}
+
+		initScale("x");
+		initScale("y");
+
+		series.forEach(function (s, i) {
+			initScale(s.scale);
+		});
+
+		for (var k in opts.scales)
+			{ initScale(k); }
+
+		var xScaleDistr = scales[xScaleKey].distr;
+
+		var pendScales = {};
+
+		// explicitly-set initial scales
+		for (var k$1 in scales) {
+			var sc = scales[k$1];
+
+			if (sc.min != null || sc.max != null)
+				{ pendScales[k$1] = {min: sc.min, max: sc.max}; }
+		}
 
 		var gutters = assign({
 			x: round(yAxisOpts.size / 2),
@@ -1168,16 +1212,6 @@ var uPlot = (function () {
 		var _timeAxisSplits =  timeAxisSplits(_tzDate);
 		var _timeAxisVals   =  timeAxisVals(_tzDate, timeAxisStamps(_timeAxisStamps, _fmtDate));
 		var _timeSeriesVal  =  timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
-
-		var pendScales = {};
-
-		// explicitly-set initial scales
-		for (var k in scales) {
-			var sc = scales[k];
-
-			if (sc.min != null || sc.max != null)
-				{ pendScales[k] = {min: sc.min, max: sc.max}; }
-		}
 
 		var legend     =  assign({show: true, live: true}, opts.legend);
 		var showLegend =  legend.show;
@@ -1437,26 +1471,8 @@ var uPlot = (function () {
 			}
 		}
 
-		function initScale(scaleKey, isX, opts) {
-			var sc = scales[scaleKey];
-
-			if (sc == null) {
-				sc = scales[scaleKey] = assign({}, (isX ? xScaleOpts : yScaleOpts), (opts || EMPTY_OBJ)[scaleKey]);
-
-				var isTime =  sc.time;
-				var isLog  = sc.distr == 3;
-
-				sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : isX ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
-			}
-
-			return sc;
-		}
-
 		function initSeries(s, i) {
-			// init scales & defaults
-			var sc = initScale(s.scale, i == 0);
-
-			var isTime =  sc.time;
+			var isTime =  scales[s.scale].time;
 
 			var sv = s.value;
 			s.value = isTime ? (isStr(sv) ? timeSeriesVal(_tzDate, timeSeriesStamp(sv, _fmtDate)) : sv || _timeSeriesVal) : sv || numSeriesVal;
@@ -1505,17 +1521,6 @@ var uPlot = (function () {
 		self.delSeries = delSeries;
 
 		series.forEach(initSeries);
-
-		var xScaleKey = series[0].scale;
-		var xScaleDistr = scales[xScaleKey].distr;
-
-		// dependent scales inherit
-		for (var k$1 in scales) {
-			var sc$1 = scales[k$1];
-
-			if (sc$1.from != null)
-				{ scales[k$1] = assign({}, scales[sc$1.from], sc$1); }
-		}
 
 		function initAxis(axis, i) {
 			if (axis.show) {

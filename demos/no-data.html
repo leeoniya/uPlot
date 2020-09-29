@@ -45,6 +45,13 @@
 
 			let u = new uPlot(opts, null, document.body);
 
+			let u2 = new uPlot({
+				title: "Plot without data 2",
+				width: 800,
+				height: 400,
+				scales: {x: {time: false}},
+			}, [], document.body);
+
 			let onePoint = [
 				[[-1], [  -1]],
 				[[-1], [   0]],
