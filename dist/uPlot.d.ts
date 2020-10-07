@@ -359,6 +359,9 @@ declare namespace uPlot {
 			/** diameter of point in CSS pixels */
 			size?: number;
 
+			/** minimum avg space between point centers before they're shown (default: size * 2) */
+			space: number;
+
 			/** line width of circle outline in CSS pixels */
 			width?: CanvasRenderingContext2D['lineWidth'];
 

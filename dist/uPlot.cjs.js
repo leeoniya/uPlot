@@ -971,8 +971,9 @@ function ptDia(width, mult) {
 }
 
 function seriesPoints(self, si) {
-	var dia = ptDia(self.series[si].width, pxRatio);
-	var maxPts = self.bbox.width / dia / 2;
+	var s = self.series[si];
+	var dia = ptDia(s.width, pxRatio);
+	var maxPts = self.bbox.width / s.points.space;
 	var idxs = self.series[0].idxs;
 	return idxs[1] - idxs[0] <= maxPts;
 }
@@ -1485,6 +1486,7 @@ function uPlot(opts, data, then) {
 			s.points = assign({}, {
 				size: _ptDia,
 				width: max(1, _ptDia * .2),
+				space: _ptDia * 2,
 			}, s.points);
 			s.points.show = fnOrSelf(s.points.show);
 			s._paths = null;

@@ -576,6 +576,7 @@ export default function uPlot(opts, data, then) {
 			s.points = assign({}, {
 				size: _ptDia,
 				width: max(1, _ptDia * .2),
+				space: _ptDia * 2,
 			}, s.points);
 			s.points.show = fnOrSelf(s.points.show);
 			s._paths = null;
