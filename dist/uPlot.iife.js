@@ -1259,7 +1259,7 @@ var uPlot = (function () {
 			var label = placeTag("th", null, row);
 
 			var indic = placeDiv(LEGEND_MARKER, label);
-			s.width && (indic.style.borderColor = s.stroke);
+			indic.style.borderColor = s.width ? s.stroke : i > 0 && s.points.width ? s.points.stroke : null;
 			indic.style.backgroundColor = s.fill;
 
 			var text = placeDiv(LEGEND_LABEL, label);
@@ -1487,6 +1487,7 @@ var uPlot = (function () {
 				s.points = assign({}, {
 					size: _ptDia,
 					width: max(1, _ptDia * .2),
+					stroke: s.stroke,
 					space: _ptDia * 2,
 				}, s.points);
 				s.points.show = fnOrSelf(s.points.show);
@@ -1792,7 +1793,7 @@ var uPlot = (function () {
 			}
 
 			setCtxStyle(
-				p.stroke || s.stroke || hexBlack,
+				p.stroke || hexBlack,
 				width,
 				null,
 				p.fill || (isStroked ? "#fff" : s.stroke || hexBlack)
