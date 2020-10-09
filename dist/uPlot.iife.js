@@ -2937,7 +2937,7 @@ var uPlot = (function () {
 							for (var k in scales) {
 								var sc = scales[k];
 
-								if (k != xScaleKey && sc.from == null) {
+								if (k != xScaleKey && sc.from == null && sc.min != inf) {
 									_setScale(k,
 										scaleValueAtPos(select[TOP] + select[HEIGHT], k),
 										scaleValueAtPos(select[TOP], k)

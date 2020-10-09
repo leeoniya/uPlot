@@ -2012,7 +2012,7 @@ export default function uPlot(opts, data, then) {
 						for (let k in scales) {
 							let sc = scales[k];
 
-							if (k != xScaleKey && sc.from == null) {
+							if (k != xScaleKey && sc.from == null && sc.min != inf) {
 								_setScale(k,
 									scaleValueAtPos(select[TOP] + select[HEIGHT], k),
 									scaleValueAtPos(select[TOP], k)
