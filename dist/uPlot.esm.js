@@ -2317,6 +2317,11 @@ function uPlot(opts, data, then) {
 				opts.max = minMax[1];
 			}
 
+			let minIncr = 1e-14;
+
+			if (dataLen > 1 && opts.max - opts.min < minIncr)
+				return;
+
 			if (key == xScaleKey) {
 				if (sc.distr == 2 && dataLen > 0) {
 					opts.min = closestIdx(opts.min, data[0]);
@@ -2324,18 +2329,23 @@ function uPlot(opts, data, then) {
 				}
 
 				// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
-				if ( sc.time && axes[0].show && opts.max > opts.min) {
-					// since scales and axes are loosly coupled, we have to make some assumptions here :(
-					let incr = getIncrSpace(0, opts.min, opts.max, plotWidCss)[0];
-
-					if (incr < 1e-3)
-						return;
-				}
+				if ( sc.time)
+					minIncr = 1e-3;
 			}
 
-			if (dataLen > 1 && opts.max - opts.min < 1e-16)
-				return;
+			debugger;
 
+			// bail if a tick increment on any axis along this scale exceeds max Number precision
+			if (axes.some((a, i) => {
+				if (a.show && a.scale == key) {
+					let incrSpace = getIncrSpace(i, opts.min, opts.max, a.side % 2 ? plotHgtCss : plotWidCss);
+					return incrSpace[0] < minIncr;
+				}
+
+				return false;
+			})) {
+				return;
+			}
 		//	log("setScale()", arguments);
 
 			pendScales[key] = opts;
