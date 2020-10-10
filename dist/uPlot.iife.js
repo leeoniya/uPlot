@@ -528,8 +528,8 @@ var uPlot = (function () {
 		mo = d * 30,
 		y = d * 365;
 
-	// starting below 1e-3 is a hack to allow the incr finder to choose & bail out at incr < 1ms
-	var timeIncrs =  [5e-4].concat(genIncrs(10, -3, 0, incrMults), [
+	// min of 1e-3 prevents setting a temporal x ticks too small since Date objects cannot advance ticks smaller than 1ms
+	var timeIncrs =  genIncrs(10, -3, 0, incrMults).concat([
 		// minute divisors (# of secs)
 		1,
 		5,
@@ -1100,10 +1100,14 @@ var uPlot = (function () {
 	function findIncr(min, max, incrs, dim, minSpace) {
 		var pxPerUnit = dim / (max - min);
 
+		var minDec = (""+floor(min)).length;
+
 		for (var i = 0; i < incrs.length; i++) {
 			var space = incrs[i] * pxPerUnit;
 
-			if (space >= minSpace && min + incrs[i] > min)
+			var incrDec = incrs[i] < 1 ? fixedDec.get(incrs[i]) : 0;
+
+			if (space >= minSpace && minDec + incrDec < 17)
 				{ return [incrs[i], space]; }
 		}
 	}
@@ -2325,9 +2329,7 @@ var uPlot = (function () {
 					opts.max = minMax[1];
 				}
 
-				var minIncr = 1e-14;
-
-				if (dataLen > 1 && opts.max - opts.min < minIncr)
+				if (dataLen > 1 && opts.max - opts.min < 1e-16)
 					{ return; }
 
 				if (key == xScaleKey) {
@@ -2335,25 +2337,8 @@ var uPlot = (function () {
 						opts.min = closestIdx(opts.min, data[0]);
 						opts.max = closestIdx(opts.max, data[0]);
 					}
-
-					// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
-					if ( sc.time)
-						{ minIncr = 1e-3; }
 				}
 
-				debugger;
-
-				// bail if a tick increment on any axis along this scale exceeds max Number precision
-				if (axes.some(function (a, i) {
-					if (a.show && a.scale == key) {
-						var incrSpace = getIncrSpace(i, opts.min, opts.max, a.side % 2 ? plotHgtCss : plotWidCss);
-						return incrSpace[0] < minIncr;
-					}
-
-					return false;
-				})) {
-					return;
-				}
 			//	log("setScale()", arguments);
 
 				pendScales[key] = opts;

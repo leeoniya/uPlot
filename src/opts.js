@@ -62,8 +62,8 @@ let s = 1,
 	mo = d * 30,
 	y = d * 365;
 
-// starting below 1e-3 is a hack to allow the incr finder to choose & bail out at incr < 1ms
-export const timeIncrs = FEAT_TIME && [5e-4].concat(genIncrs(10, -3, 0, incrMults), [
+// min of 1e-3 prevents setting a temporal x ticks too small since Date objects cannot advance ticks smaller than 1ms
+export const timeIncrs = FEAT_TIME && genIncrs(10, -3, 0, incrMults).concat([
 	// minute divisors (# of secs)
 	1,
 	5,

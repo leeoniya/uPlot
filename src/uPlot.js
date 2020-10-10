@@ -25,6 +25,7 @@ import {
 	isStr,
 	fnOrSelf,
 	fmtNum,
+	fixedDec,
 
 	retArg1,
 	EMPTY_OBJ,
@@ -192,10 +193,14 @@ const snapLogX = snapLogY;
 function findIncr(min, max, incrs, dim, minSpace) {
 	let pxPerUnit = dim / (max - min);
 
+	let minDec = (""+floor(min)).length;
+
 	for (var i = 0; i < incrs.length; i++) {
 		let space = incrs[i] * pxPerUnit;
 
-		if (space >= minSpace && min + incrs[i] > min)
+		let incrDec = incrs[i] < 1 ? fixedDec.get(incrs[i]) : 0;
+
+		if (space >= minSpace && minDec + incrDec < 17)
 			return [incrs[i], space];
 	}
 }
@@ -1408,9 +1413,7 @@ export default function uPlot(opts, data, then) {
 				opts.max = minMax[1];
 			}
 
-			let minIncr = 1e-14;
-
-			if (dataLen > 1 && opts.max - opts.min < minIncr)
+			if (dataLen > 1 && opts.max - opts.min < 1e-16)
 				return;
 
 			if (key == xScaleKey) {
@@ -1418,23 +1421,7 @@ export default function uPlot(opts, data, then) {
 					opts.min = closestIdx(opts.min, data[0]);
 					opts.max = closestIdx(opts.max, data[0]);
 				}
-
-				// prevent setting a temporal x scale too small since Date objects cannot advance ticks smaller than 1ms
-				if (FEAT_TIME && sc.time)
-					minIncr = 1e-3;
 			}
-
-			// bail if a tick increment on any axis along this scale exceeds max Number precision
-			if (axes.some((a, i) => {
-				if (a.show && a.scale == key) {
-					let incrSpace = getIncrSpace(i, opts.min, opts.max, a.side % 2 ? plotHgtCss : plotWidCss);
-					return incrSpace[0] < minIncr;
-				}
-
-				return false;
-			})) {
-				return;
-			};
 
 		//	log("setScale()", arguments);
 
