@@ -974,7 +974,7 @@ var uPlot = (function () {
 	function seriesPoints(self, si) {
 		var s = self.series[si];
 		var dia = ptDia(s.width, pxRatio);
-		var maxPts = self.bbox.width / s.points.space;
+		var maxPts = self.bbox.width / (s.points.space * pxRatio);
 		var idxs = self.series[0].idxs;
 		return idxs[1] - idxs[0] <= maxPts;
 	}

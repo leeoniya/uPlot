@@ -512,7 +512,7 @@ export function ptDia(width, mult) {
 function seriesPoints(self, si) {
 	const s = self.series[si];
 	const dia = ptDia(s.width, pxRatio);
-	let maxPts = self.bbox.width / s.points.space;
+	let maxPts = self.bbox.width / (s.points.space * pxRatio);
 	let idxs = self.series[0].idxs;
 	return idxs[1] - idxs[0] <= maxPts;
 }
