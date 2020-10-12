@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Points</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<script src="lib/randomWalk.js"></script>
+	</head>
+	<body>
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+
+			let vals1 = randomWalk(50, 200, 0, 100);
+			let vals2 = randomWalk(50, 200, 0, 100);
+			let vals3 = randomWalk(50, 200, 0, 100);
+
+			let data = [
+				vals1.map((v, i) => i+1),
+				vals1,
+				vals2,
+				vals3,
+			];
+
+			const opts = {
+				width: 1920,
+				height: 600,
+				title: "Points",
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					{
+						stroke: "green",
+					},
+					{
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+						points: {space: 0},
+					},
+					{
+						stroke: "blue",
+						fill: "rgba(0,0,255,0.1)",
+						paths: u => null,
+						points: {
+							space: 0,
+						},
+					},
+				],
+			};
+
+			let u = new uPlot(opts, data, document.body);
+		</script>
+	</body>
+</html>
