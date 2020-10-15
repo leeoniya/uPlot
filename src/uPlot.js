@@ -205,10 +205,6 @@ function findIncr(min, max, incrs, dim, minSpace) {
 	}
 }
 
-function filtMouse(e) {
-	return e.button == 0;
-}
-
 function pxRatioFont(font) {
 	let fontSize;
 	font = font.replace(/\d+/, m => (fontSize = round(m * pxRatio)));
@@ -363,15 +359,15 @@ export default function uPlot(opts, data, then) {
 		text.textContent = s.label;
 
 		if (i > 0) {
-			on("click", label, e => {
+			onMouse("click", label, e => {
 				if (FEAT_CURSOR && cursor.locked)
 					return;
 
-				filtMouse(e) && setSeries(series.indexOf(s), {show: !s.show}, FEAT_CURSOR && syncOpts.setSeries);
+				setSeries(series.indexOf(s), {show: !s.show}, FEAT_CURSOR && syncOpts.setSeries);
 			});
 
 			if (cursorFocus) {
-				on(mouseenter, label, e => {
+				onMouse(mouseenter, label, e => {
 					if (cursor.locked)
 						return;
 
@@ -387,6 +383,24 @@ export default function uPlot(opts, data, then) {
 		}
 
 		return _row;
+	}
+
+	const mouseListeners = new Map();
+
+	function onMouse(ev, targ, fn) {
+		const targListeners = mouseListeners.get(targ) || {};
+		const listener = cursor.bind[ev](self, targ, fn);
+
+		if (listener) {
+			on(ev, targ, targListeners[ev] = listener);
+			mouseListeners.set(targ, targListeners);
+		}
+	}
+
+	function offMouse(ev, targ, fn) {
+		const targListeners = mouseListeners.get(targ) || {};
+		off(ev, targ, targListeners[ev]);
+		targListeners[ev] = null;
 	}
 
 	let fullWidCss = 0;
@@ -1967,69 +1981,65 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function mouseDown(e, src, _x, _y, _w, _h, _i) {
-		if (src != null || filtMouse(e)) {
-			dragging = true;
-			dragX = dragY = drag._x = drag._y = false;
+		dragging = true;
+		dragX = dragY = drag._x = drag._y = false;
 
-			cacheMouse(e, src, _x, _y, _w, _h, _i, true, false);
+		cacheMouse(e, src, _x, _y, _w, _h, _i, true, false);
 
-			if (e != null) {
-				on(mouseup, doc, mouseUp);
-				sync.pub(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
-			}
+		if (e != null) {
+			onMouse(mouseup, doc, mouseUp);
+			sync.pub(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
 		}
 	}
 
 	function mouseUp(e, src, _x, _y, _w, _h, _i) {
-		if (src != null || filtMouse(e)) {
-			dragging = drag._x = drag._y = false;
+		dragging = drag._x = drag._y = false;
 
-			cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
+		cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
 
-			let hasSelect = select[WIDTH] > 0 || select[HEIGHT] > 0;
+		let hasSelect = select[WIDTH] > 0 || select[HEIGHT] > 0;
 
-			hasSelect && setSelect(select);
+		hasSelect && setSelect(select);
 
-			if (drag.setScale && hasSelect) {
-			//	if (syncKey != null) {
-			//		dragX = drag.x;
-			//		dragY = drag.y;
-			//	}
+		if (drag.setScale && hasSelect) {
+		//	if (syncKey != null) {
+		//		dragX = drag.x;
+		//		dragY = drag.y;
+		//	}
 
-				batch(() => {
-					if (dragX) {
-						_setScale(xScaleKey,
-							scaleValueAtPos(select[LEFT], xScaleKey),
-							scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
-						);
-					}
+			batch(() => {
+				if (dragX) {
+					_setScale(xScaleKey,
+						scaleValueAtPos(select[LEFT], xScaleKey),
+						scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
+					);
+				}
 
-					if (dragY) {
-						for (let k in scales) {
-							let sc = scales[k];
+				if (dragY) {
+					for (let k in scales) {
+						let sc = scales[k];
 
-							if (k != xScaleKey && sc.from == null && sc.min != inf) {
-								_setScale(k,
-									scaleValueAtPos(select[TOP] + select[HEIGHT], k),
-									scaleValueAtPos(select[TOP], k)
-								);
-							}
+						if (k != xScaleKey && sc.from == null && sc.min != inf) {
+							_setScale(k,
+								scaleValueAtPos(select[TOP] + select[HEIGHT], k),
+								scaleValueAtPos(select[TOP], k)
+							);
 						}
 					}
-				});
+				}
+			});
 
-				hideSelect();
-			}
-			else if (cursor.lock) {
-				cursor.locked = !cursor.locked;
+			hideSelect();
+		}
+		else if (cursor.lock) {
+			cursor.locked = !cursor.locked;
 
-				if (!cursor.locked)
-					updateCursor();
-			}
+			if (!cursor.locked)
+				updateCursor();
 		}
 
 		if (e != null) {
-			off(mouseup, doc, mouseUp);
+			offMouse(mouseup, doc, mouseUp);
 			sync.pub(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 		}
 	}
@@ -2113,13 +2123,13 @@ export default function uPlot(opts, data, then) {
 	let deb;
 
 	if (FEAT_CURSOR && cursor.show) {
-		on(mousedown, over, mouseDown);
-		on(mousemove, over, mouseMove);
-		on(mouseenter, over, syncRect);
+		onMouse(mousedown, over, mouseDown);
+		onMouse(mousemove, over, mouseMove);
+		onMouse(mouseenter, over, syncRect);
 		// this has to be rAF'd so it always fires after the last queued/rAF'd updateCursor
-		on(mouseleave, over, e => { rAF(mouseLeave); });
+		onMouse(mouseleave, over, e => { rAF(mouseLeave); });
 
-		on(dblclick, over, dblClick);
+		onMouse(dblclick, over, dblClick);
 
 		deb = debounce(syncRect, 100);
 
