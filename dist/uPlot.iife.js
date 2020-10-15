@@ -1134,7 +1134,7 @@ var uPlot = (function () {
 
 		if (opts.title) {
 			var title = placeDiv(TITLE, root);
-			title.textContent = opts.title;
+			title.textContent = opts.title + "Here";
 		}
 
 		var can = placeTag("canvas");
