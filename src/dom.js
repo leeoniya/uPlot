@@ -1,14 +1,7 @@
 import {
-	WIDTH,
-	HEIGHT,
-	firstChild,
 	createElement,
 	classList,
 } from './strings';
-
-import {
-	round,
-} from './utils';
 
 import {
 	OFF,
