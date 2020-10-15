@@ -227,7 +227,7 @@ export default function uPlot(opts, data, then) {
 
 	if (opts.title) {
 		let title = placeDiv(TITLE, root);
-		title.textContent = opts.title;
+		title.textContent = opts.title + "Here";
 	}
 
 	const can = placeTag("canvas");
