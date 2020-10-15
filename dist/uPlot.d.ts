@@ -201,6 +201,9 @@ declare namespace uPlot {
 			opts?: (self: uPlot, opts: Options) => void;
 			hooks: PluginHooks;
 		}[];
+
+		/** when true swaps x and y axes */
+		rotated?: boolean;
 	}
 
 	interface Focus {

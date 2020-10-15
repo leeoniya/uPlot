@@ -70,6 +70,7 @@ import {
 	LEGEND_MARKER,
 	LEGEND_LABEL,
 	LEGEND_VALUE,
+	ROTATED,
 } from './domClasses';
 
 import {
@@ -227,13 +228,14 @@ export default function uPlot(opts, data, then) {
 
 	if (opts.title) {
 		let title = placeDiv(TITLE, root);
-		title.textContent = opts.title + "Here";
+		title.textContent = opts.title;
 	}
 
 	const can = placeTag("canvas");
 	const ctx = self.ctx = can.getContext("2d");
 
 	const wrap = placeDiv(WRAP, root);
+	if (opts.rotated) addClass(wrap, ROTATED);
 	const under = placeDiv(UNDER, wrap);
 	wrap.appendChild(can);
 	const over = placeDiv(OVER, wrap);

@@ -302,6 +302,7 @@ var LEGEND_SERIES  = pre + "series";
 var LEGEND_MARKER  = pre + "marker";
 var LEGEND_LABEL   = pre + "label";
 var LEGEND_VALUE   = pre + "value";
+var ROTATED        = pre + "rotated";
 
 var rAF = requestAnimationFrame;
 var doc = document;
@@ -1133,13 +1134,14 @@ function uPlot(opts, data, then) {
 
 	if (opts.title) {
 		var title = placeDiv(TITLE, root);
-		title.textContent = opts.title + "Here";
+		title.textContent = opts.title;
 	}
 
 	var can = placeTag("canvas");
 	var ctx = self.ctx = can.getContext("2d");
 
 	var wrap = placeDiv(WRAP, root);
+	if (opts.rotated) { addClass(wrap, ROTATED); }
 	var under = placeDiv(UNDER, wrap);
 	wrap.appendChild(can);
 	var over = placeDiv(OVER, wrap);
