@@ -945,7 +945,7 @@ function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 }
 
 function numSeriesVal(self, val) {
-	return fmtNum(val);
+	return val == null ? "" : fmtNum(val);
 }
 
 const yAxisOpts = {
