@@ -300,7 +300,6 @@ const LEGEND_SERIES  = pre + "series";
 const LEGEND_MARKER  = pre + "marker";
 const LEGEND_LABEL   = pre + "label";
 const LEGEND_VALUE   = pre + "value";
-const ROTATED        = pre + "rotated";
 
 const rAF = requestAnimationFrame;
 const doc = document;
@@ -1144,7 +1143,6 @@ function uPlot(opts, data, then) {
 	const ctx = self.ctx = can.getContext("2d");
 
 	const wrap = placeDiv(WRAP, root);
-	if (opts.rotated) addClass(wrap, ROTATED);
 	const under = placeDiv(UNDER, wrap);
 	wrap.appendChild(can);
 	const over = placeDiv(OVER, wrap);
@@ -1786,10 +1784,11 @@ function uPlot(opts, data, then) {
 
 		const path = new Path2D();
 
+		const [xdata, ydata, xScale, yScale] = getXYDataAndScales(si, opts.rotated);
 		for (let pi = i0; pi <= i1; pi++) {
 			if (data[si][pi] != null) {
-				let x = round(getXPos(data[0][pi],  scales[xScaleKey], plotWid, plotLft));
-				let y = round(getYPos(data[si][pi], scales[s.scale],   plotHgt, plotTop));
+				let x = round(getXPos(xdata[pi],  xScale, plotWid, plotLft));
+				let y = round(getYPos(ydata[pi], yScale,   plotHgt, plotTop));
 
 				path.moveTo(x + rad, y);
 				path.arc(x, y, rad, 0, PI * 2);
@@ -1959,10 +1958,7 @@ function uPlot(opts, data, then) {
 	function buildPaths(self, is, _i0, _i1) {
 		const s = series[is];
 
-		const xdata  = data[0];
-		const ydata  = data[is];
-		const scaleX = scales[xScaleKey];
-		const scaleY = scales[s.scale];
+		const [xdata, ydata, scaleX, scaleY] = getXYDataAndScales(is, opts.rotated);
 
 		const _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : series[is-1]._paths;
 		const stroke = _paths.stroke;
@@ -2058,9 +2054,16 @@ function uPlot(opts, data, then) {
 			if (s.fill != null) {
 				let fill = _paths.fill = new Path2D(stroke);
 
-				let fillTo = round(getYPos(s.fillTo(self, is, s.min, s.max), scaleY, plotHgt, plotTop));
-				fill.lineTo(plotLft + plotWid, fillTo);
-				fill.lineTo(plotLft, fillTo);
+				let fillTo;
+				if (opts.rotated) {
+					fillTo = round(getXPos(s.fillTo(self, is, s.min, s.max), scaleX, plotWid, plotLft));
+					fill.lineTo(fillTo, plotTop);
+					fill.lineTo(fillTo, plotTop + plotHgt);
+				} else {
+					fillTo = round(getYPos(s.fillTo(self, is, s.min, s.max), scaleY, plotHgt, plotTop));
+					fill.lineTo(plotLft + plotWid, fillTo);
+					fill.lineTo(plotLft, fillTo);
+				}
 			}
 		}
 
@@ -2342,6 +2345,13 @@ function uPlot(opts, data, then) {
 			!didPaint && paint();
 			didPaint = false;
 		}
+	}
+
+	function getXYDataAndScales(si, rotated) {
+		if (rotated) {
+			return [data[si], data[0], scales[series[si].scale], scales[xScaleKey]];
+		}
+		return [data[0], data[si], scales[xScaleKey], scales[series[si].scale]];
 	}
 
 	self.setScale = setScale;
