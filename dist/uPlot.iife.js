@@ -1122,6 +1122,13 @@ var uPlot = (function () {
 		return [font, fontSize];
 	}
 
+	var toRotatedSideMap = {
+		0: 1,
+		1: 0,
+		2: 3,
+		3: 2,
+	};
+
 	function uPlot(opts, data, then) {
 		var self = {};
 
@@ -1433,7 +1440,7 @@ var uPlot = (function () {
 
 			function incrOffset(side, size) {
 
-				switch (side) {
+				switch (opts.rotated ? toRotatedSideMap[side] : side) {
 					case 1: off1 += size; return off1 - size;
 					case 2: off2 += size; return off2 - size;
 					case 3: off3 -= size; return off3 + size;
@@ -2152,6 +2159,9 @@ var uPlot = (function () {
 					{ return; }
 
 				var side = axis.side;
+				if (opts.rotated) {
+					side = toRotatedSideMap[side];
+				}
 				var ori = side % 2;
 
 				var min = scale.min;
@@ -2702,7 +2712,14 @@ var uPlot = (function () {
 							}
 						}
 
-						 cursorPts.length > 1 && trans(cursorPts[i$1], opts.rotated ? yPos : xPos2, opts.rotated ? xPos2 : yPos, plotWidCss, plotHgtCss);
+						 cursorPts.length > 1
+							&& trans(
+								cursorPts[i$1],
+								opts.rotated ? yPos : xPos2,
+								opts.rotated ? xPos2 : yPos,
+								plotWidCss,
+								plotHgtCss
+							);
 					}
 
 					if (showLegend && legend.live) {

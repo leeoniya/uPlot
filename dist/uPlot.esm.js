@@ -1124,6 +1124,13 @@ function pxRatioFont(font) {
 	return [font, fontSize];
 }
 
+const toRotatedSideMap = {
+	0: 1,
+	1: 0,
+	2: 3,
+	3: 2,
+};
+
 function uPlot(opts, data, then) {
 	const self = {};
 
@@ -1431,7 +1438,7 @@ function uPlot(opts, data, then) {
 
 		function incrOffset(side, size) {
 
-			switch (side) {
+			switch (opts.rotated ? toRotatedSideMap[side] : side) {
 				case 1: off1 += size; return off1 - size;
 				case 2: off2 += size; return off2 - size;
 				case 3: off3 -= size; return off3 + size;
@@ -2139,6 +2146,9 @@ function uPlot(opts, data, then) {
 				return;
 
 			let side = axis.side;
+			if (opts.rotated) {
+				side = toRotatedSideMap[side];
+			}
 			let ori = side % 2;
 
 			let {min, max} = scale;
@@ -2684,7 +2694,14 @@ function uPlot(opts, data, then) {
 						}
 					}
 
-					 cursorPts.length > 1 && trans(cursorPts[i], opts.rotated ? yPos : xPos2, opts.rotated ? xPos2 : yPos, plotWidCss, plotHgtCss);
+					 cursorPts.length > 1
+						&& trans(
+							cursorPts[i],
+							opts.rotated ? yPos : xPos2,
+							opts.rotated ? xPos2 : yPos,
+							plotWidCss,
+							plotHgtCss,
+						);
 				}
 
 				if (showLegend && legend.live) {
