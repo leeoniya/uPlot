@@ -1793,8 +1793,8 @@ var uPlot = (function () {
 			var yScale = ref[3];
 			for (var pi = i0; pi <= i1; pi++) {
 				if (data[si][pi] != null) {
-					var x = round(getXPos(xdata[pi],  xScale, plotWid, plotLft));
-					var y = round(getYPos(ydata[pi], yScale,   plotHgt, plotTop));
+					var x = round(getXPos(xdata[pi], xScale, plotWid, plotLft));
+					var y = round(getYPos(ydata[pi], yScale, plotHgt, plotTop));
 
 					path.moveTo(x + rad, y);
 					path.arc(x, y, rad, 0, PI * 2);
@@ -2533,14 +2533,7 @@ var uPlot = (function () {
 			});
 		}
 
-		function scaleValueAtPos(pos, scale) {
-			var dim = plotWidCss;
-
-			if (scale != xScaleKey) {
-				dim = plotHgtCss;
-				pos = dim - pos;
-			}
-
+		function _scaleValueAtPos(pos, dim, scale) {
 			var pct = pos / dim;
 
 			var sc = scales[scale],
@@ -2554,6 +2547,17 @@ var uPlot = (function () {
 			}
 			else
 				{ return _min + (_max - _min) * pct; }
+		}
+
+		function scaleValueAtPos(pos, scale) {
+			var dim = plotWidCss;
+
+			if (scale != xScaleKey) {
+				dim = plotHgtCss;
+				pos = dim - pos;
+			}
+
+			return _scaleValueAtPos(pos, dim, scale);
 		}
 
 		function closestIdxFromXpos(pos) {
@@ -2657,24 +2661,37 @@ var uPlot = (function () {
 			else {
 			//	let pctY = 1 - (y / rect[HEIGHT]);
 
-				var valAtPos = scaleValueAtPos(mouseLeft1, xScaleKey);
+				var valAtPos = _scaleValueAtPos(
+					opts.rotated ? plotHgtCss - mouseTop1 : mouseLeft1,
+					opts.rotated ? plotHgtCss : plotWidCss,
+					xScaleKey
+				);
 
 				idx = closestIdx(valAtPos, data[0], i0, i1);
 
 				var scX = scales[xScaleKey];
 
-				var xPos = roundDec(getXPos(data[0][idx], scX, plotWidCss, 0), 3);
+				var _getXPos =
+					opts.rotated
+						? function (val, sc) { return getYPos(val, sc, plotHgtCss, 0); }
+						: function (val, sc) { return getXPos(val, sc, plotWidCss, 0); };
+				var _getYPos =
+					opts.rotated
+						? function (val, sc) { return getXPos(val, sc, plotWidCss, 0); }
+						: function (val, sc) { return getYPos(val, sc, plotHgtCss, 0); };
+
+				var xPos = roundDec(_getXPos(data[0][idx], scX), 3);
 
 				for (var i$1 = 0; i$1 < series.length; i$1++) {
 					var s = series[i$1];
 
 					var idx2  = cursor.dataIdx(self, i$1, idx, valAtPos);
-					var xPos2 = idx2 == idx ? xPos : roundDec(getXPos(data[0][idx2], scX, plotWidCss, 0), 3);
+					var xPos2 = idx2 == idx ? xPos : roundDec(_getXPos(data[0][idx2], scX), 3);
 
 					if (i$1 > 0 && s.show) {
 						var valAtIdx = data[i$1][idx2];
 
-						var yPos = valAtIdx == null ? -10 : roundDec(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 3);
+						var yPos = valAtIdx == null ? -10 : roundDec(_getYPos(valAtIdx, scales[s.scale]), 3);
 
 						if (yPos > 0) {
 							var dist = abs(yPos - mouseTop1);
@@ -2685,7 +2702,7 @@ var uPlot = (function () {
 							}
 						}
 
-						 cursorPts.length > 1 && trans(cursorPts[i$1], xPos2, yPos, plotWidCss, plotHgtCss);
+						 cursorPts.length > 1 && trans(cursorPts[i$1], opts.rotated ? yPos : xPos2, opts.rotated ? xPos2 : yPos, plotWidCss, plotHgtCss);
 					}
 
 					if (showLegend && legend.live) {

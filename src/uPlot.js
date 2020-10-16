@@ -879,8 +879,8 @@ export default function uPlot(opts, data, then) {
 		const [xdata, ydata, xScale, yScale] = getXYDataAndScales(si, opts.rotated);
 		for (let pi = i0; pi <= i1; pi++) {
 			if (data[si][pi] != null) {
-				let x = round(getXPos(xdata[pi],  xScale, plotWid, plotLft));
-				let y = round(getYPos(ydata[pi], yScale,   plotHgt, plotTop));
+				let x = round(getXPos(xdata[pi], xScale, plotWid, plotLft));
+				let y = round(getYPos(ydata[pi], yScale, plotHgt, plotTop));
 
 				path.moveTo(x + rad, y);
 				path.arc(x, y, rad, 0, PI * 2);
@@ -1609,14 +1609,7 @@ export default function uPlot(opts, data, then) {
 		});
 	}
 
-	function scaleValueAtPos(pos, scale) {
-		let dim = plotWidCss;
-
-		if (scale != xScaleKey) {
-			dim = plotHgtCss;
-			pos = dim - pos;
-		}
-
+	function _scaleValueAtPos(pos, dim, scale) {
 		let pct = pos / dim;
 
 		let sc = scales[scale],
@@ -1630,6 +1623,17 @@ export default function uPlot(opts, data, then) {
 		}
 		else
 			return _min + (_max - _min) * pct;
+	}
+
+	function scaleValueAtPos(pos, scale) {
+		let dim = plotWidCss;
+
+		if (scale != xScaleKey) {
+			dim = plotHgtCss;
+			pos = dim - pos;
+		}
+
+		return _scaleValueAtPos(pos, dim, scale);
 	}
 
 	function closestIdxFromXpos(pos) {
@@ -1731,24 +1735,37 @@ export default function uPlot(opts, data, then) {
 		else {
 		//	let pctY = 1 - (y / rect[HEIGHT]);
 
-			let valAtPos = scaleValueAtPos(mouseLeft1, xScaleKey);
+			let valAtPos = _scaleValueAtPos(
+				opts.rotated ? plotHgtCss - mouseTop1 : mouseLeft1,
+				opts.rotated ? plotHgtCss : plotWidCss,
+				xScaleKey,
+			);
 
 			idx = closestIdx(valAtPos, data[0], i0, i1);
 
 			let scX = scales[xScaleKey];
 
-			let xPos = roundDec(getXPos(data[0][idx], scX, plotWidCss, 0), 3);
+			let _getXPos =
+				opts.rotated
+					? (val, sc) => getYPos(val, sc, plotHgtCss, 0)
+					: (val, sc) => getXPos(val, sc, plotWidCss, 0);
+			let _getYPos =
+				opts.rotated
+					? (val, sc) => getXPos(val, sc, plotWidCss, 0)
+					: (val, sc) => getYPos(val, sc, plotHgtCss, 0);
+
+			let xPos = roundDec(_getXPos(data[0][idx], scX), 3);
 
 			for (let i = 0; i < series.length; i++) {
 				let s = series[i];
 
 				let idx2  = cursor.dataIdx(self, i, idx, valAtPos);
-				let xPos2 = idx2 == idx ? xPos : roundDec(getXPos(data[0][idx2], scX, plotWidCss, 0), 3);
+				let xPos2 = idx2 == idx ? xPos : roundDec(_getXPos(data[0][idx2], scX, plotWidCss, 0), 3);
 
 				if (i > 0 && s.show) {
 					let valAtIdx = data[i][idx2];
 
-					let yPos = valAtIdx == null ? -10 : roundDec(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 3);
+					let yPos = valAtIdx == null ? -10 : roundDec(_getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 3);
 
 					if (yPos > 0) {
 						let dist = abs(yPos - mouseTop1);
@@ -1759,7 +1776,15 @@ export default function uPlot(opts, data, then) {
 						}
 					}
 
-					FEAT_CURSOR && cursorPts.length > 1 && trans(cursorPts[i], xPos2, yPos, plotWidCss, plotHgtCss);
+					FEAT_CURSOR
+						&& cursorPts.length > 1
+						&& trans(
+							cursorPts[i],
+							opts.rotated ? yPos : xPos2,
+							opts.rotated ? xPos2 : yPos,
+							plotWidCss,
+							plotHgtCss,
+						);
 				}
 
 				if (showLegend && legend.live) {
