@@ -1,0 +1,232 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Zoom Ranger Grips</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			.uplot {
+				display: block;
+				width: 800px;
+			}
+
+			.u-select {
+				pointer-events: all;
+				cursor: grabbing;
+			}
+
+			.u-grip-l {
+				position: absolute;
+				left: -5px;
+				width: 10px;
+				height: 100%;
+				background: red;
+				cursor: ew-resize;
+			}
+
+			.u-grip-r {
+				position: absolute;
+				right: -5px;
+				width: 10px;
+				height: 100%;
+				background: blue;
+				cursor: ew-resize;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			var loop = 100;
+
+			let data = [
+				Array(loop),
+				Array(loop),
+			];
+
+			for (var i = 0; i < loop; i++) {
+				let x = 2 * Math.PI * i / loop;
+				let y = Math.sin(x);
+
+				data[0][i] = x;
+				data[1][i] = y;
+			}
+
+			let initXmin = 1;
+			let initXmax = 4.5;
+
+			//----------------
+
+			const doc = document;
+
+			function debounce(fn) {
+				let raf;
+
+				return (...args) => {
+					if (raf)
+						return;
+
+					raf = requestAnimationFrame(() => {
+						fn(...args);
+						raf = null;
+					});
+				};
+			}
+
+			function placeDiv(par, cls) {
+				let el = doc.createElement("div");
+				el.classList.add(cls);
+				par.appendChild(el);
+				return el;
+			}
+
+			function on(ev, el, fn) {
+				el.addEventListener(ev, fn);
+			}
+
+			function off(ev, el, fn) {
+				el.removeEventListener(ev, fn);
+			}
+
+			//----------------
+
+			let x0;
+			let lft0;
+			let wid0;
+
+			const lftWid = {left: null, width: null};
+			const minMax = {min: null, max: null};
+
+			function update(newLft, newWid) {
+				select(newLft, newWid);
+				zoom(newLft, newWid);
+			}
+
+			function select(newLft, newWid) {
+				lftWid.left = newLft;
+				lftWid.width = newWid;
+				uRanger.setSelect(lftWid, false);
+			}
+
+			function zoom(newLft, newWid) {
+				minMax.min = uRanger.posToVal(newLft, 'x');
+				minMax.max = uRanger.posToVal(newLft + newWid, 'x');
+				uZoomed.setScale('x', minMax);
+			}
+
+			function bindMove(e, onMove) {
+				x0 = e.clientX;
+				lft0 = uRanger.select.left;
+				wid0 = uRanger.select.width;
+				const _onMove = debounce(onMove);
+
+				on("mousemove", doc, _onMove);
+				on("mouseup", doc, e => {
+					off("mousemove", doc, _onMove);
+					viaGrip = false;
+				});
+				e.stopPropagation();
+			}
+
+			//----------------
+
+			const rangerOpts = {
+				width: 800,
+				height: 100,
+				cursor: {
+					x: false,
+					y: false,
+					points: {
+						show: false,
+					},
+					drag: {
+						setScale: false,
+						setSelect: true,
+						x: true,
+						y: false,
+					},
+				},
+				legend: {
+					show: false
+				},
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					{
+						stroke: "red",
+					}
+				],
+				hooks: {
+					ready: [
+						uRanger => {
+							let left = Math.round(uRanger.valToPos(initXmin, 'x'));
+							let width = Math.round(uRanger.valToPos(initXmax, 'x')) - left;
+							let height = uRanger.bbox.height / devicePixelRatio;
+							uRanger.setSelect({left, width, height}, false);
+
+							const sel = uRanger.root.querySelector(".u-select");
+
+							on("mousedown", sel, e => {
+								bindMove(e, e => update(lft0 + (e.clientX - x0), wid0));
+							});
+
+							on("mousedown", placeDiv(sel, "u-grip-l"), e => {
+								bindMove(e, e => update(lft0 + (e.clientX - x0), wid0 - (e.clientX - x0)));
+							});
+
+							on("mousedown", placeDiv(sel, "u-grip-r"), e => {
+								bindMove(e, e => update(lft0, wid0 + (e.clientX - x0)));
+							});
+						}
+					],
+					setSelect: [
+						uRanger => {
+							zoom(uRanger.select.left, uRanger.select.width);
+						}
+					],
+				}
+			};
+
+			let uRanger = new uPlot(rangerOpts, data, document.body);
+
+			const zoomedOpts = {
+			//	title: "Zoomed Area",
+				width: 800,
+				height: 400,
+				cursor: {
+					drag: {
+						x: false,
+						y: false
+					},
+				},
+				select: {
+					over: false,
+				},
+				scales: {
+					x: {
+						time: false,
+						min: initXmin,
+						max: initXmax,
+					},
+				},
+				series: [
+					{
+						label: "x",
+					},
+					{
+						label: "sin(x)",
+						stroke: "red",
+					}
+				]
+			};
+
+			let uZoomed = new uPlot(zoomedOpts, data, document.body);
+		</script>
+	</body>
+</html>
