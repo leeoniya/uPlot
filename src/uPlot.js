@@ -1817,7 +1817,6 @@ export default function uPlot(opts, data, then) {
 		// nit: cursor.drag.setSelect is assumed always true
 		if (select.show && dragging) {
 			if (src != null) {
-				console.log('src');
 				let [xKey, yKey] = syncOpts.scales;
 
 				// match the dragX/dragY implicitness/explicitness of src
@@ -1860,7 +1859,6 @@ export default function uPlot(opts, data, then) {
 				}
 			}
 			else {
-				console.log('else');
 				let rawDX = abs(rawMouseLeft1 - rawMouseLeft0);
 				let rawDY = abs(rawMouseTop1 - rawMouseTop0);
 

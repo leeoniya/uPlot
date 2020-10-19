@@ -2742,7 +2742,6 @@ function uPlot(opts, data, then) {
 		// nit: cursor.drag.setSelect is assumed always true
 		if (select.show && dragging) {
 			if (src != null) {
-				console.log('src');
 				var ref = syncOpts.scales;
 				var xKey = ref[0];
 				var yKey = ref[1];
@@ -2787,7 +2786,6 @@ function uPlot(opts, data, then) {
 				}
 			}
 			else {
-				console.log('else');
 				var rawDX = abs(rawMouseLeft1 - rawMouseLeft0);
 				var rawDY = abs(rawMouseTop1 - rawMouseTop0);
 
