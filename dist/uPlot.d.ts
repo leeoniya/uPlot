@@ -224,6 +224,10 @@ declare namespace uPlot {
 		over?: boolean; // true
 	}
 
+	type MouseListener = (e: MouseEvent) => null;
+
+	type CreateMouseListener = (self: uPlot, targ: HTMLElement, handler: MouseListener) => MouseListener | null;
+
 	export interface Cursor {
 		/** cursor on/off */
 		show?: boolean;
@@ -252,6 +256,18 @@ declare namespace uPlot {
 		/** series hover points */
 		points?: {
 			show?: boolean | ((self: uPlot, seriesIdx: number) => HTMLElement);
+		};
+
+		/** event listener proxies (can be overridden to tweak interaction behavior) */
+		bind?: {
+			mousedown?:   CreateMouseListener,
+			mouseup?:     CreateMouseListener,
+			click?:       CreateMouseListener,
+			dblclick?:    CreateMouseListener,
+	
+			mousemove?:   CreateMouseListener,
+			mouseleave?:  CreateMouseListener,
+			mouseenter?:  CreateMouseListener,
 		};
 
 		/** determines vt/hz cursor dragging to set selection & setScale (zoom) */

@@ -787,6 +787,16 @@ function cursorMove(self, mouseLeft1, mouseTop1) {
 	return moveTuple;
 }
 
+function filtBtn0(self, targ, handle) {
+	return function (e) {
+		e.button == 0 && handle(e);
+	};
+}
+
+function passThru(self, targ, handle) {
+	return handle;
+}
+
 var cursorOpts = {
 	show: true,
 	x: true,
@@ -795,6 +805,17 @@ var cursorOpts = {
 	move: cursorMove,
 	points: {
 		show: cursorPoint,
+	},
+
+	bind: {
+		mousedown:   filtBtn0,
+		mouseup:     filtBtn0,
+		click:       filtBtn0,
+		dblclick:    filtBtn0,
+
+		mousemove:   passThru,
+		mouseleave:  passThru,
+		mouseenter:  passThru,
 	},
 
 	drag: {
@@ -1111,10 +1132,6 @@ function findIncr(min, max, incrs, dim, minSpace) {
 	}
 }
 
-function filtMouse(e) {
-	return e.button == 0;
-}
-
 function pxRatioFont(font) {
 	var fontSize;
 	font = font.replace(/\d+/, function (m) { return (fontSize = round(m * pxRatio)); });
@@ -1269,22 +1286,23 @@ function uPlot(opts, data, then) {
 		var label = placeTag("th", null, row);
 
 		var indic = placeDiv(LEGEND_MARKER, label);
-		indic.style.borderColor = s.width ? s.stroke : i > 0 && s.points.width ? s.points.stroke : null;
-		indic.style.backgroundColor = s.fill;
+		var borderColor = s.width ? s.stroke : i > 0 && s.points.width ? s.points.stroke : null;
+		indic.style.borderColor = borderColor || hexBlack;
+		indic.style.backgroundColor = s.fill || null;
 
 		var text = placeDiv(LEGEND_LABEL, label);
 		text.textContent = s.label;
 
 		if (i > 0) {
-			on("click", label, function (e) {
+			onMouse("click", label, function (e) {
 				if ( cursor.locked)
 					{ return; }
 
-				filtMouse(e) && setSeries(series.indexOf(s), {show: !s.show},  syncOpts.setSeries);
+				setSeries(series.indexOf(s), {show: !s.show},  syncOpts.setSeries);
 			});
 
 			if (cursorFocus) {
-				on(mouseenter, label, function (e) {
+				onMouse(mouseenter, label, function (e) {
 					if (cursor.locked)
 						{ return; }
 
@@ -1300,6 +1318,24 @@ function uPlot(opts, data, then) {
 		}
 
 		return _row;
+	}
+
+	var mouseListeners = new Map();
+
+	function onMouse(ev, targ, fn) {
+		var targListeners = mouseListeners.get(targ) || {};
+		var listener = cursor.bind[ev](self, targ, fn);
+
+		if (listener) {
+			on(ev, targ, targListeners[ev] = listener);
+			mouseListeners.set(targ, targListeners);
+		}
+	}
+
+	function offMouse(ev, targ, fn) {
+		var targListeners = mouseListeners.get(targ) || {};
+		off(ev, targ, targListeners[ev]);
+		targListeners[ev] = null;
 	}
 
 	var fullWidCss = 0;
@@ -2944,34 +2980,31 @@ function uPlot(opts, data, then) {
 	}
 
 	function mouseDown(e, src, _x, _y, _w, _h, _i) {
-		if (src != null || filtMouse(e)) {
-			dragging = true;
-			dragX = dragY = drag._x = drag._y = false;
+		dragging = true;
+		dragX = dragY = drag._x = drag._y = false;
 
-			cacheMouse(e, src, _x, _y, _w, _h, _i, true, false);
+		cacheMouse(e, src, _x, _y, _w, _h, _i, true, false);
 
-			if (e != null) {
-				on(mouseup, doc, mouseUp);
-				sync.pub(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
-			}
+		if (e != null) {
+			onMouse(mouseup, doc, mouseUp);
+			sync.pub(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
 		}
 	}
 
 	function mouseUp(e, src, _x, _y, _w, _h, _i) {
-		if (src != null || filtMouse(e)) {
-			dragging = drag._x = drag._y = false;
+		dragging = drag._x = drag._y = false;
 
-			cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
+		cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
 
-			var hasSelect = select[WIDTH] > 0 || select[HEIGHT] > 0;
+		var hasSelect = select[WIDTH] > 0 || select[HEIGHT] > 0;
 
-			hasSelect && setSelect(select);
+		hasSelect && setSelect(select);
 
-			if (drag.setScale && hasSelect) {
-			//	if (syncKey != null) {
-			//		dragX = drag.x;
-			//		dragY = drag.y;
-			//	}
+		if (drag.setScale && hasSelect) {
+		//	if (syncKey != null) {
+		//		dragX = drag.x;
+		//		dragY = drag.y;
+		//	}
 
 				batch(function () {
 					if (opts.rotated) {
@@ -3018,18 +3051,17 @@ function uPlot(opts, data, then) {
 					}
 				});
 
-				hideSelect();
-			}
-			else if (cursor.lock) {
-				cursor.locked = !cursor.locked;
+			hideSelect();
+		}
+		else if (cursor.lock) {
+			cursor.locked = !cursor.locked;
 
-				if (!cursor.locked)
-					{ updateCursor(); }
-			}
+			if (!cursor.locked)
+				{ updateCursor(); }
 		}
 
 		if (e != null) {
-			off(mouseup, doc, mouseUp);
+			offMouse(mouseup, doc);
 			sync.pub(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 		}
 	}
@@ -3113,13 +3145,13 @@ function uPlot(opts, data, then) {
 	var deb;
 
 	if ( cursor.show) {
-		on(mousedown, over, mouseDown);
-		on(mousemove, over, mouseMove);
-		on(mouseenter, over, syncRect);
+		onMouse(mousedown, over, mouseDown);
+		onMouse(mousemove, over, mouseMove);
+		onMouse(mouseenter, over, syncRect);
 		// this has to be rAF'd so it always fires after the last queued/rAF'd updateCursor
-		on(mouseleave, over, function (e) { rAF(mouseLeave); });
+		onMouse(mouseleave, over, function (e) { rAF(mouseLeave); });
 
-		on(dblclick, over, dblClick);
+		onMouse(dblclick, over, dblClick);
 
 		deb = debounce(syncRect, 100);
 

@@ -326,6 +326,16 @@ function cursorMove(self, mouseLeft1, mouseTop1) {
 	return moveTuple;
 }
 
+function filtBtn0(self, targ, handle) {
+	return e => {
+		e.button == 0 && handle(e);
+	};
+}
+
+function passThru(self, targ, handle) {
+	return handle;
+}
+
 export const cursorOpts = {
 	show: true,
 	x: true,
@@ -334,6 +344,17 @@ export const cursorOpts = {
 	move: cursorMove,
 	points: {
 		show: cursorPoint,
+	},
+
+	bind: {
+		mousedown:   filtBtn0,
+		mouseup:     filtBtn0,
+		click:       filtBtn0,
+		dblclick:    filtBtn0,
+
+		mousemove:   passThru,
+		mouseleave:  passThru,
+		mouseenter:  passThru,
 	},
 
 	drag: {
