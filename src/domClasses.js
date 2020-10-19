@@ -18,4 +18,3 @@ export const LEGEND_SERIES  = pre + "series";
 export const LEGEND_MARKER  = pre + "marker";
 export const LEGEND_LABEL   = pre + "label";
 export const LEGEND_VALUE   = pre + "value";
-export const ROTATED        = pre + "rotated";
