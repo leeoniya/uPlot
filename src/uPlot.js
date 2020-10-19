@@ -2054,50 +2054,50 @@ export default function uPlot(opts, data, then) {
 		//		dragY = drag.y;
 		//	}
 
-				batch(() => {
-					if (opts.rotated) {
-						if (dragY) {
-							_setScale(xScaleKey,
-								_scaleValueAtPos(plotHgtCss - select[TOP] - select[HEIGHT], plotHgtCss, xScaleKey),
-								_scaleValueAtPos(plotHgtCss - select[TOP], plotHgtCss, xScaleKey)
-							);
-						}
-
-						if (dragX) {
-							for (let k in scales) {
-								let sc = scales[k];
-
-								if (k != xScaleKey && sc.from == null && sc.min != inf) {
-									_setScale(k,
-										_scaleValueAtPos(select[LEFT], plotWidCss, k),
-										_scaleValueAtPos(select[LEFT] + select[WIDTH], plotWidCss, k)
-									);
-								}
-							}
-						}
-					} else {
-						if (dragX) {
-							_setScale(xScaleKey,
-								scaleValueAtPos(select[LEFT], xScaleKey),
-								scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
-							);
-						}
-
-						if (dragY) {
-							for (let k in scales) {
-								let sc = scales[k];
-
-								if (k != xScaleKey && sc.from == null && sc.min != inf) {
-									_setScale(k,
-										scaleValueAtPos(select[TOP] + select[HEIGHT], k),
-										scaleValueAtPos(select[TOP], k)
-									);
-								}
-							}
-						}
-
+			batch(() => {
+				if (opts.rotated) {
+					if (dragY) {
+						_setScale(xScaleKey,
+							_scaleValueAtPos(plotHgtCss - select[TOP] - select[HEIGHT], plotHgtCss, xScaleKey),
+							_scaleValueAtPos(plotHgtCss - select[TOP], plotHgtCss, xScaleKey)
+						);
 					}
-				});
+
+					if (dragX) {
+						for (let k in scales) {
+							let sc = scales[k];
+
+							if (k != xScaleKey && sc.from == null && sc.min != inf) {
+								_setScale(k,
+									_scaleValueAtPos(select[LEFT], plotWidCss, k),
+									_scaleValueAtPos(select[LEFT] + select[WIDTH], plotWidCss, k)
+								);
+							}
+						}
+					}
+				} else {
+					if (dragX) {
+						_setScale(xScaleKey,
+							scaleValueAtPos(select[LEFT], xScaleKey),
+							scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
+						);
+					}
+
+					if (dragY) {
+						for (let k in scales) {
+							let sc = scales[k];
+
+							if (k != xScaleKey && sc.from == null && sc.min != inf) {
+								_setScale(k,
+									scaleValueAtPos(select[TOP] + select[HEIGHT], k),
+									scaleValueAtPos(select[TOP], k)
+								);
+							}
+						}
+					}
+
+				}
+			});
 
 			hideSelect();
 		}
