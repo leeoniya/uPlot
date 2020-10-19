@@ -2391,8 +2391,8 @@ function uPlot(opts, data, then) {
 
 	const drag =  cursor.drag;
 
-	let dragX =  drag.x;
-	let dragY =  drag.y;
+	let dragX =  opts.rotated ? drag.y : drag.x;
+	let dragY =  opts.rotated ? drag.x : drag.y;
 
 	if ( cursor.show) {
 		if (cursor.x) {
@@ -2725,12 +2725,13 @@ function uPlot(opts, data, then) {
 		// nit: cursor.drag.setSelect is assumed always true
 		if (select.show && dragging) {
 			if (src != null) {
+				console.log('src');
 				let [xKey, yKey] = syncOpts.scales;
 
 				// match the dragX/dragY implicitness/explicitness of src
 				let sdrag = src.cursor.drag;
-				dragX = sdrag._x;
-				dragY = sdrag._y;
+				dragX = opts.rotated ? sdrag._y : sdrag._x;
+				dragY = opts.rotated ? sdrag._x : sdrag._y;
 
 				if (xKey) {
 					let sc = scales[xKey];
@@ -2767,19 +2768,20 @@ function uPlot(opts, data, then) {
 				}
 			}
 			else {
+				console.log('else');
 				let rawDX = abs(rawMouseLeft1 - rawMouseLeft0);
 				let rawDY = abs(rawMouseTop1 - rawMouseTop0);
 
-				dragX = drag.x && rawDX >= drag.dist;
-				dragY = drag.y && rawDY >= drag.dist;
+				dragX = opts.rotated ? drag.y && rawDY >= drag.dist : drag.x && rawDX >= drag.dist;
+				dragY = opts.rotated ? drag.x && rawDX >= drag.dist : drag.y && rawDY >= drag.dist;
 
 				let uni = drag.uni;
 
 				if (uni != null) {
 					// only calc drag status if they pass the dist thresh
 					if (dragX && dragY) {
-						dragX = rawDX >= uni;
-						dragY = rawDY >= uni;
+						dragX = opts.rotated ? rawDY >= uni : rawDX >= uni;
+						dragY = opts.rotated ? rawDX >= uni : rawDY >= uni;
 
 						// force unidirectionality when both are under uni limit
 						if (!dragX && !dragY) {
@@ -2831,8 +2833,8 @@ function uPlot(opts, data, then) {
 		cursor.idx = idx;
 		cursor.left = mouseLeft1;
 		cursor.top = mouseTop1;
-		drag._x = dragX;
-		drag._y = dragY;
+		drag._x = opts.rotated ? dragY : dragX;
+		drag._y = opts.rotated ? dragX : dragY;
 
 		// if ts is present, means we're implicitly syncing own cursor as a result of debounced rAF
 		if (ts != null) {
@@ -2951,24 +2953,47 @@ function uPlot(opts, data, then) {
 			//	}
 
 				batch(() => {
-					if (dragX) {
-						_setScale(xScaleKey,
-							scaleValueAtPos(select[LEFT], xScaleKey),
-							scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
-						);
-					}
+					if (opts.rotated) {
+						if (dragY) {
+							_setScale(xScaleKey,
+								_scaleValueAtPos(plotHgtCss - select[TOP] - select[HEIGHT], plotHgtCss, xScaleKey),
+								_scaleValueAtPos(plotHgtCss - select[TOP], plotHgtCss, xScaleKey)
+							);
+						}
 
-					if (dragY) {
-						for (let k in scales) {
-							let sc = scales[k];
+						if (dragX) {
+							for (let k in scales) {
+								let sc = scales[k];
 
-							if (k != xScaleKey && sc.from == null && sc.min != inf) {
-								_setScale(k,
-									scaleValueAtPos(select[TOP] + select[HEIGHT], k),
-									scaleValueAtPos(select[TOP], k)
-								);
+								if (k != xScaleKey && sc.from == null && sc.min != inf) {
+									_setScale(k,
+										_scaleValueAtPos(select[LEFT], plotWidCss, k),
+										_scaleValueAtPos(select[LEFT] + select[WIDTH], plotWidCss, k)
+									);
+								}
 							}
 						}
+					} else {
+						if (dragX) {
+							_setScale(xScaleKey,
+								scaleValueAtPos(select[LEFT], xScaleKey),
+								scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
+							);
+						}
+
+						if (dragY) {
+							for (let k in scales) {
+								let sc = scales[k];
+
+								if (k != xScaleKey && sc.from == null && sc.min != inf) {
+									_setScale(k,
+										scaleValueAtPos(select[TOP] + select[HEIGHT], k),
+										scaleValueAtPos(select[TOP], k)
+									);
+								}
+							}
+						}
+
 					}
 				});
 

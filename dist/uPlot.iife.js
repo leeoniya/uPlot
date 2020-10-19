@@ -2407,8 +2407,8 @@ var uPlot = (function () {
 
 		var drag =  cursor.drag;
 
-		var dragX =  drag.x;
-		var dragY =  drag.y;
+		var dragX =  opts.rotated ? drag.y : drag.x;
+		var dragY =  opts.rotated ? drag.x : drag.y;
 
 		if ( cursor.show) {
 			if (cursor.x) {
@@ -2743,14 +2743,15 @@ var uPlot = (function () {
 			// nit: cursor.drag.setSelect is assumed always true
 			if (select.show && dragging) {
 				if (src != null) {
+					console.log('src');
 					var ref = syncOpts.scales;
 					var xKey = ref[0];
 					var yKey = ref[1];
 
 					// match the dragX/dragY implicitness/explicitness of src
 					var sdrag = src.cursor.drag;
-					dragX = sdrag._x;
-					dragY = sdrag._y;
+					dragX = opts.rotated ? sdrag._y : sdrag._x;
+					dragY = opts.rotated ? sdrag._x : sdrag._y;
 
 					if (xKey) {
 						var sc = scales[xKey];
@@ -2787,19 +2788,20 @@ var uPlot = (function () {
 					}
 				}
 				else {
+					console.log('else');
 					var rawDX = abs(rawMouseLeft1 - rawMouseLeft0);
 					var rawDY = abs(rawMouseTop1 - rawMouseTop0);
 
-					dragX = drag.x && rawDX >= drag.dist;
-					dragY = drag.y && rawDY >= drag.dist;
+					dragX = opts.rotated ? drag.y && rawDY >= drag.dist : drag.x && rawDX >= drag.dist;
+					dragY = opts.rotated ? drag.x && rawDX >= drag.dist : drag.y && rawDY >= drag.dist;
 
 					var uni = drag.uni;
 
 					if (uni != null) {
 						// only calc drag status if they pass the dist thresh
 						if (dragX && dragY) {
-							dragX = rawDX >= uni;
-							dragY = rawDY >= uni;
+							dragX = opts.rotated ? rawDY >= uni : rawDX >= uni;
+							dragY = opts.rotated ? rawDX >= uni : rawDY >= uni;
 
 							// force unidirectionality when both are under uni limit
 							if (!dragX && !dragY) {
@@ -2851,8 +2853,8 @@ var uPlot = (function () {
 			cursor.idx = idx;
 			cursor.left = mouseLeft1;
 			cursor.top = mouseTop1;
-			drag._x = dragX;
-			drag._y = dragY;
+			drag._x = opts.rotated ? dragY : dragX;
+			drag._y = opts.rotated ? dragX : dragY;
 
 			// if ts is present, means we're implicitly syncing own cursor as a result of debounced rAF
 			if (ts != null) {
@@ -2975,24 +2977,47 @@ var uPlot = (function () {
 				//	}
 
 					batch(function () {
-						if (dragX) {
-							_setScale(xScaleKey,
-								scaleValueAtPos(select[LEFT], xScaleKey),
-								scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
-							);
-						}
+						if (opts.rotated) {
+							if (dragY) {
+								_setScale(xScaleKey,
+									_scaleValueAtPos(plotHgtCss - select[TOP] - select[HEIGHT], plotHgtCss, xScaleKey),
+									_scaleValueAtPos(plotHgtCss - select[TOP], plotHgtCss, xScaleKey)
+								);
+							}
 
-						if (dragY) {
-							for (var k in scales) {
-								var sc = scales[k];
+							if (dragX) {
+								for (var k in scales) {
+									var sc = scales[k];
 
-								if (k != xScaleKey && sc.from == null && sc.min != inf) {
-									_setScale(k,
-										scaleValueAtPos(select[TOP] + select[HEIGHT], k),
-										scaleValueAtPos(select[TOP], k)
-									);
+									if (k != xScaleKey && sc.from == null && sc.min != inf) {
+										_setScale(k,
+											_scaleValueAtPos(select[LEFT], plotWidCss, k),
+											_scaleValueAtPos(select[LEFT] + select[WIDTH], plotWidCss, k)
+										);
+									}
 								}
 							}
+						} else {
+							if (dragX) {
+								_setScale(xScaleKey,
+									scaleValueAtPos(select[LEFT], xScaleKey),
+									scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
+								);
+							}
+
+							if (dragY) {
+								for (var k$1 in scales) {
+									var sc$1 = scales[k$1];
+
+									if (k$1 != xScaleKey && sc$1.from == null && sc$1.min != inf) {
+										_setScale(k$1,
+											scaleValueAtPos(select[TOP] + select[HEIGHT], k$1),
+											scaleValueAtPos(select[TOP], k$1)
+										);
+									}
+								}
+							}
+
 						}
 					});
 
