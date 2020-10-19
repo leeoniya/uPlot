@@ -1282,8 +1282,9 @@ function uPlot(opts, data, then) {
 		let label = placeTag("th", null, row);
 
 		let indic = placeDiv(LEGEND_MARKER, label);
-		indic.style.borderColor = s.width ? s.stroke : i > 0 && s.points.width ? s.points.stroke : null;
-		indic.style.backgroundColor = s.fill;
+		let borderColor = s.width ? s.stroke : i > 0 && s.points.width ? s.points.stroke : null;
+		indic.style.borderColor = borderColor || hexBlack;
+		indic.style.backgroundColor = s.fill || null;
 
 		let text = placeDiv(LEGEND_LABEL, label);
 		text.textContent = s.label;
