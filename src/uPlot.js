@@ -468,6 +468,7 @@ export default function uPlot(opts, data, then) {
 		axes.forEach((axis, i) => {
 			if (axis.show) {
 				let {side, size} = axis;
+				if (opts.rotated) side = toRotatedSideMap[side];
 				let isVt = side % 2;
 				let labelSize = axis.labelSize = (axis.label != null ? (axis.labelSize || 30) : 0);
 

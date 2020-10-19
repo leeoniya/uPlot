@@ -1378,6 +1378,7 @@ function uPlot(opts, data, then) {
 			if (axis.show) {
 				var side = axis.side;
 				var size = axis.size;
+				if (opts.rotated) { side = toRotatedSideMap[side]; }
 				var isVt = side % 2;
 				var labelSize = axis.labelSize = (axis.label != null ? (axis.labelSize || 30) : 0);
 
@@ -1438,7 +1439,6 @@ function uPlot(opts, data, then) {
 		var off0 = plotTopCss;
 
 		function incrOffset(side, size) {
-
 			switch (opts.rotated ? toRotatedSideMap[side] : side) {
 				case 1: off1 += size; return off1 - size;
 				case 2: off2 += size; return off2 - size;
