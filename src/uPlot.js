@@ -1769,12 +1769,12 @@ export default function uPlot(opts, data, then) {
 				let s = series[i];
 
 				let idx2  = cursor.dataIdx(self, i, idx, valAtPos);
-				let xPos2 = idx2 == idx ? xPos : roundDec(_getXPos(data[0][idx2], scX, plotWidCss, 0), 3);
+				let xPos2 = idx2 == idx ? xPos : roundDec(_getXPos(data[0][idx2], scX), 3);
 
 				if (i > 0 && s.show) {
 					let valAtIdx = data[i][idx2];
 
-					let yPos = valAtIdx == null ? -10 : roundDec(_getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 3);
+					let yPos = valAtIdx == null ? -10 : roundDec(_getYPos(valAtIdx, scales[s.scale]), 3);
 
 					if (yPos > 0) {
 						let dist = abs(yPos - mouseTop1);
