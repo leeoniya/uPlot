@@ -3006,50 +3006,50 @@ function uPlot(opts, data, then) {
 		//		dragY = drag.y;
 		//	}
 
-				batch(function () {
-					if (opts.rotated) {
-						if (dragY) {
-							_setScale(xScaleKey,
-								_scaleValueAtPos(plotHgtCss - select[TOP] - select[HEIGHT], plotHgtCss, xScaleKey),
-								_scaleValueAtPos(plotHgtCss - select[TOP], plotHgtCss, xScaleKey)
-							);
-						}
-
-						if (dragX) {
-							for (var k in scales) {
-								var sc = scales[k];
-
-								if (k != xScaleKey && sc.from == null && sc.min != inf) {
-									_setScale(k,
-										_scaleValueAtPos(select[LEFT], plotWidCss, k),
-										_scaleValueAtPos(select[LEFT] + select[WIDTH], plotWidCss, k)
-									);
-								}
-							}
-						}
-					} else {
-						if (dragX) {
-							_setScale(xScaleKey,
-								scaleValueAtPos(select[LEFT], xScaleKey),
-								scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
-							);
-						}
-
-						if (dragY) {
-							for (var k$1 in scales) {
-								var sc$1 = scales[k$1];
-
-								if (k$1 != xScaleKey && sc$1.from == null && sc$1.min != inf) {
-									_setScale(k$1,
-										scaleValueAtPos(select[TOP] + select[HEIGHT], k$1),
-										scaleValueAtPos(select[TOP], k$1)
-									);
-								}
-							}
-						}
-
+			batch(function () {
+				if (opts.rotated) {
+					if (dragY) {
+						_setScale(xScaleKey,
+							_scaleValueAtPos(plotHgtCss - select[TOP] - select[HEIGHT], plotHgtCss, xScaleKey),
+							_scaleValueAtPos(plotHgtCss - select[TOP], plotHgtCss, xScaleKey)
+						);
 					}
-				});
+
+					if (dragX) {
+						for (var k in scales) {
+							var sc = scales[k];
+
+							if (k != xScaleKey && sc.from == null && sc.min != inf) {
+								_setScale(k,
+									_scaleValueAtPos(select[LEFT], plotWidCss, k),
+									_scaleValueAtPos(select[LEFT] + select[WIDTH], plotWidCss, k)
+								);
+							}
+						}
+					}
+				} else {
+					if (dragX) {
+						_setScale(xScaleKey,
+							scaleValueAtPos(select[LEFT], xScaleKey),
+							scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
+						);
+					}
+
+					if (dragY) {
+						for (var k$1 in scales) {
+							var sc$1 = scales[k$1];
+
+							if (k$1 != xScaleKey && sc$1.from == null && sc$1.min != inf) {
+								_setScale(k$1,
+									scaleValueAtPos(select[TOP] + select[HEIGHT], k$1),
+									scaleValueAtPos(select[TOP], k$1)
+								);
+							}
+						}
+					}
+
+				}
+			});
 
 			hideSelect();
 		}
