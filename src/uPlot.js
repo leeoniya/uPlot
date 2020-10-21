@@ -1840,36 +1840,74 @@ export default function uPlot(opts, data, then) {
 				dragY = opts.rotated ? sdrag._x : sdrag._y;
 
 				if (xKey) {
-					let sc = scales[xKey];
-					let srcLeft = src.posToVal(src.select[LEFT], xKey);
-					let srcRight = src.posToVal(src.select[LEFT] + src.select[WIDTH], xKey);
+					if (opts.rotated) {
+						let sc = scales[xKey];
+						let srcTop = _scaleValueAtPos(plotHgtCss - src.select[TOP], plotHgtCss, xKey);
+						let srcBottom = _scaleValueAtPos(
+							plotHgtCss - src.select[TOP] - src.select[HEIGHT],
+							plotHgtCss,
+							xKey,
+						);
 
-					select[LEFT] = getXPos(srcLeft, sc, plotWidCss, 0);
-					select[WIDTH] = abs(select[LEFT] - getXPos(srcRight, sc, plotWidCss, 0));
+						select[TOP] = getYPos(srcTop, sc, plotHgtCss, 0);
+						select[HEIGHT] = abs(select[TOP] - getYPos(srcBottom, sc, plotHgtCss, 0));
 
-					setStylePx(selectDiv, LEFT, select[LEFT]);
-					setStylePx(selectDiv, WIDTH, select[WIDTH]);
+						setStylePx(selectDiv, TOP, select[TOP]);
+						setStylePx(selectDiv, HEIGHT, select[HEIGHT]);
 
-					if (!yKey) {
-						setStylePx(selectDiv, TOP, select[TOP] = 0);
-						setStylePx(selectDiv, HEIGHT, select[HEIGHT] = plotHgtCss);
+						if (!yKey) {
+							setStylePx(selectDiv, LEFT, select[LEFT] = 0);
+							setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
+						}
+					} else {
+						let sc = scales[xKey];
+						let srcLeft = src.posToVal(src.select[LEFT], xKey);
+						let srcRight = src.posToVal(src.select[LEFT] + src.select[WIDTH], xKey);
+
+						select[LEFT] = getXPos(srcLeft, sc, plotWidCss, 0);
+						select[WIDTH] = abs(select[LEFT] - getXPos(srcRight, sc, plotWidCss, 0));
+
+						setStylePx(selectDiv, LEFT, select[LEFT]);
+						setStylePx(selectDiv, WIDTH, select[WIDTH]);
+
+						if (!yKey) {
+							setStylePx(selectDiv, TOP, select[TOP] = 0);
+							setStylePx(selectDiv, HEIGHT, select[HEIGHT] = plotHgtCss);
+						}
 					}
 				}
 
 				if (yKey) {
-					let sc = scales[yKey];
-					let srcTop = src.posToVal(src.select[TOP], yKey);
-					let srcBottom = src.posToVal(src.select[TOP] + src.select[HEIGHT], yKey);
+					if (opts.rotated) {
+						let sc = scales[yKey];
+						let srcLeft = _scaleValueAtPos(src.select[LEFT], plotWidCss, yKey);
+						let srcRight = _scaleValueAtPos(src.select[LEFT] + src.select[WIDTH], plotWidCss, yKey);
 
-					select[TOP] = getYPos(srcTop, sc, plotHgtCss, 0);
-					select[HEIGHT] = abs(select[TOP] - getYPos(srcBottom, sc, plotHgtCss, 0));
+						select[LEFT] = getXPos(srcLeft, sc, plotWidCss, 0);
+						select[WIDTH] = abs(select[LEFT] - getXPos(srcRight, sc, plotWidCss, 0));
 
-					setStylePx(selectDiv, TOP, select[TOP]);
-					setStylePx(selectDiv, HEIGHT, select[HEIGHT]);
+						setStylePx(selectDiv, LEFT, select[LEFT]);
+						setStylePx(selectDiv, WIDTH, select[WIDTH]);
 
-					if (!xKey) {
-						setStylePx(selectDiv, LEFT, select[LEFT] = 0);
-						setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
+						if (!xKey) {
+							setStylePx(selectDiv, TOP, select[TOP] = 0);
+							setStylePx(selectDiv, HEIGHT, select[HEIGHT] = plotHgtCss);
+						}
+					} else {
+						let sc = scales[yKey];
+						let srcTop = src.posToVal(src.select[TOP], yKey);
+						let srcBottom = src.posToVal(src.select[TOP] + src.select[HEIGHT], yKey);
+
+						select[TOP] = getYPos(srcTop, sc, plotHgtCss, 0);
+						select[HEIGHT] = abs(select[TOP] - getYPos(srcBottom, sc, plotHgtCss, 0));
+
+						setStylePx(selectDiv, TOP, select[TOP]);
+						setStylePx(selectDiv, HEIGHT, select[HEIGHT]);
+
+						if (!xKey) {
+							setStylePx(selectDiv, LEFT, select[LEFT] = 0);
+							setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
+						}
 					}
 				}
 			}
