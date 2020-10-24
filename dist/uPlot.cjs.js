@@ -271,6 +271,7 @@ var RIGHT = "right";
 var firstChild = "firstChild";
 var createElement = "createElement";
 var hexBlack = "#000";
+var transparent = hexBlack + "0";
 var classList = "classList";
 
 var mousemove = "mousemove";
@@ -1285,8 +1286,7 @@ function uPlot(opts, data, then) {
 		var label = placeTag("th", null, row);
 
 		var indic = placeDiv(LEGEND_MARKER, label);
-		var borderColor = s.width ? s.stroke : i > 0 && s.points.width ? s.points.stroke : null;
-		indic.style.borderColor = borderColor || hexBlack;
+		indic.style.borderColor = s.width ? s.stroke : i > 0 && s.points.width ? s.points.stroke : null;
 		indic.style.backgroundColor = s.fill || null;
 
 		var text = placeDiv(LEGEND_LABEL, label);
@@ -1671,11 +1671,11 @@ function uPlot(opts, data, then) {
 	}
 
 	function setCtxStyle(stroke, width, dash, fill) {
-		ctx.strokeStyle = stroke || hexBlack;
+		ctx.strokeStyle = stroke || transparent;
 		ctx.lineWidth = width;
 		ctx.lineJoin = "round";
 		ctx.setLineDash(dash || []);
-		ctx.fillStyle = fill || hexBlack;
+		ctx.fillStyle = fill || transparent;
 	}
 
 	function setScales() {
@@ -1848,10 +1848,10 @@ function uPlot(opts, data, then) {
 		}
 
 		setCtxStyle(
-			p.stroke || hexBlack,
+			p.stroke,
 			width,
 			null,
-			p.fill || (isStroked ? "#fff" : s.stroke || hexBlack)
+			p.fill || (isStroked ? "#fff" : s.stroke)
 		);
 
 		ctx.fill(path);

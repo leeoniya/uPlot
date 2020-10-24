@@ -269,6 +269,7 @@ const RIGHT = "right";
 const firstChild = "firstChild";
 const createElement = "createElement";
 const hexBlack = "#000";
+const transparent = hexBlack + "0";
 const classList = "classList";
 
 const mousemove = "mousemove";
@@ -1288,8 +1289,7 @@ function uPlot(opts, data, then) {
 		let label = placeTag("th", null, row);
 
 		let indic = placeDiv(LEGEND_MARKER, label);
-		let borderColor = s.width ? s.stroke : i > 0 && s.points.width ? s.points.stroke : null;
-		indic.style.borderColor = borderColor || hexBlack;
+		indic.style.borderColor = s.width ? s.stroke : i > 0 && s.points.width ? s.points.stroke : null;
 		indic.style.backgroundColor = s.fill || null;
 
 		let text = placeDiv(LEGEND_LABEL, label);
@@ -1670,11 +1670,11 @@ function uPlot(opts, data, then) {
 	}
 
 	function setCtxStyle(stroke, width, dash, fill) {
-		ctx.strokeStyle = stroke || hexBlack;
+		ctx.strokeStyle = stroke || transparent;
 		ctx.lineWidth = width;
 		ctx.lineJoin = "round";
 		ctx.setLineDash(dash || []);
-		ctx.fillStyle = fill || hexBlack;
+		ctx.fillStyle = fill || transparent;
 	}
 
 	function setScales() {
@@ -1847,10 +1847,10 @@ function uPlot(opts, data, then) {
 		}
 
 		setCtxStyle(
-			p.stroke || hexBlack,
+			p.stroke,
 			width,
 			null,
-			p.fill || (isStroked ? "#fff" : s.stroke || hexBlack),
+			p.fill || (isStroked ? "#fff" : s.stroke),
 		);
 
 		ctx.fill(path);

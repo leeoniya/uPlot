@@ -7,6 +7,7 @@ export const RIGHT = "right";
 export const firstChild = "firstChild";
 export const createElement = "createElement";
 export const hexBlack = "#000";
+export const transparent = hexBlack + "0";
 export const classList = "classList";
 
 export const mousemove = "mousemove";
