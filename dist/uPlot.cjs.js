@@ -2124,6 +2124,8 @@ function uPlot(opts, data, then) {
 		return _paths;
 	}
 
+	self.paths = buildPaths;
+
 	function getIncrSpace(axisIdx, min, max, fullDim) {
 		var axis = axes[axisIdx];
 

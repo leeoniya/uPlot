@@ -40,6 +40,9 @@
 						stroke: "blue",
 						fill: "rgba(0,0,255,0.1)",
 						paths: (u, sidx, i0, i1) => {
+							if (ii % 2)
+								return u.paths(u, sidx, i0, i1)
+
 							const s      = u.series[sidx];
 							const xdata  = u.data[0];
 							const ydata  = u.data[sidx];
@@ -95,7 +98,15 @@
 				],
 			};
 
+			let ii = 0;
+
 			let u = new uPlot(opts, data, document.body);
+
+			let it = setInterval(() => {
+				if (ii++ == 5)
+					clearInterval(it);
+				u.redraw();
+			}, 1000);
 		</script>
 	</body>
 </html>

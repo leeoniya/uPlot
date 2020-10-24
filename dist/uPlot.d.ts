@@ -99,6 +99,9 @@ declare class uPlot {
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
 	syncRect(): void;
 
+	/** uPlot's default line path builder (handles nulls/gaps & data decimation) */
+	paths: uPlot.PathBuilder;
+
 	/** a deep merge util fn */
 	static assign(targ: object, ...srcs: object[]): object;
 
@@ -216,6 +219,17 @@ declare namespace uPlot {
 		height: number;
 	}
 
+	export interface Paths {
+		/** path to stroke */
+		stroke?: Path2D;
+
+		/** path to fill */
+		fill?: Path2D;
+
+		/** path for clipping fill & stroke */
+		clip?: Path2D;
+	}
+
 	interface Select extends BBox {
 		/** div into which .u-select will be placed: .u-over or .u-under */
 		over?: boolean; // true
@@ -224,6 +238,8 @@ declare namespace uPlot {
 	type MouseListener = (e: MouseEvent) => null;
 
 	type CreateMouseListener = (self: uPlot, targ: HTMLElement, handler: MouseListener) => MouseListener | null;
+
+	export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => Paths;
 
 	export interface Cursor {
 		/** cursor on/off */
@@ -357,16 +373,7 @@ declare namespace uPlot {
 		/** table-legend multi-values formatter */
 		values?: (self: uPlot, seriesIdx: number, idx: number) => object;
 
-		paths?: (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => {
-			/** path to stroke */
-			stroke?: Path2D;
-
-			/** path to fill */
-			fill?: Path2D;
-
-			/** path for clipping fill & stroke */
-			clip?: Path2D;
-		};
+		paths?: PathBuilder;
 
 		points?: {
 			/** if boolean or returns boolean, round points are drawn with defined options, else fn should draw own custom points via self.ctx */
