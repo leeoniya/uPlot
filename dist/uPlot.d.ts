@@ -466,7 +466,7 @@ declare namespace uPlot {
 		filter?: AxisSplitsFilter;
 
 		/** formats values for rendering */
-		values?: ((self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => Array<string|number|null>) | (string | number | null)[][];
+		values?: ((self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => Array<string|number|null>) | (string | number | null)[][] | string;
 
 		/** values rotation in degrees off horizontal (only bottom axes w/ side: 2) */
 		rotate?: number | ((self: uPlot, values: Array<string|number>, axisIdx: number, foundSpace: number) => number);

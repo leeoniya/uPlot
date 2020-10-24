@@ -660,6 +660,12 @@ function timeAxisVals(tzDate, stamps) {
 	}
 }
 
+// for when axis.values is defined as a static fmtDate template string
+function timeAxisVal(tzDate, dateTpl) {
+	let stamp = fmtDate(dateTpl);
+	return (self, splits, axisIdx, foundSpace, foundIncr) => splits.map(split => stamp(tzDate(split)));
+}
+
 function mkDate(y, m, d) {
 	return new Date(y, m, d);
 }
@@ -1582,8 +1588,18 @@ function uPlot(opts, data, then) {
 			axis.rotate = fnOrSelf(axis.rotate);
 			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
 			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
+
 			let av = axis.values;
-			axis.values = isTime ? (isArr(av) ? timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) : av || _timeAxisVals) : av || numAxisVals;
+			axis.values = (
+				isTime ? (
+					isArr(av) ?
+						timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) :
+					isStr(av) ?
+						timeAxisVal(_tzDate, av) :
+					av || _timeAxisVals
+				) : av || numAxisVals
+			);
+
 			axis.filter = fnOrSelf(axis.filter || (          sc.distr == 3 ? logAxisValsFilt : retArg1));
 
 			axis.font      = pxRatioFont(axis.font);

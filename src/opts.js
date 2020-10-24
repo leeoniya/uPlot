@@ -195,6 +195,12 @@ export function timeAxisVals(tzDate, stamps) {
 	}
 }
 
+// for when axis.values is defined as a static fmtDate template string
+export function timeAxisVal(tzDate, dateTpl) {
+	let stamp = fmtDate(dateTpl);
+	return (self, splits, axisIdx, foundSpace, foundIncr) => splits.map(split => stamp(tzDate(split)));
+}
+
 function mkDate(y, m, d) {
 	return new Date(y, m, d);
 }

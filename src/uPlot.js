@@ -109,6 +109,7 @@ import {
 	timeIncrs,
 	intIncrs,
 	numIncrs,
+	timeAxisVal,
 	timeAxisVals,
 	numAxisVals,
 
@@ -653,8 +654,18 @@ export default function uPlot(opts, data, then) {
 			axis.rotate = fnOrSelf(axis.rotate);
 			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
 			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
+
 			let av = axis.values;
-			axis.values = isTime ? (isArr(av) ? timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) : av || _timeAxisVals) : av || numAxisVals;
+			axis.values = (
+				isTime ? (
+					isArr(av) ?
+						timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) :
+					isStr(av) ?
+						timeAxisVal(_tzDate, av) :
+					av || _timeAxisVals
+				) : av || numAxisVals
+			);
+
 			axis.filter = fnOrSelf(axis.filter || (          sc.distr == 3 ? logAxisValsFilt : retArg1));
 
 			axis.font      = pxRatioFont(axis.font);
