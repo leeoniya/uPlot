@@ -478,6 +478,9 @@ declare namespace uPlot {
 		/** values rotation in degrees off horizontal (only bottom axes w/ side: 2) */
 		rotate?: number | ((self: uPlot, values: Array<string|number>, axisIdx: number, foundSpace: number) => number);
 
+		/** text alignment of axis values - 1: left, 2: right */
+		align?: 1 | 2;
+
 		/** gridlines to draw from this axis' splits */
 		grid?: {
 			/** grid on/off */

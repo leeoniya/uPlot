@@ -1295,7 +1295,9 @@ export default function uPlot(opts, data, then) {
 
 			ctx.font         = axis.font[0];
 			ctx.fillStyle    = axis.stroke || hexBlack;									// rgba?
-			ctx.textAlign    = angle > 0 ? LEFT :
+			ctx.textAlign    = axis.align == 1 ? LEFT :
+			                   axis.align == 2 ? RIGHT :
+			                   angle > 0 ? LEFT :
 			                   angle < 0 ? RIGHT :
 			                   ori == 0 ? "center" : side == 3 ? RIGHT : LEFT;
 			ctx.textBaseline = angle ||
