@@ -1141,7 +1141,7 @@ function findIncr(min, max, incrs, dim, minSpace) {
 
 function pxRatioFont(font) {
 	var fontSize;
-	font = font.replace(/\d+/, function (m) { return (fontSize = round(m * pxRatio)); });
+	font = font.replace(/(\d+)px/, function (m, p1) { return (fontSize = round(p1 * pxRatio)) + 'px'; });
 	return [font, fontSize];
 }
 
