@@ -108,7 +108,7 @@ export function rangeNum(min, max, mult, extra) {
 	const mag = log10(nonZeroDelta);
 	const base = pow(10, floor(mag));
 
-	const padding = nonZeroDelta * mult;
+	const padding = nonZeroDelta * (delta == 0 ? (min == 0 ? .1 : 1) : mult);
 	const newMin = min - padding;
 	const newMax = max + padding;
 

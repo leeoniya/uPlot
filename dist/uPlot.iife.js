@@ -120,7 +120,7 @@ var uPlot = (function () {
 		var mag = log10(nonZeroDelta);
 		var base = pow(10, floor(mag));
 
-		var padding = nonZeroDelta * mult;
+		var padding = nonZeroDelta * (delta == 0 ? (min == 0 ? .1 : 1) : mult);
 		var newMin = min - padding;
 		var newMax = max + padding;
 
