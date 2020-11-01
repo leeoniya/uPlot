@@ -169,24 +169,22 @@ function getXPos(val, scale, wid, lft) {
 	return lft + pctX * wid;
 }
 
-function snapTimeX(self, dataMin, dataMax) {
-	return [dataMin, dataMax > dataMin ? dataMax : dataMax + 86400];
-}
+const nullMinMax = [null, null];
 
 function snapNumX(self, dataMin, dataMax) {
-	const delta = dataMax - dataMin;
-
-	return delta == 0 ? rangeNum(dataMin, dataMax, 0, true) : [dataMin, dataMax];
+	return dataMin == null ? nullMinMax : [dataMin, dataMax];
 }
+
+const snapTimeX = snapNumX;
 
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 function snapNumY(self, dataMin, dataMax) {
-	return rangeNum(dataMin, dataMax, 0.1, true);
+	return dataMin == null ? nullMinMax : rangeNum(dataMin, dataMax, 0.1, true);
 }
 
 function snapLogY(self, dataMin, dataMax, scale) {
-	return rangeLog(dataMin, dataMax, self.scales[scale].log, false);
+	return dataMin == null ? nullMinMax : rangeLog(dataMin, dataMax, self.scales[scale].log, false);
 }
 
 const snapLogX = snapLogY;
@@ -724,8 +722,21 @@ export default function uPlot(opts, data, then) {
 			i0 = idxs[0] = 0;
 			i1 = idxs[1] = dataLen - 1;
 
-			_min = xScaleDistr == 2 ? i0 : data[0][i0];
-			_max = xScaleDistr == 2 ? i1 : data[0][i1];
+			_min = data[0][i0];
+			_max = data[0][i1];
+
+			if (xScaleDistr == 2) {
+				_min = i0;
+				_max = i1;
+			}
+			else if (dataLen == 1) {
+				if (xScaleDistr == 3)
+					[_min, _max] = rangeLog(_min, _min, scales[xScaleKey].log, false);
+				else if (scales[xScaleKey].time)
+					_max = _min + 86400;
+				else
+					[_min, _max] = rangeNum(_min, _max, 0.1, true);
+			}
 		}
 		else {
 			i0 = idxs[0] = _min = null;
@@ -783,6 +794,7 @@ export default function uPlot(opts, data, then) {
 			series.forEach((s, i) => {
 				let k = s.scale;
 				let wsc = wipScales[k];
+				let psc = pendScales[k];
 
 				if (i == 0) {
 					let minMax = wsc.range(self, wsc.min, wsc.max, k);
@@ -802,9 +814,9 @@ export default function uPlot(opts, data, then) {
 					s.min = data0[i0];
 					s.max = data0[i1];
 				}
-				else if (s.show && pendScales[k] == null) {
+				else if (s.show && s.auto && wsc.auto && psc == null) {
 					// only run getMinMax() for invalidated series data, else reuse
-					let minMax = s.min == inf ? (wsc.auto && s.auto ? getMinMax(data[i], i0, i1, s.sorted) : [null,null]) : [s.min, s.max];
+					let minMax = s.min == null ? getMinMax(data[i], i0, i1, s.sorted) : [s.min, s.max];
 
 					// initial min/max
 					wsc.min = min(wsc.min, s.min = minMax[0]);
@@ -818,9 +830,15 @@ export default function uPlot(opts, data, then) {
 			// range independent scales
 			for (let k in wipScales) {
 				let wsc = wipScales[k];
+				let psc = pendScales[k];
 
-				if (wsc.from == null && wsc.min != inf && pendScales[k] == null) {
-					let minMax = wsc.range(self, wsc.min, wsc.max, k);
+				if (wsc.from == null && psc == null) {
+					let minMax = wsc.range(
+						self,
+						wsc.min ==  inf ? null : wsc.min,
+						wsc.max == -inf ? null : wsc.max,
+						k
+					);
 					wsc.min = minMax[0];
 					wsc.max = minMax[1];
 				}
@@ -833,12 +851,9 @@ export default function uPlot(opts, data, then) {
 
 			if (wsc.from != null) {
 				let base = wipScales[wsc.from];
-
-				if (base.min != inf) {
-					let minMax = wsc.range(self, base.min, base.max, k);
-					wsc.min = minMax[0];
-					wsc.max = minMax[1];
-				}
+				let minMax = wsc.range(self, base.min, base.max, k);
+				wsc.min = minMax[0];
+				wsc.max = minMax[1];
 			}
 		}
 
@@ -1250,7 +1265,7 @@ export default function uPlot(opts, data, then) {
 			let scale = scales[axis.scale];
 
 			// this will happen if all series using a specific scale are toggled off
-			if (scale.min == inf)
+			if (scale.min == null)
 				return;
 
 			let side = axis.side;
@@ -1398,8 +1413,8 @@ export default function uPlot(opts, data, then) {
 
 		series.forEach((s, i) => {
 			if (i > 0) {
-				s.min = inf;
-				s.max = -inf;
+				s.min = null;
+				s.max = null;
 				s._paths = null;
 			}
 		});

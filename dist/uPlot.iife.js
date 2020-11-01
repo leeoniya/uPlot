@@ -115,9 +115,6 @@ var uPlot = (function () {
 	// this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 	// TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 	function rangeNum(min, max, mult, extra) {
-		if (min == max && (min == null || min == 0))
-			{ return [0, 100]; }
-
 		var delta = max - min;
 		var nonZeroDelta = delta || abs(max) || 1e3;
 		var mag = log10(nonZeroDelta);
@@ -1102,24 +1099,22 @@ var uPlot = (function () {
 		return lft + pctX * wid;
 	}
 
-	function snapTimeX(self, dataMin, dataMax) {
-		return [dataMin, dataMax > dataMin ? dataMax : dataMax + 86400];
-	}
+	var nullMinMax = [null, null];
 
 	function snapNumX(self, dataMin, dataMax) {
-		var delta = dataMax - dataMin;
-
-		return delta == 0 ? rangeNum(dataMin, dataMax, 0, true) : [dataMin, dataMax];
+		return dataMin == null ? nullMinMax : [dataMin, dataMax];
 	}
+
+	var snapTimeX = snapNumX;
 
 	// this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 	// TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 	function snapNumY(self, dataMin, dataMax) {
-		return rangeNum(dataMin, dataMax, 0.1, true);
+		return dataMin == null ? nullMinMax : rangeNum(dataMin, dataMax, 0.1, true);
 	}
 
 	function snapLogY(self, dataMin, dataMax, scale) {
-		return rangeLog(dataMin, dataMax, self.scales[scale].log, false);
+		return dataMin == null ? nullMinMax : rangeLog(dataMin, dataMax, self.scales[scale].log, false);
 	}
 
 	var snapLogX = snapLogY;
@@ -1654,14 +1649,29 @@ var uPlot = (function () {
 		self.setData = setData;
 
 		function autoScaleX() {
+			var assign, assign$1;
+
 			var _min, _max;
 
 			if (dataLen > 0) {
 				i0 = idxs[0] = 0;
 				i1 = idxs[1] = dataLen - 1;
 
-				_min = xScaleDistr == 2 ? i0 : data[0][i0];
-				_max = xScaleDistr == 2 ? i1 : data[0][i1];
+				_min = data[0][i0];
+				_max = data[0][i1];
+
+				if (xScaleDistr == 2) {
+					_min = i0;
+					_max = i1;
+				}
+				else if (dataLen == 1) {
+					if (xScaleDistr == 3)
+						{ (assign = rangeLog(_min, _min, scales[xScaleKey].log, false), _min = assign[0], _max = assign[1]); }
+					else if (scales[xScaleKey].time)
+						{ _max = _min + 86400; }
+					else
+						{ (assign$1 = rangeNum(_min, _max, 0.1, true), _min = assign$1[0], _max = assign$1[1]); }
+				}
 			}
 			else {
 				i0 = idxs[0] = _min = null;
@@ -1719,6 +1729,7 @@ var uPlot = (function () {
 				series.forEach(function (s, i) {
 					var k = s.scale;
 					var wsc = wipScales[k];
+					var psc = pendScales[k];
 
 					if (i == 0) {
 						var minMax = wsc.range(self, wsc.min, wsc.max, k);
@@ -1738,9 +1749,9 @@ var uPlot = (function () {
 						s.min = data0[i0];
 						s.max = data0[i1];
 					}
-					else if (s.show && pendScales[k] == null) {
+					else if (s.show && s.auto && wsc.auto && psc == null) {
 						// only run getMinMax() for invalidated series data, else reuse
-						var minMax$1 = s.min == inf ? (wsc.auto && s.auto ? getMinMax(data[i], i0, i1, s.sorted) : [null,null]) : [s.min, s.max];
+						var minMax$1 = s.min == null ? getMinMax(data[i], i0, i1, s.sorted) : [s.min, s.max];
 
 						// initial min/max
 						wsc.min = min(wsc.min, s.min = minMax$1[0]);
@@ -1754,9 +1765,15 @@ var uPlot = (function () {
 				// range independent scales
 				for (var k$1 in wipScales) {
 					var wsc$1 = wipScales[k$1];
+					var psc$1 = pendScales[k$1];
 
-					if (wsc$1.from == null && wsc$1.min != inf && pendScales[k$1] == null) {
-						var minMax$1 = wsc$1.range(self, wsc$1.min, wsc$1.max, k$1);
+					if (wsc$1.from == null && psc$1 == null) {
+						var minMax$1 = wsc$1.range(
+							self,
+							wsc$1.min ==  inf ? null : wsc$1.min,
+							wsc$1.max == -inf ? null : wsc$1.max,
+							k$1
+						);
 						wsc$1.min = minMax$1[0];
 						wsc$1.max = minMax$1[1];
 					}
@@ -1769,12 +1786,9 @@ var uPlot = (function () {
 
 				if (wsc$2.from != null) {
 					var base = wipScales[wsc$2.from];
-
-					if (base.min != inf) {
-						var minMax$2 = wsc$2.range(self, base.min, base.max, k$2);
-						wsc$2.min = minMax$2[0];
-						wsc$2.max = minMax$2[1];
-					}
+					var minMax$2 = wsc$2.range(self, base.min, base.max, k$2);
+					wsc$2.min = minMax$2[0];
+					wsc$2.max = minMax$2[1];
 				}
 			}
 
@@ -2189,7 +2203,7 @@ var uPlot = (function () {
 				var scale = scales[axis.scale];
 
 				// this will happen if all series using a specific scale are toggled off
-				if (scale.min == inf)
+				if (scale.min == null)
 					{ return; }
 
 				var side = axis.side;
@@ -2340,8 +2354,8 @@ var uPlot = (function () {
 
 			series.forEach(function (s, i) {
 				if (i > 0) {
-					s.min = inf;
-					s.max = -inf;
+					s.min = null;
+					s.max = null;
 					s._paths = null;
 				}
 			});
