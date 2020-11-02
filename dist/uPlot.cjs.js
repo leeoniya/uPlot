@@ -1235,6 +1235,8 @@ function uPlot(opts, data, then) {
 				}
 
 				sc.range = fnOrSelf(rn || (isTime ? snapTimeX : scaleKey == xScaleKey ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
+
+				sc.auto = fnOrSelf(sc.auto);
 			}
 		}
 	}
@@ -1655,6 +1657,8 @@ function uPlot(opts, data, then) {
 
 	var forceUpdateLegend = false;
 
+	var viaAutoScaleX = false;
+
 	function setData(_data, _resetScales) {
 		_data = _data || [];
 		_data[0] = _data[0] || [];
@@ -1676,7 +1680,7 @@ function uPlot(opts, data, then) {
 		if (_resetScales !== false) {
 			var xsc = scales[xScaleKey];
 
-			if (xsc.auto)
+			if (xsc.auto(self, ready, viaAutoScaleX))
 				{ autoScaleX(); }
 			else
 				{ _setScale(xScaleKey, xsc.min, xsc.max); }
@@ -1687,6 +1691,8 @@ function uPlot(opts, data, then) {
 
 	function autoScaleX() {
 		var assign, assign$1;
+
+		viaAutoScaleX = true;
 
 		var _min, _max;
 
@@ -1716,6 +1722,8 @@ function uPlot(opts, data, then) {
 		}
 
 		_setScale(xScaleKey, _min, _max);
+
+		viaAutoScaleX = false;
 	}
 
 	function setCtxStyle(stroke, width, dash, fill) {
@@ -1786,7 +1794,7 @@ function uPlot(opts, data, then) {
 					s.min = data0[i0];
 					s.max = data0[i1];
 				}
-				else if (s.show && s.auto && wsc.auto && psc == null) {
+				else if (s.show && s.auto && wsc.auto(self, ready, viaAutoScaleX) && psc == null) {
 					// only run getMinMax() for invalidated series data, else reuse
 					var minMax$1 = s.min == null ? getMinMax(data[i], i0, i1, s.sorted) : [s.min, s.max];
 
