@@ -9,6 +9,9 @@ declare class uPlot {
 	/** chart container */
 	readonly root: HTMLElement;
 
+	/** status */
+	readonly status: 0 | 1;
+
 	/** width of the plotting area + axes in CSS pixels */
 	readonly width: number;
 
@@ -343,7 +346,7 @@ declare namespace uPlot {
 		time?: boolean;
 
 		/** determines whether all series' data on this scale will be scanned to find the full min/max range */
-		auto?: boolean | ((self: uPlot, ready: boolean, resetScales: boolean) => boolean);
+		auto?: boolean | ((self: uPlot, resetScales: boolean) => boolean);
 
 		/** can define a static scale range or re-range an initially-determined range from series data */
 		range?: MinMax | RangeConfig | ((self: uPlot, initMin: number, initMax: number, scaleKey: string) => MinMax);

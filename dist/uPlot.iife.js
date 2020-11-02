@@ -1174,6 +1174,9 @@ var uPlot = (function () {
 	function uPlot(opts, data, then) {
 		var self = {};
 
+		var ready = false;
+		self.status = 0;
+
 		var root = self.root = placeDiv(UPLOT);
 
 		if (opts.id != null)
@@ -1201,7 +1204,7 @@ var uPlot = (function () {
 				{ opts = p.opts(self, opts) || opts; }
 		});
 
-		var ready = false;
+
 
 		var series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
 		var axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
@@ -1681,7 +1684,7 @@ var uPlot = (function () {
 			if (_resetScales !== false) {
 				var xsc = scales[xScaleKey];
 
-				if (xsc.auto(self, ready, viaAutoScaleX))
+				if (xsc.auto(self, viaAutoScaleX))
 					{ autoScaleX(); }
 				else
 					{ _setScale(xScaleKey, xsc.min, xsc.max); }
@@ -1795,7 +1798,7 @@ var uPlot = (function () {
 						s.min = data0[i0];
 						s.max = data0[i1];
 					}
-					else if (s.show && s.auto && wsc.auto(self, ready, viaAutoScaleX) && psc == null) {
+					else if (s.show && s.auto && wsc.auto(self, viaAutoScaleX) && psc == null) {
 						// only run getMinMax() for invalidated series data, else reuse
 						var minMax$1 = s.min == null ? getMinMax(data[i], i0, i1, s.sorted) : [s.min, s.max];
 
@@ -3224,6 +3227,7 @@ var uPlot = (function () {
 			setSelect(select, false);
 
 			ready = true;
+			self.status = 1;
 
 			fire("ready");
 		}

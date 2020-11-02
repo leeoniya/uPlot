@@ -1176,6 +1176,9 @@ function pxRatioFont(font) {
 function uPlot(opts, data, then) {
 	const self = {};
 
+	let ready = false;
+	self.status = 0;
+
 	const root = self.root = placeDiv(UPLOT);
 
 	if (opts.id != null)
@@ -1203,7 +1206,7 @@ function uPlot(opts, data, then) {
 			opts = p.opts(self, opts) || opts;
 	});
 
-	let ready = false;
+
 
 	const series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
 	const axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
@@ -1679,7 +1682,7 @@ function uPlot(opts, data, then) {
 		if (_resetScales !== false) {
 			let xsc = scales[xScaleKey];
 
-			if (xsc.auto(self, ready, viaAutoScaleX))
+			if (xsc.auto(self, viaAutoScaleX))
 				autoScaleX();
 			else
 				_setScale(xScaleKey, xsc.min, xsc.max);
@@ -1791,7 +1794,7 @@ function uPlot(opts, data, then) {
 					s.min = data0[i0];
 					s.max = data0[i1];
 				}
-				else if (s.show && s.auto && wsc.auto(self, ready, viaAutoScaleX) && psc == null) {
+				else if (s.show && s.auto && wsc.auto(self, viaAutoScaleX) && psc == null) {
 					// only run getMinMax() for invalidated series data, else reuse
 					let minMax = s.min == null ? getMinMax(data[i], i0, i1, s.sorted) : [s.min, s.max];
 
@@ -3206,6 +3209,7 @@ function uPlot(opts, data, then) {
 		setSelect(select, false);
 
 		ready = true;
+		self.status = 1;
 
 		fire("ready");
 	}
