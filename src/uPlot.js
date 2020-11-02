@@ -22,6 +22,7 @@ import {
 	incrRoundDn,
 	incrRound,
 	isArr,
+	isObj,
 	isStr,
 	fnOrSelf,
 	fmtNum,
@@ -267,7 +268,15 @@ export default function uPlot(opts, data, then) {
 				let isTime = FEAT_TIME && sc.time;
 				let isLog  = sc.distr == 3;
 
-				sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : scaleKey == xScaleKey ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
+				let rn = sc.range;
+
+				if (scaleKey != xScaleKey && !isArr(rn) && isObj(rn)) {
+					let cfg = rn;
+					// this is similar to snapNumY
+					rn = (self, dataMin, dataMax) => dataMin == null ? nullMinMax : rangeNum(dataMin, dataMax, cfg);
+				}
+
+				sc.range = fnOrSelf(rn || (isTime ? snapTimeX : scaleKey == xScaleKey ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
 			}
 		}
 	}

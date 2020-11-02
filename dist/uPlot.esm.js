@@ -109,40 +109,70 @@ function rangeLog(min, max, base, fullMags) {
 	return [min, max];
 }
 
+const _eqRangePart = {
+	pad:  0,
+	soft: null,
+	mode: 0,
+};
+
+const _eqRange = {
+	min: _eqRangePart,
+	max: _eqRangePart,
+};
+
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
-function rangeNum(min, max, mult, extra) {
-	const delta = max - min;
-	const nonZeroDelta = delta || abs(max) || 1e3;
-	const mag = log10(nonZeroDelta);
-	const base = pow(10, floor(mag));
+function rangeNum(_min, _max, mult, extra) {
+	if (isObj(mult))
+		return _rangeNum(_min, _max, mult);
 
-	const padding = nonZeroDelta * (delta == 0 ? (min == 0 ? .1 : 1) : mult);
-	const newMin = min - padding;
-	const newMax = max + padding;
+	_eqRangePart.pad  = mult;
+	_eqRangePart.soft = extra ? 0 : null;
+	_eqRangePart.mode = extra ? 2 : 0;
 
-	let snappedMin = roundDec(incrRoundDn(newMin, base/100), 6);
-	let snappedMax = roundDec(incrRoundUp(newMax, base/100), 6);
+	return _rangeNum(_min, _max, _eqRange);
+}
 
-	if (extra) {
-		// for flat data, always use 0 as one chart extreme & place data in center
-		if (delta == 0) {
-			if (max > 0)
-				snappedMin = 0;
-			else if (max < 0)
-				snappedMax = 0;
-		}
-		else {
-			// if original data never crosses 0, use 0 as one chart extreme
-			if (min >= 0 && snappedMin < 0)
-				snappedMin = 0;
+// nullish coalesce
+function ifNull(lh, rh) {
+	return lh == null ? rh : lh;
+}
 
-			if (max <= 0 && snappedMax > 0)
-				snappedMax = 0;
-		}
-	}
+function _rangeNum(_min, _max, cfg) {
+	let cmin = cfg.min;
+	let cmax = cfg.max;
 
-	return [snappedMin, snappedMax];
+	let padMin = ifNull(cmin.pad, 0);
+	let padMax = ifNull(cmax.pad, 0);
+
+	let hardMin = ifNull(cmin.hard, -inf);
+	let hardMax = ifNull(cmax.hard,  inf);
+
+	let softMin = ifNull(cmin.soft,  inf);
+	let softMax = ifNull(cmax.soft, -inf);
+
+	let softMinMode = ifNull(cmin.mode, 0);
+	let softMaxMode = ifNull(cmax.mode, 0);
+
+	let delta        = _max - _min;
+	let nonZeroDelta = delta || abs(_max) || 1e3;
+	let mag          = log10(nonZeroDelta);
+	let base         = pow(10, floor(mag));
+
+	let _padMin  = nonZeroDelta * (delta == 0 ? (_min == 0 ? .1 : 1) : padMin);
+	let _newMin  = roundDec(incrRoundDn(_min - _padMin, base/100), 6);
+	let _softMin = _min >= softMin && (softMinMode == 1 || softMinMode == 2 && _newMin < softMin) ? softMin : inf;
+	let minLim   = max(hardMin, _newMin < _softMin && _min >= _softMin ? _softMin : min(_softMin, _newMin));
+
+	let _padMax  = nonZeroDelta * (delta == 0 ? (_max == 0 ? .1 : 1) : padMax);
+	let _newMax  = roundDec(incrRoundUp(_max + _padMax, base/100), 6);
+	let _softMax = _max <= softMax && (softMaxMode == 1 || softMaxMode == 2 && _newMax > softMax) ? softMax : -inf;
+	let maxLim   = min(hardMax, _newMax > _softMax && _max <= _softMax ? _softMax : max(_softMax, _newMax));
+
+	if (minLim == maxLim && minLim == 0)
+		maxLim = 100;
+
+	return [minLim, maxLim];
 }
 
 // alternative: https://stackoverflow.com/a/2254896
@@ -908,7 +938,7 @@ function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 	scaleMin = forceMin ? scaleMin : roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
 
 	for (let val = scaleMin; val <= scaleMax; val = roundDec(val + foundIncr, numDec))
-		splits.push(val);
+		splits.push(Object.is(val, -0) ? 0 : val);		// coalesces -0
 
 	return splits;
 }
@@ -1199,7 +1229,15 @@ function uPlot(opts, data, then) {
 				let isTime =  sc.time;
 				let isLog  = sc.distr == 3;
 
-				sc.range = fnOrSelf(sc.range || (isTime ? snapTimeX : scaleKey == xScaleKey ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
+				let rn = sc.range;
+
+				if (scaleKey != xScaleKey && !isArr(rn) && isObj(rn)) {
+					let cfg = rn;
+					// this is similar to snapNumY
+					rn = (self, dataMin, dataMax) => dataMin == null ? nullMinMax : rangeNum(dataMin, dataMax, cfg);
+				}
+
+				sc.range = fnOrSelf(rn || (isTime ? snapTimeX : scaleKey == xScaleKey ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
 			}
 		}
 	}

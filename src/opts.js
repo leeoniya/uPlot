@@ -446,7 +446,7 @@ export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 	scaleMin = forceMin ? scaleMin : roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
 
 	for (let val = scaleMin; val <= scaleMax; val = roundDec(val + foundIncr, numDec))
-		splits.push(val);
+		splits.push(Object.is(val, -0) ? 0 : val);		// coalesces -0
 
 	return splits;
 }

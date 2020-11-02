@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Soft Min/Max</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<script src="../dist/uPlot.iife.min.js"></script>
+		<style>
+			.uplot {
+				display: inline-block;
+				width: min-content;
+				vertical-align: top;
+			}
+
+			p {
+				margin: 0;
+				padding: 10px;
+			}
+
+			button {
+				position: absolute;
+				left: 100px;
+				top: 100px;
+			}
+		</style>
+	</head>
+	<body>
+		<script>
+			function h1(text) {
+				let el = document.createElement("h1");
+				el.textContent = text;
+				document.body.appendChild(el);
+			};
+
+			const opts = {
+				width: 400,
+				height: 400,
+				scales: {
+					x: {time: false}
+				},
+				series: [
+					{},
+					{
+						stroke: "blue",
+						fill: "rgba(0,0,255,0.1)",
+					},
+				],
+			};
+
+		//	h1("");
+
+			let data = [
+				[0,10],
+				[5,12],
+			];
+
+			let plots = [
+				{
+					title: "min: {soft: 0, mode: 0}",
+					descr: "With min.soft: null or min.mode: 0, the scaleMin will always be a constant % [of the full range] below dataMin.",
+					scales: {
+						y: {
+							range: {
+								min: {
+									pad: 0.2,
+									soft: 0,
+									mode: 0,
+								},
+								max: {
+									pad: 0.2,
+									soft: 0,
+									mode: 2,
+								},
+							}
+						},
+					},
+				},
+				{
+					title: "min: {soft: 0, mode: 1}",
+					descr: "With min.mode: 1, the scaleMin will be min.soft unless dataMin goes below it. This is probably how most would expect a softMin setting to behave.",
+					scales: {
+						y: {
+							range: {
+								min: {
+									pad: 0.2,
+									soft: 0,
+									mode: 1,
+								},
+								max: {
+									pad: 0.2,
+									soft: 0,
+									mode: 2,
+								},
+							}
+						},
+					},
+				},
+				{
+					title: "min: {soft: 0, mode: 2}",
+					descr: "With min.mode: 2, the scaleMin will be a constant % [of the full range] below dataMin until (dataMin - pad) goes below it. This is uPlot's default mode - it provides a conditioned softMin - keeping more vertical resolution when the value range is small and far from softMin.",
+					scales: {
+						y: {
+							range: {
+								min: {
+									pad: 0.2,
+									soft: 0,
+									mode: 2,
+								},
+								max: {
+									pad: 0.2,
+									soft: 0,
+									mode: 2,
+								},
+							}
+						},
+					},
+				},
+			];
+
+			plots = plots.map(o => {
+				let u = uPlot(uPlot.assign(opts, o), data, document.body);
+				let p = document.createElement("p");
+				p.textContent = o.descr;
+				u.root.appendChild(p);
+				return u;
+			});
+
+			function dataMaxIncr() {
+				setInterval(() => {
+				//	data[1][0] -= 0.1;
+					data[1][1] += .1;
+					plots.forEach(u => {
+						u.setData(data);
+					});
+				}, 50);
+			}
+		</script>
+		<button onclick="dataMaxIncr()">▶ dataMax++</button>
+	</body>
+</html>

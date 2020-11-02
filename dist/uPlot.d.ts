@@ -106,7 +106,7 @@ declare class uPlot {
 	static assign(targ: object, ...srcs: object[]): object;
 
 	/** re-ranges a given min/max by a multiple of the range's magnitude (used internally to expand/snap/pad numeric y scales) */
-	static rangeNum(min: number, max: number, mult: number, extra: boolean): uPlot.MinMax;
+	static rangeNum: ((min: number, max: number, mult: number, extra: boolean) => uPlot.MinMax) | ((min: number, max: number, cfg: uPlot.RangeConfig) => uPlot.MinMax);
 
 	/** re-ranges a given min/max outwards to nearest 10% of given min/max's magnitudes, unless fullMags = true */
 	static rangeLog(min: number, max: number, fullMags: boolean): uPlot.MinMax;
@@ -123,6 +123,8 @@ declare class uPlot {
 
 declare namespace uPlot {
 	export type AlignedData = readonly (number | null)[][];
+
+//	export type ScatteredData = readonly number[][][];
 
 	export type SyncScales = [string, string];
 
@@ -144,7 +146,24 @@ declare namespace uPlot {
 		WWW:  string[];
 	}
 
-//	export type ScatteredData = readonly number[][][];
+	interface RangeConfigPart {
+		/** initial multiplier for dataMax-dataMin delta */
+		pad?: number; // 0.1
+
+		/** soft limit */
+		soft?: number; // 0
+
+		/** soft mode - 0: off, 1: if data extreme falls within soft limit, 2: if data extreme & padding exceeds soft limit */
+		mode?: 0 | 1 | 2;  // 2
+
+		/** hard limit */
+		hard?: number;
+	}
+
+	export interface RangeConfig {
+		min: RangeConfigPart;
+		max: RangeConfigPart;
+	}
 
 	export interface Options {
 		/** chart title */
@@ -327,7 +346,7 @@ declare namespace uPlot {
 		auto?: boolean;
 
 		/** can define a static scale range or re-range an initially-determined range from series data */
-		range?: MinMax | ((self: uPlot, initMin: number, initMax: number, scaleKey: string) => MinMax);
+		range?: MinMax | RangeConfig | ((self: uPlot, initMin: number, initMax: number, scaleKey: string) => MinMax);
 
 		/** scale key from which this scale is derived */
 		from?: string,
