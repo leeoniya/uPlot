@@ -299,7 +299,7 @@ declare namespace uPlot {
 			mouseup?:     CreateMouseListener,
 			click?:       CreateMouseListener,
 			dblclick?:    CreateMouseListener,
-	
+
 			mousemove?:   CreateMouseListener,
 			mouseleave?:  CreateMouseListener,
 			mouseenter?:  CreateMouseListener,
@@ -385,6 +385,9 @@ declare namespace uPlot {
 
 		/** when true, null data values will not cause line breaks */
 		spanGaps?: boolean;
+
+		/** tests a datapoint for inclusion in gap array and path clipping */
+		isGap?: (self: uPlot, seriesIdx: number, idx: number) => boolean;
 
 		/** legend label */
 		label?: string;

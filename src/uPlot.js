@@ -1068,18 +1068,7 @@ export default function uPlot(opts, data, then) {
 		let clip = null;
 
 		// create clip path (invert gaps and non-gaps)
-		if (gaps.length > 0) {
-			if (s.spanGaps) {
-				let headGap = gaps[0];
-				let tailGap = gaps[gaps.length - 1];
-				gaps = [];
-
-				if (nullHead)
-					gaps.push(headGap);
-				if (nullTail)
-					gaps.push(tailGap);
-			}
-
+		if (gaps.length > 0 && !s.spanGaps) {
 			clip = new Path2D();
 
 			let prevGapEnd = plotLft;
@@ -1098,17 +1087,29 @@ export default function uPlot(opts, data, then) {
 		return clip;
 	}
 
-	function addGap(gaps, outX, x) {
-		let prevGap = gaps[gaps.length - 1];
+	function addGap(gaps, fromX, toX) {
+		if (toX > fromX) {
+			let prevGap = gaps[gaps.length - 1];
 
-		if (prevGap && prevGap[0] == outX)			// TODO: gaps must be encoded at stroke widths?
-			prevGap[1] = x;
-		else
-			gaps.push([outX, x]);
+			if (prevGap && prevGap[0] == fromX)			// TODO: gaps must be encoded at stroke widths?
+				prevGap[1] = toX;
+			else
+				gaps.push([fromX, toX]);
+		}
+	}
+
+	function nonNullIdx(data, _i0, _i1, dir) {
+		for (let i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
+			if (data[i] != null)
+				return i;
+		}
+
+		return -1;
 	}
 
 	function buildPaths(self, is, _i0, _i1) {
 		const s = series[is];
+		const isGap = s.isGap;
 
 		const xdata  = data[0];
 		const ydata  = data[is];
@@ -1127,15 +1128,20 @@ export default function uPlot(opts, data, then) {
 		let gaps = [];
 
 		let accX = round(getXPos(xdata[dir == 1 ? _i0 : _i1], scaleX, plotWid, plotLft));
+		let accGaps = false;
+
+		// data edges
+		let lftIdx = nonNullIdx(ydata, _i0, _i1, 1);
+		let rgtIdx = nonNullIdx(ydata, _i0, _i1, -1);
+		let lftX = incrRound(getXPos(xdata[lftIdx], scaleX, plotWid, plotLft), 0.5);
+		let rgtX = incrRound(getXPos(xdata[rgtIdx], scaleX, plotWid, plotLft), 0.5);
+
+		if (lftX > plotLft)
+			addGap(gaps, plotLft, lftX);
 
 		// the moves the shape edge outside the canvas so stroke doesnt bleed in
-		if (s.band && dir == 1 && _i0 == i0) {
-			if (width)
-				stroke.lineTo(-width, round(getYPos(ydata[_i0], scaleY, plotHgt, plotTop)));
-
-			if (scaleX.min < xdata[0])
-				gaps.push([plotLft, accX - 1]);
-		}
+		if (s.band && dir == 1)
+			stroke.lineTo(lftX - width * 2, round(getYPos(ydata[_i0], scaleY, plotHgt, plotTop)));
 
 		for (let i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
 			let x = round(getXPos(xdata[i], scaleX, plotWid, plotLft));
@@ -1146,6 +1152,8 @@ export default function uPlot(opts, data, then) {
 					minY = min(outY, minY);
 					maxY = max(outY, maxY);
 				}
+				else if (!accGaps && isGap(self, is, i))
+					accGaps = true;
 			}
 			else {
 				let _addGap = false;
@@ -1156,8 +1164,10 @@ export default function uPlot(opts, data, then) {
 					stroke.lineTo(accX, outY);
 					outX = accX;
 				}
-				else
+				else if (accGaps) {
 					_addGap = true;
+					accGaps = false;
+				}
 
 				if (ydata[i] != null) {
 					outY = round(getYPos(ydata[i], scaleY, plotHgt, plotTop));
@@ -1165,12 +1175,15 @@ export default function uPlot(opts, data, then) {
 					minY = maxY = outY;
 
 					// prior pixel can have data but still start a gap if ends with null
-					if (x - accX > 1 && ydata[i-1] == null)
+					if (x - accX > 1 && ydata[i-1] == null && isGap(self, is, i-1))
 						_addGap = true;
 				}
 				else {
 					minY = inf;
 					maxY = -inf;
+
+					if (!accGaps && isGap(self, is, i))
+						accGaps = true;
 				}
 
 				_addGap && addGap(gaps, outX, x);
@@ -1179,28 +1192,26 @@ export default function uPlot(opts, data, then) {
 			}
 		}
 
-		// extend or insert rightmost gap if no data exists to the right
-		if (ydata[_i1] == null)
-			addGap(gaps, outX, accX);
+		if (rgtX < plotLft + plotWid)
+			addGap(gaps, rgtX, plotLft + plotWid);
 
 		if (s.band) {
-			let overShoot = width * 100, _iy, _x;
+			let _x, _iy, ydata2;
 
 			// the moves the shape edge outside the canvas so stroke doesnt bleed in
-			if (dir == -1 && _i0 == i0) {
-				_x = plotLft - overShoot;
-				_iy = _i0;
+			if (dir == 1) {
+				_x = rgtX + width * 2;
+				_iy = rgtIdx;
+				ydata2 = data[is + 1];
+			}
+			else {
+				_x = lftX - width * 2;
+				_iy = lftIdx;
+				ydata2 = data[is - 1];
 			}
 
-			if (dir == 1 && _i1 == i1) {
-				_x = plotLft + plotWid + overShoot;
-				_iy = _i1;
-
-				if (scaleX.max > xdata[dataLen - 1])
-					gaps.push([accX, plotLft + plotWid]);
-			}
-
-			stroke.lineTo(_x, round(getYPos(ydata[_iy], scaleY, plotHgt, plotTop)));
+			stroke.lineTo(_x, round(getYPos(ydata[_iy],  scaleY, plotHgt, plotTop)));
+			stroke.lineTo(_x, round(getYPos(ydata2[_iy], scaleY, plotHgt, plotTop)));
 		}
 
 		if (dir == 1) {
@@ -1210,8 +1221,8 @@ export default function uPlot(opts, data, then) {
 				let fill = _paths.fill = new Path2D(stroke);
 
 				let fillTo = round(getYPos(s.fillTo(self, is, s.min, s.max), scaleY, plotHgt, plotTop));
-				fill.lineTo(plotLft + plotWid, fillTo);
-				fill.lineTo(plotLft, fillTo);
+				fill.lineTo(rgtX, fillTo);
+				fill.lineTo(lftX, fillTo);
 			}
 		}
 
