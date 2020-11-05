@@ -887,10 +887,6 @@ var font      = '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica N
 var labelFont = "bold " + font;
 var lineMult = 1.5;		// font-size multiplier
 
-function axisResize(self, values, axisIdx) {
-	return self.axes[axisIdx].size;
-}
-
 var xAxisOpts = {
 	show: true,
 	scale: "x",
@@ -908,7 +904,6 @@ var xAxisOpts = {
 	ticks: ticks,
 	font: font,
 	rotate: 0,
-	resize: axisResize,
 };
 
 var numSeriesLabel = "Value";
@@ -1022,7 +1017,6 @@ var yAxisOpts = {
 	ticks: ticks,
 	font: font,
 	rotate: 0,
-	resize: axisResize,
 };
 
 // takes stroke width
@@ -1455,13 +1449,13 @@ function uPlot(opts, data, then) {
 		var hasLftAxis = false;
 
 		axes.forEach(function (axis, i) {
-			if (axis.show) {
+			if (axis.show && axis._show) {
 				var side = axis.side;
-				var size = axis.size;
+				var _size = axis._size;
 				var isVt = side % 2;
 				var labelSize = axis.labelSize = (axis.label != null ? (axis.labelSize || 30) : 0);
 
-				var fullSize = size + labelSize;
+				var fullSize = _size + labelSize;
 
 				if (fullSize > 0) {
 					if (isVt) {
@@ -1528,12 +1522,14 @@ function uPlot(opts, data, then) {
 		}
 
 		axes.forEach(function (axis, i) {
-			var side = axis.side;
+			if (axis.show && axis._show) {
+				var side = axis.side;
 
-			axis._pos = incrOffset(side, axis.size);
+				axis._pos = incrOffset(side, axis._size);
 
-			if (axis.label != null)
-				{ axis._lpos = incrOffset(side, axis.labelSize); }
+				if (axis.label != null)
+					{ axis._lpos = incrOffset(side, axis.labelSize); }
+			}
 		});
 	}
 
@@ -1616,6 +1612,8 @@ function uPlot(opts, data, then) {
 	series.forEach(initSeries);
 
 	function initAxis(axis, i) {
+		axis._show = axis.show;
+
 		if (axis.show) {
 			var isVt = axis.side % 2;
 
@@ -1630,7 +1628,8 @@ function uPlot(opts, data, then) {
 			// also set defaults for incrs & values based on axis distr
 			var isTime =  sc.time;
 
-			axis.space = fnOrSelf(axis.space);
+			axis.size   = fnOrSelf(axis.size);
+			axis.space  = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
 			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
 			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
@@ -1650,6 +1649,16 @@ function uPlot(opts, data, then) {
 
 			axis.font      = pxRatioFont(axis.font);
 			axis.labelFont = pxRatioFont(axis.labelFont);
+
+			axis._size   = axis.size(self, null, i);
+
+			axis._space  =
+			axis._rotate =
+			axis._incrs  =
+			// foundIncr
+			axis._incr   =
+			axis._splits =
+			axis._values = null;
 		}
 	}
 
@@ -2215,9 +2224,9 @@ function uPlot(opts, data, then) {
 		if (fullDim <= 0)
 			{ incrSpace = [0, 0]; }
 		else {
-			var minSpace = axis.space(self, axisIdx, min, max, fullDim);
-			var incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
-			incrSpace = findIncr(min, max, incrs, fullDim, minSpace);
+			var minSpace = axis._space = axis.space(self, axisIdx, min, max, fullDim);
+			var incrs    = axis._incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
+			incrSpace    = findIncr(min, max, incrs, fullDim, minSpace);
 		}
 
 		return incrSpace;
@@ -2265,14 +2274,25 @@ function uPlot(opts, data, then) {
 		var _queuedResize = false;
 
 		axes.forEach(function (axis, i) {
-			if (!axis.show || _queuedResize)
+			if (!axis.show)
 				{ return; }
 
 			var scale = scales[axis.scale];
 
 			// this will happen if all series using a specific scale are toggled off
-			if (scale.min == null)
-				{ return; }
+			if (scale.min == null) {
+				if (axis._show) {
+					_queuedResize = true;
+					axis._show = false;
+				}
+				return;
+			}
+			else {
+				if (!axis._show) {
+					_queuedResize = true;
+					axis._show = true;
+				}
+			}
 
 			var side = axis.side;
 			var ori = side % 2;
@@ -2300,13 +2320,23 @@ function uPlot(opts, data, then) {
 
 			// tick labels
 			// BOO this assumes a specific data/series
-			var _splits = scale.distr == 2 ? splits.map(function (i) { return data0[i]; }) : splits;
-			var _incr   = scale.distr == 2 ? data0[splits[1]] - data0[splits[0]] : incr;
+			var _splits = axis._splits = scale.distr == 2 ? splits.map(function (i) { return data0[i]; }) : splits;
+			var _incr   = axis._incr   = scale.distr == 2 ? data0[splits[1]] - data0[splits[0]] : incr;
 
-			var values = axis.values(self, axis.filter(self, _splits, i, space, _incr), i, space, _incr);
+			var values = axis._values  = axis.values(self, axis.filter(self, _splits, i, space, _incr), i, space, _incr);
 
 			// rotating of labels only supported on bottom x axis
-			var angle = side == 2 ? axis.rotate(self, values, i, space) * -PI/180 : 0;
+			var angle = (axis._rotate = side == 2 ? axis.rotate(self, values, i, space) : 0) * -PI/180;
+
+			var oldSize = axis._size;
+
+			axis._size = axis.size(self, values, i);
+
+			if (oldSize != null && axis._size != oldSize)
+				{ _queuedResize = true; }
+
+			if (_queuedResize)
+				{ return; }
 
 			var basePos  = round(axis._pos * pxRatio);
 			var shiftAmt = tickSize + axisGap;
@@ -2326,15 +2356,6 @@ function uPlot(opts, data, then) {
 			                   ori == 1 ? "middle" : side == 2 ? TOP   : BOTTOM;
 
 			var lineHeight   = axis.font[1] * lineMult;
-
-			var oldSize = axis.size;
-
-			axis.size = axis.resize(self, values, i);		// pass _splits?
-
-			if (axis.size != oldSize) {
-				_queuedResize = true;
-				return;
-			}
 
 			var canOffs = splits.map(function (val) { return round(getPos(val, scale, plotDim, plotOff)); });
 
@@ -2424,7 +2445,7 @@ function uPlot(opts, data, then) {
 		});
 
 		if (_queuedResize) {
-			self.setSize({width: self.width, height: self.height});
+			_setSize(fullWidCss, fullHgtCss);
 			return;
 		}
 

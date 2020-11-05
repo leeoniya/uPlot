@@ -487,12 +487,12 @@ export default function uPlot(opts, data, then) {
 		let hasLftAxis = false;
 
 		axes.forEach((axis, i) => {
-			if (axis.show) {
-				let {side, size} = axis;
+			if (axis.show && axis._show) {
+				let {side, _size} = axis;
 				let isVt = side % 2;
 				let labelSize = axis.labelSize = (axis.label != null ? (axis.labelSize || 30) : 0);
 
-				let fullSize = size + labelSize;
+				let fullSize = _size + labelSize;
 
 				if (fullSize > 0) {
 					if (isVt) {
@@ -560,12 +560,14 @@ export default function uPlot(opts, data, then) {
 		}
 
 		axes.forEach((axis, i) => {
-			let side = axis.side;
+			if (axis.show && axis._show) {
+				let side = axis.side;
 
-			axis._pos = incrOffset(side, axis.size);
+				axis._pos = incrOffset(side, axis._size);
 
-			if (axis.label != null)
-				axis._lpos = incrOffset(side, axis.labelSize);
+				if (axis.label != null)
+					axis._lpos = incrOffset(side, axis.labelSize);
+			}
 		});
 	}
 
@@ -648,6 +650,8 @@ export default function uPlot(opts, data, then) {
 	series.forEach(initSeries);
 
 	function initAxis(axis, i) {
+		axis._show = axis.show;
+
 		if (axis.show) {
 			let isVt = axis.side % 2;
 
@@ -662,7 +666,8 @@ export default function uPlot(opts, data, then) {
 			// also set defaults for incrs & values based on axis distr
 			let isTime = FEAT_TIME && sc.time;
 
-			axis.space = fnOrSelf(axis.space);
+			axis.size   = fnOrSelf(axis.size);
+			axis.space  = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
 			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
 			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
@@ -682,6 +687,16 @@ export default function uPlot(opts, data, then) {
 
 			axis.font      = pxRatioFont(axis.font);
 			axis.labelFont = pxRatioFont(axis.labelFont);
+
+			axis._size   = axis.size(self, null, i);
+
+			axis._space  =
+			axis._rotate =
+			axis._incrs  =
+			// foundIncr
+			axis._incr   =
+			axis._splits =
+			axis._values = null;
 		}
 	}
 
@@ -1242,9 +1257,9 @@ export default function uPlot(opts, data, then) {
 		if (fullDim <= 0)
 			incrSpace = [0, 0];
 		else {
-			let minSpace = axis.space(self, axisIdx, min, max, fullDim);
-			let incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
-			incrSpace = findIncr(min, max, incrs, fullDim, minSpace);
+			let minSpace = axis._space = axis.space(self, axisIdx, min, max, fullDim);
+			let incrs    = axis._incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
+			incrSpace    = findIncr(min, max, incrs, fullDim, minSpace);
 		}
 
 		return incrSpace;
@@ -1292,14 +1307,25 @@ export default function uPlot(opts, data, then) {
 		let _queuedResize = false;
 
 		axes.forEach((axis, i) => {
-			if (!axis.show || _queuedResize)
+			if (!axis.show)
 				return;
 
 			let scale = scales[axis.scale];
 
 			// this will happen if all series using a specific scale are toggled off
-			if (scale.min == null)
+			if (scale.min == null) {
+				if (axis._show) {
+					_queuedResize = true;
+					axis._show = false;
+				}
 				return;
+			}
+			else {
+				if (!axis._show) {
+					_queuedResize = true;
+					axis._show = true;
+				}
+			}
 
 			let side = axis.side;
 			let ori = side % 2;
@@ -1324,13 +1350,23 @@ export default function uPlot(opts, data, then) {
 
 			// tick labels
 			// BOO this assumes a specific data/series
-			let _splits = scale.distr == 2 ? splits.map(i => data0[i]) : splits;
-			let _incr   = scale.distr == 2 ? data0[splits[1]] - data0[splits[0]] : incr;
+			let _splits = axis._splits = scale.distr == 2 ? splits.map(i => data0[i]) : splits;
+			let _incr   = axis._incr   = scale.distr == 2 ? data0[splits[1]] - data0[splits[0]] : incr;
 
-			let values = axis.values(self, axis.filter(self, _splits, i, space, _incr), i, space, _incr);
+			let values = axis._values  = axis.values(self, axis.filter(self, _splits, i, space, _incr), i, space, _incr);
 
 			// rotating of labels only supported on bottom x axis
-			let angle = side == 2 ? axis.rotate(self, values, i, space) * -PI/180 : 0;
+			let angle = (axis._rotate = side == 2 ? axis.rotate(self, values, i, space) : 0) * -PI/180;
+
+			let oldSize = axis._size;
+
+			axis._size = axis.size(self, values, i);
+
+			if (oldSize != null && axis._size != oldSize)
+				_queuedResize = true;
+
+			if (_queuedResize)
+				return;
 
 			let basePos  = round(axis._pos * pxRatio);
 			let shiftAmt = tickSize + axisGap;
@@ -1350,15 +1386,6 @@ export default function uPlot(opts, data, then) {
 			                   ori == 1 ? "middle" : side == 2 ? TOP   : BOTTOM;
 
 			let lineHeight   = axis.font[1] * lineMult;
-
-			let oldSize = axis.size;
-
-			axis.size = axis.resize(self, values, i);		// pass _splits?
-
-			if (axis.size != oldSize) {
-				_queuedResize = true;
-				return;
-			}
 
 			let canOffs = splits.map(val => round(getPos(val, scale, plotDim, plotOff)));
 
@@ -1448,7 +1475,7 @@ export default function uPlot(opts, data, then) {
 		});
 
 		if (_queuedResize) {
-			self.setSize({width: self.width, height: self.height});
+			_setSize(fullWidCss, fullHgtCss);
 			return;
 		}
 
