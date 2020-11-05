@@ -398,6 +398,10 @@ const font      = '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica
 const labelFont = "bold " + font;
 export const lineMult = 1.5;		// font-size multiplier
 
+function axisResize(self, values, axisIdx) {
+	return self.axes[axisIdx].size;
+}
+
 export const xAxisOpts = {
 	show: true,
 	scale: "x",
@@ -415,6 +419,7 @@ export const xAxisOpts = {
 	ticks,
 	font,
 	rotate: 0,
+	resize: axisResize,
 };
 
 export const numSeriesLabel = "Value";
@@ -528,6 +533,7 @@ export const yAxisOpts = {
 	ticks,
 	font,
 	rotate: 0,
+	resize: axisResize,
 };
 
 // takes stroke width

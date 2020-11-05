@@ -890,6 +890,10 @@ const font      = '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica
 const labelFont = "bold " + font;
 const lineMult = 1.5;		// font-size multiplier
 
+function axisResize(self, values, axisIdx) {
+	return self.axes[axisIdx].size;
+}
+
 const xAxisOpts = {
 	show: true,
 	scale: "x",
@@ -907,6 +911,7 @@ const xAxisOpts = {
 	ticks,
 	font,
 	rotate: 0,
+	resize: axisResize,
 };
 
 const numSeriesLabel = "Value";
@@ -1020,6 +1025,7 @@ const yAxisOpts = {
 	ticks,
 	font,
 	rotate: 0,
+	resize: axisResize,
 };
 
 // takes stroke width
@@ -2250,8 +2256,10 @@ function uPlot(opts, data, then) {
 	}
 
 	function drawAxesGrid() {
+		let _queuedResize = false;
+
 		axes.forEach((axis, i) => {
-			if (!axis.show)
+			if (!axis.show || _queuedResize)
 				return;
 
 			let scale = scales[axis.scale];
@@ -2275,8 +2283,6 @@ function uPlot(opts, data, then) {
 			let getPos  = ori == 0 ? getXPos : getYPos;
 			let plotDim = ori == 0 ? plotWid : plotHgt;
 			let plotOff = ori == 0 ? plotLft : plotTop;
-
-			let canOffs = splits.map(val => round(getPos(val, scale, plotDim, plotOff)));
 
 			let axisGap  = round(axis.gap * pxRatio);
 
@@ -2311,6 +2317,17 @@ function uPlot(opts, data, then) {
 			                   ori == 1 ? "middle" : side == 2 ? TOP   : BOTTOM;
 
 			let lineHeight   = axis.font[1] * lineMult;
+
+			let oldSize = axis.size;
+
+			axis.size = axis.resize(self, values, i);		// pass _splits?
+
+			if (axis.size != oldSize) {
+				_queuedResize = true;
+				return;
+			}
+
+			let canOffs = splits.map(val => round(getPos(val, scale, plotDim, plotOff)));
 
 			values.forEach((val, i) => {
 				if (val == null)
@@ -2396,6 +2413,11 @@ function uPlot(opts, data, then) {
 				);
 			}
 		});
+
+		if (_queuedResize) {
+			self.setSize({width: self.width, height: self.height});
+			return;
+		}
 
 		fire("drawAxes");
 	}

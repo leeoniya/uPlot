@@ -888,6 +888,10 @@ var uPlot = (function () {
 	var labelFont = "bold " + font;
 	var lineMult = 1.5;		// font-size multiplier
 
+	function axisResize(self, values, axisIdx) {
+		return self.axes[axisIdx].size;
+	}
+
 	var xAxisOpts = {
 		show: true,
 		scale: "x",
@@ -905,6 +909,7 @@ var uPlot = (function () {
 		ticks: ticks,
 		font: font,
 		rotate: 0,
+		resize: axisResize,
 	};
 
 	var numSeriesLabel = "Value";
@@ -1018,6 +1023,7 @@ var uPlot = (function () {
 		ticks: ticks,
 		font: font,
 		rotate: 0,
+		resize: axisResize,
 	};
 
 	// takes stroke width
@@ -2257,8 +2263,10 @@ var uPlot = (function () {
 		}
 
 		function drawAxesGrid() {
+			var _queuedResize = false;
+
 			axes.forEach(function (axis, i) {
-				if (!axis.show)
+				if (!axis.show || _queuedResize)
 					{ return; }
 
 				var scale = scales[axis.scale];
@@ -2285,8 +2293,6 @@ var uPlot = (function () {
 				var getPos  = ori == 0 ? getXPos : getYPos;
 				var plotDim = ori == 0 ? plotWid : plotHgt;
 				var plotOff = ori == 0 ? plotLft : plotTop;
-
-				var canOffs = splits.map(function (val) { return round(getPos(val, scale, plotDim, plotOff)); });
 
 				var axisGap  = round(axis.gap * pxRatio);
 
@@ -2321,6 +2327,17 @@ var uPlot = (function () {
 				                   ori == 1 ? "middle" : side == 2 ? TOP   : BOTTOM;
 
 				var lineHeight   = axis.font[1] * lineMult;
+
+				var oldSize = axis.size;
+
+				axis.size = axis.resize(self, values, i);		// pass _splits?
+
+				if (axis.size != oldSize) {
+					_queuedResize = true;
+					return;
+				}
+
+				var canOffs = splits.map(function (val) { return round(getPos(val, scale, plotDim, plotOff)); });
 
 				values.forEach(function (val, i) {
 					if (val == null)
@@ -2406,6 +2423,11 @@ var uPlot = (function () {
 					);
 				}
 			});
+
+			if (_queuedResize) {
+				self.setSize({width: self.width, height: self.height});
+				return;
+			}
 
 			fire("drawAxes");
 		}

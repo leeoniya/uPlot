@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Axis Autosize</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			function f(x) {
+				return Math.random() - 0.5 + Math.sin(x * 0.00002) * 40 + Math.sin(x * 0.001) * 5 + Math.sin(x * 0.1) * 2;
+			}
+
+			const points = 500;
+
+			function getData(max, mult) {
+				mult = mult || 1;
+
+				const data = [
+					Array(points),
+					Array(points)
+				];
+
+				for (let x = 0; x < max; x++) {
+					data[0][x] = x;
+					data[1][x] = f(x) * mult;
+				}
+
+				return data;
+			}
+
+			const opts = {
+				title: "Axis Control",
+				width: 1048,
+				height: 600,
+				scales: {
+					x: {
+						time: false,
+					//	auto: false,
+					//	range: [0, 6],
+					},
+				},
+				series: [
+					{
+						label: "x",
+					},
+					{
+						label: "sin(x)",
+						stroke: "red",
+					}
+				],
+				axes: [
+					{
+						label: "X Axis Label",
+						labelSize: 20,
+					},
+					{
+						label: "Y Axis Label",
+						stroke: "red",
+						class: "foo",
+						resize(self, values, axisIdx) {
+							// get current size
+							let size = self.axes[axisIdx].size;
+
+							if (values[0].length > 4 && size < 75)
+								size = 75;
+
+							return size;
+						},
+					}
+				],
+			};
+
+			let mult = 1;
+
+			let u = new uPlot(opts, getData(points, mult), document.body);
+
+			setTimeout(() => {
+				u.setData(getData(points, 1e5));
+			}, 1000);
+		</script>
+	</body>
+</html>

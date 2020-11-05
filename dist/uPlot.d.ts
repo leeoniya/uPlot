@@ -467,6 +467,9 @@ declare namespace uPlot {
 		/** height of x axis or width of y axis in CSS pixels alloted for values, gap & ticks, but excluding axis label */
 		size?: number;
 
+		/** receives an array of formatted values and returns the new axis size (e.g. measuring text and axis auto-sizing) */
+		resize?: (self: uPlot, values: string[], axisIdx: number) => number;
+
 		/** gap between axis values and axis baseline (or ticks, if enabled) in CSS pixels */
 		gap?: number;
 
