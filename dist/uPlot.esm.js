@@ -2295,6 +2295,9 @@ function uPlot(opts, data, then) {
 
 			let [incr, space] = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 
+			if (space == 0)
+				return;
+
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.distr == 2;
 

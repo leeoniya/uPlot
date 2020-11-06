@@ -2305,6 +2305,9 @@ var uPlot = (function () {
 				var incr = ref[0];
 				var space = ref[1];
 
+				if (space == 0)
+					{ return; }
+
 				// if we're using index positions, force first tick to match passed index
 				var forceMin = scale.distr == 2;
 
