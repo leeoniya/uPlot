@@ -744,7 +744,7 @@ var uPlot = (function () {
 				var prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
 				var incrHours = foundIncr / h;
 
-				var minSpace = self.axes[axisIdx].space();		// TOFIX: only works for static space:
+				var minSpace = self.axes[axisIdx]._space;
 				var pctSpace = foundSpace / minSpace;
 
 				while (1) {
@@ -982,7 +982,7 @@ var uPlot = (function () {
 
 		var valToPos = self.valToPos;
 
-		var minSpace = axis.space();			// TOFIX: only works for static space:
+		var minSpace = axis._space;
 
 		var _10 = valToPos(10, scaleKey);
 

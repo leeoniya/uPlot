@@ -253,7 +253,7 @@ export function timeAxisSplits(tzDate) {
 			let prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
 			let incrHours = foundIncr / h;
 
-			let minSpace = self.axes[axisIdx].space();		// TOFIX: only works for static space:
+			let minSpace = self.axes[axisIdx]._space;
 			let pctSpace = foundSpace / minSpace;
 
 			while (1) {
@@ -492,7 +492,7 @@ export function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 
 	let valToPos = self.valToPos;
 
-	let minSpace = axis.space();			// TOFIX: only works for static space:
+	let minSpace = axis._space;
 
 	let _10 = valToPos(10, scaleKey);
 
