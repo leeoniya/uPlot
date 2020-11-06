@@ -125,6 +125,10 @@
 
 							let yData = data[3];
 
+							ctx.beginPath();
+							ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
+							ctx.clip();
+
 							yData.forEach((yVals, xi) => {
 								let xPos = Math.round(u.valToPos(data[0][xi], 'x', true));
 
@@ -218,6 +222,10 @@
 
 							// pre-calc rect height since we know the aggregation bucket
 							let yHgt = Math.floor(u.valToPos(bucketIncr, 'y', true) - u.valToPos(0, 'y', true));
+
+							ctx.beginPath();
+							ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
+							ctx.clip();
 
 							yData.forEach((yVals, xi) => {
 								let xPos = Math.floor(u.valToPos(data[0][xi], 'x', true));
