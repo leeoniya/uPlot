@@ -57,7 +57,7 @@
 					}
 
 					plot.addEventListener("mouseleave", () => {
-						if (!u.cursor.locked) {
+						if (!u.cursor._lock) {
 						//	u.setCursor({left: -10, top: -10});
 							hideTips();
 						}

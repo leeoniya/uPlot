@@ -867,7 +867,6 @@ var uPlot = (function () {
 			prox: -1,
 		},
 
-		locked: false,
 		left: -10,
 		top: -10,
 		idx: null,
@@ -1334,7 +1333,7 @@ var uPlot = (function () {
 
 			if (i > 0) {
 				onMouse("click", label, function (e) {
-					if ( cursor.locked)
+					if ( cursor._lock)
 						{ return; }
 
 					setSeries(series.indexOf(s), {show: !s.show},  syncOpts.setSeries);
@@ -1342,7 +1341,7 @@ var uPlot = (function () {
 
 				if (cursorFocus) {
 					onMouse(mouseenter, label, function (e) {
-						if (cursor.locked)
+						if (cursor._lock)
 							{ return; }
 
 						setSeries(series.indexOf(s), {focus: true}, syncOpts.setSeries);
@@ -1536,6 +1535,7 @@ var uPlot = (function () {
 
 		var cursor =  (self.cursor = assign({}, cursorOpts, opts.cursor));
 
+		 (cursor._lock = false);
 		 (cursor.points.show = fnOrSelf(cursor.points.show));
 
 		var focus = self.focus = assign({}, opts.focus || {alpha: 0.3},  cursor.focus);
@@ -2680,7 +2680,7 @@ var uPlot = (function () {
 
 		if (showLegend && cursorFocus) {
 			on(mouseleave, legendEl, function (e) {
-				if (cursor.locked)
+				if (cursor._lock)
 					{ return; }
 				setSeries(null, {focus: false}, syncOpts.setSeries);
 				updateCursor();
@@ -2995,7 +2995,7 @@ var uPlot = (function () {
 		}
 
 		function mouseMove(e, src, _x, _y, _w, _h, _i) {
-			if (cursor.locked)
+			if (cursor._lock)
 				{ return; }
 
 			cacheMouse(e, src, _x, _y, _w, _h, _i, false, e != null);
@@ -3116,9 +3116,9 @@ var uPlot = (function () {
 				hideSelect();
 			}
 			else if (cursor.lock) {
-				cursor.locked = !cursor.locked;
+				cursor._lock = !cursor._lock;
 
-				if (!cursor.locked)
+				if (!cursor._lock)
 					{ updateCursor(); }
 			}
 
@@ -3129,7 +3129,7 @@ var uPlot = (function () {
 		}
 
 		function mouseLeave(e, src, _x, _y, _w, _h, _i) {
-			if (!cursor.locked) {
+			if (!cursor._lock) {
 				var _dragging = dragging;
 
 				if (dragging) {

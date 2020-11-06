@@ -869,7 +869,6 @@ const cursorOpts = {
 		prox: -1,
 	},
 
-	locked: false,
 	left: -10,
 	top: -10,
 	idx: null,
@@ -1336,7 +1335,7 @@ function uPlot(opts, data, then) {
 
 		if (i > 0) {
 			onMouse("click", label, e => {
-				if ( cursor.locked)
+				if ( cursor._lock)
 					return;
 
 				setSeries(series.indexOf(s), {show: !s.show},  syncOpts.setSeries);
@@ -1344,7 +1343,7 @@ function uPlot(opts, data, then) {
 
 			if (cursorFocus) {
 				onMouse(mouseenter, label, e => {
-					if (cursor.locked)
+					if (cursor._lock)
 						return;
 
 					setSeries(series.indexOf(s), {focus: true}, syncOpts.setSeries);
@@ -1534,6 +1533,7 @@ function uPlot(opts, data, then) {
 
 	const cursor =  (self.cursor = assign({}, cursorOpts, opts.cursor));
 
+	 (cursor._lock = false);
 	 (cursor.points.show = fnOrSelf(cursor.points.show));
 
 	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3},  cursor.focus);
@@ -2670,7 +2670,7 @@ function uPlot(opts, data, then) {
 
 	if (showLegend && cursorFocus) {
 		on(mouseleave, legendEl, e => {
-			if (cursor.locked)
+			if (cursor._lock)
 				return;
 			setSeries(null, {focus: false}, syncOpts.setSeries);
 			updateCursor();
@@ -2981,7 +2981,7 @@ function uPlot(opts, data, then) {
 	}
 
 	function mouseMove(e, src, _x, _y, _w, _h, _i) {
-		if (cursor.locked)
+		if (cursor._lock)
 			return;
 
 		cacheMouse(e, src, _x, _y, _w, _h, _i, false, e != null);
@@ -3098,9 +3098,9 @@ function uPlot(opts, data, then) {
 			hideSelect();
 		}
 		else if (cursor.lock) {
-			cursor.locked = !cursor.locked;
+			cursor._lock = !cursor._lock;
 
-			if (!cursor.locked)
+			if (!cursor._lock)
 				updateCursor();
 		}
 
@@ -3111,7 +3111,7 @@ function uPlot(opts, data, then) {
 	}
 
 	function mouseLeave(e, src, _x, _y, _w, _h, _i) {
-		if (!cursor.locked) {
+		if (!cursor._lock) {
 			let _dragging = dragging;
 
 			if (dragging) {

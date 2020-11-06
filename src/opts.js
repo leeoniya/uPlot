@@ -377,7 +377,6 @@ export const cursorOpts = {
 		prox: -1,
 	},
 
-	locked: false,
 	left: -10,
 	top: -10,
 	idx: null,
