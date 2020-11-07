@@ -336,9 +336,6 @@ declare namespace uPlot {
 
 		/** lock cursor on mouse click in plotting area */
 		lock?: boolean; // false
-
-		/** locked state */
-		locked?: false;
 	}
 
 	export interface Scale {
