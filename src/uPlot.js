@@ -1314,17 +1314,19 @@ export default function uPlot(opts, data, then) {
 			let scale = scales[axis.scale];
 
 			// this will happen if all series using a specific scale are toggled off
-			if (scale.min == null) {
-				if (axis._show) {
-					_queuedResize = true;
-					axis._show = false;
+			if (ready) {
+				if (scale.min == null) {
+					if (axis._show) {
+						_queuedResize = true;
+						axis._show = false;
+					}
+					return;
 				}
-				return;
-			}
-			else {
-				if (!axis._show) {
-					_queuedResize = true;
-					axis._show = true;
+				else {
+					if (!axis._show) {
+						_queuedResize = true;
+						axis._show = true;
+					}
 				}
 			}
 
@@ -1366,7 +1368,7 @@ export default function uPlot(opts, data, then) {
 
 			axis._size = axis.size(self, values, i);
 
-			if (oldSize != null && axis._size != oldSize)
+			if (ready && oldSize != null && axis._size != oldSize)
 				_queuedResize = true;
 
 			if (_queuedResize)
