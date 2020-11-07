@@ -1163,6 +1163,8 @@ var uPlot = (function () {
 			if (space >= minSpace && minDec + incrDec < 17)
 				{ return [incrs[i], space]; }
 		}
+
+		return [0, 0];
 	}
 
 	function pxRatioFont(font) {
