@@ -106,68 +106,61 @@
 		</script>
 
 		<script>
-			let rawData = [
-				[
-					{x: 3,  y: 2},
-					{x: 5,  y: 3},
-					{x: 6,  y: 4},
-					{x: 7,  y: 10},
-					{x: 20, y: 5},
-				],
-				[
-					{x: 1,  y: 7},
-					{x: 2,  y: 2},
-					{x: 3,  y: 1},
-					{x: 4,  y: null},		// real gap
-					{x: 5,  y: 6},
-					{x: 17, y: 13},
-				],
-				[
-					{x: 9,  y: 9},
-					{x: 14, y: 5},
-					{x: 15, y: null},		// real gap
-					{x: 16, y: 1},
-				],
-			];
+			function outerJoin0(tables) {
+				if (tables.length == 1) {
+					return {
+						data: tables[0],
+						isGap: _ => true,
+					};
+				}
 
-			function align(dataSets) {
 				let xVals = new Set();
-				// fast null lookup
-				let xNulls = [null];
+				let xNulls = [new Set()];
 
-				dataSets.forEach(d => {
+				tables.forEach(t => {
+					let xs = t[0];
+					let len = xs.length;
 					let nulls = new Set();
 
-					d.forEach(xy => {
-						xVals.add(xy.x);
+					for (let i = 0; i < len; i++)
+						xVals.add(xs[i]);
 
-						if (xy.y == null)
-							nulls.add(xy.x);
+					t.forEach(ys => {
+						if (ys != xs) {
+							for (let i = 0; i < len; i++) {
+								if (ys[i] == null)
+									nulls.add(xs[i]);
+							}
+						}
 					});
 
 					xNulls.push(nulls);
 				});
 
-				xVals = Array.from(xVals).sort((a, b) => a - b);
-
 				let data = [
-					xVals,
+					Array.from(xVals).sort((a, b) => a - b),
 				];
 
-				// fast x index lookup
-				let xlut = new Map();
-				xVals.forEach((x, i) => {
-					xlut.set(x, i);
-				});
+				let alignedLen = data[0].length;
 
-				dataSets.forEach(d => {
-					let yVals = Array(xVals.length).fill(null);
+				let xIdxs = new Map();
 
-					d.forEach(xy => {
-						yVals[xlut.get(xy.x)] = xy.y;
+				for (let i = 0; i < alignedLen; i++)
+					xIdxs.set(data[0][i], i);
+
+				tables.forEach(t => {
+					let xs = t[0];
+
+					t.forEach(ys => {
+						if (ys != xs) {
+							let yVals = Array(alignedLen).fill(null);
+
+							for (let i = 0; i < ys.length; i++)
+								yVals[xIdxs.get(xs[i])] = ys[i];
+
+							data.push(yVals);
+						}
 					});
-
-					data.push(yVals);
 				});
 
 				return {
@@ -179,7 +172,22 @@
 				};
 			}
 
-			let { data: data2, isGap } = align(rawData);
+			let tables = [
+				[
+					[3,5,6,7,20],
+					[2,3,4,10,5],
+				],
+				[
+					[1,2,3,4,5,17],
+					[7,2,1,null,6,13],
+				],
+				[
+					[9,14,15,16],
+					[9,5,null,1],
+				]
+			];
+
+			let { data: data2, isGap } = outerJoin0(tables);
 
 			const opts2 = {
 				width: 1200,
