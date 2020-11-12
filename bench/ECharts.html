@@ -8,11 +8,13 @@
 	<body>
 		<h2 id="wait">Loading lib....</h2>
 
-		<div id="container" style="height: 600px; width: 1920px;"></div>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.0.0/echarts.min.js"></script>
 
-		<script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+        <div id="chart" style="width: 1920px; height: 600px;"></div>
 
 		<script>
+			// based https://github.com/apache/incubator-echarts/blob/d4bf86c963feaa12d83e0d3bd9f9b2b6249233d7/test/sample-compare.html
+
 			function round2(val) {
 				return Math.round(val * 100) / 100;
 			}
@@ -22,91 +24,122 @@
 			}
 
 			function prepData(packed) {
-				console.time('prep');
+				console.time("prep");
 
 				// epoch,idl,recv,send,read,writ,used,free
 
 				const numFields = packed[0];
 				packed = packed.slice(numFields + 1);
 
-				var cpu = Array(packed.length/numFields);
-				var ram = Array(packed.length/numFields);
-				var tcp = Array(packed.length/numFields);
+				let data = new Float64Array(packed.length / numFields * 4);
 
+				let off = 0;
+				let date = packed[0];
 				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
-					let date = packed[i] * 60 * 1000;
-					cpu[j] = [date, round3(100 - packed[i+1])];
-					ram[j] = [date, round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))];
-					tcp[j] = [date, packed[i+3]];
+					date += 1;
+					data[off++] = date * 60 * 1000;
+					data[off++] = round3(100 - packed[i + 1]);
+					data[off++] = round2(100 * packed[i + 5] / (packed[i + 5] + packed[i + 6]));
+					data[off++] = packed[i + 3];
 				}
+				console.timeEnd("prep");
 
-				console.timeEnd('prep');
-
-				return [cpu, ram, tcp];
+				return data;
 			}
 
 			function makeChart(data) {
-				console.time('chart');
+				console.time("chart");
+				let dom = document.getElementById("chart");
 
-				var dom = document.getElementById("container");
-				var myChart = echarts.init(dom);
+				let myChart = echarts.init(dom, null, {
+					width: 1920,
+					height: 600
+				});
 
 				let opts = {
-					tooltip: {
-						trigger: 'axis',
-						formatter: function(params) {
-							let date = new Date(params[0].data[0]);
-							return date.getDate() + '/' + (date.getMonth() + 1) + '/' + date.getFullYear() + ' : ' + params[0].data[1];
-						},
-						axisPointer: {
-							animation: false
-						},
+					animation: false,
+					dataset: {
+						source: data,
+						dimensions: ["date", "cpu", "ram", "tcpout"]
 					},
+					tooltip: {
+						trigger: "axis"
+					},
+					legend: {},
 					grid: {
-						left: 40,
-						top: 0,
+						containLabel: true,
+						left: 0,
+						top: 50,
 						right: 0,
-						bottom: 30,
+						bottom: 30
 					},
 					xAxis: {
-						type: 'time',
-						splitLine: {
-							show: false
+						type: "time"
+					},
+					yAxis: [
+						{
+							type: "value",
+							max: 100,
+							axisLabel: {
+								formatter: "{value} %"
+							}
 						},
-						data: data[0],
-					},
-					yAxis: {
-						type: 'value'
-					},
+						{
+							type: "value",
+							max: 100,
+							axisLabel: {
+								formatter: "{value} MB"
+							}
+						}
+					],
 					series: [
 						{
-							name: 'CPU',
-							type: 'line',
+							name: "CPU",
+							type: "line",
 							showSymbol: false,
-							hoverAnimation: false,
-							data: data[1]
+							sampling: "lttb",
+							lineStyle: { width: 1 },
+							emphasis: { lineStyle: { width: 1 } },
+							encode: {
+								x: "date",
+								y: "cpu"
+							}
 						},
 						{
-							name: 'RAM',
-							type: 'line',
+							name: "RAM",
+							type: "line",
+							yAxisIndex: 1,
 							showSymbol: false,
-							hoverAnimation: false,
-							data: data[2]
+							sampling: "lttb",
+							lineStyle: { width: 1 },
+							emphasis: { lineStyle: { width: 1 } },
+							encode: {
+								x: "date",
+								y: "ram"
+							}
 						},
 						{
-							name: 'TCP Out',
-							type: 'line',
+							name: "TCP Out",
+							type: "line",
+							yAxisIndex: 1,
 							showSymbol: false,
-							hoverAnimation: false,
-							data: data[3]
+							sampling: "lttb",
+							lineStyle: { width: 1 },
+							emphasis: { lineStyle: { width: 1 } },
+							encode: {
+								x: "date",
+								y: "tcpout"
+							}
 						}
 					]
 				};
 
-				myChart.setOption(opts, true);
+				myChart.setOption(opts, {
+					notMerge: true
+				});
 
 				wait.textContent = "Done!";
-				console.timeEnd('chart');
+				console.timeEnd("chart");
 			}
 
 			let wait = document.getElementById("wait");
