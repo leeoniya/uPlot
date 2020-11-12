@@ -10,7 +10,7 @@
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
-			var loop = 1e4;
+			var loop = 1e2;
 
 			let data = [
 				Array(loop),
@@ -71,7 +71,10 @@
 				}
 			}
 
-			window.addEventListener("resize", throttle(() => u.setSize(getSize()), 100));
+		//	window.addEventListener("resize", throttle(() => u.setSize(getSize()), 100));
+			window.addEventListener("resize", e => {
+				u.setSize(getSize());
+			});
 		</script>
 	</body>
 </html>
