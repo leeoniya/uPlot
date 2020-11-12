@@ -225,8 +225,14 @@ function roundDec(val, dec) {
 
 var fixedDec = new Map();
 
+function guessDec(num) {
+	return ((""+num).split(".")[1] || "").length;
+}
+
 function genIncrs(base, minExp, maxExp, mults) {
 	var incrs = [];
+
+	var multDec = mults.map(guessDec);
 
 	for (var exp = minExp; exp < maxExp; exp++) {
 		var expa = abs(exp);
@@ -234,9 +240,10 @@ function genIncrs(base, minExp, maxExp, mults) {
 
 		for (var i = 0; i < mults.length; i++) {
 			var _incr = mults[i] * mag;
-			var incr = roundDec(_incr, _incr >= 0 && exp >= 0 ? 0 : expa);
+			var dec = (_incr >= 0 && exp >= 0 ? 0 : expa) + (exp >= multDec[i] ? 0 : multDec[i]);
+			var incr = roundDec(_incr, dec);
 			incrs.push(incr);
-			fixedDec.set(incr, incr < 1 ? expa : 0);
+			fixedDec.set(incr, dec);
 		}
 	}
 
@@ -538,13 +545,22 @@ function tzDate(date, tz) {
 
 // default formatters:
 
-var incrMults = [1,2,5];
+var onlyWhole = function (v) { return v % 1 == 0; };
 
-var decIncrs = genIncrs(10, -16, 0, incrMults);
+var allMults = [1,2,2.5,5];
 
-var intIncrs = genIncrs(10, 0, 16, incrMults);
+var wholeMults = allMults.filter(onlyWhole);
 
-var numIncrs = decIncrs.concat(intIncrs);
+// ...0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.25, 0.5
+var decIncrs = genIncrs(10, -16, 0, allMults);
+
+// 1, 2, 2.5, 5, 10, 20, 25, 50...
+var oneIncrs = genIncrs(10, 0, 16, allMults);
+
+// 1, 2,      5, 10, 20, 25, 50...
+var wholeIncrs = oneIncrs.filter(onlyWhole);
+
+var numIncrs = decIncrs.concat(oneIncrs);
 
 var s = 1,
 	m = 60,
@@ -554,7 +570,7 @@ var s = 1,
 	y = d * 365;
 
 // min of 1e-3 prevents setting a temporal x ticks too small since Date objects cannot advance ticks smaller than 1ms
-var timeIncrs =  genIncrs(10, -3, 0, incrMults).concat([
+var timeIncrs =  genIncrs(10, -3, 0, wholeMults).concat([
 	// minute divisors (# of secs)
 	1,
 	5,
@@ -604,6 +620,17 @@ var timeIncrs =  genIncrs(10, -3, 0, incrMults).concat([
 
 // base 2
 var binIncrs = genIncrs(2, -53, 53, [1]);
+
+/*
+console.log({
+	decIncrs,
+	oneIncrs,
+	wholeIncrs,
+	numIncrs,
+	timeIncrs,
+	fixedDec,
+});
+*/
 
 function timeAxisStamps(stampCfg, fmtDate) {
 	return stampCfg.map(function (s) { return s.map(function (v, i) { return i == 0 || i == 8 || v == null ? v : fmtDate(i == 1 || s[8] == 0 ? v : s[1] + v); }
@@ -1158,7 +1185,7 @@ function findIncr(min, max, incrs, dim, minSpace) {
 	for (var i = 0; i < incrs.length; i++) {
 		var space = incrs[i] * pxPerUnit;
 
-		var incrDec = incrs[i] < 1 ? fixedDec.get(incrs[i]) : 0;
+		var incrDec = incrs[i] < 10 ? fixedDec.get(incrs[i]) : 0;
 
 		if (space >= minSpace && minDec + incrDec < 17)
 			{ return [incrs[i], space]; }
@@ -1645,7 +1672,7 @@ function uPlot(opts, data, then) {
 			axis.size   = fnOrSelf(axis.size);
 			axis.space  = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
-			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
+			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? wholeIncrs : (isTime ? timeIncrs : numIncrs)));
 			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
 
 			var av = axis.values;

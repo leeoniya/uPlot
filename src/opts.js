@@ -44,13 +44,22 @@ import {
 
 // default formatters:
 
-const incrMults = [1,2,5];
+const onlyWhole = v => v % 1 == 0;
 
-const decIncrs = genIncrs(10, -16, 0, incrMults);
+const allMults = [1,2,2.5,5];
 
-export const intIncrs = genIncrs(10, 0, 16, incrMults);
+const wholeMults = allMults.filter(onlyWhole);
 
-export const numIncrs = decIncrs.concat(intIncrs);
+// ...0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.25, 0.5
+export const decIncrs = genIncrs(10, -16, 0, allMults);
+
+// 1, 2, 2.5, 5, 10, 20, 25, 50...
+export const oneIncrs = genIncrs(10, 0, 16, allMults);
+
+// 1, 2,      5, 10, 20, 25, 50...
+export const wholeIncrs = oneIncrs.filter(onlyWhole);
+
+export const numIncrs = decIncrs.concat(oneIncrs);
 
 let s = 1,
 	m = 60,
@@ -60,7 +69,7 @@ let s = 1,
 	y = d * 365;
 
 // min of 1e-3 prevents setting a temporal x ticks too small since Date objects cannot advance ticks smaller than 1ms
-export const timeIncrs = FEAT_TIME && genIncrs(10, -3, 0, incrMults).concat([
+export const timeIncrs = FEAT_TIME && genIncrs(10, -3, 0, wholeMults).concat([
 	// minute divisors (# of secs)
 	1,
 	5,
@@ -111,6 +120,17 @@ export const timeIncrs = FEAT_TIME && genIncrs(10, -3, 0, incrMults).concat([
 
 // base 2
 const binIncrs = genIncrs(2, -53, 53, [1]);
+
+/*
+console.log({
+	decIncrs,
+	oneIncrs,
+	wholeIncrs,
+	numIncrs,
+	timeIncrs,
+	fixedDec,
+});
+*/
 
 export function timeAxisStamps(stampCfg, fmtDate) {
 	return stampCfg.map(s => s.map((v, i) =>

@@ -214,8 +214,14 @@ export function roundDec(val, dec) {
 
 export const fixedDec = new Map();
 
+export function guessDec(num) {
+	return ((""+num).split(".")[1] || "").length;
+}
+
 export function genIncrs(base, minExp, maxExp, mults) {
 	let incrs = [];
+
+	let multDec = mults.map(guessDec);
 
 	for (let exp = minExp; exp < maxExp; exp++) {
 		let expa = abs(exp);
@@ -223,9 +229,10 @@ export function genIncrs(base, minExp, maxExp, mults) {
 
 		for (let i = 0; i < mults.length; i++) {
 			let _incr = mults[i] * mag;
-			let incr = roundDec(_incr, _incr >= 0 && exp >= 0 ? 0 : expa);
+			let dec = (_incr >= 0 && exp >= 0 ? 0 : expa) + (exp >= multDec[i] ? 0 : multDec[i]);
+			let incr = roundDec(_incr, dec);
 			incrs.push(incr);
-			fixedDec.set(incr, incr < 1 ? expa : 0);
+			fixedDec.set(incr, dec);
 		}
 	}
 

@@ -109,7 +109,7 @@ import {
 	yScaleOpts,
 
 	timeIncrs,
-	intIncrs,
+	wholeIncrs,
 	numIncrs,
 	timeAxisVal,
 	timeAxisVals,
@@ -199,7 +199,7 @@ function findIncr(min, max, incrs, dim, minSpace) {
 	for (var i = 0; i < incrs.length; i++) {
 		let space = incrs[i] * pxPerUnit;
 
-		let incrDec = incrs[i] < 1 ? fixedDec.get(incrs[i]) : 0;
+		let incrDec = incrs[i] < 10 ? fixedDec.get(incrs[i]) : 0;
 
 		if (space >= minSpace && minDec + incrDec < 17)
 			return [incrs[i], space];
@@ -683,7 +683,7 @@ export default function uPlot(opts, data, then) {
 			axis.size   = fnOrSelf(axis.size);
 			axis.space  = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
-			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? intIncrs : (isTime ? timeIncrs : numIncrs)));
+			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? wholeIncrs : (isTime ? timeIncrs : numIncrs)));
 			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
 
 			let av = axis.values;
