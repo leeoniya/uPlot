@@ -218,11 +218,12 @@ export function genIncrs(base, minExp, maxExp, mults) {
 	let incrs = [];
 
 	for (let exp = minExp; exp < maxExp; exp++) {
-		let mag = pow(base, exp);
 		let expa = abs(exp);
+		let mag = roundDec(pow(base, exp), expa);
 
 		for (let i = 0; i < mults.length; i++) {
-			let incr = roundDec(mults[i] * mag, expa);
+			let _incr = mults[i] * mag;
+			let incr = roundDec(_incr, _incr >= 0 && exp >= 0 ? 0 : expa);
 			incrs.push(incr);
 			fixedDec.set(incr, incr < 1 ? expa : 0);
 		}

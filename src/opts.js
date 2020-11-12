@@ -48,9 +48,6 @@ const incrMults = [1,2,5];
 
 const decIncrs = genIncrs(10, -16, 0, incrMults);
 
-// base 2
-const binIncrs = genIncrs(2, -53, 53, [1]);
-
 export const intIncrs = genIncrs(10, 0, 16, incrMults);
 
 export const numIncrs = decIncrs.concat(intIncrs);
@@ -111,6 +108,9 @@ export const timeIncrs = FEAT_TIME && genIncrs(10, -3, 0, incrMults).concat([
 	y * 50,
 	y * 100,
 ]);
+
+// base 2
+const binIncrs = genIncrs(2, -53, 53, [1]);
 
 export function timeAxisStamps(stampCfg, fmtDate) {
 	return stampCfg.map(s => s.map((v, i) =>

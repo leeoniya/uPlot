@@ -227,11 +227,12 @@ function genIncrs(base, minExp, maxExp, mults) {
 	let incrs = [];
 
 	for (let exp = minExp; exp < maxExp; exp++) {
-		let mag = pow(base, exp);
 		let expa = abs(exp);
+		let mag = roundDec(pow(base, exp), expa);
 
 		for (let i = 0; i < mults.length; i++) {
-			let incr = roundDec(mults[i] * mag, expa);
+			let _incr = mults[i] * mag;
+			let incr = roundDec(_incr, _incr >= 0 && exp >= 0 ? 0 : expa);
 			incrs.push(incr);
 			fixedDec.set(incr, incr < 1 ? expa : 0);
 		}
@@ -541,9 +542,6 @@ const incrMults = [1,2,5];
 
 const decIncrs = genIncrs(10, -16, 0, incrMults);
 
-// base 2
-const binIncrs = genIncrs(2, -53, 53, [1]);
-
 const intIncrs = genIncrs(10, 0, 16, incrMults);
 
 const numIncrs = decIncrs.concat(intIncrs);
@@ -604,6 +602,9 @@ const timeIncrs =  genIncrs(10, -3, 0, incrMults).concat([
 	y * 50,
 	y * 100,
 ]);
+
+// base 2
+const binIncrs = genIncrs(2, -53, 53, [1]);
 
 function timeAxisStamps(stampCfg, fmtDate) {
 	return stampCfg.map(s => s.map((v, i) =>

@@ -230,11 +230,12 @@ var uPlot = (function () {
 		var incrs = [];
 
 		for (var exp = minExp; exp < maxExp; exp++) {
-			var mag = pow(base, exp);
 			var expa = abs(exp);
+			var mag = roundDec(pow(base, exp), expa);
 
 			for (var i = 0; i < mults.length; i++) {
-				var incr = roundDec(mults[i] * mag, expa);
+				var _incr = mults[i] * mag;
+				var incr = roundDec(_incr, _incr >= 0 && exp >= 0 ? 0 : expa);
 				incrs.push(incr);
 				fixedDec.set(incr, incr < 1 ? expa : 0);
 			}
@@ -542,9 +543,6 @@ var uPlot = (function () {
 
 	var decIncrs = genIncrs(10, -16, 0, incrMults);
 
-	// base 2
-	var binIncrs = genIncrs(2, -53, 53, [1]);
-
 	var intIncrs = genIncrs(10, 0, 16, incrMults);
 
 	var numIncrs = decIncrs.concat(intIncrs);
@@ -604,6 +602,9 @@ var uPlot = (function () {
 		y * 25,
 		y * 50,
 		y * 100 ]);
+
+	// base 2
+	var binIncrs = genIncrs(2, -53, 53, [1]);
 
 	function timeAxisStamps(stampCfg, fmtDate) {
 		return stampCfg.map(function (s) { return s.map(function (v, i) { return i == 0 || i == 8 || v == null ? v : fmtDate(i == 1 || s[8] == 0 ? v : s[1] + v); }
