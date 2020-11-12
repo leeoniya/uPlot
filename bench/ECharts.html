@@ -79,14 +79,12 @@
 					yAxis: [
 						{
 							type: "value",
-							max: 100,
 							axisLabel: {
 								formatter: "{value} %"
 							}
 						},
 						{
 							type: "value",
-							max: 100,
 							axisLabel: {
 								formatter: "{value} MB"
 							}
@@ -95,6 +93,7 @@
 					series: [
 						{
 							name: "CPU",
+							z: 0,
 							type: "line",
 							showSymbol: false,
 							sampling: "lttb",
@@ -107,6 +106,7 @@
 						},
 						{
 							name: "RAM",
+							z: 1,
 							type: "line",
 							yAxisIndex: 1,
 							showSymbol: false,
@@ -120,6 +120,7 @@
 						},
 						{
 							name: "TCP Out",
+							z: 2,
 							type: "line",
 							yAxisIndex: 1,
 							showSymbol: false,
