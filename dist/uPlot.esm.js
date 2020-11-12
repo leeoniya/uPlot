@@ -1430,9 +1430,20 @@ function uPlot(opts, data, then) {
 
 		syncRect();
 
-		ready && _setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);
+		if (ready) {
+			resetYSeries(false);
+			paint();
 
-		ready && fire("setSize");
+		// TODO: update .u-select metrics (if visible)
+		//	setStylePx(selectDiv, TOP, select[TOP] = 0);
+		//	setStylePx(selectDiv, LEFT, select[LEFT] = 0);
+		//	setStylePx(selectDiv, WIDTH, select[WIDTH] = 0);
+		//	setStylePx(selectDiv, HEIGHT, select[HEIGHT] = 0);
+
+			 cursor.show && updateCursor();
+
+			fire("setSize");
+		}
 	}
 
 	function setSize({width, height}) {
@@ -1691,7 +1702,7 @@ function uPlot(opts, data, then) {
 		if (xScaleDistr == 2)
 			data[0] = data0.map((v, i) => i);
 
-		resetYSeries();
+		resetYSeries(true);
 
 		fire("setData");
 
@@ -1772,7 +1783,7 @@ function uPlot(opts, data, then) {
 
 				// explicitly setting the x-scale invalidates everything (acts as redraw)
 				if (k == xScaleKey)
-					resetYSeries();
+					resetYSeries(true);
 			}
 			else if (k != xScaleKey) {
 				if (dataLen == 0 && wsc.from == null) {
@@ -2450,14 +2461,17 @@ function uPlot(opts, data, then) {
 		fire("drawAxes");
 	}
 
-	function resetYSeries() {
+	function resetYSeries(minMax) {
 	//	log("resetYSeries()", arguments);
 
 		series.forEach((s, i) => {
 			if (i > 0) {
-				s.min = null;
-				s.max = null;
 				s._paths = null;
+
+				if (minMax) {
+					s.min = null;
+					s.max = null;
+				}
 			}
 		});
 	}
@@ -2734,6 +2748,7 @@ function uPlot(opts, data, then) {
 
 	// defers calling expensive functions
 	function batch(fn) {
+		shouldSetScales = shouldUpdateCursor = shouldPaint = didPaint = false;
 		inBatch = true;
 		fn(self);
 		inBatch = false;
