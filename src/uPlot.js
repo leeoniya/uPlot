@@ -818,7 +818,7 @@ export default function uPlot(opts, data, then) {
 			let wsc = wipScales[k];
 			let psc = pendScales[k];
 
-			if (psc != null) {
+			if (psc != null && psc.min != null) {
 				assign(wsc, psc);
 
 				// explicitly setting the x-scale invalidates everything (acts as redraw)
@@ -863,7 +863,7 @@ export default function uPlot(opts, data, then) {
 					s.min = data0[i0];
 					s.max = data0[i1];
 				}
-				else if (s.show && s.auto && wsc.auto(self, viaAutoScaleX) && psc == null) {
+				else if (s.show && s.auto && wsc.auto(self, viaAutoScaleX) && (psc == null || psc.min == null)) {
 					// only run getMinMax() for invalidated series data, else reuse
 					let minMax = s.min == null ? getMinMax(data[i], i0, i1, s.sorted) : [s.min, s.max];
 
@@ -881,7 +881,7 @@ export default function uPlot(opts, data, then) {
 				let wsc = wipScales[k];
 				let psc = pendScales[k];
 
-				if (wsc.from == null && psc == null) {
+				if (wsc.from == null && (psc == null || psc.min == null)) {
 					let minMax = wsc.range(
 						self,
 						wsc.min ==  inf ? null : wsc.min,
@@ -1554,7 +1554,7 @@ export default function uPlot(opts, data, then) {
 				opts.max = minMax[1];
 			}
 
-			if (dataLen > 1 && opts.max - opts.min < 1e-16)
+			if (dataLen > 1 && opts.min != null && opts.max != null && opts.max - opts.min < 1e-16)
 				return;
 
 			if (key == xScaleKey) {
@@ -1676,7 +1676,7 @@ export default function uPlot(opts, data, then) {
 					FEAT_LEGEND && toggleDOM(ip, opts.show);
 				}
 
-				_setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);		// redraw
+				_setScale(s.scale, null, null);		// redraw
 			}
 	//	});
 
