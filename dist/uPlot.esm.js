@@ -960,7 +960,7 @@ function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	let splits = [];
 
-	let numDec = fixedDec.get(foundIncr);
+	let numDec = fixedDec.get(foundIncr) || 0;
 
 	scaleMin = forceMin ? scaleMin : roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
 

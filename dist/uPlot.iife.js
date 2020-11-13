@@ -958,7 +958,7 @@ var uPlot = (function () {
 	function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 		var splits = [];
 
-		var numDec = fixedDec.get(foundIncr);
+		var numDec = fixedDec.get(foundIncr) || 0;
 
 		scaleMin = forceMin ? scaleMin : roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
 
