@@ -1423,7 +1423,27 @@ var uPlot = (function () {
 
 		self.bbox = {};
 
+		var shouldSetSize = false;
+
 		function _setSize(width, height) {
+			if (width != self.width || height != self.height)
+				{ sizeCalc(width, height); }
+
+			convergeSize();
+
+			shouldSetSize = true;
+
+			resetYSeries(false);
+			paint();
+
+			 cursor.show && updateCursor();
+
+			fire("setSize");
+		}
+
+		function sizeCalc(width, height) {
+		//	log("sizeCalc()", arguments);
+
 			self.width  = fullWidCss = plotWidCss = width;
 			self.height = fullHgtCss = plotHgtCss = height;
 			plotLftCss  = plotTopCss = 0;
@@ -1437,38 +1457,16 @@ var uPlot = (function () {
 			plotTop = bb[TOP]    = incrRound(plotTopCss * pxRatio, 0.5);
 			plotWid = bb[WIDTH]  = incrRound(plotWidCss * pxRatio, 0.5);
 			plotHgt = bb[HEIGHT] = incrRound(plotHgtCss * pxRatio, 0.5);
+		}
 
-			setStylePx(under, LEFT,   plotLftCss);
-			setStylePx(under, TOP,    plotTopCss);
-			setStylePx(under, WIDTH,  plotWidCss);
-			setStylePx(under, HEIGHT, plotHgtCss);
+		function convergeSize() {
+			var converged = false;
 
-			setStylePx(over, LEFT,    plotLftCss);
-			setStylePx(over, TOP,     plotTopCss);
-			setStylePx(over, WIDTH,   plotWidCss);
-			setStylePx(over, HEIGHT,  plotHgtCss);
+			while (!converged) {
+				converged = axesCalc();		// && gutterCalc();
 
-			setStylePx(wrap, WIDTH,   fullWidCss);
-			setStylePx(wrap, HEIGHT,  fullHgtCss);
-
-			can[WIDTH]  = round(fullWidCss * pxRatio);
-			can[HEIGHT] = round(fullHgtCss * pxRatio);
-
-			syncRect();
-
-			if (ready) {
-				resetYSeries(false);
-				paint();
-
-			// TODO: update .u-select metrics (if visible)
-			//	setStylePx(selectDiv, TOP, select[TOP] = 0);
-			//	setStylePx(selectDiv, LEFT, select[LEFT] = 0);
-			//	setStylePx(selectDiv, WIDTH, select[WIDTH] = 0);
-			//	setStylePx(selectDiv, HEIGHT, select[HEIGHT] = 0);
-
-				 cursor.show && updateCursor();
-
-				fire("setSize");
+				if (!converged)
+					{ sizeCalc(self.width, self.height); }
 			}
 		}
 
@@ -1745,6 +1743,9 @@ var uPlot = (function () {
 					{ autoScaleX(); }
 				else
 					{ _setScale(xScaleKey, xsc.min, xsc.max); }
+
+				convergeSize();
+				paint();
 			}
 		}
 
@@ -2312,8 +2313,10 @@ var uPlot = (function () {
 			ctx.translate(-offset, -offset);
 		}
 
-		function drawAxesGrid() {
-			var _queuedResize = false;
+		function axesCalc() {
+		//	log("axesCalc()", arguments);
+
+			var converged = true;
 
 			axes.forEach(function (axis, i) {
 				if (!axis.show)
@@ -2321,20 +2324,19 @@ var uPlot = (function () {
 
 				var scale = scales[axis.scale];
 
-				// this will happen if all series using a specific scale are toggled off
-				if (ready) {
-					if (scale.min == null) {
-						if (axis._show) {
-							_queuedResize = true;
-							axis._show = false;
-						}
-						return;
+				if (scale.min == null) {
+					if (axis._show) {
+						converged = false;
+						axis._show = false;
+						resetYSeries(false);
 					}
-					else {
-						if (!axis._show) {
-							_queuedResize = true;
-							axis._show = true;
-						}
+					return;
+				}
+				else {
+					if (!axis._show) {
+						converged = false;
+						axis._show = true;
+						resetYSeries(false);
 					}
 				}
 
@@ -2342,7 +2344,7 @@ var uPlot = (function () {
 				var ori = side % 2;
 
 				var min = scale.min;
-				var max = scale.max;
+				var max = scale.max;		// 		// should this toggle them ._show = false
 
 				var ref = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 				var incr = ref[0];
@@ -2356,6 +2358,36 @@ var uPlot = (function () {
 
 				var splits = axis.splits(self, i, min, max, incr, space, forceMin);
 
+				// tick labels
+				// BOO this assumes a specific data/series
+				var _splits = axis._splits = scale.distr == 2 ? splits.map(function (i) { return data0[i]; }) : splits;
+				var _incr   = axis._incr   = scale.distr == 2 ? data0[splits[1]] - data0[splits[0]] : incr;
+
+				var values = axis._values  = axis.values(self, axis.filter(self, _splits, i, space, _incr), i, space, _incr);
+
+				// rotating of labels only supported on bottom x axis
+				axis._rotate = side == 2 ? axis.rotate(self, values, i, space) : 0;
+
+				var oldSize = axis._size;
+
+				axis._size = axis.size(self, values, i);
+
+				if (oldSize != null && axis._size != oldSize)			// ready && ?
+					{ converged = false; }
+			});
+
+			return converged;
+		}
+
+		function drawAxesGrid() {
+			axes.forEach(function (axis, i) {
+				if (!axis.show || !axis._show)
+					{ return; }
+
+				var scale = scales[axis.scale];
+				var side = axis.side;
+				var ori = side % 2;
+
 				var getPos  = ori == 0 ? getXPos : getYPos;
 				var plotDim = ori == 0 ? plotWid : plotHgt;
 				var plotOff = ori == 0 ? plotLft : plotTop;
@@ -2365,25 +2397,12 @@ var uPlot = (function () {
 				var ticks = axis.ticks;
 				var tickSize = ticks.show ? round(ticks.size * pxRatio) : 0;
 
-				// tick labels
-				// BOO this assumes a specific data/series
-				var _splits = axis._splits = scale.distr == 2 ? splits.map(function (i) { return data0[i]; }) : splits;
-				var _incr   = axis._incr   = scale.distr == 2 ? data0[splits[1]] - data0[splits[0]] : incr;
-
-				var values = axis._values  = axis.values(self, axis.filter(self, _splits, i, space, _incr), i, space, _incr);
+				var _space  = axis._space;
+				var _splits = axis._splits;
+				var _incr   = axis._incr;
 
 				// rotating of labels only supported on bottom x axis
-				var angle = (axis._rotate = side == 2 ? axis.rotate(self, values, i, space) : 0) * -PI/180;
-
-				var oldSize = axis._size;
-
-				axis._size = axis.size(self, values, i);
-
-				if (ready && oldSize != null && axis._size != oldSize)
-					{ _queuedResize = true; }
-
-				if (_queuedResize)
-					{ return; }
+				var angle = axis._rotate * -PI/180;
 
 				var basePos  = round(axis._pos * pxRatio);
 				var shiftAmt = tickSize + axisGap;
@@ -2404,9 +2423,9 @@ var uPlot = (function () {
 
 				var lineHeight   = axis.font[1] * lineMult;
 
-				var canOffs = splits.map(function (val) { return round(getPos(val, scale, plotDim, plotOff)); });
+				var canOffs = _splits.map(function (val) { return round(getPos(val, scale, plotDim, plotOff)); });
 
-				values.forEach(function (val, i) {
+				axis._values.forEach(function (val, i) {
 					if (val == null)
 						{ return; }
 
@@ -2463,7 +2482,7 @@ var uPlot = (function () {
 				if (ticks.show) {
 					drawOrthoLines(
 						canOffs,
-						ticks.filter(self, _splits, i, space, _incr),
+						ticks.filter(self, _splits, i, _space, _incr),
 						ori,
 						side,
 						basePos,
@@ -2479,7 +2498,7 @@ var uPlot = (function () {
 				if (grid.show) {
 					drawOrthoLines(
 						canOffs,
-						grid.filter(self, _splits, i, space, _incr),
+						grid.filter(self, _splits, i, _space, _incr),
 						ori,
 						ori == 0 ? 2 : 1,
 						ori == 0 ? plotTop : plotLft,
@@ -2490,11 +2509,6 @@ var uPlot = (function () {
 					);
 				}
 			});
-
-			if (_queuedResize) {
-				_setSize(fullWidCss, fullHgtCss);
-				return;
-			}
 
 			fire("drawAxes");
 		}
@@ -2516,10 +2530,50 @@ var uPlot = (function () {
 
 		var didPaint;
 
+		var queuedPaint = false;
+
+		// could do rAF instead of microTask
 		function paint() {
+			if (!queuedPaint) {
+				queueMicrotask(_paint);
+				shouldPaint = true;
+				return;
+			}
+		}
+
+		// updateUI
+		function _paint() {
 			if (inBatch) {
 				shouldPaint = true;
 				return;
+			}
+
+			if (shouldSetSize) {
+				setStylePx(under, LEFT,   plotLftCss);
+				setStylePx(under, TOP,    plotTopCss);
+				setStylePx(under, WIDTH,  plotWidCss);
+				setStylePx(under, HEIGHT, plotHgtCss);
+
+				setStylePx(over, LEFT,    plotLftCss);
+				setStylePx(over, TOP,     plotTopCss);
+				setStylePx(over, WIDTH,   plotWidCss);
+				setStylePx(over, HEIGHT,  plotHgtCss);
+
+				setStylePx(wrap, WIDTH,   fullWidCss);
+				setStylePx(wrap, HEIGHT,  fullHgtCss);
+
+				can[WIDTH]  = round(fullWidCss * pxRatio);
+				can[HEIGHT] = round(fullHgtCss * pxRatio);
+
+				syncRect();
+
+			// TODO: update .u-select metrics (if visible)
+			//	setStylePx(selectDiv, TOP, select[TOP] = 0);
+			//	setStylePx(selectDiv, LEFT, select[LEFT] = 0);
+			//	setStylePx(selectDiv, WIDTH, select[WIDTH] = 0);
+			//	setStylePx(selectDiv, HEIGHT, select[HEIGHT] = 0);
+
+				// fire setSize
 			}
 
 		//	log("paint()", arguments);
@@ -2530,6 +2584,9 @@ var uPlot = (function () {
 			dataLen > 0 && drawSeries();
 			didPaint = true;
 			fire("draw");
+
+			queuedPaint = shouldSetSize = false;
+
 		}
 
 		self.redraw = function (rebuildPaths) {
@@ -2566,10 +2623,11 @@ var uPlot = (function () {
 
 				pendScales[key] = opts;
 
-				didPaint = false;
+			//	didPaint = false;
 				setScales();
-				!didPaint && paint();
-				didPaint = false;
+				paint();
+			//	!didPaint && paint();
+			//	didPaint = false;
 			}
 		}
 
@@ -2675,6 +2733,11 @@ var uPlot = (function () {
 					}
 
 					_setScale(s.scale, null, null);		// redraw
+
+					// this may turn off an axis, so needs full setsize call
+				//	_setSize(self.width, self.height);
+					convergeSize();
+					paint();
 				}
 		//	});
 
@@ -2791,6 +2854,7 @@ var uPlot = (function () {
 			fn(self);
 			inBatch = false;
 			shouldSetScales && setScales();
+			convergeSize();
 			 shouldUpdateCursor && updateCursor();
 			shouldPaint && !didPaint && paint();
 			shouldSetScales = shouldUpdateCursor = shouldPaint = didPaint = inBatch;
@@ -3237,6 +3301,8 @@ var uPlot = (function () {
 		function dblClick(e, src, _x, _y, _w, _h, _i) {
 			autoScaleX();
 
+			convergeSize();
+
 			hideSelect();
 
 			if (e != null)
@@ -3318,8 +3384,6 @@ var uPlot = (function () {
 		self.destroy = destroy;
 
 		function _init() {
-			_setSize(opts[WIDTH], opts[HEIGHT]);
-
 			fire("init", opts, data);
 
 			setData(data || opts.data, false);
@@ -3328,6 +3392,8 @@ var uPlot = (function () {
 				{ setScale(xScaleKey, pendScales[xScaleKey]); }
 			else
 				{ autoScaleX(); }
+
+			_setSize(opts[WIDTH], opts[HEIGHT]);
 
 			setSelect(select, false);
 
