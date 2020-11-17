@@ -1424,17 +1424,18 @@ var uPlot = (function () {
 		self.bbox = {};
 
 		var shouldSetSize = false;
+		var shouldConvergeSize = false;
+		var shouldSetCursor = false;
 
 		function _setSize(width, height) {
 			if (width != self.width || height != self.height)
 				{ sizeCalc(width, height); }
 
-			convergeSize();
-
-			shouldSetSize = true;
-
 			resetYSeries(false);
-			paint();
+
+			shouldConvergeSize = true;
+			shouldSetSize = true;
+			commit();
 
 			 cursor.show && updateCursor();
 
@@ -1744,8 +1745,7 @@ var uPlot = (function () {
 				else
 					{ _setScale(xScaleKey, xsc.min, xsc.max); }
 
-				convergeSize();
-				paint();
+				commit();
 			}
 		}
 
@@ -1797,11 +1797,6 @@ var uPlot = (function () {
 		}
 
 		function setScales() {
-			if (inBatch) {
-				shouldSetScales = true;
-				return;
-			}
-
 		//	log("setScales()", arguments);
 
 			// wip scales
@@ -1900,6 +1895,7 @@ var uPlot = (function () {
 			}
 
 			var changed = {};
+			var anyChanged = false;
 
 			for (var k$3 in wipScales) {
 				var wsc$3 = wipScales[k$3];
@@ -1908,23 +1904,28 @@ var uPlot = (function () {
 				if (sc.min != wsc$3.min || sc.max != wsc$3.max) {
 					sc.min = wsc$3.min;
 					sc.max = wsc$3.max;
-					changed[k$3] = true;
+					changed[k$3] = anyChanged = true;
 				}
 			}
 
-			// invalidate paths of all series on changed scales
-			series.forEach(function (s) {
-				if (changed[s.scale])
-					{ s._paths = null; }
-			});
+			if (anyChanged) {
+				// invalidate paths of all series on changed scales
+				series.forEach(function (s) {
+					if (changed[s.scale])
+						{ s._paths = null; }
+				});
 
-			for (var k$4 in changed)
-				{ fire("setScale", k$4); }
+				for (var k$4 in changed) {
+					shouldConvergeSize = true;
+					fire("setScale", k$4);
+				}
+
+				if ( cursor.show)
+					{ shouldSetCursor = true; }
+			}
 
 			for (var k$5 in pendScales)
 				{ pendScales[k$5] = null; }
-
-			 cursor.show && updateCursor();
 		}
 
 		// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
@@ -2528,24 +2529,27 @@ var uPlot = (function () {
 			});
 		}
 
-		var didPaint;
+		var queuedCommit = false;
 
-		var queuedPaint = false;
-
-		// could do rAF instead of microTask
-		function paint() {
-			if (!queuedPaint) {
-				queueMicrotask(_paint);
-				shouldPaint = true;
-				return;
+		// could do rAF instead of microTask, or Promose.resolve().then()
+		function commit() {
+			if (!queuedCommit) {
+				queueMicrotask(_commit);
+				queuedCommit = true;
 			}
 		}
 
-		// updateUI
-		function _paint() {
-			if (inBatch) {
-				shouldPaint = true;
-				return;
+		function _commit() {
+		//	log("_commit()", arguments);
+
+			if (shouldSetScales) {
+				setScales();
+				shouldSetScales = false;
+			}
+
+			if (shouldConvergeSize) {
+				convergeSize();
+				shouldConvergeSize = false;
 			}
 
 			if (shouldSetSize) {
@@ -2574,26 +2578,33 @@ var uPlot = (function () {
 			//	setStylePx(selectDiv, HEIGHT, select[HEIGHT] = 0);
 
 				// fire setSize
+
+				shouldSetSize = false;
 			}
 
-		//	log("paint()", arguments);
+			if (shouldSetCursor) {
+				updateCursor();
+				shouldSetCursor = false;
+			}
+
+		//	if (shouldSetSelect) {}
+
+		//	if (shouldSetLegend) {}
 
 			ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 			fire("drawClear");
 			drawAxesGrid();
 			dataLen > 0 && drawSeries();
-			didPaint = true;
 			fire("draw");
 
-			queuedPaint = shouldSetSize = false;
-
+			queuedCommit = false;
 		}
 
 		self.redraw = function (rebuildPaths) {
 			if (rebuildPaths !== false)
 				{ _setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max); }
 			else
-				{ paint(); }
+				{ commit(); }
 		};
 
 		// redraw() => setScale('x', scales.x.min, scales.x.max);
@@ -2623,11 +2634,8 @@ var uPlot = (function () {
 
 				pendScales[key] = opts;
 
-			//	didPaint = false;
-				setScales();
-				paint();
-			//	!didPaint && paint();
-			//	didPaint = false;
+				shouldSetScales = true;
+				commit();
 			}
 		}
 
@@ -2716,30 +2724,24 @@ var uPlot = (function () {
 
 			var s = series[i];
 
-		//	batch(() => {
-				// will this cause redundant paint() if both show and focus are set?
-				if (opts.focus != null)
-					{ setFocus(i); }
+			// will this cause redundant commit() if both show and focus are set?
+			if (opts.focus != null)
+				{ setFocus(i); }
 
-				if (opts.show != null) {
-					s.show = opts.show;
-					 toggleDOM(i, opts.show);
+			if (opts.show != null) {
+				s.show = opts.show;
+				 toggleDOM(i, opts.show);
 
-					if (s.band) {
-						// not super robust, will break if two bands are adjacent
-						var ip = series[i+1] && series[i+1].band ? i+1 : i-1;
-						series[ip].show = s.show;
-						 toggleDOM(ip, opts.show);
-					}
-
-					_setScale(s.scale, null, null);		// redraw
-
-					// this may turn off an axis, so needs full setsize call
-				//	_setSize(self.width, self.height);
-					convergeSize();
-					paint();
+				if (s.band) {
+					// not super robust, will break if two bands are adjacent
+					var ip = series[i+1] && series[i+1].band ? i+1 : i-1;
+					series[ip].show = s.show;
+					 toggleDOM(ip, opts.show);
 				}
-		//	});
+
+				_setScale(s.scale, null, null);
+				commit();
+			}
 
 			// firing setSeries after setScale seems out of order, but provides access to the updated props
 			// could improve by predefining firing order and building a queue
@@ -2786,7 +2788,7 @@ var uPlot = (function () {
 				});
 
 				focusedSeries = i;
-				paint();
+				commit();
 			}
 		}
 
@@ -2841,23 +2843,12 @@ var uPlot = (function () {
 				can ? plotTop : 0
 			)
 		); };
-
-		var inBatch = false;
-		var shouldPaint = false;
 		var shouldSetScales = false;
-		var shouldUpdateCursor = false;
 
 		// defers calling expensive functions
 		function batch(fn) {
-			shouldSetScales = shouldUpdateCursor = shouldPaint = didPaint = false;
-			inBatch = true;
 			fn(self);
-			inBatch = false;
-			shouldSetScales && setScales();
-			convergeSize();
-			 shouldUpdateCursor && updateCursor();
-			shouldPaint && !didPaint && paint();
-			shouldSetScales = shouldUpdateCursor = shouldPaint = didPaint = inBatch;
+			commit();
 		}
 
 		self.batch = batch;
@@ -2873,11 +2864,6 @@ var uPlot = (function () {
 
 		function updateCursor(ts, src) {
 			var assign;
-
-			if (inBatch) {
-				shouldUpdateCursor = true;
-				return;
-			}
 
 		//	ts == null && log("updateCursor()", arguments);
 
@@ -3205,27 +3191,25 @@ var uPlot = (function () {
 			//		dragY = drag.y;
 			//	}
 
-				batch(function () {
-					if (dragX) {
-						_setScale(xScaleKey,
-							scaleValueAtPos(select[LEFT], xScaleKey),
-							scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
-						);
-					}
+				if (dragX) {
+					_setScale(xScaleKey,
+						scaleValueAtPos(select[LEFT], xScaleKey),
+						scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
+					);
+				}
 
-					if (dragY) {
-						for (var k in scales) {
-							var sc = scales[k];
+				if (dragY) {
+					for (var k in scales) {
+						var sc = scales[k];
 
-							if (k != xScaleKey && sc.from == null && sc.min != inf) {
-								_setScale(k,
-									scaleValueAtPos(select[TOP] + select[HEIGHT], k),
-									scaleValueAtPos(select[TOP], k)
-								);
-							}
+						if (k != xScaleKey && sc.from == null && sc.min != inf) {
+							_setScale(k,
+								scaleValueAtPos(select[TOP] + select[HEIGHT], k),
+								scaleValueAtPos(select[TOP], k)
+							);
 						}
 					}
-				});
+				}
 
 				hideSelect();
 			}
@@ -3300,8 +3284,6 @@ var uPlot = (function () {
 
 		function dblClick(e, src, _x, _y, _w, _h, _i) {
 			autoScaleX();
-
-			convergeSize();
 
 			hideSelect();
 
