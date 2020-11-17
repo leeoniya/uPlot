@@ -285,3 +285,5 @@ export function assign(targ) {
 
 	return targ;
 }
+
+export const microTask = typeof queueMicrotask == "undefined" ? fn => Promise.resolve().then(fn) : queueMicrotask;

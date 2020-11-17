@@ -132,8 +132,10 @@
 
 				let uplot = new uPlot(opts, data, document.body);
 
-				wait.textContent = "Done!";
-				console.timeEnd("chart");
+				Promise.resolve().then(() => {
+					wait.textContent = "Done!";
+					console.timeEnd("chart");
+				});
 			}
 
 			let wait = document.getElementById("wait");

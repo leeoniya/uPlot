@@ -295,6 +295,8 @@ function assign(targ) {
 	return targ;
 }
 
+const microTask = typeof queueMicrotask == "undefined" ? fn => Promise.resolve().then(fn) : queueMicrotask;
+
 const WIDTH = "width";
 const HEIGHT = "height";
 const TOP = "top";
@@ -1425,7 +1427,28 @@ function uPlot(opts, data, then) {
 
 	self.bbox = {};
 
+	let shouldSetScales = false;
+	let shouldSetSize = false;
+	let shouldConvergeSize = false;
+	let shouldSetCursor = false;
+	let shouldSetLegend = false;
+
 	function _setSize(width, height) {
+		if (width != self.width || height != self.height)
+			calcSize(width, height);
+
+		resetYSeries(false);
+
+		shouldConvergeSize = true;
+		shouldSetSize = true;
+		shouldSetCursor = true;
+		shouldSetLegend = true;
+		commit();
+	}
+
+	function calcSize(width, height) {
+	//	log("calcSize()", arguments);
+
 		self.width  = fullWidCss = plotWidCss = width;
 		self.height = fullHgtCss = plotHgtCss = height;
 		plotLftCss  = plotTopCss = 0;
@@ -1439,38 +1462,16 @@ function uPlot(opts, data, then) {
 		plotTop = bb[TOP]    = incrRound(plotTopCss * pxRatio, 0.5);
 		plotWid = bb[WIDTH]  = incrRound(plotWidCss * pxRatio, 0.5);
 		plotHgt = bb[HEIGHT] = incrRound(plotHgtCss * pxRatio, 0.5);
+	}
 
-		setStylePx(under, LEFT,   plotLftCss);
-		setStylePx(under, TOP,    plotTopCss);
-		setStylePx(under, WIDTH,  plotWidCss);
-		setStylePx(under, HEIGHT, plotHgtCss);
+	function convergeSize() {
+		let converged = false;
 
-		setStylePx(over, LEFT,    plotLftCss);
-		setStylePx(over, TOP,     plotTopCss);
-		setStylePx(over, WIDTH,   plotWidCss);
-		setStylePx(over, HEIGHT,  plotHgtCss);
+		while (!converged) {
+			converged = axesCalc();		// && gutterCalc();
 
-		setStylePx(wrap, WIDTH,   fullWidCss);
-		setStylePx(wrap, HEIGHT,  fullHgtCss);
-
-		can[WIDTH]  = round(fullWidCss * pxRatio);
-		can[HEIGHT] = round(fullHgtCss * pxRatio);
-
-		syncRect();
-
-		if (ready) {
-			resetYSeries(false);
-			paint();
-
-		// TODO: update .u-select metrics (if visible)
-		//	setStylePx(selectDiv, TOP, select[TOP] = 0);
-		//	setStylePx(selectDiv, LEFT, select[LEFT] = 0);
-		//	setStylePx(selectDiv, WIDTH, select[WIDTH] = 0);
-		//	setStylePx(selectDiv, HEIGHT, select[HEIGHT] = 0);
-
-			 cursor.show && updateCursor();
-
-			fire("setSize");
+			if (!converged)
+				calcSize(self.width, self.height);
 		}
 	}
 
@@ -1695,8 +1696,7 @@ function uPlot(opts, data, then) {
 			axis._space  =
 			axis._rotate =
 			axis._incrs  =
-			// foundIncr
-			axis._incr   =
+			axis._found  =	// foundIncrSpace
 			axis._splits =
 			axis._values = null;
 		}
@@ -1713,8 +1713,6 @@ function uPlot(opts, data, then) {
 	const idxs = series[0].idxs;
 
 	let data0 = null;
-
-	let forceUpdateLegend = false;
 
 	let viaAutoScaleX = false;
 
@@ -1734,8 +1732,6 @@ function uPlot(opts, data, then) {
 
 		fire("setData");
 
-		forceUpdateLegend = true;
-
 		if (_resetScales !== false) {
 			let xsc = scales[xScaleKey];
 
@@ -1743,6 +1739,10 @@ function uPlot(opts, data, then) {
 				autoScaleX();
 			else
 				_setScale(xScaleKey, xsc.min, xsc.max);
+
+			shouldSetCursor = true;
+			shouldSetLegend = true;
+			commit();
 		}
 	}
 
@@ -1792,11 +1792,6 @@ function uPlot(opts, data, then) {
 	}
 
 	function setScales() {
-		if (inBatch) {
-			shouldSetScales = true;
-			return;
-		}
-
 	//	log("setScales()", arguments);
 
 		// wip scales
@@ -1895,6 +1890,7 @@ function uPlot(opts, data, then) {
 		}
 
 		let changed = {};
+		let anyChanged = false;
 
 		for (let k in wipScales) {
 			let wsc = wipScales[k];
@@ -1903,23 +1899,28 @@ function uPlot(opts, data, then) {
 			if (sc.min != wsc.min || sc.max != wsc.max) {
 				sc.min = wsc.min;
 				sc.max = wsc.max;
-				changed[k] = true;
+				changed[k] = anyChanged = true;
 			}
 		}
 
-		// invalidate paths of all series on changed scales
-		series.forEach(s => {
-			if (changed[s.scale])
-				s._paths = null;
-		});
+		if (anyChanged) {
+			// invalidate paths of all series on changed scales
+			series.forEach(s => {
+				if (changed[s.scale])
+					s._paths = null;
+			});
 
-		for (let k in changed)
-			fire("setScale", k);
+			for (let k in changed) {
+				shouldConvergeSize = true;
+				fire("setScale", k);
+			}
+
+			if ( cursor.show)
+				shouldSetCursor = true;
+		}
 
 		for (let k in pendScales)
 			pendScales[k] = null;
-
-		 cursor.show && updateCursor();
 	}
 
 	// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
@@ -2261,7 +2262,7 @@ function uPlot(opts, data, then) {
 		else {
 			let minSpace = axis._space = axis.space(self, axisIdx, min, max, fullDim);
 			let incrs    = axis._incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
-			incrSpace    = findIncr(min, max, incrs, fullDim, minSpace);
+			incrSpace    = axis._found = findIncr(min, max, incrs, fullDim, minSpace);
 		}
 
 		return incrSpace;
@@ -2305,8 +2306,10 @@ function uPlot(opts, data, then) {
 		ctx.translate(-offset, -offset);
 	}
 
-	function drawAxesGrid() {
-		let _queuedResize = false;
+	function axesCalc() {
+	//	log("axesCalc()", arguments);
+
+		let converged = true;
 
 		axes.forEach((axis, i) => {
 			if (!axis.show)
@@ -2314,37 +2317,66 @@ function uPlot(opts, data, then) {
 
 			let scale = scales[axis.scale];
 
-			// this will happen if all series using a specific scale are toggled off
-			if (ready) {
-				if (scale.min == null) {
-					if (axis._show) {
-						_queuedResize = true;
-						axis._show = false;
-					}
-					return;
+			if (scale.min == null) {
+				if (axis._show) {
+					converged = false;
+					axis._show = false;
+					resetYSeries(false);
 				}
-				else {
-					if (!axis._show) {
-						_queuedResize = true;
-						axis._show = true;
-					}
+				return;
+			}
+			else {
+				if (!axis._show) {
+					converged = false;
+					axis._show = true;
+					resetYSeries(false);
 				}
 			}
 
 			let side = axis.side;
 			let ori = side % 2;
 
-			let {min, max} = scale;
+			let {min, max} = scale;		// 		// should this toggle them ._show = false
 
-			let [incr, space] = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
+			let [_incr, _space] = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 
-			if (space == 0)
+			if (_space == 0)
 				return;
 
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.distr == 2;
 
-			let splits = axis.splits(self, i, min, max, incr, space, forceMin);
+			let _splits = axis._splits = axis.splits(self, i, min, max, _incr, _space, forceMin);
+
+			// tick labels
+			// BOO this assumes a specific data/series
+			let splits = scale.distr == 2 ? _splits.map(i => data0[i]) : _splits;
+			let incr   = scale.distr == 2 ? data0[_splits[1]] - data0[_splits[0]] : _incr;
+
+			let values = axis._values  = axis.values(self, axis.filter(self, splits, i, _space, incr), i, _space, incr);
+
+			// rotating of labels only supported on bottom x axis
+			axis._rotate = side == 2 ? axis.rotate(self, values, i, _space) : 0;
+
+			let oldSize = axis._size;
+
+			axis._size = axis.size(self, values, i);
+
+			if (oldSize != null && axis._size != oldSize)			// ready && ?
+				converged = false;
+		});
+
+		return converged;
+	}
+
+	function drawAxesGrid() {
+		axes.forEach((axis, i) => {
+			if (!axis.show || !axis._show)
+				return;
+
+			let scale = scales[axis.scale];
+			let side = axis.side;
+			let ori = side % 2;
 
 			let getPos  = ori == 0 ? getXPos : getYPos;
 			let plotDim = ori == 0 ? plotWid : plotHgt;
@@ -2355,25 +2387,16 @@ function uPlot(opts, data, then) {
 			let ticks = axis.ticks;
 			let tickSize = ticks.show ? round(ticks.size * pxRatio) : 0;
 
+			let [_incr, _space] = axis._found;
+			let _splits = axis._splits;
+
 			// tick labels
 			// BOO this assumes a specific data/series
-			let _splits = axis._splits = scale.distr == 2 ? splits.map(i => data0[i]) : splits;
-			let _incr   = axis._incr   = scale.distr == 2 ? data0[splits[1]] - data0[splits[0]] : incr;
-
-			let values = axis._values  = axis.values(self, axis.filter(self, _splits, i, space, _incr), i, space, _incr);
+			let splits = scale.distr == 2 ? _splits.map(i => data0[i]) : _splits;
+			let incr   = scale.distr == 2 ? data0[_splits[1]] - data0[_splits[0]] : _incr;
 
 			// rotating of labels only supported on bottom x axis
-			let angle = (axis._rotate = side == 2 ? axis.rotate(self, values, i, space) : 0) * -PI/180;
-
-			let oldSize = axis._size;
-
-			axis._size = axis.size(self, values, i);
-
-			if (ready && oldSize != null && axis._size != oldSize)
-				_queuedResize = true;
-
-			if (_queuedResize)
-				return;
+			let angle = axis._rotate * -PI/180;
 
 			let basePos  = round(axis._pos * pxRatio);
 			let shiftAmt = tickSize + axisGap;
@@ -2394,9 +2417,9 @@ function uPlot(opts, data, then) {
 
 			let lineHeight   = axis.font[1] * lineMult;
 
-			let canOffs = splits.map(val => round(getPos(val, scale, plotDim, plotOff)));
+			let canOffs = _splits.map(val => round(getPos(val, scale, plotDim, plotOff)));
 
-			values.forEach((val, i) => {
+			axis._values.forEach((val, i) => {
 				if (val == null)
 					return;
 
@@ -2453,7 +2476,7 @@ function uPlot(opts, data, then) {
 			if (ticks.show) {
 				drawOrthoLines(
 					canOffs,
-					ticks.filter(self, _splits, i, space, _incr),
+					ticks.filter(self, splits, i, _space, incr),
 					ori,
 					side,
 					basePos,
@@ -2469,7 +2492,7 @@ function uPlot(opts, data, then) {
 			if (grid.show) {
 				drawOrthoLines(
 					canOffs,
-					grid.filter(self, _splits, i, space, _incr),
+					grid.filter(self, splits, i, _space, incr),
 					ori,
 					ori == 0 ? 2 : 1,
 					ori == 0 ? plotTop : plotLft,
@@ -2480,11 +2503,6 @@ function uPlot(opts, data, then) {
 				);
 			}
 		});
-
-		if (_queuedResize) {
-			_setSize(fullWidCss, fullHgtCss);
-			return;
-		}
 
 		fire("drawAxes");
 	}
@@ -2504,29 +2522,90 @@ function uPlot(opts, data, then) {
 		});
 	}
 
-	let didPaint;
+	let queuedCommit = false;
 
-	function paint() {
-		if (inBatch) {
-			shouldPaint = true;
-			return;
+	// could do rAF instead of microTask, or Promose.resolve().then()
+	function commit() {
+		if (!queuedCommit) {
+			microTask(_commit);
+			queuedCommit = true;
+		}
+	}
+
+	function _commit() {
+	//	log("_commit()", arguments);
+
+		if (shouldSetScales) {
+			setScales();
+			shouldSetScales = false;
 		}
 
-	//	log("paint()", arguments);
+		if (shouldConvergeSize) {
+			convergeSize();
+			shouldConvergeSize = false;
+		}
+
+		if (shouldSetSize) {
+			setStylePx(under, LEFT,   plotLftCss);
+			setStylePx(under, TOP,    plotTopCss);
+			setStylePx(under, WIDTH,  plotWidCss);
+			setStylePx(under, HEIGHT, plotHgtCss);
+
+			setStylePx(over, LEFT,    plotLftCss);
+			setStylePx(over, TOP,     plotTopCss);
+			setStylePx(over, WIDTH,   plotWidCss);
+			setStylePx(over, HEIGHT,  plotHgtCss);
+
+			setStylePx(wrap, WIDTH,   fullWidCss);
+			setStylePx(wrap, HEIGHT,  fullHgtCss);
+
+			can[WIDTH]  = round(fullWidCss * pxRatio);
+			can[HEIGHT] = round(fullHgtCss * pxRatio);
+
+			syncRect();
+
+			fire("setSize");
+
+			shouldSetSize = false;
+		}
+
+	//	if (shouldSetSelect) {
+		// TODO: update .u-select metrics (if visible)
+		//	setStylePx(selectDiv, TOP, select[TOP] = 0);
+		//	setStylePx(selectDiv, LEFT, select[LEFT] = 0);
+		//	setStylePx(selectDiv, WIDTH, select[WIDTH] = 0);
+		//	setStylePx(selectDiv, HEIGHT, select[HEIGHT] = 0);
+		//	shouldSetSelect = false;
+	//	}
+
+		if ( cursor.show && shouldSetCursor) {
+			updateCursor();
+			shouldSetCursor = false;
+		}
+
+	//	if (true && legend.show && legend.live && shouldSetLegend) {}
 
 		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 		fire("drawClear");
 		drawAxesGrid();
 		dataLen > 0 && drawSeries();
-		didPaint = true;
 		fire("draw");
+
+		if (!ready) {
+			ready = true;
+			self.status = 1;
+
+			fire("ready");
+		}
+
+		queuedCommit = false;
 	}
 
 	self.redraw = rebuildPaths => {
 		if (rebuildPaths !== false)
 			_setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);
 		else
-			paint();
+			commit();
 	};
 
 	// redraw() => setScale('x', scales.x.min, scales.x.max);
@@ -2556,10 +2635,8 @@ function uPlot(opts, data, then) {
 
 			pendScales[key] = opts;
 
-			didPaint = false;
-			setScales();
-			!didPaint && paint();
-			didPaint = false;
+			shouldSetScales = true;
+			commit();
 		}
 	}
 
@@ -2648,28 +2725,25 @@ function uPlot(opts, data, then) {
 
 		let s = series[i];
 
-	//	batch(() => {
-			// will this cause redundant paint() if both show and focus are set?
-			if (opts.focus != null)
-				setFocus(i);
+		// will this cause redundant commit() if both show and focus are set?
+		if (opts.focus != null)
+			setFocus(i);
 
-			if (opts.show != null) {
-				s.show = opts.show;
-				 toggleDOM(i, opts.show);
+		if (opts.show != null) {
+			s.show = opts.show;
+			 toggleDOM(i, opts.show);
 
-				if (s.band) {
-					// not super robust, will break if two bands are adjacent
-					let ip = series[i+1] && series[i+1].band ? i+1 : i-1;
-					series[ip].show = s.show;
-					 toggleDOM(ip, opts.show);
-				}
-
-				_setScale(s.scale, null, null);		// redraw
+			if (s.band) {
+				// not super robust, will break if two bands are adjacent
+				let ip = series[i+1] && series[i+1].band ? i+1 : i-1;
+				series[ip].show = s.show;
+				 toggleDOM(ip, opts.show);
 			}
-	//	});
 
-		// firing setSeries after setScale seems out of order, but provides access to the updated props
-		// could improve by predefining firing order and building a queue
+			_setScale(s.scale, null, null);
+			commit();
+		}
+
 		fire("setSeries", i, opts);
 
 		 pub && sync.pub("setSeries", self, i, opts);
@@ -2713,7 +2787,7 @@ function uPlot(opts, data, then) {
 			});
 
 			focusedSeries = i;
-			paint();
+			commit();
 		}
 	}
 
@@ -2769,21 +2843,10 @@ function uPlot(opts, data, then) {
 		)
 	);
 
-	let inBatch = false;
-	let shouldPaint = false;
-	let shouldSetScales = false;
-	let shouldUpdateCursor = false;
-
 	// defers calling expensive functions
 	function batch(fn) {
-		shouldSetScales = shouldUpdateCursor = shouldPaint = didPaint = false;
-		inBatch = true;
 		fn(self);
-		inBatch = false;
-		shouldSetScales && setScales();
-		 shouldUpdateCursor && updateCursor();
-		shouldPaint && !didPaint && paint();
-		shouldSetScales = shouldUpdateCursor = shouldPaint = didPaint = inBatch;
+		commit();
 	}
 
 	self.batch = batch;
@@ -2798,11 +2861,6 @@ function uPlot(opts, data, then) {
 	let cursorRaf = 0;
 
 	function updateCursor(ts, src) {
-		if (inBatch) {
-			shouldUpdateCursor = true;
-			return;
-		}
-
 	//	ts == null && log("updateCursor()", arguments);
 
 		cursorRaf = 0;
@@ -2881,7 +2939,7 @@ function uPlot(opts, data, then) {
 				}
 
 				if (showLegend && legend.live) {
-					if ((idx2 == cursor.idx && !forceUpdateLegend) || i == 0 && multiValLegend)
+					if ((idx2 == cursor.idx && !shouldSetLegend) || i == 0 && multiValLegend)
 						continue;
 
 					let src = i == 0 && xScaleDistr == 2 ? data0 : data[i];
@@ -2895,7 +2953,7 @@ function uPlot(opts, data, then) {
 				}
 			}
 
-			forceUpdateLegend = false;
+			shouldSetLegend = false;
 		}
 
 		// nit: cursor.drag.setSelect is assumed always true
@@ -3123,27 +3181,25 @@ function uPlot(opts, data, then) {
 		//		dragY = drag.y;
 		//	}
 
-			batch(() => {
-				if (dragX) {
-					_setScale(xScaleKey,
-						scaleValueAtPos(select[LEFT], xScaleKey),
-						scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
-					);
-				}
+			if (dragX) {
+				_setScale(xScaleKey,
+					scaleValueAtPos(select[LEFT], xScaleKey),
+					scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
+				);
+			}
 
-				if (dragY) {
-					for (let k in scales) {
-						let sc = scales[k];
+			if (dragY) {
+				for (let k in scales) {
+					let sc = scales[k];
 
-						if (k != xScaleKey && sc.from == null && sc.min != inf) {
-							_setScale(k,
-								scaleValueAtPos(select[TOP] + select[HEIGHT], k),
-								scaleValueAtPos(select[TOP], k)
-							);
-						}
+					if (k != xScaleKey && sc.from == null && sc.min != inf) {
+						_setScale(k,
+							scaleValueAtPos(select[TOP] + select[HEIGHT], k),
+							scaleValueAtPos(select[TOP], k)
+						);
 					}
 				}
-			});
+			}
 
 			hideSelect();
 		}
@@ -3300,8 +3356,6 @@ function uPlot(opts, data, then) {
 	self.destroy = destroy;
 
 	function _init() {
-		_setSize(opts[WIDTH], opts[HEIGHT]);
-
 		fire("init", opts, data);
 
 		setData(data || opts.data, false);
@@ -3311,12 +3365,9 @@ function uPlot(opts, data, then) {
 		else
 			autoScaleX();
 
+		_setSize(opts[WIDTH], opts[HEIGHT]);
+
 		setSelect(select, false);
-
-		ready = true;
-		self.status = 1;
-
-		fire("ready");
 	}
 
 	if (then) {
