@@ -203,8 +203,8 @@ declare namespace uPlot {
 
 		/** extra space to add in CSS pixels in the absence of a cross-axis (to prevent axis labels at the plotting area limits from being chopped off) */
 		gutters?: {
-			x?: number;
-			y?: number;
+			x?: number | ((self: uPlot) => number);
+			y?: number | ((self: uPlot) => number);
 		};
 
 		select?: Select;

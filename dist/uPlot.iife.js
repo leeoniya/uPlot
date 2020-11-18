@@ -1299,10 +1299,17 @@ var uPlot = (function () {
 				{ pendScales[k$1] = {min: sc.min, max: sc.max}; }
 		}
 
-		var gutters = assign({
+		var gutters = self.gutters = assign({
 			x: round(yAxisOpts.size / 2),
 			y: round(xAxisOpts.size / 3),
+			_x: null,
+			_y: null,
 		}, opts.gutters);
+
+		gutters.x  = fnOrSelf(gutters.x);
+		gutters.y  = fnOrSelf(gutters.y);
+		gutters._x = gutters.x(self);
+		gutters._y = gutters.y(self);
 
 	//	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 		var _tzDate  =  (opts.tzDate || (function (ts) { return new Date(ts * 1e3); }));
@@ -1466,10 +1473,15 @@ var uPlot = (function () {
 			var converged = false;
 
 			while (!converged) {
-				converged = axesCalc();		// && gutterCalc();
+				var axesConverged = axesCalc();
+				var guttersConverged = guttersCalc();
 
-				if (!converged)
-					{ calcSize(self.width, self.height); }
+				converged = axesConverged && guttersConverged;
+
+				if (!converged) {
+					calcSize(self.width, self.height);
+					shouldSetSize = true;
+				}
 			}
 		}
 
@@ -1527,20 +1539,20 @@ var uPlot = (function () {
 			// hz gutters
 			if (hasTopAxis || hasBtmAxis) {
 				if (!hasRgtAxis)
-					{ plotWidCss -= gutters.x; }
+					{ plotWidCss -= gutters._x; }
 				if (!hasLftAxis) {
-					plotWidCss -= gutters.x;
-					plotLftCss += gutters.x;
+					plotWidCss -= gutters._x;
+					plotLftCss += gutters._x;
 				}
 			}
 
 			// vt gutters
 			if (hasLftAxis || hasRgtAxis) {
 				if (!hasBtmAxis)
-					{ plotHgtCss -= gutters.y; }
+					{ plotHgtCss -= gutters._y; }
 				if (!hasTopAxis) {
-					plotHgtCss -= gutters.y;
-					plotTopCss += gutters.y;
+					plotHgtCss -= gutters._y;
+					plotTopCss += gutters._y;
 				}
 			}
 		}
@@ -2375,6 +2387,21 @@ var uPlot = (function () {
 				if (oldSize != null && axis._size != oldSize)			// ready && ?
 					{ converged = false; }
 			});
+
+			return converged;
+		}
+
+		function guttersCalc() {
+			var converged = true;
+
+			var _x = gutters._x;
+			var _y = gutters._y;
+
+			gutters._x = gutters.x(self);
+			gutters._y = gutters.y(self);
+
+			if (gutters._x != _x || gutters._y != _y)
+				{ converged = false; }
 
 			return converged;
 		}

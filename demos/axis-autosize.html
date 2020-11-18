@@ -6,6 +6,15 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			.uplot {
+				background: #eee;
+			}
+
+			.u-under {
+				background: rgba(0,0,0,0.1);
+			}
+		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
@@ -14,7 +23,7 @@
 				return Math.random() - 0.5 + Math.sin(x * 0.00002) * 40 + Math.sin(x * 0.001) * 5 + Math.sin(x * 0.1) * 2;
 			}
 
-			const points = 500;
+			const points = 501;
 
 			function getData(max, mult) {
 				mult = mult || 1;
@@ -36,6 +45,35 @@
 				title: "Axis AutoSize",
 				width: 1048,
 				height: 600,
+				gutters: {
+					x: self => {
+						let xAxis = self.axes[0];
+
+						let xVals = xAxis._values;
+
+						if (xVals != null) {
+							let xSplits = xAxis._splits;
+							let rightSplit = xSplits[xSplits.length - 1];
+							let rightSplitCoord = self.valToPos(rightSplit, "x");
+							let leftPlotEdge = (self.bbox.left / devicePixelRatio);
+							let rightPlotEdge = leftPlotEdge + (self.bbox.width / devicePixelRatio);
+							let rightChartEdge = rightPlotEdge + self.gutters._x;
+
+							let pxPerChar    = 8;
+							let rightVal     = xVals[xVals.length - 1] + "";
+							let valHalfWidth = pxPerChar * (rightVal.length / 2);
+
+							let rightValEdge = leftPlotEdge + rightSplitCoord + valHalfWidth;
+
+							if (rightValEdge >= rightChartEdge) {
+								return rightValEdge - rightPlotEdge;
+							}
+						}
+
+						// default size
+						return 8;
+					},
+				},
 				scales: {
 					x: {
 						time: false,
@@ -56,6 +94,9 @@
 					{
 						label: "X Axis Label",
 						labelSize: 20,
+						values(self, splits) {
+							return splits.map(s => s * mult);
+						}
 					},
 					{
 						label: "Y Axis Label",
