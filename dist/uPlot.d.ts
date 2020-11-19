@@ -126,7 +126,7 @@ declare class uPlot {
 
 export type AlignedData = [
 	xValues: number[],
-	...yValues: (number | null)[]
+	...yValues: ((number | null)[])[]
 ];
 
 export interface DateNames {
