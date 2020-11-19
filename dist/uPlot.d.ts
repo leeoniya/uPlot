@@ -1,4 +1,4 @@
-export class uPlot {
+declare class uPlot {
 	/** when passing a function for @targ, call init() after attaching self.root to the DOM */
 	constructor(
 		opts: Options,
@@ -535,6 +535,13 @@ export namespace Axis {
 
 	export type Values = ((self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => (string | number | null)[]) | (string | number | null)[][] | string;
 
+	export enum Side {
+		Top    = 0,
+		Right  = 1,
+		Bottom = 2,
+		Left   = 3,
+	}
+
 	export enum Align {
 		Left  = 1,
 		Right = 2,
@@ -573,7 +580,7 @@ export interface Axis {
 	scale?: string;
 
 	/** side of chart - 0: top, 1: rgt, 2: btm, 3: lft */
-	side?: number;
+	side?: Axis.Side;
 
 	/** height of x axis or width of y axis in CSS pixels alloted for values, gap & ticks, but excluding axis label */
 	size?: Axis.Size;
