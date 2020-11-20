@@ -187,7 +187,7 @@
 				]
 			];
 
-			let { data: data2, isGap } = outerJoin0(tables);
+			let alignedDataWithGapTest = outerJoin0(tables);
 
 			const opts2 = {
 				width: 1200,
@@ -205,26 +205,23 @@
 						stroke: "red",
 						fill: "rgba(255,0,0,0.1)",
 						spanGaps: false,
-						isGap,
 					},
 					{
 					//	show: false,
 						stroke: "green",
 						fill: "rgba(0,255,0,0.1)",
 						spanGaps: false,
-						isGap,
 					},
 					{
 					//	show: false,
 						stroke: "blue",
 						fill: "rgba(0,0,255,0.1)",
 						spanGaps: false,
-						isGap,
 					},
 				],
 			};
 
-			let u2 = new uPlot(opts2, data2, document.body);
+			let u2 = new uPlot(opts2, alignedDataWithGapTest, document.body);
 
 			setInterval(() => {
 				[u0, u1, u2].forEach(u => {

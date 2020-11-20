@@ -2,7 +2,7 @@ declare class uPlot {
 	/** when passing a function for @targ, call init() after attaching self.root to the DOM */
 	constructor(
 		opts: Options,
-		data: AlignedData,
+		data?: Data,
 		targ?: HTMLElement | ((self: uPlot, init: Function) => void)
 	);
 
@@ -63,7 +63,7 @@ declare class uPlot {
 	destroy(): void;
 
 	/** sets the chart data & redraws. (default resetScales = true) */
-	setData(data: AlignedData, resetScales?: boolean): void;
+	setData(data: Data, resetScales?: boolean): void;
 
 	/** sets the limits of a scale & redraws (used for zooming) */
 	setScale(scaleKey: string, limits: { min: number; max: number }): void;
@@ -126,8 +126,15 @@ declare class uPlot {
 
 export type AlignedData = [
 	xValues: number[],
-	...yValues: ((number | null)[])[]
-];
+	...yValues: (number | null)[][],
+]
+
+export interface AlignedDataWithGapTest {
+	data: AlignedData | null,
+	isGap: Series.isGap,
+}
+
+export type Data = AlignedData | AlignedDataWithGapTest;
 
 export interface DateNames {
 	/** long month names */
