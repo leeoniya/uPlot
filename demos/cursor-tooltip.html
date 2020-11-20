@@ -23,7 +23,13 @@
 		<script src="lib/placement.min.js"></script>
 		<script>
 			function tooltipPlugin(opts) {
-				let bound, bLeft, bTop;
+				let over, bound, bLeft, bTop;
+
+				function syncBounds() {
+					let bbox = over.getBoundingClientRect();
+					bLeft = bbox.left;
+					bTop = bbox.top;
+				}
 
 				const overlay = document.createElement("div");
 				overlay.id = "overlay";
@@ -33,23 +39,22 @@
 
 				return {
 					hooks: {
-						ready: u => {
-							let can = u.root.querySelector(".u-over");
+						init: u => {
+							over = u.root.querySelector(".u-over");
 
-							bound = can;
+							bound = over;
 						//	bound = document.body;
 
-							can.onmouseenter = () => {
+							over.onmouseenter = () => {
 								overlay.style.display = "block";
 							};
 
-							can.onmouseleave = () => {
+							over.onmouseleave = () => {
 								overlay.style.display = "none";
 							};
-
-							let bbox = can.getBoundingClientRect();
-							bLeft = bbox.left;
-							bTop = bbox.top;
+						},
+						setSize: u => {
+							syncBounds();
 						},
 						setCursor: u => {
 							const { left, top, idx } = u.cursor;
