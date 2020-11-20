@@ -1623,11 +1623,13 @@ export default function uPlot(opts, data, then) {
 
 	//	if (FEAT_LEGEND && legend.show && legend.live && shouldSetLegend) {}
 
-		ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
-		fire("drawClear");
-		drawAxesGrid();
-		dataLen > 0 && drawSeries();
-		fire("draw");
+		if (fullWidCss > 0 && fullHgtCss > 0) {
+			ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
+			fire("drawClear");
+			drawAxesGrid();
+			dataLen > 0 && drawSeries();
+			fire("draw");
+		}
 
 		if (!ready) {
 			ready = true;
