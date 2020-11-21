@@ -287,8 +287,8 @@
 
 					let plotOpts = genPlotOpts({
 						title: benchName + "-" + benchKind,
-						width: Math.floor(window.innerWidth / 3) - 16,
-						height: 300,
+						width: window.innerWidth - 16,
+						height: 600,
 						yAxisLabel,
 						series: seriesOpts,
 						commits: data.commits,
