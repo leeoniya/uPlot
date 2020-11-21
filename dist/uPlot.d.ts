@@ -155,7 +155,7 @@ export namespace Range {
 
 	export type Function = (self: uPlot, initMin: number, initMax: number, scaleKey: string) => MinMax;
 
-	export enum SoftMode {
+	export const enum SoftMode {
 		Off    = 0,
 		Always = 1,
 		Near   = 2,
@@ -371,7 +371,7 @@ export namespace Scale {
 
 	export type Range = Range.MinMax | Range.Function | Range.Config;
 
-	export enum Distr {
+	export const enum Distr {
 		Linear      = 1,
 		Ordinal     = 2,
 		Logarithmic = 3,
@@ -454,7 +454,7 @@ export namespace Series {
 
 	export type FillTo = number | ((self: uPlot, seriesIdx: number, dataMin: number, dataMax: number) => number);
 
-	export enum Sorted {
+	export const enum Sorted {
 		Unsorted    =  0,
 		Ascending   =  1,
 		Descending  = -1,
@@ -542,14 +542,14 @@ export namespace Axis {
 
 	export type Values = ((self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => (string | number | null)[]) | (string | number | null)[][] | string;
 
-	export enum Side {
+	export const enum Side {
 		Top    = 0,
 		Right  = 1,
 		Bottom = 2,
 		Left   = 3,
 	}
 
-	export enum Align {
+	export const enum Align {
 		Left  = 1,
 		Right = 2,
 	}
