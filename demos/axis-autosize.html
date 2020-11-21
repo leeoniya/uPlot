@@ -46,12 +46,16 @@
 				width: 1048,
 				height: 600,
 				gutters: {
-					x: self => {
+					x: (self, cycleNum) => {
 						let xAxis = self.axes[0];
 
 						let xVals = xAxis._values;
 
 						if (xVals != null) {
+							// bail out, force convergence
+							if (cycleNum > 2)
+								return self.gutters._x;
+
 							let xSplits = xAxis._splits;
 							let rightSplit = xSplits[xSplits.length - 1];
 							let rightSplitCoord = self.valToPos(rightSplit, "x");
@@ -102,7 +106,11 @@
 						label: "Y Axis Label",
 						stroke: "red",
 						class: "foo",
-						size(self, values, axisIdx) {
+						size(self, values, axisIdx, cycleNum) {
+							// bail out, force convergence
+							if (cycleNum > 2)
+								return self.axes[axisIdx]._size;
+
 							let dfltSize = 40;
 							return values == null ? dfltSize : Math.max(dfltSize, values[0].length * 8);
 						},

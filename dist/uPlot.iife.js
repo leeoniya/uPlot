@@ -1472,9 +1472,13 @@ var uPlot = (function () {
 		function convergeSize() {
 			var converged = false;
 
+			var cycleNum = 0;
+
 			while (!converged) {
-				var axesConverged = axesCalc();
-				var guttersConverged = guttersCalc();
+				cycleNum++;
+
+				var axesConverged = axesCalc(cycleNum);
+				var guttersConverged = guttersCalc(cycleNum);
 
 				converged = axesConverged && guttersConverged;
 
@@ -1705,7 +1709,7 @@ var uPlot = (function () {
 				axis.font      = pxRatioFont(axis.font);
 				axis.labelFont = pxRatioFont(axis.labelFont);
 
-				axis._size   = axis.size(self, null, i);
+				axis._size   = axis.size(self, null, i, 0);
 
 				axis._space  =
 				axis._rotate =
@@ -2331,7 +2335,7 @@ var uPlot = (function () {
 			ctx.translate(-offset, -offset);
 		}
 
-		function axesCalc() {
+		function axesCalc(cycleNum) {
 		//	log("axesCalc()", arguments);
 
 			var converged = true;
@@ -2388,7 +2392,7 @@ var uPlot = (function () {
 
 				var oldSize = axis._size;
 
-				axis._size = axis.size(self, values, i);
+				axis._size = ceil(axis.size(self, values, i, cycleNum));
 
 				if (oldSize != null && axis._size != oldSize)			// ready && ?
 					{ converged = false; }
@@ -2397,14 +2401,14 @@ var uPlot = (function () {
 			return converged;
 		}
 
-		function guttersCalc() {
+		function guttersCalc(cycleNum) {
 			var converged = true;
 
 			var _x = gutters._x;
 			var _y = gutters._y;
 
-			gutters._x = gutters.x(self);
-			gutters._y = gutters.y(self);
+			gutters._x = ceil(gutters.x(self, cycleNum));
+			gutters._y = ceil(gutters.y(self, cycleNum));
 
 			if (gutters._x != _x || gutters._y != _y)
 				{ converged = false; }

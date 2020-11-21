@@ -485,9 +485,13 @@ export default function uPlot(opts, data, then) {
 	function convergeSize() {
 		let converged = false;
 
+		let cycleNum = 0;
+
 		while (!converged) {
-			let axesConverged = axesCalc();
-			let guttersConverged = guttersCalc();
+			cycleNum++;
+
+			let axesConverged = axesCalc(cycleNum);
+			let guttersConverged = guttersCalc(cycleNum);
 
 			converged = axesConverged && guttersConverged;
 
@@ -715,7 +719,7 @@ export default function uPlot(opts, data, then) {
 			axis.font      = pxRatioFont(axis.font);
 			axis.labelFont = pxRatioFont(axis.labelFont);
 
-			axis._size   = axis.size(self, null, i);
+			axis._size   = axis.size(self, null, i, 0);
 
 			axis._space  =
 			axis._rotate =
@@ -1336,7 +1340,7 @@ export default function uPlot(opts, data, then) {
 		ctx.translate(-offset, -offset);
 	}
 
-	function axesCalc() {
+	function axesCalc(cycleNum) {
 	//	log("axesCalc()", arguments);
 
 		let converged = true;
@@ -1390,7 +1394,7 @@ export default function uPlot(opts, data, then) {
 
 			let oldSize = axis._size;
 
-			axis._size = axis.size(self, values, i);
+			axis._size = ceil(axis.size(self, values, i, cycleNum));
 
 			if (oldSize != null && axis._size != oldSize)			// ready && ?
 				converged = false;
@@ -1399,13 +1403,13 @@ export default function uPlot(opts, data, then) {
 		return converged;
 	}
 
-	function guttersCalc() {
+	function guttersCalc(cycleNum) {
 		let converged = true;
 
 		let {_x, _y} = gutters;
 
-		gutters._x = gutters.x(self);
-		gutters._y = gutters.y(self);
+		gutters._x = ceil(gutters.x(self, cycleNum));
+		gutters._y = ceil(gutters.y(self, cycleNum));
 
 		if (gutters._x != _x || gutters._y != _y)
 			converged = false;

@@ -186,8 +186,8 @@ export interface Scales {
 }
 
 export interface Gutters {
-	x?: number | ((self: uPlot) => number);
-	y?: number | ((self: uPlot) => number);
+	x?: number | ((self: uPlot, cycleNum: number) => number);
+	y?: number | ((self: uPlot, cycleNum: number) => number);
 }
 
 export interface Legend {
@@ -532,7 +532,7 @@ export namespace Axis {
 	/** must return an array of same length as splits, e.g. via splits.map() */
 	export type Filter = (self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => (number | null)[];
 
-	export type Size = number | ((self: uPlot, values: string[], axisIdx: number) => number);
+	export type Size = number | ((self: uPlot, values: string[], axisIdx: number, cycleNum: number) => number);
 
 	export type Space = number | ((self: uPlot, axisIdx: number, scaleMin: number, scaleMax: number, plotDim: number) => number);
 
