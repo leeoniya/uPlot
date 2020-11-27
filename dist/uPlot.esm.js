@@ -4,7 +4,7 @@
 *
 * uPlot.js (μPlot)
 * A small, fast chart for time series, lines, areas, ohlc & bars
-* https://github.com/leeoniya/uPlot (v1.4.4)
+* https://github.com/leeoniya/uPlot (v1.4.5)
 */
 
 function debounce(fn, time) {
