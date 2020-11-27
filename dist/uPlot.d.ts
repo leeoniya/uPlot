@@ -447,7 +447,7 @@ export namespace Series {
 		export type Show = boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
 	}
 
-	export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => Paths;
+	export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => Paths | null;
 
 	export type MinMaxIdxs = [minIdx: number, maxIdx: number];
 
