@@ -108,7 +108,9 @@ import {
 	xScaleOpts,
 	yScaleOpts,
 
-	timeIncrs,
+	timeIncrsMs,
+	timeIncrsS,
+
 	wholeIncrs,
 	numIncrs,
 	timeAxisVal,
@@ -123,14 +125,16 @@ import {
 	timeSeriesLabel,
 	numSeriesLabel,
 
-	ms,
+	timeAxisSplitsMs,
+	timeAxisSplitsS,
 
-	timeAxisSplits,
 	numAxisSplits,
 	logAxisSplits,
 
 	timeAxisStamps,
-	_timeAxisStamps,
+
+	_timeAxisStampsMs,
+	_timeAxisStampsS,
 
 	timeSeriesStamp,
 	_timeSeriesStamp,
@@ -249,7 +253,7 @@ export default function uPlot(opts, data, then) {
 			opts = p.opts(self, opts) || opts;
 	});
 
-
+	const ms = opts.ms || 1e-3;
 
 	const series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
 	const axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
@@ -328,8 +332,8 @@ export default function uPlot(opts, data, then) {
 	const _tzDate  = FEAT_TIME && (opts.tzDate || (ts => new Date(ts / ms)));
 	const _fmtDate = FEAT_TIME && (opts.fmtDate || fmtDate);
 
-	const _timeAxisSplits = FEAT_TIME && timeAxisSplits(_tzDate);
-	const _timeAxisVals   = FEAT_TIME && timeAxisVals(_tzDate, timeAxisStamps(_timeAxisStamps, _fmtDate));
+	const _timeAxisSplits = FEAT_TIME && (ms == 1 ? timeAxisSplitsMs(_tzDate) : timeAxisSplitsS(_tzDate));
+	const _timeAxisVals   = FEAT_TIME && timeAxisVals(_tzDate, timeAxisStamps((ms == 1 ? _timeAxisStampsMs : _timeAxisStampsS), _fmtDate));
 	const _timeSeriesVal  = FEAT_TIME && timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
 
 	const legend     = FEAT_LEGEND && assign({show: true, live: true}, opts.legend);
@@ -700,7 +704,7 @@ export default function uPlot(opts, data, then) {
 			axis.size   = fnOrSelf(axis.size);
 			axis.space  = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
-			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? wholeIncrs : (isTime ? timeIncrs : numIncrs)));
+			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? wholeIncrs : (isTime ? (ms == 1 ? timeIncrsMs : timeIncrsS) : numIncrs)));
 			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
 
 			let av = axis.values;
@@ -802,7 +806,7 @@ export default function uPlot(opts, data, then) {
 				if (xScaleDistr == 3)
 					[_min, _max] = rangeLog(_min, _min, scales[xScaleKey].log, false);
 				else if (scales[xScaleKey].time)
-					_max = _min + 86400;
+					_max = _min + 86400 / ms;
 				else
 					[_min, _max] = rangeNum(_min, _max, 0.1, true);
 			}

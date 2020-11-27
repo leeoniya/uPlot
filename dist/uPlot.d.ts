@@ -225,6 +225,9 @@ export interface Options {
 	/** creates an efficient formatter for Date objects from a template string, e.g. {YYYY}-{MM}-{DD} */
 	fmtDate?: DateFormatterFactory;
 
+	/** timestamp multiplier that yields 1 millisecond */
+	ms: 1e-3 | 1; // 1e-3
+
 	series: Series[];
 
 	scales?: Scales;

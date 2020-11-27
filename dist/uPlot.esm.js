@@ -562,64 +562,193 @@ const wholeIncrs = oneIncrs.filter(onlyWhole);
 
 const numIncrs = decIncrs.concat(oneIncrs);
 
-let ms =  1e-3;
+const NL = "\n";
 
-let	s  = ms * 1e3,
-	m  = s  * 60,
-	h  = m  * 60,
-	d  = h  * 24,
-	mo = d  * 30,
-	y  = d  * 365;
+const yyyy    = "{YYYY}";
+const NLyyyy  = NL + yyyy;
+const md      = "{M}/{D}";
+const NLmd    = NL + md;
+const NLmdyy  = NLmd + "/{YY}";
 
-// min of 1e-3 prevents setting a temporal x ticks too small since Date objects cannot advance ticks smaller than 1ms
-const timeIncrs =  ( genIncrs(10, -3, 0, allMults)).concat([
-	// minute divisors (# of secs)
-	s,
-	s * 5,
-	s * 10,
-	s * 15,
-	s * 30,
-	// hour divisors (# of mins)
-	m,
-	m * 5,
-	m * 10,
-	m * 15,
-	m * 30,
-	// day divisors (# of hrs)
-	h,
-	h * 2,
-	h * 3,
-	h * 4,
-	h * 6,
-	h * 8,
-	h * 12,
-	// month divisors TODO: need more?
-	d,
-	d * 2,
-	d * 3,
-	d * 4,
-	d * 5,
-	d * 6,
-	d * 7,
-	d * 8,
-	d * 9,
-	d * 10,
-	d * 15,
-	// year divisors (# months, approx)
-	mo,
-	mo * 2,
-	mo * 3,
-	mo * 4,
-	mo * 6,
-	// century divisors
-	y,
-	y * 2,
-	y * 5,
-	y * 10,
-	y * 25,
-	y * 50,
-	y * 100,
-]);
+const aa      = "{aa}";
+const hmm     = "{h}:{mm}";
+const hmmaa   = hmm + aa;
+const NLhmmaa = NL + hmmaa;
+const ss      = ":{ss}";
+
+const _ = null;
+
+function genTimeStuffs(ms) {
+	let	s  = ms * 1e3,
+		m  = s  * 60,
+		h  = m  * 60,
+		d  = h  * 24,
+		mo = d  * 30,
+		y  = d  * 365;
+
+	// min of 1e-3 prevents setting a temporal x ticks too small since Date objects cannot advance ticks smaller than 1ms
+	let subSecIncrs = ms == 1 ? genIncrs(10, 0, 3, allMults).filter(onlyWhole) : genIncrs(10, -3, 0, allMults);
+
+	let timeIncrs = subSecIncrs.concat([
+		// minute divisors (# of secs)
+		s,
+		s * 5,
+		s * 10,
+		s * 15,
+		s * 30,
+		// hour divisors (# of mins)
+		m,
+		m * 5,
+		m * 10,
+		m * 15,
+		m * 30,
+		// day divisors (# of hrs)
+		h,
+		h * 2,
+		h * 3,
+		h * 4,
+		h * 6,
+		h * 8,
+		h * 12,
+		// month divisors TODO: need more?
+		d,
+		d * 2,
+		d * 3,
+		d * 4,
+		d * 5,
+		d * 6,
+		d * 7,
+		d * 8,
+		d * 9,
+		d * 10,
+		d * 15,
+		// year divisors (# months, approx)
+		mo,
+		mo * 2,
+		mo * 3,
+		mo * 4,
+		mo * 6,
+		// century divisors
+		y,
+		y * 2,
+		y * 5,
+		y * 10,
+		y * 25,
+		y * 50,
+		y * 100,
+	]);
+
+	// [0]:   minimum num secs in the tick incr
+	// [1]:   default tick format
+	// [2-7]: rollover tick formats
+	// [8]:   mode: 0: replace [1] -> [2-7], 1: concat [1] + [2-7]
+	const _timeAxisStamps = [
+	//   tick incr    default          year                    month   day                   hour    min       sec   mode
+		[y,           yyyy,            _,                      _,      _,                    _,      _,        _,       1],
+		[d * 28,      "{MMM}",         NLyyyy,                 _,      _,                    _,      _,        _,       1],
+		[d,           md,              NLyyyy,                 _,      _,                    _,      _,        _,       1],
+		[h,           "{h}" + aa,      NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
+		[m,           hmmaa,           NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
+		[s,           ss,              NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1],
+		[ms,          ss + ".{fff}",   NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1],
+	];
+
+	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
+	// https://www.timeanddate.com/time/dst/
+	// https://www.timeanddate.com/time/dst/2019.html
+	// https://www.epochconverter.com/timezones
+	function timeAxisSplits(tzDate) {
+		return (self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace) => {
+			let splits = [];
+			let isYr = foundIncr >= y;
+			let isMo = foundIncr >= mo && foundIncr < y;
+
+			// get the timezone-adjusted date
+			let minDate = tzDate(scaleMin);
+			let minDateTs = minDate * ms;
+
+			// get ts of 12am (this lands us at or before the original scaleMin)
+			let minMin = mkDate(minDate[getFullYear](), isYr ? 0 : minDate[getMonth](), isMo || isYr ? 1 : minDate[getDate]());
+			let minMinTs = minMin * ms;
+
+			if (isMo || isYr) {
+				let moIncr = isMo ? foundIncr / mo : 0;
+				let yrIncr = isYr ? foundIncr / y  : 0;
+			//	let tzOffset = scaleMin - minDateTs;		// needed?
+				let split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear]() + yrIncr, minMin[getMonth]() + moIncr, 1) * ms;
+				let splitDate = new Date(split / ms);
+				let baseYear = splitDate[getFullYear]();
+				let baseMonth = splitDate[getMonth]();
+
+				for (let i = 0; split <= scaleMax; i++) {
+					let next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
+					let offs = next - tzDate(next * ms);
+
+					split = (+next + offs) * ms;
+
+					if (split <= scaleMax)
+						splits.push(split);
+				}
+			}
+			else {
+				let incr0 = foundIncr >= d ? d : foundIncr;
+				let tzOffset = floor(scaleMin) - floor(minDateTs);
+				let split = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
+				splits.push(split);
+
+				let date0 = tzDate(split);
+
+				let prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
+				let incrHours = foundIncr / h;
+
+				let minSpace = self.axes[axisIdx]._space;
+				let pctSpace = foundSpace / minSpace;
+
+				while (1) {
+					split = roundDec(split + foundIncr, ms == 1 ? 0 : 3);
+
+					if (split > scaleMax)
+						break;
+
+					if (incrHours > 1) {
+						let expectedHour = floor(roundDec(prevHour + incrHours, 6)) % 24;
+						let splitDate = tzDate(split);
+						let actualHour = splitDate.getHours();
+
+						let dstShift = actualHour - expectedHour;
+
+						if (dstShift > 1)
+							dstShift = -1;
+
+						split -= dstShift * h;
+
+						prevHour = (prevHour + incrHours) % 24;
+
+						// add a tick only if it's further than 70% of the min allowed label spacing
+						let prevSplit = splits[splits.length - 1];
+						let pctIncr = roundDec((split - prevSplit) / foundIncr, 3);
+
+						if (pctIncr * pctSpace >= .7)
+							splits.push(split);
+					}
+					else
+						splits.push(split);
+				}
+			}
+
+			return splits;
+		}
+	}
+
+	return [
+		timeIncrs,
+		_timeAxisStamps,
+		timeAxisSplits,
+	];
+}
+
+const [ timeIncrsMs, _timeAxisStampsMs, timeAxisSplitsMs ] =  genTimeStuffs(1);
+const [ timeIncrsS,  _timeAxisStampsS,  timeAxisSplitsS  ] =  genTimeStuffs(1e-3);
 
 // base 2
 const binIncrs = genIncrs(2, -53, 53, [1]);
@@ -640,37 +769,6 @@ function timeAxisStamps(stampCfg, fmtDate) {
 		i == 0 || i == 8 || v == null ? v : fmtDate(i == 1 || s[8] == 0 ? v : s[1] + v)
 	));
 }
-
-const NL = "\n";
-
-const yyyy    = "{YYYY}";
-const NLyyyy  = NL + yyyy;
-const md      = "{M}/{D}";
-const NLmd    = NL + md;
-const NLmdyy  = NLmd + "/{YY}";
-
-const aa      = "{aa}";
-const hmm     = "{h}:{mm}";
-const hmmaa   = hmm + aa;
-const NLhmmaa = NL + hmmaa;
-const ss      = ":{ss}";
-
-const _ = null;
-
-// [0]:   minimum num secs in the tick incr
-// [1]:   default tick format
-// [2-7]: rollover tick formats
-// [8]:   mode: 0: replace [1] -> [2-7], 1: concat [1] + [2-7]
-const _timeAxisStamps = [
-//   tick incr    default          year                    month   day                   hour    min       sec   mode
-	[y,           yyyy,            _,                      _,      _,                    _,      _,        _,       1],
-	[d * 28,      "{MMM}",         NLyyyy,                 _,      _,                    _,      _,        _,       1],
-	[d,           md,              NLyyyy,                 _,      _,                    _,      _,        _,       1],
-	[h,           "{h}" + aa,      NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
-	[m,           hmmaa,           NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
-	[s,           ss,              NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1],
-	[ms,          ss + ".{fff}",   NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1],
-];
 
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
@@ -726,93 +824,6 @@ function timeAxisVal(tzDate, dateTpl) {
 
 function mkDate(y, m, d) {
 	return new Date(y, m, d);
-}
-
-// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
-// https://www.timeanddate.com/time/dst/
-// https://www.timeanddate.com/time/dst/2019.html
-// https://www.epochconverter.com/timezones
-function timeAxisSplits(tzDate) {
-	return (self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace) => {
-		let splits = [];
-		let isYr = foundIncr >= y;
-		let isMo = foundIncr >= mo && foundIncr < y;
-
-		// get the timezone-adjusted date
-		let minDate = tzDate(scaleMin);
-		let minDateTs = minDate * ms;
-
-		// get ts of 12am (this lands us at or before the original scaleMin)
-		let minMin = mkDate(minDate[getFullYear](), isYr ? 0 : minDate[getMonth](), isMo || isYr ? 1 : minDate[getDate]());
-		let minMinTs = minMin * ms;
-
-		if (isMo || isYr) {
-			let moIncr = isMo ? foundIncr / mo : 0;
-			let yrIncr = isYr ? foundIncr / y  : 0;
-		//	let tzOffset = scaleMin - minDateTs;		// needed?
-			let split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear]() + yrIncr, minMin[getMonth]() + moIncr, 1) * ms;
-			let splitDate = new Date(split / ms);
-			let baseYear = splitDate[getFullYear]();
-			let baseMonth = splitDate[getMonth]();
-
-			for (let i = 0; split <= scaleMax; i++) {
-				let next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
-				let offs = next - tzDate(next * ms);
-
-				split = (+next + offs) * ms;
-
-				if (split <= scaleMax)
-					splits.push(split);
-			}
-		}
-		else {
-			let incr0 = foundIncr >= d ? d : foundIncr;
-			let tzOffset = floor(scaleMin) - floor(minDateTs);
-			let split = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
-			splits.push(split);
-
-			let date0 = tzDate(split);
-
-			let prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
-			let incrHours = foundIncr / h;
-
-			let minSpace = self.axes[axisIdx]._space;
-			let pctSpace = foundSpace / minSpace;
-
-			while (1) {
-				split = roundDec(split + foundIncr,  3);
-
-				if (split > scaleMax)
-					break;
-
-				if (incrHours > 1) {
-					let expectedHour = floor(roundDec(prevHour + incrHours, 6)) % 24;
-					let splitDate = tzDate(split);
-					let actualHour = splitDate.getHours();
-
-					let dstShift = actualHour - expectedHour;
-
-					if (dstShift > 1)
-						dstShift = -1;
-
-					split -= dstShift * h;
-
-					prevHour = (prevHour + incrHours) % 24;
-
-					// add a tick only if it's further than 70% of the min allowed label spacing
-					let prevSplit = splits[splits.length - 1];
-					let pctIncr = roundDec((split - prevSplit) / foundIncr, 3);
-
-					if (pctIncr * pctSpace >= .7)
-						splits.push(split);
-				}
-				else
-					splits.push(split);
-			}
-		}
-
-		return splits;
-	}
 }
 
 function timeSeriesStamp(stampCfg, fmtDate) {
@@ -1238,7 +1249,7 @@ function uPlot(opts, data, then) {
 			opts = p.opts(self, opts) || opts;
 	});
 
-
+	const ms = opts.ms || 1e-3;
 
 	const series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
 	const axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
@@ -1317,8 +1328,8 @@ function uPlot(opts, data, then) {
 	const _tzDate  =  (opts.tzDate || (ts => new Date(ts / ms)));
 	const _fmtDate =  (opts.fmtDate || fmtDate);
 
-	const _timeAxisSplits =  timeAxisSplits(_tzDate);
-	const _timeAxisVals   =  timeAxisVals(_tzDate, timeAxisStamps(_timeAxisStamps, _fmtDate));
+	const _timeAxisSplits =  (ms == 1 ? timeAxisSplitsMs(_tzDate) : timeAxisSplitsS(_tzDate));
+	const _timeAxisVals   =  timeAxisVals(_tzDate, timeAxisStamps((ms == 1 ? _timeAxisStampsMs : _timeAxisStampsS), _fmtDate));
 	const _timeSeriesVal  =  timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
 
 	const legend     =  assign({show: true, live: true}, opts.legend);
@@ -1688,7 +1699,7 @@ function uPlot(opts, data, then) {
 			axis.size   = fnOrSelf(axis.size);
 			axis.space  = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
-			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? wholeIncrs : (isTime ? timeIncrs : numIncrs)));
+			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? wholeIncrs : (isTime ? (ms == 1 ? timeIncrsMs : timeIncrsS) : numIncrs)));
 			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
 
 			let av = axis.values;
@@ -1790,7 +1801,7 @@ function uPlot(opts, data, then) {
 				if (xScaleDistr == 3)
 					[_min, _max] = rangeLog(_min, _min, scales[xScaleKey].log, false);
 				else if (scales[xScaleKey].time)
-					_max = _min + 86400;
+					_max = _min + 86400 / ms;
 				else
 					[_min, _max] = rangeNum(_min, _max, 0.1, true);
 			}
