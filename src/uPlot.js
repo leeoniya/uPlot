@@ -18,8 +18,6 @@ import {
 	getMinMax,
 	rangeNum,
 	rangeLog,
-	incrRoundUp,
-	incrRoundDn,
 	incrRound,
 	isArr,
 	isObj,
@@ -124,6 +122,8 @@ import {
 
 	timeSeriesLabel,
 	numSeriesLabel,
+
+	ms,
 
 	timeAxisSplits,
 	numAxisSplits,
@@ -325,7 +325,7 @@ export default function uPlot(opts, data, then) {
 	gutters._y = gutters.y(self);
 
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
-	const _tzDate  = FEAT_TIME && (opts.tzDate || (ts => new Date(ts * 1e3)));
+	const _tzDate  = FEAT_TIME && (opts.tzDate || (ts => new Date(ts / ms)));
 	const _fmtDate = FEAT_TIME && (opts.fmtDate || fmtDate);
 
 	const _timeAxisSplits = FEAT_TIME && timeAxisSplits(_tzDate);

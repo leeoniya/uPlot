@@ -6,10 +6,7 @@ import {
 	log2,
 	log10,
 	genIncrs,
-	abs,
-	max,
 	incrRoundUp,
-	round,
 	roundDec,
 	floor,
 	fmtNum,
@@ -61,21 +58,25 @@ export const wholeIncrs = oneIncrs.filter(onlyWhole);
 
 export const numIncrs = decIncrs.concat(oneIncrs);
 
-let s = 1,
-	m = 60,
-	h = m * m,
-	d = h * 24,
-	mo = d * 30,
-	y = d * 365;
+const asMs = false;
+
+export let ms = asMs ? 1 : 1e-3;
+
+let	s  = ms * 1e3,
+	m  = s  * 60,
+	h  = m  * 60,
+	d  = h  * 24,
+	mo = d  * 30,
+	y  = d  * 365;
 
 // min of 1e-3 prevents setting a temporal x ticks too small since Date objects cannot advance ticks smaller than 1ms
-export const timeIncrs = FEAT_TIME && genIncrs(10, -3, 0, wholeMults).concat([
+export const timeIncrs = FEAT_TIME && (asMs ? genIncrs(10, 0, 3, allMults).filter(onlyWhole) : genIncrs(10, -3, 0, allMults)).concat([
 	// minute divisors (# of secs)
-	1,
-	5,
-	10,
-	15,
-	30,
+	s,
+	s * 5,
+	s * 10,
+	s * 15,
+	s * 30,
 	// hour divisors (# of mins)
 	m,
 	m * 5,
@@ -140,17 +141,17 @@ export function timeAxisStamps(stampCfg, fmtDate) {
 
 const NL = "\n";
 
-const yyyy = "{YYYY}";
-const NLyyyy = NL + yyyy;
-const md = "{M}/{D}";
-const NLmd = NL + md;
-const NLmdyy = NLmd + "/{YY}";
+const yyyy    = "{YYYY}";
+const NLyyyy  = NL + yyyy;
+const md      = "{M}/{D}";
+const NLmd    = NL + md;
+const NLmdyy  = NLmd + "/{YY}";
 
-const aa = "{aa}";
-const hmm = "{h}:{mm}";
-const hmmaa = hmm + aa;
+const aa      = "{aa}";
+const hmm     = "{h}:{mm}";
+const hmmaa   = hmm + aa;
 const NLhmmaa = NL + hmmaa;
-const ss = ":{ss}";
+const ss      = ":{ss}";
 
 const _ = null;
 
@@ -166,7 +167,7 @@ export const _timeAxisStamps = [
 	[h,           "{h}" + aa,      NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
 	[m,           hmmaa,           NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
 	[s,           ss,              NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1],
-	[1e-3,        ss + ".{fff}",   NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1],
+	[ms,          ss + ".{fff}",   NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1],
 ];
 
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
@@ -237,26 +238,26 @@ export function timeAxisSplits(tzDate) {
 
 		// get the timezone-adjusted date
 		let minDate = tzDate(scaleMin);
-		let minDateTs = minDate / 1e3;
+		let minDateTs = minDate * ms;
 
 		// get ts of 12am (this lands us at or before the original scaleMin)
 		let minMin = mkDate(minDate[getFullYear](), isYr ? 0 : minDate[getMonth](), isMo || isYr ? 1 : minDate[getDate]());
-		let minMinTs = minMin / 1e3;
+		let minMinTs = minMin * ms;
 
 		if (isMo || isYr) {
 			let moIncr = isMo ? foundIncr / mo : 0;
 			let yrIncr = isYr ? foundIncr / y  : 0;
 		//	let tzOffset = scaleMin - minDateTs;		// needed?
-			let split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear]() + yrIncr, minMin[getMonth]() + moIncr, 1) / 1e3;
-			let splitDate = new Date(split * 1e3);
+			let split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear]() + yrIncr, minMin[getMonth]() + moIncr, 1) * ms;
+			let splitDate = new Date(split / ms);
 			let baseYear = splitDate[getFullYear]();
 			let baseMonth = splitDate[getMonth]();
 
 			for (let i = 0; split <= scaleMax; i++) {
 				let next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
-				let offs = next - tzDate(next / 1e3);
+				let offs = next - tzDate(next * ms);
 
-				split = (+next + offs) / 1e3;
+				split = (+next + offs) * ms;
 
 				if (split <= scaleMax)
 					splits.push(split);
@@ -277,7 +278,7 @@ export function timeAxisSplits(tzDate) {
 			let pctSpace = foundSpace / minSpace;
 
 			while (1) {
-				split = roundDec(split + foundIncr, 3);
+				split = roundDec(split + foundIncr, asMs ? 0 : 3);
 
 				if (split > scaleMax)
 					break;

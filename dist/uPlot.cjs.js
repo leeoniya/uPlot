@@ -551,8 +551,6 @@ var onlyWhole = function (v) { return v % 1 == 0; };
 
 var allMults = [1,2,2.5,5];
 
-var wholeMults = allMults.filter(onlyWhole);
-
 // ...0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.25, 0.5
 var decIncrs = genIncrs(10, -16, 0, allMults);
 
@@ -564,21 +562,23 @@ var wholeIncrs = oneIncrs.filter(onlyWhole);
 
 var numIncrs = decIncrs.concat(oneIncrs);
 
-var s = 1,
-	m = 60,
-	h = m * m,
-	d = h * 24,
-	mo = d * 30,
-	y = d * 365;
+var ms =  1e-3;
+
+var	s  = ms * 1e3,
+	m  = s  * 60,
+	h  = m  * 60,
+	d  = h  * 24,
+	mo = d  * 30,
+	y  = d  * 365;
 
 // min of 1e-3 prevents setting a temporal x ticks too small since Date objects cannot advance ticks smaller than 1ms
-var timeIncrs =  genIncrs(10, -3, 0, wholeMults).concat([
+var timeIncrs =  ( genIncrs(10, -3, 0, allMults)).concat([
 	// minute divisors (# of secs)
-	1,
-	5,
-	10,
-	15,
-	30,
+	s,
+	s * 5,
+	s * 10,
+	s * 15,
+	s * 30,
 	// hour divisors (# of mins)
 	m,
 	m * 5,
@@ -641,17 +641,17 @@ function timeAxisStamps(stampCfg, fmtDate) {
 
 var NL = "\n";
 
-var yyyy = "{YYYY}";
-var NLyyyy = NL + yyyy;
-var md = "{M}/{D}";
-var NLmd = NL + md;
-var NLmdyy = NLmd + "/{YY}";
+var yyyy    = "{YYYY}";
+var NLyyyy  = NL + yyyy;
+var md      = "{M}/{D}";
+var NLmd    = NL + md;
+var NLmdyy  = NLmd + "/{YY}";
 
-var aa = "{aa}";
-var hmm = "{h}:{mm}";
-var hmmaa = hmm + aa;
+var aa      = "{aa}";
+var hmm     = "{h}:{mm}";
+var hmmaa   = hmm + aa;
 var NLhmmaa = NL + hmmaa;
-var ss = ":{ss}";
+var ss      = ":{ss}";
 
 var _ = null;
 
@@ -667,7 +667,7 @@ var _timeAxisStamps = [
 	[h,           "{h}" + aa,      NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
 	[m,           hmmaa,           NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
 	[s,           ss,              NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1],
-	[1e-3,        ss + ".{fff}",   NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1] ];
+	[ms,          ss + ".{fff}",   NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1] ];
 
 // TODO: will need to accept spaces[] and pull incr into the loop when grid will be non-uniform, eg for log scales.
 // currently we ignore this for months since they're *nearly* uniform and the added complexity is not worth it
@@ -737,26 +737,26 @@ function timeAxisSplits(tzDate) {
 
 		// get the timezone-adjusted date
 		var minDate = tzDate(scaleMin);
-		var minDateTs = minDate / 1e3;
+		var minDateTs = minDate * ms;
 
 		// get ts of 12am (this lands us at or before the original scaleMin)
 		var minMin = mkDate(minDate[getFullYear](), isYr ? 0 : minDate[getMonth](), isMo || isYr ? 1 : minDate[getDate]());
-		var minMinTs = minMin / 1e3;
+		var minMinTs = minMin * ms;
 
 		if (isMo || isYr) {
 			var moIncr = isMo ? foundIncr / mo : 0;
 			var yrIncr = isYr ? foundIncr / y  : 0;
 		//	let tzOffset = scaleMin - minDateTs;		// needed?
-			var split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear]() + yrIncr, minMin[getMonth]() + moIncr, 1) / 1e3;
-			var splitDate = new Date(split * 1e3);
+			var split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear]() + yrIncr, minMin[getMonth]() + moIncr, 1) * ms;
+			var splitDate = new Date(split / ms);
 			var baseYear = splitDate[getFullYear]();
 			var baseMonth = splitDate[getMonth]();
 
 			for (var i = 0; split <= scaleMax; i++) {
 				var next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
-				var offs = next - tzDate(next / 1e3);
+				var offs = next - tzDate(next * ms);
 
-				split = (+next + offs) / 1e3;
+				split = (+next + offs) * ms;
 
 				if (split <= scaleMax)
 					{ splits.push(split); }
@@ -777,7 +777,7 @@ function timeAxisSplits(tzDate) {
 			var pctSpace = foundSpace / minSpace;
 
 			while (1) {
-				split$1 = roundDec(split$1 + foundIncr, 3);
+				split$1 = roundDec(split$1 + foundIncr,  3);
 
 				if (split$1 > scaleMax)
 					{ break; }
@@ -1311,7 +1311,7 @@ function uPlot(opts, data, then) {
 	gutters._y = gutters.y(self);
 
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
-	var _tzDate  =  (opts.tzDate || (function (ts) { return new Date(ts * 1e3); }));
+	var _tzDate  =  (opts.tzDate || (function (ts) { return new Date(ts / ms); }));
 	var _fmtDate =  (opts.fmtDate || fmtDate);
 
 	var _timeAxisSplits =  timeAxisSplits(_tzDate);

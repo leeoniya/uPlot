@@ -48,7 +48,7 @@
 				];
 
 				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
-					data[0][j] = packed[i] * 60;
+					data[0][j] = packed[i] * 60;	// * 1e3
 					data[1][j] = round3(100 - packed[i+1]);
 					data[2][j] = round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]));
 					data[3][j] = packed[i+3];
