@@ -226,7 +226,7 @@ export interface Options {
 	fmtDate?: DateFormatterFactory;
 
 	/** timestamp multiplier that yields 1 millisecond */
-	ms: 1e-3 | 1; // 1e-3
+	ms?: 1e-3 | 1; // 1e-3
 
 	series: Series[];
 
