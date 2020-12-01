@@ -2107,10 +2107,10 @@ function uPlot(opts, data, then) {
 				width && ctx.stroke(stroke);
 			}
 			else {
-				width && ctx.stroke(stroke);
-
 				if (s.fill != null)
 					{ ctx.fill(fill); }
+
+				width && ctx.stroke(stroke);
 			}
 
 			ctx.restore();
