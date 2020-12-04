@@ -1739,7 +1739,6 @@ function uPlot(opts, data, then) {
 	axes.forEach(initAxis);
 
 	var dataLen;
-	var dataIsGap;
 
 	// rendered data window
 	var i0 = null;
@@ -1752,7 +1751,7 @@ function uPlot(opts, data, then) {
 
 	function setData(_data, _resetScales) {
 		if (!isArr(_data) && isObj(_data)) {
-			dataIsGap = _data.isGap;
+			_data.isGap && series.forEach(function (s) { s.isGap = _data.isGap; });
 			_data = _data.data;
 		}
 
@@ -2171,7 +2170,7 @@ function uPlot(opts, data, then) {
 
 	function buildPaths(self, is, _i0, _i1) {
 		var s = series[is];
-		var isGap = dataIsGap || s.isGap;
+		var isGap = s.isGap;
 
 		var xdata  = data[0];
 		var ydata  = data[is];
