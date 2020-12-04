@@ -414,13 +414,13 @@ export namespace Series {
 
 	export interface Paths {
 		/** path to stroke */
-		stroke?: Path2D;
+		stroke?: Path2D | null;
 
 		/** path to fill */
-		fill?: Path2D;
+		fill?: Path2D | null;
 
 		/** path for clipping fill & stroke */
-		clip?: Path2D;
+		clip?: Path2D | null;
 	}
 
 	export interface Points {
