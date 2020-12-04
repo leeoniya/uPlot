@@ -1040,7 +1040,7 @@ export default function uPlot(opts, data, then) {
 		series.forEach((s, i) => {
 			if (i > 0 && s.show && s._paths == null) {
 				let _idxs = getOuterIdxs(data[i]);
-				s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
+				s._paths = s.paths(self, i, _idxs[0], _idxs[1], extendGap, buildClip);
 			}
 		});
 
@@ -1117,13 +1117,11 @@ export default function uPlot(opts, data, then) {
 			dir *= -1;
 	}
 
-	function buildClip(is, gaps) {
-		let s = series[is];
-
+	function buildClip(gaps) {
 		let clip = null;
 
 		// create clip path (invert gaps and non-gaps)
-		if (gaps.length > 0 && !s.spanGaps) {
+		if (gaps.length > 0) {
 			clip = new Path2D();
 
 			let prevGapEnd = plotLft;
@@ -1142,7 +1140,7 @@ export default function uPlot(opts, data, then) {
 		return clip;
 	}
 
-	function addGap(gaps, fromX, toX) {
+	function extendGap(gaps, fromX, toX) {
 		if (toX > fromX) {
 			let prevGap = gaps[gaps.length - 1];
 
@@ -1162,7 +1160,7 @@ export default function uPlot(opts, data, then) {
 		return -1;
 	}
 
-	function buildPaths(self, is, _i0, _i1) {
+	function buildPaths(self, is, _i0, _i1, extendGap, buildClip) {
 		const s = series[is];
 		const isGap = s.isGap;
 
@@ -1192,7 +1190,7 @@ export default function uPlot(opts, data, then) {
 		let rgtX = incrRound(getXPos(xdata[rgtIdx], scaleX, plotWid, plotLft), 0.5);
 
 		if (lftX > plotLft)
-			addGap(gaps, plotLft, lftX);
+			extendGap(gaps, plotLft, lftX);
 
 		// the moves the shape edge outside the canvas so stroke doesnt bleed in
 		if (s.band && dir == 1)
@@ -1241,14 +1239,14 @@ export default function uPlot(opts, data, then) {
 						accGaps = true;
 				}
 
-				_addGap && addGap(gaps, outX, x);
+				_addGap && extendGap(gaps, outX, x);
 
 				accX = x;
 			}
 		}
 
 		if (rgtX < plotLft + plotWid)
-			addGap(gaps, rgtX, plotLft + plotWid);
+			extendGap(gaps, rgtX, plotLft + plotWid);
 
 		if (s.band) {
 			let _x, _iy, ydata2;
@@ -1270,7 +1268,8 @@ export default function uPlot(opts, data, then) {
 		}
 
 		if (dir == 1) {
-			_paths.clip = buildClip(is, gaps, ydata[_i0] == null, ydata[_i1] == null);
+			if (!s.spanGaps)
+				_paths.clip =  buildClip(gaps);
 
 			if (s.fill != null) {
 				let fill = _paths.fill = new Path2D(stroke);

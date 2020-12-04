@@ -447,7 +447,13 @@ export namespace Series {
 		export type Show = boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
 	}
 
-	export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => Paths | null;
+	export type Gaps = [from: number, to: number][];
+
+	export type ExtendGap = (gaps: Gaps, fromX: number, toX: number) => void;
+
+	export type BuildClip = (gaps: Gaps) => Path2D | null;
+
+	export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number, extendGap: ExtendGap, buildClip: BuildClip) => Paths | null;
 
 	export type MinMaxIdxs = [minIdx: number, maxIdx: number];
 
