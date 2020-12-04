@@ -2123,7 +2123,7 @@ function uPlot(opts, data, then) {
 			{ dir *= -1; }
 	}
 
-	function buildClip(is, gaps, nullHead, nullTail) {
+	function buildClip(is, gaps) {
 		var s = series[is];
 
 		var clip = null;
