@@ -261,6 +261,8 @@ export default function uPlot(opts, data, then) {
 
 	const xScaleKey = series[0].scale;
 
+	const drawOrder = opts.drawOrder || ["axes", "series"];
+
 	function initScale(scaleKey) {
 		let sc = scales[scaleKey];
 
@@ -1640,8 +1642,14 @@ export default function uPlot(opts, data, then) {
 		if (fullWidCss > 0 && fullHgtCss > 0) {
 			ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 			fire("drawClear");
-			drawAxesGrid();
-			dataLen > 0 && drawSeries();
+
+			drawOrder.forEach(key => {
+				key == "axes" && drawAxesGrid(); 
+				key == "series" && dataLen > 0 && drawSeries();
+			});
+
+			// drawAxesGrid();
+			// dataLen > 0 && drawSeries();
 			fire("draw");
 		}
 

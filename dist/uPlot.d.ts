@@ -200,6 +200,11 @@ export type DateFormatterFactory = (tpl: string) => (date: Date) => string;
 
 export type LocalDateFromUnix = (ts: number) => Date;
 
+export enum DrawOrderOption {
+	Axes = 'axes',
+	Series = 'series',
+}
+
 export interface Options {
 	/** chart title */
 	title?: string;
@@ -227,6 +232,9 @@ export interface Options {
 
 	/** timestamp multiplier that yields 1 millisecond */
 	ms?: 1e-3 | 1; // 1e-3
+
+	/** Order of drawing */
+	drawOrder?: DrawOrderOption[];
 
 	series: Series[];
 
@@ -414,13 +422,13 @@ export namespace Series {
 
 	export interface Paths {
 		/** path to stroke */
-		stroke?: Path2D;
+		stroke?: Path2D | null;
 
 		/** path to fill */
-		fill?: Path2D;
+		fill?: Path2D | null;
 
 		/** path for clipping fill & stroke */
-		clip?: Path2D;
+		clip?: Path2D | null;
 	}
 
 	export interface Points {
@@ -447,7 +455,13 @@ export namespace Series {
 		export type Show = boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
 	}
 
-	export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => Paths | null;
+	export type Gaps = [from: number, to: number][];
+
+	export type ExtendGap = (gaps: Gaps, fromX: number, toX: number) => void;
+
+	export type BuildClip = (gaps: Gaps) => Path2D | null;
+
+	export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number, extendGap: ExtendGap, buildClip: BuildClip) => Paths | null;
 
 	export type MinMaxIdxs = [minIdx: number, maxIdx: number];
 
