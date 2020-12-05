@@ -1640,12 +1640,10 @@ export default function uPlot(opts, data, then) {
 		if (fullWidCss > 0 && fullHgtCss > 0) {
 			ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
 			fire("drawClear");
-
 			drawOrder.forEach(key => {
-				key == "axes" && drawAxesGrid(); 
+				key == "axes" && drawAxesGrid();
 				key == "series" && dataLen > 0 && drawSeries();
 			});
-
 			fire("draw");
 		}
 
