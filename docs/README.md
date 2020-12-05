@@ -312,7 +312,6 @@ let opts = {
         stroke: "#eee",
         width: 2,
         dash: [],
-        over: false,
       },
       ticks: {
         show: true,
@@ -320,7 +319,6 @@ let opts = {
         width: 2,
         dash: [],
         size: 10,
-        over: false,
       }
     }
   ]
