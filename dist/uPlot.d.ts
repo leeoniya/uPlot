@@ -200,6 +200,11 @@ export type DateFormatterFactory = (tpl: string) => (date: Date) => string;
 
 export type LocalDateFromUnix = (ts: number) => Date;
 
+export const enum DrawOrderOption {
+	Axes = 'axes',
+	Series = 'series',
+}
+
 export interface Options {
 	/** chart title */
 	title?: string;
@@ -227,6 +232,9 @@ export interface Options {
 
 	/** timestamp multiplier that yields 1 millisecond */
 	ms?: 1e-3 | 1; // 1e-3
+
+	/** Order of drawing */
+	drawOrder?: DrawOrderOption[];
 
 	series: Series[];
 
