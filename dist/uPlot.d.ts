@@ -200,7 +200,7 @@ export type DateFormatterFactory = (tpl: string) => (date: Date) => string;
 
 export type LocalDateFromUnix = (ts: number) => Date;
 
-export enum DrawOrderOption {
+export const enum DrawOrderOption {
 	Axes = 'axes',
 	Series = 'series',
 }
