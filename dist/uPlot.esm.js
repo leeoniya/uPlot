@@ -43,6 +43,26 @@ function closestIdx(num, arr, lo, hi) {
 	return hi;
 }
 
+function nonNullIdx(data, _i0, _i1, dir) {
+	for (let i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
+		if (data[i] != null)
+			return i;
+	}
+
+	return -1;
+}
+
+function extendGap(gaps, fromX, toX) {
+	if (toX > fromX) {
+		let prevGap = gaps[gaps.length - 1];
+
+		if (prevGap && prevGap[0] == fromX)			// TODO: gaps must be encoded at stroke widths?
+			prevGap[1] = toX;
+		else
+			gaps.push([fromX, toX]);
+	}
+}
+
 function getMinMax(data, _i0, _i1, sorted) {
 //	console.log("getMinMax()");
 
@@ -1642,7 +1662,7 @@ function uPlot(opts, data, then) {
 
 		if (i > 0) {
 			s.width = s.width == null ? 1 : s.width;
-			s.paths = s.paths || ( buildPaths);
+			s.paths = s.paths || ( buildLinear);
 			s.fillTo = s.fillTo || seriesFillTo;
 			let _ptDia = ptDia(s.width, 1);
 			s.points = assign({}, {
@@ -2144,27 +2164,7 @@ function uPlot(opts, data, then) {
 		return clip;
 	}
 
-	function extendGap(gaps, fromX, toX) {
-		if (toX > fromX) {
-			let prevGap = gaps[gaps.length - 1];
-
-			if (prevGap && prevGap[0] == fromX)			// TODO: gaps must be encoded at stroke widths?
-				prevGap[1] = toX;
-			else
-				gaps.push([fromX, toX]);
-		}
-	}
-
-	function nonNullIdx(data, _i0, _i1, dir) {
-		for (let i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
-			if (data[i] != null)
-				return i;
-		}
-
-		return -1;
-	}
-
-	function buildPaths(self, is, _i0, _i1, extendGap, buildClip) {
+	function buildLinear(self, is, _i0, _i1, extendGap, buildClip) {
 		const s = series[is];
 		const isGap = s.isGap;
 
@@ -2290,7 +2290,7 @@ function uPlot(opts, data, then) {
 		return _paths;
 	}
 
-	self.paths = buildPaths;
+	self.paths = buildLinear;
 
 	function getIncrSpace(axisIdx, min, max, fullDim) {
 		let axis = axes[axisIdx];

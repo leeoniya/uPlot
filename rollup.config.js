@@ -57,6 +57,22 @@ const FEATS = {
 //	FEAT_GAPS: false,
 };
 
+const terserOpts = {
+	compress: {
+		inline: 0,
+		passes: 2,
+		keep_fargs: false,
+		pure_getters: true,
+		unsafe: true,
+		unsafe_comps: true,
+		unsafe_math: true,
+		unsafe_undefined: true,
+	},
+	output: {
+		comments: /^!/
+	}
+};
+
 export default [
 	{
 		input: './src/uPlot.js',
@@ -72,6 +88,14 @@ export default [
 		]
 	},
 	{
+		input: './src/paths.js',
+		output: {
+			file: './dist/paths.esm.js',
+			format: 'es',
+			esModule: false,
+		},
+	},
+	{
 		input: 'uPlot',
 		output: {
 			name: 'uPlot',
@@ -84,6 +108,20 @@ export default [
 			bannerlessESM(),
 			replace(FEATS),
 			buble(),
+		]
+	},
+	{
+		input: './src/paths.js',
+		output: {
+			name: 'uPlot.paths',
+			extend: true,
+			file: './dist/paths.iife.min.js',
+			format: 'iife',
+			esModule: false,
+		},
+		plugins: [
+			buble(),
+			terser(terserOpts),
 		]
 	},
 	{
@@ -115,21 +153,7 @@ export default [
 			bannerlessESM(),
 			replace(FEATS),
 			buble(),
-			terser({
-				compress: {
-					inline: 0,
-					passes: 2,
-					keep_fargs: false,
-					pure_getters: true,
-					unsafe: true,
-					unsafe_comps: true,
-					unsafe_math: true,
-					unsafe_undefined: true,
-				},
-				output: {
-					comments: /^!/
-				}
-			}),
+			terser(terserOpts),
 		]
 	},
 ];

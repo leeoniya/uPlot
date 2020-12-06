@@ -1,7 +1,22 @@
-import { min, max, round, pow, sqrt, nonNullIdx } from './utils';
-import { pxRatio } from './dom';
+function nonNullIdx(data, _i0, _i1, dir) {
+	for (let i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
+		if (data[i] != null)
+			return i;
+	}
 
-export function bars(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
+	return -1;
+}
+
+const M = Math;
+const round = M.round;
+const min = M.min;
+const max = M.max;
+const pow = M.pow;
+const sqrt = M.sqrt;
+
+const pxRatio = devicePixelRatio;
+
+function bars(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 	const series = u.series[seriesIdx];
 	const xdata  = u.data[0];
 	const ydata  = u.data[seriesIdx];
@@ -51,10 +66,9 @@ export function bars(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 		stroke,
 		fill,
 	};
-};
-
-export const stepBefore = stepFactory(false);
-export const stepAfter  = stepFactory(true);
+}
+const stepBefore = stepFactory(false);
+const stepAfter  = stepFactory(true);
 
 function stepFactory(after) {
 	return (u, seriesIdx, idx0, idx1, extendGap, buildClip) => {
@@ -255,7 +269,7 @@ function catmullRomFitting(xCoords, yCoords, alpha) {
 	return path;
 }
 
-export function smooth(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
+function smooth(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 	const series = u.series[seriesIdx];
 	const xdata  = u.data[0];
 	const ydata  = u.data[seriesIdx];
@@ -327,4 +341,6 @@ export function smooth(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 	//	u.ctx.fill(fill);
 	//	u.ctx.restore();
 	//	return null;
-};
+}
+
+export { bars, smooth, stepAfter, stepBefore };

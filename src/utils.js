@@ -34,6 +34,26 @@ export function closestIdx(num, arr, lo, hi) {
 	return hi;
 }
 
+export function nonNullIdx(data, _i0, _i1, dir) {
+	for (let i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
+		if (data[i] != null)
+			return i;
+	}
+
+	return -1;
+}
+
+export function extendGap(gaps, fromX, toX) {
+	if (toX > fromX) {
+		let prevGap = gaps[gaps.length - 1];
+
+		if (prevGap && prevGap[0] == fromX)			// TODO: gaps must be encoded at stroke widths?
+			prevGap[1] = toX;
+		else
+			gaps.push([fromX, toX]);
+	}
+}
+
 export function getMinMax(data, _i0, _i1, sorted) {
 //	console.log("getMinMax()");
 
