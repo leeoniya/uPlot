@@ -1,9 +1,12 @@
+import { round, pow, sqrt } from './utils.js';
+
 export function bars(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 	const series = u.series[seriesIdx];
 	const xdata  = u.data[0];
 	const ydata  = u.data[seriesIdx];
 	const scaleX = u.series[0].scale;
-	const scaleY = series.scale;
+    const scaleY = series.scale;
+    const valToPos = u.valToPos;
 
 	const gapFactor = 0.25;
 
@@ -12,12 +15,12 @@ export function bars(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 
 	let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
 
-	let y0Pos = u.valToPos(fillTo, scaleY, true);
+	let y0Pos = valToPos(fillTo, scaleY, true);
 	let colWid = u.bbox.width / (idx1 - idx0);
 
-	let strokeWidth = Math.round(series.width * devicePixelRatio);
+	let strokeWidth = round(series.width * devicePixelRatio);
 
-	let barWid = Math.round(Math.min(maxWidth, colWid - gap) - strokeWidth);
+	let barWid = round(Math.min(maxWidth, colWid - gap) - strokeWidth);
 
 	let stroke = new Path2D();
 
@@ -30,12 +33,12 @@ export function bars(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 		let xVal = u.scales.x.distr == 2 ? i : xdata[i];
 
 		// TODO: all xPos can be pre-computed once for all series in aligned set
-		let xPos = u.valToPos(xVal, scaleX, true);
-		let yPos = u.valToPos(yVal, scaleY, true);
+		let xPos = valToPos(xVal, scaleX, true);
+		let yPos = valToPos(yVal, scaleY, true);
 
-		let lft = Math.round(xPos - barWid / 2);
-		let btm = Math.round(Math.max(yPos, y0Pos));
-		let top = Math.round(Math.min(yPos, y0Pos));
+		let lft = round(xPos - barWid / 2);
+		let btm = round(Math.max(yPos, y0Pos));
+		let top = round(Math.min(yPos, y0Pos));
 		let barHgt = btm - top;
 
 		stroke.rect(lft, top, barWid, barHgt);
@@ -58,7 +61,8 @@ function stepPath(after) {
 		const xdata  = u.data[0];
 		const ydata  = u.data[seriesIdx];
 		const scaleX = u.series[0].scale;
-		const scaleY = series.scale;
+        const scaleY = series.scale;
+        const valToPos = u.valToPos;
 
 		const stroke = new Path2D();
 
@@ -72,8 +76,8 @@ function stepPath(after) {
 
 		let gaps = [];
 		let inGap = false;
-		let prevYPos = Math.round(u.valToPos(ydata[idx0], scaleY, true));
-		let firstXPos = Math.round(u.valToPos(xdata[idx0], scaleX, true));
+		let prevYPos = round(valToPos(ydata[idx0], scaleY, true));
+		let firstXPos = round(valToPos(xdata[idx0], scaleX, true));
 		let prevXPos = firstXPos;
 
 		stroke.moveTo(firstXPos, prevYPos);
@@ -81,7 +85,7 @@ function stepPath(after) {
 		for (let i = idx0 + 1; i <= idx1; i++) {
 			let yVal1 = ydata[i];
 
-			let x1 = Math.round(u.valToPos(xdata[i], scaleX, true));
+			let x1 = round(valToPos(xdata[i], scaleX, true));
 
 			if (yVal1 == null) {
 				if (series.isGap(u, seriesIdx, i)) {
@@ -91,7 +95,7 @@ function stepPath(after) {
 				continue;
 			}
 
-			let y1 = Math.round(u.valToPos(yVal1, scaleY, true));
+			let y1 = round(valToPos(yVal1, scaleY, true));
 
 			if (inGap) {
 				extendGap(gaps, prevXPos, x1);
@@ -123,7 +127,7 @@ function stepPath(after) {
 
 		let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
 
-		let minY = Math.round(u.valToPos(fillTo, scaleY, true));
+		let minY = round(valToPos(fillTo, scaleY, true));
 
 		fill.lineTo(prevXPos, minY);
 		fill.lineTo(firstXPos, minY);
@@ -178,7 +182,7 @@ function catmullRomFitting(xCoords, yCoords, alpha) {
 		d1pow2A,
 		d1powA;
 
-	path.moveTo(Math.round(xCoords[0]), Math.round(yCoords[0]));
+	path.moveTo(round(xCoords[0]), round(yCoords[0]));
 
 	for (let i = 0; i < dataLen - 1; i++) {
 		let p0i = i == 0 ? 0 : i - 1;
@@ -200,9 +204,9 @@ function catmullRomFitting(xCoords, yCoords, alpha) {
 			p3y = p2y;
 		}
 
-		d1 = Math.sqrt(Math.pow(p0x - p1x, 2) + Math.pow(p0y - p1y, 2));
-		d2 = Math.sqrt(Math.pow(p1x - p2x, 2) + Math.pow(p1y - p2y, 2));
-		d3 = Math.sqrt(Math.pow(p2x - p3x, 2) + Math.pow(p2y - p3y, 2));
+		d1 = sqrt(pow(p0x - p1x, 2) + pow(p0y - p1y, 2));
+		d2 = sqrt(pow(p1x - p2x, 2) + pow(p1y - p2y, 2));
+		d3 = sqrt(pow(p2x - p3x, 2) + pow(p2y - p3y, 2));
 
 		// Catmull-Rom to Cubic Bezier conversion matrix
 
@@ -214,12 +218,12 @@ function catmullRomFitting(xCoords, yCoords, alpha) {
 		// [   0			 d3^2a /M	 B/M		-d2^2a /M  ]
 		// [   0			 0			1		  0		  ]
 
-		d3powA  = Math.pow(d3, alpha);
-		d3pow2A = Math.pow(d3, alpha * 2);
-		d2powA  = Math.pow(d2, alpha);
-		d2pow2A = Math.pow(d2, alpha * 2);
-		d1powA  = Math.pow(d1, alpha);
-		d1pow2A = Math.pow(d1, alpha * 2);
+		d3powA  = pow(d3, alpha);
+		d3pow2A = pow(d3, alpha * 2);
+		d2powA  = pow(d2, alpha);
+		d2pow2A = pow(d2, alpha * 2);
+		d1powA  = pow(d1, alpha);
+		d1pow2A = pow(d1, alpha * 2);
 
 		A = 2 * d1pow2A + 3 * d1powA * d2powA + d2pow2A;
 		B = 2 * d3pow2A + 3 * d3powA * d2powA + d2pow2A;
@@ -260,7 +264,8 @@ export function smooth(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 	const xdata  = u.data[0];
 	const ydata  = u.data[seriesIdx];
 	const scaleX = u.series[0].scale;
-	const scaleY = series.scale;
+    const scaleY = series.scale;
+    const valToPos = u.valToPos;
 
 	// find first non-null dataPt
 	while (ydata[idx0] == null)
@@ -272,7 +277,7 @@ export function smooth(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 
 	let gaps = [];
 	let inGap = false;
-	let firstXPos = Math.round(u.valToPos(xdata[idx0], scaleX, true));
+	let firstXPos = round(valToPos(xdata[idx0], scaleX, true));
 	let prevXPos = firstXPos;
 
 	let xCoords = [];
@@ -281,7 +286,7 @@ export function smooth(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 	for (let i = idx0; i <= idx1; i++) {
 		let yVal = ydata[i];
 		let xVal = xdata[i];
-		let xPos = u.valToPos(xVal, scaleX, true);
+		let xPos = valToPos(xVal, scaleX, true);
 
 		if (yVal == null) {
 			if (series.isGap(u, seriesIdx, i)) {
@@ -297,7 +302,7 @@ export function smooth(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 			}
 
 			xCoords.push((prevXPos = xPos));
-			yCoords.push(u.valToPos(ydata[i], scaleY, true));
+			yCoords.push(valToPos(ydata[i], scaleY, true));
 		}
 	}
 
@@ -307,7 +312,7 @@ export function smooth(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 
 	let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
 
-	let minY = Math.round(u.valToPos(fillTo, scaleY, true));
+	let minY = round(valToPos(fillTo, scaleY, true));
 
 	fill.lineTo(prevXPos, minY);
 	fill.lineTo(firstXPos, minY);

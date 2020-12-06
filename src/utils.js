@@ -178,6 +178,7 @@ export const ceil = M.ceil;
 export const min = M.min;
 export const max = M.max;
 export const pow = M.pow;
+export const sqrt = M.sqrt;
 export const log10 = M.log10;
 export const log2 = M.log2;
 export const PI = M.PI;
