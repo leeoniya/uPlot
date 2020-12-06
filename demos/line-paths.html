@@ -1,0 +1,197 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Line Smoothing</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			body {
+				margin: 0;
+				margin-top: 20px;
+				background: #141619;
+				color: #c7d0d9;
+			}
+		</style>
+	</head>
+	<body>
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+			import {bars, smooth, stepBefore, stepAfter} from "../src/paths.js";
+
+			let data = [
+				[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100],
+				[109, 117, 122, 104, 105, 117, 119, 121, 117, 121, 122, 129, 119, 113, 113, 121, 108, 108, 100, 103, 113, 110, 107, 105, 99, 93, 87, 83, 91, 85, 81, 69, 76, 61, 63, 74, 76, 68, 55, 61, 48, 39, 54, 44, 37, 30, 22, 33, 29, 21, 22, 43, 47, 33, 47, 28, 29, 31, 32, 35, 37, 25, -5, -14, -7, -14, -7, -18, -18, -18, -16, -41, -22, -30, -27, -30, -47, -49, -47, -42, -55, -34, -27, -22, -23, -34, -23, -32, -36, -47, -33, -32, -18, -23, -21, -33, -39, -21, -18, -27, -5],
+			];
+
+			data[0].splice(30, 4, null, null, null, null);
+			data[1].splice(30, 4, null, null, null, null);
+
+
+			function paths(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
+				let s = u.series[seriesIdx];
+				let style = s.drawStyle;
+				let interp = s.lineInterpolation;
+
+				let renderer = (
+					style == drawStyles.line ? (
+						interp == lineInterpolations.linear     ? u.paths :
+						interp == lineInterpolations.smooth     ? smooth :
+						interp == lineInterpolations.stepAfter  ? stepAfter :
+						interp == lineInterpolations.stepBefore ? stepBefore :
+						null
+					) :
+					style == drawStyles.bars ? (
+						bars
+					) :
+					style == drawStyles.points ? (
+						() => null
+					) : () => null
+				);
+
+				return renderer(u, seriesIdx, idx0, idx1, extendGap, buildClip);
+			}
+
+			const lineInterpolations = {
+				linear:     0,
+				smooth:     1,
+				stepAfter:  2,
+				stepBefore: 3,
+			};
+
+			const drawStyles = {
+				line:     0,
+				bars:     1,
+				points:   2,
+			};
+
+			const palette = [
+				'#7EB26D', // 0: pale green
+				'#EAB839', // 1: mustard
+				'#6ED0E0', // 2: light blue
+				'#EF843C', // 3: orange
+				'#E24D42', // 4: red
+				'#1F78C1', // 5: ocean
+				'#BA43A9', // 6: purple
+				'#705DA0', // 7: violet
+				'#508642', // 8: dark green
+				'#CCA300', // 9: dark sand
+			];
+
+			let cfgs = [
+				{
+					title: "points only (null path)",
+					drawStyle: drawStyles.points,
+					lineInterpolation: null,
+					stroke: "#FFFFFF",
+				},
+				{
+					title: "'linear' interpolation (built-in)",
+					drawStyle: drawStyles.line,
+					lineInterpolation: lineInterpolations.linear,
+					stroke: "#7EB26D",
+				},
+				{
+				//	Catmull-Rom Spline (Centripetal)
+					title: "'smooth' interpolatiion (paths.js)",
+					drawStyle: drawStyles.line,
+					lineInterpolation: lineInterpolations.smooth,
+					stroke: "#EAB839",
+				},
+				{
+					title: "'stepAfter' interpolation (paths.js)",
+					drawStyle: drawStyles.line,
+					lineInterpolation: lineInterpolations.stepAfter,
+					stroke: "#6ED0E0",
+				},
+				{
+					title: "'stepBefore' interpolation (paths.js)",
+					drawStyle: drawStyles.line,
+					lineInterpolation: lineInterpolations.stepBefore,
+					stroke: "#EF843C",
+				},
+				{
+					title: "'bars' (paths.js)",
+					drawStyle: drawStyles.bars,
+					lineInterpolation: null,
+					stroke: "#E24D42",
+				},
+			];
+
+			function makeChart(cfg) {
+				let opts = {
+					width: 2560,
+					height: 600,
+					title: cfg.title,
+					scales: {
+						x: {
+							time: false,
+						},
+					},
+					axes: [
+						{
+							stroke: "#c7d0d9",
+						//	font: `12px 'Roboto'`,
+						//	labelFont: `12px 'Roboto'`,
+							grid: {
+								width: 1 / devicePixelRatio,
+								stroke: "#2c3235",
+							},
+							ticks: {
+								width: 1 / devicePixelRatio,
+								stroke: "#2c3235",
+							}
+						},
+						{
+							stroke: "#c7d0d9",
+						//	font: `12px 'Roboto'`,
+						//	labelFont: `12px 'Roboto'`,
+							grid: {
+								width: 1 / devicePixelRatio,
+								stroke: "#2c3235",
+							},
+							ticks: {
+								width: 1 / devicePixelRatio,
+								stroke: "#2c3235",
+							}
+						},
+					],
+					series: [
+						{
+							label: "X",
+						},
+						Object.assign({
+							label: "Y",
+							width: 1 / devicePixelRatio,
+							drawStyle: drawStyles.points,
+							lineInterpolation: null,
+							paths,
+						}, {
+							drawStyle:         cfg.drawStyle,
+							lineInterpolation: cfg.lineInterpolation,
+							stroke:            cfg.stroke,
+							fill:              cfg.stroke + "1A",
+						}),
+					],
+				};
+
+				return new uPlot(opts, data, document.body);
+			}
+
+			let i = 0;
+
+			let u = makeChart(cfgs[i]);
+
+			setInterval(() => {
+				i++;
+
+				if (i == cfgs.length)
+					i = 0;
+
+				u && u.destroy();
+				u = makeChart(cfgs[i]);
+			}, 2000);
+		</script>
+	</body>
+</html>
