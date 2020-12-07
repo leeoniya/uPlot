@@ -3,7 +3,7 @@ import { pxRatio } from './dom';
 
 export function bars(opts) {
 	opts = opts || EMPTY_OBJ;
-	const size = ifNull(opts.size, [0.75, inf]);
+	const size = ifNull(opts.size, [0.6, inf]);
 
 	const gapFactor = 1 - size[0];
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
@@ -16,18 +16,17 @@ export function bars(opts) {
 		const scaleY = series.scale;
 		const valToPos = u.valToPos;
 
-		const barCount = (idx1 - idx0 - 1);		// approx
+		let colWid = valToPos(xdata[1], scaleX, true) - valToPos(xdata[0], scaleX, true);
 
-		let gap = (u.bbox.width * gapFactor) / barCount;
+		let gapWid = colWid * gapFactor;
 
 		let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
 
 		let y0Pos = valToPos(fillTo, scaleY, true);
-		let colWid = u.bbox.width / barCount;
 
 		let strokeWidth = round(series.width * pxRatio);
 
-		let barWid = round(min(maxWidth, colWid - gap) - strokeWidth);
+		let barWid = round(min(maxWidth, colWid - gapWid) - strokeWidth);
 
 		let stroke = new Path2D();
 

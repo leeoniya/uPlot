@@ -44,8 +44,8 @@
 				points:   2,
 			};
 
-			// generate bar builder with 75% bar width & 100px max
-			const bars75_100 = bars({size: [0.75, 100]});
+			// generate bar builder with 60% bar (40% gap) & 100px max bar width
+			const bars60_100 = bars({size: [0.6, 100]});
 			const stepBefore = step({align: -1});
 			const stepAfter  = step({align:  1});
 			const smoothed   = smooth();
@@ -64,7 +64,7 @@
 						null
 					) :
 					style == drawStyles.bars ? (
-						bars75_100
+						bars60_100
 					) :
 					style == drawStyles.points ? (
 						() => null
