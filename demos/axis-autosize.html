@@ -41,43 +41,43 @@
 				return data;
 			}
 
+			function autoPadRight(self, side, sidesWithAxes, cycleNum) {
+				let xAxis = self.axes[0];
+
+				let xVals = xAxis._values;
+
+				if (xVals != null) {
+					// bail out, force convergence
+					if (cycleNum > 2)
+						return self._padding[1];
+
+					let xSplits = xAxis._splits;
+					let rightSplit = xSplits[xSplits.length - 1];
+					let rightSplitCoord = self.valToPos(rightSplit, "x");
+					let leftPlotEdge = (self.bbox.left / devicePixelRatio);
+					let rightPlotEdge = leftPlotEdge + (self.bbox.width / devicePixelRatio);
+					let rightChartEdge = rightPlotEdge + self._padding[1];
+
+					let pxPerChar    = 8;
+					let rightVal     = xVals[xVals.length - 1] + "";
+					let valHalfWidth = pxPerChar * (rightVal.length / 2);
+
+					let rightValEdge = leftPlotEdge + rightSplitCoord + valHalfWidth;
+
+					if (rightValEdge >= rightChartEdge) {
+						return rightValEdge - rightPlotEdge;
+					}
+				}
+
+				// default size
+				return 8;
+			}
+
 			const opts = {
 				title: "Axis AutoSize",
 				width: 1048,
 				height: 600,
-				gutters: {
-					x: (self, cycleNum) => {
-						let xAxis = self.axes[0];
-
-						let xVals = xAxis._values;
-
-						if (xVals != null) {
-							// bail out, force convergence
-							if (cycleNum > 2)
-								return self.gutters._x;
-
-							let xSplits = xAxis._splits;
-							let rightSplit = xSplits[xSplits.length - 1];
-							let rightSplitCoord = self.valToPos(rightSplit, "x");
-							let leftPlotEdge = (self.bbox.left / devicePixelRatio);
-							let rightPlotEdge = leftPlotEdge + (self.bbox.width / devicePixelRatio);
-							let rightChartEdge = rightPlotEdge + self.gutters._x;
-
-							let pxPerChar    = 8;
-							let rightVal     = xVals[xVals.length - 1] + "";
-							let valHalfWidth = pxPerChar * (rightVal.length / 2);
-
-							let rightValEdge = leftPlotEdge + rightSplitCoord + valHalfWidth;
-
-							if (rightValEdge >= rightChartEdge) {
-								return rightValEdge - rightPlotEdge;
-							}
-						}
-
-						// default size
-						return 8;
-					},
-				},
+				padding: [null, autoPadRight, null, null],
 				scales: {
 					x: {
 						time: false,

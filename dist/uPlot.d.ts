@@ -18,8 +18,6 @@ declare class uPlot {
 	/** height of the plotting area + axes in CSS pixels (excludes title & legend height) */
 	readonly height: number;
 
-	// TODO: expose opts.gutters?
-
 	/** context of canvas used for plotting area + axes */
 	readonly ctx: CanvasRenderingContext2D;
 
@@ -185,10 +183,11 @@ export interface Scales {
 	[key: string]: Scale;
 }
 
-export interface Gutters {
-	x?: number | ((self: uPlot, cycleNum: number) => number);
-	y?: number | ((self: uPlot, cycleNum: number) => number);
-}
+type SidesWithAxes = [top: boolean, right: boolean, bottom: boolean, left: boolean];
+
+export type PaddingSide = number | null | ((self: uPlot, side: Axis.Side, sidesWithAxes: SidesWithAxes, cycleNum: number) => number);
+
+export type Padding = [top: PaddingSide, right: PaddingSide, bottom: PaddingSide, left: PaddingSide];
 
 export interface Legend {
 	show?: boolean;	// true
@@ -242,8 +241,8 @@ export interface Options {
 
 	axes?: Axis[];
 
-	/** extra space to add in CSS pixels in the absence of a cross-axis (to prevent axis labels at the plotting area limits from being chopped off) */
-	gutters?: Gutters;
+	/** padding per side, in CSS pixels (can prevent cross-axis labels at the plotting area limits from being chopped off) */
+	padding?: Padding;
 
 	select?: Select;
 

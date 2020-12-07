@@ -1341,18 +1341,6 @@ function uPlot(opts, data, then) {
 			{ pendScales[k$1] = {min: sc.min, max: sc.max}; }
 	}
 
-	var gutters = self.gutters = assign({
-		x: round(yAxisOpts.size / 2),
-		y: round(xAxisOpts.size / 3),
-		_x: null,
-		_y: null,
-	}, opts.gutters);
-
-	gutters.x  = fnOrSelf(gutters.x);
-	gutters.y  = fnOrSelf(gutters.y);
-	gutters._x = gutters.x(self);
-	gutters._y = gutters.y(self);
-
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 	var _tzDate  =  (opts.tzDate || (function (ts) { return new Date(ts / ms); }));
 	var _fmtDate =  (opts.fmtDate || fmtDate);
@@ -1520,9 +1508,9 @@ function uPlot(opts, data, then) {
 			cycleNum++;
 
 			var axesConverged = axesCalc(cycleNum);
-			var guttersConverged = guttersCalc(cycleNum);
+			var paddingConverged = paddingCalc(cycleNum);
 
-			converged = axesConverged && guttersConverged;
+			converged = axesConverged && paddingConverged;
 
 			if (!converged) {
 				calcSize(self.width, self.height);
@@ -1582,23 +1570,28 @@ function uPlot(opts, data, then) {
 			}
 		});
 
-		// hz gutters
+		sidesWithAxes[0] = hasTopAxis;
+		sidesWithAxes[1] = hasRgtAxis;
+		sidesWithAxes[2] = hasBtmAxis;
+		sidesWithAxes[3] = hasLftAxis;
+
+		// hz padding
 		if (hasTopAxis || hasBtmAxis) {
 			if (!hasRgtAxis)
-				{ plotWidCss -= gutters._x; }
+				{ plotWidCss -= _padding[1]; }
 			if (!hasLftAxis) {
-				plotWidCss -= gutters._x;
-				plotLftCss += gutters._x;
+				plotWidCss -= _padding[3];
+				plotLftCss += _padding[3];
 			}
 		}
 
-		// vt gutters
+		// vt padding
 		if (hasLftAxis || hasRgtAxis) {
 			if (!hasBtmAxis)
-				{ plotHgtCss -= gutters._y; }
+				{ plotHgtCss -= _padding[2]; }
 			if (!hasTopAxis) {
-				plotHgtCss -= gutters._y;
-				plotTopCss += gutters._y;
+				plotHgtCss -= _padding[0];
+				plotTopCss += _padding[0];
 			}
 		}
 	}
@@ -1712,6 +1705,8 @@ function uPlot(opts, data, then) {
 
 	series.forEach(initSeries);
 
+	var sidesWithAxes = [false, false, false, false];
+
 	function initAxis(axis, i) {
 		axis._show = axis.show;
 
@@ -1759,11 +1754,34 @@ function uPlot(opts, data, then) {
 			axis._found  =	// foundIncrSpace
 			axis._splits =
 			axis._values = null;
+
+			if (axis._size > 0)
+				{ sidesWithAxes[i] = true; }
 		}
 	}
 
 	// set axis defaults
 	axes.forEach(initAxis);
+
+	function autoPadSide(self, side, sidesWithAxes, cycleNum) {
+		var hasTopAxis = sidesWithAxes[0];
+		var hasRgtAxis = sidesWithAxes[1];
+		var hasBtmAxis = sidesWithAxes[2];
+		var hasLftAxis = sidesWithAxes[3];
+
+		var ori = side % 2;
+		var size = 0;
+
+		if (ori == 0 && (hasLftAxis || hasRgtAxis))
+			{ size = (side == 0 && !hasTopAxis || side == 2 && !hasBtmAxis ? round(xAxisOpts.size / 3) : 0); }
+		if (ori == 1 && (hasTopAxis || hasBtmAxis))
+			{ size = (side == 1 && !hasRgtAxis || side == 3 && !hasLftAxis ? round(yAxisOpts.size / 2) : 0); }
+
+		return size;
+	}
+
+	var padding = self.padding = (opts.padding || [autoPadSide,autoPadSide,autoPadSide,autoPadSide]).map(function (p) { return fnOrSelf(ifNull(p, autoPadSide)); });
+	var _padding = self._padding = padding.map(function (p, i) { return p(self, i, sidesWithAxes, 0); });
 
 	var dataLen;
 
@@ -2423,17 +2441,17 @@ function uPlot(opts, data, then) {
 		return converged;
 	}
 
-	function guttersCalc(cycleNum) {
+	function paddingCalc(cycleNum) {
 		var converged = true;
 
-		var _x = gutters._x;
-		var _y = gutters._y;
+		padding.forEach(function (p, i) {
+			var _p = p(self, i, sidesWithAxes, cycleNum);
 
-		gutters._x = ceil(gutters.x(self, cycleNum));
-		gutters._y = ceil(gutters.y(self, cycleNum));
+			if (_p != _padding[i])
+				{ converged = false; }
 
-		if (gutters._x != _x || gutters._y != _y)
-			{ converged = false; }
+			_padding[i] = _p;
+		});
 
 		return converged;
 	}
