@@ -22,7 +22,7 @@
 		<script src="../dist/uPlot.iife.min.js"></script>
 		<script src="../dist/paths.iife.min.js"></script>
 		<script>
-			const { bars, smooth, stepBefore, stepAfter } = uPlot.paths;
+			const { bars, smooth, step } = uPlot.paths;
 
 			let data = [
 				[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100],
@@ -44,6 +44,12 @@
 				points:   2,
 			};
 
+			// generate bar builder with 75% bar width & 100px max
+			const bars75_100 = bars({size: [0.75, 100]});
+			const stepBefore = step({align: -1});
+			const stepAfter  = step({align:  1});
+			const smoothed   = smooth();
+
 			function paths(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 				let s = u.series[seriesIdx];
 				let style = s.drawStyle;
@@ -52,13 +58,13 @@
 				let renderer = (
 					style == drawStyles.line ? (
 						interp == lineInterpolations.linear     ? u.paths :
-						interp == lineInterpolations.smooth     ? smooth :
+						interp == lineInterpolations.smooth     ? smoothed :
 						interp == lineInterpolations.stepAfter  ? stepAfter :
 						interp == lineInterpolations.stepBefore ? stepBefore :
 						null
 					) :
 					style == drawStyles.bars ? (
-						bars
+						bars75_100
 					) :
 					style == drawStyles.points ? (
 						() => null

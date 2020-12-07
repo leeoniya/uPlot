@@ -7,6 +7,11 @@ function nonNullIdx(data, _i0, _i1, dir) {
 	return -1;
 }
 
+// nullish coalesce
+function ifNull(lh, rh) {
+	return lh == null ? rh : lh;
+}
+
 const M = Math;
 const round = M.round;
 const min = M.min;
@@ -16,64 +21,73 @@ const sqrt = M.sqrt;
 
 const inf = Infinity;
 
+//export const assign = Object.assign;
+
+const EMPTY_OBJ = {};
+
 const pxRatio = devicePixelRatio;
 
-function bars(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
-	const series = u.series[seriesIdx];
-	const xdata  = u.data[0];
-	const ydata  = u.data[seriesIdx];
-	const scaleX = u.series[0].scale;
-    const scaleY = series.scale;
-    const valToPos = u.valToPos;
+function bars(opts) {
+	opts = opts || EMPTY_OBJ;
+	const size = ifNull(opts.size, [0.75, inf]);
 
-	const barCount = (idx1 - idx0 - 1);		// approx
-	const gapFactor = 0.25;
+	const gapFactor = 1 - size[0];
+	const maxWidth  = ifNull(size[1], inf) * pxRatio;
 
-	let gap = (u.bbox.width * gapFactor) / barCount;
-	let maxWidth = inf;
+	return (u, seriesIdx, idx0, idx1, extendGap, buildClip) => {
+		const series = u.series[seriesIdx];
+		const xdata  = u.data[0];
+		const ydata  = u.data[seriesIdx];
+		const scaleX = u.series[0].scale;
+		const scaleY = series.scale;
+		const valToPos = u.valToPos;
 
-	let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
+		const barCount = (idx1 - idx0 - 1);		// approx
 
-	let y0Pos = valToPos(fillTo, scaleY, true);
-	let colWid = u.bbox.width / barCount;
+		let gap = (u.bbox.width * gapFactor) / barCount;
 
-	let strokeWidth = round(series.width * pxRatio);
+		let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
 
-	let barWid = round(min(maxWidth, colWid - gap) - strokeWidth);
+		let y0Pos = valToPos(fillTo, scaleY, true);
+		let colWid = u.bbox.width / barCount;
 
-	let stroke = new Path2D();
+		let strokeWidth = round(series.width * pxRatio);
 
-	for (let i = idx0; i <= idx1; i++) {
-		let yVal = ydata[i];
+		let barWid = round(min(maxWidth, colWid - gap) - strokeWidth);
 
-		if (yVal == null)
-			continue;
+		let stroke = new Path2D();
 
-		let xVal = u.scales.x.distr == 2 ? i : xdata[i];
+		for (let i = idx0; i <= idx1; i++) {
+			let yVal = ydata[i];
 
-		// TODO: all xPos can be pre-computed once for all series in aligned set
-		let xPos = valToPos(xVal, scaleX, true);
-		let yPos = valToPos(yVal, scaleY, true);
+			if (yVal == null)
+				continue;
 
-		let lft = round(xPos - barWid / 2);
-		let btm = round(max(yPos, y0Pos));
-		let top = round(min(yPos, y0Pos));
-		let barHgt = btm - top;
+			let xVal = u.scales.x.distr == 2 ? i : xdata[i];
 
-		stroke.rect(lft, top, barWid, barHgt);
-	}
+			// TODO: all xPos can be pre-computed once for all series in aligned set
+			let xPos = valToPos(xVal, scaleX, true);
+			let yPos = valToPos(yVal, scaleY, true);
 
-	let fill = series.fill != null ? new Path2D(stroke) : undefined;
+			let lft = round(xPos - barWid / 2);
+			let btm = round(max(yPos, y0Pos));
+			let top = round(min(yPos, y0Pos));
+			let barHgt = btm - top;
 
-	return {
-		stroke,
-		fill,
+			stroke.rect(lft, top, barWid, barHgt);
+		}
+
+		let fill = series.fill != null ? new Path2D(stroke) : undefined;
+
+		return {
+			stroke,
+			fill,
+		};
 	};
 }
-const stepBefore = stepFactory(false);
-const stepAfter  = stepFactory(true);
+function step(opts) {
+	const align = ifNull(opts.align, 1);
 
-function stepFactory(after) {
 	return (u, seriesIdx, idx0, idx1, extendGap, buildClip) => {
 		const series = u.series[seriesIdx];
 		const xdata  = u.data[0];
@@ -125,7 +139,7 @@ function stepFactory(after) {
 				inGap = false;
 			}
 
-			if (after)
+			if (align == 1)
 				stroke.lineTo(x1, prevYPos);
 			else
 				stroke.lineTo(prevXPos, y1);
@@ -272,78 +286,80 @@ function catmullRomFitting(xCoords, yCoords, alpha) {
 	return path;
 }
 
-function smooth(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
-	const series = u.series[seriesIdx];
-	const xdata  = u.data[0];
-	const ydata  = u.data[seriesIdx];
-	const scaleX = u.series[0].scale;
-    const scaleY = series.scale;
-    const valToPos = u.valToPos;
+function smooth(opts) {
+	return (u, seriesIdx, idx0, idx1, extendGap, buildClip) => {
+		const series = u.series[seriesIdx];
+		const xdata  = u.data[0];
+		const ydata  = u.data[seriesIdx];
+		const scaleX = u.series[0].scale;
+		const scaleY = series.scale;
+		const valToPos = u.valToPos;
 
-	idx0 = nonNullIdx(ydata, idx0, idx1, 1);
-	idx1 = nonNullIdx(ydata, idx0, idx1, -1);
+		idx0 = nonNullIdx(ydata, idx0, idx1, 1);
+		idx1 = nonNullIdx(ydata, idx0, idx1, -1);
 
-	let gaps = [];
-	let inGap = false;
-	let firstXPos = round(valToPos(xdata[idx0], scaleX, true));
-	let prevXPos = firstXPos;
+		let gaps = [];
+		let inGap = false;
+		let firstXPos = round(valToPos(xdata[idx0], scaleX, true));
+		let prevXPos = firstXPos;
 
-	let xCoords = [];
-	let yCoords = [];
+		let xCoords = [];
+		let yCoords = [];
 
-	for (let i = idx0; i <= idx1; i++) {
-		let yVal = ydata[i];
-		let xVal = xdata[i];
-		let xPos = valToPos(xVal, scaleX, true);
+		for (let i = idx0; i <= idx1; i++) {
+			let yVal = ydata[i];
+			let xVal = xdata[i];
+			let xPos = valToPos(xVal, scaleX, true);
 
-		if (yVal == null) {
-			if (series.isGap(u, seriesIdx, i)) {
-				extendGap(gaps, prevXPos + 1, xPos);
-				inGap = true;
+			if (yVal == null) {
+				if (series.isGap(u, seriesIdx, i)) {
+					extendGap(gaps, prevXPos + 1, xPos);
+					inGap = true;
+				}
+				continue;
 			}
-			continue;
-		}
-		else {
-			if (inGap) {
-				extendGap(gaps, prevXPos + 1, xPos + 1);
-				inGap = false;
+			else {
+				if (inGap) {
+					extendGap(gaps, prevXPos + 1, xPos + 1);
+					inGap = false;
+				}
+
+				xCoords.push((prevXPos = xPos));
+				yCoords.push(valToPos(ydata[i], scaleY, true));
 			}
-
-			xCoords.push((prevXPos = xPos));
-			yCoords.push(valToPos(ydata[i], scaleY, true));
 		}
-	}
 
-	const stroke = catmullRomFitting(xCoords, yCoords, 0.5);
+		const stroke = catmullRomFitting(xCoords, yCoords, 0.5);
 
-	const fill = new Path2D(stroke);
+		const fill = new Path2D(stroke);
 
-	let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
+		let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
 
-	let minY = round(valToPos(fillTo, scaleY, true));
+		let minY = round(valToPos(fillTo, scaleY, true));
 
-	fill.lineTo(prevXPos, minY);
-	fill.lineTo(firstXPos, minY);
+		fill.lineTo(prevXPos, minY);
+		fill.lineTo(firstXPos, minY);
 
-	let clip = !series.spanGaps ? buildClip(gaps) : null;
+		let clip = !series.spanGaps ? buildClip(gaps) : null;
 
-	return {
-		stroke,
-		fill,
-		clip,
+		return {
+			stroke,
+			fill,
+			clip,
+		};
+
+		//  if FEAT_PATHS: false in rollup.config.js
+		//	u.ctx.save();
+		//	u.ctx.beginPath();
+		//	u.ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
+		//	u.ctx.clip();
+		//	u.ctx.strokeStyle = u.series[sidx].stroke;
+		//	u.ctx.stroke(stroke);
+		//	u.ctx.fillStyle = u.series[sidx].fill;
+		//	u.ctx.fill(fill);
+		//	u.ctx.restore();
+		//	return null;
 	};
-
-	//  if FEAT_PATHS: false in rollup.config.js
-	//	u.ctx.save();
-	//	u.ctx.beginPath();
-	//	u.ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
-	//	u.ctx.clip();
-	//	u.ctx.strokeStyle = u.series[sidx].stroke;
-	//	u.ctx.stroke(stroke);
-	//	u.ctx.fillStyle = u.series[sidx].fill;
-	//	u.ctx.fill(fill);
-	//	u.ctx.restore();
-	//	return null;
 }
 
-export { bars, smooth, stepAfter, stepBefore };
+export { bars, smooth, step };

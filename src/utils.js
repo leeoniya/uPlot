@@ -145,7 +145,7 @@ export function rangeNum(_min, _max, mult, extra) {
 }
 
 // nullish coalesce
-function ifNull(lh, rh) {
+export function ifNull(lh, rh) {
 	return lh == null ? rh : lh;
 }
 
