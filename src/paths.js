@@ -1,4 +1,4 @@
-import { min, max, round, pow, sqrt, nonNullIdx } from './utils';
+import { min, max, round, pow, sqrt, nonNullIdx, inf } from './utils';
 import { pxRatio } from './dom';
 
 export function bars(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
@@ -9,15 +9,16 @@ export function bars(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
     const scaleY = series.scale;
     const valToPos = u.valToPos;
 
+	const barCount = (idx1 - idx0 - 1);		// approx
 	const gapFactor = 0.25;
 
-	let gap = (u.width * gapFactor) / (idx1 - idx0);
-	let maxWidth = Infinity;
+	let gap = (u.bbox.width * gapFactor) / barCount;
+	let maxWidth = inf;
 
 	let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
 
 	let y0Pos = valToPos(fillTo, scaleY, true);
-	let colWid = u.bbox.width / (idx1 - idx0);
+	let colWid = u.bbox.width / barCount;
 
 	let strokeWidth = round(series.width * pxRatio);
 
