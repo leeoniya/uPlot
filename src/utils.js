@@ -80,6 +80,25 @@ export function getMinMax(data, _i0, _i1, sorted) {
 	return [_min, _max];
 }
 
+export function getMinMaxLog(data, _i0, _i1) {
+//	console.log("getMinMax()");
+
+	let _min = inf;
+	let _max = -inf;
+
+	for (let i = _i0; i <= _i1; i++) {
+		if (data[i] > 0) {
+			_min = min(_min, data[i]);
+			_max = max(_max, data[i]);
+		}
+	}
+
+	return [
+		_min ==  inf ?  1 : _min,
+		_max == -inf ? 10 : _max,
+	];
+}
+
 const _fixedTuple = [0, 0];
 
 function fixIncr(minIncr, maxIncr, minExp, maxExp) {

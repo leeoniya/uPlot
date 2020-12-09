@@ -91,6 +91,24 @@ function getMinMax(data, _i0, _i1, sorted) {
 	return [_min, _max];
 }
 
+function getMinMaxLog(data, _i0, _i1) {
+//	console.log("getMinMax()");
+
+	var _min = inf;
+	var _max = -inf;
+
+	for (var i = _i0; i <= _i1; i++) {
+		if (data[i] > 0) {
+			_min = min(_min, data[i]);
+			_max = max(_max, data[i]);
+		}
+	}
+
+	return [
+		_min ==  inf ?  1 : _min,
+		_max == -inf ? 10 : _max ];
+}
+
 var _fixedTuple = [0, 0];
 
 function fixIncr(minIncr, maxIncr, minExp, maxExp) {
@@ -1132,6 +1150,18 @@ var ySeriesOpts = {
 	clip: null,
 };
 
+function clampScale(self, val, scaleMin, scaleMax, scaleKey) {
+/*
+	if (val < 0) {
+		let cssHgt = self.bbox.height / pxRatio;
+		let absPos = self.valToPos(abs(val), scaleKey);
+		let fromBtm = cssHgt - absPos;
+		return self.posToVal(cssHgt + fromBtm, scaleKey);
+	}
+*/
+	return scaleMin / 10;
+}
+
 var xScaleOpts = {
 	time: true,
 	auto: true,
@@ -1174,24 +1204,6 @@ function setDefaults(d, xo, yo, initY) {
 
 function setDefault(o, i, xo, yo) {
 	return assign({}, (i == 0 || o && o.side % 2 == 0 ? xo : yo), o);
-}
-
-function getValPct(val, scale) {
-	return (
-		scale.distr == 3
-		? log10(val / scale.min) / log10(scale.max / scale.min)
-		: (val - scale.min) / (scale.max - scale.min)
-	);
-}
-
-function getYPos(val, scale, hgt, top) {
-	var pctY = getValPct(val, scale);
-	return top + (1 - pctY) * hgt;
-}
-
-function getXPos(val, scale, wid, lft) {
-	var pctX = getValPct(val, scale);
-	return lft + pctX * wid;
 }
 
 var nullMinMax = [null, null];
@@ -1240,6 +1252,24 @@ function pxRatioFont(font) {
 
 function uPlot(opts, data, then) {
 	var self = {};
+
+	function getValPct(val, scale) {
+		return (
+			scale.distr == 3
+			? log10((val > 0 ? val : scale.clamp(self, val, scale.min, scale.max, scale.key)) / scale.min) / log10(scale.max / scale.min)
+			: (val - scale.min) / (scale.max - scale.min)
+		);
+	}
+
+	function getYPos(val, scale, hgt, top) {
+		var pctY = getValPct(val, scale);
+		return top + (1 - pctY) * hgt;
+	}
+
+	function getXPos(val, scale, wid, lft) {
+		var pctX = getValPct(val, scale);
+		return lft + pctX * wid;
+	}
 
 	var ready = false;
 	self.status = 0;
@@ -1301,6 +1331,8 @@ function uPlot(opts, data, then) {
 			else {
 				sc = scales[scaleKey] = assign({}, (scaleKey == xScaleKey ? xScaleOpts : yScaleOpts), scaleOpts);
 
+				sc.key = scaleKey;
+
 				var isTime =  sc.time;
 				var isLog  = sc.distr == 3;
 
@@ -1315,6 +1347,8 @@ function uPlot(opts, data, then) {
 				sc.range = fnOrSelf(rn || (isTime ? snapTimeX : scaleKey == xScaleKey ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
 
 				sc.auto = fnOrSelf(sc.auto);
+
+				sc.clamp = fnOrSelf(sc.clamp || clampScale);
 			}
 		}
 	}
@@ -1933,7 +1967,7 @@ function uPlot(opts, data, then) {
 				}
 				else if (s.show && s.auto && wsc.auto(self, viaAutoScaleX) && (psc == null || psc.min == null)) {
 					// only run getMinMax() for invalidated series data, else reuse
-					var minMax$1 = s.min == null ? getMinMax(data[i], i0, i1, s.sorted) : [s.min, s.max];
+					var minMax$1 = s.min == null ? (wsc.distr == 3 ? getMinMaxLog(data[i], i0, i1) : getMinMax(data[i], i0, i1, s.sorted)) : [s.min, s.max];
 
 					// initial min/max
 					wsc.min = min(wsc.min, s.min = minMax$1[0]);

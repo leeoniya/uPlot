@@ -122,6 +122,64 @@
 			};
 
 			let u3 = new uPlot(opts3, data, document.body);
+
+			const opts4 = {
+				width: 1600,
+				height: 600,
+				title: "Log10 Y Scale (-100 -> 100)",
+				scales: {
+					x: {
+						time: false,
+					},
+					y: {
+						distr: 3,
+						log: 10,
+					},
+				},
+				axes: [
+					{},
+					{
+						size: 80,
+					}
+				],
+				series: [
+					{},
+					{
+						stroke: "blue",
+						fill: "rgba(0,0,255,0.1)",
+					},
+				],
+			};
+
+			// https://bost.ocks.org/mike/shuffle/
+			function shuffle(array) {
+				var m = array.length, t, i;
+				while (m) {
+					i = Math.floor(Math.random() * m--);
+					t = array[m];
+					array[m] = array[i];
+					array[i] = t;
+				}
+				return array;
+			}
+
+			let yvals = [-100, -10, -1, -.1, -.01, -.001, 0, .001, .01, .1, 1, 10, 100];
+
+			let repeat = 10;
+
+			let ydata = [];
+
+			while (repeat--)
+				ydata.push.apply(ydata, yvals);
+
+			ydata = shuffle(ydata);
+
+			let data4 = [
+				ydata.map((v,i) => i),
+				ydata,
+			];
+
+			let u4 = new uPlot(opts4, data4, document.body);
 		</script>
 	</body>
 </html>

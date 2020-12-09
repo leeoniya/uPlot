@@ -17,6 +17,7 @@ import {
 	closestIdx,
 	nonNullIdx,
 	getMinMax,
+	getMinMaxLog,
 	rangeNum,
 	rangeLog,
 	incrRound,
@@ -112,6 +113,8 @@ import {
 	xScaleOpts,
 	yScaleOpts,
 
+	clampScale,
+
 	timeIncrsMs,
 	timeIncrsS,
 
@@ -162,24 +165,6 @@ function setDefault(o, i, xo, yo) {
 	return assign({}, (i == 0 || o && o.side % 2 == 0 ? xo : yo), o);
 }
 
-function getValPct(val, scale) {
-	return (
-		scale.distr == 3
-		? log10(val / scale.min) / log10(scale.max / scale.min)
-		: (val - scale.min) / (scale.max - scale.min)
-	);
-}
-
-function getYPos(val, scale, hgt, top) {
-	let pctY = getValPct(val, scale);
-	return top + (1 - pctY) * hgt;
-}
-
-function getXPos(val, scale, wid, lft) {
-	let pctX = getValPct(val, scale);
-	return lft + pctX * wid;
-}
-
 const nullMinMax = [null, null];
 
 function snapNumX(self, dataMin, dataMax) {
@@ -226,6 +211,24 @@ function pxRatioFont(font) {
 
 export default function uPlot(opts, data, then) {
 	const self = {};
+
+	function getValPct(val, scale) {
+		return (
+			scale.distr == 3
+			? log10((val > 0 ? val : scale.clamp(self, val, scale.min, scale.max, scale.key)) / scale.min) / log10(scale.max / scale.min)
+			: (val - scale.min) / (scale.max - scale.min)
+		);
+	}
+
+	function getYPos(val, scale, hgt, top) {
+		let pctY = getValPct(val, scale);
+		return top + (1 - pctY) * hgt;
+	}
+
+	function getXPos(val, scale, wid, lft) {
+		let pctX = getValPct(val, scale);
+		return lft + pctX * wid;
+	}
 
 	let ready = false;
 	self.status = 0;
@@ -287,6 +290,8 @@ export default function uPlot(opts, data, then) {
 			else {
 				sc = scales[scaleKey] = assign({}, (scaleKey == xScaleKey ? xScaleOpts : yScaleOpts), scaleOpts);
 
+				sc.key = scaleKey;
+
 				let isTime = FEAT_TIME && sc.time;
 				let isLog  = sc.distr == 3;
 
@@ -301,6 +306,8 @@ export default function uPlot(opts, data, then) {
 				sc.range = fnOrSelf(rn || (isTime ? snapTimeX : scaleKey == xScaleKey ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
 
 				sc.auto = fnOrSelf(sc.auto);
+
+				sc.clamp = fnOrSelf(sc.clamp || clampScale);
 			}
 		}
 	}
@@ -911,7 +918,7 @@ export default function uPlot(opts, data, then) {
 				}
 				else if (s.show && s.auto && wsc.auto(self, viaAutoScaleX) && (psc == null || psc.min == null)) {
 					// only run getMinMax() for invalidated series data, else reuse
-					let minMax = s.min == null ? getMinMax(data[i], i0, i1, s.sorted) : [s.min, s.max];
+					let minMax = s.min == null ? (wsc.distr == 3 ? getMinMaxLog(data[i], i0, i1) : getMinMax(data[i], i0, i1, s.sorted)) : [s.min, s.max];
 
 					// initial min/max
 					wsc.min = min(wsc.min, s.min = minMax[0]);

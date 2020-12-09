@@ -110,7 +110,7 @@ declare class uPlot {
 	static rangeNum: ((min: number, max: number, mult: number, extra: boolean) => Range.MinMax) | ((min: number, max: number, cfg: Range.Config) => Range.MinMax);
 
 	/** re-ranges a given min/max outwards to nearest 10% of given min/max's magnitudes, unless fullMags = true */
-	static rangeLog(min: number, max: number, fullMags: boolean): Range.MinMax;
+	static rangeLog(min: number, max: number, base: Scale.LogBase, fullMags: boolean): Range.MinMax;
 
 	/** default numeric formatter using browser's locale: new Intl.NumberFormat(navigator.language).format */
 	static fmtNum(val: number): string;
@@ -388,6 +388,8 @@ export namespace Scale {
 	}
 
 	export type LogBase = 10 | 2;
+
+	export type Clamp = number | ((self: uPlot, val: number, scaleMin: number, scaleMax: number, scaleKey: string) => number);
 }
 
 export interface Scale {
@@ -408,6 +410,9 @@ export interface Scale {
 
 	/** logarithmic base */
 	log?: Scale.LogBase; // 10;
+
+	/** clamps log scale values <= 0 (default = scaleMin / 10) */
+	clamp?: Scale.Clamp;
 
 	/** current min scale value */
 	min?: number,

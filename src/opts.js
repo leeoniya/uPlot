@@ -1,6 +1,7 @@
 import {
 	assign,
 
+	abs,
 	inf,
 	pow,
 	log2,
@@ -606,6 +607,18 @@ export const ySeriesOpts = {
 	path: null,
 	clip: null,
 };
+
+export function clampScale(self, val, scaleMin, scaleMax, scaleKey) {
+/*
+	if (val < 0) {
+		let cssHgt = self.bbox.height / pxRatio;
+		let absPos = self.valToPos(abs(val), scaleKey);
+		let fromBtm = cssHgt - absPos;
+		return self.posToVal(cssHgt + fromBtm, scaleKey);
+	}
+*/
+	return scaleMin / 10;
+}
 
 export const xScaleOpts = {
 	time: FEAT_TIME,
