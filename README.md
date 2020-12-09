@@ -24,6 +24,7 @@ Try [danchitnis/webgl-plot](https://github.com/danchitnis/webgl-plot), [huww98/T
 - Temporal or numeric x-axis
 - Linear, uniform or [logarithmic](https://leeoniya.github.io/uPlot/demos/log-scales.html) scales
 - Line & Area styles (stroke, fill, width, dash)
+- Pluggable interpolation modes [linear, smooth, stepBefore, stepAfter, bars](https://leeoniya.github.io/uPlot/demos/line-paths.html) (via [paths.js](https://github.com/leeoniya/uPlot/blob/master/dist/paths.esm.js))
 - Zoom with auto-rescale
 - Legend with live values
 - Support for [IANA Time Zone Names](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) & DST
@@ -42,7 +43,7 @@ In order to stay lean, fast and focused the following features will not be added
 - No data parsing, aggregation, summation or statistical processing - just do it in advance. e.g. https://simplestatistics.org/, https://www.papaparse.com/
 - No transitions or animations - they're always pure distractions.
 - No collision avoidance for axis tick labels, so may require manual tweaking of spacing metrics if label customization signficiantly increases default label widths.
-- No [stacked series](https://everydayanalytics.ca/2014/08/stacked-area-graphs-are-not-your-friend.html) or [line smoothing](http://www.vizwiz.com/2011/12/when-you-use-smoothed-line-chart-your.html). See links for how these are each terrible at actually communicating information. While neither will be part of the core, uPlot's API makes it easy to implement both: [stacked-series](https://leeoniya.github.io/uPlot/demos/stacked-series.html), [line-smoothing](https://leeoniya.github.io/uPlot/demos/line-smoothing.html).
+- No stacked series: see ["Stacked Area Graphs Are Not Your Friend"](https://everydayanalytics.ca/2014/08/stacked-area-graphs-are-not-your-friend.html) and a [horrific demo](https://leeoniya.github.io/uPlot/demos/stacked-series.html). While smooth line interpolation is available via [paths.js](https://github.com/leeoniya/uPlot/blob/master/dist/paths.esm.js), its use is strongly discouraged: [Your data is misrepresented!](http://www.vizwiz.com/2011/12/when-you-use-smoothed-line-chart-your.html). Both visualizations are terrible at accurately communicating information.
 - No built-in drag scrolling/panning due to ambiguous native zoom/selection behavior. However, this can be added externally via the plugin/hooks API: [zoom-wheel](https://leeoniya.github.io/uPlot/demos/zoom-wheel.html), [zoom-touch](https://leeoniya.github.io/uPlot/demos/zoom-touch.html).
 
 ---
