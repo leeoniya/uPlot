@@ -86,7 +86,9 @@
 			setTimeout(() => {
 				console.time('chart');
 				makeChart(data);
-				console.timeEnd('chart')
+				queueMicrotask(() => {
+					console.timeEnd('chart');
+				});
 				data = null;
 			}, 500);
 		</script>
