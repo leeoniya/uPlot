@@ -290,7 +290,14 @@ export function isStr(v) {
 }
 
 export function isObj(v) {
-	return typeof v === 'object' && v !== null;
+	let is = false;
+
+	if (v != null) {
+		let c = v.constructor;
+		is = c == null || c == Object;
+	}
+
+	return is;
 }
 
 export function copy(o) {

@@ -299,7 +299,14 @@ function isStr(v) {
 }
 
 function isObj(v) {
-	return typeof v === 'object' && v !== null;
+	var is = false;
+
+	if (v != null) {
+		var c = v.constructor;
+		is = c == null || c == Object;
+	}
+
+	return is;
 }
 
 function copy(o) {
