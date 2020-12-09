@@ -1906,8 +1906,6 @@ var uPlot = (function () {
 			}
 
 			_setScale(xScaleKey, _min, _max);
-
-			viaAutoScaleX = false;
 		}
 
 		function setCtxStyle(stroke, width, dash, fill) {
@@ -2729,6 +2727,8 @@ var uPlot = (function () {
 
 				fire("ready");
 			}
+
+			viaAutoScaleX = false;
 
 			queuedCommit = false;
 		}
