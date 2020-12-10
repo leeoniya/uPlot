@@ -101,7 +101,7 @@ declare class uPlot {
 	syncRect(): void;
 
 	/** uPlot's default line path builder (handles nulls/gaps & data decimation) */
-	paths: Series.PathBuilder;
+	static paths: Series.PathBuilderFactories;
 
 	/** a deep merge util fn */
 	static assign(targ: object, ...srcs: object[]): object;
@@ -433,6 +433,18 @@ export namespace Series {
 
 		/** path for clipping fill & stroke */
 		clip?: Path2D | null;
+	}
+
+	export type LinearPathBuilderFactory  = () => Series.PathBuilder;
+	export type SplinePathBuilderFactory  = () => Series.PathBuilder;
+	export type SteppedPathBuilderFactory = (opts?: {align?: -1 | 1}) => Series.PathBuilder;
+	export type BarsPathBuilderFactory    = (opts?: {size?: [factor?: number, max?: number]}) => Series.PathBuilder;
+
+	export interface PathBuilderFactories {
+		linear:  LinearPathBuilderFactory;
+		spline:  SplinePathBuilderFactory;
+		stepped: SteppedPathBuilderFactory;
+		bars:    BarsPathBuilderFactory;
 	}
 
 	export interface Points {

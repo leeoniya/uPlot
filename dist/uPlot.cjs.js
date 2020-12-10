@@ -2126,24 +2126,12 @@ function uPlot(opts, data, then) {
 		sidesWithAxes[3] = hasLftAxis;
 
 		// hz padding
-		if (hasTopAxis || hasBtmAxis) {
-			if (!hasRgtAxis)
-				{ plotWidCss -= _padding[1]; }
-			if (!hasLftAxis) {
-				plotWidCss -= _padding[3];
-				plotLftCss += _padding[3];
-			}
-		}
+		plotWidCss -= _padding[1] + _padding[3];
+		plotLftCss += _padding[3];
 
 		// vt padding
-		if (hasLftAxis || hasRgtAxis) {
-			if (!hasBtmAxis)
-				{ plotHgtCss -= _padding[2]; }
-			if (!hasTopAxis) {
-				plotHgtCss -= _padding[0];
-				plotTopCss += _padding[0];
-			}
-		}
+		plotHgtCss -= _padding[2] + _padding[0];
+		plotTopCss += _padding[0];
 	}
 
 	function calcAxesRects() {
