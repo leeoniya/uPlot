@@ -20,9 +20,8 @@
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.min.js"></script>
-		<script src="../dist/paths.iife.min.js"></script>
 		<script>
-			const { bars, smooth, step } = uPlot.paths;
+			const { linear, spline, stepped, bars } = uPlot.paths;
 
 			let data = [
 				[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100],
@@ -45,10 +44,11 @@
 			};
 
 			// generate bar builder with 60% bar (40% gap) & 100px max bar width
-			const bars60_100 = bars({size: [0.6, 100]});
-			const stepBefore = step({align: -1});
-			const stepAfter  = step({align:  1});
-			const smoothed   = smooth();
+			const _bars60_100 = bars({size: [0.6, 100]});
+			const _stepBefore = stepped({align: -1});
+			const _stepAfter  = stepped({align:  1});
+			const _spline     = spline();
+			const _linear     = linear();
 
 			function paths(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 				let s = u.series[seriesIdx];
@@ -57,14 +57,14 @@
 
 				let renderer = (
 					style == drawStyles.line ? (
-						interp == lineInterpolations.linear     ? u.paths :
-						interp == lineInterpolations.smooth     ? smoothed :
-						interp == lineInterpolations.stepAfter  ? stepAfter :
-						interp == lineInterpolations.stepBefore ? stepBefore :
+						interp == lineInterpolations.linear     ? _linear :
+						interp == lineInterpolations.smooth     ? _spline :
+						interp == lineInterpolations.stepAfter  ? _stepAfter :
+						interp == lineInterpolations.stepBefore ? _stepBefore :
 						null
 					) :
 					style == drawStyles.bars ? (
-						bars60_100
+						_bars60_100
 					) :
 					style == drawStyles.points ? (
 						() => null

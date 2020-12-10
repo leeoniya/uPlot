@@ -54,6 +54,7 @@ const FEATS = {
 	FEAT_LEGEND: true,
 	FEAT_PATHS: true,
 	FEAT_POINTS: true,
+	FEAT_ALIGN: true,
 //	FEAT_GAPS: false,
 };
 
@@ -88,14 +89,6 @@ export default [
 		]
 	},
 	{
-		input: './src/paths.js',
-		output: {
-			file: './dist/paths.esm.js',
-			format: 'es',
-			esModule: false,
-		},
-	},
-	{
 		input: 'uPlot',
 		output: {
 			name: 'uPlot',
@@ -108,20 +101,6 @@ export default [
 			bannerlessESM(),
 			replace(FEATS),
 			buble(),
-		]
-	},
-	{
-		input: './src/paths.js',
-		output: {
-			name: 'uPlot.paths',
-			extend: true,
-			file: './dist/paths.iife.min.js',
-			format: 'iife',
-			esModule: false,
-		},
-		plugins: [
-			buble(),
-			terser(terserOpts),
 		]
 	},
 	{
