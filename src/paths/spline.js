@@ -1,8 +1,9 @@
 import { aliasProps } from './aliasProps';
 import { round, pow, sqrt, nonNullIdx } from '../utils';
+import { addGap, clipGaps } from './utils';
 
 export function spline(opts) {
-	return (u, seriesIdx, idx0, idx1, extendGap, buildClip) => {
+	return (u, seriesIdx, idx0, idx1) => {
 		const [
 			series,
 			dataX,
@@ -35,14 +36,14 @@ export function spline(opts) {
 
 			if (yVal == null) {
 				if (series.isGap(u, seriesIdx, i)) {
-					extendGap(gaps, prevXPos + 1, xPos);
+					addGap(gaps, prevXPos, xPos);
 					inGap = true;
 				}
 				continue;
 			}
 			else {
 				if (inGap) {
-					extendGap(gaps, prevXPos + 1, xPos + 1);
+					addGap(gaps, prevXPos, xPos);
 					inGap = false;
 				}
 
@@ -62,7 +63,7 @@ export function spline(opts) {
 		fill.lineTo(prevXPos, minY);
 		fill.lineTo(firstXPos, minY);
 
-		let clip = !series.spanGaps ? buildClip(gaps) : null;
+		let clip = !series.spanGaps ? clipGaps(gaps, 1, plotLft, plotTop, plotWid, plotHgt) : null;
 
 		return {
 			stroke,

@@ -54,17 +54,6 @@ function nonNullIdx(data, _i0, _i1, dir) {
 	return -1;
 }
 
-function extendGap(gaps, fromX, toX) {
-	if (toX > fromX) {
-		let prevGap = gaps[gaps.length - 1];
-
-		if (prevGap && prevGap[0] == fromX)			// TODO: gaps must be encoded at stroke widths?
-			prevGap[1] = toX;
-		else
-			gaps.push([fromX, toX]);
-	}
-}
-
 function getMinMax(data, _i0, _i1, sorted) {
 //	console.log("getMinMax()");
 
@@ -345,7 +334,7 @@ function assign(targ) {
 }
 
 // skipGaps is a tables-matched bool array indicating which series can skip storing indices of original nulls
-function alignData(tables, skipGaps) {
+function join(tables, skipGaps) {
 	if (tables.length == 1) {
 		return {
 			data: tables[0],
@@ -1297,10 +1286,46 @@ function aliasProps(u, seriesIdx) {
 	return props;
 }
 
+function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
+	let clip = null;
+
+	// create clip path (invert gaps and non-gaps)
+	if (gaps.length > 0) {
+		clip = new Path2D();
+
+		if (ori == 1) {
+			let prevGapEnd = plotLft;
+
+			for (let i = 0; i < gaps.length; i++) {
+				let g = gaps[i];
+
+				clip.rect(prevGapEnd, plotTop, g[0] - prevGapEnd, plotTop + plotHgt);
+
+				prevGapEnd = g[1];
+			}
+
+			clip.rect(prevGapEnd, plotTop, plotLft + plotWid - prevGapEnd, plotTop + plotHgt);
+		}
+	}
+
+	return clip;
+}
+
+function addGap(gaps, fromX, toX) {
+	if (toX > fromX) {
+		let prevGap = gaps[gaps.length - 1];
+
+		if (prevGap && prevGap[0] == fromX)			// TODO: gaps must be encoded at stroke widths?
+			prevGap[1] = toX;
+		else
+			gaps.push([fromX, toX]);
+	}
+}
+
 let dir = 1;
 
 function linear() {
-	return (u, seriesIdx, idx0, idx1, extendGap, buildClip) => {
+	return (u, seriesIdx, idx0, idx1) => {
 		const [
 			series,
 			dataX,
@@ -1338,7 +1363,7 @@ function linear() {
 		let rgtX = incrRound(valToPosX(dataX[rgtIdx], scaleX, plotWid, plotLft), 0.5);
 
 		if (lftX > plotLft)
-			extendGap(gaps, plotLft, lftX);
+			addGap(gaps, plotLft, lftX);
 
 		// the moves the shape edge outside the canvas so stroke doesnt bleed in
 		if (series.band && dir == 1)
@@ -1387,14 +1412,14 @@ function linear() {
 						accGaps = true;
 				}
 
-				_addGap && extendGap(gaps, outX, x);
+				_addGap && addGap(gaps, outX, x);
 
 				accX = x;
 			}
 		}
 
 		if (rgtX < plotLft + plotWid)
-			extendGap(gaps, rgtX, plotLft + plotWid);
+			addGap(gaps, rgtX, plotLft + plotWid);
 
 		if (series.band) {
 			let _x, _iy, _data = u._data, dataY2;
@@ -1417,7 +1442,7 @@ function linear() {
 
 		if (dir == 1) {
 			if (!series.spanGaps)
-				_paths.clip =  buildClip(gaps);
+				_paths.clip =  clipGaps(gaps, 1, plotLft, plotTop, plotWid, plotHgt);
 
 			if (series.fill != null) {
 				let fill = _paths.fill = new Path2D(stroke);
@@ -1436,7 +1461,7 @@ function linear() {
 }
 
 function spline(opts) {
-	return (u, seriesIdx, idx0, idx1, extendGap, buildClip) => {
+	return (u, seriesIdx, idx0, idx1) => {
 		const [
 			series,
 			dataX,
@@ -1469,14 +1494,14 @@ function spline(opts) {
 
 			if (yVal == null) {
 				if (series.isGap(u, seriesIdx, i)) {
-					extendGap(gaps, prevXPos + 1, xPos);
+					addGap(gaps, prevXPos, xPos);
 					inGap = true;
 				}
 				continue;
 			}
 			else {
 				if (inGap) {
-					extendGap(gaps, prevXPos + 1, xPos + 1);
+					addGap(gaps, prevXPos, xPos);
 					inGap = false;
 				}
 
@@ -1496,7 +1521,7 @@ function spline(opts) {
 		fill.lineTo(prevXPos, minY);
 		fill.lineTo(firstXPos, minY);
 
-		let clip = !series.spanGaps ? buildClip(gaps) : null;
+		let clip = !series.spanGaps ? clipGaps(gaps, 1, plotLft, plotTop, plotWid, plotHgt) : null;
 
 		return {
 			stroke,
@@ -1638,7 +1663,7 @@ function catmullRomFitting(xCoords, yCoords, alpha) {
 function stepped(opts) {
 	const align = ifNull(opts.align, 1);
 
-	return (u, seriesIdx, idx0, idx1, extendGap, buildClip) => {
+	return (u, seriesIdx, idx0, idx1) => {
 		const [
 			series,
 			dataX,
@@ -1673,7 +1698,7 @@ function stepped(opts) {
 
 			if (yVal1 == null) {
 				if (series.isGap(u, seriesIdx, i)) {
-					extendGap(gaps, prevXPos, x1);
+					addGap(gaps, prevXPos, x1);
 					inGap = true;
 				}
 				continue;
@@ -1682,7 +1707,7 @@ function stepped(opts) {
 			let y1 = round(valToPosY(yVal1, scaleY, plotHgt, plotTop));
 
 			if (inGap) {
-				extendGap(gaps, prevXPos, x1);
+				addGap(gaps, prevXPos, x1);
 
 				// don't clip vertical extenders
 				if (prevYPos != y1) {
@@ -1716,7 +1741,7 @@ function stepped(opts) {
 		fill.lineTo(prevXPos, minY);
 		fill.lineTo(firstXPos, minY);
 
-		let clip = !series.spanGaps ? buildClip(gaps) : null;
+		let clip = !series.spanGaps ? clipGaps(gaps, 1, plotLft, plotTop, plotWid, plotHgt) : null;
 
 		return {
 			stroke,
@@ -1733,7 +1758,7 @@ function bars(opts) {
 	const gapFactor = 1 - size[0];
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
 
-	return (u, seriesIdx, idx0, idx1, extendGap, buildClip) => {
+	return (u, seriesIdx, idx0, idx1) => {
 		const [
 			series,
 			dataX,
@@ -2701,7 +2726,7 @@ function uPlot(opts, data, then) {
 			series.forEach((s, i) => {
 				if (i > 0 && s.show && s._paths == null) {
 					let _idxs = getOuterIdxs(data[i]);
-					s._paths = s.paths(self, i, _idxs[0], _idxs[1], extendGap, buildClip);
+					s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
 				}
 			});
 
@@ -2777,29 +2802,6 @@ function uPlot(opts, data, then) {
 
 		if (s.band)
 			dir *= -1;
-	}
-
-	function buildClip(gaps) {
-		let clip = null;
-
-		// create clip path (invert gaps and non-gaps)
-		if (gaps.length > 0) {
-			clip = new Path2D();
-
-			let prevGapEnd = plotLft;
-
-			for (let i = 0; i < gaps.length; i++) {
-				let g = gaps[i];
-
-				clip.rect(prevGapEnd, plotTop, g[0] - prevGapEnd, plotTop + plotHgt);
-
-				prevGapEnd = g[1];
-			}
-
-			clip.rect(prevGapEnd, plotTop, plotLft + plotWid - prevGapEnd, plotTop + plotHgt);
-		}
-
-		return clip;
 	}
 
 	function getIncrSpace(axisIdx, min, max, fullDim) {
@@ -3958,7 +3960,7 @@ uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
 
 {
-	uPlot.alignData = alignData;
+	uPlot.join = join;
 }
 
 {
@@ -3967,6 +3969,9 @@ uPlot.rangeLog = rangeLog;
 }
 
 {
+	uPlot.addGap = addGap;
+	uPlot.clipGaps = clipGaps;
+
 	let paths = uPlot.paths = {};
 
 	 (paths.linear  = linear);

@@ -11,7 +11,7 @@ import {
 	FEAT_PATHS_STEPPED,
 	FEAT_PATHS_BARS,
 
-	FEAT_ALIGN_DATA,
+	FEAT_JOIN,
 } from './feats';
 
 import {
@@ -43,8 +43,7 @@ import {
 	fmtNum,
 	fixedDec,
 	ifNull,
-	alignData,
-	extendGap,
+	join,
 	microTask,
 	retArg1,
 	EMPTY_OBJ,
@@ -170,6 +169,8 @@ import { linear  } from './paths/linear';
 import { spline  } from './paths/spline';
 import { stepped } from './paths/stepped';
 import { bars    } from './paths/bars';
+
+import { addGap, clipGaps } from './paths/utils';
 
 function log(name, args) {
 	console.log.apply(console, [name].concat(Array.prototype.slice.call(args)));
@@ -1086,7 +1087,7 @@ export default function uPlot(opts, data, then) {
 			series.forEach((s, i) => {
 				if (i > 0 && s.show && s._paths == null) {
 					let _idxs = getOuterIdxs(data[i]);
-					s._paths = s.paths(self, i, _idxs[0], _idxs[1], extendGap, buildClip);
+					s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
 				}
 			});
 
@@ -1162,29 +1163,6 @@ export default function uPlot(opts, data, then) {
 
 		if (s.band)
 			dir *= -1;
-	}
-
-	function buildClip(gaps) {
-		let clip = null;
-
-		// create clip path (invert gaps and non-gaps)
-		if (gaps.length > 0) {
-			clip = new Path2D();
-
-			let prevGapEnd = plotLft;
-
-			for (let i = 0; i < gaps.length; i++) {
-				let g = gaps[i];
-
-				clip.rect(prevGapEnd, plotTop, g[0] - prevGapEnd, plotTop + plotHgt);
-
-				prevGapEnd = g[1];
-			}
-
-			clip.rect(prevGapEnd, plotTop, plotLft + plotWid - prevGapEnd, plotTop + plotHgt);
-		}
-
-		return clip;
 	}
 
 	function getIncrSpace(axisIdx, min, max, fullDim) {
@@ -2342,8 +2320,8 @@ uPlot.fmtNum = fmtNum;
 uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
 
-if (FEAT_ALIGN_DATA) {
-	uPlot.alignData = alignData;
+if (FEAT_JOIN) {
+	uPlot.join = join;
 }
 
 if (FEAT_TIME) {
@@ -2352,6 +2330,9 @@ if (FEAT_TIME) {
 }
 
 if (FEAT_PATHS) {
+	uPlot.addGap = addGap;
+	uPlot.clipGaps = clipGaps;
+
 	let paths = uPlot.paths = {};
 
 	FEAT_PATHS_LINEAR  && (paths.linear  = linear);

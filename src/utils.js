@@ -43,17 +43,6 @@ export function nonNullIdx(data, _i0, _i1, dir) {
 	return -1;
 }
 
-export function extendGap(gaps, fromX, toX) {
-	if (toX > fromX) {
-		let prevGap = gaps[gaps.length - 1];
-
-		if (prevGap && prevGap[0] == fromX)			// TODO: gaps must be encoded at stroke widths?
-			prevGap[1] = toX;
-		else
-			gaps.push([fromX, toX]);
-	}
-}
-
 export function getMinMax(data, _i0, _i1, sorted) {
 //	console.log("getMinMax()");
 
@@ -334,7 +323,7 @@ export function assign(targ) {
 }
 
 // skipGaps is a tables-matched bool array indicating which series can skip storing indices of original nulls
-export function alignData(tables, skipGaps) {
+export function join(tables, skipGaps) {
 	if (tables.length == 1) {
 		return {
 			data: tables[0],

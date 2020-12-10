@@ -1,11 +1,12 @@
 import { aliasProps } from './aliasProps';
 import { min, max, round, roundDec, incrRound, nonNullIdx, inf } from '../utils';
+import { addGap, clipGaps } from './utils';
 import { pxRatio } from '../dom';
 
 let dir = 1;
 
 export function linear() {
-	return (u, seriesIdx, idx0, idx1, extendGap, buildClip) => {
+	return (u, seriesIdx, idx0, idx1) => {
 		const [
 			series,
 			dataX,
@@ -43,7 +44,7 @@ export function linear() {
 		let rgtX = incrRound(valToPosX(dataX[rgtIdx], scaleX, plotWid, plotLft), 0.5);
 
 		if (lftX > plotLft)
-			extendGap(gaps, plotLft, lftX);
+			addGap(gaps, plotLft, lftX);
 
 		// the moves the shape edge outside the canvas so stroke doesnt bleed in
 		if (series.band && dir == 1)
@@ -92,14 +93,14 @@ export function linear() {
 						accGaps = true;
 				}
 
-				_addGap && extendGap(gaps, outX, x);
+				_addGap && addGap(gaps, outX, x);
 
 				accX = x;
 			}
 		}
 
 		if (rgtX < plotLft + plotWid)
-			extendGap(gaps, rgtX, plotLft + plotWid);
+			addGap(gaps, rgtX, plotLft + plotWid);
 
 		if (series.band) {
 			let _x, _iy, _data = u._data, dataY2;
@@ -122,7 +123,7 @@ export function linear() {
 
 		if (dir == 1) {
 			if (!series.spanGaps)
-				_paths.clip =  buildClip(gaps);
+				_paths.clip =  clipGaps(gaps, 1, plotLft, plotTop, plotWid, plotHgt);
 
 			if (series.fill != null) {
 				let fill = _paths.fill = new Path2D(stroke);

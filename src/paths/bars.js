@@ -9,7 +9,7 @@ export function bars(opts) {
 	const gapFactor = 1 - size[0];
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
 
-	return (u, seriesIdx, idx0, idx1, extendGap, buildClip) => {
+	return (u, seriesIdx, idx0, idx1) => {
 		const [
 			series,
 			dataX,

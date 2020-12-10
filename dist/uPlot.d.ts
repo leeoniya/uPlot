@@ -122,7 +122,16 @@ declare class uPlot {
 	static tzDate(date: Date, tzName: string): Date;
 
 	/** outerJoins multiple data tables on table[0] values. providing skipGaps can avoid null-caching for any series.spanGaps = true */
-	static alignData(tables: AlignedData[], skipGaps?: boolean[][]): AlignedDataWithGapTest;
+	static join(tables: AlignedData[], skipGaps?: boolean[][]): AlignedDataWithGapTest;
+
+	static addGap: Series.AddGap;
+
+	static clipGaps: Series.ClipPathBuilder;
+}
+
+export const enum Orientation {
+	Horizontal = 0,
+	Vertical   = 1,
 }
 
 export type AlignedData = [
@@ -444,10 +453,10 @@ export namespace Series {
 	export type BarsPathBuilderFactory    = (opts?: {size?: [factor?: number, max?: number]}) => Series.PathBuilder;
 
 	export interface PathBuilderFactories {
-		linear:  LinearPathBuilderFactory;
-		spline:  SplinePathBuilderFactory;
-		stepped: SteppedPathBuilderFactory;
-		bars:    BarsPathBuilderFactory;
+		linear?:  LinearPathBuilderFactory;
+		spline?:  SplinePathBuilderFactory;
+		stepped?: SteppedPathBuilderFactory;
+		bars?:    BarsPathBuilderFactory;
 	}
 
 	export interface Points {
@@ -474,13 +483,15 @@ export namespace Series {
 		export type Show = boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
 	}
 
-	export type Gaps = [from: number, to: number][];
+	export type Gap = [from: number, to: number];
 
-	export type ExtendGap = (gaps: Gaps, fromX: number, toX: number) => void;
+	export type Gaps = Gap[];
 
-	export type BuildClip = (gaps: Gaps) => Path2D | null;
+	export type AddGap = (gaps: Gaps, from: number, to: number) => void;
 
-	export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number, extendGap: ExtendGap, buildClip: BuildClip) => Paths | null;
+	export type ClipPathBuilder = (gaps: Gaps, ori: Orientation, left: number, top: number, width: number, height: number) => Path2D | null;
+
+	export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => Paths | null;
 
 	export type MinMaxIdxs = [minIdx: number, maxIdx: number];
 

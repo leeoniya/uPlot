@@ -1,11 +1,12 @@
 import { aliasProps } from './aliasProps';
 import { round, nonNullIdx, ifNull } from '../utils';
+import { addGap, clipGaps } from './utils';
 import { pxRatio } from '../dom';
 
 export function stepped(opts) {
 	const align = ifNull(opts.align, 1);
 
-	return (u, seriesIdx, idx0, idx1, extendGap, buildClip) => {
+	return (u, seriesIdx, idx0, idx1) => {
 		const [
 			series,
 			dataX,
@@ -40,7 +41,7 @@ export function stepped(opts) {
 
 			if (yVal1 == null) {
 				if (series.isGap(u, seriesIdx, i)) {
-					extendGap(gaps, prevXPos, x1);
+					addGap(gaps, prevXPos, x1);
 					inGap = true;
 				}
 				continue;
@@ -49,7 +50,7 @@ export function stepped(opts) {
 			let y1 = round(valToPosY(yVal1, scaleY, plotHgt, plotTop));
 
 			if (inGap) {
-				extendGap(gaps, prevXPos, x1);
+				addGap(gaps, prevXPos, x1);
 
 				// don't clip vertical extenders
 				if (prevYPos != y1) {
@@ -83,7 +84,7 @@ export function stepped(opts) {
 		fill.lineTo(prevXPos, minY);
 		fill.lineTo(firstXPos, minY);
 
-		let clip = !series.spanGaps ? buildClip(gaps) : null;
+		let clip = !series.spanGaps ? clipGaps(gaps, 1, plotLft, plotTop, plotWid, plotHgt) : null;
 
 		return {
 			stroke,

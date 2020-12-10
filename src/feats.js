@@ -10,4 +10,4 @@ export const FEAT_PATHS_SPLINE  = true;
 export const FEAT_PATHS_STEPPED = true;
 export const FEAT_PATHS_BARS    = true;
 
-export const FEAT_ALIGN_DATA    = true;
+export const FEAT_JOIN          = true;
