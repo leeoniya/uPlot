@@ -49,13 +49,19 @@ function bannerlessESM() {
 }
 
 const FEATS = {
-	FEAT_TIME: true,
-	FEAT_CURSOR: true,
-	FEAT_LEGEND: true,
-	FEAT_PATHS: true,
-	FEAT_POINTS: true,
-	FEAT_ALIGN: true,
-//	FEAT_GAPS: false,
+	FEAT_TIME:          true,
+	FEAT_CURSOR:        true,
+	FEAT_LEGEND:        true,
+
+	FEAT_POINTS:        true,
+
+	FEAT_PATHS:         true,
+	FEAT_PATHS_LINEAR:  true,
+	FEAT_PATHS_SPLINE:  true,
+	FEAT_PATHS_STEPPED: true,
+	FEAT_PATHS_BARS:    true,
+
+	FEAT_ALIGN_DATA:    true,
 };
 
 const terserOpts = {

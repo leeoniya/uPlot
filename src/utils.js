@@ -236,9 +236,9 @@ export function fnOrSelf(v) {
 	return typeof v == "function" ? v : () => v;
 }
 
-export function retArg1(_0, _1) {
-	return _1;
-}
+export const retArg1 = (_0, _1) => _1;
+
+export const retNull = _ => null;
 
 export function incrRoundUp(num, incr) {
 	return ceil(num/incr)*incr;
@@ -286,7 +286,7 @@ export const EMPTY_OBJ = {};
 export const isArr = Array.isArray;
 
 export function isStr(v) {
-	return typeof v === 'string';
+	return typeof v == 'string';
 }
 
 export function isObj(v) {
@@ -331,6 +331,75 @@ export function assign(targ) {
 	}
 
 	return targ;
+}
+
+// skipGaps is a tables-matched bool array indicating which series can skip storing indices of original nulls
+export function alignData(tables, skipGaps) {
+	if (tables.length == 1) {
+		return {
+			data: tables[0],
+			isGap: skipGaps ? (u, seriesIdx, dataIdx) => !skipGaps[0][seriesIdx] : () => true,
+		};
+	}
+
+	let xVals = new Set();
+	let xNulls = [new Set()];
+
+	for (let ti = 0; ti < tables.length; ti++) {
+		let t = tables[ti];
+		let xs = t[0];
+		let len = xs.length;
+		let nulls = new Set();
+
+		for (let i = 0; i < len; i++)
+			xVals.add(xs[i]);
+
+		for (let si = 1; si < t.length; si++) {
+			if (skipGaps == null || !skipGaps[ti][si]) {
+				let ys = t[si];
+
+				for (let i = 0; i < len; i++) {
+					if (ys[i] == null)
+						nulls.add(xs[i]);
+				}
+			}
+		}
+
+		xNulls.push(nulls);
+	}
+
+	let data = [Array.from(xVals).sort((a, b) => a - b)];
+
+	let alignedLen = data[0].length;
+
+	let xIdxs = new Map();
+
+	for (let i = 0; i < alignedLen; i++)
+		xIdxs.set(data[0][i], i);
+
+	for (let ti = 0; ti < tables.length; ti++) {
+		let t = tables[ti];
+		let xs = t[0];
+
+		for (let j = 1; j < t.length; j++) {
+			let ys = t[j];
+
+			let yVals = Array(alignedLen).fill(null);
+
+			for (let i = 0; i < ys.length; i++)
+				yVals[xIdxs.get(xs[i])] = ys[i];
+
+			data.push(yVals);
+		}
+	}
+
+	return {
+		data: data,
+		isGap(u, seriesIdx, dataIdx) {
+			let xVal = u._data[0][dataIdx];
+			return xNulls[seriesIdx].has(xVal);
+		},
+	};
 }
 
 export const microTask = typeof queueMicrotask == "undefined" ? fn => Promise.resolve().then(fn) : queueMicrotask;

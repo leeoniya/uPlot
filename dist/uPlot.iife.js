@@ -247,9 +247,9 @@ var uPlot = (function () {
 		return typeof v == "function" ? v : function () { return v; };
 	}
 
-	function retArg1(_0, _1) {
-		return _1;
-	}
+	var retArg1 = function (_0, _1) { return _1; };
+
+	var retNull = function (_) { return null; };
 
 	function incrRoundUp(num, incr) {
 		return ceil(num/incr)*incr;
@@ -297,7 +297,7 @@ var uPlot = (function () {
 	var isArr = Array.isArray;
 
 	function isStr(v) {
-		return typeof v === 'string';
+		return typeof v == 'string';
 	}
 
 	function isObj(v) {
@@ -342,6 +342,75 @@ var uPlot = (function () {
 		}
 
 		return targ;
+	}
+
+	// skipGaps is a tables-matched bool array indicating which series can skip storing indices of original nulls
+	function alignData(tables, skipGaps) {
+		if (tables.length == 1) {
+			return {
+				data: tables[0],
+				isGap: skipGaps ? function (u, seriesIdx, dataIdx) { return !skipGaps[0][seriesIdx]; } : function () { return true; },
+			};
+		}
+
+		var xVals = new Set();
+		var xNulls = [new Set()];
+
+		for (var ti = 0; ti < tables.length; ti++) {
+			var t = tables[ti];
+			var xs = t[0];
+			var len = xs.length;
+			var nulls = new Set();
+
+			for (var i = 0; i < len; i++)
+				{ xVals.add(xs[i]); }
+
+			for (var si = 1; si < t.length; si++) {
+				if (skipGaps == null || !skipGaps[ti][si]) {
+					var ys = t[si];
+
+					for (var i$1 = 0; i$1 < len; i$1++) {
+						if (ys[i$1] == null)
+							{ nulls.add(xs[i$1]); }
+					}
+				}
+			}
+
+			xNulls.push(nulls);
+		}
+
+		var data = [Array.from(xVals).sort(function (a, b) { return a - b; })];
+
+		var alignedLen = data[0].length;
+
+		var xIdxs = new Map();
+
+		for (var i$2 = 0; i$2 < alignedLen; i$2++)
+			{ xIdxs.set(data[0][i$2], i$2); }
+
+		for (var ti$1 = 0; ti$1 < tables.length; ti$1++) {
+			var t$1 = tables[ti$1];
+			var xs$1 = t$1[0];
+
+			for (var j = 1; j < t$1.length; j++) {
+				var ys$1 = t$1[j];
+
+				var yVals = Array(alignedLen).fill(null);
+
+				for (var i$3 = 0; i$3 < ys$1.length; i$3++)
+					{ yVals[xIdxs.get(xs$1[i$3])] = ys$1[i$3]; }
+
+				data.push(yVals);
+			}
+		}
+
+		return {
+			data: data,
+			isGap: function isGap(u, seriesIdx, dataIdx) {
+				var xVal = u._data[0][dataIdx];
+				return xNulls[seriesIdx].has(xVal);
+			},
+		};
 	}
 
 	var microTask = typeof queueMicrotask == "undefined" ? function (fn) { return Promise.resolve().then(fn); } : queueMicrotask;
@@ -1711,6 +1780,8 @@ var uPlot = (function () {
 		};
 	}
 
+	var linearPath =  linear() ;
+
 	function setDefaults(d, xo, yo, initY) {
 		var d2 = initY ? [d[0], d[1]].concat(d.slice(2)) : [d[0]].concat(d.slice(1));
 		return d2.map(function (o, i) { return setDefault(o, i, xo, yo); });
@@ -2200,7 +2271,7 @@ var uPlot = (function () {
 
 			if (i > 0) {
 				s.width = s.width == null ? 1 : s.width;
-				s.paths = s.paths || ( linear());
+				s.paths = s.paths || linearPath || retNull;
 				s.fillTo = s.fillTo || seriesFillTo;
 				var _ptDia = ptDia(s.width, 1);
 				s.points = assign({}, {
@@ -3901,17 +3972,21 @@ var uPlot = (function () {
 	uPlot.rangeLog = rangeLog;
 
 	{
+		uPlot.alignData = alignData;
+	}
+
+	{
 		uPlot.fmtDate = fmtDate;
 		uPlot.tzDate  = tzDate;
 	}
 
 	{
-		uPlot.paths = {
-			linear: linear,
-			spline: spline,
-			stepped: stepped,
-			bars: bars,
-		};
+		var paths = uPlot.paths = {};
+
+		 (paths.linear  = linear);
+		 (paths.spline  = spline);
+		 (paths.stepped = stepped);
+		 (paths.bars    = bars);
 	}
 
 	return uPlot;

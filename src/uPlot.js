@@ -15,7 +15,6 @@ import {
 	log10,
 	debounce,
 	closestIdx,
-	nonNullIdx,
 	getMinMax,
 	getMinMaxLog,
 	rangeNum,
@@ -28,13 +27,12 @@ import {
 	fmtNum,
 	fixedDec,
 	ifNull,
-
+	alignData,
 	extendGap,
-
 	microTask,
-
 	retArg1,
 	EMPTY_OBJ,
+	retNull,
 } from './utils';
 
 import {
@@ -160,6 +158,8 @@ import { bars    } from './paths/bars';
 function log(name, args) {
 	console.log.apply(console, [name].concat(Array.prototype.slice.call(args)));
 }
+
+const linearPath = FEAT_PATHS && FEAT_PATHS_LINEAR ? linear() : null;
 
 function setDefaults(d, xo, yo, initY) {
 	let d2 = initY ? [d[0], d[1]].concat(d.slice(2)) : [d[0]].concat(d.slice(1));
@@ -647,7 +647,7 @@ export default function uPlot(opts, data, then) {
 
 		if (i > 0) {
 			s.width = s.width == null ? 1 : s.width;
-			s.paths = s.paths || (FEAT_PATHS && linear());
+			s.paths = s.paths || linearPath || retNull;
 			s.fillTo = s.fillTo || seriesFillTo;
 			let _ptDia = ptDia(s.width, 1);
 			s.points = assign({}, {
@@ -2326,16 +2326,20 @@ uPlot.fmtNum = fmtNum;
 uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
 
+if (FEAT_ALIGN_DATA) {
+	uPlot.alignData = alignData;
+}
+
 if (FEAT_TIME) {
 	uPlot.fmtDate = fmtDate;
 	uPlot.tzDate  = tzDate;
 }
 
 if (FEAT_PATHS) {
-	uPlot.paths = {
-		linear,
-		spline,
-		stepped,
-		bars,
-	};
+	let paths = uPlot.paths = {};
+
+	FEAT_PATHS_LINEAR  && (paths.linear  = linear);
+	FEAT_PATHS_SPLINE  && (paths.spline  = spline);
+	FEAT_PATHS_STEPPED && (paths.stepped = stepped);
+	FEAT_PATHS_BARS    && (paths.bars    = bars);
 }

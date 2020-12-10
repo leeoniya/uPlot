@@ -106,72 +106,6 @@
 		</script>
 
 		<script>
-			function outerJoin0(tables) {
-				if (tables.length == 1) {
-					return {
-						data: tables[0],
-						isGap: _ => true,
-					};
-				}
-
-				let xVals = new Set();
-				let xNulls = [new Set()];
-
-				tables.forEach(t => {
-					let xs = t[0];
-					let len = xs.length;
-					let nulls = new Set();
-
-					for (let i = 0; i < len; i++)
-						xVals.add(xs[i]);
-
-					t.forEach(ys => {
-						if (ys != xs) {
-							for (let i = 0; i < len; i++) {
-								if (ys[i] == null)
-									nulls.add(xs[i]);
-							}
-						}
-					});
-
-					xNulls.push(nulls);
-				});
-
-				let data = [
-					Array.from(xVals).sort((a, b) => a - b),
-				];
-
-				let alignedLen = data[0].length;
-
-				let xIdxs = new Map();
-
-				for (let i = 0; i < alignedLen; i++)
-					xIdxs.set(data[0][i], i);
-
-				tables.forEach(t => {
-					let xs = t[0];
-
-					t.forEach(ys => {
-						if (ys != xs) {
-							let yVals = Array(alignedLen).fill(null);
-
-							for (let i = 0; i < ys.length; i++)
-								yVals[xIdxs.get(xs[i])] = ys[i];
-
-							data.push(yVals);
-						}
-					});
-				});
-
-				return {
-					data,
-					isGap(u, seriesIdx, dataIdx) {
-						let xVal = u.data[0][dataIdx];
-						return xNulls[seriesIdx].has(xVal);
-					}
-				};
-			}
-
 			let tables = [
 				[
 					[3,5,6,7,20],
@@ -187,7 +121,7 @@
 				]
 			];
 
-			let alignedDataWithGapTest = outerJoin0(tables);
+			let alignedDataWithGapTest = uPlot.alignData(tables);
 
 			const opts2 = {
 				width: 1200,

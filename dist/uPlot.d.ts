@@ -120,6 +120,9 @@ declare class uPlot {
 
 	/** converts a Date into new Date that's time-adjusted for the given IANA Time Zone Name */
 	static tzDate(date: Date, tzName: string): Date;
+
+	/** outerJoins multiple data tables on table[0] values. providing skipGaps can avoid null-caching for any series.spanGaps = true */
+	static alignData(tables: AlignedData[], skipGaps?: boolean[][]): AlignedDataWithGapTest;
 }
 
 export type AlignedData = [

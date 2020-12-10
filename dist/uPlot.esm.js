@@ -245,9 +245,9 @@ function fnOrSelf(v) {
 	return typeof v == "function" ? v : () => v;
 }
 
-function retArg1(_0, _1) {
-	return _1;
-}
+const retArg1 = (_0, _1) => _1;
+
+const retNull = _ => null;
 
 function incrRoundUp(num, incr) {
 	return ceil(num/incr)*incr;
@@ -295,7 +295,7 @@ const EMPTY_OBJ = {};
 const isArr = Array.isArray;
 
 function isStr(v) {
-	return typeof v === 'string';
+	return typeof v == 'string';
 }
 
 function isObj(v) {
@@ -340,6 +340,75 @@ function assign(targ) {
 	}
 
 	return targ;
+}
+
+// skipGaps is a tables-matched bool array indicating which series can skip storing indices of original nulls
+function alignData(tables, skipGaps) {
+	if (tables.length == 1) {
+		return {
+			data: tables[0],
+			isGap: skipGaps ? (u, seriesIdx, dataIdx) => !skipGaps[0][seriesIdx] : () => true,
+		};
+	}
+
+	let xVals = new Set();
+	let xNulls = [new Set()];
+
+	for (let ti = 0; ti < tables.length; ti++) {
+		let t = tables[ti];
+		let xs = t[0];
+		let len = xs.length;
+		let nulls = new Set();
+
+		for (let i = 0; i < len; i++)
+			xVals.add(xs[i]);
+
+		for (let si = 1; si < t.length; si++) {
+			if (skipGaps == null || !skipGaps[ti][si]) {
+				let ys = t[si];
+
+				for (let i = 0; i < len; i++) {
+					if (ys[i] == null)
+						nulls.add(xs[i]);
+				}
+			}
+		}
+
+		xNulls.push(nulls);
+	}
+
+	let data = [Array.from(xVals).sort((a, b) => a - b)];
+
+	let alignedLen = data[0].length;
+
+	let xIdxs = new Map();
+
+	for (let i = 0; i < alignedLen; i++)
+		xIdxs.set(data[0][i], i);
+
+	for (let ti = 0; ti < tables.length; ti++) {
+		let t = tables[ti];
+		let xs = t[0];
+
+		for (let j = 1; j < t.length; j++) {
+			let ys = t[j];
+
+			let yVals = Array(alignedLen).fill(null);
+
+			for (let i = 0; i < ys.length; i++)
+				yVals[xIdxs.get(xs[i])] = ys[i];
+
+			data.push(yVals);
+		}
+	}
+
+	return {
+		data: data,
+		isGap(u, seriesIdx, dataIdx) {
+			let xVal = u._data[0][dataIdx];
+			return xNulls[seriesIdx].has(xVal);
+		},
+	};
 }
 
 const microTask = typeof queueMicrotask == "undefined" ? fn => Promise.resolve().then(fn) : queueMicrotask;
@@ -1720,6 +1789,8 @@ function bars(opts) {
 	};
 }
 
+const linearPath =  linear() ;
+
 function setDefaults(d, xo, yo, initY) {
 	let d2 = initY ? [d[0], d[1]].concat(d.slice(2)) : [d[0]].concat(d.slice(1));
 	return d2.map((o, i) => setDefault(o, i, xo, yo));
@@ -2205,7 +2276,7 @@ function uPlot(opts, data, then) {
 
 		if (i > 0) {
 			s.width = s.width == null ? 1 : s.width;
-			s.paths = s.paths || ( linear());
+			s.paths = s.paths || linearPath || retNull;
 			s.fillTo = s.fillTo || seriesFillTo;
 			let _ptDia = ptDia(s.width, 1);
 			s.points = assign({}, {
@@ -3885,17 +3956,21 @@ uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
 
 {
+	uPlot.alignData = alignData;
+}
+
+{
 	uPlot.fmtDate = fmtDate;
 	uPlot.tzDate  = tzDate;
 }
 
 {
-	uPlot.paths = {
-		linear,
-		spline,
-		stepped,
-		bars,
-	};
+	let paths = uPlot.paths = {};
+
+	 (paths.linear  = linear);
+	 (paths.spline  = spline);
+	 (paths.stepped = stepped);
+	 (paths.bars    = bars);
 }
 
 export default uPlot;
