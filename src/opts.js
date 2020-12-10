@@ -1,4 +1,8 @@
 import {
+	FEAT_TIME,
+} from './feats';
+
+import {
 	assign,
 
 	abs,

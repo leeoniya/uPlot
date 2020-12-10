@@ -1,3 +1,7 @@
+import {
+	FEAT_TIME,
+} from './feats';
+
 const months = [
 	"January",
 	"February",

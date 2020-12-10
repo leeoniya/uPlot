@@ -1,4 +1,20 @@
 import {
+	FEAT_TIME,
+	FEAT_CURSOR,
+	FEAT_LEGEND,
+
+	FEAT_POINTS,
+
+	FEAT_PATHS,
+	FEAT_PATHS_LINEAR,
+	FEAT_PATHS_SPLINE,
+	FEAT_PATHS_STEPPED,
+	FEAT_PATHS_BARS,
+
+	FEAT_ALIGN_DATA,
+} from './feats';
+
+import {
 	copy,
 	assign,
 	PI,

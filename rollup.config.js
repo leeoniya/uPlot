@@ -14,7 +14,6 @@ let minicss = cssmin(fs.readFileSync('./src/uPlot.css', 'utf8'));
 fs.writeFileSync('./dist/uPlot.min.css', minicss);
 
 import buble from '@rollup/plugin-buble';
-import replace from '@rollup/plugin-replace';
 import { terser } from 'rollup-plugin-terser';
 
 const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
@@ -48,22 +47,6 @@ function bannerlessESM() {
 	};
 }
 
-const FEATS = {
-	FEAT_TIME:          true,
-	FEAT_CURSOR:        true,
-	FEAT_LEGEND:        true,
-
-	FEAT_POINTS:        true,
-
-	FEAT_PATHS:         true,
-	FEAT_PATHS_LINEAR:  true,
-	FEAT_PATHS_SPLINE:  true,
-	FEAT_PATHS_STEPPED: true,
-	FEAT_PATHS_BARS:    true,
-
-	FEAT_ALIGN_DATA:    true,
-};
-
 const terserOpts = {
 	compress: {
 		inline: 0,
@@ -90,9 +73,6 @@ export default [
 			esModule: false,
 			banner,
 		},
-		plugins: [
-			replace(FEATS),
-		]
 	},
 	{
 		input: 'uPlot',
@@ -105,7 +85,6 @@ export default [
 		},
 		plugins: [
 			bannerlessESM(),
-			replace(FEATS),
 			buble(),
 		]
 	},
@@ -121,7 +100,6 @@ export default [
 		},
 		plugins: [
 			bannerlessESM(),
-			replace(FEATS),
 			buble(),
 		]
 	},
@@ -136,7 +114,6 @@ export default [
 		},
 		plugins: [
 			bannerlessESM(),
-			replace(FEATS),
 			buble(),
 			terser(terserOpts),
 		]

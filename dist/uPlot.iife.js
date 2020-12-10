@@ -10,6 +10,8 @@
 var uPlot = (function () {
 	'use strict';
 
+	var FEAT_TIME          = true;
+
 	function debounce(fn, time) {
 		var pending = null;
 
@@ -1241,7 +1243,7 @@ var uPlot = (function () {
 	}
 
 	var xScaleOpts = {
-		time: true,
+		time: FEAT_TIME,
 		auto: true,
 		distr: 1,
 		log: 10,
@@ -1502,7 +1504,7 @@ var uPlot = (function () {
 				clip: clip,
 			};
 
-			//  if true: false in rollup.config.js
+			//  if FEAT_PATHS: false in rollup.config.js
 			//	u.ctx.save();
 			//	u.ctx.beginPath();
 			//	u.ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
@@ -3154,7 +3156,7 @@ var uPlot = (function () {
 				shouldSetCursor = false;
 			}
 
-		//	if (true && legend.show && legend.live && shouldSetLegend) {}
+		//	if (FEAT_LEGEND && legend.show && legend.live && shouldSetLegend) {}
 
 			if (fullWidCss > 0 && fullHgtCss > 0) {
 				ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
