@@ -331,6 +331,8 @@ export function join(tables, skipGaps) {
 		};
 	}
 
+	let growGaps = true;
+
 	let xVals = new Set();
 	let xNulls = [new Set()];
 
@@ -366,6 +368,8 @@ export function join(tables, skipGaps) {
 	for (let i = 0; i < alignedLen; i++)
 		xIdxs.set(data[0][i], i);
 
+	let si = 1;
+
 	for (let ti = 0; ti < tables.length; ti++) {
 		let t = tables[ti];
 		let xs = t[0];
@@ -378,7 +382,33 @@ export function join(tables, skipGaps) {
 			for (let i = 0; i < ys.length; i++)
 				yVals[xIdxs.get(xs[i])] = ys[i];
 
+			// mark all fill-nulls as explicit nulls when adjacent to existing explicit nulls (minesweeper)
+			if (growGaps) {
+				let nulls = xNulls[si];
+				let size = nulls.size, i = 0;
+
+				nulls.forEach(xVal => {
+					if (i++ < size) {
+						let xi, xIdx = xIdxs.get(xVal);
+
+						xi = xIdx;
+						while (yVals[--xi] === null) {
+							console.count("i");
+							nulls.add(data[0][xi]);
+						}
+
+						xi = xIdx;
+						while (yVals[++xi] === null) {
+							console.count("i");
+							nulls.add(data[0][xi]);
+						}
+					}
+				});
+			}
+
 			data.push(yVals);
+
+			si++;
 		}
 	}
 

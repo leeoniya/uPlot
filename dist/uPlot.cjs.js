@@ -355,9 +355,9 @@ function join(tables, skipGaps) {
 		for (var i = 0; i < len; i++)
 			{ xVals.add(xs[i]); }
 
-		for (var si = 1; si < t.length; si++) {
-			if (skipGaps == null || !skipGaps[ti][si]) {
-				var ys = t[si];
+		for (var si$1 = 1; si$1 < t.length; si$1++) {
+			if (skipGaps == null || !skipGaps[ti][si$1]) {
+				var ys = t[si$1];
 
 				for (var i$1 = 0; i$1 < len; i$1++) {
 					if (ys[i$1] == null)
@@ -378,11 +378,13 @@ function join(tables, skipGaps) {
 	for (var i$2 = 0; i$2 < alignedLen; i$2++)
 		{ xIdxs.set(data[0][i$2], i$2); }
 
+	var si = 1;
+
 	for (var ti$1 = 0; ti$1 < tables.length; ti$1++) {
 		var t$1 = tables[ti$1];
 		var xs$1 = t$1[0];
 
-		for (var j = 1; j < t$1.length; j++) {
+		var loop = function ( j ) {
 			var ys$1 = t$1[j];
 
 			var yVals = Array(alignedLen).fill(null);
@@ -390,8 +392,36 @@ function join(tables, skipGaps) {
 			for (var i$3 = 0; i$3 < ys$1.length; i$3++)
 				{ yVals[xIdxs.get(xs$1[i$3])] = ys$1[i$3]; }
 
+			// mark all fill-nulls as explicit nulls when adjacent to existing explicit nulls (minesweeper)
+			{
+				var nulls$1 = xNulls[si];
+				var size = nulls$1.size, i$4 = 0;
+
+				nulls$1.forEach(function (xVal) {
+					if (i$4++ < size) {
+						var xi, xIdx = xIdxs.get(xVal);
+
+						xi = xIdx;
+						while (yVals[--xi] === null) {
+							console.count("i");
+							nulls$1.add(data[0][xi]);
+						}
+
+						xi = xIdx;
+						while (yVals[++xi] === null) {
+							console.count("i");
+							nulls$1.add(data[0][xi]);
+						}
+					}
+				});
+			}
+
 			data.push(yVals);
-		}
+
+			si++;
+		};
+
+		for (var j = 1; j < t$1.length; j++) loop( j );
 	}
 
 	return {
