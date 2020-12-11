@@ -106,6 +106,45 @@
 		</script>
 
 		<script>
+			let tables10 = [
+				[
+					[1607676419481,1607680019481,1607683619481,1607687219481,1607690819481,1607694419481,1607698019481,1607698019482],
+					[10,20,30,40,50,60,70,90],
+				],
+				[
+					[1607676419481,1607677962338,1607679505195,1607681048052,1607682590909,1607684133766,1607685676623,1607687219480,1607688762337,1607690305194,1607691848051,1607693390908,1607694933765,1607696476622,1607698019479],
+					[1,null,40,null,90,null,null,100,null,null,100,null,null,80,null],
+				]
+			];
+
+			let alignedDataWithGapTest10 = uPlot.join(tables10);
+
+			const opts10 = {
+				width: 1200,
+				height: 600,
+				title: 'Align & null-fill vs "real" null gaps',
+				ms: 1,
+				series: [
+					{},
+					{
+					//	show: false,
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+						spanGaps: false,
+					},
+					{
+					//	show: false,
+						stroke: "green",
+						fill: "rgba(0,255,0,0.1)",
+						spanGaps: false,
+					},
+				],
+			};
+
+			let u10 = new uPlot(opts10, alignedDataWithGapTest10, document.body);
+		</script>
+
+		<script>
 			let tables = [
 				[
 					[3,5,6,7,20],

@@ -1325,6 +1325,12 @@ function addGap(gaps, fromX, toX) {
 
 var dir = 1;
 
+function drawAcc(stroke, accX, minY, maxY, outY) {
+	stroke.lineTo(accX, minY);
+	stroke.lineTo(accX, maxY);
+	stroke.lineTo(accX, outY);
+}
+
 function linear() {
 	return function (u, seriesIdx, idx0, idx1) {
 		var ref = aliasProps(u, seriesIdx);
@@ -1348,7 +1354,7 @@ function linear() {
 
 		var minY = inf,
 			maxY = -inf,
-			outY, outX;
+			outY, outX, drawnAtX;
 
 		// todo: don't build gaps on dir = -1 pass
 		var gaps = [];
@@ -1375,6 +1381,10 @@ function linear() {
 			if (x == accX) {
 				if (dataY[i] != null) {
 					outY = round(valToPosY(dataY[i], scaleY, plotHgt, plotTop));
+
+					if (minY == inf)
+						{ stroke.lineTo(x, outY); }
+
 					minY = min(outY, minY);
 					maxY = max(outY, maxY);
 				}
@@ -1385,10 +1395,8 @@ function linear() {
 				var _addGap = false;
 
 				if (minY != inf) {
-					stroke.lineTo(accX, minY);
-					stroke.lineTo(accX, maxY);
-					stroke.lineTo(accX, outY);
-					outX = accX;
+					drawAcc(stroke, accX, minY, maxY, outY);
+					outX = drawnAtX = accX;
 				}
 				else if (accGaps) {
 					_addGap = true;
@@ -1417,6 +1425,9 @@ function linear() {
 				accX = x;
 			}
 		}
+
+		if (minY != inf && minY != maxY && drawnAtX != accX)
+			{ drawAcc(stroke, accX, minY, maxY, outY); }
 
 		if (rgtX < plotLft + plotWid)
 			{ addGap(gaps, rgtX, plotLft + plotWid); }
