@@ -1,0 +1,127 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Alignment Cost</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.min.js"></script>
+		<script>
+			function randInt(min, max) {
+				return Math.floor(Math.random() * (max - min + 1) + min);
+			}
+
+			function genTables(numTables, numSeries, numPoints, gapsAtMod) {
+				let tables = [];
+
+				for (let t = 0; t < numTables; t++) {
+					let randXvals = new Set();
+
+					while (randXvals.size < numPoints)
+						randXvals.add(randInt(0, numPoints * 100));
+
+					randXvals = Array.from(randXvals).sort((a, b) => a - b);
+
+					let table = [
+						randXvals
+					];
+
+					for (let s = 0; s < numSeries; s++) {
+						table.push(randXvals.map(x => {
+							let v = randInt(0, 100);
+							return v % gapsAtMod == 0 ? null : v;
+						}));
+					}
+
+					tables.push(table);
+				}
+
+				return tables;
+			}
+
+/*
+			let tables = [
+				[
+					[3,5,6,7,20],
+					[2,3,4,10,5],
+				],
+				[
+					[1,2,3,4,5,17],
+					[7,2,1,null,6,13],
+				],
+				[
+					[9,14,15,16],
+					[9,5,null,1],
+				]
+			];
+*/
+			let tableCfg = [5, 5, 1000, 5];
+			console.log(tableCfg);
+
+			console.time("genTables");
+			let tables = genTables.apply(null, tableCfg);
+			console.timeEnd("genTables");
+
+//			console.log(tables);
+
+			console.time("align");
+			let { data, isGap } = uPlot.join(tables);
+			console.timeEnd("align");
+
+		//	console.log(data3);
+
+			const opts = {
+				width: 2560,
+				height: 600,
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					{
+					//	show: false,
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+						spanGaps: false,
+					},
+					{
+					//	show: false,
+						stroke: "green",
+						fill: "rgba(0,255,0,0.1)",
+						spanGaps: false,
+					},
+					{
+					//	show: false,
+						stroke: "blue",
+						fill: "rgba(0,0,255,0.1)",
+						spanGaps: false,
+					},
+				],
+			};
+
+			console.time("render");
+			let u = new uPlot(opts, data, document.body);
+			queueMicrotask(() => console.timeEnd("render"));
+/*
+			setInterval(() => {
+				console.time("align3");
+				let { data: data3, isGap: isGap3 } = outerJoin0(tables);
+				console.timeEnd("align3");
+			}, 1000);
+*/
+/*
+			setInterval(() => {
+				u.series.forEach(s => {
+					s.spanGaps = !s.spanGaps;
+				});
+				u.redraw();
+			}, 1000);
+*/
+		</script>
+	</body>
+</html>
