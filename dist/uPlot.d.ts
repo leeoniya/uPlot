@@ -121,12 +121,21 @@ declare class uPlot {
 	/** converts a Date into new Date that's time-adjusted for the given IANA Time Zone Name */
 	static tzDate(date: Date, tzName: string): Date;
 
-	/** outerJoins multiple data tables on table[0] values. providing skipGaps can avoid null-caching for any series.spanGaps = true */
-	static join(tables: AlignedData[], skipGaps?: boolean[][]): AlignedDataWithGapTest;
+	/** outerJoins multiple data tables on table[0] values */
+	static join(tables: AlignedData[], nullModes?: JoinNullMode[][]): AlignedDataWithGapTest;
 
 	static addGap: Series.AddGap;
 
 	static clipGaps: Series.ClipPathBuilder;
+}
+
+export const enum JoinNullMode {
+	/** use for series with spanGaps = true */
+	Ignore = 0,
+	/** default */
+	Gaps   = 1,
+	/** expand explicit null gaps to include adjacent alignment nulls */
+	Expand = 2,
 }
 
 export const enum Orientation {

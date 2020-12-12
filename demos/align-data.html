@@ -68,7 +68,9 @@
 //			console.log(tables);
 
 			console.time("align");
-			let { data, isGap } = uPlot.join(tables);
+			let nullModes = tables.map(t => t.map(s => 2));
+			let { data, isGap } = uPlot.join(tables, nullModes);
+		//	console.log(nullModes);
 			console.timeEnd("align");
 
 		//	console.log(data3);
@@ -114,14 +116,13 @@
 				console.timeEnd("align3");
 			}, 1000);
 */
-/*
+
 			setInterval(() => {
 				u.series.forEach(s => {
 					s.spanGaps = !s.spanGaps;
 				});
 				u.redraw();
 			}, 1000);
-*/
 		</script>
 	</body>
 </html>

@@ -335,12 +335,17 @@ var uPlot = (function () {
 		return targ;
 	}
 
-	// skipGaps is a tables-matched bool array indicating which series can skip storing indices of original nulls
-	function join(tables, skipGaps) {
+	// nullModes
+	var NULL_IGNORE = 0;  // all nulls are ignored by isGap
+	var NULL_GAP    = 1;  // alignment nulls are ignored by isGap (default)
+	var NULL_EXPAND = 2;  // nulls are expand to include adjacent alignment nulls
+
+	// nullModes is a tables-matched array indicating how to treat nulls in each series
+	function join(tables, nullModes) {
 		if (tables.length == 1) {
 			return {
 				data: tables[0],
-				isGap: skipGaps ? function (u, seriesIdx, dataIdx) { return !skipGaps[0][seriesIdx]; } : function () { return true; },
+				isGap: nullModes ? function (u, seriesIdx, dataIdx) { return nullModes[0][seriesIdx] != NULL_IGNORE; } : function () { return true; },
 			};
 		}
 
@@ -355,11 +360,12 @@ var uPlot = (function () {
 			for (var i = 0; i < len; i++)
 				{ xVals.add(xs[i]); }
 
-			for (var si$1 = 1; si$1 < t.length; si$1++) {
+			for (var si = 1; si < t.length; si++) {
 				var nulls = new Set();
 
-				if (skipGaps == null || !skipGaps[ti][si$1]) {
-					var ys = t[si$1];
+				// cache original nulls for isGap lookup
+				if (nullModes == null || nullModes[ti][si] == NULL_GAP || nullModes[ti][si] == NULL_EXPAND) {
+					var ys = t[si];
 
 					for (var i$1 = 0; i$1 < len; i$1++) {
 						if (ys[i$1] == null)
@@ -380,14 +386,14 @@ var uPlot = (function () {
 		for (var i$2 = 0; i$2 < alignedLen; i$2++)
 			{ xIdxs.set(data[0][i$2], i$2); }
 
-		var si = 1;
+		var gsi = 1;
 
 		for (var ti$1 = 0; ti$1 < tables.length; ti$1++) {
 			var t$1 = tables[ti$1];
 			var xs$1 = t$1[0];
 
-			for (var j = 1; j < t$1.length; j++) {
-				var ys$1 = t$1[j];
+			for (var si$1 = 1; si$1 < t$1.length; si$1++) {
+				var ys$1 = t$1[si$1];
 
 				var yVals = Array(alignedLen).fill(null);
 
@@ -395,8 +401,8 @@ var uPlot = (function () {
 					{ yVals[xIdxs.get(xs$1[i$3])] = ys$1[i$3]; }
 
 				// mark all filler nulls as explicit when adjacent to existing explicit nulls (minesweeper)
-				{
-					var nulls$1 = xNulls[si];
+				if (nullModes && nullModes[ti$1][si$1] == NULL_EXPAND) {
+					var nulls$1 = xNulls[gsi];
 					var size = nulls$1.size;
 					var	i$4 = 0;
 					var xi = (void 0);
@@ -427,7 +433,7 @@ var uPlot = (function () {
 
 				data.push(yVals);
 
-				si++;
+				gsi++;
 			}
 		}
 

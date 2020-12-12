@@ -333,12 +333,17 @@ function assign(targ) {
 	return targ;
 }
 
-// skipGaps is a tables-matched bool array indicating which series can skip storing indices of original nulls
-function join(tables, skipGaps) {
+// nullModes
+const NULL_IGNORE = 0;  // all nulls are ignored by isGap
+const NULL_GAP    = 1;  // alignment nulls are ignored by isGap (default)
+const NULL_EXPAND = 2;  // nulls are expand to include adjacent alignment nulls
+
+// nullModes is a tables-matched array indicating how to treat nulls in each series
+function join(tables, nullModes) {
 	if (tables.length == 1) {
 		return {
 			data: tables[0],
-			isGap: skipGaps ? (u, seriesIdx, dataIdx) => !skipGaps[0][seriesIdx] : () => true,
+			isGap: nullModes ? (u, seriesIdx, dataIdx) => nullModes[0][seriesIdx] != NULL_IGNORE : () => true,
 		};
 	}
 
@@ -356,7 +361,8 @@ function join(tables, skipGaps) {
 		for (let si = 1; si < t.length; si++) {
 			let nulls = new Set();
 
-			if (skipGaps == null || !skipGaps[ti][si]) {
+			// cache original nulls for isGap lookup
+			if (nullModes == null || nullModes[ti][si] == NULL_GAP || nullModes[ti][si] == NULL_EXPAND) {
 				let ys = t[si];
 
 				for (let i = 0; i < len; i++) {
@@ -378,14 +384,14 @@ function join(tables, skipGaps) {
 	for (let i = 0; i < alignedLen; i++)
 		xIdxs.set(data[0][i], i);
 
-	let si = 1;
+	let gsi = 1;
 
 	for (let ti = 0; ti < tables.length; ti++) {
 		let t = tables[ti];
 		let xs = t[0];
 
-		for (let j = 1; j < t.length; j++) {
-			let ys = t[j];
+		for (let si = 1; si < t.length; si++) {
+			let ys = t[si];
 
 			let yVals = Array(alignedLen).fill(null);
 
@@ -393,8 +399,8 @@ function join(tables, skipGaps) {
 				yVals[xIdxs.get(xs[i])] = ys[i];
 
 			// mark all filler nulls as explicit when adjacent to existing explicit nulls (minesweeper)
-			{
-				let nulls = xNulls[si];
+			if (nullModes && nullModes[ti][si] == NULL_EXPAND) {
+				let nulls = xNulls[gsi];
 				let size = nulls.size;
 				let	i = 0;
 				let xi;
@@ -425,7 +431,7 @@ function join(tables, skipGaps) {
 
 			data.push(yVals);
 
-			si++;
+			gsi++;
 		}
 	}
 
