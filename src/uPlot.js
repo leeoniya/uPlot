@@ -59,7 +59,6 @@ import {
 	RIGHT,
 	hexBlack,
 	transparent,
-	firstChild,
 
 	mousemove,
 	mousedown,
@@ -511,10 +510,10 @@ export default function uPlot(opts, data, then) {
 
 		let bb = self.bbox;
 
-		plotLft = bb[LEFT]   = incrRound(plotLftCss * pxRatio, 0.5);
-		plotTop = bb[TOP]    = incrRound(plotTopCss * pxRatio, 0.5);
-		plotWid = bb[WIDTH]  = incrRound(plotWidCss * pxRatio, 0.5);
-		plotHgt = bb[HEIGHT] = incrRound(plotHgtCss * pxRatio, 0.5);
+		plotLft = bb.left   = incrRound(plotLftCss * pxRatio, 0.5);
+		plotTop = bb.top    = incrRound(plotTopCss * pxRatio, 0.5);
+		plotWid = bb.width  = incrRound(plotWidCss * pxRatio, 0.5);
+		plotHgt = bb.height = incrRound(plotHgtCss * pxRatio, 0.5);
 	}
 
 	function convergeSize() {
@@ -1110,7 +1109,7 @@ export default function uPlot(opts, data, then) {
 
 		if (dir == 1) {
 			const { stroke, fill, clip } = s._paths;
-			const width = roundDec(s[WIDTH] * pxRatio, 3);
+			const width = roundDec(s.width * pxRatio, 3);
 			const offset = (width % 2) / 2;
 
 			setCtxStyle(s.stroke, width, s.dash, s.fill);
@@ -1409,7 +1408,7 @@ export default function uPlot(opts, data, then) {
 					side,
 					basePos,
 					tickSize,
-					roundDec(ticks[WIDTH] * pxRatio, 3),
+					roundDec(ticks.width * pxRatio, 3),
 					ticks.stroke,
 				);
 			}
@@ -1425,7 +1424,7 @@ export default function uPlot(opts, data, then) {
 					ori == 0 ? 2 : 1,
 					ori == 0 ? plotTop : plotLft,
 					ori == 0 ? plotHgt : plotWid,
-					roundDec(grid[WIDTH] * pxRatio, 3),
+					roundDec(grid.width * pxRatio, 3),
 					grid.stroke,
 					grid.dash,
 				);
@@ -1487,8 +1486,8 @@ export default function uPlot(opts, data, then) {
 			setStylePx(wrap, WIDTH,   fullWidCss);
 			setStylePx(wrap, HEIGHT,  fullHgtCss);
 
-			can[WIDTH]  = round(fullWidCss * pxRatio);
-			can[HEIGHT] = round(fullHgtCss * pxRatio);
+			can.width  = round(fullWidCss * pxRatio);
+			can.height = round(fullHgtCss * pxRatio);
 
 			syncRect();
 
@@ -1499,10 +1498,10 @@ export default function uPlot(opts, data, then) {
 
 	//	if (shouldSetSelect) {
 		// TODO: update .u-select metrics (if visible)
-		//	setStylePx(selectDiv, TOP, select[TOP] = 0);
-		//	setStylePx(selectDiv, LEFT, select[LEFT] = 0);
-		//	setStylePx(selectDiv, WIDTH, select[WIDTH] = 0);
-		//	setStylePx(selectDiv, HEIGHT, select[HEIGHT] = 0);
+		//	setStylePx(selectDiv, TOP, select.top = 0);
+		//	setStylePx(selectDiv, LEFT, select.left = 0);
+		//	setStylePx(selectDiv, WIDTH, select.width = 0);
+		//	setStylePx(selectDiv, HEIGHT, select.height = 0);
 		//	shouldSetSelect = false;
 	//	}
 
@@ -1514,7 +1513,7 @@ export default function uPlot(opts, data, then) {
 	//	if (FEAT_LEGEND && legend.show && legend.live && shouldSetLegend) {}
 
 		if (fullWidCss > 0 && fullHgtCss > 0) {
-			ctx.clearRect(0, 0, can[WIDTH], can[HEIGHT]);
+			ctx.clearRect(0, 0, can.width, can.height);
 			fire("drawClear");
 			drawOrder.forEach(fn => fn());
 			fire("draw");
@@ -1828,7 +1827,7 @@ export default function uPlot(opts, data, then) {
 						continue;
 
 					for (let j = 0; j < legendRows[i].length; j++)
-						legendRows[i][j][firstChild].nodeValue = '--';
+						legendRows[i][j].firstChild.nodeValue = '--';
 				}
 			}
 
@@ -1836,7 +1835,7 @@ export default function uPlot(opts, data, then) {
 				setSeries(null, {focus: true}, syncOpts.setSeries);
 		}
 		else {
-		//	let pctY = 1 - (y / rect[HEIGHT]);
+		//	let pctY = 1 - (y / rect.height);
 
 			let valAtPos = scaleValueAtPos(mouseLeft1, xScaleKey);
 
@@ -1880,7 +1879,7 @@ export default function uPlot(opts, data, then) {
 					let j = 0;
 
 					for (let k in vals)
-						legendRows[i][j++][firstChild].nodeValue = vals[k];
+						legendRows[i][j++].firstChild.nodeValue = vals[k];
 				}
 			}
 
@@ -1899,35 +1898,35 @@ export default function uPlot(opts, data, then) {
 
 				if (xKey) {
 					let sc = scales[xKey];
-					let srcLeft = src.posToVal(src.select[LEFT], xKey);
-					let srcRight = src.posToVal(src.select[LEFT] + src.select[WIDTH], xKey);
+					let srcLeft = src.posToVal(src.select.left, xKey);
+					let srcRight = src.posToVal(src.select.left + src.select.width, xKey);
 
-					select[LEFT] = getXPos(srcLeft, sc, plotWidCss, 0);
-					select[WIDTH] = abs(select[LEFT] - getXPos(srcRight, sc, plotWidCss, 0));
+					select.left = getXPos(srcLeft, sc, plotWidCss, 0);
+					select.width = abs(select.left - getXPos(srcRight, sc, plotWidCss, 0));
 
-					setStylePx(selectDiv, LEFT, select[LEFT]);
-					setStylePx(selectDiv, WIDTH, select[WIDTH]);
+					setStylePx(selectDiv, LEFT, select.left);
+					setStylePx(selectDiv, WIDTH, select.width);
 
 					if (!yKey) {
-						setStylePx(selectDiv, TOP, select[TOP] = 0);
-						setStylePx(selectDiv, HEIGHT, select[HEIGHT] = plotHgtCss);
+						setStylePx(selectDiv, TOP, select.top = 0);
+						setStylePx(selectDiv, HEIGHT, select.height = plotHgtCss);
 					}
 				}
 
 				if (yKey) {
 					let sc = scales[yKey];
-					let srcTop = src.posToVal(src.select[TOP], yKey);
-					let srcBottom = src.posToVal(src.select[TOP] + src.select[HEIGHT], yKey);
+					let srcTop = src.posToVal(src.select.top, yKey);
+					let srcBottom = src.posToVal(src.select.top + src.select.height, yKey);
 
-					select[TOP] = getYPos(srcTop, sc, plotHgtCss, 0);
-					select[HEIGHT] = abs(select[TOP] - getYPos(srcBottom, sc, plotHgtCss, 0));
+					select.top = getYPos(srcTop, sc, plotHgtCss, 0);
+					select.height = abs(select.top - getYPos(srcBottom, sc, plotHgtCss, 0));
 
-					setStylePx(selectDiv, TOP, select[TOP]);
-					setStylePx(selectDiv, HEIGHT, select[HEIGHT]);
+					setStylePx(selectDiv, TOP, select.top);
+					setStylePx(selectDiv, HEIGHT, select.height);
 
 					if (!xKey) {
-						setStylePx(selectDiv, LEFT, select[LEFT] = 0);
-						setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
+						setStylePx(selectDiv, LEFT, select.left = 0);
+						setStylePx(selectDiv, WIDTH, select.width = plotWidCss);
 					}
 				}
 			}
@@ -1963,12 +1962,12 @@ export default function uPlot(opts, data, then) {
 					let minX = min(mouseLeft0, mouseLeft1);
 					let dx = abs(mouseLeft1 - mouseLeft0);
 
-					setStylePx(selectDiv, LEFT,  select[LEFT] = minX);
-					setStylePx(selectDiv, WIDTH, select[WIDTH] = dx);
+					setStylePx(selectDiv, LEFT,  select.left = minX);
+					setStylePx(selectDiv, WIDTH, select.width = dx);
 
 					if (!dragY) {
-						setStylePx(selectDiv, TOP, select[TOP] = 0);
-						setStylePx(selectDiv, HEIGHT, select[HEIGHT] = plotHgtCss);
+						setStylePx(selectDiv, TOP, select.top = 0);
+						setStylePx(selectDiv, HEIGHT, select.height = plotHgtCss);
 					}
 				}
 
@@ -1976,19 +1975,19 @@ export default function uPlot(opts, data, then) {
 					let minY = min(mouseTop0, mouseTop1);
 					let dy = abs(mouseTop1 - mouseTop0);
 
-					setStylePx(selectDiv, TOP,    select[TOP] = minY);
-					setStylePx(selectDiv, HEIGHT, select[HEIGHT] = dy);
+					setStylePx(selectDiv, TOP,    select.top = minY);
+					setStylePx(selectDiv, HEIGHT, select.height = dy);
 
 					if (!dragX) {
-						setStylePx(selectDiv, LEFT, select[LEFT] = 0);
-						setStylePx(selectDiv, WIDTH, select[WIDTH] = plotWidCss);
+						setStylePx(selectDiv, LEFT, select.left = 0);
+						setStylePx(selectDiv, WIDTH, select.width = plotWidCss);
 					}
 				}
 
 				if (!dragX && !dragY) {
 					// the drag didn't pass the dist requirement
-					setStylePx(selectDiv, HEIGHT, select[HEIGHT] = 0);
-					setStylePx(selectDiv, WIDTH,  select[WIDTH]  = 0);
+					setStylePx(selectDiv, HEIGHT, select.height = 0);
+					setStylePx(selectDiv, WIDTH,  select.width  = 0);
 				}
 			}
 		}
@@ -2102,7 +2101,7 @@ export default function uPlot(opts, data, then) {
 
 		cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
 
-		let hasSelect = select[WIDTH] > 0 || select[HEIGHT] > 0;
+		let hasSelect = select.width > 0 || select.height > 0;
 
 		hasSelect && setSelect(select);
 
@@ -2114,8 +2113,8 @@ export default function uPlot(opts, data, then) {
 
 			if (dragX) {
 				_setScale(xScaleKey,
-					scaleValueAtPos(select[LEFT], xScaleKey),
-					scaleValueAtPos(select[LEFT] + select[WIDTH], xScaleKey)
+					scaleValueAtPos(select.left, xScaleKey),
+					scaleValueAtPos(select.left + select.width, xScaleKey)
 				);
 			}
 
@@ -2125,8 +2124,8 @@ export default function uPlot(opts, data, then) {
 
 					if (k != xScaleKey && sc.from == null && sc.min != inf) {
 						_setScale(k,
-							scaleValueAtPos(select[TOP] + select[HEIGHT], k),
-							scaleValueAtPos(select[TOP], k)
+							scaleValueAtPos(select.top + select.height, k),
+							scaleValueAtPos(select.top, k)
 						);
 					}
 				}
@@ -2215,10 +2214,10 @@ export default function uPlot(opts, data, then) {
 	// internal pub/sub
 	const events = {};
 
-	events[mousedown] = mouseDown;
-	events[mousemove] = mouseMove;
-	events[mouseup] = mouseUp;
-	events[dblclick] = dblClick;
+	events.mousedown = mouseDown;
+	events.mousemove = mouseMove;
+	events.mouseup = mouseUp;
+	events.dblclick = dblClick;
 	events["setSeries"] = (e, src, idx, opts) => {
 		setSeries(idx, opts);
 	};
@@ -2296,7 +2295,7 @@ export default function uPlot(opts, data, then) {
 		else
 			autoScaleX();
 
-		_setSize(opts[WIDTH], opts[HEIGHT]);
+		_setSize(opts.width, opts.height);
 
 		setSelect(select, false);
 	}

@@ -1,9 +1,4 @@
 import {
-	createElement,
-	classList,
-} from './strings';
-
-import {
 	OFF,
 } from './domClasses';
 
@@ -13,11 +8,11 @@ export const win = window;
 export const pxRatio = devicePixelRatio;
 
 export function addClass(el, c) {
-	c != null && el[classList].add(c);
+	c != null && el.classList.add(c);
 }
 
 export function remClass(el, c) {
-	el[classList].remove(c);
+	el.classList.remove(c);
 }
 
 export function setStylePx(el, name, value) {
@@ -25,7 +20,7 @@ export function setStylePx(el, name, value) {
 }
 
 export function placeTag(tag, cls, targ, refEl) {
-	let el = doc[createElement](tag);
+	let el = doc.createElement(tag);
 
 	if (cls != null)
 		addClass(el, cls);
