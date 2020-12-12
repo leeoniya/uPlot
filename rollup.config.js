@@ -85,7 +85,7 @@ export default [
 		},
 		plugins: [
 			bannerlessESM(),
-			buble(),
+			buble({transforms: { forOf: false }}),
 		]
 	},
 	{
@@ -100,7 +100,7 @@ export default [
 		},
 		plugins: [
 			bannerlessESM(),
-			buble(),
+			buble({transforms: { forOf: false }}),
 		]
 	},
 	{
@@ -114,7 +114,7 @@ export default [
 		},
 		plugins: [
 			bannerlessESM(),
-			buble(),
+			buble({transforms: { forOf: false }}),
 			terser(terserOpts),
 		]
 	},

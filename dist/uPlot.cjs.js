@@ -350,12 +350,13 @@ function join(tables, skipGaps) {
 		var t = tables[ti];
 		var xs = t[0];
 		var len = xs.length;
-		var nulls = new Set();
 
 		for (var i = 0; i < len; i++)
 			{ xVals.add(xs[i]); }
 
 		for (var si$1 = 1; si$1 < t.length; si$1++) {
+			var nulls = new Set();
+
 			if (skipGaps == null || !skipGaps[ti][si$1]) {
 				var ys = t[si$1];
 
@@ -364,9 +365,9 @@ function join(tables, skipGaps) {
 						{ nulls.add(xs[i$1]); }
 				}
 			}
-		}
 
-		xNulls.push(nulls);
+			xNulls.push(nulls);
+		}
 	}
 
 	var data = [Array.from(xVals).sort(function (a, b) { return a - b; })];
@@ -384,7 +385,7 @@ function join(tables, skipGaps) {
 		var t$1 = tables[ti$1];
 		var xs$1 = t$1[0];
 
-		var loop = function ( j ) {
+		for (var j = 1; j < t$1.length; j++) {
 			var ys$1 = t$1[j];
 
 			var yVals = Array(alignedLen).fill(null);
@@ -392,36 +393,41 @@ function join(tables, skipGaps) {
 			for (var i$3 = 0; i$3 < ys$1.length; i$3++)
 				{ yVals[xIdxs.get(xs$1[i$3])] = ys$1[i$3]; }
 
-			// mark all fill-nulls as explicit nulls when adjacent to existing explicit nulls (minesweeper)
+			// mark all filler nulls as explicit when adjacent to existing explicit nulls (minesweeper)
 			{
 				var nulls$1 = xNulls[si];
-				var size = nulls$1.size, i$4 = 0;
+				var size = nulls$1.size;
+				var	i$4 = 0;
+				var xi = (void 0);
 
-				nulls$1.forEach(function (xVal) {
-					if (i$4++ < size) {
-						var xi, xIdx = xIdxs.get(xVal);
+				var lastAddedX = -inf;
 
-						xi = xIdx;
-						while (yVals[--xi] === null) {
-							console.count("i");
+				for (var xVal of nulls$1.values()) {
+					if (i$4++ == size)
+						{ break; }
+
+					if (xVal > lastAddedX) {
+						var xIdx = xIdxs.get(xVal);
+
+						xi = xIdx - 1;
+						while (yVals[xi] === null) {
 							nulls$1.add(data[0][xi]);
+							xi--;
 						}
 
-						xi = xIdx;
-						while (yVals[++xi] === null) {
-							console.count("i");
-							nulls$1.add(data[0][xi]);
+						xi = xIdx + 1;
+						while (yVals[xi] === null) {
+							nulls$1.add(lastAddedX = data[0][xi]);
+							xi++;
 						}
 					}
-				});
+				}
 			}
 
 			data.push(yVals);
 
 			si++;
-		};
-
-		for (var j = 1; j < t$1.length; j++) loop( j );
+		}
 	}
 
 	return {

@@ -349,12 +349,13 @@ function join(tables, skipGaps) {
 		let t = tables[ti];
 		let xs = t[0];
 		let len = xs.length;
-		let nulls = new Set();
 
 		for (let i = 0; i < len; i++)
 			xVals.add(xs[i]);
 
 		for (let si = 1; si < t.length; si++) {
+			let nulls = new Set();
+
 			if (skipGaps == null || !skipGaps[ti][si]) {
 				let ys = t[si];
 
@@ -363,9 +364,9 @@ function join(tables, skipGaps) {
 						nulls.add(xs[i]);
 				}
 			}
-		}
 
-		xNulls.push(nulls);
+			xNulls.push(nulls);
+		}
 	}
 
 	let data = [Array.from(xVals).sort((a, b) => a - b)];
@@ -391,28 +392,35 @@ function join(tables, skipGaps) {
 			for (let i = 0; i < ys.length; i++)
 				yVals[xIdxs.get(xs[i])] = ys[i];
 
-			// mark all fill-nulls as explicit nulls when adjacent to existing explicit nulls (minesweeper)
+			// mark all filler nulls as explicit when adjacent to existing explicit nulls (minesweeper)
 			{
 				let nulls = xNulls[si];
-				let size = nulls.size, i = 0;
+				let size = nulls.size;
+				let	i = 0;
+				let xi;
 
-				nulls.forEach(xVal => {
-					if (i++ < size) {
-						let xi, xIdx = xIdxs.get(xVal);
+				let lastAddedX = -inf;
 
-						xi = xIdx;
-						while (yVals[--xi] === null) {
-							console.count("i");
+				for (let xVal of nulls.values()) {
+					if (i++ == size)
+						break;
+
+					if (xVal > lastAddedX) {
+						let xIdx = xIdxs.get(xVal);
+
+						xi = xIdx - 1;
+						while (yVals[xi] === null) {
 							nulls.add(data[0][xi]);
+							xi--;
 						}
 
-						xi = xIdx;
-						while (yVals[++xi] === null) {
-							console.count("i");
-							nulls.add(data[0][xi]);
+						xi = xIdx + 1;
+						while (yVals[xi] === null) {
+							nulls.add(lastAddedX = data[0][xi]);
+							xi++;
 						}
 					}
-				});
+				}
 			}
 
 			data.push(yVals);
