@@ -983,6 +983,15 @@ var uPlot = (function () {
 		return function (self, val) { return stamp(tzDate(val)); };
 	}
 
+	function legendStroke(self, seriesIdx) {
+		var s = self.series[seriesIdx];
+		return s.width ? s.stroke(self, seriesIdx) : s.points.width ? s.points.stroke(self, seriesIdx) : null;
+	}
+
+	function legendFill(self, seriesIdx) {
+		return self.series[seriesIdx].fill(self, seriesIdx);
+	}
+
 	function cursorPoint(self, si) {
 		var s = self.series[si];
 
@@ -2051,6 +2060,11 @@ var uPlot = (function () {
 		var legend     =  assign({show: true, live: true}, opts.legend);
 		var showLegend =  legend.show;
 
+		{
+			legend.stroke = fnOrSelf(legend.stroke || legendStroke);
+			legend.fill   = fnOrSelf(legend.fill || legendFill);
+		}
+
 		var legendEl;
 		var legendRows = [];
 		var legendCols;
@@ -2093,8 +2107,11 @@ var uPlot = (function () {
 			var label = placeTag("th", null, row);
 
 			var indic = placeDiv(LEGEND_MARKER, label);
-			indic.style.borderColor = s.width ? s.stroke : i > 0 && s.points.width ? s.points.stroke : null;
-			indic.style.backgroundColor = s.fill || null;
+
+			if (i > 0) {
+				indic.style.borderColor = legend.stroke(self, i);
+				indic.style.backgroundColor = legend.fill(self, i);
+			}
 
 			var text = placeDiv(LEGEND_LABEL, label);
 			text.textContent = s.label;

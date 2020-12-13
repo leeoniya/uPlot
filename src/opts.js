@@ -337,6 +337,15 @@ export function timeSeriesVal(tzDate, stamp) {
 	return (self, val) => stamp(tzDate(val));
 }
 
+export function legendStroke(self, seriesIdx) {
+	let s = self.series[seriesIdx];
+	return s.width ? s.stroke(self, seriesIdx) : s.points.width ? s.points.stroke(self, seriesIdx) : null;
+}
+
+export function legendFill(self, seriesIdx) {
+	return self.series[seriesIdx].fill(self, seriesIdx);
+}
+
 function cursorPoint(self, si) {
 	let s = self.series[si];
 

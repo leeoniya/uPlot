@@ -157,6 +157,9 @@ import {
 
 	timeSeriesStamp,
 	_timeSeriesStamp,
+
+	legendStroke,
+	legendFill,
 } from './opts';
 
 import {
@@ -369,6 +372,11 @@ export default function uPlot(opts, data, then) {
 	const legend     = FEAT_LEGEND && assign({show: true, live: true}, opts.legend);
 	const showLegend = FEAT_LEGEND && legend.show;
 
+	if (FEAT_LEGEND) {
+		legend.stroke = fnOrSelf(legend.stroke || legendStroke);
+		legend.fill   = fnOrSelf(legend.fill || legendFill);
+	}
+
 	let legendEl;
 	let legendRows = [];
 	let legendCols;
@@ -411,8 +419,11 @@ export default function uPlot(opts, data, then) {
 		let label = placeTag("th", null, row);
 
 		let indic = placeDiv(LEGEND_MARKER, label);
-		indic.style.borderColor = s.width ? s.stroke : i > 0 && s.points.width ? s.points.stroke : null;
-		indic.style.backgroundColor = s.fill || null;
+
+		if (i > 0) {
+			indic.style.borderColor = legend.stroke(self, i);
+			indic.style.backgroundColor = legend.fill(self, i);
+		}
 
 		let text = placeDiv(LEGEND_LABEL, label);
 		text.textContent = s.label;

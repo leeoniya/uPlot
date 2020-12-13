@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Gradient Fill</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			.uplot {
+				margin-bottom: 30px;
+			}
+		</style>
+	</head>
+	<body>
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+
+			let can = document.createElement("canvas");
+			let ctx = can.getContext("2d");
+
+			function scaleGradient(u, scaleKey, scaleStops) {
+				let min = scaleStops[0][0];
+				let max = scaleStops[scaleStops.length - 1][0];
+				let rng = max - min;
+
+				let minPos = u.valToPos(min, scaleKey, true);
+				let maxPos = u.valToPos(max, scaleKey, true);
+
+				let grd = ctx.createLinearGradient(0, minPos, 0, maxPos);
+
+				scaleStops.forEach(s => {
+					let pct = (s[0] - min) / rng;
+					grd.addColorStop(pct, s[1]);
+				});
+
+				return grd;
+			}
+
+			const opts = {
+				title: "Scale-aligned gradient fills",
+				width: 1920,
+				height: 600,
+				legend: {
+				//	show: false,
+					fill: (u, seriesIdx) => u.series[seriesIdx].stroke(u, seriesIdx),
+				},
+				scales: {
+					x: {
+						time: false,
+					}
+				},
+				series: [
+					{},
+					{
+						label: "Tank 1 (red = high pressure)",
+						width: 4,
+						stroke: "lime",
+						fill: (u, seriesIdx) => {
+							let s = u.series[seriesIdx];
+
+							return scaleGradient(u, s.scale, [
+								[30, "green"],
+								[50, "orange"],
+								[60, "red"],
+							]);
+						},
+					},
+					{
+						label: "Tank 2 (red = low pressure)",
+						width: 4,
+						stroke: "magenta",
+						fill: (u, seriesIdx) => {
+							let s = u.series[seriesIdx];
+
+							return scaleGradient(u, s.scale, [
+								[0,  "red"],
+								[10, "orange"],
+								[20, "green"]
+							]);
+						},
+					},
+				],
+			};
+
+			let data = [
+				[0, 1, 2, 3, 4, 5],
+				[10, 20, 30, 40, 50, 60],
+				[1, 3, 5, 8, 15, 20],
+			];
+
+			let u = new uPlot(opts, data, document.body);
+
+
+
+			function gradient(u, stops) {
+				let grd = ctx.createLinearGradient(0, u.bbox.top, 0, u.bbox.top + u.bbox.height);
+
+				stops.forEach(s => {
+					grd.addColorStop(s[0], s[1]);
+				});
+
+				return grd;
+			}
+
+			const opts2 = {
+				title: "Height-aligned gradient fills",
+				width: 1920,
+				height: 600,
+				legend: {
+				//	show: false,
+					fill: (u, seriesIdx) => u.series[seriesIdx].stroke(u, seriesIdx),
+				},
+				scales: {
+					x: {
+						time: false,
+					}
+				},
+				series: [
+					{},
+					{
+						label: "Tank 1",
+						width: 4,
+						stroke: "lime",
+						fill: (u, seriesIdx) => {
+							return gradient(u, [
+								[1,    "green"],
+								[0.5, "orange"],
+								[0,      "red"],
+							])
+						},
+					},
+				],
+			};
+
+			let u2 = new uPlot(opts2, data, document.body);
+		</script>
+	</body>
+</html>

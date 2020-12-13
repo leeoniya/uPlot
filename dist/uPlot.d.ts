@@ -214,6 +214,16 @@ export interface Legend {
 	show?: boolean;	// true
 	/** show series values at current cursor.idx */
 	live?: boolean;	// true
+	/** series indicator stroke */
+	stroke?: Legend.Stroke;
+	/** series indicator fill */
+	fill?: Legend.Fill;
+}
+
+export namespace Legend {
+	export type Stroke = (self: uPlot, seriesIdx: number) => Series.Stroke | null;
+
+	export type Fill = (self: uPlot, seriesIdx: number) => Series.Fill | null;
 }
 
 export type DateFormatterFactory = (tpl: string) => (date: Date) => string;

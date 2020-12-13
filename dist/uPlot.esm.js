@@ -981,6 +981,15 @@ function timeSeriesVal(tzDate, stamp) {
 	return (self, val) => stamp(tzDate(val));
 }
 
+function legendStroke(self, seriesIdx) {
+	let s = self.series[seriesIdx];
+	return s.width ? s.stroke(self, seriesIdx) : s.points.width ? s.points.stroke(self, seriesIdx) : null;
+}
+
+function legendFill(self, seriesIdx) {
+	return self.series[seriesIdx].fill(self, seriesIdx);
+}
+
 function cursorPoint(self, si) {
 	let s = self.series[si];
 
@@ -2060,6 +2069,11 @@ function uPlot(opts, data, then) {
 	const legend     =  assign({show: true, live: true}, opts.legend);
 	const showLegend =  legend.show;
 
+	{
+		legend.stroke = fnOrSelf(legend.stroke || legendStroke);
+		legend.fill   = fnOrSelf(legend.fill || legendFill);
+	}
+
 	let legendEl;
 	let legendRows = [];
 	let legendCols;
@@ -2102,8 +2116,11 @@ function uPlot(opts, data, then) {
 		let label = placeTag("th", null, row);
 
 		let indic = placeDiv(LEGEND_MARKER, label);
-		indic.style.borderColor = s.width ? s.stroke : i > 0 && s.points.width ? s.points.stroke : null;
-		indic.style.backgroundColor = s.fill || null;
+
+		if (i > 0) {
+			indic.style.borderColor = legend.stroke(self, i);
+			indic.style.backgroundColor = legend.fill(self, i);
+		}
 
 		let text = placeDiv(LEGEND_LABEL, label);
 		text.textContent = s.label;
