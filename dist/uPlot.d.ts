@@ -468,6 +468,14 @@ export namespace Series {
 		bars?:    BarsPathBuilderFactory;
 	}
 
+	export type Stroke = CanvasRenderingContext2D['strokeStyle'] | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['strokeStyle']);
+
+	export type Fill = CanvasRenderingContext2D['fillStyle'] | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['fillStyle']);
+
+	export namespace Points {
+		export type Show = boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
+	}
+
 	export interface Points {
 		/** if boolean or returns boolean, round points are drawn with defined options, else fn should draw own custom points via self.ctx */
 		show?: Points.Show;
@@ -479,17 +487,13 @@ export namespace Series {
 		space?: number;
 
 		/** line width of circle outline in CSS pixels */
-		width?: CanvasRenderingContext2D['lineWidth'];
+		width?: number;
 
 		/** line color of circle outline (defaults to series.stroke) */
-		stroke?: CanvasRenderingContext2D['strokeStyle'];
+		stroke?: Stroke;
 
 		/** fill color of circle (defaults to #fff) */
-		fill?: CanvasRenderingContext2D['fillStyle'];
-	}
-
-	export namespace Points {
-		export type Show = boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
+		fill?: Fill;
 	}
 
 	export type Gap = [from: number, to: number];
@@ -556,14 +560,14 @@ export interface Series {
 	/** any two adjacent series with band: true, are filled as a single low/high band */
 	band?: boolean;
 
-	/** line & legend color */
-	stroke?: CanvasRenderingContext2D['strokeStyle'];
-
 	/** line width in CSS pixels */
-	width?: CanvasRenderingContext2D['lineWidth'];
+	width?: number;
+
+	/** line & legend color */
+	stroke?: Series.Stroke;
 
 	/** area fill & legend color */
-	fill?: CanvasRenderingContext2D['fillStyle'];
+	fill?: Series.Fill;
 
 	/** area fill baseline (default: 0) */
 	fillTo?: Series.FillTo;

@@ -86,7 +86,7 @@
 				function drawSeriesMedian(u, i) {
 					let { ctx } = u;
 					let { left, top, width, height } = u.bbox;
-					let { stroke, scale } = u.series[i];
+					let { _stroke, scale } = u.series[i];
 
 					let cy = Math.round(u.valToPos(medians[i], scale, true));
 
@@ -94,7 +94,7 @@
 					ctx.beginPath();
 					ctx.rect(left, top, width, height);
 					ctx.clip();
-					ctx.strokeStyle = hexToRgbA(stroke, 0.2);
+					ctx.strokeStyle = hexToRgbA(_stroke, 0.2);
 					ctx.lineWidth = lineWidth;
 
 					if (blur)
@@ -148,9 +148,9 @@
 
 				function drawPointsAsStars(u, i, i0, i1) {
 					let { ctx } = u;
-					let { stroke, scale } = u.series[i];
+					let { _stroke, scale } = u.series[i];
 
-					ctx.fillStyle = stroke;
+					ctx.fillStyle = _stroke;
 
 					let j = i0;
 

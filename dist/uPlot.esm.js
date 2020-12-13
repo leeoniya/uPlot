@@ -986,7 +986,7 @@ function cursorPoint(self, si) {
 
 	let pt = placeDiv();
 
-	pt.style.background = s.stroke || hexBlack;
+	pt.style.background = s.stroke(self, si) || hexBlack;
 
 	let dia = ptDia(s.width, 1);
 	let mar = (dia - 1) / -2;
@@ -2352,18 +2352,26 @@ function uPlot(opts, data, then) {
 		s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 
 		if (i > 0) {
-			s.width = s.width == null ? 1 : s.width;
-			s.paths = s.paths || linearPath || retNull;
-			s.fillTo = s.fillTo || seriesFillTo;
+			s.width  = s.width == null ? 1 : s.width;
+			s.paths  = s.paths || linearPath || retNull;
+			s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
+
+			s.stroke = fnOrSelf(s.stroke || hexBlack);
+			s.fill   = fnOrSelf(s.fill || null);
+			s._stroke = s._fill = s._paths = null;
+
 			let _ptDia = ptDia(s.width, 1);
-			s.points = assign({}, {
+			let points = s.points = assign({}, {
 				size: _ptDia,
 				width: max(1, _ptDia * .2),
 				stroke: s.stroke,
 				space: _ptDia * 2,
+				_stroke: null,
+				_fill: null,
 			}, s.points);
-			s.points.show = fnOrSelf(s.points.show);
-			s._paths = null;
+			points.show   = fnOrSelf(points.show);
+			points.fill   = fnOrSelf(points.fill);
+			points.stroke = fnOrSelf(points.stroke);
 		}
 
 		if (showLegend)
@@ -2737,11 +2745,14 @@ function uPlot(opts, data, then) {
 			}
 		}
 
+		const _stroke = p._stroke = p.stroke(self, si);
+		const _fill   = p._fill   = p.fill(self, si);
+
 		setCtxStyle(
-			p.stroke,
+			_stroke,
 			width,
-			null,
-			p.fill || (isStroked ? "#fff" : s.stroke),
+			p.dash,
+			_fill || (isStroked ? "#fff" : s._stroke),
 		);
 
 		ctx.fill(path);
@@ -2802,7 +2813,10 @@ function uPlot(opts, data, then) {
 			const width = roundDec(s.width * pxRatio, 3);
 			const offset = (width % 2) / 2;
 
-			setCtxStyle(s.stroke, width, s.dash, s.fill);
+			const _stroke = s._stroke = s.stroke(self, si);
+			const _fill   = s._fill   = s.fill(self, si);
+
+			setCtxStyle(_stroke, width, s.dash, _fill);
 
 			ctx.globalAlpha = s.alpha;
 
@@ -2837,7 +2851,7 @@ function uPlot(opts, data, then) {
 				width && ctx.stroke(stroke);
 			}
 			else {
-				if (s.fill != null)
+				if (_fill != null)
 					ctx.fill(fill);
 
 				width && ctx.stroke(stroke);

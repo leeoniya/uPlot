@@ -342,7 +342,7 @@ function cursorPoint(self, si) {
 
 	let pt = placeDiv();
 
-	pt.style.background = s.stroke || hexBlack;
+	pt.style.background = s.stroke(self, si) || hexBlack;
 
 	let dia = ptDia(s.width, 1);
 	let mar = (dia - 1) / -2;
