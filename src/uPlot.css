@@ -128,10 +128,11 @@
 	top: 0;
 	left: 0;
 	border-radius: 50%;
-	filter: brightness(85%);
 	pointer-events: none;
 	will-change: transform;
 	z-index: 100;
+	/* this has to be !important since we set inline "background" shorthand */
+	background-clip: content-box !important;
 }
 
 .u-select.u-off,

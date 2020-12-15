@@ -328,8 +328,24 @@ export namespace Cursor {
 		mouseenter?:  MouseListenerFactory,
 	}
 
+	export namespace Points {
+		export type Show   = boolean | ((self: uPlot, seriesIdx: number) => HTMLElement);
+		export type Size   = number  | ((self: uPlot, seriesIdx: number) => number);
+		export type Width  = number  | ((self: uPlot, seriesIdx: number, size: number) => number);
+		export type Stroke = CanvasRenderingContext2D['strokeStyle'] | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['strokeStyle']);
+		export type Fill   = CanvasRenderingContext2D['fillStyle']   | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['fillStyle']);
+	}
+
 	export interface Points {
-		show?: boolean | ((self: uPlot, seriesIdx: number) => HTMLElement);
+		show?:   Points.Show;
+		/** hover point diameter in CSS pixels */
+		size?:   Points.Size;
+		/** hover point outline width in CSS pixels */
+		width?:  Points.Width;
+		/** hover point outline color, pattern or gradient */
+		stroke?: Points.Stroke;
+		/** hover point fill color, pattern or gradient */
+		fill?:   Points.Fill;
 	}
 
 	export interface Drag {
@@ -637,7 +653,7 @@ export namespace Axis {
 		stroke?: CanvasRenderingContext2D['strokeStyle'];
 
 		/** line width in CSS pixels */
-		width?: CanvasRenderingContext2D['lineWidth'];
+		width?: number;
 
 		/** line dash array */
 		dash?: number[];					// CanvasRenderingContext2D['setLineDash'];

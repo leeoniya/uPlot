@@ -136,6 +136,12 @@
 					width: 2400,
 					height: 600,
 					title: cfg.title,
+					cursor: {
+						points: {
+							size: (u, seriesIdx) => u.series[seriesIdx].points.size * 1.5,
+							fill: (u, seriesIdx) => u.series[seriesIdx].stroke(u, seriesIdx),		//  + "F0"
+						}
+					},
 					scales: {
 						x: {
 							time: false,

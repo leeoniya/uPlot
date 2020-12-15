@@ -641,8 +641,17 @@ export default function uPlot(opts, data, then) {
 
 	const cursor = FEAT_CURSOR && (self.cursor = assign({}, cursorOpts, opts.cursor));
 
-	FEAT_CURSOR && (cursor._lock = false);
-	FEAT_CURSOR && (cursor.points.show = fnOrSelf(cursor.points.show));
+	if (FEAT_CURSOR) {
+		cursor._lock = false;
+
+		let points = cursor.points;
+
+		points.show   = fnOrSelf(points.show);
+		points.size   = fnOrSelf(points.size);
+		points.stroke = fnOrSelf(points.stroke);
+		points.width  = fnOrSelf(points.width);
+		points.fill   = fnOrSelf(points.fill);
+	}
 
 	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, FEAT_CURSOR && cursor.focus);
 	const cursorFocus = FEAT_CURSOR && focus.prox >= 0;

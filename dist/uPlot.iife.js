@@ -992,22 +992,49 @@ var uPlot = (function () {
 		return self.series[seriesIdx].fill(self, seriesIdx);
 	}
 
-	function cursorPoint(self, si) {
-		var s = self.series[si];
+	function cursorPointShow(self, si) {
+		var o = self.cursor.points;
 
 		var pt = placeDiv();
 
-		pt.style.background = s.stroke(self, si) || hexBlack;
+		var stroke = o.stroke(self, si);
+		var fill = o.fill(self, si);
 
-		var dia = ptDia(s.width, 1);
-		var mar = (dia - 1) / -2;
+		pt.style.background = fill || stroke;
 
-		setStylePx(pt, WIDTH, dia);
-		setStylePx(pt, HEIGHT, dia);
+		var size = o.size(self, si);
+		var width = o.width(self, si, size);
+
+		if (width)
+			{ pt.style.border = width + "px solid " + stroke; }
+
+		var mar = (size - 1) / -2;
+
+		setStylePx(pt, WIDTH, size);
+		setStylePx(pt, HEIGHT, size);
 		setStylePx(pt, "marginLeft", mar);
 		setStylePx(pt, "marginTop", mar);
 
 		return pt;
+	}
+
+	function cursorPointWidth(self, si, size) {
+		return 0;
+	}
+
+	function cursorPointFill(self, si) {
+		var s = self.series[si];
+		return s.stroke(self, si);
+	}
+
+	function cursorPointStroke(self, si) {
+		var s = self.series[si];
+		return s.stroke(self, si);
+	}
+
+	function cursorPointSize(self, si) {
+		var s = self.series[si];
+		return ptDia(s.width, 1);
 	}
 
 	function dataIdx(self, seriesIdx, cursorIdx) {
@@ -1039,7 +1066,11 @@ var uPlot = (function () {
 		lock: false,
 		move: cursorMove,
 		points: {
-			show: cursorPoint,
+			show:   cursorPointShow,
+			size:   cursorPointSize,
+			width:  cursorPointWidth,
+			stroke: cursorPointStroke,
+			fill:   cursorPointFill,
 		},
 
 		bind: {
@@ -2332,8 +2363,17 @@ var uPlot = (function () {
 
 		var cursor =  (self.cursor = assign({}, cursorOpts, opts.cursor));
 
-		 (cursor._lock = false);
-		 (cursor.points.show = fnOrSelf(cursor.points.show));
+		{
+			cursor._lock = false;
+
+			var points = cursor.points;
+
+			points.show   = fnOrSelf(points.show);
+			points.size   = fnOrSelf(points.size);
+			points.stroke = fnOrSelf(points.stroke);
+			points.width  = fnOrSelf(points.width);
+			points.fill   = fnOrSelf(points.fill);
+		}
 
 		var focus = self.focus = assign({}, opts.focus || {alpha: 0.3},  cursor.focus);
 		var cursorFocus =  focus.prox >= 0;

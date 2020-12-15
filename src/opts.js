@@ -5,7 +5,6 @@ import {
 import {
 	assign,
 
-	abs,
 	inf,
 	pow,
 	log2,
@@ -346,22 +345,49 @@ export function legendFill(self, seriesIdx) {
 	return self.series[seriesIdx].fill(self, seriesIdx);
 }
 
-function cursorPoint(self, si) {
-	let s = self.series[si];
+function cursorPointShow(self, si) {
+	let o = self.cursor.points;
 
 	let pt = placeDiv();
 
-	pt.style.background = s.stroke(self, si) || hexBlack;
+	let stroke = o.stroke(self, si);
+	let fill = o.fill(self, si);
 
-	let dia = ptDia(s.width, 1);
-	let mar = (dia - 1) / -2;
+	pt.style.background = fill || stroke;
 
-	setStylePx(pt, WIDTH, dia);
-	setStylePx(pt, HEIGHT, dia);
+	let size = o.size(self, si);
+	let width = o.width(self, si, size);
+
+	if (width)
+		pt.style.border = width + "px solid " + stroke;
+
+	let mar = (size - 1) / -2;
+
+	setStylePx(pt, WIDTH, size);
+	setStylePx(pt, HEIGHT, size);
 	setStylePx(pt, "marginLeft", mar);
 	setStylePx(pt, "marginTop", mar);
 
 	return pt;
+}
+
+function cursorPointWidth(self, si, size) {
+	return 0;
+}
+
+function cursorPointFill(self, si) {
+	let s = self.series[si];
+	return s.stroke(self, si);
+}
+
+function cursorPointStroke(self, si) {
+	let s = self.series[si];
+	return s.stroke(self, si);
+}
+
+function cursorPointSize(self, si) {
+	let s = self.series[si];
+	return ptDia(s.width, 1);
 }
 
 function dataIdx(self, seriesIdx, cursorIdx) {
@@ -393,7 +419,11 @@ export const cursorOpts = {
 	lock: false,
 	move: cursorMove,
 	points: {
-		show: cursorPoint,
+		show:   cursorPointShow,
+		size:   cursorPointSize,
+		width:  cursorPointWidth,
+		stroke: cursorPointStroke,
+		fill:   cursorPointFill,
 	},
 
 	bind: {
