@@ -371,10 +371,6 @@ function cursorPointShow(self, si) {
 	return pt;
 }
 
-function cursorPointWidth(self, si, size) {
-	return 0;
-}
-
 function cursorPointFill(self, si) {
 	let s = self.series[si];
 	return s.stroke(self, si);
@@ -421,7 +417,7 @@ export const cursorOpts = {
 	points: {
 		show:   cursorPointShow,
 		size:   cursorPointSize,
-		width:  cursorPointWidth,
+		width:  0,
 		stroke: cursorPointStroke,
 		fill:   cursorPointFill,
 	},

@@ -1018,10 +1018,6 @@ var uPlot = (function () {
 		return pt;
 	}
 
-	function cursorPointWidth(self, si, size) {
-		return 0;
-	}
-
 	function cursorPointFill(self, si) {
 		var s = self.series[si];
 		return s.stroke(self, si);
@@ -1068,7 +1064,7 @@ var uPlot = (function () {
 		points: {
 			show:   cursorPointShow,
 			size:   cursorPointSize,
-			width:  cursorPointWidth,
+			width:  0,
 			stroke: cursorPointStroke,
 			fill:   cursorPointFill,
 		},
