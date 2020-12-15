@@ -36,6 +36,7 @@ import {
 	rangeNum,
 	rangeLog,
 	incrRound,
+	incrRoundUp,
 	isArr,
 	isObj,
 	isStr,
@@ -1877,18 +1878,18 @@ export default function uPlot(opts, data, then) {
 
 			let scX = scales[xScaleKey];
 
-			let xPos = roundDec(getXPos(data[0][idx], scX, plotWidCss, 0), 3);
+			let xPos = incrRoundUp(getXPos(data[0][idx], scX, plotWidCss, 0), 0.5);
 
 			for (let i = 0; i < series.length; i++) {
 				let s = series[i];
 
 				let idx2  = cursor.dataIdx(self, i, idx, valAtPos);
-				let xPos2 = idx2 == idx ? xPos : roundDec(getXPos(data[0][idx2], scX, plotWidCss, 0), 3);
+				let xPos2 = idx2 == idx ? xPos : incrRoundUp(getXPos(data[0][idx2], scX, plotWidCss, 0), 0.5);
 
 				if (i > 0 && s.show) {
 					let valAtIdx = data[i][idx2];
 
-					let yPos = valAtIdx == null ? -10 : roundDec(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 3);
+					let yPos = valAtIdx == null ? -10 : incrRoundUp(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 0.5);
 
 					if (yPos > 0) {
 						let dist = abs(yPos - mouseTop1);

@@ -361,7 +361,7 @@ function cursorPointShow(self, si) {
 	if (width)
 		pt.style.border = width + "px solid " + stroke;
 
-	let mar = (size - 1) / -2;
+	let mar = size / -2;
 
 	setStylePx(pt, WIDTH, size);
 	setStylePx(pt, HEIGHT, size);

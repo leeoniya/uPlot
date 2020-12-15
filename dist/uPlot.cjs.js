@@ -1007,7 +1007,7 @@ function cursorPointShow(self, si) {
 	if (width)
 		{ pt.style.border = width + "px solid " + stroke; }
 
-	var mar = (size - 1) / -2;
+	var mar = size / -2;
 
 	setStylePx(pt, WIDTH, size);
 	setStylePx(pt, HEIGHT, size);
@@ -3609,18 +3609,18 @@ function uPlot(opts, data, then) {
 
 			var scX = scales[xScaleKey];
 
-			var xPos = roundDec(getXPos(data[0][idx], scX, plotWidCss, 0), 3);
+			var xPos = incrRoundUp(getXPos(data[0][idx], scX, plotWidCss, 0), 0.5);
 
 			for (var i$1 = 0; i$1 < series.length; i$1++) {
 				var s = series[i$1];
 
 				var idx2  = cursor.dataIdx(self, i$1, idx, valAtPos);
-				var xPos2 = idx2 == idx ? xPos : roundDec(getXPos(data[0][idx2], scX, plotWidCss, 0), 3);
+				var xPos2 = idx2 == idx ? xPos : incrRoundUp(getXPos(data[0][idx2], scX, plotWidCss, 0), 0.5);
 
 				if (i$1 > 0 && s.show) {
 					var valAtIdx = data[i$1][idx2];
 
-					var yPos = valAtIdx == null ? -10 : roundDec(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 3);
+					var yPos = valAtIdx == null ? -10 : incrRoundUp(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 0.5);
 
 					if (yPos > 0) {
 						var dist = abs(yPos - mouseTop1);
