@@ -214,16 +214,24 @@ export interface Legend {
 	show?: boolean;	// true
 	/** show series values at current cursor.idx */
 	live?: boolean;	// true
-	/** series indicator stroke */
+	/** series indicator line width */
+	width?: Legend.Width;
+	/** series indicator stroke (CSS borderColor) */
 	stroke?: Legend.Stroke;
+	/** series indicator stroke style (CSS borderStyle) */
+	dash?: Legend.Dash;
 	/** series indicator fill */
 	fill?: Legend.Fill;
 }
 
 export namespace Legend {
-	export type Stroke = (self: uPlot, seriesIdx: number) => Series.Stroke | null;
+	export type Width  = number | ((self: uPlot, seriesIdx: number) => number);
 
-	export type Fill = (self: uPlot, seriesIdx: number) => Series.Fill | null;
+	export type Stroke = CSSStyleDeclaration['borderColor'] | ((self: uPlot, seriesIdx: number) => CSSStyleDeclaration['borderColor']);
+
+	export type Dash   = CSSStyleDeclaration['borderStyle'] | ((self: uPlot, seriesIdx: number) => CSSStyleDeclaration['borderStyle']);
+
+	export type Fill   = CSSStyleDeclaration['background']  | ((self: uPlot, seriesIdx: number) => CSSStyleDeclaration['background']);
 }
 
 export type DateFormatterFactory = (tpl: string) => (date: Date) => string;
