@@ -2166,7 +2166,7 @@ var uPlot = (function () {
 						if (cursor._lock)
 							{ return; }
 
-						setSeries(series.indexOf(s), {focus: true}, syncOpts.setSeries);
+						setSeries(series.indexOf(s), FOCUS_TRUE, syncOpts.setSeries);
 					});
 				}
 			}
@@ -3482,6 +3482,8 @@ var uPlot = (function () {
 		var closestDist;
 		var closestSeries;
 		var focusedSeries;
+		var FOCUS_TRUE  = {focus: true};
+		var FOCUS_FALSE = {focus: false};
 
 		function setFocus(i) {
 			if (i != focusedSeries) {
@@ -3500,7 +3502,7 @@ var uPlot = (function () {
 			on(mouseleave, legendEl, function (e) {
 				if (cursor._lock)
 					{ return; }
-				setSeries(null, {focus: false}, syncOpts.setSeries);
+				setSeries(null, FOCUS_FALSE, syncOpts.setSeries);
 				updateCursor();
 			});
 		}
@@ -3609,7 +3611,7 @@ var uPlot = (function () {
 				}
 
 				if (cursorFocus)
-					{ setSeries(null, {focus: true}, syncOpts.setSeries); }
+					{ setSeries(null, FOCUS_TRUE, syncOpts.setSeries); }
 			}
 			else {
 			//	let pctY = 1 - (y / rect.height);
@@ -3784,7 +3786,17 @@ var uPlot = (function () {
 				sync.pub(mousemove, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, idx);
 
 				if (cursorFocus) {
-					setSeries(closestDist <= focus.prox ? closestSeries : null, {focus: true}, syncOpts.setSeries);
+					var o = syncOpts.setSeries;
+					var p = focus.prox;
+
+					if (focusedSeries == null) {
+						if (closestDist <= p)
+							{ setSeries(closestSeries, FOCUS_TRUE, o); }
+					}
+					else {
+						if (closestDist > p)
+							{ setSeries(null, FOCUS_TRUE, o); }
+					}
 				}
 			}
 

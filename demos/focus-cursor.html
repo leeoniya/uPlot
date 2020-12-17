@@ -35,6 +35,13 @@
 				title: "Cursor Focus",
 				width: 1920,
 				height: 600,
+				hooks: {
+					setSeries: [
+						(u, seriesIdx) => {
+							console.log("focus!", seriesIdx);
+						}
+					]
+				},
 				focus: {
 					alpha: 0.3,
 				},
