@@ -3784,6 +3784,8 @@ function uPlot(opts, data, then) {
 				else {
 					if (closestDist > p)
 						setSeries(null, FOCUS_TRUE, o);
+					else if (closestSeries != focusedSeries)
+						setSeries(closestSeries, FOCUS_TRUE, o);
 				}
 			}
 		}
