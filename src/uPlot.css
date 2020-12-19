@@ -72,10 +72,6 @@
 	background-clip: content-box !important;
 }
 
-.u-series:first-child .u-marker {
-	display: none;
-}
-
 .u-inline.u-live th::after {
 	content: ":";
 	vertical-align: middle;
