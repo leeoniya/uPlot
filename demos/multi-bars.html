@@ -7,25 +7,22 @@
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
 		<style>
-			body {
-				text-align: center;
-			}
-
-			.uplot {
-				margin-bottom: 20px;
-			}
-
 			.uplot .legend .series:first-child,
 			.uplot .legend .series th::after,
 			.uplot .legend .series td {
 				display: none;
 			}
 
+			.lib-toggles {
+				margin-top: 20px;
+				text-align: center;
+			}
+
 			button {
 				margin: 10px;
 			}
 
-			.hide {
+			.hidden {
 				color: silver;
 			}
 		</style>
@@ -33,45 +30,98 @@
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
+			function roundDec(val, dec) {
+				return Math.round(val * (dec = 10**dec)) / dec;
+			}
+
+			const SPACE_BETWEEN = 1;
+			const SPACE_AROUND  = 2;
+			const SPACE_EVENLY  = 3;
+
+			const coord = (i, offs, iwid, gap) => roundDec(offs + i * (iwid + gap), 6);
+
+			function distr(numItems, sizeFactor, justify, onlyIdx, each) {
+				let space = 1 - sizeFactor;
+
+				let gap =  (
+					justify == SPACE_BETWEEN ? space / (numItems - 1) :
+					justify == SPACE_AROUND  ? space / (numItems    ) :
+					justify == SPACE_EVENLY  ? space / (numItems + 1) : 0
+				);
+
+				let offs = (
+					justify == SPACE_BETWEEN ? 0       :
+					justify == SPACE_AROUND  ? gap / 2 :
+					justify == SPACE_EVENLY  ? gap     : 0
+				);
+
+				let iwid = sizeFactor / numItems;
+				let _iwid = roundDec(iwid, 6);
+
+				if (onlyIdx == null) {
+					for (let i = 0; i < numItems; i++)
+						each(i, coord(i, offs, iwid, gap), _iwid);
+				}
+				else
+					each(onlyIdx, coord(onlyIdx, offs, iwid, gap), _iwid);
+			}
+
 			function seriesBarsPlugin(opts) {
 				const labels   = opts.labels;
-				const barWidth = Math.round(20 * devicePixelRatio);
-				const font     = Math.round(10 * devicePixelRatio) + "px Arial";
-				const margin   = 0.5;
 
-				function drawThings(u, sidx, i0, i1, draw) {
+				const groupWidth = 0.9;
+				const groupDistr = SPACE_BETWEEN;
+
+				const barWidth   = 1;
+				const barDistr   = SPACE_BETWEEN;
+
+				const font       = Math.round(10 * devicePixelRatio) + "px Arial";
+
+				function drawThings(u, sidx, i0, i1, groupDraw, barDraw) {
 					const s       = u.series[sidx];
 					const xdata   = u.data[0];
 					const ydata   = u.data[sidx];
 					const scaleX  = 'x';
 					const scaleY  = s.scale;
 
-					const totalWidth = (u.series.length - 1) * barWidth;		//.show
-					const offs	     = (sidx-1) * barWidth;
+					const width = u.bbox.width;
 
-					for (let i = i0; i <= i1; i++) {
-						let x0 = Math.round(u.valToPos(xdata[i], scaleX, true));
-						let y0 = Math.round(u.valToPos(ydata[i], scaleY, true));
+					distr(xdata.length, groupWidth, groupDistr, null, (di, lftPct, widPct) => {
+						let groupLftPx = (width * lftPct);
+						let groupWidPx = (width * widPct);
 
-						draw(i, x0, y0, offs, totalWidth);
-					}
+						groupDraw && groupDraw(di, groupLftPx, groupWidPx);
+
+						distr(u.series.length - 1, barWidth, barDistr, sidx - 1, (xi, lftPct, widPct) => {
+						//	let x0 = Math.round(u.valToPos(xdata[di], scaleX, true));
+							let y0 = Math.round(u.valToPos(ydata[di], scaleY, true));
+
+							let barLftPx = groupLftPx + groupWidPx * lftPct;
+							let barWidPx = groupWidPx              * widPct;
+
+							barDraw && barDraw(di, barLftPx, y0, barWidPx);
+						});
+					});
 				}
 
 				function drawBars(u, sidx, i0, i1) {
 					const scaleY  = u.series[sidx].scale;
-					const zeroY = Math.round(u.valToPos(0, scaleY, true));
+					const zeroY = Math.round(u.valToPos(0, scaleY, true));		// fillTo()
 					const fill = new Path2D();
+					const left = u.bbox.left;
 
-					drawThings(u, sidx, i0, i1, (i, x0, y0, offs, totalWidth) => {
+					drawThings(u, sidx, i0, i1, null, (i, x0, y0, wid) => {
 						fill.rect(
-							x0 - totalWidth/2 + offs,
-							y0,
-							barWidth,
-							zeroY-y0
+							Math.round(left + x0),
+							Math.round(y0),
+							Math.round(wid),
+							zeroY-Math.round(y0),
 						);
 					});
 
-					return {fill};
+					return {
+						fill
+					};
 				}
 
 				function drawPoints(u, sidx, i0, i1) {
@@ -79,12 +129,13 @@
 					u.ctx.textAlign = "center";
 					u.ctx.textBaseline = "bottom";
 					u.ctx.fillStyle = "black";
+					const left = u.bbox.left;
 
-					drawThings(u, sidx, i0, i1, (i, x0, y0, offs, totalWidth) => {
+					drawThings(u, sidx, i0, i1, null, (i, x0, y0, wid) => {
 						u.ctx.fillText(
 							u.data[sidx][i],
-							x0 - totalWidth/2 + offs + barWidth/2,
-							y0
+							Math.round(left + x0 + wid/2),
+							Math.round(y0),
 						);
 					});
 				}
@@ -102,21 +153,33 @@
 							scales: {
 								x: {
 									time: false,
-									range: u => [
-										u.data[0][0]                    - margin,
-										u.data[0][u.data[0].length - 1] + margin,
-									],
+									distr: 2,
 								},
-								rend: {range},
-								size: {range},
-								mem:  {range},
-								inter:{range},
-								toggle:{range},
+								rend:   {range},
+								size:   {range},
+								mem:    {range},
+								inter:  {range},
+								toggle: {range},
 							}
 						});
 
 						uPlot.assign(opts.axes[0], {
-							splits:     () => u.data[0],
+							splits:     u => {
+								const width = u.bbox.width;
+
+								let splits = [];
+
+								distr(u.data[0].length, groupWidth, groupDistr, null, (di, lftPct, widPct) => {
+									let groupLftPx = (width * lftPct);
+									let groupWidPx = (width * widPct);
+
+									let groupCenterPx = groupLftPx + groupWidPx / 2;
+
+									splits.push(u.posToVal(groupCenterPx, 'x', true))
+								});
+
+								return splits;
+							},
 							values:     () => labels(),
 							gap:        15,
 							size:       40,
@@ -142,12 +205,11 @@
 
 			fetch("../bench/results.json").then(r => r.json()).then(d => {
 				const opts = {
-					width: 1800,
+					width: 1920,
 					height: 600,
 					title: "Line Charts (166,650 points)",
 					axes: [
 						{
-							grid: {show: false},
 						//	rotate: -45,
 						},
 						{
@@ -200,8 +262,6 @@
 					],
 				};
 
-				const body = document.body;
-
 				const enabled = Array(d.length).fill(true);
 
 				function makeData() {
@@ -218,18 +278,23 @@
 
 				let u = new uPlot(opts, makeData(), document.body);
 
+				let toggles = document.createElement("div");
+				toggles.classList.add("lib-toggles");
+
 				d.forEach((lib, i) => {
 					let btn = document.createElement("button");
 					btn.textContent = lib[0];
 
 					btn.onclick = e => {
 						enabled[i] = !enabled[i];
-						btn.classList.toggle("hide");
+						btn.classList.toggle("hidden");
 						u.setData(makeData());
 					};
 
-					body.appendChild(btn);
+					toggles.appendChild(btn);
 				});
+
+				u.root.appendChild(toggles);
 			});
 		</script>
 	</body>
