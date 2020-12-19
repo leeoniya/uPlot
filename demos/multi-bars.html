@@ -25,10 +25,17 @@
 			.hidden {
 				color: silver;
 			}
+
+			.bar-mark {
+				position: absolute;
+				background: silver;
+			}
 		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
+		<script src="./lib/quadtree.min.js"></script>
+
 		<script>
 			function roundDec(val, dec) {
 				return Math.round(val * (dec = 10**dec)) / dec;
@@ -77,6 +84,19 @@
 
 				const font       = Math.round(10 * devicePixelRatio) + "px Arial";
 
+				function doOverlap(curs, rect) {
+					let clft = curs.x;
+					let rlft = rect.x;
+					let ctop = curs.y;
+					let rtop = rect.y;
+					let crgt = clft + curs.width;
+					let rrgt = rlft + rect.width;
+					let cbtm = ctop + curs.height;
+					let rbtm = rtop + rect.height;
+
+					return !(ctop > rbtm || cbtm < rtop || crgt < rlft || clft > rrgt);
+				}
+
 				function drawThings(u, sidx, i0, i1, groupDraw, barDraw) {
 					const s       = u.series[sidx];
 					const xdata   = u.data[0];
@@ -117,6 +137,15 @@
 							Math.round(wid),
 							zeroY-Math.round(y0),
 						);
+
+						qt.insert({
+							x: Math.round(x0),
+							y: Math.round(y0),
+							width: Math.round(wid),
+							height: zeroY-Math.round(y0),
+							sidx: sidx,
+							didx: i,
+						});
 					});
 
 					return {
@@ -145,11 +174,67 @@
 					return [0, max];
 				}
 
+				let qt;
+				let curs = {x: null, y: null, width: 1, height: 1};
+				let hovered = null;
+
+				let barMark = document.createElement("div");
+				barMark.classList.add("bar-mark");
+
 				return {
+					hooks: {
+						init: u => {
+							u.root.querySelector(".u-over").appendChild(barMark);
+						},
+						drawClear: u => {
+							qt = qt || new Quadtree({
+								x: 0,
+								y: 0,
+								width:  u.bbox.width,
+								height: u.bbox.height,
+							});
+							qt.clear();
+						},
+						setCursor: u => {
+							curs.x = (u.cursor.left - 2) * devicePixelRatio;
+							curs.y = (u.cursor.top - 2)  * devicePixelRatio;
+
+							// TODO: optimize quadtree not to allocate arrays. use callback
+							// and exit once first intersection is found
+							let cands = qt.retrieve(curs);
+
+							let found = null;
+
+							cands.forEach(c => {
+								if (doOverlap(curs, c))
+									found = c;
+							});
+
+							if (found) {
+								if (found != hovered) {
+									barMark.style.display = null;
+									barMark.style.left    = found.x      + "px";
+									barMark.style.top     = found.y      + "px";
+									barMark.style.width   = found.width  + "px";
+									barMark.style.height  = found.height + "px";
+									hovered = found;
+								}
+							}
+							else if (hovered) {
+								hovered = false;
+								barMark.style.display = "none";
+							}
+
+						}
+					},
 					opts: (u, opts) => {
 						uPlot.assign(opts, {
-							cursor: {show: false},
 							select: {show: false},
+							cursor: {
+								x: false,
+								y: false,
+								points: {show: false}
+							},
 							scales: {
 								x: {
 									time: false,
