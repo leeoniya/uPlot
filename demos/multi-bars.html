@@ -84,6 +84,7 @@
 
 				const font       = Math.round(10 * devicePixelRatio) + "px Arial";
 
+			/*
 				function doOverlap(curs, rect) {
 					let clft = curs.x;
 					let rlft = rect.x;
@@ -95,6 +96,11 @@
 					let rbtm = rtop + rect.height;
 
 					return !(ctop > rbtm || cbtm < rtop || crgt < rlft || clft > rrgt);
+				}
+			*/
+
+				function pointWithin(px, py, rlft, rtop, rrgt, rbtm) {
+					return px >= rlft && px <= rrgt && py >= rtop && py <= rbtm;
 				}
 
 				function drawThings(u, sidx, i0, i1, groupDraw, barDraw) {
@@ -196,14 +202,14 @@
 							qt.clear();
 						},
 						setCursor: u => {
-							curs.x = (u.cursor.left - 2) * devicePixelRatio;
-							curs.y = (u.cursor.top - 2)  * devicePixelRatio;
+							curs.x = u.cursor.left * devicePixelRatio;
+							curs.y = u.cursor.top * devicePixelRatio;
 
 							let found = null;
 
-							qt.retrieve(curs, c => {
-								if (doOverlap(curs, c))
-									found = c;
+							qt.retrieve(curs, rect => {
+								if (pointWithin(curs.x, curs.y, rect.x, rect.y, rect.x + rect.width, rect.y + rect.height))
+									found = rect;
 							});
 
 							if (found) {
