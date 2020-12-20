@@ -34,7 +34,7 @@
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
-		<script src="./lib/quadtree.min.js"></script>
+		<script src="./lib/quadtree.js"></script>
 
 		<script>
 			function roundDec(val, dec) {
@@ -199,24 +199,22 @@
 							curs.x = (u.cursor.left - 2) * devicePixelRatio;
 							curs.y = (u.cursor.top - 2)  * devicePixelRatio;
 
-							// TODO: optimize quadtree not to allocate arrays. use callback
-							// and exit once first intersection is found
-							let cands = qt.retrieve(curs);
-
 							let found = null;
 
-							cands.forEach(c => {
+							qt.retrieve(curs, c => {
 								if (doOverlap(curs, c))
 									found = c;
 							});
 
 							if (found) {
 								if (found != hovered) {
+									let pxRatio = devicePixelRatio;
+
 									barMark.style.display = null;
-									barMark.style.left    = found.x      + "px";
-									barMark.style.top     = found.y      + "px";
-									barMark.style.width   = found.width  + "px";
-									barMark.style.height  = found.height + "px";
+									barMark.style.left    = (found.x / pxRatio)      + "px";
+									barMark.style.top     = (found.y  / pxRatio)     + "px";
+									barMark.style.width   = (found.width / pxRatio)  + "px";
+									barMark.style.height  = (found.height / pxRatio) + "px";
 									hovered = found;
 								}
 							}
@@ -224,7 +222,6 @@
 								hovered = false;
 								barMark.style.display = "none";
 							}
-
 						}
 					},
 					opts: (u, opts) => {
