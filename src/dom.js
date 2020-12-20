@@ -2,7 +2,6 @@ import {
 	OFF,
 } from './domClasses';
 
-export const rAF = requestAnimationFrame;
 export const doc = document;
 export const win = window;
 export const pxRatio = devicePixelRatio;

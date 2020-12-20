@@ -487,7 +487,6 @@ var uPlot = (function () {
 	var LEGEND_LABEL   = pre + "label";
 	var LEGEND_VALUE   = pre + "value";
 
-	var rAF = requestAnimationFrame;
 	var doc = document;
 	var win = window;
 	var pxRatio = devicePixelRatio;
@@ -3226,7 +3225,6 @@ var uPlot = (function () {
 
 		var queuedCommit = false;
 
-		// could do rAF instead of microTask, or Promose.resolve().then()
 		function commit() {
 			if (!queuedCommit) {
 				microTask(_commit);
@@ -3565,14 +3563,10 @@ var uPlot = (function () {
 			updateCursor();
 		});
 
-		var cursorRaf = 0;
-
 		function updateCursor(ts, src) {
 			var assign;
 
 		//	ts == null && log("updateCursor()", arguments);
-
-			cursorRaf = 0;
 
 			rawMouseLeft1 = mouseLeft1;
 			rawMouseTop1 = mouseTop1;
@@ -3779,7 +3773,7 @@ var uPlot = (function () {
 			drag._x = dragX;
 			drag._y = dragY;
 
-			// if ts is present, means we're implicitly syncing own cursor as a result of debounced rAF
+			// if ts is present, means we're implicitly syncing own cursor
 			if (ts != null) {
 				// this is not technically a "mousemove" event, since it's debounced, rename to setCursor?
 				// since this is internal, we can tweak it later
@@ -3817,10 +3811,8 @@ var uPlot = (function () {
 
 			cacheMouse(e, src, _x, _y, _w, _h, _i, false, e != null);
 
-			if (e != null) {
-				if (cursorRaf == 0)
-					{ cursorRaf = rAF(updateCursor); }
-			}
+			if (e != null)
+				{ updateCursor(1); }
 			else
 				{ updateCursor(null, src); }
 		}
@@ -4022,11 +4014,10 @@ var uPlot = (function () {
 		var deb;
 
 		if ( cursor.show) {
-			onMouse(mousedown, over, mouseDown);
-			onMouse(mousemove, over, mouseMove);
+			onMouse(mousedown,  over, mouseDown);
+			onMouse(mousemove,  over, mouseMove);
 			onMouse(mouseenter, over, syncRect);
-			// this has to be rAF'd so it always fires after the last queued/rAF'd updateCursor
-			onMouse(mouseleave, over, function (e) { rAF(mouseLeave); });
+			onMouse(mouseleave, over, mouseLeave);
 
 			onMouse(dblclick, over, dblClick);
 
