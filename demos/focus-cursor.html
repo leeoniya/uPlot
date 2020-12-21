@@ -39,6 +39,10 @@
 					setSeries: [
 						(u, seriesIdx) => {
 							console.log("focus!", seriesIdx);
+
+							u.series.forEach((s, i) => {
+								s.width = i == seriesIdx ? 2 : 1;
+							});
 						}
 					]
 				},
