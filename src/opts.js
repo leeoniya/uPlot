@@ -670,8 +670,11 @@ export const xScaleOpts = {
 	log: 10,
 	min: null,
 	max: null,
+	dir: 1,
+	ori: 0,
 };
 
 export const yScaleOpts = assign({}, xScaleOpts, {
 	time: false,
+	ori: 1,
 });

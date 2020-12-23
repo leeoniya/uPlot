@@ -23,18 +23,20 @@ export function stepped(opts) {
 
 		const stroke = new Path2D();
 
+		const _dir = 1 * scaleX.dir;
+
 		idx0 = nonNullIdx(dataY, idx0, idx1,  1);
 		idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
 		let gaps = [];
 		let inGap = false;
-		let prevYPos = round(valToPosY(dataY[idx0], scaleY, plotHgt, plotTop));
-		let firstXPos = round(valToPosX(dataX[idx0], scaleX, plotWid, plotLft));
+		let prevYPos = round(valToPosY(dataY[_dir == 1 ? idx0 : idx1], scaleY, plotHgt, plotTop));
+		let firstXPos = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, plotWid, plotLft));
 		let prevXPos = firstXPos;
 
 		stroke.moveTo(firstXPos, prevYPos);
 
-		for (let i = idx0 + 1; i <= idx1; i++) {
+		for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 			let yVal1 = dataY[i];
 
 			let x1 = round(valToPosX(dataX[i], scaleX, plotWid, plotLft));

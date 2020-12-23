@@ -1314,10 +1314,13 @@ const xScaleOpts = {
 	log: 10,
 	min: null,
 	max: null,
+	dir: 1,
+	ori: 0,
 };
 
 const yScaleOpts = assign({}, xScaleOpts, {
 	time: false,
+	ori: 1,
 });
 
 const syncs = {};
@@ -1344,6 +1347,10 @@ function _sync(opts) {
 
 const props = Array(11);
 
+function _valToPos(u, sc) {
+	return sc.ori == 0 ? u.valToPosH : u.valToPosV;
+}
+
 function aliasProps(u, seriesIdx) {
 	const series = u.series[seriesIdx];
 	const scales = u.scales;
@@ -1354,8 +1361,8 @@ function aliasProps(u, seriesIdx) {
 	props[2]  = u._data[seriesIdx];			// dataY
 	props[3]  = scales[u.series[0].scale];	// scaleX
 	props[4]  = scales[series.scale];		// scaleY
-	props[5]  = u.valToPosX;				// valToPosX
-	props[6]  = u.valToPosY;				// valToPosY
+	props[5]  = _valToPos(u, props[3]);		// valToPosX
+	props[6]  = _valToPos(u, props[4]);		// valToPosY
 	props[7]  = bbox.left;					// plotLft
 	props[8]  = bbox.top;					// plotTop
 	props[9]  = bbox.width;					// plotWid
@@ -1426,6 +1433,8 @@ function linear() {
 
 		const isGap = series.isGap;
 
+		const _dir = dir * scaleX.dir;
+
 		const _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : u.series[seriesIdx - 1]._paths;
 		const stroke = _paths.stroke;
 		const width = roundDec(series.width * pxRatio, 3);
@@ -1437,12 +1446,12 @@ function linear() {
 		// todo: don't build gaps on dir = -1 pass
 		let gaps = [];
 
-		let accX = round(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, plotWid, plotLft));
+		let accX = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, plotWid, plotLft));
 		let accGaps = false;
 
 		// data edges
-		let lftIdx = nonNullIdx(dataY, idx0, idx1,  1);
-		let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1);
+		let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * scaleX.dir);
+		let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * scaleX.dir);
 		let lftX = incrRound(valToPosX(dataX[lftIdx], scaleX, plotWid, plotLft), 0.5);
 		let rgtX = incrRound(valToPosX(dataX[rgtIdx], scaleX, plotWid, plotLft), 0.5);
 
@@ -1450,10 +1459,10 @@ function linear() {
 			addGap(gaps, plotLft, lftX);
 
 		// the moves the shape edge outside the canvas so stroke doesnt bleed in
-		if (series.band && dir == 1)
+		if (series.band && _dir == 1)
 			stroke.lineTo(lftX - width * 2, round(valToPosY(dataY[idx0], scaleY, plotHgt, plotTop)));
 
-		for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
+		for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 			let x = round(valToPosX(dataX[i], scaleX, plotWid, plotLft));
 
 			if (x == accX) {
@@ -1487,7 +1496,7 @@ function linear() {
 					minY = maxY = outY;
 
 					// prior pixel can have data but still start a gap if ends with null
-					if (x - accX > 1 && dataY[i - 1] == null && isGap(u, seriesIdx, i - 1))
+					if (x - accX > 1 && dataY[i - _dir] == null && isGap(u, seriesIdx, i - _dir))
 						_addGap = true;
 				}
 				else {
@@ -1514,7 +1523,7 @@ function linear() {
 			let _x, _iy, _data = u._data, dataY2;
 
 			// the moves the shape edge outside the canvas so stroke doesnt bleed in
-			if (dir == 1) {
+			if (_dir == 1) {
 				_x = rgtX + width * 2;
 				_iy = rgtIdx;
 				dataY2 = _data[seriesIdx + 1];
@@ -1565,6 +1574,8 @@ function spline(opts) {
 			plotHgt,
 		] = aliasProps(u, seriesIdx);
 
+		const _dir = 1 * scaleX.dir;
+
 		idx0 = nonNullIdx(dataY, idx0, idx1,  1);
 		idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
@@ -1576,7 +1587,7 @@ function spline(opts) {
 		let xCoords = [];
 		let yCoords = [];
 
-		for (let i = idx0; i <= idx1; i++) {
+		for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 			let yVal = dataY[i];
 			let xVal = dataX[i];
 			let xPos = valToPosX(xVal, scaleX, plotWid, plotLft);
@@ -1769,18 +1780,20 @@ function stepped(opts) {
 
 		const stroke = new Path2D();
 
+		const _dir = 1 * scaleX.dir;
+
 		idx0 = nonNullIdx(dataY, idx0, idx1,  1);
 		idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
 		let gaps = [];
 		let inGap = false;
-		let prevYPos = round(valToPosY(dataY[idx0], scaleY, plotHgt, plotTop));
-		let firstXPos = round(valToPosX(dataX[idx0], scaleX, plotWid, plotLft));
+		let prevYPos = round(valToPosY(dataY[_dir == 1 ? idx0 : idx1], scaleY, plotHgt, plotTop));
+		let firstXPos = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, plotWid, plotLft));
 		let prevXPos = firstXPos;
 
 		stroke.moveTo(firstXPos, prevYPos);
 
-		for (let i = idx0 + 1; i <= idx1; i++) {
+		for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 			let yVal1 = dataY[i];
 
 			let x1 = round(valToPosX(dataX[i], scaleX, plotWid, plotLft));
@@ -1876,7 +1889,9 @@ function bars(opts) {
 
 		let stroke = new Path2D();
 
-		for (let i = idx0; i <= idx1; i++) {
+		const _dir = 1 * scaleX.dir;
+
+		for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 			let yVal = dataY[i];
 
 			if (yVal == null)
@@ -1971,18 +1986,23 @@ function uPlot(opts, data, then) {
 		);
 	}
 
-	function getXPos(val, scale, wid, lft) {
-		let pctX = getValPct(val, scale);
-		return lft + pctX * wid;
+	function getHPos(val, scale, dim, off) {
+		let pct = getValPct(val, scale);
+		return off + dim * (scale.dir == -1 ? (1 - pct) : pct);
 	}
 
-	function getYPos(val, scale, hgt, top) {
-		let pctY = getValPct(val, scale);
-		return top + (1 - pctY) * hgt;
+	function getVPos(val, scale, dim, off) {
+		let pct = getValPct(val, scale);
+		return off + dim * (scale.dir == -1 ? pct : (1 - pct));
 	}
 
-	self.valToPosX = getXPos;
-	self.valToPosY = getYPos;
+	function getPos(val, scale, dim, off) {
+		return scale.ori == 0 ? getHPos(val, scale, dim, off) : getVPos(val, scale, dim, off);
+	}
+
+	self.valToPosH = getHPos;
+	self.valToPosV = getVPos;
+	self._valToPos = getPos;
 
 	let ready = false;
 	self.status = 0;
@@ -2799,8 +2819,8 @@ function uPlot(opts, data, then) {
 
 		for (let pi = i0; pi <= i1; pi++) {
 			if (data[si][pi] != null) {
-				let x = round(getXPos(data[0][pi],  scales[xScaleKey], plotWid, plotLft));
-				let y = round(getYPos(data[si][pi], scales[s.scale],   plotHgt, plotTop));
+				let x = round(getPos(data[0][pi],  scales[xScaleKey], plotWid, plotLft));
+				let y = round(getPos(data[si][pi], scales[s.scale],   plotHgt, plotTop));
 
 				path.moveTo(x + rad, y);
 				path.arc(x, y, rad, 0, PI * 2);
@@ -3071,7 +3091,6 @@ function uPlot(opts, data, then) {
 			let side = axis.side;
 			let ori = side % 2;
 
-			let getPos  = ori == 0 ? getXPos : getYPos;
 			let plotDim = ori == 0 ? plotWid : plotHgt;
 			let plotOff = ori == 0 ? plotLft : plotTop;
 
@@ -3505,11 +3524,14 @@ function uPlot(opts, data, then) {
 			pos = dim - pos;
 		}
 
-		let pct = pos / dim;
-
 		let sc = scales[scale],
 			_min = sc.min,
 			_max = sc.max;
+
+		if (sc.dir == -1)
+			pos = dim - pos;
+
+		let pct = pos / dim;
 
 		if (sc.distr == 3) {
 			_min = log10(_min);
@@ -3529,12 +3551,12 @@ function uPlot(opts, data, then) {
 	self.posToIdx = closestIdxFromXpos;
 	self.posToVal = scaleValueAtPos;
 	self.valToPos = (val, scale, can) => (
-		scale == xScaleKey ?
-		getXPos(val, scales[scale],
+		scale.ori == 0 ?
+		getHPos(val, scales[scale],
 			can ? plotWid : plotWidCss,
 			can ? plotLft : 0,
 		) :
-		getYPos(val, scales[scale],
+		getVPos(val, scales[scale],
 			can ? plotHgt : plotHgtCss,
 			can ? plotTop : 0,
 		)
@@ -3606,18 +3628,18 @@ function uPlot(opts, data, then) {
 
 			let scX = scales[xScaleKey];
 
-			let xPos = incrRoundUp(getXPos(data[0][idx], scX, plotWidCss, 0), 0.5);
+			let xPos = incrRoundUp(getPos(data[0][idx], scX, plotWidCss, 0), 0.5);
 
 			for (let i = 0; i < series.length; i++) {
 				let s = series[i];
 
 				let idx2  = cursor.dataIdx(self, i, idx, valAtPos);
-				let xPos2 = idx2 == idx ? xPos : incrRoundUp(getXPos(data[0][idx2], scX, plotWidCss, 0), 0.5);
+				let xPos2 = idx2 == idx ? xPos : incrRoundUp(getPos(data[0][idx2], scX, plotWidCss, 0), 0.5);
 
 				if (i > 0 && s.show) {
 					let valAtIdx = data[i][idx2];
 
-					let yPos = valAtIdx == null ? -10 : incrRoundUp(getYPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 0.5);
+					let yPos = valAtIdx == null ? -10 : incrRoundUp(getPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 0.5);
 
 					if (yPos > 0) {
 						let dist = abs(yPos - mouseTop1);
@@ -3664,8 +3686,8 @@ function uPlot(opts, data, then) {
 					let srcLeft = src.posToVal(src.select.left, xKey);
 					let srcRight = src.posToVal(src.select.left + src.select.width, xKey);
 
-					select.left = getXPos(srcLeft, sc, plotWidCss, 0);
-					select.width = abs(select.left - getXPos(srcRight, sc, plotWidCss, 0));
+					select.left = getPos(srcLeft, sc, plotWidCss, 0);
+					select.width = abs(select.left - getPos(srcRight, sc, plotWidCss, 0));
 
 					setStylePx(selectDiv, LEFT, select.left);
 					setStylePx(selectDiv, WIDTH, select.width);
@@ -3681,8 +3703,8 @@ function uPlot(opts, data, then) {
 					let srcTop = src.posToVal(src.select.top, yKey);
 					let srcBottom = src.posToVal(src.select.top + src.select.height, yKey);
 
-					select.top = getYPos(srcTop, sc, plotHgtCss, 0);
-					select.height = abs(select.top - getYPos(srcBottom, sc, plotHgtCss, 0));
+					select.top = getPos(srcTop, sc, plotHgtCss, 0);
+					select.height = abs(select.top - getPos(srcBottom, sc, plotHgtCss, 0));
 
 					setStylePx(selectDiv, TOP, select.top);
 					setStylePx(selectDiv, HEIGHT, select.height);
@@ -3820,12 +3842,12 @@ function uPlot(opts, data, then) {
 			let [xKey, yKey] = syncOpts.scales;
 
 			if (xKey != null)
-				_x = getXPos(src.posToVal(_x, xKey), scales[xKey], plotWidCss, 0);
+				_x = getPos(src.posToVal(_x, xKey), scales[xKey], plotWidCss, 0);
 			else
 				_x = plotWidCss * (_x/_w);
 
 			if (yKey != null)
-				_y = getYPos(src.posToVal(_y, yKey), scales[yKey], plotHgtCss, 0);
+				_y = getPos(src.posToVal(_y, yKey), scales[yKey], plotHgtCss, 0);
 			else
 				_y = plotHgtCss * (_y/_h);
 		}

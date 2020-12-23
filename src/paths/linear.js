@@ -29,6 +29,8 @@ export function linear() {
 
 		const isGap = series.isGap;
 
+		const _dir = dir * scaleX.dir;
+
 		const _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : u.series[seriesIdx - 1]._paths;
 		const stroke = _paths.stroke;
 		const width = roundDec(series.width * pxRatio, 3);
@@ -40,12 +42,12 @@ export function linear() {
 		// todo: don't build gaps on dir = -1 pass
 		let gaps = [];
 
-		let accX = round(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, plotWid, plotLft));
+		let accX = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, plotWid, plotLft));
 		let accGaps = false;
 
 		// data edges
-		let lftIdx = nonNullIdx(dataY, idx0, idx1,  1);
-		let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1);
+		let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * scaleX.dir);
+		let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * scaleX.dir);
 		let lftX = incrRound(valToPosX(dataX[lftIdx], scaleX, plotWid, plotLft), 0.5);
 		let rgtX = incrRound(valToPosX(dataX[rgtIdx], scaleX, plotWid, plotLft), 0.5);
 
@@ -53,10 +55,10 @@ export function linear() {
 			addGap(gaps, plotLft, lftX);
 
 		// the moves the shape edge outside the canvas so stroke doesnt bleed in
-		if (series.band && dir == 1)
+		if (series.band && _dir == 1)
 			stroke.lineTo(lftX - width * 2, round(valToPosY(dataY[idx0], scaleY, plotHgt, plotTop)));
 
-		for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
+		for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 			let x = round(valToPosX(dataX[i], scaleX, plotWid, plotLft));
 
 			if (x == accX) {
@@ -90,7 +92,7 @@ export function linear() {
 					minY = maxY = outY;
 
 					// prior pixel can have data but still start a gap if ends with null
-					if (x - accX > 1 && dataY[i - 1] == null && isGap(u, seriesIdx, i - 1))
+					if (x - accX > 1 && dataY[i - _dir] == null && isGap(u, seriesIdx, i - _dir))
 						_addGap = true;
 				}
 				else {
@@ -117,7 +119,7 @@ export function linear() {
 			let _x, _iy, _data = u._data, dataY2;
 
 			// the moves the shape edge outside the canvas so stroke doesnt bleed in
-			if (dir == 1) {
+			if (_dir == 1) {
 				_x = rgtX + width * 2;
 				_iy = rgtIdx;
 				dataY2 = _data[seriesIdx + 1];

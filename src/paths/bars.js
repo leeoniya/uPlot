@@ -38,7 +38,9 @@ export function bars(opts) {
 
 		let stroke = new Path2D();
 
-		for (let i = idx0; i <= idx1; i++) {
+		const _dir = 1 * scaleX.dir;
+
+		for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 			let yVal = dataY[i];
 
 			if (yVal == null)

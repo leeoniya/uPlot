@@ -474,6 +474,12 @@ export interface Scale {
 
 	/** current max scale value */
 	max?: number,
+
+	/** scale direction */
+	dir?: 1 | -1;
+
+	/** scale orientation - 0: hz, 1: vt */
+	ori?: 0 | 1;
 }
 
 export namespace Series {

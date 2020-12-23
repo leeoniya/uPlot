@@ -18,6 +18,8 @@ export function spline(opts) {
 			plotHgt,
 		] = aliasProps(u, seriesIdx);
 
+		const _dir = 1 * scaleX.dir;
+
 		idx0 = nonNullIdx(dataY, idx0, idx1,  1);
 		idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
@@ -29,7 +31,7 @@ export function spline(opts) {
 		let xCoords = [];
 		let yCoords = [];
 
-		for (let i = idx0; i <= idx1; i++) {
+		for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 			let yVal = dataY[i];
 			let xVal = dataX[i];
 			let xPos = valToPosX(xVal, scaleX, plotWid, plotLft);

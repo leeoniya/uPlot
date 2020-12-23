@@ -1,5 +1,9 @@
 const props = Array(11);
 
+function _valToPos(u, sc) {
+	return sc.ori == 0 ? u.valToPosH : u.valToPosV;
+}
+
 export function aliasProps(u, seriesIdx) {
 	const series = u.series[seriesIdx];
 	const scales = u.scales;
@@ -10,8 +14,8 @@ export function aliasProps(u, seriesIdx) {
 	props[2]  = u._data[seriesIdx];			// dataY
 	props[3]  = scales[u.series[0].scale];	// scaleX
 	props[4]  = scales[series.scale];		// scaleY
-	props[5]  = u.valToPosX;				// valToPosX
-	props[6]  = u.valToPosY;				// valToPosY
+	props[5]  = _valToPos(u, props[3])		// valToPosX
+	props[6]  = _valToPos(u, props[4]);		// valToPosY
 	props[7]  = bbox.left;					// plotLft
 	props[8]  = bbox.top;					// plotTop
 	props[9]  = bbox.width;					// plotWid
