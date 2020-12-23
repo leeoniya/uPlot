@@ -1581,7 +1581,7 @@ var uPlot = (function () {
 
 			var gaps = [];
 			var inGap = false;
-			var firstXPos = round(valToPosX(dataX[idx0], scaleX, plotWid, plotLft));
+			var firstXPos = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, plotWid, plotLft));
 			var prevXPos = firstXPos;
 
 			var xCoords = [];

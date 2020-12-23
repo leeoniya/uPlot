@@ -1581,7 +1581,7 @@ function spline(opts) {
 
 		let gaps = [];
 		let inGap = false;
-		let firstXPos = round(valToPosX(dataX[idx0], scaleX, plotWid, plotLft));
+		let firstXPos = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, plotWid, plotLft));
 		let prevXPos = firstXPos;
 
 		let xCoords = [];
