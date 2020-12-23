@@ -3343,6 +3343,12 @@ var uPlot = (function () {
 					opts.max = minMax[1];
 				}
 
+				if (opts.min > opts.max) {
+					var _min = opts.min;
+					opts.min = opts.max;
+					opts.max = _min;
+				}
+
 				if (dataLen > 1 && opts.min != null && opts.max != null && opts.max - opts.min < 1e-16)
 					{ return; }
 
@@ -3524,22 +3530,22 @@ var uPlot = (function () {
 			});
 		}
 
-		function scaleValueAtPos(pos, scale) {
+		function posToVal(pos, scale) {
+			var sc = scales[scale];
+
 			var dim = plotWidCss;
 
-			if (scale != xScaleKey) {
+			if (sc.ori == 1) {
 				dim = plotHgtCss;
 				pos = dim - pos;
 			}
 
-			var sc = scales[scale],
-				_min = sc.min,
-				_max = sc.max;
-
 			if (sc.dir == -1)
 				{ pos = dim - pos; }
 
-			var pct = pos / dim;
+			var _min = sc.min,
+				_max = sc.max,
+				pct = pos / dim;
 
 			if (sc.distr == 3) {
 				_min = log10(_min);
@@ -3551,13 +3557,13 @@ var uPlot = (function () {
 		}
 
 		function closestIdxFromXpos(pos) {
-			var v = scaleValueAtPos(pos, xScaleKey);
+			var v = posToVal(pos, xScaleKey);
 			return closestIdx(v, data[0], i0, i1);
 		}
 
 		self.valToIdx = function (val) { return closestIdx(val, data[0]); };
 		self.posToIdx = closestIdxFromXpos;
-		self.posToVal = scaleValueAtPos;
+		self.posToVal = posToVal;
 		self.valToPos = function (val, scale, can) { return (
 			scale.ori == 0 ?
 			getHPos(val, scales[scale],
@@ -3632,7 +3638,7 @@ var uPlot = (function () {
 			else {
 			//	let pctY = 1 - (y / rect.height);
 
-				var valAtPos = scaleValueAtPos(mouseLeft1, xScaleKey);
+				var valAtPos = posToVal(mouseLeft1, xScaleKey);
 
 				idx = closestIdx(valAtPos, data[0], i0, i1);
 
@@ -3924,8 +3930,8 @@ var uPlot = (function () {
 
 				if (dragX) {
 					_setScale(xScaleKey,
-						scaleValueAtPos(select.left, xScaleKey),
-						scaleValueAtPos(select.left + select.width, xScaleKey)
+						posToVal(select.left, xScaleKey),
+						posToVal(select.left + select.width, xScaleKey)
 					);
 				}
 
@@ -3935,8 +3941,8 @@ var uPlot = (function () {
 
 						if (k != xScaleKey && sc.from == null && sc.min != inf) {
 							_setScale(k,
-								scaleValueAtPos(select.top + select.height, k),
-								scaleValueAtPos(select.top, k)
+								posToVal(select.top + select.height, k),
+								posToVal(select.top, k)
 							);
 						}
 					}
