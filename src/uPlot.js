@@ -73,6 +73,8 @@ import {
 
 import {
 	UPLOT,
+	ORI_HZ,
+	ORI_VT,
 	TITLE,
 	WRAP,
 	UNDER,
@@ -174,7 +176,7 @@ import { spline  } from './paths/spline';
 import { stepped } from './paths/stepped';
 import { bars    } from './paths/bars';
 
-import { addGap, clipGaps } from './paths/utils';
+import { addGap, clipGaps, moveToH, moveToV, lineToH, lineToV, arcToH, arcToV } from './paths/utils';
 
 function log(name, args) {
 	console.log.apply(console, [name].concat(Array.prototype.slice.call(args)));
@@ -188,7 +190,7 @@ function setDefaults(d, xo, yo, initY) {
 }
 
 function setDefault(o, i, xo, yo) {
-	return assign({}, (i == 0 || o && o.side % 2 == 0 ? xo : yo), o);
+	return assign({}, (i == 0 ? xo : yo), o);
 }
 
 const nullMinMax = [null, null];
@@ -356,7 +358,52 @@ export default function uPlot(opts, data, then) {
 	for (let k in opts.scales)
 		initScale(k);
 
-	const xScaleDistr = scales[xScaleKey].distr;
+	const scaleX = scales[xScaleKey];
+
+	const xScaleDistr = scaleX.distr;
+
+	let valToPosX, valToPosY, moveTo, arcTo, xDimCan, xOffCan, yDimCan, yOffCan, xDimCss, xOffCss, yDimCss, yOffCss, updOriDims;
+
+	if (scaleX.ori == 0) {
+		addClass(root, ORI_HZ);
+		valToPosX = getHPos;
+		valToPosY = getVPos;
+		moveTo    = moveToH;
+		arcTo     = arcToH;
+		/*
+		updOriDims = () => {
+			xDimCan = plotWid;
+			xOffCan = plotLft;
+			yDimCan = plotHgt;
+			yOffCan = plotTop;
+
+			xDimCss = plotWidCss;
+			xOffCss = plotLftCss;
+			yDimCss = plotHgtCss;
+			yOffCss = plotTopCss;
+		};
+		*/
+	}
+	else {
+		addClass(root, ORI_VT);
+		valToPosX = getVPos;
+		valToPosY = getHPos;
+		moveTo    = moveToV;
+		arcTo     = arcToV;
+		/*
+		updOriDims = () => {
+			xDimCan = plotHgt;
+			xOffCan = plotTop;
+			yDimCan = plotWid;
+			yOffCan = plotLft;
+
+			xDimCss = plotHgtCss;
+			xOffCss = plotTopCss;
+			yDimCss = plotWidCss;
+			yOffCss = plotLftCss;
+		};
+		*/
+	}
 
 	const pendScales = {};
 
@@ -538,6 +585,8 @@ export default function uPlot(opts, data, then) {
 		plotTop = bb.top    = incrRound(plotTopCss * pxRatio, 0.5);
 		plotWid = bb.width  = incrRound(plotWidCss * pxRatio, 0.5);
 		plotHgt = bb.height = incrRound(plotHgtCss * pxRatio, 0.5);
+
+	//	updOriDims();
 	}
 
 	function convergeSize() {
@@ -858,7 +907,7 @@ export default function uPlot(opts, data, then) {
 		fire("setData");
 
 		if (_resetScales !== false) {
-			let xsc = scales[xScaleKey];
+			let xsc = scaleX;
 
 			if (xsc.auto(self, viaAutoScaleX))
 				autoScaleX();
@@ -891,8 +940,8 @@ export default function uPlot(opts, data, then) {
 			}
 			else if (dataLen == 1) {
 				if (xScaleDistr == 3)
-					[_min, _max] = rangeLog(_min, _min, scales[xScaleKey].log, false);
-				else if (scales[xScaleKey].time)
+					[_min, _max] = rangeLog(_min, _min, scaleX.log, false);
+				else if (scaleX.time)
 					_max = _min + 86400 / ms;
 				else
 					[_min, _max] = rangeNum(_min, _max, 0.1, true);
@@ -1047,7 +1096,6 @@ export default function uPlot(opts, data, then) {
 	}
 
 	// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
-
 	function drawPoints(si) {
 	//	log("drawPoints()", arguments);
 
@@ -1078,13 +1126,30 @@ export default function uPlot(opts, data, then) {
 
 		const path = new Path2D();
 
+		const scaleY = scales[s.scale];
+
+		let xDim, xOff, yDim, yOff;
+
+		if (scaleX.ori == 0) {
+			xDim = plotWid;
+			xOff = plotLft;
+			yDim = plotHgt;
+			yOff = plotTop;
+		}
+		else {
+			xDim = plotHgt;
+			xOff = plotTop;
+			yDim = plotWid;
+			yOff = plotLft;
+		}
+
 		for (let pi = i0; pi <= i1; pi++) {
 			if (data[si][pi] != null) {
-				let x = round(getPos(data[0][pi],  scales[xScaleKey], plotWid, plotLft));
-				let y = round(getPos(data[si][pi], scales[s.scale],   plotHgt, plotTop));
+				let x = round(valToPosX(data[0][pi],  scaleX, xDim, xOff));
+				let y = round(valToPosY(data[si][pi], scaleY, yDim, yOff));
 
-				path.moveTo(x + rad, y);
-				path.arc(x, y, rad, 0, PI * 2);
+				moveTo(path, x + rad, y);
+				arcTo(path, x, y, rad, 0, PI * 2);
 			}
 		}
 
@@ -1578,7 +1643,7 @@ export default function uPlot(opts, data, then) {
 
 	self.redraw = rebuildPaths => {
 		if (rebuildPaths !== false)
-			_setScale(xScaleKey, scales[xScaleKey].min, scales[xScaleKey].max);
+			_setScale(xScaleKey, scaleX.min, scaleX.max);
 		else
 			commit();
 	};
@@ -1625,8 +1690,10 @@ export default function uPlot(opts, data, then) {
 
 //	INTERACTION
 
-	let vt;
-	let hz;
+	let xCursor;
+	let yCursor;
+	let vCursor;
+	let hCursor;
 
 	// starting position before cursor.move
 	let rawMouseLeft0;
@@ -1652,15 +1719,22 @@ export default function uPlot(opts, data, then) {
 	let dragY = FEAT_CURSOR && drag.y;
 
 	if (FEAT_CURSOR && cursor.show) {
-		if (cursor.x) {
-			mouseLeft1 = cursor.left;
-			vt = placeDiv(CURSOR_X, over);
+		if (cursor.x)
+			xCursor = placeDiv(CURSOR_X, over);
+		if (cursor.y)
+			yCursor = placeDiv(CURSOR_Y, over);
+
+		if (scaleX.ori == 0) {
+			vCursor = xCursor;
+			hCursor = yCursor;
+		}
+		else {
+			vCursor = yCursor;
+			hCursor = xCursor;
 		}
 
-		if (cursor.y) {
-			mouseTop1 = cursor.top;
-			hz = placeDiv(CURSOR_Y, over);
-		}
+		mouseLeft1 = cursor.left;
+		mouseTop1 = cursor.top;
 	}
 
 	const select = self.select = assign({
@@ -1818,7 +1892,7 @@ export default function uPlot(opts, data, then) {
 	self.posToIdx = closestIdxFromXpos;
 	self.posToVal = posToVal;
 	self.valToPos = (val, scale, can) => (
-		scale.ori == 0 ?
+		scales[scale].ori == 0 ?
 		getHPos(val, scales[scale],
 			can ? plotWid : plotWidCss,
 			can ? plotLft : 0,
@@ -1853,8 +1927,8 @@ export default function uPlot(opts, data, then) {
 		[mouseLeft1, mouseTop1] = cursor.move(self, mouseLeft1, mouseTop1);
 
 		if (cursor.show) {
-			cursor.x && trans(vt, round(mouseLeft1), 0, plotWidCss, plotHgtCss);
-			cursor.y && trans(hz, 0, round(mouseTop1), plotWidCss, plotHgtCss);
+			vCursor && trans(vCursor, round(mouseLeft1), 0, plotWidCss, plotHgtCss);
+			hCursor && trans(hCursor, 0, round(mouseTop1), plotWidCss, plotHgtCss);
 		}
 
 		let idx;
@@ -1864,6 +1938,9 @@ export default function uPlot(opts, data, then) {
 		let noDataInRange = i0 > i1;
 
 		closestDist = inf;
+
+		let xDim = scaleX.ori == 0 ? plotWidCss : plotHgtCss;
+		let yDim = scaleX.ori == 1 ? plotWidCss : plotHgtCss;
 
 		// if cursor hidden, hide points & clear legend vals
 		if (mouseLeft1 < 0 || dataLen == 0 || noDataInRange) {
@@ -1889,24 +1966,24 @@ export default function uPlot(opts, data, then) {
 		else {
 		//	let pctY = 1 - (y / rect.height);
 
-			let valAtPos = posToVal(mouseLeft1, xScaleKey);
+			let mouseXPos = scaleX.ori == 0 ? mouseLeft1 : mouseTop1;
 
-			idx = closestIdx(valAtPos, data[0], i0, i1);
+			let valAtPosX = posToVal(mouseXPos, xScaleKey);
 
-			let scX = scales[xScaleKey];
+			idx = closestIdx(valAtPosX, data[0], i0, i1);
 
-			let xPos = incrRoundUp(getPos(data[0][idx], scX, plotWidCss, 0), 0.5);
+			let xPos = incrRoundUp(valToPosX(data[0][idx], scaleX, xDim, 0), 0.5);
 
 			for (let i = 0; i < series.length; i++) {
 				let s = series[i];
 
-				let idx2  = cursor.dataIdx(self, i, idx, valAtPos);
-				let xPos2 = idx2 == idx ? xPos : incrRoundUp(getPos(data[0][idx2], scX, plotWidCss, 0), 0.5);
+				let idx2  = cursor.dataIdx(self, i, idx, valAtPosX);
+				let xPos2 = idx2 == idx ? xPos : incrRoundUp(valToPosX(data[0][idx2], scaleX, xDim, 0), 0.5);
 
 				if (i > 0 && s.show) {
 					let valAtIdx = data[i][idx2];
 
-					let yPos = valAtIdx == null ? -10 : incrRoundUp(getPos(valAtIdx, scales[s.scale], plotHgtCss, 0), 0.5);
+					let yPos = valAtIdx == null ? -10 : incrRoundUp(valToPosY(valAtIdx, scales[s.scale], yDim, 0), 0.5);
 
 					if (yPos > 0) {
 						let dist = abs(yPos - mouseTop1);
@@ -1917,7 +1994,18 @@ export default function uPlot(opts, data, then) {
 						}
 					}
 
-					FEAT_CURSOR && cursorPts.length > 1 && trans(cursorPts[i], xPos2, yPos, plotWidCss, plotHgtCss);
+					let hPos, vPos;
+
+					if (scaleX.ori == 0) {
+						hPos = xPos2;
+						vPos = yPos;
+					}
+					else {
+						hPos = yPos;
+						vPos = xPos2;
+					}
+
+					FEAT_CURSOR && cursorPts.length > 1 && trans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
 				}
 
 				if (showLegend && legend.live) {
@@ -1950,35 +2038,35 @@ export default function uPlot(opts, data, then) {
 
 				if (xKey) {
 					let sc = scales[xKey];
-					let srcLeft = src.posToVal(src.select.left, xKey);
-					let srcRight = src.posToVal(src.select.left + src.select.width, xKey);
+					let srcLft = src.posToVal(src.select.left, xKey);
+					let srcRgt = src.posToVal(src.select.left + src.select.width, xKey);
 
-					select.left = getPos(srcLeft, sc, plotWidCss, 0);
-					select.width = abs(select.left - getPos(srcRight, sc, plotWidCss, 0));
+					select.left = valToPosX(srcLft, sc, xDim, 0);
+					select.width = abs(select.left - valToPosX(srcRgt, sc, xDim, 0));
 
 					setStylePx(selectDiv, LEFT, select.left);
 					setStylePx(selectDiv, WIDTH, select.width);
 
 					if (!yKey) {
 						setStylePx(selectDiv, TOP, select.top = 0);
-						setStylePx(selectDiv, HEIGHT, select.height = plotHgtCss);
+						setStylePx(selectDiv, HEIGHT, select.height = yDim);
 					}
 				}
 
 				if (yKey) {
 					let sc = scales[yKey];
 					let srcTop = src.posToVal(src.select.top, yKey);
-					let srcBottom = src.posToVal(src.select.top + src.select.height, yKey);
+					let srcBtm = src.posToVal(src.select.top + src.select.height, yKey);
 
-					select.top = getPos(srcTop, sc, plotHgtCss, 0);
-					select.height = abs(select.top - getPos(srcBottom, sc, plotHgtCss, 0));
+					select.top = valToPosY(srcTop, sc, yDim, 0);
+					select.height = abs(select.top - valToPosY(srcBtm, sc, yDim, 0));
 
 					setStylePx(selectDiv, TOP, select.top);
 					setStylePx(selectDiv, HEIGHT, select.height);
 
 					if (!xKey) {
 						setStylePx(selectDiv, LEFT, select.left = 0);
-						setStylePx(selectDiv, WIDTH, select.width = plotWidCss);
+						setStylePx(selectDiv, WIDTH, select.width = xDim);
 					}
 				}
 			}
@@ -2019,7 +2107,7 @@ export default function uPlot(opts, data, then) {
 
 					if (!dragY) {
 						setStylePx(selectDiv, TOP, select.top = 0);
-						setStylePx(selectDiv, HEIGHT, select.height = plotHgtCss);
+						setStylePx(selectDiv, HEIGHT, select.height = yDim);
 					}
 				}
 
@@ -2032,7 +2120,7 @@ export default function uPlot(opts, data, then) {
 
 					if (!dragX) {
 						setStylePx(selectDiv, LEFT, select.left = 0);
-						setStylePx(selectDiv, WIDTH, select.width = plotWidCss);
+						setStylePx(selectDiv, WIDTH, select.width = xDim);
 					}
 				}
 
@@ -2054,7 +2142,7 @@ export default function uPlot(opts, data, then) {
 		if (ts != null) {
 			// this is not technically a "mousemove" event, since it's debounced, rename to setCursor?
 			// since this is internal, we can tweak it later
-			sync.pub(mousemove, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, idx);
+			sync.pub(mousemove, self, mouseLeft1, mouseTop1, xDim, yDim, idx);
 
 			if (cursorFocus) {
 				let o = syncOpts.setSeries;

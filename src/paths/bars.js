@@ -1,5 +1,6 @@
 import { aliasProps } from './aliasProps';
 import { min, max, round, inf, ifNull, EMPTY_OBJ } from '../utils';
+import { rectV, rectH } from './utils';
 import { pxRatio } from '../dom';
 
 export function bars(opts) {
@@ -10,61 +11,51 @@ export function bars(opts) {
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
 
 	return (u, seriesIdx, idx0, idx1) => {
-		const [
-			series,
-			dataX,
-			dataY,
-			scaleX,
-			scaleY,
-			valToPosX,
-			valToPosY,
-			plotLft,
-			plotTop,
-			plotWid,
-			plotHgt,
-		] = aliasProps(u, seriesIdx);
+		return aliasProps(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			let rect = scaleX.ori == 0 ? rectH : rectV;
 
-		let colWid = valToPosX(dataX[1], scaleX, plotWid, plotLft) - valToPosX(dataX[0], scaleX, plotWid, plotLft);
+			let colWid = valToPosX(dataX[1], scaleX, xDim, xOff) - valToPosX(dataX[0], scaleX, xDim, xOff);
 
-		let gapWid = colWid * gapFactor;
+			let gapWid = colWid * gapFactor;
 
-		let fillToY = series.fillTo(u, seriesIdx, series.min, series.max);
+			let fillToY = series.fillTo(u, seriesIdx, series.min, series.max);
 
-		let y0Pos = valToPosY(fillToY, scaleY, plotHgt, plotTop);
+			let y0Pos = valToPosY(fillToY, scaleY, yDim, yOff);
 
-		let strokeWidth = round(series.width * pxRatio);
+			let strokeWidth = round(series.width * pxRatio);
 
-		let barWid = round(min(maxWidth, colWid - gapWid) - strokeWidth);
+			let barWid = round(min(maxWidth, colWid - gapWid) - strokeWidth);
 
-		let stroke = new Path2D();
+			let stroke = new Path2D();
 
-		const _dir = 1 * scaleX.dir;
+			const _dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-		for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
-			let yVal = dataY[i];
+			for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
+				let yVal = dataY[i];
 
-			if (yVal == null)
-				continue;
+				if (yVal == null)
+					continue;
 
-			let xVal = scaleX.distr == 2 ? i : dataX[i];
+				let xVal = scaleX.distr == 2 ? i : dataX[i];
 
-			// TODO: all xPos can be pre-computed once for all series in aligned set
-			let xPos = valToPosX(xVal, scaleX, plotWid, plotLft);
-			let yPos = valToPosY(yVal, scaleY, plotHgt, plotTop);
+				// TODO: all xPos can be pre-computed once for all series in aligned set
+				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
+				let yPos = valToPosY(yVal, scaleY, yDim, yOff);
 
-			let lft = round(xPos - barWid / 2);
-			let btm = round(max(yPos, y0Pos));
-			let top = round(min(yPos, y0Pos));
-			let barHgt = btm - top;
+				let lft = round(xPos - barWid / 2);
+				let btm = round(max(yPos, y0Pos));
+				let top = round(min(yPos, y0Pos));
+				let barHgt = btm - top;
 
-			stroke.rect(lft, top, barWid, barHgt);
-		}
+				rect(stroke, lft, top, barWid, barHgt);
+			}
 
-		let fill = series.fill != null ? new Path2D(stroke) : undefined;
+			let fill = series.fill != null ? new Path2D(stroke) : undefined;
 
-		return {
-			stroke,
-			fill,
-		};
+			return {
+				stroke,
+				fill,
+			};
+		});
 	};
 }

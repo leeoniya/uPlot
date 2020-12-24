@@ -1,6 +1,8 @@
 const pre = "u-";
 
 export const UPLOT          =       "uplot";
+export const ORI_HZ         = pre + "hz";
+export const ORI_VT         = pre + "vt";
 export const TITLE          = pre + "title";
 export const WRAP           = pre + "wrap";
 export const UNDER          = pre + "under";

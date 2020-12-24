@@ -109,12 +109,14 @@
 	z-index: 100;
 }
 
-.u-cursor-x {
+.u-hz .u-cursor-x,
+.u-vt .u-cursor-y {
 	height: 100%;
 	border-right: 1px dashed #607D8B;
 }
 
-.u-cursor-y {
+.u-hz .u-cursor-y,
+.u-vt .u-cursor-x {
 	width: 100%;
 	border-bottom: 1px dashed #607D8B;
 }

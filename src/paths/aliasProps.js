@@ -1,25 +1,46 @@
-const props = Array(11);
-
-function _valToPos(u, sc) {
-	return sc.ori == 0 ? u.valToPosH : u.valToPosV;
-}
-
-export function aliasProps(u, seriesIdx) {
+export function aliasProps(u, seriesIdx, cb) {
 	const series = u.series[seriesIdx];
 	const scales = u.scales;
 	const bbox   = u.bbox;
+	const scaleX = scales[u.series[0].scale];
 
-	props[0]  = series;						// series
-	props[1]  = u._data[0];					// dataX
-	props[2]  = u._data[seriesIdx];			// dataY
-	props[3]  = scales[u.series[0].scale];	// scaleX
-	props[4]  = scales[series.scale];		// scaleY
-	props[5]  = _valToPos(u, props[3])		// valToPosX
-	props[6]  = _valToPos(u, props[4]);		// valToPosY
-	props[7]  = bbox.left;					// plotLft
-	props[8]  = bbox.top;					// plotTop
-	props[9]  = bbox.width;					// plotWid
-	props[10] = bbox.height;				// plotHgt
+	let dx = u._data[0],
+		dy = u._data[seriesIdx],
+		sx = scaleX,
+		sy = scales[series.scale],
+		l = bbox.left,
+		t = bbox.top,
+		w = bbox.width,
+		h = bbox.height,
+		H = u.valToPosH,
+		V = u.valToPosV;
 
-	return props;
+	return (sx.ori == 0
+		? cb(
+			series,
+			dx,
+			dy,
+			sx,
+			sy,
+			H,
+			V,
+			l,
+			t,
+			w,
+			h,
+		)
+		: cb(
+			series,
+			dx,
+			dy,
+			sx,
+			sy,
+			V,
+			H,
+			t,
+			l,
+			h,
+			w,
+		)
+	);
 }

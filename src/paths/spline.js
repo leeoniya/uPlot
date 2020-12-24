@@ -1,89 +1,90 @@
 import { aliasProps } from './aliasProps';
 import { round, pow, sqrt, nonNullIdx } from '../utils';
-import { addGap, clipGaps } from './utils';
+import { addGap, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV } from './utils';
 
 export function spline(opts) {
 	return (u, seriesIdx, idx0, idx1) => {
-		const [
-			series,
-			dataX,
-			dataY,
-			scaleX,
-			scaleY,
-			valToPosX,
-			valToPosY,
-			plotLft,
-			plotTop,
-			plotWid,
-			plotHgt,
-		] = aliasProps(u, seriesIdx);
+		return aliasProps(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			let moveTo, bezierCurveTo, lineTo;
 
-		const _dir = 1 * scaleX.dir;
-
-		idx0 = nonNullIdx(dataY, idx0, idx1,  1);
-		idx1 = nonNullIdx(dataY, idx0, idx1, -1);
-
-		let gaps = [];
-		let inGap = false;
-		let firstXPos = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, plotWid, plotLft));
-		let prevXPos = firstXPos;
-
-		let xCoords = [];
-		let yCoords = [];
-
-		for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
-			let yVal = dataY[i];
-			let xVal = dataX[i];
-			let xPos = valToPosX(xVal, scaleX, plotWid, plotLft);
-
-			if (yVal == null) {
-				if (series.isGap(u, seriesIdx, i)) {
-					addGap(gaps, prevXPos, xPos);
-					inGap = true;
-				}
-				continue;
+			if (scaleX.ori == 0) {
+				moveTo = moveToH;
+				lineTo = lineToH;
+				bezierCurveTo = bezierCurveToH;
 			}
 			else {
-				if (inGap) {
-					addGap(gaps, prevXPos, xPos);
-					inGap = false;
-				}
-
-				xCoords.push((prevXPos = xPos));
-				yCoords.push(valToPosY(dataY[i], scaleY, plotHgt, plotTop));
+				moveTo = moveToV;
+				lineTo = lineToV;
+				bezierCurveTo = bezierCurveToV;
 			}
-		}
 
-		const stroke = catmullRomFitting(xCoords, yCoords, 0.5);
+			const _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-		const fill = new Path2D(stroke);
+			idx0 = nonNullIdx(dataY, idx0, idx1,  1);
+			idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
-		let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
+			let gaps = [];
+			let inGap = false;
+			let firstXPos = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+			let prevXPos = firstXPos;
 
-		let minY = round(valToPosY(fillTo, scaleY, plotHgt, plotTop));
+			let xCoords = [];
+			let yCoords = [];
 
-		fill.lineTo(prevXPos, minY);
-		fill.lineTo(firstXPos, minY);
+			for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
+				let yVal = dataY[i];
+				let xVal = dataX[i];
+				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
 
-		let clip = !series.spanGaps ? clipGaps(gaps, 1, plotLft, plotTop, plotWid, plotHgt) : null;
+				if (yVal == null) {
+					if (series.isGap(u, seriesIdx, i)) {
+						addGap(gaps, prevXPos, xPos);
+						inGap = true;
+					}
+					continue;
+				}
+				else {
+					if (inGap) {
+						addGap(gaps, prevXPos, xPos);
+						inGap = false;
+					}
 
-		return {
-			stroke,
-			fill,
-			clip,
-		};
+					xCoords.push((prevXPos = xPos));
+					yCoords.push(valToPosY(dataY[i], scaleY, yDim, yOff));
+				}
+			}
 
-		//  if FEAT_PATHS: false in rollup.config.js
-		//	u.ctx.save();
-		//	u.ctx.beginPath();
-		//	u.ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
-		//	u.ctx.clip();
-		//	u.ctx.strokeStyle = u.series[sidx].stroke;
-		//	u.ctx.stroke(stroke);
-		//	u.ctx.fillStyle = u.series[sidx].fill;
-		//	u.ctx.fill(fill);
-		//	u.ctx.restore();
-		//	return null;
+			const stroke = catmullRomFitting(xCoords, yCoords, 0.5, moveTo, bezierCurveTo);
+
+			const fill = new Path2D(stroke);
+
+			let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
+
+			let minY = round(valToPosY(fillTo, scaleY, yDim, yOff));
+
+			lineTo(fill, prevXPos, minY);
+			lineTo(fill, firstXPos, minY);
+
+			let clip = !series.spanGaps ? clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim) : null;
+
+			return {
+				stroke,
+				fill,
+				clip,
+			};
+
+			//  if FEAT_PATHS: false in rollup.config.js
+			//	u.ctx.save();
+			//	u.ctx.beginPath();
+			//	u.ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
+			//	u.ctx.clip();
+			//	u.ctx.strokeStyle = u.series[sidx].stroke;
+			//	u.ctx.stroke(stroke);
+			//	u.ctx.fillStyle = u.series[sidx].fill;
+			//	u.ctx.fill(fill);
+			//	u.ctx.restore();
+			//	return null;
+		});
 	};
 }
 
@@ -96,7 +97,7 @@ export function spline(opts) {
  * If 'alpha' is 1 then the 'Chordal' variant is used
  *
  */
-function catmullRomFitting(xCoords, yCoords, alpha) {
+function catmullRomFitting(xCoords, yCoords, alpha, moveTo, bezierCurveTo) {
 	const path = new Path2D();
 
 	const dataLen = xCoords.length;
@@ -127,7 +128,7 @@ function catmullRomFitting(xCoords, yCoords, alpha) {
 		d1pow2A,
 		d1powA;
 
-	path.moveTo(round(xCoords[0]), round(yCoords[0]));
+	moveTo(path, round(xCoords[0]), round(yCoords[0]));
 
 	for (let i = 0; i < dataLen - 1; i++) {
 		let p0i = i == 0 ? 0 : i - 1;
@@ -198,7 +199,7 @@ function catmullRomFitting(xCoords, yCoords, alpha) {
 			bp2y = p2y;
 		}
 
-		path.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y);
+		bezierCurveTo(path, bp1x, bp1y, bp2x, bp2y, p2x, p2y);
 	}
 
 	return path;
