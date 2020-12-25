@@ -599,9 +599,6 @@ export interface Series {
 	/** rendered datapoints */
 	points?: Series.Points;
 
-	/** any two adjacent series with band: true, are filled as a single low/high band */
-	band?: boolean;
-
 	/** line width in CSS pixels */
 	width?: number;
 
