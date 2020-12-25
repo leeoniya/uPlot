@@ -1,3 +1,87 @@
+import { incrRound } from "../utils";
+
+export function aliasProps(u, seriesIdx, cb) {
+	const series = u.series[seriesIdx];
+	const scales = u.scales;
+	const bbox   = u.bbox;
+	const scaleX = scales[u.series[0].scale];
+
+	let dx = u._data[0],
+		dy = u._data[seriesIdx],
+		sx = scaleX,
+		sy = scales[series.scale],
+		l = bbox.left,
+		t = bbox.top,
+		w = bbox.width,
+		h = bbox.height,
+		H = u.valToPosH,
+		V = u.valToPosV;
+
+	return (sx.ori == 0
+		? cb(
+			series,
+			dx,
+			dy,
+			sx,
+			sy,
+			H,
+			V,
+			l,
+			t,
+			w,
+			h,
+		)
+		: cb(
+			series,
+			dx,
+			dy,
+			sx,
+			sy,
+			V,
+			H,
+			t,
+			l,
+			h,
+			w,
+		)
+	);
+}
+
+// creates inverted band clip path (towards from stroke path -> yMax)
+export function clipBand(self, seriesIdx, idx0, idx1) {
+	return aliasProps(self, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+		const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+		const lineTo = scaleX.ori == 0 ? lineToH : lineToV;
+
+		let frIdx, toIdx;
+
+		if (dir == 1) {
+			frIdx = idx0;
+			toIdx = idx1;
+		}
+		else {
+			frIdx = idx1;
+			toIdx = idx0;
+		}
+
+		// path start
+		let x0 = incrRound(valToPosX(dataX[frIdx], scaleX, xDim, xOff), 0.5);
+		let y0 = incrRound(valToPosY(dataY[frIdx], scaleY, yDim, yOff), 0.5);
+		// path end x
+		let x1 = incrRound(valToPosX(dataX[toIdx], scaleX, xDim, xOff), 0.5);
+		// upper y limit
+		let yLimit = incrRound(valToPosY(scaleY.max, scaleY, yDim, yOff), 0.5);
+
+		let clip = new Path2D(series._paths.stroke);
+
+		lineTo(clip, x1, yLimit);
+		lineTo(clip, x0, yLimit);
+		lineTo(clip, x0, y0);
+
+		return clip;
+	});
+}
+
 export function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
 	let clip = null;
 

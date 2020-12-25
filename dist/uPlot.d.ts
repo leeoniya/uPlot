@@ -276,6 +276,8 @@ export interface Options {
 
 	series: Series[];
 
+	bands?: Band[],
+
 	scales?: Scales;
 
 	axes?: Axis[];
@@ -626,6 +628,23 @@ export interface Series {
 
 	/** current max rendered value */
 	max?: number,
+}
+
+export namespace Band {
+	export type Fill = CanvasRenderingContext2D['fillStyle'] | ((self: uPlot, bandIdx: number, highSeriesFill: CanvasRenderingContext2D['fillStyle']) => CanvasRenderingContext2D['fillStyle']);
+
+	export type Bounds = [highSeriesIdx: number, lowSeriesIdx: number];
+}
+
+export interface Band {
+	/** band on/off */
+	show?: boolean;
+
+	/** series indices of upper and lower band edges */
+	series: Band.Bounds;
+
+	/** area fill style */
+	fill?: Band.Fill;
 }
 
 export namespace Axis {

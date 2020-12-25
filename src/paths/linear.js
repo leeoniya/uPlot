@@ -1,9 +1,6 @@
-import { aliasProps } from './aliasProps';
 import { min, max, round, roundDec, incrRound, nonNullIdx, inf } from '../utils';
-import { addGap, clipGaps, lineToH, lineToV } from './utils';
+import { aliasProps, addGap, clipGaps, lineToH, lineToV } from './utils';
 import { pxRatio } from '../dom';
-
-let dir = 1;
 
 function _drawAcc(lineTo) {
 	return (stroke, accX, minY, maxY, outY) => {
@@ -32,9 +29,9 @@ export function linear() {
 
 			const isGap = series.isGap;
 
-			const _dir = dir * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-			const _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : u.series[seriesIdx - 1]._paths;
+			const _paths = {stroke: new Path2D(), fill: null, clip: null};
 			const stroke = _paths.stroke;
 			const width = roundDec(series.width * pxRatio, 3);
 
@@ -42,26 +39,21 @@ export function linear() {
 				maxY = -inf,
 				outY, outX, drawnAtX;
 
-			// todo: don't build gaps on dir = -1 pass
 			let gaps = [];
 
-			let accX = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+			let accX = round(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let accGaps = false;
 
 			// data edges
-			let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * _dir);
-			let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * _dir);
+			let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * dir);
+			let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * dir);
 			let lftX = incrRound(valToPosX(dataX[lftIdx], scaleX, xDim, xOff), 0.5);
 			let rgtX = incrRound(valToPosX(dataX[rgtIdx], scaleX, xDim, xOff), 0.5);
 
 			if (lftX > xOff)
 				addGap(gaps, xOff, lftX);
 
-			// the moves the shape edge outside the canvas so stroke doesnt bleed in
-			if (series.band && _dir == 1)
-				lineTo(stroke, lftX - width * 2, round(valToPosY(dataY[idx0], scaleY, yDim, yOff)));
-
-			for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
+			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 				let x = round(valToPosX(dataX[i], scaleX, xDim, xOff));
 
 				if (x == accX) {
@@ -95,7 +87,7 @@ export function linear() {
 						minY = maxY = outY;
 
 						// prior pixel can have data but still start a gap if ends with null
-						if (x - accX > 1 && dataY[i - _dir] == null && isGap(u, seriesIdx, i - _dir))
+						if (x - accX > 1 && dataY[i - dir] == null && isGap(u, seriesIdx, i - dir))
 							_addGap = true;
 					}
 					else {
@@ -118,40 +110,16 @@ export function linear() {
 			if (rgtX < xOff + xDim)
 				addGap(gaps, rgtX, xOff + xDim);
 
-			if (series.band) {
-				let _x, _iy, _data = u._data, dataY2;
+			if (!series.spanGaps)
+				_paths.clip =  clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
 
-				// the moves the shape edge outside the canvas so stroke doesnt bleed in
-				if (_dir == 1) {
-					_x = rgtX + width * 2;
-					_iy = rgtIdx;
-					dataY2 = _data[seriesIdx + 1];
-				}
-				else {
-					_x = lftX - width * 2;
-					_iy = lftIdx;
-					dataY2 = _data[seriesIdx - 1];
-				}
+			if (series.fill != null) {
+				let fill = _paths.fill = new Path2D(stroke);
 
-				lineTo(stroke, _x, round(valToPosY(dataY[_iy],  scaleY, yDim, yOff)));
-				lineTo(stroke, _x, round(valToPosY(dataY2[_iy], scaleY, yDim, yOff)));
+				let fillTo = round(valToPosY(series.fillTo(u, seriesIdx, series.min, series.max), scaleY, yDim, yOff));
+				lineTo(fill, rgtX, fillTo);
+				lineTo(fill, lftX, fillTo);
 			}
-
-			if (dir == 1) {
-				if (!series.spanGaps)
-					_paths.clip =  clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
-
-				if (series.fill != null) {
-					let fill = _paths.fill = new Path2D(stroke);
-
-					let fillTo = round(valToPosY(series.fillTo(u, seriesIdx, series.min, series.max), scaleY, yDim, yOff));
-					lineTo(fill, rgtX, fillTo);
-					lineTo(fill, lftX, fillTo);
-				}
-			}
-
-			if (series.band)
-				dir *= -1;
 
 			return _paths;
 		});

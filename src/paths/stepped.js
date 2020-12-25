@@ -1,6 +1,5 @@
-import { aliasProps } from './aliasProps';
 import { round, nonNullIdx, ifNull } from '../utils';
-import { addGap, clipGaps, lineToH, lineToV } from './utils';
+import { aliasProps, addGap, clipGaps, lineToH, lineToV } from './utils';
 import { pxRatio } from '../dom';
 
 export function stepped(opts) {

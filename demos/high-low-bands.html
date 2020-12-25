@@ -29,8 +29,6 @@
 
 			temps.unshift(ts);
 
-
-
 			let data = temps;
 
 			function fmtUSD(val, dec) {
@@ -42,35 +40,57 @@
 				height: 600,
 				title: "Temps",
 				tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), 'Etc/UTC'),
+				scales: {
+					x: {
+					//	dir: -1,
+					//	ori: 1,
+					},
+					y: {
+					//	dir: -1,
+					//	ori: 0,
+					},
+				},
 				series: [
 					{},
 					{
 						label: "Low",
-						stroke: "blue",
-						fill: "rgba(0, 0, 0, .07)",
+						stroke: "green",
+					//	fill: "rgba(0, 0, 0, .07)",
 						value: (u, v) => v + "°F",
-						band: true,
-						width: 0,
+						width: 1,
 					},
 					{
 						label: "High",
 						stroke: "red",
-						fill: "rgba(0, 0, 0, .07)",
 						value: (u, v) => v + "°F",
-						band: true,
-						width: 0,
+						width: 1,
 					},
 					{
 						label: "Avg",
-						stroke: "teal",
+						stroke: "blue",
 						dash: [10, 10],
 						width: 2,
 						value: (u, v) => v + "°F",
 					},
 				],
-				axes: [
-					{},
+				bands: [
 					{
+						show: true,
+						series: [2,3],
+						fill: "rgba(255,0,0,0.1)",
+					},
+					{
+						show: true,
+						series: [3,1],
+						fill: "rgba(0,255,0,0.1)",
+					}
+				],
+				axes: [
+					{
+					//	side: 3
+					},
+					{
+					//	side: 2,
 						values: (u, vals) => vals.map(v => v + "°F")
 					}
 				]

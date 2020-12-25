@@ -1,6 +1,5 @@
-import { aliasProps } from './aliasProps';
 import { round, pow, sqrt, nonNullIdx } from '../utils';
-import { addGap, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV } from './utils';
+import { aliasProps, addGap, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV } from './utils';
 
 export function spline(opts) {
 	return (u, seriesIdx, idx0, idx1) => {

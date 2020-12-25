@@ -176,7 +176,7 @@ import { spline  } from './paths/spline';
 import { stepped } from './paths/stepped';
 import { bars    } from './paths/bars';
 
-import { addGap, clipGaps, moveToH, moveToV, lineToH, lineToV, arcToH, arcToV } from './paths/utils';
+import { addGap, clipGaps, moveToH, moveToV, arcToH, arcToV, clipBand } from './paths/utils';
 
 function log(name, args) {
 	console.log.apply(console, [name].concat(Array.prototype.slice.call(args)));
@@ -301,6 +301,11 @@ export default function uPlot(opts, data, then) {
 	const series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
 	const axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
 	const scales  = self.scales = {};
+	const bands   = self.bands  = opts.bands || [];
+
+	bands.forEach(b => {
+		b.fill = fnOrSelf(b.fill || null);
+	});
 
 	const xScaleKey = series[0].scale;
 
@@ -1187,15 +1192,18 @@ export default function uPlot(opts, data, then) {
 		return [_i0, _i1];
 	}
 
-	let dir = 1;
-
 	function drawSeries() {
 		if (dataLen > 0) {
-			// path building loop must be before draw loop to ensure that all bands are fully constructed
 			series.forEach((s, i) => {
 				if (i > 0 && s.show && s._paths == null) {
 					let _idxs = getOuterIdxs(data[i]);
 					s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
+
+					if (s._paths && bands.length > 0) {
+						// ADDL OPT: only create band clips for series that are band lower edges
+						// if (b.series[1] == i && _paths.band == null)
+						s._paths.band = clipBand(self, i, _idxs[0], _idxs[1]);
+					}
 				}
 			});
 
@@ -1216,64 +1224,75 @@ export default function uPlot(opts, data, then) {
 	function drawPath(si) {
 		const s = series[si];
 
-		if (dir == 1) {
-			const { stroke, fill, clip } = s._paths;
-			const width = roundDec(s.width * pxRatio, 3);
-			const offset = (width % 2) / 2;
+		const { stroke, fill, clip } = s._paths;
+		const width = roundDec(s.width * pxRatio, 3);
+		const offset = (width % 2) / 2;
 
-			const _stroke = s._stroke = s.stroke(self, si);
-			const _fill   = s._fill   = s.fill(self, si);
+		const _stroke = s._stroke = s.stroke(self, si);
+		const _fill   = s._fill   = s.fill(self, si);
 
-			setCtxStyle(_stroke, width, s.dash, _fill);
+		setCtxStyle(_stroke, width, s.dash, _fill);
 
-			ctx.globalAlpha = s.alpha;
+		ctx.globalAlpha = s.alpha;
 
-			ctx.translate(offset, offset);
+		ctx.translate(offset, offset);
 
-			ctx.save();
+		ctx.save();
 
-			let lft = plotLft,
-				top = plotTop,
-				wid = plotWid,
-				hgt = plotHgt;
+		let lft = plotLft,
+			top = plotTop,
+			wid = plotWid,
+			hgt = plotHgt;
 
-			let halfWid = width * pxRatio / 2;
+		let halfWid = width * pxRatio / 2;
 
-			if (s.min == 0)
-				hgt += halfWid;
+		if (s.min == 0)
+			hgt += halfWid;
 
-			if (s.max == 0) {
-				top -= halfWid;
-				hgt += halfWid;
-			}
-
-			ctx.beginPath();
-			ctx.rect(lft, top, wid, hgt);
-			ctx.clip();
-
-			if (clip != null)
-				ctx.clip(clip);
-
-			if (s.band) {
-				ctx.fill(stroke);
-				width && ctx.stroke(stroke);
-			}
-			else {
-				if (_fill != null)
-					ctx.fill(fill);
-
-				width && ctx.stroke(stroke);
-			}
-
-			ctx.restore();
-
-			ctx.translate(-offset, -offset);
-
-			ctx.globalAlpha = 1;
+		if (s.max == 0) {
+			top -= halfWid;
+			hgt += halfWid;
 		}
 
-		if (s.band)
-			dir *= -1;
+		ctx.beginPath();
+		ctx.rect(lft, top, wid, hgt);
+		ctx.clip();
+
+		if (clip != null)
+			ctx.clip(clip);
+
+		if (!fillBands(si, _fill) && _fill != null)
+			ctx.fill(fill);
+
+		width && ctx.stroke(stroke);
+
+		ctx.restore();
+
+		ctx.translate(-offset, -offset);
+
+		ctx.globalAlpha = 1;
+	}
+
+	function fillBands(si, seriesFill) {
+		let isUpperEdge = false;
+		let s = series[si];
+
+		// for all bands where this series is the top edge, create upwards clips using the bottom edges
+		// and apply clips + fill with band fill or dfltFill
+		bands.forEach((b, bi) => {
+			if (b.series[0] == si) {
+				isUpperEdge = true;
+				let lowerEdge = series[b.series[1]];
+
+				ctx.save();
+				setCtxStyle(null, null, null, b.fill(self, bi) || seriesFill);
+				ctx.clip(lowerEdge._paths.band);
+				ctx.fill(s._paths.fill);
+				ctx.restore();
+			}
+		});
+
+		return isUpperEdge;
 	}
 
 	function getIncrSpace(axisIdx, min, max, fullDim) {
@@ -1788,12 +1807,14 @@ export default function uPlot(opts, data, then) {
 			s.show = opts.show;
 			FEAT_LEGEND && toggleDOM(i, opts.show);
 
+			/*
 			if (s.band) {
 				// not super robust, will break if two bands are adjacent
 				let ip = series[i+1] && series[i+1].band ? i+1 : i-1;
 				series[ip].show = s.show;
 				FEAT_LEGEND && toggleDOM(ip, opts.show);
 			}
+			*/
 
 			_setScale(s.scale, null, null);
 			commit();
@@ -1821,11 +1842,13 @@ export default function uPlot(opts, data, then) {
 
 		_alpha(i, value);
 
+		/*
 		if (s.band) {
 			// not super robust, will break if two bands are adjacent
 			let ip = series[i+1].band ? i+1 : i-1;
 			_alpha(ip, value);
 		}
+		*/
 	}
 
 	// y-distance

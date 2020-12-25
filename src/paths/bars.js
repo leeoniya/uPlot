@@ -1,6 +1,5 @@
-import { aliasProps } from './aliasProps';
 import { min, max, round, inf, ifNull, EMPTY_OBJ } from '../utils';
-import { rectV, rectH } from './utils';
+import { aliasProps, rectV, rectH } from './utils';
 import { pxRatio } from '../dom';
 
 export function bars(opts) {

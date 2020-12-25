@@ -44,7 +44,6 @@
 					{},
 					{
 						label: "Low",
-						fill: "rgba(0, 255, 0, .2)",
 						stroke: "green",
 						band: true,
 						spanGaps: false,
@@ -52,12 +51,19 @@
 					},
 					{
 						label: "High",
-						fill: "rgba(0, 255, 0, .2)",
 						stroke: "green",
 						band: true,
 						spanGaps: false,
 					//	points: {show: false},
 					}
+				],
+				bands: [
+					{
+						show: true,
+						series: [2,1],
+					//	values: null,
+						fill: "rgba(0, 255, 0, .2)",
+					},
 				],
 			};
 
@@ -73,18 +79,12 @@
 					{},
 					{
 						label: "Low",
-						color: "green",
-						fill: "rgba(0, 255, 0, .2)",
 						stroke: "red",
-						band: true,
 						spanGaps: false,
 					},
 					{
 						label: "High",
-						color: "green",
 						stroke: "red",
-						fill: "rgba(0, 255, 0, .2)",
-						band: true,
 						spanGaps: false,
 					},
 					{
@@ -93,12 +93,20 @@
 						spanGaps: false,
 					},
 				],
+				bands: [
+					{
+						show: true,
+						series: [2,1],
+					//	values: null,
+						fill: "rgba(0, 255, 0, .2)",
+					},
+				],
 			};
 
 			const data1 = [
 				[1572679693.747, 1572679694.747, 1572679695.747, 1572679696.747, 1572679697.747, 1572679698.746, 1572679699.746],
-				[10.5,11.5,12.5,null,14.5,15.5,16.5],
 				[9.5,10.5,11.5,null,13.5,14.5,15.5],
+				[10.5,11.5,12.5,null,14.5,15.5,16.5],
 				[10,11,12,13,14,15,16],
 			];
 

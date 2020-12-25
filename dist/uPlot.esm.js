@@ -1396,6 +1396,41 @@ function aliasProps(u, seriesIdx, cb) {
 	);
 }
 
+// creates inverted band clip path (towards from stroke path -> yMax)
+function clipBand(self, seriesIdx, idx0, idx1) {
+	return aliasProps(self, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+		const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+		const lineTo = scaleX.ori == 0 ? lineToH : lineToV;
+
+		let frIdx, toIdx;
+
+		if (dir == 1) {
+			frIdx = idx0;
+			toIdx = idx1;
+		}
+		else {
+			frIdx = idx1;
+			toIdx = idx0;
+		}
+
+		// path start
+		let x0 = incrRound(valToPosX(dataX[frIdx], scaleX, xDim, xOff), 0.5);
+		let y0 = incrRound(valToPosY(dataY[frIdx], scaleY, yDim, yOff), 0.5);
+		// path end x
+		let x1 = incrRound(valToPosX(dataX[toIdx], scaleX, xDim, xOff), 0.5);
+		// upper y limit
+		let yLimit = incrRound(valToPosY(scaleY.max, scaleY, yDim, yOff), 0.5);
+
+		let clip = new Path2D(series._paths.stroke);
+
+		lineTo(clip, x1, yLimit);
+		lineTo(clip, x0, yLimit);
+		lineTo(clip, x0, y0);
+
+		return clip;
+	});
+}
+
 function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
 	let clip = null;
 
@@ -1443,8 +1478,6 @@ function arcToH(p, x, y, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, e
 function arcToV(p, y, x, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
 function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }function bezierCurveToV(p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }
 
-let dir = 1;
-
 function _drawAcc(lineTo) {
 	return (stroke, accX, minY, maxY, outY) => {
 		lineTo(stroke, accX, minY);
@@ -1472,9 +1505,9 @@ function linear() {
 
 			const isGap = series.isGap;
 
-			const _dir = dir * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-			const _paths = dir == 1 ? {stroke: new Path2D(), fill: null, clip: null} : u.series[seriesIdx - 1]._paths;
+			const _paths = {stroke: new Path2D(), fill: null, clip: null};
 			const stroke = _paths.stroke;
 			const width = roundDec(series.width * pxRatio, 3);
 
@@ -1482,26 +1515,21 @@ function linear() {
 				maxY = -inf,
 				outY, outX, drawnAtX;
 
-			// todo: don't build gaps on dir = -1 pass
 			let gaps = [];
 
-			let accX = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+			let accX = round(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let accGaps = false;
 
 			// data edges
-			let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * _dir);
-			let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * _dir);
+			let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * dir);
+			let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * dir);
 			let lftX = incrRound(valToPosX(dataX[lftIdx], scaleX, xDim, xOff), 0.5);
 			let rgtX = incrRound(valToPosX(dataX[rgtIdx], scaleX, xDim, xOff), 0.5);
 
 			if (lftX > xOff)
 				addGap(gaps, xOff, lftX);
 
-			// the moves the shape edge outside the canvas so stroke doesnt bleed in
-			if (series.band && _dir == 1)
-				lineTo(stroke, lftX - width * 2, round(valToPosY(dataY[idx0], scaleY, yDim, yOff)));
-
-			for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
+			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 				let x = round(valToPosX(dataX[i], scaleX, xDim, xOff));
 
 				if (x == accX) {
@@ -1535,7 +1563,7 @@ function linear() {
 						minY = maxY = outY;
 
 						// prior pixel can have data but still start a gap if ends with null
-						if (x - accX > 1 && dataY[i - _dir] == null && isGap(u, seriesIdx, i - _dir))
+						if (x - accX > 1 && dataY[i - dir] == null && isGap(u, seriesIdx, i - dir))
 							_addGap = true;
 					}
 					else {
@@ -1558,40 +1586,16 @@ function linear() {
 			if (rgtX < xOff + xDim)
 				addGap(gaps, rgtX, xOff + xDim);
 
-			if (series.band) {
-				let _x, _iy, _data = u._data, dataY2;
+			if (!series.spanGaps)
+				_paths.clip =  clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
 
-				// the moves the shape edge outside the canvas so stroke doesnt bleed in
-				if (_dir == 1) {
-					_x = rgtX + width * 2;
-					_iy = rgtIdx;
-					dataY2 = _data[seriesIdx + 1];
-				}
-				else {
-					_x = lftX - width * 2;
-					_iy = lftIdx;
-					dataY2 = _data[seriesIdx - 1];
-				}
+			if (series.fill != null) {
+				let fill = _paths.fill = new Path2D(stroke);
 
-				lineTo(stroke, _x, round(valToPosY(dataY[_iy],  scaleY, yDim, yOff)));
-				lineTo(stroke, _x, round(valToPosY(dataY2[_iy], scaleY, yDim, yOff)));
+				let fillTo = round(valToPosY(series.fillTo(u, seriesIdx, series.min, series.max), scaleY, yDim, yOff));
+				lineTo(fill, rgtX, fillTo);
+				lineTo(fill, lftX, fillTo);
 			}
-
-			if (dir == 1) {
-				if (!series.spanGaps)
-					_paths.clip =  clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
-
-				if (series.fill != null) {
-					let fill = _paths.fill = new Path2D(stroke);
-
-					let fillTo = round(valToPosY(series.fillTo(u, seriesIdx, series.min, series.max), scaleY, yDim, yOff));
-					lineTo(fill, rgtX, fillTo);
-					lineTo(fill, lftX, fillTo);
-				}
-			}
-
-			if (series.band)
-				dir *= -1;
 
 			return _paths;
 		});
@@ -2060,6 +2064,11 @@ function uPlot(opts, data, then) {
 	const series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
 	const axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
 	const scales  = self.scales = {};
+	const bands   = self.bands  = opts.bands || [];
+
+	bands.forEach(b => {
+		b.fill = fnOrSelf(b.fill || null);
+	});
 
 	const xScaleKey = series[0].scale;
 
@@ -2945,15 +2954,18 @@ function uPlot(opts, data, then) {
 		return [_i0, _i1];
 	}
 
-	let dir = 1;
-
 	function drawSeries() {
 		if (dataLen > 0) {
-			// path building loop must be before draw loop to ensure that all bands are fully constructed
 			series.forEach((s, i) => {
 				if (i > 0 && s.show && s._paths == null) {
 					let _idxs = getOuterIdxs(data[i]);
 					s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
+
+					if (s._paths && bands.length > 0) {
+						// ADDL OPT: only create band clips for series that are band lower edges
+						// if (b.series[1] == i && _paths.band == null)
+						s._paths.band = clipBand(self, i, _idxs[0], _idxs[1]);
+					}
 				}
 			});
 
@@ -2974,64 +2986,75 @@ function uPlot(opts, data, then) {
 	function drawPath(si) {
 		const s = series[si];
 
-		if (dir == 1) {
-			const { stroke, fill, clip } = s._paths;
-			const width = roundDec(s.width * pxRatio, 3);
-			const offset = (width % 2) / 2;
+		const { stroke, fill, clip } = s._paths;
+		const width = roundDec(s.width * pxRatio, 3);
+		const offset = (width % 2) / 2;
 
-			const _stroke = s._stroke = s.stroke(self, si);
-			const _fill   = s._fill   = s.fill(self, si);
+		const _stroke = s._stroke = s.stroke(self, si);
+		const _fill   = s._fill   = s.fill(self, si);
 
-			setCtxStyle(_stroke, width, s.dash, _fill);
+		setCtxStyle(_stroke, width, s.dash, _fill);
 
-			ctx.globalAlpha = s.alpha;
+		ctx.globalAlpha = s.alpha;
 
-			ctx.translate(offset, offset);
+		ctx.translate(offset, offset);
 
-			ctx.save();
+		ctx.save();
 
-			let lft = plotLft,
-				top = plotTop,
-				wid = plotWid,
-				hgt = plotHgt;
+		let lft = plotLft,
+			top = plotTop,
+			wid = plotWid,
+			hgt = plotHgt;
 
-			let halfWid = width * pxRatio / 2;
+		let halfWid = width * pxRatio / 2;
 
-			if (s.min == 0)
-				hgt += halfWid;
+		if (s.min == 0)
+			hgt += halfWid;
 
-			if (s.max == 0) {
-				top -= halfWid;
-				hgt += halfWid;
-			}
-
-			ctx.beginPath();
-			ctx.rect(lft, top, wid, hgt);
-			ctx.clip();
-
-			if (clip != null)
-				ctx.clip(clip);
-
-			if (s.band) {
-				ctx.fill(stroke);
-				width && ctx.stroke(stroke);
-			}
-			else {
-				if (_fill != null)
-					ctx.fill(fill);
-
-				width && ctx.stroke(stroke);
-			}
-
-			ctx.restore();
-
-			ctx.translate(-offset, -offset);
-
-			ctx.globalAlpha = 1;
+		if (s.max == 0) {
+			top -= halfWid;
+			hgt += halfWid;
 		}
 
-		if (s.band)
-			dir *= -1;
+		ctx.beginPath();
+		ctx.rect(lft, top, wid, hgt);
+		ctx.clip();
+
+		if (clip != null)
+			ctx.clip(clip);
+
+		if (!fillBands(si, _fill) && _fill != null)
+			ctx.fill(fill);
+
+		width && ctx.stroke(stroke);
+
+		ctx.restore();
+
+		ctx.translate(-offset, -offset);
+
+		ctx.globalAlpha = 1;
+	}
+
+	function fillBands(si, seriesFill) {
+		let isUpperEdge = false;
+		let s = series[si];
+
+		// for all bands where this series is the top edge, create upwards clips using the bottom edges
+		// and apply clips + fill with band fill or dfltFill
+		bands.forEach((b, bi) => {
+			if (b.series[0] == si) {
+				isUpperEdge = true;
+				let lowerEdge = series[b.series[1]];
+
+				ctx.save();
+				setCtxStyle(null, null, null, b.fill(self, bi) || seriesFill);
+				ctx.clip(lowerEdge._paths.band);
+				ctx.fill(s._paths.fill);
+				ctx.restore();
+			}
+		});
+
+		return isUpperEdge;
 	}
 
 	function getIncrSpace(axisIdx, min, max, fullDim) {
@@ -3546,12 +3569,14 @@ function uPlot(opts, data, then) {
 			s.show = opts.show;
 			 toggleDOM(i, opts.show);
 
+			/*
 			if (s.band) {
 				// not super robust, will break if two bands are adjacent
 				let ip = series[i+1] && series[i+1].band ? i+1 : i-1;
 				series[ip].show = s.show;
-				 toggleDOM(ip, opts.show);
+				FEAT_LEGEND && toggleDOM(ip, opts.show);
 			}
+			*/
 
 			_setScale(s.scale, null, null);
 			commit();
@@ -3575,15 +3600,16 @@ function uPlot(opts, data, then) {
 	}
 
 	function _setAlpha(i, value) {
-		let s = series[i];
 
 		_alpha(i, value);
 
+		/*
 		if (s.band) {
 			// not super robust, will break if two bands are adjacent
 			let ip = series[i+1].band ? i+1 : i-1;
 			_alpha(ip, value);
 		}
+		*/
 	}
 
 	// y-distance
