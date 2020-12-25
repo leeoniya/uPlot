@@ -71,7 +71,7 @@ declare class uPlot {
 
 	// TODO: include other series style opts which are dynamically pulled?
 	/** toggles series visibility or focus */
-	setSeries(seriesIdx: number, opts: {show?: boolean, focus?: boolean}): void;
+	setSeries(seriesIdx: number | null, opts: {show?: boolean, focus?: boolean}): void;
 
 	/** adds a series */
 	addSeries(opts: Series, seriesIdx?: number): void;
@@ -772,7 +772,7 @@ export namespace Hooks {
 		setSelect?:  (self: uPlot) => void;
 
 		/** fires after a series is toggled or focused */
-		setSeries?:  (self: uPlot, seriesIdx: number, opts: Series) => void;
+		setSeries?:  (self: uPlot, seriesIdx: number | null, opts: Series) => void;
 
 		/** fires after data is updated updated */
 		setData?:    (self: uPlot) => void;
