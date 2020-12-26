@@ -1,16 +1,16 @@
 | lib            | size    | done    | js,rend,paint,sys | heap peak,final | interact (10s)      |
 | -------------- | ------- | ------- | ----------------- | --------------- | ------------------- |
-| <a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">uPlot</a>          |   28 KB |   65 ms |   99   5   1   67 |  15 MB   3 MB   |  198  371  129  237 |
-| <a href="https://leeoniya.github.io/uPlot/bench/Chart.js-next.html">Chart.js-next</a>  |  229 KB |  235 ms |  289   2   1   95 |  32 MB  20 MB   | 3604   34   46 6125 |
-| <a href="https://leeoniya.github.io/uPlot/bench/LightningChart.html">LightningChart</a> |  931 KB |  --- ms |  356   3   1   70 |  26 MB  20 MB   | 9114   65   55  272 |
-| <a href="https://leeoniya.github.io/uPlot/bench/dygraphs.html">dygraphs</a>       |  125 KB |  185 ms |  260   4   2  171 |  93 MB  48 MB   | 2294  241  114  404 |
-| <a href="https://leeoniya.github.io/uPlot/bench/CanvasJS.html">CanvasJS</a>       |  479 KB |  323 ms |  378   5   1   93 |  40 MB  25 MB   | 2173  457  119  397 |
-| <a href="https://leeoniya.github.io/uPlot/bench/Flot.html">Flot</a>           |  494 KB |  334 ms |  202   7   2  283 |  24 MB  19 MB   | ---                 |
-| <a href="https://leeoniya.github.io/uPlot/bench/dvxcharts.html">dvxcharts</a>      |  369 KB |  326 ms |  585  34   2   62 |  62 MB  26 MB   | 1394  717  204  270 |
-| <a href="https://leeoniya.github.io/uPlot/bench/Highcharts.html">Highcharts</a>     |  384 KB |  --- ms |  748   9   2   75 |  49 MB  21 MB   | 2012  725  217  317 |
-| <a href="https://leeoniya.github.io/uPlot/bench/Chart.js.html">Chart.js</a>       |  245 KB |  654 ms |  718   4   2  164 | 101 MB  85 MB   | 5550    5    7 4020 |
-| <a href="https://leeoniya.github.io/uPlot/bench/Plotly.js.html">Plotly.js</a>      | 3400 KB |  465 ms |  828   7   1   83 |  50 MB  28 MB   | 1507  229   53  177 |
-| <a href="https://leeoniya.github.io/uPlot/bench/ECharts.html">ECharts</a>        |  785 KB |  --- ms |  718   6   7 1120 | 116 MB  77 MB   | 2016   70   25 7856 |
-| <a href="https://leeoniya.github.io/uPlot/bench/ApexCharts.html">ApexCharts</a>     |  460 KB |  --- ms | 2137  28   3   73 | 170 MB  97 MB   | 2030  220   28  122 |
-| <a href="https://leeoniya.github.io/uPlot/bench/ZingChart.html">ZingChart</a>      |  857 KB | 2535 ms | 2711   7   1   66 | 143 MB  85 MB   | ---                 |
-| <a href="https://leeoniya.github.io/uPlot/bench/amCharts.html">amCharts</a>       | 1200 KB | 5825 ms | 7509  47  13   78 | 256 MB 256 MB   | 6932 1288  282  512 |
+| <a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">uPlot</a>          |   38 KB |   65 ms |   93   2   1   50 |  13 MB   3 MB   |  167  384  128  223 |
+| <a href="https://leeoniya.github.io/uPlot/bench/ECharts.html">ECharts</a>        |  954 KB |  114 ms |  149   2   2   55 |  13 MB   5 MB   | 2783  495  147  698 |
+| <a href="https://leeoniya.github.io/uPlot/bench/Flot.html">Flot</a>           |  494 KB |  110 ms |  166   5   2   73 |  32 MB  18 MB   | ---                 |
+| <a href="https://leeoniya.github.io/uPlot/bench/dygraphs.html">dygraphs</a>       |  125 KB |  155 ms |  200   4   1   98 |  72 MB  49 MB   | 1663  237  113  374 |
+| <a href="https://leeoniya.github.io/uPlot/bench/Chart.js-next.html">Chart.js-next</a>  |  219 KB |  250 ms |  290   2   1   65 |  33 MB  20 MB   | 6256   50   79 1313 |
+| <a href="https://leeoniya.github.io/uPlot/bench/LightningChart.html">LightningChart</a> | 1000 KB |  --- ms |  359   3   1   54 |  26 MB  18 MB   | 9308   87   71  279 |
+| <a href="https://leeoniya.github.io/uPlot/bench/CanvasJS.html">CanvasJS</a>       |  479 KB |  292 ms |  340   3   1   80 |  38 MB  27 MB   | 1782  431  112  354 |
+| <a href="https://leeoniya.github.io/uPlot/bench/dvxcharts.html">dvxcharts</a>      |  362 KB |  310 ms |  518  26   2   68 |  62 MB  24 MB   | 1033  592  146  189 |
+| <a href="https://leeoniya.github.io/uPlot/bench/Highcharts.html">Highcharts</a>     |  319 KB |  --- ms |  717   8   2   52 |  49 MB  21 MB   | 1849  682  192  274 |
+| <a href="https://leeoniya.github.io/uPlot/bench/Chart.js.html">Chart.js</a>       |  245 KB |  616 ms |  661   3   2   70 |  92 MB  79 MB   | 8471    6    9 1152 |
+| <a href="https://leeoniya.github.io/uPlot/bench/Plotly.js.html">Plotly.js</a>      | 3500 KB |  449 ms |  769   8   2   82 |  56 MB  23 MB   | 1522  201   52  172 |
+| <a href="https://leeoniya.github.io/uPlot/bench/ApexCharts.html">ApexCharts</a>     |  471 KB |  --- ms | 2070  25   2   76 | 154 MB  95 MB   | 8593  713  106  174 |
+| <a href="https://leeoniya.github.io/uPlot/bench/ZingChart.html">ZingChart</a>      |  856 KB | 2476 ms | 2640   7   1   47 | 140 MB 111 MB   | ---                 |
+| <a href="https://leeoniya.github.io/uPlot/bench/amCharts.html">amCharts</a>       | 1200 KB | 5564 ms | 6057  40  11   80 | 235 MB 231 MB   | 6309  650  248  375 |
