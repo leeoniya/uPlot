@@ -2114,8 +2114,12 @@ var uPlot = (function () {
 		initScale("x");
 		initScale("y");
 
-		series.forEach(function (s, i) {
+		series.forEach(function (s) {
 			initScale(s.scale);
+		});
+
+		axes.forEach(function (a) {
+			initScale(a.scale);
 		});
 
 		for (var k in opts.scales)

@@ -356,8 +356,12 @@ export default function uPlot(opts, data, then) {
 	initScale("x");
 	initScale("y");
 
-	series.forEach((s, i) => {
+	series.forEach(s => {
 		initScale(s.scale);
+	});
+
+	axes.forEach(a => {
+		initScale(a.scale);
 	});
 
 	for (let k in opts.scales)
