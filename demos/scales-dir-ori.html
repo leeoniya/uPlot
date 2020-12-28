@@ -1,0 +1,451 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Scales Direction &amp; Orientation</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			.uplot {
+				display: inline-block;
+				box-shadow: 0 0 1px 1px silver;
+    			margin: 10px;
+			}
+
+			.u-under {
+				background: #f0f0f0;
+			}
+		</style>
+	</head>
+	<body>
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+
+			let xs = [-3,-2,-1,0,1,2,3,4,5,6];
+			let vals = [-10,-4,-2,-1,0,2,3,null,5,6];
+
+			let data = [
+				xs,
+				vals,
+			];
+
+			function chart(opts) {
+				opts = uPlot.assign({
+					scales: {
+						x: {
+							time: false,
+						},
+					},
+					series: [
+						{},
+						{
+							stroke: "red",
+							fill: "rgba(255,0,0,0.1)",
+						},
+					],
+				}, opts);
+
+				return new uPlot(opts, data, document.body);
+			}
+
+			let h2;
+
+			h2 = document.createElement("h2");
+			h2.textContent = "Direction Inversion";
+			document.body.appendChild(h2);
+
+			chart({
+				width: 600,
+				height: 300,
+				title: "+x bottom, +y left",
+				scales: {
+					x: {
+						dir: 1,
+						ori: 0,
+					},
+					y: {
+						dir: 1,
+						ori: 1,
+					}
+				},
+				axes: [
+					{
+						side: 2
+					},
+					{
+						side: 3
+					}
+				],
+			});
+
+			chart({
+				width: 600,
+				height: 300,
+				title: "+x bottom, -y left",
+				scales: {
+					x: {
+						dir: 1,
+						ori: 0,
+					},
+					y: {
+						dir: -1,
+						ori: 1,
+					}
+				},
+				axes: [
+					{
+						side: 2
+					},
+					{
+						side: 3
+					}
+				],
+			});
+
+			chart({
+				width: 600,
+				height: 300,
+				title: "-x bottom, -y left",
+				scales: {
+					x: {
+						dir: -1,
+						ori: 0,
+					},
+					y: {
+						dir: -1,
+						ori: 1,
+					}
+				},
+				axes: [
+					{
+						side: 2
+					},
+					{
+						side: 3
+					}
+				],
+			});
+
+			chart({
+				width: 600,
+				height: 300,
+				title: "-x bottom, +y left",
+				scales: {
+					x: {
+						dir: -1,
+						ori: 0,
+					},
+					y: {
+						dir: 1,
+						ori: 1,
+					}
+				},
+				axes: [
+					{
+						side: 2
+					},
+					{
+						side: 3
+					}
+				],
+			});
+
+			document.body.appendChild(document.createElement("br"));
+
+			chart({
+				width: 600,
+				height: 300,
+				title: "+x top, +y right",
+				scales: {
+					x: {
+						dir: 1,
+						ori: 0,
+					},
+					y: {
+						dir: 1,
+						ori: 1,
+					}
+				},
+				axes: [
+					{
+						side: 0
+					},
+					{
+						side: 1
+					}
+				],
+			});
+
+			chart({
+				width: 600,
+				height: 300,
+				title: "+x top, -y right",
+				scales: {
+					x: {
+						dir: 1,
+						ori: 0,
+					},
+					y: {
+						dir: -1,
+						ori: 1,
+					}
+				},
+				axes: [
+					{
+						side: 0
+					},
+					{
+						side: 1
+					}
+				],
+			});
+
+			chart({
+				width: 600,
+				height: 300,
+				title: "-x top, -y right",
+				scales: {
+					x: {
+						dir: -1,
+						ori: 0,
+					},
+					y: {
+						dir: -1,
+						ori: 1,
+					}
+				},
+				axes: [
+					{
+						side: 0
+					},
+					{
+						side: 1
+					}
+				],
+			});
+
+			chart({
+				width: 600,
+				height: 300,
+				title: "-x top, +y right",
+				scales: {
+					x: {
+						dir: -1,
+						ori: 0,
+					},
+					y: {
+						dir: 1,
+						ori: 1,
+					}
+				},
+				axes: [
+					{
+						side: 0
+					},
+					{
+						side: 1
+					}
+				],
+			});
+
+			h2 = document.createElement("h2");
+			h2.textContent = "Orientation Inversion";
+			document.body.appendChild(h2);
+
+			chart({
+				width: 320,
+				height: 600,
+				title: "+x left, +y top",
+				scales: {
+					x: {
+						dir: 1,
+						ori: 1,
+					},
+					y: {
+						dir: 1,
+						ori: 0,
+					}
+				},
+				axes: [
+					{
+						side: 3
+					},
+					{
+						side: 0
+					}
+				],
+			});
+
+			chart({
+				width: 320,
+				height: 600,
+				title: "+x left, -y top",
+				scales: {
+					x: {
+						dir: 1,
+						ori: 1,
+					},
+					y: {
+						dir: -1,
+						ori: 0,
+					}
+				},
+				axes: [
+					{
+						side: 3
+					},
+					{
+						side: 0
+					}
+				],
+			});
+
+			chart({
+				width: 320,
+				height: 600,
+				title: "-x left, -y top",
+				scales: {
+					x: {
+						dir: -1,
+						ori: 1,
+					},
+					y: {
+						dir: -1,
+						ori: 0,
+					}
+				},
+				axes: [
+					{
+						side: 3
+					},
+					{
+						side: 0
+					}
+				],
+			});
+
+			chart({
+				width: 320,
+				height: 600,
+				title: "-x left, +y top",
+				scales: {
+					x: {
+						dir: -1,
+						ori: 1,
+					},
+					y: {
+						dir: 1,
+						ori: 0,
+					}
+				},
+				axes: [
+					{
+						side: 3
+					},
+					{
+						side: 0
+					}
+				],
+			});
+
+			document.body.appendChild(document.createElement("br"));
+
+			chart({
+				width: 320,
+				height: 600,
+				title: "+x right, +y bottom",
+				scales: {
+					x: {
+						dir: 1,
+						ori: 1,
+					},
+					y: {
+						dir: 1,
+						ori: 0,
+					}
+				},
+				axes: [
+					{
+						side: 1
+					},
+					{
+						side: 2
+					}
+				],
+			});
+
+			chart({
+				width: 320,
+				height: 600,
+				title: "+x right, -y bottom",
+				scales: {
+					x: {
+						dir: 1,
+						ori: 1,
+					},
+					y: {
+						dir: -1,
+						ori: 0,
+					}
+				},
+				axes: [
+					{
+						side: 1
+					},
+					{
+						side: 2
+					}
+				],
+			});
+
+			chart({
+				width: 320,
+				height: 600,
+				title: "-x right, -y bottom",
+				scales: {
+					x: {
+						dir: -1,
+						ori: 1,
+					},
+					y: {
+						dir: -1,
+						ori: 0,
+					}
+				},
+				axes: [
+					{
+						side: 1
+					},
+					{
+						side: 2
+					}
+				],
+			});
+
+			chart({
+				width: 320,
+				height: 600,
+				title: "-x right, +y bottom",
+				scales: {
+					x: {
+						dir: -1,
+						ori: 1,
+					},
+					y: {
+						dir: 1,
+						ori: 0,
+					}
+				},
+				axes: [
+					{
+						side: 1
+					},
+					{
+						side: 2
+					}
+				],
+			});
+		</script>
+	</body>
+</html>
