@@ -131,7 +131,7 @@
 				};
 			}
 
-			function boxesPlugin({ gap = 2, shadowColor = "#000000", bearishColor = "#e54245", bullishColor = "#4ab650", bodyMaxWidth = 20, shadowWidth = 2, bodyOutline = 1 } = {}) {
+			function boxesPlugin({ gap = 2, shadowColor = "#000000", bearishColor = "#e54245", bullishColor = "#4ab650", bodyWidthFactor = 0.7, shadowWidth = 2, bodyOutline = 1 } = {}) {
 
 				function drawBoxes(u) {
 					u.ctx.save();
@@ -175,7 +175,7 @@
 
 						// body rect
 						let columnWidth  = u.bbox.width / (u.scales.x.max - u.scales.x.min);
-						let bodyWidth    = Math.min(bodyMaxWidth, columnWidth - gap);
+						let bodyWidth    = Math.round(bodyWidthFactor * (columnWidth - gap));
 						let bodyHeight   = Math.max(closeAsY, openAsY) - Math.min(closeAsY, openAsY);
 						let bodyX        = timeAsX - (bodyWidth / 2);
 						let bodyY        = Math.min(closeAsY, openAsY);
