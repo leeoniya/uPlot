@@ -3057,11 +3057,15 @@ var uPlot = (function () {
 					isUpperEdge = true;
 					var lowerEdge = series[b.series[1]];
 
-					ctx.save();
-					setCtxStyle(null, null, null, b.fill(self, bi) || seriesFill);
-					ctx.clip(lowerEdge._paths.band);
-					ctx.fill(s._paths.fill);
-					ctx.restore();
+					var clip = (lowerEdge._paths || EMPTY_OBJ).band;
+
+					if (lowerEdge.show && clip) {
+						ctx.save();
+						setCtxStyle(null, null, null, b.fill(self, bi) || seriesFill);
+						ctx.clip(clip);
+						ctx.fill(s._paths.fill);
+						ctx.restore();
+					}
 				}
 			});
 
