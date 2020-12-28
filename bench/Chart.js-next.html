@@ -52,12 +52,9 @@
 					tcp[j] = {x: date, y: packed[i+3]};
 				}
 
-				var min = packed[0] * 60 * 1000;
-				var max = packed[packed.length - numFields] * 60 * 1000;
-
 				console.timeEnd('prep');
 
-				return [cpu, ram, tcp, min, max];
+				return [cpu, ram, tcp];
 			}
 
 			function makeChart(data) {
@@ -110,8 +107,6 @@
 						scales: {
 							x: {
 								type: 'time',
-								min: data[3],
-								max: data[4],
 								stacked: false,
 								ticks: {
 									source: 'auto',
@@ -123,8 +118,6 @@
 							},
 							y: {
 								type: 'linear',
-								min: 0,
-								max: 45,
 								stacked: false,
 								scaleLabel: {
 									display: true,
@@ -133,8 +126,6 @@
 							},
 							y2: {
 								type: 'linear',
-								min: 0,
-								max: 90,
 								stacked: false,
 								position: 'right',
 								scaleLabel: {
