@@ -93,38 +93,38 @@
 
 			let cfgs = [
 				{
-					title: "points only (null path)",
+					title: "null path (points only)",
 					drawStyle: drawStyles.points,
 					lineInterpolation: null,
 					stroke: "#FFFFFF",
 				},
 				{
-					title: "'linear' interpolation (built-in)",
+					title: "linear",
 					drawStyle: drawStyles.line,
 					lineInterpolation: lineInterpolations.linear,
 					stroke: "#7EB26D",
 				},
 				{
 				//	Catmull-Rom Spline (Centripetal)
-					title: "'smooth' interpolation (paths.js)",
+					title: "spline",
 					drawStyle: drawStyles.line,
 					lineInterpolation: lineInterpolations.smooth,
 					stroke: "#EAB839",
 				},
 				{
-					title: "'stepAfter' interpolation (paths.js)",
+					title: "stepped {align: 1}",
 					drawStyle: drawStyles.line,
 					lineInterpolation: lineInterpolations.stepAfter,
 					stroke: "#6ED0E0",
 				},
 				{
-					title: "'stepBefore' interpolation (paths.js)",
+					title: "stepped {align: -1}",
 					drawStyle: drawStyles.line,
 					lineInterpolation: lineInterpolations.stepBefore,
 					stroke: "#EF843C",
 				},
 				{
-					title: "'bars' (paths.js)",
+					title: "bars",
 					drawStyle: drawStyles.bars,
 					lineInterpolation: null,
 					stroke: "#E24D42",
