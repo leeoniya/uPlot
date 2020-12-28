@@ -52,9 +52,12 @@
 					tcp[j] = {x: date, y: packed[i+3]};
 				}
 
+				var min = packed[0] * 60 * 1000;
+				var max = packed[packed.length - numFields] * 60 * 1000;
+
 				console.timeEnd('prep');
 
-				return [cpu, ram, tcp];
+				return [cpu, ram, tcp, min, max];
 			}
 
 			function makeChart(data) {
@@ -69,9 +72,8 @@
 								borderColor: 'rgb(255, 99, 132)',
 								data: data[0],
 								type: 'line',
-								pointRadius: 0,
+								radius: 0,
 								fill: false,
-								lineTension: 0,
 								borderWidth: 1
 							},
 							{
@@ -79,9 +81,8 @@
 								borderColor: 'rgb(54, 162, 235)',
 								data: data[1],
 								type: 'line',
-								pointRadius: 0,
+								radius: 0,
 								fill: false,
-								lineTension: 0,
 								borderWidth: 1
 							},
 							{
@@ -89,9 +90,8 @@
 								borderColor: 'rgb(75, 192, 192)',
 								data: data[2],
 								type: 'line',
-								pointRadius: 0,
+								radius: 0,
 								fill: false,
-								lineTension: 0,
 								borderWidth: 1
 							}
 						]
@@ -100,18 +100,19 @@
 						animation: false,
 						maintainAspectRatio: false,
 						parsing: false,
+						spanGaps: true,
 						normalized: true,
-						tooltips: {
-							mode: 'index',
-							intersect: false
-						},
-						hover: {
+						interaction: {
+							mode: 'nearest',
 							axis: 'x',
 							intersect: false
 						},
 						scales: {
 							x: {
-								type: 'timeseries',
+								type: 'time',
+								min: data[3],
+								max: data[4],
+								stacked: false,
 								ticks: {
 									source: 'auto',
 									maxRotation: 0,
@@ -121,9 +122,24 @@
 								}
 							},
 							y: {
+								type: 'linear',
+								min: 0,
+								max: 45,
+								stacked: false,
 								scaleLabel: {
 									display: true,
 									labelString: '%'
+								}
+							},
+							y2: {
+								type: 'linear',
+								min: 0,
+								max: 90,
+								stacked: false,
+								position: 'right',
+								scaleLabel: {
+									display: true,
+									labelString: 'MB'
 								}
 							}
 						},
