@@ -70,7 +70,16 @@ export default [
 			name: 'uPlot',
 			file: './dist/uPlot.esm.js',
 			format: 'es',
-			esModule: false,
+			banner,
+		},
+	},
+	{
+		input: './src/uPlot.js',
+		output: {
+			name: 'uPlot',
+			file: './dist/uPlot.cjs.js',
+			format: 'cjs',
+			exports: "auto",
 			banner,
 		},
 	},
@@ -80,21 +89,6 @@ export default [
 			name: 'uPlot',
 			file: './dist/uPlot.iife.js',
 			format: 'iife',
-			esModule: false,
-			banner,
-		},
-		plugins: [
-			bannerlessESM(),
-			buble({transforms: { forOf: false, arrow: false }}),
-		]
-	},
-	{
-		input: 'uPlot',
-		output: {
-			name: 'uPlot',
-			file: './dist/uPlot.cjs.js',
-			format: 'cjs',
-			exports: "auto",
 			esModule: false,
 			banner,
 		},
