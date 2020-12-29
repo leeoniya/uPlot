@@ -264,7 +264,6 @@ export default function uPlot(opts, data, then) {
 
 	self.valToPosH = getHPos;
 	self.valToPosV = getVPos
-	self._valToPos = getPos;
 
 	let ready = false;
 	self.status = 0;

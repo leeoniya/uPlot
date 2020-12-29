@@ -2032,7 +2032,6 @@ var uPlot = (function () {
 
 		self.valToPosH = getHPos;
 		self.valToPosV = getVPos;
-		self._valToPos = getPos;
 
 		var ready = false;
 		self.status = 0;
