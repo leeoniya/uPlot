@@ -1,9 +1,9 @@
 import { round, pow, sqrt, nonNullIdx } from '../utils';
-import { aliasProps, addGap, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV } from './utils';
+import { orient, addGap, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV } from './utils';
 
 export function spline(opts) {
 	return (u, seriesIdx, idx0, idx1) => {
-		return aliasProps(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let moveTo, bezierCurveTo, lineTo;
 
 			if (scaleX.ori == 0) {

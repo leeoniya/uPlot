@@ -1,12 +1,12 @@
 import { round, nonNullIdx, ifNull } from '../utils';
-import { aliasProps, addGap, clipGaps, lineToH, lineToV } from './utils';
+import { orient, addGap, clipGaps, lineToH, lineToV } from './utils';
 import { pxRatio } from '../dom';
 
 export function stepped(opts) {
 	const align = ifNull(opts.align, 1);
 
 	return (u, seriesIdx, idx0, idx1) => {
-		return aliasProps(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
 			const stroke = new Path2D();

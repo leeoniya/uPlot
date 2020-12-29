@@ -176,7 +176,7 @@ import { spline  } from './paths/spline';
 import { stepped } from './paths/stepped';
 import { bars    } from './paths/bars';
 
-import { addGap, clipGaps, moveToH, moveToV, arcToH, arcToV, clipBand } from './paths/utils';
+import { addGap, clipGaps, moveToH, moveToV, arcToH, arcToV, clipBand, orient } from './paths/utils';
 
 function log(name, args) {
 	console.log.apply(console, [name].concat(Array.prototype.slice.call(args)));
@@ -2498,6 +2498,7 @@ uPlot.assign = assign;
 uPlot.fmtNum = fmtNum;
 uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
+uPlot.orient   = orient;
 
 if (FEAT_JOIN) {
 	uPlot.join = join;

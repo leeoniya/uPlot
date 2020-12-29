@@ -1,6 +1,6 @@
 import { incrRound } from "../utils";
 
-export function aliasProps(u, seriesIdx, cb) {
+export function orient(u, seriesIdx, cb) {
 	const series = u.series[seriesIdx];
 	const scales = u.scales;
 	const bbox   = u.bbox;
@@ -30,6 +30,11 @@ export function aliasProps(u, seriesIdx, cb) {
 			t,
 			w,
 			h,
+			moveToH,
+			lineToH,
+			rectH,
+			arcToH,
+			bezierCurveToH,
 		)
 		: cb(
 			series,
@@ -43,13 +48,18 @@ export function aliasProps(u, seriesIdx, cb) {
 			l,
 			h,
 			w,
+			moveToV,
+			lineToV,
+			rectV,
+			arcToV,
+			bezierCurveToV,
 		)
 	);
 }
 
 // creates inverted band clip path (towards from stroke path -> yMax)
 export function clipBand(self, seriesIdx, idx0, idx1) {
-	return aliasProps(self, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+	return orient(self, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 		const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 		const lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
@@ -119,12 +129,12 @@ export function addGap(gaps, fromX, toX) {
 }
 
 // orientation-inverting canvas functions
-export function rectH(p, x, y, w, h) { p.rect(x, y, w, h); }
-export function rectV(p, y, x, h, w) { p.rect(x, y, w, h); }
 export function moveToH(p, x, y) { p.moveTo(x, y); }
 export function moveToV(p, y, x) { p.moveTo(x, y); }
 export function lineToH(p, x, y) { p.lineTo(x, y); }
 export function lineToV(p, y, x) { p.lineTo(x, y); }
+export function rectH(p, x, y, w, h) { p.rect(x, y, w, h); }
+export function rectV(p, y, x, h, w) { p.rect(x, y, w, h); }
 export function arcToH(p, x, y, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
 export function arcToV(p, y, x, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
 export function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };

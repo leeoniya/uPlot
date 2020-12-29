@@ -100,7 +100,7 @@ declare class uPlot {
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
 	syncRect(): void;
 
-	/** uPlot's default line path builder (handles nulls/gaps & data decimation) */
+	/** uPlot's path-builder factories */
 	static paths: Series.PathBuilderFactories;
 
 	/** a deep merge util fn */
@@ -127,7 +127,42 @@ declare class uPlot {
 	static addGap: Series.AddGap;
 
 	static clipGaps: Series.ClipPathBuilder;
+
+	/** helper function for grabbing proper drawing orientation vars and fns for a plot instance (all dims in canvas pixels) */
+	static orient: (u: uPlot, seriesIdx: number, callback: OrientCallback) => any;
 }
+
+type OrientCallback = (
+	series: Series,
+	dataX: number[],
+	dataY: (number | null)[],
+	scaleX: Scale,
+	scaleY: Scale,
+	valToPosX: ValToPos,
+	valToPosY: ValToPos,
+	xOff: number,
+	yOff: number,
+	xDim: number,
+	yDim: number,
+	moveTo: MoveToH | MoveToV,
+	lineTo: LineToH | LineToV,
+	rect:   RectH   | RectV,
+	arcTo:  ArcToH  | ArcToV,
+	bezierCurveTo: BezierCurveToH | BezierCurveToV,
+) => any;
+
+type ValToPos = (val: number, scale: Scale, fullDim: number, offset: number) => number;
+
+type MoveToH = (p: Path2D, x: number, y: number) => void;
+type MoveToV = (p: Path2D, y: number, x: number) => void;
+type LineToH = (p: Path2D, x: number, y: number) => void;
+type LineToV = (p: Path2D, y: number, x: number) => void;
+type RectH   = (p: Path2D, x: number, y: number, w: number, h: number) => void;
+type RectV   = (p: Path2D, y: number, x: number, h: number, w: number) => void;
+type ArcToH  = (p: Path2D, x: number, y: number, r: number, startAngle: number, endAngle: number) => void;
+type ArcToV  = (p: Path2D, y: number, x: number, r: number, startAngle: number, endAngle: number) => void;
+type BezierCurveToH = (p: Path2D, bp1x: number, bp1y: number, bp2x: number, bp2y: number, p2x: number, p2y: number) => void;
+type BezierCurveToV = (p: Path2D, bp1y: number, bp1x: number, bp2y: number, bp2x: number, p2y: number, p2x: number) => void;
 
 export const enum JoinNullMode {
 	/** use for series with spanGaps = true */

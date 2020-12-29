@@ -1,5 +1,5 @@
 import { min, max, round, roundDec, incrRound, nonNullIdx, inf } from '../utils';
-import { aliasProps, addGap, clipGaps, lineToH, lineToV } from './utils';
+import { orient, addGap, clipGaps, lineToH, lineToV } from './utils';
 import { pxRatio } from '../dom';
 
 function _drawAcc(lineTo) {
@@ -15,7 +15,7 @@ const drawAccV = _drawAcc(lineToV);
 
 export function linear() {
 	return (u, seriesIdx, idx0, idx1) => {
-		return aliasProps(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let lineTo, drawAcc;
 
 			if (scaleX.ori == 0) {

@@ -1,5 +1,5 @@
 import { min, max, round, inf, ifNull, EMPTY_OBJ } from '../utils';
-import { aliasProps, rectV, rectH } from './utils';
+import { orient, rectV, rectH } from './utils';
 import { pxRatio } from '../dom';
 
 export function bars(opts) {
@@ -10,7 +10,7 @@ export function bars(opts) {
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
 
 	return (u, seriesIdx, idx0, idx1) => {
-		return aliasProps(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let rect = scaleX.ori == 0 ? rectH : rectV;
 
 			let colWid = valToPosX(dataX[1], scaleX, xDim, xOff) - valToPosX(dataX[0], scaleX, xDim, xOff);

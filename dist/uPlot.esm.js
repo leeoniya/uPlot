@@ -1349,7 +1349,7 @@ function _sync(opts) {
 	};
 }
 
-function aliasProps(u, seriesIdx, cb) {
+function orient(u, seriesIdx, cb) {
 	const series = u.series[seriesIdx];
 	const scales = u.scales;
 	const bbox   = u.bbox;
@@ -1379,6 +1379,11 @@ function aliasProps(u, seriesIdx, cb) {
 			t,
 			w,
 			h,
+			moveToH,
+			lineToH,
+			rectH,
+			arcToH,
+			bezierCurveToH,
 		)
 		: cb(
 			series,
@@ -1392,13 +1397,18 @@ function aliasProps(u, seriesIdx, cb) {
 			l,
 			h,
 			w,
+			moveToV,
+			lineToV,
+			rectV,
+			arcToV,
+			bezierCurveToV,
 		)
 	);
 }
 
 // creates inverted band clip path (towards from stroke path -> yMax)
 function clipBand(self, seriesIdx, idx0, idx1) {
-	return aliasProps(self, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+	return orient(self, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 		const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 		const lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
@@ -1468,12 +1478,12 @@ function addGap(gaps, fromX, toX) {
 }
 
 // orientation-inverting canvas functions
-function rectH(p, x, y, w, h) { p.rect(x, y, w, h); }
-function rectV(p, y, x, h, w) { p.rect(x, y, w, h); }
 function moveToH(p, x, y) { p.moveTo(x, y); }
 function moveToV(p, y, x) { p.moveTo(x, y); }
 function lineToH(p, x, y) { p.lineTo(x, y); }
 function lineToV(p, y, x) { p.lineTo(x, y); }
+function rectH(p, x, y, w, h) { p.rect(x, y, w, h); }
+function rectV(p, y, x, h, w) { p.rect(x, y, w, h); }
 function arcToH(p, x, y, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
 function arcToV(p, y, x, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
 function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }function bezierCurveToV(p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }
@@ -1491,7 +1501,7 @@ const drawAccV = _drawAcc(lineToV);
 
 function linear() {
 	return (u, seriesIdx, idx0, idx1) => {
-		return aliasProps(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let lineTo, drawAcc;
 
 			if (scaleX.ori == 0) {
@@ -1604,7 +1614,7 @@ function linear() {
 
 function spline(opts) {
 	return (u, seriesIdx, idx0, idx1) => {
-		return aliasProps(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let moveTo, bezierCurveTo, lineTo;
 
 			if (scaleX.ori == 0) {
@@ -1809,7 +1819,7 @@ function stepped(opts) {
 	const align = ifNull(opts.align, 1);
 
 	return (u, seriesIdx, idx0, idx1) => {
-		return aliasProps(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
 			const stroke = new Path2D();
@@ -1896,7 +1906,7 @@ function bars(opts) {
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
 
 	return (u, seriesIdx, idx0, idx1) => {
-		return aliasProps(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let rect = scaleX.ori == 0 ? rectH : rectV;
 
 			let colWid = valToPosX(dataX[1], scaleX, xDim, xOff) - valToPosX(dataX[0], scaleX, xDim, xOff);
@@ -4259,6 +4269,7 @@ uPlot.assign = assign;
 uPlot.fmtNum = fmtNum;
 uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
+uPlot.orient   = orient;
 
 {
 	uPlot.join = join;
