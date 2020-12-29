@@ -74,7 +74,9 @@
 			}
 
 			function seriesBarsPlugin(opts) {
-				const labels   = opts.labels;
+				const pxRatio    = devicePixelRatio;
+
+				const labels     = opts.labels;
 
 				const groupWidth = 0.9;
 				const groupDistr = SPACE_BETWEEN;
@@ -82,7 +84,7 @@
 				const barWidth   = 1;
 				const barDistr   = SPACE_BETWEEN;
 
-				const font       = Math.round(10 * devicePixelRatio) + "px Arial";
+				const font       = Math.round(10 * pxRatio) + "px Arial";
 
 			/*
 				function doOverlap(curs, rect) {
@@ -202,8 +204,8 @@
 							qt.clear();
 						},
 						setCursor: u => {
-							curs.x = u.cursor.left * devicePixelRatio;
-							curs.y = u.cursor.top * devicePixelRatio;
+							curs.x = u.cursor.left * pxRatio;
+							curs.y = u.cursor.top * pxRatio;
 
 							let found = null;
 
@@ -214,7 +216,7 @@
 
 							if (found) {
 								if (found != hovered) {
-									let pxRatio = devicePixelRatio;
+
 
 									barMark.style.display = null;
 									barMark.style.left    = (found.x / pxRatio)      + "px";
@@ -258,8 +260,8 @@
 								let splits = [];
 
 								distr(u.data[0].length, groupWidth, groupDistr, null, (di, lftPct, widPct) => {
-									let groupLftPx = (width * lftPct);
-									let groupWidPx = (width * widPct);
+									let groupLftPx = (width * lftPct) / pxRatio;
+									let groupWidPx = (width * widPct) / pxRatio;
 
 									let groupCenterPx = groupLftPx + groupWidPx / 2;
 
