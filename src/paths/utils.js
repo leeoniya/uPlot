@@ -33,7 +33,7 @@ export function orient(u, seriesIdx, cb) {
 			moveToH,
 			lineToH,
 			rectH,
-			arcToH,
+			arcH,
 			bezierCurveToH,
 		)
 		: cb(
@@ -51,7 +51,7 @@ export function orient(u, seriesIdx, cb) {
 			moveToV,
 			lineToV,
 			rectV,
-			arcToV,
+			arcV,
 			bezierCurveToV,
 		)
 	);
@@ -135,7 +135,7 @@ export function lineToH(p, x, y) { p.lineTo(x, y); }
 export function lineToV(p, y, x) { p.lineTo(x, y); }
 export function rectH(p, x, y, w, h) { p.rect(x, y, w, h); }
 export function rectV(p, y, x, h, w) { p.rect(x, y, w, h); }
-export function arcToH(p, x, y, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
-export function arcToV(p, y, x, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
+export function arcH(p, x, y, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
+export function arcV(p, y, x, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
 export function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };
 export function bezierCurveToV(p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };

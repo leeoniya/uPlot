@@ -1384,7 +1384,7 @@ function orient(u, seriesIdx, cb) {
 			moveToH,
 			lineToH,
 			rectH,
-			arcToH,
+			arcH,
 			bezierCurveToH,
 		)
 		: cb(
@@ -1402,7 +1402,7 @@ function orient(u, seriesIdx, cb) {
 			moveToV,
 			lineToV,
 			rectV,
-			arcToV,
+			arcV,
 			bezierCurveToV,
 		)
 	);
@@ -1486,8 +1486,8 @@ function lineToH(p, x, y) { p.lineTo(x, y); }
 function lineToV(p, y, x) { p.lineTo(x, y); }
 function rectH(p, x, y, w, h) { p.rect(x, y, w, h); }
 function rectV(p, y, x, h, w) { p.rect(x, y, w, h); }
-function arcToH(p, x, y, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
-function arcToV(p, y, x, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
+function arcH(p, x, y, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
+function arcV(p, y, x, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
 function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }function bezierCurveToV(p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }
 
 function _drawAcc(lineTo) {
@@ -2145,14 +2145,14 @@ function uPlot(opts, data, then) {
 
 	const xScaleDistr = scaleX.distr;
 
-	let valToPosX, valToPosY, moveTo, arcTo;
+	let valToPosX, valToPosY, moveTo, arc;
 
 	if (scaleX.ori == 0) {
 		addClass(root, ORI_HZ);
 		valToPosX = getHPos;
 		valToPosY = getVPos;
 		moveTo    = moveToH;
-		arcTo     = arcToH;
+		arc       = arcH;
 		/*
 		updOriDims = () => {
 			xDimCan = plotWid;
@@ -2172,7 +2172,7 @@ function uPlot(opts, data, then) {
 		valToPosX = getVPos;
 		valToPosY = getHPos;
 		moveTo    = moveToV;
-		arcTo     = arcToV;
+		arc       = arcV;
 		/*
 		updOriDims = () => {
 			xDimCan = plotHgt;
@@ -2931,7 +2931,7 @@ function uPlot(opts, data, then) {
 				let y = round(valToPosY(data[si][pi], scaleY, yDim, yOff));
 
 				moveTo(path, x + rad, y);
-				arcTo(path, x, y, rad, 0, PI * 2);
+				arc(path, x, y, rad, 0, PI * 2);
 			}
 		}
 

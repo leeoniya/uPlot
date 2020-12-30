@@ -176,7 +176,7 @@ import { spline  } from './paths/spline';
 import { stepped } from './paths/stepped';
 import { bars    } from './paths/bars';
 
-import { addGap, clipGaps, moveToH, moveToV, arcToH, arcToV, clipBand, orient } from './paths/utils';
+import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, clipBand, orient } from './paths/utils';
 
 function log(name, args) {
 	console.log.apply(console, [name].concat(Array.prototype.slice.call(args)));
@@ -370,14 +370,14 @@ export default function uPlot(opts, data, then) {
 
 	const xScaleDistr = scaleX.distr;
 
-	let valToPosX, valToPosY, moveTo, arcTo, xDimCan, xOffCan, yDimCan, yOffCan, xDimCss, xOffCss, yDimCss, yOffCss, updOriDims;
+	let valToPosX, valToPosY, moveTo, arc, xDimCan, xOffCan, yDimCan, yOffCan, xDimCss, xOffCss, yDimCss, yOffCss, updOriDims;
 
 	if (scaleX.ori == 0) {
 		addClass(root, ORI_HZ);
 		valToPosX = getHPos;
 		valToPosY = getVPos;
 		moveTo    = moveToH;
-		arcTo     = arcToH;
+		arc       = arcH;
 		/*
 		updOriDims = () => {
 			xDimCan = plotWid;
@@ -397,7 +397,7 @@ export default function uPlot(opts, data, then) {
 		valToPosX = getVPos;
 		valToPosY = getHPos;
 		moveTo    = moveToV;
-		arcTo     = arcToV;
+		arc       = arcV;
 		/*
 		updOriDims = () => {
 			xDimCan = plotHgt;
@@ -1157,7 +1157,7 @@ export default function uPlot(opts, data, then) {
 				let y = round(valToPosY(data[si][pi], scaleY, yDim, yOff));
 
 				moveTo(path, x + rad, y);
-				arcTo(path, x, y, rad, 0, PI * 2);
+				arc(path, x, y, rad, 0, PI * 2);
 			}
 		}
 
