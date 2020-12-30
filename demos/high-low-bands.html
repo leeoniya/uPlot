@@ -97,6 +97,82 @@
 			};
 
 			let u = new uPlot(opts, data, document.body);
+
+
+			const { linear, spline, stepped } = uPlot.paths;
+
+			let data2 = [
+				[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100],
+				[109, 117, 122, 104, 105, 117, 119, 121, 117, 121, 122, 129, 119, 113, 113, 121, 108, 108, 100, 103, 113, 110, 107, 105, 99, 93, 87, 83, 91, 85, 81, 69, 76, 61, 63, 74, 76, 68, 55, 61, 48, 39, 54, 44, 37, 30, 22, 33, 29, 21, 22, 43, 47, 33, 47, 28, 29, 31, 32, 35, 37, 25, -5, -14, -7, -14, -7, -18, -18, -18, -16, -41, -22, -30, -27, -30, -47, -49, -47, -42, -55, -34, -27, -22, -23, -34, -23, -32, -36, -47, -33, -32, -18, -23, -21, -33, -39, -21, -18, -27, -5],
+			];
+
+			data2.push(data2[1].map(v => 100 + Math.round(v + Math.random() * 100)));
+			data2.push(data2[2].map(v => 100 + Math.round(v + Math.random() * 100)));
+			data2.push(data2[3].map(v => 100 + Math.round(v + Math.random() * 100)));
+
+			data2[1].splice(22, 4, null, null, null, null);
+
+			const _stepBefore = stepped({align: -1});
+			const _stepAfter  = stepped({align:  1});
+			const _spline     = spline();
+
+			const opts2 = {
+				width: 1920,
+				height: 600,
+				title: "Differing Paths",
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					{
+						label:  "linear",
+						stroke: "green",
+						fill:   "rgba(0, 255, 0, 0.1)",
+					},
+					{
+						label:  "stepBefore",
+						stroke: "magenta",
+						fill:   "rgb(255, 0, 255, 0.05)",
+						paths:  _stepBefore,
+					},
+					{
+						label:  "spline",
+						stroke: "blue",
+						fill:   "rgba(0, 0, 255, 0.05)",
+						paths:  _spline,
+					},
+					{
+						label:  "stepAfter",
+						stroke: "red",
+						fill:   "rgba(255, 0, 0, 0.05)",
+						paths:  _stepAfter,
+
+						dash: [5, 5],
+					},
+				],
+				bands: [
+					{
+						show:   true,
+						series: [4,3],
+					//	fill:   "rgba(255,0,0,0.1)",
+					},
+					{
+						show:   true,
+						series: [3,2],
+					//	fill:   "rgba(0,255,0,0.1)",
+					},
+					{
+						show:   true,
+						series: [2,1],
+					//	fill:   "rgba(0,255,0,0.1)",
+					},
+				],
+			};
+
+			let u2 = new uPlot(opts2, data2, document.body);
 		</script>
 	</body>
 </html>
