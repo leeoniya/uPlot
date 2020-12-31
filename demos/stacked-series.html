@@ -23,130 +23,125 @@
 		<p>So you think you want a stacked series chart? Trust me, <a href="https://everydayanalytics.ca/2014/08/stacked-area-graphs-are-not-your-friend.html"><strong>you don't</strong></a>. uPlot does not provide this functionality in the core, both out of principle and because it requires inter-series data aggregation. However, if you really need to mislead people with shitty charts, you can still technically get it done.</p>
 		<p>The two charts below <strong>show exactly the same data</strong> (did you notice?)</p>
 		<script>
-			let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
-			let d1 = xs.map(t => 5);
-			let d2 = xs.map(t => 5);
-			let d3 = xs.map(t => 10);
-			let d4 = xs.map(t => 10);
-			let d5 = xs.map((t, i) => i < 15 ? 20 + i : i == 15 ? 15 : i == 16 ? 14 : 30);
-
-			let data = [
-				xs,
-				d5,
-				d4,
-				d3,
-				d2,
-				d1,
-			];
-
-			function stacked(data) {
+			function stack(data, omit) {
 				let data2 = [];
-				let accum = data[0].map(t => 0);
+				let accum = Array(data[0].length).fill(0);
+				let bands = [];
 
 				for (let i = 1; i < data.length; i++)
-					data2.push(data[i].map((v, i) => (accum[i] += v)));
+					data2.push(omit(i) ? data[i] : data[i].map((v, i) => (accum[i] += v)));
 
-				return [data[0]].concat(data2.reverse());
+				for (let i = 1; i < data.length; i++)
+					!omit(i) && bands.push({
+						series: [
+							data.findIndex((s, j) => j > i && !omit(j)),
+							i,
+						],
+						fill: () => null,
+					});
+
+				bands = bands.filter(b => b.series[1] > -1);
+
+				return {
+					data: [data[0]].concat(data2),
+					bands,
+				};
 			}
 
-			const opts = {
-				width: 800,
-				height: 400,
-				title: "Stacked Series",
-				scales: {
-					x: {
-						time: false,
-					},
-					y: {
-						auto: false,
-						range: [0, 70],
+			let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30],
+				d1 = xs.map((t, i) => i < 15 ? 20 + i : i == 15 ? 15 : i == 16 ? 14 : i == 24 ? 20 : i == 28 ? 15 : i == 29 ? 0 : 30),
+				d2 = xs.map((t, i) => i == 24 ? 20 : 10),
+				d3 = Array(xs.length).fill(10),
+				d4 = Array(xs.length).fill(5),
+				d5 = Array(xs.length).fill(5);
+
+			function getStackedOpts(title, series, data) {
+				let opts = getOpts(title, series);
+
+				opts.series.forEach(s => {
+					s.value = (u, v, si, i) => data[si][i];
+				});
+
+				// force 0 to be the sum minimum this instead of the bottom series
+				opts.scales.y = {
+					range: (u, min, max) => {
+						let minMax = uPlot.rangeNum(0, max, 0.1, true);
+						return [0, minMax[1]];
 					}
+				};
+
+				let stacked = stack(data, i => false);
+
+				opts.bands = stacked.bands;
+
+				// restack on toggle
+				opts.hooks = {
+					setSeries: [
+						(u, i) => {
+							let stacked = stack(data, i => !u.series[i].show);
+							u.bands.length = 0;
+							u.bands.push.apply(u.bands, stacked.bands);
+							u.setData(stacked.data);
+						}
+					],
+				};
+
+				return {opts, data: stacked.data};
+			}
+
+			function stackedChart(title, series, _data) {
+				let { opts, data } = getStackedOpts(title, series, _data);
+				return new uPlot(opts, data, document.body);
+			}
+
+			function getOpts(title, series) {
+				return {
+					title,
+					width: 800,
+					height: 400,
+					scales: {
+						x: {
+							time: false,
+						},
+					},
+					series
+				};
+			}
+
+			let series = [
+				{
+					fill: "rgba(165, 55, 253, 0.4)",
+					stroke: "purple",
 				},
-				series: [
-					{},
-					{
-						fill: "red",
-						stroke: "red",
-						value: (u, v, si, i) => data[5][i],
-					},
-					{
-						fill: "green",
-						stroke: "green",
-						value: (u, v, si, i) => data[4][i],
-					},
-					{
-						fill: "blue",
-						stroke: "blue",
-						value: (u, v, si, i) => data[3][i],
-					},
-					{
-						fill: "orange",
-						stroke: "orange",
-						value: (u, v, si, i) => data[2][i],
-					},
-					{
-						fill: "purple",
-						stroke: "purple",
-						value: (u, v, si, i) => data[1][i],
-					},
-				],
-			};
-
-			let u = new uPlot(opts, stacked(data), document.body);
-
-			let data2 = [
-				xs,
-				d1,
-				d2,
-				d3,
-				d4,
-				d5,
+				{
+					fill: "rgba(255, 165, 0, 0.4)",
+					stroke: "orange",
+				},
+				{
+					fill: "rgba(0,0,255,0.3)",
+					stroke: "blue",
+				},
+				{
+					fill: "rgba(0,255,0,0.3)",
+					stroke: "green",
+				},
+				{
+					fill: "rgba(255,0,0,0.3)",
+					stroke: "red",
+				},
 			];
 
-			const opts2 = {
-				width: 800,
-				height: 400,
-				title: "Stacked Series",
-				scales: {
-					x: {
-						time: false,
-					},
-					y: {
-						auto: false,
-						range: [0, 70],
-					}
-				},
-				series: [
-					{},
-					{
-						fill: "purple",
-						stroke: "purple",
-						value: (u, v, si, i) => data2[5][i],
-					},
-					{
-						fill: "orange",
-						stroke: "orange",
-						value: (u, v, si, i) => data2[4][i],
-					},
-					{
-						fill: "blue",
-						stroke: "blue",
-						value: (u, v, si, i) => data2[3][i],
-					},
-					{
-						fill: "green",
-						stroke: "green",
-						value: (u, v, si, i) => data2[2][i],
-					},
-					{
-						fill: "red",
-						stroke: "red",
-						value: (u, v, si, i) => data2[1][i],
-					},
-				],
-			};
+			stackedChart(
+				"Stacked 1",
+				[{}].concat(series),
+				[xs, d1, d2, d3, d4, d5]
+			);
 
-			let u2 = new uPlot(opts2, stacked(data2), document.body);
+			stackedChart(
+				"Stacked 2",
+				[{}].concat(series.reverse()),
+				[xs, d5, d4, d3, d2, d1],
+			);
 		</script>
 		<p>In summary, <strong>JUST DON'T.</strong></p>
 	</body>
