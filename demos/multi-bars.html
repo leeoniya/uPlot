@@ -150,7 +150,7 @@
 							x: Math.round(x0),
 							y: Math.round(y0),
 							width: Math.round(wid),
-							height: zeroY-Math.round(y0),
+							height: zeroY - Math.round(y0),
 							sidx: sidx,
 							didx: i,
 						});
@@ -201,7 +201,13 @@
 								width:  u.bbox.width,
 								height: u.bbox.height,
 							});
+
 							qt.clear();
+
+							// force-clear the path cache to cause drawBars() to rebuild new quadtree
+							u.series.forEach(s => {
+								s._paths = null;
+							});
 						},
 						setCursor: u => {
 							curs.x = u.cursor.left * pxRatio;
@@ -216,8 +222,6 @@
 
 							if (found) {
 								if (found != hovered) {
-
-
 									barMark.style.display = null;
 									barMark.style.left    = (found.x / pxRatio)      + "px";
 									barMark.style.top     = (found.y  / pxRatio)     + "px";
