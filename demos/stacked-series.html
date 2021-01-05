@@ -29,7 +29,7 @@
 				let bands = [];
 
 				for (let i = 1; i < data.length; i++)
-					data2.push(omit(i) ? data[i] : data[i].map((v, i) => (accum[i] += v)));
+					data2.push(omit(i) ? data[i] : data[i].map((v, i) => (accum[i] += +v)));
 
 				for (let i = 1; i < data.length; i++)
 					!omit(i) && bands.push({

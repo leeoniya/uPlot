@@ -176,7 +176,7 @@ import { spline  } from './paths/spline';
 import { stepped } from './paths/stepped';
 import { bars    } from './paths/bars';
 
-import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, clipBand, orient } from './paths/utils';
+import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, orient } from './paths/utils';
 
 function log(name, args) {
 	console.log.apply(console, [name].concat(Array.prototype.slice.call(args)));
@@ -1201,12 +1201,6 @@ export default function uPlot(opts, data, then) {
 				if (i > 0 && s.show && s._paths == null) {
 					let _idxs = getOuterIdxs(data[i]);
 					s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
-
-					if (s._paths && bands.length > 0) {
-						// ADDL OPT: only create band clips for series that are band lower edges
-						// if (b.series[1] == i && _paths.band == null)
-						s._paths.band = clipBand(self, i, _idxs[0], _idxs[1]);
-					}
 				}
 			});
 
@@ -1814,15 +1808,6 @@ export default function uPlot(opts, data, then) {
 			s.show = opts.show;
 			FEAT_LEGEND && toggleDOM(i, opts.show);
 
-			/*
-			if (s.band) {
-				// not super robust, will break if two bands are adjacent
-				let ip = series[i+1] && series[i+1].band ? i+1 : i-1;
-				series[ip].show = s.show;
-				FEAT_LEGEND && toggleDOM(ip, opts.show);
-			}
-			*/
-
 			_setScale(s.scale, null, null);
 			commit();
 		}
@@ -1848,14 +1833,6 @@ export default function uPlot(opts, data, then) {
 		let s = series[i];
 
 		_alpha(i, value);
-
-		/*
-		if (s.band) {
-			// not super robust, will break if two bands are adjacent
-			let ip = series[i+1].band ? i+1 : i-1;
-			_alpha(ip, value);
-		}
-		*/
 	}
 
 	// y-distance

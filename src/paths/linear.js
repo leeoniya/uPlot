@@ -1,5 +1,5 @@
 import { min, max, round, roundDec, incrRound, nonNullIdx, inf } from '../utils';
-import { orient, addGap, clipGaps, lineToH, lineToV } from './utils';
+import { orient, addGap, clipGaps, lineToH, lineToV, clipBandLine } from './utils';
 import { pxRatio } from '../dom';
 
 function _drawAcc(lineTo) {
@@ -31,9 +31,8 @@ export function linear() {
 
 			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-			const _paths = {stroke: new Path2D(), fill: null, clip: null};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
 			const stroke = _paths.stroke;
-			const width = roundDec(series.width * pxRatio, 3);
 
 			let minY = inf,
 				maxY = -inf,
@@ -110,15 +109,22 @@ export function linear() {
 			if (rgtX < xOff + xDim)
 				addGap(gaps, rgtX, xOff + xDim);
 
-			if (!series.spanGaps)
-				_paths.clip =  clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
-
 			if (series.fill != null) {
 				let fill = _paths.fill = new Path2D(stroke);
 
 				let fillTo = round(valToPosY(series.fillTo(u, seriesIdx, series.min, series.max), scaleY, yDim, yOff));
+
 				lineTo(fill, rgtX, fillTo);
 				lineTo(fill, lftX, fillTo);
+			}
+
+			if (!series.spanGaps)
+				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
+
+			if (u.bands.length > 0) {
+				// ADDL OPT: only create band clips for series that are band lower edges
+				// if (b.series[1] == i && _paths.band == null)
+				_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke);
 			}
 
 			return _paths;

@@ -99,7 +99,7 @@
 			let u = new uPlot(opts, data, document.body);
 
 
-			const { linear, spline, stepped } = uPlot.paths;
+			const { linear, spline, stepped, bars } = uPlot.paths;
 
 			let data2 = [
 				[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100],
@@ -173,6 +173,75 @@
 			};
 
 			let u2 = new uPlot(opts2, data2, document.body);
+
+
+			// generate bar builder with 60% bar (40% gap) & 100px max bar width
+			const _bars60_100 = bars({size: [0.6, 100]});
+
+			const opts3 = {
+				width: 1920,
+				height: 600,
+				title: "Bars",
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					{
+						label:  "bars 1",
+					//	stroke: "green",
+						width:  0,
+						fill:   "rgba(0, 255, 0, 0.3)",
+						paths:  _bars60_100,
+						points: {show: false},
+					},
+					{
+						label:  "bars 2",
+					//	stroke: "magenta",
+						width:  0,
+						fill:   "rgb(255, 0, 255, 0.3)",
+						paths:  _bars60_100,
+						points: {show: false},
+					},
+					{
+						label:  "bars 3",
+					//	stroke: "blue",
+						width:  0,
+						fill:   "rgba(0, 0, 255, 0.3)",
+						paths:  _bars60_100,
+						points: {show: false},
+					},
+					{
+						label:  "bars 4",
+					//	stroke: "red",
+						width:  0,
+						fill:   "rgba(255, 0, 0, 0.3)",
+						paths:  _bars60_100,
+						points: {show: false},
+					},
+				],
+				bands: [
+					{
+						show:   true,
+						series: [4,3],
+					//	fill:   "rgba(255,0,0,0.1)",
+					},
+					{
+						show:   true,
+						series: [3,2],
+					//	fill:   "rgba(0,255,0,0.1)",
+					},
+					{
+						show:   true,
+						series: [2,1],
+					//	fill:   "rgba(0,255,0,0.1)",
+					},
+				],
+			};
+
+			let u3 = new uPlot(opts3, data2, document.body);
 		</script>
 	</body>
 </html>

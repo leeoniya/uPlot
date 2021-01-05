@@ -1,5 +1,5 @@
 import { round, pow, sqrt, nonNullIdx } from '../utils';
-import { orient, addGap, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV } from './utils';
+import { orient, addGap, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV, clipBandLine } from './utils';
 
 export function spline(opts) {
 	return (u, seriesIdx, idx0, idx1) => {
@@ -53,24 +53,29 @@ export function spline(opts) {
 				}
 			}
 
-			const stroke = catmullRomFitting(xCoords, yCoords, 0.5, moveTo, bezierCurveTo);
+			const _paths = {stroke: catmullRomFitting(xCoords, yCoords, 0.5, moveTo, bezierCurveTo), fill: null, clip: null, band: null};
+			const stroke = _paths.stroke;
 
-			const fill = new Path2D(stroke);
+			if (series.fill != null) {
+				let fill = _paths.fill = new Path2D(stroke);
 
-			let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
+				let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
+				let minY = round(valToPosY(fillTo, scaleY, yDim, yOff));
 
-			let minY = round(valToPosY(fillTo, scaleY, yDim, yOff));
+				lineTo(fill, prevXPos, minY);
+				lineTo(fill, firstXPos, minY);
+			}
 
-			lineTo(fill, prevXPos, minY);
-			lineTo(fill, firstXPos, minY);
+			if (!series.spanGaps)
+				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
 
-			let clip = !series.spanGaps ? clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim) : null;
+			if (u.bands.length > 0) {
+				// ADDL OPT: only create band clips for series that are band lower edges
+				// if (b.series[1] == i && _paths.band == null)
+				_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke);
+			}
 
-			return {
-				stroke,
-				fill,
-				clip,
-			};
+			return _paths;
 
 			//  if FEAT_PATHS: false in rollup.config.js
 			//	u.ctx.save();

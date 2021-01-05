@@ -147,7 +147,7 @@ type OrientCallback = (
 	moveTo: MoveToH | MoveToV,
 	lineTo: LineToH | LineToV,
 	rect:   RectH   | RectV,
-	arcTo:  ArcToH  | ArcToV,
+	arc:    ArcH    | ArcV,
 	bezierCurveTo: BezierCurveToH | BezierCurveToV,
 ) => any;
 
@@ -159,8 +159,8 @@ type LineToH = (p: Path2D, x: number, y: number) => void;
 type LineToV = (p: Path2D, y: number, x: number) => void;
 type RectH   = (p: Path2D, x: number, y: number, w: number, h: number) => void;
 type RectV   = (p: Path2D, y: number, x: number, h: number, w: number) => void;
-type ArcToH  = (p: Path2D, x: number, y: number, r: number, startAngle: number, endAngle: number) => void;
-type ArcToV  = (p: Path2D, y: number, x: number, r: number, startAngle: number, endAngle: number) => void;
+type ArcH    = (p: Path2D, x: number, y: number, r: number, startAngle: number, endAngle: number) => void;
+type ArcV    = (p: Path2D, y: number, x: number, r: number, startAngle: number, endAngle: number) => void;
 type BezierCurveToH = (p: Path2D, bp1x: number, bp1y: number, bp2x: number, bp2y: number, p2x: number, p2y: number) => void;
 type BezierCurveToV = (p: Path2D, bp1y: number, bp1x: number, bp2y: number, bp2x: number, p2y: number, p2x: number) => void;
 

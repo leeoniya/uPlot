@@ -1,5 +1,5 @@
 /**
-* Copyright (c) 2020, Leon Sorokin
+* Copyright (c) 2021, Leon Sorokin
 * All rights reserved. (MIT Licensed)
 *
 * uPlot.js (μPlot)
@@ -1410,7 +1410,7 @@ var uPlot = (function () {
 	}
 
 	// creates inverted band clip path (towards from stroke path -> yMax)
-	function clipBand(self, seriesIdx, idx0, idx1) {
+	function clipBandLine(self, seriesIdx, idx0, idx1, strokePath) {
 		return orient(self, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			var dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 			var lineTo = scaleX.ori == 0 ? lineToH : lineToV;
@@ -1434,7 +1434,7 @@ var uPlot = (function () {
 			// upper y limit
 			var yLimit = incrRound(valToPosY(scaleY.max, scaleY, yDim, yOff), 0.5);
 
-			var clip = new Path2D(series._paths.stroke);
+			var clip = new Path2D(strokePath);
 
 			lineTo(clip, x1, yLimit);
 			lineTo(clip, x0, yLimit);
@@ -1520,9 +1520,8 @@ var uPlot = (function () {
 
 				var dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-				var _paths = {stroke: new Path2D(), fill: null, clip: null};
+				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
 				var stroke = _paths.stroke;
-				var width = roundDec(series.width * pxRatio, 3);
 
 				var minY = inf,
 					maxY = -inf,
@@ -1599,15 +1598,22 @@ var uPlot = (function () {
 				if (rgtX < xOff + xDim)
 					{ addGap(gaps, rgtX, xOff + xDim); }
 
-				if (!series.spanGaps)
-					{ _paths.clip =  clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim); }
-
 				if (series.fill != null) {
 					var fill = _paths.fill = new Path2D(stroke);
 
 					var fillTo = round(valToPosY(series.fillTo(u, seriesIdx, series.min, series.max), scaleY, yDim, yOff));
+
 					lineTo(fill, rgtX, fillTo);
 					lineTo(fill, lftX, fillTo);
+				}
+
+				if (!series.spanGaps)
+					{ _paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim); }
+
+				if (u.bands.length > 0) {
+					// ADDL OPT: only create band clips for series that are band lower edges
+					// if (b.series[1] == i && _paths.band == null)
+					_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke);
 				}
 
 				return _paths;
@@ -1667,24 +1673,29 @@ var uPlot = (function () {
 					}
 				}
 
-				var stroke = catmullRomFitting(xCoords, yCoords, 0.5, moveTo, bezierCurveTo);
+				var _paths = {stroke: catmullRomFitting(xCoords, yCoords, 0.5, moveTo, bezierCurveTo), fill: null, clip: null, band: null};
+				var stroke = _paths.stroke;
 
-				var fill = new Path2D(stroke);
+				if (series.fill != null) {
+					var fill = _paths.fill = new Path2D(stroke);
 
-				var fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
+					var fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
+					var minY = round(valToPosY(fillTo, scaleY, yDim, yOff));
 
-				var minY = round(valToPosY(fillTo, scaleY, yDim, yOff));
+					lineTo(fill, prevXPos, minY);
+					lineTo(fill, firstXPos, minY);
+				}
 
-				lineTo(fill, prevXPos, minY);
-				lineTo(fill, firstXPos, minY);
+				if (!series.spanGaps)
+					{ _paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim); }
 
-				var clip = !series.spanGaps ? clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim) : null;
+				if (u.bands.length > 0) {
+					// ADDL OPT: only create band clips for series that are band lower edges
+					// if (b.series[1] == i && _paths.band == null)
+					_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke);
+				}
 
-				return {
-					stroke: stroke,
-					fill: fill,
-					clip: clip,
-				};
+				return _paths;
 
 				//  if FEAT_PATHS: false in rollup.config.js
 				//	u.ctx.save();
@@ -1818,7 +1829,8 @@ var uPlot = (function () {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				var lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
-				var stroke = new Path2D();
+				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
+				var stroke = _paths.stroke;
 
 				var _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
@@ -1874,22 +1886,26 @@ var uPlot = (function () {
 					prevXPos = x1;
 				}
 
-				var fill = new Path2D(stroke);
+				if (series.fill != null) {
+					var fill = _paths.fill = new Path2D(stroke);
 
-				var fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
+					var fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
+					var minY = round(valToPosY(fillTo, scaleY, yDim, yOff));
 
-				var minY = round(valToPosY(fillTo, scaleY, yDim, yOff));
+					lineTo(fill, prevXPos, minY);
+					lineTo(fill, firstXPos, minY);
+				}
 
-				lineTo(fill, prevXPos, minY);
-				lineTo(fill, firstXPos, minY);
+				if (!series.spanGaps)
+					{ _paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim); }
 
-				var clip = !series.spanGaps ? clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim) : null;
+				if (u.bands.length > 0) {
+					// ADDL OPT: only create band clips for series that are band lower edges
+					// if (b.series[1] == i && _paths.band == null)
+					_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke);
+				}
 
-				return {
-					stroke: stroke,
-					fill: fill,
-					clip: clip,
-				};
+				return _paths;
 			});
 		};
 	}
@@ -1917,15 +1933,41 @@ var uPlot = (function () {
 
 				var barWid = round(min(maxWidth, colWid - gapWid) - strokeWidth);
 
-				var stroke = new Path2D();
+				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
+
+				var hasBands = u.bands.length > 0;
+				var yLimit;
+
+				if (hasBands) {
+					// ADDL OPT: only create band clips for series that are band lower edges
+					// if (b.series[1] == i && _paths.band == null)
+					_paths.band = new Path2D();
+					yLimit = incrRound(valToPosY(scaleY.max, scaleY, yDim, yOff), 0.5);
+				}
+
+				var stroke = _paths.stroke;
+				var band = _paths.band;
 
 				var _dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
 				for (var i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 					var yVal = dataY[i];
 
-					if (yVal == null)
-						{ continue; }
+					// interpolate upwards band clips
+					if (yVal == null) {
+						if (hasBands) {
+							// simple, but inefficient bi-directinal linear scans on each iteration
+							var prevNonNull = nonNullIdx(dataY, _dir == 1 ? idx0 : idx1, i, -_dir);
+							var nextNonNull = nonNullIdx(dataY, i, _dir == 1 ? idx1 : idx0,  _dir);
+
+							var prevVal = dataY[prevNonNull];
+							var nextVal = dataY[nextNonNull];
+
+							yVal = prevVal + (i - prevNonNull) / (nextNonNull - prevNonNull) * (nextVal - prevVal);
+						}
+						else
+							{ continue; }
+					}
 
 					var xVal = scaleX.distr == 2 ? i : dataX[i];
 
@@ -1938,15 +1980,20 @@ var uPlot = (function () {
 					var top = round(min(yPos, y0Pos));
 					var barHgt = btm - top;
 
-					rect(stroke, lft, top, barWid, barHgt);
+					dataY[i] != null && rect(stroke, lft, top, barWid, barHgt);
+
+					if (hasBands) {
+						btm = top;
+						top = yLimit;
+						barHgt = btm - top;
+						rect(band, lft, top, barWid, barHgt);
+					}
 				}
 
-				var fill = series.fill != null ? new Path2D(stroke) : undefined;
+				if (series.fill != null)
+					{ _paths.fill = new Path2D(stroke); }
 
-				return {
-					stroke: stroke,
-					fill: fill,
-				};
+				return _paths;
 			});
 		};
 	}
@@ -2978,12 +3025,6 @@ var uPlot = (function () {
 					if (i > 0 && s.show && s._paths == null) {
 						var _idxs = getOuterIdxs(data[i]);
 						s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
-
-						if (s._paths && bands.length > 0) {
-							// ADDL OPT: only create band clips for series that are band lower edges
-							// if (b.series[1] == i && _paths.band == null)
-							s._paths.band = clipBand(self, i, _idxs[0], _idxs[1]);
-						}
 					}
 				});
 
@@ -3599,15 +3640,6 @@ var uPlot = (function () {
 				s.show = opts.show;
 				 toggleDOM(i, opts.show);
 
-				/*
-				if (s.band) {
-					// not super robust, will break if two bands are adjacent
-					let ip = series[i+1] && series[i+1].band ? i+1 : i-1;
-					series[ip].show = s.show;
-					FEAT_LEGEND && toggleDOM(ip, opts.show);
-				}
-				*/
-
 				_setScale(s.scale, null, null);
 				commit();
 			}
@@ -3632,14 +3664,6 @@ var uPlot = (function () {
 		function _setAlpha(i, value) {
 
 			_alpha(i, value);
-
-			/*
-			if (s.band) {
-				// not super robust, will break if two bands are adjacent
-				let ip = series[i+1].band ? i+1 : i-1;
-				_alpha(ip, value);
-			}
-			*/
 		}
 
 		// y-distance

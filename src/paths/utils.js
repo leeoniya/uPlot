@@ -58,7 +58,7 @@ export function orient(u, seriesIdx, cb) {
 }
 
 // creates inverted band clip path (towards from stroke path -> yMax)
-export function clipBand(self, seriesIdx, idx0, idx1) {
+export function clipBandLine(self, seriesIdx, idx0, idx1, strokePath) {
 	return orient(self, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 		const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 		const lineTo = scaleX.ori == 0 ? lineToH : lineToV;
@@ -82,7 +82,7 @@ export function clipBand(self, seriesIdx, idx0, idx1) {
 		// upper y limit
 		let yLimit = incrRound(valToPosY(scaleY.max, scaleY, yDim, yOff), 0.5);
 
-		let clip = new Path2D(series._paths.stroke);
+		let clip = new Path2D(strokePath);
 
 		lineTo(clip, x1, yLimit);
 		lineTo(clip, x0, yLimit);
