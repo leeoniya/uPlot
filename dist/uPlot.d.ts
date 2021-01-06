@@ -549,6 +549,8 @@ export namespace Series {
 
 	export type Fill = CanvasRenderingContext2D['fillStyle'] | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['fillStyle']);
 
+	export type Cap = CanvasRenderingContext2D['lineCap'];
+
 	export namespace Points {
 		export type Show = boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
 	}
@@ -568,6 +570,12 @@ export namespace Series {
 
 		/** line color of circle outline (defaults to series.stroke) */
 		stroke?: Stroke;
+
+		/** line dash segment array */
+		dash?: number[];
+
+		/** line cap */
+		cap?: Series.Cap;
 
 		/** fill color of circle (defaults to #fff) */
 		fill?: Fill;
@@ -647,7 +655,10 @@ export interface Series {
 	fillTo?: Series.FillTo;
 
 	/** line dash segment array */
-	dash?: number[];					// CanvasRenderingContext2D['setLineDash'];
+	dash?: number[];
+
+	/** line cap */
+	cap?: Series.Cap;
 
 	/** alpha-transparancy */
 	alpha?: number;
@@ -670,7 +681,7 @@ export namespace Band {
 
 export interface Band {
 	/** band on/off */
-	show?: boolean;
+//	show?: boolean;
 
 	/** series indices of upper and lower band edges */
 	series: Band.Bounds;
@@ -720,8 +731,11 @@ export namespace Axis {
 		/** line width in CSS pixels */
 		width?: number;
 
-		/** line dash array */
-		dash?: number[];					// CanvasRenderingContext2D['setLineDash'];
+		/** line dash segment array */
+		dash?: number[];
+
+		/** line cap */
+		cap?: Series.Cap;
 	}
 
 	export interface Ticks extends Grid {

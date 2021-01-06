@@ -963,10 +963,11 @@ export default function uPlot(opts, data, then) {
 		_setScale(xScaleKey, _min, _max);
 	}
 
-	function setCtxStyle(stroke, width, dash, fill) {
+	function setCtxStyle(stroke, width, dash, cap, fill) {
 		ctx.strokeStyle = stroke || transparent;
 		ctx.lineWidth = width;
 		ctx.lineJoin = "round";
+		ctx.lineCap = cap || "butt"; // (‿|‿)
 		ctx.setLineDash(dash || []);
 		ctx.fillStyle = fill || transparent;
 	}
@@ -1168,6 +1169,7 @@ export default function uPlot(opts, data, then) {
 			_stroke,
 			width,
 			p.dash,
+			p.cap,
 			_fill || (isStroked ? "#fff" : s._stroke),
 		);
 
@@ -1228,7 +1230,7 @@ export default function uPlot(opts, data, then) {
 		const _stroke = s._stroke = s.stroke(self, si);
 		const _fill   = s._fill   = s.fill(self, si);
 
-		setCtxStyle(_stroke, width, s.dash, _fill);
+		setCtxStyle(_stroke, width, s.dash, s.cap, _fill);
 
 		ctx.globalAlpha = s.alpha;
 
@@ -1285,7 +1287,7 @@ export default function uPlot(opts, data, then) {
 
 				if (lowerEdge.show && clip) {
 					ctx.save();
-					setCtxStyle(null, null, null, b.fill(self, bi) || seriesFill);
+					setCtxStyle(null, null, null, null, b.fill(self, bi) || seriesFill);
 					ctx.clip(clip);
 					ctx.fill(s._paths.fill);
 					ctx.restore();
@@ -1312,12 +1314,12 @@ export default function uPlot(opts, data, then) {
 		return incrSpace;
 	}
 
-	function drawOrthoLines(offs, filts, ori, side, pos0, len, width, stroke, dash) {
+	function drawOrthoLines(offs, filts, ori, side, pos0, len, width, stroke, dash, cap) {
 		let offset = (width % 2) / 2;
 
 		ctx.translate(offset, offset);
 
-		setCtxStyle(stroke, width, dash);
+		setCtxStyle(stroke, width, dash, cap);
 
 		ctx.beginPath();
 
@@ -1541,6 +1543,8 @@ export default function uPlot(opts, data, then) {
 					tickSize,
 					roundDec(ticks.width * pxRatio, 3),
 					ticks.stroke,
+					ticks.dash,
+					ticks.cap,
 				);
 			}
 
@@ -1558,6 +1562,7 @@ export default function uPlot(opts, data, then) {
 					roundDec(grid.width * pxRatio, 3),
 					grid.stroke,
 					grid.dash,
+					grid.cap,
 				);
 			}
 		});
