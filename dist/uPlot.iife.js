@@ -1913,6 +1913,7 @@ var uPlot = (function () {
 	function bars(opts) {
 		opts = opts || EMPTY_OBJ;
 		var size = ifNull(opts.size, [0.6, inf]);
+		var align = opts.align || 0;
 
 		var gapFactor = 1 - size[0];
 		var maxWidth  = ifNull(size[1], inf) * pxRatio;
@@ -1932,6 +1933,8 @@ var uPlot = (function () {
 				var strokeWidth = round(series.width * pxRatio);
 
 				var barWid = round(min(maxWidth, colWid - gapWid) - strokeWidth);
+
+				var xShift = align == 1 ? 0 : align == -1 ? barWid : barWid / 2;
 
 				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
 
@@ -1975,7 +1978,7 @@ var uPlot = (function () {
 					var xPos = valToPosX(xVal, scaleX, xDim, xOff);
 					var yPos = valToPosY(yVal, scaleY, yDim, yOff);
 
-					var lft = round(xPos - barWid / 2);
+					var lft = round(xPos - xShift);
 					var btm = round(max(yPos, y0Pos));
 					var top = round(min(yPos, y0Pos));
 					var barHgt = btm - top;

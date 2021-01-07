@@ -1919,6 +1919,7 @@ function stepped(opts) {
 function bars(opts) {
 	opts = opts || EMPTY_OBJ;
 	const size = ifNull(opts.size, [0.6, inf]);
+	const align = opts.align || 0;
 
 	const gapFactor = 1 - size[0];
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
@@ -1938,6 +1939,8 @@ function bars(opts) {
 			let strokeWidth = round(series.width * pxRatio);
 
 			let barWid = round(min(maxWidth, colWid - gapWid) - strokeWidth);
+
+			let xShift = align == 1 ? 0 : align == -1 ? barWid : barWid / 2;
 
 			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
 
@@ -1981,7 +1984,7 @@ function bars(opts) {
 				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
 				let yPos = valToPosY(yVal, scaleY, yDim, yOff);
 
-				let lft = round(xPos - barWid / 2);
+				let lft = round(xPos - xShift);
 				let btm = round(max(yPos, y0Pos));
 				let top = round(min(yPos, y0Pos));
 				let barHgt = btm - top;

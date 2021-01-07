@@ -42,17 +42,21 @@
 			};
 
 			const drawStyles = {
-				line:     0,
-				bars:     1,
-				points:   2,
+				line:      0,
+				bars:      1,
+				points:    2,
+				barsLeft:  3,
+				barsRight: 4,
 			};
 
 			// generate bar builder with 60% bar (40% gap) & 100px max bar width
-			const _bars60_100 = bars({size: [0.6, 100]});
-			const _stepBefore = stepped({align: -1});
-			const _stepAfter  = stepped({align:  1});
-			const _spline     = spline();
-			const _linear     = linear();
+			const _bars60_100   = bars({size: [0.6, 100]});
+			const _bars100Left  = bars({size: [1], align:  1});
+			const _bars100Right = bars({size: [1], align: -1});
+			const _stepBefore   = stepped({align: -1});
+			const _stepAfter    = stepped({align:  1});
+			const _spline       = spline();
+			const _linear       = linear();
 
 			function paths(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 				let s = u.series[seriesIdx];
@@ -69,6 +73,12 @@
 					) :
 					style == drawStyles.bars ? (
 						_bars60_100
+					) :
+					style == drawStyles.barsLeft ? (
+						_bars100Left
+					) :
+					style == drawStyles.barsRight ? (
+						_bars100Right
 					) :
 					style == drawStyles.points ? (
 						() => null
@@ -124,10 +134,22 @@
 					stroke: "#EF843C",
 				},
 				{
-					title: "bars",
+					title: "bars {align: 0}",
 					drawStyle: drawStyles.bars,
 					lineInterpolation: null,
 					stroke: "#E24D42",
+				},
+				{
+					title: "bars {align: 1}",
+					drawStyle: drawStyles.barsLeft,
+					lineInterpolation: null,
+					stroke: "#008080",
+				},
+				{
+					title: "bars {align: -1}",
+					drawStyle: drawStyles.barsRight,
+					lineInterpolation: null,
+					stroke: "#DA70D6",
 				},
 			];
 

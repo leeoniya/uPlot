@@ -536,7 +536,7 @@ export namespace Series {
 	export type LinearPathBuilderFactory  = () => Series.PathBuilder;
 	export type SplinePathBuilderFactory  = () => Series.PathBuilder;
 	export type SteppedPathBuilderFactory = (opts?: {align?: -1 | 1}) => Series.PathBuilder;
-	export type BarsPathBuilderFactory    = (opts?: {size?: [factor?: number, max?: number]}) => Series.PathBuilder;
+	export type BarsPathBuilderFactory    = (opts?: {align?: -1 | 0 | 1, size?: [factor?: number, max?: number]}) => Series.PathBuilder;
 
 	export interface PathBuilderFactories {
 		linear?:  LinearPathBuilderFactory;
