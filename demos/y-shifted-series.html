@@ -16,9 +16,32 @@
 			let data = [
 				xs,
 				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
-				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)] + 10),
-				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)] + 20),
+				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
 			];
+
+			const normal = {
+				values: (u, splits)       => splits,
+				fillTo: (u, seriesIdx)    => 0,
+				value:  (u, v, seriesIdx) => v,
+				data:   (data)            => data,
+				range:  [0, 10],
+			};
+
+			const shifted = {
+				values: (u, splits)       => splits.map(v => v % 10 == 0 ? "Core #" + (Math.floor(v/10) + 1) : v % 10),
+				fillTo: (u, seriesIdx)    => 10 * (seriesIdx - 1),
+				value:  (u, v, seriesIdx) => v - 10 * (seriesIdx - 1),
+				data:   (data)            => data.map((vals, seriesIdx) => seriesIdx < 1 ? vals : vals.map(xVal => xVal + 10 * (seriesIdx - 1))),
+				range:  [0, 30],
+			};
+
+			let mode = shifted;
+
+			const fillTo = (u, seriesIdx)    => mode.fillTo(u, seriesIdx);
+			const value  = (u, v, seriesIdx) => mode.value(u, v, seriesIdx);
+			const values = (u, splits)       => mode.values(u, splits);
+			const range  = (u)               => mode.range;
 
 			const opts = {
 				width: 1920,
@@ -29,14 +52,14 @@
 						time: false,
 					},
 					y: {
-						range: [0, 30]
+						range,
 					},
 				},
 				axes: [
 					{},
 					{
 						size: 70,
-						values: (u, splits) => splits.map(v => v % 10 == 0 ? "Core #" + (Math.floor(v/10) + 1) : v % 10),
+						values,
 					},
 				],
 				series: [
@@ -45,27 +68,36 @@
 						stroke: "red",
 						label: "Core #1",
 						fill: "rgba(255,0,0,0.1)",
-						fillTo: u => 0,
-						value: (u, v) => v,
+						fillTo,
+						value,
 					},
 					{
 						stroke: "green",
 						label: "Core #2",
 						fill: "rgba(0,255,0,0.1)",
-						fillTo: u => 10,
-						value: (u, v) => v - 10,
+						fillTo,
+						value,
 					},
 					{
 						stroke: "blue",
 						label: "Core #3",
 						fill: "rgba(0,0,255,0.1)",
-						fillTo: u => 20,
-						value: (u, v) => v - 20,
+						fillTo,
+						value,
 					},
 				],
 			};
 
-			let u = new uPlot(opts, data, document.body);
+			let u = new uPlot(opts, mode.data(data), document.body);
+
+			setInterval(() => {
+				if (mode == shifted)
+					mode = normal;
+				else
+					mode = shifted;
+
+				u.setData(mode.data(data));
+			}, 2000);
 		</script>
 	</body>
 </html>
