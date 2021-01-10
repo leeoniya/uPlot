@@ -1,222 +1,111 @@
-/**
- * quadtree-js
- * @version 1.2.3
- * @license MIT
- * @author Timo Hausmann
- */
+!(function(global) {
+	const MAX_OBJECTS = 10;
+	const MAX_LEVELS  = 4;
 
- /* https://github.com/timohausmann/quadtree-js.git v1.2.3 */
+	function Quadtree(x, y, w, h, l) {
+		let t = this;
 
-/*
-Copyright © 2012-2020 Timo Hausmann
+		t.x = x;
+		t.y = y;
+		t.w = w;
+		t.h = h;
+		t.l = l || 0;
+		t.o = [];
+		t.q = null;
+	};
 
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
+	const proto = {
+		split: function() {
+			let t = this,
+				x = t.x,
+				y = t.y,
+				w = t.w / 2,
+				h = t.h / 2
+				l = t.l + 1;
 
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
+			t.q = [
+				// top right
+				new Quadtree(x + w, y,     w, h, l),
+				// top left
+				new Quadtree(x,     y,     w, h, l),
+				// bottom left
+				new Quadtree(x,     y + h, w, h, l),
+				// bottom right
+				new Quadtree(x + w, y + h, w, h, l),
+			];
+		},
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
+		// invokes callback with index of each overlapping quad
+		quads: function(x, y, w, h, cb) {
+			let t            = this,
+				q            = t.q,
+				hzMid        = t.x + t.w / 2,
+				vtMid        = t.y + t.h / 2,
+				startIsNorth = y     < vtMid,
+				startIsWest  = x     < hzMid,
+				endIsEast    = x + w > hzMid,
+				endIsSouth   = y + h > vtMid;
 
-;(function() {
+			// top-right quad
+			startIsNorth && endIsEast && cb(q[0]);
+			// top-left quad
+			startIsWest && startIsNorth && cb(q[1]);
+			// bottom-left quad
+			startIsWest && endIsSouth && cb(q[2]);
+			// bottom-right quad
+			endIsEast && endIsSouth && cb(q[3]);
+		},
 
-    /**
-     * Quadtree Constructor
-     * @param Object bounds            bounds of the node { x, y, width, height }
-     * @param Integer max_objects      (optional) max objects a node can hold before splitting into 4 subnodes (default: 10)
-     * @param Integer max_levels       (optional) total max levels inside root Quadtree (default: 4)
-     * @param Integer level            (optional) depth level, required for subnodes (default: 0)
-     */
-    function Quadtree(bounds, max_objects, max_levels, level) {
+		add: function(o) {
+			let t = this;
 
-        this.max_objects    = max_objects || 10;
-        this.max_levels     = max_levels || 4;
+			if (t.q != null) {
+				t.quads(o.x, o.y, o.w, o.h, q => {
+					q.add(o);
+				});
+			}
+			else {
+				let os = t.o;
 
-        this.level  = level || 0;
-        this.bounds = bounds;
+				os.push(o);
 
-        this.objects    = [];
-        this.nodes      = [];
-    };
+				if (os.length > MAX_OBJECTS && t.l < MAX_LEVELS) {
+					t.split();
 
+					for (let i = 0; i < os.length; i++) {
+						let oi = os[i];
 
-    /**
-     * Split the node into 4 subnodes
-     */
-    Quadtree.prototype.split = function() {
+						t.quads(oi.x, oi.y, oi.w, oi.h, q => {
+							q.add(oi);
+						});
+					}
 
-        var nextLevel   = this.level + 1,
-            subWidth    = this.bounds.width/2,
-            subHeight   = this.bounds.height/2,
-            x           = this.bounds.x,
-            y           = this.bounds.y;
+					t.o.length = 0;
+				}
+			}
+		},
 
-        //top right node
-        this.nodes[0] = new Quadtree({
-            x       : x + subWidth,
-            y       : y,
-            width   : subWidth,
-            height  : subHeight
-        }, this.max_objects, this.max_levels, nextLevel);
+		get: function(x, y, w, h, cb) {
+			let t = this;
+			let os = t.o;
 
-        //top left node
-        this.nodes[1] = new Quadtree({
-            x       : x,
-            y       : y,
-            width   : subWidth,
-            height  : subHeight
-        }, this.max_objects, this.max_levels, nextLevel);
+			for (let i = 0; i < os.length; i++)
+				cb(os[i]);
 
-        //bottom left node
-        this.nodes[2] = new Quadtree({
-            x       : x,
-            y       : y + subHeight,
-            width   : subWidth,
-            height  : subHeight
-        }, this.max_objects, this.max_levels, nextLevel);
+			if (t.q != null) {
+				t.quads(x, y, w, h, q => {
+					q.get(x, y, w, h, cb);
+				});
+			}
+		},
 
-        //bottom right node
-        this.nodes[3] = new Quadtree({
-            x       : x + subWidth,
-            y       : y + subHeight,
-            width   : subWidth,
-            height  : subHeight
-        }, this.max_objects, this.max_levels, nextLevel);
-    };
+		clear: function() {
+			this.o.length = 0;
+			this.q = null;
+		},
+	};
 
+	Object.assign(Quadtree.prototype, proto);
 
-    /**
-     * Determine which node the object belongs to
-     * @param Object pRect      bounds of the area to be checked, with x, y, width, height
-     * @return Array            an array of indexes of the intersecting subnodes
-     *                          (0-3 = top-right, top-left, bottom-left, bottom-right / ne, nw, sw, se)
-     */
-    Quadtree.prototype.getIndex = function(pRect, callback) {
-
-        var verticalMidpoint    = this.bounds.x + (this.bounds.width/2),
-            horizontalMidpoint  = this.bounds.y + (this.bounds.height/2);
-
-        var startIsNorth = pRect.y < horizontalMidpoint,
-            startIsWest  = pRect.x < verticalMidpoint,
-            endIsEast    = pRect.x + pRect.width > verticalMidpoint,
-            endIsSouth   = pRect.y + pRect.height > horizontalMidpoint;
-
-        //top-right quad
-        if(startIsNorth && endIsEast) {
-            callback(0);
-        }
-
-        //top-left quad
-        if(startIsWest && startIsNorth) {
-            callback(1);
-        }
-
-        //bottom-left quad
-        if(startIsWest && endIsSouth) {
-            callback(2);
-        }
-
-        //bottom-right quad
-        if(endIsEast && endIsSouth) {
-            callback(3);
-        }
-    };
-
-
-    /**
-     * Insert the object into the node. If the node
-     * exceeds the capacity, it will split and add all
-     * objects to their corresponding subnodes.
-     * @param Object pRect        bounds of the object to be added { x, y, width, height }
-     */
-    Quadtree.prototype.insert = function(pRect) {
-
-        var i = 0;
-
-        //if we have subnodes, call insert on matching subnodes
-        if(this.nodes.length) {
-            this.getIndex(pRect, i => {
-                this.nodes[i].insert(pRect);
-            });
-
-            return;
-        }
-
-        //otherwise, store object here
-        this.objects.push(pRect);
-
-        //max_objects reached
-        if(this.objects.length > this.max_objects && this.level < this.max_levels) {
-
-            //split if we don't already have subnodes
-            if(!this.nodes.length) {
-                this.split();
-            }
-
-            //add all objects to their corresponding subnode
-            for(i=0; i<this.objects.length; i++) {
-                this.getIndex(this.objects[i], k => {
-                    this.nodes[k].insert(this.objects[i]);
-                });
-            }
-
-            //clean up this node
-            this.objects = [];
-        }
-     };
-
-
-    /**
-     * Return all objects that could collide with the given object
-     * @param Object pRect      bounds of the object to be checked { x, y, width, height }
-     * @return Array            array with all detected objects
-     */
-    Quadtree.prototype.retrieve = function(pRect, cb) {
-        for (let i = 0; i < this.objects.length; i++)
-            cb(this.objects[i])
-
-        //if we have subnodes, retrieve their objects
-        if (this.nodes.length) {
-            this.getIndex(pRect, i => {
-                this.nodes[i].retrieve(pRect, cb);
-            });
-        }
-    };
-
-
-    /**
-     * Clear the quadtree
-     */
-    Quadtree.prototype.clear = function() {
-
-        this.objects = [];
-
-        for(var i=0; i < this.nodes.length; i++) {
-            if(this.nodes.length) {
-                this.nodes[i].clear();
-              }
-        }
-
-        this.nodes = [];
-    };
-
-    //export for commonJS or browser
-    if(typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-        module.exports = Quadtree;
-    } else {
-        window.Quadtree = Quadtree;
-    }
-
-})();
+	global.Quadtree = Quadtree;
+})(this);
