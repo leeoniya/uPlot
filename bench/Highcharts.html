@@ -35,7 +35,7 @@
 				var tcp = Array(packed.length/numFields);
 
 				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
-					let date = new Date(packed[i] * 60 * 1000);
+					let date = packed[i] * 60 * 1000;
 					cpu[j] = [date, round3(100 - packed[i+1])];
 					ram[j] = [date, round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))];
 					tcp[j] = [date, packed[i+3]];
