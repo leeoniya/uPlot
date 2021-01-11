@@ -2427,6 +2427,7 @@ export default function uPlot(opts, data, then) {
 	const syncKey = FEAT_CURSOR && syncOpts.key;
 
 	const sync = FEAT_CURSOR && (syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync());
+	self.sync = sync;
 
 	FEAT_CURSOR && sync.sub(self);
 

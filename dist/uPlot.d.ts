@@ -128,6 +128,8 @@ declare class uPlot {
 
 	static clipGaps: Series.ClipPathBuilder;
 
+	static sync: Sync;
+
 	/** helper function for grabbing proper drawing orientation vars and fns for a plot instance (all dims in canvas pixels) */
 	static orient: (u: uPlot, seriesIdx: number, callback: OrientCallback) => any;
 }
@@ -163,6 +165,12 @@ type ArcH    = (p: Path2D, x: number, y: number, r: number, startAngle: number, 
 type ArcV    = (p: Path2D, y: number, x: number, r: number, startAngle: number, endAngle: number) => void;
 type BezierCurveToH = (p: Path2D, bp1x: number, bp1y: number, bp2x: number, bp2y: number, p2x: number, p2y: number) => void;
 type BezierCurveToV = (p: Path2D, bp1y: number, bp1x: number, bp2y: number, bp2x: number, p2y: number, p2x: number) => void;
+
+type Sync = {
+	sub: (client: uPlot) => void;
+	unsub: (client: uPlot) => void;
+	pub: (type: string, client: uPlot, x: unknown, y: unknown, w: unknown, h: unknown, i: unknown) => void;
+}
 
 export const enum JoinNullMode {
 	/** use for series with spanGaps = true */
