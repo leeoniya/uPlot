@@ -4158,7 +4158,12 @@ var uPlot = (function () {
 
 			cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
 
-			var hasSelect = select.width > 0 || select.height > 0;
+			var left = select.left;
+			var top = select.top;
+			var width = select.width;
+			var height = select.height;
+
+			var hasSelect = width > 0 || height > 0;
 
 			hasSelect && setSelect(select);
 
@@ -4168,10 +4173,22 @@ var uPlot = (function () {
 			//		dragY = drag.y;
 			//	}
 
+				var xOff = left,
+					xDim = width,
+					yOff = top,
+					yDim = height;
+
+				if (scaleX.ori == 1) {
+					xOff = top,
+					xDim = height,
+					yOff = left,
+					yDim = width;
+				}
+
 				if (dragX) {
 					_setScale(xScaleKey,
-						posToVal(select.left, xScaleKey),
-						posToVal(select.left + select.width, xScaleKey)
+						posToVal(xOff, xScaleKey),
+						posToVal(xOff + xDim, xScaleKey)
 					);
 				}
 
@@ -4181,8 +4198,8 @@ var uPlot = (function () {
 
 						if (k != xScaleKey && sc.from == null && sc.min != inf) {
 							_setScale(k,
-								posToVal(select.top + select.height, k),
-								posToVal(select.top, k)
+								posToVal(yOff + yDim, k),
+								posToVal(yOff, k)
 							);
 						}
 					}

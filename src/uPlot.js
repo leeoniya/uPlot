@@ -2316,7 +2316,9 @@ export default function uPlot(opts, data, then) {
 
 		cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
 
-		let hasSelect = select.width > 0 || select.height > 0;
+		let { left, top, width, height } = select;
+
+		let hasSelect = width > 0 || height > 0;
 
 		hasSelect && setSelect(select);
 
@@ -2326,10 +2328,22 @@ export default function uPlot(opts, data, then) {
 		//		dragY = drag.y;
 		//	}
 
+			let xOff = left,
+				xDim = width,
+				yOff = top,
+				yDim = height;
+
+			if (scaleX.ori == 1) {
+				xOff = top,
+				xDim = height,
+				yOff = left,
+				yDim = width;
+			}
+
 			if (dragX) {
 				_setScale(xScaleKey,
-					posToVal(select.left, xScaleKey),
-					posToVal(select.left + select.width, xScaleKey)
+					posToVal(xOff, xScaleKey),
+					posToVal(xOff + xDim, xScaleKey)
 				);
 			}
 
@@ -2339,8 +2353,8 @@ export default function uPlot(opts, data, then) {
 
 					if (k != xScaleKey && sc.from == null && sc.min != inf) {
 						_setScale(k,
-							posToVal(select.top + select.height, k),
-							posToVal(select.top, k)
+							posToVal(yOff + yDim, k),
+							posToVal(yOff, k)
 						);
 					}
 				}
