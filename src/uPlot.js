@@ -2064,9 +2064,10 @@ export default function uPlot(opts, data, then) {
 
 				let { left, top, width, height } = src.select;
 
-				let sOff, sDim, sMin, sMax;
+				let sOff, sDim, sOffVal, sDimVal, sMin, sMax;
 
 				let sori = src.scales[xKey].ori;
+				let sPosToVal = src.posToVal;
 
 				if (xKey) {
 					if (sori == 0) {
@@ -2078,15 +2079,12 @@ export default function uPlot(opts, data, then) {
 						sDim = height;
 					}
 
-					sMax = src.posToVal(sOff, xKey);
-					sMin = src.posToVal(sOff + sDim, xKey);
-
 					let sc = scales[xKey];
 
-					let off = valToPosX(sMin, sc, xDim, 0);
-					let dim = abs(valToPosX(sMax, sc, xDim, 0) - off);
+					let a = valToPosX(sPosToVal(sOff, xKey),        sc, xDim, 0);
+					let b = valToPosX(sPosToVal(sOff + sDim, xKey), sc, xDim, 0);
 
-					setSelX(off, dim);
+					setSelX(min(a,b), abs(b-a));
 
 					if (!yKey)
 						setSelY(0, yDim);
@@ -2102,15 +2100,12 @@ export default function uPlot(opts, data, then) {
 						sDim = height;
 					}
 
-					sMax = src.posToVal(sOff, yKey);
-					sMin = src.posToVal(sOff + sDim, yKey);
-
 					let sc = scales[yKey];
 
-					let off = valToPosY(sMin, sc, yDim, 0);
-					let dim = abs(valToPosY(sMax, sc, yDim, 0) - off);
+					let a = valToPosY(sPosToVal(sOff, yKey),        sc, yDim, 0);
+					let b = valToPosY(sPosToVal(sOff + sDim, yKey), sc, yDim, 0);
 
-					setSelY(off, dim);
+					setSelY(min(a,b), abs(b-a));
 
 					if (!xKey)
 						setSelX(0, xDim);

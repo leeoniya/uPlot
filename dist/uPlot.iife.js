@@ -3906,9 +3906,10 @@ var uPlot = (function () {
 					var width = ref$1.width;
 					var height = ref$1.height;
 
-					var sOff, sDim, sMin, sMax;
+					var sOff, sDim;
 
 					var sori = src.scales[xKey].ori;
+					var sPosToVal = src.posToVal;
 
 					if (xKey) {
 						if (sori == 0) {
@@ -3920,15 +3921,12 @@ var uPlot = (function () {
 							sDim = height;
 						}
 
-						sMax = src.posToVal(sOff, xKey);
-						sMin = src.posToVal(sOff + sDim, xKey);
-
 						var sc = scales[xKey];
 
-						var off = valToPosX(sMin, sc, xDim, 0);
-						var dim = abs(valToPosX(sMax, sc, xDim, 0) - off);
+						var a = valToPosX(sPosToVal(sOff, xKey),        sc, xDim, 0);
+						var b = valToPosX(sPosToVal(sOff + sDim, xKey), sc, xDim, 0);
 
-						setSelX(off, dim);
+						setSelX(min(a,b), abs(b-a));
 
 						if (!yKey)
 							{ setSelY(0, yDim); }
@@ -3944,15 +3942,12 @@ var uPlot = (function () {
 							sDim = height;
 						}
 
-						sMax = src.posToVal(sOff, yKey);
-						sMin = src.posToVal(sOff + sDim, yKey);
-
 						var sc$1 = scales[yKey];
 
-						var off$1 = valToPosY(sMin, sc$1, yDim, 0);
-						var dim$1 = abs(valToPosY(sMax, sc$1, yDim, 0) - off$1);
+						var a$1 = valToPosY(sPosToVal(sOff, yKey),        sc$1, yDim, 0);
+						var b$1 = valToPosY(sPosToVal(sOff + sDim, yKey), sc$1, yDim, 0);
 
-						setSelY(off$1, dim$1);
+						setSelY(min(a$1,b$1), abs(b$1-a$1));
 
 						if (!xKey)
 							{ setSelX(0, xDim); }
