@@ -3920,8 +3920,8 @@ var uPlot = (function () {
 							sDim = height;
 						}
 
-						sMin = src.posToVal(sOff, xKey);
-						sMax = src.posToVal(sOff + sDim, xKey);
+						sMax = src.posToVal(sOff, xKey);
+						sMin = src.posToVal(sOff + sDim, xKey);
 
 						var sc = scales[xKey];
 
@@ -3944,8 +3944,8 @@ var uPlot = (function () {
 							sDim = height;
 						}
 
-						sMin = src.posToVal(sOff, yKey);
-						sMax = src.posToVal(sOff + sDim, yKey);
+						sMax = src.posToVal(sOff, yKey);
+						sMin = src.posToVal(sOff + sDim, yKey);
 
 						var sc$1 = scales[yKey];
 

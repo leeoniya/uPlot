@@ -2078,8 +2078,8 @@ export default function uPlot(opts, data, then) {
 						sDim = height;
 					}
 
-					sMin = src.posToVal(sOff, xKey);
-					sMax = src.posToVal(sOff + sDim, xKey);
+					sMax = src.posToVal(sOff, xKey);
+					sMin = src.posToVal(sOff + sDim, xKey);
 
 					let sc = scales[xKey];
 
@@ -2102,8 +2102,8 @@ export default function uPlot(opts, data, then) {
 						sDim = height;
 					}
 
-					sMin = src.posToVal(sOff, yKey);
-					sMax = src.posToVal(sOff + sDim, yKey);
+					sMax = src.posToVal(sOff, yKey);
+					sMin = src.posToVal(sOff + sDim, yKey);
 
 					let sc = scales[yKey];
 
