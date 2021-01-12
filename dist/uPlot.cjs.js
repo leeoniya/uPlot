@@ -3887,10 +3887,10 @@ function uPlot(opts, data, then) {
 
 				let { left, top, width, height } = src.select;
 
-				let sOff, sDim;
-
 				let sori = src.scales[xKey].ori;
 				let sPosToVal = src.posToVal;
+
+				let sOff, sDim, sc, a, b;
 
 				if (xKey) {
 					if (sori == 0) {
@@ -3902,10 +3902,10 @@ function uPlot(opts, data, then) {
 						sDim = height;
 					}
 
-					let sc = scales[xKey];
+					sc = scales[xKey];
 
-					let a = valToPosX(sPosToVal(sOff, xKey),        sc, xDim, 0);
-					let b = valToPosX(sPosToVal(sOff + sDim, xKey), sc, xDim, 0);
+					a = valToPosX(sPosToVal(sOff, xKey),        sc, xDim, 0);
+					b = valToPosX(sPosToVal(sOff + sDim, xKey), sc, xDim, 0);
 
 					setSelX(min(a,b), abs(b-a));
 
@@ -3923,10 +3923,10 @@ function uPlot(opts, data, then) {
 						sDim = height;
 					}
 
-					let sc = scales[yKey];
+					sc = scales[yKey];
 
-					let a = valToPosY(sPosToVal(sOff, yKey),        sc, yDim, 0);
-					let b = valToPosY(sPosToVal(sOff + sDim, yKey), sc, yDim, 0);
+					a = valToPosY(sPosToVal(sOff, yKey),        sc, yDim, 0);
+					b = valToPosY(sPosToVal(sOff + sDim, yKey), sc, yDim, 0);
 
 					setSelY(min(a,b), abs(b-a));
 
