@@ -2225,11 +2225,11 @@ export default function uPlot(opts, data, then) {
 		rect = over.getBoundingClientRect();
 	}
 
-	function mouseMove(e, src, _x, _y, _w, _h, _i) {
+	function mouseMove(e, src, _l, _t, _w, _h, _i) {
 		if (cursor._lock)
 			return;
 
-		cacheMouse(e, src, _x, _y, _w, _h, _i, false, e != null);
+		cacheMouse(e, src, _l, _t, _w, _h, _i, false, e != null);
 
 		if (e != null)
 			updateCursor(1);
@@ -2314,11 +2314,11 @@ export default function uPlot(opts, data, then) {
 		}, false);
 	}
 
-	function mouseDown(e, src, _x, _y, _w, _h, _i) {
+	function mouseDown(e, src, _l, _t, _w, _h, _i) {
 		dragging = true;
 		dragX = dragY = drag._x = drag._y = false;
 
-		cacheMouse(e, src, _x, _y, _w, _h, _i, true, false);
+		cacheMouse(e, src, _l, _t, _w, _h, _i, true, false);
 
 		if (e != null) {
 			onMouse(mouseup, doc, mouseUp);
@@ -2326,10 +2326,10 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
-	function mouseUp(e, src, _x, _y, _w, _h, _i) {
+	function mouseUp(e, src, _l, _t, _w, _h, _i) {
 		dragging = drag._x = drag._y = false;
 
-		cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
+		cacheMouse(e, src, _l, _t, _w, _h, _i, false, true);
 
 		let { left, top, width, height } = select;
 
@@ -2390,7 +2390,7 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
-	function mouseLeave(e, src, _x, _y, _w, _h, _i) {
+	function mouseLeave(e, src, _l, _t, _w, _h, _i) {
 		if (!cursor._lock) {
 			let _dragging = dragging;
 
@@ -2446,7 +2446,7 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
-	function dblClick(e, src, _x, _y, _w, _h, _i) {
+	function dblClick(e, src, _l, _t, _w, _h, _i) {
 		autoScaleX();
 
 		hideSelect();
