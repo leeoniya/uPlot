@@ -3883,38 +3883,58 @@ function uPlot(opts, data, then) {
 				dragX = sdrag._x;
 				dragY = sdrag._y;
 
+				let { left, top, width, height } = src.select;
+
+				let sOff, sDim, sMin, sMax;
+
+				let sori = src.scales[xKey].ori;
+
 				if (xKey) {
-					let sc = scales[xKey];
-					let srcLft = src.posToVal(src.select.left, xKey);
-					let srcRgt = src.posToVal(src.select.left + src.select.width, xKey);
-
-					select.left = valToPosX(srcLft, sc, xDim, 0);
-					select.width = abs(select.left - valToPosX(srcRgt, sc, xDim, 0));
-
-					setStylePx(selectDiv, LEFT, select.left);
-					setStylePx(selectDiv, WIDTH, select.width);
-
-					if (!yKey) {
-						setStylePx(selectDiv, TOP, select.top = 0);
-						setStylePx(selectDiv, HEIGHT, select.height = yDim);
+					if (sori == 0) {
+						sOff = left;
+						sDim = width;
 					}
+					else {
+						sOff = top;
+						sDim = height;
+					}
+
+					sMin = src.posToVal(sOff, xKey);
+					sMax = src.posToVal(sOff + sDim, xKey);
+
+					let sc = scales[xKey];
+
+					let off = valToPosX(sMin, sc, xDim, 0);
+					let dim = abs(valToPosX(sMax, sc, xDim, 0) - off);
+
+					setSelX(off, dim);
+
+					if (!yKey)
+						setSelY(0, yDim);
 				}
 
 				if (yKey) {
-					let sc = scales[yKey];
-					let srcTop = src.posToVal(src.select.top, yKey);
-					let srcBtm = src.posToVal(src.select.top + src.select.height, yKey);
-
-					select.top = valToPosY(srcTop, sc, yDim, 0);
-					select.height = abs(select.top - valToPosY(srcBtm, sc, yDim, 0));
-
-					setStylePx(selectDiv, TOP, select.top);
-					setStylePx(selectDiv, HEIGHT, select.height);
-
-					if (!xKey) {
-						setStylePx(selectDiv, LEFT, select.left = 0);
-						setStylePx(selectDiv, WIDTH, select.width = xDim);
+					if (sori == 1) {
+						sOff = left;
+						sDim = width;
 					}
+					else {
+						sOff = top;
+						sDim = height;
+					}
+
+					sMin = src.posToVal(sOff, yKey);
+					sMax = src.posToVal(sOff + sDim, yKey);
+
+					let sc = scales[yKey];
+
+					let off = valToPosY(sMin, sc, yDim, 0);
+					let dim = abs(valToPosY(sMax, sc, yDim, 0) - off);
+
+					setSelY(off, dim);
+
+					if (!xKey)
+						setSelX(0, xDim);
 				}
 			}
 			else {

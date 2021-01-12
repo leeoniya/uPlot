@@ -3900,38 +3900,62 @@ var uPlot = (function () {
 					dragX = sdrag._x;
 					dragY = sdrag._y;
 
+					var ref$1 = src.select;
+					var left = ref$1.left;
+					var top = ref$1.top;
+					var width = ref$1.width;
+					var height = ref$1.height;
+
+					var sOff, sDim, sMin, sMax;
+
+					var sori = src.scales[xKey].ori;
+
 					if (xKey) {
-						var sc = scales[xKey];
-						var srcLft = src.posToVal(src.select.left, xKey);
-						var srcRgt = src.posToVal(src.select.left + src.select.width, xKey);
-
-						select.left = valToPosX(srcLft, sc, xDim, 0);
-						select.width = abs(select.left - valToPosX(srcRgt, sc, xDim, 0));
-
-						setStylePx(selectDiv, LEFT, select.left);
-						setStylePx(selectDiv, WIDTH, select.width);
-
-						if (!yKey) {
-							setStylePx(selectDiv, TOP, select.top = 0);
-							setStylePx(selectDiv, HEIGHT, select.height = yDim);
+						if (sori == 0) {
+							sOff = left;
+							sDim = width;
 						}
+						else {
+							sOff = top;
+							sDim = height;
+						}
+
+						sMin = src.posToVal(sOff, xKey);
+						sMax = src.posToVal(sOff + sDim, xKey);
+
+						var sc = scales[xKey];
+
+						var off = valToPosX(sMin, sc, xDim, 0);
+						var dim = abs(valToPosX(sMax, sc, xDim, 0) - off);
+
+						setSelX(off, dim);
+
+						if (!yKey)
+							{ setSelY(0, yDim); }
 					}
 
 					if (yKey) {
-						var sc$1 = scales[yKey];
-						var srcTop = src.posToVal(src.select.top, yKey);
-						var srcBtm = src.posToVal(src.select.top + src.select.height, yKey);
-
-						select.top = valToPosY(srcTop, sc$1, yDim, 0);
-						select.height = abs(select.top - valToPosY(srcBtm, sc$1, yDim, 0));
-
-						setStylePx(selectDiv, TOP, select.top);
-						setStylePx(selectDiv, HEIGHT, select.height);
-
-						if (!xKey) {
-							setStylePx(selectDiv, LEFT, select.left = 0);
-							setStylePx(selectDiv, WIDTH, select.width = xDim);
+						if (sori == 1) {
+							sOff = left;
+							sDim = width;
 						}
+						else {
+							sOff = top;
+							sDim = height;
+						}
+
+						sMin = src.posToVal(sOff, yKey);
+						sMax = src.posToVal(sOff + sDim, yKey);
+
+						var sc$1 = scales[yKey];
+
+						var off$1 = valToPosY(sMin, sc$1, yDim, 0);
+						var dim$1 = abs(valToPosY(sMax, sc$1, yDim, 0) - off$1);
+
+						setSelY(off$1, dim$1);
+
+						if (!xKey)
+							{ setSelX(0, xDim); }
 					}
 				}
 				else {
