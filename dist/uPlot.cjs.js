@@ -3753,6 +3753,19 @@ function uPlot(opts, data, then) {
 		updateCursor();
 	});
 
+	function setSelH(off, dim) {
+		setStylePx(selectDiv, LEFT,  select.left = off);
+		setStylePx(selectDiv, WIDTH, select.width = dim);
+	}
+
+	function setSelV(off, dim) {
+		setStylePx(selectDiv, TOP,    select.top = off);
+		setStylePx(selectDiv, HEIGHT, select.height = dim);
+	}
+
+	let setSelX = scaleX.ori == 0 ? setSelH : setSelV;
+	let setSelY = scaleX.ori == 1 ? setSelH : setSelV;
+
 	function updateCursor(ts, src) {
 	//	ts == null && log("updateCursor()", arguments);
 
@@ -3774,6 +3787,7 @@ function uPlot(opts, data, then) {
 
 		closestDist = inf;
 
+		// TODO: extract
 		let xDim = scaleX.ori == 0 ? plotWidCss : plotHgtCss;
 		let yDim = scaleX.ori == 1 ? plotWidCss : plotHgtCss;
 
@@ -3909,6 +3923,11 @@ function uPlot(opts, data, then) {
 				let rawDX = abs(rawMouseLeft1 - rawMouseLeft0);
 				let rawDY = abs(rawMouseTop1 - rawMouseTop0);
 
+				if (scaleX.ori == 1) {
+					rawDX = rawDY;
+					rawDY = rawDX;
+				}
+
 				dragX = drag.x && rawDX >= drag.dist;
 				dragY = drag.y && rawDY >= drag.dist;
 
@@ -3933,36 +3952,44 @@ function uPlot(opts, data, then) {
 					// if omni with no uni then both dragX / dragY should be true if either is true
 					dragX = dragY = true;
 
+				let p0, p1;
+
 				if (dragX) {
-					let minX = min(mouseLeft0, mouseLeft1);
-					let dx = abs(mouseLeft1 - mouseLeft0);
-
-					setStylePx(selectDiv, LEFT,  select.left = minX);
-					setStylePx(selectDiv, WIDTH, select.width = dx);
-
-					if (!dragY) {
-						setStylePx(selectDiv, TOP, select.top = 0);
-						setStylePx(selectDiv, HEIGHT, select.height = yDim);
+					if (scaleX.ori == 0) {
+						p0 = mouseLeft0;
+						p1 = mouseLeft1;
 					}
+					else {
+						p0 = mouseTop0;
+						p1 = mouseTop1;
+					}
+
+					setSelX(min(p0, p1), abs(p1 - p0));
+
+					if (!dragY)
+						setSelY(0, yDim);
 				}
 
 				if (dragY) {
-					let minY = min(mouseTop0, mouseTop1);
-					let dy = abs(mouseTop1 - mouseTop0);
-
-					setStylePx(selectDiv, TOP,    select.top = minY);
-					setStylePx(selectDiv, HEIGHT, select.height = dy);
-
-					if (!dragX) {
-						setStylePx(selectDiv, LEFT, select.left = 0);
-						setStylePx(selectDiv, WIDTH, select.width = xDim);
+					if (scaleX.ori == 1) {
+						p0 = mouseLeft0;
+						p1 = mouseLeft1;
 					}
+					else {
+						p0 = mouseTop0;
+						p1 = mouseTop1;
+					}
+
+					setSelY(min(p0, p1), abs(p1 - p0));
+
+					if (!dragX)
+						setSelX(0, xDim);
 				}
 
+				// the drag didn't pass the dist requirement
 				if (!dragX && !dragY) {
-					// the drag didn't pass the dist requirement
-					setStylePx(selectDiv, HEIGHT, select.height = 0);
-					setStylePx(selectDiv, WIDTH,  select.width  = 0);
+					setSelX(0, 0);
+					setSelY(0, 0);
 				}
 			}
 		}
