@@ -3922,8 +3922,9 @@ function uPlot(opts, data, then) {
 				let rawDY = abs(rawMouseTop1 - rawMouseTop0);
 
 				if (scaleX.ori == 1) {
+					let _rawDX = rawDX;
 					rawDX = rawDY;
-					rawDY = rawDX;
+					rawDY = _rawDX;
 				}
 
 				dragX = drag.x && rawDX >= drag.dist;
@@ -4042,48 +4043,73 @@ function uPlot(opts, data, then) {
 			updateCursor(null, src);
 	}
 
-	function cacheMouse(e, src, _x, _y, _w, _h, _i, initial, snap) {
+	function cacheMouse(e, src, _l, _t, _w, _h, _i, initial, snap) {
 		if (e != null) {
-			_x = e.clientX - rect.left;
-			_y = e.clientY - rect.top;
+			_l = e.clientX - rect.left;
+			_t = e.clientY - rect.top;
 		}
 		else {
-			if (_x < 0 || _y < 0) {
+			if (_l < 0 || _t < 0) {
 				mouseLeft1 = -10;
 				mouseTop1 = -10;
 				return;
 			}
 
+			let xDim = plotWidCss,
+				yDim = plotHgtCss,
+				_xDim = _w,
+				_yDim = _h,
+				_xPos = _l,
+				_yPos = _t;
+
+			if (scaleX.ori == 1) {
+				xDim = plotHgtCss;
+				yDim = plotWidCss;
+			}
+
 			let [xKey, yKey] = syncOpts.scales;
 
+			if (src.scales[xKey].ori == 1) {
+				_xDim = _h;
+				_yDim = _w;
+				_xPos = _t;
+				_yPos = _l;
+			}
+
 			if (xKey != null)
-				_x = getPos(src.posToVal(_x, xKey), scales[xKey], plotWidCss, 0);
+				_l = getPos(src.posToVal(_xPos, xKey), scales[xKey], xDim, 0);
 			else
-				_x = plotWidCss * (_x/_w);
+				_l = xDim * (_xPos/_xDim);
 
 			if (yKey != null)
-				_y = getPos(src.posToVal(_y, yKey), scales[yKey], plotHgtCss, 0);
+				_t = getPos(src.posToVal(_yPos, yKey), scales[yKey], yDim, 0);
 			else
-				_y = plotHgtCss * (_y/_h);
+				_t = yDim * (_yPos/_yDim);
+
+			if (scaleX.ori == 1) {
+				let __l = _l;
+				_l = _t;
+				_t = __l;
+			}
 		}
 
 		if (snap) {
-			if (_x <= 1 || _x >= plotWidCss - 1)
-				_x = incrRound(_x, plotWidCss);
+			if (_l <= 1 || _l >= plotWidCss - 1)
+				_l = incrRound(_l, plotWidCss);
 
-			if (_y <= 1 || _y >= plotHgtCss - 1)
-				_y = incrRound(_y, plotHgtCss);
+			if (_t <= 1 || _t >= plotHgtCss - 1)
+				_t = incrRound(_t, plotHgtCss);
 		}
 
 		if (initial) {
-			rawMouseLeft0 = _x;
-			rawMouseTop0 = _y;
+			rawMouseLeft0 = _l;
+			rawMouseTop0 = _t;
 
-			[mouseLeft0, mouseTop0] = cursor.move(self, _x, _y);
+			[mouseLeft0, mouseTop0] = cursor.move(self, _l, _t);
 		}
 		else {
-			mouseLeft1 = _x;
-			mouseTop1 = _y;
+			mouseLeft1 = _l;
+			mouseTop1 = _t;
 		}
 	}
 
