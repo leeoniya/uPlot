@@ -4217,39 +4217,32 @@ function uPlot(opts, data, then) {
 
 			if (dragging) {
 				// handle case when mousemove aren't fired all the way to edges by browser
-				let snapX = true;
-				let snapY = true;
+				let snapH = true;
+				let snapV = true;
 				let snapProx = 10;
 
-				if (dragX && dragY) {
+				let dragH, dragV;
+
+				if (scaleX.ori == 0) {
+					dragH = dragX;
+					dragV = dragY;
+				}
+				else {
+					dragH = dragY;
+					dragV = dragX;
+				}
+
+				if (dragH && dragV) {
 					// maybe omni corner snap
-					snapX = mouseLeft1 <= snapProx || mouseLeft1 >= plotWidCss - snapProx;
-					snapY = mouseTop1  <= snapProx || mouseTop1  >= plotHgtCss - snapProx;
+					snapH = mouseLeft1 <= snapProx || mouseLeft1 >= plotWidCss - snapProx;
+					snapV = mouseTop1  <= snapProx || mouseTop1  >= plotHgtCss - snapProx;
 				}
 
-				if (dragX && snapX) {
-					let dLft = mouseLeft1;
-					let dRgt = plotWidCss - mouseLeft1;
+				if (dragH && snapH)
+					mouseLeft1 = mouseLeft1 < mouseLeft0 ? 0 : plotWidCss;
 
-					let xMin = min(dLft, dRgt);
-
-					if (xMin == dLft)
-						mouseLeft1 = 0;
-					if (xMin == dRgt)
-						mouseLeft1 = plotWidCss;
-				}
-
-				if (dragY && snapY) {
-					let dTop = mouseTop1;
-					let dBtm = plotHgtCss - mouseTop1;
-
-					let yMin = min(dTop, dBtm);
-
-					if (yMin == dTop)
-						mouseTop1 = 0;
-					if (yMin == dBtm)
-						mouseTop1 = plotHgtCss;
-				}
+				if (dragV && snapV)
+					mouseTop1 = mouseTop1 < mouseTop0 ? 0 : plotHgtCss;
 
 				updateCursor(1);
 
