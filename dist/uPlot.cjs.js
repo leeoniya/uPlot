@@ -3753,6 +3753,19 @@ function uPlot(opts, data, then) {
 		updateCursor();
 	});
 
+	function setSelH(off, dim) {
+		setStylePx(selectDiv, LEFT,  select.left = off);
+		setStylePx(selectDiv, WIDTH, select.width = dim);
+	}
+
+	function setSelV(off, dim) {
+		setStylePx(selectDiv, TOP,    select.top = off);
+		setStylePx(selectDiv, HEIGHT, select.height = dim);
+	}
+
+	let setSelX = scaleX.ori == 0 ? setSelH : setSelV;
+	let setSelY = scaleX.ori == 1 ? setSelH : setSelV;
+
 	function updateCursor(ts, src) {
 	//	ts == null && log("updateCursor()", arguments);
 
@@ -3774,6 +3787,7 @@ function uPlot(opts, data, then) {
 
 		closestDist = inf;
 
+		// TODO: extract
 		let xDim = scaleX.ori == 0 ? plotWidCss : plotHgtCss;
 		let yDim = scaleX.ori == 1 ? plotWidCss : plotHgtCss;
 
@@ -3871,43 +3885,64 @@ function uPlot(opts, data, then) {
 				dragX = sdrag._x;
 				dragY = sdrag._y;
 
+				let { left, top, width, height } = src.select;
+
+				let sori = src.scales[xKey].ori;
+				let sPosToVal = src.posToVal;
+
+				let sOff, sDim, sc, a, b;
+
 				if (xKey) {
-					let sc = scales[xKey];
-					let srcLft = src.posToVal(src.select.left, xKey);
-					let srcRgt = src.posToVal(src.select.left + src.select.width, xKey);
-
-					select.left = valToPosX(srcLft, sc, xDim, 0);
-					select.width = abs(select.left - valToPosX(srcRgt, sc, xDim, 0));
-
-					setStylePx(selectDiv, LEFT, select.left);
-					setStylePx(selectDiv, WIDTH, select.width);
-
-					if (!yKey) {
-						setStylePx(selectDiv, TOP, select.top = 0);
-						setStylePx(selectDiv, HEIGHT, select.height = yDim);
+					if (sori == 0) {
+						sOff = left;
+						sDim = width;
 					}
+					else {
+						sOff = top;
+						sDim = height;
+					}
+
+					sc = scales[xKey];
+
+					a = valToPosX(sPosToVal(sOff, xKey),        sc, xDim, 0);
+					b = valToPosX(sPosToVal(sOff + sDim, xKey), sc, xDim, 0);
+
+					setSelX(min(a,b), abs(b-a));
+
+					if (!yKey)
+						setSelY(0, yDim);
 				}
 
 				if (yKey) {
-					let sc = scales[yKey];
-					let srcTop = src.posToVal(src.select.top, yKey);
-					let srcBtm = src.posToVal(src.select.top + src.select.height, yKey);
-
-					select.top = valToPosY(srcTop, sc, yDim, 0);
-					select.height = abs(select.top - valToPosY(srcBtm, sc, yDim, 0));
-
-					setStylePx(selectDiv, TOP, select.top);
-					setStylePx(selectDiv, HEIGHT, select.height);
-
-					if (!xKey) {
-						setStylePx(selectDiv, LEFT, select.left = 0);
-						setStylePx(selectDiv, WIDTH, select.width = xDim);
+					if (sori == 1) {
+						sOff = left;
+						sDim = width;
 					}
+					else {
+						sOff = top;
+						sDim = height;
+					}
+
+					sc = scales[yKey];
+
+					a = valToPosY(sPosToVal(sOff, yKey),        sc, yDim, 0);
+					b = valToPosY(sPosToVal(sOff + sDim, yKey), sc, yDim, 0);
+
+					setSelY(min(a,b), abs(b-a));
+
+					if (!xKey)
+						setSelX(0, xDim);
 				}
 			}
 			else {
 				let rawDX = abs(rawMouseLeft1 - rawMouseLeft0);
 				let rawDY = abs(rawMouseTop1 - rawMouseTop0);
+
+				if (scaleX.ori == 1) {
+					let _rawDX = rawDX;
+					rawDX = rawDY;
+					rawDY = _rawDX;
+				}
 
 				dragX = drag.x && rawDX >= drag.dist;
 				dragY = drag.y && rawDY >= drag.dist;
@@ -3933,36 +3968,44 @@ function uPlot(opts, data, then) {
 					// if omni with no uni then both dragX / dragY should be true if either is true
 					dragX = dragY = true;
 
+				let p0, p1;
+
 				if (dragX) {
-					let minX = min(mouseLeft0, mouseLeft1);
-					let dx = abs(mouseLeft1 - mouseLeft0);
-
-					setStylePx(selectDiv, LEFT,  select.left = minX);
-					setStylePx(selectDiv, WIDTH, select.width = dx);
-
-					if (!dragY) {
-						setStylePx(selectDiv, TOP, select.top = 0);
-						setStylePx(selectDiv, HEIGHT, select.height = yDim);
+					if (scaleX.ori == 0) {
+						p0 = mouseLeft0;
+						p1 = mouseLeft1;
 					}
+					else {
+						p0 = mouseTop0;
+						p1 = mouseTop1;
+					}
+
+					setSelX(min(p0, p1), abs(p1 - p0));
+
+					if (!dragY)
+						setSelY(0, yDim);
 				}
 
 				if (dragY) {
-					let minY = min(mouseTop0, mouseTop1);
-					let dy = abs(mouseTop1 - mouseTop0);
-
-					setStylePx(selectDiv, TOP,    select.top = minY);
-					setStylePx(selectDiv, HEIGHT, select.height = dy);
-
-					if (!dragX) {
-						setStylePx(selectDiv, LEFT, select.left = 0);
-						setStylePx(selectDiv, WIDTH, select.width = xDim);
+					if (scaleX.ori == 1) {
+						p0 = mouseLeft0;
+						p1 = mouseLeft1;
 					}
+					else {
+						p0 = mouseTop0;
+						p1 = mouseTop1;
+					}
+
+					setSelY(min(p0, p1), abs(p1 - p0));
+
+					if (!dragX)
+						setSelX(0, xDim);
 				}
 
+				// the drag didn't pass the dist requirement
 				if (!dragX && !dragY) {
-					// the drag didn't pass the dist requirement
-					setStylePx(selectDiv, HEIGHT, select.height = 0);
-					setStylePx(selectDiv, WIDTH,  select.width  = 0);
+					setSelX(0, 0);
+					setSelY(0, 0);
 				}
 			}
 		}
@@ -4005,11 +4048,11 @@ function uPlot(opts, data, then) {
 		rect = over.getBoundingClientRect();
 	}
 
-	function mouseMove(e, src, _x, _y, _w, _h, _i) {
+	function mouseMove(e, src, _l, _t, _w, _h, _i) {
 		if (cursor._lock)
 			return;
 
-		cacheMouse(e, src, _x, _y, _w, _h, _i, false, e != null);
+		cacheMouse(e, src, _l, _t, _w, _h, _i, false, e != null);
 
 		if (e != null)
 			updateCursor(1);
@@ -4017,48 +4060,73 @@ function uPlot(opts, data, then) {
 			updateCursor(null, src);
 	}
 
-	function cacheMouse(e, src, _x, _y, _w, _h, _i, initial, snap) {
+	function cacheMouse(e, src, _l, _t, _w, _h, _i, initial, snap) {
 		if (e != null) {
-			_x = e.clientX - rect.left;
-			_y = e.clientY - rect.top;
+			_l = e.clientX - rect.left;
+			_t = e.clientY - rect.top;
 		}
 		else {
-			if (_x < 0 || _y < 0) {
+			if (_l < 0 || _t < 0) {
 				mouseLeft1 = -10;
 				mouseTop1 = -10;
 				return;
 			}
 
+			let xDim = plotWidCss,
+				yDim = plotHgtCss,
+				_xDim = _w,
+				_yDim = _h,
+				_xPos = _l,
+				_yPos = _t;
+
+			if (scaleX.ori == 1) {
+				xDim = plotHgtCss;
+				yDim = plotWidCss;
+			}
+
 			let [xKey, yKey] = syncOpts.scales;
 
+			if (src.scales[xKey].ori == 1) {
+				_xDim = _h;
+				_yDim = _w;
+				_xPos = _t;
+				_yPos = _l;
+			}
+
 			if (xKey != null)
-				_x = getPos(src.posToVal(_x, xKey), scales[xKey], plotWidCss, 0);
+				_l = getPos(src.posToVal(_xPos, xKey), scales[xKey], xDim, 0);
 			else
-				_x = plotWidCss * (_x/_w);
+				_l = xDim * (_xPos/_xDim);
 
 			if (yKey != null)
-				_y = getPos(src.posToVal(_y, yKey), scales[yKey], plotHgtCss, 0);
+				_t = getPos(src.posToVal(_yPos, yKey), scales[yKey], yDim, 0);
 			else
-				_y = plotHgtCss * (_y/_h);
+				_t = yDim * (_yPos/_yDim);
+
+			if (scaleX.ori == 1) {
+				let __l = _l;
+				_l = _t;
+				_t = __l;
+			}
 		}
 
 		if (snap) {
-			if (_x <= 1 || _x >= plotWidCss - 1)
-				_x = incrRound(_x, plotWidCss);
+			if (_l <= 1 || _l >= plotWidCss - 1)
+				_l = incrRound(_l, plotWidCss);
 
-			if (_y <= 1 || _y >= plotHgtCss - 1)
-				_y = incrRound(_y, plotHgtCss);
+			if (_t <= 1 || _t >= plotHgtCss - 1)
+				_t = incrRound(_t, plotHgtCss);
 		}
 
 		if (initial) {
-			rawMouseLeft0 = _x;
-			rawMouseTop0 = _y;
+			rawMouseLeft0 = _l;
+			rawMouseTop0 = _t;
 
-			[mouseLeft0, mouseTop0] = cursor.move(self, _x, _y);
+			[mouseLeft0, mouseTop0] = cursor.move(self, _l, _t);
 		}
 		else {
-			mouseLeft1 = _x;
-			mouseTop1 = _y;
+			mouseLeft1 = _l;
+			mouseTop1 = _t;
 		}
 	}
 
@@ -4069,11 +4137,11 @@ function uPlot(opts, data, then) {
 		}, false);
 	}
 
-	function mouseDown(e, src, _x, _y, _w, _h, _i) {
+	function mouseDown(e, src, _l, _t, _w, _h, _i) {
 		dragging = true;
 		dragX = dragY = drag._x = drag._y = false;
 
-		cacheMouse(e, src, _x, _y, _w, _h, _i, true, false);
+		cacheMouse(e, src, _l, _t, _w, _h, _i, true, false);
 
 		if (e != null) {
 			onMouse(mouseup, doc, mouseUp);
@@ -4081,12 +4149,14 @@ function uPlot(opts, data, then) {
 		}
 	}
 
-	function mouseUp(e, src, _x, _y, _w, _h, _i) {
+	function mouseUp(e, src, _l, _t, _w, _h, _i) {
 		dragging = drag._x = drag._y = false;
 
-		cacheMouse(e, src, _x, _y, _w, _h, _i, false, true);
+		cacheMouse(e, src, _l, _t, _w, _h, _i, false, true);
 
-		let hasSelect = select.width > 0 || select.height > 0;
+		let { left, top, width, height } = select;
+
+		let hasSelect = width > 0 || height > 0;
 
 		hasSelect && setSelect(select);
 
@@ -4096,10 +4166,22 @@ function uPlot(opts, data, then) {
 		//		dragY = drag.y;
 		//	}
 
+			let xOff = left,
+				xDim = width,
+				yOff = top,
+				yDim = height;
+
+			if (scaleX.ori == 1) {
+				xOff = top,
+				xDim = height,
+				yOff = left,
+				yDim = width;
+			}
+
 			if (dragX) {
 				_setScale(xScaleKey,
-					posToVal(select.left, xScaleKey),
-					posToVal(select.left + select.width, xScaleKey)
+					posToVal(xOff, xScaleKey),
+					posToVal(xOff + xDim, xScaleKey)
 				);
 			}
 
@@ -4109,8 +4191,8 @@ function uPlot(opts, data, then) {
 
 					if (k != xScaleKey && sc.from == null && sc.min != inf) {
 						_setScale(k,
-							posToVal(select.top + select.height, k),
-							posToVal(select.top, k)
+							posToVal(yOff + yDim, k),
+							posToVal(yOff, k)
 						);
 					}
 				}
@@ -4131,45 +4213,38 @@ function uPlot(opts, data, then) {
 		}
 	}
 
-	function mouseLeave(e, src, _x, _y, _w, _h, _i) {
+	function mouseLeave(e, src, _l, _t, _w, _h, _i) {
 		if (!cursor._lock) {
 			let _dragging = dragging;
 
 			if (dragging) {
 				// handle case when mousemove aren't fired all the way to edges by browser
-				let snapX = true;
-				let snapY = true;
+				let snapH = true;
+				let snapV = true;
 				let snapProx = 10;
 
-				if (dragX && dragY) {
+				let dragH, dragV;
+
+				if (scaleX.ori == 0) {
+					dragH = dragX;
+					dragV = dragY;
+				}
+				else {
+					dragH = dragY;
+					dragV = dragX;
+				}
+
+				if (dragH && dragV) {
 					// maybe omni corner snap
-					snapX = mouseLeft1 <= snapProx || mouseLeft1 >= plotWidCss - snapProx;
-					snapY = mouseTop1  <= snapProx || mouseTop1  >= plotHgtCss - snapProx;
+					snapH = mouseLeft1 <= snapProx || mouseLeft1 >= plotWidCss - snapProx;
+					snapV = mouseTop1  <= snapProx || mouseTop1  >= plotHgtCss - snapProx;
 				}
 
-				if (dragX && snapX) {
-					let dLft = mouseLeft1;
-					let dRgt = plotWidCss - mouseLeft1;
+				if (dragH && snapH)
+					mouseLeft1 = mouseLeft1 < mouseLeft0 ? 0 : plotWidCss;
 
-					let xMin = min(dLft, dRgt);
-
-					if (xMin == dLft)
-						mouseLeft1 = 0;
-					if (xMin == dRgt)
-						mouseLeft1 = plotWidCss;
-				}
-
-				if (dragY && snapY) {
-					let dTop = mouseTop1;
-					let dBtm = plotHgtCss - mouseTop1;
-
-					let yMin = min(dTop, dBtm);
-
-					if (yMin == dTop)
-						mouseTop1 = 0;
-					if (yMin == dBtm)
-						mouseTop1 = plotHgtCss;
-				}
+				if (dragV && snapV)
+					mouseTop1 = mouseTop1 < mouseTop0 ? 0 : plotHgtCss;
 
 				updateCursor(1);
 
@@ -4187,7 +4262,7 @@ function uPlot(opts, data, then) {
 		}
 	}
 
-	function dblClick(e, src, _x, _y, _w, _h, _i) {
+	function dblClick(e, src, _l, _t, _w, _h, _i) {
 		autoScaleX();
 
 		hideSelect();
