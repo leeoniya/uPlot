@@ -59,7 +59,7 @@
 			let plots = [
 				{
 					title: "min: {soft: 0, mode: 0}",
-					descr: "With min.soft: null or min.mode: 0, the scaleMin will always be a constant % [of the full range] below dataMin.",
+					descr: "With min.mode: 0 or min.soft: null, the scaleMin will always be a constant % [of the full range] below dataMin.",
 					scales: {
 						y: {
 							range: {
@@ -99,7 +99,7 @@
 				},
 				{
 					title: "min: {soft: 0, mode: 2}",
-					descr: "With min.mode: 2, the scaleMin will be a constant % [of the full range] below dataMin until (dataMin - pad) goes below it. This is uPlot's default mode - it provides a conditioned softMin - keeping more vertical resolution when the value range is small and far from softMin.",
+					descr: "With min.mode: 2, the scaleMin will be min.soft unless (dataMin - pad) goes below it.",
 					scales: {
 						y: {
 							range: {
@@ -112,6 +112,26 @@
 									pad: 0.2,
 									soft: 0,
 									mode: 2,
+								},
+							}
+						},
+					},
+				},
+				{
+					title: "min: {soft: 0, mode: 3}",
+					descr: "With min.mode: 3, the scaleMin will be a constant % [of the full range] below dataMin until (dataMin - pad) goes below it. This is uPlot's default mode - it provides a conditioned softMin - keeping more vertical resolution when the value range is small and far from softMin.",
+					scales: {
+						y: {
+							range: {
+								min: {
+									pad: 0.2,
+									soft: 0,
+									mode: 3,
+								},
+								max: {
+									pad: 0.2,
+									soft: 0,
+									mode: 3,
 								},
 							}
 						},

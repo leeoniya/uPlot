@@ -160,7 +160,7 @@ function rangeNum(_min, _max, mult, extra) {
 
 	_eqRangePart.pad  = mult;
 	_eqRangePart.soft = extra ? 0 : null;
-	_eqRangePart.mode = extra ? 2 : 0;
+	_eqRangePart.mode = extra ? 3 : 0;
 
 	return _rangeNum(_min, _max, _eqRange);
 }
@@ -192,13 +192,13 @@ function _rangeNum(_min, _max, cfg) {
 	let base         = pow(10, floor(mag));
 
 	let _padMin  = nonZeroDelta * (delta == 0 ? (_min == 0 ? .1 : 1) : padMin);
-	let _newMin  = roundDec(incrRoundDn(_min - _padMin, base/100), 6);
-	let _softMin = _min >= softMin && (softMinMode == 1 || softMinMode == 2 && _newMin < softMin) ? softMin : inf;
+	let _newMin  = roundDec(incrRoundDn(_min - _padMin, base/10), 6);
+	let _softMin = _min >= softMin && (softMinMode == 1 || softMinMode == 3 && _newMin <= softMin || softMinMode == 2 && _newMin >= softMin) ? softMin : inf;
 	let minLim   = max(hardMin, _newMin < _softMin && _min >= _softMin ? _softMin : min(_softMin, _newMin));
 
 	let _padMax  = nonZeroDelta * (delta == 0 ? (_max == 0 ? .1 : 1) : padMax);
-	let _newMax  = roundDec(incrRoundUp(_max + _padMax, base/100), 6);
-	let _softMax = _max <= softMax && (softMaxMode == 1 || softMaxMode == 2 && _newMax > softMax) ? softMax : -inf;
+	let _newMax  = roundDec(incrRoundUp(_max + _padMax, base/10), 6);
+	let _softMax = _max <= softMax && (softMaxMode == 1 || softMaxMode == 3 && _newMax >= softMax || softMaxMode == 2 && _newMax <= softMax) ? softMax : -inf;
 	let maxLim   = min(hardMax, _newMax > _softMax && _max <= _softMax ? _softMax : max(_softMax, _newMax));
 
 	if (minLim == maxLim && minLim == 0)

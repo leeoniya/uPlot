@@ -209,11 +209,7 @@ export namespace Range {
 
 	export type Function = (self: uPlot, initMin: number, initMax: number, scaleKey: string) => MinMax;
 
-	export const enum SoftMode {
-		Off    = 0,
-		Always = 1,
-		Near   = 2,
-	}
+	export type SoftMode = 0 | 1 | 2 | 3;
 
 	export interface Limit {
 		/** initial multiplier for dataMax-dataMin delta */
@@ -222,8 +218,8 @@ export namespace Range {
 		/** soft limit */
 		soft?: number; // 0
 
-		/** soft mode - 0: off, 1: if data extreme falls within soft limit, 2: if data extreme & padding exceeds soft limit */
-		mode?: SoftMode; // 2
+		/** soft limit active if... 0: never, 1: data <= limit, 2: data + padding <= limit, 3: data <= limit <= data + padding */
+		mode?: SoftMode; // 3
 
 		/** hard limit */
 		hard?: number;
