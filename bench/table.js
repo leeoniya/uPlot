@@ -15,7 +15,7 @@ const heads = [
 	"done",
 	"js,rend,paint,sys",
 	"heap peak,final",
-	"interact (10s)"
+	"mousemove (10s)",
 ];
 
 function padRight(str, padStr, len) {
