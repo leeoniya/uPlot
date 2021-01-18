@@ -700,6 +700,8 @@ export namespace Axis {
 
 	export type Values = ((self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => (string | number | null)[]) | (string | number | null)[][] | string;
 
+	export type Stroke = CanvasRenderingContext2D['strokeStyle'] | ((self: uPlot, axisIdx: number) => CanvasRenderingContext2D['strokeStyle']);
+
 	export const enum Side {
 		Top    = 0,
 		Right  = 1,
@@ -719,10 +721,10 @@ export namespace Axis {
 		show?: boolean; // true
 
 		/** can filter which splits render lines. e.g splits.map(v => v % 2 == 0 ? v : null) */
-		filter?: Axis.Filter;
+		filter?: Filter;
 
 		/** line color */
-		stroke?: CanvasRenderingContext2D['strokeStyle'];
+		stroke?: Stroke;
 
 		/** line width in CSS pixels */
 		width?: number;
@@ -760,7 +762,7 @@ export interface Axis {
 	font?: CanvasRenderingContext2D['font'];
 
 	/** color of axis label & values */
-	stroke?: CanvasRenderingContext2D['strokeStyle'];
+	stroke?: Axis.Stroke;
 
 	/** axis label text */
 	label?: string;

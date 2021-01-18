@@ -2654,7 +2654,12 @@ function uPlot(opts, data, then) {
 			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? wholeIncrs : (isTime ? (ms == 1 ? timeIncrsMs : timeIncrsS) : numIncrs)));
 			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
 
+			axis.stroke       = fnOrSelf(axis.stroke);
+			axis.grid.stroke  = fnOrSelf(axis.grid.stroke);
+			axis.ticks.stroke = fnOrSelf(axis.ticks.stroke);
+
 			let av = axis.values;
+
 			axis.values = (
 				isTime ? (
 					isArr(av) ?
@@ -3290,7 +3295,7 @@ function uPlot(opts, data, then) {
 			let x        = ori == 1 ? finalPos : 0;
 
 			ctx.font         = axis.font[0];
-			ctx.fillStyle    = axis.stroke || hexBlack;									// rgba?
+			ctx.fillStyle    = axis.stroke(self, i) || hexBlack;									// rgba?
 			ctx.textAlign    = axis.align == 1 ? LEFT :
 			                   axis.align == 2 ? RIGHT :
 			                   angle > 0 ? LEFT :
@@ -3366,7 +3371,7 @@ function uPlot(opts, data, then) {
 					basePos,
 					tickSize,
 					roundDec(ticks.width * pxRatio, 3),
-					ticks.stroke,
+					ticks.stroke(self, i),
 					ticks.dash,
 					ticks.cap,
 				);
@@ -3384,7 +3389,7 @@ function uPlot(opts, data, then) {
 					ori == 0 ? plotTop : plotLft,
 					ori == 0 ? plotHgt : plotWid,
 					roundDec(grid.width * pxRatio, 3),
-					grid.stroke,
+					grid.stroke(self, i),
 					grid.dash,
 					grid.cap,
 				);
