@@ -1,4 +1,4 @@
-| lib             | size    | done    | js,rend,paint,sys | heap peak,final | interact (10s)      |
+| lib             | size    | done    | js,rend,paint,sys | heap peak,final | mousemove (10s)     |
 | --------------- | ------- | ------- | ----------------- | --------------- | ------------------- |
 | <a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">uPlot</a>           |   38 KB |   65 ms |   93   2   1   50 |  13 MB   3 MB   |  167  384  128  223 |
 | <a href="https://leeoniya.github.io/uPlot/bench/ECharts.html">ECharts</a>         |  954 KB |  114 ms |  149   2   2   55 |  13 MB   5 MB   | 2783  495  147  698 |
