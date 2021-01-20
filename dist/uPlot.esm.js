@@ -338,17 +338,30 @@ const NULL_IGNORE = 0;  // all nulls are ignored by isGap
 const NULL_GAP    = 1;  // alignment nulls are ignored by isGap (default)
 const NULL_EXPAND = 2;  // nulls are expand to include adjacent alignment nulls
 
+// mark all filler nulls as explicit when adjacent to existing explicit nulls (minesweeper)
+function nullExpand(yVals, nullIdxs, alignedLen) {
+	for (let i = 0, xi, lastNullIdx = -inf; i < nullIdxs.length; i++) {
+		let nullIdx = nullIdxs[i];
+
+		if (nullIdx > lastNullIdx) {
+			xi = nullIdx - 1;
+			while (xi >= 0 && yVals[xi] == null)
+				yVals[xi--] = null;
+
+			xi = nullIdx + 1;
+			while (xi < alignedLen && yVals[xi] == null)
+				yVals[lastNullIdx = xi++] = null;
+		}
+	}
+}
+
 // nullModes is a tables-matched array indicating how to treat nulls in each series
 function join(tables, nullModes) {
-	if (tables.length == 1) {
-		return {
-			data: tables[0],
-			isGap: nullModes ? (u, seriesIdx, dataIdx) => nullModes[0][seriesIdx] != NULL_IGNORE : () => true,
-		};
-	}
+	if (tables.length == 1)
+		return tables[0];
 
 	let xVals = new Set();
-	let xNulls = [new Set()];
+//	let xNulls = [new Set()];
 
 	for (let ti = 0; ti < tables.length; ti++) {
 		let t = tables[ti];
@@ -357,22 +370,6 @@ function join(tables, nullModes) {
 
 		for (let i = 0; i < len; i++)
 			xVals.add(xs[i]);
-
-		for (let si = 1; si < t.length; si++) {
-			let nulls = new Set();
-
-			// cache original nulls for isGap lookup
-			if (nullModes == null || nullModes[ti][si] == NULL_GAP || nullModes[ti][si] == NULL_EXPAND) {
-				let ys = t[si];
-
-				for (let i = 0; i < len; i++) {
-					if (ys[i] == null)
-						nulls.add(xs[i]);
-				}
-			}
-
-			xNulls.push(nulls);
-		}
 	}
 
 	let data = [Array.from(xVals).sort((a, b) => a - b)];
@@ -384,8 +381,6 @@ function join(tables, nullModes) {
 	for (let i = 0; i < alignedLen; i++)
 		xIdxs.set(data[0][i], i);
 
-	let gsi = 1;
-
 	for (let ti = 0; ti < tables.length; ti++) {
 		let t = tables[ti];
 		let xs = t[0];
@@ -393,54 +388,37 @@ function join(tables, nullModes) {
 		for (let si = 1; si < t.length; si++) {
 			let ys = t[si];
 
-			let yVals = Array(alignedLen).fill(null);
+			let yVals = Array(alignedLen).fill(undefined);
 
-			for (let i = 0; i < ys.length; i++)
-				yVals[xIdxs.get(xs[i])] = ys[i];
+			let nullMode = nullModes ? nullModes[ti][si] : NULL_GAP;
 
-			// mark all filler nulls as explicit when adjacent to existing explicit nulls (minesweeper)
-			if (nullModes && nullModes[ti][si] == NULL_EXPAND) {
-				let nulls = xNulls[gsi];
-				let size = nulls.size;
-				let	i = 0;
-				let xi;
+			let nullIdxs = [];
 
-				let lastAddedX = -inf;
+			for (let i = 0; i < ys.length; i++) {
+				let yVal = ys[i];
+				let alignedIdx = xIdxs.get(xs[i]);
 
-				for (let xVal of nulls.values()) {
-					if (i++ == size)
-						break;
+				if (yVal == null) {
+					if (nullMode != NULL_IGNORE) {
+						yVals[alignedIdx] = yVal;
 
-					if (xVal > lastAddedX) {
-						let xIdx = xIdxs.get(xVal);
-
-						xi = xIdx - 1;
-						while (yVals[xi] === null) {
-							nulls.add(data[0][xi]);
-							xi--;
-						}
-
-						xi = xIdx + 1;
-						while (yVals[xi] === null) {
-							nulls.add(lastAddedX = data[0][xi]);
-							xi++;
-						}
+						if (nullMode == NULL_EXPAND)
+							nullIdxs.push(alignedIdx);
 					}
 				}
+				else
+					yVals[alignedIdx] = yVal;
 			}
 
-			data.push(yVals);
+			nullExpand(yVals, nullIdxs, alignedLen);
 
-			gsi++;
+			data.push(yVals);
 		}
 	}
 
 	return {
 		data: data,
-		isGap(u, seriesIdx, dataIdx) {
-			let xVal = u._data[0][dataIdx];
-			return xNulls[seriesIdx].has(xVal);
-		},
+		isGap: (u, seriesIdx, dataIdx) => u._data[seriesIdx][dataIdx] === null,
 	};
 }
 

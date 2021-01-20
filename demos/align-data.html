@@ -42,6 +42,15 @@
 				return tables;
 			}
 
+			function align(tables) {
+				console.time("align");
+				let nullModes = tables.map(t => t.map(s => 2));
+			//	console.log(nullModes);
+				let out = uPlot.join(tables, nullModes);
+				console.timeEnd("align");
+				return out;
+			}
+
 /*
 			let tables = [
 				[
@@ -67,11 +76,14 @@
 
 //			console.log(tables);
 
-			console.time("align");
-			let nullModes = tables.map(t => t.map(s => 2));
-			let { data, isGap } = uPlot.join(tables, nullModes);
-		//	console.log(nullModes);
-			console.timeEnd("align");
+			align(tables);
+			align(tables);
+			align(tables);
+			align(tables);
+			align(tables);
+			align(tables);
+
+			let data = align(tables);
 
 		//	console.log(data3);
 
