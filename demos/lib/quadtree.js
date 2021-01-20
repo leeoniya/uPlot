@@ -20,7 +20,7 @@
 				x = t.x,
 				y = t.y,
 				w = t.w / 2,
-				h = t.h / 2
+				h = t.h / 2,
 				l = t.l + 1;
 
 			t.q = [

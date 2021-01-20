@@ -161,13 +161,13 @@
 						const _dir = dir * (ori == 0 ? 1 : -1);
 
 						walkTwo(sidx - 1, numGroups, barsPerGroup, xDim, null, (ix, x0, wid) => {
-							let lft = Math.round(xOff + _dir == 1 ? x0 : xDim - x0 - wid);
+							let lft    = Math.round(xOff + _dir == 1 ? x0 : xDim - x0 - wid);
 							let barWid = Math.round(wid);
 
 							let yPos = valToPosY(dataY[ix], scaleY, yDim, yOff);
 
-							let x = ori == 0 ? Math.round(lft + wid/2) : Math.round(yPos);
-							let y = ori == 0 ? Math.round(yPos) : Math.round(lft + wid/2);
+							let x = ori == 0 ? Math.round(lft + barWid/2) : Math.round(yPos);
+							let y = ori == 0 ? Math.round(yPos)           : Math.round(lft + barWid/2);
 
 							u.ctx.fillText(
 								dataY[ix],
@@ -224,8 +224,8 @@
 									hovered = found;
 								}
 							}
-							else if (hovered) {
-								hovered = false;
+							else if (hovered != null) {
+								hovered = null;
 								barMark.style.display = "none";
 							}
 						}
@@ -275,7 +275,7 @@
 
 									let groupCenterPx = groupLftPx + groupWidPx / 2;
 
-									splits.push(u.posToVal(groupCenterPx, 'x', true))
+									splits.push(u.posToVal(groupCenterPx, 'x'));
 								});
 
 								return _dir == 1 ? splits : splits.reverse();
