@@ -125,7 +125,7 @@
 				]
 			];
 
-			let alignedDataWithGapTest10 = uPlot.join(tables10, tables10.map(t => t.map(s => 2)));
+			let alignedData10 = uPlot.join(tables10, tables10.map(t => t.map(s => 2)));
 
 			const opts10 = {
 				width: 1200,
@@ -149,7 +149,7 @@
 				],
 			};
 
-			let u10 = new uPlot(opts10, alignedDataWithGapTest10, document.body);
+			let u10 = new uPlot(opts10, alignedData10, document.body);
 		</script>
 
 		<script>
@@ -168,7 +168,7 @@
 				]
 			];
 
-			let alignedDataWithGapTest = uPlot.join(tables);
+			let alignedData = uPlot.join(tables);
 
 			const opts2 = {
 				width: 1200,
@@ -202,10 +202,10 @@
 				],
 			};
 
-			let u2 = new uPlot(opts2, alignedDataWithGapTest, document.body);
+			let u2 = new uPlot(opts2, alignedData, document.body);
 
 			setInterval(() => {
-				[u0, u1, u2].forEach(u => {
+				[u0, u1, u2, u10].forEach(u => {
 					u.series.forEach(s => {
 						s.spanGaps = !s.spanGaps;
 					});
