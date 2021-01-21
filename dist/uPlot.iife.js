@@ -336,9 +336,9 @@ var uPlot = (function () {
 	}
 
 	// nullModes
-	var NULL_IGNORE = 0;  // all nulls are ignored by isGap
-	var NULL_GAP    = 1;  // alignment nulls are ignored by isGap (default)
-	var NULL_EXPAND = 2;  // nulls are expand to include adjacent alignment nulls
+	var NULL_IGNORE = 0;  // all nulls are ignored, converted to undefined (e.g. spanGaps: true)
+	var NULL_GAP    = 1;  // nulls are retained, alignment artifacts = undefined values (default)
+	var NULL_EXPAND = 2;  // nulls are expanded to include adjacent alignment artifacts (undefined values)
 
 	// mark all filler nulls as explicit when adjacent to existing explicit nulls (minesweeper)
 	function nullExpand(yVals, nullIdxs, alignedLen) {
@@ -418,10 +418,7 @@ var uPlot = (function () {
 			}
 		}
 
-		return {
-			data: data,
-			isGap: (u, seriesIdx, dataIdx) => u._data[seriesIdx][dataIdx] === null,
-		};
+		return data;
 	}
 
 	var microTask = typeof queueMicrotask == "undefined" ? fn => Promise.resolve().then(fn) : queueMicrotask;
@@ -1258,7 +1255,6 @@ var uPlot = (function () {
 		show: true,
 		band: false,
 		spanGaps: false,
-		isGap: (self, seriesIdx, dataIdx) => true,
 		alpha: 1,
 		points: {
 			show: seriesPoints,
@@ -1494,8 +1490,6 @@ var uPlot = (function () {
 					drawAcc = drawAccV;
 				}
 
-				var isGap = series.isGap;
-
 				var dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
 				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
@@ -1532,7 +1526,7 @@ var uPlot = (function () {
 							minY = min(outY, minY);
 							maxY = max(outY, maxY);
 						}
-						else if (!accGaps && isGap(u, seriesIdx, i))
+						else if (!accGaps && dataY[i] === null)
 							{ accGaps = true; }
 					}
 					else {
@@ -1553,14 +1547,14 @@ var uPlot = (function () {
 							minY = maxY = outY;
 
 							// prior pixel can have data but still start a gap if ends with null
-							if (x - accX > 1 && dataY[i - dir] == null && isGap(u, seriesIdx, i - dir))
+							if (x - accX > 1 && dataY[i - dir] === null)
 								{ _addGap = true; }
 						}
 						else {
 							minY = inf;
 							maxY = -inf;
 
-							if (!accGaps && isGap(u, seriesIdx, i))
+							if (!accGaps && dataY[i] === null)
 								{ accGaps = true; }
 						}
 
@@ -1634,7 +1628,7 @@ var uPlot = (function () {
 					var xPos = valToPosX(xVal, scaleX, xDim, xOff);
 
 					if (yVal == null) {
-						if (series.isGap(u, seriesIdx, i)) {
+						if (yVal === null) {
 							addGap(gaps, prevXPos, xPos);
 							inGap = true;
 						}
@@ -1829,7 +1823,7 @@ var uPlot = (function () {
 					var x1 = round(valToPosX(dataX[i], scaleX, xDim, xOff));
 
 					if (yVal1 == null) {
-						if (series.isGap(u, seriesIdx, i)) {
+						if (yVal1 === null) {
 							addGap(gaps, prevXPos, x1);
 							inGap = true;
 						}
@@ -2700,11 +2694,6 @@ var uPlot = (function () {
 		var viaAutoScaleX = false;
 
 		function setData(_data, _resetScales) {
-			if (!isArr(_data) && isObj(_data)) {
-				_data.isGap && series.forEach(s => { s.isGap = _data.isGap; });
-				_data = _data.data;
-			}
-
 			_data = _data || [];
 			_data[0] = _data[0] || [];
 

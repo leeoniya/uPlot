@@ -336,9 +336,9 @@ function assign(targ) {
 }
 
 // nullModes
-const NULL_IGNORE = 0;  // all nulls are ignored by isGap
-const NULL_GAP    = 1;  // alignment nulls are ignored by isGap (default)
-const NULL_EXPAND = 2;  // nulls are expand to include adjacent alignment nulls
+const NULL_IGNORE = 0;  // all nulls are ignored, converted to undefined (e.g. spanGaps: true)
+const NULL_GAP    = 1;  // nulls are retained, alignment artifacts = undefined values (default)
+const NULL_EXPAND = 2;  // nulls are expanded to include adjacent alignment artifacts (undefined values)
 
 // mark all filler nulls as explicit when adjacent to existing explicit nulls (minesweeper)
 function nullExpand(yVals, nullIdxs, alignedLen) {
@@ -418,10 +418,7 @@ function join(tables, nullModes) {
 		}
 	}
 
-	return {
-		data: data,
-		isGap: (u, seriesIdx, dataIdx) => u._data[seriesIdx][dataIdx] === null,
-	};
+	return data;
 }
 
 const microTask = typeof queueMicrotask == "undefined" ? fn => Promise.resolve().then(fn) : queueMicrotask;
@@ -1257,7 +1254,6 @@ const ySeriesOpts = {
 	show: true,
 	band: false,
 	spanGaps: false,
-	isGap: (self, seriesIdx, dataIdx) => true,
 	alpha: 1,
 	points: {
 		show: seriesPoints,
@@ -1493,8 +1489,6 @@ function linear() {
 				drawAcc = drawAccV;
 			}
 
-			const isGap = series.isGap;
-
 			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
 			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
@@ -1531,7 +1525,7 @@ function linear() {
 						minY = min(outY, minY);
 						maxY = max(outY, maxY);
 					}
-					else if (!accGaps && isGap(u, seriesIdx, i))
+					else if (!accGaps && dataY[i] === null)
 						accGaps = true;
 				}
 				else {
@@ -1552,14 +1546,14 @@ function linear() {
 						minY = maxY = outY;
 
 						// prior pixel can have data but still start a gap if ends with null
-						if (x - accX > 1 && dataY[i - dir] == null && isGap(u, seriesIdx, i - dir))
+						if (x - accX > 1 && dataY[i - dir] === null)
 							_addGap = true;
 					}
 					else {
 						minY = inf;
 						maxY = -inf;
 
-						if (!accGaps && isGap(u, seriesIdx, i))
+						if (!accGaps && dataY[i] === null)
 							accGaps = true;
 					}
 
@@ -1633,7 +1627,7 @@ function spline(opts) {
 				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
 
 				if (yVal == null) {
-					if (series.isGap(u, seriesIdx, i)) {
+					if (yVal === null) {
 						addGap(gaps, prevXPos, xPos);
 						inGap = true;
 					}
@@ -1835,7 +1829,7 @@ function stepped(opts) {
 				let x1 = round(valToPosX(dataX[i], scaleX, xDim, xOff));
 
 				if (yVal1 == null) {
-					if (series.isGap(u, seriesIdx, i)) {
+					if (yVal1 === null) {
 						addGap(gaps, prevXPos, x1);
 						inGap = true;
 					}
@@ -2699,11 +2693,6 @@ function uPlot(opts, data, then) {
 	let viaAutoScaleX = false;
 
 	function setData(_data, _resetScales) {
-		if (!isArr(_data) && isObj(_data)) {
-			_data.isGap && series.forEach(s => { s.isGap = _data.isGap; });
-			_data = _data.data;
-		}
-
 		_data = _data || [];
 		_data[0] = _data[0] || [];
 

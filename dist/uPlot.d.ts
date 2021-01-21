@@ -122,7 +122,7 @@ declare class uPlot {
 	static tzDate(date: Date, tzName: string): Date;
 
 	/** outerJoins multiple data tables on table[0] values */
-	static join(tables: AlignedData[], nullModes?: JoinNullMode[][]): AlignedDataWithGapTest;
+	static join(tables: AlignedData[], nullModes?: JoinNullMode[][]): AlignedData;
 
 	static addGap: Series.AddGap;
 
@@ -165,11 +165,11 @@ type BezierCurveToH = (p: Path2D, bp1x: number, bp1y: number, bp2x: number, bp2y
 type BezierCurveToV = (p: Path2D, bp1y: number, bp1x: number, bp2y: number, bp2x: number, p2y: number, p2x: number) => void;
 
 export const enum JoinNullMode {
-	/** use for series with spanGaps = true */
+	/** use for series with spanGaps: true */
 	Ignore = 0,
-	/** default */
+	/** retain explicit nulls gaps (default) */
 	Gaps   = 1,
-	/** expand explicit null gaps to include adjacent alignment nulls */
+	/** expand explicit null gaps to include adjacent alignment artifacts (undefined values) */
 	Expand = 2,
 }
 
@@ -182,13 +182,6 @@ export type AlignedData = [
 	xValues: number[],
 	...yValues: (number | null)[][],
 ]
-
-export interface AlignedDataWithGapTest {
-	data: AlignedData | null,
-	isGap: Series.isGap,
-}
-
-export type Data = AlignedData | AlignedDataWithGapTest;
 
 export interface DateNames {
 	/** long month names */
@@ -516,8 +509,6 @@ export interface Scale {
 }
 
 export namespace Series {
-	export type isGap = (self: uPlot, seriesIdx: number, idx: number) => boolean;
-
 	export interface Paths {
 		/** path to stroke */
 		stroke?: Path2D | null;
@@ -620,9 +611,6 @@ export interface Series {
 
 	/** when true, null data values will not cause line breaks */
 	spanGaps?: boolean;
-
-	/** tests a datapoint for inclusion in gap array and path clipping */
-	isGap?: Series.isGap;
 
 	/** legend label */
 	label?: string;

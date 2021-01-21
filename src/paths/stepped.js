@@ -31,7 +31,7 @@ export function stepped(opts) {
 				let x1 = round(valToPosX(dataX[i], scaleX, xDim, xOff));
 
 				if (yVal1 == null) {
-					if (series.isGap(u, seriesIdx, i)) {
+					if (yVal1 === null) {
 						addGap(gaps, prevXPos, x1);
 						inGap = true;
 					}

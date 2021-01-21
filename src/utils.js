@@ -323,9 +323,9 @@ export function assign(targ) {
 }
 
 // nullModes
-const NULL_IGNORE = 0;  // all nulls are ignored by isGap
-const NULL_GAP    = 1;  // alignment nulls are ignored by isGap (default)
-const NULL_EXPAND = 2;  // nulls are expand to include adjacent alignment nulls
+const NULL_IGNORE = 0;  // all nulls are ignored, converted to undefined (e.g. spanGaps: true)
+const NULL_GAP    = 1;  // nulls are retained, alignment artifacts = undefined values (default)
+const NULL_EXPAND = 2;  // nulls are expanded to include adjacent alignment artifacts (undefined values)
 
 // mark all filler nulls as explicit when adjacent to existing explicit nulls (minesweeper)
 function nullExpand(yVals, nullIdxs, alignedLen) {
@@ -405,10 +405,7 @@ export function join(tables, nullModes) {
 		}
 	}
 
-	return {
-		data: data,
-		isGap: (u, seriesIdx, dataIdx) => u._data[seriesIdx][dataIdx] === null,
-	};
+	return data;
 }
 
 export const microTask = typeof queueMicrotask == "undefined" ? fn => Promise.resolve().then(fn) : queueMicrotask;

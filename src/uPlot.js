@@ -897,11 +897,6 @@ export default function uPlot(opts, data, then) {
 	let viaAutoScaleX = false;
 
 	function setData(_data, _resetScales) {
-		if (!isArr(_data) && isObj(_data)) {
-			_data.isGap && series.forEach(s => { s.isGap = _data.isGap; });
-			_data = _data.data;
-		}
-
 		_data = _data || [];
 		_data[0] = _data[0] || [];
 

@@ -631,7 +631,6 @@ export const ySeriesOpts = {
 	show: true,
 	band: false,
 	spanGaps: false,
-	isGap: (self, seriesIdx, dataIdx) => true,
 	alpha: 1,
 	points: {
 		show: seriesPoints,
