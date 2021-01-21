@@ -3058,13 +3058,13 @@ var uPlot = (function () {
 			ctx.rect(lft, top, wid, hgt);
 			ctx.clip();
 
-			if (clip != null)
-				{ ctx.clip(clip); }
+			clip && ctx.clip(clip);
 
-			if (!fillBands(si, _fill) && _fill != null)
-				{ ctx.fill(fill); }
+			var isUpperEdge = fillBands(si, _fill);
 
-			width && ctx.stroke(stroke);
+			!isUpperEdge && _fill   && fill   && ctx.fill(fill);
+
+			width        && _stroke && stroke && ctx.stroke(stroke);
 
 			ctx.restore();
 
