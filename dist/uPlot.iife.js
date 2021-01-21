@@ -363,7 +363,6 @@ var uPlot = (function () {
 			{ return tables[0]; }
 
 		var xVals = new Set();
-	//	let xNulls = [new Set()];
 
 		for (var ti = 0; ti < tables.length; ti++) {
 			var t = tables[ti];

@@ -361,7 +361,6 @@ function join(tables, nullModes) {
 		return tables[0];
 
 	let xVals = new Set();
-//	let xNulls = [new Set()];
 
 	for (let ti = 0; ti < tables.length; ti++) {
 		let t = tables[ti];
