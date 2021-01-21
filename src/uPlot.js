@@ -58,7 +58,6 @@ import {
 	BOTTOM,
 	LEFT,
 	RIGHT,
-	hexBlack,
 	transparent,
 
 	mousemove,
@@ -756,7 +755,7 @@ export default function uPlot(opts, data, then) {
 			s.paths  = s.paths || linearPath || retNull;
 			s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
 
-			s.stroke = fnOrSelf(s.stroke || hexBlack);
+			s.stroke = fnOrSelf(s.stroke || null);
 			s.fill   = fnOrSelf(s.fill || null);
 			s._stroke = s._fill = s._paths = null;
 
@@ -1466,7 +1465,7 @@ export default function uPlot(opts, data, then) {
 			let x        = ori == 1 ? finalPos : 0;
 
 			ctx.font         = axis.font[0];
-			ctx.fillStyle    = axis.stroke(self, i) || hexBlack;									// rgba?
+			ctx.fillStyle    = axis.stroke(self, i);									// rgba?
 			ctx.textAlign    = axis.align == 1 ? LEFT :
 			                   axis.align == 2 ? RIGHT :
 			                   angle > 0 ? LEFT :

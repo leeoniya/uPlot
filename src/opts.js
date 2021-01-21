@@ -474,6 +474,7 @@ export const lineMult = 1.5;		// font-size multiplier
 export const xAxisOpts = {
 	show: true,
 	scale: "x",
+	stroke: hexBlack,
 	space: 50,
 	gap: 5,
 	size: 50,
@@ -587,6 +588,7 @@ export function numSeriesVal(self, val) {
 export const yAxisOpts = {
 	show: true,
 	scale: "y",
+	stroke: hexBlack,
 	space: 30,
 	gap: 5,
 	size: 50,
