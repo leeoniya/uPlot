@@ -1246,7 +1246,8 @@ var uPlot = (function () {
 
 	function seriesFillTo(self, seriesIdx, dataMin, dataMax) {
 		var scale = self.scales[self.series[seriesIdx].scale];
-		return scale.distr == 3 ? scale.min : 0;
+		var isUpperBandEdge = self.bands && self.bands.some(b => b.series[0] == seriesIdx);
+		return scale.distr == 3 || isUpperBandEdge ? scale.min : 0;
 	}
 
 	var ySeriesOpts = {
