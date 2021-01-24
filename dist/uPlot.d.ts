@@ -166,9 +166,9 @@ type BezierCurveToV = (p: Path2D, bp1y: number, bp1x: number, bp2y: number, bp2x
 
 export const enum JoinNullMode {
 	/** use for series with spanGaps: true */
-	Ignore = 0,
+	Remove = 0,
 	/** retain explicit nulls gaps (default) */
-	Gaps   = 1,
+	Retain = 1,
 	/** expand explicit null gaps to include adjacent alignment artifacts (undefined values) */
 	Expand = 2,
 }

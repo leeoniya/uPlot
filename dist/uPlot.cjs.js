@@ -336,11 +336,11 @@ function assign(targ) {
 }
 
 // nullModes
-const NULL_IGNORE = 0;  // all nulls are ignored, converted to undefined (e.g. spanGaps: true)
-const NULL_GAP    = 1;  // nulls are retained, alignment artifacts = undefined values (default)
-const NULL_EXPAND = 2;  // nulls are expanded to include adjacent alignment artifacts (undefined values)
+const NULL_REMOVE = 0;  // nulls are converted to undefined (e.g. for spanGaps: true)
+const NULL_RETAIN = 1;  // nulls are retained, with alignment artifacts set to undefined (default)
+const NULL_EXPAND = 2;  // nulls are expanded to include any adjacent alignment artifacts
 
-// mark all filler nulls as explicit when adjacent to existing explicit nulls (minesweeper)
+// sets undefined values to nulls when adjacent to existing nulls (minesweeper)
 function nullExpand(yVals, nullIdxs, alignedLen) {
 	for (let i = 0, xi, lastNullIdx = -inf; i < nullIdxs.length; i++) {
 		let nullIdx = nullIdxs[i];
@@ -358,10 +358,8 @@ function nullExpand(yVals, nullIdxs, alignedLen) {
 }
 
 // nullModes is a tables-matched array indicating how to treat nulls in each series
+// output is sorted ASC on the joined field (table[0]) and duplicate join values are collapsed
 function join(tables, nullModes) {
-	if (tables.length == 1)
-		return tables[0];
-
 	let xVals = new Set();
 
 	for (let ti = 0; ti < tables.length; ti++) {
@@ -391,7 +389,7 @@ function join(tables, nullModes) {
 
 			let yVals = Array(alignedLen).fill(undefined);
 
-			let nullMode = nullModes ? nullModes[ti][si] : NULL_GAP;
+			let nullMode = nullModes ? nullModes[ti][si] : NULL_RETAIN;
 
 			let nullIdxs = [];
 
@@ -400,7 +398,7 @@ function join(tables, nullModes) {
 				let alignedIdx = xIdxs.get(xs[i]);
 
 				if (yVal == null) {
-					if (nullMode != NULL_IGNORE) {
+					if (nullMode != NULL_REMOVE) {
 						yVals[alignedIdx] = yVal;
 
 						if (nullMode == NULL_EXPAND)

@@ -336,11 +336,11 @@ var uPlot = (function () {
 	}
 
 	// nullModes
-	var NULL_IGNORE = 0;  // all nulls are ignored, converted to undefined (e.g. spanGaps: true)
-	var NULL_GAP    = 1;  // nulls are retained, alignment artifacts = undefined values (default)
-	var NULL_EXPAND = 2;  // nulls are expanded to include adjacent alignment artifacts (undefined values)
+	var NULL_REMOVE = 0;  // nulls are converted to undefined (e.g. for spanGaps: true)
+	var NULL_RETAIN = 1;  // nulls are retained, with alignment artifacts set to undefined (default)
+	var NULL_EXPAND = 2;  // nulls are expanded to include any adjacent alignment artifacts
 
-	// mark all filler nulls as explicit when adjacent to existing explicit nulls (minesweeper)
+	// sets undefined values to nulls when adjacent to existing nulls (minesweeper)
 	function nullExpand(yVals, nullIdxs, alignedLen) {
 		for (var i = 0, xi = (void 0), lastNullIdx = -inf; i < nullIdxs.length; i++) {
 			var nullIdx = nullIdxs[i];
@@ -358,10 +358,8 @@ var uPlot = (function () {
 	}
 
 	// nullModes is a tables-matched array indicating how to treat nulls in each series
+	// output is sorted ASC on the joined field (table[0]) and duplicate join values are collapsed
 	function join(tables, nullModes) {
-		if (tables.length == 1)
-			{ return tables[0]; }
-
 		var xVals = new Set();
 
 		for (var ti = 0; ti < tables.length; ti++) {
@@ -391,7 +389,7 @@ var uPlot = (function () {
 
 				var yVals = Array(alignedLen).fill(undefined);
 
-				var nullMode = nullModes ? nullModes[ti$1][si] : NULL_GAP;
+				var nullMode = nullModes ? nullModes[ti$1][si] : NULL_RETAIN;
 
 				var nullIdxs = [];
 
@@ -400,7 +398,7 @@ var uPlot = (function () {
 					var alignedIdx = xIdxs.get(xs$1[i$2]);
 
 					if (yVal == null) {
-						if (nullMode != NULL_IGNORE) {
+						if (nullMode != NULL_REMOVE) {
 							yVals[alignedIdx] = yVal;
 
 							if (nullMode == NULL_EXPAND)
