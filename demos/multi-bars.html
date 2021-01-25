@@ -123,7 +123,7 @@
 						const _dir = dir * (ori == 0 ? 1 : -1);
 
 						walkTwo(sidx - 1, numGroups, barsPerGroup, xDim, null, (ix, x0, wid) => {
-							let lft = Math.round(xOff + _dir == 1 ? x0 : xDim - x0 - wid);
+							let lft = Math.round(xOff + (_dir == 1 ? x0 : xDim - x0 - wid));
 							let barWid = Math.round(wid);
 
 							let yPos = valToPosY(dataY[ix], scaleY, yDim, yOff);
@@ -161,7 +161,7 @@
 						const _dir = dir * (ori == 0 ? 1 : -1);
 
 						walkTwo(sidx - 1, numGroups, barsPerGroup, xDim, null, (ix, x0, wid) => {
-							let lft    = Math.round(xOff + _dir == 1 ? x0 : xDim - x0 - wid);
+							let lft    = Math.round(xOff + (_dir == 1 ? x0 : xDim - x0 - wid));
 							let barWid = Math.round(wid);
 
 							let yPos = valToPosY(dataY[ix], scaleY, yDim, yOff);
