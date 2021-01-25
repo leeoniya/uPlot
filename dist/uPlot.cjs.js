@@ -342,7 +342,7 @@ const NULL_EXPAND = 2;  // nulls are expanded to include any adjacent alignment 
 
 // sets undefined values to nulls when adjacent to existing nulls (minesweeper)
 function nullExpand(yVals, nullIdxs, alignedLen) {
-	for (let i = 0, xi, lastNullIdx = -inf; i < nullIdxs.length; i++) {
+	for (let i = 0, xi, lastNullIdx = -1; i < nullIdxs.length; i++) {
 		let nullIdx = nullIdxs[i];
 
 		if (nullIdx > lastNullIdx) {

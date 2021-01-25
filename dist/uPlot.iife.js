@@ -342,7 +342,7 @@ var uPlot = (function () {
 
 	// sets undefined values to nulls when adjacent to existing nulls (minesweeper)
 	function nullExpand(yVals, nullIdxs, alignedLen) {
-		for (var i = 0, xi = (void 0), lastNullIdx = -inf; i < nullIdxs.length; i++) {
+		for (var i = 0, xi = (void 0), lastNullIdx = -1; i < nullIdxs.length; i++) {
 			var nullIdx = nullIdxs[i];
 
 			if (nullIdx > lastNullIdx) {
