@@ -3462,7 +3462,9 @@ function uPlot(opts, data, then) {
 		queuedCommit = false;
 	}
 
-	self.redraw = rebuildPaths => {
+	self.redraw = (rebuildPaths, recalcAxes) => {
+		shouldConvergeSize = recalcAxes || false;
+
 		if (rebuildPaths !== false)
 			_setScale(xScaleKey, scaleX.min, scaleX.max);
 		else

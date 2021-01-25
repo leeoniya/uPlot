@@ -52,7 +52,7 @@ declare class uPlot {
 
 
 	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
-	redraw(rebuildPaths?: boolean): void;
+	redraw(rebuildPaths?: boolean, recalcAxes?: boolean): void;
 
 	/** defers recalc & redraw for multiple ops, e.g. setScale('x', ...) && setScale('y', ...) */
 	batch(txn: Function): void;
