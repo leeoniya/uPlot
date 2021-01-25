@@ -31,61 +31,87 @@
 				data[3][i] = y3;
 			}
 
-			const opts = {
-				title: "Cursor Focus",
-				width: 1920,
-				height: 600,
-				hooks: {
-					setSeries: [
-						(u, seriesIdx) => {
-							console.log("focus!", seriesIdx);
+			const prepareChartOpts = (title, alpha, series) => {
+				return {
+					title,
+					width: 1920,
+					height: 600,
+					hooks: {
+						setSeries: [
+							(u, seriesIdx) => {
+								console.log("focus!", seriesIdx);
 
-							u.series.forEach((s, i) => {
-								s.width = i == seriesIdx ? 2 : 1;
-							});
-						}
-					]
-				},
-				focus: {
-					alpha: 0.3,
-				},
-				cursor: {
+								u.series.forEach((s, i) => {
+									s.width = i == seriesIdx ? 2 : 1;
+								});
+							}
+						]
+					},
 					focus: {
-						prox: 30,
-					}
+						alpha,
+					},
+					cursor: {
+						focus: {
+							prox: 30,
+						}
+					},
+					scales: {
+						x: {
+							time: false,
+						},
+						y: {
+							range: [-2, 2]
+						}
+					},
+					series: [
+						{
+							label: "x",
+						},
+						...series,
+					],
+				}
+			}
+
+			let u1 = new uPlot(prepareChartOpts('Cursor Focus', 0.3, [
+				{
+					label: "sin(x)",
+					stroke: "red",
+					fill: "rgba(255,0,0,0.1)",
 				},
-				scales: {
-					x: {
-						time: false,
-					//	range: [0, 2 * Math.PI],
-					},
-					y: {
-						range: [-2, 2]
-					}
+				{
+					label: "cos(x)",
+					stroke: "blue",
+					fill: "rgba(0,0,255,0.1)",
 				},
-				series: [
-					{
-						label: "x",
-					},
-					{
-						label: "sin(x)",
-						stroke: "red",
-						fill: "rgba(255,0,0,0.1)",
-					},
-					{
-						label: "cos(x)",
-						stroke: "blue",
-						fill: "rgba(0,0,255,0.1)",
-					},
-					{
-						label: "log(x)",
-						stroke: "green",
-						fill: "rgba(0,255,0,0.1)",
-					}
-				],
+				{
+					label: "log(x)",
+					stroke: "green",
+					fill: "rgba(0,255,0,0.1)",
+				}
+			]), data, document.body);
+
+			const focusColorSwitch = (focused, unfocused) => (u, idx) => {
+				const series = u.series[idx];
+				return series._focus ? focused : unfocused;
 			};
 
-			let u = new uPlot(opts, data, document.body);
+			let u2 = new uPlot(prepareChartOpts('Dynamic Focus', 1, [
+				{
+					label: "sin(x)",
+					stroke: focusColorSwitch("red", "black"),
+					fill: focusColorSwitch("rgba(255,0,0,0.1)", "rgba(0,0,0,0.1)"),
+				},
+				{
+					label: "cos(x)",
+					stroke: focusColorSwitch("blue", "black"),
+					fill: focusColorSwitch("rgba(0,0,255,0.1)", "rgba(0,0,0,0.1)"),
+				},
+				{
+					label: "log(x)",
+					stroke: focusColorSwitch("green", "black"),
+					fill: focusColorSwitch("rgba(0,255,0,0.1)", "rgba(0,0,0,0.1)"),
+				}
+			]), data, document.body);
 		</script>
 	</body>
 </html>
