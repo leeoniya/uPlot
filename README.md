@@ -9,9 +9,9 @@ A small ([~30 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.i
 
 <h3 align="center">166,650 point bench: <a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">https://leeoniya.github.io/uPlot/bench/uPlot.html</a></h3>
 
-However, if you're looking for true real-time 60fps performance with massive datasets, uPlot [can only get you so far](https://huww98.github.io/TimeChart/docs/performance).
+However, if you need 60fps performance with massive streaming datasets, uPlot [can only get you so far](https://huww98.github.io/TimeChart/docs/performance).
 WebGL should still be the tool of choice for applications like realtime signal or waveform visualizations:
-Try [danchitnis/webgl-plot](https://github.com/danchitnis/webgl-plot), [huww98/TimeChart](https://github.com/huww98/TimeChart), [epezent/implot](https://github.com/epezent/implot).
+See [danchitnis/webgl-plot](https://github.com/danchitnis/webgl-plot), [huww98/TimeChart](https://github.com/huww98/TimeChart), [epezent/implot](https://github.com/epezent/implot), or commercial products like [LightningChart®](https://www.arction.com/lightningchart-js/).
 
 ---
 ![uPlot Chart](uPlot.png "uPlot Chart")
@@ -71,7 +71,7 @@ Full size: https://leeoniya.github.io/uPlot/demos/multi-bars.html
 Raw data: https://github.com/leeoniya/uPlot/blob/master/bench/results.json
 
 <pre>
-| lib             | size    | done    | js,rend,paint,sys | heap peak,final | interact (10s)      |
+| lib             | size    | done    | js,rend,paint,sys | heap peak,final | mousemove (10s)     |
 | --------------- | ------- | ------- | ----------------- | --------------- | ------------------- |
 | <a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">uPlot</a>           |   38 KB |   65 ms |   93   2   1   50 |  13 MB   3 MB   |  167  384  128  223 |
 | <a href="https://leeoniya.github.io/uPlot/bench/ECharts.html">ECharts</a>         |  954 KB |  114 ms |  149   2   2   55 |  13 MB   5 MB   | 2783  495  147  698 |
@@ -89,8 +89,21 @@ Raw data: https://github.com/leeoniya/uPlot/blob/master/bench/results.json
 | <a href="https://leeoniya.github.io/uPlot/bench/amCharts.html">amCharts</a>        | 1200 KB | 5564 ms | 6057  40  11   80 | 235 MB 231 MB   | 6309  650  248  375 |
 </pre>
 
+- libs are sorted by their initial, cold-start, render performance (excluding network transfer time to download the lib)
 - `size` includes the lib itself plus any dependencies required to render the benchmark, e.g. Moment, jQuery, etc.
 - Flot does not make available any minified assets and all their examples use the uncompressed sources; they also use an uncompressed version of jQuery :/
+
+Some libraries provide their own performance demos:
+
+- https://echarts.apache.org/next/examples/en/index.html
+- https://github.com/sveinn-steinarsson/flot-downsample/
+- https://dygraphs.com/tests/dygraph-many-points-benchmark.html
+- https://www.chartjs.org/docs/latest/general/performance.html
+- https://dash.plotly.com/performance
+- https://www.highcharts.com/docs/advanced-chart-features/boost-module
+- https://danchitnis.github.io/webgl-plot-examples/vanilla/
+- https://huww98.github.io/TimeChart/docs/performance
+- https://www.arction.com/lightningchart-js-performance/
 
 TODO (all of these use SVG, so performance should be similar to Highcharts):
 

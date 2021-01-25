@@ -147,7 +147,7 @@ export function rangeNum(_min, _max, mult, extra) {
 
 	_eqRangePart.pad  = mult;
 	_eqRangePart.soft = extra ? 0 : null;
-	_eqRangePart.mode = extra ? 2 : 0;
+	_eqRangePart.mode = extra ? 3 : 0;
 
 	return _rangeNum(_min, _max, _eqRange);
 }
@@ -179,13 +179,13 @@ function _rangeNum(_min, _max, cfg) {
 	let base         = pow(10, floor(mag));
 
 	let _padMin  = nonZeroDelta * (delta == 0 ? (_min == 0 ? .1 : 1) : padMin);
-	let _newMin  = roundDec(incrRoundDn(_min - _padMin, base/100), 6);
-	let _softMin = _min >= softMin && (softMinMode == 1 || softMinMode == 2 && _newMin < softMin) ? softMin : inf;
+	let _newMin  = roundDec(incrRoundDn(_min - _padMin, base/10), 6);
+	let _softMin = _min >= softMin && (softMinMode == 1 || softMinMode == 3 && _newMin <= softMin || softMinMode == 2 && _newMin >= softMin) ? softMin : inf;
 	let minLim   = max(hardMin, _newMin < _softMin && _min >= _softMin ? _softMin : min(_softMin, _newMin));
 
 	let _padMax  = nonZeroDelta * (delta == 0 ? (_max == 0 ? .1 : 1) : padMax);
-	let _newMax  = roundDec(incrRoundUp(_max + _padMax, base/100), 6);
-	let _softMax = _max <= softMax && (softMaxMode == 1 || softMaxMode == 2 && _newMax > softMax) ? softMax : -inf;
+	let _newMax  = roundDec(incrRoundUp(_max + _padMax, base/10), 6);
+	let _softMax = _max <= softMax && (softMaxMode == 1 || softMaxMode == 3 && _newMax >= softMax || softMaxMode == 2 && _newMax <= softMax) ? softMax : -inf;
 	let maxLim   = min(hardMax, _newMax > _softMax && _max <= _softMax ? _softMax : max(_softMax, _newMax));
 
 	if (minLim == maxLim && minLim == 0)
@@ -323,21 +323,31 @@ export function assign(targ) {
 }
 
 // nullModes
-const NULL_IGNORE = 0;  // all nulls are ignored by isGap
-const NULL_GAP    = 1;  // alignment nulls are ignored by isGap (default)
-const NULL_EXPAND = 2;  // nulls are expand to include adjacent alignment nulls
+const NULL_REMOVE = 0;  // nulls are converted to undefined (e.g. for spanGaps: true)
+const NULL_RETAIN = 1;  // nulls are retained, with alignment artifacts set to undefined (default)
+const NULL_EXPAND = 2;  // nulls are expanded to include any adjacent alignment artifacts
+
+// sets undefined values to nulls when adjacent to existing nulls (minesweeper)
+function nullExpand(yVals, nullIdxs, alignedLen) {
+	for (let i = 0, xi, lastNullIdx = -1; i < nullIdxs.length; i++) {
+		let nullIdx = nullIdxs[i];
+
+		if (nullIdx > lastNullIdx) {
+			xi = nullIdx - 1;
+			while (xi >= 0 && yVals[xi] == null)
+				yVals[xi--] = null;
+
+			xi = nullIdx + 1;
+			while (xi < alignedLen && yVals[xi] == null)
+				yVals[lastNullIdx = xi++] = null;
+		}
+	}
+}
 
 // nullModes is a tables-matched array indicating how to treat nulls in each series
+// output is sorted ASC on the joined field (table[0]) and duplicate join values are collapsed
 export function join(tables, nullModes) {
-	if (tables.length == 1) {
-		return {
-			data: tables[0],
-			isGap: nullModes ? (u, seriesIdx, dataIdx) => nullModes[0][seriesIdx] != NULL_IGNORE : () => true,
-		};
-	}
-
 	let xVals = new Set();
-	let xNulls = [new Set()];
 
 	for (let ti = 0; ti < tables.length; ti++) {
 		let t = tables[ti];
@@ -346,22 +356,6 @@ export function join(tables, nullModes) {
 
 		for (let i = 0; i < len; i++)
 			xVals.add(xs[i]);
-
-		for (let si = 1; si < t.length; si++) {
-			let nulls = new Set();
-
-			// cache original nulls for isGap lookup
-			if (nullModes == null || nullModes[ti][si] == NULL_GAP || nullModes[ti][si] == NULL_EXPAND) {
-				let ys = t[si];
-
-				for (let i = 0; i < len; i++) {
-					if (ys[i] == null)
-						nulls.add(xs[i]);
-				}
-			}
-
-			xNulls.push(nulls);
-		}
 	}
 
 	let data = [Array.from(xVals).sort((a, b) => a - b)];
@@ -373,8 +367,6 @@ export function join(tables, nullModes) {
 	for (let i = 0; i < alignedLen; i++)
 		xIdxs.set(data[0][i], i);
 
-	let gsi = 1;
-
 	for (let ti = 0; ti < tables.length; ti++) {
 		let t = tables[ti];
 		let xs = t[0];
@@ -382,55 +374,35 @@ export function join(tables, nullModes) {
 		for (let si = 1; si < t.length; si++) {
 			let ys = t[si];
 
-			let yVals = Array(alignedLen).fill(null);
+			let yVals = Array(alignedLen).fill(undefined);
 
-			for (let i = 0; i < ys.length; i++)
-				yVals[xIdxs.get(xs[i])] = ys[i];
+			let nullMode = nullModes ? nullModes[ti][si] : NULL_RETAIN;
 
-			// mark all filler nulls as explicit when adjacent to existing explicit nulls (minesweeper)
-			if (nullModes && nullModes[ti][si] == NULL_EXPAND) {
-				let nulls = xNulls[gsi];
-				let size = nulls.size;
-				let	i = 0;
-				let xi;
+			let nullIdxs = [];
 
-				let lastAddedX = -inf;
+			for (let i = 0; i < ys.length; i++) {
+				let yVal = ys[i];
+				let alignedIdx = xIdxs.get(xs[i]);
 
-				for (let xVal of nulls.values()) {
-					if (i++ == size)
-						break;
+				if (yVal == null) {
+					if (nullMode != NULL_REMOVE) {
+						yVals[alignedIdx] = yVal;
 
-					if (xVal > lastAddedX) {
-						let xIdx = xIdxs.get(xVal);
-
-						xi = xIdx - 1;
-						while (yVals[xi] === null) {
-							nulls.add(data[0][xi]);
-							xi--;
-						}
-
-						xi = xIdx + 1;
-						while (yVals[xi] === null) {
-							nulls.add(lastAddedX = data[0][xi]);
-							xi++;
-						}
+						if (nullMode == NULL_EXPAND)
+							nullIdxs.push(alignedIdx);
 					}
 				}
+				else
+					yVals[alignedIdx] = yVal;
 			}
 
-			data.push(yVals);
+			nullExpand(yVals, nullIdxs, alignedLen);
 
-			gsi++;
+			data.push(yVals);
 		}
 	}
 
-	return {
-		data: data,
-		isGap(u, seriesIdx, dataIdx) {
-			let xVal = u._data[0][dataIdx];
-			return xNulls[seriesIdx].has(xVal);
-		},
-	};
+	return data;
 }
 
 export const microTask = typeof queueMicrotask == "undefined" ? fn => Promise.resolve().then(fn) : queueMicrotask;

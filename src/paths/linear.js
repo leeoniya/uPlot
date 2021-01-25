@@ -27,8 +27,6 @@ export function linear() {
 				drawAcc = drawAccV;
 			}
 
-			const isGap = series.isGap;
-
 			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
 			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
@@ -65,7 +63,7 @@ export function linear() {
 						minY = min(outY, minY);
 						maxY = max(outY, maxY);
 					}
-					else if (!accGaps && isGap(u, seriesIdx, i))
+					else if (!accGaps && dataY[i] === null)
 						accGaps = true;
 				}
 				else {
@@ -86,14 +84,14 @@ export function linear() {
 						minY = maxY = outY;
 
 						// prior pixel can have data but still start a gap if ends with null
-						if (x - accX > 1 && dataY[i - dir] == null && isGap(u, seriesIdx, i - dir))
+						if (x - accX > 1 && dataY[i - dir] === null)
 							_addGap = true;
 					}
 					else {
 						minY = inf;
 						maxY = -inf;
 
-						if (!accGaps && isGap(u, seriesIdx, i))
+						if (!accGaps && dataY[i] === null)
 							accGaps = true;
 					}
 

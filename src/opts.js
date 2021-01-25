@@ -474,6 +474,7 @@ export const lineMult = 1.5;		// font-size multiplier
 export const xAxisOpts = {
 	show: true,
 	scale: "x",
+	stroke: hexBlack,
 	space: 50,
 	gap: 5,
 	size: 50,
@@ -587,6 +588,7 @@ export function numSeriesVal(self, val) {
 export const yAxisOpts = {
 	show: true,
 	scale: "y",
+	stroke: hexBlack,
 	space: 30,
 	gap: 5,
 	size: 50,
@@ -621,7 +623,8 @@ function seriesPoints(self, si) {
 
 export function seriesFillTo(self, seriesIdx, dataMin, dataMax) {
 	let scale = self.scales[self.series[seriesIdx].scale];
-	return scale.distr == 3 ? scale.min : 0;
+	let isUpperBandEdge = self.bands && self.bands.some(b => b.series[0] == seriesIdx);
+	return scale.distr == 3 || isUpperBandEdge ? scale.min : 0;
 }
 
 export const ySeriesOpts = {
@@ -631,7 +634,6 @@ export const ySeriesOpts = {
 	show: true,
 	band: false,
 	spanGaps: false,
-	isGap: (self, seriesIdx, dataIdx) => true,
 	alpha: 1,
 	points: {
 		show: seriesPoints,

@@ -52,7 +52,7 @@ declare class uPlot {
 
 
 	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
-	redraw(rebuildPaths?: boolean): void;
+	redraw(rebuildPaths?: boolean, recalcAxes?: boolean): void;
 
 	/** defers recalc & redraw for multiple ops, e.g. setScale('x', ...) && setScale('y', ...) */
 	batch(txn: Function): void;
@@ -122,7 +122,7 @@ declare class uPlot {
 	static tzDate(date: Date, tzName: string): Date;
 
 	/** outerJoins multiple data tables on table[0] values */
-	static join(tables: AlignedData[], nullModes?: JoinNullMode[][]): AlignedDataWithGapTest;
+	static join(tables: AlignedData[], nullModes?: JoinNullMode[][]): AlignedData;
 
 	static addGap: Series.AddGap;
 
@@ -173,11 +173,11 @@ type Sync = {
 }
 
 export const enum JoinNullMode {
-	/** use for series with spanGaps = true */
-	Ignore = 0,
-	/** default */
-	Gaps   = 1,
-	/** expand explicit null gaps to include adjacent alignment nulls */
+	/** use for series with spanGaps: true */
+	Remove = 0,
+	/** retain explicit nulls gaps (default) */
+	Retain = 1,
+	/** expand explicit null gaps to include adjacent alignment artifacts (undefined values) */
 	Expand = 2,
 }
 
@@ -190,13 +190,6 @@ export type AlignedData = [
 	xValues: number[],
 	...yValues: (number | null)[][],
 ]
-
-export interface AlignedDataWithGapTest {
-	data: AlignedData | null,
-	isGap: Series.isGap,
-}
-
-export type Data = AlignedData | AlignedDataWithGapTest;
 
 export interface DateNames {
 	/** long month names */
@@ -217,11 +210,7 @@ export namespace Range {
 
 	export type Function = (self: uPlot, initMin: number, initMax: number, scaleKey: string) => MinMax;
 
-	export const enum SoftMode {
-		Off    = 0,
-		Always = 1,
-		Near   = 2,
-	}
+	export type SoftMode = 0 | 1 | 2 | 3;
 
 	export interface Limit {
 		/** initial multiplier for dataMax-dataMin delta */
@@ -230,8 +219,8 @@ export namespace Range {
 		/** soft limit */
 		soft?: number; // 0
 
-		/** soft mode - 0: off, 1: if data extreme falls within soft limit, 2: if data extreme & padding exceeds soft limit */
-		mode?: SoftMode; // 2
+		/** soft limit active if... 0: never, 1: data <= limit, 2: data + padding <= limit, 3: data <= limit <= data + padding */
+		mode?: SoftMode; // 3
 
 		/** hard limit */
 		hard?: number;
@@ -528,8 +517,6 @@ export interface Scale {
 }
 
 export namespace Series {
-	export type isGap = (self: uPlot, seriesIdx: number, idx: number) => boolean;
-
 	export interface Paths {
 		/** path to stroke */
 		stroke?: Path2D | null;
@@ -633,9 +620,6 @@ export interface Series {
 	/** when true, null data values will not cause line breaks */
 	spanGaps?: boolean;
 
-	/** tests a datapoint for inclusion in gap array and path clipping */
-	isGap?: Series.isGap;
-
 	/** legend label */
 	label?: string;
 
@@ -712,6 +696,8 @@ export namespace Axis {
 
 	export type Values = ((self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => (string | number | null)[]) | (string | number | null)[][] | string;
 
+	export type Stroke = CanvasRenderingContext2D['strokeStyle'] | ((self: uPlot, axisIdx: number) => CanvasRenderingContext2D['strokeStyle']);
+
 	export const enum Side {
 		Top    = 0,
 		Right  = 1,
@@ -731,10 +717,10 @@ export namespace Axis {
 		show?: boolean; // true
 
 		/** can filter which splits render lines. e.g splits.map(v => v % 2 == 0 ? v : null) */
-		filter?: Axis.Filter;
+		filter?: Filter;
 
 		/** line color */
-		stroke?: CanvasRenderingContext2D['strokeStyle'];
+		stroke?: Stroke;
 
 		/** line width in CSS pixels */
 		width?: number;
@@ -772,7 +758,7 @@ export interface Axis {
 	font?: CanvasRenderingContext2D['font'];
 
 	/** color of axis label & values */
-	stroke?: CanvasRenderingContext2D['strokeStyle'];
+	stroke?: Axis.Stroke;
 
 	/** axis label text */
 	label?: string;

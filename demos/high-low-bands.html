@@ -75,12 +75,10 @@
 				],
 				bands: [
 					{
-						show: true,
 						series: [2,3],
 						fill: "rgba(255,0,0,0.1)",
 					},
 					{
-						show: true,
 						series: [3,1],
 						fill: "rgba(0,255,0,0.1)",
 					}
@@ -155,17 +153,14 @@
 				],
 				bands: [
 					{
-						show:   true,
 						series: [4,3],
 					//	fill:   "rgba(255,0,0,0.1)",
 					},
 					{
-						show:   true,
 						series: [3,2],
 					//	fill:   "rgba(0,255,0,0.1)",
 					},
 					{
-						show:   true,
 						series: [2,1],
 					//	fill:   "rgba(0,255,0,0.1)",
 					},
@@ -191,7 +186,7 @@
 					{},
 					{
 						label:  "bars 1",
-					//	stroke: "green",
+						stroke: "green",
 						width:  0,
 						fill:   "rgba(0, 255, 0, 0.3)",
 						paths:  _bars60_100,
@@ -199,7 +194,7 @@
 					},
 					{
 						label:  "bars 2",
-					//	stroke: "magenta",
+						stroke: "magenta",
 						width:  0,
 						fill:   "rgb(255, 0, 255, 0.3)",
 						paths:  _bars60_100,
@@ -207,7 +202,7 @@
 					},
 					{
 						label:  "bars 3",
-					//	stroke: "blue",
+						stroke: "blue",
 						width:  0,
 						fill:   "rgba(0, 0, 255, 0.3)",
 						paths:  _bars60_100,
@@ -215,7 +210,7 @@
 					},
 					{
 						label:  "bars 4",
-					//	stroke: "red",
+						stroke: "red",
 						width:  0,
 						fill:   "rgba(255, 0, 0, 0.3)",
 						paths:  _bars60_100,
@@ -224,17 +219,14 @@
 				],
 				bands: [
 					{
-						show:   true,
 						series: [4,3],
 					//	fill:   "rgba(255,0,0,0.1)",
 					},
 					{
-						show:   true,
 						series: [3,2],
 					//	fill:   "rgba(0,255,0,0.1)",
 					},
 					{
-						show:   true,
 						series: [2,1],
 					//	fill:   "rgba(0,255,0,0.1)",
 					},
@@ -242,6 +234,58 @@
 			};
 
 			let u3 = new uPlot(opts3, data2, document.body);
+
+
+
+			let data4 = [
+				[0,1,2,3,4,5,6,7,8,9],
+				[5,4,3,2,1,0,-1,-2,-3,-4],
+				[-5,-5,-5,-5,-5,-5,-5,-5,-5,-5],
+			];
+
+			const opts4 = {
+				width: 1920,
+				height: 600,
+				scales: {
+					x: {
+						time: false,
+					//	dir: -1,
+					//	ori: 1,
+					},
+					y: {
+					//	dir: -1,
+					//	ori: 0,
+					},
+				},
+				series: [
+					{},
+					{
+						label: "High",
+						stroke: "red",
+						fill: "rgba(255, 0, 0, .07)",
+					//	fillTo: -1000,
+					},
+					{
+						label: "Low",
+						stroke: "blue",
+					},
+				],
+				bands: [
+					{
+						series: [1,2],
+					},
+				],
+				axes: [
+					{
+					//	side: 3
+					},
+					{
+					//	side: 2,
+					}
+				]
+			};
+
+			let u4 = new uPlot(opts4, data4, document.body);
 		</script>
 	</body>
 </html>

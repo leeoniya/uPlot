@@ -42,6 +42,15 @@
 				return tables;
 			}
 
+			function align(tables) {
+				console.time("align");
+				let nullModes = tables.map(t => t.map(s => 2));
+			//	console.log(nullModes);
+				let data = uPlot.join(tables, nullModes);
+				console.timeEnd("align");
+				return data;
+			}
+
 /*
 			let tables = [
 				[
@@ -67,11 +76,14 @@
 
 //			console.log(tables);
 
-			console.time("align");
-			let nullModes = tables.map(t => t.map(s => 2));
-			let { data, isGap } = uPlot.join(tables, nullModes);
-		//	console.log(nullModes);
-			console.timeEnd("align");
+			align(tables);
+			align(tables);
+			align(tables);
+			align(tables);
+			align(tables);
+			align(tables);
+
+			let data = align(tables);
 
 		//	console.log(data3);
 
@@ -109,13 +121,6 @@
 			console.time("render");
 			let u = new uPlot(opts, data, document.body);
 			queueMicrotask(() => console.timeEnd("render"));
-/*
-			setInterval(() => {
-				console.time("align3");
-				let { data: data3, isGap: isGap3 } = outerJoin0(tables);
-				console.timeEnd("align3");
-			}, 1000);
-*/
 
 			setInterval(() => {
 				u.series.forEach(s => {

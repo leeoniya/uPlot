@@ -36,7 +36,7 @@ export function spline(opts) {
 				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
 
 				if (yVal == null) {
-					if (series.isGap(u, seriesIdx, i)) {
+					if (yVal === null) {
 						addGap(gaps, prevXPos, xPos);
 						inGap = true;
 					}
