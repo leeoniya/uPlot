@@ -1398,7 +1398,7 @@ export default function uPlot(opts, data, then) {
 			let splits = scale.distr == 2 ? _splits.map(i => data0[i]) : _splits;
 			let incr   = scale.distr == 2 ? data0[_splits[1]] - data0[_splits[0]] : _incr;
 
-			let values = axis._values  = axis.values(self, axis.filter(self, splits, i, _space, incr), i, _space, incr);
+			let values = axis._values = axis.values(self, axis.filter(self, splits, i, _space, incr), i, _space, incr);
 
 			// rotating of labels only supported on bottom x axis
 			axis._rotate = side == 2 ? axis.rotate(self, values, i, _space) : 0;
@@ -1441,7 +1441,7 @@ export default function uPlot(opts, data, then) {
 			let plotDim = ori == 0 ? plotWid : plotHgt;
 			let plotOff = ori == 0 ? plotLft : plotTop;
 
-			let axisGap  = round(axis.gap * pxRatio);
+			let axisGap = round(axis.gap * pxRatio);
 
 			let ticks = axis.ticks;
 			let tickSize = ticks.show ? round(ticks.size * pxRatio) : 0;
@@ -1474,7 +1474,7 @@ export default function uPlot(opts, data, then) {
 			ctx.textBaseline = angle ||
 			                   ori == 1 ? "middle" : side == 2 ? TOP   : BOTTOM;
 
-			let lineHeight   = axis.font[1] * lineMult;
+			let lineHeight = axis.font[1] * lineMult;
 
 			let canOffs = _splits.map(val => round(getPos(val, scale, plotDim, plotOff)));
 
@@ -1764,10 +1764,10 @@ export default function uPlot(opts, data, then) {
 	const select = self.select = assign({
 		show:   true,
 		over:   true,
-		left:	0,
-		width:	0,
-		top:	0,
-		height:	0,
+		left:   0,
+		width:  0,
+		top:    0,
+		height: 0,
 	}, opts.select);
 
 	const selectDiv = select.show ? placeDiv(SELECT, select.over ? over : under) : null;
