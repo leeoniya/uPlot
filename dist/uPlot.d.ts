@@ -50,6 +50,7 @@ declare class uPlot {
 	/** current data */
 	readonly data: AlignedData;
 
+	readonly sync: Sync;
 
 	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
 	redraw(rebuildPaths?: boolean, recalcAxes?: boolean): void;
@@ -127,8 +128,6 @@ declare class uPlot {
 	static addGap: Series.AddGap;
 
 	static clipGaps: Series.ClipPathBuilder;
-
-	static sync: Sync;
 
 	/** helper function for grabbing proper drawing orientation vars and fns for a plot instance (all dims in canvas pixels) */
 	static orient: (u: uPlot, seriesIdx: number, callback: OrientCallback) => any;
