@@ -2552,7 +2552,7 @@ var uPlot = (function () {
 
 				s.stroke = fnOrSelf(s.stroke || null);
 				s.fill   = fnOrSelf(s.fill || null);
-				s._stroke = s._fill = s._paths = null;
+				s._stroke = s._fill = s._paths = s._focus = null;
 
 				var _ptDia = ptDia(s.width, 1);
 				var points = s.points = assign({}, {
@@ -3659,8 +3659,12 @@ var uPlot = (function () {
 			if (i != focusedSeries) {
 			//	log("setFocus()", arguments);
 
+				var allFocused = i == null;
+
 				series.forEach((s, i2) => {
-					_setAlpha(i2, i == null || i2 == 0 || i2 == i ? 1 : focus.alpha);
+					var isFocused = allFocused || i2 == 0 || i2 == i;
+					s._focus = allFocused ? null : isFocused;
+					_setAlpha(i2, isFocused ? 1 : focus.alpha);
 				});
 
 				focusedSeries = i;

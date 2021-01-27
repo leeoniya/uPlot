@@ -757,8 +757,7 @@ export default function uPlot(opts, data, then) {
 
 			s.stroke = fnOrSelf(s.stroke || null);
 			s.fill   = fnOrSelf(s.fill || null);
-			s._stroke = s._fill = s._paths = null;
-			s._focus = null;
+			s._stroke = s._fill = s._paths = s._focus = null;
 
 			let _ptDia = ptDia(s.width, 1);
 			let points = s.points = assign({}, {
@@ -1853,8 +1852,9 @@ export default function uPlot(opts, data, then) {
 		if (i != focusedSeries) {
 		//	log("setFocus()", arguments);
 
+			let allFocused = i == null;
+
 			series.forEach((s, i2) => {
-				let allFocused = i == null;
 				let isFocused = allFocused || i2 == 0 || i2 == i;
 				s._focus = allFocused ? null : isFocused;
 				_setAlpha(i2, isFocused ? 1 : focus.alpha);
