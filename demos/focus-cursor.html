@@ -92,7 +92,7 @@
 
 			const focusColorSwitch = (focused, unfocused) => (u, idx) => {
 				const series = u.series[idx];
-				return series._focus ? focused : unfocused;
+				return series._focus === false ? unfocused : focused;
 			};
 
 			let u2 = new uPlot(prepareChartOpts('Dynamic Focus', 1, [
