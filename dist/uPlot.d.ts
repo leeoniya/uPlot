@@ -335,7 +335,7 @@ export interface BBox {
 	height: number;
 }
 
-interface Select extends BBox {
+export interface Select extends BBox {
 	/** div into which .u-select will be placed: .u-over or .u-under */
 	over?: boolean; // true
 }
