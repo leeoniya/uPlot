@@ -56,6 +56,9 @@
 					justify == SPACE_EVENLY  ? space / (numItems + 1) : 0
 				);
 
+				if (isNaN(gap) || gap == Infinity)
+					gap = 0;
+
 				let offs = (
 					justify == SPACE_BETWEEN ? 0       :
 					justify == SPACE_AROUND  ? gap / 2 :
@@ -126,20 +129,22 @@
 							let lft = Math.round(xOff + (_dir == 1 ? x0 : xDim - x0 - wid));
 							let barWid = Math.round(wid);
 
-							let yPos = valToPosY(dataY[ix], scaleY, yDim, yOff);
+							if (dataY[ix] != null) {
+								let yPos = valToPosY(dataY[ix], scaleY, yDim, yOff);
 
-							let btm = Math.round(Math.max(yPos, y0Pos));
-							let top = Math.round(Math.min(yPos, y0Pos));
-							let barHgt = btm - top;
+								let btm = Math.round(Math.max(yPos, y0Pos));
+								let top = Math.round(Math.min(yPos, y0Pos));
+								let barHgt = btm - top;
 
-							rect(fill, lft, top, barWid, barHgt);
+								rect(fill, lft, top, barWid, barHgt);
 
-							let x = ori == 0 ? Math.round(lft - xOff) : 0;
-							let y = ori == 0 ? Math.round(top - yOff) : Math.round(lft - xOff);
-							let w = ori == 0 ? barWid                 : barHgt;
-							let h = ori == 0 ? barHgt                 : barWid;
+								let x = ori == 0 ? Math.round(lft - xOff) : Math.round(top - yOff);
+								let y = ori == 0 ? Math.round(top - yOff) : Math.round(lft - xOff);
+								let w = ori == 0 ? barWid                 : barHgt;
+								let h = ori == 0 ? barHgt                 : barWid;
 
-							qt.add({x, y, w, h, sidx: sidx, didx: ix});
+								qt.add({x, y, w, h, sidx: sidx, didx: ix});
+							}
 						});
 
 						return {
@@ -151,8 +156,6 @@
 				function drawPoints(u, sidx, i0, i1) {
 					u.ctx.font         = font;
 					u.ctx.fillStyle    = "black";
-					u.ctx.textAlign    = ori == 0 ? "center" : "left";
-					u.ctx.textBaseline = ori == 0 ? "bottom" : "middle";
 
 					uPlot.orient(u, sidx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect) => {
 						let numGroups    = dataX.length;
@@ -164,16 +167,17 @@
 							let lft    = Math.round(xOff + (_dir == 1 ? x0 : xDim - x0 - wid));
 							let barWid = Math.round(wid);
 
-							let yPos = valToPosY(dataY[ix], scaleY, yDim, yOff);
+							if (dataY[ix] != null) {
+								let yPos = valToPosY(dataY[ix], scaleY, yDim, yOff);
 
-							let x = ori == 0 ? Math.round(lft + barWid/2) : Math.round(yPos);
-							let y = ori == 0 ? Math.round(yPos)           : Math.round(lft + barWid/2);
+								let x = ori == 0 ? Math.round(lft + barWid/2) : Math.round(yPos);
+								let y = ori == 0 ? Math.round(yPos)           : Math.round(lft + barWid/2);
 
-							u.ctx.fillText(
-								dataY[ix],
-								x,
-								y,
-							);
+								u.ctx.textAlign    = ori == 0 ? "center" : dataY[ix] >= 0 ? "left" : "right";
+								u.ctx.textBaseline = ori == 1 ? "middle" : dataY[ix] >= 0 ? "bottom" : "top";
+
+								u.ctx.fillText(dataY[ix], x, y);
+							}
 						});
 					});
 				}
