@@ -4,9 +4,11 @@ import { pxRatio } from '../dom';
 
 function _drawAcc(lineTo) {
 	return (stroke, accX, minY, maxY, outY) => {
-		lineTo(stroke, accX, minY);
-		lineTo(stroke, accX, maxY);
-		lineTo(stroke, accX, outY);
+		if (minY != maxY) {
+			lineTo(stroke, accX, minY);
+			lineTo(stroke, accX, maxY);
+			lineTo(stroke, accX, outY);
+		}
 	};
 }
 

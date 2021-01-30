@@ -1464,9 +1464,11 @@ function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(b
 
 function _drawAcc(lineTo) {
 	return (stroke, accX, minY, maxY, outY) => {
-		lineTo(stroke, accX, minY);
-		lineTo(stroke, accX, maxY);
-		lineTo(stroke, accX, outY);
+		if (minY != maxY) {
+			lineTo(stroke, accX, minY);
+			lineTo(stroke, accX, maxY);
+			lineTo(stroke, accX, outY);
+		}
 	};
 }
 
