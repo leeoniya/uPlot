@@ -48,9 +48,7 @@
 
 							const offset = (s.width % 2) / 2;
 
-							let doTrans = u.series[0].idxs[1] - u.series[0].idxs[0] >= u.bbox.width / s.width;
-
-							doTrans && ctx.translate(offset, offset);
+							ctx.translate(offset, offset);
 
 							ctx.beginPath();
 							ctx.setLineDash([5, 5]);
@@ -58,7 +56,7 @@
 							ctx.lineTo(x1, y1);
 							ctx.stroke();
 
-							doTrans && ctx.translate(-offset, -offset);
+							ctx.translate(-offset, -offset);
 						}
 					]
 				},

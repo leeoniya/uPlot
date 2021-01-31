@@ -298,6 +298,9 @@ export interface Options {
 	/** drawing order for axes/grid & series (default: ["axes", "series"]) */
 	drawOrder?: DrawOrderKey[];
 
+	/** whether vt & hz lines of series/grid/ticks should be crisp/sharp or sub-px antialiased */
+	pxAlign: boolean; // true
+
 	series: Series[];
 
 	bands?: Band[],

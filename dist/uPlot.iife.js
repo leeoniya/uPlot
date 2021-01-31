@@ -2083,6 +2083,8 @@ var uPlot = (function () {
 
 		opts = copy(opts);
 
+		var pxAlign = ifNull(opts.pxAlign, true);
+
 		(opts.plugins || []).forEach(p => {
 			if (p.opts)
 				{ opts = p.opts(self, opts) || opts; }
@@ -2919,9 +2921,7 @@ var uPlot = (function () {
 			var rad = (p.size - p.width) / 2 * pxRatio;
 			var dia = roundDec(rad * 2, 3);
 
-			var doTrans = i1 - i0 >= plotWid / s.width;
-
-			doTrans && ctx.translate(offset, offset);
+			pxAlign && ctx.translate(offset, offset);
 
 			ctx.save();
 
@@ -2983,7 +2983,7 @@ var uPlot = (function () {
 
 			ctx.restore();
 
-			doTrans && ctx.translate(-offset, -offset);
+			pxAlign && ctx.translate(-offset, -offset);
 		}
 
 		// grabs the nearest indices with y data outside of x-scale limits
@@ -3040,9 +3040,7 @@ var uPlot = (function () {
 
 			ctx.globalAlpha = s.alpha;
 
-			var doTrans = i1 - i0 >= plotWid / width;
-
-			doTrans && ctx.translate(offset, offset);
+			pxAlign && ctx.translate(offset, offset);
 
 			ctx.save();
 
@@ -3075,7 +3073,7 @@ var uPlot = (function () {
 
 			ctx.restore();
 
-			doTrans && ctx.translate(-offset, -offset);
+			pxAlign && ctx.translate(-offset, -offset);
 
 			ctx.globalAlpha = 1;
 		}
@@ -3125,7 +3123,7 @@ var uPlot = (function () {
 		function drawOrthoLines(offs, filts, ori, side, pos0, len, width, stroke, dash, cap) {
 			var offset = (width % 2) / 2;
 
-			ctx.translate(offset, offset);
+			pxAlign && ctx.translate(offset, offset);
 
 			setCtxStyle(stroke, width, dash, cap);
 
@@ -3157,7 +3155,7 @@ var uPlot = (function () {
 
 			ctx.stroke();
 
-			ctx.translate(-offset, -offset);
+			pxAlign && ctx.translate(-offset, -offset);
 		}
 
 		function axesCalc(cycleNum) {
