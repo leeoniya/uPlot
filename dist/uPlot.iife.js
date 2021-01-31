@@ -2919,7 +2919,9 @@ var uPlot = (function () {
 			var rad = (p.size - p.width) / 2 * pxRatio;
 			var dia = roundDec(rad * 2, 3);
 
-			ctx.translate(offset, offset);
+			var doTrans = i1 - i0 >= plotWid / s.width;
+
+			doTrans && ctx.translate(offset, offset);
 
 			ctx.save();
 
@@ -2981,7 +2983,7 @@ var uPlot = (function () {
 
 			ctx.restore();
 
-			ctx.translate(-offset, -offset);
+			doTrans && ctx.translate(-offset, -offset);
 		}
 
 		// grabs the nearest indices with y data outside of x-scale limits
@@ -3038,7 +3040,9 @@ var uPlot = (function () {
 
 			ctx.globalAlpha = s.alpha;
 
-			ctx.translate(offset, offset);
+			var doTrans = i1 - i0 >= plotWid / width;
+
+			doTrans && ctx.translate(offset, offset);
 
 			ctx.save();
 
@@ -3071,7 +3075,7 @@ var uPlot = (function () {
 
 			ctx.restore();
 
-			ctx.translate(-offset, -offset);
+			doTrans && ctx.translate(-offset, -offset);
 
 			ctx.globalAlpha = 1;
 		}
