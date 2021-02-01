@@ -25,20 +25,20 @@
 				let rng = max - min;
 
 				let minPos = u.valToPos(min, scaleKey, true);
-                let maxPos = u.valToPos(max, scaleKey, true);
+				let maxPos = u.valToPos(max, scaleKey, true);
 
-                let x0, y0, x1, y1;
+				let x0, y0, x1, y1;
 
-                if (ori == 1) {
-                    x0 = x1 = 0;
-                    y0 = minPos;
-                    y1 = maxPos;
-                }
-                else {
-                    y0 = y1 = 0;
-                    x0 = minPos;
-                    x1 = maxPos;
-                }
+				if (ori == 1) {
+					x0 = x1 = 0;
+					y0 = minPos;
+					y1 = maxPos;
+				}
+				else {
+					y0 = y1 = 0;
+					x0 = minPos;
+					x1 = maxPos;
+				}
 
 				let grd = ctx.createLinearGradient(x0, y0, x1, y1);
 
@@ -53,17 +53,17 @@
 			const opts = {
 				title: "Scale-aligned gradient strokes (hz)",
 				width: 1920,
-                height: 600,
+				height: 600,
 				legend: {
 				//	show: false,
 					stroke: (u, seriesIdx) => "red",
-                },
-                cursor: {
-                    points: {
-                        stroke: () => "red",
-                        fill: () => "red",
-                    }
-                },
+				},
+				cursor: {
+					points: {
+						stroke: () => "red",
+						fill: () => "red",
+					}
+				},
 				scales: {
 					x: {
 						time: false,
@@ -76,13 +76,13 @@
 						width: 4,
 						stroke: (u, seriesIdx) => {
 							return scaleGradient(u, 'x', 0, [
-                                [0, "red"],
-                                [30, "red"],
+								[0, "red"],
+								[30, "red"],
 
-                                [30, "orange"],
-                                [50, "orange"],
+								[30, "orange"],
+								[50, "orange"],
 
-                                [50, "blue"],
+								[50, "blue"],
 								[60, "blue"],
 							]);
 						},
@@ -91,28 +91,28 @@
 			};
 
 			let data = [
-                [20, 30, 50, 60],
-                [20, 10, 50, 30],
+				[20, 30, 50, 60],
+				[20, 10, 50, 30],
 			];
 
-            let u = new uPlot(opts, data, document.body);
+			let u = new uPlot(opts, data, document.body);
 
 
 
 			const opts2 = {
 				title: "Scale-aligned gradient strokes (vt)",
 				width: 1920,
-                height: 600,
+				height: 600,
 				legend: {
 				//	show: false,
 					stroke: (u, seriesIdx) => "red",
-                },
-                cursor: {
-                    points: {
-                        stroke: () => "red",
-                        fill: () => "red",
-                    }
-                },
+				},
+				cursor: {
+					points: {
+						stroke: () => "red",
+						fill: () => "red",
+					}
+				},
 				scales: {
 					x: {
 						time: false,
@@ -125,9 +125,9 @@
 						width: 4,
 						stroke: (u, seriesIdx) => {
 							return scaleGradient(u, 'y', 1, [
-                                [-100, "blue"],
-                                [0, "blue"],
-                                [0, "red"],
+								[-100, "blue"],
+								[0, "blue"],
+								[0, "red"],
 							]);
 						},
 					},
@@ -135,8 +135,8 @@
 			};
 
 			let data2 = [
-                [20, 30, 50, 60],
-                [-5, 10, -30, 30],
+				[20, 30, 50, 60],
+				[-5, 10, -30, 30],
 			];
 
 			let u2 = new uPlot(opts2, data2, document.body);
