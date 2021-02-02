@@ -1228,10 +1228,8 @@ export default function uPlot(opts, data, then) {
 		const width = roundDec(s.width * pxRatio, 3);
 		const offset = (width % 2) / 2;
 
-		const _stroke = s._stroke = s.stroke(self, si);
-		const _fill   = s._fill   = s.fill(self, si);
-
-		setCtxStyle(_stroke, width, s.dash, s.cap, _fill);
+		const strokeStyle = s._stroke = s.stroke(self, si);
+		const fillStyle   = s._fill   = s.fill(self, si);
 
 		ctx.globalAlpha = s.alpha;
 
@@ -1260,11 +1258,7 @@ export default function uPlot(opts, data, then) {
 
 		clip && ctx.clip(clip);
 
-		let isUpperEdge = fillBands(si, _fill);
-
-		!isUpperEdge && _fill   && fill   && ctx.fill(fill);
-
-		width        && _stroke && stroke && ctx.stroke(stroke);
+		fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill);
 
 		ctx.restore();
 
@@ -1273,30 +1267,44 @@ export default function uPlot(opts, data, then) {
 		ctx.globalAlpha = 1;
 	}
 
-	function fillBands(si, seriesFill) {
-		let isUpperEdge = false;
-		let s = series[si];
+	function fillStroke(si, strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath) {
+		let didStrokeFill = false;
 
 		// for all bands where this series is the top edge, create upwards clips using the bottom edges
 		// and apply clips + fill with band fill or dfltFill
 		bands.forEach((b, bi) => {
+			// isUpperEdge?
 			if (b.series[0] == si) {
-				isUpperEdge = true;
 				let lowerEdge = series[b.series[1]];
 
 				let clip = (lowerEdge._paths || EMPTY_OBJ).band;
 
+				ctx.save();
+
+				let _fillStyle = null;
+
+				// hasLowerEdge?
 				if (lowerEdge.show && clip) {
-					ctx.save();
-					setCtxStyle(null, null, null, null, b.fill(self, bi) || seriesFill);
+					_fillStyle = b.fill(self, bi) || fillStyle;
 					ctx.clip(clip);
-					ctx.fill(s._paths.fill);
-					ctx.restore();
 				}
+
+				strokeFill(strokeStyle, lineWidth, lineDash, lineCap, _fillStyle, strokePath, fillPath);
+
+				ctx.restore();
+
+				didStrokeFill = true;
 			}
 		});
 
-		return isUpperEdge;
+		if (!didStrokeFill)
+			strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath);
+	}
+
+	function strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath) {
+		setCtxStyle(strokeStyle, lineWidth, lineDash, lineCap, fillStyle);
+		fillStyle   && fillPath                && ctx.fill(fillPath);
+		strokeStyle && strokePath && lineWidth && ctx.stroke(strokePath);
 	}
 
 	function getIncrSpace(axisIdx, min, max, fullDim) {
