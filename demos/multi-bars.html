@@ -115,6 +115,7 @@
 				function drawBars(u, sidx, i0, i1) {
 					return uPlot.orient(u, sidx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect) => {
 						const fill = new Path2D();
+						const stroke = new Path2D();
 
 						// test ori, text align, text baseline...x0, y0,m width, height
 
@@ -136,6 +137,11 @@
 								let top = Math.round(Math.min(yPos, y0Pos));
 								let barHgt = btm - top;
 
+								let strokeWidth = series.width || 0;
+
+								if (strokeWidth)
+									rect(stroke, lft + strokeWidth / 2, top + strokeWidth / 2, barWid - strokeWidth, barHgt - strokeWidth);
+
 								rect(fill, lft, top, barWid, barHgt);
 
 								let x = ori == 0 ? Math.round(lft - xOff) : Math.round(top - yOff);
@@ -148,6 +154,7 @@
 						});
 
 						return {
+							stroke,
 							fill
 						};
 					});
@@ -298,6 +305,8 @@
 							if (i > 0) {
 								uPlot.assign(s, {
 									width: 0,
+								//	pxAlign: false,
+								//	stroke: "rgba(255,0,0,0.5)",
 									paths: drawBars,
 									points: {
 										show: drawPoints

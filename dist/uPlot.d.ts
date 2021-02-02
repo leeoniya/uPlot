@@ -299,7 +299,7 @@ export interface Options {
 	drawOrder?: DrawOrderKey[];
 
 	/** whether vt & hz lines of series/grid/ticks should be crisp/sharp or sub-px antialiased */
-	pxAlign: boolean; // true
+	pxAlign?: boolean; // true
 
 	series: Series[];
 
@@ -614,6 +614,9 @@ export interface Series {
 
 	/** when true, null data values will not cause line breaks */
 	spanGaps?: boolean;
+
+	/** whether path and point drawing should offset canvas to try drawing crisp lines */
+	pxAlign?: boolean; // true
 
 	/** legend label */
 	label?: string;

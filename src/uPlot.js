@@ -756,6 +756,7 @@ export default function uPlot(opts, data, then) {
 			s.width  = s.width == null ? 1 : s.width;
 			s.paths  = s.paths || linearPath || retNull;
 			s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
+			s.pxAlign = ifNull(s.pxAlign, true);
 
 			s.stroke = fnOrSelf(s.stroke || null);
 			s.fill   = fnOrSelf(s.fill || null);
@@ -1119,7 +1120,9 @@ export default function uPlot(opts, data, then) {
 		let rad = (p.size - p.width) / 2 * pxRatio;
 		let dia = roundDec(rad * 2, 3);
 
-		pxAlign && ctx.translate(offset, offset);
+		const _pxAlign = pxAlign && s.pxAlign;
+
+		_pxAlign && ctx.translate(offset, offset);
 
 		ctx.save();
 
@@ -1181,7 +1184,7 @@ export default function uPlot(opts, data, then) {
 
 		ctx.restore();
 
-		pxAlign && ctx.translate(-offset, -offset);
+		_pxAlign && ctx.translate(-offset, -offset);
 	}
 
 	// grabs the nearest indices with y data outside of x-scale limits
@@ -1233,7 +1236,9 @@ export default function uPlot(opts, data, then) {
 
 		ctx.globalAlpha = s.alpha;
 
-		pxAlign && ctx.translate(offset, offset);
+		const _pxAlign = pxAlign && s.pxAlign;
+
+		_pxAlign && ctx.translate(offset, offset);
 
 		ctx.save();
 
@@ -1262,7 +1267,7 @@ export default function uPlot(opts, data, then) {
 
 		ctx.restore();
 
-		pxAlign && ctx.translate(-offset, -offset);
+		_pxAlign && ctx.translate(-offset, -offset);
 
 		ctx.globalAlpha = 1;
 	}
