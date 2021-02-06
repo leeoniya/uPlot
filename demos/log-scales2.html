@@ -151,6 +151,103 @@
 				],
 			};
 
+
+			let now = Math.floor(new Date() / 1000);
+			let hr = 3600;
+
+			let data5 = [
+				[now-3*hr, now-2*hr, now-1*hr,  now],
+				[    1e-1,     1e1,      1e0,   1e2],
+			];
+
+			const opts5 = {
+				title: "Inverted Log10 Y Scale",
+				width: 1600,
+				height: 300,
+				padding: [null,30,10,0],
+				cursor: {
+					y: false,
+					sync: {
+						key: "moo"
+					}
+				},
+				scales: {
+					y: {
+						distr: 3,
+					//	log: 10,
+					},
+				},
+				axes: [
+					{
+						values: () => [],
+						ticks: {
+							show: false,
+						},
+						size: 0,
+					}
+				],
+				series: [
+					{},
+					{
+						label: "In",
+						stroke: "orange",
+					},
+				],
+			};
+
+			let u5 = new uPlot(opts5, data5, document.body);
+
+			const opts6 = {
+				width: 1600,
+				height: 300,
+				padding: [10,30,0,0],
+				cursor: {
+					y: false,
+					sync: {
+						key: "moo"
+					}
+				},
+				scales: {
+					y: {
+						distr: 3,
+						dir: -1,
+					//	log: 10,
+					},
+				},
+				axes: [
+					{},
+					{
+						values: (u, splits) => splits.map(v => v != null ? -v : null),
+					}
+				],
+				series: [
+					{},
+					{
+						label: "Out",
+						stroke: "blue",
+						value: (u, v) => -v,
+					},
+				],
+				hooks: {
+					ready: [
+						u => {
+							let btmLegend = u.root.querySelector(".u-legend");
+							let topLegend = u5.root.querySelector(".u-legend");
+
+							let upperItem = topLegend.querySelector(".u-series:nth-child(2)");
+							btmLegend.insertBefore(upperItem, btmLegend.lastChild);
+							topLegend.style.display = "none";
+						}
+					]
+				}
+			};
+
+			let u6 = new uPlot(opts6, data5, document.body);
+
+
+
+
+
 			// https://bost.ocks.org/mike/shuffle/
 			function shuffle(array) {
 				var m = array.length, t, i;
