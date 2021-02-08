@@ -539,9 +539,9 @@ var uPlot = (function () {
 		return str.slice(0, 3);
 	}
 
-	var days3 =  days.map(slice3);
+	var days3 = days.map(slice3);
 
-	var months3 =  months.map(slice3);
+	var months3 = months.map(slice3);
 
 	var engNames = {
 		MMMM: months,
@@ -863,11 +863,11 @@ var uPlot = (function () {
 			timeAxisSplits ];
 	}
 
-	var ref =  genTimeStuffs(1);
+	var ref = genTimeStuffs(1);
 	var timeIncrsMs = ref[0];
 	var _timeAxisStampsMs = ref[1];
 	var timeAxisSplitsMs = ref[2];
-	var ref$1 =  genTimeStuffs(1e-3);
+	var ref$1 = genTimeStuffs(1e-3);
 	var timeIncrsS = ref$1[0];
 	var _timeAxisStampsS = ref$1[1];
 	var timeAxisSplitsS = ref$1[2];
@@ -1975,7 +1975,7 @@ var uPlot = (function () {
 		};
 	}
 
-	var linearPath =  linear() ;
+	var linearPath = linear() ;
 
 	function setDefaults(d, xo, yo, initY) {
 		var d2 = initY ? [d[0], d[1]].concat(d.slice(2)) : [d[0]].concat(d.slice(1));
@@ -2127,7 +2127,7 @@ var uPlot = (function () {
 
 					sc.key = scaleKey;
 
-					var isTime =  sc.time;
+					var isTime = sc.time;
 					var isLog  = sc.distr == 3;
 
 					var rn = sc.range;
@@ -2219,15 +2219,15 @@ var uPlot = (function () {
 		}
 
 	//	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
-		var _tzDate  =  (opts.tzDate || (ts => new Date(ts / ms)));
-		var _fmtDate =  (opts.fmtDate || fmtDate);
+		var _tzDate  = (opts.tzDate || (ts => new Date(ts / ms)));
+		var _fmtDate = (opts.fmtDate || fmtDate);
 
-		var _timeAxisSplits =  (ms == 1 ? timeAxisSplitsMs(_tzDate) : timeAxisSplitsS(_tzDate));
-		var _timeAxisVals   =  timeAxisVals(_tzDate, timeAxisStamps((ms == 1 ? _timeAxisStampsMs : _timeAxisStampsS), _fmtDate));
-		var _timeSeriesVal  =  timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
+		var _timeAxisSplits = (ms == 1 ? timeAxisSplitsMs(_tzDate) : timeAxisSplitsS(_tzDate));
+		var _timeAxisVals   = timeAxisVals(_tzDate, timeAxisStamps((ms == 1 ? _timeAxisStampsMs : _timeAxisStampsS), _fmtDate));
+		var _timeSeriesVal  = timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
 
-		var legend     =  assign({show: true, live: true}, opts.legend);
-		var showLegend =  legend.show;
+		var legend     = assign({show: true, live: true}, opts.legend);
+		var showLegend = legend.show;
 
 		{
 			legend.width  = fnOrSelf(ifNull(legend.width, legendWidth));
@@ -2293,10 +2293,10 @@ var uPlot = (function () {
 
 			if (i > 0) {
 				onMouse("click", label, e => {
-					if ( cursor._lock)
+					if (cursor._lock)
 						{ return; }
 
-					setSeries(series.indexOf(s), {show: !s.show},  syncOpts.setSeries);
+					setSeries(series.indexOf(s), {show: !s.show}, syncOpts.setSeries);
 				});
 
 				if (cursorFocus) {
@@ -2507,7 +2507,7 @@ var uPlot = (function () {
 			});
 		}
 
-		var cursor =  (self.cursor = assign({}, cursorOpts, opts.cursor));
+		var cursor = (self.cursor = assign({}, cursorOpts, opts.cursor));
 
 		{
 			cursor._lock = false;
@@ -2521,8 +2521,8 @@ var uPlot = (function () {
 			points.fill   = fnOrSelf(points.fill);
 		}
 
-		var focus = self.focus = assign({}, opts.focus || {alpha: 0.3},  cursor.focus);
-		var cursorFocus =  focus.prox >= 0;
+		var focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, cursor.focus);
+		var cursorFocus = focus.prox >= 0;
 
 		// series-intersection markers
 		var cursorPts = [null];
@@ -2543,7 +2543,7 @@ var uPlot = (function () {
 		}
 
 		function initSeries(s, i) {
-			var isTime =  scales[s.scale].time;
+			var isTime = scales[s.scale].time;
 
 			var sv = s.value;
 			s.value = isTime ? (isStr(sv) ? timeSeriesVal(_tzDate, timeSeriesStamp(sv, _fmtDate)) : sv || _timeSeriesVal) : sv || numSeriesVal;
@@ -2576,7 +2576,7 @@ var uPlot = (function () {
 			if (showLegend)
 				{ legendRows.splice(i, 0, initLegendRow(s, i)); }
 
-			if ( cursor.show) {
+			if (cursor.show) {
 				var pt = initCursorPt(s, i);
 				pt && cursorPts.splice(i, 0, pt);
 			}
@@ -2594,8 +2594,8 @@ var uPlot = (function () {
 
 		function delSeries(i) {
 			series.splice(i, 1);
-			 showLegend && legendRows.splice(i, 1)[0][0].parentNode.remove();
-			 cursorPts.length > 1 && cursorPts.splice(i, 1)[0].remove();
+			showLegend && legendRows.splice(i, 1)[0][0].parentNode.remove();
+			cursorPts.length > 1 && cursorPts.splice(i, 1)[0].remove();
 
 			// TODO: de-init no-longer-needed scales?
 		}
@@ -2621,7 +2621,7 @@ var uPlot = (function () {
 				}
 
 				// also set defaults for incrs & values based on axis distr
-				var isTime =  sc.time;
+				var isTime = sc.time;
 
 				axis.size   = fnOrSelf(axis.size);
 				axis.space  = fnOrSelf(axis.space);
@@ -2900,7 +2900,7 @@ var uPlot = (function () {
 					fire("setScale", k$4);
 				}
 
-				if ( cursor.show)
+				if (cursor.show)
 					{ shouldSetCursor = true; }
 			}
 
@@ -3015,10 +3015,10 @@ var uPlot = (function () {
 				series.forEach((s, i) => {
 					if (i > 0 && s.show) {
 						if (s._paths)
-							 { drawPath(i); }
+							{ drawPath(i); }
 
 						if (s.points.show(self, i, i0, i1))
-							 { drawPoints(i); }
+							{ drawPoints(i); }
 
 						fire("drawSeries", i);
 					}
@@ -3464,7 +3464,7 @@ var uPlot = (function () {
 			//	shouldSetSelect = false;
 		//	}
 
-			if ( cursor.show && shouldSetCursor) {
+			if (cursor.show && shouldSetCursor) {
 				updateCursor();
 				shouldSetCursor = false;
 			}
@@ -3564,12 +3564,12 @@ var uPlot = (function () {
 
 		var dragging = false;
 
-		var drag =  cursor.drag;
+		var drag = cursor.drag;
 
-		var dragX =  drag.x;
-		var dragY =  drag.y;
+		var dragX = drag.x;
+		var dragY = drag.y;
 
-		if ( cursor.show) {
+		if (cursor.show) {
 			if (cursor.x)
 				{ xCursor = placeDiv(CURSOR_X, over); }
 			if (cursor.y)
@@ -3618,7 +3618,7 @@ var uPlot = (function () {
 				{ label && remClass(label, OFF); }
 			else {
 				label && addClass(label, OFF);
-				 cursorPts.length > 1 && trans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
+				cursorPts.length > 1 && trans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
 			}
 		}
 
@@ -3637,7 +3637,7 @@ var uPlot = (function () {
 
 			if (opts.show != null) {
 				s.show = opts.show;
-				 toggleDOM(i, opts.show);
+				toggleDOM(i, opts.show);
 
 				_setScale(s.scale, null, null);
 				commit();
@@ -3645,7 +3645,7 @@ var uPlot = (function () {
 
 			fire("setSeries", i, opts);
 
-			 pub && sync.pub("setSeries", self, i, opts);
+			pub && sync.pub("setSeries", self, i, opts);
 		}
 
 		self.setSeries = setSeries;
@@ -3653,10 +3653,10 @@ var uPlot = (function () {
 		function _alpha(i, value) {
 			series[i].alpha = value;
 
-			if ( cursor.show && cursorPts[i])
+			if (cursor.show && cursorPts[i])
 				{ cursorPts[i].style.opacity = value; }
 
-			if ( showLegend && legendRows[i])
+			if (showLegend && legendRows[i])
 				{ legendRows[i][0].parentNode.style.opacity = value; }
 		}
 
@@ -3752,7 +3752,7 @@ var uPlot = (function () {
 
 		self.batch = batch;
 
-		 (self.setCursor = opts => {
+		(self.setCursor = opts => {
 			mouseLeft1 = opts.left;
 			mouseTop1 = opts.top;
 		//	assign(cursor, opts);
@@ -3805,7 +3805,7 @@ var uPlot = (function () {
 
 				for (var i = 0; i < series.length; i++) {
 					if (i > 0) {
-						 cursorPts.length > 1 && trans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
+						cursorPts.length > 1 && trans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
 					}
 
 					if (showLegend && legend.live) {
@@ -3862,7 +3862,7 @@ var uPlot = (function () {
 							vPos = xPos2;
 						}
 
-						 cursorPts.length > 1 && trans(cursorPts[i$1], hPos, vPos, plotWidCss, plotHgtCss);
+						cursorPts.length > 1 && trans(cursorPts[i$1], hPos, vPos, plotWidCss, plotHgtCss);
 					}
 
 					if (showLegend && legend.live) {
@@ -4305,7 +4305,7 @@ var uPlot = (function () {
 
 		var deb;
 
-		if ( cursor.show) {
+		if (cursor.show) {
 			onMouse(mousedown,  over, mouseDown);
 			onMouse(mousemove,  over, mouseMove);
 			onMouse(mouseenter, over, syncRect);
@@ -4337,28 +4337,28 @@ var uPlot = (function () {
 				{ hooks[evName] = (hooks[evName] || []).concat(p.hooks[evName]); }
 		});
 
-		var syncOpts =  assign({
+		var syncOpts = assign({
 			key: null,
 			setSeries: false,
 			scales: [xScaleKey, null]
 		}, cursor.sync);
 
-		var syncKey =  syncOpts.key;
+		var syncKey = syncOpts.key;
 
-		var sync =  (syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync());
+		var sync = (syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync());
 
-		 sync.sub(self);
+		sync.sub(self);
 
 		function pub(type, src, x, y, w, h, i) {
 			events[type](null, src, x, y, w, h, i);
 		}
 
-		 (self.pub = pub);
+		(self.pub = pub);
 
 		function destroy() {
-			 sync.unsub(self);
-			 off(resize, win, deb);
-			 off(scroll, win, deb);
+			sync.unsub(self);
+			off(resize, win, deb);
+			off(scroll, win, deb);
 			root.remove();
 			fire("destroy");
 		}
@@ -4415,10 +4415,10 @@ var uPlot = (function () {
 
 		var paths = uPlot.paths = {};
 
-		 (paths.linear  = linear);
-		 (paths.spline  = spline);
-		 (paths.stepped = stepped);
-		 (paths.bars    = bars);
+		(paths.linear  = linear);
+		(paths.spline  = spline);
+		(paths.stepped = stepped);
+		(paths.bars    = bars);
 	}
 
 	return uPlot;
