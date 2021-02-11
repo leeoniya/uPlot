@@ -112,6 +112,9 @@ declare class uPlot {
 	/** re-ranges a given min/max outwards to nearest 10% of given min/max's magnitudes, unless fullMags = true */
 	static rangeLog(min: number, max: number, base: uPlot.Scale.LogBase, fullMags: boolean): uPlot.Range.MinMax;
 
+	/** re-ranges a given min/max outwards to nearest 10% of given min/max's magnitudes, unless fullMags = true */
+	static rangeAsinh(min: number, max: number, base: uPlot.Scale.LogBase, fullMags: boolean): uPlot.Range.MinMax;
+
 	/** default numeric formatter using browser's locale: new Intl.NumberFormat(navigator.language).format */
 	static fmtNum(val: number): string;
 
@@ -482,6 +485,7 @@ declare namespace uPlot {
 			Linear      = 1,
 			Ordinal     = 2,
 			Logarithmic = 3,
+			ArcSinh     = 4,
 		}
 
 		export type LogBase = 10 | 2;
@@ -502,14 +506,17 @@ declare namespace uPlot {
 		/** scale key from which this scale is derived */
 		from?: string,
 
-		/** scale distribution. 1: linear, 2: ordinal, 3: logarithmic */
-		distr?: Scale.Distr;
+		/** scale distribution. 1: linear, 2: ordinal, 3: logarithmic, 4: arcsinh */
+		distr?: Scale.Distr; // 1
 
 		/** logarithmic base */
 		log?: Scale.LogBase; // 10;
 
 		/** clamps log scale values <= 0 (default = scaleMin / 10) */
 		clamp?: Scale.Clamp;
+
+		/** arcsinh linear threshold */
+		asinh?: number, // 1
 
 		/** current min scale value */
 		min?: number,

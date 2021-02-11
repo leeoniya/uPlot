@@ -97,6 +97,9 @@ function fixIncr(minIncr, maxIncr, minExp, maxExp) {
 }
 
 export function rangeLog(min, max, base, fullMags) {
+	let minSign = sign(min);
+	let maxSign = sign(max);
+
 	let logFn = base == 10 ? log10 : log2;
 
 	if (min == max) {
@@ -116,8 +119,8 @@ export function rangeLog(min, max, base, fullMags) {
 		max = minMaxIncrs[1];
 	}
 	else {
-		minExp = floor(logFn(min));
-		maxExp = floor(logFn(max));
+		minExp = floor(logFn(abs(min)));
+		maxExp = floor(logFn(abs(max)));
 
 		minMaxIncrs = fixIncr(pow(base, minExp), pow(base, maxExp), minExp, maxExp);
 
@@ -126,6 +129,18 @@ export function rangeLog(min, max, base, fullMags) {
 	}
 
 	return [min, max];
+}
+
+export function rangeAsinh(min, max, base, fullMags) {
+	let minMax = rangeLog(min, max, base, fullMags);
+
+	if (min == 0)
+		minMax[0] = 0;
+
+	if (max == 0)
+		minMax[1] = 0;
+
+	return minMax;
 }
 
 const _eqRangePart = {
@@ -199,6 +214,7 @@ export const fmtNum = new Intl.NumberFormat(navigator.language).format;
 
 const M = Math;
 
+export const PI = M.PI;
 export const abs = M.abs;
 export const floor = M.floor;
 export const round = M.round;
@@ -207,9 +223,11 @@ export const min = M.min;
 export const max = M.max;
 export const pow = M.pow;
 export const sqrt = M.sqrt;
+export const sign = M.sign;
 export const log10 = M.log10;
 export const log2 = M.log2;
-export const PI = M.PI;
+export const sinh =  (v, linthresh = 1) => M.sinh(v / linthresh);
+export const asinh = (v, linthresh = 1) => M.asinh(v / linthresh);
 
 export const inf = Infinity;
 

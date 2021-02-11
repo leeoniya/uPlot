@@ -5,6 +5,9 @@ import {
 import {
 	assign,
 
+	min,
+	max,
+
 	inf,
 	pow,
 	log2,
@@ -525,6 +528,7 @@ export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 	return splits;
 }
 
+// this doesnt work for sin, which needs to come off from 0 independently in pos and neg dirs
 export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	const splits = [];
 
@@ -553,6 +557,18 @@ export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 	return splits;
 }
 
+export function asinhAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
+	let sc = self.scales[self.axes[axisIdx].scale];
+
+	let linthresh = sc.asinh;
+
+	let posSplits = scaleMax > linthresh ? logAxisSplits(self, axisIdx, max(linthresh, scaleMin), scaleMax, foundIncr, foundSpace, forceMin) : [linthresh];
+	let zero = scaleMax >= 0 && scaleMin <= 0 ? [0] : [];
+	let negSplits = scaleMin < -linthresh ? logAxisSplits(self, axisIdx, max(linthresh, -scaleMax), -scaleMin, foundIncr, foundSpace, forceMin): [linthresh];
+
+	return negSplits.reverse().map(v => -v).concat(zero, posSplits);
+}
+
 const RE_ALL   = /./;
 const RE_12357 = /[12357]/;
 const RE_125   = /[125]/;
@@ -561,8 +577,9 @@ const RE_1     = /1/;
 export function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
+	let sc = self.scales[scaleKey];
 
-	if (self.scales[scaleKey].log == 2)
+	if (sc.distr == 3 && sc.log == 2)
 		return splits;
 
 	let valToPos = self.valToPos;
@@ -578,7 +595,7 @@ export function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 		RE_1
 	);
 
-	return splits.map(v => re.test(v) ? v : null);
+	return splits.map(v => ((sc.distr == 4 && v == 0) || re.test(v)) ? v : null);
 }
 
 export function numSeriesVal(self, val) {
@@ -672,6 +689,7 @@ export const xScaleOpts = {
 	auto: true,
 	distr: 1,
 	log: 10,
+	asinh: 1,
 	min: null,
 	max: null,
 	dir: 1,

@@ -28,6 +28,8 @@ import {
 	max,
 	clamp,
 	pow,
+	asinh,
+	sinh,
 	log10,
 	debounce,
 	closestIdx,
@@ -35,6 +37,7 @@ import {
 	getMinMaxLog,
 	rangeNum,
 	rangeLog,
+	rangeAsinh,
 	incrRound,
 	incrRoundUp,
 	isArr,
@@ -150,6 +153,7 @@ import {
 
 	numAxisSplits,
 	logAxisSplits,
+	asinhAxisSplits,
 
 	timeAxisStamps,
 
@@ -209,6 +213,12 @@ function snapLogY(self, dataMin, dataMax, scale) {
 
 const snapLogX = snapLogY;
 
+function snapAsinhY(self, dataMin, dataMax, scale) {
+	return dataMin == null ? nullMinMax : rangeAsinh(dataMin, dataMax, self.scales[scale].log, false);
+}
+
+const snapAsinhX = snapAsinhY;
+
 // dim is logical (getClientBoundingRect) pixels, not canvas pixels
 function findIncr(min, max, incrs, dim, minSpace) {
 	let pxPerUnit = dim / (max - min);
@@ -236,12 +246,15 @@ function pxRatioFont(font) {
 export default function uPlot(opts, data, then) {
 	const self = {};
 
+	// TODO: cache denoms & mins scale.cache = {r, min, }
 	function getValPct(val, scale) {
-		return (
-			scale.distr == 3
-			? log10((val > 0 ? val : scale.clamp(self, val, scale.min, scale.max, scale.key)) / scale.min) / log10(scale.max / scale.min)
-			: (val - scale.min) / (scale.max - scale.min)
+		let _val = (
+			scale.distr == 3 ? log10(val > 0 ? val : scale.clamp(self, val, scale.min, scale.max, scale.key)) :
+			scale.distr == 4 ? asinh(val, scale.asinh) :
+			val
 		);
+
+		return (_val - scale._min) / (scale._max - scale._min);
 	}
 
 	function getHPos(val, scale, dim, off) {
@@ -331,7 +344,6 @@ export default function uPlot(opts, data, then) {
 				sc.key = scaleKey;
 
 				let isTime = FEAT_TIME && sc.time;
-				let isLog  = sc.distr == 3;
 
 				let rn = sc.range;
 
@@ -341,11 +353,17 @@ export default function uPlot(opts, data, then) {
 					rn = (self, dataMin, dataMax) => dataMin == null ? nullMinMax : rangeNum(dataMin, dataMax, cfg);
 				}
 
-				sc.range = fnOrSelf(rn || (isTime ? snapTimeX : scaleKey == xScaleKey ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
+				sc.range = fnOrSelf(rn || (isTime ? snapTimeX : scaleKey == xScaleKey ?
+					(sc.distr == 3 ? snapLogX : sc.distr == 4 ? snapAsinhX : snapNumX) :
+					(sc.distr == 3 ? snapLogY : sc.distr == 4 ? snapAsinhY : snapNumY)
+				));
 
 				sc.auto = fnOrSelf(sc.auto);
 
 				sc.clamp = fnOrSelf(sc.clamp || clampScale);
+
+				// caches for expensive ops like asinh() & log()
+				sc._min = sc._max = null;
 			}
 		}
 	}
@@ -827,7 +845,7 @@ export default function uPlot(opts, data, then) {
 			axis.space  = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
 			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? wholeIncrs : (isTime ? (ms == 1 ? timeIncrsMs : timeIncrsS) : numIncrs)));
-			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
+			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : sc.distr == 4 ? asinhAxisSplits : numAxisSplits));
 
 			axis.stroke       = fnOrSelf(axis.stroke);
 			axis.grid.stroke  = fnOrSelf(axis.grid.stroke);
@@ -845,7 +863,7 @@ export default function uPlot(opts, data, then) {
 				) : av || numAxisVals
 			);
 
-			axis.filter = fnOrSelf(axis.filter || (          sc.distr == 3 ? logAxisValsFilt : retArg1));
+			axis.filter = fnOrSelf(axis.filter || (          sc.distr >= 3 ? logAxisValsFilt : retArg1));
 
 			axis.font      = pxRatioFont(axis.font);
 			axis.labelFont = pxRatioFont(axis.labelFont);
@@ -948,6 +966,8 @@ export default function uPlot(opts, data, then) {
 			else if (dataLen == 1) {
 				if (xScaleDistr == 3)
 					[_min, _max] = rangeLog(_min, _min, scaleX.log, false);
+				else if (xScaleDistr == 4)
+					[_min, _max] = rangeAsinh(_min, _min, scaleX.log, false);
 				else if (scaleX.time)
 					_max = _min + 86400 / ms;
 				else
@@ -1079,6 +1099,12 @@ export default function uPlot(opts, data, then) {
 			if (sc.min != wsc.min || sc.max != wsc.max) {
 				sc.min = wsc.min;
 				sc.max = wsc.max;
+
+				let distr = sc.distr;
+
+				sc._min = distr == 3 ? log10(sc.min) : distr == 4 ? asinh(sc.min, sc.asinh) : sc.min;
+				sc._max = distr == 3 ? log10(sc.max) : distr == 4 ? asinh(sc.max, sc.asinh) : sc.max;
+
 				changed[k] = anyChanged = true;
 			}
 		}
@@ -1899,17 +1925,19 @@ export default function uPlot(opts, data, then) {
 		if (sc.dir == -1)
 			pos = dim - pos;
 
-		let _min = sc.min,
-			_max = sc.max,
+		let _min = sc._min,
+			_max = sc._max,
 			pct = pos / dim;
 
-		if (sc.distr == 3) {
-			_min = log10(_min);
-			_max = log10(_max);
-			return pow(10, _min + (_max - _min) * pct);
-		}
-		else
-			return _min + (_max - _min) * pct;
+		let sv = _min + (_max - _min) * pct;
+
+		let distr = sc.distr;
+
+		return (
+			distr == 3 ? pow(10, sv) :
+			distr == 4 ? sinh(sv, sc.asinh) :
+			sv
+		);
 	}
 
 	function closestIdxFromXpos(pos) {
@@ -2144,7 +2172,7 @@ export default function uPlot(opts, data, then) {
 				let uni = drag.uni;
 
 				if (uni != null) {
-					// only calc drag status if they pass the dist thresh
+					// only calc drag status if they pass the dist asinh
 					if (dragX && dragY) {
 						dragX = rawDX >= uni;
 						dragY = rawDY >= uni;
@@ -2571,6 +2599,7 @@ uPlot.assign = assign;
 uPlot.fmtNum = fmtNum;
 uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
+uPlot.rangeAsinh = rangeAsinh;
 uPlot.orient   = orient;
 
 if (FEAT_JOIN) {

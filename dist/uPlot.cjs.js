@@ -110,6 +110,7 @@ function fixIncr(minIncr, maxIncr, minExp, maxExp) {
 }
 
 function rangeLog(min, max, base, fullMags) {
+
 	let logFn = base == 10 ? log10 : log2;
 
 	if (min == max) {
@@ -129,8 +130,8 @@ function rangeLog(min, max, base, fullMags) {
 		max = minMaxIncrs[1];
 	}
 	else {
-		minExp = floor(logFn(min));
-		maxExp = floor(logFn(max));
+		minExp = floor(logFn(abs(min)));
+		maxExp = floor(logFn(abs(max)));
 
 		minMaxIncrs = fixIncr(pow(base, minExp), pow(base, maxExp), minExp, maxExp);
 
@@ -139,6 +140,18 @@ function rangeLog(min, max, base, fullMags) {
 	}
 
 	return [min, max];
+}
+
+function rangeAsinh(min, max, base, fullMags) {
+	let minMax = rangeLog(min, max, base, fullMags);
+
+	if (min == 0)
+		minMax[0] = 0;
+
+	if (max == 0)
+		minMax[1] = 0;
+
+	return minMax;
 }
 
 const _eqRangePart = {
@@ -212,6 +225,7 @@ const fmtNum = new Intl.NumberFormat(navigator.language).format;
 
 const M = Math;
 
+const PI = M.PI;
 const abs = M.abs;
 const floor = M.floor;
 const round = M.round;
@@ -222,7 +236,8 @@ const pow = M.pow;
 const sqrt = M.sqrt;
 const log10 = M.log10;
 const log2 = M.log2;
-const PI = M.PI;
+const sinh =  (v, linthresh = 1) => M.sinh(v / linthresh);
+const asinh = (v, linthresh = 1) => M.asinh(v / linthresh);
 
 const inf = Infinity;
 
@@ -1145,6 +1160,7 @@ function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 	return splits;
 }
 
+// this doesnt work for sin, which needs to come off from 0 independently in pos and neg dirs
 function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	const splits = [];
 
@@ -1173,6 +1189,18 @@ function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 	return splits;
 }
 
+function asinhAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
+	let sc = self.scales[self.axes[axisIdx].scale];
+
+	let linthresh = sc.asinh;
+
+	let posSplits = scaleMax > linthresh ? logAxisSplits(self, axisIdx, max(linthresh, scaleMin), scaleMax, foundIncr) : [linthresh];
+	let zero = scaleMax >= 0 && scaleMin <= 0 ? [0] : [];
+	let negSplits = scaleMin < -linthresh ? logAxisSplits(self, axisIdx, max(linthresh, -scaleMax), -scaleMin, foundIncr): [linthresh];
+
+	return negSplits.reverse().map(v => -v).concat(zero, posSplits);
+}
+
 const RE_ALL   = /./;
 const RE_12357 = /[12357]/;
 const RE_125   = /[125]/;
@@ -1181,8 +1209,9 @@ const RE_1     = /1/;
 function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
+	let sc = self.scales[scaleKey];
 
-	if (self.scales[scaleKey].log == 2)
+	if (sc.distr == 3 && sc.log == 2)
 		return splits;
 
 	let valToPos = self.valToPos;
@@ -1198,7 +1227,7 @@ function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 		RE_1
 	);
 
-	return splits.map(v => re.test(v) ? v : null);
+	return splits.map(v => ((sc.distr == 4 && v == 0) || re.test(v)) ? v : null);
 }
 
 function numSeriesVal(self, val) {
@@ -1292,6 +1321,7 @@ const xScaleOpts = {
 	auto: true,
 	distr: 1,
 	log: 10,
+	asinh: 1,
 	min: null,
 	max: null,
 	dir: 1,
@@ -2019,6 +2049,12 @@ function snapLogY(self, dataMin, dataMax, scale) {
 
 const snapLogX = snapLogY;
 
+function snapAsinhY(self, dataMin, dataMax, scale) {
+	return dataMin == null ? nullMinMax : rangeAsinh(dataMin, dataMax, self.scales[scale].log, false);
+}
+
+const snapAsinhX = snapAsinhY;
+
 // dim is logical (getClientBoundingRect) pixels, not canvas pixels
 function findIncr(min, max, incrs, dim, minSpace) {
 	let pxPerUnit = dim / (max - min);
@@ -2046,12 +2082,15 @@ function pxRatioFont(font) {
 function uPlot(opts, data, then) {
 	const self = {};
 
+	// TODO: cache denoms & mins scale.cache = {r, min, }
 	function getValPct(val, scale) {
-		return (
-			scale.distr == 3
-			? log10((val > 0 ? val : scale.clamp(self, val, scale.min, scale.max, scale.key)) / scale.min) / log10(scale.max / scale.min)
-			: (val - scale.min) / (scale.max - scale.min)
+		let _val = (
+			scale.distr == 3 ? log10(val > 0 ? val : scale.clamp(self, val, scale.min, scale.max, scale.key)) :
+			scale.distr == 4 ? asinh(val, scale.asinh) :
+			val
 		);
+
+		return (_val - scale._min) / (scale._max - scale._min);
 	}
 
 	function getHPos(val, scale, dim, off) {
@@ -2141,7 +2180,6 @@ function uPlot(opts, data, then) {
 				sc.key = scaleKey;
 
 				let isTime = sc.time;
-				let isLog  = sc.distr == 3;
 
 				let rn = sc.range;
 
@@ -2151,11 +2189,17 @@ function uPlot(opts, data, then) {
 					rn = (self, dataMin, dataMax) => dataMin == null ? nullMinMax : rangeNum(dataMin, dataMax, cfg);
 				}
 
-				sc.range = fnOrSelf(rn || (isTime ? snapTimeX : scaleKey == xScaleKey ? (isLog ? snapLogX : snapNumX) : (isLog ? snapLogY : snapNumY)));
+				sc.range = fnOrSelf(rn || (isTime ? snapTimeX : scaleKey == xScaleKey ?
+					(sc.distr == 3 ? snapLogX : sc.distr == 4 ? snapAsinhX : snapNumX) :
+					(sc.distr == 3 ? snapLogY : sc.distr == 4 ? snapAsinhY : snapNumY)
+				));
 
 				sc.auto = fnOrSelf(sc.auto);
 
 				sc.clamp = fnOrSelf(sc.clamp || clampScale);
+
+				// caches for expensive ops like asinh() & log()
+				sc._min = sc._max = null;
 			}
 		}
 	}
@@ -2636,7 +2680,7 @@ function uPlot(opts, data, then) {
 			axis.space  = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
 			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? wholeIncrs : (isTime ? (ms == 1 ? timeIncrsMs : timeIncrsS) : numIncrs)));
-			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : numAxisSplits));
+			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : sc.distr == 4 ? asinhAxisSplits : numAxisSplits));
 
 			axis.stroke       = fnOrSelf(axis.stroke);
 			axis.grid.stroke  = fnOrSelf(axis.grid.stroke);
@@ -2654,7 +2698,7 @@ function uPlot(opts, data, then) {
 				) : av || numAxisVals
 			);
 
-			axis.filter = fnOrSelf(axis.filter || (          sc.distr == 3 ? logAxisValsFilt : retArg1));
+			axis.filter = fnOrSelf(axis.filter || (          sc.distr >= 3 ? logAxisValsFilt : retArg1));
 
 			axis.font      = pxRatioFont(axis.font);
 			axis.labelFont = pxRatioFont(axis.labelFont);
@@ -2757,6 +2801,8 @@ function uPlot(opts, data, then) {
 			else if (dataLen == 1) {
 				if (xScaleDistr == 3)
 					[_min, _max] = rangeLog(_min, _min, scaleX.log, false);
+				else if (xScaleDistr == 4)
+					[_min, _max] = rangeAsinh(_min, _min, scaleX.log, false);
 				else if (scaleX.time)
 					_max = _min + 86400 / ms;
 				else
@@ -2888,6 +2934,12 @@ function uPlot(opts, data, then) {
 			if (sc.min != wsc.min || sc.max != wsc.max) {
 				sc.min = wsc.min;
 				sc.max = wsc.max;
+
+				let distr = sc.distr;
+
+				sc._min = distr == 3 ? log10(sc.min) : distr == 4 ? asinh(sc.min, sc.asinh) : sc.min;
+				sc._max = distr == 3 ? log10(sc.max) : distr == 4 ? asinh(sc.max, sc.asinh) : sc.max;
+
 				changed[k] = anyChanged = true;
 			}
 		}
@@ -3707,17 +3759,19 @@ function uPlot(opts, data, then) {
 		if (sc.dir == -1)
 			pos = dim - pos;
 
-		let _min = sc.min,
-			_max = sc.max,
+		let _min = sc._min,
+			_max = sc._max,
 			pct = pos / dim;
 
-		if (sc.distr == 3) {
-			_min = log10(_min);
-			_max = log10(_max);
-			return pow(10, _min + (_max - _min) * pct);
-		}
-		else
-			return _min + (_max - _min) * pct;
+		let sv = _min + (_max - _min) * pct;
+
+		let distr = sc.distr;
+
+		return (
+			distr == 3 ? pow(10, sv) :
+			distr == 4 ? sinh(sv, sc.asinh) :
+			sv
+		);
 	}
 
 	function closestIdxFromXpos(pos) {
@@ -3952,7 +4006,7 @@ function uPlot(opts, data, then) {
 				let uni = drag.uni;
 
 				if (uni != null) {
-					// only calc drag status if they pass the dist thresh
+					// only calc drag status if they pass the dist asinh
 					if (dragX && dragY) {
 						dragX = rawDX >= uni;
 						dragY = rawDY >= uni;
@@ -4379,6 +4433,7 @@ uPlot.assign = assign;
 uPlot.fmtNum = fmtNum;
 uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
+uPlot.rangeAsinh = rangeAsinh;
 uPlot.orient   = orient;
 
 {
