@@ -165,10 +165,7 @@ import {
 	legendFill,
 } from './opts';
 
-import {
-	_sync,
-	syncs,
-} from './sync';
+import { _sync } from './sync';
 
 import { linear  } from './paths/linear';
 import { spline  } from './paths/spline';
@@ -2521,7 +2518,7 @@ export default function uPlot(opts, data, then) {
 
 	const syncKey = FEAT_CURSOR && syncOpts.key;
 
-	const sync = FEAT_CURSOR && (syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync());
+	const sync = FEAT_CURSOR && _sync(syncKey);
 
 	FEAT_CURSOR && sync.sub(self);
 
@@ -2583,6 +2580,10 @@ if (FEAT_JOIN) {
 if (FEAT_TIME) {
 	uPlot.fmtDate = fmtDate;
 	uPlot.tzDate  = tzDate;
+}
+
+if (FEAT_CURSOR) {
+	uPlot.sync = _sync;
 }
 
 if (FEAT_PATHS) {

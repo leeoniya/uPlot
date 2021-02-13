@@ -1306,24 +1306,31 @@ var uPlot = (function () {
 
 	var syncs = {};
 
-	function _sync(opts) {
-		var clients = [];
+	function _sync(key, opts) {
+		var s = syncs[key];
 
-		return {
-			sub: function sub(client) {
-				clients.push(client);
-			},
-			unsub: function unsub(client) {
-				clients = clients.filter(c => c != client);
-			},
-			pub: function pub(type, self, x, y, w, h, i) {
-				if (clients.length > 1) {
-					clients.forEach(client => {
-						client != self && client.pub(type, self, x, y, w, h, i);
-					});
+		if (!s) {
+			var clients = [];
+
+			s = {
+				key: key,
+				sub: function sub(client) {
+					clients.push(client);
+				},
+				unsub: function unsub(client) {
+					clients = clients.filter(c => c != client);
+				},
+				pub: function pub(type, self, x, y, w, h, i) {
+					for (var i$1 = 0; i$1 < clients.length; i$1++)
+						{ clients[i$1] != self && clients[i$1].pub(type, self, x, y, w, h, i$1); }
 				}
-			}
-		};
+			};
+
+			if (key != null)
+				{ syncs[key] = s; }
+		}
+
+		return s;
 	}
 
 	function orient(u, seriesIdx, cb) {
@@ -4345,7 +4352,7 @@ var uPlot = (function () {
 
 		var syncKey = syncOpts.key;
 
-		var sync = (syncKey != null ? (syncs[syncKey] = syncs[syncKey] || _sync()) : _sync());
+		var sync = _sync(syncKey);
 
 		sync.sub(self);
 
@@ -4407,6 +4414,10 @@ var uPlot = (function () {
 	{
 		uPlot.fmtDate = fmtDate;
 		uPlot.tzDate  = tzDate;
+	}
+
+	{
+		uPlot.sync = _sync;
 	}
 
 	{

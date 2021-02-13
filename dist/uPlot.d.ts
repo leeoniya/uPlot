@@ -130,6 +130,9 @@ declare class uPlot {
 
 	/** helper function for grabbing proper drawing orientation vars and fns for a plot instance (all dims in canvas pixels) */
 	static orient: (u: uPlot, seriesIdx: number, callback: uPlot.OrientCallback) => any;
+
+	/** returns a pub/sub instance shared by all plots usng the provided key */
+	static sync: (key: string) => uPlot.SyncPubSub;
 }
 
 export = uPlot;
@@ -344,6 +347,13 @@ declare namespace uPlot {
 	export interface Select extends BBox {
 		/** div into which .u-select will be placed: .u-over or .u-under */
 		over?: boolean; // true
+	}
+
+	export interface SyncPubSub {
+		key:   string;
+		sub:   (client: uPlot) => void;
+		unsub: (client: uPlot) => void;
+		pub:   (type: string, client: uPlot, x: number, y: number, w: number, h: number, i: number) => void;
 	}
 
 	export namespace Cursor {

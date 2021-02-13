@@ -17,6 +17,10 @@
 		<script src="../dist/uPlot.iife.js"></script>
 		<h2 id="wait">Loading lib....</h2>
 
+		<button id="sync">Disable Sync</button>
+
+		<br>
+
 		<script>
 			function round2(val) {
 				return Math.round(val * 100) / 100;
@@ -79,13 +83,15 @@
 			function makeChart(data) {
 				console.time('chart');
 
+				let mooSync = uPlot.sync("moo");
+
 				const cursorOpts = {
 					lock: true,
 					focus: {
 						prox: 16,
 					},
 					sync: {
-						key: "moo",
+						key: mooSync.key,
 						setSeries: true,
 					},
 				};
@@ -194,6 +200,28 @@
 
 				wait.textContent = "Done!";
 				console.timeEnd('chart');
+
+				let synced = true;
+				let syncBtn = document.getElementById('sync');
+
+				let fooSync = uPlot.sync("foo");
+
+				syncBtn.onclick = () => {
+					synced = !synced;
+
+					if (synced) {
+						mooSync.sub(uplot1);
+						mooSync.sub(uplot2);
+						mooSync.sub(uplot3);
+						syncBtn.textContent = 'Disable Sync';
+					}
+					else {
+						mooSync.unsub(uplot1);
+						mooSync.unsub(uplot2);
+						mooSync.unsub(uplot3);
+						syncBtn.textContent = 'Enable Sync';
+					}
+				}
 /*
 				setTimeout(() => {
 					uplot1.destroy();
