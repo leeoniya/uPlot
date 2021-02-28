@@ -124,6 +124,8 @@
 
 						let y0Pos = valToPosY(0, scaleY, yDim, yOff);
 
+						let strokeWidth = series.width || 0;
+
 						const _dir = dir * (ori == 0 ? 1 : -1);
 
 						walkTwo(sidx - 1, numGroups, barsPerGroup, xDim, null, (ix, x0, wid) => {
@@ -136,8 +138,6 @@
 								let btm = Math.round(Math.max(yPos, y0Pos));
 								let top = Math.round(Math.min(yPos, y0Pos));
 								let barHgt = btm - top;
-
-								let strokeWidth = series.width || 0;
 
 								if (strokeWidth)
 									rect(stroke, lft + strokeWidth / 2, top + strokeWidth / 2, barWid - strokeWidth, barHgt - strokeWidth);
