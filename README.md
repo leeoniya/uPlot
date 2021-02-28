@@ -55,6 +55,11 @@ The full API is further documented via comments in [/dist/uPlot.d.ts](https://gi
 Additionally, an ever-expanding collection of runnable [/demos](https://leeoniya.github.io/uPlot/demos/index.html) covers the vast majority of uPlot's API.
 
 ---
+### Third-party Integrations
+
+- [Jupyter widget](https://github.com/sohailsomani/uplot_jupyter_widget) (Sohail Somani)
+
+---
 ### Performance
 
 Benchmarks done on a ThinkPad T480S:
