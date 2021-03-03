@@ -2172,7 +2172,7 @@ export default function uPlot(opts, data, then) {
 				let uni = drag.uni;
 
 				if (uni != null) {
-					// only calc drag status if they pass the dist asinh
+					// only calc drag status if they pass the dist thresh
 					if (dragX && dragY) {
 						dragX = rawDX >= uni;
 						dragY = rawDY >= uni;
