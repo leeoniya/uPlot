@@ -435,8 +435,10 @@ export default function uPlot(opts, data, then) {
 	for (let k in scales) {
 		let sc = scales[k];
 
-		if (sc.min != null || sc.max != null)
+		if (sc.min != null || sc.max != null) {
 			pendScales[k] = {min: sc.min, max: sc.max};
+			sc.min = sc.max = null;
+		}
 	}
 
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;

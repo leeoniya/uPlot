@@ -2273,8 +2273,10 @@ var uPlot = (function () {
 		for (var k$1 in scales) {
 			var sc = scales[k$1];
 
-			if (sc.min != null || sc.max != null)
-				{ pendScales[k$1] = {min: sc.min, max: sc.max}; }
+			if (sc.min != null || sc.max != null) {
+				pendScales[k$1] = {min: sc.min, max: sc.max};
+				sc.min = sc.max = null;
+			}
 		}
 
 	//	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
