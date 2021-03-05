@@ -1843,6 +1843,8 @@ var uPlot = (function () {
 
 	function stepped(opts) {
 		var align = ifNull(opts.align, 1);
+		// whether to draw ascenders/descenders at null/gap bondaries
+		var ascDesc = ifNull(opts.ascDesc, false);
 
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
@@ -1887,8 +1889,9 @@ var uPlot = (function () {
 							var halfStroke = (series.width * pxRatio) / 2;
 
 							var lastGap = gaps[gaps.length - 1];
-							lastGap[0] += halfStroke;
-							lastGap[1] -= halfStroke;
+
+							lastGap[0] += (ascDesc || align ==  1) ? halfStroke : -halfStroke;
+							lastGap[1] -= (ascDesc || align == -1) ? halfStroke : -halfStroke;
 						}
 
 						inGap = false;

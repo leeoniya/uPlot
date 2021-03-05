@@ -293,7 +293,7 @@ declare namespace uPlot {
 		height: number;
 
 		/** data for chart, if none is provided as argument to constructor */
-		data?: AlignedData,
+		data?: AlignedData;
 
 		/** converts a unix timestamp to Date that's time-adjusted for the desired timezone */
 		tzDate?: LocalDateFromUnix;
@@ -312,7 +312,7 @@ declare namespace uPlot {
 
 		series: Series[];
 
-		bands?: Band[],
+		bands?: Band[];
 
 		scales?: Scales;
 
@@ -371,14 +371,14 @@ declare namespace uPlot {
 		export type MousePosRefiner      = (self: uPlot, mouseLeft: number, mouseTop: number) => LeftTop;
 
 		export interface Bind {
-			mousedown?:   MouseListenerFactory,
-			mouseup?:     MouseListenerFactory,
-			click?:       MouseListenerFactory,
-			dblclick?:    MouseListenerFactory,
+			mousedown?:   MouseListenerFactory;
+			mouseup?:     MouseListenerFactory;
+			click?:       MouseListenerFactory;
+			dblclick?:    MouseListenerFactory;
 
-			mousemove?:   MouseListenerFactory,
-			mouseleave?:  MouseListenerFactory,
-			mouseenter?:  MouseListenerFactory,
+			mousemove?:   MouseListenerFactory;
+			mouseleave?:  MouseListenerFactory;
+			mouseenter?:  MouseListenerFactory;
 		}
 
 		export namespace Points {
@@ -504,7 +504,7 @@ declare namespace uPlot {
 		range?: Scale.Range;
 
 		/** scale key from which this scale is derived */
-		from?: string,
+		from?: string;
 
 		/** scale distribution. 1: linear, 2: ordinal, 3: logarithmic, 4: arcsinh */
 		distr?: Scale.Distr; // 1
@@ -516,13 +516,13 @@ declare namespace uPlot {
 		clamp?: Scale.Clamp;
 
 		/** arcsinh linear threshold */
-		asinh?: number, // 1
+		asinh?: number; // 1
 
 		/** current min scale value */
-		min?: number,
+		min?: number;
 
 		/** current max scale value */
-		max?: number,
+		max?: number;
 
 		/** scale direction */
 		dir?: 1 | -1;
@@ -543,10 +543,23 @@ declare namespace uPlot {
 			clip?: Path2D | null;
 		}
 
+		export interface SteppedPathBuilderOpts {
+			align?: -1 | 1;// 1
+
+			// whether to draw ascenders/descenders at null/gap bondaries
+			ascDesc?: boolean; // false
+		}
+
+		export interface BarsPathBuilderOpts {
+			align?: -1 | 0 | 1, // 0
+
+			size?: [factor?: number, max?: number]
+		}
+
 		export type LinearPathBuilderFactory  = () => Series.PathBuilder;
 		export type SplinePathBuilderFactory  = () => Series.PathBuilder;
-		export type SteppedPathBuilderFactory = (opts?: {align?: -1 | 1}) => Series.PathBuilder;
-		export type BarsPathBuilderFactory    = (opts?: {align?: -1 | 0 | 1, size?: [factor?: number, max?: number]}) => Series.PathBuilder;
+		export type SteppedPathBuilderFactory = (opts?: SteppedPathBuilderOpts) => Series.PathBuilder;
+		export type BarsPathBuilderFactory    = (opts?: BarsPathBuilderOpts) => Series.PathBuilder;
 
 		export interface PathBuilderFactories {
 			linear?:  LinearPathBuilderFactory;
@@ -674,13 +687,13 @@ declare namespace uPlot {
 		alpha?: number;
 
 		/** current min and max data indices rendered */
-		idxs?: Series.MinMaxIdxs,
+		idxs?: Series.MinMaxIdxs;
 
 		/** current min rendered value */
-		min?: number,
+		min?: number;
 
 		/** current max rendered value */
-		max?: number,
+		max?: number;
 	}
 
 	export namespace Band {

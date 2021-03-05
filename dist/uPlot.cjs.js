@@ -1841,6 +1841,8 @@ function catmullRomFitting(xCoords, yCoords, alpha, moveTo, bezierCurveTo) {
 
 function stepped(opts) {
 	const align = ifNull(opts.align, 1);
+	// whether to draw ascenders/descenders at null/gap bondaries
+	const ascDesc = ifNull(opts.ascDesc, false);
 
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
@@ -1885,8 +1887,9 @@ function stepped(opts) {
 						let halfStroke = (series.width * pxRatio) / 2;
 
 						let lastGap = gaps[gaps.length - 1];
-						lastGap[0] += halfStroke;
-						lastGap[1] -= halfStroke;
+
+						lastGap[0] += (ascDesc || align ==  1) ? halfStroke : -halfStroke;
+						lastGap[1] -= (ascDesc || align == -1) ? halfStroke : -halfStroke;
 					}
 
 					inGap = false;
