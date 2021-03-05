@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
-		<script src="../dist/uPlot.iife.min.js"></script>
+		<script src="../dist/uPlot.iife.js"></script>
 	</head>
 	<body>
 		<script>
@@ -28,8 +28,8 @@
 				let ys = [];
 
 				for (let i = min; i < min + length; i++) {
-					xs.push(now + i * 60);
-					ys.push(Math.sin(i * 0.05) * 5);
+					xs.push(now + i * 60 * 5);
+					ys.push(Math.sin(i/16) * 5);
 				}
 
 				return [
@@ -45,13 +45,19 @@
 
 			const opts = {
 				title: "6 series x 600 points @ 60fps",
-				width: 1600,
+				width: 2450,
 				height: 600,
 				scales: {
 					y: {
+						auto: false,
 						range: [-6, 6],
 					}
 				},
+				axes: [
+					{
+						space: 300,
+					}
+				],
 				series: [
 					{},
 					{
@@ -84,8 +90,16 @@
 
 			let u = new uPlot(opts, data, document.body);
 
+			/*
+			setInterval(() => {
+				shift += 1;
+				data = getData(shift);
+				u.setData(data);
+			}, 50);
+			*/
+
 			function update() {
-				shift += 2;
+				shift += 1;
 				data = getData(shift);
 				u.setData(data);
 				requestAnimationFrame(update);
