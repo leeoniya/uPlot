@@ -667,7 +667,7 @@ function tzDate(date, tz) {
 	let date2;
 
 	// perf optimization
-	if (tz == 'Etc/UTC')
+	if (tz == 'UTC' || tz == 'Etc/UTC')
 		date2 = new Date(+date + date.getTimezoneOffset() * 6e4);
 	else if (tz == localTz)
 		date2 = date;
