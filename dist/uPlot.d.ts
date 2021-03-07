@@ -162,16 +162,18 @@ declare namespace uPlot {
 
 	type ValToPos = (val: number, scale: Scale, fullDim: number, offset: number) => number;
 
-	type MoveToH = (p: Path2D, x: number, y: number) => void;
-	type MoveToV = (p: Path2D, y: number, x: number) => void;
-	type LineToH = (p: Path2D, x: number, y: number) => void;
-	type LineToV = (p: Path2D, y: number, x: number) => void;
-	type RectH   = (p: Path2D, x: number, y: number, w: number, h: number) => void;
-	type RectV   = (p: Path2D, y: number, x: number, h: number, w: number) => void;
-	type ArcH    = (p: Path2D, x: number, y: number, r: number, startAngle: number, endAngle: number) => void;
-	type ArcV    = (p: Path2D, y: number, x: number, r: number, startAngle: number, endAngle: number) => void;
-	type BezierCurveToH = (p: Path2D, bp1x: number, bp1y: number, bp2x: number, bp2y: number, p2x: number, p2y: number) => void;
-	type BezierCurveToV = (p: Path2D, bp1y: number, bp1x: number, bp2y: number, bp2x: number, p2y: number, p2x: number) => void;
+	type Drawable = Path2D | CanvasRenderingContext2D;
+
+	type MoveToH        = (p: Drawable, x: number, y: number) => void;
+	type MoveToV        = (p: Drawable, y: number, x: number) => void;
+	type LineToH        = (p: Drawable, x: number, y: number) => void;
+	type LineToV        = (p: Drawable, y: number, x: number) => void;
+	type RectH          = (p: Drawable, x: number, y: number, w: number, h: number) => void;
+	type RectV          = (p: Drawable, y: number, x: number, h: number, w: number) => void;
+	type ArcH           = (p: Drawable, x: number, y: number, r: number, startAngle: number, endAngle: number) => void;
+	type ArcV           = (p: Drawable, y: number, x: number, r: number, startAngle: number, endAngle: number) => void;
+	type BezierCurveToH = (p: Drawable, bp1x: number, bp1y: number, bp2x: number, bp2y: number, p2x: number, p2y: number) => void;
+	type BezierCurveToV = (p: Drawable, bp1y: number, bp1x: number, bp2y: number, bp2x: number, p2y: number, p2x: number) => void;
 
 	export const enum JoinNullMode {
 		/** use for series with spanGaps: true */
