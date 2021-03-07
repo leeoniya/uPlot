@@ -2184,7 +2184,9 @@ function uPlot(opts, data, then) {
 
 				let rn = sc.range;
 
-				if (scaleKey != xScaleKey && !isArr(rn) && isObj(rn)) {
+				let rangeIsArr = isArr(rn);
+
+				if (scaleKey != xScaleKey && !rangeIsArr && isObj(rn)) {
 					let cfg = rn;
 					// this is similar to snapNumY
 					rn = (self, dataMin, dataMax) => dataMin == null ? nullMinMax : rangeNum(dataMin, dataMax, cfg);
@@ -2195,7 +2197,7 @@ function uPlot(opts, data, then) {
 					(sc.distr == 3 ? snapLogY : sc.distr == 4 ? snapAsinhY : snapNumY)
 				));
 
-				sc.auto = fnOrSelf(sc.auto);
+				sc.auto = fnOrSelf(rangeIsArr ? false : sc.auto);
 
 				sc.clamp = fnOrSelf(sc.clamp || clampScale);
 
