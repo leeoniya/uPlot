@@ -325,15 +325,21 @@ var uPlot = (function () {
 		return is;
 	}
 
-	function copy(o) {
+	function fastIsObj(v) {
+		return v != null && typeof v == 'object';
+	}
+
+	function copy(o, _isObj) {
+		_isObj = _isObj || isObj;
+
 		var out;
 
 		if (isArr(o))
-			{ out = o.map(copy); }
-		else if (isObj(o)) {
+			{ out = o.map(v => copy(v, _isObj)); }
+		else if (_isObj(o)) {
 			out = {};
 			for (var k in o)
-				{ out[k] = copy(o[k]); }
+				{ out[k] = copy(o[k], _isObj); }
 		}
 		else
 			{ out = o; }
@@ -2790,7 +2796,7 @@ var uPlot = (function () {
 				else
 					{ _setScale(xScaleKey, xsc.min, xsc.max); }
 
-				shouldSetCursor = true;
+				shouldSetCursor = cursor.left >= 0;
 				shouldSetLegend = true;
 				commit();
 			}
@@ -2848,7 +2854,7 @@ var uPlot = (function () {
 		//	log("setScales()", arguments);
 
 			// wip scales
-			var wipScales = copy(scales);
+			var wipScales = copy(scales, fastIsObj);
 
 			for (var k in wipScales) {
 				var wsc = wipScales[k];
@@ -2975,7 +2981,7 @@ var uPlot = (function () {
 				}
 
 				if (cursor.show)
-					{ shouldSetCursor = true; }
+					{ shouldSetCursor = cursor.left >= 0; }
 			}
 
 			for (var k$5 in pendScales)
@@ -4452,6 +4458,8 @@ var uPlot = (function () {
 				{ autoScaleX(); }
 
 			_setSize(opts.width, opts.height);
+
+			updateCursor();
 
 			setSelect(select, false);
 		}

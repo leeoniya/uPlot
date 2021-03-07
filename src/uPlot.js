@@ -42,6 +42,7 @@ import {
 	incrRoundUp,
 	isArr,
 	isObj,
+	fastIsObj,
 	isStr,
 	fnOrSelf,
 	fmtNum,
@@ -943,7 +944,7 @@ export default function uPlot(opts, data, then) {
 			else
 				_setScale(xScaleKey, xsc.min, xsc.max);
 
-			shouldSetCursor = true;
+			shouldSetCursor = cursor.left >= 0;
 			shouldSetLegend = true;
 			commit();
 		}
@@ -999,7 +1000,7 @@ export default function uPlot(opts, data, then) {
 	//	log("setScales()", arguments);
 
 		// wip scales
-		let wipScales = copy(scales);
+		let wipScales = copy(scales, fastIsObj);
 
 		for (let k in wipScales) {
 			let wsc = wipScales[k];
@@ -1126,7 +1127,7 @@ export default function uPlot(opts, data, then) {
 			}
 
 			if (FEAT_CURSOR && cursor.show)
-				shouldSetCursor = true;
+				shouldSetCursor = cursor.left >= 0;
 		}
 
 		for (let k in pendScales)
@@ -2581,6 +2582,8 @@ export default function uPlot(opts, data, then) {
 			autoScaleX();
 
 		_setSize(opts.width, opts.height);
+
+		updateCursor();
 
 		setSelect(select, false);
 	}
