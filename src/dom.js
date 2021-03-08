@@ -7,11 +7,15 @@ export const win = window;
 export const pxRatio = devicePixelRatio;
 
 export function addClass(el, c) {
-	c != null && el.classList.add(c);
+	if (c != null) {
+		let cl = el.classList;
+		!cl.contains(c) && cl.add(c);
+	}
 }
 
 export function remClass(el, c) {
-	el.classList.remove(c);
+	let cl = el.classList;
+	cl.contains(c) && cl.remove(c);
 }
 
 export function setStylePx(el, name, value) {

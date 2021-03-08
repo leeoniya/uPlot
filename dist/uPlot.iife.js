@@ -495,11 +495,15 @@ var uPlot = (function () {
 	var pxRatio = devicePixelRatio;
 
 	function addClass(el, c) {
-		c != null && el.classList.add(c);
+		if (c != null) {
+			var cl = el.classList;
+			!cl.contains(c) && cl.add(c);
+		}
 	}
 
 	function remClass(el, c) {
-		el.classList.remove(c);
+		var cl = el.classList;
+		cl.contains(c) && cl.remove(c);
 	}
 
 	function setStylePx(el, name, value) {
