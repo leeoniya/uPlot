@@ -34,15 +34,7 @@ import {
 	setStylePx,
 } from './dom';
 
-import {
-	fmtDate,
-	getFullYear,
-	getMonth,
-	getDate,
-	getHours,
-	getMinutes,
-	getSeconds,
-} from './fmtDate';
+import { fmtDate } from './fmtDate';
 
 //export const series = [];
 
@@ -171,17 +163,17 @@ function genTimeStuffs(ms) {
 			let minDateTs = minDate * ms;
 
 			// get ts of 12am (this lands us at or before the original scaleMin)
-			let minMin = mkDate(minDate[getFullYear](), isYr ? 0 : minDate[getMonth](), isMo || isYr ? 1 : minDate[getDate]());
+			let minMin = mkDate(minDate.getFullYear(), isYr ? 0 : minDate.getMonth(), isMo || isYr ? 1 : minDate.getDate());
 			let minMinTs = minMin * ms;
 
 			if (isMo || isYr) {
 				let moIncr = isMo ? foundIncr / mo : 0;
 				let yrIncr = isYr ? foundIncr / y  : 0;
 			//	let tzOffset = scaleMin - minDateTs;		// needed?
-				let split = minDateTs == minMinTs ? minDateTs : mkDate(minMin[getFullYear]() + yrIncr, minMin[getMonth]() + moIncr, 1) * ms;
+				let split = minDateTs == minMinTs ? minDateTs : mkDate(minMin.getFullYear() + yrIncr, minMin.getMonth() + moIncr, 1) * ms;
 				let splitDate = new Date(split / ms);
-				let baseYear = splitDate[getFullYear]();
-				let baseMonth = splitDate[getMonth]();
+				let baseYear = splitDate.getFullYear();
+				let baseMonth = splitDate.getMonth();
 
 				for (let i = 0; split <= scaleMax; i++) {
 					let next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
@@ -201,7 +193,7 @@ function genTimeStuffs(ms) {
 
 				let date0 = tzDate(split);
 
-				let prevHour = date0[getHours]() + (date0[getMinutes]() / m) + (date0[getSeconds]() / h);
+				let prevHour = date0.getHours() + (date0.getMinutes() / m) + (date0.getSeconds() / h);
 				let incrHours = foundIncr / h;
 
 				let minSpace = self.axes[axisIdx]._space;
@@ -290,12 +282,12 @@ export function timeAxisVals(tzDate, stamps) {
 		return splits.map(split => {
 			let date = tzDate(split);
 
-			let newYear = date[getFullYear]();
-			let newMnth = date[getMonth]();
-			let newDate = date[getDate]();
-			let newHour = date[getHours]();
-			let newMins = date[getMinutes]();
-			let newSecs = date[getSeconds]();
+			let newYear = date.getFullYear();
+			let newMnth = date.getMonth();
+			let newDate = date.getDate();
+			let newHour = date.getHours();
+			let newMins = date.getMinutes();
+			let newSecs = date.getSeconds();
 
 			let stamp = (
 				newYear != prevYear && s[2] ||

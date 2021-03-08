@@ -62,58 +62,49 @@ function suffix(int) {
 }
 */
 
-export const getFullYear = 'getFullYear';
-export const getMonth = 'getMonth';
-export const getDate = 'getDate';
-export const getDay = 'getDay';
-export const getHours = 'getHours';
-export const getMinutes = 'getMinutes';
-export const getSeconds = 'getSeconds';
-export const getMilliseconds = 'getMilliseconds';
-
 const subs = {
 	// 2019
-	YYYY:	d => d[getFullYear](),
+	YYYY:	d => d.getFullYear(),
 	// 19
-	YY:		d => (d[getFullYear]()+'').slice(2),
+	YY:		d => (d.getFullYear()+'').slice(2),
 	// July
-	MMMM:	(d, names) => names.MMMM[d[getMonth]()],
+	MMMM:	(d, names) => names.MMMM[d.getMonth()],
 	// Jul
-	MMM:	(d, names) => names.MMM[d[getMonth]()],
+	MMM:	(d, names) => names.MMM[d.getMonth()],
 	// 07
-	MM:		d => zeroPad2(d[getMonth]()+1),
+	MM:		d => zeroPad2(d.getMonth()+1),
 	// 7
-	M:		d => d[getMonth]()+1,
+	M:		d => d.getMonth()+1,
 	// 09
-	DD:		d => zeroPad2(d[getDate]()),
+	DD:		d => zeroPad2(d.getDate()),
 	// 9
-	D:		d => d[getDate](),
+	D:		d => d.getDate(),
 	// Monday
-	WWWW:	(d, names) => names.WWWW[d[getDay]()],
+	WWWW:	(d, names) => names.WWWW[d.getDay()],
 	// Mon
-	WWW:	(d, names) => names.WWW[d[getDay]()],
+	WWW:	(d, names) => names.WWW[d.getDay()],
 	// 03
-	HH:		d => zeroPad2(d[getHours]()),
+	HH:		d => zeroPad2(d.getHours()),
 	// 3
-	H:		d => d[getHours](),
+	H:		d => d.getHours(),
 	// 9 (12hr, unpadded)
-	h:		d => {let h = d[getHours](); return h == 0 ? 12 : h > 12 ? h - 12 : h;},
+	h:		d => {let h = d.getHours(); return h == 0 ? 12 : h > 12 ? h - 12 : h;},
 	// AM
-	AA:		d => d[getHours]() >= 12 ? 'PM' : 'AM',
+	AA:		d => d.getHours() >= 12 ? 'PM' : 'AM',
 	// am
-	aa:		d => d[getHours]() >= 12 ? 'pm' : 'am',
+	aa:		d => d.getHours() >= 12 ? 'pm' : 'am',
 	// a
-	a:		d => d[getHours]() >= 12 ? 'p' : 'a',
+	a:		d => d.getHours() >= 12 ? 'p' : 'a',
 	// 09
-	mm:		d => zeroPad2(d[getMinutes]()),
+	mm:		d => zeroPad2(d.getMinutes()),
 	// 9
-	m:		d => d[getMinutes](),
+	m:		d => d.getMinutes(),
 	// 09
-	ss:		d => zeroPad2(d[getSeconds]()),
+	ss:		d => zeroPad2(d.getSeconds()),
 	// 9
-	s:		d => d[getSeconds](),
+	s:		d => d.getSeconds(),
 	// 374
-	fff:	d => zeroPad3(d[getMilliseconds]()),
+	fff:	d => zeroPad3(d.getMilliseconds()),
 };
 
 export function fmtDate(tpl, names) {
@@ -148,7 +139,7 @@ export function tzDate(date, tz) {
 		date2 = date;
 	else {
 		date2 = new Date(date.toLocaleString('en-US', {timeZone: tz}));
-		date2.setMilliseconds(date[getMilliseconds]());
+		date2.setMilliseconds(date.getMilliseconds());
 	}
 
 	return date2;
