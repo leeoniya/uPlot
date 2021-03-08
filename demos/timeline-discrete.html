@@ -35,47 +35,9 @@
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
 		<script src="./lib/quadtree.js"></script>
+		<script src="./lib/distr.js"></script>
 
 		<script>
-			function roundDec(val, dec) {
-				return Math.round(val * (dec = 10**dec)) / dec;
-			}
-
-			const SPACE_BETWEEN = 1;
-			const SPACE_AROUND  = 2;
-			const SPACE_EVENLY  = 3;
-
-			const coord = (i, offs, iwid, gap) => roundDec(offs + i * (iwid + gap), 6);
-
-			function distr(numItems, sizeFactor, justify, onlyIdx, each) {
-				let space = 1 - sizeFactor;
-
-				let gap =  (
-					justify == SPACE_BETWEEN ? space / (numItems - 1) :
-					justify == SPACE_AROUND  ? space / (numItems    ) :
-					justify == SPACE_EVENLY  ? space / (numItems + 1) : 0
-				);
-
-				if (isNaN(gap) || gap == Infinity)
-					gap = 0;
-
-				let offs = (
-					justify == SPACE_BETWEEN ? 0       :
-					justify == SPACE_AROUND  ? gap / 2 :
-					justify == SPACE_EVENLY  ? gap     : 0
-				);
-
-				let iwid = sizeFactor / numItems;
-				let _iwid = roundDec(iwid, 6);
-
-				if (onlyIdx == null) {
-					for (let i = 0; i < numItems; i++)
-						each(i, coord(i, offs, iwid, gap), _iwid);
-				}
-				else
-					each(onlyIdx, coord(onlyIdx, offs, iwid, gap), _iwid);
-			}
-
 			function seriesBarsPlugin(opts) {
 				const pxRatio    = devicePixelRatio;
 
@@ -88,10 +50,6 @@
 				const barDistr   = SPACE_BETWEEN;
 
 				const font       = Math.round(14 * pxRatio) + "px Arial";
-
-				function pointWithin(px, py, rlft, rtop, rrgt, rbtm) {
-					return px >= rlft && px <= rrgt && py >= rtop && py <= rbtm;
-				}
 
 				function walk(yIdx, count, dim, draw) {
 					distr(count, barWidth, barDistr, yIdx, (i, offPct, dimPct) => {
@@ -114,6 +72,10 @@
 						let strokeWidth = series.width || 0;
 
 					//	let lastX = xOff;
+
+						u.ctx.save();
+						rect(u.ctx, u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
+						u.ctx.clip();
 
 						walk(sidx - 1, numBars, yDim, (iy, y0, hgt) => {
 							let top = Math.round(yOff + y0);
@@ -165,6 +127,8 @@
 								}
 							}
 						});
+
+						u.ctx.restore();
 
 						return null;
 
@@ -221,6 +185,8 @@
 						init: u => {
 							let over = u.root.querySelector(".u-over");
 
+							over.style.overflow = "hidden";
+
 							hoverMarks.forEach(m => {
 								over.appendChild(m);
 							});
@@ -242,13 +208,16 @@
 							for (let i = 0; i < seriesStates.length; i++) {
 								let found = null;
 
-								let cy = yMids[i] * pxRatio;
-								let h = hoverMarks[i];
+								if (cx >= 0) {
+									let cy = yMids[i] * pxRatio;
 
-								qt.get(cx, cy, 1, 1, o => {
-									if (pointWithin(cx, cy, o.x, o.y, o.x + o.w, o.y + o.h))
-										found = o;
-								});
+									qt.get(cx, cy, 1, 1, o => {
+										if (pointWithin(cx, cy, o.x, o.y, o.x + o.w, o.y + o.h))
+											found = o;
+									});
+								}
+
+								let h = hoverMarks[i];
 
 								if (found) {
 									if (found != hovered[i]) {
@@ -266,11 +235,10 @@
 									hovered[i] = null;
 								}
 							}
-						}
+						},
 					},
 					opts: (u, opts) => {
 						uPlot.assign(opts, {
-							select: {show: false},
 							cursor: {
 							//	x: false,
 								y: false,

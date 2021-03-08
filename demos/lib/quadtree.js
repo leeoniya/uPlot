@@ -1,3 +1,7 @@
+function pointWithin(px, py, rlft, rtop, rrgt, rbtm) {
+    return px >= rlft && px <= rrgt && py >= rtop && py <= rbtm;
+}
+
 !(function(global) {
 	const MAX_OBJECTS = 10;
 	const MAX_LEVELS  = 4;
