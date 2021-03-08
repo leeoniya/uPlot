@@ -3514,6 +3514,13 @@ function uPlot(opts, data, then) {
 			shouldSetSize = false;
 		}
 
+		if (fullWidCss > 0 && fullHgtCss > 0) {
+			ctx.clearRect(0, 0, can.width, can.height);
+			fire("drawClear");
+			drawOrder.forEach(fn => fn());
+			fire("draw");
+		}
+
 	//	if (shouldSetSelect) {
 		// TODO: update .u-select metrics (if visible)
 		//	setStylePx(selectDiv, TOP, select.top = 0);
@@ -3529,13 +3536,6 @@ function uPlot(opts, data, then) {
 		}
 
 	//	if (FEAT_LEGEND && legend.show && legend.live && shouldSetLegend) {}
-
-		if (fullWidCss > 0 && fullHgtCss > 0) {
-			ctx.clearRect(0, 0, can.width, can.height);
-			fire("drawClear");
-			drawOrder.forEach(fn => fn());
-			fire("draw");
-		}
 
 		if (!ready) {
 			ready = true;
