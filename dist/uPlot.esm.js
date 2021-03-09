@@ -255,6 +255,8 @@ const retArg1 = (_0, _1) => _1;
 
 const retNull = _ => null;
 
+const retTrue = _ => true;
+
 function incrRoundUp(num, incr) {
 	return ceil(num/incr)*incr;
 }
@@ -3699,7 +3701,7 @@ function uPlot(opts, data, then) {
 
 		fire("setSeries", i, opts);
 
-		pub && sync.pub("setSeries", self, i, opts);
+		pub && pubSync("setSeries", self, i, opts);
 	}
 
 	self.setSeries = setSeries;
@@ -4082,7 +4084,7 @@ function uPlot(opts, data, then) {
 		if (ts != null) {
 			// this is not technically a "mousemove" event, since it's debounced, rename to setCursor?
 			// since this is internal, we can tweak it later
-			sync.pub(mousemove, self, mouseLeft1, mouseTop1, xDim, yDim, idx);
+			pubSync(mousemove, self, mouseLeft1, mouseTop1, xDim, yDim, idx);
 
 			if (cursorFocus) {
 				let o = syncOpts.setSeries;
@@ -4207,7 +4209,7 @@ function uPlot(opts, data, then) {
 
 		if (e != null) {
 			onMouse(mouseup, doc, mouseUp);
-			sync.pub(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
+			pubSync(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
 		}
 	}
 
@@ -4271,7 +4273,7 @@ function uPlot(opts, data, then) {
 
 		if (e != null) {
 			offMouse(mouseup, doc);
-			sync.pub(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
+			pubSync(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 		}
 	}
 
@@ -4330,7 +4332,7 @@ function uPlot(opts, data, then) {
 		hideSelect();
 
 		if (e != null)
-			sync.pub(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
+			pubSync(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 	}
 
 	// internal pub/sub
@@ -4381,6 +4383,10 @@ function uPlot(opts, data, then) {
 	const syncOpts = assign({
 		key: null,
 		setSeries: false,
+		filters: {
+			pub: retTrue,
+			sub: retTrue,
+		},
 		scales: [xScaleKey, null]
 	}, cursor.sync);
 
@@ -4388,10 +4394,16 @@ function uPlot(opts, data, then) {
 
 	const sync = _sync(syncKey);
 
+	function pubSync(type, src, x, y, w, h, i) {
+		if (syncOpts.filters.pub(type, src, x, y, w, h, i))
+			sync.pub(type, src, x, y, w, h, i);
+	}
+
 	sync.sub(self);
 
 	function pub(type, src, x, y, w, h, i) {
-		events[type](null, src, x, y, w, h, i);
+		if (syncOpts.filters.sub(type, src, x, y, w, h, i))
+			events[type](null, src, x, y, w, h, i);
 	}
 
 	(self.pub = pub);

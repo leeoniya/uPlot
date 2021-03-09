@@ -417,6 +417,15 @@ declare namespace uPlot {
 
 		export namespace Sync {
 			export type Scales = [xScaleKey: string, yScaleKey: string];
+
+			export type Filter = (type: string, client: uPlot, x: number, y: number, w: number, h: number, i: number) => boolean;
+
+			export interface Filters {
+				/** filters emitted events */
+				pub?: Filter;
+				/** filters received events */
+				sub?: Filter;
+			}
 		}
 
 		export interface Sync {
@@ -426,6 +435,8 @@ declare namespace uPlot {
 			setSeries?: boolean; // true
 			/** sets the x and y scales to sync by values. null will sync by relative (%) position */
 			scales?: Sync.Scales; // [xScaleKey, null]
+			/** event filters */
+			filters?: Sync.Filters;
 		}
 
 		export interface Focus {

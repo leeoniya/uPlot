@@ -18,6 +18,7 @@
 		<h2 id="wait">Loading lib....</h2>
 
 		<button id="sync">Disable Sync</button>
+		<button id="sync-up-down">Disable mouseup/down Sync</button>
 
 		<br>
 
@@ -85,6 +86,44 @@
 
 				let mooSync = uPlot.sync("moo");
 
+				let synced = true;
+				let syncBtn = document.getElementById('sync');
+
+				let fooSync = uPlot.sync("foo");
+
+				syncBtn.onclick = () => {
+					synced = !synced;
+
+					if (synced) {
+						mooSync.sub(uplot1);
+						mooSync.sub(uplot2);
+						mooSync.sub(uplot3);
+						syncBtn.textContent = 'Disable Sync';
+					}
+					else {
+						mooSync.unsub(uplot1);
+						mooSync.unsub(uplot2);
+						mooSync.unsub(uplot3);
+						syncBtn.textContent = 'Enable Sync';
+					}
+				};
+
+				let syncedUpDown = true;
+				let syncUpDownBtn = document.getElementById('sync-up-down');
+
+				function upDownFilter(type) {
+					return syncedUpDown || (type != "mouseup" && type != "mousedown");
+				}
+
+				syncUpDownBtn.onclick = () => {
+					syncedUpDown = !syncedUpDown;
+
+					if (syncedUpDown)
+						syncUpDownBtn.textContent = 'Disable mouseup/down Sync';
+					else
+						syncUpDownBtn.textContent = 'Enable mouseup/down Sync';
+				};
+
 				const cursorOpts = {
 					lock: true,
 					focus: {
@@ -93,6 +132,9 @@
 					sync: {
 						key: mooSync.key,
 						setSeries: true,
+						filters: {
+							pub: upDownFilter,
+						}
 					},
 				};
 
@@ -200,28 +242,6 @@
 
 				wait.textContent = "Done!";
 				console.timeEnd('chart');
-
-				let synced = true;
-				let syncBtn = document.getElementById('sync');
-
-				let fooSync = uPlot.sync("foo");
-
-				syncBtn.onclick = () => {
-					synced = !synced;
-
-					if (synced) {
-						mooSync.sub(uplot1);
-						mooSync.sub(uplot2);
-						mooSync.sub(uplot3);
-						syncBtn.textContent = 'Disable Sync';
-					}
-					else {
-						mooSync.unsub(uplot1);
-						mooSync.unsub(uplot2);
-						mooSync.unsub(uplot3);
-						syncBtn.textContent = 'Enable Sync';
-					}
-				}
 /*
 				setTimeout(() => {
 					uplot1.destroy();

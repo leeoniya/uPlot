@@ -51,8 +51,9 @@ import {
 	join,
 	microTask,
 	retArg1,
-	EMPTY_OBJ,
 	retNull,
+	retTrue,
+	EMPTY_OBJ,
 } from './utils';
 
 import {
@@ -1863,7 +1864,7 @@ export default function uPlot(opts, data, then) {
 
 		fire("setSeries", i, opts);
 
-		FEAT_CURSOR && pub && sync.pub("setSeries", self, i, opts);
+		FEAT_CURSOR && pub && pubSync("setSeries", self, i, opts);
 	}
 
 	self.setSeries = setSeries;
@@ -2247,7 +2248,7 @@ export default function uPlot(opts, data, then) {
 		if (ts != null) {
 			// this is not technically a "mousemove" event, since it's debounced, rename to setCursor?
 			// since this is internal, we can tweak it later
-			sync.pub(mousemove, self, mouseLeft1, mouseTop1, xDim, yDim, idx);
+			pubSync(mousemove, self, mouseLeft1, mouseTop1, xDim, yDim, idx);
 
 			if (cursorFocus) {
 				let o = syncOpts.setSeries;
@@ -2372,7 +2373,7 @@ export default function uPlot(opts, data, then) {
 
 		if (e != null) {
 			onMouse(mouseup, doc, mouseUp);
-			sync.pub(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
+			pubSync(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
 		}
 	}
 
@@ -2436,7 +2437,7 @@ export default function uPlot(opts, data, then) {
 
 		if (e != null) {
 			offMouse(mouseup, doc, mouseUp);
-			sync.pub(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
+			pubSync(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 		}
 	}
 
@@ -2495,7 +2496,7 @@ export default function uPlot(opts, data, then) {
 		hideSelect();
 
 		if (e != null)
-			sync.pub(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
+			pubSync(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 	}
 
 	// internal pub/sub
@@ -2546,6 +2547,10 @@ export default function uPlot(opts, data, then) {
 	const syncOpts = FEAT_CURSOR && assign({
 		key: null,
 		setSeries: false,
+		filters: {
+			pub: retTrue,
+			sub: retTrue,
+		},
 		scales: [xScaleKey, null]
 	}, cursor.sync);
 
@@ -2553,10 +2558,16 @@ export default function uPlot(opts, data, then) {
 
 	const sync = FEAT_CURSOR && _sync(syncKey);
 
+	function pubSync(type, src, x, y, w, h, i) {
+		if (syncOpts.filters.pub(type, src, x, y, w, h, i))
+			sync.pub(type, src, x, y, w, h, i);
+	}
+
 	FEAT_CURSOR && sync.sub(self);
 
 	function pub(type, src, x, y, w, h, i) {
-		events[type](null, src, x, y, w, h, i);
+		if (syncOpts.filters.sub(type, src, x, y, w, h, i))
+			events[type](null, src, x, y, w, h, i);
 	}
 
 	FEAT_CURSOR && (self.pub = pub);
