@@ -3708,7 +3708,6 @@ var uPlot = (function () {
 
 			var s = series[i];
 
-			// will this cause redundant commit() if both show and focus are set?
 			if (opts.focus != null)
 				{ setFocus(i); }
 
@@ -3727,7 +3726,7 @@ var uPlot = (function () {
 
 		self.setSeries = setSeries;
 
-		function _alpha(i, value) {
+		function setAlpha(i, value) {
 			series[i].alpha = value;
 
 			if (cursor.show && cursorPts[i])
@@ -3735,11 +3734,6 @@ var uPlot = (function () {
 
 			if (showLegend && legendRows[i])
 				{ legendRows[i][0].parentNode.style.opacity = value; }
-		}
-
-		function _setAlpha(i, value) {
-
-			_alpha(i, value);
 		}
 
 		// y-distance
@@ -3755,14 +3749,16 @@ var uPlot = (function () {
 
 				var allFocused = i == null;
 
+				var _setAlpha = focus.alpha != 1;
+
 				series.forEach((s, i2) => {
 					var isFocused = allFocused || i2 == 0 || i2 == i;
 					s._focus = allFocused ? null : isFocused;
-					_setAlpha(i2, isFocused ? 1 : focus.alpha);
+					_setAlpha && setAlpha(i2, isFocused ? 1 : focus.alpha);
 				});
 
 				focusedSeries = i;
-				commit();
+				_setAlpha && commit();
 			}
 		}
 

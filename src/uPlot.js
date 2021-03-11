@@ -1850,7 +1850,6 @@ export default function uPlot(opts, data, then) {
 
 		let s = series[i];
 
-		// will this cause redundant commit() if both show and focus are set?
 		if (opts.focus != null)
 			setFocus(i);
 
@@ -1869,7 +1868,7 @@ export default function uPlot(opts, data, then) {
 
 	self.setSeries = setSeries;
 
-	function _alpha(i, value) {
+	function setAlpha(i, value) {
 		series[i].alpha = value;
 
 		if (FEAT_CURSOR && cursor.show && cursorPts[i])
@@ -1877,12 +1876,6 @@ export default function uPlot(opts, data, then) {
 
 		if (FEAT_LEGEND && showLegend && legendRows[i])
 			legendRows[i][0].parentNode.style.opacity = value;
-	}
-
-	function _setAlpha(i, value) {
-		let s = series[i];
-
-		_alpha(i, value);
 	}
 
 	// y-distance
@@ -1898,14 +1891,16 @@ export default function uPlot(opts, data, then) {
 
 			let allFocused = i == null;
 
+			let _setAlpha = focus.alpha != 1;
+
 			series.forEach((s, i2) => {
 				let isFocused = allFocused || i2 == 0 || i2 == i;
 				s._focus = allFocused ? null : isFocused;
-				_setAlpha(i2, isFocused ? 1 : focus.alpha);
+				_setAlpha && setAlpha(i2, isFocused ? 1 : focus.alpha);
 			});
 
 			focusedSeries = i;
-			commit();
+			_setAlpha && commit();
 		}
 	}
 

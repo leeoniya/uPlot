@@ -44,6 +44,9 @@
 								u.series.forEach((s, i) => {
 									s.width = i == seriesIdx ? 2 : 1;
 								});
+
+								if (u.status == 1 && alpha == 1)
+									u.redraw();
 							}
 						]
 					},
