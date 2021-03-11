@@ -44,9 +44,6 @@
 								u.series.forEach((s, i) => {
 									s.width = i == seriesIdx ? 2 : 1;
 								});
-
-								if (u.status == 1 && alpha == 1)
-									u.redraw();
 							}
 						]
 					},
@@ -98,7 +95,8 @@
 				return series._focus === false ? unfocused : focused;
 			};
 
-			let u2 = new uPlot(prepareChartOpts('Dynamic Focus', 1, [
+			// setting alpha: 1.1 bypasses the internal (alpha == 1) check that skips redraw() on focus changes
+			let u2 = new uPlot(prepareChartOpts('Dynamic Focus', 1.1, [
 				{
 					label: "sin(x)",
 					stroke: focusColorSwitch("red", "black"),
