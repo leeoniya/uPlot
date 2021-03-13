@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>ASAP Smoothing</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			.uplot {
+				margin-bottom: 50px;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="./lib/ASAP-optimized.js"></script>
+		<script src="../dist/uPlot.iife.js"></script>
+
+		<script>
+			// http://futuredata.stanford.edu/asap/
+			// https://github.com/stanford-futuredata/ASAP
+
+			function makeChart(title, range, data) {
+				const opts = {
+					title,
+					width: 1920,
+					height: 300,
+					scales: {
+						x: {
+							time: false,
+						},
+						y: {
+							auto: false,
+							range,
+						}
+					},
+					axes: [
+						{},
+						{
+							size: 60,
+						},
+					],
+					series: [
+						{},
+						{
+							label: "Trips",
+							stroke: "red",
+							width: 1 / devicePixelRatio,
+						},
+					],
+				};
+
+				let uplot = new uPlot(opts, data, document.body);
+			}
+
+			fetch("./data/taxi-trips.json").then(r => r.json()).then(data => {
+				makeChart("Taxi Trips (raw)", [0, 4e4], [
+					data.map((v, i) => i),
+					data,
+				]);
+
+				console.time("smooth");
+				let data2 = smooth(data, 150);
+				console.timeEnd("smooth");
+
+				makeChart("Taxi Trips (ASAP FFT)", [12e3, 20e3], [
+					data2.map((v, i) => i),
+					data2,
+				]);
+
+				function movingAvg(data, wind) {
+					let rolled = Array(data.length).fill(null);
+
+					let sum = 0;
+					let count = 0;
+
+					for (let i = 0; i < data.length; i++) {
+						let y = data[i];
+
+						if (y == null)
+							continue;
+
+						sum += y;
+						count++;
+
+						if (i > wind - 1) {
+							sum -= data[i - wind];
+							count--;
+						}
+
+						rolled[i] = sum / count;
+					}
+
+					return rolled;
+				}
+
+				console.time("roll");
+				let rolled = movingAvg(data, 300);
+				console.timeEnd("roll");
+
+				makeChart("Taxi Trips (Moving Avg 300)", [10e3, 20e3], [
+					rolled.map((v, i) => i),
+					rolled,
+				]);
+			});
+		</script>
+	</body>
+</html>
