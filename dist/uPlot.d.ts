@@ -738,7 +738,15 @@ declare namespace uPlot {
 
 		export type Splits = number[] | ((self: uPlot, axisIdx: number, scaleMin: number, scaleMax: number, foundIncr: number, pctSpace: number) => number[]);
 
-		export type Values = ((self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => (string | number | null)[]) | (string | number | null)[][] | string;
+		export type StaticValues = (string | number | null)[];
+
+		export type DynamicValues = (self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => StaticValues;
+
+		export type TimeValuesConfig = (string | number | null)[][];
+
+		export type TimeValuesTpl = string;
+
+		export type Values = StaticValues | DynamicValues | TimeValuesTpl | TimeValuesConfig;
 
 		export type Stroke = CanvasRenderingContext2D['strokeStyle'] | ((self: uPlot, axisIdx: number) => CanvasRenderingContext2D['strokeStyle']);
 

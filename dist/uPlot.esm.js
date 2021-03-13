@@ -2697,9 +2697,14 @@ function uPlot(opts, data, then) {
 			let av = axis.values;
 
 			axis.values = (
+				// static array of tick values
+				isArr(av) && !isArr(av[0]) ? fnOrSelf(av) :
+				// temporal
 				isTime ? (
+					// config array of fmtDate string tpls
 					isArr(av) ?
 						timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) :
+					// fmtDate string tpl
 					isStr(av) ?
 						timeAxisVal(_tzDate, av) :
 					av || _timeAxisVals
