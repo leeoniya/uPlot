@@ -31,7 +31,6 @@ import {
 	asinh,
 	sinh,
 	log10,
-	debounce,
 	closestIdx,
 	getMinMax,
 	getMinMaxLog,
@@ -183,6 +182,17 @@ import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, orient } from './paths/
 function log(name, args) {
 	console.log.apply(console, [name].concat(Array.prototype.slice.call(args)));
 }
+
+const cursorPlots = new Set();
+
+function invalidateRects() {
+	cursorPlots.forEach(u => {
+		u.syncRect(true);
+	});
+}
+
+on(resize, win, invalidateRects);
+on(scroll, win, invalidateRects);
 
 const linearPath = FEAT_PATHS && FEAT_PATHS_LINEAR ? linear() : null;
 
@@ -2272,8 +2282,8 @@ export default function uPlot(opts, data, then) {
 
 	let rect = null;
 
-	function syncRect() {
-		rect = over.getBoundingClientRect();
+	function syncRect(defer) {
+		rect = defer ? null : over.getBoundingClientRect();
 	}
 
 	function mouseMove(e, src, _l, _t, _w, _h, _i) {
@@ -2289,6 +2299,9 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function cacheMouse(e, src, _l, _t, _w, _h, _i, initial, snap) {
+		if (rect == null)
+			syncRect();
+
 		if (e != null) {
 			_l = e.clientX - rect.left;
 			_t = e.clientY - rect.top;
@@ -2510,8 +2523,6 @@ export default function uPlot(opts, data, then) {
 		setSeries(idx, opts);
 	};
 
-	let deb;
-
 	if (FEAT_CURSOR && cursor.show) {
 		onMouse(mousedown,  over, mouseDown);
 		onMouse(mousemove,  over, mouseMove);
@@ -2520,10 +2531,7 @@ export default function uPlot(opts, data, then) {
 
 		onMouse(dblclick, over, dblClick);
 
-		deb = debounce(syncRect, 100);
-
-		on(resize, win, deb);
-		on(scroll, win, deb);
+		cursorPlots.add(self);
 
 		self.syncRect = syncRect;
 	}
@@ -2574,8 +2582,7 @@ export default function uPlot(opts, data, then) {
 
 	function destroy() {
 		FEAT_CURSOR && sync.unsub(self);
-		FEAT_CURSOR && off(resize, win, deb);
-		FEAT_CURSOR && off(scroll, win, deb);
+		FEAT_CURSOR && cursorPlots.delete(self);
 		root.remove();
 		fire("destroy");
 	}

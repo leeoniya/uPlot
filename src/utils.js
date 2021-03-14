@@ -1,17 +1,3 @@
-export function debounce(fn, time) {
-	let pending = null;
-
-	function run() {
-		pending = null;
-		fn();
-	}
-
-	return function() {
-		clearTimeout(pending);
-		pending = setTimeout(run, time);
-	}
-}
-
 // binary search for index of closest value
 export function closestIdx(num, arr, lo, hi) {
 	let mid;

@@ -11,20 +11,6 @@
 
 const FEAT_TIME          = true;
 
-function debounce(fn, time) {
-	let pending = null;
-
-	function run() {
-		pending = null;
-		fn();
-	}
-
-	return function() {
-		clearTimeout(pending);
-		pending = setTimeout(run, time);
-	}
-}
-
 // binary search for index of closest value
 function closestIdx(num, arr, lo, hi) {
 	let mid;
@@ -2023,6 +2009,17 @@ function bars(opts) {
 		});
 	};
 }
+
+const cursorPlots = new Set();
+
+function invalidateRects() {
+	cursorPlots.forEach(u => {
+		u.syncRect(true);
+	});
+}
+
+on(resize, win, invalidateRects);
+on(scroll, win, invalidateRects);
 
 const linearPath = linear() ;
 
@@ -4111,8 +4108,8 @@ function uPlot(opts, data, then) {
 
 	let rect = null;
 
-	function syncRect() {
-		rect = over.getBoundingClientRect();
+	function syncRect(defer) {
+		rect = defer ? null : over.getBoundingClientRect();
 	}
 
 	function mouseMove(e, src, _l, _t, _w, _h, _i) {
@@ -4128,6 +4125,9 @@ function uPlot(opts, data, then) {
 	}
 
 	function cacheMouse(e, src, _l, _t, _w, _h, _i, initial, snap) {
+		if (rect == null)
+			syncRect();
+
 		if (e != null) {
 			_l = e.clientX - rect.left;
 			_t = e.clientY - rect.top;
@@ -4349,8 +4349,6 @@ function uPlot(opts, data, then) {
 		setSeries(idx, opts);
 	};
 
-	let deb;
-
 	if (cursor.show) {
 		onMouse(mousedown,  over, mouseDown);
 		onMouse(mousemove,  over, mouseMove);
@@ -4359,10 +4357,7 @@ function uPlot(opts, data, then) {
 
 		onMouse(dblclick, over, dblClick);
 
-		deb = debounce(syncRect, 100);
-
-		on(resize, win, deb);
-		on(scroll, win, deb);
+		cursorPlots.add(self);
 
 		self.syncRect = syncRect;
 	}
@@ -4413,8 +4408,7 @@ function uPlot(opts, data, then) {
 
 	function destroy() {
 		sync.unsub(self);
-		off(resize, win, deb);
-		off(scroll, win, deb);
+		cursorPlots.delete(self);
 		root.remove();
 		fire("destroy");
 	}
