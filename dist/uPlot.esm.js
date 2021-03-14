@@ -3506,7 +3506,7 @@ function uPlot(opts, data, then) {
 			can.width  = round(fullWidCss * pxRatio);
 			can.height = round(fullHgtCss * pxRatio);
 
-			syncRect();
+			syncRect(false);
 
 			fire("setSize");
 
@@ -4124,7 +4124,7 @@ function uPlot(opts, data, then) {
 
 	function cacheMouse(e, src, _l, _t, _w, _h, _i, initial, snap) {
 		if (rect == null)
-			syncRect();
+			syncRect(false);
 
 		if (e != null) {
 			_l = e.clientX - rect.left;

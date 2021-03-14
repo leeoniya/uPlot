@@ -3527,7 +3527,7 @@ var uPlot = (function () {
 				can.width  = round(fullWidCss * pxRatio);
 				can.height = round(fullHgtCss * pxRatio);
 
-				syncRect();
+				syncRect(false);
 
 				fire("setSize");
 
@@ -4155,7 +4155,7 @@ var uPlot = (function () {
 			var assign;
 
 			if (rect == null)
-				{ syncRect(); }
+				{ syncRect(false); }
 
 			if (e != null) {
 				_l = e.clientX - rect.left;
