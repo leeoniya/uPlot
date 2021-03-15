@@ -44,7 +44,11 @@
 		<script src="./lib/distr.js"></script>
 
 		<script>
-			const { round, min, max } = Math;
+			const { round, min, max, ceil } = Math;
+
+			function incrRound(num, incr) {
+				return round(num/incr)*incr;
+			}
 
 			function timelinePlugin(opts) {
 				const { mode, count, fill, stroke } = opts;
@@ -54,7 +58,7 @@
 				const laneWidth   = 0.9;
 				const laneDistr   = SPACE_BETWEEN;
 
-				const font      = Math.round(14 * pxRatio) + "px Arial";
+				const font      = round(14 * pxRatio) + "px Arial";
 
 				function walk(yIdx, count, dim, draw) {
 					distr(count, laneWidth, laneDistr, yIdx, (i, offPct, dimPct) => {
@@ -107,13 +111,13 @@
 							if (mode == 1) {
 								for (let ix = 0; ix < dataY.length; ix++) {
 									if (dataY[ix] != null) {
-										let lft = Math.round(valToPosX(dataX[ix], scaleX, xDim, xOff));
+										let lft = round(valToPosX(dataX[ix], scaleX, xDim, xOff));
 
 										let nextIx = ix;
 										while (dataY[++nextIx] === undefined && nextIx < dataY.length) {}
 
 										// to now (not to end of chart)
-										let rgt = nextIx == dataY.length ? xOff + xDim + strokeWidth : Math.round(valToPosX(dataX[nextIx], scaleX, xDim, xOff));
+										let rgt = nextIx == dataY.length ? xOff + xDim + strokeWidth : round(valToPosX(dataX[nextIx], scaleX, xDim, xOff));
 
 										putBox(
 											u.ctx,
@@ -274,10 +278,48 @@
 								points: {show: false}
 							},
 							scales: {
+								x: {
+									range(u, min, max) {
+										if (mode == 2) {
+											let colWid = u.data[0][1] - u.data[0][0];
+											let scalePad = colWid/2;
+
+											if (min <= u.data[0][0])
+												min = u.data[0][0] - scalePad;
+
+											lastIdx = u.data[0].length - 1;
+
+											if (max >= u.data[0][lastIdx])
+												max = u.data[0][lastIdx] + scalePad;
+										}
+
+										return [min, max];
+									}
+								},
 								y: {
-									auto: false,
 									range: [0, 1],
 								}
+							}
+						});
+
+						uPlot.assign(opts.axes[0], {
+							splits: mode == 2 ? (u, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace) => {
+								let splits = [];
+
+								let dataIncr = u.data[0][1] - u.data[0][0];
+								let skipFactor = ceil(foundIncr / dataIncr);
+
+								for (let i = 0; i < u.data[0].length; i += skipFactor) {
+									let v = u.data[0][i];
+
+									if (v >= scaleMin && v <= scaleMax)
+										splits.push(v);
+								}
+
+								return splits;
+							} : null,
+							grid: {
+								show: mode != 2
 							}
 						});
 
@@ -363,7 +405,7 @@
 				let u = new uPlot(opts, d, document.body);
 			}
 
-			let now = Math.floor(Date.now() / 1e3);
+			let now = incrRound((Date.now() / 1e3), 3600);
 
 			// TODO: merge transitions between same states at different timestamps, [1,1,1,0,0,0] -> [1,0]
 
@@ -403,13 +445,6 @@
 
 			makeChart({
 				mode:   1,
-				fill:   (seriesIdx, dataIdx, value) =>  statesDisplay[seriesIdx][value].color,
-				stroke: (seriesIdx, dataIdx, value) =>  statesDisplay[seriesIdx][value].color,
-			}, data1);
-
-			makeChart({
-				mode:   2,
-				size:   [0.9, 100],
 				fill:   (seriesIdx, dataIdx, value) =>  statesDisplay[seriesIdx][value].color,
 				stroke: (seriesIdx, dataIdx, value) =>  statesDisplay[seriesIdx][value].color,
 			}, data1);
