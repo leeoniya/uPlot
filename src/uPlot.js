@@ -2580,6 +2580,18 @@ export default function uPlot(opts, data, then) {
 
 	FEAT_CURSOR && (self.pub = pub);
 
+	function setDrag(dragOps) {
+		assign(drag, dragOps);
+
+		if (dragOps.setScale) {
+			hideSelect();
+		}
+
+		commit();
+	}
+
+	FEAT_CURSOR && (self.setDrag = setDrag);
+
 	function destroy() {
 		FEAT_CURSOR && sync.unsub(self);
 		FEAT_CURSOR && cursorPlots.delete(self);
