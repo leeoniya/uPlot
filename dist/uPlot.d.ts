@@ -98,7 +98,7 @@ declare class uPlot {
 	valToIdx(val: number): number;
 
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
-	syncRect(): void;
+	syncRect(defer?: boolean): void;
 
 	/** uPlot's path-builder factories */
 	static paths: uPlot.Series.PathBuilderFactories;
