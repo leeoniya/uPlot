@@ -13,6 +13,7 @@ import {
 	log2,
 	log10,
 	genIncrs,
+	round,
 	incrRoundUp,
 	roundDec,
 	floor,
@@ -160,26 +161,26 @@ function genTimeStuffs(ms) {
 
 			// get the timezone-adjusted date
 			let minDate = tzDate(scaleMin);
-			let minDateTs = minDate * ms;
+			let minDateTs = roundDec(minDate * ms, 3);
 
 			// get ts of 12am (this lands us at or before the original scaleMin)
 			let minMin = mkDate(minDate.getFullYear(), isYr ? 0 : minDate.getMonth(), isMo || isYr ? 1 : minDate.getDate());
-			let minMinTs = minMin * ms;
+			let minMinTs = roundDec(minMin * ms, 3);
 
 			if (isMo || isYr) {
 				let moIncr = isMo ? foundIncr / mo : 0;
 				let yrIncr = isYr ? foundIncr / y  : 0;
 			//	let tzOffset = scaleMin - minDateTs;		// needed?
-				let split = minDateTs == minMinTs ? minDateTs : mkDate(minMin.getFullYear() + yrIncr, minMin.getMonth() + moIncr, 1) * ms;
-				let splitDate = new Date(split / ms);
+				let split = minDateTs == minMinTs ? minDateTs : roundDec(mkDate(minMin.getFullYear() + yrIncr, minMin.getMonth() + moIncr, 1) * ms, 3);
+				let splitDate = new Date(round(split / ms));
 				let baseYear = splitDate.getFullYear();
 				let baseMonth = splitDate.getMonth();
 
 				for (let i = 0; split <= scaleMax; i++) {
 					let next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
-					let offs = next - tzDate(next * ms);
+					let offs = next - tzDate(roundDec(next * ms, 3));
 
-					split = (+next + offs) * ms;
+					split = roundDec((+next + offs) * ms, 3);
 
 					if (split <= scaleMax)
 						splits.push(split);

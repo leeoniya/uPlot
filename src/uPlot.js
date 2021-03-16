@@ -456,7 +456,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
-	const _tzDate  = FEAT_TIME && (opts.tzDate || (ts => new Date(ts / ms)));
+	const _tzDate  = FEAT_TIME && (opts.tzDate || (ts => new Date(round(ts / ms))));
 	const _fmtDate = FEAT_TIME && (opts.fmtDate || fmtDate);
 
 	const _timeAxisSplits = FEAT_TIME && (ms == 1 ? timeAxisSplitsMs(_tzDate) : timeAxisSplitsS(_tzDate));
@@ -990,7 +990,7 @@ export default function uPlot(opts, data, then) {
 				else if (xScaleDistr == 4)
 					[_min, _max] = rangeAsinh(_min, _min, scaleX.log, false);
 				else if (scaleX.time)
-					_max = _min + 86400 / ms;
+					_max = _min + round(86400 / ms);
 				else
 					[_min, _max] = rangeNum(_min, _max, 0.1, true);
 			}

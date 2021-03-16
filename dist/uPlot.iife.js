@@ -794,26 +794,26 @@ var uPlot = (function () {
 
 				// get the timezone-adjusted date
 				var minDate = tzDate(scaleMin);
-				var minDateTs = minDate * ms;
+				var minDateTs = roundDec(minDate * ms, 3);
 
 				// get ts of 12am (this lands us at or before the original scaleMin)
 				var minMin = mkDate(minDate.getFullYear(), isYr ? 0 : minDate.getMonth(), isMo || isYr ? 1 : minDate.getDate());
-				var minMinTs = minMin * ms;
+				var minMinTs = roundDec(minMin * ms, 3);
 
 				if (isMo || isYr) {
 					var moIncr = isMo ? foundIncr / mo : 0;
 					var yrIncr = isYr ? foundIncr / y  : 0;
 				//	let tzOffset = scaleMin - minDateTs;		// needed?
-					var split = minDateTs == minMinTs ? minDateTs : mkDate(minMin.getFullYear() + yrIncr, minMin.getMonth() + moIncr, 1) * ms;
-					var splitDate = new Date(split / ms);
+					var split = minDateTs == minMinTs ? minDateTs : roundDec(mkDate(minMin.getFullYear() + yrIncr, minMin.getMonth() + moIncr, 1) * ms, 3);
+					var splitDate = new Date(round(split / ms));
 					var baseYear = splitDate.getFullYear();
 					var baseMonth = splitDate.getMonth();
 
 					for (var i = 0; split <= scaleMax; i++) {
 						var next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
-						var offs = next - tzDate(next * ms);
+						var offs = next - tzDate(roundDec(next * ms, 3));
 
-						split = (+next + offs) * ms;
+						split = roundDec((+next + offs) * ms, 3);
 
 						if (split <= scaleMax)
 							{ splits.push(split); }
@@ -2285,7 +2285,7 @@ var uPlot = (function () {
 		}
 
 	//	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
-		var _tzDate  = (opts.tzDate || (ts => new Date(ts / ms)));
+		var _tzDate  = (opts.tzDate || (ts => new Date(round(ts / ms))));
 		var _fmtDate = (opts.fmtDate || fmtDate);
 
 		var _timeAxisSplits = (ms == 1 ? timeAxisSplitsMs(_tzDate) : timeAxisSplitsS(_tzDate));
@@ -2827,7 +2827,7 @@ var uPlot = (function () {
 					else if (xScaleDistr == 4)
 						{ (assign$1 = rangeAsinh(_min, _min, scaleX.log, false), _min = assign$1[0], _max = assign$1[1]); }
 					else if (scaleX.time)
-						{ _max = _min + 86400 / ms; }
+						{ _max = _min + round(86400 / ms); }
 					else
 						{ (assign$2 = rangeNum(_min, _max, 0.1, true), _min = assign$2[0], _max = assign$2[1]); }
 				}
