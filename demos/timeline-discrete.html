@@ -79,13 +79,13 @@
 					if (strokeWidth) {
 						ctx.beginPath();
 						rect(ctx, lft + strokeWidth / 2, top + strokeWidth / 2, wid - strokeWidth, hgt - strokeWidth);
-						ctx.strokeStyle = stroke(iy, ix, value);
+						ctx.strokeStyle = stroke(iy + 1, ix, value);
 						ctx.stroke();
 					}
 
 					ctx.beginPath();
 					rect(ctx, lft, top, wid, hgt);
-					ctx.fillStyle = fill(iy, ix, value);
+					ctx.fillStyle = fill(iy + 1, ix, value);
 					ctx.fill();
 
 					qt.add({
@@ -328,7 +328,7 @@
 								walk(null, count, u.bbox.height, (iy, y0, hgt) => {
 									// vertical midpoints of each series' timeline (stored relative to .u-over)
 									yMids[iy] = round(y0 + hgt / 2);
-									ySplits[iy] = u.posToVal(yMids[iy], "y");
+									ySplits[iy] = u.posToVal(yMids[iy] / pxRatio, "y");
 								});
 
 								return ySplits;
@@ -410,6 +410,7 @@
 			// TODO: merge transitions between same states at different timestamps, [1,1,1,0,0,0] -> [1,0]
 
 			let statesDisplay = [
+				{},
 				{
 					0: {color: "red"},
 					1: {color: "green"},
