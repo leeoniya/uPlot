@@ -30,6 +30,8 @@ declare class uPlot {
 	/** cursor state & opts*/
 	readonly cursor: uPlot.Cursor;
 
+	readonly legend: uPlot.Legend;
+
 //	/** focus opts */
 //	readonly focus: uPlot.Focus;
 
@@ -68,6 +70,9 @@ declare class uPlot {
 
 	/** sets the cursor position (relative to plotting area) */
 	setCursor(opts: {left: number, top: number}): void;
+
+	/** sets the legend to the values of the specified idx */
+	setLegend(opts: {idx: number}, fireHook?: boolean): void;
 
 	// TODO: include other series style opts which are dynamically pulled?
 	/** toggles series visibility or focus */
@@ -257,6 +262,11 @@ declare namespace uPlot {
 		dash?: Legend.Dash;
 		/** series indicator fill */
 		fill?: Legend.Fill;
+
+		/** current index (readback-only, not for init) */
+		idx: number;
+		/** current values (readback-only, not for init) */
+		values: Legend.Values;
 	}
 
 	export namespace Legend {
@@ -267,6 +277,12 @@ declare namespace uPlot {
 		export type Dash   = CSSStyleDeclaration['borderStyle'] | ((self: uPlot, seriesIdx: number) => CSSStyleDeclaration['borderStyle']);
 
 		export type Fill   = CSSStyleDeclaration['background']  | ((self: uPlot, seriesIdx: number) => CSSStyleDeclaration['background']);
+
+		export type Value  = {
+			[key: string]: string | number;
+		};
+
+		export type Values = Value[];
 	}
 
 	export type DateFormatterFactory = (tpl: string) => (date: Date) => string;
@@ -857,8 +873,11 @@ declare namespace uPlot {
 			/** fires after any scale has changed */
 			setScale?:   (self: uPlot, scaleKey: string) => void;
 
-			/** fires after the cursor is moved (debounced by rAF) */
+			/** fires after the cursor is moved */
 			setCursor?:  (self: uPlot) => void;
+
+			/** fires when cursor changes idx and legend updates (or should update) */
+			setLegend?:  (self: uPlot) => void;
 
 			/** fires after a selection is completed */
 			setSelect?:  (self: uPlot) => void;

@@ -2292,7 +2292,7 @@ var uPlot = (function () {
 		var _timeAxisVals   = timeAxisVals(_tzDate, timeAxisStamps((ms == 1 ? _timeAxisStampsMs : _timeAxisStampsS), _fmtDate));
 		var _timeSeriesVal  = timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
 
-		var legend     = assign({show: true, live: true}, opts.legend);
+		var legend     = (self.legend = assign({show: true, live: true, idx: null, values: []}, opts.legend));
 		var showLegend = legend.show;
 
 		{
@@ -2306,6 +2306,7 @@ var uPlot = (function () {
 		var legendRows = [];
 		var legendCols;
 		var multiValLegend = false;
+		var NULL_LEGEND_VALUES = {};
 
 		if (showLegend) {
 			legendEl = placeTag("table", LEGEND, root);
@@ -2326,6 +2327,9 @@ var uPlot = (function () {
 				addClass(legendEl, LEGEND_INLINE);
 				legend.live && addClass(legendEl, LEGEND_LIVE);
 			}
+
+			for (var k$2 in legendCols)
+				{ NULL_LEGEND_VALUES[k$2] = "--"; }
 		}
 
 		function initLegendRow(s, i) {
@@ -2398,8 +2402,16 @@ var uPlot = (function () {
 
 		function offMouse(ev, targ, fn) {
 			var targListeners = mouseListeners.get(targ) || {};
-			off(ev, targ, targListeners[ev]);
-			targListeners[ev] = null;
+
+			for (var k in targListeners) {
+				if (ev == null || k == ev) {
+					off(k, targ, targListeners[k]);
+					delete targListeners[k];
+				}
+			}
+
+			if (ev == null)
+				{ mouseListeners.delete(targ); }
 		}
 
 		var fullWidCss = 0;
@@ -2639,8 +2651,10 @@ var uPlot = (function () {
 				points.stroke = fnOrSelf(points.stroke);
 			}
 
-			if (showLegend)
-				{ legendRows.splice(i, 0, initLegendRow(s, i)); }
+			if (showLegend) {
+				legendRows.splice(i, 0, initLegendRow(s, i));
+				legend.values.push(null);	// NULL_LEGEND_VALS not yet avil here :(
+			}
 
 			if (cursor.show) {
 				var pt = initCursorPt(s, i);
@@ -2660,7 +2674,16 @@ var uPlot = (function () {
 
 		function delSeries(i) {
 			series.splice(i, 1);
-			showLegend && legendRows.splice(i, 1)[0][0].parentNode.remove();
+
+			if (showLegend) {
+				legend.values.splice(i, 1);
+
+				var tr = legendRows.splice(i, 1)[0][0].parentNode;
+				var label = tr.firstChild;
+				offMouse(null, label);
+				tr.remove();
+			}
+
 			cursorPts.length > 1 && cursorPts.splice(i, 1)[0].remove();
 
 			// TODO: de-init no-longer-needed scales?
@@ -3849,6 +3872,46 @@ var uPlot = (function () {
 		var setSelX = scaleX.ori == 0 ? setSelH : setSelV;
 		var setSelY = scaleX.ori == 1 ? setSelH : setSelV;
 
+		function syncLegend() {
+			for (var i = 0; i < series.length; i++) {
+				if (i == 0 && multiValLegend)
+					{ continue; }
+
+				var vals = legend.values[i];
+
+				var j = 0;
+
+				for (var k in vals)
+					{ legendRows[i][j++].firstChild.nodeValue = vals[k]; }
+			}
+		}
+
+		function setLegend(opts, _fire) {
+			if (opts != null && opts.idx != null) {
+				var idx = opts.idx;
+
+				legend.idx = idx;
+				series.forEach((s, sidx) => {
+					setLegendValues(sidx, idx);
+				});
+			}
+
+			if (showLegend && legend.live)
+				{ syncLegend(); }
+
+			shouldSetLegend = false;
+
+			_fire !== false && fire("setLegend");
+		}
+
+		self.setLegend = setLegend;
+
+		function setLegendValues(sidx, idx) {
+			var s = series[sidx];
+			var src = sidx == 0 && xScaleDistr == 2 ? data0 : data[sidx];
+			legend.values[sidx] = multiValLegend ? s.values(self, sidx, idx) : {_: s.value(self, src[idx], sidx, idx)};
+		}
+
 		function updateCursor(ts, src) {
 			var assign;
 
@@ -3865,6 +3928,7 @@ var uPlot = (function () {
 			}
 
 			var idx;
+			var idxChanged = false;
 
 			// when zooming to an x scale range between datapoints the binary search
 			// for nearest min/max indices results in this condition. cheap hack :D
@@ -3884,18 +3948,17 @@ var uPlot = (function () {
 					if (i > 0) {
 						cursorPts.length > 1 && trans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
 					}
-
-					if (showLegend && legend.live) {
-						if (i == 0 && multiValLegend)
-							{ continue; }
-
-						for (var j = 0; j < legendRows[i].length; j++)
-							{ legendRows[i][j].firstChild.nodeValue = '--'; }
-					}
 				}
 
 				if (cursorFocus)
 					{ setSeries(null, FOCUS_TRUE, syncOpts.setSeries); }
+
+				if (showLegend && legend.live) {
+					idxChanged = true;
+
+					for (var i$1 = 0; i$1 < series.length; i$1++)
+						{ legend.values[i$1] = NULL_LEGEND_VALUES; }
+				}
 			}
 			else {
 			//	let pctY = 1 - (y / rect.height);
@@ -3908,14 +3971,14 @@ var uPlot = (function () {
 
 				var xPos = incrRoundUp(valToPosX(data[0][idx], scaleX, xDim, 0), 0.5);
 
-				for (var i$1 = 0; i$1 < series.length; i$1++) {
-					var s = series[i$1];
+				for (var i$2 = 0; i$2 < series.length; i$2++) {
+					var s = series[i$2];
 
-					var idx2  = cursor.dataIdx(self, i$1, idx, valAtPosX);
+					var idx2  = cursor.dataIdx(self, i$2, idx, valAtPosX);
 					var xPos2 = idx2 == idx ? xPos : incrRoundUp(valToPosX(data[0][idx2], scaleX, xDim, 0), 0.5);
 
-					if (i$1 > 0 && s.show) {
-						var valAtIdx = data[i$1][idx2];
+					if (i$2 > 0 && s.show) {
+						var valAtIdx = data[i$2][idx2];
 
 						var yPos = valAtIdx == null ? -10 : incrRoundUp(valToPosY(valAtIdx, scales[s.scale], yDim, 0), 0.5);
 
@@ -3924,7 +3987,7 @@ var uPlot = (function () {
 
 							if (dist <= closestDist) {
 								closestDist = dist;
-								closestSeries = i$1;
+								closestSeries = i$2;
 							}
 						}
 
@@ -3939,25 +4002,23 @@ var uPlot = (function () {
 							vPos = xPos2;
 						}
 
-						cursorPts.length > 1 && trans(cursorPts[i$1], hPos, vPos, plotWidCss, plotHgtCss);
+						cursorPts.length > 1 && trans(cursorPts[i$2], hPos, vPos, plotWidCss, plotHgtCss);
 					}
 
 					if (showLegend && legend.live) {
-						if ((idx2 == cursor.idx && !shouldSetLegend) || i$1 == 0 && multiValLegend)
+						if ((idx2 == cursor.idx && !shouldSetLegend) || i$2 == 0 && multiValLegend)
 							{ continue; }
 
-						var src$1 = i$1 == 0 && xScaleDistr == 2 ? data0 : data[i$1];
+						idxChanged = true;
 
-						var vals = multiValLegend ? s.values(self, i$1, idx2) : {_: s.value(self, src$1[idx2], i$1, idx2)};
-
-						var j$1 = 0;
-
-						for (var k in vals)
-							{ legendRows[i$1][j$1++].firstChild.nodeValue = vals[k]; }
+						setLegendValues(i$2, idx2);
 					}
 				}
+			}
 
-				shouldSetLegend = false;
+			if (idxChanged) {
+				legend.idx = idx;
+				setLegend();
 			}
 
 			// nit: cursor.drag.setSelect is assumed always true
@@ -4443,6 +4504,7 @@ var uPlot = (function () {
 		function destroy() {
 			sync.unsub(self);
 			cursorPlots.delete(self);
+			mouseListeners.clear();
 			root.remove();
 			fire("destroy");
 		}

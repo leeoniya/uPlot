@@ -463,7 +463,7 @@ export default function uPlot(opts, data, then) {
 	const _timeAxisVals   = FEAT_TIME && timeAxisVals(_tzDate, timeAxisStamps((ms == 1 ? _timeAxisStampsMs : _timeAxisStampsS), _fmtDate));
 	const _timeSeriesVal  = FEAT_TIME && timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
 
-	const legend     = FEAT_LEGEND && assign({show: true, live: true}, opts.legend);
+	const legend     = FEAT_LEGEND && (self.legend = assign({show: true, live: true, idx: null, values: []}, opts.legend));
 	const showLegend = FEAT_LEGEND && legend.show;
 
 	if (FEAT_LEGEND) {
@@ -477,6 +477,7 @@ export default function uPlot(opts, data, then) {
 	let legendRows = [];
 	let legendCols;
 	let multiValLegend = false;
+	let NULL_LEGEND_VALUES = {};
 
 	if (showLegend) {
 		legendEl = placeTag("table", LEGEND, root);
@@ -497,6 +498,9 @@ export default function uPlot(opts, data, then) {
 			addClass(legendEl, LEGEND_INLINE);
 			legend.live && addClass(legendEl, LEGEND_LIVE);
 		}
+
+		for (let k in legendCols)
+			NULL_LEGEND_VALUES[k] = "--";
 	}
 
 	function initLegendRow(s, i) {
@@ -569,8 +573,16 @@ export default function uPlot(opts, data, then) {
 
 	function offMouse(ev, targ, fn) {
 		const targListeners = mouseListeners.get(targ) || {};
-		off(ev, targ, targListeners[ev]);
-		targListeners[ev] = null;
+
+		for (let k in targListeners) {
+			if (ev == null || k == ev) {
+				off(k, targ, targListeners[k]);
+				delete targListeners[k];
+			}
+		}
+
+		if (ev == null)
+			mouseListeners.delete(targ);
 	}
 
 	let fullWidCss = 0;
@@ -807,8 +819,10 @@ export default function uPlot(opts, data, then) {
 			points.stroke = fnOrSelf(points.stroke);
 		}
 
-		if (showLegend)
+		if (showLegend) {
 			legendRows.splice(i, 0, initLegendRow(s, i));
+			legend.values.push(null);	// NULL_LEGEND_VALS not yet avil here :(
+		}
 
 		if (FEAT_CURSOR && cursor.show) {
 			let pt = initCursorPt(s, i);
@@ -828,7 +842,16 @@ export default function uPlot(opts, data, then) {
 
 	function delSeries(i) {
 		series.splice(i, 1);
-		FEAT_LEGEND && showLegend && legendRows.splice(i, 1)[0][0].parentNode.remove();
+
+		if (FEAT_LEGEND && showLegend) {
+			legend.values.splice(i, 1);
+
+			let tr = legendRows.splice(i, 1)[0][0].parentNode;
+			let label = tr.firstChild;
+			offMouse(null, label);
+			tr.remove();
+		}
+
 		FEAT_CURSOR && cursorPts.length > 1 && cursorPts.splice(i, 1)[0].remove();
 
 		// TODO: de-init no-longer-needed scales?
@@ -2004,6 +2027,46 @@ export default function uPlot(opts, data, then) {
 	let setSelX = scaleX.ori == 0 ? setSelH : setSelV;
 	let setSelY = scaleX.ori == 1 ? setSelH : setSelV;
 
+	function syncLegend() {
+		for (let i = 0; i < series.length; i++) {
+			if (i == 0 && multiValLegend)
+				continue;
+
+			let vals = legend.values[i];
+
+			let j = 0;
+
+			for (let k in vals)
+				legendRows[i][j++].firstChild.nodeValue = vals[k];
+		}
+	}
+
+	function setLegend(opts, _fire) {
+		if (opts != null && opts.idx != null) {
+			let idx = opts.idx;
+
+			legend.idx = idx;
+			series.forEach((s, sidx) => {
+				setLegendValues(sidx, idx);
+			});
+		}
+
+		if (showLegend && legend.live)
+			syncLegend();
+
+		shouldSetLegend = false;
+
+		_fire !== false && fire("setLegend");
+	}
+
+	self.setLegend = setLegend;
+
+	function setLegendValues(sidx, idx) {
+		let s = series[sidx];
+		let src = sidx == 0 && xScaleDistr == 2 ? data0 : data[sidx];
+		legend.values[sidx] = multiValLegend ? s.values(self, sidx, idx) : {_: s.value(self, src[idx], sidx, idx)};
+	}
+
 	function updateCursor(ts, src) {
 	//	ts == null && log("updateCursor()", arguments);
 
@@ -2018,6 +2081,7 @@ export default function uPlot(opts, data, then) {
 		}
 
 		let idx;
+		let idxChanged = false;
 
 		// when zooming to an x scale range between datapoints the binary search
 		// for nearest min/max indices results in this condition. cheap hack :D
@@ -2037,18 +2101,17 @@ export default function uPlot(opts, data, then) {
 				if (i > 0) {
 					FEAT_CURSOR && cursorPts.length > 1 && trans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
 				}
-
-				if (showLegend && legend.live) {
-					if (i == 0 && multiValLegend)
-						continue;
-
-					for (let j = 0; j < legendRows[i].length; j++)
-						legendRows[i][j].firstChild.nodeValue = '--';
-				}
 			}
 
 			if (cursorFocus)
 				setSeries(null, FOCUS_TRUE, syncOpts.setSeries);
+
+			if (showLegend && legend.live) {
+				idxChanged = true;
+
+				for (let i = 0; i < series.length; i++)
+					legend.values[i] = NULL_LEGEND_VALUES;
+			}
 		}
 		else {
 		//	let pctY = 1 - (y / rect.height);
@@ -2099,18 +2162,16 @@ export default function uPlot(opts, data, then) {
 					if ((idx2 == cursor.idx && !shouldSetLegend) || i == 0 && multiValLegend)
 						continue;
 
-					let src = i == 0 && xScaleDistr == 2 ? data0 : data[i];
+					idxChanged = true;
 
-					let vals = multiValLegend ? s.values(self, i, idx2) : {_: s.value(self, src[idx2], i, idx2)};
-
-					let j = 0;
-
-					for (let k in vals)
-						legendRows[i][j++].firstChild.nodeValue = vals[k];
+					setLegendValues(i, idx2);
 				}
 			}
+		}
 
-			shouldSetLegend = false;
+		if (idxChanged) {
+			legend.idx = idx;
+			setLegend();
 		}
 
 		// nit: cursor.drag.setSelect is assumed always true
@@ -2583,6 +2644,7 @@ export default function uPlot(opts, data, then) {
 	function destroy() {
 		FEAT_CURSOR && sync.unsub(self);
 		FEAT_CURSOR && cursorPlots.delete(self);
+		mouseListeners.clear();
 		root.remove();
 		fire("destroy");
 	}
