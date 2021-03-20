@@ -2306,28 +2306,29 @@ function uPlot(opts, data, then) {
 	let multiValLegend = false;
 	let NULL_LEGEND_VALUES = {};
 
-	if (showLegend) {
-		legendEl = placeTag("table", LEGEND, root);
-
+	if (legend.live) {
 		const getMultiVals = series[1] ? series[1].values : null;
 		multiValLegend = getMultiVals != null;
+		legendCols = multiValLegend ? getMultiVals(self, 1, 0) : {_: 0};
+
+		for (let k in legendCols)
+			NULL_LEGEND_VALUES[k] = "--";
+	}
+
+	if (showLegend) {
+		legendEl = placeTag("table", LEGEND, root);
 
 		if (multiValLegend) {
 			let head = placeTag("tr", LEGEND_THEAD, legendEl);
 			placeTag("th", null, head);
-			legendCols = getMultiVals(self, 1, 0);
 
 			for (var key in legendCols)
 				placeTag("th", LEGEND_LABEL, head).textContent = key;
 		}
 		else {
-			legendCols = {_: 0};
 			addClass(legendEl, LEGEND_INLINE);
 			legend.live && addClass(legendEl, LEGEND_LIVE);
 		}
-
-		for (let k in legendCols)
-			NULL_LEGEND_VALUES[k] = "--";
 	}
 
 	function initLegendRow(s, i) {
@@ -3854,26 +3855,28 @@ function uPlot(opts, data, then) {
 	let setSelY = scaleX.ori == 1 ? setSelH : setSelV;
 
 	function syncLegend() {
-		for (let i = 0; i < series.length; i++) {
-			if (i == 0 && multiValLegend)
-				continue;
+		if (showLegend && legend.live) {
+			for (let i = 0; i < series.length; i++) {
+				if (i == 0 && multiValLegend)
+					continue;
 
-			let vals = legend.values[i];
+				let vals = legend.values[i];
 
-			let j = 0;
+				let j = 0;
 
-			for (let k in vals)
-				legendRows[i][j++].firstChild.nodeValue = vals[k];
+				for (let k in vals)
+					legendRows[i][j++].firstChild.nodeValue = vals[k];
+			}
 		}
 	}
 
 	function setLegend(opts, _fire) {
-		if (opts != null && opts.idx != null) {
+		if (opts != null) {
 			let idx = opts.idx;
 
 			legend.idx = idx;
 			series.forEach((s, sidx) => {
-				setLegendValues(sidx, idx);
+				(sidx > 0 || !multiValLegend) && setLegendValues(sidx, idx);
 			});
 		}
 
@@ -3888,9 +3891,17 @@ function uPlot(opts, data, then) {
 	self.setLegend = setLegend;
 
 	function setLegendValues(sidx, idx) {
-		let s = series[sidx];
-		let src = sidx == 0 && xScaleDistr == 2 ? data0 : data[sidx];
-		legend.values[sidx] = multiValLegend ? s.values(self, sidx, idx) : {_: s.value(self, src[idx], sidx, idx)};
+		let val;
+
+		if (idx == null)
+			val = NULL_LEGEND_VALUES;
+		else {
+			let s = series[sidx];
+			let src = sidx == 0 && xScaleDistr == 2 ? data0 : data[sidx];
+			val = multiValLegend ? s.values(self, sidx, idx) : {_: s.value(self, src[idx], sidx, idx)};
+		}
+
+		legend.values[sidx] = val;
 	}
 
 	function updateCursor(ts, src) {
@@ -3932,7 +3943,7 @@ function uPlot(opts, data, then) {
 			if (cursorFocus)
 				setSeries(null, FOCUS_TRUE, syncOpts.setSeries);
 
-			if (showLegend && legend.live) {
+			if (legend.live) {
 				idxChanged = true;
 
 				for (let i = 0; i < series.length; i++)
@@ -3984,7 +3995,7 @@ function uPlot(opts, data, then) {
 					cursorPts.length > 1 && trans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
 				}
 
-				if (showLegend && legend.live) {
+				if (legend.live) {
 					if ((idx2 == cursor.idx && !shouldSetLegend) || i == 0 && multiValLegend)
 						continue;
 
