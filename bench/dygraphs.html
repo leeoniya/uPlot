@@ -23,14 +23,6 @@
 		<div id="graphdiv"></div>
 
 		<script>
-			function round2(val) {
-				return Math.round(val * 100) / 100;
-			}
-
-			function round3(val) {
-				return Math.round(val * 1000) / 1000;
-			}
-
 			function prepData(packed) {
 				console.time('prep');
 
@@ -44,8 +36,8 @@
 				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
 					let rec = Array(4);
 					rec[0] = new Date(packed[i] * 60 * 1000);
-					rec[1] = round3(100 - packed[i+1]);
-					rec[2] = round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))
+					rec[1] = (100 - packed[i+1]).toFixed(3);
+					rec[2] = (100 * packed[i+5] / (packed[i+5] + packed[i+6])).toFixed(2)
 					rec[3] = packed[i+3];
 
 					data[j] = rec;
@@ -96,7 +88,7 @@
 								return d + "%";
 							},
 							valueFormatter: function (d) {
-								return round2(d) + "%";
+								return (d).toFixed(2) + "%";
 							}
 						},
 						y2: {

@@ -15,14 +15,6 @@
 		<script>
 			// based https://github.com/apache/incubator-echarts/blob/d4bf86c963feaa12d83e0d3bd9f9b2b6249233d7/test/sample-compare.html
 
-			function round2(val) {
-				return Math.round(val * 100) / 100;
-			}
-
-			function round3(val) {
-				return Math.round(val * 1000) / 1000;
-			}
-
 			function prepData(packed) {
 				console.time("prep");
 
@@ -38,8 +30,8 @@
 				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
 					date += 1;
 					data[off++] = date * 60 * 1000;
-					data[off++] = round3(100 - packed[i + 1]);
-					data[off++] = round2(100 * packed[i + 5] / (packed[i + 5] + packed[i + 6]));
+					data[off++] = (100 - packed[i + 1]).toFixed(3);
+					data[off++] = (100 * packed[i + 5] / (packed[i + 5] + packed[i + 6])).toFixed(2);
 					data[off++] = packed[i + 3];
 				}
 				console.timeEnd("prep");

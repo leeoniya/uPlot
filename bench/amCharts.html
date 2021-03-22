@@ -21,14 +21,6 @@
 		<div id="chartdiv"></div>
 
 		<script>
-			function round2(val) {
-				return Math.round(val * 100) / 100;
-			}
-
-			function round3(val) {
-				return Math.round(val * 1000) / 1000;
-			}
-
 			function prepData(packed) {
 				console.time('prep');
 
@@ -43,8 +35,8 @@
 
 				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
 					let date = packed[i] * 60 * 1000;
-					cpu[j] = {date: date, value: round3(100 - packed[i+1])};
-					ram[j] = {date: date, value: round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))};
+					cpu[j] = {date: date, value: (100 - packed[i+1]).toFixed(3)};
+					ram[j] = {date: date, value: (100 * packed[i+5] / (packed[i+5] + packed[i+6])).toFixed(2)};
 					tcp[j] = {date: date, value: packed[i+3]};
 				}
 

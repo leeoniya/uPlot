@@ -11,14 +11,6 @@
 		<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
 		<script>
-			function round2(val) {
-				return Math.round(val * 100) / 100;
-			}
-
-			function round3(val) {
-				return Math.round(val * 1000) / 1000;
-			}
-
 			function prepData(packed) {
 				console.time('prep');
 
@@ -33,8 +25,8 @@
 
 				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
 					let date = packed[i] * 60;
-					cpu[j] = {time: date, value: round3(100 - packed[i+1])};
-					ram[j] = {time: date, value: round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))};
+					cpu[j] = {time: date, value: (100 - packed[i+1]).toFixed(3)};
+					ram[j] = {time: date, value: (100 * packed[i+5] / (packed[i+5] + packed[i+6])).toFixed(2)};
 					tcp[j] = {time: date, value: packed[i+3]};
 				}
 
