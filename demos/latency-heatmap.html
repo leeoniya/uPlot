@@ -67,7 +67,49 @@
 				return Math.floor(num/incr)*incr;
 			}
 
-			function aggData(data, incr) {
+			function histogram(vals, round, filter, sort) {
+				let hist = new Map();
+
+				for (let i = 0; i < vals.length; i++) {
+					let v = vals[i];
+
+					if (v != null)
+						v = round(v);
+
+					let entry = hist.get(v);
+
+					if (entry)
+						entry.count++;
+					else
+						hist.set(v, {value: v, count: 1});
+				}
+
+				filter && filter.forEach(v => hist.delete(v));
+
+				let bins = [...hist.values()];
+
+				sort && bins.sort((a, b) => sort(a.value, b.value));
+
+				let values = Array(bins.length);
+				let counts = Array(bins.length);
+
+				for (let i = 0; i < bins.length; i++) {
+					values[i] = bins[i].value;
+					counts[i] = bins[i].count;
+				}
+
+				return [
+					values,
+					counts,
+				];
+			}
+
+			function aggAll(data, round, filter, sort) {
+				let allVals = [].concat(...data[1]);
+				return histogram(allVals, round, filter, sort);
+			}
+
+			function aggEach(data, round, filter, sort) {
 				let data2 = [
 					data[0],
 					[],
@@ -75,31 +117,10 @@
 				];
 
 				data[1].forEach((vals, xi) => {
-					let _aggs = [];
-					let _counts = [];
+					let [ bins, counts ] = histogram(vals, round, filter, sort);
 
-					let _curVal = incrRoundUp(vals[0], incr);
-					let _curCount = 0;
-
-					vals.forEach(v => {
-						v = incrRoundUp(v, incr);
-
-						if (v == _curVal)
-							_curCount++;
-						else {
-							_aggs.push(_curVal);
-							_counts.push(_curCount);
-
-							_curVal = v;
-							_curCount = 1;
-						}
-					});
-
-					_aggs.push(_curVal);
-					_counts.push(_curCount);
-
-					data2[1][xi] = _aggs;
-					data2[2][xi] = _counts;
+					data2[1].push(bins);
+					data2[2].push(counts);
 				});
 
 				return data2;
@@ -179,12 +200,17 @@
 			let u = new uPlot(opts, data, document.body);
 
 
-			const bucketIncr = 2;
+			let bucketIncr = 2;
+			const histRound = v => incrRoundDn(v, bucketIncr);
+			const histFilter = [null];
+			const histsort = (a, b) => a - b;
 
-	//		console.time("aggData");
-			let agg = aggData(raw, bucketIncr);
-	//		console.timeEnd("aggData");
-	//		console.log(agg);
+			console.time("aggEach");
+			let agg = aggEach(raw, histRound, histFilter, histsort);
+			console.timeEnd("aggEach");
+
+		//	console.log(raw);
+		//	console.log(agg);
 
 			let data2 = [
 				agg[0],
@@ -279,6 +305,95 @@
 			};
 
 			let u2 = new uPlot(opts2, data2, document.body);
+
+
+		</script>
+
+		<br>
+		<br>
+		Bucket size: <input id="binsize" type="range" min="1", max="25" step="1" value="2">
+
+		<script>
+		//	let bars = uPlot.paths.bars({size: [1], align:  1});
+
+			let stepped = uPlot.paths.stepped({align:  1});
+
+			const opts3 = {
+				width: 1800,
+				height: 600,
+				title: "Latency Histogram",
+				hooks: {
+					init: [
+						// splits shifter, to ensure splits always start at first bucket
+						u => {
+							let _splits = u.axes[0].splits;
+
+							u.axes[0].splits = (self, i, min, max, _incr, _space, forceMin) => {
+								let splits = _splits(self, i, min, max, _incr, _space, forceMin);
+
+								let shift = splits[0] - u.data[0][0];
+
+								let tick = splits[1] - splits[0];
+
+								if (shift > 0) {
+									splits = splits.map(v => v - shift);
+
+									let next = splits[splits.length - 1] + tick;
+
+									if (next <= max)
+										splits.push(next);
+								}
+
+								return splits;
+							};
+						}
+					]
+				},
+				scales: {
+					x: {
+						time: false,
+						auto: false,
+						range: (u) => [
+							u.data[0][0],
+							u.data[0][u.data[0].length - 1] + bucketIncr,
+						]
+					}
+				},
+				axes: [
+					{
+						incrs: () => [0,1,2,3,4,5,6,7,8,9,10].map(mult => mult * bucketIncr),
+					//	space: 0,
+					//	splits	// adjust splits?
+					}
+				],
+				series: [
+					{},
+					{
+						paths: stepped,
+						points: {
+							show: false,
+						},
+						fill: "rgba(255,0,0,0.5)",
+						stroke: "rgba(255,0,0,0.5)",
+					},
+				],
+			};
+
+			console.time("aggAll");
+			let hist = aggAll(raw, histRound, histFilter, histsort);
+			console.timeEnd("aggAll");
+
+			let u3 = new uPlot(opts3, hist, document.body);
+
+			document.getElementById("binsize").oninput = e => {
+				bucketIncr = +e.target.value;
+
+				console.time("aggAll");
+				hist = aggAll(raw, histRound, histFilter, histsort);
+				console.timeEnd("aggAll");
+
+				u3.setData(hist);
+			};
 		</script>
 	</body>
 </html>

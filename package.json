@@ -40,7 +40,7 @@
   "homepage": "https://github.com/leeoniya/uPlot#readme",
   "devDependencies": {
     "@rollup/plugin-buble": "^0.21.3",
-    "rollup": "^2.42.0",
+    "rollup": "^2.44.0",
     "rollup-plugin-terser": "^7.0.2"
   }
 }
