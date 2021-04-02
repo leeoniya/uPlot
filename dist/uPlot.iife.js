@@ -1500,10 +1500,13 @@ var uPlot = (function () {
 	function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }function bezierCurveToV(p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }
 
 	function _drawAcc(lineTo) {
-		return (stroke, accX, minY, maxY, outY) => {
+		return (stroke, accX, minY, maxY, inY, outY) => {
 			if (minY != maxY) {
-				lineTo(stroke, accX, minY);
-				lineTo(stroke, accX, maxY);
+				if (inY != minY && outY != minY)
+					{ lineTo(stroke, accX, minY); }
+				if (inY != maxY && outY != maxY)
+					{ lineTo(stroke, accX, maxY); }
+
 				lineTo(stroke, accX, outY);
 			}
 		};
@@ -1533,7 +1536,7 @@ var uPlot = (function () {
 
 				var minY = inf,
 					maxY = -inf,
-					outY, outX, drawnAtX;
+					inY, outY, outX, drawnAtX;
 
 				var gaps = [];
 
@@ -1556,8 +1559,10 @@ var uPlot = (function () {
 						if (dataY[i] != null) {
 							outY = round(valToPosY(dataY[i], scaleY, yDim, yOff));
 
-							if (minY == inf)
-								{ lineTo(stroke, x, outY); }
+							if (minY == inf) {
+								lineTo(stroke, x, outY);
+								inY = outY;
+							}
 
 							minY = min(outY, minY);
 							maxY = max(outY, maxY);
@@ -1569,7 +1574,7 @@ var uPlot = (function () {
 						var _addGap = false;
 
 						if (minY != inf) {
-							drawAcc(stroke, accX, minY, maxY, outY);
+							drawAcc(stroke, accX, minY, maxY, inY, outY);
 							outX = drawnAtX = accX;
 						}
 						else if (accGaps) {
@@ -1580,7 +1585,7 @@ var uPlot = (function () {
 						if (dataY[i] != null) {
 							outY = round(valToPosY(dataY[i], scaleY, yDim, yOff));
 							lineTo(stroke, x, outY);
-							minY = maxY = outY;
+							minY = maxY = inY = outY;
 
 							// prior pixel can have data but still start a gap if ends with null
 							if (x - accX > 1 && dataY[i - dir] === null)
@@ -1601,7 +1606,7 @@ var uPlot = (function () {
 				}
 
 				if (minY != inf && minY != maxY && drawnAtX != accX)
-					{ drawAcc(stroke, accX, minY, maxY, outY); }
+					{ drawAcc(stroke, accX, minY, maxY, inY, outY); }
 
 				if (rgtX < xOff + xDim)
 					{ addGap(gaps, rgtX, xOff + xDim); }
