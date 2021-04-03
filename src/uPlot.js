@@ -963,11 +963,10 @@ export default function uPlot(opts, data, then) {
 	let viaAutoScaleX = false;
 
 	function setData(_data, _resetScales) {
-		_data = _data || [];
-		_data[0] = _data[0] || [];
+		data = (_data || []).slice();
+		data[0] = data[0] || [];
 
-		self.data = _data;
-		data = _data.slice();
+		self.data = data.slice();
 		data0 = data[0];
 		dataLen = data0.length;
 
