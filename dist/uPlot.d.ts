@@ -326,7 +326,7 @@ declare namespace uPlot {
 		drawOrder?: DrawOrderKey[];
 
 		/** whether vt & hz lines of series/grid/ticks should be crisp/sharp or sub-px antialiased */
-		pxAlign?: boolean; // true
+		pxAlign?: boolean | number; // true
 
 		series: Series[];
 
@@ -678,7 +678,7 @@ declare namespace uPlot {
 		spanGaps?: boolean;
 
 		/** whether path and point drawing should offset canvas to try drawing crisp lines */
-		pxAlign?: boolean; // true
+		pxAlign?: number | boolean; // 1
 
 		/** legend label */
 		label?: string;

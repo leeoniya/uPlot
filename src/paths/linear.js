@@ -1,6 +1,5 @@
-import { min, max, round, roundDec, incrRound, nonNullIdx, inf } from '../utils';
+import { min, max, incrRound, nonNullIdx, inf } from '../utils';
 import { orient, addGap, clipGaps, lineToH, lineToV, clipBandLine } from './utils';
-import { pxRatio } from '../dom';
 
 function _drawAcc(lineTo) {
 	return (stroke, accX, minY, maxY, inY, outY) => {
@@ -21,6 +20,8 @@ const drawAccV = _drawAcc(lineToV);
 export function linear() {
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			let pxRound = series.pxRound;
+
 			let lineTo, drawAcc;
 
 			if (scaleX.ori == 0) {
@@ -43,7 +44,7 @@ export function linear() {
 
 			let gaps = [];
 
-			let accX = round(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+			let accX = pxRound(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let accGaps = false;
 
 			// data edges
@@ -56,11 +57,11 @@ export function linear() {
 				addGap(gaps, xOff, lftX);
 
 			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
-				let x = round(valToPosX(dataX[i], scaleX, xDim, xOff));
+				let x = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
 
 				if (x == accX) {
 					if (dataY[i] != null) {
-						outY = round(valToPosY(dataY[i], scaleY, yDim, yOff));
+						outY = pxRound(valToPosY(dataY[i], scaleY, yDim, yOff));
 
 						if (minY == inf) {
 							lineTo(stroke, x, outY);
@@ -86,7 +87,7 @@ export function linear() {
 					}
 
 					if (dataY[i] != null) {
-						outY = round(valToPosY(dataY[i], scaleY, yDim, yOff));
+						outY = pxRound(valToPosY(dataY[i], scaleY, yDim, yOff));
 						lineTo(stroke, x, outY);
 						minY = maxY = inY = outY;
 
@@ -117,7 +118,7 @@ export function linear() {
 			if (series.fill != null) {
 				let fill = _paths.fill = new Path2D(stroke);
 
-				let fillTo = round(valToPosY(series.fillTo(u, seriesIdx, series.min, series.max), scaleY, yDim, yOff));
+				let fillTo = pxRound(valToPosY(series.fillTo(u, seriesIdx, series.min, series.max), scaleY, yDim, yOff));
 
 				lineTo(fill, rgtX, fillTo);
 				lineTo(fill, lftX, fillTo);

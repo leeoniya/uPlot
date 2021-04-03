@@ -1,9 +1,11 @@
-import { round, pow, sqrt, nonNullIdx } from '../utils';
+import { pow, sqrt, nonNullIdx } from '../utils';
 import { orient, addGap, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV, clipBandLine } from './utils';
 
 export function spline(opts) {
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			let pxRound = series.pxRound;
+
 			let moveTo, bezierCurveTo, lineTo;
 
 			if (scaleX.ori == 0) {
@@ -24,7 +26,7 @@ export function spline(opts) {
 
 			let gaps = [];
 			let inGap = false;
-			let firstXPos = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+			let firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let prevXPos = firstXPos;
 
 			let xCoords = [];
@@ -53,14 +55,14 @@ export function spline(opts) {
 				}
 			}
 
-			const _paths = {stroke: catmullRomFitting(xCoords, yCoords, 0.5, moveTo, bezierCurveTo), fill: null, clip: null, band: null};
+			const _paths = {stroke: catmullRomFitting(xCoords, yCoords, 0.5, moveTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null};
 			const stroke = _paths.stroke;
 
 			if (series.fill != null) {
 				let fill = _paths.fill = new Path2D(stroke);
 
 				let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
-				let minY = round(valToPosY(fillTo, scaleY, yDim, yOff));
+				let minY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
 
 				lineTo(fill, prevXPos, minY);
 				lineTo(fill, firstXPos, minY);
@@ -101,7 +103,7 @@ export function spline(opts) {
  * If 'alpha' is 1 then the 'Chordal' variant is used
  *
  */
-function catmullRomFitting(xCoords, yCoords, alpha, moveTo, bezierCurveTo) {
+function catmullRomFitting(xCoords, yCoords, alpha, moveTo, bezierCurveTo, pxRound) {
 	const path = new Path2D();
 
 	const dataLen = xCoords.length;
@@ -132,7 +134,7 @@ function catmullRomFitting(xCoords, yCoords, alpha, moveTo, bezierCurveTo) {
 		d1pow2A,
 		d1powA;
 
-	moveTo(path, round(xCoords[0]), round(yCoords[0]));
+	moveTo(path, pxRound(xCoords[0]), pxRound(yCoords[0]));
 
 	for (let i = 0; i < dataLen - 1; i++) {
 		let p0i = i == 0 ? 0 : i - 1;

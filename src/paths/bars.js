@@ -1,4 +1,4 @@
-import { min, max, round, inf, ifNull, EMPTY_OBJ, incrRound, nonNullIdx } from '../utils';
+import { min, max, inf, ifNull, EMPTY_OBJ, incrRound, nonNullIdx } from '../utils';
 import { orient, rectV, rectH } from './utils';
 import { pxRatio } from '../dom';
 
@@ -12,6 +12,8 @@ export function bars(opts) {
 
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			let pxRound = series.pxRound;
+
 			let rect = scaleX.ori == 0 ? rectH : rectV;
 
 			let colWid = valToPosX(dataX[1], scaleX, xDim, xOff) - valToPosX(dataX[0], scaleX, xDim, xOff);
@@ -22,9 +24,9 @@ export function bars(opts) {
 
 			let y0Pos = valToPosY(fillToY, scaleY, yDim, yOff);
 
-			let strokeWidth = round(series.width * pxRatio);
+			let strokeWidth = pxRound(series.width * pxRatio);
 
-			let barWid = round(min(maxWidth, colWid - gapWid) - strokeWidth);
+			let barWid = pxRound(min(maxWidth, colWid - gapWid) - strokeWidth);
 
 			let xShift = align == 1 ? 0 : align == -1 ? barWid : barWid / 2;
 
@@ -70,9 +72,9 @@ export function bars(opts) {
 				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
 				let yPos = valToPosY(yVal, scaleY, yDim, yOff);
 
-				let lft = round(xPos - xShift);
-				let btm = round(max(yPos, y0Pos));
-				let top = round(min(yPos, y0Pos));
+				let lft = pxRound(xPos - xShift);
+				let btm = pxRound(max(yPos, y0Pos));
+				let top = pxRound(min(yPos, y0Pos));
 				let barHgt = btm - top;
 
 				dataY[i] != null && rect(stroke, lft, top, barWid, barHgt);

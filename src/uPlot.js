@@ -49,6 +49,7 @@ import {
 	ifNull,
 	join,
 	microTask,
+	retArg0,
 	retArg1,
 	retNull,
 	retTrue,
@@ -177,7 +178,7 @@ import { spline  } from './paths/spline';
 import { stepped } from './paths/stepped';
 import { bars    } from './paths/bars';
 
-import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, orient } from './paths/utils';
+import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, orient, pxRoundGen } from './paths/utils';
 
 function log(name, args) {
 	console.log.apply(console, [name].concat(Array.prototype.slice.call(args)));
@@ -311,7 +312,9 @@ export default function uPlot(opts, data, then) {
 
 	opts = copy(opts);
 
-	const pxAlign = ifNull(opts.pxAlign, true);
+	const pxAlign = +ifNull(opts.pxAlign, 1);
+
+	const pxRound = pxRoundGen(pxAlign);
 
 	(opts.plugins || []).forEach(p => {
 		if (p.opts)
@@ -800,7 +803,8 @@ export default function uPlot(opts, data, then) {
 			s.width  = s.width == null ? 1 : s.width;
 			s.paths  = s.paths || linearPath || retNull;
 			s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
-			s.pxAlign = ifNull(s.pxAlign, true);
+			s.pxAlign = +ifNull(s.pxAlign, pxAlign);
+			s.pxRound = pxRoundGen(s.pxAlign);
 
 			s.stroke = fnOrSelf(s.stroke || null);
 			s.fill   = fnOrSelf(s.fill || null);
@@ -1180,6 +1184,7 @@ export default function uPlot(opts, data, then) {
 
 		let s = series[si];
 		let p = s.points;
+		let _pxRound = s.pxRound;
 
 		const width = roundDec(p.width * pxRatio, 3);
 		const offset = (width % 2) / 2;
@@ -1188,7 +1193,7 @@ export default function uPlot(opts, data, then) {
 		let rad = (p.size - p.width) / 2 * pxRatio;
 		let dia = roundDec(rad * 2, 3);
 
-		const _pxAlign = pxAlign && s.pxAlign;
+		const _pxAlign = s.pxAlign == 1;
 
 		_pxAlign && ctx.translate(offset, offset);
 
@@ -1226,8 +1231,8 @@ export default function uPlot(opts, data, then) {
 
 		for (let pi = i0; pi <= i1; pi++) {
 			if (data[si][pi] != null) {
-				let x = round(valToPosX(data[0][pi],  scaleX, xDim, xOff));
-				let y = round(valToPosY(data[si][pi], scaleY, yDim, yOff));
+				let x = _pxRound(valToPosX(data[0][pi],  scaleX, xDim, xOff));
+				let y = _pxRound(valToPosY(data[si][pi], scaleY, yDim, yOff));
 
 				moveTo(path, x + rad, y);
 				arc(path, x, y, rad, 0, PI * 2);
@@ -1304,7 +1309,7 @@ export default function uPlot(opts, data, then) {
 
 		ctx.globalAlpha = s.alpha;
 
-		const _pxAlign = pxAlign && s.pxAlign;
+		const _pxAlign = s.pxAlign == 1;
 
 		_pxAlign && ctx.translate(offset, offset);
 
@@ -1399,7 +1404,7 @@ export default function uPlot(opts, data, then) {
 	function drawOrthoLines(offs, filts, ori, side, pos0, len, width, stroke, dash, cap) {
 		let offset = (width % 2) / 2;
 
-		pxAlign && ctx.translate(offset, offset);
+		pxAlign == 1 && ctx.translate(offset, offset);
 
 		setCtxStyle(stroke, width, dash, cap);
 
@@ -1431,7 +1436,7 @@ export default function uPlot(opts, data, then) {
 
 		ctx.stroke();
 
-		pxAlign && ctx.translate(-offset, -offset);
+		pxAlign == 1 && ctx.translate(-offset, -offset);
 	}
 
 	function axesCalc(cycleNum) {
@@ -1540,7 +1545,7 @@ export default function uPlot(opts, data, then) {
 			// rotating of labels only supported on bottom x axis
 			let angle = axis._rotate * -PI/180;
 
-			let basePos  = round(axis._pos * pxRatio);
+			let basePos  = pxRound(axis._pos * pxRatio);
 			let shiftAmt = tickSize + axisGap;
 			let shiftDir = ori == 0 && side == 0 || ori == 1 && side == 3 ? -1 : 1;
 			let finalPos = basePos + shiftAmt * shiftDir;
@@ -1559,7 +1564,7 @@ export default function uPlot(opts, data, then) {
 
 			let lineHeight = axis.font[1] * lineMult;
 
-			let canOffs = _splits.map(val => round(getPos(val, scale, plotDim, plotOff)));
+			let canOffs = _splits.map(val => pxRound(getPos(val, scale, plotDim, plotOff)));
 
 			axis._values.forEach((val, i) => {
 				if (val == null)

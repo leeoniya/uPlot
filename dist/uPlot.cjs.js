@@ -239,6 +239,8 @@ function fnOrSelf(v) {
 	return typeof v == "function" ? v : () => v;
 }
 
+const retArg0 = _0 => _0;
+
 const retArg1 = (_0, _1) => _1;
 
 const retNull = _ => null;
@@ -1479,6 +1481,10 @@ function addGap(gaps, fromX, toX) {
 	}
 }
 
+function pxRoundGen(pxAlign) {
+	return pxAlign == 0 ? retArg0 : pxAlign == 1 ? round : v => incrRound(v, pxAlign);
+}
+
 // orientation-inverting canvas functions
 function moveToH(p, x, y) { p.moveTo(x, y); }
 function moveToV(p, y, x) { p.moveTo(x, y); }
@@ -1509,6 +1515,8 @@ const drawAccV = _drawAcc(lineToV);
 function linear() {
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			let pxRound = series.pxRound;
+
 			let lineTo, drawAcc;
 
 			if (scaleX.ori == 0) {
@@ -1531,7 +1539,7 @@ function linear() {
 
 			let gaps = [];
 
-			let accX = round(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+			let accX = pxRound(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let accGaps = false;
 
 			// data edges
@@ -1544,11 +1552,11 @@ function linear() {
 				addGap(gaps, xOff, lftX);
 
 			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
-				let x = round(valToPosX(dataX[i], scaleX, xDim, xOff));
+				let x = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
 
 				if (x == accX) {
 					if (dataY[i] != null) {
-						outY = round(valToPosY(dataY[i], scaleY, yDim, yOff));
+						outY = pxRound(valToPosY(dataY[i], scaleY, yDim, yOff));
 
 						if (minY == inf) {
 							lineTo(stroke, x, outY);
@@ -1574,7 +1582,7 @@ function linear() {
 					}
 
 					if (dataY[i] != null) {
-						outY = round(valToPosY(dataY[i], scaleY, yDim, yOff));
+						outY = pxRound(valToPosY(dataY[i], scaleY, yDim, yOff));
 						lineTo(stroke, x, outY);
 						minY = maxY = inY = outY;
 
@@ -1605,7 +1613,7 @@ function linear() {
 			if (series.fill != null) {
 				let fill = _paths.fill = new Path2D(stroke);
 
-				let fillTo = round(valToPosY(series.fillTo(u, seriesIdx, series.min, series.max), scaleY, yDim, yOff));
+				let fillTo = pxRound(valToPosY(series.fillTo(u, seriesIdx, series.min, series.max), scaleY, yDim, yOff));
 
 				lineTo(fill, rgtX, fillTo);
 				lineTo(fill, lftX, fillTo);
@@ -1628,6 +1636,8 @@ function linear() {
 function spline(opts) {
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			let pxRound = series.pxRound;
+
 			let moveTo, bezierCurveTo, lineTo;
 
 			if (scaleX.ori == 0) {
@@ -1648,7 +1658,7 @@ function spline(opts) {
 
 			let gaps = [];
 			let inGap = false;
-			let firstXPos = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+			let firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let prevXPos = firstXPos;
 
 			let xCoords = [];
@@ -1677,14 +1687,14 @@ function spline(opts) {
 				}
 			}
 
-			const _paths = {stroke: catmullRomFitting(xCoords, yCoords, 0.5, moveTo, bezierCurveTo), fill: null, clip: null, band: null};
+			const _paths = {stroke: catmullRomFitting(xCoords, yCoords, 0.5, moveTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null};
 			const stroke = _paths.stroke;
 
 			if (series.fill != null) {
 				let fill = _paths.fill = new Path2D(stroke);
 
 				let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
-				let minY = round(valToPosY(fillTo, scaleY, yDim, yOff));
+				let minY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
 
 				lineTo(fill, prevXPos, minY);
 				lineTo(fill, firstXPos, minY);
@@ -1725,7 +1735,7 @@ function spline(opts) {
  * If 'alpha' is 1 then the 'Chordal' variant is used
  *
  */
-function catmullRomFitting(xCoords, yCoords, alpha, moveTo, bezierCurveTo) {
+function catmullRomFitting(xCoords, yCoords, alpha, moveTo, bezierCurveTo, pxRound) {
 	const path = new Path2D();
 
 	const dataLen = xCoords.length;
@@ -1756,7 +1766,7 @@ function catmullRomFitting(xCoords, yCoords, alpha, moveTo, bezierCurveTo) {
 		d1pow2A,
 		d1powA;
 
-	moveTo(path, round(xCoords[0]), round(yCoords[0]));
+	moveTo(path, pxRound(xCoords[0]), pxRound(yCoords[0]));
 
 	for (let i = 0; i < dataLen - 1; i++) {
 		let p0i = i == 0 ? 0 : i - 1;
@@ -1840,6 +1850,8 @@ function stepped(opts) {
 
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			let pxRound = series.pxRound;
+
 			let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
 			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
@@ -1852,8 +1864,8 @@ function stepped(opts) {
 
 			let gaps = [];
 			let inGap = false;
-			let prevYPos  = round(valToPosY(dataY[_dir == 1 ? idx0 : idx1], scaleY, yDim, yOff));
-			let firstXPos = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+			let prevYPos  = pxRound(valToPosY(dataY[_dir == 1 ? idx0 : idx1], scaleY, yDim, yOff));
+			let firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let prevXPos = firstXPos;
 
 			lineTo(stroke, firstXPos, prevYPos);
@@ -1861,7 +1873,7 @@ function stepped(opts) {
 			for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 				let yVal1 = dataY[i];
 
-				let x1 = round(valToPosX(dataX[i], scaleX, xDim, xOff));
+				let x1 = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
 
 				if (yVal1 == null) {
 					if (yVal1 === null) {
@@ -1871,7 +1883,7 @@ function stepped(opts) {
 					continue;
 				}
 
-				let y1 = round(valToPosY(yVal1, scaleY, yDim, yOff));
+				let y1 = pxRound(valToPosY(yVal1, scaleY, yDim, yOff));
 
 				if (inGap) {
 					addGap(gaps, prevXPos, x1);
@@ -1904,7 +1916,7 @@ function stepped(opts) {
 				let fill = _paths.fill = new Path2D(stroke);
 
 				let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
-				let minY = round(valToPosY(fillTo, scaleY, yDim, yOff));
+				let minY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
 
 				lineTo(fill, prevXPos, minY);
 				lineTo(fill, firstXPos, minY);
@@ -1934,6 +1946,8 @@ function bars(opts) {
 
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			let pxRound = series.pxRound;
+
 			let rect = scaleX.ori == 0 ? rectH : rectV;
 
 			let colWid = valToPosX(dataX[1], scaleX, xDim, xOff) - valToPosX(dataX[0], scaleX, xDim, xOff);
@@ -1944,9 +1958,9 @@ function bars(opts) {
 
 			let y0Pos = valToPosY(fillToY, scaleY, yDim, yOff);
 
-			let strokeWidth = round(series.width * pxRatio);
+			let strokeWidth = pxRound(series.width * pxRatio);
 
-			let barWid = round(min(maxWidth, colWid - gapWid) - strokeWidth);
+			let barWid = pxRound(min(maxWidth, colWid - gapWid) - strokeWidth);
 
 			let xShift = align == 1 ? 0 : align == -1 ? barWid : barWid / 2;
 
@@ -1992,9 +2006,9 @@ function bars(opts) {
 				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
 				let yPos = valToPosY(yVal, scaleY, yDim, yOff);
 
-				let lft = round(xPos - xShift);
-				let btm = round(max(yPos, y0Pos));
-				let top = round(min(yPos, y0Pos));
+				let lft = pxRound(xPos - xShift);
+				let btm = pxRound(max(yPos, y0Pos));
+				let top = pxRound(min(yPos, y0Pos));
 				let barHgt = btm - top;
 
 				dataY[i] != null && rect(stroke, lft, top, barWid, barHgt);
@@ -2143,7 +2157,9 @@ function uPlot(opts, data, then) {
 
 	opts = copy(opts);
 
-	const pxAlign = ifNull(opts.pxAlign, true);
+	const pxAlign = +ifNull(opts.pxAlign, 1);
+
+	const pxRound = pxRoundGen(pxAlign);
 
 	(opts.plugins || []).forEach(p => {
 		if (p.opts)
@@ -2631,7 +2647,8 @@ function uPlot(opts, data, then) {
 			s.width  = s.width == null ? 1 : s.width;
 			s.paths  = s.paths || linearPath || retNull;
 			s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
-			s.pxAlign = ifNull(s.pxAlign, true);
+			s.pxAlign = +ifNull(s.pxAlign, pxAlign);
+			s.pxRound = pxRoundGen(s.pxAlign);
 
 			s.stroke = fnOrSelf(s.stroke || null);
 			s.fill   = fnOrSelf(s.fill || null);
@@ -3011,6 +3028,7 @@ function uPlot(opts, data, then) {
 
 		let s = series[si];
 		let p = s.points;
+		let _pxRound = s.pxRound;
 
 		const width = roundDec(p.width * pxRatio, 3);
 		const offset = (width % 2) / 2;
@@ -3019,7 +3037,7 @@ function uPlot(opts, data, then) {
 		let rad = (p.size - p.width) / 2 * pxRatio;
 		let dia = roundDec(rad * 2, 3);
 
-		const _pxAlign = pxAlign && s.pxAlign;
+		const _pxAlign = s.pxAlign == 1;
 
 		_pxAlign && ctx.translate(offset, offset);
 
@@ -3057,8 +3075,8 @@ function uPlot(opts, data, then) {
 
 		for (let pi = i0; pi <= i1; pi++) {
 			if (data[si][pi] != null) {
-				let x = round(valToPosX(data[0][pi],  scaleX, xDim, xOff));
-				let y = round(valToPosY(data[si][pi], scaleY, yDim, yOff));
+				let x = _pxRound(valToPosX(data[0][pi],  scaleX, xDim, xOff));
+				let y = _pxRound(valToPosY(data[si][pi], scaleY, yDim, yOff));
 
 				moveTo(path, x + rad, y);
 				arc(path, x, y, rad, 0, PI * 2);
@@ -3135,7 +3153,7 @@ function uPlot(opts, data, then) {
 
 		ctx.globalAlpha = s.alpha;
 
-		const _pxAlign = pxAlign && s.pxAlign;
+		const _pxAlign = s.pxAlign == 1;
 
 		_pxAlign && ctx.translate(offset, offset);
 
@@ -3230,7 +3248,7 @@ function uPlot(opts, data, then) {
 	function drawOrthoLines(offs, filts, ori, side, pos0, len, width, stroke, dash, cap) {
 		let offset = (width % 2) / 2;
 
-		pxAlign && ctx.translate(offset, offset);
+		pxAlign == 1 && ctx.translate(offset, offset);
 
 		setCtxStyle(stroke, width, dash, cap);
 
@@ -3262,7 +3280,7 @@ function uPlot(opts, data, then) {
 
 		ctx.stroke();
 
-		pxAlign && ctx.translate(-offset, -offset);
+		pxAlign == 1 && ctx.translate(-offset, -offset);
 	}
 
 	function axesCalc(cycleNum) {
@@ -3371,7 +3389,7 @@ function uPlot(opts, data, then) {
 			// rotating of labels only supported on bottom x axis
 			let angle = axis._rotate * -PI/180;
 
-			let basePos  = round(axis._pos * pxRatio);
+			let basePos  = pxRound(axis._pos * pxRatio);
 			let shiftAmt = tickSize + axisGap;
 			let shiftDir = ori == 0 && side == 0 || ori == 1 && side == 3 ? -1 : 1;
 			let finalPos = basePos + shiftAmt * shiftDir;
@@ -3390,7 +3408,7 @@ function uPlot(opts, data, then) {
 
 			let lineHeight = axis.font[1] * lineMult;
 
-			let canOffs = _splits.map(val => round(getPos(val, scale, plotDim, plotOff)));
+			let canOffs = _splits.map(val => pxRound(getPos(val, scale, plotDim, plotOff)));
 
 			axis._values.forEach((val, i) => {
 				if (val == null)

@@ -1,4 +1,4 @@
-import { incrRound } from "../utils";
+import { round, incrRound, retArg0 } from "../utils";
 
 export function orient(u, seriesIdx, cb) {
 	const series = u.series[seriesIdx];
@@ -126,6 +126,10 @@ export function addGap(gaps, fromX, toX) {
 		else
 			gaps.push([fromX, toX]);
 	}
+}
+
+export function pxRoundGen(pxAlign) {
+	return pxAlign == 0 ? retArg0 : pxAlign == 1 ? round : v => incrRound(v, pxAlign);
 }
 
 // orientation-inverting canvas functions

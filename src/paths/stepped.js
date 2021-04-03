@@ -1,4 +1,4 @@
-import { round, nonNullIdx, ifNull } from '../utils';
+import { nonNullIdx, ifNull } from '../utils';
 import { orient, addGap, clipGaps, lineToH, lineToV, clipBandLine } from './utils';
 import { pxRatio } from '../dom';
 
@@ -9,6 +9,8 @@ export function stepped(opts) {
 
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			let pxRound = series.pxRound;
+
 			let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
 			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
@@ -21,8 +23,8 @@ export function stepped(opts) {
 
 			let gaps = [];
 			let inGap = false;
-			let prevYPos  = round(valToPosY(dataY[_dir == 1 ? idx0 : idx1], scaleY, yDim, yOff));
-			let firstXPos = round(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+			let prevYPos  = pxRound(valToPosY(dataY[_dir == 1 ? idx0 : idx1], scaleY, yDim, yOff));
+			let firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let prevXPos = firstXPos;
 
 			lineTo(stroke, firstXPos, prevYPos);
@@ -30,7 +32,7 @@ export function stepped(opts) {
 			for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 				let yVal1 = dataY[i];
 
-				let x1 = round(valToPosX(dataX[i], scaleX, xDim, xOff));
+				let x1 = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
 
 				if (yVal1 == null) {
 					if (yVal1 === null) {
@@ -40,7 +42,7 @@ export function stepped(opts) {
 					continue;
 				}
 
-				let y1 = round(valToPosY(yVal1, scaleY, yDim, yOff));
+				let y1 = pxRound(valToPosY(yVal1, scaleY, yDim, yOff));
 
 				if (inGap) {
 					addGap(gaps, prevXPos, x1);
@@ -73,7 +75,7 @@ export function stepped(opts) {
 				let fill = _paths.fill = new Path2D(stroke);
 
 				let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
-				let minY = round(valToPosY(fillTo, scaleY, yDim, yOff));
+				let minY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
 
 				lineTo(fill, prevXPos, minY);
 				lineTo(fill, firstXPos, minY);
