@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>Chart.js-next Demo</title>
+		<title>Chart.js Demo</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<style>
@@ -17,8 +17,10 @@
 	<body>
 		<h2 id="wait">Loading lib....</h2>
 
-		<script src="https://cdn.jsdelivr.net/npm/chart.js@3.0.0-beta.10"></script>
-		<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@1.1.0-alpha.3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/luxon@1.15.0"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@0.2.0"></script>
+		<script src="https://www.chartjs.org/samples/latest/utils.js"></script>
 
 		<div class="chart-container">
 			<canvas id="chart1"></canvas>
@@ -47,9 +49,9 @@
 
 				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
 					let date = packed[i] * 60 * 1000;
-					cpu[j] = {x: date, y: round3(100 - packed[i+1])};
-					ram[j] = {x: date, y: round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))};
-					tcp[j] = {x: date, y: packed[i+3]};
+					cpu[j] = {t: date, y: round3(100 - packed[i+1])};
+					ram[j] = {t: date, y: round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))};
+					tcp[j] = {t: date, y: packed[i+3]};
 				}
 
 				console.timeEnd('prep');
@@ -61,53 +63,52 @@
 				console.time('chart');
 
 				var ctx = document.getElementById('chart1').getContext('2d');
+				Chart.defaults.global.animation = false;
+				var color = Chart.helpers.color;
 				var cfg = {
 					data: {
 						datasets: [
 							{
 								label: 'CPU',
-								borderColor: 'rgb(255, 99, 132)',
+								borderColor: window.chartColors.red,
 								data: data[0],
 								type: 'line',
-								radius: 0,
+								pointRadius: 0,
 								fill: false,
+								lineTension: 0,
 								borderWidth: 1
 							},
 							{
 								label: 'RAM',
-								borderColor: 'rgb(54, 162, 235)',
+								borderColor: window.chartColors.blue,
 								data: data[1],
 								type: 'line',
-								radius: 0,
+								pointRadius: 0,
 								fill: false,
+								lineTension: 0,
 								borderWidth: 1
 							},
 							{
 								label: 'TCP Out',
-								borderColor: 'rgb(75, 192, 192)',
+								borderColor: window.chartColors.green,
 								data: data[2],
 								type: 'line',
-								radius: 0,
+								pointRadius: 0,
 								fill: false,
+								lineTension: 0,
 								borderWidth: 1
 							}
 						]
 					},
 					options: {
-						animation: false,
 						maintainAspectRatio: false,
-						parsing: false,
-						spanGaps: true,
-						normalized: true,
-						interaction: {
-							mode: 'nearest',
-							axis: 'x',
-							intersect: false
+						tooltips: {
+							mode: 'index',
+							intersect: false,
 						},
 						scales: {
-							x: {
+							xAxes: [{
 								type: 'time',
-								stacked: false,
 								ticks: {
 									source: 'auto',
 									maxRotation: 0,
@@ -115,30 +116,14 @@
 									autoSkipPadding: 75,
 									sampleSize: 1
 								}
-							},
-							y: {
-								type: 'linear',
-								stacked: false,
+							}],
+							yAxes: [{
 								scaleLabel: {
 									display: true,
 									labelString: '%'
 								}
-							},
-							y2: {
-								type: 'linear',
-								stacked: false,
-								position: 'right',
-								scaleLabel: {
-									display: true,
-									labelString: 'MB'
-								}
-							}
+							}]
 						},
-						plugins: {
-							decimation: {
-								enabled: true
-							}
-						}
 					}
 				};
 
