@@ -165,10 +165,7 @@ import {
 	timeSeriesStamp,
 	_timeSeriesStamp,
 
-	legendWidth,
-	legendDash,
-	legendStroke,
-	legendFill,
+	legendOpts,
 } from './opts';
 
 import { _sync } from './sync';
@@ -466,14 +463,14 @@ export default function uPlot(opts, data, then) {
 	const _timeAxisVals   = FEAT_TIME && timeAxisVals(_tzDate, timeAxisStamps((ms == 1 ? _timeAxisStampsMs : _timeAxisStampsS), _fmtDate));
 	const _timeSeriesVal  = FEAT_TIME && timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
 
-	const legend     = FEAT_LEGEND && (self.legend = assign({show: true, live: true, idx: null, values: []}, opts.legend));
+	const legend     = FEAT_LEGEND && (self.legend = assign({}, legendOpts, opts.legend));
 	const showLegend = FEAT_LEGEND && legend.show;
 
 	if (FEAT_LEGEND) {
-		legend.width  = fnOrSelf(ifNull(legend.width, legendWidth));
-		legend.dash   = fnOrSelf(legend.dash   || legendDash);
-		legend.stroke = fnOrSelf(legend.stroke || legendStroke);
-		legend.fill   = fnOrSelf(legend.fill   || legendFill);
+		legend.width  = fnOrSelf(legend.width);
+		legend.dash   = fnOrSelf(legend.dash);
+		legend.stroke = fnOrSelf(legend.stroke);
+		legend.fill   = fnOrSelf(legend.fill);
 	}
 
 	let legendEl;
@@ -506,6 +503,9 @@ export default function uPlot(opts, data, then) {
 			legend.live && addClass(legendEl, LEGEND_LIVE);
 		}
 	}
+
+	const son  = {show: true};
+	const soff = {show: false};
 
 	function initLegendRow(s, i) {
 		if (i == 0 && (multiValLegend || !legend.live))
@@ -541,7 +541,18 @@ export default function uPlot(opts, data, then) {
 				if (FEAT_CURSOR && cursor._lock)
 					return;
 
-				setSeries(series.indexOf(s), {show: !s.show}, FEAT_CURSOR && syncOpts.setSeries);
+				let seriesIdx = series.indexOf(s);
+
+				if (e.ctrlKey != legend.isolate) {
+					// if any other series is shown, isolate this one. else show all
+					let isolate = series.some((s, i) => i > 0 && i != seriesIdx && s.show);
+
+					series.forEach((s, i) => {
+						i > 0 && setSeries(i, isolate ? (i == seriesIdx ? son : soff) : son, FEAT_CURSOR && syncOpts.setSeries);
+					});
+				}
+				else
+					setSeries(seriesIdx, {show: !s.show}, FEAT_CURSOR && syncOpts.setSeries);
 			});
 
 			if (cursorFocus) {

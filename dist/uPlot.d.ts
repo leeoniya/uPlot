@@ -254,6 +254,8 @@ declare namespace uPlot {
 		show?: boolean;	// true
 		/** show series values at current cursor.idx */
 		live?: boolean;	// true
+		/** swiches primary interaction mode to toggle-one/toggle-all */
+		isolate?: boolean; // false
 		/** series indicator line width */
 		width?: Legend.Width;
 		/** series indicator stroke (CSS borderColor) */

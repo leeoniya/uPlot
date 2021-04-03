@@ -332,10 +332,6 @@ export function timeSeriesVal(tzDate, stamp) {
 	return (self, val) => stamp(tzDate(val));
 }
 
-export const legendWidth = 2;
-
-export const legendDash = "solid";
-
 export function legendStroke(self, seriesIdx) {
 	let s = self.series[seriesIdx];
 	return s.width ? s.stroke(self, seriesIdx) : s.points.width ? s.points.stroke(self, seriesIdx) : null;
@@ -344,6 +340,18 @@ export function legendStroke(self, seriesIdx) {
 export function legendFill(self, seriesIdx) {
 	return self.series[seriesIdx].fill(self, seriesIdx);
 }
+
+export const legendOpts = {
+	show: true,
+	width: 2,
+	stroke: legendStroke,
+	fill: legendFill,
+	dash: "solid",
+	live: true,
+	isolate: false,
+	idx: null,
+	values: [],
+};
 
 function cursorPointShow(self, si) {
 	let o = self.cursor.points;

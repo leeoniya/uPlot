@@ -960,10 +960,6 @@ function timeSeriesVal(tzDate, stamp) {
 	return (self, val) => stamp(tzDate(val));
 }
 
-const legendWidth = 2;
-
-const legendDash = "solid";
-
 function legendStroke(self, seriesIdx) {
 	let s = self.series[seriesIdx];
 	return s.width ? s.stroke(self, seriesIdx) : s.points.width ? s.points.stroke(self, seriesIdx) : null;
@@ -972,6 +968,18 @@ function legendStroke(self, seriesIdx) {
 function legendFill(self, seriesIdx) {
 	return self.series[seriesIdx].fill(self, seriesIdx);
 }
+
+const legendOpts = {
+	show: true,
+	width: 2,
+	stroke: legendStroke,
+	fill: legendFill,
+	dash: "solid",
+	live: true,
+	isolate: false,
+	idx: null,
+	values: [],
+};
 
 function cursorPointShow(self, si) {
 	let o = self.cursor.points;
@@ -2309,14 +2317,14 @@ function uPlot(opts, data, then) {
 	const _timeAxisVals   = timeAxisVals(_tzDate, timeAxisStamps((ms == 1 ? _timeAxisStampsMs : _timeAxisStampsS), _fmtDate));
 	const _timeSeriesVal  = timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
 
-	const legend     = (self.legend = assign({show: true, live: true, idx: null, values: []}, opts.legend));
+	const legend     = (self.legend = assign({}, legendOpts, opts.legend));
 	const showLegend = legend.show;
 
 	{
-		legend.width  = fnOrSelf(ifNull(legend.width, legendWidth));
-		legend.dash   = fnOrSelf(legend.dash   || legendDash);
-		legend.stroke = fnOrSelf(legend.stroke || legendStroke);
-		legend.fill   = fnOrSelf(legend.fill   || legendFill);
+		legend.width  = fnOrSelf(legend.width);
+		legend.dash   = fnOrSelf(legend.dash);
+		legend.stroke = fnOrSelf(legend.stroke);
+		legend.fill   = fnOrSelf(legend.fill);
 	}
 
 	let legendEl;
@@ -2349,6 +2357,9 @@ function uPlot(opts, data, then) {
 			legend.live && addClass(legendEl, LEGEND_LIVE);
 		}
 	}
+
+	const son  = {show: true};
+	const soff = {show: false};
 
 	function initLegendRow(s, i) {
 		if (i == 0 && (multiValLegend || !legend.live))
@@ -2384,7 +2395,18 @@ function uPlot(opts, data, then) {
 				if (cursor._lock)
 					return;
 
-				setSeries(series.indexOf(s), {show: !s.show}, syncOpts.setSeries);
+				let seriesIdx = series.indexOf(s);
+
+				if (e.ctrlKey != legend.isolate) {
+					// if any other series is shown, isolate this one. else show all
+					let isolate = series.some((s, i) => i > 0 && i != seriesIdx && s.show);
+
+					series.forEach((s, i) => {
+						i > 0 && setSeries(i, isolate ? (i == seriesIdx ? son : soff) : son, syncOpts.setSeries);
+					});
+				}
+				else
+					setSeries(seriesIdx, {show: !s.show}, syncOpts.setSeries);
 			});
 
 			if (cursorFocus) {
