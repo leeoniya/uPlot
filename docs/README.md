@@ -3,6 +3,7 @@
 - [Installation](#installation)
 - [Data Format](#data-format)
 - [Basics](#basics)
+- [Integrating to your layout](#basics)
 - [High/Low Bands](#highlow-bands)
 - [Series, Scales, Axes, Grid](#series-scales-axes-grid)
 - [Multiple Scales & Axes](#multiple-scales--axes)
@@ -93,6 +94,49 @@ let uplot = new uPlot(opts, data, document.body);
 - `stroke`, `width`, `fill`, and `dash` map directly to Canvas API's [ctx.strokeStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeStyle), [ctx.lineWidth](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineWidth), [ctx.fillStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fillStyle), and [ctx.setLineDash](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash).
 
 ---
+
+#### Integrating uPlot to your layout
+
+In the previous example, the chart was appended to the HTML body:
+
+```js
+let uplot = new uPlot(opts, data, document.body);
+```
+In a real scenario, you probably would prefer to include the chart into a predefined element. For example, considering you have a doc such as:
+
+```html
+
+<html>
+<body>
+	
+  <div id="my-chart-area"></div>
+	
+</body>
+</html>
+```
+
+You can pass `my-chart-are` when instantiating the uPlot object as follows:
+
+```js
+const chart_area = document.getElementById("my-chart-area");
+let uplot = new uPlot(opts, data, chart_area);
+```
+
+It is noteworthly that both `width` and `height` options are given in pixels:
+
+```js
+let opts = {
+  title: "My Chart",
+  id: "chart1",
+  class: "my-chart",
+  width: 800,
+  height: 600,
+```
+there is no way to use percentage or any other value than absolute pixels.
+
+uPlot doesn't support automatically resizing to fit dynamic modifications of the screen dimension. However, you can resize the chart using `.setSize({width, height})`. See the [resize demo](https://github.com/leeoniya/uPlot/blob/master/demos/resize.html) for more details. The issue https://github.com/leeoniya/uPlot/issues/36 can be also
+worthwhile.
+
 #### High/Low Bands
 
 High/Low bands are defined by two adjacent `data` series in low,high order and matching opts with `series.band = true`.
