@@ -3,7 +3,7 @@
 - [Installation](#installation)
 - [Data Format](#data-format)
 - [Basics](#basics)
-- [Integrating to your layout](#basics)
+- [Integrating to your layout](#integrating-uplot-to-your-layout)
 - [High/Low Bands](#highlow-bands)
 - [Series, Scales, Axes, Grid](#series-scales-axes-grid)
 - [Multiple Scales & Axes](#multiple-scales--axes)
