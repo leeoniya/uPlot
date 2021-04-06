@@ -75,18 +75,42 @@
 				const gapFactor = 1 - size[0];
 				const maxWidth  = (size[1] ?? inf) * pxRatio;
 
-				function putBox(ctx, rect, xOff, yOff, lft, top, wid, hgt, strokeWidth, iy, ix, value) {
-					if (strokeWidth) {
-						ctx.beginPath();
-						rect(ctx, lft + strokeWidth / 2, top + strokeWidth / 2, wid - strokeWidth, hgt - strokeWidth);
-						ctx.strokeStyle = stroke(iy + 1, ix, value);
-						ctx.stroke();
-					}
+				const fillPaths = new Map();
+				const strokePaths = new Map();
 
-					ctx.beginPath();
-					rect(ctx, lft, top, wid, hgt);
-					ctx.fillStyle = fill(iy + 1, ix, value);
-					ctx.fill();
+				function drawBoxes(ctx) {
+					fillPaths.forEach((fillPath, fillStyle) => {
+						ctx.fillStyle = fillStyle;
+						ctx.fill(fillPath);
+					});
+
+					strokePaths.forEach((strokePath, strokeStyle) => {
+						ctx.strokeStyle = strokeStyle;
+						ctx.stroke(strokePath);
+					});
+
+					fillPaths.clear();
+					strokePaths.clear();
+				}
+
+				function putBox(ctx, rect, xOff, yOff, lft, top, wid, hgt, strokeWidth, iy, ix, value) {
+					let fillStyle = fill(iy + 1, ix, value);
+					let fillPath = fillPaths.get(fillStyle);
+
+					if (fillPath == null)
+						fillPaths.set(fillStyle, fillPath = new Path2D());
+
+					rect(fillPath, lft, top, wid, hgt);
+
+					if (strokeWidth) {
+						let strokeStyle = stroke(iy + 1, ix, value);
+						let strokePath = strokePaths.get(strokeStyle);
+
+						if (strokePath == null)
+							strokePaths.set(strokeStyle, strokePath = new Path2D());
+
+						rect(strokePath, lft + strokeWidth / 2, top + strokeWidth / 2, wid - strokeWidth, hgt - strokeWidth);
+					}
 
 					qt.add({
 						x: round(lft - xOff),
@@ -168,6 +192,8 @@
 								}
 							}
 						});
+
+						drawBoxes(u.ctx);
 
 						u.ctx.restore();
 					});
