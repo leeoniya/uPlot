@@ -526,13 +526,14 @@ var uPlot = (function () {
 	}
 
 	var evOpts = {passive: true};
+	var evOpts2 = assign({capture: true}, evOpts);
 
-	function on(ev, el, cb) {
-		el.addEventListener(ev, cb, evOpts);
+	function on(ev, el, cb, capt) {
+		el.addEventListener(ev, cb, capt ? evOpts2 : evOpts);
 	}
 
-	function off(ev, el, cb) {
-		el.removeEventListener(ev, cb, evOpts);
+	function off(ev, el, cb, capt) {
+		el.removeEventListener(ev, cb, capt ? evOpts2 : evOpts);
 	}
 
 	var months = [
@@ -2048,7 +2049,7 @@ var uPlot = (function () {
 	}
 
 	on(resize, win, invalidateRects);
-	on(scroll, win, invalidateRects);
+	on(scroll, win, invalidateRects, true);
 
 	var linearPath = linear() ;
 

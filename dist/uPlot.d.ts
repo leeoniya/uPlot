@@ -266,9 +266,9 @@ declare namespace uPlot {
 		fill?: Legend.Fill;
 
 		/** current index (readback-only, not for init) */
-		idx: number;
+		idx?: number;
 		/** current values (readback-only, not for init) */
-		values: Legend.Values;
+		values?: Legend.Values;
 	}
 
 	export namespace Legend {

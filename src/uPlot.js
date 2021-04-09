@@ -190,7 +190,7 @@ function invalidateRects() {
 }
 
 on(resize, win, invalidateRects);
-on(scroll, win, invalidateRects);
+on(scroll, win, invalidateRects, true);
 
 const linearPath = FEAT_PATHS && FEAT_PATHS_LINEAR ? linear() : null;
 

@@ -2,6 +2,10 @@ import {
 	OFF,
 } from './domClasses';
 
+import {
+	assign,
+} from './utils';
+
 export const doc = document;
 export const win = window;
 export const pxRatio = devicePixelRatio;
@@ -48,11 +52,12 @@ export function trans(el, xPos, yPos, xMax, yMax) {
 }
 
 const evOpts = {passive: true};
+const evOpts2 = assign({capture: true}, evOpts);
 
-export function on(ev, el, cb) {
-	el.addEventListener(ev, cb, evOpts);
+export function on(ev, el, cb, capt) {
+	el.addEventListener(ev, cb, capt ? evOpts2 : evOpts);
 }
 
-export function off(ev, el, cb) {
-	el.removeEventListener(ev, cb, evOpts);
+export function off(ev, el, cb, capt) {
+	el.removeEventListener(ev, cb, capt ? evOpts2 : evOpts);
 }
