@@ -17,10 +17,8 @@
 	<body>
 		<h2 id="wait">Loading lib....</h2>
 
-		<script src="https://cdn.jsdelivr.net/npm/luxon@1.15.0"></script>
-		<script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4"></script>
-		<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@0.2.0"></script>
-		<script src="https://www.chartjs.org/samples/latest/utils.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chart.js@3.1.0"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
 		<div class="chart-container">
 			<canvas id="chart1"></canvas>
@@ -49,9 +47,9 @@
 
 				for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
 					let date = packed[i] * 60 * 1000;
-					cpu[j] = {t: date, y: round3(100 - packed[i+1])};
-					ram[j] = {t: date, y: round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))};
-					tcp[j] = {t: date, y: packed[i+3]};
+					cpu[j] = {x: date, y: round3(100 - packed[i+1])};
+					ram[j] = {x: date, y: round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))};
+					tcp[j] = {x: date, y: packed[i+3]};
 				}
 
 				console.timeEnd('prep');
@@ -63,52 +61,53 @@
 				console.time('chart');
 
 				var ctx = document.getElementById('chart1').getContext('2d');
-				Chart.defaults.global.animation = false;
-				var color = Chart.helpers.color;
 				var cfg = {
 					data: {
 						datasets: [
 							{
 								label: 'CPU',
-								borderColor: window.chartColors.red,
+								borderColor: 'rgb(255, 99, 132)',
 								data: data[0],
 								type: 'line',
-								pointRadius: 0,
+								radius: 0,
 								fill: false,
-								lineTension: 0,
 								borderWidth: 1
 							},
 							{
 								label: 'RAM',
-								borderColor: window.chartColors.blue,
+								borderColor: 'rgb(54, 162, 235)',
 								data: data[1],
 								type: 'line',
-								pointRadius: 0,
+								radius: 0,
 								fill: false,
-								lineTension: 0,
 								borderWidth: 1
 							},
 							{
 								label: 'TCP Out',
-								borderColor: window.chartColors.green,
+								borderColor: 'rgb(75, 192, 192)',
 								data: data[2],
 								type: 'line',
-								pointRadius: 0,
+								radius: 0,
 								fill: false,
-								lineTension: 0,
 								borderWidth: 1
 							}
 						]
 					},
 					options: {
+						animation: false,
 						maintainAspectRatio: false,
-						tooltips: {
-							mode: 'index',
-							intersect: false,
+						parsing: false,
+						spanGaps: true,
+						normalized: true,
+						interaction: {
+							mode: 'nearest',
+							axis: 'x',
+							intersect: false
 						},
 						scales: {
-							xAxes: [{
+							x: {
 								type: 'time',
+								stacked: false,
 								ticks: {
 									source: 'auto',
 									maxRotation: 0,
@@ -116,14 +115,30 @@
 									autoSkipPadding: 75,
 									sampleSize: 1
 								}
-							}],
-							yAxes: [{
+							},
+							y: {
+								type: 'linear',
+								stacked: false,
 								scaleLabel: {
 									display: true,
 									labelString: '%'
 								}
-							}]
+							},
+							y2: {
+								type: 'linear',
+								stacked: false,
+								position: 'right',
+								scaleLabel: {
+									display: true,
+									labelString: 'MB'
+								}
+							}
 						},
+						plugins: {
+							decimation: {
+								enabled: true
+							}
+						}
 					}
 				};
 
