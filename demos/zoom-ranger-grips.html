@@ -100,6 +100,11 @@
 			const minMax = {min: null, max: null};
 
 			function update(newLft, newWid) {
+				const clientWidth = document.getElementsByClassName("u-over")[0].clientWidth;
+
+				if (newLft < 0) newLft = 0;
+				if (newLft + newWid > clientWidth) newLft = clientWidth - newWid;
+
 				select(newLft, newWid);
 				zoom(newLft, newWid);
 			}
