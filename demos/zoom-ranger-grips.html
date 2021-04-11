@@ -100,8 +100,13 @@
 			const minMax = {min: null, max: null};
 
 			function update(newLft, newWid) {
-				select(newLft, newWid);
-				zoom(newLft, newWid);
+				let newRgt = newLft + newWid;
+				let maxRgt = uRanger.bbox.width / devicePixelRatio;
+
+				if (newLft >= 0 && newRgt <= maxRgt) {
+					select(newLft, newWid);
+					zoom(newLft, newWid);
+				}
 			}
 
 			function select(newLft, newWid) {
