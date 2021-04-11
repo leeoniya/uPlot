@@ -900,7 +900,7 @@ declare namespace uPlot {
 			drawAxes?:   (self: uPlot) => void;
 
 			/** fires after each series is drawn */
-			drawSeries?: (self: uPlot, seriesKey: string) => void;
+			drawSeries?: (self: uPlot, seriesIdx: number) => void;
 
 			/** fires after everything is drawn */
 			draw?:       (self: uPlot) => void;
