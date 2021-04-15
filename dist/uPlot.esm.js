@@ -288,6 +288,8 @@ function genIncrs(base, minExp, maxExp, mults) {
 
 const EMPTY_OBJ = {};
 
+const nullNullTuple = [null, null];
+
 const isArr = Array.isArray;
 
 function isStr(v) {
@@ -2058,10 +2060,8 @@ function setDefault(o, i, xo, yo) {
 	return assign({}, (i == 0 ? xo : yo), o);
 }
 
-const nullMinMax = [null, null];
-
 function snapNumX(self, dataMin, dataMax) {
-	return dataMin == null ? nullMinMax : [dataMin, dataMax];
+	return dataMin == null ? nullNullTuple : [dataMin, dataMax];
 }
 
 const snapTimeX = snapNumX;
@@ -2069,17 +2069,17 @@ const snapTimeX = snapNumX;
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 function snapNumY(self, dataMin, dataMax) {
-	return dataMin == null ? nullMinMax : rangeNum(dataMin, dataMax, 0.1, true);
+	return dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, 0.1, true);
 }
 
 function snapLogY(self, dataMin, dataMax, scale) {
-	return dataMin == null ? nullMinMax : rangeLog(dataMin, dataMax, self.scales[scale].log, false);
+	return dataMin == null ? nullNullTuple : rangeLog(dataMin, dataMax, self.scales[scale].log, false);
 }
 
 const snapLogX = snapLogY;
 
 function snapAsinhY(self, dataMin, dataMax, scale) {
-	return dataMin == null ? nullMinMax : rangeAsinh(dataMin, dataMax, self.scales[scale].log, false);
+	return dataMin == null ? nullNullTuple : rangeAsinh(dataMin, dataMax, self.scales[scale].log, false);
 }
 
 const snapAsinhX = snapAsinhY;
@@ -2219,7 +2219,7 @@ function uPlot(opts, data, then) {
 				if (scaleKey != xScaleKey && !rangeIsArr && isObj(rn)) {
 					let cfg = rn;
 					// this is similar to snapNumY
-					rn = (self, dataMin, dataMax) => dataMin == null ? nullMinMax : rangeNum(dataMin, dataMax, cfg);
+					rn = (self, dataMin, dataMax) => dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, cfg);
 				}
 
 				sc.range = fnOrSelf(rn || (isTime ? snapTimeX : scaleKey == xScaleKey ?
@@ -2330,6 +2330,7 @@ function uPlot(opts, data, then) {
 
 	let legendEl;
 	let legendRows = [];
+	let legendCells = [];
 	let legendCols;
 	let multiValLegend = false;
 	let NULL_LEGEND_VALUES = {};
@@ -2364,9 +2365,9 @@ function uPlot(opts, data, then) {
 
 	function initLegendRow(s, i) {
 		if (i == 0 && (multiValLegend || !legend.live))
-			return null;
+			return nullNullTuple;
 
-		let _row = [];
+		let cells = [];
 
 		let row = placeTag("tr", LEGEND_SERIES, legendEl, legendEl.childNodes[i]);
 
@@ -2423,10 +2424,10 @@ function uPlot(opts, data, then) {
 		for (var key in legendCols) {
 			let v = placeTag("td", LEGEND_VALUE, row);
 			v.textContent = "--";
-			_row.push(v);
+			cells.push(v);
 		}
 
-		return _row;
+		return [row, cells];
 	}
 
 	const mouseListeners = new Map();
@@ -2690,7 +2691,9 @@ function uPlot(opts, data, then) {
 		}
 
 		if (showLegend) {
-			legendRows.splice(i, 0, initLegendRow(s, i));
+			let rowCells = initLegendRow(s, i);
+			legendRows.splice(i, 0, rowCells[0]);
+			legendCells.splice(i, 0, rowCells[1]);
 			legend.values.push(null);	// NULL_LEGEND_VALS not yet avil here :(
 		}
 
@@ -2716,9 +2719,9 @@ function uPlot(opts, data, then) {
 		if (showLegend) {
 			legend.values.splice(i, 1);
 
-			let tr = legendRows.splice(i, 1)[0][0].parentNode;
-			let label = tr.firstChild;
-			offMouse(null, label);
+			legendCells.splice(i, 1);
+			let tr = legendRows.splice(i, 1)[0];
+			offMouse(null, tr.firstChild);
 			tr.remove();
 		}
 
@@ -3739,7 +3742,7 @@ function uPlot(opts, data, then) {
 
 	function toggleDOM(i, onOff) {
 		let s = series[i];
-		let label = showLegend ? legendRows[i][0].parentNode : null;
+		let label = showLegend ? legendRows[i] : null;
 
 		if (s.show)
 			label && remClass(label, OFF);
@@ -3783,7 +3786,7 @@ function uPlot(opts, data, then) {
 			cursorPts[i].style.opacity = value;
 
 		if (showLegend && legendRows[i])
-			legendRows[i][0].parentNode.style.opacity = value;
+			legendRows[i].style.opacity = value;
 	}
 
 	// y-distance
@@ -3908,7 +3911,7 @@ function uPlot(opts, data, then) {
 				let j = 0;
 
 				for (let k in vals)
-					legendRows[i][j++].firstChild.nodeValue = vals[k];
+					legendCells[i][j++].firstChild.nodeValue = vals[k];
 			}
 		}
 	}

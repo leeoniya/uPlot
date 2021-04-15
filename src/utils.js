@@ -280,6 +280,8 @@ export function genIncrs(base, minExp, maxExp, mults) {
 
 export const EMPTY_OBJ = {};
 
+export const nullNullTuple = [null, null];
+
 export const isArr = Array.isArray;
 
 export function isStr(v) {

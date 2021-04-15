@@ -298,6 +298,8 @@ var uPlot = (function () {
 
 	var EMPTY_OBJ = {};
 
+	var nullNullTuple = [null, null];
+
 	var isArr = Array.isArray;
 
 	function isStr(v) {
@@ -2062,10 +2064,8 @@ var uPlot = (function () {
 		return assign({}, (i == 0 ? xo : yo), o);
 	}
 
-	var nullMinMax = [null, null];
-
 	function snapNumX(self, dataMin, dataMax) {
-		return dataMin == null ? nullMinMax : [dataMin, dataMax];
+		return dataMin == null ? nullNullTuple : [dataMin, dataMax];
 	}
 
 	var snapTimeX = snapNumX;
@@ -2073,17 +2073,17 @@ var uPlot = (function () {
 	// this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 	// TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 	function snapNumY(self, dataMin, dataMax) {
-		return dataMin == null ? nullMinMax : rangeNum(dataMin, dataMax, 0.1, true);
+		return dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, 0.1, true);
 	}
 
 	function snapLogY(self, dataMin, dataMax, scale) {
-		return dataMin == null ? nullMinMax : rangeLog(dataMin, dataMax, self.scales[scale].log, false);
+		return dataMin == null ? nullNullTuple : rangeLog(dataMin, dataMax, self.scales[scale].log, false);
 	}
 
 	var snapLogX = snapLogY;
 
 	function snapAsinhY(self, dataMin, dataMax, scale) {
-		return dataMin == null ? nullMinMax : rangeAsinh(dataMin, dataMax, self.scales[scale].log, false);
+		return dataMin == null ? nullNullTuple : rangeAsinh(dataMin, dataMax, self.scales[scale].log, false);
 	}
 
 	var snapAsinhX = snapAsinhY;
@@ -2223,7 +2223,7 @@ var uPlot = (function () {
 					if (scaleKey != xScaleKey && !rangeIsArr && isObj(rn)) {
 						var cfg = rn;
 						// this is similar to snapNumY
-						rn = (self, dataMin, dataMax) => dataMin == null ? nullMinMax : rangeNum(dataMin, dataMax, cfg);
+						rn = (self, dataMin, dataMax) => dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, cfg);
 					}
 
 					sc.range = fnOrSelf(rn || (isTime ? snapTimeX : scaleKey == xScaleKey ?
@@ -2334,6 +2334,7 @@ var uPlot = (function () {
 
 		var legendEl;
 		var legendRows = [];
+		var legendCells = [];
 		var legendCols;
 		var multiValLegend = false;
 		var NULL_LEGEND_VALUES = {};
@@ -2368,9 +2369,9 @@ var uPlot = (function () {
 
 		function initLegendRow(s, i) {
 			if (i == 0 && (multiValLegend || !legend.live))
-				{ return null; }
+				{ return nullNullTuple; }
 
-			var _row = [];
+			var cells = [];
 
 			var row = placeTag("tr", LEGEND_SERIES, legendEl, legendEl.childNodes[i]);
 
@@ -2427,10 +2428,10 @@ var uPlot = (function () {
 			for (var key in legendCols) {
 				var v = placeTag("td", LEGEND_VALUE, row);
 				v.textContent = "--";
-				_row.push(v);
+				cells.push(v);
 			}
 
-			return _row;
+			return [row, cells];
 		}
 
 		var mouseListeners = new Map();
@@ -2698,7 +2699,9 @@ var uPlot = (function () {
 			}
 
 			if (showLegend) {
-				legendRows.splice(i, 0, initLegendRow(s, i));
+				var rowCells = initLegendRow(s, i);
+				legendRows.splice(i, 0, rowCells[0]);
+				legendCells.splice(i, 0, rowCells[1]);
 				legend.values.push(null);	// NULL_LEGEND_VALS not yet avil here :(
 			}
 
@@ -2724,9 +2727,9 @@ var uPlot = (function () {
 			if (showLegend) {
 				legend.values.splice(i, 1);
 
-				var tr = legendRows.splice(i, 1)[0][0].parentNode;
-				var label = tr.firstChild;
-				offMouse(null, label);
+				legendCells.splice(i, 1);
+				var tr = legendRows.splice(i, 1)[0];
+				offMouse(null, tr.firstChild);
 				tr.remove();
 			}
 
@@ -3760,7 +3763,7 @@ var uPlot = (function () {
 
 		function toggleDOM(i, onOff) {
 			var s = series[i];
-			var label = showLegend ? legendRows[i][0].parentNode : null;
+			var label = showLegend ? legendRows[i] : null;
 
 			if (s.show)
 				{ label && remClass(label, OFF); }
@@ -3804,7 +3807,7 @@ var uPlot = (function () {
 				{ cursorPts[i].style.opacity = value; }
 
 			if (showLegend && legendRows[i])
-				{ legendRows[i][0].parentNode.style.opacity = value; }
+				{ legendRows[i].style.opacity = value; }
 		}
 
 		// y-distance
@@ -3929,7 +3932,7 @@ var uPlot = (function () {
 					var j = 0;
 
 					for (var k in vals)
-						{ legendRows[i][j++].firstChild.nodeValue = vals[k]; }
+						{ legendCells[i][j++].firstChild.nodeValue = vals[k]; }
 				}
 			}
 		}
