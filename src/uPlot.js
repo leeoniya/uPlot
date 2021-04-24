@@ -2696,7 +2696,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	series.forEach(initSeries);
-	// set axis defaults
+
 	axes.forEach(initAxis);
 
 	if (then) {

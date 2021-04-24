@@ -2739,8 +2739,6 @@ var uPlot = (function () {
 
 		self.delSeries = delSeries;
 
-		series.forEach(initSeries);
-
 		var sidesWithAxes = [false, false, false, false];
 
 		function initAxis(axis, i) {
@@ -2805,9 +2803,6 @@ var uPlot = (function () {
 					{ sidesWithAxes[i] = true; }
 			}
 		}
-
-		// set axis defaults
-		axes.forEach(initAxis);
 
 		function autoPadSide(self, side, sidesWithAxes, cycleNum) {
 			var hasTopAxis = sidesWithAxes[0];
@@ -4591,6 +4586,10 @@ var uPlot = (function () {
 
 			setSelect(select, false);
 		}
+
+		series.forEach(initSeries);
+
+		axes.forEach(initAxis);
 
 		if (then) {
 			if (then instanceof HTMLElement) {
