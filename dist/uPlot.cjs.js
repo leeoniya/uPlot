@@ -2489,7 +2489,7 @@ function uPlot(opts, data, then) {
 
 		shouldConvergeSize = true;
 		shouldSetSize = true;
-		shouldSetCursor = true;
+		shouldSetCursor = cursor.left >= 0;
 		shouldSetLegend = true;
 		commit();
 	}
