@@ -875,8 +875,6 @@ export default function uPlot(opts, data, then) {
 
 	self.delSeries = delSeries;
 
-	series.forEach(initSeries);
-
 	const sidesWithAxes = [false, false, false, false];
 
 	function initAxis(axis, i) {
@@ -941,9 +939,6 @@ export default function uPlot(opts, data, then) {
 				sidesWithAxes[i] = true;
 		}
 	}
-
-	// set axis defaults
-	axes.forEach(initAxis);
 
 	function autoPadSide(self, side, sidesWithAxes, cycleNum) {
 		let [hasTopAxis, hasRgtAxis, hasBtmAxis, hasLftAxis] = sidesWithAxes;
@@ -2699,6 +2694,10 @@ export default function uPlot(opts, data, then) {
 
 		setSelect(select, false);
 	}
+
+	series.forEach(initSeries);
+	// set axis defaults
+	axes.forEach(initAxis);
 
 	if (then) {
 		if (then instanceof HTMLElement) {
