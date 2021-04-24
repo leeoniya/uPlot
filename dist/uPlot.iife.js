@@ -2491,7 +2491,7 @@ var uPlot = (function () {
 
 			shouldConvergeSize = true;
 			shouldSetSize = true;
-			shouldSetCursor = true;
+			shouldSetCursor = cursor.left >= 0;
 			shouldSetLegend = true;
 			commit();
 		}
