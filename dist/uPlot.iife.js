@@ -2610,7 +2610,6 @@ var uPlot = (function () {
 			var off0 = plotTopCss;
 
 			function incrOffset(side, size) {
-
 				switch (side) {
 					case 1: off1 += size; return off1 - size;
 					case 2: off2 += size; return off2 - size;
@@ -3417,18 +3416,55 @@ var uPlot = (function () {
 
 				var axisGap = round(axis.gap * pxRatio);
 
-				var ticks = axis.ticks;
-				var tickSize = ticks.show ? round(ticks.size * pxRatio) : 0;
-
 				var ref = axis._found;
 				var _incr = ref[0];
 				var _space = ref[1];
+
+				var x, y;
+
+				// axis label
+				if (axis.label) {
+					ctx.save();
+
+					var baseLpos = round(axis._lpos * pxRatio);
+
+					if (ori == 1) {
+						x = y = 0;
+
+						ctx.translate(
+							baseLpos,
+							round(plotTop + plotHgt / 2)
+						);
+						ctx.rotate((side == 3 ? -PI : PI) / 2);
+
+					}
+					else {
+						x = round(plotLft + plotWid / 2);
+						y = baseLpos;
+					}
+
+					ctx.font         = axis.labelFont[0];
+				//	ctx.fillStyle    = axis.labelStroke || hexBlack;						// rgba?
+					ctx.textAlign    = "center";
+					ctx.textBaseline = side == 2 ? TOP : BOTTOM;
+
+					ctx.fillText(axis.label, x, y);
+
+					ctx.restore();
+				}
+
+				if (_space == 0)
+					{ return; }
+
 				var _splits = axis._splits;
 
 				// tick labels
 				// BOO this assumes a specific data/series
 				var splits = scale.distr == 2 ? _splits.map(i => data0[i]) : _splits;
 				var incr   = scale.distr == 2 ? data0[_splits[1]] - data0[_splits[0]] : _incr;
+
+				var ticks = axis.ticks;
+				var tickSize = ticks.show ? round(ticks.size * pxRatio) : 0;
 
 				// rotating of labels only supported on bottom x axis
 				var angle = axis._rotate * -PI/180;
@@ -3437,8 +3473,8 @@ var uPlot = (function () {
 				var shiftAmt = tickSize + axisGap;
 				var shiftDir = ori == 0 && side == 0 || ori == 1 && side == 3 ? -1 : 1;
 				var finalPos = basePos + shiftAmt * shiftDir;
-				var y        = ori == 0 ? finalPos : 0;
-				var x        = ori == 1 ? finalPos : 0;
+				    y        = ori == 0 ? finalPos : 0;
+				    x        = ori == 1 ? finalPos : 0;
 
 				ctx.font         = axis.font[0];
 				ctx.fillStyle    = axis.stroke(self, i);									// rgba?
@@ -3475,37 +3511,6 @@ var uPlot = (function () {
 							{ ctx.fillText(text, x, y + j * lineHeight); }
 					});
 				});
-
-				// axis label
-				if (axis.label) {
-					ctx.save();
-
-					var baseLpos = round(axis._lpos * pxRatio);
-
-					if (ori == 1) {
-						x = y = 0;
-
-						ctx.translate(
-							baseLpos,
-							round(plotTop + plotHgt / 2)
-						);
-						ctx.rotate((side == 3 ? -PI : PI) / 2);
-
-					}
-					else {
-						x = round(plotLft + plotWid / 2);
-						y = baseLpos;
-					}
-
-					ctx.font         = axis.labelFont[0];
-				//	ctx.fillStyle    = axis.labelStroke || hexBlack;						// rgba?
-					ctx.textAlign    = "center";
-					ctx.textBaseline = side == 2 ? TOP : BOTTOM;
-
-					ctx.fillText(axis.label, x, y);
-
-					ctx.restore();
-				}
 
 				// ticks
 				if (ticks.show) {
