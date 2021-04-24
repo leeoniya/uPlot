@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Pixel align</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<p>By default µPlot will round down all coordinates to integer values for crisp looking charts and
+			maximum drawing speed. However this introduces a caterpillar effect on live updating charts:
+		</p>
+		<div id="chart1"></div>
+		<p>You can turn off this rounding by setting opts.pxAlign and series.pxAlign to 0:</p>
+		<div id="chart2"></div>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			const windowSize = 120000;
+			const interval = 1000;
+
+
+			const loop = 1000;
+
+			const data = [
+				Array(loop).fill(null),
+				Array(loop).fill(null),
+				Array(loop).fill(null),
+				Array(loop).fill(null),
+				Array(loop).fill(null)
+			];
+
+			function addData()
+			{
+				data[0].shift();
+				data[0].push(Date.now());
+				data[1].shift();
+				data[1].push(0 - Math.random());
+				data[2].shift();
+				data[2].push(-1 - Math.random());
+				data[3].shift();
+				data[3].push(-2 - Math.random());
+			}
+
+			setInterval(addData, interval);
+
+			function getSize() {
+				return {
+					width: window.innerWidth - 100,
+					height: window.innerHeight  / 3,
+				}
+			}
+
+			const scales =
+				{
+					x: {},
+					y: { auto: false, range: [-3.5, 1.5] }
+				};
+
+			const opts1 = {
+				title: "pxAlign: 1 (default)",
+				...getSize(),
+				ms: 1,
+				scales,
+				series:
+				[
+					{},
+					{
+						stroke: "red",
+						paths: uPlot.paths.linear(),
+						spanGaps: true,
+						points: { show: true }
+					},
+					{
+						stroke: "blue",
+						paths: uPlot.paths.spline(),
+						spanGaps: true,
+						points: { show: true }
+					},
+					{
+						stroke: "purple",
+						paths: uPlot.paths.stepped({align: 1}),
+						spanGaps: true,
+						points: { show: true }
+					},
+				],
+			};
+
+			let u1 = new uPlot(opts1, data, document.getElementById('chart1'));
+
+			const opts2 = {
+				title: "pxAlign: 0 (off)",
+				...getSize(),
+				pxAlign: 0,
+				ms: 1,
+				scales,
+				pxSnap: false,
+				series:
+				[
+					{},
+					{
+						stroke: "red",
+						paths: uPlot.paths.linear(),
+						spanGaps: true,
+						pxAlign: 0,
+						points: { show: true }
+					},
+					{
+						stroke: "blue",
+						paths: uPlot.paths.spline(),
+						spanGaps: true,
+						pxAlign: 0,
+						points: { show: true }
+					},
+					{
+						stroke: "purple",
+						paths: uPlot.paths.stepped({align: 1, pxSnap: false}),
+						spanGaps: true,
+						pxAlign: 0,
+						points: { show: true }
+					},
+				],
+			};
+
+			let u2 = new uPlot(opts2, data, document.getElementById('chart2'));
+
+
+			function update()
+			{
+				const now 	= Date.now();
+				const scale = {min: now - windowSize, max: now};
+
+				u1.setData(data);
+				u2.setData(data);
+				u1.setScale('x', scale);
+				u2.setScale('x', scale);
+				requestAnimationFrame(update);
+			}
+
+			requestAnimationFrame(update);
+		</script>
+	</body>
+</html>
