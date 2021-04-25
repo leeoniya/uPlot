@@ -36,7 +36,7 @@ const texts = results.map((res, i) => {
 		padLeft(res[1], " ", 4) + " KB",
 		padLeft(res[2] == null ? '---' : res[2], " ", 4) + " ms",
 		res[3].map((v, i) =>
-			i == 0 || i == 3 ? padLeft(Math.round(v), " ", 4) :
+			i == 0 || i == 3 ? padLeft(Math.round(v), " ", 5) :
 			padLeft(Math.round(v), " ", 3)
 		).join(" "),
 		res[4].map(v => padLeft(Math.round(v), " ", 3)).join(" MB ") + " MB",

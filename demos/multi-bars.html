@@ -251,7 +251,7 @@
 							},
 							values:     () => labels(),
 							gap:        15,
-							size:       40,
+							size:       ori == 0 ? 40 : 150,
 							labelSize:  20,
 							grid:       {show: false},
 							ticks:      {show: false},
@@ -281,8 +281,8 @@
 				let dir = o.dir;
 
 				const opts = {
-					width:  ori == 0 ? 1920 :  600,
-					height: ori == 0 ?  600 : 1920,
+					width:  ori == 0 ? 2400 :  800,
+					height: ori == 0 ?  800 : 2400,
 					title: "Line Charts (166,650 points)",
 					axes: [
 						{
@@ -348,7 +348,7 @@
 					return [
 						d.filter((lib, i) => enabled[i]).map((lib, i) => i+1),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[1]),
-						d.filter((lib, i) => enabled[i]).map(lib => lib[3].reduce((total, num) => total + num, 0)),
+						d.filter((lib, i) => enabled[i]).map(lib => Math.round(lib[3].reduce((total, num) => total + num, 0) / 10)),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[4][0]),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[4][1]),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[5] && lib[5].reduce((total, num) => total + num, 0)),
