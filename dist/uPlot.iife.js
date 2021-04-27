@@ -1361,8 +1361,8 @@ var uPlot = (function () {
 					clients = clients.filter(c => c != client);
 				},
 				pub: function pub(type, self, x, y, w, h, i) {
-					for (var i$1 = 0; i$1 < clients.length; i$1++)
-						{ clients[i$1] != self && clients[i$1].pub(type, self, x, y, w, h, i$1); }
+					for (var j = 0; j < clients.length; j++)
+						{ clients[j] != self && clients[j].pub(type, self, x, y, w, h, i); }
 				}
 			};
 

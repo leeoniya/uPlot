@@ -15,8 +15,8 @@ export function _sync(key, opts) {
 				clients = clients.filter(c => c != client);
 			},
 			pub(type, self, x, y, w, h, i) {
-				for (let i = 0; i < clients.length; i++)
-					clients[i] != self && clients[i].pub(type, self, x, y, w, h, i);
+				for (let j = 0; j < clients.length; j++)
+					clients[j] != self && clients[j].pub(type, self, x, y, w, h, i);
 			}
 		};
 
