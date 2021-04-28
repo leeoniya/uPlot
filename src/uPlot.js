@@ -2414,21 +2414,22 @@ export default function uPlot(opts, data, then) {
 			}
 
 			let [xKey, yKey] = syncOpts.scales;
+			let [xKeySrc, yKeySrc] = src.cursor.sync.scales;
 
-			if (src.scales[xKey].ori == 1) {
+			if (src.scales[xKeySrc].ori == 1) {
 				_xDim = _h;
 				_yDim = _w;
 				_xPos = _t;
 				_yPos = _l;
 			}
 
-			if (xKey != null)
-				_l = getPos(src.posToVal(_xPos, xKey), scales[xKey], xDim, 0);
+			if (xKeySrc != null)
+				_l = getPos(src.posToVal(_xPos, xKeySrc), scales[xKey], xDim, 0);
 			else
 				_l = xDim * (_xPos/_xDim);
 
-			if (yKey != null)
-				_t = getPos(src.posToVal(_yPos, yKey), scales[yKey], yDim, 0);
+			if (yKeySrc != null)
+				_t = getPos(src.posToVal(_yPos, yKeySrc), scales[yKey], yDim, 0);
 			else
 				_t = yDim * (_yPos/_yDim);
 
