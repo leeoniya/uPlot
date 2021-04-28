@@ -3900,11 +3900,11 @@ var uPlot = (function () {
 
 		self.batch = batch;
 
-		(self.setCursor = opts => {
+		(self.setCursor = (opts, _fire) => {
 			mouseLeft1 = opts.left;
 			mouseTop1 = opts.top;
 		//	assign(cursor, opts);
-			updateCursor();
+			updateCursor(null, null, _fire);
 		});
 
 		function setSelH(off, dim) {
@@ -3970,7 +3970,7 @@ var uPlot = (function () {
 			legend.values[sidx] = val;
 		}
 
-		function updateCursor(ts, src) {
+		function updateCursor(ts, src, _fire) {
 			var assign;
 
 		//	ts == null && log("updateCursor()", arguments);
@@ -4258,7 +4258,7 @@ var uPlot = (function () {
 				}
 			}
 
-			ready && fire("setCursor");
+			ready && _fire !== false && fire("setCursor");
 		}
 
 		var rect = null;

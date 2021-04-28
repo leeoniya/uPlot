@@ -2024,11 +2024,11 @@ export default function uPlot(opts, data, then) {
 
 	self.batch = batch;
 
-	FEAT_CURSOR && (self.setCursor = opts => {
+	FEAT_CURSOR && (self.setCursor = (opts, _fire) => {
 		mouseLeft1 = opts.left;
 		mouseTop1 = opts.top;
 	//	assign(cursor, opts);
-		updateCursor();
+		updateCursor(null, null, _fire);
 	});
 
 	function setSelH(off, dim) {
@@ -2094,7 +2094,7 @@ export default function uPlot(opts, data, then) {
 		legend.values[sidx] = val;
 	}
 
-	function updateCursor(ts, src) {
+	function updateCursor(ts, src, _fire) {
 	//	ts == null && log("updateCursor()", arguments);
 
 		rawMouseLeft1 = mouseLeft1;
@@ -2372,7 +2372,7 @@ export default function uPlot(opts, data, then) {
 			}
 		}
 
-		ready && fire("setCursor");
+		ready && _fire !== false && fire("setCursor");
 	}
 
 	let rect = null;

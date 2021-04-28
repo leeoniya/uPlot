@@ -69,7 +69,7 @@ declare class uPlot {
 	setScale(scaleKey: string, limits: { min: number; max: number }): void;
 
 	/** sets the cursor position (relative to plotting area) */
-	setCursor(opts: {left: number, top: number}): void;
+	setCursor(opts: {left: number, top: number}, fireHook?: boolean): void;
 
 	/** sets the legend to the values of the specified idx */
 	setLegend(opts: {idx: number}, fireHook?: boolean): void;
