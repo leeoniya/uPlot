@@ -2344,9 +2344,16 @@ export default function uPlot(opts, data, then) {
 
 		// if ts is present, means we're implicitly syncing own cursor
 		if (ts != null) {
+			if (syncKey != null) {
+				let [xSyncKey, ySyncKey] = syncOpts.scales;
+
+				syncOpts.values[0] = xSyncKey != null ? posToVal(scaleX.ori == 0 ? mouseLeft1 : mouseTop1, xSyncKey) : null;
+				syncOpts.values[1] = ySyncKey != null ? posToVal(scaleX.ori == 1 ? mouseLeft1 : mouseTop1, ySyncKey) : null;
+			}
+
 			// this is not technically a "mousemove" event, since it's debounced, rename to setCursor?
 			// since this is internal, we can tweak it later
-			pubSync(mousemove, self, mouseLeft1, mouseTop1, xDim, yDim, idx);
+			pubSync(mousemove, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, idx);
 
 			if (cursorFocus) {
 				let o = syncOpts.setSeries;
@@ -2401,36 +2408,29 @@ export default function uPlot(opts, data, then) {
 				return;
 			}
 
-			let xDim = plotWidCss,
-				yDim = plotHgtCss,
-				_xDim = _w,
-				_yDim = _h,
-				_xPos = _l,
-				_yPos = _t;
-
-			if (scaleX.ori == 1) {
-				xDim = plotHgtCss;
-				yDim = plotWidCss;
-			}
-
-			let [matchXKeys, matchYKeys] = syncOpts.match;
 			let [xKey, yKey] = syncOpts.scales;
-			let [xKeySrc, yKeySrc] = src.cursor.sync.scales;
 
-			if (src.scales[xKeySrc].ori == 1) {
-				_xDim = _h;
-				_yDim = _w;
-				_xPos = _t;
-				_yPos = _l;
-			}
+			let syncOptsSrc = src.cursor.sync;
+			let [xValSrc, yValSrc] = syncOptsSrc.values;
+			let [xKeySrc, yKeySrc] = syncOptsSrc.scales;
+			let [matchXKeys, matchYKeys] = syncOpts.match;
+
+			let rotSrc = src.scales[xKeySrc].ori == 1;
+
+			let xDim = scaleX.ori == 0 ? plotWidCss : plotHgtCss,
+				yDim = scaleX.ori == 1 ? plotWidCss : plotHgtCss,
+				_xDim = rotSrc ? _h : _w,
+				_yDim = rotSrc ? _w : _h,
+				_xPos = rotSrc ? _t : _l,
+				_yPos = rotSrc ? _l : _t;
 
 			if (xKeySrc != null)
-				_l = matchXKeys(xKey, xKeySrc) ? getPos(src.posToVal(_xPos, xKeySrc), scales[xKey], xDim, 0) : -10;
+				_l = matchXKeys(xKey, xKeySrc) ? getPos(xValSrc, scales[xKey], xDim, 0) : -10;
 			else
 				_l = xDim * (_xPos/_xDim);
 
 			if (yKeySrc != null)
-				_t = matchYKeys(yKey, yKeySrc) ? getPos(src.posToVal(_yPos, yKeySrc), scales[yKey], yDim, 0) : -10;
+				_t = matchYKeys(yKey, yKeySrc) ? getPos(yValSrc, scales[yKey], yDim, 0) : -10;
 			else
 				_t = yDim * (_yPos/_yDim);
 
@@ -2651,7 +2651,10 @@ export default function uPlot(opts, data, then) {
 		},
 		scales: [xScaleKey, null],
 		match: [retTrue, retTrue],
+		values: [null, null],
 	}, cursor.sync);
+
+	FEAT_CURSOR && (cursor.sync = syncOpts);
 
 	const syncKey = FEAT_CURSOR && syncOpts.key;
 

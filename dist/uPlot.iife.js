@@ -4228,9 +4228,18 @@ var uPlot = (function () {
 
 			// if ts is present, means we're implicitly syncing own cursor
 			if (ts != null) {
+				if (syncKey != null) {
+					var ref$2 = syncOpts.scales;
+					var xSyncKey = ref$2[0];
+					var ySyncKey = ref$2[1];
+
+					syncOpts.values[0] = xSyncKey != null ? posToVal(scaleX.ori == 0 ? mouseLeft1 : mouseTop1, xSyncKey) : null;
+					syncOpts.values[1] = ySyncKey != null ? posToVal(scaleX.ori == 1 ? mouseLeft1 : mouseTop1, ySyncKey) : null;
+				}
+
 				// this is not technically a "mousemove" event, since it's debounced, rename to setCursor?
 				// since this is internal, we can tweak it later
-				pubSync(mousemove, self, mouseLeft1, mouseTop1, xDim, yDim, idx);
+				pubSync(mousemove, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, idx);
 
 				if (cursorFocus) {
 					var o = syncOpts.setSeries;
@@ -4287,42 +4296,37 @@ var uPlot = (function () {
 					return;
 				}
 
-				var xDim = plotWidCss,
-					yDim = plotHgtCss,
-					_xDim = _w,
-					_yDim = _h,
-					_xPos = _l,
-					_yPos = _t;
+				var ref = syncOpts.scales;
+				var xKey = ref[0];
+				var yKey = ref[1];
 
-				if (scaleX.ori == 1) {
-					xDim = plotHgtCss;
-					yDim = plotWidCss;
-				}
-
-				var ref = syncOpts.match;
-				var matchXKeys = ref[0];
-				var matchYKeys = ref[1];
-				var ref$1 = syncOpts.scales;
-				var xKey = ref$1[0];
-				var yKey = ref$1[1];
-				var ref$2 = src.cursor.sync.scales;
+				var syncOptsSrc = src.cursor.sync;
+				var ref$1 = syncOptsSrc.values;
+				var xValSrc = ref$1[0];
+				var yValSrc = ref$1[1];
+				var ref$2 = syncOptsSrc.scales;
 				var xKeySrc = ref$2[0];
 				var yKeySrc = ref$2[1];
+				var ref$3 = syncOpts.match;
+				var matchXKeys = ref$3[0];
+				var matchYKeys = ref$3[1];
 
-				if (src.scales[xKeySrc].ori == 1) {
-					_xDim = _h;
-					_yDim = _w;
-					_xPos = _t;
-					_yPos = _l;
-				}
+				var rotSrc = src.scales[xKeySrc].ori == 1;
+
+				var xDim = scaleX.ori == 0 ? plotWidCss : plotHgtCss,
+					yDim = scaleX.ori == 1 ? plotWidCss : plotHgtCss,
+					_xDim = rotSrc ? _h : _w,
+					_yDim = rotSrc ? _w : _h,
+					_xPos = rotSrc ? _t : _l,
+					_yPos = rotSrc ? _l : _t;
 
 				if (xKeySrc != null)
-					{ _l = matchXKeys(xKey, xKeySrc) ? getPos(src.posToVal(_xPos, xKeySrc), scales[xKey], xDim, 0) : -10; }
+					{ _l = matchXKeys(xKey, xKeySrc) ? getPos(xValSrc, scales[xKey], xDim, 0) : -10; }
 				else
 					{ _l = xDim * (_xPos/_xDim); }
 
 				if (yKeySrc != null)
-					{ _t = matchYKeys(yKey, yKeySrc) ? getPos(src.posToVal(_yPos, yKeySrc), scales[yKey], yDim, 0) : -10; }
+					{ _t = matchYKeys(yKey, yKeySrc) ? getPos(yValSrc, scales[yKey], yDim, 0) : -10; }
 				else
 					{ _t = yDim * (_yPos/_yDim); }
 
@@ -4546,7 +4550,10 @@ var uPlot = (function () {
 			},
 			scales: [xScaleKey, null],
 			match: [retTrue, retTrue],
+			values: [null, null],
 		}, cursor.sync);
+
+		(cursor.sync = syncOpts);
 
 		var syncKey = syncOpts.key;
 
