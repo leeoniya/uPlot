@@ -1350,20 +1350,19 @@ var uPlot = (function () {
 		var s = syncs[key];
 
 		if (!s) {
-			var clients = [];
-
 			s = {
 				key: key,
-				sub: function sub(client) {
-					clients.push(client);
+				plots: [],
+				sub: function sub(plot) {
+					s.plots.push(plot);
 				},
-				unsub: function unsub(client) {
-					clients = clients.filter(c => c != client);
+				unsub: function unsub(plot) {
+					s.plots = s.plots.filter(c => c != plot);
 				},
 				pub: function pub(type, self, x, y, w, h, i) {
-					for (var j = 0; j < clients.length; j++)
-						{ clients[j] != self && clients[j].pub(type, self, x, y, w, h, i); }
-				}
+					for (var j = 0; j < s.plots.length; j++)
+						{ s.plots[j] != self && s.plots[j].pub(type, self, x, y, w, h, i); }
+				},
 			};
 
 			if (key != null)

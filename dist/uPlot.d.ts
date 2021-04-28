@@ -377,6 +377,7 @@ declare namespace uPlot {
 		sub:   (client: uPlot) => void;
 		unsub: (client: uPlot) => void;
 		pub:   (type: string, client: uPlot, x: number, y: number, w: number, h: number, i: number) => void;
+		plots: uPlot[];
 	}
 
 	export namespace Cursor {
