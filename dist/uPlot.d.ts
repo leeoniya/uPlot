@@ -449,6 +449,8 @@ declare namespace uPlot {
 			export type ScaleKeyMatcher = (subScaleKey: string | null, pubScaleKey: string | null) => boolean;
 
 			export type Match = [matchX: ScaleKeyMatcher, matchY: ScaleKeyMatcher];
+
+			export type Values = [xScaleValue: number, yScaleValue: number];
 		}
 
 		export interface Sync {
@@ -462,6 +464,8 @@ declare namespace uPlot {
 			match?: Sync.Match;
 			/** event filters */
 			filters?: Sync.Filters;
+			/** sync scales' values at the cursor position (exposed for read-back by subscribers) */
+			values?: Sync.Values,
 		}
 
 		export interface Focus {
