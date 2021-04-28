@@ -4300,12 +4300,15 @@ var uPlot = (function () {
 					yDim = plotWidCss;
 				}
 
-				var ref = syncOpts.scales;
-				var xKey = ref[0];
-				var yKey = ref[1];
-				var ref$1 = src.cursor.sync.scales;
-				var xKeySrc = ref$1[0];
-				var yKeySrc = ref$1[1];
+				var ref = syncOpts.match;
+				var matchXKeys = ref[0];
+				var matchYKeys = ref[1];
+				var ref$1 = syncOpts.scales;
+				var xKey = ref$1[0];
+				var yKey = ref$1[1];
+				var ref$2 = src.cursor.sync.scales;
+				var xKeySrc = ref$2[0];
+				var yKeySrc = ref$2[1];
 
 				if (src.scales[xKeySrc].ori == 1) {
 					_xDim = _h;
@@ -4315,12 +4318,12 @@ var uPlot = (function () {
 				}
 
 				if (xKeySrc != null)
-					{ _l = getPos(src.posToVal(_xPos, xKeySrc), scales[xKey], xDim, 0); }
+					{ _l = matchXKeys(xKey, xKeySrc) ? getPos(src.posToVal(_xPos, xKeySrc), scales[xKey], xDim, 0) : -10; }
 				else
 					{ _l = xDim * (_xPos/_xDim); }
 
 				if (yKeySrc != null)
-					{ _t = getPos(src.posToVal(_yPos, yKeySrc), scales[yKey], yDim, 0); }
+					{ _t = matchYKeys(yKey, yKeySrc) ? getPos(src.posToVal(_yPos, yKeySrc), scales[yKey], yDim, 0) : -10; }
 				else
 					{ _t = yDim * (_yPos/_yDim); }
 
@@ -4542,7 +4545,8 @@ var uPlot = (function () {
 				pub: retTrue,
 				sub: retTrue,
 			},
-			scales: [xScaleKey, null]
+			scales: [xScaleKey, null],
+			match: [retTrue, retTrue],
 		}, cursor.sync);
 
 		var syncKey = syncOpts.key;

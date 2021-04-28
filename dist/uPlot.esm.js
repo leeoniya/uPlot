@@ -4269,6 +4269,7 @@ function uPlot(opts, data, then) {
 				yDim = plotWidCss;
 			}
 
+			let [matchXKeys, matchYKeys] = syncOpts.match;
 			let [xKey, yKey] = syncOpts.scales;
 			let [xKeySrc, yKeySrc] = src.cursor.sync.scales;
 
@@ -4280,12 +4281,12 @@ function uPlot(opts, data, then) {
 			}
 
 			if (xKeySrc != null)
-				_l = getPos(src.posToVal(_xPos, xKeySrc), scales[xKey], xDim, 0);
+				_l = matchXKeys(xKey, xKeySrc) ? getPos(src.posToVal(_xPos, xKeySrc), scales[xKey], xDim, 0) : -10;
 			else
 				_l = xDim * (_xPos/_xDim);
 
 			if (yKeySrc != null)
-				_t = getPos(src.posToVal(_yPos, yKeySrc), scales[yKey], yDim, 0);
+				_t = matchYKeys(yKey, yKeySrc) ? getPos(src.posToVal(_yPos, yKeySrc), scales[yKey], yDim, 0) : -10;
 			else
 				_t = yDim * (_yPos/_yDim);
 
@@ -4504,7 +4505,8 @@ function uPlot(opts, data, then) {
 			pub: retTrue,
 			sub: retTrue,
 		},
-		scales: [xScaleKey, null]
+		scales: [xScaleKey, null],
+		match: [retTrue, retTrue],
 	}, cursor.sync);
 
 	const syncKey = syncOpts.key;
