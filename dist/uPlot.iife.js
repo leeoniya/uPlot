@@ -3416,6 +3416,8 @@ var uPlot = (function () {
 
 				var x, y;
 
+				var fillStyle = axis.stroke(self, i);
+
 				// axis label
 				if (axis.label) {
 					ctx.save();
@@ -3438,7 +3440,7 @@ var uPlot = (function () {
 					}
 
 					ctx.font         = axis.labelFont[0];
-				//	ctx.fillStyle    = axis.labelStroke || hexBlack;						// rgba?
+					ctx.fillStyle    = fillStyle;
 					ctx.textAlign    = "center";
 					ctx.textBaseline = side == 2 ? TOP : BOTTOM;
 
@@ -3471,7 +3473,7 @@ var uPlot = (function () {
 				    x        = ori == 1 ? finalPos : 0;
 
 				ctx.font         = axis.font[0];
-				ctx.fillStyle    = axis.stroke(self, i);									// rgba?
+				ctx.fillStyle    = fillStyle;
 				ctx.textAlign    = axis.align == 1 ? LEFT :
 				                   axis.align == 2 ? RIGHT :
 				                   angle > 0 ? LEFT :
