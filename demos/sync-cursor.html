@@ -122,6 +122,8 @@
 						syncUpDownBtn.textContent = 'Enable mouseup/down Sync';
 				};
 
+				const matchSyncKeys = (own, ext) => own == ext;
+
 				const cursorOpts = {
 					lock: true,
 					focus: {
@@ -130,6 +132,7 @@
 					sync: {
 						key: mooSync.key,
 						setSeries: true,
+						match: [matchSyncKeys, matchSyncKeys],
 						filters: {
 							pub: upDownFilter,
 						}
@@ -216,22 +219,26 @@
 							label: "TCP 1",
 							value: (u, v) => v == null ? "-" : v.toFixed(1) + " MB",
 							stroke: "red",
+							scale: "mb",
 						},
 						{
 							label: "TCP 2",
 							value: (u, v) => v == null ? "-" : v.toFixed(1) + " MB",
 							stroke: "green",
+							scale: "mb",
 						},
 						{
 							label: "TCP 3",
 							value: (u, v) => v == null ? "-" : v.toFixed(1) + " MB",
 							stroke: "blue",
+							scale: "mb",
 						}
 					],
 					axes: [
 						{},
 						{
 							values: (u, vals, space) => vals.map(v => +v.toFixed(1) + " MB"),
+							scale: "mb",
 						},
 					],
 				};

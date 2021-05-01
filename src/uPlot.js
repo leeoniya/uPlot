@@ -2653,7 +2653,7 @@ export default function uPlot(opts, data, then) {
 			pub: retTrue,
 			sub: retTrue,
 		},
-		scales: [xScaleKey, null],
+		scales: [xScaleKey, series[1].scale],
 		match: [retTrue, retTrue],
 		values: [null, null],
 	}, cursor.sync);
