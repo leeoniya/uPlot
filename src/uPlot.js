@@ -8,6 +8,7 @@ import {
 	FEAT_PATHS,
 	FEAT_PATHS_LINEAR,
 	FEAT_PATHS_SPLINE,
+	FEAT_PATHS_SPLINE2,
 	FEAT_PATHS_STEPPED,
 	FEAT_PATHS_BARS,
 
@@ -171,10 +172,11 @@ import {
 
 import { _sync } from './sync';
 
-import { linear  } from './paths/linear';
-import { spline  } from './paths/spline';
-import { stepped } from './paths/stepped';
-import { bars    } from './paths/bars';
+import { linear   } from './paths/linear';
+import { stepped  } from './paths/stepped';
+import { bars     } from './paths/bars';
+import { monotoneCubic     as spline  } from './paths/monotoneCubic';
+import { catmullRomCentrip as spline2 } from './paths/catmullRomCentrip';
 
 import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, orient, pxRoundGen } from './paths/utils';
 
@@ -2748,7 +2750,8 @@ if (FEAT_PATHS) {
 	let paths = uPlot.paths = {};
 
 	FEAT_PATHS_LINEAR  && (paths.linear  = linear);
-	FEAT_PATHS_SPLINE  && (paths.spline  = spline);
 	FEAT_PATHS_STEPPED && (paths.stepped = stepped);
 	FEAT_PATHS_BARS    && (paths.bars    = bars);
+	FEAT_PATHS_SPLINE  && (paths.spline  = spline);
+	FEAT_PATHS_SPLINE2 && (paths.spline2 = spline2);
 }
