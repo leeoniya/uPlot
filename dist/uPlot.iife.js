@@ -1757,9 +1757,11 @@ var uPlot = (function () {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				var pxRound = series.pxRound;
 
+				var _dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+
 				var rect = scaleX.ori == 0 ? rectH : rectV;
 
-				var colWid = valToPosX(dataX[1], scaleX, xDim, xOff) - valToPosX(dataX[0], scaleX, xDim, xOff);
+				var colWid = dataX.length == 1 ? xDim : abs(valToPosX(dataX[1], scaleX, xDim, xOff) - valToPosX(dataX[0], scaleX, xDim, xOff));
 
 				var gapWid = colWid * gapFactor;
 
@@ -1771,7 +1773,7 @@ var uPlot = (function () {
 
 				var barWid = pxRound(min(maxWidth, colWid - gapWid) - strokeWidth - extraGap);
 
-				var xShift = align == 1 ? 0 : align == -1 ? barWid : barWid / 2;
+				var xShift = (align == 0 ? barWid / 2 : align == _dir ? 0 : barWid) - align * _dir * extraGap / 2;
 
 				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
 
@@ -1787,10 +1789,6 @@ var uPlot = (function () {
 
 				var stroke = _paths.stroke;
 				var band = _paths.band;
-
-				var _dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
-
-				xShift += extraGap / 2 * -_dir;
 
 				for (var i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 					var yVal = dataY[i];

@@ -1,4 +1,4 @@
-import { min, max, inf, ifNull, EMPTY_OBJ, incrRound, nonNullIdx } from '../utils';
+import { abs, min, max, inf, ifNull, EMPTY_OBJ, incrRound, nonNullIdx } from '../utils';
 import { orient, rectV, rectH } from './utils';
 import { pxRatio } from '../dom';
 
@@ -15,9 +15,11 @@ export function bars(opts) {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
 
+			const _dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+
 			let rect = scaleX.ori == 0 ? rectH : rectV;
 
-			let colWid = valToPosX(dataX[1], scaleX, xDim, xOff) - valToPosX(dataX[0], scaleX, xDim, xOff);
+			let colWid = dataX.length == 1 ? xDim : abs(valToPosX(dataX[1], scaleX, xDim, xOff) - valToPosX(dataX[0], scaleX, xDim, xOff));
 
 			let gapWid = colWid * gapFactor;
 
@@ -29,7 +31,7 @@ export function bars(opts) {
 
 			let barWid = pxRound(min(maxWidth, colWid - gapWid) - strokeWidth - extraGap);
 
-			let xShift = align == 1 ? 0 : align == -1 ? barWid : barWid / 2;
+			const xShift = (align == 0 ? barWid / 2 : align == _dir ? 0 : barWid) - align * _dir * extraGap / 2;
 
 			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
 
@@ -45,10 +47,6 @@ export function bars(opts) {
 
 			const stroke = _paths.stroke;
 			const band = _paths.band;
-
-			const _dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
-
-			xShift += extraGap / 2 * -_dir;
 
 			for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 				let yVal = dataY[i];
