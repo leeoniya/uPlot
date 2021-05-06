@@ -1748,6 +1748,7 @@ var uPlot = (function () {
 		opts = opts || EMPTY_OBJ;
 		var size = ifNull(opts.size, [0.6, inf]);
 		var align = opts.align || 0;
+		var extraGap = (opts.gap || 0) * pxRatio;
 
 		var gapFactor = 1 - size[0];
 		var maxWidth  = ifNull(size[1], inf) * pxRatio;
@@ -1768,7 +1769,7 @@ var uPlot = (function () {
 
 				var strokeWidth = pxRound(series.width * pxRatio);
 
-				var barWid = pxRound(min(maxWidth, colWid - gapWid) - strokeWidth);
+				var barWid = pxRound(min(maxWidth, colWid - gapWid) - strokeWidth - extraGap);
 
 				var xShift = align == 1 ? 0 : align == -1 ? barWid : barWid / 2;
 
@@ -1788,6 +1789,8 @@ var uPlot = (function () {
 				var band = _paths.band;
 
 				var _dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+
+				xShift += extraGap / 2 * -_dir;
 
 				for (var i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 					var yVal = dataY[i];

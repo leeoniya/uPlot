@@ -593,9 +593,12 @@ declare namespace uPlot {
 		}
 
 		export interface BarsPathBuilderOpts {
-			align?: -1 | 0 | 1, // 0
+			align?: -1 | 0 | 1; // 0
 
-			size?: [factor?: number, max?: number]
+			size?: [factor?: number, max?: number];
+
+			// fixed-size gap between bars in CSS pixels (reduces bar width)
+			gap?: number;
 		}
 
 		export type LinearPathBuilderFactory  = () => Series.PathBuilder;

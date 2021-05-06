@@ -1737,6 +1737,7 @@ function bars(opts) {
 	opts = opts || EMPTY_OBJ;
 	const size = ifNull(opts.size, [0.6, inf]);
 	const align = opts.align || 0;
+	const extraGap = (opts.gap || 0) * pxRatio;
 
 	const gapFactor = 1 - size[0];
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
@@ -1757,7 +1758,7 @@ function bars(opts) {
 
 			let strokeWidth = pxRound(series.width * pxRatio);
 
-			let barWid = pxRound(min(maxWidth, colWid - gapWid) - strokeWidth);
+			let barWid = pxRound(min(maxWidth, colWid - gapWid) - strokeWidth - extraGap);
 
 			let xShift = align == 1 ? 0 : align == -1 ? barWid : barWid / 2;
 
@@ -1777,6 +1778,8 @@ function bars(opts) {
 			const band = _paths.band;
 
 			const _dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+
+			xShift += extraGap / 2 * -_dir;
 
 			for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
 				let yVal = dataY[i];
