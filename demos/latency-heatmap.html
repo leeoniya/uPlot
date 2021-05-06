@@ -67,14 +67,14 @@
 				return Math.floor(num/incr)*incr;
 			}
 
-			function histogram(vals, round, filter, sort) {
+			function histogram(vals, bucket, filter, sort) {
 				let hist = new Map();
 
 				for (let i = 0; i < vals.length; i++) {
 					let v = vals[i];
 
 					if (v != null)
-						v = round(v);
+						v = bucket(v);
 
 					let entry = hist.get(v);
 
@@ -200,13 +200,14 @@
 			let u = new uPlot(opts, data, document.body);
 
 
-			let bucketIncr = 2;
-			const histRound = v => incrRoundDn(v, bucketIncr);
+			let bucketIncr = 5;
+			let histOffset = 0;
+			const histBucket = v => incrRoundDn(v - histOffset, bucketIncr) + histOffset;
 			const histFilter = [null];
-			const histsort = (a, b) => a - b;
+			const histSort = (a, b) => a - b;
 
 			console.time("aggEach");
-			let agg = aggEach(raw, histRound, histFilter, histsort);
+			let agg = aggEach(raw, histBucket, histFilter, histSort);
 			console.timeEnd("aggEach");
 
 		//	console.log(raw);
@@ -311,44 +312,19 @@
 
 		<br>
 		<br>
-		Bucket size: <input id="binsize" type="range" min="1", max="25" step="1" value="2">
+		Bucket size: <input id="binsize" type="range" min="1", max="25" step="1" value="5">
+		<span id="cursize">5</span>
+		<br>
+		Bucket offset: <input id="binoffset" type="range" min="0", max="25" step="1" value="0">
+		<span id="curoffset">0</span>
 
 		<script>
-		//	let bars = uPlot.paths.bars({size: [1], align:  1});
-
-			let stepped = uPlot.paths.stepped({align:  1});
+			let bars = uPlot.paths.bars({align:  1, size: [1, Infinity]});
 
 			const opts3 = {
 				width: 1800,
 				height: 600,
 				title: "Latency Histogram",
-				hooks: {
-					init: [
-						// splits shifter, to ensure splits always start at first bucket
-						u => {
-							let _splits = u.axes[0].splits;
-
-							u.axes[0].splits = (self, i, min, max, _incr, _space, forceMin) => {
-								let splits = _splits(self, i, min, max, _incr, _space, forceMin);
-
-								let shift = splits[0] - u.data[0][0];
-
-								let tick = splits[1] - splits[0];
-
-								if (shift > 0) {
-									splits = splits.map(v => v - shift);
-
-									let next = splits[splits.length - 1] + tick;
-
-									if (next <= max)
-										splits.push(next);
-								}
-
-								return splits;
-							};
-						}
-					]
-				},
 				scales: {
 					x: {
 						time: false,
@@ -363,13 +339,27 @@
 					{
 						incrs: () => [0,1,2,3,4,5,6,7,8,9,10].map(mult => mult * bucketIncr),
 					//	space: 0,
-					//	splits	// adjust splits?
+						splits: (u, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace) => {
+							let minSpace = u.axes[axisIdx]._space;
+							let bucketWidth = u.valToPos(u.data[0][0] + bucketIncr, 'x') - u.valToPos(u.data[0][0], 'x');
+
+							let firstSplit = u.data[0][0];
+							let lastSplit = u.data[0][u.data[0].length - 1] + bucketIncr;
+
+							let splits = [];
+							let skip = Math.ceil(minSpace / bucketWidth);
+
+							for (let i = 0, s = firstSplit; s <= lastSplit; i++, s += bucketIncr)
+								!(i % skip) && splits.push(s);
+
+							return splits;
+						},
 					}
 				],
 				series: [
 					{},
 					{
-						paths: stepped,
+						paths: bars,
 						points: {
 							show: false,
 						},
@@ -380,16 +370,32 @@
 			};
 
 			console.time("aggAll");
-			let hist = aggAll(raw, histRound, histFilter, histsort);
+			let hist = aggAll(raw, histBucket, histFilter, histSort);
 			console.timeEnd("aggAll");
 
 			let u3 = new uPlot(opts3, hist, document.body);
 
+			let curSizeEl = document.getElementById("cursize");
+
 			document.getElementById("binsize").oninput = e => {
 				bucketIncr = +e.target.value;
+				curSizeEl.textContent = bucketIncr;
 
 				console.time("aggAll");
-				hist = aggAll(raw, histRound, histFilter, histsort);
+				hist = aggAll(raw, histBucket, histFilter, histSort);
+				console.timeEnd("aggAll");
+
+				u3.setData(hist);
+			};
+
+			let curOffsetEl = document.getElementById("curoffset");
+
+			document.getElementById("binoffset").oninput = e => {
+				histOffset = +e.target.value;
+				curOffsetEl.textContent = histOffset;
+
+				console.time("aggAll");
+				hist = aggAll(raw, histBucket, histFilter, histSort);
 				console.timeEnd("aggAll");
 
 				u3.setData(hist);
