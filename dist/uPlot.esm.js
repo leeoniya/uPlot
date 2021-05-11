@@ -407,7 +407,7 @@ function join(tables, nullModes) {
 				let yVal = ys[i];
 				let alignedIdx = xIdxs.get(xs[i]);
 
-				if (yVal == null) {
+				if (yVal === null) {
 					if (nullMode != NULL_REMOVE) {
 						yVals[alignedIdx] = yVal;
 

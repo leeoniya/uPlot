@@ -196,7 +196,7 @@ declare namespace uPlot {
 
 	export type AlignedData = [
 		xValues: number[],
-		...yValues: (number | null)[][],
+		...yValues: (number | null | undefined)[][],
 	]
 
 	export interface DateNames {

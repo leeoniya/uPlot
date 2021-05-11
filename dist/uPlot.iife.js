@@ -417,7 +417,7 @@ var uPlot = (function () {
 					var yVal = ys[i$2];
 					var alignedIdx = xIdxs.get(xs$1[i$2]);
 
-					if (yVal == null) {
+					if (yVal === null) {
 						if (nullMode != NULL_REMOVE) {
 							yVals[alignedIdx] = yVal;
 
