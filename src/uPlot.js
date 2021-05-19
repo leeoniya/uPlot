@@ -135,9 +135,6 @@ import {
 
 	clampScale,
 
-	timeIncrsMs,
-	timeIncrsS,
-
 	wholeIncrs,
 	numIncrs,
 	timeAxisVal,
@@ -152,20 +149,16 @@ import {
 	timeSeriesLabel,
 	numSeriesLabel,
 
-	timeAxisSplitsMs,
-	timeAxisSplitsS,
-
 	numAxisSplits,
 	logAxisSplits,
 	asinhAxisSplits,
 
 	timeAxisStamps,
 
-	_timeAxisStampsMs,
-	_timeAxisStampsS,
-
 	timeSeriesStamp,
 	_timeSeriesStamp,
+
+	genTimeStuffs,
 
 	legendOpts,
 } from './opts';
@@ -459,6 +452,9 @@ export default function uPlot(opts, data, then) {
 //	self.tz = opts.tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const _tzDate  = FEAT_TIME && (opts.tzDate || (ts => new Date(round(ts / ms))));
 	const _fmtDate = FEAT_TIME && (opts.fmtDate || fmtDate);
+
+	const [ timeIncrsMs, _timeAxisStampsMs, timeAxisSplitsMs ] = FEAT_TIME && genTimeStuffs(1, opts.timeFormats);
+	const [ timeIncrsS,  _timeAxisStampsS,  timeAxisSplitsS  ] = FEAT_TIME && genTimeStuffs(1e-3, opts.timeFormats);
 
 	const _timeAxisSplits = FEAT_TIME && (ms == 1 ? timeAxisSplitsMs(_tzDate) : timeAxisSplitsS(_tzDate));
 	const _timeAxisVals   = FEAT_TIME && timeAxisVals(_tzDate, timeAxisStamps((ms == 1 ? _timeAxisStampsMs : _timeAxisStampsS), _fmtDate));

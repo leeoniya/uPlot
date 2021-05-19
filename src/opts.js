@@ -58,23 +58,24 @@ export const wholeIncrs = oneIncrs.filter(onlyWhole);
 
 export const numIncrs = decIncrs.concat(oneIncrs);
 
-const NL = "\n";
-
-const yyyy    = "{YYYY}";
-const NLyyyy  = NL + yyyy;
-const md      = "{M}/{D}";
-const NLmd    = NL + md;
-const NLmdyy  = NLmd + "/{YY}";
-
-const aa      = "{aa}";
-const hmm     = "{h}:{mm}";
-const hmmaa   = hmm + aa;
-const NLhmmaa = NL + hmmaa;
-const ss      = ":{ss}";
+export const NL = "\n";
 
 const _ = null;
 
-function genTimeStuffs(ms) {
+export function genTimeStuffs(ms, opts) {
+	opts = opts || {};
+	const yyyy    = opts.YYYY || "{YYYY}";
+	const NLyyyy  = opts.NLyyyy || NL + yyyy;
+	const md      = opts.md || "{M}/{D}";
+	const NLmd    = opts.NLmd || NL + md;
+	const NLmdyy  = opts.NLmdyy || NLmd + "/{YY}";
+
+	const aa      = opts.aa || "{aa}";
+	const hmm     = opts.hmm || "{h}:{mm}";
+	const hmmaa   = opts.hmmaa || hmm + aa;
+	const NLhmmaa = opts.NLhmmaa || NL + hmmaa;
+	const ss      = opts.ss || ":{ss}";
+
 	let	s  = ms * 1e3,
 		m  = s  * 60,
 		h  = m  * 60,
@@ -242,9 +243,6 @@ function genTimeStuffs(ms) {
 		timeAxisSplits,
 	];
 }
-
-export const [ timeIncrsMs, _timeAxisStampsMs, timeAxisSplitsMs ] = FEAT_TIME && genTimeStuffs(1);
-export const [ timeIncrsS,  _timeAxisStampsS,  timeAxisSplitsS  ] = FEAT_TIME && genTimeStuffs(1e-3);
 
 // base 2
 const binIncrs = genIncrs(2, -53, 53, [1]);
