@@ -186,17 +186,27 @@ var uPlot = (function () {
 		var softMaxMode = ifNull(cmax.mode, 0);
 
 		var delta        = _max - _min;
+
+		// this handles situations like 89.7, 89.69999999999999
+		// by assuming 0.001x deltas are precision errors
+	//	if (delta > 0 && delta < abs(_max) / 1e3)
+	//		delta = 0;
+
+		// treat data as flat if delta is less than 1 billionth
+		if (delta < 1e-9)
+			{ delta = 0; }
+
 		var nonZeroDelta = delta || abs(_max) || 1e3;
 		var mag          = log10(nonZeroDelta);
 		var base         = pow(10, floor(mag));
 
 		var _padMin  = nonZeroDelta * (delta == 0 ? (_min == 0 ? .1 : 1) : padMin);
-		var _newMin  = roundDec(incrRoundDn(_min - _padMin, base/10), 6);
+		var _newMin  = roundDec(incrRoundDn(_min - _padMin, base/10), 9);
 		var _softMin = _min >= softMin && (softMinMode == 1 || softMinMode == 3 && _newMin <= softMin || softMinMode == 2 && _newMin >= softMin) ? softMin : inf;
 		var minLim   = max(hardMin, _newMin < _softMin && _min >= _softMin ? _softMin : min(_softMin, _newMin));
 
 		var _padMax  = nonZeroDelta * (delta == 0 ? (_max == 0 ? .1 : 1) : padMax);
-		var _newMax  = roundDec(incrRoundUp(_max + _padMax, base/10), 6);
+		var _newMax  = roundDec(incrRoundUp(_max + _padMax, base/10), 9);
 		var _softMax = _max <= softMax && (softMaxMode == 1 || softMaxMode == 3 && _newMax >= softMax || softMaxMode == 2 && _newMax <= softMax) ? softMax : -inf;
 		var maxLim   = min(hardMax, _newMax > _softMax && _max <= _softMax ? _softMax : max(_softMax, _newMax));
 
