@@ -2382,7 +2382,12 @@ export default function uPlot(opts, data, then) {
 	let rect = null;
 
 	function syncRect(defer) {
-		rect = defer ? null : over.getBoundingClientRect();
+		if (defer === true)
+			rect = null;
+		else {
+			rect = over.getBoundingClientRect();
+			fire("syncRect");
+		}
 	}
 
 	function mouseMove(e, src, _l, _t, _w, _h, _i) {
