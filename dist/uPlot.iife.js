@@ -4237,7 +4237,7 @@ var uPlot = (function () {
 				{ rect = null; }
 			else {
 				rect = over.getBoundingClientRect();
-				fire("syncRect");
+				fire("syncRect", rect);
 			}
 		}
 

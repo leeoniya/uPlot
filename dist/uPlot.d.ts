@@ -924,6 +924,9 @@ declare namespace uPlot {
 
 			/** fires after the chart is destroyed */
 			destroy?:    (self: uPlot) => void;
+
+			/** fires after .u-over's getBoundingClientRect() is called (due to scroll or resize events) */
+			syncRect?:   (self: uPlot, rect: DOMRect) => void;
 		}
 
 		export type Arrays = {

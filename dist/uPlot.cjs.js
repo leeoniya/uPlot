@@ -4201,7 +4201,7 @@ function uPlot(opts, data, then) {
 			rect = null;
 		else {
 			rect = over.getBoundingClientRect();
-			fire("syncRect");
+			fire("syncRect", rect);
 		}
 	}
 
