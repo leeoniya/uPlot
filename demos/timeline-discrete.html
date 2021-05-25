@@ -193,6 +193,7 @@
 							}
 						});
 
+						u.ctx.lineWidth = strokeWidth;
 						drawBoxes(u.ctx);
 
 						u.ctx.restore();
@@ -212,11 +213,14 @@
 					u.ctx.textBaseline = "middle";
 
 					uPlot.orient(u, sidx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect) => {
+						let strokeWidth = round((series.width || 0) * pxRatio);
+						let textOffset = mode == 1 ? strokeWidth + 2 : 0;
+
 						let y = round(yOff + yMids[sidx - 1]);
 
 						for (let ix = 0; ix < dataY.length; ix++) {
 							if (dataY[ix] != null) {
-								let x = valToPosX(dataX[ix], scaleX, xDim, xOff);
+								let x = valToPosX(dataX[ix], scaleX, xDim, xOff) + textOffset;
 								u.ctx.fillText(dataY[ix], x, y);
 							}
 						}
@@ -389,8 +393,13 @@
 				const opts = {
 					width:  1920,
 					height: 300,
-					title: "Timeline / Discrete",
+					title: o.title ?? "Timeline / Discrete",
 					drawOrder: ["series", "axes"],
+					scales: {
+						x: {
+							time: o.time ?? true,
+						}
+					},
 					axes: [
 						{},
 						{},
@@ -408,16 +417,19 @@
 							label: "Device A",
 							fill:  "#33BB55",
 							stroke: "darkgreen",
+							width: 4,
 						},
 						{
 							label: "Device B",
 							fill:  "#B56FAB",
 							stroke: "purple",
+							width: 4,
 						},
 						{
 							label: "Device C",
 							fill: "cyan",
 							stroke: "#008080",
+							width: 4,
 						},
 					],
 					plugins: [
@@ -433,25 +445,23 @@
 
 			let now = incrRound((Date.now() / 1e3), 3600);
 
-			// TODO: merge transitions between same states at different timestamps, [1,1,1,0,0,0] -> [1,0]
-
 			let statesDisplay = [
 				{},
 				{
-					0: {color: "red"},
-					1: {color: "green"},
-					2: {color: "blue"},
-					3: {color: "cyan"},
+					0: {stroke: "red",   fill: "rgba(255, 0, 0, 0.2)"},
+					1: {stroke: "green", fill: "rgba(0, 255, 0, 0.2)"},
+					2: {stroke: "blue",  fill: "rgba(0, 0, 255, 0.2)"},
+					3: {stroke: "cyan",  fill: "rgba(0, 255, 255, 0.2)"},
 				},
 				{
-					0: {color: "red"},
-					4: {color: "orange"},
-					5: {color: "yellow"},
+					0: {stroke: "red",    fill: "rgba(255, 0, 0, 0.2)"},
+					4: {stroke: "orange", fill: "rgba(255, 165, 0, 0.4)"},
+					5: {stroke: "yellow", fill: "rgba(255, 255, 0, 0.3)"},
 				},
 				{
-					0: {color: "red"},
-					4: {color: "orange"},
-					5: {color: "yellow"},
+					0: {stroke: "red",    fill: "rgba(255, 0, 0, 0.2)"},
+					4: {stroke: "orange", fill: "rgba(255, 165, 0, 0.4)"},
+					5: {stroke: "yellow", fill: "rgba(255, 255, 0, 0.3)"},
 				},
 			];
 
@@ -471,9 +481,10 @@
 		//	console.log(data);
 
 			makeChart({
+				title:  "State timeline, duty cycles & transitions (semantic x width)",
 				mode:   1,
-				fill:   (seriesIdx, dataIdx, value) =>  statesDisplay[seriesIdx][value].color,
-				stroke: (seriesIdx, dataIdx, value) =>  statesDisplay[seriesIdx][value].color,
+				fill:   (seriesIdx, dataIdx, value) =>  statesDisplay[seriesIdx][value].fill,
+				stroke: (seriesIdx, dataIdx, value) =>  statesDisplay[seriesIdx][value].stroke,
 			}, data1);
 
 
@@ -494,11 +505,95 @@
 			data2[3][19] = null;
 
 			makeChart({
+				title:  "Status history, periodic samples - (non-semantic x width)",
 				mode:   2,
 				size:   [0.9, 100],
-				fill:   (seriesIdx, dataIdx, value) =>  statesDisplay[seriesIdx][value].color,
-				stroke: (seriesIdx, dataIdx, value) =>  statesDisplay[seriesIdx][value].color,
+				fill:   (seriesIdx, dataIdx, value) =>  statesDisplay[seriesIdx][value].fill,
+				stroke: (seriesIdx, dataIdx, value) =>  statesDisplay[seriesIdx][value].stroke,
 			}, data2);
+
+
+
+			let frames3 = [
+				[
+					[  0,  18,  37,  55,  74,  92, 111, 129, 148, 166, 185, 203, 222, 240],
+					["a", "a", "b", "b", "b", "b", "c", "a", "a", "d", "d", "d", "d", "d"],
+				],
+				[
+					[   0,  16,   32,  48,  64,   80,   96, 112,  128,  144, 160,  176, 192, 208, 224, 240],
+					[null, null, "e", "e", "e", null, null, "e", null, null, "e", null, "e", "e", "e", "e"],
+				],
+				[
+					[   0,   48,    96,  144,  192,   240],
+					[true, null, false, null, true, false],
+				]
+			];
+
+			let data3 = uPlot.join(frames3, frames3.map(f => [1,1]));
+
+			//console.log(data3);
+			//console.log(frames3);
+
+			let statesDisplay3 = [
+				{},
+				{
+					"a": {color: "red"},
+					"b": {color: "green"},
+					"c": {color: "blue"},
+					"d": {color: "cyan"},
+				},
+				{
+					"e": {color: "magenta"},
+				},
+				{
+					"true":  {color: "green"},
+					"false": {color: "red"},
+				},
+			];
+
+			makeChart({
+				title:  "Repeating consecutive states",
+				mode:   1,
+				time:   false,
+				size:   [0.9, 100],
+				fill:   (seriesIdx, dataIdx, value) => statesDisplay3[seriesIdx][value].color,
+				stroke: (seriesIdx, dataIdx, value) => statesDisplay3[seriesIdx][value].color,
+			}, data3);
+
+			let data4 = data3.map(s => s.slice());
+
+			unsetSameFutureValues(data4);
+
+			makeChart({
+				title:  "Merged same consecutive states",
+				mode:   1,
+				time:   false,
+				size:   [0.9, 100],
+				fill:   (seriesIdx, dataIdx, value) => statesDisplay3[seriesIdx][value].color,
+				stroke: (seriesIdx, dataIdx, value) => statesDisplay3[seriesIdx][value].color,
+			}, data4);
+
+			function unsetSameFutureValues(series) {
+				series.forEach((values, i) => {
+					if (i == 0)
+						return;
+
+					let prevVal = values[0];
+
+					for (let i = 1; i < values.length; i++) {
+						let value = values[i];
+
+						if (value === null)
+							prevVal = null;
+						else {
+							if (value === prevVal)
+								values[i] = undefined;
+							else if (value != null)
+								prevVal = value;
+						}
+					}
+				});
+			}
 		</script>
 	</body>
 </html>
