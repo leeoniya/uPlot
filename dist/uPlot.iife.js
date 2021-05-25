@@ -2128,9 +2128,9 @@ var uPlot = (function () {
 		var ctx = self.ctx = can.getContext("2d");
 
 		var wrap = placeDiv(WRAP, root);
-		var under = placeDiv(UNDER, wrap);
+		var under = self.under = placeDiv(UNDER, wrap);
 		wrap.appendChild(can);
-		var over = placeDiv(OVER, wrap);
+		var over = self.over = placeDiv(OVER, wrap);
 
 		opts = copy(opts);
 

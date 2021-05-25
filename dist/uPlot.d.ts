@@ -52,6 +52,11 @@ declare class uPlot {
 	/** current data */
 	readonly data: uPlot.AlignedData;
 
+	/** .u-over dom element */
+	readonly over: HTMLDivElement;
+
+	/** .u-under dom element */
+	readonly under: HTMLDivElement;
 
 	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
 	redraw(rebuildPaths?: boolean, recalcAxes?: boolean): void;

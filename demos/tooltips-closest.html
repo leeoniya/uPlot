@@ -103,7 +103,7 @@
 				hooks: {
 					ready: [
 						u => {
-							over = u.root.querySelector(".u-over");
+							over = u.over;
 							tooltipLeftOffset = parseFloat(over.style.left);
 							tooltipTopOffset = parseFloat(over.style.top);
 							u.root.querySelector(".u-wrap").appendChild(tooltip);

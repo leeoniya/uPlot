@@ -12,7 +12,7 @@
 		<script>
 			function tooltipsPlugin(opts) {
 				function init(u, opts, data) {
-					let plot = u.root.querySelector(".u-over");
+					let over = u.over;
 
 					let ttc = u.cursortt = document.createElement("div");
 					ttc.className = "tooltip";
@@ -20,7 +20,7 @@
 					ttc.style.pointerEvents = "none";
 					ttc.style.position = "absolute";
 					ttc.style.background = "rgba(0,0,255,0.1)";
-					plot.appendChild(ttc);
+					over.appendChild(ttc);
 
 					u.seriestt = opts.series.map((s, i) => {
 						if (i == 0) return;
@@ -33,7 +33,7 @@
 						tt.style.background = "rgba(0,0,0,0.1)";
 						tt.style.color = s.color;
 						tt.style.display = s.show ? null : "none";
-						plot.appendChild(tt);
+						over.appendChild(tt);
 						return tt;
 					});
 
@@ -56,14 +56,14 @@
 						});
 					}
 
-					plot.addEventListener("mouseleave", () => {
+					over.addEventListener("mouseleave", () => {
 						if (!u.cursor._lock) {
 						//	u.setCursor({left: -10, top: -10});
 							hideTips();
 						}
 					});
 
-					plot.addEventListener("mouseenter", () => {
+					over.addEventListener("mouseenter", () => {
 						showTips();
 					});
 

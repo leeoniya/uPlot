@@ -161,7 +161,7 @@
 				return {
 					hooks: {
 						init: u => {
-							u.root.querySelector(".u-over").appendChild(barMark);
+							u.over.appendChild(barMark);
 						},
 						drawClear: u => {
 							qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);

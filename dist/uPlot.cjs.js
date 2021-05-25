@@ -2119,9 +2119,9 @@ function uPlot(opts, data, then) {
 	const ctx = self.ctx = can.getContext("2d");
 
 	const wrap = placeDiv(WRAP, root);
-	const under = placeDiv(UNDER, wrap);
+	const under = self.under = placeDiv(UNDER, wrap);
 	wrap.appendChild(can);
-	const over = placeDiv(OVER, wrap);
+	const over = self.over = placeDiv(OVER, wrap);
 
 	opts = copy(opts);
 

@@ -23,8 +23,8 @@
 				let underEl, overEl, highlightEl, currIdx;
 
 				function init(u) {
-					underEl = u.root.querySelector(".u-under");
-					overEl = u.root.querySelector(".u-over");
+					underEl = u.under;
+					overEl = u.over;
 
 					highlightEl = document.createElement("div");
 
@@ -104,7 +104,7 @@
 					for (let i = 0; i < idents.length; i++)
 						idents[i].style.display = "none";
 
-					const overEl = u.root.querySelector(".u-over");
+					const overEl = u.over;
 					overEl.style.overflow = "visible";
 
 					// move legend into plot bounds

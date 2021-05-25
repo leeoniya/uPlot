@@ -43,11 +43,11 @@
 							xRange = xMax - xMin;
 							yRange = yMax - yMin;
 
-							let plot = u.root.querySelector(".u-over");
-							let rect = plot.getBoundingClientRect();
+							let over = u.over;
+							let rect = over.getBoundingClientRect();
 
 							// wheel drag pan
-							plot.addEventListener("mousedown", e => {
+							over.addEventListener("mousedown", e => {
 								if (e.button == 1) {
 								//	plot.style.cursor = "move";
 									e.preventDefault();
@@ -85,7 +85,7 @@
 							});
 
 							// wheel scroll zoom
-							plot.addEventListener("wheel", e => {
+							over.addEventListener("wheel", e => {
 								e.preventDefault();
 
 								let {left, top} = u.cursor;
