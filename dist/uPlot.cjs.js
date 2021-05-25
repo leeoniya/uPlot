@@ -4476,7 +4476,7 @@ function uPlot(opts, data, then) {
 			pub: retTrue,
 			sub: retTrue,
 		},
-		scales: [xScaleKey, series[1].scale],
+		scales: [xScaleKey, series[1] ? series[1].scale : null],
 		match: [retTrue, retTrue],
 		values: [null, null],
 	}, cursor.sync);
