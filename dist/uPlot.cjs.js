@@ -3745,6 +3745,26 @@ function uPlot(opts, data, then) {
 
 	self.setSeries = setSeries;
 
+	function setBand(bi, opts) {
+		assign(bands[bi], opts);
+	}
+
+	function addBand(opts, bi) {
+		bi = bi == null ? bands.length : bi;
+		bands.splice(bi, 0, opts);
+	}
+
+	function delBand(bi) {
+		if (bi == null)
+			bands.length = 0;
+		else
+			bands.splice(bi, 1);
+	}
+
+	self.addBand = addBand;
+	self.setBand = setBand;
+	self.delBand = delBand;
+
 	function setAlpha(i, value) {
 		series[i].alpha = value;
 

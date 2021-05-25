@@ -84,6 +84,15 @@ declare class uPlot {
 	/** deletes a series */
 	delSeries(seriesIdx: number): void;
 
+	/** adds a band */
+	addBand(opts: uPlot.Band, bandIdx?: number): void;
+
+	/** modifies an existing band */
+	setBand(bandIdx: number, opts: uPlot.Band): void;
+
+	/** deletes a band. if null bandIdx, clears all bands */
+	delBand(bandIdx?: number | null): void;
+
 	/** sets visually selected region without triggering setScale (zoom). (default fireHook = true) */
 	setSelect(opts: {left: number, top: number, width: number, height: number}, fireHook?: boolean): void;
 

@@ -79,8 +79,8 @@
 					setSeries: [
 						(u, i) => {
 							let stacked = stack(data, i => !u.series[i].show);
-							u.bands.length = 0;
-							u.bands.push.apply(u.bands, stacked.bands);
+							u.delBand(null);
+							stacked.bands.forEach(b => u.addBand(b));
 							u.setData(stacked.data);
 						}
 					],
