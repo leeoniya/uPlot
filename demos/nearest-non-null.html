@@ -43,25 +43,28 @@
 				width: 1920,
 				height: 600,
 				cursor: {
-					dataIdx: (self, seriesIdx, hoveredIdx) => {
-						let seriesData = self.data[seriesIdx];
+					dataIdx: (self, seriesIdx, hoveredIdx, xVal) => {
+						let xValues = self.data[0];
+						let yValues = self.data[seriesIdx];
 
-						if (seriesData[hoveredIdx] == null) {
+						// todo: only scan in-view idices
+
+						if (yValues[hoveredIdx] == null) {
 							let nonNullLft = hoveredIdx,
 								nonNullRgt = hoveredIdx,
 								i;
 
 							i = hoveredIdx;
 							while (nonNullLft == hoveredIdx && i-- > 0)
-								if (seriesData[i] != null)
+								if (yValues[i] != null)
 									nonNullLft = i;
 
 							i = hoveredIdx;
-							while (nonNullRgt == hoveredIdx && i++ < seriesData.length)
-								if (seriesData[i] != null)
+							while (nonNullRgt == hoveredIdx && i++ < yValues.length)
+								if (yValues[i] != null)
 									nonNullRgt = i;
 
-							return nonNullRgt - hoveredIdx > hoveredIdx - nonNullLft ? nonNullLft : nonNullRgt;
+							hoveredIdx = xValues[nonNullRgt] - xVal > xVal - xValues[nonNullLft] ? nonNullLft : nonNullRgt;
 						}
 
 						return hoveredIdx;
