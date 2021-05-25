@@ -2482,6 +2482,9 @@ var uPlot = (function () {
 		//	updOriDims();
 		}
 
+		// ensures size calc convergence
+		var CYCLE_LIMIT = 3;
+
 		function convergeSize() {
 			var converged = false;
 
@@ -2493,7 +2496,7 @@ var uPlot = (function () {
 				var axesConverged = axesCalc(cycleNum);
 				var paddingConverged = paddingCalc(cycleNum);
 
-				converged = axesConverged && paddingConverged;
+				converged = cycleNum == CYCLE_LIMIT || (axesConverged && paddingConverged);
 
 				if (!converged) {
 					calcSize(self.width, self.height);
