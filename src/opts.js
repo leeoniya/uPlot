@@ -45,8 +45,6 @@ const onlyWhole = v => v % 1 == 0;
 
 const allMults = [1,2,2.5,5];
 
-const wholeMults = allMults.filter(onlyWhole);
-
 // ...0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.25, 0.5
 export const decIncrs = genIncrs(10, -16, 0, allMults);
 
