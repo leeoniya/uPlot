@@ -343,12 +343,15 @@ export function legendFill(self, seriesIdx) {
 
 export const legendOpts = {
 	show: true,
-	width: 2,
-	stroke: legendStroke,
-	fill: legendFill,
-	dash: "solid",
 	live: true,
 	isolate: false,
+	markers: {
+		show: true,
+		width: 2,
+		stroke: legendStroke,
+		fill: legendFill,
+		dash: "solid",
+	},
 	idx: null,
 	values: [],
 };

@@ -43,7 +43,9 @@
 				height: 600,
 				legend: {
 				//	show: false,
-					fill: (u, seriesIdx) => u.series[seriesIdx].stroke(u, seriesIdx),
+					markers: {
+						fill: (u, seriesIdx) => u.series[seriesIdx].stroke(u, seriesIdx),
+					}
 				},
 				scales: {
 					x: {
@@ -109,7 +111,9 @@
 				height: 600,
 				legend: {
 				//	show: false,
-					fill: (u, seriesIdx) => u.series[seriesIdx].stroke(u, seriesIdx),
+					markers: {
+						fill: (u, seriesIdx) => u.series[seriesIdx].stroke(u, seriesIdx),
+					}
 				},
 				scales: {
 					x: {

@@ -270,14 +270,8 @@ declare namespace uPlot {
 		live?: boolean;	// true
 		/** swiches primary interaction mode to toggle-one/toggle-all */
 		isolate?: boolean; // false
-		/** series indicator line width */
-		width?: Legend.Width;
-		/** series indicator stroke (CSS borderColor) */
-		stroke?: Legend.Stroke;
-		/** series indicator stroke style (CSS borderStyle) */
-		dash?: Legend.Dash;
-		/** series indicator fill */
-		fill?: Legend.Fill;
+		/** series indicators */
+		markers?: Legend.Markers;
 
 		/** current index (readback-only, not for init) */
 		idx?: number;
@@ -299,6 +293,18 @@ declare namespace uPlot {
 		};
 
 		export type Values = Value[];
+
+		export interface Markers {
+			show?: boolean;	// true
+			/** series indicator line width */
+			width?: Legend.Width;
+			/** series indicator stroke (CSS borderColor) */
+			stroke?: Legend.Stroke;
+			/** series indicator fill */
+			fill?: Legend.Fill;
+			/** series indicator stroke style (CSS borderStyle) */
+			dash?: Legend.Dash;
+		}
 	}
 
 	export type DateFormatterFactory = (tpl: string) => (date: Date) => string;

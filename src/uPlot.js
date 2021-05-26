@@ -466,12 +466,13 @@ export default function uPlot(opts, data, then) {
 
 	const legend     = FEAT_LEGEND && (self.legend = assign({}, legendOpts, opts.legend));
 	const showLegend = FEAT_LEGEND && legend.show;
+	const markers    = FEAT_LEGEND && legend.markers;
 
 	if (FEAT_LEGEND) {
-		legend.width  = fnOrSelf(legend.width);
-		legend.dash   = fnOrSelf(legend.dash);
-		legend.stroke = fnOrSelf(legend.stroke);
-		legend.fill   = fnOrSelf(legend.fill);
+		markers.width  = fnOrSelf(markers.width);
+		markers.dash   = fnOrSelf(markers.dash);
+		markers.stroke = fnOrSelf(markers.stroke);
+		markers.fill   = fnOrSelf(markers.fill);
 	}
 
 	let legendEl;
@@ -524,21 +525,26 @@ export default function uPlot(opts, data, then) {
 
 		let label = placeTag("th", null, row);
 
-		let indic = placeDiv(LEGEND_MARKER, label);
+		if (markers.show) {
+			let indic = placeDiv(LEGEND_MARKER, label);
 
-		if (i > 0) {
-			let width  = legend.width(self, i);
+			if (i > 0) {
+				let width  = markers.width(self, i);
 
-			if (width)
-				indic.style.border = width + "px " + legend.dash(self, i) + " " + legend.stroke(self, i);
+				if (width)
+					indic.style.border = width + "px " + markers.dash(self, i) + " " + markers.stroke(self, i);
 
-			indic.style.background = legend.fill(self, i);
+				indic.style.background = markers.fill(self, i);
+			}
 		}
 
 		let text = placeDiv(LEGEND_LABEL, label);
 		text.textContent = s.label;
 
 		if (i > 0) {
+			if (!markers.show)
+				text.style.color = s.width > 0 ? markers.stroke(self, i) : markers.fill(self, i);
+
 			onMouse("click", label, e => {
 				if (FEAT_CURSOR && cursor._lock)
 					return;

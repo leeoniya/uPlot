@@ -994,12 +994,15 @@ var uPlot = (function () {
 
 	var legendOpts = {
 		show: true,
-		width: 2,
-		stroke: legendStroke,
-		fill: legendFill,
-		dash: "solid",
 		live: true,
 		isolate: false,
+		markers: {
+			show: true,
+			width: 2,
+			stroke: legendStroke,
+			fill: legendFill,
+			dash: "solid",
+		},
 		idx: null,
 		values: [],
 	};
@@ -2290,12 +2293,13 @@ var uPlot = (function () {
 
 		var legend     = (self.legend = assign({}, legendOpts, opts.legend));
 		var showLegend = legend.show;
+		var markers    = legend.markers;
 
 		{
-			legend.width  = fnOrSelf(legend.width);
-			legend.dash   = fnOrSelf(legend.dash);
-			legend.stroke = fnOrSelf(legend.stroke);
-			legend.fill   = fnOrSelf(legend.fill);
+			markers.width  = fnOrSelf(markers.width);
+			markers.dash   = fnOrSelf(markers.dash);
+			markers.stroke = fnOrSelf(markers.stroke);
+			markers.fill   = fnOrSelf(markers.fill);
 		}
 
 		var legendEl;
@@ -2348,21 +2352,26 @@ var uPlot = (function () {
 
 			var label = placeTag("th", null, row);
 
-			var indic = placeDiv(LEGEND_MARKER, label);
+			if (markers.show) {
+				var indic = placeDiv(LEGEND_MARKER, label);
 
-			if (i > 0) {
-				var width  = legend.width(self, i);
+				if (i > 0) {
+					var width  = markers.width(self, i);
 
-				if (width)
-					{ indic.style.border = width + "px " + legend.dash(self, i) + " " + legend.stroke(self, i); }
+					if (width)
+						{ indic.style.border = width + "px " + markers.dash(self, i) + " " + markers.stroke(self, i); }
 
-				indic.style.background = legend.fill(self, i);
+					indic.style.background = markers.fill(self, i);
+				}
 			}
 
 			var text = placeDiv(LEGEND_LABEL, label);
 			text.textContent = s.label;
 
 			if (i > 0) {
+				if (!markers.show)
+					{ text.style.color = s.width > 0 ? markers.stroke(self, i) : markers.fill(self, i); }
+
 				onMouse("click", label, e => {
 					if (cursor._lock)
 						{ return; }
