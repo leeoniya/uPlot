@@ -247,6 +247,8 @@ export const retNull = _ => null;
 
 export const retTrue = _ => true;
 
+export const retEq = (a, b) => a == b;
+
 export function incrRoundUp(num, incr) {
 	return ceil(num/incr)*incr;
 }

@@ -264,6 +264,8 @@ var uPlot = (function () {
 
 	var retTrue = _ => true;
 
+	var retEq = (a, b) => a == b;
+
 	function incrRoundUp(num, incr) {
 		return ceil(num/incr)*incr;
 	}
@@ -4086,24 +4088,33 @@ var uPlot = (function () {
 					var ref = syncOpts.scales;
 					var xKey = ref[0];
 					var yKey = ref[1];
+					var ref$1 = syncOpts.match;
+					var matchXKeys = ref$1[0];
+					var matchYKeys = ref$1[1];
+					var ref$2 = src.cursor.sync.scales;
+					var xKeySrc = ref$2[0];
+					var yKeySrc = ref$2[1];
 
 					// match the dragX/dragY implicitness/explicitness of src
 					var sdrag = src.cursor.drag;
 					dragX = sdrag._x;
 					dragY = sdrag._y;
 
-					var ref$1 = src.select;
-					var left = ref$1.left;
-					var top = ref$1.top;
-					var width = ref$1.width;
-					var height = ref$1.height;
+					var ref$3 = src.select;
+					var left = ref$3.left;
+					var top = ref$3.top;
+					var width = ref$3.width;
+					var height = ref$3.height;
 
 					var sori = src.scales[xKey].ori;
 					var sPosToVal = src.posToVal;
 
 					var sOff, sDim, sc, a, b;
 
-					if (xKey) {
+					var matchingX = xKey != null && matchXKeys(xKey, xKeySrc);
+					var matchingY = yKey != null && matchYKeys(yKey, yKeySrc);
+
+					if (matchingX) {
 						if (sori == 0) {
 							sOff = left;
 							sDim = width;
@@ -4113,18 +4124,22 @@ var uPlot = (function () {
 							sDim = height;
 						}
 
-						sc = scales[xKey];
+						if (dragX) {
+							sc = scales[xKey];
 
-						a = valToPosX(sPosToVal(sOff, xKey),        sc, xDim, 0);
-						b = valToPosX(sPosToVal(sOff + sDim, xKey), sc, xDim, 0);
+							a = valToPosX(sPosToVal(sOff, xKeySrc),        sc, xDim, 0);
+							b = valToPosX(sPosToVal(sOff + sDim, xKeySrc), sc, xDim, 0);
 
-						setSelX(min(a,b), abs(b-a));
+							setSelX(min(a,b), abs(b-a));
+						}
+						else
+							{ setSelX(0, xDim); }
 
-						if (!yKey)
+						if (!matchingY)
 							{ setSelY(0, yDim); }
 					}
 
-					if (yKey) {
+					if (matchingY) {
 						if (sori == 1) {
 							sOff = left;
 							sDim = width;
@@ -4134,14 +4149,18 @@ var uPlot = (function () {
 							sDim = height;
 						}
 
-						sc = scales[yKey];
+						if (dragY) {
+							sc = scales[yKey];
 
-						a = valToPosY(sPosToVal(sOff, yKey),        sc, yDim, 0);
-						b = valToPosY(sPosToVal(sOff + sDim, yKey), sc, yDim, 0);
+							a = valToPosY(sPosToVal(sOff, yKeySrc),        sc, yDim, 0);
+							b = valToPosY(sPosToVal(sOff + sDim, yKeySrc), sc, yDim, 0);
 
-						setSelY(min(a,b), abs(b-a));
+							setSelY(min(a,b), abs(b-a));
+						}
+						else
+							{ setSelY(0, yDim); }
 
-						if (!xKey)
+						if (!matchingX)
 							{ setSelX(0, xDim); }
 					}
 				}
@@ -4230,9 +4249,9 @@ var uPlot = (function () {
 			// if ts is present, means we're implicitly syncing own cursor
 			if (ts != null) {
 				if (syncKey != null) {
-					var ref$2 = syncOpts.scales;
-					var xSyncKey = ref$2[0];
-					var ySyncKey = ref$2[1];
+					var ref$4 = syncOpts.scales;
+					var xSyncKey = ref$4[0];
+					var ySyncKey = ref$4[1];
 
 					syncOpts.values[0] = xSyncKey != null ? posToVal(scaleX.ori == 0 ? mouseLeft1 : mouseTop1, xSyncKey) : null;
 					syncOpts.values[1] = ySyncKey != null ? posToVal(scaleX.ori == 1 ? mouseLeft1 : mouseTop1, ySyncKey) : null;
@@ -4555,7 +4574,7 @@ var uPlot = (function () {
 				sub: retTrue,
 			},
 			scales: [xScaleKey, series[1] ? series[1].scale : null],
-			match: [retTrue, retTrue],
+			match: [retEq, retEq],
 			values: [null, null],
 		}, cursor.sync);
 

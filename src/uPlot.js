@@ -56,6 +56,7 @@ import {
 	retTrue,
 	EMPTY_OBJ,
 	nullNullTuple,
+	retEq,
 } from './utils';
 
 import {
@@ -2238,6 +2239,8 @@ export default function uPlot(opts, data, then) {
 		if (select.show && dragging) {
 			if (src != null) {
 				let [xKey, yKey] = syncOpts.scales;
+				let [matchXKeys, matchYKeys] = syncOpts.match;
+				let [xKeySrc, yKeySrc] = src.cursor.sync.scales;
 
 				// match the dragX/dragY implicitness/explicitness of src
 				let sdrag = src.cursor.drag;
@@ -2251,7 +2254,10 @@ export default function uPlot(opts, data, then) {
 
 				let sOff, sDim, sc, a, b;
 
-				if (xKey) {
+				let matchingX = xKey != null && matchXKeys(xKey, xKeySrc);
+				let matchingY = yKey != null && matchYKeys(yKey, yKeySrc);
+
+				if (matchingX) {
 					if (sori == 0) {
 						sOff = left;
 						sDim = width;
@@ -2261,18 +2267,22 @@ export default function uPlot(opts, data, then) {
 						sDim = height;
 					}
 
-					sc = scales[xKey];
+					if (dragX) {
+						sc = scales[xKey];
 
-					a = valToPosX(sPosToVal(sOff, xKey),        sc, xDim, 0);
-					b = valToPosX(sPosToVal(sOff + sDim, xKey), sc, xDim, 0);
+						a = valToPosX(sPosToVal(sOff, xKeySrc),        sc, xDim, 0);
+						b = valToPosX(sPosToVal(sOff + sDim, xKeySrc), sc, xDim, 0);
 
-					setSelX(min(a,b), abs(b-a));
+						setSelX(min(a,b), abs(b-a));
+					}
+					else
+						setSelX(0, xDim);
 
-					if (!yKey)
+					if (!matchingY)
 						setSelY(0, yDim);
 				}
 
-				if (yKey) {
+				if (matchingY) {
 					if (sori == 1) {
 						sOff = left;
 						sDim = width;
@@ -2282,14 +2292,18 @@ export default function uPlot(opts, data, then) {
 						sDim = height;
 					}
 
-					sc = scales[yKey];
+					if (dragY) {
+						sc = scales[yKey];
 
-					a = valToPosY(sPosToVal(sOff, yKey),        sc, yDim, 0);
-					b = valToPosY(sPosToVal(sOff + sDim, yKey), sc, yDim, 0);
+						a = valToPosY(sPosToVal(sOff, yKeySrc),        sc, yDim, 0);
+						b = valToPosY(sPosToVal(sOff + sDim, yKeySrc), sc, yDim, 0);
 
-					setSelY(min(a,b), abs(b-a));
+						setSelY(min(a,b), abs(b-a));
+					}
+					else
+						setSelY(0, yDim);
 
-					if (!xKey)
+					if (!matchingX)
 						setSelX(0, xDim);
 				}
 			}
@@ -2688,7 +2702,7 @@ export default function uPlot(opts, data, then) {
 			sub: retTrue,
 		},
 		scales: [xScaleKey, series[1] ? series[1].scale : null],
-		match: [retTrue, retTrue],
+		match: [retEq, retEq],
 		values: [null, null],
 	}, cursor.sync);
 
