@@ -1,5 +1,5 @@
 import { nonNullIdx, ifNull } from '../utils';
-import { orient, addGap, clipGaps, lineToH, lineToV, clipBandLine } from './utils';
+import { orient, addGap, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL } from './utils';
 import { pxRatio } from '../dom';
 
 export function stepped(opts) {
@@ -13,7 +13,7 @@ export function stepped(opts) {
 
 			let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			const _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);

@@ -1386,6 +1386,9 @@ var uPlot = (function () {
 		return s;
 	}
 
+	var BAND_CLIP_FILL   = 1 << 0;
+	var BAND_CLIP_STROKE = 1 << 1;
+
 	function orient(u, seriesIdx, cb) {
 		var series = u.series[seriesIdx];
 		var scales = u.scales;
@@ -1563,7 +1566,7 @@ var uPlot = (function () {
 
 				var dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
+				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, flags: BAND_CLIP_FILL};
 				var stroke = _paths.stroke;
 
 				var minY = inf,
@@ -1677,7 +1680,7 @@ var uPlot = (function () {
 
 				var lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
-				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
+				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, flags: BAND_CLIP_FILL};
 				var stroke = _paths.stroke;
 
 				var _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
@@ -1790,7 +1793,7 @@ var uPlot = (function () {
 
 				var xShift = (align == 0 ? barWid / 2 : align == _dir ? 0 : barWid) - align * _dir * extraGap / 2;
 
-				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null};
+				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};
 
 				var hasBands = u.bands.length > 0;
 				var yLimit;
@@ -1907,7 +1910,7 @@ var uPlot = (function () {
 					}
 				}
 
-				var _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null};
+				var _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, flags: BAND_CLIP_FILL};
 				var stroke = _paths.stroke;
 
 				if (series.fill != null && stroke != null) {
@@ -3158,6 +3161,7 @@ var uPlot = (function () {
 			var stroke = ref.stroke;
 			var fill = ref.fill;
 			var clip = ref.clip;
+			var flags = ref.flags;
 			var width = roundDec(s.width * pxRatio, 3);
 			var offset = (width % 2) / 2;
 
@@ -3193,7 +3197,7 @@ var uPlot = (function () {
 
 			clip && ctx.clip(clip);
 
-			fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill);
+			fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags);
 
 			ctx.restore();
 
@@ -3202,7 +3206,7 @@ var uPlot = (function () {
 			ctx.globalAlpha = 1;
 		}
 
-		function fillStroke(si, strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath) {
+		function fillStroke(si, strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags) {
 			var didStrokeFill = false;
 
 			// for all bands where this series is the top edge, create upwards clips using the bottom edges
@@ -3219,12 +3223,12 @@ var uPlot = (function () {
 					var _fillStyle = null;
 
 					// hasLowerEdge?
-					if (lowerEdge.show && clip) {
-						_fillStyle = b.fill(self, bi) || fillStyle;
-						ctx.clip(clip);
-					}
+					if (lowerEdge.show && clip)
+						{ _fillStyle = b.fill(self, bi) || fillStyle; }
+					else
+						{ clip = null; }
 
-					strokeFill(strokeStyle, lineWidth, lineDash, lineCap, _fillStyle, strokePath, fillPath);
+					strokeFill(strokeStyle, lineWidth, lineDash, lineCap, _fillStyle, strokePath, fillPath, clip, flags);
 
 					ctx.restore();
 
@@ -3233,13 +3237,45 @@ var uPlot = (function () {
 			});
 
 			if (!didStrokeFill)
-				{ strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath); }
+				{ strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, null, flags); }
 		}
 
-		function strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath) {
+		var CLIP_FILL_STROKE = BAND_CLIP_FILL | BAND_CLIP_STROKE;
+
+		function strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, clip, flags) {
 			setCtxStyle(strokeStyle, lineWidth, lineDash, lineCap, fillStyle);
-			fillStyle   && fillPath                && ctx.fill(fillPath);
+
+			if (clip) {
+				if ((flags & CLIP_FILL_STROKE) == CLIP_FILL_STROKE) {
+					ctx.clip(clip);
+					doFill(fillStyle, fillPath);
+					doStroke(strokeStyle, strokePath, lineWidth);
+				}
+				else if (flags & BAND_CLIP_STROKE) {
+					doFill(fillStyle, fillPath);
+					ctx.clip(clip);
+					doStroke(strokeStyle, strokePath, lineWidth);
+				}
+				else if (flags & BAND_CLIP_FILL) {
+					ctx.save();
+					ctx.clip(clip);
+					doFill(fillStyle, fillPath);
+					ctx.restore();
+					doStroke(strokeStyle, strokePath, lineWidth);
+				}
+			}
+			else {
+				doFill(fillStyle, fillPath);
+				doStroke(strokeStyle, strokePath, lineWidth);
+			}
+		}
+
+		function doStroke(strokeStyle, strokePath, lineWidth) {
 			strokeStyle && strokePath && lineWidth && ctx.stroke(strokePath);
+		}
+
+		function doFill(fillStyle, fillPath) {
+			fillStyle   && fillPath && ctx.fill(fillPath);
 		}
 
 		function getIncrSpace(axisIdx, min, max, fullDim) {
