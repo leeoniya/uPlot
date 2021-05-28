@@ -286,6 +286,58 @@
 			};
 
 			let u4 = new uPlot(opts4, data4, document.body);
+
+
+
+			let data5 = [
+				[0,1,2,3],
+				[10,0,10,0],
+				[0,10,0,10],
+			];
+
+			const opts5 = {
+				width: 1920,
+				height: 600,
+				scales: {
+					x: {
+						time: false,
+					//	dir: -1,
+					//	ori: 1,
+					},
+					y: {
+					//	dir: -1,
+					//	ori: 0,
+					},
+				},
+				series: [
+					{},
+					{
+						label: "High",
+						stroke: "red",
+						fill: "rgba(255, 0, 0, .07)",
+					//	fillTo: -1000,
+					},
+					{
+						label: "Low",
+						stroke: "blue",
+					},
+				],
+				bands: [
+					{
+						series: [1,2],
+					},
+				],
+				axes: [
+					{
+					//	side: 3
+					},
+					{
+					//	side: 2,
+					}
+				]
+			};
+
+			let u5 = new uPlot(opts5, data5, document.body);
 		</script>
 	</body>
 </html>
