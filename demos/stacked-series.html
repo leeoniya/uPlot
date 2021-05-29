@@ -24,29 +24,36 @@
 		<p>The two charts below <strong>show exactly the same data</strong> (did you notice?)</p>
 		<script>
 			function stack(data, omit) {
-				let data2 = [];
-				let accum = Array(data[0].length).fill(0);
-				let bands = [];
+		            let d0lenght = data[0].length;
+		            let accum = Array(d0lenght);
+		            // Faster than .fill(0)
+		            for (let i = 0; i < d0lenght; ++i) accum[i] = 0;
+		            // Create a copy of the base x axis (data[0]) in a new array
+		            let stacked_data = [data[0]];
+		            let length = data.length;
+		            let bands = [];
 
-				for (let i = 1; i < data.length; i++)
-					data2.push(omit(i) ? data[i] : data[i].map((v, i) => (accum[i] += +v)));
+		            for (let i = 1; i < length; i++) {
+		                stacked_data.push(omit(i) ? data[i] : data[i].map((v, i) => (accum[i] += +v)));
+		            }
 
-				for (let i = 1; i < data.length; i++)
-					!omit(i) && bands.push({
-						series: [
-							data.findIndex((s, j) => j > i && !omit(j)),
-							i,
-						],
-						fill: () => null,
-					});
+		            for (let i = 1; i < length; i++) {
+		                !omit(i) && bands.push({
+		                    series: [
+		                        data.findIndex((_s, j) => j > i && !omit(j)),
+		                        i,
+		                    ]
+		                });
+		            }
 
-				bands = bands.filter(b => b.series[1] > -1);
+		            // Assure no value below -1 exists in our array
+		            bands = bands.filter(b => b.series[1] > -1);
 
-				return {
-					data: [data[0]].concat(data2),
-					bands,
-				};
-			}
+		            return {
+		                data: stacked_data,
+		                bands,
+		            };
+		        }
 
 			let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30],
 				d1 = xs.map((t, i) => i < 15 ? 20 + i : i == 15 ? 15 : i == 16 ? 14 : i == 24 ? 20 : i == 28 ? 15 : i == 29 ? 0 : 30),
