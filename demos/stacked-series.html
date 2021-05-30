@@ -25,8 +25,12 @@
 		<script>
 			function stack(data, omit) {
 				let data2 = [];
-				let accum = Array(data[0].length).fill(0);
 				let bands = [];
+				let d0Len = data[0].length;
+				let accum = Array(d0Len);
+
+				for (let i = 0; i < d0Len; i++)
+					accum[i] = 0;
 
 				for (let i = 1; i < data.length; i++)
 					data2.push(omit(i) ? data[i] : data[i].map((v, i) => (accum[i] += +v)));
