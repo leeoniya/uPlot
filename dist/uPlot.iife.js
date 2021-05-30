@@ -3823,6 +3823,7 @@ var uPlot = (function () {
 		}
 
 		function addBand(opts, bi) {
+			opts.fill = fnOrSelf(opts.fill || null);
 			bi = bi == null ? bands.length : bi;
 			bands.splice(bi, 0, opts);
 		}
