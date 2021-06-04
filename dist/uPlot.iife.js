@@ -1286,12 +1286,17 @@ var uPlot = (function () {
 	}
 
 	function seriesPoints(self, si) {
-		var xsc = self.scales[self.series[0].scale];
-		var dim = xsc.ori == 0 ? self.bbox.width : self.bbox.height;
+		var ref = self.series[0];
+		var scale = ref.scale;
+		var idxs = ref.idxs;
+		var xData = self.data[0];
+		var p0 = self.valToPos(xData[idxs[0]], scale, true);
+		var p1 = self.valToPos(xData[idxs[1]], scale, true);
+		var dim = abs(p1 - p0);
+
 		var s = self.series[si];
 	//	const dia = ptDia(s.width, pxRatio);
 		var maxPts = dim / (s.points.space * pxRatio);
-		var idxs = self.series[0].idxs;
 		return idxs[1] - idxs[0] <= maxPts;
 	}
 
