@@ -1770,7 +1770,20 @@ function bars(opts) {
 
 			let rect = scaleX.ori == 0 ? rectH : rectV;
 
-			let colWid = dataX.length == 1 ? xDim : abs(valToPosX(dataX[1], scaleX, xDim, xOff) - valToPosX(dataX[0], scaleX, xDim, xOff));
+			let colWid = xDim;
+
+			if (dataX.length > 1) {
+				// scan full dataset for smallest adjacent delta
+				// will not work properly for non-linear x scales, since does not do expensive valToPosX calcs till end
+				for (let i = 1, minDelta = Infinity; i < dataX.length; i++) {
+					let delta = abs(dataX[i] - dataX[i-1]);
+
+					if (delta < minDelta) {
+						minDelta = delta;
+						colWid = abs(valToPosX(dataX[i], scaleX, xDim, xOff) - valToPosX(dataX[i-1], scaleX, xDim, xOff));
+					}
+				}
+			}
 
 			let gapWid = colWid * gapFactor;
 

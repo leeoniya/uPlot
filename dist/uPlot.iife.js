@@ -1779,7 +1779,20 @@ var uPlot = (function () {
 
 				var rect = scaleX.ori == 0 ? rectH : rectV;
 
-				var colWid = dataX.length == 1 ? xDim : abs(valToPosX(dataX[1], scaleX, xDim, xOff) - valToPosX(dataX[0], scaleX, xDim, xOff));
+				var colWid = xDim;
+
+				if (dataX.length > 1) {
+					// scan full dataset for smallest adjacent delta
+					// will not work properly for non-linear x scales, since does not do expensive valToPosX calcs till end
+					for (var i = 1, minDelta = Infinity; i < dataX.length; i++) {
+						var delta = abs(dataX[i] - dataX[i-1]);
+
+						if (delta < minDelta) {
+							minDelta = delta;
+							colWid = abs(valToPosX(dataX[i], scaleX, xDim, xOff) - valToPosX(dataX[i-1], scaleX, xDim, xOff));
+						}
+					}
+				}
 
 				var gapWid = colWid * gapFactor;
 
@@ -1808,26 +1821,26 @@ var uPlot = (function () {
 				var stroke = _paths.stroke;
 				var band = _paths.band;
 
-				for (var i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
-					var yVal = dataY[i];
+				for (var i$1 = _dir == 1 ? idx0 : idx1; i$1 >= idx0 && i$1 <= idx1; i$1 += _dir) {
+					var yVal = dataY[i$1];
 
 					// interpolate upwards band clips
 					if (yVal == null) {
 						if (hasBands) {
 							// simple, but inefficient bi-directinal linear scans on each iteration
-							var prevNonNull = nonNullIdx(dataY, _dir == 1 ? idx0 : idx1, i, -_dir);
-							var nextNonNull = nonNullIdx(dataY, i, _dir == 1 ? idx1 : idx0,  _dir);
+							var prevNonNull = nonNullIdx(dataY, _dir == 1 ? idx0 : idx1, i$1, -_dir);
+							var nextNonNull = nonNullIdx(dataY, i$1, _dir == 1 ? idx1 : idx0,  _dir);
 
 							var prevVal = dataY[prevNonNull];
 							var nextVal = dataY[nextNonNull];
 
-							yVal = prevVal + (i - prevNonNull) / (nextNonNull - prevNonNull) * (nextVal - prevVal);
+							yVal = prevVal + (i$1 - prevNonNull) / (nextNonNull - prevNonNull) * (nextVal - prevVal);
 						}
 						else
 							{ continue; }
 					}
 
-					var xVal = scaleX.distr == 2 ? i : dataX[i];
+					var xVal = scaleX.distr == 2 ? i$1 : dataX[i$1];
 
 					// TODO: all xPos can be pre-computed once for all series in aligned set
 					var xPos = valToPosX(xVal, scaleX, xDim, xOff);
@@ -1838,7 +1851,7 @@ var uPlot = (function () {
 					var top = pxRound(min(yPos, y0Pos));
 					var barHgt = btm - top;
 
-					dataY[i] != null && rect(stroke, lft, top, barWid, barHgt);
+					dataY[i$1] != null && rect(stroke, lft, top, barWid, barHgt);
 
 					if (hasBands) {
 						btm = top;
