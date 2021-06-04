@@ -58,5 +58,56 @@
 
 			let u = new uPlot(opts, data, document.body);
 		</script>
+
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+
+			let vals1 = randomWalk(50, 180, 0, 100);
+
+			let data = [
+				vals1.map((v, i) => i+1),
+				vals1,
+			];
+
+			const opts = {
+				width: 1920,
+				height: 300,
+				title: "Points",
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					{
+						stroke: "green",
+					},
+				],
+			};
+
+			let u = new uPlot(opts, data, document.body);
+
+
+			const opts2 = {
+				width: 1920,
+				height: 300,
+				title: "Too dense test",
+				scales: {
+					x: {
+						time: false,
+						range: [-400, 180]
+					},
+				},
+				series: [
+					{},
+					{
+						stroke: "green",
+					},
+				],
+			};
+
+			let u2 = new uPlot(opts2, data, document.body);
+		</script>
 	</body>
 </html>
