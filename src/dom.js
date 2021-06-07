@@ -3,12 +3,28 @@ import {
 } from './domClasses';
 
 import {
+	ddpxchange,
+} from './strings';
+
+import {
 	assign,
 } from './utils';
 
 export const doc = document;
 export const win = window;
-export const pxRatio = devicePixelRatio;
+export let pxRatio;
+
+let query;
+
+function setPxRatio() {
+	pxRatio = devicePixelRatio;
+	query && query.removeListener(setPxRatio);
+	query = matchMedia(`screen and (min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
+	query.addEventListener("change", setPxRatio);
+	win.dispatchEvent(new CustomEvent(ddpxchange));
+}
+
+setPxRatio();
 
 export function addClass(el, c) {
 	if (c != null) {

@@ -470,6 +470,8 @@ var uPlot = (function () {
 	var resize      = "resize";
 	var scroll      = "scroll";
 
+	var ddpxchange  = "dppxchange";
+
 	var pre = "u-";
 
 	var UPLOT          =       "uplot";
@@ -495,7 +497,19 @@ var uPlot = (function () {
 
 	var doc = document;
 	var win = window;
-	var pxRatio = devicePixelRatio;
+	var pxRatio;
+
+	var query;
+
+	function setPxRatio() {
+		pxRatio = devicePixelRatio;
+		query && query.removeListener(setPxRatio);
+		query = matchMedia(("screen and (min-resolution: " + (pxRatio - 0.001) + "dppx) and (max-resolution: " + (pxRatio + 0.001) + "dppx)"));
+		query.addEventListener("change", setPxRatio);
+		win.dispatchEvent(new CustomEvent(ddpxchange));
+	}
+
+	setPxRatio();
 
 	function addClass(el, c) {
 		if (c != null) {
@@ -2099,9 +2113,17 @@ var uPlot = (function () {
 	}
 
 	function pxRatioFont(font) {
-		var fontSize;
-		font = font.replace(/(\d+)px/, (m, p1) => (fontSize = round(p1 * pxRatio)) + 'px');
-		return [font, fontSize];
+		var fontSize, fontSizeCss;
+		font = font.replace(/(\d+)px/, (m, p1) => (fontSize = round((fontSizeCss = p1) * pxRatio)) + 'px');
+		return [font, fontSize, fontSizeCss];
+	}
+
+	function syncFontSize(axis) {
+		[axis.font, axis.labelFont].forEach(f => {
+			var size = roundDec(f[2] * pxRatio, 1);
+			f[0] = f[0].replace(/[0-9.]+px/, size + 'px');
+			f[1] = size;
+		});
 	}
 
 	function uPlot(opts, data, then) {
@@ -2481,8 +2503,8 @@ var uPlot = (function () {
 		var shouldSetCursor = false;
 		var shouldSetLegend = false;
 
-		function _setSize(width, height) {
-			if (width != self.width || height != self.height)
+		function _setSize(width, height, force) {
+			if (force || (width != self.width || height != self.height))
 				{ calcSize(width, height); }
 
 			resetYSeries(false);
@@ -4581,6 +4603,13 @@ var uPlot = (function () {
 				{ pubSync(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null); }
 		}
 
+		function syncPxRatio() {
+			axes.forEach(syncFontSize);
+			_setSize(self.width, self.height, true);
+		}
+
+		on(ddpxchange, win, syncPxRatio);
+
 		// internal pub/sub
 		var events = {};
 
@@ -4657,6 +4686,7 @@ var uPlot = (function () {
 			sync.unsub(self);
 			cursorPlots.delete(self);
 			mouseListeners.clear();
+			off(ddpxchange, win, syncPxRatio);
 			root.remove();
 			fire("destroy");
 		}

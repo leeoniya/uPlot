@@ -462,6 +462,8 @@ const dblclick    = "dblclick";
 const resize      = "resize";
 const scroll      = "scroll";
 
+const ddpxchange  = "dppxchange";
+
 const pre = "u-";
 
 const UPLOT          =       "uplot";
@@ -487,7 +489,19 @@ const LEGEND_VALUE   = pre + "value";
 
 const doc = document;
 const win = window;
-const pxRatio = devicePixelRatio;
+let pxRatio;
+
+let query;
+
+function setPxRatio() {
+	pxRatio = devicePixelRatio;
+	query && query.removeListener(setPxRatio);
+	query = matchMedia(`screen and (min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
+	query.addEventListener("change", setPxRatio);
+	win.dispatchEvent(new CustomEvent(ddpxchange));
+}
+
+setPxRatio();
 
 function addClass(el, c) {
 	if (c != null) {
@@ -2088,9 +2102,17 @@ function findIncr(min, max, incrs, dim, minSpace) {
 }
 
 function pxRatioFont(font) {
-	let fontSize;
-	font = font.replace(/(\d+)px/, (m, p1) => (fontSize = round(p1 * pxRatio)) + 'px');
-	return [font, fontSize];
+	let fontSize, fontSizeCss;
+	font = font.replace(/(\d+)px/, (m, p1) => (fontSize = round((fontSizeCss = p1) * pxRatio)) + 'px');
+	return [font, fontSize, fontSizeCss];
+}
+
+function syncFontSize(axis) {
+	[axis.font, axis.labelFont].forEach(f => {
+		let size = roundDec(f[2] * pxRatio, 1);
+		f[0] = f[0].replace(/[0-9.]+px/, size + 'px');
+		f[1] = size;
+	});
 }
 
 function uPlot(opts, data, then) {
@@ -2470,8 +2492,8 @@ function uPlot(opts, data, then) {
 	let shouldSetCursor = false;
 	let shouldSetLegend = false;
 
-	function _setSize(width, height) {
-		if (width != self.width || height != self.height)
+	function _setSize(width, height, force) {
+		if (force || (width != self.width || height != self.height))
 			calcSize(width, height);
 
 		resetYSeries(false);
@@ -4525,6 +4547,13 @@ function uPlot(opts, data, then) {
 			pubSync(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 	}
 
+	function syncPxRatio() {
+		axes.forEach(syncFontSize);
+		_setSize(self.width, self.height, true);
+	}
+
+	on(ddpxchange, win, syncPxRatio);
+
 	// internal pub/sub
 	const events = {};
 
@@ -4601,6 +4630,7 @@ function uPlot(opts, data, then) {
 		sync.unsub(self);
 		cursorPlots.delete(self);
 		mouseListeners.clear();
+		off(ddpxchange, win, syncPxRatio);
 		root.remove();
 		fire("destroy");
 	}

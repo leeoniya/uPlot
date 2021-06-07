@@ -76,6 +76,8 @@ import {
 	dblclick,
 	resize,
 	scroll,
+
+	ddpxchange
 } from './strings';
 
 import {
@@ -250,9 +252,17 @@ function findIncr(min, max, incrs, dim, minSpace) {
 }
 
 function pxRatioFont(font) {
-	let fontSize;
-	font = font.replace(/(\d+)px/, (m, p1) => (fontSize = round(p1 * pxRatio)) + 'px');
-	return [font, fontSize];
+	let fontSize, fontSizeCss;
+	font = font.replace(/(\d+)px/, (m, p1) => (fontSize = round((fontSizeCss = p1) * pxRatio)) + 'px');
+	return [font, fontSize, fontSizeCss];
+}
+
+function syncFontSize(axis) {
+	[axis.font, axis.labelFont].forEach(f => {
+		let size = roundDec(f[2] * pxRatio, 1);
+		f[0] = f[0].replace(/[0-9.]+px/, size + 'px');
+		f[1] = size;
+	})
 }
 
 export default function uPlot(opts, data, then) {
@@ -632,8 +642,8 @@ export default function uPlot(opts, data, then) {
 	let shouldSetCursor = false;
 	let shouldSetLegend = false;
 
-	function _setSize(width, height) {
-		if (width != self.width || height != self.height)
+	function _setSize(width, height, force) {
+		if (force || (width != self.width || height != self.height))
 			calcSize(width, height);
 
 		resetYSeries(false);
@@ -2687,6 +2697,13 @@ export default function uPlot(opts, data, then) {
 			pubSync(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 	}
 
+	function syncPxRatio() {
+		axes.forEach(syncFontSize);
+		_setSize(self.width, self.height, true);
+	}
+
+	on(ddpxchange, win, syncPxRatio);
+
 	// internal pub/sub
 	const events = {};
 
@@ -2763,6 +2780,7 @@ export default function uPlot(opts, data, then) {
 		FEAT_CURSOR && sync.unsub(self);
 		FEAT_CURSOR && cursorPlots.delete(self);
 		mouseListeners.clear();
+		off(ddpxchange, win, syncPxRatio);
 		root.remove();
 		fire("destroy");
 	}
