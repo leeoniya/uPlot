@@ -460,6 +460,7 @@ const dblclick    = "dblclick";
 const resize      = "resize";
 const scroll      = "scroll";
 
+const change      = "change";
 const ddpxchange  = "dppxchange";
 
 const pre = "u-";
@@ -493,9 +494,11 @@ let query;
 
 function setPxRatio() {
 	pxRatio = devicePixelRatio;
-	query && query.removeListener(setPxRatio);
+
+	query && off(change, query, setPxRatio);
 	query = matchMedia(`screen and (min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
-	query.addEventListener("change", setPxRatio);
+	on(change, query, setPxRatio);
+
 	win.dispatchEvent(new CustomEvent(ddpxchange));
 }
 

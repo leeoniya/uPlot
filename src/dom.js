@@ -3,6 +3,7 @@ import {
 } from './domClasses';
 
 import {
+	change,
 	ddpxchange,
 } from './strings';
 
@@ -18,9 +19,11 @@ let query;
 
 function setPxRatio() {
 	pxRatio = devicePixelRatio;
-	query && query.removeListener(setPxRatio);
+
+	query && off(change, query, setPxRatio);
 	query = matchMedia(`screen and (min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
-	query.addEventListener("change", setPxRatio);
+	on(change, query, setPxRatio);
+
 	win.dispatchEvent(new CustomEvent(ddpxchange));
 }
 
