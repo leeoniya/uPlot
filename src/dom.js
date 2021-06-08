@@ -27,8 +27,6 @@ function setPxRatio() {
 	win.dispatchEvent(new CustomEvent(ddpxchange));
 }
 
-setPxRatio();
-
 export function addClass(el, c) {
 	if (c != null) {
 		let cl = el.classList;
@@ -80,3 +78,5 @@ export function on(ev, el, cb, capt) {
 export function off(ev, el, cb, capt) {
 	el.removeEventListener(ev, cb, capt ? evOpts2 : evOpts);
 }
+
+setPxRatio();

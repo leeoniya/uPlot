@@ -512,8 +512,6 @@ var uPlot = (function () {
 		win.dispatchEvent(new CustomEvent(ddpxchange));
 	}
 
-	setPxRatio();
-
 	function addClass(el, c) {
 		if (c != null) {
 			var cl = el.classList;
@@ -565,6 +563,8 @@ var uPlot = (function () {
 	function off(ev, el, cb, capt) {
 		el.removeEventListener(ev, cb, capt ? evOpts2 : evOpts);
 	}
+
+	setPxRatio();
 
 	var months = [
 		"January",

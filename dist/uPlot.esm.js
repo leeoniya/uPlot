@@ -502,8 +502,6 @@ function setPxRatio() {
 	win.dispatchEvent(new CustomEvent(ddpxchange));
 }
 
-setPxRatio();
-
 function addClass(el, c) {
 	if (c != null) {
 		let cl = el.classList;
@@ -555,6 +553,8 @@ function on(ev, el, cb, capt) {
 function off(ev, el, cb, capt) {
 	el.removeEventListener(ev, cb, capt ? evOpts2 : evOpts);
 }
+
+setPxRatio();
 
 const months = [
 	"January",
