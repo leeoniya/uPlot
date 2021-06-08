@@ -138,6 +138,13 @@ function rangeAsinh(min, max, base, fullMags) {
 	return minMax;
 }
 
+const rangePad = 0.1;
+
+const autoRangePart = {
+	mode: 3,
+	pad: rangePad,
+};
+
 const _eqRangePart = {
 	pad:  0,
 	soft: null,
@@ -2069,7 +2076,7 @@ const snapTimeX = snapNumX;
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
 function snapNumY(self, dataMin, dataMax) {
-	return dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, 0.1, true);
+	return dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, rangePad, true);
 }
 
 function snapLogY(self, dataMin, dataMax, scale) {
@@ -2224,10 +2231,29 @@ function uPlot(opts, data, then) {
 
 				let rangeIsArr = isArr(rn);
 
-				if (scaleKey != xScaleKey && !rangeIsArr && isObj(rn)) {
-					let cfg = rn;
-					// this is similar to snapNumY
-					rn = (self, dataMin, dataMax) => dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, cfg);
+				if (scaleKey != xScaleKey) {
+					// if range array has null limits, it should be auto
+					if (rangeIsArr && (rn[0] == null || rn[1] == null)) {
+						rn = {
+							min: rn[0] == null ? autoRangePart : {
+								mode: 1,
+								hard: rn[0],
+								soft: rn[0],
+							},
+							max: rn[1] == null ? autoRangePart : {
+								mode: 1,
+								hard: rn[1],
+								soft: rn[1],
+							},
+						};
+						rangeIsArr = false;
+					}
+
+					if (!rangeIsArr && isObj(rn)) {
+						let cfg = rn;
+						// this is similar to snapNumY
+						rn = (self, dataMin, dataMax) => dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, cfg);
+					}
 				}
 
 				sc.range = fnOrSelf(rn || (isTime ? snapTimeX : scaleKey == xScaleKey ?
@@ -2898,7 +2924,7 @@ function uPlot(opts, data, then) {
 				else if (scaleX.time)
 					_max = _min + round(86400 / ms);
 				else
-					[_min, _max] = rangeNum(_min, _max, 0.1, true);
+					[_min, _max] = rangeNum(_min, _max, rangePad, true);
 			}
 		}
 		else {

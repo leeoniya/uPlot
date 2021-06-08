@@ -129,6 +129,13 @@ export function rangeAsinh(min, max, base, fullMags) {
 	return minMax;
 }
 
+export const rangePad = 0.1;
+
+export const autoRangePart = {
+	mode: 3,
+	pad: rangePad,
+};
+
 const _eqRangePart = {
 	pad:  0,
 	soft: null,

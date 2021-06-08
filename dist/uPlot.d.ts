@@ -228,7 +228,7 @@ declare namespace uPlot {
 	}
 
 	export namespace Range {
-		export type MinMax = [min: number, max: number];
+		export type MinMax = [min: number | null, max: number | null];
 
 		export type Function = (self: uPlot, initMin: number, initMax: number, scaleKey: string) => MinMax;
 
