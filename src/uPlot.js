@@ -255,16 +255,18 @@ function findIncr(min, max, incrs, dim, minSpace) {
 
 function pxRatioFont(font) {
 	let fontSize, fontSizeCss;
-	font = font.replace(/(\d+)px/, (m, p1) => (fontSize = round((fontSizeCss = p1) * pxRatio)) + 'px');
+	font = font.replace(/(\d+)px/, (m, p1) => (fontSize = round((fontSizeCss = +p1) * pxRatio)) + 'px');
 	return [font, fontSize, fontSizeCss];
 }
 
 function syncFontSize(axis) {
-	[axis.font, axis.labelFont].forEach(f => {
-		let size = roundDec(f[2] * pxRatio, 1);
-		f[0] = f[0].replace(/[0-9.]+px/, size + 'px');
-		f[1] = size;
-	})
+	if (axis.show) {
+		[axis.font, axis.labelFont].forEach(f => {
+			let size = roundDec(f[2] * pxRatio, 1);
+			f[0] = f[0].replace(/[0-9.]+px/, size + 'px');
+			f[1] = size;
+		});
+	}
 }
 
 export default function uPlot(opts, data, then) {

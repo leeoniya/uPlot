@@ -39,7 +39,17 @@
 
 		<script>
 			function seriesBarsPlugin(opts) {
-				const pxRatio    = devicePixelRatio;
+				let pxRatio;
+				let font;
+
+				function setPxRatio() {
+					pxRatio = devicePixelRatio;
+					font = Math.round(10 * pxRatio) + "px Arial";
+				}
+
+				setPxRatio();
+
+				window.addEventListener('dppxchange', setPxRatio);
 
 				const labels     = opts.labels;
 
@@ -51,8 +61,6 @@
 
 				const barWidth   = 1;
 				const barDistr   = SPACE_BETWEEN;
-
-				const font       = Math.round(10 * pxRatio) + "px Arial";
 
 				function walkTwo(yIdx, xCount, yCount, xDim, xDraw, yDraw) {
 					distr(xCount, groupWidth, groupDistr, null, (ix, offPct, dimPct) => {
