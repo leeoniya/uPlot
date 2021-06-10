@@ -1130,6 +1130,7 @@ const cursorOpts = {
 	top: -10,
 	idx: null,
 	dataIdx,
+	idxs: [],
 };
 
 const grid = {
@@ -2744,6 +2745,8 @@ function uPlot(opts, data, then) {
 		}
 
 		if (cursor.show) {
+			cursor.idxs.splice(i, 0, null);
+
 			let pt = initCursorPt(s, i);
 			pt && cursorPts.splice(i, 0, pt);
 		}
@@ -2771,7 +2774,11 @@ function uPlot(opts, data, then) {
 			tr.remove();
 		}
 
-		cursorPts.length > 1 && cursorPts.splice(i, 1)[0].remove();
+		if (cursor.show) {
+			cursor.idxs.splice(i, 1);
+
+			cursorPts.length > 1 && cursorPts.splice(i, 1)[0].remove();
+		}
 
 		// TODO: de-init no-longer-needed scales?
 	}
@@ -4113,6 +4120,9 @@ function uPlot(opts, data, then) {
 				let s = series[i];
 
 				let idx2  = cursor.dataIdx(self, i, idx, valAtPosX);
+
+				cursor.idxs[i] = idx2;
+
 				let xPos2 = idx2 == idx ? xPos : incrRoundUp(valToPosX(data[0][idx2], scaleX, xDim, 0), 0.5);
 
 				if (i > 0 && s.show) {

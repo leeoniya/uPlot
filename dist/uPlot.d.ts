@@ -516,6 +516,9 @@ declare namespace uPlot {
 		/** returns data idx used for hover points & legend display (defaults to closestIdx) */
 		dataIdx?: Cursor.DataIdxRefiner;
 
+		/** a series-matched array of indices returned by dataIdx() */
+		idxs?: (number | null)[];
+
 		/** fires on debounced mousemove events; returns refined [left, top] tuple to snap cursor position */
 		move?: Cursor.MousePosRefiner;
 

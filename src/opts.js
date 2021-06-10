@@ -461,6 +461,7 @@ export const cursorOpts = {
 	top: -10,
 	idx: null,
 	dataIdx,
+	idxs: [],
 };
 
 const grid = {
