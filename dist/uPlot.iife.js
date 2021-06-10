@@ -1341,6 +1341,7 @@ var uPlot = (function () {
 		alpha: 1,
 		points: {
 			show: seriesPoints,
+			filter: null,
 		//	stroke: "#000",
 		//	fill: "#fff",
 		//	width: 1,
@@ -2748,6 +2749,7 @@ var uPlot = (function () {
 					_fill: null,
 				}, s.points);
 				points.show   = fnOrSelf(points.show);
+				points.filter = fnOrSelf(points.filter);
 				points.fill   = fnOrSelf(points.fill);
 				points.stroke = fnOrSelf(points.stroke);
 			}
@@ -3114,7 +3116,7 @@ var uPlot = (function () {
 		}
 
 		// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
-		function drawPoints(si) {
+		function drawPoints(si, idxs) {
 		//	log("drawPoints()", arguments);
 
 			var s = series[si];
@@ -3164,7 +3166,7 @@ var uPlot = (function () {
 				yOff = plotLft;
 			}
 
-			for (var pi = i0; pi <= i1; pi++) {
+			var drawPoint = pi => {
 				if (data[si][pi] != null) {
 					var x = _pxRound(valToPosX(data[0][pi],  scaleX, xDim, xOff));
 					var y = _pxRound(valToPosY(data[si][pi], scaleY, yDim, yOff));
@@ -3172,6 +3174,13 @@ var uPlot = (function () {
 					moveTo(path, x + rad, y);
 					arc(path, x, y, rad, 0, PI * 2);
 				}
+			};
+
+			if (idxs)
+				{ idxs.forEach(drawPoint); }
+			else {
+				for (var pi = i0; pi <= i1; pi++)
+					{ drawPoint(pi); }
 			}
 
 			var _stroke = p._stroke = p.stroke(self, si);
@@ -3220,11 +3229,15 @@ var uPlot = (function () {
 
 				series.forEach((s, i) => {
 					if (i > 0 && s.show) {
-						if (s._paths)
-							{ drawPath(i); }
+						s._paths && drawPath(i);
 
-						if (s.points.show(self, i, i0, i1))
-							{ drawPoints(i); }
+						{
+							var show = s.points.show(self, i, i0, i1);
+							var idxs = s.points.filter(self, i, show);
+
+							if (show || idxs)
+								{ drawPoints(i, idxs); }
+						}
 
 						fire("drawSeries", i);
 					}

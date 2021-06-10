@@ -644,11 +644,16 @@ declare namespace uPlot {
 
 		export namespace Points {
 			export type Show = boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
+
+			export type Filter = number[] | null | ((self: uPlot, seriesIdx: number, show: boolean) => number[] | null);
 		}
 
 		export interface Points {
 			/** if boolean or returns boolean, round points are drawn with defined options, else fn should draw own custom points via self.ctx */
 			show?: Points.Show;
+
+			/** may return an array of points indices to draw */
+			filter?: Points.Filter;
 
 			/** diameter of point in CSS pixels */
 			size?: number;

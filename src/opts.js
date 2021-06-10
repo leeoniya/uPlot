@@ -661,6 +661,7 @@ export const ySeriesOpts = {
 	alpha: 1,
 	points: {
 		show: seriesPoints,
+		filter: null,
 	//	stroke: "#000",
 	//	fill: "#fff",
 	//	width: 1,

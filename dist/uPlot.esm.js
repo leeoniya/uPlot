@@ -1328,6 +1328,7 @@ const ySeriesOpts = {
 	alpha: 1,
 	points: {
 		show: seriesPoints,
+		filter: null,
 	//	stroke: "#000",
 	//	fill: "#fff",
 	//	width: 1,
@@ -2731,6 +2732,7 @@ function uPlot(opts, data, then) {
 				_fill: null,
 			}, s.points);
 			points.show   = fnOrSelf(points.show);
+			points.filter = fnOrSelf(points.filter);
 			points.fill   = fnOrSelf(points.fill);
 			points.stroke = fnOrSelf(points.stroke);
 		}
@@ -3092,7 +3094,7 @@ function uPlot(opts, data, then) {
 	}
 
 	// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
-	function drawPoints(si) {
+	function drawPoints(si, idxs) {
 	//	log("drawPoints()", arguments);
 
 		let s = series[si];
@@ -3142,7 +3144,7 @@ function uPlot(opts, data, then) {
 			yOff = plotLft;
 		}
 
-		for (let pi = i0; pi <= i1; pi++) {
+		const drawPoint = pi => {
 			if (data[si][pi] != null) {
 				let x = _pxRound(valToPosX(data[0][pi],  scaleX, xDim, xOff));
 				let y = _pxRound(valToPosY(data[si][pi], scaleY, yDim, yOff));
@@ -3150,6 +3152,13 @@ function uPlot(opts, data, then) {
 				moveTo(path, x + rad, y);
 				arc(path, x, y, rad, 0, PI * 2);
 			}
+		};
+
+		if (idxs)
+			idxs.forEach(drawPoint);
+		else {
+			for (let pi = i0; pi <= i1; pi++)
+				drawPoint(pi);
 		}
 
 		const _stroke = p._stroke = p.stroke(self, si);
@@ -3198,11 +3207,15 @@ function uPlot(opts, data, then) {
 
 			series.forEach((s, i) => {
 				if (i > 0 && s.show) {
-					if (s._paths)
-						drawPath(i);
+					s._paths && drawPath(i);
 
-					if (s.points.show(self, i, i0, i1))
-						drawPoints(i);
+					{
+						let show = s.points.show(self, i, i0, i1);
+						let idxs = s.points.filter(self, i, show);
+
+						if (show || idxs)
+							drawPoints(i, idxs);
+					}
 
 					fire("drawSeries", i);
 				}

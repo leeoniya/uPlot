@@ -15,12 +15,14 @@
 			let vals1 = randomWalk(50, 200, 0, 100);
 			let vals2 = randomWalk(50, 200, 0, 100);
 			let vals3 = randomWalk(50, 200, 0, 100);
+			let vals4 = randomWalk(50, 200, 0, 100);
 
 			let data = [
 				vals1.map((v, i) => i+1),
 				vals1,
 				vals2,
 				vals3,
+				vals4,
 			];
 
 			const opts = {
@@ -51,6 +53,21 @@
 						paths: u => null,
 						points: {
 							space: 0,
+						},
+					},
+					{
+						stroke: "orange",
+						points: {
+							filter: (u, seriesIdx, show) => {
+								let filtered = [];
+
+								u.data[seriesIdx].forEach((v, i) => {
+									(i % 3 == 0) && filtered.push(i);
+								});
+
+								return filtered.length ? filtered : null;
+							},
+							fill: "orange",
 						},
 					},
 				],
