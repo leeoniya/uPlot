@@ -13,7 +13,7 @@ export function stepped(opts) {
 
 			let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, flags: BAND_CLIP_FILL};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: [], flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			const _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
@@ -21,7 +21,7 @@ export function stepped(opts) {
 			idx0 = nonNullIdx(dataY, idx0, idx1,  1);
 			idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
-			let gaps = [];
+			let gaps = _paths.gaps;
 			let inGap = false;
 			let prevYPos  = pxRound(valToPosY(dataY[_dir == 1 ? idx0 : idx1], scaleY, yDim, yOff));
 			let firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));

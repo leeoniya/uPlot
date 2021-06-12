@@ -1354,7 +1354,7 @@ export default function uPlot(opts, data, then) {
 
 					if (FEAT_POINTS) {
 						let show = s.points.show(self, i, i0, i1);
-						let idxs = s.points.filter(self, i, show);
+						let idxs = s.points.filter(self, i, show, s._paths ? s._paths.gaps : null);
 
 						if (show || idxs)
 							drawPoints(i, idxs);
@@ -2087,8 +2087,11 @@ export default function uPlot(opts, data, then) {
 		});
 	}
 
-	function posToVal(pos, scale) {
+	function posToVal(pos, scale, can) {
 		let sc = scales[scale];
+
+		if (can)
+			pos = pos / pxRatio - (sc.ori == 1 ? plotTopCss : plotLftCss);
 
 		let dim = plotWidCss;
 
@@ -2115,8 +2118,8 @@ export default function uPlot(opts, data, then) {
 		);
 	}
 
-	function closestIdxFromXpos(pos) {
-		let v = posToVal(pos, xScaleKey);
+	function closestIdxFromXpos(pos, can) {
+		let v = posToVal(pos, xScaleKey, can);
 		return closestIdx(v, data[0], i0, i1);
 	}
 

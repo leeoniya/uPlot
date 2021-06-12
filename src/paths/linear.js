@@ -35,14 +35,14 @@ export function linear() {
 
 			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, flags: BAND_CLIP_FILL};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: [], flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			let minY = inf,
 				maxY = -inf,
 				inY, outY, outX, drawnAtX;
 
-			let gaps = [];
+			let gaps = _paths.gaps;
 
 			let accX = pxRound(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let accGaps = false;

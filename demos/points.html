@@ -17,6 +17,12 @@
 			let vals3 = randomWalk(50, 200, 0, 100);
 			let vals4 = randomWalk(50, 200, 0, 100);
 
+			vals4[100] = null;
+			vals4[102] = null;
+
+			vals4[130] = null;
+			vals4[133] = null;
+
 			let data = [
 				vals1.map((v, i) => i+1),
 				vals1,
@@ -58,12 +64,17 @@
 					{
 						stroke: "orange",
 						points: {
-							filter: (u, seriesIdx, show) => {
+							filter: (u, seriesIdx, show, gaps) => {
 								let filtered = [];
 
-								u.data[seriesIdx].forEach((v, i) => {
-									(i % 3 == 0) && filtered.push(i);
-								});
+								// show points between consecutive gaps that share end/start
+								for (let i = 0; i < gaps.length; i++) {
+									let thisGap = gaps[i];
+									let nextGap = gaps[i+1]
+
+									if (nextGap && thisGap[1] == nextGap[0])
+										filtered.push(u.posToIdx(thisGap[1], true))
+								}
 
 								return filtered.length ? filtered : null;
 							},

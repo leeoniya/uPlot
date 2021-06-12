@@ -46,7 +46,7 @@ export function bars(opts) {
 
 			const xShift = (align == 0 ? barWid / 2 : align == _dir ? 0 : barWid) - align * _dir * extraGap / 2;
 
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};
 
 			const hasBands = u.bands.length > 0;
 			let yLimit;

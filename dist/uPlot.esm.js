@@ -1584,14 +1584,14 @@ function linear() {
 
 			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, flags: BAND_CLIP_FILL};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: [], flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			let minY = inf,
 				maxY = -inf,
 				inY, outY, outX, drawnAtX;
 
-			let gaps = [];
+			let gaps = _paths.gaps;
 
 			let accX = pxRound(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let accGaps = false;
@@ -1698,7 +1698,7 @@ function stepped(opts) {
 
 			let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, flags: BAND_CLIP_FILL};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: [], flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			const _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
@@ -1706,7 +1706,7 @@ function stepped(opts) {
 			idx0 = nonNullIdx(dataY, idx0, idx1,  1);
 			idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
-			let gaps = [];
+			let gaps = _paths.gaps;
 			let inGap = false;
 			let prevYPos  = pxRound(valToPosY(dataY[_dir == 1 ? idx0 : idx1], scaleY, yDim, yOff));
 			let firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
@@ -1824,7 +1824,7 @@ function bars(opts) {
 
 			const xShift = (align == 0 ? barWid / 2 : align == _dir ? 0 : barWid) - align * _dir * extraGap / 2;
 
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};
 
 			const hasBands = u.bands.length > 0;
 			let yLimit;
@@ -1941,7 +1941,7 @@ function splineInterp(interp, opts) {
 				}
 			}
 
-			const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, flags: BAND_CLIP_FILL};
+			const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			if (series.fill != null && stroke != null) {
@@ -3211,7 +3211,7 @@ function uPlot(opts, data, then) {
 
 					{
 						let show = s.points.show(self, i, i0, i1);
-						let idxs = s.points.filter(self, i, show);
+						let idxs = s.points.filter(self, i, show, s._paths ? s._paths.gaps : null);
 
 						if (show || idxs)
 							drawPoints(i, idxs);
@@ -3944,8 +3944,11 @@ function uPlot(opts, data, then) {
 		});
 	}
 
-	function posToVal(pos, scale) {
+	function posToVal(pos, scale, can) {
 		let sc = scales[scale];
+
+		if (can)
+			pos = pos / pxRatio - (sc.ori == 1 ? plotTopCss : plotLftCss);
 
 		let dim = plotWidCss;
 
@@ -3972,8 +3975,8 @@ function uPlot(opts, data, then) {
 		);
 	}
 
-	function closestIdxFromXpos(pos) {
-		let v = posToVal(pos, xScaleKey);
+	function closestIdxFromXpos(pos, can) {
+		let v = posToVal(pos, xScaleKey, can);
 		return closestIdx(v, data[0], i0, i1);
 	}
 

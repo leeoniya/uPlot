@@ -105,10 +105,10 @@ declare class uPlot {
 	setSize(opts: { width: number; height: number }): void;
 
 	/** converts a CSS pixel position (relative to plotting area) to the closest data index */
-	posToIdx(left: number): number;
+	posToIdx(left: number, canvasPixels?: boolean): number;
 
 	/** converts a CSS pixel position (relative to plotting area) to a value along the given scale */
-	posToVal(leftTop: number, scaleKey: string): number;
+	posToVal(leftTop: number, scaleKey: string, canvasPixels?: boolean): number;
 
 	/** converts a value along the given scale to a CSS (default) or canvas pixel position. (default canvasPixels = false) */
 	valToPos(val: number, scaleKey: string, canvasPixels?: boolean): number;
@@ -604,8 +604,17 @@ declare namespace uPlot {
 			/** path to fill */
 			fill?: Path2D | null;
 
-			/** path for clipping fill & stroke */
+			/** path for clipping fill & stroke (used for gaps) */
 			clip?: Path2D | null;
+
+			/** an upwards clip built using the stroke path */
+			band? : Path2D | null;
+
+			/** tuples of canvas pixel coordinates that were used to construct the gaps clip */
+			gaps?: [from: number, to: number][];
+
+			/** bitmap of whether the band clip should be applied to stroke, fill, or both */
+			flags?: number;
 		}
 
 		export interface SteppedPathBuilderOpts {
@@ -645,7 +654,7 @@ declare namespace uPlot {
 		export namespace Points {
 			export type Show = boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
 
-			export type Filter = number[] | null | ((self: uPlot, seriesIdx: number, show: boolean) => number[] | null);
+			export type Filter = number[] | null | ((self: uPlot, seriesIdx: number, show: boolean, gaps?: null | number[][]) => number[] | null);
 		}
 
 		export interface Points {
