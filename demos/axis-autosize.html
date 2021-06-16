@@ -110,17 +110,22 @@
 							let axis = self.axes[axisIdx];
 
 							// bail out, force convergence
-							if (cycleNum > 2)
+							if (cycleNum > 1)
 								return axis._size;
 
+							let axisSize = axis.ticks.size + axis.gap;
+
 							// find longest value
-							let maxSize = (values ?? []).reduce((acc, val) => (
-								Math.max(acc, self.ctx.measureText(val).width / devicePixelRatio)
-							), 0);
+							let longestVal = (values ?? []).reduce((acc, val) => (
+								val.length > acc.length ? val : acc
+							), "");
 
-							let dfltSize = 40;
+							if (longestVal != "") {
+								self.ctx.font = axis.font[0];
+								axisSize += self.ctx.measureText(longestVal).width / devicePixelRatio;
+							}
 
-							return axis.gap + axis.ticks.size + Math.max(dfltSize, maxSize);
+							return Math.ceil(axisSize);
 						},
 					}
 				],
