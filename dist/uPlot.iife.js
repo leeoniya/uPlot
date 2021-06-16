@@ -200,8 +200,21 @@ var uPlot = (function () {
 	//		delta = 0;
 
 		// treat data as flat if delta is less than 1 billionth
-		if (delta < 1e-9)
-			{ delta = 0; }
+		if (delta < 1e-9) {
+			delta = 0;
+
+			// if soft mode is 2 and all vals are flat at 0, avoid the 0.1 * 1e3 fallback
+			// this prevents 0,0,0 from ranging to -100,100 when softMin/softMax are -1,1
+			if (_min == 0 || _max == 0) {
+				delta = 1e-9;
+
+				if (softMinMode == 2 && softMin != inf)
+					{ padMin = 0; }
+
+				if (softMaxMode == 2 && softMax != -inf)
+					{ padMax = 0; }
+			}
+		}
 
 		var nonZeroDelta = delta || abs(_max) || 1e3;
 		var mag          = log10(nonZeroDelta);

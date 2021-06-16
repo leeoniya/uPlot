@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
-		<script src="../dist/uPlot.iife.min.js"></script>
+		<script src="../dist/uPlot.iife.js"></script>
 		<style>
 			.uplot {
 				display: inline-block;
@@ -140,12 +140,37 @@
 			];
 
 			plots = plots.map(o => {
-				let u = uPlot(uPlot.assign(opts, o), data, document.body);
+				let u = uPlot(uPlot.assign({}, opts, o), data, document.body);
 				let p = document.createElement("p");
 				p.textContent = o.descr;
 				u.root.appendChild(p);
 				return u;
 			});
+
+			let opts2 = uPlot.assign({}, opts, {
+				title: "min: {soft: -1, mode: 2}, max: {soft: 1, mode: 2}",
+				scales: {
+					y: {
+						range: {
+							min: {
+								soft: -1,
+								mode: 2,
+								pad: 0.2,
+							},
+							max: {
+								soft: 1,
+								mode: 2,
+								pad: 0.2,
+							},
+						}
+					},
+				}
+			});
+
+			let u = uPlot(opts2, [
+				[1,2],
+				[0,0],
+			], document.body);
 
 			function dataMaxIncr() {
 				setInterval(() => {
