@@ -107,12 +107,20 @@
 						stroke: "red",
 						class: "foo",
 						size(self, values, axisIdx, cycleNum) {
+							let axis = self.axes[axisIdx];
+
 							// bail out, force convergence
 							if (cycleNum > 2)
-								return self.axes[axisIdx]._size;
+								return axis._size;
+
+							// find longest value
+							let maxSize = (values ?? []).reduce((acc, val) => (
+								Math.max(acc, self.ctx.measureText(val).width / devicePixelRatio)
+							), 0);
 
 							let dfltSize = 40;
-							return values == null ? dfltSize : Math.max(dfltSize, values[0].length * 8);
+
+							return axis.gap + axis.ticks.size + Math.max(dfltSize, maxSize);
 						},
 					}
 				],
