@@ -42,6 +42,15 @@
 				title: "Nearest Non-Null",
 				width: 1920,
 				height: 600,
+			/*
+				hooks: {
+					setLegend: [
+						u => {
+							console.log(u.cursor.idxs);
+						}
+					],
+				},
+			*/
 				cursor: {
 					dataIdx: (self, seriesIdx, hoveredIdx, xVal) => {
 						let xValues = self.data[0];
