@@ -126,7 +126,7 @@ declare class uPlot {
 	static assign(targ: object, ...srcs: object[]): object;
 
 	/** re-ranges a given min/max by a multiple of the range's magnitude (used internally to expand/snap/pad numeric y scales) */
-	static rangeNum: ((min: number, max: number, mult: number, extra: boolean) => uPlot.Range.MinMax) | ((min: number, max: number, cfg: uPlot.Range.Config) => uPlot.Range.MinMax);
+	static rangeNum: (min: number, max: number, mult: number | uPlot.Range.Config, extra?: boolean) => uPlot.Range.MinMax;
 
 	/** re-ranges a given min/max outwards to nearest 10% of given min/max's magnitudes, unless fullMags = true */
 	static rangeLog(min: number, max: number, base: uPlot.Scale.LogBase, fullMags: boolean): uPlot.Range.MinMax;
