@@ -126,7 +126,8 @@ declare class uPlot {
 	static assign(targ: object, ...srcs: object[]): object;
 
 	/** re-ranges a given min/max by a multiple of the range's magnitude (used internally to expand/snap/pad numeric y scales) */
-	static rangeNum: ((min: number, max: number, mult: number, extra: boolean) => uPlot.Range.MinMax) | ((min: number, max: number, cfg: uPlot.Range.Config) => uPlot.Range.MinMax);
+	static rangeNum(min: number, max: number, mult: number, extra: boolean): uPlot.Range.MinMax;
+	static rangeNum(min: number, max: number, cfg: uPlot.Range.Config): uPlot.Range.MinMax;
 
 	/** re-ranges a given min/max outwards to nearest 10% of given min/max's magnitudes, unless fullMags = true */
 	static rangeLog(min: number, max: number, base: uPlot.Scale.LogBase, fullMags: boolean): uPlot.Range.MinMax;
@@ -151,10 +152,10 @@ declare class uPlot {
 	static clipGaps: uPlot.Series.ClipPathBuilder;
 
 	/** helper function for grabbing proper drawing orientation vars and fns for a plot instance (all dims in canvas pixels) */
-	static orient: (u: uPlot, seriesIdx: number, callback: uPlot.OrientCallback) => any;
+	static orient(u: uPlot, seriesIdx: number, callback: uPlot.OrientCallback): any;
 
 	/** returns a pub/sub instance shared by all plots usng the provided key */
-	static sync: (key: string) => uPlot.SyncPubSub;
+	static sync(key: string): uPlot.SyncPubSub;
 }
 
 export = uPlot;
