@@ -1621,6 +1621,7 @@ var uPlot = (function () {
 
 				var accX = pxRound(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 				var accGaps = false;
+				var prevYNull = false;
 
 				// data edges
 				var lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * dir);
@@ -1646,8 +1647,8 @@ var uPlot = (function () {
 							minY = min(outY, minY);
 							maxY = max(outY, maxY);
 						}
-						else if (!accGaps && dataY[i] === null)
-							{ accGaps = true; }
+						else if (dataY[i] === null)
+							{ accGaps = prevYNull = true; }
 					}
 					else {
 						var _addGap = false;
@@ -1667,15 +1668,17 @@ var uPlot = (function () {
 							minY = maxY = inY = outY;
 
 							// prior pixel can have data but still start a gap if ends with null
-							if (x - accX > 1 && dataY[i - dir] === null)
+							if (prevYNull && x - accX > 1)
 								{ _addGap = true; }
+
+							prevYNull = false;
 						}
 						else {
 							minY = inf;
 							maxY = -inf;
 
-							if (!accGaps && dataY[i] === null)
-								{ accGaps = true; }
+							if (dataY[i] === null)
+								{ accGaps = prevYNull = true; }
 						}
 
 						_addGap && addGap(gaps, outX, x);
