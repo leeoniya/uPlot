@@ -15,13 +15,15 @@
 			let vals1 = randomWalk(50, 200, 0, 100);
 			let vals2 = randomWalk(50, 200, 0, 100);
 			let vals3 = randomWalk(50, 200, 0, 100);
-			let vals4 = randomWalk(50, 200, 0, 100);
+			let vals4 = randomWalk(75, 200, 0, 100);
 
+			vals4[1]   = null;
 			vals4[100] = null;
 			vals4[102] = null;
 
 			vals4[130] = null;
 			vals4[133] = null;
+			vals4[198] = null;
 
 			let data = [
 				vals1.map((v, i) => i+1),
@@ -67,13 +69,28 @@
 							filter: (u, seriesIdx, show, gaps) => {
 								let filtered = [];
 
-								// show points between consecutive gaps that share end/start
-								for (let i = 0; i < gaps.length; i++) {
-									let thisGap = gaps[i];
-									let nextGap = gaps[i+1]
+								let series = u.series[seriesIdx];
 
-									if (nextGap && thisGap[1] == nextGap[0])
-										filtered.push(u.posToIdx(thisGap[1], true))
+								if (!show && gaps && gaps.length) {
+									const [firstIdx, lastIdx] = series.idxs;
+									const xData = u.data[0];
+									const firstPos = Math.round(u.valToPos(xData[firstIdx], 'x', true));
+									const lastPos  = Math.round(u.valToPos(xData[lastIdx], 'x', true));
+
+									if (gaps[0][0] == firstPos)
+										filtered.push(firstIdx);
+
+									// show single points between consecutive gaps that share end/start
+									for (let i = 0; i < gaps.length; i++) {
+										let thisGap = gaps[i];
+										let nextGap = gaps[i + 1];
+
+										if (nextGap && thisGap[1] == nextGap[0])
+											filtered.push(u.posToIdx(thisGap[1], true));
+									}
+
+									if (gaps[gaps.length - 1][1] == lastPos)
+										filtered.push(lastIdx);
 								}
 
 								return filtered.length ? filtered : null;
