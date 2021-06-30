@@ -1167,6 +1167,7 @@ const xAxisOpts = {
 	space: 50,
 	gap: 5,
 	size: 50,
+	labelGap: 0,
 	labelSize: 30,
 	labelFont,
 	side: 2,
@@ -1295,6 +1296,7 @@ const yAxisOpts = {
 	space: 30,
 	gap: 5,
 	size: 50,
+	labelGap: 0,
 	labelSize: 30,
 	labelFont,
 	side: 3,
@@ -3498,26 +3500,21 @@ function uPlot(opts, data, then) {
 			if (!axis.show || !axis._show)
 				return;
 
-			let scale = scales[axis.scale];
 			let side = axis.side;
 			let ori = side % 2;
-
-			let plotDim = ori == 0 ? plotWid : plotHgt;
-			let plotOff = ori == 0 ? plotLft : plotTop;
-
-			let axisGap = round(axis.gap * pxRatio);
-
-			let [_incr, _space] = axis._found;
 
 			let x, y;
 
 			let fillStyle = axis.stroke(self, i);
 
+			let shiftDir = side == 0 || side == 3 ? -1 : 1;
+
 			// axis label
 			if (axis.label) {
-				ctx.save();
+				let shiftAmt = axis.labelGap * shiftDir;
+				let baseLpos = round((axis._lpos + shiftAmt) * pxRatio);
 
-				let baseLpos = round(axis._lpos * pxRatio);
+				ctx.save();
 
 				if (ori == 1) {
 					x = y = 0;
@@ -3544,8 +3541,17 @@ function uPlot(opts, data, then) {
 				ctx.restore();
 			}
 
+			let [_incr, _space] = axis._found;
+
 			if (_space == 0)
 				return;
+
+			let scale = scales[axis.scale];
+
+			let plotDim = ori == 0 ? plotWid : plotHgt;
+			let plotOff = ori == 0 ? plotLft : plotTop;
+
+			let axisGap = round(axis.gap * pxRatio);
 
 			let _splits = axis._splits;
 
@@ -3561,9 +3567,8 @@ function uPlot(opts, data, then) {
 			let angle = axis._rotate * -PI/180;
 
 			let basePos  = pxRound(axis._pos * pxRatio);
-			let shiftAmt = tickSize + axisGap;
-			let shiftDir = ori == 0 && side == 0 || ori == 1 && side == 3 ? -1 : 1;
-			let finalPos = basePos + shiftAmt * shiftDir;
+			let shiftAmt = (tickSize + axisGap) * shiftDir;
+			let finalPos = basePos + shiftAmt;
 			    y        = ori == 0 ? finalPos : 0;
 			    x        = ori == 1 ? finalPos : 0;
 

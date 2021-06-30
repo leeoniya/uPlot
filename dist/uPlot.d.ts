@@ -885,8 +885,11 @@ declare namespace uPlot {
 		/** axis label text */
 		label?: string;
 
-		/** height of x axis label or width of y axis label in CSS pixels */
+		/** height of x axis label or width of y axis label in CSS pixels alloted for label text + labelGap */
 		labelSize?: number;
+
+		/** gap between label baseline and tick values in CSS pixels */
+		labelGap?: number;
 
 		/** font used for axis label */
 		labelFont?: CanvasRenderingContext2D['font'];

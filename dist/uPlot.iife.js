@@ -1176,6 +1176,7 @@ var uPlot = (function () {
 		space: 50,
 		gap: 5,
 		size: 50,
+		labelGap: 0,
 		labelSize: 30,
 		labelFont: labelFont,
 		side: 2,
@@ -1304,6 +1305,7 @@ var uPlot = (function () {
 		space: 30,
 		gap: 5,
 		size: 50,
+		labelGap: 0,
 		labelSize: 30,
 		labelFont: labelFont,
 		side: 3,
@@ -3525,28 +3527,21 @@ var uPlot = (function () {
 				if (!axis.show || !axis._show)
 					{ return; }
 
-				var scale = scales[axis.scale];
 				var side = axis.side;
 				var ori = side % 2;
-
-				var plotDim = ori == 0 ? plotWid : plotHgt;
-				var plotOff = ori == 0 ? plotLft : plotTop;
-
-				var axisGap = round(axis.gap * pxRatio);
-
-				var ref = axis._found;
-				var _incr = ref[0];
-				var _space = ref[1];
 
 				var x, y;
 
 				var fillStyle = axis.stroke(self, i);
 
+				var shiftDir = side == 0 || side == 3 ? -1 : 1;
+
 				// axis label
 				if (axis.label) {
-					ctx.save();
+					var shiftAmt$1 = axis.labelGap * shiftDir;
+					var baseLpos = round((axis._lpos + shiftAmt$1) * pxRatio);
 
-					var baseLpos = round(axis._lpos * pxRatio);
+					ctx.save();
 
 					if (ori == 1) {
 						x = y = 0;
@@ -3573,8 +3568,19 @@ var uPlot = (function () {
 					ctx.restore();
 				}
 
+				var ref = axis._found;
+				var _incr = ref[0];
+				var _space = ref[1];
+
 				if (_space == 0)
 					{ return; }
+
+				var scale = scales[axis.scale];
+
+				var plotDim = ori == 0 ? plotWid : plotHgt;
+				var plotOff = ori == 0 ? plotLft : plotTop;
+
+				var axisGap = round(axis.gap * pxRatio);
 
 				var _splits = axis._splits;
 
@@ -3590,9 +3596,8 @@ var uPlot = (function () {
 				var angle = axis._rotate * -PI/180;
 
 				var basePos  = pxRound(axis._pos * pxRatio);
-				var shiftAmt = tickSize + axisGap;
-				var shiftDir = ori == 0 && side == 0 || ori == 1 && side == 3 ? -1 : 1;
-				var finalPos = basePos + shiftAmt * shiftDir;
+				var shiftAmt = (tickSize + axisGap) * shiftDir;
+				var finalPos = basePos + shiftAmt;
 				    y        = ori == 0 ? finalPos : 0;
 				    x        = ori == 1 ? finalPos : 0;
 
