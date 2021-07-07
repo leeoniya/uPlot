@@ -4,12 +4,13 @@ import { pxRatio } from '../dom';
 
 export function bars(opts) {
 	opts = opts || EMPTY_OBJ;
-	const size = ifNull(opts.size, [0.6, inf]);
+	const size = ifNull(opts.size, [0.6, inf, 1]);
 	const align = opts.align || 0;
 	const extraGap = (opts.gap || 0) * pxRatio;
 
 	const gapFactor = 1 - size[0];
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
+	const minWidth  = ifNull(size[2], 1) * pxRatio;
 
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
@@ -42,7 +43,7 @@ export function bars(opts) {
 
 			let strokeWidth = pxRound(series.width * pxRatio);
 
-			let barWid = pxRound(min(maxWidth, colWid - gapWid) - strokeWidth - extraGap);
+			let barWid = pxRound(min(maxWidth, max(minWidth, colWid - gapWid)) - strokeWidth - extraGap);
 
 			const xShift = (align == 0 ? barWid / 2 : align == _dir ? 0 : barWid) - align * _dir * extraGap / 2;
 

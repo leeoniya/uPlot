@@ -1813,12 +1813,13 @@ var uPlot = (function () {
 
 	function bars(opts) {
 		opts = opts || EMPTY_OBJ;
-		var size = ifNull(opts.size, [0.6, inf]);
+		var size = ifNull(opts.size, [0.6, inf, 1]);
 		var align = opts.align || 0;
 		var extraGap = (opts.gap || 0) * pxRatio;
 
 		var gapFactor = 1 - size[0];
 		var maxWidth  = ifNull(size[1], inf) * pxRatio;
+		var minWidth  = ifNull(size[2], 1) * pxRatio;
 
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
@@ -1851,7 +1852,7 @@ var uPlot = (function () {
 
 				var strokeWidth = pxRound(series.width * pxRatio);
 
-				var barWid = pxRound(min(maxWidth, colWid - gapWid) - strokeWidth - extraGap);
+				var barWid = pxRound(min(maxWidth, max(minWidth, colWid - gapWid)) - strokeWidth - extraGap);
 
 				var xShift = (align == 0 ? barWid / 2 : align == _dir ? 0 : barWid) - align * _dir * extraGap / 2;
 
