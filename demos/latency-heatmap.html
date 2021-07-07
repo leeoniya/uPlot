@@ -145,7 +145,8 @@
 							const { ctx, data } = u;
 
 							let yData = data[3];
-
+							
+							ctx.save()
 							ctx.beginPath();
 							ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
 							ctx.clip();
@@ -164,6 +165,8 @@
 									);
 								});
 							});
+
+							ctx.restore()
 						}
 					}
 				};
@@ -249,7 +252,8 @@
 
 							// pre-calc rect height since we know the aggregation bucket
 							let yHgt = Math.floor(u.valToPos(bucketIncr, 'y', true) - u.valToPos(0, 'y', true));
-
+							
+							ctx.save()
 							ctx.beginPath();
 							ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
 							ctx.clip();
@@ -272,6 +276,8 @@
 									);
 								});
 							});
+
+							ctx.restore()
 						}
 					}
 				};
