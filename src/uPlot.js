@@ -2310,7 +2310,15 @@ export default function uPlot(opts, data, then) {
 						vPos = xPos2;
 					}
 
-					FEAT_CURSOR && cursorPts.length > 1 && trans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
+					// todo: only fire this if indices or values changed
+					if (FEAT_CURSOR && cursorPts.length > 1) {
+						trans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
+
+						if (!cursor.points.static) {
+							cursorPts[i].style.background = cursor.points.fill(self, i);
+							cursorPts[i].style.borderColor = cursor.points.stroke(self, i);
+						}
+					}
 				}
 
 				if (FEAT_LEGEND && legend.live) {

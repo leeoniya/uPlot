@@ -1105,6 +1105,7 @@ const cursorOpts = {
 	lock: false,
 	move: cursorMove,
 	points: {
+		static: true,
 		show:   cursorPointShow,
 		size:   cursorPointSize,
 		width:  0,
@@ -4186,7 +4187,15 @@ function uPlot(opts, data, then) {
 						vPos = xPos2;
 					}
 
-					cursorPts.length > 1 && trans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
+					// todo: only fire this if indices or values changed
+					if (cursorPts.length > 1) {
+						trans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
+
+						if (!cursor.points.static) {
+							cursorPts[i].style.background = cursor.points.fill(self, i);
+							cursorPts[i].style.borderColor = cursor.points.stroke(self, i);
+						}
+					}
 				}
 
 				if (legend.live) {

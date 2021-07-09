@@ -1116,6 +1116,7 @@ var uPlot = (function () {
 		lock: false,
 		move: cursorMove,
 		points: {
+			static: true,
 			show:   cursorPointShow,
 			size:   cursorPointSize,
 			width:  0,
@@ -4219,7 +4220,15 @@ var uPlot = (function () {
 							vPos = xPos2;
 						}
 
-						cursorPts.length > 1 && trans(cursorPts[i$2], hPos, vPos, plotWidCss, plotHgtCss);
+						// todo: only fire this if indices or values changed
+						if (cursorPts.length > 1) {
+							trans(cursorPts[i$2], hPos, vPos, plotWidCss, plotHgtCss);
+
+							if (!cursor.points.static) {
+								cursorPts[i$2].style.background = cursor.points.fill(self, i$2);
+								cursorPts[i$2].style.borderColor = cursor.points.stroke(self, i$2);
+							}
+						}
 					}
 
 					if (legend.live) {

@@ -433,6 +433,8 @@ declare namespace uPlot {
 
 		export interface Points {
 			show?:   Points.Show;
+			/** if false, will update stroke() and fill() on every cursor move for every series (expensive!) */
+			static?: boolean; // true
 			/** hover point diameter in CSS pixels */
 			size?:   Points.Size;
 			/** hover point outline width in CSS pixels */

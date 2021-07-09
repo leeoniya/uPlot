@@ -50,6 +50,18 @@
 				return grd;
 			}
 
+
+			let hzGrad = [
+				[0, "red"],
+				[30, "red"],
+
+				[30, "orange"],
+				[50, "orange"],
+
+				[50, "blue"],
+				[60, "blue"],
+			];
+
 			const opts = {
 				title: "Scale-aligned gradient strokes (hz)",
 				width: 1920,
@@ -63,8 +75,27 @@
 				},
 				cursor: {
 					points: {
-						stroke: () => "red",
-						fill: () => "red",
+						static: false,
+						stroke: (u, seriesIdx) => "red",
+					//	fill: (u, seriesIdx) => "red",
+						fill: (u, seriesIdx) => {
+							// seriesIdx doesnt matter if we have same hz gradient for all series that's only dependent on x values
+							let xIdx = u.cursor.idxs[0];
+
+							if (xIdx != null) {
+								let val = u.data[0][u.cursor.idxs[0]];
+
+								for (let i = 0; i < hzGrad.length; i++) {
+									let stop = hzGrad[i];
+
+									if (val < stop[0])
+										return stop[1];
+								}
+							}
+
+							return "black";
+						},
+
 					}
 				},
 				scales: {
@@ -78,16 +109,7 @@
 						label: "Trends",
 						width: 4,
 						stroke: (u, seriesIdx) => {
-							return scaleGradient(u, 'x', 0, [
-								[0, "red"],
-								[30, "red"],
-
-								[30, "orange"],
-								[50, "orange"],
-
-								[50, "blue"],
-								[60, "blue"],
-							]);
+							return scaleGradient(u, 'x', 0, hzGrad);
 						},
 					},
 				],
@@ -101,6 +123,11 @@
 			let u = new uPlot(opts, data, document.body);
 
 
+			let vtGrad = [
+				[-100, "blue"],
+				[0, "blue"],
+				[0, "red"],
+			];
 
 			const opts2 = {
 				title: "Scale-aligned gradient strokes (vt)",
@@ -115,8 +142,25 @@
 				},
 				cursor: {
 					points: {
+						static: false,
 						stroke: () => "red",
-						fill: () => "red",
+					//	fill: () => "red",
+						fill: (u, seriesIdx) => {
+							let xIdx = u.cursor.idxs[seriesIdx];
+
+							if (xIdx != null) {
+								let val = u.data[seriesIdx][xIdx];
+
+								for (let i = vtGrad.length - 1; i >= 0; i--) {
+									let stop = vtGrad[i];
+
+									if (val >= stop[0])
+										return stop[1];
+								}
+							}
+
+							return "black";
+						}
 					}
 				},
 				scales: {
@@ -130,11 +174,7 @@
 						label: "Over/Under",
 						width: 4,
 						stroke: (u, seriesIdx) => {
-							return scaleGradient(u, 'y', 1, [
-								[-100, "blue"],
-								[0, "blue"],
-								[0, "red"],
-							]);
+							return scaleGradient(u, 'y', 1, vtGrad);
 						},
 					},
 				],
