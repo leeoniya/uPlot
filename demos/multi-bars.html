@@ -62,85 +62,46 @@
 				const barWidth   = 1;
 				const barDistr   = SPACE_BETWEEN;
 
-				function walkTwo(yIdx, xCount, yCount, xDim, xDraw, yDraw) {
-					distr(xCount, groupWidth, groupDistr, null, (ix, offPct, dimPct) => {
-						let groupOffPx = xDim * offPct;
-						let groupWidPx = xDim * dimPct;
+				function distrTwo(groupCount, barCount) {
+					let out = Array.from({length: barCount}, () => ({
+						offs: Array(groupCount).fill(0),
+						size: Array(groupCount).fill(0),
+					}));
 
-						xDraw && xDraw(ix, groupOffPx, groupWidPx);
-
-						yDraw && distr(yCount, barWidth, barDistr, yIdx, (iy, offPct, dimPct) => {
-							let barOffPx = groupWidPx * offPct;
-							let barWidPx = groupWidPx * dimPct;
-
-							yDraw(ix, groupOffPx + barOffPx, barWidPx);
+					distr(groupCount, groupWidth, groupDistr, null, (groupIdx, groupOffPct, groupDimPct) => {
+						distr(barCount, barWidth, barDistr, null, (barIdx, barOffPct, barDimPct) => {
+							out[barIdx].offs[groupIdx] = groupOffPct + (groupDimPct * barOffPct);
+							out[barIdx].size[groupIdx] = groupDimPct * barDimPct;
 						});
 					});
+
+					return out;
 				}
 
-				function drawBars(u, sidx, i0, i1) {
-					return uPlot.orient(u, sidx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect) => {
-						const fill = new Path2D();
-						const stroke = new Path2D();
+				let barsPctLayout;
 
-						// test ori, text align, text baseline...x0, y0,m width, height
-
-						let numGroups    = dataX.length;
-						let barsPerGroup = u.series.length - 1;
-
-						let y0Pos = valToPosY(0, scaleY, yDim, yOff);
-
-						let strokeWidth = series.width || 0;
-
-						const _dir = dir * (ori == 0 ? 1 : -1);
-
-						walkTwo(sidx - 1, numGroups, barsPerGroup, xDim, null, (ix, x0, wid) => {
-							let lft = Math.round(xOff + (_dir == 1 ? x0 : xDim - x0 - wid));
-							let barWid = Math.round(wid);
-
-							if (dataY[ix] != null) {
-								let yPos = valToPosY(dataY[ix], scaleY, yDim, yOff);
-
-								let btm = Math.round(Math.max(yPos, y0Pos));
-								let top = Math.round(Math.min(yPos, y0Pos));
-								let barHgt = btm - top;
-
-								if (strokeWidth)
-									rect(stroke, lft + strokeWidth / 2, top + strokeWidth / 2, barWid - strokeWidth, barHgt - strokeWidth);
-
-								rect(fill, lft, top, barWid, barHgt);
-
-								let x = ori == 0 ? Math.round(lft - xOff) : Math.round(top - yOff);
-								let y = ori == 0 ? Math.round(top - yOff) : Math.round(lft - xOff);
-								let w = ori == 0 ? barWid                 : barHgt;
-								let h = ori == 0 ? barHgt                 : barWid;
-
-								qt.add({x, y, w, h, sidx: sidx, didx: ix});
-							}
-						});
-
-						return {
-							stroke,
-							fill
-						};
-					});
-				}
+				let barsBuilder = uPlot.paths.bars({
+					layout: seriesIdx => barsPctLayout[seriesIdx],
+					each: (seriesIdx, dataIdx, lft, top, wid, hgt) => {
+						qt.add({x: lft, y: top, w: wid, h: hgt, sidx: seriesIdx, didx: dataIdx});
+					},
+				});
 
 				function drawPoints(u, sidx, i0, i1) {
 					u.ctx.font         = font;
 					u.ctx.fillStyle    = "black";
 
 					uPlot.orient(u, sidx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect) => {
-						let numGroups    = dataX.length;
-						let barsPerGroup = u.series.length - 1;
-
 						const _dir = dir * (ori == 0 ? 1 : -1);
 
-						walkTwo(sidx - 1, numGroups, barsPerGroup, xDim, null, (ix, x0, wid) => {
-							let lft    = Math.round(xOff + (_dir == 1 ? x0 : xDim - x0 - wid));
-							let barWid = Math.round(wid);
+						const wid = Math.round(barsPctLayout[sidx].size[0] * xDim);
 
+						barsPctLayout[sidx].offs.forEach((offs, ix) => {
 							if (dataY[ix] != null) {
+								let x0     = xDim * offs;
+								let lft    = Math.round(xOff + (_dir == 1 ? x0 : xDim - x0 - wid));
+								let barWid = Math.round(wid);
+
 								let yPos = valToPosY(dataY[ix], scaleY, yDim, yOff);
 
 								let x = ori == 0 ? Math.round(lft + barWid/2) : Math.round(yPos);
@@ -180,6 +141,8 @@
 							u.series.forEach(s => {
 								s._paths = null;
 							});
+
+							barsPctLayout = [null].concat(distrTwo(u.data[0].length, u.data.length - 1));
 						},
 						setCursor: u => {
 							let found = null;
@@ -223,7 +186,6 @@
 							scales: {
 								x: {
 									time: false,
-									distr: 2,
 									ori,
 									dir,
 								},
@@ -273,7 +235,7 @@
 									width: 0,
 								//	pxAlign: false,
 								//	stroke: "rgba(255,0,0,0.5)",
-									paths: drawBars,
+									paths: barsBuilder,
 									points: {
 										show: drawPoints
 									}
@@ -356,7 +318,7 @@
 
 				function makeData() {
 					return [
-						d.filter((lib, i) => enabled[i]).map((lib, i) => i+1),
+						d.filter((lib, i) => enabled[i]).map((lib, i) => i),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[1]),
 						d.filter((lib, i) => enabled[i]).map(lib => Math.round(lib[3].reduce((total, num) => total + num, 0) / 10)),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[4][0]),

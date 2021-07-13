@@ -634,6 +634,12 @@ declare namespace uPlot {
 
 			// fixed-size gap between bars in CSS pixels (reduces bar width)
 			gap?: number;
+
+			/** should return a custom [cached] layout for bars in % of plotting area (0..1) */
+			layout?: (seriesIdx: number) => {offs: number[], size: number[]};
+
+			/** called with bbox geometry of each drawn bar in canvas pixels. useful for spatial index, etc. */
+			each?: (seriesIdx: number, idx: number, left: number, top: number, width: number, height: number) => void;
 		}
 
 		export type LinearPathBuilderFactory  = () => Series.PathBuilder;

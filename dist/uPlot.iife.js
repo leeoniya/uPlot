@@ -1822,7 +1822,20 @@ var uPlot = (function () {
 		var maxWidth  = ifNull(size[1], inf) * pxRatio;
 		var minWidth  = ifNull(size[2], 1) * pxRatio;
 
+		// custom layout cache getter
+		var layout = opts.layout;
+
+		var each = ifNull(opts.each, _ => {});
+
 		return (u, seriesIdx, idx0, idx1) => {
+			var xLayout;
+
+			if (layout != null) {
+				// these come back in % of plottable area (0..1), so assume idx0 & idx1
+				// are full range of data, and don't handle scale dir or ori
+				xLayout = layout(seriesIdx);
+			}
+
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				var pxRound = series.pxRound;
 
@@ -1830,34 +1843,43 @@ var uPlot = (function () {
 
 				var rect = scaleX.ori == 0 ? rectH : rectV;
 
-				var colWid = xDim;
-
-				if (dataX.length > 1) {
-					// scan full dataset for smallest adjacent delta
-					// will not work properly for non-linear x scales, since does not do expensive valToPosX calcs till end
-					for (var i = 1, minDelta = Infinity; i < dataX.length; i++) {
-						var delta = abs(dataX[i] - dataX[i-1]);
-
-						if (delta < minDelta) {
-							minDelta = delta;
-							colWid = abs(valToPosX(dataX[i], scaleX, xDim, xOff) - valToPosX(dataX[i-1], scaleX, xDim, xOff));
-						}
-					}
-				}
-
-				var gapWid = colWid * gapFactor;
-
 				var fillToY = series.fillTo(u, seriesIdx, series.min, series.max);
 
 				var y0Pos = valToPosY(fillToY, scaleY, yDim, yOff);
 
+				var xShift, barWid;
+
 				var strokeWidth = pxRound(series.width * pxRatio);
 
-				var barWid = pxRound(min(maxWidth, max(minWidth, colWid - gapWid)) - strokeWidth - extraGap);
+				if (xLayout != null) {
+					dataX = xLayout.offs.map(v => v * (dataX.length - 1));
+					barWid = pxRound(xLayout.size[0] * xDim - strokeWidth);
+					xShift = (_dir == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
+				}
+				else {
+					var colWid = xDim;
 
-				var xShift = (align == 0 ? barWid / 2 : align == _dir ? 0 : barWid) - align * _dir * extraGap / 2;
+					if (dataX.length > 1) {
+						// scan full dataset for smallest adjacent delta
+						// will not work properly for non-linear x scales, since does not do expensive valToPosX calcs till end
+						for (var i = 1, minDelta = Infinity; i < dataX.length; i++) {
+							var delta = abs(dataX[i] - dataX[i-1]);
 
-				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};
+							if (delta < minDelta) {
+								minDelta = delta;
+								colWid = abs(valToPosX(dataX[i], scaleX, xDim, xOff) - valToPosX(dataX[i-1], scaleX, xDim, xOff));
+							}
+						}
+					}
+
+					var gapWid = colWid * gapFactor;
+
+					barWid = pxRound(min(maxWidth, max(minWidth, colWid - gapWid)) - strokeWidth - extraGap);
+
+					xShift = (align == 0 ? barWid / 2 : align == _dir ? 0 : barWid) - align * _dir * extraGap / 2;
+				}
+
+				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
 
 				var hasBands = u.bands.length > 0;
 				var yLimit;
@@ -1902,7 +1924,26 @@ var uPlot = (function () {
 					var top = pxRound(min(yPos, y0Pos));
 					var barHgt = btm - top;
 
-					dataY[i$1] != null && rect(stroke, lft, top, barWid, barHgt);
+					if (dataY[i$1] != null) {
+						rect(stroke, lft, top, barWid, barHgt);
+
+						if (scaleX.ori == 0) {
+							each(seriesIdx, i$1,
+								lft - xOff - strokeWidth / 2,
+								top - yOff - strokeWidth / 2,
+								barWid     + strokeWidth,
+								barHgt     + strokeWidth
+							);
+						}
+						else {
+							each(seriesIdx, i$1,
+								top - yOff  - strokeWidth / 2,
+								lft - xOff  - strokeWidth / 2,
+								barHgt      + strokeWidth,
+								barWid      + strokeWidth
+							);
+						}
+					}
 
 					if (hasBands) {
 						btm = top;
