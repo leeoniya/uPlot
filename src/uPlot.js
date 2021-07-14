@@ -856,6 +856,7 @@ export default function uPlot(opts, data, then) {
 		if (i > 0) {
 			s.width  = s.width == null ? 1 : s.width;
 			s.paths  = s.paths || linearPath || retNull;
+			s.data   = s.data || retNull;
 			s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
 			s.pxAlign = +ifNull(s.pxAlign, pxAlign);
 			s.pxRound = pxRoundGen(s.pxAlign);
@@ -1343,7 +1344,7 @@ export default function uPlot(opts, data, then) {
 			series.forEach((s, i) => {
 				if (i > 0 && s.show && s._paths == null) {
 					let _idxs = getOuterIdxs(data[i]);
-					s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
+					s._paths = s.paths(self, i, _idxs[0], _idxs[1], s.data(self, i, _idxs[0], _idxs[1]));
 				}
 			});
 
