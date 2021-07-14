@@ -1913,7 +1913,7 @@ var uPlot = (function () {
 							{ continue; }
 					}
 
-					var xVal = scaleX.distr == 2 ? i$1 : dataX[i$1];
+					var xVal = scaleX.distr != 2 || xLayout != null ? dataX[i$1] : i$1;
 
 					// TODO: all xPos can be pre-computed once for all series in aligned set
 					var xPos = valToPosX(xVal, scaleX, xDim, xOff);

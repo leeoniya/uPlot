@@ -1902,7 +1902,7 @@ function bars(opts) {
 						continue;
 				}
 
-				let xVal = scaleX.distr == 2 ? i : dataX[i];
+				let xVal = scaleX.distr != 2 || xLayout != null ? dataX[i] : i;
 
 				// TODO: all xPos can be pre-computed once for all series in aligned set
 				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
