@@ -79,8 +79,31 @@
 				let barsPctLayout;
 
 				let barsBuilder = uPlot.paths.bars({
-					layout: seriesIdx => barsPctLayout[seriesIdx],
-					each: (seriesIdx, dataIdx, lft, top, wid, hgt) => {
+					disp: {
+						x0: {
+							unit: 2,
+						//	discr: false, (unary, discrete, continuous)
+							values: (u, seriesIdx, idx0, idx1) => barsPctLayout[seriesIdx].offs,
+						},
+						size: {
+							unit: 2,
+						//	discr: true,
+							values: (u, seriesIdx, idx0, idx1) => barsPctLayout[seriesIdx].size,
+						},
+						/*
+						// e.g. variable size via scale (will compute offsets from known values)
+						x1: {
+							units: 1,
+							values: (u, seriesIdx, idx0, idx1) => bucketEnds[idx],
+						},
+						fill: {
+							units: 3, // color
+							discr: true,
+							values: (u, seriesIdx, idx0, idx1) => colors[idx],
+						}
+						*/
+					},
+					each: (u, seriesIdx, dataIdx, lft, top, wid, hgt) => {
 						qt.add({x: lft, y: top, w: wid, h: hgt, sidx: seriesIdx, didx: dataIdx});
 					},
 				});

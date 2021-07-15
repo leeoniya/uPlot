@@ -627,6 +627,38 @@ declare namespace uPlot {
 			ascDesc?: boolean; // false
 		}
 
+		export const enum BarsPathBuilderFacetUnit {
+			ScaleValue   = 1,
+			PixelPercent = 2,
+		//	HexColor     = 3,
+		}
+
+		export const enum BarsPathBuilderFacetKind {
+			Unary      = 1,
+			Discrete   = 2,
+			Continuous = 3,
+		}
+
+		export type BarsPathBuilderFacetValue = string | number | boolean | null | undefined;
+
+		export interface BarsPathBuilderFacet {
+			/** unit of measure for output of values() */
+			unit: BarsPathBuilderFacetUnit;
+			/** are the values unary, discrete, or continuous */
+			kind: BarsPathBuilderFacetKind;
+			/** values to use for this facet */
+			values: (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => BarsPathBuilderFacetValue[];
+		}
+
+		/** custom per-datapoint styling and positioning */
+		export interface BarsPathBuilderDisplay {
+			x0: BarsPathBuilderFacet;
+		//	x1: BarsPathBuilderFacet;
+			size: BarsPathBuilderFacet;
+		//	fill:
+		//	stroke:
+		}
+
 		export interface BarsPathBuilderOpts {
 			align?: -1 | 0 | 1; // 0
 
@@ -636,10 +668,10 @@ declare namespace uPlot {
 			gap?: number;
 
 			/** should return a custom [cached] layout for bars in % of plotting area (0..1) */
-			layout?: (seriesIdx: number) => {offs: number[], size: number[]};
+			disp?: (self: uPlot, seriesIdx: number) => [];
 
 			/** called with bbox geometry of each drawn bar in canvas pixels. useful for spatial index, etc. */
-			each?: (seriesIdx: number, idx: number, left: number, top: number, width: number, height: number) => void;
+			each?: (self: uPlot, seriesIdx: number, idx: number, left: number, top: number, width: number, height: number) => void;
 		}
 
 		export type LinearPathBuilderFactory  = () => Series.PathBuilder;
