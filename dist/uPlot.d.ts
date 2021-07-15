@@ -645,7 +645,7 @@ declare namespace uPlot {
 			/** unit of measure for output of values() */
 			unit: BarsPathBuilderFacetUnit;
 			/** are the values unary, discrete, or continuous */
-			kind: BarsPathBuilderFacetKind;
+			kind?: BarsPathBuilderFacetKind;
 			/** values to use for this facet */
 			values: (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => BarsPathBuilderFacetValue[];
 		}
@@ -668,7 +668,7 @@ declare namespace uPlot {
 			gap?: number;
 
 			/** should return a custom [cached] layout for bars in % of plotting area (0..1) */
-			disp?: (self: uPlot, seriesIdx: number) => [];
+			disp?: BarsPathBuilderDisplay;
 
 			/** called with bbox geometry of each drawn bar in canvas pixels. useful for spatial index, etc. */
 			each?: (self: uPlot, seriesIdx: number, idx: number, left: number, top: number, width: number, height: number) => void;

@@ -1834,7 +1834,7 @@ function bars(opts) {
 				dataX = disp.x0.values(u, seriesIdx, idx0, idx1);
 
 				if (disp.x0.unit == 2)
-					dataX = dataX.map(pct => u.posToVal(pct * xDim, scaleX.key, true));
+					dataX = dataX.map(pct => u.posToVal(xOff + pct * xDim, scaleX.key, true));
 
 				// assumes uniform sizes, for now
 				let sizes = disp.size.values(u, seriesIdx, idx0, idx1);
