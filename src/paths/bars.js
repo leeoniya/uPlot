@@ -12,9 +12,20 @@ export function bars(opts) {
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
 	const minWidth  = ifNull(size[2], 1) * pxRatio;
 
+	// custom layout cache getter
+	const layout = opts.layout;
+
 	const each = ifNull(opts.each, _ => {});
 
-	return (u, seriesIdx, idx0, idx1, data) => {
+	return (u, seriesIdx, idx0, idx1) => {
+		let xLayout;
+
+		if (layout != null) {
+			// these come back in % of plottable area (0..1), so assume idx0 & idx1
+			// are full range of data, and don't handle scale dir or ori
+			xLayout = layout(seriesIdx);
+		}
+
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
 
@@ -30,13 +41,9 @@ export function bars(opts) {
 
 			let strokeWidth = pxRound(series.width * pxRatio);
 
-			if (data != null) {
-				let [ , , dataX1, dataY1 ] = data;
-
-				dataX = ifNull(data[0], dataX);
-				dataY = ifNull(data[1], dataY);
-
-				barWid = pxRound(abs(valToPosX(dataX1[0], scaleX, xDim, xOff) - valToPosX(dataX[0], scaleX, xDim, xOff)) - strokeWidth);
+			if (xLayout != null) {
+				dataX = xLayout.offs.map(v => v * (dataX.length - 1));
+				barWid = pxRound(xLayout.size[0] * xDim - strokeWidth);
 				xShift = (_dir == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
 			}
 			else {
@@ -96,7 +103,7 @@ export function bars(opts) {
 						continue;
 				}
 
-				let xVal = scaleX.distr != 2 || data != null ? dataX[i] : i;
+				let xVal = scaleX.distr != 2 || xLayout != null ? dataX[i] : i;
 
 				// TODO: all xPos can be pre-computed once for all series in aligned set
 				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
@@ -111,7 +118,7 @@ export function bars(opts) {
 					rect(stroke, lft, top, barWid, barHgt);
 
 					if (scaleX.ori == 0) {
-						each(u, seriesIdx, i,
+						each(seriesIdx, i,
 							lft - xOff - strokeWidth / 2,
 							top - yOff - strokeWidth / 2,
 							barWid     + strokeWidth,
@@ -119,7 +126,7 @@ export function bars(opts) {
 						);
 					}
 					else {
-						each(u, seriesIdx, i,
+						each(seriesIdx, i,
 							top - yOff  - strokeWidth / 2,
 							lft - xOff  - strokeWidth / 2,
 							barHgt      + strokeWidth,

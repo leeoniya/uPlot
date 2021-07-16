@@ -1822,9 +1822,20 @@ var uPlot = (function () {
 		var maxWidth  = ifNull(size[1], inf) * pxRatio;
 		var minWidth  = ifNull(size[2], 1) * pxRatio;
 
+		// custom layout cache getter
+		var layout = opts.layout;
+
 		var each = ifNull(opts.each, _ => {});
 
-		return (u, seriesIdx, idx0, idx1, data) => {
+		return (u, seriesIdx, idx0, idx1) => {
+			var xLayout;
+
+			if (layout != null) {
+				// these come back in % of plottable area (0..1), so assume idx0 & idx1
+				// are full range of data, and don't handle scale dir or ori
+				xLayout = layout(seriesIdx);
+			}
+
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				var pxRound = series.pxRound;
 
@@ -1840,14 +1851,9 @@ var uPlot = (function () {
 
 				var strokeWidth = pxRound(series.width * pxRatio);
 
-				if (data != null) {
-					var dataX1 = data[2];
-					data[3];
-
-					dataX = ifNull(data[0], dataX);
-					dataY = ifNull(data[1], dataY);
-
-					barWid = pxRound(abs(valToPosX(dataX1[0], scaleX, xDim, xOff) - valToPosX(dataX[0], scaleX, xDim, xOff)) - strokeWidth);
+				if (xLayout != null) {
+					dataX = xLayout.offs.map(v => v * (dataX.length - 1));
+					barWid = pxRound(xLayout.size[0] * xDim - strokeWidth);
 					xShift = (_dir == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
 				}
 				else {
@@ -1907,7 +1913,7 @@ var uPlot = (function () {
 							{ continue; }
 					}
 
-					var xVal = scaleX.distr != 2 || data != null ? dataX[i$1] : i$1;
+					var xVal = scaleX.distr != 2 || xLayout != null ? dataX[i$1] : i$1;
 
 					// TODO: all xPos can be pre-computed once for all series in aligned set
 					var xPos = valToPosX(xVal, scaleX, xDim, xOff);
@@ -1922,7 +1928,7 @@ var uPlot = (function () {
 						rect(stroke, lft, top, barWid, barHgt);
 
 						if (scaleX.ori == 0) {
-							each(u, seriesIdx, i$1,
+							each(seriesIdx, i$1,
 								lft - xOff - strokeWidth / 2,
 								top - yOff - strokeWidth / 2,
 								barWid     + strokeWidth,
@@ -1930,7 +1936,7 @@ var uPlot = (function () {
 							);
 						}
 						else {
-							each(u, seriesIdx, i$1,
+							each(seriesIdx, i$1,
 								top - yOff  - strokeWidth / 2,
 								lft - xOff  - strokeWidth / 2,
 								barHgt      + strokeWidth,
@@ -2786,7 +2792,6 @@ var uPlot = (function () {
 			if (i > 0) {
 				s.width  = s.width == null ? 1 : s.width;
 				s.paths  = s.paths || linearPath || retNull;
-				s.data   = s.data || retNull;
 				s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
 				s.pxAlign = +ifNull(s.pxAlign, pxAlign);
 				s.pxRound = pxRoundGen(s.pxAlign);
@@ -3279,7 +3284,7 @@ var uPlot = (function () {
 				series.forEach((s, i) => {
 					if (i > 0 && s.show && s._paths == null) {
 						var _idxs = getOuterIdxs(data[i]);
-						s._paths = s.paths(self, i, _idxs[0], _idxs[1], s.data(self, i, _idxs[0], _idxs[1]));
+						s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
 					}
 				});
 

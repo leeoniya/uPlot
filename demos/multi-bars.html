@@ -77,10 +77,10 @@
 				}
 
 				let barsPctLayout;
-				let barsRenderData;
 
 				let barsBuilder = uPlot.paths.bars({
-					each: (u, seriesIdx, dataIdx, lft, top, wid, hgt) => {
+					layout: seriesIdx => barsPctLayout[seriesIdx],
+					each: (seriesIdx, dataIdx, lft, top, wid, hgt) => {
 						qt.add({x: lft, y: top, w: wid, h: hgt, sidx: seriesIdx, didx: dataIdx});
 					},
 				});
@@ -141,28 +141,6 @@
 							});
 
 							barsPctLayout = [null].concat(distrTwo(u.data[0].length, u.data.length - 1));
-
-							let { min, max } = u.scales.x;
-							let dx = max - min;
-
-							barsRenderData = barsPctLayout.map((seriesLayout, i) => {
-								if (i > 0) {
-									let { offs, size } = seriesLayout;
-
-									return [
-										// x0 values
-										offs.map(pct => dx * pct),
-										// y0 values
-										null,
-										// x1 values
-										size.map((pct, i) => dx * (pct + offs[i])),
-										// y1 values
-										null,
-									];
-								}
-
-								return null;
-							});
 						},
 						setCursor: u => {
 							let found = null;
@@ -257,7 +235,6 @@
 								//	pxAlign: false,
 								//	stroke: "rgba(255,0,0,0.5)",
 									paths: barsBuilder,
-									data: (u, seriesIdx, idx0, idx1) => barsRenderData[seriesIdx],
 									points: {
 										show: drawPoints
 									}

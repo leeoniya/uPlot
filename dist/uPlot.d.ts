@@ -627,20 +627,6 @@ declare namespace uPlot {
 			ascDesc?: boolean; // false
 		}
 
-		export type PathBuilderData = [
-			x0: any[] | null,
-			y0: any[] | null,
-			x1: any[] | null,
-			y1: any[] | null,
-		//	value: any[] | null, // size? (by area, linear, polyomial/qudratic)
-		//	text:  any[] | null,
-		//	stroke?
-		//	fill?
-		//	shape?
-		];
-
-		export type DataPreprocesor = (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => PathBuilderData;
-
 		export interface BarsPathBuilderOpts {
 			align?: -1 | 0 | 1; // 0
 
@@ -649,8 +635,11 @@ declare namespace uPlot {
 			// fixed-size gap between bars in CSS pixels (reduces bar width)
 			gap?: number;
 
+			/** should return a custom [cached] layout for bars in % of plotting area (0..1) */
+			layout?: (seriesIdx: number) => {offs: number[], size: number[]};
+
 			/** called with bbox geometry of each drawn bar in canvas pixels. useful for spatial index, etc. */
-			each?: (self: uPlot, seriesIdx: number, idx: number, left: number, top: number, width: number, height: number) => void;
+			each?: (seriesIdx: number, idx: number, left: number, top: number, width: number, height: number) => void;
 		}
 
 		export type LinearPathBuilderFactory  = () => Series.PathBuilder;
@@ -672,16 +661,6 @@ declare namespace uPlot {
 		export type Cap = CanvasRenderingContext2D['lineCap'];
 
 		export namespace Points {
-			export interface Paths {
-				/** path to stroke */
-				stroke?: Path2D | null;
-
-				/** path to fill */
-				fill?: Path2D | null;
-			}
-
-			export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number, data: PathBuilderData | null) => Paths | null;
-
 			export type Show = boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
 
 			export type Filter = number[] | null | ((self: uPlot, seriesIdx: number, show: boolean, gaps?: null | number[][]) => number[] | null);
@@ -690,11 +669,6 @@ declare namespace uPlot {
 		export interface Points {
 			/** if boolean or returns boolean, round points are drawn with defined options, else fn should draw own custom points via self.ctx */
 			show?: Points.Show;
-
-		//	paths?: Points.PathBuilder;
-
-			/** data pre-processor for points.paths(), usually pre-computed/cached in drawClear */
-		//	data?: DataPreprocesor;
 
 			/** may return an array of points indices to draw */
 			filter?: Points.Filter;
@@ -715,7 +689,7 @@ declare namespace uPlot {
 			dash?: number[];
 
 			/** line cap */
-			cap?: Cap;
+			cap?: Series.Cap;
 
 			/** fill color of circle (defaults to #fff) */
 			fill?: Fill;
@@ -729,7 +703,7 @@ declare namespace uPlot {
 
 		export type ClipPathBuilder = (gaps: Gaps, ori: Orientation, left: number, top: number, width: number, height: number) => Path2D | null;
 
-		export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number, data: PathBuilderData | null) => Paths | null;
+		export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => Paths | null;
 
 		export type MinMaxIdxs = [minIdx: number, maxIdx: number];
 
@@ -778,9 +752,6 @@ declare namespace uPlot {
 		values?: Series.Values;
 
 		paths?: Series.PathBuilder;
-
-		/** data pre-processor for paths(), usually pre-computed/cached in drawClear */
-		data?: Series.DataPreprocesor;
 
 		/** rendered datapoints */
 		points?: Series.Points;
