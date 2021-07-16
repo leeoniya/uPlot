@@ -1822,20 +1822,10 @@ var uPlot = (function () {
 		var maxWidth  = ifNull(size[1], inf) * pxRatio;
 		var minWidth  = ifNull(size[2], 1) * pxRatio;
 
-		// custom layout cache getter
-		var layout = opts.layout;
-
+		var disp = opts.disp;
 		var each = ifNull(opts.each, _ => {});
 
 		return (u, seriesIdx, idx0, idx1) => {
-			var xLayout;
-
-			if (layout != null) {
-				// these come back in % of plottable area (0..1), so assume idx0 & idx1
-				// are full range of data, and don't handle scale dir or ori
-				xLayout = layout(seriesIdx);
-			}
-
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				var pxRound = series.pxRound;
 
@@ -1851,9 +1841,22 @@ var uPlot = (function () {
 
 				var strokeWidth = pxRound(series.width * pxRatio);
 
-				if (xLayout != null) {
-					dataX = xLayout.offs.map(v => v * (dataX.length - 1));
-					barWid = pxRound(xLayout.size[0] * xDim - strokeWidth);
+				if (disp != null) {
+					dataX = disp.x0.values(u, seriesIdx, idx0, idx1);
+
+					if (disp.x0.unit == 2)
+						{ dataX = dataX.map(pct => u.posToVal(xOff + pct * xDim, scaleX.key, true)); }
+
+					// assumes uniform sizes, for now
+					var sizes = disp.size.values(u, seriesIdx, idx0, idx1);
+
+					if (disp.size.unit == 2)
+						{ barWid = sizes[0] * xDim; }
+					else
+						{ barWid = valToPosX(sizes[0], scaleX, xDim, xOff) - valToPosX(0, scaleX, xDim, xOff); } // assumes linear scale (delta from 0)
+
+					barWid = pxRound(barWid - strokeWidth);
+
 					xShift = (_dir == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
 				}
 				else {
@@ -1913,7 +1916,7 @@ var uPlot = (function () {
 							{ continue; }
 					}
 
-					var xVal = scaleX.distr != 2 || xLayout != null ? dataX[i$1] : i$1;
+					var xVal = scaleX.distr != 2 || disp != null ? dataX[i$1] : i$1;
 
 					// TODO: all xPos can be pre-computed once for all series in aligned set
 					var xPos = valToPosX(xVal, scaleX, xDim, xOff);
@@ -1928,7 +1931,7 @@ var uPlot = (function () {
 						rect(stroke, lft, top, barWid, barHgt);
 
 						if (scaleX.ori == 0) {
-							each(seriesIdx, i$1,
+							each(u, seriesIdx, i$1,
 								lft - xOff - strokeWidth / 2,
 								top - yOff - strokeWidth / 2,
 								barWid     + strokeWidth,
@@ -1936,7 +1939,7 @@ var uPlot = (function () {
 							);
 						}
 						else {
-							each(seriesIdx, i$1,
+							each(u, seriesIdx, i$1,
 								top - yOff  - strokeWidth / 2,
 								lft - xOff  - strokeWidth / 2,
 								barHgt      + strokeWidth,
