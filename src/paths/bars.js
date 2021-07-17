@@ -13,7 +13,7 @@ export function bars(opts) {
 	const minWidth  = ifNull(size[2], 1) * pxRatio;
 
 	const disp = opts.disp;
-	const each = ifNull(opts.each, _ => {});
+	const _each = ifNull(opts.each, _ => {});
 
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
@@ -22,6 +22,10 @@ export function bars(opts) {
 			const _dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
 			let rect = scaleX.ori == 0 ? rectH : rectV;
+
+			let each = scaleX.ori == 0 ? _each : (u, seriesIdx, i, top, lft, hgt, wid) => {
+				_each(u, seriesIdx, i, lft, top, wid, hgt);
+			};
 
 			let fillToY = series.fillTo(u, seriesIdx, series.min, series.max);
 
@@ -120,22 +124,12 @@ export function bars(opts) {
 				if (dataY[i] != null) {
 					rect(stroke, lft, top, barWid, barHgt);
 
-					if (scaleX.ori == 0) {
-						each(u, seriesIdx, i,
-							lft - xOff - strokeWidth / 2,
-							top - yOff - strokeWidth / 2,
-							barWid     + strokeWidth,
-							barHgt     + strokeWidth,
-						);
-					}
-					else {
-						each(u, seriesIdx, i,
-							top - yOff  - strokeWidth / 2,
-							lft - xOff  - strokeWidth / 2,
-							barHgt      + strokeWidth,
-							barWid      + strokeWidth,
-						);
-					}
+					each(u, seriesIdx, i,
+						lft    - strokeWidth / 2,
+						top    - strokeWidth / 2,
+						barWid + strokeWidth,
+						barHgt + strokeWidth,
+					);
 				}
 
 				if (hasBands) {

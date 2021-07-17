@@ -1894,7 +1894,7 @@ var uPlot = (function () {
 		var minWidth  = ifNull(size[2], 1) * pxRatio;
 
 		var disp = opts.disp;
-		var each = ifNull(opts.each, _ => {});
+		var _each = ifNull(opts.each, _ => {});
 
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
@@ -1903,6 +1903,10 @@ var uPlot = (function () {
 				var _dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
 				var rect = scaleX.ori == 0 ? rectH : rectV;
+
+				var each = scaleX.ori == 0 ? _each : (u, seriesIdx, i, top, lft, hgt, wid) => {
+					_each(u, seriesIdx, i, lft, top, wid, hgt);
+				};
 
 				var fillToY = series.fillTo(u, seriesIdx, series.min, series.max);
 
@@ -2001,22 +2005,12 @@ var uPlot = (function () {
 					if (dataY[i$1] != null) {
 						rect(stroke, lft, top, barWid, barHgt);
 
-						if (scaleX.ori == 0) {
-							each(u, seriesIdx, i$1,
-								lft - xOff - strokeWidth / 2,
-								top - yOff - strokeWidth / 2,
-								barWid     + strokeWidth,
-								barHgt     + strokeWidth
-							);
-						}
-						else {
-							each(u, seriesIdx, i$1,
-								top - yOff  - strokeWidth / 2,
-								lft - xOff  - strokeWidth / 2,
-								barHgt      + strokeWidth,
-								barWid      + strokeWidth
-							);
-						}
+						each(u, seriesIdx, i$1,
+							lft    - strokeWidth / 2,
+							top    - strokeWidth / 2,
+							barWid + strokeWidth,
+							barHgt + strokeWidth
+						);
 					}
 
 					if (hasBands) {
