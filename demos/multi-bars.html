@@ -104,6 +104,9 @@
 						*/
 					},
 					each: (u, seriesIdx, dataIdx, lft, top, wid, hgt) => {
+						// we get back raw canvas coords (included axes & padding). translate to the plotting area origin
+						lft -= u.bbox.left;
+						top -= u.bbox.top;
 						qt.add({x: lft, y: top, w: wid, h: hgt, sidx: seriesIdx, didx: dataIdx});
 					},
 				});
