@@ -177,6 +177,7 @@ import {
 
 import { _sync } from './sync';
 
+import { points   } from './paths/points';
 import { linear   } from './paths/linear';
 import { stepped  } from './paths/stepped';
 import { bars     } from './paths/bars';
@@ -201,6 +202,7 @@ on(resize, win, invalidateRects);
 on(scroll, win, invalidateRects, true);
 
 const linearPath = FEAT_PATHS && FEAT_PATHS_LINEAR ? linear() : null;
+const pointsPath = FEAT_POINTS ? points() : null;
 
 function setDefaults(d, xo, yo, initY) {
 	let d2 = initY ? [d[0], d[1]].concat(d.slice(2)) : [d[0]].concat(d.slice(1));
@@ -870,6 +872,7 @@ export default function uPlot(opts, data, then) {
 				width: max(1, _ptDia * .2),
 				stroke: s.stroke,
 				space: _ptDia * 2,
+				paths: pointsPath,
 				_stroke: null,
 				_fill: null,
 			}, s.points);
@@ -877,6 +880,8 @@ export default function uPlot(opts, data, then) {
 			points.filter = fnOrSelf(points.filter);
 			points.fill   = fnOrSelf(points.fill);
 			points.stroke = fnOrSelf(points.stroke);
+			points.paths  = fnOrSelf(points.paths);
+			points.pxAlign = s.pxAlign;
 		}
 
 		if (showLegend) {
@@ -1235,95 +1240,6 @@ export default function uPlot(opts, data, then) {
 			pendScales[k] = null;
 	}
 
-	// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
-	function drawPoints(si, idxs) {
-	//	log("drawPoints()", arguments);
-
-		let s = series[si];
-		let p = s.points;
-		let _pxRound = s.pxRound;
-
-		const width = roundDec(p.width * pxRatio, 3);
-		const offset = (width % 2) / 2;
-		const isStroked = p.width > 0;
-
-		let rad = (p.size - p.width) / 2 * pxRatio;
-		let dia = roundDec(rad * 2, 3);
-
-		const _pxAlign = s.pxAlign == 1;
-
-		_pxAlign && ctx.translate(offset, offset);
-
-		ctx.save();
-
-		ctx.beginPath();
-		ctx.rect(
-			plotLft - dia,
-			plotTop - dia,
-			plotWid + dia * 2,
-			plotHgt + dia * 2,
-		);
-		ctx.clip();
-
-		ctx.globalAlpha = s.alpha;
-
-		const path = new Path2D();
-
-		const scaleY = scales[s.scale];
-
-		let xDim, xOff, yDim, yOff;
-
-		if (scaleX.ori == 0) {
-			xDim = plotWid;
-			xOff = plotLft;
-			yDim = plotHgt;
-			yOff = plotTop;
-		}
-		else {
-			xDim = plotHgt;
-			xOff = plotTop;
-			yDim = plotWid;
-			yOff = plotLft;
-		}
-
-		const drawPoint = pi => {
-			if (data[si][pi] != null) {
-				let x = _pxRound(valToPosX(data[0][pi],  scaleX, xDim, xOff));
-				let y = _pxRound(valToPosY(data[si][pi], scaleY, yDim, yOff));
-
-				moveTo(path, x + rad, y);
-				arc(path, x, y, rad, 0, PI * 2);
-			}
-		};
-
-		if (idxs)
-			idxs.forEach(drawPoint);
-		else {
-			for (let pi = i0; pi <= i1; pi++)
-				drawPoint(pi);
-		}
-
-		const _stroke = p._stroke = p.stroke(self, si);
-		const _fill   = p._fill   = p.fill(self, si);
-
-		setCtxStyle(
-			_stroke,
-			width,
-			p.dash,
-			p.cap,
-			_fill || (isStroked ? "#fff" : s._stroke),
-		);
-
-		ctx.fill(path);
-		isStroked && ctx.stroke(path);
-
-		ctx.globalAlpha = 1;
-
-		ctx.restore();
-
-		_pxAlign && ctx.translate(-offset, -offset);
-	}
-
 	// grabs the nearest indices with y data outside of x-scale limits
 	function getOuterIdxs(ydata) {
 		let _i0 = clamp(i0 - 1, 0, dataLen - 1);
@@ -1350,14 +1266,16 @@ export default function uPlot(opts, data, then) {
 			series.forEach((s, i) => {
 				if (i > 0 && s.show) {
 					if (FEAT_PATHS)
-						s._paths && drawPath(i);
+						s._paths && drawPath(i, false);
 
 					if (FEAT_POINTS) {
 						let show = s.points.show(self, i, i0, i1);
 						let idxs = s.points.filter(self, i, show, s._paths ? s._paths.gaps : null);
 
-						if (show || idxs)
-							drawPoints(i, idxs);
+						if (show || idxs) {
+							s.points._paths = s.points.paths(self, i, i0, i1, idxs);
+							drawPath(i, true);
+						}
 					}
 
 					fire("drawSeries", i);
@@ -1366,42 +1284,47 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
-	function drawPath(si) {
-		const s = series[si];
+	function drawPath(si, _points) {
+		let s = _points ? series[si].points : series[si];
 
-		const { stroke, fill, clip, flags } = s._paths;
-		const width = roundDec(s.width * pxRatio, 3);
-		const offset = (width % 2) / 2;
+		let { stroke, fill, clip, flags } = s._paths;
+		let width = roundDec(s.width * pxRatio, 3);
+		let offset = (width % 2) / 2;
 
-		const strokeStyle = s._stroke = s.stroke(self, si);
-		const fillStyle   = s._fill   = s.fill(self, si);
+		let strokeStyle = s._stroke = s.stroke(self, si);
+		let fillStyle   = s._fill   = s.fill(self, si);
+
+		if (_points && fillStyle == null)
+			fillStyle = width > 0 ? "#fff" : strokeStyle;
 
 		ctx.globalAlpha = s.alpha;
 
-		const _pxAlign = s.pxAlign == 1;
+		let _pxAlign = s.pxAlign == 1;
 
 		_pxAlign && ctx.translate(offset, offset);
 
 		ctx.save();
 
-		let lft = plotLft,
-			top = plotTop,
-			wid = plotWid,
-			hgt = plotHgt;
+		if (!_points) {
+			let lft = plotLft,
+				top = plotTop,
+				wid = plotWid,
+				hgt = plotHgt;
 
-		let halfWid = width * pxRatio / 2;
+			let halfWid = width * pxRatio / 2;
 
-		if (s.min == 0)
-			hgt += halfWid;
+			if (s.min == 0)
+				hgt += halfWid;
 
-		if (s.max == 0) {
-			top -= halfWid;
-			hgt += halfWid;
+			if (s.max == 0) {
+				top -= halfWid;
+				hgt += halfWid;
+			}
+
+			ctx.beginPath();
+			ctx.rect(lft, top, wid, hgt);
+			ctx.clip();
 		}
-
-		ctx.beginPath();
-		ctx.rect(lft, top, wid, hgt);
-		ctx.clip();
 
 		clip && ctx.clip(clip);
 

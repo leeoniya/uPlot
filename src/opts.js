@@ -635,7 +635,7 @@ export function ptDia(width, mult) {
 	return roundDec(dia * mult, 3);
 }
 
-function seriesPoints(self, si) {
+function seriesPointsShow(self, si) {
 	let { scale, idxs } = self.series[0];
 	let xData = self.data[0];
 	let p0 = self.valToPos(xData[idxs[0]], scale, true);
@@ -663,8 +663,9 @@ export const ySeriesOpts = {
 	spanGaps: false,
 	alpha: 1,
 	points: {
-		show: seriesPoints,
+		show: seriesPointsShow,
 		filter: null,
+	//  paths:
 	//	stroke: "#000",
 	//	fill: "#fff",
 	//	width: 1,

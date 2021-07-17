@@ -1315,7 +1315,7 @@ function ptDia(width, mult) {
 	return roundDec(dia * mult, 3);
 }
 
-function seriesPoints(self, si) {
+function seriesPointsShow(self, si) {
 	let { scale, idxs } = self.series[0];
 	let xData = self.data[0];
 	let p0 = self.valToPos(xData[idxs[0]], scale, true);
@@ -1343,8 +1343,9 @@ const ySeriesOpts = {
 	spanGaps: false,
 	alpha: 1,
 	points: {
-		show: seriesPoints,
+		show: seriesPointsShow,
 		filter: null,
+	//  paths:
 	//	stroke: "#000",
 	//	fill: "#fff",
 	//	width: 1,
@@ -1565,6 +1566,71 @@ function rectV(p, y, x, h, w) { p.rect(x, y, w, h); }
 function arcH(p, x, y, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
 function arcV(p, y, x, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
 function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }function bezierCurveToV(p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }
+
+// TODO: drawWrap(seriesIdx, drawPoints) (save, restore, translate, clip)
+function points(opts) {
+	return (u, seriesIdx, idx0, idx1, filtIdxs) => {
+		//	log("drawPoints()", arguments);
+
+		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			let { pxRound, points } = series;
+
+			let moveTo, rect, arc;
+
+			if (scaleX.ori == 0) {
+				moveTo = moveToH;
+				arc = arcH;
+				rect = rectH;
+			}
+			else {
+				moveTo = moveToV;
+				arc = arcV;
+				rect = rectV;
+			}
+
+			const width = roundDec(points.width * pxRatio, 3);
+
+			let rad = (points.size - points.width) / 2 * pxRatio;
+			let dia = roundDec(rad * 2, 3);
+
+			let fill = new Path2D();
+			let clip = new Path2D();
+
+			let { left: lft, top: top, width: wid, height: hgt } = u.bbox;
+
+			rect(clip,
+				lft - dia,
+				top - dia,
+				wid + dia * 2,
+				hgt + dia * 2,
+			);
+
+			const drawPoint = pi => {
+				if (dataY[pi] != null) {
+					let x = pxRound(valToPosX(dataX[pi], scaleX, xDim, xOff));
+					let y = pxRound(valToPosY(dataY[pi], scaleY, yDim, yOff));
+
+					moveTo(fill, x + rad, y);
+					arc(fill, x, y, rad, 0, PI * 2);
+				}
+			};
+
+			if (filtIdxs)
+				filtIdxs.forEach(drawPoint);
+			else {
+				for (let pi = idx0; pi <= idx1; pi++)
+					drawPoint(pi);
+			}
+
+			return {
+				stroke: width > 0 ? fill : null,
+				fill,
+				clip,
+				flags: BAND_CLIP_FILL | BAND_CLIP_STROKE,
+			};
+		});
+	};
+}
 
 function _drawAcc(lineTo) {
 	return (stroke, accX, minY, maxY, inY, outY) => {
@@ -2123,6 +2189,7 @@ on(resize, win, invalidateRects);
 on(scroll, win, invalidateRects, true);
 
 const linearPath = linear() ;
+const pointsPath = points() ;
 
 function setDefaults(d, xo, yo, initY) {
 	let d2 = initY ? [d[0], d[1]].concat(d.slice(2)) : [d[0]].concat(d.slice(1));
@@ -2357,14 +2424,12 @@ function uPlot(opts, data, then) {
 
 	const xScaleDistr = scaleX.distr;
 
-	let valToPosX, valToPosY, moveTo, arc;
+	let valToPosX, valToPosY;
 
 	if (scaleX.ori == 0) {
 		addClass(root, ORI_HZ);
 		valToPosX = getHPos;
 		valToPosY = getVPos;
-		moveTo    = moveToH;
-		arc       = arcH;
 		/*
 		updOriDims = () => {
 			xDimCan = plotWid;
@@ -2383,8 +2448,6 @@ function uPlot(opts, data, then) {
 		addClass(root, ORI_VT);
 		valToPosX = getVPos;
 		valToPosY = getHPos;
-		moveTo    = moveToV;
-		arc       = arcV;
 		/*
 		updOriDims = () => {
 			xDimCan = plotHgt;
@@ -2792,6 +2855,7 @@ function uPlot(opts, data, then) {
 				width: max(1, _ptDia * .2),
 				stroke: s.stroke,
 				space: _ptDia * 2,
+				paths: pointsPath,
 				_stroke: null,
 				_fill: null,
 			}, s.points);
@@ -2799,6 +2863,8 @@ function uPlot(opts, data, then) {
 			points.filter = fnOrSelf(points.filter);
 			points.fill   = fnOrSelf(points.fill);
 			points.stroke = fnOrSelf(points.stroke);
+			points.paths  = fnOrSelf(points.paths);
+			points.pxAlign = s.pxAlign;
 		}
 
 		if (showLegend) {
@@ -3157,95 +3223,6 @@ function uPlot(opts, data, then) {
 			pendScales[k] = null;
 	}
 
-	// TODO: drawWrap(si, drawPoints) (save, restore, translate, clip)
-	function drawPoints(si, idxs) {
-	//	log("drawPoints()", arguments);
-
-		let s = series[si];
-		let p = s.points;
-		let _pxRound = s.pxRound;
-
-		const width = roundDec(p.width * pxRatio, 3);
-		const offset = (width % 2) / 2;
-		const isStroked = p.width > 0;
-
-		let rad = (p.size - p.width) / 2 * pxRatio;
-		let dia = roundDec(rad * 2, 3);
-
-		const _pxAlign = s.pxAlign == 1;
-
-		_pxAlign && ctx.translate(offset, offset);
-
-		ctx.save();
-
-		ctx.beginPath();
-		ctx.rect(
-			plotLft - dia,
-			plotTop - dia,
-			plotWid + dia * 2,
-			plotHgt + dia * 2,
-		);
-		ctx.clip();
-
-		ctx.globalAlpha = s.alpha;
-
-		const path = new Path2D();
-
-		const scaleY = scales[s.scale];
-
-		let xDim, xOff, yDim, yOff;
-
-		if (scaleX.ori == 0) {
-			xDim = plotWid;
-			xOff = plotLft;
-			yDim = plotHgt;
-			yOff = plotTop;
-		}
-		else {
-			xDim = plotHgt;
-			xOff = plotTop;
-			yDim = plotWid;
-			yOff = plotLft;
-		}
-
-		const drawPoint = pi => {
-			if (data[si][pi] != null) {
-				let x = _pxRound(valToPosX(data[0][pi],  scaleX, xDim, xOff));
-				let y = _pxRound(valToPosY(data[si][pi], scaleY, yDim, yOff));
-
-				moveTo(path, x + rad, y);
-				arc(path, x, y, rad, 0, PI * 2);
-			}
-		};
-
-		if (idxs)
-			idxs.forEach(drawPoint);
-		else {
-			for (let pi = i0; pi <= i1; pi++)
-				drawPoint(pi);
-		}
-
-		const _stroke = p._stroke = p.stroke(self, si);
-		const _fill   = p._fill   = p.fill(self, si);
-
-		setCtxStyle(
-			_stroke,
-			width,
-			p.dash,
-			p.cap,
-			_fill || (isStroked ? "#fff" : s._stroke),
-		);
-
-		ctx.fill(path);
-		isStroked && ctx.stroke(path);
-
-		ctx.globalAlpha = 1;
-
-		ctx.restore();
-
-		_pxAlign && ctx.translate(-offset, -offset);
-	}
-
 	// grabs the nearest indices with y data outside of x-scale limits
 	function getOuterIdxs(ydata) {
 		let _i0 = clamp(i0 - 1, 0, dataLen - 1);
@@ -3271,14 +3248,16 @@ function uPlot(opts, data, then) {
 
 			series.forEach((s, i) => {
 				if (i > 0 && s.show) {
-					s._paths && drawPath(i);
+					s._paths && drawPath(i, false);
 
 					{
 						let show = s.points.show(self, i, i0, i1);
 						let idxs = s.points.filter(self, i, show, s._paths ? s._paths.gaps : null);
 
-						if (show || idxs)
-							drawPoints(i, idxs);
+						if (show || idxs) {
+							s.points._paths = s.points.paths(self, i, i0, i1, idxs);
+							drawPath(i, true);
+						}
 					}
 
 					fire("drawSeries", i);
@@ -3287,42 +3266,47 @@ function uPlot(opts, data, then) {
 		}
 	}
 
-	function drawPath(si) {
-		const s = series[si];
+	function drawPath(si, _points) {
+		let s = _points ? series[si].points : series[si];
 
-		const { stroke, fill, clip, flags } = s._paths;
-		const width = roundDec(s.width * pxRatio, 3);
-		const offset = (width % 2) / 2;
+		let { stroke, fill, clip, flags } = s._paths;
+		let width = roundDec(s.width * pxRatio, 3);
+		let offset = (width % 2) / 2;
 
-		const strokeStyle = s._stroke = s.stroke(self, si);
-		const fillStyle   = s._fill   = s.fill(self, si);
+		let strokeStyle = s._stroke = s.stroke(self, si);
+		let fillStyle   = s._fill   = s.fill(self, si);
+
+		if (_points && fillStyle == null)
+			fillStyle = width > 0 ? "#fff" : strokeStyle;
 
 		ctx.globalAlpha = s.alpha;
 
-		const _pxAlign = s.pxAlign == 1;
+		let _pxAlign = s.pxAlign == 1;
 
 		_pxAlign && ctx.translate(offset, offset);
 
 		ctx.save();
 
-		let lft = plotLft,
-			top = plotTop,
-			wid = plotWid,
-			hgt = plotHgt;
+		if (!_points) {
+			let lft = plotLft,
+				top = plotTop,
+				wid = plotWid,
+				hgt = plotHgt;
 
-		let halfWid = width * pxRatio / 2;
+			let halfWid = width * pxRatio / 2;
 
-		if (s.min == 0)
-			hgt += halfWid;
+			if (s.min == 0)
+				hgt += halfWid;
 
-		if (s.max == 0) {
-			top -= halfWid;
-			hgt += halfWid;
+			if (s.max == 0) {
+				top -= halfWid;
+				hgt += halfWid;
+			}
+
+			ctx.beginPath();
+			ctx.rect(lft, top, wid, hgt);
+			ctx.clip();
 		}
-
-		ctx.beginPath();
-		ctx.rect(lft, top, wid, hgt);
-		ctx.clip();
 
 		clip && ctx.clip(clip);
 
