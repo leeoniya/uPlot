@@ -5,7 +5,7 @@ import { pxRatio } from '../dom';
 // TODO: drawWrap(seriesIdx, drawPoints) (save, restore, translate, clip)
 export function points(opts) {
 	return (u, seriesIdx, idx0, idx1, filtIdxs) => {
-		//	log("drawPoints()", arguments);
+	//	log("drawPoints()", arguments);
 
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let { pxRound, points } = series;

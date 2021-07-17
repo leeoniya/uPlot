@@ -1583,7 +1583,7 @@ var uPlot = (function () {
 	// TODO: drawWrap(seriesIdx, drawPoints) (save, restore, translate, clip)
 	function points(opts) {
 		return (u, seriesIdx, idx0, idx1, filtIdxs) => {
-			//	log("drawPoints()", arguments);
+		//	log("drawPoints()", arguments);
 
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				var pxRound = series.pxRound;

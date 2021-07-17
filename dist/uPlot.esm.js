@@ -1570,7 +1570,7 @@ function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(b
 // TODO: drawWrap(seriesIdx, drawPoints) (save, restore, translate, clip)
 function points(opts) {
 	return (u, seriesIdx, idx0, idx1, filtIdxs) => {
-		//	log("drawPoints()", arguments);
+	//	log("drawPoints()", arguments);
 
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let { pxRound, points } = series;
