@@ -92,16 +92,16 @@
 				return {opts, data: stacked.data};
 			}
 
-			function stackedChart(title, series, _data) {
+			function stackedChart(title, series, _data, width = 800, height = 400) {
 				let { opts, data } = getStackedOpts(title, series, _data);
+				opts.title = title;
+				opts.width = width;
+				opts.height = height;
 				return new uPlot(opts, data, document.body);
 			}
 
 			function getOpts(title, series) {
 				return {
-					title,
-					width: 800,
-					height: 400,
 					scales: {
 						x: {
 							time: false,
@@ -171,7 +171,7 @@
 					{
 						label:  "bars 1",
 						stroke: "green",
-						width:  1,
+						width:  2,
 						fill:   "rgba(0, 255, 0, 0.3)",
 						paths:  _bars60_100,
 						points: {show: false},
@@ -179,7 +179,7 @@
 					{
 						label:  "bars 2",
 						stroke: "magenta",
-						width:  1,
+						width:  2,
 						fill:   "rgb(255, 0, 255, 0.3)",
 						paths:  _bars60_100,
 						points: {show: false},
@@ -187,7 +187,7 @@
 					{
 						label:  "bars 3",
 						stroke: "blue",
-						width:  1,
+						width:  2,
 						fill:   "rgba(0, 0, 255, 0.3)",
 						paths:  _bars60_100,
 						points: {show: false},
@@ -195,13 +195,15 @@
 					{
 						label:  "bars 4",
 						stroke: "red",
-						width:  1,
+						width:  2,
 						fill:   "rgba(255, 0, 0, 0.3)",
 						paths:  _bars60_100,
 						points: {show: false},
 					},
 				],
 				data2,
+				1600,
+				400,
 			);
 		</script>
 		<p>In summary, <strong>JUST DON'T.</strong></p>

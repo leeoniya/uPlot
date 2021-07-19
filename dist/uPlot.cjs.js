@@ -2001,7 +2001,7 @@ function bars(opts) {
 					btm = top;
 					top = yLimit;
 					barHgt = btm - top;
-					rect(band, lft, top, barWid, barHgt);
+					rect(band, lft - strokeWidth / 2, top + strokeWidth / 2, barWid + strokeWidth, barHgt - strokeWidth);
 				}
 			}
 
