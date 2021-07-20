@@ -1341,7 +1341,6 @@ const ySeriesOpts = {
 	auto: true,
 	sorted: 0,
 	show: true,
-	band: false,
 	spanGaps: false,
 	alpha: 1,
 	points: {
