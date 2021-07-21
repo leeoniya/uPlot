@@ -36,6 +36,16 @@
 				opts.title = title;
 				opts.width = width;
 				opts.height = height;
+			/*
+				Object.assign(opts.scales.x, {
+					ori: 1,
+					dir: -1,
+				});
+				Object.assign(opts.scales.y, {
+					ori: 0,
+					dir: 1,
+				});
+			*/
 				return new uPlot(opts, data, document.body);
 			}
 
@@ -65,7 +75,7 @@
 			stackedChart(
 				"Stacked 1",
 				[{}].concat(series),
-				[xs, d1, d2, d3, d4, d5]
+				[xs, d1, d2, d3, d4, d5],
 			);
 
 			stackedChart(

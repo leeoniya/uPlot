@@ -13,6 +13,7 @@ function seriesBarsPlugin(opts) {
 
 	const ori        = opts.ori;
 	const dir        = opts.dir;
+	const stacked    = opts.stacked;
 
 	const groupWidth = 0.9;
 	const groupDistr = SPACE_BETWEEN;
@@ -30,6 +31,22 @@ function seriesBarsPlugin(opts) {
 			distr(barCount, barWidth, barDistr, null, (barIdx, barOffPct, barDimPct) => {
 				out[barIdx].offs[groupIdx] = groupOffPct + (groupDimPct * barOffPct);
 				out[barIdx].size[groupIdx] = groupDimPct * barDimPct;
+			});
+		});
+
+		return out;
+	}
+
+	function distrOne(groupCount, barCount) {
+		let out = Array.from({length: barCount}, () => ({
+			offs: Array(groupCount).fill(0),
+			size: Array(groupCount).fill(0),
+		}));
+
+		distr(groupCount, groupWidth, groupDistr, null, (groupIdx, groupOffPct, groupDimPct) => {
+			distr(barCount, barWidth, barDistr, null, (barIdx, barOffPct, barDimPct) => {
+				out[barIdx].offs[groupIdx] = groupOffPct;
+				out[barIdx].size[groupIdx] = groupDimPct;
 			});
 		});
 
@@ -126,7 +143,10 @@ function seriesBarsPlugin(opts) {
 					s._paths = null;
 				});
 
-				barsPctLayout = [null].concat(distrTwo(u.data[0].length, u.data.length - 1));
+				if (stacked)
+					barsPctLayout = [null].concat(distrOne(u.data.length - 1, u.data[0].length));
+				else
+					barsPctLayout = [null].concat(distrTwo(u.data[0].length, u.data.length - 1));
 			},
 			setCursor: u => {
 				let found = null;
