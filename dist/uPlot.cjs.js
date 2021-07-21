@@ -1554,12 +1554,11 @@ function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
 		for (let i = 0; i < gaps.length; i++) {
 			let g = gaps[i];
 
-			if (g[1] == g[0])
-				continue;
+			if (g[1] > g[0]) {
+				rect(clip, prevGapEnd, plotTop, g[0] - prevGapEnd, plotTop + plotHgt);
 
-			rect(clip, prevGapEnd, plotTop, g[0] - prevGapEnd, plotTop + plotHgt);
-
-			prevGapEnd = g[1];
+				prevGapEnd = g[1];
+			}
 		}
 
 		rect(clip, prevGapEnd, plotTop, plotLft + plotWid - prevGapEnd, plotTop + plotHgt);
