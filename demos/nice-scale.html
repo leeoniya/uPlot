@@ -2,22 +2,33 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>Nice Scale</title>
+		<title>Nice Scale &amp; Ticks</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			#resize {
+				resize: both;
+				display: inline-block;
+				min-height: 100px;
+				min-width: 100px;
+				background: #f5f5f5;
+				overflow: auto;
+			}
+		</style>
 	</head>
 	<body>
+		<div id="resize"></div>
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
 			// terse port of https://stackoverflow.com/questions/8506881/nice-label-algorithm-for-charts-with-minimum-ticks
 			function niceScale(dataMin, dataMax, maxTicks) {
-				maxTicks = maxTicks || 10;
-
 				let range = niceNum(dataMax - dataMin, false);
-				let incr  = niceNum(range / (maxTicks - 1), true);
+
+				let incr = niceNum(range / (maxTicks - 1), true);
 
 				return {
+				//	dec,  // num decimals needed for tick differentiation
 					incr,
 					min: Math.floor(dataMin / incr) * incr,
 					max: Math.ceil(dataMax / incr) * incr,
@@ -30,7 +41,7 @@
 
 				let niceFrac = round ? (
 					frac < 1.5 ?  1 :
-					frac < 3   ?  2 :
+					frac < 3   ?  (frac > 2.25 ? 2.5 : 2) :
 					frac < 7   ?  5 :
 								 10
 				) : (
@@ -43,31 +54,70 @@
 				return niceFrac * Math.pow(10, exp);
 			}
 
-			let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
-			let vals = [-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10,11];
-
 			let data = [
-				xs,
-				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
-				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
-				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+				[0, 1, 2, 3, 4, 5],
+				[-5, -2, 1, 7, 9, 13],
+				[-123, 4, 29, 37, 217, 230],
+				[.5, 0.1, -7, -9, -13, 1],
+			//	[7, 8, 9, 10, 11, 12]
 			];
 
+			let yNiceScale;
+			let yMaxTicks = 10;
+			let yMinSpace = 30;
+			let yDataMin, yDataMax;
+
+			let width = 1920,
+				height = 600;
+
 			const opts = {
-				width: 1920,
-				height: 600,
-				title: "Nice Scale",
+				width,
+				height,
+				title: "Nice Scale & Ticks (resize me)",
 				scales: {
 					x: {
 						time: false,
 					},
 					y: {
+						// rescale on setSize if incrs is dynamic?
+						// this does change with resize but should in case the range is expanded for niceness
 						range: (u, dataMin, dataMax) => {
-							const { min, max } = niceScale(dataMin, dataMax);
-							return [min, max];
+							// if non-zero min or max, grow each by 2% to provide scale padding
+							dataMin *= (dataMin < 0 ? 1.02 : dataMin > 0 ? 0.98 : 1);
+							dataMax *= (dataMax < 0 ? 0.98 : dataMax > 0 ? 1.02 : 1);
+
+							yDataMin = dataMin;
+							yDataMax = dataMax;
+
+							yMaxTicks = Math.floor(u.bbox.height / yMinSpace);
+							yNiceScale = niceScale(dataMin, dataMax, yMaxTicks);
+							return [yNiceScale.min, yNiceScale.max];
 						}
 					},
 				},
+				axes: [
+					{},
+					{
+						incrs: u => {
+							yMaxTicks = Math.floor(u.bbox.height / yMinSpace);
+
+							let _yNiceScale = niceScale(yDataMin, yDataMax, yMaxTicks);
+
+							if (_yNiceScale.min != yNiceScale.min || _yNiceScale.max != yNiceScale.max) {
+								console.log('rescale y!');
+
+								queueMicrotask(() => {
+									u.setScale('y', yNiceScale);
+								});
+							}
+
+							yNiceScale = _yNiceScale;
+
+							return [yNiceScale.incr];
+						},
+						space: yMinSpace
+					}
+				],
 				series: [
 					{},
 					{
@@ -85,7 +135,24 @@
 				],
 			};
 
-			let u = new uPlot(opts, data, document.body);
+			let ctnr = document.querySelector("#resize");
+
+			let u = new uPlot(opts, data, ctnr);
+
+			setTimeout(() => {
+				let tr = document.querySelector(".u-title").getBoundingClientRect();
+				let lr = document.querySelector(".u-legend").getBoundingClientRect();
+
+				setInterval(() => {
+					let cr = ctnr.getBoundingClientRect();
+
+					let newWidth = cr.width;
+					let newHeight = cr.height - tr.height - lr.height;
+
+					if (width != newWidth || height != newHeight)
+						u.setSize({width: width = newWidth, height: height = newHeight});
+				}, 500);
+			}, 500);
 		</script>
 	</body>
 </html>
