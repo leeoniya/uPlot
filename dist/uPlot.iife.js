@@ -1771,8 +1771,12 @@ var uPlot = (function () {
 							minY = inf;
 							maxY = -inf;
 
-							if (dataY[i] === null)
-								{ accGaps = prevYNull = true; }
+							if (dataY[i] === null) {
+								accGaps = true;
+
+								if (x - accX > 1)
+									{ _addGap = true; }
+							}
 						}
 
 						_addGap && addGap(gaps, outX, x);
