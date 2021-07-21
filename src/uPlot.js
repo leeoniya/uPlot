@@ -116,6 +116,7 @@ import {
 	placeTag,
 	placeDiv,
 	trans,
+	color,
 	on,
 	off,
 } from './dom';
@@ -2239,11 +2240,7 @@ export default function uPlot(opts, data, then) {
 					// todo: only fire this if indices or values changed
 					if (FEAT_CURSOR && cursorPts.length > 1) {
 						trans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
-
-						if (!cursor.points.static) {
-							cursorPts[i].style.background = cursor.points.fill(self, i);
-							cursorPts[i].style.borderColor = cursor.points.stroke(self, i);
-						}
+						color(cursorPts[i], cursor.points.fill(self, i), cursor.points.stroke(self, i));
 					}
 				}
 

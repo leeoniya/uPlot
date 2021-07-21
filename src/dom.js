@@ -76,6 +76,22 @@ export function trans(el, xPos, yPos, xMax, yMax) {
 	}
 }
 
+const colorCache = new WeakMap();
+
+export function color(el, background, borderColor) {
+	let newColor = background + borderColor;
+	let oldColor = colorCache.get(el);
+
+	if (newColor != oldColor) {
+		colorCache.set(el, newColor);
+
+		Object.assign(el.style, {
+			background,
+			borderColor,
+		});
+	}
+}
+
 const evOpts = {passive: true};
 const evOpts2 = assign({capture: true}, evOpts);
 

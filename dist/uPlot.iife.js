@@ -581,6 +581,22 @@ var uPlot = (function () {
 		}
 	}
 
+	var colorCache = new WeakMap();
+
+	function color(el, background, borderColor) {
+		var newColor = background + borderColor;
+		var oldColor = colorCache.get(el);
+
+		if (newColor != oldColor) {
+			colorCache.set(el, newColor);
+
+			Object.assign(el.style, {
+				background: background,
+				borderColor: borderColor,
+			});
+		}
+	}
+
 	var evOpts = {passive: true};
 	var evOpts2 = assign({capture: true}, evOpts);
 
@@ -1124,7 +1140,6 @@ var uPlot = (function () {
 		lock: false,
 		move: cursorMove,
 		points: {
-			static: true,
 			show:   cursorPointShow,
 			size:   cursorPointSize,
 			width:  0,
@@ -4267,11 +4282,7 @@ var uPlot = (function () {
 						// todo: only fire this if indices or values changed
 						if (cursorPts.length > 1) {
 							trans(cursorPts[i$2], hPos, vPos, plotWidCss, plotHgtCss);
-
-							if (!cursor.points.static) {
-								cursorPts[i$2].style.background = cursor.points.fill(self, i$2);
-								cursorPts[i$2].style.borderColor = cursor.points.stroke(self, i$2);
-							}
+							color(cursorPts[i$2], cursor.points.fill(self, i$2), cursor.points.stroke(self, i$2));
 						}
 					}
 
