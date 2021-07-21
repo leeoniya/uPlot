@@ -1328,7 +1328,10 @@ export default function uPlot(opts, data, then) {
 
 		clip && ctx.clip(clip);
 
-		fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags);
+		if (_points)
+			strokeFill(strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, null, flags);
+		else
+			fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags);
 
 		ctx.restore();
 
