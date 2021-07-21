@@ -1576,17 +1576,15 @@ function points(opts) {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let { pxRound, points } = series;
 
-			let moveTo, rect, arc;
+			let moveTo, arc;
 
 			if (scaleX.ori == 0) {
 				moveTo = moveToH;
 				arc = arcH;
-				rect = rectH;
 			}
 			else {
 				moveTo = moveToV;
 				arc = arcV;
-				rect = rectV;
 			}
 
 			const width = roundDec(points.width * pxRatio, 3);
@@ -1599,7 +1597,7 @@ function points(opts) {
 
 			let { left: lft, top: top, width: wid, height: hgt } = u.bbox;
 
-			rect(clip,
+			rectH(clip,
 				lft - dia,
 				top - dia,
 				wid + dia * 2,

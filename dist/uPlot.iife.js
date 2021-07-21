@@ -1588,17 +1588,15 @@ var uPlot = (function () {
 				var pxRound = series.pxRound;
 				var points = series.points;
 
-				var moveTo, rect, arc;
+				var moveTo, arc;
 
 				if (scaleX.ori == 0) {
 					moveTo = moveToH;
 					arc = arcH;
-					rect = rectH;
 				}
 				else {
 					moveTo = moveToV;
 					arc = arcV;
-					rect = rectV;
 				}
 
 				var width = roundDec(points.width * pxRatio, 3);
@@ -1615,7 +1613,7 @@ var uPlot = (function () {
 				var wid = ref.width;
 				var hgt = ref.height;
 
-				rect(clip,
+				rectH(clip,
 					lft - dia,
 					top - dia,
 					wid + dia * 2,

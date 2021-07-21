@@ -1,4 +1,4 @@
-import { orient, moveToH, moveToV, rectH, rectV, arcH, arcV, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './utils';
+import { orient, moveToH, moveToV, rectH, arcH, arcV, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './utils';
 import { roundDec, PI } from '../utils';
 import { pxRatio } from '../dom';
 
@@ -10,17 +10,15 @@ export function points(opts) {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let { pxRound, points } = series;
 
-			let moveTo, rect, arc;
+			let moveTo, arc;
 
 			if (scaleX.ori == 0) {
 				moveTo = moveToH;
 				arc = arcH;
-				rect = rectH;
 			}
 			else {
 				moveTo = moveToV;
 				arc = arcV;
-				rect = rectV;
 			}
 
 			const width = roundDec(points.width * pxRatio, 3);
@@ -33,7 +31,7 @@ export function points(opts) {
 
 			let { left: lft, top: top, width: wid, height: hgt } = u.bbox;
 
-			rect(clip,
+			rectH(clip,
 				lft - dia,
 				top - dia,
 				wid + dia * 2,
