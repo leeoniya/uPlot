@@ -109,6 +109,9 @@ export function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
 		for (let i = 0; i < gaps.length; i++) {
 			let g = gaps[i];
 
+			if (g[1] == g[0])
+				continue;
+
 			rect(clip, prevGapEnd, plotTop, g[0] - prevGapEnd, plotTop + plotHgt);
 
 			prevGapEnd = g[1];
@@ -121,14 +124,12 @@ export function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
 }
 
 export function addGap(gaps, fromX, toX) {
-	if (toX > fromX) {
-		let prevGap = gaps[gaps.length - 1];
+	let prevGap = gaps[gaps.length - 1];
 
-		if (prevGap && prevGap[0] == fromX)			// TODO: gaps must be encoded at stroke widths?
-			prevGap[1] = toX;
-		else
-			gaps.push([fromX, toX]);
-	}
+	if (prevGap && prevGap[0] == fromX)			// TODO: gaps must be encoded at stroke widths?
+		prevGap[1] = toX;
+	else
+		gaps.push([fromX, toX]);
 }
 
 export function pxRoundGen(pxAlign) {

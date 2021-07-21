@@ -1565,6 +1565,9 @@ var uPlot = (function () {
 			for (var i = 0; i < gaps.length; i++) {
 				var g = gaps[i];
 
+				if (g[1] == g[0])
+					{ continue; }
+
 				rect(clip, prevGapEnd, plotTop, g[0] - prevGapEnd, plotTop + plotHgt);
 
 				prevGapEnd = g[1];
@@ -1577,14 +1580,12 @@ var uPlot = (function () {
 	}
 
 	function addGap(gaps, fromX, toX) {
-		if (toX > fromX) {
-			var prevGap = gaps[gaps.length - 1];
+		var prevGap = gaps[gaps.length - 1];
 
-			if (prevGap && prevGap[0] == fromX)			// TODO: gaps must be encoded at stroke widths?
-				{ prevGap[1] = toX; }
-			else
-				{ gaps.push([fromX, toX]); }
-		}
+		if (prevGap && prevGap[0] == fromX)			// TODO: gaps must be encoded at stroke widths?
+			{ prevGap[1] = toX; }
+		else
+			{ gaps.push([fromX, toX]); }
 	}
 
 	function pxRoundGen(pxAlign) {
