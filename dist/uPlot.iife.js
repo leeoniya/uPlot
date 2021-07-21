@@ -564,13 +564,21 @@ var uPlot = (function () {
 		return placeTag("div", cls, targ);
 	}
 
-	function trans(el, xPos, yPos, xMax, yMax) {
-		el.style.transform = "translate(" + xPos + "px," + yPos + "px)";
+	var xformCache = new WeakMap();
 
-		if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
-			{ addClass(el, OFF); }
-		else
-			{ remClass(el, OFF); }
+	function trans(el, xPos, yPos, xMax, yMax) {
+		var xform = "translate(" + xPos + "px," + yPos + "px)";
+		var xformOld = xformCache.get(el);
+
+		if (xform != xformOld) {
+			el.style.transform = xform;
+			xformCache.set(el, xform);
+
+			if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
+				{ addClass(el, OFF); }
+			else
+				{ remClass(el, OFF); }
+		}
 	}
 
 	var evOpts = {passive: true};

@@ -556,13 +556,21 @@ function placeDiv(cls, targ) {
 	return placeTag("div", cls, targ);
 }
 
-function trans(el, xPos, yPos, xMax, yMax) {
-	el.style.transform = "translate(" + xPos + "px," + yPos + "px)";
+const xformCache = new WeakMap();
 
-	if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
-		addClass(el, OFF);
-	else
-		remClass(el, OFF);
+function trans(el, xPos, yPos, xMax, yMax) {
+	let xform = "translate(" + xPos + "px," + yPos + "px)";
+	let xformOld = xformCache.get(el);
+
+	if (xform != xformOld) {
+		el.style.transform = xform;
+		xformCache.set(el, xform);
+
+		if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
+			addClass(el, OFF);
+		else
+			remClass(el, OFF);
+	}
 }
 
 const evOpts = {passive: true};
