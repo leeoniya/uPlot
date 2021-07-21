@@ -1899,7 +1899,8 @@ var uPlot = (function () {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				var pxRound = series.pxRound;
 
-				var _dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+				var _dirX = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+				var _dirY = scaleY.dir * (scaleY.ori == 1 ? 1 : -1);
 
 				var rect = scaleX.ori == 0 ? rectH : rectV;
 
@@ -1931,7 +1932,7 @@ var uPlot = (function () {
 
 					barWid = pxRound(barWid - strokeWidth);
 
-					xShift = (_dir == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
+					xShift = (_dirX == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
 				}
 				else {
 					var colWid = xDim;
@@ -1953,7 +1954,7 @@ var uPlot = (function () {
 
 					barWid = pxRound(min(maxWidth, max(minWidth, colWid - gapWid)) - strokeWidth - extraGap);
 
-					xShift = (align == 0 ? barWid / 2 : align == _dir ? 0 : barWid) - align * _dir * extraGap / 2;
+					xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * extraGap / 2;
 				}
 
 				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
@@ -1971,15 +1972,15 @@ var uPlot = (function () {
 				var stroke = _paths.stroke;
 				var band = _paths.band;
 
-				for (var i$1 = _dir == 1 ? idx0 : idx1; i$1 >= idx0 && i$1 <= idx1; i$1 += _dir) {
+				for (var i$1 = _dirX == 1 ? idx0 : idx1; i$1 >= idx0 && i$1 <= idx1; i$1 += _dirX) {
 					var yVal = dataY[i$1];
 
 					// interpolate upwards band clips
 					if (yVal == null) {
 						if (hasBands) {
 							// simple, but inefficient bi-directinal linear scans on each iteration
-							var prevNonNull = nonNullIdx(dataY, _dir == 1 ? idx0 : idx1, i$1, -_dir);
-							var nextNonNull = nonNullIdx(dataY, i$1, _dir == 1 ? idx1 : idx0,  _dir);
+							var prevNonNull = nonNullIdx(dataY, _dirX == 1 ? idx0 : idx1, i$1, -_dirX);
+							var nextNonNull = nonNullIdx(dataY, i$1, _dirX == 1 ? idx1 : idx0,  _dirX);
 
 							var prevVal = dataY[prevNonNull];
 							var nextVal = dataY[nextNonNull];
@@ -2013,9 +2014,17 @@ var uPlot = (function () {
 					}
 
 					if (hasBands) {
-						btm = top;
-						top = yLimit;
+						if (_dirY == 1) {
+							btm = top;
+							top = yLimit;
+						}
+						else {
+							top = btm;
+							btm = yLimit;
+						}
+
 						barHgt = btm - top;
+
 						rect(band, lft - strokeWidth / 2, top + strokeWidth / 2, barWid + strokeWidth, barHgt - strokeWidth);
 					}
 				}

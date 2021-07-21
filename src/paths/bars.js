@@ -19,7 +19,8 @@ export function bars(opts) {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
 
-			const _dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+			const _dirX = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+			const _dirY = scaleY.dir * (scaleY.ori == 1 ? 1 : -1);
 
 			let rect = scaleX.ori == 0 ? rectH : rectV;
 
@@ -51,7 +52,7 @@ export function bars(opts) {
 
 				barWid = pxRound(barWid - strokeWidth);
 
-				xShift = (_dir == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
+				xShift = (_dirX == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
 			}
 			else {
 				let colWid = xDim;
@@ -73,7 +74,7 @@ export function bars(opts) {
 
 				barWid = pxRound(min(maxWidth, max(minWidth, colWid - gapWid)) - strokeWidth - extraGap);
 
-				xShift = (align == 0 ? barWid / 2 : align == _dir ? 0 : barWid) - align * _dir * extraGap / 2;
+				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * extraGap / 2;
 			}
 
 			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
@@ -91,15 +92,15 @@ export function bars(opts) {
 			const stroke = _paths.stroke;
 			const band = _paths.band;
 
-			for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
+			for (let i = _dirX == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dirX) {
 				let yVal = dataY[i];
 
 				// interpolate upwards band clips
 				if (yVal == null) {
 					if (hasBands) {
 						// simple, but inefficient bi-directinal linear scans on each iteration
-						let prevNonNull = nonNullIdx(dataY, _dir == 1 ? idx0 : idx1, i, -_dir);
-						let nextNonNull = nonNullIdx(dataY, i, _dir == 1 ? idx1 : idx0,  _dir);
+						let prevNonNull = nonNullIdx(dataY, _dirX == 1 ? idx0 : idx1, i, -_dirX);
+						let nextNonNull = nonNullIdx(dataY, i, _dirX == 1 ? idx1 : idx0,  _dirX);
 
 						let prevVal = dataY[prevNonNull];
 						let nextVal = dataY[nextNonNull];
@@ -133,9 +134,17 @@ export function bars(opts) {
 				}
 
 				if (hasBands) {
-					btm = top;
-					top = yLimit;
+					if (_dirY == 1) {
+						btm = top;
+						top = yLimit;
+					}
+					else {
+						top = btm;
+						btm = yLimit;
+					}
+
 					barHgt = btm - top;
+
 					rect(band, lft - strokeWidth / 2, top + strokeWidth / 2, barWid + strokeWidth, barHgt - strokeWidth);
 				}
 			}
