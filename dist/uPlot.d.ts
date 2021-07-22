@@ -672,7 +672,7 @@ declare namespace uPlot {
 			each?: (self: uPlot, seriesIdx: number, idx: number, left: number, top: number, width: number, height: number) => void;
 		}
 
-		export type PointsPathBuilderFactory  = () => Series.PathBuilder;
+		export type PointsPathBuilderFactory  = () => Points.PathBuilder;
 		export type LinearPathBuilderFactory  = () => Series.PathBuilder;
 		export type SplinePathBuilderFactory  = () => Series.PathBuilder;
 		export type SteppedPathBuilderFactory = (opts?: SteppedPathBuilderOpts) => Series.PathBuilder;
@@ -683,6 +683,7 @@ declare namespace uPlot {
 			spline?:  SplinePathBuilderFactory;
 			stepped?: SteppedPathBuilderFactory;
 			bars?:    BarsPathBuilderFactory;
+			points?:  PointsPathBuilderFactory;
 		}
 
 		export type Stroke = CanvasRenderingContext2D['strokeStyle'] | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['strokeStyle']);
@@ -692,16 +693,32 @@ declare namespace uPlot {
 		export type Cap = CanvasRenderingContext2D['lineCap'];
 
 		export namespace Points {
+			export interface Paths {
+				/** path to stroke */
+				stroke?: Path2D | null;
+
+				/** path to fill */
+				fill?: Path2D | null;
+
+				/** path for clipping fill & stroke */
+				clip?: Path2D | null;
+
+				/** bitmap of whether the clip should be applied to stroke, fill, or both */
+				flags?: number;
+			}
+
 			export type Show = boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
 
 			export type Filter = number[] | null | ((self: uPlot, seriesIdx: number, show: boolean, gaps?: null | number[][]) => number[] | null);
+
+			export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number, filtIdxs?: number[] | null) => Paths | null;
 		}
 
 		export interface Points {
 			/** if boolean or returns boolean, round points are drawn with defined options, else fn should draw own custom points via self.ctx */
 			show?: Points.Show;
 
-			paths?: Points.Paths;
+			paths?: Points.PathBuilder;
 
 			/** may return an array of points indices to draw */
 			filter?: Points.Filter;
@@ -736,7 +753,7 @@ declare namespace uPlot {
 
 		export type ClipPathBuilder = (gaps: Gaps, ori: Orientation, left: number, top: number, width: number, height: number) => Path2D | null;
 
-		export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number, filtIdxs?: number[] | null) => Paths | null;
+		export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => Paths | null;
 
 		export type MinMaxIdxs = [minIdx: number, maxIdx: number];
 
