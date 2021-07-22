@@ -125,13 +125,17 @@
 				x0 = e.clientX;
 				lft0 = uRanger.select.left;
 				wid0 = uRanger.select.width;
-				const _onMove = debounce(onMove);
 
+				const _onMove = debounce(onMove);
 				on("mousemove", doc, _onMove);
-				on("mouseup", doc, e => {
+
+				const _onUp = e => {
+					off("mouseup", doc, _onUp);
 					off("mousemove", doc, _onMove);
 					viaGrip = false;
-				});
+				};
+				on("mouseup", doc, _onUp);
+
 				e.stopPropagation();
 			}
 
