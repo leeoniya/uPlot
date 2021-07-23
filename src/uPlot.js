@@ -2828,7 +2828,9 @@ if (FEAT_PATHS) {
 	uPlot.addGap = addGap;
 	uPlot.clipGaps = clipGaps;
 
-	let paths = uPlot.paths = {};
+	let paths = uPlot.paths = {
+		points,
+	};
 
 	FEAT_PATHS_LINEAR  && (paths.linear  = linear);
 	FEAT_PATHS_STEPPED && (paths.stepped = stepped);

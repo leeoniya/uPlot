@@ -4899,7 +4899,9 @@ var uPlot = (function () {
 		uPlot.addGap = addGap;
 		uPlot.clipGaps = clipGaps;
 
-		var paths = uPlot.paths = {};
+		var paths = uPlot.paths = {
+			points: points,
+		};
 
 		(paths.linear  = linear);
 		(paths.stepped = stepped);

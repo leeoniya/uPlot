@@ -4836,7 +4836,9 @@ uPlot.orient   = orient;
 	uPlot.addGap = addGap;
 	uPlot.clipGaps = clipGaps;
 
-	let paths = uPlot.paths = {};
+	let paths = uPlot.paths = {
+		points,
+	};
 
 	(paths.linear  = linear);
 	(paths.stepped = stepped);
