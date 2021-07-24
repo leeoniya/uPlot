@@ -659,6 +659,7 @@ export const ySeriesOpts = {
 	sorted: 0,
 	show: true,
 	spanGaps: false,
+	gaps: (self, seriesIdx, idx0, idx1, nullGaps) => nullGaps,
 	alpha: 1,
 	points: {
 		show: seriesPointsShow,

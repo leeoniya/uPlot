@@ -749,6 +749,8 @@ declare namespace uPlot {
 
 		export type Gaps = Gap[];
 
+		export type GapsRefiner = Gaps | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number, nullGaps: Gaps) => Gaps);
+
 		export type AddGap = (gaps: Gaps, from: number, to: number) => void;
 
 		export type ClipPathBuilder = (gaps: Gaps, ori: Orientation, left: number, top: number, width: number, height: number) => Path2D | null;
@@ -788,6 +790,9 @@ declare namespace uPlot {
 
 		/** when true, null data values will not cause line breaks */
 		spanGaps?: boolean;
+
+		/** may mutate and/or augment gaps array found from null values */
+		gaps?: GapsRefiner;
 
 		/** whether path and point drawing should offset canvas to try drawing crisp lines */
 		pxAlign?: number | boolean; // 1

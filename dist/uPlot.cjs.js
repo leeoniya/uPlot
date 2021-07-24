@@ -1365,6 +1365,7 @@ const ySeriesOpts = {
 	sorted: 0,
 	show: true,
 	spanGaps: false,
+	gaps: (self, seriesIdx, idx0, idx1, nullGaps) => nullGaps,
 	alpha: 1,
 	points: {
 		show: seriesPointsShow,
@@ -1688,14 +1689,14 @@ function linear() {
 
 			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: [], flags: BAND_CLIP_FILL};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			let minY = inf,
 				maxY = -inf,
 				inY, outY, outX, drawnAtX;
 
-			let gaps = _paths.gaps;
+			let gaps = [];
 
 			let accX = pxRound(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let accGaps = false;
@@ -1784,6 +1785,8 @@ function linear() {
 				lineTo(fill, lftX, fillTo);
 			}
 
+			_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+
 			if (!series.spanGaps)
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
 
@@ -1809,7 +1812,7 @@ function stepped(opts) {
 
 			let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: [], flags: BAND_CLIP_FILL};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			const _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
@@ -1817,7 +1820,7 @@ function stepped(opts) {
 			idx0 = nonNullIdx(dataY, idx0, idx1,  1);
 			idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
-			let gaps = _paths.gaps;
+			let gaps = [];
 			let inGap = false;
 			let prevYPos  = pxRound(valToPosY(dataY[_dir == 1 ? idx0 : idx1], scaleY, yDim, yOff));
 			let firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
@@ -1876,6 +1879,8 @@ function stepped(opts) {
 				lineTo(fill, prevXPos, minY);
 				lineTo(fill, firstXPos, minY);
 			}
+
+			_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
 
 			if (!series.spanGaps)
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
@@ -2100,7 +2105,7 @@ function splineInterp(interp, opts) {
 				}
 			}
 
-			const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps, flags: BAND_CLIP_FILL};
+			const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			if (series.fill != null && stroke != null) {
@@ -2112,6 +2117,8 @@ function splineInterp(interp, opts) {
 				lineTo(fill, prevXPos, minY);
 				lineTo(fill, firstXPos, minY);
 			}
+
+			_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
 
 			if (!series.spanGaps)
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);

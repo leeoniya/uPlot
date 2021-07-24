@@ -1376,6 +1376,7 @@ var uPlot = (function () {
 		sorted: 0,
 		show: true,
 		spanGaps: false,
+		gaps: (self, seriesIdx, idx0, idx1, nullGaps) => nullGaps,
 		alpha: 1,
 		points: {
 			show: seriesPointsShow,
@@ -1704,14 +1705,14 @@ var uPlot = (function () {
 
 				var dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: [], flags: BAND_CLIP_FILL};
+				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 				var stroke = _paths.stroke;
 
 				var minY = inf,
 					maxY = -inf,
 					inY, outY, outX, drawnAtX;
 
-				var gaps = _paths.gaps;
+				var gaps = [];
 
 				var accX = pxRound(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 				var accGaps = false;
@@ -1800,6 +1801,8 @@ var uPlot = (function () {
 					lineTo(fill, lftX, fillTo);
 				}
 
+				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+
 				if (!series.spanGaps)
 					{ _paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim); }
 
@@ -1825,7 +1828,7 @@ var uPlot = (function () {
 
 				var lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
-				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: [], flags: BAND_CLIP_FILL};
+				var _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 				var stroke = _paths.stroke;
 
 				var _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
@@ -1833,7 +1836,7 @@ var uPlot = (function () {
 				idx0 = nonNullIdx(dataY, idx0, idx1,  1);
 				idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
-				var gaps = _paths.gaps;
+				var gaps = [];
 				var inGap = false;
 				var prevYPos  = pxRound(valToPosY(dataY[_dir == 1 ? idx0 : idx1], scaleY, yDim, yOff));
 				var firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
@@ -1892,6 +1895,8 @@ var uPlot = (function () {
 					lineTo(fill, prevXPos, minY);
 					lineTo(fill, firstXPos, minY);
 				}
+
+				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
 
 				if (!series.spanGaps)
 					{ _paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim); }
@@ -2116,7 +2121,7 @@ var uPlot = (function () {
 					}
 				}
 
-				var _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps: gaps, flags: BAND_CLIP_FILL};
+				var _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 				var stroke = _paths.stroke;
 
 				if (series.fill != null && stroke != null) {
@@ -2128,6 +2133,8 @@ var uPlot = (function () {
 					lineTo(fill, prevXPos, minY);
 					lineTo(fill, firstXPos, minY);
 				}
+
+				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
 
 				if (!series.spanGaps)
 					{ _paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim); }

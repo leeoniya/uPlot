@@ -55,7 +55,7 @@ export function splineInterp(interp, opts) {
 				}
 			}
 
-			const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps, flags: BAND_CLIP_FILL};
+			const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			if (series.fill != null && stroke != null) {
@@ -67,6 +67,8 @@ export function splineInterp(interp, opts) {
 				lineTo(fill, prevXPos, minY);
 				lineTo(fill, firstXPos, minY);
 			}
+
+			_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
 
 			if (!series.spanGaps)
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);

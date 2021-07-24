@@ -35,14 +35,14 @@ export function linear() {
 
 			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: [], flags: BAND_CLIP_FILL};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			let minY = inf,
 				maxY = -inf,
 				inY, outY, outX, drawnAtX;
 
-			let gaps = _paths.gaps;
+			let gaps = [];
 
 			let accX = pxRound(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let accGaps = false;
@@ -130,6 +130,8 @@ export function linear() {
 				lineTo(fill, rgtX, fillTo);
 				lineTo(fill, lftX, fillTo);
 			}
+
+			_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
 
 			if (!series.spanGaps)
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);

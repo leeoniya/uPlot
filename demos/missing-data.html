@@ -37,7 +37,7 @@
 		//	data[2][199] = null;
 
 			const opts = {
-				title: "Missing Data",
+				title: "Missing Data (null values)",
 				width: 1920,
 				height: 600,
 			/*
@@ -94,6 +94,63 @@
 			};
 
 			let u = new uPlot(opts, data, document.body);
+		</script>
+		<script>
+			const isNum = Number.isFinite;
+			const delta = 1;
+
+			const opts3 = {
+				title: "Insert gaps when adjacent points > delta",
+				width: 1920,
+				height: 600,
+				scales: {
+					x: {
+						time: false,
+					}
+				},
+				series: [
+					{},
+					{
+						stroke: "red",
+						// insert gaps where adjacent datapoints with values are > delta
+						// todo: does not accumulate prior gap when adjacent so can make [1,2],[2,3] instead of [1,3]
+						// todo: does not handle undefined-filled datasets (e.g. from unaligned joining)
+						gaps: (u, sidx, idx0, idx1, nullGaps) => {
+							let xData = u.data[0];
+							let yData = u.data[sidx];
+
+							let addlGaps = [];
+
+							for (let i = idx0 + 1; i <= idx1; i++) {
+								let xVal = xData[i];
+								let yVal = yData[i];
+
+								if (isNum(yData[i]) && isNum(yData[i-1])) {
+									if (xData[i] - xData[i - 1] > delta) {
+										uPlot.addGap(
+											addlGaps,
+											Math.round(u.valToPos(xData[i - 1], 'x', true)),
+											Math.round(u.valToPos(xData[i],     'x', true)),
+										);
+									}
+								}
+							}
+
+							nullGaps.push(...addlGaps);
+							nullGaps.sort((a, b) => a[0] - b[0]);
+
+							return nullGaps;
+						}
+					},
+				]
+			};
+
+			const data3 = [
+				[0, 1, 2, 3, 25, 26, 27, 28],
+				[0, 1, 2, 3, 4, 5, 6, 7],
+			];
+
+			let u3 = new uPlot(opts3, data3, document.body);
 		</script>
 	</body>
 </html>
