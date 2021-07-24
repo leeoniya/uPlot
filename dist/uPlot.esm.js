@@ -1340,7 +1340,7 @@ function ptDia(width, mult) {
 
 function seriesPointsShow(self, si) {
 	let { scale, idxs } = self.series[0];
-	let xData = self.data[0];
+	let xData = self._data[0];
 	let p0 = self.valToPos(xData[idxs[0]], scale, true);
 	let p1 = self.valToPos(xData[idxs[1]], scale, true);
 	let dim = abs(p1 - p0);
