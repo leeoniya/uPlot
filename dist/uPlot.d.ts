@@ -276,6 +276,8 @@ declare namespace uPlot {
 
 		/** current index (readback-only, not for init) */
 		idx?: number;
+		/** current indices (readback-only, not for init) */
+		idxs?: (number | null)[];
 		/** current values (readback-only, not for init) */
 		values?: Legend.Values;
 	}

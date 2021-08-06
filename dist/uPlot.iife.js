@@ -1067,6 +1067,7 @@ var uPlot = (function () {
 			dash: "solid",
 		},
 		idx: null,
+		idxs: null,
 		values: [],
 	};
 
@@ -1176,7 +1177,7 @@ var uPlot = (function () {
 		top: -10,
 		idx: null,
 		dataIdx: dataIdx,
-		idxs: [],
+		idxs: null,
 	};
 
 	var grid = {
@@ -2535,11 +2536,15 @@ var uPlot = (function () {
 		var _timeAxisVals   = timeAxisVals(_tzDate, timeAxisStamps((ms == 1 ? _timeAxisStampsMs : _timeAxisStampsS), _fmtDate));
 		var _timeSeriesVal  = timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
 
+		var activeIdxs = [];
+
 		var legend     = (self.legend = assign({}, legendOpts, opts.legend));
 		var showLegend = legend.show;
 		var markers    = legend.markers;
 
 		{
+			legend.idxs = activeIdxs;
+
 			markers.width  = fnOrSelf(markers.width);
 			markers.dash   = fnOrSelf(markers.dash);
 			markers.stroke = fnOrSelf(markers.stroke);
@@ -2855,6 +2860,8 @@ var uPlot = (function () {
 		var cursor = (self.cursor = assign({}, cursorOpts, opts.cursor));
 
 		{
+			cursor.idxs = activeIdxs;
+
 			cursor._lock = false;
 
 			var points = cursor.points;
@@ -2931,7 +2938,7 @@ var uPlot = (function () {
 			}
 
 			if (cursor.show) {
-				cursor.idxs.splice(i, 0, null);
+				activeIdxs.splice(i, 0, null);
 
 				var pt = initCursorPt(s, i);
 				pt && cursorPts.splice(i, 0, pt);
@@ -2961,7 +2968,7 @@ var uPlot = (function () {
 			}
 
 			if (cursor.show) {
-				cursor.idxs.splice(i, 1);
+				activeIdxs.splice(i, 1);
 
 				cursorPts.length > 1 && cursorPts.splice(i, 1)[0].remove();
 			}
@@ -4213,7 +4220,6 @@ var uPlot = (function () {
 			}
 
 			var idx;
-			var idxChanged = false;
 
 			// when zooming to an x scale range between datapoints the binary search
 			// for nearest min/max indices results in this condition. cheap hack :D
@@ -4239,7 +4245,7 @@ var uPlot = (function () {
 					{ setSeries(null, FOCUS_TRUE, syncOpts.setSeries); }
 
 				if (legend.live) {
-					idxChanged = true;
+					shouldSetLegend = true;
 
 					for (var i$1 = 0; i$1 < series.length; i$1++)
 						{ legend.values[i$1] = NULL_LEGEND_VALUES; }
@@ -4259,16 +4265,18 @@ var uPlot = (function () {
 				for (var i$2 = 0; i$2 < series.length; i$2++) {
 					var s = series[i$2];
 
-					var idx2  = cursor.dataIdx(self, i$2, idx, valAtPosX);
+					var idx2 = cursor.dataIdx(self, i$2, idx, valAtPosX);
 
-					cursor.idxs[i$2] = idx2;
+					var yVal2 = data[i$2][idx2];
+
+					shouldSetLegend = shouldSetLegend || yVal2 != data[i$2][activeIdxs[i$2]];
+
+					activeIdxs[i$2] = idx2;
 
 					var xPos2 = idx2 == idx ? xPos : incrRoundUp(valToPosX(data[0][idx2], scaleX, xDim, 0), 0.5);
 
 					if (i$2 > 0 && s.show) {
-						var valAtIdx = data[i$2][idx2];
-
-						var yPos = valAtIdx == null ? -10 : incrRoundUp(valToPosY(valAtIdx, scales[s.scale], yDim, 0), 0.5);
+						var yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, scales[s.scale], yDim, 0), 0.5);
 
 						if (yPos > 0) {
 							var dist = abs(yPos - mouseTop1);
@@ -4298,17 +4306,15 @@ var uPlot = (function () {
 					}
 
 					if (legend.live) {
-						if ((idx2 == cursor.idx && !shouldSetLegend) || i$2 == 0 && multiValLegend)
+						if (!shouldSetLegend || i$2 == 0 && multiValLegend)
 							{ continue; }
-
-						idxChanged = true;
 
 						setLegendValues(i$2, idx2);
 					}
 				}
 			}
 
-			if (idxChanged) {
+			if (shouldSetLegend) {
 				legend.idx = idx;
 				setLegend();
 			}

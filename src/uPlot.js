@@ -501,11 +501,15 @@ export default function uPlot(opts, data, then) {
 	const _timeAxisVals   = FEAT_TIME && timeAxisVals(_tzDate, timeAxisStamps((ms == 1 ? _timeAxisStampsMs : _timeAxisStampsS), _fmtDate));
 	const _timeSeriesVal  = FEAT_TIME && timeSeriesVal(_tzDate, timeSeriesStamp(_timeSeriesStamp, _fmtDate));
 
+	const activeIdxs = [];
+
 	const legend     = FEAT_LEGEND && (self.legend = assign({}, legendOpts, opts.legend));
 	const showLegend = FEAT_LEGEND && legend.show;
 	const markers    = FEAT_LEGEND && legend.markers;
 
 	if (FEAT_LEGEND) {
+		legend.idxs = activeIdxs;
+
 		markers.width  = fnOrSelf(markers.width);
 		markers.dash   = fnOrSelf(markers.dash);
 		markers.stroke = fnOrSelf(markers.stroke);
@@ -817,6 +821,8 @@ export default function uPlot(opts, data, then) {
 	const cursor = FEAT_CURSOR && (self.cursor = assign({}, cursorOpts, opts.cursor));
 
 	if (FEAT_CURSOR) {
+		cursor.idxs = activeIdxs;
+
 		cursor._lock = false;
 
 		let points = cursor.points;
@@ -893,7 +899,7 @@ export default function uPlot(opts, data, then) {
 		}
 
 		if (FEAT_CURSOR && cursor.show) {
-			cursor.idxs.splice(i, 0, null);
+			activeIdxs.splice(i, 0, null);
 
 			let pt = initCursorPt(s, i);
 			pt && cursorPts.splice(i, 0, pt);
@@ -923,7 +929,7 @@ export default function uPlot(opts, data, then) {
 		}
 
 		if (FEAT_CURSOR && cursor.show) {
-			cursor.idxs.splice(i, 1);
+			activeIdxs.splice(i, 1);
 
 			cursorPts.length > 1 && cursorPts.splice(i, 1)[0].remove();
 		}
@@ -2160,7 +2166,6 @@ export default function uPlot(opts, data, then) {
 		}
 
 		let idx;
-		let idxChanged = false;
 
 		// when zooming to an x scale range between datapoints the binary search
 		// for nearest min/max indices results in this condition. cheap hack :D
@@ -2186,7 +2191,7 @@ export default function uPlot(opts, data, then) {
 				setSeries(null, FOCUS_TRUE, syncOpts.setSeries);
 
 			if (FEAT_LEGEND && legend.live) {
-				idxChanged = true;
+				shouldSetLegend = true;
 
 				for (let i = 0; i < series.length; i++)
 					legend.values[i] = NULL_LEGEND_VALUES;
@@ -2206,16 +2211,18 @@ export default function uPlot(opts, data, then) {
 			for (let i = 0; i < series.length; i++) {
 				let s = series[i];
 
-				let idx2  = cursor.dataIdx(self, i, idx, valAtPosX);
+				let idx2 = cursor.dataIdx(self, i, idx, valAtPosX);
 
-				cursor.idxs[i] = idx2;
+				let yVal2 = data[i][idx2];
+
+				shouldSetLegend = shouldSetLegend || yVal2 != data[i][activeIdxs[i]];
+
+				activeIdxs[i] = idx2;
 
 				let xPos2 = idx2 == idx ? xPos : incrRoundUp(valToPosX(data[0][idx2], scaleX, xDim, 0), 0.5);
 
 				if (i > 0 && s.show) {
-					let valAtIdx = data[i][idx2];
-
-					let yPos = valAtIdx == null ? -10 : incrRoundUp(valToPosY(valAtIdx, scales[s.scale], yDim, 0), 0.5);
+					let yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, scales[s.scale], yDim, 0), 0.5);
 
 					if (yPos > 0) {
 						let dist = abs(yPos - mouseTop1);
@@ -2245,17 +2252,15 @@ export default function uPlot(opts, data, then) {
 				}
 
 				if (FEAT_LEGEND && legend.live) {
-					if ((idx2 == cursor.idx && !shouldSetLegend) || i == 0 && multiValLegend)
+					if (!shouldSetLegend || i == 0 && multiValLegend)
 						continue;
-
-					idxChanged = true;
 
 					setLegendValues(i, idx2);
 				}
 			}
 		}
 
-		if (idxChanged) {
+		if (shouldSetLegend) {
 			legend.idx = idx;
 			setLegend();
 		}

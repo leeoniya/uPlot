@@ -352,6 +352,7 @@ export const legendOpts = {
 		dash: "solid",
 	},
 	idx: null,
+	idxs: null,
 	values: [],
 };
 
@@ -461,7 +462,7 @@ export const cursorOpts = {
 	top: -10,
 	idx: null,
 	dataIdx,
-	idxs: [],
+	idxs: null,
 };
 
 const grid = {
