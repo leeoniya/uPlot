@@ -4207,6 +4207,7 @@ function uPlot(opts, data, then) {
 				setSeries(null, FOCUS_TRUE, syncOpts.setSeries);
 
 			if (legend.live) {
+				activeIdxs.fill(null);
 				shouldSetLegend = true;
 
 				for (let i = 0; i < series.length; i++)

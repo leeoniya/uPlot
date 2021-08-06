@@ -4245,6 +4245,7 @@ var uPlot = (function () {
 					{ setSeries(null, FOCUS_TRUE, syncOpts.setSeries); }
 
 				if (legend.live) {
+					activeIdxs.fill(null);
 					shouldSetLegend = true;
 
 					for (var i$1 = 0; i$1 < series.length; i$1++)
