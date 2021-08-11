@@ -96,12 +96,19 @@ var uPlot = (function () {
 	}
 
 	function rangeLog(min, max, base, fullMags) {
+		var minSign = sign(min);
 
 		var logFn = base == 10 ? log10 : log2;
 
 		if (min == max) {
-			min /= base;
-			max *= base;
+			if (minSign == -1) {
+				min *= base;
+				max /= base;
+			}
+			else {
+				min /= base;
+				max *= base;
+			}
 		}
 
 		var minExp, maxExp, minMaxIncrs;
@@ -249,6 +256,7 @@ var uPlot = (function () {
 	var min = M.min;
 	var max = M.max;
 	var pow = M.pow;
+	var sign = M.sign;
 	var log10 = M.log10;
 	var log2 = M.log2;
 	var sinh =  (v, linthresh) => {

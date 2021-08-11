@@ -96,12 +96,19 @@ function fixIncr(minIncr, maxIncr, minExp, maxExp) {
 }
 
 function rangeLog(min, max, base, fullMags) {
+	let minSign = sign(min);
 
 	let logFn = base == 10 ? log10 : log2;
 
 	if (min == max) {
-		min /= base;
-		max *= base;
+		if (minSign == -1) {
+			min *= base;
+			max /= base;
+		}
+		else {
+			min /= base;
+			max *= base;
+		}
 	}
 
 	let minExp, maxExp, minMaxIncrs;
@@ -249,6 +256,7 @@ const ceil = M.ceil;
 const min = M.min;
 const max = M.max;
 const pow = M.pow;
+const sign = M.sign;
 const log10 = M.log10;
 const log2 = M.log2;
 const sinh =  (v, linthresh = 1) => M.sinh(v / linthresh);

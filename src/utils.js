@@ -89,11 +89,17 @@ export function rangeLog(min, max, base, fullMags) {
 	let logFn = base == 10 ? log10 : log2;
 
 	if (min == max) {
-		min /= base;
-		max *= base;
+		if (minSign == -1) {
+			min *= base;
+			max /= base;
+		}
+		else {
+			min /= base;
+			max *= base;
+		}
 	}
 
-	let minIncr, maxIncr, minExp, maxExp, minMaxIncrs;
+	let minExp, maxExp, minMaxIncrs;
 
 	if (fullMags) {
 		minExp = floor(logFn(min));
