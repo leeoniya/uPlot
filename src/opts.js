@@ -361,16 +361,15 @@ function cursorPointShow(self, si) {
 
 	let pt = placeDiv();
 
-	let stroke = o.stroke(self, si);
-	let fill = o.fill(self, si);
-
-	pt.style.background = fill || stroke;
-
 	let size = o.size(self, si);
 	let width = o.width(self, si, size);
 
-	if (width)
-		pt.style.border = width + "px solid " + stroke;
+	if (width) {
+		assign(pt.style, {
+			borderWidth: width + "px",
+			borderStyle: "solid",
+		});
+	}
 
 	let mar = size / -2;
 

@@ -1084,16 +1084,15 @@ var uPlot = (function () {
 
 		var pt = placeDiv();
 
-		var stroke = o.stroke(self, si);
-		var fill = o.fill(self, si);
-
-		pt.style.background = fill || stroke;
-
 		var size = o.size(self, si);
 		var width = o.width(self, si, size);
 
-		if (width)
-			{ pt.style.border = width + "px solid " + stroke; }
+		if (width) {
+			assign(pt.style, {
+				borderWidth: width + "px",
+				borderStyle: "solid",
+			});
+		}
 
 		var mar = size / -2;
 
