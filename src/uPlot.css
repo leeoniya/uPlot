@@ -69,7 +69,7 @@
 	width: 1em;
 	height: 1em;
 	margin-right: 4px;
-	background-clip: content-box !important;
+	background-clip: padding-box !important;
 }
 
 .u-inline.u-live th::after {
@@ -130,7 +130,7 @@
 	will-change: transform;
 	z-index: 100;
 	/* this has to be !important since we set inline "background" shorthand */
-	background-clip: content-box !important;
+	background-clip: padding-box !important;
 }
 
 .u-select.u-off,
