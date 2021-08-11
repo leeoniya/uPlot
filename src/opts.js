@@ -383,13 +383,13 @@ function cursorPointShow(self, si) {
 }
 
 function cursorPointFill(self, si) {
-	let s = self.series[si];
-	return s.stroke(self, si);
+	let sp = self.series[si].points;
+	return sp._fill || sp._stroke;
 }
 
 function cursorPointStroke(self, si) {
-	let s = self.series[si];
-	return s.stroke(self, si);
+	let sp = self.series[si].points;
+	return sp._stroke || sp._fill;
 }
 
 function cursorPointSize(self, si) {

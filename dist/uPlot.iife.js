@@ -1106,13 +1106,13 @@ var uPlot = (function () {
 	}
 
 	function cursorPointFill(self, si) {
-		var s = self.series[si];
-		return s.stroke(self, si);
+		var sp = self.series[si].points;
+		return sp._fill || sp._stroke;
 	}
 
 	function cursorPointStroke(self, si) {
-		var s = self.series[si];
-		return s.stroke(self, si);
+		var sp = self.series[si].points;
+		return sp._stroke || sp._fill;
 	}
 
 	function cursorPointSize(self, si) {
@@ -3324,9 +3324,14 @@ var uPlot = (function () {
 
 				series.forEach((s, i) => {
 					if (i > 0 && s.show) {
-						s._paths && drawPath(i, false);
+						{
+							cacheStrokeFill(i, false);
+							s._paths && drawPath(i, false);
+						}
 
 						{
+							cacheStrokeFill(i, true);
+
 							var show = s.points.show(self, i, i0, i1);
 							var idxs = s.points.filter(self, i, show, s._paths ? s._paths.gaps : null);
 
@@ -3342,8 +3347,18 @@ var uPlot = (function () {
 			}
 		}
 
+		function cacheStrokeFill(si, _points) {
+			var s = _points ? series[si].points : series[si];
+
+			s._stroke = s.stroke(self, si);
+			s._fill   = s.fill(self, si);
+		}
+
 		function drawPath(si, _points) {
 			var s = _points ? series[si].points : series[si];
+
+			var strokeStyle = s._stroke;
+			var fillStyle   = s._fill;
 
 			var ref = s._paths;
 			var stroke = ref.stroke;
@@ -3352,9 +3367,6 @@ var uPlot = (function () {
 			var flags = ref.flags;
 			var width = roundDec(s.width * pxRatio, 3);
 			var offset = (width % 2) / 2;
-
-			var strokeStyle = s._stroke = s.stroke(self, si);
-			var fillStyle   = s._fill   = s.fill(self, si);
 
 			if (_points && fillStyle == null)
 				{ fillStyle = width > 0 ? "#fff" : strokeStyle; }
