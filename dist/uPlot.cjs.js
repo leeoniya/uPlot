@@ -4273,8 +4273,7 @@ function uPlot(opts, data, then) {
 						vPos = xPos2;
 					}
 
-					// todo: only fire this if indices or values changed
-					if (cursorPts.length > 1) {
+					if (shouldSetLegend && cursorPts.length > 1) {
 						trans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
 						color(cursorPts[i], cursor.points.fill(self, i), cursor.points.stroke(self, i));
 					}

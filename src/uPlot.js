@@ -2256,8 +2256,7 @@ export default function uPlot(opts, data, then) {
 						vPos = xPos2;
 					}
 
-					// todo: only fire this if indices or values changed
-					if (FEAT_CURSOR && cursorPts.length > 1) {
+					if (FEAT_CURSOR && shouldSetLegend && cursorPts.length > 1) {
 						trans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
 						color(cursorPts[i], cursor.points.fill(self, i), cursor.points.stroke(self, i));
 					}
