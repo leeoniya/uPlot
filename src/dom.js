@@ -84,11 +84,8 @@ export function color(el, background, borderColor) {
 
 	if (newColor != oldColor) {
 		colorCache.set(el, newColor);
-
-		Object.assign(el.style, {
-			background,
-			borderColor,
-		});
+		el.style.background = background;
+		el.style.borderColor = borderColor;
 	}
 }
 

@@ -597,11 +597,8 @@ var uPlot = (function () {
 
 		if (newColor != oldColor) {
 			colorCache.set(el, newColor);
-
-			Object.assign(el.style, {
-				background: background,
-				borderColor: borderColor,
-			});
+			el.style.background = background;
+			el.style.borderColor = borderColor;
 		}
 	}
 
@@ -1085,21 +1082,15 @@ var uPlot = (function () {
 		var pt = placeDiv();
 
 		var size = o.size(self, si);
-		var width = o.width(self, si, size);
-
-		if (width) {
-			assign(pt.style, {
-				borderWidth: width + "px",
-				borderStyle: "solid",
-			});
-		}
-
-		var mar = size / -2;
-
 		setStylePx(pt, WIDTH, size);
 		setStylePx(pt, HEIGHT, size);
+
+		var mar = size / -2;
 		setStylePx(pt, "marginLeft", mar);
 		setStylePx(pt, "marginTop", mar);
+
+		var width = o.width(self, si, size);
+		width && setStylePx(pt, "borderWidth", width);
 
 		return pt;
 	}
@@ -1115,8 +1106,8 @@ var uPlot = (function () {
 	}
 
 	function cursorPointSize(self, si) {
-		var s = self.series[si];
-		return ptDia(s.width, 1);
+		var sp = self.series[si].points;
+		return ptDia(sp.width, 1);
 	}
 
 	function dataIdx(self, seriesIdx, cursorIdx) {

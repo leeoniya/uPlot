@@ -589,11 +589,8 @@ function color(el, background, borderColor) {
 
 	if (newColor != oldColor) {
 		colorCache.set(el, newColor);
-
-		Object.assign(el.style, {
-			background,
-			borderColor,
-		});
+		el.style.background = background;
+		el.style.borderColor = borderColor;
 	}
 }
 
@@ -1076,21 +1073,15 @@ function cursorPointShow(self, si) {
 	let pt = placeDiv();
 
 	let size = o.size(self, si);
-	let width = o.width(self, si, size);
-
-	if (width) {
-		assign(pt.style, {
-			borderWidth: width + "px",
-			borderStyle: "solid",
-		});
-	}
-
-	let mar = size / -2;
-
 	setStylePx(pt, WIDTH, size);
 	setStylePx(pt, HEIGHT, size);
+
+	let mar = size / -2;
 	setStylePx(pt, "marginLeft", mar);
 	setStylePx(pt, "marginTop", mar);
+
+	let width = o.width(self, si, size);
+	width && setStylePx(pt, "borderWidth", width);
 
 	return pt;
 }
@@ -1106,8 +1097,8 @@ function cursorPointStroke(self, si) {
 }
 
 function cursorPointSize(self, si) {
-	let s = self.series[si];
-	return ptDia(s.width, 1);
+	let sp = self.series[si].points;
+	return ptDia(sp.width, 1);
 }
 
 function dataIdx(self, seriesIdx, cursorIdx) {
