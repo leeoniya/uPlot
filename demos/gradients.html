@@ -1,0 +1,415 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Gradients</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			.uplot {
+				margin-bottom: 30px;
+				display: inline-block;
+				vertical-align: top;
+			}
+		</style>
+	</head>
+	<body>
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+
+			let can = document.createElement("canvas");
+			let ctx = can.getContext("2d");
+
+			function scaleGradient(u, scaleKey, ori, scaleStops, discrete = false) {
+				let scale = u.scales[scaleKey];
+
+				// we want the stop below or at the scaleMax
+				// and the stop below or at the scaleMin, else the stop above scaleMin
+				let minStopIdx;
+				let maxStopIdx;
+
+				for (let i = 0; i < scaleStops.length; i++) {
+					let stopVal = scaleStops[i][0];
+
+					if (stopVal <= scale.min || minStopIdx == null)
+						minStopIdx = i;
+
+					maxStopIdx = i;
+
+					if (stopVal >= scale.max)
+						break;
+				}
+
+				if (minStopIdx == maxStopIdx)
+					return scaleStops[minStopIdx][1];
+
+				let minStopVal = scaleStops[minStopIdx][0];
+				let maxStopVal = scaleStops[maxStopIdx][0];
+
+				if (minStopVal == -Infinity)
+					minStopVal = scale.min;
+
+				if (maxStopVal == Infinity)
+					maxStopVal = scale.max;
+
+				let minStopPos = u.valToPos(minStopVal, scaleKey, true);
+				let maxStopPos = u.valToPos(maxStopVal, scaleKey, true);
+
+				let range = maxStopPos - minStopPos;
+
+				let x0, y0, x1, y1;
+
+				if (ori == 1) {
+					x0 = x1 = 0;
+					y0 = minStopPos;
+					y1 = maxStopPos;
+				}
+				else {
+					y0 = y1 = 0;
+					x0 = minStopPos;
+					x1 = maxStopPos;
+				}
+
+				let grd = ctx.createLinearGradient(x0, y0, x1, y1);
+
+				let prevColor;
+
+				for (let i = minStopIdx; i <= maxStopIdx; i++) {
+					let s = scaleStops[i];
+
+					let stopPos = i == minStopIdx ? minStopPos : i == maxStopIdx ? maxStopPos : u.valToPos(s[0], scaleKey, true);
+					let pct = (stopPos - minStopPos) / range;
+
+					if (discrete && i > minStopIdx)
+						grd.addColorStop(pct, prevColor);
+
+					grd.addColorStop(pct, prevColor = s[1]);
+				}
+
+				return grd;
+			}
+
+
+			let hzGrad = [
+				[0, "red"],
+			//	[30, "red"],
+
+				[30, "orange"],
+			//	[50, "orange"],
+
+				[50, "blue"],
+			//	[60, "blue"],
+			];
+
+			const opts = {
+				title: "Scale-aligned gradient strokes (hz)",
+				width: 800,
+				height: 600,
+				legend: {
+				//	show: false,
+					markers: {
+					//	show: false,
+						stroke: (u, seriesIdx) => "red",
+					}
+				},
+				cursor: {
+					points: {
+						stroke: (u, seriesIdx) => "red",
+					//	fill: (u, seriesIdx) => "red",
+						fill: (u, seriesIdx) => {
+							// seriesIdx doesnt matter if we have same hz gradient for all series that's only dependent on x values
+							let xIdx = u.cursor.idxs[0];
+
+							if (xIdx != null) {
+								let val = u.data[0][u.cursor.idxs[0]];
+
+								for (let i = 0; i < hzGrad.length; i++) {
+									let nextStop = hzGrad[i+1];
+
+									if (nextStop == null || val < nextStop[0])
+										return hzGrad[i][1];
+								}
+							}
+
+							return "black";
+						},
+
+					}
+				},
+				scales: {
+					x: {
+						time: false,
+					}
+				},
+				series: [
+					{},
+					{
+						label: "Trends",
+						width: 4,
+						stroke: (u, seriesIdx) => {
+							return scaleGradient(u, 'x', 0, hzGrad, true);
+						},
+					},
+				],
+			};
+
+			let data = [
+				[20, 30, 40, 50, 60],
+				[20, 10, 25, 50, 30],
+			];
+
+			let u = new uPlot(opts, data, document.body);
+
+
+			let vtGrad = [
+				[-100, "blue"],
+			//	[0, "blue"],
+				[0, "red"],
+			];
+
+			const opts2 = {
+				title: "Scale-aligned gradient strokes (vt)",
+				width: 800,
+				height: 600,
+				legend: {
+				//	show: false,
+					markers: {
+					//	show: false,
+						stroke: (u, seriesIdx) => "red",
+					}
+				},
+				cursor: {
+					points: {
+						stroke: () => "red",
+					//	fill: () => "red",
+						fill: (u, seriesIdx) => {
+							let xIdx = u.cursor.idxs[seriesIdx];
+
+							if (xIdx != null) {
+								let val = u.data[seriesIdx][xIdx];
+
+								for (let i = vtGrad.length - 1; i >= 0; i--) {
+									let stop = vtGrad[i];
+
+									if (val >= stop[0])
+										return stop[1];
+								}
+							}
+
+							return "black";
+						}
+					}
+				},
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					{
+						label: "Over/Under",
+						width: 4,
+						stroke: (u, seriesIdx) => {
+							return scaleGradient(u, 'y', 1, vtGrad, true);
+						},
+					},
+				],
+			};
+
+			let data2 = [
+				[20, 30, 40, 50, 60],
+				[-5, 10, -2, -30, 30],
+			];
+
+			let u2 = new uPlot(opts2, data2, document.body);
+
+			let vtGrad3 = [
+				[-Infinity, "blue"],
+			//	[-10,       "blue"],
+
+				[-10,        "red"],
+			//	[0,          "red"],
+
+				[0,        "green"],
+			//	[Infinity, "green"],
+			];
+
+			const opts3 = {
+				title: "Scale-aligned gradient strokes (vt)",
+				width: 800,
+				height: 600,
+				legend: {
+				//	show: false,
+					markers: {
+					//	show: false,
+						stroke: (u, seriesIdx) => "red",
+					}
+				},
+				cursor: {
+					points: {
+						stroke: () => "red",
+					//	fill: () => "red",
+						fill: (u, seriesIdx) => {
+							let xIdx = u.cursor.idxs[seriesIdx];
+
+							if (xIdx != null) {
+								let val = u.data[seriesIdx][xIdx];
+
+								for (let i = vtGrad3.length - 1; i >= 0; i--) {
+									let stop = vtGrad3[i];
+
+									if (val >= stop[0])
+										return stop[1];
+								}
+							}
+
+							return "black";
+						}
+					}
+				},
+				scales: {
+					x: {
+						time: false,
+					},
+					y: {
+						distr: 4,
+					}
+				},
+				series: [
+					{},
+					{
+						label: "Over/Under",
+						width: 4,
+						stroke: (u, seriesIdx) => {
+							return scaleGradient(u, 'y', 1, vtGrad3, true);
+						},
+					},
+				],
+			};
+
+			let data3 = [
+				[20, 30, 40, 50, 60],
+				[-5, 10, -2, -30, 30],
+			];
+
+			let u3 = new uPlot(opts3, data3, document.body);
+
+
+			const opts4 = {
+				title: "Scale-aligned gradient fills",
+				width: 800,
+				height: 600,
+				legend: {
+				//	show: false,
+					markers: {
+						fill: (u, seriesIdx) => u.series[seriesIdx].stroke(u, seriesIdx),
+					}
+				},
+				scales: {
+					x: {
+						time: false,
+					}
+				},
+				series: [
+					{},
+					{
+						label: "Tank 1 (red = high pressure)",
+						width: 4,
+						stroke: "lime",
+						fill: (u, seriesIdx) => {
+							let s = u.series[seriesIdx];
+
+							return scaleGradient(u, s.scale, 1, [
+								[30, "green"],
+								[50, "orange"],
+								[60, "red"],
+							]);
+						},
+					},
+					{
+						label: "Tank 2 (red = low pressure)",
+						width: 4,
+						stroke: "magenta",
+						fill: (u, seriesIdx) => {
+							let s = u.series[seriesIdx];
+
+							return scaleGradient(u, s.scale, 1, [
+								[0,  "red"],
+								[10, "orange"],
+								[20, "green"]
+							]);
+						},
+					},
+				],
+			};
+
+			let data4 = [
+				[0, 1, 2, 3, 4, 5],
+				[10, 20, 30, 40, 50, 60],
+				[1, 3, 5, 8, 15, 20],
+			];
+
+			let u4 = new uPlot(opts4, data4, document.body);
+
+
+
+
+			const opts5 = {
+				title: "Data min/max % relative gradient fills",
+				width: 800,
+				height: 600,
+				legend: {
+				//	show: false,
+					markers: {
+						fill: (u, seriesIdx) => u.series[seriesIdx].stroke(u, seriesIdx),
+					}
+				},
+				scales: {
+					x: {
+						time: false,
+					}
+				},
+				series: [
+					{},
+					{
+						label: "Tank 1",
+						width: 4,
+						stroke: "lime",
+						fill: (u, seriesIdx) => {
+							let s = u.series[seriesIdx];
+							let sc = u.scales[s.scale];
+
+							let min = Infinity;
+							let max = -Infinity;
+
+							// get in-view y range for this scale
+							u.series.forEach(ser => {
+								if (ser.show && ser.scale == s.scale) {
+									min = Math.min(min, ser.min);
+									max = Math.max(max, ser.max);
+								}
+							});
+
+							let range = max - min;
+
+							if (range == 0) {
+								range = sc.max - sc.min;
+								min = sc.min;
+							}
+
+							return scaleGradient(u, s.scale, 1, [
+								[min + range * 0.0,      "green"],
+								[min + range * 0.5,     "orange"],
+								[min + range * 1.0,        "red"],
+							])
+						},
+					},
+				],
+			};
+
+			let u5 = new uPlot(opts5, data4, document.body);
+		</script>
+	</body>
+</html>
