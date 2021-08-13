@@ -2713,8 +2713,7 @@ var uPlot = (function () {
 
 			shouldConvergeSize = true;
 			shouldSetSize = true;
-			shouldSetCursor = cursor.left >= 0;
-			shouldSetLegend = true;
+			shouldSetCursor = shouldSetLegend = cursor.left >= 0;
 			commit();
 		}
 
@@ -3281,10 +3280,8 @@ var uPlot = (function () {
 					fire("setScale", k$4);
 				}
 
-				if (cursor.show) {
-					shouldSetCursor = cursor.left >= 0;
-					shouldSetLegend = true;
-				}
+				if (cursor.show)
+					{ shouldSetCursor = shouldSetLegend = cursor.left >= 0; }
 			}
 
 			for (var k$5 in pendScales)

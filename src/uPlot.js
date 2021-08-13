@@ -680,8 +680,7 @@ export default function uPlot(opts, data, then) {
 
 		shouldConvergeSize = true;
 		shouldSetSize = true;
-		shouldSetCursor = cursor.left >= 0;
-		shouldSetLegend = true;
+		shouldSetCursor = shouldSetLegend = cursor.left >= 0;
 		commit();
 	}
 
@@ -1239,10 +1238,8 @@ export default function uPlot(opts, data, then) {
 				fire("setScale", k);
 			}
 
-			if (FEAT_CURSOR && cursor.show) {
-				shouldSetCursor = cursor.left >= 0;
-				shouldSetLegend = true;
-			}
+			if (FEAT_CURSOR && cursor.show)
+				shouldSetCursor = shouldSetLegend = cursor.left >= 0;
 		}
 
 		for (let k in pendScales)
