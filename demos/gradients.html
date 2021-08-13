@@ -110,13 +110,11 @@
 				//	show: false,
 					markers: {
 					//	show: false,
-						stroke: (u, seriesIdx) => "red",
+						stroke: "red",
 					}
 				},
 				cursor: {
 					points: {
-						stroke: (u, seriesIdx) => "red",
-					//	fill: (u, seriesIdx) => "red",
 						fill: (u, seriesIdx) => {
 							// seriesIdx doesnt matter if we have same hz gradient for all series that's only dependent on x values
 							let xIdx = u.cursor.idxs[0];
@@ -175,13 +173,11 @@
 				//	show: false,
 					markers: {
 					//	show: false,
-						stroke: (u, seriesIdx) => "red",
+						stroke: "red",
 					}
 				},
 				cursor: {
 					points: {
-						stroke: () => "red",
-					//	fill: () => "red",
 						fill: (u, seriesIdx) => {
 							let xIdx = u.cursor.idxs[seriesIdx];
 
@@ -243,13 +239,11 @@
 				//	show: false,
 					markers: {
 					//	show: false,
-						stroke: (u, seriesIdx) => "red",
+						stroke: "red",
 					}
 				},
 				cursor: {
 					points: {
-						stroke: () => "red",
-					//	fill: () => "red",
 						fill: (u, seriesIdx) => {
 							let xIdx = u.cursor.idxs[seriesIdx];
 
