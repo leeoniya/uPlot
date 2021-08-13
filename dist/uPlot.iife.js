@@ -3281,8 +3281,10 @@ var uPlot = (function () {
 					fire("setScale", k$4);
 				}
 
-				if (cursor.show)
-					{ shouldSetCursor = cursor.left >= 0; }
+				if (cursor.show) {
+					shouldSetCursor = cursor.left >= 0;
+					shouldSetLegend = true;
+				}
 			}
 
 			for (var k$5 in pendScales)

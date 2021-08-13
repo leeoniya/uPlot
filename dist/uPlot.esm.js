@@ -3254,8 +3254,10 @@ function uPlot(opts, data, then) {
 				fire("setScale", k);
 			}
 
-			if (cursor.show)
+			if (cursor.show) {
 				shouldSetCursor = cursor.left >= 0;
+				shouldSetLegend = true;
+			}
 		}
 
 		for (let k in pendScales)

@@ -1239,8 +1239,10 @@ export default function uPlot(opts, data, then) {
 				fire("setScale", k);
 			}
 
-			if (FEAT_CURSOR && cursor.show)
+			if (FEAT_CURSOR && cursor.show) {
 				shouldSetCursor = cursor.left >= 0;
+				shouldSetLegend = true;
+			}
 		}
 
 		for (let k in pendScales)
