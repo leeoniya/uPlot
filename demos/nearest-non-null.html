@@ -115,5 +115,118 @@
 
 			let u = new uPlot(opts, data, document.body);
 		</script>
+
+		<script>
+			const hoverProximityPx = 30;
+
+			const opts2 = {
+				title: "Nearest Non-Null",
+				width: 1920,
+				height: 600,
+				cursor: {
+					dataIdx: (self, seriesIdx, hoveredIdx, cursorXVal) => {
+						let seriesData = self.data[seriesIdx];
+
+						if (seriesData[hoveredIdx] == null) {
+							let nonNullLft = hoveredIdx,
+								nonNullRgt = hoveredIdx,
+								i;
+
+							i = hoveredIdx;
+							while (nonNullLft === hoveredIdx && i-- > 0) {
+								if (seriesData[i] != null)
+									nonNullLft = i;
+							}
+
+							i = hoveredIdx;
+							while (nonNullRgt === hoveredIdx && i++ < seriesData.length) {
+								if (seriesData[i] != null)
+									nonNullRgt = i;
+							}
+
+							let xVals = self.data[0];
+
+							let curPos = self.valToPos(cursorXVal, 'x');
+							let rgtPos = self.valToPos(xVals[nonNullRgt], 'x');
+							let lftPos = self.valToPos(xVals[nonNullLft], 'x');
+
+							let lftDelta = curPos - lftPos;
+							let rgtDelta = rgtPos - curPos;
+
+							if (lftDelta <= rgtDelta) {
+								if (lftDelta <= hoverProximityPx)
+									hoveredIdx = nonNullLft;
+							}
+							else {
+								if (rgtDelta <= hoverProximityPx)
+									hoveredIdx = nonNullRgt;
+							}
+						}
+
+						return hoveredIdx;
+					},
+				},
+				hooks: {
+					setLegend: [
+						u => {
+						//	console.log(u.cursor.idxs);
+						}
+					]
+				},
+				scales: {
+					x: {
+						time: false,
+					}
+				},
+				series: [
+					{},
+					{
+						stroke: "red",
+						spanGaps: true,
+					},
+					{
+						stroke: "blue",
+						spanGaps: true,
+					},
+					{
+						stroke: "green",
+						spanGaps: true,
+					},
+					{
+						stroke: "orange",
+						spanGaps: true,
+					}
+				]
+			};
+
+			const tables = [
+				[
+					null,
+					[30,null,null,null,null,null,null,30,null,null,null,null,null,30],
+				],
+				[
+					null,
+					[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],
+				],
+				[
+					null,
+					[18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18],
+				],
+				[
+					null,
+					[25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25],
+				],
+			];
+
+			let xRange = 100;
+
+			tables.forEach(t => {
+				t[0] = t[1].map((v, i) => i/t[1].length * xRange);
+			});
+
+			const data2 = uPlot.join(tables);
+
+			let u2 = new uPlot(opts2, data2, document.body);
+		</script>
 	</body>
 </html>
