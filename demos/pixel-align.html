@@ -17,27 +17,27 @@
 		<script>
 			const windowSize = 120000;
 			const interval = 1000;
-
-
 			const loop = 1000;
 
 			const data = [
-				Array(loop).fill(null),
-				Array(loop).fill(null),
-				Array(loop).fill(null),
-				Array(loop).fill(null),
-				Array(loop).fill(null)
+				[],
+				[],
+				[],
+				[],
+				[],
 			];
 
-			function addData()
-			{
-				data[0].shift();
+			function addData() {
+				if (data[0].length == loop) {
+					data[0].shift();
+					data[1].shift();
+					data[2].shift();
+					data[3].shift();
+				}
+
 				data[0].push(Date.now());
-				data[1].shift();
 				data[1].push(0 - Math.random());
-				data[2].shift();
 				data[2].push(-1 - Math.random());
-				data[3].shift();
 				data[3].push(-2 - Math.random());
 			}
 
@@ -46,7 +46,7 @@
 			function getSize() {
 				return {
 					width: window.innerWidth - 100,
-					height: window.innerHeight  / 3,
+					height: window.innerHeight / 3,
 				}
 			}
 
@@ -126,15 +126,15 @@
 			let u2 = new uPlot(opts2, data, document.getElementById('chart2'));
 
 
-			function update()
-			{
+			function update() {
 				const now 	= Date.now();
 				const scale = {min: now - windowSize, max: now};
 
-				u1.setData(data);
-				u2.setData(data);
+				u1.setData(data, false);
+				u2.setData(data, false);
 				u1.setScale('x', scale);
 				u2.setScale('x', scale);
+
 				requestAnimationFrame(update);
 			}
 
