@@ -326,6 +326,7 @@ function genIncrs(base, minExp, maxExp, mults) {
 //export const assign = Object.assign;
 
 const EMPTY_OBJ = {};
+const EMPTY_ARR = [];
 
 const nullNullTuple = [null, null];
 
@@ -3114,13 +3115,33 @@ function uPlot(opts, data, then) {
 		_setScale(xScaleKey, _min, _max);
 	}
 
-	function setCtxStyle(stroke, width, dash, cap, fill) {
-		ctx.strokeStyle = stroke || transparent;
-		ctx.lineWidth = width;
-		ctx.lineJoin = "round";
-		ctx.lineCap = cap || "butt"; // (‿|‿)
-		ctx.setLineDash(dash || []);
-		ctx.fillStyle = fill || transparent;
+	let ctxStroke, ctxFill, ctxWidth, ctxDash, ctxJoin, ctxCap, ctxFont, ctxAlign, ctxBaseline;
+	let ctxAlpha;
+
+	function setCtxStyle(stroke = transparent, width, dash = EMPTY_ARR, cap = "butt", fill = transparent, join = "round") {
+		if (stroke != ctxStroke)
+			ctx.strokeStyle = ctxStroke = stroke;
+		if (fill != ctxFill)
+			ctx.fillStyle = ctxFill = fill;
+		if (width != ctxWidth)
+			ctx.lineWidth = ctxWidth = width;
+		if (join != ctxJoin)
+			ctx.lineJoin = ctxJoin = join;
+		if (cap != ctxCap)
+			ctx.lineCap = ctxCap = cap; // (‿|‿)
+		if (dash != ctxDash)
+			ctx.setLineDash(ctxDash = dash);
+	}
+
+	function setFontStyle(font, fill, align, baseline) {
+		if (fill != ctxFill)
+			ctx.fillStyle = ctxFill = fill;
+		if (font != ctxFont)
+			ctx.font = ctxFont = font;
+		if (align != ctxAlign)
+			ctx.textAlign = ctxAlign = align;
+		if (baseline != ctxBaseline)
+			ctx.textBaseline = ctxBaseline = baseline;
 	}
 
 	function setScales() {
@@ -3322,20 +3343,20 @@ function uPlot(opts, data, then) {
 		let strokeStyle = s._stroke;
 		let fillStyle   = s._fill;
 
-		let { stroke, fill, clip, flags } = s._paths;
+		let { stroke, fill, clip: gapsClip, flags } = s._paths;
+		let boundsClip = null;
 		let width = roundDec(s.width * pxRatio, 3);
 		let offset = (width % 2) / 2;
 
 		if (_points && fillStyle == null)
 			fillStyle = width > 0 ? "#fff" : strokeStyle;
 
-		ctx.globalAlpha = s.alpha;
+		if (ctxAlpha != s.alpha)
+			ctx.globalAlpha = ctxAlpha = s.alpha;
 
 		let _pxAlign = s.pxAlign == 1;
 
 		_pxAlign && ctx.translate(offset, offset);
-
-		ctx.save();
 
 		if (!_points) {
 			let lft = plotLft,
@@ -3353,26 +3374,23 @@ function uPlot(opts, data, then) {
 				hgt += halfWid;
 			}
 
-			ctx.beginPath();
-			ctx.rect(lft, top, wid, hgt);
-			ctx.clip();
+			boundsClip = new Path2D();
+			boundsClip.rect(lft, top, wid, hgt);
 		}
 
-		clip && ctx.clip(clip);
-
+		// the points pathbuilder's gapsClip is its boundsClip, since points dont need gaps clipping, and bounds depend on point size
 		if (_points)
-			strokeFill(strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, null, flags);
+			strokeFill(strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, gapsClip, null, null);
 		else
-			fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags);
-
-		ctx.restore();
+			fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, boundsClip, gapsClip);
 
 		_pxAlign && ctx.translate(-offset, -offset);
 
-		ctx.globalAlpha = 1;
+		if (ctxAlpha != 1)
+			ctx.globalAlpha = ctxAlpha = 1;
 	}
 
-	function fillStroke(si, strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags) {
+	function fillStroke(si, strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip) {
 		let didStrokeFill = false;
 
 		// for all bands where this series is the top edge, create upwards clips using the bottom edges
@@ -3382,49 +3400,51 @@ function uPlot(opts, data, then) {
 			if (b.series[0] == si) {
 				let lowerEdge = series[b.series[1]];
 
-				let clip = (lowerEdge._paths || EMPTY_OBJ).band;
-
-				ctx.save();
+				let bandClip = (lowerEdge._paths || EMPTY_OBJ).band;
 
 				let _fillStyle = null;
 
 				// hasLowerEdge?
-				if (lowerEdge.show && clip)
+				if (lowerEdge.show && bandClip)
 					_fillStyle = b.fill(self, bi) || fillStyle;
 				else
-					clip = null;
+					bandClip = null;
 
-				strokeFill(strokeStyle, lineWidth, lineDash, lineCap, _fillStyle, strokePath, fillPath, clip, flags);
-
-				ctx.restore();
+				strokeFill(strokeStyle, lineWidth, lineDash, lineCap, _fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, bandClip);
 
 				didStrokeFill = true;
 			}
 		});
 
 		if (!didStrokeFill)
-			strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, null, flags);
+			strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, null);
 	}
 
 	const CLIP_FILL_STROKE = BAND_CLIP_FILL | BAND_CLIP_STROKE;
 
-	function strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, clip, flags) {
+	function strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, bandClip) {
 		setCtxStyle(strokeStyle, lineWidth, lineDash, lineCap, fillStyle);
 
-		if (clip) {
+		if (boundsClip || gapsClip || bandClip) {
+			ctx.save();
+			boundsClip && ctx.clip(boundsClip);
+			gapsClip && ctx.clip(gapsClip);
+		}
+
+		if (bandClip) {
 			if ((flags & CLIP_FILL_STROKE) == CLIP_FILL_STROKE) {
-				ctx.clip(clip);
+				ctx.clip(bandClip);
 				doFill(fillStyle, fillPath);
 				doStroke(strokeStyle, strokePath, lineWidth);
 			}
 			else if (flags & BAND_CLIP_STROKE) {
 				doFill(fillStyle, fillPath);
-				ctx.clip(clip);
+				ctx.clip(bandClip);
 				doStroke(strokeStyle, strokePath, lineWidth);
 			}
 			else if (flags & BAND_CLIP_FILL) {
 				ctx.save();
-				ctx.clip(clip);
+				ctx.clip(bandClip);
 				doFill(fillStyle, fillPath);
 				ctx.restore();
 				doStroke(strokeStyle, strokePath, lineWidth);
@@ -3434,6 +3454,9 @@ function uPlot(opts, data, then) {
 			doFill(fillStyle, fillPath);
 			doStroke(strokeStyle, strokePath, lineWidth);
 		}
+
+		if (boundsClip || gapsClip || bandClip)
+			ctx.restore();
 	}
 
 	function doStroke(strokeStyle, strokePath, lineWidth) {
@@ -3441,7 +3464,7 @@ function uPlot(opts, data, then) {
 	}
 
 	function doFill(fillStyle, fillPath) {
-		fillStyle   && fillPath && ctx.fill(fillPath);
+		fillStyle && fillPath && ctx.fill(fillPath);
 	}
 
 	function getIncrSpace(axisIdx, min, max, fullDim) {
@@ -3465,7 +3488,7 @@ function uPlot(opts, data, then) {
 
 		pxAlign == 1 && ctx.translate(offset, offset);
 
-		setCtxStyle(stroke, width, dash, cap);
+		setCtxStyle(stroke, width, dash, cap, stroke);
 
 		ctx.beginPath();
 
@@ -3480,18 +3503,17 @@ function uPlot(opts, data, then) {
 			x1 = pos1;
 		}
 
-		offs.forEach((off, i) => {
-			if (filts[i] == null)
-				return;
+		for (let i = 0; i < offs.length; i++) {
+			if (filts[i] != null) {
+				if (ori == 0)
+					x0 = x1 = offs[i];
+				else
+					y0 = y1 = offs[i];
 
-			if (ori == 0)
-				x0 = x1 = off;
-			else
-				y0 = y1 = off;
-
-			ctx.moveTo(x0, y0);
-			ctx.lineTo(x1, y1);
-		});
+				ctx.moveTo(x0, y0);
+				ctx.lineTo(x1, y1);
+			}
+		}
 
 		ctx.stroke();
 
@@ -3577,7 +3599,9 @@ function uPlot(opts, data, then) {
 	}
 
 	function drawAxesGrid() {
-		axes.forEach((axis, i) => {
+		for (let i = 0; i < axes.length; i++) {
+			let axis = axes[i];
+
 			if (!axis.show || !axis._show)
 				return;
 
@@ -3595,6 +3619,8 @@ function uPlot(opts, data, then) {
 				let shiftAmt = axis.labelGap * shiftDir;
 				let baseLpos = round((axis._lpos + shiftAmt) * pxRatio);
 
+				setFontStyle(axis.labelFont[0], fillStyle, "center", side == 2 ? TOP : BOTTOM);
+
 				ctx.save();
 
 				if (ori == 1) {
@@ -3611,11 +3637,6 @@ function uPlot(opts, data, then) {
 					x = round(plotLft + plotWid / 2);
 					y = baseLpos;
 				}
-
-				ctx.font         = axis.labelFont[0];
-				ctx.fillStyle    = fillStyle;
-				ctx.textAlign    = "center";
-				ctx.textBaseline = side == 2 ? TOP : BOTTOM;
 
 				ctx.fillText(axis.label, x, y);
 
@@ -3653,41 +3674,51 @@ function uPlot(opts, data, then) {
 			    y        = ori == 0 ? finalPos : 0;
 			    x        = ori == 1 ? finalPos : 0;
 
-			ctx.font         = axis.font[0];
-			ctx.fillStyle    = fillStyle;
-			ctx.textAlign    = axis.align == 1 ? LEFT :
+			let font         = axis.font[0];
+			let textAlign    = axis.align == 1 ? LEFT :
 			                   axis.align == 2 ? RIGHT :
 			                   angle > 0 ? LEFT :
 			                   angle < 0 ? RIGHT :
 			                   ori == 0 ? "center" : side == 3 ? RIGHT : LEFT;
-			ctx.textBaseline = angle ||
+			let textBaseline = angle ||
 			                   ori == 1 ? "middle" : side == 2 ? TOP   : BOTTOM;
+
+			setFontStyle(font, fillStyle, textAlign, textBaseline);
 
 			let lineHeight = axis.font[1] * lineMult;
 
 			let canOffs = _splits.map(val => pxRound(getPos(val, scale, plotDim, plotOff)));
 
-			axis._values.forEach((val, i) => {
-				if (val == null)
-					return;
+			let _values = axis._values;
 
-				if (ori == 0)
-					x = canOffs[i];
-				else
-					y = canOffs[i];
+			for (let i = 0; i < _values.length; i++) {
+				let val = _values[i];
 
-				(""+val).split(/\n/gm).forEach((text, j) => {
-					if (angle) {
-						ctx.save();
-						ctx.translate(x, y + j * lineHeight);
-						ctx.rotate(angle);
-						ctx.fillText(text, 0, 0);
-						ctx.restore();
-					}
+				if (val != null) {
+					if (ori == 0)
+						x = canOffs[i];
 					else
-						ctx.fillText(text, x, y + j * lineHeight);
-				});
-			});
+						y = canOffs[i];
+
+					val = "" + val;
+
+					let _parts = val.indexOf("\n") == -1 ? [val] : val.split(/\n/gm);
+
+					for (let j = 0; j < _parts.length; j++) {
+						let text = _parts[j];
+
+						if (angle) {
+							ctx.save();
+							ctx.translate(x, y + j * lineHeight); // can this be replaced with position math?
+							ctx.rotate(angle); // can this be done once?
+							ctx.fillText(text, 0, 0);
+							ctx.restore();
+						}
+						else
+							ctx.fillText(text, x, y + j * lineHeight);
+					}
+				}
+			}
 
 			// ticks
 			if (ticks.show) {
@@ -3722,7 +3753,7 @@ function uPlot(opts, data, then) {
 					grid.cap,
 				);
 			}
-		});
+		}
 
 		fire("drawAxes");
 	}

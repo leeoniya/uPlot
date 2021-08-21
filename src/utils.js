@@ -317,6 +317,7 @@ export function genIncrs(base, minExp, maxExp, mults) {
 //export const assign = Object.assign;
 
 export const EMPTY_OBJ = {};
+export const EMPTY_ARR = [];
 
 export const nullNullTuple = [null, null];
 

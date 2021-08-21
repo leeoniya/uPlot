@@ -13,7 +13,6 @@ function cssmin(css) {
 let minicss = cssmin(fs.readFileSync('./src/uPlot.css', 'utf8'));
 fs.writeFileSync('./dist/uPlot.min.css', minicss);
 
-import buble from '@rollup/plugin-buble';
 import { terser } from 'rollup-plugin-terser';
 
 const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
@@ -94,7 +93,6 @@ export default [
 		},
 		plugins: [
 			bannerlessESM(),
-			buble({transforms: { forOf: false, arrow: false }}),
 		]
 	},
 	{
@@ -108,7 +106,6 @@ export default [
 		},
 		plugins: [
 			bannerlessESM(),
-			buble({transforms: { forOf: false, arrow: false }}),
 			terser(terserOpts),
 		]
 	},
