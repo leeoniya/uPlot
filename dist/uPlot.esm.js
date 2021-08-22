@@ -4274,9 +4274,7 @@ function uPlot(opts, data, then) {
 				let idx2  = cursor.dataIdx(self, i, idx, valAtPosX);
 				let yVal2 = data[i][idx2];
 
-				let shouldSetPt = yVal2 != yVal1 || idx2 != idx1;
-
-				shouldSetLegend = shouldSetLegend || shouldSetPt;
+				shouldSetLegend = shouldSetLegend || yVal2 != yVal1 || idx2 != idx1;
 
 				activeIdxs[i] = idx2;
 
@@ -4305,14 +4303,14 @@ function uPlot(opts, data, then) {
 						vPos = xPos2;
 					}
 
-					if (shouldSetPt && cursorPts.length > 1) {
+					if (shouldSetLegend && cursorPts.length > 1) {
 						trans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
 						color(cursorPts[i], cursor.points.fill(self, i), cursor.points.stroke(self, i));
 					}
 				}
 
 				if (legend.live) {
-					if (!shouldSetPt || i == 0 && multiValLegend)
+					if (!shouldSetLegend || i == 0 && multiValLegend)
 						continue;
 
 					setLegendValues(i, idx2);
