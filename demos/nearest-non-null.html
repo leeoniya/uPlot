@@ -52,28 +52,36 @@
 				},
 			*/
 				cursor: {
-					dataIdx: (self, seriesIdx, hoveredIdx, xVal) => {
+					dataIdx: (self, seriesIdx, hoveredIdx, cursorXVal) => {
 						let xValues = self.data[0];
 						let yValues = self.data[seriesIdx];
 
 						// todo: only scan in-view idices
 
 						if (yValues[hoveredIdx] == null) {
-							let nonNullLft = hoveredIdx,
-								nonNullRgt = hoveredIdx,
+							let nonNullLft = null,
+								nonNullRgt = null,
 								i;
 
 							i = hoveredIdx;
-							while (nonNullLft == hoveredIdx && i-- > 0)
+							while (nonNullLft == null && i-- > 0) {
 								if (yValues[i] != null)
 									nonNullLft = i;
+							}
 
 							i = hoveredIdx;
-							while (nonNullRgt == hoveredIdx && i++ < yValues.length)
+							while (nonNullRgt == null && i++ < yValues.length) {
 								if (yValues[i] != null)
 									nonNullRgt = i;
+							}
 
-							hoveredIdx = xValues[nonNullRgt] - xVal > xVal - xValues[nonNullLft] ? nonNullLft : nonNullRgt;
+							let rgtVal = nonNullRgt == null ?  Infinity : xValues[nonNullRgt];
+							let lftVal = nonNullLft == null ? -Infinity : xValues[nonNullLft];
+
+							let lftDelta = cursorXVal - lftVal;
+							let rgtDelta = rgtVal - cursorXVal;
+
+							hoveredIdx = lftDelta <= rgtDelta ? nonNullLft : nonNullRgt;
 						}
 
 						return hoveredIdx;
@@ -128,18 +136,18 @@
 						let seriesData = self.data[seriesIdx];
 
 						if (seriesData[hoveredIdx] == null) {
-							let nonNullLft = hoveredIdx,
-								nonNullRgt = hoveredIdx,
+							let nonNullLft = null,
+								nonNullRgt = null,
 								i;
 
 							i = hoveredIdx;
-							while (nonNullLft === hoveredIdx && i-- > 0) {
+							while (nonNullLft == null && i-- > 0) {
 								if (seriesData[i] != null)
 									nonNullLft = i;
 							}
 
 							i = hoveredIdx;
-							while (nonNullRgt === hoveredIdx && i++ < seriesData.length) {
+							while (nonNullRgt == null && i++ < seriesData.length) {
 								if (seriesData[i] != null)
 									nonNullRgt = i;
 							}
@@ -147,8 +155,8 @@
 							let xVals = self.data[0];
 
 							let curPos = self.valToPos(cursorXVal, 'x');
-							let rgtPos = self.valToPos(xVals[nonNullRgt], 'x');
-							let lftPos = self.valToPos(xVals[nonNullLft], 'x');
+							let rgtPos = nonNullRgt == null ?  Infinity : self.valToPos(xVals[nonNullRgt], 'x');
+							let lftPos = nonNullLft == null ? -Infinity : self.valToPos(xVals[nonNullLft], 'x');
 
 							let lftDelta = curPos - lftPos;
 							let rgtDelta = rgtPos - curPos;

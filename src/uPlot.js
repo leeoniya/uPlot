@@ -2253,11 +2253,15 @@ export default function uPlot(opts, data, then) {
 			for (let i = 0; i < series.length; i++) {
 				let s = series[i];
 
-				let idx2 = cursor.dataIdx(self, i, idx, valAtPosX);
+				let idx1  = activeIdxs[i];
+				let yVal1 = data[i][idx1];
 
+				let idx2  = cursor.dataIdx(self, i, idx, valAtPosX);
 				let yVal2 = data[i][idx2];
 
-				shouldSetLegend = shouldSetLegend || yVal2 != data[i][activeIdxs[i]];
+				let shouldSetPt = yVal2 != yVal1 || idx2 != idx1;
+
+				shouldSetLegend = shouldSetLegend || shouldSetPt;
 
 				activeIdxs[i] = idx2;
 
@@ -2286,14 +2290,14 @@ export default function uPlot(opts, data, then) {
 						vPos = xPos2;
 					}
 
-					if (FEAT_CURSOR && shouldSetLegend && cursorPts.length > 1) {
+					if (FEAT_CURSOR && shouldSetPt && cursorPts.length > 1) {
 						trans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
 						color(cursorPts[i], cursor.points.fill(self, i), cursor.points.stroke(self, i));
 					}
 				}
 
 				if (FEAT_LEGEND && legend.live) {
-					if (!shouldSetLegend || i == 0 && multiValLegend)
+					if (!shouldSetPt || i == 0 && multiValLegend)
 						continue;
 
 					setLegendValues(i, idx2);
