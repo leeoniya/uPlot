@@ -794,7 +794,7 @@ declare namespace uPlot {
 		spanGaps?: boolean;
 
 		/** may mutate and/or augment gaps array found from null values */
-		gaps?: GapsRefiner;
+		gaps?: Series.GapsRefiner;
 
 		/** whether path and point drawing should offset canvas to try drawing crisp lines */
 		pxAlign?: number | boolean; // 1
