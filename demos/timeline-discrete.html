@@ -244,6 +244,9 @@
 				let yMids = Array(count).fill(0);
   				let ySplits = Array(count).fill(0);
 
+				let fmtDate = uPlot.fmtDate('{YYYY}-{MM}-{DD} {HH}:{mm}:{ss}');
+				let legendTimeValueEl = null;
+
 				return {
 					hooks: {
 						init: u => {
@@ -254,6 +257,8 @@
 							hoverMarks.forEach(m => {
 								over.appendChild(m);
 							});
+
+							legendTimeValueEl = u.root.querySelector('.u-series:first-child .u-value');
 						},
 						drawClear: u => {
 							qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);
@@ -297,6 +302,11 @@
 									h.style.display = "none";
 									hovered[i] = null;
 								}
+							}
+
+							if (mode == 1) {
+								let val = u.posToVal(cx, 'x');
+								legendTimeValueEl.textContent = u.scales.x.time ? fmtDate(new Date(val * 1e3)) : val.toFixed(2);
 							}
 						},
 					},
