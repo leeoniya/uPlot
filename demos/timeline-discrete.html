@@ -305,7 +305,10 @@
 							cursor: {
 							//	x: false,
 								y: false,
-								points: {show: false}
+								points: {show: false},
+								dataIdx: (u, seriesIdx, closestIdx, xValue) => (
+									seriesIdx == 0 ? closestIdx : hovered[seriesIdx - 1]?.didx
+								),
 							},
 							scales: {
 								x: {
@@ -405,7 +408,7 @@
 						{},
 					],
 					legend: {
-						live: false,
+					//	live: false,
 						markers: {
 							width: 0,
 						}
@@ -413,25 +416,28 @@
 					padding: [null, 0, null, 0],
 					series: [
 						{
-							label: "Lib Name"
+							label: "Time"
 						},
 						{
 							label: "Device A",
 							fill:  "#33BB55",
 							stroke: "darkgreen",
 							width: 4,
+							value: (u, v) => v,
 						},
 						{
 							label: "Device B",
 							fill:  "#B56FAB",
 							stroke: "purple",
 							width: 4,
+							value: (u, v) => v,
 						},
 						{
 							label: "Device C",
 							fill: "cyan",
 							stroke: "#008080",
 							width: 4,
+							value: (u, v) => v,
 						},
 					],
 					plugins: [
