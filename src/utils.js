@@ -358,8 +358,8 @@ export function copy(o, _isObj = isObj) {
 	}
 	else if (_isObj(o)) {
 		out = {};
-		for (let [k, v] of Object.entries(o))
-			out[k] = copy(v, _isObj);
+		for (let k in o)
+			out[k] = copy(o[k], _isObj);
 	}
 	else
 		out = o;
