@@ -3812,6 +3812,10 @@ function uPlot(opts, data, then) {
 			can.width  = round(fullWidCss * pxRatio);
 			can.height = round(fullHgtCss * pxRatio);
 
+			// invalidate ctx style cache
+			ctxStroke = ctxFill = ctxWidth = ctxJoin = ctxCap = ctxFont = ctxAlign = ctxBaseline = ctxDash = null;
+			ctxAlpha = 1;
+
 			syncRect(false);
 
 			fire("setSize");
