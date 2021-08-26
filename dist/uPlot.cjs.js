@@ -353,17 +353,24 @@ function fastIsObj(v) {
 	return v != null && typeof v == 'object';
 }
 
-function copy(o, _isObj) {
-	_isObj = _isObj || isObj;
-
+function copy(o, _isObj = isObj) {
 	let out;
 
-	if (isArr(o))
-		out = o.map(v => copy(v, _isObj));
+	if (isArr(o)) {
+		let val = o.find(v => v != null);
+
+		if (isArr(val) || _isObj(val)) {
+			out = Array(o.length);
+			for (let i = 0; i < o.length; i++)
+			  out[i] = copy(o[i], _isObj);
+		}
+		else
+			out = o.slice();
+	}
 	else if (_isObj(o)) {
 		out = {};
-		for (var k in o)
-			out[k] = copy(o[k], _isObj);
+		for (let [k, v] of Object.entries(o))
+			out[k] = copy(v, _isObj);
 	}
 	else
 		out = o;
