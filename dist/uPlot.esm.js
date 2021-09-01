@@ -497,7 +497,7 @@ const resize      = "resize";
 const scroll      = "scroll";
 
 const change      = "change";
-const ddpxchange  = "dppxchange";
+const dppxchange  = "dppxchange";
 
 const pre = "u-";
 
@@ -529,13 +529,18 @@ let pxRatio;
 let query;
 
 function setPxRatio() {
-	pxRatio = devicePixelRatio;
+	let _pxRatio = devicePixelRatio;
 
-	query && off(change, query, setPxRatio);
-	query = matchMedia(`screen and (min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
-	on(change, query, setPxRatio);
+	// during print preview, Chrome fires off these dppx queries even without changes
+	if (pxRatio != _pxRatio) {
+		pxRatio = _pxRatio;
 
-	win.dispatchEvent(new CustomEvent(ddpxchange));
+		query && off(change, query, setPxRatio);
+		query = matchMedia(`(min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
+		on(change, query, setPxRatio);
+
+		win.dispatchEvent(new CustomEvent(dppxchange));
+	}
 }
 
 function addClass(el, c) {
@@ -3816,6 +3821,8 @@ function uPlot(opts, data, then) {
 			setStylePx(wrap, WIDTH,   fullWidCss);
 			setStylePx(wrap, HEIGHT,  fullHgtCss);
 
+			// NOTE: mutating this during print preview in Chrome forces transparent
+			// canvas pixels to white, even when followed up with clearRect() below
 			can.width  = round(fullWidCss * pxRatio);
 			can.height = round(fullHgtCss * pxRatio);
 
@@ -4758,7 +4765,7 @@ function uPlot(opts, data, then) {
 		_setSize(self.width, self.height, true);
 	}
 
-	on(ddpxchange, win, syncPxRatio);
+	on(dppxchange, win, syncPxRatio);
 
 	// internal pub/sub
 	const events = {};

@@ -80,7 +80,7 @@ import {
 	resize,
 	scroll,
 
-	ddpxchange
+	dppxchange
 } from './strings';
 
 import {
@@ -1794,6 +1794,8 @@ export default function uPlot(opts, data, then) {
 			setStylePx(wrap, WIDTH,   fullWidCss);
 			setStylePx(wrap, HEIGHT,  fullHgtCss);
 
+			// NOTE: mutating this during print preview in Chrome forces transparent
+			// canvas pixels to white, even when followed up with clearRect() below
 			can.width  = round(fullWidCss * pxRatio);
 			can.height = round(fullHgtCss * pxRatio);
 
@@ -2736,7 +2738,7 @@ export default function uPlot(opts, data, then) {
 		_setSize(self.width, self.height, true);
 	}
 
-	on(ddpxchange, win, syncPxRatio);
+	on(dppxchange, win, syncPxRatio);
 
 	// internal pub/sub
 	const events = {};

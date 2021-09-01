@@ -17,4 +17,4 @@ export const resize      = "resize";
 export const scroll      = "scroll";
 
 export const change      = "change";
-export const ddpxchange  = "dppxchange";
+export const dppxchange  = "dppxchange";

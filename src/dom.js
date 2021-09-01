@@ -4,7 +4,7 @@ import {
 
 import {
 	change,
-	ddpxchange,
+	dppxchange,
 } from './strings';
 
 import {
@@ -18,13 +18,18 @@ export let pxRatio;
 let query;
 
 function setPxRatio() {
-	pxRatio = devicePixelRatio;
+	let _pxRatio = devicePixelRatio;
 
-	query && off(change, query, setPxRatio);
-	query = matchMedia(`screen and (min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
-	on(change, query, setPxRatio);
+	// during print preview, Chrome fires off these dppx queries even without changes
+	if (pxRatio != _pxRatio) {
+		pxRatio = _pxRatio;
 
-	win.dispatchEvent(new CustomEvent(ddpxchange));
+		query && off(change, query, setPxRatio);
+		query = matchMedia(`(min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
+		on(change, query, setPxRatio);
+
+		win.dispatchEvent(new CustomEvent(dppxchange));
+	}
 }
 
 export function addClass(el, c) {
