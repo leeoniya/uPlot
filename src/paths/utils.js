@@ -1,4 +1,4 @@
-import { round, incrRound, retArg0 } from "../utils";
+import { round, incrRound, retArg0, nonNullIdx } from "../utils";
 
 export const BAND_CLIP_FILL   = 1 << 0;
 export const BAND_CLIP_STROKE = 1 << 1;
@@ -133,6 +133,17 @@ export function addGap(gaps, fromX, toX) {
 
 export function pxRoundGen(pxAlign) {
 	return pxAlign == 0 ? retArg0 : pxAlign == 1 ? round : v => incrRound(v, pxAlign);
+}
+
+// inefficient linear interpolation that does bi-directinal scans on each call
+export function costlyLerp(i, idx0, idx1, _dirX, dataY) {
+	let prevNonNull = nonNullIdx(dataY, _dirX == 1 ? idx0 : idx1, i, -_dirX);
+	let nextNonNull = nonNullIdx(dataY, i, _dirX == 1 ? idx1 : idx0,  _dirX);
+
+	let prevVal = dataY[prevNonNull];
+	let nextVal = dataY[nextNonNull];
+
+	return prevVal + (i - prevNonNull) / (nextNonNull - prevNonNull) * (nextVal - prevVal);
 }
 
 // orientation-inverting canvas functions

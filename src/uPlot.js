@@ -1365,7 +1365,7 @@ export default function uPlot(opts, data, then) {
 
 		// the points pathbuilder's gapsClip is its boundsClip, since points dont need gaps clipping, and bounds depend on point size
 		if (_points)
-			strokeFill(strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, gapsClip, null, null);
+			strokeFill(strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, gapsClip);
 		else
 			fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, boundsClip, gapsClip);
 
@@ -1386,28 +1386,31 @@ export default function uPlot(opts, data, then) {
 				let lowerEdge = series[b.series[1]];
 
 				let bandClip = (lowerEdge._paths || EMPTY_OBJ).band;
+				let gapsClip2;
 
 				let _fillStyle = null;
 
 				// hasLowerEdge?
-				if (lowerEdge.show && bandClip)
+				if (lowerEdge.show && bandClip) {
 					_fillStyle = b.fill(self, bi) || fillStyle;
+					gapsClip2 = lowerEdge._paths.clip;
+				}
 				else
 					bandClip = null;
 
-				strokeFill(strokeStyle, lineWidth, lineDash, lineCap, _fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, bandClip);
+				strokeFill(strokeStyle, lineWidth, lineDash, lineCap, _fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, gapsClip2, bandClip);
 
 				didStrokeFill = true;
 			}
 		});
 
 		if (!didStrokeFill)
-			strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, null);
+			strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip);
 	}
 
 	const CLIP_FILL_STROKE = BAND_CLIP_FILL | BAND_CLIP_STROKE;
 
-	function strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, bandClip) {
+	function strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, gapsClip2, bandClip) {
 		setCtxStyle(strokeStyle, lineWidth, lineDash, lineCap, fillStyle);
 
 		if (boundsClip || gapsClip || bandClip) {
@@ -1419,6 +1422,7 @@ export default function uPlot(opts, data, then) {
 		if (bandClip) {
 			if ((flags & CLIP_FILL_STROKE) == CLIP_FILL_STROKE) {
 				ctx.clip(bandClip);
+				gapsClip2 && ctx.clip(gapsClip2);
 				doFill(fillStyle, fillPath);
 				doStroke(strokeStyle, strokePath, lineWidth);
 			}
@@ -1430,6 +1434,7 @@ export default function uPlot(opts, data, then) {
 			else if (flags & BAND_CLIP_FILL) {
 				ctx.save();
 				ctx.clip(bandClip);
+				gapsClip2 && ctx.clip(gapsClip2);
 				doFill(fillStyle, fillPath);
 				ctx.restore();
 				doStroke(strokeStyle, strokePath, lineWidth);

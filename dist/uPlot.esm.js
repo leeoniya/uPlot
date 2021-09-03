@@ -1999,21 +1999,15 @@ function bars(opts) {
 			for (let i = _dirX == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dirX) {
 				let yVal = dataY[i];
 
+			/*
 				// interpolate upwards band clips
 				if (yVal == null) {
-					if (hasBands) {
-						// simple, but inefficient bi-directinal linear scans on each iteration
-						let prevNonNull = nonNullIdx(dataY, _dirX == 1 ? idx0 : idx1, i, -_dirX);
-						let nextNonNull = nonNullIdx(dataY, i, _dirX == 1 ? idx1 : idx0,  _dirX);
-
-						let prevVal = dataY[prevNonNull];
-						let nextVal = dataY[nextNonNull];
-
-						yVal = prevVal + (i - prevNonNull) / (nextNonNull - prevNonNull) * (nextVal - prevVal);
-					}
-					else
+				//	if (hasBands)
+				//		yVal = costlyLerp(i, idx0, idx1, _dirX, dataY);
+				//	else
 						continue;
 				}
+			*/
 
 				let xVal = scaleX.distr != 2 || disp != null ? dataX[i] : i;
 
@@ -3392,7 +3386,7 @@ function uPlot(opts, data, then) {
 
 		// the points pathbuilder's gapsClip is its boundsClip, since points dont need gaps clipping, and bounds depend on point size
 		if (_points)
-			strokeFill(strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, gapsClip, null, null);
+			strokeFill(strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, gapsClip);
 		else
 			fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, boundsClip, gapsClip);
 
@@ -3413,28 +3407,31 @@ function uPlot(opts, data, then) {
 				let lowerEdge = series[b.series[1]];
 
 				let bandClip = (lowerEdge._paths || EMPTY_OBJ).band;
+				let gapsClip2;
 
 				let _fillStyle = null;
 
 				// hasLowerEdge?
-				if (lowerEdge.show && bandClip)
+				if (lowerEdge.show && bandClip) {
 					_fillStyle = b.fill(self, bi) || fillStyle;
+					gapsClip2 = lowerEdge._paths.clip;
+				}
 				else
 					bandClip = null;
 
-				strokeFill(strokeStyle, lineWidth, lineDash, lineCap, _fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, bandClip);
+				strokeFill(strokeStyle, lineWidth, lineDash, lineCap, _fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, gapsClip2, bandClip);
 
 				didStrokeFill = true;
 			}
 		});
 
 		if (!didStrokeFill)
-			strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, null);
+			strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip);
 	}
 
 	const CLIP_FILL_STROKE = BAND_CLIP_FILL | BAND_CLIP_STROKE;
 
-	function strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, bandClip) {
+	function strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, gapsClip2, bandClip) {
 		setCtxStyle(strokeStyle, lineWidth, lineDash, lineCap, fillStyle);
 
 		if (boundsClip || gapsClip || bandClip) {
@@ -3446,6 +3443,7 @@ function uPlot(opts, data, then) {
 		if (bandClip) {
 			if ((flags & CLIP_FILL_STROKE) == CLIP_FILL_STROKE) {
 				ctx.clip(bandClip);
+				gapsClip2 && ctx.clip(gapsClip2);
 				doFill(fillStyle, fillPath);
 				doStroke(strokeStyle, strokePath, lineWidth);
 			}
@@ -3457,6 +3455,7 @@ function uPlot(opts, data, then) {
 			else if (flags & BAND_CLIP_FILL) {
 				ctx.save();
 				ctx.clip(bandClip);
+				gapsClip2 && ctx.clip(gapsClip2);
 				doFill(fillStyle, fillPath);
 				ctx.restore();
 				doStroke(strokeStyle, strokePath, lineWidth);

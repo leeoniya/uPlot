@@ -1,5 +1,5 @@
 import { abs, min, max, inf, ifNull, EMPTY_OBJ, incrRound, nonNullIdx } from '../utils';
-import { orient, rectV, rectH, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './utils';
+import { orient, rectV, rectH, BAND_CLIP_FILL, BAND_CLIP_STROKE, costlyLerp } from './utils';
 import { pxRatio } from '../dom';
 
 export function bars(opts) {
@@ -95,21 +95,15 @@ export function bars(opts) {
 			for (let i = _dirX == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dirX) {
 				let yVal = dataY[i];
 
+			/*
 				// interpolate upwards band clips
 				if (yVal == null) {
-					if (hasBands) {
-						// simple, but inefficient bi-directinal linear scans on each iteration
-						let prevNonNull = nonNullIdx(dataY, _dirX == 1 ? idx0 : idx1, i, -_dirX);
-						let nextNonNull = nonNullIdx(dataY, i, _dirX == 1 ? idx1 : idx0,  _dirX);
-
-						let prevVal = dataY[prevNonNull];
-						let nextVal = dataY[nextNonNull];
-
-						yVal = prevVal + (i - prevNonNull) / (nextNonNull - prevNonNull) * (nextVal - prevVal);
-					}
-					else
+				//	if (hasBands)
+				//		yVal = costlyLerp(i, idx0, idx1, _dirX, dataY);
+				//	else
 						continue;
 				}
+			*/
 
 				let xVal = scaleX.distr != 2 || disp != null ? dataX[i] : i;
 
