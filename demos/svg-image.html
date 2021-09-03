@@ -57,8 +57,10 @@
 		let width = Math.ceil(rect.width * pxRatio);
 		let height = Math.ceil(rect.height * pxRatio);
 
+		let viewBox = `0 0 ${Math.ceil(rect.width)} ${Math.ceil(rect.height)}`;
+
 		let svgText = `
-			<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${rect.width} ${rect.height}">
+			<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox}">
 				<style>
 					body { margin: 0; padding: 0; }
 					${cssContent}
