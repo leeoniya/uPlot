@@ -58,15 +58,12 @@
 		let height = Math.ceil(rect.height * pxRatio);
 
 		let svgText = `
-			<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+			<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${rect.width} ${rect.height}">
 				<style>
-					body {
-						margin: 0;
-						padding: 0;
-					}
+					body { margin: 0; padding: 0; }
 					${cssContent}
 				</style>
-				<foreignObject width="${width}" height="${height}">
+				<foreignObject width="100%" height="100%">
 					<body xmlns="http://www.w3.org/1999/xhtml">${htmlContent}</body>
 				</foreignObject>
 			</svg>
