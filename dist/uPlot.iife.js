@@ -3316,6 +3316,9 @@ var uPlot = (function () {
 
 				series.forEach((s, i) => {
 					if (i > 0 && s.show) {
+						if (ctxAlpha != s.alpha)
+							ctx.globalAlpha = ctxAlpha = s.alpha;
+
 						{
 							cacheStrokeFill(i, false);
 							s._paths && drawPath(i, false);
@@ -3332,6 +3335,9 @@ var uPlot = (function () {
 								drawPath(i, true);
 							}
 						}
+
+						if (ctxAlpha != 1)
+							ctx.globalAlpha = ctxAlpha = 1;
 
 						fire("drawSeries", i);
 					}
@@ -3359,9 +3365,6 @@ var uPlot = (function () {
 
 			if (_points && fillStyle == null)
 				fillStyle = width > 0 ? "#fff" : strokeStyle;
-
-			if (ctxAlpha != s.alpha)
-				ctx.globalAlpha = ctxAlpha = s.alpha;
 
 			let _pxAlign = s.pxAlign == 1;
 
@@ -3394,9 +3397,6 @@ var uPlot = (function () {
 				fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, boundsClip, gapsClip);
 
 			_pxAlign && ctx.translate(-offset, -offset);
-
-			if (ctxAlpha != 1)
-				ctx.globalAlpha = ctxAlpha = 1;
 		}
 
 		function fillStroke(si, strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip) {
