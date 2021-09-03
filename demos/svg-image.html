@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+	<title>uPlot to image PoC</title>
+
+	<link rel="stylesheet" href="../dist/uPlot.min.css">
+	<script src="../dist/uPlot.iife.min.js"></script>
+
+	<style>
+		body > * {
+			background: pink;
+			margin: 10px;
+		}
+	</style>
+</head>
+<body>
+
+<script>
+	let opts = {
+		title: "test chart",
+		width: 400,
+		height: 200,
+		scales: {
+			x: {
+				time: false
+			}
+		},
+		series: [
+			{},
+			{
+				stroke: "blue"
+			}
+		],
+	};
+
+	let data = [
+		[1,2,3],
+		[4,5,6],
+	];
+
+	let u = new uPlot(opts, data, document.body);
+
+	queueMicrotask(() => {
+		let pxRatio = devicePixelRatio;
+
+		let rect = u.root.getBoundingClientRect();
+		// rect of uPlot's canvas to get y shift due to title above it (if any)
+		let rect2 = u.ctx.canvas.getBoundingClientRect();
+
+		let htmlContent = u.root.outerHTML;
+
+		let uPlotCssRules = document.styleSheets[0].cssRules;
+		let cssContent = "";
+		for (let { cssText } of uPlotCssRules)
+			cssContent += `${cssText} `;
+
+		let svgText = `
+			<svg xmlns="http://www.w3.org/2000/svg" width="${rect.width * pxRatio}" height="${rect.height * pxRatio}">
+				<style>${cssContent}</style>
+				<foreignObject width="${rect.width * pxRatio}" height="${rect.height * pxRatio}">
+					<body xmlns="http://www.w3.org/1999/xhtml">${htmlContent}</body>
+				</foreignObject>
+			</svg>
+		`;
+
+		let can = document.createElement('canvas');
+		let ctx = can.getContext('2d');
+		can.width = rect.width * pxRatio;
+		can.height = rect.height * pxRatio;
+		can.style.width = rect.width + "px";
+		can.style.height = rect.height + "px";
+		document.body.appendChild(can);
+
+		let DOMURL = window.URL || window.webkitURL;
+
+		let img = new Image();
+		let blob = new Blob([svgText], {type: 'image/svg+xml;charset=utf-8'});
+		let url = DOMURL.createObjectURL(blob);
+
+		ctx.drawImage(u.ctx.canvas, 0, (rect2.top - rect.top) * pxRatio);
+
+		img.onload = () => {
+			ctx.drawImage(img, 0, 0);
+			DOMURL.revokeObjectURL(url);
+		};
+
+		img.src = url;
+	});
+</script>
+
+</body>
+</html>
