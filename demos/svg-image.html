@@ -54,8 +54,11 @@
 		for (let { cssText } of uPlotCssRules)
 			cssContent += `${cssText} `;
 
+		let width = Math.ceil(rect.width * pxRatio);
+		let height = Math.ceil(rect.height * pxRatio);
+
 		let svgText = `
-			<svg xmlns="http://www.w3.org/2000/svg" width="${rect.width * pxRatio}" height="${rect.height * pxRatio}">
+			<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
 				<style>
 					body {
 						margin: 0;
@@ -63,7 +66,7 @@
 					}
 					${cssContent}
 				</style>
-				<foreignObject width="${rect.width * pxRatio}" height="${rect.height * pxRatio}">
+				<foreignObject width="${width}" height="${height}">
 					<body xmlns="http://www.w3.org/1999/xhtml">${htmlContent}</body>
 				</foreignObject>
 			</svg>
@@ -71,10 +74,10 @@
 
 		let can = document.createElement('canvas');
 		let ctx = can.getContext('2d');
-		can.width = rect.width * pxRatio;
-		can.height = rect.height * pxRatio;
-		can.style.width = rect.width + "px";
-		can.style.height = rect.height + "px";
+		can.width = width;
+		can.height = height;
+		can.style.width = Math.ceil(rect.width) + "px";
+		can.style.height = Math.ceil(rect.height) + "px";
 		document.body.appendChild(can);
 
 		let DOMURL = window.URL || window.webkitURL;
