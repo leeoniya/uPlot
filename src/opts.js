@@ -647,6 +647,26 @@ export function seriesFillTo(self, seriesIdx, dataMin, dataMax) {
 	return scale.distr == 3 || isUpperBandEdge ? scale.min : 0;
 }
 
+const facet = {
+	scale: null,
+	auto: true,
+
+	// internal caches
+	min: inf,
+	max: -inf,
+};
+
+export const xySeriesOpts = {
+	show: true,
+	auto: true,
+	sorted: 0,
+	alpha: 1,
+	facets: [
+		assign({}, facet, {scale: 'x'}),
+		assign({}, facet, {scale: 'y'}),
+	],
+};
+
 export const ySeriesOpts = {
 	scale: "y",
 	auto: true,

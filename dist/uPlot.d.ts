@@ -319,7 +319,15 @@ declare namespace uPlot {
 		Series = 'series',
 	}
 
+	export const enum Mode {
+		Aligned = 1,
+		Faceted = 2,
+	}
+
 	export interface Options {
+		/** 1: aligned & ordered, single-x / y-per-series, 2: unordered & faceted, per-series/per-point x,y,size,label,color,shape,etc. */
+		mode?: Mode,
+
 		/** chart title */
 		title?: string;
 
@@ -747,6 +755,12 @@ declare namespace uPlot {
 			fill?: Fill;
 		}
 
+		export interface Facet {
+			scale: string;
+
+			auto?: boolean;
+		}
+
 		export type Gap = [from: number, to: number];
 
 		export type Gaps = Gap[];
@@ -812,6 +826,9 @@ declare namespace uPlot {
 
 		/** rendered datapoints */
 		points?: Series.Points;
+
+		/** facets */
+		facets?: Series.Facet[];
 
 		/** line width in CSS pixels */
 		width?: number;

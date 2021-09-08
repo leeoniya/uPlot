@@ -1,0 +1,453 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Scatter &amp; Bubble</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			.hov-mark {
+				position: absolute;
+				background: rgba(255,255,255, 0.3);
+				background: rgba(0, 0, 0, 0.3);
+			}
+		</style>
+	</head>
+	<body>
+		<script src="./lib/quadtree.js"></script>
+
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+
+			function randInt(min, max) {
+				return Math.floor(Math.random() * (max - min + 1)) + min;
+			}
+
+			function filledArr(len, val) {
+				let arr = Array(len);
+
+				if (typeof val == "function") {
+					for (let i = 0; i < len; ++i)
+						arr[i] = val(i);
+				}
+				else {
+					for (let i = 0; i < len; ++i)
+						arr[i] = val;
+				}
+
+				return arr;
+			}
+
+			let points = 10000;
+			let series = 5;
+
+			console.time("prep");
+
+			let data = filledArr(series, v => [
+				filledArr(points, i => randInt(0,500)),
+				filledArr(points, i => randInt(0,500)),
+			]);
+
+			data[0] = null;
+
+			console.timeEnd("prep");
+
+			console.log(data);
+
+			const drawPoints = (u, seriesIdx, idx0, idx1) => {
+				function sizeOf(u, sidx, idx) {
+					return randInt(3, 6);
+				}
+
+				uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc) => {
+					let d = u.data[seriesIdx];
+
+					u.ctx.fillStyle = series.stroke();
+
+					let deg360 = 2 * Math.PI;
+
+					console.time("points");
+
+				//	let cir = new Path2D();
+				//	cir.moveTo(0, 0);
+				//	arc(cir, 0, 0, 3, 0, deg360);
+
+					// Create transformation matrix that moves 200 points to the right
+				//	let m = document.createElementNS('http://www.w3.org/2000/svg', 'svg').createSVGMatrix();
+				//	m.a = 1;   m.b = 0;
+				//	m.c = 0;   m.d = 1;
+				//	m.e = 200; m.f = 0;
+
+
+					let p = new Path2D();
+
+					for (let i = 0; i < d[0].length; i++) {
+						let cx = valToPosX(d[0][i], scaleX, xDim, xOff);
+						let cy = valToPosY(d[1][i], scaleY, yDim, yOff);
+
+						let size = sizeOf(u, seriesIdx, i);
+						p.moveTo(cx + size, cy);
+					//	arc(p, cx, cy, 3, 0, deg360);
+						arc(p, cx, cy, size, 0, deg360);
+
+					//	m.e = cx;
+					//	m.f = cy;
+					//	p.addPath(cir, m);
+
+					//	qt.add({x: cx - 1.5, y: cy - 1.5, w: 3, h: 3, sidx: seriesIdx, didx: i});
+					}
+
+					console.timeEnd("points");
+
+					u.ctx.fill(p);
+				});
+
+				return null;
+			};
+
+			const drawPoints2 = (u, seriesIdx, idx0, idx1) => {
+				function sizeOf(u, sidx, idx) {
+					return randInt(3, 40);
+				}
+
+				uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc) => {
+					let d = u.data[seriesIdx];
+
+					u.ctx.fillStyle = series.fill();
+
+					let deg360 = 2 * Math.PI;
+
+					console.time("points");
+
+				//	let cir = new Path2D();
+				//	cir.moveTo(0, 0);
+				//	arc(cir, 0, 0, 3, 0, deg360);
+
+					// Create transformation matrix that moves 200 points to the right
+				//	let m = document.createElementNS('http://www.w3.org/2000/svg', 'svg').createSVGMatrix();
+				//	m.a = 1;   m.b = 0;
+				//	m.c = 0;   m.d = 1;
+				//	m.e = 200; m.f = 0;
+
+
+					let p = new Path2D();
+
+					let strokeWidth = 1;
+
+					for (let i = 0; i < d[0].length; i++) {
+						let cx = valToPosX(d[0][i], scaleX, xDim, xOff);
+						let cy = valToPosY(d[1][i], scaleY, yDim, yOff);
+
+						let size = sizeOf(u, seriesIdx, i);
+						p.moveTo(cx + size, cy);
+						arc(p, cx, cy, size, 0, deg360);
+						qt.add({
+							x: cx - size - strokeWidth/2 - u.bbox.left,
+							y: cy - size - strokeWidth/2 - u.bbox.top,
+							w: size * 2 + strokeWidth,
+							h: size * 2 + strokeWidth,
+							sidx: seriesIdx,
+							didx: i
+						});
+					}
+
+					console.timeEnd("points");
+
+					u.ctx.fill(p);
+
+					u.ctx.lineWidth = strokeWidth;
+					u.ctx.strokeStyle = series.stroke();
+					u.ctx.stroke(p);
+				});
+
+				return null;
+			};
+
+			const drawPoints3 = (u, seriesIdx, idx0, idx1) => {
+				function sizeOf(u, sidx, idx) {
+					return randInt(3, 40);
+				}
+
+				uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc) => {
+					let d = u.data[seriesIdx];
+
+					let strokeWidth = 1;
+
+					u.ctx.save();
+
+					u.ctx.fillStyle = series.fill();
+					u.ctx.strokeStyle = series.stroke();
+					u.ctx.lineWidth = strokeWidth;
+
+					let deg360 = 2 * Math.PI;
+
+					console.time("points");
+
+				//	let cir = new Path2D();
+				//	cir.moveTo(0, 0);
+				//	arc(cir, 0, 0, 3, 0, deg360);
+
+					// Create transformation matrix that moves 200 points to the right
+				//	let m = document.createElementNS('http://www.w3.org/2000/svg', 'svg').createSVGMatrix();
+				//	m.a = 1;   m.b = 0;
+				//	m.c = 0;   m.d = 1;
+				//	m.e = 200; m.f = 0;
+
+					for (let i = 0; i < d[0].length; i++) {
+						let cx = valToPosX(d[0][i], scaleX, xDim, xOff);
+						let cy = valToPosY(d[1][i], scaleY, yDim, yOff);
+
+						let size = sizeOf(u, seriesIdx, i);
+						u.ctx.moveTo(cx + size, cy);
+						u.ctx.beginPath();
+						u.ctx.arc(cx, cy, size, 0, deg360);
+						u.ctx.fill();
+						u.ctx.stroke();
+						qt.add({
+							x: cx - size - strokeWidth/2 - u.bbox.left,
+							y: cy - size - strokeWidth/2 - u.bbox.top,
+							w: size * 2 + strokeWidth,
+							h: size * 2 + strokeWidth,
+							sidx: seriesIdx,
+							didx: i
+						});
+					}
+
+					console.timeEnd("points");
+
+					u.ctx.restore();
+				});
+
+				return null;
+			};
+
+			// https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/isPointInPath
+			let qt;
+			let hovered = null;
+
+			let hovMark = document.createElement("div");
+			hovMark.classList.add("hov-mark");
+
+			let pxRatio;
+
+			function setPxRatio() {
+				pxRatio = devicePixelRatio;
+			}
+
+			setPxRatio();
+
+			window.addEventListener('dppxchange', setPxRatio);
+
+			const opts = {
+				title: "Scatter Plot",
+				mode: 2,
+				width: 1920,
+				height: 600,
+				legend: {
+					live: false,
+				},
+				hooks: {
+					drawClear: [
+						u => {
+						//	qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);
+
+						//	qt.clear();
+
+							// force-clear the path cache to cause drawBars() to rebuild new quadtree
+							u.series.forEach((s, i) => {
+								if (i > 0)
+									s._paths = null;
+							});
+						},
+					],
+				},
+				scales: {
+					x: {
+						time: false,
+					//	auto: false,
+					//	range: [0, 500],
+					},
+					y: {
+					//	auto: false,
+					//	range: [0, 500],
+					},
+				},
+				series: [
+					{
+						/*
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+						paths: (u, seriesIdx, idx0, idx1) => {
+							uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+								let d = u.data[seriesIdx];
+
+								console.log(d);
+							});
+
+							return null;
+						},
+						*/
+					},
+					{
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+						paths: drawPoints,
+					},
+					{
+						stroke: "green",
+						fill: "rgba(0,255,0,0.1)",
+						paths: drawPoints,
+					},
+					{
+						stroke: "blue",
+						fill: "rgba(0,0,255,0.1)",
+						paths: drawPoints,
+					},
+					{
+						stroke: "magenta",
+						fill: "rgba(0,0,255,0.1)",
+						paths: drawPoints,
+					},
+				],
+			};
+
+			let u = new uPlot(opts, data, document.body);
+
+
+
+			points = 200;
+
+			let data2 = filledArr(series, v => [
+				filledArr(points, i => randInt(0,500)),
+				filledArr(points, i => randInt(0,500)),
+			]);
+
+			data2[0] = null;
+
+			const opts2 = {
+				title: "Bubble Plot",
+				mode: 2,
+				width: 1920,
+				height: 600,
+				legend: {
+					live: false,
+				},
+				hooks: {
+					init: [
+						u => {
+							u.over.appendChild(hovMark);
+						},
+					],
+					drawClear: [
+						u => {
+							qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);
+
+							qt.clear();
+
+							// force-clear the path cache to cause drawBars() to rebuild new quadtree
+							u.series.forEach((s, i) => {
+								if (i > 0)
+									s._paths = null;
+							});
+						},
+					],
+					setCursor: [
+						u => {
+							let found = null;
+							let dist = Infinity;
+							let cx = u.cursor.left * pxRatio;
+							let cy = u.cursor.top * pxRatio;
+
+							qt.get(cx, cy, 1, 1, o => {
+								if (pointWithin(cx, cy, o.x, o.y, o.x + o.w, o.y + o.h)) {
+									let ocx = o.x + o.w / 2;
+									let ocy = o.y + o.h / 2;
+
+									let dx = ocx - cx;
+									let dy = ocy - cy;
+
+									let d = Math.sqrt(dx ** 2 + dy ** 2);
+
+									// test against radius for actual hover
+									if (d <= o.w / 2) {
+										// only hover bbox with closest distance
+										if (d <= dist) {
+											dist = d;
+											found = o;
+										}
+									}
+								}
+							});
+
+							if (found) {
+								if (found != hovered) {
+									hovMark.style.display = null;
+									hovMark.style.left    = (found.x / pxRatio) + "px";
+									hovMark.style.top     = (found.y / pxRatio) + "px";
+									hovMark.style.width   = (found.w / pxRatio) + "px";
+									hovMark.style.height  = (found.h / pxRatio) + "px";
+									hovered = found;
+								}
+							}
+							else if (hovered != null) {
+								hovered = null;
+								hovMark.style.display = "none";
+							}
+						}
+					]
+				},
+				scales: {
+					x: {
+						time: false,
+						auto: false,
+						range: [0, 500],
+					},
+					y: {
+						auto: false,
+						range: [0, 500],
+					},
+				},
+				series: [
+					{
+					/*
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+						paths: (u, seriesIdx, idx0, idx1) => {
+							uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+								let d = u.data[seriesIdx];
+
+								console.log(d);
+							});
+
+							return null;
+						},
+					*/
+					},
+					{
+						stroke: "red",
+						fill: "rgba(255,0,0,0.3)",
+						paths: drawPoints3,
+					},
+					{
+						stroke: "green",
+						fill: "rgba(0,255,0,0.3)",
+						paths: drawPoints3,
+					},
+					{
+						stroke: "blue",
+						fill: "rgba(0,0,255,0.3)",
+						paths: drawPoints3,
+					},
+					{
+						stroke: "orange",
+						fill: "rgba(255,128,0,0.3)",
+						paths: drawPoints3,
+					},
+				],
+			};
+
+			let u2 = new uPlot(opts2, data2, document.body);
+		</script>
+	</body>
+</html>

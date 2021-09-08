@@ -1372,6 +1372,26 @@ var uPlot = (function () {
 		return scale.distr == 3 || isUpperBandEdge ? scale.min : 0;
 	}
 
+	const facet = {
+		scale: null,
+		auto: true,
+
+		// internal caches
+		min: inf,
+		max: -inf,
+	};
+
+	const xySeriesOpts = {
+		show: true,
+		auto: true,
+		sorted: 0,
+		alpha: 1,
+		facets: [
+			assign({}, facet, {scale: 'x'}),
+			assign({}, facet, {scale: 'y'}),
+		],
+	};
+
 	const ySeriesOpts = {
 		scale: "y",
 		auto: true,
@@ -1466,12 +1486,12 @@ var uPlot = (function () {
 		const series = u.series[seriesIdx];
 		const scales = u.scales;
 		const bbox   = u.bbox;
-		const scaleX = scales[u.series[0].scale];
+		const scaleX = u.mode == 2 ? scales.x : scales[u.series[0].scale];
 
 		let dx = u._data[0],
 			dy = u._data[seriesIdx],
 			sx = scaleX,
-			sy = scales[series.scale],
+			sy = u.mode == 2 ? scales.y : scales[series.scale],
 			l = bbox.left,
 			t = bbox.top,
 			w = bbox.width,
@@ -2239,6 +2259,10 @@ var uPlot = (function () {
 		return d2.map((o, i) => setDefault(o, i, xo, yo));
 	}
 
+	function setDefaults2(d, xyo) {
+		return d.map((o, i) => i == 0 ? null : assign({}, xyo, o));  // todo: assign() will not merge facet arrays
+	}
+
 	function setDefault(o, i, xo, yo) {
 		return assign({}, (i == 0 ? xo : yo), o);
 	}
@@ -2302,7 +2326,11 @@ var uPlot = (function () {
 	}
 
 	function uPlot(opts, data, then) {
-		const self = {};
+		const self = {
+			mode: opts.mode ?? 1,
+		};
+
+		const mode = self.mode;
 
 		// TODO: cache denoms & mins scale.cache = {r, min, }
 		function getValPct(val, scale) {
@@ -2368,7 +2396,9 @@ var uPlot = (function () {
 
 		const ms = opts.ms || 1e-3;
 
-		const series  = self.series = setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false);
+		const series  = self.series = mode == 1 ?
+			setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false) :
+			setDefaults2(opts.series || [null], xySeriesOpts);
 		const axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
 		const scales  = self.scales = {};
 		const bands   = self.bands  = opts.bands || [];
@@ -2377,7 +2407,7 @@ var uPlot = (function () {
 			b.fill = fnOrSelf(b.fill || null);
 		});
 
-		const xScaleKey = series[0].scale;
+		const xScaleKey = mode == 2 ? 'x' : series[0].scale;
 
 		const drawOrderMap = {
 			axes: drawAxesGrid,
@@ -2401,6 +2431,9 @@ var uPlot = (function () {
 				else {
 					sc = scales[scaleKey] = assign({}, (scaleKey == xScaleKey ? xScaleOpts : yScaleOpts), scaleOpts);
 
+					if (mode == 2)
+						sc.time = false;
+
 					sc.key = scaleKey;
 
 					let isTime = sc.time;
@@ -2409,7 +2442,7 @@ var uPlot = (function () {
 
 					let rangeIsArr = isArr(rn);
 
-					if (scaleKey != xScaleKey) {
+					if (scaleKey != xScaleKey || mode == 2) {
 						// if range array has null limits, it should be auto
 						if (rangeIsArr && (rn[0] == null || rn[1] == null)) {
 							rn = {
@@ -2452,9 +2485,11 @@ var uPlot = (function () {
 		initScale("x");
 		initScale("y");
 
-		series.forEach(s => {
-			initScale(s.scale);
-		});
+		if (mode == 1) {
+			series.forEach(s => {
+				initScale(s.scale);
+			});
+		}
 
 		axes.forEach(a => {
 			initScale(a.scale);
@@ -2842,7 +2877,7 @@ var uPlot = (function () {
 			});
 		}
 
-		const cursor = (self.cursor = assign({}, cursorOpts, opts.cursor));
+		const cursor = (self.cursor = assign({}, cursorOpts, {drag: {y: mode == 2}}, opts.cursor));
 
 		{
 			cursor.idxs = activeIdxs;
@@ -2880,11 +2915,13 @@ var uPlot = (function () {
 		}
 
 		function initSeries(s, i) {
-			let isTime = scales[s.scale].time;
+			if (mode == 1 || i > 0) {
+				let isTime = mode == 1 && scales[s.scale].time;
 
-			let sv = s.value;
-			s.value = isTime ? (isStr(sv) ? timeSeriesVal(_tzDate, timeSeriesStamp(sv, _fmtDate)) : sv || _timeSeriesVal) : sv || numSeriesVal;
-			s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
+				let sv = s.value;
+				s.value = isTime ? (isStr(sv) ? timeSeriesVal(_tzDate, timeSeriesStamp(sv, _fmtDate)) : sv || _timeSeriesVal) : sv || numSeriesVal;
+				s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
+			}
 
 			if (i > 0) {
 				s.width  = s.width == null ? 1 : s.width;
@@ -3050,22 +3087,30 @@ var uPlot = (function () {
 		// rendered data window
 		let i0 = null;
 		let i1 = null;
-		const idxs = series[0].idxs;
+		const idxs = mode == 1 ? series[0].idxs : null;
 
 		let data0 = null;
 
 		let viaAutoScaleX = false;
 
 		function setData(_data, _resetScales) {
-			data = (_data || []).slice();
-			data[0] = data[0] || [];
+			if (mode == 2) {
+				dataLen = 0;
+				for (let i = 1; i < series.length; i++)
+					dataLen += data[i][0].length;
+				self.data = data = _data;
+			}
+			else {
+				data = (_data || []).slice();
+				data[0] = data[0] || [];
 
-			self.data = data.slice();
-			data0 = data[0];
-			dataLen = data0.length;
+				self.data = data.slice();
+				data0 = data[0];
+				dataLen = data0.length;
 
-			if (xScaleDistr == 2)
-				data[0] = data0.map((v, i) => i);
+				if (xScaleDistr == 2)
+					data[0] = data0.map((v, i) => i);
+			}
 
 			self._data = data;
 
@@ -3094,31 +3139,33 @@ var uPlot = (function () {
 
 			let _min, _max;
 
-			if (dataLen > 0) {
-				i0 = idxs[0] = 0;
-				i1 = idxs[1] = dataLen - 1;
+			if (mode == 1) {
+				if (dataLen > 0) {
+					i0 = idxs[0] = 0;
+					i1 = idxs[1] = dataLen - 1;
 
-				_min = data[0][i0];
-				_max = data[0][i1];
+					_min = data[0][i0];
+					_max = data[0][i1];
 
-				if (xScaleDistr == 2) {
-					_min = i0;
-					_max = i1;
+					if (xScaleDistr == 2) {
+						_min = i0;
+						_max = i1;
+					}
+					else if (dataLen == 1) {
+						if (xScaleDistr == 3)
+							[_min, _max] = rangeLog(_min, _min, scaleX.log, false);
+						else if (xScaleDistr == 4)
+							[_min, _max] = rangeAsinh(_min, _min, scaleX.log, false);
+						else if (scaleX.time)
+							_max = _min + round(86400 / ms);
+						else
+							[_min, _max] = rangeNum(_min, _max, rangePad, true);
+					}
 				}
-				else if (dataLen == 1) {
-					if (xScaleDistr == 3)
-						[_min, _max] = rangeLog(_min, _min, scaleX.log, false);
-					else if (xScaleDistr == 4)
-						[_min, _max] = rangeAsinh(_min, _min, scaleX.log, false);
-					else if (scaleX.time)
-						_max = _min + round(86400 / ms);
-					else
-						[_min, _max] = rangeNum(_min, _max, rangePad, true);
+				else {
+					i0 = idxs[0] = _min = null;
+					i1 = idxs[1] = _max = null;
 				}
-			}
-			else {
-				i0 = idxs[0] = _min = null;
-				i1 = idxs[1] = _max = null;
 			}
 
 			_setScale(xScaleKey, _min, _max);
@@ -3153,6 +3200,20 @@ var uPlot = (function () {
 				ctx.textBaseline = ctxBaseline = baseline;
 		}
 
+		function accScale(wsc, psc, facet, data) {
+			if (wsc.auto(self, viaAutoScaleX) && (psc == null || psc.min == null)) {
+				let _i0 = i0 ?? 0;
+				let _i1 = i1 ?? data.length - 1;
+
+				// only run getMinMax() for invalidated series data, else reuse
+				let minMax = facet.min == null ? (wsc.distr == 3 ? getMinMaxLog(data, _i0, _i1) : getMinMax(data, _i0, _i1)) : [facet.min, facet.max];
+
+				// initial min/max
+				wsc.min = min(wsc.min, facet.min = minMax[0]);
+				wsc.max = max(wsc.max, facet.max = minMax[1]);
+			}
+		}
+
 		function setScales() {
 		//	log("setScales()", arguments);
 
@@ -3170,7 +3231,7 @@ var uPlot = (function () {
 					if (k == xScaleKey)
 						resetYSeries(true);
 				}
-				else if (k != xScaleKey) {
+				else if (k != xScaleKey || mode == 2) {
 					if (dataLen == 0 && wsc.from == null) {
 						let minMax = wsc.range(self, null, null, k);
 						wsc.min = minMax[0];
@@ -3186,39 +3247,51 @@ var uPlot = (function () {
 			if (dataLen > 0) {
 				// pre-range y-scales from y series' data values
 				series.forEach((s, i) => {
-					let k = s.scale;
-					let wsc = wipScales[k];
-					let psc = pendScales[k];
+					if (mode == 1) {
+						let k = s.scale;
+						let wsc = wipScales[k];
+						let psc = pendScales[k];
 
-					if (i == 0) {
-						let minMax = wsc.range(self, wsc.min, wsc.max, k);
+						if (i == 0) {
+							let minMax = wsc.range(self, wsc.min, wsc.max, k);
 
-						wsc.min = minMax[0];
-						wsc.max = minMax[1];
+							wsc.min = minMax[0];
+							wsc.max = minMax[1];
 
-						i0 = closestIdx(wsc.min, data[0]);
-						i1 = closestIdx(wsc.max, data[0]);
+							i0 = closestIdx(wsc.min, data[0]);
+							i1 = closestIdx(wsc.max, data[0]);
 
-						// closest indices can be outside of view
-						if (data[0][i0] < wsc.min)
-							i0++;
-						if (data[0][i1] > wsc.max)
-							i1--;
+							// closest indices can be outside of view
+							if (data[0][i0] < wsc.min)
+								i0++;
+							if (data[0][i1] > wsc.max)
+								i1--;
 
-						s.min = data0[i0];
-						s.max = data0[i1];
+							s.min = data0[i0];
+							s.max = data0[i1];
+						}
+						else if (s.show && s.auto)
+							accScale(wsc, psc, s, data[i]);
+
+						s.idxs[0] = i0;
+						s.idxs[1] = i1;
 					}
-					else if (s.show && s.auto && wsc.auto(self, viaAutoScaleX) && (psc == null || psc.min == null)) {
-						// only run getMinMax() for invalidated series data, else reuse
-						let minMax = s.min == null ? (wsc.distr == 3 ? getMinMaxLog(data[i], i0, i1) : getMinMax(data[i], i0, i1, s.sorted)) : [s.min, s.max];
+					else {
+						if (i > 0) {
+							if (s.show && s.auto) {
+								// TODO: only handles, assumes and requires facets[0] / 'x' scale, and facets[1] / 'y' scale
+								let [ xFacet, yFacet ] = s.facets;
+								let [ xData, yData ] = data[i];
 
-						// initial min/max
-						wsc.min = min(wsc.min, s.min = minMax[0]);
-						wsc.max = max(wsc.max, s.max = minMax[1]);
+								accScale(wipScales.x, pendScales.x, xFacet, xData);
+								accScale(wipScales.y, pendScales.y, yFacet, yData);
+
+								// temp
+								s.min = yFacet.min;
+								s.max = yFacet.max;
+							}
+						}
 					}
-
-					s.idxs[0] = i0;
-					s.idxs[1] = i1;
 				});
 
 				// range independent scales
@@ -3273,9 +3346,15 @@ var uPlot = (function () {
 
 			if (anyChanged) {
 				// invalidate paths of all series on changed scales
-				series.forEach(s => {
-					if (changed[s.scale])
-						s._paths = null;
+				series.forEach((s, i) => {
+					if (mode == 2) {
+						if (i > 0 && changed.y)
+							s._paths = null;
+					}
+					else {
+						if (changed[s.scale])
+							s._paths = null;
+					}
 				});
 
 				for (let k in changed) {
@@ -3780,8 +3859,16 @@ var uPlot = (function () {
 					s._paths = null;
 
 					if (minMax) {
-						s.min = null;
-						s.max = null;
+						if (mode == 1) {
+							s.min = null;
+							s.max = null;
+						}
+						else {
+							s.facets.forEach(f => {
+								f.min = null;
+								f.max = null;
+							});
+						}
 					}
 				}
 			});
@@ -4022,7 +4109,7 @@ var uPlot = (function () {
 				s.show = opts.show;
 				toggleDOM(i, opts.show);
 
-				_setScale(s.scale, null, null);
+				_setScale(mode == 2 ? 'y' : s.scale, null, null);
 				commit();
 			}
 
@@ -4245,7 +4332,7 @@ var uPlot = (function () {
 
 			// when zooming to an x scale range between datapoints the binary search
 			// for nearest min/max indices results in this condition. cheap hack :D
-			let noDataInRange = i0 > i1;
+			let noDataInRange = i0 > i1; // works for mode 1 only
 
 			closestDist = inf;
 
@@ -4274,7 +4361,7 @@ var uPlot = (function () {
 						legend.values[i] = NULL_LEGEND_VALUES;
 				}
 			}
-			else {
+			else if (mode == 1) {
 			//	let pctY = 1 - (y / rect.height);
 
 				let mouseXPos = scaleX.ori == 0 ? mouseLeft1 : mouseTop1;
