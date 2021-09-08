@@ -56,9 +56,7 @@
 			console.log(data);
 
 			const drawPoints = (u, seriesIdx, idx0, idx1) => {
-				function sizeOf(u, sidx, idx) {
-					return randInt(3, 6);
-				}
+				const size = 5;
 
 				uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc) => {
 					let d = u.data[seriesIdx];
@@ -83,19 +81,23 @@
 					let p = new Path2D();
 
 					for (let i = 0; i < d[0].length; i++) {
-						let cx = valToPosX(d[0][i], scaleX, xDim, xOff);
-						let cy = valToPosY(d[1][i], scaleY, yDim, yOff);
+						let xVal = d[0][i];
+						let yVal = d[1][i];
 
-						let size = sizeOf(u, seriesIdx, i);
-						p.moveTo(cx + size, cy);
-					//	arc(p, cx, cy, 3, 0, deg360);
-						arc(p, cx, cy, size, 0, deg360);
+						if (xVal >= scaleX.min && xVal <= scaleX.max && yVal >= scaleY.min && yVal <= scaleY.max) {
+							let cx = valToPosX(xVal, scaleX, xDim, xOff);
+							let cy = valToPosY(yVal, scaleY, yDim, yOff);
 
-					//	m.e = cx;
-					//	m.f = cy;
-					//	p.addPath(cir, m);
+							p.moveTo(cx + size/2, cy);
+						//	arc(p, cx, cy, 3, 0, deg360);
+							arc(p, cx, cy, size/2, 0, deg360);
 
-					//	qt.add({x: cx - 1.5, y: cy - 1.5, w: 3, h: 3, sidx: seriesIdx, didx: i});
+						//	m.e = cx;
+						//	m.f = cy;
+						//	p.addPath(cir, m);
+
+						//	qt.add({x: cx - 1.5, y: cy - 1.5, w: 3, h: 3, sidx: seriesIdx, didx: i});
+						}
 					}
 
 					console.timeEnd("points");
@@ -107,10 +109,6 @@
 			};
 
 			const drawPoints2 = (u, seriesIdx, idx0, idx1) => {
-				function sizeOf(u, sidx, idx) {
-					return randInt(3, 40);
-				}
-
 				uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc) => {
 					let d = u.data[seriesIdx];
 
@@ -139,7 +137,8 @@
 						let cx = valToPosX(d[0][i], scaleX, xDim, xOff);
 						let cy = valToPosY(d[1][i], scaleY, yDim, yOff);
 
-						let size = sizeOf(u, seriesIdx, i);
+						let size = d[2][i];
+
 						p.moveTo(cx + size, cy);
 						arc(p, cx, cy, size, 0, deg360);
 						qt.add({
@@ -165,16 +164,15 @@
 			};
 
 			const drawPoints3 = (u, seriesIdx, idx0, idx1) => {
-				function sizeOf(u, sidx, idx) {
-					return randInt(3, 40);
-				}
-
 				uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc) => {
 					let d = u.data[seriesIdx];
 
 					let strokeWidth = 1;
 
 					u.ctx.save();
+
+					u.ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
+					u.ctx.clip();
 
 					u.ctx.fillStyle = series.fill();
 					u.ctx.strokeStyle = series.stroke();
@@ -194,24 +192,36 @@
 				//	m.c = 0;   m.d = 1;
 				//	m.e = 200; m.f = 0;
 
-					for (let i = 0; i < d[0].length; i++) {
-						let cx = valToPosX(d[0][i], scaleX, xDim, xOff);
-						let cy = valToPosY(d[1][i], scaleY, yDim, yOff);
+					// todo: this depends on direction & orientation
+					// todo: calc once per redraw, not per path
+					let filtLft = u.posToVal(-maxSize / 2, 'x');
+					let filtRgt = u.posToVal(u.bbox.width / devicePixelRatio + maxSize / 2, 'x');
+					let filtBtm = u.posToVal(u.bbox.height / devicePixelRatio + maxSize / 2, 'y');
+					let filtTop = u.posToVal(-maxSize / 2, 'y');
 
-						let size = sizeOf(u, seriesIdx, i);
-						u.ctx.moveTo(cx + size, cy);
-						u.ctx.beginPath();
-						u.ctx.arc(cx, cy, size, 0, deg360);
-						u.ctx.fill();
-						u.ctx.stroke();
-						qt.add({
-							x: cx - size - strokeWidth/2 - u.bbox.left,
-							y: cy - size - strokeWidth/2 - u.bbox.top,
-							w: size * 2 + strokeWidth,
-							h: size * 2 + strokeWidth,
-							sidx: seriesIdx,
-							didx: i
-						});
+					for (let i = 0; i < d[0].length; i++) {
+						let xVal = d[0][i];
+						let yVal = d[1][i];
+						let size = d[2][i];
+
+						if (xVal >= filtLft && xVal <= filtRgt && yVal >= filtBtm && yVal <= filtTop) {
+							let cx = valToPosX(xVal, scaleX, xDim, xOff);
+							let cy = valToPosY(yVal, scaleY, yDim, yOff);
+
+							u.ctx.moveTo(cx + size/2, cy);
+							u.ctx.beginPath();
+							u.ctx.arc(cx, cy, size/2, 0, deg360);
+							u.ctx.fill();
+							u.ctx.stroke();
+							qt.add({
+								x: cx - size/2 - strokeWidth/2 - u.bbox.left,
+								y: cy - size/2 - strokeWidth/2 - u.bbox.top,
+								w: size + strokeWidth,
+								h: size + strokeWidth,
+								sidx: seriesIdx,
+								didx: i
+							});
+						}
 					}
 
 					console.timeEnd("points");
@@ -267,10 +277,14 @@
 						time: false,
 					//	auto: false,
 					//	range: [0, 500],
+						// remove any scale padding, use raw data limits
+						range: (u, min, max) => [min, max],
 					},
 					y: {
 					//	auto: false,
 					//	range: [0, 500],
+						// remove any scale padding, use raw data limits
+						range: (u, min, max) => [min, max],
 					},
 				},
 				series: [
@@ -316,11 +330,14 @@
 
 
 
-			points = 200;
+			points = 50;
+			let minSize = 6;
+			let maxSize = 60;
 
 			let data2 = filledArr(series, v => [
 				filledArr(points, i => randInt(0,500)),
 				filledArr(points, i => randInt(0,500)),
+				filledArr(points, i => randInt(minSize, maxSize)),
 			]);
 
 			data2[0] = null;
@@ -400,12 +417,18 @@
 				scales: {
 					x: {
 						time: false,
-						auto: false,
-						range: [0, 500],
+					//	auto: false,
+					//	range: [0, 500],
+
+						// remove any scale padding, use raw data limits
+						range: (u, min, max) => [min, max],
 					},
 					y: {
-						auto: false,
-						range: [0, 500],
+					//	auto: false,
+					//	range: [0, 500],
+
+						// remove any scale padding, use raw data limits
+						range: (u, min, max) => [min, max],
 					},
 				},
 				series: [
