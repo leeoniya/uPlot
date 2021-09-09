@@ -66,7 +66,7 @@ export function placeDiv(cls, targ) {
 
 const xformCache = new WeakMap();
 
-export function trans(el, xPos, yPos, xMax, yMax) {
+export function elTrans(el, xPos, yPos, xMax, yMax) {
 	let xform = "translate(" + xPos + "px," + yPos + "px)";
 	let xformOld = xformCache.get(el);
 
@@ -83,7 +83,7 @@ export function trans(el, xPos, yPos, xMax, yMax) {
 
 const colorCache = new WeakMap();
 
-export function color(el, background, borderColor) {
+export function elColor(el, background, borderColor) {
 	let newColor = background + borderColor;
 	let oldColor = colorCache.get(el);
 
@@ -91,6 +91,18 @@ export function color(el, background, borderColor) {
 		colorCache.set(el, newColor);
 		el.style.background = background;
 		el.style.borderColor = borderColor;
+	}
+}
+
+const sizeCache = new WeakMap();
+
+export function elSize(el, newSize) {
+	let oldSize = sizeCache.get(el);
+
+	if (newSize != oldSize) {
+		sizeCache.set(el, newSize);
+		el.style.height = el.style.width = newSize + "px";
+		el.style.marginLeft = el.style.marginTop = -newSize/2 + "px";
 	}
 }
 

@@ -342,13 +342,76 @@
 
 			data2[0] = null;
 
+			/*
+			const legendValue = (u, val, seriesIdx, idx) => {
+				let [x, y, size] = u.data[seriesIdx];
+				return `${x[idx]}, ${y[idx]}, ${size[idx]}`;
+			};
+			*/
+
+			const legendValues = (u, seriesIdx) => {
+				// when data null, it's initial schema probe (also u.status == 0)
+				if (u.data == null || hRect == null || hRect.sidx != seriesIdx)
+					return {x: null, y: null, size: null};
+
+				let [x, y, size] = u.data[seriesIdx];
+
+				return {
+					x: x[hRect.didx],
+					y: y[hRect.didx],
+					size: size[hRect.didx],
+				};
+			};
+
+			// hovered
+			let hRect;
+
 			const opts2 = {
 				title: "Bubble Plot",
 				mode: 2,
 				width: 1920,
 				height: 600,
 				legend: {
-					live: false,
+				//	live: false,
+				},
+				cursor: {
+					dataIdx: (u, seriesIdx) => {
+						if (seriesIdx == 1) {
+							hRect = null;
+
+							let dist = Infinity;
+							let cx = u.cursor.left * pxRatio;
+							let cy = u.cursor.top * pxRatio;
+
+							qt.get(cx, cy, 1, 1, o => {
+								if (pointWithin(cx, cy, o.x, o.y, o.x + o.w, o.y + o.h)) {
+									let ocx = o.x + o.w / 2;
+									let ocy = o.y + o.h / 2;
+
+									let dx = ocx - cx;
+									let dy = ocy - cy;
+
+									let d = Math.sqrt(dx ** 2 + dy ** 2);
+
+									// test against radius for actual hover
+									if (d <= o.w / 2) {
+										// only hover bbox with closest distance
+										if (d <= dist) {
+											dist = d;
+											hRect = o;
+										}
+									}
+								}
+							});
+						}
+
+						return hRect && seriesIdx == hRect.sidx ? hRect.didx : null;
+					},
+					points: {
+						size: (u, seriesIdx) => {
+							return hRect && seriesIdx == hRect.sidx ? hRect.w / devicePixelRatio : 0;
+						}
+					}
 				},
 				hooks: {
 					init: [
@@ -369,50 +432,6 @@
 							});
 						},
 					],
-					setCursor: [
-						u => {
-							let found = null;
-							let dist = Infinity;
-							let cx = u.cursor.left * pxRatio;
-							let cy = u.cursor.top * pxRatio;
-
-							qt.get(cx, cy, 1, 1, o => {
-								if (pointWithin(cx, cy, o.x, o.y, o.x + o.w, o.y + o.h)) {
-									let ocx = o.x + o.w / 2;
-									let ocy = o.y + o.h / 2;
-
-									let dx = ocx - cx;
-									let dy = ocy - cy;
-
-									let d = Math.sqrt(dx ** 2 + dy ** 2);
-
-									// test against radius for actual hover
-									if (d <= o.w / 2) {
-										// only hover bbox with closest distance
-										if (d <= dist) {
-											dist = d;
-											found = o;
-										}
-									}
-								}
-							});
-
-							if (found) {
-								if (found != hovered) {
-									hovMark.style.display = null;
-									hovMark.style.left    = (found.x / pxRatio) + "px";
-									hovMark.style.top     = (found.y / pxRatio) + "px";
-									hovMark.style.width   = (found.w / pxRatio) + "px";
-									hovMark.style.height  = (found.h / pxRatio) + "px";
-									hovered = found;
-								}
-							}
-							else if (hovered != null) {
-								hovered = null;
-								hovMark.style.display = "none";
-							}
-						}
-					]
 				},
 				scales: {
 					x: {
@@ -448,24 +467,32 @@
 					*/
 					},
 					{
+						label: "Reds",
 						stroke: "red",
 						fill: "rgba(255,0,0,0.3)",
 						paths: drawPoints3,
+						values: legendValues,
 					},
 					{
+						label: "Greens",
 						stroke: "green",
 						fill: "rgba(0,255,0,0.3)",
 						paths: drawPoints3,
+						values: legendValues,
 					},
 					{
+						label: "Blues",
 						stroke: "blue",
 						fill: "rgba(0,0,255,0.3)",
 						paths: drawPoints3,
+						values: legendValues,
 					},
 					{
+						label: "Oranges",
 						stroke: "orange",
 						fill: "rgba(255,128,0,0.3)",
 						paths: drawPoints3,
+						values: legendValues,
 					},
 				],
 			};

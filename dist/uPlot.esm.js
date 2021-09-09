@@ -577,7 +577,7 @@ function placeDiv(cls, targ) {
 
 const xformCache = new WeakMap();
 
-function trans(el, xPos, yPos, xMax, yMax) {
+function elTrans(el, xPos, yPos, xMax, yMax) {
 	let xform = "translate(" + xPos + "px," + yPos + "px)";
 	let xformOld = xformCache.get(el);
 
@@ -594,7 +594,7 @@ function trans(el, xPos, yPos, xMax, yMax) {
 
 const colorCache = new WeakMap();
 
-function color(el, background, borderColor) {
+function elColor(el, background, borderColor) {
 	let newColor = background + borderColor;
 	let oldColor = colorCache.get(el);
 
@@ -602,6 +602,18 @@ function color(el, background, borderColor) {
 		colorCache.set(el, newColor);
 		el.style.background = background;
 		el.style.borderColor = borderColor;
+	}
+}
+
+const sizeCache = new WeakMap();
+
+function elSize(el, newSize) {
+	let oldSize = sizeCache.get(el);
+
+	if (newSize != oldSize) {
+		sizeCache.set(el, newSize);
+		el.style.height = el.style.width = newSize + "px";
+		el.style.marginLeft = el.style.marginTop = -newSize/2 + "px";
 	}
 }
 
@@ -2609,7 +2621,7 @@ function uPlot(opts, data, then) {
 	const soff = {show: false};
 
 	function initLegendRow(s, i) {
-		if (i == 0 && (multiValLegend || !legend.live))
+		if (i == 0 && (multiValLegend || !legend.live || mode == 2))
 			return nullNullTuple;
 
 		let cells = [];
@@ -2903,7 +2915,7 @@ function uPlot(opts, data, then) {
 			if (pt) {
 				addClass(pt, CURSOR_PT);
 				addClass(pt, s.class);
-				trans(pt, -10, -10, plotWidCss, plotHgtCss);
+				elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
 				over.insertBefore(pt, cursorPts[si]);
 
 				return pt;
@@ -4086,7 +4098,7 @@ function uPlot(opts, data, then) {
 			label && remClass(label, OFF);
 		else {
 			label && addClass(label, OFF);
-			cursorPts.length > 1 && trans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
+			cursorPts.length > 1 && elTrans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
 		}
 	}
 
@@ -4264,7 +4276,7 @@ function uPlot(opts, data, then) {
 
 	function syncLegend() {
 		if (showLegend && legend.live) {
-			for (let i = 0; i < series.length; i++) {
+			for (let i = mode == 2 ? 1 : 0; i < series.length; i++) {
 				if (i == 0 && multiValLegend)
 					continue;
 
@@ -4321,8 +4333,8 @@ function uPlot(opts, data, then) {
 		[mouseLeft1, mouseTop1] = cursor.move(self, mouseLeft1, mouseTop1);
 
 		if (cursor.show) {
-			vCursor && trans(vCursor, round(mouseLeft1), 0, plotWidCss, plotHgtCss);
-			hCursor && trans(hCursor, 0, round(mouseTop1), plotWidCss, plotHgtCss);
+			vCursor && elTrans(vCursor, round(mouseLeft1), 0, plotWidCss, plotHgtCss);
+			hCursor && elTrans(hCursor, 0, round(mouseTop1), plotWidCss, plotHgtCss);
 		}
 
 		let idx;
@@ -4343,7 +4355,7 @@ function uPlot(opts, data, then) {
 
 			for (let i = 0; i < series.length; i++) {
 				if (i > 0) {
-					cursorPts.length > 1 && trans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
+					cursorPts.length > 1 && elTrans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
 				}
 			}
 
@@ -4358,36 +4370,37 @@ function uPlot(opts, data, then) {
 					legend.values[i] = NULL_LEGEND_VALUES;
 			}
 		}
-		else if (mode == 1) {
+		else {
 		//	let pctY = 1 - (y / rect.height);
 
-			let mouseXPos = scaleX.ori == 0 ? mouseLeft1 : mouseTop1;
+			let mouseXPos, valAtPosX, xPos;
 
-			let valAtPosX = posToVal(mouseXPos, xScaleKey);
+			if (mode == 1) {
+				mouseXPos = scaleX.ori == 0 ? mouseLeft1 : mouseTop1;
+				valAtPosX = posToVal(mouseXPos, xScaleKey);
+				idx = closestIdx(valAtPosX, data[0], i0, i1);
+				xPos = incrRoundUp(valToPosX(data[0][idx], scaleX, xDim, 0), 0.5);
+			}
 
-			idx = closestIdx(valAtPosX, data[0], i0, i1);
-
-			let xPos = incrRoundUp(valToPosX(data[0][idx], scaleX, xDim, 0), 0.5);
-
-			for (let i = 0; i < series.length; i++) {
+			for (let i = mode == 2 ? 1 : 0; i < series.length; i++) {
 				let s = series[i];
 
 				let idx1  = activeIdxs[i];
-				let yVal1 = data[i][idx1];
+				let yVal1 = mode == 1 ? data[i][idx1] : data[i][1][idx1];
 
 				let idx2  = cursor.dataIdx(self, i, idx, valAtPosX);
-				let yVal2 = data[i][idx2];
+				let yVal2 = mode == 1 ? data[i][idx2] : data[i][1][idx2];
 
 				shouldSetLegend = shouldSetLegend || yVal2 != yVal1 || idx2 != idx1;
 
 				activeIdxs[i] = idx2;
 
-				let xPos2 = idx2 == idx ? xPos : incrRoundUp(valToPosX(data[0][idx2], scaleX, xDim, 0), 0.5);
+				let xPos2 = idx2 == idx ? xPos : incrRoundUp(valToPosX(mode == 1 ? data[0][idx2] : data[i][0][idx2], scaleX, xDim, 0), 0.5);
 
 				if (i > 0 && s.show) {
-					let yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, scales[s.scale], yDim, 0), 0.5);
+					let yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales.y, yDim, 0), 0.5);
 
-					if (yPos > 0) {
+					if (yPos > 0 && mode == 1) {
 						let dist = abs(yPos - mouseTop1);
 
 						if (dist <= closestDist) {
@@ -4408,8 +4421,9 @@ function uPlot(opts, data, then) {
 					}
 
 					if (shouldSetLegend && cursorPts.length > 1) {
-						trans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
-						color(cursorPts[i], cursor.points.fill(self, i), cursor.points.stroke(self, i));
+						elTrans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
+						elColor(cursorPts[i], cursor.points.fill(self, i), cursor.points.stroke(self, i));
+						mode == 2 && elSize(cursorPts[i], cursor.points.size(self, i));
 					}
 				}
 
@@ -4929,7 +4943,7 @@ function uPlot(opts, data, then) {
 		sync.unsub(self);
 		cursorPlots.delete(self);
 		mouseListeners.clear();
-		off(ddpxchange, win, syncPxRatio);
+		off(dppxchange, win, syncPxRatio);
 		root.remove();
 		fire("destroy");
 	}
