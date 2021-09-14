@@ -234,10 +234,6 @@
 
 			// https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/isPointInPath
 			let qt;
-			let hovered = null;
-
-			let hovMark = document.createElement("div");
-			hovMark.classList.add("hov-mark");
 
 			let pxRatio;
 
@@ -414,11 +410,6 @@
 					}
 				},
 				hooks: {
-					init: [
-						u => {
-							u.over.appendChild(hovMark);
-						},
-					],
 					drawClear: [
 						u => {
 							qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);
