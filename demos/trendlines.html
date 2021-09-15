@@ -35,6 +35,8 @@
 						(u, si) => {
 							let ctx = u.ctx;
 
+							ctx.save();
+
 							let s  = u.series[si];
 							let xd = u.data[0];
 							let yd = u.data[si];
@@ -58,6 +60,8 @@
 							ctx.stroke();
 
 							ctx.translate(-offset, -offset);
+
+							ctx.restore();
 						}
 					]
 				},

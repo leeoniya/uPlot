@@ -89,6 +89,8 @@ function seriesBarsPlugin(opts) {
 	});
 
 	function drawPoints(u, sidx, i0, i1) {
+		u.ctx.save();
+
 		u.ctx.font         = font;
 		u.ctx.fillStyle    = "black";
 
@@ -115,6 +117,8 @@ function seriesBarsPlugin(opts) {
 				}
 			});
 		});
+
+		u.ctx.restore();
 	}
 
 	function range(u, dataMin, dataMax) {
