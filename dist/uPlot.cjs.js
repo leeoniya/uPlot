@@ -2668,11 +2668,11 @@ function uPlot(opts, data, then) {
 					let isolate = series.some((s, i) => i > 0 && i != seriesIdx && s.show);
 
 					series.forEach((s, i) => {
-						i > 0 && setSeries(i, isolate ? (i == seriesIdx ? son : soff) : son, syncOpts.setSeries);
+						i > 0 && setSeries(i, isolate ? (i == seriesIdx ? son : soff) : son, true, syncOpts.setSeries);
 					});
 				}
 				else
-					setSeries(seriesIdx, {show: !s.show}, syncOpts.setSeries);
+					setSeries(seriesIdx, {show: !s.show}, true, syncOpts.setSeries);
 			});
 
 			if (cursorFocus) {
@@ -2680,7 +2680,7 @@ function uPlot(opts, data, then) {
 					if (cursor._lock)
 						return;
 
-					setSeries(series.indexOf(s), FOCUS_TRUE, syncOpts.setSeries);
+					setSeries(series.indexOf(s), FOCUS_TRUE, true, syncOpts.setSeries);
 				});
 			}
 		}
@@ -3954,7 +3954,7 @@ function uPlot(opts, data, then) {
 	//	}
 
 		if (cursor.show && shouldSetCursor) {
-			updateCursor();
+			updateCursor(null, true, false);
 			shouldSetCursor = false;
 		}
 
@@ -4108,7 +4108,7 @@ function uPlot(opts, data, then) {
 		setScale(key, {min, max});
 	}
 
-	function setSeries(i, opts, pub) {
+	function setSeries(i, opts, _fire, _pub) {
 	//	log("setSeries()", arguments);
 
 		let s = series[i];
@@ -4124,9 +4124,9 @@ function uPlot(opts, data, then) {
 			commit();
 		}
 
-		fire("setSeries", i, opts);
+		_fire !== false && fire("setSeries", i, opts);
 
-		pub && pubSync("setSeries", self, i, opts);
+		_pub && pubSync("setSeries", self, i, opts);
 	}
 
 	self.setSeries = setSeries;
@@ -4192,8 +4192,8 @@ function uPlot(opts, data, then) {
 		on(mouseleave, legendEl, e => {
 			if (cursor._lock)
 				return;
-			setSeries(null, FOCUS_FALSE, syncOpts.setSeries);
-			updateCursor();
+			setSeries(null, FOCUS_FALSE, true, syncOpts.setSeries);
+			updateCursor(null, true, false);
 		});
 	}
 
@@ -4256,11 +4256,11 @@ function uPlot(opts, data, then) {
 
 	self.batch = batch;
 
-	(self.setCursor = (opts, _fire) => {
+	(self.setCursor = (opts, _fire, _pub) => {
 		mouseLeft1 = opts.left;
 		mouseTop1 = opts.top;
 	//	assign(cursor, opts);
-		updateCursor(null, null, _fire);
+		updateCursor(null, _fire, _pub);
 	});
 
 	function setSelH(off, dim) {
@@ -4326,7 +4326,7 @@ function uPlot(opts, data, then) {
 		legend.values[sidx] = val;
 	}
 
-	function updateCursor(ts, src, _fire) {
+	function updateCursor(src, _fire, _pub) {
 	//	ts == null && log("updateCursor()", arguments);
 
 		rawMouseLeft1 = mouseLeft1;
@@ -4362,7 +4362,7 @@ function uPlot(opts, data, then) {
 			}
 
 			if (cursorFocus)
-				setSeries(null, FOCUS_TRUE, syncOpts.setSeries);
+				setSeries(null, FOCUS_TRUE, true, src == null && syncOpts.setSeries);
 
 			if (legend.live) {
 				activeIdxs.fill(null);
@@ -4597,32 +4597,31 @@ function uPlot(opts, data, then) {
 		drag._x = dragX;
 		drag._y = dragY;
 
-		// if ts is present, means we're implicitly syncing own cursor
-		if (ts != null) {
-			if (syncKey != null) {
-				let [xSyncKey, ySyncKey] = syncOpts.scales;
+		if (src == null) {
+			if (_pub) {
+				if (syncKey != null) {
+					let [xSyncKey, ySyncKey] = syncOpts.scales;
 
-				syncOpts.values[0] = xSyncKey != null ? posToVal(scaleX.ori == 0 ? mouseLeft1 : mouseTop1, xSyncKey) : null;
-				syncOpts.values[1] = ySyncKey != null ? posToVal(scaleX.ori == 1 ? mouseLeft1 : mouseTop1, ySyncKey) : null;
+					syncOpts.values[0] = xSyncKey != null ? posToVal(scaleX.ori == 0 ? mouseLeft1 : mouseTop1, xSyncKey) : null;
+					syncOpts.values[1] = ySyncKey != null ? posToVal(scaleX.ori == 1 ? mouseLeft1 : mouseTop1, ySyncKey) : null;
+				}
+
+				pubSync(mousemove, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, idx);
 			}
 
-			// this is not technically a "mousemove" event, since it's debounced, rename to setCursor?
-			// since this is internal, we can tweak it later
-			pubSync(mousemove, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, idx);
-
 			if (cursorFocus) {
-				let o = syncOpts.setSeries;
+				let shouldPub = _pub && syncOpts.setSeries;
 				let p = focus.prox;
 
 				if (focusedSeries == null) {
 					if (closestDist <= p)
-						setSeries(closestSeries, FOCUS_TRUE, o);
+						setSeries(closestSeries, FOCUS_TRUE, true, shouldPub);
 				}
 				else {
 					if (closestDist > p)
-						setSeries(null, FOCUS_TRUE, o);
+						setSeries(null, FOCUS_TRUE, true, shouldPub);
 					else if (closestSeries != focusedSeries)
-						setSeries(closestSeries, FOCUS_TRUE, o);
+						setSeries(closestSeries, FOCUS_TRUE, true, shouldPub);
 				}
 			}
 		}
@@ -4648,9 +4647,9 @@ function uPlot(opts, data, then) {
 		cacheMouse(e, src, _l, _t, _w, _h, _i, false, e != null);
 
 		if (e != null)
-			updateCursor(1);
+			updateCursor(null, true, true);
 		else
-			updateCursor(null, src);
+			updateCursor(src, true, false);
 	}
 
 	function cacheMouse(e, src, _l, _t, _w, _h, _i, initial, snap) {
@@ -4795,7 +4794,7 @@ function uPlot(opts, data, then) {
 			cursor._lock = !cursor._lock;
 
 			if (!cursor._lock)
-				updateCursor();
+				updateCursor(null, true, false);
 		}
 
 		if (e != null) {
@@ -4837,7 +4836,7 @@ function uPlot(opts, data, then) {
 				if (dragV && snapV)
 					mouseTop1 = mouseTop1 < mouseTop0 ? 0 : plotHgtCss;
 
-				updateCursor(1);
+				updateCursor(null, true, true);
 
 				dragging = false;
 			}
@@ -4846,7 +4845,7 @@ function uPlot(opts, data, then) {
 			mouseTop1 = -10;
 
 			// passing a non-null timestamp to force sync/mousemove event
-			updateCursor(1);
+			updateCursor(null, true, true);
 
 			if (_dragging)
 				dragging = _dragging;
@@ -4877,7 +4876,7 @@ function uPlot(opts, data, then) {
 	events.mouseup = mouseUp;
 	events.dblclick = dblClick;
 	events["setSeries"] = (e, src, idx, opts) => {
-		setSeries(idx, opts);
+		setSeries(idx, opts, true, false);
 	};
 
 	if (cursor.show) {
@@ -4964,7 +4963,7 @@ function uPlot(opts, data, then) {
 
 		_setSize(opts.width, opts.height);
 
-		updateCursor();
+		updateCursor(null, true, false);
 
 		setSelect(select, false);
 	}

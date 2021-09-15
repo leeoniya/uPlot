@@ -81,7 +81,7 @@ declare class uPlot {
 
 	// TODO: include other series style opts which are dynamically pulled?
 	/** toggles series visibility or focus */
-	setSeries(seriesIdx: number | null, opts: {show?: boolean, focus?: boolean}): void;
+	setSeries(seriesIdx: number | null, opts: {show?: boolean, focus?: boolean}, fireHook?: boolean): void;
 
 	/** adds a series */
 	addSeries(opts: uPlot.Series, seriesIdx?: number): void;
