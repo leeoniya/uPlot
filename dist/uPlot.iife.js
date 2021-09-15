@@ -1498,12 +1498,12 @@ var uPlot = (function () {
 		const series = u.series[seriesIdx];
 		const scales = u.scales;
 		const bbox   = u.bbox;
-		const scaleX = u.mode == 2 ? scales.x : scales[u.series[0].scale];
+		const scaleX = u.mode == 2 ? scales[series.facets[0].scale] : scales[u.series[0].scale];
 
 		let dx = u._data[0],
 			dy = u._data[seriesIdx],
 			sx = scaleX,
-			sy = u.mode == 2 ? scales.y : scales[series.scale],
+			sy = u.mode == 2 ? scales[series.facets[1].scale] : scales[series.scale],
 			l = bbox.left,
 			t = bbox.top,
 			w = bbox.width,
@@ -2419,7 +2419,7 @@ var uPlot = (function () {
 			b.fill = fnOrSelf(b.fill || null);
 		});
 
-		const xScaleKey = mode == 2 ? 'x' : series[0].scale;
+		const xScaleKey = mode == 2 ? series[1].facets[0].scale : series[0].scale;
 
 		const drawOrderMap = {
 			axes: drawAxesGrid,
@@ -2497,6 +2497,7 @@ var uPlot = (function () {
 		initScale("x");
 		initScale("y");
 
+		// TODO: init scales from facets in mode: 2
 		if (mode == 1) {
 			series.forEach(s => {
 				initScale(s.scale);
@@ -3293,10 +3294,12 @@ var uPlot = (function () {
 							if (s.show && s.auto) {
 								// TODO: only handles, assumes and requires facets[0] / 'x' scale, and facets[1] / 'y' scale
 								let [ xFacet, yFacet ] = s.facets;
+								let xScaleKey = xFacet.scale;
+								let yScaleKey = yFacet.scale;
 								let [ xData, yData ] = data[i];
 
-								accScale(wipScales.x, pendScales.x, xFacet, xData);
-								accScale(wipScales.y, pendScales.y, yFacet, yData);
+								accScale(wipScales[xScaleKey], pendScales[xScaleKey], xFacet, xData);
+								accScale(wipScales[yScaleKey], pendScales[yScaleKey], yFacet, yData);
 
 								// temp
 								s.min = yFacet.min;
@@ -4121,7 +4124,7 @@ var uPlot = (function () {
 				s.show = opts.show;
 				toggleDOM(i, opts.show);
 
-				_setScale(mode == 2 ? 'y' : s.scale, null, null);
+				_setScale(mode == 2 ? s.facets[1].scale : s.scale, null, null);
 				commit();
 			}
 
@@ -4401,7 +4404,7 @@ var uPlot = (function () {
 					let xPos2 = idx2 == idx ? xPos : incrRoundUp(valToPosX(mode == 1 ? data[0][idx2] : data[i][0][idx2], scaleX, xDim, 0), 0.5);
 
 					if (i > 0 && s.show) {
-						let yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales.y, yDim, 0), 0.5);
+						let yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0), 0.5);
 
 						if (yPos > 0 && mode == 1) {
 							let dist = abs(yPos - mouseTop1);

@@ -7,12 +7,12 @@ export function orient(u, seriesIdx, cb) {
 	const series = u.series[seriesIdx];
 	const scales = u.scales;
 	const bbox   = u.bbox;
-	const scaleX = u.mode == 2 ? scales.x : scales[u.series[0].scale];
+	const scaleX = u.mode == 2 ? scales[series.facets[0].scale] : scales[u.series[0].scale];
 
 	let dx = u._data[0],
 		dy = u._data[seriesIdx],
 		sx = scaleX,
-		sy = u.mode == 2 ? scales.y : scales[series.scale],
+		sy = u.mode == 2 ? scales[series.facets[1].scale] : scales[series.scale],
 		l = bbox.left,
 		t = bbox.top,
 		w = bbox.width,

@@ -194,10 +194,10 @@
 
 					// todo: this depends on direction & orientation
 					// todo: calc once per redraw, not per path
-					let filtLft = u.posToVal(-maxSize / 2, 'x');
-					let filtRgt = u.posToVal(u.bbox.width / devicePixelRatio + maxSize / 2, 'x');
-					let filtBtm = u.posToVal(u.bbox.height / devicePixelRatio + maxSize / 2, 'y');
-					let filtTop = u.posToVal(-maxSize / 2, 'y');
+					let filtLft = u.posToVal(-maxSize / 2, scaleX.key);
+					let filtRgt = u.posToVal(u.bbox.width / devicePixelRatio + maxSize / 2, scaleX.key);
+					let filtBtm = u.posToVal(u.bbox.height / devicePixelRatio + maxSize / 2, scaleY.key);
+					let filtTop = u.posToVal(-maxSize / 2, scaleY.key);
 
 					for (let i = 0; i < d[0].length; i++) {
 						let xVal = d[0][i];
@@ -337,6 +337,7 @@
 			]);
 
 			data2[0] = null;
+			data2[1][1] = data2[1][1].map(v => v == 0 ? v : v * -1);
 
 			/*
 			const legendValue = (u, val, seriesIdx, idx) => {
@@ -424,6 +425,17 @@
 						},
 					],
 				},
+				axes: [
+					{},
+					{},
+					{
+						side: 1,
+						scale: 'y2',
+						grid: {
+							show: false,
+						}
+					},
+				],
 				scales: {
 					x: {
 						time: false,
@@ -440,24 +452,25 @@
 						// remove any scale padding, use raw data limits
 						range: (u, min, max) => [min, max],
 					},
+					y2: {
+						dir: 1,
+						ori: 1,
+						range: (u, min, max) => [min, max],
+					}
 				},
 				series: [
+					null,
 					{
-					/*
-						stroke: "red",
-						fill: "rgba(255,0,0,0.1)",
-						paths: (u, seriesIdx, idx0, idx1) => {
-							uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
-								let d = u.data[seriesIdx];
-
-								console.log(d);
-							});
-
-							return null;
-						},
-					*/
-					},
-					{
+						facets: [
+							{
+								scale: 'x',
+								auto: true,
+							},
+							{
+								scale: 'y2',
+								auto: true,
+							}
+						],
 						label: "Reds",
 						stroke: "red",
 						fill: "rgba(255,0,0,0.3)",
@@ -465,6 +478,16 @@
 						values: legendValues,
 					},
 					{
+						facets: [
+							{
+								scale: 'x',
+								auto: true,
+							},
+							{
+								scale: 'y',
+								auto: true,
+							}
+						],
 						label: "Greens",
 						stroke: "green",
 						fill: "rgba(0,255,0,0.3)",
@@ -472,6 +495,16 @@
 						values: legendValues,
 					},
 					{
+						facets: [
+							{
+								scale: 'x',
+								auto: true,
+							},
+							{
+								scale: 'y',
+								auto: true,
+							}
+						],
 						label: "Blues",
 						stroke: "blue",
 						fill: "rgba(0,0,255,0.3)",
@@ -479,6 +512,16 @@
 						values: legendValues,
 					},
 					{
+						facets: [
+							{
+								scale: 'x',
+								auto: true,
+							},
+							{
+								scale: 'y',
+								auto: true,
+							}
+						],
 						label: "Oranges",
 						stroke: "orange",
 						fill: "rgba(255,128,0,0.3)",

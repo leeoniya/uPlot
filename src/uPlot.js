@@ -362,7 +362,7 @@ export default function uPlot(opts, data, then) {
 		b.fill = fnOrSelf(b.fill || null);
 	});
 
-	const xScaleKey = mode == 2 ? 'x' : series[0].scale;
+	const xScaleKey = mode == 2 ? series[1].facets[0].scale : series[0].scale;
 
 	const drawOrderMap = {
 		axes: drawAxesGrid,
@@ -440,6 +440,7 @@ export default function uPlot(opts, data, then) {
 	initScale("x");
 	initScale("y");
 
+	// TODO: init scales from facets in mode: 2
 	if (mode == 1) {
 		series.forEach(s => {
 			initScale(s.scale);
@@ -1240,10 +1241,12 @@ export default function uPlot(opts, data, then) {
 						if (s.show && s.auto) {
 							// TODO: only handles, assumes and requires facets[0] / 'x' scale, and facets[1] / 'y' scale
 							let [ xFacet, yFacet ] = s.facets;
+							let xScaleKey = xFacet.scale;
+							let yScaleKey = yFacet.scale;
 							let [ xData, yData ] = data[i];
 
-							accScale(wipScales.x, pendScales.x, xFacet, xData);
-							accScale(wipScales.y, pendScales.y, yFacet, yData);
+							accScale(wipScales[xScaleKey], pendScales[xScaleKey], xFacet, xData);
+							accScale(wipScales[yScaleKey], pendScales[yScaleKey], yFacet, yData);
 
 							// temp
 							s.min = yFacet.min;
@@ -2068,7 +2071,7 @@ export default function uPlot(opts, data, then) {
 			s.show = opts.show;
 			FEAT_LEGEND && toggleDOM(i, opts.show);
 
-			_setScale(mode == 2 ? 'y' : s.scale, null, null);
+			_setScale(mode == 2 ? s.facets[1].scale : s.scale, null, null);
 			commit();
 		}
 
@@ -2348,7 +2351,7 @@ export default function uPlot(opts, data, then) {
 				let xPos2 = idx2 == idx ? xPos : incrRoundUp(valToPosX(mode == 1 ? data[0][idx2] : data[i][0][idx2], scaleX, xDim, 0), 0.5);
 
 				if (i > 0 && s.show) {
-					let yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales.y, yDim, 0), 0.5);
+					let yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0), 0.5);
 
 					if (yPos > 0 && mode == 1) {
 						let dist = abs(yPos - mouseTop1);
