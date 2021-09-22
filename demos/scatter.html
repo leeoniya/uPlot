@@ -339,8 +339,8 @@
 			let minSize = 6;
 			let maxSize = 60;
 
-			let maxArea = maxSize ** 2;
-			let minArea = minSize ** 2;
+			let maxArea = Math.PI * (maxSize / 2) ** 2;
+			let minArea = Math.PI * (minSize / 2) ** 2;
 
 			// quadratic scaling (px area)
 			function getSize(value, minValue, maxValue) {
@@ -348,7 +348,7 @@
 				// clamp to min area
 				//let area = Math.max(maxArea * pct, minArea);
 				let area = maxArea * pct;
-				return Math.sqrt(area);
+				return Math.sqrt(area / Math.PI) * 2;
 			}
 
 			function getSizeMinMax(u) {
@@ -485,12 +485,17 @@
 					],
 				},
 				axes: [
-					{},
-					{},
+					{
+						label: "GDP",
+					},
+					{
+						label: "Income 1",
+					},
 					{
 						side: 1,
 						scale: 'y2',
 						stroke: "red",
+						label: "Income 2",
 						grid: {
 							show: false,
 						},
@@ -531,7 +536,7 @@
 								auto: true,
 							}
 						],
-						label: "Reds",
+						label: "Region A",
 						stroke: "red",
 						fill: "rgba(255,0,0,0.3)",
 						paths: drawPoints3,
@@ -548,7 +553,7 @@
 								auto: true,
 							}
 						],
-						label: "Greens",
+						label: "Region B",
 						stroke: "green",
 						fill: "rgba(0,255,0,0.3)",
 						paths: drawPoints3,
@@ -565,7 +570,7 @@
 								auto: true,
 							}
 						],
-						label: "Blues",
+						label: "Region C",
 						stroke: "blue",
 						fill: "rgba(0,0,255,0.3)",
 						paths: drawPoints3,
@@ -582,7 +587,7 @@
 								auto: true,
 							}
 						],
-						label: "Oranges",
+						label: "Region E",
 						stroke: "orange",
 						fill: "rgba(255,128,0,0.3)",
 						paths: drawPoints3,
