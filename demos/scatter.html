@@ -163,73 +163,80 @@
 				return null;
 			};
 
-			const drawPoints3 = (u, seriesIdx, idx0, idx1) => {
-				uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc) => {
-					let d = u.data[seriesIdx];
+			// shape?
+			const makeDrawPoints3 = (opts) => {
+				let {/*size,*/ disp, each = () => {}} = opts;
 
-					let strokeWidth = 1;
+				return (u, seriesIdx, idx0, idx1) => {
+					uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc) => {
+						let d = u.data[seriesIdx];
 
-					u.ctx.save();
+						let strokeWidth = 1;
 
-					u.ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
-					u.ctx.clip();
+						u.ctx.save();
 
-					u.ctx.fillStyle = series.fill();
-					u.ctx.strokeStyle = series.stroke();
-					u.ctx.lineWidth = strokeWidth;
+						u.ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
+						u.ctx.clip();
 
-					let deg360 = 2 * Math.PI;
+						u.ctx.fillStyle = series.fill();
+						u.ctx.strokeStyle = series.stroke();
+						u.ctx.lineWidth = strokeWidth;
 
-					console.time("points");
+						let deg360 = 2 * Math.PI;
 
-				//	let cir = new Path2D();
-				//	cir.moveTo(0, 0);
-				//	arc(cir, 0, 0, 3, 0, deg360);
+						console.time("points");
 
-					// Create transformation matrix that moves 200 points to the right
-				//	let m = document.createElementNS('http://www.w3.org/2000/svg', 'svg').createSVGMatrix();
-				//	m.a = 1;   m.b = 0;
-				//	m.c = 0;   m.d = 1;
-				//	m.e = 200; m.f = 0;
+					//	let cir = new Path2D();
+					//	cir.moveTo(0, 0);
+					//	arc(cir, 0, 0, 3, 0, deg360);
 
-					// todo: this depends on direction & orientation
-					// todo: calc once per redraw, not per path
-					let filtLft = u.posToVal(-maxSize / 2, scaleX.key);
-					let filtRgt = u.posToVal(u.bbox.width / devicePixelRatio + maxSize / 2, scaleX.key);
-					let filtBtm = u.posToVal(u.bbox.height / devicePixelRatio + maxSize / 2, scaleY.key);
-					let filtTop = u.posToVal(-maxSize / 2, scaleY.key);
+						// Create transformation matrix that moves 200 points to the right
+					//	let m = document.createElementNS('http://www.w3.org/2000/svg', 'svg').createSVGMatrix();
+					//	m.a = 1;   m.b = 0;
+					//	m.c = 0;   m.d = 1;
+					//	m.e = 200; m.f = 0;
 
-					for (let i = 0; i < d[0].length; i++) {
-						let xVal = d[0][i];
-						let yVal = d[1][i];
-						let size = d[2][i];
+						// compute bubble dims
+						let sizes = disp.size.values(u, seriesIdx, idx0, idx1);
 
-						if (xVal >= filtLft && xVal <= filtRgt && yVal >= filtBtm && yVal <= filtTop) {
-							let cx = valToPosX(xVal, scaleX, xDim, xOff);
-							let cy = valToPosY(yVal, scaleY, yDim, yOff);
+						// todo: this depends on direction & orientation
+						// todo: calc once per redraw, not per path
+						let filtLft = u.posToVal(-maxSize / 2, scaleX.key);
+						let filtRgt = u.posToVal(u.bbox.width / devicePixelRatio + maxSize / 2, scaleX.key);
+						let filtBtm = u.posToVal(u.bbox.height / devicePixelRatio + maxSize / 2, scaleY.key);
+						let filtTop = u.posToVal(-maxSize / 2, scaleY.key);
 
-							u.ctx.moveTo(cx + size/2, cy);
-							u.ctx.beginPath();
-							u.ctx.arc(cx, cy, size/2, 0, deg360);
-							u.ctx.fill();
-							u.ctx.stroke();
-							qt.add({
-								x: cx - size/2 - strokeWidth/2 - u.bbox.left,
-								y: cy - size/2 - strokeWidth/2 - u.bbox.top,
-								w: size + strokeWidth,
-								h: size + strokeWidth,
-								sidx: seriesIdx,
-								didx: i
-							});
+						for (let i = 0; i < d[0].length; i++) {
+							let xVal = d[0][i];
+							let yVal = d[1][i];
+							let size = sizes[i];
+
+							if (xVal >= filtLft && xVal <= filtRgt && yVal >= filtBtm && yVal <= filtTop) {
+								let cx = valToPosX(xVal, scaleX, xDim, xOff);
+								let cy = valToPosY(yVal, scaleY, yDim, yOff);
+
+								u.ctx.moveTo(cx + size/2, cy);
+								u.ctx.beginPath();
+								u.ctx.arc(cx, cy, size/2, 0, deg360);
+								u.ctx.fill();
+								u.ctx.stroke();
+
+								each(u, seriesIdx, i,
+									cx - size/2 - strokeWidth/2,
+									cy - size/2 - strokeWidth/2,
+									size + strokeWidth,
+									size + strokeWidth
+								);
+							}
 						}
-					}
 
-					console.timeEnd("points");
+						console.timeEnd("points");
 
-					u.ctx.restore();
-				});
+						u.ctx.restore();
+					});
 
-				return null;
+					return null;
+				};
 			};
 
 			// https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/isPointInPath
@@ -327,13 +334,64 @@
 
 
 			points = 50;
+
+			// size range in pixels (diameter)
 			let minSize = 6;
 			let maxSize = 60;
+
+			let maxArea = maxSize ** 2;
+			let minArea = minSize ** 2;
+
+			// quadratic scaling (px area)
+			function getSize(value, minValue, maxValue) {
+				let pct = value / maxValue;
+				// clamp to min area
+				//let area = Math.max(maxArea * pct, minArea);
+				let area = maxArea * pct;
+				return Math.sqrt(area);
+			}
+
+			function getSizeMinMax(u) {
+				let minValue = Infinity;
+				let maxValue = -Infinity;
+
+				for (let i = 1; i < u.series.length; i++) {
+					let sizeData = u.data[i][2];
+
+					for (let j = 0; j < sizeData.length; j++) {
+						minValue = Math.min(minValue, sizeData[j]);
+						maxValue = Math.max(maxValue, sizeData[j]);
+					}
+				}
+
+				return [minValue, maxValue];
+			}
+
+			let drawPoints3 = makeDrawPoints3({
+				disp: {
+					size: {
+						unit: 3, // raw CSS pixels
+					//	discr: true,
+						values: (u, seriesIdx, idx0, idx1) => {
+							// TODO: only run once per setData() call
+							let [minValue, maxValue] = getSizeMinMax(u);
+							return u.data[seriesIdx][2].map(v => getSize(v, minValue, maxValue));
+						},
+					},
+				},
+				each: (u, seriesIdx, dataIdx, lft, top, wid, hgt) => {
+					// we get back raw canvas coords (included axes & padding). translate to the plotting area origin
+					lft -= u.bbox.left;
+					top -= u.bbox.top;
+					qt.add({x: lft, y: top, w: wid, h: hgt, sidx: seriesIdx, didx: dataIdx});
+				},
+			});
 
 			let data2 = filledArr(series, v => [
 				filledArr(points, i => randInt(0,500)),
 				filledArr(points, i => randInt(0,500)),
-				filledArr(points, i => randInt(minSize, maxSize)),
+				filledArr(points, i => randInt(1,10000)),  // bubble size, population
+				filledArr(points, i => (Math.random() + 1).toString(36).substring(7)), // label / country name
 			]);
 
 			data2[0] = null;
@@ -349,14 +407,15 @@
 			const legendValues = (u, seriesIdx) => {
 				// when data null, it's initial schema probe (also u.status == 0)
 				if (u.data == null || hRect == null || hRect.sidx != seriesIdx)
-					return {x: null, y: null, size: null};
+					return {"Country": null, "Population": null, "GDP": null, "Income": null};
 
-				let [x, y, size] = u.data[seriesIdx];
+				let [x, y, size, label] = u.data[seriesIdx];
 
 				return {
-					x: x[hRect.didx],
-					y: y[hRect.didx],
-					size: size[hRect.didx],
+					"Country":    label[hRect.didx],
+					"Population": size[hRect.didx],
+					"GDP":        '$' + x[hRect.didx],
+					"Income":     '$' + y[hRect.didx],
 				};
 			};
 
