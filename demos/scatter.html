@@ -56,7 +56,7 @@
 			console.log(data);
 
 			const drawPoints = (u, seriesIdx, idx0, idx1) => {
-				const size = 5;
+				const size = 5 * devicePixelRatio;
 
 				uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc) => {
 					let d = u.data[seriesIdx];
@@ -137,7 +137,7 @@
 						let cx = valToPosX(d[0][i], scaleX, xDim, xOff);
 						let cy = valToPosY(d[1][i], scaleY, yDim, yOff);
 
-						let size = d[2][i];
+						let size = d[2][i] * devicePixelRatio;
 
 						p.moveTo(cx + size, cy);
 						arc(p, cx, cy, size, 0, deg360);
@@ -209,7 +209,7 @@
 						for (let i = 0; i < d[0].length; i++) {
 							let xVal = d[0][i];
 							let yVal = d[1][i];
-							let size = sizes[i];
+							let size = sizes[i] * devicePixelRatio;
 
 							if (xVal >= filtLft && xVal <= filtRgt && yVal >= filtBtm && yVal <= filtTop) {
 								let cx = valToPosX(xVal, scaleX, xDim, xOff);
