@@ -605,6 +605,9 @@ declare namespace uPlot {
 
 		/** scale orientation - 0: hz, 1: vt */
 		ori?: 0 | 1;
+
+		/** own key (for read-back) */
+		key?: string;
 	}
 
 	export namespace Series {
