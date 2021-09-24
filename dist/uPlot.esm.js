@@ -3708,7 +3708,7 @@ function uPlot(opts, data, then) {
 			let axis = axes[i];
 
 			if (!axis.show || !axis._show)
-				return;
+				continue;
 
 			let side = axis.side;
 			let ori = side % 2;
@@ -3751,7 +3751,7 @@ function uPlot(opts, data, then) {
 			let [_incr, _space] = axis._found;
 
 			if (_space == 0)
-				return;
+				continue;
 
 			let scale = scales[axis.scale];
 
