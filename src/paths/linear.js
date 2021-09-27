@@ -1,4 +1,4 @@
-import { min, max, incrRound, nonNullIdx, inf } from '../utils';
+import { min, max, nonNullIdx, inf } from '../utils';
 import { orient, addGap, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL } from './utils';
 
 function _drawAcc(lineTo) {
@@ -51,8 +51,8 @@ export function linear() {
 			// data edges
 			let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * dir);
 			let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * dir);
-			let lftX = incrRound(valToPosX(dataX[lftIdx], scaleX, xDim, xOff), 0.5);
-			let rgtX = incrRound(valToPosX(dataX[rgtIdx], scaleX, xDim, xOff), 0.5);
+			let lftX =  pxRound(valToPosX(dataX[lftIdx], scaleX, xDim, xOff));
+			let rgtX =  pxRound(valToPosX(dataX[rgtIdx], scaleX, xDim, xOff));
 
 			if (lftX > xOff)
 				addGap(gaps, xOff, lftX);

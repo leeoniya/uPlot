@@ -1551,6 +1551,8 @@ function orient(u, seriesIdx, cb) {
 // creates inverted band clip path (towards from stroke path -> yMax)
 function clipBandLine(self, seriesIdx, idx0, idx1, strokePath) {
 	return orient(self, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+		let pxRound = series.pxRound;
+
 		const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 		const lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
@@ -1566,12 +1568,12 @@ function clipBandLine(self, seriesIdx, idx0, idx1, strokePath) {
 		}
 
 		// path start
-		let x0 = incrRound(valToPosX(dataX[frIdx], scaleX, xDim, xOff), 0.5);
-		let y0 = incrRound(valToPosY(dataY[frIdx], scaleY, yDim, yOff), 0.5);
+		let x0 = pxRound(valToPosX(dataX[frIdx], scaleX, xDim, xOff));
+		let y0 = pxRound(valToPosY(dataY[frIdx], scaleY, yDim, yOff));
 		// path end x
-		let x1 = incrRound(valToPosX(dataX[toIdx], scaleX, xDim, xOff), 0.5);
+		let x1 = pxRound(valToPosX(dataX[toIdx], scaleX, xDim, xOff));
 		// upper y limit
-		let yLimit = incrRound(valToPosY(scaleY.max, scaleY, yDim, yOff), 0.5);
+		let yLimit = pxRound(valToPosY(scaleY.max, scaleY, yDim, yOff));
 
 		let clip = new Path2D(strokePath);
 
@@ -1747,8 +1749,8 @@ function linear() {
 			// data edges
 			let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * dir);
 			let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * dir);
-			let lftX = incrRound(valToPosX(dataX[lftIdx], scaleX, xDim, xOff), 0.5);
-			let rgtX = incrRound(valToPosX(dataX[rgtIdx], scaleX, xDim, xOff), 0.5);
+			let lftX =  pxRound(valToPosX(dataX[lftIdx], scaleX, xDim, xOff));
+			let rgtX =  pxRound(valToPosX(dataX[rgtIdx], scaleX, xDim, xOff));
 
 			if (lftX > xOff)
 				addGap(gaps, xOff, lftX);
@@ -2022,7 +2024,7 @@ function bars(opts) {
 				// ADDL OPT: only create band clips for series that are band lower edges
 				// if (b.series[1] == i && _paths.band == null)
 				_paths.band = new Path2D();
-				yLimit = incrRound(valToPosY(scaleY.max, scaleY, yDim, yOff), 0.5);
+				yLimit = pxRound(valToPosY(scaleY.max, scaleY, yDim, yOff));
 			}
 
 			const stroke = _paths.stroke;

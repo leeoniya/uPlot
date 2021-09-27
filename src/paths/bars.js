@@ -1,5 +1,5 @@
-import { abs, min, max, inf, ifNull, EMPTY_OBJ, incrRound, nonNullIdx } from '../utils';
-import { orient, rectV, rectH, BAND_CLIP_FILL, BAND_CLIP_STROKE, costlyLerp } from './utils';
+import { abs, min, max, inf, ifNull, EMPTY_OBJ } from '../utils';
+import { orient, rectV, rectH, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './utils';
 import { pxRatio } from '../dom';
 
 export function bars(opts) {
@@ -86,7 +86,7 @@ export function bars(opts) {
 				// ADDL OPT: only create band clips for series that are band lower edges
 				// if (b.series[1] == i && _paths.band == null)
 				_paths.band = new Path2D();
-				yLimit = incrRound(valToPosY(scaleY.max, scaleY, yDim, yOff), 0.5);
+				yLimit = pxRound(valToPosY(scaleY.max, scaleY, yDim, yOff));
 			}
 
 			const stroke = _paths.stroke;
