@@ -612,7 +612,7 @@ export default function uPlot(opts, data, then) {
 
 				let seriesIdx = series.indexOf(s);
 
-				if (e.ctrlKey != legend.isolate) {
+				if ((e.ctrlKey || e.metaKey) != legend.isolate) {
 					// if any other series is shown, isolate this one. else show all
 					let isolate = series.some((s, i) => i > 0 && i != seriesIdx && s.show);
 
