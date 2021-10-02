@@ -305,7 +305,7 @@
 							}
 
 							if (mode == 1) {
-								let val = u.posToVal(cx, 'x');
+								let val = u.posToVal(u.cursor.left, 'x');
 								legendTimeValueEl.textContent = u.scales.x.time ? fmtDate(new Date(val * 1e3)) : val.toFixed(2);
 							}
 						},
