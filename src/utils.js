@@ -248,7 +248,8 @@ export const sqrt = M.sqrt;
 export const sign = M.sign;
 export const log10 = M.log10;
 export const log2 = M.log2;
-export const sinh =  (v, linthresh = 1) => M.sinh(v / linthresh);
+// TODO: seems like this needs to match asinh impl if the passed v is tweaked?
+export const sinh =  (v, linthresh = 1) => M.sinh(v) * linthresh;
 export const asinh = (v, linthresh = 1) => M.asinh(v / linthresh);
 
 export const inf = Infinity;

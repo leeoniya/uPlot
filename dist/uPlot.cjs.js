@@ -259,7 +259,8 @@ const pow = M.pow;
 const sign = M.sign;
 const log10 = M.log10;
 const log2 = M.log2;
-const sinh =  (v, linthresh = 1) => M.sinh(v / linthresh);
+// TODO: seems like this needs to match asinh impl if the passed v is tweaked?
+const sinh =  (v, linthresh = 1) => M.sinh(v) * linthresh;
 const asinh = (v, linthresh = 1) => M.asinh(v / linthresh);
 
 const inf = Infinity;
