@@ -2342,7 +2342,7 @@ var uPlot = (function () {
 
 	function uPlot(opts, data, then) {
 		const self = {
-			mode: opts.mode ?? 1,
+			mode: ifNull(opts.mode, 1),
 		};
 
 		const mode = self.mode;
@@ -3218,8 +3218,8 @@ var uPlot = (function () {
 
 		function accScale(wsc, psc, facet, data) {
 			if (wsc.auto(self, viaAutoScaleX) && (psc == null || psc.min == null)) {
-				let _i0 = i0 ?? 0;
-				let _i1 = i1 ?? data.length - 1;
+				let _i0 = ifNull(i0, 0);
+				let _i1 = ifNull(i1, data.length - 1);
 
 				// only run getMinMax() for invalidated series data, else reuse
 				let minMax = facet.min == null ? (wsc.distr == 3 ? getMinMaxLog(data, _i0, _i1) : getMinMax(data, _i0, _i1)) : [facet.min, facet.max];
