@@ -149,7 +149,7 @@ They are required due to the way uPlot sets defaults:
 While somewhat unusual, keeping x & y opts in flat arrays [rather than splitting them] serves several purposes:
 
 - API & structural uniformity. e.g. `series[i]` maps to `data[i]`
-- Hooks recieve an unambiguous `i` into the arrays without needing futher context
+- Hooks receive an unambiguous `i` into the arrays without needing further context
 - Internals don't need added complexity to conceal the fact that everything is merged & DRY
 
 More thoughts in [#76](https://github.com/leeoniya/uPlot/pull/76) & [#77](https://github.com/leeoniya/uPlot/issues/77).
@@ -372,8 +372,8 @@ let opts = {
 }
 ```
 
-- `space` is the minumum space between adjacent ticks; a smaller number will result in smaller selected divisors. can also be a function of the form `(self, scaleMin, scaleMax, dim) => space` where `dim` is the dimension of the plot along the axis in CSS pixels.
+- `space` is the minimum space between adjacent ticks; a smaller number will result in smaller selected divisors. can also be a function of the form `(self, scaleMin, scaleMax, dim) => space` where `dim` is the dimension of the plot along the axis in CSS pixels.
 - `incrs` are divisors available for segmenting the axis to produce ticks. can also be a function of the form `(self) => divisors`.
 - `values` can be:
-  - a function with the form `(self, ticks, space) => values` where `ticks` is an array of raw values along the axis' scale, `space` is the determined tick spacing in CSS pixels and `values` is an array of formated tick labels.
+  - a function with the form `(self, ticks, space) => values` where `ticks` is an array of raw values along the axis' scale, `space` is the determined tick spacing in CSS pixels and `values` is an array of formatted tick labels.
   - array of tick formatters with breakpoints.
