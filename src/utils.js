@@ -171,6 +171,21 @@ export function ifNull(lh, rh) {
 	return lh == null ? rh : lh;
 }
 
+// checks if given index range in an array contains a non-null value
+// aka a range-bounded Array.some()
+export function hasData(data, idx0, idx1) {
+	idx0 = ifNull(idx0, 0);
+	idx1 = ifNull(idx1, data.length - 1);
+
+	while (idx0 <= idx1) {
+		if (data[idx0] != null)
+			return true;
+		idx0++;
+	}
+
+	return false;
+}
+
 function _rangeNum(_min, _max, cfg) {
 	let cmin = cfg.min;
 	let cmax = cfg.max;

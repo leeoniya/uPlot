@@ -60,6 +60,7 @@ import {
 	retEq,
 	autoRangePart,
 	rangePad,
+	hasData,
 } from './utils';
 
 import {
@@ -1449,6 +1450,7 @@ export default function uPlot(opts, data, then) {
 			// isUpperEdge?
 			if (b.series[0] == si) {
 				let lowerEdge = series[b.series[1]];
+				let lowerData = data[b.series[1]];
 
 				let bandClip = (lowerEdge._paths || EMPTY_OBJ).band;
 				let gapsClip2;
@@ -1456,7 +1458,7 @@ export default function uPlot(opts, data, then) {
 				let _fillStyle = null;
 
 				// hasLowerEdge?
-				if (lowerEdge.show && bandClip) {
+				if (lowerEdge.show && bandClip && hasData(lowerData, i0, i1)) {
 					_fillStyle = b.fill(self, bi) || fillStyle;
 					gapsClip2 = lowerEdge._paths.clip;
 				}

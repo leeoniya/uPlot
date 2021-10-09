@@ -181,6 +181,21 @@ function ifNull(lh, rh) {
 	return lh == null ? rh : lh;
 }
 
+// checks if given index range in an array contains a non-null value
+// aka a range-bounded Array.some()
+function hasData(data, idx0, idx1) {
+	idx0 = ifNull(idx0, 0);
+	idx1 = ifNull(idx1, data.length - 1);
+
+	while (idx0 <= idx1) {
+		if (data[idx0] != null)
+			return true;
+		idx0++;
+	}
+
+	return false;
+}
+
 function _rangeNum(_min, _max, cfg) {
 	let cmin = cfg.min;
 	let cmax = cfg.max;
@@ -3502,6 +3517,7 @@ function uPlot(opts, data, then) {
 			// isUpperEdge?
 			if (b.series[0] == si) {
 				let lowerEdge = series[b.series[1]];
+				let lowerData = data[b.series[1]];
 
 				let bandClip = (lowerEdge._paths || EMPTY_OBJ).band;
 				let gapsClip2;
@@ -3509,7 +3525,7 @@ function uPlot(opts, data, then) {
 				let _fillStyle = null;
 
 				// hasLowerEdge?
-				if (lowerEdge.show && bandClip) {
+				if (lowerEdge.show && bandClip && hasData(lowerData, i0, i1)) {
 					_fillStyle = b.fill(self, bi) || fillStyle;
 					gapsClip2 = lowerEdge._paths.clip;
 				}
