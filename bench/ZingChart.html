@@ -18,6 +18,30 @@
 		<div id='myChart'></div>
 
 		<script>
+			// https://www.zingchart.com/docs/tutorials/features/performance
+
+			// defined ABOVE the render and sets flags
+			// globally for ALL charts on a page
+			zingchart.DEV.CACHECANVASTEXT = true;
+			zingchart.DEV.CHECKDECIMALS = false;
+			zingchart.DEV.CACHESELECTION = true;
+			zingchart.DEV.MEDIARULES = false;
+			zingchart.DEV.SKIPTRACKERS = true;
+			// skips the intro loading screen (most likely invisible to human eye anyway)
+			zingchart.DEV.SKIPPROGRESS = true;
+			// indicates to the lib that there are no external resources to load (images)
+			zingchart.DEV.RESOURCES = false;
+			// prevents lib from storing the original data package
+			zingchart.DEV.KEEPSOURCE = false;
+			// prevents lib from creating a copy of the data package instead of working with the provided one (which can be altered)
+			zingchart.DEV.COPYDATA = false;
+			// forces the library to accept only long tokes (e.g., %node-value instead of %v) saving some parsing time
+			zingchart.DEV.SORTTOKENS = false;
+			// skips calculations of several plot relates statistics (min, max, sum, avg values)
+			zingchart.DEV.PLOTSTATS = false;
+			// tells library dashed syntax only is used so there is no conversion (saves time for large JSON's)
+			zingchart.SYNTAX = 'dashed';
+
 			function round2(val) {
 				return Math.round(val * 100) / 100;
 			}
@@ -56,22 +80,32 @@
 				ZC.LICENSE = ["569d52cefae586f634c54f86dc99e6a9", "b55b025e438fa8a98e32482b5f768ff5"];
 
 				var myConfig = {
-					type: "line",
-					scaleX: {
-						transform: {
-							type: 'date',
-							all: '%m/%d/%y<br>%h:%i %A'
-						}
-					},
-					series: [
+					graphset: [
 						{
-							values: data[0],
-						},
-						{
-							values: data[1],
-						},
-						{
-							values: data[2],
+							type: "line",
+							flat: true,
+							plot: {
+								mode: "fast",
+							},
+							'crosshair-x': {},
+							'scale-x': {
+								zooming: true,
+								transform: {
+									type: 'date',
+									all: '%m/%d/%y<br>%h:%i %A'
+								}
+							},
+							series: [
+								{
+									values: data[0],
+								},
+								{
+									values: data[1],
+								},
+								{
+									values: data[2],
+								}
+							]
 						}
 					]
 				};
@@ -79,6 +113,7 @@
 				zingchart.render({
 					id: 'myChart',
 					data: myConfig,
+					output: 'svg', // 'canvas'
 					width: 1920,
 					height: 600,
 				});
