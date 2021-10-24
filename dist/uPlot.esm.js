@@ -278,6 +278,10 @@ const asinh = (v, linthresh = 1) => M.asinh(v / linthresh);
 
 const inf = Infinity;
 
+function numIntDigits(x) {
+	return (log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
+}
+
 function incrRound(num, incr) {
 	return round(num/incr)*incr;
 }
@@ -2328,19 +2332,20 @@ function snapAsinhY(self, dataMin, dataMax, scale) {
 const snapAsinhX = snapAsinhY;
 
 // dim is logical (getClientBoundingRect) pixels, not canvas pixels
-function findIncr(min, max, incrs, dim, minSpace) {
-	let pxPerUnit = dim / (max - min);
+function findIncr(minVal, maxVal, incrs, dim, minSpace) {
+	let intDigits = max(numIntDigits(minVal), numIntDigits(maxVal));
 
-	let minDec = (""+floor(min)).length;
+	let delta = maxVal - minVal;
 
-	for (var i = 0; i < incrs.length; i++) {
-		let space = incrs[i] * pxPerUnit;
+	let incrIdx = closestIdx((minSpace / dim) * delta, incrs);
 
-		let incrDec = incrs[i] < 10 ? fixedDec.get(incrs[i]) : 0;
+	do {
+		let foundIncr = incrs[incrIdx];
+		let foundSpace = dim * foundIncr / delta;
 
-		if (space >= minSpace && minDec + incrDec < 17)
-			return [incrs[i], space];
-	}
+		if (foundSpace >= minSpace && intDigits + (foundIncr < 5 ? fixedDec.get(foundIncr) : 0) <= 17)
+			return [foundIncr, foundSpace];
+	} while (++incrIdx < incrs.length);
 
 	return [0, 0];
 }
@@ -3610,10 +3615,10 @@ function uPlot(opts, data, then) {
 		else {
 			let minSpace = axis._space = axis.space(self, axisIdx, min, max, fullDim);
 			let incrs    = axis._incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
-			incrSpace    = axis._found = findIncr(min, max, incrs, fullDim, minSpace);
+			incrSpace    = findIncr(min, max, incrs, fullDim, minSpace);
 		}
 
-		return incrSpace;
+		return (axis._found = incrSpace);
 	}
 
 	function drawOrthoLines(offs, filts, ori, side, pos0, len, width, stroke, dash, cap) {

@@ -269,6 +269,10 @@ export const asinh = (v, linthresh = 1) => M.asinh(v / linthresh);
 
 export const inf = Infinity;
 
+export function numIntDigits(x) {
+	return (log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
+}
+
 export function incrRound(num, incr) {
 	return round(num/incr)*incr;
 }
