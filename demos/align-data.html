@@ -129,5 +129,52 @@
 				u.redraw();
 			}, 1000);
 		</script>
+
+		<script>
+			const xRange = 100;
+
+			const tables3 = [
+				[
+					null,
+					[10,20,10,20,10,20,10,20,10,20,10,20,10,20,10,20,10,20,10,20,10,20,10,20,10,20,10,20,10,20,10,20,10,20,10,20,10,20],
+				],
+				[
+					null,
+					[20,10,20,10],
+				],
+			];
+
+			tables3.forEach(t => {
+				t[0] = t[1].map((v, i) => i/t[1].length * xRange);
+			});
+
+			const data3 = uPlot.join(tables3);
+
+			let opts3 = {
+				width: 1920,
+				height: 600,
+				scales: {
+					x: {
+						time: false,
+					},
+					y: {
+						range: [0, 20],
+					}
+				},
+				series: [
+					{},
+					{
+						stroke: "red"
+					},
+					{
+						stroke: "blue",
+						fill: "rgba(0,0,255,0.1)",
+						paths: uPlot.paths.bars(),
+					}
+				]
+			};
+
+			let u3 = new uPlot(opts3, data3, document.body);
+		</script>
 	</body>
 </html>

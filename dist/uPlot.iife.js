@@ -2015,14 +2015,23 @@ var uPlot = (function () {
 					let colWid = xDim;
 
 					if (dataX.length > 1) {
+						// prior index with non-undefined y data
+						let prevIdx = null;
+
 						// scan full dataset for smallest adjacent delta
 						// will not work properly for non-linear x scales, since does not do expensive valToPosX calcs till end
-						for (let i = 1, minDelta = Infinity; i < dataX.length; i++) {
-							let delta = abs(dataX[i] - dataX[i-1]);
+						for (let i = 0, minDelta = Infinity; i < dataX.length; i++) {
+							if (dataY[i] !== undefined) {
+								if (prevIdx != null) {
+									let delta = abs(dataX[i] - dataX[prevIdx]);
 
-							if (delta < minDelta) {
-								minDelta = delta;
-								colWid = abs(valToPosX(dataX[i], scaleX, xDim, xOff) - valToPosX(dataX[i-1], scaleX, xDim, xOff));
+									if (delta < minDelta) {
+										minDelta = delta;
+										colWid = abs(valToPosX(dataX[i], scaleX, xDim, xOff) - valToPosX(dataX[prevIdx], scaleX, xDim, xOff));
+									}
+								}
+
+								prevIdx = i;
 							}
 						}
 					}
