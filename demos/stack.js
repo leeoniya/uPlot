@@ -67,12 +67,23 @@ function getStackedOpts(title, series, data, interp) {
 		}
 	});
 
+	let incrRange0 = uPlot.rangeIncr({
+		min: {
+			mode: 1,
+			pad: 0.02,
+			soft: 0,
+		},
+		max: {
+			mode: 1,
+			pad: 0.02,
+			soft: 0,
+		},
+	});
+
 	// force 0 to be the sum minimum this instead of the bottom series
 	opts.scales.y = {
-		range: (u, min, max) => {
-			let minMax = uPlot.rangeNum(0, max, 0.1, true);
-			return [0, minMax[1]];
-		}
+		axis: 1,
+		range: incrRange0,
 	};
 
 	// restack on toggle

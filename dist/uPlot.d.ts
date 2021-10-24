@@ -119,6 +119,8 @@ declare class uPlot {
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
 	syncRect(defer?: boolean): void;
 
+	rangeIncr(min: number, max: number, cfg: uPlot.Range.Config, scaleKey: string): uPlot.Range.MinMax;
+
 	/** uPlot's path-builder factories */
 	static paths: uPlot.Series.PathBuilderFactories;
 
@@ -608,6 +610,9 @@ declare namespace uPlot {
 
 		/** own key (for read-back) */
 		key?: string;
+
+		/** used to improve scale range calc with accounting of axis.incrs & axis.space */
+		axis?: number;
 	}
 
 	export namespace Series {

@@ -73,6 +73,14 @@
 				return 8;
 			}
 
+			function incrRoundUp(num, incr) {
+				return Math.ceil(num/incr)*incr;
+			}
+
+			function incrRoundDn(num, incr) {
+				return Math.floor(num/incr)*incr;
+			}
+
 			const opts = {
 				title: "Axis AutoSize",
 				width: 1048,
@@ -133,11 +141,14 @@
 			};
 
 			let mult = 1;
+			let mult2 = 1;
 
 			let u = new uPlot(opts, getData(points, mult), document.body);
 
 			let it = setInterval(() => {
 				u.setData(getData(points, mult *= 10));
+
+			//	u.setSize({width: 1048, height: 150 + mult2++ * 10});
 
 				if (mult == 1e9)
 					clearInterval(it);

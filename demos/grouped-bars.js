@@ -121,11 +121,6 @@ function seriesBarsPlugin(opts) {
 		u.ctx.restore();
 	}
 
-	function range(u, dataMin, dataMax) {
-		let [min, max] = uPlot.rangeNum(0, dataMax, 0.05, true);
-		return [0, max];
-	}
-
 	let qt;
 	let hovered = null;
 
@@ -180,7 +175,6 @@ function seriesBarsPlugin(opts) {
 		},
 		opts: (u, opts) => {
 			const yScaleOpts = {
-				range,
 				ori: ori == 0 ? 1 : 0,
 			};
 
@@ -209,6 +203,8 @@ function seriesBarsPlugin(opts) {
 			if (ori == 1) {
 				opts.padding = [0, null, 0, null];
 			}
+
+			uPlot.assign(opts.axes[1], {space: 35});
 
 			uPlot.assign(opts.axes[0], {
 				splits: (u, axisIdx) => {

@@ -22,6 +22,7 @@ import {
 	fixedDec,
 
 	retArg1,
+	easeOutExpo,
 } from './utils';
 
 import {
@@ -476,7 +477,7 @@ export const xAxisOpts = {
 	show: true,
 	scale: "x",
 	stroke: hexBlack,
-	space: 50,
+//	space: 50,
 	gap: 5,
 	size: 50,
 	labelGap: 0,
@@ -601,11 +602,48 @@ export function numSeriesVal(self, val) {
 	return val == null ? "" : fmtNum(val);
 }
 
+// y axis tick gen that accounts for data range
+// this is a bounded tick density off-ramp where axis.space is increased slower than the growth of axis length (dim)
+// it looks like _/‾, where:
+// 1. the floor is static max density (least space) until a minimum dim. e.g. space: 25 until full dim is > 50px
+// 2. the roof is static min denisty (most space) at a given max dim. e.g. space: 50 at full dim >= 1000px
+// 3. the ramp, which uses easeOutExpo() computed from dim % between floor and roof
+export function ySpace(cfg) {
+	let { min: minSpace, max: maxSpace, dim: maxDim, ramp: rampFn } = cfg;
+
+	// smallest dim at which 3 ticks should be present, below this always 2 ticks at edges
+	let minDim = minSpace * 2;
+	let dimDelta = maxDim - minDim;
+	let spaceDelta = maxSpace - minSpace;
+
+	let sp = (self, axisIdx, scaleMin, scaleMax, dim) => {
+		// 2 ticks
+		if (dim < minDim)
+			return dim;
+
+		let pct = min(1, (dim - minDim) / dimDelta);
+
+		return minSpace + rampFn(pct) * spaceDelta;
+	};
+
+	sp.cfg = cfg;
+
+	return sp;
+}
+
+// this only applies to linear distr scales
+export const ySpaceCfg = {
+	min: 25,
+	max: 50,
+	dim: 1e3,
+	ramp: easeOutExpo,
+};
+
 export const yAxisOpts = {
 	show: true,
 	scale: "y",
 	stroke: hexBlack,
-	space: 30,
+//	space: 30,
 	gap: 5,
 	size: 50,
 	labelGap: 0,

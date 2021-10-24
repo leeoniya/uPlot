@@ -62,13 +62,28 @@
 			//	[7, 8, 9, 10, 11, 12]
 			];
 
-			let yNiceScale;
-			let yMaxTicks = 10;
-			let yMinSpace = 30;
-			let yDataMin, yDataMax;
+			let tickDensity = 0.5;
+			let minSpace = 25;
+
+			function estMaxTicks(dim) {
+				let count = Math.floor(tickDensity * Math.sqrt(dim));
+
+				let space = dim / count;
+
+				if (space < minSpace) {
+					console.log(count, space, space / minSpace, Math.floor(count * space / minSpace));
+					count = Math.floor(count * space / minSpace);
+				}
+
+				return count;
+			}
 
 			let width = 1920,
 				height = 600;
+
+			let yNiceScale;
+			let yMaxTicks = estMaxTicks(height);
+			let yDataMin, yDataMax;
 
 			const opts = {
 				width,
@@ -89,7 +104,7 @@
 							yDataMin = dataMin;
 							yDataMax = dataMax;
 
-							yMaxTicks = Math.floor(u.bbox.height / yMinSpace);
+							yMaxTicks = estMaxTicks(u.bbox.height / devicePixelRatio);
 							yNiceScale = niceScale(dataMin, dataMax, yMaxTicks);
 							return [yNiceScale.min, yNiceScale.max];
 						}
@@ -99,11 +114,11 @@
 					{},
 					{
 						incrs: u => {
-							yMaxTicks = Math.floor(u.bbox.height / yMinSpace);
+							let _yMaxTicks = estMaxTicks(u.bbox.height / devicePixelRatio);
 
-							let _yNiceScale = niceScale(yDataMin, yDataMax, yMaxTicks);
+							let _yNiceScale = niceScale(yDataMin, yDataMax, _yMaxTicks);
 
-							if (_yNiceScale.min != yNiceScale.min || _yNiceScale.max != yNiceScale.max) {
+							if (_yNiceScale.min != yNiceScale.min || _yNiceScale.max != yNiceScale.max || _yMaxTicks != yMaxTicks) {
 								console.log('rescale y!');
 
 								queueMicrotask(() => {
@@ -112,10 +127,11 @@
 							}
 
 							yNiceScale = _yNiceScale;
+							yMaxTicks = _yMaxTicks;
 
 							return [yNiceScale.incr];
 						},
-						space: yMinSpace
+						space: 0,
 					}
 				],
 				series: [
@@ -124,14 +140,14 @@
 						stroke: "red",
 						fill: "rgba(255,0,0,0.1)",
 					},
-					{
+				/*	{
 						stroke: "green",
 						fill: "rgba(0,255,0,0.1)",
 					},
 					{
 						stroke: "blue",
 						fill: "rgba(0,0,255,0.1)",
-					},
+					},*/
 				],
 			};
 

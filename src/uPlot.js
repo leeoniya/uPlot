@@ -180,6 +180,8 @@ import {
 	_timeSeriesStamp,
 
 	legendOpts,
+	ySpace,
+	ySpaceCfg,
 } from './opts';
 
 import { _sync } from './sync';
@@ -224,6 +226,85 @@ function setDefault(o, i, xo, yo) {
 	return assign({}, (i == 0 ? xo : yo), o);
 }
 
+// dim is logical (getClientBoundingRect) pixels, not canvas pixels
+function findIncr(minVal, maxVal, incrs, dim, minSpace) {
+	let intDigits = max(numIntDigits(minVal), numIntDigits(maxVal));
+
+	let delta = maxVal - minVal;
+
+	let incrIdx = closestIdx((minSpace / dim) * delta, incrs);
+
+	do {
+		let foundIncr = incrs[incrIdx];
+		let foundSpace = dim * foundIncr / delta;
+
+		if (foundSpace >= minSpace && intDigits + (foundIncr < 5 ? fixedDec.get(foundIncr) : 0) <= 17)
+			return [foundIncr, foundSpace];
+	} while (++incrIdx < incrs.length);
+
+	return [0, 0];
+}
+
+function getIncrSpace(self, axisIdx, min, max, fullDim) {
+	// guard against flat and null data
+	if (min == max) {
+		if (min == null)
+			min = 0;
+
+		if (min == 0)
+			max = 100;
+		else {
+			let d = abs(max);
+			min -= d;
+			max += d;
+		}
+	}
+
+	let axis = self.axes[axisIdx];
+
+	let incrSpace;
+
+	if (fullDim <= 0)
+		incrSpace = [0, 0];
+	else {
+		let minSpace = axis._space = axis.space(self, axisIdx, min, max, fullDim);
+		let incrs    = axis._incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
+		incrSpace    = findIncr(min, max, incrs, fullDim, minSpace);
+	}
+
+	return (axis._found = incrSpace);
+}
+
+function rangeIncr(rangeCfg) {
+	rangeCfg = copy(rangeCfg);
+
+	return (self, dataMin, dataMax, scaleKey) => {
+		let sc   = self.scales[scaleKey];
+		let axis = self.axes[sc.axis];
+		let { width, height } = self.bbox;
+
+		let ori = axis.side % 2;
+		let dim = (ori == 0 ? width : height) / pxRatio;
+
+		let incrSpace = getIncrSpace(self, sc.axis, dataMin, dataMax, dim);
+
+		rangeCfg.incr = incrSpace[0];
+
+		let range = rangeNum(dataMin, dataMax, rangeCfg);
+
+		// force 2 ticks below minDim
+		let spaceCfg = axis.space.cfg;
+		if (spaceCfg != null && dim < spaceCfg.min * 2) {
+			incrSpace[0] = range[1] - range[0];
+			incrSpace[1] = dim;
+		}
+
+	//	dec: incr < 5 ? fixedDec.get(incr) : 0, (or expose uPlot.incrDec(incr) -> dec)
+
+		return range;
+	};
+}
+
 function snapNumX(self, dataMin, dataMax) {
 	return dataMin == null ? nullNullTuple : [dataMin, dataMax];
 }
@@ -247,25 +328,6 @@ function snapAsinhY(self, dataMin, dataMax, scale) {
 }
 
 const snapAsinhX = snapAsinhY;
-
-// dim is logical (getClientBoundingRect) pixels, not canvas pixels
-function findIncr(minVal, maxVal, incrs, dim, minSpace) {
-	let intDigits = max(numIntDigits(minVal), numIntDigits(maxVal));
-
-	let delta = maxVal - minVal;
-
-	let incrIdx = closestIdx((minSpace / dim) * delta, incrs);
-
-	do {
-		let foundIncr = incrs[incrIdx];
-		let foundSpace = dim * foundIncr / delta;
-
-		if (foundSpace >= minSpace && intDigits + (foundIncr < 5 ? fixedDec.get(foundIncr) : 0) <= 17)
-			return [foundIncr, foundSpace];
-	} while (++incrIdx < incrs.length);
-
-	return [0, 0];
-}
 
 function pxRatioFont(font) {
 	let fontSize, fontSizeCss;
@@ -384,7 +446,7 @@ export default function uPlot(opts, data, then) {
 				// ensure parent is initialized
 				initScale(scaleOpts.from);
 				// dependent scales inherit
-				scales[scaleKey] = assign({}, scales[scaleOpts.from], scaleOpts);
+				scales[scaleKey] = assign({}, scales[scaleOpts.from], scaleOpts, {key: scaleKey, axis: null});
 			}
 			else {
 				sc = scales[scaleKey] = assign({}, (scaleKey == xScaleKey ? xScaleOpts : yScaleOpts), scaleOpts);
@@ -401,6 +463,26 @@ export default function uPlot(opts, data, then) {
 				let rangeIsArr = isArr(rn);
 
 				if (scaleKey != xScaleKey || mode == 2) {
+					if (sc.axis == null && rn == null && sc.distr < 3) {
+						let axisIdx = axes.findIndex(a => a.scale == scaleKey);
+
+						if (axisIdx > -1) {
+							sc.axis = axisIdx;
+							rn = {
+								min: {
+									mode: 3,
+									soft: 0,
+									pad: 0.02,
+								},
+								max: {
+									mode: 3,
+									soft: 0,
+									pad: 0.02,
+								},
+							};
+						}
+					}
+
 					// if range array has null limits, it should be auto
 					if (rangeIsArr && (rn[0] == null || rn[1] == null)) {
 						rn = {
@@ -420,8 +502,27 @@ export default function uPlot(opts, data, then) {
 
 					if (!rangeIsArr && isObj(rn)) {
 						let cfg = rn;
+						let rnIncr = sc.axis != null ? rangeIncr(cfg) : null;
 						// this is similar to snapNumY
-						rn = (self, dataMin, dataMax) => dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, cfg);
+						rn = (self, initMin, initMax, scaleKey, explicit) => {
+							let minMax;
+
+							if (initMin == null)
+								minMax = nullNullTuple;
+							else if (explicit) {
+								// the tick density (re)computation & caching is expected to happen in the scale.range fn
+								if (sc.axis != null) {
+									let ori = axes[sc.axis].side % 2;
+									getIncrSpace(self, sc.axis, initMin, initMax, ori == 0 ? plotWidCss : plotHgtCss);
+								}
+
+								minMax = [initMin, initMax];
+							}
+							else
+								minMax = sc.axis != null ? rnIncr(self, initMin, initMax, scaleKey) : rangeNum(initMin, initMax, cfg);
+
+							return minMax;
+						};
 					}
 				}
 
@@ -695,11 +796,14 @@ export default function uPlot(opts, data, then) {
 	let shouldSetCursor = false;
 	let shouldSetLegend = false;
 
-	function _setSize(width, height, force) {
-		if (force || (width != self.width || height != self.height))
-			calcSize(width, height);
+	let pendWidth = null;
+	let pendHeight = null;
 
-		resetYSeries(false);
+	function _setSize(width, height, force) {
+		if (force || (width != self.width || height != self.height)) {
+			pendWidth = width;
+			pendHeight = height;
+		}
 
 		shouldConvergeSize = true;
 		shouldSetSize = true;
@@ -968,7 +1072,7 @@ export default function uPlot(opts, data, then) {
 	function initAxis(axis, i) {
 		axis._show = axis.show;
 
-		if (axis.show) {
+	//	if (axis.show) {
 			let isVt = axis.side % 2;
 
 			let sc = scales[axis.scale];
@@ -982,8 +1086,16 @@ export default function uPlot(opts, data, then) {
 			// also set defaults for incrs & values based on axis distr
 			let isTime = FEAT_TIME && sc.time;
 
+			if (sc.distr < 3) {
+				if (axis.space == null)
+					axis.space = ySpaceCfg;
+			}
+			else
+				axis.space = isVt ? 30 : 50;
+
+			axis.space  = isObj(axis.space) ? ySpace(axis.space) : fnOrSelf(axis.space);
+
 			axis.size   = fnOrSelf(axis.size);
-			axis.space  = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
 			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? wholeIncrs : (isTime ? (ms == 1 ? timeIncrsMs : timeIncrsS) : numIncrs)));
 			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : sc.distr == 4 ? asinhAxisSplits : numAxisSplits));
@@ -1023,9 +1135,9 @@ export default function uPlot(opts, data, then) {
 			axis._splits =
 			axis._values = null;
 
-			if (axis._size > 0)
+			if (axis.show && axis._size > 0)
 				sidesWithAxes[i] = true;
-		}
+	//	}
 	}
 
 	function autoPadSide(self, side, sidesWithAxes, cycleNum) {
@@ -1177,6 +1289,10 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
+	function isExplict(psc) {
+		return psc != null && (psc.min != null || psc.max != null);
+	}
+
 	function setScales() {
 	//	log("setScales()", arguments);
 
@@ -1196,7 +1312,7 @@ export default function uPlot(opts, data, then) {
 			}
 			else if (k != xScaleKey || mode == 2) {
 				if (dataLen == 0 && wsc.from == null) {
-					let minMax = wsc.range(self, null, null, k);
+					let minMax = wsc.range(self, null, null, k, isExplict(psc));
 					wsc.min = minMax[0];
 					wsc.max = minMax[1];
 				}
@@ -1216,7 +1332,7 @@ export default function uPlot(opts, data, then) {
 					let psc = pendScales[k];
 
 					if (i == 0) {
-						let minMax = wsc.range(self, wsc.min, wsc.max, k);
+						let minMax = wsc.range(self, wsc.min, wsc.max, k, isExplict(psc));
 
 						wsc.min = minMax[0];
 						wsc.max = minMax[1];
@@ -1264,13 +1380,15 @@ export default function uPlot(opts, data, then) {
 				let wsc = wipScales[k];
 				let psc = pendScales[k];
 
-				if (wsc.from == null && (psc == null || psc.min == null)) {
+				if (wsc.from == null && (psc == null || psc.min == null || wsc.axis != null)) {
 					let minMax = wsc.range(
 						self,
 						wsc.min ==  inf ? null : wsc.min,
 						wsc.max == -inf ? null : wsc.max,
-						k
+						k,
+						isExplict(psc),
 					);
+
 					wsc.min = minMax[0];
 					wsc.max = minMax[1];
 				}
@@ -1283,7 +1401,7 @@ export default function uPlot(opts, data, then) {
 
 			if (wsc.from != null) {
 				let base = wipScales[wsc.from];
-				let minMax = wsc.range(self, base.min, base.max, k);
+				let minMax = wsc.range(self, base.min, base.max, k, true);
 				wsc.min = minMax[0];
 				wsc.max = minMax[1];
 			}
@@ -1330,9 +1448,6 @@ export default function uPlot(opts, data, then) {
 			if (FEAT_CURSOR && cursor.show)
 				shouldSetCursor = shouldSetLegend = cursor.left >= 0;
 		}
-
-		for (let k in pendScales)
-			pendScales[k] = null;
 	}
 
 	// grabs the nearest indices with y data outside of x-scale limits
@@ -1526,22 +1641,6 @@ export default function uPlot(opts, data, then) {
 		fillStyle && fillPath && ctx.fill(fillPath);
 	}
 
-	function getIncrSpace(axisIdx, min, max, fullDim) {
-		let axis = axes[axisIdx];
-
-		let incrSpace;
-
-		if (fullDim <= 0)
-			incrSpace = [0, 0];
-		else {
-			let minSpace = axis._space = axis.space(self, axisIdx, min, max, fullDim);
-			let incrs    = axis._incrs = axis.incrs(self, axisIdx, min, max, fullDim, minSpace);
-			incrSpace    = findIncr(min, max, incrs, fullDim, minSpace);
-		}
-
-		return (axis._found = incrSpace);
-	}
-
 	function drawOrthoLines(offs, filts, ori, side, pos0, len, width, stroke, dash, cap) {
 		let offset = (width % 2) / 2;
 
@@ -1611,13 +1710,17 @@ export default function uPlot(opts, data, then) {
 
 			let {min, max} = scale;		// 		// should this toggle them ._show = false
 
-			let [_incr, _space] = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
+			// when scale.axis is set, these values are computed & cached already (eagerly) during scale ranging
+			let [_incr, _space] = scale.axis != null ? axis._found : getIncrSpace(self, i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 
 			if (_space == 0)
 				return;
 
+		//	if (ori == 1)
+		//		console.log("exact ticks", Number.isInteger((max - min) / _incr));
+
 			// if we're using index positions, force first tick to match passed index
-			let forceMin = scale.distr == 2;
+			let forceMin = scale.distr == 2 || (scale.axis != null && Number.isInteger((max - min) / _incr));
 
 			let _splits = axis._splits = axis.splits(self, i, min, max, _incr, _space, forceMin);
 
@@ -1852,15 +1955,50 @@ export default function uPlot(opts, data, then) {
 	function _commit() {
 	//	log("_commit()", arguments);
 
-		if (shouldSetScales) {
-			setScales();
-			shouldSetScales = false;
+		let _plotWidCss = plotWidCss;
+		let _plotHgtCss = plotHgtCss;
+
+		if (shouldSetSize) {
+			if (pendWidth != null || pendHeight != null)
+				calcSize(pendWidth, pendHeight);
+
+			resetYSeries(false);
 		}
 
-		if (shouldConvergeSize) {
-			convergeSize();
-			shouldConvergeSize = false;
+		let cycleNum = 0;
+
+		while (1) {
+			cycleNum++;
+
+			if (shouldSetScales) {
+				setScales();
+				shouldSetScales = false;
+			}
+
+			if (shouldConvergeSize) {
+				convergeSize();
+				shouldConvergeSize = false;
+			}
+
+			let converged = cycleNum == CYCLE_LIMIT || (_plotWidCss == plotWidCss && _plotHgtCss == plotHgtCss);
+
+			if (converged)
+				break;
+			else {
+				for (let scKey in scales) {
+					if (scales[scKey].axis != null) {
+						_setScale(scKey, null, null);
+						shouldConvergeSize = true;
+					}
+				}
+			}
+
+			_plotWidCss = plotWidCss;
+			_plotHgtCss = plotHgtCss;
 		}
+
+		for (let k in pendScales)
+			pendScales[k] = null;
 
 		if (shouldSetSize) {
 			setStylePx(under, LEFT,   plotLftCss);
@@ -1890,6 +2028,19 @@ export default function uPlot(opts, data, then) {
 			fire("setSize");
 
 			shouldSetSize = false;
+
+			/*
+			// if any scales are ranged using an axis, they should be re-ranged if the axis length / plotting dim changes
+			let queued = false;
+			for (let scKey in scales) {
+				if (scales[scKey].axis != null) {
+					_setScale(scKey, null, null);
+					!queued && microTask(_commit);
+					queued = true;
+					shouldConvergeSize = true;
+				}
+			}
+			*/
 		}
 
 		if (fullWidCss > 0 && fullHgtCss > 0) {
@@ -1944,7 +2095,7 @@ export default function uPlot(opts, data, then) {
 
 		if (sc.from == null) {
 			if (dataLen == 0) {
-				let minMax = sc.range(self, opts.min, opts.max, key);
+				let minMax = sc.range(self, opts.min, opts.max, key, false);
 				opts.min = minMax[0];
 				opts.max = minMax[1];
 			}
@@ -2943,6 +3094,7 @@ export default function uPlot(opts, data, then) {
 
 uPlot.assign = assign;
 uPlot.fmtNum = fmtNum;
+uPlot.rangeIncr = rangeIncr;
 uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
 uPlot.rangeAsinh = rangeAsinh;

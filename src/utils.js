@@ -143,9 +143,9 @@ export const autoRangePart = {
 };
 
 const _eqRangePart = {
+	mode: 0,
 	pad:  0,
 	soft: null,
-	mode: 0,
 };
 
 const _eqRange = {
@@ -190,6 +190,8 @@ function _rangeNum(_min, _max, cfg) {
 	let cmin = cfg.min;
 	let cmax = cfg.max;
 
+	let incr = cfg.incr;
+
 	let padMin = ifNull(cmin.pad, 0);
 	let padMax = ifNull(cmax.pad, 0);
 
@@ -231,12 +233,12 @@ function _rangeNum(_min, _max, cfg) {
 	let base         = pow(10, floor(mag));
 
 	let _padMin  = nonZeroDelta * (delta == 0 ? (_min == 0 ? .1 : 1) : padMin);
-	let _newMin  = roundDec(incrRoundDn(_min - _padMin, base/10), 9);
+	let _newMin  = roundDec(incrRoundDn(_min - _padMin, ifNull(incr, base/10)), 9);
 	let _softMin = _min >= softMin && (softMinMode == 1 || softMinMode == 3 && _newMin <= softMin || softMinMode == 2 && _newMin >= softMin) ? softMin : inf;
 	let minLim   = max(hardMin, _newMin < _softMin && _min >= _softMin ? _softMin : min(_softMin, _newMin));
 
 	let _padMax  = nonZeroDelta * (delta == 0 ? (_max == 0 ? .1 : 1) : padMax);
-	let _newMax  = roundDec(incrRoundUp(_max + _padMax, base/10), 9);
+	let _newMax  = roundDec(incrRoundUp(_max + _padMax, ifNull(incr, base/10)), 9);
 	let _softMax = _max <= softMax && (softMaxMode == 1 || softMaxMode == 3 && _newMax >= softMax || softMaxMode == 2 && _newMax <= softMax) ? softMax : -inf;
 	let maxLim   = min(hardMax, _newMax > _softMax && _max <= _softMax ? _softMax : max(_softMax, _newMax));
 
@@ -332,6 +334,10 @@ export function genIncrs(base, minExp, maxExp, mults) {
 	}
 
 	return incrs;
+}
+
+export function easeOutExpo(x) {
+	return x === 1 ? 1 : 1 - pow(2, -10 * x);
 }
 
 //export const assign = Object.assign;
