@@ -38,6 +38,10 @@
 	height: 100%;
 }
 
+.u-axis {
+	position: absolute;
+}
+
 .u-legend {
 	font-size: 14px;
 	margin: auto;
@@ -134,6 +138,7 @@
 	background-clip: padding-box !important;
 }
 
+.u-axis.u-off,
 .u-select.u-off,
 .u-cursor-x.u-off,
 .u-cursor-y.u-off,

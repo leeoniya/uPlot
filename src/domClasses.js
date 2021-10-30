@@ -7,6 +7,7 @@ export const TITLE          = pre + "title";
 export const WRAP           = pre + "wrap";
 export const UNDER          = pre + "under";
 export const OVER           = pre + "over";
+export const AXIS           = pre + "axis";
 export const OFF            = pre + "off";
 export const SELECT         = pre + "select";
 export const CURSOR_X       = pre + "cursor-x";

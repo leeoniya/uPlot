@@ -93,6 +93,7 @@ import {
 	WRAP,
 	UNDER,
 	OVER,
+	AXIS,
 	OFF,
 	SELECT,
 	CURSOR_X,
@@ -768,7 +769,7 @@ export default function uPlot(opts, data, then) {
 			if (axis.show && axis._show) {
 				let {side, _size} = axis;
 				let isVt = side % 2;
-				let labelSize = axis.labelSize = (axis.label != null ? (axis.labelSize || 30) : 0);
+				let labelSize = axis.label != null ? axis.labelSize : 0;
 
 				let fullSize = _size + labelSize;
 
@@ -1025,6 +1026,11 @@ export default function uPlot(opts, data, then) {
 
 			if (axis._size > 0)
 				sidesWithAxes[i] = true;
+
+			axis._el = placeDiv(AXIS, wrap);
+
+			// debug
+		//	axis._el.style.background = "#"  + Math.floor(Math.random()*16777215).toString(16) + '80';
 		}
 	}
 
@@ -1880,6 +1886,25 @@ export default function uPlot(opts, data, then) {
 			// canvas pixels to white, even when followed up with clearRect() below
 			can.width  = round(fullWidCss * pxRatio);
 			can.height = round(fullHgtCss * pxRatio);
+
+
+			axes.forEach(a => {
+				let { _show, _el, _size, _pos, side } = a;
+
+				if (_show) {
+					let posOffset = (side === 3 || side === 0 ? _size : 0);
+					let isVt = side % 2 == 1;
+
+					setStylePx(_el, isVt ? "left"   : "top",    _pos - posOffset);
+					setStylePx(_el, isVt ? "width"  : "height", _size);
+					setStylePx(_el, isVt ? "top"    : "left",   isVt ? plotTopCss : plotLftCss);
+					setStylePx(_el, isVt ? "height" : "width",  isVt ? plotHgtCss : plotWidCss);
+
+					remClass(_el, OFF);
+				}
+				else
+					addClass(_el, OFF);
+			});
 
 			// invalidate ctx style cache
 			ctxStroke = ctxFill = ctxWidth = ctxJoin = ctxCap = ctxFont = ctxAlign = ctxBaseline = ctxDash = null;
