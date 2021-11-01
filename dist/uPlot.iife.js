@@ -561,7 +561,9 @@ var uPlot = (function () {
 
 			query && off(change, query, setPxRatio);
 			query = matchMedia(`(min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
-			on(change, query, setPxRatio);
+			if (query.addEventListener) { // make sure event listeners are supported on matchMedia() (unsupported on Safari < 15)
+				on(change, query, setPxRatio);
+			}
 
 			win.dispatchEvent(new CustomEvent(dppxchange));
 		}
@@ -5084,4 +5086,4 @@ var uPlot = (function () {
 
 	return uPlot;
 
-}());
+})();
