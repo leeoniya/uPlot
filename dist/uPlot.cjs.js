@@ -4499,6 +4499,10 @@ function uPlot(opts, data, then) {
 			}
 		}
 
+		cursor.idx = idx;
+		cursor.left = mouseLeft1;
+		cursor.top = mouseTop1;
+
 		if (shouldSetLegend) {
 			legend.idx = idx;
 			setLegend();
@@ -4652,9 +4656,6 @@ function uPlot(opts, data, then) {
 			}
 		}
 
-		cursor.idx = idx;
-		cursor.left = mouseLeft1;
-		cursor.top = mouseTop1;
 		drag._x = dragX;
 		drag._y = dragY;
 
