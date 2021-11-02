@@ -5085,4 +5085,4 @@ var uPlot = (function () {
 
 	return uPlot;
 
-}());
+})();
