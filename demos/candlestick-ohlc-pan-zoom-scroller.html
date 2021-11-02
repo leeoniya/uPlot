@@ -6,6 +6,7 @@
 	<title>Candlestick Chart</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" href="../dist/uPlot.min.css">
+	
 </head>
 
 <body>
@@ -162,6 +163,55 @@
 					zoomed(lftx, widx, lfty, widy);
 
 				}, false);
+
+
+			
+				/* left axis scale */
+
+				let leftAxisScale = u.root.querySelectorAll(".u-axis")[1];
+				let valYscaleBefore = 0;
+				
+				let clientYMove = 0;
+
+
+				function move() {
+					rafPending = false;
+
+					let diff = 0;
+
+					lftx = u.valToPos(u.scales.x.min, 'x');
+					widx = u.valToPos(u.scales.x.max, 'x');
+
+					lfty = u.valToPos(u.scales.y.min, 'y');
+					widy = u.valToPos(u.scales.y.max, 'y') + (valYscaleBefore - clientYMove) ;
+
+					zoomed(lftx, widx, lfty, widy);
+				};
+
+				let animateMove = function(e){
+					clientYMove = e.clientY;
+
+					if (!rafPending) {
+						rafPending = true;
+					
+						requestAnimationFrame(move);
+					}
+				}
+
+
+				
+
+				leftAxisScale.addEventListener("mousedown", (e) => {
+					valYscaleBefore = e.clientY;
+					leftAxisScale.addEventListener("mousemove", animateMove, { passive: true });
+				}, false);
+
+				leftAxisScale.addEventListener("mouseup", (e) => {
+					leftAxisScale.removeEventListener("mousemove", animateMove, { passive: true });
+				}, false);
+				
+				/* end: left axis scale */
+				
 
 			}
 
@@ -501,6 +551,10 @@
 		};
 
 		let u = new uPlot(opts, data, document.body);
+
+
+
+
 
 
 
