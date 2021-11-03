@@ -466,7 +466,7 @@ declare namespace uPlot {
 		}
 
 		export namespace Sync {
-			export type Scales = [xScaleKey: string, yScaleKey: string | null];
+			export type Scales = [xScaleKey: string | null, yScaleKey: string | null];
 
 			export type Filter = (type: string, client: uPlot, x: number, y: number, w: number, h: number, i: number) => boolean;
 
