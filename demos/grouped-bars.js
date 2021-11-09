@@ -172,7 +172,7 @@ function seriesBarsPlugin(opts) {
 
 					barsColors.push({
 						fill: colors,
-						stroke: Array(u.data[i]).fill(null),
+						stroke: Array(u.data[i].length).fill(null),
 					});
 				}
 			*/

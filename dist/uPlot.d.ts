@@ -641,7 +641,7 @@ declare namespace uPlot {
 		export const enum BarsPathBuilderFacetUnit {
 			ScaleValue   = 1,
 			PixelPercent = 2,
-		//	HexColor     = 3,
+			Color        = 3,
 		}
 
 		export const enum BarsPathBuilderFacetKind {
@@ -663,11 +663,11 @@ declare namespace uPlot {
 
 		/** custom per-datapoint styling and positioning */
 		export interface BarsPathBuilderDisplay {
-			x0: BarsPathBuilderFacet;
-		//	x1: BarsPathBuilderFacet;
-			size: BarsPathBuilderFacet;
-			fill: BarsPathBuilderFacet;
-			stroke: BarsPathBuilderFacet;
+			x0?: BarsPathBuilderFacet;
+		//	x1?: BarsPathBuilderFacet;
+			size?: BarsPathBuilderFacet;
+			fill?: BarsPathBuilderFacet;
+			stroke?: BarsPathBuilderFacet;
 		}
 
 		export interface BarsPathBuilderOpts {
