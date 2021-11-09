@@ -1916,10 +1916,10 @@ export default function uPlot(opts, data, then) {
 					setStylePx(_el, isVt ? "top"    : "left",   isVt ? plotTopCss : plotLftCss);
 					setStylePx(_el, isVt ? "height" : "width",  isVt ? plotHgtCss : plotWidCss);
 
-					remClass(_el, OFF);
+					_el && remClass(_el, OFF);
 				}
 				else
-					addClass(_el, OFF);
+					_el && addClass(_el, OFF);
 			});
 
 			// invalidate ctx style cache
