@@ -613,10 +613,10 @@ declare namespace uPlot {
 	export namespace Series {
 		export interface Paths {
 			/** path to stroke */
-			stroke?: Path2D | null;
+			stroke?: Path2D | Map<CanvasRenderingContext2D['strokeStyle'], Path2D> | null;
 
 			/** path to fill */
-			fill?: Path2D | null;
+			fill?: Path2D | Map<CanvasRenderingContext2D['fillStyle'], Path2D> | null;
 
 			/** path for clipping fill & stroke (used for gaps) */
 			clip?: Path2D | null;
@@ -666,8 +666,8 @@ declare namespace uPlot {
 			x0: BarsPathBuilderFacet;
 		//	x1: BarsPathBuilderFacet;
 			size: BarsPathBuilderFacet;
-		//	fill:
-		//	stroke:
+			fill: BarsPathBuilderFacet;
+			stroke: BarsPathBuilderFacet;
 		}
 
 		export interface BarsPathBuilderOpts {

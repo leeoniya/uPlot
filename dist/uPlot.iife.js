@@ -1998,7 +1998,32 @@ var uPlot = (function () {
 
 				let strokeWidth = pxRound(series.width * pxRatio);
 
+				let multiPath = false;
+
+				let fillColors = null;
+				let fillPaths = null;
+				let strokeColors = null;
+				let strokePaths = null;
+
 				if (disp != null) {
+					if (disp.fill != null && disp.stroke != null) {
+						multiPath = true;
+
+						fillColors = disp.fill.values(u, seriesIdx, idx0, idx1);
+						fillPaths = new Map();
+						(new Set(fillColors)).forEach(color => {
+							if (color != null)
+								fillPaths.set(color, new Path2D());
+						});
+
+						strokeColors = disp.stroke.values(u, seriesIdx, idx0, idx1);
+						strokePaths = new Map();
+						(new Set(strokeColors)).forEach(color => {
+							if (color != null)
+								strokePaths.set(color, new Path2D());
+						});
+					}
+
 					dataX = disp.x0.values(u, seriesIdx, idx0, idx1);
 
 					if (disp.x0.unit == 2)
@@ -2048,7 +2073,7 @@ var uPlot = (function () {
 					xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * extraGap / 2;
 				}
 
-				const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
+				const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
 
 				const hasBands = u.bands.length > 0;
 				let yLimit;
@@ -2060,7 +2085,7 @@ var uPlot = (function () {
 					yLimit = pxRound(valToPosY(scaleY.max, scaleY, yDim, yOff));
 				}
 
-				const stroke = _paths.stroke;
+				const stroke = multiPath ? null : new Path2D();
 				const band = _paths.band;
 
 				for (let i = _dirX == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dirX) {
@@ -2088,7 +2113,15 @@ var uPlot = (function () {
 					let barHgt = btm - top;
 
 					if (dataY[i] != null) {
-						rect(stroke, lft, top, barWid, barHgt);
+						if (multiPath) {
+							if (strokeWidth > 0 && strokeColors[i] != null)
+								rect(strokePaths.get(strokeColors[i]), lft, top, barWid, barHgt);
+
+							if (fillColors[i] != null)
+								rect(fillPaths.get(fillColors[i]), lft, top, barWid, barHgt);
+						}
+						else
+							rect(stroke, lft, top, barWid, barHgt);
 
 						each(u, seriesIdx, i,
 							lft    - strokeWidth / 2,
@@ -2114,8 +2147,10 @@ var uPlot = (function () {
 					}
 				}
 
-				if (series.fill != null)
-					_paths.fill = new Path2D(stroke);
+				if (strokeWidth > 0)
+					_paths.stroke = multiPath ? strokePaths : stroke;
+
+				_paths.fill = multiPath ? fillPaths : stroke;
 
 				return _paths;
 			});
@@ -3607,11 +3642,27 @@ var uPlot = (function () {
 		}
 
 		function doStroke(strokeStyle, strokePath, lineWidth) {
-			strokeStyle && strokePath && lineWidth && ctx.stroke(strokePath);
+			if (lineWidth > 0) {
+				if (strokePath instanceof Map) {
+					strokePath.forEach((strokePath, strokeStyle) => {
+						ctx.strokeStyle = strokeStyle;
+						ctx.stroke(strokePath);
+					});
+				}
+				else
+					strokePath != null && strokeStyle && ctx.stroke(strokePath);
+			}
 		}
 
 		function doFill(fillStyle, fillPath) {
-			fillStyle && fillPath && ctx.fill(fillPath);
+			if (fillPath instanceof Map) {
+				fillPath.forEach((fillPath, fillStyle) => {
+					ctx.fillStyle = fillStyle;
+					ctx.fill(fillPath);
+				});
+			}
+			else
+				fillPath != null && fillStyle && ctx.fill(fillPath);
 		}
 
 		function getIncrSpace(axisIdx, min, max, fullDim) {

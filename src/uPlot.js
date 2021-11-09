@@ -1525,11 +1525,27 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function doStroke(strokeStyle, strokePath, lineWidth) {
-		strokeStyle && strokePath && lineWidth && ctx.stroke(strokePath);
+		if (lineWidth > 0) {
+			if (strokePath instanceof Map) {
+				strokePath.forEach((strokePath, strokeStyle) => {
+					ctx.strokeStyle = strokeStyle;
+					ctx.stroke(strokePath);
+				});
+			}
+			else
+				strokePath != null && strokeStyle && ctx.stroke(strokePath);
+		}
 	}
 
 	function doFill(fillStyle, fillPath) {
-		fillStyle && fillPath && ctx.fill(fillPath);
+		if (fillPath instanceof Map) {
+			fillPath.forEach((fillPath, fillStyle) => {
+				ctx.fillStyle = fillStyle;
+				ctx.fill(fillPath);
+			});
+		}
+		else
+			fillPath != null && fillStyle && ctx.fill(fillPath);
 	}
 
 	function getIncrSpace(axisIdx, min, max, fullDim) {

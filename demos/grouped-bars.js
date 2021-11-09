@@ -54,6 +54,7 @@ function seriesBarsPlugin(opts) {
 	}
 
 	let barsPctLayout;
+//	let barsColors;
 
 	let barsBuilder = uPlot.paths.bars({
 		disp: {
@@ -67,18 +68,25 @@ function seriesBarsPlugin(opts) {
 			//	discr: true,
 				values: (u, seriesIdx, idx0, idx1) => barsPctLayout[seriesIdx].size,
 			},
-			/*
+		/*
+			fill: {
+				unit: 3, // color
+			//	discr: true,
+				values: (u, seriesIdx, idx0, idx1) => barsColors[seriesIdx].fill,
+			},
+			stroke: {
+				unit: 3, // color
+			//	discr: true,
+				values: (u, seriesIdx, idx0, idx1) => barsColors[seriesIdx].stroke,
+			}
+		*/
+		/*
 			// e.g. variable size via scale (will compute offsets from known values)
 			x1: {
 				units: 1,
 				values: (u, seriesIdx, idx0, idx1) => bucketEnds[idx],
 			},
-			fill: {
-				units: 3, // color
-				discr: true,
-				values: (u, seriesIdx, idx0, idx1) => colors[idx],
-			}
-			*/
+		*/
 		},
 		each: (u, seriesIdx, dataIdx, lft, top, wid, hgt) => {
 			// we get back raw canvas coords (included axes & padding). translate to the plotting area origin
@@ -151,6 +159,23 @@ function seriesBarsPlugin(opts) {
 					barsPctLayout = [null].concat(distrOne(u.data.length - 1, u.data[0].length));
 				else
 					barsPctLayout = [null].concat(distrTwo(u.data[0].length, u.data.length - 1));
+
+			/*
+				barsColors = [null];
+
+				for (let i = 1; i < u.data.length; i++) {
+					let colors = u.data[i].map(v => {
+						let firstDigit = +(""+v)[0];
+
+						return firstDigit < 3 ? "green" : firstDigit < 7 ? "orange" : "red";
+					});
+
+					barsColors.push({
+						fill: colors,
+						stroke: Array(u.data[i]).fill(null),
+					});
+				}
+			*/
 			},
 			setCursor: u => {
 				let found = null;
