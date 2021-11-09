@@ -3642,7 +3642,7 @@ function uPlot(opts, data, then) {
 		if (lineWidth > 0) {
 			if (strokePath instanceof Map) {
 				strokePath.forEach((strokePath, strokeStyle) => {
-					ctx.strokeStyle = strokeStyle;
+					ctx.strokeStyle = ctxStroke = strokeStyle;
 					ctx.stroke(strokePath);
 				});
 			}
@@ -3654,7 +3654,7 @@ function uPlot(opts, data, then) {
 	function doFill(fillStyle, fillPath) {
 		if (fillPath instanceof Map) {
 			fillPath.forEach((fillPath, fillStyle) => {
-				ctx.fillStyle = fillStyle;
+				ctx.fillStyle = ctxFill = fillStyle;
 				ctx.fill(fillPath);
 			});
 		}
