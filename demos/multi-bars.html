@@ -147,5 +147,75 @@
 				makeChart({ori: 1, dir: -1}, d);
 			});
 		</script>
+
+		<script>
+			function makeChart2(d) {
+				const opts = {
+					width:  800,
+					height: 400,
+					title: "Variable bar colors",
+					padding: [null, 0, null, 0],
+					axes: [
+						{},
+						{
+							values: (u, splits) => splits.map(s => s + "s"),
+						},
+					],
+					series: [
+						{
+							label: "Build #",
+							value: (u, v) => v
+						},
+						{
+							label: "Duration",
+							fill: "#33BB55A0",
+						},
+					/*
+						{
+							label: "Status",
+							fill: "",
+							value: (u, v) => v == 0 ? "Success" : v == 1 ? "Pending" : "Failed"
+						},
+					*/
+					],
+					plugins: [
+						seriesBarsPlugin({
+							ori: 0,
+							dir: 1,
+							disp: {
+								stroke: {
+									unit: 3,
+									values: (u, seriesIdx) => Array(u.data[0].length).fill(null),
+								},
+								fill: {
+									unit: 3,
+									values: (u, seriesIdx) => u.data[2].map(v =>
+										v == 0 ? "#33BB55A0" :
+										v == 1 ? "#F79420A0" :
+										         "#BB1133A0"
+									),
+								}
+							}
+						}),
+					],
+				};
+
+				let u = new uPlot(opts, d, document.body);
+			}
+
+			let labels = "abcdefghijklmnopqrstuvwxyz".split("");
+
+			let data = [
+				labels, // labels
+				labels.map(_ => Math.round(Math.random() * 100)), // y values
+				labels.map((_, i) =>
+					i % 12 == 0 ? 1 :
+					i % 10 == 0 ? 2 :
+					0
+				), // statuses
+			];
+
+			makeChart2(data);
+		</script>
 	</body>
 </html>

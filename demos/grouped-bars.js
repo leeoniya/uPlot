@@ -54,7 +54,7 @@ function seriesBarsPlugin(opts) {
 	}
 
 	let barsPctLayout;
-//	let barsColors;
+	let barsColors;
 
 	let barsBuilder = uPlot.paths.bars({
 		disp: {
@@ -68,18 +68,7 @@ function seriesBarsPlugin(opts) {
 			//	discr: true,
 				values: (u, seriesIdx, idx0, idx1) => barsPctLayout[seriesIdx].size,
 			},
-		/*
-			fill: {
-				unit: 3, // color
-			//	discr: true,
-				values: (u, seriesIdx, idx0, idx1) => barsColors[seriesIdx].fill,
-			},
-			stroke: {
-				unit: 3, // color
-			//	discr: true,
-				values: (u, seriesIdx, idx0, idx1) => barsColors[seriesIdx].stroke,
-			}
-		*/
+			...opts.disp,
 		/*
 			// e.g. variable size via scale (will compute offsets from known values)
 			x1: {
@@ -157,25 +146,22 @@ function seriesBarsPlugin(opts) {
 
 				if (stacked)
 					barsPctLayout = [null].concat(distrOne(u.data.length - 1, u.data[0].length));
+				else if (u.series.length == 2)
+					barsPctLayout = [null].concat(distrOne(u.data[0].length, 1));
 				else
 					barsPctLayout = [null].concat(distrTwo(u.data[0].length, u.data.length - 1));
 
-			/*
-				barsColors = [null];
+				// TODOL only do on setData, not every redraw
+				if (opts.disp?.fill != null) {
+					barsColors = [null];
 
-				for (let i = 1; i < u.data.length; i++) {
-					let colors = u.data[i].map(v => {
-						let firstDigit = +(""+v)[0];
-
-						return firstDigit < 3 ? "green" : firstDigit < 7 ? "orange" : "red";
-					});
-
-					barsColors.push({
-						fill: colors,
-						stroke: Array(u.data[i].length).fill(null),
-					});
+					for (let i = 1; i < u.data.length; i++) {
+						barsColors.push({
+							fill: opts.disp.fill.values(u, i),
+							stroke: opts.disp.stroke.values(u, i),
+						});
+					}
 				}
-			*/
 			},
 			setCursor: u => {
 				let found = null;
