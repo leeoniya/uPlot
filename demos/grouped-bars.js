@@ -124,16 +124,9 @@ function seriesBarsPlugin(opts) {
 	}
 
 	let qt;
-	let hovered = null;
-
-	let barMark = document.createElement("div");
-	barMark.classList.add("bar-mark");
 
 	return {
 		hooks: {
-			init: u => {
-				u.over.appendChild(barMark);
-			},
 			drawClear: u => {
 				qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);
 
@@ -163,31 +156,6 @@ function seriesBarsPlugin(opts) {
 					}
 				}
 			},
-			setCursor: u => {
-				let found = null;
-				let cx = u.cursor.left * pxRatio;
-				let cy = u.cursor.top * pxRatio;
-
-				qt.get(cx, cy, 1, 1, o => {
-					if (pointWithin(cx, cy, o.x, o.y, o.x + o.w, o.y + o.h))
-						found = o;
-				});
-
-				if (found) {
-					if (found != hovered) {
-						barMark.style.display = null;
-						barMark.style.left    = (found.x / pxRatio) + "px";
-						barMark.style.top     = (found.y / pxRatio) + "px";
-						barMark.style.width   = (found.w / pxRatio) + "px";
-						barMark.style.height  = (found.h / pxRatio) + "px";
-						hovered = found;
-					}
-				}
-				else if (hovered != null) {
-					hovered = null;
-					barMark.style.display = "none";
-				}
-			}
 		},
 		opts: (u, opts) => {
 			const yScaleOpts = {
@@ -195,12 +163,42 @@ function seriesBarsPlugin(opts) {
 				ori: ori == 0 ? 1 : 0,
 			};
 
+			// hovered
+			let hRect;
+
 			uPlot.assign(opts, {
 				select: {show: false},
 				cursor: {
 					x: false,
 					y: false,
-					points: {show: false}
+					dataIdx: (u, seriesIdx) => {
+						if (seriesIdx == 1) {
+							hRect = null;
+
+							let cx = u.cursor.left * pxRatio;
+							let cy = u.cursor.top * pxRatio;
+
+							qt.get(cx, cy, 1, 1, o => {
+								if (pointWithin(cx, cy, o.x, o.y, o.x + o.w, o.y + o.h))
+									hRect = o;
+							});
+						}
+
+						return hRect && seriesIdx == hRect.sidx ? hRect.didx : null;
+					},
+					points: {
+						fill: "rgba(255,255,255, 0.3)",
+						bbox: (u, seriesIdx) => {
+							let isHovered = hRect && seriesIdx == hRect.sidx;
+
+							return {
+								left:   isHovered ? hRect.x / devicePixelRatio : -10,
+								top:    isHovered ? hRect.y / devicePixelRatio : -10,
+								width:  isHovered ? hRect.w / devicePixelRatio : 0,
+								height: isHovered ? hRect.h / devicePixelRatio : 0,
+							};
+						}
+					}
 				},
 				scales: {
 					x: {

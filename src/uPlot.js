@@ -2424,9 +2424,30 @@ export default function uPlot(opts, data, then) {
 					}
 
 					if (FEAT_CURSOR && shouldSetLegend && cursorPts.length > 1) {
-						elTrans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
 						elColor(cursorPts[i], cursor.points.fill(self, i), cursor.points.stroke(self, i));
-						mode == 2 && elSize(cursorPts[i], cursor.points.size(self, i));
+
+						let ptWid, ptHgt, ptLft, ptTop,
+							centered = true,
+							getBBox = cursor.points.bbox;
+
+						if (getBBox != null) {
+							centered = false;
+
+							let bbox = getBBox(self, i);
+
+							ptLft = bbox.left;
+							ptTop = bbox.top;
+							ptWid = bbox.width;
+							ptHgt = bbox.height;
+						}
+						else {
+							ptLft = hPos;
+							ptTop = vPos;
+							ptWid = ptHgt = cursor.points.size(self, i);
+						}
+
+						elSize(cursorPts[i], ptWid, ptHgt, centered);
+						elTrans(cursorPts[i], ptLft, ptTop, plotWidCss, plotHgtCss);
 					}
 				}
 

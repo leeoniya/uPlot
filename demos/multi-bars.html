@@ -26,9 +26,8 @@
 				color: silver;
 			}
 
-			.bar-mark {
-				position: absolute;
-				background: rgba(255,255,255, 0.3);
+			.u-cursor-pt {
+				border-radius: 0;
 			}
 		</style>
 	</head>
@@ -167,8 +166,22 @@
 							value: (u, v) => v
 						},
 						{
-							label: "Duration",
+							label: "Server #SNAFU",
 							fill: "#33BB55A0",
+							values: (u, seriesIdx) => {
+								let idxs = u.legend.idxs;
+
+								if (u.data == null || idxs.length == 0 || idxs[seriesIdx] == null)
+									return {"Build": null, "Duration": null, "Status": null};
+
+								let dataIdx = idxs[seriesIdx];
+
+								let build = u.data[0][dataIdx];
+								let duration = u.data[seriesIdx][dataIdx];
+								let status = u.data[seriesIdx + 1][dataIdx];
+
+								return {"Build": build, "Duration": duration, "Status": status};
+							}
 						},
 					/*
 						{

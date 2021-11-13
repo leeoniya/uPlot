@@ -628,13 +628,16 @@ function elColor(el, background, borderColor) {
 
 const sizeCache = new WeakMap();
 
-function elSize(el, newSize) {
+function elSize(el, newWid, newHgt, centered) {
+	let newSize = newWid + "" + newHgt;
 	let oldSize = sizeCache.get(el);
 
 	if (newSize != oldSize) {
 		sizeCache.set(el, newSize);
-		el.style.height = el.style.width = newSize + "px";
-		el.style.marginLeft = el.style.marginTop = -newSize/2 + "px";
+		el.style.height = newHgt + "px";
+		el.style.width = newWid + "px";
+		el.style.marginLeft = centered ? -newWid/2 + "px" : 0;
+		el.style.marginTop = centered ? -newHgt/2 + "px" : 0;
 	}
 }
 
@@ -4538,9 +4541,30 @@ function uPlot(opts, data, then) {
 					}
 
 					if (shouldSetLegend && cursorPts.length > 1) {
-						elTrans(cursorPts[i], hPos, vPos, plotWidCss, plotHgtCss);
 						elColor(cursorPts[i], cursor.points.fill(self, i), cursor.points.stroke(self, i));
-						mode == 2 && elSize(cursorPts[i], cursor.points.size(self, i));
+
+						let ptWid, ptHgt, ptLft, ptTop,
+							centered = true,
+							getBBox = cursor.points.bbox;
+
+						if (getBBox != null) {
+							centered = false;
+
+							let bbox = getBBox(self, i);
+
+							ptLft = bbox.left;
+							ptTop = bbox.top;
+							ptWid = bbox.width;
+							ptHgt = bbox.height;
+						}
+						else {
+							ptLft = hPos;
+							ptTop = vPos;
+							ptWid = ptHgt = cursor.points.size(self, i);
+						}
+
+						elSize(cursorPts[i], ptWid, ptHgt, centered);
+						elTrans(cursorPts[i], ptLft, ptTop, plotWidCss, plotHgtCss);
 					}
 				}
 

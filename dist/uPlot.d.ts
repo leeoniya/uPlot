@@ -436,6 +436,7 @@ declare namespace uPlot {
 		export namespace Points {
 			export type Show   = boolean | ((self: uPlot, seriesIdx: number) => HTMLElement);
 			export type Size   = number  | ((self: uPlot, seriesIdx: number) => number);
+			export type BBox   = (self: uPlot, seriesIdx: number) => BBox;
 			export type Width  = number  | ((self: uPlot, seriesIdx: number, size: number) => number);
 			export type Stroke = CanvasRenderingContext2D['strokeStyle'] | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['strokeStyle']);
 			export type Fill   = CanvasRenderingContext2D['fillStyle']   | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['fillStyle']);
@@ -445,6 +446,8 @@ declare namespace uPlot {
 			show?:   Points.Show;
 			/** hover point diameter in CSS pixels */
 			size?:   Points.Size;
+			/** hover point bbox in CSS pixels (will be used instead of size) */
+			bbox?:   Points.BBox;
 			/** hover point outline width in CSS pixels */
 			width?:  Points.Width;
 			/** hover point outline color, pattern or gradient */
