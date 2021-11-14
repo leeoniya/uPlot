@@ -1653,8 +1653,14 @@ var uPlot = (function () {
 	}
 
 	function rect(ori) {
-		let moveTo = ori == 0 ? moveToH : moveToV;
-		let arcTo = ori == 0 ? arcToH : arcToV;
+		let moveTo = ori == 0 ?
+			moveToH :
+			moveToV;
+
+		let arcTo = ori == 0 ?
+			(p, x1, y1, x2, y2, r) => { p.arcTo(x1, y1, x2, y2, r); } :
+			(p, y1, x1, y2, x2, r) => { p.arcTo(x1, y1, x2, y2, r); };
+
 		let rect = ori == 0 ?
 			(p, x, y, w, h) => { p.rect(x, y, w, h); } :
 			(p, y, x, h, w) => { p.rect(x, y, w, h); };
@@ -1677,16 +1683,16 @@ var uPlot = (function () {
 	}
 
 	// orientation-inverting canvas functions
-	function moveToH(p, x, y) { p.moveTo(x, y); }
-	function moveToV(p, y, x) { p.moveTo(x, y); }
-	function lineToH(p, x, y) { p.lineTo(x, y); }
-	function lineToV(p, y, x) { p.lineTo(x, y); }
+	const moveToH = (p, x, y) => { p.moveTo(x, y); };
+	const moveToV = (p, y, x) => { p.moveTo(x, y); };
+	const lineToH = (p, x, y) => { p.lineTo(x, y); };
+	const lineToV = (p, y, x) => { p.lineTo(x, y); };
 	const rectH = rect(0);
 	const rectV = rect(1);
-	function arcH(p, x, y, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
-	function arcV(p, y, x, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
-	function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }function bezierCurveToV(p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }function arcToH(p, x1, y1, x2, y2, r) { p.arcTo(x1, y1, x2, y2, r); }
-	function arcToV(p, y1, x1, y2, x2, r) { p.arcTo(x1, y1, x2, y2, r); }
+	const arcH = (p, x, y, r, startAngle, endAngle) => { p.arc(x, y, r, startAngle, endAngle); };
+	const arcV = (p, y, x, r, startAngle, endAngle) => { p.arc(x, y, r, startAngle, endAngle); };
+	const bezierCurveToH = (p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) => { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };
+	const bezierCurveToV = (p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) => { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };
 
 	// TODO: drawWrap(seriesIdx, drawPoints) (save, restore, translate, clip)
 	function points(opts) {

@@ -149,8 +149,14 @@ export function costlyLerp(i, idx0, idx1, _dirX, dataY) {
 }
 
 function rect(ori) {
-	let moveTo = ori == 0 ? moveToH : moveToV;
-	let arcTo = ori == 0 ? arcToH : arcToV;
+	let moveTo = ori == 0 ?
+		moveToH :
+		moveToV;
+
+	let arcTo = ori == 0 ?
+		(p, x1, y1, x2, y2, r) => { p.arcTo(x1, y1, x2, y2, r) } :
+		(p, y1, x1, y2, x2, r) => { p.arcTo(x1, y1, x2, y2, r) };
+
 	let rect = ori == 0 ?
 		(p, x, y, w, h) => { p.rect(x, y, w, h); } :
 		(p, y, x, h, w) => { p.rect(x, y, w, h); };
@@ -173,15 +179,13 @@ function rect(ori) {
 }
 
 // orientation-inverting canvas functions
-export function moveToH(p, x, y) { p.moveTo(x, y); }
-export function moveToV(p, y, x) { p.moveTo(x, y); }
-export function lineToH(p, x, y) { p.lineTo(x, y); }
-export function lineToV(p, y, x) { p.lineTo(x, y); }
+export const moveToH = (p, x, y) => { p.moveTo(x, y); }
+export const moveToV = (p, y, x) => { p.moveTo(x, y); }
+export const lineToH = (p, x, y) => { p.lineTo(x, y); }
+export const lineToV = (p, y, x) => { p.lineTo(x, y); }
 export const rectH = rect(0);
 export const rectV = rect(1);
-export function arcH(p, x, y, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
-export function arcV(p, y, x, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
-export function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };
-export function bezierCurveToV(p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };
-export function arcToH(p, x1, y1, x2, y2, r) { p.arcTo(x1, y1, x2, y2, r); }
-export function arcToV(p, y1, x1, y2, x2, r) { p.arcTo(x1, y1, x2, y2, r); }
+export const arcH = (p, x, y, r, startAngle, endAngle) => { p.arc(x, y, r, startAngle, endAngle); }
+export const arcV = (p, y, x, r, startAngle, endAngle) => { p.arc(x, y, r, startAngle, endAngle); }
+export const bezierCurveToH = (p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) => { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };
+export const bezierCurveToV = (p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) => { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };
