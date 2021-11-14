@@ -678,7 +678,10 @@ declare namespace uPlot {
 
 			size?: [factor?: number, max?: number, min?: number];
 
-			// fixed-size gap between bars in CSS pixels (reduces bar width)
+			// corner radius factor of bar size (0 - 0.5)
+			radius?: number; // 0
+
+			/** fixed-size gap between bars in CSS pixels (reduces bar width) */
 			gap?: number;
 
 			/** should return a custom [cached] layout for bars in % of plotting area (0..1) */

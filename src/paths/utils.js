@@ -148,14 +148,40 @@ export function costlyLerp(i, idx0, idx1, _dirX, dataY) {
 	return prevVal + (i - prevNonNull) / (nextNonNull - prevNonNull) * (nextVal - prevVal);
 }
 
+function rect(ori) {
+	let moveTo = ori == 0 ? moveToH : moveToV;
+	let arcTo = ori == 0 ? arcToH : arcToV;
+	let rect = ori == 0 ?
+		(p, x, y, w, h) => { p.rect(x, y, w, h); } :
+		(p, y, x, h, w) => { p.rect(x, y, w, h); };
+
+	return (p, x, y, w, h, r = 0) => {
+		if (r == 0)
+			rect(p, x, y, w, h);
+		else {
+			r = Math.min(r, w / 2, h / 2);
+
+			// adapted from https://stackoverflow.com/questions/1255512/how-to-draw-a-rounded-rectangle-using-html-canvas/7838871#7838871
+			moveTo(p, x + r, y);
+			arcTo(p, x + w, y, x + w, y + h, r);
+			arcTo(p, x + w, y + h, x, y + h, r);
+			arcTo(p, x, y + h, x, y, r);
+			arcTo(p, x, y, x + w, y, r);
+			p.closePath();
+		}
+	};
+}
+
 // orientation-inverting canvas functions
 export function moveToH(p, x, y) { p.moveTo(x, y); }
 export function moveToV(p, y, x) { p.moveTo(x, y); }
 export function lineToH(p, x, y) { p.lineTo(x, y); }
 export function lineToV(p, y, x) { p.lineTo(x, y); }
-export function rectH(p, x, y, w, h) { p.rect(x, y, w, h); }
-export function rectV(p, y, x, h, w) { p.rect(x, y, w, h); }
+export const rectH = rect(0);
+export const rectV = rect(1);
 export function arcH(p, x, y, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
 export function arcV(p, y, x, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
 export function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };
 export function bezierCurveToV(p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };
+export function arcToH(p, x1, y1, x2, y2, r) { p.arcTo(x1, y1, x2, y2, r); }
+export function arcToV(p, y1, x1, y2, x2, r) { p.arcTo(x1, y1, x2, y2, r); }

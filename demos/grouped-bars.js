@@ -2,6 +2,8 @@ function seriesBarsPlugin(opts) {
 	let pxRatio;
 	let font;
 
+	let radius = opts.radius ?? 0;
+
 	function setPxRatio() {
 		pxRatio = devicePixelRatio;
 		font = Math.round(10 * pxRatio) + "px Arial";
@@ -57,6 +59,7 @@ function seriesBarsPlugin(opts) {
 	let barsColors;
 
 	let barsBuilder = uPlot.paths.bars({
+		radius,
 		disp: {
 			x0: {
 				unit: 2,

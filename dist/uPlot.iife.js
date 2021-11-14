@@ -1652,16 +1652,41 @@ var uPlot = (function () {
 		return pxAlign == 0 ? retArg0 : pxAlign == 1 ? round : v => incrRound(v, pxAlign);
 	}
 
+	function rect(ori) {
+		let moveTo = ori == 0 ? moveToH : moveToV;
+		let arcTo = ori == 0 ? arcToH : arcToV;
+		let rect = ori == 0 ?
+			(p, x, y, w, h) => { p.rect(x, y, w, h); } :
+			(p, y, x, h, w) => { p.rect(x, y, w, h); };
+
+		return (p, x, y, w, h, r = 0) => {
+			if (r == 0)
+				rect(p, x, y, w, h);
+			else {
+				r = Math.min(r, w / 2, h / 2);
+
+				// adapted from https://stackoverflow.com/questions/1255512/how-to-draw-a-rounded-rectangle-using-html-canvas/7838871#7838871
+				moveTo(p, x + r, y);
+				arcTo(p, x + w, y, x + w, y + h, r);
+				arcTo(p, x + w, y + h, x, y + h, r);
+				arcTo(p, x, y + h, x, y, r);
+				arcTo(p, x, y, x + w, y, r);
+				p.closePath();
+			}
+		};
+	}
+
 	// orientation-inverting canvas functions
 	function moveToH(p, x, y) { p.moveTo(x, y); }
 	function moveToV(p, y, x) { p.moveTo(x, y); }
 	function lineToH(p, x, y) { p.lineTo(x, y); }
 	function lineToV(p, y, x) { p.lineTo(x, y); }
-	function rectH(p, x, y, w, h) { p.rect(x, y, w, h); }
-	function rectV(p, y, x, h, w) { p.rect(x, y, w, h); }
+	const rectH = rect(0);
+	const rectV = rect(1);
 	function arcH(p, x, y, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
 	function arcV(p, y, x, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
-	function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }function bezierCurveToV(p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }
+	function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }function bezierCurveToV(p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); }function arcToH(p, x1, y1, x2, y2, r) { p.arcTo(x1, y1, x2, y2, r); }
+	function arcToV(p, y1, x1, y2, x2, r) { p.arcTo(x1, y1, x2, y2, r); }
 
 	// TODO: drawWrap(seriesIdx, drawPoints) (save, restore, translate, clip)
 	function points(opts) {
@@ -1973,6 +1998,8 @@ var uPlot = (function () {
 		const align = opts.align || 0;
 		const extraGap = (opts.gap || 0) * pxRatio;
 
+		const radius = ifNull(opts.radius, 0) * pxRatio;
+
 		const gapFactor = 1 - size[0];
 		const maxWidth  = ifNull(size[1], inf) * pxRatio;
 		const minWidth  = ifNull(size[2], 1) * pxRatio;
@@ -2118,13 +2145,13 @@ var uPlot = (function () {
 					if (dataY[i] != null) {
 						if (multiPath) {
 							if (strokeWidth > 0 && strokeColors[i] != null)
-								rect(strokePaths.get(strokeColors[i]), lft, top, barWid, barHgt);
+								rect(strokePaths.get(strokeColors[i]), lft, top, barWid, barHgt, radius * barWid);
 
 							if (fillColors[i] != null)
-								rect(fillPaths.get(fillColors[i]), lft, top, barWid, barHgt);
+								rect(fillPaths.get(fillColors[i]), lft, top, barWid, barHgt, radius * barWid);
 						}
 						else
-							rect(stroke, lft, top, barWid, barHgt);
+							rect(stroke, lft, top, barWid, barHgt, radius * barWid);
 
 						each(u, seriesIdx, i,
 							lft    - strokeWidth / 2,
@@ -2146,7 +2173,7 @@ var uPlot = (function () {
 
 						barHgt = btm - top;
 
-						rect(band, lft - strokeWidth / 2, top + strokeWidth / 2, barWid + strokeWidth, barHgt - strokeWidth);
+						rect(band, lft - strokeWidth / 2, top + strokeWidth / 2, barWid + strokeWidth, barHgt - strokeWidth, 0);
 					}
 				}
 

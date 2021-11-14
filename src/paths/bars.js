@@ -8,6 +8,8 @@ export function bars(opts) {
 	const align = opts.align || 0;
 	const extraGap = (opts.gap || 0) * pxRatio;
 
+	const radius = ifNull(opts.radius, 0) * pxRatio;
+
 	const gapFactor = 1 - size[0];
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
 	const minWidth  = ifNull(size[2], 1) * pxRatio;
@@ -153,13 +155,13 @@ export function bars(opts) {
 				if (dataY[i] != null) {
 					if (multiPath) {
 						if (strokeWidth > 0 && strokeColors[i] != null)
-							rect(strokePaths.get(strokeColors[i]), lft, top, barWid, barHgt);
+							rect(strokePaths.get(strokeColors[i]), lft, top, barWid, barHgt, radius * barWid);
 
 						if (fillColors[i] != null)
-							rect(fillPaths.get(fillColors[i]), lft, top, barWid, barHgt);
+							rect(fillPaths.get(fillColors[i]), lft, top, barWid, barHgt, radius * barWid);
 					}
 					else
-						rect(stroke, lft, top, barWid, barHgt);
+						rect(stroke, lft, top, barWid, barHgt, radius * barWid);
 
 					each(u, seriesIdx, i,
 						lft    - strokeWidth / 2,
@@ -181,7 +183,7 @@ export function bars(opts) {
 
 					barHgt = btm - top;
 
-					rect(band, lft - strokeWidth / 2, top + strokeWidth / 2, barWid + strokeWidth, barHgt - strokeWidth);
+					rect(band, lft - strokeWidth / 2, top + strokeWidth / 2, barWid + strokeWidth, barHgt - strokeWidth, 0);
 				}
 			}
 
