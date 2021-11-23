@@ -1669,7 +1669,7 @@ var uPlot = (function () {
 			if (r == 0)
 				rect(p, x, y, w, h);
 			else {
-				r = Math.min(r, w / 2, h / 2);
+				r = min(r, w / 2, h / 2);
 
 				// adapted from https://stackoverflow.com/questions/1255512/how-to-draw-a-rounded-rectangle-using-html-canvas/7838871#7838871
 				moveTo(p, x + r, y);
@@ -2004,7 +2004,7 @@ var uPlot = (function () {
 		const align = opts.align || 0;
 		const extraGap = (opts.gap || 0) * pxRatio;
 
-		const radius = ifNull(opts.radius, 0) * pxRatio;
+		const radius = ifNull(opts.radius, 0);
 
 		const gapFactor = 1 - size[0];
 		const maxWidth  = ifNull(size[1], inf) * pxRatio;
@@ -2030,6 +2030,7 @@ var uPlot = (function () {
 
 				let y0Pos = valToPosY(fillToY, scaleY, yDim, yOff);
 
+				// barWid is to center of stroke
 				let xShift, barWid;
 
 				let strokeWidth = pxRound(series.width * pxRatio);
@@ -2141,29 +2142,32 @@ var uPlot = (function () {
 
 					// TODO: all xPos can be pre-computed once for all series in aligned set
 					let xPos = valToPosX(xVal, scaleX, xDim, xOff);
-					let yPos = valToPosY(yVal, scaleY, yDim, yOff);
+					let yPos = valToPosY(ifNull(yVal, fillToY) , scaleY, yDim, yOff);
 
 					let lft = pxRound(xPos - xShift);
 					let btm = pxRound(max(yPos, y0Pos));
 					let top = pxRound(min(yPos, y0Pos));
+					// this includes the stroke
 					let barHgt = btm - top;
 
-					if (dataY[i] != null) {
+					let r = radius * barWid;
+
+					if (yVal != null) {  // && yVal != fillToY (0 height bar)
 						if (multiPath) {
 							if (strokeWidth > 0 && strokeColors[i] != null)
-								rect(strokePaths.get(strokeColors[i]), lft, top, barWid, barHgt, radius * barWid);
+								rect(strokePaths.get(strokeColors[i]), lft, top + strokeWidth / 2, barWid, max(0, barHgt - strokeWidth), r);
 
 							if (fillColors[i] != null)
-								rect(fillPaths.get(fillColors[i]), lft, top, barWid, barHgt, radius * barWid);
+								rect(fillPaths.get(fillColors[i]), lft, top + strokeWidth / 2, barWid, max(0, barHgt - strokeWidth), r);
 						}
 						else
-							rect(stroke, lft, top, barWid, barHgt, radius * barWid);
+							rect(stroke, lft, top + strokeWidth / 2, barWid, max(0, barHgt - strokeWidth), r);
 
 						each(u, seriesIdx, i,
 							lft    - strokeWidth / 2,
-							top    - strokeWidth / 2,
+							top,
 							barWid + strokeWidth,
-							barHgt + strokeWidth,
+							barHgt,
 						);
 					}
 
@@ -2179,7 +2183,7 @@ var uPlot = (function () {
 
 						barHgt = btm - top;
 
-						rect(band, lft - strokeWidth / 2, top + strokeWidth / 2, barWid + strokeWidth, barHgt - strokeWidth, 0);
+						rect(band, lft - strokeWidth / 2, top, barWid + strokeWidth, max(0, barHgt), 0);
 					}
 				}
 

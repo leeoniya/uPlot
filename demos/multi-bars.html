@@ -27,7 +27,7 @@
 			}
 
 			.u-cursor-pt {
-				border-radius: 0;
+				border-radius: 13px;
 			}
 		</style>
 	</head>
@@ -71,31 +71,37 @@
 							label: "Lib Size (KB)",
 							fill: "#33BB55",
 							scale: 'size',
+							width: 0,
 						},
 						{
 							label:	"Render Time (ms)",
 							fill: "#B56FAB",
 							scale: 'rend',
+							width: 0,
 						},
 						{
 							label:	"Peak Heap (MB)",
 							fill: "#BB1133",
 							scale: 'mem',
+							width: 0,
 						},
 						{
 							label:	"Final Heap (MB)",
 							fill: "#F79420",
 							scale: 'mem',
+							width: 0,
 						},
 						{
 							label:	"Interact 10s (ms)",
 							fill: "#558AB5",
 							scale: 'inter',
+							width: 0,
 						},
 						{
 							label:	"Toggle 6x (ms)",
 							fill: "#FAD55C",
 							scale: 'toggle',
+							width: 0,
 						},
 					],
 					plugins: [
@@ -167,6 +173,7 @@
 						},
 						{
 							label: "Server #SNAFU",
+							width: 2,
 							fill: "#33BB55A0",
 							values: (u, seriesIdx) => {
 								let idxs = u.legend.idxs;
@@ -193,13 +200,18 @@
 					],
 					plugins: [
 						seriesBarsPlugin({
+							which: [1],
 							ori: 0,
 							dir: 1,
 							radius: 0.5,
 							disp: {
 								stroke: {
 									unit: 3,
-									values: (u, seriesIdx) => Array(u.data[0].length).fill(null),
+									values: (u, seriesIdx) => u.data[2].map(v =>
+										v == 0 ? "#33BB55" :
+										v == 1 ? "#F79420" :
+										         "#BB1133"
+									),
 								},
 								fill: {
 									unit: 3,
@@ -221,7 +233,10 @@
 
 			let data = [
 				labels, // labels
-				labels.map(_ => Math.round(Math.random() * 100)), // y values
+				labels.map(_ => {
+					let v = Math.round(Math.random() * 100);
+					return v * (v % 3 == 0 ? -1 : 1);
+				}), // y values
 				labels.map((_, i) =>
 					i % 12 == 0 ? 1 :
 					i % 10 == 0 ? 2 :

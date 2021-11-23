@@ -1,4 +1,4 @@
-import { round, incrRound, retArg0, nonNullIdx } from "../utils";
+import { round, incrRound, retArg0, nonNullIdx, min } from "../utils";
 
 export const BAND_CLIP_FILL   = 1 << 0;
 export const BAND_CLIP_STROKE = 1 << 1;
@@ -165,7 +165,7 @@ function rect(ori) {
 		if (r == 0)
 			rect(p, x, y, w, h);
 		else {
-			r = Math.min(r, w / 2, h / 2);
+			r = min(r, w / 2, h / 2);
 
 			// adapted from https://stackoverflow.com/questions/1255512/how-to-draw-a-rounded-rectangle-using-html-canvas/7838871#7838871
 			moveTo(p, x + r, y);

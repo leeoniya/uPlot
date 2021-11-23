@@ -253,7 +253,6 @@ function seriesBarsPlugin(opts) {
 			opts.series.forEach((s, i) => {
 				if (i > 0) {
 					uPlot.assign(s, {
-						width: 0,
 					//	pxAlign: false,
 					//	stroke: "rgba(255,0,0,0.5)",
 						paths: barsBuilder,
