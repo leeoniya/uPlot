@@ -112,13 +112,17 @@ export function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
 			let g = gaps[i];
 
 			if (g[1] > g[0]) {
-				rect(clip, prevGapEnd, plotTop, g[0] - prevGapEnd, plotTop + plotHgt);
+				let w = g[0] - prevGapEnd;
+
+				w > 0 && rect(clip, prevGapEnd, plotTop, w, plotTop + plotHgt);
 
 				prevGapEnd = g[1];
 			}
 		}
 
-		rect(clip, prevGapEnd, plotTop, plotLft + plotWid - prevGapEnd, plotTop + plotHgt);
+		let w = plotLft + plotWid - prevGapEnd;
+
+		w > 0 && rect(clip, prevGapEnd, plotTop, w, plotTop + plotHgt);
 	}
 
 	return clip;

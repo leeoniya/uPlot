@@ -1626,13 +1626,17 @@ function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
 			let g = gaps[i];
 
 			if (g[1] > g[0]) {
-				rect(clip, prevGapEnd, plotTop, g[0] - prevGapEnd, plotTop + plotHgt);
+				let w = g[0] - prevGapEnd;
+
+				w > 0 && rect(clip, prevGapEnd, plotTop, w, plotTop + plotHgt);
 
 				prevGapEnd = g[1];
 			}
 		}
 
-		rect(clip, prevGapEnd, plotTop, plotLft + plotWid - prevGapEnd, plotTop + plotHgt);
+		let w = plotLft + plotWid - prevGapEnd;
+
+		w > 0 && rect(clip, prevGapEnd, plotTop, w, plotTop + plotHgt);
 	}
 
 	return clip;
@@ -1946,17 +1950,6 @@ function stepped(opts) {
 
 				if (inGap) {
 					addGap(gaps, prevXPos, x1);
-
-					// don't clip vertical extenders
-					if (prevYPos != y1) {
-						let halfStroke = (series.width * pxRatio) / 2;
-
-						let lastGap = gaps[gaps.length - 1];
-
-						lastGap[0] += (ascDesc || align ==  1) ? halfStroke : -halfStroke;
-						lastGap[1] -= (ascDesc || align == -1) ? halfStroke : -halfStroke;
-					}
-
 					inGap = false;
 				}
 
@@ -1982,6 +1975,16 @@ function stepped(opts) {
 			}
 
 			_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+
+			// expand/contract clips for ascenders/descenders
+			let halfStroke = (series.width * pxRatio) / 2;
+			let startsOffset = (ascDesc || align ==  1) ?  halfStroke : -halfStroke;
+			let endsOffset   = (ascDesc || align == -1) ? -halfStroke :  halfStroke;
+
+			gaps.forEach(g => {
+				g[0] += startsOffset;
+				g[1] += endsOffset;
+			});
 
 			if (!series.spanGaps)
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
