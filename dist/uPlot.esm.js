@@ -2155,13 +2155,13 @@ function bars(opts) {
 				if (yVal != null) {  // && yVal != fillToY (0 height bar)
 					if (multiPath) {
 						if (strokeWidth > 0 && strokeColors[i] != null)
-							rect(strokePaths.get(strokeColors[i]), lft, top + strokeWidth / 2, barWid, max(0, barHgt - strokeWidth), r);
+							rect(strokePaths.get(strokeColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
 
 						if (fillColors[i] != null)
-							rect(fillPaths.get(fillColors[i]), lft, top + strokeWidth / 2, barWid, max(0, barHgt - strokeWidth), r);
+							rect(fillPaths.get(fillColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
 					}
 					else
-						rect(stroke, lft, top + strokeWidth / 2, barWid, max(0, barHgt - strokeWidth), r);
+						rect(stroke, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
 
 					each(u, seriesIdx, i,
 						lft    - strokeWidth / 2,

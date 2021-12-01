@@ -1,4 +1,4 @@
-import { abs, min, max, inf, ifNull, EMPTY_OBJ } from '../utils';
+import { abs, floor, min, max, inf, ifNull, EMPTY_OBJ } from '../utils';
 import { orient, rectV, rectH, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './utils';
 import { pxRatio } from '../dom';
 
@@ -159,13 +159,13 @@ export function bars(opts) {
 				if (yVal != null) {  // && yVal != fillToY (0 height bar)
 					if (multiPath) {
 						if (strokeWidth > 0 && strokeColors[i] != null)
-							rect(strokePaths.get(strokeColors[i]), lft, top + strokeWidth / 2, barWid, max(0, barHgt - strokeWidth), r);
+							rect(strokePaths.get(strokeColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
 
 						if (fillColors[i] != null)
-							rect(fillPaths.get(fillColors[i]), lft, top + strokeWidth / 2, barWid, max(0, barHgt - strokeWidth), r);
+							rect(fillPaths.get(fillColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
 					}
 					else
-						rect(stroke, lft, top + strokeWidth / 2, barWid, max(0, barHgt - strokeWidth), r);
+						rect(stroke, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
 
 					each(u, seriesIdx, i,
 						lft    - strokeWidth / 2,
