@@ -245,6 +245,52 @@
 			];
 
 			makeChart2(data);
+
+
+			let opts9 = {
+				title: "Non-justified bars",
+				width:  800,
+				height: 400,
+				scales: {
+					x: {
+						time: false
+					}
+				},
+				series: [
+					{},
+					{
+						label: "Server #SNAFU",
+						width: 1,
+						stroke: "red",
+						paths: uPlot.paths.bars({
+							disp: {
+								stroke: {
+									unit: 3,
+									values: (u, seriesIdx) => u.data[2].map(v =>
+										v == 0 ? "#33BB55" :
+										v == 1 ? "#F79420" :
+										         "#BB1133"
+									),
+								},
+								fill: {
+									unit: 3,
+									values: (u, seriesIdx) => u.data[2].map(v =>
+										v == 0 ? "#33BB55A0" :
+										v == 1 ? "#F79420A0" :
+										         "#BB1133A0"
+									),
+								}
+							}
+						})
+					},
+				],
+			};
+
+			new uPlot(opts9, [
+				data[0].map((v, i)=> i),
+				data[1],
+				data[2]
+			], document.body);
 		</script>
 	</body>
 </html>
