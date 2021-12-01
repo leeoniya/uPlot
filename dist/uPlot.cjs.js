@@ -2045,17 +2045,19 @@ function bars(opts) {
 			let strokePaths = null;
 
 			if (disp != null) {
-				if (disp.fill != null && disp.stroke != null) {
+				let { x0, size, fill, stroke } = disp;
+
+				if (fill != null && stroke != null) {
 					multiPath = true;
 
-					fillColors = disp.fill.values(u, seriesIdx, idx0, idx1);
+					fillColors = fill.values(u, seriesIdx, idx0, idx1);
 					fillPaths = new Map();
 					(new Set(fillColors)).forEach(color => {
 						if (color != null)
 							fillPaths.set(color, new Path2D());
 					});
 
-					strokeColors = disp.stroke.values(u, seriesIdx, idx0, idx1);
+					strokeColors = stroke.values(u, seriesIdx, idx0, idx1);
 					strokePaths = new Map();
 					(new Set(strokeColors)).forEach(color => {
 						if (color != null)
@@ -2063,22 +2065,26 @@ function bars(opts) {
 					});
 				}
 
-				dataX = disp.x0.values(u, seriesIdx, idx0, idx1);
+				if (x0 != null) {
+					dataX = x0.values(u, seriesIdx, idx0, idx1);
 
-				if (disp.x0.unit == 2)
-					dataX = dataX.map(pct => u.posToVal(xOff + pct * xDim, scaleX.key, true));
+					if (x0.unit == 2)
+						dataX = dataX.map(pct => u.posToVal(xOff + pct * xDim, scaleX.key, true));
+				}
 
-				// assumes uniform sizes, for now
-				let sizes = disp.size.values(u, seriesIdx, idx0, idx1);
+				if (size != null) {
+					// assumes uniform sizes, for now
+					let sizes = size.values(u, seriesIdx, idx0, idx1);
 
-				if (disp.size.unit == 2)
-					barWid = sizes[0] * xDim;
-				else
-					barWid = valToPosX(sizes[0], scaleX, xDim, xOff) - valToPosX(0, scaleX, xDim, xOff); // assumes linear scale (delta from 0)
+					if (size.unit == 2)
+						barWid = sizes[0] * xDim;
+					else
+						barWid = valToPosX(sizes[0], scaleX, xDim, xOff) - valToPosX(0, scaleX, xDim, xOff); // assumes linear scale (delta from 0)
 
-				barWid = pxRound(barWid - strokeWidth);
+					barWid = pxRound(barWid - strokeWidth);
 
-				xShift = (_dirX == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
+					xShift = (_dirX == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
+				}
 			}
 			else {
 				let colWid = xDim;
