@@ -27,6 +27,11 @@
 
 			let annotating = false;
 
+			let annoStart = null;
+			let annoEnd = null;
+
+			let regions = [];
+
 			const opts = {
 				width: 1920,
 				height: 600,
@@ -41,6 +46,8 @@
 									if (e.ctrlKey) {
 										annotating = true;
 
+										annoStart = u.posToVal(u.cursor.left, 'x');
+
 										// switch select region to annotation color
 										u.root.querySelector(".u-select").classList.add("u-annotate");
 									}
@@ -51,6 +58,8 @@
 							return e => {
 								if (e.button == 0) {
 									if (annotating) {
+										annoEnd = u.posToVal(u.cursor.left, 'x');
+
 										// tmp disable drag.setScale
 										const _setScale = u.cursor.drag.setScale;
 										u.cursor.drag.setScale = false;
@@ -72,15 +81,47 @@
 					setSelect: [
 						u => {
 							if (annotating) {
-								let note = prompt("Annotation Text");
+							//	let note = prompt("Annotation Text");
 
 								// revert select region to default color
-							//	u.root.querySelector(".u-select").classList.remove("u-annotate");
+								u.root.querySelector(".u-select").classList.remove("u-annotate");
 
 								annotating = false;
+
+								regions.push([annoStart, annoEnd]);
+								annoStart = annoEnd = null;
+
+								// clear selection without re-firing hook (false)
+								u.setSelect({width: 0, height: 0}, false);
+
+								// redraw to show marked regions
+								u.redraw();
 							}
 						}
-					]
+					],
+					// draw atop axes & grid, but under series
+					drawAxes: [
+						u => {
+							let left, right;
+
+							u.ctx.save();
+							u.ctx.fillStyle = 'rgba(255,0,0,0.1)';
+
+							regions.forEach(([from, to]) => {
+								let left = u.valToPos(from, 'x', true);
+								let right = u.valToPos(to, 'x', true);
+
+								u.ctx.fillRect(
+									left,
+									u.bbox.top,
+									right - left,
+									u.bbox.height,
+								);
+							});
+
+							u.ctx.restore();
+						}
+					],
 				},
 				scales: {
 					x: {
