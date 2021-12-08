@@ -148,7 +148,7 @@
 			}
 
 			fetch("../bench/results.json").then(r => r.json()).then(d => {
-				makeChart({ori: 0, dir:  1}, d, [true]);
+			//	makeChart({ori: 0, dir:  1}, d, [true]);
 				makeChart({ori: 0, dir:  1}, d);
 				makeChart({ori: 1, dir: -1}, d);
 			});
