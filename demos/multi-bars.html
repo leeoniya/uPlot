@@ -38,7 +38,7 @@
 		<script src="./grouped-bars.js"></script>
 
 		<script>
-			function makeChart(o, d) {
+			function makeChart(o, d, enabled) {
 				let ori = o.ori;
 				let dir = o.dir;
 
@@ -112,7 +112,7 @@
 					],
 				};
 
-				const enabled = Array(d.length).fill(true);
+				enabled = enabled ?? Array(d.length).fill(true);
 
 				function makeData() {
 					return [
@@ -148,6 +148,7 @@
 			}
 
 			fetch("../bench/results.json").then(r => r.json()).then(d => {
+				makeChart({ori: 0, dir:  1}, d, [true]);
 				makeChart({ori: 0, dir:  1}, d);
 				makeChart({ori: 1, dir: -1}, d);
 			});

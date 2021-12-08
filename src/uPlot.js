@@ -2008,6 +2008,9 @@ export default function uPlot(opts, data, then) {
 				if (sc.distr == 2 && dataLen > 0) {
 					opts.min = closestIdx(opts.min, data[0]);
 					opts.max = closestIdx(opts.max, data[0]);
+
+					if (opts.min == opts.max)
+						opts.max++;
 				}
 			}
 
