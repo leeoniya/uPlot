@@ -2,6 +2,8 @@ function seriesBarsPlugin(opts) {
 	let pxRatio;
 	let font;
 
+	let { ignore = [] } = opts;
+
 	let radius = opts.radius ?? 0;
 
 	function setPxRatio() {
@@ -141,11 +143,11 @@ function seriesBarsPlugin(opts) {
 				});
 
 				if (stacked)
-					barsPctLayout = [null].concat(distrOne(u.data.length - 1, u.data[0].length));
+					barsPctLayout = [null].concat(distrOne(u.data.length - 1 - ignore.length, u.data[0].length));
 				else if (u.series.length == 2)
 					barsPctLayout = [null].concat(distrOne(u.data[0].length, 1));
 				else
-					barsPctLayout = [null].concat(distrTwo(u.data[0].length, u.data.length - 1, u.data[0].length == 1 ? 1 : groupWidth));
+					barsPctLayout = [null].concat(distrTwo(u.data[0].length, u.data.length - 1 - ignore.length, u.data[0].length == 1 ? 1 : groupWidth));
 
 				// TODOL only do on setData, not every redraw
 				if (opts.disp?.fill != null) {
@@ -209,6 +211,24 @@ function seriesBarsPlugin(opts) {
 						distr: 2,
 						ori,
 						dir,
+					//	auto: true,
+						range: (u, min, max) => {
+							min = 0;
+							max = u.data[0].length - 1;
+
+							let pctOffset = 0;
+
+							distr(u.data[0].length, groupWidth, groupDistr, 0, (di, lftPct, widPct) => {
+								pctOffset = lftPct + widPct / 2;
+							});
+
+							let rn = max - min; // clamp to 1?
+
+							min -= rn * pctOffset;
+							max += rn * pctOffset;
+
+							return [min, max];
+						}
 					},
 					rend:   yScaleOpts,
 					size:   yScaleOpts,
@@ -224,20 +244,8 @@ function seriesBarsPlugin(opts) {
 
 			uPlot.assign(opts.axes[0], {
 				splits: (u, axisIdx) => {
-					const dim = ori == 0 ? u.bbox.width : u.bbox.height;
 					const _dir = dir * (ori == 0 ? 1 : -1);
-
-					let splits = [];
-
-					distr(u.data[0].length, groupWidth, groupDistr, null, (di, lftPct, widPct) => {
-						let groupLftPx = (dim * lftPct) / pxRatio;
-						let groupWidPx = (dim * widPct) / pxRatio;
-
-						let groupCenterPx = groupLftPx + groupWidPx / 2;
-
-						splits.push(u.posToVal(groupCenterPx, 'x'));
-					});
-
+					splits = u._data[0].slice();
 					return _dir == 1 ? splits : splits.reverse();
 				},
 				values:     u => u.data[0],
@@ -251,7 +259,7 @@ function seriesBarsPlugin(opts) {
 			});
 
 			opts.series.forEach((s, i) => {
-				if (i > 0) {
+				if (i > 0 && !ignore.includes(i)) {
 					uPlot.assign(s, {
 					//	pxAlign: false,
 					//	stroke: "rgba(255,0,0,0.5)",

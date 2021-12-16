@@ -103,9 +103,16 @@
 							scale: 'toggle',
 							width: 0,
 						},
+						{
+							label: "Random line",
+							stroke:  "purple",
+							scale: 'rend',
+							width: 2,
+						},
 					],
 					plugins: [
 						seriesBarsPlugin({
+							ignore: [7],
 							ori,
 							dir,
 						}),
@@ -123,6 +130,8 @@
 						d.filter((lib, i) => enabled[i]).map(lib => lib[4][1]),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[5] && lib[5].reduce((total, num) => total + num, 0)),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[6] && lib[6].reduce((total, num) => total + num, 0)),
+						// random line
+						d.filter((lib, i) => enabled[i]).map(lib => 3e3 + Math.round(Math.random() * 1e3)),
 					];
 				}
 
