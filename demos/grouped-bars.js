@@ -224,8 +224,11 @@ function seriesBarsPlugin(opts) {
 
 							let rn = max - min; // clamp to 1?
 
-							min -= rn * pctOffset;
-							max += rn * pctOffset;
+							let upScale = 1 / (1 - pctOffset * 2);
+							let offset = (upScale * rn - rn) / 2;
+
+							min -= offset;
+							max += offset;
 
 							return [min, max];
 						}
