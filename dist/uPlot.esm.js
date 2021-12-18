@@ -2714,7 +2714,7 @@ function uPlot(opts, data, then) {
 		legendCols = multiValLegend ? getMultiVals(self, 1, 0) : {_: 0};
 
 		for (let k in legendCols)
-			NULL_LEGEND_VALUES[k] = "--";
+			NULL_LEGEND_VALUES[k] = "—";
 	}
 
 	if (showLegend) {
@@ -2801,7 +2801,7 @@ function uPlot(opts, data, then) {
 
 		for (var key in legendCols) {
 			let v = placeTag("td", LEGEND_VALUE, row);
-			v.textContent = "--";
+			v.textContent = "—";
 			cells.push(v);
 		}
 
