@@ -3093,6 +3093,8 @@ var uPlot = (function () {
 				let pt = initCursorPt(s, i);
 				pt && cursorPts.splice(i, 0, pt);
 			}
+
+			fire("addSeries", i);
 		}
 
 		function addSeries(opts, si) {
@@ -3124,6 +3126,8 @@ var uPlot = (function () {
 			}
 
 			// TODO: de-init no-longer-needed scales?
+
+			fire("delSeries", i);
 		}
 
 		self.delSeries = delSeries;

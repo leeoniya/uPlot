@@ -29,6 +29,18 @@
 						time: false,
 					},
 				},
+				hooks: {
+					addSeries: [
+						(u, seriesIdx) => {
+							console.log("addSeries" + (u.status == 0 ? " (init)" : ""), seriesIdx);
+						}
+					],
+					delSeries: [
+						(u, seriesIdx) => {
+							console.log("delSeries", seriesIdx);
+						}
+					],
+				},
 				series: [
 					{},
 					{

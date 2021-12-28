@@ -3092,6 +3092,8 @@ function uPlot(opts, data, then) {
 			let pt = initCursorPt(s, i);
 			pt && cursorPts.splice(i, 0, pt);
 		}
+
+		fire("addSeries", i);
 	}
 
 	function addSeries(opts, si) {
@@ -3123,6 +3125,8 @@ function uPlot(opts, data, then) {
 		}
 
 		// TODO: de-init no-longer-needed scales?
+
+		fire("delSeries", i);
 	}
 
 	self.delSeries = delSeries;

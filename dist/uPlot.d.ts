@@ -1018,6 +1018,12 @@ declare namespace uPlot {
 			/** fires after opts are defaulted & merged but data has not been set and scales have not been ranged */
 			init?:       (self: uPlot, opts: Options, data: AlignedData) => void;
 
+			/** fires after each initial and subsequent series addition (discern via self.status == 0 or 1) */
+			addSeries?:  (self: uPlot, seriesIdx: number) => void;
+
+			/** fires after each series deletion */
+			delSeries?:  (self: uPlot, seriesIdx: number) => void;
+
 			/** fires after any scale has changed */
 			setScale?:   (self: uPlot, scaleKey: string) => void;
 
