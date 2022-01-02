@@ -2173,8 +2173,6 @@ var uPlot = (function () {
 
 					let r = radius * barWid;
 
-					console.log(lft, btm, top, barHgt);
-
 					if (yVal != null) {  // && yVal != fillToY (0 height bar)
 						if (multiPath) {
 							if (strokeWidth > 0 && strokeColors[i] != null)
