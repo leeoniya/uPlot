@@ -1,0 +1,283 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Sine Stream (ECharts)</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+	</head>
+	<body>
+		<p>This is an adaptation of <a href="../demos/sine-stream.html">/demos/sine-stream.html</a> using ECharts5 (currently the next-fastest lib after uPlot).</p>
+		<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+
+		<div id="chart" style="width: 2540px; height: 600px;"></div>
+
+		<script>
+			const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
+
+		/*
+			// https://newbedev.com/javascript-math-random-normal-distribution-gaussian-bell-curve
+			function randn_bm(min, max, skew) {
+				let u = 0, v = 0;
+				while(u === 0) u = Math.random(); //Converting [0,1) to (0,1)
+				while(v === 0) v = Math.random();
+				let num = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+
+				num = num / 10.0 + 0.5; // Translate to 0 -> 1
+				if (num > 1 || num < 0) num = randn_bm(min, max, skew); // resample between 0 and 1 if out of range
+				num = Math.pow(num, skew); // Skew
+				num *= max - min; // Stretch to fill range
+				num += min; // offset to min
+				return num;
+			}
+		*/
+
+			// adapted from http://jsfiddle.net/Xotic750/3rfT6/
+			const boxMullerRandom = (function() {
+				let phase = 0,
+					random = Math.random,
+					x1, x2, w, z;
+
+				return () => {
+					if (!phase) {
+						do {
+							x1 = 2.0 * random() - 1.0;
+							x2 = 2.0 * random() - 1.0;
+							w = x1 * x1 + x2 * x2;
+						} while (w >= 1.0);
+
+						w = Math.sqrt((-2.0 * Math.log(w)) / w);
+						z = x1 * w;
+					} else {
+						z = x2 * w;
+					}
+
+					phase ^= 1;
+
+					return z;
+				}
+			}());
+
+			function randomWalk(steps, value = 0, min = -100, max = 100) {
+				steps = steps >>> 0 || 100;
+				let randFunc = boxMullerRandom;
+
+				let points = [], t;
+
+				for (t = 0; t < steps; t += 1) {
+					let extra = randFunc();
+					let newVal = value + extra;
+					
+					if (newVal > max || newVal < min)
+						value = clamp(value - extra, min, max);
+					else
+						value = newVal;
+					
+					points.push(value);
+				}
+
+				return points;
+			}
+		</script>
+		<script>
+			let now = Math.floor(Date.now()/1e3);
+			let length = 600;
+			let shift = length - 1;
+
+			function addRandData(data, howMany, min, max) {
+				let last = data[length - 1];
+				return data.slice(1).concat(randomWalk(howMany, last, min, max));
+			}
+
+			let xs = Array.from({length}, (v, i) => now + i * 60 * 5);
+			let sin = Array.from({length}, (v, i) => Math.sin(i / 16) * 5);
+			let _1 = randomWalk(600, -4, -6, 1);
+			let _2 = randomWalk(600, -2, -6, 1);
+			let _3 = randomWalk(600,  0, -2, 2);
+			let _4 = randomWalk(600,  2, -1, 6);
+			let _5 = randomWalk(600,  4, -1, 6);
+
+			let data = getData(shift);
+
+			let packed = new Float64Array(7 * length);
+
+			function packData() {
+				for (let i = 0; i < length; i++) {
+					let o = i * 7;
+
+					packed[o + 0] = xs[i] * 1e3;
+					packed[o + 1] = sin[i];
+					packed[o + 2] = _1[i];
+					packed[o + 3] = _2[i];
+					packed[o + 4] = _3[i];
+					packed[o + 5] = _4[i];
+					packed[o + 6] = _5[i];
+				}
+
+				return packed;
+			}
+
+			function getData(shift) {
+				return [
+					xs = xs.slice(1).concat(now + shift * 60 * 5),
+					sin = sin.slice(1).concat(Math.sin(shift / 16) * 5),
+					_1 = addRandData(_1, 1, -6, -1),
+					_2 = addRandData(_2, 1, -6, -1),
+					_3 = addRandData(_3, 1, -2,  2),
+					_4 = addRandData(_4, 1, -1,  6),
+					_5 = addRandData(_5, 1, -1,  6),
+				];
+			}
+
+			let dom = document.getElementById("chart");
+
+			let myChart = echarts.init(dom, null, {
+				width: 2540,
+				height: 600
+			});
+
+			let opts = {
+				animation: false,
+				dataset: {
+					source: packData(),
+					dimensions: ["date", "value1", "value2", "value3", "value4", "value5", "value6"]
+				},
+				tooltip: {
+					trigger: "axis"
+				},
+				legend: {},
+				grid: {
+					containLabel: true,
+					left: 0,
+					top: 50,
+					right: 0,
+					bottom: 30
+				},
+				xAxis: {
+					type: "time"
+				},
+				yAxis: [
+					{
+						type: "value",
+						min: -6,
+						max: 6,
+					},
+				],
+				series: [
+					{
+						name: "sin",
+						z: 0,
+						type: "line",
+						showSymbol: false,
+					//	sampling: "lttb",
+						lineStyle: { width: 1, color: "red" },
+						areaStyle: {
+							color: "rgba(255,0,0,0.1)"
+						},
+						emphasis: { lineStyle: { width: 1 } },
+						encode: {
+							x: "date",
+							y: "value1"
+						}
+					},
+					{
+						name: "_1",
+						z: 1,
+						type: "line",
+						showSymbol: false,
+					//	sampling: "lttb",
+						lineStyle: { width: 1, color: "green" },
+						areaStyle: {
+							color: "#4caf505e"
+						},
+						emphasis: { lineStyle: { width: 1 } },
+						encode: {
+							x: "date",
+							y: "value2"
+						}
+					},
+					{
+						name: "_2",
+						z: 2,
+						type: "line",
+						showSymbol: false,
+					//	sampling: "lttb",
+						lineStyle: { width: 1, color: "blue" },
+						areaStyle: {
+							color: "#0000ff20"
+						},
+						emphasis: { lineStyle: { width: 1 } },
+						encode: {
+							x: "date",
+							y: "value3"
+						}
+					},
+					{
+						name: "_3",
+						z: 3,
+						type: "line",
+						showSymbol: false,
+					//	sampling: "lttb",
+						lineStyle: { width: 1, color: "orange" },
+						areaStyle: {
+							color: "#ffa5004f"
+						},
+						emphasis: { lineStyle: { width: 1 } },
+						encode: {
+							x: "date",
+							y: "value4"
+						}
+					},
+					{
+						name: "_4",
+						z: 4,
+						type: "line",
+						showSymbol: false,
+					//	sampling: "lttb",
+						lineStyle: { width: 1, color: "magenta" },
+						areaStyle: {
+							color: "#ff00ff20"
+						},
+						emphasis: { lineStyle: { width: 1 } },
+						encode: {
+							x: "date",
+							y: "value5"
+						}
+					},
+					{
+						name: "_5",
+						z: 5,
+						type: "line",
+						showSymbol: false,
+					//	sampling: "lttb",
+						lineStyle: { width: 1, color: "purple" },
+						areaStyle: {
+							color: "#80008020"
+						},
+						emphasis: { lineStyle: { width: 1 } },
+						encode: {
+							x: "date",
+							y: "value6"
+						}
+					}
+				]
+			};
+
+			myChart.setOption(opts, {
+				notMerge: true
+			});
+
+			function update() {
+				shift += 1;
+				data = getData(shift);
+				myChart.setOption({
+					dataset: {
+						source: packData(),
+					},
+				});
+				requestAnimationFrame(update);
+			}
+
+			update();
+		</script>
+	</body>
+</html>
