@@ -142,16 +142,17 @@ For me:
 - On Manjaro Laptop (Arch Linux), AMD Ryzen 7 PRO 5850U, 48GB RAM, AMD Radeon RX Vega 8 (integrated GPU), 4K resolution = **99% CPU usage**
 
 If your CPU is close to 100%, it may be rasterizing everything in the same CPU process.
-Head over to `chrome://gpu`, see what's orange or red.
+
+Pop open `chrome://gpu` and see what's orange or red.
 
 ![Chrome gpu](img/chrome-gpu.png "Chrome gpu")
 
-Then open `chrome://flags` and search for "raster".
+Then open `chrome://flags` and search for "raster" to see what can be force-enabled.
 
 ![Chrome flags](img/chrome-flags.png "Chrome flags")
 
-On my Manjaro/Ryzen/Integrated GPU setup, force-enabling `Canvas out-of-process rasterization` resulted in a dramatic framerate improvement.
-On my Windows/i7/Dedicated GPU setup, toggling the same flags moved the work to another process (still good), but did not have a significant framerate impact.
+- On my Manjaro/Ryzen/Integrated GPU setup, force-enabling `Canvas out-of-process rasterization` resulted in a dramatic framerate improvement.
+- On my Windows/i7/Dedicated GPU setup, toggling the same flags moved the work to another process (still good), but did not have a significant framerate impact.
 
 YMMV!
 
