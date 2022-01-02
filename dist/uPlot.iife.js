@@ -1,5 +1,5 @@
 /**
-* Copyright (c) 2021, Leon Sorokin
+* Copyright (c) 2022, Leon Sorokin
 * All rights reserved. (MIT Licensed)
 *
 * uPlot.js (μPlot)
@@ -2047,7 +2047,7 @@ var uPlot = (function () {
 				let strokeColors = null;
 				let strokePaths = null;
 
-				if (dispFills != null && dispStrokes != null) {
+				if (dispFills != null && (strokeWidth == 0 || dispStrokes != null)) {
 					multiPath = true;
 
 					fillColors = dispFills.values(u, seriesIdx, idx0, idx1);
@@ -2057,12 +2057,14 @@ var uPlot = (function () {
 							fillPaths.set(color, new Path2D());
 					});
 
-					strokeColors = dispStrokes.values(u, seriesIdx, idx0, idx1);
-					strokePaths = new Map();
-					(new Set(strokeColors)).forEach(color => {
-						if (color != null)
-							strokePaths.set(color, new Path2D());
-					});
+					if (strokeWidth > 0) {
+						strokeColors = dispStrokes.values(u, seriesIdx, idx0, idx1);
+						strokePaths = new Map();
+						(new Set(strokeColors)).forEach(color => {
+							if (color != null)
+								strokePaths.set(color, new Path2D());
+						});
+					}
 				}
 
 				let { x0, size } = disp;
@@ -2132,6 +2134,15 @@ var uPlot = (function () {
 				const stroke = multiPath ? null : new Path2D();
 				const band = _paths.band;
 
+				let { y0, y1 } = disp;
+
+				let dataY0 = null;
+
+				if (y0 != null && y1 != null) {
+					dataY = y1.values(u, seriesIdx, idx0, idx1);
+					dataY0 = y0.values(u, seriesIdx, idx0, idx1);
+				}
+
 				for (let i = _dirX == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dirX) {
 					let yVal = dataY[i];
 
@@ -2149,7 +2160,10 @@ var uPlot = (function () {
 
 					// TODO: all xPos can be pre-computed once for all series in aligned set
 					let xPos = valToPosX(xVal, scaleX, xDim, xOff);
-					let yPos = valToPosY(ifNull(yVal, fillToY) , scaleY, yDim, yOff);
+					let yPos = valToPosY(ifNull(yVal, fillToY), scaleY, yDim, yOff);
+
+					if (dataY0 != null && yVal != null)
+						y0Pos = valToPosY(dataY0[i], scaleY, yDim, yOff);
 
 					let lft = pxRound(xPos - xShift);
 					let btm = pxRound(max(yPos, y0Pos));
@@ -2158,6 +2172,8 @@ var uPlot = (function () {
 					let barHgt = btm - top;
 
 					let r = radius * barWid;
+
+					console.log(lft, btm, top, barHgt);
 
 					if (yVal != null) {  // && yVal != fillToY (0 height bar)
 						if (multiPath) {

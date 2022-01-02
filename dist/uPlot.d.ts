@@ -668,6 +668,8 @@ declare namespace uPlot {
 		export interface BarsPathBuilderDisplay {
 			x0?: BarsPathBuilderFacet;
 		//	x1?: BarsPathBuilderFacet;
+			y0?: BarsPathBuilderFacet;
+			y1?: BarsPathBuilderFacet;
 			size?: BarsPathBuilderFacet;
 			fill?: BarsPathBuilderFacet;
 			stroke?: BarsPathBuilderFacet;
