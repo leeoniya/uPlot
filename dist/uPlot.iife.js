@@ -4095,12 +4095,12 @@ var uPlot = (function () {
 						if (_show) {
 							let posOffset = (side === 3 || side === 0 ? _size : 0);
 							let isVt = side % 2 == 1;
-		
+
 							setStylePx(_el, isVt ? "left"   : "top",    _pos - posOffset);
 							setStylePx(_el, isVt ? "width"  : "height", _size);
 							setStylePx(_el, isVt ? "top"    : "left",   isVt ? plotTopCss : plotLftCss);
 							setStylePx(_el, isVt ? "height" : "width",  isVt ? plotHgtCss : plotWidCss);
-		
+
 							remClass(_el, OFF);
 						}
 						else
@@ -4665,27 +4665,27 @@ var uPlot = (function () {
 					dragX = sdrag._x;
 					dragY = sdrag._y;
 
-					let { left, top, width, height } = src.select;
+					if (dragX || dragY) {
+						let { left, top, width, height } = src.select;
 
-					let sori = src.scales[xKey].ori;
-					let sPosToVal = src.posToVal;
+						let sori = src.scales[xKey].ori;
+						let sPosToVal = src.posToVal;
 
-					let sOff, sDim, sc, a, b;
+						let sOff, sDim, sc, a, b;
 
-					let matchingX = xKey != null && matchXKeys(xKey, xKeySrc);
-					let matchingY = yKey != null && matchYKeys(yKey, yKeySrc);
+						let matchingX = xKey != null && matchXKeys(xKey, xKeySrc);
+						let matchingY = yKey != null && matchYKeys(yKey, yKeySrc);
 
-					if (matchingX) {
-						if (sori == 0) {
-							sOff = left;
-							sDim = width;
-						}
-						else {
-							sOff = top;
-							sDim = height;
-						}
+						if (matchingX) {
+							if (sori == 0) {
+								sOff = left;
+								sDim = width;
+							}
+							else {
+								sOff = top;
+								sDim = height;
+							}
 
-						if (dragX) {
 							sc = scales[xKey];
 
 							a = valToPosX(sPosToVal(sOff, xKeySrc),        sc, xDim, 0);
@@ -4696,21 +4696,16 @@ var uPlot = (function () {
 						else
 							setSelX(0, xDim);
 
-						if (!matchingY)
-							setSelY(0, yDim);
-					}
+						if (matchingY) {
+							if (sori == 1) {
+								sOff = left;
+								sDim = width;
+							}
+							else {
+								sOff = top;
+								sDim = height;
+							}
 
-					if (matchingY) {
-						if (sori == 1) {
-							sOff = left;
-							sDim = width;
-						}
-						else {
-							sOff = top;
-							sDim = height;
-						}
-
-						if (dragY) {
 							sc = scales[yKey];
 
 							a = valToPosY(sPosToVal(sOff, yKeySrc),        sc, yDim, 0);
@@ -4720,10 +4715,9 @@ var uPlot = (function () {
 						}
 						else
 							setSelY(0, yDim);
-
-						if (!matchingX)
-							setSelX(0, xDim);
 					}
+					else
+						hideSelect();
 				}
 				else {
 					let rawDX = abs(rawMouseLeft1 - rawMouseLeft0);
@@ -4927,11 +4921,13 @@ var uPlot = (function () {
 			}
 		}
 
+		const _hideProps = {
+			width: 0,
+			height: 0,
+		};
+
 		function hideSelect() {
-			setSelect({
-				width: 0,
-				height: 0,
-			}, false);
+			setSelect(_hideProps, false);
 		}
 
 		function mouseDown(e, src, _l, _t, _w, _h, _i) {
