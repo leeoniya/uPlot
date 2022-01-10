@@ -2697,7 +2697,7 @@ export default function uPlot(opts, data, then) {
 			let [xKeySrc, yKeySrc] = syncOptsSrc.scales;
 			let [matchXKeys, matchYKeys] = syncOpts.match;
 
-			let rotSrc = xKeySrc != null && src.scales[xKeySrc].ori == 1;
+			let rotSrc = src.scales[src.axes[0].scale].ori == 1;
 
 			let xDim = scaleX.ori == 0 ? plotWidCss : plotHgtCss,
 				yDim = scaleX.ori == 1 ? plotWidCss : plotHgtCss,
