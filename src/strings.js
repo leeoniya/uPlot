@@ -6,6 +6,7 @@ export const LEFT        = "left";
 export const RIGHT       = "right";
 export const hexBlack    = "#000";
 export const transparent = hexBlack + "0";
+export const borderType = "solid";
 
 export const mousemove   = "mousemove";
 export const mousedown   = "mousedown";

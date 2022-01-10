@@ -28,6 +28,7 @@ import {
 	hexBlack,
 	WIDTH,
 	HEIGHT,
+	borderType,
 } from './strings';
 
 import {
@@ -620,6 +621,11 @@ export const yAxisOpts = {
 	ticks,
 	font,
 	rotate: 0,
+	border:{
+		stroke: hexBlack,
+		type: borderType,
+		size:1
+	}
 };
 
 // takes stroke width
