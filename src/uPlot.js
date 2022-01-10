@@ -1028,9 +1028,17 @@ export default function uPlot(opts, data, then) {
 			axis._splits =
 			axis._values = null;
 
+			axis.border.size = fnOrSelf(axis.border.size);
+			axis.border.type = fnOrSelf(axis.border.type);
+			axis.border.stroke = fnOrSelf(axis.border.stroke);
+
 			if (axis._size > 0) {
 				sidesWithAxes[i] = true;
 				axis._el = placeDiv(AXIS, wrap);
+				if(axis.side == 3)
+					axis._el.style.borderRight = axis.border.size +'px '+ axis.border.type + ' ' + axis.border.stroke;
+				else if(axis.side == 1)
+					axis._el.style.borderLeft = axis.border.size +'px '+ axis.border.type + ' ' + axis.border.stroke;
 			}
 
 			// debug
