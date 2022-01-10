@@ -1030,7 +1030,16 @@ export default function uPlot(opts, data, then) {
 
 			if (axis._size > 0) {
 				sidesWithAxes[i] = true;
-				axis._el = placeDiv(AXIS, wrap);
+				let el = placeDiv(AXIS, wrap);
+
+				let { border, side } = axis;
+
+				if (border.show) {
+					let borderSideProp = 'border' + (side == 0 ? 'Bottom' : side == 1 ? 'Left' : side == 2 ? 'Top' : 'Right');
+					el.style[borderSideProp] = `${border.width}px ${border.dash ? 'dashed' : 'solid'} ${border.stroke}`;
+				}
+
+				axis._el = el;
 			}
 
 			// debug

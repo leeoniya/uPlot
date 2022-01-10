@@ -951,6 +951,20 @@ declare namespace uPlot {
 			/** length of tick in CSS pixels */
 			size?: number;
 		}
+
+		export interface Border {
+			/** on/off */
+			show?: boolean; // false
+
+			/** line color */
+			stroke?: Stroke; // string?
+
+			/** line width in CSS pixels */
+			width?: number;
+
+			/** line dash segment array */
+			dash?: number[];
+		}
 	}
 
 	export interface Axis {
@@ -1013,6 +1027,9 @@ declare namespace uPlot {
 
 		/** ticks to draw from this axis' splits */
 		ticks?: Axis.Ticks;
+
+		/** axis border/edge rendering */
+		border?: Axis.Border;
 	}
 
 	export namespace Hooks {
