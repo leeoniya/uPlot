@@ -2,6 +2,10 @@ function seriesBarsPlugin(opts) {
 	let pxRatio;
 	let font;
 
+	let { ignore = [] } = opts;
+
+	let radius = opts.radius ?? 0;
+
 	function setPxRatio() {
 		pxRatio = devicePixelRatio;
 		font = Math.round(10 * pxRatio) + "px Arial";
@@ -21,13 +25,13 @@ function seriesBarsPlugin(opts) {
 	const barWidth   = 1;
 	const barDistr   = SPACE_BETWEEN;
 
-	function distrTwo(groupCount, barCount) {
+	function distrTwo(groupCount, barCount, _groupWidth = groupWidth) {
 		let out = Array.from({length: barCount}, () => ({
 			offs: Array(groupCount).fill(0),
 			size: Array(groupCount).fill(0),
 		}));
 
-		distr(groupCount, groupWidth, groupDistr, null, (groupIdx, groupOffPct, groupDimPct) => {
+		distr(groupCount, _groupWidth, groupDistr, null, (groupIdx, groupOffPct, groupDimPct) => {
 			distr(barCount, barWidth, barDistr, null, (barIdx, barOffPct, barDimPct) => {
 				out[barIdx].offs[groupIdx] = groupOffPct + (groupDimPct * barOffPct);
 				out[barIdx].size[groupIdx] = groupDimPct * barDimPct;
@@ -54,8 +58,10 @@ function seriesBarsPlugin(opts) {
 	}
 
 	let barsPctLayout;
+	let barsColors;
 
 	let barsBuilder = uPlot.paths.bars({
+		radius,
 		disp: {
 			x0: {
 				unit: 2,
@@ -67,18 +73,14 @@ function seriesBarsPlugin(opts) {
 			//	discr: true,
 				values: (u, seriesIdx, idx0, idx1) => barsPctLayout[seriesIdx].size,
 			},
-			/*
+			...opts.disp,
+		/*
 			// e.g. variable size via scale (will compute offsets from known values)
 			x1: {
 				units: 1,
 				values: (u, seriesIdx, idx0, idx1) => bucketEnds[idx],
 			},
-			fill: {
-				units: 3, // color
-				discr: true,
-				values: (u, seriesIdx, idx0, idx1) => colors[idx],
-			}
-			*/
+		*/
 		},
 		each: (u, seriesIdx, dataIdx, lft, top, wid, hgt) => {
 			// we get back raw canvas coords (included axes & padding). translate to the plotting area origin
@@ -127,16 +129,9 @@ function seriesBarsPlugin(opts) {
 	}
 
 	let qt;
-	let hovered = null;
-
-	let barMark = document.createElement("div");
-	barMark.classList.add("bar-mark");
 
 	return {
 		hooks: {
-			init: u => {
-				u.over.appendChild(barMark);
-			},
 			drawClear: u => {
 				qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);
 
@@ -148,35 +143,24 @@ function seriesBarsPlugin(opts) {
 				});
 
 				if (stacked)
-					barsPctLayout = [null].concat(distrOne(u.data.length - 1, u.data[0].length));
+					barsPctLayout = [null].concat(distrOne(u.data.length - 1 - ignore.length, u.data[0].length));
+				else if (u.series.length == 2)
+					barsPctLayout = [null].concat(distrOne(u.data[0].length, 1));
 				else
-					barsPctLayout = [null].concat(distrTwo(u.data[0].length, u.data.length - 1));
-			},
-			setCursor: u => {
-				let found = null;
-				let cx = u.cursor.left * pxRatio;
-				let cy = u.cursor.top * pxRatio;
+					barsPctLayout = [null].concat(distrTwo(u.data[0].length, u.data.length - 1 - ignore.length, u.data[0].length == 1 ? 1 : groupWidth));
 
-				qt.get(cx, cy, 1, 1, o => {
-					if (pointWithin(cx, cy, o.x, o.y, o.x + o.w, o.y + o.h))
-						found = o;
-				});
+				// TODOL only do on setData, not every redraw
+				if (opts.disp?.fill != null) {
+					barsColors = [null];
 
-				if (found) {
-					if (found != hovered) {
-						barMark.style.display = null;
-						barMark.style.left    = (found.x / pxRatio) + "px";
-						barMark.style.top     = (found.y / pxRatio) + "px";
-						barMark.style.width   = (found.w / pxRatio) + "px";
-						barMark.style.height  = (found.h / pxRatio) + "px";
-						hovered = found;
+					for (let i = 1; i < u.data.length; i++) {
+						barsColors.push({
+							fill: opts.disp.fill.values(u, i),
+							stroke: opts.disp.stroke.values(u, i),
+						});
 					}
 				}
-				else if (hovered != null) {
-					hovered = null;
-					barMark.style.display = "none";
-				}
-			}
+			},
 		},
 		opts: (u, opts) => {
 			const yScaleOpts = {
@@ -184,12 +168,42 @@ function seriesBarsPlugin(opts) {
 				ori: ori == 0 ? 1 : 0,
 			};
 
+			// hovered
+			let hRect;
+
 			uPlot.assign(opts, {
 				select: {show: false},
 				cursor: {
 					x: false,
 					y: false,
-					points: {show: false}
+					dataIdx: (u, seriesIdx) => {
+						if (seriesIdx == 1) {
+							hRect = null;
+
+							let cx = u.cursor.left * pxRatio;
+							let cy = u.cursor.top * pxRatio;
+
+							qt.get(cx, cy, 1, 1, o => {
+								if (pointWithin(cx, cy, o.x, o.y, o.x + o.w, o.y + o.h))
+									hRect = o;
+							});
+						}
+
+						return hRect && seriesIdx == hRect.sidx ? hRect.didx : null;
+					},
+					points: {
+						fill: "rgba(255,255,255, 0.3)",
+						bbox: (u, seriesIdx) => {
+							let isHovered = hRect && seriesIdx == hRect.sidx;
+
+							return {
+								left:   isHovered ? hRect.x / devicePixelRatio : -10,
+								top:    isHovered ? hRect.y / devicePixelRatio : -10,
+								width:  isHovered ? hRect.w / devicePixelRatio : 0,
+								height: isHovered ? hRect.h / devicePixelRatio : 0,
+							};
+						}
+					}
 				},
 				scales: {
 					x: {
@@ -197,6 +211,27 @@ function seriesBarsPlugin(opts) {
 						distr: 2,
 						ori,
 						dir,
+					//	auto: true,
+						range: (u, min, max) => {
+							min = 0;
+							max = u.data[0].length - 1;
+
+							let pctOffset = 0;
+
+							distr(u.data[0].length, groupWidth, groupDistr, 0, (di, lftPct, widPct) => {
+								pctOffset = lftPct + widPct / 2;
+							});
+
+							let rn = max - min; // clamp to 1?
+
+							let upScale = 1 / (1 - pctOffset * 2);
+							let offset = (upScale * rn - rn) / 2;
+
+							min -= offset;
+							max += offset;
+
+							return [min, max];
+						}
 					},
 					rend:   yScaleOpts,
 					size:   yScaleOpts,
@@ -212,20 +247,8 @@ function seriesBarsPlugin(opts) {
 
 			uPlot.assign(opts.axes[0], {
 				splits: (u, axisIdx) => {
-					const dim = ori == 0 ? u.bbox.width : u.bbox.height;
 					const _dir = dir * (ori == 0 ? 1 : -1);
-
-					let splits = [];
-
-					distr(u.data[0].length, groupWidth, groupDistr, null, (di, lftPct, widPct) => {
-						let groupLftPx = (dim * lftPct) / pxRatio;
-						let groupWidPx = (dim * widPct) / pxRatio;
-
-						let groupCenterPx = groupLftPx + groupWidPx / 2;
-
-						splits.push(u.posToVal(groupCenterPx, 'x'));
-					});
-
+					splits = u._data[0].slice();
 					return _dir == 1 ? splits : splits.reverse();
 				},
 				values:     u => u.data[0],
@@ -239,9 +262,8 @@ function seriesBarsPlugin(opts) {
 			});
 
 			opts.series.forEach((s, i) => {
-				if (i > 0) {
+				if (i > 0 && !ignore.includes(i)) {
 					uPlot.assign(s, {
-						width: 0,
 					//	pxAlign: false,
 					//	stroke: "rgba(255,0,0,0.5)",
 						paths: barsBuilder,

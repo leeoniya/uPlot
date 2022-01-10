@@ -8,7 +8,7 @@ import {
 } from './strings';
 
 import {
-	assign,
+	assign, ifNull,
 } from './utils';
 
 export const doc = document;
@@ -96,13 +96,16 @@ export function elColor(el, background, borderColor) {
 
 const sizeCache = new WeakMap();
 
-export function elSize(el, newSize) {
+export function elSize(el, newWid, newHgt, centered) {
+	let newSize = newWid + "" + newHgt;
 	let oldSize = sizeCache.get(el);
 
 	if (newSize != oldSize) {
 		sizeCache.set(el, newSize);
-		el.style.height = el.style.width = newSize + "px";
-		el.style.marginLeft = el.style.marginTop = -newSize/2 + "px";
+		el.style.height = newHgt + "px";
+		el.style.width = newWid + "px";
+		el.style.marginLeft = centered ? -newWid/2 + "px" : 0;
+		el.style.marginTop = centered ? -newHgt/2 + "px" : 0;
 	}
 }
 

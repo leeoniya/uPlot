@@ -114,6 +114,67 @@
 		</script>
 
 		<script>
+			const opts9 = {
+				title: "Gaps in stepped after",
+				width: 800,
+				height: 400,
+				scales: {
+					x: {
+						time: false,
+					}
+				},
+				series: [
+					{},
+					{
+						label: "A",
+						stroke: "blue",
+						width: 2,
+						paths: uPlot.paths.stepped({
+							align: 1,
+						//	ascDesc: true,
+						}),
+					},
+				],
+			};
+
+			let vals9 = [null,null,null,1,1,1,1,1,null,null,2,2,null,1,null,1,1,1,1,2,2,2];
+		//	let vals9 = [2,null,1,null,1,1];
+		//	let vals9 = [2,null,1];
+
+			const data9 = [
+				vals9.map((v, i) => i),
+				vals9,
+			];
+
+			let u9 = new uPlot(opts9, data9, document.body);
+
+			const opts9_2 = {
+				title: "Gaps in stepped before",
+				width: 800,
+				height: 400,
+				scales: {
+					x: {
+						time: false,
+					}
+				},
+				series: [
+					{},
+					{
+						label: "A",
+						stroke: "red",
+						width: 2,
+						paths: uPlot.paths.stepped({
+							align: -1,
+						//	ascDesc: true,
+						}),
+					},
+				],
+			};
+
+			let u9_2 = new uPlot(opts9_2, data9, document.body);
+		</script>
+
+		<script>
 			let tables10 = [
 				[
 					[1607676419481,1607680019481,1607683619481,1607687219481,1607690819481,1607694419481,1607698019481,1607698019482],

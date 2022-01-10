@@ -1,4 +1,4 @@
-import { abs, min, max, inf, ifNull, EMPTY_OBJ } from '../utils';
+import { abs, floor, min, max, inf, ifNull, EMPTY_OBJ } from '../utils';
 import { orient, rectV, rectH, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './utils';
 import { pxRatio } from '../dom';
 
@@ -8,12 +8,16 @@ export function bars(opts) {
 	const align = opts.align || 0;
 	const extraGap = (opts.gap || 0) * pxRatio;
 
+	const radius = ifNull(opts.radius, 0);
+
 	const gapFactor = 1 - size[0];
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
 	const minWidth  = ifNull(size[2], 1) * pxRatio;
 
-	const disp = opts.disp;
+	const disp = ifNull(opts.disp, EMPTY_OBJ);
 	const _each = ifNull(opts.each, _ => {});
+
+	const { fill: dispFills, stroke: dispStrokes } = disp;
 
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
@@ -32,20 +36,50 @@ export function bars(opts) {
 
 			let y0Pos = valToPosY(fillToY, scaleY, yDim, yOff);
 
+			// barWid is to center of stroke
 			let xShift, barWid;
 
 			let strokeWidth = pxRound(series.width * pxRatio);
 
-			if (disp != null) {
-				dataX = disp.x0.values(u, seriesIdx, idx0, idx1);
+			let multiPath = false;
 
-				if (disp.x0.unit == 2)
+			let fillColors = null;
+			let fillPaths = null;
+			let strokeColors = null;
+			let strokePaths = null;
+
+			if (dispFills != null && (strokeWidth == 0 || dispStrokes != null)) {
+				multiPath = true;
+
+				fillColors = dispFills.values(u, seriesIdx, idx0, idx1);
+				fillPaths = new Map();
+				(new Set(fillColors)).forEach(color => {
+					if (color != null)
+						fillPaths.set(color, new Path2D());
+				});
+
+				if (strokeWidth > 0) {
+					strokeColors = dispStrokes.values(u, seriesIdx, idx0, idx1);
+					strokePaths = new Map();
+					(new Set(strokeColors)).forEach(color => {
+						if (color != null)
+							strokePaths.set(color, new Path2D());
+					});
+				}
+			}
+
+			let { x0, size } = disp;
+
+			if (x0 != null && size != null) {
+				dataX = x0.values(u, seriesIdx, idx0, idx1);
+
+				if (x0.unit == 2)
 					dataX = dataX.map(pct => u.posToVal(xOff + pct * xDim, scaleX.key, true));
 
 				// assumes uniform sizes, for now
-				let sizes = disp.size.values(u, seriesIdx, idx0, idx1);
+				let sizes = size.values(u, seriesIdx, idx0, idx1);
 
-				if (disp.size.unit == 2)
+				if (size.unit == 2)
 					barWid = sizes[0] * xDim;
 				else
 					barWid = valToPosX(sizes[0], scaleX, xDim, xOff) - valToPosX(0, scaleX, xDim, xOff); // assumes linear scale (delta from 0)
@@ -86,7 +120,7 @@ export function bars(opts) {
 				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * extraGap / 2;
 			}
 
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
+			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
 
 			const hasBands = u.bands.length > 0;
 			let yLimit;
@@ -98,8 +132,17 @@ export function bars(opts) {
 				yLimit = pxRound(valToPosY(scaleY.max, scaleY, yDim, yOff));
 			}
 
-			const stroke = _paths.stroke;
+			const stroke = multiPath ? null : new Path2D();
 			const band = _paths.band;
+
+			let { y0, y1 } = disp;
+
+			let dataY0 = null;
+
+			if (y0 != null && y1 != null) {
+				dataY = y1.values(u, seriesIdx, idx0, idx1);
+				dataY0 = y0.values(u, seriesIdx, idx0, idx1);
+			}
 
 			for (let i = _dirX == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dirX) {
 				let yVal = dataY[i];
@@ -118,21 +161,35 @@ export function bars(opts) {
 
 				// TODO: all xPos can be pre-computed once for all series in aligned set
 				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
-				let yPos = valToPosY(yVal, scaleY, yDim, yOff);
+				let yPos = valToPosY(ifNull(yVal, fillToY), scaleY, yDim, yOff);
+
+				if (dataY0 != null && yVal != null)
+					y0Pos = valToPosY(dataY0[i], scaleY, yDim, yOff);
 
 				let lft = pxRound(xPos - xShift);
 				let btm = pxRound(max(yPos, y0Pos));
 				let top = pxRound(min(yPos, y0Pos));
+				// this includes the stroke
 				let barHgt = btm - top;
 
-				if (dataY[i] != null) {
-					rect(stroke, lft, top, barWid, barHgt);
+				let r = radius * barWid;
+
+				if (yVal != null) {  // && yVal != fillToY (0 height bar)
+					if (multiPath) {
+						if (strokeWidth > 0 && strokeColors[i] != null)
+							rect(strokePaths.get(strokeColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
+
+						if (fillColors[i] != null)
+							rect(fillPaths.get(fillColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
+					}
+					else
+						rect(stroke, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
 
 					each(u, seriesIdx, i,
 						lft    - strokeWidth / 2,
-						top    - strokeWidth / 2,
+						top,
 						barWid + strokeWidth,
-						barHgt + strokeWidth,
+						barHgt,
 					);
 				}
 
@@ -148,12 +205,14 @@ export function bars(opts) {
 
 					barHgt = btm - top;
 
-					rect(band, lft - strokeWidth / 2, top + strokeWidth / 2, barWid + strokeWidth, barHgt - strokeWidth);
+					rect(band, lft - strokeWidth / 2, top, barWid + strokeWidth, max(0, barHgt), 0);
 				}
 			}
 
-			if (series.fill != null)
-				_paths.fill = new Path2D(stroke);
+			if (strokeWidth > 0)
+				_paths.stroke = multiPath ? strokePaths : stroke;
+
+			_paths.fill = multiPath ? fillPaths : stroke;
 
 			return _paths;
 		});

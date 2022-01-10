@@ -10,36 +10,101 @@
 	</head>
 	<body>
 		<script>
+			const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
+
+		/*
+			// https://newbedev.com/javascript-math-random-normal-distribution-gaussian-bell-curve
+			function randn_bm(min, max, skew) {
+				let u = 0, v = 0;
+				while(u === 0) u = Math.random(); //Converting [0,1) to (0,1)
+				while(v === 0) v = Math.random();
+				let num = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+
+				num = num / 10.0 + 0.5; // Translate to 0 -> 1
+				if (num > 1 || num < 0) num = randn_bm(min, max, skew); // resample between 0 and 1 if out of range
+				num = Math.pow(num, skew); // Skew
+				num *= max - min; // Stretch to fill range
+				num += min; // offset to min
+				return num;
+			}
+		*/
+
+			// adapted from http://jsfiddle.net/Xotic750/3rfT6/
+			const boxMullerRandom = (function() {
+				let phase = 0,
+					random = Math.random,
+					x1, x2, w, z;
+
+				return () => {
+					if (!phase) {
+						do {
+							x1 = 2.0 * random() - 1.0;
+							x2 = 2.0 * random() - 1.0;
+							w = x1 * x1 + x2 * x2;
+						} while (w >= 1.0);
+
+						w = Math.sqrt((-2.0 * Math.log(w)) / w);
+						z = x1 * w;
+					} else {
+						z = x2 * w;
+					}
+
+					phase ^= 1;
+
+					return z;
+				}
+			}());
+
+			function randomWalk(steps, value = 0, min = -100, max = 100) {
+				steps = steps >>> 0 || 100;
+				let randFunc = boxMullerRandom;
+
+				let points = [], t;
+
+				for (t = 0; t < steps; t += 1) {
+					let extra = randFunc();
+					let newVal = value + extra;
+					
+					if (newVal > max || newVal < min)
+						value = clamp(value - extra, min, max);
+					else
+						value = newVal;
+					
+					points.push(value);
+				}
+
+				return points;
+			}
+		</script>
+		<script>
 			let now = Math.floor(Date.now()/1e3);
-			let shift = 0;
-
 			let length = 600;
+			let shift = length - 1;
 
-			let _1 = Array(length).fill(1);
-			let _2 = Array(length).fill(2);
-			let _3 = Array(length).fill(3);
-			let _4 = Array(length).fill(4);
-			let _5 = Array(length).fill(5);
+			function addRandData(data, howMany, min, max) {
+				let last = data[length - 1];
+				return data.slice(1).concat(randomWalk(howMany, last, min, max));
+			}
+
+			let xs = Array.from({length}, (v, i) => now + i * 60 * 5);
+			let sin = Array.from({length}, (v, i) => Math.sin(i / 16) * 5);
+			let _1 = randomWalk(600, -4, -6, 1);
+			let _2 = randomWalk(600, -2, -6, 1);
+			let _3 = randomWalk(600,  0, -2, 2);
+			let _4 = randomWalk(600,  2, -1, 6);
+			let _5 = randomWalk(600,  4, -1, 6);
 
 			let data = getData(shift);
 
-			function getData(min) {
-				let xs = [];
-				let ys = [];
-
-				for (let i = min; i < min + length; i++) {
-					xs.push(now + i * 60 * 5);
-					ys.push(Math.sin(i/16) * 5);
-				}
-
+			function getData(shift) {
 				return [
-					xs,
-					ys,
-					_1,
-					_2,
-					_3,
-					_4,
-					_5,
+					xs = xs.slice(1).concat(now + shift * 60 * 5),
+					sin = sin.slice(1).concat(Math.sin(shift / 16) * 5),
+					_1 = addRandData(_1, 1, -6, -1),
+					_2 = addRandData(_2, 1, -6, -1),
+					_3 = addRandData(_3, 1, -2,  2),
+					_4 = addRandData(_4, 1, -1,  6),
+					_5 = addRandData(_5, 1, -1,  6),
 				];
 			}
 

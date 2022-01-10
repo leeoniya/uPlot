@@ -1,0 +1,215 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Sparkline + Floating Bars + Gradients</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			let can = document.createElement("canvas");
+			let ctx = can.getContext("2d");
+
+			function scaleGradient(u, scaleKey, ori, scaleStops, discrete = false) {
+				let scale = u.scales[scaleKey];
+
+				// we want the stop below or at the scaleMax
+				// and the stop below or at the scaleMin, else the stop above scaleMin
+				let minStopIdx;
+				let maxStopIdx;
+
+				for (let i = 0; i < scaleStops.length; i++) {
+					let stopVal = scaleStops[i][0];
+
+					if (stopVal <= scale.min || minStopIdx == null)
+						minStopIdx = i;
+
+					maxStopIdx = i;
+
+					if (stopVal >= scale.max)
+						break;
+				}
+
+				if (minStopIdx == maxStopIdx)
+					return scaleStops[minStopIdx][1];
+
+				let minStopVal = scaleStops[minStopIdx][0];
+				let maxStopVal = scaleStops[maxStopIdx][0];
+
+				if (minStopVal == -Infinity)
+					minStopVal = scale.min;
+
+				if (maxStopVal == Infinity)
+					maxStopVal = scale.max;
+
+				let minStopPos = u.valToPos(minStopVal, scaleKey, true);
+				let maxStopPos = u.valToPos(maxStopVal, scaleKey, true);
+
+				let range = minStopPos - maxStopPos;
+
+				let x0, y0, x1, y1;
+
+				if (ori == 1) {
+					x0 = x1 = 0;
+					y0 = minStopPos;
+					y1 = maxStopPos;
+				}
+				else {
+					y0 = y1 = 0;
+					x0 = minStopPos;
+					x1 = maxStopPos;
+				}
+
+				let grd = ctx.createLinearGradient(x0, y0, x1, y1);
+
+				let prevColor;
+
+				for (let i = minStopIdx; i <= maxStopIdx; i++) {
+					let s = scaleStops[i];
+
+					let stopPos = i == minStopIdx ? minStopPos : i == maxStopIdx ? maxStopPos : u.valToPos(s[0], scaleKey, true);
+					let pct = (minStopPos - stopPos) / range;
+
+					if (discrete && i > minStopIdx)
+						grd.addColorStop(pct, prevColor);
+
+					grd.addColorStop(pct, prevColor = s[1]);
+				}
+
+				return grd;
+			}
+
+
+			let data = [
+				[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+				[5, -5, 0, 1, 5, 9, 10, 15, 5, -10, -15, -20, -20, -5, 0, 5],
+			];
+
+			// bar lows & highs
+			data.push(data[1].map(v => v - 5));
+			data.push(data[1].map(v => v + 5));
+
+
+			let opts = {
+				width: 800,
+				height: 400,
+				drawOrder: ["series", "axes"],
+				cursor: {show: false},
+				select: {show: false},
+				legend: {show: false},
+				scales: {
+					x: {
+						time: false
+					},
+					y: {
+						range: (u, dataMin, dataMax) => [dataMin, dataMax],
+					}
+				},
+				axes: [
+					{
+						show: false,
+					},
+					{
+						size: 0,
+						splits: [0],
+						ticks: {
+							show: false,
+						},
+						grid: {
+							width: 1,
+							stroke: "gray",
+							dash: [3, 3],
+						}
+					}
+				],
+				series: [
+					{},
+					{
+						points: {
+							show: false,
+						},
+						fill: (u, seriesIdx) => {
+							let s = u.series[seriesIdx];
+							let sc = u.scales[s.scale];
+
+							return scaleGradient(u, s.scale, 1, [
+								[sc.min, "red"],
+								[     0, "white"],
+								[sc.max, "green"],
+							]);
+						},
+						stroke: (u, seriesIdx) => {
+							let s = u.series[seriesIdx];
+							let sc = u.scales[s.scale];
+
+							return scaleGradient(u, s.scale, 1, [
+								[sc.min, "red"],
+								[     0, "green"],
+							], 1, true);
+						},
+					},
+					{
+						width: 0,
+						points: {
+							show: false,
+						},
+						fill: (u, seriesIdx) => {
+							let s = u.series[seriesIdx];
+							let sc = u.scales[s.scale];
+
+							return scaleGradient(u, s.scale, 1, [
+								[sc.min, "red"],
+								[     0, "green"],
+							], 1, true);
+						},
+						paths: uPlot.paths.bars({
+							disp: {
+								// bar lows
+								y0: {
+									unit: 1,
+									values: (u, seriesIdx) => u.data[2],
+								},
+								// bar highs
+								y1: {
+									unit: 1,
+									values: (u, seriesIdx) => u.data[3],
+								},
+							}
+						})
+					}
+				],
+			};
+
+			let u = new uPlot(opts, data, document.body);
+
+			// with explicit bar colors
+			let opts2 = uPlot.assign({}, opts);
+			opts2.series[2].fill = null;
+			opts2.series[2].paths = uPlot.paths.bars({
+				disp: {
+					// bar lows
+					y0: {
+						unit: 1,
+						values: (u, seriesIdx) => u.data[2],
+					},
+					// bar highs
+					y1: {
+						unit: 1,
+						values: (u, seriesIdx) => u.data[3],
+					},
+					fill: {
+						unit: 3,
+						values: (u, seriesIdx) => u.data[2].map((v, i) => {
+							return v < 0 || u.data[3][i] < 0 ? "red" : "green";
+						})
+					}
+				}
+			});
+
+			let u2 = new uPlot(opts2, data, document.body);
+		</script>
+	</body>
+</html>

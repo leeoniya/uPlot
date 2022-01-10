@@ -10,6 +10,7 @@ A small ([~40 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.i
 <h3 align="center">166,650 point bench: <a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">https://leeoniya.github.io/uPlot/bench/uPlot.html</a></h3>
 
 However, if you need 60fps performance with massive streaming datasets, uPlot [can only get you so far](https://huww98.github.io/TimeChart/docs/performance).
+If you decide to venture into this realm with uPlot, make sure to [unclog your rendering pipeline](#unclog-your-rendering-pipeline).
 WebGL should still be the tool of choice for applications like realtime signal or waveform visualizations:
 See [danchitnis/webgl-plot](https://github.com/danchitnis/webgl-plot), [huww98/TimeChart](https://github.com/huww98/TimeChart), [epezent/implot](https://github.com/epezent/implot), or commercial products like [LightningChart®](https://www.arction.com/lightningchart-js/).
 
@@ -122,6 +123,38 @@ TODO (all of these use SVG, so performance should be similar to Highcharts):
   - dc.js
   - MetricsGraphics
   - rickshaw
+
+---
+### Unclog your rendering pipeline
+
+Your browser's performance is highly dependent on your hardware, operating system, and GPU drivers.
+
+If you're using a Chromium-based browser, there are some hidden settings that can unlock significant performance improvements for Canvas2D rendering.
+Most of these have to do with where and how the rasterization is performed.
+
+Head over to https://leeoniya.github.io/uPlot/demos/sine-stream.html and open up Chrome's DevTools (F12), then toggle the Performance Monitor.
+
+![Chrome DevTools Peformance Monitor](img/chrome-perf-monitor.png "Chrome DevTools Peformance Monitor")
+
+For me:
+
+- On Windows 10 Desktop, Core i7-8700, 16GB RAM, AMD RX480 GPU, 2048 x 1080 resolution = 57% CPU usage
+- On Manjaro Laptop (Arch Linux), AMD Ryzen 7 PRO 5850U, 48GB RAM, AMD Radeon RX Vega 8 (integrated GPU), 4K resolution = **99% CPU usage**
+
+If your CPU is close to 100%, it may be rasterizing everything in the same CPU process.
+
+Pop open `chrome://gpu` and see what's orange or red.
+
+![Chrome gpu](img/chrome-gpu.png "Chrome gpu")
+
+Then open `chrome://flags` and search for "raster" to see what can be force-enabled.
+
+![Chrome flags](img/chrome-flags.png "Chrome flags")
+
+- On my Manjaro/Ryzen/Integrated GPU setup, force-enabling `Canvas out-of-process rasterization` resulted in a dramatic framerate improvement.
+- On my Windows/i7/Dedicated GPU setup, toggling the same flags moved the work to another process (still good), but did not have a significant framerate impact.
+
+YMMV!
 
 ---
 ### Acknowledgements

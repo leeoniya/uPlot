@@ -26,9 +26,8 @@
 				color: silver;
 			}
 
-			.bar-mark {
-				position: absolute;
-				background: rgba(255,255,255, 0.3);
+			.u-cursor-pt {
+				border-radius: 13px;
 			}
 		</style>
 	</head>
@@ -39,7 +38,7 @@
 		<script src="./grouped-bars.js"></script>
 
 		<script>
-			function makeChart(o, d) {
+			function makeChart(o, d, enabled) {
 				let ori = o.ori;
 				let dir = o.dir;
 
@@ -72,42 +71,55 @@
 							label: "Lib Size (KB)",
 							fill: "#33BB55",
 							scale: 'size',
+							width: 0,
 						},
 						{
 							label:	"Render Time (ms)",
 							fill: "#B56FAB",
 							scale: 'rend',
+							width: 0,
 						},
 						{
 							label:	"Peak Heap (MB)",
 							fill: "#BB1133",
 							scale: 'mem',
+							width: 0,
 						},
 						{
 							label:	"Final Heap (MB)",
 							fill: "#F79420",
 							scale: 'mem',
+							width: 0,
 						},
 						{
 							label:	"Interact 10s (ms)",
 							fill: "#558AB5",
 							scale: 'inter',
+							width: 0,
 						},
 						{
 							label:	"Toggle 6x (ms)",
 							fill: "#FAD55C",
 							scale: 'toggle',
+							width: 0,
+						},
+						{
+							label: "Random line",
+							stroke:  "purple",
+							scale: 'rend',
+							width: 2,
 						},
 					],
 					plugins: [
 						seriesBarsPlugin({
+							ignore: [7],
 							ori,
 							dir,
 						}),
 					],
 				};
 
-				const enabled = Array(d.length).fill(true);
+				enabled = enabled ?? Array(d.length).fill(true);
 
 				function makeData() {
 					return [
@@ -118,6 +130,8 @@
 						d.filter((lib, i) => enabled[i]).map(lib => lib[4][1]),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[5] && lib[5].reduce((total, num) => total + num, 0)),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[6] && lib[6].reduce((total, num) => total + num, 0)),
+						// random line
+						d.filter((lib, i) => enabled[i]).map(lib => 3e3 + Math.round(Math.random() * 1e3)),
 					];
 				}
 
@@ -143,9 +157,150 @@
 			}
 
 			fetch("../bench/results.json").then(r => r.json()).then(d => {
+			//	makeChart({ori: 0, dir:  1}, d, [true]);
 				makeChart({ori: 0, dir:  1}, d);
 				makeChart({ori: 1, dir: -1}, d);
 			});
+		</script>
+
+		<script>
+			function makeChart2(d) {
+				const opts = {
+					width:  800,
+					height: 400,
+					title: "Variable bar colors",
+					padding: [null, 0, null, 0],
+					axes: [
+						{},
+						{
+							values: (u, splits) => splits.map(s => s + "s"),
+						},
+					],
+					series: [
+						{
+							label: "Build #",
+							value: (u, v) => v
+						},
+						{
+							label: "Server #SNAFU",
+							width: 2,
+							fill: "#33BB55A0",
+							values: (u, seriesIdx) => {
+								let idxs = u.legend.idxs;
+
+								if (u.data == null || idxs.length == 0 || idxs[seriesIdx] == null)
+									return {"Build": null, "Duration": null, "Status": null};
+
+								let dataIdx = idxs[seriesIdx];
+
+								let build = u.data[0][dataIdx];
+								let duration = u.data[seriesIdx][dataIdx];
+								let status = u.data[seriesIdx + 1][dataIdx];
+
+								return {"Build": build, "Duration": duration, "Status": status};
+							}
+						},
+					/*
+						{
+							label: "Status",
+							fill: "",
+							value: (u, v) => v == 0 ? "Success" : v == 1 ? "Pending" : "Failed"
+						},
+					*/
+					],
+					plugins: [
+						seriesBarsPlugin({
+							which: [1],
+							ori: 0,
+							dir: 1,
+							radius: 0.5,
+							disp: {
+								stroke: {
+									unit: 3,
+									values: (u, seriesIdx) => u.data[2].map(v =>
+										v == 0 ? "#33BB55" :
+										v == 1 ? "#F79420" :
+										         "#BB1133"
+									),
+								},
+								fill: {
+									unit: 3,
+									values: (u, seriesIdx) => u.data[2].map(v =>
+										v == 0 ? "#33BB55A0" :
+										v == 1 ? "#F79420A0" :
+										         "#BB1133A0"
+									),
+								}
+							}
+						}),
+					],
+				};
+
+				let u = new uPlot(opts, d, document.body);
+			}
+
+			let labels = "abcdefghijklmnopqrstuvwxyz".split("");
+
+			let data = [
+				labels, // labels
+				labels.map(_ => {
+					let v = Math.round(Math.random() * 100);
+					return v * (v % 3 == 0 ? -1 : 1);
+				}), // y values
+				labels.map((_, i) =>
+					i % 12 == 0 ? 1 :
+					i % 10 == 0 ? 2 :
+					0
+				), // statuses
+			];
+
+			makeChart2(data);
+
+
+			let opts9 = {
+				title: "Non-justified bars",
+				width:  800,
+				height: 400,
+				scales: {
+					x: {
+						time: false
+					}
+				},
+				series: [
+					{},
+					{
+						label: "Server #SNAFU",
+						width: 1,
+						stroke: "red",
+						paths: uPlot.paths.bars({
+							disp: {
+								stroke: {
+									unit: 3,
+									values: (u, seriesIdx) => u.data[2].map(v =>
+										v == 0 ? "#33BB55" :
+										v == 1 ? "#F79420" :
+										         "#BB1133"
+									),
+								},
+								fill: {
+									unit: 3,
+									values: (u, seriesIdx) => u.data[2].map(v =>
+										v == 0 ? "#33BB55A0" :
+										v == 1 ? "#F79420A0" :
+										         "#BB1133A0"
+									),
+								}
+							}
+						})
+					},
+				],
+			};
+
+			new uPlot(opts9, [
+				data[0].map((v, i)=> i),
+				data[1],
+				data[2]
+			], document.body);
 		</script>
 	</body>
 </html>

@@ -1,4 +1,4 @@
-import { round, incrRound, retArg0, nonNullIdx } from "../utils";
+import { round, incrRound, retArg0, nonNullIdx, min } from "../utils";
 
 export const BAND_CLIP_FILL   = 1 << 0;
 export const BAND_CLIP_STROKE = 1 << 1;
@@ -112,13 +112,17 @@ export function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
 			let g = gaps[i];
 
 			if (g[1] > g[0]) {
-				rect(clip, prevGapEnd, plotTop, g[0] - prevGapEnd, plotTop + plotHgt);
+				let w = g[0] - prevGapEnd;
+
+				w > 0 && rect(clip, prevGapEnd, plotTop, w, plotTop + plotHgt);
 
 				prevGapEnd = g[1];
 			}
 		}
 
-		rect(clip, prevGapEnd, plotTop, plotLft + plotWid - prevGapEnd, plotTop + plotHgt);
+		let w = plotLft + plotWid - prevGapEnd;
+
+		w > 0 && rect(clip, prevGapEnd, plotTop, w, plotTop + plotHgt);
 	}
 
 	return clip;
@@ -148,14 +152,44 @@ export function costlyLerp(i, idx0, idx1, _dirX, dataY) {
 	return prevVal + (i - prevNonNull) / (nextNonNull - prevNonNull) * (nextVal - prevVal);
 }
 
+function rect(ori) {
+	let moveTo = ori == 0 ?
+		moveToH :
+		moveToV;
+
+	let arcTo = ori == 0 ?
+		(p, x1, y1, x2, y2, r) => { p.arcTo(x1, y1, x2, y2, r) } :
+		(p, y1, x1, y2, x2, r) => { p.arcTo(x1, y1, x2, y2, r) };
+
+	let rect = ori == 0 ?
+		(p, x, y, w, h) => { p.rect(x, y, w, h); } :
+		(p, y, x, h, w) => { p.rect(x, y, w, h); };
+
+	return (p, x, y, w, h, r = 0) => {
+		if (r == 0)
+			rect(p, x, y, w, h);
+		else {
+			r = min(r, w / 2, h / 2);
+
+			// adapted from https://stackoverflow.com/questions/1255512/how-to-draw-a-rounded-rectangle-using-html-canvas/7838871#7838871
+			moveTo(p, x + r, y);
+			arcTo(p, x + w, y, x + w, y + h, r);
+			arcTo(p, x + w, y + h, x, y + h, r);
+			arcTo(p, x, y + h, x, y, r);
+			arcTo(p, x, y, x + w, y, r);
+			p.closePath();
+		}
+	};
+}
+
 // orientation-inverting canvas functions
-export function moveToH(p, x, y) { p.moveTo(x, y); }
-export function moveToV(p, y, x) { p.moveTo(x, y); }
-export function lineToH(p, x, y) { p.lineTo(x, y); }
-export function lineToV(p, y, x) { p.lineTo(x, y); }
-export function rectH(p, x, y, w, h) { p.rect(x, y, w, h); }
-export function rectV(p, y, x, h, w) { p.rect(x, y, w, h); }
-export function arcH(p, x, y, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
-export function arcV(p, y, x, r, startAngle, endAngle) { p.arc(x, y, r, startAngle, endAngle); }
-export function bezierCurveToH(p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };
-export function bezierCurveToV(p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };
+export const moveToH = (p, x, y) => { p.moveTo(x, y); }
+export const moveToV = (p, y, x) => { p.moveTo(x, y); }
+export const lineToH = (p, x, y) => { p.lineTo(x, y); }
+export const lineToV = (p, y, x) => { p.lineTo(x, y); }
+export const rectH = rect(0);
+export const rectV = rect(1);
+export const arcH = (p, x, y, r, startAngle, endAngle) => { p.arc(x, y, r, startAngle, endAngle); }
+export const arcV = (p, y, x, r, startAngle, endAngle) => { p.arc(x, y, r, startAngle, endAngle); }
+export const bezierCurveToH = (p, bp1x, bp1y, bp2x, bp2y, p2x, p2y) => { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };
+export const bezierCurveToV = (p, bp1y, bp1x, bp2y, bp2x, p2y, p2x) => { p.bezierCurveTo(bp1x, bp1y, bp2x, bp2y, p2x, p2y); };
