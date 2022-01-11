@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Sparse Data</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			.uplot {
+				margin: 10px;
+				border: 1px solid silver;
+			}
+		</style>
+	</head>
+	<body>
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+
+			let opts1 = {
+				title: "Native linear pathBuilder",
+				width: 800,
+				height: 200,
+				cursor: {
+					sync: {
+						key: 0,
+					},
+				},
+				scales: {
+					x: {
+						time: false
+					},
+					y: {
+						range: [100, 350]
+					}
+				},
+				series: [
+					{},
+					{
+						stroke: "red",
+						spanGaps: false,
+					}
+				],
+			};
+
+			let opts2 = {
+				title: "Custom points pathBuilder",
+				width: 800,
+				height: 200,
+				cursor: {
+					sync: {
+						key: 0,
+					},
+				},
+				scales: {
+					x: {
+						time: false
+					},
+					y: {
+						range: [100, 350]
+					}
+				},
+				series: [
+					{},
+					{
+						width: 0,
+						stroke: "red",
+						spanGaps: false,
+						points: {
+							show: true,
+							fill: "red",
+							paths: (u, seriesIdx, idx0, idx1) => {
+								let fill = new Path2D();
+
+								let xData = u.data[0];
+								let yData = u.data[1];
+
+								for (let i = idx0; i <= idx1; i++) {
+									if (yData[i] != null && yData[i] >= u.scales.y.min && yData[i] <= u.scales.y.max) {
+										let x = u.valToPos(xData[i], 'x', true);
+										let y = u.valToPos(yData[i], 'y', true);
+
+										fill.rect(Math.round(x) - 1, Math.round(y) - 1, 2, 2);
+									}
+								}
+
+								return { fill };
+							},
+						},
+					}
+				],
+			};
+
+			let opts3 = {
+				title: "Custom linear pathBuilder - naive w/moveTo()",
+				width: 800,
+				height: 200,
+				cursor: {
+					sync: {
+						key: 0,
+					},
+				},
+				scales: {
+					x: {
+						time: false
+					},
+					y: {
+						range: [100, 350]
+					}
+				},
+				series: [
+					{},
+					{
+						stroke: "red",
+						spanGaps: false,
+						paths: (u, seriesIdx, idx0, idx1) => {
+							let stroke = new Path2D();
+
+							let xData = u.data[0];
+							let yData = u.data[1];
+
+							for (let i = idx0; i <= idx1; i++) {
+								if (yData[i] != null) {
+									let x = u.valToPos(xData[i], 'x', true);
+									let y = u.valToPos(yData[i], 'y', true);
+
+									if (i == 0 || yData[i-1] == null)
+										stroke.moveTo(Math.round(x), Math.round(y));
+									else
+										stroke.lineTo(Math.round(x), Math.round(y));
+								}
+							}
+
+							return { stroke };
+						},
+					}
+				],
+			};
+
+			fetch('./data/sparse.json').then(r => r.json()).then(data => {
+				let u1 = new uPlot(opts1, data, document.body);
+				let u2 = new uPlot(opts2, data, document.body);
+				let u3 = new uPlot(opts3, data, document.body);
+			});
+		</script>
+	</body>
+</html>
