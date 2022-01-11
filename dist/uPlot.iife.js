@@ -1219,15 +1219,24 @@ var uPlot = (function () {
 		idxs: null,
 	};
 
-	const grid = {
+	const axisLines = {
 		show: true,
 		stroke: "rgba(0,0,0,0.07)",
 		width: 2,
 	//	dash: [],
-		filter: retArg1,
 	};
 
-	const ticks = assign({}, grid, {size: 10});
+	const grid = assign({}, axisLines, {
+		filter: retArg1,
+	});
+
+	const ticks = assign({}, grid, {
+		size: 10,
+	});
+
+	const border = assign({}, axisLines, {
+		show: false,
+	});
 
 	const font      = '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
 	const labelFont = "bold " + font;
@@ -1250,6 +1259,7 @@ var uPlot = (function () {
 	//	filter: retArg1,
 		grid,
 		ticks,
+		border,
 		font,
 		rotate: 0,
 	};
@@ -1379,6 +1389,7 @@ var uPlot = (function () {
 	//	filter: retArg1,
 		grid,
 		ticks,
+		border,
 		font,
 		rotate: 0,
 	};
@@ -3171,9 +3182,10 @@ var uPlot = (function () {
 				axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? wholeIncrs : (isTime ? (ms == 1 ? timeIncrsMs : timeIncrsS) : numIncrs)));
 				axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : sc.distr == 4 ? asinhAxisSplits : numAxisSplits));
 
-				axis.stroke       = fnOrSelf(axis.stroke);
-				axis.grid.stroke  = fnOrSelf(axis.grid.stroke);
-				axis.ticks.stroke = fnOrSelf(axis.ticks.stroke);
+				axis.stroke        = fnOrSelf(axis.stroke);
+				axis.grid.stroke   = fnOrSelf(axis.grid.stroke);
+				axis.ticks.stroke  = fnOrSelf(axis.ticks.stroke);
+				axis.border.stroke = fnOrSelf(axis.border.stroke);
 
 				let av = axis.values;
 
@@ -3931,6 +3943,7 @@ var uPlot = (function () {
 				let incr   = scale.distr == 2 ? data0[_splits[1]] - data0[_splits[0]] : _incr;
 
 				let ticks = axis.ticks;
+				let border = axis.border;
 				let tickSize = ticks.show ? round(ticks.size * pxRatio) : 0;
 
 				// rotating of labels only supported on bottom x axis
@@ -4019,6 +4032,21 @@ var uPlot = (function () {
 						grid.stroke(self, i),
 						grid.dash,
 						grid.cap,
+					);
+				}
+
+				if (border.show) {
+					drawOrthoLines(
+						[basePos],
+						[1],
+						ori == 0 ? 1 : 0,
+						ori == 0 ? 1 : 2,
+						ori == 1 ? plotTop : plotLft,
+						ori == 1 ? plotHgt : plotWid,
+						roundDec(border.width * pxRatio, 3),
+						border.stroke(self, i),
+						border.dash,
+						border.cap,
 					);
 				}
 			}

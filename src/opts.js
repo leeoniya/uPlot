@@ -458,15 +458,24 @@ export const cursorOpts = {
 	idxs: null,
 };
 
-const grid = {
+const axisLines = {
 	show: true,
 	stroke: "rgba(0,0,0,0.07)",
 	width: 2,
 //	dash: [],
-	filter: retArg1,
 };
 
-const ticks = assign({}, grid, {size: 10});
+const grid = assign({}, axisLines, {
+	filter: retArg1,
+});
+
+const ticks = assign({}, grid, {
+	size: 10,
+});
+
+const border = assign({}, axisLines, {
+	show: false,
+});
 
 const font      = '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
 const labelFont = "bold " + font;
@@ -489,6 +498,7 @@ export const xAxisOpts = {
 //	filter: retArg1,
 	grid,
 	ticks,
+	border,
 	font,
 	rotate: 0,
 };
@@ -618,6 +628,7 @@ export const yAxisOpts = {
 //	filter: retArg1,
 	grid,
 	ticks,
+	border,
 	font,
 	rotate: 0,
 };

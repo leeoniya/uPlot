@@ -927,12 +927,9 @@ declare namespace uPlot {
 
 		export type Rotate = number | ((self: uPlot, values: (string | number)[], axisIdx: number, foundSpace: number) => number);
 
-		export interface Grid {
+		interface OrthoLines {
 			/** on/off */
 			show?: boolean; // true
-
-			/** can filter which splits render lines. e.g splits.map(v => v % 2 == 0 ? v : null) */
-			filter?: Filter;
 
 			/** line color */
 			stroke?: Stroke;
@@ -947,7 +944,16 @@ declare namespace uPlot {
 			cap?: Series.Cap;
 		}
 
-		export interface Ticks extends Grid {
+		export interface Border extends OrthoLines {};
+
+		interface FilterableOrthoLines extends OrthoLines {
+			/** can filter which splits render lines. e.g splits.map(v => v % 2 == 0 ? v : null) */
+			filter?: Filter;
+		}
+
+		export interface Grid extends FilterableOrthoLines {}
+
+		export interface Ticks extends FilterableOrthoLines {
 			/** length of tick in CSS pixels */
 			size?: number;
 		}
@@ -1013,6 +1019,9 @@ declare namespace uPlot {
 
 		/** ticks to draw from this axis' splits */
 		ticks?: Axis.Ticks;
+
+		/** axis border/edge rendering */
+		border?: Axis.Border;
 	}
 
 	export namespace Hooks {
