@@ -3399,7 +3399,7 @@ function uPlot(opts, data, then) {
 					wsc.min = minMax[0];
 					wsc.max = minMax[1];
 				}
-				else if (wsc.auto(self, viaAutoScaleX)) {
+				else {
 					wsc.min = inf;
 					wsc.max = -inf;
 				}
@@ -3463,7 +3463,7 @@ function uPlot(opts, data, then) {
 				let wsc = wipScales[k];
 				let psc = pendScales[k];
 
-				if (wsc.auto(self, viaAutoScaleX) && wsc.from == null && (psc == null || psc.min == null)) {
+				if (wsc.from == null && (psc == null || psc.min == null)) {
 					let minMax = wsc.range(
 						self,
 						wsc.min ==  inf ? null : wsc.min,
