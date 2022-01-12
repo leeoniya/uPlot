@@ -241,6 +241,22 @@
 				pxRatio = devicePixelRatio;
 			}
 
+			function guardedRange(u, min, max) {
+				if (max == min) {
+					if (min == null) {
+						min = 0;
+						max = 100;
+					}
+					else {
+						let delta = Math.abs(max) || 100;
+						max += delta;
+						min -= delta;
+					}
+				}
+
+				return [min, max];
+			}
+
 			setPxRatio();
 
 			window.addEventListener('dppxchange', setPxRatio);
@@ -274,13 +290,13 @@
 					//	auto: false,
 					//	range: [0, 500],
 						// remove any scale padding, use raw data limits
-						range: (u, min, max) => [min, max],
+						range: guardedRange,
 					},
 					y: {
 					//	auto: false,
 					//	range: [0, 500],
 						// remove any scale padding, use raw data limits
-						range: (u, min, max) => [min, max],
+						range: guardedRange,
 					},
 				},
 				series: [
@@ -501,19 +517,19 @@
 					//	range: [0, 500],
 
 						// remove any scale padding, use raw data limits
-						range: (u, min, max) => [min, max],
+						range: guardedRange,
 					},
 					y: {
 					//	auto: false,
 					//	range: [0, 500],
 
 						// remove any scale padding, use raw data limits
-						range: (u, min, max) => [min, max],
+						range: guardedRange,
 					},
 					y2: {
 						dir: 1,
 						ori: 1,
-						range: (u, min, max) => [min, max],
+						range: guardedRange,
 					}
 				},
 				series: [
