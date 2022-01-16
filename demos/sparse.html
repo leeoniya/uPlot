@@ -16,6 +16,7 @@
 	<body>
 		<script type="module">
 			import uPlot from "../dist/uPlot.esm.js";
+			import { linear2 } from "./issue-647-demo.js";
 
 			let opts1 = {
 				title: "Native linear pathBuilder",
@@ -113,6 +114,7 @@
 					{
 						stroke: "red",
 						spanGaps: false,
+						points: { show: false },
 						paths: (u, seriesIdx, idx0, idx1) => {
 							let stroke = new Path2D();
 
@@ -137,10 +139,37 @@
 				],
 			};
 
+			let opts4 = {
+				title: "Custom linear pathBuilder - murphycj implementation",
+				width: 800,
+				height: 200,
+				cursor: {
+					sync: {
+						key: 0,
+					},
+				},
+				scales: {
+					x: {
+						time: false
+					},
+					y: {
+						range: [100, 350]
+					}
+				},
+				series: [
+					{},
+					{
+						stroke: "red",
+						paths: linear2(),
+					}
+				],
+			};
+
 			fetch('./data/sparse.json').then(r => r.json()).then(data => {
 				let u1 = new uPlot(opts1, data, document.body);
 				let u2 = new uPlot(opts2, data, document.body);
 				let u3 = new uPlot(opts3, data, document.body);
+				let u4 = new uPlot(opts4, data, document.body);
 			});
 		</script>
 	</body>
