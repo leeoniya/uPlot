@@ -26,9 +26,8 @@
 				color: silver;
 			}
 
-			.bar-mark {
-				position: absolute;
-				background: rgba(0,0,0,0.3);
+			.u-cursor-pt {
+				border-radius: 0;
 			}
 
 			.uplot {
@@ -232,13 +231,6 @@
 				}
 
 				let qt;
-
-				let hoverMarks = Array(count).fill(null).map(_ => {
-					let mark = document.createElement("div");
-					mark.classList.add("bar-mark");
-					return mark;
-				});
-
 				let hovered = Array(count).fill(null);
 
 				let yMids = Array(count).fill(0);
@@ -250,14 +242,6 @@
 				return {
 					hooks: {
 						init: u => {
-							let over = u.over;
-
-							over.style.overflow = "hidden";
-
-							hoverMarks.forEach(m => {
-								over.appendChild(m);
-							});
-
 							legendTimeValueEl = u.root.querySelector('.u-series:first-child .u-value');
 						},
 						drawClear: u => {
@@ -271,39 +255,6 @@
 							});
 						},
 						setCursor: u => {
-							let cx = round(u.cursor.left * pxRatio);
-
-							for (let i = 0; i < count; i++) {
-								let found = null;
-
-								if (cx >= 0) {
-									let cy = yMids[i];
-
-									qt.get(cx, cy, 1, 1, o => {
-										if (pointWithin(cx, cy, o.x, o.y, o.x + o.w, o.y + o.h))
-											found = o;
-									});
-								}
-
-								let h = hoverMarks[i];
-
-								if (found) {
-									if (found != hovered[i]) {
-										hovered[i] = found;
-
-										h.style.display = null;
-										h.style.left    = round(found.x / pxRatio) + "px";
-										h.style.top     = round(found.y / pxRatio) + "px";
-										h.style.width   = round(found.w / pxRatio) + "px";
-										h.style.height  = round(found.h / pxRatio) + "px";
-									}
-								}
-								else if (hovered[i] != null) {
-									h.style.display = "none";
-									hovered[i] = null;
-								}
-							}
-
 							if (mode == 1) {
 								let val = u.posToVal(u.cursor.left, 'x');
 								legendTimeValueEl.textContent = u.scales.x.time ? fmtDate(new Date(val * 1e3)) : val.toFixed(2);
@@ -316,9 +267,38 @@
 							//	x: false,
 								y: false,
 								points: {show: false},
-								dataIdx: (u, seriesIdx, closestIdx, xValue) => (
-									seriesIdx == 0 ? closestIdx : hovered[seriesIdx - 1]?.didx
-								),
+								dataIdx: (u, seriesIdx, closestIdx, xValue) => {
+									if (seriesIdx == 0)
+										return closestIdx;
+
+									let cx = round(u.cursor.left * pxRatio);
+
+									if (cx >= 0) {
+										let cy = yMids[seriesIdx - 1];
+
+										hovered[seriesIdx - 1] = null;
+
+										qt.get(cx, cy, 1, 1, o => {
+											if (pointWithin(cx, cy, o.x, o.y, o.x + o.w, o.y + o.h))
+												hovered[seriesIdx - 1] = o;
+										});
+									}
+
+									return hovered[seriesIdx - 1]?.didx;
+								},
+								points: {
+									fill: "rgba(0,0,0,0.3)",
+									bbox: (u, seriesIdx) => {
+										let hRect = hovered[seriesIdx - 1];
+
+										return {
+											left:   hRect ? round(hRect.x / devicePixelRatio) : -10,
+											top:    hRect ? round(hRect.y / devicePixelRatio) : -10,
+											width:  hRect ? round(hRect.w / devicePixelRatio) : 0,
+											height: hRect ? round(hRect.h / devicePixelRatio) : 0,
+										};
+									}
+								}
 							},
 							scales: {
 								x: {
