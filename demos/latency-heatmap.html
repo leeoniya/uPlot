@@ -129,7 +129,7 @@
 			console.time("rawData");
 			let raw = rawData();
 			console.timeEnd("rawData");
-	//		console.log(raw);
+		//	console.log(raw);
 
 			let data = [
 				raw[0],
@@ -145,7 +145,7 @@
 							const { ctx, data } = u;
 
 							let yData = data[3];
-							
+
 							ctx.save()
 							ctx.beginPath();
 							ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
@@ -175,7 +175,7 @@
 			const opts = {
 				width: 1800,
 				height: 600,
-				title: "Latency Heatmap (~20k)",
+				title: "Latency Heatmap (~35k)",
 				plugins: [
 					heatmapPlugin(),
 				],
@@ -252,7 +252,7 @@
 
 							// pre-calc rect height since we know the aggregation bucket
 							let yHgt = Math.floor(u.valToPos(bucketIncr, 'y', true) - u.valToPos(0, 'y', true));
-							
+
 							ctx.save()
 							ctx.beginPath();
 							ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
@@ -312,8 +312,283 @@
 			};
 
 			let u2 = new uPlot(opts2, data2, document.body);
+		</script>
+
+		<script>
+			function heatmap(xs, ys, opts) {
+				let xBinIncr = opts.x.binSize;
+				let yBinIncr = opts.y.binSize;
+				// sortedX?
+
+				let len = xs.length;
+
+				// find x and y limits to pre-compute buckets struct
+				let minX = Infinity;
+				let minY = Infinity;
+				let maxX = -Infinity;
+				let maxY = -Infinity;
+
+				for (let i = 0; i < len; i++) {
+					if (xs[i] != null) {
+						minX = Math.min(minX, xs[i]);
+						maxX = Math.max(maxX, xs[i]);
+					}
+
+					if (ys[i] != null) {
+						minY = Math.min(minY, ys[i]);
+						maxY = Math.max(maxY, ys[i]);
+					}
+				}
+
+				let minXBin = opts.x.bin(minX);
+				let maxXBin = opts.x.bin(maxX);
+				let minYBin = opts.y.bin(minY);
+				let maxYBin = opts.y.bin(maxY);
+
+				let xBinQty = (maxXBin - minXBin) / xBinIncr + 1;
+				let yBinQty = (maxYBin - minYBin) / yBinIncr + 1;
+
+			/*
+				let counts = Array(xBinQty * yBinQty).fill(0);
+
+				for (let i = 0; i < len; i++) {
+					if (xs[i] != null && ys[i] != null) {
+						let xi = (opts.x.bin(xs[i]) - minXBin) / xBinIncr;
+						let yi = (opts.y.bin(ys[i]) - minYBin) / yBinIncr;
+						let ci = xi * yBinQty + yi;
+						counts[ci]++;
+					}
+				}
+			*/
+
+				let [xs2, ys2, counts] = initHs(xBinQty, yBinQty, minXBin, xBinIncr, minYBin, yBinIncr);
+
+				for (let i = 0; i < len; i++) {
+					if (xs[i] != null && ys[i] != null) {
+						let xi = (opts.x.bin(xs[i]) - minXBin) / xBinIncr;
+						let yi = (opts.y.bin(ys[i]) - minYBin) / yBinIncr;
+						let ci = xi * yBinQty + yi;
+
+						counts[ci]++;
+					}
+				}
+
+				return {
+				//	x: {minX, maxX, minXBin, maxXBin, xBinQty},
+				//	y: {minY, maxY, minYBin, maxYBin, yBinQty},
+					counts,
+					xs: xs2,
+					ys: ys2,
+				};
+			}
+
+			function initHs(xQty, yQty, xMin, xIncr, yMin, yIncr) {
+				let len = xQty * yQty;
+				let xs = Array(len);
+				let ys = Array(len);
+				let counts = Array(len).fill(0);
+
+				for (let i = 0, xi = 0; xi < len; xi += yQty, i++)
+					xs.fill(xMin + i * xIncr, xi, xi + yQty);
+				for (let i = 0; i < len; i++)
+					ys[i] = yMin + (i % yQty) * yIncr;
+
+				return [xs, ys, counts];
+			}
+
+		/*
+			setInterval(() => {
+				console.time("a");
+				let h = initHs(300, 150, 1642711320000, 15000, -22, 2);
+				console.timeEnd("a");
+			}, 500);
+		*/
+
+			function heatmapPaths(opts) {
+				const { disp } = opts;
+
+				return (u, seriesIdx, idx0, idx1) => {
+					uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc) => {
+						let d = u.data[seriesIdx];
+						let [xs, ys, counts] = d;
+						let dlen = xs.length;
+
+						// fill colors are mapped from interpolating densities / counts along some gradient
+						// (should be quantized to 64 colors/levels max. e.g. 16)
+						let fills = disp.fill.values(u, seriesIdx);
+						let fillPaths = new Map(); // #rgba => Path2D
+						new Set(fills).forEach(fill => {
+							fillPaths.set(fill, new Path2D());
+						});
+
+						// detect x and y bin qtys by detecting layout repetition in x & y data
+						let yBinQty = dlen - ys.lastIndexOf(ys[0]);
+						let xBinQty = dlen / yBinQty;
+
+						// uniform tile sizes based on zoom level
+						let ySize = valToPosY(yBinIncr, scaleY, yDim, yOff) - valToPosY(0, scaleY, yDim, yOff);
+						let xSize = valToPosX(xBinIncr, scaleX, xDim, xOff) - valToPosX(0, scaleX, xDim, xOff);
+
+						// pre-compute x and y offsets
+						let cys = ys.slice(0, yBinQty).map(y => Math.round(valToPosY(y, scaleY, yDim, yOff) - ySize/2));
+						let cxs = Array.from({length: xBinQty}, (v, i) => Math.round(valToPosX(xs[i * yBinQty], scaleX, xDim, xOff) - xSize/2));
+
+						for (let i = 0; i < dlen; i++) {
+							// filter out 0 counts and out of view
+							if (
+								counts[i] > 0 &&
+								xs[i] >= scaleX.min && xs[i] <= scaleX.max &&
+								ys[i] >= scaleY.min && ys[i] <= scaleY.max
+							) {
+								let cx = cxs[Math.floor(i / yBinQty)];
+								let cy = cys[i % yBinQty];
+
+								let fillPath = fillPaths.get(fills[i]);
+
+								rect(fillPath, cx, cy, xSize, ySize);
+
+							/*
+								qt.add({
+									x: cx - size - u.bbox.left,
+									y: cy - size - u.bbox.top,
+									w: size * 2,
+									h: size * 2,
+									sidx: seriesIdx,
+									didx: i
+								});
+							*/
+							}
+						}
+
+						u.ctx.save();
+					//	u.ctx.globalAlpha = 0.8;
+						u.ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
+						u.ctx.clip();
+						fillPaths.forEach((p, rgba) => {
+							u.ctx.fillStyle = rgba;
+							u.ctx.fill(p);
+						});
+						u.ctx.restore();
+					});
+				};
+			}
+
+			// 16-color gradient (white -> orange -> red -> purple)
+			const gradMetal16 = [
+				"rgb(131,58,180)",
+				"rgb(154,65,159)",
+				"rgb(178,67,136)",
+				"rgb(202,63,111)",
+				"rgb(228,53,80)",
+				"rgb(253,29,29)",
+				"rgb(255,76,37)",
+				"rgb(256,106,45)",
+				"rgb(256,131,53)",
+				"rgb(255,154,61)",
+				"rgb(252,176,69)",
+				"rgb(254,193,115)",
+				"rgb(255,209,153)",
+				"rgb(256,224,188)",
+				"rgb(256,240,222)",
+				"rgb(255,255,255)",
+			].reverse();
+
+			const countsToFills = (u, seriesIdx) => {
+				let counts = u.data[seriesIdx][2];
+				// fast but might fail for arrays > 65k; can switch to slower Math.max(...new Set(counts))
+				let maxCount = Math.max(...counts);
+				let cols = gradMetal16.length;
+
+				return counts.map(v => {
+					let cIdx = Math.min(Math.floor(v / maxCount * cols), cols - 1);
+					return cIdx == 0 ? null : gradMetal16[cIdx];
+				});
+			};
+
+			let opts5 = {
+				width: 1800,
+				height: 600,
+				title: "Heatmap / Scatter (mode: 2) / ~45k",
+				mode: 2,
+				ms: 1,
+				scales: {
+					x: {
+						time: true,
+					}
+				},
+				series: [
+					{},
+					{
+						label: "Latency",
+						paths: heatmapPaths({
+							disp: {
+								fill: {
+									values: countsToFills
+								}
+							}
+						}),
+						facets: [
+							{
+								scale: 'x',
+								auto: true,
+							},
+							{
+								scale: 'y',
+								auto: true,
+							},
+						],
+					},
+				],
+			};
 
 
+			let xBinIncr = 15e3;
+			let yBinIncr = 2;
+
+			// TODO: log10, log2, log32
+			let hopts = {
+				x: {
+					binSize: xBinIncr,
+					bin: v => incrRoundDn(v, xBinIncr)
+				},
+				y: {
+					binSize: yBinIncr,
+					bin: v => incrRoundDn(v, yBinIncr)
+				},
+			};
+
+			function genData() {
+			//	console.time("genData");
+				let now = Date.now();
+				let xs = Array.from({length: 45e3}, (v, i) => now - i * 100).reverse();
+				let ys = Array.from({length: 45e3}, (v, i) => randomSkewNormal(Math.random, 30, 50, 3));
+			//	console.timeEnd("genData");
+
+			//	console.time("heatmap");
+				let hm = heatmap(xs, ys, hopts);
+			//	console.timeEnd("heatmap");
+
+				return [
+					hm.xs, // x0
+					hm.ys, // y0
+					hm.counts, // counts
+				//	[1,2,3], // x1
+				//	[1,2,3], // y1
+					// xSize, ySize // single value implies uniform. in px? disp.size?
+				];
+			}
+
+			let u5 = new uPlot(opts5, [null, genData()], document.body);
+
+		/*
+			setInterval(() => {
+				let d = [null, genData()];
+
+			//	console.time("render");
+				u5.setData(d);
+			//	queueMicrotask(() => { console.timeEnd("render"); });
+			}, 1000);
+		*/
 		</script>
 
 		<br>
