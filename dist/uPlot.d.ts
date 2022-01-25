@@ -770,6 +770,8 @@ declare namespace uPlot {
 			scale: string;
 
 			auto?: boolean;
+
+			sorted?: Sorted;
 		}
 
 		export type Gap = [from: number, to: number];

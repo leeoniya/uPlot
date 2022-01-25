@@ -1419,6 +1419,7 @@ function seriesFillTo(self, seriesIdx, dataMin, dataMax) {
 const facet = {
 	scale: null,
 	auto: true,
+	sorted: 0,
 
 	// internal caches
 	min: inf,
@@ -3357,13 +3358,13 @@ function uPlot(opts, data, then) {
 			ctx.textBaseline = ctxBaseline = baseline;
 	}
 
-	function accScale(wsc, psc, facet, data) {
+	function accScale(wsc, psc, facet, data, sorted = 0) {
 		if (wsc.auto(self, viaAutoScaleX) && (psc == null || psc.min == null)) {
 			let _i0 = ifNull(i0, 0);
 			let _i1 = ifNull(i1, data.length - 1);
 
 			// only run getMinMax() for invalidated series data, else reuse
-			let minMax = facet.min == null ? (wsc.distr == 3 ? getMinMaxLog(data, _i0, _i1) : getMinMax(data, _i0, _i1)) : [facet.min, facet.max];
+			let minMax = facet.min == null ? (wsc.distr == 3 ? getMinMaxLog(data, _i0, _i1) : getMinMax(data, _i0, _i1, sorted)) : [facet.min, facet.max];
 
 			// initial min/max
 			wsc.min = min(wsc.min, facet.min = minMax[0]);
@@ -3428,7 +3429,7 @@ function uPlot(opts, data, then) {
 						s.max = data0[i1];
 					}
 					else if (s.show && s.auto)
-						accScale(wsc, psc, s, data[i]);
+						accScale(wsc, psc, s, data[i], s.sorted);
 
 					s.idxs[0] = i0;
 					s.idxs[1] = i1;
@@ -3442,8 +3443,8 @@ function uPlot(opts, data, then) {
 							let yScaleKey = yFacet.scale;
 							let [ xData, yData ] = data[i];
 
-							accScale(wipScales[xScaleKey], pendScales[xScaleKey], xFacet, xData);
-							accScale(wipScales[yScaleKey], pendScales[yScaleKey], yFacet, yData);
+							accScale(wipScales[xScaleKey], pendScales[xScaleKey], xFacet, xData, xFacet.sorted);
+							accScale(wipScales[yScaleKey], pendScales[yScaleKey], yFacet, yData, yFacet.sorted);
 
 							// temp
 							s.min = yFacet.min;

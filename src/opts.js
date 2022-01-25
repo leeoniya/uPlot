@@ -661,6 +661,7 @@ export function seriesFillTo(self, seriesIdx, dataMin, dataMax) {
 const facet = {
 	scale: null,
 	auto: true,
+	sorted: 0,
 
 	// internal caches
 	min: inf,
