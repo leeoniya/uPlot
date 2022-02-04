@@ -1,5 +1,5 @@
 import { min, max, nonNullIdx, inf } from '../utils';
-import { orient, addGap, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL } from './utils';
+import { orient, addGap, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs } from './utils';
 
 function _drawAcc(lineTo) {
 	return (stroke, accX, minY, maxY, inY, outY) => {
@@ -122,13 +122,16 @@ export function linear() {
 			if (rgtX < xOff + xDim)
 				addGap(gaps, rgtX, xOff + xDim);
 
-			if (series.fill != null) {
+			let [ bandFillDir, bandClipDir ] =  bandFillClipDirs(u, seriesIdx);
+
+			if (series.fill != null || bandFillDir != 0) {
 				let fill = _paths.fill = new Path2D(stroke);
 
-				let fillTo = pxRound(valToPosY(series.fillTo(u, seriesIdx, series.min, series.max), scaleY, yDim, yOff));
+				let fillToVal = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
+				let fillToY = pxRound(valToPosY(fillToVal, scaleY, yDim, yOff));
 
-				lineTo(fill, rgtX, fillTo);
-				lineTo(fill, lftX, fillTo);
+				lineTo(fill, rgtX, fillToY);
+				lineTo(fill, lftX, fillToY);
 			}
 
 			_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
@@ -136,11 +139,8 @@ export function linear() {
 			if (!series.spanGaps)
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
 
-			if (u.bands.length > 0) {
-				// ADDL OPT: only create band clips for series that are band lower edges
-				// if (b.series[1] == i && _paths.band == null)
-				_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke);
-			}
+			if (bandClipDir != 0)
+				_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
 
 			return _paths;
 		});

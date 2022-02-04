@@ -1413,12 +1413,6 @@ var uPlot = (function () {
 		return idxs[1] - idxs[0] <= maxPts;
 	}
 
-	function seriesFillTo(self, seriesIdx, dataMin, dataMax) {
-		let scale = self.scales[self.series[seriesIdx].scale];
-		let isUpperBandEdge = self.bands && self.bands.some(b => b.series[0] == seriesIdx);
-		return scale.distr == 3 || isUpperBandEdge ? scale.min : 0;
-	}
-
 	const facet = {
 		scale: null,
 		auto: true,
@@ -1587,8 +1581,43 @@ var uPlot = (function () {
 		);
 	}
 
-	// creates inverted band clip path (towards from stroke path -> yMax)
-	function clipBandLine(self, seriesIdx, idx0, idx1, strokePath) {
+	function bandFillClipDirs(self, seriesIdx) {
+		let fillDir = 0;
+		let clipDir = 0;
+
+		let bands = ifNull(self.bands, EMPTY_ARR);
+
+		for (let i = 0; i < bands.length; i++) {
+			let b = bands[i];
+
+			// is a "from" band edge
+			if (b.series[0] == seriesIdx)
+				fillDir = b.dir;
+			// is a "to" band edge
+			else if (b.series[1] == seriesIdx)
+				clipDir = -b.dir;
+		}
+
+		return [fillDir, clipDir];
+	}
+
+	function seriesFillTo(self, seriesIdx, dataMin, dataMax, bandFillDir) {
+		let scale = self.scales[self.series[seriesIdx].scale];
+
+		return (
+			bandFillDir == -1 ? scale.min :
+			bandFillDir ==  1 ? scale.max :
+			scale.distr ==  3 ? (
+				scale.dir == 1 ? scale.min :
+				scale.max
+			) : 0
+		);
+	}
+
+	// creates inverted band clip path (from stroke path -> yMax || yMin)
+	// clipDir is always inverse of fillDir
+	// default clip dir is upwards (1), since default band fill is downwards/fillBelowTo (-1) (highIdx -> lowIdx)
+	function clipBandLine(self, seriesIdx, idx0, idx1, strokePath, clipDir) {
 		return orient(self, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
 
@@ -1611,8 +1640,8 @@ var uPlot = (function () {
 			let y0 = pxRound(valToPosY(dataY[frIdx], scaleY, yDim, yOff));
 			// path end x
 			let x1 = pxRound(valToPosX(dataX[toIdx], scaleX, xDim, xOff));
-			// upper y limit
-			let yLimit = pxRound(valToPosY(scaleY.max, scaleY, yDim, yOff));
+			// upper or lower y limit
+			let yLimit = pxRound(valToPosY(clipDir == 1 ? scaleY.max : scaleY.min, scaleY, yDim, yOff));
 
 			let clip = new Path2D(strokePath);
 
@@ -1894,13 +1923,16 @@ var uPlot = (function () {
 				if (rgtX < xOff + xDim)
 					addGap(gaps, rgtX, xOff + xDim);
 
-				if (series.fill != null) {
+				let [ bandFillDir, bandClipDir ] =  bandFillClipDirs(u, seriesIdx);
+
+				if (series.fill != null || bandFillDir != 0) {
 					let fill = _paths.fill = new Path2D(stroke);
 
-					let fillTo = pxRound(valToPosY(series.fillTo(u, seriesIdx, series.min, series.max), scaleY, yDim, yOff));
+					let fillToVal = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
+					let fillToY = pxRound(valToPosY(fillToVal, scaleY, yDim, yOff));
 
-					lineTo(fill, rgtX, fillTo);
-					lineTo(fill, lftX, fillTo);
+					lineTo(fill, rgtX, fillToY);
+					lineTo(fill, lftX, fillToY);
 				}
 
 				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
@@ -1908,11 +1940,8 @@ var uPlot = (function () {
 				if (!series.spanGaps)
 					_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
 
-				if (u.bands.length > 0) {
-					// ADDL OPT: only create band clips for series that are band lower edges
-					// if (b.series[1] == i && _paths.band == null)
-					_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke);
-				}
+				if (bandClipDir != 0)
+					_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
 
 				return _paths;
 			});
@@ -1977,14 +2006,16 @@ var uPlot = (function () {
 					prevXPos = x1;
 				}
 
-				if (series.fill != null) {
+				let [ bandFillDir, bandClipDir ] =  bandFillClipDirs(u, seriesIdx);
+
+				if (series.fill != null || bandFillDir != 0) {
 					let fill = _paths.fill = new Path2D(stroke);
 
-					let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
-					let minY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
+					let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
+					let fillToY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
 
-					lineTo(fill, prevXPos, minY);
-					lineTo(fill, firstXPos, minY);
+					lineTo(fill, prevXPos, fillToY);
+					lineTo(fill, firstXPos, fillToY);
 				}
 
 				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
@@ -2002,11 +2033,8 @@ var uPlot = (function () {
 				if (!series.spanGaps)
 					_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
 
-				if (u.bands.length > 0) {
-					// ADDL OPT: only create band clips for series that are band lower edges
-					// if (b.series[1] == i && _paths.band == null)
-					_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke);
-				}
+				if (bandClipDir != 0)
+					_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
 
 				return _paths;
 			});
@@ -2287,14 +2315,16 @@ var uPlot = (function () {
 				const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 				const stroke = _paths.stroke;
 
-				if (series.fill != null && stroke != null) {
+				let [ bandFillDir, bandClipDir ] =  bandFillClipDirs(u, seriesIdx);
+
+				if (series.fill != null || bandFillDir != 0) {
 					let fill = _paths.fill = new Path2D(stroke);
 
-					let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
-					let minY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
+					let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
+					let fillToY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
 
-					lineTo(fill, prevXPos, minY);
-					lineTo(fill, firstXPos, minY);
+					lineTo(fill, prevXPos, fillToY);
+					lineTo(fill, firstXPos, fillToY);
 				}
 
 				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
@@ -2302,11 +2332,8 @@ var uPlot = (function () {
 				if (!series.spanGaps)
 					_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
 
-				if (u.bands.length > 0) {
-					// ADDL OPT: only create band clips for series that are band lower edges
-					// if (b.series[1] == i && _paths.band == null)
-					_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke);
-				}
+				if (bandClipDir != 0)
+					_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
 
 				return _paths;
 
@@ -2558,6 +2585,7 @@ var uPlot = (function () {
 
 		bands.forEach(b => {
 			b.fill = fnOrSelf(b.fill || null);
+			b.dir = ifNull(b.dir, -1);
 		});
 
 		const xScaleKey = mode == 2 ? series[1].facets[0].scale : series[0].scale;
@@ -4348,6 +4376,7 @@ var uPlot = (function () {
 
 		function addBand(opts, bi) {
 			opts.fill = fnOrSelf(opts.fill || null);
+			opts.dir = ifNull(opts.dir, -1);
 			bi = bi == null ? bands.length : bi;
 			bands.splice(bi, 0, opts);
 		}

@@ -135,7 +135,6 @@ import {
 	lineMult,
 	ptDia,
 	cursorOpts,
-	seriesFillTo,
 
 	xAxisOpts,
 	yAxisOpts,
@@ -192,7 +191,7 @@ import { bars     } from './paths/bars';
 import { monotoneCubic     as spline  } from './paths/monotoneCubic';
 import { catmullRomCentrip as spline2 } from './paths/catmullRomCentrip';
 
-import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, orient, pxRoundGen, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './paths/utils';
+import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, orient, pxRoundGen, seriesFillTo, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './paths/utils';
 
 function log(name, args) {
 	console.log.apply(console, [name].concat(Array.prototype.slice.call(args)));
@@ -364,6 +363,7 @@ export default function uPlot(opts, data, then) {
 
 	bands.forEach(b => {
 		b.fill = fnOrSelf(b.fill || null);
+		b.dir = ifNull(b.dir, -1);
 	});
 
 	const xScaleKey = mode == 2 ? series[1].facets[0].scale : series[0].scale;
@@ -2158,6 +2158,7 @@ export default function uPlot(opts, data, then) {
 
 	function addBand(opts, bi) {
 		opts.fill = fnOrSelf(opts.fill || null);
+		opts.dir = ifNull(opts.dir, -1);
 		bi = bi == null ? bands.length : bi;
 		bands.splice(bi, 0, opts);
 	}

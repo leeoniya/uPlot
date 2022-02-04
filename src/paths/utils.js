@@ -1,4 +1,4 @@
-import { round, incrRound, retArg0, nonNullIdx, min } from "../utils";
+import { round, incrRound, retArg0, nonNullIdx, min, EMPTY_ARR, ifNull } from "../utils";
 
 export const BAND_CLIP_FILL   = 1 << 0;
 export const BAND_CLIP_STROKE = 1 << 1;
@@ -60,8 +60,43 @@ export function orient(u, seriesIdx, cb) {
 	);
 }
 
-// creates inverted band clip path (towards from stroke path -> yMax)
-export function clipBandLine(self, seriesIdx, idx0, idx1, strokePath) {
+export function bandFillClipDirs(self, seriesIdx) {
+	let fillDir = 0;
+	let clipDir = 0;
+
+	let bands = ifNull(self.bands, EMPTY_ARR);
+
+	for (let i = 0; i < bands.length; i++) {
+		let b = bands[i];
+
+		// is a "from" band edge
+		if (b.series[0] == seriesIdx)
+			fillDir = b.dir;
+		// is a "to" band edge
+		else if (b.series[1] == seriesIdx)
+			clipDir = -b.dir;
+	}
+
+	return [fillDir, clipDir];
+}
+
+export function seriesFillTo(self, seriesIdx, dataMin, dataMax, bandFillDir) {
+	let scale = self.scales[self.series[seriesIdx].scale];
+
+	return (
+		bandFillDir == -1 ? scale.min :
+		bandFillDir ==  1 ? scale.max :
+		scale.distr ==  3 ? (
+			scale.dir == 1 ? scale.min :
+			scale.max
+		) : 0
+	);
+}
+
+// creates inverted band clip path (from stroke path -> yMax || yMin)
+// clipDir is always inverse of fillDir
+// default clip dir is upwards (1), since default band fill is downwards/fillBelowTo (-1) (highIdx -> lowIdx)
+export function clipBandLine(self, seriesIdx, idx0, idx1, strokePath, clipDir) {
 	return orient(self, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 		let pxRound = series.pxRound;
 
@@ -84,8 +119,8 @@ export function clipBandLine(self, seriesIdx, idx0, idx1, strokePath) {
 		let y0 = pxRound(valToPosY(dataY[frIdx], scaleY, yDim, yOff));
 		// path end x
 		let x1 = pxRound(valToPosX(dataX[toIdx], scaleX, xDim, xOff));
-		// upper y limit
-		let yLimit = pxRound(valToPosY(scaleY.max, scaleY, yDim, yOff));
+		// upper or lower y limit
+		let yLimit = pxRound(valToPosY(clipDir == 1 ? scaleY.max : scaleY.min, scaleY, yDim, yOff));
 
 		let clip = new Path2D(strokePath);
 

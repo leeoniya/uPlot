@@ -1,5 +1,5 @@
 import { nonNullIdx } from '../utils';
-import { orient, addGap, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV, clipBandLine, BAND_CLIP_FILL } from './utils';
+import { orient, addGap, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs } from './utils';
 
 export function splineInterp(interp, opts) {
 	return (u, seriesIdx, idx0, idx1) => {
@@ -58,14 +58,16 @@ export function splineInterp(interp, opts) {
 			const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
-			if (series.fill != null && stroke != null) {
+			let [ bandFillDir, bandClipDir ] =  bandFillClipDirs(u, seriesIdx);
+
+			if (series.fill != null || bandFillDir != 0) {
 				let fill = _paths.fill = new Path2D(stroke);
 
-				let fillTo = series.fillTo(u, seriesIdx, series.min, series.max);
-				let minY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
+				let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
+				let fillToY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
 
-				lineTo(fill, prevXPos, minY);
-				lineTo(fill, firstXPos, minY);
+				lineTo(fill, prevXPos, fillToY);
+				lineTo(fill, firstXPos, fillToY);
 			}
 
 			_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
@@ -73,11 +75,8 @@ export function splineInterp(interp, opts) {
 			if (!series.spanGaps)
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
 
-			if (u.bands.length > 0) {
-				// ADDL OPT: only create band clips for series that are band lower edges
-				// if (b.series[1] == i && _paths.band == null)
-				_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke);
-			}
+			if (bandClipDir != 0)
+				_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
 
 			return _paths;
 

@@ -877,7 +877,7 @@ declare namespace uPlot {
 	export namespace Band {
 		export type Fill = CanvasRenderingContext2D['fillStyle'] | ((self: uPlot, bandIdx: number, highSeriesFill: CanvasRenderingContext2D['fillStyle']) => CanvasRenderingContext2D['fillStyle']);
 
-		export type Bounds = [highSeriesIdx: number, lowSeriesIdx: number];
+		export type Bounds = [fromSeriesIdx: number, toSeriesIdx: number];
 	}
 
 	export interface Band {
@@ -889,6 +889,9 @@ declare namespace uPlot {
 
 		/** area fill style */
 		fill?: Band.Fill;
+
+		/** whether to fill down (-1) or up (+1) between "from" & "to" series */
+		dir?: 1 | -1; // -1
 	}
 
 	export namespace Axis {
