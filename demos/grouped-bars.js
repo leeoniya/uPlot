@@ -197,10 +197,10 @@ function seriesBarsPlugin(opts) {
 							let isHovered = hRect && seriesIdx == hRect.sidx;
 
 							return {
-								left:   isHovered ? hRect.x / devicePixelRatio : -10,
-								top:    isHovered ? hRect.y / devicePixelRatio : -10,
-								width:  isHovered ? hRect.w / devicePixelRatio : 0,
-								height: isHovered ? hRect.h / devicePixelRatio : 0,
+								left:   isHovered ? hRect.x / pxRatio : -10,
+								top:    isHovered ? hRect.y / pxRatio : -10,
+								width:  isHovered ? hRect.w / pxRatio : 0,
+								height: isHovered ? hRect.h / pxRatio : 0,
 							};
 						}
 					}
