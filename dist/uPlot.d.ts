@@ -436,7 +436,7 @@ declare namespace uPlot {
 		export namespace Points {
 			export type Show   = boolean | ((self: uPlot, seriesIdx: number) => HTMLElement);
 			export type Size   = number  | ((self: uPlot, seriesIdx: number) => number);
-			export type BBox   = (self: uPlot, seriesIdx: number) => BBox;
+			export type BBox   = (self: uPlot, seriesIdx: number) => uPlot.BBox;
 			export type Width  = number  | ((self: uPlot, seriesIdx: number, size: number) => number);
 			export type Stroke = CanvasRenderingContext2D['strokeStyle'] | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['strokeStyle']);
 			export type Fill   = CanvasRenderingContext2D['fillStyle']   | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['fillStyle']);
