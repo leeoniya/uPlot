@@ -275,7 +275,7 @@ declare namespace uPlot {
 		markers?: Legend.Markers;
 
 		/** current index (readback-only, not for init) */
-		idx?: number;
+		idx?: number | null;
 		/** current indices (readback-only, not for init) */
 		idxs?: (number | null)[];
 		/** current values (readback-only, not for init) */
