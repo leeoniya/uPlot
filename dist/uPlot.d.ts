@@ -525,7 +525,7 @@ declare namespace uPlot {
 		top?: number;
 
 		/** closest data index to cursor (closestIdx) */
-		idx?: number;
+		idx?: number | null;
 
 		/** returns data idx used for hover points & legend display (defaults to closestIdx) */
 		dataIdx?: Cursor.DataIdxRefiner;
