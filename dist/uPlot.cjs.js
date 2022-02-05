@@ -1582,7 +1582,9 @@ function orient(u, seriesIdx, cb) {
 
 function bandFillClipDirs(self, seriesIdx) {
 	let fillDir = 0;
-	let clipDir = 0;
+
+	// 2 bits, -1 | 1
+	let clipDirs = 0;
 
 	let bands = ifNull(self.bands, EMPTY_ARR);
 
@@ -1593,11 +1595,23 @@ function bandFillClipDirs(self, seriesIdx) {
 		if (b.series[0] == seriesIdx)
 			fillDir = b.dir;
 		// is a "to" band edge
-		else if (b.series[1] == seriesIdx)
-			clipDir = -b.dir;
+		else if (b.series[1] == seriesIdx) {
+			if (b.dir == 1)
+				clipDirs |= 1;
+			else
+				clipDirs |= 2;
+		}
 	}
 
-	return [fillDir, clipDir];
+	return [
+		fillDir,
+		(
+			clipDirs == 1 ? -1 : // neg only
+			clipDirs == 2 ?  1 : // pos only
+			clipDirs == 3 ?  2 : // both
+			                 0   // neither
+		)
+	];
 }
 
 function seriesFillTo(self, seriesIdx, dataMin, dataMax, bandFillDir) {
@@ -1939,8 +1953,12 @@ function linear() {
 			if (!series.spanGaps)
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
 
-			if (bandClipDir != 0)
-				_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
+			if (bandClipDir != 0) {
+				_paths.band = bandClipDir == 2 ? [
+					clipBandLine(u, seriesIdx, idx0, idx1, stroke, -1),
+					clipBandLine(u, seriesIdx, idx0, idx1, stroke,  1),
+				] : clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
+			}
 
 			return _paths;
 		});
@@ -2032,8 +2050,12 @@ function stepped(opts) {
 			if (!series.spanGaps)
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
 
-			if (bandClipDir != 0)
-				_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
+			if (bandClipDir != 0) {
+				_paths.band = bandClipDir == 2 ? [
+					clipBandLine(u, seriesIdx, idx0, idx1, stroke, -1),
+					clipBandLine(u, seriesIdx, idx0, idx1, stroke,  1),
+				] : clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
+			}
 
 			return _paths;
 		});
@@ -2331,8 +2353,12 @@ function splineInterp(interp, opts) {
 			if (!series.spanGaps)
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
 
-			if (bandClipDir != 0)
-				_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
+			if (bandClipDir != 0) {
+				_paths.band = bandClipDir == 2 ? [
+					clipBandLine(u, seriesIdx, idx0, idx1, stroke, -1),
+					clipBandLine(u, seriesIdx, idx0, idx1, stroke,  1),
+				] : clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
+			}
 
 			return _paths;
 
@@ -3685,6 +3711,10 @@ function uPlot(opts, data, then) {
 				let lowerData = data[b.series[1]];
 
 				let bandClip = (lowerEdge._paths || EMPTY_OBJ).band;
+
+				if (isArr(bandClip))
+					bandClip = b.dir == 1 ? bandClip[0] : bandClip[1];
+
 				let gapsClip2;
 
 				let _fillStyle = null;

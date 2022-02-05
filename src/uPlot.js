@@ -1468,6 +1468,10 @@ export default function uPlot(opts, data, then) {
 				let lowerData = data[b.series[1]];
 
 				let bandClip = (lowerEdge._paths || EMPTY_OBJ).band;
+
+				if (isArr(bandClip))
+					bandClip = b.dir == 1 ? bandClip[0] : bandClip[1];
+
 				let gapsClip2;
 
 				let _fillStyle = null;

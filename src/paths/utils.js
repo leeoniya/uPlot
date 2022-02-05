@@ -62,7 +62,9 @@ export function orient(u, seriesIdx, cb) {
 
 export function bandFillClipDirs(self, seriesIdx) {
 	let fillDir = 0;
-	let clipDir = 0;
+
+	// 2 bits, -1 | 1
+	let clipDirs = 0;
 
 	let bands = ifNull(self.bands, EMPTY_ARR);
 
@@ -73,11 +75,23 @@ export function bandFillClipDirs(self, seriesIdx) {
 		if (b.series[0] == seriesIdx)
 			fillDir = b.dir;
 		// is a "to" band edge
-		else if (b.series[1] == seriesIdx)
-			clipDir = -b.dir;
+		else if (b.series[1] == seriesIdx) {
+			if (b.dir == 1)
+				clipDirs |= 1;
+			else
+				clipDirs |= 2;
+		}
 	}
 
-	return [fillDir, clipDir];
+	return [
+		fillDir,
+		(
+			clipDirs == 1 ? -1 : // neg only
+			clipDirs == 2 ?  1 : // pos only
+			clipDirs == 3 ?  2 : // both
+			                 0   // neither
+		)
+	];
 }
 
 export function seriesFillTo(self, seriesIdx, dataMin, dataMax, bandFillDir) {

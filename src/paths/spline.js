@@ -75,8 +75,12 @@ export function splineInterp(interp, opts) {
 			if (!series.spanGaps)
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
 
-			if (bandClipDir != 0)
-				_paths.band = clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
+			if (bandClipDir != 0) {
+				_paths.band = bandClipDir == 2 ? [
+					clipBandLine(u, seriesIdx, idx0, idx1, stroke, -1),
+					clipBandLine(u, seriesIdx, idx0, idx1, stroke,  1),
+				] : clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
+			}
 
 			return _paths;
 
