@@ -1923,7 +1923,7 @@ var uPlot = (function () {
 				if (rgtX < xOff + xDim)
 					addGap(gaps, rgtX, xOff + xDim);
 
-				let [ bandFillDir, bandClipDir ] =  bandFillClipDirs(u, seriesIdx);
+				let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
 				if (series.fill != null || bandFillDir != 0) {
 					let fill = _paths.fill = new Path2D(stroke);
@@ -2006,7 +2006,7 @@ var uPlot = (function () {
 					prevXPos = x1;
 				}
 
-				let [ bandFillDir, bandClipDir ] =  bandFillClipDirs(u, seriesIdx);
+				let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
 				if (series.fill != null || bandFillDir != 0) {
 					let fill = _paths.fill = new Path2D(stroke);
@@ -2071,7 +2071,10 @@ var uPlot = (function () {
 					_each(u, seriesIdx, i, lft, top, wid, hgt);
 				};
 
-				let fillToY = series.fillTo(u, seriesIdx, series.min, series.max);
+				let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
+
+			//	let fillToY = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
+				let fillToY = scaleY.distr == 3 ? (bandFillDir == 1 ? scaleY.max : scaleY.min) : 0;
 
 				let y0Pos = valToPosY(fillToY, scaleY, yDim, yOff);
 
@@ -2161,14 +2164,11 @@ var uPlot = (function () {
 
 				const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
 
-				const hasBands = u.bands.length > 0;
 				let yLimit;
 
-				if (hasBands) {
-					// ADDL OPT: only create band clips for series that are band lower edges
-					// if (b.series[1] == i && _paths.band == null)
+				if (bandClipDir != 0) {
 					_paths.band = new Path2D();
-					yLimit = pxRound(valToPosY(scaleY.max, scaleY, yDim, yOff));
+					yLimit = pxRound(valToPosY(bandClipDir == 1 ? scaleY.max : scaleY.min, scaleY, yDim, yOff));
 				}
 
 				const stroke = multiPath ? null : new Path2D();
@@ -2232,8 +2232,8 @@ var uPlot = (function () {
 						);
 					}
 
-					if (hasBands) {
-						if (_dirY == 1) {
+					if (bandClipDir != 0) {
+						if (_dirY * bandClipDir == 1) {
 							btm = top;
 							top = yLimit;
 						}
@@ -2315,7 +2315,7 @@ var uPlot = (function () {
 				const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 				const stroke = _paths.stroke;
 
-				let [ bandFillDir, bandClipDir ] =  bandFillClipDirs(u, seriesIdx);
+				let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
 				if (series.fill != null || bandFillDir != 0) {
 					let fill = _paths.fill = new Path2D(stroke);

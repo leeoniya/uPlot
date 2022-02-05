@@ -485,6 +485,78 @@
 			};
 
 			let u9 = new uPlot(opts9, data9, document.body);
+
+
+
+			function makeChart(data, paths) {
+				const opts = {
+					title: "Inverted bands",
+					width: 1920,
+					height: 600,
+					scales: {
+						x: {
+							time: false,
+						},
+						y: {
+						//	dir: -1
+						}
+					},
+					series: [
+						{},
+						{
+							label: "-2",
+							stroke: "red",
+							fill: "#ff000080",
+							paths,
+						},
+						{
+							label: "-1",
+							stroke: "orange",
+							fill: "#ffa50080",
+							paths,
+						},
+						{
+							label: "1",
+							stroke: "blue",
+							fill: "#0000ff80",
+							paths,
+						},
+						{
+							label: "2",
+							stroke: "green",
+							fill: "#00800080",
+							paths,
+						},
+					],
+					bands: [
+						{
+							series: [4,3],
+							fill: "#00800080",
+						},
+						{
+							series: [1,2],
+							fill: "#ff000080",
+							dir: 1, // fill upwards
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			}
+
+			let data11 = [
+				[0, 1, 2, 3, 4, 5],
+				Array(6).fill(-2),
+				Array(6).fill(-1),
+				Array(6).fill(1),
+				Array(6).fill(2),
+			];
+
+			let linePaths = uPlot.paths.linear();
+			makeChart(data11, linePaths);
+
+			let barPaths = uPlot.paths.bars();
+			makeChart(data11, barPaths);
 		</script>
 	</body>
 </html>

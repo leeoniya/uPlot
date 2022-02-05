@@ -890,7 +890,7 @@ declare namespace uPlot {
 		/** area fill style */
 		fill?: Band.Fill;
 
-		/** whether to fill down (-1) or up (+1) between "from" & "to" series */
+		/** whether to fill towards yMin (-1) or yMax (+1) between "from" & "to" series */
 		dir?: 1 | -1; // -1
 	}
 

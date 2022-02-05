@@ -1,5 +1,5 @@
 import { abs, floor, min, max, inf, ifNull, EMPTY_OBJ } from '../utils';
-import { orient, rectV, rectH, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './utils';
+import { orient, rectV, rectH, BAND_CLIP_FILL, BAND_CLIP_STROKE, bandFillClipDirs } from './utils';
 import { pxRatio } from '../dom';
 
 export function bars(opts) {
@@ -32,7 +32,10 @@ export function bars(opts) {
 				_each(u, seriesIdx, i, lft, top, wid, hgt);
 			};
 
-			let fillToY = series.fillTo(u, seriesIdx, series.min, series.max);
+			let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
+
+		//	let fillToY = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
+			let fillToY = scaleY.distr == 3 ? (bandFillDir == 1 ? scaleY.max : scaleY.min) : 0;
 
 			let y0Pos = valToPosY(fillToY, scaleY, yDim, yOff);
 
@@ -122,14 +125,11 @@ export function bars(opts) {
 
 			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
 
-			const hasBands = u.bands.length > 0;
 			let yLimit;
 
-			if (hasBands) {
-				// ADDL OPT: only create band clips for series that are band lower edges
-				// if (b.series[1] == i && _paths.band == null)
+			if (bandClipDir != 0) {
 				_paths.band = new Path2D();
-				yLimit = pxRound(valToPosY(scaleY.max, scaleY, yDim, yOff));
+				yLimit = pxRound(valToPosY(bandClipDir == 1 ? scaleY.max : scaleY.min, scaleY, yDim, yOff));
 			}
 
 			const stroke = multiPath ? null : new Path2D();
@@ -193,8 +193,8 @@ export function bars(opts) {
 					);
 				}
 
-				if (hasBands) {
-					if (_dirY == 1) {
+				if (bandClipDir != 0) {
+					if (_dirY * bandClipDir == 1) {
 						btm = top;
 						top = yLimit;
 					}

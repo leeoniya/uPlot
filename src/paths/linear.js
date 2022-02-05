@@ -122,7 +122,7 @@ export function linear() {
 			if (rgtX < xOff + xDim)
 				addGap(gaps, rgtX, xOff + xDim);
 
-			let [ bandFillDir, bandClipDir ] =  bandFillClipDirs(u, seriesIdx);
+			let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
 			if (series.fill != null || bandFillDir != 0) {
 				let fill = _paths.fill = new Path2D(stroke);

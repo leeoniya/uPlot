@@ -60,7 +60,7 @@ export function stepped(opts) {
 				prevXPos = x1;
 			}
 
-			let [ bandFillDir, bandClipDir ] =  bandFillClipDirs(u, seriesIdx);
+			let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
 			if (series.fill != null || bandFillDir != 0) {
 				let fill = _paths.fill = new Path2D(stroke);
