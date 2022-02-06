@@ -624,8 +624,8 @@ declare namespace uPlot {
 			/** path for clipping fill & stroke (used for gaps) */
 			clip?: Path2D | null;
 
-			/** an upwards clip built using the stroke path */
-			band? : Path2D | null;
+			/** yMin-ward (dir: -1) and/or yMax-ward (dir: 1) clips built using the stroke path (inverted dirs from band.dir fills) */
+			band? : Path2D | null | [yMinClip: Path2D, yMaxClip: Path2D];
 
 			/** tuples of canvas pixel coordinates that were used to construct the gaps clip */
 			gaps?: [from: number, to: number][];
