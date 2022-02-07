@@ -430,7 +430,7 @@
 
 					//	let fillPaths = new Map(); // #rgba => Path2D
 
-						let fillPalette = disp.fill.index ?? [...new Set(fills)];
+						let fillPalette = disp.fill.lookup ?? [...new Set(fills)];
 
 						let fillPaths = fillPalette.map(color => new Path2D());
 
@@ -516,7 +516,7 @@
 				"rgb(255,209,153)",
 				"rgb(256,224,188)",
 				"rgb(256,240,222)",
-				"rgb(255,255,255)",
+			//	"rgb(255,255,255)",
 			].reverse();
 
 			const countsToFills = (u, seriesIdx) => {
@@ -528,7 +528,7 @@
 				let indexedFills = Array(counts.length);
 
 				for (let i = 0; i < counts.length; i++)
-					indexedFills[i] = Math.min(~~(counts[i] / maxCount * cols), cols - 1);
+					indexedFills[i] = ~~((counts[i] / maxCount) * cols) - 1;
 
 				return indexedFills;
 			};
@@ -551,7 +551,7 @@
 						paths: heatmapPaths({
 							disp: {
 								fill: {
-									index: gradMetal16,
+									lookup: gradMetal16,
 									values: countsToFills
 								}
 							}
