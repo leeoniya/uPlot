@@ -4434,7 +4434,6 @@ function uPlot(opts, data, then) {
 	let closestSeries;
 	let focusedSeries;
 	const FOCUS_TRUE  = {focus: true};
-	const FOCUS_FALSE = {focus: false};
 
 	function setFocus(i) {
 		if (i != focusedSeries) {
@@ -4459,8 +4458,9 @@ function uPlot(opts, data, then) {
 		on(mouseleave, legendEl, e => {
 			if (cursor._lock)
 				return;
-			setSeries(null, FOCUS_FALSE, true, syncOpts.setSeries);
-			updateCursor(null, true, false);
+
+			if (focusedSeries != null)
+				setSeries(null, FOCUS_TRUE, true, syncOpts.setSeries);
 		});
 	}
 
