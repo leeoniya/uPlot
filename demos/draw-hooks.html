@@ -150,6 +150,8 @@
 					let { ctx } = u;
 					let { _stroke, scale } = u.series[i];
 
+					ctx.save();
+
 					ctx.fillStyle = _stroke;
 
 					let j = i0;
@@ -162,6 +164,8 @@
 						ctx.fill();
 						j++;
 					};
+
+					ctx.restore();
 				}
 
 				return {
@@ -179,7 +183,9 @@
 				};
 			}
 
-			function renderStatsPlugin({ textColor = 'red', font = '12px Arial'} = {}) {
+			function renderStatsPlugin({ textColor = 'red', font} = {}) {
+				font = font ?? `${Math.round(12 * devicePixelRatio)}px Arial`;
+
 				let startRenderTime;
 
 				function setStartTime() {
@@ -191,11 +197,15 @@
 					let { left, top, width, height } = u.bbox;
 					let displayText = "Time to Draw: " + (Date.now() - startRenderTime) + "ms";
 
+					ctx.save();
+
 					ctx.font = font;
 					ctx.fillStyle = textColor;
 					ctx.textAlign = "left";
 					ctx.textBaseline = "top";
 					ctx.fillText(displayText, left + 10, top + 10);
+
+					ctx.restore();
 				}
 
 				return {
