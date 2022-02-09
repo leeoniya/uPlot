@@ -1952,7 +1952,7 @@ export default function uPlot(opts, data, then) {
 			ctxStroke = ctxFill = ctxWidth = ctxJoin = ctxCap = ctxFont = ctxAlign = ctxBaseline = ctxDash = null;
 			ctxAlpha = 1;
 
-			syncRect(false);
+			syncRect(true);
 
 			fire("setSize");
 

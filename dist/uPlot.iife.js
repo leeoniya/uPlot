@@ -4196,7 +4196,7 @@ var uPlot = (function () {
 				ctxStroke = ctxFill = ctxWidth = ctxJoin = ctxCap = ctxFont = ctxAlign = ctxBaseline = ctxDash = null;
 				ctxAlpha = 1;
 
-				syncRect(false);
+				syncRect(true);
 
 				fire("setSize");
 
