@@ -1065,6 +1065,8 @@ export default function uPlot(opts, data, then) {
 	let viaAutoScaleX = false;
 
 	function setData(_data, _resetScales) {
+		data = _data == null ? [] : copy(_data, fastIsObj);
+
 		if (mode == 2) {
 			dataLen = 0;
 			for (let i = 1; i < series.length; i++)
@@ -1072,15 +1074,19 @@ export default function uPlot(opts, data, then) {
 			self.data = data = _data;
 		}
 		else {
-			data = (_data || []).slice();
-			data[0] = data[0] || [];
+			if (data[0] == null)
+				data[0] = [];
 
 			self.data = data.slice();
+
 			data0 = data[0];
 			dataLen = data0.length;
 
-			if (xScaleDistr == 2)
-				data[0] = data0.map((v, i) => i);
+			if (xScaleDistr == 2) {
+				data[0] = Array(dataLen);
+				for (let i = 0; i < dataLen; i++)
+					data[0][i] = i;
+			}
 		}
 
 		self._data = data;
