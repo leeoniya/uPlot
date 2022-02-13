@@ -949,7 +949,7 @@ declare namespace uPlot {
 			cap?: Series.Cap;
 		}
 
-		export interface Border extends OrthoLines {};
+		export interface Border extends OrthoLines {}
 
 		interface FilterableOrthoLines extends OrthoLines {
 			/** can filter which splits render lines. e.g splits.map(v => v % 2 == 0 ? v : null) */
