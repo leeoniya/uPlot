@@ -264,7 +264,7 @@
 								let maxCount = yQtys[xi].reduce((acc, val) => Math.max(val, acc), -Infinity);
 
 								yVals.forEach((yVal, yi) => {
-									let yPos =  Math.floor(u.valToPos(yVal, 'y', true));
+									let yPos = Math.floor(u.valToPos(yVal, 'y', true));
 
 								//	ctx.fillStyle = fillStyle(yQtys[xi][yi], minCount, maxCount);
 									ctx.fillStyle = fillStyle(yQtys[xi][yi], 1, maxCount);
@@ -519,16 +519,32 @@
 			//	"rgb(255,255,255)",
 			].reverse();
 
+			let palette = gradMetal16;
+
 			const countsToFills = (u, seriesIdx) => {
 				let counts = u.data[seriesIdx][2];
-				// fast but might fail for arrays > 65k; can switch to slower Math.max(...new Set(counts))
-				let maxCount = Math.max(...counts);
-				let cols = gradMetal16.length;
+
+				// TODO: integrate 1e-9 hideThreshold?
+				const hideThreshold = 0;
+
+				let minCount = Infinity;
+				let maxCount = -Infinity;
+
+				for (let i = 0; i < counts.length; i++) {
+					if (counts[i] > hideThreshold) {
+						minCount = Math.min(minCount, counts[i]);
+						maxCount = Math.max(maxCount, counts[i]);
+					}
+				}
+
+				let range = maxCount - minCount;
+
+				let paletteSize = palette.length;
 
 				let indexedFills = Array(counts.length);
 
 				for (let i = 0; i < counts.length; i++)
-					indexedFills[i] = ~~((counts[i] / maxCount) * cols) - 1;
+					indexedFills[i] = counts[i] === 0 ? -1 : Math.min(paletteSize - 1, Math.floor((paletteSize * (counts[i] - minCount)) / range));
 
 				return indexedFills;
 			};
