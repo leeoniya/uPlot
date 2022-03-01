@@ -698,6 +698,7 @@ declare namespace uPlot {
 		export type SplinePathBuilderFactory  = () => Series.PathBuilder;
 		export type SteppedPathBuilderFactory = (opts?: SteppedPathBuilderOpts) => Series.PathBuilder;
 		export type BarsPathBuilderFactory    = (opts?: BarsPathBuilderOpts) => Series.PathBuilder;
+		export type EventMarkersPathBuilderFactory  = () => Series.PathBuilder;
 
 		export interface PathBuilderFactories {
 			linear?:  LinearPathBuilderFactory;
@@ -705,6 +706,7 @@ declare namespace uPlot {
 			stepped?: SteppedPathBuilderFactory;
 			bars?:    BarsPathBuilderFactory;
 			points?:  PointsPathBuilderFactory;
+			eventMarkers?:  EventMarkersPathBuilderFactory;
 		}
 
 		export type Stroke = CanvasRenderingContext2D['strokeStyle'] | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['strokeStyle']);
