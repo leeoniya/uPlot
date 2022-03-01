@@ -214,7 +214,7 @@ function seriesBarsPlugin(opts) {
 					//	auto: true,
 						range: (u, min, max) => {
 							min = 0;
-							max = u.data[0].length - 1;
+							max = Math.max(1, u.data[0].length - 1);
 
 							let pctOffset = 0;
 
@@ -222,13 +222,17 @@ function seriesBarsPlugin(opts) {
 								pctOffset = lftPct + widPct / 2;
 							});
 
-							let rn = max - min; // clamp to 1?
+							let rn = max - min;
 
-							let upScale = 1 / (1 - pctOffset * 2);
-							let offset = (upScale * rn - rn) / 2;
+							if (pctOffset == 0.5)
+								min -= rn;
+							else {
+								let upScale = 1 / (1 - pctOffset * 2);
+								let offset = (upScale * rn - rn) / 2;
 
-							min -= offset;
-							max += offset;
+								min -= offset;
+								max += offset;
+							}
 
 							return [min, max];
 						}
