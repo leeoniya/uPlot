@@ -260,7 +260,8 @@ var uPlot = (function () {
 	}
 
 	// alternative: https://stackoverflow.com/a/2254896
-	const fmtNum = new Intl.NumberFormat(navigator.language).format;
+	const numFormatter = new Intl.NumberFormat(navigator.language);
+	const fmtNum = val => numFormatter.format(val);
 
 	const M = Math;
 

@@ -247,7 +247,8 @@ function _rangeNum(_min, _max, cfg) {
 }
 
 // alternative: https://stackoverflow.com/a/2254896
-export const fmtNum = new Intl.NumberFormat(navigator.language).format;
+const numFormatter = new Intl.NumberFormat(navigator.language);
+export const fmtNum = val => numFormatter.format(val);
 
 const M = Math;
 
