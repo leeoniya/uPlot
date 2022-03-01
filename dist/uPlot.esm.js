@@ -7,7 +7,7 @@
 * https://github.com/leeoniya/uPlot (v1.6.19)
 */
 
-const FEAT_TIME          = true;
+const FEAT_TIME                = true;
 
 // binary search for index of closest value
 function closestIdx(num, arr, lo, hi) {
@@ -2442,6 +2442,44 @@ function _monotoneCubic(xs, ys, moveTo, lineTo, bezierCurveTo, pxRound) {
 	return path;
 }
 
+function eventMarkers() {
+	return (u, seriesIdx, idx0, idx1) => {
+		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			let pxRound = series.pxRound;
+
+			const _paths = {stroke: new Path2D(), labels: new Array(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
+			const stroke = _paths.stroke;
+
+			let labelOffset = 0;
+
+			for (let i = idx0; i <= idx1; i++) {
+				let yEventName = dataY[i];
+
+				if (yEventName == null) {
+					continue;
+                }
+                let x = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
+				let yBottom = yOff + yDim;
+				let yTop = yOff;
+
+                stroke.moveTo(x, yBottom);
+                stroke.lineTo(x, yTop);
+
+				let labelElement = {text: dataY[i], x: x, y: yTop + labelOffset};
+
+				_paths.labels.push(labelElement);
+			}
+
+			_paths.gaps = null;
+			_paths.fill = null;
+			_paths.clip = null;
+			_paths.band = null;
+
+			return _paths;
+		});
+	};
+}
+
 const cursorPlots = new Set();
 
 function invalidateRects() {
@@ -3640,6 +3678,11 @@ function uPlot(opts, data, then) {
 						}
 					}
 
+					if (s._paths.labels != null)
+					{
+						drawPathLabels(s, s._paths.labels);
+					}
+
 					if (ctxAlpha != 1)
 						ctx.globalAlpha = ctxAlpha = 1;
 
@@ -3647,6 +3690,43 @@ function uPlot(opts, data, then) {
 				}
 			});
 		}
+	}
+
+	function drawPathLabels(s, labels) {
+		let textFill = s._stroke == null ? "black" : s._stroke;
+		let rectFill = s._fill == null ? "white" : s._fill;
+		let rectStroke = s._stroke == null ? "black" : s._stroke;
+		let rectPadding = 7;
+
+		setFontStyle(ctx.font, textFill, "center", "center");
+
+		labels.forEach((label) => {
+
+			let text = ctx.measureText(label.text);
+			let textWidth = text.width;
+			let textHeight = text.actualBoundingBoxDescent + text.actualBoundingBoxAscent;
+
+			let textCenterX = label.x;
+			let textCenterY = label.y + text.actualBoundingBoxAscent + rectPadding;
+
+			console.log("text (w,h) = (" + textWidth + ", " + textHeight + ")");
+
+			let rectWidth = textWidth + (rectPadding * 2);
+			let rectHeight = textHeight + (rectPadding * 2);
+			let rectTop = textCenterX - (rectWidth / 2);
+			let rectLeft = textCenterY - (rectHeight / 2);
+
+			console.log("rect (x,y,w,h) = (" + rectTop + ", " + rectLeft + ", " + rectWidth + ", " + rectHeight + ")");
+
+			ctx.fillStyle = rectFill;
+			ctx.strokeStyle = rectStroke;
+
+			ctx.fillRect(rectTop, rectLeft, rectWidth, rectHeight);
+			ctx.strokeRect(rectTop, rectLeft, rectWidth, rectHeight);
+
+			ctx.fillStyle = textFill;
+			ctx.fillText(label.text, textCenterX, textCenterY);
+		});
 	}
 
 	function cacheStrokeFill(si, _points) {
@@ -5309,6 +5389,7 @@ uPlot.orient   = orient;
 	(paths.stepped = stepped);
 	(paths.bars    = bars);
 	(paths.spline  = monotoneCubic);
+	(paths.eventMarkers = eventMarkers);
 }
 
 export { uPlot as default };

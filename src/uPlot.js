@@ -11,6 +11,7 @@ import {
 	FEAT_PATHS_SPLINE2,
 	FEAT_PATHS_STEPPED,
 	FEAT_PATHS_BARS,
+	FEAT_PATHS_EVENT_MARKERS,
 
 	FEAT_JOIN,
 } from './feats';
@@ -190,6 +191,7 @@ import { stepped  } from './paths/stepped';
 import { bars     } from './paths/bars';
 import { monotoneCubic     as spline  } from './paths/monotoneCubic';
 import { catmullRomCentrip as spline2 } from './paths/catmullRomCentrip';
+import { eventMarkers as eventMarkers } from './paths/eventMarkers';
 
 import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, orient, pxRoundGen, seriesFillTo, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './paths/utils';
 
@@ -1399,6 +1401,11 @@ export default function uPlot(opts, data, then) {
 						}
 					}
 
+					if (s._paths.labels != null)
+					{
+						drawPathLabels(s, s._paths.labels);
+					}
+
 					if (ctxAlpha != 1)
 						ctx.globalAlpha = ctxAlpha = 1;
 
@@ -1406,6 +1413,43 @@ export default function uPlot(opts, data, then) {
 				}
 			});
 		}
+	}
+
+	function drawPathLabels(s, labels) {
+		let textFill = s._stroke == null ? "black" : s._stroke;
+		let rectFill = s._fill == null ? "white" : s._fill;
+		let rectStroke = s._stroke == null ? "black" : s._stroke;
+		let rectPadding = 7;
+
+		setFontStyle(ctx.font, textFill, "center", "center");
+
+		labels.forEach((label) => {
+
+			let text = ctx.measureText(label.text);
+			let textWidth = text.width;
+			let textHeight = text.actualBoundingBoxDescent + text.actualBoundingBoxAscent;
+
+			let textCenterX = label.x;
+			let textCenterY = label.y + text.actualBoundingBoxAscent + rectPadding;
+
+			console.log("text (w,h) = (" + textWidth + ", " + textHeight + ")");
+
+			let rectWidth = textWidth + (rectPadding * 2);
+			let rectHeight = textHeight + (rectPadding * 2);
+			let rectTop = textCenterX - (rectWidth / 2);
+			let rectLeft = textCenterY - (rectHeight / 2);
+
+			console.log("rect (x,y,w,h) = (" + rectTop + ", " + rectLeft + ", " + rectWidth + ", " + rectHeight + ")");
+
+			ctx.fillStyle = rectFill;
+			ctx.strokeStyle = rectStroke;
+
+			ctx.fillRect(rectTop, rectLeft, rectWidth, rectHeight);
+			ctx.strokeRect(rectTop, rectLeft, rectWidth, rectHeight);
+
+			ctx.fillStyle = textFill;
+			ctx.fillText(label.text, textCenterX, textCenterY);
+		});
 	}
 
 	function cacheStrokeFill(si, _points) {
@@ -3069,4 +3113,5 @@ if (FEAT_PATHS) {
 	FEAT_PATHS_BARS    && (paths.bars    = bars);
 	FEAT_PATHS_SPLINE  && (paths.spline  = spline);
 	FEAT_PATHS_SPLINE2 && (paths.spline2 = spline2);
+	FEAT_PATHS_EVENT_MARKERS && (paths.eventMarkers = eventMarkers);
 }
