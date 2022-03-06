@@ -59,6 +59,7 @@ export function points(opts) {
 				stroke: width > 0 ? fill : null,
 				fill,
 				clip,
+				labels: null,
 				flags: BAND_CLIP_FILL | BAND_CLIP_STROKE,
 			};
 		});

@@ -55,7 +55,7 @@ export function splineInterp(interp, opts) {
 				}
 			}
 
-			const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
+			const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps: null, labels: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);

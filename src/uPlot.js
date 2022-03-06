@@ -211,6 +211,7 @@ on(resize, win, invalidateRects);
 on(scroll, win, invalidateRects, true);
 
 const linearPath = FEAT_PATHS && FEAT_PATHS_LINEAR ? linear() : null;
+const eventMarkersPath = FEAT_PATHS && FEAT_PATHS_LINEAR ? eventMarkers() : null;
 const pointsPath = FEAT_POINTS ? points() : null;
 
 function setDefaults(d, xo, yo, initY) {
@@ -893,6 +894,12 @@ export default function uPlot(opts, data, then) {
 			s.pxAlign = +ifNull(s.pxAlign, pxAlign);
 			s.pxRound = pxRoundGen(s.pxAlign);
 
+			if (s.paths.toString() == eventMarkersPath.toString())
+			{
+				s.auto = false;
+				s.value = (u, v) => v == null ? "--" : v;
+			}
+
 			s.stroke = fnOrSelf(s.stroke || null);
 			s.fill   = fnOrSelf(s.fill || null);
 			s._stroke = s._fill = s._paths = s._focus = null;
@@ -1426,16 +1433,31 @@ export default function uPlot(opts, data, then) {
 		labels.forEach((label) => {
 
 			let text = ctx.measureText(label.text);
+
 			let textWidth = text.width;
 			let textHeight = text.actualBoundingBoxDescent + text.actualBoundingBoxAscent;
 
+			let rectWidth = textWidth + (rectPadding * 2);
+			let rectHeight = textHeight + (rectPadding * 2);
+
+			let yOffAlign = text.actualBoundingBoxAscent + rectPadding;
+
+			if (label.align == "center")
+			{
+				yOffAlign = rectHeight;
+			}
+			else if (label.align == "bottom")
+			{
+				yOffAlign = -(text.actualBoundingBoxDescent + rectPadding);
+			}
+
+			console.log("text yOffAlign = " + yOffAlign);
+
 			let textCenterX = label.x;
-			let textCenterY = label.y + text.actualBoundingBoxAscent + rectPadding;
+			let textCenterY = label.y + yOffAlign;
 
 			console.log("text (w,h) = (" + textWidth + ", " + textHeight + ")");
 
-			let rectWidth = textWidth + (rectPadding * 2);
-			let rectHeight = textHeight + (rectPadding * 2);
 			let rectTop = textCenterX - (rectWidth / 2);
 			let rectLeft = textCenterY - (rectHeight / 2);
 

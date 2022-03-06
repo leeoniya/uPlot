@@ -12,8 +12,7 @@ export function stepped(opts) {
 			let pxRound = series.pxRound;
 
 			let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
-
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, labels: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			const _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
