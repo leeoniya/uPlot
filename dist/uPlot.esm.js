@@ -7,7 +7,7 @@
 * https://github.com/leeoniya/uPlot (v1.6.19)
 */
 
-const FEAT_TIME          = true;
+const FEAT_TIME                = true;
 
 // binary search for index of closest value
 function closestIdx(num, arr, lo, hi) {
@@ -1808,6 +1808,7 @@ function points(opts) {
 				stroke: width > 0 ? fill : null,
 				fill,
 				clip,
+				labels: null,
 				flags: BAND_CLIP_FILL | BAND_CLIP_STROKE,
 			};
 		});
@@ -1848,7 +1849,8 @@ function linear() {
 
 			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, labels: null, flags: BAND_CLIP_FILL};
+
 			const stroke = _paths.stroke;
 
 			let minY = inf,
@@ -1974,8 +1976,7 @@ function stepped(opts) {
 			let pxRound = series.pxRound;
 
 			let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
-
-			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, labels: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			const _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
@@ -2182,7 +2183,7 @@ function bars(opts) {
 				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * extraGap / 2;
 			}
 
-			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
+			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, labels: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
 
 			let yLimit;
 
@@ -2332,7 +2333,7 @@ function splineInterp(interp, opts) {
 				}
 			}
 
-			const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
+			const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps: null, labels: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
 			let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
@@ -2443,6 +2444,61 @@ function _monotoneCubic(xs, ys, moveTo, lineTo, bezierCurveTo, pxRound) {
 	return path;
 }
 
+function eventMarkers(opts) {
+	opts = opts || EMPTY_OBJ;
+	const showLabels = ifNull(opts.showLabels, true);
+	const labelsAlign = ifNull(opts.labelsAlign, "top");
+
+	return (u, seriesIdx, idx0, idx1) => {
+		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			let pxRound = series.pxRound;
+
+			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, labels: new Array(), flags: BAND_CLIP_FILL};
+			const stroke = _paths.stroke;
+
+			let yBottom = yOff + yDim;
+			let yTop = yOff;
+
+			let labelPadding = 6;
+			let yLabel = yTop + labelPadding;
+
+			if (labelsAlign == "bottom")
+			{
+				yLabel = yBottom - labelPadding;
+			}
+			else if (labelsAlign == "center")
+			{
+				yLabel = (yBottom - yTop) / 2;
+			}
+
+			for (let i = idx0; i <= idx1; i++) {
+				let yEventName = dataY[i];
+
+				if (yEventName == null) {
+					continue;
+				}
+				let x = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
+
+				stroke.moveTo(x, yBottom);
+				stroke.lineTo(x, yTop);
+
+				if (showLabels)
+				{	
+					let labelElement = {text: dataY[i], align: labelsAlign, x: x, y: yLabel};
+					_paths.labels.push(labelElement);
+				}
+			}
+
+			_paths.gaps = null;
+			_paths.fill = null;
+			_paths.clip = null;
+			_paths.band = null;
+
+			return _paths;
+		});
+	};
+}
+
 const cursorPlots = new Set();
 
 function invalidateRects() {
@@ -2455,6 +2511,7 @@ on(resize, win, invalidateRects);
 on(scroll, win, invalidateRects, true);
 
 const linearPath = linear() ;
+const eventMarkersPath = eventMarkers() ;
 const pointsPath = points() ;
 
 function setDefaults(d, xo, yo, initY) {
@@ -3133,6 +3190,12 @@ function uPlot(opts, data, then) {
 			s.pxAlign = +ifNull(s.pxAlign, pxAlign);
 			s.pxRound = pxRoundGen(s.pxAlign);
 
+			if (s.paths.toString() == eventMarkersPath.toString())
+			{
+				s.auto = false;
+				s.value = (u, v) => v == null ? "--" : v;
+			}
+
 			s.stroke = fnOrSelf(s.stroke || null);
 			s.fill   = fnOrSelf(s.fill || null);
 			s._stroke = s._fill = s._paths = s._focus = null;
@@ -3641,6 +3704,11 @@ function uPlot(opts, data, then) {
 						}
 					}
 
+					if (s._paths.labels != null)
+					{
+						drawPathLabels(s, s._paths.labels);
+					}
+
 					if (ctxAlpha != 1)
 						ctx.globalAlpha = ctxAlpha = 1;
 
@@ -3648,6 +3716,58 @@ function uPlot(opts, data, then) {
 				}
 			});
 		}
+	}
+
+	function drawPathLabels(s, labels) {
+		let textFill = s._stroke == null ? "black" : s._stroke;
+		let rectFill = s._fill == null ? "white" : s._fill;
+		let rectStroke = s._stroke == null ? "black" : s._stroke;
+		let rectPadding = 7;
+
+		setFontStyle(ctx.font, textFill, "center", "center");
+
+		labels.forEach((label) => {
+
+			let text = ctx.measureText(label.text);
+
+			let textWidth = text.width;
+			let textHeight = text.actualBoundingBoxDescent + text.actualBoundingBoxAscent;
+
+			let rectWidth = textWidth + (rectPadding * 2);
+			let rectHeight = textHeight + (rectPadding * 2);
+
+			let yOffAlign = text.actualBoundingBoxAscent + rectPadding;
+
+			if (label.align == "center")
+			{
+				yOffAlign = rectHeight;
+			}
+			else if (label.align == "bottom")
+			{
+				yOffAlign = -(text.actualBoundingBoxDescent + rectPadding);
+			}
+
+			console.log("text yOffAlign = " + yOffAlign);
+
+			let textCenterX = label.x;
+			let textCenterY = label.y + yOffAlign;
+
+			console.log("text (w,h) = (" + textWidth + ", " + textHeight + ")");
+
+			let rectTop = textCenterX - (rectWidth / 2);
+			let rectLeft = textCenterY - (rectHeight / 2);
+
+			console.log("rect (x,y,w,h) = (" + rectTop + ", " + rectLeft + ", " + rectWidth + ", " + rectHeight + ")");
+
+			ctx.fillStyle = rectFill;
+			ctx.strokeStyle = rectStroke;
+
+			ctx.fillRect(rectTop, rectLeft, rectWidth, rectHeight);
+			ctx.strokeRect(rectTop, rectLeft, rectWidth, rectHeight);
+
+			ctx.fillStyle = textFill;
+			ctx.fillText(label.text, textCenterX, textCenterY);
+		});
 	}
 
 	function cacheStrokeFill(si, _points) {
@@ -5310,6 +5430,7 @@ uPlot.orient   = orient;
 	(paths.stepped = stepped);
 	(paths.bars    = bars);
 	(paths.spline  = monotoneCubic);
+	(paths.eventMarkers = eventMarkers);
 }
 
 export { uPlot as default };
