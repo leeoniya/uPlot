@@ -3193,6 +3193,8 @@ var uPlot = (function () {
 				s.pxAlign = +ifNull(s.pxAlign, pxAlign);
 				s.pxRound = pxRoundGen(s.pxAlign);
 
+				// need a better way to know what path function we are using
+				// want the defults for eventMarkersPath to be different
 				if (s.paths.toString() == eventMarkersPath.toString())
 				{
 					s.auto = false;
@@ -3730,7 +3732,6 @@ var uPlot = (function () {
 			setFontStyle(ctx.font, textFill, "center", "center");
 
 			labels.forEach((label) => {
-
 				let text = ctx.measureText(label.text);
 
 				let textWidth = text.width;
@@ -3750,17 +3751,11 @@ var uPlot = (function () {
 					yOffAlign = -(text.actualBoundingBoxDescent + rectPadding);
 				}
 
-				console.log("text yOffAlign = " + yOffAlign);
-
 				let textCenterX = label.x;
 				let textCenterY = label.y + yOffAlign;
 
-				console.log("text (w,h) = (" + textWidth + ", " + textHeight + ")");
-
 				let rectTop = textCenterX - (rectWidth / 2);
 				let rectLeft = textCenterY - (rectHeight / 2);
-
-				console.log("rect (x,y,w,h) = (" + rectTop + ", " + rectLeft + ", " + rectWidth + ", " + rectHeight + ")");
 
 				ctx.fillStyle = rectFill;
 				ctx.strokeStyle = rectStroke;
