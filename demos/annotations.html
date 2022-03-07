@@ -1,0 +1,185 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Annotations</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+
+		<style>
+			*,
+			*::before,
+			*::after {
+				box-sizing: border-box;
+			}
+
+			.u-over {
+				overflow: hidden;
+			}
+
+			.u-mark-x {
+				position: absolute;
+				display: inline-block;
+				height: 100%;
+				cursor: pointer;
+			}
+
+			.u-mark-x-label {
+				position: absolute;
+				transform: translateX(-50%);
+				padding: 0 4px;
+				background: #fff !important;
+			}
+
+			.u-mark-x:hover {
+				border-left-style: solid !important;
+			/*	border-right-style: solid !important;*/
+			}
+
+			.u-mark-x:hover .u-mark-x-label {
+				border-style: solid !important;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.min.js"></script>
+		<script>
+			let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
+			let vals = [-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10];
+
+			let data = [
+				xs,
+				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+			];
+
+			let xMarks = [
+				{
+					type: 'eqk',
+					from: 4,
+					to: 4,
+					label: 'eqk_01',
+					link: 'https://google.com/',
+					descr: 'Earthquake 01!',
+				},
+				{
+					type: 'tor',
+					from: 9.3,
+					to: 18.5,
+					label: 'tor_20',
+					link: 'https://google.com/',
+					descr: 'Tornado 20!',
+				},
+			];
+
+			function annotationsPlugin(opts) {
+				const { types } = opts;
+
+				// TODO: use <template> + .cloneNode() ?
+				function placeMark(u, mark, opts) {
+					let markEl = document.createElement('div');
+					markEl.classList.add('u-mark-x');
+
+					let leftCss = Math.round(u.valToPos(mark.from, 'x'));
+					let widthCss = mark.to > mark.from ? Math.round(u.valToPos(mark.to, 'x')) - leftCss : 0;
+
+					Object.assign(markEl.style, {
+						left:       `${leftCss}px`,
+						width:      `${widthCss}px`,
+						borderLeft: `${opts.width}px ${opts.dash ? 'dashed' : 'solid'} ${opts.stroke}`,
+						borderRight: mark.to > mark.from ? `${opts.width}px ${opts.dash ? 'dashed' : 'solid'} ${opts.stroke}` : null,
+						background:  opts.fill,
+					});
+
+					let labelEl = document.createElement('div');
+					labelEl.classList.add('u-mark-x-label');
+					labelEl.textContent = mark.label;
+					labelEl.title = mark.descr;
+
+					Object.assign(labelEl.style, {
+						border:     `${opts.width}px ${opts.dash ? 'dashed' : 'solid'} ${opts.stroke}`,
+						top:        opts.align == 'top' ? 0 : '',
+						bottom:     opts.align == 'btm' ? 0 : '',
+						background: opts.fill,
+					});
+
+					markEl.appendChild(labelEl);
+					u.over.appendChild(markEl);
+				}
+
+				return {
+					hooks: {
+						drawClear: [
+							(u) => {
+								for (let el of u.over.querySelectorAll('.u-mark-x'))
+									el.remove();
+
+								xMarks.forEach(mark => {
+									let o = opts.types[mark.type];
+
+									if (
+										mark.from >= u.scales.x.min &&
+										mark.from <= u.scales.x.max
+										||
+										mark.to >= u.scales.x.min &&
+										mark.to <= u.scales.x.max
+										||
+										mark.from <= u.scales.x.min &&
+										mark.to >= u.scales.x.max
+									) {
+										placeMark(u, mark, o);
+									}
+								});
+							}
+						],
+					},
+				};
+			}
+
+			const opts = {
+				width: 1920,
+				height: 600,
+				title: "Annotations",
+				plugins: [
+					annotationsPlugin({
+						types: {
+							tor: {
+								width: 2,
+								align: 'top',
+								stroke: 'rgb(255 193 7)',
+								fill:   'rgb(255 193 7 / 20%)',
+								dash: [5,5],
+							},
+							eqk: {
+								width: 2,
+								align: 'btm',
+								stroke: 'rgb(76 175 80)',
+								fill:   'rgb(76 175 80 / 20%)',
+								dash: [5,5],
+							},
+						}
+					})
+				],
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					{
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+					},
+					{
+						stroke: "blue",
+						fill: "rgba(0,0,255,0.1)",
+					},
+				],
+			};
+
+			let u = new uPlot(opts, data, document.body);
+		</script>
+	</body>
+</html>
