@@ -123,7 +123,7 @@ export function bars(opts) {
 				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * extraGap / 2;
 			}
 
-			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, labels: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
+			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
 
 			let yLimit;
 
