@@ -11,7 +11,6 @@ import {
 	FEAT_PATHS_SPLINE2,
 	FEAT_PATHS_STEPPED,
 	FEAT_PATHS_BARS,
-	FEAT_PATHS_EVENT_MARKERS,
 
 	FEAT_JOIN,
 } from './feats';
@@ -191,7 +190,6 @@ import { stepped  } from './paths/stepped';
 import { bars     } from './paths/bars';
 import { monotoneCubic     as spline  } from './paths/monotoneCubic';
 import { catmullRomCentrip as spline2 } from './paths/catmullRomCentrip';
-import { eventMarkers as eventMarkers } from './paths/eventMarkers';
 
 import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, orient, pxRoundGen, seriesFillTo, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './paths/utils';
 
@@ -211,7 +209,6 @@ on(resize, win, invalidateRects);
 on(scroll, win, invalidateRects, true);
 
 const linearPath = FEAT_PATHS && FEAT_PATHS_LINEAR ? linear() : null;
-const eventMarkersPath = FEAT_PATHS && FEAT_PATHS_LINEAR ? eventMarkers() : null;
 const pointsPath = FEAT_POINTS ? points() : null;
 
 function setDefaults(d, xo, yo, initY) {
@@ -476,7 +473,6 @@ export default function uPlot(opts, data, then) {
 			xOffCan = plotLft;
 			yDimCan = plotHgt;
 			yOffCan = plotTop;
-
 			xDimCss = plotWidCss;
 			xOffCss = plotLftCss;
 			yDimCss = plotHgtCss;
@@ -496,7 +492,6 @@ export default function uPlot(opts, data, then) {
 			xOffCan = plotTop;
 			yDimCan = plotWid;
 			yOffCan = plotLft;
-
 			xDimCss = plotHgtCss;
 			xOffCss = plotTopCss;
 			yDimCss = plotWidCss;
@@ -893,14 +888,6 @@ export default function uPlot(opts, data, then) {
 			s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
 			s.pxAlign = +ifNull(s.pxAlign, pxAlign);
 			s.pxRound = pxRoundGen(s.pxAlign);
-
-			// need a better way to know what path function we are using
-			// want the defults for eventMarkersPath to be different
-			if (s.paths.toString() == eventMarkersPath.toString())
-			{
-				s.auto = false;
-				s.value = (u, v) => v == null ? "--" : v;
-			}
 
 			s.stroke = fnOrSelf(s.stroke || null);
 			s.fill   = fnOrSelf(s.fill || null);
@@ -1410,11 +1397,6 @@ export default function uPlot(opts, data, then) {
 						}
 					}
 
-					if (s._paths.labels != null)
-					{
-						drawPathLabels(s, s._paths.labels);
-					}
-
 					if (ctxAlpha != 1)
 						ctx.globalAlpha = ctxAlpha = 1;
 
@@ -1422,51 +1404,6 @@ export default function uPlot(opts, data, then) {
 				}
 			});
 		}
-	}
-
-	function drawPathLabels(s, labels) {
-		let textFill = s._stroke == null ? "black" : s._stroke;
-		let rectFill = s._fill == null ? "white" : s._fill;
-		let rectStroke = s._stroke == null ? "black" : s._stroke;
-		let rectPadding = 7;
-
-		setFontStyle(ctx.font, textFill, "center", "center");
-
-		labels.forEach((label) => {
-			let text = ctx.measureText(label.text);
-
-			let textWidth = text.width;
-			let textHeight = text.actualBoundingBoxDescent + text.actualBoundingBoxAscent;
-
-			let rectWidth = textWidth + (rectPadding * 2);
-			let rectHeight = textHeight + (rectPadding * 2);
-
-			let yOffAlign = text.actualBoundingBoxAscent + rectPadding;
-
-			if (label.align == "center")
-			{
-				yOffAlign = rectHeight;
-			}
-			else if (label.align == "bottom")
-			{
-				yOffAlign = -(text.actualBoundingBoxDescent + rectPadding);
-			}
-
-			let textCenterX = label.x;
-			let textCenterY = label.y + yOffAlign;
-
-			let rectTop = textCenterX - (rectWidth / 2);
-			let rectLeft = textCenterY - (rectHeight / 2);
-
-			ctx.fillStyle = rectFill;
-			ctx.strokeStyle = rectStroke;
-
-			ctx.fillRect(rectTop, rectLeft, rectWidth, rectHeight);
-			ctx.strokeRect(rectTop, rectLeft, rectWidth, rectHeight);
-
-			ctx.fillStyle = textFill;
-			ctx.fillText(label.text, textCenterX, textCenterY);
-		});
 	}
 
 	function cacheStrokeFill(si, _points) {
@@ -3130,5 +3067,4 @@ if (FEAT_PATHS) {
 	FEAT_PATHS_BARS    && (paths.bars    = bars);
 	FEAT_PATHS_SPLINE  && (paths.spline  = spline);
 	FEAT_PATHS_SPLINE2 && (paths.spline2 = spline2);
-	FEAT_PATHS_EVENT_MARKERS && (paths.eventMarkers = eventMarkers);
 }
