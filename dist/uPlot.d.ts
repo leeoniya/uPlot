@@ -632,9 +632,6 @@ declare namespace uPlot {
 			/** tuples of canvas pixel coordinates that were used to construct the gaps clip */
 			gaps?: [from: number, to: number][];
 
-			/** labels to render **/
-			labels?: Array | null;
-
 			/** bitmap of whether the band clip should be applied to stroke, fill, or both */
 			flags?: number;
 		}
@@ -698,17 +695,11 @@ declare namespace uPlot {
 			each?: (self: uPlot, seriesIdx: number, idx: number, left: number, top: number, width: number, height: number) => void;
 		}
 
-		export interface EventMarkersPathBuilderOpts {
-			showLabels?: boolean;
-			labelsAlign?: "top" | "center" | "bottom";
-		}
-
 		export type PointsPathBuilderFactory  = () => Points.PathBuilder;
 		export type LinearPathBuilderFactory  = () => Series.PathBuilder;
 		export type SplinePathBuilderFactory  = () => Series.PathBuilder;
 		export type SteppedPathBuilderFactory = (opts?: SteppedPathBuilderOpts) => Series.PathBuilder;
 		export type BarsPathBuilderFactory    = (opts?: BarsPathBuilderOpts) => Series.PathBuilder;
-		export type EventMarkersPathBuilderFactory  = (opts?: EventMarkersPathBuilderOpts) => Series.PathBuilder;
 
 		export interface PathBuilderFactories {
 			linear?:  LinearPathBuilderFactory;
@@ -716,7 +707,6 @@ declare namespace uPlot {
 			stepped?: SteppedPathBuilderFactory;
 			bars?:    BarsPathBuilderFactory;
 			points?:  PointsPathBuilderFactory;
-			eventMarkers?:  EventMarkersPathBuilderFactory;
 		}
 
 		export type Stroke = CanvasRenderingContext2D['strokeStyle'] | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['strokeStyle']);
