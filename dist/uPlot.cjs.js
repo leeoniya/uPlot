@@ -3643,6 +3643,11 @@ function uPlot(opts, data, then) {
 						}
 					}
 
+					if (s._paths.text != null)
+					{
+						s._paths.text(self, i);
+					}
+
 					if (ctxAlpha != 1)
 						ctx.globalAlpha = ctxAlpha = 1;
 

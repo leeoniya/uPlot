@@ -623,6 +623,9 @@ declare namespace uPlot {
 			/** path to fill */
 			fill?: Path2D | Map<CanvasRenderingContext2D['fillStyle'], Path2D> | null;
 
+			/** fn to draw path labels */
+			text?: ((self: uPlot, seriesIdx: number) => void) | null;
+
 			/** path for clipping fill & stroke (used for gaps) */
 			clip?: Path2D | null;
 
