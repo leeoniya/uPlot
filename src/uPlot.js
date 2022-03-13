@@ -1383,6 +1383,7 @@ export default function uPlot(opts, data, then) {
 					if (FEAT_PATHS) {
 						cacheStrokeFill(i, false);
 						s._paths && drawPath(i, false);
+						
 					}
 
 					if (FEAT_POINTS) {
@@ -1395,6 +1396,11 @@ export default function uPlot(opts, data, then) {
 							s.points._paths = s.points.paths(self, i, i0, i1, idxs);
 							drawPath(i, true);
 						}
+					}
+
+					if (s._paths.text != null)
+					{
+						s._paths.text(self, i);
 					}
 
 					if (ctxAlpha != 1)

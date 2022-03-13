@@ -2719,7 +2719,6 @@ function uPlot(opts, data, then) {
 			xOffCan = plotLft;
 			yDimCan = plotHgt;
 			yOffCan = plotTop;
-
 			xDimCss = plotWidCss;
 			xOffCss = plotLftCss;
 			yDimCss = plotHgtCss;
@@ -2737,7 +2736,6 @@ function uPlot(opts, data, then) {
 			xOffCan = plotTop;
 			yDimCan = plotWid;
 			yOffCan = plotLft;
-
 			xDimCss = plotHgtCss;
 			xOffCss = plotTopCss;
 			yDimCss = plotWidCss;
@@ -3629,6 +3627,7 @@ function uPlot(opts, data, then) {
 					{
 						cacheStrokeFill(i, false);
 						s._paths && drawPath(i, false);
+						
 					}
 
 					{
@@ -3641,6 +3640,11 @@ function uPlot(opts, data, then) {
 							s.points._paths = s.points.paths(self, i, i0, i1, idxs);
 							drawPath(i, true);
 						}
+					}
+
+					if (s._paths.text != null)
+					{
+						s._paths.text(self, i);
 					}
 
 					if (ctxAlpha != 1)
