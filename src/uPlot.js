@@ -473,6 +473,7 @@ export default function uPlot(opts, data, then) {
 			xOffCan = plotLft;
 			yDimCan = plotHgt;
 			yOffCan = plotTop;
+
 			xDimCss = plotWidCss;
 			xOffCss = plotLftCss;
 			yDimCss = plotHgtCss;
@@ -492,6 +493,7 @@ export default function uPlot(opts, data, then) {
 			xOffCan = plotTop;
 			yDimCan = plotWid;
 			yOffCan = plotLft;
+
 			xDimCss = plotHgtCss;
 			xOffCss = plotTopCss;
 			yDimCss = plotWidCss;
@@ -1383,7 +1385,6 @@ export default function uPlot(opts, data, then) {
 					if (FEAT_PATHS) {
 						cacheStrokeFill(i, false);
 						s._paths && drawPath(i, false);
-						
 					}
 
 					if (FEAT_POINTS) {
