@@ -2720,6 +2720,7 @@ var uPlot = (function () {
 				xOffCan = plotLft;
 				yDimCan = plotHgt;
 				yOffCan = plotTop;
+
 				xDimCss = plotWidCss;
 				xOffCss = plotLftCss;
 				yDimCss = plotHgtCss;
@@ -2737,6 +2738,7 @@ var uPlot = (function () {
 				xOffCan = plotTop;
 				yDimCan = plotWid;
 				yOffCan = plotLft;
+
 				xDimCss = plotHgtCss;
 				xOffCss = plotTopCss;
 				yDimCss = plotWidCss;
@@ -3628,7 +3630,6 @@ var uPlot = (function () {
 						{
 							cacheStrokeFill(i, false);
 							s._paths && drawPath(i, false);
-							
 						}
 
 						{
