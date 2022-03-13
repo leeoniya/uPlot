@@ -3641,7 +3641,7 @@ function uPlot(opts, data, then) {
 						}
 					}
 
-					if (s._paths.text != null)
+					if (s._paths != null && s._paths.text != null)
 					{
 						s._paths.text(self, i);
 					}
