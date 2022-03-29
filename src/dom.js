@@ -21,7 +21,7 @@ function setPxRatio() {
 	let _pxRatio = devicePixelRatio;
 
 	// during print preview, Chrome fires off these dppx queries even without changes
-	if (pxRatio != _pxRatio) {
+	if (pxRatio != _pxRatio && window.matchMedia) {
 		pxRatio = _pxRatio;
 
 		query && off(change, query, setPxRatio);
