@@ -15,6 +15,8 @@
 
 			.uplot {
 				display: inline-block;
+				vertical-align: top;
+				margin-top: 50px;
 			}
 		</style>
 	</head>
@@ -187,6 +189,635 @@
 				1600,
 				400,
 			);
+		</script>
+
+		<hr>
+
+		<script>
+			const n = null;
+
+			let opts5 = {
+				width: 400,
+				height: 300,
+				scales: {
+					x: {
+						time: false,
+					}
+				},
+				series: [
+					{},
+					{
+						stroke: 'blue',
+						fill: "rgba(0, 0, 255, 0.3)",
+					},
+					{
+						stroke: 'green',
+						fill: "rgba(0, 255, 0, 0.3)",
+					},
+					{
+						stroke: 'orange',
+						fill: "rgba(255, 165, 0, 0.4)",
+					},
+					{
+						stroke: 'red',
+						fill: 'rgba(255, 0, 0, 0.3)',
+					}
+				],
+			};
+
+			{
+				let data5 = [
+					[  0,   1,   2,   3,   4],
+					[  5,   5,   5,   5,   5],
+					[-10, -10, -10, -10, -10],
+					[ 10,  10,  10,  10,  10],
+					[ -5,  -5,  -5,  -5,  -5],
+				];
+
+				new uPlot(uPlot.assign({title: 'unstacked'}, opts5), data5, document.body);
+
+				let series2 = [
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[1],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[2],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[3],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[4],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+				];
+
+				let { data: stackedData, bands } = stack2(series2);
+
+				new uPlot(uPlot.assign({
+					title: 'stacked',
+					bands,
+				}, opts5), [
+					data5[0],
+					...stackedData,
+				], document.body);
+			}
+
+			{
+				let data5 = [
+					[  0,   1,   2,   3,   4],
+					[  5,   5,   5,   5,   5],
+					[-10, -10,   _, -10, -10],
+					[ 10,  10,  10,  10,  10],
+					[ -5,  -5,   _,  -5,  -5],
+				];
+
+				let series2 = [
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[1],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[2],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[3],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[4],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+				];
+
+				let { data: stackedData, bands } = stack2(series2);
+
+				new uPlot(uPlot.assign({
+					title: 'stacked, red=undef, green=undef',
+					bands,
+				}, opts5), [
+					data5[0],
+					...stackedData,
+				], document.body);
+			}
+
+			{
+				let data5 = [
+					[  0,   1,   2,   3,   4],
+					[  5,   5,   5,   5,   5],
+					[-10, -10, -10, -10, -10],
+					[ 10,  10,  10,  10,  10],
+					[ -5,  -5,   n,  -5,  -5],
+				];
+
+				let series2 = [
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[1],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[2],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[3],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[4],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+				];
+
+				let { data: stackedData, bands } = stack2(series2);
+
+				new uPlot(uPlot.assign({
+					title: 'stacked, red=null',
+					bands,
+				}, opts5), [
+					data5[0],
+					...stackedData,
+				], document.body);
+			}
+
+			{
+				let data5 = [
+					[  0,   1,   2,   3,   4],
+					[  5,   5,   5,   5,   5],
+					[-10, -10,   n, -10, -10],
+					[ 10,  10,  10,  10,  10],
+					[ -5,  -5,  -5,  -5,  -5],
+				];
+
+				let series2 = [
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[1],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[2],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[3],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[4],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+				];
+
+				let { data: stackedData, bands } = stack2(series2);
+
+				new uPlot(uPlot.assign({
+					title: 'stacked, green=null',
+					bands,
+				}, opts5), [
+					data5[0],
+					...stackedData,
+				], document.body);
+			}
+
+			{
+				let data5 = [
+					[  0,   1,   2,   3,   4],
+					[  5,   5,   5,   5,   5],
+					[-10, -10,   n, -10, -10],
+					[ 10,  10,  10,  10,  10],
+					[ -5,  -5,   n,  -5,  -5],
+				];
+
+				let series2 = [
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[1],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[2],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[3],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[4],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+				];
+
+				let { data: stackedData, bands } = stack2(series2);
+
+				new uPlot(uPlot.assign({
+					title: 'stacked, red=null, green=null',
+					bands,
+				}, opts5), [
+					data5[0],
+					...stackedData,
+				], document.body);
+			}
+
+			{
+				let data5 = [
+					[  0,   1,   2,   3,   4],
+					[  5,   5,   5,   5,   5],
+					[-10, -10,   0, -10, -10],
+					[ 10,  10,  10,  10,  10],
+					[ -5,  -5,   0,  -5,  -5],
+				];
+
+				let series2 = [
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[1],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[2],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[3],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[4],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+				];
+
+				let { data: stackedData, bands } = stack2(series2);
+
+				new uPlot(uPlot.assign({
+					title: 'stacked, red=0, green=0',
+					bands,
+				}, opts5), [
+					data5[0],
+					...stackedData,
+				], document.body);
+			}
+
+			{
+				let opts5 = {
+					width: 400,
+					height: 300,
+					scales: {
+						x: {
+							time: false,
+						}
+					},
+					series: [
+						{},
+						{
+							stroke: 'green',
+							fill: "rgba(0, 255, 0, 0.3)",
+						},
+						{
+							stroke: 'red',
+							fill: 'rgba(255, 0, 0, 0.3)',
+						}
+					],
+				};
+
+				let data5 = [
+					[  0,   1,   2,   3,   4,   5],
+					[  5,   5,   5,   n,   5,   5],
+					[ 10,  10,   n,  10,  10,  10],
+				];
+
+				let series2 = [
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[1],
+						negY: true,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[2],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+				];
+
+				let { data: stackedData, bands } = stack2(series2);
+
+				new uPlot(uPlot.assign({
+					title: 'unstacked, green negY, green=null, red=null',
+					bands,
+				}, opts5), [
+					data5[0],
+					...stackedData,
+				], document.body);
+			}
+
+			{
+				let opts5 = {
+					width: 400,
+					height: 300,
+					scales: {
+						x: {
+							time: false,
+						}
+					},
+					series: [
+						{},
+						{
+							stroke: 'green',
+							fill: "rgba(0, 255, 0, 0.3)",
+						},
+						{
+							stroke: 'red',
+							fill: 'rgba(255, 0, 0, 0.3)',
+						}
+					],
+				};
+
+				let data5 = [
+					[  0,   1,   2,   3,   4,   5],
+					[  5,   5,   5,   0,   5,   5],
+					[ 10,  10,   0,  10,  10,  10],
+				];
+
+				let series2 = [
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[1],
+						negY: true,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[2],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+				];
+
+				let { data: stackedData, bands } = stack2(series2);
+
+				new uPlot(uPlot.assign({
+					title: 'unstacked, green negY, green=0, red=0',
+					bands,
+				}, opts5), [
+					data5[0],
+					...stackedData,
+				], document.body);
+			}
+
+			{
+				let data5 = [
+					[  0,   1,   2,   3,   4],
+					[  5,   5,   5,   5,   5],
+					[-25,  -8,  -1,  -3, -10],
+					[ 10,  35, 100,  10,  10],
+					[ -5,  -5,  -5,  -5,  -5],
+				];
+
+				let series2 = [
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[1],
+						negY: false,
+						stacking: {
+							mode: 'percent',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[2],
+						negY: false,
+						stacking: {
+							mode: 'percent',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[3],
+						negY: false,
+						stacking: {
+							mode: 'percent',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[4],
+						negY: false,
+						stacking: {
+							mode: 'percent',
+							group: 'A',
+						},
+					},
+				];
+
+				let { data: stackedData, bands } = stack2(series2);
+
+				new uPlot(uPlot.assign({
+					title: 'neg percent stacked',
+					bands,
+				}, opts5), [
+					data5[0],
+					...stackedData,
+				], document.body);
+			}
+
+			{
+				let data5 = [
+					[  0,   1,   2,   3,   4],
+					[  5,   5,   5,   5,   5],
+					[ 25,   8,   1,   3,  10],
+					[ 10,  35,  50,  10,  10],
+					[  5,   5,   5,   5,   5],
+				];
+
+				let series2 = [
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[1],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[2],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'B',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[3],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'B',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[4],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+				];
+
+				let { data: stackedData, bands } = stack2(series2);
+
+				new uPlot(uPlot.assign({
+					title: 'stacking groups',
+					bands,
+				}, opts5), [
+					data5[0],
+					...stackedData,
+				], document.body);
+			}
 		</script>
 	</body>
 </html>
