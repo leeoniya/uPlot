@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Events Markers Series</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+		<script src="./eventMarkers.js"></script>
+		<script>
+			let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
+			let vals = [-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10];
+            let events_1 = [null,null,null,null,null,null,"Event_1 0",null,null,null,null,null,null,"Event_1 1",null,null,null,null,"Event_1 2",null,null,null,null,null,null,null,null,null,null,null];
+            let events_2 = [null,null,null,null,null,null,null,null,null,null,null,"Event_2 0",null,null,null,null,null,null,null,null,"Event_2 1",null,null,null,null,null,null,null,null,null];
+
+			let data = [
+				xs,
+				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+                events_1,
+                events_2,
+			];
+
+			function roundIncr(x, incr) {
+				return Math.round(x/incr)*incr;
+			}
+
+			const moveTuple = [0,0];
+
+			function cursorMove(self, left, top) {
+				moveTuple[0] = roundIncr(left, 10);
+				moveTuple[1] = roundIncr(top, 10);
+				return moveTuple;
+			}
+
+			const opts = {
+				width: 1920,
+				height: 600,
+				title: "Event Markers Series Demo",
+				cursor: {
+					move: cursorMove
+				},
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					{
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+					},
+					{
+						stroke: "blue",
+						fill: "rgba(0,0,255,0.1)",
+					},
+					{
+                        paths: eventMarkers({showLabels: true, labelsAlign: "top"}),
+						value: (u, v) => v == null ? "--" : v,
+						auto: false,
+					    label: "Event_1 Marker",
+                        width: 2,
+						stroke: "purple",
+						fill: "rgba(245,235,255)",
+					},
+					{
+                        paths: eventMarkers({showLabels: true, labelsAlign: "bottom"}),
+						value: (u, v) => v == null ? "--" : v,
+						auto: false,
+					    label: "Event_2 Marker",
+                        width: 2,
+						stroke: "green",
+						fill: "rgba(245,255,245)",
+					},
+				],
+			};
+
+			let u = new uPlot(opts, data, document.body);
+		</script>
+	</body>
+</html>
