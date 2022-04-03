@@ -4387,17 +4387,19 @@ var uPlot = (function () {
 		function setSeries(i, opts, _fire, _pub) {
 		//	log("setSeries()", arguments);
 
-			let s = series[i];
-
 			if (opts.focus != null)
 				setFocus(i);
 
 			if (opts.show != null) {
-				s.show = opts.show;
-				toggleDOM(i, opts.show);
+				series.forEach((s, si) => {
+					if (si > 0 && (i == si || i == null)) {
+						s.show = opts.show;
+						toggleDOM(si, opts.show);
 
-				_setScale(mode == 2 ? s.facets[1].scale : s.scale, null, null);
-				commit();
+						_setScale(mode == 2 ? s.facets[1].scale : s.scale, null, null);
+						commit();
+					}
+				});
 			}
 
 			_fire !== false && fire("setSeries", i, opts);
