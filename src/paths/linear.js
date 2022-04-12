@@ -47,6 +47,7 @@ export function linear() {
 			let accX = pxRound(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let accGaps = false;
 			let prevYNull = false;
+			let prevYData = false;
 
 			// data edges
 			let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * dir);
@@ -74,6 +75,8 @@ export function linear() {
 					}
 					else if (dataY[i] === null)
 						accGaps = prevYNull = true;
+					else
+						prevYData = true;
 				}
 				else {
 					let _addGap = false;
@@ -82,10 +85,12 @@ export function linear() {
 						drawAcc(stroke, accX, minY, maxY, inY, outY);
 						outX = drawnAtX = accX;
 					}
-					else if (accGaps) {
+					else if (accGaps && !prevYData) {
 						_addGap = true;
 						accGaps = false;
 					}
+
+					prevYData = false;
 
 					if (dataY[i] != null) {
 						outY = pxRound(valToPosY(dataY[i], scaleY, yDim, yOff));
@@ -108,6 +113,8 @@ export function linear() {
 							if (x - accX > 1)
 								_addGap = true;
 						}
+						else
+							prevYData = true;
 					}
 
 					_addGap && addGap(gaps, outX, x);

@@ -471,6 +471,35 @@
 			};
 
 			let u8 = new uPlot(opts8, data8, document.body);
+
+
+
+			let data99 = [
+			//	[42000,71999,77999,78033,79800,92400,98400],
+				[42000, 71999, 77999, 78000,     79800, 92400,    98400],
+				[   10,    20,  null,    30, undefined,    40, undefined],
+			];
+
+			let opts99 = {
+				title: "Undefined",
+				width: 600,
+				height: 300,
+				scales: {
+					x: {
+						time: false,
+					}
+				},
+				series: [
+					{},
+					{
+						show: true,
+						spanGaps: false,
+						stroke: "red",
+					}
+				]
+			};
+
+			let u99 = new uPlot(opts99, data99, document.body);
 		</script>
 	</body>
 </html>
