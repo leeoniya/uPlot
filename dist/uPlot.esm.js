@@ -1705,6 +1705,49 @@ function addGap(gaps, fromX, toX) {
 		gaps.push([fromX, toX]);
 }
 
+function findGaps(xs, ys, idx0, idx1, dir, pixelForX) {
+	let gaps = [];
+
+	for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
+		let yVal = ys[i];
+
+		if (yVal === null) {
+			let fr = i, to = i;
+
+			if (dir == 1) {
+				while (++i <= idx1 && ys[i] === null)
+					to = i;
+			}
+			else {
+				while (--i >= idx0 && ys[i] === null)
+					to = i;
+			}
+
+			let frPx = pixelForX(xs[fr]);
+			let toPx = to == fr ? frPx : pixelForX(xs[to]);
+
+			// if value adjacent to edge null is same pixel, then it's partially
+			// filled and gap should start at next pixel
+			let frPx2 = pixelForX(xs[fr-dir]);
+		//	if (frPx2 == frPx)
+		//		frPx++;
+		//	else
+				frPx = frPx2;
+
+			let toPx2 = pixelForX(xs[to+dir]);
+		//	if (toPx2 == toPx)
+		//		toPx--;
+		//	else
+				toPx = toPx2;
+
+			if (toPx >= frPx)
+				gaps.push([frPx, toPx]); // addGap
+		}
+	}
+
+	return gaps;
+}
+
 function pxRoundGen(pxAlign) {
 	return pxAlign == 0 ? retArg0 : pxAlign == 1 ? round : v => incrRound(v, pxAlign);
 }
@@ -1830,53 +1873,13 @@ function _drawAcc(lineTo) {
 const drawAccH = _drawAcc(lineToH);
 const drawAccV = _drawAcc(lineToV);
 
-function findGaps(xs, ys, idx0, idx1, dir, pixelForX) {
-	let gaps = [];
-
-	for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
-		let yVal = ys[i];
-
-		if (yVal === null) {
-			let fr = i, to = i;
-
-			if (dir == 1) {
-				while (++i <= idx1 && ys[i] === null)
-					to = i;
-			}
-			else {
-				while (--i >= idx0 && ys[i] === null)
-					to = i;
-			}
-
-			let frPx = pixelForX(xs[fr]);
-			let toPx = to == fr ? frPx : pixelForX(xs[to]);
-
-			// if value adjacent to edge null is same pixel, then it's partially
-			// filled and gap should start at next pixel
-			let frPx2 = pixelForX(xs[fr-dir]);
-		//	if (frPx2 == frPx)
-		//		frPx++;
-		//	else
-				frPx = frPx2;
-
-			let toPx2 = pixelForX(xs[to+dir]);
-		//	if (toPx2 == toPx)
-		//		toPx--;
-		//	else
-				toPx = toPx2;
-
-			if (toPx >= frPx)
-				gaps.push([frPx, toPx]); // addGap
-		}
-	}
-
-	return gaps;
-}
-
 function linear() {
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
+
+			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
+			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
 
 			let lineTo, drawAcc;
 
@@ -1898,20 +1901,20 @@ function linear() {
 				maxY = -inf,
 				inY, outY, drawnAtX;
 
-			let accX = pxRound(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+			let accX = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
 
 			// data edges
 			let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * dir);
 			let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * dir);
-			let lftX =  pxRound(valToPosX(dataX[lftIdx], scaleX, xDim, xOff));
-			let rgtX =  pxRound(valToPosX(dataX[rgtIdx], scaleX, xDim, xOff));
+			let lftX   =  pixelForX(dataX[lftIdx]);
+			let rgtX   =  pixelForX(dataX[rgtIdx]);
 
 			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
-				let x = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
+				let x = pixelForX(dataX[i]);
 
 				if (x == accX) {
 					if (dataY[i] != null) {
-						outY = pxRound(valToPosY(dataY[i], scaleY, yDim, yOff));
+						outY = pixelForY(dataY[i]);
 
 						if (minY == inf) {
 							lineTo(stroke, x, outY);
@@ -1929,7 +1932,7 @@ function linear() {
 					}
 
 					if (dataY[i] != null) {
-						outY = pxRound(valToPosY(dataY[i], scaleY, yDim, yOff));
+						outY = pixelForY(dataY[i]);
 						lineTo(stroke, x, outY);
 						minY = maxY = inY = outY;
 					}
@@ -1951,7 +1954,7 @@ function linear() {
 				let fill = _paths.fill = new Path2D(stroke);
 
 				let fillToVal = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
-				let fillToY = pxRound(valToPosY(fillToVal, scaleY, yDim, yOff));
+				let fillToY = pixelForY(fillToVal);
 
 				lineTo(fill, rgtX, fillToY);
 				lineTo(fill, lftX, fillToY);
@@ -1964,7 +1967,7 @@ function linear() {
 				if (lftX > xOff)
 					gaps.push([xOff, lftX]);
 
-				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, v => pxRound(valToPosX(v, scaleX, xDim, xOff))));
+				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX));
 
 				if (rgtX < xOff + xDim)
 					gaps.push([rgtX, xOff + xDim]);
