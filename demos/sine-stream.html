@@ -64,12 +64,12 @@
 				for (t = 0; t < steps; t += 1) {
 					let extra = randFunc();
 					let newVal = value + extra;
-					
+
 					if (newVal > max || newVal < min)
 						value = clamp(value - extra, min, max);
 					else
 						value = newVal;
-					
+
 					points.push(value);
 				}
 
@@ -110,7 +110,7 @@
 
 			const opts = {
 				title: "6 series x 600 points @ 60fps",
-				width: 2450,
+				width: 1920,
 				height: 600,
 				pxAlign: false,
 				scales: {

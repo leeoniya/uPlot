@@ -66,12 +66,12 @@
 				for (t = 0; t < steps; t += 1) {
 					let extra = randFunc();
 					let newVal = value + extra;
-					
+
 					if (newVal > max || newVal < min)
 						value = clamp(value - extra, min, max);
 					else
 						value = newVal;
-					
+
 					points.push(value);
 				}
 
@@ -131,7 +131,7 @@
 			let dom = document.getElementById("chart");
 
 			let myChart = echarts.init(dom, null, {
-				width: 2540,
+				width: 1920,
 				height: 600
 			});
 
