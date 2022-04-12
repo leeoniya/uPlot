@@ -1960,20 +1960,20 @@ var uPlot = (function () {
 					lineTo(fill, lftX, fillToY);
 				}
 
-
 				if (!series.spanGaps) {
-					//	console.time('gaps');
+				//	console.time('gaps');
 					let gaps = [];
 
 					if (lftX > xOff)
 						gaps.push([xOff, lftX]);
 
-						gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, v => pxRound(valToPosX(v, scaleX, xDim, xOff))));
+					gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, v => pxRound(valToPosX(v, scaleX, xDim, xOff))));
 
 					if (rgtX < xOff + xDim)
 						gaps.push([rgtX, xOff + xDim]);
 				//	console.timeEnd('gaps');
-				//	console.log('gaps', JSON.stringify(gaps2));
+
+				//	console.log('gaps', JSON.stringify(gaps));
 
 					_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
 
