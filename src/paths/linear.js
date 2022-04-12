@@ -17,6 +17,49 @@ function _drawAcc(lineTo) {
 const drawAccH = _drawAcc(lineToH);
 const drawAccV = _drawAcc(lineToV);
 
+function findGaps(xs, ys, idx0, idx1, dir, pixelForX) {
+	let gaps = [];
+
+	for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
+		let yVal = ys[i];
+
+		if (yVal === null) {
+			let fr = i, to = i;
+
+			if (dir == 1) {
+				while (++i <= idx1 && ys[i] === null)
+					to = i;
+			}
+			else {
+				while (--i >= idx0 && ys[i] === null)
+					to = i;
+			}
+
+			let frPx = pixelForX(xs[fr]);
+			let toPx = to == fr ? frPx : pixelForX(xs[to]);
+
+			// if value adjacent to edge null is same pixel, then it's partially
+			// filled and gap should start at next pixel
+			let frPx2 = pixelForX(xs[fr-dir]);
+		//	if (frPx2 == frPx)
+		//		frPx++;
+		//	else
+				frPx = frPx2;
+
+			let toPx2 = pixelForX(xs[to+dir]);
+		//	if (toPx2 == toPx)
+		//		toPx--;
+		//	else
+				toPx = toPx2;
+
+			if (toPx >= frPx)
+				gaps.push([frPx, toPx]); // addGap
+		}
+	}
+
+	return gaps;
+}
+
 export function linear() {
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
@@ -42,21 +85,13 @@ export function linear() {
 				maxY = -inf,
 				inY, outY, outX, drawnAtX;
 
-			let gaps = [];
-
 			let accX = pxRound(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
-			let accGaps = false;
-			let prevYNull = false;
-			let prevYData = false;
 
 			// data edges
 			let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * dir);
 			let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * dir);
 			let lftX =  pxRound(valToPosX(dataX[lftIdx], scaleX, xDim, xOff));
 			let rgtX =  pxRound(valToPosX(dataX[rgtIdx], scaleX, xDim, xOff));
-
-			if (lftX > xOff)
-				addGap(gaps, xOff, lftX);
 
 			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 				let x = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
@@ -73,51 +108,22 @@ export function linear() {
 						minY = min(outY, minY);
 						maxY = max(outY, maxY);
 					}
-					else if (dataY[i] === null)
-						accGaps = prevYNull = true;
-					else
-						prevYData = true;
 				}
 				else {
-					let _addGap = false;
-
 					if (minY != inf) {
 						drawAcc(stroke, accX, minY, maxY, inY, outY);
 						outX = drawnAtX = accX;
 					}
-					else if (accGaps && !prevYData) {
-						_addGap = true;
-						accGaps = false;
-					}
-
-					prevYData = false;
 
 					if (dataY[i] != null) {
 						outY = pxRound(valToPosY(dataY[i], scaleY, yDim, yOff));
 						lineTo(stroke, x, outY);
 						minY = maxY = inY = outY;
-
-						// prior pixel can have data but still start a gap if ends with null
-						if (prevYNull && x - accX > 1)
-							_addGap = true;
-
-						prevYNull = false;
 					}
 					else {
 						minY = inf;
 						maxY = -inf;
-
-						if (dataY[i] === null) {
-							accGaps = true;
-
-							if (x - accX > 1)
-								_addGap = true;
-						}
-						else
-							prevYData = true;
 					}
-
-					_addGap && addGap(gaps, outX, x);
 
 					accX = x;
 				}
@@ -125,9 +131,6 @@ export function linear() {
 
 			if (minY != inf && minY != maxY && drawnAtX != accX)
 				drawAcc(stroke, accX, minY, maxY, inY, outY);
-
-			if (rgtX < xOff + xDim)
-				addGap(gaps, rgtX, xOff + xDim);
 
 			let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
@@ -141,10 +144,25 @@ export function linear() {
 				lineTo(fill, lftX, fillToY);
 			}
 
-			_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
 
-			if (!series.spanGaps)
+			if (!series.spanGaps) {
+				//	console.time('gaps');
+				let gaps = [];
+
+				if (lftX > xOff)
+					gaps.push([xOff, lftX]);
+
+					gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, v => pxRound(valToPosX(v, scaleX, xDim, xOff))));
+
+				if (rgtX < xOff + xDim)
+					gaps.push([rgtX, xOff + xDim]);
+			//	console.timeEnd('gaps');
+			//	console.log('gaps', JSON.stringify(gaps2));
+
+				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
+			}
 
 			if (bandClipDir != 0) {
 				_paths.band = bandClipDir == 2 ? [
