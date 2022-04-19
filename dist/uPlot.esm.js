@@ -544,8 +544,6 @@ const LEGEND_MARKER  = pre + "marker";
 const LEGEND_LABEL   = pre + "label";
 const LEGEND_VALUE   = pre + "value";
 
-const doc = document;
-const win = window;
 let pxRatio;
 
 let query;
@@ -561,7 +559,7 @@ function setPxRatio() {
 		query = matchMedia(`(min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
 		on(change, query, setPxRatio);
 
-		win.dispatchEvent(new CustomEvent(dppxchange));
+		window.dispatchEvent(new CustomEvent(dppxchange));
 	}
 }
 
@@ -582,7 +580,7 @@ function setStylePx(el, name, value) {
 }
 
 function placeTag(tag, cls, targ, refEl) {
-	let el = doc.createElement(tag);
+	let el = document.createElement(tag);
 
 	if (cls != null)
 		addClass(el, cls);
@@ -653,7 +651,9 @@ function off(ev, el, cb, capt) {
 	el.removeEventListener(ev, cb, capt ? evOpts2 : evOpts);
 }
 
-setPxRatio();
+if (typeof window !== 'undefined') {
+	setPxRatio();
+}
 
 const months = [
 	"January",
@@ -2479,8 +2479,10 @@ function invalidateRects() {
 	});
 }
 
-on(resize, win, invalidateRects);
-on(scroll, win, invalidateRects, true);
+if (typeof window !== 'undefined') {
+	on(resize, window, invalidateRects);
+	on(scroll, window, invalidateRects, true);
+}
 
 const linearPath = linear() ;
 const pointsPath = points() ;
@@ -5056,7 +5058,7 @@ function uPlot(opts, data, then) {
 		cacheMouse(e, src, _l, _t, _w, _h, _i, true, false);
 
 		if (e != null) {
-			onMouse(mouseup, doc, mouseUp);
+			onMouse(mouseup, document, mouseUp);
 			pubSync(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
 		}
 	}
@@ -5120,7 +5122,7 @@ function uPlot(opts, data, then) {
 		}
 
 		if (e != null) {
-			offMouse(mouseup, doc);
+			offMouse(mouseup, document);
 			pubSync(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 		}
 	}
@@ -5188,7 +5190,7 @@ function uPlot(opts, data, then) {
 		_setSize(self.width, self.height, true);
 	}
 
-	on(dppxchange, win, syncPxRatio);
+	on(dppxchange, window, syncPxRatio);
 
 	// internal pub/sub
 	const events = {};
@@ -5266,7 +5268,7 @@ function uPlot(opts, data, then) {
 		sync.unsub(self);
 		cursorPlots.delete(self);
 		mouseListeners.clear();
-		off(dppxchange, win, syncPxRatio);
+		off(dppxchange, window, syncPxRatio);
 		root.remove();
 		fire("destroy");
 	}

@@ -11,8 +11,6 @@ import {
 	assign, ifNull,
 } from './utils';
 
-export const doc = document;
-export const win = window;
 export let pxRatio;
 
 let query;
@@ -28,7 +26,7 @@ function setPxRatio() {
 		query = matchMedia(`(min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
 		on(change, query, setPxRatio);
 
-		win.dispatchEvent(new CustomEvent(dppxchange));
+		window.dispatchEvent(new CustomEvent(dppxchange));
 	}
 }
 
@@ -49,7 +47,7 @@ export function setStylePx(el, name, value) {
 }
 
 export function placeTag(tag, cls, targ, refEl) {
-	let el = doc.createElement(tag);
+	let el = document.createElement(tag);
 
 	if (cls != null)
 		addClass(el, cls);
@@ -120,4 +118,6 @@ export function off(ev, el, cb, capt) {
 	el.removeEventListener(ev, cb, capt ? evOpts2 : evOpts);
 }
 
-setPxRatio();
+if (typeof window !== 'undefined') {
+	setPxRatio();
+}

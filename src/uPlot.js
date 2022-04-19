@@ -110,10 +110,8 @@ import {
 } from './domClasses';
 
 import {
-	doc,
-	win,
 	pxRatio,
-
+	setPxRatio,
 	addClass,
 	remClass,
 	setStylePx,
@@ -205,8 +203,10 @@ function invalidateRects() {
 	});
 }
 
-on(resize, win, invalidateRects);
-on(scroll, win, invalidateRects, true);
+if (typeof window !== 'undefined') {
+	on(resize, window, invalidateRects);
+	on(scroll, window, invalidateRects, true);
+}
 
 const linearPath = FEAT_PATHS && FEAT_PATHS_LINEAR ? linear() : null;
 const pointsPath = FEAT_POINTS ? points() : null;
@@ -2786,7 +2786,7 @@ export default function uPlot(opts, data, then) {
 		cacheMouse(e, src, _l, _t, _w, _h, _i, true, false);
 
 		if (e != null) {
-			onMouse(mouseup, doc, mouseUp);
+			onMouse(mouseup, document, mouseUp);
 			pubSync(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
 		}
 	}
@@ -2850,7 +2850,7 @@ export default function uPlot(opts, data, then) {
 		}
 
 		if (e != null) {
-			offMouse(mouseup, doc, mouseUp);
+			offMouse(mouseup, document, mouseUp);
 			pubSync(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 		}
 	}
@@ -2918,7 +2918,7 @@ export default function uPlot(opts, data, then) {
 		_setSize(self.width, self.height, true);
 	}
 
-	on(dppxchange, win, syncPxRatio);
+	on(dppxchange, window, syncPxRatio);
 
 	// internal pub/sub
 	const events = {};
@@ -2996,7 +2996,7 @@ export default function uPlot(opts, data, then) {
 		FEAT_CURSOR && sync.unsub(self);
 		FEAT_CURSOR && cursorPlots.delete(self);
 		mouseListeners.clear();
-		off(dppxchange, win, syncPxRatio);
+		off(dppxchange, window, syncPxRatio);
 		root.remove();
 		fire("destroy");
 	}
