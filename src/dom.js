@@ -7,12 +7,12 @@ import {
 	dppxchange,
 } from './strings';
 
-import {
-	assign, ifNull,
-} from './utils';
+export const domEnv = typeof window != 'undefined';
 
-export const doc = document;
-export const win = window;
+export const doc = domEnv ? document  : null;
+export const win = domEnv ? window    : null;
+export const nav = domEnv ? navigator : null;
+
 export let pxRatio;
 
 let query;
@@ -110,7 +110,7 @@ export function elSize(el, newWid, newHgt, centered) {
 }
 
 const evOpts = {passive: true};
-const evOpts2 = assign({capture: true}, evOpts);
+const evOpts2 = {...evOpts, capture: true};
 
 export function on(ev, el, cb, capt) {
 	el.addEventListener(ev, cb, capt ? evOpts2 : evOpts);
@@ -120,4 +120,4 @@ export function off(ev, el, cb, capt) {
 	el.removeEventListener(ev, cb, capt ? evOpts2 : evOpts);
 }
 
-setPxRatio();
+domEnv && setPxRatio();

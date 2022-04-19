@@ -1,3 +1,5 @@
+import { domEnv, nav } from './dom';
+
 // binary search for index of closest value
 export function closestIdx(num, arr, lo, hi) {
 	let mid;
@@ -247,7 +249,7 @@ function _rangeNum(_min, _max, cfg) {
 }
 
 // alternative: https://stackoverflow.com/a/2254896
-const numFormatter = new Intl.NumberFormat(navigator.language);
+const numFormatter = new Intl.NumberFormat(domEnv ? nav.language : 'en-US');
 export const fmtNum = val => numFormatter.format(val);
 
 const M = Math;

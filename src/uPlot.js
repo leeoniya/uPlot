@@ -110,6 +110,7 @@ import {
 } from './domClasses';
 
 import {
+	domEnv,
 	doc,
 	win,
 	pxRatio,
@@ -205,8 +206,10 @@ function invalidateRects() {
 	});
 }
 
-on(resize, win, invalidateRects);
-on(scroll, win, invalidateRects, true);
+if (domEnv) {
+	on(resize, win, invalidateRects);
+	on(scroll, win, invalidateRects, true);
+}
 
 const linearPath = FEAT_PATHS && FEAT_PATHS_LINEAR ? linear() : null;
 const pointsPath = FEAT_POINTS ? points() : null;
