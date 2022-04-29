@@ -117,7 +117,7 @@ declare class uPlot {
 	valToIdx(val: number): number;
 
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
-	syncRect(defer?: boolean): void;
+	syncRect(defer?: boolean | DOMRectReadOnly): void;
 
 	/** uPlot's path-builder factories */
 	static paths: uPlot.Series.PathBuilderFactories;
@@ -156,6 +156,9 @@ declare class uPlot {
 
 	/** returns a pub/sub instance shared by all plots usng the provided key */
 	static sync(key: string): uPlot.SyncPubSub;
+
+	/** cached devicePixelRatio (faster than reading it from window.devicePixelRatio) */
+	static pxRatio: number;
 }
 
 export = uPlot;

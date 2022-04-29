@@ -2478,6 +2478,7 @@ function _monotoneCubic(xs, ys, moveTo, lineTo, bezierCurveTo, pxRound) {
 }
 
 const cursorPlots = new Set();
+const plotsByOver = new Map();
 
 function invalidateRects() {
 	cursorPlots.forEach(u => {
@@ -2485,9 +2486,25 @@ function invalidateRects() {
 	});
 }
 
+const resizeObserver = domEnv ? new ResizeObserver(entries => {
+	for (let entry of entries)
+		plotsByOver.get(entry.target).syncRect(entry.contentRect);
+}) : null;
+
+function observe(u) {
+	plotsByOver.set(u.over, u);
+	resizeObserver.observe(u.over);
+}
+
+function unobserve(u) {
+	plotsByOver.delete(u.over);
+	resizeObserver.unobserve(u.over);
+}
+
 if (domEnv) {
 	on(resize, win, invalidateRects);
 	on(scroll, win, invalidateRects, true);
+	on(dppxchange, win, () => { uPlot.pxRatio = pxRatio; });
 }
 
 const linearPath = linear() ;
@@ -4963,7 +4980,7 @@ function uPlot(opts, data, then) {
 		if (defer === true)
 			rect = null;
 		else {
-			rect = over.getBoundingClientRect();
+			rect = defer instanceof DOMRectReadOnly ? defer : over.getBoundingClientRect();
 			fire("syncRect", rect);
 		}
 	}
@@ -5219,6 +5236,8 @@ function uPlot(opts, data, then) {
 
 		cursorPlots.add(self);
 
+		observe(self);
+
 		self.syncRect = syncRect;
 	}
 
@@ -5273,6 +5292,7 @@ function uPlot(opts, data, then) {
 	function destroy() {
 		sync.unsub(self);
 		cursorPlots.delete(self);
+		unobserve(self);
 		mouseListeners.clear();
 		off(dppxchange, win, syncPxRatio);
 		root.remove();
@@ -5322,6 +5342,7 @@ uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
 uPlot.rangeAsinh = rangeAsinh;
 uPlot.orient   = orient;
+uPlot.pxRatio = pxRatio;
 
 {
 	uPlot.join = join;

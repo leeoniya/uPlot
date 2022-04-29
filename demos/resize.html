@@ -53,6 +53,20 @@
 						stroke: "red",
 					}
 				],
+				hooks: {
+					setSize: [
+						(u) => {
+							console.log('setSize');
+						}
+					],
+					// this fires async from own ResizeObserver in some cases (after setSize)
+					// or fires sync during mouseEnter
+					syncRect: [
+						(u, rect) => {
+							console.log('syncRect');
+						}
+					],
+				}
 			};
 
 			let u = new uPlot(opts, data, document.body);

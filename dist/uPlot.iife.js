@@ -2479,6 +2479,7 @@ var uPlot = (function () {
 	}
 
 	const cursorPlots = new Set();
+	const plotsByOver = new Map();
 
 	function invalidateRects() {
 		cursorPlots.forEach(u => {
@@ -2486,9 +2487,25 @@ var uPlot = (function () {
 		});
 	}
 
+	const resizeObserver = domEnv ? new ResizeObserver(entries => {
+		for (let entry of entries)
+			plotsByOver.get(entry.target).syncRect(entry.contentRect);
+	}) : null;
+
+	function observe(u) {
+		plotsByOver.set(u.over, u);
+		resizeObserver.observe(u.over);
+	}
+
+	function unobserve(u) {
+		plotsByOver.delete(u.over);
+		resizeObserver.unobserve(u.over);
+	}
+
 	if (domEnv) {
 		on(resize, win, invalidateRects);
 		on(scroll, win, invalidateRects, true);
+		on(dppxchange, win, () => { uPlot.pxRatio = pxRatio; });
 	}
 
 	const linearPath = linear() ;
@@ -4964,7 +4981,7 @@ var uPlot = (function () {
 			if (defer === true)
 				rect = null;
 			else {
-				rect = over.getBoundingClientRect();
+				rect = defer instanceof DOMRectReadOnly ? defer : over.getBoundingClientRect();
 				fire("syncRect", rect);
 			}
 		}
@@ -5220,6 +5237,8 @@ var uPlot = (function () {
 
 			cursorPlots.add(self);
 
+			observe(self);
+
 			self.syncRect = syncRect;
 		}
 
@@ -5274,6 +5293,7 @@ var uPlot = (function () {
 		function destroy() {
 			sync.unsub(self);
 			cursorPlots.delete(self);
+			unobserve(self);
 			mouseListeners.clear();
 			off(dppxchange, win, syncPxRatio);
 			root.remove();
@@ -5323,6 +5343,7 @@ var uPlot = (function () {
 	uPlot.rangeLog = rangeLog;
 	uPlot.rangeAsinh = rangeAsinh;
 	uPlot.orient   = orient;
+	uPlot.pxRatio = pxRatio;
 
 	{
 		uPlot.join = join;

@@ -199,6 +199,7 @@ function log(name, args) {
 }
 
 const cursorPlots = new Set();
+const plotsByOver = new Map();
 
 function invalidateRects() {
 	cursorPlots.forEach(u => {
@@ -206,9 +207,25 @@ function invalidateRects() {
 	});
 }
 
+const resizeObserver = domEnv ? new ResizeObserver(entries => {
+	for (let entry of entries)
+		plotsByOver.get(entry.target).syncRect(entry.contentRect);
+}) : null;
+
+function observe(u) {
+	plotsByOver.set(u.over, u);
+	resizeObserver.observe(u.over);
+}
+
+function unobserve(u) {
+	plotsByOver.delete(u.over);
+	resizeObserver.unobserve(u.over);
+}
+
 if (domEnv) {
 	on(resize, win, invalidateRects);
 	on(scroll, win, invalidateRects, true);
+	on(dppxchange, win, () => { uPlot.pxRatio = pxRatio; });
 }
 
 const linearPath = FEAT_PATHS && FEAT_PATHS_LINEAR ? linear() : null;
@@ -2688,7 +2705,7 @@ export default function uPlot(opts, data, then) {
 		if (defer === true)
 			rect = null;
 		else {
-			rect = over.getBoundingClientRect();
+			rect = defer instanceof DOMRectReadOnly ? defer : over.getBoundingClientRect();
 			fire("syncRect", rect);
 		}
 	}
@@ -2944,11 +2961,17 @@ export default function uPlot(opts, data, then) {
 
 		cursorPlots.add(self);
 
+		observe(self);
+
 		self.syncRect = syncRect;
 	}
 
 	// external on/off
 	const hooks = self.hooks = opts.hooks || {};
+
+	function fireLater(evName, a1, a2) {
+		microTask(() => fire(evName, a1, a2));
+	}
 
 	function fire(evName, a1, a2) {
 		if (evName in hooks) {
@@ -2998,6 +3021,7 @@ export default function uPlot(opts, data, then) {
 	function destroy() {
 		FEAT_CURSOR && sync.unsub(self);
 		FEAT_CURSOR && cursorPlots.delete(self);
+		FEAT_CURSOR && unobserve(self);
 		mouseListeners.clear();
 		off(dppxchange, win, syncPxRatio);
 		root.remove();
@@ -3047,6 +3071,7 @@ uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
 uPlot.rangeAsinh = rangeAsinh;
 uPlot.orient   = orient;
+uPlot.pxRatio = pxRatio;
 
 if (FEAT_JOIN) {
 	uPlot.join = join;
