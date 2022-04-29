@@ -2529,7 +2529,7 @@ export default function uPlot(opts, data, then) {
 					let matchingX = xKey != null && matchXKeys(xKey, xKeySrc);
 					let matchingY = yKey != null && matchYKeys(yKey, yKeySrc);
 
-					if (matchingX) {
+					if (matchingX && dragX) {
 						if (sori == 0) {
 							sOff = left;
 							sDim = width;
@@ -2549,7 +2549,7 @@ export default function uPlot(opts, data, then) {
 					else
 						setSelX(0, xDim);
 
-					if (matchingY) {
+					if (matchingY && dragY) {
 						if (sori == 1) {
 							sOff = left;
 							sDim = width;
