@@ -2476,27 +2476,11 @@ function _monotoneCubic(xs, ys, moveTo, lineTo, bezierCurveTo, pxRound) {
 }
 
 const cursorPlots = new Set();
-const plotsByOver = new Map();
 
 function invalidateRects() {
 	cursorPlots.forEach(u => {
 		u.syncRect(true);
 	});
-}
-
-const resizeObserver = domEnv ? new ResizeObserver(entries => {
-	for (let entry of entries)
-		plotsByOver.get(entry.target).syncRect(entry.contentRect);
-}) : null;
-
-function observe(u) {
-	plotsByOver.set(u.over, u);
-	resizeObserver.observe(u.over);
-}
-
-function unobserve(u) {
-	plotsByOver.delete(u.over);
-	resizeObserver.unobserve(u.over);
 }
 
 if (domEnv) {
@@ -4978,7 +4962,7 @@ function uPlot(opts, data, then) {
 		if (defer === true)
 			rect = null;
 		else {
-			rect = defer instanceof DOMRectReadOnly ? defer : over.getBoundingClientRect();
+			rect = over.getBoundingClientRect();
 			fire("syncRect", rect);
 		}
 	}
@@ -5234,8 +5218,6 @@ function uPlot(opts, data, then) {
 
 		cursorPlots.add(self);
 
-		observe(self);
-
 		self.syncRect = syncRect;
 	}
 
@@ -5290,7 +5272,6 @@ function uPlot(opts, data, then) {
 	function destroy() {
 		sync.unsub(self);
 		cursorPlots.delete(self);
-		unobserve(self);
 		mouseListeners.clear();
 		off(dppxchange, win, syncPxRatio);
 		root.remove();

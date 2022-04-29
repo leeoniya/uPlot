@@ -2479,27 +2479,11 @@ var uPlot = (function () {
 	}
 
 	const cursorPlots = new Set();
-	const plotsByOver = new Map();
 
 	function invalidateRects() {
 		cursorPlots.forEach(u => {
 			u.syncRect(true);
 		});
-	}
-
-	const resizeObserver = domEnv ? new ResizeObserver(entries => {
-		for (let entry of entries)
-			plotsByOver.get(entry.target).syncRect(entry.contentRect);
-	}) : null;
-
-	function observe(u) {
-		plotsByOver.set(u.over, u);
-		resizeObserver.observe(u.over);
-	}
-
-	function unobserve(u) {
-		plotsByOver.delete(u.over);
-		resizeObserver.unobserve(u.over);
 	}
 
 	if (domEnv) {
@@ -4981,7 +4965,7 @@ var uPlot = (function () {
 			if (defer === true)
 				rect = null;
 			else {
-				rect = defer instanceof DOMRectReadOnly ? defer : over.getBoundingClientRect();
+				rect = over.getBoundingClientRect();
 				fire("syncRect", rect);
 			}
 		}
@@ -5237,8 +5221,6 @@ var uPlot = (function () {
 
 			cursorPlots.add(self);
 
-			observe(self);
-
 			self.syncRect = syncRect;
 		}
 
@@ -5293,7 +5275,6 @@ var uPlot = (function () {
 		function destroy() {
 			sync.unsub(self);
 			cursorPlots.delete(self);
-			unobserve(self);
 			mouseListeners.clear();
 			off(dppxchange, win, syncPxRatio);
 			root.remove();
