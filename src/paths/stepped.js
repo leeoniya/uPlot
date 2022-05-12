@@ -18,8 +18,8 @@ export function stepped(opts) {
 
 			const _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-			idx0 = nonNullIdx(dataY, idx0, idx1,  1);
-			idx1 = nonNullIdx(dataY, idx0, idx1, -1);
+			idx0 = align === -1 ? idx0 : nonNullIdx(dataY, idx0, idx1,  1);
+			idx1 = align ===  1 ? idx1 : nonNullIdx(dataY, idx0, idx1, -1);
 
 			let gaps = [];
 			let inGap = false;
@@ -27,6 +27,7 @@ export function stepped(opts) {
 			let firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
 			let prevXPos = firstXPos;
 
+			lineTo(stroke, firstXPos, yDim + yOff)
 			lineTo(stroke, firstXPos, prevYPos);
 
 			for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
@@ -34,7 +35,7 @@ export function stepped(opts) {
 
 				let x1 = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
 
-				if (yVal1 == null) {
+				if (yVal1 == null && i < idx1) {
 					if (yVal1 === null) {
 						addGap(gaps, prevXPos, x1);
 						inGap = true;
@@ -59,6 +60,8 @@ export function stepped(opts) {
 				prevYPos = y1;
 				prevXPos = x1;
 			}
+
+			lineTo(stroke, prevXPos, yDim + yOff)
 
 			let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
