@@ -35,15 +35,17 @@ export function stepped(opts) {
 
 				let x1 = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
 
-				if (yVal1 == null && i < idx1) {
-					if (yVal1 === null) {
-						addGap(gaps, prevXPos, x1);
+				if (yVal1 === null && i < idx1) {
+					if(align === 1) {
+						prevXPos = inGap ? prevXPos : x1;
 						inGap = true;
+					} else {
+						addGap(gaps, prevXPos, x1);
 					}
 					continue;
 				}
 
-				let y1 = pxRound(valToPosY(yVal1, scaleY, yDim, yOff));
+				let y1 = yVal1 === undefined ? prevYPos : pxRound(valToPosY(yVal1, scaleY, yDim, yOff));
 
 				if (inGap) {
 					addGap(gaps, prevXPos, x1);
@@ -52,9 +54,14 @@ export function stepped(opts) {
 
 				if (align == 1)
 					lineTo(stroke, x1, prevYPos);
-				else
-					lineTo(stroke, prevXPos, y1);
-
+				else {
+					if(yVal1 !== undefined){
+						lineTo(stroke, prevXPos, y1);
+					}else{
+						x1 = prevXPos
+						y1 = prevYPos
+					}
+				}
 				lineTo(stroke, x1, y1);
 
 				prevYPos = y1;
