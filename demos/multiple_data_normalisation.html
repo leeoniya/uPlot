@@ -168,14 +168,30 @@
         };
 
         const dataHolder = new Normalisation()
+        
+        performance.mark('map_start');
         dataHolder.add(dataset01_s_blue)
         dataHolder.add(dataset02_s_red)
         dataHolder.add(dataset03_l_green)
         dataHolder.add(dataset04_l_yellow)
         dataHolder.add(dataset05_sin)
         const data = dataHolder.map()
+        performance.mark('map_end');
+
+        performance.mark('join_start');
+        const data01 = [dataset01_s_blue.map(v => v.time), dataset01_s_blue.map(v => v.value)]
+        const data02 = [dataset02_s_red.map(v => v.time), dataset02_s_red.map(v => v.value)]
+        const data03 = [dataset03_l_green.map(v => v.time), dataset03_l_green.map(v => v.value)]
+        const data04 = [dataset04_l_yellow.map(v => v.time), dataset04_l_yellow.map(v => v.value)]
+        const data05 = [dataset05_sin.map(v => v.time), dataset05_sin.map(v => v.value)]
+        const dataJoined = uPlot.join([data01, data02, data03, data04, data05])
+        performance.mark('join_end');
+        const r_my = performance.measure("measure map", 'map_start', 'map_end');
+        const r_join = performance.measure("measure join", 'join_start', 'join_end');
+        console.log(r_my, r_join, r_my.duration < r_join.duration ? 'map never wins' : 'join is always faster');
 
         const plot = new uPlot(opts, data, document.body);
+
     </script>
 </body>
 
