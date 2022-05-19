@@ -51,69 +51,6 @@
             { time: 9, value: Math.sin(90 * (Math.PI / 180)) * 5 }
         ]
 
-        class Normalisation {
-            /** 
-             * number of datasets 
-             */
-            seriesCount = 0
-
-            /** 
-             * all datasets
-             * { [key: number]: Array<number | null | undefined> } 
-             */
-            dataHolder = []
-
-            /**
-             * add a dataset and normalisation with all other datasets
-             */
-            add(set) {
-                const serieNr = ++this.seriesCount
-
-                // "undefined" means there is no valide value for this point
-                if (this.seriesCount > 1) {
-                    // normalisation of existing datasets
-                    Object.values(this.dataHolder).forEach((valuesAtTime) => {
-                        if (valuesAtTime.length !== this.seriesCount) {
-                            valuesAtTime.splice(serieNr - 1, 0, undefined)
-                        }
-                    })
-                }
-                set.forEach((p) => {
-                    const timeToDraw = p.time
-                    if (this.dataHolder[timeToDraw] === undefined) {
-                        this.dataHolder[timeToDraw] = []
-                        for (let nr = 0; nr < this.seriesCount; nr++) {
-                            this.dataHolder[timeToDraw][nr] = undefined
-                        }
-                    }
-                    this.dataHolder[timeToDraw][serieNr - 1] = p.value
-                })
-            }
-
-            /**
-             * generate Dataset for uPlot
-             */
-            map() {
-                /** uPlot.AlignedData */
-                const data = [[]]
-                const timeserie = data[0]
-                Object.entries(this.dataHolder)
-                    .sort()
-                    .forEach(([time, valuesAtTime], i) => {
-                        const timestamp = Number(time)
-                        timeserie[i] = timestamp
-                        valuesAtTime.forEach((valueAtTime, nr) => {
-                            const dataSetNr = nr + 1
-                            if (!data[dataSetNr]) {
-                                data[dataSetNr] = []
-                            }
-                            data[dataSetNr][i] = valueAtTime
-                        })
-                    })
-                return data
-            }
-        }
-
         const opts = {
             title: "Lines and stepps -> normalisation of datasets",
             width: 800,
@@ -167,28 +104,13 @@
             ],
         };
 
-        const dataHolder = new Normalisation()
-        
-        performance.mark('map_start');
-        dataHolder.add(dataset01_s_blue)
-        dataHolder.add(dataset02_s_red)
-        dataHolder.add(dataset03_l_green)
-        dataHolder.add(dataset04_l_yellow)
-        dataHolder.add(dataset05_sin)
-        const data = dataHolder.map()
-        performance.mark('map_end');
-
-        performance.mark('join_start');
-        const data01 = [dataset01_s_blue.map(v => v.time), dataset01_s_blue.map(v => v.value)]
-        const data02 = [dataset02_s_red.map(v => v.time), dataset02_s_red.map(v => v.value)]
-        const data03 = [dataset03_l_green.map(v => v.time), dataset03_l_green.map(v => v.value)]
-        const data04 = [dataset04_l_yellow.map(v => v.time), dataset04_l_yellow.map(v => v.value)]
-        const data05 = [dataset05_sin.map(v => v.time), dataset05_sin.map(v => v.value)]
-        const dataJoined = uPlot.join([data01, data02, data03, data04, data05])
-        performance.mark('join_end');
-        const r_my = performance.measure("measure map", 'map_start', 'map_end');
-        const r_join = performance.measure("measure join", 'join_start', 'join_end');
-        console.log(r_my, r_join, r_my.duration < r_join.duration ? 'map never wins' : 'join is always faster');
+        const data = uPlot.join([
+            [dataset01_s_blue.map(v => v.time), dataset01_s_blue.map(v => v.value)],
+            [dataset02_s_red.map(v => v.time), dataset02_s_red.map(v => v.value)],
+            [dataset03_l_green.map(v => v.time), dataset03_l_green.map(v => v.value)],
+            [dataset04_l_yellow.map(v => v.time), dataset04_l_yellow.map(v => v.value)],
+            [dataset05_sin.map(v => v.time), dataset05_sin.map(v => v.value)]
+        ]);
 
         const plot = new uPlot(opts, data, document.body);
 
