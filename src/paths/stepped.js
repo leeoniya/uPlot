@@ -48,6 +48,10 @@ export function stepped(opts) {
 				let y1 = yVal1 === undefined ? prevYPos : pxRound(valToPosY(yVal1, scaleY, yDim, yOff));
 
 				if (inGap) {
+					if(yVal1 === undefined && i < idx1){
+						// ignore and wait until next valide value
+						continue
+					}
 					addGap(gaps, prevXPos, x1);
 					inGap = false;
 				}
