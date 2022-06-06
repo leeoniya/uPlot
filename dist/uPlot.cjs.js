@@ -1970,13 +1970,8 @@ function linear() {
 			//	console.time('gaps');
 				let gaps = [];
 
-				if (lftX > xOff)
-					gaps.push([xOff, lftX]);
-
 				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX));
 
-				if (rgtX < xOff + xDim)
-					gaps.push([rgtX, xOff + xDim]);
 			//	console.timeEnd('gaps');
 
 			//	console.log('gaps', JSON.stringify(gaps));
@@ -2007,43 +2002,33 @@ function stepped(opts) {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
 
+			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
+			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
+
 			let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
 			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
-			const _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
 			idx0 = nonNullIdx(dataY, idx0, idx1,  1);
 			idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
-			let gaps = [];
-			let inGap = false;
-			let prevYPos  = pxRound(valToPosY(dataY[_dir == 1 ? idx0 : idx1], scaleY, yDim, yOff));
-			let firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+			let prevYPos  = pixelForY(dataY[dir == 1 ? idx0 : idx1]);
+			let firstXPos = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
 			let prevXPos = firstXPos;
 
 			lineTo(stroke, firstXPos, prevYPos);
 
-			for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
+			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 				let yVal1 = dataY[i];
 
-				let x1 = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
-
-				if (yVal1 == null) {
-					if (yVal1 === null) {
-						addGap(gaps, prevXPos, x1);
-						inGap = true;
-					}
+				if (yVal1 == null)
 					continue;
-				}
 
-				let y1 = pxRound(valToPosY(yVal1, scaleY, yDim, yOff));
-
-				if (inGap) {
-					addGap(gaps, prevXPos, x1);
-					inGap = false;
-				}
+				let x1 = pixelForX(dataX[i]);
+				let y1 = pixelForY(yVal1);
 
 				if (align == 1)
 					lineTo(stroke, x1, prevYPos);
@@ -2062,26 +2047,36 @@ function stepped(opts) {
 				let fill = _paths.fill = new Path2D(stroke);
 
 				let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
-				let fillToY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
+				let fillToY = pixelForY(fillTo);
 
 				lineTo(fill, prevXPos, fillToY);
 				lineTo(fill, firstXPos, fillToY);
 			}
 
-			_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+			if (!series.spanGaps) {
+			//	console.time('gaps');
+				let gaps = [];
 
-			// expand/contract clips for ascenders/descenders
-			let halfStroke = (series.width * pxRatio) / 2;
-			let startsOffset = (ascDesc || align ==  1) ?  halfStroke : -halfStroke;
-			let endsOffset   = (ascDesc || align == -1) ? -halfStroke :  halfStroke;
+				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX));
 
-			gaps.forEach(g => {
-				g[0] += startsOffset;
-				g[1] += endsOffset;
-			});
+			//	console.timeEnd('gaps');
 
-			if (!series.spanGaps)
+			//	console.log('gaps', JSON.stringify(gaps));
+
+				// expand/contract clips for ascenders/descenders
+				let halfStroke = (series.width * pxRatio) / 2;
+				let startsOffset = (ascDesc || align ==  1) ?  halfStroke : -halfStroke;
+				let endsOffset   = (ascDesc || align == -1) ? -halfStroke :  halfStroke;
+
+				gaps.forEach(g => {
+					g[0] += startsOffset;
+					g[1] += endsOffset;
+				});
+
+				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
+			}
 
 			if (bandClipDir != 0) {
 				_paths.band = bandClipDir == 2 ? [
@@ -2317,6 +2312,9 @@ function splineInterp(interp, opts) {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
 
+			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
+			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
+
 			let moveTo, bezierCurveTo, lineTo;
 
 			if (scaleX.ori == 0) {
@@ -2330,39 +2328,26 @@ function splineInterp(interp, opts) {
 				bezierCurveTo = bezierCurveToV;
 			}
 
-			const _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
 			idx0 = nonNullIdx(dataY, idx0, idx1,  1);
 			idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
-			let gaps = [];
-			let inGap = false;
-			let firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+			let firstXPos = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
 			let prevXPos = firstXPos;
 
 			let xCoords = [];
 			let yCoords = [];
 
-			for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
+			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 				let yVal = dataY[i];
-				let xVal = dataX[i];
-				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
 
-				if (yVal == null) {
-					if (yVal === null) {
-						addGap(gaps, prevXPos, xPos);
-						inGap = true;
-					}
-					continue;
-				}
-				else {
-					if (inGap) {
-						addGap(gaps, prevXPos, xPos);
-						inGap = false;
-					}
+				if (yVal != null) {
+					let xVal = dataX[i];
+					let xPos = pixelForX(xVal);
 
-					xCoords.push((prevXPos = xPos));
-					yCoords.push(valToPosY(dataY[i], scaleY, yDim, yOff));
+					xCoords.push(prevXPos = xPos);
+					yCoords.push(pixelForY(dataY[i]));
 				}
 			}
 
@@ -2375,16 +2360,26 @@ function splineInterp(interp, opts) {
 				let fill = _paths.fill = new Path2D(stroke);
 
 				let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
-				let fillToY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
+				let fillToY = pixelForY(fillTo);
 
 				lineTo(fill, prevXPos, fillToY);
 				lineTo(fill, firstXPos, fillToY);
 			}
 
-			_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+			if (!series.spanGaps) {
+			//	console.time('gaps');
+				let gaps = [];
 
-			if (!series.spanGaps)
+				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX));
+
+			//	console.timeEnd('gaps');
+
+			//	console.log('gaps', JSON.stringify(gaps));
+
+				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
+			}
 
 			if (bandClipDir != 0) {
 				_paths.band = bandClipDir == 2 ? [

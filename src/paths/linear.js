@@ -1,5 +1,5 @@
 import { min, max, nonNullIdx, inf } from '../utils';
-import { orient, addGap, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
+import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
 
 function _drawAcc(lineTo) {
 	return (stroke, accX, minY, maxY, inY, outY) => {
@@ -108,13 +108,8 @@ export function linear() {
 			//	console.time('gaps');
 				let gaps = [];
 
-				if (lftX > xOff)
-					gaps.push([xOff, lftX]);
-
 				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX));
 
-				if (rgtX < xOff + xDim)
-					gaps.push([rgtX, xOff + xDim]);
 			//	console.timeEnd('gaps');
 
 			//	console.log('gaps', JSON.stringify(gaps));
