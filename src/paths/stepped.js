@@ -7,6 +7,8 @@ export function stepped(opts) {
 	// whether to draw ascenders/descenders at null/gap bondaries
 	const ascDesc = ifNull(opts.ascDesc, false);
 
+	const alignGaps = ifNull(opts.alignGaps, 0);
+
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
@@ -66,7 +68,7 @@ export function stepped(opts) {
 			//	console.time('gaps');
 				let gaps = [];
 
-				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX));
+				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
 
 			//	console.timeEnd('gaps');
 

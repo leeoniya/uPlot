@@ -1,7 +1,9 @@
-import { nonNullIdx } from '../utils';
-import { orient, addGap, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
+import { ifNull, nonNullIdx } from '../utils';
+import { orient, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
 
 export function splineInterp(interp, opts) {
+	const alignGaps = ifNull(opts?.alignGaps, 0);
+
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
@@ -64,7 +66,7 @@ export function splineInterp(interp, opts) {
 			//	console.time('gaps');
 				let gaps = [];
 
-				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX));
+				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
 
 			//	console.timeEnd('gaps');
 

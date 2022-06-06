@@ -642,6 +642,8 @@ declare namespace uPlot {
 		export interface SteppedPathBuilderOpts {
 			align?: -1 | 1; // 1
 
+			alignGaps?: -1 | 0 | 1; // 0
+
 			// whether to draw ascenders/descenders at null/gap boundaries
 			ascDesc?: boolean; // false
 		}
@@ -698,9 +700,17 @@ declare namespace uPlot {
 			each?: (self: uPlot, seriesIdx: number, idx: number, left: number, top: number, width: number, height: number) => void;
 		}
 
+		export interface LinearPathBuilderOpts {
+			alignGaps?: -1 | 0 | 1; // 0
+		}
+
+		export interface SplinePathBuilderOpts {
+			alignGaps?: -1 | 0 | 1; // 0
+		}
+
 		export type PointsPathBuilderFactory  = () => Points.PathBuilder;
-		export type LinearPathBuilderFactory  = () => Series.PathBuilder;
-		export type SplinePathBuilderFactory  = () => Series.PathBuilder;
+		export type LinearPathBuilderFactory  = (opts?: LinearPathBuilderOpts) => Series.PathBuilder;
+		export type SplinePathBuilderFactory  = (opts?: SplinePathBuilderOpts) => Series.PathBuilder;
 		export type SteppedPathBuilderFactory = (opts?: SteppedPathBuilderOpts) => Series.PathBuilder;
 		export type BarsPathBuilderFactory    = (opts?: BarsPathBuilderOpts) => Series.PathBuilder;
 

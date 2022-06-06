@@ -1,4 +1,4 @@
-import { min, max, nonNullIdx, inf } from '../utils';
+import { min, max, nonNullIdx, inf, ifNull } from '../utils';
 import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
 
 function _drawAcc(lineTo) {
@@ -17,7 +17,9 @@ function _drawAcc(lineTo) {
 const drawAccH = _drawAcc(lineToH);
 const drawAccV = _drawAcc(lineToV);
 
-export function linear() {
+export function linear(opts) {
+	const alignGaps = ifNull(opts?.alignGaps, 0);
+
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
@@ -108,7 +110,7 @@ export function linear() {
 			//	console.time('gaps');
 				let gaps = [];
 
-				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX));
+				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
 
 			//	console.timeEnd('gaps');
 

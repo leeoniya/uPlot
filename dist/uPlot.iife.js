@@ -1712,7 +1712,7 @@ var uPlot = (function () {
 			gaps.push([fromX, toX]);
 	}
 
-	function findGaps(xs, ys, idx0, idx1, dir, pixelForX) {
+	function findGaps(xs, ys, idx0, idx1, dir, pixelForX, align) {
 		let gaps = [];
 
 		for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
@@ -1735,13 +1735,13 @@ var uPlot = (function () {
 
 				// if value adjacent to edge null is same pixel, then it's partially
 				// filled and gap should start at next pixel
-				let frPx2 = pixelForX(xs[fr-dir]);
+				let frPx2 = align <= 0 ? pixelForX(xs[fr-dir]) : frPx;
 			//	if (frPx2 == frPx)
 			//		frPx++;
 			//	else
 					frPx = frPx2;
 
-				let toPx2 = pixelForX(xs[to+dir]);
+				let toPx2 = align >= 0 ? pixelForX(xs[to+dir]) : toPx;
 			//	if (toPx2 == toPx)
 			//		toPx--;
 			//	else
@@ -1880,7 +1880,9 @@ var uPlot = (function () {
 	const drawAccH = _drawAcc(lineToH);
 	const drawAccV = _drawAcc(lineToV);
 
-	function linear() {
+	function linear(opts) {
+		const alignGaps = ifNull(opts?.alignGaps, 0);
+
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				let pxRound = series.pxRound;
@@ -1971,7 +1973,7 @@ var uPlot = (function () {
 				//	console.time('gaps');
 					let gaps = [];
 
-					gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX));
+					gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
 
 				//	console.timeEnd('gaps');
 
@@ -1998,6 +2000,8 @@ var uPlot = (function () {
 		const align = ifNull(opts.align, 1);
 		// whether to draw ascenders/descenders at null/gap bondaries
 		const ascDesc = ifNull(opts.ascDesc, false);
+
+		const alignGaps = ifNull(opts.alignGaps, 0);
 
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
@@ -2058,7 +2062,7 @@ var uPlot = (function () {
 				//	console.time('gaps');
 					let gaps = [];
 
-					gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX));
+					gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
 
 				//	console.timeEnd('gaps');
 
@@ -2309,6 +2313,8 @@ var uPlot = (function () {
 	}
 
 	function splineInterp(interp, opts) {
+		const alignGaps = ifNull(opts?.alignGaps, 0);
+
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				let pxRound = series.pxRound;
@@ -2371,7 +2377,7 @@ var uPlot = (function () {
 				//	console.time('gaps');
 					let gaps = [];
 
-					gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX));
+					gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
 
 				//	console.timeEnd('gaps');
 
@@ -2407,7 +2413,7 @@ var uPlot = (function () {
 	}
 
 	function monotoneCubic(opts) {
-		return splineInterp(_monotoneCubic);
+		return splineInterp(_monotoneCubic, opts);
 	}
 
 	// Monotone Cubic Spline interpolation, adapted from the Chartist.js implementation:
