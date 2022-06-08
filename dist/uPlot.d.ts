@@ -645,7 +645,7 @@ declare namespace uPlot {
 		export interface SteppedPathBuilderOpts {
 			align?: -1 | 1; // 1
 
-			alignGaps?: -1 | 0 | 1; // 0
+			alignGaps?: -1 | 0 | 1; // align
 
 			// whether to draw ascenders/descenders at null/gap boundaries
 			ascDesc?: boolean; // false

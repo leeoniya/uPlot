@@ -7,7 +7,7 @@ export function stepped(opts) {
 	// whether to draw ascenders/descenders at null/gap bondaries
 	const ascDesc = ifNull(opts.ascDesc, false);
 
-	const alignGaps = ifNull(opts.alignGaps, 0);
+	const alignGaps = ifNull(opts.alignGaps, align);
 
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
