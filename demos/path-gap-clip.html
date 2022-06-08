@@ -126,24 +126,38 @@
 				series: [
 					{},
 					{
-						label: "A",
+						label: "step after",
 						stroke: "blue",
+						fill: "rgba(0,0,255,0.3)",
 						width: 2,
 						paths: uPlot.paths.stepped({
 							align: 1,
 						//	ascDesc: true,
 						}),
 					},
+					{
+						label: "linear",
+						stroke: "red",
+						width: 2,
+					},
+					{
+						label: "spline",
+						stroke: "orange",
+						width: 2,
+						paths: uPlot.paths.spline(),
+					},
 				],
 			};
 
-			let vals9 = [null,null,null,1,1,1,1,1,null,null,2,2,null,1,null,1,1,1,1,2,2,2];
+			let vals9 = [null,null,null,1,1,1,1,1,null,null,2,2,null,1,undefined,undefined,null,1,1,1,1,2,2,2,undefined,undefined];
 		//	let vals9 = [2,null,1,null,1,1];
 		//	let vals9 = [2,null,1];
 
 			const data9 = [
 				vals9.map((v, i) => i),
 				vals9,
+				vals9.map((v, i) => v == null ? v : v + 0.1),
+				vals9.map((v, i) => v == null ? v : v + 0.2),
 			];
 
 			let u9 = new uPlot(opts9, data9, document.body);
@@ -160,18 +174,216 @@
 				series: [
 					{},
 					{
-						label: "A",
+						label: "step before",
 						stroke: "red",
+						fill: "rgba(255,0,0,0.3)",
 						width: 2,
 						paths: uPlot.paths.stepped({
 							align: -1,
 						//	ascDesc: true,
 						}),
 					},
+					{
+						label: "linear",
+						stroke: "blue",
+						width: 2,
+					},
+					{
+						label: "spline",
+						stroke: "orange",
+						width: 2,
+						paths: uPlot.paths.spline(),
+					},
 				],
 			};
 
 			let u9_2 = new uPlot(opts9_2, data9, document.body);
+		</script>
+
+		<script>
+			{
+				const _ = null;
+
+				const s_blue = [
+					[0,4,6],
+					[1,0,1],
+				];
+
+				const s_red = [
+					[0,1,2,3,4,5,6,7,8,9],
+					[_,_,3,4,5,_,3,2,1,0],
+				];
+
+				const l_green = [
+					[1,8],
+					[4.90,1.55],
+				];
+
+				const l_yellow = [
+					[0,5,9],
+					[1.11,_,4.44],
+				];
+
+				const l_sin = [
+					[0,1,3,4,5,7,8,9],
+					[
+						Math.sin(00 * (Math.PI / 180)) * 5,
+						Math.sin(10 * (Math.PI / 180)) * 5,
+						Math.sin(30 * (Math.PI / 180)) * 5,
+						_,
+						Math.sin(50 * (Math.PI / 180)) * 5,
+						Math.sin(70 * (Math.PI / 180)) * 5,
+						Math.sin(80 * (Math.PI / 180)) * 5,
+						Math.sin(90 * (Math.PI / 180)) * 5,
+					],
+				];
+
+				let data = uPlot.join([
+					s_blue,
+					s_red,
+					l_green,
+					l_yellow,
+					l_sin,
+				]);
+
+				const opts = {
+					title: "Gaps in stepped after",
+					width: 800,
+					height: 400,
+					scales: {
+						x: {
+							time: false,
+						}
+					},
+					series: [
+						{},
+						{
+							label: "on/off",
+							stroke: "blue",
+							fill: "rgba(0,0,255,0.3)",
+							width: 2,
+							paths: uPlot.paths.stepped({ align: 1, alignGaps: 1 }),
+						},
+						{
+							label: "[0..5]",
+							stroke: "red",
+							fill: "rgba(255,0,0,0.3)",
+							width: 2,
+							paths: uPlot.paths.stepped({ align: 1, alignGaps: 1 }),
+						},
+						{
+							label: "dataset03",
+							stroke: "green",
+							width: 2,
+						},
+						{
+							label: "dataset04",
+							stroke: "yellow",
+							width: 2,
+						},
+						{
+							label: "dataset05 sin",
+							stroke: "black",
+							width: 2,
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			}
+		</script>
+
+		<script>
+			{
+				const _ = null;
+
+				const s_blue = [
+					[0,4,6],
+					[1,0,1],
+				];
+
+				const s_red = [
+					[0,1,2,3,4,5,6,7,8,9],
+					[_,_,3,4,5,_,3,2,1,0],
+				];
+
+				const l_green = [
+					[1,8],
+					[4.90,1.55],
+				];
+
+				const l_yellow = [
+					[0,5,9],
+					[1.11,_,4.44],
+				];
+
+				const l_sin = [
+					[0,1,3,4,5,7,8,9],
+					[
+						Math.sin(00 * (Math.PI / 180)) * 5,
+						Math.sin(10 * (Math.PI / 180)) * 5,
+						Math.sin(30 * (Math.PI / 180)) * 5,
+						_,
+						Math.sin(50 * (Math.PI / 180)) * 5,
+						Math.sin(70 * (Math.PI / 180)) * 5,
+						Math.sin(80 * (Math.PI / 180)) * 5,
+						Math.sin(90 * (Math.PI / 180)) * 5,
+					],
+				];
+
+				let data = uPlot.join([
+					s_blue,
+					s_red,
+					l_green,
+					l_yellow,
+					l_sin,
+				]);
+
+				const opts = {
+					title: "Gaps in stepped before",
+					width: 800,
+					height: 400,
+					scales: {
+						x: {
+							time: false,
+						}
+					},
+					series: [
+						{},
+						{
+							label: "on/off",
+							stroke: "blue",
+							fill: "rgba(0,0,255,0.3)",
+							width: 2,
+							paths: uPlot.paths.stepped({ align: -1, alignGaps: -1 }),
+						},
+						{
+							label: "[0..5]",
+							stroke: "red",
+							fill: "rgba(255,0,0,0.3)",
+							width: 2,
+							paths: uPlot.paths.stepped({ align: -1, alignGaps: -1 }),
+						},
+						{
+							label: "dataset03",
+							stroke: "green",
+							width: 2,
+						},
+						{
+							label: "dataset04",
+							stroke: "yellow",
+							width: 2,
+						},
+						{
+							label: "dataset05 sin",
+							stroke: "black",
+							width: 2,
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			}
 		</script>
 
 		<script>

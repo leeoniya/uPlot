@@ -1,5 +1,5 @@
 import { nonNullIdx, ifNull } from '../utils';
-import { orient, addGap, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs } from './utils';
+import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
 import { pxRatio } from '../dom';
 
 export function stepped(opts) {
@@ -7,54 +7,40 @@ export function stepped(opts) {
 	// whether to draw ascenders/descenders at null/gap bondaries
 	const ascDesc = ifNull(opts.ascDesc, false);
 
+	const alignGaps = ifNull(opts.alignGaps, 0);
+
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
+
+			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
+			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
 
 			let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
 			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
 
-			const _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
 			idx0 = align === -1 ? idx0 : nonNullIdx(dataY, idx0, idx1,  1);
 			idx1 = align ===  1 ? idx1 : nonNullIdx(dataY, idx0, idx1, -1);
 
-			let gaps = [];
-			let inGap = false;
-			let prevYPos  = pxRound(valToPosY(dataY[_dir == 1 ? idx0 : idx1], scaleY, yDim, yOff));
-			let firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+			let prevYPos  = pixelForY(dataY[dir == 1 ? idx0 : idx1]);
+			let firstXPos = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
 			let prevXPos = firstXPos;
 
 			lineTo(stroke, firstXPos, yDim + yOff)
 			lineTo(stroke, firstXPos, prevYPos);
 
-			for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
+			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 				let yVal1 = dataY[i];
 
-				let x1 = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
-
-				if (yVal1 === null && i < idx1) {
-					if(align === 1) {
-						prevXPos = inGap ? prevXPos : x1;
-						inGap = true;
-					} else {
-						addGap(gaps, prevXPos, x1);
-					}
+				if (yVal1 == null)
 					continue;
-				}
 
-				let y1 = yVal1 === undefined ? prevYPos : pxRound(valToPosY(yVal1, scaleY, yDim, yOff));
-
-				if (inGap) {
-					if(yVal1 === undefined && i < idx1){
-						// ignore and wait until next valide value
-						continue
-					}
-					addGap(gaps, prevXPos, x1);
-					inGap = false;
-				}
+				let x1 = pixelForX(dataX[i]);
+				let y1 = pixelForY(yVal1);
 
 				if (align == 1)
 					lineTo(stroke, x1, prevYPos);
@@ -80,26 +66,36 @@ export function stepped(opts) {
 				let fill = _paths.fill = new Path2D(stroke);
 
 				let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
-				let fillToY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
+				let fillToY = pixelForY(fillTo);
 
 				lineTo(fill, prevXPos, fillToY);
 				lineTo(fill, firstXPos, fillToY);
 			}
 
-			_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+			if (!series.spanGaps) {
+			//	console.time('gaps');
+				let gaps = [];
 
-			// expand/contract clips for ascenders/descenders
-			let halfStroke = (series.width * pxRatio) / 2;
-			let startsOffset = (ascDesc || align ==  1) ?  halfStroke : -halfStroke;
-			let endsOffset   = (ascDesc || align == -1) ? -halfStroke :  halfStroke;
+				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
 
-			gaps.forEach(g => {
-				g[0] += startsOffset;
-				g[1] += endsOffset;
-			});
+			//	console.timeEnd('gaps');
 
-			if (!series.spanGaps)
+			//	console.log('gaps', JSON.stringify(gaps));
+
+				// expand/contract clips for ascenders/descenders
+				let halfStroke = (series.width * pxRatio) / 2;
+				let startsOffset = (ascDesc || align ==  1) ?  halfStroke : -halfStroke;
+				let endsOffset   = (ascDesc || align == -1) ? -halfStroke :  halfStroke;
+
+				gaps.forEach(g => {
+					g[0] += startsOffset;
+					g[1] += endsOffset;
+				});
+
+				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
+			}
 
 			if (bandClipDir != 0) {
 				_paths.band = bandClipDir == 2 ? [
