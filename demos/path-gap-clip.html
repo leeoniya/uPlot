@@ -114,8 +114,21 @@
 		</script>
 
 		<script>
+
+			let vals9 = [null,null,null,1,1,1,1,1,null,null,2,2,null,1,undefined,undefined,null,1,1,1,1,2,2,2,undefined,undefined];
+		//	let vals9 = [2,null,1,null,1,1];
+		//	let vals9 = [2,null,1];
+
+			const data9 = [
+				vals9.map((v, i) => i),
+				vals9,
+				vals9.map((v, i) => v == null ? v : v + 0.1),
+				vals9.map((v, i) => v == null ? v : v + 0.2),
+				vals9.map((v, i) => v == null ? v : v + 0.3),
+			];
+
 			const opts9 = {
-				title: "Gaps in stepped after",
+				title: "stepped1 vs stepped-1 vs linear vs spline",
 				width: 800,
 				height: 400,
 				scales: {
@@ -127,57 +140,21 @@
 					{},
 					{
 						label: "step after",
-						stroke: "blue",
-						fill: "rgba(0,0,255,0.3)",
+						stroke: "green",
+						fill: "rgba(0,128,0,0.3)",
 						width: 2,
+						spanGaps: true,
 						paths: uPlot.paths.stepped({
 							align: 1,
 						//	ascDesc: true,
 						}),
 					},
 					{
-						label: "linear",
-						stroke: "red",
-						width: 2,
-					},
-					{
-						label: "spline",
-						stroke: "orange",
-						width: 2,
-						paths: uPlot.paths.spline(),
-					},
-				],
-			};
-
-			let vals9 = [null,null,null,1,1,1,1,1,null,null,2,2,null,1,undefined,undefined,null,1,1,1,1,2,2,2,undefined,undefined];
-		//	let vals9 = [2,null,1,null,1,1];
-		//	let vals9 = [2,null,1];
-
-			const data9 = [
-				vals9.map((v, i) => i),
-				vals9,
-				vals9.map((v, i) => v == null ? v : v + 0.1),
-				vals9.map((v, i) => v == null ? v : v + 0.2),
-			];
-
-			let u9 = new uPlot(opts9, data9, document.body);
-
-			const opts9_2 = {
-				title: "Gaps in stepped before",
-				width: 800,
-				height: 400,
-				scales: {
-					x: {
-						time: false,
-					}
-				},
-				series: [
-					{},
-					{
 						label: "step before",
 						stroke: "red",
 						fill: "rgba(255,0,0,0.3)",
 						width: 2,
+						spanGaps: true,
 						paths: uPlot.paths.stepped({
 							align: -1,
 						//	ascDesc: true,
@@ -187,17 +164,24 @@
 						label: "linear",
 						stroke: "blue",
 						width: 2,
+						spanGaps: true,
 					},
 					{
 						label: "spline",
 						stroke: "orange",
 						width: 2,
+						spanGaps: true,
 						paths: uPlot.paths.spline(),
 					},
 				],
 			};
 
-			let u9_2 = new uPlot(opts9_2, data9, document.body);
+			let u9 = new uPlot(opts9, data9, document.body);
+			opts9.title = `Gaps in -> ${opts9.title}`
+			opts9.series.forEach(s => {
+				s.spanGaps = false
+			})
+			let u9_2 = new uPlot(opts9, data9, document.body);
 		</script>
 
 		<script>
@@ -247,7 +231,7 @@
 				]);
 
 				const opts = {
-					title: "Gaps in stepped after",
+					title: "Gaps in stepped -> insert after null",
 					width: 800,
 					height: 400,
 					scales: {
@@ -340,7 +324,7 @@
 				]);
 
 				const opts = {
-					title: "Gaps in stepped before",
+					title: "Gaps in stepped -> insert before null",
 					width: 800,
 					height: 400,
 					scales: {
@@ -355,14 +339,14 @@
 							stroke: "blue",
 							fill: "rgba(0,0,255,0.3)",
 							width: 2,
-							paths: uPlot.paths.stepped({ align: -1, alignGaps: -1 }),
+							paths: uPlot.paths.stepped({ align: 1, alignGaps: -1 }),
 						},
 						{
 							label: "[0..5]",
 							stroke: "red",
 							fill: "rgba(255,0,0,0.3)",
 							width: 2,
-							paths: uPlot.paths.stepped({ align: -1, alignGaps: -1 }),
+							paths: uPlot.paths.stepped({ align: 1, alignGaps: -1 }),
 						},
 						{
 							label: "dataset03",
