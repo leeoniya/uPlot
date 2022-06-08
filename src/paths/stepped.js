@@ -23,20 +23,20 @@ export function stepped(opts) {
 
 			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-			idx0 = align === -1 ? idx0 : nonNullIdx(dataY, idx0, idx1,  1);
-			idx1 = align ===  1 ? idx1 : nonNullIdx(dataY, idx0, idx1, -1);
+			let lftIdx = align === -1 ? idx0 : nonNullIdx(dataY, idx0, idx1,  1);
+			let rgtIdx = align ===  1 ? idx1 : nonNullIdx(dataY, idx0, idx1, -1);
 
-			let prevYPos  = pixelForY(dataY[dir == 1 ? idx0 : idx1]);
-			let firstXPos = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
+			let prevYPos  = pixelForY(dataY[dir == 1 ? lftIdx : rgtIdx]);
+			let firstXPos = pixelForX(dataX[dir == 1 ? lftIdx : rgtIdx]);
 			let prevXPos = firstXPos;
 
 			lineTo(stroke, firstXPos, yDim + yOff)
 			lineTo(stroke, firstXPos, prevYPos);
 
-			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
+			for (let i = dir == 1 ? lftIdx : rgtIdx; i >= lftIdx && i <= rgtIdx; i += dir) {
 				let yVal1 = dataY[i];
 
-				if (yVal1 == null)
+				if (yVal1 == null && i < rgtIdx)
 					continue;
 
 				let x1 = pixelForX(dataX[i]);
