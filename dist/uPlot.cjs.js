@@ -534,6 +534,8 @@ function fastIsObj(v) {
 	return v != null && typeof v == 'object';
 }
 
+const TypedArray = Object.getPrototypeOf(Uint8Array);
+
 function copy(o, _isObj = isObj) {
 	let out;
 
@@ -543,11 +545,13 @@ function copy(o, _isObj = isObj) {
 		if (isArr(val) || _isObj(val)) {
 			out = Array(o.length);
 			for (let i = 0; i < o.length; i++)
-			  out[i] = copy(o[i], _isObj);
+				out[i] = copy(o[i], _isObj);
 		}
 		else
 			out = o.slice();
 	}
+	else if (o instanceof TypedArray) // also (ArrayBuffer.isView(o) && !(o instanceof DataView))
+		out = o.slice();
 	else if (_isObj(o)) {
 		out = {};
 		for (let k in o)
