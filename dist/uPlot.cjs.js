@@ -2243,6 +2243,10 @@ function bars(opts) {
 			for (let i = _dirX == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dirX) {
 				let yVal = dataY[i];
 
+				// we can skip both, drawing and band clipping for alignment artifacts
+				if (yVal === undefined)
+					continue;
+
 			/*
 				// interpolate upwards band clips
 				if (yVal == null) {
