@@ -818,6 +818,78 @@
 					...stackedData,
 				], document.body);
 			}
+
+			{
+				let data5 = uPlot.join([
+					[
+						[  0,   1,   2,   3,   4],
+						[  5,   5,   5,   5,   5],
+					],
+					[
+						[  0.5,   1.5,   2.5],
+						[    1,     2,     3],
+						[    6,     7,     8],
+					]
+				]);
+
+				let series2 = [
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[1],
+						negY: false,
+						stacking: {
+							mode: 'none',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[2],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+					{
+						scaleKey: 'axis-x1345',
+						values: data5[3],
+						negY: false,
+						stacking: {
+							mode: 'normal',
+							group: 'A',
+						},
+					},
+				];
+
+				let { data: stackedData, bands } = stack2(series2);
+
+				new uPlot(uPlot.assign({
+					title: 'stacked joined/mixed',
+					bands,
+				}, opts5, {
+					series: [
+						{},
+						{
+							stroke: 'blue',
+							fill: "rgba(0, 0, 255, 0.3)",
+						},
+						{
+							stroke: 'green',
+							fill: "rgba(0, 255, 0, 0.3)",
+							paths: uPlot.paths.bars(),
+						},
+						{
+							stroke: 'orange',
+							fill: "rgba(255, 165, 0, 0.4)",
+							paths: uPlot.paths.bars(),
+						},
+					],
+				}), [
+					data5[0],
+					...stackedData,
+				], document.body);
+			}
 		</script>
 	</body>
 </html>
