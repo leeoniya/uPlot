@@ -145,6 +145,8 @@ function stack2(series) {
 					stacked[i] = v; // we may want to coerce to 0 here
 			}
 		}
+		else
+			data[si] = vals;
 	});
 
 	// re-compute by percent
