@@ -1685,13 +1685,21 @@ var uPlot = (function () {
 
 			for (let i = 0; i < gaps.length; i++) {
 				let g = gaps[i];
+				// begin gaps always at x=0
+				g[0] = Math.max(0, g[0]);
+				g[1] = Math.max(0, g[1]);
+
+				// do not ignore first gap if less then first Point on chart
+				if(i===0 && g[0] <= prevGapEnd){
+					prevGapEnd = g[1];
+				}
 
 				if (g[1] > g[0]) {
 					let w = g[0] - prevGapEnd;
 
 					w > 0 && rect(clip, prevGapEnd, plotTop, w, plotTop + plotHgt);
 
-					prevGapEnd = g[1];
+					prevGapEnd = Math.max(prevGapEnd, g[1]);
 				}
 			}
 
@@ -2001,7 +2009,7 @@ var uPlot = (function () {
 		// whether to draw ascenders/descenders at null/gap bondaries
 		const ascDesc = ifNull(opts.ascDesc, false);
 
-		const alignGaps = ifNull(opts.alignGaps, 0);
+		const alignGaps = ifNull(opts.alignGaps, align);
 
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
@@ -2017,19 +2025,20 @@ var uPlot = (function () {
 
 				const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
-				idx0 = nonNullIdx(dataY, idx0, idx1,  1);
-				idx1 = nonNullIdx(dataY, idx0, idx1, -1);
+				let lftIdx = align === -1 ? idx0 : nonNullIdx(dataY, idx0, idx1,  1);
+				let rgtIdx = align ===  1 ? idx1 : nonNullIdx(dataY, idx0, idx1, -1);
 
-				let prevYPos  = pixelForY(dataY[dir == 1 ? idx0 : idx1]);
-				let firstXPos = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
+				let prevYPos  = pixelForY(dataY[dir == 1 ? lftIdx : rgtIdx]);
+				let firstXPos = pixelForX(dataX[dir == 1 ? lftIdx : rgtIdx]);
 				let prevXPos = firstXPos;
 
+				lineTo(stroke, firstXPos, yDim + yOff);
 				lineTo(stroke, firstXPos, prevYPos);
 
-				for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
+				for (let i = dir == 1 ? lftIdx : rgtIdx; i >= lftIdx && i <= rgtIdx; i += dir) {
 					let yVal1 = dataY[i];
 
-					if (yVal1 == null)
+					if (yVal1 == null && i < rgtIdx)
 						continue;
 
 					let x1 = pixelForX(dataX[i]);
@@ -2037,14 +2046,21 @@ var uPlot = (function () {
 
 					if (align == 1)
 						lineTo(stroke, x1, prevYPos);
-					else
-						lineTo(stroke, prevXPos, y1);
-
+					else {
+						if(yVal1 !== undefined){
+							lineTo(stroke, prevXPos, y1);
+						}else {
+							x1 = prevXPos;
+							y1 = prevYPos;
+						}
+					}
 					lineTo(stroke, x1, y1);
 
 					prevYPos = y1;
 					prevXPos = x1;
 				}
+
+				lineTo(stroke, prevXPos, yDim + yOff);
 
 				let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
