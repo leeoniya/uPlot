@@ -212,11 +212,11 @@ declare namespace uPlot {
 		Vertical   = 1,
 	}
 
-	export type TypedArray = Int8Array | Uint8Array | Int16Array | Uint16Array | Int32Array | Uint32Array | Uint8ClampedArray | Float32Array | Float64Array;
+	export type serieData = (number | null | undefined)[]
 
 	export type AlignedData = [
-		xValues: number[] | TypedArray,
-		...yValues: ((number | null | undefined)[] | TypedArray)[],
+		xValues: number[],
+		...yValues: serieData[],
 	]
 
 	export interface DateNames {
@@ -558,6 +558,9 @@ declare namespace uPlot {
 
 		/** lock cursor on mouse click in plotting area */
 		lock?: boolean; // false
+
+		/** runtime - current lock of cursor in plotting area */
+		_lock?: boolean;
 	}
 
 	export namespace Scale {
@@ -642,7 +645,7 @@ declare namespace uPlot {
 		export interface SteppedPathBuilderOpts {
 			align?: -1 | 1; // 1
 
-			alignGaps?: -1 | 0 | 1; // 0
+			alignGaps?: -1 | 0 | 1; // align
 
 			// whether to draw ascenders/descenders at null/gap boundaries
 			ascDesc?: boolean; // false
@@ -722,9 +725,9 @@ declare namespace uPlot {
 			points?:  PointsPathBuilderFactory;
 		}
 
-		export type Stroke = CanvasRenderingContext2D['strokeStyle'] | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['strokeStyle']);
+		export type Stroke = CanvasRenderingContext2D['strokeStyle'] | (() => CanvasRenderingContext2D['strokeStyle']);
 
-		export type Fill = CanvasRenderingContext2D['fillStyle'] | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['fillStyle']);
+		export type Fill = CanvasRenderingContext2D['fillStyle'] | (() => CanvasRenderingContext2D['fillStyle']);
 
 		export type Cap = CanvasRenderingContext2D['lineCap'];
 
@@ -864,8 +867,14 @@ declare namespace uPlot {
 		/** line & legend color */
 		stroke?: Series.Stroke;
 
+		/** runtime - current line color */
+		_stroke?: string;
+
 		/** area fill & legend color */
 		fill?: Series.Fill;
+
+		/** runtime - current fill color */
+		_fill?: string;
 
 		/** area fill baseline (default: 0) */
 		fillTo?: Series.FillTo;

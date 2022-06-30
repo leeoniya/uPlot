@@ -159,13 +159,21 @@ export function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
 
 		for (let i = 0; i < gaps.length; i++) {
 			let g = gaps[i];
+			// begin gaps always at x=0
+			g[0] = Math.max(0, g[0])
+			g[1] = Math.max(0, g[1])
+
+			// do not ignore first gap if less then first Point on chart
+			if(i===0 && g[0] <= prevGapEnd){
+				prevGapEnd = g[1]
+			}
 
 			if (g[1] > g[0]) {
 				let w = g[0] - prevGapEnd;
 
 				w > 0 && rect(clip, prevGapEnd, plotTop, w, plotTop + plotHgt);
 
-				prevGapEnd = g[1];
+				prevGapEnd = Math.max(prevGapEnd, g[1]);
 			}
 		}
 
