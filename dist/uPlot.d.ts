@@ -214,7 +214,7 @@ declare namespace uPlot {
 
 	export type TypedArray = Int8Array | Uint8Array | Int16Array | Uint16Array | Int32Array | Uint32Array | Uint8ClampedArray | Float32Array | Float64Array;
 
-	export type AlignedData = [
+	export type AlignedData = TypedArray[] | [
 		xValues: number[] | TypedArray,
 		...yValues: ((number | null | undefined)[] | TypedArray)[],
 	]
