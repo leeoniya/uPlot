@@ -3384,6 +3384,24 @@ var uPlot = (function () {
 
 			fire("setData");
 
+			// forces x axis tick values to re-generate when neither x scale nor y scale changes
+			// in ordinal mode, scale range is by index, so will not change if new data has same length, but tick values are from data
+			if (xScaleDistr == 2) {
+				shouldConvergeSize = true;
+
+				/* or somewhat cheaper, and uglier:
+				if (ready) {
+					// logic extracted from axesCalc()
+					let i = 0;
+					let axis = axes[i];
+					let _splits = axis._splits.map(i => data0[i]);
+					let [_incr, _space] = axis._found;
+					let incr = data0[_splits[1]] - data0[_splits[0]];
+					axis._values = axis.values(self, axis.filter(self, _splits, i, _space, incr), i, _space, incr);
+				}
+				*/
+			}
+
 			if (_resetScales !== false) {
 				let xsc = scaleX;
 
