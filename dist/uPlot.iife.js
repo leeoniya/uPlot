@@ -3458,7 +3458,13 @@ var uPlot = (function () {
 		let ctxStroke, ctxFill, ctxWidth, ctxDash, ctxJoin, ctxCap, ctxFont, ctxAlign, ctxBaseline;
 		let ctxAlpha;
 
-		function setCtxStyle(stroke = transparent, width, dash = EMPTY_ARR, cap = "butt", fill = transparent, join = "round") {
+		function setCtxStyle(stroke, width, dash, cap, fill, join) {
+			stroke ??= transparent;
+			dash   ??= EMPTY_ARR;
+			cap    ??= "butt"; // (‿|‿)
+			fill   ??= transparent;
+			join   ??= "round";
+
 			if (stroke != ctxStroke)
 				ctx.strokeStyle = ctxStroke = stroke;
 			if (fill != ctxFill)
@@ -3468,7 +3474,7 @@ var uPlot = (function () {
 			if (join != ctxJoin)
 				ctx.lineJoin = ctxJoin = join;
 			if (cap != ctxCap)
-				ctx.lineCap = ctxCap = cap; // (‿|‿)
+				ctx.lineCap = ctxCap = cap;
 			if (dash != ctxDash)
 				ctx.setLineDash(ctxDash = dash);
 		}
