@@ -116,9 +116,6 @@ declare class uPlot {
 	/** converts a value along x to the closest data index */
 	valToIdx(val: number): number;
 
-	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
-	syncRect(defer?: boolean): void;
-
 	/** uPlot's path-builder factories */
 	static paths: uPlot.Series.PathBuilderFactories;
 
@@ -1093,9 +1090,6 @@ declare namespace uPlot {
 
 			/** fires after the chart is destroyed */
 			destroy?:    (self: uPlot) => void;
-
-			/** fires after .u-over's getBoundingClientRect() is called (due to scroll or resize events) */
-			syncRect?:   (self: uPlot, rect: DOMRect) => void;
 		}
 
 		export type Arrays = {
