@@ -3159,9 +3159,6 @@ function uPlot(opts, data, then) {
 		}
 
 		if (i > 0) {
-			if (mode == 2)
-				s = assign({}, xySeriesOpts, s);
-
 			s.width  = s.width == null ? 1 : s.width;
 			s.paths  = s.paths || linearPath || retNull;
 			s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
@@ -3210,7 +3207,8 @@ function uPlot(opts, data, then) {
 	function addSeries(opts, si) {
 		si = si == null ? series.length : si;
 
-		opts = setDefault(opts, si, xSeriesOpts, ySeriesOpts);
+		opts = mode == 1 ? setDefault(opts, si, xSeriesOpts, ySeriesOpts) : setDefault(opts, si, null, xySeriesOpts);
+
 		series.splice(si, 0, opts);
 		initSeries(series[si], si);
 	}
