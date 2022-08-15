@@ -877,6 +877,9 @@ export default function uPlot(opts, data, then) {
 		}
 
 		if (i > 0) {
+			if (mode == 2)
+				s = assign({}, xySeriesOpts, s);
+
 			s.width  = s.width == null ? 1 : s.width;
 			s.paths  = s.paths || linearPath || retNull;
 			s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
