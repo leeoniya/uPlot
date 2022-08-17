@@ -1429,10 +1429,13 @@ const facet = {
 	max: -inf,
 };
 
+const gaps = (self, seriesIdx, idx0, idx1, nullGaps) => nullGaps;
+
 const xySeriesOpts = {
 	show: true,
 	auto: true,
 	sorted: 0,
+	gaps,
 	alpha: 1,
 	facets: [
 		assign({}, facet, {scale: 'x'}),
@@ -1446,7 +1449,7 @@ const ySeriesOpts = {
 	sorted: 0,
 	show: true,
 	spanGaps: false,
-	gaps: (self, seriesIdx, idx0, idx1, nullGaps) => nullGaps,
+	gaps,
 	alpha: 1,
 	points: {
 		show: seriesPointsShow,
@@ -1531,15 +1534,16 @@ const BAND_CLIP_FILL   = 1 << 0;
 const BAND_CLIP_STROKE = 1 << 1;
 
 function orient(u, seriesIdx, cb) {
+	const mode = u.mode;
 	const series = u.series[seriesIdx];
+	const data = mode == 2 ? u._data[seriesIdx] : u._data;
 	const scales = u.scales;
 	const bbox   = u.bbox;
-	const scaleX = u.mode == 2 ? scales[series.facets[0].scale] : scales[u.series[0].scale];
 
-	let dx = u._data[0],
-		dy = u._data[seriesIdx],
-		sx = scaleX,
-		sy = u.mode == 2 ? scales[series.facets[1].scale] : scales[series.scale],
+	let dx = data[0],
+		dy = mode == 2 ? data[1] : data[seriesIdx],
+		sx = mode == 2 ? scales[series.facets[0].scale] : scales[u.series[0].scale],
+		sy = mode == 2 ? scales[series.facets[1].scale] : scales[series.scale],
 		l = bbox.left,
 		t = bbox.top,
 		w = bbox.width,
@@ -1622,7 +1626,10 @@ function bandFillClipDirs(self, seriesIdx) {
 }
 
 function seriesFillTo(self, seriesIdx, dataMin, dataMax, bandFillDir) {
-	let scale = self.scales[self.series[seriesIdx].scale];
+	let mode = self.mode;
+	let series = self.series[seriesIdx];
+	let scaleKey = mode == 2 ? series.facets[1].scale : series.scale;
+	let scale = self.scales[scaleKey];
 
 	return (
 		bandFillDir == -1 ? scale.min :
@@ -3682,7 +3689,7 @@ function uPlot(opts, data, then) {
 		if (dataLen > 0) {
 			series.forEach((s, i) => {
 				if (i > 0 && s.show && s._paths == null) {
-					let _idxs = getOuterIdxs(data[i]);
+					let _idxs = mode == 2 ? [0, data[i][0].length - 1] : getOuterIdxs(data[i]);
 					s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
 				}
 			});

@@ -4,15 +4,16 @@ export const BAND_CLIP_FILL   = 1 << 0;
 export const BAND_CLIP_STROKE = 1 << 1;
 
 export function orient(u, seriesIdx, cb) {
+	const mode = u.mode;
 	const series = u.series[seriesIdx];
+	const data = mode == 2 ? u._data[seriesIdx] : u._data;
 	const scales = u.scales;
 	const bbox   = u.bbox;
-	const scaleX = u.mode == 2 ? scales[series.facets[0].scale] : scales[u.series[0].scale];
 
-	let dx = u._data[0],
-		dy = u._data[seriesIdx],
-		sx = scaleX,
-		sy = u.mode == 2 ? scales[series.facets[1].scale] : scales[series.scale],
+	let dx = data[0],
+		dy = mode == 2 ? data[1] : data[seriesIdx],
+		sx = mode == 2 ? scales[series.facets[0].scale] : scales[u.series[0].scale],
+		sy = mode == 2 ? scales[series.facets[1].scale] : scales[series.scale],
 		l = bbox.left,
 		t = bbox.top,
 		w = bbox.width,
@@ -95,7 +96,10 @@ export function bandFillClipDirs(self, seriesIdx) {
 }
 
 export function seriesFillTo(self, seriesIdx, dataMin, dataMax, bandFillDir) {
-	let scale = self.scales[self.series[seriesIdx].scale];
+	let mode = self.mode;
+	let series = self.series[seriesIdx];
+	let scaleKey = mode == 2 ? series.facets[1].scale : series.scale;
+	let scale = self.scales[scaleKey];
 
 	return (
 		bandFillDir == -1 ? scale.min :

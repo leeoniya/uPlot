@@ -662,10 +662,13 @@ const facet = {
 	max: -inf,
 };
 
+const gaps = (self, seriesIdx, idx0, idx1, nullGaps) => nullGaps;
+
 export const xySeriesOpts = {
 	show: true,
 	auto: true,
 	sorted: 0,
+	gaps,
 	alpha: 1,
 	facets: [
 		assign({}, facet, {scale: 'x'}),
@@ -679,7 +682,7 @@ export const ySeriesOpts = {
 	sorted: 0,
 	show: true,
 	spanGaps: false,
-	gaps: (self, seriesIdx, idx0, idx1, nullGaps) => nullGaps,
+	gaps,
 	alpha: 1,
 	points: {
 		show: seriesPointsShow,

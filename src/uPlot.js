@@ -1400,7 +1400,7 @@ export default function uPlot(opts, data, then) {
 		if (dataLen > 0) {
 			series.forEach((s, i) => {
 				if (i > 0 && s.show && s._paths == null) {
-					let _idxs = getOuterIdxs(data[i]);
+					let _idxs = mode == 2 ? [0, data[i][0].length - 1] : getOuterIdxs(data[i]);
 					s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
 				}
 			});
