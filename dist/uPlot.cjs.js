@@ -50,6 +50,8 @@ const mouseup     = "mouseup";
 const mouseenter  = "mouseenter";
 const mouseleave  = "mouseleave";
 const dblclick    = "dblclick";
+const resize      = "resize";
+const scroll      = "scroll";
 
 const change      = "change";
 const dppxchange  = "dppxchange";
@@ -2484,7 +2486,16 @@ function _monotoneCubic(xs, ys, moveTo, lineTo, bezierCurveTo, pxRound) {
 	return path;
 }
 
+const cursorPlots = new Set();
+
+function invalidateRects() {
+	for (let u of cursorPlots)
+		u.syncRect(true);
+}
+
 if (domEnv) {
+	on(resize, win, invalidateRects);
+	on(scroll, win, invalidateRects, true);
 	on(dppxchange, win, () => { uPlot.pxRatio = pxRatio; });
 }
 
@@ -4259,6 +4270,8 @@ function uPlot(opts, data, then) {
 			ctxStroke = ctxFill = ctxWidth = ctxJoin = ctxCap = ctxFont = ctxAlign = ctxBaseline = ctxDash = null;
 			ctxAlpha = 1;
 
+			syncRect(true);
+
 			fire("setSize");
 
 			shouldSetSize = false;
@@ -4978,6 +4991,17 @@ function uPlot(opts, data, then) {
 		ready && _fire !== false && fire("setCursor");
 	}
 
+	let rect = null;
+
+	function syncRect(defer) {
+		if (defer === true)
+			rect = null;
+		else {
+			rect = over.getBoundingClientRect();
+			fire("syncRect", rect);
+		}
+	}
+
 	function mouseMove(e, src, _l, _t, _w, _h, _i) {
 		if (cursor._lock)
 			return;
@@ -4991,6 +5015,9 @@ function uPlot(opts, data, then) {
 	}
 
 	function cacheMouse(e, src, _l, _t, _w, _h, _i, initial, snap) {
+		if (rect == null)
+			syncRect(false);
+
 		if (e != null) {
 			_l = e.offsetX;
 			_t = e.offsetY;
@@ -5219,9 +5246,14 @@ function uPlot(opts, data, then) {
 	if (cursor.show) {
 		onMouse(mousedown,  over, mouseDown);
 		onMouse(mousemove,  over, mouseMove);
+		onMouse(mouseenter, over, syncRect);
 		onMouse(mouseleave, over, mouseLeave);
 
 		onMouse(dblclick, over, dblClick);
+
+		cursorPlots.add(self);
+
+		self.syncRect = syncRect;
 	}
 
 	// external on/off
@@ -5274,6 +5306,7 @@ function uPlot(opts, data, then) {
 
 	function destroy() {
 		sync.unsub(self);
+		cursorPlots.delete(self);
 		mouseListeners.clear();
 		off(dppxchange, win, syncPxRatio);
 		root.remove();

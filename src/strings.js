@@ -13,6 +13,8 @@ export const mouseup     = "mouseup";
 export const mouseenter  = "mouseenter";
 export const mouseleave  = "mouseleave";
 export const dblclick    = "dblclick";
+export const resize      = "resize";
+export const scroll      = "scroll";
 
 export const change      = "change";
 export const dppxchange  = "dppxchange";

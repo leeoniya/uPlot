@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Scroll syncRect()</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+
+		<style>
+			#foo {
+				width: 400px;
+				height: 400px;
+				overflow-y: auto;
+				overflow-x: hidden;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="foo">
+			<p>Contrary to popular belief, Lorem Ipsum is not simply random text. It has roots in a piece of classical Latin literature from 45 BC, making it over 2000 years old. Richard McClintock, a Latin professor at Hampden-Sydney College in Virginia, looked up one of the more obscure Latin words, consectetur, from a Lorem Ipsum passage, and going through the cites of the word in classical literature, discovered the undoubtable source. Lorem Ipsum comes from sections 1.10.32 and 1.10.33 of "de Finibus Bonorum et Malorum" (The Extremes of Good and Evil) by Cicero, written in 45 BC. This book is a treatise on the theory of ethics, very popular during the Renaissance. The first line of Lorem Ipsum, "Lorem ipsum dolor sit amet..", comes from a line in section 1.10.32.</p>
+			<p>The standard chunk of Lorem Ipsum used since the 1500s is reproduced below for those interested. Sections 1.10.32 and 1.10.33 from "de Finibus Bonorum et Malorum" by Cicero are also reproduced in their exact original form, accompanied by English versions from the 1914 translation by H. Rackham.</p>
+		</div>
+
+		<script src="../dist/uPlot.iife.js"></script>
+		<script>
+			let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
+			let vals = [-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10];
+
+			let data = [
+				xs,
+				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+			];
+
+			const opts = {
+				width: 400,
+				height: 200,
+				title: ".syncRect()",
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					{
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+					},
+					{
+						stroke: "green",
+						fill: "rgba(0,255,0,0.1)",
+					},
+					{
+						stroke: "blue",
+						fill: "rgba(0,0,255,0.1)",
+					},
+				],
+			};
+
+			let fooEl = document.querySelector("#foo");
+			let u = new uPlot(opts, data, fooEl);
+
+			fooEl.onscroll = e => {
+				u.syncRect();
+			};
+		</script>
+	</body>
+</html>

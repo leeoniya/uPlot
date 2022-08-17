@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
-    "checkJs": true
+    "checkJs": true,
+    "target": "ES2020"
   },
   "include": ["src/*", "dist/*"],
   "exclude": ["node_modules"]
