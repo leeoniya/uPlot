@@ -288,6 +288,8 @@ export function fnOrSelf(v) {
 	return typeof v == "function" ? v : () => v;
 }
 
+export const noop = () => {};
+
 export const retArg0 = _0 => _0;
 
 export const retArg1 = (_0, _1) => _1;

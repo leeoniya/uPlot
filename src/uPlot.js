@@ -559,6 +559,8 @@ export default function uPlot(opts, data, then) {
 	if (showLegend) {
 		legendEl = placeTag("table", LEGEND, root);
 
+		legend.mount(self, legendEl);
+
 		if (multiValLegend) {
 			let head = placeTag("tr", LEGEND_THEAD, legendEl);
 			placeTag("th", null, head);
@@ -3026,6 +3028,7 @@ export default function uPlot(opts, data, then) {
 		mouseListeners.clear();
 		off(dppxchange, win, syncPxRatio);
 		root.remove();
+		FEAT_LEGEND && legendEl.remove(); // in case mounted outside of root
 		fire("destroy");
 	}
 

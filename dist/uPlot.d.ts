@@ -279,6 +279,9 @@ declare namespace uPlot {
 		/** series indicators */
 		markers?: Legend.Markers;
 
+		/** callback for moving the legend elsewhere. e.g. external DOM container */
+		mount?: (self: uPlot, el: HTMLElement) => void;
+
 		/** current index (readback-only, not for init) */
 		idx?: number | null;
 		/** current indices (readback-only, not for init) */

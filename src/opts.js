@@ -22,6 +22,7 @@ import {
 	fixedDec,
 
 	retArg1,
+	noop,
 } from './utils';
 
 import {
@@ -344,6 +345,7 @@ export const legendOpts = {
 	show: true,
 	live: true,
 	isolate: false,
+	mount: noop,
 	markers: {
 		show: true,
 		width: 2,

@@ -457,6 +457,8 @@ function fnOrSelf(v) {
 	return typeof v == "function" ? v : () => v;
 }
 
+const noop = () => {};
+
 const retArg0 = _0 => _0;
 
 const retArg1 = (_0, _1) => _1;
@@ -1113,6 +1115,7 @@ const legendOpts = {
 	show: true,
 	live: true,
 	isolate: false,
+	mount: noop,
 	markers: {
 		show: true,
 		width: 2,
@@ -2849,6 +2852,8 @@ function uPlot(opts, data, then) {
 
 	if (showLegend) {
 		legendEl = placeTag("table", LEGEND, root);
+
+		legend.mount(self, legendEl);
 
 		if (multiValLegend) {
 			let head = placeTag("tr", LEGEND_THEAD, legendEl);
@@ -5317,6 +5322,7 @@ function uPlot(opts, data, then) {
 		mouseListeners.clear();
 		off(dppxchange, win, syncPxRatio);
 		root.remove();
+		legendEl.remove(); // in case mounted outside of root
 		fire("destroy");
 	}
 

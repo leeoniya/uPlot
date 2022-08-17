@@ -458,6 +458,8 @@ var uPlot = (function () {
 		return typeof v == "function" ? v : () => v;
 	}
 
+	const noop = () => {};
+
 	const retArg0 = _0 => _0;
 
 	const retArg1 = (_0, _1) => _1;
@@ -1114,6 +1116,7 @@ var uPlot = (function () {
 		show: true,
 		live: true,
 		isolate: false,
+		mount: noop,
 		markers: {
 			show: true,
 			width: 2,
@@ -2850,6 +2853,8 @@ var uPlot = (function () {
 
 		if (showLegend) {
 			legendEl = placeTag("table", LEGEND, root);
+
+			legend.mount(self, legendEl);
 
 			if (multiValLegend) {
 				let head = placeTag("tr", LEGEND_THEAD, legendEl);
@@ -5318,6 +5323,7 @@ var uPlot = (function () {
 			mouseListeners.clear();
 			off(dppxchange, win, syncPxRatio);
 			root.remove();
+			legendEl.remove(); // in case mounted outside of root
 			fire("destroy");
 		}
 
