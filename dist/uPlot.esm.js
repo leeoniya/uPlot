@@ -475,8 +475,17 @@ function incrRoundDn(num, incr) {
 	return floor(num/incr)*incr;
 }
 
-function roundDec(val, dec) {
-	return round(val * (dec = 10**dec)) / dec;
+// https://stackoverflow.com/a/48764436
+// rounds half away from zero
+function roundDec(val, dec = 0) {
+	if (isInt(val))
+		return val;
+//	else if (dec == 0)
+//		return round(val);
+
+	let p = 10 ** dec;
+	let n = (val * p) * (1 + Number.EPSILON);
+	return round(n) / p;
 }
 
 const fixedDec = new Map();
@@ -514,6 +523,7 @@ const EMPTY_ARR = [];
 const nullNullTuple = [null, null];
 
 const isArr = Array.isArray;
+const isInt = Number.isInteger;
 
 function isStr(v) {
 	return typeof v == 'string';
