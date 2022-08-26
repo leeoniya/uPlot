@@ -696,6 +696,7 @@ export default function uPlot(opts, data, then) {
 	let shouldSetSize = false;
 	let shouldConvergeSize = false;
 	let shouldSetCursor = false;
+	let shouldSetSelect = false;
 	let shouldSetLegend = false;
 
 	function _setSize(width, height, force) {
@@ -706,7 +707,10 @@ export default function uPlot(opts, data, then) {
 
 		shouldConvergeSize = true;
 		shouldSetSize = true;
-		shouldSetCursor = shouldSetLegend = cursor.left >= 0;
+
+		if (cursor.left >= 0)
+			shouldSetCursor = shouldSetLegend = true;
+
 		commit();
 	}
 
@@ -1376,8 +1380,8 @@ export default function uPlot(opts, data, then) {
 				fire("setScale", k);
 			}
 
-			if (FEAT_CURSOR && cursor.show)
-				shouldSetCursor = shouldSetLegend = cursor.left >= 0;
+			if (FEAT_CURSOR && cursor.show && cursor.left >= 0)
+				shouldSetCursor = shouldSetLegend = true;
 		}
 
 		for (let k in pendScales)
@@ -2002,14 +2006,10 @@ export default function uPlot(opts, data, then) {
 			fire("draw");
 		}
 
-	//	if (shouldSetSelect) {
-		// TODO: update .u-select metrics (if visible)
-		//	setStylePx(selectDiv, TOP, select.top = 0);
-		//	setStylePx(selectDiv, LEFT, select.left = 0);
-		//	setStylePx(selectDiv, WIDTH, select.width = 0);
-		//	setStylePx(selectDiv, HEIGHT, select.height = 0);
-		//	shouldSetSelect = false;
-	//	}
+		if (select.show && shouldSetSelect) {
+			setSelect(select);
+			shouldSetSelect = false;
+		}
 
 		if (FEAT_CURSOR && cursor.show && shouldSetCursor) {
 			updateCursor(null, true, false);
@@ -2144,8 +2144,12 @@ export default function uPlot(opts, data, then) {
 
 	function setSelect(opts, _fire) {
 		if (select.show) {
-			for (let prop in opts)
-				setStylePx(selectDiv, prop, select[prop] = opts[prop]);
+			for (let prop in opts) {
+				select[prop] = opts[prop];
+
+				if (prop in _hideProps)
+					setStylePx(selectDiv, prop, opts[prop]);
+			}
 
 			_fire !== false && fire("setSelect");
 		}
@@ -2706,7 +2710,7 @@ export default function uPlot(opts, data, then) {
 			}
 		}
 
-		ready && _fire !== false && fire("setCursor");
+		_fire !== false && fire("setCursor");
 	}
 
 	let rect = null;
@@ -2803,6 +2807,8 @@ export default function uPlot(opts, data, then) {
 	const _hideProps = {
 		width: 0,
 		height: 0,
+		left: 0,
+		top: 0,
 	};
 
 	function hideSelect() {
@@ -3044,11 +3050,10 @@ export default function uPlot(opts, data, then) {
 		else
 			autoScaleX();
 
+		shouldSetSelect = select.show;
+		shouldSetCursor = shouldSetLegend = true;
+
 		_setSize(opts.width, opts.height);
-
-		updateCursor(null, true, false);
-
-		setSelect(select, false);
 	}
 
 	series.forEach(initSeries);

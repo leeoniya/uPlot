@@ -3001,6 +3001,7 @@ var uPlot = (function () {
 		let shouldSetSize = false;
 		let shouldConvergeSize = false;
 		let shouldSetCursor = false;
+		let shouldSetSelect = false;
 		let shouldSetLegend = false;
 
 		function _setSize(width, height, force) {
@@ -3011,7 +3012,10 @@ var uPlot = (function () {
 
 			shouldConvergeSize = true;
 			shouldSetSize = true;
-			shouldSetCursor = shouldSetLegend = cursor.left >= 0;
+
+			if (cursor.left >= 0)
+				shouldSetCursor = shouldSetLegend = true;
+
 			commit();
 		}
 
@@ -3681,8 +3685,8 @@ var uPlot = (function () {
 					fire("setScale", k);
 				}
 
-				if (cursor.show)
-					shouldSetCursor = shouldSetLegend = cursor.left >= 0;
+				if (cursor.show && cursor.left >= 0)
+					shouldSetCursor = shouldSetLegend = true;
 			}
 
 			for (let k in pendScales)
@@ -4307,14 +4311,10 @@ var uPlot = (function () {
 				fire("draw");
 			}
 
-		//	if (shouldSetSelect) {
-			// TODO: update .u-select metrics (if visible)
-			//	setStylePx(selectDiv, TOP, select.top = 0);
-			//	setStylePx(selectDiv, LEFT, select.left = 0);
-			//	setStylePx(selectDiv, WIDTH, select.width = 0);
-			//	setStylePx(selectDiv, HEIGHT, select.height = 0);
-			//	shouldSetSelect = false;
-		//	}
+			if (select.show && shouldSetSelect) {
+				setSelect(select);
+				shouldSetSelect = false;
+			}
 
 			if (cursor.show && shouldSetCursor) {
 				updateCursor(null, true, false);
@@ -4449,8 +4449,12 @@ var uPlot = (function () {
 
 		function setSelect(opts, _fire) {
 			if (select.show) {
-				for (let prop in opts)
-					setStylePx(selectDiv, prop, select[prop] = opts[prop]);
+				for (let prop in opts) {
+					select[prop] = opts[prop];
+
+					if (prop in _hideProps)
+						setStylePx(selectDiv, prop, opts[prop]);
+				}
 
 				_fire !== false && fire("setSelect");
 			}
@@ -5011,7 +5015,7 @@ var uPlot = (function () {
 				}
 			}
 
-			ready && _fire !== false && fire("setCursor");
+			_fire !== false && fire("setCursor");
 		}
 
 		let rect = null;
@@ -5108,6 +5112,8 @@ var uPlot = (function () {
 		const _hideProps = {
 			width: 0,
 			height: 0,
+			left: 0,
+			top: 0,
 		};
 
 		function hideSelect() {
@@ -5349,11 +5355,10 @@ var uPlot = (function () {
 			else
 				autoScaleX();
 
+			shouldSetSelect = select.show;
+			shouldSetCursor = shouldSetLegend = true;
+
 			_setSize(opts.width, opts.height);
-
-			updateCursor(null, true, false);
-
-			setSelect(select, false);
 		}
 
 		series.forEach(initSeries);
