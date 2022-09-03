@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Sync Y Zero</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="stylesheet" href="../dist/uPlot.min.css">
+</head>
+
+<body>
+	<script src="../dist/uPlot.iife.js"></script>
+	<script>
+		let data = [
+			[0, 1, 2],
+
+		/*
+			[-10, 35, 0],
+			[-150, -1732, -500],
+			[3751, 10000, 7389],
+		*/
+
+			[-10, 35, 100],
+			[-150, 1732, -30],
+			[3751, 10000, 7389],
+		];
+
+		let synced = false;
+
+		let dataMinMaxes = {
+			y: null,
+			y2: null,
+			y3: null,
+		};
+
+		let syncedRange = {
+			y: null,
+			y2: null,
+			y3: null,
+		};
+
+		let symRange = (u, dataMin, dataMax, scaleKey) => {
+			let abs = Math.max(Math.abs(dataMin), Math.abs(dataMax));
+			return [-abs, abs];
+		};
+
+		let range = (u, dataMin, dataMax, scaleKey) => {
+			dataMinMaxes[scaleKey] = [dataMin, dataMax];
+			return !synced ? [dataMin, dataMax] : syncedRange[scaleKey] ?? symRange(u, dataMin, dataMax, scaleKey);
+		};
+
+		const opts = {
+			width: 800,
+			height: 400,
+			scales: {
+				x: {
+					time: false,
+				},
+				y: {
+					range,
+				},
+				y2: {
+					range,
+				},
+				y3: {
+					range,
+				}
+			},
+			axes: [
+				{},
+				{
+					scale: 'y',
+					stroke: 'red',
+					grid: { show: false },
+				},
+				{
+					scale: 'y2',
+					stroke: 'green',
+					grid: { show: false },
+				},
+				{
+					scale: 'y3',
+					stroke: 'blue',
+					grid: { show: false },
+				},
+			],
+			series: [
+				{},
+				{
+					label: "Data 1",
+					scale: 'y',
+					stroke: "red",
+				},
+				{
+					label: "Data 2",
+					scale: 'y2',
+					stroke: "green",
+				},
+				{
+					label: "Data 3",
+					scale: 'y3',
+					stroke: "blue",
+				},
+			],
+		};
+
+		let u = new uPlot(opts, data, document.body);
+
+		function syncRange() {
+			let minPx = -Infinity;
+			let maxPx = Infinity;
+
+			for (let scaleKey in dataMinMaxes) {
+				minPx = Math.max(minPx, u.valToPos(dataMinMaxes[scaleKey][0], scaleKey));
+				maxPx = Math.min(maxPx, u.valToPos(dataMinMaxes[scaleKey][1], scaleKey));
+			}
+
+			for (let scaleKey in dataMinMaxes) {
+				syncedRange[scaleKey] = [
+					u.posToVal(minPx, scaleKey),
+					u.posToVal(maxPx, scaleKey),
+				];
+			}
+		}
+
+		setTimeout(() => {
+			synced = true;
+			u.redraw(true);
+		}, 3000);
+
+		setTimeout(() => {
+			syncRange();
+			u.redraw(true);
+		}, 6000);
+	</script>
+</body>
+
+</html>
