@@ -1361,7 +1361,7 @@ const RE_12357 = /[12357]/;
 const RE_125   = /[125]/;
 const RE_1     = /1/;
 
-function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
+function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
 	let sc = self.scales[scaleKey];
@@ -3322,7 +3322,7 @@ function uPlot(opts, data, then) {
 				) : av || numAxisVals
 			);
 
-			axis.filter = fnOrSelf(axis.filter || (          sc.distr >= 3 ? logAxisValsFilt : retArg1));
+			axis.filter = fnOrSelf(axis.filter || (          sc.distr >= 3 && sc.log == 10 ? log10AxisValsFilt : retArg1));
 
 			axis.font      = pxRatioFont(axis.font);
 			axis.labelFont = pxRatioFont(axis.labelFont);

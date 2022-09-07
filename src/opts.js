@@ -585,7 +585,7 @@ const RE_12357 = /[12357]/;
 const RE_125   = /[125]/;
 const RE_1     = /1/;
 
-export function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
+export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
 	let sc = self.scales[scaleKey];
