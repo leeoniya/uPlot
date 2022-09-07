@@ -247,16 +247,9 @@ function getMinMaxLog(data, _i0, _i1) {
 	];
 }
 
-const _fixedTuple = [0, 0];
-
-function fixIncr(minIncr, maxIncr, minExp, maxExp) {
-	_fixedTuple[0] = minExp < 0 ? roundDec(minIncr, -minExp) : minIncr;
-	_fixedTuple[1] = maxExp < 0 ? roundDec(maxIncr, -maxExp) : maxIncr;
-	return _fixedTuple;
-}
-
 function rangeLog(min, max, base, fullMags) {
 	let minSign = sign(min);
+	let maxSign = sign(max);
 
 	let logFn = base == 10 ? log10 : log2;
 
@@ -271,25 +264,28 @@ function rangeLog(min, max, base, fullMags) {
 		}
 	}
 
-	let minExp, maxExp, minMaxIncrs;
+	let growMinAbs = minSign == 1 ? floor : ceil;
+	let growMaxAbs = maxSign == 1 ? ceil : floor;
+
+	let minExp = growMinAbs(logFn(abs(min)));
+	let maxExp = growMaxAbs(logFn(abs(max)));
+
+	let minIncr = pow(base, minExp);
+	let maxIncr = pow(base, maxExp);
+
+	// fix values like Math.pow(10, -5) === 0.000009999999999999999
+	if (minExp < 0)
+		minIncr = roundDec(minIncr, -minExp);
+	if (maxExp < 0)
+		maxIncr = roundDec(maxIncr, -maxExp);
 
 	if (fullMags) {
-		minExp = floor(logFn(min));
-		maxExp =  ceil(logFn(max));
-
-		minMaxIncrs = fixIncr(pow(base, minExp), pow(base, maxExp), minExp, maxExp);
-
-		min = minMaxIncrs[0];
-		max = minMaxIncrs[1];
+		min = minIncr * minSign;
+		max = maxIncr * maxSign;
 	}
 	else {
-		minExp = floor(logFn(abs(min)));
-		maxExp = floor(logFn(abs(max)));
-
-		minMaxIncrs = fixIncr(pow(base, minExp), pow(base, maxExp), minExp, maxExp);
-
-		min = incrRoundDn(min, minMaxIncrs[0]);
-		max = incrRoundUp(max, minMaxIncrs[1]);
+		min = incrRoundDn(min, minIncr);
+		max = incrRoundUp(max, maxIncr);
 	}
 
 	return [min, max];
