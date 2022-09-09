@@ -2741,8 +2741,8 @@ export default function uPlot(opts, data, then) {
 			syncRect(false);
 
 		if (e != null) {
-			_l = e.offsetX;
-			_t = e.offsetY;
+			_l = e.clientX - rect.left;
+			_t = e.clientY - rect.top;
 		}
 		else {
 			if (_l < 0 || _t < 0) {
