@@ -5334,7 +5334,7 @@ function uPlot(opts, data, then) {
 		mouseListeners.clear();
 		off(dppxchange, win, syncPxRatio);
 		root.remove();
-		legendEl.remove(); // in case mounted outside of root
+		legendEl?.remove(); // in case mounted outside of root
 		fire("destroy");
 	}
 

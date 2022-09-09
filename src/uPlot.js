@@ -3034,7 +3034,7 @@ export default function uPlot(opts, data, then) {
 		mouseListeners.clear();
 		off(dppxchange, win, syncPxRatio);
 		root.remove();
-		FEAT_LEGEND && legendEl.remove(); // in case mounted outside of root
+		FEAT_LEGEND && legendEl?.remove(); // in case mounted outside of root
 		fire("destroy");
 	}
 
