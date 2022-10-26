@@ -370,7 +370,13 @@ function _rangeNum(_min, _max, cfg) {
 	let softMinMode = ifNull(cmin.mode, 0);
 	let softMaxMode = ifNull(cmax.mode, 0);
 
-	let delta        = _max - _min;
+	let delta = _max - _min;
+	let deltaMag = log10(delta);
+
+	let scalarMax = max(abs(_min), abs(_max));
+	let scalarMag = log10(scalarMax);
+
+	let scalarMagDelta = abs(scalarMag - deltaMag);
 
 	// this handles situations like 89.7, 89.69999999999999
 	// by assuming 0.001x deltas are precision errors
@@ -378,7 +384,8 @@ function _rangeNum(_min, _max, cfg) {
 //		delta = 0;
 
 	// treat data as flat if delta is less than 1 billionth
-	if (delta < 1e-9) {
+	// or range is 11+ orders of magnitude below raw values, e.g. 99999999.99999996 - 100000000.00000004
+	if (delta < 1e-9 || scalarMagDelta > 10) {
 		delta = 0;
 
 		// if soft mode is 2 and all vals are flat at 0, avoid the 0.1 * 1e3 fallback
@@ -394,7 +401,7 @@ function _rangeNum(_min, _max, cfg) {
 		}
 	}
 
-	let nonZeroDelta = delta || abs(_max) || 1e3;
+	let nonZeroDelta = delta || scalarMax || 1e3;
 	let mag          = log10(nonZeroDelta);
 	let base         = pow(10, floor(mag));
 
