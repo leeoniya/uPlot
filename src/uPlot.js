@@ -1424,8 +1424,10 @@ export default function uPlot(opts, data, then) {
 					if (FEAT_POINTS) {
 						cacheStrokeFill(i, true);
 
-						let show = s.points.show(self, i, i0, i1);
-						let idxs = s.points.filter(self, i, show, s._paths ? s._paths.gaps : null);
+						let _gaps = s._paths ? s._paths.gaps : null;
+
+						let show = s.points.show(self, i, i0, i1, _gaps);
+						let idxs = s.points.filter(self, i, show, _gaps);
 
 						if (show || idxs) {
 							s.points._paths = s.points.paths(self, i, i0, i1, idxs);

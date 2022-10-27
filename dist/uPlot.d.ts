@@ -746,7 +746,7 @@ declare namespace uPlot {
 				flags?: number;
 			}
 
-			export type Show = boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number) => boolean | undefined);
+			export type Show = boolean | ((self: uPlot, seriesIdx: number, idx0: number, idx1: number, gaps?: null | number[][]) => boolean | undefined);
 
 			export type Filter = number[] | null | ((self: uPlot, seriesIdx: number, show: boolean, gaps?: null | number[][]) => number[] | null);
 
