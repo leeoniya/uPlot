@@ -2023,16 +2023,19 @@ var uPlot = (function () {
 		};
 	}
 
+	// BUG: align: -1 behaves like align: 1 when scale.dir: -1
 	function stepped(opts) {
 		const align = ifNull(opts.align, 1);
 		// whether to draw ascenders/descenders at null/gap bondaries
 		const ascDesc = ifNull(opts.ascDesc, false);
-
 		const alignGaps = ifNull(opts.alignGaps, 0);
+		const extend = ifNull(opts.extend, false);
 
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				let pxRound = series.pxRound;
+
+				let { left, width } = u.bbox;
 
 				let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
 				let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
@@ -2050,6 +2053,13 @@ var uPlot = (function () {
 				let prevYPos  = pixelForY(dataY[dir == 1 ? idx0 : idx1]);
 				let firstXPos = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
 				let prevXPos = firstXPos;
+
+				let firstXPosExt = firstXPos;
+
+				if (extend && align == -1) {
+					firstXPosExt = left;
+					lineTo(stroke, firstXPosExt, prevYPos);
+				}
 
 				lineTo(stroke, firstXPos, prevYPos);
 
@@ -2073,6 +2083,13 @@ var uPlot = (function () {
 					prevXPos = x1;
 				}
 
+				let prevXPosExt = prevXPos;
+
+				if (extend && align == 1) {
+					prevXPosExt = left + width;
+					lineTo(stroke, prevXPosExt, prevYPos);
+				}
+
 				let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
 				if (series.fill != null || bandFillDir != 0) {
@@ -2081,8 +2098,8 @@ var uPlot = (function () {
 					let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
 					let fillToY = pixelForY(fillTo);
 
-					lineTo(fill, prevXPos, fillToY);
-					lineTo(fill, firstXPos, fillToY);
+					lineTo(fill, prevXPosExt, fillToY);
+					lineTo(fill, firstXPosExt, fillToY);
 				}
 
 				if (!series.spanGaps) {

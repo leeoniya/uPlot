@@ -649,6 +649,9 @@ declare namespace uPlot {
 
 			// whether to draw ascenders/descenders at null/gap boundaries
 			ascDesc?: boolean; // false
+
+			// extend hz lines to plot edges when x scale is beyond x data limits?
+			extend?: boolean; // false
 		}
 
 		export const enum BarsPathBuilderFacetUnit {
