@@ -36,33 +36,11 @@
 		<script src="./grouped-bars.js"></script>
 
 		<script>
-			const data = [
-				["Group A", "Group B", "Group C"],
-				[1, 2, 3],
-				[3, 2, 1],
-				[5, 9, 3],
-			];
-
-			const series = [
-				{},
-				{
-					label: "Metric 1",
-					fill: "#33BB55",
-				},
-				{
-					label: "Metric 2",
-					fill: "#B56FAB",
-				},
-				{
-					label:	"Metric 3",
-					fill: "#BB1133",
-				},
-			];
-
 			function makeChart(o, data, bands) {
 				let ori = o.ori;
 				let dir = o.dir;
 				let stacked = o.stacked;
+				let series = o.series;
 
 				const opts = {
 					width:  ori == 0 ? 800 : 400,
@@ -91,7 +69,7 @@
 						}
 					},
 					padding: [null, 0, null, 0],
-					series: JSON.parse(JSON.stringify(series)),
+					series,
 					plugins: [
 						seriesBarsPlugin({
 							ori,
@@ -109,14 +87,122 @@
 				makeChart(opts, _data, bands);
 			}
 
-			makeChart({ori: 0, dir:  1}, data);
-			makeChart2({ori: 0, dir: 1, stacked: true}, data);
+			{
+				// multi group, multi bar
+				let data = [
+					["Group A", "Group B", "Group C", "Group D"],
+					[1, 2, 3, 10],
+					[3, 2, 1, 10],
+					[5, 9, 3, 10],
+				];
 
-			let d = document.createElement("div");
-			document.body.appendChild(d);
+				let series = [
+					{},
+					{
+						label: "Metric 1",
+						fill: "#33BB55",
+						width: 0,
+					},
+					{
+						label: "Metric 2",
+						fill: "#B56FAB",
+						width: 0,
+					},
+					{
+						label:	"Metric 3",
+						fill: "#BB1133",
+						width: 0,
+					},
+				];
 
-			makeChart({ori: 1, dir: -1}, data);
-			makeChart2({ori: 1, dir: -1, stacked: true}, data);
+				makeChart({series, ori: 0, dir:  1}, data);
+				makeChart2({series, ori: 0, dir: 1, stacked: true}, data);
+
+				document.body.appendChild(document.createElement("div"));
+
+				makeChart({series, ori: 1, dir: -1}, data);
+				makeChart2({series, ori: 1, dir: -1, stacked: true}, data);
+
+				document.body.appendChild(document.createElement("div"));
+			}
+
+			{
+				// multi group, one bar
+				let data = [
+					["Group A", "Group B", "Group C", "Group D"],
+					[1, 2, 3, 10],
+				];
+
+				let series = [
+					{},
+					{
+						label: "Metric 1",
+						fill: "#33BB55",
+						width: 0,
+					},
+				];
+
+				makeChart({series, ori: 0, dir:  1}, data);
+				makeChart2({series, ori: 0, dir: 1, stacked: true}, data);
+
+				document.body.appendChild(document.createElement("div"));
+			}
+
+			{
+				// one group, multi bar
+				let data = [
+					["Group A"],
+					[1],
+					[3],
+					[5],
+				];
+
+				let series = [
+					{},
+					{
+						label: "Metric 1",
+						fill: "#33BB55",
+						width: 0,
+					},
+					{
+						label: "Metric 2",
+						fill: "#B56FAB",
+						width: 0,
+					},
+					{
+						label:	"Metric 3",
+						fill: "#BB1133",
+						width: 0,
+					},
+				];
+
+				makeChart({series, ori: 0, dir:  1}, data);
+				makeChart2({series, ori: 0, dir: 1, stacked: true}, data);
+
+				document.body.appendChild(document.createElement("div"));
+			}
+
+			{
+				// one group, one bar
+				let data = [
+					["Group A"],
+					[1],
+				];
+
+				let series = [
+					{},
+					{
+						label: "Metric 1",
+						fill: "#33BB55",
+						width: 0,
+					},
+				];
+
+				makeChart({series, ori: 0, dir:  1}, data);
+				makeChart2({series, ori: 0, dir: 1, stacked: true}, data);
+
+				document.body.appendChild(document.createElement("div"));
+			}
 		</script>
 	</body>
 </html>

@@ -25,7 +25,7 @@ function seriesBarsPlugin(opts) {
 	const barWidth   = 1;
 	const barDistr   = SPACE_BETWEEN;
 
-	function distrTwo(groupCount, barCount, _groupWidth = groupWidth) {
+	function distrTwo(groupCount, barCount, barSpread = true, _groupWidth = groupWidth) {
 		let out = Array.from({length: barCount}, () => ({
 			offs: Array(groupCount).fill(0),
 			size: Array(groupCount).fill(0),
@@ -33,24 +33,8 @@ function seriesBarsPlugin(opts) {
 
 		distr(groupCount, _groupWidth, groupDistr, null, (groupIdx, groupOffPct, groupDimPct) => {
 			distr(barCount, barWidth, barDistr, null, (barIdx, barOffPct, barDimPct) => {
-				out[barIdx].offs[groupIdx] = groupOffPct + (groupDimPct * barOffPct);
-				out[barIdx].size[groupIdx] = groupDimPct * barDimPct;
-			});
-		});
-
-		return out;
-	}
-
-	function distrOne(groupCount, barCount) {
-		let out = Array.from({length: barCount}, () => ({
-			offs: Array(groupCount).fill(0),
-			size: Array(groupCount).fill(0),
-		}));
-
-		distr(groupCount, groupWidth, groupDistr, null, (groupIdx, groupOffPct, groupDimPct) => {
-			distr(barCount, barWidth, barDistr, null, (barIdx, barOffPct, barDimPct) => {
-				out[barIdx].offs[groupIdx] = groupOffPct;
-				out[barIdx].size[groupIdx] = groupDimPct;
+				out[barIdx].offs[groupIdx] = groupOffPct + (barSpread ? (groupDimPct * barOffPct) : 0);
+				out[barIdx].size[groupIdx] = groupDimPct * (barSpread ? barDimPct : 1);
 			});
 		});
 
@@ -142,12 +126,7 @@ function seriesBarsPlugin(opts) {
 					s._paths = null;
 				});
 
-				if (stacked)
-					barsPctLayout = [null].concat(distrOne(u.data.length - 1 - ignore.length, u.data[0].length));
-				else if (u.series.length == 2)
-					barsPctLayout = [null].concat(distrOne(u.data[0].length, 1));
-				else
-					barsPctLayout = [null].concat(distrTwo(u.data[0].length, u.data.length - 1 - ignore.length, u.data[0].length == 1 ? 1 : groupWidth));
+				barsPctLayout = [null].concat(distrTwo(u.data[0].length, u.series.length - 1 - ignore.length, !stacked, groupWidth));
 
 				// TODOL only do on setData, not every redraw
 				if (opts.disp?.fill != null) {
