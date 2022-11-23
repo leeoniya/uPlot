@@ -5052,6 +5052,12 @@ function uPlot(opts, data, then) {
 		if (cursor._lock)
 			return;
 
+		// Chrome on Windows has a bug which triggers a stray mousemove event after an initial mousedown event
+		// when clicking into a plot as part of re-focusing the browser window.
+		// we gotta ignore it to avoid triggering a phantom drag / setSelect
+		if (e != null && e.movementX == 0 && e.movementY == 0)
+			return;
+
 		cacheMouse(e, src, _l, _t, _w, _h, _i, false, e != null);
 
 		if (e != null)
