@@ -15,6 +15,8 @@ export const nav = domEnv ? navigator : null;
 
 export let pxRatio;
 
+//export const canHover = domEnv && !win.matchMedia('(hover: none)').matches;
+
 let query;
 
 function setPxRatio() {
