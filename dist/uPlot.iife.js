@@ -3599,11 +3599,14 @@ var uPlot = (function () {
 							i0 = closestIdx(wsc.min, data[0]);
 							i1 = closestIdx(wsc.max, data[0]);
 
-							// closest indices can be outside of view
-							if (data[0][i0] < wsc.min)
-								i0++;
-							if (data[0][i1] > wsc.max)
-								i1--;
+							// don't try to contract same or adjacent idxs
+							if (i1 - i0 > 1) {
+								// closest indices can be outside of view
+								if (data[0][i0] < wsc.min)
+									i0++;
+								if (data[0][i1] > wsc.max)
+									i1--;
+							}
 
 							s.min = data0[i0];
 							s.max = data0[i1];
