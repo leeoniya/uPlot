@@ -1742,6 +1742,7 @@ function addGap(gaps, fromX, toX) {
 
 function findGaps(xs, ys, idx0, idx1, dir, pixelForX, align) {
 	let gaps = [];
+	let len = xs.length;
 
 	for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 		let yVal = ys[i];
@@ -1763,13 +1764,15 @@ function findGaps(xs, ys, idx0, idx1, dir, pixelForX, align) {
 
 			// if value adjacent to edge null is same pixel, then it's partially
 			// filled and gap should start at next pixel
-			let frPx2 = align <= 0 ? pixelForX(xs[fr-dir]) : frPx;
+			let fri2 = fr - dir;
+			let frPx2 = align <= 0 && fri2 >= 0 && fri2 < len ? pixelForX(xs[fri2]) : frPx;
 		//	if (frPx2 == frPx)
 		//		frPx++;
 		//	else
 				frPx = frPx2;
 
-			let toPx2 = align >= 0 ? pixelForX(xs[to+dir]) : toPx;
+			let toi2 = to + dir;
+			let toPx2 = align >= 0 && toi2 >= 0 && toi2 < len ? pixelForX(xs[toi2]) : toPx;
 		//	if (toPx2 == toPx)
 		//		toPx--;
 		//	else
