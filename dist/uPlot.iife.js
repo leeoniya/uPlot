@@ -476,7 +476,7 @@ var uPlot = (function () {
 	const retEq = (a, b) => a == b;
 
 	function incrRoundUp(num, incr) {
-		return ceil(num/incr)*incr;
+		return ceil(num/incr - Number.EPSILON)*incr;
 	}
 
 	function incrRoundDn(num, incr) {

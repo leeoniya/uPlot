@@ -303,11 +303,11 @@ export const retTrue = _ => true;
 export const retEq = (a, b) => a == b;
 
 export function incrRoundUp(num, incr) {
-	return ceil(num/incr)*incr;
+	return ceil(num/incr - Number.EPSILON)*incr;
 }
 
 export function incrRoundDn(num, incr) {
-	return floor(num/incr)*incr;
+	return floor(num/incr + Number.EPSILON)*incr;
 }
 
 // https://stackoverflow.com/a/48764436
