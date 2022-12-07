@@ -451,10 +451,6 @@ var uPlot = (function () {
 		return (log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
 	}
 
-	function incrRound(num, incr) {
-		return round(num/incr)*incr;
-	}
-
 	function clamp(num, _min, _max) {
 		return min(max(num, _min), _max);
 	}
@@ -475,12 +471,20 @@ var uPlot = (function () {
 
 	const retEq = (a, b) => a == b;
 
+	// this will probably prevent tick incrs > 14 decimal places
+	// (we generate up to 17 dec, see fixedDec const)
+	const fixFloat = v => roundDec(v, 14);
+
+	function incrRound(num, incr) {
+		return fixFloat(roundDec(fixFloat(num/incr))*incr);
+	}
+
 	function incrRoundUp(num, incr) {
-		return ceil(num/incr - Number.EPSILON)*incr;
+		return fixFloat(ceil(fixFloat(num/incr))*incr);
 	}
 
 	function incrRoundDn(num, incr) {
-		return floor(num/incr)*incr;
+		return fixFloat(floor(fixFloat(num/incr))*incr);
 	}
 
 	// https://stackoverflow.com/a/48764436

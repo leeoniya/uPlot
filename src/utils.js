@@ -278,10 +278,6 @@ export function numIntDigits(x) {
 	return (log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
 }
 
-export function incrRound(num, incr) {
-	return round(num/incr)*incr;
-}
-
 export function clamp(num, _min, _max) {
 	return min(max(num, _min), _max);
 }
@@ -302,12 +298,20 @@ export const retTrue = _ => true;
 
 export const retEq = (a, b) => a == b;
 
+// this will probably prevent tick incrs > 14 decimal places
+// (we generate up to 17 dec, see fixedDec const)
+const fixFloat = v => roundDec(v, 14);
+
+export function incrRound(num, incr) {
+	return fixFloat(roundDec(fixFloat(num/incr))*incr);
+}
+
 export function incrRoundUp(num, incr) {
-	return ceil(num/incr - Number.EPSILON)*incr;
+	return fixFloat(ceil(fixFloat(num/incr))*incr);
 }
 
 export function incrRoundDn(num, incr) {
-	return floor(num/incr + Number.EPSILON)*incr;
+	return fixFloat(floor(fixFloat(num/incr))*incr);
 }
 
 // https://stackoverflow.com/a/48764436
@@ -325,7 +329,7 @@ export function roundDec(val, dec = 0) {
 
 // https://stackoverflow.com/questions/14879691/get-number-of-digits-with-javascript/28203456#28203456
 export function numDigits(x) {
-	return (Math.log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
+	return (log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
 }
 
 export const fixedDec = new Map();
