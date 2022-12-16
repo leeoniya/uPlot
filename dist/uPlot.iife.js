@@ -308,6 +308,8 @@ var uPlot = (function () {
 
 	const rangePad = 0.1;
 
+	const rangeFlat = 0.1;
+
 	const autoRangePart = {
 		mode: 3,
 		pad: rangePad,
@@ -320,6 +322,7 @@ var uPlot = (function () {
 	};
 
 	const _eqRange = {
+		flat: rangeFlat,
 		min: _eqRangePart,
 		max: _eqRangePart,
 	};
@@ -361,6 +364,8 @@ var uPlot = (function () {
 		let cmin = cfg.min;
 		let cmax = cfg.max;
 
+		let flat = ifNull(cfg.flat, rangeFlat);
+
 		let padMin = ifNull(cmin.pad, 0);
 		let padMax = ifNull(cmax.pad, 0);
 
@@ -388,7 +393,7 @@ var uPlot = (function () {
 
 		// treat data as flat if delta is less than 1 billionth
 		// or range is 11+ orders of magnitude below raw values, e.g. 99999999.99999996 - 100000000.00000004
-		if (delta < 1e-9 || scalarMagDelta > 10) {
+		if (delta < 1e-9 || scalarMagDelta > 10 || delta/scalarMax < flat) {
 			delta = 0;
 
 			// if soft mode is 2 and all vals are flat at 0, avoid the 0.1 * 1e3 fallback
