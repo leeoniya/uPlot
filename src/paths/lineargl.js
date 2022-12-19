@@ -1,3 +1,39 @@
+let renderer;
+let stage;
+
+if (typeof PIXI != 'undefined') {
+    let pxRatio = devicePixelRatio;
+    PIXI.settings.RESOLUTION = pxRatio;
+
+    renderer = new PIXI.Renderer({
+		width: 1920 * pxRatio,
+		height: 600 * pxRatio,
+	//	antialias: true,
+		antialias: false,
+		backgroundAlpha: 0,
+	});
+    renderer.view.style.width = `${1920}px`;
+    renderer.view.style.height = `${600}px`;
+    document.body.appendChild(renderer.view);
+    stage = new PIXI.Container();
+
+    const ticker = PIXI.Ticker.shared;
+    ticker.autoStart = false;
+    ticker.stop();
+
+    // const app = new PIXI.Application({ width: 1920 * pxRatio, height: 600 * pxRatio, antialias: true });
+    // app.view.style.width = `${1920}px`;
+    // app.view.style.height = `${600}px`;
+    // document.body.appendChild(app.view);
+
+    //app.stage.interactive = true;
+    //app.stage.hitArea = app.screen;
+
+    //const stroke = new PIXI.Graphics();
+
+    //app.stage.addChild(stroke);
+}
+
 import { min, max, nonNullIdx, inf, ifNull } from '../utils';
 import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
 
@@ -17,11 +53,18 @@ function _drawAcc(lineTo) {
 const drawAccH = _drawAcc(lineToH);
 const drawAccV = _drawAcc(lineToV);
 
-export function linear(opts) {
+export function lineargl(opts) {
 	const alignGaps = ifNull(opts?.alignGaps, 0);
 
+    let stroke;
+
 	return (u, seriesIdx, idx0, idx1) => {
-		console.time('linear');
+        console.time('lineargl');
+
+        if (stroke == null) {
+            stroke = new PIXI.Graphics();
+            stage.addChild(stroke);
+        }
 
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
@@ -43,7 +86,10 @@ export function linear(opts) {
 			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
 			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
-			const stroke = _paths.stroke;
+
+            stroke.clear();
+            stroke.lineStyle(1, +`0x${series.stroke().slice(1)}`, 1);
+            stroke.beginFill(0, 0);
 
 			let minY = inf,
 				maxY = -inf,
@@ -96,6 +142,13 @@ export function linear(opts) {
 			if (minY != inf && minY != maxY && drawnAtX != accX)
 				drawAcc(stroke, accX, minY, maxY, inY, outY);
 
+         //   stroke.closePath();
+            stroke.endFill();
+
+            //ticker.update(performance.now());
+
+            renderer.render(stage);
+
 			let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
 			if (series.fill != null || bandFillDir != 0) {
@@ -130,9 +183,9 @@ export function linear(opts) {
 				] : clipBandLine(u, seriesIdx, idx0, idx1, stroke, bandClipDir);
 			}
 
-			console.timeEnd('linear');
+            console.timeEnd('lineargl');
 
-			return _paths;
+			return null;
 		});
 	};
 }

@@ -187,6 +187,7 @@ import { _sync } from './sync';
 
 import { points   } from './paths/points';
 import { linear   } from './paths/linear';
+import { lineargl } from './paths/lineargl';
 import { stepped  } from './paths/stepped';
 import { bars     } from './paths/bars';
 import { monotoneCubic     as spline  } from './paths/monotoneCubic';
@@ -3121,4 +3122,6 @@ if (FEAT_PATHS) {
 	FEAT_PATHS_BARS    && (paths.bars    = bars);
 	FEAT_PATHS_SPLINE  && (paths.spline  = spline);
 	FEAT_PATHS_SPLINE2 && (paths.spline2 = spline2);
+
+	paths.lineargl  = lineargl;
 }
