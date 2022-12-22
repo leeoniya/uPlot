@@ -134,8 +134,6 @@ export function rangeAsinh(min, max, base, fullMags) {
 
 export const rangePad = 0.1;
 
-export const rangeFlat = 0.1;
-
 export const autoRangePart = {
 	mode: 3,
 	pad: rangePad,
@@ -148,7 +146,6 @@ const _eqRangePart = {
 };
 
 const _eqRange = {
-	flat: rangeFlat,
 	min: _eqRangePart,
 	max: _eqRangePart,
 };
@@ -190,8 +187,6 @@ function _rangeNum(_min, _max, cfg) {
 	let cmin = cfg.min;
 	let cmax = cfg.max;
 
-	let flat = ifNull(cfg.flat, rangeFlat);
-
 	let padMin = ifNull(cmin.pad, 0);
 	let padMax = ifNull(cmax.pad, 0);
 
@@ -219,7 +214,7 @@ function _rangeNum(_min, _max, cfg) {
 
 	// treat data as flat if delta is less than 1 billionth
 	// or range is 11+ orders of magnitude below raw values, e.g. 99999999.99999996 - 100000000.00000004
-	if (delta < 1e-9 || scalarMagDelta > 10 || delta/scalarMax < flat) {
+	if (delta < 1e-9 || scalarMagDelta > 10) {
 		delta = 0;
 
 		// if soft mode is 2 and all vals are flat at 0, avoid the 0.1 * 1e3 fallback

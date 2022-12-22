@@ -255,9 +255,6 @@ declare namespace uPlot {
 		}
 
 		export interface Config {
-			/** when the max-min delta is below this factor, treat same as delta=0 */
-			flat?: number; // 0.1
-
 			min: Range.Limit;
 			max: Range.Limit;
 		}
