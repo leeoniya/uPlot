@@ -276,12 +276,14 @@ function rangeLog(min, max, base, fullMags) {
 	let maxIncr = pow(base, maxExp);
 
 	// fix values like Math.pow(10, -5) === 0.000009999999999999999
-	if (minExp < 0)
-		minIncr = roundDec(minIncr, -minExp);
-	if (maxExp < 0)
-		maxIncr = roundDec(maxIncr, -maxExp);
+	if (base == 10) {
+		if (minExp < 0)
+			minIncr = roundDec(minIncr, -minExp);
+		if (maxExp < 0)
+			maxIncr = roundDec(maxIncr, -maxExp);
+	}
 
-	if (fullMags) {
+	if (fullMags || base == 2) {
 		min = minIncr * minSign;
 		max = maxIncr * maxSign;
 	}
