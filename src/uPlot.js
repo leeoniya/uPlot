@@ -904,7 +904,7 @@ export default function uPlot(opts, data, then) {
 			s.fill   = fnOrSelf(s.fill || null);
 			s._stroke = s._fill = s._paths = s._focus = null;
 
-			let _ptDia = ptDia(s.width, 1);
+			let _ptDia = ptDia(max(1, s.width), 1);
 			let points = s.points = assign({}, {
 				size: _ptDia,
 				width: max(1, _ptDia * .2),

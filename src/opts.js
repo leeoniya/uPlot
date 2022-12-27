@@ -389,7 +389,7 @@ function cursorPointStroke(self, si) {
 
 function cursorPointSize(self, si) {
 	let sp = self.series[si].points;
-	return ptDia(sp.width, 1);
+	return sp.size;
 }
 
 function dataIdx(self, seriesIdx, cursorIdx) {
