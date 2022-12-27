@@ -1343,14 +1343,17 @@ var uPlot = (function () {
 
 		foundIncr = pow(logBase, exp);
 
-		if (exp < 0)
+		if (logBase == 10 && exp < 0)
 			foundIncr = roundDec(foundIncr, -exp);
 
 		let split = scaleMin;
 
 		do {
 			splits.push(split);
-			split = roundDec(split + foundIncr, fixedDec.get(foundIncr));
+			split = split + foundIncr;
+
+			if (logBase == 10)
+				split = roundDec(split, fixedDec.get(foundIncr));
 
 			if (split >= foundIncr * logBase)
 				foundIncr = split;
