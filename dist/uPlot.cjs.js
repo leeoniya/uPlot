@@ -4792,7 +4792,7 @@ function uPlot(opts, data, then) {
 				mouseXPos = scaleX.ori == 0 ? mouseLeft1 : mouseTop1;
 				valAtPosX = posToVal(mouseXPos, xScaleKey);
 				idx = closestIdx(valAtPosX, data[0], i0, i1);
-				xPos = incrRoundUp(valToPosX(data[0][idx], scaleX, xDim, 0), 0.5);
+				xPos = valToPosX(data[0][idx], scaleX, xDim, 0);
 			}
 
 			for (let i = mode == 2 ? 1 : 0; i < series.length; i++) {
@@ -4808,10 +4808,10 @@ function uPlot(opts, data, then) {
 
 				activeIdxs[i] = idx2;
 
-				let xPos2 = idx2 == idx ? xPos : incrRoundUp(valToPosX(mode == 1 ? data[0][idx2] : data[i][0][idx2], scaleX, xDim, 0), 0.5);
+				let xPos2 = incrRoundUp(idx2 == idx ? xPos : valToPosX(mode == 1 ? data[0][idx2] : data[i][0][idx2], scaleX, xDim, 0), 1);
 
 				if (i > 0 && s.show) {
-					let yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0), 0.5);
+					let yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0), 1);
 
 					if (yPos > 0 && mode == 1) {
 						let dist = abs(yPos - mouseTop1);
