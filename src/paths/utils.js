@@ -264,18 +264,19 @@ function rect(ori) {
 		(p, x, y, w, h) => { p.rect(x, y, w, h); } :
 		(p, y, x, h, w) => { p.rect(x, y, w, h); };
 
-	return (p, x, y, w, h, r = 0) => {
-		if (r == 0)
+	return (p, x, y, w, h, endRad = 0, baseRad = 0) => {
+		if (endRad == 0 && baseRad == 0)
 			rect(p, x, y, w, h);
 		else {
-			r = min(r, w / 2, h / 2);
+			endRad  = min(endRad,  w / 2, h / 2);
+			baseRad = min(baseRad, w / 2, h / 2);
 
 			// adapted from https://stackoverflow.com/questions/1255512/how-to-draw-a-rounded-rectangle-using-html-canvas/7838871#7838871
-			moveTo(p, x + r, y);
-			arcTo(p, x + w, y, x + w, y + h, r);
-			arcTo(p, x + w, y + h, x, y + h, r);
-			arcTo(p, x, y + h, x, y, r);
-			arcTo(p, x, y, x + w, y, r);
+			moveTo(p, x + endRad, y);
+			arcTo(p, x + w, y, x + w, y + h, endRad);
+			arcTo(p, x + w, y + h, x, y + h, baseRad);
+			arcTo(p, x, y + h, x, y, baseRad);
+			arcTo(p, x, y, x + w, y, endRad);
 			p.closePath();
 		}
 	};

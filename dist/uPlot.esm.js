@@ -1,5 +1,5 @@
 /**
-* Copyright (c) 2022, Leon Sorokin
+* Copyright (c) 2023, Leon Sorokin
 * All rights reserved. (MIT Licensed)
 *
 * uPlot.js (μPlot)
@@ -1810,18 +1810,19 @@ function rect(ori) {
 		(p, x, y, w, h) => { p.rect(x, y, w, h); } :
 		(p, y, x, h, w) => { p.rect(x, y, w, h); };
 
-	return (p, x, y, w, h, r = 0) => {
-		if (r == 0)
+	return (p, x, y, w, h, endRad = 0, baseRad = 0) => {
+		if (endRad == 0 && baseRad == 0)
 			rect(p, x, y, w, h);
 		else {
-			r = min(r, w / 2, h / 2);
+			endRad  = min(endRad,  w / 2, h / 2);
+			baseRad = min(baseRad, w / 2, h / 2);
 
 			// adapted from https://stackoverflow.com/questions/1255512/how-to-draw-a-rounded-rectangle-using-html-canvas/7838871#7838871
-			moveTo(p, x + r, y);
-			arcTo(p, x + w, y, x + w, y + h, r);
-			arcTo(p, x + w, y + h, x, y + h, r);
-			arcTo(p, x, y + h, x, y, r);
-			arcTo(p, x, y, x + w, y, r);
+			moveTo(p, x + endRad, y);
+			arcTo(p, x + w, y, x + w, y + h, endRad);
+			arcTo(p, x + w, y + h, x, y + h, baseRad);
+			arcTo(p, x, y + h, x, y, baseRad);
+			arcTo(p, x, y, x + w, y, endRad);
 			p.closePath();
 		}
 	};
@@ -2156,7 +2157,14 @@ function bars(opts) {
 	const align = opts.align || 0;
 	const extraGap = (opts.gap || 0) * pxRatio;
 
-	const radius = ifNull(opts.radius, 0);
+	let ro = opts.radius;
+
+	ro =
+		// [valueRadius, baselineRadius]
+		ro == null ? [0, 0] :
+		typeof ro == 'number' ? [ro, 0] : ro;
+
+	const radiusFn = fnOrSelf(ro);
 
 	const gapFactor = 1 - size[0];
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
@@ -2170,6 +2178,13 @@ function bars(opts) {
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
+
+			let valRadius, baseRadius;
+
+			if (scaleX.ori == 0)
+				[valRadius, baseRadius] = radiusFn(u, seriesIdx);
+			else
+				[baseRadius, valRadius] = radiusFn(u, seriesIdx);
 
 			const _dirX = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 			const _dirY = scaleY.dir * (scaleY.ori == 1 ? 1 : -1);
@@ -2292,6 +2307,9 @@ function bars(opts) {
 				dataY0 = y0.values(u, seriesIdx, idx0, idx1);
 			}
 
+			let radVal = valRadius * barWid;
+			let radBase = baseRadius * barWid;
+
 			for (let i = _dirX == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dirX) {
 				let yVal = dataY[i];
 
@@ -2324,18 +2342,19 @@ function bars(opts) {
 				// this includes the stroke
 				let barHgt = btm - top;
 
-				let r = radius * barWid;
-
 				if (yVal != null) {  // && yVal != fillToY (0 height bar)
+					let rv = yVal < 0 ? radBase : radVal;
+					let rb = yVal < 0 ? radVal : radBase;
+
 					if (multiPath) {
 						if (strokeWidth > 0 && strokeColors[i] != null)
-							rect(strokePaths.get(strokeColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
+							rect(strokePaths.get(strokeColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
 
 						if (fillColors[i] != null)
-							rect(fillPaths.get(fillColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
+							rect(fillPaths.get(fillColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
 					}
 					else
-						rect(stroke, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
+						rect(stroke, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
 
 					each(u, seriesIdx, i,
 						lft    - strokeWidth / 2,
@@ -2357,7 +2376,7 @@ function bars(opts) {
 
 					barHgt = btm - top;
 
-					rect(band, lft - strokeWidth / 2, top, barWid + strokeWidth, max(0, barHgt), 0);
+					rect(band, lft - strokeWidth / 2, top, barWid + strokeWidth, max(0, barHgt), 0, 0);  // radius here?
 				}
 			}
 

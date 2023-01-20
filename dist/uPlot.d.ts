@@ -688,13 +688,18 @@ declare namespace uPlot {
 			stroke?: BarsPathBuilderFacet;
 		}
 
+		/** radii for bar end (at bar's value) and bar start (baseline, zero)  */
+		export type BarsPathBuilderRadii = [endRadius: number, baseRadius: number];
+
+		export type BarsPathBuilderRadius = number | BarsPathBuilderRadii | ((self: uPlot, seriesIdx: number) =>  BarsPathBuilderRadii);
+
 		export interface BarsPathBuilderOpts {
 			align?: -1 | 0 | 1; // 0
 
 			size?: [factor?: number, max?: number, min?: number];
 
 			// corner radius factor of bar size (0 - 0.5)
-			radius?: number; // 0
+			radius?: BarsPathBuilderRadius; // 0
 
 			/** fixed-size gap between bars in CSS pixels (reduces bar width) */
 			gap?: number;

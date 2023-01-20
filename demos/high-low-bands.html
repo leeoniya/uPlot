@@ -184,7 +184,13 @@
 
 
 			// generate bar builder with 60% bar (40% gap) & 100px max bar width
-			const _bars60_100 = bars({size: [0.6, 100]});
+			const _bars60_100 = bars({
+				size: [0.6, 100],
+				radius: (u, seriesIdx) => {
+					// only round top of top series
+					return seriesIdx == u.series.length - 1 ? [0.3, 0] : [0, 0];
+				},
+			});
 
 			const opts3 = {
 				width: 1920,
@@ -556,7 +562,12 @@
 			let linePaths = uPlot.paths.linear();
 			makeChart(data11, linePaths);
 
-			let barPaths = uPlot.paths.bars();
+			let barPaths = uPlot.paths.bars({
+				radius: (u, seriesIdx) => {
+					// only round top of top series
+					return seriesIdx == 1 || seriesIdx == 4 ? [0.3, 0] : [0, 0];
+				},
+			});
 			makeChart(data11, barPaths);
 		</script>
 	</body>
