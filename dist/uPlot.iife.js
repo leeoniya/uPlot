@@ -1966,12 +1966,15 @@ var uPlot = (function () {
 				let lftX   =  pixelForX(dataX[lftIdx]);
 				let rgtX   =  pixelForX(dataX[rgtIdx]);
 
+				let hasGap = false;
+
 				for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 					let x = pixelForX(dataX[i]);
+					let yVal = dataY[i];
 
 					if (x == accX) {
-						if (dataY[i] != null) {
-							outY = pixelForY(dataY[i]);
+						if (yVal != null) {
+							outY = pixelForY(yVal);
 
 							if (minY == inf) {
 								lineTo(stroke, x, outY);
@@ -1981,6 +1984,10 @@ var uPlot = (function () {
 							minY = min(outY, minY);
 							maxY = max(outY, maxY);
 						}
+						else {
+							if (yVal === null)
+								hasGap = true;
+						}
 					}
 					else {
 						if (minY != inf) {
@@ -1988,14 +1995,17 @@ var uPlot = (function () {
 							drawnAtX = accX;
 						}
 
-						if (dataY[i] != null) {
-							outY = pixelForY(dataY[i]);
+						if (yVal != null) {
+							outY = pixelForY(yVal);
 							lineTo(stroke, x, outY);
 							minY = maxY = inY = outY;
 						}
 						else {
 							minY = inf;
 							maxY = -inf;
+
+							if (yVal === null)
+								hasGap = true;
 						}
 
 						accX = x;
@@ -2021,7 +2031,7 @@ var uPlot = (function () {
 				//	console.time('gaps');
 					let gaps = [];
 
-					gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
+					hasGap && gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
 
 				//	console.timeEnd('gaps');
 
