@@ -1242,6 +1242,7 @@ const cursorOpts = {
 
 	focus: {
 		prox: -1,
+		bias: 0,
 	},
 
 	left: -10,
@@ -3230,6 +3231,10 @@ function uPlot(opts, data, then) {
 	}
 
 	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, cursor.focus);
+
+	if (focus.bias != 0)
+		focus.prox = 1e5; // big, but < Infinity
+
 	const cursorFocus = focus.prox >= 0;
 
 	// series-intersection markers
@@ -4844,9 +4849,38 @@ function uPlot(opts, data, then) {
 					if (yPos > 0 && mode == 1) {
 						let dist = abs(yPos - mouseTop1);
 
-						if (dist <= closestDist) {
-							closestDist = dist;
-							closestSeries = i;
+						if (cursorFocus) {
+							let bias = focus.bias;
+
+							if (bias != 0) {
+								let mouseYPos = scaleX.ori == 1 ? mouseLeft1 : mouseTop1;
+								let mouseYVal = posToVal(mouseYPos, s.scale);
+
+								let seriesYValSign = yVal2     >= 0 ? 1 : -1;
+								let mouseYValSign  = mouseYVal >= 0 ? 1 : -1;
+
+								// with a focus bias, we will never cross zero when prox testing
+								// it's either closest towards zero, or closest away from zero
+								if (mouseYValSign == seriesYValSign) {
+									if (
+										dist <= closestDist
+										&& (
+											mouseYValSign == 1 ?
+												(bias == 1 ? yVal2 >= mouseYVal : yVal2 <= mouseYVal) :  // >= 0
+												(bias == 1 ? yVal2 <= mouseYVal : yVal2 >= mouseYVal)    //  < 0
+										)
+									) {
+										closestDist = dist;
+										closestSeries = i;
+									}
+								}
+							}
+							else {
+								if (dist <= closestDist) {
+									closestDist = dist;
+									closestSeries = i;
+								}
+							}
 						}
 					}
 

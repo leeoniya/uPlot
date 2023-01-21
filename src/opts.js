@@ -451,6 +451,7 @@ export const cursorOpts = {
 
 	focus: {
 		prox: -1,
+		bias: 0,
 	},
 
 	left: -10,

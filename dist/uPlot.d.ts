@@ -513,6 +513,14 @@ declare namespace uPlot {
 		export interface Focus {
 			/** minimum cursor proximity to datapoint in CSS pixels for focus activation */
 			prox: number;
+			/** when non-zero, will ignore absolute proximity and focus next series towards or away from zero */
+			bias?: FocusBias; // 0
+		}
+
+		export const enum FocusBias {
+			None          =  0,
+			AwayFromZero  =  1,
+			TowardsZero   = -1,
 		}
 	}
 
