@@ -17,6 +17,7 @@
 				Array(loop),
 				Array(loop),
 				Array(loop),
+				Array(loop),
 			];
 
 			for (var i = 0; i < loop; i++) {
@@ -29,6 +30,7 @@
 				data[1][i] = y;
 				data[2][i] = y2;
 				data[3][i] = y3;
+				data[4][i] = 1
 			}
 
 			const prepareChartOpts = (title, alpha, series) => {
@@ -88,6 +90,10 @@
 					label: "log(x)",
 					stroke: "green",
 					fill: "rgba(0,255,0,0.1)",
+				},
+				{
+					label: "flat_one",
+					stroke: "purple",
 				}
 			]), data, document.body);
 

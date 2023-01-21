@@ -4864,7 +4864,7 @@ var uPlot = (function () {
 									// it's either closest towards zero, or closest away from zero
 									if (mouseYValSign == seriesYValSign) {
 										if (
-											dist <= closestDist
+											dist < closestDist
 											&& (
 												mouseYValSign == 1 ?
 													(bias == 1 ? yVal2 >= mouseYVal : yVal2 <= mouseYVal) :  // >= 0
@@ -4877,7 +4877,7 @@ var uPlot = (function () {
 									}
 								}
 								else {
-									if (dist <= closestDist) {
+									if (dist < closestDist) {
 										closestDist = dist;
 										closestSeries = i;
 									}

@@ -4861,7 +4861,7 @@ function uPlot(opts, data, then) {
 								// it's either closest towards zero, or closest away from zero
 								if (mouseYValSign == seriesYValSign) {
 									if (
-										dist <= closestDist
+										dist < closestDist
 										&& (
 											mouseYValSign == 1 ?
 												(bias == 1 ? yVal2 >= mouseYVal : yVal2 <= mouseYVal) :  // >= 0
@@ -4874,7 +4874,7 @@ function uPlot(opts, data, then) {
 								}
 							}
 							else {
-								if (dist <= closestDist) {
+								if (dist < closestDist) {
 									closestDist = dist;
 									closestSeries = i;
 								}
