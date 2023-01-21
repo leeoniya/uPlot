@@ -445,6 +445,11 @@ export const cursorOpts = {
 		y: false,
 		dist: 0,
 		uni: null,
+		click: (self, e) => {
+		//	e.preventDefault();
+			e.stopPropagation();
+			e.stopImmediatePropagation();
+		},
 		_x: false,
 		_y: false,
 	},

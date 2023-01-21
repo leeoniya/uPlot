@@ -474,6 +474,8 @@ declare namespace uPlot {
 			dist?: number; // 0
 			/** when x & y are true, sets an upper drag limit in CSS px for adaptive/unidirectional behavior */
 			uni?: number; // null
+			/** post-drag "click" event proxy, default is to prevent these click events */
+			click?: (self: uPlot, e: MouseEvent) => void;
 		}
 
 		export namespace Sync {

@@ -1237,6 +1237,11 @@ var uPlot = (function () {
 			y: false,
 			dist: 0,
 			uni: null,
+			click: (self, e) => {
+			//	e.preventDefault();
+				e.stopPropagation();
+				e.stopImmediatePropagation();
+			},
 			_x: false,
 			_y: false,
 		},
@@ -2703,15 +2708,12 @@ var uPlot = (function () {
 		const ctx = self.ctx = can.getContext("2d");
 
 		const wrap = placeDiv(WRAP, root);
+
 		on("click", wrap, e => {
 			let didDrag = mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0;
-
-			if (didDrag) {
-			//	e.preventDefault();
-				e.stopPropagation();
-				e.stopImmediatePropagation();
-			}
+			didDrag && drag.click(self, e);
 		}, true);
+
 		const under = self.under = placeDiv(UNDER, wrap);
 		wrap.appendChild(can);
 		const over = self.over = placeDiv(OVER, wrap);
