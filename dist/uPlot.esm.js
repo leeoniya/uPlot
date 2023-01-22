@@ -1816,6 +1816,7 @@ function rect(ori) {
 		(p, x, y, w, h) => { p.rect(x, y, w, h); } :
 		(p, y, x, h, w) => { p.rect(x, y, w, h); };
 
+	// TODO (pending better browser support): https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/roundRect
 	return (p, x, y, w, h, endRad = 0, baseRad = 0) => {
 		if (endRad == 0 && baseRad == 0)
 			rect(p, x, y, w, h);
