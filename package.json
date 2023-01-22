@@ -39,7 +39,7 @@
   },
   "homepage": "https://github.com/leeoniya/uPlot#readme",
   "devDependencies": {
-    "@rollup/plugin-terser": "^0.2.0",
-    "rollup": "^3.7.2"
+    "@rollup/plugin-terser": "^0.3.0",
+    "rollup": "^3.10.1"
   }
 }
