@@ -29,6 +29,7 @@ import {
 	hexBlack,
 	WIDTH,
 	HEIGHT,
+	LEGEND_DISP,
 } from './strings';
 
 import {
@@ -618,8 +619,8 @@ export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) 
 	return splits.map(v => ((sc.distr == 4 && v == 0) || re.test(v)) ? v : null);
 }
 
-export function numSeriesVal(self, val) {
-	return val == null ? "" : fmtNum(val);
+export function numSeriesVal(self, val, seriesIdx, dataIdx) {
+	return dataIdx == null ? LEGEND_DISP : val == null ? "" : fmtNum(val);
 }
 
 export const yAxisOpts = {

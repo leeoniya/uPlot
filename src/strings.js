@@ -18,3 +18,5 @@ export const scroll      = "scroll";
 
 export const change      = "change";
 export const dppxchange  = "dppxchange";
+
+export const LEGEND_DISP = "--";

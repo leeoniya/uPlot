@@ -35,6 +35,16 @@
 					{
 						stroke: "red",
 						fill: "rgba(255,0,0,0.1)",
+						value: (u, raw, sidx, didx) => {
+							if (didx == null) {
+								let d = u.data[sidx];
+								return `${d[d.length - 1]} (last)`;
+							}
+							else if (raw == null)
+								return 'NULL';
+							else
+								return raw;
+						}
 					},
 					{
 						stroke: "green",

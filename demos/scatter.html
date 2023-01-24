@@ -413,10 +413,16 @@
 			};
 			*/
 
-			const legendValues = (u, seriesIdx) => {
+			const legendValues = (u, seriesIdx, dataIdx) => {
 				// when data null, it's initial schema probe (also u.status == 0)
-				if (u.data == null || hRect == null || hRect.sidx != seriesIdx)
-					return {"Country": null, "Population": null, "GDP": null, "Income": null};
+				if (u.data == null || dataIdx == null || hRect == null || hRect.sidx != seriesIdx) {
+					return {
+						"Country":    '<NUM COUNTRIES>',
+						"Population": '<TOTAL POP>',
+						"GDP":        '<TOTAL GDP>',
+						"Income":     '<AVG INCOME>'
+					};
+				}
 
 				let [x, y, size, label] = u.data[seriesIdx];
 

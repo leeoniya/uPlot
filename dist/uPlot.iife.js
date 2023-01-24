@@ -57,6 +57,8 @@ var uPlot = (function () {
 	const change      = "change";
 	const dppxchange  = "dppxchange";
 
+	const LEGEND_DISP = "--";
+
 	const domEnv = typeof window != 'undefined';
 
 	const doc = domEnv ? document  : null;
@@ -1410,8 +1412,8 @@ var uPlot = (function () {
 		return splits.map(v => ((sc.distr == 4 && v == 0) || re.test(v)) ? v : null);
 	}
 
-	function numSeriesVal(self, val) {
-		return val == null ? "" : fmtNum(val);
+	function numSeriesVal(self, val, seriesIdx, dataIdx) {
+		return dataIdx == null ? LEGEND_DISP : val == null ? "" : fmtNum(val);
 	}
 
 	const yAxisOpts = {
@@ -2934,7 +2936,7 @@ var uPlot = (function () {
 			legendCols = multiValLegend ? getMultiVals(self, 1, 0) : {_: 0};
 
 			for (let k in legendCols)
-				NULL_LEGEND_VALUES[k] = "--";
+				NULL_LEGEND_VALUES[k] = LEGEND_DISP;
 		}
 
 		if (showLegend) {
@@ -4771,15 +4773,14 @@ var uPlot = (function () {
 		self.setLegend = setLegend;
 
 		function setLegendValues(sidx, idx) {
+			let s = series[sidx];
+			let src = sidx == 0 && xScaleDistr == 2 ? data0 : data[sidx];
 			let val;
 
-			if (idx == null)
-				val = NULL_LEGEND_VALUES;
-			else {
-				let s = series[sidx];
-				let src = sidx == 0 && xScaleDistr == 2 ? data0 : data[sidx];
-				val = multiValLegend ? s.values(self, sidx, idx) : {_: s.value(self, src[idx], sidx, idx)};
-			}
+			if (multiValLegend)
+				val = s.values(self, sidx, idx) ?? NULL_LEGEND_VALUES;
+			else
+				val = {_: s.value(self, idx == null ? null : src[idx], sidx, idx) ?? NULL_LEGEND_VALUES}; // TODO: change signature to be same as values, with value last
 
 			legend.values[sidx] = val;
 		}
@@ -4826,8 +4827,8 @@ var uPlot = (function () {
 					activeIdxs.fill(null);
 					shouldSetLegend = true;
 
-					for (let i = 0; i < series.length; i++)
-						legend.values[i] = NULL_LEGEND_VALUES;
+					for (let sidx = 0; sidx < series.length; sidx++)
+						(sidx > 0 || !multiValLegend) && setLegendValues(sidx, idx);
 				}
 			}
 			else {
