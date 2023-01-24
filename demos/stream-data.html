@@ -63,6 +63,15 @@
 
 				let interval = 100;
 
+				let makeFmt = suffix => (u, v, sidx, didx) => {
+					if (didx == null) {
+						let d = u.data[sidx];
+						v = d[d.length - 1];
+					}
+
+					return v == null ? null : v.toFixed(1) + suffix;
+				};
+
 				const opts = {
 					title: "Fixed length / sliding data slices",
 					width: 1600,
@@ -76,23 +85,32 @@
 						show: false,
 					},
 					series: [
-						{},
+						{
+							value: (u, v, sidx, didx) => {
+								if (didx == null) {
+									let d = u.data[sidx];
+									v = d[d.length - 1];
+								}
+
+								return v;
+							}
+						},
 						{
 							label: "CPU",
 							scale: "%",
-							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							value: makeFmt('%'),
 							stroke: "red",
 						},
 						{
 							label: "RAM",
 							scale: "%",
-							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							value: makeFmt('%'),
 							stroke: "blue",
 						},
 						{
 							label: "TCP Out",
 							scale: "mb",
-							value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
+							value: makeFmt('MB'),
 							stroke: "green",
 						}
 					],
@@ -141,19 +159,19 @@
 						{
 							label: "CPU",
 							scale: "%",
-							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							value: (u, v) => v == null ? null : v.toFixed(1) + "%",
 							stroke: "red",
 						},
 						{
 							label: "RAM",
 							scale: "%",
-							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							value: (u, v) => v == null ? null : v.toFixed(1) + "%",
 							stroke: "blue",
 						},
 						{
 							label: "TCP Out",
 							scale: "mb",
-							value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
+							value: (u, v) => v == null ? null : v.toFixed(2) + " MB",
 							stroke: "green",
 						}
 					],
@@ -216,19 +234,19 @@
 						{
 							label: "CPU",
 							scale: "%",
-							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							value: (u, v) => v == null ? null : v.toFixed(1) + "%",
 							stroke: "red",
 						},
 						{
 							label: "RAM",
 							scale: "%",
-							value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+							value: (u, v) => v == null ? null : v.toFixed(1) + "%",
 							stroke: "blue",
 						},
 						{
 							label: "TCP Out",
 							scale: "mb",
-							value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
+							value: (u, v) => v == null ? null : v.toFixed(2) + " MB",
 							stroke: "green",
 						}
 					],

@@ -21,6 +21,15 @@
 				new Float32Array(xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)])),
 			];
 
+			let fmtVal = (u, raw, sidx, didx) => {
+				if (didx == null) {
+					let d = u.data[sidx];
+					return `${d[d.length - 1]} (last)`;
+				}
+
+				return raw == null ? '' : raw;
+			};
+
 			const opts = {
 				width: 1920,
 				height: 600,
@@ -35,24 +44,17 @@
 					{
 						stroke: "red",
 						fill: "rgba(255,0,0,0.1)",
-						value: (u, raw, sidx, didx) => {
-							if (didx == null) {
-								let d = u.data[sidx];
-								return `${d[d.length - 1]} (last)`;
-							}
-							else if (raw == null)
-								return 'NULL';
-							else
-								return raw;
-						}
+						value: fmtVal,
 					},
 					{
 						stroke: "green",
 						fill: "rgba(0,255,0,0.1)",
+						value: fmtVal,
 					},
 					{
 						stroke: "blue",
 						fill: "rgba(0,0,255,0.1)",
+						value: fmtVal,
 					},
 				],
 			};

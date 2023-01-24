@@ -370,6 +370,7 @@ export const nullNullTuple = [null, null];
 
 export const isArr = Array.isArray;
 export const isInt = Number.isInteger;
+export const isUndef = v => v === void 0;
 
 export function isStr(v) {
 	return typeof v == 'string';

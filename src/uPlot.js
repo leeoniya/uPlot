@@ -62,6 +62,7 @@ import {
 	rangePad,
 	hasData,
 	numIntDigits,
+	isUndef,
 } from './utils';
 
 import {
@@ -2032,7 +2033,10 @@ export default function uPlot(opts, data, then) {
 			shouldSetCursor = false;
 		}
 
-	//	if (FEAT_LEGEND && legend.show && legend.live && shouldSetLegend) {}
+		if (FEAT_LEGEND && legend.show && legend.live && shouldSetLegend) {
+			setLegend();
+			shouldSetLegend = false; // redundant currently
+		}
 
 		if (!ready) {
 			ready = true;
@@ -2378,12 +2382,20 @@ export default function uPlot(opts, data, then) {
 
 	function setLegend(opts, _fire) {
 		if (opts != null) {
-			let idx = opts.idx;
+			if (opts.idxs) {
+				opts.idxs.forEach((didx, sidx) => {
+					activeIdxs[sidx] = didx;
+				});
+			}
+			else if (!isUndef(opts.idx))
+				activeIdxs.fill(opts.idx);
 
-			legend.idx = idx;
-			series.forEach((s, sidx) => {
-				(sidx > 0 || !multiValLegend) && setLegendValues(sidx, idx);
-			});
+			legend.idx = activeIdxs[0];
+		}
+
+		for (let sidx = 0; sidx < series.length; sidx++) {
+			if (sidx > 0 || mode == 1 && !multiValLegend)
+				setLegendValues(sidx, activeIdxs[sidx]);
 		}
 
 		if (showLegend && legend.live)
@@ -2403,8 +2415,10 @@ export default function uPlot(opts, data, then) {
 
 		if (multiValLegend)
 			val = s.values(self, sidx, idx) ?? NULL_LEGEND_VALUES;
-		else
-			val = {_: s.value(self, idx == null ? null : src[idx], sidx, idx) ?? NULL_LEGEND_VALUES}; // TODO: change signature to be same as values, with value last
+		else {
+			val = s.value(self, idx == null ? null : src[idx], sidx, idx);
+			val = val == null ? NULL_LEGEND_VALUES : {_: val};
+		}
 
 		legend.values[sidx] = val;
 	}
@@ -2448,11 +2462,8 @@ export default function uPlot(opts, data, then) {
 				setSeries(null, FOCUS_TRUE, true, src == null && syncOpts.setSeries);
 
 			if (FEAT_LEGEND && legend.live) {
-				activeIdxs.fill(null);
+				activeIdxs.fill(idx);
 				shouldSetLegend = true;
-
-				for (let sidx = 0; sidx < series.length; sidx++)
-					(sidx > 0 || !multiValLegend) && setLegendValues(sidx, idx);
 			}
 		}
 		else {
@@ -2557,13 +2568,6 @@ export default function uPlot(opts, data, then) {
 						elSize(cursorPts[i], ptWid, ptHgt, centered);
 						elTrans(cursorPts[i], ptLft, ptTop, plotWidCss, plotHgtCss);
 					}
-				}
-
-				if (FEAT_LEGEND && legend.live) {
-					if (!shouldSetLegend || i == 0 && multiValLegend)
-						continue;
-
-					setLegendValues(i, idx2);
 				}
 			}
 		}

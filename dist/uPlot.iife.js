@@ -540,6 +540,7 @@ var uPlot = (function () {
 
 	const isArr = Array.isArray;
 	const isInt = Number.isInteger;
+	const isUndef = v => v === void 0;
 
 	function isStr(v) {
 		return typeof v == 'string';
@@ -1123,7 +1124,7 @@ var uPlot = (function () {
 	const _timeSeriesStamp = '{YYYY}-{MM}-{DD} {h}:{mm}{aa}';
 
 	function timeSeriesVal(tzDate, stamp) {
-		return (self, val) => stamp(tzDate(val));
+		return (self, val, seriesIdx, dataIdx) => dataIdx == null ? LEGEND_DISP : stamp(tzDate(val));
 	}
 
 	function legendStroke(self, seriesIdx) {
@@ -4408,7 +4409,10 @@ var uPlot = (function () {
 				shouldSetCursor = false;
 			}
 
-		//	if (FEAT_LEGEND && legend.show && legend.live && shouldSetLegend) {}
+			if (legend.show && legend.live && shouldSetLegend) {
+				setLegend();
+				shouldSetLegend = false; // redundant currently
+			}
 
 			if (!ready) {
 				ready = true;
@@ -4754,12 +4758,20 @@ var uPlot = (function () {
 
 		function setLegend(opts, _fire) {
 			if (opts != null) {
-				let idx = opts.idx;
+				if (opts.idxs) {
+					opts.idxs.forEach((didx, sidx) => {
+						activeIdxs[sidx] = didx;
+					});
+				}
+				else if (!isUndef(opts.idx))
+					activeIdxs.fill(opts.idx);
 
-				legend.idx = idx;
-				series.forEach((s, sidx) => {
-					(sidx > 0 || !multiValLegend) && setLegendValues(sidx, idx);
-				});
+				legend.idx = activeIdxs[0];
+			}
+
+			for (let sidx = 0; sidx < series.length; sidx++) {
+				if (sidx > 0 || mode == 1 && !multiValLegend)
+					setLegendValues(sidx, activeIdxs[sidx]);
 			}
 
 			if (showLegend && legend.live)
@@ -4779,8 +4791,10 @@ var uPlot = (function () {
 
 			if (multiValLegend)
 				val = s.values(self, sidx, idx) ?? NULL_LEGEND_VALUES;
-			else
-				val = {_: s.value(self, idx == null ? null : src[idx], sidx, idx) ?? NULL_LEGEND_VALUES}; // TODO: change signature to be same as values, with value last
+			else {
+				val = s.value(self, idx == null ? null : src[idx], sidx, idx);
+				val = val == null ? NULL_LEGEND_VALUES : {_: val};
+			}
 
 			legend.values[sidx] = val;
 		}
@@ -4824,11 +4838,8 @@ var uPlot = (function () {
 					setSeries(null, FOCUS_TRUE, true, src == null && syncOpts.setSeries);
 
 				if (legend.live) {
-					activeIdxs.fill(null);
+					activeIdxs.fill(idx);
 					shouldSetLegend = true;
-
-					for (let sidx = 0; sidx < series.length; sidx++)
-						(sidx > 0 || !multiValLegend) && setLegendValues(sidx, idx);
 				}
 			}
 			else {
@@ -4933,13 +4944,6 @@ var uPlot = (function () {
 							elSize(cursorPts[i], ptWid, ptHgt, centered);
 							elTrans(cursorPts[i], ptLft, ptTop, plotWidCss, plotHgtCss);
 						}
-					}
-
-					if (legend.live) {
-						if (!shouldSetLegend || i == 0 && multiValLegend)
-							continue;
-
-						setLegendValues(i, idx2);
 					}
 				}
 			}

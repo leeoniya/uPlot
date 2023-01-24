@@ -92,6 +92,9 @@
 					{
 						label: "CPU",
 						values: (u, sidx, idx) => {
+							if (idx == null)
+								return { Time: '--', Value: '--' };
+
 						//	let date = self.tzDate(data[0][idx]);
 							let date = new Date(data[0][idx] * 1e3);
 
@@ -106,6 +109,9 @@
 					{
 						label: "RAM",
 						values: (u, sidx, idx) => {
+							if (idx == null)
+								return { Time: '--', Value: '--' };
+
 						//	let date = self.tzDate(data[0][idx]);
 							let date = new Date(data[0][idx] * 1e3);
 
@@ -114,7 +120,6 @@
 								Value: data[sidx][idx],
 							};
 						},
-						value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
 						stroke: "blue",
 						fill: "rgba(0,0,255,0.05)",
 					},

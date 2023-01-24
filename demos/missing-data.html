@@ -56,7 +56,7 @@
 					{
 						label: "CPU",
 						scale: "%",
-						value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+						value: (u, v, sidx, didx) => didx == null ? null : v == null ? "" : v.toFixed(1) + "%",
 						stroke: "red",
 						fill: "rgba(255,0,0,0.05)",
 					//	spanGaps: true,
@@ -64,7 +64,7 @@
 					{
 						label: "RAM",
 						scale: "%",
-						value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
+						value: (u, v, sidx, didx) => didx == null ? null : v == null ? "" : v.toFixed(1) + "%",
 						stroke: "blue",
 						fill: "rgba(0,0,255,0.05)",
 					//	spanGaps: true,
@@ -72,7 +72,7 @@
 					{
 						label: "TCP Out",
 						scale: "mb",
-						value: (u, v) => v == null ? "-" : v.toFixed(2) + " MB",
+						value: (u, v, sidx, didx) => didx == null ? null : v == null ? "" : v.toFixed(1) + " MB",
 						stroke: "green",
 						fill: "rgba(0,255,0,0.05)",
 					//	spanGaps: true,

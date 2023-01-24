@@ -330,7 +330,7 @@ export function timeSeriesStamp(stampCfg, fmtDate) {
 export const _timeSeriesStamp = '{YYYY}-{MM}-{DD} {h}:{mm}{aa}';
 
 export function timeSeriesVal(tzDate, stamp) {
-	return (self, val) => stamp(tzDate(val));
+	return (self, val, seriesIdx, dataIdx) => dataIdx == null ? LEGEND_DISP : stamp(tzDate(val));
 }
 
 export function legendStroke(self, seriesIdx) {

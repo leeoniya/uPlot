@@ -77,7 +77,7 @@ declare class uPlot {
 	setCursor(opts: {left: number, top: number}, fireHook?: boolean): void;
 
 	/** sets the legend to the values of the specified idx */
-	setLegend(opts: {idx: number}, fireHook?: boolean): void;
+	setLegend(opts: {idx?: number, idxs?: (number | null)[]}, fireHook?: boolean): void;
 
 	// TODO: include other series style opts which are dynamically pulled?
 	/** toggles series visibility or focus */
@@ -824,9 +824,9 @@ declare namespace uPlot {
 
 		export type MinMaxIdxs = [minIdx: number, maxIdx: number];
 
-		export type Value = string | ((self: uPlot, rawValue: number, seriesIdx: number, idx: number) => string | number);
+		export type Value = string | ((self: uPlot, rawValue: number, seriesIdx: number, idx: number | null) => string | number);
 
-		export type Values = (self: uPlot, seriesIdx: number, idx: number) => object;
+		export type Values = (self: uPlot, seriesIdx: number, idx: number | null) => object;
 
 		export type FillTo = number | ((self: uPlot, seriesIdx: number, dataMin: number, dataMax: number) => number);
 

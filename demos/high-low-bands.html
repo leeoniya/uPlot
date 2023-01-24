@@ -46,6 +46,12 @@
 				return "$" + val.toFixed(dec).replace(/\d(?=(\d{3})+(?:\.|$))/g, '$&,');
 			}
 
+			let fmtTemp = (u, v, sidx, didx) => (
+				didx == null ? '--' :
+				v    == null ?   '' :
+				               v + "°F"
+			);
+
 			const opts = {
 				width: 1920,
 				height: 600,
@@ -68,13 +74,13 @@
 						label: "Low",
 						stroke: "green",
 					//	fill: "rgba(0, 0, 0, .07)",
-						value: (u, v) => v + "°F",
+						value: fmtTemp,
 						width: 1,
 					},
 					{
 						label: "High",
 						stroke: "red",
-						value: (u, v) => v + "°F",
+						value: fmtTemp,
 						width: 1,
 					},
 					{
@@ -82,7 +88,7 @@
 						stroke: "blue",
 						dash: [10, 10],
 						width: 2,
-						value: (u, v) => v + "°F",
+						value: fmtTemp,
 					},
 				],
 				bands: [
@@ -385,13 +391,13 @@
 						label: "Low",
 						stroke: "green",
 					//	fill: "rgba(0, 0, 0, .07)",
-						value: (u, v) => v + "°F",
+						value: fmtTemp,
 						width: 1,
 					},
 					{
 						label: "High",
 						stroke: "red",
-						value: (u, v) => v + "°F",
+						value: fmtTemp,
 						width: 1,
 					},
 					{
@@ -399,7 +405,7 @@
 						stroke: "blue",
 						dash: [10, 10],
 						width: 2,
-						value: (u, v) => v + "°F",
+						value: fmtTemp,
 					},
 				],
 				bands: [
@@ -453,13 +459,13 @@
 						label: "Low",
 						stroke: "green",
 					//	fill: "rgba(0, 0, 0, .07)",
-						value: (u, v) => v + "°F",
+						value: fmtTemp,
 						width: 1,
 					},
 					{
 						label: "High",
 						stroke: "red",
-						value: (u, v) => v + "°F",
+						value: fmtTemp,
 						width: 1,
 					},
 					{
@@ -467,7 +473,7 @@
 						stroke: "blue",
 						dash: [10, 10],
 						width: 2,
-						value: (u, v) => v + "°F",
+						value: fmtTemp,
 					},
 				],
 				bands: [

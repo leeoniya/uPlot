@@ -126,6 +126,9 @@
 							stroke: "rgba(5, 141, 199, 1)",
 							fill:  "rgba(5, 141, 199, 0.1)",
 							values: (u, sidx, idx) => {
+								if (idx == null)
+									return {Time: '--', Users: '--'};
+
 							//	let date = self.tzDate(data[0][idx]);
 								let date = new Date(data[0][idx] * 1e3);
 
@@ -139,6 +142,9 @@
 							label: "2018",
 							stroke: "rgba(237, 126, 23, 1)",
 							values: (u, sidx, idx) => {
+								if (idx == null)
+									return {Time: '--', Users: '--'};
+
 								let date = new Date(ts18[idx] * 1e3);
 
 								return {
@@ -151,6 +157,9 @@
 							label: "2017",
 							stroke: "rgba(255, 0, 0, 1)",
 							values: (u, sidx, idx) => {
+								if (idx == null)
+									return {Time: '--', Users: '--'};
+
 								let date = new Date(ts17[idx] * 1e3);
 
 								return {
@@ -210,10 +219,10 @@
 							stroke: "rgba(5, 141, 199, 1)",
 							fill:  "rgba(5, 141, 199, 0.1)",
 							values: (u, sidx, idx) => {
-								if (idx >= febLen) {
+								if (idx == null || idx >= febLen) {
 									return {
-										Time: '---',
-										Users: '---',
+										Time: '--',
+										Users: '--',
 									};
 								}
 
@@ -230,6 +239,9 @@
 							label: "Jan 2019",
 							stroke: "rgba(237, 126, 23, 1)",
 							values: (u, sidx, idx) => {
+								if (idx == null)
+									return {Time: '--', Users: '--'};
+
 							//	let date = self.tzDate(data[0][idx]);
 								let date = new Date(tsJan[idx] * 1e3);
 
