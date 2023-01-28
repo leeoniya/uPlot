@@ -7,6 +7,7 @@ import {
 
 	FEAT_PATHS,
 	FEAT_PATHS_LINEAR,
+	FEAT_PATHS_LINEAR2,
 	FEAT_PATHS_SPLINE,
 	FEAT_PATHS_SPLINE2,
 	FEAT_PATHS_STEPPED,
@@ -189,6 +190,7 @@ import { _sync } from './sync';
 
 import { points   } from './paths/points';
 import { linear   } from './paths/linear';
+import { linear2  } from './paths/linear2';
 import { stepped  } from './paths/stepped';
 import { bars     } from './paths/bars';
 import { monotoneCubic     as spline  } from './paths/monotoneCubic';
@@ -3150,6 +3152,7 @@ if (FEAT_PATHS) {
 	};
 
 	FEAT_PATHS_LINEAR  && (paths.linear  = linear);
+	FEAT_PATHS_LINEAR2 && (paths.linear2 = linear2);
 	FEAT_PATHS_STEPPED && (paths.stepped = stepped);
 	FEAT_PATHS_BARS    && (paths.bars    = bars);
 	FEAT_PATHS_SPLINE  && (paths.spline  = spline);

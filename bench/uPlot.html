@@ -18,7 +18,7 @@
 		</style>
 	</head>
 	<body>
-		<script src="../dist/uPlot.iife.min.js"></script>
+		<script src="../dist/uPlot.iife.js"></script>
 		<h2 id="wait">Loading lib....</h2>
 
 		<script>
@@ -79,8 +79,10 @@
 				return data;
 			}
 
-			function makeChart(data) {
+			function makeChart(data, linear2 = false) {
 				console.time("chart");
+
+				let paths = linear2 ? uPlot.paths.linear2() : uPlot.paths.linear();
 
 				const opts = {
 					title: "Server Events",
@@ -99,6 +101,7 @@
 							value: (u, v) => v == null ? null : v.toFixed(1) + "%",
 							stroke: "red",
 							width: 1/devicePixelRatio,
+							paths: paths,
 						},
 						{
 							label: "RAM",
@@ -106,6 +109,7 @@
 							value: (u, v) => v == null ? null : v.toFixed(1) + "%",
 							stroke: "blue",
 							width: 1/devicePixelRatio,
+							paths: paths,
 						},
 						{
 							label: "TCP Out",
@@ -113,6 +117,7 @@
 							value: (u, v) => v == null ? null : v.toFixed(2) + " MB",
 							stroke: "green",
 							width: 1/devicePixelRatio,
+							paths: paths,
 						}
 					],
 					axes: [
@@ -145,6 +150,7 @@
 				wait.textContent = "Rendering...";
 				let data = prepData(packed);
 				setTimeout(() => makeChart(data), 0);
+				setTimeout(() => makeChart(data, true), 0);
 			});
 		</script>
 	</body>

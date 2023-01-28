@@ -60,7 +60,9 @@
 				return data;
 			}
 
-			function makeChart(data) {
+			function makeChart(data, linear2 = false) {
+				let paths = linear2 ? uPlot.paths.linear2() : uPlot.paths.linear();
+
 				let series = [];
 
 				for (let i = 1; i < data.length; i++) {
@@ -82,7 +84,10 @@
 					},
 					series: [
 						{},
-						...series
+						...series.map(s => ({
+							...s,
+							paths,
+						}))
 					]
 				};
 
@@ -93,9 +98,11 @@
 		//	let data1 = prepData(5e6);
 			let data1 = prepData(2e6);
 			let u1 = makeChart(data1);
+			let u3 = makeChart(data1, true);
 
 			let data2 = prepData(40_000, 50, 2);
 			let u2 = makeChart(data2);
+			let u4 = makeChart(data2, true);
 
 			setTimeout(() => {
 				console.time('chart1 redraw');
@@ -114,6 +121,24 @@
 				});
 				data = null;
 			}, 2000);
+
+			setTimeout(() => {
+				console.time('chart3 redraw');
+				u3.setData(data1);
+				queueMicrotask(() => {
+					console.timeEnd('chart3 redraw');
+				});
+				data = null;
+			}, 3000);
+
+			setTimeout(() => {
+				console.time('chart4 redraw');
+				u4.setData(data2);
+				queueMicrotask(() => {
+					console.timeEnd('chart4 redraw');
+				});
+				data = null;
+			}, 4000);
 		</script>
 	</body>
 </html>

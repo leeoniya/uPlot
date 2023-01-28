@@ -108,6 +108,8 @@
 				];
 			}
 
+			const paths = uPlot.paths.linear2();
+
 			const opts = {
 				title: "6 series x 600 points @ 60fps",
 				width: 1920,
@@ -130,26 +132,32 @@
 						label: "Sine",
 						stroke: "red",
 						fill: "rgba(255,0,0,0.1)",
+						paths,
 					},
 					{
 						stroke: "green",
 						fill: "#4caf505e",
+						paths,
 					},
 					{
 						stroke: "blue",
 						fill: "#0000ff20",
+						paths,
 					},
 					{
 						stroke: "orange",
 						fill: "#ffa5004f",
+						paths,
 					},
 					{
 						stroke: "magenta",
 						fill: "#ff00ff20",
+						paths,
 					},
 					{
 						stroke: "purple",
 						fill: "#80008020",
+						paths,
 					},
 				],
 			};
