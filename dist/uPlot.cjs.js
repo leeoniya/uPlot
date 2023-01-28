@@ -3248,9 +3248,6 @@ function uPlot(opts, data, then) {
 
 	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, cursor.focus);
 
-	if (focus.bias != 0)
-		focus.prox = 1e5; // big, but < Infinity
-
 	const cursorFocus = focus.prox >= 0;
 
 	// series-intersection markers
