@@ -1,0 +1,1222 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Focus perf</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="../dist/uPlot.min.css">
+</head>
+
+<body>
+  <div id="root"></div>
+
+  <script type="module">
+    import uPlot from "../dist/uPlot.esm.js";
+
+    const series = [
+      {},
+      {
+        show: true,
+        auto: true,
+        label: "series_1",
+        stroke: "#fd7e14",
+        width: 0.5,
+        fill: "rgba(253, 126, 20, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_2",
+        stroke: "#6610f2",
+        width: 0.5,
+        fill: "rgba(102, 16, 242, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_3",
+        stroke: "#d63384",
+        width: 0.5,
+        fill: "rgba(214, 51, 132, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_4",
+        stroke: "#198754",
+        width: 0.5,
+        fill: "rgba(25, 135, 84, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_5",
+        stroke: "#0dcaf0",
+        width: 0.5,
+        fill: "rgba(13, 202, 240, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_6",
+        stroke: "#75b798",
+        width: 0.5,
+        fill: "rgba(117, 183, 152, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_100",
+        stroke: "#6ea8fe",
+        width: 0.5,
+        fill: "rgba(110, 168, 254, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_7",
+        stroke: "#feb272",
+        width: 0.5,
+        fill: "rgba(254, 178, 114, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_8",
+        stroke: "#13795b",
+        width: 0.5,
+        fill: "rgba(19, 121, 91, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_9",
+        stroke: "#e685b5",
+        width: 0.5,
+        fill: "rgba(230, 133, 181, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_97",
+        stroke: "#801f4f",
+        width: 0.5,
+        fill: "rgba(128, 31, 79, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_98",
+        stroke: "#479f76",
+        width: 0.5,
+        fill: "rgba(71, 159, 118, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_99",
+        stroke: "#146c43",
+        width: 0.5,
+        fill: "rgba(20, 108, 67, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_10",
+        stroke: "#198754",
+        width: 0.5,
+        fill: "rgba(25, 135, 84, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_11",
+        stroke: "#79dfc1",
+        width: 0.5,
+        fill: "rgba(121, 223, 193, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_12",
+        stroke: "#084298",
+        width: 0.5,
+        fill: "rgba(8, 66, 152, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_13",
+        stroke: "#a370f7",
+        width: 0.5,
+        fill: "rgba(163, 112, 247, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_14",
+        stroke: "#997404",
+        width: 0.5,
+        fill: "rgba(153, 116, 4, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_15",
+        stroke: "#3d8bfd",
+        width: 0.5,
+        fill: "rgba(61, 139, 253, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_16",
+        stroke: "#fd9843",
+        width: 0.5,
+        fill: "rgba(253, 152, 67, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_17",
+        stroke: "#ca6510",
+        width: 0.5,
+        fill: "rgba(202, 101, 16, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_18",
+        stroke: "#de5c9d",
+        width: 0.5,
+        fill: "rgba(222, 92, 157, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_19",
+        stroke: "#13795b",
+        width: 0.5,
+        fill: "rgba(19, 121, 91, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_20",
+        stroke: "#0aa2c0",
+        width: 0.5,
+        fill: "rgba(10, 162, 192, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_21",
+        stroke: "#479f76",
+        width: 0.5,
+        fill: "rgba(71, 159, 118, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_22",
+        stroke: "#3d0a91",
+        width: 0.5,
+        fill: "rgba(61, 10, 145, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_23",
+        stroke: "#8c68cd",
+        width: 0.5,
+        fill: "rgba(140, 104, 205, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_24",
+        stroke: "#520dc2",
+        width: 0.5,
+        fill: "rgba(82, 13, 194, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_25",
+        stroke: "#1aa179",
+        width: 0.5,
+        fill: "rgba(26, 161, 121, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_26",
+        stroke: "#0d6efd",
+        width: 0.5,
+        fill: "rgba(13, 110, 253, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_27",
+        stroke: "#6f42c1",
+        width: 0.5,
+        fill: "rgba(111, 66, 193, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_28",
+        stroke: "#ab296a",
+        width: 0.5,
+        fill: "rgba(171, 41, 106, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_29",
+        stroke: "#dc3545",
+        width: 0.5,
+        fill: "rgba(220, 53, 69, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_30",
+        stroke: "#e685b5",
+        width: 0.5,
+        fill: "rgba(230, 133, 181, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_31",
+        stroke: "#842029",
+        width: 0.5,
+        fill: "rgba(132, 32, 41, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_32",
+        stroke: "#a98eda",
+        width: 0.5,
+        fill: "rgba(169, 142, 218, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_33",
+        stroke: "#20c997",
+        width: 0.5,
+        fill: "rgba(32, 201, 151, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_34",
+        stroke: "#79dfc1",
+        width: 0.5,
+        fill: "rgba(121, 223, 193, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_35",
+        stroke: "#ffc107",
+        width: 0.5,
+        fill: "rgba(255, 193, 7, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_36",
+        stroke: "#feb272",
+        width: 0.5,
+        fill: "rgba(254, 178, 114, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_37",
+        stroke: "#3d0a91",
+        width: 0.5,
+        fill: "rgba(61, 10, 145, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_38",
+        stroke: "#997404",
+        width: 0.5,
+        fill: "rgba(153, 116, 4, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_39",
+        stroke: "#8540f5",
+        width: 0.5,
+        fill: "rgba(133, 64, 245, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_40",
+        stroke: "#0f5132",
+        width: 0.5,
+        fill: "rgba(15, 81, 50, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_41",
+        stroke: "#4dd4ac",
+        width: 0.5,
+        fill: "rgba(77, 212, 172, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_42",
+        stroke: "#6edff6",
+        width: 0.5,
+        fill: "rgba(110, 223, 246, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_43",
+        stroke: "#e35d6a",
+        width: 0.5,
+        fill: "rgba(227, 93, 106, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_44",
+        stroke: "#087990",
+        width: 0.5,
+        fill: "rgba(8, 121, 144, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_45",
+        stroke: "#59359a",
+        width: 0.5,
+        fill: "rgba(89, 53, 154, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_46",
+        stroke: "#ffda6a",
+        width: 0.5,
+        fill: "rgba(255, 218, 106, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_47",
+        stroke: "#1aa179",
+        width: 0.5,
+        fill: "rgba(26, 161, 121, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_48",
+        stroke: "#20c997",
+        width: 0.5,
+        fill: "rgba(32, 201, 151, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_49",
+        stroke: "#3dd5f3",
+        width: 0.5,
+        fill: "rgba(61, 213, 243, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_50",
+        stroke: "#6610f2",
+        width: 0.5,
+        fill: "rgba(102, 16, 242, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_51",
+        stroke: "#b02a37",
+        width: 0.5,
+        fill: "rgba(176, 42, 55, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_52",
+        stroke: "#ca6510",
+        width: 0.5,
+        fill: "rgba(202, 101, 16, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_53",
+        stroke: "#a370f7",
+        width: 0.5,
+        fill: "rgba(163, 112, 247, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_54",
+        stroke: "#d63384",
+        width: 0.5,
+        fill: "rgba(214, 51, 132, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_55",
+        stroke: "#3d0a91",
+        width: 0.5,
+        fill: "rgba(61, 10, 145, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_56",
+        stroke: "#0a58ca",
+        width: 0.5,
+        fill: "rgba(10, 88, 202, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_57",
+        stroke: "#e685b5",
+        width: 0.5,
+        fill: "rgba(230, 133, 181, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_58",
+        stroke: "#75b798",
+        width: 0.5,
+        fill: "rgba(117, 183, 152, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_59",
+        stroke: "#842029",
+        width: 0.5,
+        fill: "rgba(132, 32, 41, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_60",
+        stroke: "#fd7e14",
+        width: 0.5,
+        fill: "rgba(253, 126, 20, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_61",
+        stroke: "#ffda6a",
+        width: 0.5,
+        fill: "rgba(255, 218, 106, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_62",
+        stroke: "#de5c9d",
+        width: 0.5,
+        fill: "rgba(222, 92, 157, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_63",
+        stroke: "#0d6efd",
+        width: 0.5,
+        fill: "rgba(13, 110, 253, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_64",
+        stroke: "#0f5132",
+        width: 0.5,
+        fill: "rgba(15, 81, 50, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_65",
+        stroke: "#8c68cd",
+        width: 0.5,
+        fill: "rgba(140, 104, 205, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_66",
+        stroke: "#4dd4ac",
+        width: 0.5,
+        fill: "rgba(77, 212, 172, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_67",
+        stroke: "#520dc2",
+        width: 0.5,
+        fill: "rgba(82, 13, 194, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_68",
+        stroke: "#1aa179",
+        width: 0.5,
+        fill: "rgba(26, 161, 121, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_69",
+        stroke: "#ab296a",
+        width: 0.5,
+        fill: "rgba(171, 41, 106, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_70",
+        stroke: "#6ea8fe",
+        width: 0.5,
+        fill: "rgba(110, 168, 254, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_71",
+        stroke: "#997404",
+        width: 0.5,
+        fill: "rgba(153, 116, 4, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_72",
+        stroke: "#198754",
+        width: 0.5,
+        fill: "rgba(25, 135, 84, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_73",
+        stroke: "#6610f2",
+        width: 0.5,
+        fill: "rgba(102, 16, 242, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_74",
+        stroke: "#084298",
+        width: 0.5,
+        fill: "rgba(8, 66, 152, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_75",
+        stroke: "#79dfc1",
+        width: 0.5,
+        fill: "rgba(121, 223, 193, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_76",
+        stroke: "#0f5132",
+        width: 0.5,
+        fill: "rgba(15, 81, 50, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_77",
+        stroke: "#a98eda",
+        width: 0.5,
+        fill: "rgba(169, 142, 218, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_78",
+        stroke: "#dc3545",
+        width: 0.5,
+        fill: "rgba(220, 53, 69, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_79",
+        stroke: "#3d0a91",
+        width: 0.5,
+        fill: "rgba(61, 10, 145, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_80",
+        stroke: "#3dd5f3",
+        width: 0.5,
+        fill: "rgba(61, 213, 243, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_81",
+        stroke: "#fd9843",
+        width: 0.5,
+        fill: "rgba(253, 152, 67, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_82",
+        stroke: "#4dd4ac",
+        width: 0.5,
+        fill: "rgba(77, 212, 172, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_83",
+        stroke: "#0aa2c0",
+        width: 0.5,
+        fill: "rgba(10, 162, 192, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_84",
+        stroke: "#e685b5",
+        width: 0.5,
+        fill: "rgba(230, 133, 181, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_85",
+        stroke: "#8c68cd",
+        width: 0.5,
+        fill: "rgba(140, 104, 205, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_86",
+        stroke: "#59359a",
+        width: 0.5,
+        fill: "rgba(89, 53, 154, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_87",
+        stroke: "#cc9a06",
+        width: 0.5,
+        fill: "rgba(204, 154, 6, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_88",
+        stroke: "#0d6efd",
+        width: 0.5,
+        fill: "rgba(13, 110, 253, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_89",
+        stroke: "#1aa179",
+        width: 0.5,
+        fill: "rgba(26, 161, 121, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_90",
+        stroke: "#198754",
+        width: 0.5,
+        fill: "rgba(25, 135, 84, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_91",
+        stroke: "#79dfc1",
+        width: 0.5,
+        fill: "rgba(121, 223, 193, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_92",
+        stroke: "#801f4f",
+        width: 0.5,
+        fill: "rgba(128, 31, 79, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_93",
+        stroke: "#6ea8fe",
+        width: 0.5,
+        fill: "rgba(110, 168, 254, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_94",
+        stroke: "#0f5132",
+        width: 0.5,
+        fill: "rgba(15, 81, 50, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_95",
+        stroke: "#6f42c1",
+        width: 0.5,
+        fill: "rgba(111, 66, 193, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+      {
+        show: true,
+        auto: true,
+        label: "series_96",
+        stroke: "#ffc107",
+        width: 0.5,
+        fill: "rgba(255, 193, 7, 0.15)",
+        points: {
+          size: 5,
+        },
+      },
+    ];
+    const opts = {
+      width: 2500,
+      height: 800,
+      series: series,
+      pxAlign: false,
+      padding: [16, 16, 0, 0],
+      cursor: {
+        lock: true,
+        focus: {
+          prox: 100,
+          value: (self, seriesIdx, dataIdx, value) => {
+            let dataY = self.data[seriesIdx];
+            let window = 20;
+
+            let prev = dataIdx;
+            let next = dataIdx + 1;
+            let sum = 0;
+            let count = 0;
+
+            while (count < window) {
+              if (prev < 0 && next >= dataY.length)
+                break;
+
+              if (prev >= 0) {
+                let v = dataY[prev];
+
+                if (v != null) {
+                  sum += v;
+                  count++;
+                }
+
+                prev--;
+              }
+
+              if (next < dataY.length) {
+                let v = dataY[next];
+
+                if (v != null) {
+                  sum += v;
+                  count++;
+                }
+
+                next++;
+              }
+            }
+
+            return sum / count;
+          },
+        },
+      },
+      focus: {
+        alpha: 0.5,
+      },
+      axes: [
+        {
+          grid: {
+            stroke: "#adb5bd",
+            width: 0.5,
+          },
+          ticks: {
+            stroke: "#adb5bd",
+            width: 0.5,
+          },
+          font: '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif',
+          size: 48,
+        },
+        {
+          grid: {
+            stroke: "#adb5bd",
+            width: 0.5,
+          },
+          ticks: {
+            stroke: "#adb5bd",
+            width: 0.5,
+          },
+          size: 54,
+          font: '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif',
+        },
+      ],
+      scales: {
+        x: { auto: true },
+        y: {
+          auto: true,
+          // distr: 3,
+        },
+      },
+      legend: {
+        show: true,
+        live: true,
+        markers: {
+          width: 1.5,
+        },
+      },
+    };
+
+    fetch('./data/statshouse.json').then(r => r.json()).then(data => {
+      const u = new uPlot(opts, data, document.getElementById("root"));
+    });
+  </script>
+</body>
+
+</html>

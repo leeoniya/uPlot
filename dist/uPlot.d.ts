@@ -517,6 +517,8 @@ declare namespace uPlot {
 			prox: number;
 			/** when non-zero, will only focus next series towards or away from zero */
 			bias?: FocusBias; // 0
+			/** can return an alternaive value for proximity testing, such as avg of surrounding points (e.g. noisy/overlapping/joined data) */
+			value?: (self: uPlot, seriesIdx: number, dataIdx: number, value: number | null | undefined) => number;
 		}
 
 		export const enum FocusBias {

@@ -458,6 +458,7 @@ export const cursorOpts = {
 	focus: {
 		prox: -1,
 		bias: 0,
+		value: (self, seriesIdx, dataIdx, val) => val,
 	},
 
 	left: -10,

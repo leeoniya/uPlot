@@ -1249,6 +1249,7 @@ const cursorOpts = {
 	focus: {
 		prox: -1,
 		bias: 0,
+		value: (self, seriesIdx, dataIdx, val) => val,
 	},
 
 	left: -10,
@@ -4867,7 +4868,10 @@ function uPlot(opts, data, then) {
 					let yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0), 1);
 
 					if (cursorFocus && yPos >= 0 && mode == 1) {
-						let dist = abs(yPos - mouseTop1);
+						let yVal2Focus = focus.value(self, i, idx2, yVal2);
+						let yPosFocus = yVal2Focus == yVal2 ? yPos : valToPosY(yVal2Focus, scales[s.scale], yDim, 0);
+
+						let dist = abs(yPosFocus - mouseTop1);
 
 						if (dist < closestDist) {
 							let bias = focus.bias;
@@ -4876,15 +4880,15 @@ function uPlot(opts, data, then) {
 								let mouseYPos = scaleX.ori == 1 ? mouseLeft1 : mouseTop1;
 								let mouseYVal = posToVal(mouseYPos, s.scale);
 
-								let seriesYValSign = yVal2     >= 0 ? 1 : -1;
-								let mouseYValSign  = mouseYVal >= 0 ? 1 : -1;
+								let seriesYValSign = yVal2Focus >= 0 ? 1 : -1;
+								let mouseYValSign  = mouseYVal  >= 0 ? 1 : -1;
 
 								// with a focus bias, we will never cross zero when prox testing
 								// it's either closest towards zero, or closest away from zero
 								if (mouseYValSign == seriesYValSign && (
 									mouseYValSign == 1 ?
-										(bias == 1 ? yVal2 >= mouseYVal : yVal2 <= mouseYVal) :  // >= 0
-										(bias == 1 ? yVal2 <= mouseYVal : yVal2 >= mouseYVal)    //  < 0
+										(bias == 1 ? yVal2Focus >= mouseYVal : yVal2Focus <= mouseYVal) :  // >= 0
+										(bias == 1 ? yVal2Focus <= mouseYVal : yVal2Focus >= mouseYVal)    //  < 0
 								)) {
 									closestDist = dist;
 									closestSeries = i;
