@@ -154,7 +154,7 @@ declare class uPlot {
 	/** helper function for grabbing proper drawing orientation vars and fns for a plot instance (all dims in canvas pixels) */
 	static orient(u: uPlot, seriesIdx: number, callback: uPlot.OrientCallback): any;
 
-	/** returns a pub/sub instance shared by all plots usng the provided key */
+	/** returns a pub/sub instance shared by all plots using the provided key */
 	static sync(key: string): uPlot.SyncPubSub;
 
 	/** cached devicePixelRatio (faster than reading it from window.devicePixelRatio) */
