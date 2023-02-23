@@ -372,7 +372,7 @@ let opts = {
 }
 ```
 
-- `space` is the minimum space between adjacent ticks; a smaller number will result in smaller selected divisors. can also be a function of the form `(self, scaleMin, scaleMax, dim) => space` where `dim` is the dimension of the plot along the axis in CSS pixels.
+- `space` is the minimum space between adjacent ticks; a smaller number will result in smaller selected divisors. can also be a function of the form `(self, axisIdx, scaleMin, scaleMax, dim) => space` where `dim` is the dimension of the plot along the axis in CSS pixels.
 - `incrs` are divisors available for segmenting the axis to produce ticks. can also be a function of the form `(self) => divisors`.
 - `values` can be:
   - a function with the form `(self, ticks, space) => values` where `ticks` is an array of raw values along the axis' scale, `space` is the determined tick spacing in CSS pixels and `values` is an array of formatted tick labels.
