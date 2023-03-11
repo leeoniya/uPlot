@@ -91,22 +91,26 @@
 					},
 					yaxis: {
 						labels: {
-							formatter: function (val) {
-								val;
-							},
+							formatter: val => val,
 						},
 					},
 					xaxis: {
 						type: 'datetime',
+						tooltip: {
+          					enabled: false,
+						}
 					},
 					tooltip: {
-						shared: false,
+						shared: true,
 						y: {
-							formatter: function (val) {
-								return val;
-							}
+							formatter: val => val,
 						}
-					}
+					},
+					legend: {
+						onItemHover: {
+							highlightDataSeries: false
+						},
+					},
 				}
 
 				var chart = new ApexCharts(

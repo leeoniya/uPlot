@@ -63,7 +63,8 @@
 						dimensions: ["date", "cpu", "ram", "tcpout"]
 					},
 					tooltip: {
-						trigger: "axis"
+						trigger: "axis",
+						transitionDuration: 0,
 					},
 					legend: {},
 					grid: {
@@ -98,7 +99,10 @@
 							showSymbol: false,
 							sampling: "lttb",
 							lineStyle: { width: 1 },
-							emphasis: { lineStyle: { width: 1 } },
+							emphasis: {
+								disabled: true,
+							},
+							silent: true,
 							encode: {
 								x: "date",
 								y: "cpu"
@@ -112,7 +116,9 @@
 							showSymbol: false,
 							sampling: "lttb",
 							lineStyle: { width: 1 },
-							emphasis: { lineStyle: { width: 1 } },
+							emphasis: {
+								disabled: true,
+							},
 							encode: {
 								x: "date",
 								y: "ram"
@@ -126,7 +132,9 @@
 							showSymbol: false,
 							sampling: "lttb",
 							lineStyle: { width: 1 },
-							emphasis: { lineStyle: { width: 1 } },
+							emphasis: {
+								disabled: true,
+							},
 							encode: {
 								x: "date",
 								y: "tcpout"
