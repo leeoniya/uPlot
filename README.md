@@ -92,10 +92,8 @@ Raw data: https://github.com/leeoniya/uPlot/blob/master/bench/results.json
 | <a href="https://leeoniya.github.io/uPlot/bench/Plotly.js.html">Plotly.js v2.18.2</a>      | 3600 KB |  310 ms |  655  14   1   40 | 104 MB  70 MB   | 1814  163   25  208 |
 | <a href="https://leeoniya.github.io/uPlot/bench/ApexCharts.html">ApexCharts v3.37.1</a>     |  503 KB |  685 ms |  694   9   1   33 | 175 MB  46 MB   | 1708  421  106  207 |
 | <a href="https://leeoniya.github.io/uPlot/bench/ZingChart.html">ZingChart v2.9.10</a>      |  871 KB |  681 ms |  717   7   1  105 | 290 MB 195 MB   | 9021  305   41   71 |
-| <a href="https://leeoniya.github.io/uPlot/bench/amCharts.html">amCharts v5.3.7</a>        |  625 KB |  --- ms | 1601   3   3   46 | 147 MB 121 MB   | 9171   71  460  167 |
+| <a href="https://leeoniya.github.io/uPlot/bench/amCharts5.html">amCharts v5.3.7</a>        |  625 KB |  --- ms | 1601   3   3   46 | 147 MB 121 MB   | 9171   71  460  167 |
 </pre>
-
-Normally, all libs are updated to their latest versions before each benchmark round. However, libraries which show significant performance improvements in latest versions will have prior versions shown to encourage migration; this is especially true for still-widely-deployed libs, such as Chart.js v2.9.4, and ECharts v4.9.0. Deployment prevalence is assessed from public npm and CDN download stats for the prior few months.
 
 - libs are sorted by their initial, cold-start, render performance (excluding network transfer time to download the lib)
 - `size` includes the lib itself plus any dependencies required to render the benchmark, e.g. Moment, jQuery, etc.
