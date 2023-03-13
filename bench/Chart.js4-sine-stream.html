@@ -207,7 +207,7 @@
 						//	bounds: 'data',
 						//	fullSize: true,
 							ticks: {
-								source: 'auto',
+								source: 'data',
 								maxRotation: 0,
 								autoSkip: true,
 								autoSkipPadding: 75,
@@ -234,6 +234,7 @@
 
 			let chart = new Chart(ctx, cfg);
 
+			/*
 			setInterval(() => {
 				shift += 1;
 				data = getData(shift);
@@ -242,17 +243,19 @@
 				});
 				chart.update();
 			}, 500);
+			*/
 
-			/*
 			function update() {
 				shift += 1;
 				data = getData(shift);
-				u.setData(data);
+				chart.data.datasets.forEach((dataset, i) => {
+					dataset.data = toObjs(data[0], data[i+1]);
+				});
+				chart.update();
 				requestAnimationFrame(update);
 			}
 
 			update();
-			*/
 		</script>
 	</body>
 </html>
