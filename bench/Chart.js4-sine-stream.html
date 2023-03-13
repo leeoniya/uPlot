@@ -190,6 +190,11 @@
 					]
 				},
 				options: {
+					layout: {
+						padding: {
+							left: 20,
+						}
+					},
 					animation: false,
 					maintainAspectRatio: false,
 					parsing: false,
@@ -203,11 +208,12 @@
 					scales: {
 						x: {
 							type: 'time',
+							time: {
+								unit: 'minute',
+							},
 							stacked: false,
-						//	bounds: 'data',
-						//	fullSize: true,
 							ticks: {
-								source: 'data',
+								source: 'auto',
 								maxRotation: 0,
 								autoSkip: true,
 								autoSkipPadding: 75,
