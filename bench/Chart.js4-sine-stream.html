@@ -1,0 +1,258 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Sine Stream (Chart.js)</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<style>
+			.chart-container {
+				position: relative;
+				height: 600px;
+				width: 1920px;
+			}
+		</style>
+
+		<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+	</head>
+	<body>
+		<div class="chart-container">
+			<canvas id="chart1"></canvas>
+		</div>
+
+		<script>
+			const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
+
+		/*
+			// https://newbedev.com/javascript-math-random-normal-distribution-gaussian-bell-curve
+			function randn_bm(min, max, skew) {
+				let u = 0, v = 0;
+				while(u === 0) u = Math.random(); //Converting [0,1) to (0,1)
+				while(v === 0) v = Math.random();
+				let num = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+
+				num = num / 10.0 + 0.5; // Translate to 0 -> 1
+				if (num > 1 || num < 0) num = randn_bm(min, max, skew); // resample between 0 and 1 if out of range
+				num = Math.pow(num, skew); // Skew
+				num *= max - min; // Stretch to fill range
+				num += min; // offset to min
+				return num;
+			}
+		*/
+
+			// adapted from http://jsfiddle.net/Xotic750/3rfT6/
+			const boxMullerRandom = (function() {
+				let phase = 0,
+					random = Math.random,
+					x1, x2, w, z;
+
+				return () => {
+					if (!phase) {
+						do {
+							x1 = 2.0 * random() - 1.0;
+							x2 = 2.0 * random() - 1.0;
+							w = x1 * x1 + x2 * x2;
+						} while (w >= 1.0);
+
+						w = Math.sqrt((-2.0 * Math.log(w)) / w);
+						z = x1 * w;
+					} else {
+						z = x2 * w;
+					}
+
+					phase ^= 1;
+
+					return z;
+				}
+			}());
+
+			function randomWalk(steps, value = 0, min = -100, max = 100) {
+				steps = steps >>> 0 || 100;
+				let randFunc = boxMullerRandom;
+
+				let points = [], t;
+
+				for (t = 0; t < steps; t += 1) {
+					let extra = randFunc();
+					let newVal = value + extra;
+
+					if (newVal > max || newVal < min)
+						value = clamp(value - extra, min, max);
+					else
+						value = newVal;
+
+					points.push(value);
+				}
+
+				return points;
+			}
+		</script>
+		<script>
+			let now = Math.floor(Date.now()/1e3);
+			let length = 600;
+			let shift = length - 1;
+
+			function addRandData(data, howMany, min, max) {
+				let last = data[length - 1];
+				return data.slice(1).concat(randomWalk(howMany, last, min, max));
+			}
+
+			let xs = Array.from({length}, (v, i) => now + i * 60 * 5);
+			let sin = Array.from({length}, (v, i) => Math.sin(i / 16) * 5);
+			let _1 = randomWalk(600, -4, -6, 1);
+			let _2 = randomWalk(600, -2, -6, 1);
+			let _3 = randomWalk(600,  0, -2, 2);
+			let _4 = randomWalk(600,  2, -1, 6);
+			let _5 = randomWalk(600,  4, -1, 6);
+
+			let data = getData(shift);
+
+			function getData(shift) {
+				return [
+					xs = xs.slice(1).concat(now + shift * 60 * 5),
+					sin = sin.slice(1).concat(Math.sin(shift / 16) * 5),
+					_1 = addRandData(_1, 1, -6, -1),
+					_2 = addRandData(_2, 1, -6, -1),
+					_3 = addRandData(_3, 1, -2,  2),
+					_4 = addRandData(_4, 1, -1,  6),
+					_5 = addRandData(_5, 1, -1,  6),
+				];
+			}
+
+			function toObjs(xs, ys) {
+				let out = Array(xs.length);
+
+				for (let i = 0; i < xs.length; i++)
+					out[i] = {x: xs[i], y: ys[i]};
+
+				return out;
+			}
+
+			let ctx = document.getElementById('chart1').getContext('2d');
+			let cfg = {
+				data: {
+					datasets: [
+						{
+							borderColor: 'red',
+							backgroundColor: 'rgba(255,0,0,0.1)',
+							fill: true,
+							data: toObjs(data[0], data[1]),
+							type: 'line',
+							radius: 0,
+							borderWidth: 1
+						},
+						{
+							borderColor: 'green',
+							backgroundColor: '#4caf505e',
+							fill: true,
+							data: toObjs(data[0], data[2]),
+							type: 'line',
+							radius: 0,
+							borderWidth: 1
+						},
+						{
+							borderColor: 'blue',
+							backgroundColor: '#0000ff20',
+							fill: true,
+							data: toObjs(data[0], data[3]),
+							type: 'line',
+							radius: 0,
+							borderWidth: 1
+						},
+						{
+							borderColor: 'orange',
+							backgroundColor: '#ffa5004f',
+							fill: true,
+							data: toObjs(data[0], data[4]),
+							type: 'line',
+							radius: 0,
+							borderWidth: 1
+						},
+						{
+							borderColor: 'magenta',
+							backgroundColor: '#ff00ff20',
+							fill: true,
+							data: toObjs(data[0], data[5]),
+							type: 'line',
+							radius: 0,
+							borderWidth: 1
+						},
+						{
+							borderColor: 'purple',
+							backgroundColor: '#80008020',
+							fill: true,
+							data: toObjs(data[0], data[6]),
+							type: 'line',
+							radius: 0,
+							borderWidth: 1
+						}
+					]
+				},
+				options: {
+					animation: false,
+					maintainAspectRatio: false,
+					parsing: false,
+					spanGaps: true,
+					normalized: true,
+					interaction: {
+						mode: 'nearest',
+						axis: 'x',
+						intersect: false
+					},
+					scales: {
+						x: {
+							type: 'time',
+							stacked: false,
+						//	bounds: 'data',
+						//	fullSize: true,
+							ticks: {
+								source: 'auto',
+								maxRotation: 0,
+								autoSkip: true,
+								autoSkipPadding: 75,
+								sampleSize: 1
+							}
+						},
+						y: {
+							type: 'linear',
+							stacked: false,
+							min: -6,
+							max: 6,
+							scaleLabel: {
+								display: true,
+							}
+						},
+					},
+					plugins: {
+						decimation: {
+							enabled: true
+						}
+					}
+				}
+			};
+
+			let chart = new Chart(ctx, cfg);
+
+			setInterval(() => {
+				shift += 1;
+				data = getData(shift);
+				chart.data.datasets.forEach((dataset, i) => {
+					dataset.data = toObjs(data[0], data[i+1]);
+				});
+				chart.update();
+			}, 500);
+
+			/*
+			function update() {
+				shift += 1;
+				data = getData(shift);
+				u.setData(data);
+				requestAnimationFrame(update);
+			}
+
+			update();
+			*/
+		</script>
+	</body>
+</html>
