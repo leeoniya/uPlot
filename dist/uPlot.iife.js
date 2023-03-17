@@ -3865,10 +3865,12 @@ var uPlot = (function () {
 
 				let halfWid = width * pxRatio / 2;
 
-				if (s.min == 0)
+				let {min: scaleMin, max: scaleMax, dir: scaleDir } = scales[s.scale];
+
+				if (scaleDir == 1 ? s.min == scaleMin : s.max == scaleMax)
 					hgt += halfWid;
 
-				if (s.max == 0) {
+				if (scaleDir == 1 ? s.max == scaleMax : s.min == scaleMin) {
 					top -= halfWid;
 					hgt += halfWid;
 				}
