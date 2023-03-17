@@ -63,6 +63,7 @@ import {
 	hasData,
 	numIntDigits,
 	isUndef,
+	guessDec,
 } from './utils';
 
 import {
@@ -1006,6 +1007,13 @@ export default function uPlot(opts, data, then) {
 			axis.size   = fnOrSelf(axis.size);
 			axis.space  = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
+
+			if (isArr(axis.incrs)) {
+				axis.incrs.forEach(incr => {
+					!fixedDec.has(incr) && fixedDec.set(incr, guessDec(incr));
+				});
+			}
+
 			axis.incrs  = fnOrSelf(axis.incrs  || (          sc.distr == 2 ? wholeIncrs : (isTime ? (ms == 1 ? timeIncrsMs : timeIncrsS) : numIncrs)));
 			axis.splits = fnOrSelf(axis.splits || (isTime && sc.distr == 1 ? _timeAxisSplits : sc.distr == 3 ? logAxisSplits : sc.distr == 4 ? asinhAxisSplits : numAxisSplits));
 
