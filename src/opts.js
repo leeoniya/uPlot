@@ -488,7 +488,7 @@ const border = assign({}, axisLines, {
 
 const font      = '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
 const labelFont = "bold " + font;
-export const lineMult = 1.5;		// font-size multiplier
+const lineGap = 1.5;	// font-size multiplier
 
 export const xAxisOpts = {
 	show: true,
@@ -509,6 +509,7 @@ export const xAxisOpts = {
 	ticks,
 	border,
 	font,
+	lineGap,
 	rotate: 0,
 };
 
@@ -642,6 +643,7 @@ export const yAxisOpts = {
 	ticks,
 	border,
 	font,
+	lineGap,
 	rotate: 0,
 };
 

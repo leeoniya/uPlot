@@ -1282,7 +1282,7 @@ var uPlot = (function () {
 
 	const font      = '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
 	const labelFont = "bold " + font;
-	const lineMult = 1.5;		// font-size multiplier
+	const lineGap = 1.5;	// font-size multiplier
 
 	const xAxisOpts = {
 		show: true,
@@ -1303,6 +1303,7 @@ var uPlot = (function () {
 		ticks,
 		border,
 		font,
+		lineGap,
 		rotate: 0,
 	};
 
@@ -1436,6 +1437,7 @@ var uPlot = (function () {
 		ticks,
 		border,
 		font,
+		lineGap,
 		rotate: 0,
 	};
 
@@ -4217,7 +4219,7 @@ var uPlot = (function () {
 
 				setFontStyle(font, fillStyle, textAlign, textBaseline);
 
-				let lineHeight = axis.font[1] * lineMult;
+				let lineHeight = axis.font[1] * axis.lineGap;
 
 				let canOffs = _splits.map(val => pxRound(getPos(val, scale, plotDim, plotOff)));
 

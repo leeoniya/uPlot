@@ -136,7 +136,6 @@ import {
 } from './fmtDate';
 
 import {
-	lineMult,
 	ptDia,
 	cursorOpts,
 
@@ -1842,7 +1841,7 @@ export default function uPlot(opts, data, then) {
 
 			setFontStyle(font, fillStyle, textAlign, textBaseline);
 
-			let lineHeight = axis.font[1] * lineMult;
+			let lineHeight = axis.font[1] * axis.lineGap;
 
 			let canOffs = _splits.map(val => pxRound(getPos(val, scale, plotDim, plotOff)));
 

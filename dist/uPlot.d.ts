@@ -1019,6 +1019,9 @@ declare namespace uPlot {
 		/** font used for axis values */
 		font?: CanvasRenderingContext2D['font'];
 
+		/** font-size multiplier for multi-line axis values (similar to CSS line-height: 1.5em) */
+		lineGap?: number; // 1.5
+
 		/** color of axis label & values */
 		stroke?: Axis.Stroke;
 
