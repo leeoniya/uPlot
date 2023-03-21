@@ -48,7 +48,6 @@
 
 			function makeChart(data) {
 				console.time('chart');
-
 				const {
 					lightningChart,
 					SolidLine,
@@ -56,11 +55,16 @@
 					ColorRGBA,
 					AxisTickStrategies,
 					UIOrigins,
+					Themes,
+					disableThemeEffects
 				} = lcjs;
 
 				const dateOrigin = new Date(1566453600000);
 
-				const chart = lightningChart().ChartXY();
+				const chart = lightningChart().ChartXY({
+					// Glow and shadow effects are visual candy that are not used for best performance benchmarks. Effect may be some tens of milliseconds slower initial loading and increased GPU use in real-time tests
+					theme: disableThemeEffects(Themes.darkGold)
+				});
 
 				chart.getDefaultAxisX().setTickStrategy(AxisTickStrategies.DateTime, tickStrategy => tickStrategy.setDateOrigin(dateOrigin));
 				chart.getDefaultAxisX().setAnimationScroll(undefined);
@@ -73,21 +77,21 @@
 				const customStrokeStyle2 = new SolidLine({ fillStyle: new SolidFill({ color: ColorRGBA(0, 255, 0) }), thickness: 1 });
 
 				chart.addLineSeries({
-					dataPattern: 'ProgressiveX'
+					dataPattern: {pattern: 'ProgressiveX'}
 				})
 				.setName('CPU')
 				.setStrokeStyle(customStrokeStyle0)
 				.add(data[0]);
 
 				chart.addLineSeries({
-					dataPattern: 'ProgressiveX'
+					dataPattern: {pattern: 'ProgressiveX'}
 				})
 				.setName('RAM')
 				.setStrokeStyle(customStrokeStyle1)
 				.add(data[1]);
 
 				chart.addLineSeries({
-					dataPattern: 'ProgressiveX'
+					dataPattern: {pattern: 'ProgressiveX'}
 				})
 				.setName('TCP')
 				.setStrokeStyle(customStrokeStyle2)
