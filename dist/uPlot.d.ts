@@ -492,7 +492,9 @@ declare namespace uPlot {
 
 			export type ScaleKeyMatcher = (subScaleKey: string | null, pubScaleKey: string | null) => boolean;
 
-			export type Match = [matchX: ScaleKeyMatcher, matchY: ScaleKeyMatcher];
+			export type SeriesIdxMatcher = (sub: uPlot, pub: uPlot, pubSeriesIdx: number) => number | null;
+
+			export type Match = [matchX: ScaleKeyMatcher, matchY: ScaleKeyMatcher, matchSeries, matchSeriesIdx?: SeriesIdxMatcher];
 
 			export type Values = [xScaleValue: number, yScaleValue: number];
 		}
@@ -504,7 +506,7 @@ declare namespace uPlot {
 			setSeries?: boolean; // true
 			/** sets the x and y scales to sync by values. null will sync by relative (%) position */
 			scales?: Sync.Scales; // [xScaleKey, null]
-			/** fns that match x and y scale keys between publisher and subscriber */
+			/** fns that match x and y scale keys and seriesIdxs between publisher and subscriber */
 			match?: Sync.Match;
 			/** event filters */
 			filters?: Sync.Filters;

@@ -3025,7 +3025,9 @@ export default function uPlot(opts, data, then) {
 	events.mouseup = mouseUp;
 	events.dblclick = dblClick;
 	events["setSeries"] = (e, src, idx, opts) => {
-		setSeries(idx, opts, true, false);
+		let seriesIdxMatcher = syncOpts.match[2];
+		idx = seriesIdxMatcher(self, src, idx);
+		idx != -1 && setSeries(idx, opts, true, false);
 	};
 
 	if (FEAT_CURSOR && cursor.show) {
@@ -3057,6 +3059,8 @@ export default function uPlot(opts, data, then) {
 			hooks[evName] = (hooks[evName] || []).concat(p.hooks[evName]);
 	});
 
+	const seriesIdxMatcher = (self, src, srcSeriesIdx) => srcSeriesIdx;
+
 	const syncOpts = FEAT_CURSOR && assign({
 		key: null,
 		setSeries: false,
@@ -3065,9 +3069,14 @@ export default function uPlot(opts, data, then) {
 			sub: retTrue,
 		},
 		scales: [xScaleKey, series[1] ? series[1].scale : null],
-		match: [retEq, retEq],
+		match: [retEq, retEq, seriesIdxMatcher],
 		values: [null, null],
 	}, cursor.sync);
+
+	if (FEAT_CURSOR) {
+		if (syncOpts.match.length == 2)
+			syncOpts.match.push(seriesIdxMatcher);
+	}
 
 	FEAT_CURSOR && (cursor.sync = syncOpts);
 

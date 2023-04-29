@@ -5425,7 +5425,9 @@ var uPlot = (function () {
 		events.mouseup = mouseUp;
 		events.dblclick = dblClick;
 		events["setSeries"] = (e, src, idx, opts) => {
-			setSeries(idx, opts, true, false);
+			let seriesIdxMatcher = syncOpts.match[2];
+			idx = seriesIdxMatcher(self, src, idx);
+			idx != -1 && setSeries(idx, opts, true, false);
 		};
 
 		if (cursor.show) {
@@ -5457,6 +5459,8 @@ var uPlot = (function () {
 				hooks[evName] = (hooks[evName] || []).concat(p.hooks[evName]);
 		});
 
+		const seriesIdxMatcher = (self, src, srcSeriesIdx) => srcSeriesIdx;
+
 		const syncOpts = assign({
 			key: null,
 			setSeries: false,
@@ -5465,9 +5469,14 @@ var uPlot = (function () {
 				sub: retTrue,
 			},
 			scales: [xScaleKey, series[1] ? series[1].scale : null],
-			match: [retEq, retEq],
+			match: [retEq, retEq, seriesIdxMatcher],
 			values: [null, null],
 		}, cursor.sync);
+
+		{
+			if (syncOpts.match.length == 2)
+				syncOpts.match.push(seriesIdxMatcher);
+		}
 
 		(cursor.sync = syncOpts);
 
