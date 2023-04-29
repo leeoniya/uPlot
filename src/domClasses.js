@@ -16,7 +16,6 @@ export const CURSOR_PT      = pre + "cursor-pt";
 export const LEGEND         = pre + "legend"
 export const LEGEND_LIVE    = pre + "live";
 export const LEGEND_INLINE  = pre + "inline";
-export const LEGEND_THEAD   = pre + "thead";
 export const LEGEND_SERIES  = pre + "series";
 export const LEGEND_MARKER  = pre + "marker";
 export const LEGEND_LABEL   = pre + "label";

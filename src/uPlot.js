@@ -105,7 +105,6 @@ import {
 	LEGEND,
 	LEGEND_LIVE,
 	LEGEND_INLINE,
-	LEGEND_THEAD,
 	LEGEND_SERIES,
 	LEGEND_MARKER,
 	LEGEND_LABEL,
@@ -549,7 +548,9 @@ export default function uPlot(opts, data, then) {
 		markers.fill   = fnOrSelf(markers.fill);
 	}
 
-	let legendEl;
+	let legendTable;
+	let legendHead;
+	let legendBody;
 	let legendRows = [];
 	let legendCells = [];
 	let legendCols;
@@ -566,20 +567,24 @@ export default function uPlot(opts, data, then) {
 	}
 
 	if (showLegend) {
-		legendEl = placeTag("table", LEGEND, root);
+		legendTable = placeTag("table", LEGEND, root);
+		legendBody = placeTag("tbody", null, legendTable);
 
-		legend.mount(self, legendEl);
+		// allows legend to be moved out of root
+		legend.mount(self, legendTable);
 
 		if (multiValLegend) {
-			let head = placeTag("tr", LEGEND_THEAD, legendEl);
+			legendHead = placeTag("thead", null, legendTable, legendBody);
+
+			let head = placeTag("tr", null, legendHead);
 			placeTag("th", null, head);
 
 			for (var key in legendCols)
 				placeTag("th", LEGEND_LABEL, head).textContent = key;
 		}
 		else {
-			addClass(legendEl, LEGEND_INLINE);
-			legend.live && addClass(legendEl, LEGEND_LIVE);
+			addClass(legendTable, LEGEND_INLINE);
+			legend.live && addClass(legendTable, LEGEND_LIVE);
 		}
 	}
 
@@ -592,7 +597,7 @@ export default function uPlot(opts, data, then) {
 
 		let cells = [];
 
-		let row = placeTag("tr", LEGEND_SERIES, legendEl, legendEl.childNodes[i]);
+		let row = placeTag("tr", LEGEND_SERIES, legendBody, legendBody.childNodes[i]);
 
 		addClass(row, s.class);
 
@@ -2283,7 +2288,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	if (showLegend && cursorFocus) {
-		on(mouseleave, legendEl, e => {
+		on(mouseleave, legendTable, e => {
 			if (cursor._lock)
 				return;
 
@@ -3090,7 +3095,7 @@ export default function uPlot(opts, data, then) {
 		mouseListeners.clear();
 		off(dppxchange, win, syncPxRatio);
 		root.remove();
-		FEAT_LEGEND && legendEl?.remove(); // in case mounted outside of root
+		FEAT_LEGEND && legendTable?.remove(); // in case mounted outside of root
 		fire("destroy");
 	}
 
