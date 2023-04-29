@@ -23,6 +23,7 @@ import {
 
 	retArg1,
 	noop,
+	ceil,
 } from './utils';
 
 import {
@@ -596,13 +597,15 @@ const RE_12357 = /[12357]/;
 const RE_125   = /[125]/;
 const RE_1     = /1/;
 
+const _filt = (splits, distr, re, keepMod) => splits.map((v, i) => ((distr == 4 && v == 0) || i % keepMod == 0 && re.test(v.toExponential()[0])) ? v : null);
+
 export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
 	let sc = self.scales[scaleKey];
 
-	if (sc.distr == 3 && sc.log == 2)
-		return splits;
+//	if (sc.distr == 3 && sc.log == 2)
+//		return splits;
 
 	let valToPos = self.valToPos;
 
@@ -617,7 +620,28 @@ export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) 
 		RE_1
 	);
 
-	return splits.map(v => ((sc.distr == 4 && v == 0) || re.test(v.toExponential()[0])) ? v : null);
+	if (re == RE_1) {
+		let magSpace = abs(valToPos(1, scaleKey) - _10);
+
+		if (magSpace < minSpace)
+			return _filt(splits.slice().reverse(), sc.distr, re, ceil(minSpace / magSpace)).reverse(); // max->min skip
+	}
+
+	return _filt(splits, sc.distr, re, 1);
+}
+
+export function log2AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
+	let axis = self.axes[axisIdx];
+	let scaleKey = axis.scale;
+	let minSpace = axis._space;
+	let valToPos = self.valToPos;
+
+	let magSpace = abs(valToPos(1, scaleKey) - valToPos(2, scaleKey));
+
+	if (magSpace < minSpace)
+		return _filt(splits.slice().reverse(), 3, RE_ALL, ceil(minSpace / magSpace)).reverse(); // max->min skip
+
+	return splits;
 }
 
 export function numSeriesVal(self, val, seriesIdx, dataIdx) {

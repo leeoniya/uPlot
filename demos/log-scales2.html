@@ -106,6 +106,9 @@
 					{
 						size: 80,
 						values: (self, splits) => splits.map(v => {
+							if (v == null)
+								return '';
+
 							let exp = Math.log2(v);
 							let aexp = Math.abs(exp);
 							let supExp = ("" + aexp).split("").map(s => sups[+s]).join("");
@@ -277,6 +280,69 @@
 			];
 
 			let u4 = new uPlot(opts4, data4, document.body);
+
+
+			const opts7 = {
+				width: 800,
+				height: 300,
+				title: "Skip ticks log10",
+				scales: {
+					x: {
+						time: false,
+					},
+					y: {
+						distr: 3,
+						log: 10,
+						range: [1e-14, 1e14]
+					},
+				},
+				axes: [
+					{},
+					{
+						values: (u, splits) => splits.map(v => v == null ? '' : v.toExponential()),
+					}
+				],
+				series: [
+					{},
+					{stroke: 'red', value: (u, v) => v == null ? '--' : v.toExponential()},
+				],
+			};
+
+			let u7 = new uPlot(opts7, [
+				[0, 1],
+				[1e-14, 1e14],
+			], document.body);
+
+			const opts8 = {
+				width: 800,
+				height: 300,
+				title: "Skip ticks log2",
+				scales: {
+					x: {
+						time: false,
+					},
+					y: {
+						distr: 3,
+						log: 2,
+						range: [2 ** -10, 2 ** 20]
+					}
+				},
+				axes: [
+					{},
+					{
+						values: (u, splits) => splits.map(v => v == null ? '' : '2^' + Math.log2(v)),
+					}
+				],
+				series: [
+					{},
+					{stroke: 'blue', value: (u, v) => v == null ? '--' : v.toExponential()},
+				],
+			};
+
+			let u8 = new uPlot(opts8, [
+				[0, 1],
+				[2 ** -10, 2 ** 20],
+			], document.body);
 		</script>
 	</body>
 </html>
