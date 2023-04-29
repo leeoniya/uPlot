@@ -274,11 +274,11 @@
 			setTimeout(() => {
 				document.body.appendChild(document.createElement('hr'));
 
-				const matchSeriesIdxs = (sub, pub, pubseriesIdx) => {
-					if (pubseriesIdx == null)
+				const matchSeriesIdxs = (sub, pub, pubSeriesIdx) => {
+					if (pubSeriesIdx == null)
 						return null;
 
-					const pubSeriesLabel = pub.series[pubseriesIdx].label;
+					const pubSeriesLabel = pub.series[pubSeriesIdx].label;
 
 					return sub.series.findIndex(s => s.label == pubSeriesLabel);
 				};
