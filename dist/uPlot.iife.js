@@ -1411,7 +1411,7 @@ var uPlot = (function () {
 			RE_1
 		);
 
-		return splits.map(v => ((sc.distr == 4 && v == 0) || re.test(v)) ? v : null);
+		return splits.map(v => ((sc.distr == 4 && v == 0) || re.test(v.toExponential()[0])) ? v : null);
 	}
 
 	function numSeriesVal(self, val, seriesIdx, dataIdx) {
