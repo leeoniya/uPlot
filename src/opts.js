@@ -617,7 +617,7 @@ export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) 
 		RE_1
 	);
 
-	return splits.map(v => ((sc.distr == 4 && v == 0) || re.test(v)) ? v : null);
+	return splits.map(v => ((sc.distr == 4 && v == 0) || re.test(v.toExponential()[0])) ? v : null);
 }
 
 export function numSeriesVal(self, val, seriesIdx, dataIdx) {
