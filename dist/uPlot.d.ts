@@ -494,7 +494,7 @@ declare namespace uPlot {
 
 			export type SeriesIdxMatcher = (sub: uPlot, pub: uPlot, pubSeriesIdx: number) => number | null;
 
-			export type Match = [matchX: ScaleKeyMatcher, matchY: ScaleKeyMatcher, matchSeries, matchSeriesIdx?: SeriesIdxMatcher];
+			export type Match = [matchX: ScaleKeyMatcher, matchY: ScaleKeyMatcher, matchSeriesIdx?: SeriesIdxMatcher];
 
 			export type Values = [xScaleValue: number, yScaleValue: number];
 		}
