@@ -1490,7 +1490,7 @@ export default function uPlot(opts, data, then) {
 		if (_points && fillStyle == null)
 			fillStyle = width > 0 ? "#fff" : strokeStyle;
 
-		let _pxAlign = s.pxAlign == 1;
+		let _pxAlign = s.pxAlign == 1 && offset > 0;
 
 		_pxAlign && ctx.translate(offset, offset);
 

@@ -87,6 +87,8 @@ export function bars(opts) {
 
 			let { x0, size } = disp;
 
+			let bandClipNulls = true;
+
 			if (x0 != null && size != null) {
 				dataX = x0.values(u, seriesIdx, idx0, idx1);
 
@@ -135,6 +137,12 @@ export function bars(opts) {
 				barWid = pxRound(min(maxWidth, max(minWidth, colWid - gapWid)) - strokeWidth - extraGap);
 
 				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * extraGap / 2;
+
+				// when colWidth is smaller than [min-clamped] bar width (e.g. aligned data values are non-uniform)
+				// disable clipping of null-valued band bars to avoid clip overlap / bleed into adjacent bars
+				// (this could still bleed clips of adjacent band/stacked bars into each other, so is far from perfect)
+				if (barWid > colWid)
+					bandClipNulls = false;
 			}
 
 			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
@@ -215,7 +223,7 @@ export function bars(opts) {
 					);
 				}
 
-				if (bandClipDir != 0) {
+				if (bandClipDir != 0 && (yVal != null || bandClipNulls)) {
 					if (_dirY * bandClipDir == 1) {
 						btm = top;
 						top = yLimit;
