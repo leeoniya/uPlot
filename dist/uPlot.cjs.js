@@ -3560,7 +3560,7 @@ function uPlot(opts, data, then) {
 			else
 				_setScale(xScaleKey, xsc.min, xsc.max);
 
-			shouldSetCursor = cursor.left >= 0;
+			shouldSetCursor = shouldSetCursor || cursor.left >= 0;
 			shouldSetLegend = true;
 			commit();
 		}
