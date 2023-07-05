@@ -5175,6 +5175,15 @@ function uPlot(opts, data, then) {
 
 	let rect = null;
 
+	Object.defineProperty(self, 'rect', {
+		get() {
+			if (rect == null)
+				syncRect();
+
+			return rect;
+		},
+	});
+
 	function syncRect(defer) {
 		if (defer === true)
 			rect = null;

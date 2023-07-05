@@ -24,6 +24,9 @@ declare class uPlot {
 	/** coords of plotting area in canvas pixels (relative to full canvas w/axes) */
 	readonly bbox: uPlot.BBox;
 
+	/** cached global DOMRect of plotting area in CSS pixels */
+	get rect(): DOMRect;
+
 	/** coords of selected region in CSS pixels (relative to plotting area) */
 	readonly select: uPlot.BBox;
 
