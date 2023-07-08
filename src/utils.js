@@ -47,9 +47,13 @@ export function getMinMax(data, _i0, _i1, sorted) {
 	}
 	else {
 		for (let i = _i0; i <= _i1; i++) {
-			if (data[i] != null) {
-				_min = min(_min, data[i]);
-				_max = max(_max, data[i]);
+			let v = data[i];
+
+			if (v != null) {
+				if (v < _min)
+					_min = v;
+				if (v > _max)
+					_max = v;
 			}
 		}
 	}
@@ -64,9 +68,13 @@ export function getMinMaxLog(data, _i0, _i1) {
 	let _max = -inf;
 
 	for (let i = _i0; i <= _i1; i++) {
-		if (data[i] > 0) {
-			_min = min(_min, data[i]);
-			_max = max(_max, data[i]);
+		let v = data[i];
+
+		if (v != null && v > 0) {
+			if (v < _min)
+				_min = v;
+			if (v > _max)
+				_max = v;
 		}
 	}
 
