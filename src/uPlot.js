@@ -344,8 +344,10 @@ export default function uPlot(opts, data, then) {
 	const wrap = placeDiv(WRAP, root);
 
 	FEAT_CURSOR && on("click", wrap, e => {
-		let didDrag = mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0;
-		didDrag && drag.click(self, e);
+		if (e.target === over) {
+			let didDrag = mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0;
+			didDrag && drag.click(self, e);
+		}
 	}, true);
 
 	const under = self.under = placeDiv(UNDER, wrap);
@@ -642,7 +644,7 @@ export default function uPlot(opts, data, then) {
 				}
 				else
 					setSeries(seriesIdx, {show: !s.show}, true, FEAT_CURSOR && syncOpts.setSeries);
-			});
+			}, false);
 
 			if (cursorFocus) {
 				onMouse(mouseenter, label, e => {
@@ -650,7 +652,7 @@ export default function uPlot(opts, data, then) {
 						return;
 
 					setSeries(series.indexOf(s), FOCUS_TRUE, true, syncOpts.setSeries);
-				});
+				}, false);
 			}
 		}
 
@@ -665,9 +667,9 @@ export default function uPlot(opts, data, then) {
 
 	const mouseListeners = new Map();
 
-	function onMouse(ev, targ, fn) {
+	function onMouse(ev, targ, fn, onlyTarg = true) {
 		const targListeners = mouseListeners.get(targ) || {};
-		const listener = cursor.bind[ev](self, targ, fn);
+		const listener = cursor.bind[ev](self, targ, fn, onlyTarg);
 
 		if (listener) {
 			on(ev, targ, targListeners[ev] = listener);
@@ -2288,7 +2290,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	if (showLegend && cursorFocus) {
-		on(mouseleave, legendTable, e => {
+		onMouse(mouseleave, legendTable, e => {
 			if (cursor._lock)
 				return;
 
@@ -2892,7 +2894,7 @@ export default function uPlot(opts, data, then) {
 		cacheMouse(e, src, _l, _t, _w, _h, _i, true, false);
 
 		if (e != null) {
-			onMouse(mouseup, doc, mouseUp);
+			onMouse(mouseup, doc, mouseUp, false);
 			pubSync(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
 		}
 	}

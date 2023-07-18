@@ -1206,14 +1206,16 @@ var uPlot = (function () {
 		return moveTuple;
 	}
 
-	function filtBtn0(self, targ, handle) {
+	function filtBtn0(self, targ, handle, onlyTarg = true) {
 		return e => {
-			e.button == 0 && handle(e);
+			e.button == 0 && (!onlyTarg || e.target == targ) && handle(e);
 		};
 	}
 
-	function passThru(self, targ, handle) {
-		return handle;
+	function filtTarg(self, targ, handle, onlyTarg = true) {
+		return e => {
+			(!onlyTarg || e.target == targ) && handle(e);
+		};
 	}
 
 	const cursorOpts = {
@@ -1233,12 +1235,12 @@ var uPlot = (function () {
 		bind: {
 			mousedown:   filtBtn0,
 			mouseup:     filtBtn0,
-			click:       filtBtn0,
+			click:       filtBtn0, // legend clicks, not .u-over clicks
 			dblclick:    filtBtn0,
 
-			mousemove:   passThru,
-			mouseleave:  passThru,
-			mouseenter:  passThru,
+			mousemove:   filtTarg,
+			mouseleave:  filtTarg,
+			mouseenter:  filtTarg,
 		},
 
 		drag: {
@@ -2764,8 +2766,10 @@ var uPlot = (function () {
 		const wrap = placeDiv(WRAP, root);
 
 		on("click", wrap, e => {
-			let didDrag = mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0;
-			didDrag && drag.click(self, e);
+			if (e.target === over) {
+				let didDrag = mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0;
+				didDrag && drag.click(self, e);
+			}
 		}, true);
 
 		const under = self.under = placeDiv(UNDER, wrap);
@@ -3058,7 +3062,7 @@ var uPlot = (function () {
 					}
 					else
 						setSeries(seriesIdx, {show: !s.show}, true, syncOpts.setSeries);
-				});
+				}, false);
 
 				if (cursorFocus) {
 					onMouse(mouseenter, label, e => {
@@ -3066,7 +3070,7 @@ var uPlot = (function () {
 							return;
 
 						setSeries(series.indexOf(s), FOCUS_TRUE, true, syncOpts.setSeries);
-					});
+					}, false);
 				}
 			}
 
@@ -3081,9 +3085,9 @@ var uPlot = (function () {
 
 		const mouseListeners = new Map();
 
-		function onMouse(ev, targ, fn) {
+		function onMouse(ev, targ, fn, onlyTarg = true) {
 			const targListeners = mouseListeners.get(targ) || {};
-			const listener = cursor.bind[ev](self, targ, fn);
+			const listener = cursor.bind[ev](self, targ, fn, onlyTarg);
 
 			if (listener) {
 				on(ev, targ, targListeners[ev] = listener);
@@ -4704,7 +4708,7 @@ var uPlot = (function () {
 		}
 
 		if (showLegend && cursorFocus) {
-			on(mouseleave, legendTable, e => {
+			onMouse(mouseleave, legendTable, e => {
 				if (cursor._lock)
 					return;
 
@@ -5308,7 +5312,7 @@ var uPlot = (function () {
 			cacheMouse(e, src, _l, _t, _w, _h, _i, true, false);
 
 			if (e != null) {
-				onMouse(mouseup, doc, mouseUp);
+				onMouse(mouseup, doc, mouseUp, false);
 				pubSync(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
 			}
 		}

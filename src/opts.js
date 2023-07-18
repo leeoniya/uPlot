@@ -406,14 +406,16 @@ function cursorMove(self, mouseLeft1, mouseTop1) {
 	return moveTuple;
 }
 
-function filtBtn0(self, targ, handle) {
+function filtBtn0(self, targ, handle, onlyTarg = true) {
 	return e => {
-		e.button == 0 && handle(e);
+		e.button == 0 && (!onlyTarg || e.target == targ) && handle(e);
 	};
 }
 
-function passThru(self, targ, handle) {
-	return handle;
+function filtTarg(self, targ, handle, onlyTarg = true) {
+	return e => {
+		(!onlyTarg || e.target == targ) && handle(e);
+	};
 }
 
 export const cursorOpts = {
@@ -433,12 +435,12 @@ export const cursorOpts = {
 	bind: {
 		mousedown:   filtBtn0,
 		mouseup:     filtBtn0,
-		click:       filtBtn0,
+		click:       filtBtn0, // legend clicks, not .u-over clicks
 		dblclick:    filtBtn0,
 
-		mousemove:   passThru,
-		mouseleave:  passThru,
-		mouseenter:  passThru,
+		mousemove:   filtTarg,
+		mouseleave:  filtTarg,
+		mouseenter:  filtTarg,
 	},
 
 	drag: {
