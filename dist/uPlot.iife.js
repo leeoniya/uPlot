@@ -639,6 +639,20 @@ var uPlot = (function () {
 	// nullModes is a tables-matched array indicating how to treat nulls in each series
 	// output is sorted ASC on the joined field (table[0]) and duplicate join values are collapsed
 	function join(tables, nullModes) {
+		if (allHeadersSame(tables)) {
+		//	console.log('cheap join!');
+
+			let table = tables[0].slice();
+
+			for (let i = 1; i < tables.length; i++)
+				table.push(...tables[i].slice(1));
+
+			if (!isAsc(table[0]))
+				table = sortCols(table);
+
+			return table;
+		}
+
 		let xVals = new Set();
 
 		for (let ti = 0; ti < tables.length; ti++) {
@@ -698,6 +712,90 @@ var uPlot = (function () {
 	}
 
 	const microTask = typeof queueMicrotask == "undefined" ? fn => Promise.resolve().then(fn) : queueMicrotask;
+
+	// TODO: https://github.com/dy/sort-ids (~2x faster for 1e5+ arrays)
+	function sortCols(table) {
+		let head = table[0];
+		let rlen = head.length;
+
+		let idxs = Array(rlen);
+		for (let i = 0; i < idxs.length; i++)
+			idxs[i] = i;
+
+		idxs.sort((i0, i1) => head[i0] - head[i1]);
+
+		let table2 = [];
+		for (let i = 0; i < table.length; i++) {
+			let row = table[i];
+			let row2 = Array(rlen);
+
+			for (let j = 0; j < rlen; j++)
+				row2[j] = row[idxs[j]];
+
+			table2.push(row2);
+		}
+
+		return table2;
+	}
+
+	// test if we can do cheap join (all join fields same)
+	function allHeadersSame(tables) {
+		let vals0 = tables[0][0];
+		let len0 = vals0.length;
+
+		for (let i = 1; i < tables.length; i++) {
+			let vals1 = tables[i][0];
+
+			if (vals1.length != len0)
+				return false;
+
+			if (vals1 != vals0) {
+				for (let j = 0; j < len0; j++) {
+					if (vals1[j] != vals0[j])
+						return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	function isAsc(vals, samples = 100) {
+		const len = vals.length;
+
+		// empty or single value
+		if (len <= 1)
+			return true;
+
+		// skip leading & trailing nullish
+		let firstIdx = 0;
+		let lastIdx = len - 1;
+
+		while (firstIdx <= lastIdx && vals[firstIdx] == null)
+			firstIdx++;
+
+		while (lastIdx >= firstIdx && vals[lastIdx] == null)
+			lastIdx--;
+
+		// all nullish or one value surrounded by nullish
+		if (lastIdx <= firstIdx)
+			return true;
+
+		const stride = max(1, floor((lastIdx - firstIdx + 1) / samples));
+
+		for (let prevVal = vals[firstIdx], i = firstIdx + stride; i <= lastIdx; i += stride) {
+			const v = vals[i];
+
+			if (v != null) {
+				if (v <= prevVal)
+					return false;
+
+				prevVal = v;
+			}
+		}
+
+		return true;
+	}
 
 	const months = [
 		"January",
