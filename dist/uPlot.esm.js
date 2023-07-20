@@ -5295,14 +5295,14 @@ function uPlot(opts, data, then) {
 	Object.defineProperty(self, 'rect', {
 		get() {
 			if (rect == null)
-				syncRect();
+				syncRect(false);
 
 			return rect;
 		},
 	});
 
-	function syncRect(defer) {
-		if (defer === true)
+	function syncRect(defer = false) {
+		if (defer)
 			rect = null;
 		else {
 			rect = over.getBoundingClientRect();
@@ -5578,7 +5578,7 @@ function uPlot(opts, data, then) {
 		onMouse(mousemove,  over, mouseMove);
 		onMouse(mouseenter, over, e => {
 			setCursorEvent(e);
-			syncRect();
+			syncRect(false);
 		});
 		onMouse(mouseleave, over, mouseLeave);
 
