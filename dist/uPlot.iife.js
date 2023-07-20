@@ -1366,6 +1366,8 @@ var uPlot = (function () {
 		idx: null,
 		dataIdx,
 		idxs: null,
+
+		event: null,
 	};
 
 	const axisLines = {
@@ -3148,6 +3150,8 @@ var uPlot = (function () {
 					if (cursor._lock)
 						return;
 
+					setCursorEvent(e);
+
 					let seriesIdx = series.indexOf(s);
 
 					if ((e.ctrlKey || e.metaKey) != legend.isolate) {
@@ -3166,6 +3170,8 @@ var uPlot = (function () {
 					onMouse(mouseenter, label, e => {
 						if (cursor._lock)
 							return;
+
+						setCursorEvent(e);
 
 						setSeries(series.indexOf(s), FOCUS_TRUE, true, syncOpts.setSeries);
 					}, false);
@@ -3380,6 +3386,7 @@ var uPlot = (function () {
 		}
 
 		const cursor = (self.cursor = assign({}, cursorOpts, {drag: {y: mode == 2}}, opts.cursor));
+		const setCursorEvent = e => { cursor.event = e; };
 
 		{
 			cursor.idxs = activeIdxs;
@@ -4810,6 +4817,8 @@ var uPlot = (function () {
 				if (cursor._lock)
 					return;
 
+				setCursorEvent(e);
+
 				if (focusedSeries != null)
 					setSeries(null, FOCUS_TRUE, true, syncOpts.setSeries);
 			});
@@ -5328,6 +5337,8 @@ var uPlot = (function () {
 			if (rect == null)
 				syncRect(false);
 
+			setCursorEvent(e);
+
 			if (e != null) {
 				_l = e.clientX - rect.left;
 				_t = e.clientY - rect.top;
@@ -5480,55 +5491,63 @@ var uPlot = (function () {
 		}
 
 		function mouseLeave(e, src, _l, _t, _w, _h, _i) {
-			if (!cursor._lock) {
-				let _dragging = dragging;
+			if (cursor._lock)
+				return;
 
-				if (dragging) {
-					// handle case when mousemove aren't fired all the way to edges by browser
-					let snapH = true;
-					let snapV = true;
-					let snapProx = 10;
+			setCursorEvent(e);
 
-					let dragH, dragV;
+			let _dragging = dragging;
 
-					if (scaleX.ori == 0) {
-						dragH = dragX;
-						dragV = dragY;
-					}
-					else {
-						dragH = dragY;
-						dragV = dragX;
-					}
+			if (dragging) {
+				// handle case when mousemove aren't fired all the way to edges by browser
+				let snapH = true;
+				let snapV = true;
+				let snapProx = 10;
 
-					if (dragH && dragV) {
-						// maybe omni corner snap
-						snapH = mouseLeft1 <= snapProx || mouseLeft1 >= plotWidCss - snapProx;
-						snapV = mouseTop1  <= snapProx || mouseTop1  >= plotHgtCss - snapProx;
-					}
+				let dragH, dragV;
 
-					if (dragH && snapH)
-						mouseLeft1 = mouseLeft1 < mouseLeft0 ? 0 : plotWidCss;
-
-					if (dragV && snapV)
-						mouseTop1 = mouseTop1 < mouseTop0 ? 0 : plotHgtCss;
-
-					updateCursor(null, true, true);
-
-					dragging = false;
+				if (scaleX.ori == 0) {
+					dragH = dragX;
+					dragV = dragY;
+				}
+				else {
+					dragH = dragY;
+					dragV = dragX;
 				}
 
-				mouseLeft1 = -10;
-				mouseTop1 = -10;
+				if (dragH && dragV) {
+					// maybe omni corner snap
+					snapH = mouseLeft1 <= snapProx || mouseLeft1 >= plotWidCss - snapProx;
+					snapV = mouseTop1  <= snapProx || mouseTop1  >= plotHgtCss - snapProx;
+				}
 
-				// passing a non-null timestamp to force sync/mousemove event
+				if (dragH && snapH)
+					mouseLeft1 = mouseLeft1 < mouseLeft0 ? 0 : plotWidCss;
+
+				if (dragV && snapV)
+					mouseTop1 = mouseTop1 < mouseTop0 ? 0 : plotHgtCss;
+
 				updateCursor(null, true, true);
 
-				if (_dragging)
-					dragging = _dragging;
+				dragging = false;
 			}
+
+			mouseLeft1 = -10;
+			mouseTop1 = -10;
+
+			// passing a non-null timestamp to force sync/mousemove event
+			updateCursor(null, true, true);
+
+			if (_dragging)
+				dragging = _dragging;
 		}
 
 		function dblClick(e, src, _l, _t, _w, _h, _i) {
+			if (cursor._lock)
+				return;
+
+			setCursorEvent(e);
+
 			autoScaleX();
 
 			hideSelect();
@@ -5560,7 +5579,10 @@ var uPlot = (function () {
 		if (cursor.show) {
 			onMouse(mousedown,  over, mouseDown);
 			onMouse(mousemove,  over, mouseMove);
-			onMouse(mouseenter, over, syncRect);
+			onMouse(mouseenter, over, e => {
+				setCursorEvent(e);
+				syncRect();
+			});
 			onMouse(mouseleave, over, mouseLeave);
 
 			onMouse(dblclick, over, dblClick);

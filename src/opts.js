@@ -468,6 +468,8 @@ export const cursorOpts = {
 	idx: null,
 	dataIdx,
 	idxs: null,
+
+	event: null,
 };
 
 const axisLines = {

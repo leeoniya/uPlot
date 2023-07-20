@@ -576,6 +576,9 @@ declare namespace uPlot {
 
 		/** lock cursor on mouse click in plotting area */
 		lock?: boolean; // false
+
+		/** the most recent mouse event */
+		event?: MouseEvent;
 	}
 
 	export namespace Scale {
