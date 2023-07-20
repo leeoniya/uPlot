@@ -384,6 +384,15 @@ export function isStr(v) {
 	return typeof v == 'string';
 }
 
+export function cmpObj(a, b) {
+	for (let k in a) {
+		if (b[k] != a[k])
+			return false;
+	}
+
+	return true;
+}
+
 export function isObj(v) {
 	let is = false;
 

@@ -5412,6 +5412,11 @@ var uPlot = (function () {
 			setSelect(_hideProps, false);
 		}
 
+		let downSelectLeft;
+		let downSelectTop;
+		let downSelectWidth;
+		let downSelectHeight;
+
 		function mouseDown(e, src, _l, _t, _w, _h, _i) {
 			dragging = true;
 			dragX = dragY = drag._x = drag._y = false;
@@ -5422,6 +5427,15 @@ var uPlot = (function () {
 				onMouse(mouseup, doc, mouseUp, false);
 				pubSync(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
 			}
+
+			let { left, top, width, height } = select;
+
+			downSelectLeft   = left;
+			downSelectTop    = top;
+			downSelectWidth  = width;
+			downSelectHeight = height;
+
+			hideSelect();
 		}
 
 		function mouseUp(e, src, _l, _t, _w, _h, _i) {
@@ -5432,10 +5446,16 @@ var uPlot = (function () {
 			let { left, top, width, height } = select;
 
 			let hasSelect = width > 0 || height > 0;
+			let chgSelect = (
+				downSelectLeft   != left   ||
+				downSelectTop    != top    ||
+				downSelectWidth  != width  ||
+				downSelectHeight != height
+			);
 
-			hasSelect && setSelect(select);
+			hasSelect && chgSelect && setSelect(select);
 
-			if (drag.setScale && hasSelect) {
+			if (drag.setScale && hasSelect && chgSelect) {
 			//	if (syncKey != null) {
 			//		dragX = drag.x;
 			//		dragY = drag.y;
