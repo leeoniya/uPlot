@@ -3384,22 +3384,20 @@ function uPlot(opts, data, then) {
 		});
 	}
 
-	const cursor = (self.cursor = assign({}, cursorOpts, {drag: {y: mode == 2}}, opts.cursor));
+	const cursor = self.cursor = assign({}, cursorOpts, {drag: {y: mode == 2}}, opts.cursor);
 	const setCursorEvent = e => { cursor.event = e; };
 
-	{
-		cursor.idxs = activeIdxs;
+	cursor.idxs = activeIdxs;
 
-		cursor._lock = false;
+	cursor._lock = false;
 
-		let points = cursor.points;
+	let points = cursor.points;
 
-		points.show   = fnOrSelf(points.show);
-		points.size   = fnOrSelf(points.size);
-		points.stroke = fnOrSelf(points.stroke);
-		points.width  = fnOrSelf(points.width);
-		points.fill   = fnOrSelf(points.fill);
-	}
+	points.show   = fnOrSelf(points.show);
+	points.size   = fnOrSelf(points.size);
+	points.stroke = fnOrSelf(points.stroke);
+	points.width  = fnOrSelf(points.width);
+	points.fill   = fnOrSelf(points.fill);
 
 	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, cursor.focus);
 
@@ -4882,12 +4880,12 @@ function uPlot(opts, data, then) {
 
 	self.batch = batch;
 
-	(self.setCursor = (opts, _fire, _pub) => {
+	self.setCursor = (opts, _fire, _pub) => {
 		mouseLeft1 = opts.left;
 		mouseTop1 = opts.top;
 	//	assign(cursor, opts);
 		updateCursor(null, _fire, _pub);
-	});
+	};
 
 	function setSelH(off, dim) {
 		setStylePx(selectDiv, LEFT,  select.left = off);
@@ -5621,12 +5619,10 @@ function uPlot(opts, data, then) {
 		values: [null, null],
 	}, cursor.sync);
 
-	{
-		if (syncOpts.match.length == 2)
-			syncOpts.match.push(seriesIdxMatcher);
-	}
+	if (syncOpts.match.length == 2)
+		syncOpts.match.push(seriesIdxMatcher);
 
-	(cursor.sync = syncOpts);
+	cursor.sync = syncOpts;
 
 	const syncKey = syncOpts.key;
 
@@ -5644,7 +5640,7 @@ function uPlot(opts, data, then) {
 			events[type](null, src, x, y, w, h, i);
 	}
 
-	(self.pub = pub);
+	self.pub = pub;
 
 	function destroy() {
 		sync.unsub(self);
@@ -5709,9 +5705,7 @@ uPlot.pxRatio = pxRatio;
 	uPlot.tzDate  = tzDate;
 }
 
-{
-	uPlot.sync = _sync;
-}
+uPlot.sync = _sync;
 
 {
 	uPlot.addGap = addGap;

@@ -1,6 +1,5 @@
 import {
 	FEAT_TIME,
-	FEAT_CURSOR,
 	FEAT_LEGEND,
 
 	FEAT_POINTS,
@@ -343,7 +342,7 @@ export default function uPlot(opts, data, then) {
 
 	const wrap = placeDiv(WRAP, root);
 
-	FEAT_CURSOR && on("click", wrap, e => {
+	on("click", wrap, e => {
 		if (e.target === over) {
 			let didDrag = mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0;
 			didDrag && drag.click(self, e);
@@ -629,7 +628,7 @@ export default function uPlot(opts, data, then) {
 				text.style.color = s.width > 0 ? markers.stroke(self, i) : markers.fill(self, i);
 
 			onMouse("click", label, e => {
-				if (FEAT_CURSOR && cursor._lock)
+				if (cursor._lock)
 					return;
 
 				setCursorEvent(e);
@@ -641,11 +640,11 @@ export default function uPlot(opts, data, then) {
 					let isolate = series.some((s, i) => i > 0 && i != seriesIdx && s.show);
 
 					series.forEach((s, i) => {
-						i > 0 && setSeries(i, isolate ? (i == seriesIdx ? son : soff) : son, true, FEAT_CURSOR && syncOpts.setSeries);
+						i > 0 && setSeries(i, isolate ? (i == seriesIdx ? son : soff) : son, true, syncOpts.setSeries);
 					});
 				}
 				else
-					setSeries(seriesIdx, {show: !s.show}, true, FEAT_CURSOR && syncOpts.setSeries);
+					setSeries(seriesIdx, {show: !s.show}, true, syncOpts.setSeries);
 			}, false);
 
 			if (cursorFocus) {
@@ -867,26 +866,24 @@ export default function uPlot(opts, data, then) {
 		});
 	}
 
-	const cursor = FEAT_CURSOR && (self.cursor = assign({}, cursorOpts, {drag: {y: mode == 2}}, opts.cursor));
+	const cursor = self.cursor = assign({}, cursorOpts, {drag: {y: mode == 2}}, opts.cursor);
 	const setCursorEvent = e => { cursor.event = e; };
 
-	if (FEAT_CURSOR) {
-		cursor.idxs = activeIdxs;
+	cursor.idxs = activeIdxs;
 
-		cursor._lock = false;
+	cursor._lock = false;
 
-		let points = cursor.points;
+	let points = cursor.points;
 
-		points.show   = fnOrSelf(points.show);
-		points.size   = fnOrSelf(points.size);
-		points.stroke = fnOrSelf(points.stroke);
-		points.width  = fnOrSelf(points.width);
-		points.fill   = fnOrSelf(points.fill);
-	}
+	points.show   = fnOrSelf(points.show);
+	points.size   = fnOrSelf(points.size);
+	points.stroke = fnOrSelf(points.stroke);
+	points.width  = fnOrSelf(points.width);
+	points.fill   = fnOrSelf(points.fill);
 
-	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, FEAT_CURSOR && cursor.focus);
+	const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, cursor.focus);
 
-	const cursorFocus = FEAT_CURSOR && focus.prox >= 0;
+	const cursorFocus = focus.prox >= 0;
 
 	// series-intersection markers
 	let cursorPts = [null];
@@ -951,7 +948,7 @@ export default function uPlot(opts, data, then) {
 			legend.values.push(null);	// NULL_LEGEND_VALS not yet avil here :(
 		}
 
-		if (FEAT_CURSOR && cursor.show) {
+		if (cursor.show) {
 			activeIdxs.splice(i, 0, null);
 
 			let pt = initCursorPt(s, i);
@@ -984,7 +981,7 @@ export default function uPlot(opts, data, then) {
 			tr.remove();
 		}
 
-		if (FEAT_CURSOR && cursor.show) {
+		if (cursor.show) {
 			activeIdxs.splice(i, 1);
 
 			cursorPts.length > 1 && cursorPts.splice(i, 1)[0].remove();
@@ -1412,7 +1409,7 @@ export default function uPlot(opts, data, then) {
 				fire("setScale", k);
 			}
 
-			if (FEAT_CURSOR && cursor.show && cursor.left >= 0)
+			if (cursor.show && cursor.left >= 0)
 				shouldSetCursor = shouldSetLegend = true;
 		}
 
@@ -2047,7 +2044,7 @@ export default function uPlot(opts, data, then) {
 			shouldSetSelect = false;
 		}
 
-		if (FEAT_CURSOR && cursor.show && shouldSetCursor) {
+		if (cursor.show && shouldSetCursor) {
 			updateCursor(null, true, false);
 			shouldSetCursor = false;
 		}
@@ -2146,12 +2143,12 @@ export default function uPlot(opts, data, then) {
 
 	let dragging = false;
 
-	const drag = FEAT_CURSOR && cursor.drag;
+	const drag = cursor.drag;
 
-	let dragX = FEAT_CURSOR && drag.x;
-	let dragY = FEAT_CURSOR && drag.y;
+	let dragX = drag.x;
+	let dragY = drag.y;
 
-	if (FEAT_CURSOR && cursor.show) {
+	if (cursor.show) {
 		if (cursor.x)
 			xCursor = placeDiv(CURSOR_X, over);
 		if (cursor.y)
@@ -2204,7 +2201,7 @@ export default function uPlot(opts, data, then) {
 			label && remClass(label, OFF);
 		else {
 			label && addClass(label, OFF);
-			FEAT_CURSOR && cursorPts.length > 1 && elTrans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
+			cursorPts.length > 1 && elTrans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
 		}
 	}
 
@@ -2232,7 +2229,7 @@ export default function uPlot(opts, data, then) {
 
 		_fire !== false && fire("setSeries", i, opts);
 
-		FEAT_CURSOR && _pub && pubSync("setSeries", self, i, opts);
+		_pub && pubSync("setSeries", self, i, opts);
 	}
 
 	self.setSeries = setSeries;
@@ -2262,7 +2259,7 @@ export default function uPlot(opts, data, then) {
 	function setAlpha(i, value) {
 		series[i].alpha = value;
 
-		if (FEAT_CURSOR && cursor.show && cursorPts[i])
+		if (cursor.show && cursorPts[i])
 			cursorPts[i].style.opacity = value;
 
 		if (FEAT_LEGEND && showLegend && legendRows[i])
@@ -2365,12 +2362,12 @@ export default function uPlot(opts, data, then) {
 
 	self.batch = batch;
 
-	FEAT_CURSOR && (self.setCursor = (opts, _fire, _pub) => {
+	self.setCursor = (opts, _fire, _pub) => {
 		mouseLeft1 = opts.left;
 		mouseTop1 = opts.top;
 	//	assign(cursor, opts);
 		updateCursor(null, _fire, _pub);
-	});
+	};
 
 	function setSelH(off, dim) {
 		setStylePx(selectDiv, LEFT,  select.left = off);
@@ -2475,7 +2472,7 @@ export default function uPlot(opts, data, then) {
 
 			for (let i = 0; i < series.length; i++) {
 				if (i > 0) {
-					FEAT_CURSOR && cursorPts.length > 1 && elTrans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
+					cursorPts.length > 1 && elTrans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
 				}
 			}
 
@@ -2559,7 +2556,7 @@ export default function uPlot(opts, data, then) {
 						vPos = xPos2;
 					}
 
-					if (FEAT_CURSOR && shouldSetLegend && cursorPts.length > 1) {
+					if (shouldSetLegend && cursorPts.length > 1) {
 						elColor(cursorPts[i], cursor.points.fill(self, i), cursor.points.stroke(self, i));
 
 						let ptWid, ptHgt, ptLft, ptTop,
@@ -3058,7 +3055,7 @@ export default function uPlot(opts, data, then) {
 		idx != -1 && setSeries(idx, opts, true, false);
 	};
 
-	if (FEAT_CURSOR && cursor.show) {
+	if (cursor.show) {
 		onMouse(mousedown,  over, mouseDown);
 		onMouse(mousemove,  over, mouseMove);
 		onMouse(mouseenter, over, e => {
@@ -3092,7 +3089,7 @@ export default function uPlot(opts, data, then) {
 
 	const seriesIdxMatcher = (self, src, srcSeriesIdx) => srcSeriesIdx;
 
-	const syncOpts = FEAT_CURSOR && assign({
+	const syncOpts = assign({
 		key: null,
 		setSeries: false,
 		filters: {
@@ -3104,34 +3101,32 @@ export default function uPlot(opts, data, then) {
 		values: [null, null],
 	}, cursor.sync);
 
-	if (FEAT_CURSOR) {
-		if (syncOpts.match.length == 2)
-			syncOpts.match.push(seriesIdxMatcher);
-	}
+	if (syncOpts.match.length == 2)
+		syncOpts.match.push(seriesIdxMatcher);
 
-	FEAT_CURSOR && (cursor.sync = syncOpts);
+	cursor.sync = syncOpts;
 
-	const syncKey = FEAT_CURSOR && syncOpts.key;
+	const syncKey = syncOpts.key;
 
-	const sync = FEAT_CURSOR && _sync(syncKey);
+	const sync = _sync(syncKey);
 
 	function pubSync(type, src, x, y, w, h, i) {
 		if (syncOpts.filters.pub(type, src, x, y, w, h, i))
 			sync.pub(type, src, x, y, w, h, i);
 	}
 
-	FEAT_CURSOR && sync.sub(self);
+	sync.sub(self);
 
 	function pub(type, src, x, y, w, h, i) {
 		if (syncOpts.filters.sub(type, src, x, y, w, h, i))
 			events[type](null, src, x, y, w, h, i);
 	}
 
-	FEAT_CURSOR && (self.pub = pub);
+	self.pub = pub;
 
 	function destroy() {
-		FEAT_CURSOR && sync.unsub(self);
-		FEAT_CURSOR && cursorPlots.delete(self);
+		sync.unsub(self);
+		cursorPlots.delete(self);
 		mouseListeners.clear();
 		off(dppxchange, win, syncPxRatio);
 		root.remove();
@@ -3192,9 +3187,7 @@ if (FEAT_TIME) {
 	uPlot.tzDate  = tzDate;
 }
 
-if (FEAT_CURSOR) {
-	uPlot.sync = _sync;
-}
+uPlot.sync = _sync;
 
 if (FEAT_PATHS) {
 	uPlot.addGap = addGap;
