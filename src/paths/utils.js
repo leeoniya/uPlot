@@ -175,7 +175,10 @@ export function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
 
 		let w = plotLft + plotWid - prevGapEnd;
 
-		w > 0 && rect(clip, prevGapEnd, plotTop, w, plotTop + plotHgt);
+		// hack to ensure we expand the clip enough to avoid cutting off strokes at edges
+		let maxStrokeWidth = 10;
+
+		w > 0 && rect(clip, prevGapEnd, plotTop - maxStrokeWidth / 2, w, plotTop + plotHgt + maxStrokeWidth);
 	}
 
 	return clip;

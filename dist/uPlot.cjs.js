@@ -1877,7 +1877,10 @@ function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
 
 		let w = plotLft + plotWid - prevGapEnd;
 
-		w > 0 && rect(clip, prevGapEnd, plotTop, w, plotTop + plotHgt);
+		// hack to ensure we expand the clip enough to avoid cutting off strokes at edges
+		let maxStrokeWidth = 10;
+
+		w > 0 && rect(clip, prevGapEnd, plotTop - maxStrokeWidth / 2, w, plotTop + plotHgt + maxStrokeWidth);
 	}
 
 	return clip;
@@ -4017,22 +4020,10 @@ function uPlot(opts, data, then) {
 		_pxAlign && ctx.translate(offset, offset);
 
 		if (!_points) {
-			let lft = plotLft,
-				top = plotTop,
-				wid = plotWid,
-				hgt = plotHgt;
-
-			let halfWid = width * pxRatio / 2;
-
-			let {min: scaleMin, max: scaleMax, dir: scaleDir } = scales[s.scale];
-
-			if (scaleDir == 1 ? s.min == scaleMin : s.max == scaleMax)
-				hgt += halfWid;
-
-			if (scaleDir == 1 ? s.max == scaleMax : s.min == scaleMin) {
-				top -= halfWid;
-				hgt += halfWid;
-			}
+			let lft = plotLft - width / 2,
+				top = plotTop - width / 2,
+				wid = plotWid + width,
+				hgt = plotHgt + width;
 
 			boundsClip = new Path2D();
 			boundsClip.rect(lft, top, wid, hgt);
