@@ -524,6 +524,9 @@ export default function uPlot(opts, data, then) {
 		if (sc.min != null || sc.max != null) {
 			pendScales[k] = {min: sc.min, max: sc.max};
 			sc.min = sc.max = null;
+		} else if (sc.range !== null) {
+			const r = sc.range();
+			pendScales[k] = {min: r[0], max: r[1]};
 		}
 	}
 
