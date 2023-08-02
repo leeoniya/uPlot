@@ -3703,7 +3703,7 @@ function uPlot(opts, data, then) {
 					_min = i0;
 					_max = i1;
 				}
-				else if (dataLen == 1 || _min == _max) {
+				else if (_min == _max) {
 					if (xScaleDistr == 3)
 						[_min, _max] = rangeLog(_min, _min, scaleX.log, false);
 					else if (xScaleDistr == 4)
