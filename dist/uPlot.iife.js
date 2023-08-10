@@ -1499,7 +1499,7 @@ var uPlot = (function () {
 	const RE_125   = /[125]/;
 	const RE_1     = /1/;
 
-	const _filt = (splits, distr, re, keepMod) => splits.map((v, i) => ((distr == 4 && v == 0) || i % keepMod == 0 && re.test(v.toExponential()[0])) ? v : null);
+	const _filt = (splits, distr, re, keepMod) => splits.map((v, i) => ((distr == 4 && v == 0) || i % keepMod == 0 && re.test(v.toExponential()[v < 0 ? 1 : 0])) ? v : null);
 
 	function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 		let axis = self.axes[axisIdx];
