@@ -268,5 +268,73 @@
 				setTimeout(() => makeChart(data), 0);
 			});
 		</script>
+
+
+		<script>
+			setTimeout(() => {
+				document.body.appendChild(document.createElement('hr'));
+
+				const matchSeriesIdxs = (sub, pub, pubSeriesIdx) => {
+					if (pubSeriesIdx == null)
+						return null;
+
+					const pubSeriesLabel = pub.series[pubSeriesIdx].label;
+
+					return sub.series.findIndex(s => s.label == pubSeriesLabel);
+				};
+
+				const matchScaleKeys = (a, b) => a == b;
+
+				let optsShared = {
+					title: 'Mis-matched series order',
+					width: 600,
+					height: 400,
+					cursor: {
+						sync: {
+							key: 'a',
+							setSeries: true,
+							match: [matchScaleKeys, matchScaleKeys, matchSeriesIdxs],
+						},
+					},
+					scales: {
+						x: {
+							time: false,
+						}
+					},
+				};
+
+				let opts5 = {
+					...optsShared,
+					series: [
+						{},
+						{
+							label: 'red',
+							stroke: 'red'
+						},
+						{
+							label: 'blue',
+							stroke: 'blue'
+						},
+					],
+				};
+				let uplot5 = new uPlot(opts5, [[0, 1], [0, 5], [5, 0]], document.body);
+
+				let opts6 = {
+					...optsShared,
+					series: [
+						{},
+						{
+							label: 'green',
+							stroke: 'green'
+						},
+						{
+							label: 'red',
+							stroke: 'red'
+						},
+					],
+				};
+				let uplot6 = new uPlot(opts6, [[0, 1], [0, 5], [5, 0]], document.body);
+			}, 200);
+		</script>
 	</body>
 </html>

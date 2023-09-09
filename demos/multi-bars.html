@@ -112,6 +112,7 @@
 					],
 					plugins: [
 						seriesBarsPlugin({
+							radius: 0.3,
 							ignore: [7],
 							ori,
 							dir,
@@ -125,7 +126,7 @@
 					return [
 						d.filter((lib, i) => enabled[i]).map(lib => lib[0]),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[1]),
-						d.filter((lib, i) => enabled[i]).map(lib => Math.round(lib[3].reduce((total, num) => total + num, 0) / 10)),
+						d.filter((lib, i) => enabled[i]).map(lib => Math.round(lib[3].reduce((total, num) => total + num, 0))),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[4][0]),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[4][1]),
 						d.filter((lib, i) => enabled[i]).map(lib => lib[5] && lib[5].reduce((total, num) => total + num, 0)),
@@ -210,7 +211,6 @@
 					],
 					plugins: [
 						seriesBarsPlugin({
-							which: [1],
 							ori: 0,
 							dir: 1,
 							radius: 0.5,

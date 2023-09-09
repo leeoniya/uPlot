@@ -43,22 +43,24 @@
 					],
 					setSelect: [
 						u => {
-							let min = u.posToVal(u.select.left, 'x');
-							let max = u.posToVal(u.select.left + u.select.width, 'x');
+							if (u.select.width > 0) {
+								let min = u.posToVal(u.select.left, 'x');
+								let max = u.posToVal(u.select.left + u.select.width, 'x');
 
-							console.log("Fetching data for range...", {min, max});
+								console.log("Fetching data for range...", {min, max});
 
-							// set new data
-							u.setData([
-								[ 3, 4, 5, 6],
-								[30,23,35,27],
-							], false);
+								// set new data
+								u.setData([
+									[ 3, 4, 5, 6],
+									[30,23,35,27],
+								], false);
 
-							// zoom to selection
-							u.setScale('x', {min, max});
+								// zoom to selection
+								u.setScale('x', {min, max});
 
-							// reset selection
-							u.setSelect({width: 0, height: 0}, false);
+								// reset selection
+								u.setSelect({width: 0, height: 0}, false);
+							}
 						}
 					]
 				}

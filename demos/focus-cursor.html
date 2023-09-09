@@ -17,6 +17,7 @@
 				Array(loop),
 				Array(loop),
 				Array(loop),
+				Array(loop),
 			];
 
 			for (var i = 0; i < loop; i++) {
@@ -29,9 +30,10 @@
 				data[1][i] = y;
 				data[2][i] = y2;
 				data[3][i] = y3;
+				data[4][i] = 1
 			}
 
-			const prepareChartOpts = (title, alpha, series) => {
+			const prepareChartOpts = (title, alpha, series, bias, prox) => {
 				return {
 					title,
 					width: 1920,
@@ -52,7 +54,8 @@
 					},
 					cursor: {
 						focus: {
-							prox: 30,
+							prox,
+							bias,
 						}
 					},
 					scales: {
@@ -87,8 +90,12 @@
 					label: "log(x)",
 					stroke: "green",
 					fill: "rgba(0,255,0,0.1)",
+				},
+				{
+					label: "flat_one",
+					stroke: "purple",
 				}
-			]), data, document.body);
+			], 1, 1e6), data, document.body);
 
 			const focusColorSwitch = (focused, unfocused) => (u, idx) => {
 				const series = u.series[idx];
@@ -112,7 +119,7 @@
 					stroke: focusColorSwitch("green", "black"),
 					fill: focusColorSwitch("rgba(0,255,0,0.1)", "rgba(0,0,0,0.1)"),
 				}
-			]), data, document.body);
+			], 0, 30), data, document.body);
 		</script>
 	</body>
 </html>

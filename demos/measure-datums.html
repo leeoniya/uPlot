@@ -1,0 +1,145 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Measure / Datums</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="stylesheet" href="../dist/uPlot.min.css">
+</head>
+<body>
+	<ol>
+		<li>Click in plotting area to focus</li>
+		<li>Press "1" and "2" keys to place two measurement datums at the mouse cursor position.</li>
+		<li>Press "Esc" to clear / reset.</li>
+	</ol>
+	<script src="../dist/uPlot.iife.js"></script>
+	<script>
+		function datumsPlugin() {
+			let x1;
+			let x2;
+			let y1;
+			let y2;
+
+			const drawDatum = (u, x, y, color) => {
+				let cx = u.valToPos(x, "x", true);
+				let cy = u.valToPos(y, "y", true);
+				let rad = 10;
+
+				u.ctx.strokeStyle = color;
+				u.ctx.beginPath();
+
+				u.ctx.arc(cx, cy, rad, 0, 2 * Math.PI);
+
+				u.ctx.moveTo(cx - rad - 5, cy);
+				u.ctx.lineTo(cx + rad + 5, cy);
+				u.ctx.moveTo(cx, cy - rad - 5);
+				u.ctx.lineTo(cx, cy + rad + 5);
+
+				u.ctx.stroke();
+			};
+
+			const clearDatums = (u) => {
+				x1 = x2 = y1 = y2 = null;
+				u.redraw();
+			};
+
+			const drawDelta = (u) => {
+				let dxLabel = (x2 - x1).toPrecision(3);
+				let dyLabel = (y2 - y1).toPrecision(3);
+				let xPos = u.valToPos((x1 + x2) / 2, "x", true);
+				let yPos = u.valToPos((y1 + y2) / 2, "y", true);
+				u.ctx.textAlign = "center";
+				u.ctx.textBaseline = "middle";
+				u.ctx.fillStyle = "black";
+				u.ctx.fillText(`dx: ${dxLabel}, dy: ${dyLabel}`, xPos, yPos);
+			};
+
+			return {
+				hooks: {
+					init: (u) => {
+						u.over.tabIndex = -1; // required for key handlers
+						u.over.style.outlineWidth = "0"; // prevents yellow input box outline when in focus
+
+						u.over.addEventListener("wheel", (e) => {
+							clearDatums(u);
+						});
+
+						u.over.addEventListener("dblclick", (e) => {
+							clearDatums(u);
+						});
+
+						u.over.addEventListener(
+							"keydown",
+							(e) => {
+								if (e.key == "Escape") {
+									clearDatums(u);
+								} else {
+									const { left, top } = u.cursor;
+
+									if (left >= 0 && top >= 0) {
+										if (e.key == "1") {
+											x1 = u.posToVal(left, "x");
+											y1 = u.posToVal(top, "y");
+											u.redraw();
+										} else if (e.key == "2") {
+											x2 = u.posToVal(left, "x");
+											y2 = u.posToVal(top, "y");
+											u.redraw();
+										}
+									}
+								}
+							},
+							true
+						);
+					},
+					draw: (u) => {
+						if (x1 != null || x2 != null) {
+							u.ctx.save();
+
+							u.ctx.lineWidth = 2;
+
+							if (x1 != null) {
+								drawDatum(u, x1, y1, "blue");
+							}
+
+							if (x2 != null) {
+								drawDatum(u, x2, y2, "orange");
+								drawDelta(u);
+							}
+
+							u.ctx.restore();
+						}
+					},
+				},
+			};
+		}
+
+		let data = [
+			[0, 1, 2, 3, 4],
+			[0, 100, 30, 25, 7],
+		];
+
+		const opts = {
+			width: 800,
+			height: 400,
+			plugins: [datumsPlugin()],
+			scales: {
+				x: {
+					time: false,
+				},
+			},
+			series: [
+				{},
+				{
+					label: "Data 1",
+					stroke: "red",
+					fill: "rgba(255,0,0,0.1)",
+				},
+			],
+		};
+
+		let u = new uPlot(opts, data, document.body);
+	</script>
+</body>
+</html>

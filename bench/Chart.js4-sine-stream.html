@@ -2,13 +2,25 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>Sine Stream</title>
+		<title>Sine Stream (Chart.js)</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
-		<link rel="stylesheet" href="../dist/uPlot.min.css">
-		<script src="../dist/uPlot.iife.js"></script>
+		<style>
+			.chart-container {
+				position: relative;
+				height: 600px;
+				width: 1920px;
+			}
+		</style>
+
+		<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 	</head>
 	<body>
+		<div class="chart-container">
+			<canvas id="chart1"></canvas>
+		</div>
+
 		<script>
 			const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
 
@@ -108,66 +120,140 @@
 				];
 			}
 
-			const opts = {
-				title: "6 series x 600 points @ 60fps",
-				width: 1920,
-				height: 600,
-				pxAlign: false,
-				scales: {
-					y: {
-					//	auto: false,
-						range: [-6, 6],
-					}
+			function toObjs(xs, ys) {
+				let out = Array(xs.length);
+
+				for (let i = 0; i < xs.length; i++)
+					out[i] = {x: xs[i], y: ys[i]};
+
+				return out;
+			}
+
+			let ctx = document.getElementById('chart1').getContext('2d');
+			let cfg = {
+				data: {
+					datasets: [
+						{
+							borderColor: 'red',
+							backgroundColor: 'rgba(255,0,0,0.1)',
+							fill: true,
+							data: toObjs(data[0], data[1]),
+							type: 'line',
+							radius: 0,
+							borderWidth: 1
+						},
+						{
+							borderColor: 'green',
+							backgroundColor: '#4caf505e',
+							fill: true,
+							data: toObjs(data[0], data[2]),
+							type: 'line',
+							radius: 0,
+							borderWidth: 1
+						},
+						{
+							borderColor: 'blue',
+							backgroundColor: '#0000ff20',
+							fill: true,
+							data: toObjs(data[0], data[3]),
+							type: 'line',
+							radius: 0,
+							borderWidth: 1
+						},
+						{
+							borderColor: 'orange',
+							backgroundColor: '#ffa5004f',
+							fill: true,
+							data: toObjs(data[0], data[4]),
+							type: 'line',
+							radius: 0,
+							borderWidth: 1
+						},
+						{
+							borderColor: 'magenta',
+							backgroundColor: '#ff00ff20',
+							fill: true,
+							data: toObjs(data[0], data[5]),
+							type: 'line',
+							radius: 0,
+							borderWidth: 1
+						},
+						{
+							borderColor: 'purple',
+							backgroundColor: '#80008020',
+							fill: true,
+							data: toObjs(data[0], data[6]),
+							type: 'line',
+							radius: 0,
+							borderWidth: 1
+						}
+					]
 				},
-				axes: [
-					{
-						space: 300,
-					}
-				],
-				series: [
-					{},
-					{
-						label: "Sine",
-						stroke: "red",
-						fill: "rgba(255,0,0,0.1)",
+				options: {
+					layout: {
+						padding: {
+							left: 20,
+							right: 40,
+						}
 					},
-					{
-						stroke: "green",
-						fill: "#4caf505e",
+					animation: false,
+					maintainAspectRatio: false,
+					parsing: false,
+					spanGaps: true,
+					normalized: true,
+					interaction: {
+						mode: 'nearest',
+						axis: 'x',
+						intersect: false
 					},
-					{
-						stroke: "blue",
-						fill: "#0000ff20",
+					scales: {
+						x: {
+							type: 'time',
+							time: {
+								unit: 'minute',
+							},
+							stacked: false,
+							ticks: {
+								source: 'auto',
+								maxRotation: 0,
+								autoSkip: true,
+								autoSkipPadding: 75,
+								sampleSize: 1
+							}
+						},
+						y: {
+							type: 'linear',
+							stacked: false,
+							min: -6,
+							max: 6,
+							scaleLabel: {
+								display: true,
+							}
+						},
 					},
-					{
-						stroke: "orange",
-						fill: "#ffa5004f",
-					},
-					{
-						stroke: "magenta",
-						fill: "#ff00ff20",
-					},
-					{
-						stroke: "purple",
-						fill: "#80008020",
-					},
-				],
+				}
 			};
 
-			let u = new uPlot(opts, data, document.body);
+			let chart = new Chart(ctx, cfg);
 
 			/*
 			setInterval(() => {
 				shift += 1;
 				data = getData(shift);
-				u.setData(data);
-			}, 50);
+				chart.data.datasets.forEach((dataset, i) => {
+					dataset.data = toObjs(data[0], data[i+1]);
+				});
+				chart.update();
+			}, 500);
 			*/
 
 			function update() {
 				shift += 1;
 				data = getData(shift);
-				u.setData(data);
+				chart.data.datasets.forEach((dataset, i) => {
+					dataset.data = toObjs(data[0], data[i+1]);
+				});
+				chart.update();
 				requestAnimationFrame(update);
 			}
 

@@ -274,23 +274,23 @@
 				series: [
 					{
 						label: "Date",
-						value: (u, ts) => fmtDate(tzDate(ts)),
+						value: (u, ts, sidx, didx) => didx == null ? null : fmtDate(tzDate(ts)),
 					},
 					{
 						label: "Open",
-						value: (u, v) => fmtUSD(v, 2),
+						value: (u, v, sidx, didx) => didx == null ? null : fmtUSD(v, 2),
 					},
 					{
 						label: "High",
-						value: (u, v) => fmtUSD(v, 2),
+						value: (u, v, sidx, didx) => didx == null ? null : fmtUSD(v, 2),
 					},
 					{
 						label: "Low",
-						value: (u, v) => fmtUSD(v, 2),
+						value: (u, v, sidx, didx) => didx == null ? null : fmtUSD(v, 2),
 					},
 					{
 						label: "Close",
-						value: (u, v) => fmtUSD(v, 2),
+						value: (u, v, sidx, didx) => didx == null ? null : fmtUSD(v, 2),
 					},
 					{
 						label: "Volume",

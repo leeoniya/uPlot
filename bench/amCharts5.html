@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>amCharts5 Demo</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<style>
+		#chartdiv {
+			width: 1920px;
+			height: 600px;
+		}
+	</style>
+</head>
+<body>
+	<h2 id="wait">Loading lib....</h2>
+
+	<script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+	<script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+
+	<div id="chartdiv"></div>
+
+	<script>
+		function round2(val) {
+			return Math.round(val * 100) / 100;
+		}
+
+		function round3(val) {
+			return Math.round(val * 1000) / 1000;
+		}
+
+		function prepData(packed) {
+			console.time('prep');
+
+			// epoch,idl,recv,send,read,writ,used,free
+
+			const numFields = packed[0];
+			packed = packed.slice(numFields + 1);
+
+			let data = Array(packed.length / numFields);
+
+			for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
+				let date = packed[i] * 60 * 1000;
+				data[j] = {
+					date: date,
+					cpu: round3(100 - packed[i + 1]),
+					ram: round2(100 * packed[i + 5] / (packed[i + 5] + packed[i + 6])),
+					tcp: packed[i + 3],
+				};
+			}
+
+			console.timeEnd('prep');
+
+			return data;
+		}
+
+		function makeChart(data) {
+		//	console.time('chart');
+
+			let root = am5.Root.new("chartdiv");
+
+			// root.fps = 30;
+			root.autoResize = false;
+
+			let chart = root.container.children.push(am5xy.XYChart.new(root, {
+				layout: root.verticalLayout,
+				maxTooltipDistance: -1
+			}));
+
+			let xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+				maxDeviation: 0,
+				baseInterval: {
+					timeUnit: "second",
+					count: 1
+				},
+				renderer: am5xy.AxisRendererX.new(root, {}),
+				// tooltip: am5.Tooltip.new(root, {})
+			}));
+
+			let yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+				renderer: am5xy.AxisRendererY.new(root, {})
+			}));
+
+			let cpu = chart.series.push(am5xy.LineSeries.new(root, {
+				name: "CPU",
+				xAxis: xAxis,
+				yAxis: yAxis,
+				valueYField: "cpu",
+				valueXField: "date",
+				tooltip: am5.Tooltip.new(root, {
+					labelText: "{valueY}"
+				}),
+			}));
+			cpu.data.setAll(data);
+
+			let ram = chart.series.push(am5xy.LineSeries.new(root, {
+				name: "RAM",
+				xAxis: xAxis,
+				yAxis: yAxis,
+				valueYField: "ram",
+				valueXField: "date",
+				tooltip: am5.Tooltip.new(root, {
+					labelText: "{valueY}"
+				}),
+			}));
+			ram.data.setAll(data);
+
+			let tcp = chart.series.push(am5xy.LineSeries.new(root, {
+				name: "TCP",
+				xAxis: xAxis,
+				yAxis: yAxis,
+				valueYField: "tcp",
+				valueXField: "date",
+				tooltip: am5.Tooltip.new(root, {
+					labelText: "{valueY}"
+				}),
+			}));
+			tcp.data.setAll(data);
+
+			let cursor = chart.set("cursor", am5xy.XYCursor.new(root, {
+				behavior: "zoomX"
+			}));
+
+			let legend = chart.children.push(am5.Legend.new(root, {}));
+			legend.data.setAll(chart.series.values);
+
+			root.events.on("frameended", () => {
+				wait.textContent = "Done!";
+			//	console.timeEnd('chart');
+			});
+		}
+
+		let wait = document.getElementById("wait");
+		wait.textContent = "Fetching data.json (2.07MB)....";
+		fetch("data.json").then(r => r.json()).then(packed => {
+			wait.textContent = "Rendering...";
+			let data = prepData(packed);
+			setTimeout(() => {
+				am5.ready(() => {
+					makeChart(data);
+				});
+			}, 0);
+		});
+	</script>
+
+	<p>
+		Code based on<br>
+		<a
+			href="https://www.amcharts.com/docs/v4/concepts/performance/">https://www.amcharts.com/docs/v4/concepts/performance/</a><br>
+		<a href="https://codepen.io/team/amcharts/pen/KYRvNd/">https://codepen.io/team/amcharts/pen/KYRvNd/</a>
+	</p>
+</body>
+
+</html>

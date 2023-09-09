@@ -1,5 +1,5 @@
-import { min, max, nonNullIdx, inf } from '../utils';
-import { orient, addGap, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs } from './utils';
+import { min, max, nonNullIdx, inf, ifNull } from '../utils';
+import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
 
 function _drawAcc(lineTo) {
 	return (stroke, accX, minY, maxY, inY, outY) => {
@@ -17,10 +17,15 @@ function _drawAcc(lineTo) {
 const drawAccH = _drawAcc(lineToH);
 const drawAccV = _drawAcc(lineToV);
 
-export function linear() {
+export function linear(opts) {
+	const alignGaps = ifNull(opts?.alignGaps, 0);
+
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
+
+			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
+			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
 
 			let lineTo, drawAcc;
 
@@ -42,27 +47,23 @@ export function linear() {
 				maxY = -inf,
 				inY, outY, outX, drawnAtX;
 
-			let gaps = [];
-
-			let accX = pxRound(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
-			let accGaps = false;
-			let prevYNull = false;
+			let accX = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
 
 			// data edges
 			let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * dir);
 			let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * dir);
-			let lftX =  pxRound(valToPosX(dataX[lftIdx], scaleX, xDim, xOff));
-			let rgtX =  pxRound(valToPosX(dataX[rgtIdx], scaleX, xDim, xOff));
+			let lftX   =  pixelForX(dataX[lftIdx]);
+			let rgtX   =  pixelForX(dataX[rgtIdx]);
 
-			if (lftX > xOff)
-				addGap(gaps, xOff, lftX);
+			let hasGap = false;
 
 			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
-				let x = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
+				let x = pixelForX(dataX[i]);
+				let yVal = dataY[i];
 
 				if (x == accX) {
-					if (dataY[i] != null) {
-						outY = pxRound(valToPosY(dataY[i], scaleY, yDim, yOff));
+					if (yVal != null) {
+						outY = pixelForY(yVal);
 
 						if (minY == inf) {
 							lineTo(stroke, x, outY);
@@ -72,45 +73,29 @@ export function linear() {
 						minY = min(outY, minY);
 						maxY = max(outY, maxY);
 					}
-					else if (dataY[i] === null)
-						accGaps = prevYNull = true;
+					else {
+						if (yVal === null)
+							hasGap = true;
+					}
 				}
 				else {
-					let _addGap = false;
-
 					if (minY != inf) {
 						drawAcc(stroke, accX, minY, maxY, inY, outY);
 						outX = drawnAtX = accX;
 					}
-					else if (accGaps) {
-						_addGap = true;
-						accGaps = false;
-					}
 
-					if (dataY[i] != null) {
-						outY = pxRound(valToPosY(dataY[i], scaleY, yDim, yOff));
+					if (yVal != null) {
+						outY = pixelForY(yVal);
 						lineTo(stroke, x, outY);
 						minY = maxY = inY = outY;
-
-						// prior pixel can have data but still start a gap if ends with null
-						if (prevYNull && x - accX > 1)
-							_addGap = true;
-
-						prevYNull = false;
 					}
 					else {
 						minY = inf;
 						maxY = -inf;
 
-						if (dataY[i] === null) {
-							accGaps = true;
-
-							if (x - accX > 1)
-								_addGap = true;
-						}
+						if (yVal === null)
+							hasGap = true;
 					}
-
-					_addGap && addGap(gaps, outX, x);
 
 					accX = x;
 				}
@@ -119,25 +104,32 @@ export function linear() {
 			if (minY != inf && minY != maxY && drawnAtX != accX)
 				drawAcc(stroke, accX, minY, maxY, inY, outY);
 
-			if (rgtX < xOff + xDim)
-				addGap(gaps, rgtX, xOff + xDim);
-
 			let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
 			if (series.fill != null || bandFillDir != 0) {
 				let fill = _paths.fill = new Path2D(stroke);
 
 				let fillToVal = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
-				let fillToY = pxRound(valToPosY(fillToVal, scaleY, yDim, yOff));
+				let fillToY = pixelForY(fillToVal);
 
 				lineTo(fill, rgtX, fillToY);
 				lineTo(fill, lftX, fillToY);
 			}
 
-			_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+			if (!series.spanGaps) {
+			//	console.time('gaps');
+				let gaps = [];
 
-			if (!series.spanGaps)
+				hasGap && gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
+
+			//	console.timeEnd('gaps');
+
+			//	console.log('gaps', JSON.stringify(gaps));
+
+				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+
 				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
+			}
 
 			if (bandClipDir != 0) {
 				_paths.band = bandClipDir == 2 ? [

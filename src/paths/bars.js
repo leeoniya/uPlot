@@ -1,4 +1,4 @@
-import { abs, floor, min, max, inf, ifNull, EMPTY_OBJ } from '../utils';
+import { abs, floor, min, max, inf, ifNull, EMPTY_OBJ, fnOrSelf } from '../utils';
 import { orient, rectV, rectH, BAND_CLIP_FILL, BAND_CLIP_STROKE, bandFillClipDirs } from './utils';
 import { pxRatio } from '../dom';
 
@@ -8,7 +8,14 @@ export function bars(opts) {
 	const align = opts.align || 0;
 	const extraGap = (opts.gap || 0) * pxRatio;
 
-	const radius = ifNull(opts.radius, 0);
+	let ro = opts.radius;
+
+	ro =
+		// [valueRadius, baselineRadius]
+		ro == null ? [0, 0] :
+		typeof ro == 'number' ? [ro, 0] : ro;
+
+	const radiusFn = fnOrSelf(ro);
 
 	const gapFactor = 1 - size[0];
 	const maxWidth  = ifNull(size[1], inf) * pxRatio;
@@ -22,6 +29,13 @@ export function bars(opts) {
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
+
+			let valRadius, baseRadius;
+
+			if (scaleX.ori == 0)
+				[valRadius, baseRadius] = radiusFn(u, seriesIdx);
+			else
+				[baseRadius, valRadius] = radiusFn(u, seriesIdx);
 
 			const _dirX = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 			const _dirY = scaleY.dir * (scaleY.ori == 1 ? 1 : -1);
@@ -73,6 +87,8 @@ export function bars(opts) {
 
 			let { x0, size } = disp;
 
+			let bandClipNulls = true;
+
 			if (x0 != null && size != null) {
 				dataX = x0.values(u, seriesIdx, idx0, idx1);
 
@@ -121,6 +137,12 @@ export function bars(opts) {
 				barWid = pxRound(min(maxWidth, max(minWidth, colWid - gapWid)) - strokeWidth - extraGap);
 
 				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * extraGap / 2;
+
+				// when colWidth is smaller than [min-clamped] bar width (e.g. aligned data values are non-uniform)
+				// disable clipping of null-valued band bars to avoid clip overlap / bleed into adjacent bars
+				// (this could still bleed clips of adjacent band/stacked bars into each other, so is far from perfect)
+				if (barWid > colWid)
+					bandClipNulls = false;
 			}
 
 			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
@@ -144,8 +166,15 @@ export function bars(opts) {
 				dataY0 = y0.values(u, seriesIdx, idx0, idx1);
 			}
 
+			let radVal = valRadius * barWid;
+			let radBase = baseRadius * barWid;
+
 			for (let i = _dirX == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dirX) {
 				let yVal = dataY[i];
+
+				// we can skip both, drawing and band clipping for alignment artifacts
+				if (yVal === undefined)
+					continue;
 
 			/*
 				// interpolate upwards band clips
@@ -172,18 +201,19 @@ export function bars(opts) {
 				// this includes the stroke
 				let barHgt = btm - top;
 
-				let r = radius * barWid;
-
 				if (yVal != null) {  // && yVal != fillToY (0 height bar)
+					let rv = yVal < 0 ? radBase : radVal;
+					let rb = yVal < 0 ? radVal : radBase;
+
 					if (multiPath) {
 						if (strokeWidth > 0 && strokeColors[i] != null)
-							rect(strokePaths.get(strokeColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
+							rect(strokePaths.get(strokeColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
 
 						if (fillColors[i] != null)
-							rect(fillPaths.get(fillColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
+							rect(fillPaths.get(fillColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
 					}
 					else
-						rect(stroke, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), r);
+						rect(stroke, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
 
 					each(u, seriesIdx, i,
 						lft    - strokeWidth / 2,
@@ -193,7 +223,7 @@ export function bars(opts) {
 					);
 				}
 
-				if (bandClipDir != 0) {
+				if (bandClipDir != 0 && (yVal != null || bandClipNulls)) {
 					if (_dirY * bandClipDir == 1) {
 						btm = top;
 						top = yLimit;
@@ -205,7 +235,7 @@ export function bars(opts) {
 
 					barHgt = btm - top;
 
-					rect(band, lft - strokeWidth / 2, top, barWid + strokeWidth, max(0, barHgt), 0);
+					rect(band, lft - strokeWidth / 2, top, barWid + strokeWidth, max(0, barHgt), 0, 0);  // radius here?
 				}
 			}
 

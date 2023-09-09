@@ -110,7 +110,6 @@
 	top: 0;
 	pointer-events: none;
 	will-change: transform;
-	z-index: 100;
 }
 
 .u-hz .u-cursor-x,
@@ -133,7 +132,6 @@
 	border: 0 solid;
 	pointer-events: none;
 	will-change: transform;
-	z-index: 100;
 	/* this has to be !important since we set inline "background" shorthand */
 	background-clip: padding-box !important;
 }

@@ -12,147 +12,203 @@
 		<script type="module">
 			import uPlot from "../dist/uPlot.esm.js";
 
-			let vals1 = randomWalk(50, 200, 0, 100);
-			let vals2 = randomWalk(50, 200, 0, 100);
-			let vals3 = randomWalk(50, 200, 0, 100);
-			let vals4 = randomWalk(75, 200, 0, 100);
+			const pointsFilter = (u, seriesIdx, show, gaps) => {
+				let filtered = [];
 
-			vals4[1]   = null;
-			vals4[100] = null;
-			vals4[102] = null;
+				let series = u.series[seriesIdx];
 
-			vals4[130] = null;
-			vals4[133] = null;
-			vals4[198] = null;
+				if (!show && gaps && gaps.length) {
+					const [firstIdx, lastIdx] = series.idxs;
+					const xData = u.data[0];
+					const yData = u.data[seriesIdx];
+					const firstPos = Math.round(u.valToPos(xData[firstIdx], 'x', true));
+					const lastPos = Math.round(u.valToPos(xData[lastIdx], 'x', true));
 
-			let data = [
-				vals1.map((v, i) => i+1),
-				vals1,
-				vals2,
-				vals3,
-				vals4,
-			];
+					if (gaps[0][0] === firstPos) {
+						filtered.push(firstIdx);
+					}
 
-			const opts = {
-				width: 1920,
-				height: 600,
-				title: "Points",
-				scales: {
-					x: {
-						time: false,
-					},
-				},
-				series: [
-					{},
-					{
-						stroke: "green",
-					},
-					{
-						stroke: "red",
-						fill: "rgba(255,0,0,0.1)",
-						points: {
-							space: 0,
-							fill: "red",
-						},
-					},
-					{
-						stroke: "blue",
-						fill: "rgba(0,0,255,0.1)",
-						paths: u => null,
-						points: {
-							space: 0,
-						},
-					},
-					{
-						stroke: "orange",
-						points: {
-							filter: (u, seriesIdx, show, gaps) => {
-								let filtered = [];
+					// show single points between consecutive gaps that share end/start
+					for (let i = 0; i < gaps.length; i++) {
+						let thisGap = gaps[i];
+						let nextGap = gaps[i + 1];
 
-								let series = u.series[seriesIdx];
+						if (nextGap && thisGap[1] === nextGap[0]) {
+							// approx when data density is > 1pt/px, since gap start/end pixels are rounded
+							let approxIdx = u.posToIdx(thisGap[1], true);
 
-								if (!show && gaps && gaps.length) {
-									const [firstIdx, lastIdx] = series.idxs;
-									const xData = u.data[0];
-									const firstPos = Math.round(u.valToPos(xData[firstIdx], 'x', true));
-									const lastPos  = Math.round(u.valToPos(xData[lastIdx], 'x', true));
-
-									if (gaps[0][0] == firstPos)
-										filtered.push(firstIdx);
-
-									// show single points between consecutive gaps that share end/start
-									for (let i = 0; i < gaps.length; i++) {
-										let thisGap = gaps[i];
-										let nextGap = gaps[i + 1];
-
-										if (nextGap && thisGap[1] == nextGap[0])
-											filtered.push(u.posToIdx(thisGap[1], true));
+							if (yData[approxIdx] == null) {
+								// scan left/right alternating to find closest index with non-null value
+								for (let j = 1; j < 100; j++) {
+									if (yData[approxIdx + j] != null) {
+										approxIdx += j;
+										break;
 									}
-
-									if (gaps[gaps.length - 1][1] == lastPos)
-										filtered.push(lastIdx);
+									if (yData[approxIdx - j] != null) {
+										approxIdx -= j;
+										break;
+									}
 								}
+							}
 
-								return filtered.length ? filtered : null;
-							},
-							fill: "orange",
+							filtered.push(approxIdx);
+						}
+					}
+
+					if (gaps[gaps.length - 1][1] === lastPos) {
+						filtered.push(lastIdx);
+					}
+				}
+
+				return filtered.length ? filtered : null;
+			};
+
+			{
+				let vals1 = randomWalk(50, 200, 0, 100);
+				let vals2 = randomWalk(50, 200, 0, 100);
+				let vals3 = randomWalk(50, 200, 0, 100);
+				let vals4 = randomWalk(75, 200, 0, 100);
+
+				vals4[1]   = null;
+				vals4[100] = null;
+				vals4[102] = null;
+
+				vals4[130] = null;
+				vals4[133] = null;
+				vals4[198] = null;
+
+				let data = [
+					vals1.map((v, i) => i+1),
+					vals1,
+					vals2,
+					vals3,
+					vals4,
+				];
+
+				const opts = {
+					width: 1920,
+					height: 600,
+					title: "Points",
+					scales: {
+						x: {
+							time: false,
 						},
 					},
-				],
-			};
+					series: [
+						{},
+						{
+							stroke: "green",
+						},
+						{
+							stroke: "red",
+							fill: "rgba(255,0,0,0.1)",
+							points: {
+								space: 0,
+								fill: "red",
+							},
+						},
+						{
+							stroke: "blue",
+							fill: "rgba(0,0,255,0.1)",
+							paths: u => null,
+							points: {
+								space: 0,
+							},
+						},
+						{
+							stroke: "orange",
+							points: {
+								filter: pointsFilter,
+								fill: "orange",
+							},
+						},
+					],
+				};
 
-			let u = new uPlot(opts, data, document.body);
-		</script>
+				let u = new uPlot(opts, data, document.body);
+			}
 
-		<script type="module">
-			import uPlot from "../dist/uPlot.esm.js";
+			{
+				let vals1 = randomWalk(50, 180, 0, 100);
 
-			let vals1 = randomWalk(50, 180, 0, 100);
+				let data = [
+					vals1.map((v, i) => i+1),
+					vals1,
+				];
 
-			let data = [
-				vals1.map((v, i) => i+1),
-				vals1,
-			];
-
-			const opts = {
-				width: 1920,
-				height: 300,
-				title: "Points",
-				scales: {
-					x: {
-						time: false,
+				const opts = {
+					width: 1920,
+					height: 300,
+					title: "Points",
+					scales: {
+						x: {
+							time: false,
+						},
 					},
-				},
-				series: [
-					{},
-					{
-						stroke: "green",
+					series: [
+						{},
+						{
+							stroke: "green",
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+
+
+				const opts2 = {
+					width: 1920,
+					height: 300,
+					title: "Too dense test",
+					scales: {
+						x: {
+							time: false,
+							range: [-400, 180]
+						},
 					},
-				],
-			};
+					series: [
+						{},
+						{
+							stroke: "green",
+						},
+					],
+				};
 
-			let u = new uPlot(opts, data, document.body);
+				let u2 = new uPlot(opts2, data, document.body);
+			}
 
+			{
+				let vals1 = ',,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,60,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,61,,,,,,60,,,,,,,,,,,,,,,,,,61,,,,,,60,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,61,,,,,,60,,,,,,59,,,,,,60,,,,,,,59,,,,,,,,,,,,,,,,,,,,,,,,58,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,57,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,56,,,,,,57,,,,,,56,,,,,,57,,,,,,,,,,,,56,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,55,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,56,,,,,55,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,54,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,53,,,,,54,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,55,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,56,,,,,,,,,,,,,,,,,,55,,,,,,56,,,,,,,,,,,,57,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,56,,,,,,57,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,56,,,,,,,,,,,,57,,,,,,,58,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,57,,,,,,,,,,,,,,,,,,,58,,,,,,59,,,,,,58,,,,,,,,,,,,,,,,,,,,,,,,57,,,,,,58,,,,,,,,,,,,,,,,,,,59,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,60,,,,,,,,,,,,61,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,62,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,61,,,,,,,,,,,,,,,,,,60,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,59,,,,,,60,,,,,,59,,,,,,60,,,,,,,,,,,,,,,,,,,,,,,,,59,,,,,,,,,,,,,,,,,60,,,,,,,,,,,,,59,,,,,,60,,,,,,,,,,,,59,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,58,,,,,,59,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,58,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,57,,,,,,58,,,,,,57,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,56,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,55,,,,,,56,,,,,,55,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,54,,,,,,53,,,,,,,,,,,,,,,,,,,52,,,,,,,,,,,51,,,,,,,,,,,,,,,,,,,,,,,,,52,,,,,,,54,,,,,,55,,,,,,56,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,57,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,58,,,,,,,,,,,,,,,,,,59,,,,,,,,,,,,,,,,,,60,,,,,,,,,,,,61,,,,,,,,,,,,,,,,,,,,,,,,60,,,,,,61,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,62,,,,,,61,,,,,,62,,,,,,61,,,,,,62,,,,,,,,,,,,,,,,,,,63,,,,,,,,,,,,,,,,,,,,,,,,64,,,,,,63,,,,,,64,,,,,,63,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,62,,,,,,,,,,,,,,,,,,,61,,,,,,,,,,,,62,,,,,,,,,,,,,,,,,,,,,,,,,63,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,64,,,,,,,,,,,,63,,,,,,,,,,,,,62,,,,,,,,,,,,,,,,,,,,'
+				.split(",").map(v => v == '' ? null : +v);
 
-			const opts2 = {
-				width: 1920,
-				height: 300,
-				title: "Too dense test",
-				scales: {
-					x: {
-						time: false,
-						range: [-400, 180]
+				let data = [
+					vals1.map((v, i) => i+1),
+					vals1,
+				];
+
+				const opts = {
+					width: 1200,
+					height: 300,
+					title: "Sparse Points",
+					scales: {
+						x: {
+							time: false,
+						},
 					},
-				},
-				series: [
-					{},
-					{
-						stroke: "green",
-					},
-				],
-			};
+					series: [
+						{},
+						{
+							stroke: "magenta",
+							points: {
+								filter: pointsFilter,
+								fill: "magenta",
+							},
+						},
+					],
+				};
 
-			let u2 = new uPlot(opts2, data, document.body);
+				let u = new uPlot(opts, data, document.body);
+			}
 		</script>
 	</body>
 </html>

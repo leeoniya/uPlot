@@ -146,6 +146,7 @@
 						let q3           = u.data[3][i];
 						let min          = u.data[4][i];
 						let max          = u.data[5][i];
+						let outs         = u.data[6][i];
 
 						let timeAsX      = u.valToPos(i,     "x", true);
 						let lowAsY       = u.valToPos(min,   "y", true);
@@ -228,6 +229,11 @@
 						);
 						u.ctx.stroke();
 
+
+						for (let j = 0; j < outs.length; j++) {
+							let cy = u.valToPos(outs[j], "y", true);
+							u.ctx.fillRect(timeAsX - 4, cy - 4, 8, 8);
+						}
 					}
 
 					u.ctx.translate(-offset, -offset);
@@ -241,6 +247,17 @@
 							cursor: {
 								points: {
 									show: false,
+								}
+							},
+							scales: {
+								y: {
+									range: (u, dataMin, dataMax) => {
+										// TODO: only scan values in x idx0...idx1 range
+										let outsMin = Math.min(...u.data[6].map(outs => outs.at(0) ?? Infinity));
+										let outsMax = Math.max(...u.data[6].map(outs => outs.at(-1) ?? -Infinity));
+
+										return uPlot.rangeNum(Math.min(dataMin, outsMin), Math.max(dataMax, outsMax), 0.1, true);
+									}
 								}
 							}
 						});
@@ -267,7 +284,18 @@
 					// filter outliers
 					run.values.sort((a, b) => a - b);
 					let pad = iq * 1.5;
-					let vals = run.values.filter(v => v >= s.q1 - pad && v <= s.q3 + pad);
+
+					let vals = [];
+					let outs = [];
+
+					run.values.forEach(v => {
+						if (v >= s.q1 - pad && v <= s.q3 + pad)
+							vals.push(v);
+						else
+							outs.push(v);
+					});
+
+					outs.sort((a, b) => a - b);
 
 					bench[run.framework] = [
 						s.median,
@@ -275,6 +303,7 @@
 						s.q3,
 						vals[0],
 						vals[vals.length - 1],
+						outs,
 					];
 				});
 
@@ -303,6 +332,8 @@
 							libNames.map(libName => bench[libName][3]).slice(0,30),
 							// max
 							libNames.map(libName => bench[libName][4]).slice(0,30),
+							// outliers
+							libNames.map(libName => bench[libName][5]).slice(0,30),
 						]
 					};
 				}

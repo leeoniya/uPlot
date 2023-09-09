@@ -55,16 +55,34 @@
 				return data;
 			}
 
+			const isInt = Number.isInteger;
+			const { round, ceil, floor } = Math;
+
+			const fixFloat = v => roundDec(v, 14);
+
 			function incrRound(num, incr) {
-				return Math.round(num/incr)*incr;
+				return fixFloat(roundDec(fixFloat(num/incr))*incr);
 			}
 
 			function incrRoundUp(num, incr) {
-				return Math.ceil(num/incr)*incr;
+				return fixFloat(ceil(fixFloat(num/incr))*incr);
 			}
 
 			function incrRoundDn(num, incr) {
-				return Math.floor(num/incr)*incr;
+				return fixFloat(floor(fixFloat(num/incr))*incr);
+			}
+
+			// https://stackoverflow.com/a/48764436
+			// rounds half away from zero
+			function roundDec(val, dec = 0) {
+				if (isInt(val))
+					return val;
+			//	else if (dec == 0)
+			//		return round(val);
+
+				let p = 10 ** dec;
+				let n = (val * p) * (1 + Number.EPSILON);
+				return round(n) / p;
 			}
 
 			function histogram(vals, bucket, filter, sort) {

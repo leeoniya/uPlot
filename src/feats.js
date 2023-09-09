@@ -1,5 +1,4 @@
 export const FEAT_TIME          = true;
-export const FEAT_CURSOR        = true;
 export const FEAT_LEGEND        = true;
 
 export const FEAT_POINTS        = true;

@@ -4,15 +4,16 @@ export const BAND_CLIP_FILL   = 1 << 0;
 export const BAND_CLIP_STROKE = 1 << 1;
 
 export function orient(u, seriesIdx, cb) {
+	const mode = u.mode;
 	const series = u.series[seriesIdx];
+	const data = mode == 2 ? u._data[seriesIdx] : u._data;
 	const scales = u.scales;
 	const bbox   = u.bbox;
-	const scaleX = u.mode == 2 ? scales[series.facets[0].scale] : scales[u.series[0].scale];
 
-	let dx = u._data[0],
-		dy = u._data[seriesIdx],
-		sx = scaleX,
-		sy = u.mode == 2 ? scales[series.facets[1].scale] : scales[series.scale],
+	let dx = data[0],
+		dy = mode == 2 ? data[1] : data[seriesIdx],
+		sx = mode == 2 ? scales[series.facets[0].scale] : scales[u.series[0].scale],
+		sy = mode == 2 ? scales[series.facets[1].scale] : scales[series.scale],
 		l = bbox.left,
 		t = bbox.top,
 		w = bbox.width,
@@ -95,7 +96,10 @@ export function bandFillClipDirs(self, seriesIdx) {
 }
 
 export function seriesFillTo(self, seriesIdx, dataMin, dataMax, bandFillDir) {
-	let scale = self.scales[self.series[seriesIdx].scale];
+	let mode = self.mode;
+	let series = self.series[seriesIdx];
+	let scaleKey = mode == 2 ? series.facets[1].scale : series.scale;
+	let scale = self.scales[scaleKey];
 
 	return (
 		bandFillDir == -1 ? scale.min :
@@ -171,7 +175,10 @@ export function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
 
 		let w = plotLft + plotWid - prevGapEnd;
 
-		w > 0 && rect(clip, prevGapEnd, plotTop, w, plotTop + plotHgt);
+		// hack to ensure we expand the clip enough to avoid cutting off strokes at edges
+		let maxStrokeWidth = 10;
+
+		w > 0 && rect(clip, prevGapEnd, plotTop - maxStrokeWidth / 2, w, plotTop + plotHgt + maxStrokeWidth);
 	}
 
 	return clip;
@@ -184,6 +191,52 @@ export function addGap(gaps, fromX, toX) {
 		prevGap[1] = toX;
 	else
 		gaps.push([fromX, toX]);
+}
+
+export function findGaps(xs, ys, idx0, idx1, dir, pixelForX, align) {
+	let gaps = [];
+	let len = xs.length;
+
+	for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
+		let yVal = ys[i];
+
+		if (yVal === null) {
+			let fr = i, to = i;
+
+			if (dir == 1) {
+				while (++i <= idx1 && ys[i] === null)
+					to = i;
+			}
+			else {
+				while (--i >= idx0 && ys[i] === null)
+					to = i;
+			}
+
+			let frPx = pixelForX(xs[fr]);
+			let toPx = to == fr ? frPx : pixelForX(xs[to]);
+
+			// if value adjacent to edge null is same pixel, then it's partially
+			// filled and gap should start at next pixel
+			let fri2 = fr - dir;
+			let frPx2 = align <= 0 && fri2 >= 0 && fri2 < len ? pixelForX(xs[fri2]) : frPx;
+		//	if (frPx2 == frPx)
+		//		frPx++;
+		//	else
+				frPx = frPx2;
+
+			let toi2 = to + dir;
+			let toPx2 = align >= 0 && toi2 >= 0 && toi2 < len ? pixelForX(xs[toi2]) : toPx;
+		//	if (toPx2 == toPx)
+		//		toPx--;
+		//	else
+				toPx = toPx2;
+
+			if (toPx >= frPx)
+				gaps.push([frPx, toPx]); // addGap
+		}
+	}
+
+	return gaps;
 }
 
 export function pxRoundGen(pxAlign) {
@@ -214,18 +267,20 @@ function rect(ori) {
 		(p, x, y, w, h) => { p.rect(x, y, w, h); } :
 		(p, y, x, h, w) => { p.rect(x, y, w, h); };
 
-	return (p, x, y, w, h, r = 0) => {
-		if (r == 0)
+	// TODO (pending better browser support): https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/roundRect
+	return (p, x, y, w, h, endRad = 0, baseRad = 0) => {
+		if (endRad == 0 && baseRad == 0)
 			rect(p, x, y, w, h);
 		else {
-			r = min(r, w / 2, h / 2);
+			endRad  = min(endRad,  w / 2, h / 2);
+			baseRad = min(baseRad, w / 2, h / 2);
 
 			// adapted from https://stackoverflow.com/questions/1255512/how-to-draw-a-rounded-rectangle-using-html-canvas/7838871#7838871
-			moveTo(p, x + r, y);
-			arcTo(p, x + w, y, x + w, y + h, r);
-			arcTo(p, x + w, y + h, x, y + h, r);
-			arcTo(p, x, y + h, x, y, r);
-			arcTo(p, x, y, x + w, y, r);
+			moveTo(p, x + endRad, y);
+			arcTo(p, x + w, y, x + w, y + h, endRad);
+			arcTo(p, x + w, y + h, x, y + h, baseRad);
+			arcTo(p, x, y + h, x, y, baseRad);
+			arcTo(p, x, y, x + w, y, endRad);
 			p.closePath();
 		}
 	};

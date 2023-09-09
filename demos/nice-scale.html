@@ -89,7 +89,7 @@
 							yDataMin = dataMin;
 							yDataMax = dataMax;
 
-							yMaxTicks = Math.floor(u.bbox.height / yMinSpace);
+							yMaxTicks = Math.floor(u.bbox.height / devicePixelRatio / yMinSpace);
 							yNiceScale = niceScale(dataMin, dataMax, yMaxTicks);
 							return [yNiceScale.min, yNiceScale.max];
 						}
@@ -99,7 +99,7 @@
 					{},
 					{
 						incrs: u => {
-							yMaxTicks = Math.floor(u.bbox.height / yMinSpace);
+							yMaxTicks = Math.floor(u.bbox.height / devicePixelRatio / yMinSpace);
 
 							let _yNiceScale = niceScale(yDataMin, yDataMax, yMaxTicks);
 

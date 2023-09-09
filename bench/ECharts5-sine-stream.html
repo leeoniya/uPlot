@@ -7,7 +7,7 @@
 	</head>
 	<body>
 		<p>This is an adaptation of <a href="../demos/sine-stream.html">/demos/sine-stream.html</a> using ECharts5 (currently the next-fastest lib after uPlot).</p>
-		<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+		<script src="https://fastly.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 
 		<div id="chart" style="width: 2540px; height: 600px;"></div>
 
@@ -66,12 +66,12 @@
 				for (t = 0; t < steps; t += 1) {
 					let extra = randFunc();
 					let newVal = value + extra;
-					
+
 					if (newVal > max || newVal < min)
 						value = clamp(value - extra, min, max);
 					else
 						value = newVal;
-					
+
 					points.push(value);
 				}
 
@@ -131,7 +131,7 @@
 			let dom = document.getElementById("chart");
 
 			let myChart = echarts.init(dom, null, {
-				width: 2540,
+				width: 1920,
 				height: 600
 			});
 

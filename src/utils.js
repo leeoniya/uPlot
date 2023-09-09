@@ -1,3 +1,5 @@
+import { domEnv, nav } from './dom';
+
 // binary search for index of closest value
 export function closestIdx(num, arr, lo, hi) {
 	let mid;
@@ -45,9 +47,13 @@ export function getMinMax(data, _i0, _i1, sorted) {
 	}
 	else {
 		for (let i = _i0; i <= _i1; i++) {
-			if (data[i] != null) {
-				_min = min(_min, data[i]);
-				_max = max(_max, data[i]);
+			let v = data[i];
+
+			if (v != null) {
+				if (v < _min)
+					_min = v;
+				if (v > _max)
+					_max = v;
 			}
 		}
 	}
@@ -62,9 +68,13 @@ export function getMinMaxLog(data, _i0, _i1) {
 	let _max = -inf;
 
 	for (let i = _i0; i <= _i1; i++) {
-		if (data[i] > 0) {
-			_min = min(_min, data[i]);
-			_max = max(_max, data[i]);
+		let v = data[i];
+
+		if (v != null && v > 0) {
+			if (v < _min)
+				_min = v;
+			if (v > _max)
+				_max = v;
 		}
 	}
 
@@ -72,14 +82,6 @@ export function getMinMaxLog(data, _i0, _i1) {
 		_min ==  inf ?  1 : _min,
 		_max == -inf ? 10 : _max,
 	];
-}
-
-const _fixedTuple = [0, 0];
-
-function fixIncr(minIncr, maxIncr, minExp, maxExp) {
-	_fixedTuple[0] = minExp < 0 ? roundDec(minIncr, -minExp) : minIncr;
-	_fixedTuple[1] = maxExp < 0 ? roundDec(maxIncr, -maxExp) : maxIncr;
-	return _fixedTuple;
 }
 
 export function rangeLog(min, max, base, fullMags) {
@@ -99,25 +101,30 @@ export function rangeLog(min, max, base, fullMags) {
 		}
 	}
 
-	let minExp, maxExp, minMaxIncrs;
+	let growMinAbs = minSign == 1 ? floor : ceil;
+	let growMaxAbs = maxSign == 1 ? ceil : floor;
 
-	if (fullMags) {
-		minExp = floor(logFn(min));
-		maxExp =  ceil(logFn(max));
+	let minExp = growMinAbs(logFn(abs(min)));
+	let maxExp = growMaxAbs(logFn(abs(max)));
 
-		minMaxIncrs = fixIncr(pow(base, minExp), pow(base, maxExp), minExp, maxExp);
+	let minIncr = pow(base, minExp);
+	let maxIncr = pow(base, maxExp);
 
-		min = minMaxIncrs[0];
-		max = minMaxIncrs[1];
+	// fix values like Math.pow(10, -5) === 0.000009999999999999999
+	if (base == 10) {
+		if (minExp < 0)
+			minIncr = roundDec(minIncr, -minExp);
+		if (maxExp < 0)
+			maxIncr = roundDec(maxIncr, -maxExp);
+	}
+
+	if (fullMags || base == 2) {
+		min = minIncr * minSign;
+		max = maxIncr * maxSign;
 	}
 	else {
-		minExp = floor(logFn(abs(min)));
-		maxExp = floor(logFn(abs(max)));
-
-		minMaxIncrs = fixIncr(pow(base, minExp), pow(base, maxExp), minExp, maxExp);
-
-		min = incrRoundDn(min, minMaxIncrs[0]);
-		max = incrRoundUp(max, minMaxIncrs[1]);
+		min = incrRoundDn(min, minIncr);
+		max = incrRoundUp(max, maxIncr);
 	}
 
 	return [min, max];
@@ -202,7 +209,13 @@ function _rangeNum(_min, _max, cfg) {
 	let softMinMode = ifNull(cmin.mode, 0);
 	let softMaxMode = ifNull(cmax.mode, 0);
 
-	let delta        = _max - _min;
+	let delta = _max - _min;
+	let deltaMag = log10(delta);
+
+	let scalarMax = max(abs(_min), abs(_max));
+	let scalarMag = log10(scalarMax);
+
+	let scalarMagDelta = abs(scalarMag - deltaMag);
 
 	// this handles situations like 89.7, 89.69999999999999
 	// by assuming 0.001x deltas are precision errors
@@ -210,7 +223,8 @@ function _rangeNum(_min, _max, cfg) {
 //		delta = 0;
 
 	// treat data as flat if delta is less than 1 billionth
-	if (delta < 1e-9) {
+	// or range is 11+ orders of magnitude below raw values, e.g. 99999999.99999996 - 100000000.00000004
+	if (delta < 1e-9 || scalarMagDelta > 10) {
 		delta = 0;
 
 		// if soft mode is 2 and all vals are flat at 0, avoid the 0.1 * 1e3 fallback
@@ -226,7 +240,7 @@ function _rangeNum(_min, _max, cfg) {
 		}
 	}
 
-	let nonZeroDelta = delta || abs(_max) || 1e3;
+	let nonZeroDelta = delta || scalarMax || 1e3;
 	let mag          = log10(nonZeroDelta);
 	let base         = pow(10, floor(mag));
 
@@ -247,7 +261,7 @@ function _rangeNum(_min, _max, cfg) {
 }
 
 // alternative: https://stackoverflow.com/a/2254896
-const numFormatter = new Intl.NumberFormat(navigator.language);
+const numFormatter = new Intl.NumberFormat(domEnv ? nav.language : 'en-US');
 export const fmtNum = val => numFormatter.format(val);
 
 const M = Math;
@@ -274,10 +288,6 @@ export function numIntDigits(x) {
 	return (log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
 }
 
-export function incrRound(num, incr) {
-	return round(num/incr)*incr;
-}
-
 export function clamp(num, _min, _max) {
 	return min(max(num, _min), _max);
 }
@@ -285,6 +295,8 @@ export function clamp(num, _min, _max) {
 export function fnOrSelf(v) {
 	return typeof v == "function" ? v : () => v;
 }
+
+export const noop = () => {};
 
 export const retArg0 = _0 => _0;
 
@@ -296,16 +308,38 @@ export const retTrue = _ => true;
 
 export const retEq = (a, b) => a == b;
 
+// this will probably prevent tick incrs > 14 decimal places
+// (we generate up to 17 dec, see fixedDec const)
+const fixFloat = v => roundDec(v, 14);
+
+export function incrRound(num, incr) {
+	return fixFloat(roundDec(fixFloat(num/incr))*incr);
+}
+
 export function incrRoundUp(num, incr) {
-	return ceil(num/incr)*incr;
+	return fixFloat(ceil(fixFloat(num/incr))*incr);
 }
 
 export function incrRoundDn(num, incr) {
-	return floor(num/incr)*incr;
+	return fixFloat(floor(fixFloat(num/incr))*incr);
 }
 
-export function roundDec(val, dec) {
-	return round(val * (dec = 10**dec)) / dec;
+// https://stackoverflow.com/a/48764436
+// rounds half away from zero
+export function roundDec(val, dec = 0) {
+	if (isInt(val))
+		return val;
+//	else if (dec == 0)
+//		return round(val);
+
+	let p = 10 ** dec;
+	let n = (val * p) * (1 + Number.EPSILON);
+	return round(n) / p;
+}
+
+// https://stackoverflow.com/questions/14879691/get-number-of-digits-with-javascript/28203456#28203456
+export function numDigits(x) {
+	return (log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
 }
 
 export const fixedDec = new Map();
@@ -343,9 +377,20 @@ export const EMPTY_ARR = [];
 export const nullNullTuple = [null, null];
 
 export const isArr = Array.isArray;
+export const isInt = Number.isInteger;
+export const isUndef = v => v === void 0;
 
 export function isStr(v) {
 	return typeof v == 'string';
+}
+
+export function cmpObj(a, b) {
+	for (let k in a) {
+		if (b[k] != a[k])
+			return false;
+	}
+
+	return true;
 }
 
 export function isObj(v) {
@@ -363,6 +408,8 @@ export function fastIsObj(v) {
 	return v != null && typeof v == 'object';
 }
 
+const TypedArray = Object.getPrototypeOf(Uint8Array);
+
 export function copy(o, _isObj = isObj) {
 	let out;
 
@@ -372,11 +419,13 @@ export function copy(o, _isObj = isObj) {
 		if (isArr(val) || _isObj(val)) {
 			out = Array(o.length);
 			for (let i = 0; i < o.length; i++)
-			  out[i] = copy(o[i], _isObj);
+				out[i] = copy(o[i], _isObj);
 		}
 		else
 			out = o.slice();
 	}
+	else if (o instanceof TypedArray) // also (ArrayBuffer.isView(o) && !(o instanceof DataView))
+		out = o.slice();
 	else if (_isObj(o)) {
 		out = {};
 		for (let k in o)
@@ -430,6 +479,20 @@ function nullExpand(yVals, nullIdxs, alignedLen) {
 // nullModes is a tables-matched array indicating how to treat nulls in each series
 // output is sorted ASC on the joined field (table[0]) and duplicate join values are collapsed
 export function join(tables, nullModes) {
+	if (allHeadersSame(tables)) {
+	//	console.log('cheap join!');
+
+		let table = tables[0].slice();
+
+		for (let i = 1; i < tables.length; i++)
+			table.push(...tables[i].slice(1));
+
+		if (!isAsc(table[0]))
+			table = sortCols(table);
+
+		return table;
+	}
+
 	let xVals = new Set();
 
 	for (let ti = 0; ti < tables.length; ti++) {
@@ -489,3 +552,87 @@ export function join(tables, nullModes) {
 }
 
 export const microTask = typeof queueMicrotask == "undefined" ? fn => Promise.resolve().then(fn) : queueMicrotask;
+
+// TODO: https://github.com/dy/sort-ids (~2x faster for 1e5+ arrays)
+function sortCols(table) {
+	let head = table[0];
+	let rlen = head.length;
+
+	let idxs = Array(rlen);
+	for (let i = 0; i < idxs.length; i++)
+		idxs[i] = i;
+
+	idxs.sort((i0, i1) => head[i0] - head[i1]);
+
+	let table2 = [];
+	for (let i = 0; i < table.length; i++) {
+		let row = table[i];
+		let row2 = Array(rlen);
+
+		for (let j = 0; j < rlen; j++)
+			row2[j] = row[idxs[j]];
+
+		table2.push(row2);
+	}
+
+	return table2;
+}
+
+// test if we can do cheap join (all join fields same)
+function allHeadersSame(tables) {
+	let vals0 = tables[0][0];
+	let len0 = vals0.length;
+
+	for (let i = 1; i < tables.length; i++) {
+		let vals1 = tables[i][0];
+
+		if (vals1.length != len0)
+			return false;
+
+		if (vals1 != vals0) {
+			for (let j = 0; j < len0; j++) {
+				if (vals1[j] != vals0[j])
+					return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+function isAsc(vals, samples = 100) {
+	const len = vals.length;
+
+	// empty or single value
+	if (len <= 1)
+		return true;
+
+	// skip leading & trailing nullish
+	let firstIdx = 0;
+	let lastIdx = len - 1;
+
+	while (firstIdx <= lastIdx && vals[firstIdx] == null)
+		firstIdx++;
+
+	while (lastIdx >= firstIdx && vals[lastIdx] == null)
+		lastIdx--;
+
+	// all nullish or one value surrounded by nullish
+	if (lastIdx <= firstIdx)
+		return true;
+
+	const stride = max(1, floor((lastIdx - firstIdx + 1) / samples));
+
+	for (let prevVal = vals[firstIdx], i = firstIdx + stride; i <= lastIdx; i += stride) {
+		const v = vals[i];
+
+		if (v != null) {
+			if (v <= prevVal)
+				return false;
+
+			prevVal = v;
+		}
+	}
+
+	return true;
+}

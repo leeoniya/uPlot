@@ -69,6 +69,14 @@
 					},
 				},
 				hooks: {
+					init: [
+						u => {
+							// should only fire when not dragging
+							u.over.addEventListener('click', e => {
+								console.log('click!');
+							});
+						}
+					],
 					setSelect: [
 						u => {
 							if (annotating) {

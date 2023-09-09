@@ -92,6 +92,9 @@
 					{
 						label: "CPU",
 						values: (u, sidx, idx) => {
+							if (idx == null)
+								return { Time: '--', Value: '--' };
+
 						//	let date = self.tzDate(data[0][idx]);
 							let date = new Date(data[0][idx] * 1e3);
 
@@ -106,6 +109,9 @@
 					{
 						label: "RAM",
 						values: (u, sidx, idx) => {
+							if (idx == null)
+								return { Time: '--', Value: '--' };
+
 						//	let date = self.tzDate(data[0][idx]);
 							let date = new Date(data[0][idx] * 1e3);
 
@@ -114,7 +120,6 @@
 								Value: data[sidx][idx],
 							};
 						},
-						value: (u, v) => v == null ? "-" : v.toFixed(1) + "%",
 						stroke: "blue",
 						fill: "rgba(0,0,255,0.05)",
 					},
@@ -175,9 +180,46 @@
 					},
 				},
 				hooks: {
+					init: [
+						u => {
+						/*
+							let els = {
+								hz: null,
+								vt: null,
+							};
+
+							let hz = els.hz = document.createElement('div');
+							hz.style.height = '100%';
+							hz.style.width = '5px';
+							hz.style.background = 'rgba(255,0,0,0.3)';
+							hz.style.position = 'absolute';
+							hz.style.transformOrigin = '0 0';
+							u.over.appendChild(hz);
+
+							let vt = els.vt = document.createElement('div');
+							vt.style.width = '100%';
+							vt.style.height = '5px';
+							vt.style.background = 'rgba(255,0,0,0.3)';
+							vt.style.position = 'absolute';
+							vt.style.transformOrigin = '0 0';
+							u.over.appendChild(vt);
+
+							u.els = els;
+						*/
+						},
+					],
 					setLegend: [
 						u => {
-						//	console.log(u.cursor.idxs);
+						/*
+							let idx = u.cursor.idxs[3];
+							if (idx != null) {
+								let x = u.valToPos(u.data[0][idx], 'x');
+								let y = u.valToPos(u.data[3][idx], 'y');
+
+								u.els.hz.style.translate = `${x}px 0`;
+								u.els.vt.style.translate = `0 ${y}px`;
+							}
+						*/
 						}
 					]
 				},
