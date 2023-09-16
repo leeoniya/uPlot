@@ -277,7 +277,7 @@ declare namespace uPlot {
 		show?: boolean;	// true
 		/** show series values at current cursor.idx */
 		live?: boolean;	// true
-		/** swiches primary interaction mode to toggle-one/toggle-all */
+		/** switches primary interaction mode to toggle-one/toggle-all */
 		isolate?: boolean; // false
 		/** series indicators */
 		markers?: Legend.Markers;
