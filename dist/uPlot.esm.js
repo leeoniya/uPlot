@@ -2409,7 +2409,10 @@ function bars(opts) {
 				else
 					barWid = valToPosX(sizes[0], scaleX, xDim, xOff) - valToPosX(0, scaleX, xDim, xOff); // assumes linear scale (delta from 0)
 
-				barWid = pxRound(barWid - strokeWidth);
+				if (strokeWidth >= barWid)
+					strokeWidth = 0;
+
+				barWid = pxRound(clamp(barWid - strokeWidth, minWidth, maxWidth)); // TODO: extraGap?
 
 				xShift = (_dirX == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
 			}
@@ -2440,14 +2443,19 @@ function bars(opts) {
 
 				let gapWid = colWid * gapFactor;
 
-				barWid = pxRound(min(maxWidth, max(minWidth, colWid - gapWid)) - strokeWidth - extraGap);
+				barWid = colWid - gapWid - extraGap;
+
+				if (strokeWidth >= barWid)
+					strokeWidth = 0;
+
+				barWid = pxRound(clamp(colWid - gapWid, minWidth, maxWidth) - strokeWidth - extraGap);
 
 				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * extraGap / 2;
 
 				// when colWidth is smaller than [min-clamped] bar width (e.g. aligned data values are non-uniform)
 				// disable clipping of null-valued band bars to avoid clip overlap / bleed into adjacent bars
 				// (this could still bleed clips of adjacent band/stacked bars into each other, so is far from perfect)
-				if (barWid > colWid)
+				if (barWid + strokeWidth > colWid)
 					bandClipNulls = false;
 			}
 
