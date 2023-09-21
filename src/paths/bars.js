@@ -1,5 +1,5 @@
 import { abs, floor, min, max, inf, ifNull, EMPTY_OBJ, fnOrSelf } from '../utils';
-import { orient, rectV, rectH, BAND_CLIP_FILL, BAND_CLIP_STROKE, bandFillClipDirs } from './utils';
+import { orient, rectV, rectH, BAND_CLIP_FILL, BAND_CLIP_STROKE, STROKE_VIA_FILL, bandFillClipDirs } from './utils';
 import { pxRatio } from '../dom';
 
 export function bars(opts) {
@@ -28,7 +28,7 @@ export function bars(opts) {
 
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
-			let pxRound = series.pxRound;
+			let pxRound = gapFactor == 0 ? v => v : series.pxRound;
 
 			let valRadius, baseRadius;
 
@@ -105,7 +105,7 @@ export function bars(opts) {
 
 				barWid = pxRound(barWid - strokeWidth);
 
-				xShift = (_dirX == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
+				xShift = (_dirX == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2); // TODO: should not include stroke width
 			}
 			else {
 				let colWid = xDim;
@@ -134,7 +134,7 @@ export function bars(opts) {
 
 				let gapWid = colWid * gapFactor;
 
-				barWid = pxRound(min(maxWidth, max(minWidth, colWid - gapWid)) - strokeWidth - extraGap);
+				barWid = pxRound(min(maxWidth, max(minWidth, colWid - gapWid)) - extraGap);
 
 				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * extraGap / 2;
 
@@ -145,7 +145,7 @@ export function bars(opts) {
 					bandClipNulls = false;
 			}
 
-			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
+			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE | STROKE_VIA_FILL };  // disp, geom
 
 			let yLimit;
 
@@ -154,7 +154,8 @@ export function bars(opts) {
 				yLimit = pxRound(valToPosY(bandClipDir == 1 ? scaleY.max : scaleY.min, scaleY, yDim, yOff));
 			}
 
-			const stroke = multiPath ? null : new Path2D();
+			const stroke = multiPath || strokeWidth == 0 ? null : new Path2D();
+			const fill   = multiPath                     ? null : new Path2D();  // should be null if series.fill null?
 			const band = _paths.band;
 
 			let { y0, y1 } = disp;
@@ -198,8 +199,7 @@ export function bars(opts) {
 				let lft = pxRound(xPos - xShift);
 				let btm = pxRound(max(yPos, y0Pos));
 				let top = pxRound(min(yPos, y0Pos));
-				// this includes the stroke
-				let barHgt = btm - top;
+				let barHgt = pxRound(btm - top);
 
 				if (yVal != null) {  // && yVal != fillToY (0 height bar)
 					let rv = yVal < 0 ? radBase : radVal;
@@ -212,13 +212,21 @@ export function bars(opts) {
 						if (fillColors[i] != null)
 							rect(fillPaths.get(fillColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
 					}
-					else
-						rect(stroke, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
+					else {
+						console.log({
+							lft,
+							top,
+							barWid,
+							barHgt: max(0, barHgt)
+						});
+						strokeWidth > 0 && rect(stroke, lft, top, barWid, max(0, barHgt), rv, rb); // TODO: skip if 0 height
+						rect(fill,   lft + strokeWidth, top + strokeWidth, max(1, barWid - strokeWidth * 2), max(0, barHgt - strokeWidth * 2), rv, rb);
+					}
 
 					each(u, seriesIdx, i,
-						lft    - strokeWidth / 2,
+						lft,
 						top,
-						barWid + strokeWidth,
+						barWid,
 						barHgt,
 					);
 				}
@@ -235,14 +243,18 @@ export function bars(opts) {
 
 					barHgt = btm - top;
 
-					rect(band, lft - strokeWidth / 2, top, barWid + strokeWidth, max(0, barHgt), 0, 0);  // radius here?
+					rect(band, lft, top, barWid, max(0, barHgt), 0, 0);  // radius here?
 				}
 			}
 
-			if (strokeWidth > 0)
-				_paths.stroke = multiPath ? strokePaths : stroke;
+			if (strokeWidth > 0) {
+				if (stroke != null)
+					stroke.addPath(fill);
 
-			_paths.fill = multiPath ? fillPaths : stroke;
+				_paths.stroke = multiPath ? strokePaths : stroke;
+			}
+
+			_paths.fill = multiPath ? fillPaths : fill;
 
 			return _paths;
 		});

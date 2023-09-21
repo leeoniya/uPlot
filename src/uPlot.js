@@ -194,7 +194,7 @@ import { bars     } from './paths/bars';
 import { monotoneCubic     as spline  } from './paths/monotoneCubic';
 import { catmullRomCentrip as spline2 } from './paths/catmullRomCentrip';
 
-import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, orient, pxRoundGen, seriesFillTo, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './paths/utils';
+import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, orient, pxRoundGen, seriesFillTo, BAND_CLIP_FILL, BAND_CLIP_STROKE, STROKE_VIA_FILL } from './paths/utils';
 
 function log(name, args) {
 	console.log.apply(console, [name].concat(Array.prototype.slice.call(args)));
@@ -1567,17 +1567,19 @@ export default function uPlot(opts, data, then) {
 			gapsClip && ctx.clip(gapsClip);
 		}
 
+		let strokeViaFill = (flags & STROKE_VIA_FILL) == STROKE_VIA_FILL;
+
 		if (bandClip) {
 			if ((flags & CLIP_FILL_STROKE) == CLIP_FILL_STROKE) {
 				ctx.clip(bandClip);
 				gapsClip2 && ctx.clip(gapsClip2);
 				doFill(fillStyle, fillPath);
-				doStroke(strokeStyle, strokePath, lineWidth);
+				doStroke(strokeStyle, strokePath, lineWidth, strokeViaFill);
 			}
 			else if (flags & BAND_CLIP_STROKE) {
 				doFill(fillStyle, fillPath);
 				ctx.clip(bandClip);
-				doStroke(strokeStyle, strokePath, lineWidth);
+				doStroke(strokeStyle, strokePath, lineWidth, strokeViaFill);
 			}
 			else if (flags & BAND_CLIP_FILL) {
 				ctx.save();
@@ -1585,28 +1587,40 @@ export default function uPlot(opts, data, then) {
 				gapsClip2 && ctx.clip(gapsClip2);
 				doFill(fillStyle, fillPath);
 				ctx.restore();
-				doStroke(strokeStyle, strokePath, lineWidth);
+				doStroke(strokeStyle, strokePath, lineWidth, strokeViaFill);
 			}
 		}
 		else {
 			doFill(fillStyle, fillPath);
-			doStroke(strokeStyle, strokePath, lineWidth);
+			doStroke(strokeStyle, strokePath, lineWidth, strokeViaFill);
 		}
 
 		if (boundsClip || gapsClip || bandClip)
 			ctx.restore();
 	}
 
-	function doStroke(strokeStyle, strokePath, lineWidth) {
+	function doStroke(strokeStyle, strokePath, lineWidth, strokeViaFill) {
 		if (lineWidth > 0) {
 			if (strokePath instanceof Map) {
 				strokePath.forEach((strokePath, strokeStyle) => {
-					ctx.strokeStyle = ctxStroke = strokeStyle;
-					ctx.stroke(strokePath);
+					if (strokeViaFill) {
+						ctx.fillStyle = ctxStroke = strokeStyle;
+						ctx.fill(strokePath, 'evenodd');
+					}
+					else {
+						ctx.strokeStyle = ctxStroke = strokeStyle;
+						ctx.stroke(strokePath);
+					}
 				});
 			}
-			else
-				strokePath != null && strokeStyle && ctx.stroke(strokePath);
+			else if (strokePath != null && strokeStyle != null) {
+				if (strokeViaFill) {
+					ctx.fillStyle = ctxStroke = strokeStyle;
+					ctx.fill(strokePath, 'evenodd');
+				}
+				else
+					ctx.stroke(strokePath);
+			}
 		}
 	}
 

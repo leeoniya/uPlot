@@ -2,6 +2,7 @@ import { round, incrRound, retArg0, nonNullIdx, min, EMPTY_ARR, ifNull } from ".
 
 export const BAND_CLIP_FILL   = 1 << 0;
 export const BAND_CLIP_STROKE = 1 << 1;
+export const STROKE_VIA_FILL  = 1 << 2;
 
 export function orient(u, seriesIdx, cb) {
 	const mode = u.mode;
