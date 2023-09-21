@@ -2415,6 +2415,10 @@ var uPlot = (function () {
 					if (strokeWidth >= barWid)
 						strokeWidth = 0;
 
+					// for small gaps, disable pixel snapping since gap inconsistencies become noticible and annoying
+				//	if (gapWid + extraGap < 5)
+				//		pxRound = retArg0;
+
 					barWid = pxRound(clamp(barWid - strokeWidth, minWidth, maxWidth)); // TODO: extraGap?
 
 					xShift = (_dirX == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
@@ -2450,6 +2454,10 @@ var uPlot = (function () {
 
 					if (strokeWidth >= barWid)
 						strokeWidth = 0;
+
+					// for small gaps, disable pixel snapping since gap inconsistencies become noticible and annoying
+					if (gapWid + extraGap < 5)
+						pxRound = retArg0;
 
 					barWid = pxRound(clamp(colWid - gapWid, minWidth, maxWidth) - strokeWidth - extraGap);
 
