@@ -257,6 +257,10 @@ export function bars(opts) {
 
 			if (strokeWidth > 0)
 				_paths.stroke = multiPath ? strokePaths : stroke;
+			else if (!multiPath) {
+				_paths._fill = series._stroke ?? series._fill;
+				_paths.width = 0;
+			}
 
 			_paths.fill = multiPath ? fillPaths : stroke;
 

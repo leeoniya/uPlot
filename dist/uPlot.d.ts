@@ -656,6 +656,15 @@ declare namespace uPlot {
 			/** tuples of canvas pixel coordinates that were used to construct the gaps clip */
 			gaps?: [from: number, to: number][];
 
+			/** line width in CSS pixels, if differs from series.width (for dynamic rendering optimization) */
+			width?: number;
+
+			/** fill style, if differs from series.fill (for dynamic rendering optimization) */
+			_fill?: CanvasRenderingContext2D['fillStyle'];
+
+			/** stroke style, if differs from series.stroke (for dynamic rendering optimization) */
+			_stroke?: CanvasRenderingContext2D['strokeStyle'];
+
 			/** bitmap of whether the band clip should be applied to stroke, fill, or both */
 			flags?: number;
 		}

@@ -2565,6 +2565,10 @@ function bars(opts) {
 
 			if (strokeWidth > 0)
 				_paths.stroke = multiPath ? strokePaths : stroke;
+			else if (!multiPath) {
+				_paths._fill = series._stroke ?? series._fill;
+				_paths.width = 0;
+			}
 
 			_paths.fill = multiPath ? fillPaths : stroke;
 
@@ -3971,9 +3975,14 @@ function uPlot(opts, data, then) {
 	function drawSeries() {
 		if (dataLen > 0) {
 			series.forEach((s, i) => {
-				if (i > 0 && s.show && s._paths == null) {
-					let _idxs = mode == 2 ? [0, data[i][0].length - 1] : getOuterIdxs(data[i]);
-					s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
+				if (i > 0 && s.show) {
+					cacheStrokeFill(i, false);
+					cacheStrokeFill(i, true);
+
+					if (s._paths == null) {
+						let _idxs = mode == 2 ? [0, data[i][0].length - 1] : getOuterIdxs(data[i]);
+						s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
+					}
 				}
 			});
 
@@ -3982,15 +3991,10 @@ function uPlot(opts, data, then) {
 					if (ctxAlpha != s.alpha)
 						ctx.globalAlpha = ctxAlpha = s.alpha;
 
-					{
-						cacheStrokeFill(i, false);
-						s._paths && drawPath(i, false);
-					}
+					s._paths != null && drawPath(i, false);
 
 					{
-						cacheStrokeFill(i, true);
-
-						let _gaps = s._paths ? s._paths.gaps : null;
+						let _gaps = s._paths != null ? s._paths.gaps : null;
 
 						let show = s.points.show(self, i, i0, i1, _gaps);
 						let idxs = s.points.filter(self, i, show, _gaps);
@@ -4020,12 +4024,20 @@ function uPlot(opts, data, then) {
 	function drawPath(si, _points) {
 		let s = _points ? series[si].points : series[si];
 
-		let strokeStyle = s._stroke;
-		let fillStyle   = s._fill;
+		let {
+			stroke,
+			fill,
+			clip: gapsClip,
+			flags,
 
-		let { stroke, fill, clip: gapsClip, flags } = s._paths;
+			_stroke: strokeStyle = s._stroke,
+			_fill:   fillStyle   = s._fill,
+			_width:  width       = s.width,
+		} = s._paths;
+
+		width = roundDec(width * pxRatio, 3);
+
 		let boundsClip = null;
-		let width = roundDec(s.width * pxRatio, 3);
 		let offset = (width % 2) / 2;
 
 		if (_points && fillStyle == null)

@@ -652,7 +652,7 @@
 				const opts = {
 					width: 400,
 					height: 300,
-					title: 'Unaligned bars + band clipping issue (with stroke)',
+					title: 'Unaligned bars + band clipping issue (with stroke, also 0-alpha fill)',
 					scales: {
 						x: {
 							time: false,
@@ -670,7 +670,7 @@
 					series: [
 						{},
 						{
-							fill: 'rgba(255,0,0,0.5)',
+							fill: 'rgba(255,0,0,0)',
 							stroke: 'rgba(255,0,0,0.5)',
 							width: 1,
 							paths,
@@ -680,7 +680,7 @@
 						},
 						{
 
-							fill: 'rgba(0,0,255,0.5)',
+							fill: 'rgba(0,0,255,0)',
 							stroke: 'rgba(0,0,255,0.5)',
 							width: 1,
 							paths,
