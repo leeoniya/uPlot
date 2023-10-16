@@ -3163,7 +3163,7 @@ export default function uPlot(opts, data, then) {
 		else
 			autoScaleX();
 
-		shouldSetSelect = select.show;
+		shouldSetSelect = select.show && (select.width > 0 || select.height > 0);
 		shouldSetCursor = shouldSetLegend = true;
 
 		_setSize(opts.width, opts.height);
