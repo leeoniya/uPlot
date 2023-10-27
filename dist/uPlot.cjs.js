@@ -2411,7 +2411,7 @@ function bars(opts) {
 				else
 					barWid = valToPosX(sizes[0], scaleX, xDim, xOff) - valToPosX(0, scaleX, xDim, xOff); // assumes linear scale (delta from 0)
 
-				if (strokeWidth >= barWid)
+				if (strokeWidth >= barWid / 2)
 					strokeWidth = 0;
 
 				// for small gaps, disable pixel snapping since gap inconsistencies become noticible and annoying
@@ -2451,7 +2451,7 @@ function bars(opts) {
 
 				barWid = colWid - gapWid - extraGap;
 
-				if (strokeWidth >= barWid)
+				if (strokeWidth >= barWid / 2)
 					strokeWidth = 0;
 
 				// for small gaps, disable pixel snapping since gap inconsistencies become noticible and annoying
@@ -2566,7 +2566,7 @@ function bars(opts) {
 			if (strokeWidth > 0)
 				_paths.stroke = multiPath ? strokePaths : stroke;
 			else if (!multiPath) {
-				_paths._fill = series._stroke ?? series._fill;
+				_paths._fill = series.width == 0 ? series._fill : series._stroke ?? series._fill;
 				_paths.width = 0;
 			}
 
