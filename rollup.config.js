@@ -70,6 +70,7 @@ export default [
 			file: './dist/uPlot.esm.js',
 			format: 'es',
 			banner,
+			sourcemap: true,
 		},
 	},
 	{
