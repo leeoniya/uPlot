@@ -1,0 +1,212 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Thin bar stroke &amp; fill</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+
+			{
+				let data = [
+					Array.from({length: 30}, (v, i) => i),
+					Array(30).fill(5),
+				];
+
+				const opts = {
+					title: "Normal",
+					width: 800,
+					height: 200,
+					scales: {
+						x: {
+							time: false,
+						},
+					},
+					series: [
+						{},
+						{
+							paths: uPlot.paths.bars(),
+							stroke: "red",
+							fill: "rgba(255,0,0,0.2)",
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			}
+
+			{
+				let data = [
+					Array.from({length: 200}, (v, i) => i),
+					Array(200).fill(5),
+				];
+
+				const opts = {
+					title: "No stroke, red fill",
+					width: 800,
+					height: 200,
+					scales: {
+						x: {
+							time: false,
+						},
+					},
+					series: [
+						{},
+						{
+							paths: uPlot.paths.bars(),
+							width: 0,
+							fill: "red",
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			}
+
+			{
+				let data = [
+					Array.from({length: 200}, (v, i) => i),
+					Array(200).fill(5),
+				];
+
+				const opts = {
+					title: "Too thin, but stroke width 0, use normal fill",
+					width: 800,
+					height: 200,
+					scales: {
+						x: {
+							time: false,
+						},
+					},
+					series: [
+						{},
+						{
+							paths: uPlot.paths.bars(),
+							width: 0,
+							stroke: "red",
+							fill: "rgba(255,0,0,0.2)",
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			}
+
+			{
+				let data = [
+					Array.from({length: 200}, (v, i) => i),
+					Array(200).fill(5),
+				];
+
+				const opts = {
+					title: "Too thin, use stroke color for fill",
+					width: 800,
+					height: 200,
+					scales: {
+						x: {
+							time: false,
+						},
+					},
+					series: [
+						{},
+						{
+							paths: uPlot.paths.bars(),
+							stroke: "red",
+							fill: "rgba(255,0,0,0.2)",
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			}
+
+			{
+				let data = [
+					Array.from({length: 200}, (v, i) => i),
+					Array(200).fill(5),
+				];
+
+				const opts = {
+					title: "Still stroke & fill",
+					width: 1000,
+					height: 200,
+					scales: {
+						x: {
+							time: false,
+						},
+					},
+					series: [
+						{},
+						{
+							paths: uPlot.paths.bars(),
+							stroke: "red",
+							fill: "rgba(255,0,0,0.2)",
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			}
+
+			{
+				let data = [
+					Array.from({length: 200}, (v, i) => i),
+					Array(200).fill(5),
+				];
+
+				const opts = {
+					title: "Still stroke & fill",
+					width: 1200,
+					height: 200,
+					scales: {
+						x: {
+							time: false,
+						},
+					},
+					series: [
+						{},
+						{
+							paths: uPlot.paths.bars(),
+							stroke: "red",
+							fill: "rgba(255,0,0,0.2)",
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			}
+
+			{
+				let data = [
+					Array.from({length: 200}, (v, i) => i),
+					Array(200).fill(5),
+				];
+
+				const opts = {
+					title: "Still stroke & fill",
+					width: 1600,
+					height: 200,
+					scales: {
+						x: {
+							time: false,
+						},
+					},
+					series: [
+						{},
+						{
+							paths: uPlot.paths.bars(),
+							stroke: "red",
+							fill: "rgba(255,0,0,0.2)",
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			}
+		</script>
+	</body>
+</html>

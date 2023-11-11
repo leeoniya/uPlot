@@ -277,7 +277,7 @@ declare namespace uPlot {
 		show?: boolean;	// true
 		/** show series values at current cursor.idx */
 		live?: boolean;	// true
-		/** swiches primary interaction mode to toggle-one/toggle-all */
+		/** switches primary interaction mode to toggle-one/toggle-all */
 		isolate?: boolean; // false
 		/** series indicators */
 		markers?: Legend.Markers;
@@ -655,6 +655,15 @@ declare namespace uPlot {
 
 			/** tuples of canvas pixel coordinates that were used to construct the gaps clip */
 			gaps?: [from: number, to: number][];
+
+			/** line width in CSS pixels, if differs from series.width (for dynamic rendering optimization) */
+			width?: number;
+
+			/** fill style, if differs from series.fill (for dynamic rendering optimization) */
+			_fill?: CanvasRenderingContext2D['fillStyle'];
+
+			/** stroke style, if differs from series.stroke (for dynamic rendering optimization) */
+			_stroke?: CanvasRenderingContext2D['strokeStyle'];
 
 			/** bitmap of whether the band clip should be applied to stroke, fill, or both */
 			flags?: number;

@@ -4,7 +4,7 @@
 *
 * uPlot.js (μPlot)
 * A small, fast chart for time series, lines, areas, ohlc & bars
-* https://github.com/leeoniya/uPlot (v1.6.24)
+* https://github.com/leeoniya/uPlot (v1.6.27)
 */
 
 var uPlot = (function () {
@@ -1499,7 +1499,7 @@ var uPlot = (function () {
 	const RE_125   = /[125]/;
 	const RE_1     = /1/;
 
-	const _filt = (splits, distr, re, keepMod) => splits.map((v, i) => ((distr == 4 && v == 0) || i % keepMod == 0 && re.test(v.toExponential()[0])) ? v : null);
+	const _filt = (splits, distr, re, keepMod) => splits.map((v, i) => ((distr == 4 && v == 0) || i % keepMod == 0 && re.test(v.toExponential()[v < 0 ? 1 : 0])) ? v : null);
 
 	function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 		let axis = self.axes[axisIdx];
@@ -2412,7 +2412,14 @@ var uPlot = (function () {
 					else
 						barWid = valToPosX(sizes[0], scaleX, xDim, xOff) - valToPosX(0, scaleX, xDim, xOff); // assumes linear scale (delta from 0)
 
-					barWid = pxRound(barWid - strokeWidth);
+					if (strokeWidth >= barWid / 2)
+						strokeWidth = 0;
+
+					// for small gaps, disable pixel snapping since gap inconsistencies become noticible and annoying
+				//	if (gapWid + extraGap < 5)
+				//		pxRound = retArg0;
+
+					barWid = pxRound(clamp(barWid - strokeWidth, minWidth, maxWidth)); // TODO: extraGap?
 
 					xShift = (_dirX == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
 				}
@@ -2443,14 +2450,23 @@ var uPlot = (function () {
 
 					let gapWid = colWid * gapFactor;
 
-					barWid = pxRound(min(maxWidth, max(minWidth, colWid - gapWid)) - strokeWidth - extraGap);
+					barWid = colWid - gapWid - extraGap;
+
+					if (strokeWidth >= barWid / 2)
+						strokeWidth = 0;
+
+					// for small gaps, disable pixel snapping since gap inconsistencies become noticible and annoying
+					if (gapWid + extraGap < 5)
+						pxRound = retArg0;
+
+					barWid = pxRound(clamp(colWid - gapWid, minWidth, maxWidth) - strokeWidth - extraGap);
 
 					xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * extraGap / 2;
 
 					// when colWidth is smaller than [min-clamped] bar width (e.g. aligned data values are non-uniform)
 					// disable clipping of null-valued band bars to avoid clip overlap / bleed into adjacent bars
 					// (this could still bleed clips of adjacent band/stacked bars into each other, so is far from perfect)
-					if (barWid > colWid)
+					if (barWid + strokeWidth > colWid)
 						bandClipNulls = false;
 				}
 
@@ -2550,6 +2566,10 @@ var uPlot = (function () {
 
 				if (strokeWidth > 0)
 					_paths.stroke = multiPath ? strokePaths : stroke;
+				else if (!multiPath) {
+					_paths._fill = series.width == 0 ? series._fill : series._stroke ?? series._fill;
+					_paths.width = 0;
+				}
 
 				_paths.fill = multiPath ? fillPaths : stroke;
 
@@ -3956,9 +3976,14 @@ var uPlot = (function () {
 		function drawSeries() {
 			if (dataLen > 0) {
 				series.forEach((s, i) => {
-					if (i > 0 && s.show && s._paths == null) {
-						let _idxs = mode == 2 ? [0, data[i][0].length - 1] : getOuterIdxs(data[i]);
-						s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
+					if (i > 0 && s.show) {
+						cacheStrokeFill(i, false);
+						cacheStrokeFill(i, true);
+
+						if (s._paths == null) {
+							let _idxs = mode == 2 ? [0, data[i][0].length - 1] : getOuterIdxs(data[i]);
+							s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
+						}
 					}
 				});
 
@@ -3967,15 +3992,10 @@ var uPlot = (function () {
 						if (ctxAlpha != s.alpha)
 							ctx.globalAlpha = ctxAlpha = s.alpha;
 
-						{
-							cacheStrokeFill(i, false);
-							s._paths && drawPath(i, false);
-						}
+						s._paths != null && drawPath(i, false);
 
 						{
-							cacheStrokeFill(i, true);
-
-							let _gaps = s._paths ? s._paths.gaps : null;
+							let _gaps = s._paths != null ? s._paths.gaps : null;
 
 							let show = s.points.show(self, i, i0, i1, _gaps);
 							let idxs = s.points.filter(self, i, show, _gaps);
@@ -4005,12 +4025,20 @@ var uPlot = (function () {
 		function drawPath(si, _points) {
 			let s = _points ? series[si].points : series[si];
 
-			let strokeStyle = s._stroke;
-			let fillStyle   = s._fill;
+			let {
+				stroke,
+				fill,
+				clip: gapsClip,
+				flags,
 
-			let { stroke, fill, clip: gapsClip, flags } = s._paths;
+				_stroke: strokeStyle = s._stroke,
+				_fill:   fillStyle   = s._fill,
+				_width:  width       = s.width,
+			} = s._paths;
+
+			width = roundDec(width * pxRatio, 3);
+
 			let boundsClip = null;
-			let width = roundDec(s.width * pxRatio, 3);
 			let offset = (width % 2) / 2;
 
 			if (_points && fillStyle == null)
@@ -5676,7 +5704,7 @@ var uPlot = (function () {
 			else
 				autoScaleX();
 
-			shouldSetSelect = select.show;
+			shouldSetSelect = select.show && (select.width > 0 || select.height > 0);
 			shouldSetCursor = shouldSetLegend = true;
 
 			_setSize(opts.width, opts.height);

@@ -23,7 +23,7 @@
 		</style>
 	</head>
 	<body>
-		<script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
+		<script src="./lib/uDSV.iife.min.js"></script>
 		<script src="../dist/uPlot.iife.js"></script>
 		<table id="stocks">
 			<tr>
@@ -38,13 +38,13 @@
 
 			let syms = ["AAPL","AMD","AMZN","CSCO","FB","MSFT","QCOM","SBUX","TSLA","ZNGA"];
 
+			let parser = null;
+
 			let proms = syms.map(sym =>
-				fetch("./data/" + sym + ".csv").then(r => r.text()).then(csv =>
-					Papa.parse(csv, {
-						delimiter: ", ",
-						skipEmptyLines: true,
-					})
-				)
+				fetch("./data/" + sym + ".csv").then(r => r.text()).then(csv => {
+					parser ??= uDSV.initParser(uDSV.inferSchema(csv, { trim: true }));
+					return parser.stringArrs(csv);
+				})
 			);
 
 			Promise.all(proms).then(parsed => {
@@ -55,9 +55,6 @@
 					let th = document.createElement("th");
 					th.textContent = syms[i];
 					tr.appendChild(th);
-
-					// chop headers
-					recs.data.shift();
 
 					// volume
 					can = makeSpark(recs, r => +r[2]);
@@ -79,7 +76,7 @@
 				let x = [];
 				let y = [];
 
-				recs.data.forEach((r, i) => {
+				recs.forEach((r, i) => {
 					x.push(i);
 					y.push(yVal(r));
 				});
