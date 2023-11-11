@@ -1,4 +1,4 @@
-function seriesBarsPlugin(opts) {
+function seriesBarsPlugin(opts,data) {
 	let pxRatio;
 	let font;
 
@@ -115,6 +115,62 @@ function seriesBarsPlugin(opts) {
 	let qt;
 
 	return {
+		init: [
+			(u) => {
+				u.over.ondblclick = () => {
+					u.setData(data);
+				};
+			},
+		],
+		setSelect: [
+			(u) => {
+				if (u.select.width > 0) {
+					const min = u.posToVal(u.select.left, "x");
+					const max = u.posToVal(u.select.left + u.select.width, "x");
+					const roundedMin = Object.is(Math.ceil(min), -0)
+						? 0
+						: Math.ceil(min);
+
+					const roundedMax = Math.ceil(max);
+
+					const newData = [];
+
+					data.forEach((singleData) => {
+						newData.push(
+							singleData?.slice(roundedMin, roundedMax + 1)
+						);
+					});
+					let minM = newData[0][0];
+					let maxM = newData[0][newData[0].length - 1];
+
+					u.setData(newData, false);
+					let pctOffset = 0;
+
+					distr(
+						u.data[0].length,
+						groupWidth,
+						groupDistr,
+						0,
+						(di, lftPct, widPct) => {
+							pctOffset = lftPct + widPct / 2;
+						}
+					);
+
+					const rn = maxM - minM;
+
+					if (pctOffset === 0.5) minM -= rn;
+					else {
+						const upScale = 1 / (1 - pctOffset * 2);
+						const offset = (upScale * rn - rn) / 2;
+
+						minM -= offset;
+						maxM += offset;
+					}
+					u.setScale("x", { minM, maxM });
+					u.setSelect({ width: 0, height: 0 }, false);
+				}
+			},
+		],
 		hooks: {
 			drawClear: u => {
 				qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);
@@ -151,7 +207,6 @@ function seriesBarsPlugin(opts) {
 			let hRect;
 
 			uPlot.assign(opts, {
-				select: {show: false},
 				cursor: {
 					x: false,
 					y: false,
@@ -192,8 +247,8 @@ function seriesBarsPlugin(opts) {
 						dir,
 					//	auto: true,
 						range: (u, min, max) => {
-							min = 0;
-							max = Math.max(1, u.data[0].length - 1);
+							min = u.data[0][0];
+							max = u.data[0][u.data[0].length - 1];
 
 							let pctOffset = 0;
 
