@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 	<head>
-		<meta charset="utf-8" />
+		<meta charset="utf-8">
 		<title>Bars (Grouped or Stacked)</title>
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="viewport" content="width=device-width, initial-scale=1">
 
-		<link rel="stylesheet" href="../dist/uPlot.min.css" />
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
 		<style>
 			.uplot {
 				display: inline-block;
@@ -24,7 +24,7 @@
 
 			.bar-mark {
 				position: absolute;
-				background: rgba(255, 255, 255, 0.3);
+				background: rgba(255,255,255, 0.3);
 			}
 		</style>
 	</head>
@@ -43,22 +43,22 @@
 				let series = o.series;
 
 				const opts = {
-					width: ori == 0 ? 800 : 400,
+					width:  ori == 0 ? 800 : 400,
 					height: ori == 0 ? 400 : 800,
 					scales: {
 						y: {
 							range: [0, null],
 							ori: ori == 0 ? 1 : 0,
-							//	dir: ori == 0 ? 1 : -1,
-						},
+						//	dir: ori == 0 ? 1 : -1,
+						}
 					},
 					bands,
 					axes: [
 						{
-							//	rotate: -45,
+						//	rotate: -45,
 						},
 						{
-							//	show: false,
+						//	show: false,
 							side: ori == 0 ? 3 : 0,
 						},
 					],
@@ -66,19 +66,16 @@
 						live: false,
 						markers: {
 							width: 0,
-						},
+						}
 					},
 					padding: [null, 0, null, 0],
 					series,
 					plugins: [
-						seriesBarsPlugin(
-							{
-								ori,
-								dir,
-								stacked,
-							},
-							data
-						),
+						seriesBarsPlugin({
+							ori,
+							dir,
+							stacked,
+						}),
 					],
 				};
 
@@ -86,7 +83,7 @@
 			}
 
 			function makeChart2(opts, data) {
-				let { bands, data: _data } = stack(data, (i) => false);
+				let { bands, data: _data } = stack(data, i => false);
 				makeChart(opts, _data, bands);
 			}
 
@@ -112,19 +109,19 @@
 						width: 0,
 					},
 					{
-						label: "Metric 3",
+						label:	"Metric 3",
 						fill: "#BB1133",
 						width: 0,
 					},
 				];
 
-				makeChart({ series, ori: 0, dir: 1 }, data);
-				makeChart2({ series, ori: 0, dir: 1, stacked: true }, data);
+				makeChart({series, ori: 0, dir:  1}, data);
+				makeChart2({series, ori: 0, dir: 1, stacked: true}, data);
 
 				document.body.appendChild(document.createElement("div"));
 
-				makeChart({ series, ori: 1, dir: -1 }, data);
-				makeChart2({ series, ori: 1, dir: -1, stacked: true }, data);
+				makeChart({series, ori: 1, dir: -1}, data);
+				makeChart2({series, ori: 1, dir: -1, stacked: true}, data);
 
 				document.body.appendChild(document.createElement("div"));
 			}
@@ -145,15 +142,20 @@
 					},
 				];
 
-				makeChart({ series, ori: 0, dir: 1 }, data);
-				makeChart2({ series, ori: 0, dir: 1, stacked: true }, data);
+				makeChart({series, ori: 0, dir:  1}, data);
+				makeChart2({series, ori: 0, dir: 1, stacked: true}, data);
 
 				document.body.appendChild(document.createElement("div"));
 			}
 
 			{
 				// one group, multi bar
-				let data = [["Group A"], [1], [3], [5]];
+				let data = [
+					["Group A"],
+					[1],
+					[3],
+					[5],
+				];
 
 				let series = [
 					{},
@@ -168,21 +170,24 @@
 						width: 0,
 					},
 					{
-						label: "Metric 3",
+						label:	"Metric 3",
 						fill: "#BB1133",
 						width: 0,
 					},
 				];
 
-				makeChart({ series, ori: 0, dir: 1 }, data);
-				makeChart2({ series, ori: 0, dir: 1, stacked: true }, data);
+				makeChart({series, ori: 0, dir:  1}, data);
+				makeChart2({series, ori: 0, dir: 1, stacked: true}, data);
 
 				document.body.appendChild(document.createElement("div"));
 			}
 
 			{
 				// one group, one bar
-				let data = [["Group A"], [1]];
+				let data = [
+					["Group A"],
+					[1],
+				];
 
 				let series = [
 					{},
@@ -193,8 +198,8 @@
 					},
 				];
 
-				makeChart({ series, ori: 0, dir: 1 }, data);
-				makeChart2({ series, ori: 0, dir: 1, stacked: true }, data);
+				makeChart({series, ori: 0, dir:  1}, data);
+				makeChart2({series, ori: 0, dir: 1, stacked: true}, data);
 
 				document.body.appendChild(document.createElement("div"));
 			}
