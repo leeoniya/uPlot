@@ -3643,31 +3643,36 @@ var uPlot = (function () {
 		let viaAutoScaleX = false;
 
 		function setData(_data, _resetScales) {
-			data = _data == null ? [] : copy(_data, fastIsObj);
+			data = _data == null ? [] : _data;
 
 			if (mode == 2) {
 				dataLen = 0;
 				for (let i = 1; i < series.length; i++)
 					dataLen += data[i][0].length;
-				self.data = data = _data;
+
+				self._data = data;
 			}
 			else {
-				if (data[0] == null)
-					data[0] = [];
-
-				self.data = data.slice();
+				if (data.length == 0)
+					data = [[]];
 
 				data0 = data[0];
 				dataLen = data0.length;
 
+				let scaleData = data;
+
 				if (xScaleDistr == 2) {
-					data[0] = Array(dataLen);
+					scaleData = data.slice();
+
+					let _data0 = scaleData[0] = Array(dataLen);
 					for (let i = 0; i < dataLen; i++)
-						data[0][i] = i;
+						_data0[i] = i;
 				}
+
+				self._data = data = scaleData;
 			}
 
-			self._data = data;
+			self.data = data;
 
 			resetYSeries(true);
 
