@@ -2356,10 +2356,8 @@ function bars(opts) {
 
 			let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
-		//	let fillToY = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
-			let fillToY = scaleY.distr == 3 ? (bandFillDir == 1 ? scaleY.max : scaleY.min) : 0;
-
-			let y0Pos = valToPosY(fillToY, scaleY, yDim, yOff);
+			let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
+			let fillToY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
 
 			// barWid is to center of stroke
 			let xShift, barWid;
@@ -2514,18 +2512,18 @@ function bars(opts) {
 
 				// TODO: all xPos can be pre-computed once for all series in aligned set
 				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
-				let yPos = valToPosY(ifNull(yVal, fillToY), scaleY, yDim, yOff);
+				let yPos = valToPosY(ifNull(yVal, fillTo), scaleY, yDim, yOff);
 
 				if (dataY0 != null && yVal != null)
-					y0Pos = valToPosY(dataY0[i], scaleY, yDim, yOff);
+					fillToY = valToPosY(dataY0[i], scaleY, yDim, yOff);
 
 				let lft = pxRound(xPos - xShift);
-				let btm = pxRound(max(yPos, y0Pos));
-				let top = pxRound(min(yPos, y0Pos));
+				let btm = pxRound(max(yPos, fillToY));
+				let top = pxRound(min(yPos, fillToY));
 				// this includes the stroke
 				let barHgt = btm - top;
 
-				if (yVal != null) {  // && yVal != fillToY (0 height bar)
+				if (yVal != null) {  // && yVal != fillTo (0 height bar)
 					let rv = yVal < 0 ? radBase : radVal;
 					let rb = yVal < 0 ? radVal : radBase;
 
