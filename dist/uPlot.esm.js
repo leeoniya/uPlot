@@ -5762,4 +5762,3 @@ uPlot.sync = _sync;
 }
 
 export { uPlot as default };
-//# sourceMappingURL=uPlot.esm.js.map
