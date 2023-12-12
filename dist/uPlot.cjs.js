@@ -2346,7 +2346,7 @@ function bars(opts) {
 				[baseRadius, valRadius] = radiusFn(u, seriesIdx);
 
 			const _dirX = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
-			const _dirY = scaleY.dir * (scaleY.ori == 1 ? 1 : -1);
+		//	const _dirY = scaleY.dir * (scaleY.ori == 1 ? 1 : -1);
 
 			let rect = scaleX.ori == 0 ? rectH : rectV;
 
@@ -2354,9 +2354,11 @@ function bars(opts) {
 				_each(u, seriesIdx, i, lft, top, wid, hgt);
 			};
 
-			let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
+			// band where this series is the "from" edge
+			let band = ifNull(u.bands, EMPTY_ARR).find(b => b.series[0] == seriesIdx);
 
-			let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
+			let fillDir = band != null ? band.dir : 0;
+			let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, fillDir);
 			let fillToY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
 
 			// barWid is to center of stroke
@@ -2392,8 +2394,6 @@ function bars(opts) {
 			}
 
 			let { x0, size } = disp;
-
-			let bandClipNulls = true;
 
 			if (x0 != null && size != null) {
 				dataX = x0.values(u, seriesIdx, idx0, idx1);
@@ -2459,33 +2459,23 @@ function bars(opts) {
 				barWid = pxRound(clamp(colWid - gapWid, minWidth, maxWidth) - strokeWidth - extraGap);
 
 				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * extraGap / 2;
-
-				// when colWidth is smaller than [min-clamped] bar width (e.g. aligned data values are non-uniform)
-				// disable clipping of null-valued band bars to avoid clip overlap / bleed into adjacent bars
-				// (this could still bleed clips of adjacent band/stacked bars into each other, so is far from perfect)
-				if (barWid + strokeWidth > colWid)
-					bandClipNulls = false;
 			}
 
-			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL | BAND_CLIP_STROKE};  // disp, geom
-
-			let yLimit;
-
-			if (bandClipDir != 0) {
-				_paths.band = new Path2D();
-				yLimit = pxRound(valToPosY(bandClipDir == 1 ? scaleY.max : scaleY.min, scaleY, yDim, yOff));
-			}
+			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: 0};  // disp, geom
 
 			const stroke = multiPath ? null : new Path2D();
-			const band = _paths.band;
-
-			let { y0, y1 } = disp;
 
 			let dataY0 = null;
 
-			if (y0 != null && y1 != null) {
-				dataY = y1.values(u, seriesIdx, idx0, idx1);
-				dataY0 = y0.values(u, seriesIdx, idx0, idx1);
+			if (band != null)
+				dataY0 = u.data[band.series[1]];
+			else {
+				let { y0, y1 } = disp;
+
+				if (y0 != null && y1 != null) {
+					dataY = y1.values(u, seriesIdx, idx0, idx1);
+					dataY0 = y0.values(u, seriesIdx, idx0, idx1);
+				}
 			}
 
 			let radVal = valRadius * barWid;
@@ -2494,28 +2484,23 @@ function bars(opts) {
 			for (let i = _dirX == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dirX) {
 				let yVal = dataY[i];
 
-				// we can skip both, drawing and band clipping for alignment artifacts
-				if (yVal === undefined)
+				if (yVal == null)
 					continue;
 
-			/*
-				// interpolate upwards band clips
-				if (yVal == null) {
-				//	if (hasBands)
-				//		yVal = costlyLerp(i, idx0, idx1, _dirX, dataY);
-				//	else
+				if (dataY0 != null) {
+					let yVal0 = dataY0[i] ?? 0;
+
+					if (yVal - yVal0 == 0)
 						continue;
+
+					fillToY = valToPosY(yVal0, scaleY, yDim, yOff);
 				}
-			*/
 
 				let xVal = scaleX.distr != 2 || disp != null ? dataX[i] : i;
 
 				// TODO: all xPos can be pre-computed once for all series in aligned set
 				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
 				let yPos = valToPosY(ifNull(yVal, fillTo), scaleY, yDim, yOff);
-
-				if (dataY0 != null && yVal != null)
-					fillToY = valToPosY(dataY0[i], scaleY, yDim, yOff);
 
 				let lft = pxRound(xPos - xShift);
 				let btm = pxRound(max(yPos, fillToY));
@@ -2543,21 +2528,6 @@ function bars(opts) {
 						barWid + strokeWidth,
 						barHgt,
 					);
-				}
-
-				if (bandClipDir != 0 && (yVal != null || bandClipNulls)) {
-					if (_dirY * bandClipDir == 1) {
-						btm = top;
-						top = yLimit;
-					}
-					else {
-						top = btm;
-						btm = yLimit;
-					}
-
-					barHgt = btm - top;
-
-					rect(band, lft - strokeWidth / 2, top, barWid + strokeWidth, max(0, barHgt), 0, 0);  // radius here?
 				}
 			}
 
@@ -4074,7 +4044,7 @@ function uPlot(opts, data, then) {
 
 		// for all bands where this series is the top edge, create upwards clips using the bottom edges
 		// and apply clips + fill with band fill or dfltFill
-		bands.forEach((b, bi) => {
+		flags != 0 && bands.forEach((b, bi) => {
 			// isUpperEdge?
 			if (b.series[0] == si) {
 				let lowerEdge = series[b.series[1]];

@@ -1536,7 +1536,7 @@ export default function uPlot(opts, data, then) {
 
 		// for all bands where this series is the top edge, create upwards clips using the bottom edges
 		// and apply clips + fill with band fill or dfltFill
-		bands.forEach((b, bi) => {
+		flags != 0 && bands.forEach((b, bi) => {
 			// isUpperEdge?
 			if (b.series[0] == si) {
 				let lowerEdge = series[b.series[1]];
