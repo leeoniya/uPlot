@@ -5009,10 +5009,10 @@ function uPlot(opts, data, then) {
 				let s = series[i];
 
 				let idx1  = activeIdxs[i];
-				let yVal1 = mode == 1 ? data[i][idx1] : data[i][1][idx1];
+				let yVal1 = idx1 == null ? null : (mode == 1 ? data[i][idx1] : data[i][1][idx1]);
 
 				let idx2  = cursor.dataIdx(self, i, idx, valAtPosX);
-				let yVal2 = mode == 1 ? data[i][idx2] : data[i][1][idx2];
+				let yVal2 = idx2 == null ? null : (mode == 1 ? data[i][idx2] : data[i][1][idx2]);
 
 				shouldSetLegend = shouldSetLegend || yVal2 != yVal1 || idx2 != idx1;
 
@@ -5024,7 +5024,7 @@ function uPlot(opts, data, then) {
 					// this doesnt really work for state timeline, heatmap, status history (where the value maps to color, not y coords)
 					let yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0), 1);
 
-					if (cursorFocus && yPos >= 0 && mode == 1) {
+					if (cursorFocus && mode == 1 && yVal2 != null) {
 						let dist = abs(focus.dist(self, i, idx2, yPos, mouseTop1));
 
 						if (dist < closestDist) {
