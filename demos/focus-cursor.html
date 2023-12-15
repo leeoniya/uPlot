@@ -56,6 +56,14 @@
 						focus: {
 							prox,
 							bias,
+							dist: (self, seriesIdx, dataIdx, valPos, curPos) => {
+							//	if (seriesIdx == 4) {
+							//		console.log('omit focus!');
+							//		return Infinity;
+							//	}
+
+								return valPos - curPos
+							}
 						}
 					},
 					scales: {

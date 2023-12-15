@@ -1354,6 +1354,7 @@ const cursorOpts = {
 	},
 
 	focus: {
+		dist: (self, seriesIdx, dataIdx, valPos, curPos) => valPos - curPos,
 		prox: -1,
 		bias: 0,
 	},
@@ -5020,10 +5021,11 @@ function uPlot(opts, data, then) {
 				let xPos2 = incrRoundUp(idx2 == idx ? xPos : valToPosX(mode == 1 ? data[0][idx2] : data[i][0][idx2], scaleX, xDim, 0), 1);
 
 				if (i > 0 && s.show) {
+					// this doesnt really work for state timeline, heatmap, status history (where the value maps to color, not y coords)
 					let yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0), 1);
 
 					if (cursorFocus && yPos >= 0 && mode == 1) {
-						let dist = abs(yPos - mouseTop1);
+						let dist = abs(focus.dist(self, i, idx2, yPos, mouseTop1));
 
 						if (dist < closestDist) {
 							let bias = focus.bias;

@@ -459,6 +459,7 @@ export const cursorOpts = {
 	},
 
 	focus: {
+		dist: (self, seriesIdx, dataIdx, valPos, curPos) => valPos - curPos,
 		prox: -1,
 		bias: 0,
 	},

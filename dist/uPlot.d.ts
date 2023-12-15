@@ -522,6 +522,8 @@ declare namespace uPlot {
 			prox: number;
 			/** when non-zero, will only focus next series towards or away from zero */
 			bias?: FocusBias; // 0
+			/** measures cursor y distance to a series in CSS pixels (for triggering setSeries hook with closest) */
+			dist?: (self: uPlot, seriesIdx: number, dataIdx: number, valPos: number, curPos: number) => number;
 		}
 
 		export const enum FocusBias {
