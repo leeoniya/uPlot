@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Draggable y scales</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="stylesheet" href="../dist/uPlot.min.css">
+</head>
+<body>
+	<script type="module">
+		import uPlot from "../dist/uPlot.esm.js";
+
+		const opts = {
+			width: 600,
+			height: 350,
+			hooks: {
+				init: [
+					u => {
+						let axisEls = u.root.querySelectorAll('.u-axis');
+
+						for (let i = 0; i < axisEls.length; i++) {
+							if (i > 0) {
+								let el = axisEls[i];
+
+								el.addEventListener('mousedown', e => {
+									let y0 = e.clientY;
+									let scaleKey = u.axes[i].scale;
+									let scale = u.scales[scaleKey];
+									let { min, max } = scale;
+									let unitsPerPx = (max - min) / (u.bbox.height / uPlot.pxRatio);
+
+									let mousemove = e => {
+										let dy = e.clientY - y0;
+										let shiftyBy = dy * unitsPerPx;
+
+										u.setScale(scaleKey, {
+											min: min + shiftyBy,
+											max: max + shiftyBy,
+										});
+									};
+
+									let mouseup = e => {
+										document.removeEventListener('mousemove', mousemove);
+										document.removeEventListener('mousemove', mouseup);
+									};
+
+									document.addEventListener('mousemove', mousemove);
+									document.addEventListener('mouseup', mouseup);
+								});
+
+							}
+						}
+					},
+				]
+			},
+			scales: {
+				x: {
+					time: false,
+				},
+			/*
+				'meter': {
+					auto: false,
+					min: 0,
+					max: 5,
+				},
+				'km/h': {
+					auto: false,
+					min: 0,
+					max: 10,
+				}
+			*/
+			},
+			series: [
+				{},
+				{
+					label: 'Price',
+					stroke: 'red',
+					scale: 'meter',
+				},
+				{
+					label: 'Amount',
+					stroke: 'blue',
+					scale: 'km/h',
+				}
+			],
+			axes: [
+				{},
+				{
+					scale: 'meter',
+					label: 'km/h'
+				},
+				{
+					scale: 'km/h',
+					label: 'meter'
+				}
+			],
+		};
+
+		const data = [
+			[0, 1, 2, 3, 4],
+			[1, 3, 2, 4, 3],
+			[6, 8, 3, 7, 9],
+		];
+
+		let u = new uPlot(opts, data, document.body)
+	</script>
+</body>
+</html>
