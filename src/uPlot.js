@@ -1257,6 +1257,10 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
+	function shouldAutoScale(scaleKey) {
+		return pendScales[xScaleKey] != null && pendScales[scaleKey] == null && scales[scaleKey].auto(self, viaAutoScaleX);
+	}
+
 	function setScales() {
 	//	log("setScales()", arguments);
 
@@ -1280,7 +1284,7 @@ export default function uPlot(opts, data, then) {
 					wsc.min = minMax[0];
 					wsc.max = minMax[1];
 				}
-				else {
+				else if (shouldAutoScale(k)) {
 					wsc.min = inf;
 					wsc.max = -inf;
 				}
@@ -1316,7 +1320,7 @@ export default function uPlot(opts, data, then) {
 						s.min = data0[i0];
 						s.max = data0[i1];
 					}
-					else if (s.show && s.auto)
+					else if (s.show && s.auto && shouldAutoScale(k))
 						accScale(wsc, psc, s, data[i], s.sorted);
 
 					s.idxs[0] = i0;
@@ -1344,6 +1348,9 @@ export default function uPlot(opts, data, then) {
 
 			// range independent scales
 			for (let k in wipScales) {
+				if (!shouldAutoScale(k))
+					continue;
+
 				let wsc = wipScales[k];
 				let psc = pendScales[k];
 
