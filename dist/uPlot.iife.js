@@ -3767,32 +3767,59 @@ var uPlot = (function () {
 			}
 		}
 
+		const AUTOSCALE = {min: null, max: null};
+
 		function setScales() {
 		//	log("setScales()", arguments);
 
-			// wip scales
-			let wipScales = copy(scales, fastIsObj);
+			// implicitly add auto scales, and unranged scales
+			for (let k in scales) {
+				let sc = scales[k];
 
-			for (let k in wipScales) {
-				let wsc = wipScales[k];
+				if (pendScales[k] == null &&
+					(
+						// scales that have never been set (on init)
+						sc.min == null ||
+						// or auto scales when the x scale was explicitly set
+						pendScales[xScaleKey] != null && sc.auto(self, viaAutoScaleX)
+					)
+				) {
+					pendScales[k] = AUTOSCALE;
+				}
+			}
+
+			// implicitly add dependent scales
+			for (let k in scales) {
+				let sc = scales[k];
+
+				if (pendScales[k] == null && sc.from != null && pendScales[sc.from] != null)
+					pendScales[k] = AUTOSCALE;
+			}
+
+			// explicitly setting the x-scale invalidates everything (acts as redraw)
+			if (pendScales[xScaleKey] != null)
+				resetYSeries(true); // TODO: only reset series on auto scales?
+
+			let wipScales = {};
+
+			for (let k in pendScales) {
 				let psc = pendScales[k];
 
-				if (psc != null && psc.min != null) {
-					assign(wsc, psc);
+				if (psc != null) {
+					let wsc = wipScales[k] = copy(scales[k], fastIsObj);
 
-					// explicitly setting the x-scale invalidates everything (acts as redraw)
-					if (k == xScaleKey)
-						resetYSeries(true);
-				}
-				else if (k != xScaleKey || mode == 2) {
-					if (dataLen == 0 && wsc.from == null) {
-						let minMax = wsc.range(self, null, null, k);
-						wsc.min = minMax[0];
-						wsc.max = minMax[1];
-					}
-					else {
-						wsc.min = inf;
-						wsc.max = -inf;
+					if (psc.min != null)
+						assign(wsc, psc);
+					else if (k != xScaleKey || mode == 2) {
+						if (dataLen == 0 && wsc.from == null) {
+							let minMax = wsc.range(self, null, null, k);
+							wsc.min = minMax[0];
+							wsc.max = minMax[1];
+						}
+						else {
+							wsc.min = inf;
+							wsc.max = -inf;
+						}
 					}
 				}
 			}
@@ -3802,8 +3829,12 @@ var uPlot = (function () {
 				series.forEach((s, i) => {
 					if (mode == 1) {
 						let k = s.scale;
-						let wsc = wipScales[k];
 						let psc = pendScales[k];
+
+						if (psc == null)
+							return;
+
+						let wsc = wipScales[k];
 
 						if (i == 0) {
 							let minMax = wsc.range(self, wsc.min, wsc.max, k);
