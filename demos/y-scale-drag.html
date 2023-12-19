@@ -12,6 +12,7 @@
 		import uPlot from "../dist/uPlot.esm.js";
 
 		const opts = {
+			title: 'Draggable y scales (hold shift to grow/contract)',
 			width: 600,
 			height: 350,
 			hooks: {
@@ -35,7 +36,7 @@
 										let shiftyBy = dy * unitsPerPx;
 
 										u.setScale(scaleKey, {
-											min: min + shiftyBy,
+											min: e.shiftKey ? (min - shiftyBy) : min + shiftyBy,
 											max: max + shiftyBy,
 										});
 									};
@@ -48,7 +49,6 @@
 									document.addEventListener('mousemove', mousemove);
 									document.addEventListener('mouseup', mouseup);
 								});
-
 							}
 						}
 					},
