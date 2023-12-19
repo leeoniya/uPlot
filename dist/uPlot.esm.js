@@ -3265,6 +3265,11 @@ function uPlot(opts, data, then) {
 	const CYCLE_LIMIT = 3;
 
 	function convergeSize() {
+		let _plotLft = plotLft;
+		let _plotTop = plotTop;
+		let _plotWid = plotWid;
+		let _plotHgt = plotHgt;
+
 		let converged = false;
 
 		let cycleNum = 0;
@@ -3280,6 +3285,15 @@ function uPlot(opts, data, then) {
 			if (!converged) {
 				calcSize(self.width, self.height);
 				shouldSetSize = true;
+
+				if (
+					plotLft != _plotLft ||
+					plotTop != _plotTop ||
+					plotWid != _plotWid ||
+					plotHgt != _plotHgt
+				) {
+					resetYSeries(false);
+				}
 			}
 		}
 	}

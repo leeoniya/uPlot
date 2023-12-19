@@ -90,6 +90,8 @@
 					scale: 'meter',
 					label: 'km/h',
 					stroke: 'red',
+					// resize to verify path cache invalidation during size changes
+					size: (u, vals) => 25 + (vals == null ? 100 : vals.reduce((acc, v) => Math.max(acc, v.length), 0) * 6),
 				},
 				{
 					scale: 'km/h',
