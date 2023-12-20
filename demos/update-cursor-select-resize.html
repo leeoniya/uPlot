@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Keep selection and cursor in sync with resize (test)</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+
+			let data = [
+				[0,1,2],
+                [0,1,2],
+			];
+
+			const opts = {
+                title: "Maintain loc of cursor/select/hoverPts",
+				width: 800,
+				height: 800,
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					{
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+					},
+				],
+			};
+
+			let u = new uPlot(opts, data, document.body);
+
+            setTimeout(() => {
+                u.setCursor({left: 200, top: 200});
+                u.cursor._lock = true;
+                u.setSelect({
+                    top: 0,
+                    height: u.bbox.height / uPlot.pxRatio,
+                    left: 100,
+                    width: 100,
+                });
+            });
+
+            let dir = -1;
+            let incr = 10;
+            let minSize = 400;
+            let maxSize = 800;
+
+            let size = maxSize;
+
+            setInterval(() => {
+                if (dir == -1 && size < minSize) {
+                    dir = 1;
+                    size = minSize;
+                    return;
+                }
+                else if (dir == 1 && size > maxSize) {
+                    dir = -1;
+                    size = maxSize;
+                    return;
+                }
+
+                size += dir * incr;
+
+                u.setSize({width: size, height: size});
+            }, 100);
+		</script>
+	</body>
+</html>

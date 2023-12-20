@@ -705,6 +705,13 @@ export default function uPlot(opts, data, then) {
 	let plotLftCss = 0;
 	let plotTopCss = 0;
 
+	// previous values for diffing
+	let _plotLftCss = plotLftCss;
+	let _plotTopCss = plotTopCss;
+	let _plotWidCss = plotWidCss;
+	let _plotHgtCss = plotHgtCss;
+
+
 	let plotLft = 0;
 	let plotTop = 0;
 	let plotWid = 0;
@@ -727,9 +734,6 @@ export default function uPlot(opts, data, then) {
 
 		shouldConvergeSize = true;
 		shouldSetSize = true;
-
-		if (cursor.left >= 0)
-			shouldSetCursor = shouldSetLegend = true;
 
 		commit();
 	}
@@ -758,11 +762,6 @@ export default function uPlot(opts, data, then) {
 	const CYCLE_LIMIT = 3;
 
 	function convergeSize() {
-		let _plotLft = plotLft;
-		let _plotTop = plotTop;
-		let _plotWid = plotWid;
-		let _plotHgt = plotHgt;
-
 		let converged = false;
 
 		let cycleNum = 0;
@@ -778,15 +777,6 @@ export default function uPlot(opts, data, then) {
 			if (!converged) {
 				calcSize(self.width, self.height);
 				shouldSetSize = true;
-
-				if (
-					plotLft != _plotLft ||
-					plotTop != _plotTop ||
-					plotWid != _plotWid ||
-					plotHgt != _plotHgt
-				) {
-					resetYSeries(false);
-				}
 			}
 		}
 	}
@@ -902,6 +892,9 @@ export default function uPlot(opts, data, then) {
 
 	// series-intersection markers
 	let cursorPts = [null];
+	// position caches in CSS pixels
+	let cursorPtsLft = [null];
+	let cursorPtsTop = [null];
 
 	function initCursorPt(s, si) {
 		if (si > 0) {
@@ -967,7 +960,12 @@ export default function uPlot(opts, data, then) {
 			activeIdxs.splice(i, 0, null);
 
 			let pt = initCursorPt(s, i);
-			pt && cursorPts.splice(i, 0, pt);
+
+			if (pt != null) {
+				cursorPts.splice(i, 0, pt);
+				cursorPtsLft.splice(i, 0, 0);
+				cursorPtsTop.splice(i, 0, 0);
+			}
 		}
 
 		fire("addSeries", i);
@@ -999,7 +997,11 @@ export default function uPlot(opts, data, then) {
 		if (cursor.show) {
 			activeIdxs.splice(i, 1);
 
-			cursorPts.length > 1 && cursorPts.splice(i, 1)[0].remove();
+			if (cursorPts.length > 1) {
+				cursorPts.splice(i, 1)[0].remove();
+				cursorPtsLft.splice(i, 1);
+				cursorPtsTop.splice(i, 1);
+			}
 		}
 
 		// TODO: de-init no-longer-needed scales?
@@ -2074,6 +2076,47 @@ export default function uPlot(opts, data, then) {
 
 			syncRect(true);
 
+			if (
+				plotLftCss != _plotLftCss ||
+				plotTopCss != _plotTopCss ||
+				plotWidCss != _plotWidCss ||
+				plotHgtCss != _plotHgtCss
+			) {
+				resetYSeries(false);
+
+				let pctWid = plotWidCss / _plotWidCss;
+				let pctHgt = plotHgtCss / _plotHgtCss;
+
+				if (cursor.show && !shouldSetCursor && cursor.left >= 0) {
+					cursor.left *= pctWid;
+					cursor.top  *= pctHgt;
+
+					vCursor && elTrans(vCursor, round(cursor.left), 0, plotWidCss, plotHgtCss);
+					hCursor && elTrans(hCursor, 0, round(cursor.top), plotWidCss, plotHgtCss);
+
+					for (let i = 1; i < cursorPts.length; i++) {
+						cursorPtsLft[i] *= pctWid;
+						cursorPtsTop[i] *= pctHgt;
+						elTrans(cursorPts[i], incrRoundUp(cursorPtsLft[i], 1), incrRoundUp(cursorPtsTop[i], 1), plotWidCss, plotHgtCss);
+					}
+				}
+
+				if (select.show && !shouldSetSelect && select.left >= 0 && select.width > 0) {
+					select.left   *= pctWid;
+					select.width  *= pctWid;
+					select.top    *= pctHgt;
+					select.height *= pctHgt;
+
+					for (let prop in _hideProps)
+						setStylePx(selectDiv, prop, select[prop]);
+				}
+
+				_plotLftCss = plotLftCss;
+				_plotTopCss = plotTopCss;
+				_plotWidCss = plotWidCss;
+				_plotHgtCss = plotHgtCss;
+			}
+
 			fire("setSize");
 
 			shouldSetSize = false;
@@ -2556,11 +2599,11 @@ export default function uPlot(opts, data, then) {
 
 				activeIdxs[i] = idx2;
 
-				let xPos2 = incrRoundUp(idx2 == idx ? xPos : valToPosX(mode == 1 ? data[0][idx2] : data[i][0][idx2], scaleX, xDim, 0), 1);
+				let xPos2 = idx2 == idx ? xPos : valToPosX(mode == 1 ? data[0][idx2] : data[i][0][idx2], scaleX, xDim, 0);
 
 				if (i > 0 && s.show) {
 					// this doesnt really work for state timeline, heatmap, status history (where the value maps to color, not y coords)
-					let yPos = yVal2 == null ? -10 : incrRoundUp(valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0), 1);
+					let yPos = yVal2 == null ? -10 : valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0);
 
 					if (cursorFocus && mode == 1 && yVal2 != null) {
 						let dist = abs(focus.dist(self, i, idx2, yPos, mouseTop1));
@@ -2627,8 +2670,13 @@ export default function uPlot(opts, data, then) {
 							ptWid = ptHgt = cursor.points.size(self, i);
 						}
 
+
 						elSize(cursorPts[i], ptWid, ptHgt, centered);
-						elTrans(cursorPts[i], ptLft, ptTop, plotWidCss, plotHgtCss);
+
+						cursorPtsLft[i] = ptLft;
+						cursorPtsTop[i] = ptTop;
+
+						elTrans(cursorPts[i], incrRoundUp(ptLft, 1), incrRoundUp(ptTop, 1), plotWidCss, plotHgtCss);
 					}
 				}
 			}
