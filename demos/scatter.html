@@ -451,6 +451,7 @@
 							hRect = null;
 
 							let dist = Infinity;
+							let area = Infinity;
 							let cx = u.cursor.left * pxRatio;
 							let cy = u.cursor.top * pxRatio;
 
@@ -466,8 +467,15 @@
 
 									// test against radius for actual hover
 									if (d <= o.w / 2) {
+										let a = o.w * o.h;
+
+										// prefer smallest
+										if (a < area) {
+											area = a;
+											hRect = o;
+										}
 										// only hover bbox with closest distance
-										if (d <= dist) {
+										else if (a == area && d <= dist) {
 											dist = d;
 											hRect = o;
 										}
