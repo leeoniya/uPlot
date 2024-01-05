@@ -493,8 +493,8 @@
 					}
 				},
 				hooks: {
-				//	setLegend: [ u => console.log('setLegend') ],
-				//	setSeries: [ u => console.log('setSeries') ],
+					setSeries: [ (u, seriesIdx) => console.log('setSeries', seriesIdx) ],
+					setLegend: [ u => console.log('setLegend', u.legend.idxs) ],
 					drawClear: [
 						u => {
 							qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);

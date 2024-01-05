@@ -5210,11 +5210,6 @@ var uPlot = (function () {
 			cursor.left = mouseLeft1;
 			cursor.top = mouseTop1;
 
-			if (shouldSetLegend) {
-				legend.idx = idx;
-				setLegend();
-			}
-
 			// nit: cursor.drag.setSelect is assumed always true
 			if (select.show && dragging) {
 				if (src != null) {
@@ -5387,6 +5382,11 @@ var uPlot = (function () {
 							setSeries(closestSeries, FOCUS_TRUE, true, shouldPub);
 					}
 				}
+			}
+
+			if (shouldSetLegend) {
+				legend.idx = idx;
+				setLegend();
 			}
 
 			_fire !== false && fire("setCursor");
