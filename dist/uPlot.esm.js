@@ -1,5 +1,5 @@
 /**
-* Copyright (c) 2023, Leon Sorokin
+* Copyright (c) 2024, Leon Sorokin
 * All rights reserved. (MIT Licensed)
 *
 * uPlot.js (μPlot)
@@ -3999,8 +3999,14 @@ function uPlot(opts, data, then) {
 					cacheStrokeFill(i, true);
 
 					if (s._paths == null) {
+						if (ctxAlpha != s.alpha)
+							ctx.globalAlpha = ctxAlpha = s.alpha;
+
 						let _idxs = mode == 2 ? [0, data[i][0].length - 1] : getOuterIdxs(data[i]);
 						s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
+
+						if (ctxAlpha != 1)
+							ctx.globalAlpha = ctxAlpha = 1;
 					}
 				}
 			});
@@ -4818,7 +4824,13 @@ function uPlot(opts, data, then) {
 					s.show = opts.show;
 					toggleDOM(si, opts.show);
 
-					_setScale(mode == 2 ? s.facets[1].scale : s.scale, null, null);
+					if (mode == 2) {
+						_setScale(s.facets[0].scale, null, null);
+						_setScale(s.facets[1].scale, null, null);
+					}
+					else
+						_setScale(s.scale, null, null);
+
 					commit();
 				}
 			});
@@ -4878,9 +4890,11 @@ function uPlot(opts, data, then) {
 			let _setAlpha = focus.alpha != 1;
 
 			series.forEach((s, i2) => {
-				let isFocused = allFocused || i2 == 0 || i2 == i;
-				s._focus = allFocused ? null : isFocused;
-				_setAlpha && setAlpha(i2, isFocused ? 1 : focus.alpha);
+				if (mode == 1 || i2 > 0) {
+					let isFocused = allFocused || i2 == 0 || i2 == i;
+					s._focus = allFocused ? null : isFocused;
+					_setAlpha && setAlpha(i2, isFocused ? 1 : focus.alpha);
+				}
 			});
 
 			focusedSeries = i;
@@ -5112,7 +5126,7 @@ function uPlot(opts, data, then) {
 					// this doesnt really work for state timeline, heatmap, status history (where the value maps to color, not y coords)
 					let yPos = yVal2 == null ? -10 : valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0);
 
-					if (cursorFocus && mode == 1 && yVal2 != null) {
+					if (cursorFocus && yVal2 != null) {
 						let dist = abs(focus.dist(self, i, idx2, yPos, mouseTop1));
 
 						if (dist < closestDist) {

@@ -49,7 +49,7 @@
 			console.log(data);
 
 			const drawPoints = (u, seriesIdx, idx0, idx1) => {
-				const size = 5 * devicePixelRatio;
+				const size = 5 * pxRatio;
 
 				uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc) => {
 					let d = u.data[seriesIdx];
@@ -130,7 +130,7 @@
 						let cx = valToPosX(d[0][i], scaleX, xDim, xOff);
 						let cy = valToPosY(d[1][i], scaleY, yDim, yOff);
 
-						let size = d[2][i] * devicePixelRatio;
+						let size = d[2][i] * pxRatio;
 
 						p.moveTo(cx + size, cy);
 						arc(p, cx, cy, size, 0, deg360);
@@ -195,14 +195,14 @@
 						// todo: this depends on direction & orientation
 						// todo: calc once per redraw, not per path
 						let filtLft = u.posToVal(-maxSize / 2, scaleX.key);
-						let filtRgt = u.posToVal(u.bbox.width / devicePixelRatio + maxSize / 2, scaleX.key);
-						let filtBtm = u.posToVal(u.bbox.height / devicePixelRatio + maxSize / 2, scaleY.key);
+						let filtRgt = u.posToVal(u.bbox.width / pxRatio + maxSize / 2, scaleX.key);
+						let filtBtm = u.posToVal(u.bbox.height / pxRatio + maxSize / 2, scaleY.key);
 						let filtTop = u.posToVal(-maxSize / 2, scaleY.key);
 
 						for (let i = 0; i < d[0].length; i++) {
 							let xVal = d[0][i];
 							let yVal = d[1][i];
-							let size = sizes[i] * devicePixelRatio;
+							let size = sizes[i] * pxRatio;
 
 							if (xVal >= filtLft && xVal <= filtRgt && yVal >= filtBtm && yVal <= filtTop) {
 								let cx = valToPosX(xVal, scaleX, xDim, xOff);
@@ -238,7 +238,7 @@
 			let pxRatio;
 
 			function setPxRatio() {
-				pxRatio = devicePixelRatio;
+				pxRatio = uPlot.pxRatio;
 			}
 
 			function guardedRange(u, min, max) {
@@ -480,11 +480,21 @@
 					},
 					points: {
 						size: (u, seriesIdx) => {
-							return hRect && seriesIdx == hRect.sidx ? hRect.w / devicePixelRatio : 0;
+							return hRect && seriesIdx == hRect.sidx ? hRect.w / pxRatio : 0;
 						}
+					},
+					focus: {
+						prox: 1e3,
+						alpha: 0.3,
+						dist: (u, seriesIdx) => {
+							let prox = (hRect?.sidx === seriesIdx ? 0 : Infinity);
+							return prox;
+						},
 					}
 				},
 				hooks: {
+				//	setLegend: [ u => console.log('setLegend') ],
+				//	setSeries: [ u => console.log('setSeries') ],
 					drawClear: [
 						u => {
 							qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);
