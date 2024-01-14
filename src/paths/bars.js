@@ -6,7 +6,7 @@ export function bars(opts) {
 	opts = opts || EMPTY_OBJ;
 	const size = ifNull(opts.size, [0.6, inf, 1]);
 	const align = opts.align || 0;
-	const extraGap = (opts.gap || 0) * pxRatio;
+	const _extraGap = (opts.gap || 0);
 
 	let ro = opts.radius;
 
@@ -18,8 +18,8 @@ export function bars(opts) {
 	const radiusFn = fnOrSelf(ro);
 
 	const gapFactor = 1 - size[0];
-	const maxWidth  = ifNull(size[1], inf) * pxRatio;
-	const minWidth  = ifNull(size[2], 1) * pxRatio;
+	const _maxWidth  = ifNull(size[1], inf);
+	const _minWidth  = ifNull(size[2], 1);
 
 	const disp = ifNull(opts.disp, EMPTY_OBJ);
 	const _each = ifNull(opts.each, _ => {});
@@ -29,6 +29,10 @@ export function bars(opts) {
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
+
+			let extraGap = _extraGap * pxRatio;
+			let maxWidth = _maxWidth * pxRatio;
+			let minWidth = _minWidth * pxRatio;
 
 			let valRadius, baseRadius;
 
@@ -150,7 +154,7 @@ export function bars(opts) {
 
 				barWid = pxRound(clamp(colWid - gapWid, minWidth, maxWidth) - strokeWidth - extraGap);
 
-				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * extraGap / 2;
+				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * (extraGap / 2 + strokeWidth / 2);
 			}
 
 			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: 0};  // disp, geom
