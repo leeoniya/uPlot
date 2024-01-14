@@ -343,6 +343,39 @@
 				[0, 1],
 				[2 ** -10, 2 ** 20],
 			], document.body);
+
+			{
+				let data = [
+					[0, 1, 2],
+					[100, 200, 1000],
+					[null, null, null]
+				];
+
+				const opts = {
+					title: "Proper range with a all-nulls series",
+					width: 800,
+					height: 400,
+					scales: {
+						x: {
+							time: false,
+						},
+						y: {
+							distr: 3
+						}
+					},
+					series: [
+						{},
+						{
+							stroke: "red"
+						},
+						{
+							stroke: "blue"
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			}
 		</script>
 	</body>
 </html>

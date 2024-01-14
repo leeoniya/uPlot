@@ -252,17 +252,12 @@ function getMinMaxLog(data, _i0, _i1) {
 		}
 	}
 
-	return [
-		_min ==  inf ?  1 : _min,
-		_max == -inf ? 10 : _max,
-	];
+	return [_min, _max];
 }
 
 function rangeLog(min, max, base, fullMags) {
 	let minSign = sign(min);
 	let maxSign = sign(max);
-
-	let logFn = base == 10 ? log10 : log2;
 
 	if (min == max) {
 		if (minSign == -1) {
@@ -274,6 +269,8 @@ function rangeLog(min, max, base, fullMags) {
 			max *= base;
 		}
 	}
+
+	let logFn = base == 10 ? log10 : log2;
 
 	let growMinAbs = minSign == 1 ? floor : ceil;
 	let growMaxAbs = maxSign == 1 ? ceil : floor;
