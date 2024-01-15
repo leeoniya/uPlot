@@ -2447,18 +2447,24 @@ function bars(opts) {
 
 				let gapWid = colWid * gapFactor;
 
-				barWid = colWid - gapWid - extraGap;
+				let fullGap = gapWid + extraGap;
+
+				barWid = colWid - fullGap;
 
 				if (strokeWidth >= barWid / 2)
 					strokeWidth = 0;
 
 				// for small gaps, disable pixel snapping since gap inconsistencies become noticible and annoying
-				if (gapWid + extraGap < 5)
+				if (fullGap < 5)
 					pxRound = retArg0;
 
-				barWid = pxRound(clamp(colWid - gapWid, minWidth, maxWidth) - strokeWidth - extraGap);
+				let insetStroke = fullGap > 0;
 
-				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * (extraGap / 2 + strokeWidth / 2);
+				let rawBarWid = colWid - fullGap - (insetStroke ? strokeWidth : 0);
+
+				barWid = pxRound(clamp(rawBarWid, minWidth, maxWidth));
+
+				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * ((align == 0 ? extraGap / 2 : 0) + (insetStroke ? strokeWidth / 2 : 0));
 			}
 
 			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: 0};  // disp, geom

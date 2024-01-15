@@ -6,6 +6,16 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			.uplot {
+				display: inline-block;
+				vertical-align: top;
+			}
+
+			.u-title {
+				font-size: 14px;
+			}
+		</style>
 	</head>
 	<body>
 		<script type="module">
@@ -207,6 +217,76 @@
 
 				let u = new uPlot(opts, data, document.body);
 			}
+
+
+
+			/*
+			// todo: maxBarWidth
+			[
+				{ set(xOpts, sOpts, bOpts, val) { bOpts.align   = val; }, vals: [0, 1, -1]},
+				{ set(xOpts, sOpts, bOpts, val) { bOpts.size[0] = val; }, vals: [0.6, 1]},
+				{ set(xOpts, sOpts, bOpts, val) { bOpts.gap     = val; }, vals: [0, 16]},
+				{ set(xOpts, sOpts, bOpts, val) { sOpts.width   = val; }, vals: [1, 0, 4]},
+				{ set(xOpts, sOpts, bOpts, val) { xOpts.dir     = val; }, vals: [1, -1]},
+			]
+			*/
+
+			document.body.appendChild(document.createElement('br'));
+
+			let groups = [
+				{align: 0, width: 0.6, gap: 0},
+				{align: 0, width: 0.6, gap: 16},
+				{align: 0, width: 1.0, gap: 0},
+				{align: 0, width: 1.0, gap: 16},
+
+				{align: 1, width: 0.6, gap: 0},
+				{align: 1, width: 0.6, gap: 16},
+				{align: 1, width: 1.0, gap: 0},
+				{align: 1, width: 1.0, gap: 16},
+
+				{align: -1, width: 0.6, gap: 0},
+				{align: -1, width: 0.6, gap: 16},
+				{align: -1, width: 1.0, gap: 0},
+				{align: -1, width: 1.0, gap: 16},
+			];
+
+			groups.forEach(o => {
+				let data  = [
+					[0,1,2,3,4],
+					[0,1,2,3,4],
+				];
+
+				[1, 4].forEach(strokeWidth => {
+					[1,-1].forEach(dir => {
+						let bars = uPlot.paths.bars({align: o.align, size: [o.width, Infinity], gap: o.gap});
+
+						let opts = {
+							title: JSON.stringify({...o, dir, stroke: strokeWidth}).replaceAll('"','').replaceAll(',', ', '),
+							width: 400,
+							height: 200,
+							scales: {
+								x: {
+									time: false,
+									dir,
+								}
+							},
+							series: [
+								{},
+								{
+									width: strokeWidth,
+									stroke: '#00f',
+									fill: 'rgb(0,0,255,0.1)',
+									paths: bars,
+								}
+							],
+						};
+
+						new uPlot(opts, data, document.body);
+					});
+				});
+
+				document.body.appendChild(document.createElement('br'));
+			});
 		</script>
 	</body>
 </html>
