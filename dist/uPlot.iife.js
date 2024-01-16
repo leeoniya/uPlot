@@ -2309,6 +2309,32 @@ var uPlot = (function () {
 		};
 	}
 
+	function findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid = inf) {
+		if (dataX.length > 1) {
+			// prior index with non-undefined y data
+			let prevIdx = null;
+
+			// scan full dataset for smallest adjacent delta
+			// will not work properly for non-linear x scales, since does not do expensive valToPosX calcs till end
+			for (let i = 0, minDelta = Infinity; i < dataX.length; i++) {
+				if (dataY[i] !== undefined) {
+					if (prevIdx != null) {
+						let delta = abs(dataX[i] - dataX[prevIdx]);
+
+						if (delta < minDelta) {
+							minDelta = delta;
+							colWid = abs(valToPosX(dataX[i], scaleX, xDim, xOff) - valToPosX(dataX[prevIdx], scaleX, xDim, xOff));
+						}
+					}
+
+					prevIdx = i;
+				}
+			}
+		}
+
+		return colWid;
+	}
+
 	function bars(opts) {
 		opts = opts || EMPTY_OBJ;
 		const size = ifNull(opts.size, [0.6, inf, 1]);
@@ -2365,7 +2391,7 @@ var uPlot = (function () {
 				let fillToY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
 
 				// barWid is to center of stroke
-				let xShift, barWid;
+				let xShift, barWid, fullGap, colWid = xDim;
 
 				let strokeWidth = pxRound(series.width * pxRatio);
 
@@ -2412,63 +2438,38 @@ var uPlot = (function () {
 					else
 						barWid = valToPosX(sizes[0], scaleX, xDim, xOff) - valToPosX(0, scaleX, xDim, xOff); // assumes linear scale (delta from 0)
 
-					if (strokeWidth >= barWid / 2)
-						strokeWidth = 0;
+					colWid = findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid);
 
-					// for small gaps, disable pixel snapping since gap inconsistencies become noticible and annoying
-				//	if (gapWid + extraGap < 5)
-				//		pxRound = retArg0;
-
-					barWid = pxRound(clamp(barWid - strokeWidth, minWidth, maxWidth)); // TODO: extraGap?
-
-					xShift = (_dirX == 1 ? -strokeWidth / 2 : barWid + strokeWidth / 2);
+					let gapWid = colWid - barWid;
+					fullGap = gapWid + extraGap;
 				}
 				else {
-					let colWid = xDim;
-
-					if (dataX.length > 1) {
-						// prior index with non-undefined y data
-						let prevIdx = null;
-
-						// scan full dataset for smallest adjacent delta
-						// will not work properly for non-linear x scales, since does not do expensive valToPosX calcs till end
-						for (let i = 0, minDelta = Infinity; i < dataX.length; i++) {
-							if (dataY[i] !== undefined) {
-								if (prevIdx != null) {
-									let delta = abs(dataX[i] - dataX[prevIdx]);
-
-									if (delta < minDelta) {
-										minDelta = delta;
-										colWid = abs(valToPosX(dataX[i], scaleX, xDim, xOff) - valToPosX(dataX[prevIdx], scaleX, xDim, xOff));
-									}
-								}
-
-								prevIdx = i;
-							}
-						}
-					}
+					colWid = findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid);
 
 					let gapWid = colWid * gapFactor;
 
-					let fullGap = gapWid + extraGap;
-
+					fullGap = gapWid + extraGap;
 					barWid = colWid - fullGap;
-
-					if (strokeWidth >= barWid / 2)
-						strokeWidth = 0;
-
-					// for small gaps, disable pixel snapping since gap inconsistencies become noticible and annoying
-					if (fullGap < 5)
-						pxRound = retArg0;
-
-					let insetStroke = fullGap > 0;
-
-					let rawBarWid = colWid - fullGap - (insetStroke ? strokeWidth : 0);
-
-					barWid = pxRound(clamp(rawBarWid, minWidth, maxWidth));
-
-					xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * ((align == 0 ? extraGap / 2 : 0) + (insetStroke ? strokeWidth / 2 : 0));
 				}
+
+				if (fullGap < 1)
+					fullGap = 0;
+
+				if (strokeWidth >= barWid / 2)
+					strokeWidth = 0;
+
+				// for small gaps, disable pixel snapping since gap inconsistencies become noticible and annoying
+				if (fullGap < 5)
+					pxRound = retArg0;
+
+				let insetStroke = fullGap > 0;
+
+				let rawBarWid = colWid - fullGap - (insetStroke ? strokeWidth : 0);
+
+				barWid = pxRound(clamp(rawBarWid, minWidth, maxWidth));
+
+				xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * ((align == 0 ? extraGap / 2 : 0) + (insetStroke ? strokeWidth / 2 : 0));
+
 
 				const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: 0};  // disp, geom
 
