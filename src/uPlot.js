@@ -2026,6 +2026,15 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
+	// manual batching (aka immediate mode), skips microtask queue
+	function batch(fn) {
+		queuedCommit = true;
+		fn(self);
+		_commit();
+	}
+
+	self.batch = batch;
+
 	function _commit() {
 	//	log("_commit()", arguments);
 
@@ -2457,14 +2466,6 @@ export default function uPlot(opts, data, then) {
 			can ? plotTop : 0,
 		)
 	);
-
-	// defers calling expensive functions
-	function batch(fn) {
-		fn(self);
-		commit();
-	}
-
-	self.batch = batch;
 
 	self.setCursor = (opts, _fire, _pub) => {
 		mouseLeft1 = opts.left;

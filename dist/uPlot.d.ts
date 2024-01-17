@@ -64,7 +64,7 @@ declare class uPlot {
 	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
 	redraw(rebuildPaths?: boolean, recalcAxes?: boolean): void;
 
-	/** defers recalc & redraw for multiple ops, e.g. setScale('x', ...) && setScale('y', ...) */
+	/** manual batching of multiple ops (aka immediate mode that skips implicit microtask queue), ops, e.g. setScale('x', ...) && setScale('y', ...) */
 	batch(txn: Function): void;
 
 	/** destroys DOM, removes resize & scroll listeners, etc. */
