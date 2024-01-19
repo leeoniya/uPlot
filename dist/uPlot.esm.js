@@ -3896,6 +3896,7 @@ function uPlot(opts, data, then) {
 							let wscx = wipScales[xScaleKey];
 							let wscy = wipScales[yScaleKey];
 
+							// null can happen when only x is zoomed, but y has static range and doesnt get auto-added to pending
 							wscx != null && accScale(wscx, pendScales[xScaleKey], xFacet, xData, xFacet.sorted);
 							wscy != null && accScale(wscy, pendScales[yScaleKey], yFacet, yData, yFacet.sorted);
 
