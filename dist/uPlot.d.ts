@@ -65,7 +65,7 @@ declare class uPlot {
 	redraw(rebuildPaths?: boolean, recalcAxes?: boolean): void;
 
 	/** manual batching of multiple ops (aka immediate mode that skips implicit microtask queue), ops, e.g. setScale('x', ...) && setScale('y', ...) */
-	batch(txn: Function): void;
+	batch(txn: Function, deferHooks?: boolean): void;
 
 	/** destroys DOM, removes resize & scroll listeners, etc. */
 	destroy(): void;

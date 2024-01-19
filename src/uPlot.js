@@ -2022,6 +2022,17 @@ export default function uPlot(opts, data, then) {
 	}
 
 	let queuedCommit = false;
+	let deferHooks = false;
+	let hooksQueue = [];
+
+	function flushHooks() {
+		deferHooks = false;
+
+		for (let i = 0; i < hooksQueue.length; i++)
+			fire(...hooksQueue[i])
+
+		hooksQueue.length = 0;
+	}
 
 	function commit() {
 		if (!queuedCommit) {
@@ -2031,10 +2042,15 @@ export default function uPlot(opts, data, then) {
 	}
 
 	// manual batching (aka immediate mode), skips microtask queue
-	function batch(fn) {
+	function batch(fn, _deferHooks = false) {
 		queuedCommit = true;
+		deferHooks = _deferHooks;
+
 		fn(self);
 		_commit();
+
+		if (_deferHooks && hooksQueue.length > 0)
+			queueMicrotask(flushHooks);
 	}
 
 	self.batch = batch;
@@ -3210,10 +3226,14 @@ export default function uPlot(opts, data, then) {
 	const hooks = self.hooks = opts.hooks || {};
 
 	function fire(evName, a1, a2) {
-		if (evName in hooks) {
-			hooks[evName].forEach(fn => {
-				fn.call(null, self, a1, a2);
-			});
+		if (deferHooks)
+			hooksQueue.push([evName, a1, a2]);
+		else {
+			if (evName in hooks) {
+				hooks[evName].forEach(fn => {
+					fn.call(null, self, a1, a2);
+				});
+			}
 		}
 	}
 
