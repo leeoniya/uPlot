@@ -5147,7 +5147,44 @@ function uPlot(opts, data, then) {
 
 				let idx2  = cursor.dataIdx(self, i, idx, valAtPosX);
 
-				if (cursor.prox != null) {
+				if (cursor.prox == null) {
+					let xValues = data[0];
+					let yValues = data[i];
+
+					if (yValues[idx] == null) {
+						let nonNullLft = null,
+							nonNullRgt = null,
+							j;
+
+						j = idx;
+						while (nonNullLft == null && j-- > 0) {
+							if (yValues[j] != null)
+								nonNullLft = j;
+						}
+
+						j = idx;
+						while (nonNullRgt == null && j++ < yValues.length) {
+							if (yValues[j] != null)
+								nonNullRgt = j;
+						}
+
+						let rgtVal = nonNullRgt == null ? Infinity : xValues[nonNullRgt];
+						let lftVal = nonNullLft == null ? -Infinity : xValues[nonNullLft];
+
+						let lftDelta = valAtPosX - lftVal;
+						let rgtDelta = rgtVal - valAtPosX;
+
+						if (lftDelta <= rgtDelta) {
+							if (lftDelta <= cursor.prox) {
+								idx2 = nonNullLft;
+							}
+						} else {
+							if (rgtDelta <= cursor.prox) {
+								idx2 = nonNullRgt;
+							}
+						}
+					}
+				} else {
 					let xLeft = valToPosX(data[0][idx], scaleX, xDim, 0);
 					let dist = Math.abs(cursor.left - xLeft);
 
