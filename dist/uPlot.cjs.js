@@ -1290,7 +1290,7 @@ function cursorPointSize(self, si) {
 
 function dataIdx(self, seriesIdx, cursorIdx) {
 	return cursorIdx;
-}
+} 
 
 const moveTuple = [0,0];
 
@@ -1361,6 +1361,7 @@ const cursorOpts = {
 	left: -10,
 	top: -10,
 	idx: null,
+	prox: null,
 	dataIdx,
 	idxs: null,
 
@@ -5145,6 +5146,15 @@ function uPlot(opts, data, then) {
 				let yVal1 = idx1 == null ? null : (mode == 1 ? data[i][idx1] : data[i][1][idx1]);
 
 				let idx2  = cursor.dataIdx(self, i, idx, valAtPosX);
+
+				if (cursor.prox != null) {
+					let xLeft = valToPosX(data[0][idx], scaleX, xDim, 0);
+					let dist = Math.abs(cursor.left - xLeft);
+
+					if (dist > cursor.prox)
+						idx2 = null;
+				}
+
 				let yVal2 = idx2 == null ? null : (mode == 1 ? data[i][idx2] : data[i][1][idx2]);
 
 				shouldSetLegend = shouldSetLegend || yVal2 != yVal1 || idx2 != idx1;

@@ -396,7 +396,7 @@ function cursorPointSize(self, si) {
 
 function dataIdx(self, seriesIdx, cursorIdx) {
 	return cursorIdx;
-}
+} 
 
 const moveTuple = [0,0];
 
@@ -467,6 +467,7 @@ export const cursorOpts = {
 	left: -10,
 	top: -10,
 	idx: null,
+	prox: null,
 	dataIdx,
 	idxs: null,
 

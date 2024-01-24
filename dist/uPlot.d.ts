@@ -429,7 +429,7 @@ declare namespace uPlot {
 
 		export type MouseListenerFactory = (self: uPlot, targ: HTMLElement, handler: MouseListener) => MouseListener | null;
 
-		export type DataIdxRefiner       = (self: uPlot, seriesIdx: number, closestIdx: number, xValue: number) => number;
+		export type DataIdxRefiner       = (self: uPlot, seriesIdx: number, closestIdx: number, xValue: number) => number | null;
 
 		export type MousePosRefiner      = (self: uPlot, mouseLeft: number, mouseTop: number) => LeftTop;
 
@@ -551,6 +551,9 @@ declare namespace uPlot {
 
 		/** closest data index to cursor (closestIdx) */
 		idx?: number | null;
+
+		/** cursor proximity */
+		prox?: number | null;
 
 		/** returns data idx used for hover points & legend display (defaults to closestIdx) */
 		dataIdx?: Cursor.DataIdxRefiner;
