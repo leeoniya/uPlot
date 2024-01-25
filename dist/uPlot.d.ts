@@ -520,7 +520,7 @@ declare namespace uPlot {
 		// options that compile the cursor.dataIdx callback (the index scanner)
 		export interface Hover {
 			/** minimum cursor proximity to datapoint in CSS pixels for point hover */
-			prox?: number | null | (() => number | null); // null/Infinity
+			prox?: number | null | ((self: uPlot, seriesIdx: number, closestIdx: number, xValue: number) => number | null); // null/Infinity
 			/** when non-zero, will only proximity-test indices forward or backward */
 			bias?: HoverBias; // 0
 			/** what values to treat as non-hoverable and trigger scanning to another index */

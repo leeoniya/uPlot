@@ -3439,10 +3439,7 @@ var uPlot = (function () {
 						}
 					}
 
-					// scanned and nothing found
-					if (nonNullLft == null && nonNullRgt == null)
-						idx2 = null;
-					else {
+					if (nonNullLft != null || nonNullRgt != null) {
 						let lftPos = nonNullLft == null ? -Infinity : withProx ? valToPosX(xValues[nonNullLft], scaleX, xDim, 0) : 0;
 						let rgtPos = nonNullRgt == null ?  Infinity : withProx ? valToPosX(xValues[nonNullRgt], scaleX, xDim, 0) : 0;
 
