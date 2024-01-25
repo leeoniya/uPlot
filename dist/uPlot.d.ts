@@ -517,6 +517,16 @@ declare namespace uPlot {
 			values?: Sync.Values,
 		}
 
+		// options that compile the cursor.dataIdx callback (the index scanner)
+		export interface Hover {
+			/** minimum cursor proximity to datapoint in CSS pixels for point hover */
+			prox?: number | null | (() => number | null); // null/Infinity
+			/** when non-zero, will only proximity-test indices forward or backward */
+			bias?: HoverBias; // 0
+			/** what values to treat as non-hoverable and trigger scanning to another index */
+			skip?: any[]; // [undefined]
+		}
+
 		export interface Focus {
 			/** minimum cursor proximity to datapoint in CSS pixels for focus activation, disabled: < 0, enabled: <= 1e6 */
 			prox: number;
@@ -530,6 +540,12 @@ declare namespace uPlot {
 			None          =  0,
 			AwayFromZero  =  1,
 			TowardsZero   = -1,
+		}
+
+		export const enum HoverBias {
+			None     =  0,
+			Forward  =  1,
+			Backward = -1,
 		}
 	}
 
@@ -552,9 +568,6 @@ declare namespace uPlot {
 		/** closest data index to cursor (closestIdx) */
 		idx?: number | null;
 
-		/** cursor proximity */
-		prox?: number | null;
-
 		/** returns data idx used for hover points & legend display (defaults to closestIdx) */
 		dataIdx?: Cursor.DataIdxRefiner;
 
@@ -576,8 +589,11 @@ declare namespace uPlot {
 		/** sync cursor between multiple charts */
 		sync?: Cursor.Sync;
 
-		/** focus series closest to cursor */
+		/** focus series closest to cursor (y) */
 		focus?: Cursor.Focus;
+
+		/** hover data points closest to cursor (x) */
+		hover?: Cursor.Hover;
 
 		/** lock cursor on mouse click in plotting area */
 		lock?: boolean; // false
