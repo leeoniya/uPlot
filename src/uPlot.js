@@ -924,7 +924,7 @@ export default function uPlot(opts, data, then) {
 					idx2 = null;
 				else {
 					let lftPos = nonNullLft == null ? -Infinity : withProx ? valToPosX(xValues[nonNullLft], scaleX, xDim, 0) : 0;
-					let rgtPos = nonNullRgt == null ? Infinity : withProx ? valToPosX(xValues[nonNullRgt], scaleX, xDim, 0) : 0;
+					let rgtPos = nonNullRgt == null ?  Infinity : withProx ? valToPosX(xValues[nonNullRgt], scaleX, xDim, 0) : 0;
 
 					let lftDelta = cursorLft - lftPos;
 					let rgtDelta = rgtPos - cursorLft;
