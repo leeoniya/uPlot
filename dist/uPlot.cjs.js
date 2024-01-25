@@ -1288,10 +1288,6 @@ function cursorPointSize(self, si) {
 	return sp.size;
 }
 
-function dataIdx(self, seriesIdx, cursorIdx) {
-	return cursorIdx;
-}
-
 const moveTuple = [0,0];
 
 function cursorMove(self, mouseLeft1, mouseTop1) {
@@ -1358,10 +1354,16 @@ const cursorOpts = {
 		bias: 0,
 	},
 
+	hover: {
+		skip: [void 0],
+		prox: null,
+		bias: 0,
+	},
+
 	left: -10,
 	top: -10,
 	idx: null,
-	dataIdx,
+	dataIdx: null,
 	idxs: null,
 
 	event: null,
@@ -3389,6 +3391,80 @@ function uPlot(opts, data, then) {
 	}
 
 	const cursor = self.cursor = assign({}, cursorOpts, {drag: {y: mode == 2}}, opts.cursor);
+
+	if (cursor.dataIdx == null) {
+		let hov = cursor.hover;
+
+		let skip = hov.skip = new Set(hov.skip ?? []);
+		skip.add(void 0); // alignment artifacts
+		let prox = hov.prox = fnOrSelf(hov.prox);
+		let bias = hov.bias ??= 0;
+
+		// TODO: only scan between in-view idxs (i0, i1)
+		cursor.dataIdx = (self, seriesIdx, cursorIdx, valAtPosX) => {
+			if (seriesIdx == 0)
+				return cursorIdx;
+
+			let idx2 = cursorIdx;
+
+			let _prox = prox(self, seriesIdx, cursorIdx, valAtPosX) ?? inf;
+			let withProx = _prox >= 0 && _prox < inf;
+			let xDim = scaleX.ori == 0 ? plotWidCss : plotHgtCss;
+			let cursorLft = cursor.left;
+
+			let xValues = data[0];
+			let yValues = data[seriesIdx];
+
+			if (skip.has(yValues[cursorIdx])) {
+				idx2 = null;
+
+				let nonNullLft = null,
+					nonNullRgt = null,
+					j;
+
+				if (bias == 0 || bias == -1) {
+					j = cursorIdx;
+					while (nonNullLft == null && j-- > 0) {
+						if (!skip.has(yValues[j]))
+							nonNullLft = j;
+					}
+				}
+
+				if (bias == 0 || bias == 1) {
+					j = cursorIdx;
+					while (nonNullRgt == null && j++ < yValues.length) {
+						if (!skip.has(yValues[j]))
+							nonNullRgt = j;
+					}
+				}
+
+				if (nonNullLft != null || nonNullRgt != null) {
+					let lftPos = nonNullLft == null ? -Infinity : withProx ? valToPosX(xValues[nonNullLft], scaleX, xDim, 0) : 0;
+					let rgtPos = nonNullRgt == null ?  Infinity : withProx ? valToPosX(xValues[nonNullRgt], scaleX, xDim, 0) : 0;
+
+					let lftDelta = cursorLft - lftPos;
+					let rgtDelta = rgtPos - cursorLft;
+
+					if (lftDelta <= rgtDelta) {
+						if (lftDelta <= _prox)
+							idx2 = nonNullLft;
+					} else {
+						if (rgtDelta <= _prox)
+							idx2 = nonNullRgt;
+					}
+				}
+			}
+			else if (withProx) {
+				let dist = abs(cursorLft - valToPosX(xValues[cursorIdx], scaleX, xDim, 0));
+
+				if (dist > _prox)
+					idx2 = null;
+			}
+
+			return idx2;
+		};
+	}
+
 	const setCursorEvent = e => { cursor.event = e; };
 
 	cursor.idxs = activeIdxs;
