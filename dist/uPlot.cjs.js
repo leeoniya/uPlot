@@ -5234,13 +5234,13 @@ function uPlot(opts, data, then) {
 					let yPos = yVal2 == null ? -10 : valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0);
 
 					if (cursorFocus && yVal2 != null) {
-						let dist = abs(focus.dist(self, i, idx2, yPos, mouseTop1));
+						let mouseYPos = scaleX.ori == 1 ? mouseLeft1 : mouseTop1;
+						let dist = abs(focus.dist(self, i, idx2, yPos, mouseYPos));
 
 						if (dist < closestDist) {
 							let bias = focus.bias;
 
 							if (bias != 0) {
-								let mouseYPos = scaleX.ori == 1 ? mouseLeft1 : mouseTop1;
 								let mouseYVal = posToVal(mouseYPos, s.scale);
 
 								let seriesYValSign = yVal2     >= 0 ? 1 : -1;

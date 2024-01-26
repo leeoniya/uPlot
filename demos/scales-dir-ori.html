@@ -24,10 +24,12 @@
 
 			let xs = [-3,-2,-1,0,1,2,3,4,5,6];
 			let vals = [-10,-4,-2,-1,0,2,3,null,5,6];
+			let vals2 = [-2,2,-2,2,-2,2,-2,2,-2,2];
 
 			let data = [
 				xs,
 				vals,
+				vals2,
 			];
 
 			function chart(opts) {
@@ -36,6 +38,9 @@
 						x: {
 							time: false,
 						},
+					},
+					focus: {
+						alpha: 0.3,
 					},
 					cursor: {
 						lock: true,
@@ -46,6 +51,9 @@
 						sync: {
 							key: 1,
 							scales: ["x", "y"],
+						},
+						focus: {
+							prox: 30,
 						}
 					},
 					series: [
@@ -54,6 +62,10 @@
 							stroke: "red",
 							fill: "rgba(255,0,0,0.1)",
 						},
+						{
+							stroke: "blue",
+							fill: "rgba(0,0,255,0.1)"
+						}
 					],
 				}, opts);
 
