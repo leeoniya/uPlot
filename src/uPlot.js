@@ -2715,7 +2715,7 @@ export default function uPlot(opts, data, then) {
 					let yPos = yVal2 == null ? -10 : valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0);
 
 					if (cursorFocus && yVal2 != null) {
-						let dist = abs(focus.dist(self, i, idx2, yPos, mouseTop1));
+						let dist = abs(focus.dist(self, i, idx2, yPos, scaleX.ori == 1 ? mouseLeft1 : mouseTop1));
 
 						if (dist < closestDist) {
 							let bias = focus.bias;
