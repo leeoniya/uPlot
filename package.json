@@ -1,7 +1,7 @@
 {
-  "name": "uplot",
+  "name": "uplot-temp",
   "version": "1.6.29",
-  "description": "A small, fast chart for time series, lines, areas, ohlc & bars",
+  "description": "Bug fix (a cursor focus in vertical series)",
   "main": "./dist/uPlot.cjs.js",
   "module": "./dist/uPlot.esm.js",
   "typings": "./dist/uPlot.d.ts",
@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/leeoniya/uPlot.git"
+    "url": "git+https://github.com/alex-tel/uPlot.git"
   },
   "files": [
     "package.json",
