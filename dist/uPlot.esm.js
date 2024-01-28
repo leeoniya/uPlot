@@ -5165,6 +5165,9 @@ function uPlot(opts, data, then) {
 
 		[mouseLeft1, mouseTop1] = cursor.move(self, mouseLeft1, mouseTop1);
 
+		cursor.left = mouseLeft1;
+		cursor.top = mouseTop1;
+
 		if (cursor.show) {
 			vCursor && elTrans(vCursor, round(mouseLeft1), 0, plotWidCss, plotHgtCss);
 			hCursor && elTrans(hCursor, 0, round(mouseTop1), plotWidCss, plotHgtCss);
@@ -5184,7 +5187,7 @@ function uPlot(opts, data, then) {
 
 		// if cursor hidden, hide points & clear legend vals
 		if (mouseLeft1 < 0 || dataLen == 0 || noDataInRange) {
-			idx = null;
+			idx = cursor.idx = null;
 
 			for (let i = 0; i < series.length; i++) {
 				if (i > 0) {
@@ -5208,7 +5211,7 @@ function uPlot(opts, data, then) {
 			if (mode == 1) {
 				mouseXPos = scaleX.ori == 0 ? mouseLeft1 : mouseTop1;
 				valAtPosX = posToVal(mouseXPos, xScaleKey);
-				idx = closestIdx(valAtPosX, data[0], i0, i1);
+				idx = cursor.idx = closestIdx(valAtPosX, data[0], i0, i1);
 				xPos = valToPosX(data[0][idx], scaleX, xDim, 0);
 			}
 
@@ -5307,10 +5310,6 @@ function uPlot(opts, data, then) {
 				}
 			}
 		}
-
-		cursor.idx = idx;
-		cursor.left = mouseLeft1;
-		cursor.top = mouseTop1;
 
 		// nit: cursor.drag.setSelect is assumed always true
 		if (select.show && dragging) {
