@@ -1,6 +1,6 @@
 {
   "name": "uplot",
-  "version": "1.6.28",
+  "version": "1.6.29",
   "description": "A small, fast chart for time series, lines, areas, ohlc & bars",
   "main": "./dist/uPlot.cjs.js",
   "module": "./dist/uPlot.esm.js",
