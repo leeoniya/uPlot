@@ -55,6 +55,7 @@ export function bars(opts) {
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
+			let _align = align;
 
 			let extraGap = _extraGap * pxRatio;
 			let maxWidth = _maxWidth * pxRatio;
@@ -118,6 +119,7 @@ export function bars(opts) {
 			let { x0, size } = disp;
 
 			if (x0 != null && size != null) {
+				_align = 1;
 				dataX = x0.values(u, seriesIdx, idx0, idx1);
 
 				if (x0.unit == 2)
@@ -161,7 +163,7 @@ export function bars(opts) {
 
 			barWid = pxRound(clamp(rawBarWid, minWidth, maxWidth));
 
-			xShift = (align == 0 ? barWid / 2 : align == _dirX ? 0 : barWid) - align * _dirX * ((align == 0 ? extraGap / 2 : 0) + (insetStroke ? strokeWidth / 2 : 0));
+			xShift = (_align == 0 ? barWid / 2 : _align == _dirX ? 0 : barWid) - _align * _dirX * ((_align == 0 ? extraGap / 2 : 0) + (insetStroke ? strokeWidth / 2 : 0));
 
 
 			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: 0};  // disp, geom
