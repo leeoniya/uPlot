@@ -239,6 +239,94 @@
 			const data2 = uPlot.join(tables);
 
 			let u2 = new uPlot(opts2, data2, document.body);
+
+			let data3 = uPlot.join([
+				[
+					[
+						1626235540319,
+						1626235584004,
+						1626235627689,
+						1626235671374,
+						1626235715059,
+						1626235758744,
+						1626235802429,
+						1626235846114,
+						1626235889799,
+						1626235933484,
+						1626235977169
+					],
+					[
+						1,
+						20,
+						90,
+						30,
+						5,
+						0,
+						100,
+						20,
+						null,
+						100,
+						20
+					]
+				],
+				[
+					[
+						1626235540319,
+						1626235613128,
+						1626235685937,
+						1626235758746,
+						1626235831555,
+						1626235904364,
+						1626235977173
+					],
+					[
+						1,
+						20,
+						90,
+						30,
+						5,
+						null,
+						0
+					]
+				]
+			], [[0,2],[0,2]]);
+
+			let opts3 = {
+				...opts2,
+				title: "Nearest Non-Null (by 15px proximity only when hovered val === null)",
+				ms: 1,
+				scales: {
+					x: {
+						time: true,
+					}
+				},
+				series: [
+					{},
+					{
+						stroke: "red",
+						fill: "rgb(255,0,0,0.1)"
+					},
+					{
+						stroke: "blue",
+						fill: "rgb(0,0,255,0.1)"
+					},
+				],
+				cursor: {
+					hover: {
+						prox: (self, seriesIdx, hoveredIdx) => {
+							const yVal = self.data[seriesIdx][hoveredIdx];
+
+							if (yVal === null)
+								return 15; // 15px proximity when hovering nuulls, but not undefined
+
+							return null;
+						},
+						skip: [null],
+					},
+				}
+			};
+
+			let u3 = new uPlot(opts3, data3, document.body);
 		</script>
 	</body>
 </html>

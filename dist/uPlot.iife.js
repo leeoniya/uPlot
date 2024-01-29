@@ -3442,18 +3442,26 @@ var uPlot = (function () {
 					}
 
 					if (nonNullLft != null || nonNullRgt != null) {
-						let lftPos = nonNullLft == null ? -Infinity : withProx ? valToPosX(xValues[nonNullLft], scaleX, xDim, 0) : 0;
-						let rgtPos = nonNullRgt == null ?  Infinity : withProx ? valToPosX(xValues[nonNullRgt], scaleX, xDim, 0) : 0;
+						if (withProx) {
+							let lftPos = nonNullLft == null ? -Infinity : valToPosX(xValues[nonNullLft], scaleX, xDim, 0);
+							let rgtPos = nonNullRgt == null ?  Infinity : valToPosX(xValues[nonNullRgt], scaleX, xDim, 0);
 
-						let lftDelta = cursorLft - lftPos;
-						let rgtDelta = rgtPos - cursorLft;
+							let lftDelta = cursorLft - lftPos;
+							let rgtDelta = rgtPos - cursorLft;
 
-						if (lftDelta <= rgtDelta) {
-							if (lftDelta <= _prox)
-								idx2 = nonNullLft;
-						} else {
-							if (rgtDelta <= _prox)
-								idx2 = nonNullRgt;
+							if (lftDelta <= rgtDelta) {
+								if (lftDelta <= _prox)
+									idx2 = nonNullLft;
+							} else {
+								if (rgtDelta <= _prox)
+									idx2 = nonNullRgt;
+							}
+						}
+						else {
+							idx2 =
+								nonNullRgt == null ? nonNullLft :
+								nonNullLft == null ? nonNullRgt :
+								cursorIdx - nonNullLft <= nonNullRgt - cursorIdx ? nonNullLft : nonNullRgt;
 						}
 					}
 				}
