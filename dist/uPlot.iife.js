@@ -3714,16 +3714,16 @@ var uPlot = (function () {
 		function setData(_data, _resetScales) {
 			data = _data == null ? [] : _data;
 
+			self.data = self._data = data;
+
 			if (mode == 2) {
 				dataLen = 0;
 				for (let i = 1; i < series.length; i++)
 					dataLen += data[i][0].length;
-
-				self._data = data;
 			}
 			else {
 				if (data.length == 0)
-					data = [[]];
+					self.data = self._data = data = [[]];
 
 				data0 = data[0];
 				dataLen = data0.length;
@@ -3740,8 +3740,6 @@ var uPlot = (function () {
 
 				self._data = data = scaleData;
 			}
-
-			self.data = data;
 
 			resetYSeries(true);
 
