@@ -5709,9 +5709,7 @@ function uPlot(opts, data, then) {
 		}
 		else if (cursor.lock) {
 			cursor._lock = !cursor._lock;
-
-			if (!cursor._lock)
-				updateCursor(null, true, false);
+			updateCursor(null, true, false);
 		}
 
 		if (e != null) {
