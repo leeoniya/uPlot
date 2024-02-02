@@ -564,6 +564,8 @@ function fastIsObj(v) {
 
 const TypedArray = Object.getPrototypeOf(Uint8Array);
 
+const __proto__ = "__proto__";
+
 function copy(o, _isObj = isObj) {
 	let out;
 
@@ -582,8 +584,10 @@ function copy(o, _isObj = isObj) {
 		out = o.slice();
 	else if (_isObj(o)) {
 		out = {};
-		for (let k in o)
-			out[k] = copy(o[k], _isObj);
+		for (let k in o) {
+			if (k != __proto__)
+				out[k] = copy(o[k], _isObj);
+		}
 	}
 	else
 		out = o;
@@ -598,10 +602,12 @@ function assign(targ) {
 		let src = args[i];
 
 		for (let key in src) {
-			if (isObj(targ[key]))
-				assign(targ[key], copy(src[key]));
-			else
-				targ[key] = copy(src[key]);
+			if (key != __proto__) {
+				if (isObj(targ[key]))
+					assign(targ[key], copy(src[key]));
+				else
+					targ[key] = copy(src[key]);
+			}
 		}
 	}
 
