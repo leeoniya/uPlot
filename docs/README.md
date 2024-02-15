@@ -43,7 +43,7 @@ If you truly need calendar-aware ms level precision, simply provide the timestam
 
 This format has implications that can make uPlot an awkward choice for multi-series datasets which cannot be easily aligned along their x-values.
 If one series is data-dense and the other is sparse, then the latter will need to be filled in with mostly `null` y-values.
-If each series has data at arbitrary x-values, then the x-values array must be augmented with all x-values, and all y-values arrays must be augmented with `null`s, potentially leading to exponential growth in dataset size, and a structure consisting of mostly `null`s.
+If each series has data at arbitrary x-values, then the x-values array must be augmented with all x-values, and all y-values arrays must be augmented with `null`s, potentially leading to quadratic growth in dataset size, and a structure consisting of mostly `null`s.
 
 This does not mean that all series must have identical x-values - just that they are alignable.
 For instance, it is possible to plot [series that express different time periods](https://leeoniya.github.io/uPlot/demos/time-periods.html), because the data is equally spaced.
