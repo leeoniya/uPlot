@@ -5144,13 +5144,14 @@ var uPlot = (function () {
 				legend.idx = activeIdxs[0];
 			}
 
-			for (let sidx = 0; sidx < series.length; sidx++) {
-				if (sidx > 0 || mode == 1 && !multiValLegend)
-					setLegendValues(sidx, activeIdxs[sidx]);
-			}
+			if (showLegend && legend.live) {
+				for (let sidx = 0; sidx < series.length; sidx++) {
+					if (sidx > 0 || mode == 1 && !multiValLegend)
+						setLegendValues(sidx, activeIdxs[sidx]);
+				}
 
-			if (showLegend && legend.live)
 				syncLegend();
+			}
 
 			shouldSetLegend = false;
 
