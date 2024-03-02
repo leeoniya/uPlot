@@ -421,6 +421,7 @@ export const cursorOpts = {
 	lock: false,
 	move: cursorMove,
 	points: {
+		one:    false,
 		show:   cursorPointShow,
 		size:   cursorPointSize,
 		width:  0,

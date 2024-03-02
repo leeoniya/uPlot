@@ -1322,6 +1322,7 @@ var uPlot = (function () {
 		lock: false,
 		move: cursorMove,
 		points: {
+			one:    false,
 			show:   cursorPointShow,
 			size:   cursorPointSize,
 			width:  0,
@@ -3499,25 +3500,24 @@ var uPlot = (function () {
 		const focus = self.focus = assign({}, opts.focus || {alpha: 0.3}, cursor.focus);
 
 		const cursorFocus = focus.prox >= 0;
+		const cursorOnePt = cursorFocus && points.one;
 
 		// series-intersection markers
-		let cursorPts = [null];
+		let cursorPts = [];
 		// position caches in CSS pixels
-		let cursorPtsLft = [null];
-		let cursorPtsTop = [null];
+		let cursorPtsLft = [];
+		let cursorPtsTop = [];
 
 		function initCursorPt(s, si) {
-			if (si > 0) {
-				let pt = cursor.points.show(self, si);
+			let pt = points.show(self, si);
 
-				if (pt) {
-					addClass(pt, CURSOR_PT);
-					addClass(pt, s.class);
-					elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
-					over.insertBefore(pt, cursorPts[si]);
+			if (pt) {
+				addClass(pt, CURSOR_PT);
+				addClass(pt, s.class);
+				elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
+				over.insertBefore(pt, cursorPts[si]);
 
-					return pt;
-				}
+				return pt;
 			}
 		}
 
@@ -3530,7 +3530,7 @@ var uPlot = (function () {
 				s.label = s.label || (isTime ? timeSeriesLabel : numSeriesLabel);
 			}
 
-			if (i > 0) {
+			if (cursorOnePt || i > 0) {
 				s.width  = s.width == null ? 1 : s.width;
 				s.paths  = s.paths || linearPath || retNull;
 				s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
@@ -3569,13 +3569,18 @@ var uPlot = (function () {
 			if (cursor.show) {
 				activeIdxs.splice(i, 0, null);
 
-				let pt = initCursorPt(s, i);
+				let pt = null;
 
-				if (pt != null) {
-					cursorPts.splice(i, 0, pt);
-					cursorPtsLft.splice(i, 0, 0);
-					cursorPtsTop.splice(i, 0, 0);
+				if (cursorOnePt) {
+					if (i == 0)
+						pt = initCursorPt(s, i);
 				}
+				else if (i > 0)
+					pt = initCursorPt(s, i);
+
+				cursorPts.splice(i, 0, pt);
+				cursorPtsLft.splice(i, 0, 0);
+				cursorPtsTop.splice(i, 0, 0);
 			}
 
 			fire("addSeries", i);
@@ -3606,12 +3611,9 @@ var uPlot = (function () {
 
 			if (cursor.show) {
 				activeIdxs.splice(i, 1);
-
-				if (cursorPts.length > 1) {
-					cursorPts.splice(i, 1)[0].remove();
-					cursorPtsLft.splice(i, 1);
-					cursorPtsTop.splice(i, 1);
-				}
+				cursorPts.splice(i, 1)[0].remove();
+				cursorPtsLft.splice(i, 1);
+				cursorPtsTop.splice(i, 1);
 			}
 
 			// TODO: de-init no-longer-needed scales?
@@ -4934,7 +4936,7 @@ var uPlot = (function () {
 				label && remClass(label, OFF);
 			else {
 				label && addClass(label, OFF);
-				cursorPts.length > 1 && elTrans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
+				elTrans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
 			}
 		}
 
@@ -5198,6 +5200,7 @@ var uPlot = (function () {
 			let noDataInRange = i0 > i1; // works for mode 1 only
 
 			closestDist = inf;
+			closestSeries = null;
 
 			// TODO: extract
 			let xDim = scaleX.ori == 0 ? plotWidCss : plotHgtCss;
@@ -5208,9 +5211,8 @@ var uPlot = (function () {
 				idx = cursor.idx = null;
 
 				for (let i = 0; i < series.length; i++) {
-					if (i > 0) {
-						cursorPts.length > 1 && elTrans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
-					}
+					let pt = cursorPts[i];
+					pt != null && elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
 				}
 
 				if (cursorFocus)
@@ -5232,6 +5234,15 @@ var uPlot = (function () {
 					idx = cursor.idx = closestIdx(valAtPosX, data[0], i0, i1);
 					xPos = valToPosX(data[0][idx], scaleX, xDim, 0);
 				}
+
+				// closest pt values
+				let _ptLft = -10;
+				let _ptTop = -10;
+				let _ptWid = 0;
+				let _ptHgt = 0;
+				let _centered = true;
+				let _ptFill = '';
+				let _ptStroke = '';
 
 				for (let i = mode == 2 ? 1 : 0; i < series.length; i++) {
 					let s = series[i];
@@ -5283,23 +5294,22 @@ var uPlot = (function () {
 							}
 						}
 
-						let hPos, vPos;
+						if (shouldSetLegend || cursorOnePt) {
+							let hPos, vPos;
 
-						if (scaleX.ori == 0) {
-							hPos = xPos2;
-							vPos = yPos;
-						}
-						else {
-							hPos = yPos;
-							vPos = xPos2;
-						}
-
-						if (shouldSetLegend && cursorPts.length > 1) {
-							elColor(cursorPts[i], cursor.points.fill(self, i), cursor.points.stroke(self, i));
+							if (scaleX.ori == 0) {
+								hPos = xPos2;
+								vPos = yPos;
+							}
+							else {
+								hPos = yPos;
+								vPos = xPos2;
+							}
 
 							let ptWid, ptHgt, ptLft, ptTop,
+								ptStroke, ptFill,
 								centered = true,
-								getBBox = cursor.points.bbox;
+								getBBox = points.bbox;
 
 							if (getBBox != null) {
 								centered = false;
@@ -5314,17 +5324,55 @@ var uPlot = (function () {
 							else {
 								ptLft = hPos;
 								ptTop = vPos;
-								ptWid = ptHgt = cursor.points.size(self, i);
+								ptWid = ptHgt = points.size(self, i);
 							}
 
+							ptFill = points.fill(self, i);
+							ptStroke = points.stroke(self, i);
 
-							elSize(cursorPts[i], ptWid, ptHgt, centered);
+							if (cursorOnePt) {
+								if (i == closestSeries && closestDist <= focus.prox) {
+									_ptLft = ptLft;
+									_ptTop = ptTop;
+									_ptWid = ptWid;
+									_ptHgt = ptHgt;
+									_centered = centered;
+									_ptFill = ptFill;
+									_ptStroke = ptStroke;
+								}
+							}
+							else {
+								let pt = cursorPts[i];
 
-							cursorPtsLft[i] = ptLft;
-							cursorPtsTop[i] = ptTop;
+								cursorPtsLft[i] = ptLft;
+								cursorPtsTop[i] = ptTop;
 
-							elTrans(cursorPts[i], incrRoundUp(ptLft, 1), incrRoundUp(ptTop, 1), plotWidCss, plotHgtCss);
+								elSize(pt, ptWid, ptHgt, centered);
+								elColor(pt, ptFill, ptStroke);
+								elTrans(pt, incrRoundUp(ptLft, 1), incrRoundUp(ptTop, 1), plotWidCss, plotHgtCss);
+							}
 						}
+					}
+				}
+
+				// if only using single hover point (at cursorPts[0])
+				// we have trigger styling at last visible series (once closestSeries is settled)
+				if (cursorOnePt) {
+					// some of this logic is similar to series focus below, since it matches the behavior by design
+
+					let p = focus.prox;
+
+					let focusChanged = focusedSeries == null ? closestDist <= p : (closestDist > p || closestSeries != focusedSeries);
+
+					if (shouldSetLegend || focusChanged) {
+						let pt = cursorPts[0];
+
+						cursorPtsLft[0] = _ptLft;
+						cursorPtsTop[0] = _ptTop;
+
+						elSize(pt, _ptWid, _ptHgt, _centered);
+						elColor(pt, _ptFill, _ptStroke);
+						elTrans(pt, incrRoundUp(_ptLft, 1), incrRoundUp(_ptTop, 1), plotWidCss, plotHgtCss);
 					}
 				}
 			}

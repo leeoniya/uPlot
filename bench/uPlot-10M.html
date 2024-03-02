@@ -75,6 +75,20 @@
 					title: data[0].length.toLocaleString("en-US") + " points x " + (data.length - 1) + " series",
 					width: 1920,
 					height: 400,
+					focus: {
+						alpha: 1
+					},
+					cursor: {
+						points: {
+							one: true,
+						},
+						focus: {
+							prox: 30
+						}
+					},
+				//	legend: {
+				//		show: false,
+				//	},
 					scales: {
 						x: {
 							time: false

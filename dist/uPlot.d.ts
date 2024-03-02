@@ -455,6 +455,8 @@ declare namespace uPlot {
 
 		export interface Points {
 			show?:   Points.Show;
+			/** only show single y-closest point on hover (only works when cursor.focus.prox >= 0) */
+			one?:    boolean;
 			/** hover point diameter in CSS pixels */
 			size?:   Points.Size;
 			/** hover point bbox in CSS pixels (will be used instead of size) */
