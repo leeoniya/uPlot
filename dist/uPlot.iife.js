@@ -3511,7 +3511,7 @@ var uPlot = (function () {
 		function initCursorPt(s, si) {
 			let pt = points.show(self, si);
 
-			if (pt) {
+			if (pt != null) {
 				addClass(pt, CURSOR_PT);
 				addClass(pt, s.class);
 				elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
@@ -4739,10 +4739,14 @@ var uPlot = (function () {
 						vCursor && elTrans(vCursor, round(cursor.left), 0, plotWidCss, plotHgtCss);
 						hCursor && elTrans(hCursor, 0, round(cursor.top), plotWidCss, plotHgtCss);
 
-						for (let i = 1; i < cursorPts.length; i++) {
-							cursorPtsLft[i] *= pctWid;
-							cursorPtsTop[i] *= pctHgt;
-							elTrans(cursorPts[i], incrRoundUp(cursorPtsLft[i], 1), incrRoundUp(cursorPtsTop[i], 1), plotWidCss, plotHgtCss);
+						for (let i = 0; i < cursorPts.length; i++) {
+							let pt = cursorPts[i];
+
+							if (pt != null) {
+								cursorPtsLft[i] *= pctWid;
+								cursorPtsTop[i] *= pctHgt;
+								elTrans(pt, incrRoundUp(cursorPtsLft[i], 1), incrRoundUp(cursorPtsTop[i], 1), plotWidCss, plotHgtCss);
+							}
 						}
 					}
 
@@ -4936,7 +4940,8 @@ var uPlot = (function () {
 				label && remClass(label, OFF);
 			else {
 				label && addClass(label, OFF);
-				elTrans(cursorPts[i], -10, -10, plotWidCss, plotHgtCss);
+				let pt = cursorOnePt ? cursorPts[0] : cursorPts[i];
+				elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
 			}
 		}
 
