@@ -2754,7 +2754,7 @@ function setDefaults(d, xo, yo, initY) {
 }
 
 function setDefaults2(d, xyo) {
-	return d.map((o, i) => i == 0 ? null : assign({}, xyo, o));  // todo: assign() will not merge facet arrays
+	return d.map((o, i) => i == 0 ? {} : assign({}, xyo, o));  // todo: assign() will not merge facet arrays
 }
 
 function setDefault(o, i, xo, yo) {
@@ -3588,7 +3588,7 @@ function uPlot(opts, data, then) {
 	function addSeries(opts, si) {
 		si = si == null ? series.length : si;
 
-		opts = mode == 1 ? setDefault(opts, si, xSeriesOpts, ySeriesOpts) : setDefault(opts, si, null, xySeriesOpts);
+		opts = mode == 1 ? setDefault(opts, si, xSeriesOpts, ySeriesOpts) : setDefault(opts, si, {}, xySeriesOpts);
 
 		series.splice(si, 0, opts);
 		initSeries(series[si], si);
