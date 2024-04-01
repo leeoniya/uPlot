@@ -3511,7 +3511,7 @@ var uPlot = (function () {
 		function initCursorPt(s, si) {
 			let pt = points.show(self, si);
 
-			if (pt != null) {
+			if (pt) {
 				addClass(pt, CURSOR_PT);
 				addClass(pt, s.class);
 				elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
@@ -5349,12 +5349,14 @@ var uPlot = (function () {
 							else {
 								let pt = cursorPts[i];
 
-								cursorPtsLft[i] = ptLft;
-								cursorPtsTop[i] = ptTop;
+								if (pt != null) {
+									cursorPtsLft[i] = ptLft;
+									cursorPtsTop[i] = ptTop;
 
-								elSize(pt, ptWid, ptHgt, centered);
-								elColor(pt, ptFill, ptStroke);
-								elTrans(pt, incrRoundUp(ptLft, 1), incrRoundUp(ptTop, 1), plotWidCss, plotHgtCss);
+									elSize(pt, ptWid, ptHgt, centered);
+									elColor(pt, ptFill, ptStroke);
+									elTrans(pt, incrRoundUp(ptLft, 1), incrRoundUp(ptTop, 1), plotWidCss, plotHgtCss);
+								}
 							}
 						}
 					}
