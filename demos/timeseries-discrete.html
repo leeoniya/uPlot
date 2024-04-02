@@ -1,0 +1,121 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>TimeSeries + Discrete</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+
+			let fromTs = 1704067200;
+			let stepTs = 15;
+			let numSteps = 50;
+
+			let xVals = Array.from({length: numSteps}, (v, i) => fromTs + stepTs * i);
+
+			// floats
+			let data1 = [
+				xVals,
+				Array.from({length: numSteps}, (v, i) => Math.random() * 100),
+			];
+
+			const opts1 = {
+				width: 1920,
+				height: 600,
+				padding: [5,10,0,0],
+				cursor: {
+					y: false,
+					sync: {
+						key: '_'
+					}
+				},
+				axes: [
+					{
+						size: 10,
+						gap: 0,
+						values: (u, splits) => splits.map(v => null),
+					}
+				],
+				series: [
+					{},
+					{
+						stroke: "red",
+					},
+				],
+			};
+
+			let u = new uPlot(opts1, data1, document.body);
+
+
+			// discretes
+			let data2 = [
+				xVals,
+				Array.from({length: numSteps}, (v, i) => Math.random() > 0.5 ? 0 : 1),
+				Array.from({length: numSteps}, (v, i) => Math.random() > 0.2 ? 0 : 1),
+				Array.from({length: numSteps}, (v, i) => Math.random() > 0.1 ? 0 : 1),
+			];
+
+			let fmtVal = (u, v, seriesIdx) => v == null ? null : v - (seriesIdx - 1) * 2;
+
+			const opts2 = {
+				width: 1920,
+				height: 200,
+				padding: [5,10,0,0],
+				cursor: {
+					y: false,
+					sync: {
+						key: '_'
+					}
+				},
+				scales: {
+					y: {
+						range: [0, 5],
+					}
+				},
+				axes: [
+					{},
+					{
+						splits: (u) => [0,2,4],
+						values: (u, splits) => splits.map((v, i) => `DEV${i + 1}`),
+					},
+				],
+				series: [
+					{},
+					{
+						stroke: "green",
+						paths: uPlot.paths.stepped({align: 1}),
+						value: fmtVal,
+					},
+					{
+						stroke: "blue",
+						paths: uPlot.paths.stepped({align: 1}),
+						value: fmtVal,
+					},
+					{
+						stroke: "magenta",
+						paths: uPlot.paths.stepped({align: 1}),
+						value: fmtVal,
+					},
+				],
+			};
+
+			let u2 = new uPlot(opts2, data2.map((vals, seriesIdx) => {
+				if (seriesIdx == 0)
+					return vals;
+
+				return vals.map(v => v + (seriesIdx - 1) * 2);
+			}), document.body);
+
+			// combine legends
+			setTimeout(() => {
+				let tr = u.root.querySelector('.u-series:nth-child(2)');
+				u2.root.querySelector('.u-legend tbody').insertBefore(tr, u2.root.querySelector('.u-series:nth-child(2)'));
+				u.root.querySelector('.u-legend').style.display = 'none';
+			});
+		</script>
+	</body>
+</html>
