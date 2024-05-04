@@ -59,7 +59,7 @@ Additionally, an ever-expanding collection of runnable [/demos](https://leeoniya
 ### Third-party Integrations
 
 - [Jupyter widget](https://github.com/sohailsomani/uplot_jupyter_widget) (Sohail Somani)
-- [React and Vue.js](https://github.com/skalinichev/uplot-wrappers) (Sergey Kalinichev)
+- [React, Vue.js and Svelte](https://github.com/skalinichev/uplot-wrappers) (Sergey Kalinichev)
 
 ---
 ### Performance
