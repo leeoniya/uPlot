@@ -376,6 +376,50 @@
 
 				let u = new uPlot(opts, data, document.body);
 			}
+
+			{
+				let xs = [0,1];
+				let ys = [
+					3.1992e-16,
+					4.9047e-13,
+				];
+
+				let data = [
+					xs,
+					ys,
+				];
+
+				const opts = {
+					title: "Handle 3e-24 y values",
+					width: 800,
+					height: 600,
+					scales: {
+						x: {
+							time: false,
+						},
+						y: {
+							distr: 3,
+							log: 10,
+						}
+					},
+					axes: [
+						{},
+						{
+							values: (u, splits) => splits.map(v => v == null ? null : v.toExponential()),
+						}
+					],
+					series: [
+						{},
+						{
+							stroke: "red",
+							fill: "rgba(255,0,0,0.1)",
+							value: (u, val) => val.toExponential(),
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			}
 		</script>
 	</body>
 </html>

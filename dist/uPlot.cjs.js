@@ -478,9 +478,30 @@ const retTrue = _ => true;
 
 const retEq = (a, b) => a == b;
 
-// this will probably prevent tick incrs > 14 decimal places
-// (we generate up to 17 dec, see fixedDec const)
-const fixFloat = v => roundDec(v, 14);
+const regex6 = /\.\d*?(?=9{6,}|0{6,})/gm;
+
+// e.g. 17999.204999999998 -> 17999.205
+const fixFloat = val => {
+	if (isInt(val) || fixedDec.has(val))
+		return val;
+
+	const str = `${val}`;
+
+	const match = str.match(regex6);
+
+	if (match == null)
+		return val;
+
+	let len = match[0].length - 1;
+
+	// e.g. 1.0000000000000001e-24
+	if (str.indexOf('e-') != -1) {
+		let [num, exp] = str.split('e');
+		return +`${fixFloat(num)}e${exp}`;
+	}
+
+	return roundDec(val, len);
+};
 
 function incrRound(num, incr) {
 	return fixFloat(roundDec(fixFloat(num/incr))*incr);
@@ -523,9 +544,9 @@ function genIncrs(base, minExp, maxExp, mults) {
 		let mag = roundDec(pow(base, exp), expa);
 
 		for (let i = 0; i < mults.length; i++) {
-			let _incr = mults[i] * mag;
-			let dec = (_incr >= 0 && exp >= 0 ? 0 : expa) + (exp >= multDec[i] ? 0 : multDec[i]);
-			let incr = roundDec(_incr, dec);
+			let _incr = base == 10 ? +`${mults[i]}e${exp}` : mults[i] * mag;
+			let dec = (exp >= 0 ? 0 : expa) + (exp >= multDec[i] ? 0 : multDec[i]);
+			let incr = base == 10 ? _incr : roundDec(_incr, dec);
 			incrs.push(incr);
 			fixedDec.set(incr, dec);
 		}
@@ -951,10 +972,10 @@ const onlyWhole = v => v % 1 == 0;
 const allMults = [1,2,2.5,5];
 
 // ...0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.25, 0.5
-const decIncrs = genIncrs(10, -16, 0, allMults);
+const decIncrs = genIncrs(10, -32, 0, allMults);
 
 // 1, 2, 2.5, 5, 10, 20, 25, 50...
-const oneIncrs = genIncrs(10, 0, 16, allMults);
+const oneIncrs = genIncrs(10, 0, 32, allMults);
 
 // 1, 2,      5, 10, 20, 25, 50...
 const wholeIncrs = oneIncrs.filter(onlyWhole);
@@ -1468,21 +1489,31 @@ function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 
 	foundIncr = pow(logBase, exp);
 
-	if (logBase == 10 && exp < 0)
-		foundIncr = roundDec(foundIncr, -exp);
+	// boo: 10 ** -24 === 1.0000000000000001e-24
+	// this grabs the proper 1e-24 one
+	if (logBase == 10)
+		foundIncr = numIncrs[closestIdx(foundIncr, numIncrs)];
 
 	let split = scaleMin;
+	let nextMagIncr = foundIncr * logBase;
+
+	if (logBase == 10)
+		nextMagIncr = numIncrs[closestIdx(nextMagIncr, numIncrs)];
 
 	do {
 		splits.push(split);
 		split = split + foundIncr;
 
-		if (logBase == 10)
+		if (logBase == 10 && !fixedDec.has(split))
 			split = roundDec(split, fixedDec.get(foundIncr));
 
-		if (split >= foundIncr * logBase)
+		if (split >= nextMagIncr) {
 			foundIncr = split;
+			nextMagIncr = foundIncr * logBase;
 
+			if (logBase == 10)
+				nextMagIncr = numIncrs[closestIdx(nextMagIncr, numIncrs)];
+		}
 	} while (split <= scaleMax);
 
 	return splits;
@@ -4744,7 +4775,7 @@ function uPlot(opts, data, then) {
 						if (pt != null) {
 							cursorPtsLft[i] *= pctWid;
 							cursorPtsTop[i] *= pctHgt;
-							elTrans(pt, incrRoundUp(cursorPtsLft[i], 1), incrRoundUp(cursorPtsTop[i], 1), plotWidCss, plotHgtCss);
+							elTrans(pt, ceil(cursorPtsLft[i]), ceil(cursorPtsTop[i]), plotWidCss, plotHgtCss);
 						}
 					}
 				}
@@ -5354,7 +5385,7 @@ function uPlot(opts, data, then) {
 
 								elSize(pt, ptWid, ptHgt, centered);
 								elColor(pt, ptFill, ptStroke);
-								elTrans(pt, incrRoundUp(ptLft, 1), incrRoundUp(ptTop, 1), plotWidCss, plotHgtCss);
+								elTrans(pt, ceil(ptLft), ceil(ptTop), plotWidCss, plotHgtCss);
 							}
 						}
 					}
@@ -5378,7 +5409,7 @@ function uPlot(opts, data, then) {
 
 					elSize(pt, _ptWid, _ptHgt, _centered);
 					elColor(pt, _ptFill, _ptStroke);
-					elTrans(pt, incrRoundUp(_ptLft, 1), incrRoundUp(_ptTop, 1), plotWidCss, plotHgtCss);
+					elTrans(pt, ceil(_ptLft), ceil(_ptTop), plotWidCss, plotHgtCss);
 				}
 			}
 		}

@@ -24,6 +24,7 @@ import {
 	retArg1,
 	noop,
 	ceil,
+	closestIdx,
 } from './utils';
 
 import {
@@ -50,10 +51,10 @@ const onlyWhole = v => v % 1 == 0;
 const allMults = [1,2,2.5,5];
 
 // ...0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.25, 0.5
-export const decIncrs = genIncrs(10, -16, 0, allMults);
+export const decIncrs = genIncrs(10, -32, 0, allMults);
 
 // 1, 2, 2.5, 5, 10, 20, 25, 50...
-export const oneIncrs = genIncrs(10, 0, 16, allMults);
+export const oneIncrs = genIncrs(10, 0, 32, allMults);
 
 // 1, 2,      5, 10, 20, 25, 50...
 export const wholeIncrs = oneIncrs.filter(onlyWhole);
@@ -568,21 +569,31 @@ export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 
 	foundIncr = pow(logBase, exp);
 
-	if (logBase == 10 && exp < 0)
-		foundIncr = roundDec(foundIncr, -exp);
+	// boo: 10 ** -24 === 1.0000000000000001e-24
+	// this grabs the proper 1e-24 one
+	if (logBase == 10)
+		foundIncr = numIncrs[closestIdx(foundIncr, numIncrs)];
 
 	let split = scaleMin;
+	let nextMagIncr = foundIncr * logBase;
+
+	if (logBase == 10)
+		nextMagIncr = numIncrs[closestIdx(nextMagIncr, numIncrs)];
 
 	do {
 		splits.push(split);
 		split = split + foundIncr;
 
-		if (logBase == 10)
+		if (logBase == 10 && !fixedDec.has(split))
 			split = roundDec(split, fixedDec.get(foundIncr));
 
-		if (split >= foundIncr * logBase)
+		if (split >= nextMagIncr) {
 			foundIncr = split;
+			nextMagIncr = foundIncr * logBase;
 
+			if (logBase == 10)
+				nextMagIncr = numIncrs[closestIdx(nextMagIncr, numIncrs)];
+		}
 	} while (split <= scaleMax);
 
 	return splits;

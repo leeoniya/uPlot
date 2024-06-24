@@ -305,9 +305,30 @@ export const retTrue = _ => true;
 
 export const retEq = (a, b) => a == b;
 
-// this will probably prevent tick incrs > 14 decimal places
-// (we generate up to 17 dec, see fixedDec const)
-const fixFloat = v => roundDec(v, 14);
+const regex6 = /\.\d*?(?=9{6,}|0{6,})/gm;
+
+// e.g. 17999.204999999998 -> 17999.205
+const fixFloat = val => {
+	if (isInt(val) || fixedDec.has(val))
+		return val;
+
+	const str = `${val}`;
+
+	const match = str.match(regex6);
+
+	if (match == null)
+		return val;
+
+	let len = match[0].length - 1;
+
+	// e.g. 1.0000000000000001e-24
+	if (str.indexOf('e-') != -1) {
+		let [num, exp] = str.split('e');
+		return +`${fixFloat(num)}e${exp}`;
+	}
+
+	return roundDec(val, len);
+}
 
 export function incrRound(num, incr) {
 	return fixFloat(roundDec(fixFloat(num/incr))*incr);
@@ -355,9 +376,9 @@ export function genIncrs(base, minExp, maxExp, mults) {
 		let mag = roundDec(pow(base, exp), expa);
 
 		for (let i = 0; i < mults.length; i++) {
-			let _incr = mults[i] * mag;
-			let dec = (_incr >= 0 && exp >= 0 ? 0 : expa) + (exp >= multDec[i] ? 0 : multDec[i]);
-			let incr = roundDec(_incr, dec);
+			let _incr = base == 10 ? +`${mults[i]}e${exp}` : mults[i] * mag;
+			let dec = (exp >= 0 ? 0 : expa) + (exp >= multDec[i] ? 0 : multDec[i]);
+			let incr = base == 10 ? _incr : roundDec(_incr, dec);
 			incrs.push(incr);
 			fixedDec.set(incr, dec);
 		}

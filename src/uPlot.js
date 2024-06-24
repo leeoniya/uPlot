@@ -2216,7 +2216,7 @@ export default function uPlot(opts, data, then) {
 						if (pt != null) {
 							cursorPtsLft[i] *= pctWid;
 							cursorPtsTop[i] *= pctHgt;
-							elTrans(pt, incrRoundUp(cursorPtsLft[i], 1), incrRoundUp(cursorPtsTop[i], 1), plotWidCss, plotHgtCss);
+							elTrans(pt, ceil(cursorPtsLft[i]), ceil(cursorPtsTop[i]), plotWidCss, plotHgtCss);
 						}
 					}
 				}
@@ -2826,7 +2826,7 @@ export default function uPlot(opts, data, then) {
 
 								elSize(pt, ptWid, ptHgt, centered);
 								elColor(pt, ptFill, ptStroke);
-								elTrans(pt, incrRoundUp(ptLft, 1), incrRoundUp(ptTop, 1), plotWidCss, plotHgtCss);
+								elTrans(pt, ceil(ptLft), ceil(ptTop), plotWidCss, plotHgtCss);
 							}
 						}
 					}
@@ -2850,7 +2850,7 @@ export default function uPlot(opts, data, then) {
 
 					elSize(pt, _ptWid, _ptHgt, _centered);
 					elColor(pt, _ptFill, _ptStroke);
-					elTrans(pt, incrRoundUp(_ptLft, 1), incrRoundUp(_ptTop, 1), plotWidCss, plotHgtCss);
+					elTrans(pt, ceil(_ptLft), ceil(_ptTop), plotWidCss, plotHgtCss);
 				}
 			}
 		}
