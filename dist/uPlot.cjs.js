@@ -2863,6 +2863,7 @@ function uPlot(opts, data, then) {
 		let _val = (
 			scale.distr == 3 ? log10(val > 0 ? val : scale.clamp(self, val, scale.min, scale.max, scale.key)) :
 			scale.distr == 4 ? asinh(val, scale.asinh) :
+			scale.distr == 100 ? scale.fwd(val) :
 			val
 		);
 
@@ -4081,8 +4082,8 @@ function uPlot(opts, data, then) {
 
 				let distr = sc.distr;
 
-				sc._min = distr == 3 ? log10(sc.min) : distr == 4 ? asinh(sc.min, sc.asinh) : sc.min;
-				sc._max = distr == 3 ? log10(sc.max) : distr == 4 ? asinh(sc.max, sc.asinh) : sc.max;
+				sc._min = distr == 3 ? log10(sc.min) : distr == 4 ? asinh(sc.min, sc.asinh) : distr == 100 ? sc.fwd(sc.min) : sc.min;
+				sc._max = distr == 3 ? log10(sc.max) : distr == 4 ? asinh(sc.max, sc.asinh) : distr == 100 ? sc.fwd(sc.max) : sc.max;
 
 				changed[k] = anyChanged = true;
 			}
@@ -5108,6 +5109,7 @@ function uPlot(opts, data, then) {
 		return (
 			distr == 3 ? pow(10, sv) :
 			distr == 4 ? sinh(sv, sc.asinh) :
+			distr == 100 ? sc.bwd(sv) :
 			sv
 		);
 	}

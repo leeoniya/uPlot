@@ -614,6 +614,7 @@ declare namespace uPlot {
 			Ordinal     = 2,
 			Logarithmic = 3,
 			ArcSinh     = 4,
+			Custom      = 100,
 		}
 
 		export type LogBase = 10 | 2;
@@ -645,6 +646,11 @@ declare namespace uPlot {
 
 		/** arcsinh linear threshold */
 		asinh?: number; // 1
+
+		/** forward transform fn, with custom distr: 100 */
+		fwd?: (v: number) => number;
+		/** backward transform fn, with custom distr: 100 */
+		bwd?: (v: number) => number;
 
 		/** current min scale value */
 		min?: number;
