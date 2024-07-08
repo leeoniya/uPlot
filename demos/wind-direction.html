@@ -79,7 +79,7 @@
 							let yPx = u.valToPos(speeds[i], 'y2', true);
 
 							let len = 15;
-							let theta = dirs[i] * (Math.PI / 180);
+							let theta = (dirs[i] - 90) * (Math.PI / 180);
 							let dx = len * Math.cos(theta);
 							let dy = len * Math.sin(theta);
 
