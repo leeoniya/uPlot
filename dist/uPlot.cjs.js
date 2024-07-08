@@ -5431,7 +5431,7 @@ function uPlot(opts, data, then) {
 				if (dragX || dragY) {
 					let { left, top, width, height } = src.select;
 
-					let sori = src.scales[xKey].ori;
+					let sori = src.scales[xKeySrc].ori;
 					let sPosToVal = src.posToVal;
 
 					let sOff, sDim, sc, a, b;
