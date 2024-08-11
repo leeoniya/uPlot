@@ -9,168 +9,7 @@
 
 const FEAT_TIME          = true;
 
-const pre = "u-";
-
-const UPLOT          =       "uplot";
-const ORI_HZ         = pre + "hz";
-const ORI_VT         = pre + "vt";
-const TITLE          = pre + "title";
-const WRAP           = pre + "wrap";
-const UNDER          = pre + "under";
-const OVER           = pre + "over";
-const AXIS           = pre + "axis";
-const OFF            = pre + "off";
-const SELECT         = pre + "select";
-const CURSOR_X       = pre + "cursor-x";
-const CURSOR_Y       = pre + "cursor-y";
-const CURSOR_PT      = pre + "cursor-pt";
-const LEGEND         = pre + "legend";
-const LEGEND_LIVE    = pre + "live";
-const LEGEND_INLINE  = pre + "inline";
-const LEGEND_SERIES  = pre + "series";
-const LEGEND_MARKER  = pre + "marker";
-const LEGEND_LABEL   = pre + "label";
-const LEGEND_VALUE   = pre + "value";
-
-const WIDTH       = "width";
-const HEIGHT      = "height";
-const TOP         = "top";
-const BOTTOM      = "bottom";
-const LEFT        = "left";
-const RIGHT       = "right";
-const hexBlack    = "#000";
-const transparent = hexBlack + "0";
-
-const mousemove   = "mousemove";
-const mousedown   = "mousedown";
-const mouseup     = "mouseup";
-const mouseenter  = "mouseenter";
-const mouseleave  = "mouseleave";
-const dblclick    = "dblclick";
-const resize      = "resize";
-const scroll      = "scroll";
-
-const change      = "change";
-const dppxchange  = "dppxchange";
-
-const LEGEND_DISP = "--";
-
-const domEnv = typeof window != 'undefined';
-
-const doc = domEnv ? document  : null;
-const win = domEnv ? window    : null;
-const nav = domEnv ? navigator : null;
-
-let pxRatio;
-
-//export const canHover = domEnv && !win.matchMedia('(hover: none)').matches;
-
-let query;
-
-function setPxRatio() {
-	let _pxRatio = devicePixelRatio;
-
-	// during print preview, Chrome fires off these dppx queries even without changes
-	if (pxRatio != _pxRatio) {
-		pxRatio = _pxRatio;
-
-		query && off(change, query, setPxRatio);
-		query = matchMedia(`(min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
-		on(change, query, setPxRatio);
-
-		win.dispatchEvent(new CustomEvent(dppxchange));
-	}
-}
-
-function addClass(el, c) {
-	if (c != null) {
-		let cl = el.classList;
-		!cl.contains(c) && cl.add(c);
-	}
-}
-
-function remClass(el, c) {
-	let cl = el.classList;
-	cl.contains(c) && cl.remove(c);
-}
-
-function setStylePx(el, name, value) {
-	el.style[name] = value + "px";
-}
-
-function placeTag(tag, cls, targ, refEl) {
-	let el = doc.createElement(tag);
-
-	if (cls != null)
-		addClass(el, cls);
-
-	if (targ != null)
-		targ.insertBefore(el, refEl);
-
-	return el;
-}
-
-function placeDiv(cls, targ) {
-	return placeTag("div", cls, targ);
-}
-
-const xformCache = new WeakMap();
-
-function elTrans(el, xPos, yPos, xMax, yMax) {
-	let xform = "translate(" + xPos + "px," + yPos + "px)";
-	let xformOld = xformCache.get(el);
-
-	if (xform != xformOld) {
-		el.style.transform = xform;
-		xformCache.set(el, xform);
-
-		if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
-			addClass(el, OFF);
-		else
-			remClass(el, OFF);
-	}
-}
-
-const colorCache = new WeakMap();
-
-function elColor(el, background, borderColor) {
-	let newColor = background + borderColor;
-	let oldColor = colorCache.get(el);
-
-	if (newColor != oldColor) {
-		colorCache.set(el, newColor);
-		el.style.background = background;
-		el.style.borderColor = borderColor;
-	}
-}
-
-const sizeCache = new WeakMap();
-
-function elSize(el, newWid, newHgt, centered) {
-	let newSize = newWid + "" + newHgt;
-	let oldSize = sizeCache.get(el);
-
-	if (newSize != oldSize) {
-		sizeCache.set(el, newSize);
-		el.style.height = newHgt + "px";
-		el.style.width = newWid + "px";
-		el.style.marginLeft = centered ? -newWid/2 + "px" : 0;
-		el.style.marginTop = centered ? -newHgt/2 + "px" : 0;
-	}
-}
-
-const evOpts = {passive: true};
-const evOpts2 = {...evOpts, capture: true};
-
-function on(ev, el, cb, capt) {
-	el.addEventListener(ev, cb, capt ? evOpts2 : evOpts);
-}
-
-function off(ev, el, cb, capt) {
-	el.removeEventListener(ev, cb, capt ? evOpts2 : evOpts);
-}
-
-domEnv && setPxRatio();
+const browserLocale = new Intl.DateTimeFormat().resolvedOptions().locale;
 
 // binary search for index of closest value
 function closestIdx(num, arr, lo, hi) {
@@ -428,10 +267,6 @@ function _rangeNum(_min, _max, cfg) {
 
 	return [minLim, maxLim];
 }
-
-// alternative: https://stackoverflow.com/a/2254896
-const numFormatter = new Intl.NumberFormat(domEnv ? nav.language : 'en-US');
-const fmtNum = val => numFormatter.format(val);
 
 const M = Math;
 
@@ -818,129 +653,167 @@ function isAsc(vals, samples = 100) {
 	return true;
 }
 
-const months = [
-	"January",
-	"February",
-	"March",
-	"April",
-	"May",
-	"June",
-	"July",
-	"August",
-	"September",
-	"October",
-	"November",
-	"December",
-];
+const WIDTH       = "width";
+const HEIGHT      = "height";
+const TOP         = "top";
+const BOTTOM      = "bottom";
+const LEFT        = "left";
+const RIGHT       = "right";
+const hexBlack    = "#000";
+const transparent = hexBlack + "0";
 
-const days = [
-	"Sunday",
-	"Monday",
-	"Tuesday",
-	"Wednesday",
-	"Thursday",
-	"Friday",
-	"Saturday",
-];
+const mousemove   = "mousemove";
+const mousedown   = "mousedown";
+const mouseup     = "mouseup";
+const mouseenter  = "mouseenter";
+const mouseleave  = "mouseleave";
+const dblclick    = "dblclick";
+const resize      = "resize";
+const scroll      = "scroll";
 
-function slice3(str) {
-	return str.slice(0, 3);
-}
+const change      = "change";
+const dppxchange  = "dppxchange";
 
-const days3 = days.map(slice3);
+const LEGEND_DISP = "--";
 
-const months3 = months.map(slice3);
+const pre = "u-";
 
-const engNames = {
-	MMMM: months,
-	MMM:  months3,
-	WWWW: days,
-	WWW:  days3,
-};
+const UPLOT          =       "uplot";
+const ORI_HZ         = pre + "hz";
+const ORI_VT         = pre + "vt";
+const TITLE          = pre + "title";
+const WRAP           = pre + "wrap";
+const UNDER          = pre + "under";
+const OVER           = pre + "over";
+const AXIS           = pre + "axis";
+const OFF            = pre + "off";
+const SELECT         = pre + "select";
+const CURSOR_X       = pre + "cursor-x";
+const CURSOR_Y       = pre + "cursor-y";
+const CURSOR_PT      = pre + "cursor-pt";
+const LEGEND         = pre + "legend";
+const LEGEND_LIVE    = pre + "live";
+const LEGEND_INLINE  = pre + "inline";
+const LEGEND_SERIES  = pre + "series";
+const LEGEND_MARKER  = pre + "marker";
+const LEGEND_LABEL   = pre + "label";
+const LEGEND_VALUE   = pre + "value";
 
-function zeroPad2(int) {
-	return (int < 10 ? '0' : '') + int;
-}
+const domEnv = typeof window != 'undefined';
 
-function zeroPad3(int) {
-	return (int < 10 ? '00' : int < 100 ? '0' : '') + int;
-}
+const doc = domEnv ? document  : null;
+const win = domEnv ? window    : null;
 
-/*
-function suffix(int) {
-	let mod10 = int % 10;
+let pxRatio;
 
-	return int + (
-		mod10 == 1 && int != 11 ? "st" :
-		mod10 == 2 && int != 12 ? "nd" :
-		mod10 == 3 && int != 13 ? "rd" : "th"
-	);
-}
-*/
+//export const canHover = domEnv && !win.matchMedia('(hover: none)').matches;
 
-const subs = {
-	// 2019
-	YYYY:	d => d.getFullYear(),
-	// 19
-	YY:		d => (d.getFullYear()+'').slice(2),
-	// July
-	MMMM:	(d, names) => names.MMMM[d.getMonth()],
-	// Jul
-	MMM:	(d, names) => names.MMM[d.getMonth()],
-	// 07
-	MM:		d => zeroPad2(d.getMonth()+1),
-	// 7
-	M:		d => d.getMonth()+1,
-	// 09
-	DD:		d => zeroPad2(d.getDate()),
-	// 9
-	D:		d => d.getDate(),
-	// Monday
-	WWWW:	(d, names) => names.WWWW[d.getDay()],
-	// Mon
-	WWW:	(d, names) => names.WWW[d.getDay()],
-	// 03
-	HH:		d => zeroPad2(d.getHours()),
-	// 3
-	H:		d => d.getHours(),
-	// 9 (12hr, unpadded)
-	h:		d => {let h = d.getHours(); return h == 0 ? 12 : h > 12 ? h - 12 : h;},
-	// AM
-	AA:		d => d.getHours() >= 12 ? 'PM' : 'AM',
-	// am
-	aa:		d => d.getHours() >= 12 ? 'pm' : 'am',
-	// a
-	a:		d => d.getHours() >= 12 ? 'p' : 'a',
-	// 09
-	mm:		d => zeroPad2(d.getMinutes()),
-	// 9
-	m:		d => d.getMinutes(),
-	// 09
-	ss:		d => zeroPad2(d.getSeconds()),
-	// 9
-	s:		d => d.getSeconds(),
-	// 374
-	fff:	d => zeroPad3(d.getMilliseconds()),
-};
+let query;
 
-function fmtDate(tpl, names) {
-	names = names || engNames;
-	let parts = [];
+function setPxRatio() {
+	let _pxRatio = devicePixelRatio;
 
-	let R = /\{([a-z]+)\}|[^{]+/gi, m;
+	// during print preview, Chrome fires off these dppx queries even without changes
+	if (pxRatio != _pxRatio) {
+		pxRatio = _pxRatio;
 
-	while (m = R.exec(tpl))
-		parts.push(m[0][0] == '{' ? subs[m[1]] : m[0]);
+		query && off(change, query, setPxRatio);
+		query = matchMedia(`(min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
+		on(change, query, setPxRatio);
 
-	return d => {
-		let out = '';
-
-		for (let i = 0; i < parts.length; i++)
-			out += typeof parts[i] == "string" ? parts[i] : parts[i](d, names);
-
-		return out;
+		win.dispatchEvent(new CustomEvent(dppxchange));
 	}
 }
+
+function addClass(el, c) {
+	if (c != null) {
+		let cl = el.classList;
+		!cl.contains(c) && cl.add(c);
+	}
+}
+
+function remClass(el, c) {
+	let cl = el.classList;
+	cl.contains(c) && cl.remove(c);
+}
+
+function setStylePx(el, name, value) {
+	el.style[name] = value + "px";
+}
+
+function placeTag(tag, cls, targ, refEl) {
+	let el = doc.createElement(tag);
+
+	if (cls != null)
+		addClass(el, cls);
+
+	if (targ != null)
+		targ.insertBefore(el, refEl);
+
+	return el;
+}
+
+function placeDiv(cls, targ) {
+	return placeTag("div", cls, targ);
+}
+
+const xformCache = new WeakMap();
+
+function elTrans(el, xPos, yPos, xMax, yMax) {
+	let xform = "translate(" + xPos + "px," + yPos + "px)";
+	let xformOld = xformCache.get(el);
+
+	if (xform != xformOld) {
+		el.style.transform = xform;
+		xformCache.set(el, xform);
+
+		if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
+			addClass(el, OFF);
+		else
+			remClass(el, OFF);
+	}
+}
+
+const colorCache = new WeakMap();
+
+function elColor(el, background, borderColor) {
+	let newColor = background + borderColor;
+	let oldColor = colorCache.get(el);
+
+	if (newColor != oldColor) {
+		colorCache.set(el, newColor);
+		el.style.background = background;
+		el.style.borderColor = borderColor;
+	}
+}
+
+const sizeCache = new WeakMap();
+
+function elSize(el, newWid, newHgt, centered) {
+	let newSize = newWid + "" + newHgt;
+	let oldSize = sizeCache.get(el);
+
+	if (newSize != oldSize) {
+		sizeCache.set(el, newSize);
+		el.style.height = newHgt + "px";
+		el.style.width = newWid + "px";
+		el.style.marginLeft = centered ? -newWid/2 + "px" : 0;
+		el.style.marginTop = centered ? -newHgt/2 + "px" : 0;
+	}
+}
+
+const evOpts = {passive: true};
+const evOpts2 = {...evOpts, capture: true};
+
+function on(ev, el, cb, capt) {
+	el.addEventListener(ev, cb, capt ? evOpts2 : evOpts);
+}
+
+function off(ev, el, cb, capt) {
+	el.removeEventListener(ev, cb, evOpts);
+}
+
+domEnv && setPxRatio();
 
 const localTz = new Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -980,19 +853,14 @@ const wholeIncrs = oneIncrs.filter(onlyWhole);
 
 const numIncrs = decIncrs.concat(oneIncrs);
 
-const NL = "\n";
-
-const yyyy    = "{YYYY}";
-const NLyyyy  = NL + yyyy;
-const md      = "{M}/{D}";
-const NLmd    = NL + md;
-const NLmdyy  = NLmd + "/{YY}";
-
-const aa      = "{aa}";
-const hmm     = "{h}:{mm}";
-const hmmaa   = hmm + aa;
-const NLhmmaa = NL + hmmaa;
-const ss      = ":{ss}";
+let YYYY = {year: 'numeric'};
+let MM = {month: 'numeric'};
+let MMM = {month: 'short'};
+let dd = {day: 'numeric'};
+let hh = {hour: 'numeric'};
+let mm = {minute: 'numeric'};
+let ss = {second: 'numeric'};
+let fff = { fractionalSecondDigits: 3};
 
 const _ = null;
 
@@ -1061,16 +929,16 @@ function genTimeStuffs(ms) {
 	// [2-7]: rollover tick formats
 	// [8]:   mode: 0: replace [1] -> [2-7], 1: concat [1] + [2-7]
 	const _timeAxisStamps = [
-	//   tick incr    default          year                    month   day                   hour    min       sec   mode
-		[y,           yyyy,            _,                      _,      _,                    _,      _,        _,       1],
-		[d * 28,      "{MMM}",         NLyyyy,                 _,      _,                    _,      _,        _,       1],
-		[d,           md,              NLyyyy,                 _,      _,                    _,      _,        _,       1],
-		[h,           "{h}" + aa,      NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
-		[m,           hmmaa,           NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
-		[s,           ss,              NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1],
-		[ms,          ss + ".{fff}",   NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1],
+	// tick incr    default          year                                    month   day                             hour    min             sec mode
+		[y,         { ...YYYY },       _,                                      _,      _,                              _,      _,              _,  1],
+		[d * 28,    { ...MMM },        {...YYYY},                              _,      _,                              _,      _,              _,  1],
+		[d,         { ...MM, ...dd },  {...YYYY},                              _,      _,                              _,      _,              _,  1],
+		[h,         { ...hh },         { ...YYYY, ...MM, ...dd},               _,      {...MM, ...dd},                 _,      _,              _,  1],
+		[m,         { ...hh, ...mm },  { ...YYYY, ...MM, ...dd},               _,      {...MM, ...dd},                 _,      _,              _,  1],
+		[s,         { ...ss },         { ...YYYY, ...MM, ...dd, ...hh, ...mm}, _,      {...MM, ...dd, ...hh, ...mm},   _,      {...hh, ...mm}, _,  1],
+		[ms,        { ...ss, ...fff }, { ...YYYY, ...MM, ...dd, ...hh, ...mm}, _,      {...MM, ...dd, ...hh, ...mm},   _,      {...hh, ...mm}, _,  1],
 	];
-
+	
 	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
 	// https://www.timeanddate.com/time/dst/
 	// https://www.timeanddate.com/time/dst/2019.html
@@ -1458,7 +1326,7 @@ const xSeriesOpts = {
 	idxs: [],
 };
 
-function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
+function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr, fmtNum) {
 	return splits.map(v => v == null ? "" : fmtNum(v));
 }
 
@@ -1581,7 +1449,7 @@ function log2AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	return splits;
 }
 
-function numSeriesVal(self, val, seriesIdx, dataIdx) {
+function numSeriesVal(self, val, seriesIdx, dataIdx, fmtNum) {
 	return dataIdx == null ? LEGEND_DISP : val == null ? "" : fmtNum(val);
 }
 
@@ -2855,7 +2723,17 @@ function uPlot(opts, data, then) {
 	};
 
 	const mode = self.mode;
-
+	
+	// alternative: https://stackoverflow.com/a/2254896
+	const numFormatter = new Intl.NumberFormat(opts.locale || browserLocale);
+	const fmtNum = val => numFormatter.format(val);
+	self.fmtNum = fmtNum;
+	
+	const fmtDate = (tsOpts) => new Intl.DateTimeFormat(opts.locale || browserLocale, tsOpts).format;
+	{
+		self.fmtDate = fmtDate;
+	}
+	
 	// TODO: cache denoms & mins scale.cache = {r, min, }
 	function getValPct(val, scale) {
 		let _val = (
@@ -4430,7 +4308,7 @@ function uPlot(opts, data, then) {
 			let splits = scale.distr == 2 ? _splits.map(i => data0[i]) : _splits;
 			let incr   = scale.distr == 2 ? data0[_splits[1]] - data0[_splits[0]] : _incr;
 
-			let values = axis._values = axis.values(self, axis.filter(self, splits, i, _space, incr), i, _space, incr);
+			let values = axis._values = axis.values(self, axis.filter(self, splits, i, _space, incr), i, _space, incr, fmtNum);
 
 			// rotating of labels only supported on bottom x axis
 			axis._rotate = side == 2 ? axis.rotate(self, values, i, _space) : 0;
@@ -5205,7 +5083,7 @@ function uPlot(opts, data, then) {
 		if (multiValLegend)
 			val = s.values(self, sidx, idx) ?? NULL_LEGEND_VALUES;
 		else {
-			val = s.value(self, idx == null ? null : src[idx], sidx, idx);
+			val = s.value(self, idx == null ? null : src[idx], sidx, idx, fmtNum);
 			val = val == null ? NULL_LEGEND_VALUES : {_: val};
 		}
 
@@ -6017,7 +5895,6 @@ function uPlot(opts, data, then) {
 }
 
 uPlot.assign = assign;
-uPlot.fmtNum = fmtNum;
 uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
 uPlot.rangeAsinh = rangeAsinh;
@@ -6029,7 +5906,6 @@ uPlot.pxRatio = pxRatio;
 }
 
 {
-	uPlot.fmtDate = fmtDate;
 	uPlot.tzDate  = tzDate;
 }
 

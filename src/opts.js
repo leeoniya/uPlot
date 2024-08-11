@@ -18,7 +18,6 @@ import {
 	incrRoundUp,
 	roundDec,
 	floor,
-	fmtNum,
 	fixedDec,
 
 	retArg1,
@@ -39,8 +38,6 @@ import {
 	placeDiv,
 	setStylePx,
 } from './dom';
-
-import { fmtDate } from './fmtDate';
 
 //export const series = [];
 
@@ -63,17 +60,14 @@ export const numIncrs = decIncrs.concat(oneIncrs);
 
 const NL = "\n";
 
-const yyyy    = "{YYYY}";
-const NLyyyy  = NL + yyyy;
-const md      = "{M}/{D}";
-const NLmd    = NL + md;
-const NLmdyy  = NLmd + "/{YY}";
-
-const aa      = "{aa}";
-const hmm     = "{h}:{mm}";
-const hmmaa   = hmm + aa;
-const NLhmmaa = NL + hmmaa;
-const ss      = ":{ss}";
+let YYYY = {year: 'numeric'};
+let MM = {month: 'numeric'};
+let MMM = {month: 'short'};
+let dd = {day: 'numeric'};
+let hh = {hour: 'numeric'};
+let mm = {minute: 'numeric'};
+let ss = {second: 'numeric'};
+let fff = { fractionalSecondDigits: 3};
 
 const _ = null;
 
@@ -142,16 +136,16 @@ function genTimeStuffs(ms) {
 	// [2-7]: rollover tick formats
 	// [8]:   mode: 0: replace [1] -> [2-7], 1: concat [1] + [2-7]
 	const _timeAxisStamps = [
-	//   tick incr    default          year                    month   day                   hour    min       sec   mode
-		[y,           yyyy,            _,                      _,      _,                    _,      _,        _,       1],
-		[d * 28,      "{MMM}",         NLyyyy,                 _,      _,                    _,      _,        _,       1],
-		[d,           md,              NLyyyy,                 _,      _,                    _,      _,        _,       1],
-		[h,           "{h}" + aa,      NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
-		[m,           hmmaa,           NLmdyy,                 _,      NLmd,                 _,      _,        _,       1],
-		[s,           ss,              NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1],
-		[ms,          ss + ".{fff}",   NLmdyy + " " + hmmaa,   _,      NLmd + " " + hmmaa,   _,      NLhmmaa,  _,       1],
+	// tick incr    default          year                                    month   day                             hour    min             sec mode
+		[y,         { ...YYYY },       _,                                      _,      _,                              _,      _,              _,  1],
+		[d * 28,    { ...MMM },        {...YYYY},                              _,      _,                              _,      _,              _,  1],
+		[d,         { ...MM, ...dd },  {...YYYY},                              _,      _,                              _,      _,              _,  1],
+		[h,         { ...hh },         { ...YYYY, ...MM, ...dd},               _,      {...MM, ...dd},                 _,      _,              _,  1],
+		[m,         { ...hh, ...mm },  { ...YYYY, ...MM, ...dd},               _,      {...MM, ...dd},                 _,      _,              _,  1],
+		[s,         { ...ss },         { ...YYYY, ...MM, ...dd, ...hh, ...mm}, _,      {...MM, ...dd, ...hh, ...mm},   _,      {...hh, ...mm}, _,  1],
+		[ms,        { ...ss, ...fff }, { ...YYYY, ...MM, ...dd, ...hh, ...mm}, _,      {...MM, ...dd, ...hh, ...mm},   _,      {...hh, ...mm}, _,  1],
 	];
-
+	
 	// the ensures that axis ticks, values & grid are aligned to logical temporal breakpoints and not an arbitrary timestamp
 	// https://www.timeanddate.com/time/dst/
 	// https://www.timeanddate.com/time/dst/2019.html
@@ -540,7 +534,7 @@ export const xSeriesOpts = {
 	idxs: [],
 };
 
-export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
+export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr, fmtNum) {
 	return splits.map(v => v == null ? "" : fmtNum(v));
 }
 
@@ -663,7 +657,7 @@ export function log2AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	return splits;
 }
 
-export function numSeriesVal(self, val, seriesIdx, dataIdx) {
+export function numSeriesVal(self, val, seriesIdx, dataIdx, fmtNum) {
 	return dataIdx == null ? LEGEND_DISP : val == null ? "" : fmtNum(val);
 }
 

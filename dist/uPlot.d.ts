@@ -60,6 +60,9 @@ declare class uPlot {
 
 	/** .u-under dom element */
 	readonly under: HTMLDivElement;
+	
+	/*
+	readonly locale: string;
 
 	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
 	redraw(rebuildPaths?: boolean, recalcAxes?: boolean): void;
@@ -138,11 +141,11 @@ declare class uPlot {
 	/** re-ranges a given min/max outwards to nearest 10% of given min/max's magnitudes, unless fullMags = true */
 	static rangeAsinh(min: number, max: number, base: uPlot.Scale.LogBase, fullMags: boolean): uPlot.Range.MinMax;
 
-	/** default numeric formatter using browser's locale: new Intl.NumberFormat(navigator.language).format */
+	/** default numeric formatter using browser's locale: new Intl.NumberFormat(defaultLocale).format */
 	static fmtNum(val: number): string;
 
-	/** creates an efficient formatter for Date objects from a template string, e.g. {YYYY}-{MM}-{DD} */
-	static fmtDate(tpl: string, names?: uPlot.DateNames): (date: Date) => string;
+	/** default DateTime formatter using browser's locale: new Intl.DateTimeFormat(defaultLocale, opts).format */
+	static fmtDate(opts: string, locale?: string): (date: Date) => string;
 
 	/** converts a Date into new Date that's time-adjusted for the given IANA Time Zone Name */
 	static tzDate(date: Date, tzName: string): Date;
@@ -222,19 +225,6 @@ declare namespace uPlot {
 		...yValues: ((number | null | undefined)[] | TypedArray)[],
 	]
 
-	export interface DateNames {
-		/** long month names */
-		MMMM: string[];
-
-		/** short month names */
-		MMM:  string[];
-
-		/** long weekday names (0: Sunday) */
-		WWWW: string[];
-
-		/** short weekday names (0: Sun) */
-		WWW:  string[];
-	}
 
 	export namespace Range {
 		export type MinMax = [min: number | null, max: number | null];

@@ -17,6 +17,7 @@ import {
 import {
 	copy,
 	assign,
+	browserLocale,
 	PI,
 	inf,
 	abs,
@@ -44,7 +45,6 @@ import {
 	fastIsObj,
 	isStr,
 	fnOrSelf,
-	fmtNum,
 	fixedDec,
 	ifNull,
 	join,
@@ -130,9 +130,8 @@ import {
 } from './dom';
 
 import {
-	fmtDate,
 	tzDate,
-} from './fmtDate';
+} from './tzDate';
 
 import {
 	ptDia,
@@ -294,7 +293,16 @@ export default function uPlot(opts, data, then) {
 	};
 
 	const mode = self.mode;
-
+	
+	const numFormatter = new Intl.NumberFormat(opts.locale || browserLocale);
+	const fmtNum = val => numFormatter.format(val);
+	self.fmtNum = fmtNum
+	
+	const fmtDate = (tsOpts) => new Intl.DateTimeFormat(opts.locale || browserLocale, tsOpts).format
+	if (FEAT_TIME) {
+		self.fmtDate = fmtDate
+	}
+	
 	// TODO: cache denoms & mins scale.cache = {r, min, }
 	function getValPct(val, scale) {
 		let _val = (
@@ -1873,7 +1881,7 @@ export default function uPlot(opts, data, then) {
 			let splits = scale.distr == 2 ? _splits.map(i => data0[i]) : _splits;
 			let incr   = scale.distr == 2 ? data0[_splits[1]] - data0[_splits[0]] : _incr;
 
-			let values = axis._values = axis.values(self, axis.filter(self, splits, i, _space, incr), i, _space, incr);
+			let values = axis._values = axis.values(self, axis.filter(self, splits, i, _space, incr), i, _space, incr, fmtNum);
 
 			// rotating of labels only supported on bottom x axis
 			axis._rotate = side == 2 ? axis.rotate(self, values, i, _space) : 0;
@@ -2648,7 +2656,7 @@ export default function uPlot(opts, data, then) {
 		if (multiValLegend)
 			val = s.values(self, sidx, idx) ?? NULL_LEGEND_VALUES;
 		else {
-			val = s.value(self, idx == null ? null : src[idx], sidx, idx);
+			val = s.value(self, idx == null ? null : src[idx], sidx, idx, fmtNum);
 			val = val == null ? NULL_LEGEND_VALUES : {_: val};
 		}
 
@@ -3460,7 +3468,6 @@ export default function uPlot(opts, data, then) {
 }
 
 uPlot.assign = assign;
-uPlot.fmtNum = fmtNum;
 uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
 uPlot.rangeAsinh = rangeAsinh;
@@ -3472,7 +3479,6 @@ if (FEAT_JOIN) {
 }
 
 if (FEAT_TIME) {
-	uPlot.fmtDate = fmtDate;
 	uPlot.tzDate  = tzDate;
 }
 
