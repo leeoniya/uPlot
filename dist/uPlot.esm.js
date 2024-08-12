@@ -1051,8 +1051,20 @@ console.log({
 */
 
 function timeAxisStamps(stampCfg, fmtDate) {
-	return stampCfg.map(s => s.map((v, i) =>
-		i == 0 || i == 8 || v == null ? v : fmtDate(i == 1 || s[8] == 0 ? v : s[1] + v)
+	// return stampCfg.map(s => s.map((v, i) =>
+	// i == 0 || i == 8 || v == null ? v : fmtDate(i == 1 || s[8] == 0 ? v : {...s[1], ...v})
+	return stampCfg.map(s => s.map((v, i) => {
+		if (i == 0 || i == 8 || v == null) {
+			return v
+		}
+		const line1 = fmtDate(v);
+		if (i == 1 || s[8] == 0) {
+			return line1
+		} else {
+			const line2 = fmtDate(s[1]);
+			return (date) => line2(date)+'\n'+line1(date)
+		}
+	}
 	));
 }
 
@@ -1100,12 +1112,6 @@ function timeAxisVals(tzDate, stamps) {
 			return stamp(date);
 		});
 	}
-}
-
-// for when axis.values is defined as a static fmtDate template string
-function timeAxisVal(tzDate, dateTpl) {
-	let stamp = fmtDate(dateTpl);
-	return (self, splits, axisIdx, foundSpace, foundIncr) => splits.map(split => stamp(tzDate(split)));
 }
 
 function mkDate(y, m, d) {
@@ -2724,7 +2730,6 @@ function uPlot(opts, data, then) {
 
 	const mode = self.mode;
 	
-	// alternative: https://stackoverflow.com/a/2254896
 	const numFormatter = new Intl.NumberFormat(opts.locale || browserLocale);
 	const fmtNum = val => numFormatter.format(val);
 	self.fmtNum = fmtNum;
@@ -3578,8 +3583,8 @@ function uPlot(opts, data, then) {
 					isArr(av) ?
 						timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) :
 					// fmtDate string tpl
-					isStr(av) ?
-						timeAxisVal(_tzDate, av) :
+					//isStr(av) ?
+					//	timeAxisVal(_tzDate, av) :
 					av || _timeAxisVals
 				) : av || numAxisVals
 			);

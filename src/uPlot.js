@@ -1151,8 +1151,8 @@ export default function uPlot(opts, data, then) {
 					isArr(av) ?
 						timeAxisVals(_tzDate, timeAxisStamps(av, _fmtDate)) :
 					// fmtDate string tpl
-					isStr(av) ?
-						timeAxisVal(_tzDate, av) :
+					//isStr(av) ?
+					//	timeAxisVal(_tzDate, av) :
 					av || _timeAxisVals
 				) : av || numAxisVals
 			);

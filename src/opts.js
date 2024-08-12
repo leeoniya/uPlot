@@ -258,8 +258,20 @@ console.log({
 */
 
 export function timeAxisStamps(stampCfg, fmtDate) {
-	return stampCfg.map(s => s.map((v, i) =>
-		i == 0 || i == 8 || v == null ? v : fmtDate(i == 1 || s[8] == 0 ? v : s[1] + v)
+	// return stampCfg.map(s => s.map((v, i) =>
+	// i == 0 || i == 8 || v == null ? v : fmtDate(i == 1 || s[8] == 0 ? v : {...s[1], ...v})
+	return stampCfg.map(s => s.map((v, i) => {
+		if (i == 0 || i == 8 || v == null) {
+			return v
+		}
+		const line1 = fmtDate(v)
+		if (i == 1 || s[8] == 0) {
+			return line1
+		} else {
+			const line2 = fmtDate(s[1])
+			return (date) => line2(date)+'\n'+line1(date)
+		}
+	}
 	));
 }
 
