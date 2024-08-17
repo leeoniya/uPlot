@@ -855,6 +855,8 @@ const wholeIncrs = oneIncrs.filter(onlyWhole);
 
 const numIncrs = decIncrs.concat(oneIncrs);
 
+const NL = "\n";
+
 let YYYY = {year: 'numeric'};
 let MM = {month: 'numeric'};
 let MMM = {month: 'short'};
@@ -929,7 +931,7 @@ function genTimeStuffs(ms) {
 	// [0]:   minimum num secs in the tick incr
 	// [1]:   default tick format
 	// [2-7]: rollover tick formats
-	// [8]:   mode: 0: replace [1] -> [2-7], 1: concat [1] + [2-7]
+	// [8]:   mode: 0: replace [1] -> [2-7], 1: merge [2-7] + \n + [1]
 	const _timeAxisStamps = [
 	// tick incr    default          year                                    month   day                             hour    min             sec mode
 		[y,         { ...YYYY },       _,                                      _,      _,                              _,      _,              _,  1],
@@ -1053,8 +1055,6 @@ console.log({
 */
 
 function timeAxisStamps(stampCfg, fmtDate) {
-	// return stampCfg.map(s => s.map((v, i) =>
-	// i == 0 || i == 8 || v == null ? v : fmtDate(i == 1 || s[8] == 0 ? v : {...s[1], ...v})
 	return stampCfg.map(s => s.map((v, i) => {
 		if (i == 0 || i == 8 || v == null) {
 			return v
@@ -1064,7 +1064,7 @@ function timeAxisStamps(stampCfg, fmtDate) {
 			return line1
 		} else {
 			const line2 = fmtDate(s[1]);
-			return (date) => line2(date)+'\n'+line1(date)
+			return (date) => line2(date)+NL+line1(date)
 		}
 	}
 	));
@@ -1123,7 +1123,7 @@ function mkDate(y, m, d) {
 function timeSeriesStamp(stampCfg, fmtDate) {
 	return fmtDate(stampCfg);
 }
-const _timeSeriesStamp = '{YYYY}-{MM}-{DD} {h}:{mm}{aa}';
+const _timeSeriesStamp = { ...YYYY, ...MM, ...dd, ...hh, ...mm };
 
 function timeSeriesVal(tzDate, stamp) {
 	return (self, val, seriesIdx, dataIdx) => dataIdx == null ? LEGEND_DISP : stamp(tzDate(val));
