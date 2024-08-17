@@ -1,4 +1,4 @@
-import { domEnv, nav } from './dom';
+export const browserLocale = new Intl.DateTimeFormat().resolvedOptions().locale
 
 // binary search for index of closest value
 export function closestIdx(num, arr, lo, hi) {
@@ -256,10 +256,6 @@ function _rangeNum(_min, _max, cfg) {
 
 	return [minLim, maxLim];
 }
-
-// alternative: https://stackoverflow.com/a/2254896
-const numFormatter = new Intl.NumberFormat(domEnv ? nav.language : 'en-US');
-export const fmtNum = val => numFormatter.format(val);
 
 const M = Math;
 
