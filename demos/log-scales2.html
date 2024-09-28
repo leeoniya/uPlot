@@ -413,7 +413,7 @@
 						{
 							stroke: "red",
 							fill: "rgba(255,0,0,0.1)",
-							value: (u, val) => val.toExponential(),
+							value: (u, val) => val == null ? '--' : val.toExponential(),
 						},
 					],
 				};
