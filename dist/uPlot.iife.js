@@ -170,7 +170,7 @@ var uPlot = (function () {
 	}
 
 	function off(ev, el, cb, capt) {
-		el.removeEventListener(ev, cb, capt ? evOpts2 : evOpts);
+		el.removeEventListener(ev, cb, evOpts);
 	}
 
 	domEnv && setPxRatio();
