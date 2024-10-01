@@ -27,6 +27,10 @@
 	position: absolute;
 }
 
+.u-over {
+	cursor: crosshair;
+}
+
 .u-under {
 	overflow: hidden;
 }
