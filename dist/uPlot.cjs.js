@@ -4,7 +4,7 @@
 *
 * uPlot.js (μPlot)
 * A small, fast chart for time series, lines, areas, ohlc & bars
-* https://github.com/leeoniya/uPlot (v1.6.30)
+* https://github.com/leeoniya/uPlot (v1.6.31)
 */
 
 'use strict';
@@ -232,15 +232,15 @@ function _rangeNum(_min, _max, cfg) {
 //	if (delta > 0 && delta < abs(_max) / 1e3)
 //		delta = 0;
 
-	// treat data as flat if delta is less than 1 billionth
+	// treat data as flat if delta is less than 1e-24
 	// or range is 11+ orders of magnitude below raw values, e.g. 99999999.99999996 - 100000000.00000004
-	if (delta < 1e-9 || scalarMagDelta > 10) {
+	if (delta < 1e-24 || scalarMagDelta > 10) {
 		delta = 0;
 
 		// if soft mode is 2 and all vals are flat at 0, avoid the 0.1 * 1e3 fallback
 		// this prevents 0,0,0 from ranging to -100,100 when softMin/softMax are -1,1
 		if (_min == 0 || _max == 0) {
-			delta = 1e-9;
+			delta = 1e-24;
 
 			if (softMinMode == 2 && softMin != inf)
 				padMin = 0;
@@ -255,12 +255,12 @@ function _rangeNum(_min, _max, cfg) {
 	let base         = pow(10, floor(mag));
 
 	let _padMin  = nonZeroDelta * (delta == 0 ? (_min == 0 ? .1 : 1) : padMin);
-	let _newMin  = roundDec(incrRoundDn(_min - _padMin, base/10), 9);
+	let _newMin  = roundDec(incrRoundDn(_min - _padMin, base/10), 24);
 	let _softMin = _min >= softMin && (softMinMode == 1 || softMinMode == 3 && _newMin <= softMin || softMinMode == 2 && _newMin >= softMin) ? softMin : inf;
 	let minLim   = max(hardMin, _newMin < _softMin && _min >= _softMin ? _softMin : min(_softMin, _newMin));
 
 	let _padMax  = nonZeroDelta * (delta == 0 ? (_max == 0 ? .1 : 1) : padMax);
-	let _newMax  = roundDec(incrRoundUp(_max + _padMax, base/10), 9);
+	let _newMax  = roundDec(incrRoundUp(_max + _padMax, base/10), 24);
 	let _softMax = _max <= softMax && (softMaxMode == 1 || softMaxMode == 3 && _newMax >= softMax || softMaxMode == 2 && _newMax <= softMax) ? softMax : -inf;
 	let maxLim   = min(hardMax, _newMax > _softMax && _max <= _softMax ? _softMax : max(_softMax, _newMax));
 
