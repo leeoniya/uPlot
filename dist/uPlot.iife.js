@@ -5743,7 +5743,7 @@ var uPlot = (function () {
 			downSelectWidth  = width;
 			downSelectHeight = height;
 
-			hideSelect();
+		//	hideSelect();
 		}
 
 		function mouseUp(e, src, _l, _t, _w, _h, _i) {

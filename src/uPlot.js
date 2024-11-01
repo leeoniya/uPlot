@@ -3183,7 +3183,7 @@ export default function uPlot(opts, data, then) {
 		downSelectWidth  = width;
 		downSelectHeight = height;
 
-		hideSelect();
+	//	hideSelect();
 	}
 
 	function mouseUp(e, src, _l, _t, _w, _h, _i) {
