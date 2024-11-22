@@ -3099,7 +3099,9 @@ var uPlot = (function () {
 		const activeIdxs = [];
 
 		const legend     = (self.legend = assign({}, legendOpts, opts.legend));
+		const cursor     =                (self.cursor = assign({}, cursorOpts, {drag: {y: mode == 2}}, opts.cursor));
 		const showLegend = legend.show;
+		const showCursor =                cursor.show;
 		const markers    = legend.markers;
 
 		{
@@ -3432,8 +3434,6 @@ var uPlot = (function () {
 			});
 		}
 
-		const cursor = self.cursor = assign({}, cursorOpts, {drag: {y: mode == 2}}, opts.cursor);
-
 		if (cursor.dataIdx == null) {
 			let hov = cursor.hover;
 
@@ -3598,7 +3598,7 @@ var uPlot = (function () {
 				legend.values.push(null);	// NULL_LEGEND_VALS not yet avil here :(
 			}
 
-			if (cursor.show) {
+			if (showCursor) {
 				activeIdxs.splice(i, 0, null);
 
 				let pt = null;
@@ -3641,7 +3641,7 @@ var uPlot = (function () {
 				tr.remove();
 			}
 
-			if (cursor.show) {
+			if (showCursor) {
 				activeIdxs.splice(i, 1);
 				cursorPts.splice(i, 1)[0].remove();
 				cursorPtsLft.splice(i, 1);
@@ -4108,7 +4108,7 @@ var uPlot = (function () {
 					fire("setScale", k);
 				}
 
-				if (cursor.show && cursor.left >= 0)
+				if (showCursor && cursor.left >= 0)
 					shouldSetCursor = shouldSetLegend = true;
 			}
 
@@ -4764,7 +4764,7 @@ var uPlot = (function () {
 					let pctWid = plotWidCss / _plotWidCss;
 					let pctHgt = plotHgtCss / _plotHgtCss;
 
-					if (cursor.show && !shouldSetCursor && cursor.left >= 0) {
+					if (showCursor && !shouldSetCursor && cursor.left >= 0) {
 						cursor.left *= pctWid;
 						cursor.top  *= pctHgt;
 
@@ -4815,7 +4815,7 @@ var uPlot = (function () {
 				shouldSetSelect = false;
 			}
 
-			if (cursor.show && shouldSetCursor) {
+			if (showCursor && shouldSetCursor) {
 				updateCursor(null, true, false);
 				shouldSetCursor = false;
 			}
@@ -4919,7 +4919,7 @@ var uPlot = (function () {
 		let dragX = drag.x;
 		let dragY = drag.y;
 
-		if (cursor.show) {
+		if (showCursor) {
 			if (cursor.x)
 				xCursor = placeDiv(CURSOR_X, over);
 			if (cursor.y)
@@ -4964,16 +4964,18 @@ var uPlot = (function () {
 
 		self.setSelect = setSelect;
 
-		function toggleDOM(i, onOff) {
+		function toggleDOM(i) {
 			let s = series[i];
-			let label = showLegend ? legendRows[i] : null;
 
 			if (s.show)
-				label && remClass(label, OFF);
+				showLegend && remClass(legendRows[i], OFF);
 			else {
-				label && addClass(label, OFF);
-				let pt = cursorOnePt ? cursorPts[0] : cursorPts[i];
-				elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
+				showLegend && addClass(legendRows[i], OFF);
+
+				if (showCursor) {
+					let pt = cursorOnePt ? cursorPts[0] : cursorPts[i];
+					elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
+				}
 			}
 		}
 
@@ -4991,7 +4993,7 @@ var uPlot = (function () {
 				series.forEach((s, si) => {
 					if (si > 0 && (i == si || i == null)) {
 						s.show = opts.show;
-						toggleDOM(si, opts.show);
+						toggleDOM(si);
 
 						if (mode == 2) {
 							_setScale(s.facets[0].scale, null, null);
@@ -5037,7 +5039,7 @@ var uPlot = (function () {
 		function setAlpha(i, value) {
 			series[i].alpha = value;
 
-			if (cursor.show && cursorPts[i])
+			if (showCursor && cursorPts[i])
 				cursorPts[i].style.opacity = value;
 
 			if (showLegend && legendRows[i])
@@ -5226,7 +5228,7 @@ var uPlot = (function () {
 			cursor.left = mouseLeft1;
 			cursor.top = mouseTop1;
 
-			if (cursor.show) {
+			if (showCursor) {
 				vCursor && elTrans(vCursor, round(mouseLeft1), 0, plotWidCss, plotHgtCss);
 				hCursor && elTrans(hCursor, 0, round(mouseTop1), plotWidCss, plotHgtCss);
 			}
@@ -5900,7 +5902,7 @@ var uPlot = (function () {
 			idx != -1 && setSeries(idx, opts, true, false);
 		};
 
-		if (cursor.show) {
+		if (showCursor) {
 			onMouse(mousedown,  over, mouseDown);
 			onMouse(mousemove,  over, mouseMove);
 			onMouse(mouseenter, over, e => {
