@@ -6,6 +6,8 @@ function seriesBarsPlugin(opts) {
 
 	let radius = opts.radius ?? 0;
 
+	let xSide = opts.xSide;
+
 	function setPxRatio() {
 		pxRatio = devicePixelRatio;
 		font = Math.round(10 * pxRatio) + "px Arial";
@@ -240,8 +242,7 @@ function seriesBarsPlugin(opts) {
 				labelSize:  20,
 				grid:       {show: false},
 				ticks:      {show: false},
-
-				side:       ori == 0 ? 2 : 3,
+				side:       xSide === undefined ? ori == 0 ? 2 : 3 : xSide,
 			});
 
 			opts.series.forEach((s, i) => {

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Stacked axis / alignment options</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css" />
+		<style>
+			.uplot {
+				display: inline-block;
+				vertical-align: top;
+			}
+
+			.uplot .legend .series:first-child,
+			.uplot .legend .series th::after,
+			.uplot .legend .series td {
+				display: none;
+			}
+
+			.hidden {
+				color: silver;
+			}
+
+			.bar-mark {
+				position: absolute;
+				background: rgba(255, 255, 255, 0.3);
+			}
+		</style>
+	</head>
+	<body>
+		<div id="sideTop"></div>
+		<div id="sideRight"></div>
+		<div id="sideBottom"></div>
+		<div id="sideLeft"></div>
+
+		<script src="../dist/uPlot.iife.js"></script>
+		<script src="./lib/quadtree.js"></script>
+		<script src="./lib/distr.js"></script>
+		<script src="./stack.js"></script>
+		<script src="./grouped-bars.js"></script>
+
+		<script>
+			/**
+		export const enum Side {
+			Top    = 0,
+			Right  = 1,
+			Bottom = 2,
+			Left   = 3,
+		}
+			*/
+			function makeChart(o, data, bands) {
+				let stacked = o.stacked;
+				let series = o.series;
+				let textSide = o.textSide;
+				let numberSide = 0; // text right, number top
+				let yScaleOri = 1;
+				if (textSide !== undefined) {
+					if (textSide === 0) { // text top, number left
+						numberSide = 3;
+					} else if (textSide === 2) { // text bottom, number right
+						numberSide = 1;
+					} else if (textSide === 3) { // text left, number bottom
+						numberSide = 2;
+					}
+				}
+				let ori = textSide % 2;
+
+				const opts = {
+					width: 500,
+					height: 400,
+					scales: {
+						"y": {
+							range: [0, null],
+							numberSide,
+						},
+					},
+					bands,
+					axes: [
+						{ side: textSide, align: o.textAlign === undefined ? 2 : o.textAlign },
+						{
+							side: numberSide !== undefined ? numberSide : undefined,
+							size: 100,
+							scale: "y"
+						},
+					],
+					legend: {
+						live: false,
+						markers: {
+							width: 0,
+						},
+					},
+					padding: [null, 0, null, 0],
+					series,
+					plugins: [
+						seriesBarsPlugin({
+							ori: ori,
+							dir: -1,
+							stacked,
+							xSide: textSide
+						}),
+					],
+				};
+
+				let u = new uPlot(opts, data, o.addTo);
+			}
+
+			function makeChart2(opts, data) {
+				let { bands, data: _data } = stack(data, (i) => false);
+				makeChart(opts, _data, bands);
+			}
+
+			{
+				// multi group, multi bar
+				let data = [
+					[
+						"Group Long",
+						"Group Longest",
+						"Group Longer",
+						"Group Longest of All",
+					],
+					[1, 2, 3, 10],
+					[3, 2, 1, 10],
+					[5, 9, 3, 10],
+				];
+
+				let series = [
+					{},
+					{
+						label: "Metric 1",
+						fill: "#33BB55",
+						width: 0,
+					},
+					{
+						label: "Metric 2",
+						fill: "#B56FAB",
+						width: 0,
+					},
+					{
+						label: "Metric 3",
+						fill: "#BB1133",
+						width: 0,
+					},
+				];
+
+				makeChart2(
+					{
+						series,
+						stacked: true,
+						textAlign: 1,
+						textSide: 0,
+						addTo: document.getElementById("sideTop"),
+					},
+					data
+				);
+				makeChart2(
+					{
+						series,
+						stacked: true,
+						textAlign: 2,
+						textSide: 0,
+						addTo: document.getElementById("sideTop"),
+					},
+					data
+				);
+
+				makeChart2(
+					{
+						series,
+						stacked: true,
+						textAlign: 1,
+						textSide: 1,
+						addTo: document.getElementById("sideRight"),
+					},
+					data
+				);
+				makeChart2(
+					{
+						series,
+						stacked: true,
+						textAlign: 2,
+						textSide: 1,
+						addTo: document.getElementById("sideRight"),
+					},
+					data
+				);
+
+				makeChart2(
+					{
+						series,
+						stacked: true,
+						textAlign: 1,
+						textSide: 2,
+						addTo: document.getElementById("sideBottom"),
+					},
+					data
+				);
+				makeChart2(
+					{
+						series,
+						stacked: true,
+						textAlign: 2,
+						textSide: 2,
+						addTo: document.getElementById("sideBottom"),
+					},
+					data
+				);
+
+				makeChart2(
+					{
+						series,
+						stacked: true,
+						textAlign: 1,
+						textSide: 3,
+						addTo: document.getElementById("sideLeft"),
+					},
+					data
+				);
+				makeChart2(
+					{
+						series,
+						stacked: true,
+						textAlign: 2,
+						textSide: 3,
+						addTo: document.getElementById("sideLeft"),
+					},
+					data
+				);
+			}
+		</script>
+	</body>
+</html>
