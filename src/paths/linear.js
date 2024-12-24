@@ -1,21 +1,28 @@
 import { min, max, nonNullIdx, inf, ifNull } from '../utils';
 import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
 
-function _drawAcc(lineTo) {
+import { simplify } from './simplify';
+
+function _drawAcc(lineTo, xs, ys) {
 	return (stroke, accX, minY, maxY, inY, outY) => {
 		if (minY != maxY) {
-			if (inY != minY && outY != minY)
-				lineTo(stroke, accX, minY);
-			if (inY != maxY && outY != maxY)
-				lineTo(stroke, accX, maxY);
+			if (inY != minY && outY != minY) {
+				// lineTo(stroke, accX, minY);
+				xs.push(accX);
+				ys.push(minY);
+			}
+			if (inY != maxY && outY != maxY) {
+				// lineTo(stroke, accX, maxY);
+				xs.push(accX);
+				ys.push(maxY);
+			}
 
-			lineTo(stroke, accX, outY);
+			// lineTo(stroke, accX, outY);
+			xs.push(accX);
+			ys.push(outY);
 		}
 	};
 }
-
-const drawAccH = _drawAcc(lineToH);
-const drawAccV = _drawAcc(lineToV);
 
 export function linear(opts) {
 	const alignGaps = ifNull(opts?.alignGaps, 0);
@@ -26,6 +33,12 @@ export function linear(opts) {
 
 			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
 			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
+
+			let xs = [];
+			let ys = [];
+
+			const drawAccH = _drawAcc(lineToH, xs, ys);
+			const drawAccV = _drawAcc(lineToV, xs, ys);
 
 			let lineTo, drawAcc;
 
@@ -66,7 +79,9 @@ export function linear(opts) {
 						outY = pixelForY(yVal);
 
 						if (minY == inf) {
-							lineTo(stroke, x, outY);
+							// lineTo(stroke, x, outY);
+							xs.push(x);
+							ys.push(outY);
 							inY = outY;
 						}
 
@@ -86,7 +101,9 @@ export function linear(opts) {
 
 					if (yVal != null) {
 						outY = pixelForY(yVal);
-						lineTo(stroke, x, outY);
+						// lineTo(stroke, x, outY);
+						xs.push(x);
+						ys.push(outY);
 						minY = maxY = inY = outY;
 					}
 					else {
@@ -103,6 +120,11 @@ export function linear(opts) {
 
 			if (minY != inf && minY != maxY && drawnAtX != accX)
 				drawAcc(stroke, accX, minY, maxY, inY, outY);
+
+			let idxs = simplify(xs, ys, 1);
+
+			for (let i = 0; i < idxs.length; i++)
+				lineTo(stroke, xs[idxs[i]], ys[idxs[i]]);
 
 			let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
