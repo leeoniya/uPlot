@@ -2,6 +2,7 @@
   "name": "uplot",
   "version": "1.6.31",
   "description": "A small, fast chart for time series, lines, areas, ohlc & bars",
+  "type": "module",
   "main": "./dist/uPlot.cjs.js",
   "module": "./dist/uPlot.esm.js",
   "typings": "./dist/uPlot.d.ts",
@@ -40,6 +41,6 @@
   "homepage": "https://github.com/leeoniya/uPlot#readme",
   "devDependencies": {
     "@rollup/plugin-terser": "^0.4.4",
-    "rollup": "^4.27.3"
+    "rollup": "^4.29.1"
   }
 }
