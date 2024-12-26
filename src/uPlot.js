@@ -33,7 +33,6 @@ import {
 	log10,
 	closestIdx,
 	getMinMax,
-	getMinMaxLog,
 	rangeNum,
 	rangeLog,
 	rangeAsinh,
@@ -295,25 +294,13 @@ export default function uPlot(opts, data, then) {
 
 	const mode = self.mode;
 
-	// TODO: cache denoms & mins scale.cache = {r, min, }
-	function getValPct(val, scale) {
-		let _val = (
-			scale.distr == 3 ? log10(val > 0 ? val : scale.clamp(self, val, scale.min, scale.max, scale.key)) :
-			scale.distr == 4 ? asinh(val, scale.asinh) :
-			scale.distr == 100 ? scale.fwd(val) :
-			val
-		);
-
-		return (_val - scale._min) / (scale._max - scale._min);
-	}
-
 	function getHPos(val, scale, dim, off) {
-		let pct = getValPct(val, scale);
+		let pct = scale.valToPct(val);
 		return off + dim * (scale.dir == -1 ? (1 - pct) : pct);
 	}
 
 	function getVPos(val, scale, dim, off) {
-		let pct = getValPct(val, scale);
+		let pct = scale.valToPct(val);
 		return off + dim * (scale.dir == -1 ? pct : (1 - pct));
 	}
 
@@ -322,7 +309,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	self.valToPosH = getHPos;
-	self.valToPosV = getVPos
+	self.valToPosV = getVPos;
 
 	let ready = false;
 	self.status = 0;
@@ -448,6 +435,20 @@ export default function uPlot(opts, data, then) {
 
 				// caches for expensive ops like asinh() & log()
 				sc._min = sc._max = null;
+
+				const getVal = (
+					sc.distr == 3   ? val => log10(val > 0 ? val : sc.clamp(self, val, sc.min, sc.max, sc.key)) :
+					sc.distr == 4   ? val => asinh(val, sc.asinh) :
+					sc.distr == 100 ? val => sc.fwd(val) :
+					val => val
+				);
+
+				sc.valToPct = val => {
+					let _val = getVal(val);
+					let { _min, _max } = sc;
+					let delta = _max - _min;
+					return (_val - _min) / delta;
+				};
 			}
 		}
 	}
@@ -1347,7 +1348,7 @@ export default function uPlot(opts, data, then) {
 			let _i1 = ifNull(i1, data.length - 1);
 
 			// only run getMinMax() for invalidated series data, else reuse
-			let minMax = facet.min == null ? (wsc.distr == 3 ? getMinMaxLog(data, _i0, _i1) : getMinMax(data, _i0, _i1, sorted)) : [facet.min, facet.max];
+			let minMax = facet.min == null ? getMinMax(data, _i0, _i1, sorted, wsc.distr == 3) : [facet.min, facet.max];
 
 			// initial min/max
 			wsc.min = min(wsc.min, facet.min = minMax[0]);
