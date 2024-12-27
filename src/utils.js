@@ -22,63 +22,72 @@ export function closestIdx(num, arr, lo, hi) {
 	return hi;
 }
 
-export function nonNullIdx(data, _i0, _i1, dir) {
-	for (let i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
-		if (data[i] != null)
-			return i;
-	}
+function makeIndexOfs(predicate) {
+	 let indexOfs = (data, _i0, _i1) => {
+		let i0 = -1;
+		let i1 = -1;
 
-	return -1;
+		for (let i = _i0; i <= _i1; i++) {
+			if (predicate(data[i])) {
+				i0 = i;
+				break;
+			}
+		}
+
+		for (let i = _i1; i >= _i0; i--) {
+			if (predicate(data[i])) {
+				i1 = i;
+				break;
+			}
+		}
+
+		return [i0, i1];
+	 };
+
+	 return indexOfs;
 }
 
-export function getMinMax(data, _i0, _i1, sorted) {
+const notNullish = v => v != null;
+const isPositive = v => v != null && v > 0;
+
+export const nonNullIdxs = makeIndexOfs(notNullish);
+export const positiveIdxs = makeIndexOfs(isPositive);
+
+export function getMinMax(data, _i0, _i1, sorted = 0, log = false) {
 //	console.log("getMinMax()");
 
-	let _min = inf;
-	let _max = -inf;
+	let getEdgeIdxs = log ? positiveIdxs : nonNullIdxs;
+	let predicate = log ? isPositive : notNullish;
 
-	if (sorted == 1) {
-		_min = data[_i0];
-		_max = data[_i1];
-	}
-	else if (sorted == -1) {
-		_min = data[_i1];
-		_max = data[_i0];
-	}
-	else {
-		for (let i = _i0; i <= _i1; i++) {
-			let v = data[i];
+	[_i0, _i1] = getEdgeIdxs(data, _i0, _i1);
 
-			if (v != null) {
-				if (v < _min)
-					_min = v;
-				if (v > _max)
-					_max = v;
+	let _min = data[_i0];
+	let _max = data[_i0];
+
+	if (_i0 > -1) {
+		if (sorted == 1) {
+			_min = data[_i0];
+			_max = data[_i1];
+		}
+		else if (sorted == -1) {
+			_min = data[_i1];
+			_max = data[_i0];
+		}
+		else {
+			for (let i = _i0; i <= _i1; i++) {
+				let v = data[i];
+
+				if (predicate(v)) {
+					if (v < _min)
+						_min = v;
+					else if (v > _max)
+						_max = v;
+				}
 			}
 		}
 	}
 
-	return [_min, _max];
-}
-
-export function getMinMaxLog(data, _i0, _i1) {
-//	console.log("getMinMax()");
-
-	let _min = inf;
-	let _max = -inf;
-
-	for (let i = _i0; i <= _i1; i++) {
-		let v = data[i];
-
-		if (v != null && v > 0) {
-			if (v < _min)
-				_min = v;
-			if (v > _max)
-				_max = v;
-		}
-	}
-
-	return [_min, _max];
+	return [_min ?? inf, _max ?? -inf]; // todo: fix to return nulls
 }
 
 export function rangeLog(min, max, base, fullMags) {
@@ -295,6 +304,8 @@ export function fnOrSelf(v) {
 
 export const noop = () => {};
 
+// note: these identity fns may get deoptimized if reused for different arg types
+// a TS version would enforce they stay monotyped and require making variants
 export const retArg0 = _0 => _0;
 
 export const retArg1 = (_0, _1) => _1;

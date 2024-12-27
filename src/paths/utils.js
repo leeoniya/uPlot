@@ -1,4 +1,4 @@
-import { round, incrRound, retArg0, nonNullIdx, min, EMPTY_ARR, ifNull } from "../utils";
+import { round, incrRound, retArg0, min, EMPTY_ARR, ifNull } from "../utils";
 
 export const BAND_CLIP_FILL   = 1 << 0;
 export const BAND_CLIP_STROKE = 1 << 1;
@@ -243,6 +243,7 @@ export function pxRoundGen(pxAlign) {
 	return pxAlign == 0 ? retArg0 : pxAlign == 1 ? round : v => incrRound(v, pxAlign);
 }
 
+/*
 // inefficient linear interpolation that does bi-directinal scans on each call
 export function costlyLerp(i, idx0, idx1, _dirX, dataY) {
 	let prevNonNull = nonNullIdx(dataY, _dirX == 1 ? idx0 : idx1, i, -_dirX);
@@ -253,6 +254,7 @@ export function costlyLerp(i, idx0, idx1, _dirX, dataY) {
 
 	return prevVal + (i - prevNonNull) / (nextNonNull - prevNonNull) * (nextVal - prevVal);
 }
+*/
 
 function rect(ori) {
 	let moveTo = ori == 0 ?
