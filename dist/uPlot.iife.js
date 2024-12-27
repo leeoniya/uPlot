@@ -197,63 +197,72 @@ var uPlot = (function () {
 		return hi;
 	}
 
-	function nonNullIdx(data, _i0, _i1, dir) {
-		for (let i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
-			if (data[i] != null)
-				return i;
-		}
+	function makeIndexOfs(predicate) {
+		 let indexOfs = (data, _i0, _i1) => {
+			let i0 = -1;
+			let i1 = -1;
 
-		return -1;
+			for (let i = _i0; i <= _i1; i++) {
+				if (predicate(data[i])) {
+					i0 = i;
+					break;
+				}
+			}
+
+			for (let i = _i1; i >= _i0; i--) {
+				if (predicate(data[i])) {
+					i1 = i;
+					break;
+				}
+			}
+
+			return [i0, i1];
+		 };
+
+		 return indexOfs;
 	}
 
-	function getMinMax(data, _i0, _i1, sorted) {
+	const notNullish = v => v != null;
+	const isPositive = v => v != null && v > 0;
+
+	const nonNullIdxs = makeIndexOfs(notNullish);
+	const positiveIdxs = makeIndexOfs(isPositive);
+
+	function getMinMax(data, _i0, _i1, sorted = 0, log = false) {
 	//	console.log("getMinMax()");
 
-		let _min = inf;
-		let _max = -inf;
+		let getEdgeIdxs = log ? positiveIdxs : nonNullIdxs;
+		let predicate = log ? isPositive : notNullish;
 
-		if (sorted == 1) {
-			_min = data[_i0];
-			_max = data[_i1];
-		}
-		else if (sorted == -1) {
-			_min = data[_i1];
-			_max = data[_i0];
-		}
-		else {
-			for (let i = _i0; i <= _i1; i++) {
-				let v = data[i];
+		[_i0, _i1] = getEdgeIdxs(data, _i0, _i1);
 
-				if (v != null) {
-					if (v < _min)
-						_min = v;
-					if (v > _max)
-						_max = v;
+		let _min = data[_i0];
+		let _max = data[_i0];
+
+		if (_i0 > -1) {
+			if (sorted == 1) {
+				_min = data[_i0];
+				_max = data[_i1];
+			}
+			else if (sorted == -1) {
+				_min = data[_i1];
+				_max = data[_i0];
+			}
+			else {
+				for (let i = _i0; i <= _i1; i++) {
+					let v = data[i];
+
+					if (predicate(v)) {
+						if (v < _min)
+							_min = v;
+						else if (v > _max)
+							_max = v;
+					}
 				}
 			}
 		}
 
-		return [_min, _max];
-	}
-
-	function getMinMaxLog(data, _i0, _i1) {
-	//	console.log("getMinMax()");
-
-		let _min = inf;
-		let _max = -inf;
-
-		for (let i = _i0; i <= _i1; i++) {
-			let v = data[i];
-
-			if (v != null && v > 0) {
-				if (v < _min)
-					_min = v;
-				if (v > _max)
-					_max = v;
-			}
-		}
-
-		return [_min, _max];
+		return [_min ?? inf, _max ?? -inf]; // todo: fix to return nulls
 	}
 
 	function rangeLog(min, max, base, fullMags) {
@@ -469,11 +478,11 @@ var uPlot = (function () {
 
 	const noop = () => {};
 
+	// note: these identity fns may get deoptimized if reused for different arg types
+	// a TS version would enforce they stay monotyped and require making variants
 	const retArg0 = _0 => _0;
 
 	const retArg1 = (_0, _1) => _1;
-
-	const retNull = _ => null;
 
 	const retTrue = _ => true;
 
@@ -1984,6 +1993,19 @@ var uPlot = (function () {
 		return pxAlign == 0 ? retArg0 : pxAlign == 1 ? round : v => incrRound(v, pxAlign);
 	}
 
+	/*
+	// inefficient linear interpolation that does bi-directinal scans on each call
+	export function costlyLerp(i, idx0, idx1, _dirX, dataY) {
+		let prevNonNull = nonNullIdx(dataY, _dirX == 1 ? idx0 : idx1, i, -_dirX);
+		let nextNonNull = nonNullIdx(dataY, i, _dirX == 1 ? idx1 : idx0,  _dirX);
+
+		let prevVal = dataY[prevNonNull];
+		let nextVal = dataY[nextNonNull];
+
+		return prevVal + (i - prevNonNull) / (nextNonNull - prevNonNull) * (nextVal - prevVal);
+	}
+	*/
+
 	function rect(ori) {
 		let moveTo = ori == 0 ?
 			moveToH :
@@ -2112,6 +2134,8 @@ var uPlot = (function () {
 
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+				[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
+
 				let pxRound = series.pxRound;
 
 				let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
@@ -2133,66 +2157,86 @@ var uPlot = (function () {
 				const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 				const stroke = _paths.stroke;
 
-				let minY = inf,
-					maxY = -inf,
-					inY, outY, drawnAtX;
-
-				let accX = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
-
-				// data edges
-				let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * dir);
-				let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * dir);
-				let lftX   =  pixelForX(dataX[lftIdx]);
-				let rgtX   =  pixelForX(dataX[rgtIdx]);
-
 				let hasGap = false;
 
-				for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
-					let x = pixelForX(dataX[i]);
-					let yVal = dataY[i];
+				// decimate when number of points >= 4x available pixels
+				const decimate = idx1 - idx0 >= xDim * 4;
 
-					if (x == accX) {
-						if (yVal != null) {
-							outY = pixelForY(yVal);
+				if (decimate) {
+					let xForPixel = pos => u.posToVal(pos, scaleX.key, true);
 
-							if (minY == inf) {
-								lineTo(stroke, x, outY);
-								inY = outY;
+					let minY = null,
+						maxY = null,
+						inY, outY, drawnAtX;
+
+					let accX = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
+
+					let idx0px = pixelForX(dataX[idx0]);
+					let idx1px = pixelForX(dataX[idx1]);
+
+					// tracks limit of current x bucket to avoid having to get x pixel for every x value
+					let nextAccXVal = xForPixel(dir == 1 ? idx0px + 1 : idx1px - 1);
+
+					for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
+						let xVal = dataX[i];
+						let reuseAccX = dir == 1 ? (xVal < nextAccXVal) : (xVal > nextAccXVal);
+						let x = reuseAccX ? accX :  pixelForX(xVal);
+
+						let yVal = dataY[i];
+
+						if (x == accX) {
+							if (yVal != null) {
+								outY = yVal;
+
+								if (minY == null) {
+									lineTo(stroke, x, pixelForY(outY));
+									inY = minY = maxY = outY;
+								} else {
+									if (outY < minY)
+										minY = outY;
+									else if (outY > maxY)
+										maxY = outY;
+								}
+							}
+							else {
+								if (yVal === null)
+									hasGap = true;
+							}
+						}
+						else {
+							if (minY != null)
+								drawAcc(stroke, accX, pixelForY(minY), pixelForY(maxY), pixelForY(inY), pixelForY(outY));
+
+							if (yVal != null) {
+								outY = yVal;
+								lineTo(stroke, x, pixelForY(outY));
+								minY = maxY = inY = outY;
+							}
+							else {
+								minY = maxY = null;
+
+								if (yVal === null)
+									hasGap = true;
 							}
 
-							minY = min(outY, minY);
-							maxY = max(outY, maxY);
-						}
-						else {
-							if (yVal === null)
-								hasGap = true;
+							accX = x;
+							nextAccXVal = xForPixel(accX + dir);
 						}
 					}
-					else {
-						if (minY != inf) {
-							drawAcc(stroke, accX, minY, maxY, inY, outY);
-							drawnAtX = accX;
-						}
 
-						if (yVal != null) {
-							outY = pixelForY(yVal);
-							lineTo(stroke, x, outY);
-							minY = maxY = inY = outY;
-						}
-						else {
-							minY = inf;
-							maxY = -inf;
+					if (minY != null && minY != maxY && drawnAtX != accX)
+						drawAcc(stroke, accX, pixelForY(minY), pixelForY(maxY), pixelForY(inY), pixelForY(outY));
+				}
+				else {
+					for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
+						let yVal = dataY[i];
 
-							if (yVal === null)
-								hasGap = true;
-						}
-
-						accX = x;
+						if (yVal === null)
+							hasGap = true;
+						else if (yVal != null)
+							lineTo(stroke, pixelForX(dataX[i]), pixelForY(yVal));
 					}
 				}
-
-				if (minY != inf && minY != maxY && drawnAtX != accX)
-					drawAcc(stroke, accX, minY, maxY, inY, outY);
 
 				let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
@@ -2202,11 +2246,17 @@ var uPlot = (function () {
 					let fillToVal = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
 					let fillToY = pixelForY(fillToVal);
 
-					lineTo(fill, rgtX, fillToY);
-					lineTo(fill, lftX, fillToY);
+					let frX = pixelForX(dataX[idx0]);
+					let toX = pixelForX(dataX[idx1]);
+
+					if (dir == -1)
+						[toX, frX] = [frX, toX];
+
+					lineTo(fill, toX, fillToY);
+					lineTo(fill, frX, fillToY);
 				}
 
-				if (!series.spanGaps) {
+				if (!series.spanGaps) { // skip in mode: 2?
 				//	console.time('gaps');
 					let gaps = [];
 
@@ -2243,6 +2293,8 @@ var uPlot = (function () {
 
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+				[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
+
 				let pxRound = series.pxRound;
 
 				let { left, width } = u.bbox;
@@ -2256,9 +2308,6 @@ var uPlot = (function () {
 				const stroke = _paths.stroke;
 
 				const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
-
-				idx0 = nonNullIdx(dataY, idx0, idx1,  1);
-				idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
 				let prevYPos  = pixelForY(dataY[dir == 1 ? idx0 : idx1]);
 				let firstXPos = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
@@ -2602,6 +2651,8 @@ var uPlot = (function () {
 
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+				[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
+
 				let pxRound = series.pxRound;
 
 				let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
@@ -2621,9 +2672,6 @@ var uPlot = (function () {
 				}
 
 				const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
-
-				idx0 = nonNullIdx(dataY, idx0, idx1,  1);
-				idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
 				let firstXPos = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
 				let prevXPos = firstXPos;
@@ -2859,25 +2907,13 @@ var uPlot = (function () {
 
 		const mode = self.mode;
 
-		// TODO: cache denoms & mins scale.cache = {r, min, }
-		function getValPct(val, scale) {
-			let _val = (
-				scale.distr == 3 ? log10(val > 0 ? val : scale.clamp(self, val, scale.min, scale.max, scale.key)) :
-				scale.distr == 4 ? asinh(val, scale.asinh) :
-				scale.distr == 100 ? scale.fwd(val) :
-				val
-			);
-
-			return (_val - scale._min) / (scale._max - scale._min);
-		}
-
 		function getHPos(val, scale, dim, off) {
-			let pct = getValPct(val, scale);
+			let pct = scale.valToPct(val);
 			return off + dim * (scale.dir == -1 ? (1 - pct) : pct);
 		}
 
 		function getVPos(val, scale, dim, off) {
-			let pct = getValPct(val, scale);
+			let pct = scale.valToPct(val);
 			return off + dim * (scale.dir == -1 ? pct : (1 - pct));
 		}
 
@@ -3012,6 +3048,20 @@ var uPlot = (function () {
 
 					// caches for expensive ops like asinh() & log()
 					sc._min = sc._max = null;
+
+					const getVal = (
+						sc.distr == 3   ? val => log10(val > 0 ? val : sc.clamp(self, val, sc.min, sc.max, sc.key)) :
+						sc.distr == 4   ? val => asinh(val, sc.asinh) :
+						sc.distr == 100 ? val => sc.fwd(val) :
+						val => val
+					);
+
+					sc.valToPct = val => {
+						let _val = getVal(val);
+						let { _min, _max } = sc;
+						let delta = _max - _min;
+						return (_val - _min) / delta;
+					};
 				}
 			}
 		}
@@ -3564,7 +3614,7 @@ var uPlot = (function () {
 
 			if (cursorOnePt || i > 0) {
 				s.width  = s.width == null ? 1 : s.width;
-				s.paths  = s.paths || linearPath || retNull;
+				s.paths  = s.paths || linearPath;
 				s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
 				s.pxAlign = +ifNull(s.pxAlign, pxAlign);
 				s.pxRound = pxRoundGen(s.pxAlign);
@@ -3907,7 +3957,7 @@ var uPlot = (function () {
 				let _i1 = ifNull(i1, data.length - 1);
 
 				// only run getMinMax() for invalidated series data, else reuse
-				let minMax = facet.min == null ? (wsc.distr == 3 ? getMinMaxLog(data, _i0, _i1) : getMinMax(data, _i0, _i1, sorted)) : [facet.min, facet.max];
+				let minMax = facet.min == null ? getMinMax(data, _i0, _i1, sorted, wsc.distr == 3) : [facet.min, facet.max];
 
 				// initial min/max
 				wsc.min = min(wsc.min, facet.min = minMax[0]);
