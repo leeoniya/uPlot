@@ -1,4 +1,4 @@
-import { nonNullIdx, ifNull } from '../utils';
+import { ifNull, nonNullIdxs } from '../utils';
 import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
 import { pxRatio } from '../dom';
 
@@ -12,6 +12,8 @@ export function stepped(opts) {
 
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
+
 			let pxRound = series.pxRound;
 
 			let { left, width } = u.bbox;
@@ -25,9 +27,6 @@ export function stepped(opts) {
 			const stroke = _paths.stroke;
 
 			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
-
-			idx0 = nonNullIdx(dataY, idx0, idx1,  1);
-			idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
 			let prevYPos  = pixelForY(dataY[dir == 1 ? idx0 : idx1]);
 			let firstXPos = pixelForX(dataX[dir == 1 ? idx0 : idx1]);

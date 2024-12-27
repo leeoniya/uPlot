@@ -1,4 +1,4 @@
-import { ifNull, nonNullIdx } from '../utils';
+import { ifNull, nonNullIdxs } from '../utils';
 import { orient, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
 
 export function splineInterp(interp, opts) {
@@ -6,6 +6,8 @@ export function splineInterp(interp, opts) {
 
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
+
 			let pxRound = series.pxRound;
 
 			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
@@ -25,9 +27,6 @@ export function splineInterp(interp, opts) {
 			}
 
 			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
-
-			idx0 = nonNullIdx(dataY, idx0, idx1,  1);
-			idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
 			let firstXPos = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
 			let prevXPos = firstXPos;

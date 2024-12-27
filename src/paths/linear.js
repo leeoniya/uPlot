@@ -1,4 +1,4 @@
-import { min, max, nonNullIdx, inf, ifNull } from '../utils';
+import { nonNullIdxs, ifNull } from '../utils';
 import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
 
 function _drawAcc(lineTo) {
@@ -22,6 +22,8 @@ export function linear(opts) {
 
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
+
 			let pxRound = series.pxRound;
 
 			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
@@ -42,12 +44,6 @@ export function linear(opts) {
 
 			const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 			const stroke = _paths.stroke;
-
-			// data edges
-			let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * dir);
-			let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * dir);
-			let lftX   =  pixelForX(dataX[lftIdx]);
-			let rgtX   =  pixelForX(dataX[rgtIdx]);
 
 			let hasGap = false;
 
@@ -138,8 +134,14 @@ export function linear(opts) {
 				let fillToVal = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
 				let fillToY = pixelForY(fillToVal);
 
-				lineTo(fill, rgtX, fillToY);
-				lineTo(fill, lftX, fillToY);
+				let frX = pixelForX(dataX[idx0]);
+				let toX = pixelForX(dataX[idx1]);
+
+				if (dir == -1)
+					[toX, frX] = [frX, toX];
+
+				lineTo(fill, toX, fillToY);
+				lineTo(fill, frX, fillToY);
 			}
 
 			if (!series.spanGaps) { // skip in mode: 2?

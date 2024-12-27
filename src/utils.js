@@ -22,34 +22,44 @@ export function closestIdx(num, arr, lo, hi) {
 	return hi;
 }
 
-function makeIndexOf(predicate) {
-	 let indexOf = (data, _i0, _i1, dir) => {
-		for (let i = dir == 1 ? _i0 : _i1; i >= _i0 && i <= _i1; i += dir) {
-			if (predicate(data[i]))
-				return i;
+function makeIndexOfs(predicate) {
+	 let indexOfs = (data, _i0, _i1) => {
+		let i0 = -1;
+		let i1 = -1;
+
+		for (let i = _i0; i <= _i1; i++) {
+			if (predicate(data[i])) {
+				i0 = i;
+				break;
+			}
 		}
 
-		return -1;
+		for (let i = _i1; i >= _i0; i--) {
+			if (predicate(data[i])) {
+				i1 = i;
+				break;
+			}
+		}
+
+		return [i0, i1];
 	 };
 
-	 return indexOf;
+	 return indexOfs;
 }
 
 const notNullish = v => v != null;
 const isPositive = v => v != null && v > 0;
 
-export const nonNullIdx = makeIndexOf(notNullish);
-export const positiveIdx = makeIndexOf(isPositive);
+export const nonNullIdxs = makeIndexOfs(notNullish);
+export const positiveIdxs = makeIndexOfs(isPositive);
 
 export function getMinMax(data, _i0, _i1, sorted = 0, log = false) {
 //	console.log("getMinMax()");
 
-	let getEdgeIdx = log ? positiveIdx : nonNullIdx;
+	let getEdgeIdxs = log ? positiveIdxs : nonNullIdxs;
 	let predicate = log ? isPositive : notNullish;
 
-	// needed?
-	_i0 = getEdgeIdx(data, _i0, _i1,  1);
-	_i1 = getEdgeIdx(data, _i0, _i1, -1);
+	[_i0, _i1] = getEdgeIdxs(data, _i0, _i1);
 
 	let _min = data[_i0];
 	let _max = data[_i0];
