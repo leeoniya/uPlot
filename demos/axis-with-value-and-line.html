@@ -1,0 +1,208 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Axis With Value and Line</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+
+			let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
+			let vals = [-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10];
+
+			let data = [
+				new Float32Array(xs),
+				new Float32Array(xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)])),
+				new Float32Array(xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)])),
+				new Float32Array(xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)])),
+			];
+
+			let fmtVal = (u, raw, sidx, didx) => {
+				if (didx == null) {
+					let d = u.data[sidx];
+					return `${d[d.length - 1]} (last)`;
+				}
+
+				return raw == null ? '' : raw;
+			};
+
+			let genAxis = (scale, stroke) => ({
+				scale: scale,
+				stroke: stroke,
+				size: 50,
+				grid: {
+					show: false,
+				},
+				border: {
+					show: true,
+					stroke: stroke,
+				},
+				grid: {
+					show: false,
+				},
+				ticks: {
+					show: true,
+					stroke: stroke,
+				}
+			})
+
+			const valueElRight = 13
+			const valueElTop = 9
+
+			const opts = {
+				width: 1920,
+				height: 600,
+				title: "Axis With Value and Line",
+				scales: {
+					x: {
+						time: false,
+					},
+					y: {
+						auto: true,
+					},
+					y2: {
+						auto: true,
+					},
+					y3: {
+						auto: true,
+					}
+				},
+				series: [
+					{},
+					{
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+						value: fmtVal,
+						scale: "y",
+					},
+					{
+						stroke: "green",
+						fill: "rgba(0,255,0,0.1)",
+						value: fmtVal,
+						scale: "y2",
+					},
+					{
+						stroke: "blue",
+						fill: "rgba(0,0,255,0.1)",
+						value: fmtVal,
+						scale: "y3",
+					},
+				],
+				axes: [
+					{
+						scale: "x",
+						border: {
+							show: true,
+							stroke: "lightgray",
+						}
+					},
+					genAxis("y", "red"),
+					genAxis("y2", "green"),
+					genAxis("y3", "blue"),
+				],
+				cursor: {
+					y: false,
+					bind: {
+						mouseenter: (u, targ, handler) => {
+							return (event) => {
+								u.series.forEach((s, idx) => {
+									u.axes[idx]._el.querySelector('.u-axis-indicator').style.display = 'block'
+								})
+
+								handler(event)
+							}
+						},
+						mouseleave: (u, targ, handler) => {
+							return (event) => {
+								u.series.forEach((s, idx) => {
+									u.axes[idx]._el.querySelector('.u-axis-indicator').style.display = 'none'
+								})
+
+								handler(event)
+							}
+						},
+					}
+				},
+				hooks: {
+					init: [
+						(u) => {
+							u.series.forEach((s, idx) => {
+								const axis = u.axes[idx]
+
+								const el = document.createElement('div')
+								el.classList.add('u-axis-indicator')
+								el.style.backgroundColor = axis.stroke()
+								el.style.color = 'white'
+								el.style.border = '1px solid ' + axis.stroke()
+								el.style.position = 'absolute'
+								el.style.textAlign = 'center'
+								el.style.fontSize = '12px'
+								el.style.padding = '4px 8px'
+								el.style.lineHeight = 14 + 'px'
+								el.style.borderRadius = '3px'
+								el.style.display = 'none'
+
+								if (u.scales[s.scale].ori == 0) {
+									el.style.top = valueElTop + 'px'
+								} else {
+									el.style.right = valueElRight+ 'px'
+
+									const line = document.createElement('div')
+									line.classList.add('u-axis-indicator-line')
+									line.style.position = "absolute";
+									line.style.top = "50%";
+									line.style.left = "100%";
+									line.style.borderBottom = "1px dashed " + axis.stroke();
+
+									const value = document.createElement('div')
+									value.classList.add('u-axis-indicator-value')
+
+									el.appendChild(value)
+									el.appendChild(line)
+
+								}
+
+								axis._el.insertBefore(el, null)
+
+							});
+						}
+					],
+					setLegend: [
+						(u) => {
+							u.series.forEach((s, seriesIdx) => {
+								const el = u.axes[seriesIdx]._el.querySelector('.u-axis-indicator')
+								const pointIdx = u.cursor.idxs[seriesIdx]
+
+								if (pointIdx) {
+									if (!s.show) {
+										el.style.display = 'none'
+										return
+									}
+
+									const value = u.data[seriesIdx][pointIdx]
+									const position = u.valToPos(value, s.scale)
+									
+									if (u.scales[s.scale].ori == 0) {
+										el.style.left = position - el.offsetWidth / 2 + 'px'
+										el.textContent = value
+									} else {
+										el.style.top = position - el.offsetHeight / 2 + 'px'
+										el.querySelector('.u-axis-indicator-value').textContent = value
+										el.querySelector('.u-axis-indicator-line').style.width = valueElRight + 80 * (seriesIdx - 1) + u.over.offsetWidth + 'px';
+									}
+
+								}
+							});
+						},
+					],
+				}
+			};
+
+			let u = new uPlot(opts, data, document.body);
+		</script>
+	</body>
+</html>
