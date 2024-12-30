@@ -103,8 +103,7 @@
 						indic.classList.add('u-indic-' + coord);
 						indic.style.backgroundColor = axis.stroke;
 
-						const value = valuesEls[idx] = document.createElement('div');
-						value.classList.add('u-indic-value');
+						const value = valuesEls[idx] = document.createTextNode('');
 						indic.appendChild(value);
 
 						if (ori == 1) {
@@ -127,7 +126,7 @@
 							const val = u.data[seriesIdx][valIdx];
 
 							if (val != null) {
-								valuesEls[seriesIdx].textContent = val;
+								valuesEls[seriesIdx].nodeValue = val;
 
 								const pos = u.valToPos(val, s.scale);
 								const ori = seriesIdx == 0 ? 0 : 1;
