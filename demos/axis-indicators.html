@@ -1,0 +1,211 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Axis indicators</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+
+		<style>
+			.u-indic-x,
+			.u-indic-y {
+				color: white;
+				position: absolute;
+				text-align: center;
+				font-size: 12px;
+				padding: 4px 8px;
+				line-height: 14px;
+				border-radius: 3px;
+				display: none;
+			}
+
+			.u-indic-x {
+				top: 10px;
+				background: black;
+			}
+
+			.u-indic-y {
+				right: 12px;
+			}
+
+			.u-indic-y .u-indic-line {
+				position: absolute;
+				top: 50%;
+				left: 100%;
+				border-bottom: 1px dashed transparent;
+
+				width: 100vw;
+			}
+
+			/* hack to clip 100vw .u-indic-line */
+			.u-wrap {
+				overflow: hidden;
+			}
+		</style>
+	</head>
+	<body>
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+
+			let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
+			let vals = [-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10];
+
+			let data = [
+				xs,
+				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+				xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)]),
+			];
+
+			data[1][13] = null;
+			data[1][14] = null;
+			data[1][15] = null;
+
+			let genAxis = (scale, stroke) => ({
+				scale: scale,
+				stroke: stroke,
+				size: 50,
+				grid: {
+					show: false,
+				},
+				border: {
+					show: true,
+					stroke: stroke,
+				},
+				grid: {
+					show: false,
+				},
+				ticks: {
+					show: true,
+					stroke: stroke,
+				}
+			});
+
+			function axisIndicsPlugin(axes) {
+				let axesEls   = Array(axes.length);
+				let indicsEls = axesEls.slice();
+				let guidesEls = axesEls.slice();
+				let valuesEls = axesEls.slice();
+
+				const initHook = u => {
+					axesEls = [...u.root.querySelectorAll('.u-axis')];
+
+					axesEls.forEach((s, idx) => {
+						const axis = axes[idx];
+
+						// eh, this is a bit hand-wavy since we're avoiding read-back of uPlot instance internals
+						// and the passed-in axes opts are partial (not fully initialized with their defaults)
+						const ori   = idx == 0 ? 0 : 1;
+						const coord = ori == 0 ? 'x' : 'y';
+
+						const indic = indicsEls[idx] = document.createElement('div');
+						indic.classList.add('u-indic-' + coord);
+						indic.style.backgroundColor = axis.stroke;
+
+						const value = valuesEls[idx] = document.createElement('div');
+						value.classList.add('u-indic-value');
+						indic.appendChild(value);
+
+						if (ori == 1) {
+							const line = guidesEls[idx] = document.createElement('div');
+							line.classList.add('u-indic-line');
+							line.style.borderColor = axis.stroke;
+							indic.appendChild(line);
+						}
+
+						axesEls[idx].appendChild(indic);
+					});
+				};
+
+				const setLegendHook = u => {
+					u.series.forEach((s, seriesIdx) => {
+						const el = indicsEls[seriesIdx];
+						const valIdx = u.cursor.idxs[seriesIdx];
+
+						if (valIdx != null) {
+							const val = u.data[seriesIdx][valIdx];
+
+							if (val != null) {
+								valuesEls[seriesIdx].textContent = val;
+
+								const pos = u.valToPos(val, s.scale);
+								const ori = seriesIdx == 0 ? 0 : 1;
+
+								el.style.display = 'block';
+								el.style.transform = ori == 0  ?
+									`translateX(-50%) translateX(${pos}px)` :
+									`translateY(-50%) translateY(${pos}px)`;
+
+								return;
+							}
+						}
+
+						el.style.display = 'none';
+					});
+				};
+
+				return {
+					opts: (u, opts) => uPlot.assign({}, opts, {
+						cursor: {
+							y: false,
+						},
+					}),
+					hooks: {
+						init: initHook,
+						setLegend: setLegendHook,
+					},
+				};
+			};
+
+			const axesOpts = [
+				{
+					scale: "x",
+					border: {
+						show: true,
+						stroke: "lightgray",
+					}
+				},
+				genAxis("y",  "red"),
+				genAxis("y2", "green"),
+				genAxis("y3", "blue"),
+			];
+
+			const opts = {
+				width: 1920,
+				height: 600,
+				title: "Axis indicators",
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					{
+						stroke: "red",
+						fill: "rgba(255,0,0,0.1)",
+						scale: "y",
+					},
+					{
+						stroke: "green",
+						fill: "rgba(0,255,0,0.1)",
+						scale: "y2",
+					},
+					{
+						stroke: "blue",
+						fill: "rgba(0,0,255,0.1)",
+						scale: "y3",
+					},
+				],
+				axes: axesOpts,
+				plugins: [
+					// passing in the original opts here reduces reliance on uPlot's internals to read them back
+					axisIndicsPlugin(axesOpts)
+				],
+			};
+
+			let u = new uPlot(opts, data, document.body);
+		</script>
+	</body>
+</html>
