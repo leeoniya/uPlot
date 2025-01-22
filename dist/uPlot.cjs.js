@@ -1,5 +1,5 @@
 /**
-* Copyright (c) 2024, Leon Sorokin
+* Copyright (c) 2025, Leon Sorokin
 * All rights reserved. (MIT Licensed)
 *
 * uPlot.js (μPlot)
@@ -482,6 +482,8 @@ const noop = () => {};
 const retArg0 = _0 => _0;
 
 const retArg1 = (_0, _1) => _1;
+
+const retNull = _ => null;
 
 const retTrue = _ => true;
 
@@ -3613,7 +3615,7 @@ function uPlot(opts, data, then) {
 
 		if (cursorOnePt || i > 0) {
 			s.width  = s.width == null ? 1 : s.width;
-			s.paths  = s.paths || linearPath;
+			s.paths  = s.paths || linearPath || retNull;
 			s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
 			s.pxAlign = +ifNull(s.pxAlign, pxAlign);
 			s.pxRound = pxRoundGen(s.pxAlign);
@@ -4613,8 +4615,13 @@ function uPlot(opts, data, then) {
 				if (val != null) {
 					if (ori == 0)
 						x = canOffs[i];
-					else
+					else {
+						if (axis.side === 1 && axis.align === 2)
+							x = can.width;
+						else if (axis.side === 3 && axis.align === 1)
+							x = 0;
 						y = canOffs[i];
+					}
 
 					val = "" + val;
 
