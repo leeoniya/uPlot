@@ -63,6 +63,7 @@ import {
 	isUndef,
 	guessDec,
 	cmpObj,
+	isFn,
 } from './utils';
 
 import {
@@ -1921,8 +1922,10 @@ export default function uPlot(opts, data, then) {
 
 			let shiftDir = side == 0 || side == 3 ? -1 : 1;
 
+			let [_incr, _space] = axis._found;
+
 			// axis label
-			if (axis.label) {
+			if (axis.label != null) {
 				let shiftAmt = axis.labelGap * shiftDir;
 				let baseLpos = round((axis._lpos + shiftAmt) * pxRatio);
 
@@ -1945,12 +1948,12 @@ export default function uPlot(opts, data, then) {
 					y = baseLpos;
 				}
 
-				ctx.fillText(axis.label, x, y);
+				let _label = isFn(axis.label) ? axis.label(self, i, _incr, _space) : axis.label;
+
+				ctx.fillText(_label, x, y);
 
 				ctx.restore();
 			}
-
-			let [_incr, _space] = axis._found;
 
 			if (_space == 0)
 				continue;

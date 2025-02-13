@@ -1,5 +1,5 @@
 /**
-* Copyright (c) 2024, Leon Sorokin
+* Copyright (c) 2025, Leon Sorokin
 * All rights reserved. (MIT Licensed)
 *
 * uPlot.js (μPlot)
@@ -469,8 +469,12 @@ function clamp(num, _min, _max) {
 	return min(max(num, _min), _max);
 }
 
+function isFn(v) {
+	return typeof v == "function";
+}
+
 function fnOrSelf(v) {
-	return typeof v == "function" ? v : () => v;
+	return isFn(v) ? v : () => v;
 }
 
 const noop = () => {};
@@ -4527,8 +4531,10 @@ function uPlot(opts, data, then) {
 
 			let shiftDir = side == 0 || side == 3 ? -1 : 1;
 
+			let [_incr, _space] = axis._found;
+
 			// axis label
-			if (axis.label) {
+			if (axis.label != null) {
 				let shiftAmt = axis.labelGap * shiftDir;
 				let baseLpos = round((axis._lpos + shiftAmt) * pxRatio);
 
@@ -4551,12 +4557,12 @@ function uPlot(opts, data, then) {
 					y = baseLpos;
 				}
 
-				ctx.fillText(axis.label, x, y);
+				let _label = isFn(axis.label) ? axis.label(self, i, _incr, _space) : axis.label;
+
+				ctx.fillText(_label, x, y);
 
 				ctx.restore();
 			}
-
-			let [_incr, _space] = axis._found;
 
 			if (_space == 0)
 				continue;

@@ -298,8 +298,12 @@ export function clamp(num, _min, _max) {
 	return min(max(num, _min), _max);
 }
 
+export function isFn(v) {
+	return typeof v == "function";
+}
+
 export function fnOrSelf(v) {
-	return typeof v == "function" ? v : () => v;
+	return isFn(v) ? v : () => v;
 }
 
 export const noop = () => {};

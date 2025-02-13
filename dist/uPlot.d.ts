@@ -998,6 +998,8 @@ declare namespace uPlot {
 
 		export type Values = StaticValues | DynamicValues | TimeValuesTpl | TimeValuesConfig;
 
+		export type Label = string | ((self: uPlot, axisIdx: number, foundIncr: number, foundSpace: number) => string);
+
 		export type Stroke = CanvasRenderingContext2D['strokeStyle'] | ((self: uPlot, axisIdx: number) => CanvasRenderingContext2D['strokeStyle']);
 
 		export const enum Side {
@@ -1072,7 +1074,7 @@ declare namespace uPlot {
 		stroke?: Axis.Stroke;
 
 		/** axis label text */
-		label?: string;
+		label?: Axis.Label;
 
 		/** height of x axis label or width of y axis label in CSS pixels alloted for label text + labelGap */
 		labelSize?: number;
