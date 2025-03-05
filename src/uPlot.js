@@ -2422,7 +2422,7 @@ export default function uPlot(opts, data, then) {
 
 			if (showCursor) {
 				let pt = cursorOnePt ? cursorPts[0] : cursorPts[i];
-				elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
+				pt && elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
 			}
 		}
 	}
