@@ -989,7 +989,7 @@ export default function uPlot(opts, data, then) {
 	function initCursorPt(s, si) {
 		let pt = points.show(self, si);
 
-		if (pt) {
+		if (pt instanceof HTMLElement) {
 			addClass(pt, CURSOR_PT);
 			addClass(pt, s.class);
 			elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
@@ -2422,7 +2422,7 @@ export default function uPlot(opts, data, then) {
 
 			if (showCursor) {
 				let pt = cursorOnePt ? cursorPts[0] : cursorPts[i];
-				pt && elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
+				pt != null && elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
 			}
 		}
 	}
@@ -2487,7 +2487,7 @@ export default function uPlot(opts, data, then) {
 	function setAlpha(i, value) {
 		series[i].alpha = value;
 
-		if (showCursor && cursorPts[i])
+		if (showCursor && cursorPts[i] != null)
 			cursorPts[i].style.opacity = value;
 
 		if (FEAT_LEGEND && showLegend && legendRows[i])
@@ -2857,12 +2857,14 @@ export default function uPlot(opts, data, then) {
 				if (shouldSetLegend || focusChanged) {
 					let pt = cursorPts[0];
 
-					cursorPtsLft[0] = _ptLft;
-					cursorPtsTop[0] = _ptTop;
+					if (pt != null) {
+						cursorPtsLft[0] = _ptLft;
+						cursorPtsTop[0] = _ptTop;
 
-					elSize(pt, _ptWid, _ptHgt, _centered);
-					elColor(pt, _ptFill, _ptStroke);
-					elTrans(pt, ceil(_ptLft), ceil(_ptTop), plotWidCss, plotHgtCss);
+						elSize(pt, _ptWid, _ptHgt, _centered);
+						elColor(pt, _ptFill, _ptStroke);
+						elTrans(pt, ceil(_ptLft), ceil(_ptTop), plotWidCss, plotHgtCss);
+					}
 				}
 			}
 		}
