@@ -3239,7 +3239,11 @@ var uPlot = (function () {
 			}
 
 			let text = placeDiv(LEGEND_LABEL, label);
-			text.textContent = s.label;
+
+			if (isStr(s.label))
+				text.textContent = s.label;
+			else
+				text.appendChild(s.label);
 
 			if (i > 0) {
 				if (!markers.show)

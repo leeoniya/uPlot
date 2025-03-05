@@ -909,7 +909,7 @@ declare namespace uPlot {
 		pxAlign?: number | boolean; // 1
 
 		/** legend label */
-		label?: string;
+		label?: string | HTMLElement;
 
 		/** inline-legend value formatter. can be an fmtDate formatting string when scale.time: true */
 		value?: Series.Value;
