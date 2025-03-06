@@ -1439,7 +1439,7 @@ const xAxisOpts = {
 	stroke: hexBlack,
 	space: 50,
 	gap: 5,
-	vbase: 1,
+	alignAt: 1,
 	size: 50,
 	labelGap: 0,
 	labelSize: 30,
@@ -1607,7 +1607,7 @@ const yAxisOpts = {
 	stroke: hexBlack,
 	space: 30,
 	gap: 5,
-	vbase: 1,
+	alignAt: 1,
 	size: 50,
 	labelGap: 0,
 	labelSize: 30,
@@ -4591,7 +4591,7 @@ function uPlot(opts, data, then) {
 			let border = axis.border;
 			let _tickSize = ticks.show ? ticks.size : 0;
 			let tickSize = round(_tickSize * pxRatio);
-			let axisGap = round((axis.vbase == 2 ? axis._size - _tickSize - axis.gap : axis.gap) * pxRatio);
+			let axisGap = round((axis.alignAt == 2 ? axis._size - _tickSize - axis.gap : axis.gap) * pxRatio);
 
 			// rotating of labels only supported on bottom x axis
 			let angle = axis._rotate * -PI/180;
