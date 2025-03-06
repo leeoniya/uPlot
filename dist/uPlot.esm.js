@@ -1437,6 +1437,7 @@ const xAxisOpts = {
 	stroke: hexBlack,
 	space: 50,
 	gap: 5,
+	vbase: 1,
 	size: 50,
 	labelGap: 0,
 	labelSize: 30,
@@ -1604,6 +1605,7 @@ const yAxisOpts = {
 	stroke: hexBlack,
 	space: 30,
 	gap: 5,
+	vbase: 1,
 	size: 50,
 	labelGap: 0,
 	labelSize: 30,
@@ -4576,8 +4578,6 @@ function uPlot(opts, data, then) {
 			let plotDim = ori == 0 ? plotWid : plotHgt;
 			let plotOff = ori == 0 ? plotLft : plotTop;
 
-			let axisGap = round(axis.gap * pxRatio);
-
 			let _splits = axis._splits;
 
 			// tick labels
@@ -4587,7 +4587,9 @@ function uPlot(opts, data, then) {
 
 			let ticks = axis.ticks;
 			let border = axis.border;
-			let tickSize = ticks.show ? round(ticks.size * pxRatio) : 0;
+			let _tickSize = ticks.show ? ticks.size : 0;
+			let tickSize = round(_tickSize * pxRatio);
+			let axisGap = round((axis.vbase == 2 ? axis._size - _tickSize : axis.gap) * pxRatio);
 
 			// rotating of labels only supported on bottom x axis
 			let angle = axis._rotate * -PI/180;

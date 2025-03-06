@@ -1014,6 +1014,11 @@ declare namespace uPlot {
 			Right = 2,
 		}
 
+		export const enum VBase {
+			Gap  = 1,
+			Edge = 2,
+		}
+
 		export type Rotate = number | ((self: uPlot, values: (string | number)[], axisIdx: number, foundSpace: number) => number);
 
 		interface OrthoLines {
@@ -1105,6 +1110,9 @@ declare namespace uPlot {
 
 		/** text alignment of axis values - 1: left, 2: right */
 		align?: Axis.Align;
+
+		/** baseline for text alignment of axis values - 1: gap, 2: edge */
+		vbase?: Axis.VBase;
 
 		/** gridlines to draw from this axis' splits */
 		grid?: Axis.Grid;
