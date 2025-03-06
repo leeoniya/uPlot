@@ -1015,8 +1015,10 @@ declare namespace uPlot {
 		}
 
 		export const enum VBase {
-			Gap  = 1,
-			Edge = 2,
+			/** axis gap is on the inside; text is placed at outer gap boundary */
+			Inside  = 1,
+			/** axis gap is on the outside; text is placed at inner gap boundary */
+			Outside = 2,
 		}
 
 		export type Rotate = number | ((self: uPlot, values: (string | number)[], axisIdx: number, foundSpace: number) => number);
@@ -1111,7 +1113,7 @@ declare namespace uPlot {
 		/** text alignment of axis values - 1: left, 2: right */
 		align?: Axis.Align;
 
-		/** baseline for text alignment of axis values - 1: gap, 2: edge */
+		/** baseline for text alignment of axis values - 1: inside, 2: outside */
 		vbase?: Axis.VBase;
 
 		/** gridlines to draw from this axis' splits */
