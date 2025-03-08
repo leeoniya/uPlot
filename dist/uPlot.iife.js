@@ -488,6 +488,8 @@ var uPlot = (function () {
 
 	const retArg1 = (_0, _1) => _1;
 
+	const retNull = _ => null;
+
 	const retTrue = _ => true;
 
 	const retEq = (a, b) => a == b;
@@ -3624,7 +3626,7 @@ var uPlot = (function () {
 
 			if (cursorOnePt || i > 0) {
 				s.width  = s.width == null ? 1 : s.width;
-				s.paths  = s.paths || linearPath;
+				s.paths  = s.paths || linearPath || retNull;
 				s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
 				s.pxAlign = +ifNull(s.pxAlign, pxAlign);
 				s.pxRound = pxRoundGen(s.pxAlign);
