@@ -40,12 +40,14 @@
 					height: 600,
 					hooks: {
 						setSeries: [
-							(u, seriesIdx) => {
-								console.log("focus!", seriesIdx);
+							(u, seriesIdx, opts) => {
+								if (opts.focus != null) {
+									console.log("focus!", seriesIdx, opts);
 
-								u.series.forEach((s, i) => {
-									s.width = i == seriesIdx ? 2 : 1;
-								});
+									u.series.forEach((s, i) => {
+										s.width = i == seriesIdx ? 2 : 1;
+									});
+								}
 							}
 						]
 					},
