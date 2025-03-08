@@ -70,7 +70,7 @@ let opts = {
 
       // in-legend display
       label: "RAM",
-      value: (self, rawValue) => "$" + rawValue.toFixed(2),
+      value: (self, rawValue) => rawValue == null ? '' : "$" + rawValue.toFixed(2),
 
       // series style
       stroke: "red",
@@ -170,19 +170,19 @@ let opts = {
       label: "CPU",
       stroke: "red",
       scale: "%",
-      value: (self, rawValue) => rawValue.toFixed(1) + "%",
+      value: (self, rawValue) => rawValue == null ? '' : rawValue.toFixed(1) + "%",
     }
     {
       label: "RAM",
       stroke: "blue",
       scale: "%",
-      value: (self, rawValue) => rawValue.toFixed(1) + "%",
+      value: (self, rawValue) => rawValue == null ? '' : rawValue.toFixed(1) + "%",
     },
     {
       label: "TCP",
       stroke: "green",
       scale: "mb",
-      value: (self, rawValue) => rawValue.toFixed(2) + "MB",
+      value: (self, rawValue) => rawValue == null ? '' : rawValue.toFixed(2) + "MB",
     },
   ],
   axes: [
