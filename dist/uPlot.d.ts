@@ -846,6 +846,27 @@ declare namespace uPlot {
 
 			/** fill color of circle (defaults to #fff) */
 			fill?: Fill;
+
+			/** temp styles when focused */
+			focus?: {
+				/** diameter of point in CSS pixels */
+			//	size?: number;
+
+				/** line width in CSS pixels */
+				width?: number;
+
+				/** line & legend color */
+				stroke?: Series.Stroke;
+
+				/** area fill & legend color */
+				fill?: Series.Fill;
+
+				/** line dash segment array */
+				dash?: number[];
+
+				/** line cap */
+				cap?: Series.Cap;
+			}
 		}
 
 		export interface Facet {
@@ -954,6 +975,24 @@ declare namespace uPlot {
 
 		/** current max rendered value */
 		max?: number;
+
+		/** temp styles when focused */
+		focus?: {
+			/** line width in CSS pixels */
+			width?: number;
+
+			/** line & legend color */
+			stroke?: Series.Stroke;
+
+			/** area fill & legend color */
+			fill?: Series.Fill;
+
+			/** line dash segment array */
+			dash?: number[];
+
+			/** line cap */
+			cap?: Series.Cap;
+		}
 	}
 
 	export namespace Band {

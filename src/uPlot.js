@@ -1026,6 +1026,7 @@ export default function uPlot(opts, data, then) {
 				stroke: s.stroke,
 				space: _ptDia * 2,
 				paths: pointsPath,
+				focus: null,
 				_stroke: null,
 				_fill: null,
 			}, s.points);
@@ -1035,6 +1036,16 @@ export default function uPlot(opts, data, then) {
 			points.stroke = fnOrSelf(points.stroke);
 			points.paths  = fnOrSelf(points.paths);
 			points.pxAlign = s.pxAlign;
+
+			if (points.focus != null) {
+				points.focus = assign({}, {
+				//	size: points.size,
+					width: points.width,
+					stroke: points.stroke,
+					_stroke: null,
+					_fill: null,
+				}, points.focus);
+			}
 		}
 
 		if (showLegend) {
@@ -1639,6 +1650,9 @@ export default function uPlot(opts, data, then) {
 	function cacheStrokeFill(si, _points) {
 		let s = _points ? series[si].points : series[si];
 
+		if (series[si]._focus && s.focus != null)
+			s = s.focus;
+
 		s._stroke = s.stroke(self, si);
 		s._fill   = s.fill(self, si);
 	}
@@ -1646,15 +1660,20 @@ export default function uPlot(opts, data, then) {
 	function drawPath(si, _points) {
 		let s = _points ? series[si].points : series[si];
 
+		let styleSrc = series[si]._focus && s.focus != null ? s.focus : s;
+
+		let dash = styleSrc.dash;
+		let cap = styleSrc.cap;
+
 		let {
 			stroke,
 			fill,
 			clip: gapsClip,
 			flags,
 
-			_stroke: strokeStyle = s._stroke,
-			_fill:   fillStyle   = s._fill,
-			_width:  width       = s.width,
+			_stroke: strokeStyle = styleSrc._stroke,
+			_fill:   fillStyle   = styleSrc._fill,
+			_width:  width       = styleSrc.width,
 		} = s._paths;
 
 		width = roundDec(width * pxRatio, 3);
@@ -1681,9 +1700,9 @@ export default function uPlot(opts, data, then) {
 
 		// the points pathbuilder's gapsClip is its boundsClip, since points dont need gaps clipping, and bounds depend on point size
 		if (_points)
-			strokeFill(strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, gapsClip);
+			strokeFill(strokeStyle, width, dash, cap, fillStyle, stroke, fill, flags, gapsClip);
 		else
-			fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, boundsClip, gapsClip);
+			fillStroke(si, strokeStyle, width, dash, cap, fillStyle, stroke, fill, flags, boundsClip, gapsClip);
 
 		_pxAlign && ctx.translate(-offset, -offset);
 	}
