@@ -133,7 +133,58 @@
 		</script>
 
 		<script>
-			let u = new uPlot({
+			function getStroke(color) {
+				return (u, seriesIdx) => u.series[seriesIdx]._focus ? 'magenta' : color;
+			}
+
+			let u3 = new uPlot({
+				title: 'Width and stroke color change on focus',
+				width: 1920,
+				height: 600,
+				focus: {
+					alpha: 1,
+				},
+				cursor: {
+					focus: {
+						prox: 1e6,
+					}
+				},
+				scales: {
+					y: {
+						range: [0, 30]
+					}
+				},
+				series: [
+					{},
+					{
+						label: 'A',
+						stroke: getStroke('blue'),
+					},
+					{
+						label: 'B',
+						stroke: getStroke('green'),
+					}
+				],
+				hooks: {
+					setSeries: [
+						(u, seriesIdx, opts) => {
+							if (opts.focus != null) {
+								u.series.forEach((s, i) => {
+									s.width = i == seriesIdx ? 2 : 1;
+								});
+								u.redraw(false);
+							}
+						}
+					]
+				},
+			}, [
+				[0,1,2,3,4,5,6,7,8,9],
+				...Array.from({length: 2}, (v, i) => Array(10).fill((i+1)*10)),
+			],
+			document.body);
+
+			let u4 = new uPlot({
+				title: 'Performance test (300 series)',
 				width: 1920,
 				height: 600,
 				focus: {
