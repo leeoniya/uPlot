@@ -4193,26 +4193,35 @@ function uPlot(opts, data, then) {
 
 	function drawSeries() {
 		if (dataLen > 0) {
+			let shouldAlpha = series.some(s => s._focus) && ctxAlpha != focus.alpha;
+
+			if (shouldAlpha)
+				ctx.globalAlpha = ctxAlpha = focus.alpha;
+
 			series.forEach((s, i) => {
 				if (i > 0 && s.show) {
 					cacheStrokeFill(i, false);
 					cacheStrokeFill(i, true);
 
 					if (s._paths == null) {
+						let _ctxAlpha = ctxAlpha;
+
 						if (ctxAlpha != s.alpha)
 							ctx.globalAlpha = ctxAlpha = s.alpha;
 
 						let _idxs = mode == 2 ? [0, data[i][0].length - 1] : getOuterIdxs(data[i]);
 						s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
 
-						if (ctxAlpha != 1)
-							ctx.globalAlpha = ctxAlpha = 1;
+						if (ctxAlpha != _ctxAlpha)
+							ctx.globalAlpha = ctxAlpha = _ctxAlpha;
 					}
 				}
 			});
 
 			series.forEach((s, i) => {
 				if (i > 0 && s.show) {
+					let _ctxAlpha = ctxAlpha;
+
 					if (ctxAlpha != s.alpha)
 						ctx.globalAlpha = ctxAlpha = s.alpha;
 
@@ -4230,12 +4239,15 @@ function uPlot(opts, data, then) {
 						}
 					}
 
-					if (ctxAlpha != 1)
-						ctx.globalAlpha = ctxAlpha = 1;
+					if (ctxAlpha != _ctxAlpha)
+						ctx.globalAlpha = ctxAlpha = _ctxAlpha;
 
 					fire("drawSeries", i);
 				}
 			});
+
+			if (shouldAlpha)
+				ctx.globalAlpha = ctxAlpha = 1;
 		}
 	}
 
