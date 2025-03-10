@@ -52,12 +52,8 @@
 			function timelinePlugin(opts) {
 				const { mode, count, fill, stroke } = opts;
 
-				const pxRatio    = devicePixelRatio;
-
 				const laneWidth   = 0.9;
 				const laneDistr   = SPACE_BETWEEN;
-
-				const font      = round(14 * pxRatio) + "px Arial";
 
 				function walk(yIdx, count, dim, draw) {
 					distr(count, laneWidth, laneDistr, yIdx, (i, offPct, dimPct) => {
@@ -72,7 +68,16 @@
 				const align = opts.align ?? 0;
 
 				const gapFactor = 1 - size[0];
-				const maxWidth  = (size[1] ?? inf) * pxRatio;
+
+				let font      = '';
+				let maxWidth  = 0;
+
+				function recalcDppxVars() {
+					font      = round(14 * uPlot.pxRatio) + "px Arial";
+					maxWidth  = (size[1] ?? inf) * uPlot.pxRatio;
+				}
+
+				recalcDppxVars();
 
 				const fillPaths = new Map();
 				const strokePaths = new Map();
@@ -123,7 +128,7 @@
 
 				function drawPaths(u, sidx, idx0, idx1) {
 					uPlot.orient(u, sidx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect) => {
-						let strokeWidth = round((series.width || 0) * pxRatio);
+						let strokeWidth = round((series.width || 0) * uPlot.pxRatio);
 
 						u.ctx.save();
 						rect(u.ctx, u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
@@ -212,7 +217,7 @@
 					u.ctx.textBaseline = "middle";
 
 					uPlot.orient(u, sidx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect) => {
-						let strokeWidth = round((series.width || 0) * pxRatio);
+						let strokeWidth = round((series.width || 0) * uPlot.pxRatio);
 						let textOffset = mode == 1 ? strokeWidth + 2 : 0;
 
 						let y = round(yOff + yMids[sidx - 1]);
@@ -243,6 +248,10 @@
 					hooks: {
 						init: u => {
 							legendTimeValueEl = u.root.querySelector('.u-series:first-child .u-value');
+							window.addEventListener('dppxchange', recalcDppxVars);
+						},
+						destroy: u => {
+							window.removeEventListener('dppxchange', recalcDppxVars);
 						},
 						drawClear: u => {
 							qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);
@@ -271,7 +280,7 @@
 									if (seriesIdx == 0)
 										return closestIdx;
 
-									let cx = round(u.cursor.left * pxRatio);
+									let cx = round(u.cursor.left * uPlot.pxRatio);
 
 									if (cx >= 0) {
 										let cy = yMids[seriesIdx - 1];
@@ -351,7 +360,7 @@
 								walk(null, count, u.bbox.height, (iy, y0, hgt) => {
 									// vertical midpoints of each series' timeline (stored relative to .u-over)
 									yMids[iy] = round(y0 + hgt / 2);
-									ySplits[iy] = u.posToVal(yMids[iy] / pxRatio, "y");
+									ySplits[iy] = u.posToVal(yMids[iy] / uPlot.pxRatio, "y");
 								});
 
 								return ySplits;
