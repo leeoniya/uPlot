@@ -5373,9 +5373,9 @@ var uPlot = (function () {
 
 					activeIdxs[i] = idx2;
 
-					let xPos2 = idx2 == idx ? xPos : valToPosX(mode == 1 ? data[0][idx2] : data[i][0][idx2], scaleX, xDim, 0);
-
 					if (i > 0 && s.show) {
+						let xPos2 = idx2 == idx ? xPos : valToPosX(mode == 1 ? data[0][idx2] : data[i][0][idx2], scaleX, xDim, 0);
+
 						// this doesnt really work for state timeline, heatmap, status history (where the value maps to color, not y coords)
 						let yPos = yVal2 == null ? -10 : valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0);
 
