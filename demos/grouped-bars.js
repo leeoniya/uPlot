@@ -116,6 +116,10 @@ function seriesBarsPlugin(opts) {
 
 	return {
 		hooks: {
+			init: u => {
+				for (let el of u.root.querySelectorAll('.u-cursor-pt'))
+					el.style.borderRadius = 'unset';
+			},
 			drawClear: u => {
 				qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);
 
