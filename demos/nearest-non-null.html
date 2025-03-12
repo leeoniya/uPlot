@@ -328,5 +328,42 @@
 
 			let u3 = new uPlot(opts3, data3, document.body);
 		</script>
+
+		<script>
+			{
+				let _ = null;
+
+				let data = [
+					[0,1,2,3,4,5,6,7,8,9],
+					[5,5,5,5,_,_,5,5,5,5],
+				];
+
+				let opts = {
+					title: 'Snap cursor to last',
+					width: 1000,
+					height: 500,
+					cursor: {
+						hover: {
+							bias: -1,
+							skip: [null],
+						},
+					},
+					scales: {
+						x: {
+							time: false,
+						}
+					},
+					series: [
+						{},
+						{
+							label: 'foo',
+							stroke: 'blue',
+						}
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			}
+		</script>
 	</body>
 </html>

@@ -3509,8 +3509,6 @@ var uPlot = (function () {
 				if (seriesIdx == 0)
 					return cursorIdx;
 
-				let idx2 = cursorIdx;
-
 				let _prox = prox(self, seriesIdx, cursorIdx, valAtPosX) ?? inf;
 				let withProx = _prox >= 0 && _prox < inf;
 				let xDim = scaleX.ori == 0 ? plotWidCss : plotHgtCss;
@@ -3518,6 +3516,13 @@ var uPlot = (function () {
 
 				let xValues = data[0];
 				let yValues = data[seriesIdx];
+
+				if (bias == 1 && cursorIdx < dataLen - 1 && valAtPosX > xValues[cursorIdx])
+					cursorIdx++;
+				else if (bias == -1 && cursorIdx > 0 && valAtPosX < xValues[cursorIdx])
+					cursorIdx--;
+
+				let idx2 = cursorIdx;
 
 				if (skip.has(yValues[cursorIdx])) {
 					idx2 = null;
