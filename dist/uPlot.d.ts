@@ -1014,7 +1014,7 @@ declare namespace uPlot {
 			Right = 2,
 		}
 
-		export const enum AlignAt {
+		export const enum AlignTo {
 			/** axis gap is on the inside; text is placed at outer gap boundary */
 			Inside  = 1,
 			/** axis gap is on the outside; text is placed at inner gap boundary */
@@ -1114,7 +1114,7 @@ declare namespace uPlot {
 		align?: Axis.Align;
 
 		/** baseline for text alignment of axis values - 1: inside, 2: outside */
-		alignAt?: Axis.AlignAt;
+		alignTo?: Axis.AlignTo;
 
 		/** gridlines to draw from this axis' splits */
 		grid?: Axis.Grid;
