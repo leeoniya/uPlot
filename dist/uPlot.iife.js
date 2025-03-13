@@ -5885,7 +5885,7 @@ var uPlot = (function () {
 			}
 			else if (cursor.lock) {
 				cursor._lock = !cursor._lock;
-				updateCursor(null, true, false);
+				updateCursor(src, true, e != null);
 			}
 
 			if (e != null) {
