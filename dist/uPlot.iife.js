@@ -2997,6 +2997,22 @@ var uPlot = (function () {
 
 		const drawOrder = (opts.drawOrder || ["axes", "series"]).map(key => drawOrderMap[key]);
 
+		function initValToPct(sc) {
+			const getVal = (
+				sc.distr == 3   ? val => log10(val > 0 ? val : sc.clamp(self, val, sc.min, sc.max, sc.key)) :
+				sc.distr == 4   ? val => asinh(val, sc.asinh) :
+				sc.distr == 100 ? val => sc.fwd(val) :
+				val => val
+			);
+
+			return val => {
+				let _val = getVal(val);
+				let { _min, _max } = sc;
+				let delta = _max - _min;
+				return (_val - _min) / delta;
+			};
+		}
+
 		function initScale(scaleKey) {
 			let sc = scales[scaleKey];
 
@@ -3007,7 +3023,9 @@ var uPlot = (function () {
 					// ensure parent is initialized
 					initScale(scaleOpts.from);
 					// dependent scales inherit
-					scales[scaleKey] = assign({}, scales[scaleOpts.from], scaleOpts, {key: scaleKey});
+					let sc = assign({}, scales[scaleOpts.from], scaleOpts, {key: scaleKey});
+					sc.valToPct = initValToPct(sc);
+					scales[scaleKey] = sc;
 				}
 				else {
 					sc = scales[scaleKey] = assign({}, (scaleKey == xScaleKey ? xScaleOpts : yScaleOpts), scaleOpts);
@@ -3057,19 +3075,7 @@ var uPlot = (function () {
 					// caches for expensive ops like asinh() & log()
 					sc._min = sc._max = null;
 
-					const getVal = (
-						sc.distr == 3   ? val => log10(val > 0 ? val : sc.clamp(self, val, sc.min, sc.max, sc.key)) :
-						sc.distr == 4   ? val => asinh(val, sc.asinh) :
-						sc.distr == 100 ? val => sc.fwd(val) :
-						val => val
-					);
-
-					sc.valToPct = val => {
-						let _val = getVal(val);
-						let { _min, _max } = sc;
-						let delta = _max - _min;
-						return (_val - _min) / delta;
-					};
+					sc.valToPct = initValToPct(sc);
 				}
 			}
 		}
