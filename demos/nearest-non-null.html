@@ -335,25 +335,21 @@
 
 				let data = [
 					[0,1,2,3,4,5,6,7,8,9],
-					[5,5,5,5,_,_,5,5,5,5],
+					[5,5,5,5,5,_,5,5,5,5],
 				];
 
 				let opts = {
-					title: 'Snap hover points (and/or cusror) to previous non-null',
+					title: 'Snap hover points and cursor to previous non-null',
 					width: 1000,
 					height: 500,
 					cursor: {
-						// can use this if only snapping hover points, but keeping cursor at mouse coords
-						hover: {
-							bias: -1,
-							skip: [null],
-						},
-					/*
-						// OR...
+						y: false,
 
-						// this manually implements bias instead of relying on dataIdx/hover opts since they
-						// are invoked later (and currently depend on the output coords of cursor.move)
+						// this manually implements custom skipping and bias behavior
 						move: (u, mouseLeft, mouseTop) => {
+							if (mouseLeft < 0)
+								return [mouseLeft, mouseTop];
+
 							let curXVal = u.posToVal(mouseLeft, 'x');
 							let curIdx  = u.valToIdx(curXVal);
 							let dataX   = u.data[0];
@@ -376,7 +372,6 @@
 								mouseTop,
 							];
 						},
-					*/
 					},
 					scales: {
 						x: {
