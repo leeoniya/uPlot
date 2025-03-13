@@ -5769,7 +5769,7 @@ var uPlot = (function () {
 				}
 			}
 
-			if (snap) {
+			if (snap && (src == null || src.cursor.event.type == mousemove)) {
 				if (_l <= 1 || _l >= plotWidCss - 1)
 					_l = incrRound(_l, plotWidCss);
 
