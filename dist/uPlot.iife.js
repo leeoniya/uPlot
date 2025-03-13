@@ -3250,10 +3250,10 @@ var uPlot = (function () {
 
 			let text = placeDiv(LEGEND_LABEL, label);
 
-			if (isStr(s.label))
-				text.textContent = s.label;
-			else
+			if (s.label instanceof HTMLElement)
 				text.appendChild(s.label);
+			else
+				text.textContent = s.label;
 
 			if (i > 0) {
 				if (!markers.show)
