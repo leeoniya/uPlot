@@ -35,7 +35,6 @@ import {
 } from './strings';
 
 import {
-	pxRatio,
 	placeDiv,
 	setStylePx,
 } from './dom';
@@ -706,8 +705,8 @@ function seriesPointsShow(self, si) {
 	let dim = abs(p1 - p0);
 
 	let s = self.series[si];
-//	const dia = ptDia(s.width, pxRatio);
-	let maxPts = dim / (s.points.space * pxRatio);
+//	const dia = ptDia(s.width, self.pxRatio);
+	let maxPts = dim / (s.points.space * self.pxRatio);
 	return idxs[1] - idxs[0] <= maxPts;
 }
 
@@ -768,7 +767,7 @@ export const ySeriesOpts = {
 export function clampScale(self, val, scaleMin, scaleMax, scaleKey) {
 /*
 	if (val < 0) {
-		let cssHgt = self.bbox.height / pxRatio;
+		let cssHgt = self.bbox.height / self.pxRatio;
 		let absPos = self.valToPos(abs(val), scaleKey);
 		let fromBtm = cssHgt - absPos;
 		return self.posToVal(cssHgt + fromBtm, scaleKey);

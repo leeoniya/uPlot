@@ -1,6 +1,5 @@
 import { abs, floor, min, max, inf, ifNull, EMPTY_OBJ, fnOrSelf, clamp, retArg0, EMPTY_ARR } from '../utils';
 import { orient, rectV, rectH } from './utils';
-import { pxRatio } from '../dom';
 
 function findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid = inf) {
 	if (dataX.length > 1) {
@@ -53,6 +52,8 @@ export function bars(opts) {
 	const { fill: dispFills, stroke: dispStrokes } = disp;
 
 	return (u, seriesIdx, idx0, idx1) => {
+		let { pxRatio } = u;
+
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
 			let _align = align;

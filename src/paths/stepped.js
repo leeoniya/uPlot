@@ -1,6 +1,5 @@
 import { ifNull, nonNullIdxs } from '../utils';
 import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
-import { pxRatio } from '../dom';
 
 // BUG: align: -1 behaves like align: 1 when scale.dir: -1
 export function stepped(opts) {
@@ -11,6 +10,8 @@ export function stepped(opts) {
 	const extend = ifNull(opts.extend, false);
 
 	return (u, seriesIdx, idx0, idx1) => {
+		let { pxRatio } = u;
+
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
 

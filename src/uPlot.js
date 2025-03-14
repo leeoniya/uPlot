@@ -115,7 +115,7 @@ import {
 	domEnv,
 	doc,
 	win,
-	pxRatio,
+	pxRatio as pxRatioGlobal,
 
 	addClass,
 	remClass,
@@ -210,7 +210,7 @@ function invalidateRects() {
 if (domEnv) {
 	on(resize, win, invalidateRects);
 	on(scroll, win, invalidateRects, true);
-	on(dppxchange, win, () => { uPlot.pxRatio = pxRatio; });
+	on(dppxchange, win, () => { uPlot.pxRatio = pxRatioGlobal; });
 }
 
 const linearPath = FEAT_PATHS && FEAT_PATHS_LINEAR ? linear() : null;
@@ -272,13 +272,13 @@ function findIncr(minVal, maxVal, incrs, dim, minSpace) {
 	return [0, 0];
 }
 
-function pxRatioFont(font) {
+function pxRatioFont(font, pxRatio) {
 	let fontSize, fontSizeCss;
 	font = font.replace(/(\d+)px/, (m, p1) => (fontSize = round((fontSizeCss = +p1) * pxRatio)) + 'px');
 	return [font, fontSize, fontSizeCss];
 }
 
-function syncFontSize(axis) {
+function syncFontSize(axis, pxRatio) {
 	if (axis.show) {
 		[axis.font, axis.labelFont].forEach(f => {
 			let size = roundDec(f[2] * pxRatio, 1);
@@ -289,10 +289,20 @@ function syncFontSize(axis) {
 }
 
 export default function uPlot(opts, data, then) {
+	let pxRatio = opts.pxRatio ?? pxRatioGlobal;
+
+	function setPxRatio(_pxRatio) {
+		pxRatio = self.pxRatio = (_pxRatio ?? pxRatioGlobal);
+		axes.forEach(axis => syncFontSize(axis, pxRatio));
+		_setSize(self.width, self.height, true);
+	}
 	const self = {
 		mode: ifNull(opts.mode, 1),
+		pxRatio,
+		setPxRatio,
 	};
 
+	self.setPxRatio = setPxRatio;
 	const mode = self.mode;
 
 	function getHPos(val, scale, dim, off) {
@@ -1163,8 +1173,8 @@ export default function uPlot(opts, data, then) {
 
 			axis.filter = fnOrSelf(axis.filter || (          sc.distr >= 3 && sc.log == 10 ? log10AxisValsFilt : sc.distr == 3 && sc.log == 2 ? log2AxisValsFilt : retArg1));
 
-			axis.font      = pxRatioFont(axis.font);
-			axis.labelFont = pxRatioFont(axis.labelFont);
+			axis.font      = pxRatioFont(axis.font, pxRatio);
+			axis.labelFont = pxRatioFont(axis.labelFont, pxRatio);
 
 			axis._size   = axis.size(self, null, i, 0);
 
@@ -3352,12 +3362,11 @@ export default function uPlot(opts, data, then) {
 			pubSync(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 	}
 
-	function syncPxRatio() {
-		axes.forEach(syncFontSize);
-		_setSize(self.width, self.height, true);
+	function onDppxChange() {
+		setPxRatio();
 	}
 
-	on(dppxchange, win, syncPxRatio);
+	on(dppxchange, win, onDppxChange);
 
 	// internal pub/sub
 	const events = {};
@@ -3449,7 +3458,7 @@ export default function uPlot(opts, data, then) {
 		sync.unsub(self);
 		cursorPlots.delete(self);
 		mouseListeners.clear();
-		off(dppxchange, win, syncPxRatio);
+		off(dppxchange, win, onDppxChange);
 		root.remove();
 		FEAT_LEGEND && legendTable?.remove(); // in case mounted outside of root
 		fire("destroy");
@@ -3497,7 +3506,7 @@ uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
 uPlot.rangeAsinh = rangeAsinh;
 uPlot.orient   = orient;
-uPlot.pxRatio = pxRatio;
+uPlot.pxRatio = pxRatioGlobal;
 
 if (FEAT_JOIN) {
 	uPlot.join = join;

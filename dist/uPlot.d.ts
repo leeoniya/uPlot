@@ -18,6 +18,9 @@ declare class uPlot {
 	/** height of the plotting area + axes in CSS pixels (excludes title & legend height) */
 	readonly height: number;
 
+	/** current devicePixelRatio */
+	readonly pxRatio: number;
+
 	/** context of canvas used for plotting area + axes */
 	readonly ctx: CanvasRenderingContext2D;
 
@@ -106,6 +109,9 @@ declare class uPlot {
 
 	/** sets the width & height of the plotting area + axes (excludes title & legend height) */
 	setSize(opts: { width: number; height: number }): void;
+
+	/** temporarily sets a user-defined devicePixelRatio that's different from window.devicePixelRatio */
+	setPxRatio(pxRatio: number | null): void;
 
 	/** converts a CSS pixel position (relative to plotting area) to the closest data index */
 	posToIdx(left: number, canvasPixels?: boolean): number;
@@ -353,6 +359,9 @@ declare namespace uPlot {
 
 		/** height of plotting area + axes in CSS pixels (excludes title & legend height) */
 		height: number;
+
+		/** initial devicePixelRatio, if different than window.devicePixelRatio */
+		pxRatio?: number;
 
 		/** data for chart, if none is provided as argument to constructor */
 		data?: AlignedData;

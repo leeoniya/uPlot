@@ -1,11 +1,11 @@
 import { orient, moveToH, moveToV, rectH, arcH, arcV, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './utils';
 import { roundDec, PI } from '../utils';
-import { pxRatio } from '../dom';
 
 // TODO: drawWrap(seriesIdx, drawPoints) (save, restore, translate, clip)
 export function points(opts) {
 	return (u, seriesIdx, idx0, idx1, filtIdxs) => {
 	//	log("drawPoints()", arguments);
+		let { pxRatio } = u;
 
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let { pxRound, points } = series;

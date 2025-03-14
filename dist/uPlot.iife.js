@@ -1642,8 +1642,8 @@ var uPlot = (function () {
 		let dim = abs(p1 - p0);
 
 		let s = self.series[si];
-	//	const dia = ptDia(s.width, pxRatio);
-		let maxPts = dim / (s.points.space * pxRatio);
+	//	const dia = ptDia(s.width, self.pxRatio);
+		let maxPts = dim / (s.points.space * self.pxRatio);
 		return idxs[1] - idxs[0] <= maxPts;
 	}
 
@@ -1704,7 +1704,7 @@ var uPlot = (function () {
 	function clampScale(self, val, scaleMin, scaleMax, scaleKey) {
 	/*
 		if (val < 0) {
-			let cssHgt = self.bbox.height / pxRatio;
+			let cssHgt = self.bbox.height / self.pxRatio;
 			let absPos = self.valToPos(abs(val), scaleKey);
 			let fromBtm = cssHgt - absPos;
 			return self.posToVal(cssHgt + fromBtm, scaleKey);
@@ -2062,6 +2062,7 @@ var uPlot = (function () {
 	function points(opts) {
 		return (u, seriesIdx, idx0, idx1, filtIdxs) => {
 		//	log("drawPoints()", arguments);
+			let { pxRatio } = u;
 
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				let { pxRound, points } = series;
@@ -2300,6 +2301,8 @@ var uPlot = (function () {
 		const extend = ifNull(opts.extend, false);
 
 		return (u, seriesIdx, idx0, idx1) => {
+			let { pxRatio } = u;
+
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
 
@@ -2457,6 +2460,8 @@ var uPlot = (function () {
 		const { fill: dispFills, stroke: dispStrokes } = disp;
 
 		return (u, seriesIdx, idx0, idx1) => {
+			let { pxRatio } = u;
+
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				let pxRound = series.pxRound;
 				let _align = align;
@@ -2892,13 +2897,13 @@ var uPlot = (function () {
 		return [0, 0];
 	}
 
-	function pxRatioFont(font) {
+	function pxRatioFont(font, pxRatio) {
 		let fontSize, fontSizeCss;
 		font = font.replace(/(\d+)px/, (m, p1) => (fontSize = round((fontSizeCss = +p1) * pxRatio)) + 'px');
 		return [font, fontSize, fontSizeCss];
 	}
 
-	function syncFontSize(axis) {
+	function syncFontSize(axis, pxRatio) {
 		if (axis.show) {
 			[axis.font, axis.labelFont].forEach(f => {
 				let size = roundDec(f[2] * pxRatio, 1);
@@ -2909,10 +2914,20 @@ var uPlot = (function () {
 	}
 
 	function uPlot(opts, data, then) {
+		let pxRatio$1 = opts.pxRatio ?? pxRatio;
+
+		function setPxRatio(_pxRatio) {
+			pxRatio$1 = self.pxRatio = (_pxRatio ?? pxRatio);
+			axes.forEach(axis => syncFontSize(axis, pxRatio$1));
+			_setSize(self.width, self.height, true);
+		}
 		const self = {
 			mode: ifNull(opts.mode, 1),
+			pxRatio: pxRatio$1,
+			setPxRatio,
 		};
 
+		self.setPxRatio = setPxRatio;
 		const mode = self.mode;
 
 		function getHPos(val, scale, dim, off) {
@@ -3381,10 +3396,10 @@ var uPlot = (function () {
 
 			let bb = self.bbox;
 
-			plotLft = bb.left   = incrRound(plotLftCss * pxRatio, 0.5);
-			plotTop = bb.top    = incrRound(plotTopCss * pxRatio, 0.5);
-			plotWid = bb.width  = incrRound(plotWidCss * pxRatio, 0.5);
-			plotHgt = bb.height = incrRound(plotHgtCss * pxRatio, 0.5);
+			plotLft = bb.left   = incrRound(plotLftCss * pxRatio$1, 0.5);
+			plotTop = bb.top    = incrRound(plotTopCss * pxRatio$1, 0.5);
+			plotWid = bb.width  = incrRound(plotWidCss * pxRatio$1, 0.5);
+			plotHgt = bb.height = incrRound(plotHgtCss * pxRatio$1, 0.5);
 
 		//	updOriDims();
 		}
@@ -3779,8 +3794,8 @@ var uPlot = (function () {
 
 				axis.filter = fnOrSelf(axis.filter || (          sc.distr >= 3 && sc.log == 10 ? log10AxisValsFilt : sc.distr == 3 && sc.log == 2 ? log2AxisValsFilt : retArg1));
 
-				axis.font      = pxRatioFont(axis.font);
-				axis.labelFont = pxRatioFont(axis.labelFont);
+				axis.font      = pxRatioFont(axis.font, pxRatio$1);
+				axis.labelFont = pxRatioFont(axis.labelFont, pxRatio$1);
 
 				axis._size   = axis.size(self, null, i, 0);
 
@@ -4279,7 +4294,7 @@ var uPlot = (function () {
 				_width:  width       = s.width,
 			} = s._paths;
 
-			width = roundDec(width * pxRatio, 3);
+			width = roundDec(width * pxRatio$1, 3);
 
 			let boundsClip = null;
 			let offset = (width % 2) / 2;
@@ -4565,7 +4580,7 @@ var uPlot = (function () {
 				// axis label
 				if (axis.label != null) {
 					let shiftAmt = axis.labelGap * shiftDir;
-					let baseLpos = round((axis._lpos + shiftAmt) * pxRatio);
+					let baseLpos = round((axis._lpos + shiftAmt) * pxRatio$1);
 
 					setFontStyle(axis.labelFont[0], fillStyle, "center", side == 2 ? TOP : BOTTOM);
 
@@ -4611,13 +4626,13 @@ var uPlot = (function () {
 				let ticks = axis.ticks;
 				let border = axis.border;
 				let _tickSize = ticks.show ? ticks.size : 0;
-				let tickSize = round(_tickSize * pxRatio);
-				let axisGap = round((axis.alignTo == 2 ? axis._size - _tickSize - axis.gap : axis.gap) * pxRatio);
+				let tickSize = round(_tickSize * pxRatio$1);
+				let axisGap = round((axis.alignTo == 2 ? axis._size - _tickSize - axis.gap : axis.gap) * pxRatio$1);
 
 				// rotating of labels only supported on bottom x axis
 				let angle = axis._rotate * -PI/180;
 
-				let basePos  = pxRound(axis._pos * pxRatio);
+				let basePos  = pxRound(axis._pos * pxRatio$1);
 				let shiftAmt = (tickSize + axisGap) * shiftDir;
 				let finalPos = basePos + shiftAmt;
 				    y        = ori == 0 ? finalPos : 0;
@@ -4678,7 +4693,7 @@ var uPlot = (function () {
 						side,
 						basePos,
 						tickSize,
-						roundDec(ticks.width * pxRatio, 3),
+						roundDec(ticks.width * pxRatio$1, 3),
 						ticks.stroke(self, i),
 						ticks.dash,
 						ticks.cap,
@@ -4696,7 +4711,7 @@ var uPlot = (function () {
 						ori == 0 ? 2 : 1,
 						ori == 0 ? plotTop : plotLft,
 						ori == 0 ? plotHgt : plotWid,
-						roundDec(grid.width * pxRatio, 3),
+						roundDec(grid.width * pxRatio$1, 3),
 						grid.stroke(self, i),
 						grid.dash,
 						grid.cap,
@@ -4711,7 +4726,7 @@ var uPlot = (function () {
 						ori == 0 ? 1 : 2,
 						ori == 1 ? plotTop : plotLft,
 						ori == 1 ? plotHgt : plotWid,
-						roundDec(border.width * pxRatio, 3),
+						roundDec(border.width * pxRatio$1, 3),
 						border.stroke(self, i),
 						border.dash,
 						border.cap,
@@ -4808,8 +4823,8 @@ var uPlot = (function () {
 
 				// NOTE: mutating this during print preview in Chrome forces transparent
 				// canvas pixels to white, even when followed up with clearRect() below
-				can.width  = round(fullWidCss * pxRatio);
-				can.height = round(fullHgtCss * pxRatio);
+				can.width  = round(fullWidCss * pxRatio$1);
+				can.height = round(fullHgtCss * pxRatio$1);
 
 				axes.forEach(({ _el, _show, _size, _pos, side }) => {
 					if (_el != null) {
@@ -5171,7 +5186,7 @@ var uPlot = (function () {
 			let sc = scales[scale];
 
 			if (can)
-				pos = pos / pxRatio - (sc.ori == 1 ? plotTopCss : plotLftCss);
+				pos = pos / pxRatio$1 - (sc.ori == 1 ? plotTopCss : plotLftCss);
 
 			let dim = plotWidCss;
 
@@ -5968,12 +5983,11 @@ var uPlot = (function () {
 				pubSync(dblclick, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 		}
 
-		function syncPxRatio() {
-			axes.forEach(syncFontSize);
-			_setSize(self.width, self.height, true);
+		function onDppxChange() {
+			setPxRatio();
 		}
 
-		on(dppxchange, win, syncPxRatio);
+		on(dppxchange, win, onDppxChange);
 
 		// internal pub/sub
 		const events = {};
@@ -6065,7 +6079,7 @@ var uPlot = (function () {
 			sync.unsub(self);
 			cursorPlots.delete(self);
 			mouseListeners.clear();
-			off(dppxchange, win, syncPxRatio);
+			off(dppxchange, win, onDppxChange);
 			root.remove();
 			legendTable?.remove(); // in case mounted outside of root
 			fire("destroy");
