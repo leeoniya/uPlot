@@ -111,7 +111,7 @@ declare class uPlot {
 	setSize(opts: { width: number; height: number }): void;
 
 	/** temporarily sets a user-defined devicePixelRatio that's different from window.devicePixelRatio */
-	setPxRatio(pxRatio: number | null): void;
+	setPxRatio(pxRatio?: number | null): void;
 
 	/** converts a CSS pixel position (relative to plotting area) to the closest data index */
 	posToIdx(left: number, canvasPixels?: boolean): number;
