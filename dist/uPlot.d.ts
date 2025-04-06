@@ -434,7 +434,7 @@ declare namespace uPlot {
 	export namespace Cursor {
 		export type LeftTop              = [left: number, top: number];
 
-		export type MouseListener        = (e: MouseEvent) => null;
+		export type MouseListener        = (e: MouseEvent) => void;
 
 		export type MouseListenerFactory = (self: uPlot, targ: HTMLElement, handler: MouseListener) => MouseListener | null;
 
