@@ -1,4 +1,4 @@
-## 📈 μPlot
+<div align="center"><img src="icon.png" style="width:300px"><br><h1>μPlot</h1></div>
 
 A small ([~45 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)), [fast](#performance) chart for time series, lines, areas, ohlc & bars _(MIT Licensed)_
 
