@@ -1,5 +1,3 @@
-import { domEnv, nav } from './dom';
-
 // binary search for index of closest value
 export function closestIdx(num, arr, lo, hi) {
 	let mid;

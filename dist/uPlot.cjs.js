@@ -11,169 +11,6 @@
 
 const FEAT_TIME          = true;
 
-const pre = "u-";
-
-const UPLOT          =       "uplot";
-const ORI_HZ         = pre + "hz";
-const ORI_VT         = pre + "vt";
-const TITLE          = pre + "title";
-const WRAP           = pre + "wrap";
-const UNDER          = pre + "under";
-const OVER           = pre + "over";
-const AXIS           = pre + "axis";
-const OFF            = pre + "off";
-const SELECT         = pre + "select";
-const CURSOR_X       = pre + "cursor-x";
-const CURSOR_Y       = pre + "cursor-y";
-const CURSOR_PT      = pre + "cursor-pt";
-const LEGEND         = pre + "legend";
-const LEGEND_LIVE    = pre + "live";
-const LEGEND_INLINE  = pre + "inline";
-const LEGEND_SERIES  = pre + "series";
-const LEGEND_MARKER  = pre + "marker";
-const LEGEND_LABEL   = pre + "label";
-const LEGEND_VALUE   = pre + "value";
-
-const WIDTH       = "width";
-const HEIGHT      = "height";
-const TOP         = "top";
-const BOTTOM      = "bottom";
-const LEFT        = "left";
-const RIGHT       = "right";
-const hexBlack    = "#000";
-const transparent = hexBlack + "0";
-
-const mousemove   = "mousemove";
-const mousedown   = "mousedown";
-const mouseup     = "mouseup";
-const mouseenter  = "mouseenter";
-const mouseleave  = "mouseleave";
-const dblclick    = "dblclick";
-const resize      = "resize";
-const scroll      = "scroll";
-
-const change      = "change";
-const dppxchange  = "dppxchange";
-
-const LEGEND_DISP = "--";
-
-const domEnv = typeof window != 'undefined';
-
-const doc = domEnv ? document  : null;
-const win = domEnv ? window    : null;
-const nav = domEnv ? navigator : null;
-
-let pxRatio;
-
-//export const canHover = domEnv && !win.matchMedia('(hover: none)').matches;
-
-let query;
-
-function setPxRatio() {
-	let _pxRatio = devicePixelRatio;
-
-	// during print preview, Chrome fires off these dppx queries even without changes
-	if (pxRatio != _pxRatio) {
-		pxRatio = _pxRatio;
-
-		query && off(change, query, setPxRatio);
-		query = matchMedia(`(min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
-		on(change, query, setPxRatio);
-
-		win.dispatchEvent(new CustomEvent(dppxchange));
-	}
-}
-
-function addClass(el, c) {
-	if (c != null) {
-		let cl = el.classList;
-		!cl.contains(c) && cl.add(c);
-	}
-}
-
-function remClass(el, c) {
-	let cl = el.classList;
-	cl.contains(c) && cl.remove(c);
-}
-
-function setStylePx(el, name, value) {
-	el.style[name] = value + "px";
-}
-
-function placeTag(tag, cls, targ, refEl) {
-	let el = doc.createElement(tag);
-
-	if (cls != null)
-		addClass(el, cls);
-
-	if (targ != null)
-		targ.insertBefore(el, refEl);
-
-	return el;
-}
-
-function placeDiv(cls, targ) {
-	return placeTag("div", cls, targ);
-}
-
-const xformCache = new WeakMap();
-
-function elTrans(el, xPos, yPos, xMax, yMax) {
-	let xform = "translate(" + xPos + "px," + yPos + "px)";
-	let xformOld = xformCache.get(el);
-
-	if (xform != xformOld) {
-		el.style.transform = xform;
-		xformCache.set(el, xform);
-
-		if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
-			addClass(el, OFF);
-		else
-			remClass(el, OFF);
-	}
-}
-
-const colorCache = new WeakMap();
-
-function elColor(el, background, borderColor) {
-	let newColor = background + borderColor;
-	let oldColor = colorCache.get(el);
-
-	if (newColor != oldColor) {
-		colorCache.set(el, newColor);
-		el.style.background = background;
-		el.style.borderColor = borderColor;
-	}
-}
-
-const sizeCache = new WeakMap();
-
-function elSize(el, newWid, newHgt, centered) {
-	let newSize = newWid + "" + newHgt;
-	let oldSize = sizeCache.get(el);
-
-	if (newSize != oldSize) {
-		sizeCache.set(el, newSize);
-		el.style.height = newHgt + "px";
-		el.style.width = newWid + "px";
-		el.style.marginLeft = centered ? -newWid/2 + "px" : 0;
-		el.style.marginTop = centered ? -newHgt/2 + "px" : 0;
-	}
-}
-
-const evOpts = {passive: true};
-const evOpts2 = {...evOpts, capture: true};
-
-function on(ev, el, cb, capt) {
-	el.addEventListener(ev, cb, capt ? evOpts2 : evOpts);
-}
-
-function off(ev, el, cb, capt) {
-	el.removeEventListener(ev, cb, evOpts);
-}
-
-domEnv && setPxRatio();
-
 // binary search for index of closest value
 function closestIdx(num, arr, lo, hi) {
 	let mid;
@@ -834,6 +671,168 @@ function isAsc(vals, samples = 100) {
 
 	return true;
 }
+
+const WIDTH       = "width";
+const HEIGHT      = "height";
+const TOP         = "top";
+const BOTTOM      = "bottom";
+const LEFT        = "left";
+const RIGHT       = "right";
+const hexBlack    = "#000";
+const transparent = hexBlack + "0";
+
+const mousemove   = "mousemove";
+const mousedown   = "mousedown";
+const mouseup     = "mouseup";
+const mouseenter  = "mouseenter";
+const mouseleave  = "mouseleave";
+const dblclick    = "dblclick";
+const resize      = "resize";
+const scroll      = "scroll";
+
+const change      = "change";
+const dppxchange  = "dppxchange";
+
+const LEGEND_DISP = "--";
+
+const pre = "u-";
+
+const UPLOT          =       "uplot";
+const ORI_HZ         = pre + "hz";
+const ORI_VT         = pre + "vt";
+const TITLE          = pre + "title";
+const WRAP           = pre + "wrap";
+const UNDER          = pre + "under";
+const OVER           = pre + "over";
+const AXIS           = pre + "axis";
+const OFF            = pre + "off";
+const SELECT         = pre + "select";
+const CURSOR_X       = pre + "cursor-x";
+const CURSOR_Y       = pre + "cursor-y";
+const CURSOR_PT      = pre + "cursor-pt";
+const LEGEND         = pre + "legend";
+const LEGEND_LIVE    = pre + "live";
+const LEGEND_INLINE  = pre + "inline";
+const LEGEND_SERIES  = pre + "series";
+const LEGEND_MARKER  = pre + "marker";
+const LEGEND_LABEL   = pre + "label";
+const LEGEND_VALUE   = pre + "value";
+
+const domEnv = typeof window != 'undefined';
+
+const doc = domEnv ? document  : null;
+const win = domEnv ? window    : null;
+
+let pxRatio;
+
+//export const canHover = domEnv && !win.matchMedia('(hover: none)').matches;
+
+let query;
+
+function setPxRatio() {
+	let _pxRatio = devicePixelRatio;
+
+	// during print preview, Chrome fires off these dppx queries even without changes
+	if (pxRatio != _pxRatio) {
+		pxRatio = _pxRatio;
+
+		query && off(change, query, setPxRatio);
+		query = matchMedia(`(min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
+		on(change, query, setPxRatio);
+
+		win.dispatchEvent(new CustomEvent(dppxchange));
+	}
+}
+
+function addClass(el, c) {
+	if (c != null) {
+		let cl = el.classList;
+		!cl.contains(c) && cl.add(c);
+	}
+}
+
+function remClass(el, c) {
+	let cl = el.classList;
+	cl.contains(c) && cl.remove(c);
+}
+
+function setStylePx(el, name, value) {
+	el.style[name] = value + "px";
+}
+
+function placeTag(tag, cls, targ, refEl) {
+	let el = doc.createElement(tag);
+
+	if (cls != null)
+		addClass(el, cls);
+
+	if (targ != null)
+		targ.insertBefore(el, refEl);
+
+	return el;
+}
+
+function placeDiv(cls, targ) {
+	return placeTag("div", cls, targ);
+}
+
+const xformCache = new WeakMap();
+
+function elTrans(el, xPos, yPos, xMax, yMax) {
+	let xform = "translate(" + xPos + "px," + yPos + "px)";
+	let xformOld = xformCache.get(el);
+
+	if (xform != xformOld) {
+		el.style.transform = xform;
+		xformCache.set(el, xform);
+
+		if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
+			addClass(el, OFF);
+		else
+			remClass(el, OFF);
+	}
+}
+
+const colorCache = new WeakMap();
+
+function elColor(el, background, borderColor) {
+	let newColor = background + borderColor;
+	let oldColor = colorCache.get(el);
+
+	if (newColor != oldColor) {
+		colorCache.set(el, newColor);
+		el.style.background = background;
+		el.style.borderColor = borderColor;
+	}
+}
+
+const sizeCache = new WeakMap();
+
+function elSize(el, newWid, newHgt, centered) {
+	let newSize = newWid + "" + newHgt;
+	let oldSize = sizeCache.get(el);
+
+	if (newSize != oldSize) {
+		sizeCache.set(el, newSize);
+		el.style.height = newHgt + "px";
+		el.style.width = newWid + "px";
+		el.style.marginLeft = centered ? -newWid/2 + "px" : 0;
+		el.style.marginTop = centered ? -newHgt/2 + "px" : 0;
+	}
+}
+
+const evOpts = {passive: true};
+const evOpts2 = {...evOpts, capture: true};
+
+function on(ev, el, cb, capt) {
+	el.addEventListener(ev, cb, capt ? evOpts2 : evOpts);
+}
+
+function off(ev, el, cb, capt) {
+	el.removeEventListener(ev, cb, evOpts);
+}
+
+domEnv && setPxRatio();
 
 const months = [
 	"January",

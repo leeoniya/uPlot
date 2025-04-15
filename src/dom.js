@@ -11,7 +11,6 @@ export const domEnv = typeof window != 'undefined';
 
 export const doc = domEnv ? document  : null;
 export const win = domEnv ? window    : null;
-export const nav = domEnv ? navigator : null;
 
 export let pxRatio;
 
