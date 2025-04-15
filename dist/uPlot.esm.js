@@ -439,12 +439,7 @@ function _rangeNum(_min, _max, cfg) {
 }
 
 // alternative: https://stackoverflow.com/a/2254896
-let numFormatter;
-try {
-    numFormatter = new Intl.NumberFormat(domEnv ? nav.language : 'en-US');
-} catch (e) {
-    numFormatter = new Intl.NumberFormat('en-US');
-}
+const numFormatter = new Intl.NumberFormat();
 const fmtNum = val => numFormatter.format(val);
 
 const M = Math;
