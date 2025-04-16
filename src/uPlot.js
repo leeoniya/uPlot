@@ -242,13 +242,13 @@ function snapNumY(self, dataMin, dataMax) {
 }
 
 function snapLogY(self, dataMin, dataMax, scale) {
-	return dataMin == null ? nullNullTuple : rangeLog(dataMin, dataMax, self.scales[scale].log, false);
+	return dataMin == null ? nullNullTuple : rangeLog(dataMin, dataMax, self.scales[scale].log, true);
 }
 
 const snapLogX = snapLogY;
 
 function snapAsinhY(self, dataMin, dataMax, scale) {
-	return dataMin == null ? nullNullTuple : rangeAsinh(dataMin, dataMax, self.scales[scale].log, false);
+	return dataMin == null ? nullNullTuple : rangeAsinh(dataMin, dataMax, self.scales[scale].log, true);
 }
 
 const snapAsinhX = snapAsinhY;

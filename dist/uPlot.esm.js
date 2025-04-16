@@ -100,6 +100,9 @@ function getMinMax(data, _i0, _i1, sorted = 0, log = false) {
 }
 
 function rangeLog(min, max, base, fullMags) {
+	if (base == 2)
+		fullMags = true;
+
 	let minSign = sign(min);
 	let maxSign = sign(max);
 
@@ -119,8 +122,11 @@ function rangeLog(min, max, base, fullMags) {
 	let growMinAbs = minSign == 1 ? floor : ceil;
 	let growMaxAbs = maxSign == 1 ? ceil : floor;
 
-	let minExp = growMinAbs(logFn(abs(min)));
-	let maxExp = growMaxAbs(logFn(abs(max)));
+	let minLogAbs = logFn(abs(min));
+	let maxLogAbs = logFn(abs(max));
+
+	let minExp = growMinAbs(minLogAbs);
+	let maxExp = growMaxAbs(maxLogAbs);
 
 	let minIncr = pow(base, minExp);
 	let maxIncr = pow(base, maxExp);
@@ -133,13 +139,13 @@ function rangeLog(min, max, base, fullMags) {
 			maxIncr = roundDec(maxIncr, -maxExp);
 	}
 
-	if (fullMags || base == 2) {
+	if (fullMags) {
 		min = minIncr * minSign;
 		max = maxIncr * maxSign;
 	}
 	else {
-		min = incrRoundDn(min, minIncr);
-		max = incrRoundUp(max, maxIncr);
+		min = incrRoundDn(min, pow(base, floor(minLogAbs)), false);
+		max = incrRoundUp(max, pow(base, floor(maxLogAbs)), false);
 	}
 
 	return [min, max];
@@ -353,16 +359,16 @@ const fixFloat = val => {
 	return roundDec(val, len);
 };
 
-function incrRound(num, incr) {
-	return fixFloat(roundDec(fixFloat(num/incr))*incr);
+function incrRound(num, incr, _fixFloat = true) {
+	return _fixFloat ? fixFloat(roundDec(fixFloat(num/incr))*incr) : roundDec(num/incr)*incr;
 }
 
-function incrRoundUp(num, incr) {
-	return fixFloat(ceil(fixFloat(num/incr))*incr);
+function incrRoundUp(num, incr, _fixFloat = true) {
+	return _fixFloat ? fixFloat(ceil(fixFloat(num/incr))*incr) : ceil(num/incr)*incr;
 }
 
-function incrRoundDn(num, incr) {
-	return fixFloat(floor(fixFloat(num/incr))*incr);
+function incrRoundDn(num, incr, _fixFloat = true) {
+	return _fixFloat ? fixFloat(floor(fixFloat(num/incr))*incr) : floor(num/incr)*incr;
 }
 
 // https://stackoverflow.com/a/48764436
@@ -2863,13 +2869,13 @@ function snapNumY(self, dataMin, dataMax) {
 }
 
 function snapLogY(self, dataMin, dataMax, scale) {
-	return dataMin == null ? nullNullTuple : rangeLog(dataMin, dataMax, self.scales[scale].log, false);
+	return dataMin == null ? nullNullTuple : rangeLog(dataMin, dataMax, self.scales[scale].log, true);
 }
 
 const snapLogX = snapLogY;
 
 function snapAsinhY(self, dataMin, dataMax, scale) {
-	return dataMin == null ? nullNullTuple : rangeAsinh(dataMin, dataMax, self.scales[scale].log, false);
+	return dataMin == null ? nullNullTuple : rangeAsinh(dataMin, dataMax, self.scales[scale].log, true);
 }
 
 const snapAsinhX = snapAsinhY;

@@ -420,6 +420,73 @@
 
 				let u = new uPlot(opts, data, document.body);
 			}
+
+			const fmtTick = new Intl.NumberFormat(undefined, {
+				notation: "compact",
+				compactDisplay: "short",
+			}).format;
+
+			{
+				function makeChart(data) {
+					const opts = {
+						title: "Partial mags (base 10)",
+						width: 600,
+						height: 300,
+						axes: [
+							{},
+							{
+								scale: 'y0',
+								side: 3,
+								values: (u, splits) => splits.map(fmtTick),
+							},
+							{
+								scale: 'y1',
+								side: 1,
+								values: (u, splits) => splits.map(fmtTick),
+							},
+						],
+						scales: {
+							y0: {
+								distr: 3,
+								range: (u, dataMin, dataMax) => uPlot.rangeLog(dataMin, dataMax, 10, false),
+							},
+							y1: {
+								distr: 3,
+								range: (u, dataMin, dataMax) => uPlot.rangeLog(dataMin, dataMax, 10, false),
+							},
+						},
+						series: [
+							{},
+							{
+								label: 'A',
+								scale: 'y0',
+								stroke: '#f7931a',
+							},
+							{
+								label: 'B',
+								scale: 'y1',
+								stroke: '#000',
+							},
+						]
+					};
+
+					let u = new uPlot(opts, data, document.body);
+
+					return u;
+				}
+
+				makeChart([
+					[1704326400, 1704412800, 1704499200],
+					[1000001, 1000000, 990000],
+					[99000, 100000, 100000.001]
+				]);
+
+				makeChart([
+					[1704326400, 1704412800, 1704499200],
+					[1000001, 1000000, 990000].map(v => v / 10_000_000),
+					[99000, 100000, 100000.001].map(v => v / 1_000_000),
+				]);
+			}
 		</script>
 	</body>
 </html>
