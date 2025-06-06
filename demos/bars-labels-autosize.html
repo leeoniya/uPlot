@@ -1,0 +1,242 @@
+<!doctype html>
+<html>
+
+<head>
+  <title>measureText</title>
+  <style>
+    /*
+    https://www.joshwcomeau.com/css/custom-css-reset/
+    */
+    html {
+      font-size: 10px;
+      font-family: Arial;
+    }
+
+    #can {
+      position: absolute;
+      top: 0;
+      left: 50px;
+    }
+
+    /* 1. Use a more-intuitive box-sizing model */
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    /* 2. Remove default margin */
+    * {
+      margin: 0;
+    }
+    body {
+      /* 3. Add accessible line-height */
+      line-height: 1.5;
+      /* 4. Improve text rendering */
+      -webkit-font-smoothing: antialiased;
+    }
+    /* 5. Improve media defaults */
+    img, picture, video, canvas, svg {
+      display: block;
+      max-width: 100%;
+    }
+    /* 6. Inherit fonts for form controls */
+    input, button, textarea, select {
+      font: inherit;
+    }
+    /* 7. Avoid text overflows */
+    p, h1, h2, h3, h4, h5, h6 {
+      overflow-wrap: break-word;
+    }
+    /* 8. Improve line wrapping */
+    p {
+      text-wrap: pretty;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      text-wrap: balance;
+    }
+    /*
+      9. Create a root stacking context
+    */
+    #root, #__next {
+      isolation: isolate;
+    }
+  </style>
+
+  <style>
+    body {
+      background: #111;
+    }
+
+    canvas {
+      background: #666;
+    }
+
+    .uplot {
+      background: #555;
+    }
+  </style>
+
+	<link rel="stylesheet" href="../dist/uPlot.min.css">
+  <script src="../dist/uPlot.iife.js"></script>
+</head>
+
+<body>
+  <script>
+    // TODO: account for orientation
+    const barValuesPlugin = (barOpts) => {
+      const { pxRatio } = uPlot; // TODO: update on dppxChange
+
+      const baseFontSize = 10 * pxRatio;
+
+      let minFontSize = baseFontSize;
+      let maxFontSize = 25 * pxRatio;
+
+      let ctx = document.createElement('canvas').getContext('2d');
+      ctx.font = `${baseFontSize}px Arial`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = 'black';
+
+      let disps = [];
+      let rects = [];
+      let metrics = [];
+
+      // max width of all metrics
+      let maxWidth = 0;
+
+      let barWidth = 0; // in canvas px
+      let maxTextWidth = 0; // in canvas px (from percent of bar width we can use for text)
+
+      return {
+        opts: (u, opts) => {
+          opts.series[1].paths = uPlot.paths.bars({
+            ...barOpts,
+            // this would be good to pull into hooks scope? or provide uPlot.state reserved for shared context
+            // todo: these can be read back from flatbush via indexOf
+            each: (u, seriesIdx, i, lft, top, wid, hgt) => {
+              rects.push([i, lft, top, wid, hgt]);
+            },
+          })
+        },
+
+        hooks: {
+          drawClear: () => {
+            rects.length = 0;
+          },
+          setData: (u, data) => {
+            disps = u.data[1].map(v => fmtNum(v));
+            // pre-measure all values at 10px, cache per data update
+            metrics = disps.map(dispVal => ctx.measureText(dispVal));
+
+            // let sorted = metrics.slice().sort((a, b) => b.width - a.width);
+            maxWidth = metrics.reduce((maxWidth, metric) => Math.max(maxWidth, metric.width), 0);
+          },
+
+          draw: u => {
+            // console.log(rects);
+
+            barWidth = rects[0][3];
+            maxTextWidth = 0.8 * barWidth;
+
+            // let maxHeight = 20; // this is a combo of max size plus availalable space from edge or in hz orientation bar width * 80%
+
+            let fontSize = 0;
+            let metricScale = 1;
+
+            let scale = maxTextWidth / maxWidth;
+
+            let scaledFontSize = scale * baseFontSize;
+
+            if (scaledFontSize >= minFontSize) {
+              // clamp to maxFontSize
+              fontSize = Math.min(maxFontSize, scaledFontSize);
+              metricScale = fontSize / baseFontSize;
+            }
+
+            if (fontSize > 0) {
+              // console.log(fontSize);
+
+              u.ctx.save();
+
+              u.ctx.fillStyle = 'black';
+              u.ctx.font = `${fontSize}px Arial`;
+              u.ctx.textAlign = "center";
+              u.ctx.textBaseline = "middle";
+
+              u.data[1].forEach((v, i) => {
+                let w = rects[0][3];
+
+                if ((metrics[i].width) <= maxTextWidth) {
+                  let [_, x, y, w, h] = rects[i];
+                  const gap = 0.4 * fontSize;
+                  const desc = metrics[i].actualBoundingBoxDescent * metricScale;
+                  u.ctx.fillText(disps[i], x + w/2, v > 0 ? (y - desc - gap) : y + h + desc + gap);
+                }
+              });
+
+              u.ctx.restore();
+            }
+          },
+        }
+      };
+    };
+
+    const randInt = (min, max) => {
+      min = Math.ceil(min);
+      max = Math.floor(max);
+
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    let fmtNum = Intl.NumberFormat("en", { notation: "compact", maximumSignificantDigits: 3 }).format;
+
+    let vals = Array.from({ length: randInt(5, 50) }, () => randInt(-1e5, 1e5));
+
+    let data = [
+      vals.map((v, i) => i),
+      vals
+    ];
+
+    let barOpts = {
+      size: [1, Infinity],
+      align: 0,
+    };
+
+    const opts = {
+      width: 1275,
+      height: 600,
+      scales: {
+        x: {
+          time: false,
+          range: (u, min, max) => [min - .5, max + .5],
+        },
+      },
+      series: [
+        {},
+        {
+          width: 0,
+          fill: "silver",
+          paths: uPlot.paths.bars(barOpts),
+          points: {
+            show: false,
+          }
+          // value: fmtVal,
+        },
+      ],
+      plugins: [
+        barValuesPlugin(barOpts)
+      ],
+    };
+
+    let u = new uPlot(opts, data, document.body);
+
+    setInterval(() => {
+      let vals = Array.from({ length: randInt(5, 50) }, () => randInt(-1e5, 1e5));
+
+      u.setData([
+        vals.map((v, i) => i),
+        vals
+      ]);
+    }, 1000);
+  </script>
+</body>
+
+</html>
