@@ -102,11 +102,15 @@
       // max width of all metrics
       let maxWidth = 0;
 
-      let barWidth = 0; // in canvas px
       let maxTextWidth = 0; // in canvas px (from percent of bar width we can use for text)
+      let maxTextHeight = 0;
+
+      let ori = 0;
 
       return {
         opts: (u, opts) => {
+          ori = opts.scales.x.ori ?? 0;
+
           opts.series[1].paths = uPlot.paths.bars({
             ...barOpts,
             // this would be good to pull into hooks scope? or provide uPlot.state reserved for shared context
@@ -133,8 +137,16 @@
           draw: u => {
             // console.log(rects);
 
-            barWidth = rects[0][3];
-            maxTextWidth = 0.8 * barWidth;
+            if (ori == 0) {
+              let barWidth = rects[0][3]; // in canvas px
+              maxTextWidth = 0.8 * barWidth;
+              console.log({barWidth, maxTextWidth, rects});
+            }
+            else {
+              let barWidth = rects[0][4]; // in canvas px
+              maxTextWidth = 500; // make sure there's enough space for text at edges?
+              maxTextHeight = 0.8 * barWidth;
+            }
 
             // let maxHeight = 20; // this is a combo of max size plus availalable space from edge or in hz orientation bar width * 80%
 
@@ -144,6 +156,10 @@
             let scale = maxTextWidth / maxWidth;
 
             let scaledFontSize = scale * baseFontSize;
+
+            if (scaledFontSize > maxTextHeight) {
+              console.log(scaledFontSize, maxTextHeight);
+            }
 
             if (scaledFontSize >= minFontSize) {
               // clamp to maxFontSize
@@ -179,6 +195,8 @@
       };
     };
 
+    // px = pt / 72 * 96 or px = (96 / 72)pt
+
     const randInt = (min, max) => {
       min = Math.ceil(min);
       max = Math.floor(max);
@@ -200,42 +218,93 @@
       align: 0,
     };
 
-    const opts = {
-      width: 1275,
-      height: 600,
-      scales: {
-        x: {
-          time: false,
-          range: (u, min, max) => [min - .5, max + .5],
+    {
+      const opts = {
+        width: 1275,
+        height: 600,
+        scales: {
+          x: {
+            time: false,
+            range: (u, min, max) => [min - .5, max + .5],
+          },
         },
-      },
-      series: [
-        {},
-        {
-          width: 0,
-          fill: "silver",
-          paths: uPlot.paths.bars(barOpts),
-          points: {
-            show: false,
+        series: [
+          {},
+          {
+            width: 0,
+            fill: "silver",
+            paths: uPlot.paths.bars(barOpts),
+            points: {
+              show: false,
+            }
+            // value: fmtVal,
+          },
+        ],
+        plugins: [
+          barValuesPlugin(barOpts)
+        ],
+      };
+
+      let u = new uPlot(opts, data, document.body);
+    }
+
+
+    {
+      const opts = {
+        width: 1275,
+        height: 600,
+        scales: {
+          x: {
+            time: false,
+            range: (u, min, max) => [min - .5, max + .5],
+            ori: 1,
+            dir: 1,
+          },
+          y: {
+            ori: 0,
+            dir: 1,
           }
-          // value: fmtVal,
         },
-      ],
-      plugins: [
-        barValuesPlugin(barOpts)
-      ],
-    };
+        axes: [
+          {
+            side: 3,
+            ori: 1,
+            dir: 1,
+          },
+          {
+            side: 2,
+            ori: 0,
+            dir: 1,
+          }
+        ],
+        series: [
+          {},
+          {
+            width: 0,
+            fill: "silver",
+            paths: uPlot.paths.bars(barOpts),
+            points: {
+              show: false,
+            }
+            // value: fmtVal,
+          },
+        ],
+        plugins: [
+          barValuesPlugin(barOpts)
+        ],
+      };
 
-    let u = new uPlot(opts, data, document.body);
+      let u = new uPlot(opts, data, document.body);
+    }
 
-    setInterval(() => {
-      let vals = Array.from({ length: randInt(5, 50) }, () => randInt(-1e5, 1e5));
+    // setInterval(() => {
+    //   let vals = Array.from({ length: randInt(5, 50) }, () => randInt(-1e5, 1e5));
 
-      u.setData([
-        vals.map((v, i) => i),
-        vals
-      ]);
-    }, 1000);
+    //   u.setData([
+    //     vals.map((v, i) => i),
+    //     vals
+    //   ]);
+    // }, 1000);
   </script>
 </body>
 
