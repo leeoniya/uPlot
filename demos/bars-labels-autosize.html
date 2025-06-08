@@ -80,6 +80,15 @@
 
 <body>
   <script>
+    // returns scale needed to fit text into avail
+    function fit(textWid, textHgt, availWid, availHgt) {
+      return Math.min(availHgt / textHgt, availWid / textWid);
+    }
+
+    function clamp(val, min, max) {
+      return Math.max(min, Math.min(val, max));
+    }
+
     // TODO: account for orientation
     const barValuesPlugin = (barOpts) => {
       const { pxRatio } = uPlot; // TODO: update on dppxChange
@@ -101,9 +110,13 @@
 
       // max width of all metrics
       let maxWidth = 0;
+      let maxHeight = 0;
 
-      let maxTextWidth = 0; // in canvas px (from percent of bar width we can use for text)
-      let maxTextHeight = 0;
+      let availWidth = 0; // in canvas px (from percent of bar width we can use for text)
+      let availHeight = 0;
+
+      let availWidths = [];
+      let availHeights = [];
 
       let ori = 0;
 
@@ -130,66 +143,113 @@
             // pre-measure all values at 10px, cache per data update
             metrics = disps.map(dispVal => ctx.measureText(dispVal));
 
-            // let sorted = metrics.slice().sort((a, b) => b.width - a.width);
             maxWidth = metrics.reduce((maxWidth, metric) => Math.max(maxWidth, metric.width), 0);
+            maxHeight = metrics.reduce((maxHeight, metric) => Math.max(maxHeight, metric.actualBoundingBoxAscent - metric.actualBoundingBoxDescent), 0);
           },
 
           draw: u => {
             // console.log(rects);
 
-            if (ori == 0) {
-              let barWidth = rects[0][3]; // in canvas px
-              maxTextWidth = 0.8 * barWidth;
-              console.log({barWidth, maxTextWidth, rects});
-            }
-            else {
-              let barWidth = rects[0][4]; // in canvas px
-              maxTextWidth = 500; // make sure there's enough space for text at edges?
-              maxTextHeight = 0.8 * barWidth;
-            }
+            // let bbox_btm = u.bbox.top + u.bbox.height;
+            // let bbox_rgt = u.bbox.left + u.bbox.width;
 
-            // let maxHeight = 20; // this is a combo of max size plus availalable space from edge or in hz orientation bar width * 80%
+            // for (let i = 0; i < rects.length; i++) {
+            //   let r = rects[i];
+            //   let v = u.data[1][i];
+
+            //   let x = ori == 1 ? (v < 0 ? u.bbox.left : r[1] + r[3]) : r[1];
+            //   let y = ori == 1 ? r[2] : (v < 0 ? r[2] + r[4] : u.bbox.top);
+            //   let w = ori == 1 ? (v < 0 ? r[1] - u.bbox.left : bbox_rgt - (r[1] + r[3])) : r[3];
+            //   let h = ori == 1 ? r[4] : (v < 0 ? bbox_btm - (r[2] + r[4]) : r[2] - u.bbox.top);
+
+            //   u.ctx.fillStyle = '#f002';
+            //   u.ctx.fillRect(x, y, w, h);
+            // }
 
             let fontSize = 0;
             let metricScale = 1;
 
-            let scale = maxTextWidth / maxWidth;
+            if (ori == 0) {
+              let barWidth = rects[0][3]; // in canvas px
+              availWidth = 0.8 * barWidth;
+              availHeight = 100;
 
-            let scaledFontSize = scale * baseFontSize;
+              let scaleW = fit(maxWidth, maxHeight, availWidth, availHeight);
 
-            if (scaledFontSize > maxTextHeight) {
-              console.log(scaledFontSize, maxTextHeight);
+              let scaledFontSizeW = scaleW * baseFontSize;
+
+              // if (scaledFontSize > availHeight) {
+              //   console.log(scaledFontSize, availHeight);
+              // }
+
+              if (scaledFontSizeW >= minFontSize) {
+                // clamp to maxFontSize
+                fontSize = Math.min(maxFontSize, scaledFontSizeW);
+                metricScale = fontSize / baseFontSize;
+              }
+
+              if (fontSize > 0) {
+                // console.log(fontSize);
+
+                u.ctx.save();
+
+                u.ctx.fillStyle = 'black';
+                u.ctx.font = `${fontSize}px Arial`;
+                u.ctx.textAlign = "center";
+                u.ctx.textBaseline = "middle";
+
+                u.data[1].forEach((v, i) => {
+                  let w = rects[0][3];
+
+                  if ((metrics[i].width) <= availWidth) {
+                    let [_, x, y, w, h] = rects[i];
+                    const gap = 0.4 * fontSize;
+                    const desc = metrics[i].actualBoundingBoxDescent * metricScale;
+                    u.ctx.fillText(disps[i], x + w/2, v > 0 ? (y - desc - gap) : y + h + desc + gap);
+                  }
+                });
+
+                u.ctx.restore();
+              }
+            }
+            else {
+              let barWidth = rects[0][4]; // in canvas px
+              // availWidth = 200; // make sure there's enough space for text at edges?
+              availHeight = 0.8 * barWidth;
+
+              if (availHeight >= minFontSize) {
+                fontSize = Math.min(availHeight, maxFontSize);
+              }
+
+              if (fontSize > 0) {
+                // console.log(fontSize);
+
+                u.ctx.save();
+
+                u.ctx.fillStyle = 'black';
+                u.ctx.font = `${fontSize}px Arial`;
+                u.ctx.textAlign = "center";
+                u.ctx.textBaseline = "middle";
+
+                u.data[1].forEach((v, i) => {
+                  // let w = rects[0][3];
+
+                  // if ((metrics[i].width) <= availWidth) {
+                    let [_, x, y, w, h] = rects[i];
+                    const gap = 0.4 * fontSize;
+                    const desc = 0; //metrics[i].actualBoundingBoxDescent * metricScale;
+                    const halfWidth = metrics[i].width * (fontSize / baseFontSize) / 2;
+                    u.ctx.fillText(disps[i], v > 0 ? x + w + halfWidth + gap : x - halfWidth - gap, y + h/2);
+                  // }
+                });
+
+                u.ctx.restore();
+              }
             }
 
-            if (scaledFontSize >= minFontSize) {
-              // clamp to maxFontSize
-              fontSize = Math.min(maxFontSize, scaledFontSize);
-              metricScale = fontSize / baseFontSize;
-            }
+            // let maxHeight = 20; // this is a combo of max size plus availalable space from edge or in hz orientation bar width * 80%
 
-            if (fontSize > 0) {
-              // console.log(fontSize);
-
-              u.ctx.save();
-
-              u.ctx.fillStyle = 'black';
-              u.ctx.font = `${fontSize}px Arial`;
-              u.ctx.textAlign = "center";
-              u.ctx.textBaseline = "middle";
-
-              u.data[1].forEach((v, i) => {
-                let w = rects[0][3];
-
-                if ((metrics[i].width) <= maxTextWidth) {
-                  let [_, x, y, w, h] = rects[i];
-                  const gap = 0.4 * fontSize;
-                  const desc = metrics[i].actualBoundingBoxDescent * metricScale;
-                  u.ctx.fillText(disps[i], x + w/2, v > 0 ? (y - desc - gap) : y + h + desc + gap);
-                }
-              });
-
-              u.ctx.restore();
-            }
+            // try to grow text to fill avail width or height
           },
         }
       };
@@ -258,7 +318,7 @@
             time: false,
             range: (u, min, max) => [min - .5, max + .5],
             ori: 1,
-            dir: 1,
+            dir: -1,
           },
           y: {
             ori: 0,
@@ -269,7 +329,7 @@
           {
             side: 3,
             ori: 1,
-            dir: 1,
+            dir: -1,
           },
           {
             side: 2,
