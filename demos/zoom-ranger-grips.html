@@ -121,7 +121,6 @@
 					newRgt = Math.min(newRgt, maxRgt);
 				}
 
-				select(newLft, newRgt-newLft);
 				zoom(newLft, newRgt-newLft);
 			}
 
@@ -156,6 +155,13 @@
 			}
 
 			//----------------
+
+			function getSize(height) {
+				return {
+					width: window.innerWidth - 100,
+					height: height,
+				}
+			}
 
 			const rangerOpts = {
 				width: 800,
@@ -226,7 +232,7 @@
 				height: 400,
 				cursor: {
 					drag: {
-						x: false,
+						x: true,
 						y: false
 					},
 				},
@@ -248,7 +254,16 @@
 						label: "sin(x)",
 						stroke: "red",
 					}
-				]
+				],
+				hooks : {
+					setScale : [
+						uZoomed => {
+							let left = Math.round(uRanger.valToPos(uZoomed.scales.x.min, 'x'));
+							let right = Math.round(uRanger.valToPos(uZoomed.scales.x.max, 'x'));
+							select(left, right-left);
+						}
+					]
+				}
 			};
 
 			let uZoomed = new uPlot(zoomedOpts, data, document.body);
