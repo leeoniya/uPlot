@@ -40,6 +40,7 @@
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
 			var loop = 100;
+			const MovedBoundary = { LEFT: 0, RIGHT: 1, BOTH: 2 }
 
 			let data = [
 				Array(loop),
@@ -94,19 +95,34 @@
 
 			let x0;
 			let lft0;
-			let wid0;
+			let rgt0;
 
 			const lftWid = {left: null, width: null};
 			const minMax = {min: null, max: null};
 
-			function update(newLft, newWid) {
-				let newRgt = newLft + newWid;
+			function update(newLft, newRgt, movedBoundary) {
 				let maxRgt = uRanger.bbox.width / devicePixelRatio;
 
-				if (newLft >= 0 && newRgt <= maxRgt) {
-					select(newLft, newWid);
-					zoom(newLft, newWid);
+				if (movedBoundary == MovedBoundary.BOTH) {
+					let initWidth = newRgt - newLft;
+					if (newRgt > maxRgt) {
+						newRgt = maxRgt;
+						newLft = newRgt-initWidth;
+					} else if (newLft<0) {
+						newLft = 0;
+						newRgt = newLft+initWidth;
+					}
+				} else {
+					if (newLft > newRgt) {
+						if (movedBoundary == MovedBoundary.LEFT) newLft = newRgt;
+						else if (movedBoundary == MovedBoundary.RIGHT) newRgt = newLft;
+					}
+					newLft = Math.max(0, newLft);
+					newRgt = Math.min(newRgt, maxRgt);
 				}
+
+				select(newLft, newRgt-newLft);
+				zoom(newLft, newRgt-newLft);
 			}
 
 			function select(newLft, newWid) {
@@ -124,7 +140,7 @@
 			function bindMove(e, onMove) {
 				x0 = e.clientX;
 				lft0 = uRanger.select.left;
-				wid0 = uRanger.select.width;
+				rgt0 = lft0 + uRanger.select.width;
 
 				const _onMove = debounce(onMove);
 				on("mousemove", doc, _onMove);
@@ -182,15 +198,15 @@
 							const sel = uRanger.root.querySelector(".u-select");
 
 							on("mousedown", sel, e => {
-								bindMove(e, e => update(lft0 + (e.clientX - x0), wid0));
+								bindMove(e, e => update(lft0 + (e.clientX - x0), rgt0 + (e.clientX - x0), MovedBoundary.BOTH));
 							});
 
 							on("mousedown", placeDiv(sel, "u-grip-l"), e => {
-								bindMove(e, e => update(lft0 + (e.clientX - x0), wid0 - (e.clientX - x0)));
+								bindMove(e, e => update(lft0 + (e.clientX - x0), rgt0, MovedBoundary.LEFT));
 							});
 
 							on("mousedown", placeDiv(sel, "u-grip-r"), e => {
-								bindMove(e, e => update(lft0, wid0 + (e.clientX - x0)));
+								bindMove(e, e => update(lft0, rgt0 + (e.clientX - x0), MovedBoundary.RIGHT));
 							});
 						}
 					],
