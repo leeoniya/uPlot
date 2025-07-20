@@ -128,19 +128,104 @@ export function fmtDate(tpl, names) {
 
 const localTz = new Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-// https://stackoverflow.com/questions/15141762/how-to-initialize-a-javascript-date-to-a-particular-time-zone/53652131#53652131
+const fmtrOpts = {
+    weekday: "short",
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    fractionalSecondDigits: 3,
+    timeZoneName: 'longOffset',
+};
+
+const tzFmt = {};
+
+function getFormatter(tz) {
+    if (tzFmt[tz] == null)
+        tzFmt[tz] = new Intl.DateTimeFormat("sv", {...fmtrOpts, timeZone: tz}).format;
+
+    return tzFmt[tz];
+}
+
+class DateZoned extends Date {
+    // sön, 1972-10-15 17:25:23,434 GMT+01:00
+    #str = null;
+    #utc = false;
+
+    #get(utcMeth, locMeth, fr, to, add = 0) {
+        let s = this.#str;
+        return this.#utc ? utcMeth.call(this) : s == null ? locMeth.call(this) : Number(s.slice(fr,to)) + add;
+    }
+
+    setTimeZone(tz) {
+        if (tz == 'UTC' || tz == 'Etc/UTC')
+            this.#utc = true;
+        else {
+            let fmt = getFormatter(tz);
+			let f = fmt(this);
+
+            if (f.endsWith('GMT'))
+                f += '+00:00';
+
+            this.#str = f;
+        }
+    }
+
+	getFullYear() {
+        return this.#get(this.getUTCFullYear, super.getFullYear, -33, -29);
+    }
+
+	getMonth() {
+        return this.#get(this.getUTCMonth, super.getMonth, -28, -26, -1);
+    }
+
+	getDate() {
+        return this.#get(this.getUTCDate, super.getDate, -25, -23);
+    }
+
+	getHours() {
+        return this.#get(this.getUTCHours, super.getHours, -22, -20);
+    }
+
+	getMinutes() {
+        return this.#get(this.getUTCMinutes, super.getMinutes, -19, -17);
+    }
+
+	getSeconds() {
+        return this.#get(this.getUTCSeconds, super.getSeconds, -16, -14);
+    }
+
+	getMilliseconds() {
+        return this.#get(this.getUTCMilliseconds, super.getMilliseconds, -13, -10);
+    }
+
+	getDay() {
+		let s = this.#str;
+        return this.#utc ? this.getUTCDay() : s == null ? super.getDay() : (
+			s[0] == 's' ? 0 : // sön
+			s[0] == 'm' ? 1 : // mån
+			s[1] == 'i' ? 2 : // tis
+			s[0] == 'o' ? 3 : // ons
+			s[1] == 'o' ? 4 : // tors
+			s[0] == 'f' ? 5 : // fre
+			s[0] == 'l' ? 6 : // lör
+			-1
+		);
+    }
+
+    getTimezoneOffset() {
+        let s = this.#str;
+        return this.#utc ? 0 : s == null ? super.getTimezoneOffset() : (60 * Number(s.slice(-5,-3)) + Number(s.slice(-2))) * (s.at(-6) == '-' ? -1 : 1);
+    }
+}
+
 export function tzDate(date, tz) {
-	let date2;
+	if (tz == localTz)
+		return date;
 
-	// perf optimization
-	if (tz == 'UTC' || tz == 'Etc/UTC')
-		date2 = new Date(+date + date.getTimezoneOffset() * 6e4);
-	else if (tz == localTz)
-		date2 = date;
-	else {
-		date2 = new Date(date.toLocaleString('en-US', {timeZone: tz}));
-		date2.setMilliseconds(date.getMilliseconds());
-	}
-
-	return date2;
+	let d = new DateZoned(date);
+	d.setTimeZone(tz);
+	return d;
 }
