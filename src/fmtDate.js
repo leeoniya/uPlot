@@ -154,6 +154,15 @@ class DateZoned extends Date {
     #str = null;
     #utc = false;
 
+	constructor(...args) {
+		super(...args);
+
+		if (args[0] instanceof DateZoned) {
+			this.#str = args[0].#str;
+			this.#utc = args[0].#utc;
+		}
+	}
+
     #get(utcMeth, locMeth, fr, to, add = 0) {
         let s = this.#str;
         return this.#utc ? utcMeth.call(this) : s == null ? locMeth.call(this) : Number(s.slice(fr,to)) + add;
