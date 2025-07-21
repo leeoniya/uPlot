@@ -7,14 +7,22 @@
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
 		<style>
+			section {
+				display: inline-block;
+				vertical-align: top;
+				width: 600px;
+				margin: 8px;
+				box-shadow: 0px 0px 8px 4px #ccc;
+			}
+
 			h3 {
 				text-align: center;
-				padding: 25px;
+				padding: 10px;
 				background: #E1F5FE;
 			}
 
 			.uplot {
-				display: inline-block;
+				margin: 20px 0;
 			}
 		</style>
 	</head>
@@ -46,10 +54,13 @@
 				];
 			}
 
-			function putHeader(text) {
+			function initSection(text) {
 				let h = document.createElement("h3");
 				h.textContent = text;
-				document.body.appendChild(h);
+				let ctnr = document.createElement('section');
+				ctnr.appendChild(h);
+				document.body.appendChild(ctnr);
+				return ctnr;
 			}
 
 			function genOpts(title, tz, syncKey) {
@@ -63,7 +74,7 @@
 						},
 					},
 					width: 600,
-					height: 300,
+					height: 200,
 					series: [
 						{},
 						{
@@ -74,108 +85,111 @@
 				}
 			}
 
-			let data;
+			{
+				let c = initSection('London\'s 2024 "spring forward" time range');
+				let data = sliceRange(times.findIndex(v => v == 1711800000), 2);
+				let syncKey = 0;
 
-			putHeader('London\'s 2024 "spring forward" time range');
-			data = sliceRange(times.findIndex(v => v == 1711800000), 2);
-			syncKey = 0;
+				new uPlot(
+					genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+					data,
+					c
+				);
 
-			new uPlot(
-				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("Europe/London (Mar 31, 2024: 1am -> 2am)", 'Europe/London', syncKey),
+					data,
+					c
+				);
 
-			new uPlot(
-				genOpts("Europe/London (Mar 31, 2024: 1am -> 2am)", 'Europe/London', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
+					data,
+					c
+				);
+			}
 
-			new uPlot(
-				genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
-				data,
-				document.body
-			);
+			{
+				let c = initSection('London\'s 2024 "fall back" time range');
+				let data = sliceRange(times.findIndex(v => v == 1729944000), 2);
+				let syncKey = 1;
 
+				new uPlot(
+					genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+					data,
+					c
+				);
 
-			putHeader('London\'s 2024 "fall back" time range');
-			data = sliceRange(times.findIndex(v => v == 1729944000), 2);
-			syncKey = 1;
+				new uPlot(
+					genOpts("Europe/London (Oct 27, 2024: 2am -> 1am)", 'Europe/London', syncKey),
+					data,
+					c
+				);
 
-			new uPlot(
-				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
-				data,
-				document.body
-			);
+				// this is a good check to make sure that splits still properly respect tick increments at 12am baseline on DST day after shift
+				// {
+				// 	let data = sliceRange(times.findIndex(v => v == 1730030400), 2);
+				// 	new uPlot(
+				// 		genOpts("Europe/London (Oct 27, 2024: 2am -> 1am)", 'Europe/London', syncKey),
+				// 		data,
+				// 		c
+				// 	);
+				// }
 
-			new uPlot(
-				genOpts("Europe/London (Oct 27, 2024: 2am -> 1am)", 'Europe/London', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
+					data,
+					c
+				);
+			}
 
-			// this is a good check to make sure that splits still properly respect tick increments at 12am baseline on DST day after shift
-			// {
-			// 	let data = sliceRange(times.findIndex(v => v == 1730030400), 2);
-			// 	new uPlot(
-			// 		genOpts("Europe/London (Oct 27, 2024: 2am -> 1am)", 'Europe/London', syncKey),
-			// 		data,
-			// 		document.body
-			// 	);
-			// }
+			{
+				let c = initSection('Chicago\'s 2024 "spring forward" time range');
+				let data = sliceRange(times.findIndex(v => v == 1709985600), 2);
+				let syncKey = 2;
 
-			new uPlot(
-				genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+					data,
+					c
+				);
 
+				new uPlot(
+					genOpts("America/Chicago (Mar 10, 2024: 2am -> 3am)", 'America/Chicago', syncKey),
+					data,
+					c
+				);
 
-			putHeader('Chicago\'s 2024 "spring forward" time range');
-			data = sliceRange(times.findIndex(v => v == 1709985600), 2);
-			syncKey = 2;
+				new uPlot(
+					genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
+					data,
+					c
+				);
+			}
 
-			new uPlot(
-				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
-				data,
-				document.body
-			);
+			{
+				let c = initSection('Chicago\'s 2024 "fall back" time range');
+				let data = sliceRange(times.findIndex(v => v == 1730548800), 2);
+				let syncKey = 3;
 
-			new uPlot(
-				genOpts("America/Chicago (Mar 10, 2024: 2am -> 3am)", 'America/Chicago', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+					data,
+					c
+				);
 
-			new uPlot(
-				genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("America/Chicago (Nov 3, 2024: 2am -> 1am)", 'America/Chicago', syncKey),
+					data,
+					c
+				);
 
-
-			putHeader('Chicago\'s 2024 "fall back" time range');
-			data = sliceRange(times.findIndex(v => v == 1730548800), 2);
-			syncKey = 3;
-
-			new uPlot(
-				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
-				data,
-				document.body
-			);
-
-			new uPlot(
-				genOpts("America/Chicago (Nov 3, 2024: 2am -> 1am)", 'America/Chicago', syncKey),
-				data,
-				document.body
-			);
-
-			new uPlot(
-				genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
+					data,
+					c
+				);
+			}
 		</script>
 	</body>
 </html>
