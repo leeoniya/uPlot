@@ -21,8 +21,8 @@
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
-			// Jan 1 2019 UTC
-			let start = 1546300800;
+			// Jan 1 2024 UTC
+			let start = 1704067200;
 
 			let times = [];
 
@@ -67,7 +67,7 @@
 					series: [
 						{},
 						{
-							label: "2019",
+							label: "2024",
 							stroke: "red",
 						},
 					],
@@ -76,9 +76,8 @@
 
 			let data;
 
-
-			putHeader('London\'s 2019 "spring forward" time range');
-			data = sliceRange(times.findIndex(v => v == 1553774400), 6);
+			putHeader('London\'s 2024 "spring forward" time range');
+			data = sliceRange(times.findIndex(v => v == 1711800000), 2);
 			syncKey = 0;
 
 			new uPlot(
@@ -88,7 +87,7 @@
 			);
 
 			new uPlot(
-				genOpts("Europe/London (Mar 31, 2019: 1am -> 2am)", 'Europe/London', syncKey),
+				genOpts("Europe/London (Mar 31, 2024: 1am -> 2am)", 'Europe/London', syncKey),
 				data,
 				document.body
 			);
@@ -100,8 +99,8 @@
 			);
 
 
-			putHeader('London\'s 2019 "fall back" time range');
-			data = sliceRange(times.findIndex(v => v == 1571918400), 6);
+			putHeader('London\'s 2024 "fall back" time range');
+			data = sliceRange(times.findIndex(v => v == 1729944000), 2);
 			syncKey = 1;
 
 			new uPlot(
@@ -111,10 +110,20 @@
 			);
 
 			new uPlot(
-				genOpts("Europe/London (Oct 27, 2019: 2am -> 1am)", 'Europe/London', syncKey),
+				genOpts("Europe/London (Oct 27, 2024: 2am -> 1am)", 'Europe/London', syncKey),
 				data,
 				document.body
 			);
+
+			// this is a good check to make sure that splits still properly respect tick increments at 12am baseline on DST day after shift
+			// {
+			// 	let data = sliceRange(times.findIndex(v => v == 1730030400), 2);
+			// 	new uPlot(
+			// 		genOpts("Europe/London (Oct 27, 2024: 2am -> 1am)", 'Europe/London', syncKey),
+			// 		data,
+			// 		document.body
+			// 	);
+			// }
 
 			new uPlot(
 				genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
@@ -123,8 +132,8 @@
 			);
 
 
-			putHeader('Chicago\'s 2019 "spring forward" time range');
-			data = sliceRange(times.findIndex(v => v == 1551960000), 6);
+			putHeader('Chicago\'s 2024 "spring forward" time range');
+			data = sliceRange(times.findIndex(v => v == 1709985600), 2);
 			syncKey = 2;
 
 			new uPlot(
@@ -134,7 +143,7 @@
 			);
 
 			new uPlot(
-				genOpts("America/Chicago (Mar 10, 2019: 2am -> 3am)", 'America/Chicago', syncKey),
+				genOpts("America/Chicago (Mar 10, 2024: 2am -> 3am)", 'America/Chicago', syncKey),
 				data,
 				document.body
 			);
@@ -145,8 +154,9 @@
 				document.body
 			);
 
-			putHeader('Chicago\'s 2019 "fall back" time range');
-			data = sliceRange(times.findIndex(v => v == 1572523200), 6);
+
+			putHeader('Chicago\'s 2024 "fall back" time range');
+			data = sliceRange(times.findIndex(v => v == 1730548800), 2);
 			syncKey = 3;
 
 			new uPlot(
@@ -156,7 +166,7 @@
 			);
 
 			new uPlot(
-				genOpts("America/Chicago (Nov 3, 2019: 2am -> 1am)", 'America/Chicago', syncKey),
+				genOpts("America/Chicago (Nov 3, 2024: 2am -> 1am)", 'America/Chicago', syncKey),
 				data,
 				document.body
 			);

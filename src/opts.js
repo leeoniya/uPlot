@@ -39,7 +39,7 @@ import {
 	setStylePx,
 } from './dom';
 
-import { fmtDate } from './fmtDate';
+import { DateZoned, fmtDate, getSOP, PERIOD_DAY } from './fmtDate';
 
 //export const series = [];
 
@@ -162,11 +162,11 @@ function genTimeStuffs(ms) {
 			let isMo = foundIncr >= mo && foundIncr < y;
 
 			// get the timezone-adjusted date
-			let minDate = tzDate(scaleMin);
+			let minDate = tzDate(scaleMin); // should this be ms-adjusted?
 			let minDateTs = roundDec(minDate * ms, 3);
 
 			// get ts of 12am (this lands us at or before the original scaleMin)
-			let minMin = mkDate(minDate.getFullYear(), isYr ? 0 : minDate.getMonth(), isMo || isYr ? 1 : minDate.getDate());
+			let minMin = (isMo || isYr) ? mkDate(minDate.getFullYear(), isYr ? 0 : minDate.getMonth(), isMo || isYr ? 1 : minDate.getDate()) : getSOP(minDate, PERIOD_DAY);
 			let minMinTs = roundDec(minMin * ms, 3);
 
 			if (isMo || isYr) {
@@ -189,15 +189,34 @@ function genTimeStuffs(ms) {
 				}
 			}
 			else {
+				let incrHours = foundIncr / h;
+
 				let incr0 = foundIncr >= d ? d : foundIncr;
-				let tzOffset = floor(scaleMin) - floor(minDateTs);
-				let split = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
-				splits.push(split);
+				let split = minMinTs + incrRoundUp(minDateTs - minMinTs, incr0);
 
 				let date0 = tzDate(split);
 
+				// hours of first split have to be disvisible by incr, otherwise 6h ticks can start at 5pm
+				// instead of 6 or 12 when start of range falls on DST day after shift
+				if (incrHours > 1) {
+					let splitHours = date0.getHours();
+					let diff = splitHours % incrHours;
+
+					if (diff > 0) {
+						let splitPre = split - diff * h;
+
+						if (splitPre >= minDateTs)
+							split = splitPre;
+						else
+							split += (incrHours - diff) * h;
+
+						date0 = tzDate(split);
+					}
+				}
+
+				splits.push(split);
+
 				let prevHour = date0.getHours() + (date0.getMinutes() / m) + (date0.getSeconds() / h);
-				let incrHours = foundIncr / h;
 
 				let minSpace = self.axes[axisIdx]._space;
 				let pctSpace = foundSpace / minSpace;
@@ -226,7 +245,7 @@ function genTimeStuffs(ms) {
 						let prevSplit = splits[splits.length - 1];
 						let pctIncr = roundDec((split - prevSplit) / foundIncr, 3);
 
-						if (pctIncr * pctSpace >= .7)
+						if (pctIncr * pctSpace >= .7 && (actualHour - dstShift) % incrHours == 0)
 							splits.push(split);
 					}
 					else
