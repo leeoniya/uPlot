@@ -40,7 +40,7 @@
 			let values = Array(times.length);
 
 			for (let i = 0; i < times.length; i++)
-				values[i] = i % 24 == 0 ? 1 : 0.5;
+				values[i] = i % 24 == 0 ? 1 : 0;
 
 			let data0 = [
 				times,
@@ -75,6 +75,17 @@
 					},
 					width: 600,
 					height: 200,
+					scales: {
+						y: {
+							range: [0, 1]
+						}
+					},
+					axes: [
+						{},
+						{
+							incrs: [0.5],
+						},
+					],
 					series: [
 						{},
 						{
