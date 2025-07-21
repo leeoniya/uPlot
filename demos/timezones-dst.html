@@ -50,8 +50,8 @@
 
 			function sliceRange(fromTs, numDays) {
 				return [
-					times.slice(fromTs, fromTs + 24 * numDays),
-					values.slice(fromTs, fromTs + 24 * numDays),
+					times.slice(fromTs, fromTs + 24 * numDays + 1),
+					values.slice(fromTs, fromTs + 24 * numDays + 1),
 				];
 			}
 
