@@ -35,7 +35,7 @@
 
 			let times = [];
 
-			for (let h = 0; h < 365 * 24; h++)
+			for (let h = 0; h < 366 * 24 + 1; h++)
 				times.push(start + h * 3600);
 
 			let values = Array(times.length);
@@ -202,6 +202,127 @@
 					c
 				);
 			}
+
+			{
+				let c = initSection('Days');
+
+				new uPlot(
+					genOpts("1-Day", 'Etc/UTC'),
+					sliceRange(0, 10),
+					c
+				);
+				new uPlot(
+					genOpts("2-Day", 'Etc/UTC'),
+					sliceRange(0, 15),
+					c
+				);
+				new uPlot(
+					genOpts("3-Day", 'Etc/UTC'),
+					sliceRange(0, 25),
+					c
+				);
+				new uPlot(
+					genOpts("4-Day", 'Etc/UTC'),
+					sliceRange(0, 37),
+					c
+				);
+			}
+
+			{
+				let c = initSection('Months');
+
+				new uPlot(
+					genOpts("1-Month", 'Etc/UTC'),
+					[[start,1719792000],[0.5,0.5]],
+					c
+				);
+				new uPlot(
+					genOpts("2-Month", 'Etc/UTC'),
+	 				[[start,1735689600],[0.5,0.5]],
+					c
+				);
+				new uPlot(
+					genOpts("3-Month", 'Etc/UTC'),
+	 				[[start,1767225600],[0.5,0.5]],
+					c
+				);
+				new uPlot(
+					genOpts("4-Month", 'Etc/UTC'),
+	 				[[start,1798761600],[0.5,0.5]],
+					c
+				);
+				new uPlot(
+					genOpts("6-Month", 'Etc/UTC'),
+	 				[[start,1830768000],[0.5,0.5]],
+					c
+				);
+
+			}
+
+			{
+				let c = initSection('With start offset');
+
+				new uPlot(
+					genOpts("3-Day (ensure Jan 1)", 'Etc/UTC'),
+					[[1704240000,1704240000 + 25 * 24 * 3600],[0.5,0.5]],
+					c
+				);
+
+				new uPlot(
+					genOpts("2-Month (ensure Jan 1)", 'Etc/UTC'),
+					[[1722470400,1754006400],[0.5,0.5]],
+					c
+				);
+			}
+
+			// new uPlot(
+			// 	genOpts("Asia/Kolkata", 'Asia/Kolkata', syncKey),
+			// 	data,
+			// 	c
+			// );
+
+			// {
+			// 	let c = initSection('Months');
+			// 	let data = [
+			// 		[],
+			// 		[],
+			// 	];
+
+			// 	for (let y = 2024; y < 2026; y++) {
+			// 		for (let i = 1; i <= 12; i++) {
+			// 			let mo = String(i).padStart(2, '0');
+			// 			data[0].push(Date.parse(`${y}-${mo}-01T00:00:00Z`) / 1e3);
+			// 			data[1].push(i % 2 == 0 ? 0 : 1);
+			// 		}
+			// 	}
+			// 	let syncKey = null;
+
+			// 	new uPlot(
+			// 		genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+			// 		data,
+			// 		c
+			// 	);
+			// }
+
+			// {
+			// 	let c = initSection('Years');
+			// 	let data = [
+			// 		[],
+			// 		[],
+			// 	];
+
+			// 	for (let i = 0; i < 30; i++) {
+			// 		data[0].push(Date.parse(`${1990+i}-01-01T00:00:00Z`) / 1e3);
+			// 		data[1].push(i % 2 == 0 ? 0 : 1);
+			// 	}
+			// 	let syncKey = null;
+
+			// 	new uPlot(
+			// 		genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+			// 		data,
+			// 		c
+			// 	);
+			// }
 		</script>
 	</body>
 </html>
