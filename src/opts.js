@@ -39,7 +39,7 @@ import {
 	setStylePx,
 } from './dom';
 
-import { DateZoned, fmtDate, getSOP, PERIOD_DAY } from './fmtDate';
+import { DateZoned, fmtDate, floorSOP, PERIOD_DAY, PERIOD_MONTH, PERIOD_YEAR } from './fmtDate';
 
 //export const series = [];
 
@@ -160,33 +160,72 @@ function genTimeStuffs(ms) {
 			let splits = [];
 			let isYr = foundIncr >= y;
 			let isMo = foundIncr >= mo && foundIncr < y;
+			let isDays = foundIncr >= d && foundIncr < mo;
 
 			// get the timezone-adjusted date
 			let minDate = tzDate(scaleMin); // should this be ms-adjusted?
 			let minDateTs = roundDec(minDate * ms, 3);
 
 			// get ts of 12am (this lands us at or before the original scaleMin)
-			let minMin = (isMo || isYr) ? mkDate(minDate.getFullYear(), isYr ? 0 : minDate.getMonth(), isMo || isYr ? 1 : minDate.getDate()) : getSOP(minDate, PERIOD_DAY);
+			// TODO: multi-years/decades?
+			let minMin = floorSOP(minDate, isYr ? PERIOD_YEAR : isMo || isDays ? PERIOD_MONTH : PERIOD_DAY);
 			let minMinTs = roundDec(minMin * ms, 3);
 
-			if (isMo || isYr) {
-				let moIncr = isMo ? foundIncr / mo : 0;
-				let yrIncr = isYr ? foundIncr / y  : 0;
-			//	let tzOffset = scaleMin - minDateTs;		// needed?
-				let split = minDateTs == minMinTs ? minDateTs : roundDec(mkDate(minMin.getFullYear() + yrIncr, minMin.getMonth() + moIncr, 1) * ms, 3);
-				let splitDate = new Date(round(split / ms));
-				let baseYear = splitDate.getFullYear();
-				let baseMonth = splitDate.getMonth();
+			if (isDays || isMo || isYr) {
+				if (isDays) {
+					let incrDays = foundIncr / d;
 
-				for (let i = 0; split <= scaleMax; i++) {
-					let next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
-					let offs = next - tzDate(roundDec(next * ms, 3));
+					// incrs to add to month baseline
+					let skip = floor((minDate.getDate() - 1) / incrDays);
+					let split = minMinTs + (foundIncr * skip);
 
-					split = roundDec((+next + offs) * ms, 3);
+					do {
+						let date = tzDate(split);
+						// adjust for DST misses
+						let hour = date.getHours();
+						if (hour != 0) {
+							split += hour > 12 ? h : -h;
+							date = tzDate(split);
+						}
 
-					if (split <= scaleMax)
-						splits.push(split);
+						// rolled over into next month onto non-divisible incr, reset baseline
+						if ((date.getDate() - 1) % incrDays > 0) {
+							date = floorSOP(date, PERIOD_MONTH);
+							split = date.getTime() * ms;
+						}
+
+						if (split >= scaleMin)
+							splits.push(split);
+
+						split += foundIncr;
+					} while (split <= scaleMax);
 				}
+				else if (isMo) {
+
+				}
+
+				// is multiple months? 2, 3, 4, 6
+				// add 32 days each time, then getSOP
+
+
+
+			// 	let moIncr = isMo ? foundIncr / mo : 0;
+			// 	let yrIncr = isYr ? foundIncr / y  : 0;
+			// //	let tzOffset = scaleMin - minDateTs;		// needed?
+			// 	let split = minDateTs == minMinTs ? minDateTs : roundDec(mkDate(minMin.getFullYear() + yrIncr, minMin.getMonth() + moIncr, 1) * ms, 3);
+			// 	let splitDate = new Date(round(split / ms));
+			// 	let baseYear = splitDate.getFullYear();
+			// 	let baseMonth = splitDate.getMonth();
+
+			// 	for (let i = 0; split <= scaleMax; i++) {
+			// 		let next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
+			// 		let offs = next - tzDate(roundDec(next * ms, 3));
+
+			// 		split = roundDec((+next + offs) * ms, 3);
+
+			// 		if (split <= scaleMax)
+			// 			splits.push(split);
+			// 	}
 			}
 			else {
 				let incrHours = foundIncr / h;

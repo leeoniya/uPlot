@@ -165,6 +165,25 @@ const fmtrOpts = {
     timeZoneName: 'longOffset',
 };
 
+/*
+// this might be a bit easier to parse to avoid negative .slice() offsets
+new Intl.DateTimeFormat('en-US', {
+	hour12: false,
+	timeZone: 'Europe/London',
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+	hour: '2-digit',
+	minute: '2-digit',
+	second: '2-digit',
+	timeZoneName: 'longOffset',
+	weekday: 'short',
+	fractionalSecondDigits: 3,
+}).format(new Date());
+
+// Tue, 07/22/2025, 07:02:37.043 GMT+01:00
+*/
+
 const tzFmt = {};
 
 function getFormatter(tz) {
@@ -268,6 +287,10 @@ export class DateZoned extends Date {
 	}
 }
 
+function leapYear(year) {
+  return ((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0);
+}
+
 // these can be done through just incrRoundDn of 1e3 or 60 * 1e3
 // export const PERIOD_SECOND = 0;
 // export const PERIOD_MINUTE = 1;
@@ -283,7 +306,7 @@ export const PERIOD_YEAR = 5;
 // export const PERIOD_WEEK;
 
 // get start of period, requires DateZoned and period const
-export function getSOP(dz, per) {
+export function floorSOP(dz, per) {
 	let ts = dz.getTime();
 
 	// initial guess (assumes no DST)
@@ -302,6 +325,9 @@ export function getSOP(dz, per) {
 		)
 	);
 
+	// if (ts2 == ts)
+		// return dz;
+
 	let dz2 = new DateZoned(ts2);
 	dz2.setTimeZone(dz.tz);
 
@@ -315,6 +341,12 @@ export function getSOP(dz, per) {
 	}
 
 	return dz2;
+}
+
+// tweaks the time by +/- 1hr to make sure it lands on 12am
+// used for correcting optimistically-computed ticks from adding fixed increments
+export function sopNear(dz) {
+
 }
 
 /*
