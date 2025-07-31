@@ -167,65 +167,80 @@ function genTimeStuffs(ms) {
 			let minDateTs = roundDec(minDate * ms, 3);
 
 			// get ts of 12am (this lands us at or before the original scaleMin)
-			// TODO: multi-years/decades?
-			let minMin = floorSOP(minDate, isYr ? PERIOD_YEAR : isMo || isDays ? PERIOD_MONTH : PERIOD_DAY);
+			let minMin = floorSOP(minDate, isYr || isMo ? PERIOD_YEAR : isDays ? PERIOD_MONTH : PERIOD_DAY); // should we do PERIOD_HOUR?
 			let minMinTs = roundDec(minMin * ms, 3);
 
-			if (isDays || isMo || isYr) {
-				if (isDays) {
-					let incrDays = foundIncr / d;
+			if (isDays) {
+				let incrDays = foundIncr / d;
 
-					// incrs to add to month baseline
-					let skip = floor((minDate.getDate() - 1) / incrDays);
-					let split = minMinTs + (foundIncr * skip);
+				// incrs to add to month baseline
+				let skip = floor((minDate.getDate() - 1) / incrDays);
+				let split = minMinTs + (foundIncr * skip);
 
-					do {
-						let date = tzDate(split);
-						// adjust for DST misses
-						let hour = date.getHours();
-						if (hour != 0) {
-							split += hour > 12 ? h : -h;
-							date = tzDate(split);
-						}
+				do {
+					let date = tzDate(split);
+					// adjust for DST misses
+					let hour = date.getHours();
+					if (hour != 0) {
+						split += hour > 12 ? h : -h;
+						date = tzDate(split);
+					}
 
-						// rolled over into next month onto non-divisible incr, reset baseline
-						if ((date.getDate() - 1) % incrDays > 0) {
-							date = floorSOP(date, PERIOD_MONTH);
-							split = date.getTime() * ms;
-						}
+					// rolled over into next month onto non-divisible incr, reset baseline
+					if ((date.getDate() - 1) % incrDays > 0) {
+						date = floorSOP(date, PERIOD_MONTH);
+						split = date.getTime() * ms;
 
-						if (split >= scaleMin)
-							splits.push(split);
+						// make sure we're not rendering a collision between 31 and 1
+						if (split - splits[splits.length - 1] < foundIncr * 0.7)
+							splits.pop();
+					}
 
-						split += foundIncr;
-					} while (split <= scaleMax);
+					if (split > scaleMax)
+						break;
+
+					if (split >= scaleMin)
+						splits.push(split);
+
+					split += foundIncr;
+				} while (1);
+			}
+			else if (isMo || isYr) {
+				let subIncrs = 1;
+				let subIncrDays = 1;
+				let periodType = 0;
+				let periodMin = 0;
+
+				if (isMo) {
+					subIncrs = foundIncr / mo;
+					subIncrDays = 32;
+					periodType = PERIOD_MONTH;
+					periodMin = minDate.getMonth();
 				}
-				else if (isMo) {
-
+				else if (isYr) {
+					subIncrs = foundIncr / y;
+					subIncrDays = 366;
+					periodType = PERIOD_YEAR;
+					periodMin = minDate.getYear();
 				}
 
-				// is multiple months? 2, 3, 4, 6
-				// add 32 days each time, then getSOP
+				foundIncr = subIncrs * subIncrDays * d;
 
+				let skip = floor(periodMin / subIncrDays);
+				let split = minMinTs + (foundIncr * skip);
 
+				do {
+					let date = floorSOP(tzDate(split), periodType);
+					split = date.getTime() * ms;
 
-			// 	let moIncr = isMo ? foundIncr / mo : 0;
-			// 	let yrIncr = isYr ? foundIncr / y  : 0;
-			// //	let tzOffset = scaleMin - minDateTs;		// needed?
-			// 	let split = minDateTs == minMinTs ? minDateTs : roundDec(mkDate(minMin.getFullYear() + yrIncr, minMin.getMonth() + moIncr, 1) * ms, 3);
-			// 	let splitDate = new Date(round(split / ms));
-			// 	let baseYear = splitDate.getFullYear();
-			// 	let baseMonth = splitDate.getMonth();
+					if (split > scaleMax)
+						break;
 
-			// 	for (let i = 0; split <= scaleMax; i++) {
-			// 		let next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
-			// 		let offs = next - tzDate(roundDec(next * ms, 3));
+					if (split >= scaleMin)
+						splits.push(split);
 
-			// 		split = roundDec((+next + offs) * ms, 3);
-
-			// 		if (split <= scaleMax)
-			// 			splits.push(split);
-			// 	}
+					split += foundIncr;
+				} while (1);
 			}
 			else {
 				let incrHours = foundIncr / h;
@@ -235,7 +250,7 @@ function genTimeStuffs(ms) {
 
 				let date0 = tzDate(split);
 
-				// hours of first split have to be disvisible by incr, otherwise 6h ticks can start at 5pm
+				// hours of first split have to be divisible by incr, otherwise 6h ticks can start at 5pm
 				// instead of 6 or 12 when start of range falls on DST day after shift
 				if (incrHours > 1) {
 					let splitHours = date0.getHours();

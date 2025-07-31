@@ -276,15 +276,15 @@ export class DateZoned extends Date {
         let s = this.#str;
         return this.#utc ? 0 : s == null ? super.getTimezoneOffset() : (60 * Number(s.slice(-5,-3)) + Number(s.slice(-2))) * (s.at(-6) == '-' ? -1 : 1);
     }
+}
 
-	getDayOfYear() {
-		let y = this.getFullYear();
-		let m = this.getMonth() + 1;
-		let d = this.getDate();
+function getDayOfYear(date) {
+	let y = date.getFullYear();
+	let m = date.getMonth() + 1;
+	let d = date.getDate();
 
-		// https://stackoverflow.com/a/27790471
-		return --m*31-(m>1?(1054267675>>m*3-6&7)-(y&3||!(y%25)&&y&15?0:1):0)+d;
-	}
+	// https://stackoverflow.com/a/27790471
+	return --m*31-(m>1?(1054267675>>m*3-6&7)-(y&3||!(y%25)&&y&15?0:1):0)+d;
 }
 
 function leapYear(year) {
@@ -318,7 +318,7 @@ export function floorSOP(dz, per) {
 		(
 			(
 				per == PERIOD_MONTH ? dz.getDate() - 1:
-				per == PERIOD_YEAR  ? dz.getDayOfYear() - 1:
+				per == PERIOD_YEAR  ? getDayOfYear(dz) - 1:
 				0
 			)
 			* 24 * 3600 * 1e3
