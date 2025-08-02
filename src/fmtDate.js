@@ -347,9 +347,7 @@ export function floorSOP(dz, per) {
 
 // tweaks the time by +/- 1hr to make sure it lands on 12am
 // used for correcting optimistically-computed ticks from adding fixed increments
-export function sopNear(dz) {
-
-}
+// export function sopNear(dz, per) {}
 
 /*
 let fmt = fmtDate('{YYYY}-{MM}-{DD}T{HH}:{mm}:{ss}.{fff}{tzo}');
