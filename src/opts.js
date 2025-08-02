@@ -163,7 +163,7 @@ function genTimeStuffs(ms) {
 			let isDays = foundIncr >= d && foundIncr < mo;
 
 			// get the timezone-adjusted date
-			let minDate = tzDate(scaleMin); // should this be ms-adjusted?
+			let minDate = tzDate(scaleMin);
 			let minDateTs = roundDec(minDate * ms, 3);
 
 			// get ts of 12am (this lands us at or before the original scaleMin)

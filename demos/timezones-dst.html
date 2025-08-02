@@ -30,13 +30,16 @@
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
+			let ms = .001;
+			let msi = ms * 1e3;
+
 			// Jan 1 2024 UTC
-			let start = 1704067200;
+			let start = 1704067200 * msi;
 
 			let times = [];
 
 			for (let h = 0; h < 366 * 24 + 1; h++)
-				times.push(start + h * 3600);
+				times.push(start + h * 3600 * msi);
 
 			let values = Array(times.length);
 
@@ -67,7 +70,8 @@
 			function genOpts(title, tz, syncKey) {
 				return {
 					title: title,
-					tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), tz),
+					tzDate: ts => uPlot.tzDate(new Date(ts / ms), tz),
+					ms,
 					cursor: {
 						sync: {
 							key: syncKey,
@@ -99,7 +103,7 @@
 
 			{
 				let c = initSection('London\'s 2024 "spring forward" time range');
-				let data = sliceRange(times.findIndex(v => v == 1711800000), 2);
+				let data = sliceRange(times.findIndex(v => v == 1711800000 * msi), 2);
 				let syncKey = 0;
 
 				new uPlot(
@@ -123,7 +127,7 @@
 
 			{
 				let c = initSection('London\'s 2024 "fall back" time range');
-				let data = sliceRange(times.findIndex(v => v == 1729944000), 2);
+				let data = sliceRange(times.findIndex(v => v == 1729944000 * msi), 2);
 				let syncKey = 1;
 
 				new uPlot(
@@ -157,7 +161,7 @@
 
 			{
 				let c = initSection('Chicago\'s 2024 "spring forward" time range');
-				let data = sliceRange(times.findIndex(v => v == 1709985600), 2);
+				let data = sliceRange(times.findIndex(v => v == 1709985600 * msi), 2);
 				let syncKey = 2;
 
 				new uPlot(
@@ -181,7 +185,7 @@
 
 			{
 				let c = initSection('Chicago\'s 2024 "fall back" time range');
-				let data = sliceRange(times.findIndex(v => v == 1730548800), 2);
+				let data = sliceRange(times.findIndex(v => v == 1730548800 * msi), 2);
 				let syncKey = 3;
 
 				new uPlot(
@@ -233,27 +237,27 @@
 
 				new uPlot(
 					genOpts("1-Month", 'Etc/UTC'),
-					[[start,1719792000],[0.5,0.5]],
+					[[start,1719792000*msi],[0.5,0.5]],
 					c
 				);
 				new uPlot(
 					genOpts("2-Month", 'Etc/UTC'),
-	 				[[start,1735689600],[0.5,0.5]],
+	 				[[start,1735689600*msi],[0.5,0.5]],
 					c
 				);
 				new uPlot(
 					genOpts("3-Month", 'Etc/UTC'),
-	 				[[start,1767225600],[0.5,0.5]],
+	 				[[start,1767225600*msi],[0.5,0.5]],
 					c
 				);
 				new uPlot(
 					genOpts("4-Month", 'Etc/UTC'),
-	 				[[start,1798761600],[0.5,0.5]],
+	 				[[start,1798761600*msi],[0.5,0.5]],
 					c
 				);
 				new uPlot(
 					genOpts("6-Month", 'Etc/UTC'),
-	 				[[start,1830768000],[0.5,0.5]],
+	 				[[start,1830768000*msi],[0.5,0.5]],
 					c
 				);
 
@@ -264,13 +268,13 @@
 
 				new uPlot(
 					genOpts("3-Day (ensure Jan 1)", 'Etc/UTC'),
-					[[1704240000,1704240000 + 25 * 24 * 3600],[0.5,0.5]],
+					[[1704240000*msi,1704240000*msi + 25 * 24 * 3600*msi],[0.5,0.5]],
 					c
 				);
 
 				new uPlot(
 					genOpts("2-Month (ensure Jan 1)", 'Etc/UTC'),
-					[[1722470400,1754006400],[0.5,0.5]],
+					[[1722470400*msi,1754006400*msi],[0.5,0.5]],
 					c
 				);
 			}
