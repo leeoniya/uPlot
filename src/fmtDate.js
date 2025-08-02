@@ -395,11 +395,4 @@ TODO:
   start of day in dst fwd day / bwd day
 
 Australia/Darwin
-
-variable month widths
-
-simplify dstShift ?
-handle isYr, isMo properly
-
-ensure ms 0.001 is accounted for
 */
