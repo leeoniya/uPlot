@@ -941,7 +941,22 @@ const subs = {
 	s:		d => d.getSeconds(),
 	// 374
 	fff:	d => zeroPad3(d.getMilliseconds()),
+
+	/*
+	// this really only makes sense for DateZoned
+	// -05:00
+	tzo:    d => {
+		let o = d.getTimezoneOffset();
+		let s = o > 0 ? '-' : '+';
+		o = abs(o);
+		let hh = zeroPad2(floor(o / 60));
+		let mm = zeroPad2(o % 60);
+		return `${s}${hh}:${mm}`;
+	}
+	*/
 };
+
+// export const iso8601 = fmtDate('{YYYY}-{MM}-{DD}T{HH}:{mm}:{ss}.{fff}{tzo}');
 
 function fmtDate(tpl, names) {
 	names = names || engNames;
@@ -964,22 +979,254 @@ function fmtDate(tpl, names) {
 
 const localTz = new Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-// https://stackoverflow.com/questions/15141762/how-to-initialize-a-javascript-date-to-a-particular-time-zone/53652131#53652131
 function tzDate(date, tz) {
-	let date2;
+	if (tz == localTz)
+		return date;
 
-	// perf optimization
-	if (tz == 'UTC' || tz == 'Etc/UTC')
-		date2 = new Date(+date + date.getTimezoneOffset() * 6e4);
-	else if (tz == localTz)
-		date2 = date;
-	else {
-		date2 = new Date(date.toLocaleString('en-US', {timeZone: tz}));
-		date2.setMilliseconds(date.getMilliseconds());
+	let d = new DateZoned(date);
+	d.setTimeZone(tz);
+	return d;
+}
+
+const twoDigit = '2-digit';
+
+const fmtrOpts = {
+    weekday: "short",
+    year: 'numeric',
+    month: twoDigit,
+    day: twoDigit,
+    hour: twoDigit,
+    minute: twoDigit,
+    second: twoDigit,
+    fractionalSecondDigits: 3,
+    timeZoneName: 'longOffset',
+};
+
+/*
+// this might be a bit easier to parse to avoid negative .slice() offsets
+new Intl.DateTimeFormat('en-US', {
+	hour12: false,
+	timeZone: 'Europe/London',
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+	hour: '2-digit',
+	minute: '2-digit',
+	second: '2-digit',
+	timeZoneName: 'longOffset',
+	weekday: 'short',
+	fractionalSecondDigits: 3,
+}).format(new Date());
+
+// Tue, 07/22/2025, 07:02:37.043 GMT+01:00
+*/
+
+const tzFmt = {};
+
+function getFormatter(tz) {
+    if (tzFmt[tz] == null)
+        tzFmt[tz] = new Intl.DateTimeFormat("sv", {...fmtrOpts, timeZone: tz}).format;
+
+    return tzFmt[tz];
+}
+
+class DateZoned extends Date {
+	tz = null;
+	#utc = false;
+	// sön, 1972-10-15 17:25:23,434 GMT+01:00
+    #str = null;
+
+	constructor(...args) {
+		super(...args);
+
+		if (args[0] instanceof DateZoned) {
+			this.tz  = args[0].tz;
+			this.#str = args[0].#str;
+			this.#utc = args[0].#utc;
+		}
 	}
 
-	return date2;
+    #get(utcMeth, locMeth, fr, to, add = 0) {
+        let s = this.#str;
+        return this.#utc ? utcMeth.call(this) : s == null ? locMeth.call(this) : Number(s.slice(fr,to)) + add;
+    }
+
+    setTimeZone(tz) {
+		this.tz = tz;
+
+        if (tz == 'UTC' || tz == 'Etc/UTC')
+            this.#utc = true;
+        else {
+            let fmt = getFormatter(tz);
+			let f = fmt(this);
+
+            if (f.endsWith('GMT'))
+                f += '+00:00';
+
+            this.#str = f;
+        }
+    }
+
+	getFullYear() {
+        return this.#get(this.getUTCFullYear, super.getFullYear, -33, -29);
+    }
+
+	getMonth() {
+        return this.#get(this.getUTCMonth, super.getMonth, -28, -26, -1);
+    }
+
+	getDate() {
+        return this.#get(this.getUTCDate, super.getDate, -25, -23);
+    }
+
+	getHours() {
+        return this.#get(this.getUTCHours, super.getHours, -22, -20);
+    }
+
+	getMinutes() {
+        return this.#get(this.getUTCMinutes, super.getMinutes, -19, -17);
+    }
+
+	getSeconds() {
+        return this.#get(this.getUTCSeconds, super.getSeconds, -16, -14);
+    }
+
+	getMilliseconds() {
+        return this.#get(this.getUTCMilliseconds, super.getMilliseconds, -13, -10);
+    }
+
+	getDay() {
+		let s = this.#str;
+        return this.#utc ? this.getUTCDay() : s == null ? super.getDay() : (
+			s[0] == 's' ? 0 : // sön
+			s[0] == 'm' ? 1 : // mån
+			s[1] == 'i' ? 2 : // tis
+			s[0] == 'o' ? 3 : // ons
+			s[1] == 'o' ? 4 : // tors
+			s[0] == 'f' ? 5 : // fre
+			s[0] == 'l' ? 6 : // lör
+			-1
+		);
+    }
+
+    getTimezoneOffset() {
+        let s = this.#str;
+        return this.#utc ? 0 : s == null ? super.getTimezoneOffset() : (60 * Number(s.slice(-5,-3)) + Number(s.slice(-2))) * (s.at(-6) == '-' ? -1 : 1);
+    }
 }
+
+function getDayOfYear(date) {
+	let y = date.getFullYear();
+	let m = date.getMonth() + 1;
+	let d = date.getDate();
+
+	// https://stackoverflow.com/a/27790471
+	return --m*31-(m>1?(1054267675>>m*3-6&7)-(y&3||!(y%25)&&y&15?0:1):0)+d;
+}
+
+// these can be done through just incrRoundDn of 1e3 or 60 * 1e3
+// export const PERIOD_SECOND = 0;
+// export const PERIOD_MINUTE = 1;
+
+// this might be needed for tzs where DST is not whole hours?
+// otherwise incrRoundDn of 3600 * 1e3
+// export const PERIOD_HOUR = 2;
+
+// thse need special handling due to day length changing due to DST
+const PERIOD_DAY = 3;
+const PERIOD_MONTH = 4;
+const PERIOD_YEAR = 5;
+// export const PERIOD_WEEK;
+
+// get start of period, requires DateZoned and period const
+function floorSOP(dz, per) {
+	let ts = dz.getTime();
+
+	// initial guess (assumes no DST)
+	let ts2 = ts - (
+		dz.getMilliseconds()       +
+		dz.getSeconds()      * 1e3 +
+		dz.getMinutes() * 60 * 1e3 +
+		dz.getHours() * 3600 * 1e3 +
+		(
+			(
+				per == PERIOD_MONTH ? dz.getDate() - 1:
+				per == PERIOD_YEAR  ? getDayOfYear(dz) - 1:
+				0
+			)
+			* 24 * 3600 * 1e3
+		)
+	);
+
+	// if (ts2 == ts)
+		// return dz;
+
+	let dz2 = new DateZoned(ts2);
+	dz2.setTimeZone(dz.tz);
+
+	let h2 = dz2.getHours();
+
+	// we want hours to be 0
+	if (h2 > 0) {
+		let dstAdj = h2 > 12 ? 24 - h2 : -h2;
+		dz2 = new DateZoned(ts2 + dstAdj * 3600 * 1e3);
+		dz2.setTimeZone(dz.tz);
+	}
+
+	return dz2;
+}
+
+// tweaks the time by +/- 1hr to make sure it lands on 12am
+// used for correcting optimistically-computed ticks from adding fixed increments
+// export function sopNear(dz, per) {}
+
+/*
+let fmt = fmtDate('{YYYY}-{MM}-{DD}T{HH}:{mm}:{ss}.{fff}{tzo}');
+
+{
+	let d = new DateZoned(1554274800000); // post-roll date
+	d.setTimeZone('Europe/London');
+	let sod = getSOP(d, PERIOD_DAY);
+	console.log(sod.getTime() / 1e3);
+	console.log(fmt(sod));
+}
+
+{
+	let d = new DateZoned(1554274800000); // post-roll date
+	d.setTimeZone('America/Chicago');
+	let sod = getSOP(d, PERIOD_DAY);
+	console.log(sod.getTime() / 1e3);
+	console.log(fmt(sod));
+}
+
+{
+	let d = new DateZoned(1554004800000); // few hours after london spring forward
+	d.setTimeZone('Europe/London');
+	let sod = getSOP(d, PERIOD_DAY);
+	console.log(sod.getTime() / 1e3);
+	console.log(fmt(sod));
+}
+
+{
+	let d = new DateZoned(1572156000000); // few hours after london fall back
+	d.setTimeZone('Europe/London');
+	let sod = getSOP(d, PERIOD_DAY);
+	console.log(sod.getTime() / 1e3);
+	console.log(fmt(sod));
+}
+*/
+
+
+/*
+TODO:
+
+2024 - leap year
+  start of year before feb vs after
+  start of month in dst fwd month / bwd month
+  start of day in dst fwd day / bwd day
+
+Australia/Darwin
+*/
 
 //export const series = [];
 
@@ -1100,44 +1347,117 @@ function genTimeStuffs(ms) {
 			let splits = [];
 			let isYr = foundIncr >= y;
 			let isMo = foundIncr >= mo && foundIncr < y;
+			let isDays = foundIncr >= d && foundIncr < mo;
 
 			// get the timezone-adjusted date
 			let minDate = tzDate(scaleMin);
 			let minDateTs = roundDec(minDate * ms, 3);
 
 			// get ts of 12am (this lands us at or before the original scaleMin)
-			let minMin = mkDate(minDate.getFullYear(), isYr ? 0 : minDate.getMonth(), isMo || isYr ? 1 : minDate.getDate());
+			let minMin = floorSOP(minDate, isYr || isMo ? PERIOD_YEAR : isDays ? PERIOD_MONTH : PERIOD_DAY); // should we do PERIOD_HOUR?
 			let minMinTs = roundDec(minMin * ms, 3);
 
-			if (isMo || isYr) {
-				let moIncr = isMo ? foundIncr / mo : 0;
-				let yrIncr = isYr ? foundIncr / y  : 0;
-			//	let tzOffset = scaleMin - minDateTs;		// needed?
-				let split = minDateTs == minMinTs ? minDateTs : roundDec(mkDate(minMin.getFullYear() + yrIncr, minMin.getMonth() + moIncr, 1) * ms, 3);
-				let splitDate = new Date(round(split / ms));
-				let baseYear = splitDate.getFullYear();
-				let baseMonth = splitDate.getMonth();
+			if (isDays) {
+				let incrDays = foundIncr / d;
 
-				for (let i = 0; split <= scaleMax; i++) {
-					let next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
-					let offs = next - tzDate(roundDec(next * ms, 3));
+				// incrs to add to month baseline
+				let skip = floor((minDate.getDate() - 1) / incrDays);
+				let split = minMinTs + (foundIncr * skip);
 
-					split = roundDec((+next + offs) * ms, 3);
+				do {
+					let date = tzDate(split);
+					// adjust for DST misses
+					let hour = date.getHours();
+					if (hour != 0) {
+						split += hour > 12 ? h : -h;
+						date = tzDate(split);
+					}
 
-					if (split <= scaleMax)
+					// rolled over into next month onto non-divisible incr, reset baseline
+					if ((date.getDate() - 1) % incrDays > 0) {
+						date = floorSOP(date, PERIOD_MONTH);
+						split = date.getTime() * ms;
+
+						// make sure we're not rendering a collision between 31 and 1
+						if (split - splits[splits.length - 1] < foundIncr * 0.7)
+							splits.pop();
+					}
+
+					if (split > scaleMax)
+						break;
+
+					if (split >= scaleMin)
 						splits.push(split);
+
+					split += foundIncr;
+				} while (1);
+			}
+			else if (isMo || isYr) {
+				let subIncrs = 1;
+				let subIncrDays = 1;
+				let periodType = 0;
+				let periodMin = 0;
+
+				if (isMo) {
+					subIncrs = foundIncr / mo;
+					subIncrDays = 32;
+					periodType = PERIOD_MONTH;
+					periodMin = minDate.getMonth();
 				}
+				else if (isYr) {
+					subIncrs = foundIncr / y;
+					subIncrDays = 366;
+					periodType = PERIOD_YEAR;
+					periodMin = minDate.getYear();
+				}
+
+				foundIncr = subIncrs * subIncrDays * d;
+
+				let skip = floor(periodMin / subIncrDays);
+				let split = minMinTs + (foundIncr * skip);
+
+				do {
+					let date = floorSOP(tzDate(split), periodType);
+					split = date.getTime() * ms;
+
+					if (split > scaleMax)
+						break;
+
+					if (split >= scaleMin)
+						splits.push(split);
+
+					split += foundIncr;
+				} while (1);
 			}
 			else {
+				let incrHours = foundIncr / h;
+
 				let incr0 = foundIncr >= d ? d : foundIncr;
-				let tzOffset = floor(scaleMin) - floor(minDateTs);
-				let split = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
-				splits.push(split);
+				let split = minMinTs + incrRoundUp(minDateTs - minMinTs, incr0);
 
 				let date0 = tzDate(split);
 
+				// hours of first split have to be divisible by incr, otherwise 6h ticks can start at 5pm
+				// instead of 6 or 12 when start of range falls on DST day after shift
+				if (incrHours > 1) {
+					let splitHours = date0.getHours();
+					let diff = splitHours % incrHours;
+
+					if (diff > 0) {
+						let splitPre = split - diff * h;
+
+						if (splitPre >= minDateTs)
+							split = splitPre;
+						else
+							split += (incrHours - diff) * h;
+
+						date0 = tzDate(split);
+					}
+				}
+
+				splits.push(split);
+
 				let prevHour = date0.getHours() + (date0.getMinutes() / m) + (date0.getSeconds() / h);
-				let incrHours = foundIncr / h;
 
 				let minSpace = self.axes[axisIdx]._space;
 				let pctSpace = foundSpace / minSpace;
@@ -1166,7 +1486,7 @@ function genTimeStuffs(ms) {
 						let prevSplit = splits[splits.length - 1];
 						let pctIncr = roundDec((split - prevSplit) / foundIncr, 3);
 
-						if (pctIncr * pctSpace >= .7)
+						if (pctIncr * pctSpace >= .7 && (actualHour - dstShift) % incrHours == 0)
 							splits.push(split);
 					}
 					else
@@ -1258,10 +1578,6 @@ function timeAxisVals(tzDate, stamps) {
 function timeAxisVal(tzDate, dateTpl) {
 	let stamp = fmtDate(dateTpl);
 	return (self, splits, axisIdx, foundSpace, foundIncr) => splits.map(split => stamp(tzDate(split)));
-}
-
-function mkDate(y, m, d) {
-	return new Date(y, m, d);
 }
 
 function timeSeriesStamp(stampCfg, fmtDate) {
