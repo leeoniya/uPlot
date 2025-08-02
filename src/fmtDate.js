@@ -107,6 +107,7 @@ const subs = {
 	// 374
 	fff:	d => zeroPad3(d.getMilliseconds()),
 
+	/*
 	// this really only makes sense for DateZoned
 	// -05:00
 	tzo:    d => {
@@ -117,6 +118,7 @@ const subs = {
 		let mm = zeroPad2(o % 60);
 		return `${s}${hh}:${mm}`;
 	}
+	*/
 };
 
 // export const iso8601 = fmtDate('{YYYY}-{MM}-{DD}T{HH}:{mm}:{ss}.{fff}{tzo}');
