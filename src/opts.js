@@ -39,7 +39,7 @@ import {
 	setStylePx,
 } from './dom';
 
-import { fmtDate } from './fmtDate';
+import { DateZoned, fmtDate, floorSOP, PERIOD_DAY, PERIOD_MONTH, PERIOD_YEAR } from './fmtDate';
 
 //export const series = [];
 
@@ -160,44 +160,117 @@ function genTimeStuffs(ms) {
 			let splits = [];
 			let isYr = foundIncr >= y;
 			let isMo = foundIncr >= mo && foundIncr < y;
+			let isDays = foundIncr >= d && foundIncr < mo;
 
 			// get the timezone-adjusted date
 			let minDate = tzDate(scaleMin);
 			let minDateTs = roundDec(minDate * ms, 3);
 
 			// get ts of 12am (this lands us at or before the original scaleMin)
-			let minMin = mkDate(minDate.getFullYear(), isYr ? 0 : minDate.getMonth(), isMo || isYr ? 1 : minDate.getDate());
+			let minMin = floorSOP(minDate, isYr || isMo ? PERIOD_YEAR : isDays ? PERIOD_MONTH : PERIOD_DAY); // should we do PERIOD_HOUR?
 			let minMinTs = roundDec(minMin * ms, 3);
 
-			if (isMo || isYr) {
-				let moIncr = isMo ? foundIncr / mo : 0;
-				let yrIncr = isYr ? foundIncr / y  : 0;
-			//	let tzOffset = scaleMin - minDateTs;		// needed?
-				let split = minDateTs == minMinTs ? minDateTs : roundDec(mkDate(minMin.getFullYear() + yrIncr, minMin.getMonth() + moIncr, 1) * ms, 3);
-				let splitDate = new Date(round(split / ms));
-				let baseYear = splitDate.getFullYear();
-				let baseMonth = splitDate.getMonth();
+			if (isDays) {
+				let incrDays = foundIncr / d;
 
-				for (let i = 0; split <= scaleMax; i++) {
-					let next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
-					let offs = next - tzDate(roundDec(next * ms, 3));
+				// incrs to add to month baseline
+				let skip = floor((minDate.getDate() - 1) / incrDays);
+				let split = minMinTs + (foundIncr * skip);
 
-					split = roundDec((+next + offs) * ms, 3);
+				do {
+					let date = tzDate(split);
+					// adjust for DST misses
+					let hour = date.getHours();
+					if (hour != 0) {
+						split += hour > 12 ? h : -h;
+						date = tzDate(split);
+					}
 
-					if (split <= scaleMax)
+					// rolled over into next month onto non-divisible incr, reset baseline
+					if ((date.getDate() - 1) % incrDays > 0) {
+						date = floorSOP(date, PERIOD_MONTH);
+						split = date.getTime() * ms;
+
+						// make sure we're not rendering a collision between 31 and 1
+						if (split - splits[splits.length - 1] < foundIncr * 0.7)
+							splits.pop();
+					}
+
+					if (split > scaleMax)
+						break;
+
+					if (split >= scaleMin)
 						splits.push(split);
+
+					split += foundIncr;
+				} while (1);
+			}
+			else if (isMo || isYr) {
+				let subIncrs = 1;
+				let subIncrDays = 1;
+				let periodType = 0;
+				let periodMin = 0;
+
+				if (isMo) {
+					subIncrs = foundIncr / mo;
+					subIncrDays = 32;
+					periodType = PERIOD_MONTH;
+					periodMin = minDate.getMonth();
 				}
+				else if (isYr) {
+					subIncrs = foundIncr / y;
+					subIncrDays = 366;
+					periodType = PERIOD_YEAR;
+					periodMin = minDate.getYear();
+				}
+
+				foundIncr = subIncrs * subIncrDays * d;
+
+				let skip = floor(periodMin / subIncrDays);
+				let split = minMinTs + (foundIncr * skip);
+
+				do {
+					let date = floorSOP(tzDate(split), periodType);
+					split = date.getTime() * ms;
+
+					if (split > scaleMax)
+						break;
+
+					if (split >= scaleMin)
+						splits.push(split);
+
+					split += foundIncr;
+				} while (1);
 			}
 			else {
+				let incrHours = foundIncr / h;
+
 				let incr0 = foundIncr >= d ? d : foundIncr;
-				let tzOffset = floor(scaleMin) - floor(minDateTs);
-				let split = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
-				splits.push(split);
+				let split = minMinTs + incrRoundUp(minDateTs - minMinTs, incr0);
 
 				let date0 = tzDate(split);
 
+				// hours of first split have to be divisible by incr, otherwise 6h ticks can start at 5pm
+				// instead of 6 or 12 when start of range falls on DST day after shift
+				if (incrHours > 1) {
+					let splitHours = date0.getHours();
+					let diff = splitHours % incrHours;
+
+					if (diff > 0) {
+						let splitPre = split - diff * h;
+
+						if (splitPre >= minDateTs)
+							split = splitPre;
+						else
+							split += (incrHours - diff) * h;
+
+						date0 = tzDate(split);
+					}
+				}
+
+				splits.push(split);
+
 				let prevHour = date0.getHours() + (date0.getMinutes() / m) + (date0.getSeconds() / h);
-				let incrHours = foundIncr / h;
 
 				let minSpace = self.axes[axisIdx]._space;
 				let pctSpace = foundSpace / minSpace;
@@ -226,7 +299,7 @@ function genTimeStuffs(ms) {
 						let prevSplit = splits[splits.length - 1];
 						let pctIncr = roundDec((split - prevSplit) / foundIncr, 3);
 
-						if (pctIncr * pctSpace >= .7)
+						if (pctIncr * pctSpace >= .7 && (actualHour - dstShift) % incrHours == 0)
 							splits.push(split);
 					}
 					else

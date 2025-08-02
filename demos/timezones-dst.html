@@ -7,32 +7,44 @@
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
 		<style>
+			section {
+				display: inline-block;
+				vertical-align: top;
+				width: 600px;
+				margin: 8px;
+				box-shadow: 0px 0px 8px 4px #ccc;
+			}
+
 			h3 {
 				text-align: center;
-				padding: 25px;
+				padding: 10px;
 				background: #E1F5FE;
+				margin: 0;
 			}
 
 			.uplot {
-				display: inline-block;
+				margin: 20px 0;
 			}
 		</style>
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
-			// Jan 1 2019 UTC
-			let start = 1546300800;
+			let ms = .001;
+			let msi = ms * 1e3;
+
+			// Jan 1 2024 UTC
+			let start = 1704067200 * msi;
 
 			let times = [];
 
-			for (let h = 0; h < 365 * 24; h++)
-				times.push(start + h * 3600);
+			for (let h = 0; h < 366 * 24 + 1; h++)
+				times.push(start + h * 3600 * msi);
 
 			let values = Array(times.length);
 
 			for (let i = 0; i < times.length; i++)
-				values[i] = i % 24 == 0 ? 1 : 0.5;
+				values[i] = i % 24 == 0 ? 1 : 0;
 
 			let data0 = [
 				times,
@@ -41,21 +53,25 @@
 
 			function sliceRange(fromTs, numDays) {
 				return [
-					times.slice(fromTs, fromTs + 24 * numDays),
-					values.slice(fromTs, fromTs + 24 * numDays),
+					times.slice(fromTs, fromTs + 24 * numDays + 1),
+					values.slice(fromTs, fromTs + 24 * numDays + 1),
 				];
 			}
 
-			function putHeader(text) {
+			function initSection(text) {
 				let h = document.createElement("h3");
 				h.textContent = text;
-				document.body.appendChild(h);
+				let ctnr = document.createElement('section');
+				ctnr.appendChild(h);
+				document.body.appendChild(ctnr);
+				return ctnr;
 			}
 
 			function genOpts(title, tz, syncKey) {
 				return {
 					title: title,
-					tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), tz),
+					tzDate: ts => uPlot.tzDate(new Date(ts / ms), tz),
+					ms,
 					cursor: {
 						sync: {
 							key: syncKey,
@@ -63,109 +79,254 @@
 						},
 					},
 					width: 600,
-					height: 300,
+					height: 200,
+					scales: {
+						y: {
+							range: [0, 1]
+						}
+					},
+					axes: [
+						{},
+						{
+							incrs: [0.5],
+						},
+					],
 					series: [
 						{},
 						{
-							label: "2019",
+							label: "2024",
 							stroke: "red",
 						},
 					],
 				}
 			}
 
-			let data;
+			{
+				let c = initSection('London\'s 2024 "spring forward" time range');
+				let data = sliceRange(times.findIndex(v => v == 1711800000 * msi), 2);
+				let syncKey = 0;
 
+				new uPlot(
+					genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+					data,
+					c
+				);
 
-			putHeader('London\'s 2019 "spring forward" time range');
-			data = sliceRange(times.findIndex(v => v == 1553774400), 6);
-			syncKey = 0;
+				new uPlot(
+					genOpts("Europe/London (Mar 31, 2024: 1am -> 2am)", 'Europe/London', syncKey),
+					data,
+					c
+				);
 
-			new uPlot(
-				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
+					data,
+					c
+				);
+			}
 
-			new uPlot(
-				genOpts("Europe/London (Mar 31, 2019: 1am -> 2am)", 'Europe/London', syncKey),
-				data,
-				document.body
-			);
+			{
+				let c = initSection('London\'s 2024 "fall back" time range');
+				let data = sliceRange(times.findIndex(v => v == 1729944000 * msi), 2);
+				let syncKey = 1;
 
-			new uPlot(
-				genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+					data,
+					c
+				);
 
+				new uPlot(
+					genOpts("Europe/London (Oct 27, 2024: 2am -> 1am)", 'Europe/London', syncKey),
+					data,
+					c
+				);
 
-			putHeader('London\'s 2019 "fall back" time range');
-			data = sliceRange(times.findIndex(v => v == 1571918400), 6);
-			syncKey = 1;
+				// this is a good check to make sure that splits still properly respect tick increments at 12am baseline on DST day after shift
+				// {
+				// 	let data = sliceRange(times.findIndex(v => v == 1730030400), 2);
+				// 	new uPlot(
+				// 		genOpts("Europe/London (Oct 27, 2024: 2am -> 1am)", 'Europe/London', syncKey),
+				// 		data,
+				// 		c
+				// 	);
+				// }
 
-			new uPlot(
-				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
+					data,
+					c
+				);
+			}
 
-			new uPlot(
-				genOpts("Europe/London (Oct 27, 2019: 2am -> 1am)", 'Europe/London', syncKey),
-				data,
-				document.body
-			);
+			{
+				let c = initSection('Chicago\'s 2024 "spring forward" time range');
+				let data = sliceRange(times.findIndex(v => v == 1709985600 * msi), 2);
+				let syncKey = 2;
 
-			new uPlot(
-				genOpts("America/Chicago (no DST switch in this range)", 'America/Chicago', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+					data,
+					c
+				);
 
+				new uPlot(
+					genOpts("America/Chicago (Mar 10, 2024: 2am -> 3am)", 'America/Chicago', syncKey),
+					data,
+					c
+				);
 
-			putHeader('Chicago\'s 2019 "spring forward" time range');
-			data = sliceRange(times.findIndex(v => v == 1551960000), 6);
-			syncKey = 2;
+				new uPlot(
+					genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
+					data,
+					c
+				);
+			}
 
-			new uPlot(
-				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
-				data,
-				document.body
-			);
+			{
+				let c = initSection('Chicago\'s 2024 "fall back" time range');
+				let data = sliceRange(times.findIndex(v => v == 1730548800 * msi), 2);
+				let syncKey = 3;
 
-			new uPlot(
-				genOpts("America/Chicago (Mar 10, 2019: 2am -> 3am)", 'America/Chicago', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+					data,
+					c
+				);
 
-			new uPlot(
-				genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("America/Chicago (Nov 3, 2024: 2am -> 1am)", 'America/Chicago', syncKey),
+					data,
+					c
+				);
 
-			putHeader('Chicago\'s 2019 "fall back" time range');
-			data = sliceRange(times.findIndex(v => v == 1572523200), 6);
-			syncKey = 3;
+				new uPlot(
+					genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
+					data,
+					c
+				);
+			}
 
-			new uPlot(
-				genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
-				data,
-				document.body
-			);
+			{
+				let c = initSection('Days');
 
-			new uPlot(
-				genOpts("America/Chicago (Nov 3, 2019: 2am -> 1am)", 'America/Chicago', syncKey),
-				data,
-				document.body
-			);
+				new uPlot(
+					genOpts("1-Day", 'Etc/UTC'),
+					sliceRange(0, 10),
+					c
+				);
+				new uPlot(
+					genOpts("2-Day", 'Etc/UTC'),
+					sliceRange(0, 15),
+					c
+				);
+				new uPlot(
+					genOpts("3-Day", 'Etc/UTC'),
+					sliceRange(0, 25),
+					c
+				);
+				new uPlot(
+					genOpts("4-Day", 'Etc/UTC'),
+					sliceRange(0, 37),
+					c
+				);
+			}
 
-			new uPlot(
-				genOpts("Europe/London (no DST switch in this range)", 'Europe/London', syncKey),
-				data,
-				document.body
-			);
+			{
+				let c = initSection('Months');
+
+				new uPlot(
+					genOpts("1-Month", 'Etc/UTC'),
+					[[start,1719792000*msi],[0.5,0.5]],
+					c
+				);
+				new uPlot(
+					genOpts("2-Month", 'Etc/UTC'),
+	 				[[start,1735689600*msi],[0.5,0.5]],
+					c
+				);
+				new uPlot(
+					genOpts("3-Month", 'Etc/UTC'),
+	 				[[start,1767225600*msi],[0.5,0.5]],
+					c
+				);
+				new uPlot(
+					genOpts("4-Month", 'Etc/UTC'),
+	 				[[start,1798761600*msi],[0.5,0.5]],
+					c
+				);
+				new uPlot(
+					genOpts("6-Month", 'Etc/UTC'),
+	 				[[start,1830768000*msi],[0.5,0.5]],
+					c
+				);
+
+			}
+
+			{
+				let c = initSection('With start offset');
+
+				new uPlot(
+					genOpts("3-Day (ensure Jan 1)", 'Etc/UTC'),
+					[[1704240000*msi,1704240000*msi + 25 * 24 * 3600*msi],[0.5,0.5]],
+					c
+				);
+
+				new uPlot(
+					genOpts("2-Month (ensure Jan 1)", 'Etc/UTC'),
+					[[1722470400*msi,1754006400*msi],[0.5,0.5]],
+					c
+				);
+			}
+
+			// new uPlot(
+			// 	genOpts("Asia/Kolkata", 'Asia/Kolkata', syncKey),
+			// 	data,
+			// 	c
+			// );
+
+			// {
+			// 	let c = initSection('Months');
+			// 	let data = [
+			// 		[],
+			// 		[],
+			// 	];
+
+			// 	for (let y = 2024; y < 2026; y++) {
+			// 		for (let i = 1; i <= 12; i++) {
+			// 			let mo = String(i).padStart(2, '0');
+			// 			data[0].push(Date.parse(`${y}-${mo}-01T00:00:00Z`) / 1e3);
+			// 			data[1].push(i % 2 == 0 ? 0 : 1);
+			// 		}
+			// 	}
+			// 	let syncKey = null;
+
+			// 	new uPlot(
+			// 		genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+			// 		data,
+			// 		c
+			// 	);
+			// }
+
+			// {
+			// 	let c = initSection('Years');
+			// 	let data = [
+			// 		[],
+			// 		[],
+			// 	];
+
+			// 	for (let i = 0; i < 30; i++) {
+			// 		data[0].push(Date.parse(`${1990+i}-01-01T00:00:00Z`) / 1e3);
+			// 		data[1].push(i % 2 == 0 ? 0 : 1);
+			// 	}
+			// 	let syncKey = null;
+
+			// 	new uPlot(
+			// 		genOpts("UTC (no DST)", 'Etc/UTC', syncKey),
+			// 		data,
+			// 		c
+			// 	);
+			// }
 		</script>
 	</body>
 </html>
