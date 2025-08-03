@@ -150,8 +150,8 @@ declare class uPlot {
 	/** creates an efficient formatter for Date objects from a template string, e.g. {YYYY}-{MM}-{DD} */
 	static fmtDate(tpl: string, names?: uPlot.DateNames): (date: Date) => string;
 
-	/** converts a Date into new Date that's time-adjusted for the given IANA Time Zone Name */
-	static tzDate(date: Date, tzName: string): Date;
+	/** converts a Date or ms timestamp into new Date that's time-adjusted for the given IANA Time Zone Name */
+	static tzDate(dateOrTs: Date | number, tzName: string): DateZoned;
 
 	/** outerJoins multiple data tables on table[0] values */
 	static join(tables: uPlot.AlignedData[], nullModes?: uPlot.JoinNullMode[][]): uPlot.AlignedData;
@@ -227,6 +227,14 @@ declare namespace uPlot {
 		xValues: number[] | TypedArray,
 		...yValues: ((number | null | undefined)[] | TypedArray)[],
 	]
+
+	export class DateZoned extends Date {
+		tz: string;
+		#utc: boolean;
+		// sön, 1972-10-15 17:25:23,434 GMT+01:00
+		#str: string;
+		setTimeZone: (tzName: string) => void;
+	}
 
 	export interface DateNames {
 		/** long month names */
@@ -329,7 +337,7 @@ declare namespace uPlot {
 
 	export type DateFormatterFactory = (tpl: string) => (date: Date) => string;
 
-	export type LocalDateFromUnix = (ts: number) => Date;
+	export type LocalDateFromUnix = (ts: number) => DateZoned;
 
 	export const enum DrawOrderKey {
 		Axes   = 'axes',
