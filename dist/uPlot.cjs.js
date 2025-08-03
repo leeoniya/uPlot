@@ -981,11 +981,11 @@ function fmtDate(tpl, names) {
 
 const localTz = new Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-function tzDate(date, tz) {
-	if (tz == localTz)
-		return date;
+function tzDate(dateOrTs, tz) {
+	if (tz == null || tz == localTz)
+		return typeof dateOrTs == 'number' ? new Date(dateOrTs) : dateOrTs;
 
-	let d = new DateZoned(date);
+	let d = new DateZoned(dateOrTs);
 	d.setTimeZone(tz);
 	return d;
 }
