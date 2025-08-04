@@ -207,6 +207,209 @@
 				);
 			}
 
+			const sliceRange2 = (ts, days) => {
+				let d = sliceRange(times.findIndex(v => v == ts * msi), days);
+				d[1] = d[1].map(v => 0.5);
+				return d;
+			};
+
+			{
+				let c = initSection('Europe/London (Mar 31, 2024: 1am -> 2am)');
+				let syncKey = null;
+				let tz = 'Europe/London';
+				let start = 1711843200;
+
+				new uPlot(
+					genOpts("1h ticks", tz, syncKey),
+					sliceRange2(start, 0.3),
+					c
+				);
+
+				new uPlot(
+					genOpts("2h ticks", tz, syncKey),
+					sliceRange2(start, 0.5),
+					c
+				);
+
+				new uPlot(
+					genOpts("3h ticks", tz, syncKey),
+					sliceRange2(start, 1),
+					c
+				);
+
+				new uPlot(
+					genOpts("4h ticks", tz, syncKey),
+					sliceRange2(start, 1.5),
+					c
+				);
+
+				new uPlot(
+					genOpts("6h ticks", tz, syncKey),
+					sliceRange2(start, 2),
+					c
+				);
+
+				new uPlot(
+					genOpts("8h ticks", tz, syncKey),
+					sliceRange2(start, 3),
+					c
+				);
+
+				new uPlot(
+					genOpts("12h ticks", tz, syncKey),
+					sliceRange2(start, 4),
+					c
+				);
+			}
+
+			{
+				let c = initSection('Europe/London (Oct 27, 2024: 2am -> 1am)');
+				let syncKey = null;
+				let tz = 'Europe/London';
+				let start = 1729987200 - 3600;
+
+				new uPlot(
+					genOpts("1h ticks", tz, syncKey),
+					sliceRange2(start, 0.3),
+					c
+				);
+
+				new uPlot(
+					genOpts("2h ticks", tz, syncKey),
+					sliceRange2(start, 0.5),
+					c
+				);
+
+				new uPlot(
+					genOpts("3h ticks", tz, syncKey),
+					sliceRange2(start, 1),
+					c
+				);
+
+				new uPlot(
+					genOpts("4h ticks", tz, syncKey),
+					sliceRange2(start, 1.5),
+					c
+				);
+
+				new uPlot(
+					genOpts("6h ticks", tz, syncKey),
+					sliceRange2(start, 2),
+					c
+				);
+
+				new uPlot(
+					genOpts("8h ticks", tz, syncKey),
+					sliceRange2(start, 3),
+					c
+				);
+
+				new uPlot(
+					genOpts("12h ticks", tz, syncKey),
+					sliceRange2(start, 4),
+					c
+				);
+			}
+
+			{
+				let c = initSection('America/Chicago (Mar 10, 2024: 2am -> 3am)');
+				let syncKey = null;
+				let tz = 'America/Chicago';
+				let start = 1710050400;
+
+				new uPlot(
+					genOpts("1h ticks", tz, syncKey),
+					sliceRange2(start, 0.3),
+					c
+				);
+
+				new uPlot(
+					genOpts("2h ticks", tz, syncKey),
+					sliceRange2(start, 0.5),
+					c
+				);
+
+				new uPlot(
+					genOpts("3h ticks", tz, syncKey),
+					sliceRange2(start, 1),
+					c
+				);
+
+				new uPlot(
+					genOpts("4h ticks", tz, syncKey),
+					sliceRange2(start, 1.5),
+					c
+				);
+
+				new uPlot(
+					genOpts("6h ticks", tz, syncKey),
+					sliceRange2(start, 2),
+					c
+				);
+
+				new uPlot(
+					genOpts("8h ticks", tz, syncKey),
+					sliceRange2(start, 3),
+					c
+				);
+
+				new uPlot(
+					genOpts("12h ticks", tz, syncKey),
+					sliceRange2(start, 4),
+					c
+				);
+			}
+
+
+			{
+				let c = initSection('America/Chicago (Nov 3, 2024: 2am -> 1am)');
+				let syncKey = null;
+				let tz = 'America/Chicago';
+				let start = 1730610000;
+
+				new uPlot(
+					genOpts("1h ticks", tz, syncKey),
+					sliceRange2(start, 0.3),
+					c
+				);
+
+				new uPlot(
+					genOpts("2h ticks", tz, syncKey),
+					sliceRange2(start, 0.5),
+					c
+				);
+
+				new uPlot(
+					genOpts("3h ticks", tz, syncKey),
+					sliceRange2(start, 1),
+					c
+				);
+
+				new uPlot(
+					genOpts("4h ticks", tz, syncKey),
+					sliceRange2(start, 1.5),
+					c
+				);
+
+				new uPlot(
+					genOpts("6h ticks", tz, syncKey),
+					sliceRange2(start, 2),
+					c
+				);
+
+				new uPlot(
+					genOpts("8h ticks", tz, syncKey),
+					sliceRange2(start, 3),
+					c
+				);
+
+				new uPlot(
+					genOpts("12h ticks", tz, syncKey),
+					sliceRange2(start, 4),
+					c
+				);
+			}
+
 			{
 				let c = initSection('Days');
 
