@@ -70,7 +70,7 @@
 			function genOpts(title, tz, syncKey) {
 				return {
 					title: title,
-					tzDate: ts => uPlot.tzDate(new Date(ts / ms), tz),
+					tzDate: ts => uPlot.tzDate(ts / ms, tz),
 					ms,
 					cursor: {
 						sync: {
