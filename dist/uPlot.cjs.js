@@ -1350,6 +1350,7 @@ function genTimeStuffs(ms) {
 			let isYr = foundIncr >= y;
 			let isMo = foundIncr >= mo && foundIncr < y;
 			let isDays = foundIncr >= d && foundIncr < mo;
+			let isHours = foundIncr > h && foundIncr < d;
 
 			// get the timezone-adjusted date
 			let minDate = tzDate(scaleMin);
@@ -1431,69 +1432,46 @@ function genTimeStuffs(ms) {
 					split += foundIncr;
 				} while (1);
 			}
-			else {
+			else if (isHours) {
 				let incrHours = foundIncr / h;
 
-				let incr0 = foundIncr >= d ? d : foundIncr;
-				let split = minMinTs + incrRoundUp(minDateTs - minMinTs, incr0);
+				let skip = floor(minDate.getHours() / incrHours);
+				let split = minMinTs + (foundIncr * skip);
 
-				let date0 = tzDate(split);
+				do {
+					let date = tzDate(split);
 
-				// hours of first split have to be divisible by incr, otherwise 6h ticks can start at 5pm
-				// instead of 6 or 12 when start of range falls on DST day after shift
-				if (incrHours > 1) {
-					let splitHours = date0.getHours();
-					let diff = splitHours % incrHours;
-
-					if (diff > 0) {
-						let splitPre = split - diff * h;
-
-						if (splitPre >= minDateTs)
-							split = splitPre;
-						else
-							split += (incrHours - diff) * h;
-
-						date0 = tzDate(split);
+					// adjust for DST misses
+					let hour = date.getHours();
+					if (hour % incrHours > 0) {
+						let hour2 = tzDate(split + h).getHours();
+						split += hour2 % incrHours == 0 ? h : -h;
 					}
-				}
-
-				splits.push(split);
-
-				let prevHour = date0.getHours() + (date0.getMinutes() / m) + (date0.getSeconds() / h);
-
-				let minSpace = self.axes[axisIdx]._space;
-				let pctSpace = foundSpace / minSpace;
-
-				while (1) {
-					split = roundDec(split + foundIncr, ms == 1 ? 0 : 3);
 
 					if (split > scaleMax)
 						break;
 
-					if (incrHours > 1) {
-						let expectedHour = floor(roundDec(prevHour + incrHours, 6)) % 24;
-						let splitDate = tzDate(split);
-						let actualHour = splitDate.getHours();
-
-						let dstShift = actualHour - expectedHour;
-
-						if (dstShift > 1)
-							dstShift = -1;
-
-						split -= dstShift * h;
-
-						prevHour = (prevHour + incrHours) % 24;
-
-						// add a tick only if it's further than 70% of the min allowed label spacing
-						let prevSplit = splits[splits.length - 1];
-						let pctIncr = roundDec((split - prevSplit) / foundIncr, 3);
-
-						if (pctIncr * pctSpace >= .7 && (actualHour - dstShift) % incrHours == 0)
-							splits.push(split);
-					}
-					else
+					if (split >= scaleMin)
 						splits.push(split);
-				}
+
+					split += foundIncr;
+					// expect = (expect + incrHours) % 24;
+				} while (1);
+			}
+			else {
+				let split = minMinTs + incrRoundUp(minDateTs - minMinTs, foundIncr);
+
+				do {
+					if (split > scaleMax)
+						break;
+
+					if (split >= scaleMin)
+						splits.push(split);
+
+					split += foundIncr;
+				} while (1);
+
+				splits.push(split);
 			}
 
 			return splits;
