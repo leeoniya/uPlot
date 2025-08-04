@@ -1442,8 +1442,8 @@ function genTimeStuffs(ms) {
 					// adjust for DST misses
 					let hour = date.getHours();
 					if (hour % incrHours > 0) {
-						let hour2 = tzDate(split + h).getHours();
-						split += hour2 % incrHours == 0 ? h : -h;
+						let hour2 = tzDate(split - h).getHours();
+						split += hour2 % incrHours == 0 ? -h : h;
 					}
 
 					if (split > scaleMax)
@@ -1453,7 +1453,6 @@ function genTimeStuffs(ms) {
 						splits.push(split);
 
 					split += foundIncr;
-					// expect = (expect + incrHours) % 24;
 				} while (1);
 			}
 			else {
