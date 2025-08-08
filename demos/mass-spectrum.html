@@ -35,7 +35,12 @@
 							time: false,
 						},
 						y: {
-							range: (u, dataMin, dataMax) => [dataMin, dataMax],
+							range: (u, dataMin, dataMax) => {
+								if (dataMin == dataMax)
+									return dataMin == 0 ? [0, 100] : [0, 2 * dataMin];
+
+								return [dataMin, dataMax];
+							},
 						}
 					},
 					axes: [
