@@ -2362,19 +2362,8 @@ var uPlot = (function () {
 		//	log("drawPoints()", arguments);
 			let { pxRatio } = u;
 
-			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc, bezier) => {
 				let { pxRound, points } = series;
-
-				let moveTo, arc;
-
-				if (scaleX.ori == 0) {
-					moveTo = moveToH;
-					arc = arcH;
-				}
-				else {
-					moveTo = moveToV;
-					arc = arcV;
-				}
 
 				const width = roundDec(points.width * pxRatio, 3);
 

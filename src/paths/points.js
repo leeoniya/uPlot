@@ -1,4 +1,4 @@
-import { orient, moveToH, moveToV, rectH, arcH, arcV, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './utils';
+import { orient, rectH, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './utils';
 import { roundDec, PI } from '../utils';
 
 // TODO: drawWrap(seriesIdx, drawPoints) (save, restore, translate, clip)
@@ -7,19 +7,8 @@ export function points(opts) {
 	//	log("drawPoints()", arguments);
 		let { pxRatio } = u;
 
-		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc, bezier) => {
 			let { pxRound, points } = series;
-
-			let moveTo, arc;
-
-			if (scaleX.ori == 0) {
-				moveTo = moveToH;
-				arc = arcH;
-			}
-			else {
-				moveTo = moveToV;
-				arc = arcV;
-			}
 
 			const width = roundDec(points.width * pxRatio, 3);
 
