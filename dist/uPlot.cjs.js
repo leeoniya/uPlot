@@ -2365,6 +2365,7 @@ function points(opts) {
 			let { pxRound, points } = series;
 
 			const width = roundDec(points.width * pxRatio, 3);
+			const size = roundDec(points.size * pxRatio, 3);
 
 			let rad = (points.size - points.width) / 2 * pxRatio;
 			let dia = roundDec(rad * 2, 3);
@@ -2386,8 +2387,7 @@ function points(opts) {
 					let x = pxRound(valToPosX(dataX[pi], scaleX, xDim, xOff));
 					let y = pxRound(valToPosY(dataY[pi], scaleY, yDim, yOff));
 
-					moveTo(fill, x + rad, y);
-					arc(fill, x, y, rad, 0, PI * 2);
+					points.form.draw(fill, x, y, size, width, moveTo, lineTo, arc, bezier);
 				}
 			};
 
@@ -2407,6 +2407,15 @@ function points(opts) {
 		});
 	};
 }
+
+const CIRCLE = {
+	name: 'CIRCLE',
+	draw: (path, centerX, centerY, size, strokeWidth, moveTo, lineTo, arc, bezier) => {
+		const dist = (size-strokeWidth) / 2;
+		moveTo(path, centerX + dist, centerY);
+		arc(path, centerX, centerY, dist, 0, 2 * Math.PI);
+	},
+};
 
 function _drawAcc(lineTo) {
 	return (stroke, accX, minY, maxY, inY, outY) => {
@@ -3949,6 +3958,7 @@ function uPlot(opts, data, then) {
 				stroke: s.stroke,
 				space: _ptDia * 2,
 				paths: pointsPath,
+				form: CIRCLE,
 				_stroke: null,
 				_fill: null,
 			}, s.points);
