@@ -187,7 +187,7 @@ import {
 
 import { _sync } from './sync';
 
-import { points   } from './paths/points';
+import { points, CIRCLE   } from './paths/points';
 import { linear   } from './paths/linear';
 import { stepped  } from './paths/stepped';
 import { bars     } from './paths/bars';
@@ -1041,6 +1041,7 @@ export default function uPlot(opts, data, then) {
 				stroke: s.stroke,
 				space: _ptDia * 2,
 				paths: pointsPath,
+				form: CIRCLE,
 				_stroke: null,
 				_fill: null,
 			}, s.points);
