@@ -808,8 +808,10 @@ var uPlot = (function () {
 
 		if (newColor != oldColor) {
 			colorCache.set(el, newColor);
-			el.style.background = background;
-			el.style.borderColor = borderColor;
+			for (const element of el.getElementsByTagName('path')) {
+				element.setAttribute('fill', background);
+				element.setAttribute('stroke', borderColor);
+			}
 		}
 	}
 
@@ -1598,20 +1600,29 @@ var uPlot = (function () {
 	function cursorPointShow(self, si) {
 		let o = self.cursor.points;
 
-		let pt = placeDiv();
+		const svgProp = self.series[si].points.form.svg;
+		const svgURI = 'http://www.w3.org/2000/svg';
+		const svg = document.createElementNS(svgURI, 'svg');
+		const path = document.createElementNS(svgURI, 'path');
+		svg.appendChild(path);
+		path.setAttribute('d', svgProp.path);
 
-		let size = o.size(self, si);
-		setStylePx(pt, WIDTH, size);
-		setStylePx(pt, HEIGHT, size);
+		// At this point, we consider the viewBox to be a square
+		const fullSize = o.size(self, si);
+		let width = Math.min(o.width(self, si, fullSize), fullSize);
+		setStylePx(svg, WIDTH, fullSize);
+		setStylePx(svg, HEIGHT, fullSize);
 
-		let mar = size / -2;
-		setStylePx(pt, "marginLeft", mar);
-		setStylePx(pt, "marginTop", mar);
+		let mar = fullSize / -2;
+		setStylePx(svg, "marginLeft", mar);
+		setStylePx(svg, "marginTop", mar);
 
-		let width = o.width(self, si, size);
-		width && setStylePx(pt, "borderWidth", width);
+		const vb = svgProp.viewBox;
+		const svgHalfWidth = Math.ceil(Math.min(vb.width, vb.height) * width / (2 * fullSize));
+		width && setStylePx(path, "stroke-width", svgHalfWidth * 2);
+		svg.setAttribute('viewBox', (vb.minX - svgHalfWidth) + ' ' + (vb.minY - svgHalfWidth) + ' ' + (vb.width + 2 * svgHalfWidth) + ' ' + (vb.height + 2 * svgHalfWidth));
 
-		return pt;
+		return svg;
 	}
 
 	function cursorPointFill(self, si) {
@@ -2411,8 +2422,12 @@ var uPlot = (function () {
 
 	const CIRCLE = {
 		name: 'CIRCLE',
+		svg: {
+			viewBox: { minX: 0, minY: 0, width: 100, height: 100 },
+			path: 'M0 50A50 50 0 11100 50 50 50 0 110 50Z'
+		},
 		draw: (path, centerX, centerY, size, strokeWidth, moveTo, lineTo, arc, bezier) => {
-			const dist = (size-strokeWidth) / 2;
+			const dist = (size - strokeWidth) / 2;
 			moveTo(path, centerX + dist, centerY);
 			arc(path, centerX, centerY, dist, 0, 2 * Math.PI);
 		},
@@ -3922,7 +3937,7 @@ var uPlot = (function () {
 		function initCursorPt(s, si) {
 			let pt = points.show(self, si);
 
-			if (pt instanceof HTMLElement) {
+			if (pt instanceof SVGSVGElement) {
 				addClass(pt, CURSOR_PT);
 				addClass(pt, s.class);
 				elTrans(pt, -10, -10, plotWidCss, plotHgtCss);

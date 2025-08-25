@@ -413,20 +413,29 @@ export const legendOpts = {
 function cursorPointShow(self, si) {
 	let o = self.cursor.points;
 
-	let pt = placeDiv();
+	const svgProp = self.series[si].points.form.svg;
+	const svgURI = 'http://www.w3.org/2000/svg';
+	const svg = document.createElementNS(svgURI, 'svg');
+	const path = document.createElementNS(svgURI, 'path');
+	svg.appendChild(path);
+	path.setAttribute('d', svgProp.path);
 
-	let size = o.size(self, si);
-	setStylePx(pt, WIDTH, size);
-	setStylePx(pt, HEIGHT, size);
+	// At this point, we consider the viewBox to be a square
+	const fullSize = o.size(self, si);
+	let width = Math.min(o.width(self, si, fullSize), fullSize);
+	setStylePx(svg, WIDTH, fullSize);
+	setStylePx(svg, HEIGHT, fullSize);
 
-	let mar = size / -2;
-	setStylePx(pt, "marginLeft", mar);
-	setStylePx(pt, "marginTop", mar);
+	let mar = fullSize / -2;
+	setStylePx(svg, "marginLeft", mar);
+	setStylePx(svg, "marginTop", mar);
 
-	let width = o.width(self, si, size);
-	width && setStylePx(pt, "borderWidth", width);
+	const vb = svgProp.viewBox;
+	const svgHalfWidth = Math.ceil(Math.min(vb.width, vb.height) * width / (2 * fullSize));
+	width && setStylePx(path, "stroke-width", svgHalfWidth * 2);
+	svg.setAttribute('viewBox', (vb.minX - svgHalfWidth) + ' ' + (vb.minY - svgHalfWidth) + ' ' + (vb.width + 2 * svgHalfWidth) + ' ' + (vb.height + 2 * svgHalfWidth));
 
-	return pt;
+	return svg;
 }
 
 function cursorPointFill(self, si) {
