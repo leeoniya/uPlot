@@ -400,7 +400,8 @@ export const legendOpts = {
 	mount: noop,
 	markers: {
 		show: true,
-		width: 2,
+		before: true,
+		width: 10,
 		stroke: legendStroke,
 		fill: legendFill,
 		dash: "solid",

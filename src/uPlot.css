@@ -69,10 +69,17 @@
 	display: inline-block;
 }
 
-.u-legend .u-marker {
+.u-legend .u-marker-l {
 	width: 1em;
 	height: 1em;
 	margin-right: 4px;
+	background-clip: padding-box !important;
+}
+
+.u-marker-r {
+	width: 1em;
+	height: 1em;
+	margin-left: 4px;
 	background-clip: padding-box !important;
 }
 

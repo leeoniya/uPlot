@@ -235,6 +235,7 @@
 			return uPlot.assign({}, {
 				width: 800,
 				height: 567,
+				legend: { markers: { dash: 'dashed', before: false, }, },
 				cursor: { points: {
 							size:   (u, si)			=> u.series[si].points.size * 2,
 							width:  (u, si, size)	=> size / 4,
