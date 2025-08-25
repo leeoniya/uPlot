@@ -1,0 +1,294 @@
+<!doctype html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Forms customization</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="stylesheet" href="../src/uPlot.css">
+	<style>
+		.u-legend {
+			color: #c7d0d9;
+		}
+
+		section {
+			display: inline-block;
+			vertical-align: top;
+			margin: 8px;
+			box-shadow: 0px 0px 8px 4px #ccc;
+			background-color: #141619;
+		}
+
+		h3 {
+			text-align: center;
+			padding: 10px;
+			background: #E1F5FE;
+			margin: 0;
+		}
+
+		.uplot {
+			margin: 20px 0;
+		}
+
+		.u-select {
+			background: rgba(255, 255, 255, 0.07);
+		}
+	</style>
+</head>
+
+<body>
+	<script src="../dist/uPlot.iife.js"></script>
+	<script>
+		const SQRT_THREE = Math.sqrt(3);
+		const CIRCLE = {
+			name: 'CIRCLE',
+			svg: {
+				viewBox: { minX: 0, minY: 0, width: 100, height: 100 },
+				path: 'M0 50A50 50 0 11100 50 50 50 0 110 50Z',
+			},
+			draw: (path, centerX, centerY, size, strokeWidth, moveTo, lineTo, arc, bezier) => {
+				const dist = (size-strokeWidth) / 2;
+				moveTo(path, centerX + dist, centerY);
+				arc(path, centerX, centerY, dist, 0, 2 * Math.PI);
+			},
+		}
+		const SQUARE = {
+			name: 'SQUARE',
+			svg: {
+				viewBox: { minX: 0, minY: 0, width: 100, height: 100 },
+				path: 'M0 0 0 100 100 100 100 0Z',
+			},
+			draw: (path, centerX, centerY, size, strokeWidth, moveTo, lineTo, arc, bezier) => {
+				const dist = (size-strokeWidth) / 2;
+				moveTo(path, centerX - dist, centerY - dist);
+				lineTo(path, centerX + dist, centerY - dist);
+				lineTo(path, centerX + dist, centerY + dist);
+				lineTo(path, centerX - dist, centerY + dist);
+				path.closePath();
+			},
+		}
+		const DIAMOND= {
+			name: 'DIAMOND',
+			svg: {
+				viewBox: { minX: 0, minY: 0, width: 100, height: 100 },
+				path: 'M0 50 50 100 100 50 50 0Z',
+			},
+			draw: (path, centerX, centerY, size, strokeWidth, moveTo, lineTo, arc, bezier) => {
+				const dist = (size - strokeWidth) / 2;
+				moveTo(path, centerX + dist, centerY	   );
+				lineTo(path, centerX	   , centerY + dist);
+				lineTo(path, centerX - dist, centerY	   );
+				lineTo(path, centerX	   , centerY - dist);
+				path.closePath();
+			}
+		}
+		const U_TRIANGLE = {
+			name: 'U_TRIANGLE',
+			svg: {
+				viewBox: { minX: 0, minY: 0, width: 100, height: 100 },
+				path: 'M50 0 93 75 7 75Z',
+			},
+			draw: (path, centerX, centerY, size, strokeWidth, moveTo, lineTo, arc, bezier) => {
+				const halfSize = (size - strokeWidth) / 2;
+				const quarterSize = size/4 - strokeWidth/2;
+				const halfBase = SQRT_THREE * quarterSize;
+				moveTo(path, centerX + halfBase, centerY + quarterSize);
+				lineTo(path, centerX - halfBase, centerY + quarterSize);
+				lineTo(path, centerX		   , centerY - halfSize);
+				path.closePath();
+			}
+		}
+		const D_TRIANGLE = {
+			name: 'D_TRIANGLE',
+			svg: {
+				viewBox: { minX: 0, minY: 0, width: 100, height: 100 },
+				path: 'M50 100 93 25 7 25Z',
+			},
+			draw: (path, centerX, centerY, size, strokeWidth, moveTo, lineTo, arc, bezier) => {
+				const halfSize = (size - strokeWidth) / 2;
+				const quarterSize = size/4 - strokeWidth/2;
+				const halfBase = SQRT_THREE * quarterSize;
+				moveTo(path, centerX + halfBase, centerY - quarterSize);
+				lineTo(path, centerX - halfBase, centerY - quarterSize);
+				lineTo(path, centerX		   , centerY + halfSize);
+				path.closePath();
+			}
+		}
+		const CROSS = {
+			name: 'CROSS',
+			svg: {
+				viewBox: { minX: 0, minY: 0, width: 100, height: 100 },
+				path: 'M30 0 70 0 70 30 100 30 100 70 70 70 70 100 30 100 30 70 0 70 0 30 30 30Z',
+			},
+			draw: (path, centerX, centerY, size, strokeWidth, moveTo, lineTo, arc, bezier) => {
+				const halfSize = (size - strokeWidth) / 2;
+				const closestDistance = (size - 2*Math.floor(size/3) - strokeWidth) / 2; // Closest Distance from center
+
+				moveTo(path, centerX - closestDistance, centerY - halfSize	   );
+				lineTo(path, centerX + closestDistance, centerY - halfSize	   );
+				lineTo(path, centerX + closestDistance, centerY - closestDistance);
+				lineTo(path, centerX + halfSize	   , centerY - closestDistance);
+				lineTo(path, centerX + halfSize	   , centerY + closestDistance);
+				lineTo(path, centerX + closestDistance, centerY + closestDistance);
+				lineTo(path, centerX + closestDistance, centerY + halfSize	   );
+				lineTo(path, centerX - closestDistance, centerY + halfSize	   );
+				lineTo(path, centerX - closestDistance, centerY + closestDistance);
+				lineTo(path, centerX - halfSize	   , centerY + closestDistance);
+				lineTo(path, centerX - halfSize	   , centerY - closestDistance);
+				lineTo(path, centerX - closestDistance, centerY - closestDistance);
+				path.closePath();
+			}
+		}
+		const XCROSS = {
+			name: 'XCROSS',
+			svg: {
+				viewBox: { minX: 0, minY: 0, width: 100, height: 100 },
+				path: 'M50 25 75 0 100 25 75 50 100 75 75 100 50 75 25 100 0 75 25 50 0 25 25 0Z',
+			},
+			draw: (path, centerX, centerY, size, strokeWidth, moveTo, lineTo, arc, bezier) => {
+				const halfSize = (size - strokeWidth) / 2;
+				const rawQuarterSize = size/4; // Raw Quarter size (ignoring the width)
+				const quarterSize = halfSize - rawQuarterSize; // Quarter size (taking into account the width)
+
+				moveTo(path, centerX + 0			 , centerY - quarterSize   );
+				lineTo(path, centerX + rawQuarterSize, centerY - halfSize	  );
+				lineTo(path, centerX + halfSize	  , centerY - rawQuarterSize);
+				lineTo(path, centerX + quarterSize   , centerY + 0			 );
+				lineTo(path, centerX + halfSize	  , centerY + rawQuarterSize);
+				lineTo(path, centerX + rawQuarterSize, centerY + halfSize	  );
+				lineTo(path, centerX + 0			 , centerY + quarterSize   );
+				lineTo(path, centerX - rawQuarterSize, centerY + halfSize	  );
+				lineTo(path, centerX - halfSize	  , centerY + rawQuarterSize);
+				lineTo(path, centerX - quarterSize   , centerY + 0			 );
+				lineTo(path, centerX - halfSize	  , centerY - rawQuarterSize);
+				lineTo(path, centerX - rawQuarterSize, centerY - halfSize	  );
+				path.closePath();
+			}
+		}
+		const PALETTE_LIGHT = ['#005A8D', '#B71C1C', '#2E7D32', '#6A1B9A', '#EF6C00', '#00838F'];
+		const PALETTE_DARK = ['#FFFF00', '#00BFFF', '#7FFF00', '#FF00FF', '#FFA500', '#00FFFF'];
+		const data__single = [
+			[0, 496, 996, 1504, 2004, 2500, 2996, 3496, 4004, 4504, 6750],
+			[0, 496, 1004, 1496, 2004, 2000, 1996, 2004, 1996, 2004, 2500],
+			[0, 496, 1004, 1496, 2004, 1500, 1496, 1504, 1496, 1504, 2500],
+			[0, 496, 1004, 1496, 2004, 1000, 996, 1004, 996, 1004, 2500],
+			[0, 496, 1004, 1496, 2004, 500, 496, 504, 496, 504, 2500],
+		]
+
+		function initSection(title) {
+			const h3 = document.createElement('h3');
+			h3.textContent = title;
+			const section = document.createElement('section');
+			section.appendChild(h3);
+			document.body.appendChild(section);
+			return section;
+		}
+
+		function genOptsSingleForm(sync, size, form, ovr) {
+			const s = size
+			const t = s-1;
+			return uPlot.assign({}, {
+				width: 800,
+				height: 267,
+				cursor: { points: {
+						fill: (u, si) => PALETTE_DARK[3],
+						size: (u, si) => u.series[si].points.size,
+						width: 0,
+					},
+					lock: true, sync: { key: sync, setSeries: true, },
+				},
+				scales: {
+					x: { time: false, },
+				},
+				axes: [
+					{ stroke: "#c7d0d9", grid: { show: true, width: 1 / devicePixelRatio, stroke: "#2c3235", }, ticks: { show: true, width: 1 / devicePixelRatio, stroke: "#2c3235", }, },
+					{ scale: 'y', size: 100, side: 3, stroke: "#c7d0d9", grid: { show: true, width: 1 / devicePixelRatio, stroke: "#2c3235", }, ticks: { show: true, width: 1 / devicePixelRatio, stroke: "#2c3235", }, }
+				],
+				series: [
+					{},
+					{ label: 'S'+s+' W2', stroke: PALETTE_DARK[2], scale: 'y', paths: () => null, points: { cap: 'square', fill: '#0000', size: s, width: 2, form: form, }, },
+					{ label: 'S'+s+' W1', stroke: PALETTE_DARK[1], scale: 'y', paths: () => null, points: { cap: 'square', fill: '#0000', size: s, width: 1, form: form, }, },
+					{ label: 'S'+t+' W2', stroke: PALETTE_DARK[4], scale: 'y', paths: () => null, points: { cap: 'square', fill: '#0000', size: t, width: 2, form: form, }, },
+					{ label: 'S'+t+' W1', stroke: PALETTE_DARK[5], scale: 'y', paths: () => null, points: { cap: 'square', fill: '#0000', size: t, width: 1, form: form, }, },
+				]
+			}, ovr);
+		}
+
+		const singleSync = uPlot.sync('single1')
+		function genUPlot(form, size, incr) {
+			for (let i=0; i<3 ; i++) {
+				const s = i == 0 ? 'Small' : i == 1 ? 'Medium' : 'Large';
+				new uPlot(genOptsSingleForm(singleSync, size + incr*i, form, { pxAlign: 0 }), data__single, initSection(s + ' ' + form.name + ' & pxAlign = 0'));
+				new uPlot(genOptsSingleForm(singleSync, size + incr*i, form, { pxAlign: 1 }), data__single, initSection(s + ' ' + form.name + ' & pxAlign = 1'));
+			}
+		}
+		genUPlot(CIRCLE, 7, 3);
+		genUPlot(SQUARE, 6, 3);
+		genUPlot(DIAMOND, 8, 3);
+		genUPlot(U_TRIANGLE, 9, 4);
+		genUPlot(D_TRIANGLE, 9, 4);
+		genUPlot(CROSS, 8, 3);
+		genUPlot(XCROSS, 8, 3);
+
+		function genOptsForm(sync, sizeFactor, ovr) {
+			return uPlot.assign({}, {
+				width: 800,
+				height: 567,
+				cursor: { points: {
+							size:   (u, si)			=> u.series[si].points.size * 2,
+							width:  (u, si, size)	=> size / 4,
+							stroke: (u, si)			=> u.series[si].points.stroke(u, si) + '90',
+							fill:   (u, si)			=> "#fff",
+					},
+					lock: true, sync: { key: sync, setSeries: true, },
+				},
+				scales: {
+					x: { time: false, },
+				},
+				axes: [
+					{ stroke: "#c7d0d9", grid: { show: true, width: 1 / devicePixelRatio, stroke: "#2c3235", }, ticks: { show: true, width: 1 / devicePixelRatio, stroke: "#2c3235", }, },
+					{ scale: 'y', size: 100, side: 3, stroke: "#c7d0d9", grid: { show: true, width: 1 / devicePixelRatio, stroke: "#2c3235", }, ticks: { show: true, width: 1 / devicePixelRatio, stroke: "#2c3235", }, }
+				],
+				series: [
+					{},
+					{ stroke: PALETTE_DARK[0], scale: 'y', paths: () => null, points: { cap: 'square', fill: '#0000', size: 7 + sizeFactor*3, width: 1, },  label: 'CIRCLE', },
+					{ stroke: PALETTE_DARK[1], scale: 'y', paths: () => null, points: { cap: 'square', fill: '#0000', size: 6 + sizeFactor*3, width: 1, form: SQUARE, }, label: 'SQUARE', },
+					{ stroke: PALETTE_DARK[2], scale: 'y', paths: () => null, points: { cap: 'square', fill: '#0000', size: 8 + sizeFactor*3, width: 1, form: DIAMOND, }, label: 'DIAMOND', },
+					{ stroke: PALETTE_DARK[3], scale: 'y', paths: () => null, points: { cap: 'square', fill: '#0000', size: 9 + sizeFactor*4, width: 1, form: U_TRIANGLE, }, label: 'UP TRIANGLE', },
+					{ stroke: PALETTE_DARK[4], scale: 'y', paths: () => null, points: { cap: 'square', fill: '#0000', size: 9 + sizeFactor*4, width: 1, form: D_TRIANGLE, }, label: 'DOWN TRIANGLE', },
+					{ stroke: PALETTE_DARK[5], scale: 'y', paths: () => null, points: { cap: 'square', fill: '#0000', size: 8 + sizeFactor*3, width: 1, form: CROSS, }, label: 'CROSS', },
+					{ stroke: PALETTE_DARK[0], scale: 'y', paths: () => null, points: { cap: 'square', fill: '#0000', size: 8 + sizeFactor*3, width: 1, form: XCROSS, }, label: 'XCROSS', },
+				]
+			}, ovr);
+		}
+
+
+		const formsSync = uPlot.sync('forms');
+		const cardinality_forms = 30;
+		const data_forms = [
+			Array(cardinality_forms),
+			Array(cardinality_forms),
+			Array(cardinality_forms),
+			Array(cardinality_forms),
+			Array(cardinality_forms),
+			Array(cardinality_forms),
+			Array(cardinality_forms),
+			Array(cardinality_forms),
+		];
+		for (let i=0 ; i < cardinality_forms ; i++) {
+			data_forms[0][i] = 10 * i;
+			for (let j=1 ; j<data_forms.length ; j++) {
+				data_forms[j][i] = 5 * (i + 3 * j);
+			}
+		}
+		new uPlot(genOptsForm(formsSync, 0, { pxAlign: 0 }), data_forms, initSection('Small forms & pxAlign = 0'));
+		new uPlot(genOptsForm(formsSync, 0, { pxAlign: 1 }), data_forms, initSection('Small forms & pxAlign = 1'));
+		new uPlot(genOptsForm(formsSync, 1, { pxAlign: 0 }), data_forms, initSection('Medium forms & pxAlign = 0'));
+		new uPlot(genOptsForm(formsSync, 1, { pxAlign: 1 }), data_forms, initSection('Medium forms & pxAlign = 1'));
+		new uPlot(genOptsForm(formsSync, 2, { pxAlign: 0 }), data_forms, initSection('Large forms & pxAlign = 0'));
+		new uPlot(genOptsForm(formsSync, 2, { pxAlign: 1 }), data_forms, initSection('Large forms & pxAlign = 1'));
+	</script>
+</body>
+
+</html>
