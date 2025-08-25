@@ -90,8 +90,10 @@ export function elColor(el, background, borderColor) {
 
 	if (newColor != oldColor) {
 		colorCache.set(el, newColor);
-		el.style.background = background;
-		el.style.borderColor = borderColor;
+		for (const element of el.getElementsByTagName('path')) {
+			element.setAttribute('fill', background);
+			element.setAttribute('stroke', borderColor);
+		}
 	}
 }
 

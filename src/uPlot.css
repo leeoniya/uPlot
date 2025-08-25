@@ -128,8 +128,6 @@
 	position: absolute;
 	top: 0;
 	left: 0;
-	border-radius: 50%;
-	border: 0 solid;
 	pointer-events: none;
 	will-change: transform;
 	/* this has to be !important since we set inline "background" shorthand */

@@ -1004,7 +1004,7 @@ export default function uPlot(opts, data, then) {
 	function initCursorPt(s, si) {
 		let pt = points.show(self, si);
 
-		if (pt instanceof HTMLElement) {
+		if (pt instanceof SVGSVGElement) {
 			addClass(pt, CURSOR_PT);
 			addClass(pt, s.class);
 			elTrans(pt, -10, -10, plotWidCss, plotHgtCss);

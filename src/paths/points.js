@@ -56,6 +56,10 @@ export function points(opts) {
 
 export const CIRCLE = {
 	name: 'CIRCLE',
+	svg: {
+		viewBox: { minX: 0, minY: 0, width: 100, height: 100 },
+		path: 'M0 50A50 50 0 11100 50 50 50 0 110 50Z'
+	},
 	draw: (path, centerX, centerY, size, strokeWidth, moveTo, lineTo, arc, bezier) => {
 		const dist = (size - strokeWidth) / 2;
 		moveTo(path, centerX + dist, centerY);
