@@ -718,7 +718,8 @@ const LEGEND         = pre + "legend";
 const LEGEND_LIVE    = pre + "live";
 const LEGEND_INLINE  = pre + "inline";
 const LEGEND_SERIES  = pre + "series";
-const LEGEND_MARKER  = pre + "marker";
+const LEGEND_MARKERR = pre + "marker-r";
+const LEGEND_MARKERL = pre + "marker-l";
 const LEGEND_LABEL   = pre + "label";
 const LEGEND_VALUE   = pre + "value";
 
@@ -805,8 +806,10 @@ function elColor(el, background, borderColor) {
 
 	if (newColor != oldColor) {
 		colorCache.set(el, newColor);
-		el.style.background = background;
-		el.style.borderColor = borderColor;
+		for (const element of el.getElementsByTagName('path')) {
+			element.setAttribute('fill', background);
+			element.setAttribute('stroke', borderColor);
+		}
 	}
 }
 
@@ -1582,7 +1585,8 @@ const legendOpts = {
 	mount: noop,
 	markers: {
 		show: true,
-		width: 2,
+		before: true,
+		width: 10,
 		stroke: legendStroke,
 		fill: legendFill,
 		dash: "solid",
@@ -1595,20 +1599,29 @@ const legendOpts = {
 function cursorPointShow(self, si) {
 	let o = self.cursor.points;
 
-	let pt = placeDiv();
+	const svgProp = self.series[si].points.form.svg;
+	const svgURI = 'http://www.w3.org/2000/svg';
+	const svg = document.createElementNS(svgURI, 'svg');
+	const path = document.createElementNS(svgURI, 'path');
+	svg.appendChild(path);
+	path.setAttribute('d', svgProp.path);
 
-	let size = o.size(self, si);
-	setStylePx(pt, WIDTH, size);
-	setStylePx(pt, HEIGHT, size);
+	// At this point, we consider the viewBox to be a square
+	const fullSize = o.size(self, si);
+	let width = Math.min(o.width(self, si, fullSize), fullSize);
+	setStylePx(svg, WIDTH, fullSize);
+	setStylePx(svg, HEIGHT, fullSize);
 
-	let mar = size / -2;
-	setStylePx(pt, "marginLeft", mar);
-	setStylePx(pt, "marginTop", mar);
+	let mar = fullSize / -2;
+	setStylePx(svg, "marginLeft", mar);
+	setStylePx(svg, "marginTop", mar);
 
-	let width = o.width(self, si, size);
-	width && setStylePx(pt, "borderWidth", width);
+	const vb = svgProp.viewBox;
+	const svgHalfWidth = Math.ceil(Math.min(vb.width, vb.height) * width / (2 * fullSize));
+	width && setStylePx(path, "stroke-width", svgHalfWidth * 2);
+	svg.setAttribute('viewBox', (vb.minX - svgHalfWidth) + ' ' + (vb.minY - svgHalfWidth) + ' ' + (vb.width + 2 * svgHalfWidth) + ' ' + (vb.height + 2 * svgHalfWidth));
 
-	return pt;
+	return svg;
 }
 
 function cursorPointFill(self, si) {
@@ -2359,21 +2372,11 @@ function points(opts) {
 	//	log("drawPoints()", arguments);
 		let { pxRatio } = u;
 
-		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
+		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc, bezier) => {
 			let { pxRound, points } = series;
 
-			let moveTo, arc;
-
-			if (scaleX.ori == 0) {
-				moveTo = moveToH;
-				arc = arcH;
-			}
-			else {
-				moveTo = moveToV;
-				arc = arcV;
-			}
-
 			const width = roundDec(points.width * pxRatio, 3);
+			const size = roundDec(points.size * pxRatio, 3);
 
 			let rad = (points.size - points.width) / 2 * pxRatio;
 			let dia = roundDec(rad * 2, 3);
@@ -2395,8 +2398,7 @@ function points(opts) {
 					let x = pxRound(valToPosX(dataX[pi], scaleX, xDim, xOff));
 					let y = pxRound(valToPosY(dataY[pi], scaleY, yDim, yOff));
 
-					moveTo(fill, x + rad, y);
-					arc(fill, x, y, rad, 0, PI * 2);
+					points.form.draw(fill, x, y, size, width, moveTo, lineTo, arc, bezier);
 				}
 			};
 
@@ -2416,6 +2418,19 @@ function points(opts) {
 		});
 	};
 }
+
+const CIRCLE = {
+	name: 'CIRCLE',
+	svg: {
+		viewBox: { minX: 0, minY: 0, width: 100, height: 100 },
+		path: 'M0 50A50 50 0 11100 50 50 50 0 110 50Z'
+	},
+	draw: (path, centerX, centerY, size, strokeWidth, moveTo, lineTo, arc, bezier) => {
+		const dist = (size - strokeWidth) / 2;
+		moveTo(path, centerX + dist, centerY);
+		arc(path, centerX, centerY, dist, 0, 2 * Math.PI);
+	},
+};
 
 function _drawAcc(lineTo) {
 	return (stroke, accX, minY, maxY, inY, outY) => {
@@ -3530,6 +3545,32 @@ function uPlot(opts, data, then) {
 	const son  = {show: true};
 	const soff = {show: false};
 
+	function placeMarker(seriesIndex, label, before) {
+		const svgProp = series[seriesIndex].points.form.svg;
+
+		const svgURI = 'http://www.w3.org/2000/svg';
+		const svg = document.createElementNS(svgURI, 'svg');
+		svg.classList.add(before ? LEGEND_MARKERL : LEGEND_MARKERR);
+		const path = document.createElementNS(svgURI, 'path');
+		label.appendChild(svg);
+		svg.appendChild(path);
+		path.setAttribute('d', svgProp.path);
+
+		const width  = markers.width(self, seriesIndex);
+		const dw = ceil(width/2);
+		const vb = svgProp.viewBox;
+		// Adapting the viewBox to the stroke's width
+		svg.setAttribute('viewBox', (vb.minX - dw) + ' ' + (vb.minY - dw) + ' ' + (vb.width + 2 * dw) + ' ' + (vb.height + 2 * dw));
+		if (width) {
+			path.setAttribute('stroke-width', width);
+			path.setAttribute('stroke', markers.stroke(self, seriesIndex));
+			const dash = markers.dash(self, seriesIndex);
+			if (dash != 'solid') path.setAttribute('stroke-dasharray', Array.isArray(dash) ? dash.join(' ') : '35 15');
+		}
+		const fill = markers.fill(self, seriesIndex);
+		path.setAttribute('fill', fill == null ? transparent : fill);
+	}
+
 	function initLegendRow(s, i) {
 		if (i == 0 && (multiValLegend || !legend.live || mode == 2))
 			return nullNullTuple;
@@ -3545,20 +3586,9 @@ function uPlot(opts, data, then) {
 
 		let label = placeTag("th", null, row);
 
-		if (markers.show) {
-			let indic = placeDiv(LEGEND_MARKER, label);
-
-			if (i > 0) {
-				let width  = markers.width(self, i);
-
-				if (width)
-					indic.style.border = width + "px " + markers.dash(self, i) + " " + markers.stroke(self, i);
-
-				indic.style.background = markers.fill(self, i);
-			}
-		}
-
+		if (markers.show && markers.before && i > 0) placeMarker(i, label, true);
 		let text = placeDiv(LEGEND_LABEL, label);
+		if (markers.show && !markers.before && i > 0) placeMarker(i, label, false);
 
 		if (s.label instanceof HTMLElement)
 			text.appendChild(s.label);
@@ -3921,7 +3951,7 @@ function uPlot(opts, data, then) {
 	function initCursorPt(s, si) {
 		let pt = points.show(self, si);
 
-		if (pt instanceof HTMLElement) {
+		if (pt instanceof SVGSVGElement) {
 			addClass(pt, CURSOR_PT);
 			addClass(pt, s.class);
 			elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
@@ -3958,6 +3988,7 @@ function uPlot(opts, data, then) {
 				stroke: s.stroke,
 				space: _ptDia * 2,
 				paths: pointsPath,
+				form: CIRCLE,
 				_stroke: null,
 				_fill: null,
 			}, s.points);
