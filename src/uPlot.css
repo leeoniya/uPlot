@@ -148,3 +148,7 @@
 .u-cursor-pt.u-off {
 	display: none;
 }
+
+svg {
+	paint-order: stroke;
+}
