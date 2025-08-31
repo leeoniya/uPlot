@@ -12,6 +12,10 @@
 				width: 800px;
 			}
 
+			.u-axis {
+				pointer-events: none;
+			}
+
 			.u-select {
 				pointer-events: all;
 				cursor: grabbing;
@@ -39,14 +43,14 @@
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
 		<script>
-			var loop = 100;
+			let loop = 100;
 
 			let data = [
 				Array(loop),
 				Array(loop),
 			];
 
-			for (var i = 0; i < loop; i++) {
+			for (let i = 0; i < loop; i++) {
 				let x = 2 * Math.PI * i / loop;
 				let y = Math.sin(x);
 
@@ -94,19 +98,43 @@
 
 			let x0;
 			let lft0;
-			let wid0;
+			let rgt0;
 
 			const lftWid = {left: null, width: null};
 			const minMax = {min: null, max: null};
 
-			function update(newLft, newWid) {
-				let newRgt = newLft + newWid;
-				let maxRgt = uRanger.bbox.width / devicePixelRatio;
+			const BOUNDARY_LEFT  = 0;
+			const BOUNDARY_RIGHT = 1;
+			const BOUNDARY_BOTH  = 2;
 
-				if (newLft >= 0 && newRgt <= maxRgt) {
-					select(newLft, newWid);
-					zoom(newLft, newWid);
+			function update(newLft, newRgt, movedBoundary) {
+				let maxRgt = uRanger.bbox.width / uPlot.pxRatio;
+
+				if (movedBoundary == BOUNDARY_BOTH) {
+					let initWidth = newRgt - newLft;
+
+					if (newRgt > maxRgt) {
+						newRgt = maxRgt;
+						newLft = newRgt-initWidth;
+					}
+					else if (newLft < 0) {
+						newLft = 0;
+						newRgt = newLft+initWidth;
+					}
 				}
+				else {
+					if (newLft > newRgt) {
+						if (movedBoundary == BOUNDARY_LEFT)
+							newLft = newRgt;
+						else if (movedBoundary == BOUNDARY_RIGHT)
+							newRgt = newLft;
+					}
+
+					newLft = Math.max(0, newLft);
+					newRgt = Math.min(newRgt, maxRgt);
+				}
+
+				zoom(newLft, newRgt - newLft);
 			}
 
 			function select(newLft, newWid) {
@@ -124,7 +152,7 @@
 			function bindMove(e, onMove) {
 				x0 = e.clientX;
 				lft0 = uRanger.select.left;
-				wid0 = uRanger.select.width;
+				rgt0 = lft0 + uRanger.select.width;
 
 				const _onMove = debounce(onMove);
 				on("mousemove", doc, _onMove);
@@ -140,6 +168,13 @@
 			}
 
 			//----------------
+
+			function getSize(height) {
+				return {
+					width: window.innerWidth - 100,
+					height: height,
+				}
+			}
 
 			const rangerOpts = {
 				width: 800,
@@ -182,15 +217,15 @@
 							const sel = uRanger.root.querySelector(".u-select");
 
 							on("mousedown", sel, e => {
-								bindMove(e, e => update(lft0 + (e.clientX - x0), wid0));
+								bindMove(e, e => update(lft0 + (e.clientX - x0), rgt0 + (e.clientX - x0), BOUNDARY_BOTH));
 							});
 
 							on("mousedown", placeDiv(sel, "u-grip-l"), e => {
-								bindMove(e, e => update(lft0 + (e.clientX - x0), wid0 - (e.clientX - x0)));
+								bindMove(e, e => update(lft0 + (e.clientX - x0), rgt0, BOUNDARY_LEFT));
 							});
 
 							on("mousedown", placeDiv(sel, "u-grip-r"), e => {
-								bindMove(e, e => update(lft0, wid0 + (e.clientX - x0)));
+								bindMove(e, e => update(lft0, rgt0 + (e.clientX - x0), BOUNDARY_RIGHT));
 							});
 						}
 					],
@@ -210,7 +245,7 @@
 				height: 400,
 				cursor: {
 					drag: {
-						x: false,
+						x: true,
 						y: false
 					},
 				},
@@ -232,7 +267,16 @@
 						label: "sin(x)",
 						stroke: "red",
 					}
-				]
+				],
+				hooks : {
+					setScale : [
+						uZoomed => {
+							let left = Math.round(uRanger.valToPos(uZoomed.scales.x.min, 'x'));
+							let right = Math.round(uRanger.valToPos(uZoomed.scales.x.max, 'x'));
+							select(left, right-left);
+						}
+					]
+				}
 			};
 
 			let uZoomed = new uPlot(zoomedOpts, data, document.body);
