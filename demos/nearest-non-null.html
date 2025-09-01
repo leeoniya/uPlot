@@ -339,39 +339,72 @@
 				];
 
 				let opts = {
-					title: 'Snap hover points and cursor to previous non-null',
-					width: 1000,
-					height: 500,
+					title: 'Snap hover points to previous non-null (cursor.dataIdx)',
+					width: 600,
+					height: 300,
 					cursor: {
 						y: false,
+						dataIdx: (self, seriesIdx, hoveredIdx, cursorXVal) => {
+							let prevIdx = self.data[0][hoveredIdx] > cursorXVal ? hoveredIdx - 1 : hoveredIdx;
+							let yVals = self.data[seriesIdx];
 
-						// this manually implements custom skipping and bias behavior
-						move: (u, mouseLeft, mouseTop) => {
-							if (mouseLeft < 0)
-								return [mouseLeft, mouseTop];
+							while (yVals[prevIdx] == null)
+								prevIdx--;
 
-							let curXVal = u.posToVal(mouseLeft, 'x');
-							let curIdx  = u.valToIdx(curXVal);
-							let dataX   = u.data[0];
-							let dataY   = u.data[1];
-							let idxXVal = dataX[curIdx];
-							let idxYVal = dataY[curIdx];
-
-							// backward bias
-							if (curXVal < idxXVal || idxYVal == null) {
-								while (curIdx > 0) {
-									idxYVal = dataY[--curIdx];
-
-									if (idxYVal != null)
-										break;
-								}
-							}
-
-							return [
-								Math.round(u.valToPos(dataX[curIdx], 'x')),
-								mouseTop,
-							];
+							return prevIdx;
 						},
+					},
+					scales: {
+						x: {
+							time: false,
+						}
+					},
+					series: [
+						{},
+						{
+							label: 'foo',
+							stroke: 'red',
+						}
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+
+				// this manually implements custom skipping and bias behavior
+				let move = (u, mouseLeft, mouseTop) => {
+					if (mouseLeft < 0)
+						return [mouseLeft, mouseTop];
+
+					let curXVal = u.posToVal(mouseLeft, 'x');
+					let curIdx  = u.valToIdx(curXVal);
+					let dataX   = u.data[0];
+					let dataY   = u.data[1];
+					let idxXVal = dataX[curIdx];
+					let idxYVal = dataY[curIdx];
+
+					// backward bias
+					if (curXVal < idxXVal || idxYVal == null) {
+						while (curIdx > 0) {
+							idxYVal = dataY[--curIdx];
+
+							if (idxYVal != null)
+								break;
+						}
+					}
+
+					return [
+						Math.round(u.valToPos(dataX[curIdx], 'x')),
+						mouseTop,
+					];
+				};
+
+				let opts2 = {
+					title: 'Snap hover points and cursor to previous non-null (cursor.move)',
+					width: 600,
+					height: 300,
+					cursor: {
+						y: false,
+						move,
 					},
 					scales: {
 						x: {
@@ -387,7 +420,7 @@
 					],
 				};
 
-				let u = new uPlot(opts, data, document.body);
+				let u2 = new uPlot(opts2, data, document.body);
 			}
 		</script>
 	</body>
