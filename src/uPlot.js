@@ -904,7 +904,6 @@ export default function uPlot(opts, data, then) {
 		let prox = hov.prox = fnOrSelf(hov.prox);
 		let bias = hov.bias ??= 0;
 
-		// TODO: only scan between in-view idxs (i0, i1)
 		cursor.dataIdx = (self, seriesIdx, cursorIdx, valAtPosX) => {
 			if (seriesIdx == 0)
 				return cursorIdx;
@@ -919,6 +918,9 @@ export default function uPlot(opts, data, then) {
 			let xValues = data[0];
 			let yValues = data[seriesIdx];
 
+			let scanMinIdx = Math.max(0, i0 ?? 0);
+			let scanMaxIdx = Math.min(yValues.length - 1, i1 ?? yValues.length - 1);
+
 			if (skip.has(yValues[cursorIdx])) {
 				idx2 = null;
 
@@ -928,7 +930,7 @@ export default function uPlot(opts, data, then) {
 
 				if (bias == 0 || bias == -1) {
 					j = cursorIdx;
-					while (nonNullLft == null && j-- > 0) {
+					while (nonNullLft == null && j-- >= scanMinIdx) {
 						if (!skip.has(yValues[j]))
 							nonNullLft = j;
 					}
@@ -936,7 +938,7 @@ export default function uPlot(opts, data, then) {
 
 				if (bias == 0 || bias == 1) {
 					j = cursorIdx;
-					while (nonNullRgt == null && j++ < yValues.length) {
+					while (nonNullRgt == null && j++ <= scanMaxIdx) {
 						if (!skip.has(yValues[j]))
 							nonNullRgt = j;
 					}
