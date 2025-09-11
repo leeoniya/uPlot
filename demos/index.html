@@ -25,6 +25,7 @@
 
 		h1 {
 			font-size: 24px;
+			text-align: center;
 		}
 
 		h2 {
@@ -35,11 +36,29 @@
 			display: block;
 			padding: 4px;
 		}
+
+		section {
+        	display: flex;
+        	flex-direction: column;
+        	justify-content: center;
+        	border-radius: 0.25rem;
+        	padding: 1rem;
+        	background-color: #fafafa;
+      	}
+
+		.container {
+        	max-width: 640px;
+        	margin: 0 auto;
+        	padding: 1rem;
+      	}
 	</style>
 </head>
 <body>
+	<main class="container">
 	<h1>μPlot Demos</h1>
 
+	<h2>Variety</h2>
+	<section>
 	<a href="../bench/uPlot.html">Multi time-series (two scales)</a>
 	<a href="area-fill.html">Areas chart</a>
 	<a href="grid-over-series.html">Grid over series</a>
@@ -84,12 +103,13 @@
 	<a href="timeseries-discrete.html">Discrete &amp; shifted series w/sync</a>
 	<a href="update-cursor-select-resize.html">Maintains location of cursor/select/hoverPts during resize (test)</a>
 	<a href="axis-indicators.html">Plugin to render hovered values on axes</a>
-
 	<a href="months-ru.html">Russian month names on date/time axis</a>
 	<a href="add-del-series.html">Dynamically add or delete series</a>
 	<a href="scroll-sync.html">Sync chart position when inside a scrollable container</a>
+	</section>
 
 	<h2>Drawing</h2>
+	<section>
 	<a href="trendlines.html">Trendlines from zoomed range &amp; zoom snapping</a>
 	<a href="candlestick-ohlc.html">OHLC plugin + legend-as-tooltip plugin</a>
 	<a href="box-whisker.html">Box &amp; whisker plugin + legend-as-tooltip plugin</a>
@@ -102,8 +122,10 @@
 	<a href="measure-datums.html">Measurement datums via keyboard</a>
 	<a href="wind-direction.html">Wind direction renderer</a>
 	<a href="svg-image.html">Render to image/png</a>
+	</section>
 
 	<h2>Zooming</h2>
+	<section>
 	<a href="zoom-variations.html">Different zoom variants (adaptive, uni/omnidirectional)</a>
 	<a href="zoom-fetch.html">Fetch &amp; update data on zoom</a>
 	<a href="zoom-ranger.html">Secondary sync'd overview chart for x-axis zoom ranging</a>
@@ -111,8 +133,12 @@
 	<a href="zoom-ranger-xy.html">Secondary sync'd overview chart for x/y-axis zoom ranging</a>
 	<a href="zoom-touch.html">Pinch zooming/panning plugin</a>
 	<a href="zoom-wheel.html">Mouswheel zooming plugin</a>
+	</section>
 
 	<h2>Junk</h2>
+	<section>
 	<a href="stacked-series.html">Stacked series</a>
+	</section>
+	</main>
 </body>
 </html>
