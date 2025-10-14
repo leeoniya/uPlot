@@ -77,7 +77,7 @@ declare class uPlot {
 	setData(data: uPlot.AlignedData, resetScales?: boolean): void;
 
 	/** sets the limits of a scale & redraws (used for zooming) */
-	setScale(scaleKey: string, limits: { min: number | null; max: number | null }): void;
+	setScale(scaleKey: string, limits: ({ min: number; max: number } | { min: null; max: null })): void;
 
 	/** sets the cursor position (relative to plotting area) */
 	setCursor(opts: {left: number, top: number}, fireHook?: boolean): void;
