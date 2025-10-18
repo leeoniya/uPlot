@@ -1806,14 +1806,16 @@ function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 	if (logBase == 10)
 		foundIncr = numIncrs[closestIdx(foundIncr, numIncrs)];
 
-	let split = scaleMin;
+	let split = foundIncr;
 	let nextMagIncr = foundIncr * logBase;
 
 	if (logBase == 10)
 		nextMagIncr = numIncrs[closestIdx(nextMagIncr, numIncrs)];
 
 	do {
-		splits.push(split);
+		if (split >= scaleMin)
+			splits.push(split);
+
 		split = split + foundIncr;
 
 		if (logBase == 10 && !fixedDec.has(split))
