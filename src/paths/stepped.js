@@ -85,7 +85,7 @@ export function stepped(opts) {
 			//	console.time('gaps');
 				let gaps = [];
 
-				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
+				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps, series.spanNulls));
 
 			//	console.timeEnd('gaps');
 

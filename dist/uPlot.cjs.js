@@ -1976,6 +1976,7 @@ const ySeriesOpts = {
 	sorted: 0,
 	show: true,
 	spanGaps: false,
+	spanNulls: false,
 	gaps,
 	alpha: 1,
 	points: {
@@ -2250,14 +2251,14 @@ function addGap(gaps, fromX, toX) {
 		gaps.push([fromX, toX]);
 }
 
-function findGaps(xs, ys, idx0, idx1, dir, pixelForX, align) {
+function findGaps(xs, ys, idx0, idx1, dir, pixelForX, align, onlyNaNs) {
 	let gaps = [];
 	let len = xs.length;
 
 	for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 		let yVal = ys[i];
 
-		if (yVal === null) {
+		if (isNaN(yVal) || (!onlyNaNs && (yVal === null))) {
 			let fr = i, to = i;
 
 			if (dir == 1) {
@@ -2568,7 +2569,7 @@ function linear(opts) {
 			//	console.time('gaps');
 				let gaps = [];
 
-				hasGap && gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
+				hasGap && gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps, series.spanNulls));
 
 			//	console.timeEnd('gaps');
 
@@ -2675,7 +2676,7 @@ function stepped(opts) {
 			//	console.time('gaps');
 				let gaps = [];
 
-				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
+				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps, series.spanNulls));
 
 			//	console.timeEnd('gaps');
 
@@ -3022,7 +3023,7 @@ function splineInterp(interp, opts) {
 			//	console.time('gaps');
 				let gaps = [];
 
-				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
+				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps, series.spanNulls));
 
 			//	console.timeEnd('gaps');
 

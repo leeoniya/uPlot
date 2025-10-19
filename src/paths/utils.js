@@ -193,14 +193,14 @@ export function addGap(gaps, fromX, toX) {
 		gaps.push([fromX, toX]);
 }
 
-export function findGaps(xs, ys, idx0, idx1, dir, pixelForX, align) {
+export function findGaps(xs, ys, idx0, idx1, dir, pixelForX, align, onlyNaNs) {
 	let gaps = [];
 	let len = xs.length;
 
 	for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 		let yVal = ys[i];
 
-		if (yVal === null) {
+		if (isNaN(yVal) || (!onlyNaNs && (yVal === null))) {
 			let fr = i, to = i;
 
 			if (dir == 1) {
