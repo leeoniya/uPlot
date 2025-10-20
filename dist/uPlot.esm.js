@@ -2436,13 +2436,13 @@ const drawAccH = _drawAcc(lineToH);
 const drawAccV = _drawAcc(lineToV);
 
 function linear(opts) {
-	const alignGaps = ifNull(opts?.alignGaps, 0);
-
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
 
 			let pxRound = series.pxRound;
+
+			let alignGaps = opts.alignGaps ?? series.alignGaps ?? 0;
 
 			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
 			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
@@ -2594,7 +2594,6 @@ function stepped(opts) {
 	const align = ifNull(opts.align, 1);
 	// whether to draw ascenders/descenders at null/gap bondaries
 	const ascDesc = ifNull(opts.ascDesc, false);
-	const alignGaps = ifNull(opts.alignGaps, 0);
 	const extend = ifNull(opts.extend, false);
 
 	return (u, seriesIdx, idx0, idx1) => {
@@ -2604,6 +2603,8 @@ function stepped(opts) {
 			[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
 
 			let pxRound = series.pxRound;
+
+			let alignGaps = opts.alignGaps ?? series.alignGaps ?? 0;
 
 			let { left, width } = u.bbox;
 
@@ -2957,13 +2958,13 @@ function bars(opts) {
 }
 
 function splineInterp(interp, opts) {
-	const alignGaps = ifNull(opts?.alignGaps, 0);
-
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
 
 			let pxRound = series.pxRound;
+
+			let alignGaps = opts.alignGaps ?? series.alignGaps ?? 0;
 
 			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
 			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));

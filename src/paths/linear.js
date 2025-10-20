@@ -18,13 +18,13 @@ const drawAccH = _drawAcc(lineToH);
 const drawAccV = _drawAcc(lineToV);
 
 export function linear(opts) {
-	const alignGaps = ifNull(opts?.alignGaps, 0);
-
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
 
 			let pxRound = series.pxRound;
+
+			let alignGaps = opts.alignGaps ?? series.alignGaps ?? 0;
 
 			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
 			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
