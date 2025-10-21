@@ -16,7 +16,7 @@ export function stepped(opts) {
 
 			let pxRound = series.pxRound;
 
-			let alignGaps = opts.alignGaps ?? series.alignGaps ?? 0;
+			let alignGaps = opts?.alignGaps ?? series.alignGaps ?? 0;
 
 			let { left, width } = u.bbox;
 

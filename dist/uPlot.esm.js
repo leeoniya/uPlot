@@ -2442,7 +2442,7 @@ function linear(opts) {
 
 			let pxRound = series.pxRound;
 
-			let alignGaps = opts.alignGaps ?? series.alignGaps ?? 0;
+			let alignGaps = opts?.alignGaps ?? series.alignGaps ?? 0;
 
 			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
 			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
@@ -2604,7 +2604,7 @@ function stepped(opts) {
 
 			let pxRound = series.pxRound;
 
-			let alignGaps = opts.alignGaps ?? series.alignGaps ?? 0;
+			let alignGaps = opts?.alignGaps ?? series.alignGaps ?? 0;
 
 			let { left, width } = u.bbox;
 
@@ -2964,7 +2964,7 @@ function splineInterp(interp, opts) {
 
 			let pxRound = series.pxRound;
 
-			let alignGaps = opts.alignGaps ?? series.alignGaps ?? 0;
+			let alignGaps = opts?.alignGaps ?? series.alignGaps ?? 0;
 
 			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
 			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
