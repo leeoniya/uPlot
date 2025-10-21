@@ -1470,8 +1470,6 @@ var uPlot = (function () {
 
 						split += foundIncr;
 					} while (1);
-
-					splits.push(split);
 				}
 
 				return splits;

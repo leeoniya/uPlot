@@ -1467,8 +1467,6 @@ function genTimeStuffs(ms) {
 
 					split += foundIncr;
 				} while (1);
-
-				splits.push(split);
 			}
 
 			return splits;
