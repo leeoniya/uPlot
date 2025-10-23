@@ -2920,7 +2920,7 @@ function bars(opts) {
 				// this includes the stroke
 				let barHgt = btm - top;
 
-				if (yVal != null) {  // && yVal != fillTo (0 height bar)
+				if (yVal != null && yVal != fillTo) {
 					let rv = yVal < 0 ? radBase : radVal;
 					let rb = yVal < 0 ? radVal : radBase;
 
