@@ -280,8 +280,6 @@ function genTimeStuffs(ms) {
 
 					split += foundIncr;
 				} while (1);
-
-				splits.push(split);
 			}
 
 			return splits;
@@ -624,14 +622,16 @@ export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 	if (logBase == 10)
 		foundIncr = numIncrs[closestIdx(foundIncr, numIncrs)];
 
-	let split = scaleMin;
+	let split = foundIncr;
 	let nextMagIncr = foundIncr * logBase;
 
 	if (logBase == 10)
 		nextMagIncr = numIncrs[closestIdx(nextMagIncr, numIncrs)];
 
 	do {
-		splits.push(split);
+		if (split >= scaleMin)
+			splits.push(split);
+
 		split = split + foundIncr;
 
 		if (logBase == 10 && !fixedDec.has(split))

@@ -1,0 +1,321 @@
+<!doctype html>
+<html>
+
+<head>
+  <title>Bars values autosize</title>
+	<link rel="stylesheet" href="../dist/uPlot.min.css">
+  <script src="../dist/uPlot.iife.js"></script>
+</head>
+
+<body>
+  <script>
+    // returns scale needed to fit text into avail
+    function fit(textWid, textHgt, availWid, availHgt) {
+      return Math.min(availHgt / textHgt, availWid / textWid);
+    }
+
+    function clamp(val, min, max) {
+      return Math.max(min, Math.min(val, max));
+    }
+
+    const barValuesPlugin = (barOpts) => {
+      const { pxRatio } = uPlot; // TODO: update on dppxChange
+
+      const baseFontSize = 10 * pxRatio;
+
+      let minFontSize = baseFontSize;
+      let maxFontSize = 25 * pxRatio;
+
+      let ctx = document.createElement('canvas').getContext('2d');
+      ctx.font = `${baseFontSize}px Arial`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = 'black';
+
+      let disps = [];
+      let rects = [];
+      let metrics = [];
+
+      // max width of all metrics
+      let maxWidth = 0;
+      let maxHeight = 0;
+
+      let availWidth = 0; // in canvas px (from percent of bar width we can use for text)
+      let availHeight = 0;
+
+      let availWidths = [];
+      let availHeights = [];
+
+      let ori = 0;
+
+      return {
+        opts: (u, opts) => {
+          ori = opts.scales.x.ori ?? 0;
+
+          opts.series[1].paths = uPlot.paths.bars({
+            ...barOpts,
+            // this would be good to pull into hooks scope? or provide uPlot.state reserved for shared context
+            // todo: these can be read back from flatbush via indexOf
+            each: (u, seriesIdx, i, lft, top, wid, hgt) => {
+              rects.push([i, lft, top, wid, hgt]);
+            },
+          })
+        },
+
+        hooks: {
+          drawClear: () => {
+            rects.length = 0;
+          },
+          setData: (u, data) => {
+            disps = u.data[1].map(v => fmtNum(v));
+            // pre-measure all values at 10px, cache per data update
+            metrics = disps.map(dispVal => ctx.measureText(dispVal));
+
+            maxWidth = metrics.reduce((maxWidth, metric) => Math.max(maxWidth, metric.width), 0);
+            maxHeight = metrics.reduce((maxHeight, metric) => Math.max(maxHeight, metric.actualBoundingBoxAscent - metric.actualBoundingBoxDescent), 0);
+          },
+
+          draw: u => {
+            // console.log(rects);
+
+            let bbox_btm = u.bbox.top + u.bbox.height;
+            let bbox_rgt = u.bbox.left + u.bbox.width;
+
+            let availWidth = Infinity;
+            let availHeight = Infinity;
+
+            for (let i = 0; i < rects.length; i++) {
+              let r = rects[i];
+              let v = u.data[1][i];
+
+              let x = ori == 1 ? (v < 0 ? u.bbox.left : r[1] + r[3]) : r[1];
+              let y = ori == 1 ? r[2] : (v < 0 ? r[2] + r[4] : u.bbox.top);
+              let w = ori == 1 ? (v < 0 ? r[1] - u.bbox.left : bbox_rgt - (r[1] + r[3])) : r[3];
+              let h = ori == 1 ? r[4] : (v < 0 ? bbox_btm - (r[2] + r[4]) : r[2] - u.bbox.top);
+
+              if (w < availWidth)
+                availWidth = w;
+
+              if (h < availHeight)
+                availHeight = h;
+
+              u.ctx.fillStyle = '#0f02';
+              u.ctx.fillRect(x, y, w, h);
+            }
+
+            // NOTE: this will not work for stacked, which needs to scale ignoring width for hz bars and ignoring height for vt bars
+
+            // subtract left/right gap/margin?
+            availWidth *= ori == 0 ? 0.8 : 1;
+
+            // subtract vertical margin
+            availHeight *= ori == 0 ? 1 : 0.8;
+
+            let fontSize = 0;
+            let metricScale = 1;
+
+            if (ori == 0) {
+              let scaleW = fit(maxWidth, maxHeight, availWidth, availHeight);
+
+              let scaledFontSizeW = scaleW * baseFontSize;
+
+              if (scaledFontSizeW >= minFontSize) {
+                // clamp to maxFontSize
+                fontSize = Math.min(maxFontSize, scaledFontSizeW);
+                metricScale = fontSize / baseFontSize;
+              }
+
+              if (fontSize > 0) {
+                u.ctx.save();
+
+                u.ctx.fillStyle = 'black';
+                u.ctx.font = `${fontSize}px Arial`;
+                u.ctx.textAlign = "center";
+                u.ctx.textBaseline = "middle";
+
+                u.data[1].forEach((v, i) => {
+                  // if ((metrics[i].width) <= availWidth) {
+                    let [_, x, y, w, h] = rects[i];
+                    const gap = 0.4 * fontSize;
+                    const desc = metrics[i].actualBoundingBoxDescent * metricScale;
+                    u.ctx.fillText(disps[i], x + w/2, v > 0 ? (y - desc - gap) : y + h + desc + gap);
+                  // }
+                });
+
+                u.ctx.restore();
+              }
+            }
+            else {
+              if (availHeight >= minFontSize) {
+                fontSize = Math.min(availHeight, maxFontSize);
+              }
+
+              if (fontSize > 0) {
+                u.ctx.save();
+
+                u.ctx.fillStyle = 'black';
+                u.ctx.font = `${fontSize}px Arial`;
+                u.ctx.textAlign = "center";
+                u.ctx.textBaseline = "middle";
+
+                u.data[1].forEach((v, i) => {
+                  // if ((metrics[i].width) <= availWidth) {
+                    let [_, x, y, w, h] = rects[i];
+                    const gap = 0.4 * fontSize;
+                    const desc = 0; //metrics[i].actualBoundingBoxDescent * metricScale;
+                    const halfWidth = metrics[i].width * (fontSize / baseFontSize) / 2;
+                    u.ctx.fillText(disps[i], v > 0 ? x + w + halfWidth + gap : x - halfWidth - gap, y + h/2);
+                  // }
+                });
+
+                u.ctx.restore();
+              }
+            }
+
+            // let maxHeight = 20; // this is a combo of max size plus availalable space from edge or in hz orientation bar width * 80%
+
+            // try to grow text to fill avail width or height
+          },
+        }
+      };
+    };
+
+    // px = pt / 72 * 96 or px = (96 / 72)pt
+
+    const randInt = (min, max) => {
+      min = Math.ceil(min);
+      max = Math.floor(max);
+
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    let fmtNum = Intl.NumberFormat("en", { notation: "compact", maximumSignificantDigits: 3 }).format;
+
+    let vals = Array.from({ length: randInt(5, 50) }, () => randInt(-1e5, 1e5));
+
+    let data = [
+      vals.map((v, i) => i),
+      vals
+    ];
+
+    let barOpts = {
+      size: [0.9, Infinity],
+      align: 0,
+    };
+
+    {
+      const opts = {
+        width: 1275,
+        height: 600,
+        scales: {
+          x: {
+            time: false,
+            range: (u, min, max) => [min - .5, max + .5],
+          },
+        },
+        series: [
+          {},
+          {
+            width: 0,
+            fill: "#0003",
+            paths: uPlot.paths.bars(barOpts),
+            points: {
+              show: false,
+            }
+            // value: fmtVal,
+          },
+        ],
+        plugins: [
+          barValuesPlugin(barOpts)
+        ],
+      };
+
+      let u = new uPlot(opts, data, document.body);
+
+      // setInterval(() => {
+      //   let vals = Array.from({ length: randInt(5, 50) }, () => randInt(-1e5, 1e5));
+
+      //   u.setData([
+      //     vals.map((v, i) => i),
+      //     vals
+      //   ]);
+      // }, 100);
+
+      // setInterval(() => {
+      //   u.setSize({
+      //     width: u.width - 5,
+      //     height: u.height,// - 5,
+      //   });
+      // }, 100);
+    }
+
+
+    {
+      const opts = {
+        width: 1275,
+        height: 600,
+        scales: {
+          x: {
+            time: false,
+            range: (u, min, max) => [min - .5, max + .5],
+            ori: 1,
+            dir: -1,
+          },
+          y: {
+            ori: 0,
+            dir: 1,
+          }
+        },
+        axes: [
+          {
+            side: 3,
+            ori: 1,
+            dir: -1,
+          },
+          {
+            side: 2,
+            ori: 0,
+            dir: 1,
+          }
+        ],
+        series: [
+          {},
+          {
+            width: 0,
+            fill: "#0003",
+            paths: uPlot.paths.bars(barOpts),
+            points: {
+              show: false,
+            }
+            // value: fmtVal,
+          },
+        ],
+        plugins: [
+          barValuesPlugin(barOpts)
+        ],
+      };
+
+      let u = new uPlot(opts, data, document.body);
+
+      // setInterval(() => {
+      //   let vals = Array.from({ length: randInt(5, 50) }, () => randInt(-1e5, 1e5));
+
+      //   u.setData([
+      //     vals.map((v, i) => i),
+      //     vals
+      //   ]);
+      // }, 100);
+
+      // setInterval(() => {
+      //   // let vals = Array.from({ length: randInt(5, 50) }, () => randInt(-1e5, 1e5));
+
+      //   u.setSize({
+      //     width: u.width,// - 5,
+      //     height: u.height - 5,
+      //   });
+      // }, 100);
+    }
+  </script>
+</body>
+
+</html>

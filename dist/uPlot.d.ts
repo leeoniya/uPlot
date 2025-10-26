@@ -919,6 +919,9 @@ declare namespace uPlot {
 		/** when true, null data values will not cause line breaks */
 		spanGaps?: boolean;
 
+		// 0: also erase interpolation to left and right of null regions, 1: to right only, -1: to left only
+		alignGaps?: -1 | 0 | 1; // 0
+
 		/** may mutate and/or augment gaps array found from null values */
 		gaps?: Series.GapsRefiner;
 
