@@ -1170,7 +1170,7 @@ declare namespace uPlot {
 			setSelect?:  (self: uPlot) => void;
 
 			/** fires after a series is toggled or focused */
-			setSeries?:  (self: uPlot, seriesIdx: number | null, opts: Series) => void;
+			setSeries?:  (self: uPlot, seriesIdx: number | null, opts: {show?: boolean, focus?: boolean}) => void;
 
 			/** fires after data is updated updated */
 			setData?:    (self: uPlot) => void;
