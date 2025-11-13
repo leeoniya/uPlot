@@ -94,6 +94,13 @@
 			};
 
 			let u = new uPlot(opts, data, document.body);
+
+			setTimeout(() => {
+				data[2][92] = 0.1
+				data[2][93] = 0.1
+				u.series[2].width=3
+				u.setData(data)
+			}, 1000);
 		</script>
 		<script>
 			const isNum = Number.isFinite;

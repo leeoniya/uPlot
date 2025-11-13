@@ -881,7 +881,7 @@ declare namespace uPlot {
 
 		export type AddGap = (gaps: Gaps, from: number, to: number) => void;
 
-		export type ClipPathBuilder = (gaps: Gaps, ori: Orientation, left: number, top: number, width: number, height: number) => Path2D | null;
+		export type ClipPathBuilder = (gaps: Gaps, ori: Orientation, left: number, top: number, width: number, height: number, strokeWid: number) => Path2D | null;
 
 		export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => Paths | null;
 

@@ -150,7 +150,7 @@ export function clipBandLine(self, seriesIdx, idx0, idx1, strokePath, clipDir) {
 	});
 }
 
-export function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
+export function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt, strokeWid) {
 	let clip = null;
 
 	// create clip path (invert gaps and non-gaps)
@@ -165,7 +165,7 @@ export function clipGaps(gaps, ori, plotLft, plotTop, plotWid, plotHgt) {
 			let g = gaps[i];
 
 			if (g[1] > g[0]) {
-				let w = g[0] - prevGapEnd;
+				let w = g[0] - prevGapEnd - strokeWid;
 
 				w > 0 && rect(clip, prevGapEnd, plotTop, w, plotTop + plotHgt);
 

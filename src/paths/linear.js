@@ -1,3 +1,4 @@
+import { pxRatio } from '../dom';
 import { nonNullIdxs, ifNull } from '../utils';
 import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
 
@@ -156,7 +157,7 @@ export function linear(opts) {
 
 				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
 
-				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
+				_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim, series.width * pxRatio / 2);
 			}
 
 			if (bandClipDir != 0) {
