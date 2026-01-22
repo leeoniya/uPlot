@@ -1,7 +1,5 @@
 .uplot,
-.uplot *,
-.uplot *::before,
-.uplot *::after {
+.uplot * {
 	box-sizing: border-box;
 }
 
@@ -79,6 +77,7 @@
 .u-inline.u-live th::after {
 	content: ":";
 	vertical-align: middle;
+	box-sizing: border-box;
 }
 
 .u-inline:not(.u-live) .u-value {
