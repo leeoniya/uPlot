@@ -599,6 +599,12 @@ export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 
 	scaleMin = forceMin ? scaleMin : roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
 
+	if (scaleMin === scaleMax)
+		throw new RangeError("scaleMin cannot be equal to scaleMax");
+
+	if (roundDec(scaleMin + foundIncr, numDec) === scaleMin)
+		throw new RangeError("foundIncr too small for scaleMin");
+
 	for (let val = scaleMin; val <= scaleMax; val = roundDec(val + foundIncr, numDec))
 		splits.push(Object.is(val, -0) ? 0 : val);		// coalesces -0
 
