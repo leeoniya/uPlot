@@ -1,5 +1,5 @@
 /**
-* Copyright (c) 2025, Leon Sorokin
+* Copyright (c) 2026, Leon Sorokin
 * All rights reserved. (MIT Licensed)
 *
 * uPlot.js (μPlot)
@@ -5231,6 +5231,13 @@ var uPlot = (function () {
 
 			queuedCommit = false;
 		}
+
+		self.clearCache = () => {
+			series.forEach((s, i) => {
+				if (i > 0)
+					s._paths = null;
+			});
+		};
 
 		self.redraw = (rebuildPaths, recalcAxes) => {
 			shouldConvergeSize = recalcAxes || false;

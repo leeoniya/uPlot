@@ -2312,6 +2312,13 @@ export default function uPlot(opts, data, then) {
 		queuedCommit = false;
 	}
 
+	self.clearCache = () => {
+		series.forEach((s, i) => {
+			if (i > 0)
+				s._paths = null;
+		});
+	};
+
 	self.redraw = (rebuildPaths, recalcAxes) => {
 		shouldConvergeSize = recalcAxes || false;
 

@@ -128,6 +128,9 @@ declare class uPlot {
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
 	syncRect(defer?: boolean): void;
 
+	/** clears the pathBuilder caches, can save ~60KB RAM per series. don't use with series hover-highlight. will also slow down legend toggling */
+	clearCache(): void;
+
 	/** uPlot's path-builder factories */
 	static paths: uPlot.Series.PathBuilderFactories;
 
