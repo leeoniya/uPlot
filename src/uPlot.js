@@ -589,6 +589,8 @@ export default function uPlot(opts, data, then) {
 			NULL_LEGEND_VALUES[k] = LEGEND_DISP;
 	}
 
+	let legendRowsFrag = null;
+
 	if (showLegend) {
 		legendTable = placeTag("table", LEGEND, root);
 		legendBody = placeTag("tbody", null, legendTable);
@@ -600,15 +602,20 @@ export default function uPlot(opts, data, then) {
 			legendHead = placeTag("thead", null, legendTable, legendBody);
 
 			let head = placeTag("tr", null, legendHead);
-			placeTag("th", null, head);
+			let headFrag = doc.createDocumentFragment();
+			placeTag("th", null, null, null, headFrag);
 
 			for (var key in legendCols)
-				placeTag("th", LEGEND_LABEL, head).textContent = key;
+				placeTag("th", LEGEND_LABEL, null, null, headFrag).textContent = key;
+
+			head.appendChild(headFrag);
 		}
 		else {
 			addClass(legendTable, LEGEND_INLINE);
 			legend.live && addClass(legendTable, LEGEND_LIVE);
 		}
+
+		legendRowsFrag = doc.createDocumentFragment();
 	}
 
 	const son  = {show: true};
@@ -620,7 +627,8 @@ export default function uPlot(opts, data, then) {
 
 		let cells = [];
 
-		let row = placeTag("tr", LEGEND_SERIES, legendBody, legendBody.childNodes[i]);
+		const rowFrag = doc.createDocumentFragment();
+		let row = placeTag("tr", LEGEND_SERIES, rowFrag, null);
 
 		addClass(row, s.class);
 
@@ -690,6 +698,8 @@ export default function uPlot(opts, data, then) {
 			v.textContent = "--";
 			cells.push(v);
 		}
+
+		legendRowsFrag.appendChild(rowFrag);
 
 		return [row, cells];
 	}
@@ -1008,7 +1018,6 @@ export default function uPlot(opts, data, then) {
 			addClass(pt, CURSOR_PT);
 			addClass(pt, s.class);
 			elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
-			over.insertBefore(pt, cursorPts[si]);
 
 			return pt;
 		}
@@ -3491,6 +3500,27 @@ export default function uPlot(opts, data, then) {
 	series.forEach(initSeries);
 
 	axes.forEach(initAxis);
+
+	requestAnimationFrame(() => {
+		if (cursor.show && cursorPts.length > 0) {
+			let cursorFrag = doc.createDocumentFragment();
+			for (let i = 0; i < cursorPts.length; i++) {
+				if (cursorPts[i] != null) {
+					cursorFrag.appendChild(cursorPts[i]);
+				}
+			}
+			if (cursorFrag.hasChildNodes()) {
+				let refEl = over.firstChild;
+				over.insertBefore(cursorFrag, refEl);
+			}
+		}
+
+		requestAnimationFrame(() => {
+			if (showLegend && legendRowsFrag != null && legendRowsFrag.hasChildNodes()) {
+				legendBody.appendChild(legendRowsFrag);
+			}
+		});
+	});
 
 	if (then) {
 		if (then instanceof HTMLElement) {
