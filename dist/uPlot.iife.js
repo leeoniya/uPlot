@@ -3622,6 +3622,8 @@ var uPlot = (function () {
 
 		const mouseListeners = new Map();
 
+		let globalMouseMove = false;
+
 		function onMouse(ev, targ, fn, onlyTarg = true) {
 			const targListeners = mouseListeners.get(targ) || {};
 			const listener = cursor.bind[ev](self, targ, fn, onlyTarg);
@@ -6164,6 +6166,14 @@ var uPlot = (function () {
 		}
 
 		function mouseUp(e, src, _l, _t, _w, _h, _i) {
+			if (globalMouseMove) {
+				off(mousemove, doc, mouseMove);
+				globalMouseMove = false;
+			//	console.log('off global mousemove');
+
+				// TODO: hide cursor here
+			}
+
 			dragging = drag._x = drag._y = false;
 
 			cacheMouse(e, src, _l, _t, _w, _h, _i, false, true);
@@ -6240,6 +6250,10 @@ var uPlot = (function () {
 			let _dragging = dragging;
 
 			if (dragging) {
+				on(mousemove, doc, mouseMove);
+				globalMouseMove = true;
+			//	console.log('on global mousemove');
+
 				// handle case when mousemove aren't fired all the way to edges by browser
 				let snapH = true;
 				let snapV = true;
@@ -6322,6 +6336,12 @@ var uPlot = (function () {
 			onMouse(mousedown,  over, mouseDown);
 			onMouse(mousemove,  over, mouseMove);
 			onMouse(mouseenter, over, e => {
+				if (globalMouseMove) {
+					off(mousemove, doc, mouseMove);
+					globalMouseMove = false;
+				//	console.log('off global mousemove');
+				}
+
 				setCursorEvent(e);
 				syncRect(false);
 			});
@@ -6396,6 +6416,13 @@ var uPlot = (function () {
 			cursorPlots.delete(self);
 			mouseListeners.clear();
 			off(dppxchange, win, onDppxChange);
+
+			if (globalMouseMove) {
+				off(mousemove, doc, mouseMove);
+				globalMouseMove = false;
+			//	console.log('off global mousemove');
+			}
+
 			root.remove();
 			legendTable?.remove(); // in case mounted outside of root
 			fire("destroy");
