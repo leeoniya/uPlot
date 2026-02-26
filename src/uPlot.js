@@ -3326,9 +3326,11 @@ export default function uPlot(opts, data, then) {
 		let _dragging = dragging;
 
 		if (dragging) {
-			on(mousemove, doc, mouseMove);
-			globalMouseMove = true;
-		//	console.log('on global mousemove');
+			if (dragX && dragY) {
+				on(mousemove, doc, mouseMove);
+				globalMouseMove = true;
+			//	console.log('on global mousemove');
+			}
 
 			// handle case when mousemove aren't fired all the way to edges by browser
 			let snapH = true;
