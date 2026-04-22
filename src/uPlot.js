@@ -3093,6 +3093,17 @@ export default function uPlot(opts, data, then) {
 	}
 
 	let rect = null;
+	let cssZoom = 1;
+
+	function getEffectiveZoom(el) {
+		let z = 1;
+		while (el) {
+			let s = getComputedStyle(el).zoom;
+			if (s && s !== 'normal') z *= parseFloat(s);
+			el = el.parentElement;
+		}
+		return z;
+	}
 
 	Object.defineProperty(self, 'rect', {
 		get() {
@@ -3108,6 +3119,7 @@ export default function uPlot(opts, data, then) {
 			rect = null;
 		else {
 			rect = over.getBoundingClientRect();
+			cssZoom = getEffectiveZoom(over);
 			fire("syncRect", rect);
 		}
 	}
@@ -3139,8 +3151,8 @@ export default function uPlot(opts, data, then) {
 		setCursorEvent(e);
 
 		if (e != null) {
-			_l = e.clientX - rect.left;
-			_t = e.clientY - rect.top;
+			_l = (e.clientX - rect.left) / cssZoom;
+			_t = (e.clientY - rect.top) / cssZoom;
 		}
 		else {
 			if (_l < 0 || _t < 0) {
@@ -3408,6 +3420,11 @@ export default function uPlot(opts, data, then) {
 		cursorPlots.add(self);
 
 		self.syncRect = syncRect;
+
+		// allows external code to notify uPlot when container CSS zoom changes,
+		// e.g. u.syncZoom() to auto-detect, or u.syncZoom(1.5) to set explicitly.
+		// avoids the performance cost of recalculating on every mousemove.
+		self.syncZoom = (z) => { cssZoom = z ?? getEffectiveZoom(over); };
 	}
 
 	// external on/off
