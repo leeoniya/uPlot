@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Highlights</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="stylesheet" href="../dist/uPlot.min.css">
+</head>
+
+<body>
+	<script src="../dist/uPlot.iife.js"></script>
+	<script>
+
+		let dayRef = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+		//                       S, M, T, W, T, F, S
+		let highlightWeekends = [1, 0, 0, 0, 0, 0, 1];
+		let highlightThursday = [0, 0, 0, 0, 1, 0, 0];
+		let highlightMonThurs = [0, 1, 0, 0, 1, 0, 0];
+		let highlightDaysThatEndWithDay = [1, 1, 1, 1, 1, 1, 1];
+
+		let HIGHLIGHTS = highlightWeekends;
+		let TIMEZONE = "America/Chicago";
+		//let TIMEZONE = "Africa/Juba";
+
+		let mos = "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec".split(",");
+		let vals = mos.map((_, idx) => idx);
+		let ts = [];
+		let dataSetA = [];
+		let dataSetB = [];
+		let year = 2019;
+
+		mos.forEach((month, monthIdx) => {
+			for (let day = 1; day < new Date(year, monthIdx + 1, 0).getDate(); day++) {
+				for (let hour = 0; hour < 24; hour += 6) {
+					let dateStr = day + " " + month + " " + year + " " + hour + ":00:00 UTC";
+					ts.push(Date.parse(dateStr) / 1000);
+					dataSetA.push(vals[mos.length - monthIdx - 1]);
+					dataSetB.push(vals[monthIdx]);
+				}
+			}
+		});
+
+
+		function highlightDaysPlugin(days = [1, 0, 0, 0, 0, 0, 1], color = "#bdffdb") {
+			let all = days.reduce((acc, cur) => acc + cur, 0) === 7;
+
+			function tstz(ts) {
+				// We can"t use the date functions directly, so we have to calculate the offset
+				// In production, you should probably use a more robust method.
+				let uDate = uPlot.tzDate(new Date(ts * 1e3), TIMEZONE);
+				let tsDate = uPlot.tzDate(new Date(ts * 1e3), "UTC");
+
+				let offset = tsDate.valueOf() > uDate.valueOf()
+					? -1 * (24 - uDate.getHours())
+					: uDate.getHours();
+				offset *= 60 * 60;
+
+				return ts - offset;
+			}
+
+			function shouldHighlight(ts) {
+				// https://stackoverflow.com/questions/36389130/how-to-calculate-the-day-of-the-week-based-on-unix-time
+				let leftTs = Math.floor(ts / 86400);
+				return [!!days[(leftTs + 4) % 7], leftTs * 86400];
+			}
+
+			function highlightDays(u) {
+				let { ctx } = u;
+				let { height, top } = u.bbox;
+				u.ctx.save();
+				u.ctx.fillStyle = color;
+
+				function highlightAt([from, to]) {
+					u.ctx.fillRect(from, top, to - from, height);
+				}
+
+				if (all) {
+					// Shortcut!
+					highlightAt([u.bbox.left, u.bbox.left + u.bbox.width]);
+					u.ctx.restore();
+					return;
+				}
+
+				function valToPos(val) {
+					return u.valToPos(val, "x", true);
+				}
+
+				let [s, end] = [u.scales.x.min, u.scales.x.max]
+				while (s < end) {
+					// left = [shouldHighlight, startOfDay (unix)]
+					let left = shouldHighlight(s);
+
+					if (left[0]) {
+						let right = left;
+						while (right[0])
+							right = shouldHighlight(right[1] + 86400);
+						s = right[1];
+						highlightAt([left[1], right[1]].map(tstz).map(valToPos));
+					}
+
+					s += 86400;
+				}
+
+				u.ctx.restore();
+			}
+
+			return {
+				hooks: {
+					drawClear: highlightDays
+				}
+			};
+		}
+
+		const opts = {
+			width: 1920,
+			height: 600,
+			title: "Highlight Weekends",
+			tzDate: (ts) => uPlot.tzDate(new Date(ts * 1e3), TIMEZONE),
+			plugins: [
+				highlightDaysPlugin(HIGHLIGHTS)
+			],
+			series: [
+				{
+					label: "Day of Week",
+					value: (u, v) => dayRef[uPlot.tzDate(new Date(v * 1e3), TIMEZONE).getDay()]
+				},
+				{
+					stroke: "green",
+				},
+				{
+					stroke: "blue"
+				}
+			],
+		};
+
+		let u = new uPlot(opts, [ts, dataSetA, dataSetB], document.body);
+	</script>
+</body>
+
+</html>
