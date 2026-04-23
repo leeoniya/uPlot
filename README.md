@@ -100,7 +100,7 @@ Raw data: https://github.com/leeoniya/uPlot/blob/master/bench/results.json
 
 Some libraries provide their own performance demos:
 
-- https://echarts.apache.org/next/examples/en/index.html
+- https://echarts.apache.org/examples/en/index.html
 - https://github.com/sveinn-steinarsson/flot-downsample/
 - https://dygraphs.com/tests/dygraph-many-points-benchmark.html
 - https://www.chartjs.org/docs/latest/general/performance.html
