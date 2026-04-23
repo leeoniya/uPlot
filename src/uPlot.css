@@ -69,10 +69,17 @@
 	display: inline-block;
 }
 
-.u-legend .u-marker {
+.u-legend .u-marker-l {
 	width: 1em;
 	height: 1em;
 	margin-right: 4px;
+	background-clip: padding-box !important;
+}
+
+.u-marker-r {
+	width: 1em;
+	height: 1em;
+	margin-left: 4px;
 	background-clip: padding-box !important;
 }
 
@@ -128,8 +135,6 @@
 	position: absolute;
 	top: 0;
 	left: 0;
-	border-radius: 50%;
-	border: 0 solid;
 	pointer-events: none;
 	will-change: transform;
 	/* this has to be !important since we set inline "background" shorthand */
@@ -142,4 +147,8 @@
 .u-cursor-y.u-off,
 .u-cursor-pt.u-off {
 	display: none;
+}
+
+svg {
+	paint-order: stroke;
 }
