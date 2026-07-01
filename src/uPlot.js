@@ -1620,7 +1620,10 @@ export default function uPlot(opts, data, then) {
 				}
 			});
 
-			series.forEach((s, i) => {
+			// order the strokes by self._zOrder (a permutation of series indices) when set, so callers can lift series on top without reordering the series/data arrays.
+			// the order only affects stroking — all paths (incl. band fills) are built above, order-independently.
+			for (let i of self._zOrder || series.keys()) {
+				let s = series[i];
 				if (i > 0 && s.show) {
 					let _ctxAlpha = ctxAlpha;
 
@@ -1646,7 +1649,7 @@ export default function uPlot(opts, data, then) {
 
 					fire("drawSeries", i);
 				}
-			});
+			}
 
 			if (shouldAlpha)
 				ctx.globalAlpha = ctxAlpha = 1;
