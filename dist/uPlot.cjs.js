@@ -4554,8 +4554,10 @@ function uPlot(opts, data, then) {
 				}
 			});
 
+			// stroke _focus series last (on top): unfocused then focused
+			for (let want of [false, true])
 			series.forEach((s, i) => {
-				if (i > 0 && s.show) {
+				if (i > 0 && s.show && !!s._focus === want) {
 					let _ctxAlpha = ctxAlpha;
 
 					if (ctxAlpha != s.alpha)
