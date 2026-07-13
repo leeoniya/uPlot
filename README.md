@@ -59,6 +59,7 @@ Additionally, an ever-expanding collection of runnable [/demos](https://leeoniya
 
 - [React, Vue.js and Svelte](https://github.com/skalinichev/uplot-wrappers) (Sergey Kalinichev)
 - [Python](https://github.com/stephane-caron/uplot-python) (Stéphane Caron)
+- [Terminal (React Ink)](https://github.com/planadecu/ink-uplot) (Jordi Planadecursach)
 
 ---
 ### Performance
