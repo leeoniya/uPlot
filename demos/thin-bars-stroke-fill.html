@@ -21,14 +21,10 @@
 
 <body>
   <script type="module">
+    import { renderDemo } from './renderDemo.js';
+
     await import("../dist/uPlot.esm.js").then(m => { window.uPlot = m.default; });
-    await import('./thin-bars-stroke-fill.js').then(({ default: groups }) => {
-      groups.forEach(g => {
-        g.steps.forEach(s => {
-          s.render();
-        });
-      });
-    });
+    await import('./thin-bars-stroke-fill.js').then(({ default: groups }) => renderDemo(groups));
   </script>
 </body>
 

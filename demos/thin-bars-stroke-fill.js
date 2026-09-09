@@ -199,8 +199,7 @@ const renders = [
 
 ];
 
-
-
+renders.at(-1).breakAfter = 1;
 
 
 
@@ -253,7 +252,7 @@ let data = [
 opts.forEach(o => {
   [1, 4].forEach(strokeWidth => {
     [1, -1].forEach(dir => {
-      renders.push(() => {
+      let render = () => {
         let bars = uPlot.paths.bars({ align: o.align, size: [o.width, Infinity], gap: o.gap });
 
         let opts = {
@@ -279,10 +278,12 @@ opts.forEach(o => {
 
         return new uPlot(opts, data, document.body);
 
-      });
+      };
+
+      render.breakAfter = dir === -1 && strokeWidth === 4 ? 1 : 0;
+      renders.push(render);
     });
   });
-  // document.body.appendChild(document.createElement('br'));
 });
 
 
@@ -293,6 +294,8 @@ const groups = [
 
     steps: renders.map(render => ({
       // before
+
+      breakAfter: render.breakAfter ?? 0,
 
       // can return one or more plots
       render: async () => {
