@@ -1,1 +1,1 @@
-import '../scripts2/recorder2.mjs'
+import '../scripts2/recorder.mjs';

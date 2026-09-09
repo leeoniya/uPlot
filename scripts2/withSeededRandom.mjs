@@ -29,7 +29,12 @@ const MathRandom = Math.random;
 
 export async function withSeededRandom(fn) {
   Math.random = sfc32(...seeds);
-  await fn();
-  Math.random = MathRandom;
+
+  try {
+    await fn();
+  }
+  finally {
+    Math.random = MathRandom;
+  }
 }
 

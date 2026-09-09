@@ -1,54 +1,102 @@
-import fs from 'fs';
-import { CanvasRenderingContext2D, createCanvas, loadImage } from 'canvas';
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { CanvasRenderingContext2D, createCanvas } from 'canvas';
 import { applyPath2DToCanvasRenderingContext, Path2D } from "path2d";
 
 applyPath2DToCanvasRenderingContext(CanvasRenderingContext2D);
 
-// global.Path2D = Path2D;
+const props = new Set([
+  'strokeStyle',
+  'fillStyle',
+  'lineWidth',
+  'font',
+  'textAlign',
+  'textBaseline',
+  'lineJoin',
+  'lineCap',
+]);
 
-console.time('replay');
+function replayArg(arg) {
+  if (arg?.log == null)
+    return arg;
 
-const spec = JSON.parse(fs.readFileSync('./area-fill-0-0.json', 'utf8'));
+  const out = new Path2D();
+  replay(arg.log, out);
 
-// console.dir(spec, {depth: 100});
+  return out;
+}
 
-const can = createCanvas(spec.width, spec.height);
-const ctx = can.getContext('2d');
-
-const set = new Set(['strokeStyle', 'fillStyle', 'lineWidth', 'font', 'textAlign', 'textBaseline', 'lineJoin', 'lineCap']);
-
-function draw(cmds, ctx) {
-  for (let i = 0; i < cmds.length; i++) {
-    let batch = cmds[i];
-    let name = batch[0];
-
-    // isProp?
-    if (set.has(name))
-      ctx[name] = batch[1];
+export function replay(cmds, ctx) {
+  for (const [name, ...entries] of cmds) {
+    if (props.has(name)) {
+      for (const value of entries)
+        ctx[name] = value;
+    }
     else {
-      for (let i = 1; i < batch.length; i++) {
-        let args = batch[i];
-
-        // if Path2D, build it
-        if (args[0]?.log != null) {
-          let p = new Path2D();
-          draw(args[0]?.log, p);
-          args = [p];
-        }
-
-        ctx[name](...args);
-      }
+      for (const args of entries)
+        ctx[name](...args.map(replayArg));
     }
   }
 }
 
-console.time('draw');
-draw(spec.ctxlog, ctx);
-console.timeEnd('draw');
+export function renderPng(spec) {
+  const canvas = createCanvas(spec.width, spec.height);
+  const ctx = canvas.getContext('2d');
 
-const out = fs.createWriteStream('./image3.png');
-const stream = can.createPNGStream();
-stream.pipe(out);
-out.on('finish', () => {
-  console.timeEnd('replay');
-});
+  replay(spec.ctxlog, ctx);
+
+  return canvas.toBuffer('image/png');
+}
+
+function escapeHtml(value) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+export function writeFailureReport(expected, actual, filename, title) {
+  const expectedSrc = `data:image/png;base64,${renderPng(expected).toString('base64')}`;
+  const actualSrc = `data:image/png;base64,${renderPng(actual).toString('base64')}`;
+  const safeTitle = escapeHtml(title);
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>${safeTitle}</title>
+  <style>
+    body { margin: 24px; color: #222; background: #fff; font: 14px system-ui, sans-serif; }
+    button { margin-bottom: 16px; padding: 6px 12px; }
+    img { display: block; max-width: 100%; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <h1>${safeTitle}</h1>
+  <button id="toggle" type="button">Showing expected; show actual</button>
+  <img id="image" src="${expectedSrc}" alt="Expected rendering">
+  <script>
+    const expected = ${JSON.stringify(expectedSrc)};
+    const actual = ${JSON.stringify(actualSrc)};
+    const image = document.querySelector('#image');
+    const toggle = document.querySelector('#toggle');
+    let showingExpected = true;
+
+    toggle.addEventListener('click', () => {
+      showingExpected = !showingExpected;
+      image.src = showingExpected ? expected : actual;
+      image.alt = showingExpected ? 'Expected rendering' : 'Actual rendering';
+      toggle.textContent = showingExpected
+        ? 'Showing expected; show actual'
+        : 'Showing actual; show expected';
+    });
+  </script>
+</body>
+</html>
+`;
+
+  fs.mkdirSync(path.dirname(filename), { recursive: true });
+  fs.writeFileSync(filename, html);
+}

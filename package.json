@@ -9,8 +9,7 @@
   "scripts": {
     "build": "rollup -c --bundleConfigAsCjs",
     "test": "NODE_OPTIONS='--import ./scripts2/register-hooks.mjs' nyc mocha",
-    "sshot:area-fill": "node scripts/screenshot-area-fill.js",
-    "sshot:area-fill:update": "node scripts/screenshot-area-fill2.js --update"
+    "test:update": "UPDATE=1 NODE_OPTIONS='--import ./scripts2/register-hooks.mjs' nyc mocha"
   },
   "repository": {
     "type": "git",
@@ -49,11 +48,8 @@
     "happy-dom": "^20.14.0",
     "json-stringify-pretty-compact": "^4.0.0",
     "mocha": "^12.0.0",
-    "monocart-coverage-reports": "^2.13.0",
     "nyc": "^18.0.0",
-    "odiff-bin": "^4.5.0",
     "path2d": "^0.3.4",
-    "puppeteer": "^25.10.0",
     "rollup": "^4.63.1"
   },
   "nyc": {

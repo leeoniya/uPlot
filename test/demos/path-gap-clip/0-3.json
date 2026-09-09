@@ -1,0 +1,266 @@
+{
+  "html": "<div class=\"uplot u-hz\"><div class=\"u-title\">Align &amp; null-fill vs \"real\" null gaps</div><div class=\"u-wrap\" style=\"width: 800px; height: 400px;\"><div class=\"u-under\" style=\"left: 50px; top: 17px; width: 725px; height: 333px;\"></div><canvas width=\"800\" height=\"400\"></canvas><div class=\"u-over\" style=\"left: 50px; top: 17px; width: 725px; height: 333px;\"><div class=\"u-cursor-x u-off\" style=\"transform: translate(-10px,0px);\"></div><div class=\"u-cursor-y u-off\" style=\"transform: translate(0px,-10px);\"></div><div class=\"u-select\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div></div><div class=\"u-axis\" style=\"top: 350px; height: 50px; left: 50px; width: 725px;\"></div><div class=\"u-axis\" style=\"left: 0px; width: 50px; top: 17px; height: 333px;\"></div></div><table class=\"u-legend u-inline u-live\"><tbody><tr class=\"u-series\"><th><div class=\"u-marker\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid red; background: rgba(255, 0, 0, 0.1);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid green; background: rgba(0, 255, 0, 0.1);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid blue; background: rgba(0, 0, 255, 0.1);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr></tbody></table></div>",
+  "width": 800,
+  "height": 400,
+  "ctxlog": [
+    ["clearRect", [0, 0, 800, 400]],
+    ["fillStyle", "#000"],
+    [
+      "font",
+      "12px system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, \"Noto Sans\", sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\""
+    ],
+    ["textAlign", "center"],
+    ["textBaseline", "top"],
+    [
+      "fillText",
+      ["2", 88, 365],
+      ["4", 164, 365],
+      ["6", 241, 365],
+      ["8", 317, 365],
+      ["10", 393, 365],
+      ["12", 470, 365],
+      ["14", 546, 365],
+      ["16", 622, 365],
+      ["18", 699, 365],
+      ["20", 775, 365]
+    ],
+    ["strokeStyle", "rgba(0,0,0,0.07)"],
+    ["fillStyle", "rgba(0,0,0,0.07)"],
+    ["lineWidth", 2],
+    ["lineJoin", "round"],
+    ["lineCap", "butt"],
+    ["setLineDash", [[]]],
+    ["beginPath", []],
+    ["moveTo", [88, 350]],
+    ["lineTo", [88, 360]],
+    ["moveTo", [164, 350]],
+    ["lineTo", [164, 360]],
+    ["moveTo", [241, 350]],
+    ["lineTo", [241, 360]],
+    ["moveTo", [317, 350]],
+    ["lineTo", [317, 360]],
+    ["moveTo", [393, 350]],
+    ["lineTo", [393, 360]],
+    ["moveTo", [470, 350]],
+    ["lineTo", [470, 360]],
+    ["moveTo", [546, 350]],
+    ["lineTo", [546, 360]],
+    ["moveTo", [622, 350]],
+    ["lineTo", [622, 360]],
+    ["moveTo", [699, 350]],
+    ["lineTo", [699, 360]],
+    ["moveTo", [775, 350]],
+    ["lineTo", [775, 360]],
+    ["stroke", []],
+    ["beginPath", []],
+    ["moveTo", [88, 17]],
+    ["lineTo", [88, 350]],
+    ["moveTo", [164, 17]],
+    ["lineTo", [164, 350]],
+    ["moveTo", [241, 17]],
+    ["lineTo", [241, 350]],
+    ["moveTo", [317, 17]],
+    ["lineTo", [317, 350]],
+    ["moveTo", [393, 17]],
+    ["lineTo", [393, 350]],
+    ["moveTo", [470, 17]],
+    ["lineTo", [470, 350]],
+    ["moveTo", [546, 17]],
+    ["lineTo", [546, 350]],
+    ["moveTo", [622, 17]],
+    ["lineTo", [622, 350]],
+    ["moveTo", [699, 17]],
+    ["lineTo", [699, 350]],
+    ["moveTo", [775, 17]],
+    ["lineTo", [775, 350]],
+    ["stroke", []],
+    ["fillStyle", "#000"],
+    ["textAlign", "right"],
+    ["textBaseline", "middle"],
+    ["fillText", ["0", 35, 350], ["2", 35, 306], ["4", 35, 261], ["6", 35, 217], ["8", 35, 172], ["10", 35, 128], ["12", 35, 84], ["14", 35, 39]],
+    ["fillStyle", "rgba(0,0,0,0.07)"],
+    ["beginPath", []],
+    ["moveTo", [50, 350]],
+    ["lineTo", [40, 350]],
+    ["moveTo", [50, 306]],
+    ["lineTo", [40, 306]],
+    ["moveTo", [50, 261]],
+    ["lineTo", [40, 261]],
+    ["moveTo", [50, 217]],
+    ["lineTo", [40, 217]],
+    ["moveTo", [50, 172]],
+    ["lineTo", [40, 172]],
+    ["moveTo", [50, 128]],
+    ["lineTo", [40, 128]],
+    ["moveTo", [50, 84]],
+    ["lineTo", [40, 84]],
+    ["moveTo", [50, 39]],
+    ["lineTo", [40, 39]],
+    ["stroke", []],
+    ["beginPath", []],
+    ["moveTo", [50, 350]],
+    ["lineTo", [775, 350]],
+    ["moveTo", [50, 306]],
+    ["lineTo", [775, 306]],
+    ["moveTo", [50, 261]],
+    ["lineTo", [775, 261]],
+    ["moveTo", [50, 217]],
+    ["lineTo", [775, 217]],
+    ["moveTo", [50, 172]],
+    ["lineTo", [775, 172]],
+    ["moveTo", [50, 128]],
+    ["lineTo", [775, 128]],
+    ["moveTo", [50, 84]],
+    ["lineTo", [775, 84]],
+    ["moveTo", [50, 39]],
+    ["lineTo", [775, 39]],
+    ["stroke", []],
+    ["translate", [0.5, 0.5]],
+    ["strokeStyle", "red"],
+    ["fillStyle", "rgba(255,0,0,0.1)"],
+    ["lineWidth", 1],
+    ["save", []],
+    ["clip", [{"log": [["rect", [49.5, 16.5, 726, 334]]]}]],
+    ["fill", [{"log": [["lineTo", [775, 350], [126, 350]]]}]],
+    ["stroke", [{"log": [["lineTo", [126, 306], [203, 283], [241, 261], [279, 128], [775, 239]]]}]],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["fillStyle", "#fff"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [46, 13, 733, 341]]]}]],
+    [
+      "fill",
+      [
+        {
+          "log": [
+            ["moveTo", [128, 306]],
+            ["arc", [126, 306, 2, 0, 6.283185307179586]],
+            ["moveTo", [205, 283]],
+            ["arc", [203, 283, 2, 0, 6.283185307179586]],
+            ["moveTo", [243, 261]],
+            ["arc", [241, 261, 2, 0, 6.283185307179586]],
+            ["moveTo", [281, 128]],
+            ["arc", [279, 128, 2, 0, 6.283185307179586]],
+            ["moveTo", [777, 239]],
+            ["arc", [775, 239, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    [
+      "stroke",
+      [
+        {
+          "log": [
+            ["moveTo", [128, 306]],
+            ["arc", [126, 306, 2, 0, 6.283185307179586]],
+            ["moveTo", [205, 283]],
+            ["arc", [203, 283, 2, 0, 6.283185307179586]],
+            ["moveTo", [243, 261]],
+            ["arc", [241, 261, 2, 0, 6.283185307179586]],
+            ["moveTo", [281, 128]],
+            ["arc", [279, 128, 2, 0, 6.283185307179586]],
+            ["moveTo", [777, 239]],
+            ["arc", [775, 239, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["strokeStyle", "green"],
+    ["fillStyle", "rgba(0,255,0,0.1)"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [49.5, 16.5, 726, 334]]]}], [{"log": [["rect", [50, 17, 76, 350], [203, 12, 572, 360]]]}]],
+    ["fill", [{"log": [["lineTo", [661, 350], [50, 350]]]}]],
+    ["stroke", [{"log": [["lineTo", [50, 195], [88, 306], [126, 328], [203, 217], [661, 61]]]}]],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["fillStyle", "#fff"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [46, 13, 733, 341]]]}]],
+    [
+      "fill",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 195]],
+            ["arc", [50, 195, 2, 0, 6.283185307179586]],
+            ["moveTo", [90, 306]],
+            ["arc", [88, 306, 2, 0, 6.283185307179586]],
+            ["moveTo", [128, 328]],
+            ["arc", [126, 328, 2, 0, 6.283185307179586]],
+            ["moveTo", [205, 217]],
+            ["arc", [203, 217, 2, 0, 6.283185307179586]],
+            ["moveTo", [663, 61]],
+            ["arc", [661, 61, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    [
+      "stroke",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 195]],
+            ["arc", [50, 195, 2, 0, 6.283185307179586]],
+            ["moveTo", [90, 306]],
+            ["arc", [88, 306, 2, 0, 6.283185307179586]],
+            ["moveTo", [128, 328]],
+            ["arc", [126, 328, 2, 0, 6.283185307179586]],
+            ["moveTo", [205, 217]],
+            ["arc", [203, 217, 2, 0, 6.283185307179586]],
+            ["moveTo", [663, 61]],
+            ["arc", [661, 61, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["strokeStyle", "blue"],
+    ["fillStyle", "rgba(0,0,255,0.1)"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [49.5, 16.5, 726, 334]]]}], [{"log": [["rect", [50, 17, 496, 350], [622, 12, 153, 360]]]}]],
+    ["fill", [{"log": [["lineTo", [622, 350], [355, 350]]]}]],
+    ["stroke", [{"log": [["lineTo", [355, 150], [546, 239], [622, 328]]]}]],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["fillStyle", "#fff"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [46, 13, 733, 341]]]}]],
+    [
+      "fill",
+      [
+        {
+          "log": [
+            ["moveTo", [357, 150]],
+            ["arc", [355, 150, 2, 0, 6.283185307179586]],
+            ["moveTo", [548, 239]],
+            ["arc", [546, 239, 2, 0, 6.283185307179586]],
+            ["moveTo", [624, 328]],
+            ["arc", [622, 328, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    [
+      "stroke",
+      [
+        {
+          "log": [
+            ["moveTo", [357, 150]],
+            ["arc", [355, 150, 2, 0, 6.283185307179586]],
+            ["moveTo", [548, 239]],
+            ["arc", [546, 239, 2, 0, 6.283185307179586]],
+            ["moveTo", [624, 328]],
+            ["arc", [622, 328, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    ["restore", []],
+    ["translate", [-0.5, -0.5]]
+  ]
+}

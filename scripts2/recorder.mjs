@@ -1,12 +1,13 @@
 import fs from 'fs';
+import path from 'node:path';
 
-import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import stringify from "json-stringify-pretty-compact";
 
 import './instrument.mjs';
 import { withSeededRandom } from './withSeededRandom.mjs';
+import demos from '../test/demos.mjs';
 
 // console.time('import uPlot');
 const { default: uPlot } = await import('../src/uPlot.js');
@@ -26,47 +27,68 @@ global.uPlot = uPlot;
 // await new Promise(r => setTimeout(r, 2000));
 // console.log('go!');
 
-// from glob
-const demos = ['axis-control', 'area-fill', 'missing-data', 'line-paths', 'path-gap-clip', 'thin-bars-stroke-fill', 'high-low-bands', 'custom-scales', 'decimation'];
+const update = process.env.UPDATE === '1';
+const outputDir = path.resolve('test/output');
+
+if (process.env.UPDATE != null && !update)
+  throw new Error('UPDATE must be "1" when set.');
+
+if (!update)
+  fs.rmSync(outputDir, { recursive: true, force: true });
 
 for (const name of demos) {
-  await describe(name, async (t) => {
-    const { default: groups } = await import(`../demos/${name}.js`);
+  const { default: groups } = await import(`../demos/${name}.js`);
 
-    let ig = 0;
+  describe(name, () => {
+    const dir = path.resolve('test/demos', name);
 
-    for (const g of groups) {
-      let is = 0;
+    groups.forEach((group, groupIdx) => {
+      group.steps.forEach((step, stepIdx) => {
+        const id = `${groupIdx}-${stepIdx}`;
+        const filename = path.join(dir, `${id}.json`);
 
-      for (const s of g.steps) {
-        let filename = `${name}-${ig}-${is}.json`;
-
-        await it(filename, async () => {
+        it(id, async () => {
           await withSeededRandom(async () => {
-            const plots = await s.render();
+            const plots = await step.render();
 
             const u = plots[0];
 
-            let out = {
+            const actual = {
               html: u.root.outerHTML,
               width: u.ctx.width,
               height: u.ctx.height,
               ctxlog: u.ctx.log,
             };
 
-            // fs.writeFileSync(filename, stringify(out, { indent: 2, maxLength: 160 }));
+            try {
+              if (update) {
+                fs.mkdirSync(dir, { recursive: true });
+                fs.writeFileSync(filename, stringify(actual, { indent: 2, maxLength: 160 }) + '\n');
+              }
+              else {
+                const expected = JSON.parse(fs.readFileSync(filename, 'utf8'));
 
-            const result = JSON.parse(fs.readFileSync(filename, 'utf8'));
-            assert.deepStrictEqual(out, result);
+                try {
+                  assert.deepStrictEqual(actual, expected);
+                }
+                catch (error) {
+                  const { writeFailureReport } = await import('./replay.mjs');
+                  const report = path.join(outputDir, name, `${id}.html`);
 
-            u.destroy();
+                  writeFailureReport(expected, actual, report, `${name} ${id}`);
+                  error.message += `\nVisual comparison: ${path.relative('.', report)}`;
+
+                  throw error;
+                }
+              }
+            }
+            finally {
+              for (const plot of plots)
+                plot.destroy();
+            }
           });
         });
-
-        is++;
-      }
-
-      ig++;
-    }
+      });
+    });
   });
 }
