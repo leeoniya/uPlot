@@ -1,0 +1,258 @@
+const { linear, stepped, bars, spline, spline2 } = uPlot.paths;
+
+let data = [
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100],
+  [109, 117, 122, 104, 105, 117, 119, 121, 117, 121, 122, 129, 119, 113, 113, 121, 108, 108, 100, 103, 113, 110, 107, 105, 99, 93, 87, 83, 91, 85, 81, 69, 76, 61, 63, 74, 76, 68, 55, 61, 48, 39, 54, 44, 37, 30, 22, 33, 29, 21, 22, 43, 47, 33, 47, 28, 29, 31, 32, 35, 37, 25, -5, -14, -7, -14, -7, -18, -18, -18, -16, -41, -22, -30, -27, -30, -47, -49, -47, -42, -55, -34, -27, -22, -23, -34, -23, -32, -36, -47, -33, -32, -18, -23, -21, -33, -39, -21, -18, -27, -5],
+];
+
+data[1].splice(22, 4, null, null, null, null);
+
+const lineInterpolations = {
+  linear: 0,
+  stepAfter: 1,
+  stepBefore: 2,
+  spline: 3,
+  //	spline2:    4,
+};
+
+const drawStyles = {
+  line: 0,
+  bars: 1,
+  points: 2,
+  barsLeft: 3,
+  barsRight: 4,
+};
+
+// generate bar builder with 60% bar (40% gap) & 100px max bar width
+const _bars60_100 = bars({ size: [0.6, 100] });
+const _bars100Left = bars({ size: [1], align: 1 });
+const _bars100Right = bars({ size: [1], align: -1 });
+const _stepBefore = stepped({ align: -1 }); //, ascDesc: true
+const _stepAfter = stepped({ align: 1 }); //, ascDesc: true
+const _linear = linear();
+const _spline = spline();
+//	const _spline2      = spline2();
+
+function paths(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
+  let s = u.series[seriesIdx];
+  let style = s.drawStyle;
+  let interp = s.lineInterpolation;
+
+  let renderer = (
+    style == drawStyles.line ? (
+      interp == lineInterpolations.linear ? _linear :
+        interp == lineInterpolations.stepAfter ? _stepAfter :
+          interp == lineInterpolations.stepBefore ? _stepBefore :
+            interp == lineInterpolations.spline ? _spline :
+              //	interp == lineInterpolations.spline2    ? _spline2 :
+              null
+    ) :
+      style == drawStyles.bars ? (
+        _bars60_100
+      ) :
+        style == drawStyles.barsLeft ? (
+          _bars100Left
+        ) :
+          style == drawStyles.barsRight ? (
+            _bars100Right
+          ) :
+            style == drawStyles.points ? (
+              () => null
+            ) : () => null
+  );
+
+  return renderer(u, seriesIdx, idx0, idx1, extendGap, buildClip);
+}
+
+const palette = [
+  '#7EB26D', // 0: pale green
+  '#EAB839', // 1: mustard
+  '#6ED0E0', // 2: light blue
+  '#EF843C', // 3: orange
+  '#E24D42', // 4: red
+  '#1F78C1', // 5: ocean
+  '#BA43A9', // 6: purple
+  '#705DA0', // 7: violet
+  '#508642', // 8: dark green
+  '#CCA300', // 9: dark sand
+];
+
+let cfgs = [
+  {
+    title: "null path (points only)",
+    drawStyle: drawStyles.points,
+    lineInterpolation: null,
+    stroke: "#FFFFFF",
+  },
+  {
+    title: "linear",
+    drawStyle: drawStyles.line,
+    lineInterpolation: lineInterpolations.linear,
+    stroke: "#7EB26D",
+  },
+  {
+    title: "spline (Monotone Cubic)",
+    drawStyle: drawStyles.line,
+    lineInterpolation: lineInterpolations.spline,
+    stroke: "#1F78C1",
+  },
+  /*
+    {
+      title: "spline2 (Catmull-Rom Centripetal)",
+      drawStyle: drawStyles.line,
+      lineInterpolation: lineInterpolations.spline2,
+      stroke: "#EAB839",
+    },
+  */
+  {
+    title: "stepped {align: 1}",
+    drawStyle: drawStyles.line,
+    lineInterpolation: lineInterpolations.stepAfter,
+    stroke: "#6ED0E0",
+  },
+  {
+    title: "stepped {align: -1}",
+    drawStyle: drawStyles.line,
+    lineInterpolation: lineInterpolations.stepBefore,
+    stroke: "#EF843C",
+  },
+  {
+    title: "bars {align: 0}",
+    drawStyle: drawStyles.bars,
+    lineInterpolation: null,
+    stroke: "#E24D42",
+  },
+  {
+    title: "bars {align: 1}",
+    drawStyle: drawStyles.barsLeft,
+    lineInterpolation: null,
+    stroke: "#008080",
+  },
+  {
+    title: "bars {align: -1}",
+    drawStyle: drawStyles.barsRight,
+    lineInterpolation: null,
+    stroke: "#DA70D6",
+  },
+];
+
+function makeChart(cfg) {
+  let opts = {
+    width: 2400,
+    height: 600,
+    title: cfg.title,
+    cursor: {
+      points: {
+        size: (u, seriesIdx) => u.series[seriesIdx].points.size * 2.5,
+        width: (u, seriesIdx, size) => size / 4,
+        stroke: (u, seriesIdx) => u.series[seriesIdx].points.stroke(u, seriesIdx) + '90',
+        fill: (u, seriesIdx) => "#fff",
+      },
+      sync: {
+        key: 0,
+      }
+    },
+    scales: {
+      x: {
+        time: false,
+        //	range: [-10,110],
+        //	dir: -1,
+      },
+    },
+    axes: [
+      {
+        stroke: "#c7d0d9",
+        //	font: `12px 'Roboto'`,
+        //	labelFont: `12px 'Roboto'`,
+        grid: {
+          width: 1 / devicePixelRatio,
+          stroke: "#2c3235",
+        },
+        ticks: {
+          width: 1 / devicePixelRatio,
+          stroke: "#2c3235",
+        }
+      },
+      {
+        stroke: "#c7d0d9",
+        //	font: `12px 'Roboto'`,
+        //	labelFont: `12px 'Roboto'`,
+        grid: {
+          width: 1 / devicePixelRatio,
+          stroke: "#2c3235",
+        },
+        ticks: {
+          width: 1 / devicePixelRatio,
+          stroke: "#2c3235",
+        }
+      },
+    ],
+    series: [
+      {
+        label: "X",
+      },
+      Object.assign({
+        label: "Y",
+        width: 1 / devicePixelRatio,
+        drawStyle: drawStyles.points,
+        lineInterpolation: null,
+        paths,
+      }, {
+        drawStyle: cfg.drawStyle,
+        lineInterpolation: cfg.lineInterpolation,
+        stroke: cfg.stroke,
+        fill: cfg.stroke + "1A",
+      }),
+    ],
+  };
+
+  return new uPlot(opts, data, document.body);
+}
+
+cfgs.forEach(cfg => {
+  makeChart(cfg);
+});
+
+
+const groups = [
+  {
+    // name: solid areas
+    // before
+
+    /*
+    steps: [
+      {
+        // before
+
+        // can return one or more plots
+        render: async () => {
+          return new Promise(res => {
+            let u = render();
+            queueMicrotask(() => res([u]));
+          });
+        },
+        verify: async (plots, snapshots, assert) => {
+
+        },
+
+        // after
+      }
+    ]
+    */
+
+    steps: cfgs.map(cfg => {
+      return {
+        render: async () => {
+          return new Promise(res => {
+            let u = makeChart(cfg);
+            queueMicrotask(() => res([u]));
+          });
+        },
+      }
+    })
+
+    // after
+  },
+];
+
+export default groups;

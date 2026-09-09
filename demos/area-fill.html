@@ -1,65 +1,25 @@
 <!doctype html>
 <html>
-	<head>
-		<meta charset="utf-8">
-		<title>Area Fill</title>
-		<meta name="viewport" content="width=device-width, initial-scale=1">
 
-		<link rel="stylesheet" href="../dist/uPlot.min.css">
-	</head>
-	<body>
-		<script type="module">
-			import uPlot from "../dist/uPlot.esm.js";
+<head>
+  <meta charset="utf-8">
+  <title>Area Fill</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-			let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
-			let vals = [-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10];
+  <link rel="stylesheet" href="../dist/uPlot.min.css">
+</head>
 
-			let data = [
-				new Float32Array(xs),
-				new Float32Array(xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)])),
-				new Float32Array(xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)])),
-				new Float32Array(xs.map((t, i) => vals[Math.floor(Math.random() * vals.length)])),
-			];
+<body>
+  <script type="module">
+    await import("../dist/uPlot.esm.js").then(m => { window.uPlot = m.default; });
+    await import('./area-fill.js').then(({ default: groups }) => {
+      groups.forEach(g => {
+        g.steps.forEach(s => {
+          s.render();
+        });
+      });
+    });
+  </script>
+</body>
 
-			let fmtVal = (u, raw, sidx, didx) => {
-				if (didx == null) {
-					let d = u.data[sidx];
-					return `${d[d.length - 1]} (last)`;
-				}
-
-				return raw == null ? '' : raw;
-			};
-
-			const opts = {
-				width: 1920,
-				height: 600,
-				title: "Area Fill",
-				scales: {
-					x: {
-						time: false,
-					},
-				},
-				series: [
-					{},
-					{
-						stroke: "red",
-						fill: "rgba(255,0,0,0.1)",
-						value: fmtVal,
-					},
-					{
-						stroke: "green",
-						fill: "rgba(0,255,0,0.1)",
-						value: fmtVal,
-					},
-					{
-						stroke: "blue",
-						fill: "rgba(0,0,255,0.1)",
-						value: fmtVal,
-					},
-				],
-			};
-
-			let u = new uPlot(opts, data, document.body);
-		</script>
-	</body>
 </html>

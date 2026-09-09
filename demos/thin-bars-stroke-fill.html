@@ -1,292 +1,35 @@
 <!doctype html>
 <html>
-	<head>
-		<meta charset="utf-8">
-		<title>Thin bar stroke &amp; fill</title>
-		<meta name="viewport" content="width=device-width, initial-scale=1">
 
-		<link rel="stylesheet" href="../dist/uPlot.min.css">
-		<style>
-			.uplot {
-				display: inline-block;
-				vertical-align: top;
-			}
+<head>
+  <meta charset="utf-8">
+  <title>Thin bar stroke &amp; fill</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-			.u-title {
-				font-size: 14px;
-			}
-		</style>
-	</head>
-	<body>
-		<script type="module">
-			import uPlot from "../dist/uPlot.esm.js";
+  <link rel="stylesheet" href="../dist/uPlot.min.css">
+  <style>
+    .uplot {
+      display: inline-block;
+      vertical-align: top;
+    }
 
-			{
-				let data = [
-					Array.from({length: 30}, (v, i) => i),
-					Array(30).fill(5),
-				];
+    .u-title {
+      font-size: 14px;
+    }
+  </style>
+</head>
 
-				const opts = {
-					title: "Normal",
-					width: 800,
-					height: 200,
-					scales: {
-						x: {
-							time: false,
-						},
-					},
-					series: [
-						{},
-						{
-							paths: uPlot.paths.bars(),
-							stroke: "red",
-							fill: "rgba(255,0,0,0.2)",
-						},
-					],
-				};
+<body>
+  <script type="module">
+    await import("../dist/uPlot.esm.js").then(m => { window.uPlot = m.default; });
+    await import('./thin-bars-stroke-fill.js').then(({ default: groups }) => {
+      groups.forEach(g => {
+        g.steps.forEach(s => {
+          s.render();
+        });
+      });
+    });
+  </script>
+</body>
 
-				let u = new uPlot(opts, data, document.body);
-			}
-
-			{
-				let data = [
-					Array.from({length: 200}, (v, i) => i),
-					Array(200).fill(5),
-				];
-
-				const opts = {
-					title: "No stroke, red fill",
-					width: 800,
-					height: 200,
-					scales: {
-						x: {
-							time: false,
-						},
-					},
-					series: [
-						{},
-						{
-							paths: uPlot.paths.bars(),
-							width: 0,
-							fill: "red",
-						},
-					],
-				};
-
-				let u = new uPlot(opts, data, document.body);
-			}
-
-			{
-				let data = [
-					Array.from({length: 200}, (v, i) => i),
-					Array(200).fill(5),
-				];
-
-				const opts = {
-					title: "Too thin, but stroke width 0, use normal fill",
-					width: 800,
-					height: 200,
-					scales: {
-						x: {
-							time: false,
-						},
-					},
-					series: [
-						{},
-						{
-							paths: uPlot.paths.bars(),
-							width: 0,
-							stroke: "red",
-							fill: "rgba(255,0,0,0.2)",
-						},
-					],
-				};
-
-				let u = new uPlot(opts, data, document.body);
-			}
-
-			{
-				let data = [
-					Array.from({length: 200}, (v, i) => i),
-					Array(200).fill(5),
-				];
-
-				const opts = {
-					title: "Too thin, use stroke color for fill",
-					width: 800,
-					height: 200,
-					scales: {
-						x: {
-							time: false,
-						},
-					},
-					series: [
-						{},
-						{
-							paths: uPlot.paths.bars(),
-							stroke: "red",
-							fill: "rgba(255,0,0,0.2)",
-						},
-					],
-				};
-
-				let u = new uPlot(opts, data, document.body);
-			}
-
-			{
-				let data = [
-					Array.from({length: 200}, (v, i) => i),
-					Array(200).fill(5),
-				];
-
-				const opts = {
-					title: "Still stroke & fill",
-					width: 1000,
-					height: 200,
-					scales: {
-						x: {
-							time: false,
-						},
-					},
-					series: [
-						{},
-						{
-							paths: uPlot.paths.bars(),
-							stroke: "red",
-							fill: "rgba(255,0,0,0.2)",
-						},
-					],
-				};
-
-				let u = new uPlot(opts, data, document.body);
-			}
-
-			{
-				let data = [
-					Array.from({length: 200}, (v, i) => i),
-					Array(200).fill(5),
-				];
-
-				const opts = {
-					title: "Still stroke & fill",
-					width: 1200,
-					height: 200,
-					scales: {
-						x: {
-							time: false,
-						},
-					},
-					series: [
-						{},
-						{
-							paths: uPlot.paths.bars(),
-							stroke: "red",
-							fill: "rgba(255,0,0,0.2)",
-						},
-					],
-				};
-
-				let u = new uPlot(opts, data, document.body);
-			}
-
-			{
-				let data = [
-					Array.from({length: 200}, (v, i) => i),
-					Array(200).fill(5),
-				];
-
-				const opts = {
-					title: "Still stroke & fill",
-					width: 1600,
-					height: 200,
-					scales: {
-						x: {
-							time: false,
-						},
-					},
-					series: [
-						{},
-						{
-							paths: uPlot.paths.bars(),
-							stroke: "red",
-							fill: "rgba(255,0,0,0.2)",
-						},
-					],
-				};
-
-				let u = new uPlot(opts, data, document.body);
-			}
-
-
-
-			/*
-			// todo: maxBarWidth
-			[
-				{ set(xOpts, sOpts, bOpts, val) { bOpts.align   = val; }, vals: [0, 1, -1]},
-				{ set(xOpts, sOpts, bOpts, val) { bOpts.size[0] = val; }, vals: [0.6, 1]},
-				{ set(xOpts, sOpts, bOpts, val) { bOpts.gap     = val; }, vals: [0, 16]},
-				{ set(xOpts, sOpts, bOpts, val) { sOpts.width   = val; }, vals: [1, 0, 4]},
-				{ set(xOpts, sOpts, bOpts, val) { xOpts.dir     = val; }, vals: [1, -1]},
-			]
-			*/
-
-			document.body.appendChild(document.createElement('br'));
-
-			let groups = [
-				{align: 0, width: 0.6, gap: 0},
-				{align: 0, width: 0.6, gap: 16},
-				{align: 0, width: 1.0, gap: 0},
-				{align: 0, width: 1.0, gap: 16},
-
-				{align: 1, width: 0.6, gap: 0},
-				{align: 1, width: 0.6, gap: 16},
-				{align: 1, width: 1.0, gap: 0},
-				{align: 1, width: 1.0, gap: 16},
-
-				{align: -1, width: 0.6, gap: 0},
-				{align: -1, width: 0.6, gap: 16},
-				{align: -1, width: 1.0, gap: 0},
-				{align: -1, width: 1.0, gap: 16},
-			];
-
-			groups.forEach(o => {
-				let data  = [
-					[0,1,2,3,4],
-					[0,1,2,3,4],
-				];
-
-				[1, 4].forEach(strokeWidth => {
-					[1,-1].forEach(dir => {
-						let bars = uPlot.paths.bars({align: o.align, size: [o.width, Infinity], gap: o.gap});
-
-						let opts = {
-							title: JSON.stringify({...o, dir, stroke: strokeWidth}).replaceAll('"','').replaceAll(',', ', '),
-							width: 400,
-							height: 200,
-							scales: {
-								x: {
-									time: false,
-									dir,
-								}
-							},
-							series: [
-								{},
-								{
-									width: strokeWidth,
-									stroke: '#00f',
-									fill: 'rgb(0,0,255,0.1)',
-									paths: bars,
-								}
-							],
-						};
-
-						new uPlot(opts, data, document.body);
-					});
-				});
-
-				document.body.appendChild(document.createElement('br'));
-			});
-		</script>
-	</body>
 </html>
