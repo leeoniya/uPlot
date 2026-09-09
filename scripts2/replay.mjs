@@ -21,6 +21,7 @@ function replayArg(arg) {
   if (arg?.log == null)
     return arg;
 
+  // if Path2D, build it
   const out = new Path2D();
   replay(arg.log, out);
 
@@ -29,6 +30,7 @@ function replayArg(arg) {
 
 export function replay(cmds, ctx) {
   for (const [name, ...entries] of cmds) {
+    // isProp?
     if (props.has(name)) {
       for (const value of entries)
         ctx[name] = value;
@@ -41,6 +43,8 @@ export function replay(cmds, ctx) {
 }
 
 export function renderPng(spec) {
+  // console.dir(spec, {depth: 100});
+
   const canvas = createCanvas(spec.width, spec.height);
   const ctx = canvas.getContext('2d');
 
