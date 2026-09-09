@@ -209,10 +209,6 @@ function makeChart(cfg) {
   return new uPlot(opts, data, document.body);
 }
 
-cfgs.forEach(cfg => {
-  makeChart(cfg);
-});
-
 
 const groups = [
   {

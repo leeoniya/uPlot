@@ -938,26 +938,6 @@ const renders = [
   },
   () => {
     const opts = {
-      title: "x linear; y linear",
-      scales: {
-        x: {
-          time: false,
-        },
-        y: {
-          range: (u, min, max) => [min, max],
-        }
-      },
-      width,
-      height,
-      series,
-      bands,
-      hooks,
-    };
-
-    return new uPlot(opts, data, document.body);
-  },
-  () => {
-    const opts = {
       title: "log(x); log(y)",
       scales: {
         x: {
