@@ -307,7 +307,8 @@ export const asinh = (v, linthresh = 1) => M.asinh(v / linthresh);
 export const inf = Infinity;
 
 export function numIntDigits(x) {
-	return (log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
+	x = abs(x);
+	return (log10(x < 2147483648 ? x | 0 : x) | 0) + 1;
 }
 
 export function clamp(num, _min, _max) {
