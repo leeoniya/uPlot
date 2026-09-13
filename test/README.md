@@ -21,11 +21,11 @@ differ, the recorder writes one self-contained report to `test/output/index.html
 after the run. The report includes every mismatched plot, including multiple
 plots from one test step.
 
-Use the failure selector or the Previous and Next buttons to choose a snapshot.
-Hover over the chart to show the actual rendering. Move the pointer away to
+The report displays all failed snapshots in order, each with its own comparison canvas.
+Hover over a chart to show the actual rendering. Move the pointer away to
 restore the expected rendering. The hover area keeps the larger dimensions of
 the two snapshots to prevent flicker when their sizes differ.
-The report renders only the selected comparison and reuses one canvas.
+
 A validation run clears previous reports before the tests start. A passing run
 creates no report.
 

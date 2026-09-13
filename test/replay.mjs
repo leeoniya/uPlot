@@ -65,8 +65,8 @@ describe('browser failure reports', () => {
 		assert.equal(document.querySelectorAll('img, script[src], link').length, 0);
 
 		const canvas = document.querySelector('canvas');
-		const comparison = document.querySelector('#comparison');
-		const viewState = document.querySelector('#view-state');
+		const comparison = document.querySelector('.comparison');
+		const viewState = document.querySelector('.view-state');
 		assert.equal(document.querySelector('#toggle'), null);
 		const draws = [];
 		const dimensions = [];
@@ -117,42 +117,40 @@ describe('browser failure reports', () => {
 		assert.deepStrictEqual(dimensions, [[40, 20], [10, 5], [40, 20]]);
 	});
 
-	it('selects all failures with one canvas and resets each comparison to expected', () => {
+	it('renders every failure immediately with independent hover comparisons and no navigation or instructions', () => {
 		const spec = width => ({ width, height: 10, ctxlog: [['fillRect', [0, 0, width, 10]]] });
 		const document = loadReport([
 			{ title: 'first 0-0', expected: spec(10), actual: spec(20) },
 			{ title: 'second 0-pair/1', expected: spec(30), actual: spec(40) },
 		]);
-		assert.equal(document.querySelectorAll('canvas').length, 1);
-		assert.equal(document.querySelectorAll('option').length, 2);
+		const canvases = Array.from(document.querySelectorAll('canvas'));
+		const comparisons = document.querySelectorAll('.comparison');
+		assert.equal(canvases.length, 2);
+		assert.equal(document.querySelectorAll('select, button').length, 0);
 		assert.equal(document.querySelector('p').textContent, '2 failed snapshots');
-		const canvas = document.querySelector('canvas');
-		const select = document.querySelector('select');
-		const previous = document.querySelector('#previous');
-		const next = document.querySelector('#next');
-		const draws = [];
-		canvas.getContext = () => ({ fillRect() { draws.push(canvas.width); } });
+		assert.deepStrictEqual(Array.from(document.querySelectorAll('h2'), heading => heading.textContent), [
+			'first 0-0', 'second 0-pair/1',
+		]);
+		assert.doesNotMatch(document.body.textContent, /Hover over the chart|Move away to show expected/);
+		const draws = [[], []];
+		canvases.forEach((canvas, i) => {
+			canvas.getContext = () => ({ fillRect() { draws[i].push(canvas.width); } });
+		});
 		runInNewContext(document.querySelector('script').textContent, { document });
-		assert.deepStrictEqual(draws, [10]);
-		assert.equal(previous.disabled, true);
-		assert.equal(next.disabled, false);
+		assert.deepStrictEqual(draws, [[10], [30]]);
 
-		next.click();
-		assert.equal(select.value, '1');
-		assert.equal(document.querySelector('#case-title').textContent, 'second 0-pair/1');
-		assert.equal(previous.disabled, false);
-		assert.equal(next.disabled, true);
-		document.querySelector('#comparison').dispatchEvent(new window.MouseEvent('mouseenter'));
-		assert.equal(canvas.width, 40);
+		comparisons[0].dispatchEvent(new window.MouseEvent('mouseenter'));
+		assert.deepStrictEqual(draws, [[10, 20], [30]]);
+		assert.equal(canvases[0].getAttribute('aria-label'), 'Actual rendering');
+		assert.equal(canvases[1].getAttribute('aria-label'), 'Expected rendering');
 
-		previous.click();
-		assert.equal(select.value, '0');
-		assert.equal(canvas.width, 10);
-		assert.equal(canvas.getAttribute('aria-label'), 'Expected rendering');
-		select.value = '1';
-		select.dispatchEvent(new window.Event('change'));
-		assert.equal(canvas.width, 30);
-		assert.deepStrictEqual(draws, [10, 30, 40, 10, 30]);
+		comparisons[1].dispatchEvent(new window.MouseEvent('mouseenter'));
+		comparisons[0].dispatchEvent(new window.MouseEvent('mouseleave'));
+		assert.deepStrictEqual(draws, [[10, 20, 10], [30, 40]]);
+		assert.equal(canvases[0].getAttribute('aria-label'), 'Expected rendering');
+		assert.equal(canvases[1].getAttribute('aria-label'), 'Actual rendering');
+		comparisons[1].dispatchEvent(new window.MouseEvent('mouseleave'));
+		assert.deepStrictEqual(draws, [[10, 20, 10], [30, 40, 30]]);
 	});
 
 	it('does not create a report when there are no failures', () => {
@@ -169,9 +167,9 @@ describe('browser failure reports', () => {
 		runInNewContext(document.querySelector('script').textContent, { document });
 		assert.equal(canvas.width, 0);
 		assert.equal(canvas.height, 0);
-		document.querySelector('#comparison').dispatchEvent(new window.MouseEvent('mouseenter'));
+		document.querySelector('.comparison').dispatchEvent(new window.MouseEvent('mouseenter'));
 		assert.equal(canvas.getAttribute('aria-label'), 'Actual rendering');
-		document.querySelector('#comparison').dispatchEvent(new window.MouseEvent('mouseleave'));
+		document.querySelector('.comparison').dispatchEvent(new window.MouseEvent('mouseleave'));
 		assert.equal(canvas.getAttribute('aria-label'), 'Expected rendering');
 	});
 });

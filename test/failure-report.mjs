@@ -56,12 +56,12 @@ describe('consolidated failure report', function() {
 			const report = path.join(reportDir, 'index.html');
 			window = new Window({ settings: { disableJavaScriptEvaluation: true } });
 			window.document.write(fs.readFileSync(report, 'utf8'));
-			assert.deepStrictEqual(Array.from(window.document.querySelectorAll('option'), option => option.textContent), [
+			assert.deepStrictEqual(Array.from(window.document.querySelectorAll('h2'), heading => heading.textContent), [
 				'area-fill 0-0',
 				'multi-bars 0-variable-colors/0',
 				'multi-bars 0-variable-colors/1',
 			]);
-			assert.equal(window.document.querySelectorAll('canvas').length, 1);
+			assert.equal(window.document.querySelectorAll('canvas').length, 3);
 
 			for (const { filename, original } of originals)
 				fs.writeFileSync(filename, original);
