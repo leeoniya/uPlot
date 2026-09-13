@@ -21,6 +21,37 @@ commands differ, it also writes a self-contained visual comparison under
 `test/output/<demo>/`, with the same snapshot path and an `.html` extension. Use the button in the report to
 toggle between the expected and actual renderings.
 
+## Run natively with Bun
+
+```sh
+bun run test:bun
+```
+
+This command runs Mocha and the NYC coverage reporter under Bun. It uses the
+same snapshots, Istanbul instrumentation, and file-selection rules as the Node command.
+The runner writes coverage from the test process and its subprocesses to
+`.nyc_output/bun`. Each Bun run clears that directory. A Node test run clears
+`.nyc_output`, including the Bun results.
+
+`bun run test` still runs the existing Node command. Use `test:bun` for native Bun execution.
+
+Mocha arguments pass through to the Bun runner:
+
+```sh
+bun run test:bun --grep '^area-fill '
+```
+
+The Bun loader selects source files at startup. Files created later in the run
+are not instrumented. The current suite uses existing source files.
+
+To record snapshots under Bun, run:
+
+```sh
+UPDATE=1 bun run test:bun
+```
+
+This command replaces snapshots. Both runtimes share the same snapshot files.
+
 ## Record snapshots
 
 ```sh

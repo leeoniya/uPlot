@@ -7,12 +7,12 @@ const cwd = fileURLToPath(new URL('../', import.meta.url));
 function coverage(config) {
 	const env = { ...process.env, NODE_OPTIONS: '' };
 
-
 	return JSON.parse(execFileSync(process.execPath, [
-		'--max-old-space-size=512',
-		'--throw-deprecation',
-
-		'--input-type=module',
+		...(process.versions.bun ? [] : [
+			'--max-old-space-size=512',
+			'--throw-deprecation',
+			'--input-type=module',
+		]),
 		'-e', `
 			// NYC rewrites child-process environments, so configure after its wrapper starts.
 			delete process.env.NYC_CONFIG;
