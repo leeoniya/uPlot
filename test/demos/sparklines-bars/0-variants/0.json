@@ -1,0 +1,98 @@
+{
+  "html": "<div class=\"uplot u-hz\"><div class=\"u-wrap\" style=\"width: 800px; height: 400px;\"><div class=\"u-under\" style=\"left: 0px; top: 0px; width: 800px; height: 400px;\"></div><canvas width=\"800\" height=\"400\"></canvas><div class=\"u-over\" style=\"left: 0px; top: 0px; width: 800px; height: 400px;\"></div></div></div>",
+  "width": 800,
+  "height": 400,
+  "ctxlog": [
+    ["clearRect", [0, 0, 800, 400]],
+    ["translate", [0.5, 0.5]],
+    ["strokeStyle", {"log": [["addColorStop", [0, "red"], [1, "red"], [1, "green"]]], "type": "linearGradient", "args": [0, 400, 0, 150]}],
+    ["fillStyle", {"log": [["addColorStop", [0, "red"], [0.625, "white"], [1, "green"]]], "type": "linearGradient", "args": [0, 400, 0, 0]}],
+    ["lineWidth", 1],
+    ["lineJoin", "round"],
+    ["lineCap", "butt"],
+    ["setLineDash", [[]]],
+    ["save", []],
+    ["clip", [{"log": [["rect", [-0.5, -0.5, 801, 401]]]}]],
+    ["fill", [{"log": [["lineTo", [800, 150], [0, 150]]]}]],
+    [
+      "stroke",
+      [
+        {
+          "log": [
+            [
+              "lineTo",
+              [0, 100],
+              [53, 200],
+              [107, 150],
+              [160, 140],
+              [213, 100],
+              [267, 60],
+              [320, 50],
+              [373, 0],
+              [427, 100],
+              [480, 250],
+              [533, 300],
+              [587, 350],
+              [640, 350],
+              [693, 200],
+              [747, 150],
+              [800, 100]
+            ]
+          ]
+        }
+      ]
+    ],
+    ["restore", []],
+    ["translate", [-0.5, -0.5]],
+    ["strokeStyle", "#0000"],
+    ["fillStyle", {"log": [["addColorStop", [0, "red"], [1, "red"], [1, "green"]]], "type": "linearGradient", "args": [0, 400, 0, 150]}],
+    ["lineWidth", 0],
+    ["save", []],
+    ["clip", [{"log": [["rect", [0, 0, 800, 400]]]}]],
+    [
+      "fill",
+      [
+        {
+          "log": [
+            [
+              "rect",
+              [-16, 50, 32, 100],
+              [91, 100, 32, 100],
+              [144, 90, 32, 100],
+              [197, 50, 32, 100],
+              [251, 10, 32, 100],
+              [304, 0, 32, 100],
+              [357, -50, 32, 100],
+              [411, 50, 32, 100],
+              [464, 200, 32, 100],
+              [517, 250, 32, 100],
+              [571, 300, 32, 100],
+              [624, 300, 32, 100],
+              [731, 100, 32, 100],
+              [784, 50, 32, 100]
+            ]
+          ]
+        }
+      ]
+    ],
+    ["restore", []],
+    ["fillStyle", "#000"],
+    [
+      "font",
+      "12px system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, \"Noto Sans\", sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\""
+    ],
+    ["textAlign", "right"],
+    ["textBaseline", "middle"],
+    ["fillText", ["0", -5, 150]],
+    ["translate", [0.5, 0.5]],
+    ["strokeStyle", "gray"],
+    ["fillStyle", "gray"],
+    ["lineWidth", 1],
+    ["setLineDash", [[3, 3]]],
+    ["beginPath", []],
+    ["moveTo", [0, 150]],
+    ["lineTo", [800, 150]],
+    ["stroke", []],
+    ["translate", [-0.5, -0.5]]
+  ]
+}

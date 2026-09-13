@@ -1,3 +1,5 @@
+import { plotStep } from './renderDemo.js';
+
 function fmtUSD(val, dec) {
   return "$" + val.toFixed(dec).replace(/\d(?=(\d{3})+(?:\.|$))/g, '$&,');
 }
@@ -767,12 +769,7 @@ const groups = [
       // before
 
       // can return one or more plots
-      render: async () => {
-        return new Promise(res => {
-          let u = render();
-          queueMicrotask(() => res([u]));
-        });
-      },
+      ...plotStep(render),
 
       // after
     })),

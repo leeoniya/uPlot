@@ -1,0 +1,288 @@
+import { plotStep } from './renderDemo.js';
+import { loadFixture } from './demoResources.js';
+import { seriesBarsPlugin } from './grouped-bars.js';
+
+function makeChart(o, d, enabled) {
+	let ori = o.ori;
+	let dir = o.dir;
+
+	const opts = {
+		width:  ori == 0 ? 2300 :  800,
+		height: ori == 0 ?  800 : 2300,
+		title: "Line Charts (166,650 points)",
+		axes: [
+			{
+			//	rotate: -45,
+			},
+			{
+			//	show: false,
+				scale: 'rend',
+				side: ori == 0 ? 3 : 0,
+			},
+		],
+		legend: {
+			live: false,
+			markers: {
+				width: 0,
+			}
+		},
+		padding: [null, 0, null, 0],
+		series: [
+			{
+				label: "Lib Name"
+			},
+			{
+				label: "Lib Size (KB)",
+				fill: "#33BB55",
+				scale: 'size',
+				width: 0,
+			},
+			{
+				label:	"Render Time (ms)",
+				fill: "#B56FAB",
+				scale: 'rend',
+				width: 0,
+			},
+			{
+				label:	"Peak Heap (MB)",
+				fill: "#BB1133",
+				scale: 'mem',
+				width: 0,
+			},
+			{
+				label:	"Final Heap (MB)",
+				fill: "#F79420",
+				scale: 'mem',
+				width: 0,
+			},
+			{
+				label:	"Interact 10s (ms)",
+				fill: "#558AB5",
+				scale: 'inter',
+				width: 0,
+			},
+			{
+				label:	"Toggle 6x (ms)",
+				fill: "#FAD55C",
+				scale: 'toggle',
+				width: 0,
+			},
+			{
+				label: "Random line",
+				stroke:  "purple",
+				scale: 'rend',
+				width: 2,
+			},
+		],
+		plugins: [
+			seriesBarsPlugin({
+				radius: 0.3,
+				ignore: [7],
+				ori,
+				dir,
+			}),
+		],
+	};
+
+	enabled = enabled ?? Array(d.length).fill(true);
+
+	function makeData() {
+		return [
+			d.filter((lib, i) => enabled[i]).map(lib => lib[0]),
+			d.filter((lib, i) => enabled[i]).map(lib => lib[1]),
+			d.filter((lib, i) => enabled[i]).map(lib => Math.round(lib[3].reduce((total, num) => total + num, 0))),
+			d.filter((lib, i) => enabled[i]).map(lib => lib[4][0]),
+			d.filter((lib, i) => enabled[i]).map(lib => lib[4][1]),
+			d.filter((lib, i) => enabled[i]).map(lib => lib[5] && lib[5].reduce((total, num) => total + num, 0)),
+			d.filter((lib, i) => enabled[i]).map(lib => lib[6] && lib[6].reduce((total, num) => total + num, 0)),
+			// random line
+			d.filter((lib, i) => enabled[i]).map(lib => 3e3 + Math.round(Math.random() * 1e3)),
+		];
+	}
+
+	let u = new uPlot(opts, makeData(), document.body);
+
+	let toggles = document.createElement("div");
+	toggles.classList.add("lib-toggles");
+
+	d.forEach((lib, i) => {
+		let btn = document.createElement("button");
+		btn.textContent = lib[0];
+
+		btn.onclick = e => {
+			enabled[i] = !enabled[i];
+			btn.classList.toggle("hidden");
+			u.setData(makeData());
+		};
+
+		toggles.appendChild(btn);
+	});
+
+	u.root.appendChild(toggles);
+	return u;
+}
+
+function makeChart2(d) {
+	const opts = {
+		width:  800,
+		height: 400,
+		title: "Variable bar colors",
+		padding: [null, 0, null, 0],
+		axes: [
+			{},
+			{
+				values: (u, splits) => splits.map(s => s + "s"),
+			},
+		],
+		series: [
+			{
+				label: "Build #",
+				value: (u, v) => v
+			},
+			{
+				label: "Server #SNAFU",
+				width: 2,
+				fill: "#33BB55A0",
+				values: (u, seriesIdx) => {
+					let idxs = u.legend.idxs;
+
+					if (u.data == null || idxs.length == 0 || idxs[seriesIdx] == null)
+						return {"Build": null, "Duration": null, "Status": null};
+
+					let dataIdx = idxs[seriesIdx];
+
+					let build = u.data[0][dataIdx];
+					let duration = u.data[seriesIdx][dataIdx];
+					let status = u.data[seriesIdx + 1][dataIdx];
+
+					return {"Build": build, "Duration": duration, "Status": status};
+				}
+			},
+		/*
+			{
+				label: "Status",
+				fill: "",
+				value: (u, v) => v == 0 ? "Success" : v == 1 ? "Pending" : "Failed"
+			},
+		*/
+		],
+		plugins: [
+			seriesBarsPlugin({
+				ori: 0,
+				dir: 1,
+				radius: 0.5,
+				disp: {
+					stroke: {
+						unit: 3,
+						values: (u, seriesIdx) => u.data[2].map(v =>
+							v == 0 ? "#33BB55" :
+							v == 1 ? "#F79420" :
+							         "#BB1133"
+						),
+					},
+					fill: {
+						unit: 3,
+						values: (u, seriesIdx) => u.data[2].map(v =>
+							v == 0 ? "#33BB55A0" :
+							v == 1 ? "#F79420A0" :
+							         "#BB1133A0"
+						),
+					}
+				}
+			}),
+		],
+	};
+
+	return new uPlot(opts, d, document.body);
+}
+
+
+function makeVariableData() {
+	let labels = "abcdefghijklmnopqrstuvwxyz".split("");
+
+	let data = [
+		labels, // labels
+		labels.map(_ => {
+			let v = Math.round(Math.random() * 100);
+			return v * (v % 3 == 0 ? -1 : 1);
+		}), // y values
+		labels.map((_, i) =>
+			i % 12 == 0 ? 1 :
+			i % 10 == 0 ? 2 :
+			0
+		), // statuses
+	];
+
+	return data;
+}
+
+function makeNonJustifiedChart(data) {
+	let opts9 = {
+		title: "Non-justified bars",
+		width:  800,
+		height: 400,
+		scales: {
+			x: {
+				time: false
+			}
+		},
+		series: [
+			{},
+			{
+				label: "Server #SNAFU",
+				width: 1,
+				stroke: "red",
+				paths: uPlot.paths.bars({
+					disp: {
+						stroke: {
+							unit: 3,
+							values: (u, seriesIdx) => u.data[2].map(v =>
+								v == 0 ? "#33BB55" :
+								v == 1 ? "#F79420" :
+								         "#BB1133"
+							),
+						},
+						fill: {
+							unit: 3,
+							values: (u, seriesIdx) => u.data[2].map(v =>
+								v == 0 ? "#33BB55A0" :
+								v == 1 ? "#F79420A0" :
+								         "#BB1133A0"
+							),
+						}
+					}
+				})
+			},
+		],
+	};
+
+	return new uPlot(opts9, [
+		data[0].map((v, i)=> i),
+		data[1],
+		data[2]
+	], document.body);
+}
+
+
+const groups = [{
+	steps: [
+		{
+			id: 'variable-colors',
+			...plotStep(() => {
+				const data = makeVariableData();
+				const nonJustifiedData = data.map(column => column.slice());
+				return [makeChart2(data), makeNonJustifiedChart(nonJustifiedData)];
+			}),
+		},
+		{
+			id: 'horizontal',
+			...plotStep(async () => makeChart({ori: 0, dir: 1}, await loadFixture('../bench/results.json'))),
+		},
+		{
+			id: 'vertical',
+			...plotStep(async () => makeChart({ori: 1, dir: -1}, await loadFixture('../bench/results.json'))),
+		},
+	],
+}];
+
+export default groups;

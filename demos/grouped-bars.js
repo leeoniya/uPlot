@@ -1,4 +1,7 @@
-function seriesBarsPlugin(opts) {
+import { Quadtree, pointWithin } from './lib/quadtree.js';
+import { distr, SPACE_BETWEEN } from './lib/distr.js';
+
+export function seriesBarsPlugin(opts) {
 	let pxRatio;
 	let font;
 
@@ -235,7 +238,7 @@ function seriesBarsPlugin(opts) {
 			uPlot.assign(opts.axes[0], {
 				splits: (u, axisIdx) => {
 					const _dir = dir * (ori == 0 ? 1 : -1);
-					splits = u._data[0].slice();
+					const splits = u._data[0].slice();
 					return _dir == 1 ? splits : splits.reverse();
 				},
 				values:     u => u.data[0],

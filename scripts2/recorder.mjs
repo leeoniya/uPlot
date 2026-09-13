@@ -7,6 +7,7 @@ import stringify from "json-stringify-pretty-compact";
 
 import './instrument.mjs';
 import { withSeededRandom } from './withSeededRandom.mjs';
+import { getDemoSteps, captureStep } from './demoSteps.mjs';
 import demos from '../test/demos.mjs';
 
 // console.time('import uPlot');
@@ -31,64 +32,43 @@ const update = process.env.UPDATE === '1';
 const outputDir = path.resolve('test/output');
 
 if (process.env.UPDATE != null && !update)
-  throw new Error('UPDATE must be "1" when set.');
+	throw new Error('UPDATE must be "1" when set.');
 
 if (!update)
-  fs.rmSync(outputDir, { recursive: true, force: true });
+	fs.rmSync(outputDir, { recursive: true, force: true });
 
 for (const name of demos) {
-  const { default: groups } = await import(`../demos/${name}.js`);
+	const { default: groups } = await import(`../demos/${name}.js`);
+	const steps = getDemoSteps(groups);
 
-  describe(name, () => {
-    const dir = path.resolve('test/demos', name);
+	describe(name, () => {
+		const dir = path.resolve('test/demos', name);
 
-    groups.forEach((group, groupIdx) => {
-      group.steps.forEach((step, stepIdx) => {
-        const id = `${groupIdx}-${stepIdx}`;
-        const filename = path.join(dir, `${id}.json`);
+		for (const { id, step } of steps) {
+			it(id, async () => {
+				await withSeededRandom(() => captureStep(step, id, async (actual, snapshotId) => {
+					const filename = path.join(dir, `${snapshotId}.json`);
+					if (update) {
+						fs.mkdirSync(path.dirname(filename), { recursive: true });
+						fs.writeFileSync(filename, stringify(actual, { indent: 2, maxLength: 160 }) + '\n');
+					}
+					else {
+						const expected = JSON.parse(fs.readFileSync(filename, 'utf8'));
 
-        it(id, async () => {
-          await withSeededRandom(async () => {
-            const plots = await step.render();
+						try {
+							assert.deepStrictEqual(actual, expected);
+						}
+						catch (error) {
+							const { writeFailureReport } = await import('./replay.mjs');
+							const report = path.join(outputDir, name, `${snapshotId}.html`);
 
-            const u = plots[0];
-
-            const actual = {
-              html: u.root.outerHTML,
-              width: u.ctx.width,
-              height: u.ctx.height,
-              ctxlog: u.ctx.log,
-            };
-
-            try {
-              if (update) {
-                fs.mkdirSync(dir, { recursive: true });
-                fs.writeFileSync(filename, stringify(actual, { indent: 2, maxLength: 160 }) + '\n');
-              }
-              else {
-                const expected = JSON.parse(fs.readFileSync(filename, 'utf8'));
-
-                try {
-                  assert.deepStrictEqual(actual, expected);
-                }
-                catch (error) {
-                  const { writeFailureReport } = await import('./replay.mjs');
-                  const report = path.join(outputDir, name, `${id}.html`);
-
-                  writeFailureReport(expected, actual, report, `${name} ${id}`);
-                  error.message += `\nVisual comparison: ${path.relative('.', report)}`;
-
-                  throw error;
-                }
-              }
-            }
-            finally {
-              for (const plot of plots)
-                plot.destroy();
-            }
-          });
-        });
-      });
-    });
-  });
+							writeFailureReport(expected, actual, report, `${name} ${snapshotId}`);
+							error.message += `\nVisual comparison: ${path.relative('.', report)}`;
+							throw error;
+						}
+					}
+				}));
+			});
+		}
+	});
 }

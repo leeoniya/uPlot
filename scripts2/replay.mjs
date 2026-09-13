@@ -7,65 +7,71 @@ import { applyPath2DToCanvasRenderingContext, Path2D } from "path2d";
 applyPath2DToCanvasRenderingContext(CanvasRenderingContext2D);
 
 const props = new Set([
-  'strokeStyle',
-  'fillStyle',
-  'lineWidth',
-  'font',
-  'textAlign',
-  'textBaseline',
-  'lineJoin',
-  'lineCap',
+	'strokeStyle',
+	'fillStyle',
+	'lineWidth',
+	'font',
+	'textAlign',
+	'textBaseline',
+	'lineJoin',
+	'lineCap',
 ]);
 
-function replayArg(arg) {
-  if (arg?.log == null)
-    return arg;
+function replayArg(arg, ctx) {
+	if (arg?.log == null)
+		return arg;
 
-  // if Path2D, build it
-  const out = new Path2D();
-  replay(arg.log, out);
+	if (arg.type === 'linearGradient') {
+		const gradient = ctx.createLinearGradient(...arg.args);
+		replay(arg.log, gradient);
+		return gradient;
+	}
 
-  return out;
+	// if Path2D, build it
+	const out = new Path2D();
+	replay(arg.log, out);
+
+	return out;
 }
 
 export function replay(cmds, ctx) {
-  for (const [name, ...entries] of cmds) {
-    // isProp?
-    if (props.has(name)) {
-      for (const value of entries)
-        ctx[name] = value;
-    }
-    else {
-      for (const args of entries)
-        ctx[name](...args.map(replayArg));
-    }
-  }
+	for (const [name, ...entries] of cmds) {
+		// isProp?
+		if (props.has(name)) {
+			for (const value of entries)
+				ctx[name] = replayArg(value, ctx);
+		}
+		else {
+			for (const args of entries)
+				ctx[name](...args.map(arg => replayArg(arg, ctx)));
+		}
+	}
 }
 
 export function renderPng(spec) {
-  // console.dir(spec, {depth: 100});
+	// console.dir(spec, {depth: 100});
 
-  const canvas = createCanvas(spec.width, spec.height);
-  const ctx = canvas.getContext('2d');
+	const canvas = createCanvas(spec.width, spec.height);
+	const ctx = canvas.getContext('2d');
 
-  replay(spec.ctxlog, ctx);
+	replay(spec.ctxlog, ctx);
 
-  return canvas.toBuffer('image/png');
+	return canvas.toBuffer('image/png');
 }
 
 function escapeHtml(value) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
+	return value
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;');
 }
 
 export function writeFailureReport(expected, actual, filename, title) {
-  const expectedSrc = `data:image/png;base64,${renderPng(expected).toString('base64')}`;
-  const actualSrc = `data:image/png;base64,${renderPng(actual).toString('base64')}`;
-  const safeTitle = escapeHtml(title);
-  const html = `<!doctype html>
+	const expectedSrc = `data:image/png;base64,${renderPng(expected).toString('base64')}`;
+	const actualSrc = `data:image/png;base64,${renderPng(actual).toString('base64')}`;
+	const safeTitle = escapeHtml(title);
+	const html = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -101,6 +107,6 @@ export function writeFailureReport(expected, actual, filename, title) {
 </html>
 `;
 
-  fs.mkdirSync(path.dirname(filename), { recursive: true });
-  fs.writeFileSync(filename, html);
+	fs.mkdirSync(path.dirname(filename), { recursive: true });
+	fs.writeFileSync(filename, html);
 }

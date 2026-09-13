@@ -1,3 +1,5 @@
+import { plotStep } from './renderDemo.js';
+
 const renders = [
   () => {
     let data = [
@@ -298,12 +300,7 @@ const groups = [
       breakAfter: render.breakAfter ?? 0,
 
       // can return one or more plots
-      render: async () => {
-        return new Promise(res => {
-          let u = render();
-          queueMicrotask(() => res([u]));
-        });
-      },
+      ...plotStep(render),
 
       // after
     })),

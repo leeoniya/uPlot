@@ -2,50 +2,51 @@
 
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 
-GlobalRegistrator.register({ width: 1920, height: 1080 });
+GlobalRegistrator.register({ width: 1920, height: 1080, settings: { errorCapture: 'disabled' } });
 
 function defProp(obj, name, rest) {
-  Object.defineProperty(obj, name, {
-    enumerable: false,
-    ...rest,
-  });
+	Object.defineProperty(obj, name, {
+		enumerable: false,
+		...rest,
+	});
 
-  return obj;
+	return obj;
 }
 
 function getMock(meths = [], props = []) {
-  const log = [];
-  const out = { log };
+	const log = [];
+	const out = { log };
 
-  let last = [null];
+	let last = [null];
 
-  meths.forEach(name => {
-    defProp(out, name, {
-      value: (...args) => {
-        // console.log(name, args);
+	meths.forEach(name => {
+		defProp(out, name, {
+			value: (...args) => {
 
-        if (name !== last[0])
-          log.push(last = [name, args]);
-        else
-          last.push(args);
-      }
-    });
-  });
+				// console.log(name, args);
 
-  props.forEach(name => {
-    defProp(out, name, {
-      set: val => {
-        // console.log(name, val);
+				if (name !== last[0])
+					log.push(last = [name, args]);
+				else
+					last.push(args);
+			}
+		});
+	});
 
-        if (name !== last[0])
-          log.push(last = [name, val]);
-        else
-          last.push(val);
-      },
-    });
-  });
+	props.forEach(name => {
+		defProp(out, name, {
+			set: val => {
+				// console.log(name, val);
 
-  return out;
+				if (name !== last[0])
+					log.push(last = [name, val]);
+				else
+					last.push(val);
+			},
+		});
+	});
+
+	return out;
 }
 
 const CanProto = HTMLCanvasElement.prototype;
@@ -53,43 +54,52 @@ const widthProp = Object.getOwnPropertyDescriptor(CanProto, 'width');
 const heightProp = Object.getOwnPropertyDescriptor(CanProto, 'height');
 
 CanProto.getContext = function() {
-  if (this.ctx != null)
-    return this.ctx;
+	if (this.ctx != null)
+		return this.ctx;
 
-  const mock = getMock(
-    ['clearRect', 'fillText', 'translate', 'rotate', 'setLineDash', 'beginPath', 'moveTo', 'lineTo', 'bezierCurveTo', 'quadraticCurveTo', 'stroke', 'fill', 'save', 'restore', 'clip', 'fillRect', 'arc', 'arcTo'],
-    ['strokeStyle', 'fillStyle', 'lineWidth', 'font', 'textAlign', 'textBaseline', 'lineJoin', 'lineCap'],
-  );
+	const mock = getMock(
+		['clearRect', 'fillText', 'translate', 'rotate', 'setLineDash', 'beginPath', 'moveTo', 'lineTo', 'bezierCurveTo', 'quadraticCurveTo', 'stroke', 'fill', 'save', 'restore', 'clip', 'fillRect', 'arc', 'arcTo'],
+		['strokeStyle', 'fillStyle', 'lineWidth', 'font', 'textAlign', 'textBaseline', 'lineJoin', 'lineCap'],
+	);
 
-  mock.width = 0;
-  mock.height = 0;
+	defProp(mock, 'createLinearGradient', {
+		value: (...args) => {
+			const gradient = getMock(['addColorStop']);
+			gradient.type = 'linearGradient';
+			gradient.args = args;
+			return gradient;
+		},
+	});
 
-  Object.defineProperties(this, {
-    ctx: {
-      value: mock,
-      enumerable: false,
-      writable: false,
-      configurable: false,
-    },
-    width: {
-      ...widthProp,
-      set(val) {
-        widthProp.set.call(this, mock.width = val);
-      }
-    },
-    height: {
-      ...heightProp,
-      set(val) {
-        heightProp.set.call(this, mock.height = val);
-      }
-    },
-  });
+	mock.width = 0;
+	mock.height = 0;
 
-  return mock;
+	Object.defineProperties(this, {
+		ctx: {
+			value: mock,
+			enumerable: false,
+			writable: false,
+			configurable: false,
+		},
+		width: {
+			...widthProp,
+			set(val) {
+				widthProp.set.call(this, mock.width = val);
+			}
+		},
+		height: {
+			...heightProp,
+			set(val) {
+				heightProp.set.call(this, mock.height = val);
+			}
+		},
+	});
+
+	return mock;
 };
 
 global.Path2D = function() {
-  return getMock(['moveTo', 'lineTo', 'bezierCurveTo', 'quadraticCurveTo', 'rect', 'arc', 'arcTo', 'ellipse', 'roundRect', 'closePath', 'addPath']);
+	return getMock(['moveTo', 'lineTo', 'bezierCurveTo', 'quadraticCurveTo', 'rect', 'arc', 'arcTo', 'ellipse', 'roundRect', 'closePath', 'addPath']);
 };
 
 // console.timeEnd('mock-dom');

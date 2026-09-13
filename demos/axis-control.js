@@ -1,3 +1,5 @@
+import { plotStep } from './renderDemo.js';
+
 function randInt(min, max) {
   const minCeiled = Math.ceil(min);
   const maxFloored = Math.floor(max);
@@ -86,12 +88,7 @@ const groups = [
         // before
 
         // can return one or more plots
-        render: async () => {
-          return new Promise(res => {
-            let u = render();
-            queueMicrotask(() => res([u]));
-          });
-        },
+        ...plotStep(render),
 
         // after
       }

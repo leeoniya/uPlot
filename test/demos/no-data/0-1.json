@@ -1,0 +1,6 @@
+{
+  "html": "<div class=\"uplot u-hz\"><div class=\"u-title\">Plot without data 2</div><div class=\"u-wrap\" style=\"width: 800px; height: 400px;\"><div class=\"u-under\" style=\"left: 0px; top: 0px; width: 800px; height: 400px;\"></div><canvas width=\"800\" height=\"400\"></canvas><div class=\"u-over\" style=\"left: 0px; top: 0px; width: 800px; height: 400px;\"><div class=\"u-cursor-x u-off\" style=\"transform: translate(-10px,0px);\"></div><div class=\"u-cursor-y u-off\" style=\"transform: translate(0px,-10px);\"></div><div class=\"u-select\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div></div><div class=\"u-axis u-off\"></div><div class=\"u-axis u-off\"></div></div><table class=\"u-legend u-inline u-live\"><tbody><tr class=\"u-series\"><th><div class=\"u-marker\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid #000;\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr></tbody></table></div>",
+  "width": 800,
+  "height": 400,
+  "ctxlog": [["clearRect", [0, 0, 800, 400]]]
+}

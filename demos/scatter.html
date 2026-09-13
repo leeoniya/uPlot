@@ -8,10 +8,10 @@
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
 	</head>
 	<body>
-		<script src="./lib/quadtree.js"></script>
 
 		<script type="module">
 			import uPlot from "../dist/uPlot.esm.js";
+			import { Quadtree, pointWithin } from './lib/quadtree.js';
 
 			function randInt(min, max) {
 				return Math.floor(Math.random() * (max - min + 1)) + min;

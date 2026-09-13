@@ -1,3 +1,5 @@
+import { plotStep } from './renderDemo.js';
+
 const { linear, stepped, bars, spline, spline2 } = uPlot.paths;
 
 let data = [
@@ -221,12 +223,7 @@ const groups = [
         // before
 
         // can return one or more plots
-        render: async () => {
-          return new Promise(res => {
-            let u = render();
-            queueMicrotask(() => res([u]));
-          });
-        },
+        ...plotStep(render),
         verify: async (plots, snapshots, assert) => {
 
         },
@@ -236,16 +233,7 @@ const groups = [
     ]
     */
 
-    steps: cfgs.map(cfg => {
-      return {
-        render: async () => {
-          return new Promise(res => {
-            let u = makeChart(cfg);
-            queueMicrotask(() => res([u]));
-          });
-        },
-      }
-    })
+    steps: cfgs.map(cfg => plotStep(() => makeChart(cfg)))
 
     // after
   },

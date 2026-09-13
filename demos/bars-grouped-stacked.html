@@ -30,12 +30,13 @@
 	</head>
 	<body>
 		<script src="../dist/uPlot.iife.js"></script>
-		<script src="./lib/quadtree.js"></script>
-		<script src="./lib/distr.js"></script>
-		<script src="./stack.js"></script>
-		<script src="./grouped-bars.js"></script>
 
-		<script>
+		<script src="./stack.js"></script>
+
+
+		<script type="module">
+			import { seriesBarsPlugin } from './grouped-bars.js';
+
 			function makeChart(o, data, bands) {
 				let ori = o.ori;
 				let dir = o.dir;

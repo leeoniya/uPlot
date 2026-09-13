@@ -33,7 +33,7 @@ function geoMean(arr) {
 	return Math.exp(logSum / arr.length);
 }
 
-function stats(arr) {
+export function stats(arr) {
 	arr = arr.slice().sort((a,b) => a-b);
 	var n = arr.length;
 	var sum = arr.reduce((acc, val) => acc + val, 0);
