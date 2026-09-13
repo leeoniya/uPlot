@@ -16,10 +16,24 @@ underscores, and hyphens. The recorder rejects duplicate group IDs and snapshot 
 npm test
 ```
 
-This command validates the snapshots and reports code coverage. If canvas
-commands differ, it also writes a self-contained visual comparison under
-`test/output/<demo>/`, with the same snapshot path and an `.html` extension. Use the button in the report to
-toggle between the expected and actual renderings.
+This command validates the snapshots and reports code coverage. If snapshots
+differ, the recorder writes one self-contained report to `test/output/index.html`
+after the run. The report includes every mismatched plot, including multiple
+plots from one test step.
+
+Use the failure selector or the Previous and Next buttons to choose a snapshot.
+Hover over the chart to show the actual rendering. Move the pointer away to
+restore the expected rendering. The hover area keeps the larger dimensions of
+the two snapshots to prevent flicker when their sizes differ.
+The report renders only the selected comparison and reuses one canvas.
+A validation run clears previous reports before the tests start. A passing run
+creates no report.
+
+The report embeds the recorded commands and replays them with the browser's
+native Canvas and `Path2D` APIs. Open the HTML file directly in a browser.
+No server or network access is required. Rendering uses the browser's fonts and
+rasterization rather than pre-rendered PNG images. Snapshot comparisons still
+use the recorded commands, not pixels.
 
 ## Run natively with Bun
 

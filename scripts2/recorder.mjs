@@ -30,12 +30,22 @@ global.uPlot = uPlot;
 
 const update = process.env.UPDATE === '1';
 const outputDir = path.resolve('test/output');
+const report = path.join(outputDir, 'index.html');
+const failures = [];
 
 if (process.env.UPDATE != null && !update)
 	throw new Error('UPDATE must be "1" when set.');
 
 if (!update)
 	fs.rmSync(outputDir, { recursive: true, force: true });
+
+after(async () => {
+	if (failures.length > 0) {
+		const { writeFailureReport } = await import('./replay.mjs');
+		writeFailureReport(failures, report);
+		console.log(`Visual comparisons: ${path.relative('.', report)} (${failures.length} failed snapshots)`);
+	}
+});
 
 for (const name of demos) {
 	const { default: groups } = await import(`../demos/${name}.js`);
@@ -46,6 +56,8 @@ for (const name of demos) {
 
 		for (const { id, step } of steps) {
 			it(id, async () => {
+				let firstError;
+
 				await withSeededRandom(() => captureStep(step, id, async (actual, snapshotId) => {
 					const filename = path.join(dir, `${snapshotId}.json`);
 					if (update) {
@@ -59,15 +71,16 @@ for (const name of demos) {
 							assert.deepStrictEqual(actual, expected);
 						}
 						catch (error) {
-							const { writeFailureReport } = await import('./replay.mjs');
-							const report = path.join(outputDir, name, `${snapshotId}.html`);
-
-							writeFailureReport(expected, actual, report, `${name} ${snapshotId}`);
-							error.message += `\nVisual comparison: ${path.relative('.', report)}`;
-							throw error;
+							// Preserve the recording before plot cleanup or later steps can change it.
+							failures.push({ title: `${name} ${snapshotId}`, expected, actual: JSON.parse(JSON.stringify(actual)) });
+							error.message += `\nVisual comparisons: ${path.relative('.', report)}`;
+							firstError ??= error;
 						}
 					}
 				}));
+
+				if (firstError)
+					throw firstError;
 			});
 		}
 	});
