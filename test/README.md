@@ -23,17 +23,16 @@ Run the historical regression cases:
 npx mocha 'test/precision-*.mjs'
 ```
 
-To include confirmed unresolved cases, enable strict mode:
+The previously pending #827, #620, and #1084 cases now run by default.
+A stalled step discards all accumulated splits.
+Reaching the upper bound completes generation without requiring another step.
+Automatic-ranging tests cover flat and near-flat data updates on both signs, with finite ticks and pixel positions.
+Low-level termination tests do not promise valid rendering for equal custom bounds.
 
-```sh
-UPLOT_PRECISION_STRICT=1 npx mocha 'test/precision-*.mjs'
-```
-
-Strict mode currently fails. Each chart or tick probe runs in a child process.
-Strict-only probes have a 50 ms execution limit after imports finish.
-Passing probes have a five-second execution limit. All probes have a separate five-second startup limit.
+Each chart or tick probe runs in a child process.
+The three degenerate-range probes retain a 50 ms execution limit after imports finish.
+Other probes have a five-second execution limit. All probes have a separate five-second startup limit.
 Node children also have a 128 MiB heap limit.
-The normal suite reports unresolved cases as pending, not passing.
 
 Coverage runs share a temporary cache of instrumented source between probes.
 Each probe still has a fresh process and independent coverage counters.

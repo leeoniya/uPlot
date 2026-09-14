@@ -331,14 +331,38 @@ const probes = {
 	'827-auto-flat'() {
 		return numericChart([[0, 1], [1e14, 1e14]], u => checkNumericChart(u, 1e14, 1e14));
 	},
-	// Exact debugger state from the same issue, independently of chart configuration.
+	'827-auto-updates'() {
+		const x = Array.from({ length: 10 }, (_, i) => i);
+		return numericChart([x, x.map(i => 1e14 + i * 1e12)], async u => {
+			for (const sign of [1, -1]) {
+				for (const incr of [0, 0.015625, 1, 1e12]) {
+					const y = x.map(i => sign * (1e14 + i * incr));
+					u.setData([x, y]);
+					await Promise.resolve();
+					checkNumericChart(u, Math.min(...y), Math.max(...y));
+					for (const value of y)
+						assert.ok(Number.isFinite(u.valToPos(value, 'y')));
+				}
+			}
+		});
+	},
+	// Low-level termination checks, not reproductions of the automatic data flow.
 	'827-stalled-splits'() {
 		const splits = numAxisSplits(null, 0, 1e14, 1e14, 1e-8);
 		assert.ok(splits.length <= 1, 'a degenerate range cannot have multiple ticks');
+		assert.deepEqual(numAxisSplits(null, 0, 2, 1, 1), []);
+		assert.deepEqual(numAxisSplits(null, 0, 1e14, 1e14 + 1, 1e-8), []);
+		// Discard earlier ticks if addition stalls after crossing a binary boundary.
+		assert.deepEqual(numAxisSplits(null, 0, 2 ** 53 - 1, 2 ** 53 + 2, 1), []);
+		// Reaching the endpoint completes the range, even if another step would stall.
+		assert.deepEqual(numAxisSplits(null, 0, 2 ** 53 - 1, 2 ** 53, 1), [2 ** 53 - 1, 2 ** 53]);
+		assert.deepEqual(numAxisSplits(null, 0, 0.1, 1, 1), [1]);
+		assert.deepEqual(numAxisSplits(null, 0, 0.1, 1.5, 1), [1]);
+		assert.deepEqual(numAxisSplits(null, 0, -0, 1, 1), [0, 1]);
 	},
 
 	// Exact invalid custom range from https://github.com/leeoniya/uPlot/issues/620 .
-	// Safety contract only: hide ticks or provide at most one tick; never loop.
+	// Safety check only; this does not promise support for invalid custom ranges.
 	'620-equal-range'() {
 		return numericChart([[0, 1], [1, 1]], u => {
 			assert.ok((u.axes[1]._splits?.length ?? 0) <= 1);

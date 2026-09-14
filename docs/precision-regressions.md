@@ -15,7 +15,9 @@ The review includes open and closed uPlot issues, issue comments, attached repro
 
 The tests exercise exported source functions. They do not require a rebuilt bundle or network access.
 
-The normal run contains **79 passing tests and 3 pending tests** after the rounding and ranging fixes. The pending tests express desired behavior for confirmed unresolved cases. They do not assert that incorrect output is correct.
+The previously pending #827, #620, and #1084 probes now run by default as low-level termination checks.
+They do not establish how an application reaches those internal states or promise valid rendering for equal custom bounds.
+The #827 probes also cover natural flat and near-flat data updates, immediate and later stalls, and completion at the upper bound.
 
 ### Run the cases
 
@@ -25,16 +27,11 @@ Run the historical regression cases:
 npx mocha 'test/precision-*.mjs'
 ```
 
-To include known failures, enable strict mode:
-
-```sh
-UPLOT_PRECISION_STRICT=1 npx mocha 'test/precision-*.mjs'
-```
 
 To isolate the Grafana cases, use:
 
 ```sh
-UPLOT_PRECISION_STRICT=1 npx mocha 'test/precision-*.mjs' --grep 'Grafana #116559'
+npx mocha 'test/precision-*.mjs' --grep 'Grafana #116559'
 ```
 
 Run the full suite with coverage:
@@ -45,7 +42,7 @@ npm test
 
 **Safety:** Each chart or tick probe runs in a child process with a five-second startup limit.
 After imports finish, the parent starts a separate execution timer before it releases the probe.
-Strict-only probes have a 50 ms execution limit. Passing probes retain a five-second execution limit.
+The three degenerate-range probes have a 50 ms execution limit. Other probes retain a five-second execution limit.
 The parent kills timed-out children, even when a synchronous loop blocks the child event loop.
 Node children also have a 128 MiB JavaScript heap limit. POSIX children disable core dumps.
 Bun children have the time limits but not the Node heap limit.
@@ -182,8 +179,10 @@ Twelve formerly pending tests now pass and run by default:
 Seventeen boundary tests protect the reported cases, tiny half-step decisions, explicit precision limits, and configurable flatness.
 The flatness tests cover both signs, the positional API, the absolute floor, hard limits, and independent chart scales.
 They require a flat fallback below the supported range resolution and unchanged values beyond the rounding budget.
-Three degenerate-range probes remain pending: #827 stalled splits, #620 equal bounds, and #1084 custom flat bounds.
-The tick-loop implementation and default label-formatting policy are unchanged.
+Three formerly pending probes now pass: #827 stalled splits, #620 equal bounds, and #1084 custom flat bounds.
+Numeric tick generation returns no splits when a step fails to advance before completion.
+A tick at the upper bound completes generation. Valid single-tick ranges retain their tick.
+The guard does not change scale bounds, choose replacement increments, or change the default label formatter.
 
 ### Snapshot changes
 
@@ -197,7 +196,7 @@ Only two one-pixel differences remain in that demo.
 Applications that opt into narrow ranges can supply `axes.values` to avoid repeated labels from the default three-fractional-digit formatter.
 A separate formatter-policy change is outside this patch.
 
-The full Bun suite and the Node suite without coverage each report **357 passing tests and 3 pending tests**.
+Before the advancement guard, the full Bun suite and the Node suite without coverage each reported **357 passing tests and 3 pending tests**.
 The latest Node coverage run reports **351 passing, 3 pending, and 6 failing**.
 Those failures are subprocess timeouts: five precision probes during startup and one failure-report integration test.
 There are no snapshot failures.
@@ -314,9 +313,9 @@ A separate 10% fluctuation policy was added in `863fb22` and reverted in `8a8ba5
 | [#826](https://github.com/leeoniya/uPlot/issues/826), closed | Log10 range `[1e-14, 100]`, incorrect filtering below `1e-9`. | Active numerical filtering test. Geometry is derived: 50 pixels per decade and 30 pixels between labels. |
 | [#1052](https://github.com/leeoniya/uPlot/issues/1052#issuecomment-2802048496), closed | Extrema `990000, 1000001` and `99000, 100000.001`. | Active partial-log bounds. Expected maxima are `2000000` and `200000`. |
 | [#1098](https://github.com/leeoniya/uPlot/issues/1098), closed | Explicit log range `[0.99e-3, 10]`. | Active finite decimal grid from `0.001` through `10`. |
-| [#827](https://github.com/leeoniya/uPlot/issues/827), open | Flat data `[1e14, 1e14]`. Debugger: `min = max = 1e14`, increment `1e-8`. | Built-in autoranging passes. The exact stalled split state remains strict-only and currently exhausts the child heap. |
-| [#620](https://github.com/leeoniya/uPlot/issues/620), open | Custom ranges `[1,1]` and `[2,2]`. | Strict-only `[1,1]` safety probe. This is invalid custom range input, not a promised built-in range. |
-| [#1084](https://github.com/leeoniya/uPlot/issues/1084#issuecomment-3229683387), closed | `[[0],[5]]`, custom padding `(max-min)*0.1`. | Strict-only reproduction. Zero-width custom ranges remain unsafe despite issue closure. |
+| [#827](https://github.com/leeoniya/uPlot/issues/827), open | Flat data `[1e14, 1e14]`. Debugger: `min = max = 1e14`, increment `1e-8`. | Built-in autoranging and flat/near-flat data updates pass. The exact equal-bound debugger state terminates at the endpoint. |
+| [#620](https://github.com/leeoniya/uPlot/issues/620), open | Custom ranges `[1,1]` and `[2,2]`. | Active `[1,1]` termination probe. This is invalid custom range input, not a promised built-in range. |
+| [#1084](https://github.com/leeoniya/uPlot/issues/1084#issuecomment-3229683387), closed | `[[0],[5]]`, custom padding `(max-min)*0.1`. | Active termination probe for the zero-width custom range. Valid rendering is not guaranteed. |
 | [#1135](https://github.com/leeoniya/uPlot/issues/1135), closed | Y near `2.700000047683715`, or X near `1e18`. | Built-in Y ranging passes. Explicit Y and X cases remain strict-only and currently exhaust the child heap. |
 | [Grafana #116559](https://github.com/grafana/grafana/issues/116559), open | Precise frequency measurements and near-integer controls. | Active controls plus six strict-only precision tests, detailed below. |
 | [Grafana #122055](https://github.com/grafana/grafana/issues/122055), closed | Values `1` and `0.9999999`, with a percent unit. | Active numeric safety checks. The related fallback fix does not preserve the small variation. |
@@ -446,6 +445,12 @@ The related [Grafana #122057 fix](https://github.com/grafana/grafana/pull/122057
 The first change corrects an input to `findIncr()`'s precision guard. The second change protects against nonadvancing arithmetic even when increment selection fails.
 
 The PR description links #827. It does not change `fixFloat()`, `roundDec()`, or the flat-range policy.
+
+The merged digit-count fix covers the first change and corrects rounded logarithms at decimal boundaries.
+The subsequent advancement guard returns no splits for stalled generation, rather than retaining a partial axis.
+The `no-data` page updates ten values to flat or nearly flat data at `1e14`, with automatic ranging and normal series drawing.
+The near-flat data uses steps of `0.015625`, one representable step at that magnitude. Tick selection remains automatic.
+These are data-flow controls, not confirmed reproductions of the historical hang. This page loads source without a bundle rebuild.
 
 ### Relationship to decimal cleanup
 

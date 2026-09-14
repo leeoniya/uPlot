@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const unresolved = process.env.UPLOT_PRECISION_STRICT === '1' ? it : it.skip;
+
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 const helper = fileURLToPath(new URL('../scripts2/precision-probe.mjs', import.meta.url));
 let instrumentCacheDir;
@@ -89,6 +89,7 @@ describe('precision: source scale ranging and axis splits', function() {
 		['f979884-log2-wide', 'f979884 log2 ranging preserves powers of two across 1e-6 to 1e8', true],
 		['1052-partial-log', '#1052 partial log ranges stop at 2M and 200K', true],
 		['827-auto-flat', '#827 built-in autoranging safely handles the reported flat 1e14 data'],
+		['827-auto-updates', '#827 automatic ranges and ticks survive flat and near-flat data updates'],
 		['1135-auto-y', '#1135 built-in autoranging safely handles the near-2.7 extrema'],
 		['116559-lower-tick', 'Grafana #116559 retains the lower tick for the exact near-10 pair', true],
 		['1135-explicit-y', '#1135 terminates when a custom ranger returns the near-2.7 extrema'],
@@ -96,13 +97,11 @@ describe('precision: source scale ranging and axis splits', function() {
 	])
 		it(title, () => probe(name, numeric));
 
-	// The remaining degenerate-range probes exceed the 50ms execution limit.
-	// Keep safety expectations, not assertions that the library SHOULD crash.
-	// #620/#1084 are invalid custom ranges; their closure does not imply loop safety.
+	// Low-level termination checks, not promises of valid rendering for custom equal bounds.
 	for (const [name, title, numeric] of [
 		['827-stalled-splits', '#827 terminates for the exact stalled numAxisSplits debugger state', true],
 		['620-equal-range', '#620 terminates for a custom [1, 1] range'],
 		['1084-custom-flat', '#1084 terminates for the single-point custom padding ranger'],
 	])
-		unresolved(title, () => probe(name, numeric, 50));
+		it(title, () => probe(name, numeric, 50));
 });

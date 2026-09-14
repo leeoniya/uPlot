@@ -1824,8 +1824,18 @@ var uPlot = (function () {
 
 		scaleMin = forceMin ? scaleMin : roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
 
-		for (let val = scaleMin; val <= scaleMax; val = roundDec(val + foundIncr, numDec))
+		for (let val = scaleMin; val <= scaleMax;) {
 			splits.push(Object.is(val, -0) ? 0 : val);		// coalesces -0
+
+			if (val == scaleMax)
+				break;
+
+			let next = roundDec(val + foundIncr, numDec);
+			if (!(next > val))
+				return [];
+
+			val = next;
+		}
 
 		return splits;
 	}

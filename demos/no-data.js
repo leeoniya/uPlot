@@ -98,6 +98,23 @@ const groups = [
 					series: [{}, {stroke: "#000"}],
 				}, data, document.body))
 			),
+			...[0, 0.015625].map(incr => ({
+				id: incr == 0 ? 'large-flat-update' : 'large-near-flat-update',
+				...plotStep(async () => {
+					let x = Array.from({ length: 10 }, (_, i) => i);
+					let u = new uPlot({
+						width: 800,
+						height: 400,
+						title: `10 points updated to 1e14 + i * ${incr} (automatic Y range)`,
+						scales: { x: { time: false } },
+						series: [{}, { stroke: '#000' }],
+					}, [x, x.map(i => 1e14 + i * 1e12)], document.body);
+					await Promise.resolve();
+					// 0.015625 is one representable step at 1e14, not a custom tick increment.
+					u.setData([x, x.map(i => 1e14 + i * incr)]);
+					return u;
+				}),
+			})),
 		],
 	},
 ];
