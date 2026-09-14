@@ -11,15 +11,203 @@
     .uplot {
       display: inline-block;
     }
+    .comparison-pair {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .comparison-pair figure {
+      width: 580px;
+      margin: 0 0 20px;
+    }
+    .comparison-pair figcaption {
+      font-weight: bold;
+    }
+    .comparison-pair .chart {
+      width: 580px;
+      height: 250px;
+    }
+    .comparison-pair output {
+      display: block;
+      font: 13px monospace;
+    }
+    .detail {
+      display: block;
+    }
   </style>
 </head>
 
 <body>
+  <h1>Decimation</h1>
+  <p>These examples illustrate the LTTB limitations discussed in <a href="https://github.com/leeoniya/uPlot/pull/1025">#1025</a>.</p>
+  <p>The green uPlot reference charts use all 10,002 input samples with the default linear pathbuilder.
+    Its pixel-column min/max decimation retains both the +100 and -100 spikes.</p>
+  <p>In the uniform example, the spikes are five samples apart.
+    In the non-uniform example, 9,981 samples occupy the first 10% of the x range.</p>
+  <p>The static comparisons below demonstrate LTTB losses with the native ECharts and Chart.js implementations.
+    No uPlot chart uses LTTB, and this demo contains no custom LTTB implementation.
+    This compares visible features, not equal output sizes or execution times.</p>
+  <section id="library-comparisons" hidden>
+    <h2>Native ECharts and Chart.js downsampling</h2>
+    <p>These charts use ECharts 6.1.0 and Chart.js 4.5.1 from jsDelivr. The examples require network access to load these libraries.</p>
+    <p>Each pair compares all input samples in green with native LTTB selection in red. Both charts receive the same 10,002 input samples.
+      The output under each chart reports the actual retained samples and spike counts.</p>
+    <p>LTTB is opt-in in both libraries. ECharts uses <code>sampling: lttb</code>, as in <a href="../bench/ECharts5.html">the benchmark</a>.
+      Its default sampling budget depends on the plot width and browser pixel ratio. The grid and pixel ratio use library defaults.</p>
+    <p>Chart.js uses <code>enabled: true, algorithm: lttb</code> with <code>parsing: false</code>, which its decimation plugin requires.
+      The output target defaults to the chart width in CSS pixels. The activation threshold defaults to four times that width.
+      Neither value is overridden. The <a href="../bench/Chart.js4.html">Chart.js benchmark</a> instead uses the default <code>min-max</code> algorithm.</p>
+    <p>These are default LTTB sampling settings, not completely default charts.
+      The demo fixes chart sizes and axis limits, disables animation and point symbols, and sets line colors and widths for comparison.
+      ECharts uses sample indices for triangle geometry. Chart.js uses actual x values, so their selected samples need not match.</p>
+    <p>The results depend on chart size and pixel ratio. At DPR 1, both libraries lose a spike in all three examples at this size.
+      At DPR 2, ECharts retains both spikes in these examples, while Chart.js still loses one.
+      The readouts report the actual selected samples and spike counts. Retaining both spikes does not guarantee their original shape.</p>
+    <p>Smaller buckets mean more output samples and can recover a missing feature in a particular dataset.
+      Changing the sample count also changes bucket boundaries, so recovery is not a general preservation guarantee.
+      Unknown or changing data can require a different budget. Retaining all samples removes the selection loss, but also removes the benefit of downsampling.</p>
+    <p>In Chart.js, lowering <code>threshold</code> activates decimation for smaller datasets. It does not make the LTTB buckets smaller.
+      Increasing <code>samples</code> requests more output points. ECharts derives its LTTB budget from the plot width and pixel ratio.</p>
+    <p>The detail canvases magnify the actual output polylines without another sampling pass. Normal chart zoom can change buckets or disable downsampling.</p>
+    <p id="echarts-status" role="status">ECharts: waiting for library.</p>
+    <p id="chartjs-status" role="status">Chart.js: waiting for library.</p>
+
+    <h3>Nearby opposite spikes</h3>
+    <p>The spikes occur at indices 5005 and 5010. If both occupy one LTTB bucket, only one can survive.</p>
+    <div class="comparison-pair">
+      <figure id="echarts-opposite-raw">
+        <figcaption>ECharts — no sampling</figcaption>
+        <div class="chart"></div><output></output>
+        <p>Detail: x = 4980…5060</p><canvas class="detail" width="580" height="150"></canvas>
+      </figure>
+      <figure id="echarts-opposite-lttb">
+        <figcaption>ECharts — LTTB</figcaption>
+        <div class="chart"></div><output></output>
+        <p>Detail: x = 4980…5060, no resampling</p><canvas class="detail" width="580" height="150"></canvas>
+      </figure>
+    </div>
+    <div class="comparison-pair">
+      <figure id="chartjs-opposite-raw">
+        <figcaption>Chart.js — decimation plugin disabled</figcaption>
+        <canvas class="chart" width="580" height="250"></canvas><output></output>
+        <p>Detail: x = 4980…5060</p><canvas class="detail" width="580" height="150"></canvas>
+      </figure>
+      <figure id="chartjs-opposite-lttb">
+        <figcaption>Chart.js — LTTB</figcaption>
+        <canvas class="chart" width="580" height="250"></canvas><output></output>
+        <p>Detail: x = 4980…5060, no resampling</p><canvas class="detail" width="580" height="150"></canvas>
+      </figure>
+    </div>
+
+    <h3>Non-uniform x spacing</h3>
+    <p>The final 90% of the x range contains only 21 samples. Count-based buckets allocate few output points to this wide region.</p>
+    <div class="comparison-pair">
+      <figure id="echarts-sparse-raw">
+        <figcaption>ECharts — no sampling</figcaption>
+        <div class="chart"></div><output></output>
+      </figure>
+      <figure id="echarts-sparse-lttb">
+        <figcaption>ECharts — LTTB</figcaption>
+        <div class="chart"></div><output></output>
+      </figure>
+    </div>
+    <div class="comparison-pair">
+      <figure id="chartjs-sparse-raw">
+        <figcaption>Chart.js — decimation plugin disabled</figcaption>
+        <canvas class="chart" width="580" height="250"></canvas><output></output>
+      </figure>
+      <figure id="chartjs-sparse-lttb">
+        <figcaption>Chart.js — LTTB</figcaption>
+        <canvas class="chart" width="580" height="250"></canvas><output></output>
+      </figure>
+    </div>
+
+    <h3>Two nearby upward spikes</h3>
+    <p>Both spikes have value +100, at indices 5005 and 5025. Depending on the sampling budget, they can occupy different buckets.
+      After the first spike, LTTB can prefer a baseline point over the second spike. One peak per bucket is not a preservation guarantee.</p>
+    <div class="comparison-pair">
+      <figure id="echarts-adjacent-raw">
+        <figcaption>ECharts — no sampling</figcaption>
+        <div class="chart"></div><output></output>
+        <p>Detail: x = 4980…5060</p><canvas class="detail" width="580" height="150"></canvas>
+      </figure>
+      <figure id="echarts-adjacent-lttb">
+        <figcaption>ECharts — LTTB</figcaption>
+        <div class="chart"></div><output></output>
+        <p>Detail: x = 4980…5060, no resampling</p><canvas class="detail" width="580" height="150"></canvas>
+      </figure>
+    </div>
+    <div class="comparison-pair">
+      <figure id="chartjs-adjacent-raw">
+        <figcaption>Chart.js — decimation plugin disabled</figcaption>
+        <canvas class="chart" width="580" height="250"></canvas><output></output>
+        <p>Detail: x = 4980…5060</p><canvas class="detail" width="580" height="150"></canvas>
+      </figure>
+      <figure id="chartjs-adjacent-lttb">
+        <figcaption>Chart.js — LTTB</figcaption>
+        <canvas class="chart" width="580" height="250"></canvas><output></output>
+        <p>Detail: x = 4980…5060, no resampling</p><canvas class="detail" width="580" height="150"></canvas>
+      </figure>
+    </div>
+
+    <h3>Other limitations</h3>
+    <ul>
+      <li><strong>Global extrema:</strong> With x = [0,1,2,3,4,5], LTTB reduces y = [0,8,10,9,9,0] to [0,8,9,0] at four samples.
+        The global maximum disappears because a lower point creates a larger triangle.</li>
+      <li><strong>Pulse shape:</strong> Even if a peak survives, its width, plateau, and area need not survive.</li>
+      <li><strong>Gaps:</strong> Standard LTTB has no gap-preservation rule. A discarded null marker can join separate runs.
+        Gap handling depends on the implementation. ECharts retains a NaN marker in mixed buckets, but not every gap boundary.</li>
+      <li><strong>Nonlinear axes:</strong> Raw-value triangle areas do not represent visual importance on a logarithmic axis.
+        Linear scaling and translation do not have this problem.</li>
+      <li><strong>Multiple series:</strong> Independent selections can change apparent crossings and band widths between retained points.</li>
+      <li><strong>Oscillations:</strong> LTTB does not preserve frequency or phase and is not an anti-aliasing filter.</li>
+      <li><strong>Viewport changes:</strong> Different bucket boundaries can make a feature appear or disappear after a pan, resize, or data update.</li>
+    </ul>
+    <p>LTTB selects existing data points, but the lines between them can misrepresent the original signal.
+      Pixel-column min/max preserves local extrema, not every subpixel detail or signal statistic.</p>
+    <p>Implementation sources:
+      <a href="https://cdn.jsdelivr.net/npm/echarts@6.1.0/lib/data/DataStore.js">ECharts LTTB</a>,
+      <a href="https://cdn.jsdelivr.net/npm/echarts@6.1.0/lib/processor/dataSample.js">ECharts sampling rate</a>,
+      <a href="https://github.com/chartjs/Chart.js/blob/v4.5.1/src/plugins/plugin.decimation.js">Chart.js decimation</a>.
+    </p>
+  </section>
+
   <script type="module">
     import { renderDemo } from './renderDemo.js';
 
     await import("../dist/uPlot.esm.js").then(m => { window.uPlot = m.default; });
     await import('./decimation.js').then(({ default: groups }) => renderDemo(groups));
+
+    // renderDemo appends to body. Keep the static library examples below its plots.
+    const comparisons = document.getElementById('library-comparisons');
+    document.body.appendChild(comparisons);
+    comparisons.hidden = false;
+
+    const { renderLibraryComparisons } = await import('./decimation-libs.js');
+
+    async function loadLibrary(id, url, globalName) {
+      const status = document.getElementById(`${id}-status`);
+      try {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = url;
+          script.onload = resolve;
+          script.onerror = () => reject(new Error(`Cannot load ${url}`));
+          document.head.appendChild(script);
+        });
+        renderLibraryComparisons(id, window[globalName]);
+        status.textContent = `${globalName}: ready.`;
+      }
+      catch (error) {
+        status.textContent = `${globalName}: ${error.message}`;
+        console.error(error);
+      }
+    }
+
+    await Promise.all([
+      loadLibrary('echarts', 'https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js', 'echarts'),
+      loadLibrary('chartjs', 'https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js', 'Chart'),
+    ]);
   </script>
 </body>
 

@@ -29,6 +29,51 @@ const renders = [
   }
 ];
 
+
+export function spikeData(nonUniform) {
+  // The sparse tail occupies 90% of the x range but contains only 21 samples.
+  const xs = Array.from({length: 10002}, (_, i) => nonUniform
+    ? (i <= 9980 ? i / 998 : 10 + (i - 9980) * 90 / 21)
+    : i);
+  const ys = xs.map(() => 0);
+
+
+  ys[nonUniform ? 9985 : 5005] = 100;
+  ys[nonUniform ? 9995 : 5010] = -100;
+  return [xs, ys];
+}
+
+export function adjacentSpikeData() {
+  const xs = Array.from({length: 10002}, (_, i) => i);
+  const ys = xs.map(() => 0);
+  ys[5005] = 100;
+  ys[5025] = 100;
+  return [xs, ys];
+}
+
+function renderSpikes(nonUniform) {
+  const data = spikeData(nonUniform);
+
+  return new uPlot({
+    title: 'uPlot linear — all 10,002 samples',
+    width: 500,
+    height: 250,
+    scales: {
+      x: {time: false, range: () => [0, data[0][data[0].length - 1]]},
+      y: {range: () => [-120, 120]},
+    },
+    series: [
+      {},
+      {
+        label: 'Pixel-column min/max',
+        stroke: 'green',
+        width: 1,
+        points: {show: false},
+      },
+    ],
+  }, data, document.body);
+}
+
 const groups = [
   {
     // name: solid areas
@@ -46,5 +91,18 @@ const groups = [
     // after
   },
 ];
+
+groups.push(
+  {
+    id: 'opposite-spikes',
+    name: 'uPlot reference — uniformly spaced opposite spikes',
+    steps: [plotStep(() => renderSpikes(false))],
+  },
+  {
+    id: 'non-uniform',
+    name: 'uPlot reference — non-uniform x spacing',
+    steps: [plotStep(() => renderSpikes(true))],
+  },
+);
 
 export default groups;
