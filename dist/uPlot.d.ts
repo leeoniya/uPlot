@@ -280,6 +280,9 @@ declare namespace uPlot {
 		export interface Config {
 			min: Range.Limit;
 			max: Range.Limit;
+
+			/** treat spans <= flat * max(abs(min), abs(max)) as flat; default 1e-7. 0 disables relative flattening, not the 1e-24 absolute floor. */
+			flat?: number;
 		}
 	}
 

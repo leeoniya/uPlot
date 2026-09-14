@@ -10,6 +10,58 @@ Group and step IDs default to their zero-based indexes. An optional `id` field
 provides a stable name when cases change order. IDs accept letters, digits,
 underscores, and hyphens. The recorder rejects duplicate group IDs and snapshot paths.
 
+## Decimal precision regressions
+
+The precision tests cover reported rounding errors, missing ticks, tiny ranges,
+nonadvancing tick loops, and exact `fixedDec` keys and decimal counts.
+Sources and expected behavior are documented in
+[`docs/precision-regressions.md`](../docs/precision-regressions.md).
+
+Run the historical regression cases:
+
+```sh
+npx mocha 'test/precision-*.mjs'
+```
+
+To include confirmed unresolved cases, enable strict mode:
+
+```sh
+UPLOT_PRECISION_STRICT=1 npx mocha 'test/precision-*.mjs'
+```
+
+Strict mode currently fails. Each chart or tick probe runs in a child process.
+Strict-only probes have a 50 ms execution limit after imports finish.
+Passing probes have a five-second execution limit. All probes have a separate five-second startup limit.
+Node children also have a 128 MiB heap limit.
+The normal suite reports unresolved cases as pending, not passing.
+
+Coverage runs share a temporary cache of instrumented source between probes.
+Each probe still has a fresh process and independent coverage counters.
+The suite removes the cache after the run.
+Numeric-only probes skip Happy DOM and the chart module. Chart probes retain the full mock DOM.
+
+### Benchmark increment generation and metadata
+
+```sh
+node scripts2/bench-fixed-dec.mjs
+bun scripts2/bench-fixed-dec.mjs
+```
+
+The benchmark compares source with the pre-fix implementation, without coverage or DOM startup.
+It reports median timings for decimal/binary generation and plain/scientific-notation metadata extraction.
+These operations affect initialization and registration, not per-frame rendering.
+
+### Benchmark rounding and ranges
+
+```sh
+node scripts2/bench-rounding.mjs
+bun scripts2/bench-rounding.mjs
+```
+
+This benchmark compares source with Git commit `443333f`, after the `fixedDec` fixes and before the broader rounding changes.
+The commit must exist in the local repository. The benchmark uses no network access or coverage instrumentation.
+Results include both common and tiny grids, large digit counts, and the Grafana near-flat ranges.
+
 ## Validate snapshots
 
 ```sh

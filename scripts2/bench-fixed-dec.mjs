@@ -1,20 +1,28 @@
 // Compare the pre-fix implementation with source, without coverage or DOM startup.
 import { performance } from 'node:perf_hooks';
-import { fixedDec, genIncrs, guessDec, roundDec } from '../src/utils.js';
+import { fixedDec, genIncrs, guessDec } from '../src/utils.js';
 
 const legacyFixedDec = new Map();
 const legacyGuessDec = num => (("" + num).split('.')[1] || '').length;
+
+// Keep the baseline independent of subsequent roundDec changes too.
+function legacyRoundDec(val, dec = 0) {
+	if (Number.isInteger(val))
+		return val;
+	const p = 10 ** dec;
+	return Math.round((val * p) * (1 + Number.EPSILON)) / p;
+}
 
 function legacyGenIncrs(base, minExp, maxExp, mults) {
 	const incrs = [];
 	const multDec = mults.map(legacyGuessDec);
 	for (let exp = minExp; exp < maxExp; exp++) {
 		const expa = Math.abs(exp);
-		const mag = roundDec(Math.pow(base, exp), expa);
+		const mag = legacyRoundDec(Math.pow(base, exp), expa);
 		for (let i = 0; i < mults.length; i++) {
 			const raw = base == 10 ? +`${mults[i]}e${exp}` : mults[i] * mag;
 			const dec = (exp >= 0 ? 0 : expa) + (exp >= multDec[i] ? 0 : multDec[i]);
-			const incr = base == 10 ? raw : roundDec(raw, dec);
+			const incr = base == 10 ? raw : legacyRoundDec(raw, dec);
 			incrs.push(incr);
 			legacyFixedDec.set(incr, dec);
 		}

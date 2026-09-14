@@ -153,6 +153,39 @@ describe('browser failure reports', () => {
 		assert.deepStrictEqual(draws, [[10, 20, 10], [30, 40, 30]]);
 	});
 
+	it('shows shared and changed chart titles as inert text without replacing case names', () => {
+		const spec = html => ({ html, width: 10, height: 10, ctxlog: [] });
+		const document = loadReport([
+			{
+				title: 'shared 0-0',
+				expected: spec('<div class="u-title"><b>Near-flat</b> &amp; tiny</div>'),
+				actual: spec('<div class="u-title"><b>Near-flat</b> &amp; tiny</div>'),
+			},
+			{
+				title: 'changed 0-1',
+				expected: spec('<div class="u-title">Old title</div>'),
+				actual: spec('<div class="u-title">&lt;img src=x onerror=alert(1)&gt;</div><script>globalThis.injected = true</script>'),
+			},
+			{ title: 'removed 0-2', expected: spec('<div class="u-title">Removed title</div>'), actual: spec('') },
+			{ title: 'untitled 0-3', expected: spec(''), actual: spec(undefined) },
+		]);
+		for (const canvas of document.querySelectorAll('canvas'))
+			canvas.getContext = () => ({});
+		const sandbox = { document };
+		runInNewContext(document.querySelector('script').textContent, sandbox);
+
+		const titles = document.querySelectorAll('.chart-title');
+		assert.equal(titles[0].textContent, 'Near-flat & tiny');
+		assert.equal(titles[0].hidden, false);
+		assert.equal(titles[1].textContent, 'Expected: Old title\nActual: <img src=x onerror=alert(1)>');
+		assert.equal(titles[2].textContent, 'Expected: Removed title\nActual: (untitled)');
+		assert.equal(titles[3].hidden, true);
+		assert.equal(document.querySelector('h2').textContent, 'shared 0-0');
+		assert.equal(document.querySelectorAll('img, b').length, 0);
+		assert.equal(document.querySelectorAll('script').length, 1);
+		assert.equal(sandbox.injected, undefined);
+	});
+
 	it('does not create a report when there are no failures', () => {
 		const filename = path.join(directory, 'report.html');
 		writeFailureReport([], filename);

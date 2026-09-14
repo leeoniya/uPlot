@@ -231,21 +231,17 @@ function _rangeNum(_min, _max, cfg) {
 	let softMaxMode = ifNull(cmax.mode, 0);
 
 	let delta = _max - _min;
-	let deltaMag = log10(delta);
-
 	let scalarMax = max(abs(_min), abs(_max));
-	let scalarMag = log10(scalarMax);
 
-	let scalarMagDelta = abs(scalarMag - deltaMag);
+	let flat = scalarMax * ifNull(cfg.flat, 1e-7);
 
-	// this handles situations like 89.7, 89.69999999999999
-	// by assuming 0.001x deltas are precision errors
-//	if (delta > 0 && delta < abs(_max) / 1e3)
-//		delta = 0;
+	if (delta < 1e-24 || delta <= flat) {
+		// Normalize only relatively flat data, so padding does not amplify residue.
+		if (delta > 0 && delta <= flat) {
+			_min = _max = incrRound(_min + delta / 2, pow10(floor(log10(flat))));
+			scalarMax = abs(_min);
+		}
 
-	// treat data as flat if delta is less than 1e-24
-	// or range is 11+ orders of magnitude below raw values, e.g. 99999999.99999996 - 100000000.00000004
-	if (delta < 1e-24 || scalarMagDelta > 10) {
 		delta = 0;
 
 		// if soft mode is 2 and all vals are flat at 0, avoid the 0.1 * 1e3 fallback
@@ -263,19 +259,19 @@ function _rangeNum(_min, _max, cfg) {
 
 	let nonZeroDelta = delta || scalarMax || 1e3;
 	let mag          = log10(nonZeroDelta);
-	let base         = pow(10, floor(mag));
+	let incr         = pow10(floor(mag) - 1);
 
 	let _padMin  = nonZeroDelta * (delta == 0 ? (_min == 0 ? .1 : 1) : padMin);
-	let _newMin  = roundDec(incrRoundDn(_min - _padMin, base/10), 24);
+	let _newMin  = incrRoundDn(_min - _padMin, incr);
 	let _softMin = _min >= softMin && (softMinMode == 1 || softMinMode == 3 && _newMin <= softMin || softMinMode == 2 && _newMin >= softMin) ? softMin : inf;
 	let minLim   = max(hardMin, _newMin < _softMin && _min >= _softMin ? _softMin : min(_softMin, _newMin));
 
 	let _padMax  = nonZeroDelta * (delta == 0 ? (_max == 0 ? .1 : 1) : padMax);
-	let _newMax  = roundDec(incrRoundUp(_max + _padMax, base/10), 24);
+	let _newMax  = incrRoundUp(_max + _padMax, incr);
 	let _softMax = _max <= softMax && (softMaxMode == 1 || softMaxMode == 3 && _newMax >= softMax || softMaxMode == 2 && _newMax <= softMax) ? softMax : -inf;
 	let maxLim   = min(hardMax, _newMax > _softMax && _max <= _softMax ? _softMax : max(_softMax, _newMax));
 
-	// handle case when delta was small enough to cause fixFloat to have rounded off 6 decimals and result in min === max
+	// Retain a usable range if padding cannot separate the bounds.
 	if (minLim == maxLim) {
 		if (minLim == 0)
 			maxLim = 100;
@@ -316,8 +312,17 @@ const asinh = (v, linthresh = 1) => M.asinh(v / linthresh);
 
 const inf = Infinity;
 
+// Canonical powers for the built-in decimal increment range.
+const decPows = Array.from({length: 65}, (_, i) => +`1e${i - 32}`);
+const pow10 = exp => decPows[exp + 32] ?? +`1e${exp}`;
+
 function numIntDigits(x) {
-	return (log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
+	x = abs(x);
+	if (x < 10)
+		return 1;
+
+	let exp = floor(log10(x));
+	return exp + (x < pow10(exp) ? 0 : 1);
 }
 
 function clamp(num, _min, _max) {
@@ -346,60 +351,84 @@ const retTrue = _ => true;
 
 const retEq = (a, b) => a == b;
 
-const regex6 = /\.\d*?(?=9{6,}|0{6,})/gm;
+function roundIncr(num, incr, mode) {
+	let q = num / incr;
 
-// e.g. 17999.204999999998 -> 17999.205
-const fixFloat = val => {
-	if (isInt(val) || fixedDec.has(val))
-		return val;
+	// Finer grids exceed the supported 15-digit rounding budget.
+	if (abs(q) >= 1e15)
+		return num;
 
-	const str = `${val}`;
+	let dec = fixedDec.get(incr);
+	if (dec == null)
+		fixedDec.set(incr, dec = guessDec(incr));
 
-	const match = str.match(regex6);
+	let nearest = round(q);
+	let candidate = roundDec(nearest * incr, dec);
 
-	if (match == null)
-		return val;
+	// Correct at most two relative epsilons, capped at 1e-7 of a grid step.
+	// The cap prevents large quotients from erasing genuine fractional positions.
+	if (candidate == num || abs(candidate - num) <= min(abs(incr) * 1e-7, abs(num) * Number.EPSILON * 2))
+		return candidate;
 
-	let len = match[0].length - 1;
-
-	// e.g. 1.0000000000000001e-24
-	if (str.indexOf('e-') != -1) {
-		let [num, exp] = str.split('e');
-		return +`${fixFloat(num)}e${exp}`;
+	let index;
+	if (mode == roundDec) {
+		let whole = floor(abs(q));
+		let midpoint = roundDec((whole + 0.5) * abs(incr), dec + 1);
+		index = sign(q) * (whole + (abs(num) >= midpoint ? 1 : 0));
 	}
+	else
+		index = mode(q);
 
-	return roundDec(val, len);
-};
+	return index == nearest ? candidate : roundDec(index * incr, dec);
+}
 
 function incrRound(num, incr, _fixFloat = true) {
-	return _fixFloat ? fixFloat(roundDec(fixFloat(num/incr))*incr) : roundDec(num/incr)*incr;
+	return _fixFloat ? roundIncr(num, incr, roundDec) : roundDec(num/incr)*incr;
 }
 
 function incrRoundUp(num, incr, _fixFloat = true) {
-	return _fixFloat ? fixFloat(ceil(fixFloat(num/incr))*incr) : ceil(num/incr)*incr;
+	return _fixFloat ? roundIncr(num, incr, ceil) : ceil(num/incr)*incr;
 }
 
 function incrRoundDn(num, incr, _fixFloat = true) {
-	return _fixFloat ? fixFloat(floor(fixFloat(num/incr))*incr) : floor(num/incr)*incr;
+	return _fixFloat ? roundIncr(num, incr, floor) : floor(num/incr)*incr;
 }
 
-// https://stackoverflow.com/a/48764436
-// rounds half away from zero
+
+// Half away from zero, without biasing every value upward by a relative epsilon.
 function roundDec(val, dec = 0) {
 	if (isInt(val))
 		return val;
-//	else if (dec == 0)
-//		return round(val);
 
-	let p = 10 ** dec;
-	let n = (val * p) * (1 + Number.EPSILON);
-	return round(n) / p;
+	let p = pow10(dec);
+	let n = abs(val) * p;
+
+	// Preserve the input beyond the decimal budget; integer rounding still applies.
+	if (dec > 0 && (n >= 1e15 || dec > 32))
+		return val;
+
+	let int = floor(n);
+	let midpoint = (int + 0.5) / p;
+	// Decimal conversion can only affect the decision close to a half-step.
+	if (dec > 22 && abs(n - int - 0.5) <= n * Number.EPSILON * 2)
+		midpoint = +midpoint.toFixed(dec + 1);
+
+	let result = sign(val) * (int + (abs(val) >= midpoint ? 1 : 0)) / p;
+	return dec > 22 ? +result.toFixed(dec) : result;
 }
 
 const fixedDec = new Map();
 
 function guessDec(num) {
-	return ((""+num).split(".")[1] || "").length;
+	if (isInt(num))
+		return 0;
+
+	let str = "" + num;
+	let dot = str.indexOf(".");
+	let exp = str.indexOf("e");
+	let dec = dot < 0 ? 0 : (exp < 0 ? str.length : exp) - dot - 1;
+
+	return max(0, dec - (exp < 0 ? 0 : +str.slice(exp + 1)));
 }
 
 function genIncrs(base, minExp, maxExp, mults) {
@@ -409,12 +438,11 @@ function genIncrs(base, minExp, maxExp, mults) {
 
 	for (let exp = minExp; exp < maxExp; exp++) {
 		let expa = abs(exp);
-		let mag = roundDec(pow(base, exp), expa);
+		let mag = base == 10 ? 0 : pow(base, exp);
 
 		for (let i = 0; i < mults.length; i++) {
-			let _incr = base == 10 ? +`${mults[i]}e${exp}` : mults[i] * mag;
-			let dec = (exp >= 0 ? 0 : expa) + (exp >= multDec[i] ? 0 : multDec[i]);
-			let incr = base == 10 ? _incr : roundDec(_incr, dec);
+			let incr = base == 10 ? +`${mults[i]}e${exp}` : mults[i] * mag;
+			let dec = base == 10 ? max(0, multDec[i] - exp) : (exp >= 0 ? 0 : expa) + (exp >= multDec[i] ? 0 : multDec[i]);
 			incrs.push(incr);
 			fixedDec.set(incr, dec);
 		}

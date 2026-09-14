@@ -44,8 +44,8 @@ export function replay(cmds, ctx) {
 	}
 }
 
-function plotSpec({ width, height, ctxlog }) {
-	return { width, height, ctxlog };
+function plotSpec({ html, width, height, ctxlog }) {
+	return { html, width, height, ctxlog };
 }
 
 function escapeHtml(value) {
@@ -70,6 +70,7 @@ export function writeFailureReport(failures, filename, title = 'Demo snapshot fa
 	const sections = entries.map(entry => `
   <section class="failure">
     <h2>${escapeHtml(entry.title)}</h2>
+    <p class="chart-title" hidden></p>
     <p class="view-state" aria-live="polite">Showing expected</p>
     <div class="comparison">
       <canvas role="img" aria-label="Expected rendering"></canvas>
@@ -85,6 +86,7 @@ export function writeFailureReport(failures, filename, title = 'Demo snapshot fa
   <style>
     body { margin: 24px; color: #222; background: #fff; font: 14px system-ui, sans-serif; }
     .failure { margin-bottom: 32px; }
+    .chart-title { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; }
     .comparison { position: relative; max-width: 100%; border: 1px solid #ccc; }
     canvas { position: absolute; top: 0; left: 0; display: block; max-width: 100%; height: auto; }
   </style>
@@ -104,6 +106,16 @@ export function writeFailureReport(failures, filename, title = 'Demo snapshot fa
       const image = section.querySelector('canvas');
       const comparison = section.querySelector('.comparison');
       const viewState = section.querySelector('.view-state');
+      const chartTitle = section.querySelector('.chart-title');
+      const titles = [failure.expected, failure.actual].map(spec => {
+        // Parse in an inert template; never insert recorded HTML into the report.
+        const template = document.createElement('template');
+        template.innerHTML = spec.html || '';
+        return template.content.querySelector('.u-title')?.textContent || '';
+      });
+      chartTitle.textContent = titles[0] === titles[1] ? titles[0] :
+        'Expected: ' + (titles[0] || '(untitled)') + '\\nActual: ' + (titles[1] || '(untitled)');
+      chartTitle.hidden = !titles[0] && !titles[1];
       let showingExpected = true;
 
       // Keep the hover target stable when the two recordings have different dimensions.

@@ -1,26 +1,49 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadNycConfig } from '@istanbuljs/load-nyc-config';
-import { createInstrumenter } from 'istanbul-lib-instrument';
+import { createRequire } from 'node:module';
 import TestExclude from 'test-exclude';
 
 const config = process.env.NYC_CONFIG == null
 	? await loadNycConfig({ cwd: process.env.NYC_CWD || process.cwd() })
 	: JSON.parse(process.env.NYC_CONFIG);
 const exclude = new TestExclude(config);
-const instrumenter = createInstrumenter({
-	...config,
-	esModules: true,
-	produceSourceMap: config.produceSourceMap ?? true,
-});
+const require = createRequire(import.meta.url);
+let instrumenter;
+
+// Optional per-run cache shared by isolated precision probes. Only transformed
+// source is shared; each process still owns and reports its coverage counters.
+const cacheDir = process.env.UPLOT_INSTRUMENT_CACHE_DIR;
+const cacheConfig = JSON.stringify(config);
 
 function instrument(source, filename) {
+	const cacheFile = cacheDir == null ? null : resolve(cacheDir,
+		createHash('sha256').update(JSON.stringify([filename, source, cacheConfig])).digest('hex') + '.js');
+
+	if (cacheFile != null) {
+		try { return readFileSync(cacheFile, 'utf8'); }
+		catch (error) {
+			if (error.code != 'ENOENT')
+				throw error;
+		}
+	}
+
+	// Cache hits do not need to load Babel or construct an instrumenter.
+	instrumenter ??= require('istanbul-lib-instrument').createInstrumenter({
+		...config,
+		esModules: true,
+		produceSourceMap: config.produceSourceMap ?? true,
+	});
 	let code = instrumenter.instrumentSync(source, filename);
 	const map = instrumenter.lastSourceMap();
 
 	if (map != null)
 		code += '\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,' + Buffer.from(JSON.stringify(map)).toString('base64');
+
+	if (cacheFile != null)
+		writeFileSync(cacheFile, code);
 
 	return code;
 }
