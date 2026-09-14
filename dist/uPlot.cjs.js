@@ -1848,7 +1848,7 @@ function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 function asinhAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	let sc = self.scales[self.axes[axisIdx].scale];
 
-	let linthresh = sc.asinh;
+	let linthresh = sc._asinh;
 
 	let posSplits = scaleMax > linthresh ? logAxisSplits(self, axisIdx, max(linthresh, scaleMin), scaleMax, foundIncr) : [linthresh];
 	let zero = scaleMax >= 0 && scaleMin <= 0 ? [0] : [];
@@ -2022,12 +2022,38 @@ function clampScale(self, val, scaleMin, scaleMax, scaleKey) {
 	return scaleMin / 10;
 }
 
+function asinhScale(self, scaleKey) {
+	let { series, data, mode } = self;
+	let linthresh = inf;
+
+	for (let i = 1; i < series.length; i++) {
+		let s = series[i];
+		let scale = mode == 1 ? s.scale : s.facets[1].scale;
+
+		if (scale == scaleKey) {
+			let yData = mode == 1 ? data[i] : data[i][1];
+			let [i0, i1] = mode == 1 ? series[0].idxs : [0, yData.length - 1];
+
+			for (let j = i0; j <= i1; j++) {
+				if (yData[j] != null) {
+					let val = abs(yData[j]);
+
+					if (val < linthresh)
+						linthresh = val;
+				}
+			}
+		}
+	}
+
+	return linthresh == inf || linthresh == 0 ? 1 : linthresh;
+}
+
 const xScaleOpts = {
 	time: FEAT_TIME,
 	auto: true,
 	distr: 1,
 	log: 10,
-	asinh: 1,
+	asinh: asinhScale,
 	min: null,
 	max: null,
 	dir: 1,
@@ -3341,7 +3367,7 @@ function uPlot(opts, data, then) {
 	function initValToPct(sc) {
 		const getVal = (
 			sc.distr == 3   ? val => log10(val > 0 ? val : sc.clamp(self, val, sc.min, sc.max, sc.key)) :
-			sc.distr == 4   ? val => asinh(val, sc.asinh) :
+			sc.distr == 4   ? val => asinh(val, sc._asinh) :
 			sc.distr == 100 ? val => sc.fwd(val) :
 			val => val
 		);
@@ -3364,7 +3390,7 @@ function uPlot(opts, data, then) {
 				// ensure parent is initialized
 				initScale(scaleOpts.from);
 				// dependent scales inherit
-				let sc = assign({}, scales[scaleOpts.from], scaleOpts, {key: scaleKey});
+				sc = assign({}, scales[scaleOpts.from], scaleOpts, {key: scaleKey});
 				sc.valToPct = initValToPct(sc);
 				scales[scaleKey] = sc;
 			}
@@ -3409,6 +3435,9 @@ function uPlot(opts, data, then) {
 					(sc.distr == 3 ? snapLogY : sc.distr == 4 ? snapAsinhY : snapNumY)
 				));
 
+				if (scaleOpts.asinh == null && (rangeIsArr || sc.auto === false))
+					sc.asinh = 1;
+
 				sc.auto = fnOrSelf(rangeIsArr ? false : sc.auto);
 
 				sc.clamp = fnOrSelf(sc.clamp || clampScale);
@@ -3418,6 +3447,8 @@ function uPlot(opts, data, then) {
 
 				sc.valToPct = initValToPct(sc);
 			}
+
+			sc.asinh = fnOrSelf(sc.asinh);
 		}
 	}
 
@@ -4484,17 +4515,27 @@ function uPlot(opts, data, then) {
 		for (let k in wipScales) {
 			let wsc = wipScales[k];
 			let sc = scales[k];
+			let distr = sc.distr;
 
 			if (sc.min != wsc.min || sc.max != wsc.max) {
 				sc.min = wsc.min;
 				sc.max = wsc.max;
 
-				let distr = sc.distr;
-
-				sc._min = distr == 3 ? log10(sc.min) : distr == 4 ? asinh(sc.min, sc.asinh) : distr == 100 ? sc.fwd(sc.min) : sc.min;
-				sc._max = distr == 3 ? log10(sc.max) : distr == 4 ? asinh(sc.max, sc.asinh) : distr == 100 ? sc.fwd(sc.max) : sc.max;
-
 				changed[k] = anyChanged = true;
+			}
+
+			if (distr == 4) {
+				let linthresh = sc.asinh(self, k);
+
+				if (sc._asinh != linthresh) {
+					sc._asinh = linthresh;
+					changed[k] = anyChanged = true;
+				}
+			}
+
+			if (changed[k]) {
+				sc._min = distr == 3 ? log10(sc.min) : distr == 4 ? asinh(sc.min, sc._asinh) : distr == 100 ? sc.fwd(sc.min) : sc.min;
+				sc._max = distr == 3 ? log10(sc.max) : distr == 4 ? asinh(sc.max, sc._asinh) : distr == 100 ? sc.fwd(sc.max) : sc.max;
 			}
 		}
 
@@ -5545,7 +5586,7 @@ function uPlot(opts, data, then) {
 
 		return (
 			distr == 3 ? pow(10, sv) :
-			distr == 4 ? sinh(sv, sc.asinh) :
+			distr == 4 ? sinh(sv, sc._asinh) :
 			distr == 100 ? sc.bwd(sv) :
 			sv
 		);

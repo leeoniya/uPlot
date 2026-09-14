@@ -23,6 +23,8 @@ function render() {
 		vals7,
 	];
 
+	let linthresh = 1;
+
 	const opts7 = {
 		width: 1600,
 		height: 600,
@@ -34,7 +36,7 @@ function render() {
 			y: {
 				distr: 4,
 				log: 10,
-				asinh: 1,
+				asinh: () => linthresh,
 			},
 		},
 		series: [
@@ -46,7 +48,7 @@ function render() {
 		],
 	};
 
-	let u7 = new uPlot(opts7, data7, document.body);
+	let u7 = new uPlot(opts7, data7, document.querySelector('#manual-plot') || document.body);
 
 	let label = document.querySelector("#thresh-label");
 	let input = document.querySelector("#linthresh");
@@ -54,12 +56,8 @@ function render() {
 	// The snapshot harness renders the chart without the page controls.
 	if (input && label) {
 		input.oninput = e => {
-			let val = round6(Math.pow(10, +e.target.value));
-			label.textContent = "Linear threshold: " + val;
-			let sc = u7.scales.y;
-			sc.asinh = val;
-			sc._min = Math.asinh(sc.min / val);
-			sc._max = Math.asinh(sc.max / val);
+			linthresh = round6(Math.pow(10, +e.target.value));
+			label.textContent = "Linear threshold: " + linthresh;
 			u7.redraw(true, true);
 		};
 	}
@@ -67,6 +65,56 @@ function render() {
 	return u7;
 }
 
+function renderAdaptive() {
+	let values = [];
+
+	for (let exp = -3; exp < 3; exp++) {
+		for (let i = 1; i < 10; i++)
+			values.push(Number((i * 10 ** exp).toPrecision(6)));
+	}
+
+	values.push(1000);
+	values = values.slice().reverse().map(v => -v).concat(values);
+
+	let data = [values.map((v, i) => i + 1), values];
+	let label = document.querySelector('#slice-label');
+	let input = document.querySelector('#data-min');
+	let threshold = document.querySelector('#adaptive-threshold');
+
+	let u = new uPlot({
+		width: 1600,
+		height: 600,
+		title: 'Adaptive ArcSinh Y Scale',
+		scales: {
+			x: { time: false },
+			y: { distr: 4 },
+		},
+		series: [
+			{},
+			{ stroke: 'blue', fill: 'rgba(0,0,255,0.1)' },
+		],
+		hooks: {
+			setScale: [(u, key) => {
+				if (key == 'y' && threshold)
+					threshold.textContent = 'Adaptive linear threshold: ' + u.scales.y._asinh;
+			}],
+		},
+	}, data, document.querySelector('#adaptive-plot') || document.body);
+
+	if (input && label) {
+		input.oninput = e => {
+			let min = 10 ** +e.target.value;
+			let start = values.findIndex(v => v >= min);
+			label.textContent = 'Minimum absolute Y value: ' + min;
+			u.setData(data.map(values => values.slice(0, values.length - start).concat(values.slice(start))));
+		};
+	}
+
+	return u;
+}
+
 export default [{
 	steps: [plotStep(render)],
+}, {
+	steps: [plotStep(renderAdaptive)],
 }];

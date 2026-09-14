@@ -652,7 +652,7 @@ export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 export function asinhAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	let sc = self.scales[self.axes[axisIdx].scale];
 
-	let linthresh = sc.asinh;
+	let linthresh = sc._asinh;
 
 	let posSplits = scaleMax > linthresh ? logAxisSplits(self, axisIdx, max(linthresh, scaleMin), scaleMax, foundIncr, foundSpace, forceMin) : [linthresh];
 	let zero = scaleMax >= 0 && scaleMin <= 0 ? [0] : [];
@@ -826,12 +826,38 @@ export function clampScale(self, val, scaleMin, scaleMax, scaleKey) {
 	return scaleMin / 10;
 }
 
+function asinhScale(self, scaleKey) {
+	let { series, data, mode } = self;
+	let linthresh = inf;
+
+	for (let i = 1; i < series.length; i++) {
+		let s = series[i];
+		let scale = mode == 1 ? s.scale : s.facets[1].scale;
+
+		if (scale == scaleKey) {
+			let yData = mode == 1 ? data[i] : data[i][1];
+			let [i0, i1] = mode == 1 ? series[0].idxs : [0, yData.length - 1];
+
+			for (let j = i0; j <= i1; j++) {
+				if (yData[j] != null) {
+					let val = abs(yData[j]);
+
+					if (val < linthresh)
+						linthresh = val;
+				}
+			}
+		}
+	}
+
+	return linthresh == inf || linthresh == 0 ? 1 : linthresh;
+}
+
 export const xScaleOpts = {
 	time: FEAT_TIME,
 	auto: true,
 	distr: 1,
 	log: 10,
-	asinh: 1,
+	asinh: asinhScale,
 	min: null,
 	max: null,
 	dir: 1,

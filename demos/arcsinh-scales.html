@@ -8,9 +8,17 @@
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
 	</head>
 	<body>
-		<label id="thresh-label" for="linthresh">Linear thershold: 1</label>
+		<label id="thresh-label" for="linthresh">Linear threshold: 1</label>
 		<br>
 		<input type="range" id="linthresh" name="linthresh" min="-3" max="3" value="0" step="1">
+		<div id="manual-plot"></div>
+
+		<p>Move the slider to remove values closest to zero, where |Y| is below the selected minimum. The linear threshold adapts to the remaining data.</p>
+		<label id="slice-label" for="data-min">Minimum absolute Y value: 0.001</label>
+		<br>
+		<input type="range" id="data-min" name="data-min" min="-3" max="2" value="-3" step="1">
+		<output id="adaptive-threshold" for="data-min">Adaptive linear threshold: 0.001</output>
+		<div id="adaptive-plot"></div>
 
 		<script type="module">
 			import { renderDemo } from "./renderDemo.js";
