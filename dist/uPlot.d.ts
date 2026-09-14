@@ -673,8 +673,10 @@ declare namespace uPlot {
 		/** clamps log scale values <= 0 (default = scaleMin / 10) */
 		clamp?: Scale.Clamp;
 
-		/** arcsinh linear threshold */
-		asinh?: number; // 1
+		/** arcsinh linear threshold; callback runs when this scale is recalculated.
+		 * Defaults to 1 for fixed ranges or auto: false. Otherwise, uses the smallest absolute Y value
+		 * (in-view in mode 1, full arrays in mode 2), or 1 for zero or no values. */
+		asinh?: number | ((self: uPlot, scaleKey: string) => number);
 
 		/** forward transform fn, with custom distr: 100 */
 		fwd?: (v: number) => number;
