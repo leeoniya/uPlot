@@ -394,7 +394,15 @@ export function numDigits(x) {
 export const fixedDec = new Map();
 
 export function guessDec(num) {
-	return ((""+num).split(".")[1] || "").length;
+	if (isInt(num))
+		return 0;
+
+	let str = "" + num;
+	let dot = str.indexOf(".");
+	let exp = str.indexOf("e");
+	let dec = dot < 0 ? 0 : (exp < 0 ? str.length : exp) - dot - 1;
+
+	return max(0, dec - (exp < 0 ? 0 : +str.slice(exp + 1)));
 }
 
 export function genIncrs(base, minExp, maxExp, mults) {
@@ -404,12 +412,11 @@ export function genIncrs(base, minExp, maxExp, mults) {
 
 	for (let exp = minExp; exp < maxExp; exp++) {
 		let expa = abs(exp);
-		let mag = roundDec(pow(base, exp), expa);
+		let mag = base == 10 ? 0 : pow(base, exp);
 
 		for (let i = 0; i < mults.length; i++) {
-			let _incr = base == 10 ? +`${mults[i]}e${exp}` : mults[i] * mag;
-			let dec = (exp >= 0 ? 0 : expa) + (exp >= multDec[i] ? 0 : multDec[i]);
-			let incr = base == 10 ? _incr : roundDec(_incr, dec);
+			let incr = base == 10 ? +`${mults[i]}e${exp}` : mults[i] * mag;
+			let dec = base == 10 ? max(0, multDec[i] - exp) : (exp >= 0 ? 0 : expa) + (exp >= multDec[i] ? 0 : multDec[i]);
 			incrs.push(incr);
 			fixedDec.set(incr, dec);
 		}
