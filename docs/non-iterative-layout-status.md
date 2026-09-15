@@ -50,6 +50,14 @@ The current sequence is:
 - A synchronous `batch()` left an obsolete queued callback that caused a second draw. Callback identity now prevents obsolete callbacks from running.
 - An obsolete callback also cannot consume later work out of microtask order. Regression tests cover later queued work and deferred hooks.
 
+### Cursor marker alignment
+
+- Default DOM hover markers now use the same bitmap-space position calculation as built-in canvas markers, including pixel snapping and stroke offsets.
+- CSS positions use the completed canvas dimensions and retain fractional coordinates. Layout and pixel-ratio changes update stationary markers without new `_commit()` stages.
+- Custom bounding boxes retain their positioning behavior. Visibility guards cover plot edges, hidden cursors, hidden series, missing values, and stale data indices.
+- Regression tests compare DOM centers with recorded canvas arcs and drawing transforms. Matching centers does not guarantee identical browser antialiasing.
+- A native Firefox benchmark shows extra hover cost for changed indices. [Recorded results](hover-performance.md) identify repeated scale conversions as an optimization candidate.
+
 ### Demo and tests
 
 - Updated the axis-autosize demo to measure labels and reserve conservative overflow padding without position feedback.
@@ -129,8 +137,10 @@ Dimension-aware ranges are compatible with directed layout. Arbitrary bidirectio
 
 ## Validation at this checkpoint
 
-- Full suite with coverage: **508 passing tests**, including **27 layout tests**, **35 mouse-driven selection/reset tests**, and **20 legend tests**.
-- Existing demo snapshots: passed without updates.
+- Full suite with coverage: **538 passing tests**, including **27 layout tests**, **35 selection/reset tests**, **20 legend tests**, and **28 marker-alignment tests**.
+- Demo snapshots: **242 snapshots across 22 demos** passed against both the pre-alignment build (`8c0bce3`) and the current implementation.
+- The four new points snapshots preserve the original inline demo output. Existing snapshots required no updates.
+- Repeated seeded renders of the extracted points demo produce identical recordings.
 - Distribution build: passed.
 - `git diff --check`: passed.
 
@@ -167,8 +177,9 @@ Branch: `non-iterative-layout`.
 - `63dbaa2` — Replace size convergence with ordered axis layout.
 - `2b39125` — Raise degenerate-range probe timeout to 100ms.
 - `3a8ff7c` — Simplify layout commits and fix queued batch redraws.
+- `8c0bce3` — Optimize layout invalidation and cover mouse and legend interactions.
 
-This checkpoint includes the final-review optimizations, axis-visibility and interaction regressions, updated documentation, and rebuilt bundles.
+The cursor marker alignment changes, their regression tests, documentation, and rebuilt bundles remain uncommitted at this checkpoint.
 
 The review left the small layout-array allocations unchanged. Reusable scratch arrays add persistent state without a measured benefit. Caching arbitrary tick callback results requires an explicit dependency contract because callbacks can depend on external state.
 
@@ -177,6 +188,8 @@ The review left the small layout-array allocations unchanged. Reusable scratch a
 - [Core implementation](../src/uPlot.js)
 - [Layout regressions](../test/layout.mjs)
 - [Mouse-driven selection regressions](../test/cursor-drag.mjs)
+- [Cursor marker alignment regressions](../test/cursor-points.mjs)
+- [Hover performance results](hover-performance.md)
 - [Legend interaction regressions](../test/legend.mjs)
 - [API contracts](README.md#axis-layout--padding)
 - [Type declarations](../dist/uPlot.d.ts)

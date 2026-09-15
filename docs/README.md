@@ -417,3 +417,18 @@ Identical `setSize()` or `setPxRatio()` requests are no-ops. For an explicit axi
 Multiple size changes before a commit produce one `setSize` notification, even if the final size matches the previous layout.
 
 **Canvas state:** uPlot invalidates its canvas state cache only when it resets the canvas backing store. Callbacks must preserve `self.ctx` state. The demo saves and restores the canvas state around font changes to preserve the font cache.
+
+#### Cursor Marker Alignment
+
+Default DOM hover markers share the built-in canvas marker position calculation. This calculation uses the bitmap plot rectangle, `series.pxAlign`, and the canvas point stroke offset.
+
+The DOM position uses the completed canvas-to-CSS scale, without another CSS-pixel rounding step. Hover centers can therefore have fractional CSS coordinates.
+Stationary markers update after external resize, axis layout changes, and pixel-ratio changes. Pending size or pixel-ratio requests do not change their displayed geometry before commit.
+
+The alignment target is the canvas marker center, not the series line. Different point and line stroke widths can produce different drawing offsets.
+CSS circles and canvas arcs can still differ in antialiasing and border appearance.
+
+`cursor.points.bbox` overrides automatic center alignment and size. Its existing CSS positioning behavior remains unchanged.
+Custom point paths with different placement require an explicit bounding-box callback. The default calculation cannot infer arbitrary path geometry.
+
+This change addresses the coordinate mismatch reported in [#1108](https://github.com/leeoniya/uPlot/issues/1108) and [#779](https://github.com/leeoniya/uPlot/issues/779).

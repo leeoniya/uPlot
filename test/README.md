@@ -10,6 +10,27 @@ Group and step IDs default to their zero-based indexes. An optional `id` field
 provides a stable name when cases change order. IDs accept letters, digits,
 underscores, and hyphens. The recorder rejects duplicate group IDs and snapshot paths.
 
+## Points demo snapshots
+
+`demos/points.html` uses `renderDemo()` and one step that returns all four original charts.
+The snapshots include default points, filled points, points without lines, density limits, and sparse-data filtering.
+
+The four snapshots come from commit `8c0bce3`, before the cursor-marker alignment changes.
+The original inline demo and the extracted demo produce identical recordings with that build.
+The current implementation matches the same snapshots without updates.
+
+Each render creates fresh random-walk state so that seeded recordings do not depend on previous renders.
+`test/demo-extractions.mjs` checks that repeated seeded renders match.
+
+These snapshots cover the initial DOM and canvas commands, not hovered markers.
+`test/cursor-points.mjs` covers marker alignment.
+
+Run the points snapshots and extraction tests:
+
+```sh
+node --max-old-space-size=256 --import ./scripts2/register-hooks.mjs node_modules/mocha/bin/mocha.js --no-config --no-package --reporter spec test/demo-extractions.mjs test/test.mjs --grep 'demo extraction support|^points '
+```
+
 ## Mouse-driven selection regressions
 
 `test/cursor-drag.mjs` uses Happy DOM and the existing canvas mock. It dispatches mouse events through the normal uPlot listeners.
@@ -37,6 +58,44 @@ Run the selection and layout tests sequentially in one process:
 ```sh
 node --max-old-space-size=256 node_modules/mocha/bin/mocha.js --no-config --no-package --reporter dot test/cursor-drag.mjs test/layout.mjs
 ```
+
+## Cursor marker alignment regressions
+
+`test/cursor-points.mjs` compares DOM marker centers against recorded canvas arcs and their drawing transforms.
+The comparison uses the completed CSS dimensions and actual canvas dimensions, not the requested pixel ratio alone.
+
+The tests cover:
+
+- Pixel ratios 1, 1.25, 1.5, 2, and 3.
+- Disabled, fractional, and integer pixel snapping, including per-series overrides.
+- Zero, odd, even, and fractional point stroke widths.
+- Plot edges, rotated axes, reversed scales, and aligned or faceted data.
+- Single-point focus, including series with different snapping and stroke widths.
+- Stationary markers after resize, axis sizing, and pixel-ratio changes.
+- Custom bounding boxes, hidden cursors, non-live legends, missing values, and stale indices after `setData(..., false)`.
+
+These tests verify geometric centers. They do not compare browser antialiasing or rendered pixels.
+
+Run the alignment tests:
+
+```sh
+node --max-old-space-size=256 node_modules/mocha/bin/mocha.js --no-config --no-package --reporter dot test/cursor-points.mjs
+```
+
+### Native hover performance benchmark
+
+[`scripts2/bench-hover.mjs`](../scripts2/bench-hover.mjs) compares the pre-alignment commit with the current distribution build in headless Firefox.
+It measures mouse handlers and forced style/layout updates separately. Cases include 1, 10, and 100 series, pixel-ratio overrides, and an inline legend.
+
+Run the build and benchmark sequentially:
+
+```sh
+NODE_OPTIONS='--max-old-space-size=256' npm run build
+node --max-old-space-size=128 scripts2/bench-hover.mjs
+```
+
+The runner has a 120-second limit and removes its temporary browser profile.
+[Recorded results and limitations](../docs/hover-performance.md) describe the measured slowdown and the extra scale conversions.
 
 ## Legend interaction regressions
 

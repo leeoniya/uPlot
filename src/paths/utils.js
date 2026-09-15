@@ -239,6 +239,15 @@ export function findGaps(xs, ys, idx0, idx1, dir, pixelForX, align) {
 	return gaps;
 }
 
+export function pointPos(val, scale, dim, off, valToPos, pxRound) {
+	return pxRound(valToPos(val, scale, dim, off));
+}
+
+export function pxOffset(width, pxAlign) {
+	let offset = (width % 2) / 2;
+	return pxAlign == 1 && offset > 0 ? offset : 0;
+}
+
 export function pxRoundGen(pxAlign) {
 	return pxAlign == 0 ? retArg0 : pxAlign == 1 ? round : v => incrRound(v, pxAlign);
 }

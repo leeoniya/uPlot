@@ -195,7 +195,7 @@ import { bars     } from './paths/bars.js';
 import { monotoneCubic     as spline  } from './paths/monotoneCubic.js';
 import { catmullRomCentrip as spline2 } from './paths/catmullRomCentrip.js';
 
-import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, orient, pxRoundGen, seriesFillTo, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './paths/utils.js';
+import { addGap, clipGaps, moveToH, moveToV, arcH, arcV, orient, pointPos, pxOffset, pxRoundGen, seriesFillTo, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './paths/utils.js';
 
 function log(name, args) {
 	console.log.apply(console, [name].concat(Array.prototype.slice.call(args)));
@@ -749,6 +749,9 @@ export default function uPlot(opts, data, then) {
 	let plotWid = 0;
 	let plotHgt = 0;
 
+	let canToCssX = 1;
+	let canToCssY = 1;
+
 	self.bbox = {left: 0, top: 0, width: 0, height: 0};
 
 	let shouldSetScales = false;
@@ -858,6 +861,9 @@ export default function uPlot(opts, data, then) {
 
 		if (plotChanged)
 			resizeOverlays(prevWidth, prevHeight);
+
+		if (showCursor && !shouldSetCursor && (plotChanged || resized))
+			syncCursorPoints();
 
 		if (resized || plotChanged || axesChanged) {
 			applyLayout(plotChanged, axesChanged);
@@ -999,9 +1005,10 @@ export default function uPlot(opts, data, then) {
 
 	// series-intersection markers
 	let cursorPts = [];
-	// position caches in CSS pixels
+	// Unrounded CSS positions for visibility and resize, not the painted centers.
 	let cursorPtsLft = [];
 	let cursorPtsTop = [];
+	let cursorPtSeries = null;
 
 	function initCursorPt(s, si) {
 		let pt = points.show(self, si);
@@ -1674,14 +1681,12 @@ export default function uPlot(opts, data, then) {
 		width = roundDec(width * pxRatio, 3);
 
 		let boundsClip = null;
-		let offset = (width % 2) / 2;
+		let offset = pxOffset(width, s.pxAlign);
 
 		if (_points && fillStyle == null)
 			fillStyle = width > 0 ? "#fff" : strokeStyle;
 
-		let _pxAlign = s.pxAlign == 1 && offset > 0;
-
-		_pxAlign && offset != 0 && ctx.translate(offset, offset);
+		offset != 0 && ctx.translate(offset, offset);
 
 		if (!_points) {
 			let lft = plotLft - width / 2,
@@ -1699,7 +1704,7 @@ export default function uPlot(opts, data, then) {
 		else
 			fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, boundsClip, gapsClip);
 
-		_pxAlign && offset != 0 && ctx.translate(-offset, -offset);
+		offset != 0 && ctx.translate(-offset, -offset);
 	}
 
 	function fillStroke(si, strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip) {
@@ -2143,6 +2148,8 @@ export default function uPlot(opts, data, then) {
 
 		let width = round(fullWidCss * pxRatio);
 		let height = round(fullHgtCss * pxRatio);
+		canToCssX = fullWidCss / width;
+		canToCssY = fullHgtCss / height;
 		let reset = !ready || can.width != width || can.height != height;
 
 		if (!ready || can.width != width)
@@ -2209,7 +2216,6 @@ export default function uPlot(opts, data, then) {
 				if (pt != null) {
 					cursorPtsLft[i] *= pctWid;
 					cursorPtsTop[i] *= pctHgt;
-					elTrans(pt, ceil(cursorPtsLft[i]), ceil(cursorPtsTop[i]), plotWidCss, plotHgtCss);
 				}
 			}
 		}
@@ -2665,6 +2671,84 @@ export default function uPlot(opts, data, then) {
 		legend.values[sidx] = val;
 	}
 
+	function setCursorPointPos(pt, si, left, top) {
+		let s = series[si];
+
+		if (cursor.left < 0 || s == null || !s.show) {
+			elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
+			return;
+		}
+
+		if (points.bbox != null) {
+			elTrans(pt, ceil(left), ceil(top), plotWidCss, plotHgtCss);
+			return;
+		}
+
+		let idx = activeIdxs[si];
+		let sx, sy, xVal, yVal;
+
+		if (mode == 1) {
+			sx = scaleX;
+			sy = scales[s.scale];
+			xVal = data[0]?.[idx];
+			yVal = data[si]?.[idx];
+		}
+		else {
+			let d = data[si];
+			sx = scales[s.facets[0].scale];
+			sy = scales[s.facets[1].scale];
+			xVal = d?.[0]?.[idx];
+			yVal = d?.[1]?.[idx];
+		}
+
+		if (idx == null || xVal == null || yVal == null) {
+			elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
+			return;
+		}
+
+		let off = left < 0 || top < 0 || left > plotWidCss || top > plotHgtCss;
+
+		if (!off) {
+			let sh, sv, hVal, vVal;
+
+			if (sx.ori == 0) {
+				sh = sx;
+				sv = sy;
+				hVal = xVal;
+				vVal = yVal;
+			}
+			else {
+				sh = sy;
+				sv = sx;
+				hVal = yVal;
+				vVal = xVal;
+			}
+
+			let x = pointPos(hVal, sh, plotWid, plotLft, getHPos, s.pxRound);
+			let y = pointPos(vVal, sv, plotHgt, plotTop, getVPos, s.pxRound);
+			let sp = s.points;
+			let offset = pxOffset(roundDec((sp._paths?._width ?? sp.width) * pxRatio, 3), sp.pxAlign);
+
+			// Match the painted canvas center, without another CSS-pixel snap.
+			left = (x + offset) * canToCssX - plotLftCss;
+			top = (y + offset) * canToCssY - plotTopCss;
+		}
+		else {
+			left = ceil(left);
+			top = ceil(top);
+		}
+
+		// A painted center can extend past the plot edge after pixel alignment.
+		elTrans(pt, left, top, plotWidCss, plotHgtCss, off);
+	}
+
+	function syncCursorPoints() {
+		cursorPts.forEach((pt, i) => {
+			if (pt != null && cursorPtsLft[i] != null)
+				setCursorPointPos(pt, cursorOnePt ? cursorPtSeries : i, cursorPtsLft[i], cursorPtsTop[i]);
+		});
+	}
+
 	function updateCursor(src, _fire, _pub) {
 	//	ts == null && log("updateCursor()", arguments);
 
@@ -2838,7 +2922,7 @@ export default function uPlot(opts, data, then) {
 
 								elSize(pt, ptWid, ptHgt, centered);
 								elColor(pt, ptFill, ptStroke);
-								elTrans(pt, ceil(ptLft), ceil(ptTop), plotWidCss, plotHgtCss);
+								setCursorPointPos(pt, i, ptLft, ptTop);
 							}
 						}
 					}
@@ -2863,7 +2947,8 @@ export default function uPlot(opts, data, then) {
 
 						elSize(pt, _ptWid, _ptHgt, _centered);
 						elColor(pt, _ptFill, _ptStroke);
-						elTrans(pt, ceil(_ptLft), ceil(_ptTop), plotWidCss, plotHgtCss);
+						cursorPtSeries = closestDist <= p ? closestSeries : null;
+						setCursorPointPos(pt, cursorPtSeries, _ptLft, _ptTop);
 					}
 				}
 			}

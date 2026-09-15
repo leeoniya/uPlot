@@ -825,15 +825,17 @@ var uPlot = (function () {
 
 	const xformCache = new WeakMap();
 
-	function elTrans(el, xPos, yPos, xMax, yMax) {
+	function elTrans(el, xPos, yPos, xMax, yMax, off) {
 		let xform = "translate(" + xPos + "px," + yPos + "px)";
 		let xformOld = xformCache.get(el);
 
 		if (xform != xformOld) {
 			el.style.transform = xform;
 			xformCache.set(el, xform);
+		}
 
-			if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
+		if (xform != xformOld || off != null) {
+			if (off ?? (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax))
 				addClass(el, OFF);
 			else
 				remClass(el, OFF);
@@ -2371,6 +2373,15 @@ var uPlot = (function () {
 		return gaps;
 	}
 
+	function pointPos(val, scale, dim, off, valToPos, pxRound) {
+		return pxRound(valToPos(val, scale, dim, off));
+	}
+
+	function pxOffset(width, pxAlign) {
+		let offset = (width % 2) / 2;
+		return pxAlign == 1 && offset > 0 ? offset : 0;
+	}
+
 	function pxRoundGen(pxAlign) {
 		return pxAlign == 0 ? retArg0 : pxAlign == 1 ? round : v => incrRound(v, pxAlign);
 	}
@@ -2471,8 +2482,8 @@ var uPlot = (function () {
 
 				const drawPoint = pi => {
 					if (dataY[pi] != null) {
-						let x = pxRound(valToPosX(dataX[pi], scaleX, xDim, xOff));
-						let y = pxRound(valToPosY(dataY[pi], scaleY, yDim, yOff));
+						let x = pointPos(dataX[pi], scaleX, xDim, xOff, valToPosX, pxRound);
+						let y = pointPos(dataY[pi], scaleY, yDim, yOff, valToPosY, pxRound);
 
 						moveTo(fill, x + rad, y);
 						arc(fill, x, y, rad, 0, PI * 2);
@@ -3757,6 +3768,9 @@ var uPlot = (function () {
 		let plotWid = 0;
 		let plotHgt = 0;
 
+		let canToCssX = 1;
+		let canToCssY = 1;
+
 		self.bbox = {left: 0, top: 0, width: 0, height: 0};
 
 		let shouldSetScales = false;
@@ -3866,6 +3880,9 @@ var uPlot = (function () {
 
 			if (plotChanged)
 				resizeOverlays(prevWidth, prevHeight);
+
+			if (showCursor && !shouldSetCursor && (plotChanged || resized))
+				syncCursorPoints();
 
 			if (resized || plotChanged || axesChanged) {
 				applyLayout(plotChanged, axesChanged);
@@ -4007,9 +4024,10 @@ var uPlot = (function () {
 
 		// series-intersection markers
 		let cursorPts = [];
-		// position caches in CSS pixels
+		// Unrounded CSS positions for visibility and resize, not the painted centers.
 		let cursorPtsLft = [];
 		let cursorPtsTop = [];
+		let cursorPtSeries = null;
 
 		function initCursorPt(s, si) {
 			let pt = points.show(self, si);
@@ -4682,14 +4700,12 @@ var uPlot = (function () {
 			width = roundDec(width * pxRatio$1, 3);
 
 			let boundsClip = null;
-			let offset = (width % 2) / 2;
+			let offset = pxOffset(width, s.pxAlign);
 
 			if (_points && fillStyle == null)
 				fillStyle = width > 0 ? "#fff" : strokeStyle;
 
-			let _pxAlign = s.pxAlign == 1 && offset > 0;
-
-			_pxAlign && offset != 0 && ctx.translate(offset, offset);
+			offset != 0 && ctx.translate(offset, offset);
 
 			if (!_points) {
 				let lft = plotLft - width / 2,
@@ -4707,7 +4723,7 @@ var uPlot = (function () {
 			else
 				fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, boundsClip, gapsClip);
 
-			_pxAlign && offset != 0 && ctx.translate(-offset, -offset);
+			offset != 0 && ctx.translate(-offset, -offset);
 		}
 
 		function fillStroke(si, strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip) {
@@ -5151,6 +5167,8 @@ var uPlot = (function () {
 
 			let width = round(fullWidCss * pxRatio$1);
 			let height = round(fullHgtCss * pxRatio$1);
+			canToCssX = fullWidCss / width;
+			canToCssY = fullHgtCss / height;
 			let reset = !ready || can.width != width || can.height != height;
 
 			if (!ready || can.width != width)
@@ -5217,7 +5235,6 @@ var uPlot = (function () {
 					if (pt != null) {
 						cursorPtsLft[i] *= pctWid;
 						cursorPtsTop[i] *= pctHgt;
-						elTrans(pt, ceil(cursorPtsLft[i]), ceil(cursorPtsTop[i]), plotWidCss, plotHgtCss);
 					}
 				}
 			}
@@ -5673,6 +5690,84 @@ var uPlot = (function () {
 			legend.values[sidx] = val;
 		}
 
+		function setCursorPointPos(pt, si, left, top) {
+			let s = series[si];
+
+			if (cursor.left < 0 || s == null || !s.show) {
+				elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
+				return;
+			}
+
+			if (points.bbox != null) {
+				elTrans(pt, ceil(left), ceil(top), plotWidCss, plotHgtCss);
+				return;
+			}
+
+			let idx = activeIdxs[si];
+			let sx, sy, xVal, yVal;
+
+			if (mode == 1) {
+				sx = scaleX;
+				sy = scales[s.scale];
+				xVal = data[0]?.[idx];
+				yVal = data[si]?.[idx];
+			}
+			else {
+				let d = data[si];
+				sx = scales[s.facets[0].scale];
+				sy = scales[s.facets[1].scale];
+				xVal = d?.[0]?.[idx];
+				yVal = d?.[1]?.[idx];
+			}
+
+			if (idx == null || xVal == null || yVal == null) {
+				elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
+				return;
+			}
+
+			let off = left < 0 || top < 0 || left > plotWidCss || top > plotHgtCss;
+
+			if (!off) {
+				let sh, sv, hVal, vVal;
+
+				if (sx.ori == 0) {
+					sh = sx;
+					sv = sy;
+					hVal = xVal;
+					vVal = yVal;
+				}
+				else {
+					sh = sy;
+					sv = sx;
+					hVal = yVal;
+					vVal = xVal;
+				}
+
+				let x = pointPos(hVal, sh, plotWid, plotLft, getHPos, s.pxRound);
+				let y = pointPos(vVal, sv, plotHgt, plotTop, getVPos, s.pxRound);
+				let sp = s.points;
+				let offset = pxOffset(roundDec((sp._paths?._width ?? sp.width) * pxRatio$1, 3), sp.pxAlign);
+
+				// Match the painted canvas center, without another CSS-pixel snap.
+				left = (x + offset) * canToCssX - plotLftCss;
+				top = (y + offset) * canToCssY - plotTopCss;
+			}
+			else {
+				left = ceil(left);
+				top = ceil(top);
+			}
+
+			// A painted center can extend past the plot edge after pixel alignment.
+			elTrans(pt, left, top, plotWidCss, plotHgtCss, off);
+		}
+
+		function syncCursorPoints() {
+			cursorPts.forEach((pt, i) => {
+				if (pt != null && cursorPtsLft[i] != null)
+					setCursorPointPos(pt, cursorOnePt ? cursorPtSeries : i, cursorPtsLft[i], cursorPtsTop[i]);
+			});
+		}
+
 		function updateCursor(src, _fire, _pub) {
 		//	ts == null && log("updateCursor()", arguments);
 
@@ -5846,7 +5941,7 @@ var uPlot = (function () {
 
 									elSize(pt, ptWid, ptHgt, centered);
 									elColor(pt, ptFill, ptStroke);
-									elTrans(pt, ceil(ptLft), ceil(ptTop), plotWidCss, plotHgtCss);
+									setCursorPointPos(pt, i, ptLft, ptTop);
 								}
 							}
 						}
@@ -5871,7 +5966,8 @@ var uPlot = (function () {
 
 							elSize(pt, _ptWid, _ptHgt, _centered);
 							elColor(pt, _ptFill, _ptStroke);
-							elTrans(pt, ceil(_ptLft), ceil(_ptTop), plotWidCss, plotHgtCss);
+							cursorPtSeries = closestDist <= p ? closestSeries : null;
+							setCursorPointPos(pt, cursorPtSeries, _ptLft, _ptTop);
 						}
 					}
 				}

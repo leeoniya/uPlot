@@ -3,6 +3,7 @@ export default [
 	'area-fill',
 	'missing-data',
 	'line-paths',
+	'points',
 	'path-gap-clip',
 	'thin-bars-stroke-fill',
 	'high-low-bands',

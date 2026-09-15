@@ -3,8 +3,33 @@ import '../scripts2/instrument.mjs';
 import { replay } from '../scripts2/replay.mjs';
 import uPlot from '../src/uPlot.js';
 import arcsinhGroups from '../demos/arcsinh-scales.js';
+import pointsGroups from '../demos/points.js';
+import { captureStep } from '../scripts2/demoSteps.mjs';
+import { withSeededRandom } from '../scripts2/withSeededRandom.mjs';
 
 describe('demo extraction support', () => {
+	it('repeats the seeded points demo without retaining random-walk state', async () => {
+		const previous = globalThis.uPlot;
+		globalThis.uPlot = uPlot;
+
+		async function capture() {
+			const snapshots = [];
+			await withSeededRandom(() => captureStep(pointsGroups[0].steps[0], '0-0', (actual, id) => {
+				snapshots.push({ id, actual: JSON.parse(JSON.stringify(actual)) });
+			}));
+			return snapshots;
+		}
+
+		try {
+			const first = await capture();
+			assert.deepStrictEqual(first.map(snapshot => snapshot.id), ['0-0/0', '0-0/1', '0-0/2', '0-0/3']);
+			assert.deepStrictEqual(await capture(), first);
+		}
+		finally {
+			globalThis.uPlot = previous;
+		}
+	});
+
 	it('records and replays gradient styles through JSON', () => {
 		const ctx = document.createElement('canvas').getContext('2d');
 		const gradient = ctx.createLinearGradient(0, 0, 100, 0);
