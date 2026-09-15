@@ -41,6 +41,8 @@ The current sequence is:
 - Canvas-style caches reset only after an actual backing-store reset, including initial canvas setup.
 - Unchanged geometry preserves series paths unless data, scales, or an explicit rebuild invalidates them.
 - Multiple size requests before a commit produce one geometry notification, including resize-away-and-back requests.
+- Font scaling and path invalidation use only the final requested pixel ratio. Cancelled ratio requests preserve the existing fonts and paths.
+- Plot and axis DOM writes depend on their respective geometry changes. Pixel-ratio-only updates and resize-back requests do not rewrite unchanged CSS geometry.
 
 ### Bugs fixed during review
 
@@ -53,7 +55,12 @@ The current sequence is:
 - Updated the axis-autosize demo to measure labels and reserve conservative overflow padding without position feedback.
 - Removed the unsuccessful `nice-scale` experiment and its demo index entry.
 - Added layout regressions for multiple axes, orientations, callback order, overflow, ordinal data, empty data, geometry publication, canvas state, batching, and conversions.
+- Added series-toggle regressions for shared scales and multiple axes. Auto-ranged axes collapse when `scale.min == null`, then return when either series becomes visible.
+- Fixed-range axes remain active after all their series become hidden. Tests also cover default padding, titles, callbacks, path invalidation, and unchanged canvas dimensions.
 - Retained cursor and selection regression coverage for valid dimensions.
+- Added mouse-driven selection regressions for drag directions, thresholds, outside release, pixel ratios, and rectangle-cache invalidation after resize or axis collapse.
+- Added double-click reset regressions for zoomed ranges, retained selections, non-auto Y ranges, resize, axis autosizing, and non-primary buttons.
+- Added inline and table legend regressions for value updates, click toggles, isolation, hover focus, cursor locking, and cached paths during focus redraws.
 - Removed expectations for negative or collapsed plot dimensions. Nonpositive plot dimensions are undefined behavior, not a recovery guarantee.
 - Raised the three short precision-probe deadlines from 50ms to 100ms.
 
@@ -87,6 +94,8 @@ Top/bottom padding and horizontal-axis heights cannot depend on the final tick s
 
 `setSize()` updates `self.width` and `self.height` immediately. Geometry and coordinate conversions retain the previous completed layout until commit. Initial `bbox` fields are zero.
 
+`setPxRatio()` updates the public requested ratio immediately. Font scaling and path invalidation wait until layout commit.
+
 `batch()` completes pending work synchronously. Its obsolete queued callback does not draw again.
 
 The `setSize` hook reports outer size updates and internal plot or axis geometry changes. Coalesced resize-away-and-back requests still emit one notification. Identical requests alone emit none.
@@ -95,13 +104,15 @@ The `setSize` hook reports outer size updates and internal plot or axis geometry
 
 ## Remaining design work: space-aware scale ranges
 
-`setScales()` still resolves ranges before layout. Space-aware ranging is not implemented yet.
+`setScales()` still resolves ranges before layout. Tick selection already uses the range, available dimension, and tick configuration through `getIncrSpace()` and `findIncr()`.
+
+The remaining goal is range selection that uses the available dimension and tick configuration. It is not additional dimension awareness for tick selection.
 
 The next architectural steps are:
 
 1. Separate data-extents calculation from display-range selection. Preserve existing min/max caches independently of geometry.
-2. Allow vertical range and tick selection to use the established plot height.
-3. Allow horizontal range and tick selection to use available width.
+2. Make vertical range selection use the established plot height and tick configuration.
+3. Make horizontal range selection use available width and tick configuration.
 4. Define how horizontal ranging interacts with subsequent overflow padding.
 
 ### Two dependencies require explicit policies
@@ -118,7 +129,7 @@ Dimension-aware ranges are compatible with directed layout. Arbitrary bidirectio
 
 ## Validation at this checkpoint
 
-- Full suite with coverage: **449 passing tests**, including **23 layout tests**.
+- Full suite with coverage: **508 passing tests**, including **27 layout tests**, **35 mouse-driven selection/reset tests**, and **20 legend tests**.
 - Existing demo snapshots: passed without updates.
 - Distribution build: passed.
 - `git diff --check`: passed.
@@ -155,13 +166,18 @@ Branch: `non-iterative-layout`.
 
 - `63dbaa2` — Replace size convergence with ordered axis layout.
 - `2b39125` — Raise degenerate-range probe timeout to 100ms.
+- `3a8ff7c` — Simplify layout commits and fix queued batch redraws.
 
-At the time of this record, the subsequent simplifications, review fixes, tests, documentation, and rebuilt bundles remain uncommitted. Committing that work is the next checkpoint task.
+This checkpoint includes the final-review optimizations, axis-visibility and interaction regressions, updated documentation, and rebuilt bundles.
+
+The review left the small layout-array allocations unchanged. Reusable scratch arrays add persistent state without a measured benefit. Caching arbitrary tick callback results requires an explicit dependency contract because callbacks can depend on external state.
 
 ## Relevant files
 
 - [Core implementation](../src/uPlot.js)
 - [Layout regressions](../test/layout.mjs)
+- [Mouse-driven selection regressions](../test/cursor-drag.mjs)
+- [Legend interaction regressions](../test/legend.mjs)
 - [API contracts](README.md#axis-layout--padding)
 - [Type declarations](../dist/uPlot.d.ts)
 - [Axis-autosize demo](../demos/axis-autosize.html)

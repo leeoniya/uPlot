@@ -21,7 +21,7 @@ declare class uPlot {
 	/** Height of the plotting area + axes in CSS pixels (excludes title & legend height). setSize() updates this immediately, before layout commit. */
 	readonly height: number;
 
-	/** current devicePixelRatio */
+	/** Requested pixel ratio. Font scaling and pixel geometry update at layout commit. */
 	readonly pxRatio: number;
 
 	/**
@@ -129,6 +129,7 @@ declare class uPlot {
 
 	/**
 	 * Temporarily overrides window.devicePixelRatio for this chart.
+	 * Updates self.pxRatio immediately. Font scaling and path invalidation use the final requested ratio at commit.
 	 * An identical pixel ratio is a no-op. Use redraw(false, true) for an explicit axis and layout refresh.
 	 */
 	setPxRatio(pxRatio?: number | null): void;

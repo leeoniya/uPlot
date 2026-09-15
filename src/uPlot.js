@@ -295,10 +295,8 @@ export default function uPlot(opts, data, then) {
 	function setPxRatio(_pxRatio) {
 		_pxRatio ??= pxRatioGlobal;
 
-		if (_pxRatio != pxRatio) {
-			pxRatio = self.pxRatio = _pxRatio;
-			axes.forEach(axis => syncFontSize(axis, pxRatio));
-			resetYSeries(false);
+		if (_pxRatio != self.pxRatio) {
+			self.pxRatio = _pxRatio;
 			shouldSetCanvas = shouldLayout = true;
 			commit();
 		}
@@ -808,6 +806,13 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function updateLayout() {
+		let pxRatioChanged = pxRatio != self.pxRatio;
+
+		if (pxRatioChanged) {
+			pxRatio = self.pxRatio;
+			axes.forEach(axis => syncFontSize(axis, pxRatio));
+		}
+
 		let prevLeft = plotLftCss;
 		let prevTop = plotTopCss;
 		let prevWidth = plotWidCss;
@@ -848,13 +853,14 @@ export default function uPlot(opts, data, then) {
 		if (resized)
 			setCanvasSize();
 
-		if (plotChanged) {
+		if (plotChanged || pxRatioChanged)
 			resetYSeries(false);
+
+		if (plotChanged)
 			resizeOverlays(prevWidth, prevHeight);
-		}
 
 		if (resized || plotChanged || axesChanged) {
-			applyLayout();
+			applyLayout(plotChanged, axesChanged);
 			fire("setSize");
 		}
 	}
@@ -2150,34 +2156,38 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
-	function applyLayout() {
-		setStylePx(under, LEFT,   plotLftCss);
-		setStylePx(under, TOP,    plotTopCss);
-		setStylePx(under, WIDTH,  plotWidCss);
-		setStylePx(under, HEIGHT, plotHgtCss);
+	function applyLayout(plotChanged, axesChanged) {
+		if (plotChanged) {
+			setStylePx(under, LEFT,   plotLftCss);
+			setStylePx(under, TOP,    plotTopCss);
+			setStylePx(under, WIDTH,  plotWidCss);
+			setStylePx(under, HEIGHT, plotHgtCss);
 
-		setStylePx(over, LEFT,    plotLftCss);
-		setStylePx(over, TOP,     plotTopCss);
-		setStylePx(over, WIDTH,  plotWidCss);
-		setStylePx(over, HEIGHT, plotHgtCss);
+			setStylePx(over, LEFT,    plotLftCss);
+			setStylePx(over, TOP,     plotTopCss);
+			setStylePx(over, WIDTH,  plotWidCss);
+			setStylePx(over, HEIGHT, plotHgtCss);
+		}
 
-		axes.forEach(({ _el, _show, _size, _pos, side }) => {
-			if (_el != null) {
-				if (_show) {
-					let posOffset = (side == 3 || side == 0 ? _size : 0);
-					let isVt = side % 2 == 1;
+		if (plotChanged || axesChanged) {
+			axes.forEach(({ _el, _show, _size, _pos, side }) => {
+				if (_el != null) {
+					if (_show) {
+						let posOffset = (side == 3 || side == 0 ? _size : 0);
+						let isVt = side % 2 == 1;
 
-					setStylePx(_el, isVt ? "left"   : "top",    _pos - posOffset);
-					setStylePx(_el, isVt ? "width"  : "height", _size);
-					setStylePx(_el, isVt ? "top"    : "left",   isVt ? plotTopCss : plotLftCss);
-					setStylePx(_el, isVt ? "height" : "width",  isVt ? plotHgtCss : plotWidCss);
+						setStylePx(_el, isVt ? "left"   : "top",    _pos - posOffset);
+						setStylePx(_el, isVt ? "width"  : "height", _size);
+						setStylePx(_el, isVt ? "top"    : "left",   isVt ? plotTopCss : plotLftCss);
+						setStylePx(_el, isVt ? "height" : "width",  isVt ? plotHgtCss : plotWidCss);
 
-					remClass(_el, OFF);
+						remClass(_el, OFF);
+					}
+					else
+						addClass(_el, OFF);
 				}
-				else
-					addClass(_el, OFF);
-			}
-		});
+			});
+		}
 
 		syncRect(true);
 	}

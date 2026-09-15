@@ -10,6 +10,59 @@ Group and step IDs default to their zero-based indexes. An optional `id` field
 provides a stable name when cases change order. IDs accept letters, digits,
 underscores, and hyphens. The recorder rejects duplicate group IDs and snapshot paths.
 
+## Mouse-driven selection regressions
+
+`test/cursor-drag.mjs` uses Happy DOM and the existing canvas mock. It dispatches mouse events through the normal uPlot listeners.
+
+The tests cover:
+
+- X-only, Y-only, and XY zoom in both drag directions at pixel ratios 1 and 2.
+- Persistent selection with `drag.setScale: false`.
+- Clicks, zero-movement events, and the `drag.dist` threshold.
+- Edge selection and release outside the plot through the document listener.
+- Rectangle-cache invalidation after external resize and axis collapse or restoration.
+- Double-click reset after X-only, Y-only, and XY zoom at pixel ratios 1 and 2.
+- Selection clearing on reset, including `drag.setScale: false`, and preservation of non-auto Y ranges.
+- Reset after resize or axis autosizing, followed by another drag with the restored geometry.
+- Ignored non-primary-button double-clicks that preserve both the selection and scale ranges.
+- Selection state, inline styles, scale ranges, and hook notifications.
+
+Happy DOM does not calculate CSS layout. The fixture supplies `getBoundingClientRect()` from the applied overlay styles and a nonzero page offset.
+Mouse events include explicit `movementX` and `movementY` values. Assertions for completed zoom wait for the commit microtask.
+
+These tests do not verify browser hit testing, native CSS layout, or rasterized appearance.
+
+Run the selection and layout tests sequentially in one process:
+
+```sh
+node --max-old-space-size=256 node_modules/mocha/bin/mocha.js --no-config --no-package --reporter dot test/cursor-drag.mjs test/layout.mjs
+```
+
+## Legend interaction regressions
+
+`test/legend.mjs` covers inline legends with `series.value` and table legends with multiple `series.values` columns.
+Both modes use Happy DOM mouse events and the existing canvas mock.
+
+The tests cover:
+
+- Formatted values, missing values, cursor movement, and cursor leave.
+- Shared and per-series `setLegend()` indices, including suppressed hooks.
+- Value updates at a stationary cursor after data replacement, empty data, and recovery.
+- Label and marker clicks, axis collapse, and axis restoration.
+- Ctrl/Meta isolation, restoration of all series, and `legend.isolate` inversion.
+- Ignored clicks from non-primary buttons and clicks on value cells or headings.
+- Hover focus, legend and cursor-point opacity, and focus reset on legend leave.
+- Disabled focus and cursor locking.
+- Unchanged cursor indices without redundant legend updates, and focus redraws that retain cached series paths.
+
+These tests verify state, inline styles, and hooks. They do not verify native browser layout or hit testing.
+
+Run the legend, selection, and layout tests sequentially in one process:
+
+```sh
+node --max-old-space-size=256 node_modules/mocha/bin/mocha.js --no-config --no-package --reporter dot test/legend.mjs test/cursor-drag.mjs test/layout.mjs
+```
+
 ## Decimal precision regressions
 
 The precision tests cover reported rounding errors, missing ticks, tiny ranges,

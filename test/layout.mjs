@@ -968,6 +968,51 @@ describe('single-pass layout', () => {
 		finally { u.destroy(); }
 	});
 
+	it('updates only changed plot or axis DOM geometry', async () => {
+		const events = [];
+		let inner = 30;
+		const { u, sizes } = plot({
+			axes: [axis(events, 2, 30), axis(events, 3, 0, () => inner), axis(events, 3, 0, () => 50 - inner)],
+		});
+		const writes = [];
+		try {
+			await Promise.resolve();
+			for (const [group, elements] of [['plot', [u.over, u.under]], ['axis', u.axes.map(axis => axis._el)]]) {
+				for (const el of elements) {
+					Object.defineProperty(el, 'style', { value: new Proxy(el.style, {
+						set(target, key, value) {
+							writes.push(group);
+							return Reflect.set(target, key, value);
+						},
+					}) });
+				}
+			}
+			sizes.length = 0;
+			inner = 40;
+			u.redraw(false, true);
+			await Promise.resolve();
+			assert.ok(writes.includes('axis'));
+			assert.ok(!writes.includes('plot'), 'axis redistribution does not rewrite the unchanged plot rectangle');
+			assert.equal(sizes.length, 1);
+			writes.length = 0;
+			u.setSize({ width: 640, height: 420 });
+			u.setSize({ width: 600, height: 400 });
+			await Promise.resolve();
+			assert.deepEqual(writes, [], 'resize-back does not rewrite unchanged plot or axis geometry');
+			assert.equal(sizes.length, 2, 'resize-back still notifies once');
+			u.setPxRatio(2);
+			await Promise.resolve();
+			assert.deepEqual(writes, [], 'a pixel-ratio change alone does not rewrite CSS geometry');
+			assert.equal(sizes.length, 3);
+			u.setSize({ width: 640, height: 420 });
+			await Promise.resolve();
+			assert.ok(writes.includes('plot') && writes.includes('axis'), 'a changed plot rectangle updates both');
+			assert.equal(u.over.style.width, '590px');
+			assert.equal(sizes.length, 4);
+		}
+		finally { u.destroy(); }
+	});
+
 	it('retains the setSize hook for axis changes even when plot geometry is unchanged', async () => {
 		const events = [];
 		let inner = 30;
@@ -1084,6 +1129,73 @@ describe('single-pass layout', () => {
 		}
 		finally { u.destroy(); }
 	});
+
+	for (const fixedRange of [false, true]) {
+		it(`${fixedRange ? 'retains fixed-range axes' : 'collapses auto-ranged axes'} when all series on their scale are toggled off`, async () => {
+			const events = [];
+			const { u, sizes, bitmap } = plot({
+				padding: [null, null, null, null],
+				scales: { x: { time: false }, y: fixedRange ? { range: [0, 100] } : {}, other: { range: [0, 100] } },
+				series: [{}, { scale: 'y', stroke: 'red' }, { scale: 'y', stroke: 'blue' }, { scale: 'other', stroke: 'green' }],
+				axes: [
+					axis(events, 2, 30),
+					axis(events, 3, 0, 60, { label: 'left y', labelSize: 10 }),
+					axis(events, 1, 0, 40, { label: 'right y', labelSize: 8 }),
+					axis(events, 1, 0, 25, { scale: 'other', label: 'other', labelSize: 6 }),
+				],
+			}, [[0, 50, 100], [10, 30, 20], [10, 30, 20], [60, 80, 70]]);
+			try {
+				await Promise.resolve();
+				const initial = geometry(u);
+				assert.deepEqual(cssBox(u), { left: 70, top: 17, width: 451, height: 353 });
+				assert.deepEqual(u._padding, [17, 0, 0, 0]);
+				const otherAxis = { size: u.axes[3]._size, pos: u.axes[3]._pos };
+				const otherRange = [u.scales.other.min, u.scales.other.max];
+				for (const firstRestored of [1, 2]) {
+					for (const [index, show] of [[1, false], [2, false], [firstRestored, true], [3 - firstRestored, true]]) {
+						const previousBox = { ...u.bbox };
+						const otherPaths = u.series[3]._paths;
+						events.length = sizes.length = bitmap.width.length = bitmap.height.length = u.ctx.log.length = 0;
+						u.setSeries(index, { show });
+						await Promise.resolve();
+						const active = fixedRange || u.series[1].show || u.series[2].show;
+						assert.equal(u.scales.y.min == null, !active, 'null range, not series visibility alone, disables axes');
+						assert.equal(u.scales.y.max == null, !active);
+						const drawn = u.ctx.log.filter(entry => entry[0] == 'fillText').flatMap(entry => entry.slice(1)).map(args => args[0]);
+						for (const i of [1, 2]) {
+							const axis = u.axes[i];
+							assert.equal(axis.show, true, 'configured visibility stays enabled');
+							assert.equal(axis._show, active);
+							assert.equal(axis._el.classList.contains('u-off'), !active);
+							assert.equal(drawn.includes(axis.label), active, 'disabled axis titles are not drawn');
+							assert.equal(drawn.some(text => String(text).startsWith(`a${i}:`)), active, 'disabled tick labels are not drawn');
+							if (!active)
+								assert.ok(!events.some(event => event.i == i), 'disabled axes have no sizing or tick callbacks');
+						}
+						assert.deepEqual(cssBox(u), active
+							? { left: 70, top: 17, width: 451, height: 353 }
+							: { left: 25, top: 17, width: 544, height: 353 }, 'layout removes both axis widths and titles');
+						assert.deepEqual(u._padding, active ? [17, 0, 0, 0] : [17, 0, 0, 25], 'default padding reflects remaining active sides');
+						assert.equal(u.axes[0]._show, true);
+						assert.equal(u.axes[3]._show, true);
+						assert.equal(u.axes[3]._el.classList.contains('u-off'), false);
+						assert.deepEqual({ size: u.axes[3]._size, pos: u.axes[3]._pos }, otherAxis);
+						assert.deepEqual([u.scales.other.min, u.scales.other.max], otherRange);
+						assert.ok(drawn.includes('other'));
+						const geometryChanged = previousBox.width != u.bbox.width;
+						assert.equal(sizes.length, Number(geometryChanged));
+						if (geometryChanged)
+							assert.notEqual(u.series[3]._paths, otherPaths, 'plot resizing rebuilds paths on unaffected scales too');
+						else
+							assert.equal(u.series[3]._paths, otherPaths);
+						assertBitmap(bitmap, [], []);
+					}
+					assert.deepEqual(geometry(u), initial, 'either series restores the original axes and geometry');
+				}
+			}
+			finally { u.destroy(); }
+		});
+	}
 
 	it('removes inactive reservations on empty data and restores the same layout on recovery', async () => {
 		const events = [];
@@ -1217,6 +1329,43 @@ describe('single-pass layout', () => {
 				}
 				finally { u.destroy(); }
 			}
+		}
+	});
+
+	it('applies only the final requested pixel ratio and preserves paths when requests cancel', async () => {
+		for (const finalRatio of [1, 2]) {
+			const { u, bitmap, sizes } = plot();
+			try {
+				await Promise.resolve();
+				const paths = u.series[1]._paths;
+				const fonts = u.axes.flatMap(axis => [axis.font, axis.labelFont]);
+				const original = fonts.map(font => font.slice());
+				let fontWrites = 0;
+				for (const font of fonts) {
+					let text = font[0];
+					Object.defineProperty(font, 0, {
+						get: () => text,
+						set(value) { fontWrites++; text = value; },
+					});
+				}
+				bitmap.width.length = bitmap.height.length = sizes.length = 0;
+				for (const ratio of [2, 3, finalRatio]) {
+					u.setPxRatio(ratio);
+					assert.equal(u.pxRatio, ratio, 'requested ratio is public immediately');
+					assert.equal(u.series[1]._paths, paths, 'pending requests do not invalidate paths');
+					assert.equal(fontWrites, 0, 'pending requests do not rescale fonts');
+					assert.deepEqual(fonts.map(font => font.slice()), original);
+				}
+				await Promise.resolve();
+				assert.equal(fontWrites, finalRatio == 1 ? 0 : fonts.length, 'fonts rescale at most once');
+				assertBitmap(bitmap, finalRatio == 1 ? [] : [1200], finalRatio == 1 ? [] : [800]);
+				if (finalRatio == 1)
+					assert.equal(u.series[1]._paths, paths, 'cancelled ratio changes retain paths');
+				else
+					assert.notEqual(u.series[1]._paths, paths, 'an applied ratio change rebuilds paths');
+				assert.equal(sizes.length, 1, 'coalesced requests still notify once');
+			}
+			finally { u.destroy(); }
 		}
 	});
 

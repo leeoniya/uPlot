@@ -410,6 +410,8 @@ Custom callbacks must handle these phases without convergence counters or positi
 
 **Layout commit:** `setSize()` updates `self.width` and `self.height` immediately. Until commit, `self.bbox`, coordinate transforms, and DOM geometry retain the previous completed layout. Before the initial commit, all `self.bbox` fields are zero. `batch()` completes its pending layout synchronously before it returns. A previously queued commit does not draw again after this flush.
 
+`setPxRatio()` updates `self.pxRatio` immediately. Font scaling and path invalidation use the final requested ratio at commit. Cancelled ratio changes retain the existing fonts and paths unless another change invalidates them.
+
 Identical `setSize()` or `setPxRatio()` requests are no-ops. For an explicit axis and layout refresh, call `redraw(false, true)`. The `setSize` hook still reports outer size updates and internal plot geometry or axis changes. Identical requests do not trigger this hook.
 
 Multiple size changes before a commit produce one `setSize` notification, even if the final size matches the previous layout.
