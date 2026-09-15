@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>Chart.js v4.2.1 Demo</title>
+		<title>Chart.js v4.5.1 Demo</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<style>
@@ -17,7 +17,7 @@
 	<body>
 		<h2 id="wait">Loading lib....</h2>
 
-		<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
 		<div class="chart-container">
@@ -136,7 +136,8 @@
 						},
 						plugins: {
 							decimation: {
-								enabled: true
+								enabled: true,
+								algorithm: 'min-max'
 							}
 						}
 					}

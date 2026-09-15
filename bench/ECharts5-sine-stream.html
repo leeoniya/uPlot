@@ -2,12 +2,12 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>Sine Stream (ECharts)</title>
+		<title>Sine Stream (ECharts v6.1.0)</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 	</head>
 	<body>
-		<p>This is an adaptation of <a href="../demos/sine-stream.html">/demos/sine-stream.html</a> using ECharts5 (currently the next-fastest lib after uPlot).</p>
-		<script src="https://fastly.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+		<p>This is an adaptation of <a href="../demos/sine-stream.html">/demos/sine-stream.html</a> using ECharts v6.1.0.</p>
+		<script src="https://fastly.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js"></script>
 
 		<div id="chart" style="width: 2540px; height: 600px;"></div>
 
@@ -96,7 +96,7 @@
 			let _4 = randomWalk(600,  2, -1, 6);
 			let _5 = randomWalk(600,  4, -1, 6);
 
-			let data = getData(shift);
+			let data = [xs, sin, _1, _2, _3, _4, _5];
 
 			let packed = new Float64Array(7 * length);
 
@@ -168,7 +168,7 @@
 						z: 0,
 						type: "line",
 						showSymbol: false,
-					//	sampling: "lttb",
+					//	sampling: "minmax",
 						lineStyle: { width: 1, color: "red" },
 						areaStyle: {
 							color: "rgba(255,0,0,0.1)"
@@ -184,7 +184,7 @@
 						z: 1,
 						type: "line",
 						showSymbol: false,
-					//	sampling: "lttb",
+					//	sampling: "minmax",
 						lineStyle: { width: 1, color: "green" },
 						areaStyle: {
 							color: "#4caf505e"
@@ -200,7 +200,7 @@
 						z: 2,
 						type: "line",
 						showSymbol: false,
-					//	sampling: "lttb",
+					//	sampling: "minmax",
 						lineStyle: { width: 1, color: "blue" },
 						areaStyle: {
 							color: "#0000ff20"
@@ -216,7 +216,7 @@
 						z: 3,
 						type: "line",
 						showSymbol: false,
-					//	sampling: "lttb",
+					//	sampling: "minmax",
 						lineStyle: { width: 1, color: "orange" },
 						areaStyle: {
 							color: "#ffa5004f"
@@ -232,7 +232,7 @@
 						z: 4,
 						type: "line",
 						showSymbol: false,
-					//	sampling: "lttb",
+					//	sampling: "minmax",
 						lineStyle: { width: 1, color: "magenta" },
 						areaStyle: {
 							color: "#ff00ff20"
@@ -248,7 +248,7 @@
 						z: 5,
 						type: "line",
 						showSymbol: false,
-					//	sampling: "lttb",
+					//	sampling: "minmax",
 						lineStyle: { width: 1, color: "purple" },
 						areaStyle: {
 							color: "#80008020"
@@ -265,6 +265,7 @@
 			myChart.setOption(opts, {
 				notMerge: true
 			});
+
 
 			function update() {
 				shift += 1;
