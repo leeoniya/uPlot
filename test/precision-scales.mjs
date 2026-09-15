@@ -103,5 +103,5 @@ describe('precision: source scale ranging and axis splits', function() {
 		['620-equal-range', '#620 terminates for a custom [1, 1] range'],
 		['1084-custom-flat', '#1084 terminates for the single-point custom padding ranger'],
 	])
-		it(title, () => probe(name, numeric, 50));
+		it(title, () => probe(name, numeric, 100));
 });

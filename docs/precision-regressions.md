@@ -42,7 +42,7 @@ npm test
 
 **Safety:** Each chart or tick probe runs in a child process with a five-second startup limit.
 After imports finish, the parent starts a separate execution timer before it releases the probe.
-The three degenerate-range probes have a 50 ms execution limit. Other probes retain a five-second execution limit.
+The three degenerate-range probes have a 100 ms execution limit. Other probes retain a five-second execution limit.
 The parent kills timed-out children, even when a synchronous loop blocks the child event loop.
 Node children also have a 128 MiB JavaScript heap limit. POSIX children disable core dumps.
 Bun children have the time limits but not the Node heap limit.

@@ -30,7 +30,7 @@ Automatic-ranging tests cover flat and near-flat data updates on both signs, wit
 Low-level termination tests do not promise valid rendering for equal custom bounds.
 
 Each chart or tick probe runs in a child process.
-The three degenerate-range probes retain a 50 ms execution limit after imports finish.
+The three degenerate-range probes have a 100 ms execution limit after imports finish.
 Other probes have a five-second execution limit. All probes have a separate five-second startup limit.
 Node children also have a 128 MiB heap limit.
 
