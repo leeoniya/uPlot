@@ -22,6 +22,11 @@ function getMock(meths = [], props = []) {
 	meths.forEach(name => {
 		defProp(out, name, {
 			value: (...args) => {
+				// JSON cannot preserve -0, which draws identically to 0 on canvas.
+				for (let i = 0; i < args.length; i++) {
+					if (Object.is(args[i], -0))
+						args[i] = 0;
+				}
 
 				// console.log(name, args);
 

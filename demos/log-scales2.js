@@ -1,0 +1,520 @@
+import { plotStep } from './renderDemo.js';
+
+function createMagnitudeData() {
+	let vals = [];
+
+	function round6(val) {
+		return Math.round(val * 1e6) / 1e6;
+	}
+
+	let mags = [-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7];
+
+	mags.forEach(m => {
+		for (let i = 1; i < 10; i++)
+			vals.push(round6(i * Math.pow(10, m)));
+	});
+
+	vals.push(round6(10 * Math.pow(10, mags[mags.length - 1])));
+
+	let data = [
+		vals.map((v, i) => i + 1),
+		vals,
+	];
+
+	return data;
+}
+
+function renderLinearScale() {
+	let data = createMagnitudeData();
+
+	const opts = {
+		width: 1600,
+		height: 600,
+		title: "Linear Scale (0.000001 -> 100,000,000)",
+		scales: {
+			x: {
+				time: false,
+			},
+		},
+		axes: [
+			{},
+			{
+				size: 80,
+			}
+		],
+		series: [
+			{},
+			{
+				stroke: "magenta",
+			},
+		],
+	};
+
+	return new uPlot(opts, data, document.body);
+}
+
+function renderLog10Scale() {
+	let data = createMagnitudeData();
+
+	const opts2 = {
+		width: 1600,
+		height: 600,
+		title: "Log10 Y Scale (0.000001 -> 100,000,000)",
+		scales: {
+			x: {
+				time: false,
+			},
+			y: {
+				distr: 3,
+			//	log: 10,
+			},
+		},
+		axes: [
+			{},
+			{
+				size: 80,
+				values: (self, splits) => splits.map(v => v == null ? null : v.toExponential())
+			}
+		],
+		series: [
+			{},
+			{
+				stroke: "orange",
+			},
+		],
+	};
+
+	return new uPlot(opts2, data, document.body);
+}
+
+function renderLog2Scale() {
+	let data = createMagnitudeData();
+
+	const sups = '⁰¹²³⁴⁵⁶⁷⁸⁹'.split('');
+	const neg = '⁻';
+
+	const opts3 = {
+		width: 1600,
+		height: 600,
+		title: "Log2 Y Scale (0.000001 -> 100,000,000)",
+		scales: {
+			x: {
+				time: false,
+			},
+			y: {
+				distr: 3,
+				log: 2,
+			},
+		},
+		axes: [
+			{},
+			{
+				size: 80,
+				values: (self, splits) => splits.map(v => {
+					if (v == null)
+						return '';
+
+					let exp = Math.log2(v);
+					let aexp = Math.abs(exp);
+					let supExp = ("" + aexp).split("").map(s => sups[+s]).join("");
+					return "2" + (exp < 0 ? neg : "") + supExp;
+				})
+			}
+		],
+		series: [
+			{},
+			{
+				stroke: "purple",
+			},
+		],
+	};
+
+	return new uPlot(opts3, data, document.body);
+}
+
+function renderInvertedLogScales(now) {
+	let hr = 3600;
+
+	let data5 = [
+		[now-3*hr, now-2*hr, now-1*hr,  now],
+		[    1e-1,     1e1,      1e0,   1e2],
+	];
+
+	const opts5 = {
+		title: "Inverted Log10 Y Scale",
+		width: 1600,
+		height: 300,
+		padding: [null,30,10,0],
+		cursor: {
+			y: false,
+			sync: {
+				key: "moo"
+			}
+		},
+		scales: {
+			y: {
+				distr: 3,
+			//	log: 10,
+			},
+		},
+		axes: [
+			{
+				values: () => [],
+				ticks: {
+					show: false,
+				},
+				size: 0,
+			}
+		],
+		series: [
+			{},
+			{
+				label: "In",
+				stroke: "orange",
+			},
+		],
+	};
+
+	let u5 = new uPlot(opts5, data5, document.body);
+
+	const opts6 = {
+		width: 1600,
+		height: 300,
+		padding: [10,30,0,0],
+		cursor: {
+			y: false,
+			sync: {
+				key: "moo"
+			}
+		},
+		scales: {
+			y: {
+				distr: 3,
+				dir: -1,
+			//	log: 10,
+			},
+		},
+		axes: [
+			{},
+			{
+				values: (u, splits) => splits.map(v => v != null ? -v : null),
+			}
+		],
+		series: [
+			{},
+			{
+				label: "Out",
+				stroke: "blue",
+				value: (u, v) => -v,
+			},
+		],
+		hooks: {
+			ready: [
+				u => {
+					let btmLegend = u.root.querySelector(".u-legend");
+					let topLegend = u5.root.querySelector(".u-legend");
+
+					let upperItem = topLegend.querySelector(".u-series:nth-child(2)");
+					btmLegend.insertBefore(upperItem, btmLegend.lastChild);
+					topLegend.style.display = "none";
+				}
+			]
+		}
+	};
+
+	let u6 = new uPlot(opts6, data5, document.body);
+
+	return [u5, u6];
+}
+
+function renderSignedLogScale() {
+	const opts4 = {
+		width: 1600,
+		height: 600,
+		title: "Log10 Y Scale (-100 -> 100)",
+		scales: {
+			x: {
+				time: false,
+			},
+			y: {
+				distr: 3,
+				log: 10,
+			},
+		},
+		axes: [
+			{},
+			{
+				size: 80,
+			}
+		],
+		series: [
+			{},
+			{
+				stroke: "blue",
+				fill: "rgba(0,0,255,0.1)",
+			},
+		],
+	};
+
+	// https://bost.ocks.org/mike/shuffle/
+	function shuffle(array) {
+		var m = array.length, t, i;
+		while (m) {
+			i = Math.floor(Math.random() * m--);
+			t = array[m];
+			array[m] = array[i];
+			array[i] = t;
+		}
+		return array;
+	}
+
+	let yvals = [-100, -10, -1, -.1, -.01, -.001, 0, .001, .01, .1, 1, 10, 100];
+
+	let repeat = 10;
+
+	let ydata = [];
+
+	while (repeat--)
+		ydata.push.apply(ydata, yvals);
+
+	ydata = shuffle(ydata);
+
+	let data4 = [
+		ydata.map((v,i) => i),
+		ydata,
+	];
+
+	return new uPlot(opts4, data4, document.body);
+}
+
+function renderSkippedLog10Ticks() {
+	const opts7 = {
+		width: 800,
+		height: 300,
+		title: "Skip ticks log10",
+		scales: {
+			x: {
+				time: false,
+			},
+			y: {
+				distr: 3,
+				log: 10,
+				range: [1e-14, 1e14]
+			},
+		},
+		axes: [
+			{},
+			{
+				values: (u, splits) => splits.map(v => v == null ? '' : v.toExponential()),
+			}
+		],
+		series: [
+			{},
+			{stroke: 'red', value: (u, v) => v == null ? '--' : v.toExponential()},
+		],
+	};
+
+	return new uPlot(opts7, [
+		[0, 1],
+		[1e-14, 1e14],
+	], document.body);
+}
+
+function renderSkippedLog2Ticks() {
+	const opts8 = {
+		width: 800,
+		height: 300,
+		title: "Skip ticks log2",
+		scales: {
+			x: {
+				time: false,
+			},
+			y: {
+				distr: 3,
+				log: 2,
+				range: [2 ** -10, 2 ** 20]
+			}
+		},
+		axes: [
+			{},
+			{
+				values: (u, splits) => splits.map(v => v == null ? '' : '2^' + Math.log2(v)),
+			}
+		],
+		series: [
+			{},
+			{stroke: 'blue', value: (u, v) => v == null ? '--' : v.toExponential()},
+		],
+	};
+
+	return new uPlot(opts8, [
+		[0, 1],
+		[2 ** -10, 2 ** 20],
+	], document.body);
+}
+
+function renderAllNullSeries() {
+	let data = [
+		[0, 1, 2],
+		[100, 200, 1000],
+		[null, null, null]
+	];
+
+	const opts = {
+		title: "Proper range with a all-nulls series",
+		width: 800,
+		height: 400,
+		scales: {
+			x: {
+				time: false,
+			},
+			y: {
+				distr: 3
+			}
+		},
+		series: [
+			{},
+			{
+				stroke: "red"
+			},
+			{
+				stroke: "blue"
+			},
+		],
+	};
+
+	return new uPlot(opts, data, document.body);
+}
+
+function renderSmallValues() {
+	let xs = [0,1];
+	let ys = [
+		3.1992e-16,
+		4.9047e-13,
+	];
+
+	let data = [
+		xs,
+		ys,
+	];
+
+	const opts = {
+		title: "Handle 3e-24 y values",
+		width: 800,
+		height: 600,
+		scales: {
+			x: {
+				time: false,
+			},
+			y: {
+				distr: 3,
+				log: 10,
+			}
+		},
+		axes: [
+			{},
+			{
+				values: (u, splits) => splits.map(v => v == null ? null : v.toExponential()),
+			}
+		],
+		series: [
+			{},
+			{
+				stroke: "red",
+				fill: "rgba(255,0,0,0.1)",
+				value: (u, val) => val == null ? '--' : val.toExponential(),
+			},
+		],
+	};
+
+	return new uPlot(opts, data, document.body);
+}
+
+function renderPartialMagnitudeChart(data) {
+	const fmtTick = new Intl.NumberFormat(undefined, {
+		notation: "compact",
+		compactDisplay: "short",
+	}).format;
+
+	const opts = {
+		title: "Partial mags (base 10)",
+		width: 600,
+		height: 300,
+		axes: [
+			{},
+			{
+				scale: 'y0',
+				side: 3,
+				values: (u, splits) => splits.map(fmtTick),
+			},
+			{
+				scale: 'y1',
+				side: 1,
+				values: (u, splits) => splits.map(fmtTick),
+			},
+		],
+		scales: {
+			y0: {
+				distr: 3,
+				range: (u, dataMin, dataMax) => uPlot.rangeLog(dataMin, dataMax, 10, false),
+			},
+			y1: {
+				distr: 3,
+				range: (u, dataMin, dataMax) => uPlot.rangeLog(dataMin, dataMax, 10, false),
+			},
+		},
+		series: [
+			{},
+			{
+				label: 'A',
+				scale: 'y0',
+				stroke: '#f7931a',
+			},
+			{
+				label: 'B',
+				scale: 'y1',
+				stroke: '#000',
+			},
+		]
+	};
+
+	let u = new uPlot(opts, data, document.body);
+
+	return u;
+}
+
+function renderPartialMagnitudes() {
+	return renderPartialMagnitudeChart([
+		[1704326400, 1704412800, 1704499200],
+		[1000001, 1000000, 990000],
+		[99000, 100000, 100000.001]
+	]);
+}
+
+function renderFractionalPartialMagnitudes() {
+	return renderPartialMagnitudeChart([
+		[1704326400, 1704412800, 1704499200],
+		[1000001, 1000000, 990000].map(v => v / 10_000_000),
+		[99000, 100000, 100000.001].map(v => v / 1_000_000),
+	]);
+}
+
+export function createGroups(now = 1595039400) {
+	return [{
+		steps: [
+			plotStep(renderLinearScale),
+			plotStep(renderLog10Scale),
+			plotStep(renderLog2Scale),
+			plotStep(() => renderInvertedLogScales(now)),
+			plotStep(renderSignedLogScale),
+			plotStep(renderSkippedLog10Ticks),
+			plotStep(renderSkippedLog2Ticks),
+			plotStep(renderAllNullSeries),
+			plotStep(renderSmallValues),
+			plotStep(renderPartialMagnitudes),
+			plotStep(renderFractionalPartialMagnitudes),
+		],
+	}];
+}
+
+export default createGroups();

@@ -30,6 +30,21 @@ describe('demo extraction support', () => {
 		}
 	});
 
+	it('records signed-zero drawing arguments consistently with JSON snapshots', () => {
+		const ctx = document.createElement('canvas').getContext('2d');
+		const path = new Path2D();
+		ctx.translate(-0, -0);
+		ctx.fillRect(1, 2, 3, -0);
+		path.rect(-0, 1, 2, -0);
+		ctx.stroke(path);
+		assert.deepStrictEqual(ctx.log, [
+			['translate', [0, 0]],
+			['fillRect', [1, 2, 3, 0]],
+			['stroke', [{ log: [['rect', [0, 1, 2, 0]]] }]],
+		]);
+		assert.deepStrictEqual(ctx.log, JSON.parse(JSON.stringify(ctx.log)));
+	});
+
 	it('records and replays gradient styles through JSON', () => {
 		const ctx = document.createElement('canvas').getContext('2d');
 		const gradient = ctx.createLinearGradient(0, 0, 100, 0);

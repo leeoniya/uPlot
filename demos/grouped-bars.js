@@ -16,8 +16,6 @@ export function seriesBarsPlugin(opts) {
 
 	setPxRatio();
 
-	window.addEventListener('dppxchange', setPxRatio);
-
 	const ori        = opts.ori;
 	const dir        = opts.dir;
 	const stacked    = opts.stacked;
@@ -120,8 +118,12 @@ export function seriesBarsPlugin(opts) {
 	return {
 		hooks: {
 			init: u => {
+				window.addEventListener('dppxchange', setPxRatio);
 				for (let el of u.root.querySelectorAll('.u-cursor-pt'))
 					el.style.borderRadius = 'unset';
+			},
+			destroy: () => {
+				window.removeEventListener('dppxchange', setPxRatio);
 			},
 			drawClear: u => {
 				qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);

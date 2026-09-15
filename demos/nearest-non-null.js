@@ -1,0 +1,443 @@
+import { plotStep } from './renderDemo.js';
+
+function renderNearestXValue() {
+		let data = [
+			[1566453600,1566453660,1566453720,1566453780,1566453840,1566453900,1566453960,1566454020,1566454080,1566454140,1566454200,1566454260,1566454320,1566454380,1566454440,1566454500,1566454560,1566454620,1566454680,1566454740,1566454800,1566454860,1566454920,1566454980,1566455040,1566455100,1566455160,1566455220,1566455280,1566455340,1566455400,1566455460,1566455520,1566455580,1566455640,1566455700,1566455760,1566455820,1566455880,1566455940,1566456000,1566456060,1566456120,1566456180,1566456240,1566456300,1566456360,1566456420,1566456480,1566456540,1566456600,1566456660,1566456720,1566456780,1566456840,1566456900,1566456960,1566457020,1566457080,1566457140,1566457200,1566457260,1566457320,1566457380,1566457440,1566457500,1566457560,1566457620,1566457680,1566457740,1566457800,1566457860,1566457920,1566457980,1566458040,1566458100,1566458160,1566458220,1566458280,1566458340,1566458400,1566458460,1566458520,1566458580,1566458640,1566458700,1566458760,1566458820,1566458880,1566458940,1566459000,1566459060,1566459120,1566459180,1566459240,1566459300,1566459360,1566459420,1566459480,1566459540,1566459600,1566459660,1566459720,1566459780,1566459840,1566459900,1566459960,1566460020,1566460080,1566460140,1566460200,1566460260,1566460320,1566460380,1566460440,1566460500,1566460560,1566460620,1566460680,1566460740,1566460800,1566460860,1566460920,1566460980,1566461040,1566461100,1566461160,1566461220,1566461280,1566461340,1566461400,1566461460,1566461520,1566461580,1566461640,1566461700,1566461760,1566461820,1566461880,1566461940,1566462000,1566462060,1566462120,1566462180,1566462240,1566462300,1566462360,1566462420,1566462480,1566462540,1566462600,1566462660,1566462720,1566462780,1566462840,1566462900,1566462960,1566463020,1566463080,1566463140,1566463200,1566463260,1566463320,1566463380,1566463440,1566463500,1566463560,1566463620,1566463680,1566463740,1566463800,1566463860,1566463920,1566463980,1566464040,1566464100,1566464160,1566464220,1566464280,1566464340,1566464400,1566464460,1566464520,1566464580,1566464640,1566464700,1566464760,1566464820,1566464880,1566464940,1566465000,1566465060,1566465120,1566465180,1566465240,1566465300,1566465360,1566465420,1566465480,1566465540],
+			[6.54,6.15,6.16,6.15,6.19,6.26,6.32,6.15,6.15,6.28,6.29,6.33,6.18,6.17,6.17,6.33,6.32,6.23,6.15,6.15,6.24,6.29,6.16,6.17,6.17,6.45,6.28,6.16,6.17,6.17,6.24,6.3,6.19,6.19,6.17,6.24,6.29,6.22,6.18,6.28,6.26,6.17,6.3,6.16,6.21,6.24,6.16,6.29,6.17,6.18,6.27,6.16,6.33,6.16,6.19,6.24,6.18,1.7,6.18,6.16,6.34,6.18,6.28,6.18,6.17,6.34,6.17,6.28,6.17,6.22,6.23,6.14,6.29,6.2,6.16,6.24,6.16,6.17,6.29,6.17,6.38,6.2,6.16,6.3,6.18,6.31,6.16,6.16,6.29,6.15,6.31,6.17,6.17,6.3,6.2,6.27,6.16,6.15,6.3,6.41,6.28,6.16,6.15,6.28,6.15,6.33,6.18,6.18,6.17,5.2,6.23,6.17,6.16,6.16,6.33,6.3,6.19,6.16,6.92,6.28,6.33,6.17,6.21,6.15,6.32,6.61,1.48,6.15,6.17,6.44,6.23,6.19,6.17,6.24,6.33,6.26,6.17,6.17,6.17,6.27,6.25,6.11,6.1,6.07,6.09,6.37,6.08,6.09,6.08,6.07,6.34,6.07,6.08,6.07,6.07,6.37,6.07,6.07,6.07,6.25,6.26,6.06,6.1,6.07,6.09,6.31,6.08,6.11,6.11,6.12,6.26,6.08,6.09,6.07,6.1,6.25,6.06,6.06,6.07,6.07,6.36,6.26,6.08,6.08,6.09,6.16,6.23,6.07,6.09,6.21,6.22,6.21,6.09,6.07,6.09,6.22,6.3,6.12,6.07,6.11],
+			[14.02,14.01,14.01,14.01,14.01,14.03,14.03,14.02,14.02,14.03,14.03,14.04,14.03,14.03,14.03,14.02,14.04,14.03,14.03,14.03,14.03,14.03,14.03,14.03,14.03,14.03,14.04,14.04,14.03,14.03,14.03,14.04,14.03,14.04,14.04,14.04,14.05,14.03,14.03,14.03,14.04,14.04,14.05,14.03,14.03,14.03,14.03,14.05,14.04,14.04,14.04,14.03,14.04,14.03,14.04,14.04,14.03,14.04,14.03,14.03,14.03,14.03,14.02,14.02,14.02,14.01,14.01,14.02,14.02,14.02,14.02,14.02,14.02,14.01,14.01,14.02,14.02,14.02,14.03,14.02,14,14.02,14.02,14.04,14.03,14.02,14.02,14.02,14.03,14.02,14.03,14.03,14.03,14.03,14.02,14.02,14.02,14.02,14.02,14.02,14.02,14.02,14.02,14.03,14.03,14.02,14.02,14.02,14.02,14.36,14.08,14.08,14.08,14.08,14.04,14.03,14.03,14.03,14.03,14.03,14.03,14.03,14.03,14.03,14.03,14,14,14,14,14.03,14.03,14.03,14.03,14.03,14.03,14.03,14.03,14.03,14.04,14.04,14.03,14.01,14.01,14.01,14.01,14.03,14.01,14.01,14.01,14.01,14.04,14.03,14.04,14.04,14.04,14.02,14.01,14.01,14.01,14.03,14.04,14.03,14.03,14.03,14.04,14.04,14.03,14.03,14.03,14.04,14.05,14.04,14.03,14.03,14.03,14.03,14.04,14.04,14.04,14.03,14.03,14.04,14.03,14.04,14.04,14.04,14.04,14.03,14.03,14.04,14.04,14.05,14.04,14.04,14.04,14.02,14.05,14.04,14.03,14.03],
+		];
+
+		data[1][35] = null;
+		data[1][36] = null;
+		data[1][37] = null;
+		data[1][38] = null;
+		data[1][39] = null;
+		data[1][40] = null;
+		data[1][41] = null;
+
+		data[2][79] = null;
+		data[2][80] = null;
+		data[2][91] = null;
+		data[2][125] = null;
+		data[2][126] = null;
+		data[2][127] = null;
+
+	//	data[2][197] = null;
+	//	data[2][198] = null;
+	//	data[2][199] = null;
+
+		let longDateHourMin = uPlot.fmtDate('{YYYY}-{MM}-{DD} {h}:{mm}{aa}');
+
+		const opts = {
+			title: "Nearest Non-Null (by nearest x scale value)",
+			width: 1920,
+			height: 600,
+		/*
+			hooks: {
+				setLegend: [
+					u => {
+						console.log(u.cursor.idxs);
+					}
+				],
+			},
+		*/
+			cursor: {
+				dataIdx: (self, seriesIdx, hoveredIdx, cursorXVal) => {
+					let xValues = self.data[0];
+					let yValues = self.data[seriesIdx];
+
+					// todo: only scan in-view idices
+
+					if (yValues[hoveredIdx] == null) {
+						let nonNullLft = null,
+							nonNullRgt = null,
+							i;
+
+						i = hoveredIdx;
+						while (nonNullLft == null && i-- > 0) {
+							if (yValues[i] != null)
+								nonNullLft = i;
+						}
+
+						i = hoveredIdx;
+						while (nonNullRgt == null && i++ < yValues.length) {
+							if (yValues[i] != null)
+								nonNullRgt = i;
+						}
+
+						let rgtVal = nonNullRgt == null ?  Infinity : xValues[nonNullRgt];
+						let lftVal = nonNullLft == null ? -Infinity : xValues[nonNullLft];
+
+						let lftDelta = cursorXVal - lftVal;
+						let rgtDelta = rgtVal - cursorXVal;
+
+						hoveredIdx = lftDelta <= rgtDelta ? nonNullLft : nonNullRgt;
+					}
+
+					return hoveredIdx;
+				}
+			},
+			series: [
+				{},
+				{
+					label: "CPU",
+					values: (u, sidx, idx) => {
+						if (idx == null)
+							return { Time: '--', Value: '--' };
+
+					//	let date = self.tzDate(data[0][idx]);
+						let date = new Date(data[0][idx] * 1e3);
+
+						return {
+							Time: longDateHourMin(date),
+							Value: data[sidx][idx],
+						};
+					},
+					stroke: "red",
+					fill: "rgba(255,0,0,0.05)",
+				},
+				{
+					label: "RAM",
+					values: (u, sidx, idx) => {
+						if (idx == null)
+							return { Time: '--', Value: '--' };
+
+					//	let date = self.tzDate(data[0][idx]);
+						let date = new Date(data[0][idx] * 1e3);
+
+						return {
+							Time: longDateHourMin(date),
+							Value: data[sidx][idx],
+						};
+					},
+					stroke: "blue",
+					fill: "rgba(0,0,255,0.05)",
+				},
+			],
+		};
+
+		return new uPlot(opts, data, document.body);
+}
+
+function createProximityOptions() {
+	const opts2 = {
+		title: "Nearest Non-Null (by 30px proximity)",
+		width: 1920,
+		height: 600,
+		cursor: {
+			hover: {
+				prox: 30,
+				bias: 0,
+				skip: [null],
+			}
+		},
+		hooks: {
+			init: [
+				u => {
+				/*
+					let els = {
+						hz: null,
+						vt: null,
+					};
+
+					let hz = els.hz = document.createElement('div');
+					hz.style.height = '100%';
+					hz.style.width = '5px';
+					hz.style.background = 'rgba(255,0,0,0.3)';
+					hz.style.position = 'absolute';
+					hz.style.transformOrigin = '0 0';
+					u.over.appendChild(hz);
+
+					let vt = els.vt = document.createElement('div');
+					vt.style.width = '100%';
+					vt.style.height = '5px';
+					vt.style.background = 'rgba(255,0,0,0.3)';
+					vt.style.position = 'absolute';
+					vt.style.transformOrigin = '0 0';
+					u.over.appendChild(vt);
+
+					u.els = els;
+				*/
+				},
+			],
+			setLegend: [
+				u => {
+				/*
+					let idx = u.cursor.idxs[3];
+					if (idx != null) {
+						let x = u.valToPos(u.data[0][idx], 'x');
+						let y = u.valToPos(u.data[3][idx], 'y');
+
+						u.els.hz.style.translate = `${x}px 0`;
+						u.els.vt.style.translate = `0 ${y}px`;
+					}
+				*/
+				}
+			]
+		},
+		scales: {
+			x: {
+				time: false,
+			}
+		},
+		series: [
+			{},
+			{
+				stroke: "red",
+				spanGaps: true,
+			},
+			{
+				stroke: "blue",
+				spanGaps: true,
+			},
+			{
+				stroke: "green",
+				spanGaps: true,
+			},
+			{
+				stroke: "orange",
+				spanGaps: true,
+			}
+		]
+	};
+
+	return opts2;
+}
+
+function renderPixelProximity() {
+	const opts2 = createProximityOptions();
+
+	const tables = [
+		[
+			null,
+			[30,null,null,null,null,null,null,30,null,null,null,null,null,30],
+		],
+		[
+			null,
+			[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],
+		],
+		[
+			null,
+			[18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18],
+		],
+		[
+			null,
+			[25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25],
+		],
+	];
+
+	let xRange = 100;
+
+	tables.forEach(t => {
+		t[0] = t[1].map((v, i) => i/t[1].length * xRange);
+	});
+
+	const data2 = uPlot.join(tables);
+
+	return new uPlot(opts2, data2, document.body);
+}
+
+function renderNullOnlyProximity() {
+	const opts2 = createProximityOptions();
+
+	let data3 = uPlot.join([
+		[
+			[
+				1626235540319,
+				1626235584004,
+				1626235627689,
+				1626235671374,
+				1626235715059,
+				1626235758744,
+				1626235802429,
+				1626235846114,
+				1626235889799,
+				1626235933484,
+				1626235977169
+			],
+			[
+				1,
+				20,
+				90,
+				30,
+				5,
+				0,
+				100,
+				20,
+				null,
+				100,
+				20
+			]
+		],
+		[
+			[
+				1626235540319,
+				1626235613128,
+				1626235685937,
+				1626235758746,
+				1626235831555,
+				1626235904364,
+				1626235977173
+			],
+			[
+				1,
+				20,
+				90,
+				30,
+				5,
+				null,
+				0
+			]
+		]
+	], [[0,2],[0,2]]);
+
+	let opts3 = {
+		...opts2,
+		title: "Nearest Non-Null (by 15px proximity only when hovered val === null)",
+		ms: 1,
+		scales: {
+			x: {
+				time: true,
+			}
+		},
+		series: [
+			{},
+			{
+				stroke: "red",
+				fill: "rgb(255,0,0,0.1)"
+			},
+			{
+				stroke: "blue",
+				fill: "rgb(0,0,255,0.1)"
+			},
+		],
+		cursor: {
+			hover: {
+				prox: (self, seriesIdx, hoveredIdx) => {
+					const yVal = self.data[seriesIdx][hoveredIdx];
+
+					if (yVal === null)
+						return 15; // 15px proximity when hovering nuulls, but not undefined
+
+					return null;
+				},
+				skip: [null],
+			},
+		}
+	};
+
+	return new uPlot(opts3, data3, document.body);
+}
+
+function createSnapData() {
+	let _ = null;
+
+	let data = [
+		[0,1,2,3,4,5,6,7,8,9],
+		[5,5,5,5,5,_,5,5,5,5],
+	];
+
+	return data;
+}
+
+function renderPreviousNonNullPoint() {
+	let data = createSnapData();
+
+	let opts = {
+		title: 'Snap hover points to previous non-null (cursor.dataIdx)',
+		width: 600,
+		height: 300,
+		cursor: {
+			y: false,
+			dataIdx: (self, seriesIdx, hoveredIdx, cursorXVal) => {
+				let prevIdx = self.data[0][hoveredIdx] > cursorXVal ? hoveredIdx - 1 : hoveredIdx;
+				let yVals = self.data[seriesIdx];
+
+				while (yVals[prevIdx] == null)
+					prevIdx--;
+
+				return prevIdx;
+			},
+		},
+		scales: {
+			x: {
+				time: false,
+			}
+		},
+		series: [
+			{},
+			{
+				label: 'foo',
+				stroke: 'red',
+			}
+		],
+	};
+
+	return new uPlot(opts, data, document.body);
+}
+
+function renderPreviousNonNullCursor() {
+	let data = createSnapData();
+
+	// this manually implements custom skipping and bias behavior
+	let move = (u, mouseLeft, mouseTop) => {
+		if (mouseLeft < 0)
+			return [mouseLeft, mouseTop];
+
+		let curXVal = u.posToVal(mouseLeft, 'x');
+		let curIdx  = u.valToIdx(curXVal);
+		let dataX   = u.data[0];
+		let dataY   = u.data[1];
+		let idxXVal = dataX[curIdx];
+		let idxYVal = dataY[curIdx];
+
+		// backward bias
+		if (curXVal < idxXVal || idxYVal == null) {
+			while (curIdx > 0) {
+				idxYVal = dataY[--curIdx];
+
+				if (idxYVal != null)
+					break;
+			}
+		}
+
+		return [
+			Math.round(u.valToPos(dataX[curIdx], 'x')),
+			mouseTop,
+		];
+	};
+
+	let opts2 = {
+		title: 'Snap hover points and cursor to previous non-null (cursor.move)',
+		width: 600,
+		height: 300,
+		cursor: {
+			y: false,
+			move,
+		},
+		scales: {
+			x: {
+				time: false,
+			}
+		},
+		series: [
+			{},
+			{
+				label: 'foo',
+				stroke: 'blue',
+			}
+		],
+	};
+
+	return new uPlot(opts2, data, document.body);
+}
+
+export default [{
+	steps: [
+		plotStep(renderNearestXValue),
+		plotStep(renderPixelProximity),
+		plotStep(renderNullOnlyProximity),
+		plotStep(renderPreviousNonNullPoint),
+		plotStep(renderPreviousNonNullCursor),
+	],
+}];

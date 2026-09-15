@@ -1,0 +1,191 @@
+{
+  "html": "<div class=\"uplot u-hz\"><div class=\"u-title\">unstacked, green negY, green=null, red=null</div><div class=\"u-wrap\" style=\"width: 400px; height: 300px;\"><div class=\"u-under\" style=\"left: 50px; top: 17px; width: 325px; height: 233px;\"></div><canvas width=\"400\" height=\"300\"></canvas><div class=\"u-over\" style=\"left: 50px; top: 17px; width: 325px; height: 233px;\"><div class=\"u-cursor-x u-off\" style=\"transform: translate(-10px,0px);\"></div><div class=\"u-cursor-y u-off\" style=\"transform: translate(0px,-10px);\"></div><div class=\"u-select\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div></div><div class=\"u-axis\" style=\"top: 250px; height: 50px; left: 50px; width: 325px;\"></div><div class=\"u-axis\" style=\"left: 0px; width: 50px; top: 17px; height: 233px;\"></div></div><table class=\"u-legend u-inline u-live\"><tbody><tr class=\"u-series\"><th><div class=\"u-marker\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid green; background: rgba(0, 255, 0, 0.3);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid red; background: rgba(255, 0, 0, 0.3);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr></tbody></table></div>",
+  "width": 400,
+  "height": 300,
+  "ctxlog": [
+    ["clearRect", [0, 0, 400, 300]],
+    ["fillStyle", "#000"],
+    [
+      "font",
+      "12px system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, \"Noto Sans\", sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\""
+    ],
+    ["textAlign", "center"],
+    ["textBaseline", "top"],
+    ["fillText", ["0", 50, 265], ["1", 115, 265], ["2", 180, 265], ["3", 245, 265], ["4", 310, 265], ["5", 375, 265]],
+    ["strokeStyle", "rgba(0,0,0,0.07)"],
+    ["fillStyle", "rgba(0,0,0,0.07)"],
+    ["lineWidth", 2],
+    ["lineJoin", "round"],
+    ["lineCap", "butt"],
+    ["setLineDash", [[]]],
+    ["beginPath", []],
+    ["moveTo", [50, 250]],
+    ["lineTo", [50, 260]],
+    ["moveTo", [115, 250]],
+    ["lineTo", [115, 260]],
+    ["moveTo", [180, 250]],
+    ["lineTo", [180, 260]],
+    ["moveTo", [245, 250]],
+    ["lineTo", [245, 260]],
+    ["moveTo", [310, 250]],
+    ["lineTo", [310, 260]],
+    ["moveTo", [375, 250]],
+    ["lineTo", [375, 260]],
+    ["stroke", []],
+    ["beginPath", []],
+    ["moveTo", [50, 17]],
+    ["lineTo", [50, 250]],
+    ["moveTo", [115, 17]],
+    ["lineTo", [115, 250]],
+    ["moveTo", [180, 17]],
+    ["lineTo", [180, 250]],
+    ["moveTo", [245, 17]],
+    ["lineTo", [245, 250]],
+    ["moveTo", [310, 17]],
+    ["lineTo", [310, 250]],
+    ["moveTo", [375, 17]],
+    ["lineTo", [375, 250]],
+    ["stroke", []],
+    ["fillStyle", "#000"],
+    ["textAlign", "right"],
+    ["textBaseline", "middle"],
+    ["fillText", ["-5", 35, 225], ["-2.5", 35, 195], ["0", 35, 164], ["2.5", 35, 134], ["5", 35, 103], ["7.5", 35, 72], ["10", 35, 42]],
+    ["fillStyle", "rgba(0,0,0,0.07)"],
+    ["beginPath", []],
+    ["moveTo", [50, 225]],
+    ["lineTo", [40, 225]],
+    ["moveTo", [50, 195]],
+    ["lineTo", [40, 195]],
+    ["moveTo", [50, 164]],
+    ["lineTo", [40, 164]],
+    ["moveTo", [50, 134]],
+    ["lineTo", [40, 134]],
+    ["moveTo", [50, 103]],
+    ["lineTo", [40, 103]],
+    ["moveTo", [50, 72]],
+    ["lineTo", [40, 72]],
+    ["moveTo", [50, 42]],
+    ["lineTo", [40, 42]],
+    ["stroke", []],
+    ["beginPath", []],
+    ["moveTo", [50, 225]],
+    ["lineTo", [375, 225]],
+    ["moveTo", [50, 195]],
+    ["lineTo", [375, 195]],
+    ["moveTo", [50, 164]],
+    ["lineTo", [375, 164]],
+    ["moveTo", [50, 134]],
+    ["lineTo", [375, 134]],
+    ["moveTo", [50, 103]],
+    ["lineTo", [375, 103]],
+    ["moveTo", [50, 72]],
+    ["lineTo", [375, 72]],
+    ["moveTo", [50, 42]],
+    ["lineTo", [375, 42]],
+    ["stroke", []],
+    ["translate", [0.5, 0.5]],
+    ["strokeStyle", "green"],
+    ["fillStyle", "rgba(0, 255, 0, 0.3)"],
+    ["lineWidth", 1],
+    ["save", []],
+    ["clip", [{"log": [["rect", [49.5, 16.5, 326, 234]]]}], [{"log": [["rect", [50, 17, 130, 250], [310, 12, 65, 260]]]}]],
+    ["fill", [{"log": [["lineTo", [375, 164], [50, 164]]]}]],
+    ["stroke", [{"log": [["lineTo", [50, 225], [115, 225], [180, 225], [310, 225], [375, 225]]]}]],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["fillStyle", "#fff"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [46, 13, 333, 241]]]}]],
+    [
+      "fill",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 225]],
+            ["arc", [50, 225, 2, 0, 6.283185307179586]],
+            ["moveTo", [117, 225]],
+            ["arc", [115, 225, 2, 0, 6.283185307179586]],
+            ["moveTo", [182, 225]],
+            ["arc", [180, 225, 2, 0, 6.283185307179586]],
+            ["moveTo", [312, 225]],
+            ["arc", [310, 225, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 225]],
+            ["arc", [375, 225, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    [
+      "stroke",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 225]],
+            ["arc", [50, 225, 2, 0, 6.283185307179586]],
+            ["moveTo", [117, 225]],
+            ["arc", [115, 225, 2, 0, 6.283185307179586]],
+            ["moveTo", [182, 225]],
+            ["arc", [180, 225, 2, 0, 6.283185307179586]],
+            ["moveTo", [312, 225]],
+            ["arc", [310, 225, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 225]],
+            ["arc", [375, 225, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["strokeStyle", "red"],
+    ["fillStyle", "rgba(255, 0, 0, 0.3)"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [49.5, 16.5, 326, 234]]]}], [{"log": [["rect", [50, 17, 65, 250], [245, 12, 130, 260]]]}]],
+    ["fill", [{"log": [["lineTo", [375, 164], [50, 164]]]}]],
+    ["stroke", [{"log": [["lineTo", [50, 42], [115, 42], [245, 42], [310, 42], [375, 42]]]}]],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["fillStyle", "#fff"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [46, 13, 333, 241]]]}]],
+    [
+      "fill",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 42]],
+            ["arc", [50, 42, 2, 0, 6.283185307179586]],
+            ["moveTo", [117, 42]],
+            ["arc", [115, 42, 2, 0, 6.283185307179586]],
+            ["moveTo", [247, 42]],
+            ["arc", [245, 42, 2, 0, 6.283185307179586]],
+            ["moveTo", [312, 42]],
+            ["arc", [310, 42, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 42]],
+            ["arc", [375, 42, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    [
+      "stroke",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 42]],
+            ["arc", [50, 42, 2, 0, 6.283185307179586]],
+            ["moveTo", [117, 42]],
+            ["arc", [115, 42, 2, 0, 6.283185307179586]],
+            ["moveTo", [247, 42]],
+            ["arc", [245, 42, 2, 0, 6.283185307179586]],
+            ["moveTo", [312, 42]],
+            ["arc", [310, 42, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 42]],
+            ["arc", [375, 42, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    ["restore", []],
+    ["translate", [-0.5, -0.5]]
+  ]
+}

@@ -10,6 +10,32 @@ Group and step IDs default to their zero-based indexes. An optional `id` field
 provides a stable name when cases change order. IDs accept letters, digits,
 underscores, and hyphens. The recorder rejects duplicate group IDs and snapshot paths.
 
+## Additional demo snapshots
+
+Ten extracted demos add 54 plot snapshots across 42 steps:
+
+- `months` and `months-ru`
+- `grid-over-series`
+- `bars-grouped-stacked` and `stacked-series`
+- `candlestick-ohlc`
+- `annotations`
+- `soft-minmax`
+- `nearest-non-null`
+- `log-scales2`
+
+The snapshots retain the original datasets. They total approximately 812 KiB, with no individual snapshot larger than 57 KiB.
+Each render creates fresh mutable state. The harness resets the random seed for each step.
+`log-scales2` uses a fixed timestamp by default. Its HTML page supplies the current timestamp through `createGroups(now)`.
+
+`test/demo-migrations.mjs` verifies repeatable renders, shared data updates, legend toggles, linked cursors, annotations, hover behavior, and listener cleanup.
+The recorder normalizes signed-zero drawing arguments because JSON stores `-0` as `0`. Shared paths still appear separately in fill and stroke commands.
+
+Run the migration regressions:
+
+```sh
+npm test -- --grep '^demo migrations'
+```
+
 ## Points demo snapshots
 
 `demos/points.html` uses `renderDemo()` and one step that returns all four original charts.

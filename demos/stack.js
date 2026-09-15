@@ -1,4 +1,4 @@
-function stack(data, omit) {
+export function stack(data, omit) {
 	let data2 = [];
 	let bands = [];
 	let d0Len = data[0].length;
@@ -37,7 +37,7 @@ function getOpts(title, series) {
 	};
 }
 
-function getStackedOpts(title, series, data, interp) {
+export function getStackedOpts(title, series, data, interp) {
 	let opts = getOpts(title, series);
 
 	let interped = interp ? interp(data) : data;
@@ -91,7 +91,7 @@ function getStackedOpts(title, series, data, interp) {
 }
 
 
-function stack2(series) {
+export function stack2(series) {
 	// for uplot data
 	let data = Array(series.length);
 	let bands = [];
