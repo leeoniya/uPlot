@@ -214,7 +214,7 @@ The investigation rejected Node compilation caching and an exclusion-filter shor
 ### Follow-up: test harness overhead
 
 NYC's spawn hook added its preload to child processes even when lifecycle fixtures cleared `NODE_OPTIONS`.
-Both runtimes now use the instrumentation preload to write per-process coverage. NYC runs only after the tests, to generate the report.
+Both runtimes now use the instrumentation preload to write per-process coverage. The harness uses Istanbul libraries directly to generate the report after the tests.
 The worker regression verifies that a fixture can disable the preload. It also verifies the worker's coverage file under both runtimes.
 All lifecycle cases and deadlines remain unchanged.
 
@@ -300,7 +300,7 @@ Both modes use the same Mocha tests, snapshots, Istanbul instrumentation, and fi
 Mocha and the coverage reporter run under the selected runtime.
 
 Both runtimes use the instrumentation preload to write one coverage file per process on normal exit.
-Node writes to `.nyc_output`. Bun writes to `.nyc_output/bun`. NYC generates the final report without wrapping the test processes.
+Node writes to `.nyc_output`. Bun writes to `.nyc_output/bun`. The harness merges these files and generates the final Istanbul report without wrapping the test processes.
 Node children inherit the preload through `NODE_OPTIONS`, unless a fixture explicitly clears it.
 The Bun precision worker receives an explicit preload because child processes do not inherit the parent's `--preload` flag.
 The worker-coverage regression verifies instrumentation and the coverage file after normal shutdown under both runtimes.

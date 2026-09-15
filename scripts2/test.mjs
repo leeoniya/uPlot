@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 const mocha = fileURLToPath(import.meta.resolve('mocha/bin/mocha.js'));
-const nyc = fileURLToPath(import.meta.resolve('nyc/bin/nyc.js'));
+const coverageReporter = fileURLToPath(new URL('./report-coverage.mjs', import.meta.url));
 const args = process.argv.slice(2);
 
 function run(args, env) {
@@ -45,9 +45,6 @@ else {
 
 rmSync(coverageDir, { recursive: true, force: true });
 const testStatus = run(testArgs, testEnv);
-// Use NYC only for reporting: its spawn hooks override fixture opt-outs.
-const reportStatus = run([
-	nyc, 'report', '--temp-dir', coverageDir, '--reporter=text',
-], env);
+const reportStatus = run([coverageReporter, coverageDir], env);
 
 process.exitCode = testStatus || reportStatus;
