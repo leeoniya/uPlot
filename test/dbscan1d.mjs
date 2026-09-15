@@ -183,7 +183,7 @@ describe('1D DBSCAN demo', () => {
 		}
 	});
 
-	it('updates both outlier charts and counts when their forms are submitted', async () => {
+	it('updates outlier charts, counts, and readouts immediately from sliders, modes, and presets', async () => {
 		const window = new Window();
 		const charts = [];
 		const data = [0, 0, 0, 100];
@@ -201,16 +201,45 @@ describe('1D DBSCAN demo', () => {
 			smooth: data => data,
 			fetch: () => ({then: () => ({then: callback => { loaded = Promise.resolve().then(() => callback(data)); }})}),
 			uPlot: class {
-				constructor(opts, data) { this.opts = opts; this.data = data; charts.push(this); }
-				setData(data) { this.data = data; }
+				constructor(opts, data) { this.opts = opts; this.data = data; this.updates = 0; charts.push(this); }
+				setData(data) { this.data = data; this.updates++; }
 			},
 		});
 		try {
 			vm.runInContext(script, context);
 			await loaded;
 			const form = window.document.querySelector('form');
+			const madForm = window.document.querySelector('#double-mad-controls');
 			const mode = form.elements.mode;
 			const radius = form.elements.windowRadius;
+			const epsilon = form.elements.epsilon;
+			const minPoints = form.elements.minPoints;
+			const threshold = madForm.elements.threshold;
+			const ranges = [epsilon, minPoints, radius, threshold];
+			const assertReadouts = () => {
+				for (const input of ranges) {
+					assert.equal(input.nextElementSibling?.tagName, 'SPAN');
+					assert.ok(input.nextElementSibling.classList.contains('slider-value'));
+					assert.equal(input.nextElementSibling.textContent, input.value);
+				}
+			};
+			for (const [input, min, max, step, value] of [
+				[epsilon, '0', '5000', '10', '100'],
+				[minPoints, '1', '100', '1', '20'],
+				[radius, '0', '300', '1', '50'],
+				[threshold, '0', '6', '0.05', '3.5'],
+			]) {
+				assert.equal(input.type, 'range');
+				assert.equal(input.min, min);
+				assert.equal(input.max, max);
+				assert.equal(input.step, step);
+				assert.equal(input.defaultValue, value);
+				assert.equal(input.value, value);
+			}
+			assertReadouts();
+			assert.doesNotMatch(form.textContent, /For a local example|global defaults classify/);
+			for (const controls of [form, madForm])
+				assert.doesNotMatch(controls.textContent, /Find outliers/);
 			assert.equal(mode.tagName, 'SELECT');
 			assert.deepEqual(Array.from(mode.options, option => option.value).sort(), ['global', 'local']);
 			assert.equal(mode.value, 'global');
@@ -224,57 +253,104 @@ describe('1D DBSCAN demo', () => {
 				assert.strictEqual(charts[1].data[1], data);
 				assert.deepEqual(data, [0, 0, 0, 100]);
 			};
-			form.elements.epsilon.value = '0';
-			form.elements.minPoints.value = '3';
-			form.dispatchEvent(new window.Event('submit', {cancelable: true}));
+			const chartStates = charts.map(chart => ({data: chart.data, buffers: Array.from(chart.data)}));
+			const detector = prepareDbscan1d(data);
+			const assertDbscan = options => {
+				const result = Array.from(detector.detect(options));
+				assert.deepEqual(Array.from(charts[1].data[2]), result.map((label, i) => label === -1 ? data[i] : null));
+				assert.equal(form.querySelector('output').textContent.trim(), `${result.filter(label => label === -1).length} outliers`);
+			};
+			const act = (chartIndex, callback) => {
+				const before = charts.map(chart => ({updates: chart.updates, values: chart.data.map(buffer => Array.from(buffer))}));
+				callback();
+				charts.forEach((chart, i) => {
+					assert.strictEqual(chart.data, chartStates[i].data);
+					chartStates[i].buffers.forEach((buffer, j) => assert.strictEqual(chart.data[j], buffer));
+					if (i === chartIndex)
+						assert.ok(chart.updates > before[i].updates, 'the affected chart updates synchronously');
+					else {
+						assert.equal(chart.updates, before[i].updates);
+						assert.deepEqual(chart.data.map(buffer => Array.from(buffer)), before[i].values);
+					}
+				});
+				assertBuffers();
+				assertReadouts();
+				assert.equal(radius.disabled, mode.value === 'global');
+				assertDbscan({epsilon: epsilon.valueAsNumber, minPoints: minPoints.valueAsNumber, windowRadius: mode.value === 'local' ? radius.valueAsNumber : Infinity});
+			};
+			const input = (control, value) => act(control === threshold ? 2 : 1, () => {
+				control.value = String(value);
+				control.dispatchEvent(new window.Event('input', {bubbles: true}));
+			});
+			const changeMode = value => act(1, () => {
+				mode.value = value;
+				mode.dispatchEvent(new window.Event('change', {bubbles: true}));
+			});
+			input(epsilon, 0);
+			input(minPoints, 3);
 			assert.deepEqual(Array.from(charts[1].data[2]), [null, null, null, 100]);
 			assert.equal(form.querySelector('output').textContent.trim(), '1 outliers');
 			assertBuffers();
-			form.elements.epsilon.value = '100';
-			form.dispatchEvent(new window.Event('submit', {cancelable: true}));
+			input(epsilon, 100);
 			assert.deepEqual(Array.from(charts[1].data[2]), [null, null, null, null]);
-			assert.equal(form.querySelector('output').textContent.trim(), '0 outliers');
-			assertBuffers();
-			mode.value = 'local';
-			mode.dispatchEvent(new window.Event('change', {bubbles: true}));
-			assert.equal(radius.disabled, false);
-			radius.value = '0';
-			form.dispatchEvent(new window.Event('submit', {cancelable: true}));
-			assert.deepEqual(Array.from(charts[1].data[2]), [0, 0, 0, 100]);
-			assert.equal(form.querySelector('output').textContent.trim(), '4 outliers');
-			assertBuffers();
-			radius.value = '1';
-			form.elements.epsilon.value = '0';
-			form.dispatchEvent(new window.Event('submit', {cancelable: true}));
+			changeMode('local');
+			input(radius, 0);
+			assert.deepEqual(Array.from(charts[1].data[2]), data);
+			changeMode('global');
+			assert.deepEqual(Array.from(charts[1].data[2]), [null, null, null, null]);
+			changeMode('local');
+			assert.deepEqual(Array.from(charts[1].data[2]), data);
+			input(radius, 1);
+			input(epsilon, 0);
 			assert.deepEqual(Array.from(charts[1].data[2]), [null, null, null, 100]);
-			assert.equal(form.querySelector('output').textContent.trim(), '1 outliers');
-			assertBuffers();
-			mode.value = 'global';
-			mode.dispatchEvent(new window.Event('change', {bubbles: true}));
-			assert.equal(radius.disabled, true);
-			form.elements.epsilon.value = '100';
-			form.dispatchEvent(new window.Event('submit', {cancelable: true}));
+
+			for (const [preset, expectedEpsilon, expectedMinPoints] of [['global', 100, 20], ['local', 1000, 5]]) {
+				changeMode('local');
+				input(radius, 7);
+				input(epsilon, 230);
+				input(minPoints, 2);
+				changeMode(preset === 'global' ? 'local' : 'global');
+				const button = form.querySelector(`button[data-preset="${preset}"]`);
+				assert.ok(button);
+				assert.equal(button.type, 'button');
+				act(1, () => button.click());
+				assert.equal(mode.value, preset);
+				assert.equal(epsilon.value, String(expectedEpsilon));
+				assert.equal(minPoints.value, String(expectedMinPoints));
+				assert.equal(radius.value, '50');
+				assertDbscan({epsilon: expectedEpsilon, minPoints: expectedMinPoints, windowRadius: preset === 'local' ? 50 : Infinity});
+			}
+
+			const submit = (controls, chartIndex) => act(chartIndex, () => {
+				const event = new window.Event('submit', {bubbles: true, cancelable: true});
+				assert.equal(controls.dispatchEvent(event), false);
+				assert.equal(event.defaultPrevented, true);
+			});
+			changeMode('global');
+			epsilon.value = '100';
+			minPoints.value = '3';
+			submit(form, 1);
 			assert.deepEqual(Array.from(charts[1].data[2]), [null, null, null, null]);
-			assert.equal(form.querySelector('output').textContent.trim(), '0 outliers');
-			assertBuffers();
-			const madForm = window.document.querySelector('#double-mad-controls');
 			assert.equal(madForm.elements.threshold.value, '3.5');
 			assert.equal(madForm.querySelector('output').textContent.trim(), '0 outliers');
 			assert.match(madForm.querySelector('.mad-stats').textContent, /Median: .*left MAD: .*right MAD:/);
 			const madChartData = charts[2].data;
 			const madBuffer = madChartData[2];
 			assert.deepEqual(Array.from(madBuffer), [null, null, null, null]);
-			for (const threshold of [0, 3.5, 0, 10]) {
-				madForm.elements.threshold.value = String(threshold);
-				madForm.dispatchEvent(new window.Event('submit', {cancelable: true}));
+			for (const value of [0, 3.5, 0, 6]) {
+				input(threshold, value);
 				assert.strictEqual(charts[2].data, madChartData);
 				assert.strictEqual(charts[2].data[2], madBuffer);
 				assert.strictEqual(charts[2].data[1], data);
-				assert.deepEqual(Array.from(madBuffer), threshold === 0 ? data : [null, null, null, null]);
-				assert.equal(madForm.querySelector('output').textContent.trim(), `${threshold === 0 ? 4 : 0} outliers`);
+				assert.deepEqual(Array.from(madBuffer), value === 0 ? data : [null, null, null, null]);
+				assert.equal(madForm.querySelector('output').textContent.trim(), `${value === 0 ? 4 : 0} outliers`);
 				assertBuffers();
 				assert.deepEqual(Array.from(charts[1].data[2]), [null, null, null, null]);
 			}
+			threshold.value = '0';
+			submit(madForm, 2);
+			assert.deepEqual(Array.from(madBuffer), data);
+			assert.equal(madForm.querySelector('output').textContent.trim(), '4 outliers');
 			assert.equal(charts.length, 6);
 		}
 		finally {

@@ -10,6 +10,22 @@
 			.uplot {
 				margin-bottom: 50px;
 			}
+
+			form label {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				margin: 0 16px 12px 0;
+			}
+
+			form input[type="range"] {
+				width: 180px;
+			}
+
+			.slider-value {
+				min-width: 4ch;
+				font-variant-numeric: tabular-nums;
+			}
 		</style>
 	</head>
 	<body>
@@ -69,13 +85,13 @@
 					Blue points are outliers. Core points and their border points are inliers. The original data stays unchanged.</p>
 					<p>The radius counts sample positions, not elapsed time. Missing samples retain their positions.
 					Windows at the series edges contain fewer samples, but the minimum count stays fixed.</p>
-					<p>For a local example, use epsilon 1000, minimum points 5, and radius 50.
-					The global defaults classify every sample as an outlier at radius 50.</p>
+
 					<label>Mode: <select name="mode"><option value="global">Global</option><option value="local">Local</option></select></label>
-					<label>Window radius (samples on each side): <input name="windowRadius" type="number" min="0" step="1" value="50" required disabled></label>
-					<label>Value threshold (epsilon): <input name="epsilon" type="number" min="0" step="any" value="100" required></label>
-					<label>Minimum points (including self): <input name="minPoints" type="number" min="1" step="1" value="20" required></label>
-					<button>Find outliers</button>
+					<label>Window radius (samples on each side): <input name="windowRadius" type="range" min="0" max="300" step="1" value="50" disabled><span class="slider-value"></span></label>
+					<label>Value threshold (epsilon): <input name="epsilon" type="range" min="0" max="5000" step="10" value="100"><span class="slider-value"></span></label>
+					<label>Minimum points (including self): <input name="minPoints" type="range" min="1" max="100" step="1" value="20"><span class="slider-value"></span></label>
+					<button type="button" data-preset="global">Global outlier preset</button>
+					<button type="button" data-preset="local">Local outlier preset</button>
 					<output aria-live="polite"></output>
 				`;
 				document.body.appendChild(controls);
@@ -85,6 +101,7 @@
 				const outliers = Array(data.length).fill(null);
 				const outlierData = [data.map((v, i) => i), data, outliers];
 				const output = controls.querySelector("output");
+				const sliders = controls.querySelectorAll('input[type="range"]');
 				const outlierChart = makeChart("Taxi Trips (DBSCAN outliers)", [0, 4e4], outlierData, [{
 					label: "Outliers",
 					stroke: "blue",
@@ -93,6 +110,9 @@
 				}]);
 
 				function findOutliers() {
+					controls.elements.windowRadius.disabled = controls.elements.mode.value !== "local";
+					for (const slider of sliders)
+						slider.nextElementSibling.textContent = slider.value;
 					detectionOptions.epsilon = controls.elements.epsilon.valueAsNumber;
 					detectionOptions.minPoints = controls.elements.minPoints.valueAsNumber;
 					detectionOptions.windowRadius = controls.elements.mode.value === "local" ? controls.elements.windowRadius.valueAsNumber : Infinity;
@@ -110,9 +130,20 @@
 					output.textContent = ` ${count} outliers`;
 				}
 
-				controls.elements.mode.addEventListener("change", () => {
-					controls.elements.windowRadius.disabled = controls.elements.mode.value !== "local";
-				});
+				controls.elements.mode.addEventListener("change", findOutliers);
+				for (const slider of sliders)
+					slider.addEventListener("input", findOutliers);
+
+				for (const button of controls.querySelectorAll("[data-preset]")) {
+					button.addEventListener("click", () => {
+						const local = button.dataset.preset === "local";
+						controls.elements.mode.value = button.dataset.preset;
+						controls.elements.epsilon.value = local ? 1000 : 100;
+						controls.elements.minPoints.value = local ? 5 : 20;
+						controls.elements.windowRadius.value = 50;
+						findOutliers();
+					});
+				}
 
 				controls.addEventListener("submit", event => {
 					event.preventDefault();
@@ -127,8 +158,7 @@
 					Each MAD is the Harrell–Davis median of the absolute deviations on that side.</p>
 					<p>Score = 0.67449 × absolute deviation / side MAD. Scores above the threshold are outliers.
 					With zero side MAD, values unequal to the center are outliers. The original data stays unchanged.</p>
-					<label>Score threshold: <input name="threshold" type="number" min="0" step="any" value="3.5" required></label>
-					<button>Find outliers</button>
+					<label>Score threshold: <input name="threshold" type="range" min="0" max="6" step="0.05" value="3.5"><span class="slider-value"></span></label>
 					<output aria-live="polite"></output>
 					<p class="mad-stats"></p>
 				`;
@@ -150,6 +180,7 @@
 				}]);
 
 				function findMadOutliers() {
+					madControls.elements.threshold.nextElementSibling.textContent = madControls.elements.threshold.value;
 					console.time("double-mad detect");
 					const labels = madDetector.detect(madControls.elements.threshold.valueAsNumber);
 					console.timeEnd("double-mad detect");
@@ -164,6 +195,7 @@
 					madOutput.textContent = ` ${count} outliers`;
 				}
 
+				madControls.elements.threshold.addEventListener("input", findMadOutliers);
 				madControls.addEventListener("submit", event => {
 					event.preventDefault();
 					findMadOutliers();
