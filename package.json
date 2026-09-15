@@ -8,9 +8,8 @@
   "typings": "./dist/uPlot.d.ts",
   "scripts": {
     "build": "rollup -c --bundleConfigAsCjs",
-    "test": "NODE_OPTIONS='--import ./scripts2/register-hooks.mjs' nyc mocha",
-    "test:bun": "bun ./scripts2/test-bun.mjs",
-    "test:update": "UPDATE=1 NODE_OPTIONS='--import ./scripts2/register-hooks.mjs' nyc mocha"
+    "test": "node ./scripts2/test.mjs",
+    "test:update": "UPDATE=1 node ./scripts2/test.mjs"
   },
   "repository": {
     "type": "git",

@@ -1,15 +1,11 @@
-// Run by test/precision-scales.mjs in a disposable, timeout-limited process.
+// Run sequentially by test/precision-scales.mjs, with a parent-enforced deadline per case.
 import assert from 'node:assert/strict';
+// DOM registration must precede chart imports: dom.js captures the environment on load.
+import './instrument.mjs';
+import uPlot from '../src/uPlot.js';
 import { rangeNum, rangeLog } from '../src/utils.js';
-
-// Chart imports must follow DOM registration: dom.js captures the environment
-// when first loaded. Numeric-only probes need neither Happy DOM nor uPlot.
-let uPlot;
-if (!process.argv.includes('--numeric')) {
-	await import('./instrument.mjs');
-	({ default: uPlot } = await import('../src/uPlot.js'));
-}
-const { numAxisSplits, logAxisSplits, log10AxisValsFilt } = await import('../src/opts.js');
+import { numAxisSplits, logAxisSplits, log10AxisValsFilt } from '../src/opts.js';
+import { serveProbes } from './probe-worker.mjs';
 
 function ordered(values, min, max) {
 	assert.ok(values.length > 0 && values.length < 1000, `tick count: ${values.length}`);
@@ -415,21 +411,4 @@ const probes = {
 	},
 };
 
-const name = process.argv[2];
-try {
-	assert.ok(Object.hasOwn(probes, name), `unknown precision probe: ${name}`);
-	// Let the parent arm its execution timer after imports, before the probe runs.
-	if (process.send) {
-		await new Promise(resolve => {
-			process.once('message', resolve);
-			process.send('ready');
-		});
-	}
-	await probes[name]();
-	console.log(JSON.stringify({ probe: name, ok: true }));
-	process.exit(0);
-}
-catch (error) {
-	console.error(String(error.stack ?? error).slice(0, 2000));
-	process.exit(1);
-}
+serveProbes(probes);

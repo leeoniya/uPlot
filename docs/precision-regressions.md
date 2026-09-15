@@ -11,7 +11,9 @@ The review includes open and closed uPlot issues, issue comments, attached repro
 - `test/precision-fixed-dec.mjs`: exact increment keys, decimal counts, registry overlap, and custom increment registration.
 - `test/precision-boundaries.mjs`: decimal exponent boundaries, signed ties, large quotients, tiny grids, and precision-budget checks.
 - `scripts2/bench-rounding.mjs`: warm rounding and ranging benchmarks against commit `443333f`.
-- `scripts2/precision-probe.mjs`: isolated chart and tick probes.
+- `scripts2/precision-probe.mjs`: chart and tick probes in a shared worker.
+- `scripts2/probe-worker.mjs`: sequential IPC requests, parent-enforced deadlines, and worker recovery.
+- `test/probe-worker.mjs`: watchdog, failure-reporting, and cleanup regressions.
 
 The tests exercise exported source functions. They do not require a rebuilt bundle or network access.
 
@@ -40,21 +42,26 @@ Run the full suite with coverage:
 npm test
 ```
 
-**Safety:** Each chart or tick probe runs in a child process with a five-second startup limit.
-After imports finish, the parent starts a separate execution timer before it releases the probe.
-The three degenerate-range probes have a 100 ms execution limit. Other probes retain a five-second execution limit.
-The parent kills timed-out children, even when a synchronous loop blocks the child event loop.
-Node children also have a 128 MiB JavaScript heap limit. POSIX children disable core dumps.
-Bun children have the time limits but not the Node heap limit.
+**Safety:** The chart and tick probes share one sequential worker with a five-second startup limit.
+After imports finish, the parent starts a separate execution timer for each probe.
+The three degenerate-range probes retain their 100 ms execution limit. Other probes retain their five-second execution limit.
+The parent kills a timed-out worker, even when a synchronous loop blocks its event loop.
+Node workers retain the 128 MiB JavaScript heap limit. POSIX workers disable core dumps.
+Bun workers have the time limits but not the Node heap limit.
 
-A timeout, process failure, or memory exhaustion fails the test. Mocha timeouts alone cannot interrupt a synchronous tick loop.
+A timeout, process failure, or memory exhaustion fails the current test. Mocha timeouts alone cannot interrupt a synchronous tick loop.
+The next test starts a replacement worker only after the previous worker closes. An ordinary assertion failure also replaces the worker.
+Each probe remains a separate Mocha test with the same assertions. Each chart has fresh data and options, with cleanup in `finally`.
 
-Coverage runs share instrumented source through a temporary, per-run cache.
+The worker registers the mock DOM before importing chart modules, which capture the environment at initialization.
+The existing loader test explicitly checks imports without a DOM.
+Coverage counters accumulate across probes and flush on normal worker exit, including exits after ordinary assertion failures.
+Shutdown has a separate five-second limit and does not consume the probe execution budget.
+A killed or crashed worker can lose buffered coverage, but the run cannot pass.
+
+The main process and worker share instrumented source through a temporary, per-run cache.
 Cache keys include the source text, filename, and coverage configuration.
-Each probe retains a fresh process, independent coverage counters, and the same assertions and time limits.
-The suite removes the cache after the run. Cache hits also avoid loading the instrumentation compiler.
-Numeric-only probes skip Happy DOM and the chart module, but still load the source numeric helpers.
-Chart probes register the mock DOM before importing chart modules, which capture the environment at initialization.
+The cache owner removes the directory on exit, after its children finish. Cache hits avoid loading the instrumentation compiler.
 
 ## `fixedDec` generation and lookup
 

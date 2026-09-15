@@ -141,15 +141,71 @@ Reaching the upper bound completes generation without requiring another step.
 Automatic-ranging tests cover flat and near-flat data updates on both signs, with finite ticks and pixel positions.
 Low-level termination tests do not promise valid rendering for equal custom bounds.
 
-Each chart or tick probe runs in a child process.
-The three degenerate-range probes have a 100 ms execution limit after imports finish.
-Other probes have a five-second execution limit. All probes have a separate five-second startup limit.
-Node children also have a 128 MiB heap limit.
+All 24 chart and tick probes run sequentially in one child process.
+The worker registers Happy DOM and imports chart modules once before it reports readiness.
+Each probe remains a separate Mocha test. Each chart has fresh data and options, with cleanup in `finally`.
 
-Coverage runs share a temporary cache of instrumented source between probes.
-Each probe still has a fresh process and independent coverage counters.
-The suite removes the cache after the run.
-Numeric-only probes skip Happy DOM and the chart module. Chart probes retain the full mock DOM.
+The parent starts an execution timer before each request and clears it after the result.
+The three degenerate-range probes retain their 100 ms execution limit. Other probes retain their five-second execution limit.
+Startup and shutdown each have a separate five-second limit. Node workers retain the 128 MiB heap limit, and POSIX workers disable core dumps.
+A timeout or crash fails the current test. The next test starts a replacement only after the failed worker closes.
+An ordinary assertion failure also replaces the worker, after a normal exit to flush coverage.
+
+Coverage counters accumulate in the worker and flush on normal shutdown. Forced termination can discard buffered coverage, but cannot count as a passing test.
+The main process and worker share a temporary cache of instrumented source, not runtime state.
+Cache entries depend on the filename, source content, and coverage configuration. Cached code retains its source map.
+The process that creates the cache removes it on exit. Children do not remove an inherited cache.
+Without the coverage preload, the precision suite creates and removes its own cache.
+The existing loader test explicitly checks imports without a DOM, instead of relying on numeric-only subprocesses to exercise that path.
+
+`test/probe-worker.mjs` covers reuse, assertion failures, crashes, synchronous hangs, startup failures, invalid replies, shutdown failures, and active-request cancellation.
+It also verifies normal exit hooks and rejects concurrent requests. The watchdog tests use small fixtures, not repeated chart imports.
+
+### Runtime investigation
+
+Sequential measurements on Node 26.8.2 identified subprocess startup as the main cost.
+One baseline run spent 16.1 seconds in the 24 precision tests and 1.2 seconds in all 237 demo snapshot tests.
+A separate precision run spent 14.6 of its 16.0 seconds on child startup.
+
+The final comparison used the original harness from `9f77dfb` and the sequential worker, with the same 553 tests in both runs.
+Both runs included the new cache and watchdog regressions.
+
+| Measurement | One process per probe | Sequential worker |
+| --- | ---: | ---: |
+| Full command, including coverage reporting | 37.37 s | 17.98 s |
+| Mocha execution | 32.75 s | 13.83 s |
+| Precision test bodies | 20.17 s | 1.14 s |
+
+The precision suite improved by approximately 94%, and the full command improved by approximately 52%.
+Absolute timings varied with machine load, so these numbers are not performance thresholds.
+Both runs passed all tests and produced identical Istanbul statement, function, and branch hit sets.
+All 24 probes also passed in forward, reverse, and forward order in the same worker (72 executions).
+
+No precision cases or assertions were removed. The per-case execution limits and Node heap limit are unchanged.
+The execution timer no longer includes process shutdown or coverage serialization.
+The investigation rejected Node compilation caching and an exclusion-filter shortcut.
+
+### Follow-up: test harness overhead
+
+NYC's spawn hook added its preload to child processes even when lifecycle fixtures cleared `NODE_OPTIONS`.
+Both runtimes now use the instrumentation preload to write per-process coverage. NYC runs only after the tests, to generate the report.
+The worker regression verifies that a fixture can disable the preload. It also verifies the worker's coverage file under both runtimes.
+All lifecycle cases and deadlines remain unchanged.
+
+The loader regression now instruments `src/dom.js` instead of the larger `src/utils.js`.
+It still verifies project configuration, include/exclude rules, executed coverage counters, imports without a DOM, and cache cleanup ownership.
+The failure-report regression retains two separate invocations to verify failing and passing exit statuses, report contents, and stale-report removal.
+
+Sequential full runs passed the same 554 tests before and after these changes:
+
+| Measurement | Node before | Node after | Bun before | Bun after |
+| --- | ---: | ---: | ---: | ---: |
+| Worker lifecycle test bodies | 3.83 s | 1.70 s | 0.89 s | 0.90 s |
+| Coverage-loader test bodies | 1.24 s | 0.92 s | 1.64 s | 0.98 s |
+| Full command, including coverage reporting | 17.59 s | 15.47 s | 12.08 s | 11.23 s |
+
+These are single-run measurements, not timing guarantees. Unchanged test groups also varied with machine load.
+Statement, function, and branch hit sets were identical before and after, and across both runtimes.
 
 ### Benchmark increment generation and metadata
 
@@ -198,24 +254,41 @@ No server or network access is required. Rendering uses the browser's fonts and
 rasterization rather than pre-rendered PNG images. Snapshot comparisons still
 use the recorded commands, not pixels.
 
-## Run natively with Bun
+## Node and Bun runtimes
+
+Both runtimes use `scripts2/test.mjs`. The runner detects `process.versions.bun` and prints the selected runtime before the tests start.
+There is no separate Bun test implementation.
+The project's `bunfig.toml` sets `[run] bun = true`, so `bun run` uses Bun even when a script specifies `node`.
+This configuration applies to all `bun run` scripts. It does not affect npm.
+
+| Command | Runtime |
+| --- | --- |
+| `npm test` | Node |
+| `bun run test` | Bun |
+| `node scripts2/test.mjs` | Node |
+| `bun scripts2/test.mjs` | Bun |
+
+The shared runner detects the actual runtime.
+Bare `bun test` invokes Bun's built-in test runner, not this Mocha harness.
+Both modes use the same Mocha tests, snapshots, Istanbul instrumentation, and file-selection rules.
+Mocha and the coverage reporter run under the selected runtime.
+
+Both runtimes use the instrumentation preload to write one coverage file per process on normal exit.
+Node writes to `.nyc_output`. Bun writes to `.nyc_output/bun`. NYC generates the final report without wrapping the test processes.
+Node children inherit the preload through `NODE_OPTIONS`, unless a fixture explicitly clears it.
+The Bun precision worker receives an explicit preload because child processes do not inherit the parent's `--preload` flag.
+The worker-coverage regression verifies instrumentation and the coverage file after normal shutdown under both runtimes.
+Each Bun run clears `.nyc_output/bun`. A Node test run clears `.nyc_output`, including the Bun results.
+
+Full validation passed 554 tests under Node 26.8.2 and Bun 1.4.3, with identical Istanbul statement, function, and branch hit sets.
+Both launcher paths returned status 1 for Mocha's `--fail-zero` check and status 2 for a fixture with two failing tests.
+The two-failure runs also generated coverage reports.
+
+Mocha arguments pass through to the shared runner:
 
 ```sh
-bun run test:bun
-```
-
-This command runs Mocha and the NYC coverage reporter under Bun. It uses the
-same snapshots, Istanbul instrumentation, and file-selection rules as the Node command.
-The runner writes coverage from the test process and its subprocesses to
-`.nyc_output/bun`. Each Bun run clears that directory. A Node test run clears
-`.nyc_output`, including the Bun results.
-
-`bun run test` still runs the existing Node command. Use `test:bun` for native Bun execution.
-
-Mocha arguments pass through to the Bun runner:
-
-```sh
-bun run test:bun --grep '^area-fill '
+npm test -- --grep '^area-fill '
+bun run test --grep '^area-fill '
 ```
 
 The Bun loader selects source files at startup. Files created later in the run
@@ -224,7 +297,7 @@ are not instrumented. The current suite uses existing source files.
 To record snapshots under Bun, run:
 
 ```sh
-UPDATE=1 bun run test:bun
+bun run test:update
 ```
 
 This command replaces snapshots. Both runtimes share the same snapshot files.

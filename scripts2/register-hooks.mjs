@@ -1,52 +1,25 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { loadNycConfig } from '@istanbuljs/load-nyc-config';
-import { createRequire } from 'node:module';
+import { createSourceInstrumenter } from './instrument-source.mjs';
 import TestExclude from 'test-exclude';
 
 const config = process.env.NYC_CONFIG == null
 	? await loadNycConfig({ cwd: process.env.NYC_CWD || process.cwd() })
 	: JSON.parse(process.env.NYC_CONFIG);
 const exclude = new TestExclude(config);
-const require = createRequire(import.meta.url);
-let instrumenter;
 
-// Optional per-run cache shared by isolated precision probes. Only transformed
-// source is shared; each process still owns and reports its coverage counters.
-const cacheDir = process.env.UPLOT_INSTRUMENT_CACHE_DIR;
-const cacheConfig = JSON.stringify(config);
-
-function instrument(source, filename) {
-	const cacheFile = cacheDir == null ? null : resolve(cacheDir,
-		createHash('sha256').update(JSON.stringify([filename, source, cacheConfig])).digest('hex') + '.js');
-
-	if (cacheFile != null) {
-		try { return readFileSync(cacheFile, 'utf8'); }
-		catch (error) {
-			if (error.code != 'ENOENT')
-				throw error;
-		}
-	}
-
-	// Cache hits do not need to load Babel or construct an instrumenter.
-	instrumenter ??= require('istanbul-lib-instrument').createInstrumenter({
-		...config,
-		esModules: true,
-		produceSourceMap: config.produceSourceMap ?? true,
-	});
-	let code = instrumenter.instrumentSync(source, filename);
-	const map = instrumenter.lastSourceMap();
-
-	if (map != null)
-		code += '\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,' + Buffer.from(JSON.stringify(map)).toString('base64');
-
-	if (cacheFile != null)
-		writeFileSync(cacheFile, code);
-
-	return code;
+// Share transformed source across the run, not module state or coverage counters.
+// The process that creates the cache outlives its children and owns cleanup.
+let cacheDir = process.env.UPLOT_INSTRUMENT_CACHE_DIR;
+if (cacheDir == null) {
+	cacheDir = process.env.UPLOT_INSTRUMENT_CACHE_DIR = mkdtempSync(resolve(tmpdir(), 'uplot-coverage-'));
+	process.once('exit', () => { rmSync(cacheDir, { recursive: true, force: true }); });
 }
+
+const instrument = createSourceInstrumenter(config, cacheDir);
 
 if (process.versions.bun) {
 	const { plugin } = await import('bun');
@@ -64,17 +37,6 @@ if (process.versions.bun) {
 			}));
 		},
 	});
-
-	const coverageDir = process.env.UPLOT_COVERAGE_DIR;
-
-	if (coverageDir != null) {
-		process.on('exit', () => {
-			if (globalThis.__coverage__ != null) {
-				mkdirSync(coverageDir, { recursive: true });
-				writeFileSync(resolve(coverageDir, process.pid + '.json'), JSON.stringify(globalThis.__coverage__));
-			}
-		});
-	}
 }
 else {
 	const { registerHooks } = await import('node:module');
@@ -96,5 +58,16 @@ else {
 				: new TextDecoder().decode(result.source);
 			return { ...result, source: instrument(source, filename) };
 		},
+	});
+}
+
+const coverageDir = process.env.UPLOT_COVERAGE_DIR;
+
+if (coverageDir != null) {
+	process.on('exit', () => {
+		if (globalThis.__coverage__ != null) {
+			mkdirSync(coverageDir, { recursive: true });
+			writeFileSync(resolve(coverageDir, process.pid + '.json'), JSON.stringify(globalThis.__coverage__));
+		}
 	});
 }
