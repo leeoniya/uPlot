@@ -11,11 +11,11 @@ function axis(events, side, reserve, measured = reserve, extra = {}) {
 		scale: side % 2 ? 'y' : 'x',
 		side,
 		size(self, values, i) {
-			events.push({ type: values === null ? 'reserve' : 'measure', i, values, argc: arguments.length });
+			events.push({ type: values === null ? 'reserve' : 'measure', i, values, argc: arguments.length, bbox: cssBox(self) });
 			return values === null ? reserve : typeof measured == 'function' ? measured(self, values) : measured;
 		},
 		space(self, i, min, max, dim) {
-			events.push({ type: 'space', i, dim });
+			events.push({ type: 'space', i, dim, bbox: cssBox(self) });
 			return 50;
 		},
 		incrs: [1, 2, 5, 10, 20, 50, 100],
@@ -25,12 +25,12 @@ function axis(events, side, reserve, measured = reserve, extra = {}) {
 				for (let value = Math.ceil(min / incr) * incr; value <= max; value += incr)
 					splits.push(value);
 			}
-			events.push({ type: 'splits', i, splits: splits.slice() });
+			events.push({ type: 'splits', i, splits: splits.slice(), bbox: cssBox(self) });
 			return splits;
 		},
 		values(self, splits, i) {
 			const values = splits.map(value => value == null ? null : `a${i}:${value}`);
-			events.push({ type: 'values', i, values });
+			events.push({ type: 'values', i, values, bbox: cssBox(self) });
 			return values;
 		},
 		...extra,
@@ -63,9 +63,11 @@ function statefulCanvas(ctx) {
 	const stack = [];
 	const draws = [];
 	const resets = [];
+	const counts = {};
 	const snapshot = () => structuredClone(state);
 
 	function operation(name, value) {
+		counts[name] = (counts[name] ?? 0) + 1;
 		if (name in state)
 			state[name] = value;
 		else if (name == 'save')
@@ -111,7 +113,7 @@ function statefulCanvas(ctx) {
 	ctx.measureText = text => ({ width: String(text).length * parseFloat(state.font.match(/[\d.]+px/)[0]) / 2 });
 
 	return {
-		draws, resets, snapshot,
+		draws, resets, counts, snapshot,
 		get depth() { return stack.length; },
 		reset(key, value) {
 			state = defaults();
@@ -166,7 +168,8 @@ function plot(options = {}, values = data, trackCanvasState = false) {
 function phaseCheck(u, events) {
 	const reserves = events.filter(event => event.type == 'reserve');
 	const active = u.axes.map((axis, i) => axis.show && axis._show ? i : null).filter(i => i != null);
-	assert.deepEqual(reserves.map(event => event.i).sort((a, b) => a - b), active, 'one reservation per active axis');
+	assert.deepEqual(reserves.map(event => event.i).sort((a, b) => a - b),
+		active.filter(i => u.axes[i].side % 2 == 0), 'only horizontal axes reserve with null');
 	for (const event of reserves)
 		assert.equal(event.argc, 3, 'size has no cycleNum argument');
 
@@ -177,6 +180,11 @@ function phaseCheck(u, events) {
 	assert.equal(events.filter(event => event.type == 'padding').length, 6, 'no convergence padding calls');
 	for (const event of [...baseline, ...overflow])
 		assert.equal(event.argc, 4);
+
+	for (const event of reserves) {
+		assert.equal(event.values, null);
+		assert.ok(events.indexOf(event) < events.indexOf(baseline[0]), 'horizontal size precedes baseline padding');
+	}
 
 	const firstTick = events.findIndex(event => event.type == 'space');
 	for (const event of [...reserves, ...baseline])
@@ -189,11 +197,13 @@ function phaseCheck(u, events) {
 		const calls = events.filter(event => event.i == i && event.type != 'padding');
 		const vertical = u.axes[i].side % 2 == 1;
 		assert.deepEqual(calls.map(event => event.type), vertical
-			? ['reserve', 'space', 'splits', 'values', 'measure']
+			? ['space', 'splits', 'values', 'measure']
 			: ['reserve', 'space', 'splits', 'values'], `bounded axis ${i} calls in phase order`);
 		if (vertical) {
 			const measure = calls.at(-1);
 			assert.equal(measure.argc, 3, 'measurement has no cycleNum argument');
+			assert.ok(Array.isArray(measure.values), 'vertical size never receives null');
+			assert.equal(measure.values, calls.find(event => event.type == 'values').values, 'measure the formatter result itself');
 			assert.equal(measure.values, u.axes[i]._values, 'measure current vertical labels');
 			verticalDone.push(events.indexOf(measure));
 		}
@@ -217,6 +227,19 @@ function geometry(u) {
 		bbox: { ...u.bbox },
 		padding: u._padding.slice(),
 		axes: u.axes.map(axis => ({ size: axis._size, pos: axis._pos, splits: axis._splits?.slice(), values: axis._values?.slice() })),
+	};
+}
+
+function committedState(u) {
+	const canvas = u.root.querySelector('canvas');
+	return {
+		geometry: geometry(u),
+		dom: u.root.outerHTML,
+		canvas: [canvas.width, canvas.height],
+		transforms: ['x', 'y'].map(scale => [false, true].map(canvasPixels =>
+			[0, 50, 100].map(value => u.valToPos(value, scale, canvasPixels)))),
+		inverse: ['x', 'y'].map(scale => [false, true].map(canvasPixels =>
+			[0, 50, 100].map(pos => u.posToVal(pos, scale, canvasPixels)))),
 	};
 }
 
@@ -333,6 +356,10 @@ describe('single-pass layout', () => {
 		try {
 			assert.deepEqual(events.map(event => event.name), ['init', 'setData'], 'layout waits for the initial commit');
 			assertBitmap(bitmap, [], []);
+			assert.deepEqual(u.bbox, { left: 0, top: 0, width: 0, height: 0 }, 'bbox starts at zero until the first commit');
+			assert.deepEqual([u.width, u.height], [300, 150], 'outer dimensions are available immediately');
+			for (const event of events)
+				assert.deepEqual(event.bbox, u.bbox, `${event.name} sees the initial zero bbox`);
 			await Promise.resolve();
 			phaseCheck(u, events);
 			const hooks = events.filter(event => event.type == 'hook');
@@ -361,9 +388,8 @@ describe('single-pass layout', () => {
 			await Promise.resolve();
 			assertBitmap(bitmap, [], []);
 			assert.equal(canvasState.resets.length, 2, 'same-size setSize does not reset initialized context');
-			assert.equal(sizes.length, 2);
-			assert.deepEqual(events.filter(event => event.type == 'hook').map(event => event.name),
-				['setSize:first', 'setSize:second', 'drawClear', 'drawAxes', 'drawSeries', 'draw']);
+			assert.equal(sizes.length, 1);
+			assert.deepEqual(events, [], 'identical setSize has no hooks, draw, or layout callbacks');
 		}
 		finally { u.destroy(); }
 	});
@@ -436,24 +462,37 @@ describe('single-pass layout', () => {
 			await Promise.resolve();
 			assertBitmap(bitmap, [600], [400]);
 			checkFrame();
-			for (const step of ['unchanged layout', 'internal resize', 'same-size setSize', 'width resize', 'height resize']) {
+			for (const step of ['unchanged layout', 'internal resize', 'same-size setSize', 'fractional resize', 'width resize', 'height resize']) {
 				u.ctx.globalCompositeOperation = 'multiply';
 				const before = tracker.snapshot();
 				const box = { ...u.bbox };
 				const resets = tracker.resets.length;
 				const hookCount = sizes.length;
+				const fonts = tracker.counts.font;
+				events.length = 0;
 				bitmap.width.length = bitmap.height.length = tracker.draws.length = measured.length = 0;
 				if (step == 'internal resize')
 					extraWidth = 20;
 				if (step == 'unchanged layout' || step == 'internal resize')
 					u.redraw(false, true);
 				else
-					u.setSize({ width: step == 'width resize' ? 640 : u.width, height: step == 'height resize' ? 420 : u.height });
+					u.setSize({ width: step == 'width resize' ? 640 : step == 'fractional resize' ? u.width + 0.1 : u.width, height: step == 'height resize' ? 420 : u.height });
 				await Promise.resolve();
 				const resized = step == 'width resize' || step == 'height resize';
 				assertBitmap(bitmap, step == 'width resize' ? [640] : [], step == 'height resize' ? [420] : []);
 				assert.equal(tracker.resets.length, resets + Number(resized), step);
-				assert.equal(sizes.length, hookCount + Number(step != 'unchanged layout'), step);
+				assert.equal(sizes.length, hookCount + Number(step != 'unchanged layout' && step != 'same-size setSize'), step);
+				if (step == 'same-size setSize') {
+					assert.deepEqual(events, []);
+					assert.deepEqual(tracker.draws, []);
+					assert.deepEqual(measured, []);
+					assert.equal(tracker.counts.font, fonts);
+					assert.deepEqual(tracker.snapshot(), before);
+					continue;
+				}
+				assert.equal(measured.length, 3, 'one vertical and two overflow measurements per layout');
+				assert.equal(tracker.counts.font - fonts, resized ? 6 : 5,
+					'three measurement assignments plus two drawing changes; only a bitmap reset requires the first axis font again');
 				if (step == 'internal resize')
 					assert.notDeepEqual(u.bbox, box, 'internal geometry really changed');
 				const clear = tracker.draws.find(draw => draw.name == 'clearRect');
@@ -461,7 +500,7 @@ describe('single-pass layout', () => {
 					assert.deepEqual(clear.state, tracker.resets.at(-1).state, 'resize clears real state before drawing');
 				else
 					assert.deepEqual(clear.state, before, 'relayout and same-size setSize retain context state');
-				assert.deepEqual(clear.args, [0, 0, u.width, u.height]);
+				assert.deepEqual(clear.args, [0, 0, Math.round(u.width * u.pxRatio), Math.round(u.height * u.pxRatio)]);
 				checkFrame();
 				assert.equal(tracker.snapshot().globalCompositeOperation, resized ? 'source-over' : 'multiply');
 			}
@@ -501,8 +540,8 @@ describe('single-pass layout', () => {
 		finally { u.destroy(); }
 	});
 
-	it('uses baseline reservations for sidesWithAxes and keeps plot height fixed after measurement', async () => {
-		for (const [reserve, measured, pad] of [[0, 70, 0], [20, 0, 17]]) {
+	it('keeps callback axes participating and plot height fixed regardless of measured width', async () => {
+		for (const [reserve, measured, pad] of [[0, 70, 17], [20, 0, 17]]) {
 			const events = [];
 			const { u } = plot({
 				axes: [axis(events, 2, 0, 0, { size: 0 }), axis(events, 3, reserve, measured)],
@@ -514,15 +553,66 @@ describe('single-pass layout', () => {
 			try {
 				await Promise.resolve();
 				assert.deepEqual(events.filter(event => event.phase == 'layout').map(event => event.sides),
-					Array.from({ length: 4 }, () => [false, false, false, reserve > 0]));
+					Array.from({ length: 4 }, () => [false, false, false, true]));
 				assert.equal(u.axes[0]._size, 0, 'numeric size: 0 reserves no height');
 				assert.ok(u.axes[0]._splits.length > 0, 'numeric size: 0 still selects ticks');
 				assert.equal(u.axes[1]._size, measured);
 				assert.deepEqual(cssBox(u), { left: measured, top: pad, width: 600 - measured, height: 400 - 2 * pad });
-				assert.ok(events.filter(event => event.type == 'space' && event.i == 1).every(event => event.dim == 400 - 2 * pad),
-					'vertical measurement cannot change the height used to select its ticks');
+				const vertical = events.filter(event => event.i == 1 && ['space', 'splits', 'values', 'measure'].includes(event.type));
+				assert.deepEqual(vertical.map(event => event.type), ['space', 'splits', 'values', 'measure']);
+				assert.ok(vertical.every(event => event.bbox.height == 400 - 2 * pad),
+					'height is published before vertical callbacks and cannot change after measurement');
+				assert.ok(vertical.every(event => event.bbox.width == 0), 'vertical callbacks see the initial completed width, not a reservation guess');
+				assert.equal(vertical[0].dim, 400 - 2 * pad);
 			}
 			finally { u.destroy(); }
+		}
+	});
+
+	it('derives side participation from configured size and labels, not callback results', async () => {
+		const cases = [
+			{ name: 'numeric zero', extra: { size: 0 }, participates: false },
+			{ name: 'positive numeric', extra: { size: 12 }, participates: true },
+			{ name: 'callback returning zero', extra: {}, participates: true },
+			{ name: 'label with numeric zero', extra: { size: 0, label: 'axis', labelSize: 12 }, participates: true },
+			{ name: 'zero-size label', extra: { size: 0, label: 'axis', labelSize: 0 }, participates: false },
+			{ name: 'labelSize without label', extra: { size: 0, labelSize: 12 }, participates: false },
+			{ name: 'hidden positive numeric with label', extra: { size: 12, show: false, label: 'axis', labelSize: 12 }, participates: false },
+			{ name: 'hidden callback with label', extra: { show: false, label: 'axis', labelSize: 12 }, participates: false },
+			{ name: 'inactive callback with label', extra: { scale: 'inactive', label: 'axis', labelSize: 12 }, participates: false },
+		];
+		for (const side of [0, 1, 2, 3]) {
+			for (const { name, extra, participates } of cases) {
+				const events = [];
+				const { u } = plot({
+					scales: { x: { time: false, range: () => [0, 100] }, y: { range: () => [0, 100] }, inactive: {} },
+					axes: [axis(events, side, 0, 0, extra), { show: false }],
+					padding: padding(events, [0, 0, 0, 0]),
+				});
+				try {
+					await Promise.resolve();
+					for (let pass = 0; pass < 2; pass++) {
+						const expected = [false, false, false, false];
+						expected[side] = participates;
+						const pads = events.filter(event => event.type == 'padding');
+						assert.equal(pads.length, 6);
+						for (const event of pads)
+							assert.deepEqual(event.sides, expected, `${name}, side ${side}, ${event.phase}, pass ${pass}`);
+						if (extra.show === false || extra.scale == 'inactive')
+							assert.ok(!events.some(event => event.type != 'padding'), 'hidden/inactive axes have no callbacks');
+						else if (extra.size == null) {
+							assert.equal(u.axes[0]._size, 0);
+							assert.equal(events.filter(event => event.type == (side % 2 ? 'measure' : 'reserve')).length, 1);
+						}
+						if (pass == 0) {
+							events.length = 0;
+							u.redraw(false, true);
+							await Promise.resolve();
+						}
+					}
+				}
+				finally { u.destroy(); }
+			}
 		}
 	});
 
@@ -577,6 +667,257 @@ describe('single-pass layout', () => {
 		finally { u.destroy(); }
 	});
 
+	it('publishes height before vertical callbacks, baseline width before horizontal callbacks, and final width after overflow', async () => {
+		for (const pxRatio of [1, 2]) {
+			const events = [];
+			let measured = 60;
+			const { u } = plot({
+				pxRatio,
+				axes: [axis(events, 2, 30), axis(events, 3, 999, () => measured), axis(events, 1, 777, 20)],
+				padding: padding(events, [5, 7, 11, 13], [5, 27, 11, 33]),
+			});
+			try {
+				let lastWidth = 0;
+				for (const [width, height, nextMeasured] of [[600, 400, 60], [700, 450, 90], [620, 410, 0]]) {
+					if (u.status == 1) {
+						events.length = 0;
+						measured = nextMeasured;
+						u.setSize({ width, height });
+						assert.equal(cssBox(u).width, lastWidth, 'setSize leaves completed geometry visible');
+					}
+					await Promise.resolve();
+					phaseCheck(u, events);
+					const plotHeight = height - 30 - 5 - 11;
+					const baselineWidth = width - measured - 20 - 7 - 13;
+					for (const event of events.filter(event => ['space', 'splits', 'values', 'measure'].includes(event.type))) {
+						assert.equal(event.bbox.height, plotHeight, 'published height is final throughout tick selection');
+						assert.equal(event.bbox.width, event.i == 0 ? baselineWidth : lastWidth,
+							`axis ${event.i} ${event.type} observes its directional stage, not a provisional vertical width`);
+					}
+					for (const event of events.filter(event => event.phase == 'overflow'))
+						assert.equal(event.bbox.width, baselineWidth);
+					assert.equal(cssBox(u).width, baselineWidth - 40, 'overflow publishes final width without selecting ticks again');
+					assert.equal(cssBox(u).height, plotHeight);
+					lastWidth = cssBox(u).width;
+				}
+			}
+			finally { u.destroy(); }
+		}
+	});
+
+	it('measures formatted vertical labels including null entries, and measures [] when no ticks are selected', async () => {
+		const events = [];
+		let noTicks = false;
+		const vertical = axis(events, 3, 999, 40, {
+			filter: (self, splits) => splits.map((value, i) => i % 2 ? null : value),
+		});
+		const select = vertical.splits;
+		vertical.splits = function(...args) {
+			if (!noTicks)
+				return select(...args);
+			events.push({ type: 'splits', i: args[1], splits: [], bbox: cssBox(args[0]) });
+			return [];
+		};
+		const { u } = plot({ axes: [axis(events, 2, 30), vertical], padding: padding(events, [0, 0, 0, 0]) });
+		try {
+			await Promise.resolve();
+			for (const empty of [false, true, false]) {
+				if (empty || noTicks) {
+					events.length = 0;
+					noTicks = empty;
+					u.redraw(false, true);
+					await Promise.resolve();
+				}
+				phaseCheck(u, events);
+				const measurement = events.find(event => event.type == 'measure');
+				if (empty)
+					assert.deepEqual(measurement.values, []);
+				else {
+					assert.ok(measurement.values.includes(null));
+					assert.ok(measurement.values.some(value => typeof value == 'string' && value.startsWith('a1:')));
+				}
+			}
+		}
+		finally { u.destroy(); }
+	});
+
+	it('defers geometry, transforms, DOM, canvas, and paths until a single final resize commit, including synchronous batch', async () => {
+		for (const mode of ['queued', 'batch']) {
+			for (const pxRatio of [1, 1.25, 2]) {
+				for (const [width, height] of [[640, 420], [600, 400], [600.1, 400.1]]) {
+					const events = [];
+					const { u, bitmap, sizes, canvasState } = plot({
+						pxRatio,
+						axes: [axis(events, 2, 30), axis(events, 3, 40)],
+						padding: padding(events, [0, 0, 0, 0]),
+						hooks: { draw: [() => events.push({ type: 'draw' })] },
+					}, data, true);
+					try {
+						await Promise.resolve();
+						const before = committedState(u);
+						const paths = u.series[1]._paths;
+						assert.ok(paths);
+						const counts = { ...canvasState.counts };
+						events.length = sizes.length = bitmap.width.length = bitmap.height.length = 0;
+						const resize = () => {
+							for (const [nextWidth, nextHeight] of [[620, 410], [680, 460], [width, height], [width, height]]) {
+								u.setSize({ width: nextWidth, height: nextHeight });
+								assert.deepEqual([u.width, u.height], [nextWidth, nextHeight], 'outer CSS dimensions update immediately');
+								assert.deepEqual(committedState(u), before, `${mode}: no intermediate layout or DOM publication`);
+								assert.equal(u.series[1]._paths, paths, 'pending resize retains completed paths');
+								assert.deepEqual(canvasState.counts, counts, 'pending resize performs no canvas operations');
+								assert.deepEqual(events, []);
+								assert.deepEqual(sizes, []);
+								assertBitmap(bitmap, [], []);
+							}
+						};
+						if (mode == 'batch')
+							u.batch(resize);
+						else {
+							resize();
+							await Promise.resolve();
+						}
+						// In batch mode every assertion here runs before yielding to a microtask.
+						phaseCheck(u, events.filter(event => event.type != 'draw'));
+						assert.equal(events.filter(event => event.type == 'draw').length, 1, 'only the final requested geometry is drawn');
+						assert.deepEqual(sizes, [u.bbox], 'outer dirty state fires one hook even when resizing back to the completed size');
+						const roundHalf = value => Math.round(value * pxRatio * 2) / 2;
+						assert.deepEqual(u.bbox, { left: roundHalf(40), top: 0, width: roundHalf(width - 40), height: roundHalf(height - 30) });
+						assert.equal(u.valToPos(100, 'x'), width - 40, 'CSS transform uses the final unrounded width');
+						assert.equal(u.valToPos(0, 'y'), height - 30, 'CSS transform uses the final unrounded height');
+						assert.equal(u.posToVal(width - 40, 'x'), 100);
+						assert.equal(u.posToVal(height - 30, 'y'), 0);
+						assert.equal(parseFloat(u.over.style.width), width - 40, 'DOM retains fractional CSS width');
+						assert.equal(parseFloat(u.over.style.height), height - 30, 'DOM retains fractional CSS height');
+						assert.equal(parseFloat(u.over.parentElement.style.width), width);
+						assert.equal(parseFloat(u.over.parentElement.style.height), height);
+						assertBitmap(bitmap,
+							Math.round(width * pxRatio) == 600 * pxRatio ? [] : [Math.round(width * pxRatio)],
+							Math.round(height * pxRatio) == 400 * pxRatio ? [] : [Math.round(height * pxRatio)]);
+						assert.equal(canvasState.counts.font - counts.font, Number(bitmap.width.length + bitmap.height.length > 0),
+							'the shared axis font stays cached unless the final backing dimensions actually reset');
+						if (width == 600 && height == 400) {
+							assert.deepEqual(committedState(u), before, 'resize-back preserves final geometry, DOM, and transforms');
+							assert.equal(u.series[1]._paths, paths, 'resize-back never invalidates paths for intermediate geometry');
+						}
+						else
+							assert.notEqual(u.series[1]._paths, paths, 'changed CSS geometry invalidates paths even when rounded bbox/backing dimensions are unchanged');
+						const completed = committedState(u);
+						const completedCounts = { ...canvasState.counts };
+						const completedEvents = events.slice();
+						await Promise.resolve();
+						assert.deepEqual(committedState(u), completed);
+						assert.deepEqual(canvasState.counts, completedCounts, 'batch leaves no second draw queued');
+						assert.deepEqual(events, completedEvents, 'no second layout after commit');
+					}
+					finally { u.destroy(); }
+				}
+			}
+		}
+	});
+
+	it('coalesces fractional CSS resizes and pixel-ratio changes into one final backing resize', async () => {
+		for (const mode of ['queued', 'batch']) {
+			const events = [];
+			const { u, bitmap, sizes, canvasState } = plot({
+				width: 600.1, height: 400.1, pxRatio: 1.25,
+				axes: [axis(events, 2, 30), axis(events, 3, 40)],
+				padding: padding(events, [0, 0, 0, 0]),
+				hooks: { draw: [() => events.push({ type: 'draw' })] },
+			}, data, true);
+			try {
+				await Promise.resolve();
+				const bbox = { ...u.bbox };
+				const dom = u.root.outerHTML;
+				const paths = u.series[1]._paths;
+				const counts = { ...canvasState.counts };
+				events.length = sizes.length = bitmap.width.length = bitmap.height.length = 0;
+				const resize = () => {
+					for (const [width, height, ratio] of [[680.1, 440.1, 3], [620.1, 410.1, 1.25], [640.1, 420.1, 2]]) {
+						u.setSize({ width, height });
+						u.setPxRatio(ratio);
+						assert.deepEqual([u.width, u.height, u.pxRatio], [width, height, ratio]);
+						assert.deepEqual(u.bbox, bbox, 'pending DPR changes do not publish intermediate geometry');
+						assert.equal(u.root.outerHTML, dom);
+						assert.deepEqual(events, []);
+						assert.deepEqual(sizes, []);
+						assert.deepEqual(canvasState.counts, counts);
+						assertBitmap(bitmap, [], []);
+					}
+				};
+				if (mode == 'batch')
+					u.batch(resize);
+				else {
+					resize();
+					await Promise.resolve();
+				}
+				phaseCheck(u, events.filter(event => event.type != 'draw'));
+				assert.deepEqual(u.bbox, { left: 80, top: 0, width: 1200, height: 780 });
+				assertBitmap(bitmap, [1280], [840]);
+				assert.equal(u.axes[0].font[1], 24, 'font uses only the final DPR');
+				assert.equal(parseFloat(u.over.parentElement.style.width), 640.1);
+				assert.equal(parseFloat(u.over.parentElement.style.height), 420.1);
+				assert.notEqual(u.series[1]._paths, paths);
+				assert.deepEqual(sizes, [u.bbox]);
+				assert.equal(events.filter(event => event.type == 'draw').length, 1);
+				const completedCounts = { ...canvasState.counts };
+				await Promise.resolve();
+				assert.deepEqual(canvasState.counts, completedCounts, 'synchronous batch does not leave a second frame queued');
+			}
+			finally { u.destroy(); }
+		}
+	});
+
+	it('flushes an already queued resize once in batch, including deferred hooks and resize-back', async () => {
+		for (const deferHooks of [false, true]) {
+			const hooks = [];
+			const { u, sizes, bitmap, canvasState } = plot({
+				hooks: { setSize: [() => hooks.push('size')], draw: [() => hooks.push('draw')] },
+			}, data, true);
+			try {
+				await Promise.resolve();
+				const bbox = { ...u.bbox };
+				const clears = canvasState.counts.clearRect;
+				hooks.length = sizes.length = bitmap.width.length = bitmap.height.length = 0;
+				u.setSize({ width: 640, height: 420 });
+				u.batch(() => u.setSize({ width: 600, height: 400 }), deferHooks);
+				assert.deepEqual(u.bbox, bbox);
+				assert.equal(canvasState.counts.clearRect, clears + 1, 'batch draws synchronously');
+				assert.deepEqual(hooks, deferHooks ? [] : ['size', 'draw']);
+				await Promise.resolve();
+				assert.equal(canvasState.counts.clearRect, clears + 1, 'the obsolete callback must not draw again');
+				assert.deepEqual(hooks, ['size', 'draw'], 'deferred hooks flush exactly once');
+				assert.deepEqual(sizes, [bbox], 'coalesced resize-back emits one size notification');
+				assertBitmap(bitmap, [], []);
+				u.redraw(false);
+				await Promise.resolve();
+				assert.equal(canvasState.counts.clearRect, clears + 2, 'subsequent queued work still runs');
+				assert.deepEqual(hooks, ['size', 'draw', 'draw']);
+			}
+			finally { u.destroy(); }
+		}
+	});
+
+	it('does not let an obsolete batch callback consume work queued after the batch', async () => {
+		const events = [];
+		const { u } = plot({ hooks: { draw: [() => events.push('draw')] } });
+		try {
+			await Promise.resolve();
+			events.length = 0;
+			u.redraw(false, true);
+			u.batch(() => u.setSize({ width: 640, height: 420 }));
+			assert.deepEqual(events, ['draw']);
+			events.length = 0;
+			queueMicrotask(() => events.push('marker'));
+			u.redraw(false, true);
+			await Promise.resolve();
+			assert.deepEqual(events, ['marker', 'draw'], 'fresh work retains its microtask order and runs once');
+			await Promise.resolve();
+			assert.deepEqual(events, ['marker', 'draw']);
+		}
+		finally { u.destroy(); }
+	});
+
 	it('grows and shrinks deterministically, invalidates paths only when needed, and never resizes the bitmap internally', async () => {
 		const events = [];
 		let width = 40;
@@ -627,7 +968,70 @@ describe('single-pass layout', () => {
 		finally { u.destroy(); }
 	});
 
-	it('assigns only changed bitmap dimensions on external resize, preserving explicit setSize hooks', async () => {
+	it('retains the setSize hook for axis changes even when plot geometry is unchanged', async () => {
+		const events = [];
+		let inner = 30;
+		const { u, sizes, bitmap } = plot({
+			axes: [axis(events, 2, 30), axis(events, 3, 0, () => inner), axis(events, 3, 0, () => 50 - inner)],
+			padding: padding(events, [0, 0, 0, 0]),
+		});
+		try {
+			await Promise.resolve();
+			const bbox = { ...u.bbox };
+			for (const width of [40, 10, 30]) {
+				const paths = u.series[1]._paths;
+				events.length = sizes.length = bitmap.width.length = bitmap.height.length = 0;
+				inner = width;
+				u.redraw(false, true);
+				await Promise.resolve();
+				phaseCheck(u, events);
+				assert.deepEqual(u.bbox, bbox);
+				assert.deepEqual(u.axes.map(axis => axis._size), [30, width, 50 - width]);
+				assert.deepEqual(u.axes.map(axis => axis._pos), [370, 50, 50 - width]);
+				assert.deepEqual(sizes, [bbox], 'axis size changes retain the existing hook even with identical bbox');
+				assert.equal(u.series[1]._paths, paths, 'axis-only changes preserve series paths');
+				assertBitmap(bitmap, [], []);
+			}
+		}
+		finally { u.destroy(); }
+	});
+
+	it('rebuilds invalidated paths with unchanged geometry without inventing a resize or bitmap reset', async () => {
+		const events = [];
+		const { u, sizes, bitmap } = plot({
+			axes: [axis(events, 2, 30), axis(events, 3, 40)],
+			padding: padding(events, [0, 0, 0, 0]),
+		});
+		try {
+			await Promise.resolve();
+			const initial = geometry(u);
+			for (const change of ['data', 'explicit rebuild', 'clearCache']) {
+				const paths = u.series[1]._paths;
+				assert.ok(paths);
+				events.length = sizes.length = bitmap.width.length = bitmap.height.length = 0;
+				if (change == 'data') {
+					u.setData([[0, 50, 100], [100, 0, 50]], false);
+					u.redraw();
+				}
+				else if (change == 'explicit rebuild')
+					u.redraw(true, true);
+				else {
+					u.clearCache();
+					assert.equal(u.series[1]._paths, null);
+					u.redraw(false, true);
+				}
+				await Promise.resolve();
+				assert.deepEqual(geometry(u), initial, `${change}: layout is unchanged`);
+				assert.ok(u.series[1]._paths);
+				assert.notEqual(u.series[1]._paths, paths, `${change}: rebuild does not depend on geometry changing`);
+				assert.deepEqual(sizes, []);
+				assertBitmap(bitmap, [], []);
+			}
+		}
+		finally { u.destroy(); }
+	});
+
+	it('assigns only changed bitmap dimensions and fires setSize only for changed outer dimensions', async () => {
 		const { u, bitmap, sizes } = plot();
 		try {
 			await Promise.resolve();
@@ -637,7 +1041,7 @@ describe('single-pass layout', () => {
 				await Promise.resolve();
 			}
 			assertBitmap(bitmap, [640], [420]);
-			assert.equal(sizes.length, 5, 'explicit setSize fires even when bitmap size is unchanged');
+			assert.equal(sizes.length, 3, 'changed fractional CSS dimensions still fire setSize, but identical requests do not');
 			assert.equal(u.root.querySelector('canvas').width, 640);
 			assert.equal(u.root.querySelector('canvas').height, 420);
 		}
@@ -734,68 +1138,91 @@ describe('single-pass layout', () => {
 		finally { u.destroy(); }
 	});
 
-	it('recovers ticks and paths after collapsed width, height, and both dimensions', async () => {
+
+	it('preserves active cursor and selection positions across valid external and internal resizes', async () => {
 		const events = [];
-		const { u } = plot({ axes: [axis(events, 2, 30), axis(events, 3, 40)] });
+		let axisWidth = 40;
+		const { u } = plot({ cursor: { show: true }, axes: [axis(events, 2, 30), axis(events, 3, 0, () => axisWidth)] });
 		try {
 			await Promise.resolve();
-			const initial = geometry(u);
-			for (const [width, height] of [[40, 400], [600, 30], [0, 0]]) {
-				events.length = 0;
-				u.setSize({ width, height });
+			for (const [width, height, measured] of [[600, 300, 40], [500, 400, 40], [500, 300, 40], [600, 400, 80]]) {
+				u.setCursor({ left: 100, top: 100 });
+				u.setSelect({ left: 100, top: 100, width: 100, height: 100 });
+				axisWidth = measured;
+				if (width == u.width && height == u.height)
+					u.redraw(false, true);
+				else
+					u.setSize({ width, height });
 				await Promise.resolve();
-				assert.ok(Object.values(u.bbox).every(Number.isFinite), 'collapsed geometry stays finite');
-				assert.ok(events.filter(event => event.type == 'splits').length <= 2, 'collapsed layout does not iterate ticks');
-				for (const axis of u.axes)
-					assert.ok((axis._splits ?? []).every(Number.isFinite));
-				u.setSize({ width: 600, height: 400 });
+				const x = 100 * (width - measured) / 560;
+				const y = 100 * (height - 30) / 370;
+				for (const [actual, expected] of [
+					[u.cursor.left, x], [u.cursor.top, y], [u.select.left, x],
+					[u.select.top, y], [u.select.width, x], [u.select.height, y],
+				])
+					assert.ok(Math.abs(actual - expected) < 1e-9, 'overlays retain their proportional positions');
+				for (const el of u.over.querySelectorAll('div'))
+					assert.doesNotMatch(el.style.cssText, /NaN|Infinity/);
+				axisWidth = 40;
+				if (width == 600 && height == 400)
+					u.redraw(false, true);
+				else
+					u.setSize({ width: 600, height: 400 });
 				await Promise.resolve();
-				assert.deepEqual(geometry(u), initial, 'recovered geometry and ticks match initial layout');
-				assert.ok(u.series[1]._paths, 'paths recover with positive dimensions');
+				for (const value of [u.cursor.left, u.cursor.top, u.select.left, u.select.top, u.select.width, u.select.height])
+					assert.ok(Math.abs(value - 100) < 1e-9, 'overlays recover their original positions');
 			}
 		}
 		finally { u.destroy(); }
 	});
 
-	it('keeps active overlays finite through sizes smaller than axis reservations', async () => {
-		const events = [];
-		const { u } = plot({ cursor: { show: true }, axes: [axis(events, 2, 30), axis(events, 3, 40)] });
-		function checkOverlays() {
-			for (const value of [u.cursor.left, u.cursor.top, u.select.left, u.select.top, u.select.width, u.select.height])
-				assert.ok(Number.isFinite(value), 'cursor and selection coordinates stay finite');
-			for (const el of u.over.querySelectorAll('div'))
-				assert.doesNotMatch(el.style.cssText, /NaN|Infinity/, 'overlay styles stay finite');
-		}
-		try {
-			await Promise.resolve();
-			const initial = geometry(u);
-			// Avoid exact-zero plot dimensions: their overlay normalization predates this layout change.
-			for (const [width, height] of [[600, 20], [20, 400], [20, 20]]) {
-				u.setCursor({ left: 100, top: 100 });
-				u.setSelect({ left: 100, top: 100, width: 100, height: 100 });
-				u.setSize({ width, height });
-				await Promise.resolve();
-				assert.deepEqual(cssBox(u), { left: 40, top: 0, width: width - 40, height: height - 30 },
-					'undersized plots retain negative dimensions rather than clamping to zero');
-				checkOverlays();
-				u.setSize({ width: 600, height: 400 });
-				await Promise.resolve();
-				assert.deepEqual(geometry(u), initial);
-				checkOverlays();
-				// Negative width already hides overlays under the existing left/width guards.
-				// Height-only undersizing keeps them active and must recover their original positions.
-				if (width == 600) {
-					for (const value of [u.cursor.left, u.cursor.top, u.select.left, u.select.top, u.select.width, u.select.height])
-						assert.ok(Math.abs(value - 100) < 1e-9, 'active overlays recover their original positions');
+	it('keeps pixel conversions inverse across pending pixel-ratio updates and rounded geometry', async () => {
+		for (const ori of [0, 1]) {
+			for (const dir of [-1, 1]) {
+				const { u } = plot({
+					width: 600.3, height: 400.7, pxRatio: 1.25,
+					padding: [0.1, 0.2, 0.3, 0.4],
+					scales: {
+						x: { time: false, ori, dir, distr: 3, range: [1, 100] },
+						y: { ori: 1 - ori, dir: -dir, range: [1, 100] },
+					},
+					axes: [{ scale: 'x', side: ori == 0 ? 2 : 3 }, { scale: 'y', side: ori == 0 ? 3 : 2 }],
+				}, [[1, 10, 100], [1, 10, 100]]);
+				function checkConversions() {
+					for (const key of ['x', 'y']) {
+						for (const can of [false, true]) {
+							for (const value of [1, 10, 50, 100]) {
+								const position = u.valToPos(value, key, can);
+								assert.ok(Math.abs(u.posToVal(position, key, can) - value) < 1e-10,
+									`round trip on ${key}, orientation ${ori}, direction ${dir}, canvas ${can}`);
+							}
+						}
+					}
+					assert.equal(u.posToIdx(u.valToPos(10, 'x', true), true), 1);
 				}
+				try {
+					await Promise.resolve();
+					checkConversions();
+					for (const ratio of [2, 1.1]) {
+						const bbox = { ...u.bbox };
+						const position = u.valToPos(10, 'x', true);
+						u.setPxRatio(ratio);
+						u.setSize({ width: u.width + 0.2, height: u.height + 0.4 });
+						assert.deepEqual(u.bbox, bbox, 'pending updates retain the completed pixel rectangle');
+						assert.equal(u.valToPos(10, 'x', true), position);
+						checkConversions();
+						await Promise.resolve();
+						checkConversions();
+					}
+				}
+				finally { u.destroy(); }
 			}
 		}
-		finally { u.destroy(); }
 	});
 
 	it('keeps CSS layout and ticks stable across pixel-ratio changes and avoids redundant bitmap writes', async () => {
 		const events = [];
-		const { u, bitmap } = plot({ axes: [axis(events, 2, 30), axis(events, 3, 40)] });
+		const { u, bitmap, sizes, canvasState } = plot({ axes: [axis(events, 2, 30), axis(events, 3, 40)] }, data, true);
 		try {
 			await Promise.resolve();
 			const initial = cssBox(u);
@@ -804,6 +1231,8 @@ describe('single-pass layout', () => {
 			for (const ratio of [2, 2, 1]) {
 				const oldRatio = u.pxRatio;
 				const paths = u.series[1]._paths;
+				const counts = { ...canvasState.counts };
+				events.length = sizes.length = 0;
 				bitmap.width.length = bitmap.height.length = 0;
 				u.setPxRatio(ratio);
 				await Promise.resolve();
@@ -814,6 +1243,12 @@ describe('single-pass layout', () => {
 				assertBitmap(bitmap, ratio == oldRatio ? [] : [600 * ratio], ratio == oldRatio ? [] : [400 * ratio]);
 				if (ratio != oldRatio)
 					assert.notEqual(u.series[1]._paths, paths, 'pixel-ratio changes rebuild paths');
+				else {
+					assert.deepEqual(events, [], 'identical pixel ratio does not refresh layout callbacks');
+					assert.deepEqual(sizes, [], 'identical pixel ratio does not fire setSize');
+					assert.deepEqual(canvasState.counts, counts, 'identical pixel ratio performs no canvas operations');
+					assert.equal(u.series[1]._paths, paths, 'identical pixel ratio retains paths');
+				}
 				assert.equal(u.valToPos(100, 'x', true), (initial.left + initial.width) * ratio);
 			}
 		}

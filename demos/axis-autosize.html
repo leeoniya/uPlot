@@ -110,9 +110,7 @@
 							let axis = self.axes[axisIdx];
 							let axisSize = axis.ticks.size + axis.gap;
 
-							// The null call reserves the base size before ticks.
-							if (values != null)
-								axisSize += maxLabelWidth(self, axis, values);
+							axisSize += maxLabelWidth(self, axis, values);
 
 							return Math.ceil(axisSize);
 						},

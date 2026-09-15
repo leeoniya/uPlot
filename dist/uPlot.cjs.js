@@ -3304,9 +3304,15 @@ function uPlot(opts, data, then) {
 	let pxRatio$1 = opts.pxRatio ?? pxRatio;
 
 	function setPxRatio(_pxRatio) {
-		pxRatio$1 = self.pxRatio = (_pxRatio ?? pxRatio);
-		axes.forEach(axis => syncFontSize(axis, pxRatio$1));
-		_setSize(self.width, self.height, true);
+		_pxRatio ??= pxRatio;
+
+		if (_pxRatio != pxRatio$1) {
+			pxRatio$1 = self.pxRatio = _pxRatio;
+			axes.forEach(axis => syncFontSize(axis, pxRatio$1));
+			resetYSeries(false);
+			shouldSetCanvas = shouldLayout = true;
+			commit();
+		}
 	}
 	const self = {
 		uid: rand().toString(36).slice(-6),
@@ -3746,149 +3752,122 @@ function uPlot(opts, data, then) {
 	let plotLftCss = 0;
 	let plotTopCss = 0;
 
-	// previous values for diffing
-	let _plotLftCss = plotLftCss;
-	let _plotTopCss = plotTopCss;
-	let _plotWidCss = plotWidCss;
-	let _plotHgtCss = plotHgtCss;
-
 
 	let plotLft = 0;
 	let plotTop = 0;
 	let plotWid = 0;
 	let plotHgt = 0;
 
-	self.bbox = {};
+	self.bbox = {left: 0, top: 0, width: 0, height: 0};
 
 	let shouldSetScales = false;
-	let shouldSetSize = false;
 	let shouldSetCanvas = false;
 	let shouldLayout = false;
 	let shouldSetCursor = false;
 	let shouldSetSelect = false;
 	let shouldSetLegend = false;
 
-	function _setSize(width, height, force) {
-		if (force || width != self.width || height != self.height) {
+	function setSize({width, height}) {
+		if (width != self.width || height != self.height) {
 			self.width  = fullWidCss = width;
 			self.height = fullHgtCss = height;
-			calcSize();
-			shouldSetCanvas = true;
+			shouldSetCanvas = shouldLayout = true;
+			commit();
 		}
-
-		if (force)
-			resetYSeries(false);
-
-		shouldLayout = true;
-		shouldSetSize = true;
-
-		commit();
-	}
-
-	function calcSize() {
-		plotWidCss = fullWidCss;
-		plotHgtCss = fullHgtCss;
-		plotLftCss = plotTopCss = 0;
-
-		calcPlotRect();
-
-		let bb = self.bbox;
-
-		plotLft = bb.left   = incrRound(plotLftCss * pxRatio$1, 0.5);
-		plotTop = bb.top    = incrRound(plotTopCss * pxRatio$1, 0.5);
-		plotWid = bb.width  = incrRound(plotWidCss * pxRatio$1, 0.5);
-		plotHgt = bb.height = incrRound(plotHgtCss * pxRatio$1, 0.5);
-	}
-
-	function layout() {
-		let prevSizes = axes.map(axis => axis._size);
-		sidesWithAxes.fill(false);
-
-		axes.forEach((axis, i) => {
-			let show = axis.show && scales[axis.scale].min != null;
-
-			if (axis._show != show)
-				shouldSetSize = true;
-
-			axis._show = show;
-			axis._splits = axis._values = null;
-
-			if (show) {
-				axis._size = ceil(axis.size(self, null, i));
-
-				if (axis._size + (axis.label != null ? axis.labelSize : 0) > 0)
-					sidesWithAxes[axis.side] = true;
-			}
-		});
-
-		// Reservations fix the height before vertical labels are measured.
-		paddingCalc("layout");
-		calcSize();
-		axesCalc(1);
-
-		// All vertical widths are settled before horizontal ticks are selected.
-		calcSize();
-		axesCalc(0);
-
-		// Keep the selected ticks; drawing positions them against the final bbox.
-		paddingCalc("overflow");
-		calcSize();
-		calcAxesRects();
-
-		if (
-			plotLftCss != _plotLftCss ||
-			plotTopCss != _plotTopCss ||
-			plotWidCss != _plotWidCss ||
-			plotHgtCss != _plotHgtCss ||
-			axes.some((axis, i) => axis._size != prevSizes[i])
-		)
-			shouldSetSize = true;
-	}
-
-	function setSize({width, height}) {
-		_setSize(width, height);
 	}
 
 	self.setSize = setSize;
 
-	// accumulate axis offsets, reduce canvas width
-	function calcPlotRect() {
+	function sizeAxes(ori, sizes) {
+		let changed = false;
+
 		axes.forEach((axis, i) => {
-			if (axis.show && axis._show) {
-				let {side, _size} = axis;
-				let isVt = side % 2;
-				let labelSize = axis.label != null ? axis.labelSize : 0;
-
-				let fullSize = _size + labelSize;
-
-				if (fullSize > 0) {
-					if (isVt) {
-						plotWidCss -= fullSize;
-
-						if (side == 3)
-							plotLftCss += fullSize;
-					}
-					else {
-						plotHgtCss -= fullSize;
-
-						if (side == 0)
-							plotTopCss += fullSize;
-					}
-				}
+			if (axis._show && axis.side % 2 == ori) {
+				let size = ceil(axis.size(self, ori == 0 ? null : axis._values, i));
+				changed = changed || size != axis._size;
+				axis._size = size;
+				sizes[axis.side] += max(0, size + (axis.label != null ? axis.labelSize : 0));
 			}
 		});
 
-		// hz padding
-		plotWidCss -= _padding[1] + _padding[3];
-		plotLftCss += _padding[3];
+		return changed;
+	}
 
-		// vt padding
-		plotHgtCss -= _padding[2] + _padding[0];
-		plotTopCss += _padding[0];
+	function calcPlotDim(ori, sizes) {
+		let start = ori == 0 ? 3 : 0;
+		let end = ori == 0 ? 1 : 2;
+		let off = sizes[start] + _padding[start];
+		let dim = (ori == 0 ? fullWidCss : fullHgtCss) - off - sizes[end] - _padding[end];
+		let bb = self.bbox;
 
+		if (ori == 0) {
+			plotLftCss = off;
+			plotWidCss = dim;
+			plotLft = bb.left  = incrRound(off * pxRatio$1, 0.5);
+			plotWid = bb.width = incrRound(dim * pxRatio$1, 0.5);
+		}
+		else {
+			plotTopCss = off;
+			plotHgtCss = dim;
+			plotTop = bb.top    = incrRound(off * pxRatio$1, 0.5);
+			plotHgt = bb.height = incrRound(dim * pxRatio$1, 0.5);
+		}
+	}
+
+	function updateLayout() {
+		let prevLeft = plotLftCss;
+		let prevTop = plotTopCss;
+		let prevWidth = plotWidCss;
+		let prevHeight = plotHgtCss;
+		let axesChanged = false;
+		let sizes = [0, 0, 0, 0];
+		sidesWithAxes.fill(false);
+
+		axes.forEach(axis => {
+			let show = axis.show && scales[axis.scale].min != null;
+			axesChanged = axesChanged || axis._show != show;
+			axis._show = show;
+			axis._splits = axis._values = null;
+
+			if (show && (axis._hasSize || axis.label != null && axis.labelSize > 0))
+				sidesWithAxes[axis.side] = true;
+		});
+
+		// Height is final before vertical tick selection and measurement.
+		axesChanged = sizeAxes(0, sizes) || axesChanged;
+		paddingCalc("layout");
+		calcPlotDim(1, sizes);
+		axesCalc(1);
+
+		axesChanged = sizeAxes(1, sizes) || axesChanged;
+		calcPlotDim(0, sizes);
+		axesCalc(0);
+
+		// Overflow changes only width, not the selected ticks or axis sizes.
+		paddingCalc("overflow");
+		calcPlotDim(0, sizes);
+		axesChanged = calcAxesRects() || axesChanged;
+
+		let plotChanged = plotLftCss != prevLeft || plotTopCss != prevTop || plotWidCss != prevWidth || plotHgtCss != prevHeight;
+		let resized = shouldSetCanvas;
+		shouldSetCanvas = false;
+
+		if (resized)
+			setCanvasSize();
+
+		if (plotChanged) {
+			resetYSeries(false);
+			resizeOverlays(prevWidth, prevHeight);
+		}
+
+		if (resized || plotChanged || axesChanged) {
+			applyLayout();
+			fire("setSize");
+		}
 	}
 
 	function calcAxesRects() {
+		let changed = false;
 		// will accum +
 		let off1 = plotLftCss + plotWidCss;
 		let off2 = plotTopCss + plotHgtCss;
@@ -3909,12 +3888,15 @@ function uPlot(opts, data, then) {
 			if (axis.show && axis._show) {
 				let side = axis.side;
 
-				axis._pos = incrOffset(side, axis._size);
-
-				if (axis.label != null)
-					axis._lpos = incrOffset(side, axis.labelSize);
+				let pos = incrOffset(side, axis._size);
+				let lpos = axis.label != null ? incrOffset(side, axis.labelSize) : null;
+				changed = changed || pos != axis._pos || lpos != axis._lpos;
+				axis._pos = pos;
+				axis._lpos = lpos;
 			}
 		});
+
+		return changed;
 	}
 
 	if (cursor.dataIdx == null) {
@@ -4156,7 +4138,7 @@ function uPlot(opts, data, then) {
 			// also set defaults for incrs & values based on axis distr
 			let isTime = sc.time;
 
-			let hasSize = isFn(axis.size) || axis.size > 0;
+			axis._hasSize = isFn(axis.size) || axis.size > 0;
 
 			axis.size   = fnOrSelf(axis.size);
 			axis.space  = fnOrSelf(axis.space);
@@ -4207,7 +4189,7 @@ function uPlot(opts, data, then) {
 			axis._splits =
 			axis._values = null;
 
-			if (hasSize)
+			if (axis._hasSize)
 				axis._el = placeDiv(AXIS, wrap);
 
 			// debug
@@ -4908,8 +4890,6 @@ function uPlot(opts, data, then) {
 			// rotating of labels only supported on bottom x axis
 			axis._rotate = axis.side == 2 ? axis.rotate(self, values, i, _space) : 0;
 
-			if (ori == 1)
-				axis._size = ceil(axis.size(self, values, i));
 		});
 	}
 
@@ -5135,8 +5115,12 @@ function uPlot(opts, data, then) {
 
 	function commit() {
 		if (!queuedCommit) {
-			microTask(_commit);
-			queuedCommit = true;
+			let run = queuedCommit = () => {
+				// A synchronous batch invalidates this callback, not any later queued work.
+				if (queuedCommit == run)
+					_commit();
+			};
+			microTask(run);
 		}
 	}
 
@@ -5154,6 +5138,90 @@ function uPlot(opts, data, then) {
 
 	self.batch = batch;
 
+	function setCanvasSize() {
+		setStylePx(wrap, WIDTH,  fullWidCss);
+		setStylePx(wrap, HEIGHT, fullHgtCss);
+
+		let width = round(fullWidCss * pxRatio$1);
+		let height = round(fullHgtCss * pxRatio$1);
+		let reset = !ready || can.width != width || can.height != height;
+
+		if (!ready || can.width != width)
+			can.width = width;
+		if (!ready || can.height != height)
+			can.height = height;
+
+		if (reset) {
+			ctxStroke = ctxFill = ctxWidth = ctxJoin = ctxCap = ctxFont = ctxAlign = ctxBaseline = ctxDash = null;
+			ctxAlpha = 1;
+		}
+	}
+
+	function applyLayout() {
+		setStylePx(under, LEFT,   plotLftCss);
+		setStylePx(under, TOP,    plotTopCss);
+		setStylePx(under, WIDTH,  plotWidCss);
+		setStylePx(under, HEIGHT, plotHgtCss);
+
+		setStylePx(over, LEFT,    plotLftCss);
+		setStylePx(over, TOP,     plotTopCss);
+		setStylePx(over, WIDTH,  plotWidCss);
+		setStylePx(over, HEIGHT, plotHgtCss);
+
+		axes.forEach(({ _el, _show, _size, _pos, side }) => {
+			if (_el != null) {
+				if (_show) {
+					let posOffset = (side == 3 || side == 0 ? _size : 0);
+					let isVt = side % 2 == 1;
+
+					setStylePx(_el, isVt ? "left"   : "top",    _pos - posOffset);
+					setStylePx(_el, isVt ? "width"  : "height", _size);
+					setStylePx(_el, isVt ? "top"    : "left",   isVt ? plotTopCss : plotLftCss);
+					setStylePx(_el, isVt ? "height" : "width",  isVt ? plotHgtCss : plotWidCss);
+
+					remClass(_el, OFF);
+				}
+				else
+					addClass(_el, OFF);
+			}
+		});
+
+		syncRect(true);
+	}
+
+	function resizeOverlays(prevWidth, prevHeight) {
+		let pctWid = plotWidCss / prevWidth;
+		let pctHgt = plotHgtCss / prevHeight;
+
+		if (showCursor && !shouldSetCursor && cursor.left >= 0) {
+			cursor.left *= pctWid;
+			cursor.top  *= pctHgt;
+
+			vCursor && elTrans(vCursor, round(cursor.left), 0, plotWidCss, plotHgtCss);
+			hCursor && elTrans(hCursor, 0, round(cursor.top), plotWidCss, plotHgtCss);
+
+			for (let i = 0; i < cursorPts.length; i++) {
+				let pt = cursorPts[i];
+
+				if (pt != null) {
+					cursorPtsLft[i] *= pctWid;
+					cursorPtsTop[i] *= pctHgt;
+					elTrans(pt, ceil(cursorPtsLft[i]), ceil(cursorPtsTop[i]), plotWidCss, plotHgtCss);
+				}
+			}
+		}
+
+		if (select.show && !shouldSetSelect && select.left >= 0 && select.width > 0) {
+			select.left   *= pctWid;
+			select.width  *= pctWid;
+			select.top    *= pctHgt;
+			select.height *= pctHgt;
+
+			for (let prop in _hideProps)
+				setStylePx(selectDiv, prop, select[prop]);
+		}
+	}
+
 	function _commit() {
 	//	log("_commit()", arguments);
 
@@ -5163,110 +5231,8 @@ function uPlot(opts, data, then) {
 		}
 
 		if (shouldLayout) {
-			layout();
+			updateLayout();
 			shouldLayout = false;
-		}
-
-		if (shouldSetCanvas) {
-			setStylePx(wrap, WIDTH,  fullWidCss);
-			setStylePx(wrap, HEIGHT, fullHgtCss);
-
-			// Initialize the bitmap once; later assignments reset it only on resize.
-			let width = round(fullWidCss * pxRatio$1);
-			let height = round(fullHgtCss * pxRatio$1);
-
-			if (!ready || can.width != width)
-				can.width = width;
-			if (!ready || can.height != height)
-				can.height = height;
-
-			shouldSetCanvas = false;
-		}
-
-		if (shouldSetSize) {
-			setStylePx(under, LEFT,   plotLftCss);
-			setStylePx(under, TOP,    plotTopCss);
-			setStylePx(under, WIDTH,  plotWidCss);
-			setStylePx(under, HEIGHT, plotHgtCss);
-
-			setStylePx(over, LEFT,    plotLftCss);
-			setStylePx(over, TOP,     plotTopCss);
-			setStylePx(over, WIDTH,   plotWidCss);
-			setStylePx(over, HEIGHT,  plotHgtCss);
-
-
-			axes.forEach(({ _el, _show, _size, _pos, side }) => {
-				if (_el != null) {
-					if (_show) {
-						let posOffset = (side === 3 || side === 0 ? _size : 0);
-						let isVt = side % 2 == 1;
-
-						setStylePx(_el, isVt ? "left"   : "top",    _pos - posOffset);
-						setStylePx(_el, isVt ? "width"  : "height", _size);
-						setStylePx(_el, isVt ? "top"    : "left",   isVt ? plotTopCss : plotLftCss);
-						setStylePx(_el, isVt ? "height" : "width",  isVt ? plotHgtCss : plotWidCss);
-
-						remClass(_el, OFF);
-					}
-					else
-						addClass(_el, OFF);
-				}
-			});
-
-			// invalidate ctx style cache
-			ctxStroke = ctxFill = ctxWidth = ctxJoin = ctxCap = ctxFont = ctxAlign = ctxBaseline = ctxDash = null;
-			ctxAlpha = 1;
-
-			syncRect(true);
-
-			if (
-				plotLftCss != _plotLftCss ||
-				plotTopCss != _plotTopCss ||
-				plotWidCss != _plotWidCss ||
-				plotHgtCss != _plotHgtCss
-			) {
-				resetYSeries(false);
-
-				let pctWid = plotWidCss / _plotWidCss;
-				let pctHgt = plotHgtCss / _plotHgtCss;
-
-				if (showCursor && !shouldSetCursor && cursor.left >= 0) {
-					cursor.left *= pctWid;
-					cursor.top  *= pctHgt;
-
-					vCursor && elTrans(vCursor, round(cursor.left), 0, plotWidCss, plotHgtCss);
-					hCursor && elTrans(hCursor, 0, round(cursor.top), plotWidCss, plotHgtCss);
-
-					for (let i = 0; i < cursorPts.length; i++) {
-						let pt = cursorPts[i];
-
-						if (pt != null) {
-							cursorPtsLft[i] *= pctWid;
-							cursorPtsTop[i] *= pctHgt;
-							elTrans(pt, ceil(cursorPtsLft[i]), ceil(cursorPtsTop[i]), plotWidCss, plotHgtCss);
-						}
-					}
-				}
-
-				if (select.show && !shouldSetSelect && select.left >= 0 && select.width > 0) {
-					select.left   *= pctWid;
-					select.width  *= pctWid;
-					select.top    *= pctHgt;
-					select.height *= pctHgt;
-
-					for (let prop in _hideProps)
-						setStylePx(selectDiv, prop, select[prop]);
-				}
-
-				_plotLftCss = plotLftCss;
-				_plotTopCss = plotTopCss;
-				_plotWidCss = plotWidCss;
-				_plotHgtCss = plotHgtCss;
-			}
-
-			fire("setSize");
-
-			shouldSetSize = false;
 		}
 
 		if (fullWidCss > 0 && fullHgtCss > 0) {
@@ -5566,13 +5532,14 @@ function uPlot(opts, data, then) {
 	function posToVal(pos, scale, can) {
 		let sc = scales[scale];
 
+		// Use the same rounded rectangle as valToPos(), including before a pending resize commits.
 		if (can)
-			pos = pos / pxRatio$1 - (sc.ori == 1 ? plotTopCss : plotLftCss);
+			pos -= sc.ori == 1 ? plotTop : plotLft;
 
-		let dim = plotWidCss;
+		let dim = can ? plotWid : plotWidCss;
 
 		if (sc.ori == 1) {
-			dim = plotHgtCss;
+			dim = can ? plotHgt : plotHgtCss;
 			pos = dim - pos;
 		}
 
@@ -6481,7 +6448,7 @@ function uPlot(opts, data, then) {
 		shouldSetSelect = select.show && (select.width > 0 || select.height > 0);
 		shouldSetCursor = shouldSetLegend = true;
 
-		_setSize(opts.width, opts.height);
+		setSize(opts);
 	}
 
 	series.forEach(initSeries);

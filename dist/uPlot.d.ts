@@ -15,19 +15,25 @@ declare class uPlot {
 	/** status */
 	readonly status: 0 | 1;
 
-	/** width of the plotting area + axes in CSS pixels */
+	/** Width of the plotting area + axes in CSS pixels. setSize() updates this immediately, before layout commit. */
 	readonly width: number;
 
-	/** height of the plotting area + axes in CSS pixels (excludes title & legend height) */
+	/** Height of the plotting area + axes in CSS pixels (excludes title & legend height). setSize() updates this immediately, before layout commit. */
 	readonly height: number;
 
 	/** current devicePixelRatio */
 	readonly pxRatio: number;
 
-	/** context of canvas used for plotting area + axes */
+	/**
+	 * Canvas context for the plotting area + axes. Callbacks must preserve its state.
+	 * uPlot invalidates its canvas state cache only when it resets the canvas backing store.
+	 */
 	readonly ctx: CanvasRenderingContext2D;
 
-	/** coords of plotting area in canvas pixels (relative to full canvas w/axes) */
+	/**
+	 * Coordinates of the plotting area in canvas pixels, relative to the full canvas with axes.
+	 * Retains the previous completed layout until commit. All fields are zero before the initial commit.
+	 */
 	readonly bbox: uPlot.BBox;
 
 	/** cached global DOMRect of plotting area in CSS pixels */
@@ -67,10 +73,13 @@ declare class uPlot {
 	/** .u-under dom element */
 	readonly under: HTMLDivElement;
 
-	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
+	/**
+	 * Clears and redraws the canvas. If rebuildPaths = false, uses cached series' Path2D objects.
+	 * redraw(false, true) explicitly refreshes axes and layout, even without a size or pixel ratio change.
+	 */
 	redraw(rebuildPaths?: boolean, recalcAxes?: boolean): void;
 
-	/** manual batching of multiple ops (aka immediate mode that skips implicit microtask queue), ops, e.g. setScale('x', ...) && setScale('y', ...) */
+	/** Groups operations without the implicit microtask queue. Completes the pending layout synchronously before it returns. */
 	batch(txn: Function, deferHooks?: boolean): void;
 
 	/** destroys DOM, removes resize & scroll listeners, etc. */
@@ -110,10 +119,18 @@ declare class uPlot {
 	/** sets visually selected region without triggering setScale (zoom). (default fireHook = true) */
 	setSelect(opts: {left: number, top: number, width: number, height: number}, fireHook?: boolean): void;
 
-	/** sets the width & height of the plotting area + axes (excludes title & legend height) */
+	/**
+	 * Sets the width and height of the plotting area + axes (excludes title & legend height).
+	 * Updates self.width and self.height immediately.
+	 * Until commit, bbox, coordinate transforms, and DOM geometry retain the previous completed layout.
+	 * Identical dimensions are a no-op. Use redraw(false, true) for an explicit axis and layout refresh.
+	 */
 	setSize(opts: { width: number; height: number }): void;
 
-	/** temporarily sets a user-defined devicePixelRatio that's different from window.devicePixelRatio */
+	/**
+	 * Temporarily overrides window.devicePixelRatio for this chart.
+	 * An identical pixel ratio is a no-op. Use redraw(false, true) for an explicit axis and layout refresh.
+	 */
 	setPxRatio(pxRatio?: number | null): void;
 
 	/** converts a CSS pixel position (relative to plotting area) to the closest data index */
@@ -290,12 +307,21 @@ declare namespace uPlot {
 		[key: string]: Scale;
 	}
 
+	/**
+	 * Side participation derives from axis configuration at initialization, not from size callback results.
+	 * Hidden or inactive axes do not participate.
+	 * A visible, active axis participates with a positive numeric size or a size callback, even if the callback returns zero.
+	 * Numeric size: 0 does not participate unless an axis title has nonzero labelSize.
+	 */
 	type SidesWithAxes = [top: boolean, right: boolean, bottom: boolean, left: boolean];
 
 	export type PaddingPhase = 'layout' | 'overflow';
 
 	/**
 	 * All sides receive 'layout' before vertical ticks to establish baseline padding.
+	 * Horizontal axis heights and baseline padding determine the fixed plot height.
+	 * Default padding uses sidesWithAxes. A zero return from a size callback does not change side occupancy.
+	 * Explicit padding values or callbacks can provide other behavior.
 	 * Only left and right receive 'overflow', after horizontal tick formatting at the provisional width.
 	 * Both overflow callbacks see the same baseline padding and geometry.
 	 * Each callback returns the final total padding in CSS pixels, not a delta.
@@ -1024,11 +1050,12 @@ declare namespace uPlot {
 		export type Filter = (self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => (number | null)[];
 
 		/**
-		 * Each layout calls size with null before ticks to reserve axis sizes.
-		 * A vertical axis returns its base ticks/gap size here to establish side occupancy.
-		 * It then receives the actual formatted values once to determine its width.
-		 * A horizontal axis receives only null and must reserve enough height for rotation, truncation, and multiline labels.
-		 * Layout uses height-first ordering without convergence cycles.
+		 * Each layout calls a vertical size callback once after tick formatting, with the formatted labels, or [] if there are no ticks.
+		 * Vertical callbacks never receive null and have no preliminary reservation call.
+		 * Each horizontal size callback receives null once before ticks.
+		 * It must reserve enough height for rotation, truncation, and multiline labels.
+		 * Layout fixes height, measures vertical labels and widths, formats horizontal labels, then determines final width without convergence cycles.
+		 * A callback makes the axis participate in default padding even if it returns zero. See SidesWithAxes.
 		 */
 		export type Size = number | ((self: uPlot, values: Axis.StaticValues | null, axisIdx: number) => number);
 
@@ -1106,7 +1133,7 @@ declare namespace uPlot {
 	}
 
 	export interface Axis {
-		/** axis on/off */
+		/** false hides the axis fully, including its grid, and excludes it from side participation. */
 		show?: boolean;
 
 		/** scale key */
@@ -1115,7 +1142,10 @@ declare namespace uPlot {
 		/** side of chart - 0: top, 1: rgt, 2: btm, 3: lft */
 		side?: Axis.Side;
 
-		/** height of x axis or width of y axis in CSS pixels alloted for values, gap & ticks, but excluding axis label */
+		/**
+		 * Horizontal axis height or vertical axis width in CSS pixels for values, gap, and ticks, excluding the axis title.
+		 * Numeric 0 supports a grid-only axis. An axis title with nonzero labelSize still makes the axis participate in default padding.
+		 */
 		size?: Axis.Size;
 
 		/** gap between axis values and axis baseline (or ticks, if enabled) in CSS pixels */
@@ -1205,7 +1235,7 @@ declare namespace uPlot {
 			/** fires after data is updated updated */
 			setData?:    (self: uPlot) => void;
 
-			/** Fires after chart resizing or internal plot geometry changes. */
+			/** Reports outer size updates and internal plot geometry or axis changes. Identical setSize() or setPxRatio() requests do not trigger this hook. */
 			setSize?:    (self: uPlot) => void;
 
 			/** fires at start of every redraw */
