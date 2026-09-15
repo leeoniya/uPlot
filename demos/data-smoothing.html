@@ -15,13 +15,15 @@
 	<body>
 		<script src="./lib/ASAP-optimized.js"></script>
 		<script src="./lib/sgg.js"></script>
+		<script src="./lib/dbscan1d.js"></script>
+		<script src="./lib/double-mad.js"></script>
 		<script src="../dist/uPlot.iife.js"></script>
 
 		<script>
 			// http://futuredata.stanford.edu/asap/
 			// https://github.com/stanford-futuredata/ASAP
 
-			function makeChart(title, range, data) {
+			function makeChart(title, range, data, extraSeries = []) {
 				const opts = {
 					title,
 					width: 1920,
@@ -48,10 +50,11 @@
 							stroke: "red",
 							width: 1 / devicePixelRatio,
 						},
+						...extraSeries,
 					],
 				};
 
-				let uplot = new uPlot(opts, data, document.body);
+				return new uPlot(opts, data, document.body);
 			}
 
 			fetch("./data/taxi-trips.json").then(r => r.json()).then(data => {
@@ -59,6 +62,113 @@
 					data.map((v, i) => i),
 					data,
 				]);
+
+				const controls = document.createElement("form");
+				controls.innerHTML = `
+					<p>Global mode compares values across the full series. Local mode also limits neighbors to a centered sample window.
+					Blue points are outliers. Core points and their border points are inliers. The original data stays unchanged.</p>
+					<p>The radius counts sample positions, not elapsed time. Missing samples retain their positions.
+					Windows at the series edges contain fewer samples, but the minimum count stays fixed.</p>
+					<p>For a local example, use epsilon 1000, minimum points 5, and radius 50.
+					The global defaults classify every sample as an outlier at radius 50.</p>
+					<label>Mode: <select name="mode"><option value="global">Global</option><option value="local">Local</option></select></label>
+					<label>Window radius (samples on each side): <input name="windowRadius" type="number" min="0" step="1" value="50" required disabled></label>
+					<label>Value threshold (epsilon): <input name="epsilon" type="number" min="0" step="any" value="100" required></label>
+					<label>Minimum points (including self): <input name="minPoints" type="number" min="1" step="1" value="20" required></label>
+					<button>Find outliers</button>
+					<output aria-live="polite"></output>
+				`;
+				document.body.appendChild(controls);
+
+				const detector = prepareDbscan1d(data);
+				const detectionOptions = {epsilon: 100, minPoints: 20, windowRadius: Infinity};
+				const outliers = Array(data.length).fill(null);
+				const outlierData = [data.map((v, i) => i), data, outliers];
+				const output = controls.querySelector("output");
+				const outlierChart = makeChart("Taxi Trips (DBSCAN outliers)", [0, 4e4], outlierData, [{
+					label: "Outliers",
+					stroke: "blue",
+					paths: () => null,
+					points: {show: true, size: 7, fill: "blue"},
+				}]);
+
+				function findOutliers() {
+					detectionOptions.epsilon = controls.elements.epsilon.valueAsNumber;
+					detectionOptions.minPoints = controls.elements.minPoints.valueAsNumber;
+					detectionOptions.windowRadius = controls.elements.mode.value === "local" ? controls.elements.windowRadius.valueAsNumber : Infinity;
+					console.time("dbscan1d");
+					const labels = detector.detect(detectionOptions);
+					console.timeEnd("dbscan1d");
+
+					let count = 0;
+					for (let i = 0; i < data.length; i++) {
+						outliers[i] = labels[i] === -1 ? data[i] : null;
+						if (labels[i] === -1)
+							count++;
+					}
+					outlierChart.setData(outlierData);
+					output.textContent = ` ${count} outliers`;
+				}
+
+				controls.elements.mode.addEventListener("change", () => {
+					controls.elements.windowRadius.disabled = controls.elements.mode.value !== "local";
+				});
+
+				controls.addEventListener("submit", event => {
+					event.preventDefault();
+					findOutliers();
+				});
+				findOutliers();
+
+				const madControls = document.createElement("form");
+				madControls.id = "double-mad-controls";
+				madControls.innerHTML = `
+					<p>Double MAD uses a Harrell–Davis median and separate left and right MADs across the full series.
+					Each MAD is the Harrell–Davis median of the absolute deviations on that side.</p>
+					<p>Score = 0.67449 × absolute deviation / side MAD. Scores above the threshold are outliers.
+					With zero side MAD, values unequal to the center are outliers. The original data stays unchanged.</p>
+					<label>Score threshold: <input name="threshold" type="number" min="0" step="any" value="3.5" required></label>
+					<button>Find outliers</button>
+					<output aria-live="polite"></output>
+					<p class="mad-stats"></p>
+				`;
+				document.body.appendChild(madControls);
+
+				console.time("double-mad prepare");
+				const madDetector = prepareDoubleMad(data);
+				console.timeEnd("double-mad prepare");
+				const madOutliers = Array(data.length).fill(null);
+				const madData = [outlierData[0], data, madOutliers];
+				const madOutput = madControls.querySelector("output");
+				madControls.querySelector(".mad-stats").textContent =
+					`Median: ${madDetector.median?.toFixed(2) ?? "n/a"}; left MAD: ${madDetector.leftMad?.toFixed(2) ?? "n/a"}; right MAD: ${madDetector.rightMad?.toFixed(2) ?? "n/a"}`;
+				const madChart = makeChart("Taxi Trips (Double MAD, Harrell–Davis)", [0, 4e4], madData, [{
+					label: "Outliers",
+					stroke: "blue",
+					paths: () => null,
+					points: {show: true, size: 7, fill: "blue"},
+				}]);
+
+				function findMadOutliers() {
+					console.time("double-mad detect");
+					const labels = madDetector.detect(madControls.elements.threshold.valueAsNumber);
+					console.timeEnd("double-mad detect");
+
+					let count = 0;
+					for (let i = 0; i < data.length; i++) {
+						madOutliers[i] = labels[i] === -1 ? data[i] : null;
+						if (labels[i] === -1)
+							count++;
+					}
+					madChart.setData(madData);
+					madOutput.textContent = ` ${count} outliers`;
+				}
+
+				madControls.addEventListener("submit", event => {
+					event.preventDefault();
+					findMadOutliers();
+				});
+				findMadOutliers();
 
 				console.time("sgg");
 				let data3 = sgg(data, 1, {
