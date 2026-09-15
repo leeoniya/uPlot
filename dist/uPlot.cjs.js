@@ -3762,32 +3762,35 @@ function uPlot(opts, data, then) {
 
 	let shouldSetScales = false;
 	let shouldSetSize = false;
-	let shouldConvergeSize = false;
+	let shouldSetCanvas = false;
+	let shouldLayout = false;
 	let shouldSetCursor = false;
 	let shouldSetSelect = false;
 	let shouldSetLegend = false;
 
 	function _setSize(width, height, force) {
-		if (force || (width != self.width || height != self.height))
-			calcSize(width, height);
+		if (force || width != self.width || height != self.height) {
+			self.width  = fullWidCss = width;
+			self.height = fullHgtCss = height;
+			calcSize();
+			shouldSetCanvas = true;
+		}
 
-		resetYSeries(false);
+		if (force)
+			resetYSeries(false);
 
-		shouldConvergeSize = true;
+		shouldLayout = true;
 		shouldSetSize = true;
 
 		commit();
 	}
 
-	function calcSize(width, height) {
-	//	log("calcSize()", arguments);
-
-		self.width  = fullWidCss = plotWidCss = width;
-		self.height = fullHgtCss = plotHgtCss = height;
-		plotLftCss  = plotTopCss = 0;
+	function calcSize() {
+		plotWidCss = fullWidCss;
+		plotHgtCss = fullHgtCss;
+		plotLftCss = plotTopCss = 0;
 
 		calcPlotRect();
-		calcAxesRects();
 
 		let bb = self.bbox;
 
@@ -3795,31 +3798,51 @@ function uPlot(opts, data, then) {
 		plotTop = bb.top    = incrRound(plotTopCss * pxRatio$1, 0.5);
 		plotWid = bb.width  = incrRound(plotWidCss * pxRatio$1, 0.5);
 		plotHgt = bb.height = incrRound(plotHgtCss * pxRatio$1, 0.5);
-
-	//	updOriDims();
 	}
 
-	// ensures size calc convergence
-	const CYCLE_LIMIT = 3;
+	function layout() {
+		let prevSizes = axes.map(axis => axis._size);
+		sidesWithAxes.fill(false);
 
-	function convergeSize() {
-		let converged = false;
+		axes.forEach((axis, i) => {
+			let show = axis.show && scales[axis.scale].min != null;
 
-		let cycleNum = 0;
-
-		while (!converged) {
-			cycleNum++;
-
-			let axesConverged = axesCalc(cycleNum);
-			let paddingConverged = paddingCalc(cycleNum);
-
-			converged = cycleNum == CYCLE_LIMIT || (axesConverged && paddingConverged);
-
-			if (!converged) {
-				calcSize(self.width, self.height);
+			if (axis._show != show)
 				shouldSetSize = true;
+
+			axis._show = show;
+			axis._splits = axis._values = null;
+
+			if (show) {
+				axis._size = ceil(axis.size(self, null, i));
+
+				if (axis._size + (axis.label != null ? axis.labelSize : 0) > 0)
+					sidesWithAxes[axis.side] = true;
 			}
-		}
+		});
+
+		// Reservations fix the height before vertical labels are measured.
+		paddingCalc("layout");
+		calcSize();
+		axesCalc(1);
+
+		// All vertical widths are settled before horizontal ticks are selected.
+		calcSize();
+		axesCalc(0);
+
+		// Keep the selected ticks; drawing positions them against the final bbox.
+		paddingCalc("overflow");
+		calcSize();
+		calcAxesRects();
+
+		if (
+			plotLftCss != _plotLftCss ||
+			plotTopCss != _plotTopCss ||
+			plotWidCss != _plotWidCss ||
+			plotHgtCss != _plotHgtCss ||
+			axes.some((axis, i) => axis._size != prevSizes[i])
+		)
+			shouldSetSize = true;
 	}
 
 	function setSize({width, height}) {
@@ -3830,12 +3853,6 @@ function uPlot(opts, data, then) {
 
 	// accumulate axis offsets, reduce canvas width
 	function calcPlotRect() {
-		// easements for edge labels
-		let hasTopAxis = false;
-		let hasBtmAxis = false;
-		let hasRgtAxis = false;
-		let hasLftAxis = false;
-
 		axes.forEach((axis, i) => {
 			if (axis.show && axis._show) {
 				let {side, _size} = axis;
@@ -3848,31 +3865,18 @@ function uPlot(opts, data, then) {
 					if (isVt) {
 						plotWidCss -= fullSize;
 
-						if (side == 3) {
+						if (side == 3)
 							plotLftCss += fullSize;
-							hasLftAxis = true;
-						}
-						else
-							hasRgtAxis = true;
 					}
 					else {
 						plotHgtCss -= fullSize;
 
-						if (side == 0) {
+						if (side == 0)
 							plotTopCss += fullSize;
-							hasTopAxis = true;
-						}
-						else
-							hasBtmAxis = true;
 					}
 				}
 			}
 		});
-
-		sidesWithAxes[0] = hasTopAxis;
-		sidesWithAxes[1] = hasRgtAxis;
-		sidesWithAxes[2] = hasBtmAxis;
-		sidesWithAxes[3] = hasLftAxis;
 
 		// hz padding
 		plotWidCss -= _padding[1] + _padding[3];
@@ -3881,6 +3885,7 @@ function uPlot(opts, data, then) {
 		// vt padding
 		plotHgtCss -= _padding[2] + _padding[0];
 		plotTopCss += _padding[0];
+
 	}
 
 	function calcAxesRects() {
@@ -4151,6 +4156,8 @@ function uPlot(opts, data, then) {
 			// also set defaults for incrs & values based on axis distr
 			let isTime = sc.time;
 
+			let hasSize = isFn(axis.size) || axis.size > 0;
+
 			axis.size   = fnOrSelf(axis.size);
 			axis.space  = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
@@ -4191,7 +4198,7 @@ function uPlot(opts, data, then) {
 			axis.font      = pxRatioFont(axis.font, pxRatio$1);
 			axis.labelFont = pxRatioFont(axis.labelFont, pxRatio$1);
 
-			axis._size   = axis.size(self, null, i, 0);
+			axis._size   = 0;
 
 			axis._space  =
 			axis._rotate =
@@ -4200,17 +4207,15 @@ function uPlot(opts, data, then) {
 			axis._splits =
 			axis._values = null;
 
-			if (axis._size > 0) {
-				sidesWithAxes[i] = true;
+			if (hasSize)
 				axis._el = placeDiv(AXIS, wrap);
-			}
 
 			// debug
 		//	axis._el.style.background = "#"  + Math.floor(Math.random()*16777215).toString(16) + '80';
 		}
 	}
 
-	function autoPadSide(self, side, sidesWithAxes, cycleNum) {
+	function autoPadSide(self, side, sidesWithAxes) {
 		let [hasTopAxis, hasRgtAxis, hasBtmAxis, hasLftAxis] = sidesWithAxes;
 
 		let ori = side % 2;
@@ -4225,7 +4230,7 @@ function uPlot(opts, data, then) {
 	}
 
 	const padding = self.padding = (opts.padding || [autoPadSide,autoPadSide,autoPadSide,autoPadSide]).map(p => fnOrSelf(ifNull(p, autoPadSide)));
-	const _padding = self._padding = padding.map((p, i) => p(self, i, sidesWithAxes, 0));
+	const _padding = self._padding = [0, 0, 0, 0];
 
 	let dataLen;
 
@@ -4274,21 +4279,8 @@ function uPlot(opts, data, then) {
 
 		// forces x axis tick values to re-generate when neither x scale nor y scale changes
 		// in ordinal mode, scale range is by index, so will not change if new data has same length, but tick values are from data
-		if (xScaleDistr == 2) {
-			shouldConvergeSize = true;
-
-			/* or somewhat cheaper, and uglier:
-			if (ready) {
-				// logic extracted from axesCalc()
-				let i = 0;
-				let axis = axes[i];
-				let _splits = axis._splits.map(i => data0[i]);
-				let [_incr, _space] = axis._found;
-				let incr = data0[_splits[1]] - data0[_splits[0]];
-				axis._values = axis.values(self, axis.filter(self, _splits, i, _space, incr), i, _space, incr);
-			}
-			*/
-		}
+		if (xScaleDistr == 2)
+			shouldLayout = true;
 
 		if (_resetScales !== false) {
 			let xsc = scaleX;
@@ -4591,7 +4583,7 @@ function uPlot(opts, data, then) {
 			});
 
 			for (let k in changed) {
-				shouldConvergeSize = true;
+				shouldLayout = true;
 				fire("setScale", k);
 			}
 
@@ -4885,42 +4877,21 @@ function uPlot(opts, data, then) {
 		pxAlign == 1 && offset != 0 && ctx.translate(-offset, -offset);
 	}
 
-	function axesCalc(cycleNum) {
-	//	log("axesCalc()", arguments);
-
-		let converged = true;
-
+	function axesCalc(ori) {
 		axes.forEach((axis, i) => {
-			if (!axis.show)
+			if (!axis._show || axis.side % 2 != ori)
 				return;
 
 			let scale = scales[axis.scale];
-
-			if (scale.min == null) {
-				if (axis._show) {
-					converged = false;
-					axis._show = false;
-					resetYSeries(false);
-				}
-				return;
-			}
-			else {
-				if (!axis._show) {
-					converged = false;
-					axis._show = true;
-					resetYSeries(false);
-				}
-			}
-
-			let side = axis.side;
-			let ori = side % 2;
-
-			let {min, max} = scale;		// 		// should this toggle them ._show = false
+			let {min, max} = scale;
 
 			let [_incr, _space] = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 
-			if (_space == 0)
+			if (_space == 0) {
+				axis._splits = axis._values = [];
+				axis._rotate = 0;
 				return;
+			}
 
 			// if we're using index positions, force first tick to match passed index
 			let forceMin = scale.distr == 2;
@@ -4935,32 +4906,17 @@ function uPlot(opts, data, then) {
 			let values = axis._values = axis.values(self, axis.filter(self, splits, i, _space, incr), i, _space, incr);
 
 			// rotating of labels only supported on bottom x axis
-			axis._rotate = side == 2 ? axis.rotate(self, values, i, _space) : 0;
+			axis._rotate = axis.side == 2 ? axis.rotate(self, values, i, _space) : 0;
 
-			let oldSize = axis._size;
-
-			axis._size = ceil(axis.size(self, values, i, cycleNum));
-
-			if (oldSize != null && axis._size != oldSize)			// ready && ?
-				converged = false;
+			if (ori == 1)
+				axis._size = ceil(axis.size(self, values, i));
 		});
-
-		return converged;
 	}
 
-	function paddingCalc(cycleNum) {
-		let converged = true;
-
-		padding.forEach((p, i) => {
-			let _p = p(self, i, sidesWithAxes, cycleNum);
-
-			if (_p != _padding[i])
-				converged = false;
-
-			_padding[i] = _p;
-		});
-
-		return converged;
+	function paddingCalc(phase) {
+		// Both overflow callbacks see the same provisional geometry and padding.
+		let next = padding.map((p, i) => phase == "layout" || i % 2 == 1 ? p(self, i, sidesWithAxes, phase) : _padding[i]);
+		next.forEach((p, i) => { _padding[i] = p; });
 	}
 
 	function drawAxesGrid() {
@@ -5206,9 +5162,25 @@ function uPlot(opts, data, then) {
 			shouldSetScales = false;
 		}
 
-		if (shouldConvergeSize) {
-			convergeSize();
-			shouldConvergeSize = false;
+		if (shouldLayout) {
+			layout();
+			shouldLayout = false;
+		}
+
+		if (shouldSetCanvas) {
+			setStylePx(wrap, WIDTH,  fullWidCss);
+			setStylePx(wrap, HEIGHT, fullHgtCss);
+
+			// Initialize the bitmap once; later assignments reset it only on resize.
+			let width = round(fullWidCss * pxRatio$1);
+			let height = round(fullHgtCss * pxRatio$1);
+
+			if (!ready || can.width != width)
+				can.width = width;
+			if (!ready || can.height != height)
+				can.height = height;
+
+			shouldSetCanvas = false;
 		}
 
 		if (shouldSetSize) {
@@ -5222,13 +5194,6 @@ function uPlot(opts, data, then) {
 			setStylePx(over, WIDTH,   plotWidCss);
 			setStylePx(over, HEIGHT,  plotHgtCss);
 
-			setStylePx(wrap, WIDTH,   fullWidCss);
-			setStylePx(wrap, HEIGHT,  fullHgtCss);
-
-			// NOTE: mutating this during print preview in Chrome forces transparent
-			// canvas pixels to white, even when followed up with clearRect() below
-			can.width  = round(fullWidCss * pxRatio$1);
-			can.height = round(fullHgtCss * pxRatio$1);
 
 			axes.forEach(({ _el, _show, _size, _pos, side }) => {
 				if (_el != null) {
@@ -5351,7 +5316,7 @@ function uPlot(opts, data, then) {
 	self.clearCache = clearPathCache;
 
 	self.redraw = (rebuildPaths, recalcAxes) => {
-		shouldConvergeSize = recalcAxes || false;
+		shouldLayout = shouldLayout || recalcAxes || false;
 
 		if (rebuildPaths !== false)
 			_setScale(xScaleKey, scaleX.min, scaleX.max);

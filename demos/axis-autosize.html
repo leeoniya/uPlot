@@ -41,36 +41,35 @@
 				return data;
 			}
 
-			function autoPadRight(self, side, sidesWithAxes, cycleNum) {
-				let xAxis = self.axes[0];
+			function maxLabelWidth(self, axis, values) {
+				let ctx = self.ctx;
+				let width = 0;
 
-				let xVals = xAxis._values;
+				// Preserve the canvas state so the font cache stays valid.
+				ctx.save();
+				ctx.font = axis.font[0];
 
-				if (xVals != null) {
-					// bail out, force convergence
-					if (cycleNum > 2)
-						return self._padding[1];
-
-					let xSplits = xAxis._splits;
-					let rightSplit = xSplits[xSplits.length - 1];
-					let rightSplitCoord = self.valToPos(rightSplit, "x");
-					let leftPlotEdge = (self.bbox.left / devicePixelRatio);
-					let rightPlotEdge = leftPlotEdge + (self.bbox.width / devicePixelRatio);
-					let rightChartEdge = rightPlotEdge + self._padding[1];
-
-					let pxPerChar    = 8;
-					let rightVal     = xVals[xVals.length - 1] + "";
-					let valHalfWidth = pxPerChar * (rightVal.length / 2);
-
-					let rightValEdge = leftPlotEdge + rightSplitCoord + valHalfWidth;
-
-					if (rightValEdge >= rightChartEdge) {
-						return rightValEdge - rightPlotEdge;
-					}
+				for (let value of values ?? []) {
+					if (value != null)
+						width = Math.max(width, ctx.measureText(String(value)).width);
 				}
 
-				// default size
-				return 8;
+				ctx.restore();
+
+				return width / self.pxRatio;
+			}
+
+			function autoPadRight(self, side, sidesWithAxes, phase) {
+				const baseline = 8;
+
+				if (phase == 'layout')
+					return baseline;
+
+				let xAxis = self.axes[0];
+				const inset = 4;
+
+				// Return total padding without feedback from tick positions.
+				return Math.max(baseline, Math.ceil(maxLabelWidth(self, xAxis, xAxis._values) / 2 + inset));
 			}
 
 			const opts = {
@@ -107,24 +106,13 @@
 						labelGap: 8,
 						labelSize: 8 + 12 + 8,
 						stroke: "red",
-						size(self, values, axisIdx, cycleNum) {
+						size(self, values, axisIdx) {
 							let axis = self.axes[axisIdx];
-
-							// bail out, force convergence
-							if (cycleNum > 1)
-								return axis._size;
-
 							let axisSize = axis.ticks.size + axis.gap;
 
-							// find longest value
-							let longestVal = (values ?? []).reduce((acc, val) => (
-								val.length > acc.length ? val : acc
-							), "");
-
-							if (longestVal != "") {
-								self.ctx.font = axis.font[0];
-								axisSize += self.ctx.measureText(longestVal).width / devicePixelRatio;
-							}
+							// The null call reserves the base size before ticks.
+							if (values != null)
+								axisSize += maxLabelWidth(self, axis, values);
 
 							return Math.ceil(axisSize);
 						},

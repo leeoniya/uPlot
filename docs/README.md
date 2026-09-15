@@ -8,6 +8,7 @@
 - [Multiple Scales & Axes](#multiple-scales--axes)
 - [Scale Opts](#scale-opts)
 - [Axis & Grid Opts](#axis--grid-opts)
+- [Axis Layout & Padding](#axis-layout--padding)
 - WIP: [#48](https://github.com/leeoniya/uPlot/issues/48)
 
 ---
@@ -372,8 +373,27 @@ let opts = {
 }
 ```
 
-- `space` is the minimum space between adjacent ticks; a smaller number will result in smaller selected divisors. can also be a function of the form `(self, axisIdx, scaleMin, scaleMax, dim) => space` where `dim` is the dimension of the plot along the axis in CSS pixels.
+- `space` is the tick selection target in CSS pixels. A smaller target selects smaller divisors. It also accepts `(self, axisIdx, scaleMin, scaleMax, dim) => space`, where `dim` is the plot dimension along the axis in CSS pixels. Horizontal selection uses the provisional width. Final spacing can be smaller after overflow padding.
 - `incrs` are divisors available for segmenting the axis to produce ticks. can also be a function of the form `(self) => divisors`.
 - `values` can be:
   - a function with the form `(self, ticks, space) => values` where `ticks` is an array of raw values along the axis' scale, `space` is the determined tick spacing in CSS pixels and `values` is an array of formatted tick labels.
   - array of tick formatters with breakpoints.
+
+---
+#### Axis Layout & Padding
+
+Layout uses a fixed, height-first order without convergence cycles. Scale ranges currently precede layout.
+
+1. Each `axis.size` callback receives `(self, null, axisIdx)` before ticks to reserve space. A vertical axis returns its base ticks/gap size to establish side occupancy. A horizontal axis reserves its full height, including space for rotation, truncation, and multiline labels.
+2. Padding callbacks on all sides receive the `'layout'` phase to establish baseline padding before vertical ticks. These reservations determine the plot height.
+3. uPlot selects and formats vertical ticks at that height. Each vertical `axis.size` callback then receives the actual formatted values once to determine its width.
+4. uPlot selects and formats horizontal ticks at the provisional width, which includes vertical axis sizes and baseline padding.
+5. Only left and right padding callbacks receive the `'overflow'` phase. Both callbacks see the same baseline padding and geometry. Each callback returns its final total padding in CSS pixels, not a delta. uPlot then applies both totals to determine the final width.
+
+Top and bottom padding stay fixed after ticks. Horizontal `axis.size` callbacks never receive actual labels. Overflow does not select or format ticks again, so final horizontal spacing can be smaller than the `axis.space` target.
+
+**Compatibility:** `axis.size` no longer receives `cycleNum`. Its signature is `(self, values: Axis.StaticValues | null, axisIdx) => number`. `Axis.StaticValues` can contain strings, numbers, and null entries. Padding callbacks now receive `(self, side, sidesWithAxes, phase)`, where `phase` is `'layout' | 'overflow'`, instead of a cycle number.
+
+Custom callbacks must handle these phases without convergence counters or position feedback. A conservative overflow total reserves at least half the maximum measured horizontal label width, plus an optional inset. The [axis autosize demo](../demos/axis-autosize.html) measures each non-null value as a string and converts canvas widths with `self.pxRatio`. It saves and restores the canvas state around font changes to preserve the font cache.
+
+The `setSize` hook continues to report internal plot geometry changes, not only explicit `setSize()` calls.

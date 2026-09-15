@@ -292,7 +292,16 @@ declare namespace uPlot {
 
 	type SidesWithAxes = [top: boolean, right: boolean, bottom: boolean, left: boolean];
 
-	export type PaddingSide = number | null | ((self: uPlot, side: Axis.Side, sidesWithAxes: SidesWithAxes, cycleNum: number) => number);
+	export type PaddingPhase = 'layout' | 'overflow';
+
+	/**
+	 * All sides receive 'layout' before vertical ticks to establish baseline padding.
+	 * Only left and right receive 'overflow', after horizontal tick formatting at the provisional width.
+	 * Both overflow callbacks see the same baseline padding and geometry.
+	 * Each callback returns the final total padding in CSS pixels, not a delta.
+	 * Top and bottom padding stay fixed after ticks. Overflow does not select ticks again.
+	 */
+	export type PaddingSide = number | null | ((self: uPlot, side: Axis.Side, sidesWithAxes: SidesWithAxes, phase: PaddingPhase) => number);
 
 	export type Padding = [top: PaddingSide, right: PaddingSide, bottom: PaddingSide, left: PaddingSide];
 
@@ -1014,7 +1023,14 @@ declare namespace uPlot {
 		/** must return an array of same length as splits, e.g. via splits.map() */
 		export type Filter = (self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => (number | null)[];
 
-		export type Size = number | ((self: uPlot, values: string[], axisIdx: number, cycleNum: number) => number);
+		/**
+		 * Each layout calls size with null before ticks to reserve axis sizes.
+		 * A vertical axis returns its base ticks/gap size here to establish side occupancy.
+		 * It then receives the actual formatted values once to determine its width.
+		 * A horizontal axis receives only null and must reserve enough height for rotation, truncation, and multiline labels.
+		 * Layout uses height-first ordering without convergence cycles.
+		 */
+		export type Size = number | ((self: uPlot, values: Axis.StaticValues | null, axisIdx: number) => number);
 
 		export type Space = number | ((self: uPlot, axisIdx: number, scaleMin: number, scaleMax: number, plotDim: number) => number);
 
@@ -1126,7 +1142,7 @@ declare namespace uPlot {
 		/** font used for axis label */
 		labelFont?: CanvasRenderingContext2D['font'];
 
-		/** minimum grid & tick spacing in CSS pixels */
+		/** Tick selection target in CSS pixels. Horizontal selection uses the provisional width. Final spacing can be smaller after overflow padding. */
 		space?: Axis.Space;
 
 		/** available divisors for axis ticks, values, grid */
@@ -1189,7 +1205,7 @@ declare namespace uPlot {
 			/** fires after data is updated updated */
 			setData?:    (self: uPlot) => void;
 
-			/** fires after the chart is resized */
+			/** Fires after chart resizing or internal plot geometry changes. */
 			setSize?:    (self: uPlot) => void;
 
 			/** fires at start of every redraw */
