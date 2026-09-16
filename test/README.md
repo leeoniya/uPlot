@@ -10,6 +10,22 @@ Group and step IDs default to their zero-based indexes. An optional `id` field
 provides a stable name when cases change order. IDs accept letters, digits,
 underscores, and hyphens. The recorder rejects duplicate group IDs and snapshot paths.
 
+## Scan API declarations
+
+`test/scale-scan-types.ts` is a compile-only regression fixture, separate from the runtime suite.
+It covers scan callbacks, nullish indices, explicit cache mutation, nullable range inputs, and mixed concrete/null scale bounds.
+It also rejects obsolete callback signatures and return values.
+
+Run the consumer type check without adding a project dependency:
+
+```sh
+npm exec --yes --package=typescript@5.9.3 -- tsc --strict --noEmit --skipLibCheck --target es2020 --module commonjs test/scale-scan-types.ts
+```
+
+`--skipLibCheck` skips declaration-file diagnostics, but still checks the consumer fixture against the declared API.
+Without that flag, the existing unqualified `DateZoned` return type in `tzDate()` blocks the full declaration check.
+The command can download the pinned compiler into the npm cache.
+
 ## Additional demo snapshots
 
 Ten extracted demos add 54 plot snapshots across 42 steps:

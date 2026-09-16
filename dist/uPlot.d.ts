@@ -88,8 +88,8 @@ declare class uPlot {
 	/** sets the chart data & redraws. (default resetScales = true) */
 	setData(data: uPlot.AlignedData, resetScales?: boolean): void;
 
-	/** sets the limits of a scale & redraws (used for zooming) */
-	setScale(scaleKey: string, limits: ({ min: number; max: number } | { min: null; max: null })): void;
+	/** Sets scale bounds and redraws. Concrete bounds bypass range(); null bounds request calculation, even with auto: false. */
+	setScale(scaleKey: string, limits: { min: number | null; max: number | null }): void;
 
 	/** sets the cursor position (relative to plotting area) */
 	setCursor(opts: {left: number, top: number}, fireHook?: boolean): void;
@@ -157,6 +157,16 @@ declare class uPlot {
 
 	/** a deep merge util fn */
 	static assign(targ: object, ...srcs: object[]): object;
+
+	/**
+	 * Returns aggregate data extrema for a scale without applying a range or calling its scan callback.
+	 * Null or omitted indices use 0 and each participating array's last index. Supplied indices are clamped per array.
+	 * Includes visible, auto-enabled series on the scale (matching facets in mode 2), or aligned X data.
+	 * With cache = false (default), reads data without changing extrema caches or rendered indices.
+	 * With cache = true, reuses existing extrema regardless of the requested interval and populates cache misses.
+	 * Aligned X always reads data. In mode 2, caching also mirrors the second facet's extrema to series.min/max.
+	 */
+	static scan(self: uPlot, scaleKey: string, i0?: number | null, i1?: number | null, cache?: boolean): uPlot.Range.MinMax;
 
 	/** re-ranges a given min/max by a multiple of the range's magnitude (used internally to expand/snap/pad numeric y scales) */
 	static rangeNum(min: number, max: number, mult: number, extra: boolean): uPlot.Range.MinMax;
@@ -277,7 +287,7 @@ declare namespace uPlot {
 	export namespace Range {
 		export type MinMax = [min: number | null, max: number | null];
 
-		export type Function = (self: uPlot, initMin: number, initMax: number, scaleKey: string) => MinMax;
+		export type Function = (self: uPlot, initMin: number | null, initMax: number | null, scaleKey: string) => MinMax;
 
 		export type SoftMode = 0 | 1 | 2 | 3;
 
@@ -673,6 +683,8 @@ declare namespace uPlot {
 	export namespace Scale {
 		export type Auto = boolean | ((self: uPlot, resetScales: boolean) => boolean);
 
+		export type Scan = boolean | ((self: uPlot, scaleKey: string, i0?: number | null, i1?: number | null) => Range.MinMax);
+
 		export type Range = Range.MinMax | Range.Function | Range.Config;
 
 		export const enum Distr {
@@ -692,10 +704,25 @@ declare namespace uPlot {
 		/** is this scale temporal, with series' data in UNIX timestamps? */
 		time?: boolean;
 
-		/** determines whether all series' data on this scale will be scanned to find the full min/max range */
+		/** Controls implicit range recalculation, independently of scanning. Explicit null bounds can request calculation even when false. */
 		auto?: Scale.Auto;
 
-		/** can define a static scale range or re-range an initially-determined range from series data */
+		/**
+		 * Controls extrema calculation when this scale is ranged. Does not schedule recalculation.
+		 * true uses the built-in cached scanner; false supplies [null, null] to range().
+		 * When omitted, scanning follows auto. Aligned X uses its data-domain bounds by default.
+		 * A custom callback runs once per calculated independent scale and returns one aggregate min/max tuple.
+		 * Indices describe the current aligned Y window, or are null/omitted for a full-array scan.
+		 * Custom callbacks must populate final extrema in participating series/facet min/max caches.
+		 * In mode 2, mirror the second facet's extrema to series.min/max. Do not change rendered indices.
+		 * Use uPlot.scan(self, scaleKey, i0, i1, true) when built-in cached extrema are the final per-series values.
+		 */
+		scan?: Scale.Scan;
+
+		/**
+		 * Calculates bounds from scan results, or parent bounds for a derived scale. Concrete setScale bounds bypass this callback.
+		 * A static range array forces auto: false.
+		 */
 		range?: Scale.Range;
 
 		/** scale key from which this scale is derived */
@@ -922,6 +949,10 @@ declare namespace uPlot {
 			auto?: boolean;
 
 			sorted?: Sorted;
+
+			/** Cached data extrema used for ranging. Custom scale.scan callbacks must populate participating facets. */
+			min?: number | null;
+			max?: number | null;
 		}
 
 		export type Gap = [from: number, to: number];
@@ -964,7 +995,7 @@ declare namespace uPlot {
 		/** whether this series' data is scanned during auto-ranging of its scale */
 		auto?: boolean; // true
 
-		/** if & how the data is pre-sorted (scale.auto optimization) */
+		/** if & how the data is pre-sorted (data scanning optimization) */
 		sorted?: Series.Sorted;
 
 		/** when true, null data values will not cause line breaks */
@@ -1020,11 +1051,11 @@ declare namespace uPlot {
 		/** current min and max data indices rendered */
 		idxs?: Series.MinMaxIdxs;
 
-		/** current min rendered value */
-		min?: number;
+		/** Cached minimum used for ranging and fillTo(). Can cover data outside the rendered indices. */
+		min?: number | null;
 
-		/** current max rendered value */
-		max?: number;
+		/** Cached maximum used for ranging and fillTo(). Can cover data outside the rendered indices. */
+		max?: number | null;
 	}
 
 	export namespace Band {
