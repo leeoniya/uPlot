@@ -12,11 +12,6 @@
 			margin: 20px;
 		}
 
-		.controls {
-			display: flex;
-			gap: 8px;
-			margin: 12px 0;
-		}
 
 		pre {
 			background: #eee;
@@ -29,20 +24,18 @@
 	<h1>Issue 915: reset a zoomed static Y range</h1>
 	<p><a href="https://github.com/leeoniya/uPlot/issues/915">GitHub issue #915</a></p>
 	<p>Drag a rectangle inside the chart. Then double-click the chart.</p>
-	<p>Remaining defect: X resets, but Y stays zoomed. The existing explicit-null workaround restores Y to [1, 10].</p>
+	<p>Double-click restores X and the configured Y range [1, 10]. A concrete range array defaults to scan:false and keeps auto:true.</p>
 	<h2>Relevant configuration</h2>
 	<pre><code>const opts = {
   mode: 2,
   scales: {
     x: { time: false },
+    // Restore these bounds on automatic recalculation, without a data scan.
     y: { range: [1, 10] },
   },
 };</code></pre>
 	<div id="chart"></div>
-	<div class="controls">
-		<button id="reset">Reset Y to [1, 10]</button>
-	</div>
-	<pre><code>u.setScale("y", { min: null, max: null });</code></pre>
+
 	<pre id="status"></pre>
 	<script>
 		const data = [
@@ -65,6 +58,7 @@
 			height: 400,
 			scales: {
 				x: { time: false },
+				// Restore these bounds on automatic recalculation, without a data scan.
 				y: { range: [1, 10] },
 			},
 			series: [
@@ -82,9 +76,6 @@
 
 		const u = new uPlot(opts, data, document.querySelector("#chart"));
 
-		document.querySelector("#reset").onclick = () => {
-			u.setScale("y", { min: null, max: null });
-		};
 	</script>
 </body>
 </html>

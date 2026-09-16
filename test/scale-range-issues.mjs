@@ -108,7 +108,7 @@ describe('scale range issue reproductions', () => {
 		}
 	});
 
-	it('#915 keeps a static Y zoom on double-click but supports an explicit static-range reset', async () => {
+	it('#915 restores a static Y range on double-click without scanning', async () => {
 		const u = makePlot({
 			mode: 2,
 			scales: {
@@ -130,8 +130,11 @@ describe('scale range issue reproductions', () => {
 				button: 0,
 			}));
 			await nextCommit();
-			assert.deepStrictEqual([u.scales.y.min, u.scales.y.max], [2, 4]);
+			assert.deepStrictEqual([u.scales.y.min, u.scales.y.max], [1, 10]);
+			assert.deepStrictEqual([u.series[1].min, u.series[1].max], [null, null]);
 
+			u.setScale('y', { min: 2, max: 4 });
+			await nextCommit();
 			u.setScale('y', { min: null, max: null });
 			await nextCommit();
 			assert.deepStrictEqual([u.scales.y.min, u.scales.y.max], [1, 10]);

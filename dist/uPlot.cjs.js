@@ -1866,7 +1866,6 @@ const timeSeriesLabel = "Time";
 const xSeriesOpts = {
 	show: true,
 	scale: "x",
-	auto: false,
 	sorted: 1,
 //	label: "Time",
 //	value: v => stamp(new Date(v * 1e3)),
@@ -2061,7 +2060,6 @@ function seriesPointsShow(self, si) {
 
 const facet = {
 	scale: null,
-	auto: true,
 	sorted: 0,
 
 	// internal caches
@@ -2073,7 +2071,6 @@ const gaps = (self, seriesIdx, idx0, idx1, nullGaps) => nullGaps;
 
 const xySeriesOpts = {
 	show: true,
-	auto: true,
 	sorted: 0,
 	gaps,
 	alpha: 1,
@@ -2085,7 +2082,6 @@ const xySeriesOpts = {
 
 const ySeriesOpts = {
 	scale: "y",
-	auto: true,
 	sorted: 0,
 	show: true,
 	spanGaps: false,
@@ -3428,7 +3424,7 @@ function scanScale(self, scaleKey, i0, i1, cache = false) {
 			for (let i = 1; i < series.length; i++) {
 				let s = series[i];
 
-				if (s.show && s.auto && s.scale == scaleKey)
+				if (s.show && s.scan && s.scale == scaleKey)
 					acc(i, data[i], s, s.sorted, false);
 			}
 		}
@@ -3437,11 +3433,11 @@ function scanScale(self, scaleKey, i0, i1, cache = false) {
 		for (let i = 1; i < series.length; i++) {
 			let s = series[i];
 
-			if (s.show && s.auto) {
+			if (s.show && s.scan) {
 				for (let fi = 0; fi < s.facets.length; fi++) {
 					let facet = s.facets[fi];
 
-					if (facet.scale == scaleKey)
+					if (facet.scan && facet.scale == scaleKey)
 						acc(i, data[i][fi], facet, facet.sorted, fi == 1);
 				}
 			}
@@ -3646,9 +3642,9 @@ function uPlot(opts, data, then) {
 				if (scaleOpts.asinh == null && (rangeIsArr || sc.auto === false))
 					sc.asinh = 1;
 
-				sc.auto = fnOrSelf(rangeIsArr ? false : sc.auto);
+				sc.auto = fnOrSelf(sc.auto);
 
-				let scan = sc.scan;
+				let scan = ifNull(sc.scan, rangeIsArr && rn[0] != null && rn[1] != null ? false : null);
 				sc.scan = scan == null ? scanAuto : scan === true ? scanCached : scan === false ? scanNone : scan;
 
 				sc.clamp = fnOrSelf(sc.clamp || clampScale);
@@ -4227,6 +4223,14 @@ function uPlot(opts, data, then) {
 	}
 
 	function initSeries(s, i) {
+		// auto is a deprecated name for scan.
+		s.scan = ifNull(s.scan, ifNull(s.auto, mode == 2 || i > 0));
+
+		if (mode == 2 && i > 0) {
+			// auto is a deprecated name for scan.
+			s.facets.forEach(f => { f.scan = ifNull(f.scan, ifNull(f.auto, true)); });
+		}
+
 		if (mode == 1 || i > 0) {
 			let isTime = mode == 1 && scales[s.scale].time;
 

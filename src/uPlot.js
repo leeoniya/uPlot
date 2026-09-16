@@ -561,9 +561,9 @@ export default function uPlot(opts, data, then) {
 				if (scaleOpts.asinh == null && (rangeIsArr || sc.auto === false))
 					sc.asinh = 1;
 
-				sc.auto = fnOrSelf(rangeIsArr ? false : sc.auto);
+				sc.auto = fnOrSelf(sc.auto);
 
-				let scan = sc.scan;
+				let scan = ifNull(sc.scan, rangeIsArr && rn[0] != null && rn[1] != null ? false : null);
 				sc.scan = scan == null ? scanAuto : scan === true ? scanCached : scan === false ? scanNone : scan;
 
 				sc.clamp = fnOrSelf(sc.clamp || clampScale);

@@ -710,7 +710,7 @@ declare namespace uPlot {
 		/**
 		 * Controls extrema calculation when this scale is ranged. Does not schedule recalculation.
 		 * true uses the built-in cached scanner; false supplies [null, null] to range().
-		 * When omitted, scanning follows auto. Aligned X uses its data-domain bounds by default.
+		 * Defaults to false for fully concrete range arrays. Otherwise, scanning follows auto; aligned X uses its data-domain bounds.
 		 * A custom callback runs once per calculated independent scale and returns one aggregate min/max tuple.
 		 * Indices describe the current aligned Y window, or are null/omitted for a full-array scan.
 		 * Custom callbacks must populate final extrema in participating series/facet min/max caches.
@@ -721,7 +721,8 @@ declare namespace uPlot {
 
 		/**
 		 * Calculates bounds from scan results, or parent bounds for a derived scale. Concrete setScale bounds bypass this callback.
-		 * A static range array forces auto: false.
+		 * A fully concrete range array defaults scan to false without overriding auto (normally true).
+		 * Automatic recalculation restores these bounds after zoom. Explicit auto and scan settings take precedence.
 		 */
 		range?: Scale.Range;
 

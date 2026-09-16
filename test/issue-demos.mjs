@@ -152,7 +152,7 @@ describe('standalone issue demos', () => {
 		}
 	});
 
-	it('#915 exposes the unresolved mode-2 XY reset and the explicit workaround', async () => {
+	it('#915 restores both scales after mode-2 XY zoom without scanning Y', async () => {
 		const f = await loadDemo('issue-915-static-range-reset.html');
 		try {
 			assert.equal(f.u.mode, 2);
@@ -160,11 +160,8 @@ describe('standalone issue demos', () => {
 			await f.drag(0.25, 0.25, 0.75, 0.75);
 			assert.deepEqual(ranges(f.u), { x: [0.5, 1.5], y: [3.25, 7.75] });
 			await f.reset();
-			assert.deepEqual(f.status(), { x: [0, 2], y: [3.25, 7.75] });
-
-			f.fixture.querySelector('#reset').click();
-			await settle();
 			assert.deepEqual(f.status(), { x: [0, 2], y: [1, 10] });
+			assert.deepEqual([f.u.series[1].min, f.u.series[1].max], [null, null]);
 		}
 		finally {
 			f.destroy();
