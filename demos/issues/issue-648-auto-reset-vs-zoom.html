@@ -7,15 +7,42 @@
 	<link rel="stylesheet" href="../../dist/uPlot.min.css">
 	<script src="../../dist/uPlot.iife.js"></script>
 	<style>
-		body { font: 14px system-ui, sans-serif; margin: 20px; }
-		.controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-		pre { background: #eee; padding: 10px; }
+		body {
+			font: 14px system-ui, sans-serif;
+			margin: 20px;
+		}
+
+		.controls {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+			margin: 12px 0;
+		}
+
+		pre {
+			background: #eee;
+			overflow-x: auto;
+			padding: 10px;
+		}
 	</style>
 </head>
 <body>
 	<h1>Issue 648: automatic Y reset versus explicit X zoom</h1>
 	<p><a href="https://github.com/leeoniya/uPlot/issues/648">GitHub issue #648</a></p>
 	<p>Expected: explicit X zoom preserves Y. setData(data, true) recalculates Y.</p>
+	<h2>Relevant configuration</h2>
+	<pre><code>const opts = {
+  scales: {
+    x: { time: false },
+    y: {
+      // The default true value recalculates Y for each X change.
+      // This callback preserves Y during an explicit X zoom and recalculates it after an automatic X reset.
+      auto: (u, viaAutoScaleX) => viaAutoScaleX,
+      // This identity ranger removes default Y padding, so displayed bounds equal scanned extrema.
+      range: (u, min, max) => [min, max],
+    },
+  },
+};</code></pre>
 	<div id="chart"></div>
 	<div class="controls">
 		<button id="zoom-y">Set Y to [15, 25]</button>
@@ -25,19 +52,41 @@
 	</div>
 	<pre id="status"></pre>
 	<script>
-		const initialData = [[0, 1, 2], [10, 20, 30]];
-		const replacementData = [[0, 1, 2], [100, 200, 300]];
+		const initialData = [
+			[0, 1, 2],
+			[10, 20, 30],
+		];
+
+		const replacementData = [
+			[0, 1, 2],
+			[100, 200, 300],
+		];
+
 		const opts = {
 			width: 800,
 			height: 400,
 			scales: {
 				x: { time: false },
-				y: { auto: (u, viaAutoScaleX) => viaAutoScaleX, range: (u, min, max) => [min, max] },
+				y: {
+					// The default true value recalculates Y for each X change.
+					// This callback preserves Y during an explicit X zoom and recalculates it after an automatic X reset.
+					auto: (u, viaAutoScaleX) => viaAutoScaleX,
+					// This identity ranger removes default Y padding, so displayed bounds equal scanned extrema.
+					range: (u, min, max) => [min, max],
+				},
 			},
-			series: [{}, { label: "Values", stroke: "blue" }],
+			series: [
+				{},
+				{
+					label: "Values",
+					stroke: "blue",
+				},
+			],
 		};
+
 		const u = new uPlot(opts, initialData, document.querySelector("#chart"));
 		const status = document.querySelector("#status");
+
 		function update(note) {
 			status.textContent = note + "\n\n" + JSON.stringify({
 				x: [u.scales.x.min, u.scales.x.max],
@@ -45,11 +94,40 @@
 				seriesExtrema: [u.series[1].min, u.series[1].max],
 			}, null, 2);
 		}
-		function run(action, note) { action(); queueMicrotask(() => update(note)); }
-		document.querySelector("#zoom-y").onclick = () => run(() => u.setScale("y", { min: 15, max: 25 }), "Y manually zoomed.");
-		document.querySelector("#zoom-x").onclick = () => run(() => u.setScale("x", { min: 0, max: 1 }), "Explicit X zoom preserves Y.");
-		document.querySelector("#new-data").onclick = () => run(() => u.setData(replacementData, true), "Automatic reset recalculates Y.");
-		document.querySelector("#reset").onclick = () => run(() => u.setData(initialData, true), "Initial data restored.");
+
+		function run(action, note) {
+			action();
+			queueMicrotask(() => update(note));
+		}
+
+		document.querySelector("#zoom-y").onclick = () => {
+			run(
+				() => u.setScale("y", { min: 15, max: 25 }),
+				"Y manually zoomed.",
+			);
+		};
+
+		document.querySelector("#zoom-x").onclick = () => {
+			run(
+				() => u.setScale("x", { min: 0, max: 1 }),
+				"Explicit X zoom preserves Y.",
+			);
+		};
+
+		document.querySelector("#new-data").onclick = () => {
+			run(
+				() => u.setData(replacementData, true),
+				"Automatic reset recalculates Y.",
+			);
+		};
+
+		document.querySelector("#reset").onclick = () => {
+			run(
+				() => u.setData(initialData, true),
+				"Initial data restored.",
+			);
+		};
+
 		queueMicrotask(() => update("Initial automatic ranges."));
 	</script>
 </body>

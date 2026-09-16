@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import '../scripts2/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 
@@ -140,16 +141,16 @@ describe('scale range issue reproductions', () => {
 		}
 	});
 
-	it('#1133 updates a dynamic range through explicit recalculation without scanning', async () => {
+	it('#1133 supports data-only, combined, and backend-only updates without scanning', async () => {
 		let range = [0, 10];
 		let calls = 0;
 		const u = makePlot({
 			scales: {
 				x: { time: false },
 				y: {
-					auto: false,
 					scan: false,
-					range: () => {
+					range: (u, min, max) => {
+						assert.deepStrictEqual([min, max], [null, null]);
 						calls++;
 						return range;
 					},
@@ -161,24 +162,121 @@ describe('scale range issue reproductions', () => {
 			assert.deepStrictEqual([u.scales.y.min, u.scales.y.max], [0, 10]);
 			assert.equal(calls, 1);
 
+			assert.deepStrictEqual([u.series[1].min, u.series[1].max], [null, null]);
+
+			const dataOnly = [[0, 1, 2], [4, 6, 8]];
+			u.setData(dataOnly);
+			await nextCommit();
+			assert.strictEqual(u.data, dataOnly);
+			assert.deepStrictEqual(range, [0, 10]);
+			assert.deepStrictEqual([u.scales.y.min, u.scales.y.max], [0, 10]);
+			assert.deepStrictEqual([u.series[1].min, u.series[1].max], [null, null]);
+			assert.equal(calls, 2);
+
 			range = [0, 20];
+			const combinedData = [[0, 1, 2], [2, 3, 5]];
+			u.setData(combinedData);
+			await nextCommit();
+			assert.strictEqual(u.data, combinedData);
+			assert.deepStrictEqual([u.scales.y.min, u.scales.y.max], [0, 20]);
+			assert.deepStrictEqual([u.series[1].min, u.series[1].max], [null, null]);
+			assert.equal(calls, 3);
+
+			range = [0, 10];
 			u.redraw();
 			await nextCommit();
+			assert.strictEqual(u.data, combinedData);
+			assert.deepStrictEqual(u.data, [[0, 1, 2], [2, 3, 5]]);
 			assert.deepStrictEqual([u.scales.y.min, u.scales.y.max], [0, 10]);
-			assert.equal(calls, 1);
+			assert.deepStrictEqual([u.series[1].min, u.series[1].max], [null, null]);
+			assert.equal(calls, 4);
 
-			u.setScale('y', { min: null, max: null });
+			u.setScale('x', { min: 0, max: 1 });
 			await nextCommit();
-			assert.deepStrictEqual([u.scales.y.min, u.scales.y.max], [0, 20]);
-			assert.equal(calls, 2);
+			assert.deepStrictEqual([u.scales.y.min, u.scales.y.max], [0, 10]);
+			assert.equal(calls, 5);
 
 			u.setScale('y', { min: -5, max: 5 });
 			await nextCommit();
 			assert.deepStrictEqual([u.scales.y.min, u.scales.y.max], [-5, 5]);
-			assert.equal(calls, 2);
+			assert.equal(calls, 5);
 		}
 		finally {
 			u.destroy();
+		}
+	});
+
+	it('#1133 demo buttons change only their intended state on repeated and mixed clicks', async () => {
+		const html = readFileSync(new URL('../demos/issues/issue-1133-dynamic-backend-range.html', import.meta.url), 'utf8');
+		const fixture = document.createElement('div');
+		fixture.innerHTML = html.match(/<body>([\s\S]*?)<script>/)[1];
+		document.body.append(fixture);
+
+		const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+		const { u, getRange, getCalls } = new Function('uPlot', 'document', script + `
+			return { u, getRange: () => backendRange, getCalls: () => rangeCalls };
+		`)(uPlot, fixture);
+
+		try {
+			await nextCommit();
+			assert.equal(fixture.querySelectorAll('button').length, 3);
+
+			const buttons = ['data-only', 'range-only', 'range-and-data'];
+			const clicks = [
+				...buttons.flatMap(id => Array(4).fill(id)),
+				...buttons,
+				...buttons.slice().reverse(),
+			];
+
+			for (const id of clicks) {
+				const dataBefore = u.data;
+				const valuesBefore = u.data.map(column => column.slice());
+				const rangeBefore = getRange();
+				const xBefore = [u.scales.x.min, u.scales.x.max];
+				const yBefore = [u.scales.y.min, u.scales.y.max];
+				const positionsBefore = u.data[1].map(value => u.valToPos(value, 'y'));
+				const callsBefore = getCalls();
+
+				fixture.querySelector('#' + id).click();
+				await nextCommit();
+
+				if (id == 'range-only') {
+					assert.strictEqual(u.data, dataBefore, id);
+					assert.deepStrictEqual(u.data, valuesBefore, id);
+				}
+				else {
+					assert.notStrictEqual(u.data, dataBefore, id);
+					assert.notDeepStrictEqual(u.data[1], valuesBefore[1], id);
+				}
+
+				if (id == 'data-only') {
+					assert.strictEqual(getRange(), rangeBefore, id);
+					assert.deepStrictEqual([u.scales.y.min, u.scales.y.max], yBefore, id);
+				}
+				else
+					assert.deepStrictEqual(getRange(), [0, rangeBefore[1] == 10 ? 20 : 10], id);
+
+				assert.deepStrictEqual(u.data[0], valuesBefore[0], id);
+				assert.deepStrictEqual([u.scales.x.min, u.scales.x.max], xBefore, id);
+				assert.deepStrictEqual([u.scales.y.min, u.scales.y.max], getRange(), id);
+				assert.equal(getCalls(), callsBefore + 1, id);
+				assert.deepStrictEqual([u.series[1].min, u.series[1].max], [null, null], id);
+				assert.ok(u.data[1].every(value => value > u.scales.y.min && value < u.scales.y.max), id);
+
+				const positionsAfter = u.data[1].map(value => u.valToPos(value, 'y'));
+				assert.ok(positionsAfter.some((value, i) => Math.abs(value - positionsBefore[i]) > 10), id);
+
+				const status = JSON.parse(fixture.querySelector('#status').textContent.split('\n\n')[1]);
+				assert.deepStrictEqual(status.data, u.data[1], id);
+				assert.deepStrictEqual(status.backendRange, getRange(), id);
+				assert.deepStrictEqual(status.x, xBefore, id);
+				assert.deepStrictEqual(status.y, getRange(), id);
+				assert.equal(status.rangeCalls, getCalls(), id);
+			}
+		}
+		finally {
+			u.destroy();
+			fixture.remove();
 		}
 	});
 

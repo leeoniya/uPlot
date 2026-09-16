@@ -6,25 +6,76 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" href="../../dist/uPlot.min.css">
 	<script src="../../dist/uPlot.iife.js"></script>
-	<style>body { font: 14px system-ui, sans-serif; margin: 20px; } pre { background: #eee; padding: 10px; }</style>
+	<style>
+		body {
+			font: 14px system-ui, sans-serif;
+			margin: 20px;
+		}
+
+		pre {
+			background: #eee;
+			overflow-x: auto;
+			padding: 10px;
+		}
+	</style>
 </head>
 <body>
 	<h1>Issue 808: scan with a static range</h1>
 	<p><a href="https://github.com/leeoniya/uPlot/issues/808">GitHub issue #808</a></p>
 	<p>Expected: Y stays at [-12, 12], the series cache is populated, and the thick boundary stroke is visible.</p>
+	<h2>Relevant configuration</h2>
+	<pre><code>const opts = {
+  scales: {
+    x: { time: false },
+    y: {
+      range: [-12, 12],
+      // A static range disables scans by default. scan:true enables the scan and populates series extrema.
+      scan: true,
+    },
+  },
+  series: [
+    {},
+    {
+      label: "Boundary values",
+      stroke: "blue",
+      width: 5,
+      points: { show: true, size: 8 },
+    },
+  ],
+};</code></pre>
 	<div id="chart"></div>
 	<pre id="status"></pre>
 	<script>
-		const data = [[0, 1, 2], [-12, 0, 12]];
+		const data = [
+			[0, 1, 2],
+			[-12, 0, 12],
+		];
+
 		const opts = {
 			width: 800,
 			height: 400,
 			scales: {
 				x: { time: false },
-				y: { range: [-12, 12], scan: true },
+				y: {
+					range: [-12, 12],
+					// A static range disables scans by default. scan:true enables the scan and populates series extrema.
+					scan: true,
+				},
 			},
-			series: [{}, { label: "Boundary values", stroke: "blue", width: 5, points: { show: true, size: 8 } }],
+			series: [
+				{},
+				{
+					label: "Boundary values",
+					stroke: "blue",
+					width: 5,
+					points: {
+						show: true,
+						size: 8,
+					},
+				},
+			],
 		};
+
 		const u = new uPlot(opts, data, document.querySelector("#chart"));
 		queueMicrotask(() => {
 			document.querySelector("#status").textContent = JSON.stringify({

@@ -7,56 +7,173 @@
 	<link rel="stylesheet" href="../../dist/uPlot.min.css">
 	<script src="../../dist/uPlot.iife.js"></script>
 	<style>
-		body { font: 14px system-ui, sans-serif; margin: 20px; }
-		.controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-		pre { background: #eee; padding: 10px; }
+		body {
+			font: 14px system-ui, sans-serif;
+			margin: 20px;
+		}
+
+		.controls {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+			margin: 12px 0;
+		}
+
+		.controls > section {
+			flex: 1 1 260px;
+			min-width: 0;
+		}
+
+		pre {
+			background: #eee;
+			overflow-x: auto;
+			padding: 10px;
+		}
 	</style>
 </head>
 <body>
 	<h1>Issue 1133: dynamic backend range</h1>
 	<p><a href="https://github.com/leeoniya/uPlot/issues/1133">GitHub issue #1133</a></p>
-	<p>Expected: redraw does not recalculate an auto:false scale. Null bounds invoke the dynamic ranger without scanning.</p>
+	<p>All three updates use the same configuration. Y follows backendRange without a Y extrema scan.</p>
+	<p>Data updates alternate between two shapes with identical X values. Range updates alternate between [0, 10] and [0, 20].</p>
+	<p>Both shapes fit within both ranges. You can repeat each button or mix the scenarios in any order.</p>
+	<h2>Relevant configuration</h2>
+	<pre><code>const initialData = [[0, 1, 2, 3, 4], [2, 8, 3, 7, 4]];
+const replacementData = [[0, 1, 2, 3, 4], [8, 2, 7, 3, 6]];
+let backendRange = [0, 10];
+
+const opts = {
+  scales: {
+    x: { time: false },
+    y: {
+      // auto defaults to true, so setData() and redraw() recalculate Y.
+      // This optional callback prevents Y auto-ranging after an explicit X range.
+      // It also prevents redraw() from recalculating Y.
+      // auto: (u, viaAutoScaleX) => viaAutoScaleX,
+      // The backend supplies the range, so scan:false avoids a Y extrema scan.
+      scan: false,
+      range: () => backendRange,
+    },
+  },
+};</code></pre>
 	<div id="chart"></div>
 	<div class="controls">
-		<button id="change">Change backend to [0, 20] and redraw</button>
-		<button id="recalc">Recalculate Y</button>
-		<button id="concrete">Apply concrete [-5, 5]</button>
+		<section>
+			<h3>Data only</h3>
+			<p>The data changes. Y keeps the current backend bounds.</p>
+			<button id="data-only">Update data only</button>
+			<pre><code>const nextData = u.data === initialData
+  ? replacementData
+  : initialData;
+u.setData(nextData);</code></pre>
+		</section>
+		<section>
+			<h3>Backend range and data</h3>
+			<p>Both change. setData() alone applies the new backend bounds.</p>
+			<button id="range-and-data">Update backend range and data</button>
+			<pre><code>backendRange = [0, backendRange[1] === 10 ? 20 : 10];
+const nextData = u.data === initialData
+  ? replacementData
+  : initialData;
+u.setData(nextData);</code></pre>
+		</section>
+		<section>
+			<h3>Backend range only</h3>
+			<p>The data stays unchanged. redraw() applies the new backend bounds with the default auto:true.</p>
+			<button id="range-only">Update backend range only</button>
+			<pre><code>backendRange = [0, backendRange[1] === 10 ? 20 : 10];
+u.redraw();</code></pre>
+		</section>
 	</div>
 	<pre id="status"></pre>
 	<script>
-		const data = [[0, 1, 2], [2, 3, 5]];
+		const initialData = [
+			[0, 1, 2, 3, 4],
+			[2, 8, 3, 7, 4],
+		];
+
+		const replacementData = [
+			[0, 1, 2, 3, 4],
+			[8, 2, 7, 3, 6],
+		];
+
 		let backendRange = [0, 10];
 		let rangeCalls = 0;
+
 		const opts = {
 			width: 800,
 			height: 400,
 			scales: {
 				x: { time: false },
 				y: {
-					auto: false,
+					// auto defaults to true, so setData() and redraw() recalculate Y.
+					// This optional callback prevents Y auto-ranging after an explicit X range.
+					// It also prevents redraw() from recalculating Y.
+					// auto: (u, viaAutoScaleX) => viaAutoScaleX,
+					// The backend supplies the range, so scan:false avoids a Y extrema scan.
 					scan: false,
-					range: () => { rangeCalls++; return backendRange; },
+					range: () => {
+						rangeCalls++;
+						return backendRange;
+					},
 				},
 			},
-			series: [{}, { label: "Values", stroke: "blue" }],
+			series: [
+				{},
+				{
+					label: "Values",
+					stroke: "blue",
+				},
+			],
 		};
-		const u = new uPlot(opts, data, document.querySelector("#chart"));
+
+		const u = new uPlot(opts, initialData, document.querySelector("#chart"));
 		const status = document.querySelector("#status");
+
 		function update(note) {
 			status.textContent = note + "\n\n" + JSON.stringify({
 				backendRange,
+				data: u.data[1],
+				x: [u.scales.x.min, u.scales.x.max],
 				y: [u.scales.y.min, u.scales.y.max],
 				rangeCalls,
 				seriesExtrema: [u.series[1].min, u.series[1].max],
 			}, null, 2);
 		}
-		function run(action, note) { action(); queueMicrotask(() => update(note)); }
-		document.querySelector("#change").onclick = () => {
-			backendRange = [0, 20];
-			run(() => u.redraw(), "redraw() leaves Y unchanged.");
+
+		function run(action, note) {
+			action();
+			queueMicrotask(() => update(note));
+		}
+
+		document.querySelector("#data-only").onclick = () => {
+			const nextData = u.data === initialData ? replacementData : initialData;
+
+			run(
+				() => u.setData(nextData),
+				"Data only: range() returns the unchanged backend bounds. No Y extrema scan.",
+			);
 		};
-		document.querySelector("#recalc").onclick = () => run(() => u.setScale("y", { min: null, max: null }), "Null bounds invoke range().");
-		document.querySelector("#concrete").onclick = () => run(() => u.setScale("y", { min: -5, max: 5 }), "Concrete bounds bypass range().");
+
+		document.querySelector("#range-and-data").onclick = () => {
+			backendRange = [0, backendRange[1] === 10 ? 20 : 10];
+			const nextData = u.data === initialData ? replacementData : initialData;
+
+			run(
+				() => u.setData(nextData),
+				"Backend range and data: setData() applies both updates. No extra redraw or Y extrema scan.",
+			);
+		};
+
+		document.querySelector("#range-only").onclick = () => {
+			backendRange = [0, backendRange[1] === 10 ? 20 : 10];
+
+			run(
+				() => u.redraw(),
+				"Backend range only: redraw() calls range() with the same data. No Y extrema scan.",
+			);
+		};
+
 		queueMicrotask(() => update("Initial backend range."));
 	</script>
 </body>
