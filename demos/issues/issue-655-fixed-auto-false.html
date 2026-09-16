@@ -12,12 +12,6 @@
 			margin: 20px;
 		}
 
-		.controls {
-			display: flex;
-			flex-wrap: wrap;
-			gap: 8px;
-			margin: 12px 0;
-		}
 
 		pre {
 			background: #eee;
@@ -29,13 +23,15 @@
 <body>
 	<h1>Issue 655: preserve concrete bounds with auto disabled</h1>
 	<p><a href="https://github.com/leeoniya/uPlot/issues/655">GitHub issue #655</a></p>
-	<p>Expected: Y stays [-15, 15] after X zoom and replacement data outside those bounds.</p>
+	<p>Drag horizontally to zoom X, then double-click to reset X. Y must stay at [-15, 15], with its axis and series visible.</p>
+	<p>This behavior predates <code>scale.scan</code>.</p>
+	<p><code>min</code> and <code>max</code> establish the initial view, not permanent bounds or a reset target.
+	<code>auto: false</code> prevents automatic Y recalculation after X zoom. Explicit Y changes still apply.</p>
 	<h2>Relevant configuration</h2>
 	<pre><code>const opts = {
   scales: {
     x: { time: false },
     y: {
-      // These concrete bounds establish Y. auto:false prevents X changes and data replacement from recalculating it.
       auto: false,
       min: -15,
       max: 15,
@@ -43,22 +39,22 @@
   },
 };</code></pre>
 	<div id="chart"></div>
-	<div class="controls">
-		<button id="zoom">Zoom X to [0, 1]</button>
-		<button id="replace">Replace data</button>
-		<button id="reset">Reset</button>
-	</div>
+
 	<pre id="status"></pre>
 	<script>
-		const initialData = [
+		const data = [
 			[0, 1, 2],
 			[-10, 0, 10],
 		];
 
-		const replacementData = [
-			[0, 1, 2],
-			[-100, 0, 100],
-		];
+		const status = document.querySelector("#status");
+
+		function update(u) {
+			status.textContent = JSON.stringify({
+				x: [u.scales.x.min, u.scales.x.max],
+				y: [u.scales.y.min, u.scales.y.max],
+			}, null, 2);
+		}
 
 		const opts = {
 			width: 800,
@@ -66,7 +62,6 @@
 			scales: {
 				x: { time: false },
 				y: {
-					// These concrete bounds establish Y. auto:false prevents X changes and data replacement from recalculating it.
 					auto: false,
 					min: -15,
 					max: 15,
@@ -79,44 +74,10 @@
 					stroke: "blue",
 				},
 			],
+			hooks: { draw: [update] },
 		};
 
-		const u = new uPlot(opts, initialData, document.querySelector("#chart"));
-		const status = document.querySelector("#status");
-
-		function update(note) {
-			status.textContent = note + "\n\n" + JSON.stringify({
-				x: [u.scales.x.min, u.scales.x.max],
-				y: [u.scales.y.min, u.scales.y.max],
-				seriesExtrema: [u.series[1].min, u.series[1].max],
-			}, null, 2);
-		}
-
-		function run(action, note) {
-			action();
-			queueMicrotask(() => update(note));
-		}
-
-		document.querySelector("#zoom").onclick = () => {
-			run(
-				() => u.setScale("x", { min: 0, max: 1 }),
-				"Explicit X zoom leaves Y unchanged.",
-			);
-		};
-
-		document.querySelector("#replace").onclick = () => {
-			run(
-				() => u.setData(replacementData, true),
-				"Replacement data leaves Y unchanged.",
-			);
-		};
-
-		document.querySelector("#reset").onclick = () => {
-			u.setData(initialData, true);
-			run(() => u.setScale("x", { min: null, max: null }), "Initial data restored.");
-		};
-
-		queueMicrotask(() => update("Initial concrete Y bounds."));
+		new uPlot(opts, data, document.querySelector("#chart"));
 	</script>
 </body>
 </html>

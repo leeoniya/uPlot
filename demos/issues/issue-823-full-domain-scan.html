@@ -12,12 +12,6 @@
 			margin: 20px;
 		}
 
-		.controls {
-			display: flex;
-			gap: 8px;
-			margin: 12px 0;
-		}
-
 		pre {
 			background: #eee;
 			overflow-x: auto;
@@ -28,18 +22,18 @@
 <body>
 	<h1>Issue 823: full-domain Y scan</h1>
 	<p><a href="https://github.com/leeoniya/uPlot/issues/823">GitHub issue #823</a></p>
-	<p>Expected: X zoom keeps Y at [10, 50]. Showing B expands Y to [10, 500].</p>
+	<p>Drag horizontally to zoom X near [0, 1]. Y must stay at [10, 50]. Then click B in the legend: Y must expand to [10, 500], including values outside the zoom.</p>
+	<p>The custom scan uses the full domain of visible series. B starts hidden and is scanned when shown. Double-click to reset X; click B again to hide it.</p>
 	<h2>Relevant configuration</h2>
 	<pre><code>const opts = {
   scales: {
     x: { time: false },
     y: {
-      // The default true value schedules a Y scan for each X change.
-      // This callback skips an unnecessary full-domain scan during an explicit X zoom.
+      // Preserve Y during explicit X zoom instead of recalculating it by default.
       auto: (u, viaAutoScaleX) => viaAutoScaleX,
-      // Null indices scan the full domain. cache:true also populates per-series extrema for other features.
+      // Use the full domain and populate the participating series caches.
       scan: (u, key) => uPlot.scan(u, key, null, null, true),
-      // This identity ranger removes default Y padding, so displayed bounds equal scanned extrema.
+      // Remove padding so the displayed bounds equal the data extrema.
       range: (u, min, max) => [min, max],
     },
   },
@@ -50,11 +44,6 @@
   ],
 };</code></pre>
 	<div id="chart"></div>
-	<div class="controls">
-		<button id="zoom">Zoom X to [0, 1]</button>
-		<button id="toggle">Show series B</button>
-		<button id="reset">Reset</button>
-	</div>
 	<pre id="status"></pre>
 	<script>
 		const data = [
@@ -63,72 +52,39 @@
 			[100, 200, 300, 400, 500],
 		];
 
+		const status = document.querySelector("#status");
+
+		function update(u) {
+			status.textContent = JSON.stringify({
+				x: [u.scales.x.min, u.scales.x.max],
+				y: [u.scales.y.min, u.scales.y.max],
+				BVisible: u.series[2].show,
+			}, null, 2);
+		}
+
 		const opts = {
 			width: 800,
 			height: 400,
 			scales: {
 				x: { time: false },
 				y: {
-					// The default true value schedules a Y scan for each X change.
-					// This callback skips an unnecessary full-domain scan during an explicit X zoom.
+					// Preserve Y during explicit X zoom instead of recalculating it by default.
 					auto: (u, viaAutoScaleX) => viaAutoScaleX,
-					// Null indices scan the full domain. cache:true also populates per-series extrema for other features.
+					// Use the full domain and populate the participating series caches.
 					scan: (u, key) => uPlot.scan(u, key, null, null, true),
-					// This identity ranger removes default Y padding, so displayed bounds equal scanned extrema.
+					// Remove padding so the displayed bounds equal the data extrema.
 					range: (u, min, max) => [min, max],
 				},
 			},
 			series: [
 				{},
-				{
-					label: "A",
-					stroke: "blue",
-				},
-				{
-					label: "B",
-					stroke: "red",
-					show: false,
-				},
+				{ label: "A", stroke: "blue" },
+				{ label: "B", stroke: "red", show: false },
 			],
+			hooks: { draw: [update] },
 		};
 
-		const u = new uPlot(opts, data, document.querySelector("#chart"));
-		const status = document.querySelector("#status");
-		const toggle = document.querySelector("#toggle");
-
-		function update() {
-			status.textContent = JSON.stringify({
-				x: [u.scales.x.min, u.scales.x.max],
-				y: [u.scales.y.min, u.scales.y.max],
-				A: [u.series[1].min, u.series[1].max],
-				B: [u.series[2].min, u.series[2].max],
-				BVisible: u.series[2].show,
-			}, null, 2);
-		}
-
-		function run(action) {
-			action();
-			queueMicrotask(update);
-		}
-
-		document.querySelector("#zoom").onclick = () => {
-			run(() => u.setScale("x", { min: 0, max: 1 }));
-		};
-
-		toggle.onclick = () => {
-			const show = !u.series[2].show;
-
-			toggle.textContent = show ? "Hide series B" : "Show series B";
-			run(() => u.setSeries(2, { show }));
-		};
-
-		document.querySelector("#reset").onclick = () => {
-			u.setSeries(2, { show: false });
-			toggle.textContent = "Show series B";
-			run(() => u.setData(data, true));
-		};
-
-		queueMicrotask(update);
+		new uPlot(opts, data, document.querySelector("#chart"));
 	</script>
 </body>
 </html>

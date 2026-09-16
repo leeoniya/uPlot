@@ -28,95 +28,84 @@
 <body>
 	<h1>Issue 650: calculate a candidate range without applying it</h1>
 	<p><a href="https://github.com/leeoniya/uPlot/issues/650">GitHub issue #650</a></p>
-	<p>Expected: applied Y stays [15, 25]. Pure scan returns [10, 30], and range() produces [9, 31].</p>
+	<p>X starts zoomed to [0, 1]. Click Outlier in the legend to show or hide it. Its largest value is outside the zoom.</p>
+	<p>The legend toggle recalculates Y for the current X window. The query runs afterward and leaves the view unchanged.</p>
+	<p>This example calculates full-domain bounds for one independent Y scale with the default ranger, not a general reset dry run.
+	Expected candidates: [8, 32] with Outlier hidden and [0, 330] with Outlier shown.</p>
 	<h2>Relevant configuration</h2>
 	<pre><code>const opts = {
   scales: {
     x: { time: false },
-    y: {
-      range: (u, min, max) => [min - 1, max + 1],
-    },
+    y: {},
   },
-};</code></pre>
+  series: [
+    {},
+    { label: "Values", stroke: "blue" },
+    { label: "Outlier", stroke: "red", show: false },
+  ],
+};
+
+const [dataMin, dataMax] = uPlot.scan(u, "y");
+const candidateRange = u.scales.y.range(u, dataMin, dataMax, "y");</code></pre>
 	<div id="chart"></div>
 	<div class="controls">
 		<button id="calculate">Calculate candidate</button>
-		<button id="apply">Apply candidate</button>
 	</div>
 	<pre id="status"></pre>
 	<script>
 		const data = [
 			[0, 1, 2],
 			[10, 20, 30],
+			[100, 200, 300],
 		];
+
+		const status = document.querySelector("#status");
 
 		const opts = {
 			width: 800,
 			height: 400,
 			scales: {
 				x: { time: false },
-				y: {
-					range: (u, min, max) => [min - 1, max + 1],
-				},
+				y: {},
 			},
 			series: [
 				{},
-				{
-					label: "Values",
-					stroke: "blue",
-				},
+				{ label: "Values", stroke: "blue" },
+				{ label: "Outlier", stroke: "red", show: false },
 			],
+			hooks: {
+				// Query after the plot applies zoom or visibility changes.
+				draw: [calculate],
+			},
 		};
 
 		const u = new uPlot(opts, data, document.querySelector("#chart"));
-		const status = document.querySelector("#status");
-		let dataRange = null;
-		let candidateRange = null;
 
-		function update(note) {
-			status.textContent = note + "\n\n" + JSON.stringify({
-				appliedY: [u.scales.y.min, u.scales.y.max],
-				seriesExtrema: [u.series[1].min, u.series[1].max],
-				dataRange,
+		function view(u) {
+			return {
+				x: [u.scales.x.min, u.scales.x.max],
+				y: [u.scales.y.min, u.scales.y.max],
+			};
+		}
+
+		function calculate(u) {
+			const before = view(u);
+			const [dataMin, dataMax] = uPlot.scan(u, "y");
+			const candidateRange = u.scales.y.range(u, dataMin, dataMax, "y");
+
+			status.textContent = JSON.stringify({
+				outlierShown: u.series[2].show,
+				viewBeforeQuery: before,
+				viewAfterQuery: view(u),
+				dataRange: [dataMin, dataMax],
 				candidateRange,
 			}, null, 2);
 		}
 
-		function calculate() {
-			const before = [u.series[1].min, u.series[1].max];
-
-			// The default cache:false makes this scan read-only. It does not change the scale or series extrema.
-			dataRange = uPlot.scan(u, "y");
-
-			// Calling range() calculates the candidate but does not apply it.
-			candidateRange = u.scales.y.range(u, dataRange[0], dataRange[1], "y");
-
-			const after = [u.series[1].min, u.series[1].max];
-
-			update(
-				"Pure scan leaves cache unchanged: " +
-				JSON.stringify(before) +
-				" -> " +
-				JSON.stringify(after),
-			);
-		}
-
-		document.querySelector("#calculate").onclick = calculate;
-
-		document.querySelector("#apply").onclick = () => {
-			if (candidateRange == null)
-				calculate();
-
-			u.setScale("y", {
-				min: candidateRange[0],
-				max: candidateRange[1],
-			});
-			queueMicrotask(() => update("Candidate applied explicitly."));
-		};
+		document.querySelector("#calculate").onclick = () => calculate(u);
 
 		queueMicrotask(() => {
-			u.setScale("y", { min: 15, max: 25 });
-			queueMicrotask(() => update("Explicit current view established."));
+			u.setScale("x", { min: 0, max: 1 });
 		});
 	</script>
 </body>
