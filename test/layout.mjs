@@ -1212,11 +1212,11 @@ describe('single-pass layout', () => {
 				events.length = 0;
 				u.setData([]);
 				await Promise.resolve();
-				// Empty aligned data retains the previous x range but deactivates the auto y axis.
-				assert.equal(u.axes[0]._show, true);
+				// Empty aligned data deactivates both auto axes after range(null, null).
+				assert.equal(u.axes[0]._show, false);
 				assert.equal(u.axes[1]._show, false);
-				assert.deepEqual(cssBox(u), { left: 11, top: 3, width: 584, height: 360 });
-				assert.ok(!events.some(event => event.i == 1 && event.type != 'padding'), 'inactive y axis has no callbacks');
+				assert.deepEqual(cssBox(u), { left: 11, top: 3, width: 584, height: 390 });
+				assert.ok(!events.some(event => (event.i == 0 || event.i == 1) && event.type != 'padding'), 'inactive axes have no callbacks');
 				assert.equal(u.series[1]._paths, null);
 				events.length = 0;
 				u.setData(data);

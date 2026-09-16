@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Issue 823: Full-domain Y scan</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../../dist/uPlot.min.css">
+	<script src="../../dist/uPlot.iife.js"></script>
+	<style>
+		body { font: 14px system-ui, sans-serif; margin: 20px; }
+		.controls { display: flex; gap: 8px; margin: 12px 0; }
+		pre { background: #eee; padding: 10px; }
+	</style>
+</head>
+<body>
+	<h1>Issue 823: full-domain Y scan</h1>
+	<p><a href="https://github.com/leeoniya/uPlot/issues/823">GitHub issue #823</a></p>
+	<p>Expected: X zoom keeps Y at [10, 50]. Showing B expands Y to [10, 500].</p>
+	<div id="chart"></div>
+	<div class="controls">
+		<button id="zoom">Zoom X to [0, 1]</button>
+		<button id="toggle">Show series B</button>
+		<button id="reset">Reset</button>
+	</div>
+	<pre id="status"></pre>
+	<script>
+		const data = [[0, 1, 2, 3, 4], [10, 20, 30, 40, 50], [100, 200, 300, 400, 500]];
+		const opts = {
+			width: 800,
+			height: 400,
+			scales: {
+				x: { time: false },
+				y: {
+					auto: (u, viaAutoScaleX) => viaAutoScaleX,
+					scan: (u, key) => uPlot.scan(u, key, null, null, true),
+					range: (u, min, max) => [min, max],
+				},
+			},
+			series: [{}, { label: "A", stroke: "blue" }, { label: "B", stroke: "red", show: false }],
+		};
+		const u = new uPlot(opts, data, document.querySelector("#chart"));
+		const status = document.querySelector("#status");
+		const toggle = document.querySelector("#toggle");
+		function update() {
+			status.textContent = JSON.stringify({
+				x: [u.scales.x.min, u.scales.x.max],
+				y: [u.scales.y.min, u.scales.y.max],
+				A: [u.series[1].min, u.series[1].max],
+				B: [u.series[2].min, u.series[2].max],
+				BVisible: u.series[2].show,
+			}, null, 2);
+		}
+		function run(action) { action(); queueMicrotask(update); }
+		document.querySelector("#zoom").onclick = () => run(() => u.setScale("x", { min: 0, max: 1 }));
+		toggle.onclick = () => {
+			const show = !u.series[2].show;
+			toggle.textContent = show ? "Hide series B" : "Show series B";
+			run(() => u.setSeries(2, { show }));
+		};
+		document.querySelector("#reset").onclick = () => {
+			u.setSeries(2, { show: false });
+			toggle.textContent = "Show series B";
+			run(() => u.setData(data, true));
+		};
+		queueMicrotask(update);
+	</script>
+</body>
+</html>

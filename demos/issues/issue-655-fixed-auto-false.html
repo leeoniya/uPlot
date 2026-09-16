@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Issue 655: Concrete bounds with auto false</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../../dist/uPlot.min.css">
+	<script src="../../dist/uPlot.iife.js"></script>
+	<style>
+		body { font: 14px system-ui, sans-serif; margin: 20px; }
+		.controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+		pre { background: #eee; padding: 10px; }
+	</style>
+</head>
+<body>
+	<h1>Issue 655: preserve concrete bounds with auto disabled</h1>
+	<p><a href="https://github.com/leeoniya/uPlot/issues/655">GitHub issue #655</a></p>
+	<p>Expected: Y stays [-15, 15] after X zoom and replacement data outside those bounds.</p>
+	<div id="chart"></div>
+	<div class="controls">
+		<button id="zoom">Zoom X to [0, 1]</button>
+		<button id="replace">Replace data</button>
+		<button id="reset">Reset</button>
+	</div>
+	<pre id="status"></pre>
+	<script>
+		const initialData = [[0, 1, 2], [-10, 0, 10]];
+		const replacementData = [[0, 1, 2], [-100, 0, 100]];
+		const opts = {
+			width: 800,
+			height: 400,
+			scales: {
+				x: { time: false },
+				y: { auto: false, min: -15, max: 15 },
+			},
+			series: [{}, { label: "Values", stroke: "blue" }],
+		};
+		const u = new uPlot(opts, initialData, document.querySelector("#chart"));
+		const status = document.querySelector("#status");
+		function update(note) {
+			status.textContent = note + "\n\n" + JSON.stringify({
+				x: [u.scales.x.min, u.scales.x.max],
+				y: [u.scales.y.min, u.scales.y.max],
+				seriesExtrema: [u.series[1].min, u.series[1].max],
+			}, null, 2);
+		}
+		function run(action, note) { action(); queueMicrotask(() => update(note)); }
+		document.querySelector("#zoom").onclick = () => run(() => u.setScale("x", { min: 0, max: 1 }), "Explicit X zoom leaves Y unchanged.");
+		document.querySelector("#replace").onclick = () => run(() => u.setData(replacementData, true), "Replacement data leaves Y unchanged.");
+		document.querySelector("#reset").onclick = () => {
+			u.setData(initialData, true);
+			run(() => u.setScale("x", { min: null, max: null }), "Initial data restored.");
+		};
+		queueMicrotask(() => update("Initial concrete Y bounds."));
+	</script>
+</body>
+</html>

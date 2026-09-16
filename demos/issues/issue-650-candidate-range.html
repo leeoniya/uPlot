@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Issue 650: Candidate range</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../../dist/uPlot.min.css">
+	<script src="../../dist/uPlot.iife.js"></script>
+	<style>
+		body { font: 14px system-ui, sans-serif; margin: 20px; }
+		.controls { display: flex; gap: 8px; margin: 12px 0; }
+		pre { background: #eee; padding: 10px; }
+	</style>
+</head>
+<body>
+	<h1>Issue 650: calculate a candidate range without applying it</h1>
+	<p><a href="https://github.com/leeoniya/uPlot/issues/650">GitHub issue #650</a></p>
+	<p>Expected: applied Y stays [15, 25]. Pure scan returns [10, 30], and range() produces [9, 31].</p>
+	<div id="chart"></div>
+	<div class="controls">
+		<button id="calculate">Calculate candidate</button>
+		<button id="apply">Apply candidate</button>
+	</div>
+	<pre id="status"></pre>
+	<script>
+		const data = [[0, 1, 2], [10, 20, 30]];
+		const opts = {
+			width: 800,
+			height: 400,
+			scales: {
+				x: { time: false },
+				y: { range: (u, min, max) => [min - 1, max + 1] },
+			},
+			series: [{}, { label: "Values", stroke: "blue" }],
+		};
+		const u = new uPlot(opts, data, document.querySelector("#chart"));
+		const status = document.querySelector("#status");
+		let dataRange = null;
+		let candidateRange = null;
+		function update(note) {
+			status.textContent = note + "\n\n" + JSON.stringify({
+				appliedY: [u.scales.y.min, u.scales.y.max],
+				seriesExtrema: [u.series[1].min, u.series[1].max],
+				dataRange,
+				candidateRange,
+			}, null, 2);
+		}
+		function calculate() {
+			const before = [u.series[1].min, u.series[1].max];
+			dataRange = uPlot.scan(u, "y");
+			candidateRange = u.scales.y.range(u, dataRange[0], dataRange[1], "y");
+			const after = [u.series[1].min, u.series[1].max];
+			update("Pure scan leaves cache unchanged: " + JSON.stringify(before) + " -> " + JSON.stringify(after));
+		}
+		document.querySelector("#calculate").onclick = calculate;
+		document.querySelector("#apply").onclick = () => {
+			if (candidateRange == null) calculate();
+			u.setScale("y", { min: candidateRange[0], max: candidateRange[1] });
+			queueMicrotask(() => update("Candidate applied explicitly."));
+		};
+		queueMicrotask(() => {
+			u.setScale("y", { min: 15, max: 25 });
+			queueMicrotask(() => update("Explicit current view established."));
+		});
+	</script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Issue 1133: Dynamic backend range</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../../dist/uPlot.min.css">
+	<script src="../../dist/uPlot.iife.js"></script>
+	<style>
+		body { font: 14px system-ui, sans-serif; margin: 20px; }
+		.controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+		pre { background: #eee; padding: 10px; }
+	</style>
+</head>
+<body>
+	<h1>Issue 1133: dynamic backend range</h1>
+	<p><a href="https://github.com/leeoniya/uPlot/issues/1133">GitHub issue #1133</a></p>
+	<p>Expected: redraw does not recalculate an auto:false scale. Null bounds invoke the dynamic ranger without scanning.</p>
+	<div id="chart"></div>
+	<div class="controls">
+		<button id="change">Change backend to [0, 20] and redraw</button>
+		<button id="recalc">Recalculate Y</button>
+		<button id="concrete">Apply concrete [-5, 5]</button>
+	</div>
+	<pre id="status"></pre>
+	<script>
+		const data = [[0, 1, 2], [2, 3, 5]];
+		let backendRange = [0, 10];
+		let rangeCalls = 0;
+		const opts = {
+			width: 800,
+			height: 400,
+			scales: {
+				x: { time: false },
+				y: {
+					auto: false,
+					scan: false,
+					range: () => { rangeCalls++; return backendRange; },
+				},
+			},
+			series: [{}, { label: "Values", stroke: "blue" }],
+		};
+		const u = new uPlot(opts, data, document.querySelector("#chart"));
+		const status = document.querySelector("#status");
+		function update(note) {
+			status.textContent = note + "\n\n" + JSON.stringify({
+				backendRange,
+				y: [u.scales.y.min, u.scales.y.max],
+				rangeCalls,
+				seriesExtrema: [u.series[1].min, u.series[1].max],
+			}, null, 2);
+		}
+		function run(action, note) { action(); queueMicrotask(() => update(note)); }
+		document.querySelector("#change").onclick = () => {
+			backendRange = [0, 20];
+			run(() => u.redraw(), "redraw() leaves Y unchanged.");
+		};
+		document.querySelector("#recalc").onclick = () => run(() => u.setScale("y", { min: null, max: null }), "Null bounds invoke range().");
+		document.querySelector("#concrete").onclick = () => run(() => u.setScale("y", { min: -5, max: 5 }), "Concrete bounds bypass range().");
+		queueMicrotask(() => update("Initial backend range."));
+	</script>
+</body>
+</html>
