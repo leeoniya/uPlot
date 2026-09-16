@@ -2400,19 +2400,20 @@ export default function uPlot(opts, data, then) {
 			shouldSetLegend = false; // redundant currently
 		}
 
-		if (!ready) {
-			ready = true;
-			self.status = 1;
-
-			fire("ready");
-		}
-
 		viaAutoScaleX = false;
 
 		queuedCommit = false;
 
 		if (!usePathCache)
 			clearPathCache();
+
+		if (!ready) {
+			ready = true;
+			self.status = 1;
+
+			// Setters in ready can schedule a follow-up commit.
+			fire("ready");
+		}
 	}
 
 	function clearPathCache() {
