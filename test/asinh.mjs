@@ -51,7 +51,7 @@ describe('adaptive asinh', () => {
 			const x = [0.001, 1, 2];
 			const aligned = [x, [0, null, 5], [0.001, -0.25, 4], [0, 0.01, 0.02]];
 			const toData = values => mode == 1 ? values : [null, ...values.slice(1).map(y => [values[0], y])];
-			const series = [{}, { stroke: 'blue' }, { show: false, auto: false }, mode == 1
+			const series = [{}, { stroke: 'blue' }, { show: false, scan: false }, mode == 1
 				? { scale: 'other' }
 				: { facets: [{ scale: 'x' }, { scale: 'other' }] }];
 			const u = new uPlot({

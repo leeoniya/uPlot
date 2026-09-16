@@ -20,7 +20,14 @@ const pureHelper: uPlot.Scale.Scan = uPlot.scan;
 const opts: uPlot.Options = {
 	width: 400,
 	height: 300,
-	series: [{}, {}],
+	series: [
+		{ scan: false },
+		{ scan: true },
+		{ auto: false },
+		{ auto: true },
+		{ scan: false, auto: true },
+		{ scan: true, auto: false },
+	],
 	scales: {
 		x: { time: false },
 		y: {
@@ -48,6 +55,32 @@ const opts: uPlot.Options = {
 	},
 };
 
+type SeriesScan = Assert<Equal<uPlot.Series['scan'], boolean | undefined>>;
+type SeriesAuto = Assert<Equal<uPlot.Series['auto'], boolean | undefined>>;
+type FacetScan = Assert<Equal<uPlot.Series.Facet['scan'], boolean | undefined>>;
+type FacetAuto = Assert<Equal<uPlot.Series.Facet['auto'], boolean | undefined>>;
+
+const facetOptions: uPlot.Series.Facet[] = [
+	{ scale: 'x' },
+	{ scale: 'y', scan: true },
+	{ scale: 'y', scan: false },
+	{ scale: 'y', auto: true },
+	{ scale: 'y', auto: false },
+	{ scale: 'y', scan: false, auto: true },
+	{ scale: 'y', scan: true, auto: false },
+];
+
+const mode2: uPlot.Options = {
+	width: 400,
+	height: 300,
+	mode: 2,
+	series: [{}, { scan: true, auto: false, facets: facetOptions }],
+};
+
+u.addSeries({ scan: false });
+u.addSeries({ auto: false });
+u.addSeries({ scan: true, auto: false, facets: facetOptions });
+
 const custom: uPlot.Scale.Scan = self => {
 	const bounds: uPlot.Range.MinMax = [10, 20];
 	[self.series[1].min, self.series[1].max] = bounds;
@@ -66,6 +99,27 @@ u.setScale('y', { min: 0, max: 100 });
 u.setScale('y', { min: null, max: null });
 u.setScale('y', { min: 0, max: null });
 u.setScale('y', { min: null, max: 100 });
+
+// @ts-expect-error Series participation is boolean, not a scale scan callback.
+const seriesCallback: uPlot.Series = { scan: () => [0, 1] };
+// @ts-expect-error Series participation cannot be numeric.
+const seriesNumber: uPlot.Series = { scan: 1 };
+// @ts-expect-error Series participation cannot be a string.
+u.addSeries({ scan: 'false' });
+// @ts-expect-error The deprecated series alias still requires a boolean.
+const seriesAutoCallback: uPlot.Series = { auto: () => true };
+// @ts-expect-error The deprecated series alias cannot be numeric.
+const seriesAutoNumber: uPlot.Series = { auto: 0 };
+// @ts-expect-error Facet participation is boolean, not a scale scan callback.
+const facetCallback: uPlot.Series.Facet = { scale: 'y', scan: () => [0, 1] };
+// @ts-expect-error Facet participation cannot be numeric.
+const facetNumber: uPlot.Series.Facet = { scale: 'y', scan: 1 };
+// @ts-expect-error Facet participation cannot be a string.
+const facetString: uPlot.Series.Facet = { scale: 'y', scan: 'false' };
+// @ts-expect-error The deprecated facet alias still requires a boolean.
+const facetAutoCallback: uPlot.Series.Facet = { scale: 'y', auto: () => true };
+// @ts-expect-error The deprecated facet alias cannot be a string.
+const facetAutoString: uPlot.Series.Facet = { scale: 'y', auto: 'true' };
 
 // @ts-expect-error Scan callbacks return aggregate extrema, not an enable/disable flag.
 const booleanCallback: uPlot.Scale.Scan = () => true;

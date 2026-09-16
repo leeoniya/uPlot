@@ -161,7 +161,7 @@ declare class uPlot {
 	/**
 	 * Returns aggregate data extrema for a scale without applying a range or calling its scan callback.
 	 * Null or omitted indices use 0 and each participating array's last index. Supplied indices are clamped per array.
-	 * Includes visible, auto-enabled series on the scale (matching facets in mode 2), or aligned X data.
+	 * Includes visible series with scan enabled on the scale, or aligned X data. Mode-2 facets must also have scan enabled.
 	 * With cache = false (default), reads data without changing extrema caches or rendered indices.
 	 * With cache = true, reuses existing extrema regardless of the requested interval and populates cache misses.
 	 * Aligned X always reads data. In mode 2, caching also mirrors the second facet's extrema to series.min/max.
@@ -946,6 +946,10 @@ declare namespace uPlot {
 		export interface Facet {
 			scale: string;
 
+			/** Includes this facet in built-in scans when its series is visible and has scan enabled. Defaults to true. */
+			scan?: boolean;
+
+			/** @deprecated Use scan. Applied at initialization only when scan is null or omitted. */
 			auto?: boolean;
 
 			sorted?: Sorted;
@@ -992,8 +996,14 @@ declare namespace uPlot {
 		/** scale key */
 		scale?: string;
 
-		/** whether this series' data is scanned during auto-ranging of its scale */
-		auto?: boolean; // true
+		/**
+		 * Includes this visible series in built-in extrema scans, including uPlot.scan(). Defaults to true for data series.
+		 * Does not schedule ranging or disable rendering. In mode 1, shared X data is always included regardless of this flag.
+		 */
+		scan?: boolean;
+
+		/** @deprecated Use scan. Applied at initialization only when scan is null or omitted. */
+		auto?: boolean;
 
 		/** if & how the data is pre-sorted (data scanning optimization) */
 		sorted?: Series.Sorted;

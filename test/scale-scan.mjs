@@ -22,6 +22,191 @@ function createPlot(scale, calls) {
 	}, initialData, document.body);
 }
 
+const participationCases = [
+	{ name: 'uses default participation', opts: {}, scan: true, xScan: false },
+	{ name: 'scan true', opts: { scan: true }, scan: true },
+	{ name: 'scan false', opts: { scan: false }, scan: false },
+	{ name: 'legacy auto true', opts: { auto: true }, scan: true },
+	{ name: 'legacy auto false', opts: { auto: false }, scan: false },
+	{ name: 'scan true overrides auto false', opts: { scan: true, auto: false }, scan: true },
+	{ name: 'scan false overrides auto true', opts: { scan: false, auto: true }, scan: false },
+	...[null, undefined].flatMap(value => [
+		{ name: `scan ${value} falls back to auto true`, opts: { scan: value, auto: true }, scan: true },
+		{ name: `scan ${value} falls back to auto false`, opts: { scan: value, auto: false }, scan: false },
+		{ name: `auto ${value} uses default participation`, opts: { auto: value }, scan: true, xScan: false },
+		{ name: `scan and auto ${value} use default participation`, opts: { scan: value, auto: value }, scan: true, xScan: false },
+		{ name: `scan true overrides auto ${value}`, opts: { scan: true, auto: value }, scan: true },
+		{ name: `scan false overrides auto ${value}`, opts: { scan: false, auto: value }, scan: false },
+	]),
+];
+
+function extrema(u) {
+	return u.series.map(s => [s.min, s.max, s.facets?.map(f => [f.min, f.max])]);
+}
+
+function assertScans(u, key, expected, excluded = []) {
+	// Exclusions must ignore both empty caches and previously populated caches.
+	for (const bounds of [[null, null], [-9999, 9999]]) {
+		for (const owner of excluded)
+			[owner.min, owner.max] = bounds;
+
+		const before = extrema(u);
+		assert.deepStrictEqual(uPlot.scan(u, key), expected, `pure ${key}`);
+		assert.deepStrictEqual(extrema(u), before, 'pure scans must not change caches');
+		assert.deepStrictEqual(uPlot.scan(u, key, null, null, true), expected, `cached ${key}`);
+
+		for (const owner of excluded)
+			assert.deepStrictEqual([owner.min, owner.max], bounds, 'excluded caches must not change');
+	}
+}
+
+function participationPlot(mode, candidate, added, extraData = []) {
+	const data = mode == 1 ? [[0, 1], [10, 20]] : [null, [[0, 1], [10, 20]]];
+	const candidateData = mode == 1 ? [100, 200] : [[2, 3], [100, 200], ...extraData];
+	const series = [{}, { stroke: 'blue' }];
+
+	if (!added) {
+		series.push(candidate);
+		data.push(candidateData);
+	}
+
+	const u = new uPlot({
+		width: 400,
+		height: 300,
+		mode,
+		scales: {
+			x: { time: false, range: (u, min, max) => [min, max] },
+			y: { range: (u, min, max) => [min, max] },
+			other: { range: (u, min, max) => min == null ? [0, 1] : [min, max] },
+		},
+		series,
+	}, data, document.body);
+
+	return { u, data, candidateData };
+}
+
+async function addCandidate(u, candidate, data, candidateData) {
+	await Promise.resolve();
+	u.addSeries(candidate);
+	u.setData([...data, candidateData]);
+}
+
+describe('series and facet scan participation', () => {
+	for (const mode of [1, 2]) {
+		for (const added of [false, true]) {
+			const init = added ? 'addSeries' : 'constructor';
+
+			for (const { name, opts, scan, hidden = false } of [
+				...participationCases,
+				{ name: 'hidden series', opts: { scan: true, show: false }, scan: true, hidden: true },
+			]) {
+				it(`mode ${mode} ${init}: series ${name}`, async () => {
+					const candidate = { stroke: 'red', ...opts };
+					if (mode == 2)
+						candidate.facets = [{ scale: 'x' }, { scale: 'y' }, { scale: 'y' }];
+					const { u, data, candidateData } = participationPlot(mode, candidate, added, [[1000, 2000]]);
+					try {
+						if (added)
+							await addCandidate(u, candidate, data, candidateData);
+						await Promise.resolve();
+
+						const s = u.series[2];
+						const participates = scan && !hidden;
+						assert.equal(u.series[1].scan, true);
+						assert.equal(s.scan, scan);
+						const yBounds = [10, participates ? mode == 1 ? 200 : 2000 : 20];
+						assert.deepStrictEqual([u.scales.y.min, u.scales.y.max], yBounds);
+						assertScans(u, 'y', yBounds, participates ? [] : mode == 1 ? [s] : [s, ...s.facets]);
+
+						if (mode == 2) {
+							assert.deepStrictEqual(u.series[1].facets.map(f => f.scan), [true, true]);
+							assert.deepStrictEqual(s.facets.map(f => f.scan), [true, true, true]);
+							const xBounds = [0, participates ? 3 : 1];
+							assert.deepStrictEqual([u.scales.x.min, u.scales.x.max], xBounds);
+							assertScans(u, 'x', xBounds, participates ? [] : [s, ...s.facets]);
+						}
+					}
+					finally {
+						u.destroy();
+					}
+				});
+			}
+		}
+	}
+
+	for (const { name, opts, scan, xScan = scan } of participationCases) {
+		it(`aligned shared X is always scanned: series[0] ${name} (scan: ${xScan})`, async () => {
+			const u = new uPlot({
+				width: 400,
+				height: 300,
+				scales: { x: { time: false } },
+				series: [opts, { stroke: 'blue' }],
+			}, initialData, document.body);
+			try {
+				await Promise.resolve();
+				assert.equal(u.series[0].scan, xScan);
+				assert.deepStrictEqual([u.scales.x.min, u.scales.x.max], [0, 2]);
+				assertScans(u, 'x', [0, 2]);
+			}
+			finally {
+				u.destroy();
+			}
+		});
+	}
+
+	for (const added of [false, true]) {
+		for (const fi of [0, 1, 2]) {
+			for (const { name, opts, scan } of participationCases) {
+				it(`mode 2 ${added ? 'addSeries' : 'constructor'}: facet ${fi} ${name}`, async () => {
+					const facets = [{ scale: 'x', scan: false }, { scale: 'y', scan: false }, { scale: 'y', scan: false }];
+					const key = facets[fi].scale;
+					facets[fi] = { scale: key, ...opts };
+					const candidate = { stroke: 'red', facets };
+					const { u, data, candidateData } = participationPlot(2, candidate, added, [[1000, 2000]]);
+					try {
+						if (added)
+							await addCandidate(u, candidate, data, candidateData);
+						await Promise.resolve();
+
+						const s = u.series[2];
+						assert.equal(s.scan, true);
+						assert.equal(s.facets[fi].scan, scan);
+						const expected = key == 'x' ? [0, scan ? 3 : 1] : [10, scan ? fi == 1 ? 200 : 2000 : 20];
+						assert.deepStrictEqual([u.scales[key].min, u.scales[key].max], expected);
+						const excluded = s.facets.filter(f => !f.scan || f.scale != key);
+						if (fi != 1 || !scan)
+							excluded.push(s);
+						assertScans(u, key, expected, excluded);
+						if (fi == 1 && scan)
+							assert.deepStrictEqual([s.min, s.max], [100, 200]);
+					}
+					finally {
+						u.destroy();
+					}
+				});
+			}
+		}
+	}
+
+	for (const mode of [1, 2]) {
+		it(`mode ${mode} scans only matching scales`, async () => {
+			const candidate = mode == 1 ? { scale: 'other', scan: true } : {
+				facets: [{ scale: 'x' }, { scale: 'other' }, { scale: 'other', scan: true }],
+			};
+			const { u } = participationPlot(mode, candidate, false, [[1000, 2000]]);
+			try {
+				await Promise.resolve();
+				const s = u.series[2];
+				assertScans(u, 'other', [100, mode == 1 ? 200 : 2000]);
+				assertScans(u, 'y', [10, 20], mode == 1 ? [s] : [s, ...s.facets]);
+			}
+			finally {
+				u.destroy();
+			}
+		});
+	}
+});
+
 describe('scale scan', () => {
 	for (const { name, scale, expected } of [
 		{ name: 'auto defaults scan on', scale: { auto: true }, expected: [10, 30] },
@@ -135,7 +320,7 @@ describe('scale scan', () => {
 				{ stroke: 'blue' },
 				{ stroke: 'red' },
 				{ stroke: 'green', show: false },
-				{ stroke: 'purple', auto: false },
+				{ stroke: 'purple', scan: false },
 			],
 		}, [
 			[0, 1, 2, 3],

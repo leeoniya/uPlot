@@ -577,7 +577,6 @@ export const timeSeriesLabel = "Time";
 export const xSeriesOpts = {
 	show: true,
 	scale: "x",
-	auto: false,
 	sorted: 1,
 //	label: "Time",
 //	value: v => stamp(new Date(v * 1e3)),
@@ -772,7 +771,6 @@ function seriesPointsShow(self, si) {
 
 const facet = {
 	scale: null,
-	auto: true,
 	sorted: 0,
 
 	// internal caches
@@ -784,7 +782,6 @@ const gaps = (self, seriesIdx, idx0, idx1, nullGaps) => nullGaps;
 
 export const xySeriesOpts = {
 	show: true,
-	auto: true,
 	sorted: 0,
 	gaps,
 	alpha: 1,
@@ -796,7 +793,6 @@ export const xySeriesOpts = {
 
 export const ySeriesOpts = {
 	scale: "y",
-	auto: true,
 	sorted: 0,
 	show: true,
 	spanGaps: false,

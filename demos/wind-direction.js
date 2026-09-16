@@ -46,7 +46,7 @@ function render() {
 			{
 				label: "Wind dir °",
 				stroke: "blue",
-				auto: false,
+				scan: false,
 				points: { show: false },
 				paths: (u, seriesIdx, fromIdx, toIdx) => {
 					let series = u.series[seriesIdx];
