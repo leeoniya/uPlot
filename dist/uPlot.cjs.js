@@ -557,8 +557,73 @@ function nullExpand(yVals, nullIdxs, alignedLen) {
 	}
 }
 
+function mergeXVals(tables) {
+	let xRows = tables.map(t => t[0]);
+
+	while (xRows.length > 1) {
+		let merged = [];
+
+		for (let ti = 0; ti < xRows.length; ti += 2) {
+			if (ti == xRows.length - 1) {
+				merged.push(xRows[ti]);
+				continue;
+			}
+
+			let xs0 = xRows[ti];
+			let xs1 = xRows[ti + 1];
+			let xs = [];
+			let i0 = 0;
+			let i1 = 0;
+
+			while (i0 < xs0.length && i1 < xs1.length) {
+				if (xs0[xs0.length - 1] < xs1[i1]) {
+					while (i0 < xs0.length)
+						xs.push(xs0[i0++]);
+					break;
+				}
+
+				if (xs1[xs1.length - 1] < xs0[i0]) {
+					while (i1 < xs1.length)
+						xs.push(xs1[i1++]);
+					break;
+				}
+
+				let x0 = xs0[i0];
+				let x1 = xs1[i1];
+
+				if (x0 < x1) {
+					xs.push(x0);
+					i0++;
+				}
+				else if (x0 > x1) {
+					xs.push(x1);
+					i1++;
+				}
+				else {
+					xs.push(x0);
+					i0++;
+					i1++;
+				}
+			}
+
+			while (i0 < xs0.length)
+				xs.push(xs0[i0++]);
+
+			while (i1 < xs1.length)
+				xs.push(xs1[i1++]);
+			merged.push(xs);
+		}
+
+		xRows = merged;
+	}
+
+	return xRows[0] ?? [];
+}
+
+
 // nullModes is a tables-matched array indicating how to treat nulls in each series
-// output is sorted ASC on the joined field (table[0]) and duplicate join values are collapsed
+// input join fields (table[0]) are sampled for ASC order and sorted when needed
+// output is sorted ASC and matching join values across tables are collapsed
 function join(tables, nullModes) {
 	if (allHeadersSame(tables)) {
 	//	console.log('cheap join!');
@@ -574,29 +639,27 @@ function join(tables, nullModes) {
 		return table;
 	}
 
-	let xVals = new Set();
+	tables = tables.map(table => isAsc(table[0]) ? table : sortCols(table));
 
-	for (let ti = 0; ti < tables.length; ti++) {
-		let t = tables[ti];
-		let xs = t[0];
-		let len = xs.length;
-
-		for (let i = 0; i < len; i++)
-			xVals.add(xs[i]);
-	}
-
-	let data = [Array.from(xVals).sort((a, b) => a - b)];
-
-	let alignedLen = data[0].length;
+	let aligned = mergeXVals(tables);
 
 	let xIdxs = new Map();
 
-	for (let i = 0; i < alignedLen; i++)
-		xIdxs.set(data[0][i], i);
+	for (let i = 0; i < aligned.length; i++)
+		xIdxs.set(aligned[i], i);
+
+	let data = [aligned];
+	let alignedLen = aligned.length;
 
 	for (let ti = 0; ti < tables.length; ti++) {
 		let t = tables[ti];
 		let xs = t[0];
+		let alignedIdxs = t.length > 2 ? Array(xs.length) : null;
+
+		if (alignedIdxs != null) {
+			for (let i = 0; i < xs.length; i++)
+				alignedIdxs[i] = xIdxs.get(xs[i]);
+		}
 
 		for (let si = 1; si < t.length; si++) {
 			let ys = t[si];
@@ -609,7 +672,7 @@ function join(tables, nullModes) {
 
 			for (let i = 0; i < ys.length; i++) {
 				let yVal = ys[i];
-				let alignedIdx = xIdxs.get(xs[i]);
+				let alignedIdx = alignedIdxs == null ? xIdxs.get(xs[i]) : alignedIdxs[i];
 
 				if (yVal === null) {
 					if (nullMode != NULL_REMOVE) {
