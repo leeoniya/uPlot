@@ -203,14 +203,22 @@
       align: 0,
     };
 
+    const xRange = (u, min, max) => [min - .5, max + .5];
+    const dragXRange = (u, scaleKey, min, max) => scaleKey == "x" ? xRange(u, min, max) : [min, max];
+
     {
       const opts = {
         width: 1275,
         height: 600,
+        cursor: {
+          drag: {
+            setRange: dragXRange,
+          },
+        },
         scales: {
           x: {
             time: false,
-            range: (u, min, max) => [min - .5, max + .5],
+            range: xRange,
           },
         },
         series: [
@@ -254,10 +262,15 @@
       const opts = {
         width: 1275,
         height: 600,
+        cursor: {
+          drag: {
+            setRange: dragXRange,
+          },
+        },
         scales: {
           x: {
             time: false,
-            range: (u, min, max) => [min - .5, max + .5],
+            range: xRange,
             ori: 1,
             dir: -1,
           },

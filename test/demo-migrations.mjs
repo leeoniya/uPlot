@@ -7,6 +7,7 @@ import months from '../demos/months.js';
 import monthsRu from '../demos/months-ru.js';
 import gridOverSeries from '../demos/grid-over-series.js';
 import barsGroupedStacked from '../demos/bars-grouped-stacked.js';
+import trendlines from '../demos/trendlines.js';
 import candlestick from '../demos/candlestick-ohlc.js';
 import annotations from '../demos/annotations.js';
 import softMinmax, { incrementDataMax } from '../demos/soft-minmax.js';
@@ -110,6 +111,25 @@ describe('demo migrations', () => {
 			window.addEventListener = add;
 			window.removeEventListener = remove;
 		}
+	});
+
+	it('keeps grouped-bar drag zoom on the full category range', async () => {
+		const [plot] = await render(barsGroupedStacked);
+		const candidate = [1, 2];
+		const expected = plot.scales.x.range(plot, ...candidate, 'x');
+		const refined = plot.cursor.drag.setRange(plot, 'x', ...candidate);
+		assert.deepStrictEqual(refined, expected);
+		assert.notDeepStrictEqual(refined, candidate);
+	});
+
+	it('snaps trendline drag zoom to data values', async () => {
+		const [plot] = await render(trendlines);
+		const candidate = [10.4, 20.6];
+		const expected = candidate.map(value => plot.data[0][plot.valToIdx(value)]);
+		const refined = plot.cursor.drag.setRange(plot, 'x', ...candidate);
+		assert.deepStrictEqual(refined, plot.scales.x.range(plot, ...candidate, 'x'));
+		assert.deepStrictEqual(refined, expected);
+		assert.notDeepStrictEqual(refined, candidate);
 	});
 
 	it('updates the four soft-minmax plots together without changing the independent zero plot', async () => {

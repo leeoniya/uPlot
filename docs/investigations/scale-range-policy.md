@@ -160,25 +160,19 @@ Dependent scales keep their existing behavior. Their `scale.range()` callback re
 
 ## Compatibility effects
 
-The new X behavior changes demos that use `scale.range()` to modify explicit zoom bounds.
+The new X behavior affects demos that used `scale.range()` to modify explicit zoom bounds. These demos now share their range policy with `cursor.drag.setRange` to preserve the intended built-in drag behavior.
 
 ### `demos/trendlines.js`
 
-This demo uses an X-range callback to snap drag zoom to exact data values. Explicit drag bounds now bypass that callback.
-
-The initial automatic range still uses the callback. Drag zoom no longer snaps through `scale.range()`.
+This demo uses one X-range helper for automatic ranges and built-in drag zoom. The drag callback restores snapping to exact data values without routing explicit bounds through `scale.range()`.
 
 ### `demos/grouped-bars.js`
 
-The X-range callback always returns the full category range. Previously, this callback prevented normal X drag zoom.
-
-Explicit drag bounds now bypass the callback. Therefore, the chart can use the selected X range.
+The X-range helper always returns the full category range. The drag callback uses that helper to prevent built-in X drag zoom, as the old `scale.range()` behavior did.
 
 ### `demos/bars-values-autosize.html`
 
-The X-range callback adds `0.5` of padding to both sides. Initial and automatic ranges still receive this padding.
-
-Explicit drag bounds no longer receive this padding.
+The X-range helper adds `0.5` of padding to both sides. Both chart configurations use the helper for automatic ranges and built-in drag zoom.
 
 ### Empty-data layout
 
@@ -186,8 +180,8 @@ Aligned empty data previously retained the old X range while the automatic Y ran
 
 `test/layout.mjs` records the new uniform behavior. Both automatic axis reservations disappear until data returns.
 
-These changes are intentional. Use `cursor.drag.setRange` to clamp, snap, or reject bounds from built-in drag zoom.
-Programmatic explicit bounds still require adjustment before a `setScale()` or `setRange()` call.
+This separation is intentional. Use `cursor.drag.setRange` to clamp, snap, or reject bounds from built-in drag zoom.
+Programmatic `setScale()` and `setRange()` calls bypass both `scale.range()` and `cursor.drag.setRange`, so callers must adjust explicit bounds before those calls.
 
 ## Implementation
 

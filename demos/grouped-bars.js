@@ -156,6 +156,31 @@ export function seriesBarsPlugin(opts) {
 				ori: ori == 0 ? 1 : 0,
 			};
 
+			const xRange = u => {
+				let min = 0;
+				let max = Math.max(1, u.data[0].length - 1);
+
+				let pctOffset = 0;
+
+				distr(u.data[0].length, groupWidth, groupDistr, 0, (di, lftPct, widPct) => {
+					pctOffset = lftPct + widPct / 2;
+				});
+
+				let rn = max - min;
+
+				if (pctOffset == 0.5)
+					min -= rn;
+				else {
+					let upScale = 1 / (1 - pctOffset * 2);
+					let offset = (upScale * rn - rn) / 2;
+
+					min -= offset;
+					max += offset;
+				}
+
+				return [min, max];
+			};
+
 			// hovered
 			let hRect;
 
@@ -164,6 +189,9 @@ export function seriesBarsPlugin(opts) {
 				cursor: {
 					x: false,
 					y: false,
+					drag: {
+						setRange: (u, scaleKey, min, max) => scaleKey == 'x' ? xRange(u) : [min, max],
+					},
 					dataIdx: (u, seriesIdx) => {
 						if (seriesIdx == 1) {
 							hRect = null;
@@ -200,30 +228,7 @@ export function seriesBarsPlugin(opts) {
 						ori,
 						dir,
 					//	auto: true,
-						range: (u, min, max) => {
-							min = 0;
-							max = Math.max(1, u.data[0].length - 1);
-
-							let pctOffset = 0;
-
-							distr(u.data[0].length, groupWidth, groupDistr, 0, (di, lftPct, widPct) => {
-								pctOffset = lftPct + widPct / 2;
-							});
-
-							let rn = max - min;
-
-							if (pctOffset == 0.5)
-								min -= rn;
-							else {
-								let upScale = 1 / (1 - pctOffset * 2);
-								let offset = (upScale * rn - rn) / 2;
-
-								min -= offset;
-								max += offset;
-							}
-
-							return [min, max];
-						}
+						range: xRange,
 					},
 					rend:   yScaleOpts,
 					size:   yScaleOpts,

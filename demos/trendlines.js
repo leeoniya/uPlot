@@ -7,23 +7,29 @@ function render1() {
 		[293,291,281,258,257,265,252,258,242,246,240,242,227,221,227,227,258,241,260,262,254,257,261,246,238,229,233,241,243,248,268,274,277,285,275,280,262,258,263,252,265,270,249,233,242,233,223,215,209,200,210,213,216,224,222,223,230,237,229,241,255,260,259,264,259,246,253,240,240,233,228,237,247,235,238,243,236,240,254,269,259,272,266,258,281,282,280,280,277,277,297,301,310,313,305,306,298,308,317,290],
 	];
 
+	const xRange = (u, min, max) => {
+		if (min == null)
+			return [null, null];
+
+		min = u.data[0][u.valToIdx(min)];
+		max = u.data[0][u.valToIdx(max)];
+
+		return min == max ? uPlot.rangeNum(min, max, 0.1, true) : [min, max];
+	};
+
 	const opts = {
 		width: 800,
 		height: 600,
 		title: "Trendlines",
+		cursor: {
+			drag: {
+				setRange: (u, scaleKey, min, max) => scaleKey == 'x' ? xRange(u, min, max) : [min, max],
+			},
+		},
 		scales: {
 			x: {
 				time: false,
-				// Snap automatic bounds to data values; explicit zoom bypasses range().
-				range: (u, min, max) => {
-					if (min == null)
-						return [null, null];
-
-					min = u.data[0][u.valToIdx(min)];
-					max = u.data[0][u.valToIdx(max)];
-
-					return min == max ? uPlot.rangeNum(min, max, 0.1, true) : [min, max];
-				},
+				range: xRange,
 			},
 		},
 		hooks: {
