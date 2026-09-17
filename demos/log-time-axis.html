@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Adaptive log time axis</title>
+	<link rel="stylesheet" href="../dist/uPlot.min.css">
+	<style>
+		:root {
+			color-scheme: light;
+			font: 14px/1.5 system-ui, sans-serif;
+			color: #222;
+			background: #fff;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			padding: clamp(12px, 3vw, 24px);
+		}
+
+		main {
+			max-width: 1200px;
+			margin: 0 auto;
+		}
+
+		h1 {
+			font-size: 1.6rem;
+			margin: 0 0 8px;
+		}
+
+		h2 {
+			font-size: 1.1rem;
+			margin: 18px 0 8px;
+		}
+
+		p {
+			margin: 8px 0;
+		}
+
+		a {
+			color: #1769aa;
+		}
+
+		.samples {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 4px 28px;
+			margin: 8px 0;
+			padding-left: 20px;
+		}
+
+		.controls {
+			max-width: 780px;
+			margin: 16px 0;
+		}
+
+		.control-row {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px 16px;
+			margin-bottom: 12px;
+		}
+
+		.control-row label {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+		}
+
+		select {
+			font: inherit;
+			color: inherit;
+			background: #fff;
+			border: 1px solid #aaa;
+			border-radius: 4px;
+			padding: 3px 6px;
+			max-width: 100%;
+		}
+
+		#tau {
+			display: block;
+			width: 100%;
+			margin: 10px 0 4px;
+		}
+
+		#tau-value {
+			font-variant-numeric: tabular-nums;
+		}
+
+		.ends {
+			display: flex;
+			justify-content: space-between;
+			gap: 16px;
+		}
+
+		.ends, .status, .note {
+			font-size: 0.9rem;
+			color: #555;
+		}
+
+		.status {
+			overflow-wrap: anywhere;
+		}
+
+		#chart, #linear-chart {
+			width: 100%;
+			overflow-x: auto;
+		}
+	</style>
+</head>
+<body>
+	<main>
+		<h1>Adaptive log time axis</h1>
+		<p>This demo adapts <a href="https://github.com/leeoniya/uPlot/issues/1143">issue #1143</a>. It compares compressed time with linear time.</p>
+		<p>The synthetic data covers 3,650 days (about 10 years) of p50 and p99 latency, with daily and weekly cycles. A latency regression affects the last 90 minutes.</p>
+		<p>Sample intervals depend on age:</p>
+		<ul class="samples">
+			<li>Older than 90 days: 6 hours</li>
+			<li>7 to 90 days: 1 hour</li>
+			<li>6 hours to 7 days: 5 minutes</li>
+			<li>Last 6 hours: 10 seconds</li>
+		</ul>
+		<div class="controls">
+			<div class="control-row">
+				<label for="mode">Mode
+					<select id="mode">
+						<option value="log" selected>Logarithmic</option>
+						<option value="exp">Exponential</option>
+					</select>
+				</label>
+				<label for="ticks">Ticks
+					<select id="ticks">
+						<option value="calendar" selected>UTC calendar</option>
+						<option value="age">Age</option>
+					</select>
+				</label>
+				<label for="anchor">Anchor
+					<select id="anchor">
+						<option value="max" selected>View maximum</option>
+						<option value="now">Wall clock</option>
+					</select>
+				</label>
+			</div>
+			<label for="tau">Compression timescale τ: <output id="tau-value" for="tau"></output></label>
+			<input id="tau" type="range" min="0" max="100" step="0.1">
+			<div class="ends">
+				<span>Smaller τ</span>
+				<span>Larger τ</span>
+			</div>
+			<p class="note">The slider changes τ logarithmically.</p>
+			<p id="hint" class="status"></p>
+		</div>
+		<p class="note">All times use UTC. Zoom is disabled. The demo samples the wall clock on control updates, not continuously.</p>
+		<p id="domain-status" class="status"></p>
+		<section aria-labelledby="compressed-heading">
+			<h2 id="compressed-heading">Compressed time</h2>
+			<div id="chart"></div>
+			<p id="tick-status" class="status"></p>
+			<p id="width-status" class="status"></p>
+		</section>
+		<section aria-labelledby="linear-heading">
+			<h2 id="linear-heading">Linear time comparison</h2>
+			<div id="linear-chart"></div>
+		</section>
+	</main>
+	<script type="module">
+		import uPlot from '../dist/uPlot.esm.js';
+		import { createLogTimeDemo } from './log-time-axis.js';
+
+		createLogTimeDemo(uPlot, document);
+	</script>
+</body>
+</html>
