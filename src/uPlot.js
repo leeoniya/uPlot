@@ -230,11 +230,15 @@ function setDefault(o, i, xo, yo) {
 	return assign({}, (i == 0 ? xo : yo), o);
 }
 
-function snapNumX(self, dataMin, dataMax) {
-	return dataMin == null ? nullNullTuple : [dataMin, dataMax];
-}
+function snapNumX(self, dataMin, dataMax, scaleKey) {
+	if (dataMin == null)
+		return nullNullTuple;
 
-const snapTimeX = snapNumX;
+	if (dataMin == dataMax)
+		return self.scales[scaleKey].distr == 2 ? [dataMin, dataMax + 1] : rangeNum(dataMin, dataMax, rangePad, true);
+
+	return [dataMin, dataMax];
+}
 
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
@@ -465,6 +469,22 @@ export default function uPlot(opts, data, then) {
 	});
 
 	const ms = opts.ms || 1e-3;
+
+	function snapTimeX(self, dataMin, dataMax, scaleKey) {
+		if (dataMin == null)
+			return nullNullTuple;
+
+		if (dataMin == dataMax) {
+			let sc = self.scales[scaleKey];
+
+			return sc.distr == 2 ? [dataMin, dataMax + 1] :
+				sc.distr == 3 ? rangeLog(dataMin, dataMax, sc.log, false) :
+				sc.distr == 4 ? rangeAsinh(dataMin, dataMax, sc.log, false) :
+				[dataMin, dataMax + round(86400 / ms)];
+		}
+
+		return [dataMin, dataMax];
+	}
 
 	const series  = self.series = mode == 1 ?
 		setDefaults(opts.series || [], xSeriesOpts, ySeriesOpts, false) :
@@ -1430,16 +1450,6 @@ export default function uPlot(opts, data, then) {
 				if (xScaleDistr == 2) {
 					_min = i0;
 					_max = i1;
-				}
-				else if (_min == _max) {
-					if (xScaleDistr == 3)
-						[_min, _max] = rangeLog(_min, _min, scaleX.log, false);
-					else if (xScaleDistr == 4)
-						[_min, _max] = rangeAsinh(_min, _min, scaleX.log, false);
-					else if (scaleX.time)
-						_max = _min + round(86400 / ms);
-					else
-						[_min, _max] = rangeNum(_min, _max, rangePad, true);
 				}
 			}
 			else {
@@ -2446,10 +2456,10 @@ export default function uPlot(opts, data, then) {
 			if (min != null && max != null && min > max)
 				[min, max] = [max, min];
 
-			if (dataLen > 1 && min != null && max != null && max - min < 1e-16)
+			if (explicit && dataLen > 1 && min != null && max != null && max - min < 1e-16)
 				return;
 
-			if (key == xScaleKey && sc.distr == 2 && dataLen > 0) {
+			if (explicit && key == xScaleKey && sc.distr == 2 && dataLen > 0) {
 				if (min != null)
 					min = closestIdx(min, data[0]);
 				if (max != null)

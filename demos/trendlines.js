@@ -14,11 +14,16 @@ function render1() {
 		scales: {
 			x: {
 				time: false,
-				// snap x-zoom to exact data values
-				range: (u, min, max) => [
-					data[0][u.valToIdx(min)],
-					data[0][u.valToIdx(max)],
-				],
+				// Snap automatic bounds to data values; explicit zoom bypasses range().
+				range: (u, min, max) => {
+					if (min == null)
+						return [null, null];
+
+					min = u.data[0][u.valToIdx(min)];
+					max = u.data[0][u.valToIdx(max)];
+
+					return min == max ? uPlot.rangeNum(min, max, 0.1, true) : [min, max];
+				},
 			},
 		},
 		hooks: {

@@ -313,7 +313,14 @@
 							},
 							scales: {
 								x: {
-									range(u, min, max) {
+									range(u, min, max, scaleKey) {
+										if (min == null)
+											return [null, null];
+
+										// A single point has no neighboring timestamp to infer a column width.
+										if (min == max)
+											return u.scales[scaleKey].time ? [min, max + 86400] : uPlot.rangeNum(min, max, 0.1, true);
+
 										if (mode == 2) {
 											let colWid = u.data[0][1] - u.data[0][0];
 											let scalePad = colWid/2;

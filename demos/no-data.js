@@ -50,7 +50,8 @@ const groups = [
 								if (dataMin == null)
 									return [1566453600, 1566497660];
 
-								return [dataMin, dataMax];
+								// A lone timestamp needs an explicit display span (one day here).
+								return [dataMin, dataMin == dataMax ? dataMax + 86400 : dataMax];
 							}
 						},
 						y: {
