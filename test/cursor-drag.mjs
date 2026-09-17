@@ -22,9 +22,10 @@ function ranges(u) {
 	return { x: [u.scales.x.min, u.scales.x.max], y: [u.scales.y.min, u.scales.y.max] };
 }
 
-async function plot(drag = {}, pxRatio = 1, autoY = false, axes) {
+async function plot(drag = {}, pxRatio = 1, autoY = false, axes, syncKey) {
 	const selections = [];
 	const scales = [];
+	const draws = [];
 	let rectReads = 0;
 	const u = new uPlot({
 		width: 600,
@@ -32,7 +33,7 @@ async function plot(drag = {}, pxRatio = 1, autoY = false, axes) {
 		pxRatio,
 		padding: [10, 20, 10, 20],
 		legend: { show: false },
-		cursor: { drag },
+		cursor: { drag, sync: { key: syncKey } },
 		series: [{}, { stroke: 'blue', points: { show: false } }],
 		scales: {
 			x: { time: false, range },
@@ -42,6 +43,7 @@ async function plot(drag = {}, pxRatio = 1, autoY = false, axes) {
 		hooks: {
 			setSelect: [self => selections.push(selection(self))],
 			setScale: [(self, key) => scales.push(key)],
+			draw: [() => draws.push(true)],
 		},
 	}, [values, values], (self, init) => {
 		self.ctx.measureText = text => ({ width: String(text).length * 8 * self.pxRatio });
@@ -84,19 +86,23 @@ async function plot(drag = {}, pxRatio = 1, autoY = false, axes) {
 	}
 
 	await Promise.resolve();
-	selections.length = scales.length = 0;
+	selections.length = scales.length = draws.length = 0;
 	return {
-		u, box, mouse, selections, scales,
+		u, box, mouse, selections, scales, draws,
 		get rectReads() { return rectReads; },
 		destroy() { u.destroy(); },
 	};
 }
 
-async function dragMiddle(f) {
+async function dragMiddle(f, reverse = false) {
 	const { width: w, height: h } = f.box();
-	f.mouse('mousedown', w / 4, h / 4);
-	f.mouse('mousemove', 3 * w / 4, 3 * h / 4);
-	f.mouse('mouseup', 3 * w / 4, 3 * h / 4, document);
+	let start = [w / 4, h / 4];
+	let end = [3 * w / 4, 3 * h / 4];
+	if (reverse)
+		[start, end] = [end, start];
+	f.mouse('mousedown', ...start);
+	f.mouse('mousemove', ...end);
+	f.mouse('mouseup', ...end, document);
 	await Promise.resolve();
 }
 
@@ -143,6 +149,120 @@ describe('mouse-driven drag selection', () => {
 			}
 		}
 	}
+
+	it('refines only drag-generated bounds and commits an XY drag in one draw', async () => {
+		const requests = [];
+		let callbackSelf;
+		const f = await plot({
+			x: true,
+			y: true,
+			setScale: (self, key, limits) => {
+				callbackSelf = self;
+				requests.push([key, limits.min, limits.max]);
+				return {
+					min: Math.floor(limits.min / 20) * 20,
+					max: Math.ceil(limits.max / 20) * 20,
+				};
+			},
+		});
+		try {
+			f.u.setScale('x', { min: 24, max: 76 });
+			await Promise.resolve();
+			assert.deepEqual(requests, []);
+			assert.deepEqual(ranges(f.u), { x: [24, 76], y: [0, 100] });
+
+			f.u.setScale('x', { min: 0, max: 100 });
+			await Promise.resolve();
+			f.draws.length = 0;
+			await dragMiddle(f);
+			assert.equal(callbackSelf, f.u);
+			assert.deepEqual(requests, [['x', 25, 75], ['y', 25, 75]]);
+			assert.equal(f.draws.length, 1, 'XY requests commit in one draw');
+			assert.deepEqual(ranges(f.u), { x: [20, 80], y: [20, 80] });
+
+			f.u.batch(() => {
+				f.u.setScale('x', { min: 0, max: 100 });
+				f.u.setScale('y', { min: 0, max: 100 });
+			});
+			await Promise.resolve();
+			requests.length = 0;
+			await dragMiddle(f, true);
+			assert.deepEqual(requests, [['x', 25, 75], ['y', 25, 75]], 'backward drag bounds are ordered');
+		}
+		finally { f.destroy(); }
+	});
+
+	it('uses each synchronized chart drag callback', async () => {
+		const calls = [[], []];
+		const source = await plot({
+			x: true,
+			y: false,
+			setScale: (self, key, limits) => {
+				calls[0].push([key, limits.min, limits.max]);
+				return { min: 20, max: 80 };
+			},
+		}, 1, false, undefined, 'drag-scale-callbacks');
+		const target = await plot({
+			x: true,
+			y: false,
+			setScale: (self, key, limits) => {
+				calls[1].push([key, limits.min, limits.max]);
+				return { min: 30, max: 70 };
+			},
+		}, 1, false, undefined, 'drag-scale-callbacks');
+		try {
+			await dragMiddle(source);
+			assert.deepEqual(calls, [[['x', 25, 75]], [['x', 25, 75]]]);
+			assert.deepEqual(ranges(source.u), { x: [20, 80], y: [0, 100] });
+			assert.deepEqual(ranges(target.u), { x: [30, 70], y: [0, 100] });
+		}
+		finally {
+			source.destroy();
+			target.destroy();
+		}
+	});
+
+	it('cancels a drag scale when its callback returns null', async () => {
+		const requests = [];
+		const f = await plot({
+			x: true,
+			y: false,
+			setScale: (self, key, limits) => {
+				requests.push([key, limits.min, limits.max]);
+				return null;
+			},
+		});
+		try {
+			await dragMiddle(f);
+			assert.deepEqual(requests, [['x', 25, 75]]);
+			assert.deepEqual(ranges(f.u), { x: [0, 100], y: [0, 100] });
+		}
+		finally { f.destroy(); }
+	});
+
+	it('does not call the drag callback for programmatic, automatic, or reset scale changes', async () => {
+		let requests = 0;
+		const f = await plot({
+			x: true,
+			y: false,
+			setScale: (self, key, limits) => {
+				requests++;
+				return limits;
+			},
+		});
+		try {
+			f.u.setScale('x', { min: 25, max: 75 });
+			await Promise.resolve();
+			f.u.redraw();
+			await Promise.resolve();
+			f.u.setData([values, values]);
+			await Promise.resolve();
+			f.mouse('dblclick', 100, 100);
+			await Promise.resolve();
+			assert.equal(requests, 0);
+		}
+		finally { f.destroy(); }
+	});
 
 	it('retains the selection without zoom when setScale is false', async () => {
 		const f = await plot({ x: true, y: true, setScale: false });

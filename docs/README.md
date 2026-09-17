@@ -264,6 +264,29 @@ let opts = {
 }
 ```
 
+A `cursor.drag.setScale` callback can adjust the bounds from built-in drag zoom.
+Return the adjusted bounds, or return `null` to cancel the scale change.
+Other scale operations do not call this callback.
+
+```js
+let opts = {
+  cursor: {
+    drag: {
+      x: true,
+      setScale: (u, scaleKey, limits) => {
+        if (scaleKey != "x")
+          return limits;
+
+        return {
+          min: Math.floor(limits.min / 10) * 10,
+          max: Math.ceil(limits.max / 10) * 10,
+        };
+      },
+    },
+  },
+};
+```
+
 The default x scale is temporal, but can be switched to plain numbers. This can be used to plot functions.
 
 ```js

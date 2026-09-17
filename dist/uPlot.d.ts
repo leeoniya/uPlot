@@ -545,8 +545,11 @@ declare namespace uPlot {
 			fill?:   Points.Fill;
 		}
 
+		export type DragSetScale = boolean | ((self: uPlot, scaleKey: string, limits: { min: number; max: number }) => { min: number; max: number } | null);
+
 		export interface Drag {
-			setScale?: boolean; // true
+			/** applies drag bounds; a callback can adjust them or return null to cancel that scale */
+			setScale?: DragSetScale; // true
 			/** toggles dragging along x */
 			x?: boolean; // true
 			/** toggles dragging along y */

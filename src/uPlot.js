@@ -3421,6 +3421,19 @@ export default function uPlot(opts, data, then) {
 	//	hideSelect();
 	}
 
+	function setDragScale(key, min, max) {
+		if (min > max)
+			[min, max] = [max, min];
+
+		let limits = {min, max};
+
+		if (isFn(drag.setScale))
+			limits = drag.setScale(self, key, limits);
+
+		if (limits != null)
+			_setScale(key, limits.min, limits.max);
+	}
+
 	function mouseUp(e, src, _l, _t, _w, _h, _i) {
 		dragging = drag._x = drag._y = false;
 
@@ -3457,7 +3470,7 @@ export default function uPlot(opts, data, then) {
 			}
 
 			if (dragX) {
-				_setScale(xScaleKey,
+				setDragScale(xScaleKey,
 					posToVal(xOff, xScaleKey),
 					posToVal(xOff + xDim, xScaleKey)
 				);
@@ -3468,7 +3481,7 @@ export default function uPlot(opts, data, then) {
 					let sc = scales[k];
 
 					if (k != xScaleKey && sc.from == null && sc.min != inf) {
-						_setScale(k,
+						setDragScale(k,
 							posToVal(yOff + yDim, k),
 							posToVal(yOff, k)
 						);
