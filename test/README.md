@@ -70,7 +70,7 @@ These snapshots cover the initial DOM and canvas commands, not hovered markers.
 Run the points snapshots and extraction tests:
 
 ```sh
-node --max-old-space-size=256 --import ./scripts2/register-hooks.mjs node_modules/mocha/bin/mocha.js --no-config --no-package --reporter spec test/demo-extractions.mjs test/test.mjs --grep 'demo extraction support|^points '
+node --max-old-space-size=256 --import ./scripts/register-hooks.mjs node_modules/mocha/bin/mocha.js --no-config --no-package --reporter spec test/demo-extractions.mjs test/test.mjs --grep 'demo extraction support|^points '
 ```
 
 ## Mouse-driven selection regressions
@@ -80,12 +80,12 @@ node --max-old-space-size=256 --import ./scripts2/register-hooks.mjs node_module
 The tests cover:
 
 - X-only, Y-only, and XY zoom in both drag directions at pixel ratios 1 and 2.
-- Persistent selection with `drag.setScale: false`.
+- Persistent selection with `drag.setRange: false`.
 - Clicks, zero-movement events, and the `drag.dist` threshold.
 - Edge selection and release outside the plot through the document listener.
 - Rectangle-cache invalidation after external resize and axis collapse or restoration.
 - Double-click reset after X-only, Y-only, and XY zoom at pixel ratios 1 and 2.
-- Selection clearing on reset, including `drag.setScale: false`, and preservation of non-auto Y ranges.
+- Selection clearing on reset, including `drag.setRange: false`, and preservation of non-auto Y ranges.
 - Reset after resize or axis autosizing, followed by another drag with the restored geometry.
 - Ignored non-primary-button double-clicks that preserve both the selection and scale ranges.
 - Selection state, inline styles, scale ranges, and hook notifications.
@@ -126,18 +126,18 @@ node --max-old-space-size=256 node_modules/mocha/bin/mocha.js --no-config --no-p
 
 ### Native hover performance benchmark
 
-[`scripts2/bench-hover.mjs`](../scripts2/bench-hover.mjs) compares the pre-alignment commit with the current distribution build in headless Firefox.
+[`scripts/bench-hover.mjs`](../scripts/bench-hover.mjs) compares the pre-alignment commit with the current distribution build in headless Firefox.
 It measures mouse handlers and forced style/layout updates separately. Cases include 1, 10, and 100 series, pixel-ratio overrides, and an inline legend.
 
 Run the build and benchmark sequentially:
 
 ```sh
 NODE_OPTIONS='--max-old-space-size=256' npm run build
-node --max-old-space-size=128 scripts2/bench-hover.mjs
+node --max-old-space-size=128 scripts/bench-hover.mjs
 ```
 
 The runner has a 120-second limit and removes its temporary browser profile.
-[Recorded results and limitations](../docs/hover-performance.md) describe the measured slowdown and the extra scale conversions.
+[Recorded results and limitations](../docs/investigations/hover-performance.md) describe the measured slowdown and the extra scale conversions.
 
 ## Legend interaction regressions
 
@@ -169,7 +169,7 @@ node --max-old-space-size=256 node_modules/mocha/bin/mocha.js --no-config --no-p
 The precision tests cover reported rounding errors, missing ticks, tiny ranges,
 nonadvancing tick loops, and exact `fixedDec` keys and decimal counts.
 Sources and expected behavior are documented in
-[`docs/precision-regressions.md`](../docs/precision-regressions.md).
+[`docs/investigations/precision-regressions.md`](../docs/investigations/precision-regressions.md).
 
 Run the historical regression cases:
 
@@ -252,8 +252,8 @@ Statement, function, and branch hit sets were identical before and after, and ac
 ### Benchmark increment generation and metadata
 
 ```sh
-node scripts2/bench-fixed-dec.mjs
-bun scripts2/bench-fixed-dec.mjs
+node scripts/bench-fixed-dec.mjs
+bun scripts/bench-fixed-dec.mjs
 ```
 
 The benchmark compares source with the pre-fix implementation, without coverage or DOM startup.
@@ -263,8 +263,8 @@ These operations affect initialization and registration, not per-frame rendering
 ### Benchmark rounding and ranges
 
 ```sh
-node scripts2/bench-rounding.mjs
-bun scripts2/bench-rounding.mjs
+node scripts/bench-rounding.mjs
+bun scripts/bench-rounding.mjs
 ```
 
 This benchmark compares source with Git commit `443333f`, after the `fixedDec` fixes and before the broader rounding changes.
@@ -298,7 +298,7 @@ use the recorded commands, not pixels.
 
 ## Node and Bun runtimes
 
-Both runtimes use `scripts2/test.mjs`. The runner detects `process.versions.bun` and prints the selected runtime before the tests start.
+Both runtimes use `scripts/test.mjs`. The runner detects `process.versions.bun` and prints the selected runtime before the tests start.
 There is no separate Bun test implementation.
 The project's `bunfig.toml` sets `[run] bun = true`, so `bun run` uses Bun even when a script specifies `node`.
 This configuration applies to all `bun run` scripts. It does not affect npm.
@@ -307,8 +307,8 @@ This configuration applies to all `bun run` scripts. It does not affect npm.
 | --- | --- |
 | `npm test` | Node |
 | `bun run test` | Bun |
-| `node scripts2/test.mjs` | Node |
-| `bun scripts2/test.mjs` | Bun |
+| `node scripts/test.mjs` | Node |
+| `bun scripts/test.mjs` | Bun |
 
 The shared runner detects the actual runtime.
 Bare `bun test` invokes Bun's built-in test runner, not this Mocha harness.
@@ -402,8 +402,8 @@ Update mode does not remove obsolete snapshots.
 The following commands skip coverage and limit the JavaScript heap to 256 MiB.
 
 ```sh
-UPDATE=1 node --max-old-space-size=256 --import ./scripts2/register-hooks.mjs ./node_modules/mocha/bin/mocha.js --grep '^multi-bars '
-node --max-old-space-size=256 --import ./scripts2/register-hooks.mjs ./node_modules/mocha/bin/mocha.js --grep '^multi-bars '
+UPDATE=1 node --max-old-space-size=256 --import ./scripts/register-hooks.mjs ./node_modules/mocha/bin/mocha.js --grep '^multi-bars '
+node --max-old-space-size=256 --import ./scripts/register-hooks.mjs ./node_modules/mocha/bin/mocha.js --grep '^multi-bars '
 ```
 
 For multiple demos, run one process at a time.

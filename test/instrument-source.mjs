@@ -3,7 +3,7 @@ import { mkdtempSync, readdirSync, rmSync, statSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
-import { createSourceInstrumenter } from '../scripts2/instrument-source.mjs';
+import { createSourceInstrumenter } from '../scripts/instrument-source.mjs';
 
 const source = 'function value() { return 1; } globalThis.result = value();';
 

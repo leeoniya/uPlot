@@ -42,7 +42,7 @@ describe('decimation examples', () => {
 	});
 
 	it('contains all static library figures inside the section moved below uPlot', async () => {
-		await import('../scripts2/instrument.mjs');
+		await import('../scripts/instrument.mjs');
 		const html = await readFile(new URL('../demos/decimation.html', import.meta.url), 'utf8');
 		const wrapper = document.createElement('div');
 		wrapper.innerHTML = html;
@@ -66,7 +66,7 @@ describe('decimation examples', () => {
 	});
 
 	it('retains both extrema in native linear references at DPR 1, 2, and 3', async () => {
-		await import('../scripts2/instrument.mjs');
+		await import('../scripts/instrument.mjs');
 		const { default: uPlot } = await import('../src/uPlot.js');
 		const previous = globalThis.uPlot;
 		globalThis.uPlot = uPlot;

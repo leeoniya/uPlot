@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createProbeWorker } from '../scripts2/probe-worker.mjs';
+import { createProbeWorker } from '../scripts/probe-worker.mjs';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 const helper = fileURLToPath(new URL('./fixtures/probe-worker.mjs', import.meta.url));
@@ -45,7 +45,7 @@ describe('sequential probe worker', function() {
 	it('instruments worker source and writes coverage on exit', async () => {
 		env.UPLOT_COVERAGE_DIR = join(directory, 'coverage');
 		if (!process.versions.bun)
-			env.NODE_OPTIONS = '--import ./scripts2/register-hooks.mjs';
+			env.NODE_OPTIONS = '--import ./scripts/register-hooks.mjs';
 		start();
 		const pid = await worker.run('pid');
 		assert.equal(await worker.run('coverage'), true);

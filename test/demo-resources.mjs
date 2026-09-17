@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import '../scripts2/instrument.mjs';
+import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { loadFixture } from '../demos/demoResources.js';
 import barsGroups from '../demos/multi-bars.js';

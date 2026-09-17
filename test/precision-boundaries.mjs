@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import '../scripts2/instrument.mjs';
+import '../scripts/instrument.mjs';
 import { incrRound, incrRoundUp, incrRoundDn, numIntDigits, rangeNum, roundDec } from '../src/utils.js';
 import { numIncrs } from '../src/opts.js';
 import uPlot from '../src/uPlot.js';

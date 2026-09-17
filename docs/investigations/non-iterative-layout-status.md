@@ -159,7 +159,7 @@ node --max-old-space-size=256 node_modules/mocha/bin/mocha.js --no-config --no-p
 Full suite with coverage:
 
 ```sh
-NODE_OPTIONS='--max-old-space-size=256 --import ./scripts2/register-hooks.mjs' npx --no-install nyc mocha --reporter dot --bail
+NODE_OPTIONS='--max-old-space-size=256 --import ./scripts/register-hooks.mjs' npx --no-install nyc mocha --reporter dot --bail
 ```
 
 Distribution build:
@@ -185,13 +185,13 @@ The review left the small layout-array allocations unchanged. Reusable scratch a
 
 ## Relevant files
 
-- [Core implementation](../src/uPlot.js)
-- [Layout regressions](../test/layout.mjs)
-- [Mouse-driven selection regressions](../test/cursor-drag.mjs)
-- [Cursor marker alignment regressions](../test/cursor-points.mjs)
+- [Core implementation](../../src/uPlot.js)
+- [Layout regressions](../../test/layout.mjs)
+- [Mouse-driven selection regressions](../../test/cursor-drag.mjs)
+- [Cursor marker alignment regressions](../../test/cursor-points.mjs)
 - [Hover performance results](hover-performance.md)
-- [Legend interaction regressions](../test/legend.mjs)
-- [API contracts](README.md#axis-layout--padding)
-- [Type declarations](../dist/uPlot.d.ts)
-- [Axis-autosize demo](../demos/axis-autosize.html)
+- [Legend interaction regressions](../../test/legend.mjs)
+- [API contracts](../README.md#axis-layout--padding)
+- [Type declarations](../../dist/uPlot.d.ts)
+- [Axis-autosize demo](../../demos/axis-autosize.html)
 - [Precision regressions](precision-regressions.md)

@@ -1,6 +1,6 @@
 import { writeFileSync, writeSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { serveProbes } from '../../scripts2/probe-worker.mjs';
+import { serveProbes } from '../../scripts/probe-worker.mjs';
 
 const mode = process.env.UPLOT_WORKER_TEST_MODE;
 

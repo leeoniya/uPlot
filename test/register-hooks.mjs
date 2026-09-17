@@ -24,7 +24,7 @@ function coverage(config, cacheDir) {
 	const result = JSON.parse(execFileSync(process.execPath, [
 		...args,
 		'-e', `
-			await import('./scripts2/register-hooks.mjs');
+			await import('./scripts/register-hooks.mjs');
 			const { domEnv, doc, win, setStylePx } = await import('./src/dom.js');
 			const dom = { domEnv, doc, win };
 			await import('./demos/renderDemo.js');

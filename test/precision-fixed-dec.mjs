@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import '../scripts2/instrument.mjs';
+import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { fixedDec, genIncrs, guessDec } from '../src/utils.js';
 import { decIncrs, oneIncrs, numIncrs, wholeIncrs } from '../src/opts.js';

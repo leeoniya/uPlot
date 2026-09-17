@@ -51,15 +51,15 @@
 							return e => {
 								if (e.button == 0) {
 									if (annotating) {
-										// tmp disable drag.setScale
-										const _setScale = u.cursor.drag.setScale;
-										u.cursor.drag.setScale = false;
+										// tmp disable drag.setRange
+										const _setRange = u.cursor.drag.setRange;
+										u.cursor.drag.setRange = false;
 
 										// fire original handler
 										handler(e);
 
-										// revert drag.setScale
-										u.cursor.drag.setScale = _setScale;
+										// revert drag.setRange
+										u.cursor.drag.setRange = _setRange;
 									}
 									else
 										handler(e);

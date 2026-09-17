@@ -29,7 +29,7 @@ if (process.versions.bun) {
 	console.log('Test runtime: Bun ' + process.versions.bun);
 	coverageDir = resolve(cwd, '.nyc_output/bun');
 	env.NODE_OPTIONS = '';
-	testArgs = ['--preload', './scripts2/register-hooks.mjs', mocha, ...args];
+	testArgs = ['--preload', './scripts/register-hooks.mjs', mocha, ...args];
 	testEnv = { ...env, UPLOT_COVERAGE_DIR: coverageDir };
 }
 else {
@@ -39,7 +39,7 @@ else {
 	testEnv = {
 		...env,
 		UPLOT_COVERAGE_DIR: coverageDir,
-		NODE_OPTIONS: [env.NODE_OPTIONS, '--import ./scripts2/register-hooks.mjs'].filter(Boolean).join(' '),
+		NODE_OPTIONS: [env.NODE_OPTIONS, '--import ./scripts/register-hooks.mjs'].filter(Boolean).join(' '),
 	};
 }
 

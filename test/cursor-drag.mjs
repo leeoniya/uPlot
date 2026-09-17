@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import '../scripts2/instrument.mjs';
+import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 
 const values = [0, 25, 50, 75, 100];
@@ -22,7 +22,7 @@ function ranges(u) {
 	return { x: [u.scales.x.min, u.scales.x.max], y: [u.scales.y.min, u.scales.y.max] };
 }
 
-async function plot(drag = {}, pxRatio = 1, autoY = false, axes, syncKey) {
+async function plot(drag = {}, pxRatio = 1, autoY = false, axes, syncKey, scaleOpts = {}) {
 	const selections = [];
 	const scales = [];
 	const draws = [];
@@ -36,8 +36,8 @@ async function plot(drag = {}, pxRatio = 1, autoY = false, axes, syncKey) {
 		cursor: { drag, sync: { key: syncKey } },
 		series: [{}, { stroke: 'blue', points: { show: false } }],
 		scales: {
-			x: { time: false, range },
-			y: { auto: autoY, range, ...(!autoY && { min: 0, max: 100 }) },
+			x: { time: false, range, ...scaleOpts.x },
+			y: { auto: autoY, range, ...(!autoY && { min: 0, max: 100 }), ...scaleOpts.y },
 		},
 		axes: axes ?? [{ size: 30 }, { size: 60 }, { scale: 'y', side: 1, size: 40 }],
 		hooks: {
@@ -150,19 +150,31 @@ describe('mouse-driven drag selection', () => {
 		}
 	}
 
-	it('refines only drag-generated bounds and commits an XY drag in one draw', async () => {
+	it('orders bounds produced by inverted scales before applying drag zoom', async () => {
+		const f = await plot({ x: true, y: true }, 1, false, undefined, undefined, {
+			x: { dir: -1 },
+			y: { dir: -1 },
+		});
+		try {
+			await dragMiddle(f);
+			assert.deepEqual(ranges(f.u), { x: [25, 75], y: [25, 75] });
+		}
+		finally { f.destroy(); }
+	});
+
+	it('refines only drag-generated ranges and commits an XY drag in one draw', async () => {
 		const requests = [];
 		let callbackSelf;
 		const f = await plot({
 			x: true,
 			y: true,
-			setScale: (self, key, limits) => {
+			setRange: (self, scaleKey, min, max) => {
 				callbackSelf = self;
-				requests.push([key, limits.min, limits.max]);
-				return {
-					min: Math.floor(limits.min / 20) * 20,
-					max: Math.ceil(limits.max / 20) * 20,
-				};
+				requests.push({ scaleKey, min, max });
+				return [
+					Math.floor(min / 20) * 20,
+					Math.ceil(max / 20) * 20,
+				];
 			},
 		});
 		try {
@@ -176,8 +188,11 @@ describe('mouse-driven drag selection', () => {
 			f.draws.length = 0;
 			await dragMiddle(f);
 			assert.equal(callbackSelf, f.u);
-			assert.deepEqual(requests, [['x', 25, 75], ['y', 25, 75]]);
-			assert.equal(f.draws.length, 1, 'XY requests commit in one draw');
+			assert.deepEqual(requests, [
+				{ scaleKey: 'x', min: 25, max: 75 },
+				{ scaleKey: 'y', min: 25, max: 75 },
+			]);
+			assert.equal(f.draws.length, 1, 'XY range requests commit in one draw');
 			assert.deepEqual(ranges(f.u), { x: [20, 80], y: [20, 80] });
 
 			f.u.batch(() => {
@@ -187,32 +202,38 @@ describe('mouse-driven drag selection', () => {
 			await Promise.resolve();
 			requests.length = 0;
 			await dragMiddle(f, true);
-			assert.deepEqual(requests, [['x', 25, 75], ['y', 25, 75]], 'backward drag bounds are ordered');
+			assert.deepEqual(requests, [
+				{ scaleKey: 'x', min: 25, max: 75 },
+				{ scaleKey: 'y', min: 25, max: 75 },
+			], 'backward drag range bounds are ordered');
 		}
 		finally { f.destroy(); }
 	});
 
-	it('uses each synchronized chart drag callback', async () => {
+	it('uses each synchronized chart drag range callback', async () => {
 		const calls = [[], []];
 		const source = await plot({
 			x: true,
 			y: false,
-			setScale: (self, key, limits) => {
-				calls[0].push([key, limits.min, limits.max]);
-				return { min: 20, max: 80 };
+			setRange: (self, scaleKey, min, max) => {
+				calls[0].push({ scaleKey, min, max });
+				return [20, 80];
 			},
-		}, 1, false, undefined, 'drag-scale-callbacks');
+		}, 1, false, undefined, 'drag-range-callbacks');
 		const target = await plot({
 			x: true,
 			y: false,
-			setScale: (self, key, limits) => {
-				calls[1].push([key, limits.min, limits.max]);
-				return { min: 30, max: 70 };
+			setRange: (self, scaleKey, min, max) => {
+				calls[1].push({ scaleKey, min, max });
+				return [30, 70];
 			},
-		}, 1, false, undefined, 'drag-scale-callbacks');
+		}, 1, false, undefined, 'drag-range-callbacks');
 		try {
 			await dragMiddle(source);
-			assert.deepEqual(calls, [[['x', 25, 75]], [['x', 25, 75]]]);
+			assert.deepEqual(calls, [
+				[{ scaleKey: 'x', min: 25, max: 75 }],
+				[{ scaleKey: 'x', min: 25, max: 75 }],
+			]);
 			assert.deepEqual(ranges(source.u), { x: [20, 80], y: [0, 100] });
 			assert.deepEqual(ranges(target.u), { x: [30, 70], y: [0, 100] });
 		}
@@ -222,32 +243,32 @@ describe('mouse-driven drag selection', () => {
 		}
 	});
 
-	it('cancels a drag scale when its callback returns null', async () => {
+	it('cancels a drag range when its callback returns null', async () => {
 		const requests = [];
 		const f = await plot({
 			x: true,
 			y: false,
-			setScale: (self, key, limits) => {
-				requests.push([key, limits.min, limits.max]);
+			setRange: (self, scaleKey, min, max) => {
+				requests.push({ scaleKey, min, max });
 				return null;
 			},
 		});
 		try {
 			await dragMiddle(f);
-			assert.deepEqual(requests, [['x', 25, 75]]);
+			assert.deepEqual(requests, [{ scaleKey: 'x', min: 25, max: 75 }]);
 			assert.deepEqual(ranges(f.u), { x: [0, 100], y: [0, 100] });
 		}
 		finally { f.destroy(); }
 	});
 
-	it('does not call the drag callback for programmatic, automatic, or reset scale changes', async () => {
+	it('does not call the drag range callback for programmatic, automatic, or reset range changes', async () => {
 		let requests = 0;
 		const f = await plot({
 			x: true,
 			y: false,
-			setScale: (self, key, limits) => {
+			setRange: (self, scaleKey, min, max) => {
 				requests++;
-				return limits;
+				return [min, max];
 			},
 		});
 		try {
@@ -264,8 +285,8 @@ describe('mouse-driven drag selection', () => {
 		finally { f.destroy(); }
 	});
 
-	it('retains the selection without zoom when setScale is false', async () => {
-		const f = await plot({ x: true, y: true, setScale: false });
+	it('retains the selection without zoom when drag.setRange is false', async () => {
+		const f = await plot({ x: true, y: true, setRange: false });
 		const { u, mouse, selections, scales } = f;
 		try {
 			mouse('mousedown', 100, 50);
@@ -284,6 +305,18 @@ describe('mouse-driven drag selection', () => {
 			assert.deepEqual(selections, [expected], 'document release listener is removed');
 		}
 		finally { f.destroy(); }
+	});
+
+	it('supports deprecated drag.setScale as a boolean alias', async () => {
+		for (const enabled of [true, false]) {
+			const f = await plot({ x: true, y: false, setScale: enabled });
+			try {
+				await dragMiddle(f);
+				assert.deepEqual(ranges(f.u), { x: enabled ? [25, 75] : [0, 100], y: [0, 100] });
+				assertSelection(f.u, enabled ? emptySelection : { left: 115, top: 0, width: 230, height: 350 });
+			}
+			finally { f.destroy(); }
+		}
 	});
 
 	for (const movement of [null, 0, 9]) {
@@ -311,7 +344,7 @@ describe('mouse-driven drag selection', () => {
 	}
 
 	it('starts selection at drag.dist and ignores a subsequent zero-movement event', async () => {
-		const f = await plot({ x: true, y: false, dist: 10, setScale: false });
+		const f = await plot({ x: true, y: false, dist: 10, setRange: false });
 		const { u, mouse, selections } = f;
 		try {
 			mouse('mousedown', 100, 100);
@@ -384,7 +417,7 @@ describe('mouse-driven drag selection', () => {
 	}
 
 	it('refreshes the drag origin and width after axes collapse and return', async () => {
-		const f = await plot({ setScale: false }, 1, true);
+		const f = await plot({ setRange: false }, 1, true);
 		const { u, mouse, selections, scales } = f;
 		try {
 			mouse('mousemove', 100, 100);
@@ -466,8 +499,8 @@ describe('double-click scale reset', () => {
 		finally { f.destroy(); }
 	});
 
-	it('clears a retained selection when drag.setScale is false', async () => {
-		const f = await plot({ x: true, y: true, setScale: false }, 1, true);
+	it('clears a retained selection when drag.setRange is false', async () => {
+		const f = await plot({ x: true, y: true, setRange: false }, 1, true);
 		const { u, mouse } = f;
 		try {
 			await dragMiddle(f);
@@ -541,7 +574,7 @@ describe('double-click scale reset', () => {
 
 	for (const button of [1, 2]) {
 		it(`ignores button ${button} double-clicks without clearing the selection or resetting ranges`, async () => {
-			const f = await plot({ x: true, y: true, setScale: false }, 1, true);
+			const f = await plot({ x: true, y: true, setRange: false }, 1, true);
 			const { u, mouse, scales, selections } = f;
 			try {
 				u.setScale('x', { min: 25, max: 75 });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import '../scripts2/instrument.mjs';
+import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 
 const demoDir = new URL('../demos/issues/', import.meta.url);

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import '../scripts2/instrument.mjs';
+import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
-import { captureStep, getDemoSteps } from '../scripts2/demoSteps.mjs';
-import { withSeededRandom } from '../scripts2/withSeededRandom.mjs';
+import { captureStep, getDemoSteps } from '../scripts/demoSteps.mjs';
+import { withSeededRandom } from '../scripts/withSeededRandom.mjs';
 import months from '../demos/months.js';
 import monthsRu from '../demos/months-ru.js';
 import gridOverSeries from '../demos/grid-over-series.js';

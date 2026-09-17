@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import '../scripts2/instrument.mjs';
-import { replay } from '../scripts2/replay.mjs';
+import '../scripts/instrument.mjs';
+import { replay } from '../scripts/replay.mjs';
 import uPlot from '../src/uPlot.js';
 import arcsinhGroups from '../demos/arcsinh-scales.js';
 import pointsGroups from '../demos/points.js';
-import { captureStep } from '../scripts2/demoSteps.mjs';
-import { withSeededRandom } from '../scripts2/withSeededRandom.mjs';
+import { captureStep } from '../scripts/demoSteps.mjs';
+import { withSeededRandom } from '../scripts/withSeededRandom.mjs';
 
 describe('demo extraction support', () => {
 	it('repeats the seeded points demo without retaining random-walk state', async () => {

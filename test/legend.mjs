@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import '../scripts2/instrument.mjs';
+import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 
 const data = [[0, 50, 100], [10, 20, 30], [40, null, 60], [70, 80, 90]];

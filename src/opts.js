@@ -489,7 +489,8 @@ export const cursorOpts = {
 	},
 
 	drag: {
-		setScale: true,
+		setRange: true,
+		setScale: null,
 		x: true,
 		y: false,
 		dist: 0,

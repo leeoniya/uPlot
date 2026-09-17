@@ -100,7 +100,7 @@ Run these commands sequentially:
 
 ```sh
 NODE_OPTIONS='--max-old-space-size=256' npm run build
-node --max-old-space-size=128 scripts2/bench-hover.mjs
+node --max-old-space-size=128 scripts/bench-hover.mjs
 ```
 
 The runner compares committed baseline code with `dist/uPlot.esm.js`. The build step prevents a stale current bundle from invalidating the comparison.

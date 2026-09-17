@@ -8,7 +8,7 @@ The [last comment](https://github.com/leeoniya/uPlot/issues/20#issuecomment-4449
 **The published-package limitation reproduces.** The current repository bundle does not have that limitation.
 Both advertise version `1.6.32`, but their implementations differ.
 
-The author-facing demo is [issue-20-export-pxratio.html](../demos/issues/issue-20-export-pxratio.html).
+The author-facing demo is [issue-20-export-pxratio.html](../../demos/issues/issue-20-export-pxratio.html).
 It uses only the local current build, with no external requests.
 Two detached chart instances export at DPR 1 and 4. The page shows PNG previews, dimensions, and download links.
 The comparison results in this report came from the earlier diagnostic version of that page.

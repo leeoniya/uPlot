@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { plotStep } from '../demos/renderDemo.js';
-import { getDemoSteps, captureStep } from '../scripts2/demoSteps.mjs';
+import { getDemoSteps, captureStep } from '../scripts/demoSteps.mjs';
 
 function mockPlot(value, destroyed = []) {
 	return {

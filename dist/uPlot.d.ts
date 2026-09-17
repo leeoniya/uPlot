@@ -88,7 +88,7 @@ declare class uPlot {
 	/** sets the chart data & redraws. (default resetScales = true) */
 	setData(data: uPlot.AlignedData, resetScales?: boolean): void;
 
-	/** Sets concrete scale bounds and redraws. Orders reversed bounds and bypasses range(). */
+	/** Sets concrete scale bounds and redraws. Bypasses range(). */
 	setRange(scaleKey: string, min: number, max: number): void;
 
 	/** Sets scale bounds and redraws. Concrete bounds bypass range(); null bounds request calculation, even with auto: false. */
@@ -548,11 +548,13 @@ declare namespace uPlot {
 			fill?:   Points.Fill;
 		}
 
-		export type DragSetScale = boolean | ((self: uPlot, scaleKey: string, limits: { min: number; max: number }) => { min: number; max: number } | null);
+		export type DragSetRange = boolean | ((self: uPlot, scaleKey: string, min: number, max: number) => [min: number, max: number] | null);
 
 		export interface Drag {
 			/** applies drag bounds; a callback can adjust them or return null to cancel that scale */
-			setScale?: DragSetScale; // true
+			setRange?: DragSetRange; // true
+			/** @deprecated Use setRange. */
+			setScale?: boolean; // null
 			/** toggles dragging along x */
 			x?: boolean; // true
 			/** toggles dragging along y */

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import '../scripts2/instrument.mjs';
+import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { ageTicks, calendarTicks, createLogTimeDemo, latencyData, recentTimeTransform } from '../demos/log-time-axis.js';
 

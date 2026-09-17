@@ -267,8 +267,8 @@ let opts = {
 `u.setRange(scaleKey, min, max)` sets concrete bounds and bypasses `scale.range()`.
 `u.setScale()` accepts object bounds. Null bounds request scale calculation.
 
-A `cursor.drag.setScale` callback can adjust the bounds from built-in drag zoom.
-Return the adjusted bounds, or return `null` to cancel the scale change.
+A `cursor.drag.setRange` callback can adjust the bounds from built-in drag zoom.
+It receives ordered `min` and `max` bounds. Return an adjusted `[min, max]` tuple, or return `null` to cancel the scale change.
 Other scale operations do not call this callback.
 
 ```js
@@ -276,14 +276,14 @@ let opts = {
   cursor: {
     drag: {
       x: true,
-      setScale: (u, scaleKey, limits) => {
+      setRange: (u, scaleKey, min, max) => {
         if (scaleKey != "x")
-          return limits;
+          return [min, max];
 
-        return {
-          min: Math.floor(limits.min / 10) * 10,
-          max: Math.ceil(limits.max / 10) * 10,
-        };
+        return [
+          Math.floor(min / 10) * 10,
+          Math.ceil(max / 10) * 10,
+        ];
       },
     },
   },

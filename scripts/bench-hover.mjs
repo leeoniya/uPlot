@@ -1,4 +1,4 @@
-// Run after npm run build: node --max-old-space-size=128 scripts2/bench-hover.mjs
+// Run after npm run build: node --max-old-space-size=128 scripts/bench-hover.mjs
 import { execFileSync, spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

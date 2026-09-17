@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { Window } from 'happy-dom';
-import { writeFailureReport } from '../scripts2/replay.mjs';
+import { writeFailureReport } from '../scripts/replay.mjs';
 
 class ReplayPath {
 	ops = [];

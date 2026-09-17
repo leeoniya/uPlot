@@ -1,4 +1,4 @@
-// Run directly: node scripts2/bench-rounding.mjs (or bun), without coverage.
+// Run directly: node scripts/bench-rounding.mjs (or bun), without coverage.
 import { execFileSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import * as source from '../src/utils.js';

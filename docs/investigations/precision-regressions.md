@@ -10,9 +10,9 @@ The review includes open and closed uPlot issues, issue comments, attached repro
 - `test/precision-scales.mjs`: axis splits, chart initialization, zooms, and time formatting.
 - `test/precision-fixed-dec.mjs`: exact increment keys, decimal counts, registry overlap, and custom increment registration.
 - `test/precision-boundaries.mjs`: decimal exponent boundaries, signed ties, large quotients, tiny grids, and precision-budget checks.
-- `scripts2/bench-rounding.mjs`: warm rounding and ranging benchmarks against commit `443333f`.
-- `scripts2/precision-probe.mjs`: chart and tick probes in a shared worker.
-- `scripts2/probe-worker.mjs`: sequential IPC requests, parent-enforced deadlines, and worker recovery.
+- `scripts/bench-rounding.mjs`: warm rounding and ranging benchmarks against commit `443333f`.
+- `scripts/precision-probe.mjs`: chart and tick probes in a shared worker.
+- `scripts/probe-worker.mjs`: sequential IPC requests, parent-enforced deadlines, and worker recovery.
 - `test/probe-worker.mjs`: watchdog, failure-reporting, and cleanup regressions.
 
 The tests exercise exported source functions. They do not require a rebuilt bundle or network access.
@@ -110,8 +110,8 @@ The first `fixedDec` patch did not replace `fixFloat`, change `roundDec`, or mod
 Run the benchmark without coverage:
 
 ```sh
-node scripts2/bench-fixed-dec.mjs
-bun scripts2/bench-fixed-dec.mjs
+node scripts/bench-fixed-dec.mjs
+bun scripts/bench-fixed-dec.mjs
 ```
 
 The benchmark retains the pre-fix generation and metadata implementations for comparison with source.
@@ -213,8 +213,8 @@ There are no snapshot failures.
 Run the benchmark without coverage:
 
 ```sh
-node scripts2/bench-rounding.mjs
-bun scripts2/bench-rounding.mjs
+node scripts/bench-rounding.mjs
+bun scripts/bench-rounding.mjs
 ```
 
 The benchmark loads the pre-change source from Git commit `443333f` and uses identical built-in increment metadata.

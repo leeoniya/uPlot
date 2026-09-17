@@ -8,8 +8,8 @@
   "typings": "./dist/uPlot.d.ts",
   "scripts": {
     "build": "rollup -c --bundleConfigAsCjs",
-    "test": "node ./scripts2/test.mjs",
-    "test:update": "UPDATE=1 node ./scripts2/test.mjs"
+    "test": "node ./scripts/test.mjs",
+    "test:update": "UPDATE=1 node ./scripts/test.mjs"
   },
   "repository": {
     "type": "git",

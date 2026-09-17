@@ -2,10 +2,10 @@ import { fileURLToPath } from 'node:url';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createProbeWorker } from '../scripts2/probe-worker.mjs';
+import { createProbeWorker } from '../scripts/probe-worker.mjs';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
-const helper = fileURLToPath(new URL('../scripts2/precision-probe.mjs', import.meta.url));
+const helper = fileURLToPath(new URL('../scripts/precision-probe.mjs', import.meta.url));
 
 describe('precision: source scale ranging and axis splits', function() {
 	this.timeout(15000); // Parent enforces separate startup, execution, and shutdown limits.
@@ -33,7 +33,7 @@ describe('precision: source scale ranging and axis splits', function() {
 	});
 
 	// Source URLs, exact versus derived parameters, and numerical assertions are
-	// next to the cases in scripts2/precision-probe.mjs. No canvas snapshots.
+	// next to the cases in scripts/precision-probe.mjs. No canvas snapshots.
 	for (const [name, title] of [
 		['demo-magnitude-sweep', 'demo active 1e-6 to 1e8 data produce finite linear/log10/log2 chart ticks'],
 		['demo-wide-and-tiny-log', 'demo active wide log ranges and tiny data retain finite ticks and filtered labels'],
