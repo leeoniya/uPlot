@@ -1778,7 +1778,8 @@ const cursorOpts = {
 	},
 
 	drag: {
-		setScale: true,
+		setRange: true,
+		setScale: null,
 		x: true,
 		y: false,
 		dist: 0,
@@ -3749,11 +3750,11 @@ function uPlot(opts, data, then) {
 
 	const pendScales = {};
 
-	let isFullyExplicit = psc => psc.min != null && psc.max != null;
-	let isFullyImplicit = psc => psc.min == null && psc.max == null;
+	let isFullyExplicit = (min, max) => min != null && max != null;
+	let isFullyImplicit = (min, max) => min == null && max == null;
 
 	function applyCalculatedRange(wsc, psc, minMax, key) {
-		if (isFullyImplicit(psc)) {
+		if (isFullyImplicit(psc.min, psc.max)) {
 			wsc.min = minMax[0];
 			wsc.max = minMax[1];
 			return;
@@ -3764,7 +3765,7 @@ function uPlot(opts, data, then) {
 		let min = minExplicit ? psc.min : minMax[0];
 		let max = maxExplicit ? psc.max : minMax[1];
 
-		if (min != null && max != null && min > max && minExplicit != maxExplicit) {
+		if (isFullyExplicit(min, max) && min > max && minExplicit != maxExplicit) {
 			wsc.min = scales[key].min;
 			wsc.max = scales[key].max;
 		}
@@ -4613,7 +4614,7 @@ function uPlot(opts, data, then) {
 			for (let k in pendScales) {
 				let psc = pendScales[k];
 
-				if (k != xScaleKey && psc != null && !isFullyExplicit(psc))
+				if (k != xScaleKey && psc != null && !isFullyExplicit(psc.min, psc.max))
 					resetScaleSeries(k);
 			}
 		}
@@ -4626,7 +4627,7 @@ function uPlot(opts, data, then) {
 			if (psc != null) {
 				let wsc = wipScales[k] = copy(scales[k], fastIsObj);
 
-				if (isFullyExplicit(psc)) {
+				if (isFullyExplicit(psc.min, psc.max)) {
 					wsc.min = psc.min;
 					wsc.max = psc.max;
 				}
@@ -4654,7 +4655,7 @@ function uPlot(opts, data, then) {
 					let wsc = wipScales[k];
 
 					if (i == 0) {
-						if (!isFullyExplicit(psc)) {
+						if (!isFullyExplicit(psc.min, psc.max)) {
 							let minMax = wsc.scan == scanAuto || wsc.scan == scanCached ? scanCachedX(self, k) : getScan(wsc, k);
 
 							applyCalculatedRange(wsc, psc, wsc.range(self, minMax[0], minMax[1], k), k);
@@ -4686,7 +4687,7 @@ function uPlot(opts, data, then) {
 				let wsc = wipScales[k];
 				let psc = pendScales[k];
 
-				if (wsc.from == null && !isFullyExplicit(psc) && (mode == 2 || k != xScaleKey)) {
+				if (wsc.from == null && !isFullyExplicit(psc.min, psc.max) && (mode == 2 || k != xScaleKey)) {
 					let minMax = getScan(wsc, k, i0, i1);
 					applyCalculatedRange(wsc, psc, wsc.range(self, minMax[0], minMax[1], k), k);
 				}
@@ -5509,11 +5510,13 @@ function uPlot(opts, data, then) {
 		let sc = scales[key];
 
 		if (sc.from == null) {
-			if (min != null && max != null && min > max)
-				[min, max] = [max, min];
+			if (isFullyExplicit(min, max)) {
+				if (min > max)
+					return;
 
-			if (dataLen > 1 && min != null && max != null && max - min < 1e-16)
-				return;
+				if (dataLen > 1 && max - min < 1e-16)
+					return;
+			}
 
 			if (key == xScaleKey && sc.distr == 2 && dataLen > 0) {
 				if (min != null)
@@ -5568,6 +5571,8 @@ function uPlot(opts, data, then) {
 	let dragging = false;
 
 	const drag = cursor.drag;
+
+	drag.setRange = drag.setScale ?? drag.setRange;
 
 	let dragX = drag.x;
 	let dragY = drag.y;
@@ -6479,15 +6484,15 @@ function uPlot(opts, data, then) {
 	//	hideSelect();
 	}
 
-	function setDragScale(key, min, max) {
-		if (isFn(drag.setScale)) {
-			if (min > max)
-				[min, max] = [max, min];
+	function setDragRange(key, min, max) {
+		if (min > max)
+			[min, max] = [max, min];
 
-			let limits = drag.setScale(self, key, {min, max});
+		if (isFn(drag.setRange)) {
+			let range = drag.setRange(self, key, min, max);
 
-			if (limits != null)
-				setRange(key, limits.min, limits.max);
+			if (range != null)
+				setRange(key, range[0], range[1]);
 		}
 		else
 			setRange(key, min, max);
@@ -6510,7 +6515,7 @@ function uPlot(opts, data, then) {
 
 		hasSelect && chgSelect && setSelect(select);
 
-		if (drag.setScale && hasSelect && chgSelect) {
+		if (drag.setRange && hasSelect && chgSelect) {
 		//	if (syncKey != null) {
 		//		dragX = drag.x;
 		//		dragY = drag.y;
@@ -6529,7 +6534,7 @@ function uPlot(opts, data, then) {
 			}
 
 			if (dragX) {
-				setDragScale(xScaleKey,
+				setDragRange(xScaleKey,
 					posToVal(xOff, xScaleKey),
 					posToVal(xOff + xDim, xScaleKey)
 				);
@@ -6540,7 +6545,7 @@ function uPlot(opts, data, then) {
 					let sc = scales[k];
 
 					if (k != xScaleKey && sc.from == null && sc.min != inf) {
-						setDragScale(k,
+						setDragRange(k,
 							posToVal(yOff + yDim, k),
 							posToVal(yOff, k)
 						);
