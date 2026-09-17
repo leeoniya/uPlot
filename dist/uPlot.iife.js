@@ -3375,7 +3375,7 @@ var uPlot = (function () {
 		}
 	}
 
-	function scanScale(self, scaleKey, i0, i1, cache = false) {
+	function scanScaleInternal(self, scaleKey, i0, i1, cache, allValues) {
 		let data = self._data;
 		let series = self.series;
 		let scale = self.scales[scaleKey];
@@ -3385,7 +3385,7 @@ var uPlot = (function () {
 
 		let scaleMin = inf;
 		let scaleMax = -inf;
-		let log = scale.distr == 3;
+		let log = !allValues && scale.distr == 3;
 
 		function acc(si, data, facet, sorted, mirror) {
 			if (data != null && data.length > 0) {
@@ -3455,8 +3455,16 @@ var uPlot = (function () {
 		];
 	}
 
+	function scanScale(self, scaleKey, i0, i1, cache = false) {
+		return scanScaleInternal(self, scaleKey, i0, i1, cache, false);
+	}
+
 	function scanCached(self, scaleKey, i0, i1) {
-		return scanScale(self, scaleKey, i0, i1, true);
+		return scanScaleInternal(self, scaleKey, i0, i1, true, false);
+	}
+
+	function scanCachedX(self, scaleKey) {
+		return scanScaleInternal(self, scaleKey, null, null, true, true);
 	}
 
 	function scanNone() {
@@ -3742,24 +3750,22 @@ var uPlot = (function () {
 
 		const pendScales = {};
 
-		function pendingScale(min, max, explicit) {
-			let minExplicit = explicit && min != null;
-			let maxExplicit = explicit && max != null;
-
-			return {
-				min,
-				max,
-				_minExplicit: minExplicit,
-				_maxExplicit: maxExplicit,
-				_range: !minExplicit || !maxExplicit,
-			};
-		}
+		let isFullyExplicit = psc => psc.min != null && psc.max != null;
+		let isFullyImplicit = psc => psc.min == null && psc.max == null;
 
 		function applyCalculatedRange(wsc, psc, minMax, key) {
-			let min = psc._minExplicit ? psc.min : minMax[0];
-			let max = psc._maxExplicit ? psc.max : minMax[1];
+			if (isFullyImplicit(psc)) {
+				wsc.min = minMax[0];
+				wsc.max = minMax[1];
+				return;
+			}
 
-			if (min != null && max != null && min > max && psc._minExplicit != psc._maxExplicit) {
+			let minExplicit = psc.min != null;
+			let maxExplicit = psc.max != null;
+			let min = minExplicit ? psc.min : minMax[0];
+			let max = maxExplicit ? psc.max : minMax[1];
+
+			if (min != null && max != null && min > max && minExplicit != maxExplicit) {
 				wsc.min = scales[key].min;
 				wsc.max = scales[key].max;
 			}
@@ -3774,7 +3780,7 @@ var uPlot = (function () {
 			let sc = scales[k];
 
 			if (sc.min != null || sc.max != null) {
-				pendScales[k] = pendingScale(sc.min, sc.max, true);
+				pendScales[k] = {min: sc.min, max: sc.max};
 				sc.min = sc.max = null;
 			}
 		}
@@ -4504,7 +4510,7 @@ var uPlot = (function () {
 				if (xsc.auto(self, viaAutoScaleX))
 					autoScaleX();
 				else
-					_setScale(xScaleKey, xsc.min, xsc.max);
+					setRange(xScaleKey, xsc.min, xsc.max);
 
 				shouldSetCursor = shouldSetCursor || cursor.left >= 0;
 				shouldSetLegend = true;
@@ -4514,35 +4520,23 @@ var uPlot = (function () {
 
 		self.setData = setData;
 
-		function autoScaleXBounds() {
-			let _min, _max;
-
+		function resetAutoScaleXIdxs() {
 			if (mode == 1) {
 				if (dataLen > 0) {
 					i0 = idxs[0] = 0;
 					i1 = idxs[1] = dataLen - 1;
-
-					_min = data[0][i0];
-					_max = data[0][i1];
-
-					if (xScaleDistr == 2) {
-						_min = i0;
-						_max = i1;
-					}
 				}
 				else {
-					i0 = idxs[0] = _min = null;
-					i1 = idxs[1] = _max = null;
+					i0 = idxs[0] = null;
+					i1 = idxs[1] = null;
 				}
 			}
-
-			return [_min, _max];
 		}
 
 		function autoScaleX() {
 			viaAutoScaleX = true;
-			let [_min, _max] = autoScaleXBounds();
-			_setScale(xScaleKey, _min, _max, false);
+			resetAutoScaleXIdxs();
+			setRange(xScaleKey, null, null);
 		}
 
 		let ctxStroke, ctxFill, ctxWidth, ctxDash, ctxJoin, ctxCap, ctxFont, ctxAlign, ctxBaseline;
@@ -4584,7 +4578,7 @@ var uPlot = (function () {
 			return wsc.scan(self, scaleKey, i0, i1, viaAutoScaleX);
 		}
 
-		const AUTOSCALE = pendingScale(null, null, false);
+		const AUTOSCALE = {min: null, max: null};
 
 		function setScales() {
 		//	log("setScales()", arguments);
@@ -4597,7 +4591,7 @@ var uPlot = (function () {
 					(
 						// scales that have never been set (on init)
 						sc.min == null ||
-						// or auto scales when the x scale was explicitly set
+						// or auto scales when the x scale has a pending update
 						pendScales[xScaleKey] != null && sc.auto(self, viaAutoScaleX)
 					)
 				) {
@@ -4613,12 +4607,14 @@ var uPlot = (function () {
 					pendScales[k] = AUTOSCALE;
 			}
 
-			// explicitly setting the x-scale invalidates paths and the extrema of scales that will be recalculated
+			// setting the x-scale invalidates paths and the extrema of scales that will be recalculated
 			if (pendScales[xScaleKey] != null) {
 				resetYSeries(false);
 
 				for (let k in pendScales) {
-					if (k != xScaleKey && pendScales[k] != null && pendScales[k]._range)
+					let psc = pendScales[k];
+
+					if (k != xScaleKey && psc != null && !isFullyExplicit(psc))
 						resetScaleSeries(k);
 				}
 			}
@@ -4631,7 +4627,7 @@ var uPlot = (function () {
 				if (psc != null) {
 					let wsc = wipScales[k] = copy(scales[k], fastIsObj);
 
-					if (!psc._range) {
+					if (isFullyExplicit(psc)) {
 						wsc.min = psc.min;
 						wsc.max = psc.max;
 					}
@@ -4659,21 +4655,8 @@ var uPlot = (function () {
 						let wsc = wipScales[k];
 
 						if (i == 0) {
-							if (psc._range) {
-								let minMax;
-
-								if (wsc.scan == scanAuto || wsc.scan == scanCached) {
-									let dataMin, dataMax;
-
-									if (!psc._minExplicit && !psc._maxExplicit && psc.min != null && psc.max != null)
-										[dataMin, dataMax] = [psc.min, psc.max];
-									else
-										[dataMin, dataMax] = autoScaleXBounds();
-
-									minMax = [dataMin, dataMax];
-								}
-								else
-									minMax = getScan(wsc, k);
+							if (!isFullyExplicit(psc)) {
+								let minMax = wsc.scan == scanAuto || wsc.scan == scanCached ? scanCachedX(self, k) : getScan(wsc, k);
 
 								applyCalculatedRange(wsc, psc, wsc.range(self, minMax[0], minMax[1], k), k);
 							}
@@ -4704,7 +4687,7 @@ var uPlot = (function () {
 					let wsc = wipScales[k];
 					let psc = pendScales[k];
 
-					if (wsc.from == null && psc._range && (mode == 2 || k != xScaleKey)) {
+					if (wsc.from == null && !isFullyExplicit(psc) && (mode == 2 || k != xScaleKey)) {
 						let minMax = getScan(wsc, k, i0, i1);
 						applyCalculatedRange(wsc, psc, wsc.range(self, minMax[0], minMax[1], k), k);
 					}
@@ -5517,27 +5500,23 @@ var uPlot = (function () {
 			shouldLayout = shouldLayout || recalcAxes || false;
 
 			if (rebuildPaths !== false)
-				_setScale(xScaleKey, scaleX.min, scaleX.max);
+				setRange(xScaleKey, scaleX.min, scaleX.max);
 			else
 				commit();
 		};
 
-		// redraw() => setScale('x', scales.x.min, scales.x.max);
 
-		function setScale(key, opts, explicit = true) {
+		function setRange(key, min, max) {
 			let sc = scales[key];
 
 			if (sc.from == null) {
-				let min = opts.min;
-				let max = opts.max;
-
 				if (min != null && max != null && min > max)
 					[min, max] = [max, min];
 
-				if (explicit && dataLen > 1 && min != null && max != null && max - min < 1e-16)
+				if (dataLen > 1 && min != null && max != null && max - min < 1e-16)
 					return;
 
-				if (explicit && key == xScaleKey && sc.distr == 2 && dataLen > 0) {
+				if (key == xScaleKey && sc.distr == 2 && dataLen > 0) {
 					if (min != null)
 						min = closestIdx(min, data[0]);
 					if (max != null)
@@ -5547,13 +5526,19 @@ var uPlot = (function () {
 						max++;
 				}
 
-			//	log("setScale()", arguments);
+			//	log("setRange()", arguments);
 
-				pendScales[key] = pendingScale(min, max, explicit);
+				pendScales[key] = {min, max};
 
 				shouldSetScales = true;
 				commit();
 			}
+		}
+
+		self.setRange = setRange;
+
+		function setScale(key, opts) {
+			setRange(key, opts.min, opts.max);
 		}
 
 		self.setScale = setScale;
@@ -5648,10 +5633,6 @@ var uPlot = (function () {
 			}
 		}
 
-		function _setScale(key, min, max, explicit = true) {
-			setScale(key, {min, max}, explicit);
-		}
-
 		function setSeries(i, opts, _fire, _pub) {
 		//	log("setSeries()", arguments);
 
@@ -5665,11 +5646,11 @@ var uPlot = (function () {
 						toggleDOM(si);
 
 						if (mode == 2) {
-							_setScale(s.facets[0].scale, null, null);
-							_setScale(s.facets[1].scale, null, null);
+							setRange(s.facets[0].scale, null, null);
+							setRange(s.facets[1].scale, null, null);
 						}
 						else
-							_setScale(s.scale, null, null);
+							setRange(s.scale, null, null);
 
 						commit();
 					}
@@ -6500,16 +6481,17 @@ var uPlot = (function () {
 		}
 
 		function setDragScale(key, min, max) {
-			if (min > max)
-				[min, max] = [max, min];
+			if (isFn(drag.setScale)) {
+				if (min > max)
+					[min, max] = [max, min];
 
-			let limits = {min, max};
+				let limits = drag.setScale(self, key, {min, max});
 
-			if (isFn(drag.setScale))
-				limits = drag.setScale(self, key, limits);
-
-			if (limits != null)
-				_setScale(key, limits.min, limits.max);
+				if (limits != null)
+					setRange(key, limits.min, limits.max);
+			}
+			else
+				setRange(key, min, max);
 		}
 
 		function mouseUp(e, src, _l, _t, _w, _h, _i) {

@@ -52,6 +52,23 @@ describe('scale range policy', () => {
 			}
 		});
 
+		it('sets reversed concrete bounds through setRange without calling scale.range', async () => {
+			const calls = [];
+			const u = makePlot({ scales: { x: { range: paddedRange(calls) } } });
+			try {
+				await nextCommit();
+				calls.length = 0;
+
+				u.setRange('x', 1.75, 0.25);
+				await nextCommit();
+				assert.deepStrictEqual(calls, []);
+				assert.deepStrictEqual([u.scales.x.min, u.scales.x.max], [0.25, 1.75]);
+			}
+			finally {
+				u.destroy();
+			}
+		});
+
 		it('calculates only null or undefined bounds', async () => {
 			const calls = [];
 			const u = makePlot({ scales: { x: { range: paddedRange(calls) } } });

@@ -264,6 +264,9 @@ let opts = {
 }
 ```
 
+`u.setRange(scaleKey, min, max)` sets concrete bounds and bypasses `scale.range()`.
+`u.setScale()` accepts object bounds. Null bounds request scale calculation.
+
 A `cursor.drag.setScale` callback can adjust the bounds from built-in drag zoom.
 Return the adjusted bounds, or return `null` to cancel the scale change.
 Other scale operations do not call this callback.
