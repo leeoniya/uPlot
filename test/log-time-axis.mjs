@@ -29,17 +29,34 @@ class MeasuredPlot extends uPlot {
 	}
 }
 
+class MeasuredOffscreenCanvas {
+	getContext() {
+		return { font: '', measureText: text => ({ width: text.length * 7 }) };
+	}
+}
+
 async function withDemos(configs, run) {
-	const mounted = configs.map(({ now = max, Plot = MeasuredPlot, widths } = {}) => {
-		const fixture = document.createElement('div');
-		fixture.innerHTML = demoHtml;
-		document.body.append(fixture);
-		if (widths != null) {
-			for (const [id, width] of [['chart', widths[0]], ['linear-chart', widths[1]]])
-				Object.defineProperty(fixture.querySelector(`#${id}`), 'clientWidth', { value: width });
-		}
-		return { fixture, ...createLogTimeDemo(Plot, fixture, now) };
-	});
+	const OriginalOffscreenCanvas = globalThis.OffscreenCanvas;
+	globalThis.OffscreenCanvas = MeasuredOffscreenCanvas;
+	let mounted;
+	try {
+		mounted = configs.map(({ now = max, Plot = MeasuredPlot, widths } = {}) => {
+			const fixture = document.createElement('div');
+			fixture.innerHTML = demoHtml;
+			document.body.append(fixture);
+			if (widths != null) {
+				for (const [id, width] of [['chart', widths[0]], ['linear-chart', widths[1]]])
+					Object.defineProperty(fixture.querySelector(`#${id}`), 'clientWidth', { value: width });
+			}
+			return { fixture, ...createLogTimeDemo(Plot, fixture, now) };
+		});
+	}
+	finally {
+		if (OriginalOffscreenCanvas == null)
+			delete globalThis.OffscreenCanvas;
+		else
+			globalThis.OffscreenCanvas = OriginalOffscreenCanvas;
+	}
 	try {
 		await Promise.resolve();
 		await run(mounted);

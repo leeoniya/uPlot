@@ -285,6 +285,11 @@ export function createLogTimeDemo(uPlot, root, now = Date.now()) {
 	const widthStatus = root.querySelector('#width-status');
 	const domainStatus = root.querySelector('#domain-status');
 	const syncKey = `log-time-axis-${++demoId}`;
+	const ownerDocument = root.ownerDocument || root;
+	const measureCanvas = typeof OffscreenCanvas == 'undefined' ? ownerDocument.createElement('canvas') : new OffscreenCanvas(1, 1);
+	const measureCtx = measureCanvas.getContext('2d');
+	measureCtx.font = AXIS_FONT;
+	const measureLabel = label => Math.max(...label.split('\n').map(line => measureCtx.measureText(line).width));
 
 	function updateControlState() {
 		// Snapshot the clock once per update so fwd/bwd and tick labels use the same anchor.
@@ -347,22 +352,11 @@ export function createLogTimeDemo(uPlot, root, now = Date.now()) {
 			axisWidth = width;
 			return [max - min];
 		},
-		splits: u => {
+		splits: () => {
 			const calendar = tickMode.value == 'calendar';
-			if (calendar) {
-				u.ctx.save();
-				try {
-					// Measure in CSS pixels, independently of the canvas pixel ratio.
-					u.ctx.font = AXIS_FONT;
-					const measureLabel = label => Math.max(...label.split('\n').map(line => u.ctx.measureText(line).width));
-					ticks = calendarTicks(min, max, transform, axisWidth, TICK_SPACING, anchor, measureLabel);
-				}
-				finally {
-					u.ctx.restore();
-				}
-			}
-			else
-				ticks = ageTicks(min, max, transform, axisWidth, TICK_SPACING, anchor);
+			ticks = calendar
+				? calendarTicks(min, max, transform, axisWidth, TICK_SPACING, anchor, measureLabel)
+				: ageTicks(min, max, transform, axisWidth, TICK_SPACING, anchor);
 			status.textContent = calendar
 				? `${ticks.length} UTC ticks · ${[...new Set(ticks.map(tick => tick.unit))].join(', ')}`
 				: `${ticks.length} age ticks · relative to ${anchorMode.value == 'max' ? 'view max' : 'wall clock'}`;
