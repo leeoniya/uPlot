@@ -485,6 +485,7 @@ declare namespace uPlot {
 		/**
 		 * Retained input and derived data arrays. Discard only for non-interactive charts.
 		 * Resize, cursor interaction, legend toggling, and other data-dependent operations are unsupported after disposal.
+		 * With cache.data: false, hooks must not call setData().
 		 */
 		data?: boolean;
 	}

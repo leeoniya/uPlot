@@ -466,7 +466,9 @@ u.clearCache({});              // Nothing.
 
 Data disposal replaces retained columns with empty arrays while preserving the dataset structure, including mode-2 facets. It also releases ordinal index arrays and the internal `opts.data` copy. It does not mutate caller-owned arrays, clear the canvas, or reset scale bounds and extrema. A later `setData()` can supply new data for another render.
 
-Data disposal is for non-interactive charts such as sparklines. Cursor interaction, legend toggling, resize, pixel-ratio updates, and other data-dependent features must be disabled. The implementation does not enforce these restrictions yet. Manual data disposal must occur after rendering. Automatic disposal normally completes before `ready`, but retains data needed by pending render work. Plugins and callbacks can retain their own references, which this API cannot release.
+Data disposal is for non-interactive charts such as sparklines. Cursor interaction, legend toggling, resize, pixel-ratio updates, and other data-dependent features must be disabled. The implementation does not enforce these restrictions yet.
+
+Manual data disposal must occur after rendering. Automatic disposal normally completes before `ready`, but retains data needed by pending render work. With `cache.data: false`, hooks must not call `setData()`. Plugins and callbacks can retain their own references, which this API cannot release.
 
 #### Cursor Marker Alignment
 

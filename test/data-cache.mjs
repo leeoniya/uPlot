@@ -81,30 +81,6 @@ function makePlot(mode, distr, cache, source, input, optionData) {
 }
 
 describe('data cache disposal', () => {
-	for (const hook of ['draw', 'ready']) {
-		it(`retains new data requested by ${hook} until its own render completes`, async () => {
-			const input = makeData(1, false);
-			const next = makeData(1, false, 20);
-			const { u, trace } = makePlot(1, 1, { data: false }, 'positional', input);
-			let calls = 0;
-			u.hooks[hook].push(() => {
-				if (calls++ == 0)
-					u.setData(next);
-			});
-			try {
-				await Promise.resolve();
-				assert.equal(u.data, next, 'pending data stays available');
-				await Promise.resolve();
-				assert.equal(trace.draws.length, 2);
-				assert.deepEqual(trace.draws[0].values, input);
-				assert.deepEqual(trace.draws[1].values, next);
-				assertEmpty(u.data, next, 1);
-			}
-			finally {
-				u.destroy();
-			}
-		});
-	}
 
 	for (const [name, mode, distr] of [['linear', 1, 1], ['ordinal', 1, 2], ['faceted', 2, 1]]) {
 		for (const typed of [false, true]) {

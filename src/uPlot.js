@@ -2444,9 +2444,8 @@ export default function uPlot(opts, data, then) {
 				fire("setScale", k);
 		}
 
-		let drawnData;
-		if (fullWidCss > 0 && fullHgtCss > 0) {
-			drawnData = data;
+		let didDraw = fullWidCss > 0 && fullHgtCss > 0;
+		if (didDraw) {
 			ctx.clearRect(0, 0, can.width, can.height);
 			fire("drawClear");
 			drawOrder.forEach(fn => fn());
@@ -2477,8 +2476,8 @@ export default function uPlot(opts, data, then) {
 		if (!usePathCache)
 			clearPathCache();
 
-		// Keep data installed by hooks or needed by a pending render.
-		if (!useDataCache && data === drawnData && !shouldSetScales && !shouldLayout)
+		// Keep data needed by a pending render.
+		if (!useDataCache && didDraw && !shouldSetScales && !shouldLayout)
 			clearDataCache();
 
 		if (!ready) {
