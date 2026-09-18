@@ -3765,7 +3765,7 @@ function uPlot(opts, data, then) {
 	}
 
 	const can = placeTag("canvas");
-	const ctx = self.ctx = can.getContext("2d");
+	const ctx = self.ctx = can.getContext("2d", opts.ctxAttrs);
 
 	const wrap = placeDiv(WRAP, root);
 

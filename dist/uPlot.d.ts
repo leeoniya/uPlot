@@ -437,6 +437,9 @@ declare namespace uPlot {
 		/** initial devicePixelRatio, if different than window.devicePixelRatio */
 		pxRatio?: number;
 
+		/** Canvas 2D context attributes, used only at creation. Omitted attributes retain browser defaults. */
+		ctxAttrs?: CanvasRenderingContext2DSettings;
+
 		/** data for chart, if none is provided as argument to constructor */
 		data?: AlignedData;
 
