@@ -1114,6 +1114,13 @@ declare namespace uPlot {
 	}
 
 	export namespace Axis {
+		export interface Nice {
+			/** Realign multi-hour ticks to the local midnight-based cadence across DST transitions. Default: true. */
+			dst?: boolean;
+			/** Enforce month-start ticks for multi-day increments, removing a preceding tick if it is too close. Default: false. */
+			first?: boolean;
+		}
+
 		/** must return an array of same length as splits, e.g. via splits.map() */
 		export type Filter = (self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => (number | null)[];
 
@@ -1245,6 +1252,9 @@ declare namespace uPlot {
 
 		/** available divisors for axis ticks, values, grid */
 		incrs?: Axis.Incrs;
+
+		/** Calendar adjustments for the built-in time-axis splits. Day-based ticks retain local-midnight DST correction regardless of nice.dst. */
+		nice?: Axis.Nice;
 
 		/** determines how and where the axis must be split for placing ticks, values, grid */
 		splits?: Axis.Splits;

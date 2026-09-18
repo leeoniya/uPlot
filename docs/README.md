@@ -401,6 +401,9 @@ let opts = {
 
 - `space` is the tick selection target in CSS pixels. A smaller target selects smaller divisors. It also accepts `(self, axisIdx, scaleMin, scaleMax, dim) => space`, where `dim` is the plot dimension along the axis in CSS pixels. Horizontal selection uses the provisional width. Final spacing can be smaller after overflow padding.
 - `incrs` are divisors available for segmenting the axis to produce ticks. can also be a function of the form `(self) => divisors`.
+- `nice` controls calendar adjustments in the built-in time-axis splits. Its defaults are `{dst: true, first: false}`.
+  - `dst: true` realigns multi-hour ticks to a local-midnight cadence across DST transitions. `false` keeps uniform elapsed-time intervals. Day-based ticks retain their local-midnight correction with either setting.
+  - `first: true` enforces month-start ticks for multi-day increments and removes a preceding tick if the spacing is too small. `false` continues the cadence across month boundaries without forcing a tick on the first. Monthly and yearly increments are unchanged.
 - `values` can be:
   - a function with the form `(self, ticks, space) => values` where `ticks` is an array of raw values along the axis' scale, `space` is the determined tick spacing in CSS pixels and `values` is an array of formatted tick labels.
   - array of tick formatters with breakpoints.
