@@ -154,8 +154,11 @@ declare class uPlot {
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
 	syncRect(defer?: boolean): void;
 
-	/** clears the pathBuilder caches, can save ~60KB RAM per series. don't use with series hover-highlight. will also slow down legend toggling */
-	clearCache(): void;
+	/**
+	 * Discards categories set to true without scheduling a redraw. No argument discards all categories; {} discards nothing.
+	 * Clearing paths can save ~60KB RAM per series. Do not use with series hover-highlight. It also slows legend toggling.
+	 */
+	clearCache(targets?: uPlot.CacheOptions): void;
 
 	/** uPlot's path-builder factories */
 	static paths: uPlot.Series.PathBuilderFactories;
@@ -472,8 +475,18 @@ declare namespace uPlot {
 
 		plugins?: Plugin[];
 
-		// controls whether canvas path cache is auto-cleared after every draw call (see caveats of clearCache() above)
-		cache?: boolean; // true
+		/** Categories to retain after rendering. Omitted categories default to true. See clearCache() for path-disposal caveats. */
+		cache?: CacheOptions;
+	}
+
+	export interface CacheOptions {
+		/** Series path-builder caches. */
+		paths?: boolean;
+		/**
+		 * Retained input and derived data arrays. Discard only for non-interactive charts.
+		 * Resize, cursor interaction, legend toggling, and other data-dependent operations are unsupported after disposal.
+		 */
+		data?: boolean;
 	}
 
 	export interface Focus {

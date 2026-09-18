@@ -1083,7 +1083,7 @@ describe('single-pass layout', () => {
 				else if (change == 'explicit rebuild')
 					u.redraw(true, true);
 				else {
-					u.clearCache();
+					u.clearCache({ paths: true });
 					assert.equal(u.series[1]._paths, null);
 					u.redraw(false, true);
 				}

@@ -313,6 +313,7 @@ const sinh =  (v, linthresh = 1) => M.sinh(v) * linthresh;
 const asinh = (v, linthresh = 1) => M.asinh(v / linthresh);
 
 const inf = Infinity;
+const isFinite$1 = Number.isFinite;
 
 // Canonical powers for the built-in decimal increment range.
 const decPows = Array.from({length: 65}, (_, i) => +`1e${i - 32}`);
@@ -2165,6 +2166,75 @@ const yScaleOpts = assign({}, xScaleOpts, {
 	ori: 1,
 });
 
+function rangeYCount(height) {
+	if (!(height > 0) || !isFinite$1(height))
+		return 0;
+
+	let x = min(1, (height - 50) / 950);
+	let space = height < 50 ? height : 25 + (x == 1 ? 1 : 1 - 2 ** (-10 * x)) * 25;
+	return max(1, floor(height / space));
+}
+
+// Returns null when the built-in increments cannot support the requested range/count.
+function rangeY(dataMin, dataMax, height) {
+	let count = rangeYCount(height);
+	if (dataMin == null && dataMax == null)
+		return { min: null, max: null, incr: 0, count: 0 };
+
+	if (!Number.isSafeInteger(count) || count < 1 || dataMin == null || dataMax == null ||
+		!isFinite$1(dataMin) || !isFinite$1(dataMax) || dataMax < dataMin)
+		return null;
+
+	if (dataMin == dataMax) {
+		let v = dataMin;
+		dataMin = v - abs(v);
+		dataMax = v == 0 ? 100 : v + abs(v);
+	}
+
+	let span = dataMax - dataMin;
+	if (!isFinite$1(span))
+		return null;
+
+	for (let incr of numIncrs) {
+		let dec = fixedDec.get(incr);
+		let magnitude = max(abs(dataMin), abs(dataMax)) + count * incr;
+
+		// Stay within baseline quotient/decimal budgets and exact integer arithmetic.
+		if (dec > 32 || magnitude / incr >= 1e15 || magnitude > Number.MAX_SAFE_INTEGER || dec > 0 && magnitude * 10 ** dec >= 1e15)
+			continue;
+
+		let lo = incrRoundDn(dataMin, incr);
+		let hi = incrRoundUp(dataMax, incr);
+
+		// Baseline rounding tolerates residue; range enclosure must use the raw extrema.
+		if (lo > dataMin)
+			lo = roundDec(lo - incr, dec);
+		if (hi < dataMax)
+			hi = roundDec(hi + incr, dec);
+
+		let used = round((hi - lo) / incr);
+
+		// The prototype's tiny mixed-sign exception uses only the rounded endpoints.
+		if (count == 1 && dataMin < 0 && dataMax > 0 && incr >= span)
+			return { min: lo, max: hi, incr: hi - lo, count };
+
+		if (used > count)
+			continue;
+
+		lo = roundDec(lo - floor((count - used) / 2) * incr, dec);
+		if (dataMin >= 0)
+			lo = max(0, lo);
+		if (dataMax <= 0)
+			lo = min(-count * incr, lo);
+		hi = roundDec(lo + count * incr, dec);
+
+		if (isFinite$1(lo) && isFinite$1(hi) && lo <= dataMin && hi >= dataMax && hi > lo)
+			return { min: lo == 0 ? 0 : lo, max: hi == 0 ? 0 : hi, incr, count };
+	}
+
+	return null;
+}
+
 const syncs = {};
 
 function _sync(key, opts) {
@@ -3547,7 +3617,8 @@ function uPlot(opts, data, then) {
 
 	opts = copy(opts);
 
-	const usePathCache = opts.cache ?? true;
+	const usePathCache = opts.cache?.paths ?? true;
+	const useDataCache = opts.cache?.data ?? true;
 
 	const pxAlign = +ifNull(opts.pxAlign, 1);
 
@@ -3749,6 +3820,7 @@ function uPlot(opts, data, then) {
 	}
 
 	const pendScales = {};
+	const redrawDirty = new Set();
 
 	let isFullyExplicit = (min, max) => min != null && max != null;
 	let isFullyImplicit = (min, max) => min == null && max == null;
@@ -4051,7 +4123,8 @@ function uPlot(opts, data, then) {
 		sidesWithAxes.fill(false);
 
 		axes.forEach(axis => {
-			let show = axis.show && scales[axis.scale].min != null;
+			let sc = scales[axis.scale];
+			let show = axis.show && (sc._rawY != null ? sc._rawY[0] : sc.min) != null;
 			axesChanged = axesChanged || axis._show != show;
 			axis._show = show;
 			axis._splits = axis._values = null;
@@ -4064,6 +4137,27 @@ function uPlot(opts, data, then) {
 		axesChanged = sizeAxes(0, sizes) || axesChanged;
 		paddingCalc("layout");
 		calcPlotDim(1, sizes);
+
+		let changedY = [];
+		for (let k in scales) {
+			let sc = scales[k];
+			if (sc._rawY == null)
+				continue;
+
+			let result = sc._rangeY = rangeY(sc._rawY[0], sc._rawY[1], plotHgtCss);
+			// Unsupported numeric inputs have no display range or ticks, not a fallback count.
+			let min = result?.min ?? null;
+			let max = result?.max ?? null;
+			if (sc.min != min || sc.max != max) {
+				sc.min = sc._min = min;
+				sc.max = sc._max = max;
+				changedY.push(k);
+				series.forEach(s => { if (s.scale == k) s._paths = null; });
+				if (showCursor && cursor.left >= 0)
+					shouldSetCursor = shouldSetLegend = true;
+			}
+		}
+
 		axesCalc(1);
 
 		axesChanged = sizeAxes(1, sizes) || axesChanged;
@@ -4095,6 +4189,8 @@ function uPlot(opts, data, then) {
 			applyLayout(plotChanged, axesChanged);
 			fire("setSize");
 		}
+
+		return changedY;
 	}
 
 	function calcAxesRects() {
@@ -4375,6 +4471,13 @@ function uPlot(opts, data, then) {
 				sc = scales[axis.scale];
 			}
 
+			// Experimental opt-in; ordinary/custom range policies remain authoritative.
+			let cfg = opts.scales?.[axis.scale];
+			sc._axisY = sc._axisY || (sc.axis === i && mode == 1 && axis.scale != xScaleKey && isVt &&
+				sc.ori == 1 && sc.distr == 1 && !sc.time && cfg?.auto !== false && cfg?.range == null &&
+				sc.from == null && !Object.values(scales).some(s => s.from == axis.scale) &&
+				axis.incrs == null && axis.splits == null && opts.axes?.[i]?.space == null);
+
 			// also set defaults for incrs & values based on axis distr
 			let isTime = sc.time;
 
@@ -4578,6 +4681,16 @@ function uPlot(opts, data, then) {
 		return wsc.scan(self, scaleKey, i0, i1, viaAutoScaleX);
 	}
 
+	function applyScanRange(wsc, psc, minMax, key) {
+		if (wsc._axisY && isFullyImplicit(psc.min, psc.max)) {
+			// Keep scanner extrema separate from rounded display bounds, including on resize.
+			scales[key]._rawY = minMax;
+			shouldLayout = true;
+		}
+		else
+			applyCalculatedRange(wsc, psc, wsc.range(self, minMax[0], minMax[1], key), key);
+	}
+
 	const AUTOSCALE = {min: null, max: null};
 
 	function setScales() {
@@ -4607,14 +4720,19 @@ function uPlot(opts, data, then) {
 				pendScales[k] = AUTOSCALE;
 		}
 
-		// setting the x-scale invalidates paths and the extrema of scales that will be recalculated
 		if (pendScales[xScaleKey] != null) {
 			resetYSeries(false);
 
-			for (let k in pendScales) {
-				let psc = pendScales[k];
+			for (let k in scales) {
+				if (k == xScaleKey)
+					continue;
 
-				if (k != xScaleKey && psc != null && !isFullyExplicit(psc.min, psc.max))
+				// Retain deferred invalidation when explicit bounds or auto suppress Y ranging.
+				if (!pendScales[xScaleKey].redraw)
+					redrawDirty.add(k);
+
+				let psc = pendScales[k];
+				if (redrawDirty.has(k) && psc != null && !isFullyExplicit(psc.min, psc.max))
 					resetScaleSeries(k);
 			}
 		}
@@ -4626,6 +4744,10 @@ function uPlot(opts, data, then) {
 
 			if (psc != null) {
 				let wsc = wipScales[k] = copy(scales[k], fastIsObj);
+				if (scales[k]._rawY != null) {
+					shouldLayout = true;
+					scales[k]._rawY = null;
+				}
 
 				if (isFullyExplicit(psc.min, psc.max)) {
 					wsc.min = psc.min;
@@ -4633,7 +4755,7 @@ function uPlot(opts, data, then) {
 				}
 				else if (dataLen == 0 && wsc.from == null) {
 					let minMax = getScan(wsc, k);
-					applyCalculatedRange(wsc, psc, wsc.range(self, minMax[0], minMax[1], k), k);
+					applyScanRange(wsc, psc, minMax, k);
 				}
 				else if (k != xScaleKey || mode == 2) {
 					wsc.min = inf;
@@ -4689,7 +4811,7 @@ function uPlot(opts, data, then) {
 
 				if (wsc.from == null && !isFullyExplicit(psc.min, psc.max) && (mode == 2 || k != xScaleKey)) {
 					let minMax = getScan(wsc, k, i0, i1);
-					applyCalculatedRange(wsc, psc, wsc.range(self, minMax[0], minMax[1], k), k);
+					applyScanRange(wsc, psc, minMax, k);
 				}
 			}
 		}
@@ -4718,6 +4840,9 @@ function uPlot(opts, data, then) {
 			let wsc = wipScales[k];
 			let sc = scales[k];
 			let distr = sc.distr;
+
+			if (sc._rawY != null)
+				continue;
 
 			if (sc.min != wsc.min || sc.max != wsc.max) {
 				sc.min = wsc.min;
@@ -4998,8 +5123,15 @@ function uPlot(opts, data, then) {
 		let axis = axes[axisIdx];
 
 		let incrSpace;
+		let sc = scales[axis.scale];
 
-		if (fullDim <= 0)
+		if (sc._rawY != null && sc.axis == axisIdx) {
+			let result = sc._rangeY;
+			incrSpace = result?.count > 0 ? [result.incr, fullDim / result.count] : [0, 0];
+			axis._space = incrSpace[1];
+			axis._incrs = numIncrs;
+		}
+		else if (fullDim <= 0)
 			incrSpace = [0, 0];
 		else {
 			let minSpace = axis._space = axis.space(self, axisIdx, min, max, fullDim);
@@ -5064,9 +5196,11 @@ function uPlot(opts, data, then) {
 			}
 
 			// if we're using index positions, force first tick to match passed index
-			let forceMin = scale.distr == 2;
+			let rangedY = scale._rawY != null && scale.axis == i;
+			let forceMin = scale.distr == 2 || rangedY;
 
-			let _splits = axis._splits = axis.splits(self, i, min, max, _incr, _space, forceMin);
+			let _splits = axis._splits = rangedY && scale._rangeY.count == 1 ? [min, max] :
+				axis.splits(self, i, min, max, _incr, _space, forceMin);
 
 			// tick labels
 			// BOO this assumes a specific data/series
@@ -5266,6 +5400,7 @@ function uPlot(opts, data, then) {
 	}
 
 	function resetScaleSeries(scaleKey) {
+		redrawDirty.delete(scaleKey);
 		series.forEach((s, i) => {
 			if (i > 0) {
 				if (mode == 1) {
@@ -5288,6 +5423,9 @@ function uPlot(opts, data, then) {
 
 	function resetYSeries(minMax) {
 	//	log("resetYSeries()", arguments);
+
+		if (minMax)
+			redrawDirty.clear();
 
 		series.forEach((s, i) => {
 			if (i > 0) {
@@ -5442,14 +5580,19 @@ function uPlot(opts, data, then) {
 		if (shouldSetScales) {
 			setScales();
 			shouldSetScales = false;
+			viaAutoScaleX = false;
 		}
 
 		if (shouldLayout) {
-			updateLayout();
+			let changedY = updateLayout();
 			shouldLayout = false;
+			for (let k of changedY)
+				fire("setScale", k);
 		}
 
+		let drawnData;
 		if (fullWidCss > 0 && fullHgtCss > 0) {
+			drawnData = data;
 			ctx.clearRect(0, 0, can.width, can.height);
 			fire("drawClear");
 			drawOrder.forEach(fn => fn());
@@ -5471,12 +5614,18 @@ function uPlot(opts, data, then) {
 			shouldSetLegend = false; // redundant currently
 		}
 
-		viaAutoScaleX = false;
-
 		queuedCommit = false;
+
+		// Late hooks can request work after its phase has already finished.
+		if (shouldSetScales || shouldLayout)
+			commit();
 
 		if (!usePathCache)
 			clearPathCache();
+
+		// Keep data installed by hooks or needed by a pending render.
+		if (!useDataCache && data === drawnData && !shouldSetScales && !shouldLayout)
+			clearDataCache();
 
 		if (!ready) {
 			ready = true;
@@ -5494,15 +5643,34 @@ function uPlot(opts, data, then) {
 		});
 	}
 
-	self.clearCache = clearPathCache;
+	function clearDataCache() {
+		// TODO: Require all interactive/data-dependent features to be disabled (cursor, legend toggling, resize, DPR updates, etc.).
+		let emptyData = src => mode == 1 ? src.map(() => []) : src.map(facets => facets == null ? facets : facets.map(() => []));
+		self.data = self._data = data = emptyData(self.data);
+		data0 = mode == 1 ? data[0] : null;
+		dataLen = 0;
+
+		if (opts.data != null)
+			opts.data = emptyData(opts.data);
+	}
+
+	self.clearCache = targets => {
+		if (targets == null || targets.paths === true)
+			clearPathCache();
+		if (targets == null || targets.data === true)
+			clearDataCache();
+	};
 
 	self.redraw = (rebuildPaths, recalcAxes) => {
 		shouldLayout = shouldLayout || recalcAxes || false;
 
-		if (rebuildPaths !== false)
-			setRange(xScaleKey, scaleX.min, scaleX.max);
-		else
-			commit();
+		if (rebuildPaths !== false) {
+			// Preserve real pending requests. Current ordinal bounds are already index values.
+			pendScales[xScaleKey] ??= { min: scaleX.min, max: scaleX.max, redraw: true };
+			shouldSetScales = true;
+		}
+
+		commit();
 	};
 
 

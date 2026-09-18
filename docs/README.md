@@ -446,6 +446,28 @@ Multiple size changes before a commit produce one `setSize` notification, even i
 
 **Canvas state:** uPlot invalidates its canvas state cache only when it resets the canvas backing store. Callbacks must preserve `self.ctx` state. The demo saves and restores the canvas state around font changes to preserve the font cache.
 
+#### Cache Retention
+
+`cache` selects which categories to retain after rendering. Omitted categories default to `true`.
+
+```js
+cache: { paths: false, data: false }
+```
+
+This configuration discards both categories after rendering. `cache: { data: false }` discards data but retains paths.
+
+`clearCache()` discards all categories immediately without scheduling a redraw. An explicit selector discards only categories set to `true`:
+
+```js
+u.clearCache({ paths: true }); // Paths only.
+u.clearCache({ data: true });  // Data only.
+u.clearCache({});              // Nothing.
+```
+
+Data disposal replaces retained columns with empty arrays while preserving the dataset structure, including mode-2 facets. It also releases ordinal index arrays and the internal `opts.data` copy. It does not mutate caller-owned arrays, clear the canvas, or reset scale bounds and extrema. A later `setData()` can supply new data for another render.
+
+Data disposal is for non-interactive charts such as sparklines. Cursor interaction, legend toggling, resize, pixel-ratio updates, and other data-dependent features must be disabled. The implementation does not enforce these restrictions yet. Manual data disposal must occur after rendering. Automatic disposal normally completes before `ready`, but retains data needed by pending render work. Plugins and callbacks can retain their own references, which this API cannot release.
+
 #### Cursor Marker Alignment
 
 Default DOM hover markers share the built-in canvas marker position calculation. This calculation uses the bitmap plot rectangle, `series.pxAlign`, and the canvas point stroke offset.

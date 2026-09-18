@@ -203,14 +203,14 @@ describe('ready commit timing', () => {
 		assertDraws(u, trace, 2);
 	});
 
-	it('finishes cache:false cleanup before ready and preserves newly queued work', async () => {
+	it('finishes cache.paths:false cleanup before ready and preserves newly queued work', async () => {
 		const { u, trace, ready } = plot(self => {
 			assert.equal(self.series[1]._paths, null, 'initial path cleanup precedes ready');
 			self.batch(() => self.setPxRatio(2));
 			assert.equal(self.series[1]._paths, null, 'batch also clears its own paths');
 			self.setPxRatio(4);
 			assert.deepEqual(frame(self).bitmap, [1200, 800]);
-		}, { cache: false });
+		}, { cache: { paths: false } });
 		await ready;
 		await Promise.resolve();
 		assert.deepEqual(frame(u).bitmap, [2400, 1600]);

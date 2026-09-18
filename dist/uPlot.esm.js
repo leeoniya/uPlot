@@ -3615,7 +3615,8 @@ function uPlot(opts, data, then) {
 
 	opts = copy(opts);
 
-	const usePathCache = opts.cache ?? true;
+	const usePathCache = opts.cache?.paths ?? true;
+	const useDataCache = opts.cache?.data ?? true;
 
 	const pxAlign = +ifNull(opts.pxAlign, 1);
 
@@ -5587,7 +5588,9 @@ function uPlot(opts, data, then) {
 				fire("setScale", k);
 		}
 
+		let drawnData;
 		if (fullWidCss > 0 && fullHgtCss > 0) {
+			drawnData = data;
 			ctx.clearRect(0, 0, can.width, can.height);
 			fire("drawClear");
 			drawOrder.forEach(fn => fn());
@@ -5618,6 +5621,10 @@ function uPlot(opts, data, then) {
 		if (!usePathCache)
 			clearPathCache();
 
+		// Keep data installed by hooks or needed by a pending render.
+		if (!useDataCache && data === drawnData && !shouldSetScales && !shouldLayout)
+			clearDataCache();
+
 		if (!ready) {
 			ready = true;
 			self.status = 1;
@@ -5634,7 +5641,23 @@ function uPlot(opts, data, then) {
 		});
 	}
 
-	self.clearCache = clearPathCache;
+	function clearDataCache() {
+		// TODO: Require all interactive/data-dependent features to be disabled (cursor, legend toggling, resize, DPR updates, etc.).
+		let emptyData = src => mode == 1 ? src.map(() => []) : src.map(facets => facets == null ? facets : facets.map(() => []));
+		self.data = self._data = data = emptyData(self.data);
+		data0 = mode == 1 ? data[0] : null;
+		dataLen = 0;
+
+		if (opts.data != null)
+			opts.data = emptyData(opts.data);
+	}
+
+	self.clearCache = targets => {
+		if (targets == null || targets.paths === true)
+			clearPathCache();
+		if (targets == null || targets.data === true)
+			clearDataCache();
+	};
 
 	self.redraw = (rebuildPaths, recalcAxes) => {
 		shouldLayout = shouldLayout || recalcAxes || false;
