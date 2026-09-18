@@ -142,6 +142,20 @@ This call requests a new scan and range calculation:
 u.setScale('y', {min: null, max: null});
 ```
 
+## Redraw and extrema caches
+
+`redraw()` and `redraw(true, true)` rebuild series paths and retain the current X bounds. Automatic scale scheduling, scanner callbacks, and range callbacks still run.
+
+For unchanged data and a valid cache, the built-in Y scanner aggregates cached extrema without reading data values again. Custom scanners still control their own data access. Empty caches remain cache misses.
+
+A redraw does not replace an existing pending X request. Data updates, zooms, and automatic resets retain their normal invalidation behavior when they share a commit with redraw.
+
+An X request can leave a Y scale uncalculated because its bounds are explicit or its `auto` callback suppresses recalculation. The private `redrawDirty` set records these deferred invalidations without immediately discarding public extrema caches. A later redraw clears the affected caches before recalculating that scale. This preserves custom full-domain caches while automatic recalculation remains suppressed.
+
+`setData()` invalidates extrema even with `resetScales: false`. After an in-place data change, callers must still call `setData()`. Mutating data and calling only `redraw()` is unsupported.
+
+`redraw(false, true)` remains an axes-and-layout refresh without scale processing. `redraw(false, false)` retains cached paths unless other pending work invalidates them.
+
 ## Empty data
 
 With empty data, a custom scan callback runs once with undefined indices. Boolean and default scans produce null extrema.
@@ -187,7 +201,8 @@ Programmatic `setScale()` and `setRange()` calls bypass both `scale.range()` and
 
 The main implementation is in `src/uPlot.js`.
 
-- Pending requests are plain `{min, max}` objects.
+- Pending requests contain `{min, max}`. Internal redraw-only requests also carry `redraw: true`.
+- `redrawDirty` records deferred cache invalidation after X requests. Scale-specific or full extrema resets clear the corresponding entries.
 - `isFullyExplicit()` and `isFullyImplicit()` classify pending requests.
 - `applyCalculatedRange()` restores explicit sides and rejects crossed partial ranges.
 - `resetAutoScaleXIdxs()` resets aligned X indices before automatic X calculation.
@@ -248,6 +263,7 @@ The current working-tree bundles also contain later source changes, but those bu
 
 `test/scale-x-range.mjs` covers singleton X ranges, raw custom-ranger inputs, partial bounds, custom scans, and empty data.
 `test/scale-scan-cost.mjs` covers scan cost, sorted endpoints, and full-domain aligned X calculation.
+`test/redraw-scan.mjs` covers redraw cache reuse, callback refresh, deferred invalidation, pending requests, notified data changes, and ordinal bounds.
 `test/cursor-drag.mjs` covers drag-bound refinement, cancellation, synchronization, and callback scope.
 
 The existing asinh tests retain the static default threshold of `1`.

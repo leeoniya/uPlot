@@ -406,6 +406,69 @@ describe('adaptive log time demo', () => {
 		});
 	});
 
+	it('rebuilds compressed paths and axes for controls without rescanning unchanged data', async () => {
+		const originalDateNow = Date.now;
+		Date.now = () => max + day;
+		try {
+			await withDemos([{}], async ([{ fixture, plot, linear, setTau }]) => {
+				const scans = [];
+				const extrema = chart => chart.series.map(s => [s.min, s.max]);
+				const bounds = chart => Object.values(chart.scales).map(s => [s.min, s.max, s._min, s._max]);
+				const cached = [plot, linear].map(chart => ({ data: chart.data, extrema: extrema(chart), bounds: bounds(chart) }));
+				const linearPaths = linear.series.slice(1).map(s => s._paths);
+				let draws = 0;
+				(plot.hooks.draw ??= []).push(() => draws++);
+				for (const chart of [plot, linear]) {
+					for (const key in chart.scales) {
+						const scan = chart.scales[key].scan;
+						chart.scales[key].scan = (...args) => {
+							scans.push({ chart, key, extrema: extrema(chart) });
+							return scan(...args);
+						};
+					}
+				}
+				const change = (id, value, event = 'change') => {
+					const control = fixture.querySelector(`#${id}`);
+					control.value = value;
+					control.dispatchEvent(new Event(event));
+				};
+				for (const action of [
+					() => change('tau', '60', 'input'),
+					() => change('mode', 'exp'),
+					() => change('ticks', 'age'),
+					() => change('anchor', 'now'),
+					() => change('mode', 'log'),
+					() => change('ticks', 'calendar'),
+					() => change('anchor', 'max'),
+					() => setTau(hour),
+				]) {
+					const paths = plot.series.slice(1).map(s => s._paths);
+					const splits = plot.axes[0]._splits;
+					draws = 0;
+					scans.length = 0;
+					action();
+					await Promise.resolve();
+					assert.deepEqual(scans, [{ chart: plot, key: 'y', extrema: cached[0].extrema }], 'the Y scanner receives valid cached extrema');
+					assert.equal(draws, 1, 'one compressed-chart render per update');
+					assert.notEqual(plot.axes[0]._splits, splits, 'X ticks are regenerated');
+					plot.series.slice(1).forEach((s, i) => {
+						assert.ok(s._paths != null);
+						assert.notEqual(s._paths, paths[i], 'compressed paths are rebuilt');
+						assert.equal(linear.series[i + 1]._paths, linearPaths[i], 'linear paths stay cached');
+					});
+					[plot, linear].forEach((chart, i) => {
+						assert.equal(chart.data, cached[i].data);
+						assert.deepEqual(extrema(chart), cached[i].extrema);
+						assert.deepEqual(bounds(chart), cached[i].bounds);
+					});
+				}
+			});
+		}
+		finally {
+			Date.now = originalDateNow;
+		}
+	});
+
 	it('updates one UI transition per control without replacing charts, data, domain, or linear state', async () => {
 		const now = Date.UTC(2024, 1, 29, 3, 17, 23, 123);
 		const start = now - 3650 * day;

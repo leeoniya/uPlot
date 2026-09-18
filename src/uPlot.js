@@ -14,6 +14,8 @@ import {
 	FEAT_JOIN,
 } from './feats.js';
 
+import { rangeY } from './rangeY.js';
+
 import {
 	copy,
 	assign,
@@ -671,6 +673,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	const pendScales = {};
+	const redrawDirty = new Set();
 
 	let isFullyExplicit = (min, max) => min != null && max != null;
 	let isFullyImplicit = (min, max) => min == null && max == null;
@@ -973,7 +976,8 @@ export default function uPlot(opts, data, then) {
 		sidesWithAxes.fill(false);
 
 		axes.forEach(axis => {
-			let show = axis.show && scales[axis.scale].min != null;
+			let sc = scales[axis.scale];
+			let show = axis.show && (sc._rawY != null ? sc._rawY[0] : sc.min) != null;
 			axesChanged = axesChanged || axis._show != show;
 			axis._show = show;
 			axis._splits = axis._values = null;
@@ -986,6 +990,27 @@ export default function uPlot(opts, data, then) {
 		axesChanged = sizeAxes(0, sizes) || axesChanged;
 		paddingCalc("layout");
 		calcPlotDim(1, sizes);
+
+		let changedY = [];
+		for (let k in scales) {
+			let sc = scales[k];
+			if (sc._rawY == null)
+				continue;
+
+			let result = sc._rangeY = rangeY(sc._rawY[0], sc._rawY[1], plotHgtCss);
+			// Unsupported numeric inputs have no display range or ticks, not a fallback count.
+			let min = result?.min ?? null;
+			let max = result?.max ?? null;
+			if (sc.min != min || sc.max != max) {
+				sc.min = sc._min = min;
+				sc.max = sc._max = max;
+				changedY.push(k);
+				series.forEach(s => { if (s.scale == k) s._paths = null; });
+				if (showCursor && cursor.left >= 0)
+					shouldSetCursor = shouldSetLegend = true;
+			}
+		}
+
 		axesCalc(1);
 
 		axesChanged = sizeAxes(1, sizes) || axesChanged;
@@ -1017,6 +1042,8 @@ export default function uPlot(opts, data, then) {
 			applyLayout(plotChanged, axesChanged);
 			fire("setSize");
 		}
+
+		return changedY;
 	}
 
 	function calcAxesRects() {
@@ -1297,6 +1324,13 @@ export default function uPlot(opts, data, then) {
 				sc = scales[axis.scale];
 			}
 
+			// Experimental opt-in; ordinary/custom range policies remain authoritative.
+			let cfg = opts.scales?.[axis.scale];
+			sc._axisY = sc._axisY || (sc.axis === i && mode == 1 && axis.scale != xScaleKey && isVt &&
+				sc.ori == 1 && sc.distr == 1 && !sc.time && cfg?.auto !== false && cfg?.range == null &&
+				sc.from == null && !Object.values(scales).some(s => s.from == axis.scale) &&
+				axis.incrs == null && axis.splits == null && opts.axes?.[i]?.space == null);
+
 			// also set defaults for incrs & values based on axis distr
 			let isTime = FEAT_TIME && sc.time;
 
@@ -1500,6 +1534,16 @@ export default function uPlot(opts, data, then) {
 		return wsc.scan(self, scaleKey, i0, i1, viaAutoScaleX);
 	}
 
+	function applyScanRange(wsc, psc, minMax, key) {
+		if (wsc._axisY && isFullyImplicit(psc.min, psc.max)) {
+			// Keep scanner extrema separate from rounded display bounds, including on resize.
+			scales[key]._rawY = minMax;
+			shouldLayout = true;
+		}
+		else
+			applyCalculatedRange(wsc, psc, wsc.range(self, minMax[0], minMax[1], key), key);
+	}
+
 	const AUTOSCALE = {min: null, max: null};
 
 	function setScales() {
@@ -1529,14 +1573,19 @@ export default function uPlot(opts, data, then) {
 				pendScales[k] = AUTOSCALE;
 		}
 
-		// setting the x-scale invalidates paths and the extrema of scales that will be recalculated
 		if (pendScales[xScaleKey] != null) {
 			resetYSeries(false);
 
-			for (let k in pendScales) {
-				let psc = pendScales[k];
+			for (let k in scales) {
+				if (k == xScaleKey)
+					continue;
 
-				if (k != xScaleKey && psc != null && !isFullyExplicit(psc.min, psc.max))
+				// Retain deferred invalidation when explicit bounds or auto suppress Y ranging.
+				if (!pendScales[xScaleKey].redraw)
+					redrawDirty.add(k);
+
+				let psc = pendScales[k];
+				if (redrawDirty.has(k) && psc != null && !isFullyExplicit(psc.min, psc.max))
 					resetScaleSeries(k);
 			}
 		}
@@ -1548,6 +1597,10 @@ export default function uPlot(opts, data, then) {
 
 			if (psc != null) {
 				let wsc = wipScales[k] = copy(scales[k], fastIsObj);
+				if (scales[k]._rawY != null) {
+					shouldLayout = true;
+					scales[k]._rawY = null;
+				}
 
 				if (isFullyExplicit(psc.min, psc.max)) {
 					wsc.min = psc.min;
@@ -1555,7 +1608,7 @@ export default function uPlot(opts, data, then) {
 				}
 				else if (dataLen == 0 && wsc.from == null) {
 					let minMax = getScan(wsc, k);
-					applyCalculatedRange(wsc, psc, wsc.range(self, minMax[0], minMax[1], k), k);
+					applyScanRange(wsc, psc, minMax, k);
 				}
 				else if (k != xScaleKey || mode == 2) {
 					wsc.min = inf;
@@ -1611,7 +1664,7 @@ export default function uPlot(opts, data, then) {
 
 				if (wsc.from == null && !isFullyExplicit(psc.min, psc.max) && (mode == 2 || k != xScaleKey)) {
 					let minMax = getScan(wsc, k, i0, i1);
-					applyCalculatedRange(wsc, psc, wsc.range(self, minMax[0], minMax[1], k), k);
+					applyScanRange(wsc, psc, minMax, k);
 				}
 			}
 		}
@@ -1640,6 +1693,9 @@ export default function uPlot(opts, data, then) {
 			let wsc = wipScales[k];
 			let sc = scales[k];
 			let distr = sc.distr;
+
+			if (sc._rawY != null)
+				continue;
 
 			if (sc.min != wsc.min || sc.max != wsc.max) {
 				sc.min = wsc.min;
@@ -1920,8 +1976,15 @@ export default function uPlot(opts, data, then) {
 		let axis = axes[axisIdx];
 
 		let incrSpace;
+		let sc = scales[axis.scale];
 
-		if (fullDim <= 0)
+		if (sc._rawY != null && sc.axis == axisIdx) {
+			let result = sc._rangeY;
+			incrSpace = result?.count > 0 ? [result.incr, fullDim / result.count] : [0, 0];
+			axis._space = incrSpace[1];
+			axis._incrs = numIncrs;
+		}
+		else if (fullDim <= 0)
 			incrSpace = [0, 0];
 		else {
 			let minSpace = axis._space = axis.space(self, axisIdx, min, max, fullDim);
@@ -1986,9 +2049,11 @@ export default function uPlot(opts, data, then) {
 			}
 
 			// if we're using index positions, force first tick to match passed index
-			let forceMin = scale.distr == 2;
+			let rangedY = scale._rawY != null && scale.axis == i;
+			let forceMin = scale.distr == 2 || rangedY;
 
-			let _splits = axis._splits = axis.splits(self, i, min, max, _incr, _space, forceMin);
+			let _splits = axis._splits = rangedY && scale._rangeY.count == 1 ? [min, max] :
+				axis.splits(self, i, min, max, _incr, _space, forceMin);
 
 			// tick labels
 			// BOO this assumes a specific data/series
@@ -2188,6 +2253,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function resetScaleSeries(scaleKey) {
+		redrawDirty.delete(scaleKey);
 		series.forEach((s, i) => {
 			if (i > 0) {
 				if (mode == 1) {
@@ -2210,6 +2276,9 @@ export default function uPlot(opts, data, then) {
 
 	function resetYSeries(minMax) {
 	//	log("resetYSeries()", arguments);
+
+		if (minMax)
+			redrawDirty.clear();
 
 		series.forEach((s, i) => {
 			if (i > 0) {
@@ -2364,11 +2433,14 @@ export default function uPlot(opts, data, then) {
 		if (shouldSetScales) {
 			setScales();
 			shouldSetScales = false;
+			viaAutoScaleX = false;
 		}
 
 		if (shouldLayout) {
-			updateLayout();
+			let changedY = updateLayout();
 			shouldLayout = false;
+			for (let k of changedY)
+				fire("setScale", k);
 		}
 
 		if (fullWidCss > 0 && fullHgtCss > 0) {
@@ -2393,9 +2465,11 @@ export default function uPlot(opts, data, then) {
 			shouldSetLegend = false; // redundant currently
 		}
 
-		viaAutoScaleX = false;
-
 		queuedCommit = false;
+
+		// Late hooks can request work after its phase has already finished.
+		if (shouldSetScales || shouldLayout)
+			commit();
 
 		if (!usePathCache)
 			clearPathCache();
@@ -2421,10 +2495,13 @@ export default function uPlot(opts, data, then) {
 	self.redraw = (rebuildPaths, recalcAxes) => {
 		shouldLayout = shouldLayout || recalcAxes || false;
 
-		if (rebuildPaths !== false)
-			setRange(xScaleKey, scaleX.min, scaleX.max);
-		else
-			commit();
+		if (rebuildPaths !== false) {
+			// Preserve real pending requests. Current ordinal bounds are already index values.
+			pendScales[xScaleKey] ??= { min: scaleX.min, max: scaleX.max, redraw: true };
+			shouldSetScales = true;
+		}
+
+		commit();
 	};
 
 

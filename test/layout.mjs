@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
+import { rangeYCount } from '../src/rangeY.js';
 
 const data = [[0, 50, 100], [0, 50, 100]];
 
@@ -251,20 +252,26 @@ function assertBitmap(bitmap, width, height) {
 describe('single-pass layout', () => {
 	it('runs the autosize demo through nine growth intervals and a deterministic shrink reset', async () => {
 		const html = readFileSync(new URL('../demos/axis-autosize.html', import.meta.url), 'utf8');
-		const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
-		assert.ok(script, 'demo has an inline script');
+		const script = html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
+		assert.ok(script, 'demo has an inline module script');
+		const importLine = "import uPlot from '../src/uPlot.js';";
+		assert.ok(script.includes(importLine), 'demo imports the source implementation');
+		// Inject the instrumented constructor in place of the module import.
+		const body = script.replace(importLine, '');
 		for (const pxRatio of [1, 2]) {
-			let u, canvasState, tick;
+			let tick;
+			const plots = [];
 			const cleared = [];
 			try {
-				const demo = runInNewContext(script + '\n({ get mult() { return mult; }, reset() { mult = 1; u.setData(getData(points, mult)); } });', {
+				const demo = runInNewContext(body + '\n({ get mult() { return mult; }, reset() { mult = 1; const data = getData(points, mult); u.setData(data); uRanged.setData(data); } });', {
 					document,
 					Math: Object.assign(Object.create(Math), { random: () => 0.5 }),
 					setInterval(callback, delay) { assert.equal(delay, 500); assert.equal(tick, undefined); tick = callback; return 42; },
 					clearInterval(id) { cleared.push(id); },
 					uPlot: function(opts, values, target) {
-						u = new uPlot({ ...opts, pxRatio }, values, target);
-						canvasState = statefulCanvas(u.ctx);
+						const u = new uPlot({ ...opts, pxRatio }, values, target);
+						const canvasState = statefulCanvas(u.ctx);
+						plots.push({ u, canvasState });
 						for (const key of ['width', 'height']) {
 							let value = u.ctx[key];
 							Object.defineProperty(u.ctx, key, {
@@ -276,9 +283,14 @@ describe('single-pass layout', () => {
 					},
 				}, { filename: 'axis-autosize.html', timeout: 1000 });
 				await Promise.resolve();
-				const initial = geometry(u);
-				const height = u.axes[0]._size;
-				function checkLayout() {
+				assert.equal(plots.length, 2, 'demo creates both charts');
+				assert.equal(plots[0].u.scales.y._rawY, undefined, 'first chart uses ordinary ranging');
+				assert.equal(plots[1].u.scales.y.axis, 1, 'second chart opts into tick-aware ranging');
+				for (const plot of plots) {
+					plot.initial = geometry(plot.u);
+					plot.height = plot.u.axes[0]._size;
+				}
+				function checkLayout({ u, canvasState, initial, height }) {
 					const [hz, vt] = u.axes;
 					const labelWidth = (axis, value) => String(value).length * axis.font[1] / pxRatio / 2;
 					const maxWidth = axis => Math.max(0, ...axis._values.filter(value => value != null).map(value => labelWidth(axis, value)));
@@ -303,24 +315,34 @@ describe('single-pass layout', () => {
 					}
 					assert.equal(canvasState.depth, 0, 'demo measurement restores canvas state');
 				}
-				checkLayout();
+				function checkLayouts() {
+					assert.equal(plots[0].u.data, plots[1].u.data, 'both charts use the same data');
+					plots.forEach(checkLayout);
+					const ranged = plots[1].u;
+					const ticks = ranged.axes[1]._splits;
+					assert.equal(ticks.length, rangeYCount(ranged.bbox.height / pxRatio) + 1);
+					assert.deepEqual([ticks[0], ticks.at(-1)], [ranged.scales.y.min, ranged.scales.y.max], 'tick-aware endpoints remain ticks');
+				}
+				const clearDraws = () => plots.forEach(({ canvasState }) => { canvasState.draws.length = 0; });
+				checkLayouts();
 				assert.equal(demo.mult, 1);
 				for (let i = 1; i <= 9; i++) {
-					canvasState.draws.length = 0;
+					clearDraws();
 					tick();
 					await Promise.resolve();
 					assert.equal(demo.mult, 10 ** i);
 					assert.deepEqual(cleared, i == 9 ? [42] : []);
-					checkLayout();
+					checkLayouts();
 				}
-				canvasState.draws.length = 0;
+				clearDraws();
 				demo.reset();
 				await Promise.resolve();
 				assert.equal(demo.mult, 1);
-				checkLayout();
-				assert.deepEqual(geometry(u), initial, 'shrinking restores the original deterministic layout');
+				checkLayouts();
+				for (const { u, initial } of plots)
+					assert.deepEqual(geometry(u), initial, 'shrinking restores the original deterministic layout');
 			}
-			finally { u?.destroy(); }
+			finally { plots.forEach(({ u }) => u.destroy()); }
 		}
 	});
 

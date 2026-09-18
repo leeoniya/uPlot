@@ -5,10 +5,14 @@
 		<title>Axis Autosize</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
-		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<link rel="stylesheet" href="../src/uPlot.css">
 		<style>
 			.uplot {
 				background: #eee;
+			}
+
+			.uplot + .uplot {
+				margin-top: 32px;
 			}
 
 			.u-under {
@@ -17,8 +21,8 @@
 		</style>
 	</head>
 	<body>
-		<script src="../dist/uPlot.iife.js"></script>
-		<script>
+		<script type="module">
+			import uPlot from '../src/uPlot.js';
 			function f(x) {
 				return Math.random() - 0.5 + Math.sin(x * 0.00002) * 40 + Math.sin(x * 0.001) * 5 + Math.sin(x * 0.1) * 2;
 			}
@@ -73,7 +77,7 @@
 			}
 
 			const opts = {
-				title: "Axis AutoSize",
+				title: "Axis AutoSize — ordinary ranging",
 				width: 1048,
 				height: 600,
 				padding: [null, autoPadRight, null, null],
@@ -120,10 +124,21 @@
 
 			let mult = 1;
 
-			let u = new uPlot(opts, getData(points, mult), document.body);
+			let data = getData(points, mult);
+			let u = new uPlot(opts, data, document.body);
+			let uRanged = new uPlot({
+				...opts,
+				title: "Axis AutoSize — tick-aware ranging",
+				scales: {
+					...opts.scales,
+					y: { axis: 1 },
+				},
+			}, data, document.body);
 
 			let it = setInterval(() => {
-				u.setData(getData(points, mult *= 10));
+				let data = getData(points, mult *= 10);
+				u.setData(data);
+				uRanged.setData(data);
 
 				if (mult == 1e9)
 					clearInterval(it);

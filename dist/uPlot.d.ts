@@ -75,6 +75,8 @@ declare class uPlot {
 
 	/**
 	 * Clears and redraws the canvas. If rebuildPaths = false, uses cached series' Path2D objects.
+	 * Rebuilding paths refreshes automatic ranges but retains valid extrema caches and pending X requests.
+	 * Notify data changes with setData(), including in-place changes to existing arrays.
 	 * redraw(false, true) explicitly refreshes axes and layout, even without a size or pixel ratio change.
 	 */
 	redraw(rebuildPaths?: boolean, recalcAxes?: boolean): void;

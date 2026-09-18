@@ -301,6 +301,7 @@ export const sinh =  (v, linthresh = 1) => M.sinh(v) * linthresh;
 export const asinh = (v, linthresh = 1) => M.asinh(v / linthresh);
 
 export const inf = Infinity;
+export const isFinite = Number.isFinite;
 
 // Canonical powers for the built-in decimal increment range.
 const decPows = Array.from({length: 65}, (_, i) => +`1e${i - 32}`);

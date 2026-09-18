@@ -440,6 +440,8 @@ Custom callbacks must handle these phases without convergence counters or positi
 
 Identical `setSize()` or `setPxRatio()` requests are no-ops. For an explicit axis and layout refresh, call `redraw(false, true)`. The `setSize` hook still reports outer size updates and internal plot geometry or axis changes. Identical requests do not trigger this hook.
 
+`redraw(true, true)` also rebuilds series paths and refreshes automatic ranges. Built-in scanners reuse valid extrema caches when data and the visible window are unchanged. Pending data or X-range updates retain their normal invalidation behavior. Custom scanner and range callbacks still run. After any data change, including in-place array edits, call `setData()` rather than only `redraw()`.
+
 Multiple size changes before a commit produce one `setSize` notification, even if the final size matches the previous layout.
 
 **Canvas state:** uPlot invalidates its canvas state cache only when it resets the canvas backing store. Callbacks must preserve `self.ctx` state. The demo saves and restores the canvas state around font changes to preserve the font cache.

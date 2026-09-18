@@ -8,7 +8,9 @@
   "typings": "./dist/uPlot.d.ts",
   "scripts": {
     "build": "rollup -c --bundleConfigAsCjs",
+    "demos": "node ./scripts/demos.mjs",
     "test": "node ./scripts/test.mjs",
+    "test:server": "mocha test/server/*.mjs",
     "test:update": "UPDATE=1 node ./scripts/test.mjs"
   },
   "repository": {

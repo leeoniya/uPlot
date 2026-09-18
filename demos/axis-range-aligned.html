@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Two scales, aligned ticks</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../src/uPlot.css">
+	<style>
+		body { margin: 24px; font: 14px system-ui, sans-serif; color: #222; }
+		main { max-width: 1200px; margin: auto; }
+		h1 { font-size: 24px; }
+		form, .height-control { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
+		fieldset { display: flex; flex-wrap: wrap; gap: 12px; border: 1px solid #ccc; border-radius: 4px; }
+		legend { font-weight: bold; }
+		.left { color: #1769aa; }
+		.right { color: #b34a00; }
+		input[type="number"] { width: 140px; }
+		input[type="range"] { width: min(500px, 65vw); }
+		button, input { font: inherit; }
+		button { padding: 5px 10px; }
+		#plot { width: 100%; overflow-x: auto; }
+		#stats { display: block; white-space: pre-wrap; font: 13px monospace; line-height: 1.6; }
+	</style>
+</head>
+<body>
+	<main id="demo">
+		<h1>Two scales, aligned ticks</h1>
+		<p>Drag horizontally to zoom. Double-click the chart or use Reset zoom to show all samples.</p>
+		<p>Each random walk has 501 samples. Step deviation controls the spread of its random steps. A zero deviation produces flat data.</p>
+		<form id="walk-controls">
+			<fieldset>
+				<legend class="left">Left series</legend>
+				<label for="left-start">Start <input id="left-start" type="number" value="50" min="-1e12" max="1e12" step="any" required></label>
+				<label for="left-spread">Step deviation <input id="left-spread" type="number" value="2" min="0" max="1e10" step="any" required></label>
+			</fieldset>
+			<fieldset>
+				<legend class="right">Right series</legend>
+				<label for="right-start">Start <input id="right-start" type="number" value="500000" min="-1e12" max="1e12" step="any" required></label>
+				<label for="right-spread">Step deviation <input id="right-spread" type="number" value="10000" min="0" max="1e10" step="any" required></label>
+			</fieldset>
+			<button type="submit">New walks</button>
+			<button id="randomize" type="button">Randomize starts and spreads</button>
+		</form>
+		<p>New walks use the entered settings and reset the zoom. Randomized settings include positive and negative starts, separated by several orders of magnitude.</p>
+		<div class="height-control">
+			<label for="height">Chart height</label>
+			<input id="height" type="range" min="60" max="1200" step="1" value="480">
+			<output id="height-value" for="height">480px</output>
+			<button id="reset-zoom" type="button">Reset zoom</button>
+		</div>
+		<output id="stats" aria-live="polite"></output>
+		<p>Only the left Y axis draws horizontal grid lines. The right ticks stay aligned with those lines.</p>
+		<div id="plot"></div>
+		<p>This experimental demo loads <code>src/uPlot.js</code> directly. Serve the repository over HTTP to open it.</p>
+	</main>
+	<script type="module">
+		import { createDemo } from './axis-range-aligned.js';
+		createDemo(document.querySelector('#demo'));
+	</script>
+</body>
+</html>
