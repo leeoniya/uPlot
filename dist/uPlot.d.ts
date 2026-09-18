@@ -805,6 +805,9 @@ declare namespace uPlot {
 			/** path for clipping fill & stroke (used for gaps) */
 			clip?: Path2D | null;
 
+			/** additional stroke-only clip in canvas pixels; does not affect fills or dependent bands */
+			clipStroke?: Path2D | null;
+
 			/** yMin-ward (dir: -1) and/or yMax-ward (dir: 1) clips built using the stroke path (inverted dirs from band.dir fills) */
 			band? : Path2D | null | [yMinClip: Path2D, yMaxClip: Path2D];
 
@@ -931,6 +934,9 @@ declare namespace uPlot {
 
 				/** path for clipping fill & stroke */
 				clip?: Path2D | null;
+
+				/** additional stroke-only clip in canvas pixels */
+				clipStroke?: Path2D | null;
 
 				/** bitmap of whether the clip should be applied to stroke, fill, or both */
 				flags?: number;

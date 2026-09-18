@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Stacked zero-value stroke gaps</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../dist/uPlot.min.css">
+	<style>
+		body { font: 14px system-ui, sans-serif; }
+		.uplot { display: inline-block; margin: 12px; vertical-align: top; }
+		p { max-width: 1000px; }
+	</style>
+</head>
+<body>
+	<h1>Stacked zero-value stroke gaps</h1>
+	<p>All four charts use the same three layers: blue on the bottom, orange in the middle, and purple on top. Drag to zoom. Double-click to reset.</p>
+	<p>Compare x=2–5: the orange layer has zero thickness. Its stroke hides blue in the ordinary chart. At x=8, both upper layers touch zero at one point, so their transitions remain connected.</p>
+	<p>The naive chart applies <code>series.gaps</code> directly to filled series. Those clips also affect fills and bands above them. The purple area has holes where orange has zero thickness.</p>
+	<p>The overlay chart keeps three continuous fill series and adds three stroke-only series. Their gaps callbacks hide intervals between consecutive raw zeros.</p>
+	<p>The fourth chart uses only three series. A custom wrapper around <code>uPlot.paths.linear()</code> sets <code>Paths.clipStroke</code> through <code>uPlot.clipGaps()</code>. Native <code>Paths.clip</code> stays unchanged, so zero intervals hide strokes without holes in the purple fill.</p>
+	<p>Stroke overlays draw after all fills. The fourth chart preserves normal series order, so later translucent fills can still tint lower strokes.</p>
+	<p>This demo requires a build with <code>Paths.clipStroke</code> support. It uses nonnegative, linearly interpolated data, without missing values. Stepped and spline paths need different gap boundaries. Isolated zeros do not create intervals. Data updates must recompute the stack and zero intervals. This demo does not implement dynamic layer visibility or restacking.</p>
+	<script type="module">
+		import { renderDemo } from './renderDemo.js';
+		await import('../dist/uPlot.esm.js').then(m => { window.uPlot = m.default; });
+		const { default: groups } = await import('./stacked-zero-gaps.js');
+		await renderDemo(groups);
+	</script>
+</body>
+</html>

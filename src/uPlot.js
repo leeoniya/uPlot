@@ -1844,6 +1844,7 @@ export default function uPlot(opts, data, then) {
 			stroke,
 			fill,
 			clip: gapsClip,
+			clipStroke,
 			flags,
 
 			_stroke: strokeStyle = s._stroke,
@@ -1873,14 +1874,14 @@ export default function uPlot(opts, data, then) {
 
 		// the points pathbuilder's gapsClip is its boundsClip, since points dont need gaps clipping, and bounds depend on point size
 		if (_points)
-			strokeFill(strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, gapsClip);
+			strokeFill(strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, clipStroke, gapsClip);
 		else
-			fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, boundsClip, gapsClip);
+			fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, clipStroke, boundsClip, gapsClip);
 
 		offset != 0 && ctx.translate(-offset, -offset);
 	}
 
-	function fillStroke(si, strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip) {
+	function fillStroke(si, strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, clipStroke, boundsClip, gapsClip) {
 		let didStrokeFill = false;
 
 		// for all bands where this series is the top edge, create upwards clips using the bottom edges
@@ -1908,19 +1909,19 @@ export default function uPlot(opts, data, then) {
 				else
 					bandClip = null;
 
-				strokeFill(strokeStyle, lineWidth, lineDash, lineCap, _fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, gapsClip2, bandClip);
+				strokeFill(strokeStyle, lineWidth, lineDash, lineCap, _fillStyle, strokePath, fillPath, flags, clipStroke, boundsClip, gapsClip, gapsClip2, bandClip);
 
 				didStrokeFill = true;
 			}
 		});
 
 		if (!didStrokeFill)
-			strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip);
+			strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, clipStroke, boundsClip, gapsClip);
 	}
 
 	const CLIP_FILL_STROKE = BAND_CLIP_FILL | BAND_CLIP_STROKE;
 
-	function strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, gapsClip2, bandClip) {
+	function strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, clipStroke, boundsClip, gapsClip, gapsClip2, bandClip) {
 		setCtxStyle(strokeStyle, lineWidth, lineDash, lineCap, fillStyle);
 
 		if (boundsClip || gapsClip || bandClip) {
@@ -1934,12 +1935,12 @@ export default function uPlot(opts, data, then) {
 				ctx.clip(bandClip);
 				gapsClip2 && ctx.clip(gapsClip2);
 				doFill(fillStyle, fillPath);
-				doStroke(strokeStyle, strokePath, lineWidth);
+				doStroke(strokeStyle, strokePath, lineWidth, clipStroke);
 			}
 			else if (flags & BAND_CLIP_STROKE) {
 				doFill(fillStyle, fillPath);
 				ctx.clip(bandClip);
-				doStroke(strokeStyle, strokePath, lineWidth);
+				doStroke(strokeStyle, strokePath, lineWidth, clipStroke);
 			}
 			else if (flags & BAND_CLIP_FILL) {
 				ctx.save();
@@ -1947,20 +1948,25 @@ export default function uPlot(opts, data, then) {
 				gapsClip2 && ctx.clip(gapsClip2);
 				doFill(fillStyle, fillPath);
 				ctx.restore();
-				doStroke(strokeStyle, strokePath, lineWidth);
+				doStroke(strokeStyle, strokePath, lineWidth, clipStroke);
 			}
 		}
 		else {
 			doFill(fillStyle, fillPath);
-			doStroke(strokeStyle, strokePath, lineWidth);
+			doStroke(strokeStyle, strokePath, lineWidth, clipStroke);
 		}
 
 		if (boundsClip || gapsClip || bandClip)
 			ctx.restore();
 	}
 
-	function doStroke(strokeStyle, strokePath, lineWidth) {
+	function doStroke(strokeStyle, strokePath, lineWidth, clipStroke) {
 		if (lineWidth > 0) {
+			let prevStroke = ctxStroke;
+			if (clipStroke) {
+				ctx.save();
+				ctx.clip(clipStroke);
+			}
 			if (strokePath instanceof Map) {
 				strokePath.forEach((strokePath, strokeStyle) => {
 					ctx.strokeStyle = ctxStroke = strokeStyle;
@@ -1969,6 +1975,11 @@ export default function uPlot(opts, data, then) {
 			}
 			else
 				strokePath != null && strokeStyle && ctx.stroke(strokePath);
+
+			if (clipStroke) {
+				ctx.restore();
+				ctxStroke = prevStroke;
+			}
 		}
 	}
 
