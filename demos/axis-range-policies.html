@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Axis-aware range policies</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../src/uPlot.css">
+	<style>
+		body { margin: 24px; font: 14px system-ui, sans-serif; color: #222; }
+		main { max-width: 1300px; margin: auto; }
+		h1 { font-size: 24px; }
+		.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
+		.controls input { width: min(420px, 55vw); }
+		button, input { font: inherit; }
+		button { padding: 5px 10px; }
+		#scenario { display: block; margin: 12px 0 18px; white-space: pre-wrap; font: 13px monospace; }
+		#policies { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 18px; }
+		.policy { min-width: 0; padding: 14px; border: 1px solid #ccc; border-radius: 6px; }
+		.policy h2 { margin: 0 0 6px; font-size: 17px; }
+		.policy p { min-height: 40px; margin: 6px 0; }
+		.policy code { display: block; min-height: 34px; padding: 7px; overflow-wrap: anywhere; color: #333; background: #f5f5f5; }
+		.policy-stats { display: block; margin: 7px 0; white-space: pre-wrap; font: 12px monospace; }
+		.plot { width: 100%; overflow: hidden; }
+	</style>
+</head>
+<body>
+	<main id="demo">
+		<h1>Axis-aware range policies</h1>
+		<p>Each chart uses the same random walk. The charts differ only in the declarative Y-range policy.</p>
+		<p>The walk stays on one side of zero. Randomization changes its sign, magnitude, shape, and distance from zero.</p>
+		<div class="controls">
+			<button id="randomize" type="button">Randomize walk</button>
+			<label for="height">Chart height</label>
+			<input id="height" type="range" min="220" max="520" step="1" value="300">
+			<output id="height-value" for="height">300px</output>
+		</div>
+		<output id="scenario" aria-live="polite"></output>
+		<section id="policies" aria-label="Range policy comparisons"></section>
+		<p>This experimental demo loads <code>src/uPlot.js</code> directly. Serve the repository over HTTP to open it.</p>
+	</main>
+	<script type="module">
+		import { createDemo } from './axis-range-policies.js';
+		createDemo(document.querySelector('#demo'));
+	</script>
+</body>
+</html>

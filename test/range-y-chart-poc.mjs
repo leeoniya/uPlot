@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
-import { rangeY, rangeYCount } from '../src/rangeY.js';
+import { rangeY, rangeYAuto, rangeYCount } from '../src/rangeY.js';
 import { numAxisSplits } from '../src/opts.js';
 
 const data = [[0, 1, 2, 3, 4, 5, 6, 7], [13, 24, 51, 38, 87, 65, 42, 72]];
@@ -42,9 +42,9 @@ function makePlot({
 	return { u, scans };
 }
 
-function assertRange(u, min, max, height = cssHeight(u)) {
+function assertRange(u, min, max, height = cssHeight(u), range) {
 	assert.equal(cssHeight(u), height, 'range uses final CSS plot height');
-	const expected = rangeY(min, max, height);
+	const expected = rangeY(min, max, height, range);
 	assert.ok(expected, 'fixture must have a supported numeric range');
 	assert.deepEqual(bounds(u), [expected.min, expected.max]);
 	const ticks = expected.count == 0 ? [] : expected.count == 1
@@ -424,11 +424,52 @@ describe('axis-ranging chart POC: one Y scale', () => {
 		finally { u.destroy(); control.destroy(); }
 	});
 
+	it('uses the default tick-aware policy for [null, null]', async () => {
+		const plotData = [[0, 1], [10, 110]];
+		const { u: omitted } = makePlot({ height: 543, plotData });
+		const { u: partial } = makePlot({ height: 543, plotData, y: { range: [null, null] } });
+		try {
+			await tick();
+			const expected = rangeY(10, 110, 543);
+			assert.deepEqual([expected.min, expected.max], [0, 110]);
+			assert.deepEqual(bounds(omitted), [expected.min, expected.max]);
+			assert.deepEqual(bounds(partial), bounds(omitted));
+			assert.deepEqual(splits(partial), splits(omitted));
+		}
+		finally { omitted.destroy(); partial.destroy(); }
+	});
+
+	for (const [name, range, policy] of [
+		['partial configured range', [0, null], {
+			min: { mode: 1, hard: 0, soft: 0 },
+			max: rangeYAuto.max,
+		}],
+		['object configured range', { min: { pad: .25 }, max: { pad: .25 } }, { min: { pad: .25 }, max: { pad: .25 } }],
+	]) {
+		it(`applies ${name} on the tick-aware path`, async () => {
+			const { u, scans } = makePlot({ y: { range } });
+			try {
+				await tick();
+				assertRange(u, 13, 87, 413, policy);
+				assert.deepEqual(raw(u), [13, 87]);
+				assert.equal(scans.length, 1);
+
+				u.setSize({ width: 700, height: 525 });
+				await tick();
+				assertRange(u, 13, 87, 525, policy);
+				assert.equal(scans.length, 1, 'resize reuses raw extrema for configured policies');
+			}
+			finally { u.destroy(); }
+		});
+	}
+
 	for (const [name, options] of [
 		['fixed configured range', { y: { range: [0, 200] } }],
-		['partial configured range', { y: { range: [0, null] } }],
 		['functional configured range', { y: { range: (u, min, max) => [min - 3, max + 7] } }],
-		['object configured range', { y: { range: { min: { pad: .25 }, max: { pad: .25 } } } }],
+		['configured flat policy', { y: { range: { min: {}, max: {}, flat: 1e-7 } } }],
+		['configured flat zero policy', { y: { range: { min: {}, max: {}, flat: 0 } } }],
+		['configured flat null policy', { y: { range: { min: {}, max: {}, flat: null } } }],
+		['configured flat undefined policy', { y: { range: { min: {}, max: {}, flat: undefined } } }],
 		['mode 2', { mode: 2 }],
 		['physical horizontal Y', { x: { ori: 1 }, y: { ori: 0 }, axes: [{ show: false, side: 3 }, { side: 2 }] }],
 		['time Y', { y: { time: true } }],

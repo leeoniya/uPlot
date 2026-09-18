@@ -30,14 +30,52 @@ This changes the original prototype's independent count selection. It retains th
 - Built-in numeric increments only. Custom increment lists and callbacks are deferred.
 - Built-in scanners only for the MVP guarantee. General custom-scanner support is deferred.
 - No derived scales or parents of derived scales.
-- No explicit, partial, or fixed-range composition in the new ranger.
+- Declarative `Range.Config` objects and partial range arrays can participate when active limits align with built-in tick increments.
+- Fixed arrays, range functions, and concrete setter requests remain on the ordinary path.
 - No convergence or repeated label measurement.
 - Normal asynchronous rendering and automatic microtask batching only.
 - Legacy synchronous `batch()` behavior and its reentrancy are outside this experiment.
 
-A non-null configured `scale.range` remains authoritative and stays on the existing path. The new ranger consumes scanner extrema directly, without default numeric padding.
+### Activation
 
-Concrete setter requests retain their existing behavior. They are outside the alignment guarantee. This experiment does not change global setter semantics.
+The tick-aware path requires `scale.axis`. Its value must identify the visible vertical axis that owns the scale.
+
+All of these conditions must also apply:
+
+- The chart uses mode 1.
+- The scale is an independent linear numeric Y scale.
+- The scale is not a derived scale or a parent of one.
+- The scale uses a physical left or right Y axis.
+- The scale does not use `auto: false`.
+- The axis uses the built-in `space`, `incrs`, and `splits` policies.
+- The range is omitted, a supported `Range.Config`, or a partial range array.
+
+A supported `Range.Config` can contain `pad`, `soft`, `mode`, and `hard`. A config with an explicit `flat` policy uses the ordinary path.
+
+A partial range array uses hard-plus-soft normalization. For example, `[0, null]` fixes the lower endpoint and automatically ranges the upper endpoint.
+
+A fixed range array or a range function uses the ordinary path. A concrete `setScale()` request also uses the ordinary path.
+
+An automatic reset with null bounds returns the scale to the tick-aware path.
+
+### Default tick-aware policy
+
+The default policy applies when `scale.range` is omitted:
+
+- The minimum padding is zero on each side.
+- One-sided data has 10% zero affinity.
+- No hard limit applies.
+- No other soft limit applies.
+
+Zero affinity makes zero an outer tick when zero is within 10% of the raw span. The test uses the nearest data extremum.
+
+A declarative `Range.Config` replaces the default per-side policy. A null side in a partial range array retains the default automatic policy.
+
+Explicit padding is a minimum percentage of the raw span. An active hard or soft limit overrides padding on that side.
+
+An active limit must align with the selected built-in tick increment.
+
+Concrete setter requests remain outside the alignment guarantee. This experiment does not change global setter semantics.
 
 ## Numeric policy
 
@@ -61,7 +99,9 @@ const intervals = Math.max(1, Math.floor(height / space));
 - Between 50px and 1000px, spacing increases from 25px toward 50px.
 - At 1000px and beyond, spacing stays at 50px.
 
-Each scale selects an allowed increment that encloses its extrema within the interval budget. Spare intervals expand the range without clipping data.
+Each scale selects an allowed increment that encloses its extrema and requested padding within the interval budget. Spare intervals expand the range without clipping data.
+
+The default policy has zero padding. For one-sided data, zero becomes the outer tick when its distance from the nearest raw extremum is at most 10% of the raw span. Zero can still occur naturally outside this threshold when required by the selected grid and interval count.
 
 The range limits normally lie on increment multiples. One-sided data avoids unnecessary zero crossing when possible.
 
@@ -176,7 +216,7 @@ In a mixed chart, an ordinary X hook can therefore observe previous tick-aware Y
 | --- | --- | --- |
 | Input to the ranger | Scanner extrema | Cached scanner extrema in `_rawY` |
 | When Y bounds become final | During `setScales()`, before layout | During `updateLayout()`, after final plot height |
-| Bounds policy | Existing `scale.range()`, including default numeric padding | Enclosure and interval allocation from `rangeY()` |
+| Bounds policy | Existing `scale.range()`, including default numeric padding | Tick-aligned enclosure, zero affinity, padding, and declarative limits from `rangeY()` |
 | Increment selection | Axis selects an increment after ranging | Ranger selects an increment together with bounds |
 | Tick count | Depends on each range and selected increment | Depends on plot height and the common ramp for supported, nonempty ranges |
 | Endpoint ticks | Not guaranteed | Both endpoints are ticks for supported inputs |
@@ -252,7 +292,7 @@ Reference tests are available with `git show 6aea79c7:test/<file>`:
 
 Port applicable assertions into focused tests. Record omitted categories rather than marking excluded behavior as passing.
 
-Out-of-scope categories include mode 2, horizontal Y ranging, explicit/partial-range alignment, derived scales, and composition with custom range policies.
+Out-of-scope categories include mode 2, horizontal Y ranging, concrete partial setter alignment, fixed ranges, range functions, derived scales, and composition with custom callbacks.
 
 Passing numeric tests does not establish chart-level cache or lifecycle correctness. Those require integration tests in milestones 2 and 3.
 
@@ -491,6 +531,10 @@ Existing custom-scan probes remain useful tests of particular cases. They do not
 The new regression tests and fixes remain uncommitted after checkpoint `ad725b06`.
 
 ## Follow-up questions and future work
+
+The original follow-up list is retained verbatim below. Zero affinity and tick-aligned declarative hard/soft limits are now implemented. Percentage padding is also supported, with zero as its default. The existing relative `flat` policy remains ordinary.
+
+`test/range-y-policy.mjs` covers affinity thresholds, per-side minimum padding, all soft modes, hard clipping, limit alignment, partial-range normalization, and one-interval axes.
 
 ```text
 see what we can retain from existing rangers

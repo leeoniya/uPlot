@@ -14,7 +14,7 @@ import {
 	FEAT_JOIN,
 } from './feats.js';
 
-import { rangeY } from './rangeY.js';
+import { rangeY, rangeYAuto } from './rangeY.js';
 
 import {
 	copy,
@@ -556,29 +556,37 @@ export default function uPlot(opts, data, then) {
 				let isTime = FEAT_TIME && sc.time;
 
 				let rn = sc.range;
+				let rangeYPolicy = rn == null ? rangeYAuto : null;
 
 				let rangeIsArr = isArr(rn);
 
 				if (scaleKey != xScaleKey || (mode == 2 && !isTime)) {
 					// if range array has null limits, it should be auto
 					if (rangeIsArr && (rn[0] == null || rn[1] == null)) {
-						rn = {
-							min: rn[0] == null ? autoRangePart : {
-								mode: 1,
-								hard: rn[0],
-								soft: rn[0],
-							},
-							max: rn[1] == null ? autoRangePart : {
-								mode: 1,
-								hard: rn[1],
-								soft: rn[1],
-							},
+						let partial = rn;
+						let min = partial[0] == null ? autoRangePart : {
+							mode: 1,
+							hard: partial[0],
+							soft: partial[0],
 						};
+						let max = partial[1] == null ? autoRangePart : {
+							mode: 1,
+							hard: partial[1],
+							soft: partial[1],
+						};
+						rangeYPolicy = {
+							min: partial[0] == null ? rangeYAuto.min : min,
+							max: partial[1] == null ? rangeYAuto.max : max,
+						};
+						rn = {min, max};
 						rangeIsArr = false;
 					}
 
 					if (!rangeIsArr && isObj(rn)) {
 						let cfg = rn;
+						// Keep the tick-aware policy assembled above for a partial range.
+						if (rangeYPolicy == null && !("flat" in cfg))
+							rangeYPolicy = cfg;
 						// this is similar to snapNumY
 						rn = (self, dataMin, dataMax) => dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, cfg);
 					}
@@ -593,6 +601,7 @@ export default function uPlot(opts, data, then) {
 					sc.asinh = 1;
 
 				sc.auto = fnOrSelf(sc.auto);
+				sc._rangeYPolicy = rangeYPolicy;
 
 				let scan = ifNull(sc.scan, rangeIsArr && rn[0] != null && rn[1] != null ? false : null);
 				sc.scan = scan == null ? scanAuto : scan === true ? scanCached : scan === false ? scanNone : scan;
@@ -998,7 +1007,7 @@ export default function uPlot(opts, data, then) {
 			if (sc._rawY == null)
 				continue;
 
-			let result = sc._rangeY = rangeY(sc._rawY[0], sc._rawY[1], plotHgtCss);
+			let result = sc._rangeY = rangeY(sc._rawY[0], sc._rawY[1], plotHgtCss, sc._rangeYPolicy);
 			// Unsupported numeric inputs have no display range or ticks, not a fallback count.
 			let min = result?.min ?? null;
 			let max = result?.max ?? null;
@@ -1325,10 +1334,10 @@ export default function uPlot(opts, data, then) {
 				sc = scales[axis.scale];
 			}
 
-			// Experimental opt-in; ordinary/custom range policies remain authoritative.
+			// Experimental opt-in; custom and fixed range policies remain authoritative.
 			let cfg = opts.scales?.[axis.scale];
 			sc._axisY = sc._axisY || (sc.axis === i && mode == 1 && axis.scale != xScaleKey && isVt &&
-				sc.ori == 1 && sc.distr == 1 && !sc.time && cfg?.auto !== false && cfg?.range == null &&
+				sc.ori == 1 && sc.distr == 1 && !sc.time && cfg?.auto !== false && sc._rangeYPolicy != null &&
 				sc.from == null && !Object.values(scales).some(s => s.from == axis.scale) &&
 				axis.incrs == null && axis.splits == null && opts.axes?.[i]?.space == null);
 
