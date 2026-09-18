@@ -1453,6 +1453,7 @@ var uPlot = (function () {
 		// https://www.epochconverter.com/timezones
 		function timeAxisSplits(tzDate) {
 			return (self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace) => {
+				let nice = self.axes[axisIdx].nice;
 				let splits = [];
 				let isYr = foundIncr >= y;
 				let isMo = foundIncr >= mo && foundIncr < y;
@@ -1484,7 +1485,7 @@ var uPlot = (function () {
 						}
 
 						// rolled over into next month onto non-divisible incr, reset baseline
-						if ((date.getDate() - 1) % incrDays > 0) {
+						if (nice.first && (date.getDate() - 1) % incrDays > 0) {
 							date = floorSOP(date, PERIOD_MONTH);
 							split = date.getTime() * ms;
 
@@ -1550,7 +1551,7 @@ var uPlot = (function () {
 
 						// adjust for DST misses
 						let hour = date.getHours();
-						if (hour % incrHours > 0) {
+						if (nice.dst && hour % incrHours > 0) {
 							let hour2 = tzDate(split - h).getHours();
 							split += hour2 % incrHours == 0 ? -h : h;
 						}
@@ -1838,12 +1839,14 @@ var uPlot = (function () {
 	const font      = '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
 	const labelFont = "bold " + font;
 	const lineGap = 1.5;	// font-size multiplier
+	const nice = { dst: true, first: false };
 
 	const xAxisOpts = {
 		show: true,
 		scale: "x",
 		stroke: hexBlack,
 		space: 50,
+		nice,
 		gap: 5,
 		alignTo: 1,
 		size: 50,
@@ -2023,6 +2026,7 @@ var uPlot = (function () {
 		scale: "y",
 		stroke: hexBlack,
 		space: 30,
+		nice,
 		gap: 5,
 		alignTo: 1,
 		size: 50,
