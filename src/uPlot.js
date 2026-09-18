@@ -575,6 +575,7 @@ export default function uPlot(opts, data, then) {
 							soft: partial[1],
 						};
 						rangeYPolicy = {
+							zeroIf: rangeYAuto.zeroIf,
 							min: partial[0] == null ? rangeYAuto.min : min,
 							max: partial[1] == null ? rangeYAuto.max : max,
 						};

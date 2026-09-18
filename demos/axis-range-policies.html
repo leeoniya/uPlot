@@ -9,10 +9,14 @@
 		body { margin: 24px; font: 14px system-ui, sans-serif; color: #222; }
 		main { max-width: 1300px; margin: auto; }
 		h1 { font-size: 24px; }
-		.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
-		.controls input { width: min(420px, 55vw); }
+		.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin: 16px 0; }
+		.control { display: flex; align-items: center; gap: 7px; }
+		.control input { width: min(220px, 35vw); }
 		button, input { font: inherit; }
-		button { padding: 5px 10px; }
+		#preset { display: flex; flex-wrap: wrap; gap: 7px; }
+		#preset button { padding: 5px 10px; cursor: pointer; }
+		#preset button[aria-pressed="true"] { color: white; background: #1769aa; border-color: #1769aa; }
+		#scenario
 		#scenario { display: block; margin: 12px 0 18px; white-space: pre-wrap; font: 13px monospace; }
 		#policies { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 18px; }
 		.policy { min-width: 0; padding: 14px; border: 1px solid #ccc; border-radius: 6px; }
@@ -27,13 +31,16 @@
 	<main id="demo">
 		<h1>Axis-aware range policies</h1>
 		<p>Each chart uses the same random walk. The charts differ only in the declarative Y-range policy.</p>
-		<p>The walk stays on one side of zero. Randomization changes its sign, magnitude, shape, and distance from zero.</p>
+		<p>Presets keep the walk shape and change its minimum and span. Each preset highlights a policy difference at the default 300px height.</p>
 		<div class="controls">
-			<button id="randomize" type="button">Randomize walk</button>
-			<label for="height">Chart height</label>
-			<input id="height" type="range" min="220" max="520" step="1" value="300">
-			<output id="height-value" for="height">300px</output>
+			<div id="preset" role="group" aria-label="Dataset presets"></div>
+			<label class="control" for="height">
+				Chart height
+				<input id="height" type="range" min="220" max="450" step="1" value="300">
+				<output id="height-value" for="height">300px</output>
+			</label>
 		</div>
+		<p id="preset-description" aria-live="polite"></p>
 		<output id="scenario" aria-live="polite"></output>
 		<section id="policies" aria-label="Range policy comparisons"></section>
 		<p>This experimental demo loads <code>src/uPlot.js</code> directly. Serve the repository over HTTP to open it.</p>

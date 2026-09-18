@@ -3,56 +3,61 @@ import { createRandomWalk } from './lib/randomWalk.js';
 
 const samples = 401;
 const xs = Array.from({ length: samples }, (_, i) => i);
-const gapRatios = [0, .025, .075, .1, .1001, .2, .5];
 const blue = '#1769aa';
 
 const fmt = value => value == null ? 'none' : Number(value.toPrecision(6)).toString();
 
-function makeScenario() {
+function makeWalk() {
 	const values = [0, ...createRandomWalk()(0, samples - 1)];
 	const rawMin = Math.min(...values);
-	const rawMax = Math.max(...values);
-	const rawSpan = rawMax - rawMin || 1;
-	const magnitude = (1 + Math.random() * 8) * 10 ** (Math.floor(Math.random() * 9) - 4);
-	const gapRatio = gapRatios[Math.floor(Math.random() * gapRatios.length)];
-	const gap = gapRatio * magnitude;
-	const sign = Math.random() < .5 ? -1 : 1;
-	const ys = values.map(value => {
-		const normalized = (value - rawMin) / rawSpan;
-		return sign > 0 ? gap + normalized * magnitude : -gap - normalized * magnitude;
-	});
+	const rawSpan = Math.max(...values) - rawMin || 1;
+	return values.map(value => (value - rawMin) / rawSpan);
+}
 
+const presets = [
+	{ name: 'At the 20% threshold', start: 20, spread: 100, descr: 'At 300px, default affinity includes zero; 10% and no affinity keep a positive minimum.' },
+	{ name: 'Outside the threshold', start: 25, spread: 100, descr: 'Default affinity no longer forces zero. Always-soft and mode 2 still anchor zero.' },
+	{ name: 'Far from zero', start: 1000, spread: 100, descr: 'Automatic policies preserve detail. Soft-zero and the fixed-zero partial range extend to zero; a hard minimum alone does not.' },
+	{ name: 'Small magnitude', start: .002, spread: .01, descr: 'The same 20% threshold at a much smaller magnitude. Compare with the first preset.' },
+	{ name: 'Negative data', start: -120, spread: 100, descr: 'Zero affinity acts on the upper edge. The two hard-minimum-zero policies exclude all data and cannot produce a range.' },
+	{ name: 'Crossing zero', start: -40, spread: 100, descr: 'Soft zero yields to data on both sides. Hard-minimum-zero policies clip the negative portion.' },
+];
+
+function makeScenario(walk, start, spread) {
+	const ys = walk.map(value => start + value * spread);
 	return {
 		data: [xs, ys],
-		dataMin: Math.min(...ys),
-		dataMax: Math.max(...ys),
-		gapRatio,
-		sign,
+		dataMin: start,
+		dataMax: start + spread,
+		gapRatio: Math.max(0, start, -(start + spread)) / spread,
 	};
 }
 
-function policyConfigs(sign) {
-	const zeroSide = sign > 0 ? 'min' : 'max';
-	const hardWithPad = sign > 0 ?
-		{ min: { pad: .25, hard: 0 }, max: { pad: .1 } } :
-		{ min: { pad: .1 }, max: { pad: .25, hard: 0 } };
-	const partial = sign > 0 ? [0, null] : [null, 0];
+function policyConfigs() {
+	const hardZero = { min: { hard: 0 }, max: {} };
+	const partial = [0, null];
 
 	return [
 		{
 			title: 'Default policy',
-			descr: 'Zero padding. Zero becomes an outer tick when the gap is at most 10% of the raw span.',
+			descr: 'Natural endpoint ticks with default 20% zero affinity. Zero affinity is independent of soft limits and modes.',
 			code: 'range omitted',
 		},
 		{
 			title: 'No zero affinity',
-			descr: 'An explicit empty policy disables the default zero affinity.',
-			code: 'range: {min: {}, max: {}}',
-			range: { min: {}, max: {} },
+			descr: 'A zeroIf threshold of 0 disables the proximity rule. Zero can still occur naturally on the selected tick grid.',
+			code: 'range: {zeroIf: 0, min: {}, max: {}}',
+			range: { zeroIf: 0, min: {}, max: {} },
 		},
 		{
-			title: '10% minimum padding',
-			descr: 'Each outer tick stays at least 10% of the raw span from its data extremum.',
+			title: '10% zero affinity',
+			descr: 'A zeroIf threshold of 0.1 reduces zero affinity to 10% of the span.',
+			code: 'range: {zeroIf: .1, min: {}, max: {}}',
+			range: { zeroIf: .1, min: {}, max: {} },
+		},
+		{
+			title: 'Padding ignored',
+			descr: 'The axis-aware ranger ignores pad because its outer bounds are already ticks beyond the data.',
 			code: 'range: {min: {pad: .1}, max: {pad: .1}}',
 			range: { min: { pad: .1 }, max: { pad: .1 } },
 		},
@@ -63,19 +68,19 @@ function policyConfigs(sign) {
 			range: { min: { soft: 0, mode: 1 }, max: { soft: 0, mode: 1 } },
 		},
 		{
-			title: 'Conditioned-soft zero with padding',
-			descr: 'Soft mode 3 uses zero when 10% padding reaches it. The other side keeps its minimum padding.',
-			code: 'range: {min: {pad: .1, soft: 0, mode: 3}, max: {pad: .1, soft: 0, mode: 3}}',
+			title: 'Mode 2 soft zero',
+			descr: 'Soft mode 2 uses zero unless the natural endpoint tick crosses it.',
+			code: 'range: {min: {soft: 0, mode: 2}, max: {soft: 0, mode: 2}}',
 			range: {
-				min: { pad: .1, soft: 0, mode: 3 },
-				max: { pad: .1, soft: 0, mode: 3 },
+				min: { soft: 0, mode: 2 },
+				max: { soft: 0, mode: 2 },
 			},
 		},
 		{
-			title: `Hard zero on the ${zeroSide} side`,
-			descr: 'The hard zero overrides 25% padding on its side. The opposite side keeps 10% minimum padding.',
-			code: `range: ${JSON.stringify(hardWithPad)}`,
-			range: hardWithPad,
+			title: 'Hard zero on the min side',
+			descr: 'The hard limit clips the range at zero on the data-facing side.',
+			code: `range: ${JSON.stringify(hardZero)}`,
+			range: hardZero,
 		},
 		{
 			title: 'Mixed hard zero and auto',
@@ -87,13 +92,24 @@ function policyConfigs(sign) {
 }
 
 export function createDemo(root) {
-	const randomize = root.querySelector('#randomize');
+	const preset = root.querySelector('#preset');
+	const presetDescription = root.querySelector('#preset-description');
 	const height = root.querySelector('#height');
 	const heightValue = root.querySelector('#height-value');
 	const scenarioOutput = root.querySelector('#scenario');
 	const policiesRoot = root.querySelector('#policies');
 	const plots = [];
 	const state = { scenario: null, policies: [] };
+	const walk = makeWalk();
+	let presetIndex = 0;
+	const presetButtons = presets.map((config, i) => {
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.value = i;
+		button.textContent = config.name;
+		preset.appendChild(button);
+		return button;
+	});
 
 	function chartWidth(host) {
 		return Math.max(360, host.clientWidth || 560);
@@ -104,60 +120,75 @@ export function createDemo(root) {
 		output.value = `data ${fmt(scenario.dataMin)} … ${fmt(scenario.dataMax)}\nrange ${fmt(u.scales.y.min)} … ${fmt(u.scales.y.max)} | ${axis._splits?.length ?? 0} ticks | increment ${fmt(axis._found?.[0])}`;
 	}
 
-	function render() {
-		plots.splice(0).forEach(u => u.destroy());
-		policiesRoot.textContent = '';
+	function scenarioFromControls() {
+		const config = presets[presetIndex];
+		return makeScenario(walk, config.start, config.spread);
+	}
 
-		const scenario = state.scenario = makeScenario();
-		const policies = state.policies = policyConfigs(scenario.sign);
-		const side = scenario.sign > 0 ? 'positive' : 'negative';
-		const affinity = scenario.gapRatio <= .1 ? 'inside' : 'outside';
-		scenarioOutput.value = `${side} walk | data ${fmt(scenario.dataMin)} … ${fmt(scenario.dataMax)} | zero gap ${(scenario.gapRatio * 100).toPrecision(4)}% of span (${affinity} default affinity)`;
+	function updateScenario(scenario) {
+		state.scenario = scenario;
+		presetDescription.textContent = presets[presetIndex].descr;
+		presetButtons.forEach((button, i) => button.setAttribute('aria-pressed', String(i == presetIndex)));
+		scenarioOutput.value = `start ${fmt(scenario.dataMin)} | spread ${fmt(scenario.dataMax - scenario.dataMin)} | data ${fmt(scenario.dataMin)} … ${fmt(scenario.dataMax)} | zero gap ${(scenario.gapRatio * 100).toPrecision(4)}% of span`;
+	}
 
-		for (const policy of policies) {
-			const card = document.createElement('article');
-			card.className = 'policy';
-			const title = document.createElement('h2');
-			title.textContent = policy.title;
-			const descr = document.createElement('p');
-			descr.textContent = policy.descr;
-			const code = document.createElement('code');
-			code.textContent = policy.code;
-			const stats = document.createElement('output');
-			stats.className = 'policy-stats';
-			const host = document.createElement('div');
-			host.className = 'plot';
-			card.append(title, descr, code, stats, host);
-			policiesRoot.appendChild(card);
+	function setScenario(event) {
+		const index = presetButtons.indexOf(event.target);
+		if (index < 0 || index == presetIndex)
+			return;
+		presetIndex = index;
+		const scenario = scenarioFromControls();
+		updateScenario(scenario);
+		plots.forEach(u => u.setData(scenario.data));
+	}
 
-			const scale = { axis: 1 };
-			if (policy.range != null)
-				scale.range = policy.range;
+	const scenario = scenarioFromControls();
+	const policies = state.policies = policyConfigs();
+	updateScenario(scenario);
 
-			const u = new uPlot({
-				width: chartWidth(host),
-				height: height.valueAsNumber,
-				padding: [8, 8, 0, 0],
-				cursor: { drag: { x: true, y: false } },
-				legend: { show: false },
-				scales: {
-					x: { time: false },
-					y: scale,
-				},
-				axes: [
-					{ size: 40 },
-					{ size: 80, stroke: blue },
-				],
-				series: [
-					{},
-					{ stroke: blue, width: 1.5, points: { show: false } },
-				],
-				hooks: {
-					draw: [u => readout(stats, u, scenario)],
-				},
-			}, scenario.data, host);
-			plots.push(u);
-		}
+	for (const policy of policies) {
+		const card = document.createElement('article');
+		card.className = 'policy';
+		const title = document.createElement('h2');
+		title.textContent = policy.title;
+		const descr = document.createElement('p');
+		descr.textContent = policy.descr;
+		const code = document.createElement('code');
+		code.textContent = policy.code;
+		const stats = document.createElement('output');
+		stats.className = 'policy-stats';
+		const host = document.createElement('div');
+		host.className = 'plot';
+		card.append(title, descr, code, stats, host);
+		policiesRoot.appendChild(card);
+
+		const scale = { axis: 1 };
+		if (policy.range != null)
+			scale.range = policy.range;
+
+		const u = new uPlot({
+			width: chartWidth(host),
+			height: height.valueAsNumber,
+			padding: [8, 8, 0, 0],
+			cursor: { drag: { x: true, y: false } },
+			legend: { show: false },
+			scales: {
+				x: { time: false },
+				y: scale,
+			},
+			axes: [
+				{ size: 40 },
+				{ size: 80, stroke: blue },
+			],
+			series: [
+				{},
+				{ stroke: blue, width: 1.5, points: { show: false } },
+			],
+			hooks: {
+				draw: [u => readout(stats, u, state.scenario)],
+			},
+		}, scenario.data, host);
+		plots.push(u);
 	}
 
 	function resize() {
@@ -168,14 +199,16 @@ export function createDemo(root) {
 	function destroy() {
 		window.removeEventListener('resize', resize);
 		height.removeEventListener('input', resize);
-		randomize.removeEventListener('click', render);
+		preset.removeEventListener('click', setScenario);
+
 		plots.splice(0).forEach(u => u.destroy());
 	}
 
 	height.addEventListener('input', resize);
-	randomize.addEventListener('click', render);
-	window.addEventListener('resize', resize);
-	render();
+	preset.addEventListener('click', setScenario);
 
-	return { plots, state, render, destroy };
+	window.addEventListener('resize', resize);
+	resize();
+
+	return { plots, state, destroy };
 }

@@ -32,33 +32,30 @@ function assertAnchor(result, side, value) {
 	assert.equal(value / result.incr, Math.round(value / result.incr), `${side} anchor aligns with ${result.incr}`);
 }
 
-function assertPadding(result, data, minPad, maxPad) {
-	const rawSpan = data[1] - data[0];
-	assert.ok(data[0] - result.min >= rawSpan * minPad, 'minimum-side padding uses the raw span');
-	assert.ok(result.max - data[1] >= rawSpan * maxPad, 'maximum-side padding uses the raw span');
-}
-
 const noAffinity = {
-	min: { soft: 0, mode: 3 },
-	max: { soft: 0, mode: 3 },
+	zeroIf: 0,
+	min: { mode: 0 },
+	max: { mode: 0 },
 };
 
 describe('rangeY fourth-argument policy', () => {
-	describe('default padding and zero affinity', () => {
-		it('defaults each side to zero padding and applies zero affinity as a separate rule', () => {
+	describe('default zero affinity', () => {
+		it('inherits zero affinity independently of soft limits', () => {
 			assert.ok(Object.isFrozen(rangeYAuto));
 			assert.ok(Object.isFrozen(rangeYAuto.min));
 			assert.ok(Object.isFrozen(rangeYAuto.max));
-			assert.equal(rangeYAuto.min.pad, 0);
-			assert.equal(rangeYAuto.max.pad, 0);
+			assert.equal(rangeYAuto.zeroIf, 0.2);
+			assert.deepEqual(rangeYAuto.min, { soft: 0, mode: 3 });
+			assert.equal(rangeYAuto.min, rangeYAuto.max);
 
 			const positive = checked([0.1, 1.1], 490);
 			const positiveWithoutAffinity = checked([0.1, 1.1], 490, noAffinity);
 			assert.deepEqual(bounds(positive), [0, 2]);
 			assert.deepEqual(bounds(checked([0.1, 1.1], 490, null)), bounds(positive));
+			assert.deepEqual(bounds(checked([0.1, 1.1], 490, {})), bounds(positive));
+			assert.deepEqual(bounds(checked([0.1, 1.1], 490, { min: {}, max: {} })), bounds(positive));
 			assert.deepEqual(bounds(positiveWithoutAffinity), [0.1, 1.1]);
-			assert.deepEqual(bounds(checked([0.1, 1.1], 490, {})), bounds(positiveWithoutAffinity));
-			assert.deepEqual(bounds(checked([0.1, 1.1], 490, { min: {}, max: {} })), bounds(positiveWithoutAffinity));
+			assert.deepEqual(bounds(checked([0.1, 1.1], 490, { min: { soft: null }, max: { soft: null } })), bounds(positive));
 
 			const negative = checked([-1.1, -0.1], 490);
 			const negativeWithoutAffinity = checked([-1.1, -0.1], 490, noAffinity);
@@ -66,91 +63,131 @@ describe('rangeY fourth-argument policy', () => {
 			assert.deepEqual(bounds(negativeWithoutAffinity), [-1.1, -0.1]);
 		});
 
-		it('makes zero the outer endpoint at the exact 10% threshold', () => {
-			assert.deepEqual(bounds(checked([10, 110], 543)), [0, 110]);
-			assert.deepEqual(bounds(checked([-110, -10], 490)), [-200, 0]);
-			assert.equal(checked([0.001, 0.011], 543).min, 0, 'decimal cancellation does not miss the threshold');
-			assert.equal(checked([-0.011, -0.001], 543).max, 0, 'negative decimal threshold is symmetric');
+		it('applies independent zero affinity in every mode with soft limits removed', () => {
+			for (const mode of [0, 1, 2, 3]) {
+				const policy = { min: { soft: null, mode }, max: { soft: null, mode } };
+				assert.deepEqual(bounds(checked([.1, 1.1], 490, policy)), [0, 2]);
+				assert.deepEqual(bounds(checked([-1.1, -.1], 490, policy)), [-2, 0]);
+				assert.deepEqual(bounds(checked([.1, 1.1], 490, { ...policy, zeroIf: 0 })), [.1, 1.1]);
+				assert.deepEqual(bounds(checked([-1.1, -.1], 490, { ...policy, zeroIf: 0 })), [-1.1, -.1]);
+			}
+			assert.deepEqual(bounds(checked([.1, 1.1], 490, { min: { mode: 0 }, max: { mode: 0 } })), [0, 2]);
 		});
 
-		it('does not force zero just over the 10% threshold', () => {
-			assert.deepEqual(bounds(checked([10.0001, 110.0001], 543)), [10, 120]);
-			assert.deepEqual(bounds(checked([-110.0001, -10.0001], 543)), [-120, -10]);
+		it('keeps active soft anchors ahead of zero affinity', () => {
+			assert.equal(checked([.1, 1.1], 490, { min: { soft: -.2, mode: 1 } }).min, -.2);
+			assert.equal(checked([-1.1, -.1], 490, { max: { soft: .2, mode: 1 } }).max, .2);
+		});
+
+		it('makes zero the outer endpoint at the exact 20% threshold', () => {
+			assert.equal(checked([20, 120], 543).min, 0);
+			assert.equal(checked([-120, -20], 490).max, 0);
+			assert.equal(checked([0.002, 0.012], 543).min, 0, 'decimal cancellation does not miss the threshold');
+			assert.equal(checked([-0.012, -0.002], 543).max, 0, 'negative decimal threshold is symmetric');
+		});
+
+		it('does not force zero just over the 20% threshold', () => {
+			assert.deepEqual(bounds(checked([20.0001, 120.0001], 543)), [20, 130]);
+			assert.deepEqual(bounds(checked([-120.0001, -20.0001], 543)), [-130, -20]);
+		});
+
+		it('adjusts the proximity threshold with top-level zeroIf', () => {
+			const disabled = { zeroIf: 0, min: {}, max: {} };
+			assert.deepEqual(bounds(checked([0.1, 1.1], 490, disabled)), [0.1, 1.1]);
+			assert.deepEqual(bounds(checked([-1.1, -0.1], 490, disabled)), [-1.1, -0.1]);
+
+			const reduced = { zeroIf: .1, min: {}, max: {} };
+			assert.equal(checked([20, 120], 252, reduced).min, 20);
+			assert.equal(checked([-120, -20], 252, reduced).max, -20);
+
+			const widened = { zeroIf: 0.200001, min: {}, max: {} };
+			assert.equal(checked([20.0001, 120.0001], 543, widened).min, 0);
+			assert.equal(checked([-120.0001, -20.0001], 543, widened).max, 0);
 		});
 
 		it('still permits zero to occur naturally outside the affinity threshold', () => {
-			for (const data of [[0.100001, 1.100001], [-1.100001, -0.100001]]) {
-				const automatic = checked(data, 490);
-				const ordinaryGrid = checked(data, 490, noAffinity);
+			for (const data of [[0.200001, 1.200001], [-1.200001, -0.200001]]) {
+				const automatic = checked(data, 100);
+				const ordinaryGrid = checked(data, 100, noAffinity);
 				assert.deepEqual(bounds(automatic), bounds(ordinaryGrid));
 				assert.ok(automatic.min == 0 || automatic.max == 0);
 			}
 		});
 	});
 
-	describe('raw-span padding', () => {
-		it('uses asymmetric minimum percentages on both signs and both sides', () => {
-			const positiveData = [20, 80];
-			const positive = checked(positiveData, 543, { min: { pad: 0.25 }, max: { pad: 0.5 } });
-			assert.deepEqual(bounds(positive), [0, 110]);
-			assertPadding(positive, positiveData, 0.25, 0.5);
+	describe('ignored padding', () => {
+		it('ignores pad values while retaining the inherited zero policy', () => {
+			const data = [0.000171664, 0.00703821];
+			const expected = bounds(checked(data, 300));
+			assert.deepEqual(expected, [0, 0.012]);
 
-			const negativeData = [-80, -20];
-			const negative = checked(negativeData, 543, { min: { pad: 0.5 }, max: { pad: 0.25 } });
-			assert.deepEqual(bounds(negative), [-110, 0]);
-			assertPadding(negative, negativeData, 0.5, 0.25);
+			for (const pad of [-1, 0, 0.1, 1e15, NaN])
+				assert.deepEqual(bounds(checked(data, 300, { min: { pad }, max: { pad } })), expected, String(pad));
 		});
 
-		it('retains padding on one-interval axes', () => {
-			const data = [-50, -1];
-			const result = checked(data, 40, { min: { pad: 0.5 }, max: { pad: 0.5 } });
-			assert.equal(result.count, 1);
-			assertPadding(result, data, 0.5, 0.5);
-		});
-
-		it('lets an active hard or soft anchor override padding on that side', () => {
-			const hard = checked([20, 80], 400, { min: { pad: 1e15, hard: 0 }, max: {} });
+		it('ignores pad alongside explicit hard and soft limits', () => {
+			const hard = checked([-20, 80], 400, { min: { pad: 1e15, hard: 0 }, max: {} });
 			assert.deepEqual(bounds(hard), [0, 80]);
 			assertAnchor(hard, 'min', 0);
-			assert.ok(20 - hard.min < (80 - 20) * 1e15);
 
-			const soft = checked([-80, -20], 400, { min: {}, max: { pad: 1e15, soft: 0, mode: 1 } });
+			const soft = checked([-80, -20], 400, { min: {}, max: { pad: -1, soft: 0, mode: 1 } });
 			assert.deepEqual(bounds(soft), [-80, 0]);
 			assertAnchor(soft, 'max', 0);
-			assert.ok(soft.max - -20 < (-20 - -80) * 1e15);
 		});
 	});
 
 	describe('soft modes', () => {
-		const cases = [
-			['mode 0 never activates', 0, 0.1, false],
-			['mode 1 activates while padding stays inside', 1, 0.1, true],
-			['mode 1 activates after padding crosses the limit', 1, 0.3, true],
-			['mode 2 activates while padding stays inside', 2, 0.1, true],
-			['mode 2 does not activate after padding crosses the limit', 2, 0.3, false],
-			['mode 3 does not activate while padding stays inside', 3, 0.1, false],
-			['mode 3 activates after padding crosses the limit', 3, 0.3, true],
-		];
+		it('uses the natural outer ticks while they remain inside the soft limits', () => {
+			for (const [mode, expected, active] of [
+				[0, [30, 60], false],
+				[1, [0, 60], true],
+				[2, [0, 60], true],
+				[3, [30, 60], false],
+			]) {
+				const result = checked([30, 50], 97, { min: { soft: 0, mode }, max: {} });
+				assert.deepEqual(bounds(result), expected, `minimum mode ${mode}`);
+				if (active)
+					assertAnchor(result, 'min', 0);
+			}
 
-		for (const [name, mode, pad, active] of cases) {
-			it(`${name} on the minimum side`, () => {
-				const result = checked([30, 50], 97, { min: { pad, soft: 25, mode }, max: {} });
-				assert.deepEqual(bounds(result), active ? [25, 100] : [20, 50]);
+			for (const [mode, expected, active] of [
+				[0, [-50, -20], false],
+				[1, [-60, 0], true],
+				[2, [-60, 0], true],
+				[3, [-50, -20], false],
+			]) {
+				const result = checked([-50, -30], 97, { min: {}, max: { soft: 0, mode } });
+				assert.deepEqual(bounds(result), expected, `maximum mode ${mode}`);
+				if (active)
+					assertAnchor(result, 'max', 0);
+			}
+		});
+
+		it('switches modes 2 and 3 when a natural outer tick crosses the soft limit', () => {
+			for (const [mode, expected, active] of [
+				[0, [20, 50], false],
+				[1, [25, 100], true],
+				[2, [20, 50], false],
+				[3, [25, 100], true],
+			]) {
+				const result = checked([26, 50], 97, { min: { soft: 25, mode }, max: {} });
+				assert.deepEqual(bounds(result), expected, `minimum mode ${mode}`);
 				if (active)
 					assertAnchor(result, 'min', 25);
-				else
-					assert.notEqual(result.min, 25);
-			});
+			}
 
-			it(`${name} on the maximum side`, () => {
-				const result = checked([-50, -30], 97, { min: {}, max: { pad, soft: -25, mode } });
-				assert.deepEqual(bounds(result), active ? [-100, -25] : [-50, -20]);
+			for (const [mode, expected, active] of [
+				[0, [-50, -20], false],
+				[1, [-100, -25], true],
+				[2, [-50, -20], false],
+				[3, [-100, -25], true],
+			]) {
+				const result = checked([-50, -26], 97, { min: {}, max: { soft: -25, mode } });
+				assert.deepEqual(bounds(result), expected, `maximum mode ${mode}`);
 				if (active)
 					assertAnchor(result, 'max', -25);
-				else
-					assert.notEqual(result.max, -25);
-			});
-		}
+			}
+		});
 	});
 
 	describe('hard limits, partial normalization, and alignment', () => {
@@ -202,9 +239,12 @@ describe('rangeY fourth-argument policy', () => {
 			assert.equal(rangeY(-20, 20, 400, { min: { hard: 0 }, max: { hard: 0 } }), null);
 		});
 
-		it('rejects invalid soft modes', () => {
-			for (const mode of [-1, 4, NaN, 'bad'])
+		it('rejects invalid soft modes and zeroIf thresholds', () => {
+			for (const mode of [-1, 0.5, 1.5, 4, NaN, 'bad'])
 				assert.equal(rangeY(20, 80, 400, { min: { soft: 0, mode }, max: {} }), null, String(mode));
+
+			for (const zeroIf of [-1, Infinity, NaN, '0.1'])
+				assert.equal(rangeY(20, 80, 400, { zeroIf, min: {}, max: {} }), null, String(zeroIf));
 		});
 	});
 });

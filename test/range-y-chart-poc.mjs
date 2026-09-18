@@ -441,10 +441,12 @@ describe('axis-ranging chart POC: one Y scale', () => {
 
 	for (const [name, range, policy] of [
 		['partial configured range', [0, null], {
+			zeroIf: rangeYAuto.zeroIf,
 			min: { mode: 1, hard: 0, soft: 0 },
 			max: rangeYAuto.max,
 		}],
 		['object configured range', { min: { pad: .25 }, max: { pad: .25 } }, { min: { pad: .25 }, max: { pad: .25 } }],
+		['object configured zeroIf', { zeroIf: .2, min: {}, max: {} }, { zeroIf: .2, min: {}, max: {} }],
 	]) {
 		it(`applies ${name} on the tick-aware path`, async () => {
 			const { u, scans } = makePlot({ y: { range } });

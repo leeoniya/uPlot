@@ -50,7 +50,7 @@ All of these conditions must also apply:
 - The axis uses the built-in `space`, `incrs`, and `splits` policies.
 - The range is omitted, a supported `Range.Config`, or a partial range array.
 
-A supported `Range.Config` can contain `pad`, `soft`, `mode`, and `hard`. A config with an explicit `flat` policy uses the ordinary path.
+A supported `Range.Config` can contain the top-level `zeroIf` threshold and per-side `soft`, `mode`, and `hard` values. The tick-aware ranger ignores `pad`. A config with an explicit `flat` policy uses the ordinary path.
 
 A partial range array uses hard-plus-soft normalization. For example, `[0, null]` fixes the lower endpoint and automatically ranges the upper endpoint.
 
@@ -62,16 +62,18 @@ An automatic reset with null bounds returns the scale to the tick-aware path.
 
 The default policy applies when `scale.range` is omitted:
 
-- The minimum padding is zero on each side.
-- One-sided data has 10% zero affinity.
+- The top-level `zeroIf` threshold is `0.2`.
+- Each side uses `soft: 0` and `mode: 3`.
+- One-sided data has 20% zero affinity.
 - No hard limit applies.
-- No other soft limit applies.
 
-Zero affinity makes zero an outer tick when zero is within 10% of the raw span. The test uses the nearest data extremum.
+Zero affinity makes zero an outer tick when zero is within `zeroIf * rawSpan` of the nearest data extremum. Users can adjust `zeroIf`; `0` disables this proximity rule.
 
-A declarative `Range.Config` replaces the default per-side policy. A null side in a partial range array retains the default automatic policy.
+A declarative `Range.Config` overrides the specified fields. An omitted `zeroIf` retains `0.2`, and omitted per-side fields retain the default policy. A null side in a partial range array also retains this policy.
 
-Explicit padding is a minimum percentage of the raw span. An active hard or soft limit overrides padding on that side.
+Zero affinity is independent of soft limits and modes, including `mode: 0` and `soft: null`. Active soft anchors take precedence over zero affinity. Hard limits constrain the resulting anchors. The ranger ignores `pad` because the outer bounds are already data-enclosing ticks.
+
+Modes 2 and 3 use the natural outer tick in place of the padded bound from `rangeNum()`. Mode 2 uses `soft` while that tick remains inside the limit. Mode 3 uses `soft` after that tick reaches the limit.
 
 An active limit must align with the selected built-in tick increment.
 
@@ -99,9 +101,9 @@ const intervals = Math.max(1, Math.floor(height / space));
 - Between 50px and 1000px, spacing increases from 25px toward 50px.
 - At 1000px and beyond, spacing stays at 50px.
 
-Each scale selects an allowed increment that encloses its extrema and requested padding within the interval budget. Spare intervals expand the range without clipping data.
+Each scale selects an allowed increment that encloses its extrema within the interval budget. Spare intervals expand the range without clipping data.
 
-The default policy has zero padding. For one-sided data, zero becomes the outer tick when its distance from the nearest raw extremum is at most 10% of the raw span. Zero can still occur naturally outside this threshold when required by the selected grid and interval count.
+For one-sided data, zero becomes an outer tick when its distance from the nearest raw extremum is at most `zeroIf * rawSpan`. Zero can still occur naturally outside this threshold when the selected grid requires it.
 
 The range limits normally lie on increment multiples. One-sided data avoids unnecessary zero crossing when possible.
 
@@ -216,7 +218,7 @@ In a mixed chart, an ordinary X hook can therefore observe previous tick-aware Y
 | --- | --- | --- |
 | Input to the ranger | Scanner extrema | Cached scanner extrema in `_rawY` |
 | When Y bounds become final | During `setScales()`, before layout | During `updateLayout()`, after final plot height |
-| Bounds policy | Existing `scale.range()`, including default numeric padding | Tick-aligned enclosure, zero affinity, padding, and declarative limits from `rangeY()` |
+| Bounds policy | Existing `scale.range()`, including default numeric padding | Tick-aligned enclosure, zero affinity, and declarative limits from `rangeY()` |
 | Increment selection | Axis selects an increment after ranging | Ranger selects an increment together with bounds |
 | Tick count | Depends on each range and selected increment | Depends on plot height and the common ramp for supported, nonempty ranges |
 | Endpoint ticks | Not guaranteed | Both endpoints are ticks for supported inputs |
@@ -532,9 +534,9 @@ The new regression tests and fixes remain uncommitted after checkpoint `ad725b06
 
 ## Follow-up questions and future work
 
-The original follow-up list is retained verbatim below. Zero affinity and tick-aligned declarative hard/soft limits are now implemented. Percentage padding is also supported, with zero as its default. The existing relative `flat` policy remains ordinary.
+The original follow-up list is retained verbatim below. Zero affinity and tick-aligned declarative hard and soft limits are now implemented. The tick-aware ranger ignores percentage padding. The existing relative `flat` policy remains ordinary.
 
-`test/range-y-policy.mjs` covers affinity thresholds, per-side minimum padding, all soft modes, hard clipping, limit alignment, partial-range normalization, and one-interval axes.
+`test/range-y-policy.mjs` covers affinity thresholds, ignored padding, all soft modes, hard clipping, limit alignment, partial-range normalization, and one-interval axes.
 
 ```text
 see what we can retain from existing rangers
