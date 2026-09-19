@@ -33,6 +33,7 @@ export async function captureStep(step, id, visit) {
 	assert.ok(Array.isArray(plots) && plots.length > 0, `Demo step ${id} must return a nonempty plot array.`);
 
 	try {
+		await new Promise(requestAnimationFrame);
 		for (let plotIdx = 0; plotIdx < plots.length; plotIdx++) {
 			const u = plots[plotIdx];
 			const actual = {

@@ -5,6 +5,8 @@ import { seriesBarsPlugin } from './grouped-bars.js';
 function makeChart(o, d, enabled) {
 	let ori = o.ori;
 	let dir = o.dir;
+	let toggles = document.createElement("div");
+	toggles.classList.add("lib-toggles");
 
 	const opts = {
 		width:  ori == 0 ? 2300 :  800,
@@ -21,6 +23,7 @@ function makeChart(o, d, enabled) {
 			},
 		],
 		legend: {
+			mount: (u, legend) => legend.after(toggles),
 			live: false,
 			markers: {
 				width: 0,
@@ -101,9 +104,6 @@ function makeChart(o, d, enabled) {
 	}
 
 	let u = new uPlot(opts, makeData(), document.body);
-
-	let toggles = document.createElement("div");
-	toggles.classList.add("lib-toggles");
 
 	d.forEach((lib, i) => {
 		let btn = document.createElement("button");

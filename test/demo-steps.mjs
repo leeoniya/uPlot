@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import '../scripts/instrument.mjs';
 import { plotStep } from '../demos/renderDemo.js';
 import { getDemoSteps, captureStep } from '../scripts/demoSteps.mjs';
 
@@ -57,6 +58,17 @@ describe('demo step helpers', () => {
 			{ id: 'a-b', steps: [{ id: 'c' }] },
 			{ id: 'a', steps: [{ id: 'b-c' }] },
 		]), /Duplicate/);
+	});
+
+	it('waits for deferred DOM rendering before capturing a step', async () => {
+		const plot = mockPlot('before');
+		const step = plotStep(() => {
+			requestAnimationFrame(() => { plot.root.outerHTML = '<plot>after</plot>'; });
+			return plot;
+		});
+		await captureStep(step, '0-deferred', actual => {
+			assert.equal(actual.html, '<plot>after</plot>');
+		});
 	});
 
 	it('retains single-plot paths and captures every plot in multi-plot steps', async () => {

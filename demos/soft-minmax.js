@@ -115,13 +115,15 @@ function softMinimumModes() {
 		},
 	];
 
-	return plots.map(o => {
-		let u = uPlot(uPlot.assign({}, opts, o), data, document.body);
-		let p = document.createElement("p");
-		p.textContent = o.descr;
-		u.root.appendChild(p);
-		return u;
-	});
+	return plots.map(o => uPlot(uPlot.assign({}, opts, o, {
+		legend: {
+			mount(u) {
+				let p = document.createElement("p");
+				p.textContent = o.descr;
+				u.root.appendChild(p);
+			},
+		},
+	}), data, document.body));
 }
 
 function flatZero() {

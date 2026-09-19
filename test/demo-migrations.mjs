@@ -14,6 +14,7 @@ import softMinmax, { incrementDataMax } from '../demos/soft-minmax.js';
 import nearestNonNull from '../demos/nearest-non-null.js';
 import logScales, { createGroups } from '../demos/log-scales2.js';
 import stackedSeries from '../demos/stacked-series.js';
+import multiBars from '../demos/multi-bars.js';
 
 const demos = [
 	['months', months, 2],
@@ -61,6 +62,7 @@ describe('demo migrations', () => {
 			plots = await getDemoSteps(groups)[index].step.render();
 		});
 		livePlots.push(...plots);
+		await new Promise(requestAnimationFrame);
 		return plots;
 	}
 
@@ -80,6 +82,24 @@ describe('demo migrations', () => {
 				count += first.length;
 			}
 			assert.equal(count, plotCount);
+		});
+	}
+
+	for (const [index, orientation] of [[1, 'horizontal'], [2, 'vertical']]) {
+		it(`keeps ${orientation} multi-bars controls after the deferred legend`, async () => {
+			const [plot] = await render(multiBars, index);
+			const legend = plot.root.querySelector('.u-legend');
+			const toggles = plot.root.querySelector('.lib-toggles');
+			assert.equal(legend.nextElementSibling === toggles, true);
+			const button = toggles.firstElementChild;
+			const count = plot.data[0].length;
+			for (const hidden of [true, false]) {
+				click(button);
+				await new Promise(requestAnimationFrame);
+				assert.equal(button.classList.contains('hidden'), hidden);
+				assert.equal(plot.data[0].length, count - (hidden ? 1 : 0));
+				assert.equal(legend.nextElementSibling === toggles, true);
+			}
 		});
 	}
 
@@ -169,29 +189,38 @@ describe('demo migrations', () => {
 		assert.deepStrictEqual(plot.bands.map(band => band.series), bands);
 	});
 
-	it('keeps the inverted log pair linked and the moved legend row bound to its original plot', async () => {
+	it('keeps the inverted log pair linked with independent legends in one shared host', async () => {
 		const now = 1700000000;
 		const [top, bottom] = await render(createGroups(now), 3);
 		assert.deepStrictEqual(top.data[0], [now - 10800, now - 7200, now - 3600, now]);
-		assert.equal(bottom.data, top.data);
-		const topLegend = top.root.querySelector('.u-legend');
-		const bottomLegend = bottom.root.querySelector('.u-legend');
-		assert.equal(topLegend.style.display, 'none');
-		const labels = [...bottomLegend.querySelectorAll('.u-label')];
-		assert.deepStrictEqual(labels.map(el => el.textContent).sort(), ['In', 'Out', 'Time']);
-		const inLabel = labels.find(el => el.textContent === 'In');
+		assert.equal(bottom.data === top.data, true);
+		assert.equal(top.root.querySelector('.u-legend') === null, true);
+		const legends = [...bottom.root.querySelectorAll('.u-legend')];
+		assert.equal(legends.length, 2);
+		assert.equal(legends[0].parentElement === legends[1].parentElement, true);
+		const labels = legends.map(el => [...el.querySelectorAll('.u-label')]);
+		assert.deepStrictEqual(labels.map(group => group.map(el => el.textContent)), [['Time', 'In'], ['Time', 'Out']]);
+		const inLabel = labels[0][1];
+		const outLabel = labels[1][1];
 		top.setCursor({ left: top.valToPos(now - 3600, 'x'), top: 20 }, true, true);
 		assert.equal(top.cursor.idx, 2);
 		assert.equal(bottom.cursor.idx, 2);
 		assert.equal(top.legend.idxs[1], 2);
 		assert.equal(bottom.legend.idxs[1], 2);
+		await new Promise(requestAnimationFrame);
+		assert.deepStrictEqual(legends.map(el => el.querySelectorAll('.u-value')[1].textContent),
+			[top.legend.values[1]._, bottom.legend.values[1]._].map(String));
 		click(inLabel);
-		await Promise.resolve();
+		await new Promise(requestAnimationFrame);
 		assert.equal(top.series[1].show, false);
 		assert.equal(bottom.series[1].show, true);
 		click(inLabel);
-		await Promise.resolve();
+		await new Promise(requestAnimationFrame);
 		assert.equal(top.series[1].show, true);
+		click(outLabel);
+		await new Promise(requestAnimationFrame);
+		assert.equal(top.series[1].show, true);
+		assert.equal(bottom.series[1].show, false);
 	});
 
 	it('replaces annotations on scale changes without retaining offscreen or duplicate marks', async () => {
@@ -221,6 +250,7 @@ describe('demo migrations', () => {
 		const left = plot.valToPos(10, 'x');
 		plot.setCursor({ left, top: 50 });
 		assert.equal(plot.cursor.idx, 10);
+		await new Promise(requestAnimationFrame);
 		assert.equal(legend.style.transform, `translate(${plot.cursor.left}px, 50px)`);
 		assert.ok(parseFloat(highlight.style.width) > 0);
 		const transform = highlight.style.transform;

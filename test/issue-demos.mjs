@@ -31,6 +31,7 @@ async function loadDemo(filename) {
 		const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 		new Function('uPlot', 'document', script)(Plot, fixture);
 		await settle();
+		await new Promise(requestAnimationFrame);
 	}
 	catch (error) {
 		u?.destroy();
