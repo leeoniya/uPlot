@@ -4,6 +4,20 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator';
 
 GlobalRegistrator.register({ width: 1920, height: 1080, settings: { errorCapture: 'disabled' } });
 
+// ivi calls the cached Node setter on elements. Happy DOM's base setter is a
+// no-op; delegate to its Element implementation with DOM string conversion.
+const nodeTextContent = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+const elementTextContent = Object.getOwnPropertyDescriptor(Element.prototype, 'textContent');
+Object.defineProperty(Node.prototype, 'textContent', {
+	...nodeTextContent,
+	set(value) {
+		if (this instanceof Element)
+			elementTextContent.set.call(this, value == null ? '' : String(value));
+		else
+			nodeTextContent.set.call(this, value);
+	},
+});
+
 function defProp(obj, name, rest) {
 	Object.defineProperty(obj, name, {
 		enumerable: false,

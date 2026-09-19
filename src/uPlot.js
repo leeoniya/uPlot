@@ -15,6 +15,7 @@ import {
 } from './feats.js';
 
 import { rangeY, rangeYAuto } from './rangeY.js';
+import { createLegend } from './legend-ivi.js';
 
 import {
 	copy,
@@ -105,13 +106,6 @@ import {
 	CURSOR_X,
 	CURSOR_Y,
 	CURSOR_PT,
-	LEGEND,
-	LEGEND_LIVE,
-	LEGEND_INLINE,
-	LEGEND_SERIES,
-	LEGEND_MARKER,
-	LEGEND_LABEL,
-	LEGEND_VALUE,
 } from './domClasses.js';
 
 import {
@@ -746,11 +740,7 @@ export default function uPlot(opts, data, then) {
 		markers.fill   = fnOrSelf(markers.fill);
 	}
 
-	let legendTable;
-	let legendHead;
-	let legendBody;
-	let legendRows = [];
-	let legendCells = [];
+	let legendView;
 	let legendCols;
 	let multiValLegend = false;
 	let NULL_LEGEND_VALUES = {};
@@ -764,109 +754,32 @@ export default function uPlot(opts, data, then) {
 			NULL_LEGEND_VALUES[k] = LEGEND_DISP;
 	}
 
-	if (showLegend) {
-		legendTable = placeTag("table", LEGEND, root);
-		legendBody = placeTag("tbody", null, legendTable);
-
-		// allows legend to be moved out of root
-		legend.mount(self, legendTable);
-
-		if (multiValLegend) {
-			legendHead = placeTag("thead", null, legendTable, legendBody);
-
-			let head = placeTag("tr", null, legendHead);
-			placeTag("th", null, head);
-
-			for (var key in legendCols)
-				placeTag("th", LEGEND_LABEL, head).textContent = key;
-		}
-		else {
-			addClass(legendTable, LEGEND_INLINE);
-			legend.live && addClass(legendTable, LEGEND_LIVE);
-		}
-	}
-
 	const son  = {show: true};
 	const soff = {show: false};
 
-	function initLegendRow(s, i) {
-		if (i == 0 && (multiValLegend || !legend.live || mode == 2))
-			return nullNullTuple;
+	function handleLegendEvent(type, s, e) {
+		let seriesIdx = s == null ? null : series.indexOf(s);
+		if (cursor._lock || seriesIdx == -1)
+			return;
 
-		let cells = [];
+		setCursorEvent(e);
 
-		let row = placeTag("tr", LEGEND_SERIES, legendBody, legendBody.childNodes[i]);
+		if (type == "click") {
+			if ((e.ctrlKey || e.metaKey) != legend.isolate) {
+				// if any other series is shown, isolate this one. else show all
+				let isolate = series.some((s, i) => i > 0 && i != seriesIdx && s.show);
 
-		addClass(row, s.class);
-
-		if (!s.show)
-			addClass(row, OFF);
-
-		let label = placeTag("th", null, row);
-
-		if (markers.show) {
-			let indic = placeDiv(LEGEND_MARKER, label);
-
-			if (i > 0) {
-				let width  = markers.width(self, i);
-
-				if (width)
-					indic.style.border = width + "px " + markers.dash(self, i) + " " + markers.stroke(self, i);
-
-				indic.style.background = markers.fill(self, i);
+				series.forEach((s, i) => {
+					i > 0 && setSeries(i, isolate ? (i == seriesIdx ? son : soff) : son, true, syncOpts.setSeries);
+				});
 			}
+			else
+				setSeries(seriesIdx, {show: !s.show}, true, syncOpts.setSeries);
 		}
-
-		let text = placeDiv(LEGEND_LABEL, label);
-
-		if (s.label instanceof HTMLElement)
-			text.appendChild(s.label);
-		else
-			text.textContent = s.label;
-
-		if (i > 0) {
-			if (!markers.show)
-				text.style.color = s.width > 0 ? markers.stroke(self, i) : markers.fill(self, i);
-
-			onMouse("click", label, e => {
-				if (cursor._lock)
-					return;
-
-				setCursorEvent(e);
-
-				let seriesIdx = series.indexOf(s);
-
-				if ((e.ctrlKey || e.metaKey) != legend.isolate) {
-					// if any other series is shown, isolate this one. else show all
-					let isolate = series.some((s, i) => i > 0 && i != seriesIdx && s.show);
-
-					series.forEach((s, i) => {
-						i > 0 && setSeries(i, isolate ? (i == seriesIdx ? son : soff) : son, true, syncOpts.setSeries);
-					});
-				}
-				else
-					setSeries(seriesIdx, {show: !s.show}, true, syncOpts.setSeries);
-			}, false);
-
-			if (cursorFocus) {
-				onMouse(mouseenter, label, e => {
-					if (cursor._lock)
-						return;
-
-					setCursorEvent(e);
-
-					setSeries(series.indexOf(s), FOCUS_TRUE, true, syncOpts.setSeries);
-				}, false);
-			}
-		}
-
-		for (var key in legendCols) {
-			let v = placeTag("td", LEGEND_VALUE, row);
-			v.textContent = "--";
-			cells.push(v);
-		}
-
-		return [row, cells];
+		else if (type == "focus")
+			setSeries(seriesIdx, FOCUS_TRUE, true, syncOpts.setSeries);
+		else if (focusedSeries != null)
+			setSeries(null, FOCUS_TRUE, true, syncOpts.setSeries);
 	}
 
 	const mouseListeners = new Map();
@@ -1255,16 +1168,10 @@ export default function uPlot(opts, data, then) {
 			points.pxAlign = s.pxAlign;
 		}
 
-		if (showLegend) {
-			let rowCells = initLegendRow(s, i);
-			legendRows.splice(i, 0, rowCells[0]);
-			legendCells.splice(i, 0, rowCells[1]);
-			legend.values.push(null);	// NULL_LEGEND_VALS not yet avil here :(
-		}
+
+		activeIdxs.splice(i, 0, null);
 
 		if (showCursor) {
-			activeIdxs.splice(i, 0, null);
-
 			let pt = null;
 
 			if (cursorOnePt) {
@@ -1279,7 +1186,7 @@ export default function uPlot(opts, data, then) {
 			cursorPtsTop.splice(i, 0, 0);
 		}
 
-		fire("addSeries", i);
+		focusedSeries != null && setSeriesFocus(s, i);
 	}
 
 	function addSeries(opts, si) {
@@ -1288,7 +1195,10 @@ export default function uPlot(opts, data, then) {
 		opts = mode == 1 ? setDefault(opts, si, xSeriesOpts, ySeriesOpts) : setDefault(opts, si, {}, xySeriesOpts);
 
 		series.splice(si, 0, opts);
+		FEAT_LEGEND && legend.values.splice(si, 0, null);
 		initSeries(series[si], si);
+		showLegend && invalidateLegend();
+		fire("addSeries", si);
 	}
 
 	self.addSeries = addSeries;
@@ -1296,17 +1206,11 @@ export default function uPlot(opts, data, then) {
 	function delSeries(i) {
 		series.splice(i, 1);
 
-		if (showLegend) {
-			legend.values.splice(i, 1);
-
-			legendCells.splice(i, 1);
-			let tr = legendRows.splice(i, 1)[0];
-			offMouse(null, tr.firstChild);
-			tr.remove();
-		}
+		FEAT_LEGEND && legend.values.splice(i, 1);
+		showLegend && invalidateLegend();
+		activeIdxs.splice(i, 1);
 
 		if (showCursor) {
-			activeIdxs.splice(i, 1);
 			cursorPts.splice(i, 1)[0].remove();
 			cursorPtsLft.splice(i, 1);
 			cursorPtsTop.splice(i, 1);
@@ -2311,7 +2215,26 @@ export default function uPlot(opts, data, then) {
 		});
 	}
 
+	let destroyed = false;
 	let queuedCommit = false;
+	let queuedFrame = null;
+	let shouldRenderLegend = false;
+
+	function invalidateLegend() {
+		shouldRenderLegend = true;
+		if (!destroyed && queuedFrame == null)
+			queuedFrame = requestAnimationFrame(flushFrame);
+	}
+
+	function flushFrame() {
+		queuedFrame = null;
+		if (!destroyed && shouldRenderLegend) {
+			// Clear before rendering so callbacks can request another frame.
+			shouldRenderLegend = false;
+			legendView.render(legend.values, focusedSeries);
+		}
+	}
+
 	let deferHooks = false;
 	let hooksQueue = [];
 
@@ -2325,7 +2248,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function commit() {
-		if (!queuedCommit) {
+		if (!destroyed && !queuedCommit) {
 			let run = queuedCommit = () => {
 				// A synchronous batch invalidates this callback, not any later queued work.
 				if (queuedCommit == run)
@@ -2440,6 +2363,9 @@ export default function uPlot(opts, data, then) {
 
 	function _commit() {
 	//	log("_commit()", arguments);
+
+		if (destroyed)
+			return;
 
 		if (shouldSetScales) {
 			setScales();
@@ -2653,19 +2579,30 @@ export default function uPlot(opts, data, then) {
 
 	self.setSelect = setSelect;
 
-	function toggleDOM(i) {
+	function hideCursorPoint(i) {
 		let s = series[i];
 
-		if (s.show)
-			showLegend && remClass(legendRows[i], OFF);
-		else {
-			showLegend && addClass(legendRows[i], OFF);
-
-			if (showCursor) {
-				let pt = cursorOnePt ? cursorPts[0] : cursorPts[i];
-				pt != null && elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
-			}
+		if (!s.show && showCursor) {
+			let pt = cursorOnePt ? cursorPts[0] : cursorPts[i];
+			pt != null && elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
 		}
+	}
+
+	function setSeriesShow(i, show) {
+		let s = series[i];
+		if (showLegend && s.show != show)
+			invalidateLegend();
+		s.show = show;
+		hideCursorPoint(i);
+
+		if (mode == 2) {
+			setRange(s.facets[0].scale, null, null);
+			setRange(s.facets[1].scale, null, null);
+		}
+		else
+			setRange(s.scale, null, null);
+
+		commit();
 	}
 
 	function setSeries(i, opts, _fire, _pub) {
@@ -2675,21 +2612,17 @@ export default function uPlot(opts, data, then) {
 			setFocus(i);
 
 		if (opts.show != null) {
-			series.forEach((s, si) => {
-				if (si > 0 && (i == si || i == null)) {
-					s.show = opts.show;
-					FEAT_LEGEND && toggleDOM(si);
-
-					if (mode == 2) {
-						setRange(s.facets[0].scale, null, null);
-						setRange(s.facets[1].scale, null, null);
-					}
-					else
-						setRange(s.scale, null, null);
-
-					commit();
-				}
-			});
+			if (i == null) {
+				series.forEach((s, si) => {
+					if (si > 0)
+						setSeriesShow(si, opts.show);
+				});
+			}
+			else {
+				let si = +i;
+				if (si > 0 && si < series.length && si % 1 == 0)
+					setSeriesShow(si, opts.show);
+			}
 		}
 
 		_fire !== false && fire("setSeries", i, opts);
@@ -2727,48 +2660,36 @@ export default function uPlot(opts, data, then) {
 		if (showCursor && cursorPts[i] != null)
 			cursorPts[i].style.opacity = value;
 
-		if (FEAT_LEGEND && showLegend && legendRows[i])
-			legendRows[i].style.opacity = value;
 	}
 
-	// y-distance
-	let closestDist;
-	let closestSeries;
-	let focusedSeries;
+	let focusedSeries = null;
 	const FOCUS_TRUE  = {focus: true};
 
-	function setFocus(i) {
-		if (i != focusedSeries) {
-		//	log("setFocus()", arguments);
-
-			let allFocused = i == null;
-
-			let _setAlpha = focus.alpha != 1;
-
-			series.forEach((s, i2) => {
-				if (mode == 1 || i2 > 0) {
-					let isFocused = allFocused || i2 == 0 || i2 == i;
-					s._focus = allFocused ? null : isFocused;
-					_setAlpha && setAlpha(i2, isFocused ? 1 : focus.alpha);
-				}
-			});
-
-			focusedSeries = i;
-			_setAlpha && commit();
+	function setSeriesFocus(s, i) {
+		if (mode == 1 || i > 0) {
+			let allFocused = focusedSeries == null;
+			let isFocused = allFocused || i == 0 || s == focusedSeries;
+			s._focus = allFocused ? null : isFocused;
+			focus.alpha != 1 && setAlpha(i, isFocused ? 1 : focus.alpha);
 		}
 	}
 
-	if (showLegend && cursorFocus) {
-		onMouse(mouseleave, legendTable, e => {
-			if (cursor._lock)
-				return;
+	function setFocus(i) {
+		let focused = i == null ? null : series[i];
+		if (focused != focusedSeries) {
+		//	log("setFocus()", arguments);
 
-			setCursorEvent(e);
-
-			if (focusedSeries != null)
-				setSeries(null, FOCUS_TRUE, true, syncOpts.setSeries);
-		});
+			focusedSeries = focused;
+			series.forEach(setSeriesFocus);
+			if (focus.alpha != 1) {
+				showLegend && invalidateLegend();
+				commit();
+			}
+			return true;
+		}
+		return false;
 	}
+
 
 	function posToVal(pos, scale, can) {
 		let sc = scales[scale];
@@ -2843,22 +2764,6 @@ export default function uPlot(opts, data, then) {
 	let setSelX = scaleX.ori == 0 ? setSelH : setSelV;
 	let setSelY = scaleX.ori == 1 ? setSelH : setSelV;
 
-	function syncLegend() {
-		if (showLegend && legend.live) {
-			for (let i = mode == 2 ? 1 : 0; i < series.length; i++) {
-				if (i == 0 && multiValLegend)
-					continue;
-
-				let vals = legend.values[i];
-
-				let j = 0;
-
-				for (let k in vals)
-					legendCells[i][j++].firstChild.nodeValue = vals[k];
-			}
-		}
-	}
-
 	function setLegend(opts, _fire) {
 		if (opts != null) {
 			if (opts.idxs) {
@@ -2878,7 +2783,7 @@ export default function uPlot(opts, data, then) {
 					setLegendValues(sidx, activeIdxs[sidx]);
 			}
 
-			syncLegend();
+			invalidateLegend();
 		}
 
 		shouldSetLegend = false;
@@ -2891,16 +2796,13 @@ export default function uPlot(opts, data, then) {
 	function setLegendValues(sidx, idx) {
 		let s = series[sidx];
 		let src = sidx == 0 && xScaleDistr == 2 ? data0 : data[sidx];
-		let val;
 
 		if (multiValLegend)
-			val = s.values(self, sidx, idx) ?? NULL_LEGEND_VALUES;
+			legend.values[sidx] = s.values(self, sidx, idx) ?? NULL_LEGEND_VALUES;
 		else {
-			val = s.value(self, idx == null ? null : src[idx], sidx, idx);
-			val = val == null ? NULL_LEGEND_VALUES : {_: val};
+			let val = s.value(self, idx == null ? null : src[idx], sidx, idx);
+			(legend.values[sidx] ??= {})._ = val ?? LEGEND_DISP;
 		}
-
-		legend.values[sidx] = val;
 	}
 
 	function setCursorPointPos(pt, si, left, top) {
@@ -3003,15 +2905,16 @@ export default function uPlot(opts, data, then) {
 		// for nearest min/max indices results in this condition. cheap hack :D
 		let noDataInRange = i0 > i1; // works for mode 1 only
 
-		closestDist = inf;
-		closestSeries = null;
+		let closestDist = inf;
+		let closestSeries = null;
+		let cursorHidden = mouseLeft1 < 0 || dataLen == 0 || noDataInRange;
 
 		// TODO: extract
 		let xDim = scaleX.ori == 0 ? plotWidCss : plotHgtCss;
 		let yDim = scaleX.ori == 1 ? plotWidCss : plotHgtCss;
 
 		// if cursor hidden, hide points & clear legend vals
-		if (mouseLeft1 < 0 || dataLen == 0 || noDataInRange) {
+		if (cursorHidden) {
 			idx = cursor.idx = null;
 
 			for (let i = 0; i < series.length; i++) {
@@ -3019,8 +2922,9 @@ export default function uPlot(opts, data, then) {
 				pt != null && elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
 			}
 
-			if (cursorFocus)
-				setSeries(null, FOCUS_TRUE, true, src == null && syncOpts.setSeries);
+
+			if (cursorOnePt)
+				cursorPtSeries = null;
 
 			if (FEAT_LEGEND && legend.live) {
 				activeIdxs.fill(idx);
@@ -3164,13 +3068,9 @@ export default function uPlot(opts, data, then) {
 			// if only using single hover point (at cursorPts[0])
 			// we have trigger styling at last visible series (once closestSeries is settled)
 			if (cursorOnePt) {
-				// some of this logic is similar to series focus below, since it matches the behavior by design
+				let pointSeries = closestDist <= focus.prox ? closestSeries : null;
 
-				let p = focus.prox;
-
-				let focusChanged = focusedSeries == null ? closestDist <= p : (closestDist > p || closestSeries != focusedSeries);
-
-				if (shouldSetLegend || focusChanged) {
+				if (shouldSetLegend || pointSeries != cursorPtSeries) {
 					let pt = cursorPts[0];
 
 					if (pt != null) {
@@ -3179,7 +3079,7 @@ export default function uPlot(opts, data, then) {
 
 						elSize(pt, _ptWid, _ptHgt, _centered);
 						elColor(pt, _ptFill, _ptStroke);
-						cursorPtSeries = closestDist <= p ? closestSeries : null;
+						cursorPtSeries = pointSeries;
 						setCursorPointPos(pt, cursorPtSeries, _ptLft, _ptTop);
 					}
 				}
@@ -3331,38 +3231,30 @@ export default function uPlot(opts, data, then) {
 		drag._x = dragX;
 		drag._y = dragY;
 
-		if (src == null) {
-			if (_pub) {
-				if (syncKey != null) {
-					let [xSyncKey, ySyncKey] = syncOpts.scales;
-
-					syncOpts.values[0] = xSyncKey != null ? posToVal(scaleX.ori == 0 ? mouseLeft1 : mouseTop1, xSyncKey) : null;
-					syncOpts.values[1] = ySyncKey != null ? posToVal(scaleX.ori == 1 ? mouseLeft1 : mouseTop1, ySyncKey) : null;
-				}
-
-				pubSync(mousemove, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, idx);
-			}
-
-			if (cursorFocus) {
-				let shouldPub = _pub && syncOpts.setSeries;
-				let p = focus.prox;
-
-				if (focusedSeries == null) {
-					if (closestDist <= p)
-						setSeries(closestSeries, FOCUS_TRUE, true, shouldPub);
-				}
-				else {
-					if (closestDist > p)
-						setSeries(null, FOCUS_TRUE, true, shouldPub);
-					else if (closestSeries != focusedSeries)
-						setSeries(closestSeries, FOCUS_TRUE, true, shouldPub);
-				}
-			}
-		}
+		let focusIdx = !cursorHidden && closestDist <= focus.prox ? closestSeries : null;
+		let focusChanged = cursorFocus && (src == null || cursorHidden) && setFocus(focusIdx);
 
 		if (shouldSetLegend) {
 			legend.idx = idx;
 			setLegend();
+		}
+
+		if (src == null && _pub) {
+			if (syncKey != null) {
+				let [xSyncKey, ySyncKey] = syncOpts.scales;
+
+				syncOpts.values[0] = xSyncKey != null ? posToVal(scaleX.ori == 0 ? mouseLeft1 : mouseTop1, xSyncKey) : null;
+				syncOpts.values[1] = ySyncKey != null ? posToVal(scaleX.ori == 1 ? mouseLeft1 : mouseTop1, ySyncKey) : null;
+			}
+
+			pubSync(mousemove, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, idx);
+		}
+
+
+		if (focusChanged) {
+			fire("setSeries", focusIdx, FOCUS_TRUE);
+			if (src == null && _pub && syncOpts.setSeries)
+				pubSync("setSeries", self, focusIdx, FOCUS_TRUE);
 		}
 
 		_fire !== false && fire("setCursor");
@@ -3758,12 +3650,17 @@ export default function uPlot(opts, data, then) {
 	self.pub = pub;
 
 	function destroy() {
+		destroyed = true;
+		queuedCommit = false;
+		if (queuedFrame != null)
+			cancelAnimationFrame(queuedFrame);
+		queuedFrame = null;
 		sync.unsub(self);
 		cursorPlots.delete(self);
 		mouseListeners.clear();
 		off(dppxchange, win, onDppxChange);
 		root.remove();
-		FEAT_LEGEND && legendTable?.remove(); // in case mounted outside of root
+		FEAT_LEGEND && legendView?.destroy();
 		fire("destroy");
 	}
 
@@ -3786,6 +3683,28 @@ export default function uPlot(opts, data, then) {
 	}
 
 	series.forEach(initSeries);
+
+	if (FEAT_LEGEND) {
+		legend.values.length = series.length;
+		legend.values.fill(null);
+	}
+
+	if (showLegend) {
+		legendView = createLegend(self, root, {
+			legend,
+			series,
+			columns: legendCols,
+			multi: multiValLegend,
+			mode,
+			focusAlpha: focus.alpha,
+			cursorFocus,
+			bind: cursor.bind,
+			emit: handleLegendEvent,
+		});
+		invalidateLegend();
+	}
+
+	series.forEach((s, i) => { fire("addSeries", i); });
 
 	axes.forEach(initAxis);
 

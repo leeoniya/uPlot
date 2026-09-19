@@ -369,7 +369,7 @@ declare namespace uPlot {
 		idx?: number | null;
 		/** current indices (readback-only, not for init) */
 		idxs?: (number | null)[];
-		/** current values (readback-only, not for init) */
+		/** current values (readback-only, not for init). Scalar records update in place. Copy records to retain snapshots. */
 		values?: Legend.Values;
 	}
 
@@ -388,7 +388,9 @@ declare namespace uPlot {
 
 		export type Values = Value[];
 
+		/** presentation is evaluated once per series on its first legend render */
 		export interface Markers {
+			/** initialization-only setting */
 			show?: boolean;	// true
 			/** series indicator line width */
 			width?: Legend.Width;
@@ -1051,7 +1053,7 @@ declare namespace uPlot {
 		/** whether path and point drawing should offset canvas to try drawing crisp lines */
 		pxAlign?: number | boolean; // 1
 
-		/** legend label */
+		/** legend label captured on first render. Later assignments are ignored. Supplied HTMLElement contents can still change. */
 		label?: string | HTMLElement;
 
 		/** inline-legend value formatter. can be an fmtDate formatting string when scale.time: true */

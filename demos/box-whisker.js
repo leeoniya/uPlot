@@ -61,11 +61,11 @@ function columnHighlightPlugin({ className, style = {backgroundColor: "rgba(51,2
 }
 
 // converts the legend into a simple tooltip
-function legendAsTooltipPlugin({ className, style = { backgroundColor:"rgba(255, 249, 196, 0.92)", color: "black" } } = {}) {
+export function legendAsTooltipPlugin({ className, style = { backgroundColor:"rgba(255, 249, 196, 0.92)", color: "black" } } = {}) {
 	let legendEl;
 
-	function init(u, opts) {
-		legendEl = u.root.querySelector(".u-legend");
+	function mount(u, el) {
+		legendEl = el;
 
 		legendEl.classList.remove("u-inline");
 		className && legendEl.classList.add(className);
@@ -95,21 +95,26 @@ function legendAsTooltipPlugin({ className, style = { backgroundColor:"rgba(255,
 		overEl.appendChild(legendEl);
 
 		// show/hide tooltip on enter/exit
-		overEl.addEventListener("mouseenter", () => {legendEl.style.display = null;});
+		overEl.addEventListener("mouseenter", () => {legendEl.style.display = "";});
 		overEl.addEventListener("mouseleave", () => {legendEl.style.display = "none";});
 
-		// let tooltip exit plot
-	//	overEl.style.overflow = "visible";
+		if (overEl.matches(":hover"))
+			legendEl.style.display = "";
+		update(u);
 	}
 
 	function update(u) {
-		const { left, top } = u.cursor;
-		legendEl.style.transform = "translate(" + left + "px, " + top + "px)";
+		if (legendEl != null) {
+			const { left, top } = u.cursor;
+			legendEl.style.transform = "translate(" + left + "px, " + top + "px)";
+		}
 	}
 
 	return {
+		opts: (u, opts) => {
+			uPlot.assign(opts, { legend: { mount } });
+		},
 		hooks: {
-			init: init,
 			setCursor: update,
 		}
 	};

@@ -133,6 +133,15 @@ function renderLog2Scale() {
 }
 
 function renderInvertedLogScales(now) {
+	const legendHost = document.createElement("div");
+	legendHost.style.cssText = "display:flex;justify-content:center;gap:16px";
+	const legend = {
+		mount: (u, table) => {
+			table.style.margin = "0";
+			legendHost.appendChild(table);
+		},
+	};
+
 	let hr = 3600;
 
 	let data5 = [
@@ -142,6 +151,7 @@ function renderInvertedLogScales(now) {
 
 	const opts5 = {
 		title: "Inverted Log10 Y Scale",
+		legend,
 		width: 1600,
 		height: 300,
 		padding: [null,30,10,0],
@@ -178,6 +188,7 @@ function renderInvertedLogScales(now) {
 	let u5 = new uPlot(opts5, data5, document.body);
 
 	const opts6 = {
+		legend,
 		width: 1600,
 		height: 300,
 		padding: [10,30,0,0],
@@ -208,21 +219,10 @@ function renderInvertedLogScales(now) {
 				value: (u, v) => -v,
 			},
 		],
-		hooks: {
-			ready: [
-				u => {
-					let btmLegend = u.root.querySelector(".u-legend");
-					let topLegend = u5.root.querySelector(".u-legend");
-
-					let upperItem = topLegend.querySelector(".u-series:nth-child(2)");
-					btmLegend.insertBefore(upperItem, btmLegend.lastChild);
-					topLegend.style.display = "none";
-				}
-			]
-		}
 	};
 
 	let u6 = new uPlot(opts6, data5, document.body);
+	u6.root.appendChild(legendHost);
 
 	return [u5, u6];
 }
