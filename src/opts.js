@@ -20,6 +20,7 @@ import {
 	floor,
 	fmtNum,
 	fixedDec,
+	guessDec,
 
 	retArg1,
 	noop,
@@ -591,8 +592,25 @@ export const xSeriesOpts = {
 	idxs: [],
 };
 
+const numAxisFmts = new Map();
+
 export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
-	return splits.map(v => v == null ? "" : fmtNum(v));
+	let dec = fixedDec.get(foundIncr) ?? guessDec(foundIncr);
+	// Custom splits and endpoint-only ranges can have finer precision than their increment.
+	for (let v of splits) {
+		if (v != null)
+			dec = max(dec, guessDec(v));
+	}
+
+	let fmt = numAxisFmts.get(dec);
+	if (fmt == null) {
+		// Older Intl implementations support at most 20 fraction digits; toFixed supports 100.
+		fmt = dec > 100 ? v => v.toExponential() : dec > 20 ? v => v.toFixed(dec) :
+			new Intl.NumberFormat(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }).format;
+		numAxisFmts.set(dec, fmt);
+	}
+
+	return splits.map(v => v == null ? "" : fmt(v == 0 ? 0 : v));
 }
 
 export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
@@ -735,6 +753,8 @@ export const yAxisOpts = {
 	scale: "y",
 	stroke: hexBlack,
 	space: 30,
+	ramp: 1,
+	exact: true,
 	nice,
 	gap: 5,
 	alignTo: 1,

@@ -11,7 +11,7 @@ const data = [
 ];
 const full = [[13, 87], [1300, 8700], [-9, -2]];
 const flat = [[38, 38], [1300, 1300], [-4, -4]];
-const heights = [[40, 1], [50, 2], [125, 3], [333, 7], [413, 8], [525, 10], [1000, 20]];
+const heights = [[20, 1], [40, 2], [50, 2], [125, 3], [333, 7], [413, 8], [525, 11], [1000, 20]];
 const bounds = (u, key) => [u.scales[key].min, u.scales[key].max];
 const allBounds = (u, keys) => keys.map(key => bounds(u, key));
 const cssHeight = u => u.bbox.height / u.pxRatio;
@@ -72,6 +72,50 @@ function makePlot({ count = 2, pxRatio = 1, opposite = false, plotData, shared =
 		clear() { scans.length = values.length = sizes.length = events.length = 0; },
 	};
 }
+
+describe('per-axis exact and ramp options', () => {
+	it('allows independent counts without changing other axes, and restores alignment', async () => {
+		const f = makePlot({ plotData: [data[0], data[1], [112, 114, 116, 118, 120, 122, 124, 126]] });
+		const { u } = f;
+		try {
+			await Promise.resolve();
+			assert.deepEqual(u.axes.slice(1).map(axis => axis._splits.length), [9, 9]);
+			const original = u.axes[2]._splits.slice();
+			f.clear();
+			u.axes[1].exact = false;
+			u.redraw(false, true);
+			await Promise.resolve();
+			assert.deepEqual(u.axes.slice(1).map(axis => axis._splits.length), [10, 9]);
+			assert.deepEqual(u.axes[2]._splits, original);
+			u.axes[2].exact = false;
+			u.redraw(false, true);
+			await Promise.resolve();
+			assert.deepEqual(u.axes.slice(1).map(axis => axis._splits.length), [10, 8]);
+			for (const [i, key] of f.keys.entries()) {
+				const ticks = u.axes[i + 1]._splits;
+				assert.deepEqual([ticks[0], ticks.at(-1)], bounds(u, key));
+			}
+			const left = u.axes[1]._splits.slice();
+			u.axes[2].ramp = 0;
+			u.redraw(false, true);
+			await Promise.resolve();
+			assert.equal(u.axes[2]._splits.length, 2);
+			assert.deepEqual(u.axes[1]._splits, left);
+			for (const axis of u.axes.slice(1)) {
+				axis.exact = true;
+				axis.ramp = 1;
+			}
+			u.redraw(false, true);
+			await Promise.resolve();
+			const positions = f.keys.map((key, i) => u.axes[i + 1]._splits.map(value => u.valToPos(value, key)));
+			assert.equal(positions[0].length, 9);
+			assert.equal(positions[1].length, 9);
+			positions[0].forEach((pos, i) => assert.ok(Math.abs(pos - positions[1][i]) < 1e-8));
+			assert.equal(f.scans.length, 0);
+		}
+		finally { u.destroy(); }
+	});
+});
 
 function assertScans(f, keys, extrema, window) {
 	assert.deepEqual(f.scans.map(scan => scan.key).sort(), keys.slice().sort(), 'exactly one scan per required scale');

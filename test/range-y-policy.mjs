@@ -144,7 +144,7 @@ describe('rangeY fourth-argument policy', () => {
 				[2, [0, 60], true],
 				[3, [30, 60], false],
 			]) {
-				const result = checked([30, 50], 97, { min: { soft: 0, mode }, max: {} });
+				const result = checked([30, 50], 100, { min: { soft: 0, mode }, max: {} });
 				assert.deepEqual(bounds(result), expected, `minimum mode ${mode}`);
 				if (active)
 					assertAnchor(result, 'min', 0);
@@ -156,7 +156,7 @@ describe('rangeY fourth-argument policy', () => {
 				[2, [-60, 0], true],
 				[3, [-50, -20], false],
 			]) {
-				const result = checked([-50, -30], 97, { min: {}, max: { soft: 0, mode } });
+				const result = checked([-50, -30], 100, { min: {}, max: { soft: 0, mode } });
 				assert.deepEqual(bounds(result), expected, `maximum mode ${mode}`);
 				if (active)
 					assertAnchor(result, 'max', 0);
@@ -170,7 +170,7 @@ describe('rangeY fourth-argument policy', () => {
 				[2, [20, 50], false],
 				[3, [25, 100], true],
 			]) {
-				const result = checked([26, 50], 97, { min: { soft: 25, mode }, max: {} });
+				const result = checked([26, 50], 100, { min: { soft: 25, mode }, max: {} });
 				assert.deepEqual(bounds(result), expected, `minimum mode ${mode}`);
 				if (active)
 					assertAnchor(result, 'min', 25);
@@ -182,7 +182,7 @@ describe('rangeY fourth-argument policy', () => {
 				[2, [-50, -20], false],
 				[3, [-100, -25], true],
 			]) {
-				const result = checked([-50, -26], 97, { min: {}, max: { soft: -25, mode } });
+				const result = checked([-50, -26], 100, { min: {}, max: { soft: -25, mode } });
 				assert.deepEqual(bounds(result), expected, `maximum mode ${mode}`);
 				if (active)
 					assertAnchor(result, 'max', -25);

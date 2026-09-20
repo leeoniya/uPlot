@@ -9,7 +9,7 @@
 		body { margin: 24px; font: 14px system-ui, sans-serif; color: #222; }
 		main { max-width: 1200px; margin: auto; }
 		h1 { font-size: 24px; }
-		form, .height-control { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
+		form, .axis-control { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
 		fieldset { display: flex; flex-wrap: wrap; gap: 12px; border: 1px solid #ccc; border-radius: 4px; }
 		legend { font-weight: bold; }
 		.left { color: #1769aa; }
@@ -18,8 +18,9 @@
 		input[type="range"] { width: min(500px, 65vw); }
 		button, input { font: inherit; }
 		button { padding: 5px 10px; }
-		#plot { width: 100%; overflow-x: auto; }
-		#stats { display: block; white-space: pre-wrap; font: 13px monospace; line-height: 1.6; }
+		#plot, #d3-plot { width: 100%; overflow-x: auto; }
+		#d3-plot canvas { display: block; }
+		#stats, #d3-stats { display: block; white-space: pre-wrap; font: 13px monospace; line-height: 1.6; }
 	</style>
 </head>
 <body>
@@ -40,19 +41,35 @@
 			</fieldset>
 			<button type="submit">New walks</button>
 			<button id="randomize" type="button">Randomize starts and spreads</button>
+			<button id="decimal-precision" type="button">Decimal precision</button>
 		</form>
 		<p>New walks use the entered settings and reset the zoom. Randomized settings include positive and negative starts, separated by several orders of magnitude.</p>
-		<div class="height-control">
+		<div class="axis-control">
 			<label for="height">Chart height</label>
 			<input id="height" type="range" min="60" max="1200" step="1" value="480">
 			<output id="height-value" for="height">480px</output>
 			<button id="reset-zoom" type="button">Reset zoom</button>
 		</div>
+		<div class="axis-control">
+			<label for="ramp">Tick ramp rate</label>
+			<input id="ramp" type="range" min="0" max="2" step="0.05" value="1">
+			<output id="ramp-value" for="ramp">1</output>
+			<label><input id="exact-count" type="checkbox" checked> Exact tick count (aligned axes)</label>
+		</div>
+		<p>The height and walk controls update both charts. Ramp and exact-count controls affect D3 only when uPlot ranging is enabled.</p>
+		<h2>uPlot automatic Y range</h2>
 		<output id="stats" aria-live="polite"></output>
-		<p>Only the left Y axis draws horizontal grid lines. The right ticks stay aligned with those lines.</p>
+		<p>Only the left Y axis draws horizontal grid lines. With exact counts enabled, the right ticks stay aligned with those lines.</p>
 		<div id="plot"></div>
 
+		<h2>D3 Canvas comparison</h2>
+		<label><input id="d3-ranging" type="checkbox"> Use uPlot ranging in D3</label>
+		<output id="d3-stats" aria-live="polite"></output>
+		<p>By default, D3 uses <code>nice(count)</code> and <code>ticks(count)</code> with a height-based hint of one interval per 50px. Its two Y axes are independent.</p>
+		<p>With uPlot ranging enabled, D3 uses uPlot’s bounds, ticks, and numeric labels, including the ramp and exact-count settings.</p>
+		<div id="d3-plot"></div>
 	</main>
+	<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
 	<script type="module">
 		import { createDemo } from './axis-range-aligned.js';
 		createDemo(document.querySelector('#demo'));

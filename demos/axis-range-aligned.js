@@ -1,4 +1,5 @@
 import uPlot from '../src/uPlot.js';
+import { createD3CanvasAligned } from './lib/d3CanvasAligned.js';
 import { createRandomWalk } from './lib/randomWalk.js';
 
 function walk(start, spread) {
@@ -10,10 +11,18 @@ export function createDemo(root) {
 	const form = root.querySelector('#walk-controls');
 	const height = root.querySelector('#height');
 	const heightValue = root.querySelector('#height-value');
+	const ramp = root.querySelector('#ramp');
+	const rampValue = root.querySelector('#ramp-value');
+	const exactCount = root.querySelector('#exact-count');
 	const randomize = root.querySelector('#randomize');
+	const precision = root.querySelector('#decimal-precision');
 	const reset = root.querySelector('#reset-zoom');
 	const stats = root.querySelector('#stats');
 	const plot = root.querySelector('#plot');
+	const d3Stats = root.querySelector('#d3-stats');
+	const d3Plot = root.querySelector('#d3-plot');
+	const d3Ranging = root.querySelector('#d3-ranging');
+	const d3Options = () => ({ ramp: ramp.valueAsNumber, exact: exactCount.checked, useUplot: d3Ranging.checked });
 	const controls = ['left', 'right'].map(key => ({
 		start: root.querySelector(`#${key}-start`),
 		spread: root.querySelector(`#${key}-spread`),
@@ -33,6 +42,8 @@ export function createDemo(root) {
 		stats.textContent = lines.join('\n');
 	}
 
+	const data = getData();
+	let d3Chart;
 	const u = new uPlot({
 		width: width(),
 		height: height.valueAsNumber,
@@ -45,8 +56,8 @@ export function createDemo(root) {
 		},
 		axes: [
 			{ size: 40 },
-			{ scale: 'left', side: 3, size: 100, stroke: '#1769aa' },
-			{ scale: 'right', side: 1, size: 100, stroke: '#b34a00', grid: { show: false } },
+			{ scale: 'left', side: 3, size: 100, stroke: '#1769aa', ramp: ramp.valueAsNumber, exact: exactCount.checked },
+			{ scale: 'right', side: 1, size: 100, stroke: '#b34a00', ramp: ramp.valueAsNumber, exact: exactCount.checked, grid: { show: false } },
 		],
 		series: [
 			{ label: 'Sample' },
@@ -56,24 +67,49 @@ export function createDemo(root) {
 		hooks: {
 			draw: [readout],
 			destroy: [() => {
+				d3Chart?.destroy();
 				window.removeEventListener('resize', resize);
 				height.removeEventListener('input', resize);
+				ramp.removeEventListener('input', setRamp);
+				exactCount.removeEventListener('change', setRamp);
+				d3Ranging.removeEventListener('change', setD3Ranging);
 				form.removeEventListener('submit', regenerate);
 				randomize.removeEventListener('click', randomSettings);
+				precision.removeEventListener('click', decimalPrecision);
 				reset.removeEventListener('click', resetZoom);
 			}],
 		},
-	}, getData(), plot);
+	}, data, plot);
+
+	if (globalThis.d3 != null && d3Plot != null)
+		d3Chart = createD3CanvasAligned(globalThis.d3, d3Plot, d3Stats, data, { width: width(), height: height.valueAsNumber }, d3Options());
 
 	function resize() {
 		heightValue.value = `${height.value}px`;
-		u.setSize({ width: width(), height: height.valueAsNumber });
+		const size = { width: width(), height: height.valueAsNumber };
+		u.setSize(size);
+		d3Chart?.setSize(size);
+	}
+
+	function setRamp() {
+		rampValue.value = ramp.value;
+		u.axes[1].ramp = u.axes[2].ramp = ramp.valueAsNumber;
+		u.axes[1].exact = u.axes[2].exact = exactCount.checked;
+		u.redraw(false, true);
+		setD3Ranging();
+	}
+
+	function setD3Ranging() {
+		d3Chart?.setRanging(d3Options());
 	}
 
 	function regenerate(event) {
 		event?.preventDefault();
-		if (form.reportValidity())
-			u.setData(getData());
+		if (form.reportValidity()) {
+			const data = getData();
+			u.setData(data);
+			d3Chart?.setData(data);
+		}
 	}
 
 	function randomSettings() {
@@ -89,14 +125,31 @@ export function createDemo(root) {
 		regenerate();
 	}
 
+	function decimalPrecision() {
+		height.value = 450;
+		ramp.value = 1;
+		exactCount.checked = true;
+		controls.forEach(({ start, spread }, i) => {
+			start.value = i == 0 ? 1 : .0001;
+			spread.value = 0;
+		});
+		resize();
+		setRamp();
+		regenerate();
+	}
+
 	function resetZoom() {
 		u.setScale('x', { min: null, max: null });
 	}
 
 	height.addEventListener('input', resize);
+	ramp.addEventListener('input', setRamp);
+	exactCount.addEventListener('change', setRamp);
+	d3Ranging.addEventListener('change', setD3Ranging);
 	window.addEventListener('resize', resize);
 	form.addEventListener('submit', regenerate);
 	randomize.addEventListener('click', randomSettings);
+	precision.addEventListener('click', decimalPrecision);
 	reset.addEventListener('click', resetZoom);
 	return u;
 }
