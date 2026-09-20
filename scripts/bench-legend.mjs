@@ -60,14 +60,14 @@ async function chromeBinary() {
 
 	await mkdir(cache, { recursive: true });
 	const staging = installDir + '.installing';
-		try {
-			await mkdir(staging);
-		}
-		catch (error) {
-			if (error.code === 'EEXIST')
-				throw Error(`Another Chrome installation owns ${staging}. If that process stopped, remove this directory and retry.`);
-			throw error;
-		}
+	try {
+		await mkdir(staging);
+	}
+	catch (error) {
+		if (error.code === 'EEXIST')
+			throw Error(`Another Chrome installation owns ${staging}. If that process stopped, remove this directory and retry.`);
+		throw error;
+	}
 	try {
 		const url = `https://storage.googleapis.com/chrome-for-testing-public/${chromeVersion}/linux64/chrome-headless-shell-linux64.zip`;
 		const archive = join(staging, 'chrome.zip');
@@ -102,11 +102,17 @@ async function benchmark(binary, options, outputPath) {
 	const started = Date.now();
 	try {
 		signal.throwIfAborted();
-		const source = await readFile(join(root, 'src/legend-ivi.js'));
-		const files = new Map([
-			['/src/legend-ivi.js', source],
-			['/bench-legend-browser.js', await readFile(join(root, 'scripts/bench-legend-browser.js'))],
-		]);
+		const modules = ['src/legend-dom.js', 'src/legend-dom-template.js', 'src/keyed-list.js', 'src/h.js', 'src/utils.js', 'src/dom.js', 'src/domClasses.js', 'src/strings.js'];
+		const files = new Map();
+		const moduleSha256 = {};
+		const hash = createHash('sha256');
+		for (const path of modules) {
+			const source = await readFile(join(root, path));
+			files.set('/' + path, source);
+			moduleSha256[path] = createHash('sha256').update(source).digest('hex');
+			hash.update(source);
+		}
+		files.set('/bench-legend-browser.js', await readFile(join(root, 'scripts/bench-legend-browser.js')));
 		server = createServer(async (req, res) => {
 			try {
 				res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
@@ -175,7 +181,8 @@ async function benchmark(binary, options, outputPath) {
 			throw Error(result.error);
 		const output = result.value;
 		output.wallMs = Date.now() - started;
-		output.sourceSha256 = createHash('sha256').update(source).digest('hex');
+		output.sourceSha256 = hash.digest('hex');
+		output.moduleSha256 = moduleSha256;
 		await mkdir(dirname(outputPath), { recursive: true });
 		await writeFile(outputPath, JSON.stringify(output, null, 2) + '\n');
 		console.log(output.environment);
@@ -215,6 +222,7 @@ async function main() {
 	if (values.help) {
 		console.log(`Usage: bun run bench:legend [--series N] [--iterations N] [--output FILE] [--install-only]
 
+Benchmarks the DOM legend.
 Defaults: 300 Y series plus X, 300 iterations per workload.
 Reports the average of the fastest five calls. Excludes layout and paint.
 Limits each run to 120 seconds.
@@ -237,12 +245,8 @@ The default JSON output is in the cache directory. Use --output to keep a compar
 	const binary = await chromeBinary();
 	if (values['install-only'])
 		return;
-	const build = await runTool(process.execPath, ['--max-old-space-size=96', join(root, 'scripts/build-legend.mjs')], {
-		cwd: root, timeout: 30000,
-	});
-	process.stdout.write(build.stdout);
-	const output = values.output ? resolve(values.output) : join(cache, `legend-n${options.series}-i${options.iterations}.json`);
-	console.log(`${options.series} Y series + X, ${options.iterations} iterations, average of fastest five (microseconds)`);
+	const output = values.output ? resolve(values.output) : join(cache, `legend-dom-n${options.series}-i${options.iterations}.json`);
+	console.log(`dom: ${options.series} Y series + X, ${options.iterations} iterations, average of fastest five (microseconds)`);
 	await benchmark(binary, options, output);
 }
 

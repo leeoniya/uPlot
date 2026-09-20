@@ -1,5 +1,3 @@
-import { createLegend } from '/src/legend-ivi.js';
-
 const workloads = ['mount/destroy', 'changed values', 'unchanged values', 'focus-only', 'show/hide', 'keyed reorder', 'keyed add/remove'];
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -35,7 +33,7 @@ function fixture(n) {
 	return {base, replaced, reverse, series, values, host, self, opts, events, mounts: () => mounts};
 }
 
-function smoke(n) {
+function smoke(createLegend, n) {
 	const f = fixture(n);
 	const view = createLegend(f.self, f.host, f.opts);
 	const rows = () => [...f.host.querySelectorAll('tbody > tr')];
@@ -91,9 +89,10 @@ function smoke(n) {
 }
 
 export async function run({series: n = 300, iterations = 300} = {}) {
+	const { createLegend } = await import('/src/legend-dom.js');
 	if (!crossOriginIsolated) throw Error('Cross-origin isolation is required for finer timer resolution.');
 	const results = [];
-	smoke(n);
+	smoke(createLegend, n);
 	await progress('correctness smoke passed');
 
 	for (const workload of workloads) {
@@ -144,7 +143,7 @@ export async function run({series: n = 300, iterations = 300} = {}) {
 		}
 	}
 	return {
-		implementation: 'ivi', environment: navigator.userAgent, crossOriginIsolated,
+		implementation: 'dom', environment: navigator.userAgent, crossOriginIsolated,
 		ySeries: n, xSeries: 1, iterationsPerWorkload: iterations,
 		statistic: `Arithmetic mean of the fastest five individual calls out of ${iterations}; no additional timed batches or warmup loop`,
 		cooldownMs: 0, fixtureSetupDelayMs: 100, breathers: '20 ms after each ten calls, outside timing',

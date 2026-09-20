@@ -1,38 +1,10 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
-const artifacts = [
-
-	'dist/uPlot.esm.js',
-	'dist/uPlot.cjs.js',
-	'dist/uPlot.iife.js',
-	'dist/uPlot.iife.min.js',
-];
-
 
 describe('legend build artifacts', function() {
-	for (const artifact of artifacts) {
-		it(`${artifact} links to ivi immediately after the uPlot link`, () => {
-			const source = readFileSync(new URL(artifact, root), 'utf8');
-			assert.match(source, /https:\/\/github\.com\/leeoniya\/uPlot[^\n]*\n(?:\/\*!|\*) https:\/\/github\.com\/localvoid\/ivi/);
-						if (artifact.endsWith('.min.js'))
-							assert.match(source, /^\/\*! https:\/\/github\.com\/leeoniya\/uPlot[^\n]* \*\/\n\/\*! https:\/\/github\.com\/localvoid\/ivi \*\//);
-			assert.equal(source.split('https://github.com/localvoid/ivi').length - 1, 1);
-			assert.equal(source.includes('Permission is hereby granted'), false);
-		});
-	}
-
-	it('keeps the full ivi license in the npm package', () => {
-		const pkg = JSON.parse(readFileSync(new URL('package.json', root), 'utf8'));
-		const license = readFileSync(new URL('LICENSE-ivi', root), 'utf8');
-		const upstream = readFileSync(new URL('node_modules/ivi/LICENSE', root), 'utf8');
-		assert.ok(pkg.files.includes('LICENSE-ivi'));
-		assert.equal(license.trim(), upstream.trim());
-	});
-
 	it('loads source and every distribution without a DOM and exposes public utilities', function() {
 		this.timeout(6000);
 

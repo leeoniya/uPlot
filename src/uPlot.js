@@ -15,7 +15,7 @@ import {
 } from './feats.js';
 
 import { rangeY, rangeYAuto } from './rangeY.js';
-import { createLegend } from './legend-ivi.js';
+import { createLegend } from './legend-dom.js';
 
 import {
 	copy,

@@ -18,7 +18,6 @@ import terser from '@rollup/plugin-terser';
 const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
 const ver = "v" + pkg.version;
 const urlVer = "https://github.com/leeoniya/uPlot (" + ver + ")";
-const iviUrl = "https://github.com/localvoid/ivi";
 
 const banner = [
 	"/**",
@@ -28,7 +27,6 @@ const banner = [
 	"* uPlot.js (μPlot)",
 	"* A small, fast chart for time series, lines, areas, ohlc & bars",
 	"* " + urlVer,
-	"* " + iviUrl,
 	"*/",
 	"",
 ].join("\n");
@@ -121,7 +119,7 @@ export default [
 			file: './dist/uPlot.iife.min.js',
 			format: 'iife',
 			esModule: false,
-			banner: "/*! " + urlVer + " */\n/*! " + iviUrl + " */",
+			banner: "/*! " + urlVer + " */",
 		},
 		plugins: [
 			bannerlessESM(),
