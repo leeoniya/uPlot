@@ -10,6 +10,7 @@
     "build": "npm run build:legend && rollup -c --bundleConfigAsCjs",
     "build:legend": "node ./scripts/build-legend.mjs",
     "check:legend": "node ./scripts/check-legend.mjs",
+    "bench:legend": "node --max-old-space-size=96 ./scripts/bench-legend.mjs",
     "demos": "node ./scripts/demos.mjs",
     "test": "npm run check:legend && node ./scripts/test.mjs",
     "test:server": "mocha test/server/*.mjs",

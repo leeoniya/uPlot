@@ -16,10 +16,16 @@ function valueCell(value) {
 
 function labelView(label, color) {
 	if (label instanceof HTMLElement) {
-		return html`<div class="u-label" ~color=${color} ${el => {
-			if (el.firstChild !== label)
-				el.replaceChildren(label);
-		}}></div>`;
+		return html`
+			<div
+				class="u-label"
+				~color=${color}
+				${el => {
+					if (el.firstChild !== label)
+						el.replaceChildren(label);
+				}}
+			></div>
+		`;
 	}
 	return html`<div class="u-label" ~color=${color} .textContent=${label}></div>`;
 }
@@ -41,7 +47,14 @@ export function createLegend(self, parent, opts) {
 	for (const key in columns)
 		keys.push(key);
 
-	const head = multi ? html`<thead><tr><th></th>${keys.map(headerCell)}</tr></thead>` : null;
+	const head = multi ? html`
+		<thead>
+			<tr>
+				<th></th>
+				${keys.map(headerCell)}
+			</tr>
+		</thead>
+	` : null;
 
 	function bindEvent(el, type, s, onlyTarget) {
 		const bindType = type == 'focus' ? 'mouseenter' : type == 'leave' ? 'mouseleave' : type;
@@ -102,13 +115,28 @@ export function createLegend(self, parent, opts) {
 
 		const bindRow = i > 0 ? state.bind : state.unbind;
 
-		return html`<tr class=${className} ~opacity=${opacity}><th ${bindRow}>${state.marker}${state.label}</th>${cellViews}</tr>`;
+		return html`
+			<tr class=${className} ~opacity=${opacity}>
+				<th ${bindRow}>
+					${state.marker}
+					${state.label}
+				</th>
+				${cellViews}
+			</tr>
+		`;
 	}
 
 
 	function view() {
 		const className = LEGEND + (!multi ? ' ' + LEGEND_INLINE + (legend.live ? ' ' + LEGEND_LIVE : '') : '');
-		return html`<table class=${className} ${capture}>${head}<tbody>${List(series, seriesKey, rowView)}</tbody></table>`;
+		return html`
+			<table class=${className} ${capture}>
+				${head}
+				<tbody>
+					${List(series, seriesKey, rowView)}
+				</tbody>
+			</table>
+		`;
 	}
 
 	const capture = el => {
