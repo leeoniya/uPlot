@@ -88,8 +88,8 @@ function smoke(createLegend, n) {
 	}
 }
 
-export async function run({series: n = 300, iterations = 300, renderer = 'ivi'} = {}) {
-	const { createLegend } = await import(renderer === 'dom' ? '/src/legend-dom.js' : '/src/legend-ivi.js');
+export async function run({series: n = 300, iterations = 300} = {}) {
+	const { createLegend } = await import('/src/legend-dom.js');
 	if (!crossOriginIsolated) throw Error('Cross-origin isolation is required for finer timer resolution.');
 	const results = [];
 	smoke(createLegend, n);
@@ -143,7 +143,7 @@ export async function run({series: n = 300, iterations = 300, renderer = 'ivi'} 
 		}
 	}
 	return {
-		implementation: renderer, environment: navigator.userAgent, crossOriginIsolated,
+		implementation: 'dom', environment: navigator.userAgent, crossOriginIsolated,
 		ySeries: n, xSeries: 1, iterationsPerWorkload: iterations,
 		statistic: `Arithmetic mean of the fastest five individual calls out of ${iterations}; no additional timed batches or warmup loop`,
 		cooldownMs: 0, fixtureSetupDelayMs: 100, breathers: '20 ms after each ten calls, outside timing',

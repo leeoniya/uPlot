@@ -7,12 +7,10 @@
   "module": "./dist/uPlot.esm.js",
   "typings": "./dist/uPlot.d.ts",
   "scripts": {
-    "build": "npm run build:legend && rollup -c --bundleConfigAsCjs",
-    "build:legend": "node ./scripts/build-legend.mjs",
-    "check:legend": "node ./scripts/check-legend.mjs",
+    "build": "rollup -c --bundleConfigAsCjs",
     "bench:legend": "node --max-old-space-size=96 ./scripts/bench-legend.mjs",
     "demos": "node ./scripts/demos.mjs",
-    "test": "npm run check:legend && node ./scripts/test.mjs",
+    "test": "node ./scripts/test.mjs",
     "test:server": "mocha test/server/*.mjs",
     "test:update": "UPDATE=1 node ./scripts/test.mjs"
   },
@@ -24,7 +22,6 @@
     "package.json",
     "README.md",
     "LICENSE",
-    "LICENSE-ivi",
     "dist"
   ],
   "keywords": [
@@ -49,18 +46,15 @@
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.14.5",
     "@istanbuljs/load-nyc-config": "^1.1.0",
-    "@ivi/rollup-plugin": "5.0.1",
-    "@rollup/plugin-node-resolve": "16.0.3",
     "@rollup/plugin-terser": "^1.0.0",
     "happy-dom": "^20.14.5",
     "istanbul-lib-coverage": "^3.2.2",
     "istanbul-lib-instrument": "^6.0.3",
     "istanbul-lib-report": "^3.0.1",
     "istanbul-reports": "^3.2.0",
-    "ivi": "5.1.0",
     "json-stringify-pretty-compact": "^4.0.0",
     "mocha": "^12.0.2",
-    "rollup": "^4.63.3",
+    "rollup": "^4.63.4",
     "test-exclude": "^8.0.0"
   },
   "nyc": {

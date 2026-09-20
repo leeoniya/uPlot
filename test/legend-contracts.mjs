@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
-import { createLegend } from '../src/legend-ivi.js';
+import { createLegend } from '../src/legend-dom.js';
 
 const data = [[0, 1, 2], [10, 20, 30], [40, 50, 60]];
 const frame = () => new Promise(requestAnimationFrame);
@@ -58,7 +58,7 @@ function trackFrames() {
 }
 
 for (const table of [false, true]) {
-	describe(`${table ? 'table' : 'inline'} monolithic legend`, () => {
+	describe(`${table ? 'table' : 'inline'} legend contracts`, () => {
 		let plots;
 		let renderers;
 		let bodyChildren;
@@ -803,7 +803,7 @@ for (const table of [false, true]) {
 
 		it('coalesces real two-chart sync values and focus once per legend per frame', async () => {
 			const publications = [];
-			const key = `legend-ivi-${table}`;
+			const key = `legend-contracts-${table}`;
 			const source = await plot({ cursor: { sync: { key, setSeries: true, filters: {
 				pub(type) { publications.push(type); return true; },
 			} } } });

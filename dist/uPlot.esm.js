@@ -5,7 +5,6 @@
 * uPlot.js (μPlot)
 * A small, fast chart for time series, lines, areas, ohlc & bars
 * https://github.com/leeoniya/uPlot (v1.6.32)
-* https://github.com/localvoid/ivi
 */
 
 const FEAT_TIME          = true;
@@ -2526,6 +2525,24 @@ function setText(node, text) {
 		node.textContent = text;
 }
 
+function createValueCells(keys) {
+	const nodes = keys.map(() => h('td', {className: LEGEND_VALUE}));
+	const previous = Array(keys.length).fill('');
+
+	return {
+		nodes,
+		update(values) {
+			for (let i = 0; i < keys.length; i++) {
+				const text = textValue(values == null ? LEGEND_DISP : values[keys[i]]);
+				if (text !== previous[i]) {
+					setText(nodes[i], text);
+					previous[i] = text;
+				}
+			}
+		},
+	};
+}
+
 // The adapter selects entries and prepares them in forward order before reconciliation.
 // It also owns table placement, legend.mount, and removal; rows own only their contents.
 function createLegendTemplate(self, opts, keys, markersShow) {
@@ -2551,6 +2568,37 @@ function createLegendTemplate(self, opts, keys, markersShow) {
 		if (listener)
 			on(bindType, el, listener);
 		return listener;
+	}
+
+	function createRowEvents(header, series) {
+		let bound = false;
+		let click, focus;
+
+		function unbind() {
+			if (click)
+				off('click', header, click);
+			if (focus)
+				off(mouseenter, header, focus);
+			click = focus = null;
+			bound = false;
+		}
+
+		return {
+			update(eligible) {
+				if (eligible !== bound) {
+					if (eligible) {
+						click = bindEvent(header, 'click', series, false);
+						if (cursorFocus)
+							focus = bindEvent(header, 'focus', series, false);
+						// Null listeners still count as a completed binding transition.
+						bound = true;
+					}
+					else
+						unbind();
+				}
+			},
+			destroy: unbind,
+		};
 	}
 
 	let leave = cursorFocus ? bindEvent(node, 'leave', null, true) : null;
@@ -2579,7 +2627,8 @@ function createLegendTemplate(self, opts, keys, markersShow) {
 
 	function createRow(entry) {
 		const state = prepare(entry);
-		let header, label, cells;
+		const cells = createValueCells(keys);
+		let header, label;
 		const row = h('tr', null,
 			header = h('th', null,
 				markersShow && h('div', {
@@ -2590,22 +2639,11 @@ function createLegendTemplate(self, opts, keys, markersShow) {
 					state.label,
 				),
 			),
-			cells = keys.map(() => h('td', {className: LEGEND_VALUE})),
+			cells.nodes,
 		);
-		const cellValues = Array(keys.length).fill('');
+		const events = createRowEvents(header, entry.series);
 		let className;
 		let opacity = null;
-		let bound = false;
-		let click, focus;
-
-		function unbind() {
-			if (click)
-				off('click', header, click);
-			if (focus)
-				off(mouseenter, header, focus);
-			click = focus = null;
-			bound = false;
-		}
 
 		return {
 			node: row,
@@ -2621,30 +2659,11 @@ function createLegendTemplate(self, opts, keys, markersShow) {
 					opacity = nextOpacity;
 				}
 
-				const eligible = index > 0;
-				if (eligible !== bound) {
-					if (eligible) {
-						click = bindEvent(header, 'click', series, false);
-						if (cursorFocus)
-							focus = bindEvent(header, 'focus', series, false);
-						// Null listeners still count as a completed binding transition.
-						bound = true;
-					}
-					else
-						unbind();
-				}
-
-				const vals = values[index];
-				for (let i = 0; i < keys.length; i++) {
-					const text = textValue(vals == null ? LEGEND_DISP : vals[keys[i]]);
-					if (text !== cellValues[i]) {
-						setText(cells[i], text);
-						cellValues[i] = text;
-					}
-				}
+				events.update(index > 0);
+				cells.update(values[index]);
 			},
 			destroy() {
-				unbind();
+				events.destroy();
 				// Keep the supplied label, not its discarded row and value cells.
 				if (state.label instanceof HTMLElement && state.label.parentNode === label)
 					label.removeChild(state.label);
