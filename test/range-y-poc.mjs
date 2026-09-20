@@ -4,7 +4,7 @@ import { rangeY, rangeYCount } from '../src/rangeY.js';
 import { numAxisSplits, numIncrs } from '../src/opts.js';
 
 function exact(range, height) {
-	const result = rangeY(...range, height);
+	const result = rangeY(...range, height, undefined, 1, true);
 	assert.ok(result, `unsupported: ${range}, height ${height}`);
 	const { min, max, incr, count } = result;
 	assert.equal(count, rangeYCount(height));
@@ -37,7 +37,7 @@ describe('minimal Y range: height policy', () => {
 	for (const [ramp, count] of [[0, 1], [.1, 2], [.15, 2], [.25, 3], [.5, 5], [1, 8], [1.25, 10], [1.5, 12], [2, 15]]) {
 		it(`ramp ${ramp} selects ${count} intervals at 400px`, () => {
 			assert.equal(rangeYCount(400, ramp), count);
-			assert.equal(rangeY(13, 87, 400, undefined, ramp).count, count);
+			assert.equal(rangeY(13, 87, 400, undefined, ramp, true).count, count);
 		});
 	}
 

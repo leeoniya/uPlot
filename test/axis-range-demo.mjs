@@ -7,6 +7,20 @@ import { rangeY, rangeYCount } from '../src/rangeY.js';
 
 const html = await readFile(new URL('../demos/axis-range-aligned.html', import.meta.url), 'utf8');
 
+function approximate(u) {
+	const height = u.bbox.height / u.pxRatio;
+	for (const [i, key] of ['left', 'right'].entries()) {
+		const axis = u.axes[i + 1];
+		const series = u.series[i + 1];
+		assert.equal(axis.exact, false);
+		const expected = rangeY(series.min, series.max, height, undefined, axis.ramp, false);
+		assert.deepEqual([u.scales[key].min, u.scales[key].max], [expected.min, expected.max]);
+		assert.equal(axis._splits.length, expected.count + 1);
+		assert.deepEqual([axis._splits[0], axis._splits.at(-1)], [expected.min, expected.max]);
+		assert.equal(axis._found[0], expected.incr);
+	}
+}
+
 function aligned(u) {
 	const height = u.bbox.height / u.pxRatio;
 	const positions = ['left', 'right'].map((key, i) => {
@@ -61,10 +75,10 @@ describe('aligned random-walk demo', () => {
 		assert.ok(input('stats').textContent.includes('Plot height: 430px'));
 		assert.equal(input('ramp').valueAsNumber, 1);
 		assert.equal(input('ramp-value').value, '1');
-		assert.equal(input('exact-count').checked, true);
-		assert.ok(u.axes.slice(1).every(axis => axis.ramp === 1 && axis.exact === true));
+		assert.equal(input('exact-count').checked, false);
+		assert.ok(u.axes.slice(1).every(axis => axis.ramp === 1 && axis.exact === false));
 		assert.equal(input('d3-plot').children.length, 0, 'D3 is optional');
-		aligned(u);
+		approximate(u);
 	});
 
 	it('applies the decimal precision preset and resets zoom and density controls', async () => {
@@ -98,7 +112,10 @@ describe('aligned random-walk demo', () => {
 		aligned(u);
 	});
 
-	it('uses setSize for the height slider, retaining data and avoiding scans', async () => {
+	it('uses setSize for the height slider with exact alignment opted in, retaining data and avoiding scans', async () => {
+		input('exact-count').checked = true;
+		input('exact-count').dispatchEvent(new Event('change'));
+		await Promise.resolve();
 		const data = u.data;
 		const sizes = [];
 		const setSize = u.setSize;
@@ -143,7 +160,7 @@ describe('aligned random-walk demo', () => {
 			input('ramp').dispatchEvent(new Event('input'));
 			await Promise.resolve();
 			assert.equal(input('ramp-value').value, String(ramp));
-			aligned(u);
+			approximate(u);
 
 			for (const exact of [false, true]) {
 				input('exact-count').checked = exact;
@@ -182,14 +199,14 @@ describe('aligned random-walk demo', () => {
 		assert.equal(u.data[2][0], 1e8);
 		assert.ok(new Set(u.data[1]).size > 1);
 		assert.ok(new Set(u.data[2]).size > 1);
-		aligned(u);
+		approximate(u);
 		input('left-spread').value = 0;
 		input('right-spread').value = 0;
 		submit();
 		await Promise.resolve();
 		assert.deepEqual([...new Set(u.data[1])], [-.02]);
 		assert.deepEqual([...new Set(u.data[2])], [1e8]);
-		aligned(u);
+		approximate(u);
 	});
 
 	it('scales seeded walk deviations independently with each input spread', async () => {
@@ -226,7 +243,7 @@ describe('aligned random-walk demo', () => {
 						`${key}: sample ${j} deviation scales with spread ${changed[i]}`);
 				});
 			});
-			aligned(u);
+			approximate(u);
 		}
 	});
 
@@ -244,12 +261,14 @@ describe('aligned random-walk demo', () => {
 					assert.ok(input(`${key}-spread`).valueAsNumber > 0);
 				assert.notEqual(u.data, previous);
 				assert.ok(u.data.every(values => values.every(Number.isFinite)));
-				aligned(u);
+				approximate(u);
 			}
 		});
 	});
 
-	it('keeps flat zoomed ranges aligned and resets zoom without replacing data', async () => {
+	it('keeps flat zoomed ranges aligned when opted in and resets zoom without replacing data', async () => {
+		input('exact-count').checked = true;
+		input('exact-count').dispatchEvent(new Event('change'));
 		u.setScale('x', { min: 249.9, max: 250.1 });
 		await Promise.resolve();
 		for (const i of [1, 2])
@@ -287,7 +306,7 @@ describe('aligned random-walk demo', () => {
 		assert.equal(input('plot').children.length, 0);
 		input('height').value = 600;
 		input('ramp').value = .25;
-		input('exact-count').checked = false;
+		input('exact-count').checked = true;
 		window.dispatchEvent(new Event('resize'));
 		input('height').dispatchEvent(new Event('input'));
 		input('ramp').dispatchEvent(new Event('input'));

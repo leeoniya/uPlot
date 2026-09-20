@@ -38,7 +38,7 @@ function makePlot({ count = 2, pxRatio = 1, opposite = false, plotData, shared =
 			},
 		};
 		axes.push({
-			scale: key, side: i % 2 == 0 ? 3 : 1,
+			scale: key, side: i % 2 == 0 ? 3 : 1, exact: true,
 			values(u, ticks) {
 				values.push({ key, ticks: ticks.slice(), bounds: allBounds(u, keys), height: cssHeight(u) });
 				return ticks.map(value => value == null ? '' : String(value));
@@ -135,7 +135,7 @@ function assertLayout(f, extrema, height = cssHeight(f.u)) {
 
 	let aligned;
 	keys.forEach((key, i) => {
-		const expected = rangeY(...extrema[i], height);
+		const expected = rangeY(...extrema[i], height, undefined, 1, true);
 		assert.ok(expected, `${key}: supported fixture`);
 		assert.deepEqual(bounds(u, key), [expected.min, expected.max], `${key}: final range`);
 		const axis = u.axes[i + 1];

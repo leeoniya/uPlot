@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
-import { rangeYCount } from '../src/rangeY.js';
+import { rangeY } from '../src/rangeY.js';
 
 const data = [[0, 50, 100], [0, 50, 100]];
 
@@ -320,7 +320,10 @@ describe('single-pass layout', () => {
 					plots.forEach(checkLayout);
 					const ranged = plots[1].u;
 					const ticks = ranged.axes[1]._splits;
-					assert.equal(ticks.length, rangeYCount(ranged.bbox.height / pxRatio) + 1);
+					const expected = rangeY(ranged.series[1].min, ranged.series[1].max, ranged.bbox.height / pxRatio);
+					assert.equal(ranged.axes[1].exact, false);
+					assert.deepEqual([ranged.scales.y.min, ranged.scales.y.max], [expected.min, expected.max]);
+					assert.equal(ticks.length, expected.count + 1);
 					assert.deepEqual([ticks[0], ticks.at(-1)], [ranged.scales.y.min, ranged.scales.y.max], 'tick-aware endpoints remain ticks');
 				}
 				const clearDraws = () => plots.forEach(({ canvasState }) => { canvasState.draws.length = 0; });

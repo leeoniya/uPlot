@@ -4,7 +4,7 @@ import { rangeY, rangeYAuto, rangeYCount } from '../src/rangeY.js';
 import { numAxisSplits, numIncrs } from '../src/opts.js';
 
 function checked(data, height, config) {
-	const result = config === undefined ? rangeY(...data, height) : rangeY(...data, height, config);
+	const result = rangeY(...data, height, config, 1, true);
 	assert.ok(result, `supported fixture: ${data}, height ${height}`);
 	assert.equal(result.count, rangeYCount(height));
 	if (result.count > 1)

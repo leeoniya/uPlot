@@ -2043,7 +2043,7 @@ const yAxisOpts = {
 	stroke: hexBlack,
 	space: 30,
 	ramp: 1,
-	exact: true,
+	exact: false,
 	nice,
 	gap: 5,
 	alignTo: 1,
@@ -2303,14 +2303,11 @@ function selectRangeY(request, count, minAnchor, maxAnchor, exactCount) {
 	let requiredSpan = requiredMax - requiredMin;
 	let start = incrStart(requiredSpan / count);
 	let approximate = !exactCount && count > 1;
-	let preferNext = approximate && start + 1 < numIncrs.length &&
-		abs(requiredSpan / numIncrs[start + 1] - count) < abs(requiredSpan / numIncrs[start] - count);
 	let requiredMagnitude = max(abs(requiredMin), abs(requiredMax));
+	let best = null;
 
 	for (let i = start; i < numIncrs.length; i++) {
-		// Swap the first two candidates, retaining the smaller one if limits reject the preferred one.
-		let idx = preferNext && i < start + 2 ? (i == start ? i + 1 : i - 1) : i;
-		let incr = numIncrs[idx];
+		let incr = numIncrs[i];
 		let dec = fixedDec.get(incr);
 		let tickSpan = count * incr;
 		let magnitude = requiredMagnitude + tickSpan;
@@ -2391,15 +2388,22 @@ function selectRangeY(request, count, minAnchor, maxAnchor, exactCount) {
 		magnitude = max(abs(lo), abs(hi));
 		if (magnitude <= Number.MAX_SAFE_INTEGER && (dec == 0 || magnitude * 10 ** dec < 1e15) &&
 			lo >= hardMin && hi <= hardMax &&
-			lo <= boundedMin && hi >= boundedMax && hi > lo)
-			return { min: lo == 0 ? 0 : lo, max: hi == 0 ? 0 : hi, incr: foundCount == 1 ? hi - lo : incr, count: foundCount };
+			lo <= boundedMin && hi >= boundedMax && hi > lo) {
+			// Compare rounded counts, retaining a denser fallback when limits reject coarser increments.
+			if (best == null || abs(foundCount - count) <= abs(best.count - count))
+				best = { min: lo == 0 ? 0 : lo, max: hi == 0 ? 0 : hi, incr: foundCount == 1 ? hi - lo : incr, count: foundCount };
+
+			// Stop at the first valid sparse grid; ties favor fewer ticks.
+			if (foundCount <= count)
+				return best;
+		}
 	}
 
-	return null;
+	return best;
 }
 
 // Returns null when the built-in increments cannot support the requested range/count/policy.
-function rangeY(dataMin, dataMax, height, range = rangeYAuto, ramp = 1, exactCount = true) {
+function rangeY(dataMin, dataMax, height, range = rangeYAuto, ramp = 1, exactCount = false) {
 	if (dataMin == null && dataMax == null)
 		return { min: null, max: null, incr: 0, count: 0 };
 

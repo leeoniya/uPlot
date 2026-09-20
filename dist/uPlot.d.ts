@@ -1261,7 +1261,7 @@ declare namespace uPlot {
 		/** Scales how quickly the tick count increases with plot height during automatic Y-axis ranging. Zero retains two edge ticks. Default: 1. */
 		ramp?: number;
 
-		/** Enforces the height/ramp-derived interval count during automatic Y-axis ranging. False allows independent counts with tight bounds and endpoint ticks. Default: true. */
+		/** Enforces the height/ramp-derived interval count during automatic Y-axis ranging. False allows independent counts with tight bounds and endpoint ticks. Default: false. */
 		exact?: boolean;
 
 		/** available divisors for axis ticks, values, grid */

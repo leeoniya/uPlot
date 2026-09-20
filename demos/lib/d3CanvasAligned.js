@@ -3,7 +3,7 @@ import { numAxisSplits, numAxisVals } from '../../src/opts.js';
 
 const margins = {top: 10, right: 100, bottom: 40, left: 100};
 
-export function createD3CanvasAligned(d3, host, stats, data, size, { ramp = 1, exact = true, useUplot = false } = {}) {
+export function createD3CanvasAligned(d3, host, stats, data, size, { ramp = 1, exact = false, useUplot = false } = {}) {
 	const canvas = document.createElement('canvas');
 	const ctx = canvas.getContext('2d');
 	host.appendChild(canvas);

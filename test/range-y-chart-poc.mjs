@@ -78,6 +78,53 @@ function assertLinePaths(u) {
 }
 
 describe('axis-ranging chart POC: one Y scale', () => {
+	it('defaults omitted axis.exact to the tighter approximate range', async () => {
+		const { u: omitted } = makePlot({ height: 400 });
+		const { u: approximate } = makePlot({ height: 400, axes: [{ show: false }, { exact: false }] });
+		const { u: exact } = makePlot({ height: 400, axes: [{ show: false }, { exact: true }] });
+		try {
+			await tick();
+			assert.equal(omitted.axes[1].exact, false);
+			for (const u of [omitted, approximate, exact])
+				assertRange(u, 13, 87, 400);
+			assert.deepEqual(bounds(omitted), [0, 90]);
+			assert.deepEqual(bounds(omitted), bounds(approximate));
+			assert.deepEqual(splits(omitted), splits(approximate));
+			assert.deepEqual(splits(omitted), [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]);
+			assert.deepEqual(bounds(exact), [0, 160]);
+			assert.equal(splits(exact).length, 9);
+			assert.notDeepEqual(splits(omitted), splits(exact));
+			assert.ok(omitted.scales.y.max - omitted.scales.y.min < exact.scales.y.max - exact.scales.y.min);
+		}
+		finally { omitted.destroy(); approximate.destroy(); exact.destroy(); }
+	});
+
+	for (const [extrema, expectedTicks] of [
+		[[-880, -240], [-1000, -500, 0]],
+		[[-6e6, 2e6], [-1e7, 0, 1e7]],
+	]) {
+		for (const pxRatio of [1, 2]) {
+			it(`keeps short approximate plots sparse through resize (${extrema}, DPR ${pxRatio})`, async () => {
+				const { u, scans } = makePlot({ height: 400, pxRatio, plotData: [[0, 1], extrema] });
+				try {
+					await tick();
+					assert.equal(u.axes[1].exact, false);
+					for (const height of [51, 20, 51]) {
+						u.setSize({ width: 700, height });
+						await tick();
+						assertRange(u, ...extrema, height);
+						if (height == 51)
+							assert.deepEqual(splits(u), expectedTicks);
+						else
+							assert.equal(splits(u).length, 2);
+						assert.equal(scans.length, 1, 'density selection reuses cached extrema');
+					}
+				}
+				finally { u.destroy(); }
+			});
+		}
+	}
+
 	for (const exact of [true, false]) {
 		for (const pxRatio of [1, 2]) {
 			it(`applies axis ramp at construction and redraw (exact ${exact}, DPR ${pxRatio})`, async () => {
@@ -122,6 +169,7 @@ describe('axis-ranging chart POC: one Y scale', () => {
 	it('switches exact mode without rescanning and rebuilds paths for the new bounds', async () => {
 		const events = [];
 		const { u, scans } = makePlot({ height: 400, paths: null,
+			axes: [{ show: false }, { exact: true }],
 			hooks: { setScale: [(u, key) => { if (key == 'y') events.push(bounds(u)); }] },
 		});
 		try {
@@ -149,7 +197,7 @@ describe('axis-ranging chart POC: one Y scale', () => {
 		for (const dir of [1, -1]) {
 			for (const pxRatio of [1, 2]) {
 				it(`uses CSS height thresholds (side ${side}, dir ${dir}, DPR ${pxRatio})`, async () => {
-					const { u, scans } = makePlot({ side, dir, pxRatio, height: 40 });
+					const { u, scans } = makePlot({ side, dir, pxRatio, height: 40, axes: [{ show: false }, { side, exact: true }] });
 					try {
 						await tick();
 						assert.equal(scans.length, 1);
@@ -609,7 +657,7 @@ describe('axis-ranging chart POC: one Y scale', () => {
 
 	it('publishes only final Y bounds to setScale hooks and skips unchanged resize bounds', async () => {
 		const events = [];
-		const { u } = makePlot({ hooks: { setScale: [(self, key) => {
+		const { u } = makePlot({ axes: [{ show: false }, { exact: true }], hooks: { setScale: [(self, key) => {
 			if (key == 'y') events.push({ bounds: bounds(self), height: cssHeight(self) });
 		}] } });
 		try {

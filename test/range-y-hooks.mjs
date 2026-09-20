@@ -24,7 +24,7 @@ async function plot() {
 			}])),
 		},
 		axes: [{ show: false }, ...keys.map((key, i) => ({
-			scale: key, side: i == 0 ? 3 : 1,
+			scale: key, side: i == 0 ? 3 : 1, exact: true,
 			size() { sizes.push(key); return 0; },
 		}))],
 		series: [{}, ...keys.map(key => ({ scale: key, stroke: 'blue', points: { show: false } }))],
@@ -38,7 +38,7 @@ async function plot() {
 function assertRanges(u, extrema, height) {
 	assert.equal(u.bbox.height / u.pxRatio, height);
 	const positions = keys.map((key, i) => {
-		const r = rangeY(...extrema[i], height);
+		const r = rangeY(...extrema[i], height, undefined, 1, true);
 		assert.deepEqual(bounds(u, key), [r.min, r.max]);
 		const ticks = u.axes[i + 1]._splits;
 		assert.equal(ticks.length, r.count + 1);

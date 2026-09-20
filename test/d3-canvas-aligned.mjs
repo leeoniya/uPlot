@@ -64,7 +64,7 @@ function createD3Spy() {
 	};
 }
 
-function assertDraw(d3, data, width, height, { ramp = 1, exact = true, useUplot = false } = {}, canvas, stats) {
+function assertDraw(d3, data, width, height, { ramp = 1, exact = false, useUplot = false } = {}, canvas, stats) {
 	const [x, left, right] = d3.scales.slice(-3);
 	const count = useUplot ? rangeYCount(height - 50, ramp) : Math.max(1, Math.floor((height - 50) / 50));
 	const axes = [];
@@ -184,6 +184,21 @@ describe('D3 aligned canvas wiring (API spy, not D3 numeric algorithms)', () => 
 		assert.ok(canvas().getContext('2d').log.some(call => call[0] === 'rect' && JSON.stringify(call[1]) === '[100,10,700,430]'));
 	});
 
+	it('defaults omitted exact to approximate custom ranging', () => {
+		const data = [[0, 1, 2], [10, NaN, 30], [1000, 2000, 3000]];
+		chart = createD3CanvasAligned(d3, input('d3-plot'), input('d3-stats'), data, { width: 900, height: 480 }, { useUplot: true });
+		assertCurrentDraw(data, 900, 480, { useUplot: true });
+		assert.deepEqual(d3.scales.slice(-2).map(scale => scale.domain), [[10, 30], [1000, 3000]]);
+		const before = d3.scales.length;
+		chart.setRanging({ ramp: 1, exact: false, useUplot: true });
+		assert.equal(d3.scales.length, before, 'explicit false matches the omitted default');
+		chart.setRanging({ ramp: 1, exact: true, useUplot: true });
+		assert.equal(d3.scales.length, before + 3);
+		assertCurrentDraw(data, 900, 480, { exact: true, useUplot: true });
+		assert.deepEqual(d3.scales.slice(-2).map(scale => scale.domain), [[10, 32.5], [1000, 3250]]);
+		assert.equal(d3.extents.length, 2, 'opting into exact mode reuses raw extents');
+	});
+
 	it('accepts custom ranging at creation and handles endpoint-only ranges and cached resizes', () => {
 		const data = [[0, 1, 2], [-3, NaN, 7], [.0001, .0001, .0001]];
 		const settings = { ramp: 0, exact: false, useUplot: true };
@@ -250,7 +265,7 @@ describe('D3 aligned canvas wiring (API spy, not D3 numeric algorithms)', () => 
 		assert.equal(d3.extents.length, 6, 'setData also refreshes in-place changes');
 		assertCurrentDraw(next, 720, 1050, { ramp: 2 });
 		chart.setRanging({ ramp: 2, exact: true, useUplot: true });
-		assertCurrentDraw(next, 720, 1050, { ramp: 2, useUplot: true });
+		assertCurrentDraw(next, 720, 1050, { ramp: 2, exact: true, useUplot: true });
 		assert.equal(d3.extents.length, 6, 'toggling uses the refreshed cache');
 		const node = canvas();
 		chart.destroy();
@@ -261,6 +276,7 @@ describe('D3 aligned canvas wiring (API spy, not D3 numeric algorithms)', () => 
 
 	it('toggles only D3, retains inactive settings, and matches unzoomed uPlot across ramps and exact modes', async () => {
 		assert.equal(input('d3-ranging').checked, false, 'native D3 is the DOM default');
+		assert.equal(input('exact-count').checked, false, 'approximate ranging is the DOM default');
 		await withSeededRandom(() => { chart = createDemo(root); });
 		await Promise.resolve();
 		const data = chart.data;
@@ -299,13 +315,14 @@ describe('D3 aligned canvas wiring (API spy, not D3 numeric algorithms)', () => 
 				assertCurrentDraw(data, chart.width, chart.height, { ramp, exact: input('exact-count').checked, useUplot });
 				for (const exact of [false, true]) {
 					const before = d3.scales.length;
+					const changed = input('exact-count').checked !== exact;
 					const stats = input('d3-stats').textContent;
 					input('exact-count').checked = exact;
 					input('exact-count').dispatchEvent(new Event('change'));
 					await Promise.resolve();
 					assert.ok(chart.axes.slice(1).every(axis => axis.ramp === ramp && axis.exact === exact));
-					assert.equal(d3.scales.length, before + (useUplot ? 3 : 0));
-					if (!useUplot)
+					assert.equal(d3.scales.length, before + (useUplot && changed ? 3 : 0));
+					if (!useUplot || !changed)
 						assert.equal(input('d3-stats').textContent, stats);
 					assertCurrentDraw(data, chart.width, chart.height, { ramp, exact, useUplot });
 				}
@@ -399,7 +416,7 @@ describe('D3 aligned canvas wiring (API spy, not D3 numeric algorithms)', () => 
 		input('height').value = 700;
 		input('d3-ranging').checked = true;
 		input('ramp').value = 2;
-		input('exact-count').checked = false;
+		input('exact-count').checked = true;
 		window.dispatchEvent(new Event('resize'));
 		input('height').dispatchEvent(new Event('input'));
 		input('d3-ranging').dispatchEvent(new Event('change'));

@@ -754,7 +754,7 @@ export const yAxisOpts = {
 	stroke: hexBlack,
 	space: 30,
 	ramp: 1,
-	exact: true,
+	exact: false,
 	nice,
 	gap: 5,
 	alignTo: 1,

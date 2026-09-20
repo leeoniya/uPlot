@@ -33,7 +33,7 @@ function assertPolicyPlot(u, scenario, policy) {
 	}
 	else {
 		assert.deepEqual([u.scales.y.min, u.scales.y.max], [expected.min, expected.max]);
-		assert.equal(splits.length, rangeYCount(height) + 1);
+		assert.equal(splits.length, expected.count + 1);
 		assert.deepEqual([splits[0], splits.at(-1)], [expected.min, expected.max]);
 	}
 }
