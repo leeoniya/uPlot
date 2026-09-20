@@ -31,9 +31,42 @@ function exact(range, height) {
 }
 
 describe('minimal Y range: height policy', () => {
-	for (const [height, count] of [[.1, 1], [1, 1], [40, 1], [49.999, 1], [50, 2], [125, 3], [333, 7], [400, 8], [413, 8], [525, 10], [999, 19], [1000, 20], [1500, 30]]) {
+	for (const [height, count] of [[.1, 1], [1, 1], [20, 1], [40, 2], [49.999, 2], [50, 2], [100, 3], [125, 3], [200, 4], [333, 7], [400, 8], [413, 8], [525, 11], [999, 20], [1000, 20], [1500, 30]]) {
 		it(`${height}px selects ${count} intervals`, () => assert.equal(rangeYCount(height), count));
 	}
+	for (const [ramp, count] of [[0, 1], [.1, 2], [.15, 2], [.25, 3], [.5, 5], [1, 8], [1.25, 10], [1.5, 12], [2, 15]]) {
+		it(`ramp ${ramp} selects ${count} intervals at 400px`, () => {
+			assert.equal(rangeYCount(400, ramp), count);
+			assert.equal(rangeY(13, 87, 400, undefined, ramp).count, count);
+		});
+	}
+
+	it('applies the ramp beyond 1000px and retains one interval at tiny heights', () => {
+		assert.deepEqual([0, .5, 1, 2].map(ramp => rangeYCount(1500, ramp)), [1, 16, 30, 59]);
+		for (const ramp of [0, .5, 1, 2])
+			assert.equal(rangeYCount(1, ramp), 1);
+	});
+
+	it('keeps two edge ticks at zero ramp and grows monotonically with height', () => {
+		for (const ramp of [0, .25, 1, 2]) {
+			let previous = 1;
+			for (let height = 1; height <= 1500; height++) {
+				const count = rangeYCount(height, ramp);
+				assert.ok(count >= previous, `height ${height}, ramp ${ramp}`);
+				if (ramp == 0)
+					assert.equal(count, 1);
+				previous = count;
+			}
+		}
+	});
+
+	for (const ramp of [-1, NaN, Infinity, -Infinity]) {
+		it(`rejects invalid ramp ${ramp}`, () => {
+			assert.equal(rangeYCount(400, ramp), 0);
+			assert.equal(rangeY(13, 87, 400, undefined, ramp), null);
+		});
+	}
+
 	for (const height of [0, -1, NaN, Infinity])
 		it(`rejects invalid height ${height}`, () => assert.equal(rangeYCount(height), 0));
 });
@@ -65,7 +98,7 @@ describe('minimal Y range: prior numeric/count assertions with built-in incremen
 
 	for (const [range, expected] of [[[13, 87], [0, 100]], [[-87, -13], [-100, 0]], [[-13, 87], [-100, 100]], [[-.13, .87], [-1, 1]]]) {
 		it(`permits one interval without ordinary spacing selection: ${range}`, () => {
-			const r = exact(range, 40);
+			const r = exact(range, 20);
 			assert.deepEqual(r.ticks, expected);
 		});
 	}

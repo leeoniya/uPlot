@@ -1,13 +1,13 @@
 import { abs, floor, max, min, round, roundDec, incrRound, incrRoundDn, incrRoundUp, fixedDec, isFinite } from './utils.js';
 import { numIncrs } from './opts.js';
 
-export function rangeYCount(height) {
-	if (!(height > 0) || !isFinite(height))
+export function rangeYCount(height, ramp = 1) {
+	if (!(height > 0) || !isFinite(height) || !(ramp >= 0) || !isFinite(ramp))
 		return 0;
 
-	let x = min(1, (height - 50) / 950);
-	let space = height < 50 ? height : 25 + (x == 1 ? 1 : 1 - 2 ** (-10 * x)) * 25;
-	return max(1, floor(height / space));
+	let target = height / 50;
+	target += Math.exp(-target / 3);
+	return max(1, round(1 + (target - 1) * ramp));
 }
 
 /** @typedef {{pad?: number, hard?: number, soft?: number | null, mode?: number}} RangeYLimit */
@@ -106,17 +106,23 @@ function prepareRangeY(dataMin, dataMax, range) {
 	};
 }
 
-function selectRangeY(request, count, minAnchor, maxAnchor) {
+function selectRangeY(request, count, minAnchor, maxAnchor, exactCount) {
 	let { span, boundedMin, boundedMax, minPolicy, maxPolicy } = request;
 	let hardMin = minPolicy.hard;
 	let hardMax = maxPolicy.hard;
 	let requiredMin = minAnchor ?? boundedMin;
 	let requiredMax = maxAnchor ?? boundedMax;
-	let start = incrStart((requiredMax - requiredMin) / count);
+	let requiredSpan = requiredMax - requiredMin;
+	let start = incrStart(requiredSpan / count);
+	let approximate = !exactCount && count > 1;
+	let preferNext = approximate && start + 1 < numIncrs.length &&
+		abs(requiredSpan / numIncrs[start + 1] - count) < abs(requiredSpan / numIncrs[start] - count);
 	let requiredMagnitude = max(abs(requiredMin), abs(requiredMax));
 
 	for (let i = start; i < numIncrs.length; i++) {
-		let incr = numIncrs[i];
+		// Swap the first two candidates, retaining the smaller one if limits reject the preferred one.
+		let idx = preferNext && i < start + 2 ? (i == start ? i + 1 : i - 1) : i;
+		let incr = numIncrs[idx];
 		let dec = fixedDec.get(incr);
 		let tickSpan = count * incr;
 		let magnitude = requiredMagnitude + tickSpan;
@@ -130,8 +136,20 @@ function selectRangeY(request, count, minAnchor, maxAnchor) {
 
 		let lo;
 		let hi;
+		let foundCount = count;
 
-		if (minAnchor != null) {
+		if (approximate) {
+			lo = minAnchor ?? incrRoundDn(boundedMin, incr);
+			hi = maxAnchor ?? incrRoundUp(boundedMax, incr);
+			if (minAnchor == null && lo > boundedMin)
+				lo = roundDec(lo - incr, dec);
+			if (maxAnchor == null && hi < boundedMax)
+				hi = roundDec(hi + incr, dec);
+			foundCount = round((hi - lo) / incr);
+			if (!Number.isSafeInteger(foundCount) || foundCount < 1)
+				continue;
+		}
+		else if (minAnchor != null) {
 			lo = minAnchor;
 			hi = roundDec(lo + tickSpan, dec);
 			if (maxAnchor != null && hi != maxAnchor)
@@ -186,18 +204,18 @@ function selectRangeY(request, count, minAnchor, maxAnchor) {
 		if (magnitude <= Number.MAX_SAFE_INTEGER && (dec == 0 || magnitude * 10 ** dec < 1e15) &&
 			lo >= hardMin && hi <= hardMax &&
 			lo <= boundedMin && hi >= boundedMax && hi > lo)
-			return { min: lo == 0 ? 0 : lo, max: hi == 0 ? 0 : hi, incr: count == 1 ? hi - lo : incr, count };
+			return { min: lo == 0 ? 0 : lo, max: hi == 0 ? 0 : hi, incr: foundCount == 1 ? hi - lo : incr, count: foundCount };
 	}
 
 	return null;
 }
 
 // Returns null when the built-in increments cannot support the requested range/count/policy.
-export function rangeY(dataMin, dataMax, height, range = rangeYAuto) {
+export function rangeY(dataMin, dataMax, height, range = rangeYAuto, ramp = 1, exactCount = true) {
 	if (dataMin == null && dataMax == null)
 		return { min: null, max: null, incr: 0, count: 0 };
 
-	let count = rangeYCount(height);
+	let count = rangeYCount(height, ramp);
 	if (!Number.isSafeInteger(count) || count < 1 || dataMin == null || dataMax == null ||
 		!isFinite(dataMin) || !isFinite(dataMax) || dataMax < dataMin)
 		return null;
@@ -206,7 +224,7 @@ export function rangeY(dataMin, dataMax, height, range = rangeYAuto) {
 	if (request == null)
 		return null;
 
-	let natural = selectRangeY(request, count, null, null);
+	let natural = selectRangeY(request, count, null, null, exactCount);
 	if (natural == null)
 		return null;
 
@@ -230,5 +248,6 @@ export function rangeY(dataMin, dataMax, height, range = rangeYAuto) {
 	if (maxAnchor != null && maxAnchor > maxPolicy.hard)
 		maxAnchor = maxPolicy.hard;
 
-	return minAnchor == null && maxAnchor == null ? natural : selectRangeY(request, count, minAnchor, maxAnchor);
+	return (minAnchor == null || minAnchor == natural.min) && (maxAnchor == null || maxAnchor == natural.max)
+		? natural : selectRangeY(request, count, minAnchor, maxAnchor, exactCount);
 }

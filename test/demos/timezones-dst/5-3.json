@@ -74,7 +74,7 @@
     ["fillStyle", "#000"],
     ["textAlign", "right"],
     ["textBaseline", "middle"],
-    ["fillText", ["0", 35, 150], ["0.5", 35, 84], ["1", 35, 17]],
+    ["fillText", ["0.0", 35, 150], ["0.5", 35, 84], ["1.0", 35, 17]],
     ["fillStyle", "rgba(0,0,0,0.07)"],
     ["beginPath", []],
     ["moveTo", [50, 150]],

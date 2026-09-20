@@ -921,7 +921,7 @@ export default function uPlot(opts, data, then) {
 			if (sc._rawY == null)
 				continue;
 
-			let result = sc._rangeY = rangeY(sc._rawY[0], sc._rawY[1], plotHgtCss, sc._rangeYPolicy);
+			let result = sc._rangeY = rangeY(sc._rawY[0], sc._rawY[1], plotHgtCss, sc._rangeYPolicy, axes[sc.axis].ramp, axes[sc.axis].exact);
 			// Unsupported numeric inputs have no display range or ticks, not a fallback count.
 			let min = result?.min ?? null;
 			let max = result?.max ?? null;

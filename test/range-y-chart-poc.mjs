@@ -44,7 +44,8 @@ function makePlot({
 
 function assertRange(u, min, max, height = cssHeight(u), range) {
 	assert.equal(cssHeight(u), height, 'range uses final CSS plot height');
-	const expected = rangeY(min, max, height, range);
+	const axis = u.axes[1];
+	const expected = rangeY(min, max, height, range, axis.ramp, axis.exact);
 	assert.ok(expected, 'fixture must have a supported numeric range');
 	assert.deepEqual(bounds(u), [expected.min, expected.max]);
 	const ticks = expected.count == 0 ? [] : expected.count == 1
@@ -52,7 +53,9 @@ function assertRange(u, min, max, height = cssHeight(u), range) {
 		: numAxisSplits(u, 1, expected.min, expected.max, expected.incr, 0, true);
 	assert.deepEqual(splits(u), ticks, 'ticks use the range increment, not ordinary space selection');
 	if (expected.count > 0) {
-		assert.equal(ticks.length, rangeYCount(height) + 1);
+		assert.equal(ticks.length, expected.count + 1);
+		if (axis.exact)
+			assert.equal(expected.count, rangeYCount(height, axis.ramp));
 		assert.deepEqual([ticks[0], ticks.at(-1)], bounds(u));
 	}
 	return expected;
@@ -75,6 +78,73 @@ function assertLinePaths(u) {
 }
 
 describe('axis-ranging chart POC: one Y scale', () => {
+	for (const exact of [true, false]) {
+		for (const pxRatio of [1, 2]) {
+			it(`applies axis ramp at construction and redraw (exact ${exact}, DPR ${pxRatio})`, async () => {
+				let formats = 0;
+				const { u, scans } = makePlot({ height: 400, pxRatio, paths: undefined,
+					axes: [{ show: false }, { exact, ramp: .25, values: (u, splits) => {
+						formats++;
+						return splits.map(String);
+					} }],
+				});
+				try {
+					await tick();
+					assert.equal(u.axes[1].exact, exact);
+					assert.equal(u.axes[1].ramp, .25);
+					assertRange(u, 13, 87);
+					const initialScans = scans.length;
+					const data = u.data;
+					for (const ramp of [0, .25, 1, 2]) {
+						formats = 0;
+						u.axes[1].ramp = ramp;
+						u.redraw(false, true);
+						await tick();
+						assertRange(u, 13, 87);
+						if (ramp == 0)
+							assert.equal(splits(u).length, 2);
+						assert.equal(scans.length, initialScans);
+						assert.equal(formats, 1, 'one tick-formatting pass per redraw');
+						assert.equal(u.data, data);
+					}
+					for (const height of [125, 525]) {
+						u.setSize({ width: u.width, height });
+						await tick();
+						assertRange(u, 13, 87, height);
+						assert.equal(scans.length, initialScans);
+					}
+				}
+				finally { u.destroy(); }
+			});
+		}
+	}
+
+	it('switches exact mode without rescanning and rebuilds paths for the new bounds', async () => {
+		const events = [];
+		const { u, scans } = makePlot({ height: 400, paths: null,
+			hooks: { setScale: [(u, key) => { if (key == 'y') events.push(bounds(u)); }] },
+		});
+		try {
+			await tick();
+			assert.equal(u.axes[1].exact, true);
+			assert.equal(u.axes[1].ramp, 1);
+			const initialScans = scans.length;
+			for (const [exact, expected, count] of [[false, [0, 90], 10], [true, [0, 160], 9]]) {
+				const paths = assertLinePaths(u);
+				events.length = 0;
+				u.axes[1].exact = exact;
+				u.redraw(false, true);
+				await tick();
+				assert.deepEqual(bounds(u), expected);
+				assert.equal(splits(u).length, count);
+				assert.deepEqual(events, [expected]);
+				assert.equal(scans.length, initialScans);
+				assert.notEqual(assertLinePaths(u), paths);
+			}
+		}
+		finally { u.destroy(); }
+	});
+
 	for (const side of [3, 1]) {
 		for (const dir of [1, -1]) {
 			for (const pxRatio of [1, 2]) {
@@ -83,7 +153,7 @@ describe('axis-ranging chart POC: one Y scale', () => {
 					try {
 						await tick();
 						assert.equal(scans.length, 1);
-						const heights = [[40, 1], [49, 1], [50, 2], [125, 3], [333, 7], [400, 8], [413, 8], [525, 10], [999, 19], [1000, 20]];
+						const heights = [[20, 1], [40, 2], [49, 2], [50, 2], [100, 3], [125, 3], [333, 7], [400, 8], [413, 8], [525, 11], [999, 20], [1000, 20]];
 						for (const [height, count] of heights) {
 							u.setSize({ width: 700, height });
 							await tick();
@@ -108,10 +178,10 @@ describe('axis-ranging chart POC: one Y scale', () => {
 		[[-13, 87], [-100, 100]], [[-.13, .87], [-1, 1]],
 	]) {
 		it(`uses direct endpoints for a one-interval range ${values}`, async () => {
-			const { u } = makePlot({ height: 40, plotData: [[0, 1], values] });
+			const { u } = makePlot({ height: 20, plotData: [[0, 1], values] });
 			try {
 				await tick();
-				assertRange(u, ...values, 40);
+				assertRange(u, ...values, 20);
 				assert.deepEqual(splits(u), expected);
 			}
 			finally { u.destroy(); }
@@ -285,11 +355,11 @@ describe('axis-ranging chart POC: one Y scale', () => {
 
 	it('switches automatic endpoint ticks to ordinary ticks for identical explicit bounds without resizing', async () => {
 		const plotData = [[0, 1], [-13, 87]];
-		const { u, scans } = makePlot({ height: 40, plotData });
-		const { u: control } = makePlot({ height: 40, plotData, optIn: false });
+		const { u, scans } = makePlot({ height: 20, plotData });
+		const { u: control } = makePlot({ height: 20, plotData, optIn: false });
 		try {
 			await tick();
-			assertRange(u, -13, 87, 40);
+			assertRange(u, -13, 87, 20);
 			const automaticTicks = splits(u).slice();
 			assert.deepEqual(automaticTicks, [-100, 100]);
 			const request = { min: u.scales.y.min, max: u.scales.y.max };
