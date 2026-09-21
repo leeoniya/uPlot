@@ -339,7 +339,7 @@ function mixedSignBars(percent = false) {
 		[ 3, -2,  4, -3,  3,    2],
 		[ 2,  3, -2, -1,  0, null],
 		[-4, -1,  2,  2, -2,   -3],
-		[-1,  2, -3,  1, undefined, 1],
+		[-1,  2, -3,  1, null, 1],
 	];
 	const paths = uPlot.paths.bars({size: [0.6, 60]});
 	const opts = chartOpts(undefined, 600, 350);

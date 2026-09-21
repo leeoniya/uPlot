@@ -293,7 +293,7 @@ describe('demo migrations', () => {
 			assert.deepStrictEqual(plot.bands, []);
 			assert.deepStrictEqual([plot._base[2][0], plot._data[2][0]], percent ? [0.6, 1] : [3, 5]);
 			assert.deepStrictEqual([plot._base[4][0], plot._data[4][0]], percent ? [-0.8, -1] : [-4, -5]);
-			for (const [si, i, value] of [[2, 5, null], [4, 4, undefined]]) {
+			for (const [si, i, value] of [[2, 5, null], [4, 4, null]]) {
 				assert.equal(raw[si][i], value);
 				assert.equal(plot._data[si][i], value);
 				assert.equal(plot._base[si][i], value);
@@ -305,6 +305,15 @@ describe('demo migrations', () => {
 			await new Promise(requestAnimationFrame);
 			assert.deepStrictEqual([...plot.root.querySelectorAll('.u-value')].slice(1).map(el => el.textContent),
 				['3', '2', '-4', '-1']);
+
+			const points = [...plot.over.querySelectorAll('.u-cursor-pt')];
+			plot.setCursor({left: plot.valToPos(3, 'x'), top: plot.valToPos(0.35, 'y')});
+			assert.equal(plot.cursor.idxs[4], 3);
+			assert.equal(points[3].classList.contains('u-off'), false);
+			plot.setCursor({left: plot.valToPos(4, 'x'), top: plot.valToPos(0.35, 'y')});
+			assert.equal(plot.cursor.idxs[4], 4);
+			assert.equal(plot.legend.values[4]._, '');
+			assert.equal(points[3].classList.contains('u-off'), true);
 
 			const stacked = structuredClone(plot._data);
 			const baselines = structuredClone(plot._base);
