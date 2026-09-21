@@ -1,8 +1,7 @@
 import { plotStep } from './renderDemo.js';
 import { seriesBarsPlugin } from './grouped-bars.js';
-import { stack } from './stack.js';
 
-function makeChart(o, data, bands) {
+function makeChart(o, data) {
 	let ori = o.ori;
 	let dir = o.dir;
 	let stacked = o.stacked;
@@ -13,18 +12,16 @@ function makeChart(o, data, bands) {
 		height: ori == 0 ? 400 : 800,
 		scales: {
 			y: {
-				range: [0, null],
+				range: {
+					min: {mode: 1, soft: 0},
+					max: {mode: 1, soft: 0},
+				},
 				ori: ori == 0 ? 1 : 0,
-			//	dir: ori == 0 ? 1 : -1,
 			}
 		},
-		bands,
 		axes: [
+			{},
 			{
-			//	rotate: -45,
-			},
-			{
-			//	show: false,
 				side: ori == 0 ? 3 : 0,
 			},
 		],
@@ -40,17 +37,20 @@ function makeChart(o, data, bands) {
 			seriesBarsPlugin({
 				ori,
 				dir,
-				stacked,
 			}),
 		],
 	};
 
-	return new uPlot(opts, data, document.body);
-}
+	if (stacked) {
+		opts.stack = {
+			groups: [{
+				series: series.slice(1).map((_, i) => i + 1),
+				dir: 0,
+			}],
+		};
+	}
 
-function makeChart2(opts, data) {
-	let { bands, data: _data } = stack(data, i => false);
-	return makeChart(opts, _data, bands);
+	return new uPlot(opts, data, document.body);
 }
 
 function multiGroupMultiBar() {
@@ -83,14 +83,14 @@ function multiGroupMultiBar() {
 
 	const plots = [
 		makeChart({series, ori: 0, dir:  1}, data),
-		makeChart2({series, ori: 0, dir: 1, stacked: true}, data),
+		makeChart({series, ori: 0, dir: 1, stacked: true}, data),
 	];
 
 	document.body.appendChild(document.createElement("div"));
 
 	plots.push(
 		makeChart({series, ori: 1, dir: -1}, data),
-		makeChart2({series, ori: 1, dir: -1, stacked: true}, data),
+		makeChart({series, ori: 1, dir: -1, stacked: true}, data),
 	);
 
 	document.body.appendChild(document.createElement("div"));
@@ -115,7 +115,7 @@ function multiGroupOneBar() {
 
 	const plots = [
 		makeChart({series, ori: 0, dir:  1}, data),
-		makeChart2({series, ori: 0, dir: 1, stacked: true}, data),
+		makeChart({series, ori: 0, dir: 1, stacked: true}, data),
 	];
 
 	document.body.appendChild(document.createElement("div"));
@@ -152,7 +152,7 @@ function oneGroupMultiBar() {
 
 	const plots = [
 		makeChart({series, ori: 0, dir:  1}, data),
-		makeChart2({series, ori: 0, dir: 1, stacked: true}, data),
+		makeChart({series, ori: 0, dir: 1, stacked: true}, data),
 	];
 
 	document.body.appendChild(document.createElement("div"));
@@ -177,7 +177,7 @@ function oneGroupOneBar() {
 
 	const plots = [
 		makeChart({series, ori: 0, dir:  1}, data),
-		makeChart2({series, ori: 0, dir: 1, stacked: true}, data),
+		makeChart({series, ori: 0, dir: 1, stacked: true}, data),
 	];
 
 	document.body.appendChild(document.createElement("div"));

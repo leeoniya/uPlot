@@ -2,12 +2,87 @@ import assert from 'node:assert/strict';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { numAxisVals } from '../src/opts.js';
+import { fixedDec } from '../src/utils.js';
 
 const labels = (splits, incr) => numAxisVals(null, splits, 0, 50, incr);
 const localized = (values, dec) => {
 	const fmt = new Intl.NumberFormat(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec });
 	return values.map(value => fmt.format(value));
 };
+
+describe('public decimal precision helper', () => {
+	it('accepts omitted increments, empty input, and filtered values', () => {
+		assert.equal(uPlot.numDec([]), 0);
+		assert.equal(uPlot.numDec([], .25), 2);
+		assert.equal(uPlot.numDec([null, undefined, -0, 1000]), 0);
+		assert.equal(uPlot.numDec([null, undefined, -.025, .5]), 3);
+	});
+
+	it('uses the finest precision from values and the increment', () => {
+		assert.equal(uPlot.numDec([0, 1], .00025), 5);
+		assert.equal(uPlot.numDec([2.25, 3.25], 1), 2);
+		assert.equal(uPlot.numDec([1, 1.125, 2], 1), 3);
+		assert.equal(uPlot.numDec([.003, .006, .009], .003), 3);
+	});
+
+	it('uses registered increment precision without changing it', () => {
+		const incr = .125;
+		const previous = fixedDec.get(incr);
+		fixedDec.set(incr, 4);
+		try {
+			assert.equal(uPlot.numDec([0, incr], incr), 4);
+			assert.equal(uPlot.numDec([.00001], incr), 5);
+			assert.equal(fixedDec.get(incr), 4);
+		}
+		finally {
+			if (previous == null)
+				fixedDec.delete(incr);
+			else
+				fixedDec.set(incr, previous);
+		}
+	});
+
+	it('handles scientific notation without formatter precision limits', () => {
+		for (const [value, dec] of [[2.5e-24, 25], [1e-32, 32], [1e-200, 200], [Number.MIN_VALUE, 324], [1e21, 0]]) {
+			assert.equal(uPlot.numDec([value]), dec);
+			assert.equal(uPlot.numDec([], value), dec);
+		}
+	});
+
+	it('does not mutate input or require a chart instance', () => {
+		const values = Object.freeze([null, -0, .25, undefined]);
+		assert.equal(uPlot.numDec(values, .25), 2);
+		assert.deepEqual(values, [null, -0, .25, undefined]);
+		const seconds = [0, 250, 500].map(v => v / 1000);
+		assert.equal(uPlot.numDec(seconds, 250 / 1000), 2);
+	});
+
+	it('supports a custom axis formatter as the increment changes', async () => {
+		const u = new uPlot({
+			width: 500, height: 400, padding: [0, 0, 0, 0],
+			legend: {show: false}, cursor: {show: false},
+			scales: {x: {time: false}, y: {range: [2, 3]}},
+			axes: [{show: false}, {
+				incrs: [.25], space: 30,
+				filter: (u, splits) => splits.map(v => v == 2.5 ? null : v),
+				values: (u, splits, axisIdx, space, incr) => {
+					const dec = uPlot.numDec(splits, incr);
+					return splits.map(v => v == null ? '' : `${v.toFixed(dec)} ms`);
+				},
+			}],
+			series: [{}, {}],
+		}, [[0, 1], [2, 3]], document.body);
+		try {
+			await Promise.resolve();
+			assert.deepEqual(u.axes[1]._values, ['2.00 ms', '2.25 ms', '', '2.75 ms', '3.00 ms']);
+			u.axes[1].incrs = () => [.5];
+			u.redraw(false, true);
+			await Promise.resolve();
+			assert.deepEqual(u.axes[1]._values, ['2.0 ms', '', '3.0 ms']);
+		}
+		finally { u.destroy(); }
+	});
+});
 
 describe('numeric axis label precision', () => {
 	for (const [incr, values, dec] of [
@@ -18,6 +93,7 @@ describe('numeric axis label precision', () => {
 		[1e-12, [-1e-12, 0, 1e-12, 2e-12], 12],
 	]) {
 		it(`uses consistent decimal places for increment ${incr}`, () => {
+			assert.equal(uPlot.numDec(values, incr), dec);
 			const actual = labels(values, incr);
 			assert.deepEqual(actual, localized(values, dec));
 			assert.equal(new Set(actual).size, values.length);

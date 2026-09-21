@@ -47,6 +47,7 @@ import {
 	isStr,
 	fnOrSelf,
 	fmtNum,
+	numDec,
 	fixedDec,
 	ifNull,
 	join,
@@ -496,11 +497,21 @@ export default function uPlot(opts, data, then) {
 		setDefaults2(opts.series || [null], xySeriesOpts);
 	const axes    = self.axes   = setDefaults(opts.axes   || [], xAxisOpts,   yAxisOpts,    true);
 	const scales  = self.scales = {};
-	const bands   = self.bands  = opts.bands || [];
+	const stackGroups = mode == 1 ? opts.stack?.groups || EMPTY_ARR : EMPTY_ARR;
+	const stackPercent = mode == 1 && opts.stack?.percent === true;
+	const bands   = self.bands  = stackGroups.length == 0 ? opts.bands || [] : [];
 
-	bands.forEach(b => {
+	function initBand(b) {
 		b.fill = fnOrSelf(b.fill || null);
 		b.dir = ifNull(b.dir, -1);
+	}
+
+	bands.forEach(initBand);
+
+	const stackedSeries = [];
+
+	stackGroups.forEach(group => {
+		group.series.forEach(si => { stackedSeries[si] = true; });
 	});
 
 	const xScaleKey = mode == 2 ? series[1].facets[0].scale : series[0].scale;
@@ -829,6 +840,7 @@ export default function uPlot(opts, data, then) {
 
 	self.bbox = {left: 0, top: 0, width: 0, height: 0};
 
+	const stackDirty = new Set();
 	let shouldSetScales = false;
 	let shouldSetCanvas = false;
 	let shouldLayout = false;
@@ -1190,6 +1202,9 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function addSeries(opts, si) {
+		if (stackGroups.length > 0)
+			return;
+
 		si = si == null ? series.length : si;
 
 		opts = mode == 1 ? setDefault(opts, si, xSeriesOpts, ySeriesOpts) : setDefault(opts, si, {}, xySeriesOpts);
@@ -1204,6 +1219,9 @@ export default function uPlot(opts, data, then) {
 	self.addSeries = addSeries;
 
 	function delSeries(i) {
+		if (stackGroups.length > 0)
+			return;
+
 		series.splice(i, 1);
 
 		FEAT_LEGEND && legend.values.splice(i, 1);
@@ -1336,34 +1354,116 @@ export default function uPlot(opts, data, then) {
 
 	let viaAutoScaleX = false;
 
-	function setData(_data, _resetScales) {
-		data = _data == null ? [] : _data;
+	function stackData(rawData) {
+		bands.length = 0;
 
-		self.data = self._data = data;
+		let stackedData = rawData.slice();
+		let baseData = self._base = Array(rawData.length).fill(null);
+
+		stackGroups.forEach(group => {
+			let mixed = group.dir == 0;
+			let accum = Array(dataLen).fill(0);
+			let negAccum = mixed ? Array(dataLen).fill(0) : null;
+			let prevSeriesIdx = null;
+
+			group.series.forEach(si => {
+				let s = series[si];
+
+				if (!s.show)
+					return;
+
+				let raw = rawData[si];
+
+				if (raw != null) {
+					let stacked = stackedData[si] = Array(raw.length);
+					let base = mixed ? baseData[si] = Array(raw.length) : null;
+
+					for (let i = 0; i < raw.length; i++) {
+						let value = raw[i];
+						let sums = mixed && value < 0 ? negAccum : accum;
+
+						if (mixed)
+							base[i] = value == null ? value : sums[i];
+
+						stacked[i] = value == null ? value : (sums[i] += value);
+					}
+				}
+
+				if (!mixed && prevSeriesIdx != null)
+					bands.push({series: [si, prevSeriesIdx], dir: -group.dir, fill: retNull});
+
+				prevSeriesIdx = si;
+			});
+
+			if (stackPercent) {
+				let negTotals = mixed ? negAccum : group.dir == -1 ? accum : null;
+				if (negTotals != null) {
+					for (let i = 0; i < negTotals.length; i++)
+						negTotals[i] = abs(negTotals[i]);
+				}
+
+				group.series.forEach(si => {
+					let stacked = stackedData[si];
+
+					if (series[si].show && stacked != null) {
+						for (let i = 0; i < stacked.length; i++) {
+							if (stacked[i] != null) {
+								let total = mixed && stacked[i] < 0 ? negAccum[i] : accum[i];
+								stacked[i] = total == 0 ? 0 : stacked[i] / total;
+								if (mixed)
+									baseData[si][i] = total == 0 ? 0 : baseData[si][i] / total;
+							}
+						}
+					}
+				});
+			}
+		});
+
+		return stackedData;
+	}
+
+	function setScaleData(rawData) {
+		let scaleData = stackGroups.length == 0 ? rawData : stackData(rawData);
+
+		if (xScaleDistr == 2) {
+			if (scaleData == rawData)
+				scaleData = scaleData.slice();
+
+			let _data0 = self._data?.[0];
+			if (_data0?.length != dataLen) {
+				_data0 = Array(dataLen);
+				for (let i = 0; i < dataLen; i++)
+					_data0[i] = i;
+			}
+			scaleData[0] = _data0;
+		}
+
+		self._data = data = scaleData;
+
+		if (stackDirty.size > 0) {
+			stackDirty.clear();
+			shouldSetCursor = shouldSetCursor || cursor.left >= 0;
+			shouldSetLegend = true;
+		}
+	}
+
+	function setData(_data, _resetScales) {
+		let rawData = _data == null ? [] : _data;
 
 		if (mode == 2) {
+			self.data = self._data = data = rawData;
 			dataLen = 0;
 			for (let i = 1; i < series.length; i++)
 				dataLen += data[i][0].length;
 		}
 		else {
-			if (data.length == 0)
-				self.data = self._data = data = [[]];
+			if (rawData.length == 0)
+				rawData = [[]];
 
-			data0 = data[0];
+			self.data = rawData;
+			data0 = rawData[0];
 			dataLen = data0.length;
-
-			let scaleData = data;
-
-			if (xScaleDistr == 2) {
-				scaleData = data.slice();
-
-				let _data0 = scaleData[0] = Array(dataLen);
-				for (let i = 0; i < dataLen; i++)
-					_data0[i] = i;
-			}
-
-			self._data = data = scaleData;
+			setScaleData(rawData);
 		}
 
 		resetYSeries(true);
@@ -2367,6 +2467,13 @@ export default function uPlot(opts, data, then) {
 		if (destroyed)
 			return;
 
+		if (stackDirty.size > 0) {
+			stackDirty.forEach(resetScaleSeries);
+			setScaleData(self.data);
+			resetYSeries(false);
+			shouldSetScales = true;
+		}
+
 		if (shouldSetScales) {
 			setScales();
 			shouldSetScales = false;
@@ -2406,14 +2513,14 @@ export default function uPlot(opts, data, then) {
 		queuedCommit = false;
 
 		// Late hooks can request work after its phase has already finished.
-		if (shouldSetScales || shouldLayout)
+		if (stackDirty.size > 0 || shouldSetScales || shouldLayout)
 			commit();
 
 		if (!usePathCache)
 			clearPathCache();
 
 		// Keep data needed by a pending render.
-		if (!useDataCache && didDraw && !shouldSetScales && !shouldLayout)
+		if (!useDataCache && didDraw && stackDirty.size == 0 && !shouldSetScales && !shouldLayout)
 			clearDataCache();
 
 		if (!ready) {
@@ -2436,6 +2543,7 @@ export default function uPlot(opts, data, then) {
 		// TODO: Require all interactive/data-dependent features to be disabled (cursor, legend toggling, resize, DPR updates, etc.).
 		let emptyData = src => mode == 1 ? src.map(() => []) : src.map(facets => facets == null ? facets : facets.map(() => []));
 		self.data = self._data = data = emptyData(self.data);
+		self._base = null;
 		data0 = mode == 1 ? data[0] : null;
 		dataLen = 0;
 
@@ -2590,10 +2698,14 @@ export default function uPlot(opts, data, then) {
 
 	function setSeriesShow(i, show) {
 		let s = series[i];
-		if (showLegend && s.show != show)
+		let showChanged = s.show != show;
+		if (showLegend && showChanged)
 			invalidateLegend();
 		s.show = show;
 		hideCursorPoint(i);
+
+		if (showChanged && stackedSeries[i])
+			stackDirty.add(s.scale);
 
 		if (mode == 2) {
 			setRange(s.facets[0].scale, null, null);
@@ -2637,8 +2749,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function addBand(opts, bi) {
-		opts.fill = fnOrSelf(opts.fill || null);
-		opts.dir = ifNull(opts.dir, -1);
+		initBand(opts);
 		bi = bi == null ? bands.length : bi;
 		bands.splice(bi, 0, opts);
 	}
@@ -2795,7 +2906,7 @@ export default function uPlot(opts, data, then) {
 
 	function setLegendValues(sidx, idx) {
 		let s = series[sidx];
-		let src = sidx == 0 && xScaleDistr == 2 ? data0 : data[sidx];
+		let src = self.data[sidx];
 
 		if (multiValLegend)
 			legend.values[sidx] = s.values(self, sidx, idx) ?? NULL_LEGEND_VALUES;
@@ -3724,6 +3835,7 @@ export default function uPlot(opts, data, then) {
 
 uPlot.assign = assign;
 uPlot.fmtNum = fmtNum;
+uPlot.numDec = numDec;
 uPlot.rangeNum = rangeNum;
 uPlot.rangeLog = rangeLog;
 uPlot.rangeAsinh = rangeAsinh;

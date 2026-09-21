@@ -189,6 +189,13 @@ declare class uPlot {
 	/** default numeric formatter using browser's locale: new Intl.NumberFormat(navigator.language).format */
 	static fmtNum(val: number): string;
 
+	/**
+	 * Decimal places needed for values and an optional increment, not significant digits.
+	 * Ignores nullish values. Empty input without an increment returns zero.
+	 * The result is not limited to the precision supported by Intl or toFixed().
+	 */
+	static numDec(values: readonly (number | null | undefined)[], incr?: number): number;
+
 	/** creates an efficient formatter for Date objects from a template string, e.g. {YYYY}-{MM}-{DD} */
 	static fmtDate(tpl: string, names?: uPlot.DateNames): (date: Date) => string;
 
@@ -463,6 +470,9 @@ declare namespace uPlot {
 		series: Series[];
 
 		bands?: Band[];
+
+		/** cumulative stacking groups */
+		stack?: Stack;
 
 		scales?: Scales;
 
@@ -1099,6 +1109,23 @@ declare namespace uPlot {
 
 		/** Cached maximum used for ranging and fillTo(). Can cover data outside the rendered indices. */
 		max?: number | null;
+	}
+
+	export namespace Stack {
+		export interface Group {
+			/** series indices ordered from zero outward */
+			series: number[];
+
+			/** 0 for bars (split by sign); 1/-1 for lines and areas (away from zero) */
+			dir: 1 | -1 | 0;
+		}
+	}
+
+	export interface Stack {
+		groups: Stack.Group[];
+
+		/** normalize each group to proportions, separately by sign when dir is 0 */
+		percent?: boolean;
 	}
 
 	export namespace Band {

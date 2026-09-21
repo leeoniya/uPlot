@@ -8,16 +8,25 @@ function makeChart(o, d, enabled) {
 	let toggles = document.createElement("div");
 	toggles.classList.add("lib-toggles");
 
+	const yScaleOpts = {
+		range: (u, dataMin, dataMax) => [0, uPlot.rangeNum(0, dataMax, 0.05, true)[1]],
+		ori: ori == 0 ? 1 : 0,
+	};
+
 	const opts = {
 		width:  ori == 0 ? 2300 :  800,
 		height: ori == 0 ?  800 : 2300,
 		title: "Line Charts (166,650 points)",
+		scales: {
+			rend:   yScaleOpts,
+			size:   yScaleOpts,
+			mem:    yScaleOpts,
+			inter:  yScaleOpts,
+			toggle: yScaleOpts,
+		},
 		axes: [
+			{},
 			{
-			//	rotate: -45,
-			},
-			{
-			//	show: false,
 				scale: 'rend',
 				side: ori == 0 ? 3 : 0,
 			},
@@ -158,13 +167,6 @@ function makeChart2(d) {
 					return {"Build": build, "Duration": duration, "Status": status};
 				}
 			},
-		/*
-			{
-				label: "Status",
-				fill: "",
-				value: (u, v) => v == 0 ? "Success" : v == 1 ? "Pending" : "Failed"
-			},
-		*/
 		],
 		plugins: [
 			seriesBarsPlugin({

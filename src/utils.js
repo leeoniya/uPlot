@@ -427,6 +427,18 @@ export function guessDec(num) {
 	return max(0, dec - (exp < 0 ? 0 : +str.slice(exp + 1)));
 }
 
+export function numDec(values, incr = 0) {
+	let dec = fixedDec.get(incr) ?? guessDec(incr);
+
+	// Values can require finer precision than their increment.
+	for (let v of values) {
+		if (v != null)
+			dec = max(dec, guessDec(v));
+	}
+
+	return dec;
+}
+
 export function genIncrs(base, minExp, maxExp, mults) {
 	let incrs = [];
 

@@ -62,15 +62,9 @@ export function bars(opts) {
 			let maxWidth = _maxWidth * pxRatio;
 			let minWidth = _minWidth * pxRatio;
 
-			let valRadius, baseRadius;
-
-			if (scaleX.ori == 0)
-				[valRadius, baseRadius] = radiusFn(u, seriesIdx);
-			else
-				[baseRadius, valRadius] = radiusFn(u, seriesIdx);
+			let [valRadius, baseRadius] = radiusFn(u, seriesIdx);
 
 			const _dirX = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
-		//	const _dirY = scaleY.dir * (scaleY.ori == 1 ? 1 : -1);
 
 			let rect = scaleX.ori == 0 ? rectH : rectV;
 
@@ -78,11 +72,13 @@ export function bars(opts) {
 				_each(u, seriesIdx, i, lft, top, wid, hgt);
 			};
 
+			let dataY0 = u._base?.[seriesIdx];
+
 			// band where this series is the "from" edge
-			let band = ifNull(u.bands, EMPTY_ARR).find(b => b.series[0] == seriesIdx);
+			let band = dataY0 == null ? ifNull(u.bands, EMPTY_ARR).find(b => b.series[0] == seriesIdx) : null;
 
 			let fillDir = band != null ? band.dir : 0;
-			let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, fillDir);
+			let fillTo = dataY0 == null ? series.fillTo(u, seriesIdx, series.min, series.max, fillDir) : 0;
 			let fillToY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff))
 
 			// barWid is to center of stroke
@@ -171,11 +167,9 @@ export function bars(opts) {
 
 			const stroke = multiPath ? null : new Path2D();
 
-			let dataY0 = null;
-
 			if (band != null)
-				dataY0 = u.data[band.series[1]];
-			else {
+				dataY0 = u._data[band.series[1]];
+			else if (dataY0 == null) {
 				let { y0, y1 } = disp;
 
 				if (y0 != null && y1 != null) {
@@ -202,11 +196,11 @@ export function bars(opts) {
 					fillToY = valToPosY(yVal0, scaleY, yDim, yOff);
 				}
 
-				let xVal = scaleX.distr != 2 || disp != null ? dataX[i] : i;
+				let xVal = dataX[i];
 
 				// TODO: all xPos can be pre-computed once for all series in aligned set
 				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
-				let yPos = valToPosY(ifNull(yVal, fillTo), scaleY, yDim, yOff);
+				let yPos = valToPosY(yVal, scaleY, yDim, yOff);
 
 				let lft = pxRound(xPos - xShift);
 				let btm = pxRound(max(yPos, fillToY));
@@ -214,9 +208,9 @@ export function bars(opts) {
 				// this includes the stroke
 				let barHgt = btm - top;
 
-				if (yVal != null && yVal != fillTo) {
-					let rv = yVal < 0 ? radBase : radVal;
-					let rb = yVal < 0 ? radVal : radBase;
+				if (yVal != fillTo) {
+					let rv = yPos < fillToY ? radVal : radBase;
+					let rb = yPos < fillToY ? radBase : radVal;
 
 					if (multiPath) {
 						if (strokeWidth > 0 && strokeColors[i] != null)

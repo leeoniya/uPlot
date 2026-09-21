@@ -1,22 +1,22 @@
 import { plotStep } from './renderDemo.js';
-import { getStackedOpts, stack2 } from './stack.js';
 
-function stackedChart(title, series, _data, interp, width = 800, height = 400) {
-	let { opts, data } = getStackedOpts(title, series, _data, interp);
-	opts.title = title;
-	opts.width = width;
-	opts.height = height;
-/*
-	Object.assign(opts.scales.x, {
-		ori: 1,
-		dir: -1,
-	});
-	Object.assign(opts.scales.y, {
-		ori: 0,
-		dir: 1,
-	});
-*/
-	return new uPlot(opts, data, document.body);
+const signedStacks = {
+	groups: [
+		{series: [1, 3], dir: 1},
+		{series: [2, 4], dir: -1},
+	],
+};
+
+function stackedChart(title, series, data, {width = 800, height = 400, dir = 1} = {}) {
+	return new uPlot(uPlot.assign({
+		title,
+		stack: {
+			groups: [{
+				series: series.slice(1).map((_, i) => i + 1),
+				dir,
+			}],
+		},
+	}, chartOpts(series, width, height)), data, document.body);
 }
 
 function paragraph(html) {
@@ -26,7 +26,7 @@ function paragraph(html) {
 }
 
 function stackingOrderComparison() {
-	paragraph('So you think you want a stacked series chart? Trust me, <a href="https://web.archive.org/web/20221208193656/https://everydayanalytics.ca/2014/08/stacked-area-graphs-are-not-your-friend.html"><strong>you don\'t</strong></a>. uPlot does not provide this functionality in the core, both out of principle and because it requires inter-series data aggregation. However, if you really need to mislead people with shitty charts, you can still technically get it done.');
+	paragraph('So you think you want a stacked series chart? Trust me, <a href="https://web.archive.org/web/20221208193656/https://everydayanalytics.ca/2014/08/stacked-area-graphs-are-not-your-friend.html"><strong>you don\'t</strong></a>. uPlot now provides integrated stacking, but this comparison still shows how stacking order can mislead.');
 	paragraph('The two charts below <strong>show exactly the same data</strong> (did you notice?)');
 
 	let xs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30],
@@ -87,6 +87,7 @@ function stackedBars() {
 	data2.push(data2[2].map(v => 100 + Math.round(v + Math.random() * 100)));
 	data2.push(data2[3].map(v => 100 + Math.round(v + Math.random() * 100)));
 
+	data2[1] = data2[1].map(v => Math.max(0, v));
 	data2[1].splice(22, 4, null, null, null, null);
 
 	// generate bar builder with 60% bar (40% gap) & 100px max bar width
@@ -130,9 +131,7 @@ function stackedBars() {
 			},
 		],
 		data2,
-		null,
-		1600,
-		400,
+		{width: 1600, dir: 0},
 	);
 }
 
@@ -145,13 +144,8 @@ function interpolatedStacking() {
 		[5, 4, 3, _, 1, 0],
 	];
 
-	// interpolator takes raw data, returns data without nulls or undefineds (mock impl)
-	function lerp(data) {
-		let _data = data.slice();
-		_data[2] = data[2].slice();
-		_data[2][3] = 2;  // interpolated value (undefined -> 2)
-		return _data;
-	}
+	// Complete the missing sample before plotting; it behaves like any other value.
+	data3[2][3] = (data3[2][2] + data3[2][4]) / 2;
 
 	const plot = stackedChart(
 		"Stacked / Interpolated (at magenta x=3)",
@@ -175,536 +169,100 @@ function interpolatedStacking() {
 			},
 		],
 		data3,
-		lerp,
-		1600,
-		400,
+		{width: 1600},
 	);
 
 	document.body.appendChild(document.createElement('hr'));
 	return plot;
 }
 
-function signedStackingOpts() {
+function chartOpts(series, width = 400, height = 300) {
+	series ??= [
+		{},
+		{
+			stroke: 'blue',
+			fill: "rgba(0, 0, 255, 0.3)",
+		},
+		{
+			stroke: 'green',
+			fill: "rgba(0, 255, 0, 0.3)",
+		},
+		{
+			stroke: 'orange',
+			fill: "rgba(255, 165, 0, 0.4)",
+		},
+		{
+			stroke: 'red',
+			fill: 'rgba(255, 0, 0, 0.3)',
+		},
+	];
+
 	return {
-		width: 400,
-		height: 300,
+		width,
+		height,
 		scales: {
 			x: {
 				time: false,
-			}
+			},
+			y: {
+				range: {
+					min: {mode: 1, soft: 0},
+					max: {mode: 1, soft: 0},
+				},
+			},
 		},
-		series: [
-			{},
-			{
-				stroke: 'blue',
-				fill: "rgba(0, 0, 255, 0.3)",
-			},
-			{
-				stroke: 'green',
-				fill: "rgba(0, 255, 0, 0.3)",
-			},
-			{
-				stroke: 'orange',
-				fill: "rgba(255, 165, 0, 0.4)",
-			},
-			{
-				stroke: 'red',
-				fill: 'rgba(255, 0, 0, 0.3)',
-			}
-		],
+		series,
 	};
+}
+
+function signedStackedChart(title, data, stack = signedStacks) {
+	return new uPlot(uPlot.assign({title, stack}, chartOpts()), data, document.body);
+}
+
+function signedData(value, series = []) {
+	const data = [
+		[  0,   1,   2,   3,   4],
+		[  5,   5,   5,   5,   5],
+		[-10, -10, -10, -10, -10],
+		[ 10,  10,  10,  10,  10],
+		[ -5,  -5,  -5,  -5,  -5],
+	];
+
+	for (const si of series)
+		data[si][2] = value;
+
+	return data;
 }
 
 function signedStackingComparison() {
-	let opts5 = signedStackingOpts();
-	let data5 = [
-		[  0,   1,   2,   3,   4],
-		[  5,   5,   5,   5,   5],
-		[-10, -10, -10, -10, -10],
-		[ 10,  10,  10,  10,  10],
-		[ -5,  -5,  -5,  -5,  -5],
+	const data = signedData();
+	return [
+		new uPlot(uPlot.assign({title: 'unstacked'}, chartOpts()), data, document.body),
+		signedStackedChart('stacked', data),
 	];
-
-	const plots = [new uPlot(uPlot.assign({title: 'unstacked'}, opts5), data5, document.body)];
-
-	let series2 = [
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[1],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[2],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[3],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[4],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-	];
-
-	let { data: stackedData, bands } = stack2(series2);
-
-	plots.push(new uPlot(uPlot.assign({
-		title: 'stacked',
-		bands,
-	}, opts5), [
-		data5[0],
-		...stackedData,
-	], document.body));
-	return plots;
 }
 
 function undefinedStacking() {
-	let _;
-	let opts5 = signedStackingOpts();
-	let data5 = [
-		[  0,   1,   2,   3,   4],
-		[  5,   5,   5,   5,   5],
-		[-10, -10,   _, -10, -10],
-		[ 10,  10,  10,  10,  10],
-		[ -5,  -5,   _,  -5,  -5],
-	];
-
-	let series2 = [
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[1],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[2],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[3],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[4],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-	];
-
-	let { data: stackedData, bands } = stack2(series2);
-
-	return new uPlot(uPlot.assign({
-		title: 'stacked, red=undef, green=undef',
-		bands,
-	}, opts5), [
-		data5[0],
-		...stackedData,
-	], document.body);
+	return signedStackedChart('stacked, red=undef, green=undef', signedData(undefined, [2, 4]));
 }
 
 function redNullStacking() {
-	const n = null;
-	let opts5 = signedStackingOpts();
-	let data5 = [
-		[  0,   1,   2,   3,   4],
-		[  5,   5,   5,   5,   5],
-		[-10, -10, -10, -10, -10],
-		[ 10,  10,  10,  10,  10],
-		[ -5,  -5,   n,  -5,  -5],
-	];
-
-	let series2 = [
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[1],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[2],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[3],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[4],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-	];
-
-	let { data: stackedData, bands } = stack2(series2);
-
-	return new uPlot(uPlot.assign({
-		title: 'stacked, red=null',
-		bands,
-	}, opts5), [
-		data5[0],
-		...stackedData,
-	], document.body);
+	return signedStackedChart('stacked, red=null', signedData(null, [4]));
 }
 
 function greenNullStacking() {
-	const n = null;
-	let opts5 = signedStackingOpts();
-	let data5 = [
-		[  0,   1,   2,   3,   4],
-		[  5,   5,   5,   5,   5],
-		[-10, -10,   n, -10, -10],
-		[ 10,  10,  10,  10,  10],
-		[ -5,  -5,  -5,  -5,  -5],
-	];
-
-	let series2 = [
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[1],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[2],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[3],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[4],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-	];
-
-	let { data: stackedData, bands } = stack2(series2);
-
-	return new uPlot(uPlot.assign({
-		title: 'stacked, green=null',
-		bands,
-	}, opts5), [
-		data5[0],
-		...stackedData,
-	], document.body);
+	return signedStackedChart('stacked, green=null', signedData(null, [2]));
 }
 
 function bothNullStacking() {
-	const n = null;
-	let opts5 = signedStackingOpts();
-	let data5 = [
-		[  0,   1,   2,   3,   4],
-		[  5,   5,   5,   5,   5],
-		[-10, -10,   n, -10, -10],
-		[ 10,  10,  10,  10,  10],
-		[ -5,  -5,   n,  -5,  -5],
-	];
-
-	let series2 = [
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[1],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[2],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[3],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[4],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-	];
-
-	let { data: stackedData, bands } = stack2(series2);
-
-	return new uPlot(uPlot.assign({
-		title: 'stacked, red=null, green=null',
-		bands,
-	}, opts5), [
-		data5[0],
-		...stackedData,
-	], document.body);
+	return signedStackedChart('stacked, red=null, green=null', signedData(null, [2, 4]));
 }
 
 function zeroStacking() {
-	let opts5 = signedStackingOpts();
-	let data5 = [
-		[  0,   1,   2,   3,   4],
-		[  5,   5,   5,   5,   5],
-		[-10, -10,   0, -10, -10],
-		[ 10,  10,  10,  10,  10],
-		[ -5,  -5,   0,  -5,  -5],
-	];
-
-	let series2 = [
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[1],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[2],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[3],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[4],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-	];
-
-	let { data: stackedData, bands } = stack2(series2);
-
-	return new uPlot(uPlot.assign({
-		title: 'stacked, red=0, green=0',
-		bands,
-	}, opts5), [
-		data5[0],
-		...stackedData,
-	], document.body);
-}
-
-function negatedNullStacking() {
-	const n = null;
-	let opts5 = {
-		width: 400,
-		height: 300,
-		scales: {
-			x: {
-				time: false,
-			}
-		},
-		series: [
-			{},
-			{
-				stroke: 'green',
-				fill: "rgba(0, 255, 0, 0.3)",
-			},
-			{
-				stroke: 'red',
-				fill: 'rgba(255, 0, 0, 0.3)',
-			}
-		],
-	};
-
-	let data5 = [
-		[  0,   1,   2,   3,   4,   5],
-		[  5,   5,   5,   n,   5,   5],
-		[ 10,  10,   n,  10,  10,  10],
-	];
-
-	let series2 = [
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[1],
-			negY: true,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[2],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-	];
-
-	let { data: stackedData, bands } = stack2(series2);
-
-	return new uPlot(uPlot.assign({
-		title: 'unstacked, green negY, green=null, red=null',
-		bands,
-	}, opts5), [
-		data5[0],
-		...stackedData,
-	], document.body);
-}
-
-function negatedZeroStacking() {
-	let opts5 = {
-		width: 400,
-		height: 300,
-		scales: {
-			x: {
-				time: false,
-			}
-		},
-		series: [
-			{},
-			{
-				stroke: 'green',
-				fill: "rgba(0, 255, 0, 0.3)",
-			},
-			{
-				stroke: 'red',
-				fill: 'rgba(255, 0, 0, 0.3)',
-			}
-		],
-	};
-
-	let data5 = [
-		[  0,   1,   2,   3,   4,   5],
-		[  5,   5,   5,   0,   5,   5],
-		[ 10,  10,   0,  10,  10,  10],
-	];
-
-	let series2 = [
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[1],
-			negY: true,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[2],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-	];
-
-	let { data: stackedData, bands } = stack2(series2);
-
-	return new uPlot(uPlot.assign({
-		title: 'unstacked, green negY, green=0, red=0',
-		bands,
-	}, opts5), [
-		data5[0],
-		...stackedData,
-	], document.body);
+	return signedStackedChart('stacked, red=0, green=0', signedData(0, [2, 4]));
 }
 
 function percentStacking() {
-	let opts5 = signedStackingOpts();
 	let data5 = [
 		[  0,   1,   2,   3,   4],
 		[  5,   5,   5,   5,   5],
@@ -713,58 +271,13 @@ function percentStacking() {
 		[ -5,  -5,  -5,  -5,  -5],
 	];
 
-	let series2 = [
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[1],
-			negY: false,
-			stacking: {
-				mode: 'percent',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[2],
-			negY: false,
-			stacking: {
-				mode: 'percent',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[3],
-			negY: false,
-			stacking: {
-				mode: 'percent',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[4],
-			negY: false,
-			stacking: {
-				mode: 'percent',
-				group: 'A',
-			},
-		},
-	];
-
-	let { data: stackedData, bands } = stack2(series2);
-
-	return new uPlot(uPlot.assign({
-		title: 'neg percent stacked',
-		bands,
-	}, opts5), [
-		data5[0],
-		...stackedData,
-	], document.body);
+	return signedStackedChart('neg percent stacked', data5, {
+		groups: signedStacks.groups,
+		percent: true,
+	});
 }
 
 function stackingGroups() {
-	let opts5 = signedStackingOpts();
 	let data5 = [
 		[  0,   1,   2,   3,   4],
 		[  5,   5,   5,   5,   5],
@@ -773,58 +286,15 @@ function stackingGroups() {
 		[  5,   5,   5,   5,   5],
 	];
 
-	let series2 = [
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[1],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[2],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'B',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[3],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'B',
-			},
-		},
-		{
-			scaleKey: 'axis-x1345',
-			values: data5[4],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
-		},
-	];
-
-	let { data: stackedData, bands } = stack2(series2);
-
-	return new uPlot(uPlot.assign({
-		title: 'stacking groups',
-		bands,
-	}, opts5), [
-		data5[0],
-		...stackedData,
-	], document.body);
+	return signedStackedChart('stacking groups', data5, {
+		groups: [
+			{series: [1, 4], dir: 1},
+			{series: [2, 3], dir: 1},
+		],
+	});
 }
 
 function joinedMixedStacking() {
-	let opts5 = signedStackingOpts();
 	let data5 = uPlot.join([
 		[
 			[  0,   1,   2,   3,   4],
@@ -837,63 +307,56 @@ function joinedMixedStacking() {
 		]
 	]);
 
-	let series2 = [
+	let series = [
+		{},
 		{
-			scaleKey: 'axis-x1345',
-			values: data5[1],
-			negY: false,
-			stacking: {
-				mode: 'none',
-				group: 'A',
-			},
+			stroke: 'blue',
+			fill: "rgba(0, 0, 255, 0.3)",
 		},
 		{
-			scaleKey: 'axis-x1345',
-			values: data5[2],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
+			stroke: 'green',
+			fill: "rgba(0, 255, 0, 0.3)",
+			paths: uPlot.paths.bars(),
 		},
 		{
-			scaleKey: 'axis-x1345',
-			values: data5[3],
-			negY: false,
-			stacking: {
-				mode: 'normal',
-				group: 'A',
-			},
+			stroke: 'orange',
+			fill: "rgba(255, 165, 0, 0.4)",
+			paths: uPlot.paths.bars(),
 		},
 	];
 
-	let { data: stackedData, bands } = stack2(series2);
-
 	return new uPlot(uPlot.assign({
 		title: 'stacked joined/mixed',
-		bands,
-	}, opts5, {
-		series: [
-			{},
-			{
-				stroke: 'blue',
-				fill: "rgba(0, 0, 255, 0.3)",
-			},
-			{
-				stroke: 'green',
-				fill: "rgba(0, 255, 0, 0.3)",
-				paths: uPlot.paths.bars(),
-			},
-			{
-				stroke: 'orange',
-				fill: "rgba(255, 165, 0, 0.4)",
-				paths: uPlot.paths.bars(),
-			},
-		],
-	}), [
-		data5[0],
-		...stackedData,
-	], document.body);
+		stack: {
+			groups: [{series: [2, 3], dir: 0}],
+		},
+	}, chartOpts(series)), data5, document.body);
+}
+
+function mixedSignBars(percent = false) {
+	const data = [
+		[ 0,  1,  2,  3,  4,    5],
+		[ 3, -2,  4, -3,  3,    2],
+		[ 2,  3, -2, -1,  0, null],
+		[-4, -1,  2,  2, -2,   -3],
+		[-1,  2, -3,  1, undefined, 1],
+	];
+	const paths = uPlot.paths.bars({size: [0.6, 60]});
+	const opts = chartOpts(undefined, 600, 350);
+
+	opts.series.slice(1).forEach((series, i) => Object.assign(series, {
+		label: String.fromCharCode(65 + i),
+		paths,
+		points: {show: false},
+	}));
+
+	return new uPlot(uPlot.assign({
+		title: percent ? 'Mixed-sign bars / percent' : 'Mixed-sign bars',
+		stack: {
+			groups: [{series: [1, 2, 3, 4], dir: 0}],
+			percent,
+		},
+	}, opts), data, document.body);
 }
 
 export default [{
@@ -910,10 +373,10 @@ export default [{
 		plotStep(greenNullStacking),
 		plotStep(bothNullStacking),
 		plotStep(zeroStacking),
-		plotStep(negatedNullStacking),
-		plotStep(negatedZeroStacking),
 		plotStep(percentStacking),
 		plotStep(stackingGroups),
 		plotStep(joinedMixedStacking),
+		plotStep(() => mixedSignBars()),
+		plotStep(() => mixedSignBars(true)),
 	],
 }];

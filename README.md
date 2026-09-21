@@ -33,6 +33,7 @@ If that does not help, consider reducing the update frequency or switch to a Web
 - [Focus closest series](https://leeoniya.github.io/uPlot/demos/focus-cursor.html)
 - [Data streaming (live update)](https://leeoniya.github.io/uPlot/demos/stream-data.html)
 - [High / Low bands](https://leeoniya.github.io/uPlot/demos/high-low-bands.html)
+- Positive and negative stacking groups through `opts.stack.groups`. See ["Stacked Area Graphs Are Not Your Friend"](https://web.archive.org/web/20221208193656/https://everydayanalytics.ca/2014/08/stacked-area-graphs-are-not-your-friend.html).
 - A lean, consistent, and powerful API with hooks & plugins
 
 ---
@@ -40,10 +41,11 @@ If that does not help, consider reducing the update frequency or switch to a Web
 
 In order to stay lean, fast and focused the following features will not be added:
 
-- No data parsing, aggregation, summation or statistical processing - just do it in advance. e.g. [simples-statistics](https://simple-statistics.github.io/), https://github.com/leeoniya/uDSV
+- No general-purpose data parsing, aggregation, or statistical processing. Integrated stacking only computes configured cumulative series. Prepare other results in advance with tools such as [simple-statistics](https://simple-statistics.github.io/) or [uDSV](https://github.com/leeoniya/uDSV).
 - No transitions or animations - they're always pure distractions.
 - No collision avoidance for axis tick labels, so may require manual tweaking of spacing metrics if label customization significiantly increases default label widths.
-- No stacked series: see ["Stacked Area Graphs Are Not Your Friend"](https://web.archive.org/web/20221208193656/https://everydayanalytics.ca/2014/08/stacked-area-graphs-are-not-your-friend.html) and a [horrific demo](https://leeoniya.github.io/uPlot/demos/stacked-series.html). While smooth spline interpolation is available, its use is strongly discouraged: [Your data is misrepresented!](http://www.vizwiz.com/2011/12/when-you-use-smoothed-line-chart-your.html). Both visualizations are terrible at accurately communicating information.
+
+- Smooth spline interpolation is available, but its use is strongly discouraged. See ["Your data is misrepresented!"](http://www.vizwiz.com/2011/12/when-you-use-smoothed-line-chart-your.html).
 - No built-in drag scrolling/panning due to ambiguous native zoom/selection behavior. However, this can be added externally via the plugin/hooks API: [zoom-wheel](https://leeoniya.github.io/uPlot/demos/zoom-wheel.html), [zoom-touch](https://leeoniya.github.io/uPlot/demos/zoom-touch.html).
 
 ---

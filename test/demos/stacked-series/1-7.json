@@ -1,5 +1,5 @@
 {
-  "html": "<div class=\"uplot u-hz\"><div class=\"u-title\">unstacked, green negY, green=0, red=0</div><div class=\"u-wrap\" style=\"width: 400px; height: 300px;\"><div class=\"u-under\" style=\"left: 50px; top: 17px; width: 325px; height: 233px;\"></div><canvas width=\"400\" height=\"300\"></canvas><div class=\"u-over\" style=\"left: 50px; top: 17px; width: 325px; height: 233px;\"><div class=\"u-cursor-x u-off\" style=\"transform: translate(-10px,0px);\"></div><div class=\"u-cursor-y u-off\" style=\"transform: translate(0px,-10px);\"></div><div class=\"u-select\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div></div><div class=\"u-axis\" style=\"top: 250px; height: 50px; left: 50px; width: 325px;\"></div><div class=\"u-axis\" style=\"left: 0px; width: 50px; top: 17px; height: 233px;\"></div></div><table class=\"u-legend u-inline u-live\"><tbody><tr class=\"u-series\"><th><div class=\"u-marker\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid green; background: rgba(0, 255, 0, 0.3);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid red; background: rgba(255, 0, 0, 0.3);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr></tbody></table></div>",
+  "html": "<div class=\"uplot u-hz\"><div class=\"u-title\">stacking groups</div><div class=\"u-wrap\" style=\"width: 400px; height: 300px;\"><div class=\"u-under\" style=\"left: 50px; top: 17px; width: 325px; height: 233px;\"></div><canvas width=\"400\" height=\"300\"></canvas><div class=\"u-over\" style=\"left: 50px; top: 17px; width: 325px; height: 233px;\"><div class=\"u-cursor-x u-off\" style=\"transform: translate(-10px,0px);\"></div><div class=\"u-cursor-y u-off\" style=\"transform: translate(0px,-10px);\"></div><div class=\"u-select\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div></div><div class=\"u-axis\" style=\"top: 250px; height: 50px; left: 50px; width: 325px;\"></div><div class=\"u-axis\" style=\"left: 0px; width: 50px; top: 17px; height: 233px;\"></div></div><table class=\"u-legend u-inline u-live\"><tbody><tr class=\"u-series\"><th><div class=\"u-marker\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid blue; background: rgba(0, 0, 255, 0.3);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid green; background: rgba(0, 255, 0, 0.3);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid orange; background: rgba(255, 165, 0, 0.4);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid red; background: rgba(255, 0, 0, 0.3);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr></tbody></table></div>",
   "width": 400,
   "height": 300,
   "ctxlog": [
@@ -11,7 +11,7 @@
     ],
     ["textAlign", "center"],
     ["textBaseline", "top"],
-    ["fillText", ["0", 50, 265], ["1", 115, 265], ["2", 180, 265], ["3", 245, 265], ["4", 310, 265], ["5", 375, 265]],
+    ["fillText", ["0", 50, 265], ["1", 131, 265], ["2", 213, 265], ["3", 294, 265], ["4", 375, 265]],
     ["strokeStyle", "rgba(0,0,0,0.07)"],
     ["fillStyle", "rgba(0,0,0,0.07)"],
     ["lineWidth", 2],
@@ -21,76 +21,68 @@
     ["beginPath", []],
     ["moveTo", [50, 250]],
     ["lineTo", [50, 260]],
-    ["moveTo", [115, 250]],
-    ["lineTo", [115, 260]],
-    ["moveTo", [180, 250]],
-    ["lineTo", [180, 260]],
-    ["moveTo", [245, 250]],
-    ["lineTo", [245, 260]],
-    ["moveTo", [310, 250]],
-    ["lineTo", [310, 260]],
+    ["moveTo", [131, 250]],
+    ["lineTo", [131, 260]],
+    ["moveTo", [213, 250]],
+    ["lineTo", [213, 260]],
+    ["moveTo", [294, 250]],
+    ["lineTo", [294, 260]],
     ["moveTo", [375, 250]],
     ["lineTo", [375, 260]],
     ["stroke", []],
     ["beginPath", []],
     ["moveTo", [50, 17]],
     ["lineTo", [50, 250]],
-    ["moveTo", [115, 17]],
-    ["lineTo", [115, 250]],
-    ["moveTo", [180, 17]],
-    ["lineTo", [180, 250]],
-    ["moveTo", [245, 17]],
-    ["lineTo", [245, 250]],
-    ["moveTo", [310, 17]],
-    ["lineTo", [310, 250]],
+    ["moveTo", [131, 17]],
+    ["lineTo", [131, 250]],
+    ["moveTo", [213, 17]],
+    ["lineTo", [213, 250]],
+    ["moveTo", [294, 17]],
+    ["lineTo", [294, 250]],
     ["moveTo", [375, 17]],
     ["lineTo", [375, 250]],
     ["stroke", []],
     ["fillStyle", "#000"],
     ["textAlign", "right"],
     ["textBaseline", "middle"],
-    ["fillText", ["-5.0", 35, 225], ["-2.5", 35, 195], ["0.0", 35, 164], ["2.5", 35, 134], ["5.0", 35, 103], ["7.5", 35, 72], ["10.0", 35, 42]],
+    ["fillText", ["0", 35, 250], ["10", 35, 204], ["20", 35, 159], ["30", 35, 113], ["40", 35, 67], ["50", 35, 22]],
     ["fillStyle", "rgba(0,0,0,0.07)"],
     ["beginPath", []],
-    ["moveTo", [50, 225]],
-    ["lineTo", [40, 225]],
-    ["moveTo", [50, 195]],
-    ["lineTo", [40, 195]],
-    ["moveTo", [50, 164]],
-    ["lineTo", [40, 164]],
-    ["moveTo", [50, 134]],
-    ["lineTo", [40, 134]],
-    ["moveTo", [50, 103]],
-    ["lineTo", [40, 103]],
-    ["moveTo", [50, 72]],
-    ["lineTo", [40, 72]],
-    ["moveTo", [50, 42]],
-    ["lineTo", [40, 42]],
+    ["moveTo", [50, 250]],
+    ["lineTo", [40, 250]],
+    ["moveTo", [50, 204]],
+    ["lineTo", [40, 204]],
+    ["moveTo", [50, 159]],
+    ["lineTo", [40, 159]],
+    ["moveTo", [50, 113]],
+    ["lineTo", [40, 113]],
+    ["moveTo", [50, 67]],
+    ["lineTo", [40, 67]],
+    ["moveTo", [50, 22]],
+    ["lineTo", [40, 22]],
     ["stroke", []],
     ["beginPath", []],
-    ["moveTo", [50, 225]],
-    ["lineTo", [375, 225]],
-    ["moveTo", [50, 195]],
-    ["lineTo", [375, 195]],
-    ["moveTo", [50, 164]],
-    ["lineTo", [375, 164]],
-    ["moveTo", [50, 134]],
-    ["lineTo", [375, 134]],
-    ["moveTo", [50, 103]],
-    ["lineTo", [375, 103]],
-    ["moveTo", [50, 72]],
-    ["lineTo", [375, 72]],
-    ["moveTo", [50, 42]],
-    ["lineTo", [375, 42]],
+    ["moveTo", [50, 250]],
+    ["lineTo", [375, 250]],
+    ["moveTo", [50, 204]],
+    ["lineTo", [375, 204]],
+    ["moveTo", [50, 159]],
+    ["lineTo", [375, 159]],
+    ["moveTo", [50, 113]],
+    ["lineTo", [375, 113]],
+    ["moveTo", [50, 67]],
+    ["lineTo", [375, 67]],
+    ["moveTo", [50, 22]],
+    ["lineTo", [375, 22]],
     ["stroke", []],
     ["translate", [0.5, 0.5]],
-    ["strokeStyle", "green"],
-    ["fillStyle", "rgba(0, 255, 0, 0.3)"],
+    ["strokeStyle", "blue"],
+    ["fillStyle", "rgba(0, 0, 255, 0.3)"],
     ["lineWidth", 1],
     ["save", []],
     ["clip", [{"log": [["rect", [49.5, 16.5, 326, 234]]]}]],
-    ["fill", [{"log": [["lineTo", [375, 164], [50, 164]]]}]],
-    ["stroke", [{"log": [["lineTo", [50, 225], [115, 225], [180, 225], [245, 164], [310, 225], [375, 225]]]}]],
+    ["fill", [{"log": [["lineTo", [375, 250], [50, 250]]]}]],
+    ["stroke", [{"log": [["lineTo", [50, 227], [131, 227], [213, 227], [294, 227], [375, 227]]]}]],
     ["restore", []],
     ["translate", [-0.5, -0.5], [0.5, 0.5]],
     ["fillStyle", "#fff"],
@@ -101,18 +93,16 @@
       [
         {
           "log": [
-            ["moveTo", [52, 225]],
-            ["arc", [50, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [117, 225]],
-            ["arc", [115, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [182, 225]],
-            ["arc", [180, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [247, 164]],
-            ["arc", [245, 164, 2, 0, 6.283185307179586]],
-            ["moveTo", [312, 225]],
-            ["arc", [310, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [377, 225]],
-            ["arc", [375, 225, 2, 0, 6.283185307179586]]
+            ["moveTo", [52, 227]],
+            ["arc", [50, 227, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 227]],
+            ["arc", [131, 227, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 227]],
+            ["arc", [213, 227, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 227]],
+            ["arc", [294, 227, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 227]],
+            ["arc", [375, 227, 2, 0, 6.283185307179586]]
           ]
         }
       ]
@@ -122,18 +112,121 @@
       [
         {
           "log": [
-            ["moveTo", [52, 225]],
-            ["arc", [50, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [117, 225]],
-            ["arc", [115, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [182, 225]],
-            ["arc", [180, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [247, 164]],
-            ["arc", [245, 164, 2, 0, 6.283185307179586]],
-            ["moveTo", [312, 225]],
-            ["arc", [310, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [377, 225]],
-            ["arc", [375, 225, 2, 0, 6.283185307179586]]
+            ["moveTo", [52, 227]],
+            ["arc", [50, 227, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 227]],
+            ["arc", [131, 227, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 227]],
+            ["arc", [213, 227, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 227]],
+            ["arc", [294, 227, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 227]],
+            ["arc", [375, 227, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["strokeStyle", "green"],
+    ["fillStyle", "rgba(0, 255, 0, 0.3)"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [49.5, 16.5, 326, 234]]]}]],
+    ["fill", [{"log": [["lineTo", [375, 250], [50, 250]]]}]],
+    ["stroke", [{"log": [["lineTo", [50, 136], [131, 213], [213, 245], [294, 236], [375, 204]]]}]],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["fillStyle", "#fff"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [46, 13, 333, 241]]]}]],
+    [
+      "fill",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 136]],
+            ["arc", [50, 136, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 213]],
+            ["arc", [131, 213, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 245]],
+            ["arc", [213, 245, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 236]],
+            ["arc", [294, 236, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 204]],
+            ["arc", [375, 204, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    [
+      "stroke",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 136]],
+            ["arc", [50, 136, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 213]],
+            ["arc", [131, 213, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 245]],
+            ["arc", [213, 245, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 236]],
+            ["arc", [294, 236, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 204]],
+            ["arc", [375, 204, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["strokeStyle", "orange"],
+    ["fillStyle", "rgba(255, 165, 0, 0.4)"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [49.5, 16.5, 326, 234]]]}]],
+    ["save", []],
+    ["clip", [{"log": [["lineTo", [375, 17], [50, 17], [50, 136]]]}]],
+    ["fill", [{"log": [["lineTo", [375, 250], [50, 250]]]}]],
+    ["restore", []],
+    ["stroke", [{"log": [["lineTo", [50, 90], [131, 54], [213, 17], [294, 191], [375, 159]]]}]],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["fillStyle", "#fff"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [46, 13, 333, 241]]]}]],
+    [
+      "fill",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 90]],
+            ["arc", [50, 90, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 54]],
+            ["arc", [131, 54, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 17]],
+            ["arc", [213, 17, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 191]],
+            ["arc", [294, 191, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 159]],
+            ["arc", [375, 159, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    [
+      "stroke",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 90]],
+            ["arc", [50, 90, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 54]],
+            ["arc", [131, 54, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 17]],
+            ["arc", [213, 17, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 191]],
+            ["arc", [294, 191, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 159]],
+            ["arc", [375, 159, 2, 0, 6.283185307179586]]
           ]
         }
       ]
@@ -144,8 +237,11 @@
     ["fillStyle", "rgba(255, 0, 0, 0.3)"],
     ["save", []],
     ["clip", [{"log": [["rect", [49.5, 16.5, 326, 234]]]}]],
-    ["fill", [{"log": [["lineTo", [375, 164], [50, 164]]]}]],
-    ["stroke", [{"log": [["lineTo", [50, 42], [115, 42], [180, 164], [245, 42], [310, 42], [375, 42]]]}]],
+    ["save", []],
+    ["clip", [{"log": [["lineTo", [375, 17], [50, 17], [50, 227]]]}]],
+    ["fill", [{"log": [["lineTo", [375, 250], [50, 250]]]}]],
+    ["restore", []],
+    ["stroke", [{"log": [["lineTo", [50, 204], [131, 204], [213, 204], [294, 204], [375, 204]]]}]],
     ["restore", []],
     ["translate", [-0.5, -0.5], [0.5, 0.5]],
     ["fillStyle", "#fff"],
@@ -156,18 +252,16 @@
       [
         {
           "log": [
-            ["moveTo", [52, 42]],
-            ["arc", [50, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [117, 42]],
-            ["arc", [115, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [182, 164]],
-            ["arc", [180, 164, 2, 0, 6.283185307179586]],
-            ["moveTo", [247, 42]],
-            ["arc", [245, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [312, 42]],
-            ["arc", [310, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [377, 42]],
-            ["arc", [375, 42, 2, 0, 6.283185307179586]]
+            ["moveTo", [52, 204]],
+            ["arc", [50, 204, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 204]],
+            ["arc", [131, 204, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 204]],
+            ["arc", [213, 204, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 204]],
+            ["arc", [294, 204, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 204]],
+            ["arc", [375, 204, 2, 0, 6.283185307179586]]
           ]
         }
       ]
@@ -177,18 +271,16 @@
       [
         {
           "log": [
-            ["moveTo", [52, 42]],
-            ["arc", [50, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [117, 42]],
-            ["arc", [115, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [182, 164]],
-            ["arc", [180, 164, 2, 0, 6.283185307179586]],
-            ["moveTo", [247, 42]],
-            ["arc", [245, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [312, 42]],
-            ["arc", [310, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [377, 42]],
-            ["arc", [375, 42, 2, 0, 6.283185307179586]]
+            ["moveTo", [52, 204]],
+            ["arc", [50, 204, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 204]],
+            ["arc", [131, 204, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 204]],
+            ["arc", [213, 204, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 204]],
+            ["arc", [294, 204, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 204]],
+            ["arc", [375, 204, 2, 0, 6.283185307179586]]
           ]
         }
       ]

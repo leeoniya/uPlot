@@ -4,10 +4,51 @@ import { replay } from '../scripts/replay.mjs';
 import uPlot from '../src/uPlot.js';
 import arcsinhGroups from '../demos/arcsinh-scales.js';
 import pointsGroups from '../demos/points.js';
+import axisControlGroups from '../demos/axis-control.js';
 import { captureStep } from '../scripts/demoSteps.mjs';
 import { withSeededRandom } from '../scripts/withSeededRandom.mjs';
 
 describe('demo extraction support', () => {
+	it('adapts decimal-aware labels to vertical zoom and reset in the axis-control demo', async () => {
+		const previous = globalThis.uPlot;
+		globalThis.uPlot = uPlot;
+		try {
+			let formatter;
+			for (const [step, incr, dec, zoomMax, zoomIncr] of [[0, .25, 2, .1, .025], [1, .00025, 5, .0001, .000025]]) {
+				const [plot] = await axisControlGroups[1].steps[step].render();
+				try {
+					assert.deepEqual(plot.axes[1]._values,
+						[0, 1, 2, 3, 4].map(i => `${(i * incr).toFixed(dec)} ms`));
+					assert.deepEqual(plot.axes[1].values(plot, [null, 0, incr], 1, 50, incr),
+						['', `${(0).toFixed(dec)} ms`, `${incr.toFixed(dec)} ms`]);
+					formatter ??= plot.axes[1].values;
+					assert.equal(plot.axes[1].values, formatter);
+					assert.equal(plot.cursor.drag.x, false);
+					assert.equal(plot.cursor.drag.y, true);
+					const initialRange = [plot.scales.y.min, plot.scales.y.max];
+					const initialLabels = plot.axes[1]._values.slice();
+					const xRange = [plot.scales.x.min, plot.scales.x.max];
+
+					plot.setScale('y', {min: 0, max: zoomMax});
+					await Promise.resolve();
+					assert.deepEqual([plot.scales.y.min, plot.scales.y.max], [0, zoomMax]);
+					assert.deepEqual(plot.axes[1]._values,
+						[0, 1, 2, 3, 4].map(i => `${(i * zoomIncr).toFixed(dec + 1)} ms`));
+					for (const [i, label] of plot.axes[1]._values.entries())
+						assert.equal(parseFloat(label), plot.axes[1]._splits[i]);
+					assert.equal(new Set(plot.axes[1]._values).size, plot.axes[1]._values.length);
+					assert.deepEqual([plot.scales.x.min, plot.scales.x.max], xRange);
+
+					plot.over.dispatchEvent(new MouseEvent('dblclick', {bubbles: true, button: 0}));
+					await Promise.resolve();
+					assert.deepEqual([plot.scales.y.min, plot.scales.y.max], initialRange);
+					assert.deepEqual(plot.axes[1]._values, initialLabels);
+				}
+				finally { plot.destroy(); }
+			}
+		}
+		finally { globalThis.uPlot = previous; }
+	});
 	it('repeats the seeded points demo without retaining random-walk state', async () => {
 		const previous = globalThis.uPlot;
 		globalThis.uPlot = uPlot;

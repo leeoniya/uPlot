@@ -20,7 +20,7 @@ import {
 	floor,
 	fmtNum,
 	fixedDec,
-	guessDec,
+	numDec,
 
 	retArg1,
 	noop,
@@ -595,12 +595,7 @@ export const xSeriesOpts = {
 const numAxisFmts = new Map();
 
 export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
-	let dec = fixedDec.get(foundIncr) ?? guessDec(foundIncr);
-	// Custom splits and endpoint-only ranges can have finer precision than their increment.
-	for (let v of splits) {
-		if (v != null)
-			dec = max(dec, guessDec(v));
-	}
+	let dec = numDec(splits, foundIncr);
 
 	let fmt = numAxisFmts.get(dec);
 	if (fmt == null) {

@@ -78,6 +78,37 @@ function render() {
   return u;
 }
 
+function durationLabels(u, splits, axisIdx, space, foundIncr) {
+  const dec = uPlot.numDec(splits, foundIncr);
+  return splits.map(v => v == null ? "" : `${v.toFixed(dec)} ms`);
+}
+
+function decimalLabels(max) {
+  const opts = {
+    title: `Custom labels: durations up to ${max} ms`,
+    width: 600,
+    height: 300,
+    cursor: {drag: {x: false, y: true}},
+    scales: {
+      x: {time: false},
+    },
+    series: [{}, {label: "Duration", stroke: "purple"}],
+    axes: [
+      {},
+      {
+        size: 100,
+        space: 50,
+        values: durationLabels,
+      },
+    ],
+  };
+
+  return new uPlot(opts, [
+    [0, 1, 2, 3, 4],
+    [0, max / 4, max * 3 / 4, max / 2, max],
+  ], document.body);
+}
+
 const groups = [
   {
     // name: solid areas
@@ -95,6 +126,13 @@ const groups = [
     ]
 
     // after
+  },
+  {
+    name: "Decimal-aware custom labels with uPlot.numDec(). Drag vertically to zoom. Double-click to reset.",
+    steps: [
+      plotStep(() => decimalLabels(1)),
+      plotStep(() => decimalLabels(0.001)),
+    ],
   },
 ];
 

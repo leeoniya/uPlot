@@ -1,5 +1,5 @@
 {
-  "html": "<div class=\"uplot u-hz\"><div class=\"u-title\">unstacked, green negY, green=null, red=null</div><div class=\"u-wrap\" style=\"width: 400px; height: 300px;\"><div class=\"u-under\" style=\"left: 50px; top: 17px; width: 325px; height: 233px;\"></div><canvas width=\"400\" height=\"300\"></canvas><div class=\"u-over\" style=\"left: 50px; top: 17px; width: 325px; height: 233px;\"><div class=\"u-cursor-x u-off\" style=\"transform: translate(-10px,0px);\"></div><div class=\"u-cursor-y u-off\" style=\"transform: translate(0px,-10px);\"></div><div class=\"u-select\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div></div><div class=\"u-axis\" style=\"top: 250px; height: 50px; left: 50px; width: 325px;\"></div><div class=\"u-axis\" style=\"left: 0px; width: 50px; top: 17px; height: 233px;\"></div></div><table class=\"u-legend u-inline u-live\"><tbody><tr class=\"u-series\"><th><div class=\"u-marker\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid green; background: rgba(0, 255, 0, 0.3);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid red; background: rgba(255, 0, 0, 0.3);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr></tbody></table></div>",
+  "html": "<div class=\"uplot u-hz\"><div class=\"u-title\">neg percent stacked</div><div class=\"u-wrap\" style=\"width: 400px; height: 300px;\"><div class=\"u-under\" style=\"left: 50px; top: 17px; width: 325px; height: 233px;\"></div><canvas width=\"400\" height=\"300\"></canvas><div class=\"u-over\" style=\"left: 50px; top: 17px; width: 325px; height: 233px;\"><div class=\"u-cursor-x u-off\" style=\"transform: translate(-10px,0px);\"></div><div class=\"u-cursor-y u-off\" style=\"transform: translate(0px,-10px);\"></div><div class=\"u-select\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div></div><div class=\"u-axis\" style=\"top: 250px; height: 50px; left: 50px; width: 325px;\"></div><div class=\"u-axis\" style=\"left: 0px; width: 50px; top: 17px; height: 233px;\"></div></div><table class=\"u-legend u-inline u-live\"><tbody><tr class=\"u-series\"><th><div class=\"u-marker\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid blue; background: rgba(0, 0, 255, 0.3);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid green; background: rgba(0, 255, 0, 0.3);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid orange; background: rgba(255, 165, 0, 0.4);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr><tr class=\"u-series\"><th><div class=\"u-marker\" style=\"border: 2px solid red; background: rgba(255, 0, 0, 0.3);\"></div><div class=\"u-label\">Value</div></th><td class=\"u-value\">--</td></tr></tbody></table></div>",
   "width": 400,
   "height": 300,
   "ctxlog": [
@@ -11,7 +11,7 @@
     ],
     ["textAlign", "center"],
     ["textBaseline", "top"],
-    ["fillText", ["0", 50, 265], ["1", 115, 265], ["2", 180, 265], ["3", 245, 265], ["4", 310, 265], ["5", 375, 265]],
+    ["fillText", ["0", 50, 265], ["1", 131, 265], ["2", 213, 265], ["3", 294, 265], ["4", 375, 265]],
     ["strokeStyle", "rgba(0,0,0,0.07)"],
     ["fillStyle", "rgba(0,0,0,0.07)"],
     ["lineWidth", 2],
@@ -21,76 +21,64 @@
     ["beginPath", []],
     ["moveTo", [50, 250]],
     ["lineTo", [50, 260]],
-    ["moveTo", [115, 250]],
-    ["lineTo", [115, 260]],
-    ["moveTo", [180, 250]],
-    ["lineTo", [180, 260]],
-    ["moveTo", [245, 250]],
-    ["lineTo", [245, 260]],
-    ["moveTo", [310, 250]],
-    ["lineTo", [310, 260]],
+    ["moveTo", [131, 250]],
+    ["lineTo", [131, 260]],
+    ["moveTo", [213, 250]],
+    ["lineTo", [213, 260]],
+    ["moveTo", [294, 250]],
+    ["lineTo", [294, 260]],
     ["moveTo", [375, 250]],
     ["lineTo", [375, 260]],
     ["stroke", []],
     ["beginPath", []],
     ["moveTo", [50, 17]],
     ["lineTo", [50, 250]],
-    ["moveTo", [115, 17]],
-    ["lineTo", [115, 250]],
-    ["moveTo", [180, 17]],
-    ["lineTo", [180, 250]],
-    ["moveTo", [245, 17]],
-    ["lineTo", [245, 250]],
-    ["moveTo", [310, 17]],
-    ["lineTo", [310, 250]],
+    ["moveTo", [131, 17]],
+    ["lineTo", [131, 250]],
+    ["moveTo", [213, 17]],
+    ["lineTo", [213, 250]],
+    ["moveTo", [294, 17]],
+    ["lineTo", [294, 250]],
     ["moveTo", [375, 17]],
     ["lineTo", [375, 250]],
     ["stroke", []],
     ["fillStyle", "#000"],
     ["textAlign", "right"],
     ["textBaseline", "middle"],
-    ["fillText", ["-5.0", 35, 225], ["-2.5", 35, 195], ["0.0", 35, 164], ["2.5", 35, 134], ["5.0", 35, 103], ["7.5", 35, 72], ["10.0", 35, 42]],
+    ["fillText", ["-1.0", 35, 250], ["-0.5", 35, 192], ["0.0", 35, 134], ["0.5", 35, 75], ["1.0", 35, 17]],
     ["fillStyle", "rgba(0,0,0,0.07)"],
     ["beginPath", []],
-    ["moveTo", [50, 225]],
-    ["lineTo", [40, 225]],
-    ["moveTo", [50, 195]],
-    ["lineTo", [40, 195]],
-    ["moveTo", [50, 164]],
-    ["lineTo", [40, 164]],
+    ["moveTo", [50, 250]],
+    ["lineTo", [40, 250]],
+    ["moveTo", [50, 192]],
+    ["lineTo", [40, 192]],
     ["moveTo", [50, 134]],
     ["lineTo", [40, 134]],
-    ["moveTo", [50, 103]],
-    ["lineTo", [40, 103]],
-    ["moveTo", [50, 72]],
-    ["lineTo", [40, 72]],
-    ["moveTo", [50, 42]],
-    ["lineTo", [40, 42]],
+    ["moveTo", [50, 75]],
+    ["lineTo", [40, 75]],
+    ["moveTo", [50, 17]],
+    ["lineTo", [40, 17]],
     ["stroke", []],
     ["beginPath", []],
-    ["moveTo", [50, 225]],
-    ["lineTo", [375, 225]],
-    ["moveTo", [50, 195]],
-    ["lineTo", [375, 195]],
-    ["moveTo", [50, 164]],
-    ["lineTo", [375, 164]],
+    ["moveTo", [50, 250]],
+    ["lineTo", [375, 250]],
+    ["moveTo", [50, 192]],
+    ["lineTo", [375, 192]],
     ["moveTo", [50, 134]],
     ["lineTo", [375, 134]],
-    ["moveTo", [50, 103]],
-    ["lineTo", [375, 103]],
-    ["moveTo", [50, 72]],
-    ["lineTo", [375, 72]],
-    ["moveTo", [50, 42]],
-    ["lineTo", [375, 42]],
+    ["moveTo", [50, 75]],
+    ["lineTo", [375, 75]],
+    ["moveTo", [50, 17]],
+    ["lineTo", [375, 17]],
     ["stroke", []],
     ["translate", [0.5, 0.5]],
-    ["strokeStyle", "green"],
-    ["fillStyle", "rgba(0, 255, 0, 0.3)"],
+    ["strokeStyle", "blue"],
+    ["fillStyle", "rgba(0, 0, 255, 0.3)"],
     ["lineWidth", 1],
     ["save", []],
-    ["clip", [{"log": [["rect", [49.5, 16.5, 326, 234]]]}], [{"log": [["rect", [50, 17, 130, 250], [310, 12, 65, 260]]]}]],
-    ["fill", [{"log": [["lineTo", [375, 164], [50, 164]]]}]],
-    ["stroke", [{"log": [["lineTo", [50, 225], [115, 225], [180, 225], [310, 225], [375, 225]]]}]],
+    ["clip", [{"log": [["rect", [49.5, 16.5, 326, 234]]]}]],
+    ["fill", [{"log": [["lineTo", [375, 134], [50, 134]]]}]],
+    ["stroke", [{"log": [["lineTo", [50, 95], [131, 119], [213, 128], [294, 95], [375, 95]]]}]],
     ["restore", []],
     ["translate", [-0.5, -0.5], [0.5, 0.5]],
     ["fillStyle", "#fff"],
@@ -101,16 +89,16 @@
       [
         {
           "log": [
-            ["moveTo", [52, 225]],
-            ["arc", [50, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [117, 225]],
-            ["arc", [115, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [182, 225]],
-            ["arc", [180, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [312, 225]],
-            ["arc", [310, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [377, 225]],
-            ["arc", [375, 225, 2, 0, 6.283185307179586]]
+            ["moveTo", [52, 95]],
+            ["arc", [50, 95, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 119]],
+            ["arc", [131, 119, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 128]],
+            ["arc", [213, 128, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 95]],
+            ["arc", [294, 95, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 95]],
+            ["arc", [375, 95, 2, 0, 6.283185307179586]]
           ]
         }
       ]
@@ -120,16 +108,121 @@
       [
         {
           "log": [
-            ["moveTo", [52, 225]],
-            ["arc", [50, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [117, 225]],
-            ["arc", [115, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [182, 225]],
-            ["arc", [180, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [312, 225]],
-            ["arc", [310, 225, 2, 0, 6.283185307179586]],
-            ["moveTo", [377, 225]],
-            ["arc", [375, 225, 2, 0, 6.283185307179586]]
+            ["moveTo", [52, 95]],
+            ["arc", [50, 95, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 119]],
+            ["arc", [131, 119, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 128]],
+            ["arc", [213, 128, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 95]],
+            ["arc", [294, 95, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 95]],
+            ["arc", [375, 95, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["strokeStyle", "green"],
+    ["fillStyle", "rgba(0, 255, 0, 0.3)"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [49.5, 16.5, 326, 234]]]}]],
+    ["fill", [{"log": [["lineTo", [375, 134], [50, 134]]]}]],
+    ["stroke", [{"log": [["lineTo", [50, 231], [131, 205], [213, 153], [294, 177], [375, 211]]]}]],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["fillStyle", "#fff"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [46, 13, 333, 241]]]}]],
+    [
+      "fill",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 231]],
+            ["arc", [50, 231, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 205]],
+            ["arc", [131, 205, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 153]],
+            ["arc", [213, 153, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 177]],
+            ["arc", [294, 177, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 211]],
+            ["arc", [375, 211, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    [
+      "stroke",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 231]],
+            ["arc", [50, 231, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 205]],
+            ["arc", [131, 205, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 153]],
+            ["arc", [213, 153, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 177]],
+            ["arc", [294, 177, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 211]],
+            ["arc", [375, 211, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["strokeStyle", "orange"],
+    ["fillStyle", "rgba(255, 165, 0, 0.4)"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [49.5, 16.5, 326, 234]]]}]],
+    ["save", []],
+    ["clip", [{"log": [["lineTo", [375, 17], [50, 17], [50, 95]]]}]],
+    ["fill", [{"log": [["lineTo", [375, 250], [50, 250]]]}]],
+    ["restore", []],
+    ["stroke", [{"log": [["lineTo", [50, 17], [131, 17], [213, 17], [294, 17], [375, 17]]]}]],
+    ["restore", []],
+    ["translate", [-0.5, -0.5], [0.5, 0.5]],
+    ["fillStyle", "#fff"],
+    ["save", []],
+    ["clip", [{"log": [["rect", [46, 13, 333, 241]]]}]],
+    [
+      "fill",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 17]],
+            ["arc", [50, 17, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 17]],
+            ["arc", [131, 17, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 17]],
+            ["arc", [213, 17, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 17]],
+            ["arc", [294, 17, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 17]],
+            ["arc", [375, 17, 2, 0, 6.283185307179586]]
+          ]
+        }
+      ]
+    ],
+    [
+      "stroke",
+      [
+        {
+          "log": [
+            ["moveTo", [52, 17]],
+            ["arc", [50, 17, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 17]],
+            ["arc", [131, 17, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 17]],
+            ["arc", [213, 17, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 17]],
+            ["arc", [294, 17, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 17]],
+            ["arc", [375, 17, 2, 0, 6.283185307179586]]
           ]
         }
       ]
@@ -139,9 +232,12 @@
     ["strokeStyle", "red"],
     ["fillStyle", "rgba(255, 0, 0, 0.3)"],
     ["save", []],
-    ["clip", [{"log": [["rect", [49.5, 16.5, 326, 234]]]}], [{"log": [["rect", [50, 17, 65, 250], [245, 12, 130, 260]]]}]],
-    ["fill", [{"log": [["lineTo", [375, 164], [50, 164]]]}]],
-    ["stroke", [{"log": [["lineTo", [50, 42], [115, 42], [245, 42], [310, 42], [375, 42]]]}]],
+    ["clip", [{"log": [["rect", [49.5, 16.5, 326, 234]]]}]],
+    ["save", []],
+    ["clip", [{"log": [["lineTo", [375, 250], [50, 250], [50, 231]]]}]],
+    ["fill", [{"log": [["lineTo", [375, 17], [50, 17]]]}]],
+    ["restore", []],
+    ["stroke", [{"log": [["lineTo", [50, 250], [131, 250], [213, 250], [294, 250], [375, 250]]]}]],
     ["restore", []],
     ["translate", [-0.5, -0.5], [0.5, 0.5]],
     ["fillStyle", "#fff"],
@@ -152,16 +248,16 @@
       [
         {
           "log": [
-            ["moveTo", [52, 42]],
-            ["arc", [50, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [117, 42]],
-            ["arc", [115, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [247, 42]],
-            ["arc", [245, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [312, 42]],
-            ["arc", [310, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [377, 42]],
-            ["arc", [375, 42, 2, 0, 6.283185307179586]]
+            ["moveTo", [52, 250]],
+            ["arc", [50, 250, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 250]],
+            ["arc", [131, 250, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 250]],
+            ["arc", [213, 250, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 250]],
+            ["arc", [294, 250, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 250]],
+            ["arc", [375, 250, 2, 0, 6.283185307179586]]
           ]
         }
       ]
@@ -171,16 +267,16 @@
       [
         {
           "log": [
-            ["moveTo", [52, 42]],
-            ["arc", [50, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [117, 42]],
-            ["arc", [115, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [247, 42]],
-            ["arc", [245, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [312, 42]],
-            ["arc", [310, 42, 2, 0, 6.283185307179586]],
-            ["moveTo", [377, 42]],
-            ["arc", [375, 42, 2, 0, 6.283185307179586]]
+            ["moveTo", [52, 250]],
+            ["arc", [50, 250, 2, 0, 6.283185307179586]],
+            ["moveTo", [133, 250]],
+            ["arc", [131, 250, 2, 0, 6.283185307179586]],
+            ["moveTo", [215, 250]],
+            ["arc", [213, 250, 2, 0, 6.283185307179586]],
+            ["moveTo", [296, 250]],
+            ["arc", [294, 250, 2, 0, 6.283185307179586]],
+            ["moveTo", [377, 250]],
+            ["arc", [375, 250, 2, 0, 6.283185307179586]]
           ]
         }
       ]
