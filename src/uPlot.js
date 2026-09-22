@@ -794,6 +794,14 @@ export default function uPlot(opts, data, then) {
 	}
 
 	const mouseListeners = new Map();
+	let globalMouseMove = false;
+
+	function stopGlobalMouseMove() {
+		if (globalMouseMove) {
+			offMouse(mousemove, doc);
+			globalMouseMove = false;
+		}
+	}
 
 	function onMouse(ev, targ, fn, onlyTarg = true) {
 		const targListeners = mouseListeners.get(targ) || {};
@@ -3463,10 +3471,10 @@ export default function uPlot(opts, data, then) {
 
 		if (snap && (src == null || src.cursor.event.type == mousemove)) {
 			if (_l <= 1 || _l >= plotWidCss - 1)
-				_l = incrRound(_l, plotWidCss);
+				_l = _l <= 1 ? 0 : plotWidCss;
 
 			if (_t <= 1 || _t >= plotHgtCss - 1)
-				_t = incrRound(_t, plotHgtCss);
+				_t = _t <= 1 ? 0 : plotHgtCss;
 		}
 
 		if (initial) {
@@ -3533,6 +3541,9 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function mouseUp(e, src, _l, _t, _w, _h, _i) {
+		let hideCursor = globalMouseMove;
+		stopGlobalMouseMove();
+
 		dragging = drag._x = drag._y = false;
 
 		cacheMouse(e, src, _l, _t, _w, _h, _i, false, true);
@@ -3598,6 +3609,12 @@ export default function uPlot(opts, data, then) {
 			offMouse(mouseup, doc, mouseUp);
 			pubSync(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 		}
+
+		if (hideCursor) {
+			mouseLeft1 = mouseTop1 = -10;
+			activeIdxs.fill(null);
+			updateCursor(null, true, true);
+		}
 	}
 
 	function mouseLeave(e, src, _l, _t, _w, _h, _i) {
@@ -3609,6 +3626,11 @@ export default function uPlot(opts, data, then) {
 		let _dragging = dragging;
 
 		if (dragging) {
+			if (e != null && dragX && dragY && !globalMouseMove) {
+				onMouse(mousemove, doc, mouseMove, false);
+				globalMouseMove = true;
+			}
+
 			// handle case when mousemove aren't fired all the way to edges by browser
 			let snapH = true;
 			let snapV = true;
@@ -3691,6 +3713,7 @@ export default function uPlot(opts, data, then) {
 		onMouse(mousedown,  over, mouseDown);
 		onMouse(mousemove,  over, mouseMove);
 		onMouse(mouseenter, over, e => {
+			stopGlobalMouseMove();
 			setCursorEvent(e);
 			syncRect(false);
 		});
@@ -3768,6 +3791,8 @@ export default function uPlot(opts, data, then) {
 		queuedFrame = null;
 		sync.unsub(self);
 		cursorPlots.delete(self);
+		stopGlobalMouseMove();
+		offMouse(null, doc);
 		mouseListeners.clear();
 		off(dppxchange, win, onDppxChange);
 		root.remove();

@@ -22,7 +22,7 @@ function ranges(u) {
 	return { x: [u.scales.x.min, u.scales.x.max], y: [u.scales.y.min, u.scales.y.max] };
 }
 
-async function plot(drag = {}, pxRatio = 1, autoY = false, axes, syncKey, scaleOpts = {}) {
+async function plot(drag = {}, pxRatio = 1, autoY = false, axes, syncKey, scaleOpts = {}, cursorOpts = {}) {
 	const selections = [];
 	const scales = [];
 	const draws = [];
@@ -33,7 +33,7 @@ async function plot(drag = {}, pxRatio = 1, autoY = false, axes, syncKey, scaleO
 		pxRatio,
 		padding: [10, 20, 10, 20],
 		legend: { show: false },
-		cursor: { drag, sync: { key: syncKey } },
+		cursor: { drag, sync: { key: syncKey }, ...cursorOpts },
 		series: [{}, { stroke: 'blue', points: { show: false } }],
 		scales: {
 			x: { time: false, range, ...scaleOpts.x },
@@ -454,6 +454,170 @@ describe('mouse-driven drag selection', () => {
 		}
 		finally { f.destroy(); }
 	});
+});
+
+describe('two-axis dragging outside the overlay', () => {
+	for (const pxRatio of [1, 2]) {
+		for (const reverse of [false, true]) {
+			it(`clamps distant outside moves and hides on release (DPR ${pxRatio}, reverse ${reverse})`, async () => {
+				const f = await plot({ x: true, y: true }, pxRatio);
+				const { u, mouse } = f;
+				try {
+					const { width: w, height: h } = f.box();
+					mouse('mousedown', w / 2, h / 2);
+					mouse('mousemove', reverse ? 5 : w - 5, h / 4);
+					mouse('mouseleave', reverse ? -5 : w + 5, h / 4);
+					const outsideX = reverse ? -3 * w : 4 * w;
+					mouse('mousemove', outsideX, 3 * h / 4, document.body);
+					assertSelection(u, { left: reverse ? 0 : w / 2, top: h / 2, width: w / 2, height: h / 4 });
+					assert.equal(u.cursor.left, reverse ? 0 : w);
+					mouse('mousemove', outsideX, reverse ? -3 * h : 4 * h, document.body);
+					const expected = { left: reverse ? 0 : w / 2, top: reverse ? 0 : h / 2, width: w / 2, height: h / 2 };
+					assertSelection(u, expected);
+					mouse('mouseup', outsideX, reverse ? -3 * h : 4 * h, document.body);
+					await Promise.resolve();
+					assert.deepEqual(f.selections, [expected]);
+					assert.deepEqual(ranges(u), { x: reverse ? [0, 50] : [50, 100], y: reverse ? [50, 100] : [0, 50] });
+					assert.equal(u.cursor.left, -10);
+					assert.equal(u.cursor.top, -10);
+					assert.equal(u.cursor.idx, null);
+					mouse('mousemove', w / 4, h / 4, document.body);
+					assert.equal(u.cursor.left, -10, 'document movement stops after release');
+				}
+				finally { f.destroy(); }
+			});
+		}
+	}
+
+	it('removes custom-bound document listeners on re-entry, release, and destroy', async () => {
+		const bound = [];
+		const removed = [];
+		let calls = 0;
+		const originalRemove = document.removeEventListener;
+		document.removeEventListener = function(type, listener, options) {
+			removed.push(listener);
+			return originalRemove.call(this, type, listener, options);
+		};
+		const bind = (self, target, handle, onlyTarget) => {
+			const listener = e => {
+				if (!onlyTarget || e.target == target) {
+					calls++;
+					handle(e);
+				}
+			};
+			if (target == document) {
+				assert.equal(onlyTarget, false);
+				bound.push(listener);
+			}
+			return listener;
+		};
+		const f = await plot({ x: true, y: true, setRange: false }, 1, false, undefined, undefined, {}, {
+			bind: { mousemove: bind, mouseup: bind },
+		});
+		try {
+			const { width: w, height: h } = f.box();
+			const leave = () => {
+				f.mouse('mousemove', w - 5, h / 4);
+				f.mouse('mouseleave', w + 5, h / 4);
+			};
+			f.mouse('mousedown', w / 2, h / 2);
+			leave();
+			assert.equal(bound.length, 2);
+			f.mouse('mouseleave', w + 6, h / 4);
+			assert.equal(bound.length, 2, 'repeated leave does not replace a live wrapper');
+			f.mouse('mouseenter', w - 5, h / 4);
+			assert.ok(removed.includes(bound[1]));
+			let before = calls;
+			f.mouse('mousemove', w + 20, h / 3, document.body);
+			assert.equal(calls, before);
+			f.mouse('mousemove', 3 * w / 4, 3 * h / 4);
+			assert.equal(calls, before + 1, 'overlay movement is handled once after re-entry');
+			leave();
+			f.mouse('mousemove', 2 * w, 3 * h / 4, document.body);
+			const retained = selection(f.u);
+			f.mouse('mouseup', 2 * w, 3 * h / 4, document.body);
+			assertSelection(f.u, retained);
+			assert.equal(f.u.cursor.left, -10);
+			assert.ok(bound.every(listener => removed.includes(listener)));
+			f.mouse('mouseenter', w / 2, h / 2);
+			f.mouse('mousedown', w / 2, h / 2);
+			leave();
+			f.destroy();
+			assert.ok(bound.every(listener => removed.includes(listener)));
+			before = calls;
+			f.mouse('mousemove', 3 * w, h, document.body);
+			f.mouse('mouseup', 3 * w, h, document.body);
+			assert.equal(calls, before, 'destroy removes both document drag wrappers');
+		}
+		finally {
+			f.destroy();
+			document.removeEventListener = originalRemove;
+		}
+	});
+
+	it('synchronizes outside selection, zoom, and cursor hiding', async () => {
+		const source = await plot({ x: true, y: true }, 1, false, undefined, 'outside-xy');
+		const target = await plot({ x: true, y: true }, 1, false, undefined, 'outside-xy');
+		try {
+			const { width: w, height: h } = source.box();
+			source.mouse('mousedown', w / 2, h / 2);
+			source.mouse('mousemove', w - 5, h / 4);
+			source.mouse('mouseleave', w + 5, h / 4);
+			source.mouse('mousemove', 3 * w, 3 * h / 4, document.body);
+			assert.deepEqual(selection(target.u), selection(source.u));
+			source.mouse('mouseup', 3 * w, 3 * h / 4, document.body);
+			await Promise.resolve();
+			assert.deepEqual(ranges(source.u), { x: [50, 100], y: [25, 50] });
+			assert.deepEqual(ranges(target.u), ranges(source.u));
+			assert.equal(target.u.cursor.left, -10);
+			assert.equal(target.u.cursor.idx, null);
+		}
+		finally { source.destroy(); target.destroy(); }
+	});
+
+	it('respects a bind callback that disables document mousemove', async () => {
+		let attempts = 0;
+		const f = await plot({ x: true, y: true, setRange: false }, 1, false, undefined, undefined, {}, {
+			bind: { mousemove: (self, target, handle) => {
+				if (target == document) {
+					attempts++;
+					return null;
+				}
+				return handle;
+			} },
+		});
+		try {
+			const { width: w, height: h } = f.box();
+			f.mouse('mousedown', w / 2, h / 2);
+			f.mouse('mousemove', w - 5, h / 4);
+			f.mouse('mouseleave', w + 5, h / 4);
+			assert.equal(attempts, 1);
+			const selected = selection(f.u);
+			f.mouse('mousemove', 3 * w, 3 * h, document.body);
+			assert.deepEqual(selection(f.u), selected);
+			f.mouse('mouseup', 3 * w, 3 * h, document.body);
+			assert.equal(f.u.cursor.left, -10);
+		}
+		finally { f.destroy(); }
+	});
+
+	for (const drag of [{ x: true, y: false }, { x: false, y: true }, { x: true, y: true, dist: 1000 }]) {
+		it(`does not track document movement without an active XY drag ${JSON.stringify(drag)}`, async () => {
+			const f = await plot({ ...drag, setRange: false });
+			try {
+				const { width: w, height: h } = f.box();
+				f.mouse('mousedown', w / 2, h / 2);
+				f.mouse('mousemove', w - 5, h / 4);
+				f.mouse('mouseleave', w + 5, h / 4);
+				const selected = selection(f.u);
+				f.mouse('mousemove', 2 * w, 3 * h / 4, document.body);
+				assert.deepEqual(selection(f.u), selected);
+				assert.equal(f.u.cursor.left, -10);
+				f.mouse('mouseup', 2 * w, 3 * h / 4, document.body);
+			}
+			finally { f.destroy(); }
+		});
+	}
 });
 
 describe('double-click scale reset', () => {
