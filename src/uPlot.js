@@ -1224,6 +1224,7 @@ export default function uPlot(opts, data, then) {
 		opts = mode == 1 ? setDefault(opts, si, xSeriesOpts, ySeriesOpts) : setDefault(opts, si, {}, xySeriesOpts);
 
 		series.splice(si, 0, opts);
+		invalidateBandGroups();
 		FEAT_LEGEND && legend.values.splice(si, 0, null);
 		initSeries(series[si], si);
 		showLegend && invalidateLegend();
@@ -1237,6 +1238,7 @@ export default function uPlot(opts, data, then) {
 			return;
 
 		series.splice(i, 1);
+		invalidateBandGroups();
 
 		FEAT_LEGEND && legend.values.splice(i, 1);
 		showLegend && invalidateLegend();
@@ -1369,7 +1371,8 @@ export default function uPlot(opts, data, then) {
 	let viaAutoScaleX = false;
 
 	function stackData(rawData) {
-		bands.length = 0;
+		let bandIdx = 0;
+		let bandsChanged = false;
 
 		let stackedData = rawData.slice();
 		let baseData = self._base = Array(rawData.length).fill(null);
@@ -1403,8 +1406,12 @@ export default function uPlot(opts, data, then) {
 					}
 				}
 
-				if (!mixed && prevSeriesIdx != null)
-					bands.push({series: [si, prevSeriesIdx], dir: -group.dir, fill: retNull});
+				if (!mixed && prevSeriesIdx != null) {
+					// Data values do not affect membership; compare edges before replacing the band.
+					let prevBand = bands[bandIdx];
+					bandsChanged = bandsChanged || prevBand == null || prevBand.series[0] != si || prevBand.series[1] != prevSeriesIdx;
+					bands[bandIdx++] = {series: [si, prevSeriesIdx], dir: -group.dir, fill: retNull};
+				}
 
 				prevSeriesIdx = si;
 			});
@@ -1432,6 +1439,11 @@ export default function uPlot(opts, data, then) {
 				});
 			}
 		});
+
+		bandsChanged = bandsChanged || bands.length != bandIdx;
+		bands.length = bandIdx;
+		if (bandsChanged)
+			invalidateBandGroups();
 
 		return stackedData;
 	}
@@ -1527,17 +1539,14 @@ export default function uPlot(opts, data, then) {
 	let ctxStroke, ctxFill, ctxWidth, ctxDash, ctxJoin, ctxCap, ctxFont, ctxAlign, ctxBaseline;
 	let ctxAlpha;
 
-	function setCtxStyle(stroke, width, dash, cap, fill, join) {
+	function setCtxStroke(stroke, width, dash, cap, join) {
 		stroke ??= transparent;
 		dash   ??= EMPTY_ARR;
 		cap    ??= "butt"; // (‿|‿)
-		fill   ??= transparent;
 		join   ??= "round";
 
 		if (stroke != ctxStroke)
 			ctx.strokeStyle = ctxStroke = stroke;
-		if (fill != ctxFill)
-			ctx.fillStyle = ctxFill = fill;
 		if (width != ctxWidth)
 			ctx.lineWidth = ctxWidth = width;
 		if (join != ctxJoin)
@@ -1788,6 +1797,17 @@ export default function uPlot(opts, data, then) {
 		return [_i0, _i1];
 	}
 
+	const bandEnds = [];
+	const firstBand = [];
+	const nextBand = [];
+	const bandHasData = [];
+	let bandGroupsDirty = true;
+
+	function invalidateBandGroups() {
+		bandGroupsDirty = true;
+		bandEnds.length = firstBand.length = nextBand.length = bandHasData.length = 0;
+	}
+
 	function drawSeries() {
 		if (dataLen > 0) {
 			let shouldAlpha = series.some(s => s._focus) && ctxAlpha != focus.alpha;
@@ -1815,36 +1835,91 @@ export default function uPlot(opts, data, then) {
 				}
 			});
 
-			series.forEach((s, i) => {
-				if (i > 0 && s.show) {
-					let _ctxAlpha = ctxAlpha;
+			if (bandGroupsDirty) {
+				bandEnds.length = firstBand.length = bands.length > 0 ? series.length : 0;
+				bandEnds.fill(0);
+				firstBand.fill(-1);
+				nextBand.length = bandHasData.length = bands.length;
+				bandHasData.fill(false);
 
-					if (ctxAlpha != s.alpha)
-						ctx.globalAlpha = ctxAlpha = s.alpha;
+				// Prepend in reverse to visit each owner's bands in their original order.
+				for (let bi = bands.length - 1; bi >= 0; bi--) {
+					let b = bands[bi];
+					let si = b.series[0];
+					nextBand[bi] = firstBand[si];
+					firstBand[si] = bi;
 
-					FEAT_PATHS && s._paths != null && drawPath(i, false);
-
-					if (FEAT_POINTS) {
-						let _gaps = s._paths != null ? s._paths.gaps : null;
-
-						let show = s.points.show(self, i, i0, i1, _gaps);
-						let idxs = s.points.filter(self, i, show, _gaps);
-
-						if (show || idxs) {
-							s.points._paths = s.points.paths(self, i, i0, i1, idxs);
-							drawPath(i, true);
-						}
-					}
-
-					if (ctxAlpha != _ctxAlpha)
-						ctx.globalAlpha = ctxAlpha = _ctxAlpha;
-
-					fire("drawSeries", i);
+					let lo = min(si, b.series[1]);
+					let hi = max(si, b.series[1]);
+					bandEnds[lo] = max(bandEnds[lo], hi);
 				}
-			});
+
+				for (let i = 1; i < bandEnds.length; i++) {
+					let end = bandEnds[i];
+
+					if (end > 0) {
+						// Overlapping edge intervals include each chain's intervening series, even hidden ones.
+						for (let j = i + 1; j <= end; j++)
+							end = max(end, bandEnds[j]);
+
+						bandEnds[i] = end;
+						i = end;
+					}
+				}
+
+				bandGroupsDirty = false;
+			}
+
+			for (let i = 1; i < series.length; i++) {
+				let end = bandEnds[i] || 0;
+
+				if (end > 0) {
+					for (let j = i; j <= end; j++)
+						drawSeriesPart(j, BAND_CLIP_FILL, false);
+					for (let j = i; j <= end; j++)
+						drawSeriesPart(j, BAND_CLIP_STROKE, false);
+					for (let j = i; j <= end; j++)
+						drawSeriesPart(j, 0, true);
+
+					i = end;
+				}
+				else
+					drawSeriesPart(i, CLIP_FILL_STROKE, true);
+			}
 
 			if (shouldAlpha)
 				ctx.globalAlpha = ctxAlpha = 1;
+		}
+	}
+
+	function drawSeriesPart(i, draw, _points) {
+		let s = series[i];
+
+		if (s.show) {
+			let _ctxAlpha = ctxAlpha;
+
+			if (ctxAlpha != s.alpha)
+				ctx.globalAlpha = ctxAlpha = s.alpha;
+
+			FEAT_PATHS && draw != 0 && s._paths != null && drawPath(i, false, draw);
+
+			if (_points && FEAT_POINTS) {
+				let _gaps = s._paths != null ? s._paths.gaps : null;
+
+				let show = s.points.show(self, i, i0, i1, _gaps);
+				let idxs = s.points.filter(self, i, show, _gaps);
+
+				if (show || idxs) {
+					s.points._paths = s.points.paths(self, i, i0, i1, idxs);
+					drawPath(i, true);
+				}
+			}
+
+			if (ctxAlpha != _ctxAlpha)
+				ctx.globalAlpha = ctxAlpha = _ctxAlpha;
+
+			// Group hooks run once per series, after its points and all group fills/strokes.
+			_points && fire("drawSeries", i);
 		}
 	}
 
@@ -1855,7 +1930,7 @@ export default function uPlot(opts, data, then) {
 		s._fill   = s.fill(self, si);
 	}
 
-	function drawPath(si, _points) {
+	function drawPath(si, _points, draw = CLIP_FILL_STROKE) {
 		let s = _points ? series[si].points : series[si];
 
 		let {
@@ -1869,77 +1944,119 @@ export default function uPlot(opts, data, then) {
 			_width:  width       = s.width,
 		} = s._paths;
 
+		// Mask paths, not styles: Map paths carry their own styles.
+		if (!(draw & BAND_CLIP_STROKE))
+			stroke = null;
+		if (!(draw & BAND_CLIP_FILL))
+			fill = null;
+
 		width = roundDec(width * pxRatio, 3);
 
-		let boundsClip = null;
 		let offset = pxOffset(width, s.pxAlign);
 
-		if (_points && fillStyle == null)
+		if (!(width > 0) || !hasPaint(stroke, strokeStyle))
+			stroke = null;
+
+		if (!_points) {
+			fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, gapsClip, draw, offset);
+			return;
+		}
+
+		if (fillStyle == null)
 			fillStyle = width > 0 ? "#fff" : strokeStyle;
+
+		if (stroke == null && !hasPaint(fill, fillStyle))
+			return;
 
 		offset != 0 && ctx.translate(offset, offset);
 
-		if (!_points) {
-			let lft = plotLft - width / 2,
-				top = plotTop - width / 2,
-				wid = plotWid + width,
-				hgt = plotHgt + width;
-
-			boundsClip = new Path2D();
-			boundsClip.rect(lft, top, wid, hgt);
-		}
-
 		// the points pathbuilder's gapsClip is its boundsClip, since points dont need gaps clipping, and bounds depend on point size
-		if (_points)
-			strokeFill(strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, gapsClip);
-		else
-			fillStroke(si, strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, boundsClip, gapsClip);
+		strokeFill(strokeStyle, width, s.dash, s.cap, fillStyle, stroke, fill, flags, gapsClip);
 
 		offset != 0 && ctx.translate(-offset, -offset);
 	}
 
-	function fillStroke(si, strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip) {
-		let didStrokeFill = false;
+	function hasPaint(path, style) {
+		return path instanceof Map ? path.size > 0 : path != null && style != null;
+	}
 
-		// for all bands where this series is the top edge, create upwards clips using the bottom edges
-		// and apply clips + fill with band fill or dfltFill
-		flags != 0 && bands.forEach((b, bi) => {
-			// isUpperEdge?
-			if (b.series[0] == si) {
+	function fillStroke(si, strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, gapsClip, draw, offset) {
+		if (!(draw & BAND_CLIP_FILL) && strokePath == null)
+			return;
+
+		let boundsClip = null;
+		let bi = flags != 0 ? firstBand[si] ?? -1 : -1;
+
+		// With no owner or zero flags, paint once without band clipping.
+		do {
+			let b = bi == -1 ? null : bands[bi];
+			let bandClip = null;
+			let gapsClip2;
+			let _fillStyle = fillStyle;
+
+			if (b != null) {
 				let lowerEdge = series[b.series[1]];
 				let lowerData = data[b.series[1]];
 
-				let bandClip = (lowerEdge._paths || EMPTY_OBJ).band;
+				bandClip = (lowerEdge._paths || EMPTY_OBJ).band;
 
 				if (isArr(bandClip))
 					bandClip = b.dir == 1 ? bandClip[0] : bandClip[1];
 
-				let gapsClip2;
+				_fillStyle = null;
 
-				let _fillStyle = null;
+				// Reuse the lower-data check in the stroke pass.
+				if (draw & BAND_CLIP_FILL)
+					bandHasData[bi] = lowerEdge.show && bandClip != null && hasData(lowerData, i0, i1);
 
-				// hasLowerEdge?
-				if (lowerEdge.show && bandClip && hasData(lowerData, i0, i1)) {
-					_fillStyle = b.fill(self, bi) || fillStyle;
+				if (bandHasData[bi]) {
+					if (draw & BAND_CLIP_FILL)
+						_fillStyle = b.fill(self, bi) || fillStyle;
 					gapsClip2 = lowerEdge._paths.clip;
 				}
 				else
 					bandClip = null;
-
-				strokeFill(strokeStyle, lineWidth, lineDash, lineCap, _fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, gapsClip2, bandClip);
-
-				didStrokeFill = true;
 			}
-		});
 
-		if (!didStrokeFill)
-			strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip);
+			if (strokePath == null && !hasPaint(fillPath, _fillStyle))
+				continue;
+
+			if (boundsClip == null) {
+				boundsClip = new Path2D();
+				boundsClip.rect(plotLft - lineWidth / 2, plotTop - lineWidth / 2, plotWid + lineWidth, plotHgt + lineWidth);
+				offset != 0 && ctx.translate(offset, offset);
+			}
+
+			strokeFill(strokeStyle, lineWidth, lineDash, lineCap, _fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, gapsClip2, bandClip);
+		} while (bi != -1 && (bi = nextBand[bi]) != -1);
+
+		boundsClip != null && offset != 0 && ctx.translate(-offset, -offset);
 	}
 
 	const CLIP_FILL_STROKE = BAND_CLIP_FILL | BAND_CLIP_STROKE;
 
 	function strokeFill(strokeStyle, lineWidth, lineDash, lineCap, fillStyle, strokePath, fillPath, flags, boundsClip, gapsClip, gapsClip2, bandClip) {
-		setCtxStyle(strokeStyle, lineWidth, lineDash, lineCap, fillStyle);
+		let canFill = hasPaint(fillPath, fillStyle);
+		let canStroke = lineWidth > 0 && hasPaint(strokePath, strokeStyle);
+
+		if (!canFill && !canStroke)
+			return;
+
+		// Keep the original flags: BOTH also clips strokes to the lower edge's gaps.
+		if (!(canFill && (flags & BAND_CLIP_FILL) || canStroke && (flags & BAND_CLIP_STROKE)))
+			bandClip = null;
+
+		if (canStroke)
+			setCtxStroke(strokeStyle, lineWidth, lineDash, lineCap);
+		if (canFill) {
+			let fill = fillStyle ?? transparent;
+			if (fill != ctxFill)
+				ctx.fillStyle = ctxFill = fill;
+		}
+
+		// Map paints change these shadows inside the saved canvas state.
+		let _ctxFill = ctxFill;
+		let _ctxStroke = ctxStroke;
 
 		if (boundsClip || gapsClip || bandClip) {
 			ctx.save();
@@ -1960,12 +2077,16 @@ export default function uPlot(opts, data, then) {
 				doStroke(strokeStyle, strokePath, lineWidth);
 			}
 			else if (flags & BAND_CLIP_FILL) {
-				ctx.save();
+				canStroke && ctx.save();
 				ctx.clip(bandClip);
 				gapsClip2 && ctx.clip(gapsClip2);
 				doFill(fillStyle, fillPath);
-				ctx.restore();
-				doStroke(strokeStyle, strokePath, lineWidth);
+				if (canStroke) {
+					ctx.restore();
+					ctxFill = _ctxFill;
+					ctxStroke = _ctxStroke;
+					doStroke(strokeStyle, strokePath, lineWidth);
+				}
 			}
 		}
 		else {
@@ -1973,8 +2094,11 @@ export default function uPlot(opts, data, then) {
 			doStroke(strokeStyle, strokePath, lineWidth);
 		}
 
-		if (boundsClip || gapsClip || bandClip)
+		if (boundsClip || gapsClip || bandClip) {
 			ctx.restore();
+			ctxFill = _ctxFill;
+			ctxStroke = _ctxStroke;
+		}
 	}
 
 	function doStroke(strokeStyle, strokePath, lineWidth) {
@@ -1986,7 +2110,7 @@ export default function uPlot(opts, data, then) {
 				});
 			}
 			else
-				strokePath != null && strokeStyle && ctx.stroke(strokePath);
+				strokePath != null && strokeStyle != null && ctx.stroke(strokePath);
 		}
 	}
 
@@ -1998,7 +2122,7 @@ export default function uPlot(opts, data, then) {
 			});
 		}
 		else
-			fillPath != null && fillStyle && ctx.fill(fillPath);
+			fillPath != null && fillStyle != null && ctx.fill(fillPath);
 	}
 
 	function getIncrSpace(axisIdx, min, max, fullDim) {
@@ -2029,7 +2153,7 @@ export default function uPlot(opts, data, then) {
 
 		pxAlign == 1 && offset != 0 && ctx.translate(offset, offset);
 
-		setCtxStyle(stroke, width, dash, cap, stroke);
+		setCtxStroke(stroke, width, dash, cap);
 
 		ctx.beginPath();
 
@@ -2566,6 +2690,8 @@ export default function uPlot(opts, data, then) {
 	}
 
 	self.clearCache = targets => {
+		if (targets == null || targets.paths === true || targets.data === true)
+			invalidateBandGroups();
 		if (targets == null || targets.paths === true)
 			clearPathCache();
 		if (targets == null || targets.data === true)
@@ -2760,12 +2886,14 @@ export default function uPlot(opts, data, then) {
 
 	function setBand(bi, opts) {
 		assign(bands[bi], opts);
+		invalidateBandGroups();
 	}
 
 	function addBand(opts, bi) {
 		initBand(opts);
 		bi = bi == null ? bands.length : bi;
 		bands.splice(bi, 0, opts);
+		invalidateBandGroups();
 	}
 
 	function delBand(bi) {
@@ -2773,6 +2901,7 @@ export default function uPlot(opts, data, then) {
 			bands.length = 0;
 		else
 			bands.splice(bi, 1);
+		invalidateBandGroups();
 	}
 
 	self.addBand = addBand;
@@ -3807,6 +3936,7 @@ export default function uPlot(opts, data, then) {
 
 	function destroy() {
 		destroyed = true;
+		invalidateBandGroups();
 		queuedCommit = false;
 		if (queuedFrame != null)
 			cancelAnimationFrame(queuedFrame);

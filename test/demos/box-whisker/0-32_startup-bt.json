@@ -3,6 +3,8 @@
   "width": 800,
   "height": 400,
   "ctxlog": [
+    ["canvas.width", 800],
+    ["canvas.height", 400],
     ["clearRect", [0, 0, 800, 400]],
     ["fillStyle", "#000"],
     [
@@ -162,7 +164,6 @@
     ["fillText", ["attodom-v0.12.0-keyed", 0, 0]],
     ["restore", []],
     ["strokeStyle", "rgba(0,0,0,0.07)"],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["lineWidth", 2],
     ["lineJoin", "round"],
     ["lineCap", "butt"],
@@ -229,10 +230,8 @@
     ["moveTo", [775, 300]],
     ["lineTo", [775, 310]],
     ["stroke", []],
-    ["fillStyle", "#000"],
     ["textAlign", "right"],
     ["fillText", ["20", 35, 264], ["40", 35, 208], ["60", 35, 151], ["80", 35, 95], ["100", 35, 39]],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["beginPath", []],
     ["moveTo", [50, 264]],
     ["lineTo", [40, 264]],

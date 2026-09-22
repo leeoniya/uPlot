@@ -3,6 +3,8 @@
   "width": 800,
   "height": 600,
   "ctxlog": [
+    ["canvas.width", 800],
+    ["canvas.height", 600],
     ["clearRect", [0, 0, 800, 600]],
     ["fillStyle", "#000"],
     [
@@ -24,7 +26,6 @@
       ["60", 775, 565]
     ],
     ["strokeStyle", "rgba(0,0,0,0.07)"],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["lineWidth", 2],
     ["lineJoin", "round"],
     ["lineCap", "butt"],
@@ -69,7 +70,6 @@
     ["moveTo", [775, 17]],
     ["lineTo", [775, 550]],
     ["stroke", []],
-    ["fillStyle", "#000"],
     ["textAlign", "right"],
     ["textBaseline", "middle"],
     [
@@ -90,7 +90,6 @@
       ["30", 35, 61],
       ["35", 35, 24]
     ],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["beginPath", []],
     ["moveTo", [50, 543]],
     ["lineTo", [40, 543]],
@@ -156,7 +155,6 @@
     ["lineTo", [775, 24]],
     ["stroke", []],
     ["strokeStyle", {"log": [["addColorStop", [0, "blue"], [1, "blue"], [1, "red"]]], "type": "linearGradient", "args": [0, 1023.7777777777777, 0, 283.5]}],
-    ["fillStyle", "#0000"],
     ["lineWidth", 4],
     ["save", []],
     ["clip", [{"log": [["rect", [48, 15, 729, 537]]]}]],
@@ -164,8 +162,8 @@
     ["restore", []],
     ["translate", [0.10000000000000009, 0.10000000000000009]],
     ["strokeStyle", {"log": [["addColorStop", [0, "blue"], [1, "blue"], [1, "red"]]], "type": "linearGradient", "args": [0, 1023.7777777777777, 0, 283.5]}],
-    ["fillStyle", "#fff"],
     ["lineWidth", 2.2],
+    ["fillStyle", "#fff"],
     ["save", []],
     ["clip", [{"log": [["rect", [41.2, 8.2, 742.6, 550.6]]]}]],
     [

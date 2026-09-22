@@ -27,11 +27,17 @@ function defProp(obj, name, rest) {
 	return obj;
 }
 
-function getMock(meths = [], props = []) {
-	const log = [];
+function getMock(meths = [], props = [], log = []) {
 	const out = { log };
 
-	let last = [null];
+	let last = log.at(-1) ?? [null];
+	const record = (name, value) => {
+		if (name !== last[0])
+			log.push(last = [name, value]);
+		else
+			last.push(value);
+	};
+	defProp(out, 'record', { value: record });
 
 	meths.forEach(name => {
 		defProp(out, name, {
@@ -42,25 +48,20 @@ function getMock(meths = [], props = []) {
 						args[i] = 0;
 				}
 
-				// console.log(name, args);
-
-				if (name !== last[0])
-					log.push(last = [name, args]);
-				else
-					last.push(args);
+				record(name, args);
 			}
 		});
 	});
 
 	props.forEach(name => {
+		let value = name === 'globalAlpha' ? 1 : undefined;
 		defProp(out, name, {
+			// Alpha was a plain property; allow per-instance state observers to override it.
+			configurable: name === 'globalAlpha',
+			get: name === 'globalAlpha' ? () => value : undefined,
 			set: val => {
-				// console.log(name, val);
-
-				if (name !== last[0])
-					log.push(last = [name, val]);
-				else
-					last.push(val);
+				value = val;
+				record(name, val);
 			},
 		});
 	});
@@ -78,7 +79,7 @@ CanProto.getContext = function() {
 
 	const mock = getMock(
 		['clearRect', 'fillText', 'translate', 'rotate', 'setLineDash', 'beginPath', 'moveTo', 'lineTo', 'bezierCurveTo', 'quadraticCurveTo', 'stroke', 'fill', 'save', 'restore', 'clip', 'fillRect', 'arc', 'arcTo'],
-		['strokeStyle', 'fillStyle', 'lineWidth', 'font', 'textAlign', 'textBaseline', 'lineJoin', 'lineCap'],
+		['strokeStyle', 'fillStyle', 'lineWidth', 'font', 'textAlign', 'textBaseline', 'lineJoin', 'lineCap', 'globalAlpha'],
 	);
 
 	defProp(mock, 'createLinearGradient', {
@@ -104,12 +105,14 @@ CanProto.getContext = function() {
 			...widthProp,
 			set(val) {
 				widthProp.set.call(this, mock.width = val);
+				mock.record('canvas.width', val);
 			}
 		},
 		height: {
 			...heightProp,
 			set(val) {
 				heightProp.set.call(this, mock.height = val);
+				mock.record('canvas.height', val);
 			}
 		},
 	});
@@ -117,8 +120,10 @@ CanProto.getContext = function() {
 	return mock;
 };
 
-global.Path2D = function() {
-	return getMock(['moveTo', 'lineTo', 'bezierCurveTo', 'quadraticCurveTo', 'rect', 'arc', 'arcTo', 'ellipse', 'roundRect', 'closePath', 'addPath']);
+global.Path2D = function(source) {
+	// Clone nested addPath logs and argument arrays, not just the operation groups.
+	const log = source?.log == null ? [] : structuredClone(source.log);
+	return getMock(['moveTo', 'lineTo', 'bezierCurveTo', 'quadraticCurveTo', 'rect', 'arc', 'arcTo', 'ellipse', 'roundRect', 'closePath', 'addPath'], [], log);
 };
 
 // console.timeEnd('mock-dom');

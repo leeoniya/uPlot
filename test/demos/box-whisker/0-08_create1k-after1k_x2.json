@@ -3,6 +3,8 @@
   "width": 800,
   "height": 400,
   "ctxlog": [
+    ["canvas.width", 800],
+    ["canvas.height", 400],
     ["clearRect", [0, 0, 800, 400]],
     ["fillStyle", "#000"],
     [
@@ -162,7 +164,6 @@
     ["fillText", ["stdweb-v0.4.17-keyed", 0, 0]],
     ["restore", []],
     ["strokeStyle", "rgba(0,0,0,0.07)"],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["lineWidth", 2],
     ["lineJoin", "round"],
     ["lineCap", "butt"],
@@ -229,10 +230,8 @@
     ["moveTo", [775, 300]],
     ["lineTo", [775, 310]],
     ["stroke", []],
-    ["fillStyle", "#000"],
     ["textAlign", "right"],
     ["fillText", ["225", 35, 279], ["250", 35, 243], ["275", 35, 208], ["300", 35, 173], ["325", 35, 137], ["350", 35, 102], ["375", 35, 67], ["400", 35, 31]],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["beginPath", []],
     ["moveTo", [50, 279]],
     ["lineTo", [40, 279]],

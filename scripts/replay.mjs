@@ -11,6 +11,7 @@ const props = new Set([
 	'textBaseline',
 	'lineJoin',
 	'lineCap',
+	'globalAlpha',
 ]);
 
 function replayArg(arg, ctx) {
@@ -32,8 +33,11 @@ function replayArg(arg, ctx) {
 
 export function replay(cmds, ctx) {
 	for (const [name, ...entries] of cmds) {
-		// isProp?
-		if (props.has(name)) {
+		if (name === 'canvas.width' || name === 'canvas.height') {
+			for (const value of entries)
+				ctx.canvas[name.slice(7)] = value;
+		}
+		else if (props.has(name)) {
 			for (const value of entries)
 				ctx[name] = replayArg(value, ctx);
 		}

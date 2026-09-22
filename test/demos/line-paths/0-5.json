@@ -3,6 +3,8 @@
   "width": 2400,
   "height": 600,
   "ctxlog": [
+    ["canvas.width", 2400],
+    ["canvas.height", 600],
     ["clearRect", [0, 0, 2400, 600]],
     ["fillStyle", "#c7d0d9"],
     [
@@ -57,7 +59,6 @@
     ],
     ["translate", [0.5, 0.5]],
     ["strokeStyle", "#2c3235"],
-    ["fillStyle", "#2c3235"],
     ["lineWidth", 1],
     ["lineJoin", "round"],
     ["lineCap", "butt"],
@@ -232,7 +233,6 @@
     ["lineTo", [2375, 550]],
     ["stroke", []],
     ["translate", [-0.5, -0.5]],
-    ["fillStyle", "#c7d0d9"],
     ["textAlign", "right"],
     ["textBaseline", "middle"],
     [
@@ -251,7 +251,6 @@
       ["140", 35, 40]
     ],
     ["translate", [0.5, 0.5]],
-    ["fillStyle", "#2c3235"],
     ["beginPath", []],
     ["moveTo", [50, 550]],
     ["lineTo", [40, 550]],

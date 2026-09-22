@@ -3,6 +3,8 @@
   "width": 800,
   "height": 600,
   "ctxlog": [
+    ["canvas.width", 800],
+    ["canvas.height", 600],
     ["clearRect", [0, 0, 800, 600]],
     ["fillStyle", "#000"],
     [
@@ -26,7 +28,6 @@
       ["1.0", 775, 565]
     ],
     ["strokeStyle", "rgba(0,0,0,0.07)"],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["lineWidth", 2],
     ["lineJoin", "round"],
     ["lineCap", "butt"],
@@ -79,7 +80,6 @@
     ["moveTo", [775, 17]],
     ["lineTo", [775, 550]],
     ["stroke", []],
-    ["fillStyle", "#000"],
     ["textAlign", "right"],
     ["textBaseline", "middle"],
     [
@@ -98,7 +98,6 @@
       ["5e-13", 35, 57],
       ["1e-12", 35, 17]
     ],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["beginPath", []],
     ["moveTo", [50, 550]],
     ["lineTo", [40, 550]],
@@ -253,11 +252,11 @@
     ["stroke", []],
     ["translate", [0.5, 0.5]],
     ["strokeStyle", "red"],
-    ["fillStyle", "rgba(255,0,0,0.1)"],
     ["lineWidth", 1],
+    ["fillStyle", "rgba(255,0,0,0.1)"],
     ["save", []],
     ["clip", [{"log": [["rect", [49.5, 16.5, 726, 534]]]}]],
-    ["fill", [{"log": [["lineTo", [775, 550], [50, 550]]]}]],
+    ["fill", [{"log": [["lineTo", [50, 483], [775, 58], [775, 550], [50, 550]]]}]],
     ["stroke", [{"log": [["lineTo", [50, 483], [775, 58]]]}]],
     ["restore", []],
     ["translate", [-0.5, -0.5], [0.5, 0.5]],

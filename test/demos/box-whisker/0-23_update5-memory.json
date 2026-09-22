@@ -3,6 +3,8 @@
   "width": 800,
   "height": 400,
   "ctxlog": [
+    ["canvas.width", 800],
+    ["canvas.height", 400],
     ["clearRect", [0, 0, 800, 400]],
     ["fillStyle", "#000"],
     [
@@ -162,7 +164,6 @@
     ["fillText", ["ivi-v0.27.1-keyed", 0, 0]],
     ["restore", []],
     ["strokeStyle", "rgba(0,0,0,0.07)"],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["lineWidth", 2],
     ["lineJoin", "round"],
     ["lineCap", "butt"],
@@ -229,10 +230,8 @@
     ["moveTo", [775, 300]],
     ["lineTo", [775, 310]],
     ["stroke", []],
-    ["fillStyle", "#000"],
     ["textAlign", "right"],
     ["fillText", ["1.8", 35, 282], ["2.0", 35, 247], ["2.2", 35, 212], ["2.4", 35, 176], ["2.6", 35, 141], ["2.8", 35, 105], ["3.0", 35, 70], ["3.2", 35, 35]],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["beginPath", []],
     ["moveTo", [50, 282]],
     ["lineTo", [40, 282]],

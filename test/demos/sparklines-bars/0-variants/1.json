@@ -3,17 +3,48 @@
   "width": 800,
   "height": 400,
   "ctxlog": [
+    ["canvas.width", 800],
+    ["canvas.height", 400],
     ["clearRect", [0, 0, 800, 400]],
     ["translate", [0.5, 0.5]],
     ["strokeStyle", {"log": [["addColorStop", [0, "red"], [1, "red"], [1, "green"]]], "type": "linearGradient", "args": [0, 400, 0, 150]}],
-    ["fillStyle", {"log": [["addColorStop", [0, "red"], [0.625, "white"], [1, "green"]]], "type": "linearGradient", "args": [0, 400, 0, 0]}],
     ["lineWidth", 1],
     ["lineJoin", "round"],
     ["lineCap", "butt"],
     ["setLineDash", [[]]],
+    ["fillStyle", {"log": [["addColorStop", [0, "red"], [0.625, "white"], [1, "green"]]], "type": "linearGradient", "args": [0, 400, 0, 0]}],
     ["save", []],
     ["clip", [{"log": [["rect", [-0.5, -0.5, 801, 401]]]}]],
-    ["fill", [{"log": [["lineTo", [800, 150], [0, 150]]]}]],
+    [
+      "fill",
+      [
+        {
+          "log": [
+            [
+              "lineTo",
+              [0, 100],
+              [53, 200],
+              [107, 150],
+              [160, 140],
+              [213, 100],
+              [267, 60],
+              [320, 50],
+              [373, 0],
+              [427, 100],
+              [480, 250],
+              [533, 300],
+              [587, 350],
+              [640, 350],
+              [693, 200],
+              [747, 150],
+              [800, 100],
+              [800, 150],
+              [0, 150]
+            ]
+          ]
+        }
+      ]
+    ],
     [
       "stroke",
       [
@@ -44,9 +75,7 @@
     ],
     ["restore", []],
     ["translate", [-0.5, -0.5]],
-    ["strokeStyle", "#0000"],
     ["fillStyle", "#0000"],
-    ["lineWidth", 0],
     ["save", []],
     ["clip", [{"log": [["rect", [0, 0, 800, 400]]]}]],
     ["fillStyle", "green"],
@@ -91,8 +120,6 @@
     ["fillText", ["0", -5, 150]],
     ["translate", [0.5, 0.5]],
     ["strokeStyle", "gray"],
-    ["fillStyle", "gray"],
-    ["lineWidth", 1],
     ["setLineDash", [[3, 3]]],
     ["beginPath", []],
     ["moveTo", [0, 150]],

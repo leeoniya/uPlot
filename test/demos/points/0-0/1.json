@@ -3,6 +3,8 @@
   "width": 1920,
   "height": 300,
   "ctxlog": [
+    ["canvas.width", 1920],
+    ["canvas.height", 300],
     ["clearRect", [0, 0, 1920, 300]],
     ["fillStyle", "#000"],
     [
@@ -51,7 +53,6 @@
       ["180", 1895, 265]
     ],
     ["strokeStyle", "rgba(0,0,0,0.07)"],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["lineWidth", 2],
     ["lineJoin", "round"],
     ["lineCap", "butt"],
@@ -204,7 +205,6 @@
     ["moveTo", [1895, 17]],
     ["lineTo", [1895, 250]],
     ["stroke", []],
-    ["fillStyle", "#000"],
     ["textAlign", "right"],
     ["textBaseline", "middle"],
     [
@@ -218,7 +218,6 @@
       ["55.0", 35, 54],
       ["57.5", 35, 23]
     ],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["beginPath", []],
     ["moveTo", [50, 238]],
     ["lineTo", [40, 238]],
@@ -257,7 +256,6 @@
     ["stroke", []],
     ["translate", [0.5, 0.5]],
     ["strokeStyle", "green"],
-    ["fillStyle", "#0000"],
     ["lineWidth", 1],
     ["save", []],
     ["clip", [{"log": [["rect", [49.5, 16.5, 1846, 234]]]}]],

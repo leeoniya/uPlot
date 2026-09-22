@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { Window } from 'happy-dom';
-import { writeFailureReport } from '../scripts/replay.mjs';
+import { replay, writeFailureReport } from '../scripts/replay.mjs';
 
 class ReplayPath {
 	ops = [];
@@ -12,6 +12,126 @@ class ReplayPath {
 	moveTo(...args) { this.ops.push(['moveTo', ...args]); }
 	lineTo(...args) { this.ops.push(['lineTo', ...args]); }
 }
+
+const alphaCommands = [
+	['globalAlpha', .5, .5, 0, 1, .25],
+	['fillRect', [0, 0, 10, 10]],
+	['save', []],
+	['globalAlpha', .75],
+	['save', []],
+	['globalAlpha', 0],
+	['fillRect', [0, 0, 10, 10]],
+	['restore', []],
+	['fillRect', [0, 0, 10, 10]],
+	['restore', []],
+	['fillRect', [0, 0, 10, 10]],
+	['globalAlpha', 1],
+	['fillRect', [0, 0, 10, 10]],
+];
+
+// Model only the replay target's alpha stack; the recorder does not restore state.
+function alphaTarget() {
+	let alpha = 1;
+	const stack = [];
+	return {
+		assignments: [],
+		draws: [],
+		get globalAlpha() { return alpha; },
+		set globalAlpha(value) { this.assignments.push(alpha = value); },
+		save() { stack.push(alpha); },
+		restore() { assert.ok(stack.length > 0); alpha = stack.pop(); },
+		fillRect() { this.draws.push(alpha); },
+	};
+}
+
+const resizeCommands = [
+	['canvas.width', 40, 40],
+	['canvas.height', 20, 20],
+	['fillStyle', 'red'],
+	['globalAlpha', .5],
+	['lineWidth', 3],
+	['translate', [2, 3]],
+	['save', []],
+	['fillRect', [0, 0, 10, 10]],
+	['canvas.width', 40],
+	['restore', []],
+	['fillRect', [0, 0, 10, 10]],
+	['fillStyle', 'blue'],
+	['globalAlpha', .25],
+	['lineWidth', 5],
+	['translate', [4, 5]],
+	['save', []],
+	['fillRect', [0, 0, 10, 10]],
+	['canvas.height', 20],
+	['restore', []],
+	['fillRect', [0, 0, 10, 10]],
+];
+
+// Only model the target state needed to detect bitmap reset delegation.
+function resizeTarget(canvas = {}) {
+	const defaults = () => ({ fillStyle: '#000000', globalAlpha: 1, lineWidth: 1, offset: [0, 0] });
+	let state = defaults();
+	const stack = [];
+	const ctx = {
+		canvas,
+		sizes: [],
+		draws: [],
+		translate(x, y) { state.offset = [state.offset[0] + x, state.offset[1] + y]; },
+		save() { stack.push(structuredClone(state)); },
+		restore() { if (stack.length > 0) state = stack.pop(); },
+		fillRect() { this.draws.push(structuredClone(state)); },
+	};
+	for (const name of ['fillStyle', 'globalAlpha', 'lineWidth']) {
+		Object.defineProperty(ctx, name, {
+			get: () => state[name],
+			set: value => { state[name] = value; },
+		});
+	}
+	for (const name of ['width', 'height']) {
+		let size = canvas[name];
+		Object.defineProperty(canvas, name, {
+			configurable: true,
+			get: () => size,
+			set(value) {
+				ctx.sizes.push([name, size = value]);
+				state = defaults();
+				stack.length = 0;
+			},
+		});
+	}
+	return ctx;
+}
+
+const resizeSizes = [['width', 40], ['width', 40], ['height', 20], ['height', 20], ['width', 40], ['height', 20]];
+const resizeDraws = [
+	{ fillStyle: 'red', globalAlpha: .5, lineWidth: 3, offset: [2, 3] },
+	{ fillStyle: '#000000', globalAlpha: 1, lineWidth: 1, offset: [0, 0] },
+	{ fillStyle: 'blue', globalAlpha: .25, lineWidth: 5, offset: [4, 5] },
+	{ fillStyle: '#000000', globalAlpha: 1, lineWidth: 1, offset: [0, 0] },
+];
+
+describe('canvas replay', () => {
+	it('assigns every bitmap size to the canvas, resetting transform, styles, and saved state', () => {
+		const ctx = resizeTarget();
+		replay(JSON.parse(JSON.stringify(resizeCommands)), ctx);
+		assert.deepStrictEqual(ctx.sizes, resizeSizes);
+		assert.deepStrictEqual(ctx.draws, resizeDraws);
+		assert.deepStrictEqual([ctx.canvas.width, ctx.canvas.height], [40, 20]);
+		assert.equal(Object.hasOwn(ctx, 'width'), false);
+		assert.equal(Object.hasOwn(ctx, 'height'), false);
+
+		replay([['canvas.width', 0, 0], ['canvas.height', 0, 0]], ctx);
+		assert.deepStrictEqual(ctx.sizes.slice(-4), [['width', 0], ['width', 0], ['height', 0], ['height', 0]]);
+		assert.deepStrictEqual([ctx.canvas.width, ctx.canvas.height], [0, 0]);
+	});
+	it('replays grouped alpha setters and delegates nested save/restore to the target', () => {
+		const ctx = alphaTarget();
+		replay(JSON.parse(JSON.stringify(alphaCommands)), ctx);
+		assert.deepStrictEqual(ctx.assignments, [.5, .5, 0, 1, .25, .75, 0, 1]);
+		assert.deepStrictEqual(ctx.draws, [.25, 0, .75, .25, 1]);
+		assert.equal(ctx.globalAlpha, 1);
+	});
+});
 
 describe('browser failure reports', () => {
 	let directory;
@@ -115,6 +235,67 @@ describe('browser failure reports', () => {
 		assert.equal(viewState.textContent, 'Showing expected');
 		assert.equal(canvas.style.width, '100%');
 		assert.deepStrictEqual(dimensions, [[40, 20], [10, 5], [40, 20]]);
+	});
+
+	it('replays bitmap resets in the standalone report on repeated hover', () => {
+		const expected = { width: 40, height: 20, ctxlog: resizeCommands };
+		const actual = {
+			width: 10, height: 5,
+			ctxlog: [['canvas.width', 10, 10], ['canvas.height', 5], ['fillRect', [0, 0, 10, 5]]],
+		};
+		const document = loadReport([{ title: 'Bitmap resets', expected, actual }]);
+		const canvas = document.querySelector('canvas');
+		const ctx = resizeTarget(canvas);
+		canvas.getContext = () => ctx;
+		runInNewContext(document.querySelector('script').textContent, { document });
+		assert.deepStrictEqual(ctx.sizes, [['width', 40], ['height', 20], ...resizeSizes]);
+		assert.deepStrictEqual(ctx.draws, resizeDraws);
+
+		const comparison = document.querySelector('.comparison');
+		for (let i = 0; i < 2; i++) {
+			ctx.sizes.length = ctx.draws.length = 0;
+			comparison.dispatchEvent(new window.MouseEvent('mouseenter'));
+			assert.deepStrictEqual(ctx.sizes, [['width', 10], ['height', 5], ['width', 10], ['width', 10], ['height', 5]]);
+			assert.deepStrictEqual(ctx.draws, [resizeDraws[1]]);
+			assert.deepStrictEqual([canvas.width, canvas.height], [10, 5]);
+
+			ctx.sizes.length = ctx.draws.length = 0;
+			comparison.dispatchEvent(new window.MouseEvent('mouseleave'));
+			assert.deepStrictEqual(ctx.sizes, [['width', 40], ['height', 20], ...resizeSizes]);
+			assert.deepStrictEqual(ctx.draws, resizeDraws);
+			assert.deepStrictEqual([canvas.width, canvas.height], [40, 20]);
+		}
+	});
+
+	it('replays alpha assignments and saved state in the standalone report on repeated hover', () => {
+		const expected = { width: 10, height: 10, ctxlog: alphaCommands };
+		const actual = {
+			width: 10, height: 10,
+			ctxlog: [['globalAlpha', 0, 0], ['fillRect', [0, 0, 10, 10]]],
+		};
+		const document = loadReport([{ title: 'Alpha', expected, actual }]);
+		const ctx = alphaTarget();
+		document.querySelector('canvas').getContext = () => ctx;
+		runInNewContext(document.querySelector('script').textContent, { document });
+		assert.deepStrictEqual(ctx.assignments, [.5, .5, 0, 1, .25, .75, 0, 1]);
+		assert.deepStrictEqual(ctx.draws, [.25, 0, .75, .25, 1]);
+
+		const comparison = document.querySelector('.comparison');
+		for (let i = 0; i < 2; i++) {
+			ctx.assignments.length = 0;
+			ctx.draws.length = 0;
+			comparison.dispatchEvent(new window.MouseEvent('mouseenter'));
+			assert.deepStrictEqual(ctx.assignments, [0, 0]);
+			assert.deepStrictEqual(ctx.draws, [0]);
+			assert.equal(ctx.globalAlpha, 0);
+
+			ctx.assignments.length = 0;
+			ctx.draws.length = 0;
+			comparison.dispatchEvent(new window.MouseEvent('mouseleave'));
+			assert.deepStrictEqual(ctx.assignments, [.5, .5, 0, 1, .25, .75, 0, 1]);
+			assert.deepStrictEqual(ctx.draws, [.25, 0, .75, .25, 1]);
+			assert.equal(ctx.globalAlpha, 1);
+		}
 	});
 
 	it('renders every failure immediately with independent hover comparisons and no navigation or instructions', () => {

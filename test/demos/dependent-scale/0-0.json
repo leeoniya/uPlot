@@ -3,6 +3,8 @@
   "width": 600,
   "height": 400,
   "ctxlog": [
+    ["canvas.width", 600],
+    ["canvas.height", 400],
     ["clearRect", [0, 0, 600, 400]],
     ["fillStyle", "#000"],
     [
@@ -13,7 +15,6 @@
     ["textBaseline", "top"],
     ["fillText", ["1", 50, 365], ["2", 133, 365], ["3", 217, 365], ["4", 300, 365], ["5", 383, 365], ["6", 467, 365], ["7", 550, 365]],
     ["strokeStyle", "rgba(0,0,0,0.07)"],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["lineWidth", 2],
     ["lineJoin", "round"],
     ["lineCap", "butt"],
@@ -50,7 +51,6 @@
     ["moveTo", [550, 17]],
     ["lineTo", [550, 350]],
     ["stroke", []],
-    ["fillStyle", "#000"],
     ["textAlign", "right"],
     ["textBaseline", "middle"],
     [
@@ -65,7 +65,6 @@
       ["75° F", 35, 79],
       ["80° F", 35, 45]
     ],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["beginPath", []],
     ["moveTo", [50, 322]],
     ["lineTo", [40, 322]],
@@ -106,7 +105,6 @@
     ["moveTo", [50, 45]],
     ["lineTo", [550, 45]],
     ["stroke", []],
-    ["fillStyle", "#000"],
     ["textAlign", "left"],
     [
       "fillText",
@@ -124,7 +122,6 @@
       ["26° C", 565, 53],
       ["28° C", 565, 28]
     ],
-    ["fillStyle", "rgba(0,0,0,0.07)"],
     ["beginPath", []],
     ["moveTo", [550, 328]],
     ["lineTo", [560, 328]],
@@ -155,7 +152,6 @@
     ["stroke", []],
     ["translate", [0.5, 0.5]],
     ["strokeStyle", "green"],
-    ["fillStyle", "#0000"],
     ["lineWidth", 1],
     ["save", []],
     ["clip", [{"log": [["rect", [49.5, 16.5, 501, 334]]]}]],
