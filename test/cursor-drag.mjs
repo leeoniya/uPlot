@@ -456,7 +456,117 @@ describe('mouse-driven drag selection', () => {
 	});
 });
 
-describe('two-axis dragging outside the overlay', () => {
+describe('shared native mouse ownership', () => {
+	for (const synchronized of [false, true]) {
+		it(`ignores competing overlay events but preserves sync (${synchronized})`, async () => {
+			const key = synchronized ? 'mouse-owner' : undefined;
+			const source = await plot({ x: true, y: true }, 1, false, undefined, key);
+			const target = await plot({ x: true, y: true }, 1, false, undefined, key);
+			let sourceUpdates = 0;
+			let targetUpdates = 0;
+			source.u.hooks.setCursor = [() => sourceUpdates++];
+			target.u.hooks.setCursor = [() => targetUpdates++];
+			try {
+				target.mouse('mousemove', 30, 40);
+				source.mouse('mousedown', 100, 100);
+				const previousEvent = target.u.cursor.event;
+				const reads = target.rectReads;
+				sourceUpdates = targetUpdates = 0;
+				for (const type of ['mouseenter', 'mousedown', 'dblclick', 'mouseleave'])
+					target.mouse(type, 200, 200);
+				assert.equal(target.u.cursor.event, previousEvent);
+				assert.equal(target.rectReads, reads);
+				assert.equal(targetUpdates, 0);
+				assert.equal(sourceUpdates, 0);
+
+				// Dispatch on the peer overlay: the owner must still receive the bubbling move.
+				source.mouse('mousemove', 200, 200, target.u.over);
+				assert.equal(sourceUpdates, 1);
+				assert.equal(targetUpdates, synchronized ? 1 : 0);
+				assert.equal(target.u.cursor.event, previousEvent);
+				assertSelection(source.u, { left: 100, top: 100, width: 100, height: 100 });
+				assert.deepEqual(selection(target.u), synchronized ? selection(source.u) : emptySelection);
+
+				const probeRelease = () => {
+					const before = targetUpdates;
+					target.mouse('mousemove', 300, 300);
+					assert.equal(targetUpdates, before, 'ownership remains through release callbacks');
+				};
+				target.u.hooks.setSelect.push(probeRelease);
+				source.u.hooks.setCursor.push(() => {
+					if (source.u.cursor.left == -10)
+						probeRelease();
+				});
+				source.mouse('mouseup', -100, -100, target.u.over);
+				target.u.hooks.setSelect.pop();
+				source.u.hooks.setCursor.pop();
+				await Promise.resolve();
+				assert.equal(source.u.cursor.left, -10, 'owner receives release over the peer');
+				assert.equal(source.selections.length, 1);
+				if (synchronized) {
+					assert.deepEqual(ranges(target.u), ranges(source.u));
+					assert.equal(target.u.cursor.left, -10, 'release hiding reaches the peer');
+					assert.equal(target.selections.length, 1);
+				}
+				else {
+					assert.deepEqual(ranges(target.u), { x: [0, 100], y: [0, 100] });
+					assert.equal(target.u.cursor.left, 30);
+				}
+				const before = targetUpdates;
+				target.mouse('mousemove', 150, 160);
+				assert.equal(targetUpdates, before + 1, 'peer resumes on the next move');
+				assert.equal(target.u.cursor.left, 150);
+				target.mouse('mousedown', 150, 160);
+				target.mouse('mousemove', 250, 260);
+				target.mouse('mouseup', 250, 260);
+				assert.equal(target.selections.length, synchronized ? 2 : 1, 'peer can claim the next drag');
+			}
+			finally { source.destroy(); target.destroy(); }
+		});
+	}
+
+	for (const disabled of [false, true]) {
+		it(`does not claim rejected mousedown (disabled binding ${disabled})`, async () => {
+			const source = await plot({}, 1, false, undefined, undefined, {}, disabled ? {
+				bind: { mousedown: () => null },
+			} : {});
+			const target = await plot();
+			try {
+				source.mouse('mousedown', 100, 100, source.u.over, { button: disabled ? 0 : 2 });
+				target.mouse('mousemove', 200, 200);
+				assert.equal(target.u.cursor.left, 200);
+				target.mouse('mousedown', 100, 100);
+				target.mouse('mousemove', 200, 200);
+				target.mouse('mouseup', 200, 200);
+				assert.equal(target.selections.length, 1);
+			}
+			finally { source.destroy(); target.destroy(); }
+		});
+	}
+
+	it('only the owner releases ownership on destroy', async () => {
+		const source = await plot();
+		const target = await plot();
+		const other = await plot();
+		try {
+			target.mouse('mousemove', 30, 40);
+			source.mouse('mousedown', 100, 100);
+			other.destroy();
+			target.mouse('mousemove', 200, 200);
+			assert.equal(target.u.cursor.left, 30, 'destroying a non-owner keeps ownership');
+			source.destroy();
+			target.mouse('mousemove', 250, 250);
+			assert.equal(target.u.cursor.left, 250, 'destroying the owner lets the peer resume');
+			target.mouse('mousedown', 100, 100);
+			target.mouse('mousemove', 200, 200);
+			target.mouse('mouseup', 200, 200);
+			assert.equal(target.selections.length, 1);
+		}
+		finally { source.destroy(); target.destroy(); other.destroy(); }
+	});
+});
+
+describe('dragging outside the overlay', () => {
 	for (const pxRatio of [1, 2]) {
 		for (const reverse of [false, true]) {
 			it(`clamps distant outside moves and hides on release (DPR ${pxRatio}, reverse ${reverse})`, async () => {
@@ -489,10 +599,16 @@ describe('two-axis dragging outside the overlay', () => {
 		}
 	}
 
-	it('removes custom-bound document listeners on re-entry, release, and destroy', async () => {
+	it('retains custom-bound document listeners through re-entry, removes on release and destroy', async () => {
 		const bound = [];
 		const removed = [];
+		const attached = [];
 		let calls = 0;
+		const originalAdd = document.addEventListener;
+		document.addEventListener = function(type, listener, options) {
+			attached.push(listener);
+			return originalAdd.call(this, type, listener, options);
+		};
 		const originalRemove = document.removeEventListener;
 		document.removeEventListener = function(type, listener, options) {
 			removed.push(listener);
@@ -521,29 +637,35 @@ describe('two-axis dragging outside the overlay', () => {
 				f.mouse('mouseleave', w + 5, h / 4);
 			};
 			f.mouse('mousedown', w / 2, h / 2);
+			assert.equal(bound.length, 2, 'both listeners attach on mousedown');
 			leave();
 			assert.equal(bound.length, 2);
 			f.mouse('mouseleave', w + 6, h / 4);
 			assert.equal(bound.length, 2, 'repeated leave does not replace a live wrapper');
 			f.mouse('mouseenter', w - 5, h / 4);
-			assert.ok(removed.includes(bound[1]));
+			assert.equal(removed.length, 0, 'boundary crossings retain both listeners');
 			let before = calls;
 			f.mouse('mousemove', w + 20, h / 3, document.body);
-			assert.equal(calls, before);
+			assert.equal(calls, before + 1);
+			let updates = 0;
+			f.u.hooks.setCursor = [() => updates++];
 			f.mouse('mousemove', 3 * w / 4, 3 * h / 4);
-			assert.equal(calls, before + 1, 'overlay movement is handled once after re-entry');
+			assert.equal(updates, 1, 'bubbling overlay movement updates the cursor once');
+			assert.equal(bound.length, 2);
 			leave();
 			f.mouse('mousemove', 2 * w, 3 * h / 4, document.body);
 			const retained = selection(f.u);
 			f.mouse('mouseup', 2 * w, 3 * h / 4, document.body);
 			assertSelection(f.u, retained);
 			assert.equal(f.u.cursor.left, -10);
-			assert.ok(bound.every(listener => removed.includes(listener)));
+			assert.equal(attached.length, bound.length);
+			assert.ok(attached.every(listener => removed.includes(listener)));
 			f.mouse('mouseenter', w / 2, h / 2);
 			f.mouse('mousedown', w / 2, h / 2);
 			leave();
 			f.destroy();
-			assert.ok(bound.every(listener => removed.includes(listener)));
+			assert.equal(attached.length, bound.length);
+			assert.ok(attached.every(listener => removed.includes(listener)));
 			before = calls;
 			f.mouse('mousemove', 3 * w, h, document.body);
 			f.mouse('mouseup', 3 * w, h, document.body);
@@ -551,13 +673,21 @@ describe('two-axis dragging outside the overlay', () => {
 		}
 		finally {
 			f.destroy();
-			document.removeEventListener = originalRemove;
+			document.addEventListener = originalAdd;
+						document.removeEventListener = originalRemove;
 		}
 	});
 
 	it('synchronizes outside selection, zoom, and cursor hiding', async () => {
 		const source = await plot({ x: true, y: true }, 1, false, undefined, 'outside-xy');
-		const target = await plot({ x: true, y: true }, 1, false, undefined, 'outside-xy');
+		let targetBindings = 0;
+		const target = await plot({ x: true, y: true }, 1, false, undefined, 'outside-xy', {}, {
+			bind: { mousemove: (self, target, handle) => {
+				if (target == document)
+					targetBindings++;
+				return handle;
+			} },
+		});
 		try {
 			const { width: w, height: h } = source.box();
 			source.mouse('mousedown', w / 2, h / 2);
@@ -571,9 +701,99 @@ describe('two-axis dragging outside the overlay', () => {
 			assert.deepEqual(ranges(target.u), ranges(source.u));
 			assert.equal(target.u.cursor.left, -10);
 			assert.equal(target.u.cursor.idx, null);
+			assert.equal(targetBindings, 0, 'synchronized peers do not track the document');
 		}
 		finally { source.destroy(); target.destroy(); }
 	});
+
+	for (const { name, x, y } of modes) {
+		it(`uses bounded leave coordinates and supports re-entry for ${name}`, async () => {
+			const f = await plot({ x, y, dist: 10, setRange: false });
+			try {
+				const { width: w, height: h } = f.box();
+				f.mouse('mousedown', w / 2, h / 2);
+				f.mouse('mousemove', w / 2 + 9, h / 2 + 9);
+				assertSelection(f.u, emptySelection);
+				// Leave without an intervening edge mousemove; do not infer direction from the last move.
+				f.mouse('mouseleave', -3 * w, -3 * h);
+				assertSelection(f.u, { left: 0, top: 0, width: x ? w / 2 : w, height: y ? h / 2 : h });
+				f.mouse('mousemove', 4 * w, 4 * h, document.body);
+				assertSelection(f.u, { left: x ? w / 2 : 0, top: y ? h / 2 : 0, width: x ? w / 2 : w, height: y ? h / 2 : h });
+				f.mouse('mouseenter', w / 2 + 10, h / 2 + 10);
+				f.mouse('mousemove', w / 2 + 10, h / 2 + 11);
+				assertSelection(f.u, { left: x ? w / 2 : 0, top: y ? h / 2 : 0, width: x ? 10 : w, height: y ? 11 : h });
+				f.mouse('mousemove', w - 1, h - 1);
+				assert.equal(f.u.cursor.left, w, 'retains 1px snapping');
+				assert.equal(f.u.cursor.top, h);
+				f.mouse('mouseup', w - 1, h - 1, document);
+				assert.equal(f.u.cursor.left, w, 'inside release is not hidden despite active tracking');
+			}
+			finally { f.destroy(); }
+		});
+	}
+
+	it('hides an outside release without a preceding leave event', async () => {
+		const f = await plot({ x: true, y: true, setRange: false });
+		try {
+			f.mouse('mousedown', 100, 100);
+			f.mouse('mousemove', 150, 150);
+			f.mouse('mouseup', -100, -100, document.body);
+			assert.equal(f.u.cursor.left, -10);
+		}
+		finally { f.destroy(); }
+	});
+
+	it('preserves a locked cursor on outside release and unlocks on the next click', async () => {
+		const f = await plot({ x: true, y: true, dist: 1000 }, 1, false, undefined, undefined, {}, { lock: true });
+		try {
+			f.mouse('mousedown', 100, 100);
+			f.mouse('mousemove', -100, -100, document.body);
+			f.mouse('mouseup', -100, -100, document.body);
+			assert.equal(f.u.cursor._lock, true);
+			const locked = [f.u.cursor.left, f.u.cursor.top];
+			f.mouse('mouseenter', 150, 150);
+			f.mouse('mousemove', 150, 150);
+			assert.deepEqual([f.u.cursor.left, f.u.cursor.top], locked);
+			f.mouse('mousedown', 150, 150);
+			f.mouse('mousemove', 200, 200);
+			assert.deepEqual([f.u.cursor.left, f.u.cursor.top], locked);
+			f.mouse('mouseup', 200, 200, document);
+			assert.equal(f.u.cursor._lock, false);
+			assert.equal(f.u.cursor.left, 200);
+		}
+		finally { f.destroy(); }
+	});
+
+	for (const disabled of ['mousedown', 'mousemove', 'mouseup']) {
+		it(`respects disabled ${disabled} bindings and cleans up on destroy`, async () => {
+			let documentMoves = 0;
+			const f = await plot({ x: true, y: true, setRange: false }, 1, false, undefined, undefined, {}, {
+				bind: {
+					mousemove: (self, target, handle) => e => {
+						if (target == document)
+							documentMoves++;
+						handle(e);
+					},
+					[disabled]: () => null,
+				},
+			});
+			try {
+				f.mouse('mousedown', 100, 100);
+				f.mouse('mousemove', 200, 200);
+				if (disabled == 'mouseup')
+					assertSelection(f.u, { left: 100, top: 100, width: 100, height: 100 });
+				else
+					assert.deepEqual(selection(f.u), emptySelection);
+				f.mouse('mouseup', 200, 200, document);
+				assert.equal(f.selections.length, 0);
+				f.destroy();
+				const before = documentMoves;
+				f.mouse('mousemove', 300, 300, document.body);
+				assert.equal(documentMoves, before);
+			}
+			finally { f.destroy(); }
+		});
+	}
 
 	it('respects a bind callback that disables document mousemove', async () => {
 		let attempts = 0;
@@ -589,7 +809,9 @@ describe('two-axis dragging outside the overlay', () => {
 		try {
 			const { width: w, height: h } = f.box();
 			f.mouse('mousedown', w / 2, h / 2);
+			assert.equal(attempts, 1, 'binding is attempted on mousedown');
 			f.mouse('mousemove', w - 5, h / 4);
+			assert.equal(f.u.cursor.left, w - 5, 'disabled document binding preserves overlay movement');
 			f.mouse('mouseleave', w + 5, h / 4);
 			assert.equal(attempts, 1);
 			const selected = selection(f.u);
@@ -601,18 +823,24 @@ describe('two-axis dragging outside the overlay', () => {
 		finally { f.destroy(); }
 	});
 
-	for (const drag of [{ x: true, y: false }, { x: false, y: true }, { x: true, y: true, dist: 1000 }]) {
-		it(`does not track document movement without an active XY drag ${JSON.stringify(drag)}`, async () => {
+	for (const drag of [{ x: true, y: false }, { x: false, y: true }, { x: true, y: true, dist: 1000 }, { x: false, y: false }]) {
+		it(`tracks enabled axes before their threshold ${JSON.stringify(drag)}`, async () => {
 			const f = await plot({ ...drag, setRange: false });
 			try {
 				const { width: w, height: h } = f.box();
 				f.mouse('mousedown', w / 2, h / 2);
 				f.mouse('mousemove', w - 5, h / 4);
 				f.mouse('mouseleave', w + 5, h / 4);
-				const selected = selection(f.u);
 				f.mouse('mousemove', 2 * w, 3 * h / 4, document.body);
-				assert.deepEqual(selection(f.u), selected);
-				assert.equal(f.u.cursor.left, -10);
+				if (drag.x || drag.y) {
+					assert.equal(f.u.cursor.left, w);
+					assertSelection(f.u, drag.dist ? emptySelection : {
+						left: drag.x ? w / 2 : 0, top: drag.y ? h / 2 : 0,
+						width: drag.x ? w / 2 : w, height: drag.y ? h / 4 : h,
+					});
+				}
+				else
+					assert.equal(f.u.cursor.left, -10);
 				f.mouse('mouseup', 2 * w, 3 * h / 4, document.body);
 			}
 			finally { f.destroy(); }

@@ -199,6 +199,7 @@ function log(name, args) {
 }
 
 const cursorPlots = new Set();
+let mouseOwner = null;
 
 function invalidateRects() {
 	for (let u of cursorPlots)
@@ -807,10 +808,15 @@ export default function uPlot(opts, data, then) {
 		const targListeners = mouseListeners.get(targ) || {};
 		const listener = cursor.bind[ev](self, targ, fn, onlyTarg);
 
-		if (listener) {
-			on(ev, targ, targListeners[ev] = listener);
+		if (listener != null) {
+			on(ev, targ, targListeners[ev] = function(e) {
+				if (mouseOwner == null || mouseOwner == self.uid)
+					return listener.call(this, e);
+			});
 			mouseListeners.set(targ, targListeners);
 		}
+
+		return listener != null;
 	}
 
 	function offMouse(ev, targ, fn) {
@@ -3506,12 +3512,17 @@ export default function uPlot(opts, data, then) {
 	let downSelectHeight;
 
 	function mouseDown(e, src, _l, _t, _w, _h, _i) {
+		if (e != null)
+			mouseOwner = self.uid;
+
 		dragging = true;
 		dragX = dragY = drag._x = drag._y = false;
 
 		cacheMouse(e, src, _l, _t, _w, _h, _i, true, false);
 
 		if (e != null) {
+			if ((drag.x || drag.y) && !globalMouseMove)
+				globalMouseMove = onMouse(mousemove, doc, mouseMove, false);
 			onMouse(mouseup, doc, mouseUp, false);
 			pubSync(mousedown, self, mouseLeft0, mouseTop0, plotWidCss, plotHgtCss, null);
 		}
@@ -3541,12 +3552,16 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function mouseUp(e, src, _l, _t, _w, _h, _i) {
-		let hideCursor = globalMouseMove;
 		stopGlobalMouseMove();
 
 		dragging = drag._x = drag._y = false;
 
 		cacheMouse(e, src, _l, _t, _w, _h, _i, false, true);
+
+		let hideCursor = e != null && (
+			e.clientX < rect.left || e.clientX > rect.left + plotWidCss ||
+			e.clientY < rect.top || e.clientY > rect.top + plotHgtCss
+		);
 
 		let { left, top, width, height } = select;
 
@@ -3610,27 +3625,31 @@ export default function uPlot(opts, data, then) {
 			pubSync(mouseup, self, mouseLeft1, mouseTop1, plotWidCss, plotHgtCss, null);
 		}
 
-		if (hideCursor) {
+		if (hideCursor && !cursor._lock) {
 			mouseLeft1 = mouseTop1 = -10;
 			activeIdxs.fill(null);
 			updateCursor(null, true, true);
 		}
+
+		if (mouseOwner == self.uid)
+			mouseOwner = null;
 	}
 
 	function mouseLeave(e, src, _l, _t, _w, _h, _i) {
 		if (cursor._lock)
 			return;
 
+		if (globalMouseMove) {
+			cacheMouse(e, src, _l, _t, _w, _h, _i, false, true);
+			updateCursor(null, true, true);
+			return;
+		}
+
 		setCursorEvent(e);
 
 		let _dragging = dragging;
 
 		if (dragging) {
-			if (e != null && dragX && dragY && !globalMouseMove) {
-				onMouse(mousemove, doc, mouseMove, false);
-				globalMouseMove = true;
-			}
-
 			// handle case when mousemove aren't fired all the way to edges by browser
 			let snapH = true;
 			let snapV = true;
@@ -3711,9 +3730,12 @@ export default function uPlot(opts, data, then) {
 
 	if (showCursor) {
 		onMouse(mousedown,  over, mouseDown);
-		onMouse(mousemove,  over, mouseMove);
+		onMouse(mousemove,  over, e => {
+			// Tracked drags handle the bubbling event on document instead.
+			if (!globalMouseMove)
+				mouseMove(e);
+		});
 		onMouse(mouseenter, over, e => {
-			stopGlobalMouseMove();
 			setCursorEvent(e);
 			syncRect(false);
 		});
@@ -3793,6 +3815,8 @@ export default function uPlot(opts, data, then) {
 		cursorPlots.delete(self);
 		stopGlobalMouseMove();
 		offMouse(null, doc);
+		if (mouseOwner == self.uid)
+			mouseOwner = null;
 		mouseListeners.clear();
 		off(dppxchange, win, onDppxChange);
 		root.remove();
