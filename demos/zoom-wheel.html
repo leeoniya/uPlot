@@ -46,45 +46,168 @@
 							let over = u.over;
 							let rect = over.getBoundingClientRect();
 
-							// wheel drag pan
-							over.addEventListener("mousedown", e => {
-								if (e.button == 1) {
-								//	plot.style.cursor = "move";
+							// all axes add event
+							for(let key in u.axes){
+								let axis = u.axes[key]._el;
+								
+								let a_rect = axis.getBoundingClientRect();
+								
+								axis._params = [key, a_rect];
+								
+								axis.addEventListener("mousedown", e => {
+									// wheel drag pan
+									if (e.button == 1) {
+										e.preventDefault();
+										
+										let key = e.target._params[0];
+										// sacle ID
+										let scale_key = u.axes[key].scale;
+										
+										let scale = u.scales[scale_key]
+										let umin = scale.min;
+										let umax = scale.max;
+										
+										let scale_scale = u.posToVal(0, scale_key) - u.posToVal(1, scale_key);
+										
+										let left0 = e.clientX;
+										let top0 = e.clientY;
+
+										function onmove(e) {
+											e.preventDefault();
+
+											let left1 = e.clientX;
+											let top1 = e.clientY;
+											let dt = 0;
+											if(scale.ori === 0){ // x sacle
+												let dx = (left1 - left0);
+												dt = dx;
+											}else if(scale.ori === 1){
+												let dy = top1 - top0;
+												dt = dy;
+											}else{return;}
+
+											let urange = []
+											for(let key in u.scales){
+												urange[key] = [u.scales[key].min, u.scales[key].max];
+											}
+
+											u.setScale(scale_key, {
+												min: umin + dt*scale_scale,
+												max: umax + dt*scale_scale,
+											});
+											// restore other scale
+											for(let key in urange){
+												if(key !== scale_key){
+													u.setScale(key, {
+														min: urange[key][0],
+														max: urange[key][1],
+													});
+												}
+											}
+												
+										}
+										
+										function onup(e) {
+											document.removeEventListener("mousemove", onmove);
+											document.removeEventListener("mouseup", onup);
+										}
+										document.addEventListener("mousemove", onmove);
+										document.addEventListener("mouseup", onup);
+									}
+								});
+
+								// wheel scroll zoom
+								axis.addEventListener("wheel", e=>{
 									e.preventDefault();
 
-									let left0 = e.clientX;
-								//	let top0 = e.clientY;
+									let key = e.target._params[0];
+									let scale_key = u.axes[key].scale;
 
-									let scXMin0 = u.scales.x.min;
-									let scXMax0 = u.scales.x.max;
+									let range = u.scales[scale_key].max - u.scales[scale_key].min;
+									let val  = (u.scales[scale_key].max + u.scales[scale_key].min)/2;
+									
+									range = e.deltaY < 0 ? range *factor: range / factor;
 
-									let xUnitsPerPx = u.posToVal(1, 'x') - u.posToVal(0, 'x');
-
-									function onmove(e) {
-										e.preventDefault();
-
-										let left1 = e.clientX;
-									//	let top1 = e.clientY;
-
-										let dx = xUnitsPerPx * (left1 - left0);
-
-										u.setScale('x', {
-											min: scXMin0 - dx,
-											max: scXMax0 - dx,
-										});
+									let nMin = val -range/2;
+									let nMax = val +range/2;
+									
+									let urange = []
+									for(let key in u.scales){
+										urange[key] = [u.scales[key].min, u.scales[key].max];
 									}
 
+									u.batch(() => {
+										u.setScale(scale_key, {
+											min: nMin,
+											max: nMax,
+										});
+									});
+									
+									for(let key in urange){
+										if(key !== scale_key){
+											u.setScale(key, {
+												min: urange[key][0],
+												max: urange[key][1],
+											});
+										}
+									}
+								});
+
+							}
+							
+
+							// wheel drag pan on scale axes
+							over.addEventListener("mousedown", e => {
+								if (e.button == 1) {
+									e.preventDefault();
+									// 记录起始位置
+									let left0 = e.clientX;
+									let top0 = e.clientY;
+									let scY = new Array()
+									for(var key in u.scales){
+										scY[key] = [u.scales[key].min, u.scales[key].max, u.posToVal(1, key) - u.posToVal(0, key), u.scales[key].ori];
+									}
+									function onmove(e) {
+										e.preventDefault();
+										
+										let left1 = e.clientX;
+										let top1 = e.clientY;
+										
+										let dx = (left1 - left0);
+										let dy = top1 - top0;
+
+										for(var key in u.scales){
+											if(scY[key] !== null){
+												let dt = 0;
+												if(scY[key][3] === 0){
+													// x轴
+													dt = dx;
+												}
+												else if(scY[key][3] === 1){
+													// y 轴
+													dt = dy;
+												}else{
+													continue;
+												}
+												u.setScale(key, {
+													min: scY[key][0] - dt*scY[key][2],
+													max: scY[key][1] - dt*scY[key][2],
+												});
+											}
+											
+										}
+									}
+									
 									function onup(e) {
 										document.removeEventListener("mousemove", onmove);
 										document.removeEventListener("mouseup", onup);
 									}
-
 									document.addEventListener("mousemove", onmove);
 									document.addEventListener("mouseup", onup);
 								}
 							});
 
-							// wheel scroll zoom
+							//wheel scroll zoom
 							over.addEventListener("wheel", e => {
 								e.preventDefault();
 
@@ -92,31 +215,31 @@
 
 								let leftPct = left/rect.width;
 								let btmPct = 1 - top/rect.height;
-								let xVal = u.posToVal(left, "x");
-								let yVal = u.posToVal(top, "y");
-								let oxRange = u.scales.x.max - u.scales.x.min;
-								let oyRange = u.scales.y.max - u.scales.y.min;
 
-								let nxRange = e.deltaY < 0 ? oxRange * factor : oxRange / factor;
-								let nxMin = xVal - leftPct * nxRange;
-								let nxMax = nxMin + nxRange;
-								[nxMin, nxMax] = clamp(nxRange, nxMin, nxMax, xRange, xMin, xMax);
+								let oRange = new Array();
+								for(var key in u.scales){
+									let Val = 0;
+									// ??
+									if(u.scales[key].ori == 0){
+										Val = u.posToVal(left,key);
+									}else if(u.scales[key].ori == 1){
+										Val = u.posToVal(top, key)
+									}else{ continue;}
 
-								let nyRange = e.deltaY < 0 ? oyRange * factor : oyRange / factor;
-								let nyMin = yVal - btmPct * nyRange;
-								let nyMax = nyMin + nyRange;
-								[nyMin, nyMax] = clamp(nyRange, nyMin, nyMax, yRange, yMin, yMax);
+									let range = u.scales[key].max - u.scales[key].min;
+									let nRange = e.deltaY < 0 ? range * factor : range / factor;
 
+									let nMin = Val - leftPct * nRange;
+									let nMax = nMin + nRange;
+									oRange[key] = [nMin, nMax];
+								}
 								u.batch(() => {
-									u.setScale("x", {
-										min: nxMin,
-										max: nxMax,
-									});
-
-									u.setScale("y", {
-										min: nyMin,
-										max: nyMax,
-									});
+									for(var key in oRange){
+										u.setScale(key, {
+											min: oRange[key][0],
+											max: oRange[key][1],
+										});
+									}
 								});
 							});
 						}
