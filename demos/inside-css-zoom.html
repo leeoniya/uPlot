@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Inside CSS Zoom</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<script src="../dist/uPlot.iife.js"></script>
+
+		<div id="chart-wrap" style="zoom: 1.5; border: 2px dashed #ccc; padding: 10px; display: inline-block;">
+			<div id="chart"></div>
+		</div>
+
+		<br><br>
+
+		<label>CSS Zoom: <input id="zoomInput" type="number" value="1.5" step="0.25" min="0.25" max="5" style="width: 60px;"></label>
+		<button id="applyZoom">Apply Zoom</button>
+
+		<br><br>
+
+		<label><input id="autoDetect" type="checkbox"> Auto-detect (u.syncZoom() with no args)</label>
+
+		<script>
+			var n = 100, xs = [], ys = [], ys2 = [];
+			for (var i = 0; i < n; i++) {
+				xs[i] = i;
+				ys[i] = 50 + 30 * Math.sin(i * 0.1);
+				ys2[i] = 40 + 20 * Math.cos(i * 0.08);
+			}
+
+			var wrap = document.getElementById("chart-wrap");
+			var el = document.getElementById("chart");
+
+			var u = new uPlot({
+				width: 600,
+				height: 300,
+				title: "Inside CSS Zoom",
+				scales: {
+					x: { time: false },
+				},
+				series: [
+					{},
+					{ label: "Series A", stroke: "blue", width: 2 },
+					{ label: "Series B", stroke: "orange", width: 2 },
+				],
+				cursor: { show: true },
+			}, [xs, ys, ys2], el);
+
+			document.getElementById("applyZoom").onclick = function() {
+				var z = parseFloat(document.getElementById("zoomInput").value) || 1;
+				var auto = document.getElementById("autoDetect").checked;
+
+				wrap.style.zoom = z;
+
+				if (auto)
+					u.syncZoom();      // auto-detect from DOM
+				else
+					u.syncZoom(z);     // explicit value, no DOM traversal
+			};
+		</script>
+	</body>
+</html>
