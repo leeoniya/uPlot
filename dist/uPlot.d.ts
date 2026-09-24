@@ -381,9 +381,9 @@ declare namespace uPlot {
 	}
 
 	export interface CacheOptions {
-		/** series path-builder caches. incompatible with hover-highlight when discarded */
+		/** series path-builder caches */
 		paths?: boolean;
-		/** retained data arrays. discard only for static charts. with cache.data: false, hooks must not call setData() */
+		/** retained data arrays. discard only for static charts */
 		data?: boolean;
 	}
 
@@ -400,7 +400,7 @@ declare namespace uPlot {
 	export interface Stack {
 		groups: Stack.Group[];
 
-		/** normalize each group to proportions, separately by sign when dir is 0 */
+		/** normalize each group to proportions */
 		percent?: boolean;
 	}
 
@@ -696,7 +696,7 @@ declare namespace uPlot {
 	export namespace Scale {
 		export type Auto = boolean | ((self: uPlot, resetScales: boolean) => boolean);
 
-		export type Scan = boolean | ((self: uPlot, scaleKey: string, i0?: number | null, i1?: number | null) => Range.MinMax);
+		export type Scan = boolean | ((self: uPlot, scaleKey: string, i0?: number | null, i1?: number | null, viaAutoScaleX?: boolean) => Range.MinMax);
 
 		export type Range = Range.MinMax | Range.Function | Range.Config;
 
@@ -948,8 +948,8 @@ declare namespace uPlot {
 		export interface Facet {
 			scale: string;
 
-			/** includes this facet in data scans (default: true) */
-			scan?: boolean;
+			/** includes this facet in data scans */
+			scan?: boolean; // true
 
 			/** @deprecated Use scan. */
 			auto?: boolean;
@@ -1089,10 +1089,10 @@ declare namespace uPlot {
 
 	export namespace Axis {
 		export interface Nice {
-			/** aligns multi-hour ticks to local midnight across DST (default: true) */
-			dst?: boolean;
-			/** includes month-start ticks for multi-day increments (default: false) */
-			first?: boolean;
+			/** aligns multi-hour ticks to local midnight across DST */
+			dst?: boolean; // true
+			/** includes month-start ticks for multi-day increments */
+			first?: boolean; // false
 		}
 
 		/** must return an array of same length as splits, e.g. via splits.map() */

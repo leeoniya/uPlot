@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Zoom with Fixed Reset Bounds</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<h1>Fit Y on zoom, use fixed bounds on reset</h1>
+		<p>Drag horizontally to zoom. Y fits the visible data with 10% padding.
+		Double-click to restore the full X range and Y bounds of [0, 100].</p>
+		<p>The Y scan callback returns [null, null] when <code>viaAutoScaleX</code> is true.
+		The range callback then returns [0, 100], without scanning Y data.
+		These bounds also apply on initial load; they do not clamp Y while zoomed.</p>
+		<script type="module">
+			import { renderDemo } from './renderDemo.js';
+
+			await import('../dist/uPlot.esm.js').then(m => { window.uPlot = m.default; });
+			await import('./zoom-reset-range.js').then(({ default: groups }) => renderDemo(groups));
+		</script>
+	</body>
+</html>

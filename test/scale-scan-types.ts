@@ -32,11 +32,12 @@ const opts: uPlot.Options = {
 		x: { time: false },
 		y: {
 			auto: false,
-			scan: (self, scaleKey, i0, i1) => {
+			scan: (self, scaleKey, i0, i1, viaAutoScaleX) => {
 				type Self = Assert<Equal<typeof self, uPlot>>;
 				type Key = Assert<Equal<typeof scaleKey, string>>;
 				type Start = Assert<Equal<typeof i0, number | null | undefined>>;
 				type End = Assert<Equal<typeof i1, number | null | undefined>>;
+				type Reset = Assert<Equal<typeof viaAutoScaleX, boolean | undefined>>;
 				return uPlot.scan(self, scaleKey, i0, i1, true);
 			},
 		},
