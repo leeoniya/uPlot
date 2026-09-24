@@ -20,8 +20,8 @@ The implementation separates automatic recalculation from data scanning. It also
 
 The public callback contract receives `(self, scaleKey, i0, i1)` and returns one aggregate `[min, max]` tuple. It runs once for each calculated independent scale.
 
-`u.setRange(scaleKey, min, max)` sets concrete bounds and bypasses `scale.range()`.
-`u.setScale(scaleKey, {min, max})` is the object-form API. Concrete bounds bypass `scale.range()`, while null bounds request calculation.
+`u.setRange(scaleKey, min, max)` sets scale bounds. Concrete bounds bypass `scale.range()`, while null bounds request calculation.
+`u.setScale(scaleKey, {min, max})` is the object-form API with the same bound rules.
 
 ## Static range arrays
 
@@ -56,7 +56,7 @@ Partial Y range arrays still scan data. This change does not expand support for 
 
 For requested bounds, a concrete bound is explicit. A null bound is calculated.
 At runtime, JavaScript also treats an omitted or `undefined` bound as calculated.
-The TypeScript `setScale()` contract accepts `number | null`; it does not expose `undefined` as a supported bound type.
+The TypeScript `setRange()` and `setScale()` contracts accept `number | null`. They do not expose `undefined` as a supported bound type.
 These rules describe bound requests, not new support for partial X `scale.range` arrays.
 
 | Minimum | Maximum | Result |
@@ -82,13 +82,13 @@ The following operations calculate the X range:
 - Initial automatic scale setup.
 - `setData()` when X autoscaling is active.
 - Double-click scale reset.
-- `setScale('x', {min: null, max: null})`.
+- `setScale('x', {min: null, max: null})` or `setRange('x', null, null)`.
 - A partial X range with one null bound.
 
 The following operations use explicit X bounds:
 
 - Public `setScale()` calls with two concrete bounds.
-- Public `setRange()` calls.
+- Public `setRange()` calls with two concrete bounds.
 - Cursor drag zoom.
 - Internal redraw operations that preserve the current X bounds.
 
@@ -195,7 +195,7 @@ Aligned empty data previously retained the old X range while the automatic Y ran
 `test/layout.mjs` records the new uniform behavior. Both automatic axis reservations disappear until data returns.
 
 This separation is intentional. Use `cursor.drag.setRange` to clamp, snap, or reject bounds from built-in drag zoom.
-Programmatic `setScale()` and `setRange()` calls bypass both `scale.range()` and `cursor.drag.setRange`, so callers must adjust explicit bounds before those calls.
+Programmatic `setScale()` and `setRange()` calls with two concrete bounds bypass both `scale.range()` and `cursor.drag.setRange`. Callers must adjust explicit bounds before those calls.
 
 ## Implementation
 
@@ -245,7 +245,7 @@ The current working-tree bundles also contain later source changes, but those bu
 - Crossed partial ranges.
 - Initial and `setData()` X autoscaling.
 - Explicit X zoom.
-- Concrete `setRange()` bounds.
+- Concrete and null `setRange()` bounds on X and Y, with `auto: true` and `auto: false`.
 - Double-click reset.
 - Empty data.
 - Ordinal X data.

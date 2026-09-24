@@ -100,6 +100,20 @@ u.setScale('y', { min: null, max: null });
 u.setScale('y', { min: 0, max: null });
 u.setScale('y', { min: null, max: 100 });
 
+u.setRange('y', 0, 100);
+u.setRange('y', null, null);
+u.setRange('y', 0, null);
+u.setRange('y', null, 100);
+
+type SetRangeBounds = Assert<Equal<Parameters<uPlot['setRange']>, [string, number | null, number | null]>>;
+
+// @ts-expect-error Bounds must be numbers or null, not undefined.
+u.setRange('y', undefined, 100);
+// @ts-expect-error Bounds must be numbers or null, not undefined.
+u.setRange('y', 0, undefined);
+// @ts-expect-error Both bound arguments are required.
+u.setRange('y', 0);
+
 // @ts-expect-error Series participation is boolean, not a scale scan callback.
 const seriesCallback: uPlot.Series = { scan: () => [0, 1] };
 // @ts-expect-error Series participation cannot be numeric.

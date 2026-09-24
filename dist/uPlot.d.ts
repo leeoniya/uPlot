@@ -90,8 +90,8 @@ declare class uPlot {
 	/** sets the chart data & redraws. (default resetScales = true) */
 	setData(data: uPlot.AlignedData, resetScales?: boolean): void;
 
-	/** Sets concrete scale bounds and redraws. Bypasses range(). */
-	setRange(scaleKey: string, min: number, max: number): void;
+	/** Sets scale bounds and redraws. Concrete bounds bypass range(). Null bounds request calculation, even with auto: false. */
+	setRange(scaleKey: string, min: number | null, max: number | null): void;
 
 	/** Sets scale bounds and redraws. Concrete bounds bypass range(); null bounds request calculation, even with auto: false. */
 	setScale(scaleKey: string, limits: { min: number | null; max: number | null }): void;

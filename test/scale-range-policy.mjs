@@ -27,6 +27,37 @@ function paddedRange(calls) {
 }
 
 describe('scale range policy', () => {
+	describe('setRange', () => {
+		for (const key of ['x', 'y']) {
+			for (const auto of [true, false]) {
+				for (const [min, max] of [[-10, 40], [-10, null], [null, 40], [null, null]]) {
+					it(`applies ${key} bounds [${min}, ${max}] with auto: ${auto}`, async () => {
+						const calls = [];
+						const u = makePlot({ scales: { [key]: { auto, scan: true, range: paddedRange(calls) } } });
+						try {
+							await nextCommit();
+							calls.length = 0;
+
+							u.setRange(key, min, max);
+							await nextCommit();
+
+							const extrema = key == 'x' ? [0, 2] : [10, 30];
+							assert.deepStrictEqual(calls, min == null || max == null ? [extrema] : []);
+							assert.deepStrictEqual([u.scales[key].min, u.scales[key].max], [
+								min ?? extrema[0] - 1,
+								max ?? extrema[1] + 1,
+							]);
+							assert.equal(u.scales[key].auto(u, false), auto);
+						}
+						finally {
+							u.destroy();
+						}
+					});
+				}
+			}
+		}
+	});
+
 	describe('X scale', () => {
 		it('ranges automatic bounds but not fully concrete public bounds', async () => {
 			const calls = [];
