@@ -63,7 +63,10 @@
 		<p>The fifth chart combines soft limits at ±20 with hard limits at ±50 and uses tick-aware ranging (<code>axis: 1</code>).
 		Try 12, 30, 45, and 60 to see the upper bound move from its soft limit to padded ticks, then stop at 50.
 		Values greater than 50 are clipped. Try negative values to see the same progression at the lower bound.</p>
-		<p>The final chart is independent. It shows flat-zero data with soft limits at -1 and 1.</p>
+		<p>The sixth chart is independent. It shows flat-zero data with soft limits at -1 and 1.</p>
+		<p>The last two charts share random values near 10, with a data span of about <code>2e-7</code>.
+		They compare <code>flat: 1e-7</code> with <code>flat: 1e-9</code>. Both use 20% padding.
+		The slider does not change these charts. Reload the page for another random sample.</p>
 		<script type="module">
 			import { renderDemo } from './renderDemo.js';
 

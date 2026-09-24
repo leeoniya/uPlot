@@ -23,7 +23,7 @@ const demos = [
 	['bars-grouped-stacked', barsGroupedStacked, 10],
 	['candlestick-ohlc', candlestick, 1],
 	['annotations', annotations, 1],
-	['soft-minmax', softMinmax, 6],
+	['soft-minmax', softMinmax, 8],
 	['nearest-non-null', nearestNonNull, 5],
 	['log-scales2', logScales, 12],
 	['stacked-series', stackedSeries, 16],

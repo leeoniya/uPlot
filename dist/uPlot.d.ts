@@ -149,8 +149,8 @@ declare class uPlot {
 	 */
 	static scan(self: uPlot, scaleKey: string, i0?: number | null, i1?: number | null, cache?: boolean): uPlot.Range.MinMax;
 
-	/** expands/snaps numeric bounds with padding. extra enables zero affinity */
-	static rangeNum(min: number, max: number, mult: number, extra: boolean): uPlot.Range.MinMax;
+	/** expands/snaps numeric bounds with padding and optional zero affinity */
+	static rangeNum(min: number, max: number, mult: number, zeroAffinity: boolean): uPlot.Range.MinMax;
 	static rangeNum(min: number, max: number, cfg: uPlot.Range.Config): uPlot.Range.MinMax;
 
 	/** re-ranges a given min/max outwards to nearest 10% of given min/max's magnitudes, unless fullMags = true */
@@ -274,10 +274,10 @@ declare namespace uPlot {
 		export type Function = (self: uPlot, initMin: number | null, initMax: number | null, scaleKey: string) => MinMax;
 
 		export interface Limit {
-			/** padding as a fraction of the data range (default: 0.1) */
-			pad?: number;
+			/** padding as a fraction of the data range */
+			pad?: number; // 0.1
 
-			/** Preferred endpoint while raw data stays inside it. */
+			/** soft limit */
 			soft?: number;
 
 			/** hard limit */
@@ -288,11 +288,11 @@ declare namespace uPlot {
 			min?: Range.Limit;
 			max?: Range.Limit;
 
-			/** zero-affinity threshold as a fraction of the data range (default: 0.1). 0 disables */
-			zeroIf?: number;
+			/** zero-affinity threshold as a fraction of the data range. 0 disables */
+			zeroIf?: number; // 0.1
 
-			/** relative flatness threshold: span <= flat * max(abs(min), abs(max)). default: 1e-7 */
-			flat?: number;
+			/** treat tiny data ranges as flat below this threshold */
+			flat?: number; // 1e-7
 		}
 	}
 

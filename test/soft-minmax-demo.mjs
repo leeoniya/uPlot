@@ -81,7 +81,7 @@ describe('soft minmax demo', () => {
 	}
 
 	it('starts below the zero-affinity threshold on shared data with an independent flat-zero plot', () => {
-		assert.equal(plots.length, 6);
+		assert.equal(plots.length, 8);
 				assert.deepEqual(bounds(plots[4]), [-20, 20]);
 		assertSharedData(12);
 		assert.notEqual(zeroData, plots[0].data);
@@ -89,6 +89,35 @@ describe('soft minmax demo', () => {
 		assert.equal(new Set(plots.slice(0, 4).map(plot => JSON.stringify(bounds(plot)))).size, 3);
 				assert.match(plots[3].root.querySelector('.u-title').textContent, /Include nearby zero \(25%\)/);
 		plots.slice(0, 4).forEach(assertReadout);
+	});
+
+	it('compares flat thresholds on shared tiny random data independently of the slider', async () => {
+		const [flat, detailed] = plots.slice(6);
+		const data = flat.data;
+		assert.equal(detailed.data, data);
+		assert.equal(data[0].length, 50);
+		assert.equal(data[1].length, 50);
+		assert.ok(new Set(data[1]).size > 2);
+		assert.ok(data[1].every(value => value >= 10 - 1e-7 && value <= 10 + 1e-7));
+		const min = Math.min(...data[1]);
+		const max = Math.max(...data[1]);
+		const span = max - min;
+		assert.ok(span <= 1e-7 * max);
+		assert.ok(span > 1e-9 * max);
+		assert.deepEqual(bounds(flat), [0, 20]);
+		assert.ok(detailed.scales.y.min <= min - .2 * span);
+		assert.ok(detailed.scales.y.max >= max + .2 * span);
+		assert.ok(detailed.scales.y.max - detailed.scales.y.min < 1e-6);
+		for (const plot of [flat, detailed]) {
+			assert.deepEqual([plot.series[1].min, plot.series[1].max], [min, max]);
+			assert.match(plot.root.querySelector('.range-readout').textContent, /Span: .*e-7/);
+		}
+		const ranges = [bounds(flat), bounds(detailed)];
+		setDataValue(plots, 100);
+		await Promise.resolve();
+		assert.equal(flat.data, data);
+		assert.equal(detailed.data, data);
+		assert.deepEqual([bounds(flat), bounds(detailed)], ranges);
 	});
 
 	it('provides a bounded decimal slider instead of a button or interval', () => {

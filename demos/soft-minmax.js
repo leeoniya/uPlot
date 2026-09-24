@@ -145,7 +145,53 @@ function flatZero() {
 	], document.body);
 }
 
-// Leave the independent flat-zero plot unchanged.
+function tinyRange() {
+	const data = [
+		Array.from({length: 50}, (_, i) => i),
+		Array.from({length: 50}, () => 10 + (Math.random() * 2 - 1) * 1e-7),
+	];
+	// Keep the span between the two thresholds for every random sample.
+	data[1][0] = 10 - 1e-7;
+	data[1][49] = 10 + 1e-7;
+
+	return [
+		[1e-7, "Default threshold treats the tiny variation as flat. The Y range expands to [0, 20]."],
+		[1e-9, "The smaller threshold preserves the same tiny variation. The Y range fits the data with 20% padding."],
+	].map(([flat, descr]) => {
+		const readout = document.createElement("output");
+		readout.className = "range-readout";
+		return uPlot(uPlot.assign({}, baseOptions(), {
+			title: `Tiny random range: flat = ${flat}`,
+			width: 500,
+			scales: {
+				y: {
+					range: {
+						flat,
+						min: {pad: 0.2},
+						max: {pad: 0.2},
+					},
+				},
+			},
+			axes: [{}, {size: 140}],
+			legend: {
+				mount(u) {
+					const p = document.createElement("p");
+					p.textContent = descr;
+					u.root.append(p, readout);
+				},
+			},
+			hooks: {
+				draw: [u => {
+					const {min, max} = u.series[1];
+					const scale = u.scales.y;
+					readout.value = `Data: [${min.toPrecision(12)}, ${max.toPrecision(12)}] | Span: ${(max - min).toExponential(3)} | Scale: [${scale.min.toPrecision(12)}, ${scale.max.toPrecision(12)}]`;
+				}],
+			},
+		}), data, document.body);
+	});
+}
+
+// Leave the independent flat-data examples unchanged.
 export function setDataValue(plots, value) {
 	if (!Number.isFinite(value))
 		return;
@@ -170,4 +216,7 @@ export function bindControls(plots, root = document) {
 
 export default [{
 	steps: [plotStep(minimumPolicies), plotStep(flatZero)],
+}, {
+	name: "Tiny random data: flat thresholds",
+	steps: [plotStep(tinyRange)],
 }];

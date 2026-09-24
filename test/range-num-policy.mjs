@@ -152,15 +152,15 @@ describe('ordinary numeric range policy', () => {
 			assert.deepEqual(rangeNum(0, 0, { zeroIf, min: { hard: 0 }, max: { hard: 0 } }), [null, null]);
 	});
 
-	it('maps positional extra to zeroIf without changing explicit soft policies', () => {
+	it('maps positional zeroAffinity to zeroIf without changing explicit soft policies', () => {
 		const config = Object.freeze({
 			zeroIf: 0,
 			min: Object.freeze({ soft: 0.5, pad: 0 }),
 			max: Object.freeze({ pad: 0 }),
 		});
-		for (const extra of [true, false, true, false]) {
-			assert.deepEqual(rangeNum(1, 11, 0, extra), [extra ? 0 : 1, 11]);
-			assert.deepEqual(rangeNum(-11, -1, 0, extra), [-11, extra ? 0 : -1]);
+		for (const zeroAffinity of [true, false, true, false]) {
+			assert.deepEqual(rangeNum(1, 11, 0, zeroAffinity), [zeroAffinity ? 0 : 1, 11]);
+			assert.deepEqual(rangeNum(-11, -1, 0, zeroAffinity), [-11, zeroAffinity ? 0 : -1]);
 			assert.deepEqual(rangeNum(1, 11, config), [0.5, 11]);
 		}
 		assert.deepEqual(rangeNum(1, 11, 0), [1, 11]);

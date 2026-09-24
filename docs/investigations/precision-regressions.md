@@ -160,7 +160,7 @@ Nonzero relatively flat spans use a rounded midpoint before padding, so decimal 
 A value of `1e-12` preserves the reported Grafana variations. The Grafana range tests explicitly use this threshold.
 A value of `0` disables relative flattening, but retains the `1e-24` absolute floor and the fallback for constant data.
 This is an intentional display-precision limit, not an attempt to preserve every representable variation.
-The positional `rangeNum(min, max, pad, extra)` API uses the default threshold.
+The positional `rangeNum(min, max, pad, zeroAffinity)` API uses the default threshold.
 
 The same configuration works with `scales.y.range` and the third argument of `uPlot.rangeNum`:
 

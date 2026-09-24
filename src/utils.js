@@ -203,12 +203,12 @@ const _eqRange = {
 
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
-export function rangeNum(_min, _max, mult, extra) {
+export function rangeNum(_min, _max, mult, zeroAffinity) {
 	if (isObj(mult))
 		return _rangeNum(_min, _max, mult);
 
 	_eqRangePart.pad = mult;
-	_eqRange.zeroIf = extra ? rangeZeroIf : 0;
+	_eqRange.zeroIf = zeroAffinity ? rangeZeroIf : 0;
 
 	return _rangeNum(_min, _max, _eqRange);
 }

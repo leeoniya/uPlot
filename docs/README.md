@@ -420,7 +420,7 @@ Tick-aware ranging resolves anchors before one tick-grid selection. It has no na
 Anchored sides ignore even huge padding values whose multiplication by the raw span overflows. Unanchored padding requirements still apply.
 Active endpoints must align with the selected built-in increment for tick-aware ranging.
 For flat zero data, an explicit upper zero endpoint uses a negative fallback. Explicit zero endpoints on both sides retain the positive fallback.
-The positional `rangeNum(min, max, mult, extra)` form uses `mult` as padding. Its `extra` flag enables or disables the default zero affinity.
+The positional `rangeNum(min, max, mult, zeroAffinity)` form uses `mult` as padding. Its `zeroAffinity` flag enables or disables the default zero affinity.
 The [axis-ranging policy](investigations/minimal-axis-ranging-plan.md#minimum-range-padding) explains tick-aware padding and unsupported inputs.
 
 ##### Soft-limit Migration
