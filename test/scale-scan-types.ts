@@ -107,6 +107,16 @@ u.setRange('y', null, 100);
 
 type SetRangeBounds = Assert<Equal<Parameters<uPlot['setRange']>, [string, number | null, number | null]>>;
 
+type NumDecArgs = Assert<Equal<Parameters<typeof uPlot.numDec>, [readonly (number | null)[]]>>;
+const splitDecimals: number = uPlot.numDec([0, 0.125, null, 0.25]);
+const readonlyDecimals: number = uPlot.numDec([0, 0.125, null] as const);
+// @ts-expect-error numDec accepts splits, not an increment.
+uPlot.numDec(0.25);
+// @ts-expect-error The splits are required.
+uPlot.numDec();
+// @ts-expect-error The former values-plus-increment signature is removed.
+uPlot.numDec([0, 0.25], 0.25);
+
 type RangePad = Assert<Equal<uPlot.Range.Limit['pad'], number | undefined>>;
 type RangeHard = Assert<Equal<uPlot.Range.Limit['hard'], number | undefined>>;
 type RangeSoft = Assert<Equal<uPlot.Range.Limit['soft'], number | undefined>>;

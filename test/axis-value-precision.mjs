@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { numAxisVals } from '../src/opts.js';
-import { fixedDec } from '../src/utils.js';
 
 const labels = (splits, incr) => numAxisVals(null, splits, 0, 50, incr);
 const localized = (values, dec) => {
@@ -11,50 +10,38 @@ const localized = (values, dec) => {
 };
 
 describe('public decimal precision helper', () => {
-	it('accepts omitted increments, empty input, and filtered values', () => {
+	it('returns zero for empty, filtered, or integer-only splits', () => {
 		assert.equal(uPlot.numDec([]), 0);
-		assert.equal(uPlot.numDec([], .25), 2);
-		assert.equal(uPlot.numDec([null, undefined, -0, 1000]), 0);
+		assert.equal(uPlot.numDec([null, undefined]), 0);
+		assert.equal(uPlot.numDec([null, -0, 1, 1000]), 0);
+	});
+
+	it('uses the highest precision across the splits', () => {
+		assert.equal(uPlot.numDec([0, .25, .5]), 2);
+		assert.equal(uPlot.numDec([0, .00025, .0005]), 5);
+		assert.equal(uPlot.numDec([-.5, .5]), 1);
+		assert.equal(uPlot.numDec([2.25, 3.25]), 2);
+		assert.equal(uPlot.numDec([1, 1.125, 2]), 3);
 		assert.equal(uPlot.numDec([null, undefined, -.025, .5]), 3);
 	});
 
-	it('uses the finest precision from values and the increment', () => {
-		assert.equal(uPlot.numDec([0, 1], .00025), 5);
-		assert.equal(uPlot.numDec([2.25, 3.25], 1), 2);
-		assert.equal(uPlot.numDec([1, 1.125, 2], 1), 3);
-		assert.equal(uPlot.numDec([.003, .006, .009], .003), 3);
-	});
-
-	it('uses registered increment precision without changing it', () => {
-		const incr = .125;
-		const previous = fixedDec.get(incr);
-		fixedDec.set(incr, 4);
-		try {
-			assert.equal(uPlot.numDec([0, incr], incr), 4);
-			assert.equal(uPlot.numDec([.00001], incr), 5);
-			assert.equal(fixedDec.get(incr), 4);
-		}
-		finally {
-			if (previous == null)
-				fixedDec.delete(incr);
-			else
-				fixedDec.set(incr, previous);
-		}
+	it('provides one precision for uniformly padded labels', () => {
+		const splits = [0, .125, .25, .375];
+		const dec = uPlot.numDec(splits);
+		assert.equal(dec, 3);
+		assert.deepEqual(splits.map(v => v.toFixed(dec)), ['0.000', '0.125', '0.250', '0.375']);
 	});
 
 	it('handles scientific notation without formatter precision limits', () => {
 		for (const [value, dec] of [[2.5e-24, 25], [1e-32, 32], [1e-200, 200], [Number.MIN_VALUE, 324], [1e21, 0]]) {
-			assert.equal(uPlot.numDec([value]), dec);
-			assert.equal(uPlot.numDec([], value), dec);
+			assert.equal(uPlot.numDec([-value, 0, value]), dec);
 		}
 	});
 
-	it('does not mutate input or require a chart instance', () => {
-		const values = Object.freeze([null, -0, .25, undefined]);
-		assert.equal(uPlot.numDec(values, .25), 2);
-		assert.deepEqual(values, [null, -0, .25, undefined]);
-		const seconds = [0, 250, 500].map(v => v / 1000);
-		assert.equal(uPlot.numDec(seconds, 250 / 1000), 2);
+	it('does not mutate splits or require a chart instance', () => {
+		const splits = Object.freeze([null, -0, .25, .5]);
+		assert.equal(uPlot.numDec(splits), 2);
+		assert.deepEqual(splits, [null, -0, .25, .5]);
 	});
 
 	it('supports a custom axis formatter as the increment changes', async () => {
@@ -65,8 +52,8 @@ describe('public decimal precision helper', () => {
 			axes: [{show: false}, {
 				incrs: [.25], space: 30,
 				filter: (u, splits) => splits.map(v => v == 2.5 ? null : v),
-				values: (u, splits, axisIdx, space, incr) => {
-					const dec = uPlot.numDec(splits, incr);
+				values: (u, splits) => {
+					const dec = uPlot.numDec(splits);
 					return splits.map(v => v == null ? '' : `${v.toFixed(dec)} ms`);
 				},
 			}],
@@ -78,7 +65,7 @@ describe('public decimal precision helper', () => {
 			u.axes[1].incrs = () => [.5];
 			u.redraw(false, true);
 			await Promise.resolve();
-			assert.deepEqual(u.axes[1]._values, ['2.0 ms', '', '3.0 ms']);
+			assert.deepEqual(u.axes[1]._values, ['2 ms', '', '3 ms']);
 		}
 		finally { u.destroy(); }
 	});
@@ -93,7 +80,7 @@ describe('numeric axis label precision', () => {
 		[1e-12, [-1e-12, 0, 1e-12, 2e-12], 12],
 	]) {
 		it(`uses consistent decimal places for increment ${incr}`, () => {
-			assert.equal(uPlot.numDec(values, incr), dec);
+			assert.equal(uPlot.numDec(values), dec);
 			const actual = labels(values, incr);
 			assert.deepEqual(actual, localized(values, dec));
 			assert.equal(new Set(actual).size, values.length);
@@ -105,7 +92,13 @@ describe('numeric axis label precision', () => {
 		assert.deepEqual(labels([], .25), []);
 	});
 
+	it('uses only visible split precision, not increment precision', () => {
+		assert.deepEqual(labels([0, null, 1], .00025), localized([0], 0).concat('', localized([1], 0)));
+		assert.deepEqual(labels([0, .125, .25, .375], 1), localized([0, .125, .25, .375], 3));
+	});
+
 	it('preserves fractional endpoints and custom splits finer than their increment', () => {
+		assert.deepEqual(labels([-.5, .5], 1), localized([-.5, .5], 1));
 		assert.deepEqual(labels([2.25, 3.25], 1), localized([2.25, 3.25], 2));
 		assert.deepEqual(labels([1, 1.125, 2], 1), localized([1, 1.125, 2], 3));
 		assert.deepEqual(labels([.003, .006, .009], .003), localized([.003, .006, .009], 3));
@@ -151,6 +144,22 @@ describe('numeric axis label precision', () => {
 	});
 
 	for (const exact of [true, false]) {
+		it(`preserves fractional edge labels for one tick-aware interval (exact ${exact})`, async () => {
+			const u = new uPlot({
+				width: 500, height: 20, padding: [0, 0, 0, 0],
+				legend: { show: false }, cursor: { show: false },
+				scales: { x: { time: false }, y: { axis: 1 } },
+				axes: [{ show: false }, { exact }], series: [{}, {}],
+			}, [[0, 1], [-.2, .2]], document.body);
+			try {
+				await Promise.resolve();
+				assert.equal(u.axes[1]._found[0], 1);
+				assert.deepEqual(u.axes[1]._splits, [-.5, .5]);
+				assert.deepEqual(u.axes[1]._values, localized([-.5, .5], 1));
+			}
+			finally { u.destroy(); }
+		});
+
 		it(`formats tiny tick-aware ranges without duplicate labels (exact ${exact})`, async () => {
 			const u = new uPlot({
 				width: 500, height: 400, padding: [0, 0, 0, 0],

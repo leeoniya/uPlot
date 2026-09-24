@@ -21,6 +21,7 @@ import {
 	fmtNum,
 	fixedDec,
 	numDec,
+	guessDec,
 
 	retArg1,
 	noop,
@@ -596,7 +597,7 @@ export const xSeriesOpts = {
 const numAxisFmts = new Map();
 
 export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
-	let dec = numDec(splits, foundIncr);
+	let dec = numDec(splits);
 
 	let fmt = numAxisFmts.get(dec);
 	if (fmt == null) {
@@ -612,9 +613,14 @@ export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	let splits = [];
 
-	let numDec = fixedDec.get(foundIncr) || 0;
+	let numDec = fixedDec.get(foundIncr);
+	if (numDec == null)
+		fixedDec.set(foundIncr, numDec = guessDec(foundIncr));
 
-	scaleMin = forceMin ? scaleMin : roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
+	if (forceMin)
+		numDec = max(numDec, guessDec(scaleMin));
+	else
+		scaleMin = roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
 
 	for (let val = scaleMin; val <= scaleMax;) {
 		splits.push(Object.is(val, -0) ? 0 : val);		// coalesces -0

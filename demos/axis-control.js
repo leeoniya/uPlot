@@ -78,8 +78,8 @@ function render() {
   return u;
 }
 
-function durationLabels(u, splits, axisIdx, space, foundIncr) {
-  const dec = uPlot.numDec(splits, foundIncr);
+function durationLabels(u, splits) {
+  const dec = uPlot.numDec(splits);
   return splits.map(v => v == null ? "" : `${v.toFixed(dec)} ms`);
 }
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { fixedDec, genIncrs, guessDec } from '../src/utils.js';
-import { decIncrs, oneIncrs, numIncrs, wholeIncrs } from '../src/opts.js';
+import { decIncrs, oneIncrs, numIncrs, wholeIncrs, numAxisSplits } from '../src/opts.js';
 
 
 const multipliers = [
@@ -165,6 +165,83 @@ describe('precision: fixedDec generation and lookup', () => {
 			assert.equal(guessDec(value), places, `decimal count for ${value}`);
 			assert.equal(guessDec(-value), places, `decimal count for ${-value}`);
 		}
+	});
+
+	for (const [incr, units, places] of [[.003, 3, 3], [6.3, 63, 1], [4e-7, 4, 7]]) {
+		it(`matches callback and array increments on the first render (${incr})`, async () => {
+			fixedDec.delete(incr);
+			const expected = Array.from({ length: 11 }, (_, i) => i * units / 10 ** places);
+			const increments = Object.freeze([incr]);
+			for (const callback of [true, false]) {
+				const u = new uPlot({
+					width: 400, height: 400, padding: [0, 0, 0, 0],
+					legend: { show: false }, cursor: { show: false },
+					scales: { x: { time: false }, y: { range: [0, expected.at(-1)] } },
+					axes: [{ show: false }, { incrs: callback ? () => increments : increments, space: 30 }],
+					series: [{}, {}],
+				}, [[0, 1], [0, expected.at(-1)]], document.body);
+				try {
+					await Promise.resolve();
+					assert.equal(fixedDec.get(incr), places);
+					assert.equal(u.axes[1]._found[0], incr);
+					assert.deepEqual(u.axes[1]._splits, expected);
+					u.redraw(false, true);
+					await Promise.resolve();
+					assert.deepEqual(u.axes[1]._splits, expected);
+				}
+				finally { u.destroy(); }
+			}
+		});
+	}
+
+	it('registers newly returned increments when a callback reuses its array', async () => {
+		const increments = [.003];
+		fixedDec.delete(.003);
+		fixedDec.delete(.006);
+		const u = new uPlot({
+			width: 400, height: 400, padding: [0, 0, 0, 0],
+			legend: { show: false }, cursor: { show: false },
+			scales: { x: { time: false }, y: { range: [0, .03] } },
+			axes: [{ show: false }, { incrs: () => increments, space: 30 }],
+			series: [{}, {}],
+		}, [[0, 1], [0, .03]], document.body);
+		try {
+			await Promise.resolve();
+			assert.equal(u.axes[1]._found[0], .003);
+			assert.equal(fixedDec.has(.006), false);
+			increments[0] = .006;
+			u.redraw(false, true);
+			await Promise.resolve();
+			assert.equal(fixedDec.get(.006), 3);
+			assert.equal(u.axes[1]._found[0], .006);
+			assert.deepEqual(u.axes[1]._splits, [0, .006, .012, .018, .024, .03]);
+		}
+		finally { u.destroy(); }
+	});
+
+	it('registers an unknown increment before direct split generation', () => {
+		fixedDec.delete(.003);
+		assert.deepEqual(numAxisSplits(null, 0, 0, .012, .003, 50, false), [0, .003, .006, .009, .012]);
+		assert.equal(fixedDec.get(.003), 3);
+		fixedDec.delete(.003);
+		assert.deepEqual(numAxisSplits(null, 0, .0005, .0095, .003, 50, true), [.0005, .0035, .0065, .0095]);
+		assert.equal(fixedDec.get(.003), 3, 'offset precision stays local to split generation');
+	});
+
+	it('preserves forced offsets without changing registered increment precision', () => {
+		const before = [...fixedDec];
+		for (const [start, end, incr, expected] of [
+			[2.25, 4.25, 1, [2.25, 3.25, 4.25]],
+			[-2.25, .75, 1, [-2.25, -1.25, -.25, .75]],
+			[.125, .425, .1, [.125, .225, .325, .425]],
+			[1.25e-8, 3.25e-8, 1e-8, [1.25e-8, 2.25e-8, 3.25e-8]],
+			[-0, 2, 1, [0, 1, 2]],
+		]) {
+			assert.ok(fixedDec.has(incr));
+			assert.deepEqual(numAxisSplits(null, 0, start, end, incr, 50, true), expected);
+		}
+		assert.deepEqual(numAxisSplits(null, 0, 2.25, 4.25, 1, 50, false), [3, 4]);
+		assert.deepEqual([...fixedDec], before);
 	});
 
 	it('registers scientific-notation custom increments with their actual decimal counts', async () => {

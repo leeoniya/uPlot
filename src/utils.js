@@ -445,11 +445,10 @@ export function guessDec(num) {
 	return max(0, dec - (exp < 0 ? 0 : +str.slice(exp + 1)));
 }
 
-export function numDec(values, incr = 0) {
-	let dec = fixedDec.get(incr) ?? guessDec(incr);
+export function numDec(splits) {
+	let dec = 0;
 
-	// Values can require finer precision than their increment.
-	for (let v of values) {
+	for (let v of splits) {
 		if (v != null)
 			dec = max(dec, guessDec(v));
 	}

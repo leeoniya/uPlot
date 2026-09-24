@@ -162,8 +162,8 @@ declare class uPlot {
 	/** default numeric formatter using browser's locale: new Intl.NumberFormat(navigator.language).format */
 	static fmtNum(val: number): string;
 
-	/** decimal places needed for values and an optional increment */
-	static numDec(values: readonly (number | null | undefined)[], incr?: number): number;
+	/** maximum decimal places needed for numeric splits */
+	static numDec(splits: readonly (number | null)[]): number;
 
 	/** creates an efficient formatter for Date objects from a template string, e.g. {YYYY}-{MM}-{DD} */
 	static fmtDate(tpl: string, names?: uPlot.DateNames): (date: Date) => string;

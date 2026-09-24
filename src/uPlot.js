@@ -267,8 +267,14 @@ function findIncr(minVal, maxVal, incrs, dim, minSpace) {
 		let foundIncr = incrs[incrIdx];
 		let foundSpace = dim * foundIncr / delta;
 
-		if (foundSpace >= minSpace && intDigits + (foundIncr < 5 ? fixedDec.get(foundIncr) : 0) <= 17)
-			return [foundIncr, foundSpace];
+		if (foundSpace >= minSpace) {
+			let dec = fixedDec.get(foundIncr);
+			if (dec == null)
+				fixedDec.set(foundIncr, dec = guessDec(foundIncr));
+
+			if (intDigits + (foundIncr < 5 ? dec : 0) <= 17)
+				return [foundIncr, foundSpace];
+		}
 	} while (++incrIdx < incrs.length);
 
 	return [0, 0];

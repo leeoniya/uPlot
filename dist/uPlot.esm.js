@@ -452,11 +452,10 @@ function guessDec(num) {
 	return max(0, dec - (exp < 0 ? 0 : +str.slice(exp + 1)));
 }
 
-function numDec(values, incr = 0) {
-	let dec = fixedDec.get(incr) ?? guessDec(incr);
+function numDec(splits) {
+	let dec = 0;
 
-	// Values can require finer precision than their increment.
-	for (let v of values) {
+	for (let v of splits) {
 		if (v != null)
 			dec = max(dec, guessDec(v));
 	}
@@ -1911,7 +1910,7 @@ const xSeriesOpts = {
 const numAxisFmts = new Map();
 
 function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
-	let dec = numDec(splits, foundIncr);
+	let dec = numDec(splits);
 
 	let fmt = numAxisFmts.get(dec);
 	if (fmt == null) {
@@ -1927,9 +1926,14 @@ function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	let splits = [];
 
-	let numDec = fixedDec.get(foundIncr) || 0;
+	let numDec = fixedDec.get(foundIncr);
+	if (numDec == null)
+		fixedDec.set(foundIncr, numDec = guessDec(foundIncr));
 
-	scaleMin = forceMin ? scaleMin : roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
+	if (forceMin)
+		numDec = max(numDec, guessDec(scaleMin));
+	else
+		scaleMin = roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
 
 	for (let val = scaleMin; val <= scaleMax;) {
 		splits.push(Object.is(val, -0) ? 0 : val);		// coalesces -0
@@ -3992,8 +3996,14 @@ function findIncr(minVal, maxVal, incrs, dim, minSpace) {
 		let foundIncr = incrs[incrIdx];
 		let foundSpace = dim * foundIncr / delta;
 
-		if (foundSpace >= minSpace && intDigits + (foundIncr < 5 ? fixedDec.get(foundIncr) : 0) <= 17)
-			return [foundIncr, foundSpace];
+		if (foundSpace >= minSpace) {
+			let dec = fixedDec.get(foundIncr);
+			if (dec == null)
+				fixedDec.set(foundIncr, dec = guessDec(foundIncr));
+
+			if (intDigits + (foundIncr < 5 ? dec : 0) <= 17)
+				return [foundIncr, foundSpace];
+		}
 	} while (++incrIdx < incrs.length);
 
 	return [0, 0];
