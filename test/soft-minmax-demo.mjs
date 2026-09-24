@@ -49,7 +49,7 @@ describe('soft minmax demo', () => {
 		document.body.appendChild(root);
 		plots = (await renderDemo(groups)).flat();
 		await new Promise(requestAnimationFrame);
-		zeroData = plots[4].data;
+		zeroData = plots[5].data;
 	});
 
 	afterEach(() => {
@@ -64,14 +64,14 @@ describe('soft minmax demo', () => {
 	});
 
 	function assertZeroUnchanged() {
-		assert.equal(plots[4].data, zeroData);
+		assert.equal(plots[5].data, zeroData);
 		assert.deepEqual(zeroData, [[1, 2], [0, 0]]);
-		assert.deepEqual([plots[4].series[1].min, plots[4].series[1].max], [0, 0]);
-		assert.deepEqual(bounds(plots[4]), [-1, 1]);
+		assert.deepEqual([plots[5].series[1].min, plots[5].series[1].max], [0, 0]);
+		assert.deepEqual(bounds(plots[5]), [-1, 1]);
 	}
 
 	function assertSharedData(value) {
-		for (const plot of plots.slice(0, 4)) {
+		for (const plot of plots.slice(0, 5)) {
 			assert.equal(plot.data, plots[0].data);
 			assert.deepEqual(plot.data, [[0, 10], [5, value]]);
 			assert.deepEqual([plot.series[1].min, plot.series[1].max],
@@ -81,7 +81,8 @@ describe('soft minmax demo', () => {
 	}
 
 	it('starts below the zero-affinity threshold on shared data with an independent flat-zero plot', () => {
-		assert.equal(plots.length, 5);
+		assert.equal(plots.length, 6);
+				assert.deepEqual(bounds(plots[4]), [-20, 20]);
 		assertSharedData(12);
 		assert.notEqual(zeroData, plots[0].data);
 		assert.deepEqual(plots.slice(0, 4).map(bounds), initialBounds);
@@ -150,6 +151,34 @@ describe('soft minmax demo', () => {
 			plots.slice(0, 4).forEach(assertReadout);
 		}
 		assert.deepEqual(plots.slice(0, 4).map(bounds), initialBounds);
+	});
+
+	it('moves both combined bounds from soft anchors through padded ticks to hard clipping', async () => {
+		const steps = [
+			[12, [-20, 20]],
+			[20, [-20, 20]],
+			[30, [-20, 40]],
+			[45, [-20, 50]],
+			[50, [-20, 50]],
+			[60, [-20, 50]],
+			[-12, [-20, 20]],
+			[-20, [-20, 20]],
+			[-30, [-40, 20]],
+			[-45, [-50, 20]],
+			[-50, [-50, 20]],
+			[-60, [-50, 20]],
+		];
+		const plot = plots[4];
+		for (const [value, expected] of [...steps, ...steps.slice().reverse()]) {
+			setDataValue(plots, value);
+			await Promise.resolve();
+			assertSharedData(value);
+			assert.deepEqual(bounds(plot), expected, `second y = ${value}`);
+			assert.ok(plot.axes[1]._splits.includes(expected[0]));
+			assert.ok(plot.axes[1]._splits.includes(expected[1]));
+			assertReadout(plot);
+			assert.equal(plot.root.querySelector('.range-readout').textContent.includes('clipped'), Math.abs(value) > 50);
+		}
 	});
 
 	it('refreshes range readouts on draws without a slider event', async () => {

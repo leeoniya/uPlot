@@ -23,7 +23,7 @@ const demos = [
 	['bars-grouped-stacked', barsGroupedStacked, 10],
 	['candlestick-ohlc', candlestick, 1],
 	['annotations', annotations, 1],
-	['soft-minmax', softMinmax, 5],
+	['soft-minmax', softMinmax, 6],
 	['nearest-non-null', nearestNonNull, 5],
 	['log-scales2', logScales, 12],
 	['stacked-series', stackedSeries, 16],
@@ -152,18 +152,18 @@ describe('demo migrations', () => {
 		assert.notDeepStrictEqual(refined, candidate);
 	});
 
-	it('updates the four soft-minmax plots together without changing the independent zero plot', async () => {
+	it('updates the five soft-minmax plots together without changing the independent zero plot', async () => {
 		const plots = [...await render(softMinmax), ...await render(softMinmax, 1)];
-		const zeroRange = [plots[4].scales.y.min, plots[4].scales.y.max];
+		const zeroRange = [plots[5].scales.y.min, plots[5].scales.y.max];
 		setDataValue(plots, 12.1);
 		await Promise.resolve();
-		for (const plot of plots.slice(0, 4)) {
+		for (const plot of plots.slice(0, 5)) {
 			assert.equal(plot.data, plots[0].data);
 			assert.equal(plot.data[1][1], 12.1);
 			assert.equal(plot.series[1].max, 12.1);
 		}
-		assert.deepStrictEqual(plots[4].data, [[1, 2], [0, 0]]);
-		assert.deepStrictEqual([plots[4].scales.y.min, plots[4].scales.y.max], zeroRange);
+		assert.deepStrictEqual(plots[5].data, [[1, 2], [0, 0]]);
+		assert.deepStrictEqual([plots[5].scales.y.min, plots[5].scales.y.max], zeroRange);
 		const fresh = await render(softMinmax);
 		assert.notEqual(fresh[0].data, plots[0].data);
 		assert.equal(fresh[0].data[1][1], 12);

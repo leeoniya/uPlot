@@ -48,7 +48,7 @@
 		An omitted or null <code>soft</code> means no soft limit. There is no automatic soft zero.
 		Both <code>zeroIf</code> and <code>pad</code> default to <code>.1</code>.
 		The comparison charts use <code>pad: .2</code> to make padding visible.</p>
-		<p>The first four charts share the same data: X values <code>[0, 10]</code> and initial Y values <code>[5, 12]</code>.
+		<p>The first five charts share the same data: X values <code>[0, 10]</code> and initial Y values <code>[5, 12]</code>.
 		The slider controls the second Y value. The first stays at 5.
 		Cross -10 and 10 to compare soft limits with hard clipping. Move between 24 and 25 to see <code>zeroIf: 0.25</code> activate.</p>
 		<section id="controls" class="controls" aria-label="Shared data">
@@ -60,6 +60,9 @@
 			<output id="data-value-output" for="data-value">12</output>
 			<span id="zero-threshold">25: zero-affinity threshold</span>
 		</section>
+		<p>The fifth chart combines soft limits at ±20 with hard limits at ±50 and uses tick-aware ranging (<code>axis: 1</code>).
+		Try 12, 30, 45, and 60 to see the upper bound move from its soft limit to padded ticks, then stop at 50.
+		Values greater than 50 are clipped. Try negative values to see the same progression at the lower bound.</p>
 		<p>The final chart is independent. It shows flat-zero data with soft limits at -1 and 1.</p>
 		<script type="module">
 			import { renderDemo } from './renderDemo.js';

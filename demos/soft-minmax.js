@@ -80,6 +80,20 @@ function minimumPolicies() {
 				},
 			},
 		},
+		{
+			title: "Soft ±20, hard ±50",
+			descr: "Each bound anchors at its soft limit until the data crosses it. Then 20% padding selects an outer tick, capped at the hard limit. Data beyond ±50 is clipped. Try 12, 30, 45, and 60, then negative values.",
+			scales: {
+				y: {
+					axis: 1,
+					range: {
+						zeroIf: 0,
+						min: {pad: 0.2, soft: -20, hard: -50},
+						max: {pad: 0.2, soft: 20, hard: 50},
+					}
+				},
+			},
+		},
 	];
 
 	return plots.map(o => {
@@ -138,7 +152,7 @@ export function setDataValue(plots, value) {
 
 	const current = plots[0].data;
 	const data = [current[0], [current[1][0], value]];
-	plots.slice(0, 4).forEach(u => u.setData(data));
+	plots.slice(0, 5).forEach(u => u.setData(data));
 }
 
 export function bindControls(plots, root = document) {
