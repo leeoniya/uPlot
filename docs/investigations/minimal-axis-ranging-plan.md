@@ -50,7 +50,8 @@ All of these conditions must also apply:
 - The axis uses the built-in `space`, `incrs`, and `splits` policies.
 - The range is omitted, a supported `Range.Config`, or a partial range array.
 
-A supported `Range.Config` can contain the top-level `zeroIf` threshold and per-side `pad`, `soft`, `mode`, and `hard` values. A config with an explicit `flat` policy uses the ordinary path.
+A supported `Range.Config` can contain the top-level `zeroIf` threshold and per-side `pad`, `soft`, and `hard` values.
+A configuration with an explicit `flat` policy uses the ordinary path.
 
 A partial range array uses hard-plus-soft normalization. For example, `[0, null]` fixes the lower endpoint and automatically ranges the upper endpoint.
 
@@ -58,23 +59,37 @@ A fixed range array or a range function uses the ordinary path. A concrete `setS
 
 An automatic reset with null bounds returns the scale to the tick-aware path.
 
-### Default tick-aware policy
+### Default numeric range policy
 
-The default policy applies when `scale.range` is omitted:
+Ordinary and tick-aware numeric rangers share these defaults:
 
 - The top-level `zeroIf` threshold is `0.1`.
-- Each side uses `soft: 0` and `mode: 3`.
-- One-sided data has 10% zero affinity.
+- Neither side has an implicit soft anchor.
 - No hard limit applies.
 - Each side defaults to `pad: 0.1`.
 
-Zero affinity makes zero an outer tick when zero is within `zeroIf * rawSpan` of the nearest data extremum. Users can adjust `zeroIf`; `0` disables this proximity rule.
+Zero proximity anchors zero when its distance from one-sided data is at most `zeroIf * rawSpan`.
+For nonnegative data, the distance is `rawMin`. For nonpositive data, the distance is `-rawMax`.
+The rule uses raw extrema and `rawSpan = rawMax - rawMin`, before padding, hard clipping, or flat-range normalization.
+A value of `0` disables this proximity rule. An omitted or null `zeroIf` retains the default `0.1`.
 
-A declarative `Range.Config` overrides the specified fields. An omitted `zeroIf` retains `0.1`, and omitted per-side fields retain the default policy. A null side in a partial range array also retains this policy.
+A declarative `Range.Config` overrides the specified fields. Omitted per-side fields retain their defaults.
+A null side in a partial range array also retains the default policy.
 
-Zero affinity is independent of soft limits and modes, including `mode: 0` and `soft: null`. Active soft anchors take precedence over zero affinity. Hard limits constrain the resulting anchors. All active anchors override padding on their side.
+An explicit `soft` is an exact preferred endpoint, subject to hard limits:
 
-Modes 2 and 3 use the natural outer tick in place of the padded bound from `rangeNum()`. Mode 2 uses `soft` while that tick remains inside the limit. Mode 3 uses `soft` after that tick reaches the limit.
+- `min.soft` is active exactly when `rawMin >= min.soft`.
+- `max.soft` is active exactly when `rawMax <= max.soft`.
+
+An omitted or null `soft` supplies no soft anchor. There is no implicit `soft: 0`.
+If data crosses a soft endpoint, that anchor becomes inactive and normal padding applies, subject to hard limits and `zeroIf`.
+Soft activation does not depend on padding or tick selection.
+
+The precedence is hard limits, active explicit soft anchors, `zeroIf` anchors, then padding.
+Null soft limits do not disable zero proximity. All active anchors override padding on their side.
+
+`Range.SoftMode` and `Range.Limit.mode` are removed.
+The [migration guide](../README.md#soft-limit-migration) explains each old mode and the replacement for the default soft-zero policy.
 
 An active limit must align with the selected built-in tick increment.
 
@@ -94,7 +109,9 @@ Unanchored outer ticks enclose these requirements. Tick rounding can provide mor
 
 For data `[20, 100]`, `max.pad: 0.1` requires an unanchored maximum tick of at least `108`. A minimum anchor at zero does not change that requirement to `110`.
 
-Zero affinity uses the raw extrema and span, before padding or hard clipping. Soft modes 2 and 3 use the padded natural outer ticks. If padding prevents natural grid selection, soft activation uses the requested padded enclosure instead. The ranger then retries with the resolved anchors. This lets anchors override even padding that overflows during multiplication. Unanchored requirements still apply.
+The ranger resolves anchors from raw extrema before one tick-grid selection. There is no natural-grid prepass or retry for soft activation.
+Anchored sides ignore even huge padding values whose multiplication by the raw span overflows. No padding-overflow fallback is necessary on those sides.
+Unanchored padding requirements still apply.
 
 Padding defaults to `0.1`, as in ordinary numeric ranging. Explicit `pad: 0` disables padding on that side. Tick-aware padding must be finite and nonnegative. Invalid padding returns no supported range. Flat data has zero raw span, so padding leaves the existing flat-data fallback unchanged. Neither padding nor anchors alter scan results or extrema caches.
 
@@ -122,7 +139,8 @@ const intervals = Math.max(1, Math.floor(height / space));
 
 Each scale selects an allowed increment that encloses its extrema within the interval budget. Spare intervals expand the range without clipping data.
 
-For one-sided data, zero becomes an outer tick when its distance from the nearest raw extremum is at most `zeroIf * rawSpan`. Zero can still occur naturally outside this threshold when the selected grid requires it.
+For one-sided data, zero qualifies as an anchor when its distance from the nearest raw extremum is at most `zeroIf * rawSpan`.
+Hard limits and active explicit soft anchors take precedence. Zero can still occur outside this threshold when the selected grid requires it.
 
 The range limits normally lie on increment multiples. One-sided data avoids unnecessary zero crossing when possible.
 
@@ -188,7 +206,9 @@ Setters record pending work
          Calculate baseline padding: paddingCalc("layout")
          Establish final plot height: calcPlotDim(1)
          For each active scale, call rangeY(rawMin, rawMax, plotHgtCss)
-           Select the height-derived count, increment, and enclosing bounds
+           Resolve hard limits, explicit soft anchors, and zero-proximity anchors
+           Apply padding requirements only on unanchored sides
+           Select the height-derived count, increment, and enclosing bounds once
            Store the result in _rangeY and publish Y display bounds
            Invalidate paths on changed Y scales and collect changedY
          Generate Y ticks/labels from the retained increments: axesCalc(1)
@@ -555,7 +575,8 @@ The new regression tests and fixes remain uncommitted after checkpoint `ad725b06
 
 The original follow-up list is retained verbatim below. Zero affinity, minimum percentage padding, and tick-aligned declarative hard and soft limits are now implemented. The existing relative `flat` policy remains ordinary.
 
-`test/range-y-policy.mjs` covers affinity thresholds, minimum padding, anchor precedence, all soft modes, hard clipping, limit alignment, partial-range normalization, and one-interval axes.
+Policy regressions must cover zero-proximity thresholds, minimum padding, anchor precedence, soft-endpoint crossings, hard clipping, limit alignment, partial-range normalization, and one-interval axes.
+The earlier `test/range-y-policy.mjs` coverage of all four soft modes is historical, not the current API contract.
 
 ```text
 see what we can retain from existing rangers

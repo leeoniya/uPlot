@@ -137,8 +137,9 @@ describe('precision: canonical decimal boundaries', () => {
 				for (const flat of [undefined, 1e-7])
 					assert.deepEqual(rangeNum(min, max, {
 						flat,
-						min: { pad: 0.1, soft: 0, mode: 3 },
-						max: { pad: 0.1, soft: 0, mode: 3 },
+						zeroIf: 0.1,
+						min: { pad: 0.1 },
+						max: { pad: 0.1 },
 					}), expected);
 			}
 		}
@@ -188,8 +189,9 @@ describe('precision: canonical decimal boundaries', () => {
 	it('keeps derived near-flat ranges bounded by their actual variation on both signs', () => {
 		const config = {
 			flat: 1e-12,
-			min: { pad: 0.1, hard: -Infinity, soft: 0, mode: 3 },
-			max: { pad: 0.1, hard: Infinity, soft: 0, mode: 3 },
+			zeroIf: 0.1,
+			min: { pad: 0.1, hard: -Infinity },
+			max: { pad: 0.1, hard: Infinity },
 		};
 		for (const [low, high] of [[19.9999999, 20.0000001], [9999999.999959, 10000000.000027]]) {
 			for (const sign of [-1, 1]) {

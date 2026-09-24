@@ -1,10 +1,6 @@
 import { plotStep } from './renderDemo.js';
 
-function h1(text) {
-	let el = document.createElement("h1");
-	el.textContent = text;
-	document.body.appendChild(el);
-};
+const fmt = value => Number(value.toPrecision(6)).toString();
 
 function baseOptions() {
 	return {
@@ -23,10 +19,9 @@ function baseOptions() {
 	};
 }
 
-function softMinimumModes() {
+function minimumPolicies() {
 	const opts = baseOptions();
 
-//	h1("");
 	let data = [
 		[0,10],
 		[5,12],
@@ -34,112 +29,95 @@ function softMinimumModes() {
 
 	let plots = [
 		{
-			title: "min: {soft: 0, mode: 0}",
-			descr: "With min.mode: 0 or min.soft: null, the scaleMin will always be a constant % [of the full range] below dataMin.",
+			title: "Padding only",
+			descr: "No limits or zero affinity. Each side adds 20% of the data span, then rounds the bounds. Compare this baseline with the other policies.",
 			scales: {
 				y: {
 					range: {
-						min: {
-							pad: 0.2,
-							soft: 0,
-							mode: 0,
-						},
-						max: {
-							pad: 0.2,
-							soft: 0,
-							mode: 2,
-						},
+						zeroIf: 0,
+						min: {pad: 0.2},
+						max: {pad: 0.2},
 					}
 				},
 			},
 		},
 		{
-			title: "min: {soft: 0, mode: 1}",
-			descr: "With min.mode: 1, the scaleMin will be min.soft unless dataMin goes below it. This is probably how most would expect a softMin setting to behave.",
+			title: "Soft bounds: -10 to 10",
+			descr: "Use -10 and 10 while the data stays inside those endpoints. When data crosses an endpoint, padding applies again on that side. No data is clipped.",
 			scales: {
 				y: {
 					range: {
-						min: {
-							pad: 0.2,
-							soft: 0,
-							mode: 1,
-						},
-						max: {
-							pad: 0.2,
-							soft: 0,
-							mode: 2,
-						},
+						zeroIf: 0,
+						min: {pad: 0.2, soft: -10},
+						max: {pad: 0.2, soft: 10},
 					}
 				},
 			},
 		},
 		{
-			title: "min: {soft: 0, mode: 2}",
-			descr: "With min.mode: 2, the scaleMin will be min.soft unless (dataMin - pad) goes below it.",
+			title: "Hard bounds: -10 to 10",
+			descr: "The range cannot extend below -10 or above 10. Data outside these limits is clipped. Unlike soft bounds, hard bounds do not expand a smaller range to the limits.",
 			scales: {
 				y: {
 					range: {
-						min: {
-							pad: 0.2,
-							soft: 0,
-							mode: 2,
-						},
-						max: {
-							pad: 0.2,
-							soft: 0,
-							mode: 2,
-						},
+						zeroIf: 0,
+						min: {pad: 0.2, hard: -10},
+						max: {pad: 0.2, hard: 10},
 					}
 				},
 			},
 		},
 		{
-			title: "min: {soft: 0, mode: 3}",
-			descr: "With min.mode: 3, the scaleMin will be a constant % [of the full range] below dataMin until (dataMin - pad) goes below it. This is uPlot's default mode - it provides a conditioned softMin - keeping more vertical resolution when the value range is small and far from softMin.",
+			title: "Include nearby zero (25%)",
+			descr: "Anchor zero when its distance from the data is at most 25% of the raw data span. With the first value at 5, increasing the second to 25 reaches this threshold: 5 = 0.25 × (25 − 5).",
 			scales: {
 				y: {
 					range: {
-						min: {
-							pad: 0.2,
-							soft: 0,
-							mode: 3,
-						},
-						max: {
-							pad: 0.2,
-							soft: 0,
-							mode: 3,
-						},
+						zeroIf: 0.25,
+						min: {pad: 0.2},
+						max: {pad: 0.2},
 					}
 				},
 			},
 		},
 	];
 
-	return plots.map(o => uPlot(uPlot.assign({}, opts, o, {
-		legend: {
-			mount(u) {
-				let p = document.createElement("p");
-				p.textContent = o.descr;
-				u.root.appendChild(p);
+	return plots.map(o => {
+		const readout = document.createElement("output");
+		readout.className = "range-readout";
+		return uPlot(uPlot.assign({}, opts, o, {
+			legend: {
+				mount(u) {
+					let p = document.createElement("p");
+					p.textContent = o.descr;
+
+					u.root.append(p, readout);
+				},
 			},
-		},
-	}), data, document.body));
+			hooks: {
+				draw: [u => {
+					const { min, max } = u.series[1];
+					const scale = u.scales.y;
+					const clipped = min < scale.min || max > scale.max;
+					readout.value = `Data: [${fmt(min)}, ${fmt(max)}] | Scale: [${fmt(scale.min)}, ${fmt(scale.max)}]${clipped ? ' | clipped' : ''}`;
+				}],
+			},
+		}), data, document.body);
+	});
 }
 
 function flatZero() {
 	let opts = uPlot.assign({}, baseOptions(), {
-		title: "min: {soft: -1, mode: 2}, max: {soft: 1, mode: 2}",
+		title: "min: {soft: -1}, max: {soft: 1}",
 		scales: {
 			y: {
 				range: {
 					min: {
 						soft: -1,
-						mode: 2,
 						pad: 0.2,
 					},
 					max: {
 						soft: 1,
-						mode: 2,
 						pad: 0.2,
 					},
 				}
@@ -153,16 +131,29 @@ function flatZero() {
 	], document.body);
 }
 
-// Accept the flattened renderDemo result; leave the independent zero plot unchanged.
-export function incrementDataMax(plots) {
-	const data = plots[0].data;
-//	data[1][0] -= 0.1;
-	data[1][1] += .1;
-	plots.slice(0, 4).forEach(u => {
-		u.setData(data);
-	});
+// Leave the independent flat-zero plot unchanged.
+export function setDataValue(plots, value) {
+	if (!Number.isFinite(value))
+		return;
+
+	const current = plots[0].data;
+	const data = [current[0], [current[1][0], value]];
+	plots.slice(0, 4).forEach(u => u.setData(data));
+}
+
+export function bindControls(plots, root = document) {
+	const slider = root.querySelector('#data-value');
+	const output = root.querySelector('#data-value-output');
+	const update = () => {
+		setDataValue(plots, slider.valueAsNumber);
+		output.value = slider.value;
+	};
+
+	slider.addEventListener('input', update);
+	update();
+	return () => slider.removeEventListener('input', update);
 }
 
 export default [{
-	steps: [plotStep(softMinimumModes), plotStep(flatZero)],
+	steps: [plotStep(minimumPolicies), plotStep(flatZero)],
 }];

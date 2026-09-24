@@ -13,8 +13,8 @@ function makeChart(o, data) {
 		scales: {
 			y: {
 				range: {
-					min: {mode: 1, soft: 0},
-					max: {mode: 1, soft: 0},
+					min: {soft: 0},
+					max: {soft: 0},
 				},
 				ori: ori == 0 ? 1 : 0,
 			}

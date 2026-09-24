@@ -8,6 +8,8 @@
 - [Series, Scales, Axes, Grid](#series-scales-axes-grid)
 - [Multiple Scales & Axes](#multiple-scales--axes)
 - [Scale Opts](#scale-opts)
+  - [Numeric Range Policy](#numeric-range-policy)
+  - [Soft-limit Migration](#soft-limit-migration)
 - [Axis & Grid Opts](#axis--grid-opts)
 - [Axis Layout & Padding](#axis-layout--padding)
 - WIP: [#48](https://github.com/leeoniya/uPlot/issues/48)
@@ -373,6 +375,70 @@ let opts = {
   },
 }
 ```
+
+##### Numeric Range Policy
+
+`Range.Config` controls ordinary numeric ranging through `uPlot.rangeNum()` and tick-aware numeric ranging through `scale.axis`.
+Both rangers use the same anchor precedence:
+
+1. Hard limits.
+2. Active explicit soft anchors.
+3. Zero-proximity anchors from `zeroIf`.
+4. Padding.
+
+Each side accepts `hard`, `soft`, and `pad`. There is no `mode` property or implicit `soft: 0`.
+An omitted or null `soft` supplies no soft anchor. Each side defaults to `pad: 0.1`.
+
+An explicit `soft` is an exact preferred endpoint, subject to hard limits:
+
+- `min.soft` is active exactly when `rawMin >= min.soft`.
+- `max.soft` is active exactly when `rawMax <= max.soft`.
+
+If data crosses a soft endpoint, that anchor becomes inactive and normal padding applies, subject to hard limits and `zeroIf`.
+An active anchor overrides padding on its side. Soft activation does not depend on padded bounds or tick positions.
+For example, `min.soft: 10` anchors the minimum at `10` for raw data `[20, 100]`.
+For raw data `[5, 100]`, the same soft anchor is inactive.
+
+The top-level `zeroIf` defaults to `0.1` when omitted or null. A value of `0` disables proximity anchoring.
+The proximity rule uses raw extrema and `rawSpan = rawMax - rawMin`, before padding, hard clipping, or flat-range normalization:
+
+- For nonnegative data, zero qualifies when `rawMin <= zeroIf * rawSpan`.
+- For nonpositive data, zero qualifies when `-rawMax <= zeroIf * rawSpan`.
+
+Hard limits and active explicit soft anchors take precedence over zero proximity.
+Null soft limits do not disable `zeroIf`. Zero can still occur through ordinary padding or tick selection when proximity anchoring is disabled.
+
+```js
+const range = {
+  min: { soft: null, pad: 0.1 },
+  max: { soft: 100, pad: 0.1 },
+  zeroIf: 0.1,
+};
+```
+
+Tick-aware ranging resolves anchors before one tick-grid selection. It has no natural-grid prepass or retry to determine soft activation.
+Anchored sides ignore even huge padding values whose multiplication by the raw span overflows. Unanchored padding requirements still apply.
+Active endpoints must align with the selected built-in increment for tick-aware ranging.
+For flat zero data, an explicit upper zero endpoint uses a negative fallback. Explicit zero endpoints on both sides retain the positive fallback.
+The positional `rangeNum(min, max, mult, extra)` form uses `mult` as padding. Its `extra` flag enables or disables the default zero affinity.
+The [axis-ranging policy](investigations/minimal-axis-ranging-plan.md#minimum-range-padding) explains tick-aware padding and unsupported inputs.
+
+##### Soft-limit Migration
+
+`Range.SoftMode` and `Range.Limit.mode` are removed. The following changes apply to range configuration:
+
+| Previous configuration | Migration |
+| --- | --- |
+| `mode: 0` | Remove `mode` and omit `soft`, or set `soft: null`. |
+| `mode: 1` | Remove `mode` and retain `soft`. |
+| `mode: 2` or `mode: 3`, with nonzero `soft` | There is no direct equivalent. If the old conditional behavior is necessary, use a custom range function. |
+| Old default `soft: 0, mode: 3` | Remove both fields. The default `zeroIf: 0.1` replaces this policy. |
+
+The new zero-proximity policy uses raw data, not padded bounds or a natural tick grid. It does not promise identical legacy bounds.
+An explicit `soft: 0` now requests a preferred zero endpoint whenever data stays on that side of zero, regardless of distance.
+
+If the old configuration used `mode: 0` to avoid zero anchoring, also set `zeroIf: 0`.
+This disables proximity anchoring, but does not forbid a zero endpoint from padding or tick selection.
 
 ---
 #### Axis & Grid Opts

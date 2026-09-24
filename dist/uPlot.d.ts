@@ -176,7 +176,7 @@ declare class uPlot {
 	 */
 	static scan(self: uPlot, scaleKey: string, i0?: number | null, i1?: number | null, cache?: boolean): uPlot.Range.MinMax;
 
-	/** re-ranges a given min/max by a multiple of the range's magnitude (used internally to expand/snap/pad numeric y scales) */
+	/** Calculates numeric bounds with padding. The positional extra flag enables the default zero affinity. */
 	static rangeNum(min: number, max: number, mult: number, extra: boolean): uPlot.Range.MinMax;
 	static rangeNum(min: number, max: number, cfg: uPlot.Range.Config): uPlot.Range.MinMax;
 
@@ -304,17 +304,12 @@ declare namespace uPlot {
 
 		export type Function = (self: uPlot, initMin: number | null, initMax: number | null, scaleKey: string) => MinMax;
 
-		export type SoftMode = 0 | 1 | 2 | 3;
-
 		export interface Limit {
-			/** Fraction of the raw data span (default: 0.1). Tick-aware ranging uses it as minimum clearance, subject to limits and zero anchors. */
+			/** Padding fraction (default: 0.1). Active anchors override padding. */
 			pad?: number;
 
-			/** soft limit */
-			soft?: number; // 0
-
-			/** soft limit active if... 0: never, 1: data <= limit, 2: data + padding <= limit, 3: data <= limit <= data + padding */
-			mode?: SoftMode; // 3
+			/** Preferred endpoint while raw data stays inside it. Omitted or null means no soft anchor. */
+			soft?: number | null;
 
 			/** hard limit */
 			hard?: number;
@@ -324,8 +319,8 @@ declare namespace uPlot {
 			min: Range.Limit;
 			max: Range.Limit;
 
-			/** For tick-aware axis ranging, anchor zero when its distance from the data is <= zeroIf * (dataMax - dataMin). Independent of soft limits and modes. Active soft anchors and hard limits take precedence. Default 0.1. Set 0 to disable proximity anchoring. */
-			zeroIf?: number;
+			/** Zero-proximity threshold for both numeric rangers. Omitted or null defaults to 0.1. Set 0 to disable. */
+			zeroIf?: number | null;
 
 			/** treat spans <= flat * max(abs(min), abs(max)) as flat; default 1e-7. 0 disables relative flattening, not the 1e-24 absolute floor. */
 			flat?: number;

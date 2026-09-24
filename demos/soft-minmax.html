@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html lang="en">
 	<head>
 		<meta charset="utf-8">
 		<title>Soft Min/Max</title>
@@ -18,25 +18,57 @@
 				padding: 10px;
 			}
 
-			button {
-				position: absolute;
-				left: 100px;
-				top: 100px;
+			.controls {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				gap: 12px;
+				margin: 16px 10px;
+			}
+
+			#data-value {
+				width: min(600px, 65vw);
+			}
+
+			#data-value-output {
+				min-width: 5ch;
+				font-variant-numeric: tabular-nums;
+			}
+
+			.range-readout {
+				display: block;
+				padding: 0 10px 16px;
+				font: 12px monospace;
 			}
 		</style>
 	</head>
 	<body>
+		<h1>Soft limits, zero affinity, and hard limits</h1>
+		<p>The precedence is <code>hard > soft > zeroIf > pad</code>.
+		An omitted or null <code>soft</code> means no soft limit. There is no automatic soft zero.
+		Both <code>zeroIf</code> and <code>pad</code> default to <code>.1</code>.
+		The comparison charts use <code>pad: .2</code> to make padding visible.</p>
+		<p>The first four charts share the same data: X values <code>[0, 10]</code> and initial Y values <code>[5, 12]</code>.
+		The slider controls the second Y value. The first stays at 5.
+		Cross -10 and 10 to compare soft limits with hard clipping. Move between 24 and 25 to see <code>zeroIf: 0.25</code> activate.</p>
+		<section id="controls" class="controls" aria-label="Shared data">
+			<label for="data-value">Second Y value</label>
+			<input id="data-value" type="range" min="-100" max="100" step="0.1" value="12" list="data-thresholds" aria-describedby="zero-threshold">
+			<datalist id="data-thresholds">
+				<option value="25" label="25: zero-affinity threshold"></option>
+			</datalist>
+			<output id="data-value-output" for="data-value">12</output>
+			<span id="zero-threshold">25: zero-affinity threshold</span>
+		</section>
+		<p>The final chart is independent. It shows flat-zero data with soft limits at -1 and 1.</p>
 		<script type="module">
 			import { renderDemo } from './renderDemo.js';
 
 			await import('../dist/uPlot.esm.js').then(m => { window.uPlot = m.default; });
-			await import('./soft-minmax.js').then(async ({ default: groups, incrementDataMax }) => {
+			await import('./soft-minmax.js').then(async ({ default: groups, bindControls }) => {
 				const plots = (await renderDemo(groups)).flat();
-				window.dataMaxIncr = () => {
-					setInterval(() => incrementDataMax(plots), 50);
-				};
+				bindControls(plots);
 			});
 		</script>
-		<button onclick="dataMaxIncr()">▶ dataMax++</button>
 	</body>
 </html>

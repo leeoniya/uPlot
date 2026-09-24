@@ -168,19 +168,50 @@ function rangeAsinh(min, max, base, fullMags) {
 }
 
 const rangePad = 0.1;
+const rangeZeroIf = 0.1;
+
+function atMostWithEpsilon(value, limit) {
+	return value <= limit || value - limit <= max(abs(value), abs(limit)) * Number.EPSILON * 2;
+}
+
+function rangeAnchors(dataMin, dataMax, softMin, softMax, zeroIf = rangeZeroIf) {
+	zeroIf ??= rangeZeroIf;
+
+	if (!isFinite$1(zeroIf) || zeroIf < 0)
+		return [null, null];
+
+	let minAnchor = softMin != null && dataMin >= softMin ? softMin : null;
+	let maxAnchor = softMax != null && dataMax <= softMax ? softMax : null;
+	let rawSpan = dataMax - dataMin;
+
+	if (zeroIf > 0) {
+		if (minAnchor == null && dataMin >= 0 && atMostWithEpsilon(dataMin, rawSpan * zeroIf))
+			minAnchor = 0;
+		if (maxAnchor == null && dataMax <= 0 && atMostWithEpsilon(-dataMax, rawSpan * zeroIf))
+			maxAnchor = 0;
+	}
+
+	// Prefer an explicit max zero over implicit affinity; ties keep the positive fallback.
+	if (dataMin == 0 && dataMax == 0 && minAnchor == 0 && maxAnchor == 0) {
+		if (softMax === 0 && softMin !== 0)
+			minAnchor = null;
+		else
+			maxAnchor = null;
+	}
+
+	return [minAnchor, maxAnchor];
+}
 
 const autoRangePart = {
-	mode: 3,
 	pad: rangePad,
 };
 
 const _eqRangePart = {
-	pad:  0,
-	soft: null,
-	mode: 0,
+	pad: 0,
 };
 
 const _eqRange = {
+	zeroIf: rangeZeroIf,
 	min: _eqRangePart,
 	max: _eqRangePart,
 };
@@ -191,9 +222,8 @@ function rangeNum(_min, _max, mult, extra) {
 	if (isObj(mult))
 		return _rangeNum(_min, _max, mult);
 
-	_eqRangePart.pad  = mult;
-	_eqRangePart.soft = extra ? 0 : null;
-	_eqRangePart.mode = extra ? 3 : 0;
+	_eqRangePart.pad = mult;
+	_eqRange.zeroIf = extra ? rangeZeroIf : 0;
 
 	return _rangeNum(_min, _max, _eqRange);
 }
@@ -214,8 +244,12 @@ function hasData(data, idx0, idx1) {
 }
 
 function _rangeNum(_min, _max, cfg) {
-	let cmin = cfg.min;
-	let cmax = cfg.max;
+	let cmin = cfg.min ?? autoRangePart;
+	let cmax = cfg.max ?? autoRangePart;
+	let zeroIf = cfg.zeroIf ?? rangeZeroIf;
+
+	if (!isFinite$1(zeroIf) || zeroIf < 0)
+		return [null, null];
 
 	let padMin = cmin.pad ?? rangePad;
 	let padMax = cmax.pad ?? rangePad;
@@ -223,11 +257,7 @@ function _rangeNum(_min, _max, cfg) {
 	let hardMin = cmin.hard ?? -inf;
 	let hardMax = cmax.hard ??  inf;
 
-	let softMin = cmin.soft ??  inf;
-	let softMax = cmax.soft ?? -inf;
-
-	let softMinMode = cmin.mode ?? 0;
-	let softMaxMode = cmax.mode ?? 0;
+	let [minAnchor, maxAnchor] = rangeAnchors(_min, _max, cmin.soft, cmax.soft, zeroIf);
 
 	let delta = _max - _min;
 	let scalarMax = max(abs(_min), abs(_max));
@@ -242,18 +272,6 @@ function _rangeNum(_min, _max, cfg) {
 		}
 
 		delta = 0;
-
-		// if soft mode is 2 and all vals are flat at 0, avoid the 0.1 * 1e3 fallback
-		// this prevents 0,0,0 from ranging to -100,100 when softMin/softMax are -1,1
-		if (_min == 0 || _max == 0) {
-			delta = 1e-24;
-
-			if (softMinMode == 2 && softMin != inf)
-				padMin = 0;
-
-			if (softMaxMode == 2 && softMax != -inf)
-				padMax = 0;
-		}
 	}
 
 	let nonZeroDelta = delta || scalarMax || 1e3;
@@ -262,18 +280,23 @@ function _rangeNum(_min, _max, cfg) {
 
 	let _padMin  = nonZeroDelta * (delta == 0 ? (_min == 0 ? .1 : 1) : padMin);
 	let _newMin  = incrRoundDn(_min - _padMin, incr);
-	let _softMin = _min >= softMin && (softMinMode == 1 || softMinMode == 3 && _newMin <= softMin || softMinMode == 2 && _newMin >= softMin) ? softMin : inf;
-	let minLim   = max(hardMin, _newMin < _softMin && _min >= _softMin ? _softMin : min(_softMin, _newMin));
+	let minLim   = min(hardMax, max(hardMin, minAnchor ?? _newMin));
 
 	let _padMax  = nonZeroDelta * (delta == 0 ? (_max == 0 ? .1 : 1) : padMax);
 	let _newMax  = incrRoundUp(_max + _padMax, incr);
-	let _softMax = _max <= softMax && (softMaxMode == 1 || softMaxMode == 3 && _newMax >= softMax || softMaxMode == 2 && _newMax <= softMax) ? softMax : -inf;
-	let maxLim   = min(hardMax, _newMax > _softMax && _max <= _softMax ? _softMax : max(_softMax, _newMax));
+	let maxLim   = max(hardMin, min(hardMax, maxAnchor ?? _newMax));
 
 	// Retain a usable range if padding cannot separate the bounds.
 	if (minLim == maxLim) {
-		if (minLim == 0)
-			maxLim = 100;
+		if (minLim == 0) {
+			if (hardMax == 0) {
+				if (hardMin == 0)
+					return [null, null];
+				minLim = -100;
+			}
+			else
+				maxLim = 100;
+		}
 		else if (minLim < 0) {
 			minLim *= 2;
 			maxLim = 0;
@@ -284,7 +307,7 @@ function _rangeNum(_min, _max, cfg) {
 		}
 	}
 
-	return [minLim, maxLim];
+	return [max(hardMin, minLim), min(hardMax, maxLim)];
 }
 
 // alternative: https://stackoverflow.com/a/2254896
@@ -2200,11 +2223,11 @@ function rangeYCount(height, ramp = 1) {
 	return max(1, round(1 + (target - 1) * ramp));
 }
 
-/** @typedef {{pad?: number, hard?: number, soft?: number | null, mode?: number}} RangeYLimit */
+/** @typedef {{pad?: number, hard?: number, soft?: number | null}} RangeYLimit */
 
-const autoLimit = Object.freeze({ pad: rangePad, soft: 0, mode: 3 });
+const autoLimit = Object.freeze({ pad: rangePad });
 /** @type {Readonly<{zeroIf: number, min: Readonly<RangeYLimit>, max: Readonly<RangeYLimit>}>} */
-const rangeYAuto = Object.freeze({ zeroIf: 0.1, min: autoLimit, max: autoLimit });
+const rangeYAuto = Object.freeze({ zeroIf: rangeZeroIf, min: autoLimit, max: autoLimit });
 
 function limitPolicy(limit, side) {
 	limit ??= autoLimit;
@@ -2212,29 +2235,14 @@ function limitPolicy(limit, side) {
 	let hardDefault = side == 0 ? -Infinity : Infinity;
 	let softDefault = -hardDefault;
 	let hard = limit.hard ?? hardDefault;
-	let soft = "soft" in limit ? limit.soft ?? softDefault : autoLimit.soft;
-	let mode = limit.mode ?? autoLimit.mode;
+	let soft = limit.soft ?? softDefault;
 	let pad = limit.pad ?? autoLimit.pad;
 
 	if ((!isFinite$1(hard) && hard != hardDefault) || (!isFinite$1(soft) && soft != softDefault) ||
-		!isFinite$1(pad) || pad < 0 || !(mode == 0 || mode == 1 || mode == 2 || mode == 3))
+		!isFinite$1(pad) || pad < 0)
 		return null;
 
-	return { hard, soft, mode, pad };
-}
-
-function atMostWithEpsilon(value, limit) {
-	return value <= limit || value - limit <= max(abs(value), abs(limit)) * Number.EPSILON * 2;
-}
-
-function softAnchor(data, endpoint, policy, side) {
-	let { soft, mode } = policy;
-	let beyond = side == 0 ? data >= soft : data <= soft;
-	let inside = side == 0 ? endpoint >= soft : endpoint <= soft;
-	let reached = side == 0 ? endpoint <= soft : endpoint >= soft;
-
-	let active = mode == 1 || mode == 2 && inside || mode == 3 && reached;
-	return beyond && active ? soft : null;
+	return { hard, soft, pad };
 }
 
 function incrAligned(value, incr) {
@@ -2268,26 +2276,39 @@ function prepareRangeY(dataMin, dataMax, range) {
 		return null;
 
 	let rawSpan = dataMax - dataMin;
+	let [minAnchor, maxAnchor] = rangeAnchors(dataMin, dataMax, minPolicy.soft, maxPolicy.soft, zeroIf);
+	if (minAnchor != null)
+		minAnchor = max(minAnchor, minPolicy.hard);
+	if (maxAnchor != null)
+		maxAnchor = min(maxAnchor, maxPolicy.hard);
+
 	let fallbackMin = dataMin;
 	let fallbackMax = dataMax;
 
 	if (dataMin == dataMax) {
 		fallbackMin = dataMin - abs(dataMin);
 		fallbackMax = dataMax == 0 ? 100 : dataMax + abs(dataMax);
+
+		if (dataMin == 0 && (maxAnchor == 0 && minAnchor == null || maxPolicy.hard == 0)) {
+			fallbackMin = -100;
+			fallbackMax = 0;
+			if (minPolicy.soft != 0)
+				minAnchor = null;
+		}
 	}
 
 	let span = fallbackMax - fallbackMin;
 	if (!isFinite$1(span))
 		return null;
 
-	let boundedMin = max(fallbackMin, minPolicy.hard);
-	let boundedMax = min(fallbackMax, maxPolicy.hard);
+	let boundedMin = max(dataMin, minPolicy.hard);
+	let boundedMax = min(dataMax, maxPolicy.hard);
 	if (boundedMin > boundedMax)
 		return null;
 
 	return {
-		zeroIf,
-		rawSpan,
+		minAnchor,
+		maxAnchor,
 		span,
 		boundedMin,
 		boundedMax,
@@ -2299,8 +2320,8 @@ function prepareRangeY(dataMin, dataMax, range) {
 	};
 }
 
-function selectRangeY(request, count, minAnchor, maxAnchor, exactCount) {
-	let { span, minPolicy, maxPolicy } = request;
+function selectRangeY(request, count, exactCount) {
+	let { span, minAnchor, maxAnchor, minPolicy, maxPolicy } = request;
 	let boundedMin = minAnchor == null ? request.paddedMin : request.boundedMin;
 	let boundedMax = maxAnchor == null ? request.paddedMax : request.boundedMax;
 	let hardMin = minPolicy.hard;
@@ -2426,34 +2447,7 @@ function rangeY(dataMin, dataMax, height, range = rangeYAuto, ramp = 1, exactCou
 	if (request == null)
 		return null;
 
-	let natural = selectRangeY(request, count, null, null, exactCount);
-	if (natural == null && request.paddedMin == request.boundedMin && request.paddedMax == request.boundedMax)
-		return null;
-
-	// If padding prevents a natural grid, resolve anchors against the requested enclosure.
-	// Anchors can discard even overflowing padding before the final selection.
-	let { zeroIf, rawSpan, minPolicy, maxPolicy } = request;
-	let minAnchor = softAnchor(dataMin, natural?.min ?? request.paddedMin, minPolicy, 0);
-	let maxAnchor = softAnchor(dataMax, natural?.max ?? request.paddedMax, maxPolicy, 1);
-
-	if (zeroIf > 0) {
-		if (minAnchor == null && dataMin >= 0 && atMostWithEpsilon(dataMin, rawSpan * zeroIf))
-			minAnchor = 0;
-		if (maxAnchor == null && dataMax <= 0 && atMostWithEpsilon(-dataMax, rawSpan * zeroIf))
-			maxAnchor = 0;
-	}
-
-	// Preserve the existing positive fallback for data that is flat at zero.
-	if (rawSpan == 0 && dataMin == 0 && minAnchor == 0 && maxAnchor == 0)
-		maxAnchor = null;
-
-	if (minAnchor != null && minAnchor < minPolicy.hard)
-		minAnchor = minPolicy.hard;
-	if (maxAnchor != null && maxAnchor > maxPolicy.hard)
-		maxAnchor = maxPolicy.hard;
-
-	return natural != null && (minAnchor == null || minAnchor == natural.min) && (maxAnchor == null || maxAnchor == natural.max)
-		? natural : selectRangeY(request, count, minAnchor, maxAnchor, exactCount);
+	return selectRangeY(request, count, exactCount);
 }
 
 // entries is an array with unique keys from getKey(entry).
@@ -4303,12 +4297,10 @@ function uPlot(opts, data, then) {
 					if (rangeIsArr && (rn[0] == null || rn[1] == null)) {
 						let partial = rn;
 						let min = partial[0] == null ? autoRangePart : {
-							mode: 1,
 							hard: partial[0],
 							soft: partial[0],
 						};
 						let max = partial[1] == null ? autoRangePart : {
-							mode: 1,
 							hard: partial[1],
 							soft: partial[1],
 						};

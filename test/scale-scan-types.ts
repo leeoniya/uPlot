@@ -107,6 +107,30 @@ u.setRange('y', null, 100);
 
 type SetRangeBounds = Assert<Equal<Parameters<uPlot['setRange']>, [string, number | null, number | null]>>;
 
+type RangeSoft = Assert<Equal<uPlot.Range.Limit['soft'], number | null | undefined>>;
+type RangeZeroIf = Assert<Equal<uPlot.Range.Config['zeroIf'], number | null | undefined>>;
+type RangeLimitHasNoMode = Assert<Equal<Extract<'mode', keyof uPlot.Range.Limit>, never>>;
+
+const defaultRange: uPlot.Range.Config = { min: {}, max: {} };
+const softRange: uPlot.Range.Config = {
+	min: { soft: 10, pad: 0.1 },
+	max: { soft: 100, hard: 120 },
+	zeroIf: 0,
+};
+const nullSoftRange: uPlot.Range.Config = {
+	min: { soft: null },
+	max: { soft: null },
+	zeroIf: null,
+};
+
+uPlot.rangeNum(20, 80, nullSoftRange);
+const nullableRangeScale: uPlot.Scale = { range: nullSoftRange };
+
+// @ts-expect-error Range.SoftMode is removed.
+type RemovedSoftMode = uPlot.Range.SoftMode;
+// @ts-expect-error Range limits no longer accept mode.
+const removedMode: uPlot.Range.Limit = { soft: 0, mode: 1 };
+
 // @ts-expect-error Bounds must be numbers or null, not undefined.
 u.setRange('y', undefined, 100);
 // @ts-expect-error Bounds must be numbers or null, not undefined.

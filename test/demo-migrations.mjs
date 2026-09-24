@@ -10,7 +10,7 @@ import barsGroupedStacked from '../demos/bars-grouped-stacked.js';
 import trendlines from '../demos/trendlines.js';
 import candlestick from '../demos/candlestick-ohlc.js';
 import annotations from '../demos/annotations.js';
-import softMinmax, { incrementDataMax } from '../demos/soft-minmax.js';
+import softMinmax, { setDataValue } from '../demos/soft-minmax.js';
 import nearestNonNull from '../demos/nearest-non-null.js';
 import logScales, { createGroups } from '../demos/log-scales2.js';
 import stackedSeries from '../demos/stacked-series.js';
@@ -155,7 +155,7 @@ describe('demo migrations', () => {
 	it('updates the four soft-minmax plots together without changing the independent zero plot', async () => {
 		const plots = [...await render(softMinmax), ...await render(softMinmax, 1)];
 		const zeroRange = [plots[4].scales.y.min, plots[4].scales.y.max];
-		incrementDataMax(plots);
+		setDataValue(plots, 12.1);
 		await Promise.resolve();
 		for (const plot of plots.slice(0, 4)) {
 			assert.equal(plot.data, plots[0].data);

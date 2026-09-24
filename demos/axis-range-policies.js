@@ -16,7 +16,7 @@ function makeWalk() {
 
 const presets = [
 	{ name: '20% zero gap', start: 20, spread: 100, descr: 'The 20% zero gap exceeds the default 10% affinity threshold. Padding and tick rounding can still reach zero. Explicit 20% affinity anchors zero.' },
-	{ name: 'Outside the threshold', start: 25, spread: 100, descr: 'The 25% zero gap exceeds both affinity thresholds. Padding and tick rounding can still reach zero. Always-soft and mode 2 also anchor zero here.' },
+	{ name: 'Outside the threshold', start: 25, spread: 100, descr: 'The 25% zero gap exceeds both affinity thresholds. Padding and tick rounding can still reach zero. Explicit soft zero anchors zero here. Without padding or zero affinity, the range stays closer to the data.' },
 	{ name: 'Far from zero', start: 1000, spread: 100, descr: 'Padding and tick rounding keep automatic ranges far from zero here. Soft-zero and the fixed-zero partial range extend to zero. A hard minimum alone does not.' },
 	{ name: 'Small magnitude', start: .002, spread: .01, descr: 'This smaller range has the same 20% zero gap as the first preset. Padding and tick rounding can reach zero outside the default 10% affinity threshold.' },
 	{ name: 'Negative data', start: -120, spread: 100, descr: 'The upper edge has a 20% zero gap, outside the default 10% affinity threshold. Padding and tick rounding can still reach zero. The two hard-minimum-zero policies exclude all data and cannot produce a range.' },
@@ -40,7 +40,7 @@ function policyConfigs() {
 	return [
 		{
 			title: 'Default policy',
-			descr: 'The defaults use 10% padding and 10% zero affinity, both relative to the raw data span. Padding and tick rounding can reach zero outside the affinity threshold. Active anchors override padding on their side.',
+			descr: 'The defaults use 10% padding and 10% zero affinity, both relative to the raw data span. There is no automatic soft limit. Padding and tick rounding can reach zero outside the affinity threshold.',
 			code: 'range omitted',
 		},
 		{
@@ -62,18 +62,19 @@ function policyConfigs() {
 			range: { min: { pad: .1 }, max: { pad: .1 } },
 		},
 		{
-			title: 'Always-soft zero',
-			descr: 'Soft mode 1 makes zero the outer tick for one-sided data.',
-			code: 'range: {min: {soft: 0, mode: 1}, max: {soft: 0, mode: 1}}',
-			range: { min: { soft: 0, mode: 1 }, max: { soft: 0, mode: 1 } },
+			title: 'Explicit soft zero',
+			descr: 'Explicit soft zero anchors the endpoint while the raw extremum stays inside the limit. It overrides zero affinity and padding, but not hard limits.',
+			code: 'range: {min: {soft: 0}, max: {soft: 0}}',
+			range: { min: { soft: 0 }, max: { soft: 0 } },
 		},
 		{
-			title: 'Mode 2 soft zero',
-			descr: 'Soft mode 2 uses zero unless the natural endpoint tick crosses it.',
-			code: 'range: {min: {soft: 0, mode: 2}, max: {soft: 0, mode: 2}}',
+			title: 'No padding or zero affinity',
+			descr: 'This policy adds no padding or zero affinity. Tick rounding still applies.',
+			code: 'range: {zeroIf: 0, min: {pad: 0}, max: {pad: 0}}',
 			range: {
-				min: { soft: 0, mode: 2 },
-				max: { soft: 0, mode: 2 },
+				zeroIf: 0,
+				min: { pad: 0 },
+				max: { pad: 0 },
 			},
 		},
 		{

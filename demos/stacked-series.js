@@ -206,8 +206,8 @@ function chartOpts(series, width = 400, height = 300) {
 			},
 			y: {
 				range: {
-					min: {mode: 1, soft: 0},
-					max: {mode: 1, soft: 0},
+					min: {soft: 0},
+					max: {soft: 0},
 				},
 			},
 		},

@@ -153,19 +153,50 @@ export function rangeAsinh(min, max, base, fullMags) {
 }
 
 export const rangePad = 0.1;
+export const rangeZeroIf = 0.1;
+
+function atMostWithEpsilon(value, limit) {
+	return value <= limit || value - limit <= max(abs(value), abs(limit)) * Number.EPSILON * 2;
+}
+
+export function rangeAnchors(dataMin, dataMax, softMin, softMax, zeroIf = rangeZeroIf) {
+	zeroIf ??= rangeZeroIf;
+
+	if (!isFinite(zeroIf) || zeroIf < 0)
+		return [null, null];
+
+	let minAnchor = softMin != null && dataMin >= softMin ? softMin : null;
+	let maxAnchor = softMax != null && dataMax <= softMax ? softMax : null;
+	let rawSpan = dataMax - dataMin;
+
+	if (zeroIf > 0) {
+		if (minAnchor == null && dataMin >= 0 && atMostWithEpsilon(dataMin, rawSpan * zeroIf))
+			minAnchor = 0;
+		if (maxAnchor == null && dataMax <= 0 && atMostWithEpsilon(-dataMax, rawSpan * zeroIf))
+			maxAnchor = 0;
+	}
+
+	// Prefer an explicit max zero over implicit affinity; ties keep the positive fallback.
+	if (dataMin == 0 && dataMax == 0 && minAnchor == 0 && maxAnchor == 0) {
+		if (softMax === 0 && softMin !== 0)
+			minAnchor = null;
+		else
+			maxAnchor = null;
+	}
+
+	return [minAnchor, maxAnchor];
+}
 
 export const autoRangePart = {
-	mode: 3,
 	pad: rangePad,
 };
 
 const _eqRangePart = {
-	pad:  0,
-	soft: null,
-	mode: 0,
+	pad: 0,
 };
 
 const _eqRange = {
+	zeroIf: rangeZeroIf,
 	min: _eqRangePart,
 	max: _eqRangePart,
 };
@@ -176,9 +207,8 @@ export function rangeNum(_min, _max, mult, extra) {
 	if (isObj(mult))
 		return _rangeNum(_min, _max, mult);
 
-	_eqRangePart.pad  = mult;
-	_eqRangePart.soft = extra ? 0 : null;
-	_eqRangePart.mode = extra ? 3 : 0;
+	_eqRangePart.pad = mult;
+	_eqRange.zeroIf = extra ? rangeZeroIf : 0;
 
 	return _rangeNum(_min, _max, _eqRange);
 }
@@ -199,8 +229,12 @@ export function hasData(data, idx0, idx1) {
 }
 
 function _rangeNum(_min, _max, cfg) {
-	let cmin = cfg.min;
-	let cmax = cfg.max;
+	let cmin = cfg.min ?? autoRangePart;
+	let cmax = cfg.max ?? autoRangePart;
+	let zeroIf = cfg.zeroIf ?? rangeZeroIf;
+
+	if (!isFinite(zeroIf) || zeroIf < 0)
+		return [null, null];
 
 	let padMin = cmin.pad ?? rangePad;
 	let padMax = cmax.pad ?? rangePad;
@@ -208,11 +242,7 @@ function _rangeNum(_min, _max, cfg) {
 	let hardMin = cmin.hard ?? -inf;
 	let hardMax = cmax.hard ??  inf;
 
-	let softMin = cmin.soft ??  inf;
-	let softMax = cmax.soft ?? -inf;
-
-	let softMinMode = cmin.mode ?? 0;
-	let softMaxMode = cmax.mode ?? 0;
+	let [minAnchor, maxAnchor] = rangeAnchors(_min, _max, cmin.soft, cmax.soft, zeroIf);
 
 	let delta = _max - _min;
 	let scalarMax = max(abs(_min), abs(_max));
@@ -227,18 +257,6 @@ function _rangeNum(_min, _max, cfg) {
 		}
 
 		delta = 0;
-
-		// if soft mode is 2 and all vals are flat at 0, avoid the 0.1 * 1e3 fallback
-		// this prevents 0,0,0 from ranging to -100,100 when softMin/softMax are -1,1
-		if (_min == 0 || _max == 0) {
-			delta = 1e-24;
-
-			if (softMinMode == 2 && softMin != inf)
-				padMin = 0;
-
-			if (softMaxMode == 2 && softMax != -inf)
-				padMax = 0;
-		}
 	}
 
 	let nonZeroDelta = delta || scalarMax || 1e3;
@@ -247,18 +265,23 @@ function _rangeNum(_min, _max, cfg) {
 
 	let _padMin  = nonZeroDelta * (delta == 0 ? (_min == 0 ? .1 : 1) : padMin);
 	let _newMin  = incrRoundDn(_min - _padMin, incr);
-	let _softMin = _min >= softMin && (softMinMode == 1 || softMinMode == 3 && _newMin <= softMin || softMinMode == 2 && _newMin >= softMin) ? softMin : inf;
-	let minLim   = max(hardMin, _newMin < _softMin && _min >= _softMin ? _softMin : min(_softMin, _newMin));
+	let minLim   = min(hardMax, max(hardMin, minAnchor ?? _newMin));
 
 	let _padMax  = nonZeroDelta * (delta == 0 ? (_max == 0 ? .1 : 1) : padMax);
 	let _newMax  = incrRoundUp(_max + _padMax, incr);
-	let _softMax = _max <= softMax && (softMaxMode == 1 || softMaxMode == 3 && _newMax >= softMax || softMaxMode == 2 && _newMax <= softMax) ? softMax : -inf;
-	let maxLim   = min(hardMax, _newMax > _softMax && _max <= _softMax ? _softMax : max(_softMax, _newMax));
+	let maxLim   = max(hardMin, min(hardMax, maxAnchor ?? _newMax));
 
 	// Retain a usable range if padding cannot separate the bounds.
 	if (minLim == maxLim) {
-		if (minLim == 0)
-			maxLim = 100;
+		if (minLim == 0) {
+			if (hardMax == 0) {
+				if (hardMin == 0)
+					return [null, null];
+				minLim = -100;
+			}
+			else
+				maxLim = 100;
+		}
 		else if (minLim < 0) {
 			minLim *= 2;
 			maxLim = 0;
@@ -269,7 +292,7 @@ function _rangeNum(_min, _max, cfg) {
 		}
 	}
 
-	return [minLim, maxLim];
+	return [max(hardMin, minLim), min(hardMax, maxLim)];
 }
 
 // alternative: https://stackoverflow.com/a/2254896

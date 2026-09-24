@@ -167,8 +167,9 @@ The same configuration works with `scales.y.range` and the third argument of `uP
 ```js
 {
   flat: 1e-12,
-  min: { pad: 0.1, soft: 0, mode: 3 },
-  max: { pad: 0.1, soft: 0, mode: 3 },
+  zeroIf: 0.1,
+  min: { pad: 0.1 },
+  max: { pad: 0.1 },
 }
 ```
 Tiny magnitude and high significant-digit precision are different requirements: `1e-24` itself has one significant digit.
@@ -391,7 +392,8 @@ The [five-panel dashboard](https://github.com/grafana/grafana/issues/116559#issu
 [10000000.000027, 9999999.999753]
 ```
 
-Both reproductions use linear scales without explicit hard bounds, decimal counts, or tick increments. The tests use Grafana's default 10% padding and conditional soft zero:
+Both reproductions use linear scales without explicit hard bounds, decimal counts, or tick increments.
+The historical test configuration used Grafana's default 10% padding and conditional soft zero:
 
 ```js
 {
@@ -401,6 +403,9 @@ Both reproductions use linear scales without explicit hard bounds, decimal count
 ```
 
 Source: [UPlotScaleBuilder.ts at the related fallback fix](https://github.com/grafana/grafana/blob/5f696663c357a5da3bd2e3288d8750245763fb85/packages/grafana-ui/src/components/uPlot/config/UPlotScaleBuilder.ts).
+
+This quoted configuration is historical, not current API guidance. The current policy replaces the default soft-zero mode with `zeroIf: 0.1`.
+The [migration guide](../README.md#soft-limit-migration) explains the removed modes.
 
 ### Results before the rounding fixes
 

@@ -560,7 +560,7 @@ describe('axis-ranging chart POC: one Y scale', () => {
 	for (const [name, range, policy] of [
 		['partial configured range', [0, null], {
 			zeroIf: rangeYAuto.zeroIf,
-			min: { mode: 1, hard: 0, soft: 0 },
+			min: { hard: 0, soft: 0 },
 			max: rangeYAuto.max,
 		}],
 		['object configured range', { min: { pad: .25 }, max: { pad: .25 } }, { min: { pad: .25 }, max: { pad: .25 } }],
@@ -681,10 +681,34 @@ describe('axis-ranging chart POC: one Y scale', () => {
 			});
 		}
 
+		for (const [values, range, side, anchor] of [
+			[[38, 38], { min: { soft: 20 } }, 'min', 20],
+			[[-38, -38], { max: { soft: -20 } }, 'max', -20],
+			[[0, 0], { zeroIf: 0, min: { soft: 0 }, max: { soft: 0 } }, 'min', 0],
+			[[0, 0], { min: { soft: 0 }, max: { soft: 0 } }, 'min', 0],
+		]) {
+			it(`shares raw flat anchors with ordinary ranging for ${values}, ${JSON.stringify(range)} (exact ${exact})`, async () => {
+				const options = { plotData: [[0, 1], values], y: { range } };
+				const { u } = makePlot({ ...options, axes: [{ show: false }, { exact }] });
+				const { u: ordinary } = makePlot({ ...options, optIn: false });
+				try {
+					await tick();
+					assertRange(u, ...values, 413, range);
+					for (const chart of [u, ordinary]) {
+						assert.equal(chart.scales.y[side], anchor, 'flat expansion does not deactivate a raw soft anchor');
+						assert.ok(chart.scales.y.min < chart.scales.y.max, 'the max zero anchor cannot collapse flat zero');
+						assert.ok(chart.scales.y.min <= values[0] && chart.scales.y.max >= values[1]);
+						assert.deepEqual(raw(chart), values);
+					}
+				}
+				finally { u.destroy(); ordinary.destroy(); }
+			});
+		}
+
 		for (const mirrored of [false, true]) {
 			it(`keeps an active soft zero anchor and pads the opposite side by the original span (exact ${exact}, mirrored ${mirrored})`, async () => {
 				const values = mirrored ? [-100, -20] : [20, 100];
-				const anchor = { soft: 0, mode: 1, pad: 1e100 };
+				const anchor = { soft: 0, pad: 1e100 };
 				const free = { soft: null, pad: .1 };
 				const range = { zeroIf: 0, min: mirrored ? free : anchor, max: mirrored ? anchor : free };
 				const { u } = makePlot({ plotData: [[0, 1], values], y: { range }, axes: [{ show: false }, { exact }] });
@@ -701,6 +725,41 @@ describe('axis-ranging chart POC: one Y scale', () => {
 					}
 				}
 				finally { u.destroy(); }
+			});
+
+			it(`toggles soft zero from raw data across setData and resize (exact ${exact}, mirrored ${mirrored})`, async () => {
+				const side = mirrored ? 'max' : 'min';
+				const range = { zeroIf: 0, [side]: { soft: 0, pad: .1 } };
+				const mirror = values => mirrored ? [-values[1], -values[0]] : values;
+				const options = { plotData: [[0, 1], mirror([20, 100])], y: { range } };
+				const { u, scans } = makePlot({ ...options, axes: [{ show: false }, { exact }] });
+				const { u: ordinary } = makePlot({ ...options, optIn: false });
+				try {
+					await tick();
+					for (const [pass, values] of [[20, 100], [-20, 100], [0, 100], [20, 100]].entries()) {
+						const extrema = mirror(values);
+						if (pass > 0) {
+							u.setData([[0, 1], extrema]);
+							ordinary.setData([[0, 1], extrema]);
+							await tick();
+						}
+						for (const height of [413, 125, 525, 413]) {
+							u.setSize({ width: 700, height });
+							await tick();
+							assertRange(u, ...extrema, height, range);
+							assert.deepEqual(raw(u), extrema);
+							assert.equal(scans.length, pass + 1, 'resize reuses the raw scan, not the previous soft anchor');
+							for (const chart of [u, ordinary]) {
+								const endpoint = chart.scales.y[side];
+								if (values[0] >= 0)
+									assert.equal(endpoint, 0, 'raw data inside or at soft zero anchors both range paths');
+								else
+									assert.ok(mirrored ? endpoint >= 32 : endpoint <= -32, 'crossing restores raw-span padding on both range paths');
+							}
+						}
+					}
+				}
+				finally { u.destroy(); ordinary.destroy(); }
 			});
 
 			for (const pad of [.5, 1e100]) {

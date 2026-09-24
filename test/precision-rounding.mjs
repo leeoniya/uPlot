@@ -132,8 +132,9 @@ describe('precision: PR #1142 integer digit counts', () => {
 
 const grafanaRange = {
 	flat: 1e-12,
-	min: { pad: 0.1, hard: -Infinity, soft: 0, mode: 3 },
-	max: { pad: 0.1, hard: Infinity, soft: 0, mode: 3 },
+	zeroIf: 0.1,
+	min: { pad: 0.1, hard: -Infinity },
+	max: { pad: 0.1, hard: Infinity },
 };
 
 function contains(bounds, values) {

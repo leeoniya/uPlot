@@ -570,12 +570,10 @@ export default function uPlot(opts, data, then) {
 					if (rangeIsArr && (rn[0] == null || rn[1] == null)) {
 						let partial = rn;
 						let min = partial[0] == null ? autoRangePart : {
-							mode: 1,
 							hard: partial[0],
 							soft: partial[0],
 						};
 						let max = partial[1] == null ? autoRangePart : {
-							mode: 1,
 							hard: partial[1],
 							soft: partial[1],
 						};

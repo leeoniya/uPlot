@@ -4,7 +4,7 @@ import { rangeY, rangeYCount } from '../src/rangeY.js';
 import { numAxisSplits, numIncrs } from '../src/opts.js';
 
 const noAffinity = { zeroIf: 0, min: { soft: null }, max: { soft: null } };
-// Isolate selection regressions whose anchors depend on the unpadded natural grid.
+// Keep increment-selection regressions independent of padding.
 const unpadded = { min: { pad: 0 }, max: { pad: 0 } };
 const unpaddedNoAffinity = { zeroIf: 0, min: { pad: 0, soft: null }, max: { pad: 0, soft: null } };
 
@@ -156,11 +156,11 @@ describe('approximate Y interval counts', () => {
 		assert.deepEqual(checked([-85, -15], 400, negative), { min: -85, max: -15, incr: 5, count: 14 });
 	});
 
-	it('tries the smaller neighbor when a newly required anchor rejects the preferred increment', () => {
+	it('tries the smaller neighbor when a raw soft anchor rejects the preferred increment', () => {
 		// The anchor still requires step 5; default padding extends the other bound past 70.
-		const policy = { zeroIf: 0, min: { soft: 5, mode: 1 }, max: { soft: null } };
+		const policy = { zeroIf: 0, min: { soft: 5 }, max: { soft: null } };
 		assert.deepEqual(checked([16, 69], 400, policy), { min: 5, max: 75, incr: 5, count: 14 });
-		const negative = { zeroIf: 0, min: { soft: null }, max: { soft: -5, mode: 1 } };
+		const negative = { zeroIf: 0, min: { soft: null }, max: { soft: -5 } };
 		assert.deepEqual(checked([-69, -16], 400, negative), { min: -75, max: -5, incr: 5, count: 14 });
 	});
 
@@ -170,15 +170,15 @@ describe('approximate Y interval counts', () => {
 		assert.deepEqual(checked([-54, -1], 400, unpadded), { min: -60, max: 0, incr: 10, count: 6 });
 	});
 
-	it('activates a reached soft anchor on the coarser natural grid and retains an already satisfied anchor', () => {
+	it('uses the finer increment required by raw soft anchors on one or both sides', () => {
 		assert.deepEqual(checked([6, 59], 400, unpaddedNoAffinity), { min: 0, max: 60, incr: 10, count: 6 });
 		assert.deepEqual(checked([-59, -6], 400, unpaddedNoAffinity), { min: -60, max: 0, incr: 10, count: 6 });
-		// The natural grid reaches 5 (or -5), activating mode 3 and requiring step 5.
-		for (const max of [{ pad: 0, soft: null }, { pad: 0, soft: 60, mode: 1 }]) {
-			const policy = { zeroIf: 0, min: { pad: 0, soft: 5, mode: 3 }, max };
+		// Raw data stays inside 5 (or -5); the exact endpoint requires step 5.
+		for (const max of [{ pad: 0, soft: null }, { pad: 0, soft: 60 }]) {
+			const policy = { zeroIf: 0, min: { pad: 0, soft: 5 }, max };
 			assert.deepEqual(checked([6, 59], 400, policy), { min: 5, max: 60, incr: 5, count: 11 });
 		}
-		const negative = { zeroIf: 0, min: { pad: 0, soft: null }, max: { pad: 0, soft: -5, mode: 3 } };
+		const negative = { zeroIf: 0, min: { pad: 0, soft: null }, max: { pad: 0, soft: -5 } };
 		assert.deepEqual(checked([-59, -6], 400, negative), { min: -60, max: -5, incr: 5, count: 11 });
 	});
 
@@ -189,26 +189,34 @@ describe('approximate Y interval counts', () => {
 	});
 
 	it('keeps active soft anchors ahead of zero affinity', () => {
-		assert.equal(checked([13, 87], 400, { min: { soft: -10, mode: 1 } }).min, -10);
-		assert.equal(checked([-87, -13], 400, { max: { soft: 10, mode: 1 } }).max, 10);
-		assert.deepEqual(bounds(checked([13, 87], 400, { min: { soft: 0, mode: 1 }, max: { soft: 100, mode: 1 } })), [0, 100]);
+		assert.equal(checked([13, 87], 400, { min: { soft: -10 } }).min, -10);
+		assert.equal(checked([-87, -13], 400, { max: { soft: 10 } }).max, 10);
+		assert.deepEqual(bounds(checked([13, 87], 400, { min: { soft: 0 }, max: { soft: 100 } })), [0, 100]);
 	});
 
-	it('respects soft-mode activation on the natural approximate bounds', () => {
-		for (const [mode, minimum] of [[0, 30], [1, 0], [2, 0], [3, 30]])
-			assert.equal(checked([30, 50], 400, { zeroIf: 0, min: { pad: 0, soft: 0, mode }, max: { pad: 0 } }).min, minimum);
+	it('activates soft zero from raw data even when the unanchored grid stays away from zero', () => {
+		assert.equal(checked([30, 50], 400, unpaddedNoAffinity).min, 30);
+		assert.equal(checked([-50, -30], 400, unpaddedNoAffinity).max, -30);
+		assert.equal(checked([30, 50], 400, { zeroIf: 0, min: { pad: 0, soft: 0 }, max: { pad: 0 } }).min, 0);
+		assert.equal(checked([-50, -30], 400, { zeroIf: 0, min: { pad: 0 }, max: { pad: 0, soft: 0 } }).max, 0);
+	});
 
-		for (const mode of [0, 1, 2, 3]) {
-			const active = mode == 1 || mode == 3;
-			const policy = { zeroIf: 0, min: { pad: 0, soft: 5, mode }, max: { pad: 0, soft: null } };
-			assert.deepEqual(checked([6, 59], 400, policy), active
-				? { min: 5, max: 60, incr: 5, count: 11 }
-				: { min: 0, max: 60, incr: 10, count: 6 });
-			const negative = { zeroIf: 0, min: { pad: 0, soft: null }, max: { pad: 0, soft: -5, mode } };
-			assert.deepEqual(checked([-59, -6], 400, negative), active
-				? { min: -60, max: -5, incr: 5, count: 11 }
-				: { min: -60, max: 0, incr: 10, count: 6 });
-		}
+	it('restores padding after raw extrema cross soft zero', () => {
+		const positive = { zeroIf: 0, min: { soft: 0, pad: .1 } };
+		const negative = { zeroIf: 0, max: { soft: 0, pad: .1 } };
+		assert.equal(checked([20, 100], 400, positive).min, 0);
+		assert.equal(checked([-100, -20], 400, negative).max, 0);
+		assert.ok(checked([-20, 100], 400, positive).min <= -32);
+		assert.ok(checked([-100, 20], 400, negative).max >= 32);
+		assert.deepEqual(checked([-20, 100], 400, positive), checked([-20, 100], 400, noAffinity));
+		assert.deepEqual(checked([-100, 20], 400, negative), checked([-100, 20], 400, noAffinity));
+	});
+
+	it('ignores crossed nonzero soft limits instead of constraining the increment', () => {
+		const positive = { zeroIf: 0, min: { pad: 0, soft: 5 }, max: { pad: 0 } };
+		const negative = { zeroIf: 0, min: { pad: 0 }, max: { pad: 0, soft: -5 } };
+		assert.deepEqual(checked([4, 59], 400, positive), { min: 0, max: 60, incr: 10, count: 6 });
+		assert.deepEqual(checked([-59, -4], 400, negative), { min: -60, max: 0, incr: 10, count: 6 });
 	});
 
 	it('retains unsupported-input and empty-range behavior', () => {
@@ -218,6 +226,6 @@ describe('approximate Y interval counts', () => {
 			assert.equal(rangeY(...data, 400, undefined, 1, false), null);
 		assert.deepEqual(rangeY(null, null, 400, undefined, 1, false), { min: null, max: null, incr: 0, count: 0 });
 		assert.equal(rangeY(-20, -10, 400, { min: { hard: 0 } }, 1, false), null);
-		assert.equal(rangeY(20, 80, 400, { min: { soft: 1 / 3, mode: 1 } }, 1, false), null);
+		assert.equal(rangeY(20, 80, 400, { min: { soft: 1 / 3 } }, 1, false), null);
 	});
 });

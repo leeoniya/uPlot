@@ -31,6 +31,8 @@
 	<main id="demo">
 		<h1>Axis-aware range policies</h1>
 		<p>Each chart uses the same random walk. The charts differ only in the declarative Y-range policy.</p>
+		<p>The precedence is <code>hard > soft > zeroIf > pad</code>. An omitted or null <code>soft</code> means no soft limit.
+		Both <code>zeroIf</code> and <code>pad</code> default to <code>.1</code>.</p>
 		<p>Presets keep the walk shape and change its minimum and span. Each preset highlights a policy difference at the default 300px height.</p>
 		<div class="controls">
 			<div id="preset" role="group" aria-label="Dataset presets"></div>
