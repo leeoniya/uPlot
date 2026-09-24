@@ -371,6 +371,39 @@ declare namespace uPlot {
 		Faceted = 2,
 	}
 
+	export interface DOMOptions {
+		/** creates the .uplot container. false creates only the canvas. */
+		uplot?: boolean; // true
+		/** creates the .u-over element */
+		over?: boolean; // true
+		/** creates the .u-under element */
+		under?: boolean; // true
+	}
+
+	export interface CacheOptions {
+		/** series path-builder caches. incompatible with hover-highlight when discarded */
+		paths?: boolean;
+		/** retained data arrays. discard only for static charts. with cache.data: false, hooks must not call setData() */
+		data?: boolean;
+	}
+
+	export namespace Stack {
+		export interface Group {
+			/** series indices ordered from zero outward */
+			series: number[];
+
+			/** 0 for bars (split by sign); 1/-1 for lines and areas (away from zero) */
+			dir: 1 | -1 | 0;
+		}
+	}
+
+	export interface Stack {
+		groups: Stack.Group[];
+
+		/** normalize each group to proportions, separately by sign when dir is 0 */
+		percent?: boolean;
+	}
+
 	export interface Options {
 		/** 1: aligned & ordered, single-x / y-per-series, 2: unordered & faceted, per-series/per-point x,y,size,label,color,shape,etc. */
 		mode?: Mode,
@@ -445,22 +478,6 @@ declare namespace uPlot {
 
 		/** caches to retain after rendering (default: all) */
 		cache?: CacheOptions;
-	}
-
-	export interface DOMOptions {
-		/** creates the .uplot container. false creates only the canvas. */
-		uplot?: boolean; // true
-		/** creates the .u-over element */
-		over?: boolean; // true
-		/** creates the .u-under element */
-		under?: boolean; // true
-	}
-
-	export interface CacheOptions {
-		/** series path-builder caches. incompatible with hover-highlight when discarded */
-		paths?: boolean;
-		/** retained data arrays. discard only for static charts. with cache.data: false, hooks must not call setData() */
-		data?: boolean;
 	}
 
 	export interface Focus {
@@ -1048,23 +1065,6 @@ declare namespace uPlot {
 
 		/** cached maximum data value */
 		max?: number | null;
-	}
-
-	export namespace Stack {
-		export interface Group {
-			/** series indices ordered from zero outward */
-			series: number[];
-
-			/** 0 for bars (split by sign); 1/-1 for lines and areas (away from zero) */
-			dir: 1 | -1 | 0;
-		}
-	}
-
-	export interface Stack {
-		groups: Stack.Group[];
-
-		/** normalize each group to proportions, separately by sign when dir is 0 */
-		percent?: boolean;
 	}
 
 	export namespace Band {
