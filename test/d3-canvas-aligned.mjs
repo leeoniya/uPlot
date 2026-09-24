@@ -188,14 +188,14 @@ describe('D3 aligned canvas wiring (API spy, not D3 numeric algorithms)', () => 
 		const data = [[0, 1, 2], [10, NaN, 30], [1000, 2000, 3000]];
 		chart = createD3CanvasAligned(d3, input('d3-plot'), input('d3-stats'), data, { width: 900, height: 480 }, { useUplot: true });
 		assertCurrentDraw(data, 900, 480, { useUplot: true });
-		assert.deepEqual(d3.scales.slice(-2).map(scale => scale.domain), [[10, 30], [1000, 3000]]);
+		assert.deepEqual(d3.scales.slice(-2).map(scale => scale.domain), [[7.5, 32.5], [750, 3250]]);
 		const before = d3.scales.length;
 		chart.setRanging({ ramp: 1, exact: false, useUplot: true });
 		assert.equal(d3.scales.length, before, 'explicit false matches the omitted default');
 		chart.setRanging({ ramp: 1, exact: true, useUplot: true });
 		assert.equal(d3.scales.length, before + 3);
 		assertCurrentDraw(data, 900, 480, { exact: true, useUplot: true });
-		assert.deepEqual(d3.scales.slice(-2).map(scale => scale.domain), [[10, 32.5], [1000, 3250]]);
+		assert.deepEqual(d3.scales.slice(-2).map(scale => scale.domain), [[0, 45], [0, 4500]]);
 		assert.equal(d3.extents.length, 2, 'opting into exact mode reuses raw extents');
 	});
 

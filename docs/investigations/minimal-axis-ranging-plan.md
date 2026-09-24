@@ -50,7 +50,7 @@ All of these conditions must also apply:
 - The axis uses the built-in `space`, `incrs`, and `splits` policies.
 - The range is omitted, a supported `Range.Config`, or a partial range array.
 
-A supported `Range.Config` can contain the top-level `zeroIf` threshold and per-side `soft`, `mode`, and `hard` values. The tick-aware ranger ignores `pad`. A config with an explicit `flat` policy uses the ordinary path.
+A supported `Range.Config` can contain the top-level `zeroIf` threshold and per-side `pad`, `soft`, `mode`, and `hard` values. A config with an explicit `flat` policy uses the ordinary path.
 
 A partial range array uses hard-plus-soft normalization. For example, `[0, null]` fixes the lower endpoint and automatically ranges the upper endpoint.
 
@@ -62,22 +62,41 @@ An automatic reset with null bounds returns the scale to the tick-aware path.
 
 The default policy applies when `scale.range` is omitted:
 
-- The top-level `zeroIf` threshold is `0.2`.
+- The top-level `zeroIf` threshold is `0.1`.
 - Each side uses `soft: 0` and `mode: 3`.
-- One-sided data has 20% zero affinity.
+- One-sided data has 10% zero affinity.
 - No hard limit applies.
+- Each side defaults to `pad: 0.1`.
 
 Zero affinity makes zero an outer tick when zero is within `zeroIf * rawSpan` of the nearest data extremum. Users can adjust `zeroIf`; `0` disables this proximity rule.
 
-A declarative `Range.Config` overrides the specified fields. An omitted `zeroIf` retains `0.2`, and omitted per-side fields retain the default policy. A null side in a partial range array also retains this policy.
+A declarative `Range.Config` overrides the specified fields. An omitted `zeroIf` retains `0.1`, and omitted per-side fields retain the default policy. A null side in a partial range array also retains this policy.
 
-Zero affinity is independent of soft limits and modes, including `mode: 0` and `soft: null`. Active soft anchors take precedence over zero affinity. Hard limits constrain the resulting anchors. The ranger ignores `pad` because the outer bounds are already data-enclosing ticks.
+Zero affinity is independent of soft limits and modes, including `mode: 0` and `soft: null`. Active soft anchors take precedence over zero affinity. Hard limits constrain the resulting anchors. All active anchors override padding on their side.
 
 Modes 2 and 3 use the natural outer tick in place of the padded bound from `rangeNum()`. Mode 2 uses `soft` while that tick remains inside the limit. Mode 3 uses `soft` after that tick reaches the limit.
 
 An active limit must align with the selected built-in tick increment.
 
 Concrete setter requests remain outside the alignment guarantee. This experiment does not change global setter semantics.
+
+### Minimum range padding
+
+Each side's `pad` specifies minimum clearance between its raw data extremum and the outer tick. It is a fraction of the original data span, not the tick range or an anchored range:
+
+```js
+rawSpan = dataMax - dataMin;
+requiredMin = dataMin - min.pad * rawSpan;
+requiredMax = dataMax + max.pad * rawSpan;
+```
+
+Unanchored outer ticks enclose these requirements. Tick rounding can provide more clearance. Active soft anchors and `zeroIf` anchors override padding on their side. Hard limits cap padding and can clip data. Inactive soft limits do not suppress padding.
+
+For data `[20, 100]`, `max.pad: 0.1` requires an unanchored maximum tick of at least `108`. A minimum anchor at zero does not change that requirement to `110`.
+
+Zero affinity uses the raw extrema and span, before padding or hard clipping. Soft modes 2 and 3 use the padded natural outer ticks. If padding prevents natural grid selection, soft activation uses the requested padded enclosure instead. The ranger then retries with the resolved anchors. This lets anchors override even padding that overflows during multiplication. Unanchored requirements still apply.
+
+Padding defaults to `0.1`, as in ordinary numeric ranging. Explicit `pad: 0` disables padding on that side. Tick-aware padding must be finite and nonnegative. Invalid padding returns no supported range. Flat data has zero raw span, so padding leaves the existing flat-data fallback unchanged. Neither padding nor anchors alter scan results or extrema caches.
 
 ## Numeric policy
 
@@ -534,9 +553,9 @@ The new regression tests and fixes remain uncommitted after checkpoint `ad725b06
 
 ## Follow-up questions and future work
 
-The original follow-up list is retained verbatim below. Zero affinity and tick-aligned declarative hard and soft limits are now implemented. The tick-aware ranger ignores percentage padding. The existing relative `flat` policy remains ordinary.
+The original follow-up list is retained verbatim below. Zero affinity, minimum percentage padding, and tick-aligned declarative hard and soft limits are now implemented. The existing relative `flat` policy remains ordinary.
 
-`test/range-y-policy.mjs` covers affinity thresholds, ignored padding, all soft modes, hard clipping, limit alignment, partial-range normalization, and one-interval axes.
+`test/range-y-policy.mjs` covers affinity thresholds, minimum padding, anchor precedence, all soft modes, hard clipping, limit alignment, partial-range normalization, and one-interval axes.
 
 ```text
 see what we can retain from existing rangers

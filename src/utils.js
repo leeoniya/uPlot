@@ -202,8 +202,8 @@ function _rangeNum(_min, _max, cfg) {
 	let cmin = cfg.min;
 	let cmax = cfg.max;
 
-	let padMin = cmin.pad ?? 0;
-	let padMax = cmax.pad ?? 0;
+	let padMin = cmin.pad ?? rangePad;
+	let padMax = cmax.pad ?? rangePad;
 
 	let hardMin = cmin.hard ?? -inf;
 	let hardMax = cmax.hard ??  inf;

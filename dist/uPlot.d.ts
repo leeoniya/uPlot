@@ -307,8 +307,8 @@ declare namespace uPlot {
 		export type SoftMode = 0 | 1 | 2 | 3;
 
 		export interface Limit {
-			/** initial multiplier for dataMax-dataMin delta */
-			pad?: number; // 0.1
+			/** Fraction of the raw data span (default: 0.1). Tick-aware ranging uses it as minimum clearance, subject to limits and zero anchors. */
+			pad?: number;
 
 			/** soft limit */
 			soft?: number; // 0
@@ -324,7 +324,7 @@ declare namespace uPlot {
 			min: Range.Limit;
 			max: Range.Limit;
 
-			/** For tick-aware axis ranging, anchor zero when its distance from the data is <= zeroIf * (dataMax - dataMin). Independent of soft limits and modes. Active soft anchors and hard limits take precedence. Default 0.2. Set 0 to disable proximity anchoring. */
+			/** For tick-aware axis ranging, anchor zero when its distance from the data is <= zeroIf * (dataMax - dataMin). Independent of soft limits and modes. Active soft anchors and hard limits take precedence. Default 0.1. Set 0 to disable proximity anchoring. */
 			zeroIf?: number;
 
 			/** treat spans <= flat * max(abs(min), abs(max)) as flat; default 1e-7. 0 disables relative flattening, not the 1e-24 absolute floor. */

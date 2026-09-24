@@ -1,4 +1,4 @@
-import { abs, floor, max, min, round, roundDec, incrRound, incrRoundDn, incrRoundUp, fixedDec, isFinite } from './utils.js';
+import { abs, floor, max, min, round, roundDec, incrRound, incrRoundDn, incrRoundUp, fixedDec, isFinite, rangePad } from './utils.js';
 import { numIncrs } from './opts.js';
 
 export function rangeYCount(height, ramp = 1) {
@@ -12,9 +12,9 @@ export function rangeYCount(height, ramp = 1) {
 
 /** @typedef {{pad?: number, hard?: number, soft?: number | null, mode?: number}} RangeYLimit */
 
-const autoLimit = Object.freeze({ soft: 0, mode: 3 });
+const autoLimit = Object.freeze({ pad: rangePad, soft: 0, mode: 3 });
 /** @type {Readonly<{zeroIf: number, min: Readonly<RangeYLimit>, max: Readonly<RangeYLimit>}>} */
-export const rangeYAuto = Object.freeze({ zeroIf: 0.2, min: autoLimit, max: autoLimit });
+export const rangeYAuto = Object.freeze({ zeroIf: 0.1, min: autoLimit, max: autoLimit });
 
 function limitPolicy(limit, side) {
 	limit ??= autoLimit;
@@ -24,13 +24,13 @@ function limitPolicy(limit, side) {
 	let hard = limit.hard ?? hardDefault;
 	let soft = "soft" in limit ? limit.soft ?? softDefault : autoLimit.soft;
 	let mode = limit.mode ?? autoLimit.mode;
+	let pad = limit.pad ?? autoLimit.pad;
 
-	// pad is intentionally ignored: selected outer ticks provide the data clearance.
 	if ((!isFinite(hard) && hard != hardDefault) || (!isFinite(soft) && soft != softDefault) ||
-		!(mode == 0 || mode == 1 || mode == 2 || mode == 3))
+		!isFinite(pad) || pad < 0 || !(mode == 0 || mode == 1 || mode == 2 || mode == 3))
 		return null;
 
-	return { hard, soft, mode };
+	return { hard, soft, mode, pad };
 }
 
 function atMostWithEpsilon(value, limit) {
@@ -101,18 +101,26 @@ function prepareRangeY(dataMin, dataMax, range) {
 		span,
 		boundedMin,
 		boundedMax,
+		// Padding uses raw extrema, never the fallback span or selected ticks.
+		paddedMin: max(fallbackMin - rawSpan * minPolicy.pad, minPolicy.hard),
+		paddedMax: min(fallbackMax + rawSpan * maxPolicy.pad, maxPolicy.hard),
 		minPolicy,
 		maxPolicy,
 	};
 }
 
 function selectRangeY(request, count, minAnchor, maxAnchor, exactCount) {
-	let { span, boundedMin, boundedMax, minPolicy, maxPolicy } = request;
+	let { span, minPolicy, maxPolicy } = request;
+	let boundedMin = minAnchor == null ? request.paddedMin : request.boundedMin;
+	let boundedMax = maxAnchor == null ? request.paddedMax : request.boundedMax;
 	let hardMin = minPolicy.hard;
 	let hardMax = maxPolicy.hard;
 	let requiredMin = minAnchor ?? boundedMin;
 	let requiredMax = maxAnchor ?? boundedMax;
 	let requiredSpan = requiredMax - requiredMin;
+	if (!isFinite(requiredMin) || !isFinite(requiredMax) || !isFinite(requiredSpan))
+		return null;
+
 	let start = incrStart(requiredSpan / count);
 	let approximate = !exactCount && count > 1;
 	let requiredMagnitude = max(abs(requiredMin), abs(requiredMax));
@@ -229,12 +237,14 @@ export function rangeY(dataMin, dataMax, height, range = rangeYAuto, ramp = 1, e
 		return null;
 
 	let natural = selectRangeY(request, count, null, null, exactCount);
-	if (natural == null)
+	if (natural == null && request.paddedMin == request.boundedMin && request.paddedMax == request.boundedMax)
 		return null;
 
+	// If padding prevents a natural grid, resolve anchors against the requested enclosure.
+	// Anchors can discard even overflowing padding before the final selection.
 	let { zeroIf, rawSpan, minPolicy, maxPolicy } = request;
-	let minAnchor = softAnchor(dataMin, natural.min, minPolicy, 0);
-	let maxAnchor = softAnchor(dataMax, natural.max, maxPolicy, 1);
+	let minAnchor = softAnchor(dataMin, natural?.min ?? request.paddedMin, minPolicy, 0);
+	let maxAnchor = softAnchor(dataMax, natural?.max ?? request.paddedMax, maxPolicy, 1);
 
 	if (zeroIf > 0) {
 		if (minAnchor == null && dataMin >= 0 && atMostWithEpsilon(dataMin, rawSpan * zeroIf))
@@ -252,6 +262,6 @@ export function rangeY(dataMin, dataMax, height, range = rangeYAuto, ramp = 1, e
 	if (maxAnchor != null && maxAnchor > maxPolicy.hard)
 		maxAnchor = maxPolicy.hard;
 
-	return (minAnchor == null || minAnchor == natural.min) && (maxAnchor == null || maxAnchor == natural.max)
+	return natural != null && (minAnchor == null || minAnchor == natural.min) && (maxAnchor == null || maxAnchor == natural.max)
 		? natural : selectRangeY(request, count, minAnchor, maxAnchor, exactCount);
 }

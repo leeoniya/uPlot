@@ -68,8 +68,8 @@ describe('axis range policy demo', () => {
 		assert.deepEqual(demo.state.policies.map(policy => policy.title), [
 			'Default policy',
 			'No zero affinity',
-			'10% zero affinity',
-			'Padding ignored',
+			'20% zero affinity',
+			'Explicit 10% padding',
 			'Always-soft zero',
 			'Mode 2 soft zero',
 			'Hard zero on the min side',
@@ -77,7 +77,8 @@ describe('axis range policy demo', () => {
 		]);
 		assert.equal(input('preset').querySelectorAll('button').length, 6);
 		assert.equal(input('preset').querySelector('[aria-pressed="true"]').value, '0');
-		assert.match(input('preset-description').textContent, /20%|default affinity/);
+		assert.equal(input('preset').querySelector('[aria-pressed="true"]').textContent, '20% zero gap');
+				assert.match(input('preset-description').textContent, /default 10% affinity threshold/);
 		assert.equal(input('height').valueAsNumber, 300);
 		assert.ok(demo.plots.every(u => rangeYCount(u.bbox.height / u.pxRatio) == 5));
 		assert.equal(demo.state.scenario.data[0].length, 401);
@@ -88,11 +89,12 @@ describe('axis range policy demo', () => {
 		assert.equal(demo.state.scenario.gapRatio, .2);
 		assert.match(input('scenario').value, /start 20 \| spread 100 .* zero gap 20\.00% of span/);
 		assert.deepEqual(demo.state.policies[1].range, { zeroIf: 0, min: {}, max: {} });
-		assert.deepEqual(demo.state.policies[2].range, { zeroIf: .1, min: {}, max: {} });
+		assert.deepEqual(demo.state.policies[2].range, { zeroIf: .2, min: {}, max: {} });
+				assert.deepEqual(demo.state.policies[3].range, { min: { pad: .1 }, max: { pad: .1 } });
 		demo.plots.forEach((u, i) => assertPolicyPlot(u, demo.state.scenario, demo.state.policies[i]));
-		assert.ok(demo.plots[1].scales.y.min > 0);
+		assert.equal(demo.plots[1].scales.y.min, 0, 'padded endpoint ticks can reach zero without zero affinity');
 		assert.equal(demo.plots[0].scales.y.min, 0);
-		assert.ok(demo.plots[2].scales.y.min > 0);
+		assert.equal(demo.plots[2].scales.y.min, 0);
 		assert.equal(root.querySelectorAll('.policy').length, 8);
 		assert.equal(root.querySelectorAll('.policy-stats').length, 8);
 	});
@@ -121,12 +123,14 @@ describe('axis range policy demo', () => {
 				assertPolicyPlot(u, demo.state.scenario, policies[j]);
 			});
 			const scales = demo.plots.map(u => u.scales.y);
-			if (index == 0 || index == 3) {
+			if (index == 0 || index == 1 || index == 3) {
 				assert.equal(scales[0].min, 0);
-				assert.ok(scales[1].min > 0 && scales[2].min > 0);
+				assert.equal(scales[1].min, 0, 'padding can reach zero outside the affinity threshold');
+				assert.equal(scales[2].min, 0);
 			}
 			if (index == 1 || index == 2) {
-				assert.ok(scales[0].min > 0);
+				if (index == 2)
+					assert.ok(scales[0].min > 0);
 				assert.equal(scales[4].min, 0);
 				assert.equal(scales[5].min, 0);
 				assert.equal(scales[7].min, 0);
@@ -135,7 +139,7 @@ describe('axis range policy demo', () => {
 				assert.ok(scales[6].min > 0);
 			if (index == 4) {
 				assert.equal(scales[0].max, 0);
-				assert.ok(scales[1].max < 0);
+				assert.equal(scales[1].max, 0, 'padded negative data can reach zero without zero affinity');
 				assert.equal(scales[6].min, null);
 				assert.equal(scales[7].min, null);
 			}
@@ -165,6 +169,20 @@ describe('axis range policy demo', () => {
 			assert.equal(u.data, demo.state.scenario.data);
 			assertPolicyPlot(u, demo.state.scenario, demo.state.policies[i]);
 		});
+	});
+
+	it('isolates zero affinity from padding at the 20% gap and its negative mirror', () => {
+		const height = demo.plots[0].bbox.height / demo.plots[0].pxRatio;
+		const { dataMin, dataMax } = demo.state.scenario;
+		for (const mirrored of [false, true]) {
+			const extrema = mirrored ? [-dataMax, -dataMin] : [dataMin, dataMax];
+			const endpoint = range => mirrored ? range.max : range.min;
+			for (const zeroIf of [undefined, 0, .1, .2]) {
+				const range = rangeY(...extrema, height, { zeroIf, min: { pad: 0 }, max: { pad: 0 } });
+				assert.equal(endpoint(range), zeroIf == .2 ? 0 : mirrored ? -20 : 20,
+					'explicit zero padding distinguishes the default .1 affinity from an explicit .2 threshold');
+			}
+		}
 	});
 
 	it('resizes every chart without replacing data', async () => {

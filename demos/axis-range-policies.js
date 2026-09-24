@@ -15,11 +15,11 @@ function makeWalk() {
 }
 
 const presets = [
-	{ name: 'At the 20% threshold', start: 20, spread: 100, descr: 'At 300px, default affinity includes zero; 10% and no affinity keep a positive minimum.' },
-	{ name: 'Outside the threshold', start: 25, spread: 100, descr: 'Default affinity no longer forces zero. Always-soft and mode 2 still anchor zero.' },
-	{ name: 'Far from zero', start: 1000, spread: 100, descr: 'Automatic policies preserve detail. Soft-zero and the fixed-zero partial range extend to zero; a hard minimum alone does not.' },
-	{ name: 'Small magnitude', start: .002, spread: .01, descr: 'The same 20% threshold at a much smaller magnitude. Compare with the first preset.' },
-	{ name: 'Negative data', start: -120, spread: 100, descr: 'Zero affinity acts on the upper edge. The two hard-minimum-zero policies exclude all data and cannot produce a range.' },
+	{ name: '20% zero gap', start: 20, spread: 100, descr: 'The 20% zero gap exceeds the default 10% affinity threshold. Padding and tick rounding can still reach zero. Explicit 20% affinity anchors zero.' },
+	{ name: 'Outside the threshold', start: 25, spread: 100, descr: 'The 25% zero gap exceeds both affinity thresholds. Padding and tick rounding can still reach zero. Always-soft and mode 2 also anchor zero here.' },
+	{ name: 'Far from zero', start: 1000, spread: 100, descr: 'Padding and tick rounding keep automatic ranges far from zero here. Soft-zero and the fixed-zero partial range extend to zero. A hard minimum alone does not.' },
+	{ name: 'Small magnitude', start: .002, spread: .01, descr: 'This smaller range has the same 20% zero gap as the first preset. Padding and tick rounding can reach zero outside the default 10% affinity threshold.' },
+	{ name: 'Negative data', start: -120, spread: 100, descr: 'The upper edge has a 20% zero gap, outside the default 10% affinity threshold. Padding and tick rounding can still reach zero. The two hard-minimum-zero policies exclude all data and cannot produce a range.' },
 	{ name: 'Crossing zero', start: -40, spread: 100, descr: 'Soft zero yields to data on both sides. Hard-minimum-zero policies clip the negative portion.' },
 ];
 
@@ -40,24 +40,24 @@ function policyConfigs() {
 	return [
 		{
 			title: 'Default policy',
-			descr: 'Natural endpoint ticks with default 20% zero affinity. Zero affinity is independent of soft limits and modes.',
+			descr: 'The defaults use 10% padding and 10% zero affinity, both relative to the raw data span. Padding and tick rounding can reach zero outside the affinity threshold. Active anchors override padding on their side.',
 			code: 'range omitted',
 		},
 		{
 			title: 'No zero affinity',
-			descr: 'A zeroIf threshold of 0 disables the proximity rule. Zero can still occur naturally on the selected tick grid.',
+			descr: 'A zeroIf threshold of 0 disables the proximity rule. Default 10% padding and tick rounding can still reach zero.',
 			code: 'range: {zeroIf: 0, min: {}, max: {}}',
 			range: { zeroIf: 0, min: {}, max: {} },
 		},
 		{
-			title: '10% zero affinity',
-			descr: 'A zeroIf threshold of 0.1 reduces zero affinity to 10% of the span.',
-			code: 'range: {zeroIf: .1, min: {}, max: {}}',
-			range: { zeroIf: .1, min: {}, max: {} },
+			title: '20% zero affinity',
+			descr: 'A zeroIf threshold of 0.2 extends zero affinity to 20% of the raw data span. Padding remains at the default 10%.',
+			code: 'range: {zeroIf: .2, min: {}, max: {}}',
+			range: { zeroIf: .2, min: {}, max: {} },
 		},
 		{
-			title: 'Padding ignored',
-			descr: 'The axis-aware ranger ignores pad because its outer bounds are already ticks beyond the data.',
+			title: 'Explicit 10% padding',
+			descr: 'Explicit 10% padding is equivalent to the default padding. Active anchors override padding on their side. The opposite side retains padding based on the raw data span.',
 			code: 'range: {min: {pad: .1}, max: {pad: .1}}',
 			range: { min: { pad: .1 }, max: { pad: .1 } },
 		},

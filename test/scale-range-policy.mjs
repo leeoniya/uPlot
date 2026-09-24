@@ -27,6 +27,37 @@ function paddedRange(calls) {
 }
 
 describe('scale range policy', () => {
+	describe('default numeric padding', () => {
+		const cases = [
+			[undefined, [8, 32]],
+			[{ min: {}, max: {} }, [8, 32]],
+			[{ min: { pad: .1 }, max: { pad: .1 } }, [8, 32]],
+			[{ min: { pad: 0 }, max: {} }, [10, 32]],
+			[{ min: {}, max: { pad: 0 } }, [8, 30]],
+			[{ min: { pad: 0 }, max: { pad: 0 } }, [10, 30]],
+		];
+
+		for (const [range, expected] of cases) {
+			if (range != null) {
+				it(`uses 10% for omitted rangeNum padding: ${JSON.stringify(range)}`, () => {
+					assert.deepEqual(uPlot.rangeNum(10, 30, range), expected);
+				});
+			}
+			for (const mode of [1, 2]) {
+				it(`uses 10% for omitted padding in mode ${mode}: ${JSON.stringify(range)}`, async () => {
+					const u = makePlot({ mode, data: mode == 1 ? data : [null, data], scales: { y: { range } } });
+					try {
+						await nextCommit();
+						assert.deepEqual([u.scales.y.min, u.scales.y.max], expected);
+					}
+					finally {
+						u.destroy();
+					}
+				});
+			}
+		}
+	});
+
 	describe('setRange', () => {
 		for (const key of ['x', 'y']) {
 			for (const auto of [true, false]) {

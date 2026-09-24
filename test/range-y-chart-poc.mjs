@@ -87,10 +87,10 @@ describe('axis-ranging chart POC: one Y scale', () => {
 			assert.equal(omitted.axes[1].exact, false);
 			for (const u of [omitted, approximate, exact])
 				assertRange(u, 13, 87, 400);
-			assert.deepEqual(bounds(omitted), [0, 90]);
+			assert.deepEqual(bounds(omitted), [0, 100]);
 			assert.deepEqual(bounds(omitted), bounds(approximate));
 			assert.deepEqual(splits(omitted), splits(approximate));
-			assert.deepEqual(splits(omitted), [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]);
+			assert.deepEqual(splits(omitted), [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
 			assert.deepEqual(bounds(exact), [0, 160]);
 			assert.equal(splits(exact).length, 9);
 			assert.notDeepEqual(splits(omitted), splits(exact));
@@ -177,7 +177,7 @@ describe('axis-ranging chart POC: one Y scale', () => {
 			assert.equal(u.axes[1].exact, true);
 			assert.equal(u.axes[1].ramp, 1);
 			const initialScans = scans.length;
-			for (const [exact, expected, count] of [[false, [0, 90], 10], [true, [0, 160], 9]]) {
+			for (const [exact, expected, count] of [[false, [0, 100], 11], [true, [0, 160], 9]]) {
 				const paths = assertLinePaths(u);
 				events.length = 0;
 				u.axes[1].exact = exact;
@@ -549,7 +549,7 @@ describe('axis-ranging chart POC: one Y scale', () => {
 		try {
 			await tick();
 			const expected = rangeY(10, 110, 543);
-			assert.deepEqual([expected.min, expected.max], [0, 110]);
+			assert.deepEqual([expected.min, expected.max], [0, 120]);
 			assert.deepEqual(bounds(omitted), [expected.min, expected.max]);
 			assert.deepEqual(bounds(partial), bounds(omitted));
 			assert.deepEqual(splits(partial), splits(omitted));
@@ -581,6 +581,171 @@ describe('axis-ranging chart POC: one Y scale', () => {
 			}
 			finally { u.destroy(); }
 		});
+	}
+
+	for (const exact of [true, false]) {
+		for (const [minPad, maxPad] of [[.25, .5], [.5, 0], [0, .5]]) {
+			it(`keeps asymmetric padding on raw extrema across resize and setData (exact ${exact}, pad ${minPad}/${maxPad})`, async () => {
+				const range = { zeroIf: 0, min: { soft: null, pad: minPad }, max: { soft: null, pad: maxPad } };
+				const { u, scans } = makePlot({ plotData: [[0, 1], [20, 100]], y: { range }, axes: [{ show: false }, { exact }] });
+				try {
+					await tick();
+					let scanCount = 1;
+					for (const values of [[20, 100], [-140, -20], [20, 100]]) {
+						if (scanCount > 1) {
+							u.setData([[0, 1], values]);
+							await tick();
+						}
+						const [min, max] = values;
+						const span = max - min;
+						let initialBounds, initialSplits;
+						for (const height of [413, 125, 525, 413]) {
+							u.setSize({ width: 700, height });
+							await tick();
+							assert.deepEqual(raw(u), values, 'series cache retains raw, not padded, extrema');
+							assert.equal(scans.length, scanCount, 'only setData invalidates the raw scan');
+							assert.deepEqual(scans.at(-1), { key: 'y', i0: 0, i1: 1, extrema: values });
+							assert.deepEqual(u.data, [[0, 1], values], 'padding does not mutate source data');
+							assert.ok(min - splits(u)[0] >= span * minPad, 'minimum outer tick clears raw data by min.pad * raw span');
+							assert.ok(splits(u).at(-1) - max >= span * maxPad, 'maximum outer tick clears raw data by max.pad * raw span');
+							assertRange(u, min, max, height, range);
+							if (initialBounds == null) {
+								initialBounds = bounds(u);
+								initialSplits = splits(u).slice();
+							}
+							else if (height == 413) {
+								assert.deepEqual(bounds(u), initialBounds, 'returning to the same height does not accumulate padding');
+								assert.deepEqual(splits(u), initialSplits);
+							}
+						}
+						scanCount++;
+					}
+				}
+				finally { u.destroy(); }
+			});
+		}
+
+		it(`defaults omitted padding to .1 and allows explicit zero (exact ${exact})`, async () => {
+			const range = { zeroIf: 0, min: { soft: null }, max: { soft: null } };
+			const paddedRange = { zeroIf: 0, min: { soft: null, pad: .1 }, max: { soft: null, pad: .1 } };
+			const zeroRange = { zeroIf: 0, min: { soft: null, pad: 0 }, max: { soft: null, pad: 0 } };
+			const options = { plotData: [[0, 1], [20, 100]], axes: [{ show: false }, { exact }] };
+			const { u } = makePlot({ ...options, y: { range } });
+			const { u: padded } = makePlot({ ...options, y: { range: paddedRange } });
+			const { u: zero } = makePlot({ ...options, y: { range: zeroRange } });
+			try {
+				await tick();
+				for (const height of [413, 125, 525]) {
+					u.setSize({ width: 700, height });
+					padded.setSize({ width: 700, height });
+					zero.setSize({ width: 700, height });
+					await tick();
+					assert.deepEqual(bounds(u), bounds(padded));
+					assert.deepEqual(splits(u), splits(padded));
+					assert.ok(u.scales.y.min <= 12 && u.scales.y.max >= 108, 'default padding clears both raw extrema by .1 * 80');
+					assertRange(u, 20, 100, height, range);
+					assertRange(padded, 20, 100, height, paddedRange);
+					assertRange(zero, 20, 100, height, zeroRange);
+					if (height == 413) {
+						assert.deepEqual(bounds(zero), [20, 100], 'explicit pad: 0 retains an unpadded range');
+						assert.notDeepEqual(bounds(u), bounds(zero));
+						assert.notDeepEqual(splits(u), splits(zero));
+					}
+				}
+			}
+			finally { u.destroy(); padded.destroy(); zero.destroy(); }
+		});
+
+		for (const value of [38, -38, 0]) {
+			it(`leaves the flat fallback unchanged by padding for ${value} (exact ${exact})`, async () => {
+				const range = { min: { pad: 1e100 }, max: { pad: .75 } };
+				const options = { plotData: [[0, 1], [value, value]], axes: [{ show: false }, { exact }] };
+				const { u, scans } = makePlot({ ...options, y: { range } });
+				const { u: control } = makePlot({ ...options, y: { range: { min: {}, max: {} } } });
+				try {
+					await tick();
+					for (const height of [413, 125, 525, 413]) {
+						u.setSize({ width: 700, height });
+						control.setSize({ width: 700, height });
+						await tick();
+						assert.deepEqual(bounds(u), bounds(control), 'zero raw span adds no padding to the flat fallback');
+						assert.deepEqual(splits(u), splits(control));
+						assert.ok(u.scales.y.min < u.scales.y.max);
+						assert.ok(u.scales.y.min <= value && u.scales.y.max >= value);
+						assert.deepEqual(raw(u), [value, value]);
+						assert.deepEqual(scans, [{ key: 'y', i0: 0, i1: 1, extrema: [value, value] }]);
+						assertRange(u, value, value, height, range);
+					}
+				}
+				finally { u.destroy(); control.destroy(); }
+			});
+		}
+
+		for (const mirrored of [false, true]) {
+			it(`keeps an active soft zero anchor and pads the opposite side by the original span (exact ${exact}, mirrored ${mirrored})`, async () => {
+				const values = mirrored ? [-100, -20] : [20, 100];
+				const anchor = { soft: 0, mode: 1, pad: 1e100 };
+				const free = { soft: null, pad: .1 };
+				const range = { zeroIf: 0, min: mirrored ? free : anchor, max: mirrored ? anchor : free };
+				const { u } = makePlot({ plotData: [[0, 1], values], y: { range }, axes: [{ show: false }, { exact }] });
+				try {
+					await tick();
+					for (const height of [413, 125, 525]) {
+						u.setSize({ width: 700, height });
+						await tick();
+						assert.equal(mirrored ? splits(u).at(-1) : splits(u)[0], 0, 'active soft anchor overrides its padding');
+						assert.ok(mirrored ? splits(u)[0] <= -108 : splits(u).at(-1) >= 108,
+							'opposite clearance is at least .1 * (100 - 20), not .1 * an anchored or padded span');
+						assert.deepEqual(raw(u), values);
+						assertRange(u, ...values, height, range);
+					}
+				}
+				finally { u.destroy(); }
+			});
+
+			for (const pad of [.5, 1e100]) {
+				it(`lets raw zeroIf eligibility override ${pad} padding (exact ${exact}, mirrored ${mirrored})`, async () => {
+					const values = mirrored ? [-110, -10] : [10, 110];
+					const anchor = { soft: null, pad };
+					const free = { soft: null, pad: .1 };
+					const range = { zeroIf: .2, min: mirrored ? free : anchor, max: mirrored ? anchor : free };
+					const { u, scans } = makePlot({ plotData: [[0, 1], values], y: { range }, axes: [{ show: false }, { exact }] });
+					try {
+						await tick();
+						for (const height of [413, 125, 525, 413]) {
+							u.setSize({ width: 700, height });
+							await tick();
+							assert.equal(mirrored ? splits(u).at(-1) : splits(u)[0], 0,
+								'raw distance 10 is within .2 * raw span 100; padding cannot displace the zero anchor');
+							assert.ok(mirrored ? splits(u)[0] <= -120 : splits(u).at(-1) >= 120, 'unanchored side still receives padding');
+							assert.deepEqual(raw(u), values);
+							assert.deepEqual(scans, [{ key: 'y', i0: 0, i1: 1, extrema: values }]);
+							assertRange(u, ...values, height, range);
+						}
+					}
+					finally { u.destroy(); }
+				});
+			}
+
+			it(`keeps hard limits ahead of padding (exact ${exact}, mirrored ${mirrored})`, async () => {
+				const values = mirrored ? [-100, 20] : [-20, 100];
+				const limits = mirrored ? [-80, 0] : [0, 80];
+				const range = { zeroIf: 0, min: { soft: null, hard: limits[0], pad: 1e100 }, max: { soft: null, hard: limits[1], pad: 1e100 } };
+				const { u } = makePlot({ plotData: [[0, 1], values], y: { range }, axes: [{ show: false }, { exact }] });
+				try {
+					await tick();
+					for (const height of [400, 200, 800]) {
+						u.setSize({ width: 700, height });
+						await tick();
+						assert.deepEqual(bounds(u), limits, 'hard limits clip data and override both padding requests');
+						assert.deepEqual([splits(u)[0], splits(u).at(-1)], limits);
+						assert.deepEqual(raw(u), values, 'hard clipping does not alter raw extrema');
+						assertRange(u, ...values, height, range);
+					}
+				}
+				finally { u.destroy(); }
+			});
+		}
 	}
 
 	for (const [name, options] of [

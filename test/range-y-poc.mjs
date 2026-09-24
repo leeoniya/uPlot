@@ -3,8 +3,11 @@ import '../scripts/instrument.mjs';
 import { rangeY, rangeYCount } from '../src/rangeY.js';
 import { numAxisSplits, numIncrs } from '../src/opts.js';
 
-function exact(range, height) {
-	const result = rangeY(...range, height, undefined, 1, true);
+// Keep precision regressions on their original boundaries, without padding or zero affinity.
+const unpadded = { zeroIf: 0, min: { pad: 0 }, max: { pad: 0 } };
+
+function exact(range, height, policy) {
+	const result = rangeY(...range, height, policy, 1, true);
 	assert.ok(result, `unsupported: ${range}, height ${height}`);
 	const { min, max, incr, count } = result;
 	assert.equal(count, rangeYCount(height));
@@ -82,15 +85,17 @@ describe('minimal Y range: prior numeric/count assertions with built-in incremen
 		}
 	}
 
+	// Default padding makes [113, 127] require step 2.5 instead of 2.
+	// With a zero anchor, [1, 19] needs step 5 to enclose the padded maximum 20.8.
 	for (const [range, expected] of [
 		[[9, 81], [0, 160]],
-		[[113, 127], [112, 128]],
-		[[-127, -113], [-128, -112]],
+		[[113, 127], [110, 130]],
+		[[-127, -113], [-130, -110]],
 		[[-9, 71], [-40, 120]],
-		[[1, 19], [0, 20]],
-		[[-19, -1], [-20, 0]],
+		[[1, 19], [0, 40]],
+		[[-19, -1], [-40, 0]],
 	]) {
-		it(`balances spare intervals: ${range}`, () => {
+		it(`balances spare intervals with default padding: ${range}`, () => {
 			const r = exact(range, 400);
 			assert.deepEqual([r.min, r.max], expected);
 		});
@@ -127,14 +132,14 @@ describe('minimal Y range: prior numeric/count assertions with built-in incremen
 		[[-.5, -.29999999999999993], [-.5, -.4, -.3, -.2]],
 	]) {
 		it(`preserves enclosure at decimal grid boundaries: ${range}`, () => {
-			assert.deepEqual(exact(range, 150).ticks, expected);
+			assert.deepEqual(exact(range, 150, unpadded).ticks, expected);
 		});
 	}
 
 	for (const sign of [1, -1]) {
 		it(`preserves a large integer grid with sign ${sign}`, () => {
 			const range = sign > 0 ? [1000000000000013, 1000000000000087] : [-1000000000000087, -1000000000000013];
-			const r = exact(range, 400);
+			const r = exact(range, 400, unpadded);
 			assert.equal(r.incr, 10);
 			assert.deepEqual([r.min, r.max], sign > 0 ? [1000000000000010, 1000000000000090] : [-1000000000000090, -1000000000000010]);
 		});
@@ -162,7 +167,7 @@ describe('minimal Y range: prior numeric/count assertions with built-in incremen
 	}
 
 	for (const range of [[1.3e-33, 8.7e-33], [1e-32, 8e-32]])
-		it(`uses the smallest built-in increment for ${range}`, () => assert.equal(exact(range, 400).incr, 1e-32));
+		it(`uses the smallest built-in increment for ${range}`, () => assert.equal(exact(range, 400, unpadded).incr, 1e-32));
 });
 
 describe('minimal Y range: empty and unsupported inputs', () => {

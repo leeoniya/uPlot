@@ -85,12 +85,12 @@ describe('per-axis exact and ramp options', () => {
 			u.axes[1].exact = false;
 			u.redraw(false, true);
 			await Promise.resolve();
-			assert.deepEqual(u.axes.slice(1).map(axis => axis._splits.length), [10, 9]);
+			assert.deepEqual(u.axes.slice(1).map(axis => axis._splits.length), [11, 9]);
 			assert.deepEqual(u.axes[2]._splits, original);
 			u.axes[2].exact = false;
 			u.redraw(false, true);
 			await Promise.resolve();
-			assert.deepEqual(u.axes.slice(1).map(axis => axis._splits.length), [10, 8]);
+			assert.deepEqual(u.axes.slice(1).map(axis => axis._splits.length), [11, 8]);
 			for (const [i, key] of f.keys.entries()) {
 				const ticks = u.axes[i + 1]._splits;
 				assert.deepEqual([ticks[0], ticks.at(-1)], bounds(u, key));
