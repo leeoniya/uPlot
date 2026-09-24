@@ -183,16 +183,11 @@ export function rangeNum(_min, _max, mult, extra) {
 	return _rangeNum(_min, _max, _eqRange);
 }
 
-// nullish coalesce
-export function ifNull(lh, rh) {
-	return lh == null ? rh : lh;
-}
-
 // checks if given index range in an array contains a non-null value
 // aka a range-bounded Array.some()
 export function hasData(data, idx0, idx1) {
-	idx0 = ifNull(idx0, 0);
-	idx1 = ifNull(idx1, data.length - 1);
+	idx0 ??= 0;
+	idx1 ??= data.length - 1;
 
 	while (idx0 <= idx1) {
 		if (data[idx0] != null)
@@ -207,22 +202,22 @@ function _rangeNum(_min, _max, cfg) {
 	let cmin = cfg.min;
 	let cmax = cfg.max;
 
-	let padMin = ifNull(cmin.pad, 0);
-	let padMax = ifNull(cmax.pad, 0);
+	let padMin = cmin.pad ?? 0;
+	let padMax = cmax.pad ?? 0;
 
-	let hardMin = ifNull(cmin.hard, -inf);
-	let hardMax = ifNull(cmax.hard,  inf);
+	let hardMin = cmin.hard ?? -inf;
+	let hardMax = cmax.hard ??  inf;
 
-	let softMin = ifNull(cmin.soft,  inf);
-	let softMax = ifNull(cmax.soft, -inf);
+	let softMin = cmin.soft ??  inf;
+	let softMax = cmax.soft ?? -inf;
 
-	let softMinMode = ifNull(cmin.mode, 0);
-	let softMaxMode = ifNull(cmax.mode, 0);
+	let softMinMode = cmin.mode ?? 0;
+	let softMaxMode = cmax.mode ?? 0;
 
 	let delta = _max - _min;
 	let scalarMax = max(abs(_min), abs(_max));
 
-	let flat = scalarMax * ifNull(cfg.flat, 1e-7);
+	let flat = scalarMax * (cfg.flat ?? 1e-7);
 
 	if (delta < 1e-24 || delta <= flat) {
 		// Normalize only relatively flat data, so padding does not amplify residue.

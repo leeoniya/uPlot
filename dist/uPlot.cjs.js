@@ -198,16 +198,11 @@ function rangeNum(_min, _max, mult, extra) {
 	return _rangeNum(_min, _max, _eqRange);
 }
 
-// nullish coalesce
-function ifNull(lh, rh) {
-	return lh == null ? rh : lh;
-}
-
 // checks if given index range in an array contains a non-null value
 // aka a range-bounded Array.some()
 function hasData(data, idx0, idx1) {
-	idx0 = ifNull(idx0, 0);
-	idx1 = ifNull(idx1, data.length - 1);
+	idx0 ??= 0;
+	idx1 ??= data.length - 1;
 
 	while (idx0 <= idx1) {
 		if (data[idx0] != null)
@@ -222,22 +217,22 @@ function _rangeNum(_min, _max, cfg) {
 	let cmin = cfg.min;
 	let cmax = cfg.max;
 
-	let padMin = ifNull(cmin.pad, 0);
-	let padMax = ifNull(cmax.pad, 0);
+	let padMin = cmin.pad ?? 0;
+	let padMax = cmax.pad ?? 0;
 
-	let hardMin = ifNull(cmin.hard, -inf);
-	let hardMax = ifNull(cmax.hard,  inf);
+	let hardMin = cmin.hard ?? -inf;
+	let hardMax = cmax.hard ??  inf;
 
-	let softMin = ifNull(cmin.soft,  inf);
-	let softMax = ifNull(cmax.soft, -inf);
+	let softMin = cmin.soft ??  inf;
+	let softMax = cmax.soft ?? -inf;
 
-	let softMinMode = ifNull(cmin.mode, 0);
-	let softMaxMode = ifNull(cmax.mode, 0);
+	let softMinMode = cmin.mode ?? 0;
+	let softMaxMode = cmax.mode ?? 0;
 
 	let delta = _max - _min;
 	let scalarMax = max(abs(_min), abs(_max));
 
-	let flat = scalarMax * ifNull(cfg.flat, 1e-7);
+	let flat = scalarMax * (cfg.flat ?? 1e-7);
 
 	if (delta < 1e-24 || delta <= flat) {
 		// Normalize only relatively flat data, so padding does not amplify residue.
@@ -890,8 +885,7 @@ function placeTag(tag, cls, targ, refEl) {
 	if (cls != null)
 		addClass(el, cls);
 
-	if (targ != null)
-		targ.insertBefore(el, refEl);
+	targ?.insertBefore(el, refEl);
 
 	return el;
 }
@@ -1146,10 +1140,7 @@ new Intl.DateTimeFormat('en-US', {
 const tzFmt = {};
 
 function getFormatter(tz) {
-    if (tzFmt[tz] == null)
-        tzFmt[tz] = new Intl.DateTimeFormat("sv", {...fmtrOpts, timeZone: tz}).format;
-
-    return tzFmt[tz];
+    return tzFmt[tz] ??= new Intl.DateTimeFormat("sv", {...fmtrOpts, timeZone: tz}).format;
 }
 
 class DateZoned extends Date {
@@ -2912,7 +2903,7 @@ function bandFillClipDirs(self, seriesIdx) {
 	// 2 bits, -1 | 1
 	let clipDirs = 0;
 
-	let bands = ifNull(self.bands, EMPTY_ARR);
+	let bands = self.bands ?? EMPTY_ARR;
 
 	for (let i = 0; i < bands.length; i++) {
 		let b = bands[i];
@@ -3391,10 +3382,10 @@ function linear(opts) {
 
 // BUG: align: -1 behaves like align: 1 when scale.dir: -1
 function stepped(opts) {
-	const align = ifNull(opts.align, 1);
+	const align = opts.align ?? 1;
 	// whether to draw ascenders/descenders at null/gap bondaries
-	const ascDesc = ifNull(opts.ascDesc, false);
-	const extend = ifNull(opts.extend, false);
+	const ascDesc = opts.ascDesc ?? false;
+	const extend = opts.extend ?? false;
 
 	return (u, seriesIdx, idx0, idx1) => {
 		let { pxRatio } = u;
@@ -3542,7 +3533,7 @@ function findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid = inf)
 
 function bars(opts) {
 	opts = opts || EMPTY_OBJ;
-	const size = ifNull(opts.size, [0.6, inf, 1]);
+	const size = opts.size ?? [0.6, inf, 1];
 	const align = opts.align || 0;
 	const _extraGap = (opts.gap || 0);
 
@@ -3556,11 +3547,11 @@ function bars(opts) {
 	const radiusFn = fnOrSelf(ro);
 
 	const gapFactor = 1 - size[0];
-	const _maxWidth  = ifNull(size[1], inf);
-	const _minWidth  = ifNull(size[2], 1);
+	const _maxWidth  = size[1] ?? inf;
+	const _minWidth  = size[2] ?? 1;
 
-	const disp = ifNull(opts.disp, EMPTY_OBJ);
-	const _each = ifNull(opts.each, _ => {});
+	const disp = opts.disp ?? EMPTY_OBJ;
+	const _each = opts.each ?? (_ => {});
 
 	const { fill: dispFills, stroke: dispStrokes } = disp;
 
@@ -3588,7 +3579,7 @@ function bars(opts) {
 			let dataY0 = u._base?.[seriesIdx];
 
 			// band where this series is the "from" edge
-			let band = dataY0 == null ? ifNull(u.bands, EMPTY_ARR).find(b => b.series[0] == seriesIdx) : null;
+			let band = dataY0 == null ? (u.bands ?? EMPTY_ARR).find(b => b.series[0] == seriesIdx) : null;
 
 			let fillDir = band != null ? band.dir : 0;
 			let fillTo = dataY0 == null ? series.fillTo(u, seriesIdx, series.min, series.max, fillDir) : 0;
@@ -4042,8 +4033,8 @@ function scanScaleInternal(self, scaleKey, i0, i1, cache, allValues) {
 			if (!cache || self.mode == 1 && si == 0 || facetMin == null) {
 				facetMin = facetMax = null;
 
-				let _i0 = max(0, ceil(ifNull(i0, 0)));
-				let _i1 = min(data.length - 1, floor(ifNull(i1, data.length - 1)));
+				let _i0 = max(0, ceil(i0 ?? 0));
+				let _i1 = min(data.length - 1, floor(i1 ?? data.length - 1));
 
 				if (_i0 <= _i1)
 					[facetMin, facetMax] = getMinMax(data, _i0, _i1, sorted, log);
@@ -4136,7 +4127,7 @@ function uPlot(opts, data, then) {
 	}
 	const self = {
 		uid: rand().toString(36).slice(-6),
-		mode: ifNull(opts.mode, 1),
+		mode: opts.mode ?? 1,
 		pxRatio: pxRatio$1,
 		setPxRatio,
 	};
@@ -4197,7 +4188,7 @@ function uPlot(opts, data, then) {
 	const usePathCache = opts.cache?.paths ?? true;
 	const useDataCache = opts.cache?.data ?? true;
 
-	const pxAlign = +ifNull(opts.pxAlign, 1);
+	const pxAlign = +(opts.pxAlign ?? 1);
 
 	const pxRound = pxRoundGen(pxAlign);
 
@@ -4235,7 +4226,7 @@ function uPlot(opts, data, then) {
 
 	function initBand(b) {
 		b.fill = fnOrSelf(b.fill || null);
-		b.dir = ifNull(b.dir, -1);
+		b.dir = b.dir ?? -1;
 	}
 
 	bands.forEach(initBand);
@@ -4275,7 +4266,7 @@ function uPlot(opts, data, then) {
 		let sc = scales[scaleKey];
 
 		if (sc == null) {
-			let scaleOpts = (opts.scales || EMPTY_OBJ)[scaleKey] || EMPTY_OBJ;
+			let scaleOpts = opts.scales?.[scaleKey] || EMPTY_OBJ;
 
 			if (scaleOpts.from != null) {
 				// ensure parent is initialized
@@ -4341,7 +4332,7 @@ function uPlot(opts, data, then) {
 				sc.auto = fnOrSelf(sc.auto);
 				sc._rangeYPolicy = rangeYPolicy;
 
-				let scan = ifNull(sc.scan, rangeIsArr && rn[0] != null && rn[1] != null ? false : null);
+				let scan = sc.scan ?? (rangeIsArr && rn[0] != null && rn[1] != null ? false : null);
 				sc.scan = scan == null ? scanAuto : scan === true ? scanCached : scan === false ? scanNone : scan;
 
 				sc.clamp = fnOrSelf(sc.clamp || clampScale);
@@ -4877,11 +4868,11 @@ function uPlot(opts, data, then) {
 
 	function initSeries(s, i) {
 		// auto is a deprecated name for scan.
-		s.scan = ifNull(s.scan, ifNull(s.auto, mode == 2 || i > 0));
+		s.scan = s.scan ?? s.auto ?? (mode == 2 || i > 0);
 
 		if (mode == 2 && i > 0) {
 			// auto is a deprecated name for scan.
-			s.facets.forEach(f => { f.scan = ifNull(f.scan, ifNull(f.auto, true)); });
+			s.facets.forEach(f => { f.scan = f.scan ?? f.auto ?? true; });
 		}
 
 		if (mode == 1 || i > 0) {
@@ -4893,10 +4884,10 @@ function uPlot(opts, data, then) {
 		}
 
 		if (cursorOnePt || i > 0) {
-			s.width  = s.width == null ? 1 : s.width;
+			s.width  = s.width ?? 1;
 			s.paths  = s.paths || linearPath || retNull;
 			s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
-			s.pxAlign = +ifNull(s.pxAlign, pxAlign);
+			s.pxAlign = +(s.pxAlign ?? pxAlign);
 			s.pxRound = pxRoundGen(s.pxAlign);
 
 			s.stroke = fnOrSelf(s.stroke || null);
@@ -4946,7 +4937,7 @@ function uPlot(opts, data, then) {
 		if (stackGroups.length > 0)
 			return;
 
-		si = si == null ? series.length : si;
+		si ??= series.length;
 
 		opts = mode == 1 ? setDefault(opts, si, xSeriesOpts, ySeriesOpts) : setDefault(opts, si, {}, xySeriesOpts);
 
@@ -5083,7 +5074,7 @@ function uPlot(opts, data, then) {
 		return size;
 	}
 
-	const padding = self.padding = (opts.padding || [autoPadSide,autoPadSide,autoPadSide,autoPadSide]).map(p => fnOrSelf(ifNull(p, autoPadSide)));
+	const padding = self.padding = (opts.padding || [autoPadSide,autoPadSide,autoPadSide,autoPadSide]).map(p => fnOrSelf(p ?? autoPadSide));
 	const _padding = self._padding = [0, 0, 0, 0];
 
 	let dataLen;
@@ -5201,7 +5192,7 @@ function uPlot(opts, data, then) {
 	}
 
 	function setData(_data, _resetScales) {
-		let rawData = _data == null ? [] : _data;
+		let rawData = _data ?? [];
 
 		if (mode == 2) {
 			self.data = self._data = data = rawData;

@@ -1,4 +1,4 @@
-import { round, incrRound, retArg0, min, EMPTY_ARR, ifNull } from "../utils.js";
+import { round, incrRound, retArg0, min, EMPTY_ARR } from "../utils.js";
 
 export const BAND_CLIP_FILL   = 1 << 0;
 export const BAND_CLIP_STROKE = 1 << 1;
@@ -67,7 +67,7 @@ export function bandFillClipDirs(self, seriesIdx) {
 	// 2 bits, -1 | 1
 	let clipDirs = 0;
 
-	let bands = ifNull(self.bands, EMPTY_ARR);
+	let bands = self.bands ?? EMPTY_ARR;
 
 	for (let i = 0; i < bands.length; i++) {
 		let b = bands[i];

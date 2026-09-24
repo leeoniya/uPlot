@@ -1,4 +1,4 @@
-import { abs, floor, min, max, inf, ifNull, EMPTY_OBJ, fnOrSelf, clamp, retArg0, EMPTY_ARR } from '../utils.js';
+import { abs, floor, min, max, inf, EMPTY_OBJ, fnOrSelf, clamp, retArg0, EMPTY_ARR } from '../utils.js';
 import { orient, rectV, rectH } from './utils.js';
 
 function findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid = inf) {
@@ -29,7 +29,7 @@ function findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid = inf)
 
 export function bars(opts) {
 	opts = opts || EMPTY_OBJ;
-	const size = ifNull(opts.size, [0.6, inf, 1]);
+	const size = opts.size ?? [0.6, inf, 1];
 	const align = opts.align || 0;
 	const _extraGap = (opts.gap || 0);
 
@@ -43,11 +43,11 @@ export function bars(opts) {
 	const radiusFn = fnOrSelf(ro);
 
 	const gapFactor = 1 - size[0];
-	const _maxWidth  = ifNull(size[1], inf);
-	const _minWidth  = ifNull(size[2], 1);
+	const _maxWidth  = size[1] ?? inf;
+	const _minWidth  = size[2] ?? 1;
 
-	const disp = ifNull(opts.disp, EMPTY_OBJ);
-	const _each = ifNull(opts.each, _ => {});
+	const disp = opts.disp ?? EMPTY_OBJ;
+	const _each = opts.each ?? (_ => {});
 
 	const { fill: dispFills, stroke: dispStrokes } = disp;
 
@@ -75,7 +75,7 @@ export function bars(opts) {
 			let dataY0 = u._base?.[seriesIdx];
 
 			// band where this series is the "from" edge
-			let band = dataY0 == null ? ifNull(u.bands, EMPTY_ARR).find(b => b.series[0] == seriesIdx) : null;
+			let band = dataY0 == null ? (u.bands ?? EMPTY_ARR).find(b => b.series[0] == seriesIdx) : null;
 
 			let fillDir = band != null ? band.dir : 0;
 			let fillTo = dataY0 == null ? series.fillTo(u, seriesIdx, series.min, series.max, fillDir) : 0;

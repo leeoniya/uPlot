@@ -189,10 +189,7 @@ new Intl.DateTimeFormat('en-US', {
 const tzFmt = {};
 
 function getFormatter(tz) {
-    if (tzFmt[tz] == null)
-        tzFmt[tz] = new Intl.DateTimeFormat("sv", {...fmtrOpts, timeZone: tz}).format;
-
-    return tzFmt[tz];
+    return tzFmt[tz] ??= new Intl.DateTimeFormat("sv", {...fmtrOpts, timeZone: tz}).format;
 }
 
 export class DateZoned extends Date {

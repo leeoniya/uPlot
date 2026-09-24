@@ -49,7 +49,6 @@ import {
 	fmtNum,
 	numDec,
 	fixedDec,
-	ifNull,
 	join,
 	microTask,
 	retArg0,
@@ -311,8 +310,8 @@ function scanScaleInternal(self, scaleKey, i0, i1, cache, allValues) {
 			if (!cache || self.mode == 1 && si == 0 || facetMin == null) {
 				facetMin = facetMax = null;
 
-				let _i0 = max(0, ceil(ifNull(i0, 0)));
-				let _i1 = min(data.length - 1, floor(ifNull(i1, data.length - 1)));
+				let _i0 = max(0, ceil(i0 ?? 0));
+				let _i1 = min(data.length - 1, floor(i1 ?? data.length - 1));
 
 				if (_i0 <= _i1)
 					[facetMin, facetMax] = getMinMax(data, _i0, _i1, sorted, log);
@@ -405,7 +404,7 @@ export default function uPlot(opts, data, then) {
 	}
 	const self = {
 		uid: rand().toString(36).slice(-6),
-		mode: ifNull(opts.mode, 1),
+		mode: opts.mode ?? 1,
 		pxRatio,
 		setPxRatio,
 	};
@@ -466,7 +465,7 @@ export default function uPlot(opts, data, then) {
 	const usePathCache = opts.cache?.paths ?? true;
 	const useDataCache = opts.cache?.data ?? true;
 
-	const pxAlign = +ifNull(opts.pxAlign, 1);
+	const pxAlign = +(opts.pxAlign ?? 1);
 
 	const pxRound = pxRoundGen(pxAlign);
 
@@ -504,7 +503,7 @@ export default function uPlot(opts, data, then) {
 
 	function initBand(b) {
 		b.fill = fnOrSelf(b.fill || null);
-		b.dir = ifNull(b.dir, -1);
+		b.dir = b.dir ?? -1;
 	}
 
 	bands.forEach(initBand);
@@ -544,7 +543,7 @@ export default function uPlot(opts, data, then) {
 		let sc = scales[scaleKey];
 
 		if (sc == null) {
-			let scaleOpts = (opts.scales || EMPTY_OBJ)[scaleKey] || EMPTY_OBJ;
+			let scaleOpts = opts.scales?.[scaleKey] || EMPTY_OBJ;
 
 			if (scaleOpts.from != null) {
 				// ensure parent is initialized
@@ -610,7 +609,7 @@ export default function uPlot(opts, data, then) {
 				sc.auto = fnOrSelf(sc.auto);
 				sc._rangeYPolicy = rangeYPolicy;
 
-				let scan = ifNull(sc.scan, rangeIsArr && rn[0] != null && rn[1] != null ? false : null);
+				let scan = sc.scan ?? (rangeIsArr && rn[0] != null && rn[1] != null ? false : null);
 				sc.scan = scan == null ? scanAuto : scan === true ? scanCached : scan === false ? scanNone : scan;
 
 				sc.clamp = fnOrSelf(sc.clamp || clampScale);
@@ -1150,11 +1149,11 @@ export default function uPlot(opts, data, then) {
 
 	function initSeries(s, i) {
 		// auto is a deprecated name for scan.
-		s.scan = ifNull(s.scan, ifNull(s.auto, mode == 2 || i > 0));
+		s.scan = s.scan ?? s.auto ?? (mode == 2 || i > 0);
 
 		if (mode == 2 && i > 0) {
 			// auto is a deprecated name for scan.
-			s.facets.forEach(f => { f.scan = ifNull(f.scan, ifNull(f.auto, true)); });
+			s.facets.forEach(f => { f.scan = f.scan ?? f.auto ?? true; });
 		}
 
 		if (mode == 1 || i > 0) {
@@ -1166,10 +1165,10 @@ export default function uPlot(opts, data, then) {
 		}
 
 		if (cursorOnePt || i > 0) {
-			s.width  = s.width == null ? 1 : s.width;
+			s.width  = s.width ?? 1;
 			s.paths  = s.paths || linearPath || retNull;
 			s.fillTo = fnOrSelf(s.fillTo || seriesFillTo);
-			s.pxAlign = +ifNull(s.pxAlign, pxAlign);
+			s.pxAlign = +(s.pxAlign ?? pxAlign);
 			s.pxRound = pxRoundGen(s.pxAlign);
 
 			s.stroke = fnOrSelf(s.stroke || null);
@@ -1219,7 +1218,7 @@ export default function uPlot(opts, data, then) {
 		if (stackGroups.length > 0)
 			return;
 
-		si = si == null ? series.length : si;
+		si ??= series.length;
 
 		opts = mode == 1 ? setDefault(opts, si, xSeriesOpts, ySeriesOpts) : setDefault(opts, si, {}, xySeriesOpts);
 
@@ -1356,7 +1355,7 @@ export default function uPlot(opts, data, then) {
 		return size;
 	}
 
-	const padding = self.padding = (opts.padding || [autoPadSide,autoPadSide,autoPadSide,autoPadSide]).map(p => fnOrSelf(ifNull(p, autoPadSide)));
+	const padding = self.padding = (opts.padding || [autoPadSide,autoPadSide,autoPadSide,autoPadSide]).map(p => fnOrSelf(p ?? autoPadSide));
 	const _padding = self._padding = [0, 0, 0, 0];
 
 	let dataLen;
@@ -1474,7 +1473,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function setData(_data, _resetScales) {
-		let rawData = _data == null ? [] : _data;
+		let rawData = _data ?? [];
 
 		if (mode == 2) {
 			self.data = self._data = data = rawData;

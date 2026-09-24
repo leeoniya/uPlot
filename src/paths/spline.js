@@ -1,4 +1,4 @@
-import { ifNull, nonNullIdxs } from '../utils.js';
+import { nonNullIdxs } from '../utils.js';
 import { orient, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils.js';
 
 export function splineInterp(interp, opts) {

@@ -55,8 +55,7 @@ export function placeTag(tag, cls, targ, refEl) {
 	if (cls != null)
 		addClass(el, cls);
 
-	if (targ != null)
-		targ.insertBefore(el, refEl);
+	targ?.insertBefore(el, refEl);
 
 	return el;
 }

@@ -1,12 +1,12 @@
-import { ifNull, nonNullIdxs } from '../utils.js';
+import { nonNullIdxs } from '../utils.js';
 import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils.js';
 
 // BUG: align: -1 behaves like align: 1 when scale.dir: -1
 export function stepped(opts) {
-	const align = ifNull(opts.align, 1);
+	const align = opts.align ?? 1;
 	// whether to draw ascenders/descenders at null/gap bondaries
-	const ascDesc = ifNull(opts.ascDesc, false);
-	const extend = ifNull(opts.extend, false);
+	const ascDesc = opts.ascDesc ?? false;
+	const extend = opts.extend ?? false;
 
 	return (u, seriesIdx, idx0, idx1) => {
 		let { pxRatio } = u;
