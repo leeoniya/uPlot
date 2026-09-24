@@ -10,7 +10,7 @@ export function rangeYCount(height, ramp = 1) {
 	return max(1, round(1 + (target - 1) * ramp));
 }
 
-/** @typedef {{pad?: number, hard?: number, soft?: number | null}} RangeYLimit */
+/** @typedef {{pad?: number | null, hard?: number | null, soft?: number | null}} RangeYLimit */
 
 const autoLimit = Object.freeze({ pad: rangePad });
 /** @type {Readonly<{zeroIf: number, min: Readonly<RangeYLimit>, max: Readonly<RangeYLimit>}>} */

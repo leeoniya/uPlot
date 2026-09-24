@@ -45,6 +45,20 @@ const noAffinity = {
 };
 
 describe('rangeY fourth-argument policy', () => {
+	it('coalesces null and undefined range options to their defaults', () => {
+		for (const absent of [null, undefined]) {
+			const limit = { pad: absent, soft: absent, hard: absent };
+			for (const config of [
+				{ min: absent, max: absent, zeroIf: absent },
+				{ min: limit, max: limit, zeroIf: absent },
+			]) {
+				for (const exact of [false, true]) {
+					for (const data of [[20, 100], [-100, -20], [10, 110], [-110, -10], [0, 0], [38, 38]])
+						assert.deepEqual(checked(data, 400, config, exact), checked(data, 400, {}, exact));
+				}
+			}
+		}
+	});
 	describe('default zero affinity', () => {
 		it('inherits zero affinity independently of soft limits', () => {
 			assert.ok(Object.isFrozen(rangeYAuto));

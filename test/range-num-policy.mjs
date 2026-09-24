@@ -34,6 +34,19 @@ describe('ordinary numeric range policy', () => {
 		assert.deepEqual(rangeAnchors(0, 10, null, null, 0), [null, null]);
 	});
 
+	it('coalesces null and undefined range options to their defaults', () => {
+		for (const absent of [null, undefined]) {
+			const limit = { pad: absent, soft: absent, hard: absent };
+			for (const config of [
+				{ min: absent, max: absent, zeroIf: absent, flat: absent },
+				{ min: limit, max: limit, zeroIf: absent, flat: absent },
+			]) {
+				for (const [min, max] of [[2, 12], [-12, -2], [1, 11], [-11, -1], [0, 0], [10, 10], [9.9999999, 10.0000001]])
+					assert.deepEqual(rangeNum(min, max, config), rangeNum(min, max, {}));
+			}
+		}
+	});
+
 	it('selects explicit soft endpoints exactly, even beyond padding', () => {
 		checkRange(2, 12, { min: { soft: -3.25 }, max: { soft: 17.25 } }, [-3.25, 17.25]);
 		checkRange(2, 12, { min: { soft: 2, pad: 10 }, max: { soft: 12, pad: 10 } }, [2, 12]);

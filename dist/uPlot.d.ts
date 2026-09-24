@@ -15,25 +15,19 @@ declare class uPlot {
 	/** status */
 	readonly status: 0 | 1;
 
-	/** Width of the plotting area + axes in CSS pixels. setSize() updates this immediately, before layout commit. */
+	/** width of the plotting area + axes in CSS pixels */
 	readonly width: number;
 
-	/** Height of the plotting area + axes in CSS pixels (excludes title & legend height). setSize() updates this immediately, before layout commit. */
+	/** height of the plotting area + axes in CSS pixels (excludes title & legend height) */
 	readonly height: number;
 
-	/** Requested pixel ratio. Font scaling and pixel geometry update at layout commit. */
+	/** requested devicePixelRatio */
 	readonly pxRatio: number;
 
-	/**
-	 * Canvas context for the plotting area + axes. Callbacks must preserve its state.
-	 * uPlot invalidates its canvas state cache only when it resets the canvas backing store.
-	 */
+	/** context of canvas used for plotting area + axes. callbacks must preserve its state */
 	readonly ctx: CanvasRenderingContext2D;
 
-	/**
-	 * Coordinates of the plotting area in canvas pixels, relative to the full canvas with axes.
-	 * Retains the previous completed layout until commit. All fields are zero before the initial commit.
-	 */
+	/** coords of plotting area in canvas pixels (relative to full canvas w/axes) */
 	readonly bbox: uPlot.BBox;
 
 	/** cached global DOMRect of plotting area in CSS pixels */
@@ -73,15 +67,10 @@ declare class uPlot {
 	/** .u-under dom element */
 	readonly under: HTMLDivElement | null;
 
-	/**
-	 * Clears and redraws the canvas. If rebuildPaths = false, uses cached series' Path2D objects.
-	 * Rebuilding paths refreshes automatic ranges but retains valid extrema caches and pending X requests.
-	 * Notify data changes with setData(), including in-place changes to existing arrays.
-	 * redraw(false, true) explicitly refreshes axes and layout, even without a size or pixel ratio change.
-	 */
+	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
 	redraw(rebuildPaths?: boolean, recalcAxes?: boolean): void;
 
-	/** Groups operations without the implicit microtask queue. Completes the pending layout synchronously before it returns. */
+	/** batches operations synchronously, without the implicit microtask queue */
 	batch(txn: Function, deferHooks?: boolean): void;
 
 	/** destroys DOM, removes resize & scroll listeners, etc. */
@@ -90,10 +79,10 @@ declare class uPlot {
 	/** sets the chart data & redraws. (default resetScales = true) */
 	setData(data: uPlot.AlignedData, resetScales?: boolean): void;
 
-	/** Sets scale bounds and redraws. Concrete bounds bypass range(). Null bounds request calculation, even with auto: false. */
+	/** sets scale bounds & redraws. null bounds request auto-ranging */
 	setRange(scaleKey: string, min: number | null, max: number | null): void;
 
-	/** Sets scale bounds and redraws. Concrete bounds bypass range(); null bounds request calculation, even with auto: false. */
+	/** sets scale bounds & redraws. null bounds request auto-ranging */
 	setScale(scaleKey: string, limits: { min: number | null; max: number | null }): void;
 
 	/** sets the cursor position (relative to plotting area) */
@@ -124,19 +113,10 @@ declare class uPlot {
 	/** sets visually selected region without triggering setScale (zoom). (default fireHook = true) */
 	setSelect(opts: {left: number, top: number, width: number, height: number}, fireHook?: boolean): void;
 
-	/**
-	 * Sets the width and height of the plotting area + axes (excludes title & legend height).
-	 * Updates self.width and self.height immediately.
-	 * Until commit, bbox, coordinate transforms, and DOM geometry retain the previous completed layout.
-	 * Identical dimensions are a no-op. Use redraw(false, true) for an explicit axis and layout refresh.
-	 */
+	/** sets the width & height of the plotting area + axes (excludes title & legend height) */
 	setSize(opts: { width: number; height: number }): void;
 
-	/**
-	 * Temporarily overrides window.devicePixelRatio for this chart.
-	 * Updates self.pxRatio immediately. Font scaling and path invalidation use the final requested ratio at commit.
-	 * An identical pixel ratio is a no-op. Use redraw(false, true) for an explicit axis and layout refresh.
-	 */
+	/** temporarily sets a user-defined devicePixelRatio that's different from window.devicePixelRatio */
 	setPxRatio(pxRatio?: number | null): void;
 
 	/** converts a CSS pixel position (relative to plotting area) to the closest data index */
@@ -154,10 +134,7 @@ declare class uPlot {
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
 	syncRect(defer?: boolean): void;
 
-	/**
-	 * Discards categories set to true without scheduling a redraw. No argument discards all categories; {} discards nothing.
-	 * Clearing paths can save ~60KB RAM per series. Do not use with series hover-highlight. It also slows legend toggling.
-	 */
+	/** clears selected caches without a redraw. defaults to all categories. see docs for disposal restrictions */
 	clearCache(targets?: uPlot.CacheOptions): void;
 
 	/** uPlot's path-builder factories */
@@ -167,16 +144,12 @@ declare class uPlot {
 	static assign(targ: object, ...srcs: object[]): object;
 
 	/**
-	 * Returns aggregate data extrema for a scale without applying a range or calling its scan callback.
-	 * Null or omitted indices use 0 and each participating array's last index. Supplied indices are clamped per array.
-	 * Includes visible series with scan enabled on the scale, or aligned X data. Mode-2 facets must also have scan enabled.
-	 * With cache = false (default), reads data without changing extrema caches or rendered indices.
-	 * With cache = true, reuses existing extrema regardless of the requested interval and populates cache misses.
-	 * Aligned X always reads data. In mode 2, caching also mirrors the second facet's extrema to series.min/max.
+	 * returns aggregate data extrema for a scale. nullish indices use the full array bounds.
+	 * cache = true reuses and populates extrema caches, regardless of the requested interval. default: false.
 	 */
 	static scan(self: uPlot, scaleKey: string, i0?: number | null, i1?: number | null, cache?: boolean): uPlot.Range.MinMax;
 
-	/** Calculates numeric bounds with padding. The positional extra flag enables the default zero affinity. */
+	/** expands/snaps numeric bounds with padding. extra enables zero affinity */
 	static rangeNum(min: number, max: number, mult: number, extra: boolean): uPlot.Range.MinMax;
 	static rangeNum(min: number, max: number, cfg: uPlot.Range.Config): uPlot.Range.MinMax;
 
@@ -189,11 +162,7 @@ declare class uPlot {
 	/** default numeric formatter using browser's locale: new Intl.NumberFormat(navigator.language).format */
 	static fmtNum(val: number): string;
 
-	/**
-	 * Decimal places needed for values and an optional increment, not significant digits.
-	 * Ignores nullish values. Empty input without an increment returns zero.
-	 * The result is not limited to the precision supported by Intl or toFixed().
-	 */
+	/** decimal places needed for values and an optional increment */
 	static numDec(values: readonly (number | null | undefined)[], incr?: number): number;
 
 	/** creates an efficient formatter for Date objects from a template string, e.g. {YYYY}-{MM}-{DD} */
@@ -305,24 +274,24 @@ declare namespace uPlot {
 		export type Function = (self: uPlot, initMin: number | null, initMax: number | null, scaleKey: string) => MinMax;
 
 		export interface Limit {
-			/** Padding fraction (default: 0.1). Active anchors override padding. */
+			/** padding as a fraction of the data range (default: 0.1) */
 			pad?: number;
 
-			/** Preferred endpoint while raw data stays inside it. Omitted or null means no soft anchor. */
-			soft?: number | null;
+			/** Preferred endpoint while raw data stays inside it. */
+			soft?: number;
 
 			/** hard limit */
 			hard?: number;
 		}
 
 		export interface Config {
-			min: Range.Limit;
-			max: Range.Limit;
+			min?: Range.Limit;
+			max?: Range.Limit;
 
-			/** Zero-proximity threshold for both numeric rangers. Omitted or null defaults to 0.1. Set 0 to disable. */
-			zeroIf?: number | null;
+			/** zero-affinity threshold as a fraction of the data range (default: 0.1). 0 disables */
+			zeroIf?: number;
 
-			/** treat spans <= flat * max(abs(min), abs(max)) as flat; default 1e-7. 0 disables relative flattening, not the 1e-24 absolute floor. */
+			/** relative flatness threshold: span <= flat * max(abs(min), abs(max)). default: 1e-7 */
 			flat?: number;
 		}
 	}
@@ -331,26 +300,11 @@ declare namespace uPlot {
 		[key: string]: Scale;
 	}
 
-	/**
-	 * Side participation derives from axis configuration at initialization, not from size callback results.
-	 * Hidden or inactive axes do not participate.
-	 * A visible, active axis participates with a positive numeric size or a size callback, even if the callback returns zero.
-	 * Numeric size: 0 does not participate unless an axis title has nonzero labelSize.
-	 */
 	type SidesWithAxes = [top: boolean, right: boolean, bottom: boolean, left: boolean];
 
 	export type PaddingPhase = 'layout' | 'overflow';
 
-	/**
-	 * All sides receive 'layout' before vertical ticks to establish baseline padding.
-	 * Horizontal axis heights and baseline padding determine the fixed plot height.
-	 * Default padding uses sidesWithAxes. A zero return from a size callback does not change side occupancy.
-	 * Explicit padding values or callbacks can provide other behavior.
-	 * Only left and right receive 'overflow', after horizontal tick formatting at the provisional width.
-	 * Both overflow callbacks see the same baseline padding and geometry.
-	 * Each callback returns the final total padding in CSS pixels, not a delta.
-	 * Top and bottom padding stay fixed after ticks. Overflow does not select ticks again.
-	 */
+	/** total padding in CSS pixels. callbacks receive 'layout' before ticks, then 'overflow' for left/right after horizontal tick formatting. */
 	export type PaddingSide = number | null | ((self: uPlot, side: Axis.Side, sidesWithAxes: SidesWithAxes, phase: PaddingPhase) => number);
 
 	export type Padding = [top: PaddingSide, right: PaddingSide, bottom: PaddingSide, left: PaddingSide];
@@ -371,7 +325,7 @@ declare namespace uPlot {
 		idx?: number | null;
 		/** current indices (readback-only, not for init) */
 		idxs?: (number | null)[];
-		/** current values (readback-only, not for init). Scalar records update in place. Copy records to retain snapshots. */
+		/** current values (readback-only, not for init) */
 		values?: Legend.Values;
 	}
 
@@ -390,9 +344,7 @@ declare namespace uPlot {
 
 		export type Values = Value[];
 
-		/** presentation is evaluated once per series on its first legend render */
 		export interface Markers {
-			/** initialization-only setting */
 			show?: boolean;	// true
 			/** series indicator line width */
 			width?: Legend.Width;
@@ -429,10 +381,10 @@ declare namespace uPlot {
 		/** DOM elements to create */
 		dom?: DOMOptions;
 
-		/** ID for the chart root. */
+		/** id to set on chart root */
 		id?: string;
 
-		/** Additional class for the chart root. */
+		/** className to add to chart root */
 		class?: string;
 
 		/** width of plotting area + axes in CSS pixels */
@@ -444,7 +396,7 @@ declare namespace uPlot {
 		/** initial devicePixelRatio, if different than window.devicePixelRatio */
 		pxRatio?: number;
 
-		/** Canvas 2D context attributes, used only at creation. Omitted attributes retain browser defaults. */
+		/** Canvas 2D context attributes for creation */
 		ctxAttrs?: CanvasRenderingContext2DSettings;
 
 		/** data for chart, if none is provided as argument to constructor */
@@ -491,7 +443,7 @@ declare namespace uPlot {
 
 		plugins?: Plugin[];
 
-		/** Categories to retain after rendering. Omitted categories default to true. See clearCache() for path-disposal caveats. */
+		/** caches to retain after rendering (default: all) */
 		cache?: CacheOptions;
 	}
 
@@ -505,13 +457,9 @@ declare namespace uPlot {
 	}
 
 	export interface CacheOptions {
-		/** Series path-builder caches. */
+		/** series path-builder caches. incompatible with hover-highlight when discarded */
 		paths?: boolean;
-		/**
-		 * Retained input and derived data arrays. Discard only for non-interactive charts.
-		 * Resize, cursor interaction, legend toggling, and other data-dependent operations are unsupported after disposal.
-		 * With cache.data: false, hooks must not call setData().
-		 */
+		/** retained data arrays. discard only for static charts. with cache.data: false, hooks must not call setData() */
 		data?: boolean;
 	}
 
@@ -572,14 +520,13 @@ declare namespace uPlot {
 			export type Fill   = CanvasRenderingContext2D['fillStyle']   | ((self: uPlot, seriesIdx: number) => CanvasRenderingContext2D['fillStyle']);
 		}
 
-		/** Default hover centers follow built-in canvas marker snapping and stroke offsets. */
 		export interface Points {
 			show?:   Points.Show;
 			/** only show single y-closest point on hover (only works when cursor.focus.prox >= 0) */
 			one?:    boolean;
 			/** hover point diameter in CSS pixels */
 			size?:   Points.Size;
-			/** hover point bbox in CSS pixels (overrides default marker-center alignment and size) */
+			/** hover point bbox in CSS pixels (will be used instead of size) */
 			bbox?:   Points.BBox;
 			/** hover point outline width in CSS pixels */
 			width?:  Points.Width;
@@ -753,26 +700,16 @@ declare namespace uPlot {
 		/** is this scale temporal, with series' data in UNIX timestamps? */
 		time?: boolean;
 
-		/** Controls implicit range recalculation, independently of scanning. Explicit null bounds can request calculation even when false. */
+		/** automatically recalculates this scale's range (default: true) */
 		auto?: Scale.Auto;
 
 		/**
-		 * Controls extrema calculation when this scale is ranged. Does not schedule recalculation.
-		 * true uses the built-in cached scanner; false supplies [null, null] to range().
-		 * Defaults to false for fully concrete range arrays. Otherwise, scanning follows auto; aligned X uses its data-domain bounds.
-		 * A custom callback runs once per calculated independent scale and returns one aggregate min/max tuple.
-		 * Indices describe the current aligned Y window, or are null/omitted for a full-array scan.
-		 * Custom callbacks must populate final extrema in participating series/facet min/max caches.
-		 * In mode 2, mirror the second facet's extrema to series.min/max. Do not change rendered indices.
-		 * Use uPlot.scan(self, scaleKey, i0, i1, true) when built-in cached extrema are the final per-series values.
+		 * calculates data extrema for range(). true uses the cached scanner; false supplies [null, null].
+		 * custom callbacks must populate participating series/facet min/max caches.
 		 */
 		scan?: Scale.Scan;
 
-		/**
-		 * Calculates bounds from scan results, or parent bounds for a derived scale. Concrete setScale bounds bypass this callback.
-		 * A fully concrete range array defaults scan to false without overriding auto (normally true).
-		 * Automatic recalculation restores these bounds after zoom. Explicit auto and scan settings take precedence.
-		 */
+		/** can define a static scale range or re-range an initially-determined range from series data */
 		range?: Scale.Range;
 
 		/** scale key from which this scale is derived */
@@ -787,9 +724,7 @@ declare namespace uPlot {
 		/** clamps log scale values <= 0 (default = scaleMin / 10) */
 		clamp?: Scale.Clamp;
 
-		/** arcsinh linear threshold; callback runs when this scale is recalculated.
-		 * Defaults to 1 for fixed ranges or auto: false. Otherwise, uses the smallest absolute Y value
-		 * (in-view in mode 1, full arrays in mode 2), or 1 for zero or no values. */
+		/** arcsinh linear threshold (default: adaptive) */
 		asinh?: number | ((self: uPlot, scaleKey: string) => number);
 
 		/** forward transform fn, with custom distr: 100 */
@@ -996,15 +931,15 @@ declare namespace uPlot {
 		export interface Facet {
 			scale: string;
 
-			/** Includes this facet in built-in scans when its series is visible and has scan enabled. Defaults to true. */
+			/** includes this facet in data scans (default: true) */
 			scan?: boolean;
 
-			/** @deprecated Use scan. Applied at initialization only when scan is null or omitted. */
+			/** @deprecated Use scan. */
 			auto?: boolean;
 
 			sorted?: Sorted;
 
-			/** Cached data extrema used for ranging. Custom scale.scan callbacks must populate participating facets. */
+			/** cached data extrema */
 			min?: number | null;
 			max?: number | null;
 		}
@@ -1046,13 +981,10 @@ declare namespace uPlot {
 		/** scale key */
 		scale?: string;
 
-		/**
-		 * Includes this visible series in built-in extrema scans, including uPlot.scan(). Defaults to true for data series.
-		 * Does not schedule ranging or disable rendering. In mode 1, shared X data is always included regardless of this flag.
-		 */
+		/** includes this series in data scans (default: true for data series) */
 		scan?: boolean;
 
-		/** @deprecated Use scan. Applied at initialization only when scan is null or omitted. */
+		/** @deprecated Use scan. */
 		auto?: boolean;
 
 		/** if & how the data is pre-sorted (data scanning optimization) */
@@ -1070,7 +1002,7 @@ declare namespace uPlot {
 		/** whether path and point drawing should offset canvas to try drawing crisp lines */
 		pxAlign?: number | boolean; // 1
 
-		/** legend label captured on first render. Later assignments are ignored. Supplied HTMLElement contents can still change. */
+		/** legend label */
 		label?: string | HTMLElement;
 
 		/** inline-legend value formatter. can be an fmtDate formatting string when scale.time: true */
@@ -1111,10 +1043,10 @@ declare namespace uPlot {
 		/** current min and max data indices rendered */
 		idxs?: Series.MinMaxIdxs;
 
-		/** Cached minimum used for ranging and fillTo(). Can cover data outside the rendered indices. */
+		/** cached minimum data value */
 		min?: number | null;
 
-		/** Cached maximum used for ranging and fillTo(). Can cover data outside the rendered indices. */
+		/** cached maximum data value */
 		max?: number | null;
 	}
 
@@ -1157,23 +1089,16 @@ declare namespace uPlot {
 
 	export namespace Axis {
 		export interface Nice {
-			/** Realign multi-hour ticks to the local midnight-based cadence across DST transitions. Default: true. */
+			/** aligns multi-hour ticks to local midnight across DST (default: true) */
 			dst?: boolean;
-			/** Enforce month-start ticks for multi-day increments, removing a preceding tick if it is too close. Default: false. */
+			/** includes month-start ticks for multi-day increments (default: false) */
 			first?: boolean;
 		}
 
 		/** must return an array of same length as splits, e.g. via splits.map() */
 		export type Filter = (self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => (number | null)[];
 
-		/**
-		 * Each layout calls a vertical size callback once after tick formatting, with the formatted labels, or [] if there are no ticks.
-		 * Vertical callbacks never receive null and have no preliminary reservation call.
-		 * Each horizontal size callback receives null once before ticks.
-		 * It must reserve enough height for rotation, truncation, and multiline labels.
-		 * Layout fixes height, measures vertical labels and widths, formats horizontal labels, then determines final width without convergence cycles.
-		 * A callback makes the axis participate in default padding even if it returns zero. See SidesWithAxes.
-		 */
+		/** axis size in CSS pixels. callbacks receive formatted values for vertical axes, or null before ticks for horizontal axes */
 		export type Size = number | ((self: uPlot, values: Axis.StaticValues | null, axisIdx: number) => number);
 
 		export type Space = number | ((self: uPlot, axisIdx: number, scaleMin: number, scaleMax: number, plotDim: number) => number);
@@ -1250,7 +1175,7 @@ declare namespace uPlot {
 	}
 
 	export interface Axis {
-		/** false hides the axis fully, including its grid, and excludes it from side participation. */
+		/** axis on/off */
 		show?: boolean;
 
 		/** creates the .u-axis DOM rectangle */
@@ -1262,10 +1187,7 @@ declare namespace uPlot {
 		/** side of chart - 0: top, 1: rgt, 2: btm, 3: lft */
 		side?: Axis.Side;
 
-		/**
-		 * Horizontal axis height or vertical axis width in CSS pixels for values, gap, and ticks, excluding the axis title.
-		 * Numeric 0 supports a grid-only axis. An axis title with nonzero labelSize still makes the axis participate in default padding.
-		 */
+		/** horizontal axis height or vertical axis width in CSS pixels for values, gap & ticks, excluding the axis label */
 		size?: Axis.Size;
 
 		/** gap between axis values and axis baseline (or ticks, if enabled) in CSS pixels */
@@ -1292,19 +1214,19 @@ declare namespace uPlot {
 		/** font used for axis label */
 		labelFont?: CanvasRenderingContext2D['font'];
 
-		/** Tick selection target in CSS pixels. Horizontal selection uses the provisional width. Final spacing can be smaller after overflow padding. */
+		/** target grid & tick spacing in CSS pixels */
 		space?: Axis.Space;
 
-		/** Scales how quickly the tick count increases with plot height during automatic Y-axis ranging. Zero retains two edge ticks. Default: 1. */
+		/** tick-count growth factor for tick-aware Y ranging (default: 1). 0 retains two edge ticks */
 		ramp?: number;
 
-		/** Enforces the height/ramp-derived interval count during automatic Y-axis ranging. False allows independent counts with tight bounds and endpoint ticks. Default: false. */
+		/** enforces the height/ramp-derived interval count for tick-aware Y ranging (default: false) */
 		exact?: boolean;
 
 		/** available divisors for axis ticks, values, grid */
 		incrs?: Axis.Incrs;
 
-		/** Calendar adjustments for the built-in time-axis splits. Day-based ticks retain local-midnight DST correction regardless of nice.dst. */
+		/** calendar adjustments for built-in time-axis splits */
 		nice?: Axis.Nice;
 
 		/** determines how and where the axis must be split for placing ticks, values, grid */
@@ -1364,7 +1286,7 @@ declare namespace uPlot {
 			/** fires after data is updated updated */
 			setData?:    (self: uPlot) => void;
 
-			/** Reports outer size updates and internal plot geometry or axis changes. Identical setSize() or setPxRatio() requests do not trigger this hook. */
+			/** fires after chart size, plot geometry, or axes change */
 			setSize?:    (self: uPlot) => void;
 
 			/** fires at start of every redraw */

@@ -107,24 +107,34 @@ u.setRange('y', null, 100);
 
 type SetRangeBounds = Assert<Equal<Parameters<uPlot['setRange']>, [string, number | null, number | null]>>;
 
-type RangeSoft = Assert<Equal<uPlot.Range.Limit['soft'], number | null | undefined>>;
-type RangeZeroIf = Assert<Equal<uPlot.Range.Config['zeroIf'], number | null | undefined>>;
+type RangePad = Assert<Equal<uPlot.Range.Limit['pad'], number | undefined>>;
+type RangeHard = Assert<Equal<uPlot.Range.Limit['hard'], number | undefined>>;
+type RangeSoft = Assert<Equal<uPlot.Range.Limit['soft'], number | undefined>>;
+type RangeFlat = Assert<Equal<uPlot.Range.Config['flat'], number | undefined>>;
+type RangeMin = Assert<Equal<uPlot.Range.Config['min'], uPlot.Range.Limit | undefined>>;
+type RangeMax = Assert<Equal<uPlot.Range.Config['max'], uPlot.Range.Limit | undefined>>;
+type RangeZeroIf = Assert<Equal<uPlot.Range.Config['zeroIf'], number | undefined>>;
 type RangeLimitHasNoMode = Assert<Equal<Extract<'mode', keyof uPlot.Range.Limit>, never>>;
 
-const defaultRange: uPlot.Range.Config = { min: {}, max: {} };
+const defaultRange: uPlot.Range.Config = {};
+const undefinedLimits: uPlot.Range.Config = { min: undefined, max: undefined };
+const undefinedOptions: uPlot.Range.Config = {
+	min: { pad: undefined, hard: undefined, soft: undefined },
+	max: { pad: undefined, hard: undefined, soft: undefined },
+	zeroIf: undefined,
+	flat: undefined,
+};
+for (const range of [defaultRange, undefinedLimits, undefinedOptions]) {
+	uPlot.rangeNum(20, 80, range);
+	const scale: uPlot.Scale = { range };
+}
 const softRange: uPlot.Range.Config = {
 	min: { soft: 10, pad: 0.1 },
 	max: { soft: 100, hard: 120 },
 	zeroIf: 0,
 };
-const nullSoftRange: uPlot.Range.Config = {
-	min: { soft: null },
-	max: { soft: null },
-	zeroIf: null,
-};
-
-uPlot.rangeNum(20, 80, nullSoftRange);
-const nullableRangeScale: uPlot.Scale = { range: nullSoftRange };
+uPlot.rangeNum(20, 80, softRange);
+const softRangeScale: uPlot.Scale = { range: softRange };
 
 // @ts-expect-error Range.SoftMode is removed.
 type RemovedSoftMode = uPlot.Range.SoftMode;

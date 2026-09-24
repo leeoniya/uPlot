@@ -2223,7 +2223,7 @@ function rangeYCount(height, ramp = 1) {
 	return max(1, round(1 + (target - 1) * ramp));
 }
 
-/** @typedef {{pad?: number, hard?: number, soft?: number | null}} RangeYLimit */
+/** @typedef {{pad?: number | null, hard?: number | null, soft?: number | null}} RangeYLimit */
 
 const autoLimit = Object.freeze({ pad: rangePad });
 /** @type {Readonly<{zeroIf: number, min: Readonly<RangeYLimit>, max: Readonly<RangeYLimit>}>} */
@@ -4316,7 +4316,7 @@ function uPlot(opts, data, then) {
 					if (!rangeIsArr && isObj(rn)) {
 						let cfg = rn;
 						// Keep the tick-aware policy assembled above for a partial range.
-						if (rangeYPolicy == null && !("flat" in cfg))
+						if (rangeYPolicy == null && cfg.flat == null)
 							rangeYPolicy = cfg;
 						// this is similar to snapNumY
 						rn = (self, dataMin, dataMax) => dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, cfg);

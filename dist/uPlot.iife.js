@@ -4317,7 +4317,7 @@ var uPlot = (function () {
 						if (!rangeIsArr && isObj(rn)) {
 							let cfg = rn;
 							// Keep the tick-aware policy assembled above for a partial range.
-							if (rangeYPolicy == null && !("flat" in cfg))
+							if (rangeYPolicy == null && cfg.flat == null)
 								rangeYPolicy = cfg;
 							// this is similar to snapNumY
 							rn = (self, dataMin, dataMax) => dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, cfg);

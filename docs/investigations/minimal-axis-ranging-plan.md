@@ -51,7 +51,7 @@ All of these conditions must also apply:
 - The range is omitted, a supported `Range.Config`, or a partial range array.
 
 A supported `Range.Config` can contain the top-level `zeroIf` threshold and per-side `pad`, `soft`, and `hard` values.
-A configuration with an explicit `flat` policy uses the ordinary path.
+A configuration with a non-null `flat` value uses the ordinary path. Null or undefined range options use their defaults.
 
 A partial range array uses hard-plus-soft normalization. For example, `[0, null]` fixes the lower endpoint and automatically ranges the upper endpoint.
 

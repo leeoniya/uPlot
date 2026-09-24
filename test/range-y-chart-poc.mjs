@@ -807,13 +807,38 @@ describe('axis-ranging chart POC: one Y scale', () => {
 		}
 	}
 
+	for (const absent of [null, undefined]) {
+		it(`keeps tick-aware ranging active for nullish range options (${absent})`, async () => {
+			const limit = { pad: absent, soft: absent, hard: absent };
+			for (const range of [
+				{ min: absent, max: absent, zeroIf: absent, flat: absent },
+				{ min: limit, max: limit, zeroIf: absent, flat: absent },
+			]) {
+				const { u } = makePlot({ y: { range } });
+				const { u: control } = makePlot({ y: { range: {} } });
+				try {
+					await tick();
+					assert.equal(u.scales.y._axisY, true);
+					for (const height of [413, 40, 525]) {
+						u.setSize({ width: 700, height });
+						control.setSize({ width: 700, height });
+						await tick();
+						assertRange(u, 13, 87, height);
+						assert.deepEqual(bounds(u), bounds(control));
+						assert.deepEqual(splits(u), splits(control));
+					}
+				}
+				finally { u.destroy(); control.destroy(); }
+			}
+		});
+	}
+
 	for (const [name, options] of [
 		['fixed configured range', { y: { range: [0, 200] } }],
 		['functional configured range', { y: { range: (u, min, max) => [min - 3, max + 7] } }],
 		['configured flat policy', { y: { range: { min: {}, max: {}, flat: 1e-7 } } }],
 		['configured flat zero policy', { y: { range: { min: {}, max: {}, flat: 0 } } }],
-		['configured flat null policy', { y: { range: { min: {}, max: {}, flat: null } } }],
-		['configured flat undefined policy', { y: { range: { min: {}, max: {}, flat: undefined } } }],
+
 		['mode 2', { mode: 2 }],
 		['physical horizontal Y', { x: { ori: 1 }, y: { ori: 0 }, axes: [{ show: false, side: 3 }, { side: 2 }] }],
 		['time Y', { y: { time: true } }],
