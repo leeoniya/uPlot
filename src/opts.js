@@ -553,6 +553,7 @@ const nice = { dst: true, first: false };
 
 export const xAxisOpts = {
 	show: true,
+	dom: true,
 	scale: "x",
 	stroke: hexBlack,
 	space: 50,
@@ -745,6 +746,7 @@ export function numSeriesVal(self, val, seriesIdx, dataIdx) {
 
 export const yAxisOpts = {
 	show: true,
+	dom: true,
 	scale: "y",
 	stroke: hexBlack,
 	space: 30,

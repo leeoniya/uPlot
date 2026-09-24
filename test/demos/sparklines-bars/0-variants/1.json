@@ -1,5 +1,5 @@
 {
-  "html": "<div class=\"uplot u-hz\"><div class=\"u-wrap\" style=\"width: 800px; height: 400px;\"><div class=\"u-under\" style=\"left: 0px; top: 0px; width: 800px; height: 400px;\"></div><canvas width=\"800\" height=\"400\"></canvas><div class=\"u-over\" style=\"left: 0px; top: 0px; width: 800px; height: 400px;\"></div></div></div>",
+  "html": "<div class=\"uplot u-wrap u-hz\" style=\"width: 800px; height: 400px;\"><div class=\"u-under\" style=\"left: 0px; top: 0px; width: 800px; height: 400px;\"></div><canvas width=\"800\" height=\"400\"></canvas><div class=\"u-over\" style=\"left: 0px; top: 0px; width: 800px; height: 400px;\"></div></div>",
   "width": 800,
   "height": 400,
   "ctxlog": [

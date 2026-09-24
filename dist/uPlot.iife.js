@@ -1857,6 +1857,7 @@ var uPlot = (function () {
 
 	const xAxisOpts = {
 		show: true,
+		dom: true,
 		scale: "x",
 		stroke: hexBlack,
 		space: 50,
@@ -2049,6 +2050,7 @@ var uPlot = (function () {
 
 	const yAxisOpts = {
 		show: true,
+		dom: true,
 		scale: "y",
 		stroke: hexBlack,
 		space: 30,
@@ -4163,33 +4165,33 @@ var uPlot = (function () {
 		let ready = false;
 		self.status = 0;
 
-		const root = self.root = placeDiv(UPLOT);
+		const can = placeTag("canvas");
+		const ctx = self.ctx = can.getContext("2d", opts.ctxAttrs);
+
+		const domRoot = opts.dom?.uplot !== false;
+		const root = self.root = domRoot ? placeTag("div") : can;
 
 		if (opts.id != null)
 			root.id = opts.id;
 
+		addClass(root, UPLOT);
 		addClass(root, opts.class);
 
-		if (opts.title) {
+		if (domRoot && opts.title) {
 			let title = placeDiv(TITLE, root);
 			title.textContent = opts.title;
 		}
 
-		const can = placeTag("canvas");
-		const ctx = self.ctx = can.getContext("2d", opts.ctxAttrs);
+		const hasLegend = (opts.legend?.show ?? legendOpts.show);
+		const wrap = domRoot && (opts.title || hasLegend) ? placeDiv(WRAP, root) : root;
 
-		const wrap = placeDiv(WRAP, root);
+		if (domRoot && wrap == root)
+			addClass(wrap, WRAP);
 
-		on("click", wrap, e => {
-			if (e.target === over) {
-				let didDrag = mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0;
-				didDrag && drag.click(self, e);
-			}
-		}, true);
-
-		const under = self.under = placeDiv(UNDER, wrap);
-		wrap.appendChild(can);
-		const over = self.over = placeDiv(OVER, wrap);
+		const under = self.under = domRoot && opts.dom?.under !== false ? placeDiv(UNDER, wrap) : null;
+		if (domRoot)
+			wrap.appendChild(can);
+		const over = self.over = domRoot && opts.dom?.over !== false ? placeDiv(OVER, wrap) : null;
 
 		opts = copy(opts);
 
@@ -4465,8 +4467,8 @@ var uPlot = (function () {
 
 		const legend     = (self.legend = assign({}, legendOpts, opts.legend));
 		const cursor     =                (self.cursor = assign({}, cursorOpts, {drag: {y: mode == 2}}, opts.cursor));
-		const showLegend = legend.show;
-		const showCursor =                cursor.show;
+		const showLegend = (legend.show = domRoot && (legend.show ?? legendOpts.show));
+		const showCursor = cursor.show = over != null && cursor.show;
 		const markers    = legend.markers;
 
 		{
@@ -5060,7 +5062,7 @@ var uPlot = (function () {
 				axis._splits =
 				axis._values = null;
 
-				if (axis._hasSize)
+				if (domRoot && axis.dom && axis._hasSize)
 					axis._el = placeDiv(AXIS, wrap);
 
 				// debug
@@ -6259,15 +6261,19 @@ var uPlot = (function () {
 
 		function applyLayout(plotChanged, axesChanged) {
 			if (plotChanged) {
-				setStylePx(under, LEFT,   plotLftCss);
-				setStylePx(under, TOP,    plotTopCss);
-				setStylePx(under, WIDTH,  plotWidCss);
-				setStylePx(under, HEIGHT, plotHgtCss);
+				if (under != null) {
+					setStylePx(under, LEFT,   plotLftCss);
+					setStylePx(under, TOP,    plotTopCss);
+					setStylePx(under, WIDTH,  plotWidCss);
+					setStylePx(under, HEIGHT, plotHgtCss);
+				}
 
-				setStylePx(over, LEFT,    plotLftCss);
-				setStylePx(over, TOP,     plotTopCss);
-				setStylePx(over, WIDTH,  plotWidCss);
-				setStylePx(over, HEIGHT, plotHgtCss);
+				if (over != null) {
+					setStylePx(over, LEFT,   plotLftCss);
+					setStylePx(over, TOP,    plotTopCss);
+					setStylePx(over, WIDTH,  plotWidCss);
+					setStylePx(over, HEIGHT, plotHgtCss);
+				}
 			}
 
 			if (plotChanged || axesChanged) {
@@ -6536,7 +6542,9 @@ var uPlot = (function () {
 			height: 0,
 		}, opts.select);
 
-		const selectDiv = select.show ? placeDiv(SELECT, select.over ? over : under) : null;
+		const selectParent = select.over ? over : under;
+		select.show = selectParent != null && select.show;
+		const selectDiv = select.show ? placeDiv(SELECT, selectParent) : null;
 
 		function setSelect(opts, _fire) {
 			if (select.show) {
@@ -7252,6 +7260,9 @@ var uPlot = (function () {
 		});
 
 		function syncRect(defer = false) {
+			if (over == null)
+				return;
+
 			if (defer)
 				rect = null;
 			else {
@@ -7584,6 +7595,13 @@ var uPlot = (function () {
 		};
 
 		if (showCursor) {
+			on("click", wrap, e => {
+				if (e.target === over) {
+					let didDrag = mouseLeft1 != mouseLeft0 || mouseTop1 != mouseTop0;
+					didDrag && drag.click(self, e);
+				}
+			}, true);
+
 			onMouse(mousedown,  over, mouseDown);
 			onMouse(mousemove,  over, e => {
 				// Tracked drags handle the bubbling event on document instead.

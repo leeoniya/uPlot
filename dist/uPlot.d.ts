@@ -9,7 +9,7 @@ declare class uPlot {
 	/** unique instance id */
 	readonly uid: string;
 
-	/** chart container */
+	/** chart root */
 	readonly root: HTMLElement;
 
 	/** status */
@@ -37,7 +37,7 @@ declare class uPlot {
 	readonly bbox: uPlot.BBox;
 
 	/** cached global DOMRect of plotting area in CSS pixels */
-	get rect(): DOMRect;
+	get rect(): DOMRect | null;
 
 	/** coords of selected region in CSS pixels (relative to plotting area) */
 	readonly select: uPlot.BBox;
@@ -68,10 +68,10 @@ declare class uPlot {
 	readonly data: uPlot.AlignedData;
 
 	/** .u-over dom element */
-	readonly over: HTMLDivElement;
+	readonly over: HTMLDivElement | null;
 
 	/** .u-under dom element */
-	readonly under: HTMLDivElement;
+	readonly under: HTMLDivElement | null;
 
 	/**
 	 * Clears and redraws the canvas. If rebuildPaths = false, uses cached series' Path2D objects.
@@ -431,10 +431,13 @@ declare namespace uPlot {
 		/** chart title */
 		title?: string;
 
-		/** id to set on chart div */
+		/** DOM elements to create */
+		dom?: DOMOptions;
+
+		/** ID for the chart root. */
 		id?: string;
 
-		/** className to add to chart div */
+		/** Additional class for the chart root. */
 		class?: string;
 
 		/** width of plotting area + axes in CSS pixels */
@@ -495,6 +498,15 @@ declare namespace uPlot {
 
 		/** Categories to retain after rendering. Omitted categories default to true. See clearCache() for path-disposal caveats. */
 		cache?: CacheOptions;
+	}
+
+	export interface DOMOptions {
+		/** creates the .uplot container. false creates only the canvas. */
+		uplot?: boolean; // true
+		/** creates the .u-over element */
+		over?: boolean; // true
+		/** creates the .u-under element */
+		under?: boolean; // true
 	}
 
 	export interface CacheOptions {
@@ -1245,6 +1257,9 @@ declare namespace uPlot {
 	export interface Axis {
 		/** false hides the axis fully, including its grid, and excludes it from side participation. */
 		show?: boolean;
+
+		/** creates the .u-axis DOM rectangle */
+		dom?: boolean; // true
 
 		/** scale key */
 		scale?: string;

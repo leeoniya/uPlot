@@ -3,6 +3,7 @@
 - [Installation](#installation)
 - [Data Format](#data-format)
 - [Basics](#basics)
+- [Optional DOM](#optional-dom)
 - [High/Low Bands](#highlow-bands)
 - [Series, Scales, Axes, Grid](#series-scales-axes-grid)
 - [Multiple Scales & Axes](#multiple-scales--axes)
@@ -92,6 +93,63 @@ let uplot = new uPlot(opts, data, document.body);
 - All series' options are optional; `label` will default to "Value" and `stroke` will default to "black".
 - `width` is the series' line width in CSS pixels.
 - `stroke`, `width`, `fill`, and `dash` map directly to Canvas API's [ctx.strokeStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeStyle), [ctx.lineWidth](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineWidth), [ctx.fillStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fillStyle), and [ctx.setLineDash](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash).
+
+---
+#### Optional DOM
+
+The `dom` options control which chart elements uPlot creates. All flags default to `true` and apply only during construction.
+
+| Option | Effect of `false` |
+| --- | --- |
+| `dom.over` | Omits `.u-over`. Disables the built-in cursor, hover points, local plot mouse interaction, and over-layer selection. |
+| `dom.under` | Omits `.u-under` and disables under-layer selection. |
+| `dom.uplot` | Makes the canvas the root. Suppresses all other built-in DOM, including the title, legend, cursor, selection, and axis rectangles. |
+| `axes[i].dom` | Omits that axis's `.u-axis` rectangle. Preserves axis drawing and layout. |
+
+Selection requires its chosen layer: `select.over: true` uses `.u-over`, and `false` uses `.u-under`. uPlot does not move selection to another layer.
+Cursor and series synchronization remain available without `.u-over`. Existing synchronization filters still apply.
+
+A canvas-only chart can still show axes:
+
+```js
+const opts = {
+  width: 300,
+  height: 120,
+  dom: { uplot: false },
+  scales: { x: { time: false } },
+  series: [{}, { stroke: "blue" }],
+};
+```
+
+For a sparkline without axes, the additional option is `axes: [{ show: false }, { show: false }]`.
+With `dom.uplot: false`, `u.root === u.ctx.canvas`. The canvas retains the `.uplot` class, `id`, and custom class.
+`setSize()`, `setPxRatio()`, and `destroy()` operate on that canvas.
+
+An interactive sparkline can retain only the root, canvas, and overlay:
+
+```js
+const opts = {
+  width: 150,
+  height: 30,
+  dom: { under: false },
+  legend: { show: false },
+  select: { show: false },
+  axes: [{ show: false }, { show: false }],
+  scales: { x: { time: false } },
+  series: [{}, { stroke: "blue" }],
+};
+```
+
+When no title or visible legend exists, the root div also serves as `.u-wrap`. This removes the nested wrapper even without explicit `dom` options.
+A missing overlay or underlay has the value `null` in `u.over` or `u.under`.
+
+Without `.u-over`, `u.rect` returns `null` without measuring the canvas or firing a `syncRect` hook.
+With `.u-over`, rectangle measurement is unchanged. Only cursor-enabled charts expose `u.syncRect()` and invalidate the rectangle cache on scroll and window resize.
+
+Plugin `opts` callbacks receive the root, canvas context, and any enabled layers. The constructor options determine this DOM before plugins run.
+For a merged root, `u.root.querySelector(".u-wrap")` returns `null` because the root itself is the wrapper.
+A root-inclusive lookup is `u.root.matches(".u-wrap") ? u.root : u.root.querySelector(".u-wrap")`.
+Borders and padding belong on an external host, not the merged root or canvas.
 
 ---
 #### High/Low Bands
