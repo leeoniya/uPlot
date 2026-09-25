@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import '../scripts/instrument.mjs';
 import { withSeededRandom } from '../scripts/withSeededRandom.mjs';
 import { createDemo } from '../demos/axis-label-rotation.js';
+import { distr } from '../demos/lib/distr.js';
 
 const html = await readFile(new URL('../demos/axis-label-rotation.html', import.meta.url), 'utf8');
 
@@ -32,7 +33,7 @@ describe('random label rotation demo', () => {
 		};
 		await withSeededRandom(() => {
 			demo = createDemo(root);
-						u = demo.plot;
+				u = demo.plot;
 		});
 		await Promise.resolve();
 	});
@@ -58,16 +59,21 @@ describe('random label rotation demo', () => {
 	const longestWidth = () => Math.max(...u.axes[0]._values.map(labelWidth));
 
 	function assertDataShape() {
-		const [xs, ys] = u.data;
+		const [xs, ...columns] = u.data;
+		assert.equal(columns.length, 2);
+		assert.notEqual(columns[0], columns[1]);
+		assert.notDeepEqual(columns[0], columns[1], 'independent random Y values');
 		assert.ok(xs.length >= 3 && xs.length <= 15, '3–15 items');
 		assert.ok(xs.every(value => typeof value == 'string'), 'raw X values are label strings');
 
 		const indices = Array.from({ length: xs.length }, (_, i) => i);
 		assert.deepEqual(u._data[0], indices, 'contiguous internal X indices');
-		assert.equal(ys.length, xs.length);
-		assert.ok(ys.every(Number.isFinite));
-		assert.ok(ys.every(y => y >= -1e7 && y < 3e7), 'Y values fit the magnitude, offset, and spread bounds');
-		assert.ok(new Set(ys).size > 1, 'Y values have a nonzero spread');
+		for (const ys of columns) {
+			assert.equal(ys.length, xs.length);
+			assert.ok(ys.every(Number.isFinite));
+			assert.ok(ys.every(y => y >= -1e7 && y < 3e7), 'Y values fit the magnitude, offset, and spread bounds');
+			assert.ok(new Set(ys).size > 1, 'Y values have a nonzero spread');
+		}
 		for (const label of xs) {
 			const words = label.split(' ');
 			assert.ok(words.length >= 1 && words.length <= 3, `word count: ${label}`);
@@ -78,7 +84,13 @@ describe('random label rotation demo', () => {
 				assert.ok(verbs.has(words[2]), `verb: ${label}`);
 		}
 		assert.equal(u.scales.x.distr, 2);
-		assert.deepEqual([u.scales.x.min, u.scales.x.max], [-.5, xs.length - .5]);
+		const { min, max } = u.scales.x;
+		let firstCenter;
+		distr(xs.length, input('group-width').valueAsNumber / 100, Number(input('distribution').value), 0, (_, off, size) => {
+			firstCenter = off + size / 2;
+		});
+		assert.ok(Math.abs(-min / (max - min) - firstCenter) < 1e-12);
+		assert.ok(Math.abs((xs.length - 1 - min) / (max - min) - (1 - firstCenter)) < 1e-12);
 		assert.deepEqual(u.axes[0]._splits, indices, 'ticks follow the current X indices');
 	}
 
@@ -87,14 +99,57 @@ describe('random label rotation demo', () => {
 		assert.ok(input('stats').textContent.startsWith(`Items: ${u.data[0].length} | Longest label: ${longest} (${labelWidth(longest).toFixed(1)}px) |`));
 	}
 
+	const rects = seriesIdx => u.series[seriesIdx]._paths.fill.log
+		.filter(entry => entry[0] == 'rect').flatMap(entry => entry.slice(1));
+
 	function assertBars() {
-		const rects = u.series[1]._paths.fill.log.filter(entry => entry[0] == 'rect').flatMap(entry => entry.slice(1));
-		assert.equal(rects.length, u.data[0].length);
-		for (const [x, , width] of rects) {
-			assert.ok(width > 0);
-			assert.ok(x >= u.bbox.left);
-			assert.ok(x + width <= u.bbox.left + u.bbox.width);
+		for (const si of [1, 2]) {
+			if (!u.series[si].show)
+				continue;
+			const bars = rects(si);
+			assert.equal(bars.length, u.data[0].length);
+			for (const [x, y, width, height] of bars) {
+				assert.ok([x, y, width, height].every(Number.isFinite));
+				assert.ok(width >= 0 && height >= 0);
+				assert.ok(u.scales.x.ori == 0 ? width > 0 : height > 0, 'category width stays positive; tiny values can round to zero');
+				assert.ok(x >= u.bbox.left - 1 && x + width <= u.bbox.left + u.bbox.width + 1);
+				assert.ok(y >= u.bbox.top - 1 && y + height <= u.bbox.top + u.bbox.height + 1);
+			}
 		}
+	}
+
+	function assertGroupGeometry() {
+		const horizontal = u.scales.x.ori == 1;
+		const pos = horizontal ? 1 : 0, size = horizontal ? 3 : 2;
+		const origin = horizontal ? u.bbox.top : u.bbox.left;
+		const span = horizontal ? u.bbox.height : u.bbox.width;
+		const slots = input('stacked').checked ? 1 : 2;
+		const bars = [rects(1), rects(2)];
+		distr(u.data[0].length, input('group-width').valueAsNumber / 100, Number(input('distribution').value), null, (i, off, width) => {
+			for (let si = 0; si < bars.length; si++) {
+				const expectedPos = origin + (off + (slots == 1 ? 0 : si * width / slots)) * span;
+				assert.ok(Math.abs(bars[si][i][pos] - expectedPos) <= 1, `series ${si + 1}, group ${i}: distributed position`);
+				assert.ok(Math.abs(bars[si][i][size] - width / slots * span) <= 1, `series ${si + 1}, group ${i}: group width`);
+			}
+		});
+		assertBars();
+	}
+
+	async function change(id, value, event) {
+		input(id).value = String(value);
+		input(id).dispatchEvent(new Event(event));
+		await Promise.resolve();
+	}
+
+	async function toggle(id, checked) {
+		input(id).checked = checked;
+		input(id).dispatchEvent(new Event('change'));
+		u = demo.plot;
+		await Promise.resolve();
+	}
+
+	function setYData(value) {
+		u.setData([u.data[0], ...[1, 2].map(si => u.data[0].map((_, i) => value(i, si)))]);
 	}
 
 	function assertTruncated(labels, limit, middle) {
@@ -148,8 +203,8 @@ describe('random label rotation demo', () => {
 		const scale = u.scales.y;
 		assert.equal(scale.axis, 1);
 		assert.deepEqual([axis._splits[0], axis._splits.at(-1)], [scale.min, scale.max], 'Y tick endpoints match scale bounds');
-		assert.ok(scale.min <= Math.min(0, ...u.data[1]));
-		assert.ok(scale.max >= Math.max(0, ...u.data[1]));
+		assert.ok(scale.min <= Math.min(0, ...u.data.slice(1).flat()));
+		assert.ok(scale.max >= Math.max(0, ...u.data.slice(1).flat()));
 		const labels = axis._values.filter(label => label != null);
 		const width = Math.max(0, ...labels.map(label => String(label).length * parseFloat(axis.font[0]) / 2 / u.pxRatio));
 		assert.equal(axis._size, Math.ceil(width + axis.ticks.size + axis.gap + 8), 'Y size measures formatted labels');
@@ -210,7 +265,7 @@ describe('random label rotation demo', () => {
 
 	it('credits only visible axis space without feedback or new measurements', async () => {
 		await rotate(33);
-		// Make the first label's overhang exceed its half-category inset.
+		// Make the first label's overhang exceed its distributed group inset.
 		u.setSize({ width: Math.ceil(u.data[0].length * labelExtents(labelWidth(u.axes[0]._values[0])).left), height: u.height });
 		await Promise.resolve();
 		const withAxis = u._padding[3];
@@ -248,9 +303,9 @@ describe('random label rotation demo', () => {
 						const { left, right } = labelExtents();
 						const axisWidth = u.axes[1]._size;
 						const minWidth = Math.max(0, width - axisWidth - Math.max(8, Math.ceil(8 + left - axisWidth)) - Math.max(8, Math.ceil(8 + right)));
-						const halfSlot = minWidth / (2 * u.data[0].length);
+						const edgeSpace = minWidth * -u.scales.x.min / (u.scales.x.max - u.scales.x.min);
 						for (const [side, extent, space] of [[3, left, axisWidth], [1, right, 0]]) {
-							const previousPad = Math.max(8, Math.ceil(8 + extent - space - halfSlot));
+							const previousPad = Math.max(8, Math.ceil(8 + extent - space - edgeSpace));
 							assert.ok(u._padding[side] <= previousPad);
 							if (previousPad - u._padding[side] >= 10)
 								reducedSides.add(side);
@@ -267,10 +322,11 @@ describe('random label rotation demo', () => {
 		assert.deepEqual([...reducedSides].sort(), [1, 3]);
 	});
 
-	it('credits the half-category inset without width feedback', async () => {
-		u.setData([u.data[0], u.data[0].map((_, i) => 10 + i * 17)]);
-		// Leave enough half-slot space to absorb the longest label's overhang.
-		u.setSize({ width: Math.ceil(2 * (u.data[0].length + 1) * (longestWidth() + 20) + u.axes[1]._size), height: 500 });
+	it('credits the distributed group inset without width feedback', async () => {
+		setYData((i, si) => 10 + i * 17 * si);
+		// Leave enough group-center space to absorb the longest label's overhang.
+		const firstCenter = -u.scales.x.min / (u.scales.x.max - u.scales.x.min);
+		u.setSize({ width: Math.ceil((longestWidth() + 20) / firstCenter + u.axes[1]._size), height: 500 });
 		for (const degrees of [0, 50]) {
 			await rotate(degrees);
 			assert.equal(u._padding[3], 8);
@@ -316,6 +372,81 @@ describe('random label rotation demo', () => {
 		}
 		assert.ok(counts.size > 1, 'height changes the Y tick count');
 		assert.equal(measurements.x.length, u.data[0].length);
+	});
+
+	it('changes distribution and group width live without replacing the chart or data', async () => {
+		assert.deepEqual(Array.from(input('distribution').options, option => [option.value, option.textContent]), [
+			['1', 'Space between'], ['2', 'Space around'], ['3', 'Space evenly'],
+		]);
+		assert.equal(input('distribution').value, '2');
+		assert.deepEqual(['min', 'max', 'step', 'value'].map(attr => input('group-width').getAttribute(attr)), ['1', '100', '1', '60']);
+		assert.equal(input('group-width-value').textContent, '60%');
+		assertGroupGeometry();
+		const data = u.data;
+		const original = structuredClone(data);
+
+		for (const horizontal of [false, true]) {
+			if (horizontal)
+				await toggle('horizontal', true);
+			for (const mode of ['grouped', 'value', 'percent']) {
+				if (mode == 'value')
+					await toggle('stacked', true);
+				else if (mode == 'percent')
+					await toggle('percent', true);
+				const current = u;
+				const measured = measurements.x.length;
+				const dimensions = [u.width, u.height];
+				for (const [id, value, event] of [
+					['distribution', 1, 'change'], ['distribution', 3, 'change'], ['distribution', 2, 'change'],
+					['group-width', 25, 'input'], ['group-width', 80, 'input'], ['group-width', 100, 'input'], ['group-width', 60, 'input'],
+				]) {
+					const before = [rects(1), rects(2)];
+					await change(id, value, event);
+					assert.equal(demo.plot, current, `${id} does not rebuild`);
+					assert.equal(current.root.isConnected, true);
+					assert.equal(u.data, data);
+					assert.deepEqual(data, original, 'controls never mutate the data');
+					assert.deepEqual([u.width, u.height], dimensions);
+					assert.notDeepEqual([rects(1), rects(2)], before, `${id} changes rendered geometry`);
+					assert.equal(input('group-width-value').textContent, `${input('group-width').value}%`);
+					assert.equal(measurements.x.length, measured, 'geometry changes reuse label measurements');
+					assertDataShape();
+					assertGroupGeometry();
+					assertReadout();
+					if (!horizontal)
+						assertPadding();
+				}
+			}
+			await toggle('percent', false);
+			await toggle('stacked', false);
+		}
+	});
+
+	it('preserves distribution and group width through orientation, stack, and percent rebuilds', async () => {
+		const data = u.data;
+		const original = structuredClone(data);
+		for (const [distribution, width] of [[2, 35], [3, 80]]) {
+			await change('distribution', distribution, 'change');
+			await change('group-width', width, 'input');
+			for (const [id, checked] of [
+				['horizontal', true], ['stacked', true], ['percent', true], ['horizontal', false],
+				['percent', false], ['stacked', false],
+			]) {
+				const previous = u;
+				await toggle(id, checked);
+				assert.notEqual(u, previous);
+				assert.equal(previous.root.isConnected, false);
+				assert.equal(root.querySelectorAll('#plot .uplot').length, 1);
+				assert.equal(u.data, data);
+				assert.deepEqual(data, original);
+				assert.equal(input('distribution').value, String(distribution));
+				assert.equal(input('group-width').valueAsNumber, width);
+				assert.equal(input('group-width-value').textContent, `${width}%`);
+				assertDataShape();
+				assertGroupGeometry();
+				assertReadout();
+			}
+		}
 	});
 
 	it('rebuilds orientations with compact horizontal dimensions while preserving data, truncation, and rotation', async () => {
@@ -418,6 +549,125 @@ describe('random label rotation demo', () => {
 		assertPadding();
 	});
 
+	it('toggles grouped, value, and percent modes at the same size in both orientations', async () => {
+		assert.equal(input('stacked').checked, false);
+		assert.equal(input('percent').checked, false);
+		assert.equal(input('percent').disabled, true);
+		const data = [['A long category', 'Another category', 'Last category'], [2, 4, 6], [6, 8, 10]];
+		const original = structuredClone(data);
+		u.setData(data);
+		u.setPxRatio(2);
+		await rotate(-30);
+		input('max-length').value = '8';
+		await toggle('truncate', true);
+		await toggle('middle-ellipsis', true);
+
+		function assertMode(mode, horizontal) {
+			assert.equal(input('percent').disabled, !input('stacked').checked);
+			assert.equal(u.data, data);
+			assert.deepEqual(data, original, 'stacking never changes raw data');
+			assert.equal(u.pxRatio, 2);
+			assert.equal(u.axes[0]._rotate, horizontal ? 0 : -30);
+			assert.equal(input('rotation').value, '-30');
+			assert.equal(input('rotation').disabled, horizontal);
+			assert.equal(input('height').value, '500');
+			assert.equal(input('height-value').textContent, '500px');
+			assert.equal(input('truncate').checked, true);
+			assert.equal(input('middle-ellipsis').checked, true);
+			assert.equal(input('max-length').value, '8');
+			assertTruncated(data[0], 8, true);
+			assertGroupGeometry();
+			const a = rects(1), b = rects(2);
+			const pos = horizontal ? 1 : 0, size = horizontal ? 3 : 2;
+			for (let i = 0; i < data[0].length; i++) {
+				if (mode == 'grouped')
+					assert.ok(a[i][pos] + a[i][size] <= b[i][pos] || b[i][pos] + b[i][size] <= a[i][pos], 'grouped bars do not overlap');
+				else {
+					assert.equal(a[i][pos], b[i][pos], 'stack members share a category position');
+					assert.equal(a[i][size], b[i][size], 'stack members share a category width');
+				}
+				const total = data[1][i] + data[2][i];
+				assert.equal(u._data[1][i], mode == 'percent' ? data[1][i] / total : data[1][i]);
+				assert.equal(u._data[2][i], mode == 'percent' ? 1 : mode == 'value' ? total : data[2][i]);
+				u.setLegend({ idx: i });
+				assert.deepEqual(u.legend.values.map(value => value._), data.map(column => String(column[i])), 'legend shows full labels and raw values');
+			}
+			if (mode == 'percent') {
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], [0, 1]);
+				assert.deepEqual(u.axes[1]._values, u.axes[1]._splits.map(value => `${Math.round(value * 100)}%`));
+			}
+			else {
+				assert.equal(u.scales.y.min, 0, 'soft-zero baseline');
+				assert.ok(u.scales.y.max >= (mode == 'value' ? 16 : 10));
+				assert.deepEqual([u.axes[1]._splits[0], u.axes[1]._splits.at(-1)], [u.scales.y.min, u.scales.y.max], 'tick-aware bounds');
+				assert.ok(u.axes[1]._values.every(value => !String(value).includes('%')));
+			}
+		}
+
+		for (const horizontal of [false, true, false]) {
+			if (input('horizontal').checked != horizontal)
+				await toggle('horizontal', horizontal);
+			assertMode('grouped', horizontal);
+			for (const [id, checked, mode] of [
+				['stacked', true, 'value'], ['percent', true, 'percent'], ['stacked', false, 'grouped'],
+				['stacked', true, 'percent'], ['percent', false, 'value'], ['stacked', false, 'grouped'],
+			]) {
+				const previous = u;
+				const dimensions = [u.width, u.height];
+				let destroyed = 0;
+				previous.hooks.destroy.push(() => destroyed++);
+				await toggle(id, checked);
+				assert.equal(destroyed, 1, 'one rebuild per toggle');
+				assert.equal(previous.root.isConnected, false);
+				assert.equal(root.querySelectorAll('#plot .uplot').length, 1);
+				assert.deepEqual([u.width, u.height], dimensions);
+				assertMode(mode, horizontal);
+			}
+		}
+	});
+
+	it('normalizes positive and negative stacks natively and preserves visibility across mode changes', async () => {
+		const data = [['Positive', 'Negative', 'Mixed'], [2, -4, 3], [6, -2, -1]];
+		u.setData(data);
+		await toggle('stacked', true);
+		await toggle('percent', true);
+		assert.deepEqual([u.scales.y.min, u.scales.y.max], [-1, 1]);
+		assert.deepEqual(u._base[2], [.25, -2 / 3, 0]);
+		assert.deepEqual(u._data[2], [1, -1, -1]);
+		assert.equal(u.data, data);
+		u.setSeries(1, { show: false });
+		await Promise.resolve();
+		assert.deepEqual(u._data[2], [1, -1, -1]);
+		assert.deepEqual(u._base[2], [0, 0, 0]);
+		await toggle('horizontal', true);
+		assert.equal(u.series[1].show, false);
+		await toggle('percent', false);
+		assert.equal(u.series[1].show, false);
+		assert.deepEqual(u._data[2], data[2]);
+		await toggle('stacked', false);
+		assert.equal(u.series[1].show, false);
+		u.setSeries(1, { show: true });
+		await Promise.resolve();
+		await toggle('stacked', true);
+		assert.deepEqual(u._data[2], [8, -6, -1]);
+		await toggle('percent', true);
+		await withSeededRandom(async () => {
+			input('randomize').click();
+			await Promise.resolve();
+		});
+		assertDataShape();
+		assert.notEqual(u.data, data);
+		assert.ok(u._data.slice(1).flat().every(value => Math.abs(value) <= 1 + 1e-12));
+		assert.ok(u.axes[1]._values.every(value => value.endsWith('%')));
+		u.setData([['Negative'], [-2], [-6]]);
+		await Promise.resolve();
+		assert.deepEqual([u.scales.y.min, u.scales.y.max], [-1, 0]);
+		u.setData([['Zero'], [0], [0]]);
+		await Promise.resolve();
+		assert.deepEqual([u.scales.y.min, u.scales.y.max], [0, 1]);
+		assert.deepEqual(u._data.slice(1), [[0], [0]]);
+	});
+
 	it('destroys the current rebuilt chart and removes every UI control listener', async () => {
 		await rotate(-45);
 		for (const horizontal of [true, false, true]) {
@@ -431,12 +681,22 @@ describe('random label rotation demo', () => {
 		const dimensions = [u.width, u.height];
 		const labels = u.axes[0]._values.slice();
 		const counts = [measurements.x.length, measurements.y.length];
-		const readouts = ['rotation-value', 'height-value', 'height-label', 'max-length-value', 'stats'];
+		const readouts = ['rotation-value', 'height-value', 'height-label', 'group-width-value', 'max-length-value', 'stats'];
 		const text = readouts.map(id => input(id).textContent);
-		const disabled = ['rotation', 'max-length', 'middle-ellipsis'].map(id => input(id).disabled);
+		const disabled = ['rotation', 'max-length', 'middle-ellipsis', 'percent'].map(id => input(id).disabled);
 		let destroyed = 0;
 		u.hooks.destroy.push(() => destroyed++);
+		const removed = [];
+		for (const id of ['distribution', 'group-width']) {
+			const el = input(id);
+			const remove = el.removeEventListener.bind(el);
+			el.removeEventListener = (type, handler, options) => {
+				removed.push([id, type]);
+				return remove(type, handler, options);
+			};
+		}
 		demo.destroy();
+		assert.deepEqual(removed, [['distribution', 'change'], ['group-width', 'input']]);
 		assert.equal(destroyed, 1);
 		assert.equal(current.root.isConnected, false);
 		assert.equal(input('plot').querySelectorAll('.uplot').length, 0);
@@ -445,14 +705,19 @@ describe('random label rotation demo', () => {
 		for (const method of ['setData', 'setSize', 'redraw'])
 			current[method] = () => calls.push(method);
 		input('horizontal').checked = false;
+		input('stacked').checked = true;
+		input('percent').checked = true;
 		input('rotation').value = '75';
 		input('height').value = '800';
+		input('distribution').value = '3';
+		input('group-width').value = '90';
 		input('truncate').checked = true;
 		input('max-length').value = '4';
 		input('middle-ellipsis').checked = true;
 		for (const [id, type] of [
-			['horizontal', 'change'], ['rotation', 'input'], ['height', 'input'],
+			['horizontal', 'change'], ['stacked', 'change'], ['percent', 'change'], ['rotation', 'input'], ['height', 'input'],
 			['truncate', 'change'], ['max-length', 'input'], ['middle-ellipsis', 'change'], ['randomize', 'click'],
+			['distribution', 'change'], ['group-width', 'input'],
 		]) {
 			input(id).dispatchEvent(new Event(type));
 			u = demo.plot;
@@ -465,7 +730,7 @@ describe('random label rotation demo', () => {
 		assert.deepEqual(current.axes[0]._values, labels);
 		assert.deepEqual([measurements.x.length, measurements.y.length], counts);
 		assert.deepEqual(readouts.map(id => input(id).textContent), text, 'readouts remain unchanged');
-		assert.deepEqual(['rotation', 'max-length', 'middle-ellipsis'].map(id => input(id).disabled), disabled);
+		assert.deepEqual(['rotation', 'max-length', 'middle-ellipsis', 'percent'].map(id => input(id).disabled), disabled);
 		assert.equal(destroyed, 1, 'control actions do not destroy the chart again');
 	});
 
@@ -474,7 +739,7 @@ describe('random label rotation demo', () => {
 		assert.equal(measurements.x.length, count);
 		for (const degrees of [-90, -45, 0, 45, 90])
 			await rotate(degrees);
-		u.setData([u.data[0], u.data[1].map(y => y * 2)]);
+		u.setData([u.data[0], ...u.data.slice(1).map(ys => ys.map(y => y * 2))]);
 		await Promise.resolve();
 		assert.equal(measurements.x.length, count);
 
@@ -566,6 +831,8 @@ describe('random label rotation demo', () => {
 	it('fits edge bars within the expanded X range', () => {
 		assertDataShape();
 		assert.equal(u.series[1].fill(u, 1), 'royalblue');
+				assert.equal(u.series[2].fill(u, 2), 'darkorange');
+				assert.notEqual(u.series[1].label, u.series[2].label);
 		assert.equal(u.series[1].width, 0);
 		assert.equal(u.series[1].points.show(u, 1), false);
 		assertBars();
@@ -576,7 +843,7 @@ describe('random label rotation demo', () => {
 		const sizes = [];
 		for (const magnitude of [1e-4, 1, 1e8, 1e-4]) {
 			const before = measurements.y.length;
-			u.setData([u.data[0], u.data[0].map((_, i) => (i - (u.data[0].length - 1) / 2) * magnitude)]);
+			setYData((i, si) => (i - (u.data[0].length - 1) / 2) * magnitude * si);
 			await Promise.resolve();
 			assertYAxis();
 			assert.ok(measurements.y.length > before, 'changed Y labels invalidate their cache');
@@ -598,7 +865,7 @@ describe('random label rotation demo', () => {
 
 	it('retains a zero baseline for positive and negative Y data', async () => {
 		for (const sign of [1, -1]) {
-			u.setData([u.data[0], u.data[0].map((_, i) => sign * (i + 1) * 1e-4)]);
+			setYData((i, si) => sign * (i + 1) * 1e-4 * si);
 			await Promise.resolve();
 			assertYAxis();
 			assert.equal(sign > 0 ? u.scales.y.min : u.scales.y.max, 0);
@@ -607,7 +874,7 @@ describe('random label rotation demo', () => {
 	});
 
 	it('invalidates the Y measurement cache for font and DPR changes', async () => {
-		u.setData([u.data[0], u.data[0].map((_, i) => i - (u.data[0].length - 1) / 2)]);
+		setYData((i, si) => (i - (u.data[0].length - 1) / 2) * si);
 		await Promise.resolve();
 		assertYAxis();
 		let before = measurements.y.length;
@@ -650,10 +917,12 @@ describe('random label rotation demo', () => {
 				assertDataShape();
 				assert.notEqual(u.data, previous);
 				assert.notEqual(u.data[0], previous[0], 'fresh X labels');
-				assert.notEqual(u.data[1], previous[1], 'fresh Y values');
+				assert.notEqual(u.data[1], previous[1], 'fresh first Y values');
+								assert.notEqual(u.data[2], previous[2], 'fresh second Y values');
 				if (i > 0) {
 					assert.notDeepEqual(fullLabels(), labels, 'fresh full labels');
-					assert.notDeepEqual(u.data[1], previous[1], 'new Y values');
+					assert.notDeepEqual(u.data[1], previous[1], 'new first Y values');
+										assert.notDeepEqual(u.data[2], previous[2], 'new second Y values');
 				}
 				const changed = labels.length != u.data[0].length || fullLabels().some((label, j) => label != labels[j]);
 				assert.equal(measurements.x.length, before + (changed ? u.data[0].length : 0));

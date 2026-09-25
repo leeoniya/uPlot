@@ -1,19 +1,20 @@
 /*
 TODO:
-  grouped, multi-series (walk2)
-  stacked, percent stacked
-  bar width control, min width
+  min width control
   value rendering
-  flatbush hover
+
   legend toggles for points, not just series
   tooltip? w/metadata?
 */
 
 import uPlot from '../../src/uPlot.js';
+import { createBarHover } from './barHover.js';
+import { distr, SPACE_BETWEEN, SPACE_AROUND, SPACE_EVENLY } from './distr.js';
 
 // One instance per chart: category X axis, numeric Y axis, and bar paths.
 export function barChartPlugin({
 	orientation = 'vertical',
+	distribution = SPACE_AROUND,
 	labelRotation = 0,
 	maxLabelLength = null,
 	ellipsis = 'end',
@@ -32,9 +33,88 @@ export function barChartPlugin({
 	let placement = 'end';
 	const measured = [];
 	const measureContexts = new Map();
-	let leftFactor = .5;
-	let rightFactor = .5;
-	let labelOffset = 0;
+	let justify;
+	let groupWidth;
+	let paths;
+	let stackGroups = [];
+	const barOffsets = [];
+	// Bar paths read only size[0]; every distributed slot has the same width.
+	const barWidth = [0];
+	const hover = createBarHover();
+
+	function xRange(u) {
+		const count = u.data[0].length;
+		if (count == 0)
+			return [-.5, .5];
+		if (count == 1 && justify != SPACE_BETWEEN)
+			return [-1, 1];
+
+		const max = Math.max(1, count - 1);
+		let firstCenter;
+		distr(count, groupWidth, justify, 0, (_, off, size) => {
+			firstCenter = off + size / 2;
+		});
+		if (firstCenter == .5)
+			return [-max, max];
+
+		// Match the first ordinal tick to the center of the first distributed group.
+		const offset = (max / (1 - firstCenter * 2) - max) / 2;
+		return [-offset, max + offset];
+	}
+
+	function distributeBars(u) {
+		const count = u.data[0].length;
+		const groups = new Map();
+		barOffsets.length = u.series.length;
+		barOffsets.fill(null);
+		barWidth[0] = 0;
+		for (let si = 1; si < u.series.length; si++) {
+			const series = u.series[si];
+			if (!series.show || series.paths != paths)
+				continue;
+			const group = stackGroups.find(group => group.series.includes(si)) ?? series;
+			let offsets = groups.get(group);
+			if (offsets == null) {
+				offsets = Array(count);
+				groups.set(group, offsets);
+			}
+			barOffsets[si] = offsets;
+		}
+		const slots = [...groups.values()];
+		if (slots.length == 0)
+			return;
+		distr(count, groupWidth, justify, null, (di, groupOff, groupSize) => {
+			const size = barWidth[0] = groupSize / slots.length;
+			for (let slot = 0; slot < slots.length; slot++)
+				slots[slot][di] = groupOff + size * slot;
+		});
+	}
+
+	function refreshDistribution() {
+		if (plot != null) {
+			plot.setScale('x', { min: null, max: null });
+			// Width can change without changing the range, especially with SPACE_AROUND.
+			plot.redraw(true, true);
+		}
+	}
+
+	function setDistribution(value) {
+		if (![SPACE_BETWEEN, SPACE_AROUND, SPACE_EVENLY].includes(value))
+			throw new RangeError('Distribution must be SPACE_BETWEEN, SPACE_AROUND, or SPACE_EVENLY.');
+		if (justify != value) {
+			justify = value;
+			refreshDistribution();
+		}
+	}
+
+	function setGroupWidth(fraction) {
+		if (!Number.isFinite(fraction) || fraction <= 0 || fraction > 1)
+			throw new RangeError('Group width must be greater than 0 and at most 1.');
+		if (groupWidth != fraction) {
+			groupWidth = fraction;
+			refreshDistribution();
+		}
+	}
 
 	function formatLabels() {
 		return fullLabels.map(label => {
@@ -114,22 +194,8 @@ export function barChartPlugin({
 			return Math.ceil((axis.ticks.show ? axis.ticks.size : 0) + axis.gap + width + inset);
 		const labelHeight = axis.font[1] / u.pxRatio;
 		const radians = Math.abs(rotation) * Math.PI / 180;
-		const sin = Math.sin(radians);
-		const cos = Math.cos(radians);
-		let height;
-
-		if (rotation == 0) {
-			leftFactor = rightFactor = .5;
-			labelOffset = 0;
-			height = labelHeight;
-		}
-		else {
-			// Rotated labels use a middle baseline and align toward the tick.
-			labelOffset = labelHeight / 2 * sin;
-			leftFactor = rotation > 0 ? cos : 0;
-			rightFactor = rotation < 0 ? cos : 0;
-			height = width * sin + labelHeight / 2 * cos;
-		}
+		// Rotated labels use a middle baseline.
+		const height = rotation == 0 ? labelHeight : width * Math.sin(radians) + labelHeight / 2 * Math.cos(radians);
 
 		return Math.ceil((axis.ticks.show ? axis.ticks.size : 0) + axis.gap + height + inset);
 	}
@@ -158,19 +224,22 @@ export function barChartPlugin({
 		}
 
 		const { width, widths } = metrics;
-		const left = horizontal ? .5 : leftFactor;
-		const right = horizontal ? .5 : rightFactor;
+		const angled = !horizontal && rotation != 0;
+		const radians = Math.abs(rotation) * Math.PI / 180;
+		const left = angled ? (rotation > 0 ? Math.cos(radians) : 0) : .5;
+		const right = angled ? (rotation < 0 ? Math.cos(radians) : 0) : .5;
+		const labelOffset = angled ? axis.font[1] / u.pxRatio / 2 * Math.sin(radians) : 0;
 		const leftPad = Math.max(inset, Math.ceil(inset + width * left + labelOffset - axisSpace[3]));
 		const rightPad = Math.max(inset, Math.ceil(inset + width * right + labelOffset - axisSpace[1]));
-		// Full overhang padding gives a lower bound on plot width, independent
-		// of the final geometry. Credit each label's distance from this edge.
+		// Credit each label's distance from the edge without depending on the previous plot width.
 		const minWidth = Math.max(0, u.width - axisSpace[3] - axisSpace[1] - leftPad - rightPad);
 		const factor = side == 3 ? left : right;
 		const scale = u.scales[axis.scale];
 		let pad = inset;
 		for (let i = 0; i < widths.length; i++) {
-			let fraction = horizontal ? (axis._splits[i] - scale.min) / (scale.max - scale.min) : (i + .5) / widths.length;
-			if (horizontal && scale.dir == -1)
+			// Use the expanded range, not an assumed half-category inset.
+			let fraction = ((horizontal ? axis._splits[i] : i) - scale.min) / (scale.max - scale.min);
+			if (scale.dir == -1)
 				fraction = 1 - fraction;
 			if (side == 1)
 				fraction = 1 - fraction;
@@ -180,21 +249,33 @@ export function barChartPlugin({
 		return Math.ceil(pad);
 	}
 
+	setDistribution(distribution);
+	setGroupWidth(bars.size?.[0] ?? .6);
 	setLabelRotation(labelRotation);
 	setLabelTruncation(maxLabelLength, ellipsis);
 
 	return {
-		_setLabelRotation: setLabelRotation,
-		_setLabelTruncation: setLabelTruncation,
-		_getLabelMetrics: () => ({ label: measured[0]?.label ?? '', width: measured[0]?.width ?? 0 }),
+		_controls: {
+			setDistribution,
+			setGroupWidth,
+			setLabelRotation,
+			setLabelTruncation,
+			getLabelMetrics: () => ({ label: measured[0]?.label ?? '', width: measured[0]?.width ?? 0 }),
+		},
 		opts(u, opts) {
 			opts.padding = [inset, padding, inset, padding];
-			opts.cursor = uPlot.assign({}, opts.cursor, { drag: { setScale: false } });
+			opts.cursor = uPlot.assign({}, { points: { fill: 'rgba(255,255,255,0.3)' } }, opts.cursor, {
+				x: false,
+				y: false,
+				drag: { setScale: false },
+				dataIdx: hover.dataIdx,
+				points: { bbox: hover.bbox },
+			});
 			opts.scales ??= {};
 			opts.scales.x = {
 				...opts.scales.x,
 				time: false, distr: 2, ori: horizontal ? 1 : 0, dir: horizontal ? -1 : 1,
-				range: u => [-.5, Math.max(1, u.data[0].length) - .5],
+				range: xRange,
 			};
 			opts.scales.y = {
 				axis: 1,
@@ -217,7 +298,16 @@ export function barChartPlugin({
 				Object.assign(opts.axes[1], { side: 2, rotate: 0, align: 0 });
 			opts.series ??= [{}, {}];
 			opts.series[0].value ??= (u, value) => String(value ?? '');
-			const paths = uPlot.paths.bars(bars);
+			stackGroups = opts.stack?.groups ?? [];
+			paths = uPlot.paths.bars({
+				...bars,
+				disp: {
+					x0: { unit: 2, values: (u, si) => barOffsets[si] },
+					size: { unit: 2, values: () => barWidth },
+					...bars.disp,
+				},
+				each: hover.each,
+			});
 			for (const series of opts.series.slice(1)) {
 				series.paths = paths;
 				series.width ??= 0;
@@ -226,11 +316,23 @@ export function barChartPlugin({
 			}
 		},
 		hooks: {
-			init: u => { plot = u; },
+			init: u => {
+				plot = u;
+				hover.init(u);
+				for (const el of u.over.querySelectorAll('.u-cursor-pt'))
+					el.style.borderRadius = 'unset';
+			},
 			setData: refreshLabels,
+			drawClear: u => {
+				distributeBars(u);
+				hover.reset(u, paths);
+			},
+			draw: hover.draw,
 			destroy: () => {
+				hover.destroy();
 				plot = null;
 				fullLabels = labels = splits = [];
+				barOffsets.length = 0;
 				measured.length = 0;
 				measureContexts.clear();
 			},

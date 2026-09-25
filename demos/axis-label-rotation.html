@@ -20,22 +20,42 @@
 		<main id="demo">
 			<h1>Random labels: rotation and measured layout</h1>
 			<p>Layout and bars use the reusable <a href="lib/barChartPlugin.md">barChartPlugin</a>.</p>
-			<p>The slider changes label rotation without changing the random Y values.
+			<p>The label rotation slider changes the angle without changing the random Y values.
 			The longest displayed label determines the X axis height. Left/right padding uses each label’s width and position.
 			Measurements stay cached until the labels, font, or pixel ratio changes.</p>
 			<p>Horizontal bars swap the chart dimensions, then reduce the height to one quarter. The data stays the same.
 			Category labels stay unrotated on the left. Their measured width determines the space available for the numeric axis.</p>
+			<p>The two series appear side by side by default. Stack bars adds their values within each category.
+			Percent shows each series as a share of the positive or negative total. The legend keeps the original values.</p>
 			<p>Randomize data generates 3–15 items with one-to-three-word labels made from adjectives, nouns, and verbs.
 			Y values use random offsets and spreads across different magnitudes.
 			For vertical bars, the Y axis measures its formatted labels to set its width.
-			Tick-aware ranging keeps ticks at both Y bounds in either orientation. Horizontal numeric ticks target 100px spacing.
-			Soft zero limits keep the bar baseline visible in both orientations.</p>
+			Grouped and value modes keep ticks at both Y bounds. Horizontal numeric ticks target 100px spacing.
+			Soft zero limits keep the bar baseline visible in both orientations. Percent mode uses bounds of −100%, 0%, or 100%.</p>
+			<p>Distribution sets the gaps between category groups and at the plot edges.
+			Group width sets each group’s width as a percentage of the plot dimension divided by the category count.
+							Space around adds half a gap at each plot edge. Both controls keep the data unchanged.</p>
 			<p>Gray shows the space outside the plot. All labels stay visible; shallow angles can make neighboring labels overlap.</p>
 			<div class="controls">
 				<label><input id="horizontal" type="checkbox"> Horizontal bars</label>
 				<label id="height-label" for="height">Chart height</label>
 				<input id="height" type="range" min="200" max="900" step="10" value="500">
 				<output id="height-value" for="height">500px</output>
+			</div>
+			<div class="controls">
+				<label><input id="stacked" type="checkbox"> Stack bars</label>
+				<label><input id="percent" type="checkbox" disabled> Percent</label>
+			</div>
+			<div class="controls">
+				<label for="distribution">Distribution</label>
+				<select id="distribution">
+					<option value="1">Space between</option>
+					<option value="2" selected>Space around</option>
+					<option value="3">Space evenly</option>
+				</select>
+				<label for="group-width">Group width</label>
+				<input id="group-width" type="range" min="1" max="100" step="1" value="60">
+				<output id="group-width-value" for="group-width">60%</output>
 			</div>
 			<div class="controls">
 				<label for="rotation">Label rotation</label>
