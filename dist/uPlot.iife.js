@@ -7003,7 +7003,8 @@ var uPlot = (function () {
 							}
 						}
 
-						if (shouldSetLegend || cursorOnePt) {
+						// Custom bounds can change without a new data index or legend value.
+						if (shouldSetLegend || cursorOnePt || points.bbox != null) {
 							let hPos, vPos;
 
 							if (scaleX.ori == 0) {
@@ -7071,7 +7072,7 @@ var uPlot = (function () {
 				if (cursorOnePt) {
 					let pointSeries = closestDist <= focus.prox ? closestSeries : null;
 
-					if (shouldSetLegend || pointSeries != cursorPtSeries) {
+					if (shouldSetLegend || pointSeries != cursorPtSeries || points.bbox != null) {
 						let pt = cursorPts[0];
 
 						if (pt != null) {

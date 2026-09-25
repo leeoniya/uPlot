@@ -239,6 +239,56 @@ describe('barChartPlugin', () => {
 			}
 		}
 
+		for (const orientation of ['vertical', 'horizontal']) {
+			for (const pxRatio of [1, 2]) {
+				it(`refreshes stationary highlight geometry after resize, width, visibility, and DPR changes (${orientation}, DPR ${pxRatio})`, async () => {
+					const { u, plugin } = mount([['A', 'B', 'C'], [4, 4, 4], [4, 4, 4]], { orientation }, {
+						pxRatio, series: [{}, {}, {}], scales: { y: { range: [0, 10] } },
+					});
+					await Promise.resolve();
+					enter(u);
+					hoverRect(u, 1, 1);
+					const pt = u.over.querySelector('.u-cursor-pt');
+					function assertHighlight() {
+						const [x, y, width, height] = rects(u, 1)[1];
+						assert.deepEqual(u.cursor.idxs, [1, 1, null]);
+						assert.ok(!pt.classList.contains('u-off'));
+						assert.equal(parseFloat(pt.style.width), width / u.pxRatio);
+						assert.equal(parseFloat(pt.style.height), height / u.pxRatio);
+						assert.equal(pt.style.transform, `translate(${Math.ceil((x - u.bbox.left) / u.pxRatio)}px,${Math.ceil((y - u.bbox.top) / u.pxRatio)}px)`);
+					}
+					assertHighlight();
+					for (const change of [
+						() => u.setSize({ width: 760, height: 480 }),
+						() => plugin._controls.setGroupWidth(.8),
+						() => u.setSeries(2, { show: false }),
+						() => u.setPxRatio(pxRatio === 1 ? 2 : 1),
+					]) {
+						change();
+						await Promise.resolve();
+						assertHighlight();
+						hoverRect(u, 1, 1);
+						assertHighlight();
+					}
+				});
+			}
+		}
+
+		it('updates stationary hits when width changes move a bar away from or under the pointer', async () => {
+			const { u, plugin } = mount([['A'], [4]], {}, { scales: { y: { range: [0, 10] } } });
+			await Promise.resolve();
+			enter(u);
+			u.setCursor({ left: u.bbox.width / u.pxRatio * .25, top: u.valToPos(2, 'y') });
+			const pt = u.over.querySelector('.u-cursor-pt');
+			assert.deepEqual(u.cursor.idxs, [0, 0]);
+			for (const width of [.1, .6]) {
+				plugin._controls.setGroupWidth(width);
+				await Promise.resolve();
+				assert.deepEqual(u.cursor.idxs, width === .1 ? [null, null] : [0, 0]);
+				assert.equal(pt.classList.contains('u-off'), width === .1);
+			}
+		});
+
 		it('reuses one search filter per chart across cursor updates and index rebuilds', async () => {
 			const { u: a } = mount([['A', 'B'], [4, 2]]);
 			const { u: b } = mount([['C', 'D'], [3, 5]]);

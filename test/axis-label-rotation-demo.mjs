@@ -770,6 +770,25 @@ describe('random label rotation demo', () => {
 		assert.equal(measurements.x.length, measured);
 	});
 
+	it('synchronizes the initial truncation readout with a prepopulated form', async () => {
+		const data = u.data.map(values => values.slice());
+		demo.destroy();
+		input('truncate').checked = true;
+		input('max-length').value = '4';
+		await withSeededRandom(() => {
+			demo = createDemo(root);
+			u = demo.plot;
+		});
+		await Promise.resolve();
+
+		assert.equal(input('max-length-value').textContent, '4');
+		assert.equal(input('max-length').disabled, false);
+		assert.equal(input('middle-ellipsis').disabled, false);
+		assert.ok(data[0].some(label => label.length > 4), 'exercise truncation');
+		assertTruncated(data[0], 4, false);
+		assert.deepEqual(u.data, data, 'initial truncation preserves the original data');
+	});
+
 	it('measures truncated labels and supports end and middle ellipses', async () => {
 		const data = u.data;
 		const labels = fullLabels();

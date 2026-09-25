@@ -231,6 +231,25 @@ describe('cursor point alignment', () => {
 			finally { u.destroy(); }
 		});
 
+		it(`refreshes custom bounds without changing the selected index or legend with one=${one}`, async () => {
+			const bounds = { left: 12, top: 23, width: 8, height: 12 };
+			const u = await plot({ one, bbox: () => bounds });
+			try {
+				hover(u, 1);
+				let legendUpdates = 0;
+				(u.hooks.setLegend ??= []).push(() => legendUpdates++);
+				Object.assign(bounds, { left: 18.2, top: 31.4, width: 16, height: 24 });
+				hover(u, 1);
+				const pt = u.over.querySelector('.u-cursor-pt');
+				assert.equal(u.cursor.idxs[1], 1);
+				assert.equal(pt.style.transform, 'translate(19px,32px)');
+				assert.equal(pt.style.width, '16px');
+				assert.equal(pt.style.height, '24px');
+				assert.equal(legendUpdates, 0, 'geometry changes do not require legend updates');
+			}
+			finally { u.destroy(); }
+		});
+
 		it(`preserves custom bbox positioning with one=${one}`, async () => {
 			const u = await plot({ one, pxRatio: 1.25, bbox: () => ({ left: 12.3, top: 23.4, width: 8, height: 12 }) });
 			try {

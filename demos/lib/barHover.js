@@ -115,11 +115,14 @@ export function createBarHover() {
 			indexFinished = false;
 			nextItem = 0;
 		},
-		draw() {
+		draw(u) {
 			if (index != null)
 				skipItems(index.numItems);
-			if (pointerInside)
+			if (pointerInside) {
 				finishIndex();
+				// Geometry can change under a stationary pointer without changing scale bounds.
+				u.setCursor(u.cursor, false, false);
+			}
 		},
 		destroy() {
 			over.removeEventListener('mouseenter', mouseEnter, true);

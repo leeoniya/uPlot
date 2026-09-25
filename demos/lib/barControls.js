@@ -92,6 +92,7 @@ export function createBarControls(root, { getPlot, getControls, rebuild, regener
 	percent.disabled = !stacked.checked;
 	heightOutput.data = `${height.value}px`;
 	widthOutput.data = `${width.value}%`;
+	lengthOutput.data = maxLength.value;
 	maxLength.disabled = middle.disabled = !truncate.checked;
 
 	return {
