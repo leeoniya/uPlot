@@ -78,7 +78,7 @@ describe('barChartPlugin', () => {
 			}],
 		}, data, document.body);
 		plots.add(u);
-		return { u, measurements };
+		return { u, plugin, measurements };
 	}
 
 	function destroy(u) {
@@ -104,10 +104,10 @@ describe('barChartPlugin', () => {
 		assert.deepEqual(u.axes[0]._values ?? [], labels);
 	}
 
-	function assertMetrics(u, controls) {
+	function assertMetrics(u, plugin) {
 		const labels = u.axes[0]._values ?? [];
 		const label = labels.reduce((longest, next) => width(u, next) > width(u, longest) ? next : longest, '');
-		assert.deepEqual(controls.getLabelMetrics(), { label, width: width(u, label) });
+		assert.deepEqual(plugin._getLabelMetrics(), { label, width: width(u, label) });
 	}
 
 	function assertLayout(u, inset = 8) {
@@ -192,16 +192,15 @@ describe('barChartPlugin', () => {
 
 	it('refreshes native X labels on ordinary setData, including changed counts', async () => {
 		const labels = ['First category label', 'Second category label'];
-		const controls = {};
-		const { u } = mount([labels, [1, 2]], { controls });
+		const { u, plugin } = mount([labels, [1, 2]]);
 		await Promise.resolve();
 		assertCategories(u, labels);
-		controls.setLabelTruncation(3);
+		plugin._setLabelTruncation(3);
 		await Promise.resolve();
 		assert.deepEqual(u.axes[0]._values, ['Fi…', 'Se…']);
 
 		assert.deepEqual(u.data[0], labels);
-		controls.setLabelTruncation(null);
+		plugin._setLabelTruncation(null);
 		await Promise.resolve();
 		for (const labels of [['Same count', 'Different names'], ['One', 'Two', 'Three', 'Four'], ['Only one']]) {
 			const data = [labels, labels.map((_, i) => i + 1)];
@@ -210,7 +209,7 @@ describe('barChartPlugin', () => {
 			assertCategories(u, labels);
 			assert.deepEqual(fullLabels(u), labels);
 			assert.equal(u.data, data);
-			assertMetrics(u, controls);
+			assertMetrics(u, plugin);
 		}
 
 	});
@@ -339,46 +338,53 @@ describe('barChartPlugin', () => {
 		assert.equal(measurements.filter(({ text }) => ['A', 'B', 'C'].includes(text)).length, 3, 'Y changes retain cached X metrics');
 	});
 
-	it('assigns controls at factory time, applies pre-mount settings, and stops redrawing after destroy', async () => {
-		const controls = {};
-		const plugin = barChartPlugin({ controls });
-		for (const method of ['setLabelRotation', 'setLabelTruncation', 'getLabelMetrics'])
-			assert.equal(typeof controls[method], 'function');
-		controls.setLabelRotation(-45);
-		controls.setLabelTruncation(5, 'middle');
+	it('exposes prefixed methods at factory time without mutating options, applies pre-mount settings, and stops redrawing after destroy', async () => {
+		const options = Object.freeze({ labelRotation: 15, maxLabelLength: 4, ellipsis: 'end' });
+		const plugin = barChartPlugin(options);
+		for (const method of ['_setLabelRotation', '_setLabelTruncation', '_getLabelMetrics'])
+			assert.equal(typeof plugin[method], 'function');
+		assert.equal(typeof plugin.opts, 'function');
+		assert.equal(typeof plugin.hooks, 'object');
+		for (const [name, value] of Object.entries(plugin)) {
+			if (typeof value === 'function' && name !== 'opts')
+				assert.ok(name.startsWith('_'), `custom method ${name} must have an underscore prefix`);
+		}
+		assert.deepEqual(plugin._getLabelMetrics(), { label: '', width: 0 });
+		plugin._setLabelRotation(-45);
+		plugin._setLabelTruncation(5, 'middle');
 		const { u } = mount([['abcdefghij', 'xy'], [1, 2]], {}, {}, plugin);
 		await Promise.resolve();
 		assert.equal(u.axes[0]._rotate, -45);
 		assert.deepEqual(u.axes[0]._values, ['ab…ij', 'xy']);
-		assertMetrics(u, controls);
+		assertMetrics(u, plugin);
 		const redraw = u.redraw;
 		let redraws = 0;
 		u.redraw = (...args) => { redraws++; return redraw(...args); };
-		controls.setLabelRotation(45);
+		plugin._setLabelRotation(45);
 		await Promise.resolve();
 		assert.ok(redraws > 0);
 		assert.equal(u.axes[0]._rotate, 45);
 		destroy(u);
 		const before = redraws;
-		controls.setLabelRotation(0);
-		controls.setLabelTruncation(null);
+		plugin._setLabelRotation(0);
+		plugin._setLabelTruncation(null);
 		await Promise.resolve();
-		assert.equal(redraws, before, 'controls must not redraw a destroyed chart');
+		assert.equal(redraws, before, 'plugin methods must not redraw a destroyed chart');
+		assert.deepEqual(options, { labelRotation: 15, maxLabelLength: 4, ellipsis: 'end' }, 'factory and methods leave caller options unchanged');
 	});
 
 	it('truncates at either end or middle, handles maxLength 1, and skips ineffective redraws without changing data', async () => {
-		const controls = {};
 		const data = [['abcdefghij', 'xy'], [1, 2]];
 		const original = structuredClone(data);
-		const { u } = mount(data, { controls });
+		const { u, plugin } = mount(data);
 		await Promise.resolve();
 		const redraw = u.redraw;
 		let redraws = 0;
 		u.redraw = (...args) => { redraws++; return redraw(...args); };
-		controls.setLabelRotation(0);
-		controls.setLabelTruncation(null);
-		controls.setLabelTruncation(100, 'end');
-		controls.setLabelTruncation(100, 'middle');
+		plugin._setLabelRotation(0);
+		plugin._setLabelTruncation(null);
+		plugin._setLabelTruncation(100, 'end');
+		plugin._setLabelTruncation(100, 'middle');
 		await Promise.resolve();
 		assert.equal(redraws, 0, 'unchanged effective labels and rotation need no redraw');
 		for (const [limit, ellipsis, expected] of [
@@ -388,14 +394,14 @@ describe('barChartPlugin', () => {
 			[null, undefined, data[0]],
 		]) {
 			const before = redraws;
-			controls.setLabelTruncation(limit, ellipsis);
+			plugin._setLabelTruncation(limit, ellipsis);
 			await Promise.resolve();
 			assert.ok(redraws > before);
 			assert.deepEqual(u.axes[0]._values, expected);
 			assert.deepEqual(fullLabels(u), data[0]);
-			assertMetrics(u, controls);
+			assertMetrics(u, plugin);
 			const after = redraws;
-			controls.setLabelTruncation(limit, ellipsis);
+			plugin._setLabelTruncation(limit, ellipsis);
 			await Promise.resolve();
 			assert.equal(redraws, after);
 		}
@@ -403,64 +409,64 @@ describe('barChartPlugin', () => {
 		assert.deepEqual(data, original);
 	});
 
-	it('rejects invalid control inputs without changing the current settings or redrawing', async () => {
-		const controls = {};
-		const { u } = mount([['Alphabet', 'Beta'], [1, 2]], { controls, labelRotation: 15, maxLabelLength: 4 });
+	it('rejects invalid method inputs without changing the current settings or redrawing', async () => {
+		const { u, plugin } = mount([['Alphabet', 'Beta'], [1, 2]], { labelRotation: 15, maxLabelLength: 4 });
 		await Promise.resolve();
 		let redraws = 0;
 		u.redraw = () => { redraws++; };
 		for (const degrees of [NaN, Infinity, -Infinity, -91, 91, '45', null])
-			assert.throws(() => controls.setLabelRotation(degrees));
+			assert.throws(() => plugin._setLabelRotation(degrees));
 		for (const limit of [0, -1, 1.5, NaN, Infinity, '4'])
-			assert.throws(() => controls.setLabelTruncation(limit));
-		assert.throws(() => controls.setLabelTruncation(4, 'start'));
+			assert.throws(() => plugin._setLabelTruncation(limit));
+		assert.throws(() => plugin._setLabelTruncation(4, 'start'));
 		await Promise.resolve();
-		assert.equal(redraws, 0, 'invalid control input must not redraw');
+		assert.equal(redraws, 0, 'invalid method input must not redraw');
 		assert.equal(u.axes[0]._rotate, 15);
 		assert.deepEqual(u.axes[0]._values, ['Alp…', 'Beta']);
 	});
 
-	it('keeps chart instances, controls, and measurement caches independent', async () => {
-		const first = {};
-		const second = {};
-		const a = mount([['Shared label', 'A'], [1, 2]], { controls: first });
-		const b = mount([['Shared label', 'B'], [3, 4]], { controls: second }, { axes: [{ font: '20px serif' }, {}] });
+	it('keeps chart instances, plugin methods, and measurement caches independent', async () => {
+		const a = mount([['Shared label', 'A'], [1, 2]]);
+		const b = mount([['Shared label', 'B'], [3, 4]], {}, { axes: [{ font: '20px serif' }, {}] });
+		assert.notEqual(a.plugin, b.plugin);
+		assert.notEqual(a.plugin._setLabelRotation, b.plugin._setLabelRotation);
+		assert.notEqual(a.plugin._setLabelTruncation, b.plugin._setLabelTruncation);
+		assert.notEqual(a.plugin._getLabelMetrics, b.plugin._getLabelMetrics);
 		await Promise.resolve();
-		assertMetrics(a.u, first);
-		assertMetrics(b.u, second);
-		assert.notEqual(first.getLabelMetrics().width, second.getLabelMetrics().width);
+		assertMetrics(a.u, a.plugin);
+		assertMetrics(b.u, b.plugin);
+		assert.notEqual(a.plugin._getLabelMetrics().width, b.plugin._getLabelMetrics().width);
 		const before = b.measurements.length;
-		const metrics = { ...second.getLabelMetrics() };
-		first.setLabelTruncation(4);
-		first.setLabelRotation(90);
+		const metrics = { ...b.plugin._getLabelMetrics() };
+		a.plugin._setLabelTruncation(4);
+		a.plugin._setLabelRotation(90);
 		a.u.setData([['Changed', 'Labels', 'Here'], [1, 2, 3]]);
 		await Promise.resolve();
 		b.u.redraw(false, true);
 		await Promise.resolve();
 		assert.deepEqual(b.u.axes[0]._values, ['Shared label', 'B']);
 		assert.equal(b.u.axes[0]._rotate, 0);
-		assert.deepEqual(second.getLabelMetrics(), metrics);
+		assert.deepEqual(b.plugin._getLabelMetrics(), metrics);
 		assert.equal(b.measurements.length, before);
 		destroy(a.u);
-		second.setLabelRotation(-90);
-		second.setLabelTruncation(6, 'middle');
+		b.plugin._setLabelRotation(-90);
+		b.plugin._setLabelTruncation(6, 'middle');
 		await Promise.resolve();
 		assert.equal(b.u.axes[0]._rotate, -90);
 		assert.deepEqual(b.u.axes[0]._values, ['Sha…el', 'B']);
-		assertMetrics(b.u, second);
+		assertMetrics(b.u, b.plugin);
 	});
 
 	it('handles empty and single-category datasets through ordinary setData', async () => {
-		const controls = {};
-		const { u } = mount([[], []], { controls });
+		const { u, plugin } = mount([[], []]);
 		await Promise.resolve();
 		assertCategories(u, []);
-		assert.deepEqual(controls.getLabelMetrics(), { label: '', width: 0 });
+		assert.deepEqual(plugin._getLabelMetrics(), { label: '', width: 0 });
 		for (const data of [[['Only category'], [5]], [[], []], [['Replacement'], [-3]]]) {
 			u.setData(data);
 			await Promise.resolve();
 			assertCategories(u, data[0]);
-			assertMetrics(u, controls);
+			assertMetrics(u, plugin);
 			assert.deepEqual(fullLabels(u), data[0]);
 			if (data[0].length === 1) {
 				const [[x, , w]] = rects(u, 1);
@@ -515,21 +521,20 @@ describe('barChartPlugin', () => {
 			assert.throws(() => barChartPlugin({ orientation }));
 		for (const labelRotation of [-90, -1, 1, 45, 90])
 			assert.throws(() => barChartPlugin({ orientation: 'horizontal', labelRotation }), RangeError);
-		const controls = {};
-		const plugin = barChartPlugin({ orientation: 'horizontal', controls });
-		assert.throws(() => controls.setLabelRotation(15), RangeError);
-		controls.setLabelRotation(0);
+		const plugin = barChartPlugin({ orientation: 'horizontal' });
+		assert.throws(() => plugin._setLabelRotation(15), RangeError);
+		plugin._setLabelRotation(0);
 		const { u } = mount([['Alpha', 'Beta'], [1, 2]], {}, {}, plugin);
 		await Promise.resolve();
 		let redraws = 0;
 		u.redraw = () => { redraws++; };
 		for (const degrees of [-45, 45])
-			assert.throws(() => controls.setLabelRotation(degrees), RangeError);
-		controls.setLabelRotation(0);
+			assert.throws(() => plugin._setLabelRotation(degrees), RangeError);
+		plugin._setLabelRotation(0);
 		await Promise.resolve();
 		assert.equal(redraws, 0);
 		assertHorizontalLayout(u);
-		assertMetrics(u, controls);
+		assertMetrics(u, plugin);
 		const vertical = mount([['A', 'B'], [1, 2]], { orientation: 'vertical' }).u;
 		await Promise.resolve();
 		assertCategories(vertical, ['A', 'B']);
@@ -566,8 +571,7 @@ describe('barChartPlugin', () => {
 	});
 
 	it('reserves horizontal category width and recalculates numeric ticks after same-count label changes', async () => {
-		const controls = {};
-		const { u } = mount([['A', 'B', 'C'], [20, 40, 80]], { orientation: 'horizontal', controls, inset: 12 }, {
+		const { u, plugin } = mount([['A', 'B', 'C'], [20, 40, 80]], { orientation: 'horizontal', inset: 12 }, {
 			axes: [{ font: '14px serif', gap: 7, ticks: { show: false, size: 11 } }, { space: 70, gap: 9, ticks: { size: 13 } }],
 			scales: { y: { range: [0, 100] } },
 		});
@@ -579,7 +583,7 @@ describe('barChartPlugin', () => {
 		await Promise.resolve();
 		assert.equal(u.data, data);
 		assertCategories(u, data[0], true);
-		assertMetrics(u, controls);
+		assertMetrics(u, plugin);
 		assertHorizontalLayout(u, 12);
 		assertHorizontalRects(u);
 		assert.ok(u.bbox.width < before.width);
@@ -730,11 +734,10 @@ describe('barChartPlugin', () => {
 	}
 
 	it('keeps horizontal truncation and metrics category-oriented and reuses offscreen contexts through resize and DPR changes', async () => {
-		const controls = {};
 		const data = [['abcdefghij', 'klmnopqrst'], [-3, 7]];
 		const original = structuredClone(data);
 		const values = (u, splits) => splits.map(value => `Numeric value ${value}`);
-		const { u, measurements } = mount(data, { orientation: 'horizontal', controls }, {
+		const { u, plugin, measurements } = mount(data, { orientation: 'horizontal' }, {
 			axes: [{ font: '14px serif' }, { font: '14px serif', values }],
 		});
 		await Promise.resolve();
@@ -746,23 +749,23 @@ describe('barChartPlugin', () => {
 			[1, 'middle', ['…', '…']],
 			[null, 'end', data[0]],
 		]) {
-			controls.setLabelTruncation(limit, position);
+			plugin._setLabelTruncation(limit, position);
 			await Promise.resolve();
 			assertCategories(u, expected, true);
-			assertMetrics(u, controls);
+			assertMetrics(u, plugin);
 			assertHorizontalLayout(u);
 			assertHorizontalRects(u);
 			assert.deepEqual(u.axes[1]._values, values(u, u.axes[1]._splits));
 		}
 		assert.equal(u.data, data);
 		assert.deepEqual(data, original);
-		controls.setLabelTruncation(5, 'middle');
+		plugin._setLabelTruncation(5, 'middle');
 		const replacement = [['uvwxyzabcd', 1234567890], [-2, 5]];
 		u.setData(replacement);
 		await Promise.resolve();
 		const expected = ['uv…cd', '12…90'];
 		assertCategories(u, expected, true);
-		assertMetrics(u, controls);
+		assertMetrics(u, plugin);
 		const before = measurements.filter(({ text }) => expected.includes(text)).length;
 		for (const ratio of [1, 2, 1]) {
 			u.setPxRatio(ratio);
@@ -771,7 +774,7 @@ describe('barChartPlugin', () => {
 				u.setSize(size);
 				await Promise.resolve();
 				assertCategories(u, expected, true);
-				assertMetrics(u, controls);
+				assertMetrics(u, plugin);
 				assertHorizontalLayout(u);
 				assertHorizontalRects(u);
 			}
@@ -794,11 +797,10 @@ describe('barChartPlugin', () => {
 	});
 
 	it('reserves label bounds across rotation, resize, and DPR changes with a custom inset', async () => {
-		const controls = {};
 		const labels = ['A long first category', 'Middle', 'A long final category'];
 		const data = [labels, [1, 2, 3]];
 		const original = structuredClone(data);
-		const { u, measurements } = mount(data, { controls, inset: 12 });
+		const { u, plugin, measurements } = mount(data, { inset: 12 });
 		await Promise.resolve();
 		for (const ratio of [1, 2]) {
 			u.setPxRatio(ratio);
@@ -807,17 +809,17 @@ describe('barChartPlugin', () => {
 				u.setSize(size);
 				await Promise.resolve();
 				for (const rotation of [-90, -45, 0, 45, 90]) {
-					controls.setLabelRotation(rotation);
+					plugin._setLabelRotation(rotation);
 					await Promise.resolve();
 					assert.equal(u.axes[0]._rotate, rotation);
 					assertCategories(u, labels);
 					assertLayout(u, 12);
-					assertMetrics(u, controls);
+					assertMetrics(u, plugin);
 				}
 			}
 		}
 		assert.equal(u.data, data);
-		assert.deepEqual(data, original, 'rotation and layout controls do not alter data');
+		assert.deepEqual(data, original, 'rotation and layout methods do not alter data');
 		const xMeasurements = measurements.filter(({ text }) => labels.includes(text));
 		assert.equal(xMeasurements.length, labels.length * 2, 'resize and rotation reuse measurements; DPR invalidates them');
 		assert.ok(xMeasurements.some(({ font }) => font === u.axes[0].font[0]));

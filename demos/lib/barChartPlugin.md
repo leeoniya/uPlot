@@ -6,41 +6,40 @@ Multiple Y series overlap at each category. The plugin does not arrange grouped 
 
 ## Usage
 
-Call the plugin factory once per chart. Use a separate `controls` object for each chart.
+Call the plugin factory once per chart. The returned plugin exposes its methods directly and does not modify the factory options.
 Use these imports from a module in `demos/`. Load the usual uPlot CSS in the page.
 
 ```js
 import uPlot from '../src/uPlot.js';
 import { barChartPlugin } from './lib/barChartPlugin.js';
 
-const controls = {};
+const bars = barChartPlugin({
+  labelRotation: -30,
+  maxLabelLength: 16,
+  ellipsis: 'end',
+  bars: { size: [0.6, 100] },
+});
 const u = new uPlot({
   width: 640,
   height: 360,
   series: [{}, { label: 'Sales', fill: 'royalblue' }],
-  plugins: [barChartPlugin({
-    labelRotation: -30,
-    maxLabelLength: 16,
-    ellipsis: 'end',
-    bars: { size: [0.6, 100] },
-    controls,
-  })],
+  plugins: [bars],
 }, [
   ['North America', 'Europe', 'Asia Pacific'],
   [24, 18, 32],
 ], document.body);
 
-controls.setLabelRotation(-45);
-controls.setLabelTruncation(12, 'middle');
-controls.setLabelTruncation(10); // Keeps 'middle'.
-controls.setLabelTruncation(null); // Disables truncation.
+bars._setLabelRotation(-45);
+bars._setLabelTruncation(12, 'middle');
+bars._setLabelTruncation(10); // Keeps 'middle'.
+bars._setLabelTruncation(null); // Disables truncation.
 
 u.setData([
   ['North America', 'Europe', 'Asia Pacific', 'Other'],
   [28, 21, 35, 9],
 ]);
 u.setSize({ width: 800, height: 400 });
-// Read controls.getLabelMetrics() in a draw or ready hook.
+// Read bars._getLabelMetrics() in a draw or ready hook.
 ```
 
 For horizontal bars, use `orientation: 'horizontal'`:
@@ -49,13 +48,12 @@ For horizontal bars, use `orientation: 'horizontal'`:
 barChartPlugin({
   orientation: 'horizontal',
   maxLabelLength: 20,
-  controls,
 });
 ```
 
 The data format stays `[categoryLabels, numericValues]`. Categories run from top to bottom on the left X axis.
 The numeric Y axis runs horizontally along the bottom. The widest category label determines the left axis width before numeric tick selection.
-Horizontal bars do not support label rotation. A nonzero `labelRotation` or `setLabelRotation()` argument throws `RangeError`.
+Horizontal bars do not support label rotation. A nonzero `labelRotation` or `_setLabelRotation()` argument throws `RangeError`.
 
 ## Options
 
@@ -67,18 +65,19 @@ Horizontal bars do not support label rotation. A nonzero `labelRotation` or `set
 | `ellipsis` | `'end'` | The ellipsis position: `'end'` or `'middle'`. |
 | `inset` | `8` | The minimum outer padding and extra axis space, in CSS pixels. |
 | `bars` | `{}` | Options that the plugin passes to `uPlot.paths.bars(bars)`. |
-| `controls` | `{}` | An object that receives the methods below. |
 
 Category labels come directly from `data[0]`. uPlot's ordinal scale assigns their numeric positions internally.
 The plugin converts X values to strings for display. Null entries become empty strings.
 The `setData` hook refreshes the displayed labels. Truncation does not change the original data or legend labels.
 
-## Controls
+## Plugin methods
 
-- `setLabelRotation(degrees)` changes the angle. A new angle requests layout.
-- `setLabelTruncation(maxLength, position)` changes truncation. The optional `position` retains the current ellipsis position.
+These methods belong to the returned plugin. The `_` prefix distinguishes them from uPlot's `opts` and `hooks` entries.
+
+- `_setLabelRotation(degrees)` changes the angle. A new angle requests layout.
+- `_setLabelTruncation(maxLength, position)` changes truncation. The optional `position` retains the current ellipsis position.
   A change to the displayed labels requests layout. `null` disables truncation.
-- `getLabelMetrics()` returns `{ label, width }` for the widest displayed X label after layout.
+- `_getLabelMetrics()` returns `{ label, width }` for the widest displayed X label after layout.
   The width is the unrotated text width in CSS pixels. Before measurement, the result is `{ label: '', width: 0 }`.
 
 Invalid orientations, angles, lengths, or ellipsis positions throw `RangeError`.

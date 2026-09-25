@@ -24,10 +24,10 @@ export function createDemo(root) {
 	const maxLength = root.querySelector('#max-length');
 	const lengthOutput = readoutNode('#max-length-value');
 	const middle = root.querySelector('#middle-ellipsis');
-	const controls = {};
+	let bars;
 
 	function readout(u) {
-		const { label, width } = controls.getLabelMetrics();
+		const { label, width } = bars._getLabelMetrics();
 		stats.data = `Items: ${u.data[0].length} | Longest label: ${label} (${width.toFixed(1)}px) | X axis: ${u.axes[0]._size}px | Y axis: ${u.axes[1]._size}px | Y range: ${u.scales.y.min} … ${u.scales.y.max} | Left padding: ${u._padding[3]}px | Right padding: ${u._padding[1]}px`;
 	}
 
@@ -46,17 +46,17 @@ export function createDemo(root) {
 	}
 
 	function createPlot(data, size, pxRatio) {
+		bars = barChartPlugin({
+			orientation: horizontal.checked ? 'horizontal' : 'vertical',
+			labelRotation: horizontal.checked ? 0 : slider.valueAsNumber,
+			maxLabelLength: truncate.checked ? maxLength.valueAsNumber : null,
+			ellipsis: middle.checked ? 'middle' : 'end',
+		});
 		return new uPlot({
 			...size,
 			pxRatio,
 			series: [{ label: 'Item' }, { label: 'Value', fill: 'royalblue' }],
-			plugins: [barChartPlugin({
-				orientation: horizontal.checked ? 'horizontal' : 'vertical',
-				labelRotation: horizontal.checked ? 0 : slider.valueAsNumber,
-				maxLabelLength: truncate.checked ? maxLength.valueAsNumber : null,
-				ellipsis: middle.checked ? 'middle' : 'end',
-				controls,
-			})],
+			plugins: [bars],
 			hooks: { draw: [readout] },
 		}, data, root.querySelector('#plot'));
 	}
@@ -90,14 +90,14 @@ export function createDemo(root) {
 	function setRotation() {
 		if (!horizontal.checked) {
 			output.data = `${slider.value}°`;
-			controls.setLabelRotation(slider.valueAsNumber);
+			bars._setLabelRotation(slider.valueAsNumber);
 		}
 	}
 
 	function setLabels() {
 		lengthOutput.data = maxLength.value;
 		maxLength.disabled = middle.disabled = !truncate.checked;
-		controls.setLabelTruncation(truncate.checked ? maxLength.valueAsNumber : null, middle.checked ? 'middle' : 'end');
+		bars._setLabelTruncation(truncate.checked ? maxLength.valueAsNumber : null, middle.checked ? 'middle' : 'end');
 	}
 
 	function regenerate() {

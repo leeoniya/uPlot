@@ -1,3 +1,14 @@
+/*
+TODO:
+  grouped, multi-series (walk2)
+  stacked, percent stacked
+  bar width control, min width
+  value rendering
+  flatbush hover
+  legend toggles for points, not just series
+  tooltip? w/metadata?
+*/
+
 import uPlot from '../../src/uPlot.js';
 
 // One instance per chart: category X axis, numeric Y axis, and bar paths.
@@ -8,7 +19,6 @@ export function barChartPlugin({
 	ellipsis = 'end',
 	inset = 8,
 	bars = {},
-	controls = {},
 } = {}) {
 	if (orientation != 'vertical' && orientation != 'horizontal')
 		throw new RangeError('Orientation must be vertical or horizontal.');
@@ -172,13 +182,11 @@ export function barChartPlugin({
 
 	setLabelRotation(labelRotation);
 	setLabelTruncation(maxLabelLength, ellipsis);
-	Object.assign(controls, {
-		setLabelRotation,
-		setLabelTruncation,
-		getLabelMetrics: () => ({ label: measured[0]?.label ?? '', width: measured[0]?.width ?? 0 }),
-	});
 
 	return {
+		_setLabelRotation: setLabelRotation,
+		_setLabelTruncation: setLabelTruncation,
+		_getLabelMetrics: () => ({ label: measured[0]?.label ?? '', width: measured[0]?.width ?? 0 }),
 		opts(u, opts) {
 			opts.padding = [inset, padding, inset, padding];
 			opts.cursor = uPlot.assign({}, opts.cursor, { drag: { setScale: false } });
