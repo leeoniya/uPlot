@@ -1,11 +1,11 @@
 import { abs, floor, max, min, round, roundDec, incrRound, incrRoundDn, incrRoundUp, fixedDec, isFinite, rangePad, rangeZeroIf, rangeAnchors } from './utils.js';
 import { numIncrs } from './opts.js';
 
-export function rangeYCount(height, ramp = 1) {
-	if (!(height > 0) || !isFinite(height) || !(ramp >= 0) || !isFinite(ramp))
+export function rangeYCount(dim, ramp = 1, space = 50) {
+	if (!(dim > 0) || !isFinite(dim) || !(space > 0) || !isFinite(space) || !(ramp >= 0) || !isFinite(ramp))
 		return 0;
 
-	let target = height / 50;
+	let target = dim / space;
 	target += Math.exp(-target / 3);
 	return max(1, round(1 + (target - 1) * ramp));
 }
@@ -221,11 +221,11 @@ function selectRangeY(request, count, exactCount) {
 }
 
 // Returns null when the built-in increments cannot support the requested range/count/policy.
-export function rangeY(dataMin, dataMax, height, range = rangeYAuto, ramp = 1, exactCount = false) {
+export function rangeY(dataMin, dataMax, dim, range = rangeYAuto, ramp = 1, exactCount = false, space = 50) {
 	if (dataMin == null && dataMax == null)
 		return { min: null, max: null, incr: 0, count: 0 };
 
-	let count = rangeYCount(height, ramp);
+	let count = rangeYCount(dim, ramp, space);
 	if (!Number.isSafeInteger(count) || count < 1 || dataMin == null || dataMax == null ||
 		!isFinite(dataMin) || !isFinite(dataMax) || dataMax < dataMin)
 		return null;

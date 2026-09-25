@@ -17,19 +17,20 @@ This branch starts from the baseline, not from the larger implementation. The ea
 
 Independent Y scales have matching tick positions through X zoom, resize, and data changes.
 
-Tick count depends on available height and the original spacing ramp. Data determines each scale's increment and bounds, not its count.
+Tick count depends on available plot dimensions and the spacing ramp. Vertical numeric scales use height, and horizontal numeric scales use width.
+Horizontal scales also use `axis.space` as their target interval spacing. Vertical scales retain the original 50px target.
 
-This changes the original prototype's independent count selection. It retains the spacing formula, dimension thresholds, and small-axis endpoint policy.
+The current count policy uses the plot dimension, target spacing, and `axis.ramp`. The original prototype formula and thresholds remain below as historical reference.
 
 ## Scope
 
 - Mode 1 only.
-- Physical left/right Y axes, not X or rotated horizontal Y axes.
+- Physical left/right or top/bottom numeric Y axes, not the primary X scale.
 - Independent linear numeric scales only.
 - Automatic ranging only.
 - Built-in numeric increments only. Custom increment lists and callbacks are deferred.
 - Built-in scanners only for the MVP guarantee. General custom-scanner support is deferred.
-- No derived scales or parents of derived scales.
+- No dependent scales or parents of dependent scales.
 - Declarative `Range.Config` objects and partial range arrays can participate when active limits align with built-in tick increments.
 - Fixed arrays, range functions, and concrete setter requests remain on the ordinary path.
 - No convergence or repeated label measurement.
@@ -38,16 +39,17 @@ This changes the original prototype's independent count selection. It retains th
 
 ### Activation
 
-The tick-aware path requires `scale.axis`. Its value must identify the visible vertical axis that owns the scale.
+The tick-aware path requires `scale.axis`. Its value must identify the visible axis that owns the scale.
 
 All of these conditions must also apply:
 
 - The chart uses mode 1.
 - The scale is an independent linear numeric Y scale.
-- The scale is not a derived scale or a parent of one.
-- The scale uses a physical left or right Y axis.
+- The scale is not a dependent scale or a parent of one.
+- The scale orientation matches its axis side.
 - The scale does not use `auto: false`.
-- The axis uses the built-in `space`, `incrs`, and `splits` policies.
+- The axis uses the built-in `incrs` and `splits` policies.
+- Vertical axes use the built-in `space` policy. An explicit non-null `space` selects the ordinary path. Horizontal axes accept a number or callback.
 - The range is omitted, a supported `Range.Config`, or a partial range array.
 
 A supported `Range.Config` can contain the top-level `zeroIf` threshold and per-side `pad`, `soft`, and `hard` values.
@@ -58,6 +60,10 @@ A partial range array uses hard-plus-soft normalization. For example, `[0, null]
 A fixed range array or a range function uses the ordinary path. A concrete `setScale()` request also uses the ordinary path.
 
 An automatic reset with null bounds returns the scale to the tick-aware path.
+
+Horizontal `space` callbacks receive `(self, axisIdx, rawMin, rawMax, dim)`.
+The raw extrema come from the scanner. `dim` is the provisional plot width in CSS pixels, after vertical-axis auto-size and baseline padding, before overflow padding.
+Spacing must be finite and positive. Empty data does not call the spacing callback.
 
 ### Default numeric range policy
 
@@ -117,9 +123,14 @@ Padding defaults to `0.1`, as in ordinary numeric ranging. Explicit `pad: 0` dis
 
 ## Numeric policy
 
-The dimension is plot height in CSS pixels, after horizontal-axis reservations and baseline padding.
+Vertical ranging uses plot height in CSS pixels, after horizontal-axis reservations and baseline padding.
+Horizontal ranging uses provisional plot width after vertical-axis auto-size and baseline padding.
+A smaller horizontal `axis.space` requests more intervals. Height alone does not select the horizontal range.
+If a height-only resize leaves provisional width, raw extrema, and spacing policy unchanged, the horizontal range stays unchanged.
 
-The default spacing ramp is:
+The current interval budget comes from `rangeYCount(dim, ramp, space)`. Vertical ranging retains its 50px spacing target. Horizontal ranging uses `axis.space`.
+
+The original prototype used the following spacing ramp and thresholds. These are historical, not the current count policy:
 
 ```js
 if (height < 50)
@@ -152,7 +163,8 @@ The first experiment reuses the baseline rounding helpers. Numeric failures must
 
 ## Computation flow
 
-This comparison describes mode 1 charts with independent, linear, vertical Y scales. The ordinary path means automatic ranging without the `scale.axis` opt-in.
+This comparison describes mode 1 charts with independent, linear numeric Y scales in either physical orientation.
+The ordinary path means automatic ranging without the `scale.axis` opt-in.
 
 Both paths use the existing height-first layout. The difference is when Y bounds become final and how those bounds relate to tick selection.
 
@@ -205,24 +217,28 @@ Setters record pending work
          Reserve horizontal-axis heights: sizeAxes(0)
          Calculate baseline padding: paddingCalc(0) (Layout)
          Establish final plot height: calcPlotDim(1)
-         For each active scale, call rangeY(rawMin, rawMax, plotHgtCss)
+         Range active vertical scales with rangeYScales(1, plotHgtCss, changedY)
            Resolve hard limits, explicit soft anchors, and zero-proximity anchors
            Apply padding requirements only on unanchored sides
            Select the height-derived count, increment, and enclosing bounds once
            Store the result in _rangeY and publish Y display bounds
            Invalidate paths on changed Y scales and collect changedY
-         Generate Y ticks/labels from the retained increments: axesCalc(1)
+         Generate vertical ticks/labels from the retained increments: axesCalc(1)
          Measure vertical-axis widths once: sizeAxes(1)
-         Complete horizontal layout, canvas, and DOM updates
+         Establish provisional plot width: calcPlotDim(0)
+         Range active horizontal scales with rangeYScales(0, plotWidCss, changedY)
+         Generate horizontal ticks/labels: axesCalc(0)
+         Complete overflow padding, canvas, and DOM updates
          Return changedY
 
        Fire setScale hooks for changed tick-aware Y scales
        Draw, update interaction state, and finish the commit
 ```
 
-`applyScanRange()` selects the ordinary or deferred path during `setScales()`. The Y-ranging phase is currently inline in `updateLayout()`, not a separate helper.
+`applyScanRange()` selects the ordinary or deferred path during `setScales()`. `updateLayout()` calls `rangeYScales()` separately for each physical orientation.
 
-All active Y bounds become final before vertical tick generation and measurement. Each scale receives the same plot height, so supported, nonempty ranges have the same interval count.
+Vertical Y bounds become final before vertical tick generation and measurement. Horizontal Y bounds become final after vertical-axis measurement and before horizontal tick generation.
+Horizontal tick counts use the provisional plot width and `axis.space`. Overflow padding does not cause another ranging pass.
 
 Empty data produces null bounds and no ticks. Unsupported numeric inputs also produce null bounds and no ticks, rather than an ordinary-range fallback.
 
@@ -235,6 +251,7 @@ Both paths complete layout in this order:
 ```text
 Measured vertical-axis widths
   -> calcPlotDim(0): provisional plot width
+  -> rangeYScales(0): horizontal numeric bounds and increments
   -> axesCalc(0): horizontal ticks and labels
   -> paddingCalc(1) (Overflow): horizontal padding adjustments
   -> calcPlotDim(0): final plot width, without another tick-selection pass
@@ -245,7 +262,8 @@ Measured vertical-axis widths
   -> fire setSize when size or layout changed
 ```
 
-Vertical labels and horizontal overflow padding can change width, but cannot change the height already used for Y ranging. Horizontal-axis reservation receives `null` labels, rather than depending on the subsequent X tick selection.
+Vertical labels and horizontal overflow padding can change width, but cannot change the height already used for vertical Y ranging.
+Horizontal-axis reservation receives `null` labels before horizontal tick selection.
 
 For tick-aware scales, `setScale` notifications follow layout completion and precede drawing. Ordinary scale notifications occur earlier, during `setScales()`.
 
@@ -256,10 +274,10 @@ In a mixed chart, an ordinary X hook can therefore observe previous tick-aware Y
 | Computation | Ordinary automatic Y | Tick-aware automatic Y |
 | --- | --- | --- |
 | Input to the ranger | Scanner extrema | Cached scanner extrema in `_rawY` |
-| When Y bounds become final | During `setScales()`, before layout | During `updateLayout()`, after final plot height |
+| When Y bounds become final | During `setScales()`, before layout | During `updateLayout()`, after final plot height or provisional plot width |
 | Bounds policy | Existing `scale.range()`, including default numeric padding | Tick-aligned enclosure, zero affinity, and declarative limits from `rangeY()` |
 | Increment selection | Axis selects an increment after ranging | Ranger selects an increment together with bounds |
-| Tick count | Depends on each range and selected increment | Depends on plot height and the common ramp for supported, nonempty ranges |
+| Tick count | Depends on each range and selected increment | Depends on plot dimension, target spacing, and ramp |
 | Endpoint ticks | Not guaranteed | Both endpoints are ticks for supported inputs |
 | Resize without new data | Keeps bounds and selects ticks for the new dimension | Reuses extrema and recalculates bounds and ticks |
 | Y `setScale` notifications | Before layout | After layout, before drawing |
@@ -271,7 +289,7 @@ In a mixed chart, an ordinary X hook can therefore observe previous tick-aware Y
 | X zoom | Resolves the visible window and refreshes affected automatic Y extrema | Ranges active Y scales, then selects ticks and measures axes |
 | `setData()` with default scale reset | Resets series extrema and refreshes required scales | Uses the new extrema, not previous rounded bounds |
 | Series visibility | Refreshes the affected scale aggregate | Recalculates ranges and visible axes |
-| `setSize()` | No data scan | Ordinary bounds remain unchanged. Tick-aware bounds use cached extrema and the new height |
+| `setSize()` | No data scan | Ordinary bounds remain unchanged. Tick-aware bounds use cached extrema and the new plot dimension |
 | `redraw(false, true)` | No data scan | Recalculates axes. Unchanged geometry and bounds retain series paths |
 | Concrete Y setter request | Clears the tick-aware cache and uses ordinary setter semantics | Restores ordinary tick selection, even when bounds are unchanged |
 
@@ -292,6 +310,8 @@ This is a new requested update, not a convergence pass. The ranger does not repe
 The commit also clears uncached paths when configured and fires `ready` once. Legacy synchronous `batch()` handling remains outside the MVP guarantee.
 
 ## Incremental milestones
+
+These milestones record the original vertical-only implementation plan. The [scope and activation rules](#scope) describe current support.
 
 ### 1. Numeric proof of concept
 
@@ -333,11 +353,16 @@ Reference tests are available with `git show 6aea79c7:test/<file>`:
 
 Port applicable assertions into focused tests. Record omitted categories rather than marking excluded behavior as passing.
 
-Out-of-scope categories include mode 2, horizontal Y ranging, concrete partial setter alignment, fixed ranges, range functions, derived scales, and composition with custom callbacks.
+Current exclusions include mode 2, concrete partial setter alignment, fixed ranges, range functions, dependent scales, and parents of dependent scales.
+General custom-callback composition remains outside scope, except for horizontal `axis.space` numbers and callbacks.
+Horizontal numeric Y ranging is supported under the activation rules.
 
 Passing numeric tests does not establish chart-level cache or lifecycle correctness. Those require integration tests in milestones 2 and 3.
 
 ## Progress
+
+The following results record historical checkpoints, not current activation rules or test totals.
+The one-axis POC required a vertical axis and excluded custom spacing. Current support also includes horizontal axes and their `space` numbers or callbacks.
 
 - Baseline branch created. Previous work remains recoverable on `master` and the existing backup branches.
 - Numeric proof of concept: complete and preserved in checkpoint `7fb26d10`.

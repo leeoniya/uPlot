@@ -5,6 +5,9 @@
 Review date: 2026-09-17. Original source checkpoint: `b52bd96`, with the local issue-demo reductions.
 This update includes the static-range fix, the X-range refactor, drag-bound refinement, public `setRange()`, declarations, and generated bundles.
 
+The layout assessments in this review predate `scale.axis` support for independent linear numeric Y scales in either physical orientation.
+The [current ranging policy](minimal-axis-ranging-plan.md#scope) defines support and exclusions. This note does not update GitHub issue states.
+
 The [GitHub search](https://github.com/leeoniya/uPlot/issues?q=is%3Aissue%20state%3Aopen%20scale) now returns **61 open issues**.
 The API returned all 61 results with `incomplete_results: false`.
 The original review covered 65 results. Issues 648, 655, 915, and 1133 closed after that snapshot.

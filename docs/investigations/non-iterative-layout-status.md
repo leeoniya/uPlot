@@ -112,7 +112,12 @@ The `setSize` hook reports outer size updates and internal plot or axis geometry
 
 ## Remaining design work: space-aware scale ranges
 
-`setScales()` still resolves ranges before layout. Tick selection already uses the range, available dimension, and tick configuration through `getIncrSpace()` and `findIncr()`.
+This section records the remaining work at the 2026-09-15 checkpoint.
+Current `scale.axis` support includes independent linear numeric Y scales in either physical orientation.
+Horizontal ranges use provisional width after vertical-axis auto-size and baseline padding. Subsequent overflow padding does not select ranges or ticks again.
+Dependent scales and their parents remain excluded. The [current ranging policy](minimal-axis-ranging-plan.md#activation) defines the activation rules.
+
+At that checkpoint, `setScales()` resolved ranges before layout. Tick selection already uses the range, available dimension, and tick configuration through `getIncrSpace()` and `findIncr()`.
 
 The remaining goal is range selection that uses the available dimension and tick configuration. It is not additional dimension awareness for tick selection.
 

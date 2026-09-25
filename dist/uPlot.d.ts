@@ -1217,13 +1217,13 @@ declare namespace uPlot {
 		/** font used for axis label */
 		labelFont?: CanvasRenderingContext2D['font'];
 
-		/** target grid & tick spacing in CSS pixels */
+		/** target grid & tick spacing in CSS pixels; horizontal tick-aware ranging passes raw extrema to callbacks */
 		space?: Axis.Space;
 
 		/** tick-count growth factor for tick-aware Y ranging. 0 retains two edge ticks */
 		ramp?: number; // 1
 
-		/** enforces the height/ramp-derived interval count for tick-aware Y ranging */
+		/** enforces the dimension/ramp-derived interval count for tick-aware Y ranging */
 		exact?: boolean; // false
 
 		/** available divisors for axis ticks, values, grid */

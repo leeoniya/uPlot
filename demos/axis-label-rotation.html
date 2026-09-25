@@ -19,15 +19,21 @@
 	<body>
 		<main id="demo">
 			<h1>Random labels: rotation and measured layout</h1>
+			<p>Layout and bars use the reusable <a href="lib/barChartPlugin.md">barChartPlugin</a>.</p>
 			<p>The slider changes label rotation without changing the random Y values.
 			The longest displayed label determines the X axis height. Left/right padding uses each label’s width and position.
 			Measurements stay cached until the labels, font, or pixel ratio changes.</p>
+			<p>Horizontal bars swap the chart dimensions, then reduce the height to one quarter. The data stays the same.
+			Category labels stay unrotated on the left. Their measured width determines the space available for the numeric axis.</p>
 			<p>Randomize data generates 3–15 items with one-to-three-word labels made from adjectives, nouns, and verbs.
-			Y values use random offsets and spreads across different magnitudes. The Y axis measures its formatted labels to set its width.
-			Tick-aware ranging keeps ticks at both Y bounds. Soft zero limits keep the bar baseline visible.</p>
+			Y values use random offsets and spreads across different magnitudes.
+			For vertical bars, the Y axis measures its formatted labels to set its width.
+			Tick-aware ranging keeps ticks at both Y bounds in either orientation. Horizontal numeric ticks target 100px spacing.
+			Soft zero limits keep the bar baseline visible in both orientations.</p>
 			<p>Gray shows the space outside the plot. All labels stay visible; shallow angles can make neighboring labels overlap.</p>
 			<div class="controls">
-				<label for="height">Chart height</label>
+				<label><input id="horizontal" type="checkbox"> Horizontal bars</label>
+				<label id="height-label" for="height">Chart height</label>
 				<input id="height" type="range" min="200" max="900" step="10" value="500">
 				<output id="height-value" for="height">500px</output>
 			</div>

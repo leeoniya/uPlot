@@ -7,7 +7,7 @@ import { createDemo } from '../demos/axis-label-rotation.js';
 const html = await readFile(new URL('../demos/axis-label-rotation.html', import.meta.url), 'utf8');
 
 describe('random label rotation demo', () => {
-	let root, u, measurements;
+	let root, demo, u, measurements, originalOffscreenCanvas;
 	const input = id => root.querySelector(`#${id}`);
 
 	beforeEach(async () => {
@@ -15,40 +15,60 @@ describe('random label rotation demo', () => {
 		root.innerHTML = html.match(/<main\b[^]*?<\/main>/)[0];
 		document.body.appendChild(root);
 		measurements = { x: [], y: [] };
+		originalOffscreenCanvas = globalThis.OffscreenCanvas;
+		globalThis.OffscreenCanvas = class {
+			constructor() {
+				this.ctx = {
+					measureText(text) {
+						measurements[demo.plot.axes[1]._values?.includes(text) ? 'y' : 'x'].push(text);
+						return { width: String(text).length * parseFloat(this.font) / 2 };
+					},
+				};
+			}
+			getContext(type) {
+				assert.equal(type, '2d');
+				return this.ctx;
+			}
+		};
 		await withSeededRandom(() => {
-			u = createDemo(root);
-			// Install text metrics before the queued initial layout runs.
-			u.ctx.measureText = text => {
-				// The instrumented context has a setter-only font; read its last assignment.
-				const font = u.ctx.font ?? u.ctx.log.findLast(entry => entry[0] == 'font').at(-1);
-				measurements[u.axes[1]._values?.includes(text) ? 'y' : 'x'].push(text);
-				return { width: String(text).length * parseFloat(font) / 2 };
-			};
+			demo = createDemo(root);
+						u = demo.plot;
 		});
 		await Promise.resolve();
 	});
 
 	afterEach(() => {
-		u?.destroy();
-		root.remove();
+		try {
+			demo?.destroy();
+			root.remove();
+		}
+		finally {
+			if (originalOffscreenCanvas === undefined)
+				delete globalThis.OffscreenCanvas;
+			else
+				globalThis.OffscreenCanvas = originalOffscreenCanvas;
+		}
 	});
 
 	const adjectives = new Set('Tiny Bright Quiet Swift Gentle Bold Silver Merry'.split(' '));
 	const nouns = new Set('fox owl panda otter tiger robin badger raven'.split(' '));
 	const verbs = new Set('runs jumps sings rests dances glides swims plays'.split(' '));
-	const fullLabels = () => u.data[0].map(i => u.series[0].value(u, i));
+	const fullLabels = () => u.data[0];
 	const labelWidth = label => String(label).length * parseFloat(u.axes[0].font[0]) / 2 / u.pxRatio;
 	const longestWidth = () => Math.max(...u.axes[0]._values.map(labelWidth));
 
 	function assertDataShape() {
 		const [xs, ys] = u.data;
 		assert.ok(xs.length >= 3 && xs.length <= 15, '3–15 items');
-		assert.deepEqual(xs, Array.from({ length: xs.length }, (_, i) => i), 'contiguous X indices');
+		assert.ok(xs.every(value => typeof value == 'string'), 'raw X values are label strings');
+
+		const indices = Array.from({ length: xs.length }, (_, i) => i);
+		assert.deepEqual(u._data[0], indices, 'contiguous internal X indices');
 		assert.equal(ys.length, xs.length);
 		assert.ok(ys.every(Number.isFinite));
 		assert.ok(ys.every(y => y >= -1e7 && y < 3e7), 'Y values fit the magnitude, offset, and spread bounds');
 		assert.ok(new Set(ys).size > 1, 'Y values have a nonzero spread');
-		for (const label of fullLabels()) {
+		for (const label of xs) {
 			const words = label.split(' ');
 			assert.ok(words.length >= 1 && words.length <= 3, `word count: ${label}`);
 			assert.ok(nouns.has(words[words.length == 1 ? 0 : 1]), `noun: ${label}`);
@@ -59,7 +79,7 @@ describe('random label rotation demo', () => {
 		}
 		assert.equal(u.scales.x.distr, 2);
 		assert.deepEqual([u.scales.x.min, u.scales.x.max], [-.5, xs.length - .5]);
-		assert.deepEqual(u.axes[0]._splits, xs, 'ticks follow the current X indices');
+		assert.deepEqual(u.axes[0]._splits, indices, 'ticks follow the current X indices');
 	}
 
 	function assertReadout() {
@@ -92,7 +112,8 @@ describe('random label rotation demo', () => {
 				assert.equal(parts[1].length, middle ? Math.floor((limit - 1) / 2) : 0);
 			}
 		}
-		assert.deepEqual(fullLabels(), labels, 'legend retains every full label');
+		assert.deepEqual(u.data[0], labels, 'raw X data retains every full label');
+
 		assertReadout();
 	}
 
@@ -247,7 +268,7 @@ describe('random label rotation demo', () => {
 	});
 
 	it('credits the half-category inset without width feedback', async () => {
-		u.setData([u.data[0], u.data[0].map(i => 10 + i * 17)]);
+		u.setData([u.data[0], u.data[0].map((_, i) => 10 + i * 17)]);
 		// Leave enough half-slot space to absorb the longest label's overhang.
 		u.setSize({ width: Math.ceil(2 * (u.data[0].length + 1) * (longestWidth() + 20) + u.axes[1]._size), height: 500 });
 		for (const degrees of [0, 50]) {
@@ -295,6 +316,157 @@ describe('random label rotation demo', () => {
 		}
 		assert.ok(counts.size > 1, 'height changes the Y tick count');
 		assert.equal(measurements.x.length, u.data[0].length);
+	});
+
+	it('rebuilds orientations with compact horizontal dimensions while preserving data, truncation, and rotation', async () => {
+		assert.deepEqual([u.width, u.height], [1200, 500]);
+		assert.equal(input('horizontal').checked, false);
+		assert.equal(input('height-label').textContent, 'Chart height');
+		assert.equal(input('rotation').disabled, false);
+		assert.equal(input('rotation').value, '45');
+		assert.equal(input('rotation-value').textContent, '45°');
+		u.setPxRatio(2);
+		await rotate(-30);
+		input('max-length').value = '8';
+		input('truncate').checked = true;
+		input('truncate').dispatchEvent(new Event('change'));
+		u = demo.plot;
+		await Promise.resolve();
+
+		for (const middle of [false, true]) {
+			input('middle-ellipsis').checked = middle;
+			input('middle-ellipsis').dispatchEvent(new Event('change'));
+			u = demo.plot;
+			await Promise.resolve();
+
+			for (const horizontal of [true, false]) {
+				const previous = u;
+				const data = u.data;
+				const dimensions = horizontal ? [u.height, u.width / 4] : [u.height * 4, u.width];
+				let destroyed = 0;
+				previous.hooks.destroy.push(() => destroyed++);
+				input('horizontal').checked = horizontal;
+				input('horizontal').dispatchEvent(new Event('change'));
+				u = demo.plot;
+				await Promise.resolve();
+
+				assert.notEqual(u, previous);
+				assert.equal(destroyed, 1, 'destroy the replaced plot exactly once');
+				assert.equal(previous.root.isConnected, false);
+				assert.equal(root.querySelectorAll('#plot .uplot').length, 1, 'one live chart after each rebuild');
+				assert.equal(input('plot').querySelector('.uplot'), u.root);
+				assert.equal(u.data, data, 'orientation preserves the exact data reference');
+				assert.deepEqual([u.width, u.height], dimensions, 'swap dimensions and scale the category dimension for the new orientation');
+				assert.equal(u.pxRatio, 2);
+				assert.equal(u.scales.x.ori, horizontal ? 1 : 0);
+				assert.equal(u.scales.y.ori, horizontal ? 0 : 1);
+				assert.equal(u.axes[0]._rotate, horizontal ? 0 : -30);
+				assert.equal(input('rotation').disabled, horizontal);
+				assert.equal(input('rotation-value').textContent, horizontal ? '0°' : '-30°');
+				if (!horizontal)
+					assert.equal(input('rotation').value, '-30', 'restore the remembered vertical rotation');
+				assert.equal(input('height-label').textContent, horizontal ? 'Chart width' : 'Chart height');
+				assert.equal(input('height').value, String(horizontal ? u.width : u.height));
+				assert.equal(input('height-value').textContent, `${horizontal ? u.width : u.height}px`);
+				assert.equal(input('truncate').checked, true);
+				assert.equal(input('middle-ellipsis').checked, middle);
+				assert.equal(input('max-length').value, '8');
+				assertTruncated(data[0], 8, middle);
+
+				const current = u;
+				const setSize = u.setSize;
+				const setData = u.setData;
+				let sizes = 0, randomizations = 0;
+				u.setSize = (...args) => { sizes++; return setSize(...args); };
+				u.setData = (...args) => { randomizations++; return setData(...args); };
+				input('height').value = horizontal ? '640' : '700';
+				input('height').dispatchEvent(new Event('input'));
+				u = demo.plot;
+				await Promise.resolve();
+				assert.equal(u, current, 'resizing does not rebuild');
+				assert.equal(sizes, 1, 'one resize handler after repeated rebuilds');
+				assert.deepEqual([u.width, u.height], horizontal ? [640, dimensions[1]] : [dimensions[0], 700]);
+				assert.equal(input('height-value').textContent, horizontal ? '640px' : '700px');
+				assert.equal(u.data, data);
+
+				await withSeededRandom(async () => {
+					input('randomize').click();
+					u = demo.plot;
+					await Promise.resolve();
+				});
+				assert.equal(u, current, 'randomization acts on the current plot');
+				assert.equal(randomizations, 1, 'one randomize handler after repeated rebuilds');
+				assert.notEqual(u.data, data);
+				assert.equal(previous.data, data, 'controls do not mutate the replaced plot');
+				assertDataShape();
+				assertTruncated(fullLabels(), 8, middle);
+				assert.equal(u.axes[0]._rotate, horizontal ? 0 : -30);
+
+				input('max-length').value = '4';
+				input('max-length').dispatchEvent(new Event('input'));
+				u = demo.plot;
+				await Promise.resolve();
+				assertTruncated(fullLabels(), 4, middle);
+				input('max-length').value = '8';
+				input('max-length').dispatchEvent(new Event('input'));
+				u = demo.plot;
+				await Promise.resolve();
+				assertTruncated(fullLabels(), 8, middle);
+			}
+		}
+		await rotate(60);
+		assertPadding();
+	});
+
+	it('destroys the current rebuilt chart and removes every UI control listener', async () => {
+		await rotate(-45);
+		for (const horizontal of [true, false, true]) {
+			input('horizontal').checked = horizontal;
+			input('horizontal').dispatchEvent(new Event('change'));
+			u = demo.plot;
+			await Promise.resolve();
+		}
+		const current = u;
+		const data = u.data;
+		const dimensions = [u.width, u.height];
+		const labels = u.axes[0]._values.slice();
+		const counts = [measurements.x.length, measurements.y.length];
+		const readouts = ['rotation-value', 'height-value', 'height-label', 'max-length-value', 'stats'];
+		const text = readouts.map(id => input(id).textContent);
+		const disabled = ['rotation', 'max-length', 'middle-ellipsis'].map(id => input(id).disabled);
+		let destroyed = 0;
+		u.hooks.destroy.push(() => destroyed++);
+		demo.destroy();
+		assert.equal(destroyed, 1);
+		assert.equal(current.root.isConnected, false);
+		assert.equal(input('plot').querySelectorAll('.uplot').length, 0);
+
+		const calls = [];
+		for (const method of ['setData', 'setSize', 'redraw'])
+			current[method] = () => calls.push(method);
+		input('horizontal').checked = false;
+		input('rotation').value = '75';
+		input('height').value = '800';
+		input('truncate').checked = true;
+		input('max-length').value = '4';
+		input('middle-ellipsis').checked = true;
+		for (const [id, type] of [
+			['horizontal', 'change'], ['rotation', 'input'], ['height', 'input'],
+			['truncate', 'change'], ['max-length', 'input'], ['middle-ellipsis', 'change'], ['randomize', 'click'],
+		]) {
+			input(id).dispatchEvent(new Event(type));
+			u = demo.plot;
+			await Promise.resolve();
+		}
+		assert.deepEqual(calls, [], 'controls never call into the destroyed plot');
+		assert.equal(input('plot').querySelectorAll('.uplot').length, 0, 'orientation cannot recreate a chart after teardown');
+		assert.equal(current.data, data);
+		assert.deepEqual([current.width, current.height], dimensions);
+		assert.deepEqual(current.axes[0]._values, labels);
+		assert.deepEqual([measurements.x.length, measurements.y.length], counts);
+		assert.deepEqual(readouts.map(id => input(id).textContent), text, 'readouts remain unchanged');
+		assert.deepEqual(['rotation', 'max-length', 'middle-ellipsis'].map(id => input(id).disabled), disabled);
+		assert.equal(destroyed, 1, 'control actions do not destroy the chart again');
 	});
 
 	it('reuses X measurements until labels, font, or pixel ratio changes', async () => {
@@ -404,7 +576,7 @@ describe('random label rotation demo', () => {
 		const sizes = [];
 		for (const magnitude of [1e-4, 1, 1e8, 1e-4]) {
 			const before = measurements.y.length;
-			u.setData([u.data[0], u.data[0].map(i => (i - (u.data[0].length - 1) / 2) * magnitude)]);
+			u.setData([u.data[0], u.data[0].map((_, i) => (i - (u.data[0].length - 1) / 2) * magnitude)]);
 			await Promise.resolve();
 			assertYAxis();
 			assert.ok(measurements.y.length > before, 'changed Y labels invalidate their cache');
@@ -426,7 +598,7 @@ describe('random label rotation demo', () => {
 
 	it('retains a zero baseline for positive and negative Y data', async () => {
 		for (const sign of [1, -1]) {
-			u.setData([u.data[0], u.data[0].map(i => sign * (i + 1) * 1e-4)]);
+			u.setData([u.data[0], u.data[0].map((_, i) => sign * (i + 1) * 1e-4)]);
 			await Promise.resolve();
 			assertYAxis();
 			assert.equal(sign > 0 ? u.scales.y.min : u.scales.y.max, 0);
@@ -435,7 +607,7 @@ describe('random label rotation demo', () => {
 	});
 
 	it('invalidates the Y measurement cache for font and DPR changes', async () => {
-		u.setData([u.data[0], u.data[0].map(i => i - (u.data[0].length - 1) / 2)]);
+		u.setData([u.data[0], u.data[0].map((_, i) => i - (u.data[0].length - 1) / 2)]);
 		await Promise.resolve();
 		assertYAxis();
 		let before = measurements.y.length;
@@ -477,7 +649,7 @@ describe('random label rotation demo', () => {
 				await Promise.resolve();
 				assertDataShape();
 				assert.notEqual(u.data, previous);
-				assert.notEqual(u.data[0], previous[0], 'fresh X indices');
+				assert.notEqual(u.data[0], previous[0], 'fresh X labels');
 				assert.notEqual(u.data[1], previous[1], 'fresh Y values');
 				if (i > 0) {
 					assert.notDeepEqual(fullLabels(), labels, 'fresh full labels');

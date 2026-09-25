@@ -840,7 +840,7 @@ describe('axis-ranging chart POC: one Y scale', () => {
 		['configured flat zero policy', { y: { range: { min: {}, max: {}, flat: 0 } } }],
 
 		['mode 2', { mode: 2 }],
-		['physical horizontal Y', { x: { ori: 1 }, y: { ori: 0 }, axes: [{ show: false, side: 3 }, { side: 2 }] }],
+
 		['time Y', { y: { time: true } }],
 		['logarithmic Y', { y: { distr: 3 } }],
 		['asinh Y', { y: { distr: 4 } }],

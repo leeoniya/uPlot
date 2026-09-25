@@ -611,7 +611,8 @@ export default function uPlot(opts, data, then) {
 					sc.asinh = 1;
 
 				sc.auto = fnOrSelf(sc.auto);
-				sc._rangeYPolicy = rangeYPolicy;
+				// Retains the declarative range policy for tick-aware ranging, or null for unsupported policies.
+				sc._policyY = rangeYPolicy;
 
 				let scan = sc.scan ?? (rangeIsArr && rn[0] != null && rn[1] != null ? false : null);
 				sc.scan = scan == null ? scanAuto : scan === true ? scanCached : scan === false ? scanNone : scan;
@@ -912,6 +913,31 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
+	function rangeYScales(ori, dim, changedY) {
+		for (let k in scales) {
+			let sc = scales[k];
+			if (sc._rawY == null || sc.ori != ori)
+				continue;
+
+			let axis = axes[sc.axis];
+			let [rawMin, rawMax] = sc._rawY;
+			let space = ori == 0 && rawMin != null && rawMax != null ? axis.space(self, sc.axis, rawMin, rawMax, dim) : 50;
+			// Stores the layout-derived bounds, tick increment, and interval count, or null when no range exists.
+			let result = sc._rangeY = rangeY(rawMin, rawMax, dim, sc._policyY, axis.ramp, axis.exact, space);
+			// Unsupported numeric inputs have no display range or ticks, not a fallback count.
+			let min = result?.min ?? null;
+			let max = result?.max ?? null;
+			if (sc.min != min || sc.max != max) {
+				sc.min = sc._min = min;
+				sc.max = sc._max = max;
+				changedY.push(k);
+				series.forEach(s => { if (s.scale == k) s._paths = null; });
+				if (showCursor && cursor.left >= 0)
+					shouldSetCursor = shouldSetLegend = true;
+			}
+		}
+	}
+
 	function updateLayout() {
 		let pxRatioChanged = pxRatio != self.pxRatio;
 
@@ -945,29 +971,12 @@ export default function uPlot(opts, data, then) {
 		calcPlotDim(1, sizes);
 
 		let changedY = [];
-		for (let k in scales) {
-			let sc = scales[k];
-			if (sc._rawY == null)
-				continue;
-
-			let result = sc._rangeY = rangeY(sc._rawY[0], sc._rawY[1], plotHgtCss, sc._rangeYPolicy, axes[sc.axis].ramp, axes[sc.axis].exact);
-			// Unsupported numeric inputs have no display range or ticks, not a fallback count.
-			let min = result?.min ?? null;
-			let max = result?.max ?? null;
-			if (sc.min != min || sc.max != max) {
-				sc.min = sc._min = min;
-				sc.max = sc._max = max;
-				changedY.push(k);
-				series.forEach(s => { if (s.scale == k) s._paths = null; });
-				if (showCursor && cursor.left >= 0)
-					shouldSetCursor = shouldSetLegend = true;
-			}
-		}
-
+		rangeYScales(1, plotHgtCss, changedY);
 		axesCalc(1);
 
 		axesChanged = sizeAxes(1, sizes) || axesChanged;
 		calcPlotDim(0, sizes);
+		rangeYScales(0, plotWidCss, changedY);
 		axesCalc(0);
 
 		// Overflow changes only width, not the selected ticks or axis sizes.
@@ -1278,10 +1287,11 @@ export default function uPlot(opts, data, then) {
 
 			// Experimental opt-in; custom and fixed range policies remain authoritative.
 			let cfg = opts.scales?.[axis.scale];
-			sc._axisY = sc._axisY || (sc.axis === i && mode == 1 && axis.scale != xScaleKey && isVt &&
-				sc.ori == 1 && sc.distr == 1 && !sc.time && cfg?.auto !== false && sc._rangeYPolicy != null &&
+			// Caches whether the selected axis and scale support tick-aware ranging, not the axis index.
+			sc._axisY = sc._axisY || (sc.axis === i && mode == 1 && axis.scale != xScaleKey &&
+				sc.ori == isVt && sc.distr == 1 && !sc.time && cfg?.auto !== false && sc._policyY != null &&
 				sc.from == null && !Object.values(scales).some(s => s.from == axis.scale) &&
-				axis.incrs == null && axis.splits == null && opts.axes?.[i]?.space == null);
+				axis.incrs == null && axis.splits == null && (!isVt || opts.axes?.[i]?.space == null));
 
 			// also set defaults for incrs & values based on axis distr
 			let isTime = FEAT_TIME && sc.time;
@@ -1577,7 +1587,7 @@ export default function uPlot(opts, data, then) {
 
 	function applyScanRange(wsc, psc, minMax, key) {
 		if (wsc._axisY && isFullyImplicit(psc.min, psc.max)) {
-			// Keep scanner extrema separate from rounded display bounds, including on resize.
+			// Stores raw scanner extrema for layout-time ranging and preserves them across resizes.
 			scales[key]._rawY = minMax;
 			shouldLayout = true;
 		}
