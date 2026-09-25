@@ -46,7 +46,7 @@ function padding(events, baseline, overflow = baseline) {
 			splits: self.axes.map(axis => axis._splits?.slice()),
 			bbox: cssBox(self), padding: self._padding.slice(),
 		});
-		return phase == 'overflow' ? typeof overflow == 'function' ? overflow(self, side) : overflow[side] : value;
+		return phase === 1 ? typeof overflow == 'function' ? overflow(self, side) : overflow[side] : value;
 	});
 }
 
@@ -174,8 +174,8 @@ function phaseCheck(u, events) {
 	for (const event of reserves)
 		assert.equal(event.argc, 3, 'size has no cycleNum argument');
 
-	const baseline = events.filter(event => event.type == 'padding' && event.phase == 'layout');
-	const overflow = events.filter(event => event.type == 'padding' && event.phase == 'overflow');
+	const baseline = events.filter(event => event.type == 'padding' && event.phase === 0);
+	const overflow = events.filter(event => event.type == 'padding' && event.phase === 1);
 	assert.deepEqual(baseline.map(event => event.i).sort(), [0, 1, 2, 3], 'one baseline call on every side');
 	assert.deepEqual(overflow.map(event => event.i).sort(), [1, 3], 'one overflow call on each horizontal edge');
 	assert.equal(events.filter(event => event.type == 'padding').length, 6, 'no convergence padding calls');
@@ -394,7 +394,7 @@ describe('single-pass layout', () => {
 			]);
 			const firstReserve = events.findIndex(event => event.type == 'reserve');
 			assert.ok(events.findIndex(event => event.name == 'setScale:y') < firstReserve);
-			const lastOverflow = events.findLastIndex(event => event.phase == 'overflow');
+			const lastOverflow = events.findLastIndex(event => event.phase === 1);
 			assert.ok(lastOverflow < events.findIndex(event => event.name == 'setSize:first'));
 			assert.ok(hooks.slice(0, -1).every(event => event.status == 0));
 			assert.equal(hooks.at(-1).status, 1);
@@ -577,7 +577,7 @@ describe('single-pass layout', () => {
 			});
 			try {
 				await Promise.resolve();
-				assert.deepEqual(events.filter(event => event.phase == 'layout').map(event => event.sides),
+				assert.deepEqual(events.filter(event => event.phase === 0).map(event => event.sides),
 					Array.from({ length: 4 }, () => [false, false, false, true]));
 				assert.equal(u.axes[0]._size, 0, 'numeric size: 0 reserves no height');
 				assert.ok(u.axes[0]._splits.length > 0, 'numeric size: 0 still selects ticks');
@@ -662,7 +662,7 @@ describe('single-pass layout', () => {
 				phaseCheck(u, events);
 				for (const event of events.filter(event => event.type == 'space' && u.axes[event.i].side % 2 == 0))
 					assert.equal(event.dim, 520, 'horizontal selection uses baseline padding');
-				const overflow = events.filter(event => event.phase == 'overflow');
+				const overflow = events.filter(event => event.phase === 1);
 				assert.deepEqual(overflow.map(event => event.padding), [[5, 10, 5, 10], [5, 10, 5, 10]],
 					'both overflow callbacks see baseline totals, not the first callback result');
 				assert.deepEqual(overflow.map(event => event.bbox), Array.from({ length: 2 }, () =>
@@ -719,7 +719,7 @@ describe('single-pass layout', () => {
 						assert.equal(event.bbox.width, event.i == 0 ? baselineWidth : lastWidth,
 							`axis ${event.i} ${event.type} observes its directional stage, not a provisional vertical width`);
 					}
-					for (const event of events.filter(event => event.phase == 'overflow'))
+					for (const event of events.filter(event => event.phase === 1))
 						assert.equal(event.bbox.width, baselineWidth);
 					assert.equal(cssBox(u).width, baselineWidth - 40, 'overflow publishes final width without selecting ticks again');
 					assert.equal(cssBox(u).height, plotHeight);
@@ -1141,7 +1141,7 @@ describe('single-pass layout', () => {
 					assert.deepEqual([u.scales.x.min, u.scales.x.max], [0, 2]);
 					assert.deepEqual(u.axes[0]._splits, [0, 1, 2]);
 					assert.deepEqual(u.axes[0]._values, x.map(value => `a0:${value}`));
-					for (const event of events.filter(event => event.phase == 'overflow'))
+					for (const event of events.filter(event => event.phase === 1))
 						assert.deepEqual(event.labels[0], u.axes[0]._values);
 					const pad = `a0:${x[0]}`.length * 8;
 					assert.deepEqual(cssBox(u), { left: 40 + pad, top: 0, width: 560 - 2 * pad, height: 370 });

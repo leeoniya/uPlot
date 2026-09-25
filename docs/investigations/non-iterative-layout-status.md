@@ -88,7 +88,7 @@ Vertical `axis.size(self, values, axisIdx)` callbacks run once with formatted la
 
 ### Padding and overflow
 
-All padding callbacks receive the `"layout"` phase for baseline padding. Only left/right callbacks then receive `"overflow"`, after horizontal labels exist.
+All padding callbacks receive the `Layout` (0) phase for baseline padding. Only left/right callbacks then receive `Overflow` (1), after horizontal labels exist.
 
 Both overflow callbacks see the same provisional geometry and baseline padding. Each returns a final total in CSS pixels, not an adjustment amount.
 

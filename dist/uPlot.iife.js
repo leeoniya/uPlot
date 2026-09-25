@@ -4669,7 +4669,7 @@ var uPlot = (function () {
 
 			// Height is final before vertical tick selection and measurement.
 			axesChanged = sizeAxes(0, sizes) || axesChanged;
-			paddingCalc("layout");
+			paddingCalc(0);
 			calcPlotDim(1, sizes);
 
 			let changedY = [];
@@ -4699,7 +4699,7 @@ var uPlot = (function () {
 			axesCalc(0);
 
 			// Overflow changes only width, not the selected ticks or axis sizes.
-			paddingCalc("overflow");
+			paddingCalc(1);
 			calcPlotDim(0, sizes);
 			axesChanged = calcAxesRects() || axesChanged;
 
@@ -5954,7 +5954,7 @@ var uPlot = (function () {
 
 		function paddingCalc(phase) {
 			// Both overflow callbacks see the same provisional geometry and padding.
-			let next = padding.map((p, i) => phase == "layout" || i % 2 == 1 ? p(self, i, sidesWithAxes, phase) : _padding[i]);
+			let next = padding.map((p, i) => phase == 0 || i % 2 == 1 ? p(self, i, sidesWithAxes, phase) : _padding[i]);
 			next.forEach((p, i) => { _padding[i] = p; });
 		}
 

@@ -174,7 +174,7 @@ Setters record pending work
        updateLayout()
          Determine visible axes from display bounds
          Reserve horizontal-axis heights: sizeAxes(0)
-         Calculate baseline padding: paddingCalc("layout")
+         Calculate baseline padding: paddingCalc(0) (Layout)
          Establish final plot height: calcPlotDim(1)
          Choose Y increments and generate ticks/labels: axesCalc(1)
          Measure vertical-axis widths once: sizeAxes(1)
@@ -203,7 +203,7 @@ Setters record pending work
        updateLayout()
          Determine eligible Y-axis visibility from raw-data availability
          Reserve horizontal-axis heights: sizeAxes(0)
-         Calculate baseline padding: paddingCalc("layout")
+         Calculate baseline padding: paddingCalc(0) (Layout)
          Establish final plot height: calcPlotDim(1)
          For each active scale, call rangeY(rawMin, rawMax, plotHgtCss)
            Resolve hard limits, explicit soft anchors, and zero-proximity anchors
@@ -236,7 +236,7 @@ Both paths complete layout in this order:
 Measured vertical-axis widths
   -> calcPlotDim(0): provisional plot width
   -> axesCalc(0): horizontal ticks and labels
-  -> paddingCalc("overflow"): horizontal padding adjustments
+  -> paddingCalc(1) (Overflow): horizontal padding adjustments
   -> calcPlotDim(0): final plot width, without another tick-selection pass
   -> calcAxesRects(): axis positions
   -> update canvas dimensions when requested

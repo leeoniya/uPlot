@@ -302,9 +302,12 @@ declare namespace uPlot {
 
 	type SidesWithAxes = [top: boolean, right: boolean, bottom: boolean, left: boolean];
 
-	export type PaddingPhase = 'layout' | 'overflow';
+	export const enum PaddingPhase {
+		Layout   = 0,
+		Overflow = 1,
+	}
 
-	/** total padding in CSS pixels. callbacks receive 'layout' before ticks, then 'overflow' for left/right after horizontal tick formatting. */
+	/** total padding in CSS pixels; phase distinguishes baseline layout from horizontal label overflow */
 	export type PaddingSide = number | null | ((self: uPlot, side: Axis.Side, sidesWithAxes: SidesWithAxes, phase: PaddingPhase) => number);
 
 	export type Padding = [top: PaddingSide, right: PaddingSide, bottom: PaddingSide, left: PaddingSide];
@@ -1217,11 +1220,11 @@ declare namespace uPlot {
 		/** target grid & tick spacing in CSS pixels */
 		space?: Axis.Space;
 
-		/** tick-count growth factor for tick-aware Y ranging (default: 1). 0 retains two edge ticks */
-		ramp?: number;
+		/** tick-count growth factor for tick-aware Y ranging. 0 retains two edge ticks */
+		ramp?: number; // 1
 
-		/** enforces the height/ramp-derived interval count for tick-aware Y ranging (default: false) */
-		exact?: boolean;
+		/** enforces the height/ramp-derived interval count for tick-aware Y ranging */
+		exact?: boolean; // false
 
 		/** available divisors for axis ticks, values, grid */
 		incrs?: Axis.Incrs;

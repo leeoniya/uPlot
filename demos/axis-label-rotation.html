@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Random Label Rotation</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			body { margin: 24px; font: 14px system-ui, sans-serif; }
+			.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px 0; }
+			input[type="range"] { width: min(500px, 60vw); }
+			#rotation-value { min-width: 5ch; }
+			#stats { display: block; margin: 16px 0; font: 13px monospace; }
+			#plot { overflow-x: auto; }
+			.uplot { background: #f4f4f4; }
+			.u-under { background: white; }
+		</style>
+	</head>
+	<body>
+		<main id="demo">
+			<h1>Random labels: rotation and measured layout</h1>
+			<p>The slider changes label rotation without changing the random Y values.
+			The longest displayed label determines the X axis height. Left/right padding uses each label’s width and position.
+			Measurements stay cached until the labels, font, or pixel ratio changes.</p>
+			<p>Randomize data generates 3–15 items with one-to-three-word labels made from adjectives, nouns, and verbs.
+			Y values use random offsets and spreads across different magnitudes. The Y axis measures its formatted labels to set its width.
+			Tick-aware ranging keeps ticks at both Y bounds. Soft zero limits keep the bar baseline visible.</p>
+			<p>Gray shows the space outside the plot. All labels stay visible; shallow angles can make neighboring labels overlap.</p>
+			<div class="controls">
+				<label for="height">Chart height</label>
+				<input id="height" type="range" min="200" max="900" step="10" value="500">
+				<output id="height-value" for="height">500px</output>
+			</div>
+			<div class="controls">
+				<label for="rotation">Label rotation</label>
+				<input id="rotation" type="range" min="-90" max="90" step="1" value="45">
+				<output id="rotation-value" for="rotation">45°</output>
+				<button id="randomize" type="button">Randomize data</button>
+			</div>
+			<div class="controls">
+				<label><input id="truncate" type="checkbox"> Limit label length</label>
+				<label><input id="middle-ellipsis" type="checkbox" disabled> Ellipsis in middle (otherwise at end)</label>
+			</div>
+			<div class="controls">
+				<label for="max-length">Maximum characters</label>
+				<input id="max-length" type="range" min="4" max="20" step="1" value="10" disabled>
+				<output id="max-length-value" for="max-length">10</output>
+			</div>
+			<p>The character limit includes the ellipsis. The legend keeps the full label.</p>
+			<output id="stats" aria-live="polite"></output>
+			<div id="plot"></div>
+		</main>
+		<script type="module">
+			import { createDemo } from './axis-label-rotation.js';
+			createDemo(document.querySelector('#demo'));
+		</script>
+	</body>
+</html>

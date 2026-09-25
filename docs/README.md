@@ -538,10 +538,10 @@ let opts = {
 Layout uses a fixed, height-first order without convergence cycles. Scale ranges currently precede layout. This order retains insertion points for future scale ranging after the plot height or width becomes available.
 
 1. Each horizontal `axis.size` callback receives `(self, null, axisIdx)` once before ticks. It reserves the full axis height, including space for rotation, truncation, and multiline labels. Vertical axes have no preliminary reservation call.
-2. Padding callbacks on all sides receive the `'layout'` phase to establish baseline padding before vertical ticks. The horizontal axis heights and baseline padding determine the fixed plot height.
+2. Padding callbacks on all sides receive the `Layout` (0) phase to establish baseline padding before vertical ticks. The horizontal axis heights and baseline padding determine the fixed plot height.
 3. uPlot selects and formats vertical ticks at that height. Each vertical `axis.size` callback receives `(self, values, axisIdx)` once to determine its width. `values` contains the formatted labels, or `[]` if there are no ticks. Vertical size callbacks never receive `null`.
 4. uPlot selects and formats horizontal ticks at the provisional width, which includes vertical axis sizes and baseline padding.
-5. Only left and right padding callbacks receive the `'overflow'` phase. Both callbacks see the same baseline padding and geometry. Each callback returns its final total padding in CSS pixels, not a delta. uPlot then applies both totals to determine the final width.
+5. Only left and right padding callbacks receive the `Overflow` (1) phase. Both callbacks see the same baseline padding and geometry. Each callback returns its final total padding in CSS pixels, not a delta. uPlot then applies both totals to determine the final width.
 
 Top and bottom padding stay fixed after ticks. Horizontal `axis.size` callbacks never receive actual labels. Overflow does not select or format ticks again, so final horizontal spacing can be smaller than the `axis.space` target.
 
@@ -557,7 +557,9 @@ A zero return from a size callback no longer changes side occupancy for default 
 
 For a grid-only axis, use numeric `size: 0` without an axis title reservation. To hide the axis fully, including its grid, use `show: false`. For other padding behavior, set explicit `padding` values or callbacks.
 
-**Compatibility:** `axis.size` no longer receives `cycleNum`. Its signature remains `(self, values: Axis.StaticValues | null, axisIdx) => number` because horizontal callbacks receive `null`. `Axis.StaticValues` can contain strings, numbers, and null entries. Padding callbacks receive `(self, side, sidesWithAxes, phase)`, where `phase` is `'layout' | 'overflow'`, instead of a cycle number.
+**Compatibility:** `axis.size` no longer receives `cycleNum`. Its signature remains `(self, values: Axis.StaticValues | null, axisIdx) => number` because horizontal callbacks receive `null`. `Axis.StaticValues` can contain strings, numbers, and null entries. Padding callbacks receive `(self, side, sidesWithAxes, phase)`, where `phase` is `PaddingPhase`, instead of a cycle number.
+
+The numeric TypeScript const enum `PaddingPhase` defines `Layout` (0) and `Overflow` (1). It has no JavaScript runtime object. JavaScript callbacks use `0` and `1`.
 
 Custom callbacks must handle these phases without convergence counters or position feedback. A conservative overflow total reserves at least half the maximum measured horizontal label width, plus an optional inset. The [axis autosize demo](../demos/axis-autosize.html) measures each non-null value as a string and converts canvas widths with `self.pxRatio`.
 
