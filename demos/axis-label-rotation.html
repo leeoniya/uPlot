@@ -27,6 +27,9 @@
 			Category labels stay unrotated on the left. Their measured width determines the space available for the numeric axis.</p>
 			<p>The two series appear side by side by default. Stack bars adds their values within each category.
 			Percent shows each series as a share of the positive or negative total. The legend keeps the original values.</p>
+			<p>Show values draws compact values outside grouped bars and inside stacked segments, with font sizes from 10px to 25px.
+			Value stacks also show positive and negative totals outside their ends. Percent stacks show segment percentages without totals.
+			Labels that do not fit are omitted.</p>
 			<p>Randomize data generates 3–15 items with one-to-three-word labels made from adjectives, nouns, and verbs.
 			Y values use random offsets and spreads across different magnitudes.
 			For vertical bars, the Y axis measures its formatted labels to set its width.
@@ -45,6 +48,7 @@
 			<div class="controls">
 				<label><input id="stacked" type="checkbox"> Stack bars</label>
 				<label><input id="percent" type="checkbox" disabled> Percent</label>
+				<label><input id="show-values" type="checkbox"> Show values</label>
 			</div>
 			<div class="controls">
 				<label for="distribution">Distribution</label>

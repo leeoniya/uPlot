@@ -13,6 +13,7 @@ export function createBarControls(root, { getPlot, getControls, rebuild, regener
 	const horizontal = root.querySelector('#horizontal');
 	const stacked = root.querySelector('#stacked');
 	const percent = root.querySelector('#percent');
+	const showValues = root.querySelector('#show-values');
 	const distribution = root.querySelector('#distribution');
 	const width = root.querySelector('#group-width');
 	const widthOutput = readoutNode('#group-width-value');
@@ -58,6 +59,10 @@ export function createBarControls(root, { getPlot, getControls, rebuild, regener
 		}
 	}
 
+	function setShowValues() {
+		getControls().setShowValues(showValues.checked);
+	}
+
 	function setDistribution() {
 		getControls().setDistribution(Number(distribution.value));
 	}
@@ -79,6 +84,7 @@ export function createBarControls(root, { getPlot, getControls, rebuild, regener
 		[horizontal, 'change', setOrientation],
 		[stacked, 'change', setStacking],
 		[percent, 'change', setStacking],
+		[showValues, 'change', setShowValues],
 		[distribution, 'change', setDistribution],
 		[width, 'input', setGroupWidth],
 		[randomize, 'click', regenerate],
@@ -102,6 +108,7 @@ export function createBarControls(root, { getPlot, getControls, rebuild, regener
 		options() {
 			return {
 				orientation: horizontal.checked ? 'horizontal' : 'vertical',
+				showValues: showValues.checked,
 				distribution: Number(distribution.value),
 				bars: { size: [width.valueAsNumber / 100] },
 				labelRotation: horizontal.checked ? 0 : slider.valueAsNumber,

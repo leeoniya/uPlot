@@ -1,7 +1,6 @@
 /*
 TODO:
   min width control
-  value rendering
 
   legend toggles for points, not just series
   tooltip? w/metadata?
@@ -9,12 +8,14 @@ TODO:
 
 import uPlot from '../../src/uPlot.js';
 import { createBarHover } from './barHover.js';
+import { createBarValues } from './barValues.js';
 import { distr, SPACE_BETWEEN, SPACE_AROUND, SPACE_EVENLY } from './distr.js';
 
 // One instance per chart: category X axis, numeric Y axis, and bar paths.
 export function barChartPlugin({
 	orientation = 'vertical',
 	distribution = SPACE_AROUND,
+	showValues = false,
 	labelRotation = 0,
 	maxLabelLength = null,
 	ellipsis = 'end',
@@ -41,6 +42,8 @@ export function barChartPlugin({
 	// Bar paths read only size[0]; every distributed slot has the same width.
 	const barWidth = [0];
 	const hover = createBarHover();
+	const values = createBarValues(horizontal);
+	let valuesShown = false;
 
 	function xRange(u) {
 		const count = u.data[0].length;
@@ -116,6 +119,15 @@ export function barChartPlugin({
 		}
 	}
 
+	function setShowValues(show) {
+		if (typeof show != 'boolean')
+			throw new TypeError('Show values must be a boolean.');
+		if (valuesShown != show) {
+			valuesShown = show;
+			plot?.redraw(false);
+		}
+	}
+
 	function formatLabels() {
 		return fullLabels.map(label => {
 			if (limit == null || label.length <= limit)
@@ -134,6 +146,7 @@ export function barChartPlugin({
 		fullLabels = xs.map(value => String(value ?? ''));
 		splits = xs.map((_, i) => i);
 		labels = formatLabels();
+		values.invalidate();
 	}
 
 	function setLabelRotation(degrees) {
@@ -249,6 +262,7 @@ export function barChartPlugin({
 		return Math.ceil(pad);
 	}
 
+	setShowValues(showValues);
 	setDistribution(distribution);
 	setGroupWidth(bars.size?.[0] ?? .6);
 	setLabelRotation(labelRotation);
@@ -256,6 +270,7 @@ export function barChartPlugin({
 
 	return {
 		_controls: {
+			setShowValues,
 			setDistribution,
 			setGroupWidth,
 			setLabelRotation,
@@ -299,6 +314,7 @@ export function barChartPlugin({
 			opts.series ??= [{}, {}];
 			opts.series[0].value ??= (u, value) => String(value ?? '');
 			stackGroups = opts.stack?.groups ?? [];
+			values.configure(stackGroups, opts.stack?.percent === true);
 			paths = uPlot.paths.bars({
 				...bars,
 				disp: {
@@ -306,7 +322,10 @@ export function barChartPlugin({
 					size: { unit: 2, values: () => barWidth },
 					...bars.disp,
 				},
-				each: hover.each,
+				each(u, si, di, left, top, width, height) {
+					hover.each(u, si, di, left, top, width, height);
+					values.each(u, si, di, left, top, width, height);
+				},
 			});
 			for (const series of opts.series.slice(1)) {
 				series.paths = paths;
@@ -326,10 +345,15 @@ export function barChartPlugin({
 			drawClear: u => {
 				distributeBars(u);
 				hover.reset(u, paths);
+				values.reset(u, valuesShown);
 			},
-			draw: hover.draw,
+			draw: u => {
+				hover.draw(u);
+				values.draw(u);
+			},
 			destroy: () => {
 				hover.destroy();
+				values.destroy();
 				plot = null;
 				fullLabels = labels = splits = [];
 				barOffsets.length = 0;

@@ -102,6 +102,39 @@ describe('random label rotation demo', () => {
 	const rects = seriesIdx => u.series[seriesIdx]._paths.fill.log
 		.filter(entry => entry[0] == 'rect').flatMap(entry => entry.slice(1));
 
+	function valueTexts() {
+		const log = u.ctx.log;
+		const texts = log.slice(log.findLastIndex(entry => entry[0] == 'clearRect'))
+			.filter(entry => entry[0] == 'fillText').flatMap(entry => entry.slice(1).map(args => String(args[0])));
+		// Axis text shares the canvas log and is drawn before the bar values.
+		for (const axis of u.axes) {
+			for (const label of axis._values) {
+				const index = texts.indexOf(String(label));
+				if (index != -1)
+					texts.splice(index, 1);
+			}
+		}
+		return texts;
+	}
+
+	function assertValueTexts(enabled) {
+		const texts = valueTexts();
+		if (!enabled)
+			assert.deepEqual(texts, [], 'only axis text is drawn when values are disabled');
+		else if (input('stacked').checked && input('percent').checked) {
+			assert.equal(texts.length, 6, 'each visible segment has a value');
+			assert.ok(texts.every(text => /^\d+(\.\d+)?%$/.test(text)), 'percent mode draws formatted shares');
+		}
+		else if (input('stacked').checked)
+			assert.deepEqual(texts.sort(), ['13', '13', '13', '26', '26', '26', '39', '39', '39'], 'draws segment values and one accumulated total per category');
+		else {
+			assert.ok(texts.length > 0, 'draws values that fit the space beyond the bars');
+			assert.ok(texts.every(text => text == '13' || text == '26'));
+			for (const text of ['13', '26'])
+				assert.ok(texts.filter(value => value == text).length <= 3);
+		}
+	}
+
 	function assertBars() {
 		for (const si of [1, 2]) {
 			if (!u.series[si].show)
@@ -422,6 +455,80 @@ describe('random label rotation demo', () => {
 		}
 	});
 
+	it('toggles value drawing live without replacing the chart or data', async () => {
+		assert.equal(input('show-values').type, 'checkbox');
+		assert.equal(input('show-values').checked, false);
+		assert.equal(input('show-values').defaultChecked, false);
+		u.setData([['A', 'B', 'C'], [13, 13, 13], [26, 26, 26]]);
+		await Promise.resolve();
+		const data = u.data;
+		const original = structuredClone(data);
+		assertValueTexts(false);
+
+		for (const horizontal of [false, true]) {
+			await toggle('horizontal', horizontal);
+			for (const mode of ['grouped', 'value', 'percent']) {
+				await toggle('stacked', mode != 'grouped');
+				await toggle('percent', mode == 'percent');
+				const current = u;
+				const dimensions = [u.width, u.height];
+				const geometry = [rects(1), rects(2)];
+				for (const enabled of [true, false, true, false]) {
+					const before = u.ctx.log.length;
+					await toggle('show-values', enabled);
+					assert.equal(u, current, 'show values does not rebuild');
+					assert.equal(current.root.isConnected, true);
+					assert.equal(u.data, data);
+					assert.deepEqual(data, original);
+					assert.deepEqual([u.width, u.height], dimensions);
+					assert.deepEqual([rects(1), rects(2)], geometry);
+					assert.ok(u.ctx.log.slice(before).some(entry => entry[0] == 'clearRect'), 'toggle redraws the canvas');
+					assertValueTexts(enabled);
+				}
+			}
+		}
+	});
+
+	it('preserves value drawing through orientation, stack, and percent rebuilds', async () => {
+		u.setData([['A', 'B', 'C'], [13, 13, 13], [26, 26, 26]]);
+		await Promise.resolve();
+		const data = u.data;
+		const original = structuredClone(data);
+		for (const enabled of [true, false]) {
+			await toggle('show-values', enabled);
+			for (const [id, checked] of [
+				['horizontal', true], ['stacked', true], ['percent', true], ['horizontal', false],
+				['percent', false], ['stacked', false],
+			]) {
+				const previous = u;
+				await toggle(id, checked);
+				assert.notEqual(u, previous);
+				assert.equal(previous.root.isConnected, false);
+				assert.equal(root.querySelectorAll('#plot .uplot').length, 1);
+				assert.equal(u.data, data);
+				assert.deepEqual(data, original);
+				assert.equal(input('show-values').checked, enabled);
+				assertValueTexts(enabled);
+			}
+		}
+	});
+
+	it('reads initially checked show values without a change event', async () => {
+		demo.destroy();
+		input('show-values').checked = true;
+		await withSeededRandom(() => {
+			demo = createDemo(root);
+			u = demo.plot;
+		});
+		await Promise.resolve();
+		u.setData([['A', 'B', 'C'], [13, 13, 13], [26, 26, 26]]);
+		await Promise.resolve();
+		assert.equal(input('show-values').checked, true);
+		assertValueTexts(true);
+		await toggle('show-values', false);
+		assertValueTexts(false);
+	});
+
 	it('preserves distribution and group width through orientation, stack, and percent rebuilds', async () => {
 		const data = u.data;
 		const original = structuredClone(data);
@@ -687,7 +794,7 @@ describe('random label rotation demo', () => {
 		let destroyed = 0;
 		u.hooks.destroy.push(() => destroyed++);
 		const removed = [];
-		for (const id of ['distribution', 'group-width']) {
+		for (const id of ['show-values', 'distribution', 'group-width']) {
 			const el = input(id);
 			const remove = el.removeEventListener.bind(el);
 			el.removeEventListener = (type, handler, options) => {
@@ -696,7 +803,7 @@ describe('random label rotation demo', () => {
 			};
 		}
 		demo.destroy();
-		assert.deepEqual(removed, [['distribution', 'change'], ['group-width', 'input']]);
+		assert.deepEqual(removed, [['show-values', 'change'], ['distribution', 'change'], ['group-width', 'input']]);
 		assert.equal(destroyed, 1);
 		assert.equal(current.root.isConnected, false);
 		assert.equal(input('plot').querySelectorAll('.uplot').length, 0);
@@ -707,6 +814,7 @@ describe('random label rotation demo', () => {
 		input('horizontal').checked = false;
 		input('stacked').checked = true;
 		input('percent').checked = true;
+		input('show-values').checked = true;
 		input('rotation').value = '75';
 		input('height').value = '800';
 		input('distribution').value = '3';
@@ -717,7 +825,7 @@ describe('random label rotation demo', () => {
 		for (const [id, type] of [
 			['horizontal', 'change'], ['stacked', 'change'], ['percent', 'change'], ['rotation', 'input'], ['height', 'input'],
 			['truncate', 'change'], ['max-length', 'input'], ['middle-ellipsis', 'change'], ['randomize', 'click'],
-			['distribution', 'change'], ['group-width', 'input'],
+			['show-values', 'change'], ['distribution', 'change'], ['group-width', 'input'],
 		]) {
 			input(id).dispatchEvent(new Event(type));
 			u = demo.plot;

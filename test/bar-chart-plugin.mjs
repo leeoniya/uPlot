@@ -23,7 +23,7 @@ describe('barChartPlugin', () => {
 					set font(value) { this.log.push(['font', value]); },
 					measureText(text) {
 						const font = this.log.at(-1)[1];
-						activeMeasurements.push({ text: String(text), font, ctx: this });
+						activeMeasurements?.push({ text: String(text), font, ctx: this });
 						return { width: String(text).length * parseFloat(font) / 2 };
 					},
 				};
@@ -145,6 +145,81 @@ describe('barChartPlugin', () => {
 		}
 		assert.ok(u.bbox.width > 0 && u.bbox.height > 0);
 	}
+
+	const drawnValues = u => u.ctx.log.slice(u.ctx.log.findLastIndex(entry => entry[0] === 'clearRect'))
+		.filter(entry => entry[0] === 'fillText').flatMap(entry => entry.slice(1).map(args => args[0]));
+
+	for (const orientation of ['vertical', 'horizontal']) {
+		for (const percent of [false, true]) {
+			it(`draws native mixed-sign segment values ${percent ? 'without percent totals' : 'and accumulated totals'} (${orientation})`, async () => {
+				const data = [['A', 'B'], [4, -4], [5, -6], [-3, 2]];
+				const original = structuredClone(data);
+				const { u, plugin } = mount(data, { orientation, showValues: true }, {
+					width: 900, height: 800,
+					axes: [{ show: false }, { show: false }],
+					series: [{}, {}, {}, {}],
+					stack: { groups: [{ series: [1, 3, 2], dir: 0 }], percent },
+					scales: { y: { range: percent ? [-1, 1] : [-20, 20] } },
+				});
+				await Promise.resolve();
+				const expected = percent ? ['44.4%', '-40%', '55.6%', '-60%', '-100%', '100%']
+					: ['4', '-4', '5', '-6', '-3', '2', '9', '-3', '2', '-10'];
+				assert.deepEqual(drawnValues(u).sort(), expected.sort());
+				u.setSeries(2, { show: false });
+				await Promise.resolve();
+				const hidden = percent ? ['100%', '-100%', '-100%', '100%']
+					: ['4', '-4', '-3', '2', '4', '-3', '2', '-4'];
+				assert.deepEqual(drawnValues(u).sort(), hidden.sort(), 'hidden series change native shares and totals');
+				plugin._controls.setShowValues(false);
+				await Promise.resolve();
+				assert.deepEqual(drawnValues(u), []);
+				plugin._controls.setShowValues(true);
+				await Promise.resolve();
+				assert.deepEqual(drawnValues(u).sort(), hidden.sort());
+				assert.equal(u.data, data);
+				assert.deepEqual(data, original);
+				u.setData([[], [], [], []]);
+				await Promise.resolve();
+				assert.deepEqual(drawnValues(u), []);
+			});
+		}
+	}
+
+	for (const orientation of ['vertical', 'horizontal']) {
+		for (const sign of [1, -1]) {
+			it(`retains native totals for zero-pixel end segments (${orientation}, sign ${sign})`, async () => {
+				const { u } = mount([['A', 'B'], [100.4 * sign, .1 * sign], [.2 * sign, .1 * sign]], { orientation, showValues: true }, {
+					axes: [{ show: false }, { show: false }], series: [{}, {}, {}],
+					stack: { groups: [{ series: [1, 2], dir: 0 }] },
+					scales: { y: { range: [-1000, 1000] } },
+				});
+				await Promise.resolve();
+				const size = orientation === 'horizontal' ? 2 : 3;
+				assert.ok(rects(u, 2).every(rect => rect[size] === 0), 'outer segments round to zero pixels');
+				assert.deepEqual(drawnValues(u).sort(), sign > 0 ? ['0.2', '101'] : ['-0.2', '-101']);
+			});
+		}
+	}
+
+	it('validates show values, supports pre-mount changes, and skips unchanged or destroyed redraws', async () => {
+		for (const showValues of [null, 0, 1, 'true'])
+			assert.throws(() => barChartPlugin({ showValues }), TypeError);
+		const plugin = barChartPlugin();
+		plugin._controls.setShowValues(true);
+		const { u } = mount([['A'], [5]], {}, {
+			axes: [{ show: false }, { show: false }], scales: { y: { range: [0, 10] } },
+		}, plugin);
+		await Promise.resolve();
+		assert.deepEqual(drawnValues(u), ['5']);
+		let redraws = 0;
+		u.redraw = () => redraws++;
+		plugin._controls.setShowValues(true);
+		assert.throws(() => plugin._controls.setShowValues(1), TypeError);
+		assert.equal(redraws, 0);
+		destroy(u);
+		plugin._controls.setShowValues(false);
+		assert.equal(redraws, 0);
+	});
 
 	describe('bar hover', () => {
 		let originalFinish, originalSearch, finished, searches, searchFilters;
@@ -882,7 +957,7 @@ describe('barChartPlugin', () => {
 		const options = Object.freeze({ labelRotation: 15, maxLabelLength: 4, ellipsis: 'end' });
 		const plugin = barChartPlugin(options);
 		const controls = plugin._controls;
-		const methods = ['setDistribution', 'setGroupWidth', 'setLabelRotation', 'setLabelTruncation', 'getLabelMetrics'];
+		const methods = ['setShowValues', 'setDistribution', 'setGroupWidth', 'setLabelRotation', 'setLabelTruncation', 'getLabelMetrics'];
 		assert.deepEqual(Object.keys(plugin).sort(), ['_controls', 'hooks', 'opts']);
 		assert.deepEqual(Object.keys(controls).sort(), methods.slice().sort());
 		for (const method of methods)

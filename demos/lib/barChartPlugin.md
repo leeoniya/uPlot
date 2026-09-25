@@ -100,6 +100,7 @@ Explicit `bars.disp.x0` and `bars.disp.size` override the distribution.
 | --- | --- | --- |
 | `orientation` | `'vertical'` | Bar orientation: `'vertical'` or `'horizontal'`. |
 | `distribution` | `SPACE_AROUND` (`2`) | `SPACE_BETWEEN`, `SPACE_AROUND` (`2`), or `SPACE_EVENLY` (`3`) from `distr.js`. |
+| `showValues` | `false` | Draw automatically sized bar values and value-stack totals. |
 | `labelRotation` | `0` | A finite angle in degrees, from `-90` through `90`. Horizontal bars require `0`. |
 | `maxLabelLength` | `null` | No truncation, or an integer of at least `1`. The limit includes the ellipsis character (`…`). |
 | `ellipsis` | `'end'` | The ellipsis position: `'end'` or `'middle'`. |
@@ -109,6 +110,29 @@ Explicit `bars.disp.x0` and `bars.disp.size` override the distribution.
 Category labels come directly from `data[0]`. uPlot's ordinal scale assigns their numeric positions internally.
 The plugin converts X values to strings for display. Null entries become empty strings.
 The `setData` hook refreshes the displayed labels. Truncation does not change the original data or legend labels.
+
+## Bar values
+
+The **Show values** checkbox controls value labels without replacing the chart or data.
+The `createBarValues()` helper in `demos/lib/barValues.js` adapts the sizing logic from `bars-values-autosize.html`.
+It uses Arial at 10–25 CSS pixels and compact number formatting with up to three significant digits.
+
+Grouped values appear outside the bar ends. Stacked values appear inside their segments.
+Value stacks also show one accumulated total beyond the positive end and one beyond the negative end of each category stack.
+Totals come from native cumulative endpoints in `u._data`, not a separate summation.
+Percent stacks show segment shares from the native endpoints and baselines. They do not show totals.
+Hidden series do not contribute labels or totals.
+
+Font sizing reserves 20% of the bar thickness and a gap outside the bar ends.
+Inside and outside labels each use a common font size. Labels that cannot fit at the minimum size are omitted.
+Labels stay inside the plot. This feature does not expand explicit scale ranges or reserve additional layout space.
+
+The helper shares number formatters across charts and measures text lazily at 25 CSS pixels × DPR.
+It scales these metrics down for smaller labels without additional measurements. Ink placement is exact at the measurement size and approximate at smaller sizes.
+Different values with the same formatted text share one metric object. Text metrics survive data, size, and visibility changes. DPR changes clear the caches.
+Numeric lookups avoid repeated formatting and reset on data changes. Each cache holds at most 1,024 entries and clears when another entry exceeds this limit.
+A reusable flat geometry buffer receives the final rectangles from the bar pathbuilder. The helper does not allocate rectangle objects per draw.
+Zero-length segments contribute to totals without measurement of their inside labels. When values are disabled, the helper does not collect geometry or measure text.
 
 ## Bar hover
 
@@ -131,10 +155,11 @@ Hover bounds use CSS pixels and support both orientations and the chart's pixel 
 
 ## Demo controls
 
-The plugin owns label formatting, truncation, validation, rotation, layout, and measurement. It exposes five methods through `_controls`.
+The plugin owns label formatting, truncation, validation, rotation, layout, and measurement. It exposes six methods through `_controls`.
 The demo imports `createBarControls()` from `demos/lib/barControls.js` to connect these methods to its HTML form.
 This helper reads form values, updates readouts, and attaches or removes event listeners. The plugin does not import or depend on it.
 
+- `_controls.setShowValues(show)` changes value-label visibility. The argument must be a boolean. A changed value redraws the chart without recalculating axes.
 - `_controls.setDistribution(mode)` changes the distribution mode.
 - `_controls.setGroupWidth(fraction)` changes the group width. The fraction must be greater than `0` and at most `1`.
   Both methods update the X range, bar paths, hover bounds, and label padding without replacing the chart or data.
@@ -147,7 +172,9 @@ This helper reads form values, updates readouts, and attaches or removes event l
 The methods are available before chart initialization. After chart destruction, they do not request redraws.
 The former top-level methods (`_setLabelRotation`, `_setLabelTruncation`, and `_getLabelMetrics`) now belong to `_controls`, without their individual `_` prefixes.
 Invalid orientations, distributions, widths, angles, lengths, or ellipsis positions throw `RangeError`.
-The demo has a distribution selector and a group-width slider from 1% to 100%. Orientation and stack changes preserve both values.
+A non-boolean `showValues` or `setShowValues()` argument throws `TypeError`.
+The demo has a distribution selector, a group-width slider from 1% to 100%, and a value-label toggle.
+Orientation and stack changes preserve these values.
 Data and size changes use the normal `u.setData(...)` and `u.setSize(...)` methods.
 
 ## Layout and scope
