@@ -188,7 +188,7 @@ declare class uPlot {
 	static pxRatio: number;
 }
 
-export = uPlot;
+export default uPlot;
 
 declare namespace uPlot {
 	type OrientCallback = (

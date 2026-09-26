@@ -1,5 +1,5 @@
-// Compile-only regression: tsc --strict --noEmit --target es2020 --module commonjs test/scale-scan-types.ts
-import uPlot = require('../dist/uPlot');
+// Compile-only regression: tsc --strict --noEmit --target es2020 --module nodenext test/scale-scan-types.ts
+import uPlot from '../dist/uPlot.js';
 
 declare const u: uPlot;
 
