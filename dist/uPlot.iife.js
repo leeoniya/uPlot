@@ -4487,6 +4487,7 @@ var uPlot = (function () {
 		let legendView;
 		let legendCols;
 		let multiValLegend = false;
+		const legendValuesPrev = [];
 		let NULL_LEGEND_VALUES = {};
 
 		if (legend.live) {
@@ -4966,6 +4967,7 @@ var uPlot = (function () {
 			series.splice(si, 0, opts);
 			invalidateBandGroups();
 			legend.values.splice(si, 0, null);
+			multiValLegend && legendValuesPrev.splice(si, 0, null);
 			initSeries(series[si], si);
 			showLegend && invalidateLegend();
 			fire("addSeries", si);
@@ -4981,6 +4983,7 @@ var uPlot = (function () {
 			invalidateBandGroups();
 
 			legend.values.splice(i, 1);
+			multiValLegend && legendValuesPrev.splice(i, 1);
 			showLegend && invalidateLegend();
 			activeIdxs.splice(i, 1);
 
@@ -6417,15 +6420,17 @@ var uPlot = (function () {
 
 		function clearPathCache() {
 			series.forEach((s, i) => {
-				if (i > 0)
+				if (i > 0) {
 					s._paths = null;
+					(s.points._paths = null);
+				}
 			});
 		}
 
 		function clearDataCache() {
 			// TODO: Require all interactive/data-dependent features to be disabled (cursor, legend toggling, resize, DPR updates, etc.).
 			let emptyData = src => mode == 1 ? src.map(() => []) : src.map(facets => facets == null ? facets : facets.map(() => []));
-			self.data = self._data = data = emptyData(self.data);
+			self.data = self._data = data = emptyData(self.data ?? EMPTY_ARR);
 			self._base = null;
 			data0 = mode == 1 ? data[0] : null;
 			dataLen = 0;
@@ -6779,12 +6784,13 @@ var uPlot = (function () {
 			}
 
 			if (showLegend && legend.live) {
+				let changed = false;
 				for (let sidx = 0; sidx < series.length; sidx++) {
 					if (sidx > 0 || mode == 1 && !multiValLegend)
-						setLegendValues(sidx, activeIdxs[sidx]);
+						changed = setLegendValues(sidx, activeIdxs[sidx]) || changed;
 				}
 
-				invalidateLegend();
+				changed && invalidateLegend();
 			}
 
 			shouldSetLegend = false;
@@ -6798,11 +6804,25 @@ var uPlot = (function () {
 			let s = series[sidx];
 			let src = self.data[sidx];
 
-			if (multiValLegend)
-				legend.values[sidx] = s.values(self, sidx, idx) ?? NULL_LEGEND_VALUES;
+			if (multiValLegend) {
+				let vals = legend.values[sidx] = s.values(self, sidx, idx) ?? NULL_LEGEND_VALUES;
+				// Callers can mutate and return the same record, so retain a separate column snapshot.
+				let prev = legendValuesPrev[sidx] ??= [];
+				let changed = false;
+				let i = 0;
+				for (let key in legendCols) {
+					let val = vals[key];
+					changed = val !== prev[i] || changed;
+					prev[i++] = val;
+				}
+				return changed;
+			}
 			else {
-				let val = s.value(self, idx == null ? null : src[idx], sidx, idx);
-				(legend.values[sidx] ??= {})._ = val ?? LEGEND_DISP;
+				let val = s.value(self, idx == null ? null : src[idx], sidx, idx) ?? LEGEND_DISP;
+				let vals = legend.values[sidx] ??= {};
+				let changed = val !== vals._;
+				vals._ = val;
+				return changed;
 			}
 		}
 
@@ -7693,8 +7713,9 @@ var uPlot = (function () {
 		self.pub = pub;
 
 		function destroy() {
+			if (destroyed)
+				return;
 			destroyed = true;
-			invalidateBandGroups();
 			queuedCommit = false;
 			if (queuedFrame != null)
 				cancelAnimationFrame(queuedFrame);
@@ -7705,10 +7726,11 @@ var uPlot = (function () {
 			offMouse(null, doc);
 			if (mouseOwner == self.uid)
 				mouseOwner = null;
-			mouseListeners.clear();
 			off(dppxchange, win, onDppxChange);
 			root.remove();
 			legendView?.destroy();
+			clearPathCache();
+			clearDataCache();
 			fire("destroy");
 		}
 

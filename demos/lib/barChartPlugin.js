@@ -354,7 +354,9 @@ export function barChartPlugin({
 			destroy: () => {
 				hover.destroy();
 				values.destroy();
-				plot = null;
+				plot = paths = null;
+				bars = {};
+				stackGroups = [];
 				fullLabels = labels = splits = [];
 				barOffsets.length = 0;
 				measured.length = 0;

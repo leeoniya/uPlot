@@ -4,6 +4,7 @@ import uPlot from '../src/uPlot.js';
 
 function makePlot(cache) {
 	const draws = [];
+	const pointDraws = [];
 	const data = [[0, 1, 2], [10, 20, 30], [30, 20, 10]];
 	const u = new uPlot({
 		width: 400,
@@ -13,13 +14,17 @@ function makePlot(cache) {
 		cursor: { show: false },
 		legend: { show: false },
 		scales: { x: { time: false } },
-		series: [{}, { stroke: 'blue' }, { stroke: 'red' }],
-		hooks: { draw: [u => draws.push(u.series.slice(1).map(s => s._paths))] },
+		series: [{}, { stroke: 'blue', points: { show: true } }, { stroke: 'red', points: { show: true } }],
+		hooks: { draw: [u => {
+			draws.push(paths(u));
+			pointDraws.push(pointPaths(u));
+		}] },
 	}, data, document.body);
-	return { u, draws, data };
+	return { u, draws, pointDraws, data };
 }
 
 const paths = u => u.series.slice(1).map(s => s._paths);
+const pointPaths = u => u.series.slice(1).map(s => s.points._paths);
 const extrema = u => u.series.map(s => [s.min, s.max]);
 
 describe('cache categories', () => {
@@ -39,12 +44,15 @@ describe('cache categories', () => {
 			try {
 				await Promise.resolve();
 				const previous = paths(u);
+				const previousPoints = pointPaths(u);
 				const data = u.data;
 				const internalData = u._data;
 				const cachedExtrema = extrema(u);
 				assert.ok(previous.every(path => path != null));
+				assert.ok(previousPoints.every(path => path != null));
 				clear(u);
 				paths(u).forEach((path, i) => assert.equal(path, discarded ? null : previous[i]));
+				pointPaths(u).forEach((path, i) => assert.equal(path, discarded ? null : previousPoints[i]));
 				if (discardData) {
 					assert.deepEqual(u.data, [[], [], []]);
 					assert.equal(u._data, u.data);
@@ -62,6 +70,7 @@ describe('cache categories', () => {
 					u.setData(data, false);
 				u.redraw(false);
 				await Promise.resolve();
+				assert.ok(pointPaths(u).every(path => path != null));
 				paths(u).forEach((path, i) => {
 					assert.ok(path != null);
 					if (discarded || discardData)
@@ -86,7 +95,7 @@ describe('cache categories', () => {
 		['both disabled', { paths: false, data: false }, false, false],
 	]) {
 		it(`retention: ${name}`, async () => {
-			const { u, draws, data } = makePlot(cache);
+			const { u, draws, pointDraws, data } = makePlot(cache);
 			try {
 				await Promise.resolve();
 				const internalData = u._data;
@@ -95,6 +104,8 @@ describe('cache categories', () => {
 					assert.equal(draws.length, i + 1);
 					assert.ok(draws[i].every(path => path != null), 'paths exist during drawing');
 					paths(u).forEach((path, si) => assert.equal(path, retainPaths ? draws[i][si] : null));
+					assert.ok(pointDraws[i].every(path => path != null), 'point paths exist during drawing');
+					pointPaths(u).forEach((path, si) => assert.equal(path, retainPaths ? pointDraws[i][si] : null));
 					if (retainData) {
 						assert.equal(u.data, data);
 						assert.equal(u._data, internalData);

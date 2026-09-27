@@ -177,6 +177,13 @@ The demo has a distribution selector, a group-width slider from 1% to 100%, and 
 Orientation and stack changes preserve these values.
 Data and size changes use the normal `u.setData(...)` and `u.setSize(...)` methods.
 
+## Cleanup
+
+`demo.destroy()` destroys the current chart, removes form listeners, and releases references to the chart, plugin, controls, and root element.
+The plugin clears its hover index, label metrics, and value geometry. It also releases its references to stack groups and the native bar path builder.
+Caller-owned data, stack groups, and bar options remain unchanged. Repeated destroy calls have no effect.
+Orientation and stack rebuilds retain the data before they destroy the old chart.
+
 ## Layout and scope
 
 The plugin manages ordinal X spacing and the full-category X range. It disables drag zoom.

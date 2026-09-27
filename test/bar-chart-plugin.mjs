@@ -583,10 +583,45 @@ describe('barChartPlugin', () => {
 			u.setData([['A'], [3]]);
 			await Promise.resolve();
 			const over = u.over;
+			const removed = [];
+			const remove = over.removeEventListener.bind(over);
+			over.removeEventListener = (type, handler, capture) => {
+				removed.push([type, capture]);
+				remove(type, handler, capture);
+			};
 			destroy(u);
+			assert.equal(removed.filter(([type, capture]) => type == 'mouseenter' && capture === true).length, 1);
+			assert.equal(removed.filter(([type, capture]) => type == 'mouseleave' && capture === undefined).length, 1);
 			over.dispatchEvent(new MouseEvent('mouseenter'));
+			over.dispatchEvent(new MouseEvent('mouseleave'));
 			assert.equal(finished.length, 1);
 		});
+	});
+
+	it('releases stack groups and custom bar options when the destroyed plugin is retained', async function() {
+		if (!globalThis.gc)
+			this.skip();
+		const { plugin, refs } = (() => {
+			const groups = Object.freeze([Object.freeze({ series: Object.freeze([1, 2]), dir: 0 })]);
+			const radius = () => [0, 0];
+			const bars = Object.freeze({ radius, size: Object.freeze([.6, 30]) });
+			const { u, plugin } = mount([['A', 'B'], [1, 2], [3, 4]], { bars }, {
+				stack: { groups }, series: [{}, {}, {}],
+			});
+			const refs = [groups, groups[0], bars, bars.size, radius].map(value => new WeakRef(value));
+			destroy(u);
+			assert.deepEqual(groups, [{ series: [1, 2], dir: 0 }], 'caller-owned groups remain intact');
+			assert.deepEqual(bars.size, [.6, 30], 'caller-owned bar options remain intact');
+			assert.deepEqual(u.axes[0].values(), []);
+			assert.deepEqual(u.axes[0].splits(), []);
+			return { plugin, refs };
+		})();
+		for (let i = 0; i < 3; i++) {
+			await new Promise(setImmediate);
+			globalThis.gc();
+		}
+		assert.ok(refs.every(ref => ref.deref() === undefined));
+		assert.deepEqual(plugin._controls.getLabelMetrics(), { label: '', width: 0 });
 	});
 
 	it('installs bar paths through opts and forwards bars options', () => {

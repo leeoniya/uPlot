@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import '../scripts/instrument.mjs';
 import { withSeededRandom } from '../scripts/withSeededRandom.mjs';
 import { createDemo } from '../demos/axis-label-rotation.js';
+
 import { distr } from '../demos/lib/distr.js';
 
 const html = await readFile(new URL('../demos/axis-label-rotation.html', import.meta.url), 'utf8');
@@ -41,7 +42,7 @@ describe('random label rotation demo', () => {
 	afterEach(() => {
 		try {
 			demo?.destroy();
-			root.remove();
+			root?.remove();
 		}
 		finally {
 			if (originalOffscreenCanvas === undefined)
@@ -580,6 +581,7 @@ describe('random label rotation demo', () => {
 			for (const horizontal of [true, false]) {
 				const previous = u;
 				const data = u.data;
+				const original = structuredClone(data);
 				const dimensions = horizontal ? [u.height, u.width / 4] : [u.height * 4, u.width];
 				let destroyed = 0;
 				previous.hooks.destroy.push(() => destroyed++);
@@ -635,7 +637,7 @@ describe('random label rotation demo', () => {
 				assert.equal(u, current, 'randomization acts on the current plot');
 				assert.equal(randomizations, 1, 'one randomize handler after repeated rebuilds');
 				assert.notEqual(u.data, data);
-				assert.equal(previous.data, data, 'controls do not mutate the replaced plot');
+				assert.deepEqual(data, original, 'controls do not mutate the data saved before destroy');
 				assertDataShape();
 				assertTruncated(fullLabels(), 8, middle);
 				assert.equal(u.axes[0]._rotate, horizontal ? 0 : -30);
@@ -785,8 +787,8 @@ describe('random label rotation demo', () => {
 		}
 		const current = u;
 		const data = u.data;
+		const original = structuredClone(data);
 		const dimensions = [u.width, u.height];
-		const labels = u.axes[0]._values.slice();
 		const counts = [measurements.x.length, measurements.y.length];
 		const readouts = ['rotation-value', 'height-value', 'height-label', 'group-width-value', 'max-length-value', 'stats'];
 		const text = readouts.map(id => input(id).textContent);
@@ -794,7 +796,12 @@ describe('random label rotation demo', () => {
 		let destroyed = 0;
 		u.hooks.destroy.push(() => destroyed++);
 		const removed = [];
-		for (const id of ['show-values', 'distribution', 'group-width']) {
+		const listenerTypes = [
+			['rotation', 'input'], ['height', 'input'], ['horizontal', 'change'], ['stacked', 'change'],
+			['percent', 'change'], ['show-values', 'change'], ['distribution', 'change'], ['group-width', 'input'],
+			['randomize', 'click'], ['truncate', 'change'], ['max-length', 'input'], ['middle-ellipsis', 'change'],
+		];
+		for (const [id] of listenerTypes) {
 			const el = input(id);
 			const remove = el.removeEventListener.bind(el);
 			el.removeEventListener = (type, handler, options) => {
@@ -803,7 +810,7 @@ describe('random label rotation demo', () => {
 			};
 		}
 		demo.destroy();
-		assert.deepEqual(removed, [['show-values', 'change'], ['distribution', 'change'], ['group-width', 'input']]);
+		assert.deepEqual(removed, listenerTypes);
 		assert.equal(destroyed, 1);
 		assert.equal(current.root.isConnected, false);
 		assert.equal(input('plot').querySelectorAll('.uplot').length, 0);
@@ -833,14 +840,35 @@ describe('random label rotation demo', () => {
 		}
 		assert.deepEqual(calls, [], 'controls never call into the destroyed plot');
 		assert.equal(input('plot').querySelectorAll('.uplot').length, 0, 'orientation cannot recreate a chart after teardown');
-		assert.equal(current.data, data);
+		assert.equal(demo.plot, null);
+		assert.deepEqual(current.data, data.map(() => []));
+		assert.equal(current._base, null);
+		assert.ok(current.series.slice(1).every(s => s._paths === null && s.points._paths === null));
+		demo.destroy();
+		assert.deepEqual(data, original, 'destroy does not empty externally retained data arrays');
 		assert.deepEqual([current.width, current.height], dimensions);
-		assert.deepEqual(current.axes[0]._values, labels);
 		assert.deepEqual([measurements.x.length, measurements.y.length], counts);
 		assert.deepEqual(readouts.map(id => input(id).textContent), text, 'readouts remain unchanged');
 		assert.deepEqual(['rotation', 'max-length', 'middle-ellipsis', 'percent'].map(id => input(id).disabled), disabled);
 		assert.equal(destroyed, 1, 'control actions do not destroy the chart again');
+		assert.deepEqual(removed, listenerTypes, 'repeated destroy does not remove listeners again');
 	});
+
+	it('releases the detached root when the destroyed demo is retained', async function() {
+		if (!globalThis.gc)
+			this.skip();
+		const ref = new WeakRef(root);
+		demo.destroy();
+		root.remove();
+		root = u = null;
+		for (let i = 0; i < 3; i++) {
+			await new Promise(setImmediate);
+			globalThis.gc();
+		}
+		assert.equal(ref.deref(), undefined);
+		assert.equal(demo.plot, null);
+	});
+
 
 	it('reuses X measurements until labels, font, or pixel ratio changes', async () => {
 		const count = u.data[0].length;

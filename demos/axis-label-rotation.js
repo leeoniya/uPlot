@@ -9,7 +9,7 @@ export function createDemo(root) {
 	const pick = words => words[Math.floor(Math.random() * words.length)];
 	let bars;
 	let u;
-	const controls = createBarControls(root, {
+	let controls = createBarControls(root, {
 		getPlot: () => u,
 		getControls: () => bars._controls,
 		rebuild(size) {
@@ -62,9 +62,9 @@ export function createDemo(root) {
 	return {
 		get plot() { return u; },
 		destroy() {
-			controls.destroy();
+			controls?.destroy();
 			u?.destroy();
-			u = null;
+			u = bars = controls = root = null;
 		},
 	};
 }

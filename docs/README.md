@@ -599,6 +599,12 @@ Data disposal is for non-interactive charts such as sparklines. Cursor interacti
 
 Manual data disposal must occur after rendering. Automatic disposal normally completes before `ready`, but retains data needed by pending render work. With `cache.data: false`, hooks must not call `setData()`. Plugins and callbacks can retain their own references, which this API cannot release.
 
+`destroy()` releases data and path caches regardless of the `cache` configuration.
+This includes raw data, cumulative stack data, stack baselines (`_base`), the internal `opts.data` copy, and series and point paths.
+Destroy hooks see empty data and cleared path caches. Small axis, legend, and cursor state remains available until garbage collection.
+
+Cleanup does not mutate caller-owned arrays. Repeated `destroy()` calls have no effect. A destroyed chart cannot be reused.
+
 #### Cursor Marker Alignment
 
 Default DOM hover markers share the built-in canvas marker position calculation. This calculation uses the bitmap plot rectangle, `series.pxAlign`, and the canvas point stroke offset.

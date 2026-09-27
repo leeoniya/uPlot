@@ -518,6 +518,33 @@ describe('barValues standalone', () => {
 		assert.equal(u.ctx.saves, u.ctx.restores);
 	});
 
+	it('releases native percent baselines and groups when the destroyed helper is retained', async function() {
+		if (!globalThis.gc)
+			this.skip();
+		const { values, refs } = (() => {
+			const groups = Object.freeze([Object.freeze({ series: Object.freeze([1, 2]), dir: 0 })]);
+			const values = helper(false, groups, true);
+			const data = [[0], [2], [3]];
+			const stacked = [[0], [.4], [1]];
+			const base = [null, [0], [.4]];
+			const u = plot(data, { _data: stacked, _base: base });
+			render(values, u, [[1, 0, 200, 250, 100, 100], [2, 0, 200, 150, 100, 100]]);
+			const refs = [groups, groups[0], ...data, ...stacked, ...base.slice(1)].map(value => new WeakRef(value));
+			values.destroy();
+			assert.deepEqual(data, [[0], [2], [3]]);
+			assert.deepEqual(stacked, [[0], [.4], [1]]);
+			assert.deepEqual(base, [null, [0], [.4]]);
+			assert.deepEqual(groups, [{ series: [1, 2], dir: 0 }]);
+			return { values, refs };
+		})();
+		for (let i = 0; i < 3; i++) {
+			await new Promise(setImmediate);
+			globalThis.gc();
+		}
+		assert.ok(refs.every(ref => ref.deref() === undefined));
+		assert.ok(values);
+	});
+
 	it('ignores non-finite values and non-positive rectangles without measuring', () => {
 		const values = helper();
 		const u = plot([[0, 1, 2, 3, 4, 5], [null, undefined, NaN, Infinity, -Infinity, 12]]);

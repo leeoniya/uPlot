@@ -488,6 +488,220 @@ for (const table of [false, true]) {
 			assert.ok(rows.every(tr => tr.style.opacity == ''), 'cleared focus removes inline opacity');
 		});
 
+		it('skips legend frames while streaming outside the cursor but still formats and notifies', async () => {
+			const u = await plot();
+			u.setCursor({ left: -10, top: -10 });
+			await frame();
+			let rowReads = 0;
+			Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
+			const calls = [];
+			const formatKey = table ? 'values' : 'value';
+			const indices = table ? [1, 2] : [0, 1, 2];
+			for (const si of indices) {
+				const format = u.series[si][formatKey];
+				u.series[si][formatKey] = (...args) => {
+					calls.push([si, args[table ? 2 : 3]]);
+					return format(...args);
+				};
+			}
+			const snapshots = [];
+			u.hooks.setLegend = [self => snapshots.push([self.legend.idx, self.legend.idxs.slice(), values(self)])];
+			const frames = trackFrames();
+			try {
+				for (const shift of [1, 2, 3]) {
+					calls.length = snapshots.length = 0;
+					u.setData(data.map(column => column.map(value => value + shift)));
+					await Promise.resolve();
+					assert.ok(u.cursor.left < 0);
+					assert.deepEqual(calls, indices.map(si => [si, null]));
+					assert.deepEqual(snapshots, [[null, [null, null, null], ['--', '--']]]);
+					assert.equal(frames.queued.length, 0);
+					assert.equal(frames.pending.size, 0);
+					frames.flush();
+					assert.equal(rowReads, 0);
+				}
+			}
+			finally {
+				frames.restore();
+			}
+		});
+
+		it('schedules changing custom formatted data even when the cursor index is null', async () => {
+			const latest = (self, si) => `latest=${self.data?.[si]?.at(-1) ?? '--'}`;
+			const u = await plot({ series: table ? {
+				values: (self, si) => ({ Value: latest(self, si), Double: '--' }),
+			} : { value: (self, value, si) => latest(self, si) } });
+			u.setCursor({ left: -10, top: -10 });
+			await frame();
+			let rowReads = 0;
+			Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
+			const snapshots = [];
+			u.hooks.setLegend = [self => snapshots.push([self.legend.idx, values(self)])];
+			const frames = trackFrames();
+			try {
+				for (const shift of [1, 2]) {
+					rowReads = 0;
+					snapshots.length = 0;
+					u.setData(data.map(column => column.map(value => value + shift)));
+					await Promise.resolve();
+					const expected = [`latest=${30 + shift}`, `latest=${60 + shift}`];
+					assert.deepEqual(snapshots, [[null, expected]]);
+					assert.equal(rowReads, 0);
+					assert.equal(frames.queued.length, shift);
+					assert.equal(frames.pending.size, 1);
+					frames.flush();
+					assert.equal(rowReads, 1);
+					assert.deepEqual([1, 2].map(si => row(u, si).querySelector('td').textContent), expected);
+				}
+			}
+			finally {
+				frames.restore();
+			}
+		});
+
+		it('publishes repeated formatted outputs without frames, ignoring fresh records and undisplayed properties', async () => {
+			const u = await plot();
+			u.setLegend({ idx: 0 });
+			await frame();
+			let rowReads = 0;
+			Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
+			const indices = table ? [1, 2] : [0, 1, 2];
+			const calls = [];
+			const returned = [];
+			let revision = 0;
+			for (const si of indices) {
+				const initial = { ...u.legend.values[si] };
+				u.series[si][table ? 'values' : 'value'] = () => {
+					calls.push(si);
+					return returned[si] = table ? { ...initial, revision } : initial._;
+				};
+			}
+			const snapshots = [];
+			u.hooks.setLegend = [self => {
+				for (const si of indices) {
+					if (table)
+						assert.equal(self.legend.values[si], returned[si], 'hooks see the latest returned record');
+					else
+						assert.equal(self.legend.values[si]._, returned[si]);
+				}
+				snapshots.push([self.legend.idx, self.legend.idxs.slice(), values(self)]);
+			}];
+			const frames = trackFrames();
+			try {
+				for (const idx of [1, 2, 2]) {
+					revision++;
+					calls.length = snapshots.length = 0;
+					const previous = u.legend.values.slice();
+					u.setLegend({ idx });
+					assert.deepEqual(calls, indices);
+					assert.deepEqual(snapshots, [[idx, [idx, idx, idx], ['v=10', 'v=40']]]);
+					if (table) {
+						for (const si of indices) {
+							assert.notEqual(u.legend.values[si], previous[si]);
+							assert.equal(u.legend.values[si].revision, revision);
+						}
+					}
+					assert.equal(frames.queued.length, 0);
+					assert.equal(frames.pending.size, 0);
+					frames.flush();
+					assert.equal(rowReads, 0);
+					assertValues(row(u, 1), 10);
+					assertValues(row(u, 2), 40);
+				}
+			}
+			finally {
+				frames.restore();
+			}
+		});
+
+		it('detects later series and column changes in reused records after a prior frame', async () => {
+			const u = await plot();
+			u.setLegend({ idx: 0 });
+			await frame();
+			const records = u.legend.values.map(record => record == null ? null : { ...record });
+			const indices = table ? [1, 2] : [0, 1, 2];
+			const calls = [];
+			for (const si of indices) {
+				u.series[si][table ? 'values' : 'value'] = () => {
+					calls.push(si);
+					return table ? records[si] : records[si]._;
+				};
+			}
+			// Publish the retained records before mutating them after a completed frame.
+			u.setLegend({ idx: 0 });
+			await frame();
+			let rowReads = 0;
+			Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
+			const frames = trackFrames();
+			try {
+				for (const [si, column] of [[2, table ? 'Double' : '_'], [1, table ? 'Value' : '_']]) {
+					const requests = frames.queued.length;
+					rowReads = 0;
+					calls.length = 0;
+					records[si][column] = 'changed';
+					u.setLegend({ idx: 0 });
+					assert.deepEqual(calls, indices, 'a changed value does not skip later formatters');
+					assert.equal(u.legend.values[si][column], 'changed');
+					if (table)
+						assert.equal(u.legend.values[si], records[si]);
+					assert.equal(rowReads, 0);
+					assert.equal(frames.queued.length, requests + 1);
+					assert.equal(frames.pending.size, 1);
+					frames.flush();
+					assert.equal(rowReads, 1);
+					for (const i of [1, 2])
+						assert.deepEqual([...row(u, i).querySelectorAll('td')].map(cell => cell.textContent), Object.values(records[i]));
+				}
+			}
+			finally {
+				frames.restore();
+			}
+		});
+
+		it('clears values once, preserves the pending render, and treats normalized placeholders as unchanged', async () => {
+			const u = await plot();
+			u.setLegend({ idx: 2 });
+			await frame();
+			let empty = null;
+			for (const s of u.series.slice(table ? 1 : 0))
+				s[table ? 'values' : 'value'] = () => empty;
+			let rowReads = 0;
+			Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
+			const snapshots = [];
+			u.hooks.setLegend = [self => snapshots.push([self.legend.idx, values(self)])];
+			const frames = trackFrames();
+			try {
+				u.setLegend({ idx: null });
+				assert.equal(frames.queued.length, 1);
+				assert.equal(frames.pending.size, 1);
+				u.setLegend({ idx: null });
+				assert.equal(frames.queued.length, 1);
+				assert.equal(frames.pending.size, 1, 'an identical update retains the changed render');
+				assert.equal(frames.canceled.length, 0);
+				assert.equal(rowReads, 0);
+				assertValues(row(u, 1), 30);
+				frames.flush();
+				assert.equal(rowReads, 1);
+				assert.deepEqual(snapshots, Array.from({ length: 2 }, () => [null, ['--', '--']]));
+				for (const si of [1, 2])
+					assert.ok([...row(u, si).querySelectorAll('td')].every(cell => cell.textContent == '--'));
+
+				rowReads = 0;
+				for (empty of [undefined, table ? { Value: '--', Double: '--' } : '--', null]) {
+					snapshots.length = 0;
+					u.setLegend({ idx: null });
+					assert.deepEqual(snapshots, [[null, ['--', '--']]]);
+					assert.equal(frames.queued.length, 1);
+					assert.equal(frames.pending.size, 0);
+					frames.flush();
+					assert.equal(rowReads, 0);
+				}
+			}
+			finally {
+				frames.restore();
+			}
+		});
+
 		it('skips legend scheduling and reconciliation for unchanged focus', async () => {
 			const u = await plot();
 			let rowReads = 0;
@@ -580,7 +794,7 @@ for (const table of [false, true]) {
 				[2, 1, 1, true,  ['setLegend', 'setCursor']],
 				[2, 1, 0, false, ['setCursor']],
 				[null, null, 1, true, ['setLegend', 'setSeries', 'setCursor']],
-				[null, null, 1, true, ['setLegend', 'setCursor']],
+				[null, null, 0, true, ['setLegend', 'setCursor']],
 			]) {
 				rowReads = formats = 0;
 				snapshots.length = 0;
@@ -934,6 +1148,53 @@ for (const table of [false, true]) {
 
 		for (const mode of [1, 2]) {
 			for (const showCursor of [true, false]) {
+				it(`never schedules a hidden legend in mode ${mode} with cursor.show=${showCursor}`, async () => {
+					const frames = trackFrames();
+					let mounts = 0;
+					try {
+						const u = await plot({
+							mode,
+							render: false,
+							legend: { show: false },
+							cursor: { show: showCursor },
+							mount: () => mounts++,
+						});
+						const plotData = mode == 2 ? [null, [data[0], data[1]], [data[0], data[2]]] : data;
+						const assertIdle = () => {
+							assert.equal(frames.queued.length, 0);
+							assert.equal(frames.pending.size, 0);
+							assert.equal(mounts, 0);
+							assert.equal(u.root.querySelector('.u-legend'), null);
+						};
+						assertIdle();
+						for (const update of [
+							() => u.setLegend({ idx: 1 }),
+							() => u.setData(plotData),
+							() => u.setCursor({ left: u.valToPos(1, 'x'), top: u.valToPos(20, 'y') }),
+							() => u.setSeries(2, { focus: true }),
+							() => u.setSeries(1, { show: false }),
+							() => u.setSeries(1, { show: true }),
+							() => u.setCursor({ left: -10, top: -10 }),
+							() => u.setData(plotData),
+							() => {
+								u.addSeries({ label: 'Added', stroke: 'blue' });
+								u.setData([...plotData, plotData[1]]);
+							},
+							() => {
+								u.delSeries(3);
+								u.setData(plotData);
+							},
+						]) {
+							update();
+							await Promise.resolve();
+							assertIdle();
+						}
+					}
+					finally {
+						frames.restore();
+					}
+				});
+
 				it(`skips hidden legend formatting after schema discovery in mode ${mode} with cursor.show=${showCursor}`, async () => {
 					let formats = 0;
 					let hooks = 0;
