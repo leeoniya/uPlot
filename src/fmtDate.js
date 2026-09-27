@@ -304,7 +304,7 @@ export const PERIOD_MONTH = 4;
 export const PERIOD_YEAR = 5;
 // export const PERIOD_WEEK;
 
-// get start of period, requires DateZoned and period const
+// get start of period for a local Date or DateZoned
 export function floorSOP(dz, per) {
 	let ts = dz.getTime();
 
@@ -327,16 +327,14 @@ export function floorSOP(dz, per) {
 	// if (ts2 == ts)
 		// return dz;
 
-	let dz2 = new DateZoned(ts2);
-	dz2.setTimeZone(dz.tz);
+	let dz2 = tzDate(ts2, dz.tz);
 
 	let h2 = dz2.getHours();
 
 	// we want hours to be 0
 	if (h2 > 0) {
 		let dstAdj = h2 > 12 ? 24 - h2 : -h2;
-		dz2 = new DateZoned(ts2 + dstAdj * 3600 * 1e3);
-		dz2.setTimeZone(dz.tz);
+		dz2 = tzDate(ts2 + dstAdj * 3600 * 1e3, dz.tz);
 	}
 
 	return dz2;
