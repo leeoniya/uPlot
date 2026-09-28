@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Random Label Rotation — ECharts</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<style>
+			body { margin: 24px; font: 14px system-ui, sans-serif; }
+			.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px 0; }
+			input[type="range"] { width: min(500px, 60vw); }
+			output { min-width: 6ch; }
+			#plot { overflow-x: auto; }
+			#chart { width: 1000px; height: 500px; }
+		</style>
+	</head>
+	<body>
+		<main>
+			<h1>Random labels: ECharts rotation and automatic layout</h1>
+			<p>This subset of the <a href="axis-label-rotation.html">original uPlot demo</a> uses ECharts 6.1.0.
+			See also the <a href="axis-label-rotation-chartjs.html">Chart.js demo</a>. The ECharts library loads from a CDN and requires network access.</p>
+			<p>Randomize data generates 3–15 one-to-three-word labels and two series with random offsets and spreads across different magnitudes.
+			The other controls keep the data unchanged. Chart height stays at 500px. Horizontal category labels stay unrotated.</p>
+			<p>The <code>?seed=&lt;seed&gt;</code> URL parameter reproduces the same labels and values across all three demos.
+			The 🔗 button copies a URL for the current data, without layout settings. Randomize data chooses a new seed.</p>
+			<p>ECharts sets the axis space automatically. Gray marks the space outside the white plot.
+			Category labels stay complete and visible, so neighboring labels can overlap.
+			Values appear centered on bars or stacked segments. ECharts hides overlapping value labels.</p>
+			<p>Percent mode uses separate positive and negative totals for each category. Tooltips show original values and signed percentages.
+			The legend does not hide series.</p>
+			<div class="controls">
+				<label for="width">Chart width</label>
+				<input id="width" type="range" min="400" max="1600" step="10" value="1000">
+				<output id="width-value" for="width">1000px</output>
+			</div>
+			<div class="controls">
+				<label><input id="horizontal" type="checkbox"> Horizontal bars</label>
+				<label for="stacking">Stacking</label>
+				<select id="stacking">
+					<option value="grouped" selected>Grouped</option>
+					<option value="value">Value</option>
+					<option value="percent">Percent</option>
+				</select>
+				<label><input id="show-values" type="checkbox"> Show values</label>
+			</div>
+			<div class="controls">
+				<label for="rotation">Label rotation</label>
+				<input id="rotation" type="range" min="-90" max="90" step="1" value="45">
+				<output id="rotation-value" for="rotation">45°</output>
+				<button id="randomize" type="button">Randomize data</button>
+				<button id="copy-link" type="button" aria-label="Copy data URL" title="Copy data URL">🔗</button>
+				<output id="copy-status" aria-live="polite"></output>
+			</div>
+			<div id="plot"><div id="chart"></div></div>
+		</main>
+		<script src="https://fastly.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js"></script>
+		<script>
+			const adjectives = ['Tiny', 'Bright', 'Quiet', 'Swift', 'Gentle', 'Bold', 'Silver', 'Merry'];
+			const nouns = ['fox', 'owl', 'panda', 'otter', 'tiger', 'robin', 'badger', 'raven'];
+			const verbs = ['runs', 'jumps', 'sings', 'rests', 'dances', 'glides', 'swims', 'plays'];
+			const newSeed = () => Math.floor(Math.random() * 4294967296).toString(36);
+			let seed = new URL(window.location.href).searchParams.get('seed') ?? newSeed();
+			const copyStatus = document.querySelector('#copy-status').appendChild(document.createTextNode(''));
+			const width = document.querySelector('#width');
+			const widthValue = document.querySelector('#width-value');
+			const horizontal = document.querySelector('#horizontal');
+			const stacking = document.querySelector('#stacking');
+			const showValues = document.querySelector('#show-values');
+			const rotation = document.querySelector('#rotation');
+			const rotationValue = document.querySelector('#rotation-value');
+			const chartElement = document.querySelector('#chart');
+			const chart = echarts.init(chartElement);
+			const formatValue = value => String(+value.toPrecision(3));
+			const formatPercent = value => `${+value.toFixed(1)}%`;
+			let data = newData();
+
+			function seededRandom(seed) {
+				let state = 2166136261;
+				for (let i = 0; i < seed.length; i++)
+					state = Math.imul(state ^ seed.charCodeAt(i), 16777619);
+
+				// Match the uPlot demo so a seed produces the same data in each library.
+				return () => {
+					state = (state + 0x6D2B79F5) | 0;
+					let t = Math.imul(state ^ state >>> 15, 1 | state);
+					t ^= t + Math.imul(t ^ t >>> 7, 61 | t);
+					return ((t ^ t >>> 14) >>> 0) / 4294967296;
+				};
+			}
+
+			async function copyLink() {
+				const copiedSeed = seed;
+				const url = new URL(window.location.href);
+				url.searchParams.set('seed', copiedSeed);
+				try {
+					await window.navigator.clipboard.writeText(url.href);
+					if (seed == copiedSeed)
+						copyStatus.data = 'Link copied.';
+				}
+				catch {
+					if (seed == copiedSeed) {
+						copyStatus.data = 'Clipboard unavailable. Copy the URL from the dialog.';
+						window.prompt('Copy this URL:', url.href);
+					}
+				}
+			}
+
+			function newData() {
+				const random = seededRandom(seed);
+				const pick = words => words[Math.floor(random() * words.length)];
+				const names = Array.from({ length: 3 + Math.floor(random() * 13) }, () => {
+					const count = 1 + Math.floor(random() * 3);
+					const words = count == 1 ? [pick(nouns)] : [pick(adjectives), pick(nouns)];
+					if (count == 3)
+						words.push(pick(verbs));
+					return words.join(' ');
+				});
+				const magnitude = 10 ** (Math.floor(random() * 13) - 5);
+				const offset = magnitude * (random() * 2 - 1);
+				const spread = magnitude * (.5 + random() * 1.5);
+				return [names, names.map(() => offset + spread * random()), names.map(() => offset + spread * random())];
+			}
+
+			function update() {
+				const isHorizontal = horizontal.checked;
+				const grouped = stacking.value == 'grouped';
+				const percent = stacking.value == 'percent';
+				const values = data.slice(1);
+				const positive = data[0].map((_, i) => values.reduce((sum, series) => sum + Math.max(0, series[i]), 0));
+				const negative = data[0].map((_, i) => values.reduce((sum, series) => sum + Math.max(0, -series[i]), 0));
+				rotation.disabled = isHorizontal;
+				rotationValue.textContent = `${isHorizontal ? 0 : rotation.value}°`;
+
+				const categoryAxis = {
+					type: 'category',
+					data: data[0],
+					inverse: isHorizontal,
+					axisLine: { onZero: false },
+					axisTick: { alignWithLabel: true },
+					axisLabel: {
+						interval: 0,
+						hideOverlap: false,
+						rotate: isHorizontal ? 0 : rotation.valueAsNumber,
+						overflow: 'none',
+					},
+				};
+				const valueAxis = {
+					type: 'value',
+					scale: false,
+					axisLabel: { formatter: percent ? formatPercent : formatValue },
+					...(percent ? {
+						min: negative.some(total => total > 0) ? -100 : 0,
+						max: positive.some(total => total > 0) ? 100 : negative.some(total => total > 0) ? 0 : 100,
+					} : {}),
+				};
+
+				chart.setOption({
+					animation: false,
+					backgroundColor: '#f4f4f4',
+					color: ['royalblue', 'darkorange'],
+					legend: { data: ['Value', 'Other value'], selectedMode: false, top: 8 },
+					tooltip: { trigger: 'axis', confine: true, transitionDuration: 0, axisPointer: { type: 'shadow' } },
+					grid: {
+						show: true,
+						backgroundColor: 'white',
+						borderWidth: 0,
+						left: 16,
+						right: 16,
+						top: 48,
+						bottom: 16,
+						outerBoundsMode: 'same',
+						outerBoundsContain: 'all',
+					},
+					xAxis: isHorizontal ? valueAxis : categoryAxis,
+					yAxis: isHorizontal ? categoryAxis : valueAxis,
+					series: values.map((series, seriesIndex) => ({
+						name: seriesIndex == 0 ? 'Value' : 'Other value',
+						type: 'bar',
+						stack: grouped ? undefined : 'values',
+						stackStrategy: 'samesign',
+						data: series.map((value, i) => {
+							const total = value < 0 ? negative[i] : positive[i];
+							return percent ? (total == 0 ? 0 : value / total * 100) : value;
+						}),
+						label: {
+							show: showValues.checked,
+							position: 'inside',
+							formatter: params => percent ? formatPercent(params.value) : formatValue(params.value),
+						},
+						labelLayout: { hideOverlap: true },
+						tooltip: {
+							valueFormatter: (value, i) => String(series[i]) + (percent ? ` (${formatPercent(value)})` : ''),
+						},
+					})),
+				}, { notMerge: true });
+			}
+
+			width.addEventListener('input', () => {
+				widthValue.textContent = `${width.value}px`;
+				chartElement.style.width = `${width.value}px`;
+				chart.resize({ width: width.valueAsNumber, height: 500 });
+			});
+			horizontal.addEventListener('change', update);
+			stacking.addEventListener('change', update);
+			showValues.addEventListener('change', update);
+			rotation.addEventListener('input', update);
+			document.querySelector('#copy-link').addEventListener('click', copyLink);
+			document.querySelector('#randomize').addEventListener('click', () => {
+				seed = newSeed();
+				copyStatus.data = '';
+				data = newData();
+				update();
+			});
+			update();
+		</script>
+	</body>
+</html>
