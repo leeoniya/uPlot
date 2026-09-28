@@ -35,6 +35,8 @@
 			For vertical bars, the Y axis measures its formatted labels to set its width.
 			Grouped and value modes keep ticks at both Y bounds. Horizontal numeric ticks target 100px spacing.
 			Soft zero limits keep the bar baseline visible in both orientations. Percent mode uses bounds of −100%, 0%, or 100%.</p>
+			<p>The <code>?seed=&lt;seed&gt;</code> URL parameter reproduces the labels and both value series.
+			The 🔗 button copies a URL for the current data, without layout settings. Randomize data chooses a new seed.</p>
 			<p>Group distribution sets the gaps between category groups and at the plot edges.
 			Group width sets each group’s width as a percentage of the plot dimension divided by the category count.
 			Space around adds half a gap at each plot edge.</p>
@@ -81,6 +83,8 @@
 				<input id="rotation" type="range" min="-90" max="90" step="1" value="45">
 				<output id="rotation-value" for="rotation">45°</output>
 				<button id="randomize" type="button">Randomize data</button>
+				<button id="copy-link" type="button" aria-label="Copy data URL" title="Copy data URL">🔗</button>
+				<output id="copy-status" aria-live="polite"></output>
 			</div>
 			<div class="controls">
 				<label><input id="truncate" type="checkbox"> Limit label length</label>

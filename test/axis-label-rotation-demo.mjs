@@ -256,7 +256,7 @@ describe('random label rotation demo', () => {
 		assert.equal(input('rotation-value').textContent, `${degrees}°`);
 	}
 
-	it('shows random full labels and keeps the same data while rotating', async () => {
+	it('shows reproducible random data and keeps it unchanged while rotating or copying its URL', async () => {
 		assertDataShape();
 		const labels = fullLabels();
 		const data = u.data;
@@ -270,6 +270,86 @@ describe('random label rotation demo', () => {
 			assert.deepEqual(fullLabels(), labels);
 			assert.equal(measurements.x.length, labels.length);
 			assertReadout();
+		}
+
+		const originalUrl = window.location.href;
+		const clipboard = window.navigator.clipboard;
+		const writeText = clipboard.writeText;
+		const prompt = window.prompt;
+		let copiedUrl, fallbackUrl;
+		clipboard.writeText = async url => { copiedUrl = url; };
+		window.prompt = (message, url) => { fallbackUrl = url; };
+		try {
+			window.happyDOM.setURL('http://localhost/demos/axis-label-rotation.html?other=keep#plot');
+			const status = input('copy-status').firstChild;
+			const copy = async () => {
+				input('copy-link').click();
+				await Promise.resolve();
+				return copiedUrl;
+			};
+			const initialUrl = await copy();
+			assert.equal(input('copy-status').firstChild, status);
+			assert.equal(status.data, 'Link copied.');
+			assert.equal(u.data, data, 'copy does not regenerate data');
+			assert.equal(new URL(initialUrl).searchParams.get('other'), 'keep');
+			assert.equal(new URL(initialUrl).hash, '#plot');
+			assert.notEqual(new URL(initialUrl).searchParams.get('seed'), null);
+
+			const load = async url => {
+				demo.destroy();
+
+				window.happyDOM.setURL(url);
+				demo = createDemo(root);
+				u = demo.plot;
+				await Promise.resolve();
+			};
+			await load(initialUrl);
+			assert.deepEqual(u.data, data, 'initial data replays from its copied URL');
+			input('randomize').click();
+			await Promise.resolve();
+			const randomized = structuredClone(u.data);
+			const randomizedUrl = await copy();
+			assert.notEqual(randomizedUrl, initialUrl);
+			assert.notDeepEqual(randomized, data);
+			await toggle('horizontal', true);
+			await toggle('stacked', true);
+			assert.equal(await copy(), randomizedUrl, 'rebuilds preserve the seed');
+			await load(randomizedUrl);
+			assert.deepEqual(u.data, randomized, 'randomized labels and both value series replay exactly');
+
+			for (const seed of ['', '0', 'fox & owl/🦊']) {
+				const url = new URL(initialUrl);
+				url.searchParams.set('seed', seed);
+				await load(url.href);
+				const expected = structuredClone(u.data);
+				const shared = await copy();
+				assert.equal(new URL(shared).searchParams.get('seed'), seed);
+				await load(shared);
+				assert.deepEqual(u.data, expected);
+			}
+
+			clipboard.writeText = async () => { throw new Error('Permission denied'); };
+			await copy();
+			assert.equal(fallbackUrl, copiedUrl);
+			assert.match(input('copy-status').textContent, /Clipboard unavailable/);
+			fallbackUrl = null;
+			clipboard.writeText = undefined;
+			await copy();
+			assert.equal(fallbackUrl, copiedUrl, 'missing clipboard API offers manual copy');
+
+			let reject;
+			clipboard.writeText = () => new Promise((resolve, fail) => { reject = fail; });
+			input('copy-link').click();
+			demo.destroy();
+			fallbackUrl = null;
+			reject(new Error('Permission denied'));
+			await Promise.resolve();
+			assert.equal(fallbackUrl, null, 'pending clipboard work does nothing after destroy');
+		}
+		finally {
+			clipboard.writeText = writeText;
+			window.prompt = prompt;
+			window.happyDOM.setURL(originalUrl);
 		}
 	});
 
@@ -817,6 +897,7 @@ describe('random label rotation demo', () => {
 			['rotation', 'input'], ['height', 'input'], ['horizontal', 'change'], ['stacked', 'change'],
 			['percent', 'change'], ['show-values', 'change'], ['distribution', 'change'], ['group-width', 'input'],
 			['randomize', 'click'], ['truncate', 'change'], ['max-length', 'input'], ['middle-ellipsis', 'change'],
+			['copy-link', 'click'],
 		];
 		for (const [id] of listenerTypes) {
 			const el = input(id);
@@ -849,7 +930,7 @@ describe('random label rotation demo', () => {
 		for (const [id, type] of [
 			['horizontal', 'change'], ['stacked', 'change'], ['percent', 'change'], ['rotation', 'input'], ['height', 'input'],
 			['truncate', 'change'], ['max-length', 'input'], ['middle-ellipsis', 'change'], ['randomize', 'click'],
-			['show-values', 'change'], ['distribution', 'change'], ['group-width', 'input'],
+			['show-values', 'change'], ['distribution', 'change'], ['group-width', 'input'], ['copy-link', 'click'],
 		]) {
 			input(id).dispatchEvent(new Event(type));
 			u = demo.plot;
