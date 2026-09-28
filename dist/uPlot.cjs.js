@@ -2567,11 +2567,8 @@ function textValue(value) {
 }
 
 function setText(node, text) {
-	if (text == '') {
-		if (node.firstChild != null)
-			node.textContent = '';
-	}
-	else if (node.firstChild != null)
+	// Keep the text node when clearing a value so hover transitions can reuse it.
+	if (node.firstChild != null)
 		node.firstChild.nodeValue = text;
 	else
 		node.textContent = text;

@@ -1344,16 +1344,18 @@ for (const table of [false, true]) {
 			u.setLegend({ idx: 0 });
 			await frame();
 			const cells = [...row(u, 1).querySelectorAll('td')];
+			const textNodes = cells.map(cell => cell.firstChild);
 			for (const idx of [1, 2, 0]) {
 				u.setLegend({ idx });
 				const expected = format(data[1][idx]);
 				await frame();
 				assert.deepEqual(cells.map(cell => cell.textContent), table ? [expected, expected] : [expected]);
-				assert.ok(cells.every(cell => cell.childNodes.length == (expected == '' ? 0 : 1)));
+				assert.ok(cells.every(cell => cell.childNodes.length == 1));
+				assertNodes(cells.map(cell => cell.firstChild), textNodes);
 			}
 		});
 
-		it('renders scalar values and holes while preserving nonempty value text nodes', () => {
+		it('renders scalar values and holes while preserving value text nodes', () => {
 			const { renderer, parent, series, valuesAt } = rendererFixture();
 			renderer.render(valuesAt(0), null);
 			const alpha = parent.querySelectorAll('tbody tr')[table ? 0 : 1];
@@ -1370,10 +1372,9 @@ for (const table of [false, true]) {
 				assert.equal(alpha.querySelector('.u-label').textContent, 'Alpha');
 				cells.forEach((cell, i) => {
 					assert.equal(cell.textContent, expected);
-					assert.equal(cell.childNodes.length, expected == '' ? 0 : 1);
+					assert.equal(cell.childNodes.length, 1);
 					assert.equal(cell.children.length, 0, 'text is not parsed as HTML');
-					if (previous[i] != null && expected != '')
-						assert.equal(cell.firstChild === previous[i], true, 'nonempty updates retain the text node');
+					assert.equal(cell.firstChild === previous[i], true, 'updates retain the text node, including empty values');
 				});
 			}
 		});
