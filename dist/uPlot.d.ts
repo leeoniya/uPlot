@@ -741,7 +741,12 @@ declare namespace uPlot {
 		/** logarithmic base */
 		log?: Scale.LogBase; // 10;
 
-		/** clamps log scale values <= 0 (default = scaleMin / 10) */
+		/**
+		 * For log scales, replaces values <= 0 during positioning (default: scaleMin / 10).
+		 * For default adaptive asinh, excludes absolute values <= this nonnegative cutoff from threshold selection (default: 0).
+		 * Adaptive asinh calls the callback once per threshold calculation, with val = 0 and the current scale bounds.
+		 * The asinh cutoff does not clamp data values or affect explicit numeric or callback asinh settings.
+		 */
 		clamp?: Scale.Clamp;
 
 		/** arcsinh linear threshold (default: adaptive) */

@@ -10,6 +10,7 @@ import {
 	max,
 
 	inf,
+	isFinite,
 	pow,
 	log2,
 	log10,
@@ -640,6 +641,9 @@ export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 
 // this doesnt work for sin, which needs to come off from 0 independently in pos and neg dirs
 export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
+	if (!isFinite(scaleMin) || !isFinite(scaleMax) || scaleMin <= 0 || scaleMin > scaleMax)
+		return [];
+
 	const splits = [];
 
 	const logBase = self.scales[self.axes[axisIdx].scale].log;
@@ -683,13 +687,19 @@ export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 }
 
 export function asinhAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
+	if (!isFinite(scaleMin) || !isFinite(scaleMax) || scaleMin > scaleMax)
+		return [];
+
 	let sc = self.scales[self.axes[axisIdx].scale];
 
 	let linthresh = sc._asinh;
 
-	let posSplits = scaleMax > linthresh ? logAxisSplits(self, axisIdx, max(linthresh, scaleMin), scaleMax, foundIncr, foundSpace, forceMin) : [linthresh];
+	if (scaleMin >= -linthresh && scaleMax <= linthresh)
+		return numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin);
+
+	let posSplits = scaleMax >= linthresh ? logAxisSplits(self, axisIdx, max(linthresh, scaleMin), scaleMax, foundIncr, foundSpace, forceMin) : [];
 	let zero = scaleMax >= 0 && scaleMin <= 0 ? [0] : [];
-	let negSplits = scaleMin < -linthresh ? logAxisSplits(self, axisIdx, max(linthresh, -scaleMax), -scaleMin, foundIncr, foundSpace, forceMin): [linthresh];
+	let negSplits = scaleMin <= -linthresh ? logAxisSplits(self, axisIdx, max(linthresh, -scaleMax), -scaleMin, foundIncr, foundSpace, forceMin) : [];
 
 	return negSplits.reverse().map(v => -v).concat(zero, posSplits);
 }
@@ -706,24 +716,28 @@ export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) 
 	let scaleKey = axis.scale;
 	let sc = self.scales[scaleKey];
 
+	if (sc.distr == 4 && sc.min >= -sc._asinh && sc.max <= sc._asinh)
+		return splits;
+
 //	if (sc.distr == 3 && sc.log == 2)
 //		return splits;
 
 	let valToPos = self.valToPos;
 
 	let minSpace = axis._space;
+	let linthresh = sc.distr == 4 ? sc._asinh : 1;
 
-	let _10 = valToPos(10, scaleKey);
+	let _10 = valToPos(10 * linthresh, scaleKey);
 
 	let re = (
-		valToPos(9, scaleKey) - _10 >= minSpace ? RE_ALL :
-		valToPos(7, scaleKey) - _10 >= minSpace ? RE_12357 :
-		valToPos(5, scaleKey) - _10 >= minSpace ? RE_125 :
+		abs(valToPos(9 * linthresh, scaleKey) - _10) >= minSpace ? RE_ALL :
+		abs(valToPos(7 * linthresh, scaleKey) - _10) >= minSpace ? RE_12357 :
+		abs(valToPos(5 * linthresh, scaleKey) - _10) >= minSpace ? RE_125 :
 		RE_1
 	);
 
 	if (re == RE_1) {
-		let magSpace = abs(valToPos(1, scaleKey) - _10);
+		let magSpace = abs(valToPos(linthresh, scaleKey) - _10);
 
 		if (magSpace < minSpace)
 			return _filt(splits.slice().reverse(), sc.distr, re, ceil(minSpace / magSpace)).reverse(); // max->min skip
@@ -735,13 +749,19 @@ export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) 
 export function log2AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
+	let sc = self.scales[scaleKey];
+
+	if (sc.distr == 4 && sc.min >= -sc._asinh && sc.max <= sc._asinh)
+		return splits;
+
 	let minSpace = axis._space;
 	let valToPos = self.valToPos;
+	let linthresh = sc.distr == 4 ? sc._asinh : 1;
 
-	let magSpace = abs(valToPos(1, scaleKey) - valToPos(2, scaleKey));
+	let magSpace = abs(valToPos(linthresh, scaleKey) - valToPos(2 * linthresh, scaleKey));
 
 	if (magSpace < minSpace)
-		return _filt(splits.slice().reverse(), 3, RE_ALL, ceil(minSpace / magSpace)).reverse(); // max->min skip
+		return _filt(splits.slice().reverse(), sc.distr, RE_ALL, ceil(minSpace / magSpace)).reverse(); // max->min skip
 
 	return splits;
 }
@@ -857,33 +877,41 @@ export function clampScale(self, val, scaleMin, scaleMax, scaleKey) {
 		return self.posToVal(cssHgt + fromBtm, scaleKey);
 	}
 */
-	return scaleMin / 10;
+	return self.scales[scaleKey].distr == 4 ? 0 : scaleMin / 10;
 }
 
 function asinhScale(self, scaleKey) {
 	let { series, data, mode } = self;
+	let sc = self.scales[scaleKey];
+	let cutoff = sc.clamp(self, 0, sc.min, sc.max, scaleKey);
 	let linthresh = inf;
 
 	for (let i = 1; i < series.length; i++) {
 		let s = series[i];
-		let scale = mode == 1 ? s.scale : s.facets[1].scale;
 
-		if (scale == scaleKey) {
-			let yData = mode == 1 ? data[i] : data[i][1];
-			let [i0, i1] = mode == 1 ? series[0].idxs : [0, yData.length - 1];
+		if (!s.show || !s.scan)
+			continue;
 
-			for (let j = i0; j <= i1; j++) {
-				if (yData[j] != null) {
-					let val = abs(yData[j]);
+		for (let fi = 0; fi < (mode == 1 ? 1 : s.facets.length); fi++) {
+			let scale = mode == 1 ? s.scale : s.facets[fi].scale;
 
-					if (val < linthresh)
-						linthresh = val;
+			if (scale == scaleKey && (mode == 1 || s.facets[fi].scan)) {
+				let yData = mode == 1 ? data[i] : data[i][fi];
+				let [i0, i1] = mode == 1 ? series[0].idxs : [0, yData.length - 1];
+
+				for (let j = i0; j <= i1; j++) {
+					if (yData[j] != null) {
+						let val = abs(yData[j]);
+
+						if (val > cutoff && val < linthresh)
+							linthresh = val;
+					}
 				}
 			}
 		}
 	}
 
-	return linthresh == inf || linthresh == 0 ? 1 : linthresh;
+	return linthresh == inf ? 1 : linthresh;
 }
 
 export const xScaleOpts = {

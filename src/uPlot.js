@@ -617,7 +617,6 @@ export default function uPlot(opts, data, then) {
 				let scan = sc.scan ?? (rangeIsArr && rn[0] != null && rn[1] != null ? false : null);
 				sc.scan = scan == null ? scanAuto : scan === true ? scanCached : scan === false ? scanNone : scan;
 
-				sc.clamp = fnOrSelf(sc.clamp || clampScale);
 
 				// caches for expensive ops like asinh() & log()
 				sc._min = sc._max = null;
@@ -625,6 +624,7 @@ export default function uPlot(opts, data, then) {
 				sc.valToPct = initValToPct(sc);
 			}
 
+			sc.clamp = fnOrSelf(sc.clamp ?? clampScale);
 			sc.asinh = fnOrSelf(sc.asinh);
 		}
 	}
@@ -1336,7 +1336,7 @@ export default function uPlot(opts, data, then) {
 				) : av || numAxisVals
 			);
 
-			axis.filter = fnOrSelf(axis.filter || (          sc.distr >= 3 && sc.log == 10 ? log10AxisValsFilt : sc.distr == 3 && sc.log == 2 ? log2AxisValsFilt : retArg1));
+			axis.filter = fnOrSelf(axis.filter || (          sc.distr >= 3 && sc.log == 10 ? log10AxisValsFilt : (sc.distr == 3 || sc.distr == 4) && sc.log == 2 ? log2AxisValsFilt : retArg1));
 
 			axis.font      = pxRatioFont(axis.font, pxRatio);
 			axis.labelFont = pxRatioFont(axis.labelFont, pxRatio);
@@ -1777,7 +1777,7 @@ export default function uPlot(opts, data, then) {
 			// invalidate paths of all series on changed scales
 			series.forEach((s, i) => {
 				if (mode == 2) {
-					if (i > 0 && changed.y)
+					if (i > 0 && s.facets.some(f => changed[f.scale]))
 						s._paths = null;
 				}
 				else {

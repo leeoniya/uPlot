@@ -154,6 +154,9 @@ function rangeLog(min, max, base, fullMags) {
 }
 
 function rangeAsinh(min, max, base, fullMags) {
+	if (min == 0 && max == 0)
+		return [-1, 1];
+
 	let minMax = rangeLog(min, max, base, fullMags);
 
 	if (min == 0)
@@ -1951,6 +1954,9 @@ function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 
 // this doesnt work for sin, which needs to come off from 0 independently in pos and neg dirs
 function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
+	if (!isFinite$1(scaleMin) || !isFinite$1(scaleMax) || scaleMin <= 0 || scaleMin > scaleMax)
+		return [];
+
 	const splits = [];
 
 	const logBase = self.scales[self.axes[axisIdx].scale].log;
@@ -1994,13 +2000,19 @@ function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace,
 }
 
 function asinhAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
+	if (!isFinite$1(scaleMin) || !isFinite$1(scaleMax) || scaleMin > scaleMax)
+		return [];
+
 	let sc = self.scales[self.axes[axisIdx].scale];
 
 	let linthresh = sc._asinh;
 
-	let posSplits = scaleMax > linthresh ? logAxisSplits(self, axisIdx, max(linthresh, scaleMin), scaleMax, foundIncr) : [linthresh];
+	if (scaleMin >= -linthresh && scaleMax <= linthresh)
+		return numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin);
+
+	let posSplits = scaleMax >= linthresh ? logAxisSplits(self, axisIdx, max(linthresh, scaleMin), scaleMax, foundIncr) : [];
 	let zero = scaleMax >= 0 && scaleMin <= 0 ? [0] : [];
-	let negSplits = scaleMin < -linthresh ? logAxisSplits(self, axisIdx, max(linthresh, -scaleMax), -scaleMin, foundIncr): [linthresh];
+	let negSplits = scaleMin <= -linthresh ? logAxisSplits(self, axisIdx, max(linthresh, -scaleMax), -scaleMin, foundIncr) : [];
 
 	return negSplits.reverse().map(v => -v).concat(zero, posSplits);
 }
@@ -2017,24 +2029,28 @@ function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let scaleKey = axis.scale;
 	let sc = self.scales[scaleKey];
 
+	if (sc.distr == 4 && sc.min >= -sc._asinh && sc.max <= sc._asinh)
+		return splits;
+
 //	if (sc.distr == 3 && sc.log == 2)
 //		return splits;
 
 	let valToPos = self.valToPos;
 
 	let minSpace = axis._space;
+	let linthresh = sc.distr == 4 ? sc._asinh : 1;
 
-	let _10 = valToPos(10, scaleKey);
+	let _10 = valToPos(10 * linthresh, scaleKey);
 
 	let re = (
-		valToPos(9, scaleKey) - _10 >= minSpace ? RE_ALL :
-		valToPos(7, scaleKey) - _10 >= minSpace ? RE_12357 :
-		valToPos(5, scaleKey) - _10 >= minSpace ? RE_125 :
+		abs(valToPos(9 * linthresh, scaleKey) - _10) >= minSpace ? RE_ALL :
+		abs(valToPos(7 * linthresh, scaleKey) - _10) >= minSpace ? RE_12357 :
+		abs(valToPos(5 * linthresh, scaleKey) - _10) >= minSpace ? RE_125 :
 		RE_1
 	);
 
 	if (re == RE_1) {
-		let magSpace = abs(valToPos(1, scaleKey) - _10);
+		let magSpace = abs(valToPos(linthresh, scaleKey) - _10);
 
 		if (magSpace < minSpace)
 			return _filt(splits.slice().reverse(), sc.distr, re, ceil(minSpace / magSpace)).reverse(); // max->min skip
@@ -2046,13 +2062,19 @@ function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 function log2AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
+	let sc = self.scales[scaleKey];
+
+	if (sc.distr == 4 && sc.min >= -sc._asinh && sc.max <= sc._asinh)
+		return splits;
+
 	let minSpace = axis._space;
 	let valToPos = self.valToPos;
+	let linthresh = sc.distr == 4 ? sc._asinh : 1;
 
-	let magSpace = abs(valToPos(1, scaleKey) - valToPos(2, scaleKey));
+	let magSpace = abs(valToPos(linthresh, scaleKey) - valToPos(2 * linthresh, scaleKey));
 
 	if (magSpace < minSpace)
-		return _filt(splits.slice().reverse(), 3, RE_ALL, ceil(minSpace / magSpace)).reverse(); // max->min skip
+		return _filt(splits.slice().reverse(), sc.distr, RE_ALL, ceil(minSpace / magSpace)).reverse(); // max->min skip
 
 	return splits;
 }
@@ -2168,33 +2190,41 @@ function clampScale(self, val, scaleMin, scaleMax, scaleKey) {
 		return self.posToVal(cssHgt + fromBtm, scaleKey);
 	}
 */
-	return scaleMin / 10;
+	return self.scales[scaleKey].distr == 4 ? 0 : scaleMin / 10;
 }
 
 function asinhScale(self, scaleKey) {
 	let { series, data, mode } = self;
+	let sc = self.scales[scaleKey];
+	let cutoff = sc.clamp(self, 0, sc.min, sc.max, scaleKey);
 	let linthresh = inf;
 
 	for (let i = 1; i < series.length; i++) {
 		let s = series[i];
-		let scale = mode == 1 ? s.scale : s.facets[1].scale;
 
-		if (scale == scaleKey) {
-			let yData = mode == 1 ? data[i] : data[i][1];
-			let [i0, i1] = mode == 1 ? series[0].idxs : [0, yData.length - 1];
+		if (!s.show || !s.scan)
+			continue;
 
-			for (let j = i0; j <= i1; j++) {
-				if (yData[j] != null) {
-					let val = abs(yData[j]);
+		for (let fi = 0; fi < (mode == 1 ? 1 : s.facets.length); fi++) {
+			let scale = mode == 1 ? s.scale : s.facets[fi].scale;
 
-					if (val < linthresh)
-						linthresh = val;
+			if (scale == scaleKey && (mode == 1 || s.facets[fi].scan)) {
+				let yData = mode == 1 ? data[i] : data[i][fi];
+				let [i0, i1] = mode == 1 ? series[0].idxs : [0, yData.length - 1];
+
+				for (let j = i0; j <= i1; j++) {
+					if (yData[j] != null) {
+						let val = abs(yData[j]);
+
+						if (val > cutoff && val < linthresh)
+							linthresh = val;
+					}
 				}
 			}
 		}
 	}
 
-	return linthresh == inf || linthresh == 0 ? 1 : linthresh;
+	return linthresh == inf ? 1 : linthresh;
 }
 
 const xScaleOpts = {
@@ -4341,7 +4371,6 @@ function uPlot(opts, data, then) {
 				let scan = sc.scan ?? (rangeIsArr && rn[0] != null && rn[1] != null ? false : null);
 				sc.scan = scan == null ? scanAuto : scan === true ? scanCached : scan === false ? scanNone : scan;
 
-				sc.clamp = fnOrSelf(sc.clamp || clampScale);
 
 				// caches for expensive ops like asinh() & log()
 				sc._min = sc._max = null;
@@ -4349,6 +4378,7 @@ function uPlot(opts, data, then) {
 				sc.valToPct = initValToPct(sc);
 			}
 
+			sc.clamp = fnOrSelf(sc.clamp ?? clampScale);
 			sc.asinh = fnOrSelf(sc.asinh);
 		}
 	}
@@ -5056,7 +5086,7 @@ function uPlot(opts, data, then) {
 				) : av || numAxisVals
 			);
 
-			axis.filter = fnOrSelf(axis.filter || (          sc.distr >= 3 && sc.log == 10 ? log10AxisValsFilt : sc.distr == 3 && sc.log == 2 ? log2AxisValsFilt : retArg1));
+			axis.filter = fnOrSelf(axis.filter || (          sc.distr >= 3 && sc.log == 10 ? log10AxisValsFilt : (sc.distr == 3 || sc.distr == 4) && sc.log == 2 ? log2AxisValsFilt : retArg1));
 
 			axis.font      = pxRatioFont(axis.font, pxRatio$1);
 			axis.labelFont = pxRatioFont(axis.labelFont, pxRatio$1);
@@ -5497,7 +5527,7 @@ function uPlot(opts, data, then) {
 			// invalidate paths of all series on changed scales
 			series.forEach((s, i) => {
 				if (mode == 2) {
-					if (i > 0 && changed.y)
+					if (i > 0 && s.facets.some(f => changed[f.scale]))
 						s._paths = null;
 				}
 				else {

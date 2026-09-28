@@ -141,6 +141,9 @@ export function rangeLog(min, max, base, fullMags) {
 }
 
 export function rangeAsinh(min, max, base, fullMags) {
+	if (min == 0 && max == 0)
+		return [-1, 1];
+
 	let minMax = rangeLog(min, max, base, fullMags);
 
 	if (min == 0)
