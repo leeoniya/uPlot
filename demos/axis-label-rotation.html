@@ -35,9 +35,13 @@
 			For vertical bars, the Y axis measures its formatted labels to set its width.
 			Grouped and value modes keep ticks at both Y bounds. Horizontal numeric ticks target 100px spacing.
 			Soft zero limits keep the bar baseline visible in both orientations. Percent mode uses bounds of −100%, 0%, or 100%.</p>
-			<p>Distribution sets the gaps between category groups and at the plot edges.
+			<p>Group distribution sets the gaps between category groups and at the plot edges.
 			Group width sets each group’s width as a percentage of the plot dimension divided by the category count.
-							Space around adds half a gap at each plot edge. Both controls keep the data unchanged.</p>
+			Space around adds half a gap at each plot edge.</p>
+			<p>Bar distribution sets the gaps between bars and at the edges inside each group.
+			Bar width sets each bar’s width as a percentage of the group width divided by the number of visible bars or stacks.
+			At 100%, bars fill the group without gaps. A smaller width makes the distribution modes visible.
+			Stacked series share one bar position. These controls keep the data unchanged.</p>
 			<p>Gray shows the space outside the plot. All labels stay visible; shallow angles can make neighboring labels overlap.</p>
 			<div class="controls">
 				<label><input id="horizontal" type="checkbox"> Horizontal bars</label>
@@ -51,7 +55,7 @@
 				<label><input id="show-values" type="checkbox"> Show values</label>
 			</div>
 			<div class="controls">
-				<label for="distribution">Distribution</label>
+				<label for="distribution">Group distribution</label>
 				<select id="distribution">
 					<option value="1">Space between</option>
 					<option value="2" selected>Space around</option>
@@ -60,6 +64,17 @@
 				<label for="group-width">Group width</label>
 				<input id="group-width" type="range" min="1" max="100" step="1" value="60">
 				<output id="group-width-value" for="group-width">60%</output>
+			</div>
+			<div class="controls">
+				<label for="bar-distribution">Bar distribution</label>
+				<select id="bar-distribution">
+					<option value="1">Space between</option>
+					<option value="2" selected>Space around</option>
+					<option value="3">Space evenly</option>
+				</select>
+				<label for="bar-width">Bar width</label>
+				<input id="bar-width" type="range" min="1" max="100" step="1" value="100">
+				<output id="bar-width-value" for="bar-width">100%</output>
 			</div>
 			<div class="controls">
 				<label for="rotation">Label rotation</label>

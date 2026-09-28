@@ -89,8 +89,15 @@ The demo sets percent bounds to `[0, 1]`, `[-1, 0]`, or `[-1, 1]`, according to 
 Grouped and value-stacked modes retain the tick-aware soft-zero range.
 
 `bars.size[0]` sets the initial group width as a fraction greater than `0` and at most `1` (default `0.6`).
-Each group occupies this fraction of the plot dimension divided by the category count. Visible slots share the group width equally.
-The same control applies to single-bar groups and stacked groups. At `1`, no distribution gaps remain.
+Each group occupies this fraction of the plot dimension divided by the category count.
+The same control applies to single-bar groups and stacked groups. At `1`, no gaps remain between category groups.
+
+`barDistribution` accepts the same three distribution constants and applies them inside each group.
+`barWidth` sets the fraction of the group width that all visible slots occupy together (default `1`).
+Each bar or stack has width `groupWidth * barWidth / slotCount` within its category.
+At `1`, the bars fill the group without gaps. Smaller fractions leave space for the selected distribution.
+With one slot, `SPACE_BETWEEN` places it at the group start. The other modes center it.
+Internal bar spacing does not change group centers, category ticks, or axis padding.
 The maximum and minimum widths in `bars.size` still apply to each bar.
 Explicit `bars.disp.x0` and `bars.disp.size` override the distribution.
 
@@ -99,7 +106,9 @@ Explicit `bars.disp.x0` and `bars.disp.size` override the distribution.
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `orientation` | `'vertical'` | Bar orientation: `'vertical'` or `'horizontal'`. |
-| `distribution` | `SPACE_AROUND` (`2`) | `SPACE_BETWEEN`, `SPACE_AROUND` (`2`), or `SPACE_EVENLY` (`3`) from `distr.js`. |
+| `distribution` | `SPACE_AROUND` (`2`) | Group distribution: `SPACE_BETWEEN` (`1`), `SPACE_AROUND` (`2`), or `SPACE_EVENLY` (`3`) from `distr.js`. |
+| `barDistribution` | `SPACE_AROUND` (`2`) | Distribution of bars or stacks inside each category group, using the same constants. |
+| `barWidth` | `1` | Fraction of each group occupied by its bars or stacks, greater than `0` and at most `1`. |
 | `showValues` | `false` | Draw automatically sized bar values and value-stack totals. |
 | `labelRotation` | `0` | A finite angle in degrees, from `-90` through `90`. Horizontal bars require `0`. |
 | `maxLabelLength` | `null` | No truncation, or an integer of at least `1`. The limit includes the ellipsis character (`…`). |
@@ -155,14 +164,17 @@ Hover bounds use CSS pixels and support both orientations and the chart's pixel 
 
 ## Demo controls
 
-The plugin owns label formatting, truncation, validation, rotation, layout, and measurement. It exposes six methods through `_controls`.
+The plugin owns label formatting, truncation, validation, rotation, layout, and measurement. It exposes demo methods through `_controls`.
 The demo imports `createBarControls()` from `demos/lib/barControls.js` to connect these methods to its HTML form.
 This helper reads form values, updates readouts, and attaches or removes event listeners. The plugin does not import or depend on it.
 
 - `_controls.setShowValues(show)` changes value-label visibility. The argument must be a boolean. A changed value redraws the chart without recalculating axes.
-- `_controls.setDistribution(mode)` changes the distribution mode.
+- `_controls.setDistribution(mode)` changes the group distribution mode.
 - `_controls.setGroupWidth(fraction)` changes the group width. The fraction must be greater than `0` and at most `1`.
   Both methods update the X range, bar paths, hover bounds, and label padding without replacing the chart or data.
+- `_controls.setBarDistribution(mode)` changes the distribution inside each group.
+- `_controls.setBarWidth(fraction)` changes the bar width. The fraction must be greater than `0` and at most `1`.
+  Both methods update bar paths, value labels, and hover bounds without recalculating axes or replacing the chart or data.
 - `_controls.setLabelRotation(degrees)` changes the angle. A new angle requests layout.
 - `_controls.setLabelTruncation(maxLength, position)` changes truncation. The optional `position` retains the current ellipsis position.
   A change to the displayed labels requests layout. `null` disables truncation.
@@ -173,7 +185,8 @@ The methods are available before chart initialization. After chart destruction, 
 The former top-level methods (`_setLabelRotation`, `_setLabelTruncation`, and `_getLabelMetrics`) now belong to `_controls`, without their individual `_` prefixes.
 Invalid orientations, distributions, widths, angles, lengths, or ellipsis positions throw `RangeError`.
 A non-boolean `showValues` or `setShowValues()` argument throws `TypeError`.
-The demo has a distribution selector, a group-width slider from 1% to 100%, and a value-label toggle.
+The demo has separate distribution selectors and width sliders for groups and bars, plus a value-label toggle.
+Both width sliders range from 1% to 100%. Bar width defaults to 100% to preserve the original gapless layout inside groups.
 Orientation and stack changes preserve these values.
 Data and size changes use the normal `u.setData(...)` and `u.setSize(...)` methods.
 

@@ -15,6 +15,8 @@ import { distr, SPACE_BETWEEN, SPACE_AROUND, SPACE_EVENLY } from './distr.js';
 export function barChartPlugin({
 	orientation = 'vertical',
 	distribution = SPACE_AROUND,
+	barDistribution = SPACE_AROUND,
+	barWidth: initialBarWidth = 1,
 	showValues = false,
 	labelRotation = 0,
 	maxLabelLength = null,
@@ -36,6 +38,8 @@ export function barChartPlugin({
 	const measureContexts = new Map();
 	let justify;
 	let groupWidth;
+	let barJustify;
+	let barWidthFactor;
 	let paths;
 	let stackGroups = [];
 	const barOffsets = [];
@@ -87,9 +91,10 @@ export function barChartPlugin({
 		if (slots.length == 0)
 			return;
 		distr(count, groupWidth, justify, null, (di, groupOff, groupSize) => {
-			const size = barWidth[0] = groupSize / slots.length;
-			for (let slot = 0; slot < slots.length; slot++)
-				slots[slot][di] = groupOff + size * slot;
+			distr(slots.length, barWidthFactor, barJustify, null, (slot, off, size) => {
+				barWidth[0] = groupSize * size;
+				slots[slot][di] = groupOff + groupSize * off;
+			});
 		});
 	}
 
@@ -116,6 +121,24 @@ export function barChartPlugin({
 		if (groupWidth != fraction) {
 			groupWidth = fraction;
 			refreshDistribution();
+		}
+	}
+
+	function setBarDistribution(value) {
+		if (![SPACE_BETWEEN, SPACE_AROUND, SPACE_EVENLY].includes(value))
+			throw new RangeError('Bar distribution must be SPACE_BETWEEN, SPACE_AROUND, or SPACE_EVENLY.');
+		if (barJustify != value) {
+			barJustify = value;
+			plot?.redraw(true);
+		}
+	}
+
+	function setBarWidth(fraction) {
+		if (!Number.isFinite(fraction) || fraction <= 0 || fraction > 1)
+			throw new RangeError('Bar width must be greater than 0 and at most 1.');
+		if (barWidthFactor != fraction) {
+			barWidthFactor = fraction;
+			plot?.redraw(true);
 		}
 	}
 
@@ -265,6 +288,8 @@ export function barChartPlugin({
 	setShowValues(showValues);
 	setDistribution(distribution);
 	setGroupWidth(bars.size?.[0] ?? .6);
+	setBarDistribution(barDistribution);
+	setBarWidth(initialBarWidth);
 	setLabelRotation(labelRotation);
 	setLabelTruncation(maxLabelLength, ellipsis);
 
@@ -273,6 +298,8 @@ export function barChartPlugin({
 			setShowValues,
 			setDistribution,
 			setGroupWidth,
+			setBarDistribution,
+			setBarWidth,
 			setLabelRotation,
 			setLabelTruncation,
 			getLabelMetrics: () => ({ label: measured[0]?.label ?? '', width: measured[0]?.width ?? 0 }),

@@ -707,27 +707,39 @@ describe('barChartPlugin', () => {
 	}
 
 	it('validates distribution and width and skips unchanged or destroyed layout requests', async () => {
-		for (const value of [0, 4, '2', null, NaN])
+		for (const value of [0, 4, '2', null, NaN]) {
 			assert.throws(() => barChartPlugin({ distribution: value }), RangeError);
-		for (const value of [0, -1, 1.1, '0.5', NaN, Infinity])
+			assert.throws(() => barChartPlugin({ barDistribution: value }), RangeError);
+		}
+		for (const value of [0, -1, 1.1, '0.5', NaN, Infinity]) {
 			assert.throws(() => barChartPlugin({ bars: { size: [value] } }), RangeError);
+			assert.throws(() => barChartPlugin({ barWidth: value }), RangeError);
+		}
 		const plugin = barChartPlugin();
 		plugin._controls.setDistribution(SPACE_AROUND);
 		plugin._controls.setGroupWidth(.4);
+		plugin._controls.setBarDistribution(SPACE_EVENLY);
+		plugin._controls.setBarWidth(.5);
 		const { u } = mount([['Only'], [5]], {}, {}, plugin);
 		await Promise.resolve();
 		assert.deepEqual([u.scales.x.min, u.scales.x.max], [-1, 1]);
-		assert.ok(Math.abs(rects(u, 1)[0][2] - u.bbox.width * .4) <= 1);
+		assert.ok(Math.abs(rects(u, 1)[0][2] - u.bbox.width * .2) <= 1);
 		let requests = 0;
 		u.setScale = u.redraw = () => requests++;
 		plugin._controls.setDistribution(SPACE_AROUND);
 		plugin._controls.setGroupWidth(.4);
+		plugin._controls.setBarDistribution(SPACE_EVENLY);
+		plugin._controls.setBarWidth(.5);
+		assert.throws(() => plugin._controls.setBarDistribution('2'), RangeError);
+		assert.throws(() => plugin._controls.setBarWidth(0), RangeError);
 		assert.throws(() => plugin._controls.setDistribution('2'), RangeError);
 		assert.throws(() => plugin._controls.setGroupWidth(0), RangeError);
 		assert.equal(requests, 0);
 		destroy(u);
 		plugin._controls.setDistribution(SPACE_EVENLY);
 		plugin._controls.setGroupWidth(.8);
+		plugin._controls.setBarDistribution(SPACE_BETWEEN);
+		plugin._controls.setBarWidth(.8);
 		assert.equal(requests, 0);
 	});
 
@@ -992,7 +1004,7 @@ describe('barChartPlugin', () => {
 		const options = Object.freeze({ labelRotation: 15, maxLabelLength: 4, ellipsis: 'end' });
 		const plugin = barChartPlugin(options);
 		const controls = plugin._controls;
-		const methods = ['setShowValues', 'setDistribution', 'setGroupWidth', 'setLabelRotation', 'setLabelTruncation', 'getLabelMetrics'];
+		const methods = ['setShowValues', 'setDistribution', 'setGroupWidth', 'setBarDistribution', 'setBarWidth', 'setLabelRotation', 'setLabelTruncation', 'getLabelMetrics'];
 		assert.deepEqual(Object.keys(plugin).sort(), ['_controls', 'hooks', 'opts']);
 		assert.deepEqual(Object.keys(controls).sort(), methods.slice().sort());
 		for (const method of methods)

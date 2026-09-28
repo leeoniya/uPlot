@@ -161,9 +161,11 @@ describe('random label rotation demo', () => {
 		const bars = [rects(1), rects(2)];
 		distr(u.data[0].length, input('group-width').valueAsNumber / 100, Number(input('distribution').value), null, (i, off, width) => {
 			for (let si = 0; si < bars.length; si++) {
-				const expectedPos = origin + (off + (slots == 1 ? 0 : si * width / slots)) * span;
-				assert.ok(Math.abs(bars[si][i][pos] - expectedPos) <= 1, `series ${si + 1}, group ${i}: distributed position`);
-				assert.ok(Math.abs(bars[si][i][size] - width / slots * span) <= 1, `series ${si + 1}, group ${i}: group width`);
+				distr(slots, input('bar-width').valueAsNumber / 100, Number(input('bar-distribution').value), slots == 1 ? 0 : si, (_, barOff, barSize) => {
+					const expectedPos = origin + (off + barOff * width) * span;
+					assert.ok(Math.abs(bars[si][i][pos] - expectedPos) <= 1, `series ${si + 1}, group ${i}: distributed position`);
+					assert.ok(Math.abs(bars[si][i][size] - barSize * width * span) <= 1, `series ${si + 1}, group ${i}: bar width`);
+				});
 			}
 		});
 		assertBars();
@@ -408,13 +410,19 @@ describe('random label rotation demo', () => {
 		assert.equal(measurements.x.length, u.data[0].length);
 	});
 
-	it('changes distribution and group width live without replacing the chart or data', async () => {
+	it('changes group and bar distribution and width live without replacing the chart or data', async () => {
 		assert.deepEqual(Array.from(input('distribution').options, option => [option.value, option.textContent]), [
 			['1', 'Space between'], ['2', 'Space around'], ['3', 'Space evenly'],
 		]);
 		assert.equal(input('distribution').value, '2');
 		assert.deepEqual(['min', 'max', 'step', 'value'].map(attr => input('group-width').getAttribute(attr)), ['1', '100', '1', '60']);
 		assert.equal(input('group-width-value').textContent, '60%');
+		assert.deepEqual(Array.from(input('bar-distribution').options, option => [option.value, option.textContent]), [
+			['1', 'Space between'], ['2', 'Space around'], ['3', 'Space evenly'],
+		]);
+		assert.equal(input('bar-distribution').value, '2');
+		assert.deepEqual(['min', 'max', 'step', 'value'].map(attr => input('bar-width').getAttribute(attr)), ['1', '100', '1', '100']);
+		assert.equal(input('bar-width-value').textContent, '100%');
 		assertGroupGeometry();
 		const data = u.data;
 		const original = structuredClone(data);
@@ -433,6 +441,8 @@ describe('random label rotation demo', () => {
 				for (const [id, value, event] of [
 					['distribution', 1, 'change'], ['distribution', 3, 'change'], ['distribution', 2, 'change'],
 					['group-width', 25, 'input'], ['group-width', 80, 'input'], ['group-width', 100, 'input'], ['group-width', 60, 'input'],
+					['bar-width', 50, 'input'], ['bar-distribution', 1, 'change'], ['bar-distribution', 3, 'change'],
+					['bar-distribution', 2, 'change'], ['bar-width', 100, 'input'],
 				]) {
 					const before = [rects(1), rects(2)];
 					await change(id, value, event);
@@ -441,8 +451,10 @@ describe('random label rotation demo', () => {
 					assert.equal(u.data, data);
 					assert.deepEqual(data, original, 'controls never mutate the data');
 					assert.deepEqual([u.width, u.height], dimensions);
-					assert.notDeepEqual([rects(1), rects(2)], before, `${id} changes rendered geometry`);
+					if (id != 'bar-distribution')
+						assert.notDeepEqual([rects(1), rects(2)], before, `${id} changes rendered geometry`);
 					assert.equal(input('group-width-value').textContent, `${input('group-width').value}%`);
+					assert.equal(input('bar-width-value').textContent, `${input('bar-width').value}%`);
 					assert.equal(measurements.x.length, measured, 'geometry changes reuse label measurements');
 					assertDataShape();
 					assertGroupGeometry();
@@ -530,12 +542,14 @@ describe('random label rotation demo', () => {
 		assertValueTexts(false);
 	});
 
-	it('preserves distribution and group width through orientation, stack, and percent rebuilds', async () => {
+	it('preserves group and bar distribution and width through orientation, stack, and percent rebuilds', async () => {
 		const data = u.data;
 		const original = structuredClone(data);
 		for (const [distribution, width] of [[2, 35], [3, 80]]) {
 			await change('distribution', distribution, 'change');
 			await change('group-width', width, 'input');
+			await change('bar-distribution', distribution, 'change');
+			await change('bar-width', 50, 'input');
 			for (const [id, checked] of [
 				['horizontal', true], ['stacked', true], ['percent', true], ['horizontal', false],
 				['percent', false], ['stacked', false],
@@ -550,6 +564,9 @@ describe('random label rotation demo', () => {
 				assert.equal(input('distribution').value, String(distribution));
 				assert.equal(input('group-width').valueAsNumber, width);
 				assert.equal(input('group-width-value').textContent, `${width}%`);
+				assert.equal(input('bar-distribution').value, String(distribution));
+				assert.equal(input('bar-width').valueAsNumber, 50);
+				assert.equal(input('bar-width-value').textContent, '50%');
 				assertDataShape();
 				assertGroupGeometry();
 				assertReadout();

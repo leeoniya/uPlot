@@ -17,6 +17,9 @@ export function createBarControls(root, { getPlot, getControls, rebuild, regener
 	const distribution = root.querySelector('#distribution');
 	const width = root.querySelector('#group-width');
 	const widthOutput = readoutNode('#group-width-value');
+	const barDistribution = root.querySelector('#bar-distribution');
+	const barWidth = root.querySelector('#bar-width');
+	const barWidthOutput = readoutNode('#bar-width-value');
 	const stats = readoutNode('#stats');
 	const randomize = root.querySelector('#randomize');
 	const truncate = root.querySelector('#truncate');
@@ -72,6 +75,15 @@ export function createBarControls(root, { getPlot, getControls, rebuild, regener
 		getControls().setGroupWidth(width.valueAsNumber / 100);
 	}
 
+	function setBarDistribution() {
+		getControls().setBarDistribution(Number(barDistribution.value));
+	}
+
+	function setBarWidth() {
+		barWidthOutput.data = `${barWidth.value}%`;
+		getControls().setBarWidth(barWidth.valueAsNumber / 100);
+	}
+
 	function setLabels() {
 		lengthOutput.data = maxLength.value;
 		maxLength.disabled = middle.disabled = !truncate.checked;
@@ -87,6 +99,8 @@ export function createBarControls(root, { getPlot, getControls, rebuild, regener
 		[showValues, 'change', setShowValues],
 		[distribution, 'change', setDistribution],
 		[width, 'input', setGroupWidth],
+		[barDistribution, 'change', setBarDistribution],
+		[barWidth, 'input', setBarWidth],
 		[randomize, 'click', regenerate],
 		[truncate, 'change', setLabels],
 		[maxLength, 'input', setLabels],
@@ -98,6 +112,7 @@ export function createBarControls(root, { getPlot, getControls, rebuild, regener
 	percent.disabled = !stacked.checked;
 	heightOutput.data = `${height.value}px`;
 	widthOutput.data = `${width.value}%`;
+	barWidthOutput.data = `${barWidth.value}%`;
 	lengthOutput.data = maxLength.value;
 	maxLength.disabled = middle.disabled = !truncate.checked;
 
@@ -110,6 +125,8 @@ export function createBarControls(root, { getPlot, getControls, rebuild, regener
 				orientation: horizontal.checked ? 'horizontal' : 'vertical',
 				showValues: showValues.checked,
 				distribution: Number(distribution.value),
+				barDistribution: Number(barDistribution.value),
+				barWidth: barWidth.valueAsNumber / 100,
 				bars: { size: [width.valueAsNumber / 100] },
 				labelRotation: horizontal.checked ? 0 : slider.valueAsNumber,
 				maxLabelLength: truncate.checked ? maxLength.valueAsNumber : null,
