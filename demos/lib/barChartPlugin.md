@@ -153,8 +153,12 @@ The lookup uses these offsets to derive the series index and subtracts the serie
 Skipped bars within a series use zero-sized points at `(0, 0)` to preserve data indices. The search filter excludes these points.
 
 A capturing `mouseenter` listener on `.u-over` calls `index.finish()` before non-capturing hover handlers.
-Charts without mouse entry do not finish their index. Redraws replace the index and finish it only while the pointer remains inside.
-Each index finishes at most once. The plugin removes its listeners on chart destruction.
+Charts without mouse entry do not finish their index. Each rebuild finishes at most once, and only while the pointer remains inside.
+The plugin removes its listeners on chart destruction.
+
+When the indexed item count stays the same, redraws reuse the index through `reset()`.
+This retains the index buffers and Hilbert scratch storage.
+If the count changes, the plugin creates a new index or removes it for an empty chart.
 
 Each chart reuses one search filter to select the last-drawn bar under the pointer.
 After the search, the helper resolves the series and converts the winning bounds to CSS pixels once.

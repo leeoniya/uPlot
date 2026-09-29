@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Sparse Heatmap</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="../src/uPlot.css">
+		<style>
+			body { margin: 24px; color: #b7bdc5; background: #181b1f; font: 14px system-ui, sans-serif; }
+			h1 { font-size: 20px; }
+			.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
+			#height { width: min(400px, 50vw); }
+			#height-value { min-width: 6ch; }
+			#plot { width: 100%; }
+			.u-cursor-pt { border-radius: 0; }
+			#legend { width: 260px; margin: 12px 0 12px 85px; }
+			#color-ramp { height: 10px; }
+			#color-labels { display: flex; justify-content: space-between; margin-top: 4px; }
+			#hover { display: block; min-height: 2em; font: 13px monospace; }
+		</style>
+	</head>
+	<body>
+		<main id="demo">
+			<h1>Sparse heatmap · mode: 2</h1>
+			<p id="status">Loading heatmap-cells-exemplars.json…</p>
+			<div class="controls">
+				<label for="height">Chart height</label>
+				<input id="height" type="range" min="200" max="1200" step="10" value="560" disabled>
+				<output id="height-value" for="height">560px</output>
+				<button id="set-data" type="button" disabled>setData() — same data</button>
+			</div>
+			<div id="plot"></div>
+			<div id="legend">
+				<div id="color-ramp"></div>
+				<div id="color-labels"><span id="color-min"></span><span>Count · √ scale</span><span id="color-max"></span></div>
+			</div>
+			<output id="hover"></output>
+		</main>
+		<script type="module">
+			import { createDemo } from './heatmap-sparse.js';
+
+			try {
+				const response = await fetch('./data/heatmap-cells-exemplars.json');
+				if (!response.ok)
+					throw new Error(`Data request failed: HTTP ${response.status}`);
+				createDemo(document.querySelector('#demo'), await response.json());
+			}
+			catch (error) {
+				document.querySelector('#status').textContent = `Cannot load heatmap: ${error.message}. Serve the repository root over HTTP.`;
+				console.error(error);
+			}
+		</script>
+	</body>
+</html>

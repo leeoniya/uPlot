@@ -110,7 +110,12 @@ export function createBarHover() {
 					series._paths = null;
 				}
 			}
-			index = numItems > 0 ? new Flatbush(numItems) : null;
+			if (numItems == 0)
+				index = null;
+			else if (index != null && index.numItems == numItems)
+				index.reset();
+			else
+				index = new Flatbush(numItems);
 			hovered.dataIdx = null;
 			indexFinished = false;
 			nextItem = 0;

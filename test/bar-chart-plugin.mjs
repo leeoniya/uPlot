@@ -222,21 +222,30 @@ describe('barChartPlugin', () => {
 	});
 
 	describe('bar hover', () => {
-		let originalFinish, originalSearch, finished, searches, searchFilters;
+		let originalFinish, originalSearch, originalReset, finished, searches, searchFilters, packed, resets;
 
 		beforeEach(() => {
 			finished = [];
 			searches = [];
 			searchFilters = [];
+			packed = new Set();
+			resets = [];
+			originalReset = Flatbush.prototype.reset;
+			Flatbush.prototype.reset = function() {
+				packed.delete(this);
+				resets.push(this);
+				return originalReset.call(this);
+			};
 			originalFinish = Flatbush.prototype.finish;
 			originalSearch = Flatbush.prototype.search;
 			Flatbush.prototype.finish = function() {
-				assert.ok(!finished.includes(this), 'finish runs only once per index');
+				assert.ok(!packed.has(this), 'finish runs only once per index rebuild');
+				packed.add(this);
 				finished.push(this);
 				return originalFinish.call(this);
 			};
 			Flatbush.prototype.search = function(...args) {
-				assert.ok(finished.includes(this), 'search never reads an unfinished index');
+				assert.ok(packed.has(this), 'search never reads an unfinished index');
 				assert.equal(typeof args[4], 'function', 'hover uses the search filter');
 				searchFilters.push(args[4]);
 				const result = originalSearch.apply(this, args);
@@ -249,6 +258,7 @@ describe('barChartPlugin', () => {
 		afterEach(() => {
 			Flatbush.prototype.finish = originalFinish;
 			Flatbush.prototype.search = originalSearch;
+			Flatbush.prototype.reset = originalReset;
 		});
 
 		const overlapping = { bars: { disp: {
@@ -541,6 +551,43 @@ describe('barChartPlugin', () => {
 			assert.deepEqual(u.cursor.idxs, [0, null, 0, null]);
 		});
 
+		for (const numItems of [2, 40]) {
+			it(`reuses a ${numItems}-item index across redraws and same-size data updates`, async () => {
+				const xs = Array.from({ length: numItems }, (_, i) => `Item ${i}`);
+				const { u } = mount([xs, xs.map((_, i) => i + 1)]);
+				await Promise.resolve();
+				enter(u);
+				const index = finished.at(-1);
+				for (const change of [
+					() => u.redraw(false),
+					() => u.setData([xs, xs.map((_, i) => i % 2 ? -i : null)]),
+					() => u.setSize({ width: 900, height: 500 }),
+					() => u.setPxRatio(2),
+				]) {
+					change();
+					await Promise.resolve();
+					assert.equal(resets.at(-1), index);
+					assert.equal(finished.at(-1), index);
+					hoverRect(u, 1, 0);
+					assert.equal(u.cursor.idxs[1], u.data[1][0] == null ? 1 : 0);
+				}
+
+				leave(u);
+				const count = finished.length;
+				for (const width of [800, 700, 600]) {
+					u.setSize({ width, height: 500 });
+					await Promise.resolve();
+					assert.equal(resets.at(-1), index);
+					assert.equal(finished.length, count);
+				}
+				enter(u);
+				assert.equal(finished.length, count + 1);
+				assert.equal(finished.at(-1), index);
+				hoverRect(u, 1, 0);
+				assert.equal(u.cursor.idxs[1], 1);
+			});
+		}
+
 		it('rebuilds on redraw, data, size, and DPR changes but defers finish outside the plot', async () => {
 			const { u } = mount([['A', 'B'], [4, 2]]);
 			await Promise.resolve();
@@ -552,9 +599,14 @@ describe('barChartPlugin', () => {
 				() => u.setPxRatio(2),
 			]) {
 				const count = finished.length;
+				const previous = finished.at(-1);
 				change();
 				await Promise.resolve();
 				assert.equal(finished.length, count + 1);
+				if (previous.numItems == u.data[0].length)
+					assert.equal(finished.at(-1), previous);
+				else
+					assert.notEqual(finished.at(-1), previous, 'a different item count needs a new index');
 				hoverRect(u, 1, 0);
 				assert.equal(u.cursor.idxs[1], u.data[1][0] == null ? 1 : 0);
 			}
