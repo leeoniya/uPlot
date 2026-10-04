@@ -42,15 +42,17 @@ export function createDemo(root, dashboard) {
 	}
 	const countScale = (colorLookup.length - 1) / (maxCount - minCount || 1);
 	const xRange = [xs[0] - xSize, xs.at(-1)];
-	const yRange = [2 ** Math.floor(Math.log2(minY)), 2 ** Math.ceil(Math.log2(maxY))];
+	const logYRange = [2 ** Math.floor(Math.log2(minY)), 2 ** Math.ceil(Math.log2(maxY))];
+	const zeroYRange = [0, maxY];
+	const data = [null, [xs, yMin, yMax, counts]];
 	const format = value => Number(value.toPrecision(5)).toString();
 	const time = seconds => new Date(seconds * 1000).toISOString().slice(11, 19);
 	const readout = root.querySelector('#hover');
 	const readoutText = readout.firstChild ?? readout.appendChild(document.createTextNode(''));
 	let hoverIdx;
-	const hint = 'Hover a cell for its bounds and count. Drag to zoom; double-click to reset.';
-
-	root.querySelector('#status').textContent = `${counts.length.toLocaleString()} cells · ${xCount} one-minute intervals · log₂ Y · no densification or exemplars`;
+	const hint = 'Hover a cell for its bounds and count. Drag to zoom; double-click to reset. Changing Y scale resets zoom.';
+	const status = root.querySelector('#status');
+	readoutText.data = hint;
 	root.querySelector('#color-ramp').style.background = `linear-gradient(to right, ${palette.join(',')})`;
 	root.querySelector('#color-min').textContent = format(minCount);
 	root.querySelector('#color-max').textContent = format(maxCount);
@@ -59,52 +61,78 @@ export function createDemo(root, dashboard) {
 	const height = root.querySelector('#height');
 	const heightValue = root.querySelector('#height-value').firstChild;
 	const setDataButton = root.querySelector('#set-data');
+	const yScale = root.querySelector('#y-scale');
 	heightValue.data = `${height.value}px`;
-	const plot = new uPlot({
-		mode: 2,
-		width: host.clientWidth || 1000,
-		height: height.valueAsNumber,
-		legend: { show: false },
-		cursor: { drag: { x: true, y: true } },
-		scales: {
-			x: { range: () => xRange },
-			y: { distr: 3, log: 2, range: () => yRange },
-		},
-		axes: [
-			{ stroke: '#b7bdc5', grid: { stroke: '#252a30' }, ticks: { stroke: '#343a42' }, values: (u, splits) => splits.map(v => v == null ? null : time(v).slice(0, 5)) },
-			{ stroke: '#b7bdc5', grid: { stroke: '#252a30' }, ticks: { stroke: '#343a42' }, size: 85, values: (u, splits) => splits.map(v => v == null ? null : format(v)) },
-		],
-		series: [{}, { label: 'Heatmap' }],
-		plugins: [heatmapPlugin({
-			xSize,
-			colors: palette,
-			colorIdx: count => colorLookup[Math.floor((count - minCount) * countScale)],
-			onHover(u, i) {
-				if (i === hoverIdx)
-					return;
-				hoverIdx = i;
-				readoutText.data = i == null ? hint : `${time(xs[i] - xSize)}–${time(xs[i])} UTC · Y: ${format(yMin[i])}–${format(yMax[i])} s · Count: ${format(counts[i])}`;
+
+	function createPlot(width) {
+		const mode = yScale.value;
+		const yRange = mode == 'log' ? logYRange : zeroYRange;
+		const scaleLabel = mode == 'log' ? 'log₂' : mode;
+		let asinhThreshold = 1;
+		status.textContent = `${counts.length.toLocaleString()} cells · ${xCount} one-minute intervals · ${scaleLabel} Y · uniform-grid hover · no densification or exemplars`;
+
+		return new uPlot({
+			mode: 2,
+			width,
+			height: height.valueAsNumber,
+			legend: { show: false },
+			cursor: { drag: { x: true, y: true } },
+			scales: {
+				// Ranges are precomputed; preparation refreshes the threshold without a core scan.
+				x: { scan: false, range: () => xRange },
+				y: { scan: false, distr: mode == 'log' ? 3 : mode == 'asinh' ? 4 : 1, log: 2, asinh: () => asinhThreshold, range: () => yRange },
 			},
-		})],
-	}, [null, [xs, yMin, yMax, counts]], host);
+			axes: [
+				{ stroke: '#b7bdc5', grid: { stroke: '#252a30' }, ticks: { stroke: '#343a42' }, values: (u, splits) => splits.map(v => v == null ? null : time(v).slice(0, 5)) },
+				{ stroke: '#b7bdc5', grid: { stroke: '#252a30' }, ticks: { stroke: '#343a42' }, size: 85, values: (u, splits) => splits.map(v => v == null ? null : format(v)) },
+			],
+			series: [{}, { label: 'Heatmap' }],
+			plugins: [heatmapPlugin({
+				xSize,
+				// Bucket progression stays geometric even when the display scale changes.
+				grid: { x: { distr: 1 }, y: { distr: 3 } },
+				colors: palette,
+				colorIdx: count => colorLookup[Math.floor((count - minCount) * countScale)],
+				// All demo buckets are positive, so their minimum edge is the adaptive threshold.
+				onPrepare: (u, minY) => { asinhThreshold = minY ?? 1; },
+				onHover(u, i) {
+					if (i === hoverIdx)
+						return;
+					hoverIdx = i;
+					readoutText.data = i == null ? hint : `${time(xs[i] - xSize)}–${time(xs[i])} UTC · Y: ${format(yMin[i])}–${format(yMax[i])} s · Count: ${format(counts[i])}`;
+				},
+			})],
+		}, data, host);
+	}
+
+	let plot = createPlot(host.clientWidth || 1000);
 
 	const resize = () => plot.setSize({ width: host.clientWidth || 1000, height: height.valueAsNumber });
 	const setHeight = () => {
 		heightValue.data = `${height.value}px`;
 		resize();
 	};
-	const setData = () => plot.setData(plot.data);
+	const setData = () => plot.setData(data);
+	const setYScale = () => {
+		const width = plot.width;
+		plot.destroy();
+		hoverIdx = undefined;
+		readoutText.data = hint;
+		plot = createPlot(width);
+	};
 	height.addEventListener('input', setHeight);
 	setDataButton.addEventListener('click', setData);
+	yScale.addEventListener('change', setYScale);
 	window.addEventListener('resize', resize);
-	height.disabled = setDataButton.disabled = false;
+	height.disabled = setDataButton.disabled = yScale.disabled = false;
 	return {
-		plot,
+		get plot() { return plot; },
 		destroy() {
 			height.removeEventListener('input', setHeight);
 			setDataButton.removeEventListener('click', setData);
+			yScale.removeEventListener('change', setYScale);
 			window.removeEventListener('resize', resize);
-			height.disabled = setDataButton.disabled = true;
+			height.disabled = setDataButton.disabled = yScale.disabled = true;
 			plot.destroy();
 		},
 	};

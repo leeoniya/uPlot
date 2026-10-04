@@ -6,35 +6,119 @@ import { heatmapPlugin } from '../demos/lib/heatmapPlugin.js';
 import { createDemo } from '../demos/heatmap-sparse.js';
 import Flatbush from '../demos/lib/flatbush.js';
 
-const data = [null, [
-	[2, 2, 2, 5, 7, 8, 9, 10],
-	[1, 10, 100, 100, 10, 10, 10, 10],
-	[5, 20, 200, 200, 20, 20, 20, 20],
-	[0, 3, NaN, 5, -1, Infinity, null, undefined],
-]];
 const empty = () => [null, [[], [], [], []]];
 const enter = u => u.over.dispatchEvent(new MouseEvent('mouseenter'));
 const leave = u => u.over.dispatchEvent(new MouseEvent('mouseleave'));
 const lastDraw = u => u.ctx.log.slice(u.ctx.log.findLastIndex(e => e[0] === 'clearRect'));
 const fills = u => lastDraw(u).filter(e => e[0] === 'fill').flatMap(e => e.slice(1))
 	.map(args => args[0]).filter(path => path?.log != null);
-const rects = u => fills(u).flatMap(path => path.log.filter(e => e[0] === 'rect').flatMap(e => e.slice(1)));
+const pathRects = path => path.log.flatMap(e => e[0] === 'rect' ? e.slice(1) : []);
+const rects = u => fills(u).flatMap(pathRects);
 
-function bounds(u, idx, canvas = false, xSize = 1) {
-	const [x, lo, hi] = u.data[1];
-	const left = u.valToPos(x[idx] - xSize, 'x', canvas);
-	const top = u.valToPos(hi[idx], 'y', canvas);
-	return [left, top, u.valToPos(x[idx], 'x', canvas) - left, u.valToPos(lo[idx], 'y', canvas) - top];
+const backward = ({ distr, asinh = 1 }, v) => distr == 3 ? Math.exp(v) : distr == 4 ? Math.sinh(v) * asinh : v;
+
+
+// Every fixture is sorted by column, then row. Missing buckets do not change the progression.
+function fixture({ x = { distr: 1 }, y = { distr: 3 }, nx = 7, ny = 6,
+	xOrigin = 0, yOrigin = 0, xSize = 1, ySize = Math.log(2),
+	include = (col, row) => col != 2 && row != 2 && (col + row) % 4 != 1,
+	count = (col, row, id) => id + 1 } = {}) {
+	const xEdges = Array.from({ length: nx + 1 }, (_, i) => backward(x, xOrigin + i * xSize));
+	const yEdges = Array.from({ length: ny + 1 }, (_, i) => backward(y, yOrigin + i * ySize));
+	const data = empty(), cells = [];
+	for (let col = 0; col < nx; col++) {
+		for (let row = 0; row < ny; row++) {
+			if (!include(col, row))
+				continue;
+			const id = cells.length;
+			cells.push({ col, row });
+			const value = count(col, row, id);
+			assert.ok(value > 0 && Number.isFinite(value), 'fixtures must omit empty buckets and supply finite positive counts');
+			[xEdges[col + 1], yEdges[row], yEdges[row + 1], value]
+				.forEach((v, facet) => data[1][facet].push(v));
+		}
+	}
+	return { data, cells, xEdges, yEdges, xSize, grid: { x, y } };
 }
 
-function close(actual, expected, tolerance = 1) {
+function close(actual, expected, tolerance = 1e-9) {
 	assert.equal(actual.length, expected.length);
 	actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= tolerance, `${actual} != ${expected}`));
 }
 
-function hover(u, x, y, idx) {
+function projectedRect(u, x0, x1, y0, y1) {
+	const { left, top, width, height } = u.bbox;
+	const px = v => Math.max(left, Math.min(left + width, Math.round(u.valToPos(v, 'x', true))));
+	const py = v => Math.max(top, Math.min(top + height, Math.round(u.valToPos(v, 'y', true))));
+	return [px(x0), py(y1), px(x1) - px(x0), py(y0) - py(y1)];
+}
+
+// The oracle uses the fixture's explicit edges, not plugin row IDs, paths, or lookup results.
+function oracleRects(u, f) {
+	return f.cells.map(({ col, row }, id) => ({ id,
+		rect: projectedRect(u, f.xEdges[col], f.xEdges[col + 1], f.yEdges[row], f.yEdges[row + 1]),
+	})).filter(({ rect: [, , w, h] }) => w > 0 && h > 0);
+}
+
+function oracleHit(boxes, px, py) {
+	let hit = null;
+	for (const { id, rect: [x, y, w, h] } of boxes) {
+		if (px >= x && px <= x + w && py >= y && py <= y + h)
+			hit = id;
+	}
+	return hit;
+}
+
+function pixelQuery(u, px, py, expected) {
+	u.cursor.left = (px - u.bbox.left) / u.pxRatio;
+	u.cursor.top = (py - u.bbox.top) / u.pxRatio;
+	assert.equal(u.cursor.dataIdx(u, 1), expected, `canvas (${px}, ${py})`);
+}
+
+function checkOracle(u, f) {
+	const boxes = oracleRects(u, f);
+	assert.deepEqual(rects(u), boxes.map(b => b.rect), 'one rounded, clipped rectangle per visible valid source cell');
+	const probes = [];
+	for (const { rect: [x, y, w, h] } of boxes) {
+		probes.push([x + w / 2, y + h / 2]);
+		for (const delta of [-1e-7, 0, 1e-7]) {
+			probes.push([x + delta, y + h / 2], [x + w + delta, y + h / 2],
+				[x + w / 2, y + delta], [x + w / 2, y + h + delta]);
+		}
+		probes.push([x, y], [x + w, y], [x, y + h], [x + w, y + h]);
+	}
+	// Sample gaps and offscreen regions as well as occupied edges.
+	for (let ix = -1; ix <= 18; ix++) {
+		for (let iy = -1; iy <= 14; iy++)
+			probes.push([u.bbox.left + ix * u.bbox.width / 17, u.bbox.top + iy * u.bbox.height / 13]);
+	}
+	for (const [px, py] of probes) {
+		// Match the CSS-to-canvas round trip, including fractional DPR.
+		const x = u.bbox.left + (px - u.bbox.left) / u.pxRatio * u.pxRatio;
+		const y = u.bbox.top + (py - u.bbox.top) / u.pxRatio * u.pxRatio;
+		const expected = oracleHit(boxes, x, y);
+		pixelQuery(u, px, py, expected);
+		const box = u.cursor.points.bbox(u, 1);
+		if (expected == null)
+			assert.deepEqual(box, { left: -10, top: -10, width: 0, height: 0 });
+		else {
+			const [l, t, w, h] = boxes.find(b => b.id == expected).rect;
+			assert.deepEqual(box, { left: (l - u.bbox.left) / u.pxRatio, top: (t - u.bbox.top) / u.pxRatio,
+				width: w / u.pxRatio, height: h / u.pxRatio });
+		}
+	}
+}
+
+function hover(u, x, y, id) {
 	u.setCursor({ left: u.valToPos(x, 'x'), top: u.valToPos(y, 'y') });
-	assert.equal(u.cursor.dataIdx(u, 1), idx);
+	assert.equal(u.cursor.dataIdx(u, 1), id);
+}
+
+function bounds(u, idx, canvas = false, xSize = 1) {
+	const [x, lo, hi] = u.data[1];
+	const rect = projectedRect(u, x[idx] - xSize, x[idx], lo[idx], hi[idx]);
+	return canvas ? rect : [(rect[0] - u.bbox.left) / u.pxRatio, (rect[1] - u.bbox.top) / u.pxRatio,
+		rect[2] / u.pxRatio, rect[3] / u.pxRatio];
 }
 
 function createDemoRoot() {
@@ -45,670 +129,726 @@ function createDemoRoot() {
 	return root;
 }
 
-describe('heatmapPlugin', () => {
-	let plots, finished, searches, packed, originalFinish, originalSearch, originalReset;
-	beforeEach(() => {
-		plots = [];
-		finished = [];
-		searches = [];
-		packed = new Set();
-		originalReset = Flatbush.prototype.reset;
-		Flatbush.prototype.reset = function() {
-			packed.delete(this);
-			return originalReset.call(this);
-		};
-		originalFinish = Flatbush.prototype.finish;
-		originalSearch = Flatbush.prototype.search;
-		Flatbush.prototype.finish = function() {
-			assert.ok(!packed.has(this), 'finish runs only once per index rebuild');
-			packed.add(this);
-			finished.push(this);
-			return originalFinish.call(this);
-		};
-		Flatbush.prototype.search = function(...args) {
-			assert.ok(packed.has(this), 'search never reads an unfinished index');
-			searches.push(this);
-			return originalSearch.apply(this, args);
-		};
-	});
-	afterEach(() => {
-		plots.forEach(u => u.destroy());
-		Flatbush.prototype.finish = originalFinish;
-		Flatbush.prototype.search = originalSearch;
-		Flatbush.prototype.reset = originalReset;
-	});
+function dashboardFor(values) {
+	const frame = { schema: { meta: { type: 'heatmap-cells' },
+		fields: ['xMax', 'yMin', 'yMax', 'count'].map(name => ({ name, config: { interval: 60000 } })) },
+		data: { values } };
+	return { panels: [{ targets: [{ rawFrameContent: JSON.stringify([frame]) }] }] };
+}
+const realDashboard = () => JSON.parse(readFileSync(new URL('../demos/data/heatmap-cells-exemplars.json', import.meta.url), 'utf8'));
 
-	async function mount(values = data, pxRatio = 1, callbacks = {}) {
+// Isolate plugin work from uPlot's own scans, projections, cursor updates, and allocations.
+function isolated(options, data = empty(), over = document.createElement('div')) {
+	const plugin = heatmapPlugin(options);
+	const drawn = [], projected = { x: [], y: [] }, inverted = { x: [], y: [] };
+	const u = { data, pxRatio: 1, bbox: { left: 0, top: 0, width: 100, height: 100 },
+		series: [{}, { show: true }], over, cursor: { left: -10, top: -10 },
+		ctx: { save() {}, restore() {}, fill(path) { drawn.push(path); } },
+		valToPos(value, key) { projected[key].push(value); return key == 'x' ? value : 100 - value; },
+		posToVal(value, key) { inverted[key].push(value); return key == 'x' ? value : 100 - value; },
+		setCursor() {},
+	};
+	const opts = { series: [{}, {}] };
+	plugin.opts(u, opts);
+	Object.assign(u.cursor, opts.cursor);
+	plugin.hooks.init(u);
+	return { u, plugin, drawn, projected, inverted };
+}
+
+function trackTyped(run) {
+	const allocations = [];
+	const names = ['Int8Array', 'Uint8Array', 'Uint8ClampedArray', 'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array', 'Float32Array', 'Float64Array'];
+	const constructors = names.map(name => globalThis[name]);
+	try {
+		names.forEach((name, i) => {
+			globalThis[name] = class extends constructors[i] {
+				constructor(...args) { super(...args); allocations.push([name, this]); }
+				set() { throw new Error('Preparation must not copy old typed-buffer entries'); }
+			};
+		});
+		run(allocations);
+	}
+	finally { names.forEach((name, i) => { globalThis[name] = constructors[i]; }); }
+	return allocations;
+}
+
+function withoutIndexes(run, allowMaps = false) {
+	const MapClass = globalThis.Map;
+	const methods = ['get', 'set', 'has'];
+	const originals = methods.map(name => MapClass.prototype[name]);
+	const descriptor = Object.getOwnPropertyDescriptor(Flatbush.prototype, 'numItems');
+	const fail = () => { throw new Error('Heatmap must not create or use Map/Flatbush indexes'); };
+	try {
+		if (!allowMaps) {
+			globalThis.Map = class { constructor() { fail(); } };
+			methods.forEach(name => { MapClass.prototype[name] = fail; });
+		}
+		// Flatbush's constructor assigns numItems before allocating its packed buffers.
+		Object.defineProperty(Flatbush.prototype, 'numItems', { configurable: true, set: fail });
+		run();
+	}
+	finally {
+		globalThis.Map = MapClass;
+		methods.forEach((name, i) => { MapClass.prototype[name] = originals[i]; });
+		if (descriptor) Object.defineProperty(Flatbush.prototype, 'numItems', descriptor);
+		else delete Flatbush.prototype.numItems;
+	}
+}
+
+describe('heatmapPlugin uniform grid', () => {
+	let plots;
+	beforeEach(() => { plots = []; });
+	afterEach(() => { plots.forEach(u => u.destroy()); });
+
+	async function mount(f = fixture(), pxRatio = 1, options = {}, display = {}) {
 		const u = new uPlot({
 			mode: 2, width: 600, height: 360, pxRatio,
-			padding: [20, 30, 20, 30],
-			axes: [{ show: false }, { show: false }],
-			legend: { show: false },
+			padding: [20, 30, 20, 30], axes: [{ show: false }, { show: false }], legend: { show: false },
 			series: [{}, {}],
 			scales: {
-				x: { time: false, ori: 0, dir: 1, auto: false, min: 0, max: 12 },
-				y: { distr: 3, ori: 1, dir: 1, auto: false, min: 1, max: 1000 },
+				x: { time: false, auto: false, min: f.xEdges[0], max: f.xEdges.at(-1), ...f.grid.x, ...display.x },
+				y: { auto: false, min: f.yEdges[0], max: f.yEdges.at(-1), ...f.grid.y, ...display.y },
 			},
-			plugins: [heatmapPlugin({ xSize: 1, ...callbacks })],
-		}, values, document.body);
+			plugins: [heatmapPlugin({ xSize: f.xSize, grid: f.grid, ...options })],
+		}, f.data, document.body);
 		plots.push(u);
 		await Promise.resolve();
 		return u;
 	}
 
-	it('configures facets and draws only positive finite counts at explicit log-scale bounds', async () => {
-		const counts = [];
-		const u = await mount(data, 1, {
-			colors: ['rgb(3, 0, 0)', 'rgb(5, 0, 0)'],
-			colorIdx: count => { counts.push(count); return count == 3 ? 0 : 1; },
+	for (const xd of [1, 3, 4]) {
+		for (const yd of [1, 3, 4]) {
+			for (const dpr of [1, 1.25, 2]) {
+				it(`matches the sparse pixel oracle: X ${xd}, Y ${yd}, DPR ${dpr}`, async () => {
+					const f = fixture({ x: { distr: xd, asinh: 2.75 }, y: { distr: yd, asinh: .35 },
+						xOrigin: xd == 3 ? -.7 : -1.5, xSize: .5, yOrigin: yd == 3 ? -1 : -1.5, ySize: .5,
+						count: (col, row, id) => [Number.MIN_VALUE, .125, 1, 2, Number.MAX_VALUE][id % 5] });
+					const u = await mount(f, dpr);
+					assert.ok(oracleRects(u, f).length > 0);
+					checkOracle(u, f); // No mouseenter is needed to make lookup ready.
+					u.setSize({ width: 317, height: 213 });
+					u.setScale('x', { min: backward(f.grid.x, (xd == 3 ? -.7 : -1.5) + .17), max: f.xEdges[5] });
+					u.setScale('y', { min: f.yEdges[1], max: backward(f.grid.y, (yd == 3 ? -1 : -1.5) + 2.37) });
+					await Promise.resolve();
+					checkOracle(u, f);
+				});
+			}
+		}
+	}
+
+	for (const distr of [1, 3, 4]) {
+		it(`keeps a positive log Y grid independent of display distribution ${distr}`, async () => {
+			const f = fixture({ yOrigin: -5, ySize: .7 });
+			const u = await mount(f, 1.25, { grid: undefined }, { y: { distr, asinh: .013 } });
+			checkOracle(u, f);
+			if (distr == 4) assert.equal(u.scales.y._asinh, .013);
+			u.setScale('y', { min: f.yEdges[1], max: f.yEdges[5] });
+			await Promise.resolve();
+			checkOracle(u, f);
+			if (distr == 4) assert.equal(u.scales.y._asinh, .013);
 		});
-		assert.equal(u.mode, 2);
+	}
+
+	for (const distr of [3, 4]) {
+		it(`uses transformed X widths with grid ${distr} on a linear display`, async () => {
+			const f = fixture({ x: { distr, asinh: 3.7 }, xOrigin: -1.2, xSize: .4,
+				y: { distr: 1 }, yOrigin: -3, ySize: 1 });
+			const u = await mount(f, 2, {}, { x: { distr: 1 }, y: { distr: 4, asinh: 2.3 } });
+			checkOracle(u, f);
+		});
+	}
+
+	it('configures mode-2 facets, defaults to linear/log, and uses one steelblue path', async () => {
+		const f = fixture();
+		const u = await mount(f, 1, { grid: undefined });
 		assert.deepEqual(u.series[1].facets.map(f => f.scale), ['x', 'y', 'y']);
-		assert.equal(u.series[1].paths(u, 1, 0, 7), null);
+		assert.equal(u.series[1].paths(u, 1, 0, 1), null);
 		assert.equal(u.series[1].points.show(u, 1), false);
-		assert.deepEqual(counts, [3, 5]);
-		const drawn = rects(u).sort((a, b) => a[0] - b[0]);
-		assert.equal(drawn.length, 2);
-		[1, 3].forEach((idx, i) => close(drawn[i], bounds(u, idx, true)));
-		for (const count of [3, 5])
-			assert.ok(u.ctx.log.some(e => e[0] === 'fillStyle' && e.slice(1).includes(`rgb(${count}, 0, 0)`)));
-	});
-
-	it('batches interleaved cells into one path and fill-style assignment per color', async () => {
-		const cells = [null, [[2, 4, 6, 8], [10, 10, 10, 10], [20, 20, 20, 20], [1, 2, 1, 2]]];
-		const u = await mount(cells, 1, { colors: ['red', 'blue'], colorIdx: count => count - 1 });
-		const paths = fills(u);
-		assert.equal(paths.length, 2);
-		assert.deepEqual(paths.map(path => path.log[0].slice(1).length), [2, 2]);
-		assert.deepEqual(lastDraw(u).filter(e => e[0] === 'fillStyle').flatMap(e => e.slice(1)), ['red', 'blue']);
-		assert.ok(!lastDraw(u).some(e => e[0] === 'fillRect'));
-		enter(u);
-		for (let i = 0; i < 4; i++)
-			hover(u, cells[1][0][i] - .5, 15, i);
-	});
-
-	it('uses one steelblue path by default', async () => {
-		const u = await mount();
 		assert.equal(fills(u).length, 1);
-		assert.equal(rects(u).length, 2);
-		assert.deepEqual(lastDraw(u).filter(e => e[0] === 'fillStyle').flatMap(e => e.slice(1)), ['steelblue']);
+		assert.deepEqual(lastDraw(u).filter(e => e[0] == 'fillStyle').flatMap(e => e.slice(1)), ['steelblue']);
+		checkOracle(u, f);
 	});
 
-	it('eagerly allocates and fills every palette path anew, without caching callback results or CSS colors', async () => {
-		const values = [null, [[2, 4, 6, 8], [10, 10, 10, 10], [20, 20, 20, 20], [1, 1, 1, 1]]];
+	it('allocates all palette paths before color selection and replaces them on every draw', async () => {
+		const f = fixture({ nx: 4, ny: 1, include: () => true, count: col => col % 2 + 1 });
 		const colors = ['red', 'red', 'blue'];
-		let selected = 0, allocated = null;
+		let selected = null, allocated = null;
 		const counts = [];
-		const u = await mount(values, 1, {
-			colors,
-			colorIdx: count => {
-				if (allocated != null)
-					assert.equal(allocated.length, colors.length, 'all paths exist before the first cell selects a color');
-				counts.push(count);
-				return selected;
-			},
-		});
+		const u = await mount(f, 1, { colors, colorIdx: count => {
+			if (allocated) assert.equal(allocated.length, colors.length);
+			counts.push(count);
+			return selected ?? count - 1;
+		} });
+		assert.deepEqual(fills(u).map(p => pathRects(p).length), [2, 2, 0]);
+		assert.ok(!lastDraw(u).some(e => e[0] == 'fillRect'));
 		const Path = globalThis.Path2D;
 		let previous = fills(u);
 		try {
-			globalThis.Path2D = function(...args) {
-				const path = new Path(...args);
-				allocated.push(path);
-				return path;
-			};
+			globalThis.Path2D = function(...args) { const p = new Path(...args); allocated.push(p); return p; };
 			for (selected of [1, 2, 0]) {
-				allocated = [];
-				counts.length = 0;
+				allocated = []; counts.length = 0;
 				u.redraw();
 				await Promise.resolve();
-				assert.deepEqual(counts, [1, 1, 1, 1], 'equal counts still call colorIdx once per cell on every redraw');
-				const paths = fills(u);
-				assert.equal(allocated.length, colors.length);
-				assert.equal(paths.length, colors.length);
-				paths.forEach((path, i) => {
-					assert.equal(path, allocated[i]);
-					assert.ok(!previous.includes(path), 'paths are not reused across draws');
-					assert.equal(path.log.flatMap(e => e[0] === 'rect' ? e.slice(1) : []).length, i == selected ? 4 : 0);
+				assert.deepEqual(counts, [1, 2, 1, 2]);
+				assert.deepEqual(fills(u), allocated);
+				assert.equal(allocated.length, 3);
+				allocated.forEach((p, i) => {
+					assert.ok(!previous.includes(p));
+					assert.equal(pathRects(p).length, i == selected ? 4 : 0);
 				});
-				assert.deepEqual(lastDraw(u).filter(e => e[0] === 'fillStyle').flatMap(e => e.slice(1)), colors);
-				previous = paths;
+				assert.deepEqual(lastDraw(u).filter(e => e[0] == 'fillStyle').flatMap(e => e.slice(1)), colors);
+				previous = allocated;
 			}
 		}
 		finally { globalThis.Path2D = Path; }
 	});
 
-	it('prepares geometry only on setData and computes each cell color on every draw without map lookups', async () => {
-		const values = [null, [[2, 2, 3, 3], [10, 100, 10, 100], [20, 200, 20, 200], [1, 2, 1, 2]]];
-		const counts = [];
-		const u = await mount(values, 1, {
-			colors: ['red', 'blue', 'green'],
-			colorIdx: count => { counts.push(count); return count - 1; },
-		});
-		assert.deepEqual(counts, [1, 2, 1, 2]);
-		for (const change of [() => u.redraw(), () => u.setSize({ width: 800, height: 400 }),
-			() => u.setScale('x', { min: 0, max: 6 }), () => u.setScale('y', { min: 10, max: 1000 })]) {
-			counts.length = 0;
-			change();
-			await Promise.resolve();
-			assert.deepEqual(counts, [1, 2, 1, 2]);
-		}
-
-		const projected = { x: [], y: [] };
-		const valToPos = u.valToPos;
-		const mapGet = Map.prototype.get;
-		u.valToPos = (value, scale, ...args) => {
-			projected[scale].push(value);
-			return valToPos(value, scale, ...args);
-		};
-		counts.length = 0;
-		try {
-			Map.prototype.get = () => { throw new Error('Map lookup during heatmap draw'); };
-			u.hooks.draw[0](u);
-		}
-		finally { Map.prototype.get = mapGet; u.valToPos = valToPos; }
-		assert.deepEqual(projected.x.sort((a, b) => a - b), [1, 2, 3]);
-		assert.deepEqual(projected.y.sort((a, b) => a - b), [10, 20, 100, 200]);
-		assert.deepEqual(counts, [1, 2, 1, 2]);
-
-		enter(u);
-		hover(u, 2.5, 150, 3);
-		// Same arrays, changed in place: setData must rebuild geometry, but not select colors.
-		values[1][0][3] = 4;
-		values[1][1][3] = 20;
-		values[1][2][3] = 40;
-		values[1][3][3] = 3;
-		counts.length = 0;
-		u.setData(values, false);
-		assert.deepEqual(counts, [], 'preparation never calls colorIdx');
-		assert.equal(u.cursor.dataIdx(u, 1), null, 'discard stale hits before the next draw');
-		u.redraw();
-		await Promise.resolve();
-		assert.deepEqual(counts, [1, 2, 1, 3]);
-		hover(u, 2.5, 150, null);
-		hover(u, 3.5, 30, 3);
-		close(fills(u)[2].log[0][1], bounds(u, 3, true));
-	});
-
-	it('looks up rows per cell but interns Y boundaries only for distinct rows', async () => {
-		const xs = [], lo = [], hi = [], counts = [];
-		const runs = 24, buckets = 12;
-		for (let x = 1; x <= runs; x++) {
-			for (let y = 1; y <= buckets; y++) {
-				xs.push(x); lo.push(y); hi.push(y + 1); counts.push(1);
-			}
-		}
-		let colorCalls = 0;
-		const u = await mount([null, [xs, lo, hi, counts]], 1, { colorIdx: () => { colorCalls++; return 0; } });
-		const get = Map.prototype.get;
-		for (const repeats of [1, 4]) {
-			u.data = [null, [xs, lo, hi, counts].map(values => Array.from({ length: repeats }, () => values).flat())];
-			// Keep X runs sorted while increasing cells without adding distinct rows.
-			u.data[1][0] = Array.from({ length: xs.length * repeats }, (_, i) => Math.floor(i / buckets) + 1);
-			const lookups = new Map();
-			colorCalls = 0;
-			try {
-				Map.prototype.get = function(key) {
-					lookups.set(this, (get.call(lookups, this) ?? 0) + 1);
-					return get.call(this, key);
-				};
-				u.hooks.setData[0](u);
-			}
-			finally { Map.prototype.get = get; }
-			assert.equal(colorCalls, 0, 'preparation does not select or cache colors');
-			const perMap = [...lookups.values()].sort((a, b) => b - a);
-			const cells = xs.length * repeats;
-			assert.equal(perMap[0], cells, 'one row lookup per source cell');
-			const boundaryGets = perMap.slice(1).reduce((sum, n) => sum + n, 0);
-			assert.ok(boundaryGets > 0 && boundaryGets <= 2 * buckets,
-				`${boundaryGets} boundary lookups for ${buckets} distinct rows and ${cells} cells`);
-		}
-		const projected = { x: [], y: [] };
-		const valToPos = u.valToPos;
-		u.valToPos = (value, scale, ...args) => {
-			projected[scale].push(value);
-			return valToPos(value, scale, ...args);
-		};
-		try { u.hooks.draw[0](u); }
-		finally { u.valToPos = valToPos; }
-		assert.deepEqual(projected.x.sort((a, b) => a - b), Array.from({ length: runs * 4 + 1 }, (_, i) => i));
-		assert.deepEqual(projected.y.sort((a, b) => a - b), Array.from({ length: buckets + 1 }, (_, i) => i + 1));
-	});
-
-	it('keeps only per-cell row IDs in typed storage, without copying old entries', async () => {
-		const u = await mount(empty());
-		const runs = 64, rows = 64, length = runs * rows;
-		const xs = Array.from({ length }, (_, i) => Math.floor(i / rows) + 1);
-		const lo = xs.map((_, i) => i % rows + 1);
-		u.data = [null, [xs, lo, lo.map(y => y + 1), xs.map((_, i) => i % 2 ? 1 : 0)]];
-		const allocations = [];
-		const names = ['Int32Array', 'Uint16Array', 'Uint32Array', 'Float32Array', 'Float64Array'];
-		const constructors = names.map(name => globalThis[name]);
-		try {
-			names.forEach((name, i) => {
-				globalThis[name] = class extends constructors[i] {
-					constructor(...args) { super(...args); allocations.push([name, this]); }
-					set() { throw new Error('Preparation must not copy old typed-buffer entries'); }
-				};
-			});
-			u.hooks.setData[0](u);
-		}
-		finally { names.forEach((name, i) => { globalThis[name] = constructors[i]; }); }
-		assert.equal(allocations.length, 1, 'only per-cell row IDs allocate typed storage during preparation');
-		const [name, rowIds] = allocations[0];
-		assert.equal(name, 'Uint32Array');
-		assert.equal(rowIds.length, length, 'one ID per source cell, including zero-count cells');
-		assert.equal(new Set(rowIds).size, rows);
-		for (let i = rows; i < length; i++)
-			assert.equal(rowIds[i], rowIds[i % rows], 'columns share row IDs');
-
-	});
-
-	it('prepares all source geometry and reads count validity again at draw time', async () => {
-		const values = [null, data[1].map(facet => facet.slice())];
-		const counts = [];
-		const u = await mount(values, 1, { colorIdx: count => { counts.push(count); return 0; } });
-		const projected = { x: [], y: [] };
-		const valToPos = u.valToPos;
-		u.valToPos = (value, scale, ...args) => {
-			projected[scale].push(value);
-			return valToPos(value, scale, ...args);
-		};
-		try { u.hooks.draw[0](u); }
-		finally { u.valToPos = valToPos; }
-		assert.deepEqual(projected.x.sort((a, b) => a - b), [1, 2, 4, 5, 6, 7, 8, 9, 10]);
-		assert.deepEqual(projected.y.sort((a, b) => a - b), [1, 5, 10, 20, 100, 200]);
-
-		values[1][3].fill(1);
-		counts.length = 0;
-		u.redraw();
-		await Promise.resolve();
-		assert.deepEqual(counts, Array(8).fill(1), 'previously invalid cells already have prepared geometry');
-		assert.equal(rects(u).length, 8);
-		enter(u);
-		for (let i = 0; i < 8; i++) {
-			close(rects(u)[i], bounds(u, i, true));
-			hover(u, values[1][0][i] - .5, Math.sqrt(values[1][1][i] * values[1][2][i]), i);
-		}
-
-		values[1][3].splice(0, 8, NaN, 0, -1, Infinity, -Infinity, null, undefined, 2);
-		counts.length = 0;
-		u.redraw();
-		await Promise.resolve();
-		assert.deepEqual(counts, [2]);
-		assert.equal(rects(u).length, 1);
-		hover(u, 9.5, 15, 7);
-		hover(u, 1.5, 15, null);
-		values[1][3][7] = 0;
-		counts.length = 0;
-		u.redraw();
-		await Promise.resolve();
-		assert.deepEqual(counts, []);
-		assert.equal(fills(u).length, 1, 'the default palette path is filled even when all counts are skipped');
-		assert.deepEqual(rects(u), []);
-		hover(u, 9.5, 15, null);
-	});
-
-	it('preserves X and Y gaps in a shared grid with reordered rows', async () => {
-		const values = [null, [[2, 2, 5, 5, 6, 6], [1, 4, 1, 4, 4, 1], [2, 8, 2, 8, 8, 2], [1, 1, 1, 1, 1, 1]]];
-		const u = await mount(values);
-		enter(u);
-		const drawn = rects(u);
-		assert.equal(drawn.length, 6);
-		for (let i = 0; i < 6; i++) {
-			close(drawn[i], bounds(u, i, true));
-			hover(u, values[1][0][i] - .5, Math.sqrt(values[1][1][i] * values[1][2][i]), i);
-		}
-		hover(u, 3, 1.5, null);
-		hover(u, 4.5, 3.5, null);
-	});
-
-	it('rejects conflicting upper bounds for the same shared-grid row, even for skipped counts', async () => {
-		const u = await mount(empty());
-		for (const counts of [[1, 1], [0, NaN]]) {
-			const values = [null, [[2, 5], [1, 1], [2, 3], counts]];
-			assert.throws(() => u.setData(values, false), error => {
-				assert.ok(error instanceof Error);
-				assert.match(error.message, /row|grid|yMin|yMax/i, 'the error identifies the shared-row geometry constraint');
-				return true;
-			});
-		}
-	});
-
-	it('reuses typed buffers and the packed index across same-size updates and redraws', async () => {
-		const xs = Array.from({ length: 40 }, (_, i) => i + 1);
-		const values = [null, [xs, xs.map(() => 10), xs.map(() => 20), xs.map(() => 1)]];
-		const u = await mount(values);
-		enter(u);
-		const firstIndex = finished.at(-1);
-		const allocations = [];
-		const names = ['Int32Array', 'Uint16Array', 'Uint32Array', 'Float32Array', 'Float64Array'];
-		const constructors = names.map(name => globalThis[name]);
-		try {
-			names.forEach((name, i) => {
-				globalThis[name] = class extends constructors[i] {
-					constructor(...args) { super(...args); allocations.push(name); }
-				};
-			});
-			for (const change of [() => u.redraw(), () => u.setSize({ width: 800, height: 400 }),
-				() => u.setData(values), () => u.setScale('x', { min: 0, max: 10 })]) {
-				change();
-				await Promise.resolve();
-				assert.equal(finished.at(-1), firstIndex);
-				hover(u, 4.5, 15, 4);
-			}
-		}
-		finally { names.forEach((name, i) => { globalThis[name] = constructors[i]; }); }
-		assert.deepEqual(allocations, []);
-	});
-
-	it('handles buffer growth, shrinkage, and empty updates without retaining stale cells', async () => {
-		const u = await mount(empty());
-		enter(u);
-		for (const length of [1, 80, 3, 0, 24, 90]) {
-			const xs = Array(length).fill(2);
-			const lo = xs.map((_, i) => 2 ** (i / 16));
-			const hi = xs.map((_, i) => 2 ** ((i + 1) / 16));
-			u.setData([null, [xs, lo, hi, xs.map(() => 1)]]);
-			await Promise.resolve();
-			assert.equal(rects(u).length, length);
-			if (length > 0)
-				hover(u, 1.5, Math.sqrt(lo.at(-1) * hi.at(-1)), length - 1);
-			else
-				hover(u, 1.5, 1.02, null);
-		}
-	});
-
-	it('reuses hover bounds, filter, and scratch arrays and avoids duplicate searches', async () => {
-		const u = await mount();
-		enter(u);
-		const search = Flatbush.prototype.search;
-		let previous, calls = 0;
-		Flatbush.prototype.search = function(...args) {
-			if (previous != null) {
-				for (const i of [4, 5, 6])
-					assert.equal(args[i], previous[i]);
-			}
-			previous = args;
-			calls++;
-			return search.apply(this, args);
-		};
-		try {
-			hover(u, 1.5, 15, 1);
-			const box = u.cursor.points.bbox(u, 1);
-			hover(u, 1.5, 15, 1);
-			assert.equal(calls, 1);
-			hover(u, 4.5, 150, 3);
-			assert.equal(calls, 2);
-			assert.equal(u.cursor.points.bbox(u, 1), box);
-		}
-		finally { Flatbush.prototype.search = search; }
-	});
-
-	it('clips projected boundaries and fills offscreen palette entries with empty paths', async () => {
-		const counts = [];
-		const u = await mount(data, 1, {
-			colors: ['red', 'blue', 'green'],
-			colorIdx: count => { counts.push(count); return count == 3 ? 0 : 1; },
-		});
-		counts.length = 0;
-		u.setScale('x', { min: 1.5, max: 2.5 });
-		u.setScale('y', { min: 15, max: 150 });
-		await Promise.resolve();
-		assert.deepEqual(counts, [3], 'only visible valid cells select a color');
-		assert.equal(fills(u).length, 3);
-		assert.deepEqual(fills(u).slice(1).map(path => path.log), [[], []]);
-		const top = Math.round(u.valToPos(20, 'y', true));
-		close(rects(u)[0], [u.bbox.left, top, Math.round(u.valToPos(2, 'x', true)) - u.bbox.left,
-			u.bbox.top + u.bbox.height - top], 0);
-		enter(u);
-		hover(u, 1.75, 17, 1);
-	});
-
-	it('reuses X geometry across valid and skipped cells, preserving IDs for collapsed runs', async () => {
-		const values = [null, [
-			[1, 1, 10, 10, 10, 20, 20],
-			[10, 100, 1, 10, 100, 10, 100],
-			[20, 200, 2, 20, 200, 20, 200],
-			[1, 2, 0, 1, 2, 1, 2],
-		]];
-		const counts = [];
-				const u = await mount(values, 1, {
-					colors: ['red', 'blue'],
-					colorIdx: count => { counts.push(count); return count - 1; },
-				});
-				counts.length = 0;
-		u.setScale('x', { min: 0, max: 10000 });
-		await Promise.resolve();
-		assert.deepEqual(counts, [1, 2], 'collapsed runs and invalid counts do not select colors');
-				const drawn = rects(u).sort((a, b) => b[1] - a[1]);
-		assert.equal(drawn.length, 2, 'only the middle X run has a pixel of width');
-		for (const [i, idx] of [3, 4].entries())
-			close(drawn[i], bounds(u, idx, true));
-		enter(u);
-		for (const idx of [3, 4]) {
-			const rect = drawn[idx - 3];
-			u.setCursor({ left: rect[0] - u.bbox.left + rect[2] / 2, top: rect[1] - u.bbox.top + rect[3] / 2 });
-			assert.equal(u.cursor.idxs[1], idx);
-		}
-		u.setScale('x', { min: 1.5, max: 10.5 });
-		await Promise.resolve();
-		assert.equal(rects(u).length, 2, 'fully offscreen runs stay empty after zoom');
-		hover(u, 9.5, 15, 3);
-		hover(u, 9.5, 150, 4);
-	});
-
-	it('returns original row IDs, leaves sparse gaps blank, and notifies after cursor updates and draw', async () => {
+	it('keeps original IDs and chooses the last source at shared edges regardless of palette fill order', async () => {
+		const f = fixture({ nx: 3, ny: 3, y: { distr: 1 }, yOrigin: -1, ySize: 1,
+			include: (col, row) => !(col >= 1 && row == 1) });
 		const calls = [];
-		const u = await mount(data, 1, { onHover: (self, idx) => calls.push([self, idx]) });
-		enter(u);
-		for (const [x, y, idx] of [[1.05, 15, 1], [1.95, 15, 1], [4.5, 150, 3],
-			[0.9, 15, null], [2.1, 15, null], [3, 150, null], [1.5, 50, null],
-			[1.5, 2, null], [1.5, 150, null], [6.5, 15, null], [7.5, 15, null], [8.5, 15, null], [9.5, 15, null]]) {
-			calls.length = 0;
-			hover(u, x, y, idx);
-			assert.deepEqual(calls.at(-1), [u, idx]);
+		const u = await mount(f, 1, { colors: ['red', 'blue'], colorIdx: count => count % 2,
+			onHover: (self, id) => calls.push([self, id]) });
+		// IDs by column: [0,1,2], [3,4], [5,6]; omitted buckets have no source IDs.
+		for (const [x, y, id] of [[1, 0, 3], [1, 1, 4], [2, 0, 5], [2, 1, 6],
+			[1, .5, 1], [2, .5, null], [1.5, .5, null], [2.5, .5, null]]) {
+			u.setCursor({ left: (Math.round(u.valToPos(x, 'x', true)) - u.bbox.left) / u.pxRatio,
+				top: (Math.round(u.valToPos(y, 'y', true)) - u.bbox.top) / u.pxRatio });
+			assert.equal(u.cursor.dataIdx(u, 1), id);
+			assert.deepEqual(calls.at(-1), [u, id]);
 		}
-		hover(u, 4.5, 150, 3);
-		calls.length = 0;
-		u.redraw();
+		assert.deepEqual(fills(u).map(path => pathRects(path).length), [3, 4]);
+		enter(u);
+		hover(u, .5, .5, 1);
+		u.redraw(); await Promise.resolve();
+		assert.deepEqual(calls.at(-1), [u, 1]);
+	});
+
+	it('selects colors only for visible noncollapsed cells and still fills all offscreen palette paths', async () => {
+		const f = fixture({ nx: 4, ny: 4, include: () => true });
+		const counts = [];
+		const u = await mount(f, 1.25, { colors: ['red', 'blue', 'green', 'orange'],
+			colorIdx: count => { counts.push(count); return Math.floor((count - 1) / 4); } });
+		u.setScale('x', { min: 1.2, max: 1.8 });
+		u.setScale('y', { min: 1.5, max: 3 });
+		counts.length = 0;
 		await Promise.resolve();
-		assert.deepEqual(calls.at(-1), [u, 3]);
+		const boxes = oracleRects(u, f);
+		assert.deepEqual(counts, boxes.map(({ id }) => f.data[1][3][id]));
+		assert.deepEqual(fills(u).map(path => pathRects(path).length), [0, 2, 0, 0]);
+		checkOracle(u, f);
 	});
 
-	it('rebuilds hit coordinates and CSS hover rectangles after resize and zoom at DPR 2', async () => {
-		const u = await mount(data, 2);
-		enter(u);
-		for (const change of [() => {}, () => u.setSize({ width: 1200, height: 720 }),
-			() => { u.setScale('x', { min: 0, max: 6 }); u.setScale('y', { min: 10, max: 1000 }); }]) {
-			const old = { left: u.cursor.left, top: u.cursor.top };
-			change();
-			await Promise.resolve();
-			u.setCursor(old);
-			assert.equal(u.cursor.dataIdx(u, 1), null, 'old pixel coordinates must not retain the previous hit');
-			hover(u, 4.5, 150, 3);
-			const box = u.cursor.points.bbox(u, 1);
-			close([box.left, box.top, box.width, box.height], bounds(u, 3), 1 / u.pxRatio);
-			const drawn = rects(u).find(r => Math.abs(r[0] - bounds(u, 3, true)[0]) <= 1);
-			assert.ok(drawn, 'draw uses the rebuilt cell bounds');
-			close(drawn, bounds(u, 3, true));
-		}
-	});
-
-	for (const dpr of [1, 1.25, 2]) {
-		it(`preserves exact Float32 index bounds and edge hits at DPR ${dpr}`, async () => {
-			const xs = Array.from({ length: 24 }, (_, i) => Math.floor(i / 2) + 1);
-			const u = await mount([null, [xs, xs.map((_, i) => i % 2 ? 100 : 10),
-				xs.map((_, i) => i % 2 ? 200 : 20), xs.map(() => 1)]], dpr);
-			const drawn = rects(u);
-			const boxes = drawn.map(([left, top, width, height]) => [
-				left - u.bbox.left, top - u.bbox.top, left + width - u.bbox.left, top + height - u.bbox.top,
-			]);
-			enter(u);
-			const index = finished.at(-1);
-			assert.equal(index.ArrayType, Float32Array);
-			let checked = 0;
-			index.search(-Infinity, -Infinity, Infinity, Infinity, (id, ...box) => {
-				assert.deepEqual(box, boxes[id]);
-				checked++;
-				return false;
-			});
-			assert.equal(checked, xs.length);
-			for (let i = 0; i < boxes.length; i++) {
-				const [x0, y0, x1, y1] = boxes[i];
-				const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-				for (const delta of [0, 1e-7, -1e-7]) {
-					for (const [px, py] of [[x0 + delta, cy], [x1 + delta, cy], [cx, y0 + delta], [cx, y1 + delta]]) {
-						const expected = [];
-						for (let id = 0; id < boxes.length; id++) {
-							const [l, t, r, b] = boxes[id];
-							if (px >= l && px <= r && py >= t && py <= b)
-								expected.push(id);
-						}
-						assert.deepEqual(index.search(px, py, px, py).sort((a, b) => a - b), expected);
-					}
-				}
-				u.setCursor({ left: cx / dpr, top: cy / dpr });
-				assert.equal(u.cursor.idxs[1], i);
-				assert.deepEqual(u.cursor.points.bbox(u, 1), {
-					left: x0 / dpr, top: y0 / dpr, width: (x1 - x0) / dpr, height: (y1 - y0) / dpr,
+	it('projects full axis edges once, skips collapsed X runs, and uses no Maps during draw or hover', () => {
+		const f = fixture({ x: { distr: 1 }, y: { distr: 1 }, nx: 64, ny: 64, ySize: 1,
+			include: (col, row) => col != 2 && row != 2 });
+		// A minimal event target keeps Happy DOM's own Maps outside this plugin-only guard.
+		const listeners = [];
+		const over = {
+			addEventListener(type, fn) { listeners.push([type, fn]); },
+			removeEventListener(type, fn) { listeners.splice(listeners.findIndex(e => e[0] == type && e[1] == fn), 1); },
+			dispatchEvent(event) { listeners.forEach(([type, fn]) => { if (type == event.type) fn({ target: over }); }); },
+		};
+		withoutIndexes(() => {
+			const { u, plugin, projected, drawn } = isolated({ xSize: 1, grid: f.grid }, f.data, over);
+			try {
+				plugin.hooks.setData(u);
+				withoutIndexes(() => {
+					plugin.hooks.draw(u);
+					assert.deepEqual(projected.x, f.xEdges);
+					assert.deepEqual(projected.y, f.yEdges);
+					assert.equal(drawn.flatMap(pathRects).length, 63 * 63);
+					pixelQuery(u, .5, 99.5, 0);
+					pixelQuery(u, 2.5, 99.5, null);
+					pixelQuery(u, .5, 97.5, null);
+					let reads = 0;
+					u.data[1][3] = new Proxy(f.data[1][3], { get(target, key) { if (/^\d+$/.test(String(key))) reads++; return target[key]; } });
+					u.valToPos = (v, key) => key == 'x' ? v / 1000 : 100 - v;
+					plugin.hooks.draw(u);
+					assert.equal(reads, 0, 'fully collapsed columns never enter their cell loop');
+					enter(u); leave(u); enter(u);
+					pixelQuery(u, 0, 50, null);
 				});
+				plugin.hooks.setData(u);
+				withoutIndexes(() => plugin.hooks.draw(u));
+			}
+			finally { plugin.hooks.destroy(); }
+		}, true);
+	});
+
+	for (const distr of [1, 3, 4]) {
+		it(`finds X run ends around powers of two, across missing columns, with grid ${distr}`, () => {
+			const lengths = Array.from({ length: 257 }, (_, i) => i + 1);
+			lengths.push(...lengths.slice().reverse());
+			const f = fixture({ x: { distr }, y: { distr: 1 }, xOrigin: -2, xSize: .01, ySize: 1,
+				nx: lengths.length * 2 - 1, ny: 257, include: (col, row) => col % 2 == 0 && row < lengths[col / 2] });
+			let reads = 0;
+			const data = [null, [...f.data[1]]];
+			data[1][0] = new Proxy(data[1][0], { get(target, key) {
+				if (/^\d+$/.test(String(key))) reads++;
+				return target[key];
+			} });
+			const { u, plugin, drawn } = isolated({ xSize: f.xSize, grid: f.grid }, data);
+			u.bbox.width = 2048;
+			u.bbox.height = 300;
+			const fwd = distr == 3 ? Math.log : distr == 4 ? Math.asinh : v => v;
+			u.valToPos = (v, key) => key == 'x' ? (fwd(v) + 2) / f.xSize : 300 - v;
+			u.posToVal = (v, key) => key == 'x' ? backward(f.grid.x, -2 + v * f.xSize) : 300 - v;
+			try {
+				plugin.hooks.setData(u);
+				assert.ok(reads < f.cells.length / 2, 'run search avoids a full X scan');
+				plugin.hooks.draw(u);
+				assert.deepEqual(drawn.flatMap(pathRects), f.cells.map(({ col, row }) => [col, 299 - row, 1, 1]));
+				let start = 0;
+				for (let col = 0; col < lengths.length; col++) {
+					pixelQuery(u, col * 2 + .5, 299.5, start);
+					pixelQuery(u, col * 2 + .5, 300.5 - lengths[col], start + lengths[col] - 1);
+					pixelQuery(u, col * 2 + 1.5, 299.5, null);
+					start += lengths[col];
+				}
+			}
+			finally { plugin.hooks.destroy(); }
+		});
+	}
+
+	for (const [distr, transform] of [[3, 'log'], [4, 'asinh']]) {
+		it(`deduplicates ${transform} transforms and reads Y extents only at run endpoints`, () => {
+			const f = fixture({ y: { distr }, nx: 64, ny: 64, ySize: .05, include: (col, row) => col != 2 && row != 2 });
+			const distinctRows = 63, columns = 63;
+			let transforms = 0, upperReads = 0;
+			const original = Math[transform];
+			const data = [null, [...f.data[1]]];
+			data[1][2] = new Proxy(data[1][2], { get(target, key) {
+				if (/^\d+$/.test(String(key))) upperReads++;
+				return target[key];
+			} });
+			let plugin;
+			try {
+				Math[transform] = value => { transforms++; return original(value); };
+				const state = isolated({ xSize: 1, grid: f.grid }, data);
+				plugin = state.plugin;
+				for (let repeat = 0; repeat < 2; repeat++) {
+					transforms = upperReads = 0;
+					plugin.hooks.setData(state.u);
+					assert.equal(transforms, distinctRows + 4, 'one transform per distinct row plus four schema transforms');
+					assert.equal(upperReads, columns + distinctRows + 1, 'run endpoints, distinct row edges, and first-cell step only');
+					plugin.hooks.draw(state.u);
+					assert.equal(transforms, distinctRows + 4, 'drawing does not repeat grid transforms');
+				}
+			}
+			finally {
+				Math[transform] = original;
+				plugin?.hooks.destroy();
 			}
 		});
 	}
 
-	it('handles initially empty data and clears stale hits when data becomes empty', async () => {
-		const u = await mount(empty());
-		enter(u);
-		assert.equal(finished.length, 0);
-		assert.deepEqual(rects(u), []);
-		hover(u, 4.5, 150, null);
-		u.setData(data);
+	it('prepares only on setData, retains one four-byte row ID per cell, and reuses capacity through growth/shrink/empty', () => {
+		const f = fixture({ y: { distr: 1 }, nx: 64, ny: 64, ySize: 1, include: () => true });
+		const colors = [];
+		const { u, plugin } = isolated({ xSize: 1, grid: f.grid, colorIdx: count => { colors.push(count); return 0; } });
+		try {
+			trackTyped(allocations => {
+				u.data = f.data;
+				plugin.hooks.setData(u);
+				assert.deepEqual(colors, [], 'no color preprocessing');
+				assert.equal(allocations.length, 1);
+				const [name, rows] = allocations[0];
+				assert.equal(name, 'Uint32Array');
+				assert.equal(rows.byteLength, f.cells.length * 4);
+				for (let i = 0; i < rows.length; i++) assert.equal(rows[i], i % 64);
+				// Drawing and hover must use prepared geometry, not source coordinate arrays.
+				const original = u.data;
+				u.data = [null, [...original[1].slice(0, 3).map(a => new Proxy(a, { get() { throw new Error('Geometry read outside setData'); } })), original[1][3]]];
+				for (let i = 0; i < 3; i++) {
+					u.bbox.width += 1;
+					plugin.hooks.draw(u);
+					pixelQuery(u, 10.5, 89.5, 10 * 64 + 10);
+				}
+				u.data = original;
+				plugin.hooks.setData(u);
+				assert.equal(allocations.length, 1);
+				for (const n of [5000, 3, 0, 4000, 10001]) {
+					const next = fixture({ y: { distr: 1 }, nx: n, ny: 1, ySize: 1, include: () => true });
+					u.data = next.data;
+					const before = colors.length;
+					plugin.hooks.setData(u);
+					assert.equal(colors.length, before);
+					assert.equal(u.cursor.dataIdx(u, 1), null, 'setData invalidates the previous query');
+					plugin.hooks.draw(u);
+					pixelQuery(u, .5, 99.5, n ? 0 : null);
+					if (n == 3 || n == 0) pixelQuery(u, 10.5, 99.5, null);
+				}
+				assert.deepEqual(allocations.map(([name, a]) => [name, a.length]),
+					[['Uint32Array', 4096], ['Uint32Array', 8192], ['Uint32Array', 16384]]);
+			});
+		}
+		finally { plugin.hooks.destroy(); }
+	});
+
+	it('rebuilds origins and extents after in-place setData, including initially empty data', async () => {
+		const f = fixture({ nx: 3, ny: 3, include: () => true });
+		const original = f.data;
+		f.data = empty();
+		const u = await mount(f);
+		hover(u, .5, 1.5, null);
+		f.data = original;
+		u.setData(original);
 		await Promise.resolve();
-		hover(u, 4.5, 150, 3);
+		checkOracle(u, f);
+		for (let i = 0; i < original[1][0].length; i++) {
+			original[1][0][i] += 1;
+			original[1][1][i] *= 2;
+			original[1][2][i] *= 2;
+		}
+		f.xEdges = f.xEdges.map(v => v + 1);
+		f.yEdges = f.yEdges.map(v => v * 2);
+		u.setData(original, false);
+		assert.equal(u.cursor.dataIdx(u, 1), null);
+		u.redraw();
+		await Promise.resolve();
+		checkOracle(u, f);
 		u.setData(empty());
 		await Promise.resolve();
 		assert.deepEqual(rects(u), []);
-		hover(u, 4.5, 150, null);
+		hover(u, 1.5, 3, null);
 	});
 
-	it('defers finish across resizes outside the plot and refreshes immediately inside', async () => {
-		const u = await mount();
-		for (const width of [700, 800, 900]) {
-			u.setSize({ width, height: 360 });
+	it('infers Y origin and extents across runs even when the first cell is not the lowest row', async () => {
+		const f = fixture({ nx: 7, ny: 8, x: { distr: 4, asinh: 2.5 }, y: { distr: 4, asinh: .2 },
+			xOrigin: -2, xSize: .5, yOrigin: -2, ySize: .5,
+			include: (col, row) => col == 1 && row == 4 || col == 3 && (row == 0 || row == 6) || col == 5 && row == 7 });
+		const u = await mount(f, 1.25, {}, { x: { distr: 1 }, y: { distr: 1 } });
+		checkOracle(u, f);
+		assert.equal(rects(u).length, 4, 'extents include extreme rows in later runs');
+	});
+
+	it('reads updated positive counts on draw without rebuilding geometry', async () => {
+		const f = fixture({ nx: 2, ny: 4, include: () => true });
+		const counts = [];
+		const u = await mount(f, 1, { colorIdx: count => { counts.push(count); return 0; } });
+		for (const values of [[.125, .25, .5, 1, 2, 3, 4, 5], Array(8).fill(1), Array(8).fill(2)]) {
+			f.data[1][3].splice(0, 8, ...values);
+			counts.length = 0;
+			u.redraw();
 			await Promise.resolve();
-			hover(u, 4.5, 150, null);
-			assert.equal(finished.length, 0);
-			assert.equal(searches.length, 0);
+			assert.deepEqual(counts, values);
+			assert.equal(fills(u).length, 1);
+			checkOracle(u, f);
 		}
+	});
 
-		enter(u);
-		assert.equal(finished.length, 1);
-		hover(u, 4.5, 150, 3);
-		leave(u);
-		enter(u);
-		assert.equal(finished.length, 1, 're-entry reuses a finished index');
-
-		for (const change of [() => u.redraw(), () => u.setSize({ width: 1000, height: 400 }),
-			() => u.setScale('x', { min: 0, max: 6 }), () => u.setData(data)]) {
-			const count = finished.length;
-			change();
+	for (const dpr of [1, 1.25, 2]) {
+		it(`resolves collapsed runs, shared edges, sparse fallback, and last-source precedence at DPR ${dpr}`, async () => {
+			const f = fixture({ nx: 40, ny: 40, y: { distr: 1 }, ySize: 1,
+				include: (col, row) => col != 12 && row != 16 && (col * 3 + row) % 5 != 1 });
+			const u = await mount(f, dpr);
+			u.setSize({ width: 72, height: 52 });
 			await Promise.resolve();
-			assert.equal(finished.length, count + 1);
-			hover(u, 4.5, 150, 3);
+			const boxes = oracleRects(u, f);
+			assert.ok(boxes.length > 0 && boxes.length < f.cells.length);
+			checkOracle(u, f);
+		});
+	}
+
+	it('reads counts only for visible rectangles, with no finite checks or hover count reads', () => {
+		const f = fixture({ nx: 2, ny: 8, y: { distr: 1 }, ySize: 1, include: (col, row) => row != 4 && row != 5 });
+		const reads = [];
+		const data = [null, [...f.data[1]]];
+		data[1][3] = new Proxy(data[1][3], { get(target, key) {
+			if (/^\d+$/.test(String(key))) reads.push(Number(key));
+			return target[key];
+		} });
+		const { u, plugin } = isolated({ xSize: 1, grid: f.grid }, data);
+		u.valToPos = (v, key) => key == 'x' ? v : 100 - v / 2;
+		u.posToVal = (v, key) => key == 'x' ? v : (100 - v) * 2;
+		const isFinite = Number.isFinite;
+		try {
+			Number.isFinite = () => { throw new Error('Plugin must trust finite positive counts'); };
+			plugin.hooks.setData(u);
+			assert.deepEqual(reads, [], 'preparation does not read counts');
+			plugin.hooks.draw(u);
+			assert.deepEqual(reads, [1, 3, 5, 7, 9, 11], 'collapsed rows do not read counts');
+			reads.length = 0;
+			pixelQuery(u, .5, 99.5, 1);
+			pixelQuery(u, .5, 97.5, null);
+			pixelQuery(u, 1.5, 96.5, 11);
+			assert.deepEqual(reads, [], 'hover uses sparse occupancy, not count values');
 		}
-
-		leave(u);
-		const count = finished.length;
-		u.setSize({ width: 600, height: 360 });
-		await Promise.resolve();
-		assert.equal(finished.length, count);
-		hover(u, 4.5, 150, null);
-		enter(u);
-		assert.equal(finished.length, count + 1);
-		hover(u, 4.5, 150, 3);
+		finally {
+			Number.isFinite = isFinite;
+			plugin.hooks.destroy();
+		}
 	});
 
-	it('finishes in capture phase and removes pointer listeners on destroy', async () => {
-		const u = await mount();
-		const over = u.over;
-		let entries = 0;
-		over.addEventListener('mouseenter', () => {
-			assert.equal(finished.length, 1);
-			hover(u, 4.5, 150, 3);
-			entries++;
-		}, { once: true });
-		enter(u);
-		assert.equal(entries, 1);
-
-		const removed = [];
-		const originalRemove = over.removeEventListener;
-		over.removeEventListener = function(type, listener, capture) {
-			removed.push([type, capture]);
-			return originalRemove.call(this, type, listener, capture);
-		};
-		plots.splice(plots.indexOf(u), 1);
-		u.destroy();
-		assert.equal(removed.filter(([type, capture]) => type == 'mouseenter' && capture === true).length, 1);
-		assert.equal(removed.filter(([type, capture]) => type == 'mouseleave' && capture === undefined).length, 1);
-		over.dispatchEvent(new MouseEvent('mouseenter'));
-		over.dispatchEvent(new MouseEvent('mouseleave'));
-		assert.equal(finished.length, 1);
+	it('uses inverse projections once per distinct query and reuses hover boxes before mouse entry', () => {
+		const f = fixture({ nx: 4, ny: 4, y: { distr: 1 }, ySize: 1, include: () => true });
+		const calls = [];
+		const { u, plugin, inverted } = isolated({ xSize: 1, grid: f.grid, onHover: (self, id) => calls.push([self, id]) }, f.data);
+		try {
+			plugin.hooks.setData(u);
+			plugin.hooks.draw(u);
+			pixelQuery(u, .5, 99.5, 0);
+			const box = u.cursor.points.bbox(u, 1);
+			for (let i = 0; i < 4; i++) {
+				pixelQuery(u, .5, 99.5, 0);
+				plugin.hooks.setCursor(u);
+			}
+			assert.deepEqual(inverted, { x: [.5], y: [99.5] });
+			assert.deepEqual(calls.at(-1), [u, 0]);
+			pixelQuery(u, 1.5, 98.5, 5);
+			assert.equal(u.cursor.points.bbox(u, 1), box);
+			assert.equal(inverted.x.length, 2);
+			let refreshes = 0;
+			u.setCursor = (cursor, fire, publish) => {
+				assert.equal(cursor, u.cursor);
+				assert.equal(fire, false); assert.equal(publish, false); refreshes++;
+			};
+			plugin.hooks.draw(u);
+			assert.equal(refreshes, 0);
+			enter(u);
+			assert.equal(refreshes, 0, 'entry does not build or query anything');
+			plugin.hooks.draw(u);
+			assert.equal(refreshes, 1, 'entry enables stationary cursor refresh on draw');
+			assert.deepEqual(calls.at(-1), [u, 5]);
+			leave(u);
+			plugin.hooks.draw(u);
+			assert.equal(refreshes, 1);
+			pixelQuery(u, .5, 99.5, 0);
+			u.series[1].show = false;
+			plugin.hooks.draw(u);
+			pixelQuery(u, .5, 99.5, null);
+			u.series[1].show = true;
+			plugin.hooks.draw(u);
+			pixelQuery(u, .5, 99.5, 0);
+		}
+		finally { plugin.hooks.destroy(); }
 	});
 
-	it('resizes from the height slider and passes the same data to setData from the button', async () => {
-		const dashboard = JSON.parse(readFileSync(new URL('../demos/data/heatmap-cells-exemplars.json', import.meta.url), 'utf8'));
+	it('preserves exact source edge values rather than Float32 or inverse-transform approximations', () => {
+		const x0 = 1698437700.1234567, x1 = x0 + .125;
+		const lo = .10000000000000003, hi = .20000000000000007;
+		assert.notEqual(Math.fround(x1), x1);
+		assert.notEqual(Math.exp(Math.log(lo)), lo);
+		const { u, plugin, projected } = isolated({ xSize: .125 }, [null, [[x1], [lo], [hi], [1]]]);
+		try {
+			plugin.hooks.setData(u);
+			plugin.hooks.draw(u);
+			assert.deepEqual(projected.x, [x0, x1]);
+			assert.deepEqual(projected.y, [lo, hi]);
+		}
+		finally { plugin.hooks.destroy(); }
+	});
+
+	it('removes the exact pointer listeners on destroy', () => {
+		const over = document.createElement('div');
+		const added = [], removed = [], add = over.addEventListener, remove = over.removeEventListener;
+		over.addEventListener = function(...args) { added.push(args); return add.apply(this, args); };
+		over.removeEventListener = function(...args) { removed.push(args); return remove.apply(this, args); };
+		const { u, plugin } = isolated({ xSize: 1 }, empty(), over);
+		plugin.hooks.destroy();
+		assert.deepEqual(removed, added);
+		assert.deepEqual(removed.map(([type, , capture]) => [type, capture]), [['mouseenter', true], ['mouseleave', undefined]]);
+		let refreshes = 0;
+		u.setCursor = () => refreshes++;
+		enter(u); leave(u);
+		plugin.hooks.draw(u);
+		assert.equal(refreshes, 0);
+	});
+});
+
+describe('heatmapPlugin demo', () => {
+	it('recreates Y display scales through the public API, preserves data and size, resets zoom, and cleans up listeners', async () => {
+		const dashboard = realDashboard(), snapshot = JSON.stringify(dashboard);
 		const root = createDemoRoot();
-		const height = root.querySelector('#height');
-		const button = root.querySelector('#set-data');
-		assert.ok(height.disabled && button.disabled);
+		const height = root.querySelector('#height'), button = root.querySelector('#set-data'), select = root.querySelector('#y-scale');
+		assert.deepEqual(Array.from(select.options, o => o.value), ['log', 'linear', 'asinh']);
+		assert.equal(select.value, 'log');
+		assert.ok(height.disabled && button.disabled && select.disabled);
+		const registrations = [], removals = [], restore = [];
+		for (const [target, type] of [[height, 'input'], [button, 'click'], [select, 'change'], [window, 'resize']]) {
+			for (const [method, records] of [['addEventListener', registrations], ['removeEventListener', removals]]) {
+				const original = target[method];
+				target[method] = function(name, listener, capture) {
+					if (name == type) records.push([target, name, listener, capture]);
+					return original.call(this, name, listener, capture);
+				};
+				restore.push(() => { target[method] = original; });
+			}
+		}
+		let demo;
+		try {
+			demo = createDemo(root, dashboard);
+			await Promise.resolve();
+			const originalData = demo.plot.data, dataSnapshot = structuredClone(originalData);
+			const minY = originalData[1][1].reduce((a, b) => Math.min(a, b), Infinity);
+			const maxY = originalData[1][2].reduce((a, b) => Math.max(a, b), -Infinity);
+			assert.ok(!height.disabled && !button.disabled && !select.disabled);
+			assert.equal(demo.plot.height, 560);
+			height.value = '720'; height.dispatchEvent(new Event('input'));
+			await Promise.resolve();
+			assert.equal(demo.plot.height, 720);
+			assert.equal(root.querySelector('#height-value').textContent, '720px');
+			let destroyed = 0, dataCalls = 0, sizeCalls = 0;
+			for (const [mode, distr] of [['linear', 1], ['asinh', 4], ['log', 3], ['asinh', 4]]) {
+				const old = demo.plot;
+				old.setSize({ width: 777, height: 720 });
+				old.setScale('x', { min: 1698438000, max: 1698440000 });
+				old.setScale('y', { min: .01, max: 1 });
+				await Promise.resolve();
+				const destroy = old.destroy;
+				old.destroy = () => { destroyed++; destroy(); };
+				const oldDistr = old.scales.y.distr;
+				Object.defineProperty(old.scales.y, 'distr', { configurable: true, get: () => oldDistr,
+					set() { throw new Error('Changing display scale must not mutate the existing scale'); } });
+				select.value = mode; select.dispatchEvent(new Event('change'));
+				await Promise.resolve();
+				const u = demo.plot;
+				assert.notEqual(u, old);
+				assert.equal(old.root.isConnected, false);
+				assert.equal(root.querySelectorAll('.uplot').length, 1);
+				assert.equal(u.data, originalData);
+				assert.deepEqual(u.data, dataSnapshot);
+				assert.deepEqual([u.width, u.height], [777, 720]);
+				assert.equal(select.value, mode);
+				assert.equal(u.scales.y.distr, distr);
+				assert.deepEqual([u.scales.x.min, u.scales.x.max], [1698437700, 1698459360]);
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], mode == 'log' ? [2 ** -16, 16] : [0, maxY]);
+				assert.equal(u.scales.y.asinh(u, 'y'), minY);
+				if (mode == 'asinh') {
+					for (const change of [() => u.redraw(), () => u.setScale('y', { min: .02, max: 2 }), () => u.setSize({ width: 777, height: 720 })]) {
+						change(); await Promise.resolve();
+						assert.equal(u.scales.y._asinh, minY, 'threshold does not adapt to zoom or redraw');
+					}
+				}
+				const setData = u.setData, setSize = u.setSize;
+				let prepares = 0;
+				u.hooks.setData.push(() => prepares++);
+				u.setData = next => { assert.equal(next, originalData); dataCalls++; setData(next); };
+				u.setSize = size => { sizeCalls++; setSize(size); };
+				button.click(); await Promise.resolve();
+				assert.equal(prepares, 1);
+				window.dispatchEvent(new Event('resize')); await Promise.resolve();
+				assert.equal(u.height, 720);
+				assert.equal(prepares, 1, 'resize does not prepare geometry');
+			}
+			assert.equal(destroyed, 4);
+			assert.equal(dataCalls, 4);
+			assert.equal(JSON.stringify(dashboard), snapshot);
+			const latest = demo.plot, beforeSize = sizeCalls;
+			const destroy = latest.destroy;
+			latest.destroy = () => { destroyed++; destroy(); };
+			demo.destroy();
+			assert.equal(destroyed, 5);
+			assert.deepEqual(removals, registrations, 'each control/window listener is removed with the same function and capture flag');
+			assert.ok(height.disabled && button.disabled && select.disabled);
+			height.dispatchEvent(new Event('input')); button.dispatchEvent(new MouseEvent('click'));
+			select.dispatchEvent(new Event('change')); window.dispatchEvent(new Event('resize'));
+			assert.equal(demo.plot, latest);
+			assert.equal(sizeCalls, beforeSize); assert.equal(dataCalls, 4); assert.equal(destroyed, 5);
+			demo = null;
+		}
+		finally { demo?.destroy(); restore.forEach(fn => fn()); root.remove(); }
+	});
+
+	it('refreshes the cached asinh threshold on replacement, in-place, and empty setData', async () => {
+		const root = createDemoRoot();
+		root.querySelector('#y-scale').value = 'asinh';
+		const dashboard = dashboardFor([[60000, 60000, 120000, 120000], [1, 2, 1, 4], [2, 4, 2, 8], [1, 2, 3, 4]]);
 		let demo;
 		try {
 			demo = createDemo(root, dashboard);
 			await Promise.resolve();
 			const u = demo.plot;
-			const originalData = u.data;
-			const setData = u.setData;
-			const setSize = u.setSize;
-			let dataCalls = 0, sizeCalls = 0, prepares = 0;
-			u.hooks.setData.push(() => prepares++);
-			u.setData = next => {
-				assert.equal(next, originalData);
-				dataCalls++;
-				setData(next);
+			const range = [u.scales.y.min, u.scales.y.max];
+			const before = u.valToPos(1, 'y');
+			const noReads = new Proxy(u, { get() { throw new Error('Threshold callback must use prepared metadata'); } });
+			const checkThreshold = expected => {
+				assert.equal(u.scales.y.asinh(noReads, 'y'), expected);
+				assert.equal(u.scales.y._asinh, expected);
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], range);
+				assert.deepEqual(u.scales.y.scan(u, 'y'), [null, null]);
 			};
-			u.setSize = size => { sizeCalls++; setSize(size); };
-			assert.ok(!height.disabled && !button.disabled);
-			assert.equal(u.height, 560);
-
-			height.value = '720';
-			height.dispatchEvent(new Event('input'));
-			await Promise.resolve();
-			assert.equal(u.height, 720);
-			assert.equal(root.querySelector('#height-value').textContent, '720px');
-			assert.equal(sizeCalls, 1);
-			assert.equal(prepares, 0, 'resize does not rerun data preprocessing');
-
-			button.click();
-			await Promise.resolve();
-			assert.equal(dataCalls, 1);
-			assert.equal(prepares, 1);
-			assert.equal(u.data, originalData);
-
-			window.dispatchEvent(new Event('resize'));
-			await Promise.resolve();
-			assert.equal(u.height, 720, 'window resize preserves the slider height');
-			assert.equal(sizeCalls, 2);
-			demo.destroy();
-			demo = null;
-			assert.ok(height.disabled && button.disabled);
-			height.dispatchEvent(new Event('input'));
-			button.dispatchEvent(new MouseEvent('click'));
-			window.dispatchEvent(new Event('resize'));
-			assert.equal(sizeCalls, 2);
-			assert.equal(dataCalls, 1);
+			checkThreshold(1);
+			// The lowest row is in a later column; visible scale bounds remain unchanged.
+			const next = [null, [[60, 60, 120, 120], [2, 4, .25, 1], [4, 8, .5, 2], [1, 2, 3, 4]]];
+			u.setData(next); await Promise.resolve();
+			checkThreshold(.25);
+			assert.notEqual(u.valToPos(1, 'y'), before, 'the new threshold changes projection despite unchanged scale bounds');
+			for (const facet of [1, 2]) for (let i = 0; i < next[1][facet].length; i++) next[1][facet][i] /= 2;
+			u.setData(next); await Promise.resolve();
+			checkThreshold(.125);
+			for (const change of [() => u.redraw(), () => u.setSize({ width: 777, height: 640 })]) {
+				change(); await Promise.resolve();
+				checkThreshold(.125);
+			}
+			for (const facet of [1, 2]) for (let i = 0; i < next[1][facet].length; i++) next[1][facet][i] *= 2;
+			u.setData(next, false);
+			assert.equal(u.scales.y.asinh(noReads, 'y'), .25, 'setData prepares the new threshold even when drawing is deferred');
+			u.redraw(); await Promise.resolve();
+			checkThreshold(.25);
+			u.setData(empty()); await Promise.resolve();
+			checkThreshold(1);
+			assert.equal(rects(u).length, 0);
+			u.setData(next); await Promise.resolve();
+			checkThreshold(.25);
 		}
 		finally { demo?.destroy(); root.remove(); }
 	});
+
+	for (const mode of ['log', 'linear', 'asinh']) {
+		it(`skips core data scans with precomputed ${mode} ranges`, async () => {
+			const root = createDemoRoot();
+			root.querySelector('#y-scale').value = mode;
+			const dashboard = dashboardFor([[60000, 60000, 120000, 120000], [1, 2, 1, 2], [2, 4, 2, 4], [1, 2, 3, 4]]);
+			let demo;
+			try {
+				demo = createDemo(root, dashboard);
+				await Promise.resolve();
+				const u = demo.plot;
+				let scanning = false, calls = 0;
+				for (let fi = 0; fi < 3; fi++) {
+					u.data[1][fi] = new Proxy(u.data[1][fi], { get(target, key) {
+						if (scanning) throw new Error('Core scanner must not read heatmap coordinates');
+						return target[key];
+					} });
+				}
+				for (const key of ['x', 'y']) {
+					const scan = u.scales[key].scan;
+					u.scales[key].scan = (...args) => {
+						scanning = true;
+						calls++;
+						try {
+							const result = scan(...args);
+							assert.deepEqual(result, [null, null]);
+							return result;
+						}
+						finally { scanning = false; }
+					};
+				}
+				const checkRange = () => {
+					assert.deepEqual([u.scales.x.min, u.scales.x.max], [0, 120]);
+					assert.deepEqual([u.scales.y.min, u.scales.y.max], [mode == 'log' ? 1 : 0, 4]);
+					if (mode == 'asinh') assert.equal(u.scales.y._asinh, 1);
+					assert.equal(rects(u).length, 4);
+				};
+				checkRange();
+				for (const change of [() => u.setData(u.data), () => u.setSize({ width: 800, height: 600 }), () => u.redraw()]) {
+					change(); await Promise.resolve();
+					checkRange();
+				}
+				assert.ok(calls >= 2, 'range calculation called the no-op scanners');
+				u.setScale('x', { min: 20, max: 100 });
+				u.setScale('y', { min: 1.25, max: 3 });
+				await Promise.resolve();
+				assert.deepEqual([u.scales.x.min, u.scales.x.max], [20, 100]);
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], [1.25, 3]);
+				u.setData(u.data); await Promise.resolve();
+				checkRange();
+			}
+			finally { demo?.destroy(); root.remove(); }
+		});
+	}
 
 	it('uses a square-root-aligned color lookup across transitions and constant count ranges', async () => {
 		const varying = Array.from({ length: 257 }, (_, i) => 1 + i / 256);
@@ -718,14 +858,7 @@ describe('heatmapPlugin', () => {
 		}
 		for (const counts of [varying, Array(16).fill(1.234)]) {
 			const xs = counts.map((_, i) => 1698437760000 + i * 60000);
-			const frame = {
-				schema: {
-					meta: { type: 'heatmap-cells' },
-					fields: ['xMax', 'yMin', 'yMax', 'count'].map(name => ({ name, config: { interval: 60000 } })),
-				},
-				data: { values: [xs, counts.map(() => .01), counts.map(() => .02), counts] },
-			};
-			const dashboard = { panels: [{ targets: [{ rawFrameContent: JSON.stringify([frame]) }] }] };
+			const dashboard = dashboardFor([xs, counts.map(() => .01), counts.map(() => .02), counts]);
 			const root = createDemoRoot();
 			let demo;
 			try {
@@ -745,9 +878,9 @@ describe('heatmapPlugin', () => {
 				const paths = fills(u).slice(-32);
 				assert.equal(paths.length, 32);
 				paths.forEach((path, color) => {
-					const drawn = path.log.flatMap(e => e[0] === 'rect' ? e.slice(1) : []);
+					const drawn = pathRects(path);
 					assert.equal(drawn.length, expected[color].length);
-					drawn.forEach((rect, i) => close(rect, bounds(u, expected[color][i], true, 60)));
+					drawn.forEach((rect, i) => close(rect, bounds(u, expected[color][i], true, 60), 0));
 				});
 			}
 			finally { demo?.destroy(); root.remove(); }
@@ -756,24 +889,15 @@ describe('heatmapPlugin', () => {
 
 	it('loads 250k cells without spreading data arrays into function arguments', async function() {
 		this.timeout(10000);
-		const length = 250000;
-		const start = 1698437760000;
+		const length = 250000, start = 1698437760000;
 		const xs = Array.from({ length }, (_, i) => start + Math.floor(i / 250) * 60000);
 		const lo = xs.map((_, i) => 2 ** (-16 + (i % 250) / 25));
 		const hi = xs.map((_, i) => 2 ** (-16 + (i % 250 + 1) / 25));
 		const counts = xs.map((_, i) => i % 32 + 1);
-		const frame = {
-			schema: {
-				meta: { type: 'heatmap-cells' },
-				fields: ['xMax', 'yMin', 'yMax', 'count'].map(name => ({ name, config: { interval: 60000 } })),
-			},
-			data: { values: [xs, lo, hi, counts] },
-		};
-		const dashboard = { panels: [{ targets: [{ rawFrameContent: JSON.stringify([frame]) }] }] };
 		const root = createDemoRoot();
 		let demo;
 		try {
-			demo = createDemo(root, dashboard);
+			demo = createDemo(root, dashboardFor([xs, lo, hi, counts]));
 			await Promise.resolve();
 			const u = demo.plot;
 			assert.equal(u.data[1][0].length, length);
@@ -782,28 +906,28 @@ describe('heatmapPlugin', () => {
 			assert.equal(root.querySelector('#color-min').textContent, '1');
 			assert.equal(root.querySelector('#color-max').textContent, '32');
 			assert.ok(root.querySelector('#status').textContent.startsWith(`${length.toLocaleString()} cells · 1000 one-minute intervals`));
-			assert.ok(rects(u).length > 0);
-			assert.equal(finished.length, 0, 'large charts still defer finish until pointer entry');
+			const drawn = rects(u);
+			assert.ok(drawn.length > 0);
+			const [x, y, w, h] = drawn[0];
+			u.setCursor({ left: (x + w / 2 - u.bbox.left) / u.pxRatio, top: (y + h / 2 - u.bbox.top) / u.pxRatio });
+			assert.notEqual(u.cursor.dataIdx(u, 1), null, 'large charts are ready without entry');
 		}
 		finally { demo?.destroy(); root.remove(); }
 	});
 
-	it('renders the real sparse heatmap fixture with its full cell count and ranges', async () => {
-		const dashboard = JSON.parse(readFileSync(new URL('../demos/data/heatmap-cells-exemplars.json', import.meta.url), 'utf8'));
+	it('renders the real sparse fixture with its full cell count, ranges, and per-color counts', async () => {
 		const root = createDemoRoot();
 		let demo;
 		try {
-			demo = createDemo(root, dashboard);
+			demo = createDemo(root, realDashboard());
 			await Promise.resolve();
 			const u = demo.plot;
 			assert.equal(u.mode, 2);
 			assert.deepEqual(u.data[1].map(facet => facet.length), [15358, 15358, 15358, 15358]);
 			assert.equal(rects(u).length, 15358);
-			const batches = fills(u).length;
-			assert.equal(batches, 32, 'all palette entries are filled, including empty paths');
-			const colorChanges = lastDraw(u).filter(e => e[0] === 'fillStyle')
-				.flatMap(e => e.slice(1)).filter(fill => fill.startsWith('rgb('));
-			assert.equal(colorChanges.length, batches);
+			assert.equal(fills(u).length, 32);
+			const colorChanges = lastDraw(u).filter(e => e[0] === 'fillStyle').flatMap(e => e.slice(1)).filter(fill => fill.startsWith('rgb('));
+			assert.equal(colorChanges.length, 32);
 			assert.equal(new Set(colorChanges).size, 32);
 			assert.equal(colorChanges[0], 'rgb(94,79,162)');
 			assert.equal(colorChanges[31], 'rgb(158,1,66)');
@@ -811,10 +935,8 @@ describe('heatmapPlugin', () => {
 			const min = counts.reduce((a, b) => Math.min(a, b), Infinity);
 			const max = counts.reduce((a, b) => Math.max(a, b), -Infinity);
 			const expected = Array(32).fill(0);
-			for (const count of counts)
-				expected[Math.round(Math.sqrt((count - min) / (max - min || 1)) * 31)]++;
-			assert.deepEqual(fills(u).map(path => path.log.flatMap(e => e[0] === 'rect' ? e.slice(1) : []).length), expected,
-				'the demo maps counts to the 32-entry palette with square-root normalization');
+			for (const count of counts) expected[Math.round(Math.sqrt((count - min) / (max - min || 1)) * 31)]++;
+			assert.deepEqual(fills(u).map(path => pathRects(path).length), expected);
 			assert.deepEqual([u.scales.x.min, u.scales.x.max], [1698437700, 1698459360]);
 			assert.deepEqual([u.scales.y.min, u.scales.y.max], [2 ** -16, 16]);
 			assert.equal(u.scales.y.distr, 3);
