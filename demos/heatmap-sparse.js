@@ -17,6 +17,8 @@ const colorLookup = new Array(4 * (colorCount - 1) ** 2 + 1);
 for (let i = 0; i < colorCount; i++)
 	colorLookup.fill(i, i == 0 ? 0 : (2 * i - 1) ** 2, (2 * i + 1) ** 2);
 
+const filterAxisSplits = (u, splits, axisIdx, space, incr) => u.axes[axisIdx].filter(u, splits, axisIdx, space, incr);
+
 export function createDemo(root, dashboard) {
 	const frames = JSON.parse(dashboard.panels[0].targets[0].rawFrameContent);
 	const frame = frames.find(f => f.schema.meta?.type == 'heatmap-cells');
@@ -29,22 +31,44 @@ export function createDemo(root, dashboard) {
 	const yMax = values('yMax');
 	const counts = values('count');
 	let minCount = Infinity, maxCount = -Infinity;
-	let minY = Infinity, maxY = -Infinity;
-	let xCount = 0;
+
 	for (let i = 0; i < times.length; i++) {
 		xs[i] = times[i] / 1000;
-		if (i == 0 || times[i] != times[i - 1])
-			xCount++;
 		minCount = Math.min(minCount, counts[i]);
 		maxCount = Math.max(maxCount, counts[i]);
-		minY = Math.min(minY, yMin[i]);
-		maxY = Math.max(maxY, yMax[i]);
 	}
 	const countScale = (colorLookup.length - 1) / (maxCount - minCount || 1);
-	const xRange = [xs[0] - xSize, xs.at(-1)];
-	const logYRange = [2 ** Math.floor(Math.log2(minY)), 2 ** Math.ceil(Math.log2(maxY))];
-	const zeroYRange = [0, maxY];
-	const data = [null, [xs, yMin, yMax, counts]];
+	const xRange = [0, xSize];
+	const logYRange = [1, 2];
+	const zeroYRange = [0, 1];
+	const sourceData = [null, [xs, yMin, yMax, counts]];
+	let data = sourceData;
+	let signedData;
+
+	const factor = yMax[0] / yMin[0];
+
+	function mirroredData() {
+		if (signedData == null) {
+			const cells = Array.from({ length: 4 }, () => new Array(xs.length * 2));
+			let index = 0;
+			const add = (x, lo, hi, count) => {
+				cells[0][index] = x;
+				cells[1][index] = lo;
+				cells[2][index] = hi;
+				cells[3][index++] = count;
+			};
+			for (let start = 0; start < xs.length;) {
+				let end = start + 1;
+				while (end < xs.length && xs[end] == xs[start]) end++;
+				for (let i = end - 1; i >= start; i--) add(xs[i], -yMax[i], -yMin[i], counts[i]);
+
+				for (let i = start; i < end; i++) add(xs[i], yMin[i], yMax[i], counts[i]);
+				start = end;
+			}
+			signedData = [null, cells];
+		}
+		return signedData;
+	}
 	const format = value => Number(value.toPrecision(5)).toString();
 	const time = seconds => new Date(seconds * 1000).toISOString().slice(11, 19);
 	const readout = root.querySelector('#hover');
@@ -62,43 +86,64 @@ export function createDemo(root, dashboard) {
 	const heightValue = root.querySelector('#height-value').firstChild;
 	const setDataButton = root.querySelector('#set-data');
 	const yScale = root.querySelector('#y-scale');
+	const signed = root.querySelector('#signed-data');
+	const logOption = yScale.querySelector('option[value="log"]');
+	if (signed.checked) data = mirroredData();
 	heightValue.data = `${height.value}px`;
 
-	function createPlot(width) {
+	function createPlot(width, plotHeight = height.valueAsNumber) {
+		logOption.disabled = signed.checked;
+		if (signed.checked && yScale.value == 'log') yScale.value = 'asinh';
 		const mode = yScale.value;
 		const yRange = mode == 'log' ? logYRange : zeroYRange;
 		const scaleLabel = mode == 'log' ? 'log₂' : mode;
 		let asinhThreshold = 1;
-		status.textContent = `${counts.length.toLocaleString()} cells · ${xCount} one-minute intervals · ${scaleLabel} Y · uniform-grid hover · no densification or exemplars`;
 
 		return new uPlot({
 			mode: 2,
 			width,
-			height: height.valueAsNumber,
+			height: plotHeight,
 			legend: { show: false },
 			cursor: { drag: { x: true, y: true } },
 			scales: {
-				// Ranges are precomputed; preparation refreshes the threshold without a core scan.
+				// Preparation supplies ranges and the adaptive threshold without core data scans.
 				x: { scan: false, range: () => xRange },
-				y: { scan: false, distr: mode == 'log' ? 3 : mode == 'asinh' ? 4 : 1, log: 2, asinh: () => asinhThreshold, range: () => yRange },
+				y: { scan: false, distr: mode == 'log' ? 3 : mode == 'asinh' ? 4 : 1, log: 2, clamp: mode == 'asinh' ? 2 ** -128 : undefined, asinh: () => asinhThreshold, range: () => yRange },
 			},
 			axes: [
 				{ stroke: '#b7bdc5', grid: { stroke: '#252a30' }, ticks: { stroke: '#343a42' }, values: (u, splits) => splits.map(v => v == null ? null : time(v).slice(0, 5)) },
-				{ stroke: '#b7bdc5', grid: { stroke: '#252a30' }, ticks: { stroke: '#343a42' }, size: 85, values: (u, splits) => splits.map(v => v == null ? null : format(v)) },
+				{ stroke: '#b7bdc5', grid: { stroke: '#252a30', filter: filterAxisSplits }, ticks: { stroke: '#343a42', filter: filterAxisSplits }, size: 85, values: (u, splits) => splits.map(v => v == null ? null : format(v)) },
 			],
 			series: [{}, { label: 'Heatmap' }],
 			plugins: [heatmapPlugin({
 				xSize,
-				// Bucket progression stays geometric even when the display scale changes.
-				grid: { x: { distr: 1 }, y: { distr: 3 } },
+				grid: { x: { distr: 1 }, y: signed.checked ? { distr: 3, factor } : { distr: 3 } },
 				colors: palette,
 				colorIdx: count => colorLookup[Math.floor((count - minCount) * countScale)],
-				// All demo buckets are positive, so their minimum edge is the adaptive threshold.
-				onPrepare: (u, minY) => { asinhThreshold = minY ?? 1; },
+				onPrepare(u, minY, maxY, threshold) {
+					data = u.data;
+					asinhThreshold = threshold;
+					hoverIdx = undefined;
+					const xs = data[1][0];
+					if (xs.length > 0) {
+						xRange[0] = xs[0] - xSize;
+						xRange[1] = xs.at(-1);
+						zeroYRange[0] = Math.min(0, minY);
+						zeroYRange[1] = Math.max(0, maxY);
+
+						if (minY > 0) {
+							logYRange[0] = 2 ** Math.floor(Math.log2(minY));
+							logYRange[1] = 2 ** Math.ceil(Math.log2(maxY));
+						}
+					}
+					const intervals = xs.length == 0 ? 0 : Math.round((xRange[1] - xRange[0]) / xSize);
+					status.textContent = `${xs.length.toLocaleString()} cells · ${intervals} one-minute intervals · ${scaleLabel} Y · uniform-grid hover · ${signed.checked ? 'mirrored example' : 'no densification or exemplars'}`;
+				},
 				onHover(u, i) {
 					if (i === hoverIdx)
 						return;
 					hoverIdx = i;
+					const [xs, yMin, yMax, counts] = u.data[1];
 					readoutText.data = i == null ? hint : `${time(xs[i] - xSize)}–${time(xs[i])} UTC · Y: ${format(yMin[i])}–${format(yMax[i])} s · Count: ${format(counts[i])}`;
 				},
 			})],
@@ -112,27 +157,33 @@ export function createDemo(root, dashboard) {
 		heightValue.data = `${height.value}px`;
 		resize();
 	};
-	const setData = () => plot.setData(data);
+	const setData = () => plot.setData(plot.data);
 	const setYScale = () => {
-		const width = plot.width;
+		const { width, height: plotHeight } = plot;
 		plot.destroy();
 		hoverIdx = undefined;
 		readoutText.data = hint;
-		plot = createPlot(width);
+		plot = createPlot(width, plotHeight);
+	};
+	const setSigned = () => {
+		data = signed.checked ? mirroredData() : sourceData;
+		setYScale();
 	};
 	height.addEventListener('input', setHeight);
 	setDataButton.addEventListener('click', setData);
 	yScale.addEventListener('change', setYScale);
+	signed.addEventListener('change', setSigned);
 	window.addEventListener('resize', resize);
-	height.disabled = setDataButton.disabled = yScale.disabled = false;
+	height.disabled = setDataButton.disabled = yScale.disabled = signed.disabled = false;
 	return {
 		get plot() { return plot; },
 		destroy() {
 			height.removeEventListener('input', setHeight);
 			setDataButton.removeEventListener('click', setData);
 			yScale.removeEventListener('change', setYScale);
+			signed.removeEventListener('change', setSigned);
 			window.removeEventListener('resize', resize);
-			height.disabled = setDataButton.disabled = yScale.disabled = true;
+			height.disabled = setDataButton.disabled = yScale.disabled = signed.disabled = true;
 			plot.destroy();
 		},
 	};

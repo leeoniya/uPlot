@@ -166,6 +166,7 @@ describe('asinh label thinning', () => {
 						assert.ok(kept.includes(0));
 						assert.ok(kept.some(v => v < 0));
 						assert.ok(kept.some(v => v > 0));
+						assert.deepEqual(kept, kept.slice().reverse().map(v => v == 0 ? 0 : -v));
 						expectedMask ??= mask;
 						assert.deepEqual(mask, expectedMask);
 					}
@@ -173,6 +174,79 @@ describe('asinh label thinning', () => {
 				}
 			}
 		});
+
+		function select(min, max, threshold = 1, keepMod = 3, dir = 1) {
+			const magSpace = Math.asinh(base) - Math.asinh(1);
+			const self = {
+				axes: [{ scale: 'y', _space: magSpace * (keepMod - 0.5) }],
+				scales: { y: { distr: 4, log: base, _asinh: threshold, min, max } },
+				valToPos: v => dir * Math.asinh(v / threshold),
+			};
+			const splits = asinhAxisSplits(self, 0, min, max, 1, 30);
+			return filter(self, splits, 0).filter(v => v != null);
+		}
+
+		it(`selects matching base-${base} magnitudes in symmetric and asymmetric ranges`, () => {
+			const outer = (base == 10 ? 9 : 1.75) * base ** 12;
+			const inner = (base == 10 ? 9 : 1.75) * base ** 8;
+			for (const threshold of [base ** -3, 1, 3, base ** 3]) {
+				const positive = [-3, 0, 3, 6, 9, 12].map(e => base ** e).filter(v => v >= threshold);
+				const symmetric = [...positive.slice().reverse().map(v => -v), 0, ...positive];
+				for (const dir of [1, -1]) {
+					for (const [min, max] of [[-outer, outer], [-inner, outer], [-outer, inner]]) {
+						assert.deepEqual(select(min, max, threshold, 3, dir), symmetric.filter(v => v >= min && v <= max));
+					}
+				}
+			}
+		});
+
+		it(`mirrors base-${base} labels in positive-only and negative-only ranges`, () => {
+			const outer = (base == 10 ? 9 : 1.75) * base ** 12;
+			for (const threshold of [base ** -3, 1, 3, base ** 3]) {
+				for (const min of [-threshold / 2, 0, threshold / 2, threshold, 1.25 * base ** 4]) {
+					const expected = [0, ...[-3, 0, 3, 6, 9, 12].map(e => base ** e).filter(v => v >= threshold)].filter(v => v >= min);
+					for (const dir of [1, -1]) {
+						assert.deepEqual(select(min, outer, threshold, 3, dir), expected);
+						assert.deepEqual(select(-outer, -min, threshold, 3, dir), expected.slice().reverse().map(v => v == 0 ? 0 : -v));
+					}
+				}
+			}
+		});
+
+		it(`handles empty and single-split base-${base} label lists`, () => {
+			const self = {
+				axes: [{ scale: 'y', _space: 30 }],
+				scales: { y: { distr: 4, _asinh: 1 } },
+				valToPos: v => Math.asinh(v),
+			};
+			for (const splits of [[], [0], [base ** 3], [-(base ** 3)]])
+				assert.deepEqual(filter(self, splits, 0), splits);
+		});
+
+		it(`preserves ordinary base-${base} log index-based thinning`, () => {
+			const splits = base == 2 ? [1, 2, 4, 8, 16, 32, 64] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+			for (const dir of [1, -1]) {
+				const self = {
+					axes: [{ scale: 'y', _space: 2.5 }],
+					scales: { y: { distr: 3, log: base } },
+					valToPos: v => dir * Math.log(v) / Math.log(base),
+				};
+				assert.deepEqual(filter(self, splits, 0), splits.map((v, i) =>
+					(splits.length - 1 - i) % 3 == 0 && (base == 2 || v.toExponential()[0] == '1') ? v : null));
+			}
+		});
+
+		if (base == 10) {
+			it('counts skipped decades rather than mantissas, including multiples of nine', () => {
+				for (const keepMod of [2, 3, 9, 18]) {
+					const positive = [];
+					for (let e = 18; e >= -18; e -= keepMod)
+						positive.unshift(10 ** e);
+					const expected = [...positive.slice().reverse().map(v => -v), 0, ...positive];
+					assert.deepEqual(select(-9e18, 9e18, 1e-18, keepMod), expected);
+				}
+			});
+		}
 
 		it(`uses a constant number of position samples for base ${base}`, () => {
 			for (const count of [10, 100]) {

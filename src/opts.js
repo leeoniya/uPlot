@@ -709,7 +709,15 @@ const RE_12357 = /[12357]/;
 const RE_125   = /[125]/;
 const RE_1     = /1/;
 
-const _filt = (splits, distr, re, keepMod) => splits.map((v, i) => ((distr == 4 && v == 0) || i % keepMod == 0 && re.test(v.toExponential()[v < 0 ? 1 : 0])) ? v : null);
+const _filt = (splits, distr, re, keepMod, logFn) => {
+	if (distr == 4 && keepMod > 1 && splits.length > 0) {
+		// Share the skip phase across signs, counting powers rather than base-10 mantissas.
+		let mag = floor(logFn(max(abs(splits[0]), abs(splits[splits.length - 1]))));
+		return splits.map(v => (v == 0 || re.test(v.toExponential()[v < 0 ? 1 : 0]) && (mag - round(logFn(abs(v)))) % keepMod == 0) ? v : null);
+	}
+
+	return splits.map((v, i) => ((distr == 4 && v == 0) || i % keepMod == 0 && re.test(v.toExponential()[v < 0 ? 1 : 0])) ? v : null);
+};
 
 export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
@@ -740,7 +748,7 @@ export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) 
 		let magSpace = abs(valToPos(linthresh, scaleKey) - _10);
 
 		if (magSpace < minSpace)
-			return _filt(splits.slice().reverse(), sc.distr, re, ceil(minSpace / magSpace)).reverse(); // max->min skip
+			return _filt(splits.slice().reverse(), sc.distr, re, ceil(minSpace / magSpace), log10).reverse(); // max->min skip
 	}
 
 	return _filt(splits, sc.distr, re, 1);
@@ -761,7 +769,7 @@ export function log2AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let magSpace = abs(valToPos(linthresh, scaleKey) - valToPos(2 * linthresh, scaleKey));
 
 	if (magSpace < minSpace)
-		return _filt(splits.slice().reverse(), sc.distr, RE_ALL, ceil(minSpace / magSpace)).reverse(); // max->min skip
+		return _filt(splits.slice().reverse(), sc.distr, RE_ALL, ceil(minSpace / magSpace), log2).reverse(); // max->min skip
 
 	return splits;
 }

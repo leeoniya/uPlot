@@ -3,10 +3,14 @@
 // Counts must be finite and positive; omit empty buckets rather than supplying zero/null counts.
 // Both axes must follow an aligned, uniform progression in their grid transform.
 // grid uses distr: 1 (linear), 3 (log), or 4 (asinh, with a fixed numeric threshold).
+// Explicit grid.y {distr: 3, factor: >1} instead uses signed exponential rows:
+// edges are factor ** integer, mirrored below zero. Each cell has nonzero, same-sign bounds.
 // Grid transforms default to linear X and log Y, independently of the displayed uPlot scales.
-// xSize is the bucket width in transformed X units. Y width comes from the first cell.
+// xSize is the bucket width in transformed X units. Implicit Y width comes from the first cell.
 // colorIdx returns a palette index. onHover receives the original source index or null.
-// onPrepare receives (u, minY, maxY) after setData preparation, or null bounds for empty data.
+// onPrepare receives (u, minY, maxY, asinhThreshold), with null bounds for empty data.
+// asinhThreshold is the smallest absolute source Y edge strictly above the display cutoff, fallback 1.
+// The cutoff is the normalized Y clamp for an asinh display, otherwise zero.
 export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorIdx = () => 0, onHover = () => {}, onPrepare }) {
 	function axis(options, distr) {
 		distr = options?.distr ?? distr;
@@ -21,6 +25,19 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 
 	const x = axis(grid.x, 1);
 	const y = axis(grid.y, 3);
+	const signed = grid.y?.distr == 3 && grid.y.factor != null;
+	const factor = grid.y?.factor;
+	const logFactor = signed ? Math.log(factor) : 0;
+	let exponent = 0;
+	if (signed) {
+		// Coordinates 0 and 1 bound the empty gap between the nearest mirrored edges.
+		// Subtract exponents rather than dividing values, which can overflow at tiny edges.
+		y.fwd = v => {
+			const row = Math.max(0, Math.log(Math.abs(v)) / logFactor - exponent);
+			return v < 0 ? -row : row + 1;
+		};
+		y.bwd = row => row <= 0 ? -(factor ** (exponent - row)) : factor ** (exponent + row - 1);
+	}
 	// Each axis caches one value and one projected position per grid edge, including missing buckets.
 	// Preparation infers the progression. Drawing projects each edge only once.
 	// Heights are shared across columns, so the cell loop needs no boundary arithmetic.
@@ -58,7 +75,7 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 		if (length == 0) {
 			x.count = y.count = 0;
 			x.values.length = x.pixels.length = y.values.length = y.pixels.length = starts.length = heights.length = 0;
-			onPrepare?.(u, null, null);
+			onPrepare?.(u, null, null, 1);
 			return;
 		}
 
@@ -73,6 +90,7 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 
 		// Ascending Y within each run makes its endpoints sufficient for the full grid extent.
 		let minY = Infinity, maxY = yMax[length - 1];
+		let nearest = Infinity;
 		let nextCol = 0;
 		for (let i = 0; i < length;) {
 			const col = Math.round((x.fwd(xs[i]) - x.origin) * x.invStep) - 1;
@@ -95,34 +113,66 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 				else
 					hi = mid;
 			}
+			if (signed) {
+				// Ordered runs need only a binary search for their nearest regular edges.
+				let low = i, high = lo;
+				while (low < high) {
+					const mid = (low + high) >>> 1;
+					if (yMin[mid] < 0)
+						low = mid + 1;
+					else
+						high = mid;
+				}
+				if (low > i)
+					nearest = Math.min(nearest, -yMax[low - 1]);
+				if (low < lo)
+					nearest = Math.min(nearest, yMin[low]);
+			}
 			i = lo;
 		}
 		while (nextCol <= x.count)
 			starts[nextCol++] = length;
 
-		y.origin = y.fwd(minY);
-		y.step = y.fwd(yMax[0]) - y.fwd(yMin[0]);
-		y.invStep = 1 / y.step;
-		y.count = Math.round((y.fwd(maxY) - y.origin) * y.invStep);
+		if (signed) {
+			exponent = Math.round(Math.log(nearest) / logFactor);
+			y.origin = Math.round(y.fwd(minY));
+			y.step = y.invStep = 1;
+			y.count = Math.round(y.fwd(maxY)) - y.origin;
+		}
+		else {
+			y.origin = y.fwd(minY);
+			y.step = y.fwd(yMax[0]) - y.fwd(yMin[0]);
+			y.invStep = 1 / y.step;
+			y.count = Math.round((y.fwd(maxY) - y.origin) * y.invStep);
+		}
 		y.values.length = y.count + 1;
 		for (let row = 0; row <= y.count; row++)
 			y.values[row] = y.bwd(y.origin + row * y.step);
 		if (cellRows.length < length)
 			cellRows = new Uint32Array(Math.max(length, cellRows.length * 2));
 
+		const scale = u.scales.y;
+		const cutoff = scale.distr == 4 ? scale.clamp(u, 0, minY, maxY, 'y') : 0;
+		let asinhThreshold = Infinity;
 		for (let i = 0; i < length; i++) {
 			const bottom = yMin[i];
 			let row = rowIds.get(bottom);
 			if (row == null) {
 				row = Math.round((y.fwd(bottom) - y.origin) * y.invStep);
 				rowIds.set(bottom, row);
-				// Preserve exact source edges once per distinct row, not once per cell.
+				// Preserve exact source edges and collect the display threshold once per distinct row.
+				const top = yMax[i];
 				y.values[row] = bottom;
-				y.values[row + 1] = yMax[i];
+				y.values[row + 1] = top;
+				const absBottom = Math.abs(bottom), absTop = Math.abs(top);
+				if (absBottom > cutoff)
+					asinhThreshold = Math.min(asinhThreshold, absBottom);
+				if (absTop > cutoff)
+					asinhThreshold = Math.min(asinhThreshold, absTop);
 			}
 			cellRows[i] = row;
 		}
-		onPrepare?.(u, minY, maxY);
+		onPrepare?.(u, minY, maxY, asinhThreshold == Infinity ? 1 : asinhThreshold);
 	}
 
 	function project(u, axis, key, offset, size) {
