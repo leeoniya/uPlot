@@ -37,7 +37,29 @@ export function createDemo(root, dashboard) {
 		minCount = Math.min(minCount, counts[i]);
 		maxCount = Math.max(maxCount, counts[i]);
 	}
-	const countScale = (colorLookup.length - 1) / (maxCount - minCount || 1);
+	const countRange = maxCount - minCount || 1;
+	const countScale = (colorLookup.length - 1) / countRange;
+	const linearScale = (colorCount - 1) / countRange;
+	const logRange = Math.log(maxCount) - Math.log(minCount);
+	const logThresholds = Array.from({ length: colorCount - 1 }, (_, i) => minCount * Math.exp(logRange * (i + .5) / (colorCount - 1)));
+	const logLookup = new Uint8Array(colorLookup.length);
+	for (let i = 0, color = 0; i < logLookup.length; i++) {
+		const count = minCount + i / countScale;
+		while (color < colorCount - 1 && count >= logThresholds[color]) color++;
+		logLookup[i] = color;
+	}
+	const colorIndices = {
+		sqrt: count => colorLookup[Math.floor((count - minCount) * countScale)],
+		linear: count => Math.round((count - minCount) * linearScale),
+		log: minCount == maxCount ? () => 0 : count => {
+			let color = logLookup[Math.floor((count - minCount) * countScale)];
+			// Log transitions do not align with uniform LUT bins. Correct boundary bins
+			// with comparisons, without computing logarithms while drawing.
+			while (color < colorCount - 1 && count >= logThresholds[color]) color++;
+			while (color > 0 && count < logThresholds[color - 1]) color--;
+			return color;
+		},
+	};
 	const xRange = [0, xSize];
 	const logYRange = [1, 2];
 	const zeroYRange = [0, 1];
@@ -86,6 +108,14 @@ export function createDemo(root, dashboard) {
 	const heightValue = root.querySelector('#height-value').firstChild;
 	const setDataButton = root.querySelector('#set-data');
 	const yScale = root.querySelector('#y-scale');
+	const colorScale = root.querySelector('#color-scale');
+	const colorScaleLabel = root.querySelector('#color-scale-label');
+	let colorIdx;
+	const updateColorScale = () => {
+		colorIdx = colorIndices[colorScale.value];
+		colorScaleLabel.textContent = `Count · ${colorScale.value == 'sqrt' ? '√' : colorScale.value} scale`;
+	};
+	updateColorScale();
 	const signed = root.querySelector('#signed-data');
 	const logOption = yScale.querySelector('option[value="log"]');
 	if (signed.checked) data = mirroredData();
@@ -119,7 +149,7 @@ export function createDemo(root, dashboard) {
 				xSize,
 				grid: { x: { distr: 1 }, y: signed.checked ? { distr: 3, factor } : { distr: 3 } },
 				colors: palette,
-				colorIdx: count => colorLookup[Math.floor((count - minCount) * countScale)],
+				colorIdx: count => colorIdx(count),
 				onPrepare(u, minY, maxY, threshold) {
 					data = u.data;
 					asinhThreshold = threshold;
@@ -158,6 +188,10 @@ export function createDemo(root, dashboard) {
 		resize();
 	};
 	const setData = () => plot.setData(plot.data);
+	const setColorScale = () => {
+		updateColorScale();
+		plot.redraw(false, false);
+	};
 	const setYScale = () => {
 		const { width, height: plotHeight } = plot;
 		plot.destroy();
@@ -172,18 +206,20 @@ export function createDemo(root, dashboard) {
 	height.addEventListener('input', setHeight);
 	setDataButton.addEventListener('click', setData);
 	yScale.addEventListener('change', setYScale);
+	colorScale.addEventListener('change', setColorScale);
 	signed.addEventListener('change', setSigned);
 	window.addEventListener('resize', resize);
-	height.disabled = setDataButton.disabled = yScale.disabled = signed.disabled = false;
+	height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = signed.disabled = false;
 	return {
 		get plot() { return plot; },
 		destroy() {
 			height.removeEventListener('input', setHeight);
 			setDataButton.removeEventListener('click', setData);
 			yScale.removeEventListener('change', setYScale);
+			colorScale.removeEventListener('change', setColorScale);
 			signed.removeEventListener('change', setSigned);
 			window.removeEventListener('resize', resize);
-			height.disabled = setDataButton.disabled = yScale.disabled = signed.disabled = true;
+			height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = signed.disabled = true;
 			plot.destroy();
 		},
 	};

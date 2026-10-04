@@ -31,6 +31,12 @@
 					<option value="asinh">Asinh</option>
 				</select>
 				<label><input id="signed-data" type="checkbox" disabled> Mirror negative buckets</label>
+				<label for="color-scale">Color scale</label>
+				<select id="color-scale" disabled>
+					<option value="linear" selected>Linear</option>
+					<option value="sqrt">Square root</option>
+					<option value="log">Log</option>
+				</select>
 				<label for="height">Chart height</label>
 				<input id="height" type="range" min="200" max="1200" step="10" value="560" disabled>
 				<output id="height-value" for="height">560px</output>
@@ -39,7 +45,7 @@
 			<div id="plot"></div>
 			<div id="legend">
 				<div id="color-ramp"></div>
-				<div id="color-labels"><span id="color-min"></span><span>Count · √ scale</span><span id="color-max"></span></div>
+				<div id="color-labels"><span id="color-min"></span><span id="color-scale-label">Count · linear scale</span><span id="color-max"></span></div>
 			</div>
 			<output id="hover"></output>
 		</main>

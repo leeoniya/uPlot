@@ -173,6 +173,48 @@ function dashboardFor(values) {
 }
 const realDashboard = () => JSON.parse(readFileSync(new URL('../demos/data/heatmap-cells-exemplars.json', import.meta.url), 'utf8'));
 
+const colorLabels = { linear: 'Count · linear scale', sqrt: 'Count · √ scale', log: 'Count · log scale' };
+const colorModes = Object.keys(colorLabels);
+
+function demoColorIndex(count, mode, min, max) {
+	if (min == max) return 0;
+	const t = (count - min) / (max - min);
+	return Math.round(31 * (mode == 'sqrt' ? Math.sqrt(t) : mode == 'log' ? (Math.log(count) - Math.log(min)) / (Math.log(max) - Math.log(min)) : t));
+}
+
+function colorBoundaryCounts(mode, min, max) {
+	return Array.from({ length: 31 }, (_, j) => {
+		const t = (j + .5) / 31;
+		const edge = mode == 'log' ? min * Math.exp((Math.log(max) - Math.log(min)) * (j + .5) / 31) : min + (max - min) * (mode == 'sqrt' ? t * t : t);
+		// Exact ties can differ by a few ulps between the direct and inverse formulas.
+		const eps = (mode == 'log' ? edge : max - min) * 1e-12;
+		return [edge - eps, edge + eps];
+	}).flat();
+}
+
+function checkDemoColors(u, mode, min, max) {
+	const expected = Array.from({ length: 32 }, () => []);
+	u.data[1][3].forEach((count, i) => {
+		const rect = bounds(u, i, true, 60);
+		if (rect[2] > 0 && rect[3] > 0)
+			expected[demoColorIndex(count, mode, min, max)].push(rect);
+	});
+	const paths = fills(u).slice(-32);
+	assert.equal(paths.length, 32);
+	paths.forEach((path, color) => assert.deepEqual(pathRects(path), expected[color], `${mode} palette index ${color}`));
+}
+
+function withoutColorMath(fn) {
+	const names = ['log', 'log1p', 'sqrt', 'exp'];
+	const originals = names.map(name => Math[name]);
+	try {
+		for (const name of names)
+			Math[name] = () => { throw new Error(`Color selection/drawing must reuse setup tables, not compute Math.${name}`); };
+		return fn();
+	}
+	finally { names.forEach((name, i) => { Math[name] = originals[i]; }); }
+}
+
 // Isolate plugin work from uPlot's own scans, projections, cursor updates, and allocations.
 function isolated(options, data = empty(), over = document.createElement('div')) {
 	const plugin = heatmapPlugin(options);
@@ -1056,19 +1098,24 @@ describe('heatmapPlugin demo', () => {
 		finally { demo?.destroy(); root.remove(); }
 	});
 
-	it('recreates Y display scales through the public API, preserves data and size, resets zoom, and cleans up listeners', async () => {
+	it('redraws color scales in place, recreates Y scales with the selected color, and cleans up all control listeners', async () => {
 		const dashboard = realDashboard(), snapshot = JSON.stringify(dashboard);
 		const root = createDemoRoot();
 		const height = root.querySelector('#height'), button = root.querySelector('#set-data'), select = root.querySelector('#y-scale');
-		const signed = root.querySelector('#signed-data');
+		const signed = root.querySelector('#signed-data'), color = root.querySelector('#color-scale');
+		assert.ok(color, 'the color-scale selector exists');
+		assert.equal(color.tagName, 'SELECT');
+		assert.deepEqual(Array.from(color.options, o => o.value), colorModes);
+		assert.equal(color.value, 'linear');
+		assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels.linear);
 		assert.ok(signed, 'the signed-data checkbox exists');
 		assert.equal(signed.type, 'checkbox');
 		assert.equal(signed.checked, false);
 		assert.deepEqual(Array.from(select.options, o => o.value), ['log', 'linear', 'asinh']);
 		assert.equal(select.value, 'log');
-		assert.ok(height.disabled && button.disabled && select.disabled && signed.disabled);
+		assert.ok(height.disabled && button.disabled && select.disabled && signed.disabled && color.disabled);
 		const registrations = [], removals = [], restore = [];
-		for (const [target, type] of [[height, 'input'], [button, 'click'], [select, 'change'], [signed, 'change'], [window, 'resize']]) {
+		for (const [target, type] of [[height, 'input'], [button, 'click'], [select, 'change'], [signed, 'change'], [color, 'change'], [window, 'resize']]) {
 			for (const [method, records] of [['addEventListener', registrations], ['removeEventListener', removals]]) {
 				const original = target[method];
 				target[method] = function(name, listener, capture) {
@@ -1085,19 +1132,58 @@ describe('heatmapPlugin demo', () => {
 			const originalData = demo.plot.data, dataSnapshot = structuredClone(originalData);
 			const minY = originalData[1][1].reduce((a, b) => Math.min(a, b), Infinity);
 			const maxY = originalData[1][2].reduce((a, b) => Math.max(a, b), -Infinity);
-			assert.ok(!height.disabled && !button.disabled && !select.disabled && !signed.disabled);
+			const minCount = originalData[1][3].reduce((a, b) => Math.min(a, b), Infinity);
+			const maxCount = originalData[1][3].reduce((a, b) => Math.max(a, b), -Infinity);
+			assert.ok(!height.disabled && !button.disabled && !select.disabled && !signed.disabled && !color.disabled);
+			assert.equal(registrations.filter(([target]) => target == color).length, 1);
+			assert.equal(color.value, 'linear');
+			assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels.linear);
+
+			async function changeColor(mode) {
+				const u = demo.plot, data = u.data, facets = data[1].slice();
+				const state = () => [u.width, u.height, u.scales.x.min, u.scales.x.max, u.scales.y.min, u.scales.y.max,
+					u.scales.y.distr, u.scales.y._asinh, select.value, signed.checked, root.querySelector('#status').textContent];
+				const before = state(), logLength = u.ctx.log.length;
+				const setData = u.setData, destroy = u.destroy, redraw = u.redraw;
+				let redraws = 0, prepares = 0;
+				const onData = () => prepares++;
+				u.hooks.setData.push(onData);
+				u.setData = () => assert.fail('color selection must not call setData');
+				u.destroy = () => assert.fail('color selection must not destroy the plot');
+				u.redraw = (...args) => { redraws++; return redraw(...args); };
+				try {
+					color.value = mode;
+					withoutColorMath(() => color.dispatchEvent(new Event('change')));
+					await Promise.resolve();
+					assert.ok(redraws > 0, 'selection requests a redraw');
+					assert.ok(u.ctx.log.length > logLength, 'selection renders immediately');
+					assert.equal(prepares, 0, 'selection does not prepare geometry');
+					assert.equal(demo.plot, u);
+					assert.equal(root.querySelectorAll('.uplot').length, 1);
+					assert.equal(u.data, data);
+					facets.forEach((facet, i) => assert.equal(u.data[1][i], facet));
+					assert.deepEqual(u.data, dataSnapshot);
+					assert.deepEqual(state(), before, 'color selection preserves dimensions, zoom, and Y settings');
+					assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels[mode]);
+				}
+				finally {
+					u.setData = setData; u.destroy = destroy; u.redraw = redraw;
+					u.hooks.setData.splice(u.hooks.setData.indexOf(onData), 1);
+				}
+			}
 			assert.equal(demo.plot.height, 560);
 			height.value = '720'; height.dispatchEvent(new Event('input'));
 			await Promise.resolve();
 			assert.equal(demo.plot.height, 720);
 			assert.equal(root.querySelector('#height-value').textContent, '720px');
 			let destroyed = 0, dataCalls = 0, sizeCalls = 0;
-			for (const [mode, distr] of [['linear', 1], ['asinh', 4], ['log', 3], ['asinh', 4]]) {
+			for (const [mode, distr, retainedColor] of [['linear', 1, 'linear'], ['asinh', 4, 'log'], ['log', 3, 'linear'], ['asinh', 4, 'log']]) {
 				const old = demo.plot;
 				old.setSize({ width: 777, height: 720 });
 				old.setScale('x', { min: 1698438000, max: 1698440000 });
 				old.setScale('y', { min: .01, max: 1 });
 				await Promise.resolve();
+				for (const colorMode of [...colorModes, retainedColor]) await changeColor(colorMode);
 				const destroy = old.destroy;
 				old.destroy = () => { destroyed++; destroy(); };
 				const oldDistr = old.scales.y.distr;
@@ -1113,6 +1199,9 @@ describe('heatmapPlugin demo', () => {
 				assert.deepEqual(u.data, dataSnapshot);
 				assert.deepEqual([u.width, u.height], [777, 720]);
 				assert.equal(select.value, mode);
+				assert.equal(color.value, retainedColor, 'Y recreation retains the color scale');
+				assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels[retainedColor]);
+				checkDemoColors(u, retainedColor, minCount, maxCount);
 				assert.equal(u.scales.y.distr, distr);
 				assert.deepEqual([u.scales.x.min, u.scales.x.max], [1698437700, 1698459360]);
 				assert.deepEqual([u.scales.y.min, u.scales.y.max], mode == 'log' ? [2 ** -16, 2 ** -4] : [0, maxY]);
@@ -1137,15 +1226,21 @@ describe('heatmapPlugin demo', () => {
 			assert.equal(destroyed, 4);
 			assert.equal(dataCalls, 4);
 			assert.equal(JSON.stringify(dashboard), snapshot);
+			assert.equal(registrations.filter(([target]) => target == color).length, 1, 'recreation does not duplicate color listeners');
 			const latest = demo.plot, beforeSize = sizeCalls;
+			let redrawsAfterDestroy = 0;
+			latest.redraw = () => redrawsAfterDestroy++;
 			const destroy = latest.destroy;
 			latest.destroy = () => { destroyed++; destroy(); };
 			demo.destroy();
 			assert.equal(destroyed, 5);
 			assert.deepEqual(removals, registrations, 'each control/window listener is removed with the same function and capture flag');
-			assert.ok(height.disabled && button.disabled && select.disabled && signed.disabled);
+			assert.ok(height.disabled && button.disabled && select.disabled && signed.disabled && color.disabled);
 			height.dispatchEvent(new Event('input')); button.dispatchEvent(new MouseEvent('click'));
 			select.dispatchEvent(new Event('change')); signed.dispatchEvent(new Event('change')); window.dispatchEvent(new Event('resize'));
+			color.value = 'linear'; color.dispatchEvent(new Event('change')); await Promise.resolve();
+			assert.equal(redrawsAfterDestroy, 0);
+			assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels.log);
 			assert.equal(demo.plot, latest);
 			assert.equal(sizeCalls, beforeSize); assert.equal(dataCalls, 4); assert.equal(destroyed, 5);
 			demo = null;
@@ -1157,6 +1252,7 @@ describe('heatmapPlugin demo', () => {
 		it(`toggles signed demo data from ${initialMode}, preserves dimensions, and restores log availability`, async () => {
 			const root = createDemoRoot(), select = root.querySelector('#y-scale'), signed = root.querySelector('#signed-data');
 			select.value = initialMode;
+			const color = root.querySelector('#color-scale');
 			assert.ok(signed, 'the signed-data checkbox exists');
 			const dashboard = dashboardFor([[60000, 60000, 120000, 240000, 240000], [1, 4, 2, 1, 2], [2, 8, 4, 2, 4], [1, 2, 3, 4, 2]]);
 			const snapshot = JSON.stringify(dashboard), threshold = 1;
@@ -1164,6 +1260,8 @@ describe('heatmapPlugin demo', () => {
 			try {
 				demo = createDemo(root, dashboard); await Promise.resolve();
 				const original = demo.plot.data, originalSnapshot = structuredClone(original), old = demo.plot;
+				color.value = 'log'; color.dispatchEvent(new Event('change')); await Promise.resolve();
+				checkDemoColors(old, 'log', 1, 4);
 				old.setSize({ width: 777, height: 640 }); await Promise.resolve();
 				let destroyed = 0;
 				const destroy = old.destroy;
@@ -1174,6 +1272,9 @@ describe('heatmapPlugin demo', () => {
 				assert.equal(root.querySelectorAll('.uplot').length, 1);
 				assert.deepEqual([demo.plot.width, demo.plot.height], [777, 640]);
 				assert.equal(select.value, initialMode == 'log' ? 'asinh' : initialMode);
+				assert.equal(color.value, 'log', 'signed recreation retains color selection');
+				assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels.log);
+				checkDemoColors(demo.plot, 'log', 1, 4);
 				assert.equal(select.querySelector('option[value="log"]').disabled, true);
 				assert.notEqual(data, original);
 				assert.equal(xs.length, original[1][0].length * 2);
@@ -1198,6 +1299,23 @@ describe('heatmapPlugin demo', () => {
 					const u = demo.plot;
 					assert.equal(u.data, data); assert.deepEqual([u.width, u.height], [777, 640]);
 					assert.equal(u.scales.y.distr, mode == 'linear' ? 1 : 4);
+					assert.equal(color.value, 'log');
+					checkDemoColors(u, 'log', 1, 4);
+					for (const colorMode of ['sqrt', 'linear', 'log']) {
+						u.setScale('x', { min: 20, max: 220 });
+						u.setScale('y', { min: -6, max: 6 }); await Promise.resolve();
+						color.value = colorMode; color.dispatchEvent(new Event('change')); await Promise.resolve();
+						assert.equal(demo.plot, u); assert.equal(u.data, data);
+						assert.equal(signed.checked, true); assert.equal(select.value, mode);
+						assert.deepEqual([u.width, u.height], [777, 640]);
+						assert.deepEqual([u.scales.x.min, u.scales.x.max, u.scales.y.min, u.scales.y.max], [20, 220, -6, 6]);
+						assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels[colorMode]);
+						checkDemoColors(u, colorMode, 1, 4);
+						u.setSize({ width: 800, height: 480 }); await Promise.resolve();
+						assert.equal(color.value, colorMode); checkDemoColors(u, colorMode, 1, 4);
+						u.setSize({ width: 777, height: 640 });
+					}
+					u.setScale('x', { min: 0, max: 240 }); u.setScale('y', { min: -8, max: 8 }); await Promise.resolve();
 					assert.deepEqual([u.scales.x.min, u.scales.x.max], [0, 240]);
 					assert.deepEqual([u.scales.y.min, u.scales.y.max], [-8, 8]);
 					assert.equal(u.scales.y.asinh(u, 'y'), threshold);
@@ -1226,9 +1344,11 @@ describe('heatmapPlugin demo', () => {
 				assert.equal(lastSigned.root.isConnected, false);
 				assert.equal(select.querySelector('option[value="log"]').disabled, false);
 				assert.equal(demo.plot.data, original);
+				assert.equal(color.value, 'log'); checkDemoColors(demo.plot, 'log', 1, 4);
 				assert.deepEqual(original, originalSnapshot); assert.equal(JSON.stringify(dashboard), snapshot);
 				select.value = 'log'; select.dispatchEvent(new Event('change')); await Promise.resolve();
 				assert.equal(demo.plot.scales.y.distr, 3);
+				assert.equal(color.value, 'log'); checkDemoColors(demo.plot, 'log', 1, 4);
 				assert.deepEqual([demo.plot.scales.y.min, demo.plot.scales.y.max], [1, 8]);
 				assert.deepEqual([demo.plot.width, demo.plot.height], [777, 640]);
 				checkOracle(demo.plot, sourceFixture(original, 60), false);
@@ -1426,13 +1546,13 @@ describe('heatmapPlugin demo', () => {
 		});
 	}
 
-	it('uses a square-root-aligned color lookup across transitions and constant count ranges', async () => {
-		const varying = Array.from({ length: 257 }, (_, i) => 1 + i / 256);
-		for (let i = 0; i < 31; i++) {
-			const edge = 1 + ((i + .5) / 31) ** 2;
-			varying.push(edge - 1e-12, edge + 1e-12);
-		}
-		for (const counts of [varying, Array(16).fill(1.234)]) {
+	it('uses exact sqrt, linear, and log colors across transitions and constant count ranges', async () => {
+		const fixtures = [[1, 2], [.125, 2048], [1e-5, .01]].map(([min, max]) => [
+			min, max,
+			...Array.from({ length: 256 }, (_, i) => min + (max - min) * (i + 1) / 257),
+			...colorModes.flatMap(mode => colorBoundaryCounts(mode, min, max)),
+		]);
+		for (const counts of [...fixtures, Array(16).fill(1.234)]) {
 			const xs = counts.map((_, i) => 1698437760000 + i * 60000);
 			const dashboard = dashboardFor([xs, counts.map(() => .01), counts.map(() => .02), counts]);
 			const root = createDemoRoot();
@@ -1443,24 +1563,115 @@ describe('heatmapPlugin demo', () => {
 				const u = demo.plot;
 				const min = counts.reduce((a, b) => Math.min(a, b), Infinity);
 				const max = counts.reduce((a, b) => Math.max(a, b), -Infinity);
-				const expected = Array.from({ length: 32 }, () => []);
-				counts.forEach((count, i) => expected[Math.round(Math.sqrt((count - min) / (max - min || 1)) * 31)].push(i));
-				const sqrt = Math.sqrt;
-				try {
-					Math.sqrt = () => { throw new Error('Draw-time color lookup must not compute square roots'); };
-					u.hooks.draw[0](u);
+				const color = root.querySelector('#color-scale');
+				assert.equal(color.value, 'linear');
+				checkDemoColors(u, 'linear', min, max);
+				for (const mode of [...colorModes, ...colorModes]) {
+					color.value = mode;
+					withoutColorMath(() => color.dispatchEvent(new Event('change')));
+					await Promise.resolve();
+					assert.equal(demo.plot, u);
+					assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels[mode]);
+					checkDemoColors(u, mode, min, max);
+					// Isolate the plugin from core axis math when checking its hot path.
+					withoutColorMath(() => u.hooks.draw[0](u));
+					checkDemoColors(u, mode, min, max);
+					const paths = fills(u).slice(-32);
+					assert.ok(pathRects(paths[0]).length > 0, 'minimum uses palette index 0');
+					if (min != max)
+						assert.ok(pathRects(paths[31]).length > 0, 'maximum uses palette index 31');
+					else
+						assert.deepEqual(paths.map(path => pathRects(path).length), [counts.length, ...Array(31).fill(0)]);
 				}
-				finally { Math.sqrt = sqrt; }
-				const paths = fills(u).slice(-32);
-				assert.equal(paths.length, 32);
-				paths.forEach((path, color) => {
-					const drawn = pathRects(path);
-					assert.equal(drawn.length, expected[color].length);
-					drawn.forEach((rect, i) => close(rect, bounds(u, expected[color][i], true, 60), 0));
-				});
 			}
 			finally { demo?.destroy(); root.remove(); }
 		}
+	});
+
+	it('reuses setup color tables and the original count domain after setData, without scans or preparation on redraw', async () => {
+		const root = createDemoRoot(), color = root.querySelector('#color-scale');
+		root.querySelector('#y-scale').value = 'linear';
+		const min = 1, max = 64;
+		const initial = [1, 2, 4, 8, 32, 64];
+		const dashboard = dashboardFor([initial.map((_, i) => (i + 1) * 60000), initial.map(() => 1), initial.map(() => 2), initial]);
+		let demo;
+		try {
+			demo = createDemo(root, dashboard); await Promise.resolve();
+			const u = demo.plot;
+			let drawing = false, prepares = 0, dataCalls = 0, redraws = 0;
+			let reads = [];
+			const setData = u.setData, redraw = u.redraw;
+			u.setData = (...args) => { dataCalls++; return setData(...args); };
+			u.redraw = (...args) => { redraws++; return redraw(...args); };
+			u.hooks.setData.push(() => prepares++);
+
+			function watchData(data) {
+				// Accessors also observe the original arrays retained by createDemo closures.
+				data[1].forEach((facet, fi) => facet.forEach((value, i) => {
+					Object.defineProperty(facet, i, { configurable: true, enumerable: true,
+						get() {
+							if (drawing) {
+								assert.equal(fi, 3, 'redraw must use prepared geometry, not read source coordinates');
+								reads.push(i);
+							}
+							return value;
+						},
+						set(next) { value = next; },
+					});
+				}));
+			}
+
+			async function checkRedraw(mode, select) {
+				const data = u.data, before = [dataCalls, prepares, redraws];
+				const visible = data[1][3].flatMap((_, i) => {
+					const rect = bounds(u, i, true, 60);
+					return rect[2] > 0 && rect[3] > 0 ? [i] : [];
+				});
+				reads = []; drawing = true;
+				try {
+					if (select) {
+						color.value = mode;
+						withoutColorMath(() => color.dispatchEvent(new Event('change')));
+					}
+					else u.redraw();
+					await Promise.resolve();
+					assert.equal(redraws, before[2] + 1);
+					assert.deepEqual(reads, visible, 'one count read per visible cell, no count-domain scan');
+					reads = [];
+					withoutColorMath(() => u.hooks.draw[0](u));
+					assert.deepEqual(reads, visible, 'cached color tables also serve repeated plugin draws');
+				}
+				finally { drawing = false; }
+				assert.equal(demo.plot, u); assert.equal(u.data, data);
+				assert.deepEqual([dataCalls, prepares], before.slice(0, 2));
+				assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels[mode]);
+				assert.equal(root.querySelector('#color-min').textContent, '1');
+				assert.equal(root.querySelector('#color-max').textContent, '64');
+				checkDemoColors(u, mode, min, max);
+			}
+
+			watchData(u.data);
+			for (let phase = 0; phase < 3; phase++) {
+				if (phase == 1) {
+					// All replacement counts are inside the original domain; none were in the fixture.
+					const counts = colorModes.flatMap(mode => colorBoundaryCounts(mode, min, max));
+					const next = [null, [counts.map((_, i) => (i + 1) * 60), counts.map(() => 1), counts.map(() => 2), counts]];
+					watchData(next); u.setData(next); await Promise.resolve();
+					assert.equal(u.data, next);
+				}
+				else if (phase == 2) {
+					u.data[1][3].reverse(); u.setData(u.data); await Promise.resolve();
+				}
+				assert.deepEqual([dataCalls, prepares], [phase, phase]);
+				// Keep offscreen counts so a full-domain scan cannot masquerade as drawing.
+				u.setScale('x', { min: 90, max: u.data[1][0].at(-2) }); await Promise.resolve();
+				for (const mode of ['log', 'linear', 'sqrt', 'log']) {
+					await checkRedraw(mode, true);
+					await checkRedraw(mode, false);
+				}
+			}
+		}
+		finally { demo?.destroy(); root.remove(); }
 	});
 
 	it('loads 250k cells without spreading data arrays into function arguments', async function() {
@@ -1512,9 +1723,20 @@ describe('heatmapPlugin demo', () => {
 			const counts = u.data[1][3];
 			const min = counts.reduce((a, b) => Math.min(a, b), Infinity);
 			const max = counts.reduce((a, b) => Math.max(a, b), -Infinity);
-			const expected = Array(32).fill(0);
-			for (const count of counts) expected[Math.round(Math.sqrt((count - min) / (max - min || 1)) * 31)]++;
-			assert.deepEqual(fills(u).map(path => pathRects(path).length), expected);
+			const color = root.querySelector('#color-scale');
+			const format = v => Number(v.toPrecision(5)).toString();
+			for (const mode of colorModes) {
+				color.value = mode; color.dispatchEvent(new Event('change')); await Promise.resolve();
+				assert.equal(demo.plot, u);
+				assert.equal(u.data[1][3], counts);
+				assert.equal(rects(u).length, 14997);
+				checkDemoColors(u, mode, min, max);
+				assert.deepEqual(lastDraw(u).filter(e => e[0] === 'fillStyle').flatMap(e => e.slice(1)).filter(fill => fill.startsWith('rgb(')), colorChanges,
+					'all modes retain the same ordered Spectral palette');
+				assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels[mode]);
+				assert.equal(root.querySelector('#color-min').textContent, format(min));
+				assert.equal(root.querySelector('#color-max').textContent, format(max));
+			}
 			assert.deepEqual([u.scales.x.min, u.scales.x.max], [1698437700, 1698459360]);
 			assert.deepEqual([u.scales.y.min, u.scales.y.max], [2 ** -16, 2 ** -4]);
 			assert.equal(u.scales.y.distr, 3);
