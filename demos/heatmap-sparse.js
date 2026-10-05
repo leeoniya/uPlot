@@ -162,10 +162,8 @@ export function createDemo(root, dashboard) {
 						zeroYRange[0] = Math.min(0, minY);
 						zeroYRange[1] = Math.max(0, maxY);
 
-						if (minY > 0) {
-							logYRange[0] = 2 ** Math.floor(Math.log2(minY));
-							logYRange[1] = 2 ** Math.ceil(Math.log2(maxY));
-						}
+						if (minY > 0)
+							[logYRange[0], logYRange[1]] = uPlot.rangeLog(minY, maxY, 2, true);
 					}
 					const intervals = xs.length == 0 ? 0 : Math.round((xRange[1] - xRange[0]) / xSize);
 					status.textContent = `${xs.length.toLocaleString()} cells · ${intervals} one-minute intervals · ${scaleLabel} Y · uniform-grid hover · ${signed.checked ? 'mirrored example' : 'no densification or exemplars'}`;
