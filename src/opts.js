@@ -710,13 +710,14 @@ const RE_125   = /[125]/;
 const RE_1     = /1/;
 
 const _filt = (splits, distr, re, keepMod, logFn) => {
-	if (distr == 4 && keepMod > 1 && splits.length > 0) {
-		// Share the skip phase across signs, counting powers rather than base-10 mantissas.
-		let mag = floor(logFn(max(abs(splits[0]), abs(splits[splits.length - 1]))));
-		return splits.map(v => (v == 0 || re.test(v.toExponential()[v < 0 ? 1 : 0]) && (mag - round(logFn(abs(v)))) % keepMod == 0) ? v : null);
-	}
+	let asinh = distr == 4;
+	// Share the asinh skip phase across signs, counting powers rather than base-10 mantissas.
+	let mag = asinh && keepMod > 1 ? floor(logFn(max(abs(splits[0]), abs(splits.at(-1))))) : null;
 
-	return splits.map((v, i) => ((distr == 4 && v == 0) || i % keepMod == 0 && re.test(v.toExponential()[v < 0 ? 1 : 0])) ? v : null);
+	return splits.map((v, i) => (asinh && v == 0 ||
+		re.test(v.toExponential()[v < 0 ? 1 : 0]) &&
+		(mag == null ? i : mag - round(logFn(abs(v)))) % keepMod == 0
+	) ? v : null);
 };
 
 export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {

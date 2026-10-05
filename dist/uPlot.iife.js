@@ -2025,7 +2025,16 @@ var uPlot = (function () {
 	const RE_125   = /[125]/;
 	const RE_1     = /1/;
 
-	const _filt = (splits, distr, re, keepMod) => splits.map((v, i) => ((distr == 4 && v == 0) || i % keepMod == 0 && re.test(v.toExponential()[v < 0 ? 1 : 0])) ? v : null);
+	const _filt = (splits, distr, re, keepMod, logFn) => {
+		let asinh = distr == 4;
+		// Share the asinh skip phase across signs, counting powers rather than base-10 mantissas.
+		let mag = asinh && keepMod > 1 ? floor(logFn(max(abs(splits[0]), abs(splits.at(-1))))) : null;
+
+		return splits.map((v, i) => (asinh && v == 0 ||
+			re.test(v.toExponential()[v < 0 ? 1 : 0]) &&
+			(mag == null ? i : mag - round(logFn(abs(v)))) % keepMod == 0
+		) ? v : null);
+	};
 
 	function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 		let axis = self.axes[axisIdx];
@@ -2056,7 +2065,7 @@ var uPlot = (function () {
 			let magSpace = abs(valToPos(linthresh, scaleKey) - _10);
 
 			if (magSpace < minSpace)
-				return _filt(splits.slice().reverse(), sc.distr, re, ceil(minSpace / magSpace)).reverse(); // max->min skip
+				return _filt(splits.slice().reverse(), sc.distr, re, ceil(minSpace / magSpace), log10).reverse(); // max->min skip
 		}
 
 		return _filt(splits, sc.distr, re, 1);
@@ -2077,7 +2086,7 @@ var uPlot = (function () {
 		let magSpace = abs(valToPos(linthresh, scaleKey) - valToPos(2 * linthresh, scaleKey));
 
 		if (magSpace < minSpace)
-			return _filt(splits.slice().reverse(), sc.distr, RE_ALL, ceil(minSpace / magSpace)).reverse(); // max->min skip
+			return _filt(splits.slice().reverse(), sc.distr, RE_ALL, ceil(minSpace / magSpace), log2).reverse(); // max->min skip
 
 		return splits;
 	}
