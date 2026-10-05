@@ -190,41 +190,15 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, colors = ['steelbl
 		pixels.length = values.length;
 	}
 
-	// Increasing data values move right on X and up on Y. Searches use the rounded drawing bounds.
-	function precedes(axis, id, pixel, inclusive) {
-		const edge = axis.pixels[id];
-		return (axis == x ? edge < pixel : edge > pixel) || inclusive && edge == pixel;
-	}
-
-	function bucketAt(axis, pixel, guess, inclusive) {
-		const id = Math.max(-1, Math.min(axis.count - 1, Math.floor(guess)));
-		if ((id < 0 || precedes(axis, id, pixel, inclusive)) &&
-			(id + 1 == axis.count || !precedes(axis, id + 1, pixel, inclusive)))
-			return id;
-
-		// Rounding, clipping, or a different display transform can collapse many buckets onto one pixel.
-		// A boundary search skips them without a linear correction loop or a pixel-to-cell index.
-		let lo = 0, hi = axis.count;
-		while (lo < hi) {
-			const mid = (lo + hi) >>> 1;
-			if (precedes(axis, mid, pixel, inclusive))
-				lo = mid + 1;
-			else
-				hi = mid;
-		}
-		return lo - 1;
+	// Search rounded drawing bounds directly, including collapsed edges. Y pixels descend as values increase.
+	function bucketAt(axis, pixel, inclusive) {
+		return bisect(axis.pixels, pixel, 0, axis.count, axis == y, inclusive) - 1;
 	}
 
 	function sourceAt(col, row) {
-		let lo = starts[col], hi = starts[col + 1];
-		while (lo < hi) {
-			const mid = (lo + hi) >>> 1;
-			if (cellRows[mid] < row)
-				lo = mid + 1;
-			else
-				hi = mid;
-		}
-		return lo < starts[col + 1] && cellRows[lo] == row ? lo : -1;
+		const end = starts[col + 1];
+		const i = bisect(cellRows, row, starts[col], end);
+		return i < end && cellRows[i] == row ? i : -1;
 	}
 
 	function lookup(u) {
@@ -242,10 +216,8 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, colors = ['steelbl
 		hit = null;
 
 		if (px >= left && py >= top && px <= left + width && py <= top + height) {
-			const gx = (x.fwd(u.posToVal(px, 'x', true)) - x.origin) * x.invStep;
-			const gy = (y.fwd(u.posToVal(py, 'y', true)) - y.origin) * y.invStep;
-			const firstRow = bucketAt(y, py, gy, true);
-			let col = bucketAt(x, px, gx, true);
+			const firstRow = bucketAt(y, py, true);
+			let col = bucketAt(x, px, true);
 			for (let c = 0; c < 2 && col >= 0; c++) {
 				const x0 = x.pixels[col], x1 = x.pixels[col + 1];
 				if (x1 > x0 && px <= x1 && starts[col] < starts[col + 1]) {
@@ -265,13 +237,13 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, colors = ['steelbl
 						}
 						if (y1 != py)
 							break;
-						row = bucketAt(y, py, gy, false);
+						row = bucketAt(y, py, false);
 					}
 				}
 				if (x0 != px)
 					break;
 				// Later source IDs win shared edges. The earlier column can match if the later cell is absent.
-				col = bucketAt(x, px, gx, false);
+				col = bucketAt(x, px, false);
 			}
 		}
 		return hit;
@@ -366,4 +338,17 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, colors = ['steelbl
 			},
 		},
 	};
+}
+
+// Searches [lo, hi) for an insertion index. inclusive skips equal values, so shared edges select the later bucket.
+function bisect(values, value, lo, hi, descending = false, inclusive = false) {
+	while (lo < hi) {
+		const mid = (lo + hi) >>> 1;
+		const edge = values[mid];
+		if ((descending ? edge > value : edge < value) || inclusive && edge == value)
+			lo = mid + 1;
+		else
+			hi = mid;
+	}
+	return lo;
 }

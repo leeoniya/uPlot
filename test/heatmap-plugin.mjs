@@ -792,9 +792,9 @@ describe('heatmapPlugin uniform grid', () => {
 					pixelQuery(u, .5, 99, null);
 					assert.deepEqual(u.cursor.points.bbox(u, 1), { left: -10, top: -10, width: 0, height: 0 });
 					pixelQuery(u, .5, 97, f.cells.findIndex(c => c.col == 0 && f.yEdges[c.row] == 2));
-					const queryLogs = logs, queryAbs = absolutes;
 					assert.equal(u.cursor.dataIdx(u, 1), f.cells.findIndex(c => c.col == 0 && f.yEdges[c.row] == 2));
-					assert.equal(logs, queryLogs); assert.equal(absolutes, queryAbs);
+					assert.equal(logs, preparedLogs, 'hover does not transform grid coordinates');
+					assert.equal(absolutes, preparedAbs, 'hover does not transform signed grid coordinates');
 				});
 				assert.equal(allocations.length, 1, 'draw and hover allocate no additional typed indexes');
 				u.data = coordinates;
@@ -1136,7 +1136,7 @@ describe('heatmapPlugin uniform grid', () => {
 		}
 	});
 
-	it('uses inverse projections once per distinct query and reuses hover boxes before mouse entry', () => {
+	it('uses cached pixel bounds without inverse projections and reuses hover boxes before mouse entry', () => {
 		const f = fixture({ nx: 4, ny: 4, y: { distr: 1 }, ySize: 1, include: () => true });
 		const calls = [];
 		const { u, plugin, inverted } = isolated({ xSize: 1, grid: f.grid, onHover: (self, id) => calls.push([self, id]) }, f.data);
@@ -1149,11 +1149,11 @@ describe('heatmapPlugin uniform grid', () => {
 				pixelQuery(u, .5, 99.5, 0);
 				plugin.hooks.setCursor(u);
 			}
-			assert.deepEqual(inverted, { x: [.5], y: [99.5] });
+			assert.deepEqual(inverted, { x: [], y: [] });
 			assert.deepEqual(calls.at(-1), [u, 0]);
 			pixelQuery(u, 1.5, 98.5, 5);
 			assert.equal(u.cursor.points.bbox(u, 1), box);
-			assert.equal(inverted.x.length, 2);
+			assert.deepEqual(inverted, { x: [], y: [] });
 			let refreshes = 0;
 			u.setCursor = (cursor, fire, publish) => {
 				assert.equal(cursor, u.cursor);
