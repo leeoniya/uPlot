@@ -100,9 +100,22 @@ function oracleHit(boxes, px, py) {
 	return hit;
 }
 
+function canvasMapping(u) {
+	if (u.root == null)
+		return { x: 1, y: 1, left: 0, top: 0 };
+	const canvas = u.root.querySelector('canvas');
+	return {
+		x: canvas.width / parseFloat(canvas.parentNode.style.width),
+		y: canvas.height / parseFloat(canvas.parentNode.style.height),
+		left: parseFloat(u.over.style.left),
+		top: parseFloat(u.over.style.top),
+	};
+}
+
 function pixelQuery(u, px, py, expected) {
-	u.cursor.left = (px - u.bbox.left) / u.pxRatio;
-	u.cursor.top = (py - u.bbox.top) / u.pxRatio;
+	const mapping = canvasMapping(u);
+	u.cursor.left = px / mapping.x - mapping.left;
+	u.cursor.top = py / mapping.y - mapping.top;
 	assert.equal(u.cursor.dataIdx(u, 1), expected, `canvas (${px}, ${py})`);
 }
 
@@ -128,10 +141,11 @@ function checkOracle(u, f, ordered = true) {
 		for (let iy = -1; iy <= 14; iy++)
 			probes.push([u.bbox.left + ix * u.bbox.width / 17, u.bbox.top + iy * u.bbox.height / 13]);
 	}
+	const mapping = canvasMapping(u);
 	for (const [px, py] of probes) {
-		// Match the CSS-to-canvas round trip, including fractional DPR.
-		const x = u.bbox.left + (px - u.bbox.left) / u.pxRatio * u.pxRatio;
-		const y = u.bbox.top + (py - u.bbox.top) / u.pxRatio * u.pxRatio;
+		// Match the CSS-to-canvas round trip, including rounded canvas dimensions.
+		const x = (mapping.left + (px / mapping.x - mapping.left)) * mapping.x;
+		const y = (mapping.top + (py / mapping.y - mapping.top)) * mapping.y;
 		const expected = oracleHit(boxes, x, y);
 		pixelQuery(u, px, py, expected);
 		const box = u.cursor.points.bbox(u, 1);
@@ -139,8 +153,8 @@ function checkOracle(u, f, ordered = true) {
 			assert.deepEqual(box, { left: -10, top: -10, width: 0, height: 0 });
 		else {
 			const [l, t, w, h] = boxes.find(b => b.id == expected).rect;
-			assert.deepEqual(box, { left: (l - u.bbox.left) / u.pxRatio, top: (t - u.bbox.top) / u.pxRatio,
-				width: w / u.pxRatio, height: h / u.pxRatio });
+			assert.deepEqual(box, { left: l / mapping.x - mapping.left, top: t / mapping.y - mapping.top,
+				width: w / mapping.x, height: h / mapping.y });
 		}
 	}
 }
@@ -153,8 +167,9 @@ function hover(u, x, y, id) {
 function bounds(u, idx, canvas = false, xSize = 1) {
 	const [x, lo, hi] = u.data[1];
 	const rect = projectedRect(u, x[idx] - xSize, x[idx], lo[idx], hi[idx]);
-	return canvas ? rect : [(rect[0] - u.bbox.left) / u.pxRatio, (rect[1] - u.bbox.top) / u.pxRatio,
-		rect[2] / u.pxRatio, rect[3] / u.pxRatio];
+	const mapping = canvasMapping(u);
+	return canvas ? rect : [rect[0] / mapping.x - mapping.left, rect[1] / mapping.y - mapping.top,
+		rect[2] / mapping.x, rect[3] / mapping.y];
 }
 
 function createDemoRoot() {
@@ -219,7 +234,9 @@ function withoutColorMath(fn) {
 function isolated(options, data = empty(), over = document.createElement('div')) {
 	const plugin = heatmapPlugin(options);
 	const drawn = [], projected = { x: [], y: [] }, inverted = { x: [], y: [] };
-	const u = { data, pxRatio: 1, bbox: { left: 0, top: 0, width: 100, height: 100 },
+	// Keep DOM implementation caches outside the plugin-only Map assertions.
+	Object.defineProperty(over, 'style', { value: { left: '0px', top: '0px' }, configurable: true });
+	const u = { data, width: 100, height: 100, pxRatio: 1, bbox: { left: 0, top: 0, width: 100, height: 100 },
 		series: [{}, { show: true }], over, cursor: { left: -10, top: -10 },
 		scales: { y: { distr: 1, clamp: 0 } },
 		ctx: { save() {}, restore() {}, fill(path) { drawn.push(path); } },
@@ -293,6 +310,47 @@ describe('heatmapPlugin uniform grid', () => {
 		plots.push(u);
 		await Promise.resolve();
 		return u;
+	}
+
+	for (const dpr of [1, 1.25, 1.5, 2]) {
+		it(`aligns the DOM hover rectangle with painted signed-asinh cells at DPR ${dpr}`, async () => {
+			const f = edgeFixture(signedEdges(2, -12, -3), { distr: 3, factor: 2 }, () => true, 17);
+			const u = await mount(f, dpr, {}, { y: { distr: 4, asinh: 2 ** -12 } });
+			enter(u);
+
+			function assertOverlay() {
+				const id = u.cursor.idxs[1];
+				assert.notEqual(id, null);
+				const expected = bounds(u, id, true);
+				assert.ok(rects(u).some(rect => rect.every((v, i) => v == expected[i])), 'the hovered rectangle was painted');
+				const point = u.over.querySelector('.u-cursor-pt');
+				assert.ok(!point.classList.contains('u-off'));
+				const [left, top] = point.style.transform.match(/-?[\d.]+(?:e[+-]?\d+)?/gi).map(Number);
+				const mapping = canvasMapping(u);
+				// CSS width/height serialization can round fractional pixels to six decimal places.
+				close([(left + mapping.left) * mapping.x, (top + mapping.top) * mapping.y,
+					parseFloat(point.style.width) * mapping.x, parseFloat(point.style.height) * mapping.y], expected, 1e-5);
+			}
+
+			for (const size of [{ width: 600, height: 360 }, { width: 317, height: 213 }, { width: 601, height: 1020 }]) {
+				u.setSize(size);
+				await Promise.resolve();
+				for (const [col, row] of [[0, 2], [8, 14], [16, 2]]) {
+					const id = f.cells.findIndex(cell => cell.col == col && cell.row == row);
+					const [x, y, w, h] = bounds(u, id, true);
+					const mapping = canvasMapping(u);
+					u.setCursor({ left: (x + w / 2) / mapping.x - mapping.left, top: (y + h / 2) / mapping.y - mapping.top });
+					assert.equal(u.cursor.idxs[1], id);
+					assertOverlay();
+					u.redraw();
+					await Promise.resolve();
+					assertOverlay();
+				}
+			}
+			u.setPxRatio(dpr == 1.25 ? 2 : 1.25);
+			await Promise.resolve();
+			assertOverlay();
+		});
 	}
 
 	for (const xd of [1, 3, 4]) {

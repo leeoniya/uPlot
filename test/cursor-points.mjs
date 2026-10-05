@@ -233,33 +233,127 @@ describe('cursor point alignment', () => {
 
 		it(`refreshes custom bounds without changing the selected index or legend with one=${one}`, async () => {
 			const bounds = { left: 12, top: 23, width: 8, height: 12 };
-			const u = await plot({ one, bbox: () => bounds });
+			const u = await plot({ one, pxRatio: 1.5, bbox: () => bounds });
 			try {
 				hover(u, 1);
 				let legendUpdates = 0;
 				(u.hooks.setLegend ??= []).push(() => legendUpdates++);
-				Object.assign(bounds, { left: 18.2, top: 31.4, width: 16, height: 24 });
+				Object.assign(bounds, { left: 18.2, top: 31.4, width: 16.5, height: 24.75 });
 				hover(u, 1);
 				const pt = u.over.querySelector('.u-cursor-pt');
 				assert.equal(u.cursor.idxs[1], 1);
-				assert.equal(pt.style.transform, 'translate(19px,32px)');
-				assert.equal(pt.style.width, '16px');
-				assert.equal(pt.style.height, '24px');
+				assert.equal(pt.style.transform, 'translate(18.2px,31.4px)');
+				assert.equal(pt.style.width, '16.5px');
+				assert.equal(pt.style.height, '24.75px');
 				assert.equal(legendUpdates, 0, 'geometry changes do not require legend updates');
 			}
 			finally { u.destroy(); }
 		});
 
+		it(`uses rectangle intersection for custom bbox visibility with one=${one}`, async () => {
+			const bounds = { left: -0.03, top: -0.07, width: 8.5, height: 12.75 };
+			const u = await plot({ one, pxRatio: 1.5, bbox: () => bounds });
+			try {
+				const pt = u.over.querySelector('.u-cursor-pt');
+				const width = parseFloat(u.over.style.width);
+				const height = parseFloat(u.over.style.height);
+				for (const [name, left, top, w, h, visible] of [
+					['overlaps left', -0.03, 23.4, 8.5, 12.75, true],
+					['overlaps top', 12.3, -0.07, 8.5, 12.75, true],
+					['overlaps top-left', -0.03, -0.07, 8.5, 12.75, true],
+					['overlaps bottom-right', width - 0.03, height - 0.07, 8.5, 12.75, true],
+					['outside left', -8.6, 23.4, 8.5, 12.75, false],
+					['touches left', -8.5, 23.4, 8.5, 12.75, false],
+					['outside top', 12.3, -12.8, 8.5, 12.75, false],
+					['touches top', 12.3, -12.75, 8.5, 12.75, false],
+					['outside right', width + 0.03, 23.4, 8.5, 12.75, false],
+					['touches right', width, 23.4, 8.5, 12.75, false],
+					['outside bottom', 12.3, height + 0.07, 8.5, 12.75, false],
+					['touches bottom', 12.3, height, 8.5, 12.75, false],
+					['empty width', 12.3, 23.4, 0, 12.75, false],
+					['empty height', 12.3, 23.4, 8.5, 0, false],
+					['empty box', 12.3, 23.4, 0, 0, false],
+					['restored box', 12.3, 23.4, 8.5, 12.75, true],
+				]) {
+					Object.assign(bounds, { left, top, width: w, height: h });
+					hover(u, 1);
+					assert.equal(!pt.classList.contains('u-off'), visible, name);
+					assert.equal(pt.style.transform, `translate(${left}px,${top}px)`, name);
+					assert.equal(pt.style.width, `${w}px`, name);
+					assert.equal(pt.style.height, `${h}px`, name);
+				}
+
+				Object.assign(bounds, { left: -0.03, top: -0.07 });
+				hover(u, 1);
+				assert.ok(!pt.classList.contains('u-off'));
+				u.setCursor({ left: -10, top: 23.4 });
+				assert.ok(pt.classList.contains('u-off'), 'negative cursor left still hides an intersecting bbox');
+				hover(u, 1);
+				assert.ok(!pt.classList.contains('u-off'));
+				assert.equal(pt.style.transform, 'translate(-0.03px,-0.07px)');
+			}
+			finally { u.destroy(); }
+		});
+
+		it(`does not read custom bbox dimensions back from styles with one=${one}`, async () => {
+			const bounds = { left: -0.03, top: -0.07, width: 8.5, height: 12.75 };
+			const u = await plot({ one, pxRatio: 1.25, bbox: () => bounds });
+			const pt = u.over.querySelector('.u-cursor-pt');
+			const style = pt.style;
+			const descriptor = Object.getOwnPropertyDescriptor(pt, 'style');
+			Object.defineProperty(pt, 'style', { configurable: true, value: new Proxy(style, {
+				get(target, key) {
+					assert.ok(key != 'width' && key != 'height', `unexpected style.${String(key)} read`);
+					return Reflect.get(target, key, target);
+				},
+				set: (target, key, value) => Reflect.set(target, key, value, target),
+			}) });
+			try {
+				for (const [width, height, visible] of [[8.5, 12.75, true], [0, 12.75, false], [8.5, 0, false], [16.5, 24.75, true]]) {
+					Object.assign(bounds, { width, height });
+					hover(u, 1);
+					assert.equal(!pt.classList.contains('u-off'), visible);
+					assert.equal(style.width, `${width}px`);
+					assert.equal(style.height, `${height}px`);
+				}
+				for (const change of [
+					() => u.setSize({ width: 311, height: 253 }),
+					() => u.setPxRatio(1.5),
+				]) {
+					change();
+					await Promise.resolve();
+					assert.ok(!pt.classList.contains('u-off'));
+					hover(u, 2);
+					assert.equal(pt.style.transform, 'translate(-0.03px,-0.07px)');
+				}
+			}
+			finally {
+				if (descriptor) Object.defineProperty(pt, 'style', descriptor);
+				else delete pt.style;
+				u.destroy();
+			}
+		});
+
 		it(`preserves custom bbox positioning with one=${one}`, async () => {
-			const u = await plot({ one, pxRatio: 1.25, bbox: () => ({ left: 12.3, top: 23.4, width: 8, height: 12 }) });
+			const u = await plot({ one, pxRatio: 1.25, bbox: () => ({ left: 12.3, top: 23.4, width: 8.5, height: 12.75 }) });
 			try {
 				hover(u, 1);
 				const pt = u.over.querySelector('.u-cursor-pt');
-				assert.equal(pt.style.transform, 'translate(13px,24px)');
-				assert.equal(pt.style.marginLeft, '0px');
-				assert.equal(pt.style.marginTop, '0px');
-				assert.equal(pt.style.width, '8px');
-				assert.equal(pt.style.height, '12px');
+				for (const change of [
+					() => {},
+					() => u.setSize({ width: 311, height: 253 }),
+					() => u.setPxRatio(1.5),
+				]) {
+					change();
+					await Promise.resolve();
+					hover(u, 2);
+					assert.ok(!pt.classList.contains('u-off'));
+					assert.equal(pt.style.transform, 'translate(12.3px,23.4px)');
+					assert.equal(pt.style.marginLeft, '0px');
+					assert.equal(pt.style.marginTop, '0px');
+					assert.equal(pt.style.width, '8.5px');
+					assert.equal(pt.style.height, '12.75px');
+				}
 			}
 			finally { u.destroy(); }
 		});

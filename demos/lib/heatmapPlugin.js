@@ -57,6 +57,7 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 	let pointerInside = false;
 	let hit = null;
 	let queryX = NaN, queryY = NaN;
+	let cssToCanX = 1, cssToCanY = 1, cssLeft = 0, cssTop = 0;
 	// Cursor boxes use CSS pixels. The empty box hides the cursor point after a miss.
 	const emptyBox = { left: -10, top: -10, width: 0, height: 0 };
 	const box = { left: 0, top: 0, width: 0, height: 0 };
@@ -223,10 +224,9 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 		if (!ready)
 			return null;
 
-		const ratio = u.pxRatio;
 		const { left, top, width, height } = u.bbox;
-		const px = left + u.cursor.left * ratio;
-		const py = top + u.cursor.top * ratio;
+		const px = (cssLeft + u.cursor.left) * cssToCanX;
+		const py = (cssTop + u.cursor.top) * cssToCanY;
 		// dataIdx and setCursor can request the same hit during one cursor update.
 		if (px == queryX && py == queryY)
 			return hit;
@@ -249,10 +249,10 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 							const i = sourceAt(col, row);
 							if (i >= 0) {
 								hit = i;
-								box.left = (x0 - left) / ratio;
-								box.top = (y0 - top) / ratio;
-								box.width = (x1 - x0) / ratio;
-								box.height = (y1 - y0) / ratio;
+								box.left = x0 / cssToCanX - cssLeft;
+								box.top = y0 / cssToCanY - cssTop;
+								box.width = (x1 - x0) / cssToCanX;
+								box.height = (y1 - y0) / cssToCanY;
 								return hit;
 							}
 						}
@@ -283,6 +283,11 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 
 	function draw(u) {
 		const { ctx, bbox } = u;
+		// Match the rounded canvas dimensions and the overlay's CSS origin, not nominal DPR.
+		cssToCanX = Math.round(u.width * u.pxRatio) / u.width;
+		cssToCanY = Math.round(u.height * u.pxRatio) / u.height;
+		cssLeft = parseFloat(u.over.style.left);
+		cssTop = parseFloat(u.over.style.top);
 		invalidate();
 		if (length > 0 && u.series[1].show) {
 			project(u, x, 'x', bbox.left, bbox.width);

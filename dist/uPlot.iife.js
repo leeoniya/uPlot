@@ -4922,6 +4922,8 @@ var uPlot = (function () {
 		// Unrounded CSS positions for visibility and resize, not the painted centers.
 		let cursorPtsLft = [];
 		let cursorPtsTop = [];
+		let cursorPtsWid = [];
+		let cursorPtsHgt = [];
 		let cursorPtSeries = null;
 
 		function initCursorPt(s, si) {
@@ -4999,6 +5001,8 @@ var uPlot = (function () {
 				cursorPts.splice(i, 0, pt);
 				cursorPtsLft.splice(i, 0, 0);
 				cursorPtsTop.splice(i, 0, 0);
+				cursorPtsWid.splice(i, 0, 0);
+				cursorPtsHgt.splice(i, 0, 0);
 			}
 
 			focusedSeries != null && setSeriesFocus(s, i);
@@ -5039,6 +5043,8 @@ var uPlot = (function () {
 				cursorPts.splice(i, 1)[0].remove();
 				cursorPtsLft.splice(i, 1);
 				cursorPtsTop.splice(i, 1);
+				cursorPtsWid.splice(i, 1);
+				cursorPtsHgt.splice(i, 1);
 			}
 
 			// TODO: de-init no-longer-needed scales?
@@ -6881,7 +6887,7 @@ var uPlot = (function () {
 			}
 		}
 
-		function setCursorPointPos(pt, si, left, top) {
+		function setCursorPointPos(pt, si, left, top, width, height) {
 			let s = series[si];
 
 			if (cursor.left < 0 || s == null || !s.show) {
@@ -6890,7 +6896,10 @@ var uPlot = (function () {
 			}
 
 			if (points.bbox != null) {
-				elTrans(pt, ceil(left), ceil(top), plotWidCss, plotHgtCss);
+				let off = width <= 0 || height <= 0 || left + width <= 0 || top + height <= 0 || left >= plotWidCss || top >= plotHgtCss;
+
+				// Preserve exact CSS bounds and show rectangles that partially overlap the plot.
+				elTrans(pt, left, top, plotWidCss, plotHgtCss, off);
 				return;
 			}
 
@@ -6955,7 +6964,7 @@ var uPlot = (function () {
 		function syncCursorPoints() {
 			cursorPts.forEach((pt, i) => {
 				if (pt != null && cursorPtsLft[i] != null)
-					setCursorPointPos(pt, cursorOnePt ? cursorPtSeries : i, cursorPtsLft[i], cursorPtsTop[i]);
+					setCursorPointPos(pt, cursorOnePt ? cursorPtSeries : i, cursorPtsLft[i], cursorPtsTop[i], cursorPtsWid[i], cursorPtsHgt[i]);
 			});
 		}
 
@@ -7132,10 +7141,12 @@ var uPlot = (function () {
 								if (pt != null) {
 									cursorPtsLft[i] = ptLft;
 									cursorPtsTop[i] = ptTop;
+									cursorPtsWid[i] = ptWid;
+									cursorPtsHgt[i] = ptHgt;
 
 									elSize(pt, ptWid, ptHgt, centered);
 									elColor(pt, ptFill, ptStroke);
-									setCursorPointPos(pt, i, ptLft, ptTop);
+									setCursorPointPos(pt, i, ptLft, ptTop, ptWid, ptHgt);
 								}
 							}
 						}
@@ -7153,11 +7164,13 @@ var uPlot = (function () {
 						if (pt != null) {
 							cursorPtsLft[0] = _ptLft;
 							cursorPtsTop[0] = _ptTop;
+							cursorPtsWid[0] = _ptWid;
+							cursorPtsHgt[0] = _ptHgt;
 
 							elSize(pt, _ptWid, _ptHgt, _centered);
 							elColor(pt, _ptFill, _ptStroke);
 							cursorPtSeries = pointSeries;
-							setCursorPointPos(pt, cursorPtSeries, _ptLft, _ptTop);
+							setCursorPointPos(pt, cursorPtSeries, _ptLft, _ptTop, _ptWid, _ptHgt);
 						}
 					}
 				}

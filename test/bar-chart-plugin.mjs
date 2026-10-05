@@ -340,7 +340,7 @@ describe('barChartPlugin', () => {
 						assert.ok(!pt.classList.contains('u-off'));
 						assert.equal(parseFloat(pt.style.width), width / u.pxRatio);
 						assert.equal(parseFloat(pt.style.height), height / u.pxRatio);
-						assert.equal(pt.style.transform, `translate(${Math.ceil((x - u.bbox.left) / u.pxRatio)}px,${Math.ceil((y - u.bbox.top) / u.pxRatio)}px)`);
+						assert.equal(pt.style.transform, `translate(${(x - u.bbox.left) / u.pxRatio}px,${(y - u.bbox.top) / u.pxRatio}px)`);
 					}
 					assertHighlight();
 					for (const change of [
