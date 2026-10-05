@@ -374,8 +374,8 @@ describe('adaptive asinh', () => {
 			finally { u.destroy(); }
 		});
 
-		it(`ignores absolute values at or below clamp: 1e-128 when adapting (mode ${mode})`, async () => {
-			const u = plot({ y: { distr: 4, clamp: 1e-128, range: () => [-10, 10] } }, mode);
+		it(`ignores absolute values at or below scan.minAbs: 1e-128 when adapting (mode ${mode})`, async () => {
+			const u = plot({ y: { distr: 4, scan: { minAbs: 1e-128 }, range: () => [-10, 10] } }, mode);
 			const aboveCutoff = 1e-128 * (1 + Number.EPSILON);
 			try {
 				await Promise.resolve();
@@ -469,7 +469,7 @@ describe('adaptive asinh', () => {
 				mode: 2,
 				scales: {
 					x: { time: false, ori: 1 - ori },
-					y_heatmap: { distr: 4, clamp: 1e-128, ori, range: () => [-10, 10] },
+					y_heatmap: { distr: 4, scan: { minAbs: 1e-128 }, ori, range: () => [-10, 10] },
 					other: { ori, range: () => [-10, 10] },
 				},
 				axes: [{ scale: 'x' }, { scale: 'y_heatmap' }],

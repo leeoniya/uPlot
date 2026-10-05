@@ -138,7 +138,7 @@ export function createDemo(root, dashboard) {
 			scales: {
 				// Preparation supplies ranges and the adaptive threshold without core data scans.
 				x: { scan: false, range: () => xRange },
-				y: { scan: false, distr: mode == 'log' ? 3 : mode == 'asinh' ? 4 : 1, log: 2, clamp: mode == 'asinh' ? 2 ** -128 : undefined, asinh: () => asinhThreshold, range: () => yRange },
+				y: { scan: false, distr: mode == 'log' ? 3 : mode == 'asinh' ? 4 : 1, log: 2, asinh: () => asinhThreshold, range: () => yRange },
 			},
 			axes: [
 				{ stroke: '#b7bdc5', grid: { stroke: '#252a30' }, ticks: { stroke: '#343a42' }, values: (u, splits) => splits.map(v => v == null ? null : time(v).slice(0, 5)) },
@@ -147,6 +147,7 @@ export function createDemo(root, dashboard) {
 			series: [{}, { label: 'Heatmap' }],
 			plugins: [heatmapPlugin({
 				xSize,
+				minAbs: 2 ** -128,
 				grid: { x: { distr: 1 }, y: signed.checked ? { distr: 3, factor } : { distr: 3 } },
 				colors: palette,
 				colorIdx: count => colorIdx(count),

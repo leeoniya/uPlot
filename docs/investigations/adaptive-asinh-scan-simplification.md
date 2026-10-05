@@ -13,7 +13,7 @@ The goals are one data pass for asinh, cheap cached redraws, and no additional p
 The public `uPlot.scan()` API is unreleased.
 Its arguments remain `uPlot.scan(self, scaleKey, i0, i1, cache = false)`.
 
-The investigation excludes dependent-scale-specific behavior.
+The original investigation excluded dependent-scale-specific behavior. Regression tests now cover cutoff inheritance and adaptive fallback for dependent scales.
 The final design retains existing non-asinh sorted optimizations.
 An uncached asinh scan uses one pass and ignores the sorted hint.
 
@@ -30,9 +30,35 @@ The shared return type is:
 - Non-asinh scans return `[min, max]`.
 - All built-in asinh scans compute `[min, max, minAbs]`, including internal scans and fixed/custom thresholds.
 - Custom asinh scanners must return all three elements.
-- `minAbs` is the smallest absolute value strictly greater than the numeric `scale.clamp`.
-- `minAbs` is `null` if no value qualifies. Adaptive threshold selection uses fallback `1` after aggregation.
-- Asinh uses an immutable numeric clamp, with default `0`. Log clamp callbacks remain unchanged.
+- `minAbs` is the smallest absolute value strictly greater than the configured `scale.scan.minAbs` cutoff.
+- If no value qualifies, `minAbs` is `null`. Adaptive threshold selection uses fallback `1` after aggregation.
+- The cutoff does not exclude values from `min` or `max`.
+
+### Scanner configuration
+
+`scale.scan: { minAbs: number }` selects the built-in cached scanner, like `scan: true`.
+The `minAbs` property is optional and defaults to `0`.
+For example, `scan: { minAbs: 2 }` excludes magnitudes of `2` or less from adaptive threshold selection.
+The extrema still include all values.
+
+The core captures the cutoff in the live scale's private `_minAbs` field at initialization.
+This field remains constant when scan results change.
+Later mutations of the configuration object do not affect cached scans, uncached scans, or scans after `setData`.
+Dependent scales inherit the captured cutoff unless they override `scan`.
+An override of `scan: {}` or `scan: true` selects the default cutoff of `0`.
+
+Public `uPlot.scan()` calls and adaptive fallback scans use the same captured cutoff.
+This rule also applies to explicit bounds, `auto: false`, and shared X scales.
+A static range array or `auto: false` still defaults the asinh threshold to `1`.
+The cutoff does not affect explicit numeric or callback asinh thresholds.
+
+`scale.clamp` applies only to logarithmic coordinates and normalizes to a function.
+It is not an alias for the asinh cutoff.
+The heatmap plugin captures its own `minAbs` configuration at initialization, independently of the displayed scale distribution.
+It excludes buckets entirely within `[-minAbs, minAbs]` from drawing and hover.
+The cutoff must align with bucket boundaries. Buckets must not straddle the cutoff.
+Source extrema, source indices, and grid geometry remain unchanged.
+The prepared threshold uses source edges with absolute values strictly greater than `minAbs`, with fallback `1`.
 
 The numeric scanner computes extrema and `minAbs` in one pass.
 It uses infinity sentinels internally and leaves fallback selection to the adaptive threshold consumer.
@@ -44,13 +70,14 @@ The heatmap plugin uses a prepared threshold.
 A fixed/custom threshold still incurs the cost of the triple in a built-in asinh scan.
 Sorted asinh data requires a full uncached scan, not an extrema-only endpoint scan.
 
-### Private per-series and per-facet caches
+### Per-series and per-facet caches
 
-Each series or facet stores a private scalar `_minAbs` alongside its existing `min` and `max` fields.
-The public typings omit this cache field. The public scan tuple still exposes its third statistic.
+Each series or facet stores a scalar `minAbs` alongside its existing `min` and `max` fields.
+The public typings expose `minAbs?: number | null` on `Series` and `Series.Facet`, not `Scale`.
+In mode 2, the series mirrors `min`, `max`, and `minAbs` from facet 1 only.
 There is no cached result tuple and no interval or cutoff metadata.
 
-| `_minAbs` | Meaning | Cache behavior |
+| `minAbs` | Meaning | Cache behavior |
 | --- | --- | --- |
 | `undefined` | The statistic is invalid or uncomputed. | Compute the statistic on the next required scan. |
 | `null` | The scan found no qualifying absolute value. | Reuse the empty result without another scan. |
@@ -59,15 +86,15 @@ There is no cached result tuple and no interval or cutoff metadata.
 The cache contract relies on caller-managed validity:
 
 - With `cache = true`, callers must supply the correct current `i0` and `i1` for the managed interval.
-- The cache does not compare query intervals or detect clamp changes. Asinh clamps are immutable.
+- The cache does not compare query intervals or configuration objects. The captured cutoff is immutable.
 - With `cache = false`, public scans do not reuse or modify the cached statistics.
 - Data mutations require `setData`. The core does not detect direct mutations of `u.data`.
 - Data or interval invalidation makes affected statistics uncomputed. The next required scan recomputes them.
 
-Hide/show retains each series cache, including `_minAbs`.
+Hide/show retains each series cache, including `minAbs`.
 Only uninitialized or invalid series require another data scan.
 Each scale scan aggregates `minAbs` across participating series or facets alongside `min` and `max`.
-The scale has no persistent aggregate `minAbs` cache.
+The live scale has no persistent aggregate `minAbs` cache and does not publish `scale.minAbs`.
 
 Mode 1 invalidates asinh statistics after X-window changes, even if Y auto-ranging is suppressed.
 Mode 2 scans full facets, so X-window changes do not invalidate their statistics.
@@ -76,14 +103,17 @@ Stacking changes can invalidate affected data, so stacked visibility toggles can
 
 Fallback selection occurs after aggregation.
 An empty series must not contribute fallback `1` to another series with a real `minAbs` of `10`.
-The transient handoff to adaptive threshold selection avoids another traversal.
+The working scale's `_minAbs` field provides a transient aggregate result for adaptive threshold selection.
+After the core copies the live scale, it clears the working scale's `_minAbs` before any scan.
+Thus, explicit bounds and dependent-scale fallback cannot use the copied cutoff as a result.
+This transient result avoids another traversal.
 Custom scanner results also avoid a fallback data scan.
 
 ### Shared X and skipped range scans
 
 Shared X retains the existing endpoint reread for extrema on cache hits.
 Its `series[0].min/max` fields can hold visible endpoints rather than extrema for the cached query.
-The cache-hit path combines the reread extrema with cached `_minAbs`.
+The cache-hit path combines the reread extrema with cached `minAbs`.
 It does not restore the old `scanAsinh()` helper or store a separate extrema tuple.
 
 Explicit pending bounds and `scan: false` can suppress an extrema scan while the default threshold still needs data.
@@ -95,7 +125,7 @@ A static range array defaults the threshold to `1` unless the caller supplies `a
 - [`src/utils.js`](../../src/utils.js): `getMinMaxAsinh()`.
 - [`src/uPlot.js`](../../src/uPlot.js): scan dispatch, adaptive threshold selection, aggregation, and cache invalidation.
 - [`dist/uPlot.d.ts`](../../dist/uPlot.d.ts): `ScanResult` and the scanner contracts.
-- [`demos/lib/heatmapPlugin.js`](../../demos/lib/heatmapPlugin.js): the prepared heatmap threshold and numeric clamp.
+- [`demos/lib/heatmapPlugin.js`](../../demos/lib/heatmapPlugin.js): the prepared heatmap threshold and `minAbs` cutoff.
 
 Regression coverage is in [asinh-scan.mjs](../../test/asinh-scan.mjs) and [asinh-scan-utils.mjs](../../test/asinh-scan-utils.mjs).
 
@@ -149,7 +179,7 @@ facet._asinhScan = [i0, i1, cutoff, min, max, minAbs]
 That proposal added two values per cached series or facet and avoided the shared-X extrema reread.
 The investigation favored it as a candidate for simpler bookkeeping, not as a measured performance improvement.
 The final design rejects this proposal.
-It stores only scalar `_minAbs`, retains the existing extrema fields, and keeps the shared-X endpoint reread.
+It stores only scalar `minAbs`, retains the existing extrema fields, and keeps the shared-X endpoint reread.
 
 ### Callbacks, skipped scans, and empty results
 
@@ -158,7 +188,7 @@ It also favored the adaptive fallback scan for paths that skip an extrema scan.
 An alternative proposal required explicit/custom thresholds or fallback `1` for those paths.
 The final design retains the fallback scan rather than that stricter rule.
 
-Null gaps, empty intervals, zero-only data, and values at or below the clamp remain normal chart states.
+Null gaps, empty intervals, zero-only data, and values with magnitudes at or below the cutoff remain normal chart states.
 The investigation distinguished missing statistics from a computed empty result.
 The final scalar cache preserves this distinction through `undefined` and `null`.
 Fallback `1` remains a consumer decision after aggregation, not a per-series scan result.
@@ -169,7 +199,7 @@ The earlier `[i0, i1, cutoff]` key supported arbitrary cached query intervals an
 The investigation recommended retention of all three keys and inclusive-interval normalization.
 The final design rejects the cache-key recommendation, not interval normalization.
 
-The chosen contract assigns current-interval correctness to `cache = true` callers and treats asinh clamps as immutable.
+The chosen contract assigns current-interval correctness to `cache = true` callers and captures the scanner cutoff at initialization.
 It requires `setData` for data mutations instead of direct-mutation detection.
 These constraints remove the need for interval/cutoff metadata.
 
@@ -280,13 +310,17 @@ The harness covers mode 1 with one Y series, not shared X, mode 2, hide/show, or
 
 ## Validation of the scalar cache change
 
+These results precede the cache-field rename and public `minAbs` declarations.
+
 - Full Node suite: 2,726 passing and 44 pending.
 - Targeted Bun suites for asinh scans, numeric scanning, clamps, and redraws: 228 passing.
 - JavaScript syntax and diff whitespace checks passed.
-- Type assertions keep the private cache out of the public series and facet declarations.
+- The original type assertions excluded the private cache.
 - TypeScript compilation was unavailable because `tsc` was not installed.
 
+Current type assertions expose nullable series and facet `minAbs` and exclude a scale cache.
 Regression tests cover cache reuse for numeric and empty results, visibility toggles, supported `setData` updates, and deferred adaptive updates.
+They also cover the mode-2 series mirror, constant live cutoffs, and fallback after explicit bounds or dependent-scale updates.
 Tests no longer require interval-key matching, direct clamp mutation detection, or endpoint-only scans for explicit asinh thresholds.
 
 ### Cache-benefit reevaluation

@@ -14,6 +14,7 @@ underscores, and hyphens. The recorder rejects duplicate group IDs and snapshot 
 
 `test/scale-scan-types.ts` is a compile-only regression fixture, separate from the runtime suite.
 It covers scan callbacks, nullish indices, explicit cache mutation, nullable range inputs, and mixed concrete/null scale bounds.
+It accepts nullable `minAbs` caches on series and facets, but rejects `minAbs` on scales.
 It also rejects obsolete callback signatures and return values.
 
 Run the consumer type check without adding a project dependency:

@@ -72,8 +72,13 @@ const bounds = s => [s.min, s.max];
 const cacheSnapshot = u => u.series.flatMap(s => [s, ...(s.facets ?? [])]).map(s => ({
 	min: s.min,
 	max: s.max,
-	minAbs: s._minAbs,
+	minAbs: s.minAbs,
 }));
+
+function assertCutoff(u, key, cutoff) {
+	assert.equal(u.scales[key]._minAbs, cutoff, 'the live scale retains its captured cutoff');
+	assert.equal('minAbs' in u.scales[key], false, 'scales must not publish aggregate statistics');
+}
 
 function assertOnePass(input, i0 = 0, i1 = input.values.length - 1) {
 	assert.deepEqual(input.reads.slice().sort((a, b) => a - b),
@@ -104,7 +109,7 @@ describe('asinh scale scan', () => {
 			['empty', [], 0, [null, null, null]],
 		]) {
 			it(`mode ${mode}: returns a triple for ${name}, with fallback only in the adaptive threshold`, async () => {
-				const u = makePlot(mode, values, { clamp: cutoff });
+				const u = makePlot(mode, values, { scan: { minAbs: cutoff } });
 				try {
 					await Promise.resolve();
 					assert.deepEqual(uPlot.scan(u, 'y'), expected);
@@ -118,7 +123,7 @@ describe('asinh scale scan', () => {
 
 		for (const asinh of [2, () => 2]) {
 			it(`mode ${mode}: public scans include minAbs with ${typeof asinh} asinh`, async () => {
-				const u = makePlot(mode, [-9, -2, 0, 3, 8], { asinh, clamp: 2 });
+				const u = makePlot(mode, [-9, -2, 0, 3, 8], { asinh, scan: { minAbs: 2 } });
 				try {
 					await Promise.resolve();
 					assert.equal(u.scales.y._asinh, 2);
@@ -142,7 +147,7 @@ describe('asinh scale scan', () => {
 						await Promise.resolve();
 						assert.deepEqual(uPlot.scan(u, 'y', null, null, true), [-9, 8, 2]);
 					}
-					assert.equal(owner(u)._minAbs, warm ? 2 : undefined);
+					assert.equal(owner(u).minAbs, warm ? 2 : undefined);
 					const before = cacheSnapshot(u);
 					const scale = { ...u.scales.y };
 					assert.deepEqual(uPlot.scan(u, 'y', 3, 4), [3, 8, 3]);
@@ -163,20 +168,27 @@ describe('asinh scale scan', () => {
 		]) {
 			it(`mode ${mode}: reuses a matching scalar cache with ${name}`, async () => {
 				const input = tracked(values);
-				const u = makePlot(mode, input.data, { clamp: cutoff });
+				const u = makePlot(mode, input.data, { scan: { minAbs: cutoff } });
 				try {
 					await Promise.resolve();
 					assertOnePass(input);
-					assert.equal(owner(u)._minAbs, expected[2]);
+					assert.equal(owner(u).minAbs, expected[2]);
+					assert.equal(u.series[1].minAbs, expected[2], 'series mirrors the primary facet statistic, including null');
+					assertCutoff(u, 'y', cutoff);
 					assert.deepEqual(bounds(owner(u)), expected.slice(0, 2));
 					assert.deepEqual(bounds(u.series[1]), expected.slice(0, 2));
 					input.reset();
 					for (let repeat = 0; repeat < 2; repeat++) {
+						if (mode == 2)
+							u.series[1].minAbs = undefined;
 						assert.deepEqual(uPlot.scan(u, 'y', 0, values.length - 1, true), expected);
+						assert.equal(u.series[1].minAbs, expected[2], 'cache hits also update the series mirror');
 						u.redraw();
 						await Promise.resolve();
 						assert.deepEqual(input.reads, [], 'computed null is reusable even when extrema are null');
 						assert.equal(u.scales.y._asinh, expected[2] ?? 1);
+						assert.equal(u.series[1].minAbs, expected[2]);
+						assertCutoff(u, 'y', cutoff);
 					}
 				}
 				finally { u.destroy(); }
@@ -201,12 +213,12 @@ describe('asinh scale scan', () => {
 				it(`mode ${mode}: fuses ${typeof asinh} asinh extrema and minAbs into N reads, ignoring sort hint ${sorted}`, async () => {
 					const input = tracked(Array.from({ length: 257 }, (_, i) => i % 7 == 0 ? null : i % 2 ? -i : i));
 					const series = mode == 1 ? { sorted } : { facets: [{ scale: 'x' }, { scale: 'y', sorted }] };
-					const u = makePlot(mode, input.data, { asinh, clamp: 2 }, series);
+					const u = makePlot(mode, input.data, { asinh, scan: { minAbs: 2 } }, series);
 					try {
 						await Promise.resolve();
 						assertOnePass(input);
 						assert.deepEqual(bounds(owner(u)), [-255, 256]);
-						assert.equal(owner(u)._minAbs, 3);
+						assert.equal(owner(u).minAbs, 3);
 						assert.equal(u.scales.y._asinh, asinh === undefined ? 3 : 2);
 						input.reset();
 						assert.deepEqual(uPlot.scan(u, 'y', null, null, true), [-255, 256, 3]);
@@ -237,12 +249,14 @@ describe('asinh scale scan', () => {
 				input.values[3] = 7;
 				input.reset();
 				u.setData(data, false);
-				assert.equal(owner(u)._minAbs, undefined, 'min/max invalidation also invalidates minAbs');
+				assert.equal(owner(u).minAbs, undefined, 'min/max invalidation also invalidates minAbs');
+								assert.equal(u.series[1].minAbs, undefined, 'invalidation also clears the series mirror');
 				assert.deepEqual(input.reads, [], 'setData(false) defers the scan');
 				u.redraw();
 				await Promise.resolve();
 				assertOnePass(input);
 				assert.equal(u.scales.y._asinh, 6);
+				assert.equal(u.series[1].minAbs, 6);
 				assert.deepEqual(bounds(owner(u)), [-8, 8]);
 				input.reset();
 				u.redraw(true, true);
@@ -277,6 +291,120 @@ describe('asinh scale scan', () => {
 			});
 		}
 
+		it(`mode ${mode}: captures scan configuration before the first scan and retains it after invalidation`, async () => {
+			const scan = { minAbs: 2 };
+			const scale = { scan };
+			const input = tracked([-8, -2, 0, 3, 8]);
+			const u = makePlot(mode, input.data, scale);
+			try {
+				assertCutoff(u, 'y', 2);
+				scan.minAbs = 100;
+				scale.scan = { minAbs: 0 };
+				await Promise.resolve();
+				assertOnePass(input);
+				assert.equal(typeof u.scales.y.scan, 'function');
+				assertCutoff(u, 'y', 2);
+				assert.equal(u.series[1].minAbs, 3);
+				assert.equal(u.scales.y._asinh, 3);
+				input.reset();
+				assert.deepEqual(uPlot.scan(u, 'y', null, null, true), [-8, 8, 3]);
+				assert.deepEqual(input.reads, []);
+				assert.deepEqual(uPlot.scan(u, 'y'), [-8, 8, 3]);
+				assertOnePass(input);
+				input.values[3] = 4;
+				input.reset();
+				u.setData(toData(mode, input.data));
+				await Promise.resolve();
+				assertOnePass(input);
+				assert.equal(u.scales.y._asinh, 4);
+				assert.equal(u.series[1].minAbs, 4);
+				assertCutoff(u, 'y', 2);
+				assert.deepEqual(uPlot.scan(u, 'y'), [-8, 8, 4]);
+				input.values.splice(0, input.values.length, -2, 0, 2);
+				u.setData(toData(mode, input.data));
+				await Promise.resolve();
+				assert.equal(u.scales.y._asinh, 1);
+				assert.equal(owner(u).minAbs, null);
+				assert.equal(u.series[1].minAbs, null);
+				assertCutoff(u, 'y', 2);
+			}
+			finally { u.destroy(); }
+		});
+
+		for (const [name, fixed, threshold] of [
+			['explicit bounds', { min: -20, max: 20 }, 3],
+			['auto callback false', { auto: () => false, min: -20, max: 20 }, 3],
+			['auto false', { auto: false, min: -20, max: 20 }, 1],
+			['static range', { range: [-20, 20] }, 1],
+		]) {
+			it(`mode ${mode}: honors scan.minAbs with ${name}`, async () => {
+				const input = tracked([-8, -2, 0, 3, 8]);
+				const u = makePlot(mode, input.data, { ...fixed, scan: { minAbs: 2 } });
+				try {
+					await Promise.resolve();
+					assert.equal(u.scales.y._asinh, threshold);
+					assert.deepEqual(bounds(u.scales.y), [-20, 20]);
+					assert.deepEqual(uPlot.scan(u, 'y', null, null, true), [-8, 8, 3]);
+					assertOnePass(input);
+					input.reset();
+					assert.deepEqual(u.scales.y.scan(u, 'y'), [-8, 8, 3]);
+					assert.deepEqual(input.reads, [], 'object configuration selects the cached scanner even with auto:false');
+					assert.deepEqual(uPlot.scan(u, 'y', 1, 3), [-2, 3, 3]);
+					assertOnePass(input, 1, 3);
+					u.setData(toData(mode, [-8, -2, 0, 5, 8]), false);
+					u.setScale('y', { min: -30, max: 30 });
+					await Promise.resolve();
+					assert.equal(u.scales.y._asinh, threshold == 1 ? 1 : 5, 'explicit bounds must not use the copied cutoff as a result');
+					assertCutoff(u, 'y', 2);
+				}
+				finally { u.destroy(); }
+			});
+		}
+
+		it(`mode ${mode}: inherits the captured cutoff unless a dependent scale overrides scan`, async () => {
+			const scan = { minAbs: 2 };
+			const scales = {
+				x: { time: false },
+				y: { distr: 4, scan, range: () => [-20, 20] },
+				inherited: { from: 'y' },
+				overridden: { from: 'y', scan: { minAbs: 4 } },
+				empty: { from: 'y', scan: {} },
+				enabled: { from: 'y', scan: true },
+				disabled: { from: 'y', scan: false },
+			};
+			const keys = Object.keys(scales).slice(1);
+			const x = [0, 1, 2, 3, 4];
+			const values = [-8, -2, 0, 3, 8];
+			const data = mode == 1 ? [x, ...keys.map(() => values)] : [null, ...keys.map(() => [x, values])];
+			const u = new uPlot({
+				width: 400, height: 200, mode, scales,
+				axes: [], drawOrder: [], cursor: { show: false }, legend: { show: false },
+				series: [{}, ...keys.map(scale => mode == 1 ? { scale } : { facets: [{ scale: 'x' }, { scale }] })],
+			}, data, document.body);
+			try {
+				scan.minAbs = 100;
+				await Promise.resolve();
+				for (const [key, expected, cutoff] of [['y', 3, 2], ['inherited', 3, 2], ['overridden', 8, 4], ['empty', 2, 0], ['enabled', 2, 0], ['disabled', 2, 0]]) {
+					assertCutoff(u, key, cutoff);
+					assert.equal(u.scales[key]._asinh, expected, 'derived-scale fallback must not consume the copied cutoff');
+					assert.equal(typeof u.scales[key].scan, 'function');
+					assert.deepEqual(uPlot.scan(u, key), [-8, 8, expected]);
+					assert.deepEqual(uPlot.scan(u, key, null, null, true), [-8, 8, expected]);
+					assert.equal(u.scales[key].asinh(u, key), expected);
+				}
+				assert.equal(u.scales.inherited.scan, u.scales.y.scan);
+				assert.deepEqual(u.scales.disabled.scan(u, 'disabled'), [null, null]);
+				values[3] = 5;
+				u.setData(data);
+				await Promise.resolve();
+				for (const key of ['y', 'inherited', 'overridden']) {
+					assert.equal(u.scales[key]._asinh, 5);
+					assertCutoff(u, key, key == 'overridden' ? 4 : 2);
+				}
+			}
+			finally { u.destroy(); }
+		});
+
 		for (const minAbs of [4, null]) {
 			it(`mode ${mode}: consumes custom scan minAbs ${minAbs} without fallback reads`, async () => {
 				const input = tracked([-8, -2, 0, 3, 8]);
@@ -285,11 +413,13 @@ describe('asinh scale scan', () => {
 				try {
 					await Promise.resolve();
 					assert.equal(u.scales.y._asinh, minAbs ?? 1);
+					assertCutoff(u, 'y', 0);
 					assert.deepEqual(input.reads, []);
 					result[2] = minAbs == null ? 5 : null;
 					u.redraw();
 					await Promise.resolve();
 					assert.equal(u.scales.y._asinh, result[2] ?? 1);
+					assertCutoff(u, 'y', 0);
 					assert.deepEqual(input.reads, [], 'custom null is a result, not a missing threshold');
 				}
 				finally { u.destroy(); }
@@ -369,7 +499,7 @@ describe('asinh scale scan', () => {
 			await Promise.resolve();
 			assertOnePass(input);
 			assert.equal(u.scales.y._asinh, 2);
-			assert.equal(owner(u)._minAbs, 2);
+			assert.equal(owner(u).minAbs, 2);
 			assert.deepEqual(bounds(owner(u)), [-9, 8]);
 			const yBounds = bounds(u.scales.y);
 
@@ -379,7 +509,7 @@ describe('asinh scale scan', () => {
 			assert.deepEqual(bounds(u.scales.x), [2, 4]);
 			assert.deepEqual(bounds(u.scales.y), yBounds, 'suppressed Y ranging leaves the scale unchanged');
 			assert.equal(u.scales.y._asinh, 2);
-			assert.equal(owner(u)._minAbs, undefined, 'X zoom invalidates minAbs even without a pending Y update');
+			assert.equal(owner(u).minAbs, undefined, 'X zoom invalidates minAbs even without a pending Y update');
 			assert.deepEqual(bounds(owner(u)), [null, null]);
 			assert.deepEqual(input.reads, [], 'suppressed Y ranging must not read Y data');
 
@@ -387,12 +517,49 @@ describe('asinh scale scan', () => {
 			await Promise.resolve();
 			assert.deepEqual(bounds(u.scales.y), [-20, 20]);
 			assert.equal(u.scales.y._asinh, 3);
-			assert.equal(owner(u)._minAbs, 3);
+			assert.equal(owner(u).minAbs, 3);
 			assert.deepEqual(bounds(owner(u)), [0, 8]);
 			assertOnePass(input, 2, 4);
 			input.reset();
 			assert.deepEqual(uPlot.scan(u, 'y', 2, 4, true), [0, 8, 3]);
 			assert.deepEqual(input.reads, [], 'the explicit Y update caches the current-window triple');
+		}
+		finally { u.destroy(); }
+	});
+
+	it('shared X consumes custom triples without a fallback scan or persistent aggregate', async () => {
+		const result = [-9, 8, 7], calls = [];
+		const u = new uPlot({
+			width: 400,
+			height: 200,
+			drawOrder: [],
+			axes: [],
+			cursor: { show: false },
+			legend: { show: false },
+			scales: {
+				x: { time: false, distr: 4, range: (u, min, max) => [min, max], scan: (...args) => {
+					calls.push(args);
+					[args[0].series[0].min, args[0].series[0].max] = result;
+					return result;
+				} },
+				y: { range: [0, 10] },
+			},
+			series: [{}, { paths: () => null, points: { show: false } }],
+		}, [[-9, -2, 0, 3, 8], [1, 2, 3, 4, 5]], document.body);
+		try {
+			for (const minAbs of [7, null, 5]) {
+				if (minAbs != 7) {
+					result[2] = minAbs;
+					u.setScale('x', { min: null, max: null });
+				}
+				await Promise.resolve();
+				assert.equal(u.scales.x._asinh, minAbs ?? 1);
+				assertCutoff(u, 'x', 0);
+				assert.equal(u.series[0].minAbs, undefined, 'custom triples do not trigger the built-in cache scan');
+				assert.deepEqual(calls.at(-1).slice(1, 4), ['x', undefined, undefined]);
+				assert.equal(typeof calls.at(-1)[4], 'boolean', 'the scanner receives viaAutoScaleX');
+			}
+			assert.equal(calls.length, 3);
 		}
 		finally { u.destroy(); }
 	});
@@ -408,35 +575,35 @@ describe('asinh scale scan', () => {
 				cursor: { show: false },
 				legend: { show: false },
 				scales: {
-					x: { time: false, distr: 4, asinh, range: (u, min, max) => [min, max] },
+					x: { time: false, distr: 4, asinh, scan: { minAbs: 2 }, range: (u, min, max) => [min, max] },
 					y: { range: [0, 10] },
 				},
 				series: [{}, { paths: () => null, points: { show: false } }],
 			}, [input.data, [1, 2, 3, 4, 5]], document.body);
 			try {
 				await Promise.resolve();
-				assert.deepEqual(uPlot.scan(u, 'x', null, null, true), [-9, 8, 2]);
+				assert.deepEqual(uPlot.scan(u, 'x', null, null, true), [-9, 8, 3]);
 				for (const scanBeforeReset of [false, true]) {
 					u.setScale('x', { min: -2, max: 3 });
 					await Promise.resolve();
 					assert.deepEqual(bounds(u.scales.x), [-2, 3]);
 
 					const before = cacheSnapshot(u);
-					assert.deepEqual(uPlot.scan(u, 'x'), [-9, 8, 2]);
+					assert.deepEqual(uPlot.scan(u, 'x'), [-9, 8, 3]);
 					assert.deepEqual(cacheSnapshot(u), before, 'pure full-X scans must leave caches unchanged');
 					if (scanBeforeReset) {
 						input.reset();
-						assert.deepEqual(uPlot.scan(u, 'x', null, null, true), [-9, 8, 2]);
+						assert.deepEqual(uPlot.scan(u, 'x', null, null, true), [-9, 8, 3]);
 						assert.deepEqual([...new Set(input.reads)].sort((a, b) => a - b), [0, 4]);
 						assert.ok(input.reads.length <= 8, 'cached nearest must not require another absolute-value pass');
-						assert.equal(u.series[0]._minAbs, 2);
+						assert.equal(u.series[0].minAbs, 3);
 					}
 					// Reset must also work without a preceding cached scan repairing the extrema.
 					u.setScale('x', { min: null, max: null });
 					await Promise.resolve();
 					assert.deepEqual(bounds(u.scales.x), [-9, 8]);
-					assert.equal(u.scales.x._asinh, 2);
-					assert.deepEqual(uPlot.scan(u, 'x', null, null, true), [-9, 8, 2]);
+					assert.equal(u.scales.x._asinh, asinh ?? 3);
+					assert.deepEqual(uPlot.scan(u, 'x', null, null, true), [-9, 8, 3]);
 				}
 				for (const [i0, i1] of [[4, 2], [5, 10], [-5, -1]]) {
 					input.reset();
@@ -460,7 +627,7 @@ describe('asinh scale scan', () => {
 				cursor: { show: false },
 				legend: { show: false },
 				scales: {
-					x: { time: false, distr: 4, asinh: 2, clamp: 2, range: () => [-10, 10] },
+					x: { time: false, distr: 4, asinh: 2, scan: { minAbs: 2 }, range: () => [-10, 10] },
 					y: { range: [0, 10] },
 				},
 				series: [{ scan: false }, { paths: () => null, points: { show: false } }],
@@ -490,15 +657,15 @@ describe('asinh scale scan', () => {
 					const cached = mode == 1 ? u.series[2] : u.series[2].facets[1];
 					const hidden = mode == 1 ? u.series[3] : u.series[3].facets[1];
 					const minAbs = name == 'numeric minAbs' ? 2 : null;
-					assert.equal(cached._minAbs, minAbs);
-					assert.equal(hidden._minAbs, undefined);
+					assert.equal(cached.minAbs, minAbs);
+					assert.equal(hidden.minAbs, undefined);
 					for (const show of [false, true, false, true]) {
 						for (const input of inputs) input.reset();
 						u.setSeries(2, { show });
 						await Promise.resolve();
 						assert.deepEqual(uPlot.scan(u, 'y', null, null, true), show ? expected : [-8, 8, 4]);
 						assert.equal(u.scales.y._asinh, show ? expected[2] : 4);
-						assert.equal(cached._minAbs, minAbs, 'visibility changes must preserve computed caches');
+						assert.equal(cached.minAbs, minAbs, 'visibility changes must preserve computed caches');
 						for (const input of inputs)
 							assert.deepEqual(input.reads, [], 'toggling a cached series must not read any Y array');
 					}
@@ -507,7 +674,7 @@ describe('asinh scale scan', () => {
 					await Promise.resolve();
 					assert.deepEqual(uPlot.scan(u, 'y', null, null, true), [-30, 30, 1]);
 					assert.equal(u.scales.y._asinh, 1);
-					assert.equal(hidden._minAbs, 1);
+					assert.equal(hidden.minAbs, 1);
 					assert.deepEqual(inputs[0].reads, [], 'showing a cold series must not rescan visible series');
 					assert.deepEqual(inputs[1].reads, []);
 					assertOnePass(inputs[2]);
@@ -534,7 +701,7 @@ describe('asinh scale scan', () => {
 				try {
 					await Promise.resolve();
 					const facet = mode == 1 ? u.series[2] : u.series[2].facets[1];
-					assert.equal(facet._minAbs, change == 'replacement' ? null : 2);
+					assert.equal(facet.minAbs, change == 'replacement' ? null : 2);
 					u.setSeries(2, { show: false });
 					await Promise.resolve();
 					visible.reset();
@@ -554,7 +721,8 @@ describe('asinh scale scan', () => {
 						const x = [0, 1, 2, 3, 4];
 						const data = mode == 1 ? [x, visible.data, hidden.data] : [null, [x, visible.data], [x, hidden.data]];
 						u.setData(data, change == 'replacement');
-						assert.equal(facet._minAbs, undefined);
+						assert.equal(facet.minAbs, undefined);
+						assert.equal(u.series[2].minAbs, undefined);
 						if (change == 'in-place') {
 							assert.deepEqual(visible.reads, [], 'setData(false) defers all scans');
 							assert.deepEqual(hidden.reads, []);
@@ -565,14 +733,14 @@ describe('asinh scale scan', () => {
 					const i0 = change == 'window' && mode == 1 ? 2 : 0;
 					if (retainsCache) {
 						assert.deepEqual(visible.reads, [], 'mode 2 window changes reuse full-facet Y caches');
-						assert.equal(owner(u)._minAbs, 4);
+						assert.equal(owner(u).minAbs, 4);
 						assert.deepEqual(bounds(owner(u)), [-8, 8]);
-						assert.equal(facet._minAbs, 2, 'mode 2 window changes also retain hidden caches');
+						assert.equal(facet.minAbs, 2, 'mode 2 window changes also retain hidden caches');
 						assert.deepEqual(bounds(facet), [-20, 20]);
 					}
 					else {
 						assertOnePass(visible, i0, 4);
-						assert.equal(facet._minAbs, undefined, 'hidden minAbs remains uncomputed until reshow');
+						assert.equal(facet.minAbs, undefined, 'hidden minAbs remains uncomputed until reshow');
 						assert.deepEqual(bounds(facet), [null, null]);
 					}
 					assert.deepEqual(hidden.reads, [], 'data and window changes must not scan hidden data');
@@ -584,7 +752,8 @@ describe('asinh scale scan', () => {
 					const expected = change != 'window' ? [-30, 30, 1] : mode == 1 ? [0, 20, 3] : [-20, 20, 2];
 					assert.deepEqual(uPlot.scan(u, 'y', i0, 4, true), expected);
 					assert.equal(u.scales.y._asinh, expected[2]);
-					assert.equal(facet._minAbs, expected[2]);
+					assert.equal(facet.minAbs, expected[2]);
+					assert.equal(u.series[2].minAbs, expected[2]);
 					assert.deepEqual(bounds(facet), expected.slice(0, 2));
 					assert.deepEqual(bounds(u.series[2]), expected.slice(0, 2));
 					if (retainsCache)
@@ -634,7 +803,7 @@ describe('asinh scale scan', () => {
 		});
 	}
 
-	it('mode 2 aggregates matching participating facets and mirrors only the primary Y facet extrema', async () => {
+	it('mode 2 aggregates matching participating facets and mirrors only the primary Y facet statistics', async () => {
 		const excluded = tracked([-100, 0.01]);
 		const other = tracked([-200, 0.02]);
 		const u = makePlot(2, [-8, 4], {}, {
@@ -647,16 +816,19 @@ describe('asinh scale scan', () => {
 			const excludedFacet = u.series[1].facets[3];
 			excludedFacet.min = -100;
 			excludedFacet.max = 0.01;
-			excludedFacet._minAbs = 0.01;
+			excludedFacet.minAbs = 0.01;
 			for (const cache of [false, true])
 				assert.deepEqual(uPlot.scan(u, 'y', null, null, cache), [-8, 10, 2]);
 			assert.equal(u.scales.y._asinh, 2);
 			assert.deepEqual(bounds(u.series[1]), [-8, 4]);
+			assert.equal(u.series[1].minAbs, 4, 'series mirrors facet 1, not the aggregate or another facet');
+			assert.equal(u.series[1].facets[1].minAbs, 4);
+			assert.equal(u.series[1].facets[2].minAbs, 2);
 			assert.deepEqual(bounds(u.series[1].facets[2]), [-2, 10]);
 			assert.deepEqual(excluded.reads, []);
 			assert.deepEqual(other.reads, []);
 			assert.deepEqual(bounds(excludedFacet), [-100, 0.01]);
-			assert.equal(excludedFacet._minAbs, 0.01);
+			assert.equal(excludedFacet.minAbs, 0.01);
 		}
 		finally { u.destroy(); }
 	});

@@ -85,10 +85,11 @@ function projectedRect(u, x0, x1, y0, y1) {
 }
 
 // The oracle uses the fixture's explicit edges, not plugin row IDs, paths, or lookup results.
-function oracleRects(u, f) {
+function oracleRects(u, f, minAbs = 0) {
 	return f.cells.map(({ col, row }, id) => ({ id,
-		rect: projectedRect(u, f.xEdges[col], f.xEdges[col + 1], f.yEdges[row], f.yEdges[row + 1]),
-	})).filter(({ rect: [, , w, h] }) => w > 0 && h > 0);
+		rect: Math.max(Math.abs(f.yEdges[row]), Math.abs(f.yEdges[row + 1])) <= minAbs ? null :
+			projectedRect(u, f.xEdges[col], f.xEdges[col + 1], f.yEdges[row], f.yEdges[row + 1]),
+	})).filter(({ rect }) => rect != null && rect[2] > 0 && rect[3] > 0);
 }
 
 function oracleHit(boxes, px, py) {
@@ -119,8 +120,8 @@ function pixelQuery(u, px, py, expected) {
 	assert.equal(u.cursor.dataIdx(u, 1), expected, `canvas (${px}, ${py})`);
 }
 
-function checkOracle(u, f, ordered = true) {
-	const boxes = oracleRects(u, f);
+function checkOracle(u, f, ordered = true, minAbs = 0) {
+	const boxes = oracleRects(u, f, minAbs);
 	const actual = rects(u), expectedRects = boxes.map(b => b.rect);
 	if (!ordered) {
 		const compare = (a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b));
@@ -135,6 +136,14 @@ function checkOracle(u, f, ordered = true) {
 				[x + w / 2, y + delta], [x + w / 2, y + h + delta]);
 		}
 		probes.push([x, y], [x + w, y], [x, y + h], [x + w, y + h]);
+	}
+	// Probe excluded cells explicitly, including their shared edges with retained cells.
+	for (const { col, row } of f.cells) {
+		if (Math.max(Math.abs(f.yEdges[row]), Math.abs(f.yEdges[row + 1])) <= minAbs) {
+			const [x, y, w, h] = projectedRect(u, f.xEdges[col], f.xEdges[col + 1], f.yEdges[row], f.yEdges[row + 1]);
+			if (w > 0 && h > 0)
+				probes.push([x + w / 2, y + h / 2], [x + w / 2, y], [x + w / 2, y + h]);
+		}
 	}
 	// Sample gaps and offscreen regions as well as occupied edges.
 	for (let ix = -1; ix <= 18; ix++) {
@@ -188,6 +197,7 @@ function dashboardFor(values) {
 }
 const realDashboard = () => JSON.parse(readFileSync(new URL('../demos/data/heatmap-cells-exemplars.json', import.meta.url), 'utf8'));
 
+const demoMinAbs = 2 ** -128;
 const colorLabels = { linear: 'Count · linear scale', sqrt: 'Count · √ scale', log: 'Count · log scale' };
 const colorModes = Object.keys(colorLabels);
 
@@ -210,6 +220,7 @@ function colorBoundaryCounts(mode, min, max) {
 function checkDemoColors(u, mode, min, max) {
 	const expected = Array.from({ length: 32 }, () => []);
 	u.data[1][3].forEach((count, i) => {
+		if (Math.max(Math.abs(u.data[1][1][i]), Math.abs(u.data[1][2][i])) <= demoMinAbs) return;
 		const rect = bounds(u, i, true, 60);
 		if (rect[2] > 0 && rect[3] > 0)
 			expected[demoColorIndex(count, mode, min, max)].push(rect);
@@ -238,7 +249,7 @@ function isolated(options, data = empty(), over = document.createElement('div'))
 	Object.defineProperty(over, 'style', { value: { left: '0px', top: '0px' }, configurable: true });
 	const u = { data, width: 100, height: 100, pxRatio: 1, bbox: { left: 0, top: 0, width: 100, height: 100 },
 		series: [{}, { show: true }], over, cursor: { left: -10, top: -10 },
-		scales: { y: { distr: 1, clamp: 0 } },
+		scales: { y: { distr: 1, get clamp() { throw new Error('Plugin must not access scale.clamp'); } } },
 		ctx: { save() {}, restore() {}, fill(path) { drawn.push(path); } },
 		valToPos(value, key) { projected[key].push(value); return key == 'x' ? value : 100 - value; },
 		posToVal(value, key) { inverted[key].push(value); return key == 'x' ? value : 100 - value; },
@@ -538,78 +549,165 @@ describe('heatmapPlugin uniform grid', () => {
 		['zero linear edges', [-.5, 0, .5], 0, .5, { distr: 1 }],
 		['equal linear edges', [-2, -1, 0, 1, 2], 1, 2, { distr: 1 }],
 	]) {
-		it(`uses the normalized asinh clamp for ${label}`, async () => {
+		it(`uses immutable minAbs for ${label}`, async () => {
 			const f = edgeFixture(edges, gridY, () => true);
 			const prepared = [];
-			const u = await mount(f, 1.25, { onPrepare: (...args) => prepared.push(args) },
-				{ y: { distr: 4, clamp: cutoff, asinh: () => prepared.at(-1)?.[3] ?? 1 } });
-			assert.equal(u.scales.y.clamp, cutoff, 'asinh clamps remain numeric');
+			const snapshot = structuredClone(f.data);
+			const u = await mount(f, 1.25, { minAbs: cutoff, onPrepare: (...args) => prepared.push(args) },
+				{ y: { distr: 4, asinh: () => prepared.at(-1)?.[3] ?? 1 } });
 			assert.deepEqual(prepared, [[u, edges[0], edges.at(-1), expected]]);
 			assert.equal(u.scales.y._asinh, expected);
-			checkOracle(u, f);
+			checkOracle(u, f, true, cutoff);
 			u.redraw(); await Promise.resolve();
 			assert.equal(prepared.length, 1);
-			checkOracle(u, f);
+			checkOracle(u, f, true, cutoff);
+			assert.deepEqual(f.data, snapshot, 'filtering never removes or rewrites source cells');
 		});
 	}
+
+	for (const [label, edges, gridY, minAbs, displays] of [
+		['sparse signed log', signedEdges(2, -3, 3), { distr: 3, factor: 2 }, 1, [1, 4]],
+		['sparse positive signed log', [.125, .25, .5, 1, 2, 4, 8], { distr: 3, factor: 2 }, 1, [1, 3, 4]],
+		['sparse negative signed log', [-8, -4, -2, -1, -.5, -.25, -.125], { distr: 3, factor: 2 }, 1, [1, 4]],
+		['ordinary positive log', [.125, .25, .5, 1, 2, 4, 8], { distr: 3 }, 1, [1, 3, 4]],
+		['signed linear', [-4, -3, -2, -1, 0, 1, 2, 3, 4], { distr: 1 }, 1, [1, 4]],
+		['positive linear', [0, 1, 2, 3, 4], { distr: 1 }, 1, [1, 4]],
+		['negative linear', [-4, -3, -2, -1, 0], { distr: 1 }, 1, [1, 4]],
+		['all-skipped signed log', signedEdges(2, -3, 3), { distr: 3, factor: 2 }, 8, [1, 4]],
+		['all-skipped positive log', [.125, .25, .5, 1, 2, 4, 8], { distr: 3 }, 8, [1, 3, 4]],
+	]) {
+		for (const distr of displays) {
+			for (const dpr of [1, 1.25, 2]) {
+				it(`excludes ${label} buckets from drawing and hover on display ${distr}, DPR ${dpr}`, async () => {
+					const f = edgeFixture(edges, gridY);
+					const snapshot = structuredClone(f.data), prepared = [], selected = [];
+					const sourceEdges = [...f.data[1][1], ...f.data[1][2]];
+					const eligible = sourceEdges.map(Math.abs).filter(v => v > minAbs);
+					const expected = [Math.min(...f.data[1][1]), Math.max(...f.data[1][2]), eligible.length ? Math.min(...eligible) : 1];
+					const u = await mount(f, dpr, { minAbs, onPrepare: (...args) => prepared.push(args),
+						colorIdx: count => { selected.push(count); return 0; } },
+						{ y: { distr, asinh: () => prepared.at(-1)?.[3] ?? 1 } });
+					assert.deepEqual(prepared, [[u, ...expected]], 'metadata uses unfiltered source extrema');
+					assert.deepEqual(selected, oracleRects(u, f, minAbs).map(b => f.data[1][3][b.id]));
+					checkOracle(u, f, true, minAbs);
+					for (const [width, height] of [[317, 213], [91, 61], [601, 361]]) {
+						selected.length = 0;
+						u.setSize({ width, height });
+						u.setScale('x', { min: .2, max: 4.7 });
+						await Promise.resolve();
+						checkOracle(u, f, true, minAbs);
+						assert.deepEqual(selected, oracleRects(u, f, minAbs).map(b => f.data[1][3][b.id]), 'hidden cells never select colors');
+					}
+					assert.equal(prepared.length, 1, 'resize and hover reuse preparation');
+					assert.deepEqual(f.data, snapshot, 'source cells and counts remain intact');
+				});
+			}
+		}
+	}
+
+	it('retains shared cutoff edges and original hover IDs without exposing hidden rows or sparse holes', async () => {
+		const f = edgeFixture([-3, -2, -1, 0, 1, 2, 3], { distr: 1 },
+			(col, row) => col != 2 && !(col == 1 && (row == 1 || row == 4)));
+		const hovered = [];
+		const u = await mount(f, 1, { minAbs: 1, colors: ['red', 'blue'], colorIdx: count => count % 2,
+			onHover: (u, id) => hovered.push(id) }, { y: { distr: 1 } });
+		checkOracle(u, f, false, 1);
+		enter(u);
+		for (const [x, y, row] of [[.5, -1, 1], [.5, 1, 4], [1, -1, 1], [1, 1, 4],
+			[.5, -.5, null], [.5, .5, null], [1.5, -1, null], [1.5, 1, null], [2.5, 2.5, null]]) {
+			const id = row == null ? null : f.cells.findIndex(c => c.col == 0 && c.row == row);
+			hover(u, x, y, id);
+			assert.equal(hovered.at(-1), id, 'onHover receives the source index, not a filtered index');
+		}
+	});
+
+	it('prepares initially empty data with minAbs and resets hidden intervals across one-sided replacements', async () => {
+		const gridY = { distr: 3, factor: 2 }, prepared = [];
+		const initial = edgeFixture(signedEdges(), gridY);
+		initial.data = empty(); initial.cells = [];
+		const u = await mount(initial, 1.25, { minAbs: 1, onPrepare: (...args) => prepared.push(args) },
+			{ y: { distr: 4, asinh: 1 } });
+		assert.deepEqual(prepared, [[u, null, null, 1]]);
+		checkOracle(u, initial, true, 1);
+		for (const edges of [[.125, .25, .5, 1], [-8, -4, -2], [-1, -.5, -.25], [2, 4, 8],
+			[-4, -2, -1, -.5, .5, 1, 2, 4]]) {
+			const f = edgeFixture(edges, gridY);
+			u.setData(f.data); await Promise.resolve();
+			assert.deepEqual(prepared.at(-1).slice(1, 3), [Math.min(...f.data[1][1]), Math.max(...f.data[1][2])]);
+			checkOracle(u, f, true, 1);
+		}
+	});
 
 	it('keeps an asinh grid independent of its adaptive display cutoff', async () => {
 		const f = fixture({ y: { distr: 4, asinh: .25 }, yOrigin: -3, ySize: 1, include: () => true });
 		const cutoff = Math.abs(f.yEdges[2]), expected = Math.abs(f.yEdges[1]);
 		const prepared = [];
-		const u = await mount(f, 1.25, { onPrepare: (...args) => prepared.push(args) },
-			{ y: { distr: 4, clamp: cutoff, asinh: () => prepared.at(-1)?.[3] ?? 1 } });
+		const u = await mount(f, 1.25, { minAbs: cutoff, onPrepare: (...args) => prepared.push(args) },
+			{ y: { distr: 4, asinh: () => prepared.at(-1)?.[3] ?? 1 } });
 		assert.deepEqual(prepared, [[u, f.yEdges[0], f.yEdges.at(-1), expected]]);
 		assert.equal(u.scales.y._asinh, expected);
-		checkOracle(u, f);
+		checkOracle(u, f, true, cutoff);
 	});
 
-	for (const distr of [1, 3]) {
-		it(`uses cutoff zero without calling the clamp for display ${distr}`, () => {
-			const f = edgeFixture(signedEdges(2, -3, 2), { distr: 3, factor: 2 }, () => true);
-			const prepared = [];
-			const { u, plugin } = isolated({ xSize: 1, grid: f.grid, onPrepare: (...args) => prepared.push(args) }, f.data);
-			u.scales.y = { distr, clamp() { throw new Error('Non-asinh display must not call clamp'); } };
-			try {
-				plugin.hooks.setData(u);
-				assert.deepEqual(prepared, [[u, -4, 4, .125]]);
-			}
-			finally { plugin.hooks.destroy(); }
-		});
+	for (const distr of [1, 3, 4]) {
+		for (const minAbs of [undefined, 0, 1]) {
+			it(`uses minAbs ${minAbs ?? 'default zero'} without reading scale.clamp on display ${distr}`, () => {
+				const f = edgeFixture(signedEdges(2, -3, 2), { distr: 3, factor: 2 }, () => true);
+				const prepared = [];
+				const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, minAbs,
+					onPrepare: (...args) => prepared.push(args) }, f.data);
+				u.scales.y = { distr, get clamp() { throw new Error('Plugin must not access scale.clamp'); } };
+				try {
+					plugin.hooks.setData(u);
+					assert.deepEqual(prepared, [[u, -4, 4, minAbs == 1 ? 2 : .125]]);
+					plugin.hooks.draw(u);
+					assert.deepEqual(drawn.flatMap(pathRects), oracleRects(u, f, minAbs).map(b => b.rect));
+					pixelQuery(u, .5, 97, f.cells.findIndex(c => c.col == 0 && f.yEdges[c.row] == 2));
+				}
+				finally { plugin.hooks.destroy(); }
+			});
+		}
 	}
 
-	it('uses updated numeric asinh cutoffs on setData, without preparation during redraw or hover', async () => {
+	it('keeps minAbs fixed while replacement, in-place, all-skipped, and empty setData refresh metadata', async () => {
+		const minAbs = 2;
 		let f = edgeFixture(signedEdges(2, -3, 3), { distr: 3, factor: 2 }, () => true);
 		const prepared = [];
-		const u = await mount(f, 1.25, { onPrepare: (...args) => prepared.push(args) },
-			{ y: { distr: 4, clamp: 2, asinh: () => prepared.at(-1)?.[3] ?? 1, min: -100, max: 100 } });
-		assert.equal(u.scales.y.clamp, 2);
+		const u = await mount(f, 1.25, { minAbs, onPrepare: (...args) => prepared.push(args) },
+			{ y: { distr: 4, asinh: () => prepared.at(-1)?.[3] ?? 1, min: -32, max: 32 } });
 		assert.deepEqual(prepared, [[u, -8, 8, 4]]);
 		assert.equal(u.scales.y._asinh, 4);
+		checkOracle(u, f, true, minAbs);
 		f = edgeFixture([-32, -16, -8, .25, .5, 1], f.grid.y, () => true);
-		u.scales.y.clamp = 8;
 		u.setData(f.data); await Promise.resolve();
-		assert.deepEqual(prepared.at(-1), [u, -32, 1, 16]);
+		assert.deepEqual(prepared.at(-1), [u, -32, 1, 8]);
+		checkOracle(u, f, true, minAbs);
 		for (const facet of [1, 2]) f.data[1][facet].forEach((v, i, a) => { a[i] = v / 4; });
 		f.yEdges = f.yEdges.map(v => v / 4);
-		u.scales.y.clamp = 2;
-		u.setData(f.data); await Promise.resolve();
+		u.setData(f.data, false);
+		assert.equal(u.cursor.dataIdx(u, 1), null, 'deferred setData invalidates cached hover');
 		assert.deepEqual(prepared.at(-1), [u, -8, .25, 4]);
+		u.redraw(); await Promise.resolve();
 		assert.equal(prepared.length, 3);
-		checkOracle(u, f);
+		checkOracle(u, f, true, minAbs);
 		u.setSize({ width: 317, height: 213 });
 		u.setScale('y', { min: -16, max: 16 });
 		await Promise.resolve();
 		u.redraw(); await Promise.resolve();
-		checkOracle(u, f);
+		checkOracle(u, f, true, minAbs);
 		assert.equal(prepared.length, 3);
+		const skipped = edgeFixture([-2, -1, -.5, .5, 1, 2], f.grid.y, () => true);
+		u.setData(skipped.data); await Promise.resolve();
+		assert.deepEqual(prepared.at(-1), [u, -2, 2, 1]);
+		checkOracle(u, skipped, true, minAbs);
 		u.setData(empty()); await Promise.resolve();
 		assert.deepEqual(prepared.at(-1), [u, null, null, 1]);
 		assert.deepEqual(rects(u), []);
+		hover(u, .5, -3, null);
 		u.setData(f.data); await Promise.resolve();
 		assert.deepEqual(prepared.at(-1), [u, -8, .25, 4]);
 		assert.equal(u.scales.y._asinh, 4);
-		checkOracle(u, f);
+		checkOracle(u, f, true, minAbs);
 	});
 
 	it('bounds signed IDs by actual nearest edges and reuses their buffer through initially empty, grow, shrink, and empty data', () => {
@@ -643,7 +741,8 @@ describe('heatmapPlugin uniform grid', () => {
 			(col, row) => col != 2 && row != 2, 64);
 		const rows = new Set(f.data[1][1]).size, columns = 63;
 		const log = Math.log, abs = Math.abs;
-		let logs = 0, absolutes = 0, lowerReads = 0, upperReads = 0, cutoffReads = 0;
+		let logs = 0, absolutes = 0, lowerReads = 0, upperReads = 0, minAbsReads = 0, clampReads = 0;
+		let optionMinAbs = 2;
 		const data = [null, [...f.data[1]]];
 		data[1][1] = new Proxy(data[1][1], { get(target, key) {
 			if (/^\d+$/.test(String(key))) lowerReads++;
@@ -654,8 +753,11 @@ describe('heatmapPlugin uniform grid', () => {
 			return target[key];
 		} });
 		const prepared = [];
-		const { u, plugin, projected } = isolated({ xSize: 1, grid: f.grid, onPrepare: (...args) => prepared.push(args) }, data);
-		u.scales.y = { distr: 4, get clamp() { cutoffReads++; return 2; } };
+		const { u, plugin, projected, drawn } = isolated({ xSize: 1, grid: f.grid,
+			get minAbs() { minAbsReads++; return optionMinAbs; }, onPrepare: (...args) => prepared.push(args) }, data);
+		assert.equal(minAbsReads, 1, 'minAbs is captured during plugin initialization');
+		optionMinAbs = 0;
+		u.scales.y = { distr: 4, get clamp() { clampReads++; throw new Error('Plugin must not access scale.clamp'); } };
 		try {
 			Math.log = value => { logs++; return log(value); };
 			Math.abs = value => { absolutes++; return abs(value); };
@@ -666,8 +768,10 @@ describe('heatmapPlugin uniform grid', () => {
 				assert.ok(lowerReads <= f.cells.length + columns * 8, 'nearest-edge searches are per-run binary searches, not another cell scan');
 				assert.equal(upperReads, 2 * columns + rows, 'upper bounds are read only for run endpoints, nearest negative edges, and unique rows');
 				assert.deepEqual(prepared, [[u, -16, 16, 4]]);
-				assert.equal(cutoffReads, 1);
+				assert.equal(minAbsReads, 1);
+				assert.equal(clampReads, 0);
 				assert.deepEqual(allocations.map(([name, a]) => [name, a.byteLength]), [['Uint32Array', f.cells.length * 4]]);
+				f.cells.forEach(({ row }, i) => assert.equal(allocations[0][1][i], row, 'hidden cells retain their original grid row IDs'));
 				const preparedLogs = logs, preparedAbs = absolutes;
 				const coordinates = u.data;
 				u.data = [null, [...coordinates[1].slice(0, 3).map(a => new Proxy(a, { get() {
@@ -681,9 +785,12 @@ describe('heatmapPlugin uniform grid', () => {
 						assert.deepEqual(projected.y, f.yEdges);
 						assert.equal(logs, preparedLogs);
 						assert.equal(absolutes, preparedAbs);
-						assert.equal(cutoffReads, 1);
+						assert.equal(minAbsReads, 1);
+						assert.equal(clampReads, 0);
 						assert.equal(prepared.length, 1);
 					}
+					pixelQuery(u, .5, 99, null);
+					assert.deepEqual(u.cursor.points.bbox(u, 1), { left: -10, top: -10, width: 0, height: 0 });
 					pixelQuery(u, .5, 97, f.cells.findIndex(c => c.col == 0 && f.yEdges[c.row] == 2));
 					const queryLogs = logs, queryAbs = absolutes;
 					assert.equal(u.cursor.dataIdx(u, 1), f.cells.findIndex(c => c.col == 0 && f.yEdges[c.row] == 2));
@@ -691,6 +798,16 @@ describe('heatmapPlugin uniform grid', () => {
 				});
 				assert.equal(allocations.length, 1, 'draw and hover allocate no additional typed indexes');
 				u.data = coordinates;
+				assert.deepEqual(pathRects(drawn.at(-1)), oracleRects(u, f, 2).map(b => b.rect));
+				for (const next of [empty(), coordinates, coordinates]) {
+					u.data = next;
+					withoutIndexes(() => plugin.hooks.setData(u), true);
+					withoutIndexes(() => plugin.hooks.draw(u));
+					assert.deepEqual(prepared.at(-1), next == coordinates ? [u, -16, 16, 4] : [u, null, null, 1]);
+					assert.equal(minAbsReads, 1, 'changing the original options cannot change the captured cutoff');
+					assert.equal(clampReads, 0);
+				}
+				assert.equal(allocations.length, 1, 'hidden-row state adds no per-cell typed buffers');
 			});
 		}
 		finally { Math.log = log; Math.abs = abs; plugin.hooks.destroy(); }
@@ -1458,31 +1575,47 @@ describe('heatmapPlugin demo', () => {
 		finally { demo?.destroy(); root.remove(); }
 	});
 
-	it('applies the demo asinh clamp to mirrored source edges without adding zero buckets', async () => {
-		const root = createDemoRoot();
-		root.querySelector('#signed-data').checked = true;
-		const cutoff = 2 ** -128;
-		const lo = [cutoff / 2, cutoff, cutoff * 2, cutoff * 4];
-		const dashboard = dashboardFor([lo.map(() => 60000), lo, lo.map(v => v * 2), lo.map(() => 1)]);
-		let demo;
-		try {
-			demo = createDemo(root, dashboard); await Promise.resolve();
-			const u = demo.plot;
-			assert.equal(u.data[1][0].length, lo.length * 2);
-			assert.equal(u.scales.y.clamp, cutoff);
-			assert.equal(u.scales.y._asinh, cutoff * 2, 'edges equal to the cutoff do not qualify');
-			assert.deepEqual(u.scales.y.scan(u, 'y'), [null, null]);
-			checkOracle(u, sourceFixture(u.data, 60), false);
-			hover(u, 30, 0, null);
-			u.setData([null, [[60, 60], [-cutoff, cutoff / 2], [-cutoff / 2, cutoff], [1, 1]]]);
-			await Promise.resolve();
-			assert.equal(u.scales.y._asinh, 1, 'no qualifying edges uses the core fallback');
-			u.setData([null, [[60, 60], [-8 * cutoff, cutoff], [-4 * cutoff, 2 * cutoff], [1, 1]]]);
-			await Promise.resolve();
-			assert.equal(u.scales.y._asinh, 2 * cutoff, 'setData refreshes the prepared threshold');
+	for (const signed of [false, true]) {
+		for (const mode of signed ? ['linear', 'asinh'] : ['log', 'linear', 'asinh']) {
+			it(`applies demo minAbs to ${signed ? 'signed' : 'positive'} data on ${mode} display`, async () => {
+				const root = createDemoRoot();
+				root.querySelector('#signed-data').checked = signed;
+				root.querySelector('#y-scale').value = mode;
+				const cutoff = demoMinAbs;
+				const lo = [cutoff / 4, cutoff / 2, cutoff, cutoff * 2, cutoff * 4];
+				const dashboard = dashboardFor([lo.map(() => 60000), lo, lo.map(v => v * 2), lo.map((_, i) => i + 1)]);
+				let demo;
+				try {
+					demo = createDemo(root, dashboard); await Promise.resolve();
+					const u = demo.plot, snapshot = structuredClone(u.data);
+					assert.equal(u.data[1][0].length, lo.length * (signed ? 2 : 1));
+					assert.equal(u.scales.y.asinh(u, 'y'), cutoff * 2, 'edges equal to minAbs do not qualify on any display');
+					if (mode == 'asinh') assert.equal(u.scales.y._asinh, cutoff * 2);
+					assert.deepEqual(u.scales.y.scan(u, 'y'), [null, null]);
+					assert.deepEqual(u.scales.y.range(u, null, null, 'y'), [signed ? -8 * cutoff : mode == 'log' ? cutoff / 4 : 0, 8 * cutoff]);
+					checkOracle(u, sourceFixture(u.data, 60), false, cutoff);
+					checkDemoColors(u, root.querySelector('#color-scale').value, 1, 5);
+					for (const sign of signed ? [-1, 1] : [1]) hover(u, 30, sign * cutoff * .75, null);
+					u.setSize({ width: 777, height: 413 }); await Promise.resolve();
+					checkOracle(u, sourceFixture(u.data, 60), false, cutoff);
+					assert.deepEqual(u.data, snapshot);
+					const skipped = signed ? [null, [[60, 60], [-cutoff, cutoff / 2], [-cutoff / 2, cutoff], [1, 1]]] :
+						[null, [[60], [cutoff / 2], [cutoff], [1]]];
+					u.setData(skipped); await Promise.resolve();
+					assert.equal(u.scales.y.asinh(u, 'y'), 1, 'all-skipped data uses fallback 1');
+					checkOracle(u, sourceFixture(skipped, 60), false, cutoff);
+					assert.deepEqual(rects(u), []);
+					u.setData(empty()); await Promise.resolve();
+					assert.equal(u.scales.y.asinh(u, 'y'), 1);
+					assert.deepEqual(rects(u), []);
+					u.setData(snapshot); await Promise.resolve();
+					assert.equal(u.scales.y.asinh(u, 'y'), cutoff * 2);
+					checkOracle(u, sourceFixture(snapshot, 60), false, cutoff);
+				}
+				finally { demo?.destroy(); root.remove(); }
+			});
 		}
-		finally { demo?.destroy(); root.remove(); }
-	});
+	}
 
 	it('refreshes the cached asinh threshold on replacement, in-place, and empty setData', async () => {
 		const root = createDemoRoot();

@@ -9,9 +9,10 @@
 // xSize is the bucket width in transformed X units. Implicit Y width comes from the first cell.
 // colorIdx returns a palette index. onHover receives the original source index or null.
 // onPrepare receives (u, minY, maxY, asinhThreshold), with null bounds for empty data.
-// asinhThreshold is the smallest absolute source Y edge strictly above the display cutoff, fallback 1.
-// The cutoff is the numeric Y clamp for an asinh display, otherwise zero.
-export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorIdx = () => 0, onHover = () => {}, onPrepare }) {
+// minAbs defaults to 0 and is fixed at initialization. The cutoff must align with Y bucket boundaries.
+// Buckets entirely within [-minAbs, minAbs] do not draw or respond to hover. Source extrema remain unchanged.
+// asinhThreshold is the smallest absolute source Y edge strictly greater than minAbs, with fallback 1.
+export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, colors = ['steelblue'], colorIdx = () => 0, onHover = () => {}, onPrepare }) {
 	function axis(options, distr) {
 		distr = options?.distr ?? distr;
 		const threshold = options?.asinh ?? 1;
@@ -42,6 +43,8 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 	// Preparation infers the progression. Drawing projects each edge only once.
 	// Heights are shared across columns, so the cell loop needs no boundary arithmetic.
 	const heights = [];
+	// The excluded near-zero rows form one interval, including any missing rows between them.
+	let hiddenMin = Infinity, hiddenMax = -Infinity;
 	// starts[col] and starts[col + 1] delimit a source run. Missing columns have equal offsets.
 	const starts = [];
 	// Preparation-only dedupe: repeated Y bounds reuse a row ID without another grid transform.
@@ -72,6 +75,8 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 		const [xs, yMin, yMax] = u.data[1];
 		length = xs.length;
 		rowIds.clear();
+		hiddenMin = Infinity;
+		hiddenMax = -Infinity;
 		invalidate();
 		if (length == 0) {
 			x.count = y.count = 0;
@@ -152,8 +157,6 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 		if (cellRows.length < length)
 			cellRows = new Uint32Array(Math.max(length, cellRows.length * 2));
 
-		const scale = u.scales.y;
-		const cutoff = scale.distr == 4 ? scale.clamp : 0;
 		let asinhThreshold = Infinity;
 		for (let i = 0; i < length; i++) {
 			const bottom = yMin[i];
@@ -166,10 +169,14 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 				y.values[row] = bottom;
 				y.values[row + 1] = top;
 				const absBottom = Math.abs(bottom), absTop = Math.abs(top);
-				if (absBottom > cutoff)
+				if (absBottom > minAbs)
 					asinhThreshold = Math.min(asinhThreshold, absBottom);
-				if (absTop > cutoff)
+				if (absTop > minAbs)
 					asinhThreshold = Math.min(asinhThreshold, absTop);
+				if (Math.max(absBottom, absTop) <= minAbs) {
+					hiddenMin = Math.min(hiddenMin, row);
+					hiddenMax = Math.max(hiddenMax, row);
+				}
 			}
 			cellRows[i] = row;
 		}
@@ -245,7 +252,7 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 					let row = firstRow;
 					for (let r = 0; r < 2 && row >= 0; r++) {
 						const y0 = y.pixels[row + 1], y1 = y.pixels[row];
-						if (y1 > y0 && py >= y0) {
+						if (heights[row] > 0 && py >= y0) {
 							const i = sourceAt(col, row);
 							if (i >= 0) {
 								hit = i;
@@ -294,7 +301,7 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 			project(u, y, 'y', bbox.top, bbox.height);
 			heights.length = y.count;
 			for (let row = 0; row < y.count; row++)
-				heights[row] = y.pixels[row] - y.pixels[row + 1];
+				heights[row] = row >= hiddenMin && row <= hiddenMax ? 0 : y.pixels[row] - y.pixels[row + 1];
 			for (let i = 0; i < paths.length; i++)
 				paths[i] = new Path2D();
 
