@@ -886,41 +886,7 @@ export function clampScale(self, val, scaleMin, scaleMax, scaleKey) {
 		return self.posToVal(cssHgt + fromBtm, scaleKey);
 	}
 */
-	return self.scales[scaleKey].distr == 4 ? 0 : scaleMin / 10;
-}
-
-function asinhScale(self, scaleKey) {
-	let { series, data, mode } = self;
-	let sc = self.scales[scaleKey];
-	let cutoff = sc.clamp(self, 0, sc.min, sc.max, scaleKey);
-	let linthresh = inf;
-
-	for (let i = 1; i < series.length; i++) {
-		let s = series[i];
-
-		if (!s.show || !s.scan)
-			continue;
-
-		for (let fi = 0; fi < (mode == 1 ? 1 : s.facets.length); fi++) {
-			let scale = mode == 1 ? s.scale : s.facets[fi].scale;
-
-			if (scale == scaleKey && (mode == 1 || s.facets[fi].scan)) {
-				let yData = mode == 1 ? data[i] : data[i][fi];
-				let [i0, i1] = mode == 1 ? series[0].idxs : [0, yData.length - 1];
-
-				for (let j = i0; j <= i1; j++) {
-					if (yData[j] != null) {
-						let val = abs(yData[j]);
-
-						if (val > cutoff && val < linthresh)
-							linthresh = val;
-					}
-				}
-			}
-		}
-	}
-
-	return linthresh == inf ? 1 : linthresh;
+	return scaleMin / 10;
 }
 
 export const xScaleOpts = {
@@ -928,7 +894,7 @@ export const xScaleOpts = {
 	auto: true,
 	distr: 1,
 	log: 10,
-	asinh: asinhScale,
+	asinh: null,
 	min: null,
 	max: null,
 	dir: 1,

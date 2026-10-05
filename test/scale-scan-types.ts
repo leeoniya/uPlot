@@ -6,16 +6,29 @@ declare const u: uPlot;
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 type Assert<T extends true> = T;
 
-const full: uPlot.Range.MinMax = uPlot.scan(u, 'y');
-const windowed: uPlot.Range.MinMax = uPlot.scan(u, 'y', 0, 10);
-const nullIndices: uPlot.Range.MinMax = uPlot.scan(u, 'y', null, null);
-const omittedStart: uPlot.Range.MinMax = uPlot.scan(u, 'y', undefined, 10, false);
-const cached: uPlot.Range.MinMax = uPlot.scan(u, 'y', null, undefined, true);
+const full: uPlot.ScanResult = uPlot.scan(u, 'y');
+const windowed: uPlot.ScanResult = uPlot.scan(u, 'y', 0, 10);
+const nullIndices: uPlot.ScanResult = uPlot.scan(u, 'y', null, null);
+const omittedStart: uPlot.ScanResult = uPlot.scan(u, 'y', undefined, 10, false);
+const cached: uPlot.ScanResult = uPlot.scan(u, 'y', null, undefined, true);
 
 const enabled: uPlot.Scale.Scan = true;
 const disabled: uPlot.Scale.Scan = false;
 const empty: uPlot.Scale.Scan = () => [null, null];
 const pureHelper: uPlot.Scale.Scan = uPlot.scan;
+const asinh: uPlot.Scale.Scan = self => {
+	[self.series[1].min, self.series[1].max] = [-100, 100];
+	return [-100, 100, 3];
+};
+const noQualifyingValue: uPlot.Scale.Scan = self => {
+	[self.series[1].min, self.series[1].max] = [-10, 10];
+	return [-10, 10, null];
+};
+const asinhScale: uPlot.Scale = { distr: 4, scan: asinh };
+const noQualifyingAsinhScale: uPlot.Scale = { distr: 4, clamp: 10, scan: noQualifyingValue };
+type ScanMinAbs = Assert<Equal<uPlot.ScanResult[2], number | null | undefined>>;
+type SeriesHasNoMinAbsCache = Assert<Equal<Extract<'minAbs' | '_minAbs', keyof uPlot.Series>, never>>;
+type FacetHasNoMinAbsCache = Assert<Equal<Extract<'minAbs' | '_minAbs', keyof uPlot.Series.Facet>, never>>;
 
 const opts: uPlot.Options = {
 	width: 400,

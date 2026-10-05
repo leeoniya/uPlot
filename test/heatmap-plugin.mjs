@@ -221,7 +221,7 @@ function isolated(options, data = empty(), over = document.createElement('div'))
 	const drawn = [], projected = { x: [], y: [] }, inverted = { x: [], y: [] };
 	const u = { data, pxRatio: 1, bbox: { left: 0, top: 0, width: 100, height: 100 },
 		series: [{}, { show: true }], over, cursor: { left: -10, top: -10 },
-		scales: { y: { distr: 1, clamp: () => 0 } },
+		scales: { y: { distr: 1, clamp: 0 } },
 		ctx: { save() {}, restore() {}, fill(path) { drawn.push(path); } },
 		valToPos(value, key) { projected[key].push(value); return key == 'x' ? value : 100 - value; },
 		posToVal(value, key) { inverted[key].push(value); return key == 'x' ? value : 100 - value; },
@@ -485,7 +485,7 @@ describe('heatmapPlugin uniform grid', () => {
 			const prepared = [];
 			const u = await mount(f, 1.25, { onPrepare: (...args) => prepared.push(args) },
 				{ y: { distr: 4, clamp: cutoff, asinh: () => prepared.at(-1)?.[3] ?? 1 } });
-			assert.equal(typeof u.scales.y.clamp, 'function', 'numeric clamps are normalized by uPlot');
+			assert.equal(u.scales.y.clamp, cutoff, 'asinh clamps remain numeric');
 			assert.deepEqual(prepared, [[u, edges[0], edges.at(-1), expected]]);
 			assert.equal(u.scales.y._asinh, expected);
 			checkOracle(u, f);
@@ -520,25 +520,23 @@ describe('heatmapPlugin uniform grid', () => {
 		});
 	}
 
-	it('calls the asinh clamp once with fresh prepared bounds and never during redraw or hover', async () => {
+	it('uses updated numeric asinh cutoffs on setData, without preparation during redraw or hover', async () => {
 		let f = edgeFixture(signedEdges(2, -3, 3), { distr: 3, factor: 2 }, () => true);
-		const calls = [], prepared = [];
-		const clamp = (...args) => { calls.push(args); return Math.max(-args[2], args[3]) / 4; };
+		const prepared = [];
 		const u = await mount(f, 1.25, { onPrepare: (...args) => prepared.push(args) },
-			{ y: { distr: 4, clamp, asinh: () => prepared.at(-1)?.[3] ?? 1, min: -100, max: 100 } });
-		assert.deepEqual(calls, [[u, 0, -8, 8, 'y']]);
+			{ y: { distr: 4, clamp: 2, asinh: () => prepared.at(-1)?.[3] ?? 1, min: -100, max: 100 } });
+		assert.equal(u.scales.y.clamp, 2);
 		assert.deepEqual(prepared, [[u, -8, 8, 4]]);
 		assert.equal(u.scales.y._asinh, 4);
 		f = edgeFixture([-32, -16, -8, .25, .5, 1], f.grid.y, () => true);
+		u.scales.y.clamp = 8;
 		u.setData(f.data); await Promise.resolve();
-		assert.deepEqual(calls.at(-1), [u, 0, -32, 1, 'y']);
 		assert.deepEqual(prepared.at(-1), [u, -32, 1, 16]);
 		for (const facet of [1, 2]) f.data[1][facet].forEach((v, i, a) => { a[i] = v / 4; });
 		f.yEdges = f.yEdges.map(v => v / 4);
+		u.scales.y.clamp = 2;
 		u.setData(f.data); await Promise.resolve();
-		assert.deepEqual(calls.at(-1), [u, 0, -8, .25, 'y']);
 		assert.deepEqual(prepared.at(-1), [u, -8, .25, 4]);
-		assert.equal(calls.length, 3);
 		assert.equal(prepared.length, 3);
 		checkOracle(u, f);
 		u.setSize({ width: 317, height: 213 });
@@ -546,13 +544,12 @@ describe('heatmapPlugin uniform grid', () => {
 		await Promise.resolve();
 		u.redraw(); await Promise.resolve();
 		checkOracle(u, f);
-		assert.equal(calls.length, 3);
 		assert.equal(prepared.length, 3);
 		u.setData(empty()); await Promise.resolve();
 		assert.deepEqual(prepared.at(-1), [u, null, null, 1]);
 		assert.deepEqual(rects(u), []);
 		u.setData(f.data); await Promise.resolve();
-		assert.deepEqual(calls.at(-1), [u, 0, -8, .25, 'y']);
+		assert.deepEqual(prepared.at(-1), [u, -8, .25, 4]);
 		assert.equal(u.scales.y._asinh, 4);
 		checkOracle(u, f);
 	});
@@ -588,7 +585,7 @@ describe('heatmapPlugin uniform grid', () => {
 			(col, row) => col != 2 && row != 2, 64);
 		const rows = new Set(f.data[1][1]).size, columns = 63;
 		const log = Math.log, abs = Math.abs;
-		let logs = 0, absolutes = 0, lowerReads = 0, upperReads = 0, clamps = 0;
+		let logs = 0, absolutes = 0, lowerReads = 0, upperReads = 0, cutoffReads = 0;
 		const data = [null, [...f.data[1]]];
 		data[1][1] = new Proxy(data[1][1], { get(target, key) {
 			if (/^\d+$/.test(String(key))) lowerReads++;
@@ -600,7 +597,7 @@ describe('heatmapPlugin uniform grid', () => {
 		} });
 		const prepared = [];
 		const { u, plugin, projected } = isolated({ xSize: 1, grid: f.grid, onPrepare: (...args) => prepared.push(args) }, data);
-		u.scales.y = { distr: 4, clamp() { clamps++; return 2; } };
+		u.scales.y = { distr: 4, get clamp() { cutoffReads++; return 2; } };
 		try {
 			Math.log = value => { logs++; return log(value); };
 			Math.abs = value => { absolutes++; return abs(value); };
@@ -611,7 +608,7 @@ describe('heatmapPlugin uniform grid', () => {
 				assert.ok(lowerReads <= f.cells.length + columns * 8, 'nearest-edge searches are per-run binary searches, not another cell scan');
 				assert.equal(upperReads, 2 * columns + rows, 'upper bounds are read only for run endpoints, nearest negative edges, and unique rows');
 				assert.deepEqual(prepared, [[u, -16, 16, 4]]);
-				assert.equal(clamps, 1);
+				assert.equal(cutoffReads, 1);
 				assert.deepEqual(allocations.map(([name, a]) => [name, a.byteLength]), [['Uint32Array', f.cells.length * 4]]);
 				const preparedLogs = logs, preparedAbs = absolutes;
 				const coordinates = u.data;
@@ -626,7 +623,7 @@ describe('heatmapPlugin uniform grid', () => {
 						assert.deepEqual(projected.y, f.yEdges);
 						assert.equal(logs, preparedLogs);
 						assert.equal(absolutes, preparedAbs);
-						assert.equal(clamps, 1);
+						assert.equal(cutoffReads, 1);
 						assert.equal(prepared.length, 1);
 					}
 					pixelQuery(u, .5, 97, f.cells.findIndex(c => c.col == 0 && f.yEdges[c.row] == 2));
@@ -1414,7 +1411,7 @@ describe('heatmapPlugin demo', () => {
 			demo = createDemo(root, dashboard); await Promise.resolve();
 			const u = demo.plot;
 			assert.equal(u.data[1][0].length, lo.length * 2);
-			assert.equal(u.scales.y.clamp(u, 0, u.scales.y.min, u.scales.y.max, 'y'), cutoff);
+			assert.equal(u.scales.y.clamp, cutoff);
 			assert.equal(u.scales.y._asinh, cutoff * 2, 'edges equal to the cutoff do not qualify');
 			assert.deepEqual(u.scales.y.scan(u, 'y'), [null, null]);
 			checkOracle(u, sourceFixture(u.data, 60), false);

@@ -10,7 +10,7 @@
 // colorIdx returns a palette index. onHover receives the original source index or null.
 // onPrepare receives (u, minY, maxY, asinhThreshold), with null bounds for empty data.
 // asinhThreshold is the smallest absolute source Y edge strictly above the display cutoff, fallback 1.
-// The cutoff is the normalized Y clamp for an asinh display, otherwise zero.
+// The cutoff is the numeric Y clamp for an asinh display, otherwise zero.
 export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorIdx = () => 0, onHover = () => {}, onPrepare }) {
 	function axis(options, distr) {
 		distr = options?.distr ?? distr;
@@ -152,7 +152,7 @@ export function heatmapPlugin({ xSize, grid = {}, colors = ['steelblue'], colorI
 			cellRows = new Uint32Array(Math.max(length, cellRows.length * 2));
 
 		const scale = u.scales.y;
-		const cutoff = scale.distr == 4 ? scale.clamp(u, 0, minY, maxY, 'y') : 0;
+		const cutoff = scale.distr == 4 ? scale.clamp : 0;
 		let asinhThreshold = Infinity;
 		for (let i = 0; i < length; i++) {
 			const bottom = yMin[i];

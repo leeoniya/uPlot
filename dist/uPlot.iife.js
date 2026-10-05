@@ -104,6 +104,31 @@ var uPlot = (function () {
 		return [_min ?? inf, _max ?? -inf]; // todo: fix to return nulls
 	}
 
+	function getMinMaxAsinh(data, i0, i1, sorted = 0, cutoff = 0) {
+		// Keep the sorted argument for scan compatibility; asinh always uses one pass.
+		let _min = inf;
+		let _max = -inf;
+		let minAbs = inf;
+
+		for (let i = i0; i <= i1; i++) {
+			let v = data[i];
+
+			if (v != null) {
+				if (v < _min)
+					_min = v;
+				if (v > _max)
+					_max = v;
+
+				let a = abs(v);
+
+				if (a > cutoff && a < minAbs)
+					minAbs = a;
+			}
+		}
+
+		return [_min, _max, minAbs];
+	}
+
 	function rangeLog(min, max, base, fullMags) {
 		if (base == 2)
 			fullMags = true;
@@ -2202,41 +2227,7 @@ var uPlot = (function () {
 			return self.posToVal(cssHgt + fromBtm, scaleKey);
 		}
 	*/
-		return self.scales[scaleKey].distr == 4 ? 0 : scaleMin / 10;
-	}
-
-	function asinhScale(self, scaleKey) {
-		let { series, data, mode } = self;
-		let sc = self.scales[scaleKey];
-		let cutoff = sc.clamp(self, 0, sc.min, sc.max, scaleKey);
-		let linthresh = inf;
-
-		for (let i = 1; i < series.length; i++) {
-			let s = series[i];
-
-			if (!s.show || !s.scan)
-				continue;
-
-			for (let fi = 0; fi < (mode == 1 ? 1 : s.facets.length); fi++) {
-				let scale = mode == 1 ? s.scale : s.facets[fi].scale;
-
-				if (scale == scaleKey && (mode == 1 || s.facets[fi].scan)) {
-					let yData = mode == 1 ? data[i] : data[i][fi];
-					let [i0, i1] = mode == 1 ? series[0].idxs : [0, yData.length - 1];
-
-					for (let j = i0; j <= i1; j++) {
-						if (yData[j] != null) {
-							let val = abs(yData[j]);
-
-							if (val > cutoff && val < linthresh)
-								linthresh = val;
-						}
-					}
-				}
-			}
-		}
-
-		return linthresh == inf ? 1 : linthresh;
+		return scaleMin / 10;
 	}
 
 	const xScaleOpts = {
@@ -2244,7 +2235,7 @@ var uPlot = (function () {
 		auto: true,
 		distr: 1,
 		log: 10,
-		asinh: asinhScale,
+		asinh: null,
 		min: null,
 		max: null,
 		dir: 1,
@@ -4073,20 +4064,32 @@ var uPlot = (function () {
 		let scaleMin = inf;
 		let scaleMax = -inf;
 		let log = !allValues && scale.distr == 3;
+		let asinh = scale.distr == 4;
+		let minAbs = inf;
 
 		function acc(si, data, facet, sorted, mirror) {
 			if (data != null && data.length > 0) {
 				let facetMin = facet.min;
 				let facetMax = facet.max;
+				// Private minAbs cache: undefined = invalid/uncomputed, null = no qualifying value,
+				// number = the smallest absolute value above the clamp.
+				let facetMinAbs = facet._minAbs;
+				let scanAbs = asinh && (!cache || facetMinAbs === undefined);
 
-				if (!cache || self.mode == 1 && si == 0 || facetMin == null) {
+				// Shared X extrema hold visible endpoints, so cache hits still read their requested extrema.
+				if (!cache || self.mode == 1 && si == 0 || (asinh ? scanAbs : facetMin == null)) {
 					facetMin = facetMax = null;
 
 					let _i0 = max(0, ceil(i0 ?? 0));
 					let _i1 = min(data.length - 1, floor(i1 ?? data.length - 1));
 
-					if (_i0 <= _i1)
+					if (scanAbs)
+						[facetMin, facetMax, facetMinAbs] = getMinMaxAsinh(data, _i0, _i1, sorted, scale.clamp);
+					else if (_i0 <= _i1)
 						[facetMin, facetMax] = getMinMax(data, _i0, _i1, sorted, log);
+
+					if (facetMinAbs == inf)
+						facetMinAbs = null;
 
 					if (facetMin > facetMax)
 						facetMin = facetMax = null;
@@ -4094,6 +4097,7 @@ var uPlot = (function () {
 					if (cache) {
 						facet.min = facetMin;
 						facet.max = facetMax;
+						if (asinh) facet._minAbs = facetMinAbs;
 					}
 				}
 
@@ -4106,6 +4110,8 @@ var uPlot = (function () {
 					scaleMin = min(scaleMin, facetMin);
 				if (facetMax != null)
 					scaleMax = max(scaleMax, facetMax);
+				if (asinh && facetMinAbs != null)
+					minAbs = min(minAbs, facetMinAbs);
 			}
 		}
 
@@ -4136,10 +4142,13 @@ var uPlot = (function () {
 			}
 		}
 
-		return [
+		let result = [
 			scaleMin ==  inf ? null : scaleMin,
 			scaleMax == -inf ? null : scaleMax,
 		];
+		if (asinh)
+			result.push(minAbs == inf ? null : minAbs);
+		return result;
 	}
 
 	function scanScale(self, scaleKey, i0, i1, cache = false) {
@@ -4152,6 +4161,11 @@ var uPlot = (function () {
 
 	function scanCachedX(self, scaleKey) {
 		return scanScaleInternal(self, scaleKey, null, null, true, true);
+	}
+
+	function asinhScale(self, scaleKey) {
+		let idxs = self.mode == 1 && self.series[0].scale != scaleKey ? self.series[0].idxs : EMPTY_ARR;
+		return scanCached(self, scaleKey, idxs[0], idxs[1])[2] ?? 1;
 	}
 
 	function scanNone() {
@@ -4390,8 +4404,8 @@ var uPlot = (function () {
 					sc.valToPct = initValToPct(sc);
 				}
 
-				sc.clamp = fnOrSelf(sc.clamp ?? clampScale);
-				sc.asinh = fnOrSelf(sc.asinh);
+				sc.clamp = sc.distr == 4 ? sc.clamp ?? 0 : fnOrSelf(sc.clamp ?? clampScale);
+				sc.asinh = sc.asinh == null ? asinhScale : fnOrSelf(sc.asinh);
 			}
 		}
 
@@ -5347,7 +5361,9 @@ var uPlot = (function () {
 		}
 
 		function getScan(wsc, scaleKey, i0, i1) {
-			return wsc.scan(self, scaleKey, i0, i1, viaAutoScaleX);
+			let result = wsc.scan(self, scaleKey, i0, i1, viaAutoScaleX);
+			wsc._minAbs = result[2];
+			return result;
 		}
 
 		function applyScanRange(wsc, psc, minMax, key) {
@@ -5393,15 +5409,16 @@ var uPlot = (function () {
 				resetYSeries(false);
 
 				for (let k in scales) {
-					if (k == xScaleKey)
+					// Mode 2 scans full facets, independent of the displayed X window.
+					if (mode == 2 || k == xScaleKey)
 						continue;
 
-					// Retain deferred invalidation when explicit bounds or auto suppress Y ranging.
+					// Asinh needs current-window statistics even when explicit bounds or auto suppress Y ranging.
 					if (!pendScales[xScaleKey].redraw)
 						redrawDirty.add(k);
 
 					let psc = pendScales[k];
-					if (redrawDirty.has(k) && psc != null && !isFullyExplicit(psc.min, psc.max))
+					if (redrawDirty.has(k) && (scales[k].distr == 4 || psc != null && !isFullyExplicit(psc.min, psc.max)))
 						resetScaleSeries(k);
 				}
 			}
@@ -5448,6 +5465,7 @@ var uPlot = (function () {
 						if (i == 0) {
 							if (!isFullyExplicit(psc.min, psc.max)) {
 								let minMax = wsc.scan == scanAuto || wsc.scan == scanCached ? scanCachedX(self, k) : getScan(wsc, k);
+								wsc._minAbs = minMax[2];
 
 								applyCalculatedRange(wsc, psc, wsc.range(self, minMax[0], minMax[1], k), k);
 							}
@@ -5521,7 +5539,7 @@ var uPlot = (function () {
 				}
 
 				if (distr == 4) {
-					let linthresh = sc.asinh(self, k);
+					let linthresh = sc.asinh == asinhScale && wsc._minAbs !== undefined ? wsc._minAbs ?? 1 : sc.asinh(self, k);
 
 					if (sc._asinh != linthresh) {
 						sc._asinh = linthresh;
@@ -6188,13 +6206,16 @@ var uPlot = (function () {
 			series.forEach((s, i) => {
 				if (i > 0) {
 					if (mode == 1) {
-						if (s.scale == scaleKey)
+						if (s.scale == scaleKey) {
 							s.min = s.max = null;
+							if (s._minAbs !== undefined) s._minAbs = undefined;
+						}
 					}
 					else {
 						s.facets.forEach((facet, fi) => {
 							if (facet.scale == scaleKey) {
 								facet.min = facet.max = null;
+								if (facet._minAbs !== undefined) facet._minAbs = undefined;
 
 								if (fi == 1)
 									s.min = s.max = null;
@@ -6212,18 +6233,18 @@ var uPlot = (function () {
 				redrawDirty.clear();
 
 			series.forEach((s, i) => {
+				if (minMax && s._minAbs !== undefined) s._minAbs = undefined;
 				if (i > 0) {
 					s._paths = null;
 
 					if (minMax) {
-						if (mode == 1) {
-							s.min = null;
-							s.max = null;
-						}
-						else {
+						s.min = null;
+						s.max = null;
+						if (mode == 2) {
 							s.facets.forEach(f => {
 								f.min = null;
 								f.max = null;
+								if (f._minAbs !== undefined) f._minAbs = undefined;
 							});
 						}
 					}
