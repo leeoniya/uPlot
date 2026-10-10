@@ -185,6 +185,37 @@ describe('barChartPlugin', () => {
 	}
 
 	for (const orientation of ['vertical', 'horizontal']) {
+		for (const mode of ['grouped', 'value', 'percent']) {
+			it(`draws native ${mode} labels and totals with arbitrary stack order, sparse data, and hidden members (${orientation})`, async () => {
+				const data = [['A', 'B', 'C'], [2, null, -4], [3, 6, null], [6, 2, -4], [1, undefined, -2]];
+				const original = structuredClone(data);
+				const { u } = mount(data, { orientation, showValues: true }, {
+					width: 1200, height: 1200,
+					axes: [{ show: false }, { show: false }],
+					series: [{}, {}, {}, { show: false }, {}],
+					stack: { groups: mode == 'grouped' ? [] : [{ series: [4, 2], dir: 0 }, { series: [3, 1], dir: 0 }], percent: mode == 'percent' },
+					scales: { y: { range: mode == 'percent' ? [-1, 1] : [-12, 12] } },
+				});
+				await Promise.resolve();
+				const hidden = mode == 'percent' ? ['100%', '-100%', '75%', '100%', '25%', '-100%']
+					: ['2', '-4', '3', '6', '1', '-2'];
+				if (mode == 'value')
+					hidden.push('4', '6', '-2', '2', '-4');
+				assert.deepEqual(drawnValues(u).sort(), hidden.sort(), 'each visible stack has its own shares or totals');
+				u.setSeries(3, { show: true });
+				await Promise.resolve();
+				const visible = mode == 'percent' ? ['25%', '-50%', '75%', '100%', '75%', '100%', '-50%', '25%', '-100%']
+					: ['2', '-4', '3', '6', '6', '2', '-4', '1', '-2'];
+				if (mode == 'value')
+					visible.push('4', '6', '-2', '8', '2', '-8');
+				assert.deepEqual(drawnValues(u).sort(), visible.sort(), 'showing a member updates only its stack totals and shares');
+				assert.equal(u.data, data);
+				assert.deepEqual(data, original);
+			});
+		}
+	}
+
+	for (const orientation of ['vertical', 'horizontal']) {
 		for (const sign of [1, -1]) {
 			it(`retains native totals for zero-pixel end segments (${orientation}, sign ${sign})`, async () => {
 				const { u } = mount([['A', 'B'], [100.4 * sign, .1 * sign], [.2 * sign, .1 * sign]], { orientation, showValues: true }, {
@@ -221,10 +252,7 @@ describe('barChartPlugin', () => {
 	});
 
 	describe('bar hover', () => {
-		const overlapping = { bars: { disp: {
-			x0: { unit: 1, values: u => u.data[0].map((_, i) => i - .3) },
-			size: { unit: 1, values: u => u.data[0].map(() => .6) },
-		} } };
+
 		const enter = u => u.over.dispatchEvent(new MouseEvent('mouseenter'));
 		const leave = u => u.over.dispatchEvent(new MouseEvent('mouseleave'));
 		function hoverRect(u, seriesIdx, rectIdx) {
@@ -579,12 +607,12 @@ describe('barChartPlugin', () => {
 		for (const orientation of ['vertical', 'horizontal']) {
 			for (const pxRatio of [1, 2]) {
 				for (const mode of ['grouped', 'value', 'percent']) {
-					it(`distributes and hovers ${mode} bars in ${orientation} orientation at DPR ${pxRatio}`, async () => {
-						const data = [['A', 'B', 'C', 'D'], [2, -4, 3, null], [6, -2, -1, 5]];
+					it(`distributes and hovers ${mode} bars across multiple groups in ${orientation} orientation at DPR ${pxRatio}`, async () => {
+						const data = [['A', 'B', 'C', 'D'], [2, -4, 3, null], [6, -2, -1, 5], [3, null, -3, 1], [1, 2, -1, undefined]];
 						const original = structuredClone(data);
 						const { u } = mount(data, { orientation }, {
-							pxRatio, series: [{}, {}, {}],
-							stack: mode == 'grouped' ? undefined : { groups: [{ series: [1, 2], dir: 0 }], percent: mode == 'percent' },
+							pxRatio, series: [{}, {}, {}, {}, {}],
+							stack: { groups: mode == 'grouped' ? [] : [{ series: [4, 3], dir: 0 }, { series: [1, 2], dir: 0 }], percent: mode == 'percent' },
 						});
 						await Promise.resolve();
 						enter(u);
@@ -592,15 +620,26 @@ describe('barChartPlugin', () => {
 						const size = pos + 2;
 						const first = rects(u, 1)[0];
 						const second = rects(u, 2)[0];
-						if (mode == 'grouped')
+						const third = rects(u, 3)[0];
+						const fourth = rects(u, 4)[0];
+						assertCategories(u, data[0], orientation == 'horizontal');
+						assert.ok(second[pos] + second[size] <= third[pos] + 1, 'independent groups occupy separate category slots');
+						if (mode == 'grouped') {
 							assert.ok(first[pos] + first[size] <= second[pos] + 1, 'series occupy separate category slots');
+							assert.ok(third[pos] + third[size] <= fourth[pos] + 1);
+						}
 						else {
 							assert.equal(first[pos], second[pos]);
 							assert.equal(first[size], second[size]);
+							assert.equal(third[pos], fourth[pos]);
+							assert.equal(third[size], fourth[size]);
+							assert.equal(first[size], third[size]);
+							assert.deepEqual(u._base[3], mode == 'percent' ? [.25, null, -.25, 0] : [1, null, -1, 0]);
+							assert.deepEqual(u._data[3], mode == 'percent' ? [1, null, -1, 1] : [4, null, -4, 1]);
 							assert.deepEqual(u._base[2], mode == 'percent' ? [.25, -2 / 3, 0, 0] : [2, -4, 0, 0]);
 							assert.deepEqual(u._data[2], mode == 'percent' ? [1, -1, -1, 1] : [8, -6, -1, 5]);
 						}
-						for (const si of [1, 2]) {
+						for (const si of [1, 2, 3, 4]) {
 							const ids = data[si].map((_, i) => i).filter(i => data[si][i] != null);
 							for (const [ri, di] of ids.entries()) {
 								const rect = rects(u, si)[ri];
@@ -611,11 +650,11 @@ describe('barChartPlugin', () => {
 								assert.ok(Math.abs(rect[valuePos] - Math.min(p0, p1)) <= 1);
 								assert.ok(Math.abs(rect[valuePos] + rect[valuePos + 2] - Math.max(p0, p1)) <= 1);
 								hoverRect(u, si, ri);
-								assert.deepEqual(u.cursor.idxs, [di, si == 1 ? di : null, si == 2 ? di : null]);
+								assert.deepEqual(u.cursor.idxs, u.series.map((_, i) => i == 0 || i == si ? di : null));
 							}
 						}
 						u.setLegend({ idx: 1 });
-						assert.deepEqual(u.legend.values.map(value => value._), ['B', '-4', '-2']);
+						assert.deepEqual(u.legend.values.map(value => value._), ['B', '-4', '-2', '', '2']);
 						u.setSeries(1, { show: false });
 						await Promise.resolve();
 						if (mode == 'grouped')
@@ -623,10 +662,22 @@ describe('barChartPlugin', () => {
 						else
 							assert.deepEqual(u._base[2], [0, 0, 0, 0]);
 						hoverRect(u, 2, 0);
-						assert.deepEqual(u.cursor.idxs, [0, null, 0]);
+						assert.deepEqual(u.cursor.idxs, [0, null, 0, null, null]);
+						u.setSeries(4, { show: false });
+						await Promise.resolve();
+						if (mode != 'grouped')
+							assert.deepEqual(u._base[3], [0, null, 0, 0], 'hidden first stack members no longer contribute');
+						hoverRect(u, 3, 1);
+						assert.deepEqual(u.cursor.idxs, [2, null, null, 2, null], 'sparse data IDs survive hidden stack members');
+						const before = rects(u, 2)[0][size];
+						u.setSeries(3, { show: false });
+						await Promise.resolve();
+						assert.ok(rects(u, 2)[0][size] > before, 'fully hidden groups release their slot');
+						hoverRect(u, 2, 3);
+						assert.deepEqual(u.cursor.idxs, [3, null, 3, null, null]);
 						assert.equal(u.data, data);
 						assert.deepEqual(data, original);
-						u.setData([[], [], []]);
+						u.setData([[], [], [], [], []]);
 						await Promise.resolve();
 					});
 				}
@@ -635,7 +686,7 @@ describe('barChartPlugin', () => {
 
 		it('positions independent stack groups side by side, including a single category', async () => {
 			const { u } = mount([['A'], [2], [3], [4]], {}, {
-				series: [{}, {}, {}, {}], stack: { groups: [{ series: [1, 2], dir: 0 }] },
+				series: [{}, {}, {}, {}], stack: { groups: [{ series: [1, 2], dir: 0 }, { series: [3], dir: 0 }] },
 			});
 			await Promise.resolve();
 			const [a, b, c] = [1, 2, 3].map(si => rects(u, si)[0]);
@@ -650,20 +701,37 @@ describe('barChartPlugin', () => {
 			}
 		});
 
-		it('selects the last series for within-category overlaps and ignores hidden series', async () => {
-			const xs = Array.from({ length: 20 }, (_, i) => `Item ${i}`);
-			const { u } = mount([xs, xs.map(() => 4), xs.map(() => 2)], overlapping, { series: [{}, {}, {}] });
-			await Promise.resolve();
-			enter(u);
-			for (const idx of [0, 10, 19]) {
-				hoverRect(u, 2, idx);
-				assert.deepEqual(u.cursor.idxs, [idx, null, idx]);
+		for (const orientation of ['vertical', 'horizontal']) {
+			for (const pxRatio of [1, 2]) {
+				it(`selects the last drawn series at a shared stack edge and ignores hidden series (${orientation}, DPR ${pxRatio})`, async () => {
+					const xs = Array.from({ length: 20 }, (_, i) => `Item ${i}`);
+					const { u } = mount([xs, xs.map(() => 4), xs.map(() => 2)], { orientation }, {
+						pxRatio, series: [{}, {}, {}], stack: { groups: [{ series: [2, 1], dir: 0 }] },
+						scales: { y: { range: [0, 8] } },
+					});
+					await Promise.resolve();
+					enter(u);
+					const pos = orientation === 'horizontal' ? 1 : 0;
+					const valuePos = 1 - pos;
+					for (const idx of [0, 10, 19]) {
+						const first = rects(u, 1)[idx];
+						const second = rects(u, 2)[idx];
+						const edge = orientation === 'horizontal' ? first[valuePos] : second[valuePos];
+						assert.equal(edge, orientation === 'horizontal'
+							? second[valuePos] + second[valuePos + 2]
+							: first[valuePos] + first[valuePos + 2]);
+						const point = [0, 0];
+						point[pos] = first[pos] + first[pos + 2] / 2;
+						point[valuePos] = edge;
+						assertHit(u, ...point, 2, idx);
+					}
+					u.setSeries(2, { show: false });
+					await Promise.resolve();
+					hoverRect(u, 1, 10);
+					assert.deepEqual(u.cursor.idxs, [10, 10, null]);
+				});
 			}
-			u.setSeries(2, { show: false });
-			await Promise.resolve();
-			hoverRect(u, 1, 10);
-			assert.deepEqual(u.cursor.idxs, [10, 10, null]);
-		});
+		}
 
 		it('preserves data IDs across sparse, hidden leading, and hidden middle series', async () => {
 			const xs = Array.from({ length: 20 }, (_, i) => `Item ${i}`);
@@ -764,6 +832,37 @@ describe('barChartPlugin', () => {
 		}
 		assert.ok(refs.every(ref => ref.deref() === undefined));
 		assert.deepEqual(plugin._controls.getLabelMetrics(), { label: '', width: 0 });
+	});
+
+	for (const hidden of [false, true]) {
+		for (const members of [[[3, 1]], [[3], [1]]]) {
+			it(`rejects partial membership across ${members.length} stack groups with a missing ${hidden ? 'hidden' : 'visible'} series`, () => {
+				const plugin = barChartPlugin();
+				const opts = {
+					axes: [{}, {}], series: [{}, {}, { show: !hidden }, {}],
+					stack: { groups: members.map(series => ({ series, dir: 0 })) },
+				};
+				assert.throws(() => plugin.opts({ data: [['A'], [1], [2], [3]] }, opts), {
+					name: 'RangeError', message: 'Stack groups must include all value series.',
+				});
+			});
+		}
+	}
+
+	for (const disp of [{}, { x0: { unit: 1, values: () => [0] } }, false, 0]) {
+		it(`rejects non-null custom bars.disp (${JSON.stringify(disp)})`, () => {
+			assert.throws(() => {
+				const plugin = barChartPlugin({ bars: { disp } });
+				plugin.opts({ data: [['A'], [1]] }, { axes: [{}, {}], series: [{}, {}] });
+			}, { name: 'TypeError', message: 'Custom bar display options are not supported.' });
+		});
+	}
+
+	it('accepts null and undefined bars.disp as absent', () => {
+		for (const disp of [null, undefined]) {
+			const plugin = barChartPlugin({ bars: { disp } });
+			assert.doesNotThrow(() => plugin.opts({ data: [['A'], [1]] }, { axes: [{}, {}], series: [{}, {}] }));
+		}
 	});
 
 	it('installs bar paths through opts and forwards bars options', () => {
@@ -894,7 +993,7 @@ describe('barChartPlugin', () => {
 		};
 		try {
 			({ u } = mount([['A', 'B', 'C'], [2, 3, 4], [5, 6, 7], [1, 2, 3]], {}, {
-				series: [{}, {}, {}, {}], stack: { groups: [{ series: [1, 3], dir: 0 }] },
+				series: [{}, {}, {}, {}], stack: { groups: [{ series: [1, 3], dir: 0 }, { series: [2], dir: 0 }] },
 			}));
 		}
 		finally {

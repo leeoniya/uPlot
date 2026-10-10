@@ -66,8 +66,10 @@ The `distribution` option accepts constants from `demos/lib/distr.js`:
 
 The X range expands to align ordinal ticks with the distributed group centers.
 Outer padding credits the space inside the plot and reserves additional space for label overhang.
-Each visible series gets a separate slot, except members of a native stack group, which share one slot.
+Grouped charts give each visible series a separate slot. Stacked charts give each native stack group one shared slot.
 Hidden series do not reserve slots. Multiple independent stack groups appear side by side.
+Stack groups must include every value series, including hidden series. Mixed stacked and unstacked charts are not supported.
+The plugin records series-to-group membership once during initialization, rather than searching the groups on each redraw.
 
 Set `stack` on the uPlot options, not on the plugin:
 
@@ -99,7 +101,7 @@ At `1`, the bars fill the group without gaps. Smaller fractions leave space for 
 With one slot, `SPACE_BETWEEN` places it at the group start. The other modes center it.
 Internal bar spacing does not change group centers, category ticks, or axis padding.
 The maximum and minimum widths in `bars.size` still apply to each bar.
-Explicit `bars.disp.x0` and `bars.disp.size` override the distribution.
+The plugin controls bar positions and widths through the distribution options. Custom `bars.disp` options are not supported.
 
 ## Options
 
@@ -114,7 +116,7 @@ Explicit `bars.disp.x0` and `bars.disp.size` override the distribution.
 | `maxLabelLength` | `null` | No truncation, or an integer of at least `1`. The limit includes the ellipsis character (`…`). |
 | `ellipsis` | `'end'` | The ellipsis position: `'end'` or `'middle'`. |
 | `inset` | `8` | The minimum outer padding and extra axis space, in CSS pixels. |
-| `bars` | `{}` | Options for `uPlot.paths.bars()`, except `each`, which the plugin supplies for hover bounds. |
+| `bars` | `{}` | Options for `uPlot.paths.bars()`, except `disp` and `each`, which the plugin supplies. |
 
 Category labels come directly from `data[0]`. uPlot's ordinal scale assigns their numeric positions internally.
 The plugin converts X values to strings for display. Null entries become empty strings.
@@ -147,14 +149,14 @@ Zero-length segments contribute to totals without measurement of their inside la
 
 The `createBarHover()` closure in `demos/lib/barHover.js` owns a reusable rectangle buffer, lookup state, and pointer listeners.
 The bar pathbuilder calls `each()` to store final bounds in a flat numeric buffer, grouped by category.
-Hidden series do not occupy buffer slots. Skipped bars leave zero-sized rectangles, which cannot produce a hit.
+Each value series has a fixed buffer slot within each category. Hidden series and skipped bars leave zero-sized rectangles, which cannot produce a hit.
 Redraws rebuild the bar paths and refill the buffer. The buffer grows only when the required capacity increases.
 
 The lookup calculates the nearest category from the group centers and spacing.
-It scans that category's visible series and checks the exact rectangle bounds.
+It scans that category's series slots and checks the exact rectangle bounds.
 If no rectangle contains the pointer, the lookup checks the nearest adjacent category for shared edges and distribution rounding.
-The lookup checks at most two categories. Its cost depends on the number of visible series, not the number of categories.
-Bars must stay within their assigned category regions. Custom positions or widths that cross these regions are not supported by hover lookup.
+The lookup checks at most two categories. Its cost depends on the total number of value series, not the number of categories.
+Bars must stay within their assigned category regions. Width limits that extend bars across these regions are not supported by hover lookup.
 The lookup scans series in reverse order so that shared edges select the last-drawn series.
 
 Hover lookup works after a draw, without prior pointer entry or a spatial-index build.

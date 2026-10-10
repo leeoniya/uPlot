@@ -26,6 +26,8 @@ export function barChartPlugin({
 } = {}) {
 	if (orientation != 'vertical' && orientation != 'horizontal')
 		throw new RangeError('Orientation must be vertical or horizontal.');
+	if (bars.disp != null)
+		throw new TypeError('Custom bar display options are not supported.');
 	const horizontal = orientation == 'horizontal';
 	let plot = null;
 	let fullLabels = [];
@@ -43,7 +45,7 @@ export function barChartPlugin({
 	let firstGroupCenter = 0;
 	let groupStep = 0;
 	let paths;
-	let stackGroups = [];
+	const groupForSeries = [];
 	const barOffsets = [];
 	// Bar paths read only size[0]; every distributed slot has the same width.
 	const barWidth = [0];
@@ -73,7 +75,8 @@ export function barChartPlugin({
 
 	function distributeBars(u) {
 		const count = u.data[0].length;
-		const groups = new Map();
+		const groups = [];
+		const slots = [];
 		barOffsets.length = u.series.length;
 		barOffsets.fill(null);
 		barWidth[0] = 0;
@@ -82,15 +85,15 @@ export function barChartPlugin({
 			const series = u.series[si];
 			if (!series.show || series.paths != paths)
 				continue;
-			const group = stackGroups.find(group => group.series.includes(si)) ?? series;
-			let offsets = groups.get(group);
+			const group = groupForSeries[si];
+			let offsets = groups[group];
 			if (offsets == null) {
-				offsets = Array(count);
-				groups.set(group, offsets);
+				offsets = groups[group] = Array(count);
+				slots.push(offsets);
 			}
 			barOffsets[si] = offsets;
 		}
-		const slots = [...groups.values()];
+
 		if (slots.length == 0)
 			return;
 		distr(count, groupWidth, justify, null, (di, groupOff, groupSize) => {
@@ -348,14 +351,24 @@ export function barChartPlugin({
 				Object.assign(opts.axes[1], { side: 2, rotate: 0, align: 0 });
 			opts.series ??= [{}, {}];
 			opts.series[0].value ??= (u, value) => String(value ?? '');
-			stackGroups = opts.stack?.groups ?? [];
+			const stackGroups = opts.stack?.groups ?? [];
+			groupForSeries.length = 0;
+			for (let gi = 0; gi < stackGroups.length; gi++) {
+				for (const si of stackGroups[gi].series)
+					groupForSeries[si] = gi;
+			}
+			for (let si = 1; si < opts.series.length; si++) {
+				if (stackGroups.length == 0)
+					groupForSeries[si] = si;
+				else if (groupForSeries[si] == null)
+					throw new RangeError('Stack groups must include all value series.');
+			}
 			values.configure(stackGroups, opts.stack?.percent === true);
 			paths = uPlot.paths.bars({
 				...bars,
 				disp: {
 					x0: { unit: 2, values: (u, si) => barOffsets[si] },
 					size: { unit: 2, values: () => barWidth },
-					...bars.disp,
 				},
 				each(u, si, di, left, top, width, height) {
 					hover.each(u, si, di, left, top, width, height);
@@ -391,7 +404,7 @@ export function barChartPlugin({
 				values.destroy();
 				plot = paths = null;
 				bars = {};
-				stackGroups = [];
+				groupForSeries.length = 0;
 				fullLabels = labels = splits = [];
 				barOffsets.length = 0;
 				measured.length = 0;

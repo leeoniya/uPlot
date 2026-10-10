@@ -6,8 +6,7 @@ export function createBarHover(horizontal) {
 	let categoryCount = 0;
 	let categoryStart = 0;
 	let categoryStep = 0;
-	const series = [];
-	const seriesSlots = [];
+	let seriesCount = 0;
 	const hovered = { seriesIdx: 0, dataIdx: null, left: 0, top: 0, width: 0, height: 0 };
 	const emptyBox = { left: -10, top: -10, width: 0, height: 0 };
 
@@ -23,7 +22,7 @@ export function createBarHover(horizontal) {
 
 	function lookup(u) {
 		hovered.dataIdx = null;
-		if (categoryCount == 0 || series.length == 0)
+		if (categoryCount == 0 || seriesCount == 0)
 			return;
 
 		const pxRatio = u.pxRatio;
@@ -45,14 +44,14 @@ export function createBarHover(horizontal) {
 	}
 
 	function lookupCategory(di, x, y, pxRatio) {
-		const start = di * series.length * 4;
+		const start = di * seriesCount * 4;
 		// Reverse order gives shared edges to the last-drawn series.
-		for (let slot = series.length - 1; slot >= 0; slot--) {
-			const off = start + slot * 4;
+		for (let si = seriesCount; si > 0; si--) {
+			const off = start + (si - 1) * 4;
 			const left = rects[off], top = rects[off + 1];
 			const right = rects[off + 2], bottom = rects[off + 3];
 			if (right > left && bottom > top && x >= left && x <= right && y >= top && y <= bottom) {
-				hovered.seriesIdx = series[slot];
+				hovered.seriesIdx = si;
 				hovered.dataIdx = di;
 				hovered.left = left / pxRatio;
 				hovered.top = top / pxRatio;
@@ -72,7 +71,7 @@ export function createBarHover(horizontal) {
 		},
 		bbox: (u, seriesIdx) => hovered.dataIdx != null && seriesIdx == hovered.seriesIdx ? hovered : emptyBox,
 		each(u, seriesIdx, dataIdx, left, top, width, height) {
-			const off = (dataIdx * series.length + seriesSlots[seriesIdx]) * 4;
+			const off = (dataIdx * seriesCount + seriesIdx - 1) * 4;
 			rects[off] = left - u.bbox.left;
 			rects[off + 1] = top - u.bbox.top;
 			rects[off + 2] = left + width - u.bbox.left;
@@ -88,19 +87,15 @@ export function createBarHover(horizontal) {
 			const span = horizontal ? u.bbox.height : u.bbox.width;
 			categoryStart = firstCenter * span;
 			categoryStep = step * span;
-			series.length = 0;
-			seriesSlots.length = u.series.length;
-			seriesSlots.fill(-1);
+			seriesCount = u.series.length - 1;
 			for (let si = 1; si < u.series.length; si++) {
 				const s = u.series[si];
 				if (s.show && s.paths == paths) {
-					seriesSlots[si] = series.length;
-					series.push(si);
 					// Cached paths do not call each(); refresh bounds and value-label geometry together.
 					s._paths = null;
 				}
 			}
-			const size = categoryCount * series.length * 4;
+			const size = categoryCount * seriesCount * 4;
 			if (rects.length < size)
 				rects = new Float64Array(size);
 			else
@@ -119,7 +114,7 @@ export function createBarHover(horizontal) {
 			rects = new Float64Array(0);
 			hovered.dataIdx = null;
 			pointerInside = false;
-			series.length = seriesSlots.length = categoryCount = 0;
+			seriesCount = categoryCount = 0;
 		},
 	};
 }
