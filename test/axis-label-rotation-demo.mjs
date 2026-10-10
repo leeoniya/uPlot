@@ -21,6 +21,13 @@ describe('random label rotation demo', () => {
 		globalThis.OffscreenCanvas = class {
 			constructor() {
 				this.ctx = {
+					clearRect() {},
+					fillRect() {},
+					getImageData() {
+						const data = { royalblue: [65, 105, 225, 255], darkorange: [255, 140, 0, 255] }[this.fillStyle];
+						assert.ok(data, `missing color fixture: ${this.fillStyle}`);
+						return { data };
+					},
 					measureText(text) {
 						measurements[demo.plot.axes[1]._values?.includes(text) ? 'y' : 'x'].push(text);
 						return { width: String(text).length * parseFloat(this.font) / 2 };

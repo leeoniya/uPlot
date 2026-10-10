@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createBarValues } from '../demos/lib/barValues.js';
 
-// Run independently: node node_modules/mocha/bin/mocha.js test/bar-values.mjs
+// Run independently: node --expose-gc node_modules/mocha/bin/mocha.js test/bar-values.mjs
 const stateKeys = ['font', 'fillStyle', 'textAlign', 'textBaseline', 'globalAlpha'];
 const snapshot = ctx => Object.fromEntries(stateKeys.map(key => [key, ctx[key]]));
 const close = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-9, `${message}: ${actual} != ${expected}`);
@@ -12,9 +12,9 @@ function linearMetrics(text, size) {
 
 function context(textMetrics = linearMetrics) {
 	const stack = [];
-	return {
-		font: '17px serif', fillStyle: 'purple', textAlign: 'right', textBaseline: 'bottom', globalAlpha: .35,
-		labels: [], saves: 0, restores: 0,
+	const state = { font: '17px serif', fillStyle: 'purple', textAlign: 'right', textBaseline: 'bottom', globalAlpha: .35 };
+	const ctx = {
+		labels: [], writes: [], saves: 0, restores: 0,
 		save() {
 			this.saves++;
 			stack.push(snapshot(this));
@@ -22,7 +22,8 @@ function context(textMetrics = linearMetrics) {
 		restore() {
 			assert.ok(stack.length > 0, 'restore must have a matching save');
 			this.restores++;
-			Object.assign(this, stack.pop());
+			// Native restore does not invoke property setters.
+			Object.assign(state, stack.pop());
 		},
 		measureText() {
 			assert.fail('measure on the offscreen context, not the chart context');
@@ -37,6 +38,16 @@ function context(textMetrics = linearMetrics) {
 			});
 		},
 	};
+	for (const key of stateKeys) {
+		Object.defineProperty(ctx, key, {
+			get() { return state[key]; },
+			set(value) {
+				ctx.writes.push({ key, previous: state[key], value, labels: ctx.labels.length });
+				state[key] = value;
+			},
+		});
+	}
+	return ctx;
 }
 
 function plot(data = [[0], [12]], options = {}) {
@@ -51,6 +62,7 @@ function plot(data = [[0], [12]], options = {}) {
 
 function render(values, u, bars, enabled = true) {
 	u.ctx.labels.length = 0;
+	u.ctx.writes.length = 0;
 	values.reset(u, enabled);
 	for (const bar of bars)
 		values.each(u, ...bar);
@@ -93,7 +105,55 @@ function stackBar(u, si, di, horizontal, category, factor = 8, baseline = u._bas
 }
 
 describe('barValues standalone', () => {
-	let originalOffscreen, measurements, allocations, helpers, textMetrics;
+	let originalOffscreen, measurements, allocations, helpers, textMetrics, colorContexts, samples;
+
+	// Fixed browser pixel samples, not a second implementation of the contrast calculation.
+	const colorPixels = new Map([
+		['royalblue', [65, 105, 225, 255]], ['#4169e1', [65, 105, 225, 255]], ['rgb(65, 105, 225)', [65, 105, 225, 255]],
+		['darkorange', [255, 140, 0, 255]], ['#ff8c00', [255, 140, 0, 255]], ['rgb(255, 140, 0)', [255, 140, 0, 255]],
+		['black', [0, 0, 0, 255]], ['white', [255, 255, 255, 255]],
+		['#757575', [117, 117, 117, 255]], ['#767676', [118, 118, 118, 255]],
+		['transparent', [0, 0, 0, 0]], ['rgba(0, 0, 0, 0.5)', [0, 0, 0, 128]],
+		['rgba(0, 0, 0, 0.8)', [0, 0, 0, 204]], ['#00000000', [0, 0, 0, 0]],
+		['#00000080', [0, 0, 0, 128]], ['#000000cc', [0, 0, 0, 204]],
+	]);
+
+	function colorContext() {
+		let fillStyle = 'black';
+		let phase = 'new';
+		const calls = [];
+		const ctx = {
+			calls,
+			get fillStyle() { return fillStyle; },
+			set fillStyle(value) {
+				assert.ok(colorPixels.has(value), `missing color fixture or non-string fill: ${String(value)}`);
+				calls.push(['fillStyle', value]);
+				fillStyle = value;
+			},
+			clearRect(...rect) {
+				assert.deepEqual(rect, [0, 0, 1, 1]);
+				calls.push(['clearRect']);
+				phase = 'cleared';
+			},
+			fillRect(...rect) {
+				assert.deepEqual(rect, [0, 0, 1, 1]);
+				assert.equal(phase, 'cleared', 'clear the previous pixel before sampling a translucent fill');
+				calls.push(['fillRect']);
+				phase = 'filled';
+			},
+			getImageData(...rect) {
+				assert.deepEqual(rect, [0, 0, 1, 1]);
+				assert.equal(phase, 'filled', 'paint the resolved fill before reading its pixel');
+				const data = new Uint8ClampedArray(colorPixels.get(fillStyle));
+				calls.push(['getImageData']);
+				samples.push({ fillStyle, data: Array.from(data) });
+				phase = 'sampled';
+				return { data };
+			},
+		};
+		colorContexts.push(ctx);
+		return ctx;
+	}
 
 	beforeEach(() => {
 		originalOffscreen = Object.getOwnPropertyDescriptor(globalThis, 'OffscreenCanvas');
@@ -101,12 +161,21 @@ describe('barValues standalone', () => {
 		allocations = 0;
 		helpers = [];
 		textMetrics = linearMetrics;
+		colorContexts = [];
+		samples = [];
 		Object.defineProperty(globalThis, 'OffscreenCanvas', {
 			configurable: true, writable: true,
 			value: class {
-				constructor() { allocations++; }
-				getContext(type) {
+				constructor(width, height) {
+					assert.deepEqual([width, height], [1, 1]);
+					allocations++;
+				}
+				getContext(type, options) {
 					assert.equal(type, '2d');
+					if (options?.willReadFrequently) {
+						assert.deepEqual(options, { willReadFrequently: true });
+						return colorContext();
+					}
 					return {
 						font: '10px sans-serif', textBaseline: 'alphabetic',
 						measureText(text) {
@@ -139,6 +208,254 @@ describe('barValues standalone', () => {
 		helpers.push(values);
 		return values;
 	}
+
+	describe('contrast-aware drawing', () => {
+		function batches(ctx) {
+			const colors = [...new Set(ctx.labels.map(label => label.fillStyle))];
+			assert.deepEqual(colors, ['black', 'white'].filter(color => colors.includes(color)));
+			assert.deepEqual(ctx.labels.map(label => label.fillStyle), colors.flatMap(color => ctx.labels.filter(label => label.fillStyle == color).map(() => color)), 'finish the black batch before drawing white');
+			const fills = ctx.writes.filter(write => write.key == 'fillStyle');
+			assert.ok(fills.length <= colors.length, 'at most one fillStyle write per nonempty batch, excluding restore');
+			assert.deepEqual(fills.map(write => write.value), colors, 'no writes for empty color batches');
+			for (const write of ctx.writes.filter(write => write.key == 'font' || write.key == 'globalAlpha'))
+				assert.notEqual(write.value, write.previous, `${write.key} changes only when needed`);
+		}
+
+		for (const horizontal of [false, true]) {
+			for (const percent of [false, true]) {
+				for (const [dark, light] of [['royalblue', 'darkorange'], ['#4169e1', '#ff8c00'], ['rgb(65, 105, 225)', 'rgb(255, 140, 0)']]) {
+					it(`contrasts stacks without changing geometry (horizontal: ${horizontal}, percent: ${percent}, fill: ${dark})`, () => {
+						const values = helper(horizontal, [{ series: [1, 2, 4] }], percent);
+						const u = plot([[0], [12], [8], [7], [99]], {
+							_data: [[0], [percent ? .6 : 12], [percent ? 1 : 20], [7], [99]],
+							_base: [null, [0], [percent ? .6 : 12]],
+						});
+						u.series[4].show = false;
+						const bars = [stackBar(u, 1, 0, horizontal, 250, percent ? 300 : 12), stackBar(u, 2, 0, horizontal, 250, percent ? 300 : 12), [3, 0, 650, 600, 100, 100]];
+						const geometry = labels => Object.fromEntries(labels.map(({ text, x, y, size, left, right, top, bottom }) => [text, { x, y, size, left, right, top, bottom }]));
+						const before = snapshot(u.ctx);
+						const original = geometry(render(values, u, bars));
+						assert.equal(colorContexts.length, 0, 'undefined default fills do not allocate a sampling canvas');
+						u.series[1]._fill = dark;
+						u.series[2]._fill = light;
+						for (const series of u.series)
+							series.fill = () => assert.fail('do not re-evaluate fill callbacks');
+						for (const si of [3, 4])
+							Object.defineProperty(u.series[si], '_fill', { get() { assert.fail('do not inspect grouped or hidden fills'); } });
+						const labels = render(values, u, bars);
+						assert.deepEqual(geometry(labels), original, 'fitting and positions are unchanged by batching');
+						const segment = labels.find(label => label.text == (percent ? '60%' : '12'));
+						assert.equal(segment.fillStyle, 'white');
+						centered(segment, bars[0]);
+						assert.equal(labels.find(label => label.text == (percent ? '40%' : '8')).fillStyle, 'black');
+						assert.equal(labels.find(label => label.text == '7').fillStyle, 'black', 'grouped labels remain black');
+						if (!percent) {
+							const total = labels.find(label => label.text == '20');
+							assert.equal(total.fillStyle, 'black');
+							outside(total, bars[1], horizontal, horizontal ? 1 : -1);
+						}
+						labels.forEach(label => contained(label, u));
+						assert.deepEqual(samples.map(sample => sample.fillStyle).sort(), [dark, light].sort());
+						assert.equal(colorContexts.length, 1);
+						assert.equal(allocations, 2, 'one measurement canvas and one lazy color canvas');
+						batches(u.ctx);
+						assert.deepEqual(snapshot(u.ctx), before);
+						assert.equal(u.ctx.saves, u.ctx.restores);
+					});
+				}
+			}
+		}
+
+		for (const horizontal of [false, true]) {
+			it(`keeps totals over dark segments black and reuses matching chart state (horizontal: ${horizontal})`, () => {
+				const values = helper(horizontal, [{ series: [1] }]);
+				const u = plot();
+				u.series[1]._fill = 'royalblue';
+				u.ctx.font = '25px Arial';
+				u.ctx.globalAlpha = 1;
+				const before = snapshot(u.ctx);
+				const bar = [1, 0, 200, 250, 100, 100];
+				const labels = render(values, u, [bar]);
+				assert.deepEqual(labels.map(label => [label.text, label.fillStyle]), [['12', 'black'], ['12', 'white']]);
+				outside(labels[0], bar, horizontal, horizontal ? 1 : -1);
+				centered(labels[1], bar);
+				batches(u.ctx);
+				assert.deepEqual(u.ctx.writes.filter(write => write.key == 'font' || write.key == 'globalAlpha'), [], 'matching state needs no setter calls, even across color batches');
+				assert.equal(samples.length, 1, 'the total does not resample its series');
+				assert.deepEqual(snapshot(u.ctx), before);
+				assert.equal(u.ctx.saves, u.ctx.restores);
+			});
+		}
+
+		it('uses resolved path fills ahead of series fills, including nullish fallback', () => {
+			const values = helper(false, [{ series: [1, 2, 3, 4] }], true);
+			const u = plot([[0], [1], [2], [3], [4]], { _data: [[0], [.1], [.3], [.6], [1]], _base: [null, [0], [.1], [.3], [.6]] });
+			const fills = [null, 'darkorange', 'royalblue', 'royalblue', 'darkorange'];
+			const overrides = [null, 'royalblue', 'darkorange', null, undefined];
+			for (let si = 1; si <= 4; si++) {
+				u.series[si]._fill = fills[si];
+				u.series[si]._paths = { _fill: overrides[si] };
+				u.series[si].fill = () => assert.fail('the callback has already been resolved');
+			}
+			const bars = [1, 2, 3, 4].map(si => [si, 0, 150 * si, 250, 100, 100]);
+			const labels = render(values, u, bars);
+			assert.deepEqual(Object.fromEntries(labels.map(label => [label.text, label.fillStyle])), { '10%': 'white', '20%': 'black', '30%': 'white', '40%': 'black' });
+			assert.deepEqual(samples.map(sample => sample.fillStyle).sort(), ['darkorange', 'darkorange', 'royalblue', 'royalblue'], 'sample once per series, even with shared fill strings');
+			batches(u.ctx);
+		});
+
+		it('reclassifies current resolved fills and alpha on every draw, without resetting or remeasuring', () => {
+			const values = helper(false, [{ series: [1] }], true);
+			const u = plot([[0], [25]], { _data: [[0], [.25]], _base: [null, [0]] });
+			u.series[1].fill = () => assert.fail('do not resolve fill callbacks again');
+			values.reset(u, true);
+			values.each(u, 1, 0, 200, 250, 100, 100);
+			assert.equal(colorContexts.length, 0, 'classification belongs to draw, not reset or each');
+			const measured = measurements.slice();
+			const before = snapshot(u.ctx);
+			const frames = [
+				['royalblue', undefined, 1, 'white', 'royalblue'],
+				['darkorange', undefined, 1, 'black', 'darkorange'],
+				['darkorange', 'royalblue', 1, 'white', 'royalblue'],
+				['darkorange', 'royalblue', .2, 'black', 'royalblue'],
+				['darkorange', 'royalblue', 1, 'white', 'royalblue'],
+				['darkorange', null, 1, 'black', 'darkorange'],
+			];
+			for (const [fill, pathFill, alpha, expected, sampled] of frames) {
+				Object.assign(u.series[1], { _fill: fill, _paths: { _fill: pathFill }, alpha });
+				u.ctx.labels.length = u.ctx.writes.length = 0;
+				const count = samples.length;
+				values.draw(u);
+				assert.equal(u.ctx.labels.length, 1);
+				assert.equal(u.ctx.labels[0].fillStyle, expected);
+				assert.equal(u.ctx.labels[0].globalAlpha, alpha);
+				assert.equal(samples.length, count + 1);
+				assert.equal(samples.at(-1).fillStyle, sampled);
+				assert.deepEqual(snapshot(u.ctx), before);
+				batches(u.ctx);
+			}
+			assert.deepEqual(measurements, measured);
+			assert.equal(colorContexts.length, 1, 'reuse the sampling context across draws');
+			assert.equal(u.ctx.saves, u.ctx.restores);
+		});
+
+		it('composites CSS pixel alpha times series alpha over white and uses the sRGB contrast crossover', () => {
+			const values = helper(false, [{ series: [1] }], true);
+			const u = plot([[0], [25]], { _data: [[0], [.25]], _base: [null, [0]] });
+			const bars = [[1, 0, 200, 250, 100, 100]];
+			const cases = [
+				['black', 1, 'white'], ['white', 1, 'black'],
+				// Adjacent grays straddle sqrt(.0525) - .05 in linear sRGB luminance.
+				['#757575', 1, 'white'], ['#767676', 1, 'black'],
+				['rgba(0, 0, 0, 0.8)', 1, 'white'], ['rgba(0, 0, 0, 0.8)', .5, 'black'],
+				['rgba(0, 0, 0, 0.5)', 1, 'black'], ['transparent', 1, 'black'],
+				['#000000cc', 1, 'white'], ['#000000cc', .5, 'black'],
+				['#00000080', 1, 'black'], ['#00000000', 1, 'black'],
+				['royalblue', 0, 'black'], ['black', .5, 'black'],
+			];
+			for (const [fill, alpha, expected] of cases) {
+				Object.assign(u.series[1], { _fill: fill, alpha });
+				const labels = render(values, u, bars);
+				assert.equal(labels.length, 1);
+				assert.equal(labels[0].fillStyle, expected, `${fill} at series alpha ${alpha}`);
+				assert.equal(labels[0].globalAlpha, alpha);
+			}
+			assert.equal(samples.length, cases.length);
+			assert.deepEqual(samples.map(sample => sample.data), cases.map(([fill]) => colorPixels.get(fill)));
+			assert.equal(colorContexts.length, 1);
+			for (const name of ['clearRect', 'fillRect', 'getImageData'])
+				assert.equal(colorContexts[0].calls.filter(call => call[0] == name).length, cases.length);
+		});
+
+		it('does no contrast work for grouped, disabled, or empty drawing', () => {
+			const groups = [{ series: [1] }];
+			const values = helper(false, groups);
+			const u = plot();
+			const bars = [[1, 0, 200, 250, 100, 100]];
+			Object.defineProperty(u.series[1], '_fill', { get() { assert.fail('no fill reads without enabled stacked rectangles'); } });
+			Object.defineProperty(u.series[1], '_paths', { get() { assert.fail('no path reads without enabled stacked rectangles'); } });
+			assert.deepEqual(render(values, u, bars, false), []);
+			values.invalidate();
+			assert.deepEqual(render(values, u, bars, false), []);
+			assert.deepEqual(render(values, u, []), []);
+			assert.equal(allocations, 0);
+			assert.equal(u.ctx.writes.length, 0);
+			values.configure([], false);
+			const labels = render(values, u, bars);
+			assert.deepEqual(labels.map(label => label.fillStyle), ['black']);
+			outside(labels[0], bars[0], false, -1);
+			assert.equal(allocations, 1, 'only text measurement needs a canvas');
+			assert.deepEqual(samples, []);
+			assert.deepEqual(colorContexts, []);
+		});
+
+		it('falls back to black for absent and non-string resolved fills without sampling or coercion', () => {
+			const values = helper(false, [{ series: [1] }], true);
+			const u = plot([[0], [25]], { _data: [[0], [.25]], _base: [null, [0]] });
+			const unknown = { [Symbol.toPrimitive]() { assert.fail('do not coerce unknown fills'); } };
+			const gradient = { addColorStop() {}, [Symbol.toPrimitive]() { assert.fail('do not stringify gradients'); } };
+			const callback = () => assert.fail('do not invoke unresolved fills');
+			const fills = [undefined, null, unknown, gradient, callback];
+			for (const fill of fills) {
+				for (const pathOverride of [false, true]) {
+					Object.assign(u.series[1], pathOverride && fill != null
+						? { _fill: 'royalblue', _paths: { _fill: fill } }
+						: { _fill: fill, _paths: { _fill: null } });
+					assert.deepEqual(render(values, u, [[1, 0, 200, 250, 100, 100]]).map(label => label.fillStyle), ['black']);
+				}
+			}
+			assert.equal(allocations, 1);
+			assert.deepEqual(samples, []);
+			assert.deepEqual(colorContexts, []);
+		});
+
+		it('samples each shown stacked series once per draw, independent of hundreds of labels', () => {
+			const length = 300;
+			const values = helper(false, [{ series: [1, 2, 3, 4] }], true);
+			const u = plot([Array.from({ length }, (_, i) => i), Array(length).fill(12), Array(length).fill(8), Array(length).fill(null), Array(length).fill(99)]);
+			u._data = [u.data[0], Array(length).fill(.6), Array(length).fill(1), Array(length).fill(null), Array(length).fill(99)];
+			u._base = [null, Array(length).fill(0), Array(length).fill(.6)];
+			u.series[1]._fill = 'royalblue';
+			u.series[2]._fill = 'darkorange';
+			u.series[3]._fill = '#4169e1';
+			u.series[4].show = false;
+			Object.defineProperty(u.series[4], '_fill', { get() { assert.fail('skip hidden series'); } });
+			// Alternating callback order must not turn into per-label color changes or samples.
+			const bars = u.data[0].flatMap(di => [[1, di, 200, 250, 100, 100], [2, di, 200, 150, 100, 100]]);
+			const before = snapshot(u.ctx);
+			for (let pass = 0; pass < 2; pass++) {
+				const labels = render(values, u, bars);
+				assert.equal(labels.length, length * 2);
+				assert.equal(labels.filter(label => label.fillStyle == 'white').length, length);
+				assert.equal(labels.filter(label => label.fillStyle == 'black').length, length);
+				assert.equal(samples.length, (pass + 1) * 3, 'classify even shown stacked series with no rectangles, but not hidden series');
+				assert.deepEqual(samples.slice(pass * 3).map(sample => sample.fillStyle).sort(), ['#4169e1', 'darkorange', 'royalblue']);
+				batches(u.ctx);
+				assert.equal(u.ctx.writes.filter(write => write.key == 'font').length, 1);
+				assert.equal(u.ctx.writes.filter(write => write.key == 'globalAlpha').length, 1);
+				assert.deepEqual(snapshot(u.ctx), before);
+			}
+			assert.equal(colorContexts.length, 1);
+			assert.equal(measurements.length, 2);
+			assert.equal(u.ctx.saves, u.ctx.restores);
+		});
+
+		it('does not write a color batch when all its labels fail fitting or clipping', () => {
+			const values = helper(false, [{ series: [1, 2] }], true);
+			const u = plot([[0], [25], [75]], { _data: [[0], [.25], [1]], _base: [null, [0], [.25]] });
+			u.series[1]._fill = 'darkorange';
+			u.series[2]._fill = 'royalblue';
+			const bars = [[1, 0, 200, 250, 100, 100], [2, 0, 450, 250, 1, 100]];
+			for (const rect of [[450, 250, 1, 100], [450, 250, 100, 1], [-100, 250, 100, 100]]) {
+				bars[1] = [2, 0, ...rect];
+				assert.deepEqual(render(values, u, bars).map(label => label.fillStyle), ['black']);
+				batches(u.ctx);
+			}
+			bars[0] = [1, 0, 200, 250, 1, 100];
+			assert.deepEqual(render(values, u, bars), []);
+			batches(u.ctx);
+		});
+	});
 
 	it('reuses module-level number formatters across helpers and cache invalidation', () => {
 		const NumberFormat = Intl.NumberFormat;

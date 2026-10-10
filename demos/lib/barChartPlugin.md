@@ -134,6 +134,12 @@ Totals come from native cumulative endpoints in `u._data`, not a separate summat
 Percent stacks show segment shares from the native endpoints and baselines. They do not show totals.
 Hidden series do not contribute labels or totals.
 
+Stacked segment labels use black or white text, whichever gives greater contrast against the resolved solid fill.
+The helper samples each visible stacked series once per draw on a separate 1×1 canvas, not once per value.
+The calculation includes fill opacity and series alpha over a white plot background. Gradients and patterns use black text without sampling.
+Grouped labels and stack totals remain black. Black and white labels draw in separate batches, with at most two text-color assignments.
+Font and alpha assignments occur only when their values change. Label measurements and placement remain unchanged.
+
 Font sizing reserves 20% of the bar thickness and a gap outside the bar ends.
 Inside and outside labels each use a common font size. Labels that cannot fit at the minimum size are omitted.
 Labels stay inside the plot. This feature does not expand explicit scale ranges or reserve additional layout space.
