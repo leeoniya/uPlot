@@ -209,7 +209,8 @@ export function createBarValues(horizontal) {
 				const metric = metrics[i];
 				const textWidth = metric.width * scale;
 				const ascent = metric.ascent * scale, descent = metric.descent * scale;
-				if (dir == 0 && (textWidth > width * .8 || ascent + descent > height * .8))
+				// fitSize already constrains thickness; rechecking scaled ink can reject exact fits due to rounding.
+				if (dir == 0 && (horizontal ? textWidth > width * .8 : ascent + descent > height * .8))
 					continue;
 				let x = left + width / 2;
 				let y = top + height / 2 + (ascent - descent) / 2;

@@ -206,6 +206,32 @@ describe('barValues standalone', () => {
 			});
 		}
 
+		for (const pxRatio of [1, 1.5, 2]) {
+			it(`keeps fitted stack labels at thickness boundaries (horizontal: ${horizontal}, DPR: ${pxRatio})`, () => {
+				const values = helper(horizontal, [{ series: [1, 2] }]);
+				const u = plot([[0], [11e6], [18.5e6]], { pxRatio, _data: [[0], [11e6], [29.5e6]] });
+				u.bbox = Object.fromEntries(Object.entries(u.bbox).map(([key, value]) => [key, value * pxRatio]));
+				for (let thickness = 10; thickness <= 80; thickness++) {
+					const bars = [1, 2].map(si => [si, 0, ...(horizontal
+						? [250 + (si - 1) * 200, 200, 200, thickness]
+						: [200, 250 + (si - 1) * 200, thickness, 200]).map(value => value * pxRatio)]);
+					const labels = render(values, u, bars);
+					for (const [i, text] of ['11M', '18.5M'].entries()) {
+						const bar = bars[i];
+						const inside = labels.filter(label => horizontal
+							? Math.abs(label.x - bar[2] - bar[4] / 2) < 1e-9
+							: Math.abs((label.top + label.bottom) / 2 - bar[3] - bar[5] / 2) < 1e-9);
+						const fits = thickness * .8 >= 10 * (horizontal ? .9 : text.length / 2);
+						assert.deepEqual(inside.map(label => label.text), fits ? [text] : [], `thickness ${thickness}, text ${text}`);
+						if (fits) {
+							centered(inside[0], bar);
+							contained(inside[0], u);
+						}
+					}
+				}
+			});
+		}
+
 		it(`centers raw stack segments and emits one native total per group/category/sign (horizontal: ${horizontal})`, () => {
 			const groups = [{ series: [1, 2, 3, 4, 5, 6, 7] }, { series: [8, 9, 10] }, { series: [11] }];
 			const values = helper(horizontal, groups);
