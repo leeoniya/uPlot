@@ -304,7 +304,7 @@ describe('barValues standalone', () => {
 			batches(u.ctx);
 		});
 
-		it('reclassifies current resolved fills and alpha on every draw, without resetting or remeasuring', () => {
+		it('reclassifies only changed resolved fills or alpha, without resetting or remeasuring', () => {
 			const values = helper(false, [{ series: [1] }], true);
 			const u = plot([[0], [25]], { _data: [[0], [.25]], _base: [null, [0]] });
 			u.series[1].fill = () => assert.fail('do not resolve fill callbacks again');
@@ -314,14 +314,18 @@ describe('barValues standalone', () => {
 			const measured = measurements.slice();
 			const before = snapshot(u.ctx);
 			const frames = [
-				['royalblue', undefined, 1, 'white', 'royalblue'],
-				['darkorange', undefined, 1, 'black', 'darkorange'],
-				['darkorange', 'royalblue', 1, 'white', 'royalblue'],
-				['darkorange', 'royalblue', .2, 'black', 'royalblue'],
-				['darkorange', 'royalblue', 1, 'white', 'royalblue'],
-				['darkorange', null, 1, 'black', 'darkorange'],
+				['royalblue', undefined, 1, 'white', 'royalblue', 1],
+				['royalblue', undefined, 1, 'white', 'royalblue', 0],
+				['darkorange', undefined, 1, 'black', 'darkorange', 1],
+				['darkorange', 'royalblue', 1, 'white', 'royalblue', 1],
+				['royalblue', 'royalblue', 1, 'white', 'royalblue', 0],
+				['royalblue', undefined, 1, 'white', 'royalblue', 0],
+				['darkorange', 'royalblue', .2, 'black', 'royalblue', 1],
+				['darkorange', 'royalblue', .2, 'black', 'royalblue', 0],
+				['darkorange', 'royalblue', 1, 'white', 'royalblue', 1],
+				['darkorange', null, 1, 'black', 'darkorange', 1],
 			];
-			for (const [fill, pathFill, alpha, expected, sampled] of frames) {
+			for (const [fill, pathFill, alpha, expected, sampled, sampleCount] of frames) {
 				Object.assign(u.series[1], { _fill: fill, _paths: { _fill: pathFill }, alpha });
 				u.ctx.labels.length = u.ctx.writes.length = 0;
 				const count = samples.length;
@@ -329,7 +333,7 @@ describe('barValues standalone', () => {
 				assert.equal(u.ctx.labels.length, 1);
 				assert.equal(u.ctx.labels[0].fillStyle, expected);
 				assert.equal(u.ctx.labels[0].globalAlpha, alpha);
-				assert.equal(samples.length, count + 1);
+				assert.equal(samples.length, count + sampleCount);
 				assert.equal(samples.at(-1).fillStyle, sampled);
 				assert.deepEqual(snapshot(u.ctx), before);
 				batches(u.ctx);
@@ -337,6 +341,47 @@ describe('barValues standalone', () => {
 			assert.deepEqual(measurements, measured);
 			assert.equal(colorContexts.length, 1, 'reuse the sampling context across draws');
 			assert.equal(u.ctx.saves, u.ctx.restores);
+		});
+
+		it('retains contrast choices across data, size, DPR, visibility, and enabled-state changes', () => {
+			const values = helper(false, [{ series: [1, 2] }], true);
+			const u = plot([[0], [12], [8]], { _data: [[0], [.6], [1]], _base: [null, [0], [.6]] });
+			u.series[1]._fill = 'royalblue';
+			u.series[2]._fill = 'darkorange';
+			const bars = [[1, 0, 200, 350, 100, 100], [2, 0, 200, 250, 100, 100]];
+			const draw = () => render(values, u, bars.filter(([si]) => u.series[si].show));
+			assert.deepEqual(draw().map(label => label.fillStyle), ['black', 'white']);
+			assert.equal(samples.length, 2);
+			const calls = colorContexts[0].calls.slice();
+			for (const change of [
+				() => {},
+				() => { u.bbox.width = 1200; u.bbox.height = 900; },
+				() => {
+					values.invalidate();
+					u.data = [[0], [20], [30]];
+					u._data = [[0], [.4], [1]];
+					u._base = [null, [0], [.4]];
+				},
+				() => { u.pxRatio = 2; },
+				() => { u.series[1].show = false; },
+				() => { u.series[1].show = true; },
+				() => { assert.deepEqual(render(values, u, bars, false), []); },
+			]) {
+				change();
+				assert.deepEqual(draw().map(label => label.fillStyle), u.series[1].show ? ['black', 'white'] : ['black']);
+				assert.deepEqual(colorContexts[0].calls, calls, 'reuse performs no sampling-context mutations or reads');
+				batches(u.ctx);
+			}
+			u.series[1]._fill = null;
+			assert.deepEqual(draw().map(label => label.fillStyle), ['black', 'black'], 'an absent fill replaces the cached white choice');
+			assert.equal(samples.length, 2);
+			u.series[1].show = false;
+			u.series[1]._fill = 'royalblue';
+			draw();
+			assert.equal(samples.length, 2, 'hidden style changes wait until the series is shown');
+			u.series[1].show = true;
+			assert.deepEqual(draw().map(label => label.fillStyle), ['black', 'white']);
+			assert.equal(samples.length, 3, 'only the changed series needs another sample');
 		});
 
 		it('composites CSS pixel alpha times series alpha over white and uses the sRGB contrast crossover', () => {
@@ -409,7 +454,7 @@ describe('barValues standalone', () => {
 			assert.deepEqual(colorContexts, []);
 		});
 
-		it('samples each shown stacked series once per draw, independent of hundreds of labels', () => {
+		it('samples each shown stacked series once across redraws with hundreds of labels', () => {
 			const length = 300;
 			const values = helper(false, [{ series: [1, 2, 3, 4] }], true);
 			const u = plot([Array.from({ length }, (_, i) => i), Array(length).fill(12), Array(length).fill(8), Array(length).fill(null), Array(length).fill(99)]);
@@ -428,8 +473,8 @@ describe('barValues standalone', () => {
 				assert.equal(labels.length, length * 2);
 				assert.equal(labels.filter(label => label.fillStyle == 'white').length, length);
 				assert.equal(labels.filter(label => label.fillStyle == 'black').length, length);
-				assert.equal(samples.length, (pass + 1) * 3, 'classify even shown stacked series with no rectangles, but not hidden series');
-				assert.deepEqual(samples.slice(pass * 3).map(sample => sample.fillStyle).sort(), ['#4169e1', 'darkorange', 'royalblue']);
+				assert.equal(samples.length, 3, 'unchanged series reuse their cached contrast choice');
+				assert.deepEqual(samples.map(sample => sample.fillStyle).sort(), ['#4169e1', 'darkorange', 'royalblue']);
 				batches(u.ctx);
 				assert.equal(u.ctx.writes.filter(write => write.key == 'font').length, 1);
 				assert.equal(u.ctx.writes.filter(write => write.key == 'globalAlpha').length, 1);

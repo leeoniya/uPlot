@@ -135,7 +135,9 @@ Percent stacks show segment shares from the native endpoints and baselines. They
 Hidden series do not contribute labels or totals.
 
 Stacked segment labels use black or white text, whichever gives greater contrast against the resolved solid fill.
-The helper samples each visible stacked series once per draw on a separate 1×1 canvas, not once per value.
+The helper caches each series' contrast choice by resolved fill and series alpha.
+A separate 1×1 canvas supplies the first sample when the series draws. Later draws sample again only when the fill or alpha changes.
+Data updates, resizing, visibility changes, and pixel-ratio changes reuse the cached choice when the fill and alpha stay unchanged.
 The calculation includes fill opacity and series alpha over a white plot background. Gradients and patterns use black text without sampling.
 Grouped labels and stack totals remain black. Black and white labels draw in separate batches, with at most two text-color assignments.
 Font and alpha assignments occur only when their values change. Label measurements and placement remain unchanged.

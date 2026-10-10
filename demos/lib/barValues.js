@@ -19,6 +19,8 @@ export function createBarValues(horizontal) {
 	let measureSize = 0;
 	let colorCtx = null;
 	const textColors = [];
+	const colorFills = [];
+	const colorAlphas = [];
 	let groups = [];
 	let percent = false;
 	let enabled = false;
@@ -66,8 +68,7 @@ export function createBarValues(horizontal) {
 		return metric;
 	}
 
-	function textColor(series) {
-		const fill = series._paths?._fill ?? series._fill;
+	function textColor(fill, opacity) {
 		if (typeof fill != 'string')
 			return 0;
 		colorCtx ??= new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true });
@@ -76,7 +77,7 @@ export function createBarValues(horizontal) {
 		colorCtx.fillRect(0, 0, 1, 1);
 		const [r, g, b, a] = colorCtx.getImageData(0, 0, 1, 1).data;
 		// Composite solid fills over the demo's white plot background, then compare black/white contrast.
-		const alpha = a / 255 * series.alpha;
+		const alpha = a / 255 * opacity;
 		const luminance = .2126 * linearChannel(1 + (r / 255 - 1) * alpha)
 			+ .7152 * linearChannel(1 + (g / 255 - 1) * alpha)
 			+ .0722 * linearChannel(1 + (b / 255 - 1) * alpha);
@@ -199,11 +200,18 @@ export function createBarValues(horizontal) {
 					add(si, di, rects[off + 2], rects[off + 3], rects[off + 4], rects[off + 5], direction(u, si, di), measure(u._data[si][di], false));
 				}
 			}
-			textColors.length = u.series.length;
-			textColors.fill(0);
+			textColors.length = colorFills.length = colorAlphas.length = u.series.length;
 			for (let si = 1; si < u.series.length; si++) {
-				if (u.series[si].show && groupForSeries[si] != null)
-					textColors[si] = textColor(u.series[si]);
+				const series = u.series[si];
+				if (series.show && groupForSeries[si] != null) {
+					const fill = series._paths?._fill ?? series._fill;
+					const alpha = series.alpha;
+					if (textColors[si] == null || colorFills[si] !== fill || colorAlphas[si] !== alpha) {
+						textColors[si] = textColor(fill, alpha);
+						colorFills[si] = fill;
+						colorAlphas[si] = alpha;
+					}
+				}
 			}
 			metrics.length = count;
 			const minPxSize = minSize * u.pxRatio;
@@ -273,7 +281,8 @@ export function createBarValues(horizontal) {
 			rawMetrics.clear();
 			percentMetrics.clear();
 			textMetrics.clear();
-			rects.length = metrics.length = totals.length = baselines.length = groupForSeries.length = textColors.length = count = 0;
+			rects.length = metrics.length = totals.length = baselines.length = groupForSeries.length = count = 0;
+			textColors.length = colorFills.length = colorAlphas.length = 0;
 			groups = [];
 			measureCtx = colorCtx = null;
 			measureSize = 0;
