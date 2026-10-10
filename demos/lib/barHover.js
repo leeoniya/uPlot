@@ -1,38 +1,19 @@
-import Flatbush from './flatbush.js';
-
-// One hover index per chart, populated by the bar pathbuilder's each callback.
-export function createBarHover() {
+// Final bar bounds, grouped by category for constant-time category lookup.
+export function createBarHover(horizontal) {
 	let over = null;
-	let index = null;
-	let indexFinished = false;
 	let pointerInside = false;
+	let rects = new Float64Array(0);
+	let categoryCount = 0;
+	let categoryStart = 0;
+	let categoryStep = 0;
+	const series = [];
+	const seriesSlots = [];
 	const hovered = { seriesIdx: 0, dataIdx: null, left: 0, top: 0, width: 0, height: 0 };
 	const emptyBox = { left: -10, top: -10, width: 0, height: 0 };
-	const seriesOffsets = [];
-	let nextItem = 0;
-	let hitId = -1;
-	let hitLeft, hitTop, hitRight, hitBottom;
-
-	function skipItems(end) {
-		// Keep item IDs aligned with data slots without a per-bar metadata array.
-		while (nextItem < end) {
-			index.add(0, 0);
-			nextItem++;
-		}
-	}
-
-	function finishIndex() {
-		if (index != null && !indexFinished) {
-			index.finish();
-			indexFinished = true;
-		}
-	}
 
 	function mouseEnter(e) {
-		if (e.target == over) {
+		if (e.target == over)
 			pointerInside = true;
-			finishIndex();
-		}
 	}
 
 	function mouseLeave() {
@@ -40,21 +21,9 @@ export function createBarHover() {
 		hovered.dataIdx = null;
 	}
 
-	function filter(id, x0, y0, x1, y1) {
-		// Tree traversal order is not draw order. Prefer the last-drawn bar.
-		if (id > hitId && x1 > x0 && y1 > y0) {
-			hitId = id;
-			hitLeft = x0;
-			hitTop = y0;
-			hitRight = x1;
-			hitBottom = y1;
-		}
-		return false;
-	}
-
 	function lookup(u) {
 		hovered.dataIdx = null;
-		if (!indexFinished)
+		if (categoryCount == 0 || series.length == 0)
 			return;
 
 		const pxRatio = u.pxRatio;
@@ -63,20 +32,36 @@ export function createBarHover() {
 		if (!(x >= 0 && y >= 0 && x <= u.bbox.width && y <= u.bbox.height))
 			return;
 
-		hitId = -1;
-		index.search(x, y, x, y, filter);
-		if (hitId < 0)
+		// Edge categories also cover the outer margins; exact bounds below reject gaps.
+		const position = categoryCount == 1 ? 0 : ((horizontal ? y : x) - categoryStart) / categoryStep;
+		const di = Math.max(0, Math.min(categoryCount - 1, Math.round(position)));
+		if (lookupCategory(di, x, y, pxRatio))
 			return;
 
-		let si = seriesOffsets.length - 1;
-		while (seriesOffsets[si] < 0 || seriesOffsets[si] > hitId)
-			si--;
-		hovered.seriesIdx = si;
-		hovered.dataIdx = hitId - seriesOffsets[si];
-		hovered.left = hitLeft / pxRatio;
-		hovered.top = hitTop / pxRatio;
-		hovered.width = (hitRight - hitLeft) / pxRatio;
-		hovered.height = (hitBottom - hitTop) / pxRatio;
+		// Touching categories share edges, and rounded distribution offsets can shift the boundary slightly.
+		const adjacent = di + (position < di ? -1 : 1);
+		if (adjacent >= 0 && adjacent < categoryCount)
+			lookupCategory(adjacent, x, y, pxRatio);
+	}
+
+	function lookupCategory(di, x, y, pxRatio) {
+		const start = di * series.length * 4;
+		// Reverse order gives shared edges to the last-drawn series.
+		for (let slot = series.length - 1; slot >= 0; slot--) {
+			const off = start + slot * 4;
+			const left = rects[off], top = rects[off + 1];
+			const right = rects[off + 2], bottom = rects[off + 3];
+			if (right > left && bottom > top && x >= left && x <= right && y >= top && y <= bottom) {
+				hovered.seriesIdx = series[slot];
+				hovered.dataIdx = di;
+				hovered.left = left / pxRatio;
+				hovered.top = top / pxRatio;
+				hovered.width = (right - left) / pxRatio;
+				hovered.height = (bottom - top) / pxRatio;
+				return true;
+			}
+		}
+		return false;
 	}
 
 	return {
@@ -87,50 +72,54 @@ export function createBarHover() {
 		},
 		bbox: (u, seriesIdx) => hovered.dataIdx != null && seriesIdx == hovered.seriesIdx ? hovered : emptyBox,
 		each(u, seriesIdx, dataIdx, left, top, width, height) {
-			skipItems(seriesOffsets[seriesIdx] + dataIdx);
-			index.add(left - u.bbox.left, top - u.bbox.top, left + width - u.bbox.left, top + height - u.bbox.top);
-			nextItem++;
+			const off = (dataIdx * series.length + seriesSlots[seriesIdx]) * 4;
+			rects[off] = left - u.bbox.left;
+			rects[off + 1] = top - u.bbox.top;
+			rects[off + 2] = left + width - u.bbox.left;
+			rects[off + 3] = top + height - u.bbox.top;
 		},
 		init(u) {
 			over = u.over;
-			// Finish before uPlot's non-capturing entry handler or caller hover handlers.
 			over.addEventListener('mouseenter', mouseEnter, true);
 			over.addEventListener('mouseleave', mouseLeave);
 		},
-		reset(u, paths) {
-			let numItems = 0;
-			seriesOffsets.length = u.series.length;
-			seriesOffsets.fill(-1);
+		reset(u, paths, firstCenter, step) {
+			categoryCount = u.data[0].length;
+			const span = horizontal ? u.bbox.height : u.bbox.width;
+			categoryStart = firstCenter * span;
+			categoryStep = step * span;
+			series.length = 0;
+			seriesSlots.length = u.series.length;
+			seriesSlots.fill(-1);
 			for (let si = 1; si < u.series.length; si++) {
-				const series = u.series[si];
-				if (series.show && series.paths == paths) {
-					seriesOffsets[si] = numItems;
-					numItems += u.data[0].length;
-					// Cached paths do not call each(), so rebuild them with the index.
-					series._paths = null;
+				const s = u.series[si];
+				if (s.show && s.paths == paths) {
+					seriesSlots[si] = series.length;
+					series.push(si);
+					// Cached paths do not call each(); refresh bounds and value-label geometry together.
+					s._paths = null;
 				}
 			}
-			index = numItems > 0 ? new Flatbush(numItems) : null;
+			const size = categoryCount * series.length * 4;
+			if (rects.length < size)
+				rects = new Float64Array(size);
+			else
+				rects.fill(0, 0, size);
 			hovered.dataIdx = null;
-			indexFinished = false;
-			nextItem = 0;
 		},
 		draw(u) {
-			if (index != null)
-				skipItems(index.numItems);
-			if (pointerInside) {
-				finishIndex();
-				// Geometry can change under a stationary pointer without changing scale bounds.
+			// Geometry can change under a stationary pointer without changing scale bounds.
+			if (pointerInside)
 				u.setCursor(u.cursor, false, false);
-			}
 		},
 		destroy() {
 			over.removeEventListener('mouseenter', mouseEnter, true);
 			over.removeEventListener('mouseleave', mouseLeave);
-			over = index = null;
+			over = null;
+			rects = new Float64Array(0);
 			hovered.dataIdx = null;
-			indexFinished = pointerInside = false;
-			seriesOffsets.length = nextItem = 0;
+			pointerInside = false;
+			series.length = seriesSlots.length = categoryCount = 0;
 		},
 	};
 }

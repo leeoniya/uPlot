@@ -80,7 +80,7 @@ stack: {
 
 Omit `stack` for grouped bars. Recreate the chart to change its stack configuration.
 Native uPlot stacking supplies the cumulative values, per-point baselines, and percent normalization. The plugin does not transform the data.
-The bar pathbuilder supplies the final rectangle bounds to the hover index through `each()`.
+The bar pathbuilder supplies the final rectangle bounds to the hover buffer through `each()`.
 Original data and legend values remain unchanged.
 
 With `dir: 0`, positive and negative values stack separately from zero.
@@ -114,7 +114,7 @@ Explicit `bars.disp.x0` and `bars.disp.size` override the distribution.
 | `maxLabelLength` | `null` | No truncation, or an integer of at least `1`. The limit includes the ellipsis character (`…`). |
 | `ellipsis` | `'end'` | The ellipsis position: `'end'` or `'middle'`. |
 | `inset` | `8` | The minimum outer padding and extra axis space, in CSS pixels. |
-| `bars` | `{}` | Options for `uPlot.paths.bars()`, except `each`, which the plugin supplies for hover indexing. |
+| `bars` | `{}` | Options for `uPlot.paths.bars()`, except `each`, which the plugin supplies for hover bounds. |
 
 Category labels come directly from `data[0]`. uPlot's ordinal scale assigns their numeric positions internally.
 The plugin converts X values to strings for display. Null entries become empty strings.
@@ -145,19 +145,21 @@ Zero-length segments contribute to totals without measurement of their inside la
 
 ## Bar hover
 
-The `createBarHover()` closure in `demos/lib/barHover.js` owns the spatial index, lookup state, and pointer listeners.
-It imports [Flatbush](https://github.com/leeoniya/flatbush/tree/leeoniya/smol) from `demos/lib/flatbush.js`.
-The bar pathbuilder calls `each()` to add bounds directly to the index, without temporary rectangle arrays or per-bar metadata objects.
-An internal offset table records the starting item ID for each indexed series. Hidden series do not occupy index slots.
-The lookup uses these offsets to derive the series index and subtracts the series offset to obtain the data index.
-Skipped bars within a series use zero-sized points at `(0, 0)` to preserve data indices. The search filter excludes these points.
+The `createBarHover()` closure in `demos/lib/barHover.js` owns a reusable rectangle buffer, lookup state, and pointer listeners.
+The bar pathbuilder calls `each()` to store final bounds in a flat numeric buffer, grouped by category.
+Hidden series do not occupy buffer slots. Skipped bars leave zero-sized rectangles, which cannot produce a hit.
+Redraws rebuild the bar paths and refill the buffer. The buffer grows only when the required capacity increases.
 
-A capturing `mouseenter` listener on `.u-over` calls `index.finish()` before non-capturing hover handlers.
-Charts without mouse entry do not finish their index. Redraws replace the index and finish it only while the pointer remains inside.
-Each index finishes at most once. The plugin removes its listeners on chart destruction.
+The lookup calculates the nearest category from the group centers and spacing.
+It scans that category's visible series and checks the exact rectangle bounds.
+If no rectangle contains the pointer, the lookup checks the nearest adjacent category for shared edges and distribution rounding.
+The lookup checks at most two categories. Its cost depends on the number of visible series, not the number of categories.
+Bars must stay within their assigned category regions. Custom positions or widths that cross these regions are not supported by hover lookup.
+The lookup scans series in reverse order so that shared edges select the last-drawn series.
 
-Each chart reuses one search filter to select the last-drawn bar under the pointer.
-After the search, the helper resolves the series and converts the winning bounds to CSS pixels once.
+Hover lookup works after a draw, without prior pointer entry or a spatial-index build.
+Pointer entry and exit listeners track whether redraws must refresh a stationary cursor. The plugin removes these listeners on chart destruction.
+After a hit, the helper converts the selected bounds to CSS pixels once.
 The cursor highlight reuses one mutable hover object and one empty bounding box.
 Only that bar supplies a Y legend value. Gaps do not select a nearby bar. Cursor crosshairs are disabled.
 Hover bounds use CSS pixels and support both orientations and the chart's pixel ratio.
@@ -193,7 +195,7 @@ Data and size changes use the normal `u.setData(...)` and `u.setSize(...)` metho
 ## Cleanup
 
 `demo.destroy()` destroys the current chart, removes form listeners, and releases references to the chart, plugin, controls, and root element.
-The plugin clears its hover index, label metrics, and value geometry. It also releases its references to stack groups and the native bar path builder.
+The plugin clears its hover buffer, label metrics, and value geometry. It also releases its references to stack groups and the native bar path builder.
 Caller-owned data, stack groups, and bar options remain unchanged. Repeated destroy calls have no effect.
 Orientation and stack rebuilds retain the data before they destroy the old chart.
 

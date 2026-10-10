@@ -3,7 +3,6 @@ import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { rangeY } from '../src/rangeY.js';
 import { barChartPlugin } from '../demos/lib/barChartPlugin.js';
-import Flatbush from '../demos/lib/flatbush.js';
 import { SPACE_BETWEEN, SPACE_AROUND, SPACE_EVENLY } from '../demos/lib/distr.js';
 
 describe('barChartPlugin', () => {
@@ -222,35 +221,6 @@ describe('barChartPlugin', () => {
 	});
 
 	describe('bar hover', () => {
-		let originalFinish, originalSearch, finished, searches, searchFilters;
-
-		beforeEach(() => {
-			finished = [];
-			searches = [];
-			searchFilters = [];
-			originalFinish = Flatbush.prototype.finish;
-			originalSearch = Flatbush.prototype.search;
-			Flatbush.prototype.finish = function() {
-				assert.ok(!finished.includes(this), 'finish runs only once per index');
-				finished.push(this);
-				return originalFinish.call(this);
-			};
-			Flatbush.prototype.search = function(...args) {
-				assert.ok(finished.includes(this), 'search never reads an unfinished index');
-				assert.equal(typeof args[4], 'function', 'hover uses the search filter');
-				searchFilters.push(args[4]);
-				const result = originalSearch.apply(this, args);
-				assert.deepEqual(result, [], 'the filter selects the bar without collecting result IDs');
-				searches.push(this);
-				return result;
-			};
-		});
-
-		afterEach(() => {
-			Flatbush.prototype.finish = originalFinish;
-			Flatbush.prototype.search = originalSearch;
-		});
-
 		const overlapping = { bars: { disp: {
 			x0: { unit: 1, values: u => u.data[0].map((_, i) => i - .3) },
 			size: { unit: 1, values: u => u.data[0].map(() => .6) },
@@ -265,31 +235,37 @@ describe('barChartPlugin', () => {
 			return { left, top, width: width / u.pxRatio, height: height / u.pxRatio };
 		}
 
-		it('finishes on capture entry before an earlier non-capturing edge-hover handler', async () => {
-			let entries = 0;
-			const { u } = mount([['A', 'B'], [4, 2]], { bars: { size: [1, Infinity] } }, {
+		it('supports programmatic hover before pointer entry and after pointer leave', async () => {
+			const { u } = mount([['A', 'B'], [4, 2]]);
+			await Promise.resolve();
+			hoverRect(u, 1, 0);
+			assert.deepEqual(u.cursor.idxs, [0, 0]);
+			enter(u);
+			leave(u);
+			hoverRect(u, 1, 1);
+			assert.deepEqual(u.cursor.idxs, [1, 1]);
+		});
+
+		it('tracks entry before an earlier non-capturing handler redraws under a stationary cursor', async () => {
+			const { u, plugin } = mount([['A'], [4]], {}, {
+				scales: { y: { range: [0, 10] } },
 				hooks: { init: [u => {
 					u.over.addEventListener('mouseenter', () => {
-						assert.equal(finished.length, 1);
-						u.setCursor({ left: 0, top: u.valToPos(2, 'y') });
+						u.setCursor({ left: u.bbox.width / u.pxRatio * .25, top: u.valToPos(2, 'y') });
 						assert.deepEqual(u.cursor.idxs, [0, 0]);
-						entries++;
+						plugin._controls.setGroupWidth(.1);
 					});
 				}] },
 			});
 			await Promise.resolve();
-			assert.equal(finished.length, 0);
-			hoverRect(u, 1, 0);
-			assert.equal(searches.length, 0);
 			enter(u);
-			leave(u);
-			enter(u);
-			assert.equal(entries, 2);
-			assert.equal(finished.length, 1);
+			await Promise.resolve();
+			assert.deepEqual(u.cursor.idxs, [null, null]);
+			assert.ok(u.over.querySelector('.u-cursor-pt').classList.contains('u-off'));
 		});
 
 		for (const orientation of ['vertical', 'horizontal']) {
-			for (const pxRatio of [1, 2]) {
+			for (const pxRatio of [1, 1.5, 2]) {
 				it(`matches ${orientation} bar bounds at DPR ${pxRatio}, preserving sparse data IDs`, async () => {
 					const { u } = mount([['A', 'B', 'C', 'D'], [4, null, -6, 0]], { orientation }, { pxRatio });
 					await Promise.resolve();
@@ -349,6 +325,149 @@ describe('barChartPlugin', () => {
 			}
 		}
 
+		function assertHit(u, x, y, seriesIdx = null, dataIdx = null) {
+			u.setCursor({ left: (x - u.bbox.left) / u.pxRatio, top: (y - u.bbox.top) / u.pxRatio });
+			assert.deepEqual(u.cursor.idxs, u.series.map((_, si) => si === 0 || si === seriesIdx ? dataIdx : null));
+		}
+
+		for (const orientation of ['vertical', 'horizontal']) {
+			for (const pxRatio of [1, 1.5, 2]) {
+				const pos = orientation === 'horizontal' ? 1 : 0;
+				for (const neighbor of [2, null, 0]) {
+					it(`hits the full-width trailing edge beside a ${neighbor} neighbor (${orientation}, DPR ${pxRatio})`, async () => {
+						const { u } = mount([['A', 'B'], [8, neighbor]], { orientation, bars: { size: [1] } }, {
+							pxRatio, scales: { y: { range: [0, 10] } },
+						});
+						await Promise.resolve();
+						const first = rects(u, 1)[0];
+						const point = [0, 0];
+						point[pos] = first[pos] + first[pos + 2];
+						point[1 - pos] = u.valToPos(4, 'y', true);
+						assertHit(u, ...point, 1, 0);
+					});
+				}
+
+				it(`prefers the nearest category at an exact full-width shared edge (${orientation}, DPR ${pxRatio})`, async () => {
+					const { u } = mount([['A', 'B'], [8, 2]], { orientation, bars: { size: [1] } }, {
+						pxRatio, scales: { y: { range: [0, 10] } },
+					});
+					await Promise.resolve();
+					const [first, second] = rects(u, 1);
+					const point = [0, 0];
+					point[pos] = first[pos] + first[pos + 2];
+					assert.equal(point[pos], second[pos], 'the native rectangles share this edge exactly');
+					point[1 - pos] = u.valToPos(1, 'y', true);
+					// Equidistant category centers round toward the later category, which wins if it contains the point.
+					assertHit(u, ...point, 1, 1);
+				});
+
+				it(`hits just inside the full-width middle bar despite category rounding (${orientation}, DPR ${pxRatio})`, async () => {
+					const { u } = mount([['A', 'B', 'C'], [2, 8, 2]], { orientation, bars: { size: [1] } }, {
+						pxRatio, scales: { y: { range: [0, 10] } },
+					});
+					await Promise.resolve();
+					const middle = rects(u, 1)[1];
+					const point = [0, 0];
+					point[pos] = middle[pos] + .00001;
+					point[1 - pos] = u.valToPos(4, 'y', true);
+					assertHit(u, ...point, 1, 1);
+				});
+			}
+		}
+
+		for (const orientation of ['vertical', 'horizontal']) {
+			for (const [distribution, barDistribution, pxRatio] of [
+				[SPACE_BETWEEN, SPACE_EVENLY, 1],
+				[SPACE_AROUND, SPACE_BETWEEN, 1.5],
+				[SPACE_EVENLY, SPACE_AROUND, 2],
+			]) {
+				it(`hits edges but not gaps for distributions ${distribution}/${barDistribution} (${orientation}, DPR ${pxRatio})`, async () => {
+					const { u } = mount([[], [], []], {
+						orientation, distribution, barDistribution, barWidth: .55, bars: { size: [.65] },
+					}, { pxRatio, series: [{}, {}, {}], scales: { y: { range: [0, 10] } } });
+					await Promise.resolve();
+					enter(u);
+					const pos = orientation === 'horizontal' ? 1 : 0;
+					const size = pos + 2;
+					for (const count of [4, 1]) {
+						u.setData([Array.from({ length: count }, (_, i) => `Category ${i}`), Array(count).fill(4), Array(count).fill(6)]);
+						await Promise.resolve();
+						const groups = [rects(u, 1), rects(u, 2)];
+						for (let di = 0; di < count; di++) {
+							for (const si of [1, 2]) {
+								const rect = groups[si - 1][di];
+								const point = [rect[0] + rect[2] / 2, rect[1] + rect[3] / 2];
+								assertHit(u, ...point, si, di);
+								for (const edge of [rect[pos], rect[pos] + rect[size]]) {
+									point[pos] = edge;
+									assertHit(u, ...point, si, di);
+								}
+								for (const outside of [rect[pos] - 1, rect[pos] + rect[size] + 1]) {
+									point[pos] = outside;
+									assertHit(u, ...point);
+								}
+							}
+							const first = groups[0][di], last = groups[1][di];
+							const point = [first[0] + first[2] / 2, first[1] + first[3] / 2];
+							point[pos] = (first[pos] + first[size] + last[pos]) / 2;
+							assertHit(u, ...point);
+							if (di + 1 < count) {
+								point[pos] = (last[pos] + last[size] + groups[0][di + 1][pos]) / 2;
+								assertHit(u, ...point);
+							}
+						}
+						const [x, y, w, h] = groups[0][0];
+						const point = [x + w / 2, y + h / 2];
+						point[1 - pos] = (orientation === 'horizontal' ? u.bbox.left : u.bbox.top) + u.valToPos(9, 'y') * pxRatio;
+						assertHit(u, ...point);
+					}
+				});
+			}
+
+			it(`hits plot-edge bars and rejects coordinates outside the plot (${orientation})`, async () => {
+				const { u } = mount([['A', 'B', 'C'], [4, 4, 4]], {
+					orientation, distribution: SPACE_BETWEEN,
+				}, { scales: { y: { range: [0, 10] } } });
+				await Promise.resolve();
+				enter(u);
+				const pos = orientation === 'horizontal' ? 1 : 0;
+				const origin = pos === 0 ? u.bbox.left : u.bbox.top;
+				const extent = pos === 0 ? u.bbox.width : u.bbox.height;
+				for (const di of [0, 2]) {
+					const [x, y, w, h] = rects(u, 1)[di];
+					const point = [x + w / 2, y + h / 2];
+					point[pos] = origin + (di === 0 ? 0 : extent);
+					assertHit(u, ...point, 1, di);
+					point[pos] += di === 0 ? -1 : 1;
+					assertHit(u, ...point);
+				}
+			});
+
+			it(`finds hundreds of sparse rectangles without mixing categories (${orientation})`, async () => {
+				const xs = Array.from({ length: 120 }, (_, i) => `Item ${i}`);
+				const data = [xs, ...Array.from({ length: 4 }, (_, si) => xs.map((_, di) => (di + si) % 11 === 0 ? null : si + 2))];
+				const { u } = mount(data, { orientation, distribution: SPACE_EVENLY }, {
+					width: orientation === 'vertical' ? 3600 : 700,
+					height: orientation === 'horizontal' ? 3600 : 450,
+					pxRatio: 1.5, series: [{}, {}, {}, {}, {}],
+				});
+				await Promise.resolve();
+				enter(u);
+				let hits = 0;
+				for (let si = 1; si < data.length; si++) {
+					let ri = 0;
+					for (let di = 0; di < xs.length; di++) {
+						if (data[si][di] == null)
+							continue;
+						hoverRect(u, si, ri++);
+						assert.deepEqual(u.cursor.idxs, u.series.map((_, idx) => idx === 0 || idx === si ? di : null));
+						hits++;
+					}
+				}
+				assert.ok(hits > 400);
+			});
+		}
+
 		it('updates stationary hits when width changes move a bar away from or under the pointer', async () => {
 			const { u, plugin } = mount([['A'], [4]], {}, { scales: { y: { range: [0, 10] } } });
 			await Promise.resolve();
@@ -364,65 +483,97 @@ describe('barChartPlugin', () => {
 			}
 		});
 
-		it('reuses one search filter per chart across cursor updates and index rebuilds', async () => {
+		it('refreshes stationary hits after bar-width changes, sparse data replacements, and visibility changes', async () => {
+			const { u, plugin } = mount([['A'], [4]], {}, { scales: { y: { range: [0, 10] } } });
+			await Promise.resolve();
+			enter(u);
+			u.setCursor({ left: u.bbox.width / u.pxRatio * .25, top: u.valToPos(2, 'y') });
+			const cursor = { left: u.cursor.left, top: u.cursor.top };
+			const pt = u.over.querySelector('.u-cursor-pt');
+			for (const [change, hit] of [
+				[() => plugin._controls.setBarWidth(.2), false],
+				[() => plugin._controls.setBarWidth(1), true],
+				[() => u.setData([['A'], [null]]), false],
+				[() => u.setData([['A'], [4]]), true],
+				[() => u.setData([['A'], [0]]), false],
+				[() => u.setData([['A'], [4]]), true],
+				[() => u.setSeries(1, { show: false }), false],
+				[() => u.setSeries(1, { show: true }), true],
+			]) {
+				change();
+				await Promise.resolve();
+				assert.deepEqual({ left: u.cursor.left, top: u.cursor.top }, cursor);
+				assert.deepEqual(u.cursor.idxs, hit ? [0, 0] : [null, null]);
+				assert.equal(pt.classList.contains('u-off'), !hit);
+			}
+		});
+
+		it('does not refresh a stationary cursor on redraw after pointer leave', async () => {
+			const { u, plugin } = mount([['A'], [4]]);
+			await Promise.resolve();
+			enter(u);
+			hoverRect(u, 1, 0);
+			leave(u);
+			assert.equal(u.cursor.points.bbox(u, 1).width, 0);
+			const setCursor = u.setCursor;
+			let updates = 0;
+			u.setCursor = (...args) => {
+				updates++;
+				return setCursor(...args);
+			};
+			u.redraw(false);
+			await Promise.resolve();
+			assert.equal(updates, 0);
+			enter(u);
+			hoverRect(u, 1, 0);
+			updates = 0;
+			plugin._controls.setBarWidth(.5);
+			await Promise.resolve();
+			assert.ok(updates > 0);
+			assert.deepEqual(u.cursor.idxs, [0, 0]);
+		});
+
+		it('clears stale rectangles when data shrinks, grows, or becomes sparse', async () => {
+			const { u } = mount([['A', 'B', 'C', 'D'], [4, 4, 4, 4]], {}, { scales: { y: { range: [0, 10] } } });
+			await Promise.resolve();
+			enter(u);
+			const points = rects(u, 1).map(([x, y, w, h]) => [x + w / 2, y + h / 2]);
+			u.setData([['A', 'B', 'C', 'D'], [null, 0, undefined, 4]]);
+			await Promise.resolve();
+			for (let di = 0; di < points.length; di++)
+				assertHit(u, ...points[di], di === 3 ? 1 : null, di === 3 ? di : null);
+			u.setData([['Only'], [4]]);
+			await Promise.resolve();
+			hoverRect(u, 1, 0);
+			assert.deepEqual(u.cursor.idxs, [0, 0]);
+			assertHit(u, ...points[3]);
+			u.setData([['A', 'B', 'C', 'D'], [4, null, 4, null]]);
+			await Promise.resolve();
+			for (let di = 0; di < points.length; di++)
+				assertHit(u, ...points[di], di % 2 === 0 ? 1 : null, di % 2 === 0 ? di : null);
+			u.setData([[], []]);
+			await Promise.resolve();
+			for (const point of points)
+				assertHit(u, ...point);
+		});
+
+		it('keeps hover state independent across charts and redraws', async () => {
 			const { u: a } = mount([['A', 'B'], [4, 2]]);
-			const { u: b } = mount([['C', 'D'], [3, 5]]);
+			const { u: b } = mount([['C', 'D'], [3, 5]], { orientation: 'horizontal' }, { pxRatio: 1.5 });
 			await Promise.resolve();
 			enter(a);
 			enter(b);
 			hoverRect(a, 1, 0);
-			const filter = searchFilters.at(-1);
-			hoverRect(a, 1, 1);
-			assert.equal(searchFilters.at(-1), filter);
+			hoverRect(b, 1, 1);
+			assert.deepEqual(a.cursor.idxs, [0, 0]);
+			assert.deepEqual(b.cursor.idxs, [1, 1]);
 			a.redraw(false);
 			await Promise.resolve();
-			hoverRect(a, 1, 0);
-			assert.equal(searchFilters.at(-1), filter);
-			hoverRect(b, 1, 1);
-			assert.notEqual(searchFilters.at(-1), filter, 'charts keep independent search state');
-			assert.deepEqual(b.cursor.idxs, [1, 1]);
-			hoverRect(a, 1, 0);
-			assert.equal(searchFilters.at(-1), filter);
-			assert.deepEqual(a.cursor.idxs, [0, 0]);
-		});
-
-		it('resolves series and CSS bounds only once after the search completes', async () => {
-			const { u } = mount([['A', 'B'], [4, 4], [4, 4]], overlapping, { pxRatio: 2, series: [{}, {}, {}] });
-			await Promise.resolve();
-			enter(u);
-			hoverRect(u, 2, 0);
-			const box = u.cursor.points.bbox(u, 2);
-			const writes = {};
-			let searching = false;
-			for (const key of ['seriesIdx', 'left', 'top', 'width', 'height']) {
-				let value = box[key];
-				writes[key] = 0;
-				Object.defineProperty(box, key, {
-					configurable: true,
-					get: () => value,
-					set(next) {
-						assert.equal(searching, false, `${key} resolves after traversal`);
-						writes[key]++;
-						value = next;
-					},
-				});
-			}
-			const search = Flatbush.prototype.search;
-			Flatbush.prototype.search = function(...args) {
-				searching = true;
-				try {
-					return search.apply(this, args);
-				}
-				finally {
-					searching = false;
-				}
-			};
-			const bbox = hoverRect(u, 2, 1);
-			assert.deepEqual(u.cursor.idxs, [1, null, 1]);
-			for (const key of Object.keys(writes))
-				assert.equal(writes[key], 1, `${key} resolves once`);
-			for (const key of Object.keys(bbox))
-				assert.equal(box[key], bbox[key]);
+			hoverRect(a, 1, 1);
+			assert.deepEqual(a.cursor.idxs, [1, 1]);
+			hoverRect(b, 1, 0);
+			assert.deepEqual(b.cursor.idxs, [0, 0]);
+			assert.deepEqual(a.cursor.idxs, [1, 1]);
 		});
 
 		for (const orientation of ['vertical', 'horizontal']) {
@@ -499,7 +650,7 @@ describe('barChartPlugin', () => {
 			}
 		});
 
-		it('selects the last overlapping bar after tree sorting and ignores hidden series', async () => {
+		it('selects the last series for within-category overlaps and ignores hidden series', async () => {
 			const xs = Array.from({ length: 20 }, (_, i) => `Item ${i}`);
 			const { u } = mount([xs, xs.map(() => 4), xs.map(() => 2)], overlapping, { series: [{}, {}, {}] });
 			await Promise.resolve();
@@ -512,59 +663,47 @@ describe('barChartPlugin', () => {
 			await Promise.resolve();
 			hoverRect(u, 1, 10);
 			assert.deepEqual(u.cursor.idxs, [10, 10, null]);
-			assert.equal(finished.length, 2);
 		});
 
-		it('resolves series offsets across hidden leading and middle series', async () => {
+		it('preserves data IDs across sparse, hidden leading, and hidden middle series', async () => {
 			const xs = Array.from({ length: 20 }, (_, i) => `Item ${i}`);
 			const { u } = mount([xs, xs.map(() => 8), xs.map(() => 6), xs.map((_, i) => i == 0 ? null : 2)], {}, {
 				series: [{}, {}, { show: false }, {}],
 			});
 			await Promise.resolve();
 			enter(u);
-			assert.equal(finished.at(-1).numItems, 40, 'hidden middle series has no index slots');
 			for (const idx of [1, 10, 19]) {
 				hoverRect(u, 3, idx - 1);
 				assert.deepEqual(u.cursor.idxs, [idx, null, null, idx]);
 			}
 			u.setSeries(1, { show: false });
 			await Promise.resolve();
-			assert.equal(finished.at(-1).numItems, 20, 'series 3 now starts at offset zero');
 			hoverRect(u, 3, 9);
 			assert.deepEqual(u.cursor.idxs, [10, null, null, 10]);
 			u.setSeries(2, { show: true });
 			await Promise.resolve();
-			assert.equal(finished.at(-1).numItems, 40, 'offsets update when a preceding series returns');
 			hoverRect(u, 3, 9);
 			assert.deepEqual(u.cursor.idxs, [10, null, null, 10]);
 			hoverRect(u, 2, 0);
 			assert.deepEqual(u.cursor.idxs, [0, null, 0, null]);
 		});
 
-		it('rebuilds on redraw, data, size, and DPR changes but defers finish outside the plot', async () => {
+		it('supports programmatic hover after redraw, data, size, and DPR changes without entry', async () => {
 			const { u } = mount([['A', 'B'], [4, 2]]);
 			await Promise.resolve();
-			enter(u);
 			for (const change of [
 				() => u.redraw(false),
 				() => u.setData([['C', 'D', 'E'], [null, -3, 5]]),
 				() => u.setSize({ width: 900, height: 500 }),
 				() => u.setPxRatio(2),
 			]) {
-				const count = finished.length;
 				change();
 				await Promise.resolve();
-				assert.equal(finished.length, count + 1);
 				hoverRect(u, 1, 0);
 				assert.equal(u.cursor.idxs[1], u.data[1][0] == null ? 1 : 0);
 			}
-			leave(u);
-			const count = finished.length;
 			u.redraw(false);
 			await Promise.resolve();
-			assert.equal(finished.length, count);
-			enter(u);
-			assert.equal(finished.length, count + 1);
 			hoverRect(u, 1, 1);
 			assert.deepEqual(u.cursor.idxs, [2, 2]);
 		});
@@ -573,10 +712,14 @@ describe('barChartPlugin', () => {
 			const { u } = mount([[], []]);
 			await Promise.resolve();
 			enter(u);
-			assert.equal(finished.length, 0);
+			u.setCursor({ left: 10, top: 10 });
+			assert.deepEqual(u.cursor.idxs, [null, null]);
 			u.setData([['A', 'B', 'C'], [null, 0, undefined]]);
 			await Promise.resolve();
-			assert.equal(finished.length, 1);
+			for (let di = 0; di < 3; di++) {
+				u.setCursor({ left: u.valToPos(di, 'x'), top: u.valToPos(0, 'y') });
+				assert.deepEqual(u.cursor.idxs, [null, null], 'null, undefined, and zero-height bars cannot hover');
+			}
 			u.setCursor({ left: 0, top: 0 });
 			assert.deepEqual(u.cursor.idxs, [null, null]);
 			leave(u);
@@ -594,7 +737,6 @@ describe('barChartPlugin', () => {
 			assert.equal(removed.filter(([type, capture]) => type == 'mouseleave' && capture === undefined).length, 1);
 			over.dispatchEvent(new MouseEvent('mouseenter'));
 			over.dispatchEvent(new MouseEvent('mouseleave'));
-			assert.equal(finished.length, 1);
 		});
 	});
 

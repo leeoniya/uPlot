@@ -40,12 +40,14 @@ export function barChartPlugin({
 	let groupWidth;
 	let barJustify;
 	let barWidthFactor;
+	let firstGroupCenter = 0;
+	let groupStep = 0;
 	let paths;
 	let stackGroups = [];
 	const barOffsets = [];
 	// Bar paths read only size[0]; every distributed slot has the same width.
 	const barWidth = [0];
-	const hover = createBarHover();
+	const hover = createBarHover(horizontal);
 	const values = createBarValues(horizontal);
 	let valuesShown = false;
 
@@ -75,6 +77,7 @@ export function barChartPlugin({
 		barOffsets.length = u.series.length;
 		barOffsets.fill(null);
 		barWidth[0] = 0;
+		firstGroupCenter = groupStep = 0;
 		for (let si = 1; si < u.series.length; si++) {
 			const series = u.series[si];
 			if (!series.show || series.paths != paths)
@@ -91,6 +94,11 @@ export function barChartPlugin({
 		if (slots.length == 0)
 			return;
 		distr(count, groupWidth, justify, null, (di, groupOff, groupSize) => {
+			const center = groupOff + groupSize / 2;
+			if (di == 0)
+				firstGroupCenter = center;
+			else if (di == count - 1)
+				groupStep = (center - firstGroupCenter) / (count - 1);
 			distr(slots.length, barWidthFactor, barJustify, null, (slot, off, size) => {
 				barWidth[0] = groupSize * size;
 				slots[slot][di] = groupOff + groupSize * off;
@@ -371,7 +379,7 @@ export function barChartPlugin({
 			setData: refreshLabels,
 			drawClear: u => {
 				distributeBars(u);
-				hover.reset(u, paths);
+				hover.reset(u, paths, firstGroupCenter, groupStep);
 				values.reset(u, valuesShown);
 			},
 			draw: u => {
