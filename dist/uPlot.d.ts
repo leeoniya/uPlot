@@ -169,7 +169,7 @@ declare class uPlot {
 	static fmtDate(tpl: string, names?: uPlot.DateNames): (date: Date) => string;
 
 	/** converts a Date or ms timestamp into new Date that's time-adjusted for the given IANA Time Zone Name */
-	static tzDate(dateOrTs: Date | number, tzName: string): DateZoned;
+	static tzDate(dateOrTs: Date | number, tzName: string): uPlot.DateZoned;
 
 	/** outerJoins multiple data tables on table[0] values */
 	static join(tables: uPlot.AlignedData[], nullModes?: uPlot.JoinNullMode[][]): uPlot.AlignedData;
