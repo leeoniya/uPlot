@@ -201,7 +201,8 @@ It uses Arial at 10–25 CSS pixels and compact number formatting with up to thr
 
 Grouped values appear outside the bar ends. Stacked values appear inside their segments.
 Group-wide series use the same outside placement, centered across the group.
-A group-wide label is omitted when a visible component has the same nonzero raw value at that category, to avoid duplicate labels.
+When a visible group-wide series has the same nonzero raw value at that category, the helper omits the component label.
+This prevents duplicates and keeps the wider, group-centered label, even when the component is too narrow for its label.
 Value stacks also show one accumulated total beyond the positive end and one beyond the negative end of each category stack.
 Totals come from native cumulative endpoints in `u._data`, not a separate summation.
 Percent stacks show segment shares from the native endpoints and baselines. They do not show totals.

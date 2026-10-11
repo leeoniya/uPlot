@@ -185,10 +185,10 @@ export function createBarValues(horizontal) {
 				return;
 			const end = u._data[si][di];
 			const value = percent && stacked ? end - (baselines[si]?.[di] ?? 0) : u.data[si][di];
-			if (!stacked && groupTotals.has(si) && value != 0) {
-				// Compare raw values, not formatted text, regardless of each() callback order.
-				for (let ci = 1; ci < u.series.length; ci++) {
-					if (!groupTotals.has(ci) && u.series[ci].show && u.data[ci][di] === value)
+			if (!stacked && !groupTotals.has(si) && value != 0) {
+				// Prefer the wider group label, regardless of each() callback order or component label fit.
+				for (const ti of groupTotals) {
+					if (u.series[ti].show && u.data[ti][di] === value)
 						return;
 				}
 			}
