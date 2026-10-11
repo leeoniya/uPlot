@@ -692,6 +692,9 @@ declare namespace uPlot {
 		/** lock cursor on mouse click in plotting area */
 		lock?: boolean; // false
 
+		/** current lock state when cursor.lock is enabled (toggled by click in plotting area) */
+		_lock?: boolean;
+
 		/** the most recent mouse event */
 		event?: MouseEvent;
 	}
