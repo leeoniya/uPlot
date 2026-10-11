@@ -25,6 +25,7 @@ export function createBarValues(horizontal) {
 	let percent = false;
 	let enabled = false;
 	const groupForSeries = [];
+	const groupTotals = new Set();
 	const baselines = [];
 	const totals = [];
 	// Reuse flat records: series, data index, left, top, width, height, outward direction.
@@ -121,9 +122,12 @@ export function createBarValues(horizontal) {
 	}
 
 	return {
-		configure(stackGroups, stackPercent) {
+		configure(stackGroups, stackPercent, groupSeries = []) {
 			groups = stackGroups;
 			percent = stackPercent;
+			groupTotals.clear();
+			for (const si of groupSeries)
+				groupTotals.add(si);
 			groupForSeries.length = 0;
 			for (let gi = 0; gi < groups.length; gi++) {
 				for (const si of groups[gi].series)
@@ -181,6 +185,13 @@ export function createBarValues(horizontal) {
 				return;
 			const end = u._data[si][di];
 			const value = percent && stacked ? end - (baselines[si]?.[di] ?? 0) : u.data[si][di];
+			if (!stacked && groupTotals.has(si) && value != 0) {
+				// Compare raw values, not formatted text, regardless of each() callback order.
+				for (let ci = 1; ci < u.series.length; ci++) {
+					if (!groupTotals.has(ci) && u.series[ci].show && u.data[ci][di] === value)
+						return;
+				}
+			}
 			const off = add(si, di, left, top, width, height, stacked ? 0 : direction(u, si, di), length == 0 ? null : measure(value, percent && stacked));
 			if (stacked && !percent) {
 				const slot = (gi * u.data[0].length + di) * 2 + (end < 0 ? 1 : 0);
@@ -284,6 +295,7 @@ export function createBarValues(horizontal) {
 			rects.length = metrics.length = totals.length = baselines.length = groupForSeries.length = count = 0;
 			textColors.length = colorFills.length = colorAlphas.length = 0;
 			groups = [];
+			groupTotals.clear();
 			measureCtx = colorCtx = null;
 			measureSize = 0;
 		},

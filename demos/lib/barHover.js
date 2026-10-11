@@ -1,7 +1,14 @@
 // Final bar bounds, grouped by category for constant-time category lookup.
 export function createBarHover(horizontal) {
+	let plot = null;
 	let over = null;
+	let band = null;
+	let mode = 'bar';
 	let pointerInside = false;
+	let hasVisibleSeries = false;
+	let bandVisible = false;
+	let bandStart = -1;
+	let bandSize = -1;
 	let rects = new Float64Array(0);
 	let categoryCount = 0;
 	let categoryStart = 0;
@@ -11,29 +18,69 @@ export function createBarHover(horizontal) {
 	const emptyBox = { left: -10, top: -10, width: 0, height: 0 };
 
 	function mouseEnter(e) {
-		if (e.target == over)
+		if (e.target == over) {
 			pointerInside = true;
+			plot.setCursor(plot.cursor, false, false);
+			updateBand(plot);
+		}
 	}
 
 	function mouseLeave() {
 		pointerInside = false;
 		hovered.dataIdx = null;
+		showBand(false);
+	}
+
+	function inPlot(u) {
+		return u.cursor.left >= 0 && u.cursor.top >= 0 &&
+			u.cursor.left * u.pxRatio <= u.bbox.width && u.cursor.top * u.pxRatio <= u.bbox.height;
+	}
+
+	function showBand(show) {
+		if (bandVisible != show) {
+			band.style.display = show ? '' : 'none';
+			bandVisible = show;
+		}
+	}
+
+	function updateBand(u) {
+		if (band == null)
+			return;
+		const di = hovered.dataIdx;
+		const show = mode == 'group' && pointerInside && di != null && inPlot(u);
+		if (show) {
+			const span = horizontal ? u.bbox.height : u.bbox.width;
+			const start = (di == 0 ? 0 : Math.max(0, categoryStart + (di - .5) * categoryStep)) / u.pxRatio;
+			const end = (di == categoryCount - 1 ? span : Math.min(span, categoryStart + (di + .5) * categoryStep)) / u.pxRatio;
+			const size = end - start;
+			if (start != bandStart) {
+				band.style.transform = `${horizontal ? 'translateY' : 'translateX'}(${start}px)`;
+				bandStart = start;
+			}
+			if (size != bandSize) {
+				band.style[horizontal ? 'height' : 'width'] = `${size}px`;
+				bandSize = size;
+			}
+		}
+		showBand(show);
 	}
 
 	function lookup(u) {
 		hovered.dataIdx = null;
-		if (categoryCount == 0 || seriesCount == 0)
+		if (categoryCount == 0 || !hasVisibleSeries || !inPlot(u))
 			return;
 
 		const pxRatio = u.pxRatio;
 		const x = u.cursor.left * pxRatio;
 		const y = u.cursor.top * pxRatio;
-		if (!(x >= 0 && y >= 0 && x <= u.bbox.width && y <= u.bbox.height))
-			return;
 
 		// Edge categories also cover the outer margins; exact bounds below reject gaps.
 		const position = categoryCount == 1 ? 0 : ((horizontal ? y : x) - categoryStart) / categoryStep;
 		const di = Math.max(0, Math.min(categoryCount - 1, Math.round(position)));
+		if (mode == 'group') {
+			hovered.dataIdx = di;
+			return;
+		}
 		if (lookupCategory(di, x, y, pxRatio))
 			return;
 
@@ -64,12 +111,26 @@ export function createBarHover(horizontal) {
 	}
 
 	return {
+		setMode(next) {
+			if (next != 'bar' && next != 'group')
+				throw new RangeError('Hover mode must be bar or group.');
+			if (mode != next) {
+				mode = next;
+				if (plot != null) {
+					plot.setCursor(plot.cursor, false, false);
+					updateBand(plot);
+				}
+			}
+		},
+		update: updateBand,
 		dataIdx(u, seriesIdx) {
 			if (seriesIdx == 0)
 				lookup(u);
+			if (mode == 'group')
+				return seriesIdx == 0 || u.series[seriesIdx].show ? hovered.dataIdx : null;
 			return seriesIdx == 0 || seriesIdx == hovered.seriesIdx ? hovered.dataIdx : null;
 		},
-		bbox: (u, seriesIdx) => hovered.dataIdx != null && seriesIdx == hovered.seriesIdx ? hovered : emptyBox,
+		bbox: (u, seriesIdx) => mode == 'bar' && hovered.dataIdx != null && seriesIdx == hovered.seriesIdx ? hovered : emptyBox,
 		each(u, seriesIdx, dataIdx, left, top, width, height) {
 			const off = (dataIdx * seriesCount + seriesIdx - 1) * 4;
 			rects[off] = left - u.bbox.left;
@@ -78,19 +139,30 @@ export function createBarHover(horizontal) {
 			rects[off + 3] = top + height - u.bbox.top;
 		},
 		init(u) {
+			plot = u;
 			over = u.over;
+			band = document.createElement('div');
+			band.className = 'u-bar-group-hover';
+			Object.assign(band.style, {
+				position: 'absolute', pointerEvents: 'none', display: 'none',
+				left: '0', top: '0', background: 'rgba(51,204,255,0.3)',
+				[horizontal ? 'width' : 'height']: '100%',
+			});
+			u.under.appendChild(band);
 			over.addEventListener('mouseenter', mouseEnter, true);
 			over.addEventListener('mouseleave', mouseLeave);
 		},
-		reset(u, paths, firstCenter, step) {
+		reset(u, paths, firstCenter, step, groupPaths) {
 			categoryCount = u.data[0].length;
 			const span = horizontal ? u.bbox.height : u.bbox.width;
 			categoryStart = firstCenter * span;
 			categoryStep = step * span;
 			seriesCount = u.series.length - 1;
+			hasVisibleSeries = false;
 			for (let si = 1; si < u.series.length; si++) {
 				const s = u.series[si];
-				if (s.show && s.paths == paths) {
+				if (s.show && (s.paths == paths || groupPaths != null && s.paths == groupPaths)) {
+					hasVisibleSeries = true;
 					// Cached paths do not call each(); refresh bounds and value-label geometry together.
 					s._paths = null;
 				}
@@ -106,14 +178,17 @@ export function createBarHover(horizontal) {
 			// Geometry can change under a stationary pointer without changing scale bounds.
 			if (pointerInside)
 				u.setCursor(u.cursor, false, false);
+			updateBand(u);
 		},
 		destroy() {
 			over.removeEventListener('mouseenter', mouseEnter, true);
 			over.removeEventListener('mouseleave', mouseLeave);
-			over = null;
+			band.remove();
+			plot = over = band = null;
 			rects = new Float64Array(0);
 			hovered.dataIdx = null;
-			pointerInside = false;
+			pointerInside = bandVisible = hasVisibleSeries = false;
+			bandStart = bandSize = -1;
 			seriesCount = categoryCount = 0;
 		},
 	};

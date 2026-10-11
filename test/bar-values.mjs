@@ -202,9 +202,9 @@ describe('barValues standalone', () => {
 		}
 	});
 
-	function helper(horizontal = false, groups = [], percent = false) {
+	function helper(horizontal = false, groups = [], percent = false, groupSeries = []) {
 		const values = createBarValues(horizontal);
-		values.configure(groups, percent);
+		values.configure(groups, percent, groupSeries);
 		helpers.push(values);
 		return values;
 	}
@@ -545,6 +545,106 @@ describe('barValues standalone', () => {
 				});
 			});
 		}
+
+		for (const dir of [1, -1]) {
+			it(`centers externally supplied group totals outside full-group rectangles (horizontal: ${horizontal}, dir: ${dir})`, () => {
+				const groupSeries = Object.freeze([1, 2]);
+				const groups = Object.freeze([]);
+				const values = helper(horizontal, groups, false, groupSeries);
+				// Totals deliberately differ from the component sums.
+				const data = Object.freeze([[0], [91], [-73], [12], [-8]].map(Object.freeze));
+				const u = plot(data, { scales: { y: Object.freeze({ dir }) } });
+				u._data = Object.freeze([[0], [999], [-999], [12], [-8]].map(Object.freeze));
+				u._base = Object.freeze([]);
+				u.series = Object.freeze(u.series.map(Object.freeze));
+				const bars = [
+					[1, 0, 200, 250, 240, 100], [2, 0, 200, 450, 240, 100],
+					[3, 0, 200, 300, 80, 50], [4, 0, 360, 450, 80, 50],
+				].map(([si, di, left, top, width, height]) => horizontal
+					? [si, di, top, left, height, width]
+					: [si, di, left, top, width, height]);
+				const labels = render(values, u, bars);
+				assert.deepEqual(labels.map(label => label.text), ['91', '-73', '12', '-8']);
+				labels.forEach((label, i) => {
+					outside(label, bars[i], horizontal, Math.sign(data[i + 1][0]) * dir * (horizontal ? 1 : -1));
+					contained(label, u);
+				});
+				assert.deepEqual(data, [[0], [91], [-73], [12], [-8]]);
+				assert.deepEqual(u._data, [[0], [999], [-999], [12], [-8]]);
+				assert.deepEqual(u._base, []);
+				assert.deepEqual(groupSeries, [1, 2]);
+				assert.deepEqual(groups, []);
+			});
+		}
+
+		it(`suppresses only group summaries matching visible non-group raw values (horizontal: ${horizontal})`, () => {
+			const values = helper(horizontal, [], false, [2, 4]);
+			const cases = [
+				{ name: 'both signs, arbitrary summary indices', data: [[0], [12], [12], [-8], [-8]], omit: [2, 4] },
+				{ name: 'hidden components ignored', data: [[0], [12], [12], [-8], [-8]], hidden: [1, 3] },
+				{ name: 'equal summaries do not suppress each other', data: [[0], [3], [12], [-8], [12]] },
+				{ name: 'formatted equality is not raw equality', data: [[0], [12341], [12342], [-12341], [-12342]] },
+				{ name: 'opposite signs are distinct', data: [[0], [12], [-12], [8], [-8]] },
+				{ name: 'other categories do not match', data: [[0, 1], [5, 12], [12, 5], [-3, -8], [-8, -3]] },
+				{ name: 'zero does not suppress', data: [[0], [0], [0], [-0], [-0]] },
+				{ name: 'all matching component labels remain', data: [[0], [12], [12], [12], [-8]], omit: [2] },
+			];
+			for (const { name, data, hidden = [], omit = [] } of cases) {
+				const u = plot(data);
+				for (const si of hidden)
+					u.series[si].show = false;
+				const bars = [1, 2, 3, 4].filter(si => u.series[si].show).map(si => [si, 0, 100 + si * 150, 300, 100, 100]);
+				// Summary callbacks can run either before or after component callbacks.
+				for (const ordered of [bars, bars.slice().reverse()]) {
+					const labels = render(values, u, ordered);
+					const expected = ordered.filter(bar => !omit.includes(bar[0]));
+					assert.equal(labels.length, expected.length, name);
+					labels.forEach((label, i) => {
+						const bar = expected[i];
+						outside(label, bar, horizontal, (data[bar[0]][0] < 0 ? -1 : 1) * (horizontal ? 1 : -1));
+						contained(label, u);
+					});
+				}
+			}
+		});
+
+		it(`preserves group-label disabled, reset, redraw, and reconfigure behavior (horizontal: ${horizontal})`, () => {
+			const values = helper(horizontal, [], false, [1, 2]);
+			const u = plot([[0], [12], [-8], [12], [-8]]);
+			const bars = [1, 2, 3, 4].map(si => [si, 0, 100 + si * 150, 300, 100, 100]);
+			const before = snapshot(u.ctx);
+			assert.deepEqual(render(values, u, bars, false), []);
+			values.invalidate();
+			assert.deepEqual(render(values, u, bars, false), []);
+			assert.equal(allocations, 0);
+			assert.equal(measurements.length, 0);
+			assert.equal(u.ctx.saves, 0);
+			const first = render(values, u, bars).slice();
+			assert.deepEqual(first.map(label => label.text), ['12', '-8']);
+			outside(first[0], bars[2], horizontal, horizontal ? 1 : -1);
+			outside(first[1], bars[3], horizontal, horizontal ? -1 : 1);
+			const measured = measurements.length;
+			u.ctx.labels.length = 0;
+			values.draw(u);
+			assert.deepEqual(u.ctx.labels, first, 'draw reuses the current rectangles without duplicates');
+			assert.deepEqual(render(values, u, []), [], 'reset discards all prior rectangles');
+			assert.deepEqual(render(values, u, bars), first);
+			assert.deepEqual(render(values, u, bars, false), []);
+			assert.equal(measurements.length, measured);
+			u.series[3].show = u.series[4].show = false;
+			assert.equal(render(values, u, bars.slice(0, 2)).length, 2, 'visibility changes remove suppression');
+			u.series[3].show = u.series[4].show = true;
+			assert.deepEqual(render(values, u, bars), first, 'visibility changes restore suppression');
+			values.configure([], false, [3, 4]);
+			const swapped = render(values, u, bars);
+			assert.equal(swapped.length, 2, 'reconfigure replaces marked indices');
+			outside(swapped[0], bars[0], horizontal, horizontal ? 1 : -1);
+			outside(swapped[1], bars[1], horizontal, horizontal ? -1 : 1);
+			values.configure([], false);
+			assert.equal(render(values, u, bars).length, 4, 'omitted third argument clears summary membership');
+			assert.deepEqual(snapshot(u.ctx), before);
+			assert.equal(u.ctx.saves, u.ctx.restores);
+		});
 
 		for (const pxRatio of [1, 2]) {
 			it(`autosizes from 10 to 25 CSS px (horizontal: ${horizontal}, DPR: ${pxRatio})`, () => {

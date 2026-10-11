@@ -17,8 +17,11 @@ export function barChartPlugin({
 	distribution = SPACE_AROUND,
 	barDistribution = SPACE_AROUND,
 	barWidth: initialBarWidth = 1,
+	groupSeries = [],
 	showValues = false,
+	hoverMode = 'bar',
 	labelRotation = 0,
+	minLabelSpacing = 0,
 	maxLabelLength = null,
 	ellipsis = 'end',
 	inset = 8,
@@ -28,12 +31,18 @@ export function barChartPlugin({
 		throw new RangeError('Orientation must be vertical or horizontal.');
 	if (bars.disp != null)
 		throw new TypeError('Custom bar display options are not supported.');
+	if (!Array.isArray(groupSeries))
+		throw new TypeError('Group series must be an array of series indices.');
+	const fullGroupSeries = new Set(groupSeries);
+	if (fullGroupSeries.size != groupSeries.length)
+		throw new RangeError('Group series indices must be unique.');
 	const horizontal = orientation == 'horizontal';
 	let plot = null;
 	let fullLabels = [];
 	let labels = [];
 	let splits = [];
 	let rotation = 0;
+	let labelSpacing = 0;
 	let limit = null;
 	let placement = 'end';
 	const measured = [];
@@ -45,11 +54,15 @@ export function barChartPlugin({
 	let firstGroupCenter = 0;
 	let groupStep = 0;
 	let paths;
+	let groupPaths;
+	const groupOffsets = [];
+	const groupSize = [0];
 	const groupForSeries = [];
 	const barOffsets = [];
 	// Bar paths read only size[0]; every distributed slot has the same width.
 	const barWidth = [0];
 	const hover = createBarHover(horizontal);
+	hover.setMode(hoverMode);
 	const values = createBarValues(horizontal);
 	let valuesShown = false;
 
@@ -79,7 +92,8 @@ export function barChartPlugin({
 		const slots = [];
 		barOffsets.length = u.series.length;
 		barOffsets.fill(null);
-		barWidth[0] = 0;
+		barWidth[0] = groupSize[0] = 0;
+		groupOffsets.length = count;
 		firstGroupCenter = groupStep = 0;
 		for (let si = 1; si < u.series.length; si++) {
 			const series = u.series[si];
@@ -94,18 +108,20 @@ export function barChartPlugin({
 			barOffsets[si] = offsets;
 		}
 
-		if (slots.length == 0)
-			return;
-		distr(count, groupWidth, justify, null, (di, groupOff, groupSize) => {
-			const center = groupOff + groupSize / 2;
+		distr(count, groupWidth, justify, null, (di, groupOff, size) => {
+			groupOffsets[di] = groupOff;
+			groupSize[0] = size;
+			const center = groupOff + size / 2;
 			if (di == 0)
 				firstGroupCenter = center;
 			else if (di == count - 1)
 				groupStep = (center - firstGroupCenter) / (count - 1);
-			distr(slots.length, barWidthFactor, barJustify, null, (slot, off, size) => {
-				barWidth[0] = groupSize * size;
-				slots[slot][di] = groupOff + groupSize * off;
-			});
+			if (slots.length > 0) {
+				distr(slots.length, barWidthFactor, barJustify, null, (slot, off, width) => {
+					barWidth[0] = size * width;
+					slots[slot][di] = groupOff + size * off;
+				});
+			}
 		});
 	}
 
@@ -192,6 +208,36 @@ export function barChartPlugin({
 			rotation = degrees;
 			plot?.redraw(false, true);
 		}
+	}
+
+	function setMinLabelSpacing(pixels) {
+		if (!Number.isFinite(pixels) || pixels < 0)
+			throw new RangeError('Minimum label spacing must be a finite nonnegative number.');
+		if (labelSpacing != pixels) {
+			labelSpacing = pixels;
+			plot?.redraw(false, true);
+		}
+	}
+
+	function filterLabels(u, ticks) {
+		let stride = 1;
+		if (labelSpacing > 0 && ticks.length > 1) {
+			let span = u.bbox.height / u.pxRatio;
+			if (!horizontal) {
+				// Bottom-axis filtering precedes overflow padding; use the final width, not the provisional bbox.
+				span = u.width - padding(u, 1, null, 1) - padding(u, 3, null, 1);
+				for (const axis of u.axes) {
+					if (axis._show && axis.side % 2 == 1)
+						span -= Math.max(0, axis._size + (axis.label != null ? axis.labelSize : 0));
+				}
+				// Match the core's half-device-pixel rounding of the plot rectangle.
+				span = Math.round(span * u.pxRatio * 2) / (u.pxRatio * 2);
+			}
+			const pitch = Math.max(0, span) / (u.scales.x.max - u.scales.x.min);
+			stride = Math.max(1, Math.ceil(labelSpacing / pitch));
+		}
+		// Keep blank categories distinct from the null entries that hide labels.
+		return ticks.map((value, i) => i % stride == 0 ? value ?? '' : null);
 	}
 
 	function setLabelTruncation(maxLength, position = placement) {
@@ -302,16 +348,19 @@ export function barChartPlugin({
 	setBarDistribution(barDistribution);
 	setBarWidth(initialBarWidth);
 	setLabelRotation(labelRotation);
+	setMinLabelSpacing(minLabelSpacing);
 	setLabelTruncation(maxLabelLength, ellipsis);
 
 	return {
 		_controls: {
+			setHoverMode: hover.setMode,
 			setShowValues,
 			setDistribution,
 			setGroupWidth,
 			setBarDistribution,
 			setBarWidth,
 			setLabelRotation,
+			setMinLabelSpacing,
 			setLabelTruncation,
 			getLabelMetrics: () => ({ label: measured[0]?.label ?? '', width: measured[0]?.width ?? 0 }),
 		},
@@ -342,7 +391,8 @@ export function barChartPlugin({
 				...opts.axes[0],
 				scale: 'x', side: horizontal ? 3 : 2, align: 0, alignTo: 1, space: 1,
 				splits: () => splits,
-				values: () => labels,
+				filter: filterLabels,
+				values: (u, ticks) => labels.map((label, i) => ticks[i] == null ? null : label),
 				rotate: () => rotation,
 				size: xAxisSize,
 			};
@@ -352,6 +402,12 @@ export function barChartPlugin({
 			opts.series ??= [{}, {}];
 			opts.series[0].value ??= (u, value) => String(value ?? '');
 			const stackGroups = opts.stack?.groups ?? [];
+			for (const si of fullGroupSeries) {
+				if (!Number.isInteger(si) || si < 1 || si >= opts.series.length)
+					throw new RangeError('Group series indices must refer to value series.');
+			}
+			if (fullGroupSeries.size > 0 && stackGroups.length > 0)
+				throw new RangeError('Group series require stacking to be off.');
 			groupForSeries.length = 0;
 			for (let gi = 0; gi < stackGroups.length; gi++) {
 				for (const si of stackGroups[gi].series)
@@ -363,20 +419,34 @@ export function barChartPlugin({
 				else if (groupForSeries[si] == null)
 					throw new RangeError('Stack groups must include all value series.');
 			}
-			values.configure(stackGroups, opts.stack?.percent === true);
+			values.configure(stackGroups, opts.stack?.percent === true, fullGroupSeries);
+			const each = (u, si, di, left, top, width, height) => {
+				hover.each(u, si, di, left, top, width, height);
+				values.each(u, si, di, left, top, width, height);
+			};
 			paths = uPlot.paths.bars({
 				...bars,
 				disp: {
 					x0: { unit: 2, values: (u, si) => barOffsets[si] },
 					size: { unit: 2, values: () => barWidth },
 				},
-				each(u, si, di, left, top, width, height) {
-					hover.each(u, si, di, left, top, width, height);
-					values.each(u, si, di, left, top, width, height);
-				},
+				each,
 			});
-			for (const series of opts.series.slice(1)) {
-				series.paths = paths;
+			if (fullGroupSeries.size > 0) {
+				groupPaths = uPlot.paths.bars({
+					...bars,
+					// Individual bar gaps and width limits must not shrink the group background.
+					size: [1, Infinity, 0], gap: 0,
+					disp: {
+						x0: { unit: 2, values: () => groupOffsets },
+						size: { unit: 2, values: () => groupSize },
+					},
+					each,
+				});
+			}
+			for (let si = 1; si < opts.series.length; si++) {
+				const series = opts.series[si];
+				series.paths = fullGroupSeries.has(si) ? groupPaths : paths;
 				series.width ??= 0;
 				series.fill ??= series.stroke ?? 'royalblue';
 				series.points = { ...series.points, show: false };
@@ -390,9 +460,10 @@ export function barChartPlugin({
 					el.style.borderRadius = 'unset';
 			},
 			setData: refreshLabels,
+			setCursor: hover.update,
 			drawClear: u => {
 				distributeBars(u);
-				hover.reset(u, paths, firstGroupCenter, groupStep);
+				hover.reset(u, paths, firstGroupCenter, groupStep, groupPaths);
 				values.reset(u, valuesShown);
 			},
 			draw: u => {
@@ -402,7 +473,9 @@ export function barChartPlugin({
 			destroy: () => {
 				hover.destroy();
 				values.destroy();
-				plot = paths = null;
+				plot = paths = groupPaths = null;
+				fullGroupSeries.clear();
+				groupOffsets.length = 0;
 				bars = {};
 				groupForSeries.length = 0;
 				fullLabels = labels = splits = [];

@@ -7,97 +7,190 @@
 		<link rel="stylesheet" href="../src/uPlot.css">
 		<style>
 			body { margin: 24px; font: 14px system-ui, sans-serif; }
-			.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px 0; }
-			input[type="range"] { width: min(500px, 60vw); }
+			.controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 1400px; margin: 20px 0; }
+			.controls fieldset { min-width: 0; margin: 0; padding: 12px 16px 16px; border: 1px solid #ccc; }
+			.controls legend { padding: 0 6px; font-weight: 600; }
+			.control-row { display: grid; grid-template-columns: 160px minmax(0, 1fr); align-items: center; gap: 8px 16px; margin-top: 12px; }
+			.control-inputs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+			.control-inputs label { white-space: nowrap; }
+			.control-inputs input[type="range"] { flex: 1 1 160px; min-width: 0; max-width: 400px; }
+			.control-inputs output { font-variant-numeric: tabular-nums; }
+			@media (max-width: 1000px) {
+				.controls { grid-template-columns: minmax(0, 1fr); }
+			}
+			@media (max-width: 540px) {
+				.control-row { grid-template-columns: minmax(0, 1fr); }
+				.control-inputs label { white-space: normal; }
+			}
 			#rotation-value { min-width: 5ch; }
 			#stats { display: block; margin: 16px 0; font: 13px monospace; }
-			#plot { overflow-x: auto; }
+			#chart-resize { display: grid; grid-template-rows: minmax(0, 1fr) auto; box-sizing: border-box; width: min(1200px, 100%); height: 540px; min-width: min(300px, 100%); min-height: 240px; max-width: 100%; resize: both; overflow: hidden; border: 1px solid #ccc; }
+			#plot { min-width: 0; min-height: 0; overflow: hidden; }
+			#chart-legend { min-width: 0; overflow: auto; line-height: 1.5; }
 			.uplot { background: #f4f4f4; }
 			.u-under { background: white; }
+			details { margin-top: 20px; max-width: 1200px; }
+			summary { cursor: pointer; }
 		</style>
 	</head>
 	<body>
 		<main id="demo">
 			<h1>Random labels: rotation and measured layout</h1>
 			<p>Layout and bars use the reusable <a href="lib/barChartPlugin.md">barChartPlugin</a>.</p>
-			<p>The label rotation slider changes the angle without changing the random Y values.
-			The longest displayed label determines the X axis height. Left/right padding uses each label’s width and position.
-			Measurements stay cached until the labels, font, or pixel ratio changes.</p>
-			<p>Horizontal bars swap the chart dimensions, then reduce the height to one quarter. The data stays the same.
-			Category labels stay unrotated on the left. Their measured width determines the space available for the numeric axis.</p>
-			<p>The two series appear side by side by default. Stack bars adds their values within each category.
-			Percent shows each series as a share of the positive or negative total. The legend keeps the original values.</p>
-			<p>Show values draws compact values outside grouped bars and inside stacked segments, with font sizes from 10px to 25px.
-			Value stacks also show positive and negative totals outside their ends. Percent stacks show segment percentages without totals.
-			Labels that do not fit are omitted.</p>
-			<p>Randomize data generates 3–15 items with one-to-three-word labels made from adjectives, nouns, and verbs.
-			Y values use random offsets and spreads across different magnitudes.
-			For vertical bars, the Y axis measures its formatted labels to set its width.
-			Grouped and value modes keep ticks at both Y bounds. Horizontal numeric ticks target 100px spacing.
-			Soft zero limits keep the bar baseline visible in both orientations. Percent mode uses bounds of −100%, 0%, or 100%.</p>
-			<p>The <code>?seed=&lt;seed&gt;</code> URL parameter reproduces the labels and both value series.
-			The 🔗 button copies a URL for the current data, without layout settings. Randomize data chooses a new seed.</p>
-			<p>Group distribution sets the gaps between category groups and at the plot edges.
-			Group width sets each group’s width as a percentage of the plot dimension divided by the category count.
-			Space around adds half a gap at each plot edge.</p>
-			<p>Bar distribution sets the gaps between bars and at the edges inside each group.
-			Bar width sets each bar’s width as a percentage of the group width divided by the number of visible bars or stacks.
-			At 100%, bars fill the group without gaps. A smaller width makes the distribution modes visible.
-			Stacked series share one bar position. These controls keep the data unchanged.</p>
-			<p>Gray shows the space outside the plot. All labels stay visible; shallow angles can make neighboring labels overlap.</p>
 			<div class="controls">
-				<label><input id="horizontal" type="checkbox"> Horizontal bars</label>
-				<label id="height-label" for="height">Chart height</label>
-				<input id="height" type="range" min="200" max="900" step="10" value="500">
-				<output id="height-value" for="height">500px</output>
+				<fieldset>
+					<legend>Geometry</legend>
+					<div class="control-row">
+						<span id="stacking-label">Stacking</span>
+						<div id="stacking" class="control-inputs" role="radiogroup" aria-labelledby="stacking-label">
+							<label><input id="stacking-off" type="radio" name="stacking" value="grouped" checked> Off</label>
+							<label><input id="stacking-normal" type="radio" name="stacking" value="value"> Normal</label>
+							<label><input id="stacking-percent" type="radio" name="stacking" value="percent"> Percent</label>
+						</div>
+					</div>
+					<div class="control-row">
+						<span id="orientation-label">Bars orientation</span>
+						<div id="orientation" class="control-inputs" role="radiogroup" aria-labelledby="orientation-label">
+							<label><input id="vertical" type="radio" name="orientation" value="vertical" checked> Vertical</label>
+							<label><input id="horizontal" type="radio" name="orientation" value="horizontal"> Horizontal</label>
+						</div>
+					</div>
+					<div class="control-row">
+						<span><label for="distribution">Group layout</label>/<label for="group-width">width</label></span>
+						<div class="control-inputs">
+							<select id="distribution">
+								<option value="1">Space between</option>
+								<option value="2" selected>Space around</option>
+								<option value="3">Space evenly</option>
+							</select>
+							<input id="group-width" type="range" min="1" max="100" step="1" value="60" aria-label="Group width">
+							<output id="group-width-value" for="group-width">60%</output>
+						</div>
+					</div>
+					<div class="control-row">
+						<span><label for="bar-distribution">Bar layout</label>/<label for="bar-width">width</label></span>
+						<div class="control-inputs">
+							<select id="bar-distribution">
+								<option value="1">Space between</option>
+								<option value="2" selected>Space around</option>
+								<option value="3">Space evenly</option>
+							</select>
+							<input id="bar-width" type="range" min="1" max="100" step="1" value="100" aria-label="Bar width">
+							<output id="bar-width-value" for="bar-width">100%</output>
+						</div>
+					</div>
+				</fieldset>
+				<fieldset>
+					<legend>Axis labels</legend>
+					<div class="control-row">
+						<label for="rotation">Rotation</label>
+						<div class="control-inputs">
+							<input id="rotation" type="range" min="-90" max="90" step="1" value="45">
+							<output id="rotation-value" for="rotation">45°</output>
+						</div>
+					</div>
+					<div class="control-row">
+						<label for="label-spacing">Min spacing</label>
+						<div class="control-inputs">
+							<input id="label-spacing" type="range" min="0" max="300" step="5" value="0">
+							<output id="label-spacing-value" for="label-spacing">0px</output>
+						</div>
+					</div>
+					<div class="control-row">
+						<label for="max-length">Max chars</label>
+						<div class="control-inputs">
+							<input id="max-length" type="range" min="0" max="20" step="1" value="0">
+							<output id="max-length-value" for="max-length">Off</output>
+						</div>
+					</div>
+					<div class="control-row">
+						<span id="ellipsis-label">Ellipsis</span>
+						<div id="ellipsis" class="control-inputs" role="radiogroup" aria-labelledby="ellipsis-label">
+							<label><input id="end-ellipsis" type="radio" name="ellipsis" value="end" checked> End</label>
+							<label><input id="middle-ellipsis" type="radio" name="ellipsis" value="middle"> Middle</label>
+						</div>
+					</div>
+				</fieldset>
+				<fieldset>
+					<legend>Rendering</legend>
+					<div class="control-row">
+						<span>Totals</span>
+						<div class="control-inputs">
+							<label><input id="show-totals" type="checkbox"> Show group totals</label>
+						</div>
+					</div>
+					<div class="control-row">
+						<span>Values</span>
+						<div class="control-inputs">
+							<label><input id="show-values" type="checkbox"> Show values</label>
+						</div>
+					</div>
+					<div class="control-row">
+						<span id="hover-label">Hover</span>
+						<div id="hover-mode" class="control-inputs" role="radiogroup" aria-labelledby="hover-label">
+							<label><input id="hover-bar" type="radio" name="hover-mode" value="bar" checked> Bar</label>
+							<label><input id="hover-group" type="radio" name="hover-mode" value="group"> Group</label>
+						</div>
+					</div>
+				</fieldset>
+				<fieldset>
+					<legend>Data</legend>
+					<div class="control-row">
+						<label for="series-count">Series</label>
+						<div class="control-inputs">
+							<input id="series-count" type="range" min="1" max="5" step="1" value="2">
+							<output id="series-count-value" for="series-count">2</output>
+						</div>
+					</div>
+					<div class="control-row">
+						<span>Dataset</span>
+						<div class="control-inputs">
+							<button id="randomize" type="button">Randomize data</button>
+							<button id="copy-link" type="button" aria-label="Copy data URL" title="Copy data URL">🔗</button>
+							<output id="copy-status" aria-live="polite"></output>
+						</div>
+					</div>
+				</fieldset>
 			</div>
-			<div class="controls">
-				<label><input id="stacked" type="checkbox"> Stack bars</label>
-				<label><input id="percent" type="checkbox" disabled> Percent</label>
-				<label><input id="show-values" type="checkbox"> Show values</label>
+			<div id="chart-resize">
+				<div id="plot"></div>
+				<div id="chart-legend"></div>
 			</div>
-			<div class="controls">
-				<label for="distribution">Group distribution</label>
-				<select id="distribution">
-					<option value="1">Space between</option>
-					<option value="2" selected>Space around</option>
-					<option value="3">Space evenly</option>
-				</select>
-				<label for="group-width">Group width</label>
-				<input id="group-width" type="range" min="1" max="100" step="1" value="60">
-				<output id="group-width-value" for="group-width">60%</output>
-			</div>
-			<div class="controls">
-				<label for="bar-distribution">Bar distribution</label>
-				<select id="bar-distribution">
-					<option value="1">Space between</option>
-					<option value="2" selected>Space around</option>
-					<option value="3">Space evenly</option>
-				</select>
-				<label for="bar-width">Bar width</label>
-				<input id="bar-width" type="range" min="1" max="100" step="1" value="100">
-				<output id="bar-width-value" for="bar-width">100%</output>
-			</div>
-			<div class="controls">
-				<label for="rotation">Label rotation</label>
-				<input id="rotation" type="range" min="-90" max="90" step="1" value="45">
-				<output id="rotation-value" for="rotation">45°</output>
-				<button id="randomize" type="button">Randomize data</button>
-				<button id="copy-link" type="button" aria-label="Copy data URL" title="Copy data URL">🔗</button>
-				<output id="copy-status" aria-live="polite"></output>
-			</div>
-			<div class="controls">
-				<label><input id="truncate" type="checkbox"> Limit label length</label>
-				<label><input id="middle-ellipsis" type="checkbox" disabled> Ellipsis in middle (otherwise at end)</label>
-			</div>
-			<div class="controls">
-				<label for="max-length">Maximum characters</label>
-				<input id="max-length" type="range" min="4" max="20" step="1" value="10" disabled>
-				<output id="max-length-value" for="max-length">10</output>
-			</div>
-			<p>The character limit includes the ellipsis. The legend keeps the full label.</p>
 			<output id="stats" aria-live="polite"></output>
-			<div id="plot"></div>
+			<p>Drag the chart’s lower-right corner to resize it.</p>
+			<details>
+				<summary>About this demo</summary>
+				<p>The label rotation slider changes the angle without changing the random Y values.
+				The longest label after truncation determines the X axis height. Left/right padding uses each label’s width and position.
+				Measurements stay cached until the labels, font, or pixel ratio changes.</p>
+				<p>Orientation changes preserve the chart dimensions and data.
+				Horizontal category labels stay unrotated on the left. Their measured width determines the space available for the numeric axis.</p>
+				<p>Stacking is Off by default, so the series appear side by side. Normal adds their values within each category.
+				Percent shows each series as a share of the positive or negative total. The legend keeps the original values.</p>
+				<p>Show values draws compact values outside grouped bars and inside stacked segments, with font sizes from 10px to 25px.
+				Value stacks also show positive and negative totals outside their ends. Percent stacks show segment percentages without totals.
+				Labels that do not fit are omitted.</p>
+				<p>Bar hover selects one bar. Group hover highlights the full category behind the bars, including gaps.
+				The legend shows all visible series for that category.</p>
+				<p>Randomize data generates 3–15 items with one-to-three-word labels made from adjectives, nouns, and verbs.
+				Y values use random offsets and spreads across different magnitudes.
+				For vertical bars, the Y axis measures its formatted labels to set its width.
+				Grouped and value modes keep ticks at both Y bounds. Horizontal numeric ticks target 100px spacing.
+				Soft zero limits keep the bar baseline visible in both orientations. Percent mode uses bounds of −100%, 0%, or 100%.</p>
+				<p>The Series slider selects 1–5 component series. Changing the count keeps the seed and rebuilds the chart at its current size.
+				Existing seeded values remain the same. Randomize data chooses a new seed.</p>
+				<p>The <code>?seed=&lt;seed&gt;</code> URL parameter reproduces the labels and values. The optional <code>series</code> parameter sets the series count.
+				The 🔗 button copies a URL for the current data and series count, without layout settings.</p>
+				<p>Group distribution sets the gaps between category groups and at the plot edges.
+				Group width sets each group’s width as a percentage of the plot dimension divided by the category count.
+				Space around adds half a gap at each plot edge.</p>
+				<p>Bar distribution sets the gaps between bars and at the edges inside each group.
+				Bar width sets each bar’s width as a percentage of the group width divided by the number of visible bars or stacks.
+				At 100%, bars fill the group without gaps. A smaller width makes the distribution modes visible.
+				Stacked series share one bar position. These controls keep the data unchanged.</p>
+				<p>Gray shows the space outside the plot. The default minimum label spacing of 0px shows all labels.
+				Larger spacing thins labels without changes to bars or ticks. Neighboring labels can still overlap.</p>
+			</details>
 		</main>
 		<script type="module">
 			import { createDemo } from './axis-label-rotation.js';
