@@ -169,6 +169,31 @@ describe('DOM options', () => {
 		});
 	}
 
+	for (const dom of [{}, { over: false, under: false }]) {
+		it(`splits a merged root when a plugin enables the legend (${dom.over === false ? 'without' : 'with'} layers)`, async () => {
+			const u = plot({
+				dom,
+				legend: { show: false },
+				plugins: [{ opts(self, opts) {
+					assert.ok(self.root.classList.contains('u-wrap'), 'plugin opts still sees the merged root');
+					opts.legend = { show: true };
+				} }],
+			});
+			await frame();
+			const wrap = u.root.querySelector('.u-wrap');
+			assert.ok(wrap, 'nested wrap');
+			assert.equal(u.root.classList.contains('u-wrap'), false);
+			assert.equal(wrap.parentElement, u.root);
+			const layers = [u.under, canvas(u), u.over].filter(Boolean);
+			assert.deepEqual([...wrap.children].slice(0, layers.length), layers);
+			assert.ok(u.axes.every(a => a._el.parentElement === wrap));
+			const legend = u.root.querySelector('.u-legend');
+			assert.equal(legend.parentElement, u.root, 'legend is outside the sized wrap');
+			assert.ok(wrap.style.width && wrap.style.height);
+			assert.equal(u.root.style.width, '');
+		});
+	}
+
 	for (const [name, options, nested] of [
 		['default nested wrap', {}, true],
 		['title-only nested wrap', { title: 'Input title', legend: { show: false } }, true],
