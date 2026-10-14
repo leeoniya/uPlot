@@ -131,8 +131,8 @@ declare class uPlot {
 	/** converts a value along x to the closest data index */
 	valToIdx(val: number): number;
 
-	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
-	syncRect(defer?: boolean): void;
+	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize). only present on cursor-enabled charts */
+	syncRect?(defer?: boolean): void;
 
 	/** clears selected caches without a redraw. defaults to all categories. see docs for disposal restrictions */
 	clearCache(targets?: uPlot.CacheOptions): void;
@@ -1225,10 +1225,10 @@ declare namespace uPlot {
 		/** target grid & tick spacing in CSS pixels; horizontal tick-aware ranging passes raw extrema to callbacks */
 		space?: Axis.Space;
 
-		/** tick-count growth factor for tick-aware Y ranging. 0 retains two edge ticks */
+		/** tick-count growth factor for tick-aware ranging (scale.axis). 0 retains two edge ticks */
 		ramp?: number; // 1
 
-		/** enforces the dimension/ramp-derived interval count for tick-aware Y ranging */
+		/** enforces the dimension/ramp-derived interval count for tick-aware ranging (scale.axis) */
 		exact?: boolean; // false
 
 		/** available divisors for axis ticks, values, grid */
