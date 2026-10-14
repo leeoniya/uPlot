@@ -1,8 +1,12 @@
 import { readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite-plus";
 import type { PackUserConfig } from "vite-plus/pack";
 
-const pkg = JSON.parse(readFileSync("./package.json", "utf8"));
+// resolve from the config file, not the cwd (e.g. nested test runs)
+const path = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
+
+const pkg = JSON.parse(readFileSync(path("./package.json"), "utf8"));
 const urlVer = "https://github.com/leeoniya/uPlot (v" + pkg.version + ")";
 
 const banner = [
@@ -29,11 +33,11 @@ function cssmin(css: string) {
 const staticAssets = {
 	name: "uplot-static-assets",
 	buildStart() {
-		writeFileSync("./dist/uPlot.min.css", cssmin(readFileSync("./src/uPlot.css", "utf8")));
+		writeFileSync(path("./dist/uPlot.min.css"), cssmin(readFileSync(path("./src/uPlot.css"), "utf8")));
 
 		// CommonJS typings for require("uplot"), derived from the hand-written ESM typings
-		let dts = readFileSync("./dist/uPlot.d.ts", "utf8");
-		writeFileSync("./dist/uPlot.d.cts", dts.replace(/^export default uPlot;$/m, "export = uPlot;"));
+		let dts = readFileSync(path("./dist/uPlot.d.ts"), "utf8");
+		writeFileSync(path("./dist/uPlot.d.cts"), dts.replace(/^export default uPlot;$/m, "export = uPlot;"));
 	},
 };
 
@@ -74,6 +78,29 @@ export default defineConfig({
 		lib("iife", "uPlot.iife.js"),
 		lib("iife", "uPlot.iife.min.js", { minify: true, banner: "/*! " + urlVer + " */" }),
 	],
+	test: {
+		// tests use mocha-style globals (describe, it, beforeEach, ...)
+		globals: true,
+		projects: [
+			{
+				extends: true,
+				test: { name: "unit", include: ["test/*.mjs"], exclude: ["test/demos.mjs"] },
+			},
+			{
+				extends: true,
+				// spawns the demos HTTP server
+				test: { name: "server", include: ["test/server/*.mjs"] },
+			},
+		],
+		coverage: {
+			// istanbul matches the previous nyc/istanbul numbers; v8 counts differently
+			provider: "istanbul",
+			include: ["src/**/*.js"],
+			exclude: ["src/paths/catmullRomCentrip.js"],
+			reporter: ["text"],
+			reportOnFailure: true,
+		},
+	},
 	fmt: {},
 	lint: {
 		jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],

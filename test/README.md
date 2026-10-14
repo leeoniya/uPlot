@@ -49,7 +49,7 @@ The recorder normalizes signed-zero drawing arguments because JSON stores `-0` a
 Run the migration regressions:
 
 ```sh
-npm test -- --grep '^demo migrations'
+npm test -- -t '^demo migrations'
 ```
 
 ## Points demo snapshots
@@ -70,7 +70,7 @@ These snapshots cover the initial DOM and canvas commands, not hovered markers.
 Run the points snapshots and extraction tests:
 
 ```sh
-node --max-old-space-size=256 --import ./scripts/register-hooks.mjs node_modules/mocha/bin/mocha.js --no-config --no-package --reporter spec test/demo-extractions.mjs test/test.mjs --grep 'demo extraction support|^points '
+NODE_OPTIONS=--max-old-space-size=256 npx vp test run --project unit test/demo-extractions.mjs test/test.mjs -t 'demo extraction support|^points >'
 ```
 
 ## Mouse-driven selection regressions
@@ -95,10 +95,10 @@ Mouse events include explicit `movementX` and `movementY` values. Assertions for
 
 These tests do not verify browser hit testing, native CSS layout, or rasterized appearance.
 
-Run the selection and layout tests sequentially in one process:
+Run the selection and layout tests one file at a time:
 
 ```sh
-node --max-old-space-size=256 node_modules/mocha/bin/mocha.js --no-config --no-package --reporter dot test/cursor-drag.mjs test/layout.mjs
+NODE_OPTIONS=--max-old-space-size=256 npx vp test run --project unit --no-file-parallelism test/cursor-drag.mjs test/layout.mjs
 ```
 
 ## Cursor marker alignment regressions
@@ -121,7 +121,7 @@ These tests verify geometric centers. They do not compare browser antialiasing o
 Run the alignment tests:
 
 ```sh
-node --max-old-space-size=256 node_modules/mocha/bin/mocha.js --no-config --no-package --reporter dot test/cursor-points.mjs
+NODE_OPTIONS=--max-old-space-size=256 npx vp test run --project unit test/cursor-points.mjs
 ```
 
 ### Native hover performance benchmark
@@ -158,10 +158,10 @@ The tests cover:
 
 These tests verify state, inline styles, and hooks. They do not verify native browser layout or hit testing.
 
-Run the legend, selection, and layout tests sequentially in one process:
+Run the legend, selection, and layout tests one file at a time:
 
 ```sh
-node --max-old-space-size=256 node_modules/mocha/bin/mocha.js --no-config --no-package --reporter dot test/legend.mjs test/cursor-drag.mjs test/layout.mjs
+NODE_OPTIONS=--max-old-space-size=256 npx vp test run --project unit --no-file-parallelism test/legend.mjs test/cursor-drag.mjs test/layout.mjs
 ```
 
 ## Decimal precision regressions
@@ -174,7 +174,7 @@ Sources and expected behavior are documented in
 Run the historical regression cases:
 
 ```sh
-npx mocha 'test/precision-*.mjs'
+npx vp test run --project unit test/precision-
 ```
 
 The previously pending #827, #620, and #1084 cases now run by default.
@@ -185,20 +185,16 @@ Low-level termination tests do not promise valid rendering for equal custom boun
 
 All 24 chart and tick probes run sequentially in one child process.
 The worker registers Happy DOM and imports chart modules once before it reports readiness.
-Each probe remains a separate Mocha test. Each chart has fresh data and options, with cleanup in `finally`.
+Each probe remains a separate test. Each chart has fresh data and options, with cleanup in `finally`.
 
 The parent starts an execution timer before each request and clears it after the result.
 The three degenerate-range probes retain their 100 ms execution limit. Other probes retain their five-second execution limit.
 Startup and shutdown each have a separate five-second limit. Node workers retain the 128 MiB heap limit, and POSIX workers disable core dumps.
 A timeout or crash fails the current test. The next test starts a replacement only after the failed worker closes.
-An ordinary assertion failure also replaces the worker, after a normal exit to flush coverage.
+An ordinary assertion failure also replaces the worker, after a normal exit.
 
-Coverage counters accumulate in the worker and flush on normal shutdown. Forced termination can discard buffered coverage, but cannot count as a passing test.
-The main process and worker share a temporary cache of instrumented source, not runtime state.
-Cache entries depend on the filename, source content, and coverage configuration. Cached code retains its source map.
-The process that creates the cache removes it on exit. Children do not remove an inherited cache.
-Without the coverage preload, the precision suite creates and removes its own cache.
-The existing loader test explicitly checks imports without a DOM, instead of relying on numeric-only subprocesses to exercise that path.
+Code coverage covers the test processes only, not child processes such as this worker.
+`test/legend-build.mjs` explicitly checks imports without a DOM, instead of relying on numeric-only subprocesses to exercise that path.
 
 `test/probe-worker.mjs` covers reuse, assertion failures, crashes, synchronous hangs, startup failures, invalid replies, shutdown failures, and active-request cancellation.
 It also verifies normal exit hooks and rejects concurrent requests. The watchdog tests use small fixtures, not repeated chart imports.
@@ -215,7 +211,7 @@ Both runs included the new cache and watchdog regressions.
 | Measurement | One process per probe | Sequential worker |
 | --- | ---: | ---: |
 | Full command, including coverage reporting | 37.37 s | 17.98 s |
-| Mocha execution | 32.75 s | 13.83 s |
+| Test execution | 32.75 s | 13.83 s |
 | Precision test bodies | 20.17 s | 1.14 s |
 
 The precision suite improved by approximately 94%, and the full command improved by approximately 52%.
@@ -227,27 +223,7 @@ No precision cases or assertions were removed. The per-case execution limits and
 The execution timer no longer includes process shutdown or coverage serialization.
 The investigation rejected Node compilation caching and an exclusion-filter shortcut.
 
-### Follow-up: test harness overhead
-
-NYC's spawn hook added its preload to child processes even when lifecycle fixtures cleared `NODE_OPTIONS`.
-Both runtimes now use the instrumentation preload to write per-process coverage. The harness uses Istanbul libraries directly to generate the report after the tests.
-The worker regression verifies that a fixture can disable the preload. It also verifies the worker's coverage file under both runtimes.
-All lifecycle cases and deadlines remain unchanged.
-
-The loader regression now instruments `src/dom.js` instead of the larger `src/utils.js`.
-It still verifies project configuration, include/exclude rules, executed coverage counters, imports without a DOM, and cache cleanup ownership.
-The failure-report regression retains two separate invocations to verify failing and passing exit statuses, report contents, and stale-report removal.
-
-Sequential full runs passed the same 554 tests before and after these changes:
-
-| Measurement | Node before | Node after | Bun before | Bun after |
-| --- | ---: | ---: | ---: | ---: |
-| Worker lifecycle test bodies | 3.83 s | 1.70 s | 0.89 s | 0.90 s |
-| Coverage-loader test bodies | 1.24 s | 0.92 s | 1.64 s | 0.98 s |
-| Full command, including coverage reporting | 17.59 s | 15.47 s | 12.08 s | 11.23 s |
-
-These are single-run measurements, not timing guarantees. Unchanged test groups also varied with machine load.
-Statement, function, and branch hit sets were identical before and after, and across both runtimes.
+These measurements predate the move from Mocha and NYC/Istanbul to `vp test` (Vitest).
 
 ### Benchmark increment generation and metadata
 
@@ -296,53 +272,26 @@ No server or network access is required. Rendering uses the browser's fonts and
 rasterization rather than pre-rendered PNG images. Snapshot comparisons still
 use the recorded commands, not pixels.
 
-## Node and Bun runtimes
+## Test runner
 
-Both runtimes use `scripts/test.mjs`. The runner detects `process.versions.bun` and prints the selected runtime before the tests start.
-There is no separate Bun test implementation.
-The project's `bunfig.toml` sets `[run] bun = true`, so `bun run` uses Bun even when a script specifies `node`.
-This configuration applies to all `bun run` scripts. It does not affect npm.
+The tests run with [`vp test`](https://viteplus.dev/) (Vitest), configured in `vite.config.ts`.
+Tests use Vitest globals (`describe`, `it`, `beforeEach`, ...). Each test file runs in its own worker process.
 
-| Command | Runtime |
+| Command | Purpose |
 | --- | --- |
-| `npm test` | Node |
-| `bun run test` | Bun |
-| `node scripts/test.mjs` | Node |
-| `bun scripts/test.mjs` | Bun |
+| `npm test` | Unit and snapshot tests with Istanbul coverage (`--project unit --coverage`) |
+| `npm run test:update` | Record snapshots |
+| `npm run test:server` | Demo HTTP server tests (`--project server`) |
 
-The shared runner detects the actual runtime.
-Bare `bun test` invokes Bun's built-in test runner, not this Mocha harness.
-Both modes use the same Mocha tests, snapshots, Istanbul instrumentation, and file-selection rules.
-Mocha and the coverage reporter run under the selected runtime.
-
-Both runtimes use the instrumentation preload to write one coverage file per process on normal exit.
-Node writes to `.nyc_output`. Bun writes to `.nyc_output/bun`. The harness merges these files and generates the final Istanbul report without wrapping the test processes.
-Node children inherit the preload through `NODE_OPTIONS`, unless a fixture explicitly clears it.
-The Bun precision worker receives an explicit preload because child processes do not inherit the parent's `--preload` flag.
-The worker-coverage regression verifies instrumentation and the coverage file after normal shutdown under both runtimes.
-Each Bun run clears `.nyc_output/bun`. A Node test run clears `.nyc_output`, including the Bun results.
-
-Full validation passed 554 tests under Node 26.8.2 and Bun 1.4.3, with identical Istanbul statement, function, and branch hit sets.
-Both launcher paths returned status 1 for Mocha's `--fail-zero` check and status 2 for a fixture with two failing tests.
-The two-failure runs also generated coverage reports.
-
-Mocha arguments pass through to the shared runner:
+Vitest arguments pass through:
 
 ```sh
-npm test -- --grep '^area-fill '
-bun run test --grep '^area-fill '
+npm test -- -t '^area-fill >'
+npx vp test run --project unit test/legend.mjs
 ```
 
-The Bun loader selects source files at startup. Files created later in the run
-are not instrumented. The current suite uses existing source files.
-
-To record snapshots under Bun, run:
-
-```sh
-bun run test:update
-```
-
-This command replaces snapshots. Both runtimes share the same snapshot files.
+Full test names join the suite and test titles with ` > `, e.g. `area-fill > 0-0`.
+Coverage includes `src/**/*.js` and reports even when tests fail.
 
 ## Record snapshots
 
@@ -402,8 +351,6 @@ Update mode does not remove obsolete snapshots.
 The following commands skip coverage and limit the JavaScript heap to 256 MiB.
 
 ```sh
-UPDATE=1 node --max-old-space-size=256 --import ./scripts/register-hooks.mjs ./node_modules/mocha/bin/mocha.js --grep '^multi-bars '
-node --max-old-space-size=256 --import ./scripts/register-hooks.mjs ./node_modules/mocha/bin/mocha.js --grep '^multi-bars '
+UPDATE=1 NODE_OPTIONS=--max-old-space-size=256 npx vp test run --project unit test/test.mjs -t '^multi-bars >'
+NODE_OPTIONS=--max-old-space-size=256 npx vp test run --project unit test/test.mjs -t '^multi-bars >'
 ```
-
-For multiple demos, run one process at a time.

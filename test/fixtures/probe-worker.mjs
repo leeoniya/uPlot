@@ -1,5 +1,4 @@
 import { writeFileSync, writeSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { serveProbes } from '../../scripts/probe-worker.mjs';
 
 const mode = process.env.UPLOT_WORKER_TEST_MODE;
@@ -32,14 +31,7 @@ else {
 		count() { return ++count; },
 		pid() { return process.pid; },
 		environment() {
-			return { nodeOptions: process.env.NODE_OPTIONS, coverageDir: process.env.UPLOT_COVERAGE_DIR ?? null };
-		},
-		async coverage() {
-			const { rangeNum } = await import('../../src/utils.js');
-			rangeNum(0, 10, 0.1, true);
-			const filename = fileURLToPath(new URL('../../src/utils.js', import.meta.url));
-			const counters = globalThis.__coverage__?.[filename];
-			return counters != null && Object.values(counters.f).some(count => count > 0);
+			return { nodeOptions: process.env.NODE_OPTIONS };
 		},
 		fail() { throw new Error('intentional assertion failure'); },
 		crash() {

@@ -4,9 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
 
-describe('legend build artifacts', function() {
-	it('loads source and every distribution without a DOM and exposes public utilities', function() {
-		this.timeout(6000);
+describe('legend build artifacts', () => {
+	it('loads source and every distribution without a DOM and exposes public utilities', { timeout: 6000 }, () => {
 
 		const output = execFileSync(process.execPath, [
 			'--max-old-space-size=128', '--input-type=module', '-e', `

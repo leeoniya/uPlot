@@ -1,35 +1,18 @@
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { createProbeWorker } from '../scripts/probe-worker.mjs';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 const helper = fileURLToPath(new URL('../scripts/precision-probe.mjs', import.meta.url));
 
-describe('precision: source scale ranging and axis splits', function() {
-	this.timeout(15000); // Parent enforces separate startup, execution, and shutdown limits.
+// Parent enforces separate startup, execution, and shutdown limits.
+describe('precision: source scale ranging and axis splits', { timeout: 15000 }, () => {
 	let worker;
-	let instrumentCacheDir;
-	let ownsCache = false;
 
-	before(() => {
-		instrumentCacheDir = process.env.UPLOT_INSTRUMENT_CACHE_DIR;
-		if (instrumentCacheDir == null) {
-			instrumentCacheDir = mkdtempSync(join(tmpdir(), 'uplot-precision-'));
-			ownsCache = true;
-		}
-		worker = createProbeWorker({
-			cwd, helper,
-			env: { ...process.env, UPLOT_INSTRUMENT_CACHE_DIR: instrumentCacheDir },
-		});
+	beforeAll(() => {
+		worker = createProbeWorker({ cwd, helper });
 	});
-	after(async () => {
-		try { await worker?.close(); }
-		finally {
-			if (ownsCache)
-				rmSync(instrumentCacheDir, { recursive: true, force: true });
-		}
+	afterAll(async () => {
+		await worker?.close();
 	});
 
 	// Source URLs, exact versus derived parameters, and numerical assertions are

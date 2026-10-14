@@ -53,33 +53,18 @@
     "build": "vp pack",
     "bench:legend": "node --max-old-space-size=96 ./scripts/bench-legend.mjs",
     "demos": "node ./scripts/demos.mjs",
-    "test": "node ./scripts/test.mjs",
-    "test:server": "mocha test/server/*.mjs",
-    "test:update": "UPDATE=1 node ./scripts/test.mjs"
+    "test": "vp test run --project unit --coverage",
+    "test:server": "vp test run --project server",
+    "test:update": "UPDATE=1 vp test run --project unit"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.14.5",
-    "@istanbuljs/load-nyc-config": "^1.1.0",
+    "@vitest/coverage-istanbul": "^5.0.3",
     "happy-dom": "^20.14.5",
-    "istanbul-lib-coverage": "^3.2.2",
-    "istanbul-lib-instrument": "^6.0.3",
-    "istanbul-lib-report": "^3.0.1",
-    "istanbul-reports": "^3.2.0",
     "json-stringify-pretty-compact": "^4.0.0",
-    "mocha": "^12.0.2",
-    "test-exclude": "^8.0.0",
     "vite-plus": "1.1.0"
   },
   "overrides": {
     "vite": "npm:@voidzero-dev/vite-plus-core@1.1.0"
-  },
-  "nyc": {
-    "exclude": [
-      "src/paths/catmullRomCentrip.js"
-    ],
-    "include": [
-      "dist/**/*.esm.js",
-      "src/**/*.js"
-    ]
   }
 }
