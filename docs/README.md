@@ -37,7 +37,7 @@ uPlot expects a columnar data format as shown above.
 
 - x-values must be numbers, unique, and in ascending order.
 - y-values must be numbers (or `null`s for missing data).
-- x-values and y-values arrays must be of equal lengths >= 2.
+- x-values and y-values arrays must be of equal lengths. Empty and single-point datasets are allowed; a single x-value is expanded to a non-zero range (+1 day on time scales, padding on numeric scales).
 
 By default, x-values are assumed to be [unix timestamps](https://en.wikipedia.org/wiki/Unix_time) (seconds since 1970-01-01 00:00:00) but can be treated as plain numbers via `scales.x.time = false`.
 JavaScript uses millisecond-precision timestamps, but this precision is rarely necessary on calendar-aware `time: true` scales/plots, which honor DST, timezones, leap years, etc.
@@ -88,11 +88,11 @@ let opts = {
 let uplot = new uPlot(opts, data, document.body);
 ```
 
-- `id` and `class` are optional HTML attributes to set on the chart's container `<div>` (`uplot.root`).
+- `id` and `class` are optional HTML attributes to set on the chart's root element (`uplot.root`). This is the container `<div>`, or the canvas with `dom.uplot: false`.
 - `width` and `height` are required dimensions in plotting area, axes & ticks, but **excluding** `title` or `legend` dimensions (which can be variable based on user CSS).
 - `spanGaps` can be set to `true` to connect `null` data points.
 - For a series to be rendered, it **must** be specified in the opts; simply having it in the data is insufficient.
-- All series' options are optional; `label` will default to "Value" and `stroke` will default to "black".
+- All series' options are optional; `label` will default to "Value". `stroke` has no default, so a series without `stroke` (or `fill`) is not visible.
 - `width` is the series' line width in CSS pixels.
 - `stroke`, `width`, `fill`, and `dash` map directly to Canvas API's [ctx.strokeStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeStyle), [ctx.lineWidth](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineWidth), [ctx.fillStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fillStyle), and [ctx.setLineDash](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash).
 
@@ -147,8 +147,10 @@ A missing overlay or underlay has the value `null` in `u.over` or `u.under`.
 
 Without `.u-over`, `u.rect` returns `null` without measuring the canvas or firing a `syncRect` hook.
 With `.u-over`, rectangle measurement is unchanged. Only cursor-enabled charts expose `u.syncRect()` and invalidate the rectangle cache on scroll and window resize.
+With `.u-over` but `cursor.show: false`, only layout changes invalidate `u.rect`, so it can be stale after scrolling.
 
-Plugin `opts` callbacks receive the root, canvas context, and any enabled layers. The constructor options determine this DOM before plugins run.
+Plugin `opts` callbacks receive the root, canvas context, and any enabled layers. The constructor options fix `dom.*`, the title, `.u-over`, `.u-under`, root/wrap merging, and `cache.*` before plugins run, so plugins cannot change them.
+The legend, cursor, selection, and `axes[i].dom` use the plugin-modified options. Root/wrap merging uses the original `legend.show`, so a plugin that enables the legend on a merged root appends it into that fixed-size root.
 For a merged root, `u.root.querySelector(".u-wrap")` returns `null` because the root itself is the wrapper.
 A root-inclusive lookup is `u.root.matches(".u-wrap") ? u.root : u.root.querySelector(".u-wrap")`.
 Borders and padding belong on an external host, not the merged root or canvas.
@@ -195,7 +197,7 @@ They are required due to the way uPlot sets defaults:
 
 - `data[0]`, `series[0]` and `axes[0]` represent & inherit `x` defaults, e.g:
 
-  - `"x"` scale w/ `auto: false`
+  - `"x"` scale, ranged from the first and last `data[0]` values (`series[0]` is not scanned for extrema)
   - temporal
   - hz orientation, bottom position
   - larger minimum tick spacing
@@ -232,7 +234,7 @@ let opts = {
       stroke: "red",
       scale: "%",
       value: (self, rawValue) => rawValue == null ? '' : rawValue.toFixed(1) + "%",
-    }
+    },
     {
       label: "RAM",
       stroke: "blue",
@@ -302,6 +304,7 @@ let opts = {
       ],
     }
   },
+};
 ```
 
 - `from` specifies the scale on which this one depends.
@@ -476,7 +479,7 @@ let opts = {
 }
 ```
 
-- `size` & `labelSize` represent the perpendicular dimensions assigned to `values` and `labels` DOM elements, respectively. In the above example, the full width of this y-axis would be 30 + 50; for an x-axis, it would be its height.
+- `size` & `labelSize` represent the perpendicular dimensions reserved for the axis `values` and `label`, respectively. Both are drawn on the canvas; each axis only gets an empty `.u-axis` DOM rectangle (e.g. for mouse interaction), which `axes[i].dom: false` omits. In the above example, the full width of this y-axis would be 30 + 50; for an x-axis, it would be its height.
 - `gap` is the space between axis ticks and `values`.
 
 Customizing the tick/grid spacing, value formatting and granularity is somewhat more involved:
@@ -524,30 +527,31 @@ let opts = {
 ```
 
 - `space` is the tick selection target in CSS pixels. A smaller target selects smaller divisors. It also accepts `(self, axisIdx, scaleMin, scaleMax, dim) => space`, where `dim` is the plot dimension along the axis in CSS pixels. Horizontal selection uses the provisional width. Final spacing can be smaller after overflow padding.
-- `incrs` are divisors available for segmenting the axis to produce ticks. can also be a function of the form `(self) => divisors`.
+  For a horizontal axis with tick-aware ranging (`scale.axis`), the callback runs once during layout with the raw data extrema instead of scale bounds, and only when both extrema exist (otherwise `50` is used). Setting `space` on a vertical axis disables its tick-aware ranging; when active, vertical tick-aware ranging uses a fixed space of `50`.
+- `incrs` are divisors available for segmenting the axis to produce ticks. can also be a function of the form `(self, axisIdx, scaleMin, scaleMax, fullDim, minSpace) => divisors`. Setting `incrs` (or `splits`) disables tick-aware ranging for that axis.
 - `nice` controls calendar adjustments in the built-in time-axis splits. Its defaults are `{dst: true, first: false}`.
   - `dst: true` realigns multi-hour ticks to a local-midnight cadence across DST transitions. `false` keeps uniform elapsed-time intervals. Day-based ticks retain their local-midnight correction with either setting.
   - `first: true` enforces month-start ticks for multi-day increments and removes a preceding tick if the spacing is too small. `false` continues the cadence across month boundaries without forcing a tick on the first. Monthly and yearly increments are unchanged.
 - `values` can be:
-  - a function with the form `(self, ticks, space) => values` where `ticks` is an array of raw values along the axis' scale, `space` is the determined tick spacing in CSS pixels and `values` is an array of formatted tick labels.
+  - a function with the form `(self, splits, axisIdx, foundSpace, foundIncr) => values` where `splits` is an array of raw tick values along the axis' scale, `foundSpace` is the determined tick spacing in CSS pixels, `foundIncr` is the selected increment, and `values` is an array of formatted tick labels (same length as `splits`).
   - array of tick formatters with breakpoints.
 
 ---
 #### Axis Layout & Padding
 
-Layout uses a fixed, height-first order without convergence cycles. Scale ranges currently precede layout. This order retains insertion points for future scale ranging after the plot height or width becomes available.
+Layout uses a fixed, height-first order without convergence cycles. Ordinary scale ranging precedes layout. Scales with tick-aware ranging (`scale.axis`) store raw extrema before layout and receive their final bounds during layout, once the relevant plot dimension is known (steps 3 and 4).
 
 1. Each horizontal `axis.size` callback receives `(self, null, axisIdx)` once before ticks. It reserves the full axis height, including space for rotation, truncation, and multiline labels. Vertical axes have no preliminary reservation call.
 2. Padding callbacks on all sides receive the `Layout` (0) phase to establish baseline padding before vertical ticks. The horizontal axis heights and baseline padding determine the fixed plot height.
-3. uPlot selects and formats vertical ticks at that height. Each vertical `axis.size` callback receives `(self, values, axisIdx)` once to determine its width. `values` contains the formatted labels, or `[]` if there are no ticks. Vertical size callbacks never receive `null`.
-4. uPlot selects and formats horizontal ticks at the provisional width, which includes vertical axis sizes and baseline padding.
+3. Vertical tick-aware scales are ranged at that height. uPlot then selects and formats vertical ticks at that height. Each vertical `axis.size` callback receives `(self, values, axisIdx)` once to determine its width. `values` contains the formatted labels, or `[]` if there are no ticks. Vertical size callbacks never receive `null`.
+4. Horizontal tick-aware scales (non-x scales with `ori: 0`, e.g. horizontal bars) are ranged at the provisional width, which includes vertical axis sizes and baseline padding. uPlot then selects and formats horizontal ticks at that width.
 5. Only left and right padding callbacks receive the `Overflow` (1) phase. Both callbacks see the same baseline padding and geometry. Each callback returns its final total padding in CSS pixels, not a delta. uPlot then applies both totals to determine the final width.
 
 Top and bottom padding stay fixed after ticks. Horizontal `axis.size` callbacks never receive actual labels. Overflow does not select or format ticks again, so final horizontal spacing can be smaller than the `axis.space` target.
 
 Plot dimensions must remain positive after axis sizes and padding. Behavior for nonpositive plot dimensions is undefined.
 
-**Side participation:** `sidesWithAxes` derives from axis configuration at initialization, not from size callback results. Hidden or inactive axes do not participate. For visible, active axes:
+**Side participation:** `sidesWithAxes` is rebuilt on each layout pass from axis configuration and visibility, not from size callback results. Hidden axes, and axes whose scale currently has no range, do not participate. For visible, active axes:
 
 - A positive numeric `size` or a size callback makes the axis participate.
 - A size callback still makes the axis participate if it returns zero.
@@ -593,7 +597,7 @@ u.clearCache({ data: true });  // Data only.
 u.clearCache({});              // Nothing.
 ```
 
-Data disposal replaces retained columns with empty arrays while preserving the dataset structure, including mode-2 facets. It also releases ordinal index arrays and the internal `opts.data` copy. It does not mutate caller-owned arrays, clear the canvas, or reset scale bounds and extrema. A later `setData()` can supply new data for another render.
+Data disposal replaces retained columns with empty arrays while preserving the dataset structure, including mode-2 facets (null mode-2 facets stay `null`; null mode-1 columns become empty arrays). It also releases ordinal index arrays and the internal `opts.data` copy. It does not mutate caller-owned arrays, clear the canvas, or reset scale bounds and extrema. A later `setData()` can supply new data for another render.
 
 Data disposal is for non-interactive charts such as sparklines. Cursor interaction, legend toggling, resize, pixel-ratio updates, and other data-dependent features must be disabled. The implementation does not enforce these restrictions yet.
 
@@ -616,6 +620,7 @@ The alignment target is the canvas marker center, not the series line. Different
 CSS circles and canvas arcs can still differ in antialiasing and border appearance.
 
 `cursor.points.bbox` overrides automatic center alignment and size. Its existing CSS positioning behavior remains unchanged.
+The callback runs on every cursor update. On resize, existing bbox positions are scaled proportionally rather than recomputed by the callback.
 Custom point paths with different placement require an explicit bounding-box callback. The default calculation cannot infer arbitrary path geometry.
 
 This change addresses the coordinate mismatch reported in [#1108](https://github.com/leeoniya/uPlot/issues/1108) and [#779](https://github.com/leeoniya/uPlot/issues/779).
