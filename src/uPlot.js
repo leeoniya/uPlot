@@ -456,7 +456,7 @@ export default function uPlot(opts, data, then) {
 	}
 
 	const hasLegend = FEAT_LEGEND && (opts.legend?.show ?? legendOpts.show);
-	const wrap = domRoot && (opts.title || hasLegend) ? placeDiv(WRAP, root) : root;
+	let wrap = domRoot && (opts.title || hasLegend) ? placeDiv(WRAP, root) : root;
 
 	if (domRoot && wrap == root)
 		addClass(wrap, WRAP);
@@ -479,6 +479,15 @@ export default function uPlot(opts, data, then) {
 		if (p.opts)
 			opts = p.opts(self, opts) || opts;
 	});
+
+	// a plugin enabled the legend after the root was merged with .u-wrap, so split them again
+	if (FEAT_LEGEND && wrap == root && domRoot && (opts.legend?.show ?? legendOpts.show)) {
+		remClass(root, WRAP);
+		wrap = placeDiv(WRAP, root);
+		under && wrap.appendChild(under);
+		wrap.appendChild(can);
+		over && wrap.appendChild(over);
+	}
 
 	const ms = opts.ms || 1e-3;
 
