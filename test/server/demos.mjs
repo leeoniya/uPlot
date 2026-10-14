@@ -16,11 +16,10 @@ async function load(url, method = 'GET') {
 	return { status: response.statusCode, headers: response.headers, body: Buffer.concat(chunks) };
 }
 
-describe('demos HTTP server', function() {
-	this.timeout(10000);
+describe('demos HTTP server', { timeout: 10000 }, () => {
 	let child, origin;
 
-	before(async () => {
+	beforeAll(async () => {
 		child = spawn(process.execPath, [script], { env: { ...process.env, PORT: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
 		origin = await new Promise((resolve, reject) => {
 			let output = '';
@@ -37,7 +36,7 @@ describe('demos HTTP server', function() {
 		});
 	});
 
-	after(async () => {
+	afterAll(async () => {
 		if (child?.exitCode == null && child?.pid) {
 			const exited = once(child, 'exit');
 			child.kill();

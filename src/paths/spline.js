@@ -90,7 +90,7 @@ export function splineInterp(interp, opts) {
 
 			return _paths;
 
-			//  if FEAT_PATHS: false in rollup.config.js
+			//  if FEAT_PATHS: false in src/feats.js
 			//	u.ctx.save();
 			//	u.ctx.beginPath();
 			//	u.ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);

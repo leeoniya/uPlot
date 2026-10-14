@@ -1033,9 +1033,9 @@ describe('barValues standalone', () => {
 		assert.equal(u.ctx.saves, u.ctx.restores);
 	});
 
-	it('releases native percent baselines and groups when the destroyed helper is retained', async function() {
+	it('releases native percent baselines and groups when the destroyed helper is retained', async ({ skip }) => {
 		if (!globalThis.gc)
-			this.skip();
+			skip();
 		const { values, refs } = (() => {
 			const groups = Object.freeze([Object.freeze({ series: Object.freeze([1, 2]), dir: 0 })]);
 			const values = helper(false, groups, true);

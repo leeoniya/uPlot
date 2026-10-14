@@ -21,14 +21,12 @@ function capture(zone) {
 
 describe('timezone/DST demo host independence', () => {
 	let reference;
-	before(function() {
-		this.timeout(20000);
+	beforeAll(() => {
 		reference = capture(zones[0]);
-	});
+	}, 20000);
 
 	for (const zone of zones) {
-		it(`preserves all 51 pinned charts under ${zone}`, function() {
-			this.timeout(20000);
+		it(`preserves all 51 pinned charts under ${zone}`, { timeout: 20000 }, () => {
 			const actual = zone == zones[0] ? reference : capture(zone);
 			actual.forEach((chart, i) => {
 				assert.deepEqual(chart, reference[i], zone + ' chart ' + chart.id + ': ticks, labels, scales, and legend');

@@ -221,10 +221,10 @@ describe('keyed list', () => {
 		}
 	});
 
-	it('preserves input focus, value, and selection with native moveBefore', function() {
+	it('preserves input focus, value, and selection with native moveBefore', ({ skip }) => {
 		const parent = document.createElement('div');
 		if (typeof parent.moveBefore !== 'function')
-			this.skip();
+			skip();
 
 		const f = fixture({
 			parent,

@@ -8,8 +8,7 @@ import { createProbeWorker } from '../scripts/probe-worker.mjs';
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 const helper = fileURLToPath(new URL('./fixtures/probe-worker.mjs', import.meta.url));
 
-describe('sequential probe worker', function() {
-	this.timeout(15000);
+describe('sequential probe worker', { timeout: 15000 }, () => {
 	let worker;
 	let directory;
 	let env;
@@ -17,8 +16,6 @@ describe('sequential probe worker', function() {
 	beforeEach(() => {
 		directory = mkdtempSync(join(tmpdir(), 'uplot-worker-test-'));
 		env = { ...process.env, NODE_OPTIONS: '', UPLOT_WORKER_EXIT_FILE: join(directory, 'exit.txt') };
-		// Lifecycle fixtures do not import covered chart code. Coverage is tested separately.
-		delete env.UPLOT_COVERAGE_DIR;
 	});
 	afterEach(async () => {
 		try { await worker?.close(); }
@@ -29,10 +26,10 @@ describe('sequential probe worker', function() {
 		return worker = createProbeWorker({ cwd, helper, env, ...options });
 	}
 
-	it('reuses one process and exits normally so exit-time coverage can flush', async () => {
+	it('reuses one process and exits normally', async () => {
 		start();
 		const pid = await worker.run('pid');
-		assert.deepEqual(await worker.run('environment'), { nodeOptions: '', coverageDir: null });
+		assert.deepEqual(await worker.run('environment'), { nodeOptions: '' });
 		assert.equal(await worker.run('count'), 1);
 		assert.equal(await worker.run('count'), 2);
 		assert.equal(await worker.run('pid'), pid);
@@ -40,20 +37,6 @@ describe('sequential probe worker', function() {
 		await worker.close();
 		assert.equal(readFileSync(env.UPLOT_WORKER_EXIT_FILE, 'utf8'), 'flushed');
 		await assert.rejects(worker.run('count'), /worker is closed/);
-	});
-
-	it('instruments worker source and writes coverage on exit', async () => {
-		env.UPLOT_COVERAGE_DIR = join(directory, 'coverage');
-		if (!process.versions.bun)
-			env.NODE_OPTIONS = '--import ./scripts/register-hooks.mjs';
-		start();
-		const pid = await worker.run('pid');
-		assert.equal(await worker.run('coverage'), true);
-		await worker.close();
-
-		const coverage = JSON.parse(readFileSync(join(env.UPLOT_COVERAGE_DIR, pid + '.json'), 'utf8'));
-		const filename = fileURLToPath(new URL('../src/utils.js', import.meta.url));
-		assert.ok(Object.values(coverage[filename].f).some(count => count > 0));
 	});
 
 	it('reports a named failure and restarts with fresh state', async () => {

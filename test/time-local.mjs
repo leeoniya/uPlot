@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-async function checkLocalTime(dates) {
-	const { default: assert } = await import('node:assert/strict');
-	const { DateZoned, tzDate, floorSOP, fmtDate, PERIOD_DAY, PERIOD_MONTH, PERIOD_YEAR } = await import('./src/fmtDate.js');
-	const { timeAxisSplitsMs, timeAxisSplitsS } = await import('./src/opts.js');
+// Runs in a child process via toString(). Imports are injected because the test
+// transform rewrites import() inside this function.
+async function checkLocalTime(dates, load) {
+	const { default: assert } = await load('node:assert/strict');
+	const { DateZoned, tzDate, floorSOP, fmtDate, PERIOD_DAY, PERIOD_MONTH, PERIOD_YEAR } = await load('./src/fmtDate.js');
+	const { timeAxisSplitsMs, timeAxisSplitsS } = await load('./src/opts.js');
 	const local = new Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const periods = [PERIOD_DAY, PERIOD_MONTH, PERIOD_YEAR];
 	const stamp = fmtDate('{YYYY}-{MM}-{DD} {HH}:{mm}:{ss}.{fff}');
@@ -99,11 +101,10 @@ describe('local time period flooring', () => {
 		['Asia/Kathmandu', [[1, 15], [7, 15]]],
 		['Australia/Lord_Howe', [[1, 15], [2, 15]]],
 	]) {
-		it(`uses native dates in ${zone} and preserves remote-zone conversion`, function() {
-			this.timeout(6000);
+		it(`uses native dates in ${zone} and preserves remote-zone conversion`, { timeout: 6000 }, () => {
 			// Each process resolves localTz independently, without changing other tests' timezone.
 			const output = execFileSync(process.execPath, [
-				'--input-type=module', '-e', `await (${checkLocalTime.toString()})(${JSON.stringify(dates)});`,
+				'--input-type=module', '-e', `await (${checkLocalTime.toString()})(${JSON.stringify(dates)}, s => import(s));`,
 			], {
 				cwd: fileURLToPath(new URL('../', import.meta.url)),
 				env: { ...process.env, TZ: zone, NODE_OPTIONS: '' },

@@ -39,7 +39,7 @@ if (process.env.UPDATE != null && !update)
 if (!update)
 	fs.rmSync(outputDir, { recursive: true, force: true });
 
-after(async () => {
+afterAll(async () => {
 	if (failures.length > 0) {
 		const { writeFailureReport } = await import('./replay.mjs');
 		writeFailureReport(failures, report);

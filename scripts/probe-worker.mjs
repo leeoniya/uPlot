@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 
 export function createProbeWorker({ cwd, helper, env = process.env, startupTimeout = 5000, shutdownTimeout = 5000 }) {
 	let worker;
@@ -8,12 +7,7 @@ export function createProbeWorker({ cwd, helper, env = process.env, startupTimeo
 
 	function start() {
 		const args = [];
-		if (process.versions.bun) {
-			// Bun does not inherit the parent's --preload flag through NODE_OPTIONS.
-			if (env.UPLOT_COVERAGE_DIR != null)
-				args.push('--preload', fileURLToPath(new URL('./register-hooks.mjs', import.meta.url)));
-		}
-		else
+		if (!process.versions.bun)
 			args.push('--max-old-space-size=128');
 		args.push(helper);
 		const posix = process.platform != 'win32';
@@ -46,7 +40,8 @@ export function createProbeWorker({ cwd, helper, env = process.env, startupTimeo
 
 		state.send = message => {
 			child.send(message, error => {
-				if (error) {
+				// A worker killed by stop() can fail a racing send; its close handler reports the exit.
+				if (error && !state.stopping) {
 					fail(`worker IPC error: ${error.message}`);
 					child.kill('SIGKILL');
 				}
@@ -117,7 +112,7 @@ export function createProbeWorker({ cwd, helper, env = process.env, startupTimeo
 				return await result;
 			}
 			catch (error) {
-				// Assertion failures can exit cleanly and flush coverage. Hangs and crashes cannot.
+				// Assertion failures can exit cleanly. Hangs and crashes cannot.
 				try { await stop(state, error.code != 'EPROBE'); }
 				catch (shutdownError) { error.message += '\n' + shutdownError.message; }
 				worker = null;

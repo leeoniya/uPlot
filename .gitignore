@@ -1,5 +1,12 @@
 node_modules
-coverage-reports
-.nyc_output
+coverage
 test/output
 .patch
+
+# vite / vite-plus
+.vite
+.vitest
+*.local
+vite.config.*.timestamp-*
+
+*.log

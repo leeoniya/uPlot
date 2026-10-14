@@ -1956,9 +1956,9 @@ describe('random label rotation demo', () => {
 		assert.equal(observer.disconnectCount, 1, 'repeated destroy does not disconnect again');
 	});
 
-	it('releases the detached root when the destroyed demo is retained', async function() {
+	it('releases the detached root when the destroyed demo is retained', async ({ skip }) => {
 		if (!globalThis.gc)
-			this.skip();
+			skip();
 		await toggle('show-totals', true);
 		const ref = new WeakRef(root);
 		demo.destroy();
