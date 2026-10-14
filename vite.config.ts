@@ -26,10 +26,14 @@ function cssmin(css: string) {
 		.replace(/\*\/\s{1,}/g, "*/");
 }
 
-const minCSS = {
-	name: "uplot-min-css",
+const staticAssets = {
+	name: "uplot-static-assets",
 	buildStart() {
 		writeFileSync("./dist/uPlot.min.css", cssmin(readFileSync("./src/uPlot.css", "utf8")));
+
+		// CommonJS typings for require("uplot"), derived from the hand-written ESM typings
+		let dts = readFileSync("./dist/uPlot.d.ts", "utf8");
+		writeFileSync("./dist/uPlot.d.cts", dts.replace(/^export default uPlot;$/m, "export = uPlot;"));
 	},
 };
 
@@ -64,8 +68,9 @@ function lib(
 
 export default defineConfig({
 	pack: [
-		lib("esm", "uPlot.esm.js", { plugins: [minCSS, trimTrailingWhitespace] }),
-		lib("cjs", "uPlot.cjs.js"),
+		lib("esm", "uPlot.esm.js", { plugins: [staticAssets, trimTrailingWhitespace] }),
+		// .cjs, since package.json has "type": "module"
+		lib("cjs", "uPlot.cjs"),
 		lib("iife", "uPlot.iife.js"),
 		lib("iife", "uPlot.iife.min.js", { minify: true, banner: "/*! " + urlVer + " */" }),
 	],

@@ -23,7 +23,7 @@ const candidateStatus = execFileSync('git', [
 	'--no-optional-locks', 'status', '--short', '--',
 	'src/uPlot.js',
 	'dist/uPlot.esm.js',
-	'dist/uPlot.cjs.js',
+	'dist/uPlot.cjs',
 	'dist/uPlot.iife.js',
 	'dist/uPlot.iife.min.js',
 	'dist/uPlot.d.ts',
@@ -53,7 +53,7 @@ function candidateArtifact(path, tested) {
 
 candidateArtifact('src/uPlot.js', 'behavior matrix');
 candidateArtifact('dist/uPlot.esm.js', 'behavior matrix');
-candidateArtifact('dist/uPlot.cjs.js', 'generated, identified');
+candidateArtifact('dist/uPlot.cjs', 'generated, identified');
 candidateArtifact('dist/uPlot.iife.js', 'generated, identified');
 candidateArtifact('dist/uPlot.iife.min.js', 'generated, identified');
 candidateArtifact('dist/uPlot.d.ts', 'public declarations');

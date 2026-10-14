@@ -32,9 +32,23 @@
     "dist"
   ],
   "type": "module",
-  "main": "./dist/uPlot.cjs.js",
+  "main": "./dist/uPlot.cjs",
   "module": "./dist/uPlot.esm.js",
-  "typings": "./dist/uPlot.d.ts",
+  "types": "./dist/uPlot.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/uPlot.d.ts",
+        "default": "./dist/uPlot.esm.js"
+      },
+      "require": {
+        "types": "./dist/uPlot.d.cts",
+        "default": "./dist/uPlot.cjs"
+      }
+    },
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "build": "vp pack",
     "bench:legend": "node --max-old-space-size=96 ./scripts/bench-legend.mjs",

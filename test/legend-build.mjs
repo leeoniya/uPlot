@@ -35,10 +35,10 @@ describe('legend build artifacts', function() {
 				for (const filename of ['src/uPlot.js', 'dist/uPlot.esm.js'])
 					check((await import('./' + filename)).default, filename);
 
-				for (const filename of ['dist/uPlot.cjs.js', 'dist/uPlot.iife.js', 'dist/uPlot.iife.min.js']) {
-					const commonJS = filename.endsWith('.cjs.js');
+				for (const filename of ['dist/uPlot.cjs', 'dist/uPlot.iife.js', 'dist/uPlot.iife.min.js']) {
+					const commonJS = filename.endsWith('.cjs');
 					const module = { exports: {} };
-					// The .cjs.js file is under type: module, so evaluate it as CommonJS in a VM.
+					// Evaluate the .cjs file as CommonJS in a VM, isolated from the test globals.
 					const context = { queueMicrotask, setTimeout, clearTimeout };
 					if (commonJS)
 						Object.assign(context, { module, exports: module.exports });
