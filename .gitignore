@@ -3,3 +3,11 @@ coverage-reports
 .nyc_output
 test/output
 .patch
+
+# vite / vite-plus
+.vite
+.vitest
+*.local
+vite.config.*.timestamp-*
+
+*.log
