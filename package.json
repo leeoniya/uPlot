@@ -2,18 +2,25 @@
   "name": "uplot",
   "version": "1.6.32",
   "description": "A small, fast chart for time series, lines, areas, ohlc & bars",
-  "type": "module",
-  "main": "./dist/uPlot.cjs.js",
-  "module": "./dist/uPlot.esm.js",
-  "typings": "./dist/uPlot.d.ts",
-  "scripts": {
-    "build": "rollup -c --bundleConfigAsCjs",
-    "bench:legend": "node --max-old-space-size=96 ./scripts/bench-legend.mjs",
-    "demos": "node ./scripts/demos.mjs",
-    "test": "node ./scripts/test.mjs",
-    "test:server": "mocha test/server/*.mjs",
-    "test:update": "UPDATE=1 node ./scripts/test.mjs"
+  "keywords": [
+    "area",
+    "bar",
+    "chart",
+    "graph",
+    "line",
+    "micro",
+    "ohlc",
+    "plot",
+    "series",
+    "time",
+    "trend"
+  ],
+  "homepage": "https://github.com/leeoniya/uPlot#readme",
+  "bugs": {
+    "url": "https://github.com/leeoniya/uPlot/issues"
   },
+  "license": "MIT",
+  "author": "Leon Sorokin <leeoniya@gmail.com>",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/leeoniya/uPlot.git"
@@ -24,29 +31,21 @@
     "LICENSE",
     "dist"
   ],
-  "keywords": [
-    "micro",
-    "time",
-    "series",
-    "line",
-    "area",
-    "trend",
-    "bar",
-    "ohlc",
-    "plot",
-    "chart",
-    "graph"
-  ],
-  "author": "Leon Sorokin <leeoniya@gmail.com>",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/leeoniya/uPlot/issues"
+  "type": "module",
+  "main": "./dist/uPlot.cjs.js",
+  "module": "./dist/uPlot.esm.js",
+  "typings": "./dist/uPlot.d.ts",
+  "scripts": {
+    "build": "vp pack",
+    "bench:legend": "node --max-old-space-size=96 ./scripts/bench-legend.mjs",
+    "demos": "node ./scripts/demos.mjs",
+    "test": "node ./scripts/test.mjs",
+    "test:server": "mocha test/server/*.mjs",
+    "test:update": "UPDATE=1 node ./scripts/test.mjs"
   },
-  "homepage": "https://github.com/leeoniya/uPlot#readme",
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.14.5",
     "@istanbuljs/load-nyc-config": "^1.1.0",
-    "@rollup/plugin-terser": "^1.0.0",
     "happy-dom": "^20.14.5",
     "istanbul-lib-coverage": "^3.2.2",
     "istanbul-lib-instrument": "^6.0.3",
@@ -54,16 +53,19 @@
     "istanbul-reports": "^3.2.0",
     "json-stringify-pretty-compact": "^4.0.0",
     "mocha": "^12.0.2",
-    "rollup": "^4.63.4",
-    "test-exclude": "^8.0.0"
+    "test-exclude": "^8.0.0",
+    "vite-plus": "1.1.0"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.1.0"
   },
   "nyc": {
+    "exclude": [
+      "src/paths/catmullRomCentrip.js"
+    ],
     "include": [
       "dist/**/*.esm.js",
       "src/**/*.js"
-    ],
-    "exclude": [
-      "src/paths/catmullRomCentrip.js"
     ]
   }
 }
