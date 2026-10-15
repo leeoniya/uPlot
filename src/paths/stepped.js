@@ -1,20 +1,25 @@
-import { ifNull, nonNullIdxs } from '../utils';
-import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
-import { pxRatio } from '../dom';
+import { nonNullIdxs } from '../utils.js';
+import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils.js';
 
 // BUG: align: -1 behaves like align: 1 when scale.dir: -1
 export function stepped(opts) {
-	const align = ifNull(opts.align, 1);
+	const align = opts.align ?? 1;
 	// whether to draw ascenders/descenders at null/gap bondaries
-	const ascDesc = ifNull(opts.ascDesc, false);
-	const alignGaps = ifNull(opts.alignGaps, 0);
-	const extend = ifNull(opts.extend, false);
+	const ascDesc = opts.ascDesc ?? false;
+	const extend = opts.extend ?? false;
 
 	return (u, seriesIdx, idx0, idx1) => {
+		let { pxRatio } = u;
+
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
 
+			if (idx0 == -1)
+				return null;
+
 			let pxRound = series.pxRound;
+
+			let alignGaps = opts?.alignGaps ?? series.alignGaps ?? 0;
 
 			let { left, width } = u.bbox;
 
@@ -27,6 +32,8 @@ export function stepped(opts) {
 			const stroke = _paths.stroke;
 
 			const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+
+			let hasGap = false;
 
 			let prevYPos  = pixelForY(dataY[dir == 1 ? idx0 : idx1]);
 			let firstXPos = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
@@ -44,8 +51,12 @@ export function stepped(opts) {
 			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 				let yVal1 = dataY[i];
 
-				if (yVal1 == null)
+				if (yVal1 == null) {
+					if (yVal1 === null)
+						hasGap = true;
+
 					continue;
+				}
 
 				let x1 = pixelForX(dataX[i]);
 				let y1 = pixelForY(yVal1);
@@ -82,9 +93,7 @@ export function stepped(opts) {
 
 			if (!series.spanGaps) {
 			//	console.time('gaps');
-				let gaps = [];
-
-				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
+				let gaps = hasGap ? findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps) : [];
 
 			//	console.timeEnd('gaps');
 

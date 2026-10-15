@@ -1,5 +1,3 @@
-import { domEnv, nav } from './dom';
-
 // binary search for index of closest value
 export function closestIdx(num, arr, lo, hi) {
 	let mid;
@@ -91,6 +89,9 @@ export function getMinMax(data, _i0, _i1, sorted = 0, log = false) {
 }
 
 export function rangeLog(min, max, base, fullMags) {
+	if (base == 2)
+		fullMags = true;
+
 	let minSign = sign(min);
 	let maxSign = sign(max);
 
@@ -110,8 +111,11 @@ export function rangeLog(min, max, base, fullMags) {
 	let growMinAbs = minSign == 1 ? floor : ceil;
 	let growMaxAbs = maxSign == 1 ? ceil : floor;
 
-	let minExp = growMinAbs(logFn(abs(min)));
-	let maxExp = growMaxAbs(logFn(abs(max)));
+	let minLogAbs = logFn(abs(min))
+	let maxLogAbs = logFn(abs(max));
+
+	let minExp = growMinAbs(minLogAbs);
+	let maxExp = growMaxAbs(maxLogAbs);
 
 	let minIncr = pow(base, minExp);
 	let maxIncr = pow(base, maxExp);
@@ -124,19 +128,22 @@ export function rangeLog(min, max, base, fullMags) {
 			maxIncr = roundDec(maxIncr, -maxExp);
 	}
 
-	if (fullMags || base == 2) {
+	if (fullMags) {
 		min = minIncr * minSign;
 		max = maxIncr * maxSign;
 	}
 	else {
-		min = incrRoundDn(min, minIncr);
-		max = incrRoundUp(max, maxIncr);
+		min = incrRoundDn(min, pow(base, floor(minLogAbs)), false);
+		max = incrRoundUp(max, pow(base, floor(maxLogAbs)), false);
 	}
 
 	return [min, max];
 }
 
 export function rangeAsinh(min, max, base, fullMags) {
+	if (min == 0 && max == 0)
+		return [-1, 1];
+
 	let minMax = rangeLog(min, max, base, fullMags);
 
 	if (min == 0)
@@ -149,46 +156,71 @@ export function rangeAsinh(min, max, base, fullMags) {
 }
 
 export const rangePad = 0.1;
+export const rangeZeroIf = 0.1;
+
+function atMostWithEpsilon(value, limit) {
+	return value <= limit || value - limit <= max(abs(value), abs(limit)) * Number.EPSILON * 2;
+}
+
+export function rangeAnchors(dataMin, dataMax, softMin, softMax, zeroIf = rangeZeroIf) {
+	zeroIf ??= rangeZeroIf;
+
+	if (!isFinite(zeroIf) || zeroIf < 0)
+		return [null, null];
+
+	let minAnchor = softMin != null && dataMin >= softMin ? softMin : null;
+	let maxAnchor = softMax != null && dataMax <= softMax ? softMax : null;
+	let rawSpan = dataMax - dataMin;
+
+	if (zeroIf > 0) {
+		if (minAnchor == null && dataMin >= 0 && atMostWithEpsilon(dataMin, rawSpan * zeroIf))
+			minAnchor = 0;
+		if (maxAnchor == null && dataMax <= 0 && atMostWithEpsilon(-dataMax, rawSpan * zeroIf))
+			maxAnchor = 0;
+	}
+
+	// Prefer an explicit max zero over implicit affinity; ties keep the positive fallback.
+	if (dataMin == 0 && dataMax == 0 && minAnchor == 0 && maxAnchor == 0) {
+		if (softMax === 0 && softMin !== 0)
+			minAnchor = null;
+		else
+			maxAnchor = null;
+	}
+
+	return [minAnchor, maxAnchor];
+}
 
 export const autoRangePart = {
-	mode: 3,
 	pad: rangePad,
 };
 
 const _eqRangePart = {
-	pad:  0,
-	soft: null,
-	mode: 0,
+	pad: 0,
 };
 
 const _eqRange = {
+	zeroIf: rangeZeroIf,
 	min: _eqRangePart,
 	max: _eqRangePart,
 };
 
 // this ensures that non-temporal/numeric y-axes get multiple-snapped padding added above/below
 // TODO: also account for incrs when snapping to ensure top of axis gets a tick & value
-export function rangeNum(_min, _max, mult, extra) {
+export function rangeNum(_min, _max, mult, zeroAffinity) {
 	if (isObj(mult))
 		return _rangeNum(_min, _max, mult);
 
-	_eqRangePart.pad  = mult;
-	_eqRangePart.soft = extra ? 0 : null;
-	_eqRangePart.mode = extra ? 3 : 0;
+	_eqRangePart.pad = mult;
+	_eqRange.zeroIf = zeroAffinity ? rangeZeroIf : 0;
 
 	return _rangeNum(_min, _max, _eqRange);
-}
-
-// nullish coalesce
-export function ifNull(lh, rh) {
-	return lh == null ? rh : lh;
 }
 
 // checks if given index range in an array contains a non-null value
 // aka a range-bounded Array.some()
 export function hasData(data, idx0, idx1) {
-	idx0 = ifNull(idx0, 0);
-	idx1 = ifNull(idx1, data.length - 1);
+	idx0 ??= 0;
+	idx1 ??= data.length - 1;
 
 	while (idx0 <= idx1) {
 		if (data[idx0] != null)
@@ -200,78 +232,79 @@ export function hasData(data, idx0, idx1) {
 }
 
 function _rangeNum(_min, _max, cfg) {
-	let cmin = cfg.min;
-	let cmax = cfg.max;
+	let cmin = cfg.min ?? autoRangePart;
+	let cmax = cfg.max ?? autoRangePart;
+	let zeroIf = cfg.zeroIf ?? rangeZeroIf;
 
-	let padMin = ifNull(cmin.pad, 0);
-	let padMax = ifNull(cmax.pad, 0);
+	if (!isFinite(zeroIf) || zeroIf < 0)
+		return [null, null];
 
-	let hardMin = ifNull(cmin.hard, -inf);
-	let hardMax = ifNull(cmax.hard,  inf);
+	let padMin = cmin.pad ?? rangePad;
+	let padMax = cmax.pad ?? rangePad;
 
-	let softMin = ifNull(cmin.soft,  inf);
-	let softMax = ifNull(cmax.soft, -inf);
+	let hardMin = cmin.hard ?? -inf;
+	let hardMax = cmax.hard ??  inf;
 
-	let softMinMode = ifNull(cmin.mode, 0);
-	let softMaxMode = ifNull(cmax.mode, 0);
+	let [minAnchor, maxAnchor] = rangeAnchors(_min, _max, cmin.soft, cmax.soft, zeroIf);
 
 	let delta = _max - _min;
-	let deltaMag = log10(delta);
-
 	let scalarMax = max(abs(_min), abs(_max));
-	let scalarMag = log10(scalarMax);
 
-	let scalarMagDelta = abs(scalarMag - deltaMag);
+	let flat = scalarMax * (cfg.flat ?? 1e-7);
 
-	// this handles situations like 89.7, 89.69999999999999
-	// by assuming 0.001x deltas are precision errors
-//	if (delta > 0 && delta < abs(_max) / 1e3)
-//		delta = 0;
-
-	// treat data as flat if delta is less than 1e-24
-	// or range is 11+ orders of magnitude below raw values, e.g. 99999999.99999996 - 100000000.00000004
-	if (delta < 1e-24 || scalarMagDelta > 10) {
-		delta = 0;
-
-		// if soft mode is 2 and all vals are flat at 0, avoid the 0.1 * 1e3 fallback
-		// this prevents 0,0,0 from ranging to -100,100 when softMin/softMax are -1,1
-		if (_min == 0 || _max == 0) {
-			delta = 1e-24;
-
-			if (softMinMode == 2 && softMin != inf)
-				padMin = 0;
-
-			if (softMaxMode == 2 && softMax != -inf)
-				padMax = 0;
+	if (delta < 1e-24 || delta <= flat) {
+		// Normalize only relatively flat data, so padding does not amplify residue.
+		if (delta > 0 && delta <= flat) {
+			_min = _max = incrRound(_min + delta / 2, pow10(floor(log10(flat))));
+			scalarMax = abs(_min);
 		}
+
+		delta = 0;
 	}
 
 	let nonZeroDelta = delta || scalarMax || 1e3;
 	let mag          = log10(nonZeroDelta);
-	let base         = pow(10, floor(mag));
+	let incr         = pow10(floor(mag) - 1);
 
 	let _padMin  = nonZeroDelta * (delta == 0 ? (_min == 0 ? .1 : 1) : padMin);
-	let _newMin  = roundDec(incrRoundDn(_min - _padMin, base/10), 24);
-	let _softMin = _min >= softMin && (softMinMode == 1 || softMinMode == 3 && _newMin <= softMin || softMinMode == 2 && _newMin >= softMin) ? softMin : inf;
-	let minLim   = max(hardMin, _newMin < _softMin && _min >= _softMin ? _softMin : min(_softMin, _newMin));
+	let _newMin  = incrRoundDn(_min - _padMin, incr);
+	let minLim   = min(hardMax, max(hardMin, minAnchor ?? _newMin));
 
 	let _padMax  = nonZeroDelta * (delta == 0 ? (_max == 0 ? .1 : 1) : padMax);
-	let _newMax  = roundDec(incrRoundUp(_max + _padMax, base/10), 24);
-	let _softMax = _max <= softMax && (softMaxMode == 1 || softMaxMode == 3 && _newMax >= softMax || softMaxMode == 2 && _newMax <= softMax) ? softMax : -inf;
-	let maxLim   = min(hardMax, _newMax > _softMax && _max <= _softMax ? _softMax : max(_softMax, _newMax));
+	let _newMax  = incrRoundUp(_max + _padMax, incr);
+	let maxLim   = max(hardMin, min(hardMax, maxAnchor ?? _newMax));
 
-	if (minLim == maxLim && minLim == 0)
-		maxLim = 100;
+	// Retain a usable range if padding cannot separate the bounds.
+	if (minLim == maxLim) {
+		if (minLim == 0) {
+			if (hardMax == 0) {
+				if (hardMin == 0)
+					return [null, null];
+				minLim = -100;
+			}
+			else
+				maxLim = 100;
+		}
+		else if (minLim < 0) {
+			minLim *= 2;
+			maxLim = 0;
+		}
+		else {
+			minLim = 0;
+			maxLim *= 2;
+		}
+	}
 
-	return [minLim, maxLim];
+	return [max(hardMin, minLim), min(hardMax, maxLim)];
 }
 
 // alternative: https://stackoverflow.com/a/2254896
-const numFormatter = new Intl.NumberFormat(domEnv ? nav.language : 'en-US');
+const numFormatter = new Intl.NumberFormat();
 export const fmtNum = val => numFormatter.format(val);
 
 const M = Math;
 
+export const rand = M.random;
 export const PI = M.PI;
 export const abs = M.abs;
 export const floor = M.floor;
@@ -289,9 +322,19 @@ export const sinh =  (v, linthresh = 1) => M.sinh(v) * linthresh;
 export const asinh = (v, linthresh = 1) => M.asinh(v / linthresh);
 
 export const inf = Infinity;
+export const isFinite = Number.isFinite;
+
+// Canonical powers for the built-in decimal increment range.
+const decPows = Array.from({length: 65}, (_, i) => +`1e${i - 32}`);
+const pow10 = exp => decPows[exp + 32] ?? +`1e${exp}`;
 
 export function numIntDigits(x) {
-	return (log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
+	x = abs(x);
+	if (x < 10)
+		return 1;
+
+	let exp = floor(log10(x));
+	return exp + (x < pow10(exp) ? 0 : 1);
 }
 
 export function clamp(num, _min, _max) {
@@ -320,54 +363,70 @@ export const retTrue = _ => true;
 
 export const retEq = (a, b) => a == b;
 
-const regex6 = /\.\d*?(?=9{6,}|0{6,})/gm;
+function roundIncr(num, incr, mode) {
+	let q = num / incr;
 
-// e.g. 17999.204999999998 -> 17999.205
-const fixFloat = val => {
-	if (isInt(val) || fixedDec.has(val))
-		return val;
+	// Finer grids exceed the supported 15-digit rounding budget.
+	if (abs(q) >= 1e15)
+		return num;
 
-	const str = `${val}`;
+	let dec = fixedDec.get(incr);
+	if (dec == null)
+		fixedDec.set(incr, dec = guessDec(incr));
 
-	const match = str.match(regex6);
+	let nearest = round(q);
+	let candidate = roundDec(nearest * incr, dec);
 
-	if (match == null)
-		return val;
+	// Correct at most two relative epsilons, capped at 1e-7 of a grid step.
+	// The cap prevents large quotients from erasing genuine fractional positions.
+	if (candidate == num || abs(candidate - num) <= min(abs(incr) * 1e-7, abs(num) * Number.EPSILON * 2))
+		return candidate;
 
-	let len = match[0].length - 1;
-
-	// e.g. 1.0000000000000001e-24
-	if (str.indexOf('e-') != -1) {
-		let [num, exp] = str.split('e');
-		return +`${fixFloat(num)}e${exp}`;
+	let index;
+	if (mode == roundDec) {
+		let whole = floor(abs(q));
+		let midpoint = roundDec((whole + 0.5) * abs(incr), dec + 1);
+		index = sign(q) * (whole + (abs(num) >= midpoint ? 1 : 0));
 	}
+	else
+		index = mode(q);
 
-	return roundDec(val, len);
+	return index == nearest ? candidate : roundDec(index * incr, dec);
 }
 
-export function incrRound(num, incr) {
-	return fixFloat(roundDec(fixFloat(num/incr))*incr);
+export function incrRound(num, incr, _fixFloat = true) {
+	return _fixFloat ? roundIncr(num, incr, roundDec) : roundDec(num/incr)*incr;
 }
 
-export function incrRoundUp(num, incr) {
-	return fixFloat(ceil(fixFloat(num/incr))*incr);
+export function incrRoundUp(num, incr, _fixFloat = true) {
+	return _fixFloat ? roundIncr(num, incr, ceil) : ceil(num/incr)*incr;
 }
 
-export function incrRoundDn(num, incr) {
-	return fixFloat(floor(fixFloat(num/incr))*incr);
+export function incrRoundDn(num, incr, _fixFloat = true) {
+	return _fixFloat ? roundIncr(num, incr, floor) : floor(num/incr)*incr;
 }
 
-// https://stackoverflow.com/a/48764436
-// rounds half away from zero
+
+// Half away from zero, without biasing every value upward by a relative epsilon.
 export function roundDec(val, dec = 0) {
 	if (isInt(val))
 		return val;
-//	else if (dec == 0)
-//		return round(val);
 
-	let p = 10 ** dec;
-	let n = (val * p) * (1 + Number.EPSILON);
-	return round(n) / p;
+	let p = pow10(dec);
+	let n = abs(val) * p;
+
+	// Preserve the input beyond the decimal budget; integer rounding still applies.
+	if (dec > 0 && (n >= 1e15 || dec > 32))
+		return val;
+
+	let int = floor(n);
+	let midpoint = (int + 0.5) / p;
+	// Decimal conversion can only affect the decision close to a half-step.
+	if (dec > 22 && abs(n - int - 0.5) <= n * Number.EPSILON * 2)
+		midpoint = +midpoint.toFixed(dec + 1);
+
+	let result = sign(val) * (int + (abs(val) >= midpoint ? 1 : 0)) / p;
+	return dec > 22 ? +result.toFixed(dec) : result;
 }
 
 // https://stackoverflow.com/questions/14879691/get-number-of-digits-with-javascript/28203456#28203456
@@ -378,7 +437,26 @@ export function numDigits(x) {
 export const fixedDec = new Map();
 
 export function guessDec(num) {
-	return ((""+num).split(".")[1] || "").length;
+	if (isInt(num))
+		return 0;
+
+	let str = "" + num;
+	let dot = str.indexOf(".");
+	let exp = str.indexOf("e");
+	let dec = dot < 0 ? 0 : (exp < 0 ? str.length : exp) - dot - 1;
+
+	return max(0, dec - (exp < 0 ? 0 : +str.slice(exp + 1)));
+}
+
+export function numDec(splits) {
+	let dec = 0;
+
+	for (let v of splits) {
+		if (v != null)
+			dec = max(dec, guessDec(v));
+	}
+
+	return dec;
 }
 
 export function genIncrs(base, minExp, maxExp, mults) {
@@ -388,12 +466,11 @@ export function genIncrs(base, minExp, maxExp, mults) {
 
 	for (let exp = minExp; exp < maxExp; exp++) {
 		let expa = abs(exp);
-		let mag = roundDec(pow(base, exp), expa);
+		let mag = base == 10 ? 0 : pow(base, exp);
 
 		for (let i = 0; i < mults.length; i++) {
-			let _incr = base == 10 ? +`${mults[i]}e${exp}` : mults[i] * mag;
-			let dec = (exp >= 0 ? 0 : expa) + (exp >= multDec[i] ? 0 : multDec[i]);
-			let incr = base == 10 ? _incr : roundDec(_incr, dec);
+			let incr = base == 10 ? +`${mults[i]}e${exp}` : mults[i] * mag;
+			let dec = base == 10 ? max(0, multDec[i] - exp) : (exp >= 0 ? 0 : expa) + (exp >= multDec[i] ? 0 : multDec[i]);
 			incrs.push(incr);
 			fixedDec.set(incr, dec);
 		}
@@ -515,8 +592,73 @@ function nullExpand(yVals, nullIdxs, alignedLen) {
 	}
 }
 
+function mergeXVals(tables) {
+	let xRows = tables.map(t => t[0]);
+
+	while (xRows.length > 1) {
+		let merged = [];
+
+		for (let ti = 0; ti < xRows.length; ti += 2) {
+			if (ti == xRows.length - 1) {
+				merged.push(xRows[ti]);
+				continue;
+			}
+
+			let xs0 = xRows[ti];
+			let xs1 = xRows[ti + 1];
+			let xs = [];
+			let i0 = 0;
+			let i1 = 0;
+
+			while (i0 < xs0.length && i1 < xs1.length) {
+				if (xs0[xs0.length - 1] < xs1[i1]) {
+					while (i0 < xs0.length)
+						xs.push(xs0[i0++]);
+					break;
+				}
+
+				if (xs1[xs1.length - 1] < xs0[i0]) {
+					while (i1 < xs1.length)
+						xs.push(xs1[i1++]);
+					break;
+				}
+
+				let x0 = xs0[i0];
+				let x1 = xs1[i1];
+
+				if (x0 < x1) {
+					xs.push(x0);
+					i0++;
+				}
+				else if (x0 > x1) {
+					xs.push(x1);
+					i1++;
+				}
+				else {
+					xs.push(x0);
+					i0++;
+					i1++;
+				}
+			}
+
+			while (i0 < xs0.length)
+				xs.push(xs0[i0++]);
+
+			while (i1 < xs1.length)
+				xs.push(xs1[i1++]);
+			merged.push(xs);
+		}
+
+		xRows = merged;
+	}
+
+	return xRows[0] ?? [];
+}
+
+
 // nullModes is a tables-matched array indicating how to treat nulls in each series
-// output is sorted ASC on the joined field (table[0]) and duplicate join values are collapsed
+// input join fields (table[0]) are sampled for ASC order and sorted when needed
+// output is sorted ASC and matching join values across tables are collapsed
 export function join(tables, nullModes) {
 	if (allHeadersSame(tables)) {
 	//	console.log('cheap join!');
@@ -532,29 +674,27 @@ export function join(tables, nullModes) {
 		return table;
 	}
 
-	let xVals = new Set();
+	tables = tables.map(table => isAsc(table[0]) ? table : sortCols(table));
 
-	for (let ti = 0; ti < tables.length; ti++) {
-		let t = tables[ti];
-		let xs = t[0];
-		let len = xs.length;
-
-		for (let i = 0; i < len; i++)
-			xVals.add(xs[i]);
-	}
-
-	let data = [Array.from(xVals).sort((a, b) => a - b)];
-
-	let alignedLen = data[0].length;
+	let aligned = mergeXVals(tables);
 
 	let xIdxs = new Map();
 
-	for (let i = 0; i < alignedLen; i++)
-		xIdxs.set(data[0][i], i);
+	for (let i = 0; i < aligned.length; i++)
+		xIdxs.set(aligned[i], i);
+
+	let data = [aligned];
+	let alignedLen = aligned.length;
 
 	for (let ti = 0; ti < tables.length; ti++) {
 		let t = tables[ti];
 		let xs = t[0];
+		let alignedIdxs = t.length > 2 ? Array(xs.length) : null;
+
+		if (alignedIdxs != null) {
+			for (let i = 0; i < xs.length; i++)
+				alignedIdxs[i] = xIdxs.get(xs[i]);
+		}
 
 		for (let si = 1; si < t.length; si++) {
 			let ys = t[si];
@@ -567,7 +707,7 @@ export function join(tables, nullModes) {
 
 			for (let i = 0; i < ys.length; i++) {
 				let yVal = ys[i];
-				let alignedIdx = xIdxs.get(xs[i]);
+				let alignedIdx = alignedIdxs == null ? xIdxs.get(xs[i]) : alignedIdxs[i];
 
 				if (yVal === null) {
 					if (nullMode != NULL_REMOVE) {

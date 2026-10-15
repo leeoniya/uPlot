@@ -2,13 +2,13 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>ECharts v5.1.0 Demo</title>
+		<title>ECharts v6.1.0 Demo</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 	</head>
 	<body>
 		<h2 id="wait">Loading lib....</h2>
 
-		<script src="https://fastly.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+		<script src="https://fastly.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js"></script>
 
 		<div id="chart" style="width: 1920px; height: 600px;"></div>
 
@@ -97,7 +97,7 @@
 							z: 0,
 							type: "line",
 							showSymbol: false,
-							sampling: "lttb",
+							sampling: "minmax",
 							lineStyle: { width: 1 },
 							emphasis: {
 								disabled: true,
@@ -114,7 +114,7 @@
 							type: "line",
 							yAxisIndex: 1,
 							showSymbol: false,
-							sampling: "lttb",
+							sampling: "minmax",
 							lineStyle: { width: 1 },
 							emphasis: {
 								disabled: true,
@@ -130,7 +130,7 @@
 							type: "line",
 							yAxisIndex: 1,
 							showSymbol: false,
-							sampling: "lttb",
+							sampling: "minmax",
 							lineStyle: { width: 1 },
 							emphasis: {
 								disabled: true,

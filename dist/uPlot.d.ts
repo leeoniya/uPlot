@@ -6,7 +6,10 @@ declare class uPlot {
 		targ?: HTMLElement | ((self: uPlot, init: Function) => void)
 	);
 
-	/** chart container */
+	/** unique instance id */
+	readonly uid: string;
+
+	/** chart root */
 	readonly root: HTMLElement;
 
 	/** status */
@@ -18,14 +21,17 @@ declare class uPlot {
 	/** height of the plotting area + axes in CSS pixels (excludes title & legend height) */
 	readonly height: number;
 
-	/** context of canvas used for plotting area + axes */
+	/** requested devicePixelRatio */
+	readonly pxRatio: number;
+
+	/** context of canvas used for plotting area + axes. callbacks must preserve its state */
 	readonly ctx: CanvasRenderingContext2D;
 
 	/** coords of plotting area in canvas pixels (relative to full canvas w/axes) */
 	readonly bbox: uPlot.BBox;
 
 	/** cached global DOMRect of plotting area in CSS pixels */
-	get rect(): DOMRect;
+	get rect(): DOMRect | null;
 
 	/** coords of selected region in CSS pixels (relative to plotting area) */
 	readonly select: uPlot.BBox;
@@ -56,15 +62,15 @@ declare class uPlot {
 	readonly data: uPlot.AlignedData;
 
 	/** .u-over dom element */
-	readonly over: HTMLDivElement;
+	readonly over: HTMLDivElement | null;
 
 	/** .u-under dom element */
-	readonly under: HTMLDivElement;
+	readonly under: HTMLDivElement | null;
 
 	/** clears and redraws the canvas. if rebuildPaths = false, uses cached series' Path2D objects */
 	redraw(rebuildPaths?: boolean, recalcAxes?: boolean): void;
 
-	/** manual batching of multiple ops (aka immediate mode that skips implicit microtask queue), ops, e.g. setScale('x', ...) && setScale('y', ...) */
+	/** batches operations synchronously, without the implicit microtask queue */
 	batch(txn: Function, deferHooks?: boolean): void;
 
 	/** destroys DOM, removes resize & scroll listeners, etc. */
@@ -73,8 +79,11 @@ declare class uPlot {
 	/** sets the chart data & redraws. (default resetScales = true) */
 	setData(data: uPlot.AlignedData, resetScales?: boolean): void;
 
-	/** sets the limits of a scale & redraws (used for zooming) */
-	setScale(scaleKey: string, limits: { min: number; max: number }): void;
+	/** sets scale bounds & redraws. null bounds request auto-ranging */
+	setRange(scaleKey: string, min: number | null, max: number | null): void;
+
+	/** sets scale bounds & redraws. null bounds request auto-ranging */
+	setScale(scaleKey: string, limits: { min: number | null; max: number | null }): void;
 
 	/** sets the cursor position (relative to plotting area) */
 	setCursor(opts: {left: number, top: number}, fireHook?: boolean): void;
@@ -107,6 +116,9 @@ declare class uPlot {
 	/** sets the width & height of the plotting area + axes (excludes title & legend height) */
 	setSize(opts: { width: number; height: number }): void;
 
+	/** temporarily sets a user-defined devicePixelRatio that's different from window.devicePixelRatio */
+	setPxRatio(pxRatio?: number | null): void;
+
 	/** converts a CSS pixel position (relative to plotting area) to the closest data index */
 	posToIdx(left: number, canvasPixels?: boolean): number;
 
@@ -122,14 +134,23 @@ declare class uPlot {
 	/** updates getBoundingClientRect() cache for cursor positioning. use when plot's position changes (excluding window scroll & resize) */
 	syncRect(defer?: boolean): void;
 
+	/** clears selected caches without a redraw. defaults to all categories. see docs for disposal restrictions */
+	clearCache(targets?: uPlot.CacheOptions): void;
+
 	/** uPlot's path-builder factories */
 	static paths: uPlot.Series.PathBuilderFactories;
 
 	/** a deep merge util fn */
 	static assign(targ: object, ...srcs: object[]): object;
 
-	/** re-ranges a given min/max by a multiple of the range's magnitude (used internally to expand/snap/pad numeric y scales) */
-	static rangeNum(min: number, max: number, mult: number, extra: boolean): uPlot.Range.MinMax;
+	/**
+	 * returns aggregate data extrema for a scale. nullish indices use the full array bounds.
+	 * cache = true reuses and populates extrema caches, regardless of the requested interval. default: false.
+	 */
+	static scan(self: uPlot, scaleKey: string, i0?: number | null, i1?: number | null, cache?: boolean): uPlot.Range.MinMax;
+
+	/** expands/snaps numeric bounds with padding and optional zero affinity */
+	static rangeNum(min: number, max: number, mult: number, zeroAffinity: boolean): uPlot.Range.MinMax;
 	static rangeNum(min: number, max: number, cfg: uPlot.Range.Config): uPlot.Range.MinMax;
 
 	/** re-ranges a given min/max outwards to nearest 10% of given min/max's magnitudes, unless fullMags = true */
@@ -141,11 +162,14 @@ declare class uPlot {
 	/** default numeric formatter using browser's locale: new Intl.NumberFormat(navigator.language).format */
 	static fmtNum(val: number): string;
 
+	/** maximum decimal places needed for numeric splits */
+	static numDec(splits: readonly (number | null)[]): number;
+
 	/** creates an efficient formatter for Date objects from a template string, e.g. {YYYY}-{MM}-{DD} */
 	static fmtDate(tpl: string, names?: uPlot.DateNames): (date: Date) => string;
 
-	/** converts a Date into new Date that's time-adjusted for the given IANA Time Zone Name */
-	static tzDate(date: Date, tzName: string): Date;
+	/** converts a Date or ms timestamp into new Date that's time-adjusted for the given IANA Time Zone Name */
+	static tzDate(dateOrTs: Date | number, tzName: string): DateZoned;
 
 	/** outerJoins multiple data tables on table[0] values */
 	static join(tables: uPlot.AlignedData[], nullModes?: uPlot.JoinNullMode[][]): uPlot.AlignedData;
@@ -164,7 +188,7 @@ declare class uPlot {
 	static pxRatio: number;
 }
 
-export = uPlot;
+export default uPlot;
 
 declare namespace uPlot {
 	type OrientCallback = (
@@ -222,6 +246,14 @@ declare namespace uPlot {
 		...yValues: ((number | null | undefined)[] | TypedArray)[],
 	]
 
+	export class DateZoned extends Date {
+		tz: string;
+		#utc: boolean;
+		// sön, 1972-10-15 17:25:23,434 GMT+01:00
+		#str: string;
+		setTimeZone: (tzName: string) => void;
+	}
+
 	export interface DateNames {
 		/** long month names */
 		MMMM: string[];
@@ -239,27 +271,28 @@ declare namespace uPlot {
 	export namespace Range {
 		export type MinMax = [min: number | null, max: number | null];
 
-		export type Function = (self: uPlot, initMin: number, initMax: number, scaleKey: string) => MinMax;
-
-		export type SoftMode = 0 | 1 | 2 | 3;
+		export type Function = (self: uPlot, initMin: number | null, initMax: number | null, scaleKey: string) => MinMax;
 
 		export interface Limit {
-			/** initial multiplier for dataMax-dataMin delta */
+			/** padding as a fraction of the data range */
 			pad?: number; // 0.1
 
 			/** soft limit */
-			soft?: number; // 0
-
-			/** soft limit active if... 0: never, 1: data <= limit, 2: data + padding <= limit, 3: data <= limit <= data + padding */
-			mode?: SoftMode; // 3
+			soft?: number;
 
 			/** hard limit */
 			hard?: number;
 		}
 
 		export interface Config {
-			min: Range.Limit;
-			max: Range.Limit;
+			min?: Range.Limit;
+			max?: Range.Limit;
+
+			/** zero-affinity threshold as a fraction of the data range. 0 disables */
+			zeroIf?: number; // 0.1
+
+			/** treat tiny data ranges as flat below this threshold */
+			flat?: number; // 1e-7
 		}
 	}
 
@@ -269,7 +302,13 @@ declare namespace uPlot {
 
 	type SidesWithAxes = [top: boolean, right: boolean, bottom: boolean, left: boolean];
 
-	export type PaddingSide = number | null | ((self: uPlot, side: Axis.Side, sidesWithAxes: SidesWithAxes, cycleNum: number) => number);
+	export const enum PaddingPhase {
+		Layout   = 0,
+		Overflow = 1,
+	}
+
+	/** total padding in CSS pixels; phase distinguishes baseline layout from horizontal label overflow */
+	export type PaddingSide = number | null | ((self: uPlot, side: Axis.Side, sidesWithAxes: SidesWithAxes, phase: PaddingPhase) => number);
 
 	export type Padding = [top: PaddingSide, right: PaddingSide, bottom: PaddingSide, left: PaddingSide];
 
@@ -323,7 +362,7 @@ declare namespace uPlot {
 
 	export type DateFormatterFactory = (tpl: string) => (date: Date) => string;
 
-	export type LocalDateFromUnix = (ts: number) => Date;
+	export type LocalDateFromUnix = (ts: number) => DateZoned;
 
 	export const enum DrawOrderKey {
 		Axes   = 'axes',
@@ -335,6 +374,39 @@ declare namespace uPlot {
 		Faceted = 2,
 	}
 
+	export interface DOMOptions {
+		/** creates the .uplot container. false creates only the canvas. */
+		uplot?: boolean; // true
+		/** creates the .u-over element */
+		over?: boolean; // true
+		/** creates the .u-under element */
+		under?: boolean; // true
+	}
+
+	export interface CacheOptions {
+		/** series path-builder caches */
+		paths?: boolean;
+		/** retained data arrays. discard only for static charts */
+		data?: boolean;
+	}
+
+	export namespace Stack {
+		export interface Group {
+			/** series indices ordered from zero outward */
+			series: number[];
+
+			/** 0 for bars (split by sign); 1/-1 for lines and areas (away from zero) */
+			dir: 1 | -1 | 0;
+		}
+	}
+
+	export interface Stack {
+		groups: Stack.Group[];
+
+		/** normalize each group to proportions */
+		percent?: boolean;
+	}
+
 	export interface Options {
 		/** 1: aligned & ordered, single-x / y-per-series, 2: unordered & faceted, per-series/per-point x,y,size,label,color,shape,etc. */
 		mode?: Mode,
@@ -342,10 +414,13 @@ declare namespace uPlot {
 		/** chart title */
 		title?: string;
 
-		/** id to set on chart div */
+		/** DOM elements to create */
+		dom?: DOMOptions;
+
+		/** id to set on chart root */
 		id?: string;
 
-		/** className to add to chart div */
+		/** className to add to chart root */
 		class?: string;
 
 		/** width of plotting area + axes in CSS pixels */
@@ -353,6 +428,12 @@ declare namespace uPlot {
 
 		/** height of plotting area + axes in CSS pixels (excludes title & legend height) */
 		height: number;
+
+		/** initial devicePixelRatio, if different than window.devicePixelRatio */
+		pxRatio?: number;
+
+		/** Canvas 2D context attributes for creation */
+		ctxAttrs?: CanvasRenderingContext2DSettings;
 
 		/** data for chart, if none is provided as argument to constructor */
 		data?: AlignedData;
@@ -376,6 +457,9 @@ declare namespace uPlot {
 
 		bands?: Band[];
 
+		/** cumulative stacking groups */
+		stack?: Stack;
+
 		scales?: Scales;
 
 		axes?: Axis[];
@@ -394,6 +478,9 @@ declare namespace uPlot {
 		hooks?: Hooks.Arrays;
 
 		plugins?: Plugin[];
+
+		/** caches to retain after rendering (default: all) */
+		cache?: CacheOptions;
 	}
 
 	export interface Focus {
@@ -425,7 +512,7 @@ declare namespace uPlot {
 	export namespace Cursor {
 		export type LeftTop              = [left: number, top: number];
 
-		export type MouseListener        = (e: MouseEvent) => null;
+		export type MouseListener        = (e: MouseEvent) => void;
 
 		export type MouseListenerFactory = (self: uPlot, targ: HTMLElement, handler: MouseListener) => MouseListener | null;
 
@@ -469,8 +556,13 @@ declare namespace uPlot {
 			fill?:   Points.Fill;
 		}
 
+		export type DragSetRange = boolean | ((self: uPlot, scaleKey: string, min: number, max: number) => [min: number, max: number] | null);
+
 		export interface Drag {
-			setScale?: boolean; // true
+			/** applies drag bounds; a callback can adjust them or return null to cancel that scale */
+			setRange?: DragSetRange; // true
+			/** @deprecated Use setRange. */
+			setScale?: boolean; // null
 			/** toggles dragging along x */
 			x?: boolean; // true
 			/** toggles dragging along y */
@@ -607,6 +699,8 @@ declare namespace uPlot {
 	export namespace Scale {
 		export type Auto = boolean | ((self: uPlot, resetScales: boolean) => boolean);
 
+		export type Scan = boolean | ((self: uPlot, scaleKey: string, i0?: number | null, i1?: number | null, viaAutoScaleX?: boolean) => Range.MinMax);
+
 		export type Range = Range.MinMax | Range.Function | Range.Config;
 
 		export const enum Distr {
@@ -626,8 +720,14 @@ declare namespace uPlot {
 		/** is this scale temporal, with series' data in UNIX timestamps? */
 		time?: boolean;
 
-		/** determines whether all series' data on this scale will be scanned to find the full min/max range */
+		/** automatically recalculates this scale's range (default: true) */
 		auto?: Scale.Auto;
+
+		/**
+		 * calculates data extrema for range(). true uses the cached scanner; false supplies [null, null].
+		 * custom callbacks must populate participating series/facet min/max caches.
+		 */
+		scan?: Scale.Scan;
 
 		/** can define a static scale range or re-range an initially-determined range from series data */
 		range?: Scale.Range;
@@ -641,11 +741,16 @@ declare namespace uPlot {
 		/** logarithmic base */
 		log?: Scale.LogBase; // 10;
 
-		/** clamps log scale values <= 0 (default = scaleMin / 10) */
+		/**
+		 * For log scales, replaces values <= 0 during positioning (default: scaleMin / 10).
+		 * For default adaptive asinh, excludes absolute values <= this nonnegative cutoff from threshold selection (default: 0).
+		 * Adaptive asinh calls the callback once per threshold calculation, with val = 0 and the current scale bounds.
+		 * The asinh cutoff does not clamp data values or affect explicit numeric or callback asinh settings.
+		 */
 		clamp?: Scale.Clamp;
 
-		/** arcsinh linear threshold */
-		asinh?: number; // 1
+		/** arcsinh linear threshold (default: adaptive) */
+		asinh?: number | ((self: uPlot, scaleKey: string) => number);
 
 		/** forward transform fn, with custom distr: 100 */
 		fwd?: (v: number) => number;
@@ -851,9 +956,17 @@ declare namespace uPlot {
 		export interface Facet {
 			scale: string;
 
+			/** includes this facet in data scans */
+			scan?: boolean; // true
+
+			/** @deprecated Use scan. */
 			auto?: boolean;
 
 			sorted?: Sorted;
+
+			/** cached data extrema */
+			min?: number | null;
+			max?: number | null;
 		}
 
 		export type Gap = [from: number, to: number];
@@ -893,14 +1006,20 @@ declare namespace uPlot {
 		/** scale key */
 		scale?: string;
 
-		/** whether this series' data is scanned during auto-ranging of its scale */
-		auto?: boolean; // true
+		/** includes this series in data scans (default: true for data series) */
+		scan?: boolean;
 
-		/** if & how the data is pre-sorted (scale.auto optimization) */
+		/** @deprecated Use scan. */
+		auto?: boolean;
+
+		/** if & how the data is pre-sorted (data scanning optimization) */
 		sorted?: Series.Sorted;
 
 		/** when true, null data values will not cause line breaks */
 		spanGaps?: boolean;
+
+		// 0: also erase interpolation to left and right of null regions, 1: to right only, -1: to left only
+		alignGaps?: -1 | 0 | 1; // 0
 
 		/** may mutate and/or augment gaps array found from null values */
 		gaps?: Series.GapsRefiner;
@@ -909,7 +1028,7 @@ declare namespace uPlot {
 		pxAlign?: number | boolean; // 1
 
 		/** legend label */
-		label?: string;
+		label?: string | HTMLElement;
 
 		/** inline-legend value formatter. can be an fmtDate formatting string when scale.time: true */
 		value?: Series.Value;
@@ -949,11 +1068,11 @@ declare namespace uPlot {
 		/** current min and max data indices rendered */
 		idxs?: Series.MinMaxIdxs;
 
-		/** current min rendered value */
-		min?: number;
+		/** cached minimum data value */
+		min?: number | null;
 
-		/** current max rendered value */
-		max?: number;
+		/** cached maximum data value */
+		max?: number | null;
 	}
 
 	export namespace Band {
@@ -977,10 +1096,18 @@ declare namespace uPlot {
 	}
 
 	export namespace Axis {
+		export interface Nice {
+			/** aligns multi-hour ticks to local midnight across DST */
+			dst?: boolean; // true
+			/** includes month-start ticks for multi-day increments */
+			first?: boolean; // false
+		}
+
 		/** must return an array of same length as splits, e.g. via splits.map() */
 		export type Filter = (self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => (number | null)[];
 
-		export type Size = number | ((self: uPlot, values: string[], axisIdx: number, cycleNum: number) => number);
+		/** axis size in CSS pixels. callbacks receive formatted values for vertical axes, or null before ticks for horizontal axes */
+		export type Size = number | ((self: uPlot, values: Axis.StaticValues | null, axisIdx: number) => number);
 
 		export type Space = number | ((self: uPlot, axisIdx: number, scaleMin: number, scaleMax: number, plotDim: number) => number);
 
@@ -1012,6 +1139,13 @@ declare namespace uPlot {
 		export const enum Align {
 			Left  = 1,
 			Right = 2,
+		}
+
+		export const enum AlignTo {
+			/** axis gap is on the inside; text is placed at outer gap boundary */
+			Inside  = 1,
+			/** axis gap is on the outside; text is placed at inner gap boundary */
+			Outside = 2,
 		}
 
 		export type Rotate = number | ((self: uPlot, values: (string | number)[], axisIdx: number, foundSpace: number) => number);
@@ -1052,13 +1186,16 @@ declare namespace uPlot {
 		/** axis on/off */
 		show?: boolean;
 
+		/** creates the .u-axis DOM rectangle */
+		dom?: boolean; // true
+
 		/** scale key */
 		scale?: string;
 
 		/** side of chart - 0: top, 1: rgt, 2: btm, 3: lft */
 		side?: Axis.Side;
 
-		/** height of x axis or width of y axis in CSS pixels alloted for values, gap & ticks, but excluding axis label */
+		/** horizontal axis height or vertical axis width in CSS pixels for values, gap & ticks, excluding the axis label */
 		size?: Axis.Size;
 
 		/** gap between axis values and axis baseline (or ticks, if enabled) in CSS pixels */
@@ -1085,11 +1222,20 @@ declare namespace uPlot {
 		/** font used for axis label */
 		labelFont?: CanvasRenderingContext2D['font'];
 
-		/** minimum grid & tick spacing in CSS pixels */
+		/** target grid & tick spacing in CSS pixels; horizontal tick-aware ranging passes raw extrema to callbacks */
 		space?: Axis.Space;
+
+		/** tick-count growth factor for tick-aware Y ranging. 0 retains two edge ticks */
+		ramp?: number; // 1
+
+		/** enforces the dimension/ramp-derived interval count for tick-aware Y ranging */
+		exact?: boolean; // false
 
 		/** available divisors for axis ticks, values, grid */
 		incrs?: Axis.Incrs;
+
+		/** calendar adjustments for built-in time-axis splits */
+		nice?: Axis.Nice;
 
 		/** determines how and where the axis must be split for placing ticks, values, grid */
 		splits?: Axis.Splits;
@@ -1105,6 +1251,9 @@ declare namespace uPlot {
 
 		/** text alignment of axis values - 1: left, 2: right */
 		align?: Axis.Align;
+
+		/** baseline for text alignment of axis values - 1: inside, 2: outside */
+		alignTo?: Axis.AlignTo;
 
 		/** gridlines to draw from this axis' splits */
 		grid?: Axis.Grid;
@@ -1140,12 +1289,12 @@ declare namespace uPlot {
 			setSelect?:  (self: uPlot) => void;
 
 			/** fires after a series is toggled or focused */
-			setSeries?:  (self: uPlot, seriesIdx: number | null, opts: Series) => void;
+			setSeries?:  (self: uPlot, seriesIdx: number | null, opts: {show?: boolean, focus?: boolean}) => void;
 
 			/** fires after data is updated updated */
 			setData?:    (self: uPlot) => void;
 
-			/** fires after the chart is resized */
+			/** fires after chart size, plot geometry, or axes change */
 			setSize?:    (self: uPlot) => void;
 
 			/** fires at start of every redraw */

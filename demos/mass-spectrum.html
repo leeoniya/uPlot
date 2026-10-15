@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Mass Spectrum</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+	</head>
+	<body>
+		<script type="module">
+			import uPlot from "../dist/uPlot.esm.js";
+
+			fetch('./data/ms_spectrum.csv').then(r => r.text()).then(csv => {
+				// parse csv
+				const lines = csv.trim().split('\n').map(line => line.split(',')).slice(1);
+
+				// convert to columnar
+				const data = [
+					Array(lines.length),
+					Array(lines.length),
+				];
+
+				lines.forEach((line, i) => {
+					data[0][i] = Number(line[0]);
+					data[1][i] = Number(line[1]);
+				});
+
+				const opts = {
+					title: 'Mass spectrum',
+					width: 1920,
+					height: 600,
+					scales: {
+						x: {
+							time: false,
+						},
+						y: {
+							range: (u, dataMin, dataMax) => {
+								if (dataMin == dataMax)
+									return dataMin == 0 ? [0, 100] : [0, 2 * dataMin];
+
+								return [dataMin, dataMax];
+							},
+						}
+					},
+					axes: [
+						{
+							label: 'm/z'
+						},
+						{
+							label: 'relative abundance (%)'
+						}
+					],
+					series: [
+						{},
+						{
+						//	paths: uPlot.paths.bars(),
+							stroke: "#305CDE",
+						},
+					],
+				};
+
+				let u = new uPlot(opts, data, document.body);
+			});
+		</script>
+	</body>
+</html>

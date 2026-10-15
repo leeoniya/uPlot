@@ -1,5 +1,5 @@
-import { pow, sqrt } from '../utils';
-import { splineInterp } from "./spline";
+import { pow, sqrt } from '../utils.js';
+import { splineInterp } from "./spline.js";
 
 export function catmullRomCentrip(opts) {
 	return splineInterp(catmullRomFitting, opts);

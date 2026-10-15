@@ -48,34 +48,34 @@
 
 				const chart = LightweightCharts.createChart(document.body, {
 					width: 1920,
-					height: 600
-				});
-
-				chart.timeScale().setVisibleRange({
-					from: data[0][0].time,
-					to: data[0][data[0].length - 1].time,
+					height: 600,
+					timeScale: {
+						minBarSpacing: 0.0001, // Unrestrict the minimum zoom level
+					},
 				});
 
 				// CPU
-				const cpu = chart.addLineSeries({
+				const cpu = chart.addSeries(LightweightCharts.LineSeries, {
 					lineWidth: 1,
 					color: 'red',
 				});
 				cpu.setData(data[0]);
 
 				// RAM
-				const ram = chart.addLineSeries({
+				const ram = chart.addSeries(LightweightCharts.LineSeries, {
 					lineWidth: 1,
 					color: 'blue',
 				});
 				ram.setData(data[1]);
 
 				// TCP Out
-				const tcp = chart.addLineSeries({
+				const tcp = chart.addSeries(LightweightCharts.LineSeries, {
 					lineWidth: 1,
 					color: 'green',
 				});
 				tcp.setData(data[2]);
+
+				chart.timeScale().fitContent();
 
 				wait.textContent = "Done!";
 				console.timeEnd('chart');

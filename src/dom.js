@@ -1,17 +1,16 @@
 import {
 	OFF,
-} from './domClasses';
+} from './domClasses.js';
 
 import {
 	change,
 	dppxchange,
-} from './strings';
+} from './strings.js';
 
 export const domEnv = typeof window != 'undefined';
 
 export const doc = domEnv ? document  : null;
 export const win = domEnv ? window    : null;
-export const nav = domEnv ? navigator : null;
 
 export let pxRatio;
 
@@ -56,8 +55,7 @@ export function placeTag(tag, cls, targ, refEl) {
 	if (cls != null)
 		addClass(el, cls);
 
-	if (targ != null)
-		targ.insertBefore(el, refEl);
+	targ?.insertBefore(el, refEl);
 
 	return el;
 }
@@ -68,15 +66,17 @@ export function placeDiv(cls, targ) {
 
 const xformCache = new WeakMap();
 
-export function elTrans(el, xPos, yPos, xMax, yMax) {
+export function elTrans(el, xPos, yPos, xMax, yMax, off) {
 	let xform = "translate(" + xPos + "px," + yPos + "px)";
 	let xformOld = xformCache.get(el);
 
 	if (xform != xformOld) {
 		el.style.transform = xform;
 		xformCache.set(el, xform);
+	}
 
-		if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
+	if (xform != xformOld || off != null) {
+		if (off ?? (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax))
 			addClass(el, OFF);
 		else
 			remClass(el, OFF);

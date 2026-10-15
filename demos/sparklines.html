@@ -85,14 +85,8 @@
 					width,
 					height,
 					pxAlign: false,
-					cursor: {
-						show: false
-					},
-					select: {
-						show: false,
-					},
-					legend: {
-						show: false,
+					dom: {
+						uplot: false,
 					},
 					scales: {
 						x: {
@@ -116,11 +110,7 @@
 					],
 				};
 
-				let can = new uPlot(opts, [x, y]).ctx.canvas;
-				can.style.width = width + "px";
-				can.style.height = height + "px";
-
-				return can;
+				return new uPlot(opts, [x, y]).root;
 			}
 		</script>
 	</body>

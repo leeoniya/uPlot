@@ -1,4 +1,4 @@
-import { splineInterp } from "./spline";
+import { splineInterp } from "./spline.js";
 
 export function monotoneCubic(opts) {
 	return splineInterp(_monotoneCubic, opts);

@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Issue 808: Fixed-range boundary strokes</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../../dist/uPlot.min.css">
+	<script src="../../dist/uPlot.iife.js"></script>
+	<style>
+		body {
+			font: 14px system-ui, sans-serif;
+			margin: 20px;
+		}
+
+		pre {
+			background: #eee;
+			overflow-x: auto;
+			padding: 10px;
+		}
+	</style>
+</head>
+<body>
+	<h1>Issue 808: fixed-range boundary strokes</h1>
+	<p><a href="https://github.com/leeoniya/uPlot/issues/808">GitHub issue #808</a></p>
+	<p>Expected: the flat segments at Y = -12 and Y = 12 show the full 5px stroke width, just like the middle segment, without scale padding.</p>
+	<p>Clipping was fixed before the scan API and no longer depends on data scans. This static range uses the default no-scan behavior; <a href="https://github.com/leeoniya/uPlot/issues/808#issuecomment-1474130071">the old range-function workaround</a> is not needed.</p>
+	<h2>Relevant configuration</h2>
+	<pre><code>const opts = {
+  scales: {
+    x: { time: false },
+    y: { range: [-12, 12] },
+  },
+  series: [
+    {},
+    {
+      label: "Boundary values",
+      stroke: "blue",
+      width: 5,
+      points: { show: false },
+    },
+  ],
+};</code></pre>
+	<div id="chart"></div>
+	<script>
+		const data = [
+			[0, 1, 2, 3, 4, 5],
+			[-12, -12, 0, 0, 12, 12],
+		];
+
+		const opts = {
+			width: 800,
+			height: 400,
+			scales: {
+				x: { time: false },
+				y: { range: [-12, 12] },
+			},
+			series: [
+				{},
+				{
+					label: "Boundary values",
+					stroke: "blue",
+					width: 5,
+					points: { show: false },
+				},
+			],
+		};
+
+		new uPlot(opts, data, document.querySelector("#chart"));
+	</script>
+</body>
+</html>

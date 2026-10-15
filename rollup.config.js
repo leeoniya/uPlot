@@ -18,6 +18,7 @@ import terser from '@rollup/plugin-terser';
 const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
 const ver = "v" + pkg.version;
 const urlVer = "https://github.com/leeoniya/uPlot (" + ver + ")";
+
 const banner = [
 	"/**",
 	"* Copyright (c) " + new Date().getFullYear() + ", Leon Sorokin",
@@ -30,6 +31,19 @@ const banner = [
 	"",
 ].join("\n");
 
+function trimTrailingWhitespace() {
+	return {
+		name: 'trimTrailingWhitespace',
+		generateBundle(opts, bundle) {
+			for (let file in bundle) {
+				let chunk = bundle[file];
+				if (chunk.type == 'chunk')
+					chunk.code = chunk.code.replace(/[ \t]+$/gm, '');
+			}
+		},
+	};
+}
+
 function bannerlessESM() {
 	return {
 		name: 'stripBanner',
@@ -40,7 +54,8 @@ function bannerlessESM() {
 		},
 		load(id) {
 			if (id == 'uPlot')
-				return fs.readFileSync('./dist/uPlot.esm.js', 'utf8').replace(/\/\*\*.*?\*\//gms, '');
+				return fs.readFileSync('./dist/uPlot.esm.js', 'utf8')
+									.replace(/\/\*\*.*?\*\//gms, '');
 			return null;
 		}
 	};
@@ -94,6 +109,7 @@ export default [
 		},
 		plugins: [
 			bannerlessESM(),
+			trimTrailingWhitespace(),
 		]
 	},
 	{
@@ -108,6 +124,7 @@ export default [
 		plugins: [
 			bannerlessESM(),
 			terser(terserOpts),
+			trimTrailingWhitespace(),
 		]
 	},
 ];

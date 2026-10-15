@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Issue 20: per-instance export resolution</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../../dist/uPlot.min.css">
+	<script src="../../dist/uPlot.iife.js"></script>
+	<style>
+		body {
+			font: 14px system-ui, sans-serif;
+			margin: 20px;
+		}
+
+		pre {
+			background: #eee;
+			padding: 12px;
+			overflow: auto;
+		}
+
+		img {
+			display: block;
+			width: 480px;
+			height: 240px;
+			border: 1px solid #ccc;
+			margin: 12px 0;
+		}
+	</style>
+</head>
+<body>
+	<h1>Issue 20: per-instance export resolution</h1>
+	<p><a href="https://github.com/leeoniya/uPlot/issues/20#issuecomment-4369427688">GitHub issue #20</a></p>
+	<p>This demo uses the current repository build. The published npm 1.6.32 does not include per-instance pixel ratio support.</p>
+	<p>Both charts render in detached containers. Each has a 480 × 240 logical size, but its own pixel ratio.</p>
+	<p>The exported PNGs appear at the same size here. Download them to compare their full resolutions.</p>
+	<pre><code>const opts = {
+  width: 480,
+  height: 240,
+  pxRatio: 4, // Produces a 1920 × 960 bitmap, regardless of browser DPR.
+  legend: { show: false },
+  scales: { x: { time: false } },
+  series: [{}, { stroke: "blue" }],
+};</code></pre>
+	<p id="status">Rendering…</p>
+	<section id="one">
+		<h2>pxRatio: 1</h2>
+	</section>
+	<section id="four">
+		<h2>pxRatio: 4</h2>
+	</section>
+	<script>
+		async function showExport(pxRatio, sectionId) {
+			const u = new uPlot({
+				width: 480,
+				height: 240,
+				pxRatio,
+				legend: { show: false },
+				scales: { x: { time: false } },
+				series: [{}, { stroke: "blue" }],
+			}, [[0, 1, 2, 3, 4], [2, 8, 3, 7, 4]], document.createElement("div"));
+
+			try {
+				// Construction queues the initial render. Export after it completes.
+				await Promise.resolve();
+
+				const source = u.ctx.canvas;
+				const canvas = document.createElement("canvas");
+				canvas.width = source.width;
+				canvas.height = source.height;
+				canvas.getContext("2d").drawImage(source, 0, 0);
+				const png = canvas.toDataURL("image/png");
+
+				const image = new Image();
+				image.alt = "Chart exported at pixel ratio " + pxRatio;
+				image.src = png;
+				await image.decode();
+
+				const link = document.createElement("a");
+				link.href = png;
+				link.download = "uplot-" + pxRatio + "x.png";
+				link.textContent = "Download " + image.naturalWidth + " × " + image.naturalHeight + " PNG";
+				document.getElementById(sectionId).append(image, link);
+
+				return { pxRatio, width: image.naturalWidth, height: image.naturalHeight };
+			}
+			finally {
+				u.destroy();
+			}
+		}
+
+		const exportsReady = Promise.all([showExport(1, "one"), showExport(4, "four")]);
+		exportsReady.then(results => {
+			const correct = results.every(r => r.width == 480 * r.pxRatio && r.height == 240 * r.pxRatio);
+			document.getElementById("status").textContent = "Browser DPR: " + devicePixelRatio + ". " +
+				(correct ? "Both exports have the requested resolution." : "Unexpected resolution: verify that you loaded the current build.");
+		}).catch(error => {
+			document.getElementById("status").textContent = error.message;
+		});
+	</script>
+</body>
+</html>

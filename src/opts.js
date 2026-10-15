@@ -1,6 +1,6 @@
 import {
 	FEAT_TIME,
-} from './feats';
+} from './feats.js';
 
 import {
 	assign,
@@ -10,6 +10,7 @@ import {
 	max,
 
 	inf,
+	isFinite,
 	pow,
 	log2,
 	log10,
@@ -20,27 +21,28 @@ import {
 	floor,
 	fmtNum,
 	fixedDec,
+	numDec,
+	guessDec,
 
 	retArg1,
 	noop,
 	ceil,
 	closestIdx,
-} from './utils';
+} from './utils.js';
 
 import {
 	hexBlack,
 	WIDTH,
 	HEIGHT,
 	LEGEND_DISP,
-} from './strings';
+} from './strings.js';
 
 import {
-	pxRatio,
 	placeDiv,
 	setStylePx,
-} from './dom';
+} from './dom.js';
 
-import { fmtDate } from './fmtDate';
+import { DateZoned, fmtDate, floorSOP, PERIOD_DAY, PERIOD_MONTH, PERIOD_YEAR } from './fmtDate.js';
 
 //export const series = [];
 
@@ -158,81 +160,130 @@ function genTimeStuffs(ms) {
 	// https://www.epochconverter.com/timezones
 	function timeAxisSplits(tzDate) {
 		return (self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace) => {
+			let nice = self.axes[axisIdx].nice;
 			let splits = [];
 			let isYr = foundIncr >= y;
 			let isMo = foundIncr >= mo && foundIncr < y;
+			let isDays = foundIncr >= d && foundIncr < mo;
+			let isHours = foundIncr > h && foundIncr < d
 
 			// get the timezone-adjusted date
 			let minDate = tzDate(scaleMin);
 			let minDateTs = roundDec(minDate * ms, 3);
 
 			// get ts of 12am (this lands us at or before the original scaleMin)
-			let minMin = mkDate(minDate.getFullYear(), isYr ? 0 : minDate.getMonth(), isMo || isYr ? 1 : minDate.getDate());
+			let minMin = floorSOP(minDate, isYr || isMo ? PERIOD_YEAR : isDays ? PERIOD_MONTH : PERIOD_DAY); // should we do PERIOD_HOUR?
 			let minMinTs = roundDec(minMin * ms, 3);
 
-			if (isMo || isYr) {
-				let moIncr = isMo ? foundIncr / mo : 0;
-				let yrIncr = isYr ? foundIncr / y  : 0;
-			//	let tzOffset = scaleMin - minDateTs;		// needed?
-				let split = minDateTs == minMinTs ? minDateTs : roundDec(mkDate(minMin.getFullYear() + yrIncr, minMin.getMonth() + moIncr, 1) * ms, 3);
-				let splitDate = new Date(round(split / ms));
-				let baseYear = splitDate.getFullYear();
-				let baseMonth = splitDate.getMonth();
+			if (isDays) {
+				let incrDays = foundIncr / d;
 
-				for (let i = 0; split <= scaleMax; i++) {
-					let next = mkDate(baseYear + yrIncr * i, baseMonth + moIncr * i, 1);
-					let offs = next - tzDate(roundDec(next * ms, 3));
+				// incrs to add to month baseline
+				let skip = floor((minDate.getDate() - 1) / incrDays);
+				let split = minMinTs + (foundIncr * skip);
 
-					split = roundDec((+next + offs) * ms, 3);
+				do {
+					let date = tzDate(split);
+					// adjust for DST misses
+					let hour = date.getHours();
+					if (hour != 0) {
+						split += hour > 12 ? h : -h;
+						date = tzDate(split);
+					}
 
-					if (split <= scaleMax)
-						splits.push(split);
-				}
-			}
-			else {
-				let incr0 = foundIncr >= d ? d : foundIncr;
-				let tzOffset = floor(scaleMin) - floor(minDateTs);
-				let split = minMinTs + tzOffset + incrRoundUp(minDateTs - minMinTs, incr0);
-				splits.push(split);
+					// rolled over into next month onto non-divisible incr, reset baseline
+					if (nice.first && (date.getDate() - 1) % incrDays > 0) {
+						date = floorSOP(date, PERIOD_MONTH);
+						split = date.getTime() * ms;
 
-				let date0 = tzDate(split);
-
-				let prevHour = date0.getHours() + (date0.getMinutes() / m) + (date0.getSeconds() / h);
-				let incrHours = foundIncr / h;
-
-				let minSpace = self.axes[axisIdx]._space;
-				let pctSpace = foundSpace / minSpace;
-
-				while (1) {
-					split = roundDec(split + foundIncr, ms == 1 ? 0 : 3);
+						// make sure we're not rendering a collision between 31 and 1
+						if (split - splits[splits.length - 1] < foundIncr * 0.7)
+							splits.pop();
+					}
 
 					if (split > scaleMax)
 						break;
 
-					if (incrHours > 1) {
-						let expectedHour = floor(roundDec(prevHour + incrHours, 6)) % 24;
-						let splitDate = tzDate(split);
-						let actualHour = splitDate.getHours();
-
-						let dstShift = actualHour - expectedHour;
-
-						if (dstShift > 1)
-							dstShift = -1;
-
-						split -= dstShift * h;
-
-						prevHour = (prevHour + incrHours) % 24;
-
-						// add a tick only if it's further than 70% of the min allowed label spacing
-						let prevSplit = splits[splits.length - 1];
-						let pctIncr = roundDec((split - prevSplit) / foundIncr, 3);
-
-						if (pctIncr * pctSpace >= .7)
-							splits.push(split);
-					}
-					else
+					if (split >= scaleMin)
 						splits.push(split);
+
+					split += foundIncr;
+				} while (1);
+			}
+			else if (isMo || isYr) {
+				let subIncrs = 1;
+				let subIncrDays = 1;
+				let periodType = 0;
+				let periodMin = 0;
+
+				if (isMo) {
+					subIncrs = foundIncr / mo;
+					subIncrDays = 32;
+					periodType = PERIOD_MONTH;
+					periodMin = minDate.getMonth();
 				}
+				else if (isYr) {
+					subIncrs = foundIncr / y;
+					subIncrDays = 366;
+					periodType = PERIOD_YEAR;
+					periodMin = minDate.getYear();
+				}
+
+				foundIncr = subIncrs * subIncrDays * d;
+
+				let skip = floor(periodMin / subIncrDays);
+				let split = minMinTs + (foundIncr * skip);
+
+				do {
+					let date = floorSOP(tzDate(split), periodType);
+					split = date.getTime() * ms;
+
+					if (split > scaleMax)
+						break;
+
+					if (split >= scaleMin)
+						splits.push(split);
+
+					split += foundIncr;
+				} while (1);
+			}
+			else if (isHours) {
+				let incrHours = foundIncr / h;
+
+				let skip = floor(minDate.getHours() / incrHours);
+				let split = minMinTs + (foundIncr * skip);
+
+				do {
+					let date = tzDate(split);
+
+					// adjust for DST misses
+					let hour = date.getHours();
+					if (nice.dst && hour % incrHours > 0) {
+						let hour2 = tzDate(split - h).getHours();
+						split += hour2 % incrHours == 0 ? -h : h;
+					}
+
+					if (split > scaleMax)
+						break;
+
+					if (split >= scaleMin)
+						splits.push(split);
+
+					split += foundIncr;
+				} while (1);
+			}
+			else {
+				let split = minMinTs + incrRoundUp(minDateTs - minMinTs, foundIncr);
+
+				do {
+					if (split > scaleMax)
+						break;
+
+					if (split >= scaleMin)
+						splits.push(split);
+
+					split += foundIncr;
+				} while (1);
 			}
 
 			return splits;
@@ -442,7 +493,8 @@ export const cursorOpts = {
 	},
 
 	drag: {
-		setScale: true,
+		setRange: true,
+		setScale: null,
 		x: true,
 		y: false,
 		dist: 0,
@@ -499,13 +551,17 @@ const border = assign({}, axisLines, {
 const font      = '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';
 const labelFont = "bold " + font;
 const lineGap = 1.5;	// font-size multiplier
+const nice = { dst: true, first: false };
 
 export const xAxisOpts = {
 	show: true,
+	dom: true,
 	scale: "x",
 	stroke: hexBlack,
 	space: 50,
+	nice,
 	gap: 5,
+	alignTo: 1,
 	size: 50,
 	labelGap: 0,
 	labelSize: 30,
@@ -529,7 +585,6 @@ export const timeSeriesLabel = "Time";
 export const xSeriesOpts = {
 	show: true,
 	scale: "x",
-	auto: false,
 	sorted: 1,
 //	label: "Time",
 //	value: v => stamp(new Date(v * 1e3)),
@@ -540,25 +595,43 @@ export const xSeriesOpts = {
 	idxs: [],
 };
 
+const numAxisFmts = new Map();
+
 export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
-	return splits.map(v => v == null ? "" : fmtNum(v));
+	let dec = numDec(splits);
+
+	let fmt = numAxisFmts.get(dec);
+	if (fmt == null) {
+		// Older Intl implementations support at most 20 fraction digits; toFixed supports 100.
+		fmt = dec > 100 ? v => v.toExponential() : dec > 20 ? v => v.toFixed(dec) :
+			new Intl.NumberFormat(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }).format;
+		numAxisFmts.set(dec, fmt);
+	}
+
+	return splits.map(v => v == null ? "" : fmt(v == 0 ? 0 : v));
 }
 
 export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 	let splits = [];
 
-	let numDec = fixedDec.get(foundIncr) || 0;
+	let numDec = fixedDec.get(foundIncr);
+	if (numDec == null)
+		fixedDec.set(foundIncr, numDec = guessDec(foundIncr));
 
-	scaleMin = forceMin ? scaleMin : roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
+	if (forceMin)
+		numDec = max(numDec, guessDec(scaleMin));
+	else
+		scaleMin = roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
 
 	for (let val = scaleMin; val <= scaleMax;) {
 		splits.push(Object.is(val, -0) ? 0 : val);		// coalesces -0
 
-		let next = roundDec(val + foundIncr, numDec);
-
-		// A custom increment can be smaller than the precision at this magnitude.
-		if (!(next > val))
+		if (val == scaleMax)
 			break;
+
+		let next = roundDec(val + foundIncr, numDec);
+		if (!(next > val))
+			return [];
 
 		val = next;
 	}
@@ -568,6 +641,9 @@ export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 
 // this doesnt work for sin, which needs to come off from 0 independently in pos and neg dirs
 export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
+	if (!isFinite(scaleMin) || !isFinite(scaleMax) || scaleMin <= 0 || scaleMin > scaleMax)
+		return [];
+
 	const splits = [];
 
 	const logBase = self.scales[self.axes[axisIdx].scale].log;
@@ -583,14 +659,16 @@ export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 	if (logBase == 10)
 		foundIncr = numIncrs[closestIdx(foundIncr, numIncrs)];
 
-	let split = scaleMin;
+	let split = foundIncr;
 	let nextMagIncr = foundIncr * logBase;
 
 	if (logBase == 10)
 		nextMagIncr = numIncrs[closestIdx(nextMagIncr, numIncrs)];
 
 	do {
-		splits.push(split);
+		if (split >= scaleMin)
+			splits.push(split);
+
 		split = split + foundIncr;
 
 		if (logBase == 10 && !fixedDec.has(split))
@@ -609,13 +687,19 @@ export function logAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 }
 
 export function asinhAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
+	if (!isFinite(scaleMin) || !isFinite(scaleMax) || scaleMin > scaleMax)
+		return [];
+
 	let sc = self.scales[self.axes[axisIdx].scale];
 
-	let linthresh = sc.asinh;
+	let linthresh = sc._asinh;
 
-	let posSplits = scaleMax > linthresh ? logAxisSplits(self, axisIdx, max(linthresh, scaleMin), scaleMax, foundIncr, foundSpace, forceMin) : [linthresh];
+	if (scaleMin >= -linthresh && scaleMax <= linthresh)
+		return numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin);
+
+	let posSplits = scaleMax >= linthresh ? logAxisSplits(self, axisIdx, max(linthresh, scaleMin), scaleMax, foundIncr, foundSpace, forceMin) : [];
 	let zero = scaleMax >= 0 && scaleMin <= 0 ? [0] : [];
-	let negSplits = scaleMin < -linthresh ? logAxisSplits(self, axisIdx, max(linthresh, -scaleMax), -scaleMin, foundIncr, foundSpace, forceMin): [linthresh];
+	let negSplits = scaleMin <= -linthresh ? logAxisSplits(self, axisIdx, max(linthresh, -scaleMax), -scaleMin, foundIncr, foundSpace, forceMin) : [];
 
 	return negSplits.reverse().map(v => -v).concat(zero, posSplits);
 }
@@ -632,24 +716,28 @@ export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) 
 	let scaleKey = axis.scale;
 	let sc = self.scales[scaleKey];
 
+	if (sc.distr == 4 && sc.min >= -sc._asinh && sc.max <= sc._asinh)
+		return splits;
+
 //	if (sc.distr == 3 && sc.log == 2)
 //		return splits;
 
 	let valToPos = self.valToPos;
 
 	let minSpace = axis._space;
+	let linthresh = sc.distr == 4 ? sc._asinh : 1;
 
-	let _10 = valToPos(10, scaleKey);
+	let _10 = valToPos(10 * linthresh, scaleKey);
 
 	let re = (
-		valToPos(9, scaleKey) - _10 >= minSpace ? RE_ALL :
-		valToPos(7, scaleKey) - _10 >= minSpace ? RE_12357 :
-		valToPos(5, scaleKey) - _10 >= minSpace ? RE_125 :
+		abs(valToPos(9 * linthresh, scaleKey) - _10) >= minSpace ? RE_ALL :
+		abs(valToPos(7 * linthresh, scaleKey) - _10) >= minSpace ? RE_12357 :
+		abs(valToPos(5 * linthresh, scaleKey) - _10) >= minSpace ? RE_125 :
 		RE_1
 	);
 
 	if (re == RE_1) {
-		let magSpace = abs(valToPos(1, scaleKey) - _10);
+		let magSpace = abs(valToPos(linthresh, scaleKey) - _10);
 
 		if (magSpace < minSpace)
 			return _filt(splits.slice().reverse(), sc.distr, re, ceil(minSpace / magSpace)).reverse(); // max->min skip
@@ -661,13 +749,19 @@ export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) 
 export function log2AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
 	let scaleKey = axis.scale;
+	let sc = self.scales[scaleKey];
+
+	if (sc.distr == 4 && sc.min >= -sc._asinh && sc.max <= sc._asinh)
+		return splits;
+
 	let minSpace = axis._space;
 	let valToPos = self.valToPos;
+	let linthresh = sc.distr == 4 ? sc._asinh : 1;
 
-	let magSpace = abs(valToPos(1, scaleKey) - valToPos(2, scaleKey));
+	let magSpace = abs(valToPos(linthresh, scaleKey) - valToPos(2 * linthresh, scaleKey));
 
 	if (magSpace < minSpace)
-		return _filt(splits.slice().reverse(), 3, RE_ALL, ceil(minSpace / magSpace)).reverse(); // max->min skip
+		return _filt(splits.slice().reverse(), sc.distr, RE_ALL, ceil(minSpace / magSpace)).reverse(); // max->min skip
 
 	return splits;
 }
@@ -678,10 +772,15 @@ export function numSeriesVal(self, val, seriesIdx, dataIdx) {
 
 export const yAxisOpts = {
 	show: true,
+	dom: true,
 	scale: "y",
 	stroke: hexBlack,
 	space: 30,
+	ramp: 1,
+	exact: false,
+	nice,
 	gap: 5,
+	alignTo: 1,
 	size: 50,
 	labelGap: 0,
 	labelSize: 30,
@@ -713,14 +812,13 @@ function seriesPointsShow(self, si) {
 	let dim = abs(p1 - p0);
 
 	let s = self.series[si];
-//	const dia = ptDia(s.width, pxRatio);
-	let maxPts = dim / (s.points.space * pxRatio);
+//	const dia = ptDia(s.width, self.pxRatio);
+	let maxPts = dim / (s.points.space * self.pxRatio);
 	return idxs[1] - idxs[0] <= maxPts;
 }
 
 const facet = {
 	scale: null,
-	auto: true,
 	sorted: 0,
 
 	// internal caches
@@ -732,7 +830,6 @@ const gaps = (self, seriesIdx, idx0, idx1, nullGaps) => nullGaps;
 
 export const xySeriesOpts = {
 	show: true,
-	auto: true,
 	sorted: 0,
 	gaps,
 	alpha: 1,
@@ -744,7 +841,6 @@ export const xySeriesOpts = {
 
 export const ySeriesOpts = {
 	scale: "y",
-	auto: true,
 	sorted: 0,
 	show: true,
 	spanGaps: false,
@@ -775,13 +871,47 @@ export const ySeriesOpts = {
 export function clampScale(self, val, scaleMin, scaleMax, scaleKey) {
 /*
 	if (val < 0) {
-		let cssHgt = self.bbox.height / pxRatio;
+		let cssHgt = self.bbox.height / self.pxRatio;
 		let absPos = self.valToPos(abs(val), scaleKey);
 		let fromBtm = cssHgt - absPos;
 		return self.posToVal(cssHgt + fromBtm, scaleKey);
 	}
 */
-	return scaleMin / 10;
+	return self.scales[scaleKey].distr == 4 ? 0 : scaleMin / 10;
+}
+
+function asinhScale(self, scaleKey) {
+	let { series, data, mode } = self;
+	let sc = self.scales[scaleKey];
+	let cutoff = sc.clamp(self, 0, sc.min, sc.max, scaleKey);
+	let linthresh = inf;
+
+	for (let i = 1; i < series.length; i++) {
+		let s = series[i];
+
+		if (!s.show || !s.scan)
+			continue;
+
+		for (let fi = 0; fi < (mode == 1 ? 1 : s.facets.length); fi++) {
+			let scale = mode == 1 ? s.scale : s.facets[fi].scale;
+
+			if (scale == scaleKey && (mode == 1 || s.facets[fi].scan)) {
+				let yData = mode == 1 ? data[i] : data[i][fi];
+				let [i0, i1] = mode == 1 ? series[0].idxs : [0, yData.length - 1];
+
+				for (let j = i0; j <= i1; j++) {
+					if (yData[j] != null) {
+						let val = abs(yData[j]);
+
+						if (val > cutoff && val < linthresh)
+							linthresh = val;
+					}
+				}
+			}
+		}
+	}
+
+	return linthresh == inf ? 1 : linthresh;
 }
 
 export const xScaleOpts = {
@@ -789,7 +919,7 @@ export const xScaleOpts = {
 	auto: true,
 	distr: 1,
 	log: 10,
-	asinh: 1,
+	asinh: asinhScale,
 	min: null,
 	max: null,
 	dir: 1,

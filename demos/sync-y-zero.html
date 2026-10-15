@@ -11,7 +11,8 @@
 
 <body>
 	<script src="../dist/uPlot.iife.js"></script>
-	<script>
+	<script type="module">
+		import { syncZeroRanges } from './lib/syncZeroRanges.js';
 		let data = [
 			[0, 1, 2],
 
@@ -34,14 +35,12 @@
 			y3: null,
 		};
 
-		let syncedRange = {
-			y: null,
-			y2: null,
-			y3: null,
-		};
+		let syncedRange = {};
 
 		let symRange = (u, dataMin, dataMax, scaleKey) => {
-			let abs = Math.max(Math.abs(dataMin), Math.abs(dataMax));
+			if (dataMin == null || dataMax == null)
+				return [null, null];
+			let abs = Math.max(Math.abs(dataMin), Math.abs(dataMax)) || 1;
 			return [-abs, abs];
 		};
 
@@ -51,6 +50,7 @@
 		};
 
 		const opts = {
+			title: 'Raw → symmetric (3s) → zero-aligned (6s)',
 			width: 800,
 			height: 400,
 			scales: {
@@ -105,24 +105,46 @@
 			],
 		};
 
+		// Calculate from the data before either chart exists, without layout or scale callbacks.
+		const extrema = {};
+		opts.series.slice(1).forEach((series, i) => {
+			const values = data[i + 1].filter(value => value != null);
+			extrema[series.scale] = values.length ? [Math.min(...values), Math.max(...values)] : [null, null];
+		});
+		const directRanges = syncZeroRanges(extrema);
+		const directScales = { x: { time: false } };
+		for (const key in directRanges)
+			directScales[key] = { range: directRanges[key] };
+
 		let u = new uPlot(opts, data, document.body);
 
-		function syncRange() {
-			let minPx = -Infinity;
-			let maxPx = Infinity;
+		// Fixed ranges show the final alignment on the first draw; new data requires recalculation.
+		const direct = new uPlot({
+			...opts,
+			title: 'Zero-aligned on the first draw (precomputed fixed ranges)',
+			scales: directScales,
+		}, data, document.body);
 
-			for (let scaleKey in dataMinMaxes) {
-				minPx = Math.max(minPx, u.valToPos(dataMinMaxes[scaleKey][0], scaleKey));
-				maxPx = Math.min(maxPx, u.valToPos(dataMinMaxes[scaleKey][1], scaleKey));
-			}
-
-			for (let scaleKey in dataMinMaxes) {
-				syncedRange[scaleKey] = [
-					u.posToVal(minPx, scaleKey),
-					u.posToVal(maxPx, scaleKey),
-				];
-			}
+		const scaleKeys = ['y', 'y2', 'y3'];
+		function alignedRange(u, dataMin, dataMax, scaleKey) {
+			const [i0, i1] = u.series[0].idxs;
+			const extrema = {};
+			// Reuse uPlot's series-extrema cache, which it invalidates for data and X-range changes.
+			for (const key of scaleKeys)
+				extrema[key] = uPlot.scan(u, key, i0, i1, true);
+			return syncZeroRanges(extrema)[scaleKey];
 		}
+
+		const automatic = new uPlot({
+			...opts,
+			title: 'Zero-aligned before drawing (scan + range callback)',
+			scales: {
+				x: { time: false },
+				y: { range: alignedRange },
+				y2: { range: alignedRange },
+				y3: { range: alignedRange },
+			},
+		}, data, document.body);
 
 		setTimeout(() => {
 			synced = true;
@@ -130,7 +152,8 @@
 		}, 3000);
 
 		setTimeout(() => {
-			syncRange();
+			synced = true;
+			syncedRange = syncZeroRanges(dataMinMaxes);
 			u.redraw(true);
 		}, 6000);
 	</script>

@@ -3,11 +3,15 @@
 - [Installation](#installation)
 - [Data Format](#data-format)
 - [Basics](#basics)
+- [Optional DOM](#optional-dom)
 - [High/Low Bands](#highlow-bands)
 - [Series, Scales, Axes, Grid](#series-scales-axes-grid)
 - [Multiple Scales & Axes](#multiple-scales--axes)
 - [Scale Opts](#scale-opts)
+  - [Numeric Range Policy](#numeric-range-policy)
+  - [Soft-limit Migration](#soft-limit-migration)
 - [Axis & Grid Opts](#axis--grid-opts)
+- [Axis Layout & Padding](#axis-layout--padding)
 - WIP: [#48](https://github.com/leeoniya/uPlot/issues/48)
 
 ---
@@ -70,7 +74,7 @@ let opts = {
 
       // in-legend display
       label: "RAM",
-      value: (self, rawValue) => "$" + rawValue.toFixed(2),
+      value: (self, rawValue) => rawValue == null ? '' : "$" + rawValue.toFixed(2),
 
       // series style
       stroke: "red",
@@ -91,6 +95,63 @@ let uplot = new uPlot(opts, data, document.body);
 - All series' options are optional; `label` will default to "Value" and `stroke` will default to "black".
 - `width` is the series' line width in CSS pixels.
 - `stroke`, `width`, `fill`, and `dash` map directly to Canvas API's [ctx.strokeStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeStyle), [ctx.lineWidth](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineWidth), [ctx.fillStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fillStyle), and [ctx.setLineDash](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash).
+
+---
+#### Optional DOM
+
+The `dom` options control which chart elements uPlot creates. All flags default to `true` and apply only during construction.
+
+| Option | Effect of `false` |
+| --- | --- |
+| `dom.over` | Omits `.u-over`. Disables the built-in cursor, hover points, local plot mouse interaction, and over-layer selection. |
+| `dom.under` | Omits `.u-under` and disables under-layer selection. |
+| `dom.uplot` | Makes the canvas the root. Suppresses all other built-in DOM, including the title, legend, cursor, selection, and axis rectangles. |
+| `axes[i].dom` | Omits that axis's `.u-axis` rectangle. Preserves axis drawing and layout. |
+
+Selection requires its chosen layer: `select.over: true` uses `.u-over`, and `false` uses `.u-under`. uPlot does not move selection to another layer.
+Cursor and series synchronization remain available without `.u-over`. Existing synchronization filters still apply.
+
+A canvas-only chart can still show axes:
+
+```js
+const opts = {
+  width: 300,
+  height: 120,
+  dom: { uplot: false },
+  scales: { x: { time: false } },
+  series: [{}, { stroke: "blue" }],
+};
+```
+
+For a sparkline without axes, the additional option is `axes: [{ show: false }, { show: false }]`.
+With `dom.uplot: false`, `u.root === u.ctx.canvas`. The canvas retains the `.uplot` class, `id`, and custom class.
+`setSize()`, `setPxRatio()`, and `destroy()` operate on that canvas.
+
+An interactive sparkline can retain only the root, canvas, and overlay:
+
+```js
+const opts = {
+  width: 150,
+  height: 30,
+  dom: { under: false },
+  legend: { show: false },
+  select: { show: false },
+  axes: [{ show: false }, { show: false }],
+  scales: { x: { time: false } },
+  series: [{}, { stroke: "blue" }],
+};
+```
+
+When no title or visible legend exists, the root div also serves as `.u-wrap`. This removes the nested wrapper even without explicit `dom` options.
+A missing overlay or underlay has the value `null` in `u.over` or `u.under`.
+
+Without `.u-over`, `u.rect` returns `null` without measuring the canvas or firing a `syncRect` hook.
+With `.u-over`, rectangle measurement is unchanged. Only cursor-enabled charts expose `u.syncRect()` and invalidate the rectangle cache on scroll and window resize.
+
+Plugin `opts` callbacks receive the root, canvas context, and any enabled layers. The constructor options determine this DOM before plugins run.
+For a merged root, `u.root.querySelector(".u-wrap")` returns `null` because the root itself is the wrapper.
+A root-inclusive lookup is `u.root.matches(".u-wrap") ? u.root : u.root.querySelector(".u-wrap")`.
+Borders and padding belong on an external host, not the merged root or canvas.
 
 ---
 #### High/Low Bands
@@ -170,19 +231,19 @@ let opts = {
       label: "CPU",
       stroke: "red",
       scale: "%",
-      value: (self, rawValue) => rawValue.toFixed(1) + "%",
+      value: (self, rawValue) => rawValue == null ? '' : rawValue.toFixed(1) + "%",
     }
     {
       label: "RAM",
       stroke: "blue",
       scale: "%",
-      value: (self, rawValue) => rawValue.toFixed(1) + "%",
+      value: (self, rawValue) => rawValue == null ? '' : rawValue.toFixed(1) + "%",
     },
     {
       label: "TCP",
       stroke: "green",
       scale: "mb",
-      value: (self, rawValue) => rawValue.toFixed(2) + "MB",
+      value: (self, rawValue) => rawValue == null ? '' : rawValue.toFixed(2) + "MB",
     },
   ],
   axes: [
@@ -263,6 +324,32 @@ let opts = {
 }
 ```
 
+`u.setRange(scaleKey, min, max)` sets concrete bounds and bypasses `scale.range()`.
+`u.setScale()` accepts object bounds. Null bounds request scale calculation.
+
+A `cursor.drag.setRange` callback can adjust the bounds from built-in drag zoom.
+It receives ordered `min` and `max` bounds. Return an adjusted `[min, max]` tuple, or return `null` to cancel the scale change.
+Other scale operations do not call this callback.
+
+```js
+let opts = {
+  cursor: {
+    drag: {
+      x: true,
+      setRange: (u, scaleKey, min, max) => {
+        if (scaleKey != "x")
+          return [min, max];
+
+        return [
+          Math.floor(min / 10) * 10,
+          Math.ceil(max / 10) * 10,
+        ];
+      },
+    },
+  },
+};
+```
+
 The default x scale is temporal, but can be switched to plain numbers. This can be used to plot functions.
 
 ```js
@@ -288,6 +375,70 @@ let opts = {
   },
 }
 ```
+
+##### Numeric Range Policy
+
+`Range.Config` controls ordinary numeric ranging through `uPlot.rangeNum()` and tick-aware numeric ranging through `scale.axis`.
+Both rangers use the same anchor precedence:
+
+1. Hard limits.
+2. Active explicit soft anchors.
+3. Zero-proximity anchors from `zeroIf`.
+4. Padding.
+
+Each side accepts `hard`, `soft`, and `pad`. There is no `mode` property or implicit `soft: 0`.
+An omitted or null `soft` supplies no soft anchor. Each side defaults to `pad: 0.1`.
+
+An explicit `soft` is an exact preferred endpoint, subject to hard limits:
+
+- `min.soft` is active exactly when `rawMin >= min.soft`.
+- `max.soft` is active exactly when `rawMax <= max.soft`.
+
+If data crosses a soft endpoint, that anchor becomes inactive and normal padding applies, subject to hard limits and `zeroIf`.
+An active anchor overrides padding on its side. Soft activation does not depend on padded bounds or tick positions.
+For example, `min.soft: 10` anchors the minimum at `10` for raw data `[20, 100]`.
+For raw data `[5, 100]`, the same soft anchor is inactive.
+
+The top-level `zeroIf` defaults to `0.1` when omitted or null. A value of `0` disables proximity anchoring.
+The proximity rule uses raw extrema and `rawSpan = rawMax - rawMin`, before padding, hard clipping, or flat-range normalization:
+
+- For nonnegative data, zero qualifies when `rawMin <= zeroIf * rawSpan`.
+- For nonpositive data, zero qualifies when `-rawMax <= zeroIf * rawSpan`.
+
+Hard limits and active explicit soft anchors take precedence over zero proximity.
+Null soft limits do not disable `zeroIf`. Zero can still occur through ordinary padding or tick selection when proximity anchoring is disabled.
+
+```js
+const range = {
+  min: { soft: null, pad: 0.1 },
+  max: { soft: 100, pad: 0.1 },
+  zeroIf: 0.1,
+};
+```
+
+Tick-aware ranging resolves anchors before one tick-grid selection. It has no natural-grid prepass or retry to determine soft activation.
+Anchored sides ignore even huge padding values whose multiplication by the raw span overflows. Unanchored padding requirements still apply.
+Active endpoints must align with the selected built-in increment for tick-aware ranging.
+For flat zero data, an explicit upper zero endpoint uses a negative fallback. Explicit zero endpoints on both sides retain the positive fallback.
+The positional `rangeNum(min, max, mult, zeroAffinity)` form uses `mult` as padding. Its `zeroAffinity` flag enables or disables the default zero affinity.
+The [axis-ranging policy](investigations/minimal-axis-ranging-plan.md#minimum-range-padding) explains tick-aware padding and unsupported inputs.
+
+##### Soft-limit Migration
+
+`Range.SoftMode` and `Range.Limit.mode` are removed. The following changes apply to range configuration:
+
+| Previous configuration | Migration |
+| --- | --- |
+| `mode: 0` | Remove `mode` and omit `soft`, or set `soft: null`. |
+| `mode: 1` | Remove `mode` and retain `soft`. |
+| `mode: 2` or `mode: 3`, with nonzero `soft` | There is no direct equivalent. If the old conditional behavior is necessary, use a custom range function. |
+| Old default `soft: 0, mode: 3` | Remove both fields. The default `zeroIf: 0.1` replaces this policy. |
+
+The new zero-proximity policy uses raw data, not padded bounds or a natural tick grid. It does not promise identical legacy bounds.
+An explicit `soft: 0` now requests a preferred zero endpoint whenever data stays on that side of zero, regardless of distance.
+
+If the old configuration used `mode: 0` to avoid zero anchoring, also set `zeroIf: 0`.
+This disables proximity anchoring, but does not forbid a zero endpoint from padding or tick selection.
 
 ---
 #### Axis & Grid Opts
@@ -372,8 +523,99 @@ let opts = {
 }
 ```
 
-- `space` is the minimum space between adjacent ticks; a smaller number will result in smaller selected divisors. can also be a function of the form `(self, axisIdx, scaleMin, scaleMax, dim) => space` where `dim` is the dimension of the plot along the axis in CSS pixels.
+- `space` is the tick selection target in CSS pixels. A smaller target selects smaller divisors. It also accepts `(self, axisIdx, scaleMin, scaleMax, dim) => space`, where `dim` is the plot dimension along the axis in CSS pixels. Horizontal selection uses the provisional width. Final spacing can be smaller after overflow padding.
 - `incrs` are divisors available for segmenting the axis to produce ticks. can also be a function of the form `(self) => divisors`.
+- `nice` controls calendar adjustments in the built-in time-axis splits. Its defaults are `{dst: true, first: false}`.
+  - `dst: true` realigns multi-hour ticks to a local-midnight cadence across DST transitions. `false` keeps uniform elapsed-time intervals. Day-based ticks retain their local-midnight correction with either setting.
+  - `first: true` enforces month-start ticks for multi-day increments and removes a preceding tick if the spacing is too small. `false` continues the cadence across month boundaries without forcing a tick on the first. Monthly and yearly increments are unchanged.
 - `values` can be:
   - a function with the form `(self, ticks, space) => values` where `ticks` is an array of raw values along the axis' scale, `space` is the determined tick spacing in CSS pixels and `values` is an array of formatted tick labels.
   - array of tick formatters with breakpoints.
+
+---
+#### Axis Layout & Padding
+
+Layout uses a fixed, height-first order without convergence cycles. Scale ranges currently precede layout. This order retains insertion points for future scale ranging after the plot height or width becomes available.
+
+1. Each horizontal `axis.size` callback receives `(self, null, axisIdx)` once before ticks. It reserves the full axis height, including space for rotation, truncation, and multiline labels. Vertical axes have no preliminary reservation call.
+2. Padding callbacks on all sides receive the `Layout` (0) phase to establish baseline padding before vertical ticks. The horizontal axis heights and baseline padding determine the fixed plot height.
+3. uPlot selects and formats vertical ticks at that height. Each vertical `axis.size` callback receives `(self, values, axisIdx)` once to determine its width. `values` contains the formatted labels, or `[]` if there are no ticks. Vertical size callbacks never receive `null`.
+4. uPlot selects and formats horizontal ticks at the provisional width, which includes vertical axis sizes and baseline padding.
+5. Only left and right padding callbacks receive the `Overflow` (1) phase. Both callbacks see the same baseline padding and geometry. Each callback returns its final total padding in CSS pixels, not a delta. uPlot then applies both totals to determine the final width.
+
+Top and bottom padding stay fixed after ticks. Horizontal `axis.size` callbacks never receive actual labels. Overflow does not select or format ticks again, so final horizontal spacing can be smaller than the `axis.space` target.
+
+Plot dimensions must remain positive after axis sizes and padding. Behavior for nonpositive plot dimensions is undefined.
+
+**Side participation:** `sidesWithAxes` derives from axis configuration at initialization, not from size callback results. Hidden or inactive axes do not participate. For visible, active axes:
+
+- A positive numeric `size` or a size callback makes the axis participate.
+- A size callback still makes the axis participate if it returns zero.
+- Numeric `size: 0` does not make the axis participate, unless an axis title has nonzero `labelSize`.
+
+A zero return from a size callback no longer changes side occupancy for default padding.
+
+For a grid-only axis, use numeric `size: 0` without an axis title reservation. To hide the axis fully, including its grid, use `show: false`. For other padding behavior, set explicit `padding` values or callbacks.
+
+**Compatibility:** `axis.size` no longer receives `cycleNum`. Its signature remains `(self, values: Axis.StaticValues | null, axisIdx) => number` because horizontal callbacks receive `null`. `Axis.StaticValues` can contain strings, numbers, and null entries. Padding callbacks receive `(self, side, sidesWithAxes, phase)`, where `phase` is `PaddingPhase`, instead of a cycle number.
+
+The numeric TypeScript const enum `PaddingPhase` defines `Layout` (0) and `Overflow` (1). It has no JavaScript runtime object. JavaScript callbacks use `0` and `1`.
+
+Custom callbacks must handle these phases without convergence counters or position feedback. A conservative overflow total reserves at least half the maximum measured horizontal label width, plus an optional inset. The [axis autosize demo](../demos/axis-autosize.html) measures each non-null value as a string and converts canvas widths with `self.pxRatio`.
+
+**Layout commit:** `setSize()` updates `self.width` and `self.height` immediately. Until commit, `self.bbox`, coordinate transforms, and DOM geometry retain the previous completed layout. Before the initial commit, all `self.bbox` fields are zero. `batch()` completes its pending layout synchronously before it returns. A previously queued commit does not draw again after this flush.
+
+`setPxRatio()` updates `self.pxRatio` immediately. Font scaling and path invalidation use the final requested ratio at commit. Cancelled ratio changes retain the existing fonts and paths unless another change invalidates them.
+
+Identical `setSize()` or `setPxRatio()` requests are no-ops. For an explicit axis and layout refresh, call `redraw(false, true)`. The `setSize` hook still reports outer size updates and internal plot geometry or axis changes. Identical requests do not trigger this hook.
+
+`redraw(true, true)` also rebuilds series paths and refreshes automatic ranges. Built-in scanners reuse valid extrema caches when data and the visible window are unchanged. Pending data or X-range updates retain their normal invalidation behavior. Custom scanner and range callbacks still run. After any data change, including in-place array edits, call `setData()` rather than only `redraw()`.
+
+Multiple size changes before a commit produce one `setSize` notification, even if the final size matches the previous layout.
+
+**Canvas state:** uPlot invalidates its canvas state cache only when it resets the canvas backing store. Callbacks must preserve `self.ctx` state. The demo saves and restores the canvas state around font changes to preserve the font cache.
+
+#### Cache Retention
+
+`cache` selects which categories to retain after rendering. Omitted categories default to `true`.
+
+```js
+cache: { paths: false, data: false }
+```
+
+This configuration discards both categories after rendering. `cache: { data: false }` discards data but retains paths.
+
+`clearCache()` discards all categories immediately without scheduling a redraw. An explicit selector discards only categories set to `true`:
+
+```js
+u.clearCache({ paths: true }); // Paths only.
+u.clearCache({ data: true });  // Data only.
+u.clearCache({});              // Nothing.
+```
+
+Data disposal replaces retained columns with empty arrays while preserving the dataset structure, including mode-2 facets. It also releases ordinal index arrays and the internal `opts.data` copy. It does not mutate caller-owned arrays, clear the canvas, or reset scale bounds and extrema. A later `setData()` can supply new data for another render.
+
+Data disposal is for non-interactive charts such as sparklines. Cursor interaction, legend toggling, resize, pixel-ratio updates, and other data-dependent features must be disabled. The implementation does not enforce these restrictions yet.
+
+Manual data disposal must occur after rendering. Automatic disposal normally completes before `ready`, but retains data needed by pending render work. With `cache.data: false`, hooks must not call `setData()`. Plugins and callbacks can retain their own references, which this API cannot release.
+
+`destroy()` releases data and path caches regardless of the `cache` configuration.
+This includes raw data, cumulative stack data, stack baselines (`_base`), the internal `opts.data` copy, and series and point paths.
+Destroy hooks see empty data and cleared path caches. Small axis, legend, and cursor state remains available until garbage collection.
+
+Cleanup does not mutate caller-owned arrays. Repeated `destroy()` calls have no effect. A destroyed chart cannot be reused.
+
+#### Cursor Marker Alignment
+
+Default DOM hover markers share the built-in canvas marker position calculation. This calculation uses the bitmap plot rectangle, `series.pxAlign`, and the canvas point stroke offset.
+
+The DOM position uses the completed canvas-to-CSS scale, without another CSS-pixel rounding step. Hover centers can therefore have fractional CSS coordinates.
+Stationary markers update after external resize, axis layout changes, and pixel-ratio changes. Pending size or pixel-ratio requests do not change their displayed geometry before commit.
+
+The alignment target is the canvas marker center, not the series line. Different point and line stroke widths can produce different drawing offsets.
+CSS circles and canvas arcs can still differ in antialiasing and border appearance.
+
+`cursor.points.bbox` overrides automatic center alignment and size. Its existing CSS positioning behavior remains unchanged.
+Custom point paths with different placement require an explicit bounding-box callback. The default calculation cannot infer arbitrary path geometry.
+
+This change addresses the coordinate mismatch reported in [#1108](https://github.com/leeoniya/uPlot/issues/1108) and [#779](https://github.com/leeoniya/uPlot/issues/779).

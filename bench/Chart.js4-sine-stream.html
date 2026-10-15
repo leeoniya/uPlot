@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>Sine Stream (Chart.js)</title>
+		<title>Sine Stream (Chart.js v4.5.1)</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<style>
@@ -13,7 +13,7 @@
 			}
 		</style>
 
-		<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 	</head>
 	<body>
@@ -106,7 +106,7 @@
 			let _4 = randomWalk(600,  2, -1, 6);
 			let _5 = randomWalk(600,  4, -1, 6);
 
-			let data = getData(shift);
+			let data = [xs, sin, _1, _2, _3, _4, _5];
 
 			function getData(shift) {
 				return [
@@ -124,7 +124,7 @@
 				let out = Array(xs.length);
 
 				for (let i = 0; i < xs.length; i++)
-					out[i] = {x: xs[i], y: ys[i]};
+					out[i] = {x: xs[i] * 1e3, y: ys[i]};
 
 				return out;
 			}
@@ -209,8 +209,14 @@
 					scales: {
 						x: {
 							type: 'time',
+							min: xs[0] * 1e3,
+							max: xs[length - 1] * 1e3,
 							time: {
-								unit: 'minute',
+								unit: 'hour',
+							},
+							// Keep local midnight/noon ticks before Chart.js formats labels.
+							afterBuildTicks: scale => {
+								scale.ticks = scale.ticks.filter(tick => new Date(tick.value).getHours() % 12 === 0);
 							},
 							stacked: false,
 							ticks: {
@@ -236,23 +242,14 @@
 
 			let chart = new Chart(ctx, cfg);
 
-			/*
-			setInterval(() => {
-				shift += 1;
-				data = getData(shift);
-				chart.data.datasets.forEach((dataset, i) => {
-					dataset.data = toObjs(data[0], data[i+1]);
-				});
-				chart.update();
-			}, 500);
-			*/
-
 			function update() {
 				shift += 1;
 				data = getData(shift);
 				chart.data.datasets.forEach((dataset, i) => {
 					dataset.data = toObjs(data[0], data[i+1]);
 				});
+				chart.options.scales.x.min = xs[0] * 1e3;
+				chart.options.scales.x.max = xs[length - 1] * 1e3;
 				chart.update();
 				requestAnimationFrame(update);
 			}

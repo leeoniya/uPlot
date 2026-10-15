@@ -1,6 +1,5 @@
-import { abs, floor, min, max, inf, ifNull, EMPTY_OBJ, fnOrSelf, clamp, retArg0, EMPTY_ARR } from '../utils';
-import { orient, rectV, rectH } from './utils';
-import { pxRatio } from '../dom';
+import { abs, floor, min, max, inf, EMPTY_OBJ, fnOrSelf, clamp, retArg0, EMPTY_ARR } from '../utils.js';
+import { orient, rectV, rectH } from './utils.js';
 
 function findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid = inf) {
 	if (dataX.length > 1) {
@@ -30,7 +29,7 @@ function findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid = inf)
 
 export function bars(opts) {
 	opts = opts || EMPTY_OBJ;
-	const size = ifNull(opts.size, [0.6, inf, 1]);
+	const size = opts.size ?? [0.6, inf, 1];
 	const align = opts.align || 0;
 	const _extraGap = (opts.gap || 0);
 
@@ -44,15 +43,17 @@ export function bars(opts) {
 	const radiusFn = fnOrSelf(ro);
 
 	const gapFactor = 1 - size[0];
-	const _maxWidth  = ifNull(size[1], inf);
-	const _minWidth  = ifNull(size[2], 1);
+	const _maxWidth  = size[1] ?? inf;
+	const _minWidth  = size[2] ?? 1;
 
-	const disp = ifNull(opts.disp, EMPTY_OBJ);
-	const _each = ifNull(opts.each, _ => {});
+	const disp = opts.disp ?? EMPTY_OBJ;
+	const _each = opts.each ?? (_ => {});
 
 	const { fill: dispFills, stroke: dispStrokes } = disp;
 
 	return (u, seriesIdx, idx0, idx1) => {
+		let { pxRatio } = u;
+
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let pxRound = series.pxRound;
 			let _align = align;
@@ -61,15 +62,9 @@ export function bars(opts) {
 			let maxWidth = _maxWidth * pxRatio;
 			let minWidth = _minWidth * pxRatio;
 
-			let valRadius, baseRadius;
-
-			if (scaleX.ori == 0)
-				[valRadius, baseRadius] = radiusFn(u, seriesIdx);
-			else
-				[baseRadius, valRadius] = radiusFn(u, seriesIdx);
+			let [valRadius, baseRadius] = radiusFn(u, seriesIdx);
 
 			const _dirX = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
-		//	const _dirY = scaleY.dir * (scaleY.ori == 1 ? 1 : -1);
 
 			let rect = scaleX.ori == 0 ? rectH : rectV;
 
@@ -77,11 +72,13 @@ export function bars(opts) {
 				_each(u, seriesIdx, i, lft, top, wid, hgt);
 			};
 
+			let dataY0 = u._base?.[seriesIdx];
+
 			// band where this series is the "from" edge
-			let band = ifNull(u.bands, EMPTY_ARR).find(b => b.series[0] == seriesIdx);
+			let band = dataY0 == null ? (u.bands ?? EMPTY_ARR).find(b => b.series[0] == seriesIdx) : null;
 
 			let fillDir = band != null ? band.dir : 0;
-			let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, fillDir);
+			let fillTo = dataY0 == null ? series.fillTo(u, seriesIdx, series.min, series.max, fillDir) : 0;
 			let fillToY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff))
 
 			// barWid is to center of stroke
@@ -170,11 +167,9 @@ export function bars(opts) {
 
 			const stroke = multiPath ? null : new Path2D();
 
-			let dataY0 = null;
-
 			if (band != null)
-				dataY0 = u.data[band.series[1]];
-			else {
+				dataY0 = u._data[band.series[1]];
+			else if (dataY0 == null) {
 				let { y0, y1 } = disp;
 
 				if (y0 != null && y1 != null) {
@@ -201,11 +196,11 @@ export function bars(opts) {
 					fillToY = valToPosY(yVal0, scaleY, yDim, yOff);
 				}
 
-				let xVal = scaleX.distr != 2 || disp != null ? dataX[i] : i;
+				let xVal = dataX[i];
 
 				// TODO: all xPos can be pre-computed once for all series in aligned set
 				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
-				let yPos = valToPosY(ifNull(yVal, fillTo), scaleY, yDim, yOff);
+				let yPos = valToPosY(yVal, scaleY, yDim, yOff);
 
 				let lft = pxRound(xPos - xShift);
 				let btm = pxRound(max(yPos, fillToY));
@@ -213,9 +208,9 @@ export function bars(opts) {
 				// this includes the stroke
 				let barHgt = btm - top;
 
-				if (yVal != null) {  // && yVal != fillTo (0 height bar)
-					let rv = yVal < 0 ? radBase : radVal;
-					let rb = yVal < 0 ? radVal : radBase;
+				if (yVal != fillTo) {
+					let rv = yPos < fillToY ? radVal : radBase;
+					let rb = yPos < fillToY ? radBase : radVal;
 
 					if (multiPath) {
 						if (strokeWidth > 0 && strokeColors[i] != null)

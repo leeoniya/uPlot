@@ -1,6 +1,6 @@
 {
   "name": "uplot",
-  "version": "1.6.31",
+  "version": "1.6.32",
   "description": "A small, fast chart for time series, lines, areas, ohlc & bars",
   "type": "module",
   "main": "./dist/uPlot.cjs.js",
@@ -8,7 +8,12 @@
   "typings": "./dist/uPlot.d.ts",
   "scripts": {
     "build": "rollup -c --bundleConfigAsCjs",
-    "test": "node --test test/*.test.js"
+    "bench:legend": "node --max-old-space-size=96 ./scripts/bench-legend.mjs",
+    "demos": "node ./scripts/demos.mjs",
+    "test": "node ./scripts/test.mjs",
+    "test:axis": "node --test test/axis-splits.test.js",
+    "test:server": "mocha test/server/*.mjs",
+    "test:update": "UPDATE=1 node ./scripts/test.mjs"
   },
   "repository": {
     "type": "git",
@@ -40,7 +45,26 @@
   },
   "homepage": "https://github.com/leeoniya/uPlot#readme",
   "devDependencies": {
-    "@rollup/plugin-terser": "^0.4.4",
-    "rollup": "^4.29.1"
+    "@happy-dom/global-registrator": "^20.14.5",
+    "@istanbuljs/load-nyc-config": "^1.1.0",
+    "@rollup/plugin-terser": "^1.0.0",
+    "happy-dom": "^20.14.5",
+    "istanbul-lib-coverage": "^3.2.2",
+    "istanbul-lib-instrument": "^6.0.3",
+    "istanbul-lib-report": "^3.0.1",
+    "istanbul-reports": "^3.2.0",
+    "json-stringify-pretty-compact": "^4.0.0",
+    "mocha": "^12.0.2",
+    "rollup": "^4.63.4",
+    "test-exclude": "^8.0.0"
+  },
+  "nyc": {
+    "include": [
+      "dist/**/*.esm.js",
+      "src/**/*.js"
+    ],
+    "exclude": [
+      "src/paths/catmullRomCentrip.js"
+    ]
   }
 }

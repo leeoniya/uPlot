@@ -40,12 +40,14 @@
 					height: 600,
 					hooks: {
 						setSeries: [
-							(u, seriesIdx) => {
-								console.log("focus!", seriesIdx);
+							(u, seriesIdx, opts) => {
+								if (opts.focus != null) {
+									console.log("focus!", seriesIdx, opts);
 
-								u.series.forEach((s, i) => {
-									s.width = i == seriesIdx ? 2 : 1;
-								});
+									u.series.forEach((s, i) => {
+										s.width = i == seriesIdx ? 2 : 1;
+									});
+								}
 							}
 						]
 					},
@@ -128,6 +130,91 @@
 					fill: focusColorSwitch("rgba(0,255,0,0.1)", "rgba(0,0,0,0.1)"),
 				}
 			], 0, 30), data, document.body);
+		</script>
+
+		<script>
+			function getStroke(color) {
+				return (u, seriesIdx) => u.series[seriesIdx]._focus ? 'magenta' : color;
+			}
+
+			let u3 = new uPlot({
+				title: 'Width and stroke color change on focus',
+				width: 1920,
+				height: 600,
+				focus: {
+					alpha: 1,
+				},
+				cursor: {
+					focus: {
+						prox: 1e6,
+					}
+				},
+				scales: {
+					x: {
+						time: false,
+					},
+					y: {
+						range: [0, 30]
+					}
+				},
+				series: [
+					{},
+					{
+						label: 'A',
+						stroke: getStroke('blue'),
+					},
+					{
+						label: 'B',
+						stroke: getStroke('green'),
+					}
+				],
+				hooks: {
+					setSeries: [
+						(u, seriesIdx, opts) => {
+							if (opts.focus != null) {
+								u.series.forEach((s, i) => {
+									s.width = i == seriesIdx ? 2 : 1;
+								});
+								u.redraw(false);
+							}
+						}
+					]
+				},
+			}, [
+				[0,1,2,3,4,5,6,7,8,9],
+				...Array.from({length: 2}, (v, i) => Array(10).fill((i+1)*10)),
+			],
+			document.body);
+
+			let u4 = new uPlot({
+				title: 'Performance test (300 series)',
+				width: 1920,
+				height: 600,
+				focus: {
+					alpha: 0.1,
+				},
+				cursor: {
+					focus: {
+						prox: 1e6,
+					}
+				},
+				scales: {
+					x: {
+						time: false,
+					},
+				},
+				series: [
+					{},
+					...Array(300).fill({
+						label: '0',
+						stroke: '#000'
+					})
+				]
+			}, [
+				[0,1,2,3,4,5,6,7,8,9],
+				...Array.from({length: 300}, (v, i) => Array(10).fill(i)),
+			],
+			document.body);
 		</script>
 	</body>
 </html>

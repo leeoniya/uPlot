@@ -6,50 +6,56 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 
 	<link rel="stylesheet" href="../dist/uPlot.min.css">
+	<style>
+		.u-axis:hover {
+			cursor: move;
+		}
+	</style>
 </head>
 <body>
 	<script type="module">
 		import uPlot from "../dist/uPlot.esm.js";
 
 		const opts = {
-			title: 'Draggable y scales (hold shift to grow/contract)',
-			width: 600,
-			height: 350,
+			title: 'Draggable x & y scales (hold shift to grow/contract)',
+			width: 1200,
+			height: 600,
 			hooks: {
 				init: [
 					u => {
 						let axisEls = u.root.querySelectorAll('.u-axis');
 
 						for (let i = 0; i < axisEls.length; i++) {
-							if (i > 0) {
-								let el = axisEls[i];
+							let el = axisEls[i];
 
-								el.addEventListener('mousedown', e => {
-									let y0 = e.clientY;
-									let scaleKey = u.axes[i].scale;
-									let scale = u.scales[scaleKey];
-									let { min, max } = scale;
-									let unitsPerPx = (max - min) / (u.bbox.height / uPlot.pxRatio);
+							el.addEventListener('mousedown', e => {
+								let y0 = e.clientY;
+								let x0 = e.clientX;
 
-									let mousemove = e => {
-										let dy = e.clientY - y0;
-										let shiftyBy = dy * unitsPerPx;
+								let scaleKey = u.axes[i].scale;
+								let scale = u.scales[scaleKey];
+								let { min, max } = scale;
+								let dim = i == 0 ? u.bbox.width : u.bbox.height;
+								let unitsPerPx = (max - min) / (dim / uPlot.pxRatio);
 
-										u.setScale(scaleKey, {
-											min: e.shiftKey ? (min - shiftyBy) : min + shiftyBy,
-											max: max + shiftyBy,
-										});
-									};
+								let mousemove = e => {
+									let d = i == 0 ?  x0 - e.clientX : e.clientY - y0
+									let shiftyBy = d * unitsPerPx;
 
-									let mouseup = e => {
-										document.removeEventListener('mousemove', mousemove);
-										document.removeEventListener('mousemove', mouseup);
-									};
+									u.setScale(scaleKey, {
+										min: e.shiftKey ? (min - shiftyBy) : min + shiftyBy,
+										max: max + shiftyBy,
+									});
+								};
 
-									document.addEventListener('mousemove', mousemove);
-									document.addEventListener('mouseup', mouseup);
-								});
-							}
+								let mouseup = e => {
+									document.removeEventListener('mousemove', mousemove);
+									document.removeEventListener('mousemove', mouseup);
+								};
+
+								document.addEventListener('mousemove', mousemove);
+								document.addEventListener('mouseup', mouseup);
+							});
 						}
 					},
 				]

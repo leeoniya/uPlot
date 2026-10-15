@@ -1,0 +1,90 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Issue 823: Full-domain Y scan</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../../dist/uPlot.min.css">
+	<script src="../../dist/uPlot.iife.js"></script>
+	<style>
+		body {
+			font: 14px system-ui, sans-serif;
+			margin: 20px;
+		}
+
+		pre {
+			background: #eee;
+			overflow-x: auto;
+			padding: 10px;
+		}
+	</style>
+</head>
+<body>
+	<h1>Issue 823: full-domain Y scan</h1>
+	<p><a href="https://github.com/leeoniya/uPlot/issues/823">GitHub issue #823</a></p>
+	<p>Drag horizontally to zoom X near [0, 1]. Y must stay at [10, 50]. Then click B in the legend: Y must expand to [10, 500], including values outside the zoom.</p>
+	<p>The custom scan uses the full domain of visible series. B starts hidden and is scanned when shown. Double-click to reset X; click B again to hide it.</p>
+	<h2>Relevant configuration</h2>
+	<pre><code>const opts = {
+  scales: {
+    x: { time: false },
+    y: {
+      // Preserve Y during explicit X zoom instead of recalculating it by default.
+      auto: (u, viaAutoScaleX) => viaAutoScaleX,
+      // Use the full domain and populate the participating series caches.
+      scan: (u, key) => uPlot.scan(u, key, null, null, true),
+      // Remove padding so the displayed bounds equal the data extrema.
+      range: (u, min, max) => [min, max],
+    },
+  },
+  series: [
+    {},
+    { label: "A", stroke: "blue" },
+    { label: "B", stroke: "red", show: false },
+  ],
+};</code></pre>
+	<div id="chart"></div>
+	<pre id="status"></pre>
+	<script>
+		const data = [
+			[0, 1, 2, 3, 4],
+			[10, 20, 30, 40, 50],
+			[100, 200, 300, 400, 500],
+		];
+
+		const status = document.querySelector("#status");
+
+		function update(u) {
+			status.textContent = JSON.stringify({
+				x: [u.scales.x.min, u.scales.x.max],
+				y: [u.scales.y.min, u.scales.y.max],
+				BVisible: u.series[2].show,
+			}, null, 2);
+		}
+
+		const opts = {
+			width: 800,
+			height: 400,
+			scales: {
+				x: { time: false },
+				y: {
+					// Preserve Y during explicit X zoom instead of recalculating it by default.
+					auto: (u, viaAutoScaleX) => viaAutoScaleX,
+					// Use the full domain and populate the participating series caches.
+					scan: (u, key) => uPlot.scan(u, key, null, null, true),
+					// Remove padding so the displayed bounds equal the data extrema.
+					range: (u, min, max) => [min, max],
+				},
+			},
+			series: [
+				{},
+				{ label: "A", stroke: "blue" },
+				{ label: "B", stroke: "red", show: false },
+			],
+			hooks: { draw: [update] },
+		};
+
+		new uPlot(opts, data, document.querySelector("#chart"));
+	</script>
+</body>
+</html>

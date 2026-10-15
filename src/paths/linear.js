@@ -1,5 +1,5 @@
-import { nonNullIdxs, ifNull } from '../utils';
-import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
+import { nonNullIdxs } from '../utils.js';
+import { orient, clipGaps, lineToH, lineToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils.js';
 
 function _drawAcc(lineTo) {
 	return (stroke, accX, minY, maxY, inY, outY) => {
@@ -18,13 +18,16 @@ const drawAccH = _drawAcc(lineToH);
 const drawAccV = _drawAcc(lineToV);
 
 export function linear(opts) {
-	const alignGaps = ifNull(opts?.alignGaps, 0);
-
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
 
+			if (idx0 == -1)
+				return null;
+
 			let pxRound = series.pxRound;
+
+			let alignGaps = opts?.alignGaps ?? series.alignGaps ?? 0;
 
 			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
 			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
@@ -146,9 +149,7 @@ export function linear(opts) {
 
 			if (!series.spanGaps) { // skip in mode: 2?
 			//	console.time('gaps');
-				let gaps = [];
-
-				hasGap && gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
+				let gaps = hasGap ? findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps) : [];
 
 			//	console.timeEnd('gaps');
 

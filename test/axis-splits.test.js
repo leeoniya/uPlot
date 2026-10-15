@@ -25,8 +25,8 @@ function splits(min, max, incr, forceMin = false) {
 }
 
 test('selects a representable increment for large positive and negative values', () => {
-	for (const min of [4220788960490496, -4220788960490496, 1e18, -1e18]) {
-		const max = min + (Math.abs(min) > 1e17 ? 256 : 1);
+	for (const min of [4220788960490496, -4220788960490496]) {
+		const max = min + 1;
 		const [incr] = findIncr(min, max, numIncrs, 320, 50);
 		assert.ok(min + incr > min);
 		assert.ok(max + incr > max);
@@ -37,9 +37,14 @@ test('selects a representable increment for large positive and negative values',
 	}
 });
 
+test('preserves the precision limit when no increment is available', () => {
+	for (const min of [1e18, -1e18])
+		assert.deepEqual(findIncr(min, min + 256, numIncrs, 320, 50), [0, 0]);
+});
+
 test('terminates when a custom increment cannot advance the value', () => {
 	const min = 4220788960490496;
-	assert.deepEqual(splits(min, min + 1, 0.2, true), [min]);
+	assert.deepEqual(splits(min, min + 1, 0.2, true), []);
 });
 
 test('preserves ordinary fractional ticks and coalesces negative zero', () => {

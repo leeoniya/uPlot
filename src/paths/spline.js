@@ -1,14 +1,17 @@
-import { ifNull, nonNullIdxs } from '../utils';
-import { orient, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils';
+import { nonNullIdxs } from '../utils.js';
+import { orient, clipGaps, moveToH, moveToV, lineToH, lineToV, bezierCurveToH, bezierCurveToV, clipBandLine, BAND_CLIP_FILL, bandFillClipDirs, findGaps } from './utils.js';
 
 export function splineInterp(interp, opts) {
-	const alignGaps = ifNull(opts?.alignGaps, 0);
-
 	return (u, seriesIdx, idx0, idx1) => {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			[idx0, idx1] = nonNullIdxs(dataY, idx0, idx1);
 
+			if (idx0 == -1)
+				return null;
+
 			let pxRound = series.pxRound;
+
+			let alignGaps = opts?.alignGaps ?? series.alignGaps ?? 0;
 
 			let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
 			let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
@@ -34,6 +37,8 @@ export function splineInterp(interp, opts) {
 			let xCoords = [];
 			let yCoords = [];
 
+			let hasGap = false;
+
 			for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 				let yVal = dataY[i];
 
@@ -44,6 +49,8 @@ export function splineInterp(interp, opts) {
 					xCoords.push(prevXPos = xPos);
 					yCoords.push(pixelForY(dataY[i]));
 				}
+				else if (yVal === null)
+					hasGap = true;
 			}
 
 			const _paths = {stroke: interp(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
@@ -63,9 +70,7 @@ export function splineInterp(interp, opts) {
 
 			if (!series.spanGaps) {
 			//	console.time('gaps');
-				let gaps = [];
-
-				gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
+				let gaps = hasGap ? findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps) : [];
 
 			//	console.timeEnd('gaps');
 

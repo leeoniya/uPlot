@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Issue 648: Automatic reset versus zoom</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../../dist/uPlot.min.css">
+	<script src="../../dist/uPlot.iife.js"></script>
+	<style>
+		body {
+			font: 14px system-ui, sans-serif;
+			margin: 20px;
+		}
+
+		.controls {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+			margin: 12px 0;
+		}
+
+		pre {
+			background: #eee;
+			overflow-x: auto;
+			padding: 10px;
+		}
+	</style>
+</head>
+<body>
+	<h1>Issue 648: automatic Y reset versus explicit X zoom</h1>
+	<p><a href="https://github.com/leeoniya/uPlot/issues/648">GitHub issue #648</a></p>
+	<p>Drag horizontally to zoom X without changing Y. Drag diagonally to zoom both axes. Double-click to restore both scales.</p>
+	<p>This behavior already works in the library. The default Y range includes padding. The data button recalculates both scales.</p>
+	<h2>Relevant configuration</h2>
+	<pre><code>const opts = {
+  cursor: {
+    drag: { x: true, y: true, dist: 8, uni: 15 },
+  },
+  scales: {
+    x: { time: false },
+    // Recalculate Y on automatic X resets, not explicit X zoom.
+    y: { auto: (u, viaAutoScaleX) => viaAutoScaleX },
+  },
+};</code></pre>
+	<div id="chart"></div>
+	<div class="controls">
+		<button id="new-data">Set replacement data</button>
+	</div>
+	<pre id="status"></pre>
+	<script>
+		const initialData = [
+			[0, 1, 2],
+			[10, 20, 30],
+		];
+
+		const replacementData = [
+			[0, 1, 2],
+			[100, 200, 300],
+		];
+
+		const status = document.querySelector("#status");
+
+		function update(u) {
+			status.textContent = JSON.stringify({
+				x: [u.scales.x.min, u.scales.x.max],
+				y: [u.scales.y.min, u.scales.y.max],
+			}, null, 2);
+		}
+
+		const opts = {
+			width: 800,
+			height: 400,
+			cursor: {
+				drag: { x: true, y: true, dist: 8, uni: 15 },
+			},
+			scales: {
+				x: { time: false },
+				// Recalculate Y on automatic X resets, not explicit X zoom.
+				y: { auto: (u, viaAutoScaleX) => viaAutoScaleX },
+			},
+			series: [
+				{},
+				{
+					label: "Values",
+					stroke: "blue",
+				},
+			],
+			hooks: {
+				ready: [update],
+				setScale: [update],
+			},
+		};
+
+		const u = new uPlot(opts, initialData, document.querySelector("#chart"));
+
+		document.querySelector("#new-data").onclick = () => {
+			u.setData(replacementData, true);
+		};
+	</script>
+</body>
+</html>

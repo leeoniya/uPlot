@@ -1,18 +1,17 @@
-## 📈 μPlot
+<h2><img src="uPlot.svg" alt="uPlot logo" height="36" align="top"> μPlot</h2>
 
-A small ([~45 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)), [fast](#performance) chart for time series, lines, areas, ohlc & bars _(MIT Licensed)_
+A small ([~50 KB min](https://github.com/leeoniya/uPlot/tree/master/dist/uPlot.iife.min.js)), [fast](#performance) chart for time series, lines, areas, ohlc & bars _(MIT Licensed)_
 
 ---
 ### Introduction
 
-μPlot is a [fast, memory-efficient](#performance) [Canvas 2D](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D)-based chart for plotting [time series](https://en.wikipedia.org/wiki/Time_series), lines, areas, ohlc & bars; from a cold start it can create an interactive chart containing 150,000 data points in 90ms, scaling linearly at [~31,000 pts/ms](https://leeoniya.github.io/uPlot/bench/uPlot-10M.html). In addition to fast initial render, the zooming and cursor performance is by far the best of any similar charting lib; at ~50 KB, it's likely the smallest and fastest time series plotter that doesn't make use of [context-limited](https://bugs.chromium.org/p/chromium/issues/detail?id=771792) WebGL shaders or WASM, both of which have much higher startup cost and code size.
+uPlot is a [fast, memory-efficient](#performance) [Canvas 2D](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D)-based chart for plotting [time series](https://en.wikipedia.org/wiki/Time_series), lines, areas, ohlc & bars. From a cold start it can create an [interactive chart containing 166,650 data points](https://leeoniya.github.io/uPlot/bench/uPlot.html) in 25ms, scaling linearly at [~100,000 pts/ms](https://leeoniya.github.io/uPlot/bench/uPlot-10M.html) afterwards. In addition to fast initial render, the zooming and cursor performance is by far the best of any similar charting lib; at ~50 KB, it's likely the smallest and fastest time series plotter that doesn't make use of [context-limited](https://bugs.chromium.org/p/chromium/issues/detail?id=771792) WebGL shaders or WASM, both of which have much higher startup cost and code size.
 
-<h3 align="center">166,650 point bench: <a href="https://leeoniya.github.io/uPlot/bench/uPlot.html">https://leeoniya.github.io/uPlot/bench/uPlot.html</a></h3>
-
-However, if you need 60fps performance with massive streaming datasets, uPlot [can only get you so far](https://huww98.github.io/TimeChart/docs/performance).
-If you decide to venture into this realm with uPlot, make sure to [unclog your rendering pipeline](#unclog-your-rendering-pipeline).
-WebGL should still be the tool of choice for applications like realtime signal or waveform visualizations:
-See [danchitnis/webgl-plot](https://github.com/danchitnis/webgl-plot), [huww98/TimeChart](https://github.com/huww98/TimeChart), [epezent/implot](https://github.com/epezent/implot), or commercial products like [LightningChart®](https://www.arction.com/lightningchart-js/).
+In most sane cases, you can live-stream data with uPlot at 60fps, though it may begin to struggle beyond 100k in-view points.
+When [updating 3,600 points at 60fps](https://leeoniya.github.io/uPlot/demos/sine-stream.html), uPlot uses 10% CPU and 12.3MB RAM.
+The next fastest Canvas-based libs (Chart.js and ECharts) use [40% / 77MB](https://leeoniya.github.io/uPlot/bench/Chart.js4-sine-stream.html) and [70% / 85MB](https://leeoniya.github.io/uPlot/bench/ECharts5-sine-stream.html), respectively.
+If you need to stream, give [unclog your rendering pipeline](#unclog-your-rendering-pipeline) a try.
+If that does not help, consider reducing the update frequency or switch to a WebGL/WebGPU solution, like [danchitnis/webgl-plot](https://github.com/danchitnis/webgl-plot), [huww98/TimeChart](https://github.com/huww98/TimeChart), [epezent/implot](https://github.com/epezent/implot).
 
 ---
 ![uPlot Chart](uPlot.png "uPlot Chart")
@@ -34,6 +33,7 @@ See [danchitnis/webgl-plot](https://github.com/danchitnis/webgl-plot), [huww98/T
 - [Focus closest series](https://leeoniya.github.io/uPlot/demos/focus-cursor.html)
 - [Data streaming (live update)](https://leeoniya.github.io/uPlot/demos/stream-data.html)
 - [High / Low bands](https://leeoniya.github.io/uPlot/demos/high-low-bands.html)
+- Positive and negative stacking groups through `opts.stack.groups`. See ["Stacked Area Graphs Are Not Your Friend"](https://web.archive.org/web/20221208193656/https://everydayanalytics.ca/2014/08/stacked-area-graphs-are-not-your-friend.html).
 - A lean, consistent, and powerful API with hooks & plugins
 
 ---
@@ -41,10 +41,11 @@ See [danchitnis/webgl-plot](https://github.com/danchitnis/webgl-plot), [huww98/T
 
 In order to stay lean, fast and focused the following features will not be added:
 
-- No data parsing, aggregation, summation or statistical processing - just do it in advance. e.g. [simples-statistics](https://simple-statistics.github.io/), https://github.com/leeoniya/uDSV
+- No general-purpose data parsing, aggregation, or statistical processing. Integrated stacking only computes configured cumulative series. Prepare other results in advance with tools such as [simple-statistics](https://simple-statistics.github.io/) or [uDSV](https://github.com/leeoniya/uDSV).
 - No transitions or animations - they're always pure distractions.
 - No collision avoidance for axis tick labels, so may require manual tweaking of spacing metrics if label customization significiantly increases default label widths.
-- No stacked series: see ["Stacked Area Graphs Are Not Your Friend"](https://web.archive.org/web/20221208193656/https://everydayanalytics.ca/2014/08/stacked-area-graphs-are-not-your-friend.html) and a [horrific demo](https://leeoniya.github.io/uPlot/demos/stacked-series.html). While smooth spline interpolation is available, its use is strongly discouraged: [Your data is misrepresented!](http://www.vizwiz.com/2011/12/when-you-use-smoothed-line-chart-your.html). Both visualizations are terrible at accurately communicating information.
+
+- Smooth spline interpolation is available, but its use is strongly discouraged. See ["Your data is misrepresented!"](http://www.vizwiz.com/2011/12/when-you-use-smoothed-line-chart-your.html).
 - No built-in drag scrolling/panning due to ambiguous native zoom/selection behavior. However, this can be added externally via the plugin/hooks API: [zoom-wheel](https://leeoniya.github.io/uPlot/demos/zoom-wheel.html), [zoom-touch](https://leeoniya.github.io/uPlot/demos/zoom-touch.html).
 
 ---
@@ -58,7 +59,6 @@ Additionally, an ever-expanding collection of runnable [/demos](https://leeoniya
 ---
 ### Third-party Integrations
 
-- [Jupyter widget](https://github.com/sohailsomani/uplot_jupyter_widget) (Sohail Somani)
 - [React, Vue.js and Svelte](https://github.com/skalinichev/uplot-wrappers) (Sergey Kalinichev)
 - [Python](https://github.com/stephane-caron/uplot-python) (Stéphane Caron)
 
