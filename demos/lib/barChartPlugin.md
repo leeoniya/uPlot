@@ -1,7 +1,7 @@
 # barChartPlugin
 
 `barChartPlugin(options)` creates a uPlot plugin for vertical or horizontal bars.
-It supports single-line category labels and single-line tick labels on linear numeric Y scales.
+Core sizes the category labels and tick labels on linear numeric Y scales.
 Multiple Y series appear side by side at each category. Native uPlot stack groups share a category position.
 
 ## Usage
@@ -52,7 +52,7 @@ barChartPlugin({
 ```
 
 The data format stays `[categoryLabels, firstSeriesValues, secondSeriesValues, ...]`. Categories run from top to bottom on the left X axis.
-The numeric Y axis runs horizontally along the bottom. The widest category label determines the left axis width before numeric tick selection.
+The numeric Y axis runs horizontally along the bottom. Core selects its ticks before final category measurements determine the left axis width.
 Horizontal bars do not support label rotation. A nonzero `labelRotation` or `_controls.setLabelRotation()` argument throws `RangeError`.
 
 ## Grouping and stacking
@@ -70,6 +70,8 @@ Grouped charts give each visible component series a separate slot. Stacked chart
 Hidden series do not reserve slots. Multiple independent stack groups appear side by side.
 Stack groups must include every value series, including hidden series. Mixed stacked and unstacked charts are not supported.
 The plugin records series-to-group membership once during initialization, rather than searching the groups on each redraw.
+Each layout calculates the category distribution once and the inner slot distribution once, then fills the per-slot offset arrays.
+This avoids repeated slot-distribution calculations inside the category loop. It does not add a layout cache.
 
 Set `stack` on the uPlot options, not on the plugin:
 
@@ -167,30 +169,38 @@ Orientation changes preserve component and total visibility. Copy-link URLs cont
 | `showValues` | `false` | Draw automatically sized bar values and value-stack totals. |
 | `hoverMode` | `'bar'` | Select an individual bar (`'bar'`) or an entire category (`'group'`). |
 | `labelRotation` | `0` | A finite angle in degrees, from `-90` through `90`. Horizontal bars require `0`. |
-| `minLabelSpacing` | `0` | Minimum center-to-center distance between category labels in CSS pixels. Any finite nonnegative number is valid. Zero shows every label. |
+| `minLabelSpacing` | `0` | Target minimum spacing for category tick selection in CSS pixels. Any finite nonnegative number is valid. Zero shows every label. |
 | `maxLabelLength` | `null` | No truncation, or an integer of at least `1`. The limit includes the ellipsis character (`…`). |
 | `ellipsis` | `'end'` | The ellipsis position: `'end'` or `'middle'`. |
-| `inset` | `8` | The minimum outer padding and extra axis space, in CSS pixels. |
+| `inset` | `8` | The minimum outer padding in CSS pixels. Axis sizes do not include this padding. |
 | `bars` | `{}` | Options for `uPlot.paths.bars()`, except `disp` and `each`, which the plugin supplies. |
 
 Category labels come directly from `data[0]`. uPlot's ordinal scale assigns their numeric positions internally.
 The plugin converts X values to strings for display. Null entries become empty strings.
-The `setData` hook refreshes the displayed labels. Truncation does not change the original data or legend labels.
+The axis formatter truncates the selected raw category values. Truncation does not change the original data or legend labels.
 
 ## Category label density
 
 The **Min spacing** slider ranges from 0 to 300 CSS pixels in steps of 5. Its default is 0.
-The plugin uses `axis.filter` to keep every `ceil(minLabelSpacing / groupCenterSpacing)`th label, with a minimum stride of one.
-The first category stays selected. The last category appears only when its index matches the stride.
-For example, 40px group spacing and a 100px minimum produce a stride of three, or 120px between selected labels.
+The plugin supplies `axis.space` and category `axis.splits`. Core selects the increment, and the plugin returns integer category positions within the scale range.
+Zero spacing selects every valid category. Blank category values remain visible empty strings.
+The selected increment determines which category ticks, grid lines, and labels appear. Unselected categories do not produce hidden label entries.
 
-The filter replaces excluded entries with `null`. The axis formatter preserves this mask and formats selected labels by category index.
-Category positions, tick marks, grid lines, bars, hover, and legend values remain unchanged.
 The spacing applies along plot width for vertical bars and plot height for horizontal bars.
-It uses the final padded plot dimension and recalculates during axis layout, including resize, data, and group-layout changes.
-Hover does not recalculate the filter.
 
-Measurements and axis-space reservation still include every formatted label. A spacing change reuses those measurements without changing the plot geometry.
+With an automatic horizontal axis, core selects all horizontal ticks once from a provisional plot width, then sizes all horizontal axes together.
+The provisional width reserves explicit numeric vertical axis widths. Automatic vertical axes and vertical axes with size callbacks reserve 50px each.
+These reservations also include axis titles. Core keeps the selected horizontal ticks through the rest of layout.
+
+The final center-to-center spacing can differ from the requested spacing.
+Resize, data, and group-layout changes recalculate the selection. Hover does not recalculate the selection.
+
+In this early path, horizontal size callbacks run after tick selection and still receive `values: null`.
+Early tick callbacks cannot depend on a newly calculated provisional height or fixed horizontal axis allocations.
+Without an automatic horizontal axis, layout order does not change.
+
+Core measures only selected labels. A different selection can change axis sizes, padding, and plot geometry.
+The category data, hover behavior, and legend values remain unchanged.
 This setting controls label density, not text overlap. Long labels can still overlap at small spacing values.
 
 ## Bar values
@@ -261,7 +271,8 @@ Layout changes refresh the band even when the selected category stays the same. 
 
 ## Demo controls
 
-The plugin owns label formatting, truncation, validation, rotation, layout, and measurement. It exposes demo methods through `_controls`.
+The plugin owns category formatting, truncation, validation, and rotation. Core owns axis sizing, label measurement, and overflow padding.
+The plugin exposes demo methods through `_controls`.
 The demo imports `createBarControls()` from `demos/lib/barControls.js` to connect these methods to its HTML form.
 This helper reads form values, updates readouts, and attaches or removes event listeners. The plugin does not import or depend on it.
 
@@ -276,8 +287,10 @@ This helper reads form values, updates readouts, and attaches or removes event l
 - `_controls.setLabelRotation(degrees)` changes the angle. A new angle requests layout.
 - `_controls.setMinLabelSpacing(pixels)` changes category label density without rebuilding the chart. A changed value requests layout and redraw.
 - `_controls.setLabelTruncation(maxLength, position)` changes truncation. The optional `position` retains the current ellipsis position.
-  A change to the displayed labels requests layout. `null` disables truncation.
-- `_controls.getLabelMetrics()` returns `{ label, width }` for the widest formatted X label after layout, including labels hidden by the spacing filter.
+  A change to either setting requests layout, even if the displayed labels do not change.
+  Repeated settings do not request a redraw. Both `null` and `undefined` disable truncation.
+- `_controls.getLabelMetrics()` returns `{ label, width }` for the widest selected X label after layout.
+  It reads core's cached widths and uses the widest line for multiline labels.
   The width is the unrotated text width in CSS pixels. Before measurement, the result is `{ label: '', width: 0 }`.
 
 The methods are available before chart initialization. After chart destruction, they do not request redraws.
@@ -308,7 +321,8 @@ Data changes use the normal `u.setData(...)` method.
 ## Cleanup
 
 `demo.destroy()` destroys the current chart, removes form listeners, and disconnects the resize observer. It releases references to the chart, plugin, controls, and root element.
-The plugin clears its hover buffer, label metrics, and value geometry. It also releases its references to stack groups and the native bar path builder.
+The plugin clears its hover buffer and value geometry. It also releases its references to the chart, stack groups, and native bar path builder.
+Core's global font contexts persist after chart destruction.
 Caller-owned data, stack groups, and bar options remain unchanged. Repeated destroy calls have no effect.
 Orientation and stack rebuilds retain the data before they destroy the old chart.
 
@@ -324,10 +338,34 @@ Horizontal numeric axes default to `space: 100` CSS pixels. `opts.axes[1].space`
 Fixed ranges and custom range functions retain standard ranging. Automatic label fitting is not implemented.
 The plugin does not support general top-axis or custom-alignment layouts.
 
-Text measurement uses one `OffscreenCanvas` per unique font, shared across axes within each plugin instance.
-The plugin requires browser support for `OffscreenCanvas`.
-Each context keeps its font. Measurement does not change the chart context.
+Both primary axes use `size: 'auto'`. Core reserves the tick size, gap, and selected label extent without extra axis padding.
 
-The measurement cache depends on label text, axis font, and pixel ratio.
-Rotation and size changes reuse text widths. Padding uses each label's width and position in the expanded scale to protect the chart edges.
-Padding credits existing axis space and uses a conservative plot-width bound, not previous layout results, to avoid layout feedback.
+Automatic sizing and tuple overflow support default alignment (`align: 0`) and `alignTo: 1` only.
+They support unrotated multiline labels. Rotation support is limited to single-line labels on bottom axes.
+Explicit numeric sizes and size callbacks retain custom alignment support. The renderer still draws rotated multiline labels, but automatic layout does not support them.
+
+The plugin uses `padding: [inset, [inset, Infinity], inset, [inset, Infinity]]` in top/right/bottom/left order.
+Each side accepts only a number, `null`, or `[min, max]` bounds.
+Before tick selection, core reserves numeric padding, heuristic padding for `null`, or tuple minima.
+Top and bottom tuples use only their minima. A finite maximum can allow label clipping.
+
+After horizontal label selection and formatting, core resolves left and right tuple overflow together with the final axis widths.
+It credits existing axis space. Overflow adjustment does not select or format ticks again.
+Default or `null` padding retains the original heuristic, even with `size: 'auto'`. Overflow adjustment requires explicit `[min, max]` tuples.
+
+Padding callbacks and public padding phases no longer exist. There is no tick-aware custom padding callback, `sizePadding` option, or public overflow helper.
+
+For migration, replace padding callbacks with numbers or `[min, max]` bounds.
+
+Core shares one `OffscreenCanvas` context per font across axes and charts. The plugin requires browser support for `OffscreenCanvas`.
+Each context keeps its font. Measurement does not change the chart context.
+Unrotated horizontal autosizing reads the current label strings for height without measurement of their widths.
+Core measures widths only for vertical or rotated sizing, or automatic padding.
+Core retains the measured array in `axis._labelValues` and a `number[]` of widths in `axis._labelWidths`.
+If layout skips measurement, `axis._labelValues` can differ from the current formatted array.
+Each width is the maximum unrotated line width for that label. Hidden `null` labels have width zero.
+
+Unchanged selected labels reuse their measurements after truncation changes, rotation, and resize.
+If a resize selects different labels, core measures them when layout needs their widths.
+Core invalidates measurements centrally when the pixel ratio changes.
+Runtime changes to axis fonts, `lineGap`, or sides are unsupported. In-place mutation of the formatted values array is also unsupported.

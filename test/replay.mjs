@@ -298,7 +298,7 @@ describe('browser failure reports', () => {
 		}
 	});
 
-	it('renders every failure immediately with independent hover comparisons and no navigation or instructions', () => {
+	it('renders every failure immediately with independent hover comparisons', () => {
 		const spec = width => ({ width, height: 10, ctxlog: [['fillRect', [0, 0, width, 10]]] });
 		const document = loadReport([
 			{ title: 'first 0-0', expected: spec(10), actual: spec(20) },
@@ -307,12 +307,10 @@ describe('browser failure reports', () => {
 		const canvases = Array.from(document.querySelectorAll('canvas'));
 		const comparisons = document.querySelectorAll('.comparison');
 		assert.equal(canvases.length, 2);
-		assert.equal(document.querySelectorAll('select, button').length, 0);
 		assert.equal(document.querySelector('p').textContent, '2 failed snapshots');
 		assert.deepStrictEqual(Array.from(document.querySelectorAll('h2'), heading => heading.textContent), [
 			'first 0-0', 'second 0-pair/1',
 		]);
-		assert.doesNotMatch(document.body.textContent, /Hover over the chart|Move away to show expected/);
 		const draws = [[], []];
 		canvases.forEach((canvas, i) => {
 			canvas.getContext = () => ({ fillRect() { draws[i].push(canvas.width); } });

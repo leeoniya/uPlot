@@ -137,6 +137,7 @@ declare class uPlot {
 	/** clears selected caches without a redraw. defaults to all categories. see docs for disposal restrictions */
 	clearCache(targets?: uPlot.CacheOptions): void;
 
+
 	/** uPlot's path-builder factories */
 	static paths: uPlot.Series.PathBuilderFactories;
 
@@ -300,15 +301,22 @@ declare namespace uPlot {
 		[key: string]: Scale;
 	}
 
-	type SidesWithAxes = [top: boolean, right: boolean, bottom: boolean, left: boolean];
 
-	export const enum PaddingPhase {
-		Layout   = 0,
-		Overflow = 1,
-	}
+	/**
+	 * Automatic padding limits in CSS pixels, with 0 <= min <= max. Infinity removes the upper limit.
+	 * min reserves an outer margin. Horizontal overflow can increase the padding up to max.
+	 * Top/bottom sides use min. A finite max can allow label clipping.
+	 * Overflow adjustment supports default alignment (align: 0) and alignTo: 1 only.
+	 * It supports unrotated multiline labels. Rotation support is limited to single-line labels on bottom axes.
+	 */
+	export type PaddingLimits = [min: number, max: number];
 
-	/** total padding in CSS pixels; phase distinguishes baseline layout from horizontal label overflow */
-	export type PaddingSide = number | null | ((self: uPlot, side: Axis.Side, sidesWithAxes: SidesWithAxes, phase: PaddingPhase) => number);
+	/**
+	 * Total padding in CSS pixels: a fixed number, automatic limits, or null for the default heuristic.
+	 * Tuple minima reserve space before tick selection. Core then resolves horizontal overflow from the selected labels and final axis sizes.
+	 * Default or null padding retains the original heuristic, even with size: 'auto'. Overflow adjustment requires explicit [min, max] tuples.
+	 */
+	export type PaddingSide = number | PaddingLimits | null;
 
 	export type Padding = [top: PaddingSide, right: PaddingSide, bottom: PaddingSide, left: PaddingSide];
 
@@ -384,9 +392,9 @@ declare namespace uPlot {
 	}
 
 	export interface CacheOptions {
-		/** series path-builder caches */
+		/** series path-builder caches. preserves cached disp colors and point sizes */
 		paths?: boolean;
-		/** retained data arrays. discard only for static charts */
+		/** retained data arrays and disp caches. disposes the source data, not a refresh */
 		data?: boolean;
 	}
 
@@ -827,26 +835,56 @@ declare namespace uPlot {
 			Continuous = 3,
 		}
 
-		export type BarsPathBuilderFacetValue = string | number | boolean | null | undefined;
+		export type BarsPathBuilderFacetValue = number | null | undefined;
 
-		export interface BarsPathBuilderFacet {
+		export type BarsPathBuilderFacet<T = BarsPathBuilderFacetValue> = {
 			/** unit of measure for output of values() */
 			unit: BarsPathBuilderFacetUnit;
-			/** are the values unary, discrete, or continuous */
-			kind?: BarsPathBuilderFacetKind;
-			/** values to use for this facet */
-			values: (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => BarsPathBuilderFacetValue[];
+		} & PathBuilderFacet<T>;
+
+		/** uniform bar width. variable widths, including log-scale X widths, are not yet supported */
+		export type BarsPathBuilderSizeFacet = {unit: 1 | 2} & PathBuilderUnaryFacet<number>;
+
+		export type PathBuilderColor = CanvasRenderingContext2D['fillStyle'] | null | undefined;
+
+		/** enum values and per-datapoint indices, indexed by the original data index */
+		export type PathBuilderDiscreteValues<T = unknown> = readonly [enum: readonly T[], idxs: ArrayLike<number>];
+
+		/** one value for the entire series */
+		export interface PathBuilderUnaryFacet<T> {
+			kind: BarsPathBuilderFacetKind.Unary;
+			values: (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => T;
 		}
 
-		/** custom per-datapoint styling and positioning */
+		/** kind selects the return format. omitted kind means Continuous */
+		export type PathBuilderFacet<T> = PathBuilderUnaryFacet<T> | {
+			kind: BarsPathBuilderFacetKind.Discrete;
+			values: (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => PathBuilderDiscreteValues<T>;
+		} | {
+			kind?: BarsPathBuilderFacetKind.Continuous;
+			values: (self: uPlot, seriesIdx: number, idx0: number, idx1: number) => ArrayLike<T>;
+		};
+
+		export type PathBuilderColorValues = PathBuilderColor | ArrayLike<PathBuilderColor> | PathBuilderDiscreteValues<PathBuilderColor>;
+
+		/** shared bar and point colors. bars group equal colors; points with disp paint individually.
+		 *  full-range values (0..N-1) are cached per series/descriptor. descriptors and callbacks must remain stable.
+		 *  core data replacement and series changes clear the cache. null/undefined colors suppress the channel.
+		 */
+		export type PathBuilderColorFacet = {unit?: 3} & PathBuilderFacet<PathBuilderColor>;
+
+		/** bbox in canvas pixels, including stroke. useful for a spatial index */
+		export type PathBuilderEach = (self: uPlot, seriesIdx: number, idx: number, left: number, top: number, width: number, height: number) => void;
+
+		/** custom per-datapoint styling and positioning. geometry callbacks run on each rebuild */
 		export interface BarsPathBuilderDisplay {
-			x0?: BarsPathBuilderFacet;
+			x0?: BarsPathBuilderFacet<number>;
 		//	x1?: BarsPathBuilderFacet;
 			y0?: BarsPathBuilderFacet;
 			y1?: BarsPathBuilderFacet;
-			size?: BarsPathBuilderFacet;
-			fill?: BarsPathBuilderFacet;
-			stroke?: BarsPathBuilderFacet;
+			size?: BarsPathBuilderSizeFacet;
+			fill?: PathBuilderColorFacet;
+			stroke?: PathBuilderColorFacet;
 		}
 
 		/** radii for bar end (at bar's value) and bar start (baseline, zero)  */
@@ -862,14 +900,44 @@ declare namespace uPlot {
 			// corner radius factor of bar size (0 - 0.5)
 			radius?: BarsPathBuilderRadius; // 0
 
-			/** fixed-size gap between bars in CSS pixels (reduces bar width) */
-			gap?: number;
+			/** CSS-pixel gaps that reduce bar width. A number is equivalent to [0, gap].
+			 *  For align: 1 or -1, leading insets the anchored edge along the bar's direction.
+			 *  Centered bars remain centered and use the sum of both gaps.
+			 */
+			gap?: number | [leading: number, trailing: number];
 
-			/** should return a custom [cached] layout for bars in % of plotting area (0..1) */
+			/** custom bar geometry and cached colors */
 			disp?: BarsPathBuilderDisplay;
 
 			/** called with bbox geometry of each drawn bar in canvas pixels. useful for spatial index, etc. */
-			each?: (self: uPlot, seriesIdx: number, idx: number, left: number, top: number, width: number, height: number) => void;
+			each?: PathBuilderEach;
+		}
+
+		/** finite CSS outer diameters including stroke, cached like colors. sizes <= stroke width skip the point */
+		export type PointsPathBuilderSizeFacet = {unit?: 3} & PathBuilderFacet<number>;
+
+		/** maps raw values through a native scale, independently of plot dimensions and orientation */
+		export type PointsPathBuilderScaledSizeFacet = {
+			unit?: 1;
+			scale: string;
+			/** ascending CSS outer diameters [minDiameter, maxDiameter] at the scale min/max. transformed values are clamped to this range. maxDiameter / 2 pads the center-culling window */
+			range: [number, number];
+		} & PathBuilderFacet<number>;
+
+		/** custom per-point colors and sizes. positions come from the series data */
+		export interface PointsPathBuilderDisplay {
+			fill?: PathBuilderColorFacet;
+			stroke?: PathBuilderColorFacet;
+			/** supplying size clips fills and strokes strictly to the plot, even when all sizes are equal. omitted size retains expanded marker clipping */
+			size?: PointsPathBuilderSizeFacet | PointsPathBuilderScaledSizeFacet;
+		}
+
+		export interface PointsPathBuilderOpts {
+			/** draws each point immediately in data order, fill then stroke, and returns null. omitted disp retains single-path behavior */
+			disp?: PointsPathBuilderDisplay;
+
+			/** called with each drawn point's full bbox, including stroke, in canvas pixels. bounds are not truncated by plot clipping */
+			each?: PathBuilderEach;
 		}
 
 		export interface LinearPathBuilderOpts {
@@ -880,7 +948,8 @@ declare namespace uPlot {
 			alignGaps?: -1 | 0 | 1; // 0
 		}
 
-		export type PointsPathBuilderFactory  = () => Points.PathBuilder;
+		/** builder for series.points.paths. reads series.points options. scale-backed disp.size expands center inclusion by its maximum radius without changing scale ranges */
+		export type PointsPathBuilderFactory  = (opts?: PointsPathBuilderOpts) => Points.PathBuilder;
 		export type LinearPathBuilderFactory  = (opts?: LinearPathBuilderOpts) => Series.PathBuilder;
 		export type SplinePathBuilderFactory  = (opts?: SplinePathBuilderOpts) => Series.PathBuilder;
 		export type SteppedPathBuilderFactory = (opts?: SteppedPathBuilderOpts) => Series.PathBuilder;
@@ -1106,8 +1175,24 @@ declare namespace uPlot {
 		/** must return an array of same length as splits, e.g. via splits.map() */
 		export type Filter = (self: uPlot, splits: number[], axisIdx: number, foundSpace: number, foundIncr: number) => (number | null)[];
 
-		/** axis size in CSS pixels. callbacks receive formatted values for vertical axes, or null before ticks for horizontal axes */
-		export type Size = number | ((self: uPlot, values: Axis.StaticValues | null, axisIdx: number) => number);
+		/**
+		 * Axis size in CSS pixels. 'auto' fits ticks, gap, and selected labels. Axis titles use labelSize separately.
+		 * Automatic sizing supports default alignment (align: 0) and alignTo: 1 only.
+		 * It supports unrotated multiline labels. Rotation support is limited to single-line labels on bottom axes.
+		 * Explicit numeric sizes and size callbacks retain support for custom alignment and drawn rotated multiline labels.
+		 * Unrotated horizontal autosizing reads current label strings for height without measurement of their widths.
+		 * Core measures widths only for vertical or rotated sizing, or automatic padding. Unchanged labels reuse cached widths.
+		 *
+		 * With an automatic horizontal axis, layout selects all horizontal ticks once from a provisional plot width, then sizes all horizontal axes together.
+		 * This width reserves explicit numeric vertical axis widths. Automatic vertical axes and vertical axes with size callbacks reserve 50px each.
+		 * These reservations also include axis titles.
+		 * Selected horizontal ticks remain unchanged through final layout.
+		 *
+		 * Early tick callbacks cannot depend on a newly calculated provisional height or fixed horizontal axis allocations.
+		 * Horizontal size callbacks run after this tick selection and still receive null values. Vertical size callbacks receive formatted values.
+		 * Without an automatic horizontal axis, layout order does not change.
+		 */
+		export type Size = number | 'auto' | ((self: uPlot, values: Axis.StaticValues | null, axisIdx: number) => number);
 
 		export type Space = number | ((self: uPlot, axisIdx: number, scaleMin: number, scaleMax: number, plotDim: number) => number);
 
@@ -1137,8 +1222,9 @@ declare namespace uPlot {
 		}
 
 		export const enum Align {
-			Left  = 1,
-			Right = 2,
+			Default = 0,
+			Left    = 1,
+			Right   = 2,
 		}
 
 		export const enum AlignTo {
@@ -1201,7 +1287,7 @@ declare namespace uPlot {
 		/** gap between axis values and axis baseline (or ticks, if enabled) in CSS pixels */
 		gap?: number;
 
-		/** font used for axis values */
+		/** font used for axis values. runtime changes to font, lineGap, and side are unsupported. */
 		font?: CanvasRenderingContext2D['font'];
 
 		/** font-size multiplier for multi-line axis values (similar to CSS line-height: 1.5em) */
@@ -1222,7 +1308,8 @@ declare namespace uPlot {
 		/** font used for axis label */
 		labelFont?: CanvasRenderingContext2D['font'];
 
-		/** target grid & tick spacing in CSS pixels; horizontal tick-aware ranging passes raw extrema to callbacks */
+		/** target grid & tick spacing in CSS pixels. automatic horizontal sizing uses provisional width, so final spacing can be smaller.
+				 * horizontal tick-aware ranging passes raw extrema to callbacks. */
 		space?: Axis.Space;
 
 		/** tick-count growth factor for tick-aware Y ranging. 0 retains two edge ticks */
@@ -1243,16 +1330,16 @@ declare namespace uPlot {
 		/** can filter which splits are passed to axis.values() for rendering. e.g splits.map(v => v % 2 == 0 ? v : null) */
 		filter?: Axis.Filter;
 
-		/** formats values for rendering */
+		/** formats values for rendering. return a new array when labels change. */
 		values?: Axis.Values;
 
 		/** values rotation in degrees off horizontal (only bottom axes w/ side: 2) */
 		rotate?: Axis.Rotate;
 
-		/** text alignment of axis values - 1: left, 2: right */
+		/** Text alignment of axis values: 0: default, 1: left, 2: right. Automatic sizing and tuple overflow support only 0. */
 		align?: Axis.Align;
 
-		/** baseline for text alignment of axis values - 1: inside, 2: outside */
+		/** Baseline for text alignment of axis values: 1: inside, 2: outside. Automatic sizing and tuple overflow support only 1. */
 		alignTo?: Axis.AlignTo;
 
 		/** gridlines to draw from this axis' splits */

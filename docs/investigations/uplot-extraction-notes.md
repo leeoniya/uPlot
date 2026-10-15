@@ -26,7 +26,7 @@ They describe moved code, not net bundle or source reductions after imports and 
 - The old scale-accumulation candidate is therefore obsolete.
   The new subsystem is a stronger module boundary and appears below.
 - Layout no longer uses the old convergence loop.
-  `updateLayout()` now coordinates phased padding, axis sizing, and canvas updates at lines 959–1020.
+  At this checkpoint, `updateLayout()` coordinated phased padding, axis sizing, and canvas updates at lines 959–1020. Public padding phases no longer exist.
 - `paddingCalc()` is now only five lines at 2006–2010.
   It is no longer a useful extraction candidate by itself.
 - Canvas cache invalidation moved into `setCanvasSize()` at lines 2287–2290.
@@ -45,7 +45,7 @@ They describe moved code, not net bundle or source reductions after imports and 
 | Position helpers | 418–430 | None | 13 | High |
 | Calculated-range helpers | 675–698 | Current scale or its prior bounds | 24 | High |
 | Mouse listener registry | 858–882 | `self`, `cursor`, and a private map | 25 | High, with small benefit |
-| `autoPadSide()` | 1362–1374 | None beyond existing arguments | 13 | High |
+| `autoPadSide()` | 1362–1374 (checkpoint) | Internal `sidesWithAxes` closure in the current implementation | 13 (checkpoint) | Requires closure preservation |
 | Initial scale setup | 518–624 | `self`, `opts`, `xScaleKey`, `mode`, and `snapTimeX` | 107 | Medium |
 | Canvas painter factory | 1464–1497, 1854–1917, 1935–1970 | `ctx`, `pxAlign`, and private caches | 134 | Medium |
 
@@ -135,10 +135,12 @@ The position helpers at 418–430 use only their arguments:
 `self.valToPosH` and `self.valToPosV` expose the first two functions.
 Keep those assignments and the current function identities.
 
-`autoPadSide()` at 1362–1374 also uses only its arguments and imported axis defaults.
-The padding call now supplies a fourth `phase` argument, but `autoPadSide()` intentionally ignores it.
+At the checkpoint, `autoPadSide()` at 1362–1374 used only its arguments and imported axis defaults.
+The current internal `autoPadSide(side)` closes over `sidesWithAxes` and has no phase argument.
+Padding sides now accept only numbers, `null`, or `[min, max]` bounds. Core handles automatic tuple overflow.
+Extraction of `autoPadSide()` must preserve access to internal `sidesWithAxes`.
 
-These helpers have very low extraction risk.
+The position helpers have very low extraction risk.
 Their small size makes them useful only in a coherent position, layout, or axis module.
 
 ## 4. Calculated-range helpers
@@ -297,7 +299,7 @@ It also adds mutation and synchronization risks.
 
 1. Move the scale scanning subsystem without wrappers or behavior changes.
 2. Move the top-level helpers into purpose-based modules.
-3. Move the position, automatic-padding, and calculated-range helpers with explicit arguments.
+3. Move the position and calculated-range helpers with explicit arguments. Preserve the internal `sidesWithAxes` closure for automatic padding.
 4. Extract initial scale setup after its scan and range dependencies have stable module locations.
 5. Extract the canvas painter with private caches and exact invalidation timing.
 6. Extract the listener registry only if the separation improves readability.

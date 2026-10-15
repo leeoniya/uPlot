@@ -45,42 +45,11 @@
 				return data;
 			}
 
-			function maxLabelWidth(self, axis, values) {
-				let ctx = self.ctx;
-				let width = 0;
-
-				// Preserve the canvas state so the font cache stays valid.
-				ctx.save();
-				ctx.font = axis.font[0];
-
-				for (let value of values ?? []) {
-					if (value != null)
-						width = Math.max(width, ctx.measureText(String(value)).width);
-				}
-
-				ctx.restore();
-
-				return width / self.pxRatio;
-			}
-
-			function autoPadRight(self, side, sidesWithAxes, phase) {
-				const baseline = 8;
-
-				if (phase == 0)
-					return baseline;
-
-				let xAxis = self.axes[0];
-				const inset = 4;
-
-				// Return total padding without feedback from tick positions.
-				return Math.max(baseline, Math.ceil(maxLabelWidth(self, xAxis, xAxis._values) / 2 + inset));
-			}
-
 			const opts = {
 				title: "Axis AutoSize — ordinary ranging",
 				width: 1048,
 				height: 600,
-				padding: [null, autoPadRight, null, null],
+				padding: [null, [8, Infinity], null, null],
 				scales: {
 					x: {
 						time: false,
@@ -99,6 +68,7 @@
 				],
 				axes: [
 					{
+						size: 'auto',
 						label: "X Axis Label",
 						labelSize: 20,
 						values(self, splits) {
@@ -110,14 +80,7 @@
 						labelGap: 8,
 						labelSize: 8 + 12 + 8,
 						stroke: "red",
-						size(self, values, axisIdx) {
-							let axis = self.axes[axisIdx];
-							let axisSize = axis.ticks.size + axis.gap;
-
-							axisSize += maxLabelWidth(self, axis, values);
-
-							return Math.ceil(axisSize);
-						},
+						size: 'auto',
 					}
 				],
 			};

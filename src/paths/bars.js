@@ -1,21 +1,26 @@
 import { abs, floor, min, max, inf, EMPTY_OBJ, fnOrSelf, clamp, retArg0, EMPTY_ARR } from '../utils.js';
 import { orient, rectV, rectH } from './utils.js';
+import { colorPaths, dispReader } from './disp.js';
 
-function findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid = inf) {
-	if (dataX.length > 1) {
+function percentToPos(pct, scale, dim, off) {
+	return off + pct * dim;
+}
+
+function findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid = inf, xValue = dispReader()) {
+	if (dataY.length > 1) {
 		// prior index with non-undefined y data
 		let prevIdx = null;
 
 		// scan full dataset for smallest adjacent delta
 		// will not work properly for non-linear x scales, since does not do expensive valToPosX calcs till end
-		for (let i = 0, minDelta = Infinity; i < dataX.length; i++) {
+		for (let i = 0, minDelta = Infinity; i < dataY.length; i++) {
 			if (dataY[i] !== undefined) {
 				if (prevIdx != null) {
-					let delta = abs(dataX[i] - dataX[prevIdx]);
+					let delta = abs(xValue(dataX, i) - xValue(dataX, prevIdx));
 
 					if (delta < minDelta) {
 						minDelta = delta;
-						colWid = abs(valToPosX(dataX[i], scaleX, xDim, xOff) - valToPosX(dataX[prevIdx], scaleX, xDim, xOff));
+						colWid = abs(valToPosX(xValue(dataX, i), scaleX, xDim, xOff) - valToPosX(xValue(dataX, prevIdx), scaleX, xDim, xOff));
 					}
 				}
 
@@ -31,7 +36,9 @@ export function bars(opts) {
 	opts = opts || EMPTY_OBJ;
 	const size = opts.size ?? [0.6, inf, 1];
 	const align = opts.align || 0;
-	const _extraGap = (opts.gap || 0);
+	const gap = opts.gap ?? 0;
+	const [gapLead, gapTrail] = typeof gap == 'number' ? [0, gap] : gap;
+	const _extraGap = gapLead + gapTrail;
 
 	let ro = opts.radius;
 
@@ -96,41 +103,36 @@ export function bars(opts) {
 			if (dispFills != null && (strokeWidth == 0 || dispStrokes != null)) {
 				multiPath = true;
 
-				fillColors = dispFills.values(u, seriesIdx, idx0, idx1);
-				fillPaths = new Map();
-				(new Set(fillColors)).forEach(color => {
-					if (color != null)
-						fillPaths.set(color, new Path2D());
-				});
+				fillColors = colorPaths(u, seriesIdx, dispFills);
+				fillPaths = fillColors.paths;
 
 				if (strokeWidth > 0) {
-					strokeColors = dispStrokes.values(u, seriesIdx, idx0, idx1);
-					strokePaths = new Map();
-					(new Set(strokeColors)).forEach(color => {
-						if (color != null)
-							strokePaths.set(color, new Path2D());
-					});
+					strokeColors = colorPaths(u, seriesIdx, dispStrokes);
+					strokePaths = strokeColors.paths;
 				}
 			}
 
 			let { x0, size } = disp;
+			let xToPos = valToPosX;
+			let xValue = dispReader();
 
 			if (x0 != null && size != null) {
 				_align = 1;
 				dataX = x0.values(u, seriesIdx, idx0, idx1);
+				xValue = dispReader(x0.kind);
 
 				if (x0.unit == 2)
-					dataX = dataX.map(pct => u.posToVal(xOff + pct * xDim, scaleX.key, true));
+					xToPos = percentToPos;
 
-				// assumes uniform sizes, for now
-				let sizes = size.values(u, seriesIdx, idx0, idx1);
+				// TODO: support variable bar widths, including position-dependent widths on log X scales.
+				let width = size.values(u, seriesIdx, idx0, idx1); // kind: 1 only
 
 				if (size.unit == 2)
-					barWid = sizes[0] * xDim;
+					barWid = width * xDim;
 				else
-					barWid = valToPosX(sizes[0], scaleX, xDim, xOff) - valToPosX(0, scaleX, xDim, xOff); // assumes linear scale (delta from 0)
+					barWid = valToPosX(width, scaleX, xDim, xOff) - valToPosX(0, scaleX, xDim, xOff); // assumes linear scale (delta from 0)
 
-				colWid = findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid);
+				colWid = findColWidth(dataX, dataY, xToPos, scaleX, xDim, xOff, colWid, xValue);
 
 				let gapWid = colWid - barWid;
 				fullGap = gapWid + extraGap;
@@ -160,12 +162,17 @@ export function bars(opts) {
 
 			barWid = pxRound(clamp(rawBarWid, minWidth, maxWidth));
 
-			xShift = (_align == 0 ? barWid / 2 : _align == _dirX ? 0 : barWid) - _align * _dirX * ((_align == 0 ? extraGap / 2 : 0) + (insetStroke ? strokeWidth / 2 : 0));
+			// Inset the anchored edge along the bar's direction; centered bars use only the total gap.
+			xShift = (_align == 0 ? barWid / 2 : _align == _dirX ? 0 : barWid) - _align * _dirX * (insetStroke ? gapLead * pxRatio + strokeWidth / 2 : 0);
 
 
 			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: 0};  // disp, geom
 
 			const stroke = multiPath ? null : new Path2D();
+
+			let yValue = dispReader();
+			let y0Value = dispReader();
+			let hasY0 = dataY0 != null || band != null;
 
 			if (band != null)
 				dataY0 = u._data[band.series[1]];
@@ -175,20 +182,24 @@ export function bars(opts) {
 				if (y0 != null && y1 != null) {
 					dataY = y1.values(u, seriesIdx, idx0, idx1);
 					dataY0 = y0.values(u, seriesIdx, idx0, idx1);
+					yValue = dispReader(y1.kind);
+					y0Value = dispReader(y0.kind);
+					hasY0 = true;
 				}
 			}
+
 
 			let radVal = valRadius * barWid;
 			let radBase = baseRadius * barWid;
 
 			for (let i = _dirX == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dirX) {
-				let yVal = dataY[i];
+				let yVal = yValue(dataY, i);
 
 				if (yVal == null)
 					continue;
 
-				if (dataY0 != null) {
-					let yVal0 = dataY0[i] ?? 0;
+				if (hasY0) {
+					let yVal0 = y0Value(dataY0, i) ?? 0;
 
 					if (yVal - yVal0 == 0)
 						continue;
@@ -196,10 +207,10 @@ export function bars(opts) {
 					fillToY = valToPosY(yVal0, scaleY, yDim, yOff);
 				}
 
-				let xVal = dataX[i];
+				let xVal = xValue(dataX, i);
 
 				// TODO: all xPos can be pre-computed once for all series in aligned set
-				let xPos = valToPosX(xVal, scaleX, xDim, xOff);
+				let xPos = xToPos(xVal, scaleX, xDim, xOff);
 				let yPos = valToPosY(yVal, scaleY, yDim, yOff);
 
 				let lft = pxRound(xPos - xShift);
@@ -213,11 +224,14 @@ export function bars(opts) {
 					let rb = yPos < fillToY ? radBase : radVal;
 
 					if (multiPath) {
-						if (strokeWidth > 0 && strokeColors[i] != null)
-							rect(strokePaths.get(strokeColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
+						let strokePath = strokeWidth > 0 ? strokeColors.lookup[strokeColors.index(strokeColors.indices, i)] : null;
+						let fillPath = fillColors.lookup[fillColors.index(fillColors.indices, i)];
 
-						if (fillColors[i] != null)
-							rect(fillPaths.get(fillColors[i]), lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
+						if (strokePath != null)
+							rect(strokePath, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
+
+						if (fillPath != null)
+							rect(fillPath, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
 					}
 					else
 						rect(stroke, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);

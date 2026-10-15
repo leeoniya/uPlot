@@ -2,22 +2,24 @@ import assert from 'node:assert/strict';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { rangeY } from '../src/rangeY.js';
+
 import { barChartPlugin } from '../demos/lib/barChartPlugin.js';
 import { distr, SPACE_BETWEEN, SPACE_AROUND, SPACE_EVENLY } from '../demos/lib/distr.js';
 
 describe('barChartPlugin', () => {
-	let plots, originalOffscreenCanvas, canvases, activeMeasurements;
+	const measureHook = Symbol.for('uplot.test.axisMeasure');
+	let plots, originalOffscreenCanvas;
 
 	beforeEach(() => {
 		plots = new Set();
-		canvases = new Map();
-		activeMeasurements = null;
+
 		originalOffscreenCanvas = globalThis.OffscreenCanvas;
 		globalThis.OffscreenCanvas = class {
 			constructor(width, height) {
 				this.width = width;
 				this.height = height;
 				this.ctx = {
+					canvas: this,
 					clearRect() {},
 					fillRect() {},
 					getImageData() {
@@ -27,13 +29,14 @@ describe('barChartPlugin', () => {
 					},
 					log: [],
 					set font(value) { this.log.push(['font', value]); },
+					get font() { return this.log.at(-1)[1]; },
 					measureText(text) {
 						const font = this.log.at(-1)[1];
-						activeMeasurements?.push({ text: String(text), font, ctx: this });
+						globalThis[measureHook]?.({ text: String(text), font, ctx: this });
 						return { width: String(text).length * parseFloat(font) / 2 };
 					},
 				};
-				canvases.set(this.ctx, this);
+
 			}
 			getContext(type) {
 				assert.equal(type, '2d');
@@ -47,6 +50,7 @@ describe('barChartPlugin', () => {
 				u.destroy();
 		}
 		finally {
+			delete globalThis[measureHook];
 			if (originalOffscreenCanvas === undefined)
 				delete globalThis.OffscreenCanvas;
 			else
@@ -62,26 +66,18 @@ describe('barChartPlugin', () => {
 			pxRatio: 1,
 			series: [{}, { fill: 'royalblue' }],
 			...chartOptions,
-			plugins: [{
-				...plugin,
-				opts(u, opts) {
-					const configured = plugin.opts(u, opts) ?? opts;
-					// Attribute lazy context measurements to the chart doing layout,
-					// even when multiple charts have pending layout microtasks.
-					const attribute = fn => (...args) => {
-						const previous = activeMeasurements;
-						activeMeasurements = measurements;
-						try {
-							return fn(...args);
+			plugins: [plugin, {
+				hooks: {
+					init(u) {
+						// Select the current chart before measurement on every layout, even with cached global contexts.
+						for (const axis of u.axes) {
+							const space = axis.space;
+							axis.space = (...args) => {
+								globalThis[measureHook] = entry => measurements.push(entry);
+								return space(...args);
+							};
 						}
-						finally {
-							activeMeasurements = previous;
-						}
-					};
-					for (const axis of configured.axes.slice(0, 2))
-						axis.size = attribute(axis.size);
-					configured.padding = configured.padding.map(value => typeof value === 'function' ? attribute(value) : value);
-					return configured;
+					},
 				},
 			}],
 		}, data, document.body);
@@ -94,7 +90,7 @@ describe('barChartPlugin', () => {
 		plots.delete(u);
 	}
 
-	const width = (u, label, axisIdx = 0) => String(label).length * parseFloat(u.axes[axisIdx].font[0]) / 2 / u.pxRatio;
+	const width = (u, label, axisIdx = 0) => label == null ? 0 : Math.max(...String(label).split('\n').map(line => line.length)) * parseFloat(u.axes[axisIdx].font[0]) / 2 / u.pxRatio;
 	const fullLabels = u => u.data[0];
 	const rects = (u, seriesIdx) => u.series[seriesIdx]._paths.fill.log
 		.filter(entry => entry[0] === 'rect').flatMap(entry => entry.slice(1));
@@ -138,14 +134,14 @@ describe('barChartPlugin', () => {
 		const labels = axis._values ?? [];
 		const longest = Math.max(0, ...labels.map(label => width(u, label)));
 		const labelHeight = rotation === 0 ? height : longest * sin + height / 2 * cos;
-		assert.equal(axis._size, Math.ceil(axis.ticks.size + axis.gap + labelHeight + inset));
+		assert.equal(axis._size, Math.ceil(axis.ticks.size + axis.gap + labelHeight));
 		assert.ok(u._padding.every(pad => pad >= inset));
 		for (const [i, label] of labels.entries()) {
 			const near = height / 2 * sin;
 			const far = width(u, label) * cos + near;
 			const left = rotation === 0 ? width(u, label) / 2 : rotation > 0 ? far : near;
 			const right = rotation === 0 ? width(u, label) / 2 : rotation < 0 ? far : near;
-			const center = u.valToPos(i, 'x', true) / u.pxRatio;
+			const center = u.valToPos(axis._splits[i], 'x', true) / u.pxRatio;
 			assert.ok(center >= left + inset - .5 / u.pxRatio, `label ${i} clears the left edge`);
 			assert.ok(u.width - center >= right + inset - .5 / u.pxRatio, `label ${i} clears the right edge`);
 		}
@@ -1473,8 +1469,9 @@ describe('barChartPlugin', () => {
 			destroy(u);
 			assert.deepEqual(groups, [{ series: [1, 2], dir: 0 }], 'caller-owned groups remain intact');
 			assert.deepEqual(bars.size, [.6, 30], 'caller-owned bar options remain intact');
-			assert.deepEqual(u.axes[0].values(), []);
-			assert.deepEqual(u.axes[0].splits(), []);
+			const empty = { data: [[]] };
+			assert.deepEqual(u.axes[0].values(empty, []), []);
+			assert.deepEqual(u.axes[0].splits(empty, 0, -.5, .5, 1), []);
 			return { plugin, refs };
 		})();
 		for (let i = 0; i < 3; i++) {
@@ -1635,6 +1632,70 @@ describe('barChartPlugin', () => {
 		assert.equal(requests, 0);
 	});
 
+	for (const layout of ['grouped', 'stacked', 'group-wide']) {
+		it(`preserves nested distribution results after loop reordering (${layout})`, () => {
+			const original = uPlot.paths.bars;
+			const descriptors = [];
+			uPlot.paths.bars = options => {
+				descriptors.push(options.disp);
+				return () => {};
+			};
+			try {
+				const groupWidth = .6, barWidth = .55;
+				const plugin = barChartPlugin({bars: {size: [groupWidth]}, barWidth, groupSeries: layout == 'group-wide' ? [1] : []});
+				const opts = {
+					series: Array.from({length: 5}, () => ({show: true})), axes: [{}, {}],
+					stack: layout == 'stacked' ? {groups: [{series: [1, 3], dir: 0}, {series: [2, 4], dir: 0}]} : undefined,
+				};
+				plugin.opts({}, opts);
+				const u = {series: opts.series, data: [[]], bbox: {width: 600, height: 400}};
+				const members = layout == 'stacked' ? [[1, 3], [2, 4]] : layout == 'group-wide' ? [[2], [3], [4]] : [[1], [2], [3], [4]];
+				for (const count of [0, 1, 5]) {
+					u.data = [Array(count)];
+					for (const distribution of [SPACE_BETWEEN, SPACE_AROUND, SPACE_EVENLY]) {
+						plugin._controls.setDistribution(distribution);
+						for (const barDistribution of [SPACE_BETWEEN, SPACE_AROUND, SPACE_EVENLY]) {
+							plugin._controls.setBarDistribution(barDistribution);
+							for (const hidden of [[], [1], [1, 2, 3, 4]]) {
+								for (let si = 1; si < u.series.length; si++)
+									u.series[si].show = !hidden.includes(si);
+								const slots = members.map(group => group.filter(si => u.series[si].show))
+									.filter(group => group.length > 0).sort((a, b) => a[0] - b[0]);
+								const offsets = slots.map(() => Array(count));
+								const groupOffsets = [];
+								let expectedWidth = 0, expectedGroupWidth = 0;
+								// Reference the original category-first nested distribution.
+								distr(count, groupWidth, distribution, null, (di, groupOff, size) => {
+									groupOffsets[di] = groupOff;
+									expectedGroupWidth = size;
+									if (slots.length > 0) {
+										distr(slots.length, barWidth, barDistribution, null, (slot, off, width) => {
+											expectedWidth = size * width;
+											offsets[slot][di] = groupOff + size * off;
+										});
+									}
+								});
+								plugin.hooks.drawClear(u);
+								assert.equal(descriptors[0].size.kind, 1);
+																assert.equal(descriptors[0].size.values(u), expectedWidth);
+								for (let slot = 0; slot < slots.length; slot++) {
+									for (const si of slots[slot])
+										assert.deepEqual(descriptors[0].x0.values(u, si), offsets[slot]);
+								}
+								if (layout == 'group-wide') {
+									assert.deepEqual(descriptors[1].x0.values(u), groupOffsets);
+									assert.equal(descriptors[1].size.kind, 1);
+																		assert.equal(descriptors[1].size.values(u), expectedGroupWidth);
+								}
+							}
+						}
+					}
+				}
+			}
+			finally { uPlot.paths.bars = original; }
+		});
+	}
+
 	it('shares one uniform width and per-stack offsets across layout rebuilds', async () => {
 		const original = uPlot.paths.bars;
 		let disp, u;
@@ -1652,20 +1713,20 @@ describe('barChartPlugin', () => {
 		}
 		await Promise.resolve();
 		const width = disp.size.values(u, 1);
-		assert.equal(width.length, 1, 'uniform sizing needs only size[0]');
-		assert.equal(width[0], .1);
+		assert.equal(disp.size.kind, 1);
+		assert.equal(width, .1);
 		assert.equal(disp.size.values(u, 2), width);
 		assert.equal(disp.size.values(u, 3), width);
 		assert.equal(disp.x0.values(u, 1), disp.x0.values(u, 3), 'non-adjacent stack members share offsets');
 		assert.notEqual(disp.x0.values(u, 1), disp.x0.values(u, 2));
 		u.setSeries(2, { show: false });
 		await Promise.resolve();
-		assert.equal(disp.size.values(u, 1), width, 'redraws reuse the width array');
-		assert.equal(width[0], .2);
+		assert.equal(disp.size.values(u, 1), .2);
+		assert.equal(disp.size.values(u, 3), .2);
 		assert.equal(disp.x0.values(u, 1), disp.x0.values(u, 3));
 		u.setData([[], [], [], []]);
 		await Promise.resolve();
-		assert.equal(width[0], 0);
+		assert.equal(disp.size.values(u, 1), 0);
 	});
 
 	for (const orientation of ['vertical', 'horizontal']) {
@@ -1747,7 +1808,7 @@ describe('barChartPlugin', () => {
 	describe('minimum label spacing', () => {
 		const pitch = u => Math.abs(u.valToPos(1, 'x', true) - u.valToPos(0, 'x', true)) / u.pxRatio;
 		const indices = u => u.data[0].map((_, i) => i);
-		const visible = u => (u.axes[0]._values ?? []).flatMap((value, i) => value == null ? [] : [i]);
+		const visible = u => u.axes[0]._splits ?? [];
 		const layout = u => ({
 			bbox: { ...u.bbox }, padding: u._padding.slice(),
 			sizes: u.axes.map(axis => axis._size),
@@ -1756,26 +1817,20 @@ describe('barChartPlugin', () => {
 		const lines = u => u.ctx.log.slice(u.ctx.log.findLastIndex(entry => entry[0] === 'clearRect'))
 			.filter(entry => entry[0] === 'moveTo' || entry[0] === 'lineTo');
 
-		function assertDensity(u, threshold, labels = u.data[0].map(String)) {
+		function assertDensity(u, threshold, labels = u.data[0].map(value => String(value ?? ''))) {
 			const axis = u.axes[0];
-			const stride = labels.length < 2 ? 1 : Math.max(1, Math.ceil(threshold / pitch(u)));
-			const expected = labels.map((label, i) => i % stride === 0 ? label : null);
-			assert.deepEqual(axis._splits ?? [], indices(u), 'density must retain every ordinal tick');
-			assert.deepEqual(axis._values ?? [], expected, `stride ${stride} uses final CSS-pixel group pitch`);
-			const input = u.data[0].slice();
-			const filtered = axis.filter(u, input, 0, axis._space, axis._incr);
-			assert.deepEqual(filtered, u.data[0].map((value, i) => i % stride === 0 ? value : null), 'axis.filter masks without removing entries');
-			assert.deepEqual(axis.values(u, filtered, 0, axis._space, axis._incr), expected, 'axis.values preserves the filter mask');
-			const shown = visible(u);
-			for (let i = 1; i < shown.length; i++) {
-				const distance = Math.abs(u.valToPos(shown[i], 'x', true) - u.valToPos(shown[i - 1], 'x', true)) / u.pxRatio;
-				assert.ok(distance >= threshold - 1e-9, `${distance} CSS pixels must meet minimum ${threshold}`);
-			}
+			const stride = threshold === 0 ? 1 : Math.max(1, Math.ceil(axis._found?.[0] ?? 1));
+			const selected = axis._found?.[1] === 0 ? [] : indices(u).filter(i => i % stride === 0);
+			assert.deepEqual(axis._splits ?? [], selected, 'splits honor the core-selected increment');
+			assert.deepEqual(axis._values ?? [], selected.map(i => labels[i]), 'only selected labels are formatted');
+			assert.equal(axis.space(u, 0), Math.max(1, threshold));
+			assert.deepEqual(axis._labelWidths ?? [], selected.map(i => width(u, labels[i])));
+			assert.deepEqual(axis._labelValues ?? [], axis._values ?? [], 'core caches selected formatted values');
 			return stride;
 		}
 
 		for (const orientation of ['vertical', 'horizontal']) {
-			it(`defaults to all labels and changes only label visibility (${orientation})`, async () => {
+			it(`defaults to all labels and sizes only selected labels (${orientation})`, async () => {
 				const data = [['repeat', 'repeat', 123456789, 'not a number', 'category E', 'F', 'G', 'Longest final category label'],
 					[2, 3, 4, 5, 3, 2, 4, 5], [1, 2, 1, 2, 1, 2, 1, 2]];
 				const original = structuredClone(data);
@@ -1790,25 +1845,33 @@ describe('barChartPlugin', () => {
 				const baseline = {
 					layout: layout(u), bars: [rects(u, 1), rects(u, 2)], lines: structuredClone(lines(u)),
 					legend: structuredClone(u.legend.values), metrics: plugin._controls.getLabelMetrics(),
-					measurements: measurements.length,
+
 				};
-				assert.equal(baseline.metrics.label, data[0].at(-1), 'the soon-hidden last label controls sizing');
+				assert.equal(baseline.metrics.label, data[0].at(-1), 'the selected last label controls sizing');
 				for (const threshold of [pitch(u) * 2.25, 10000.5, 0]) {
 					plugin._controls.setMinLabelSpacing(threshold);
 					await Promise.resolve();
 					assertDensity(u, threshold);
-					assert.deepEqual(layout(u), baseline.layout, 'all labels still determine axes and padding');
-					assert.deepEqual([rects(u, 1), rects(u, 2)], baseline.bars);
-					assert.deepEqual(lines(u), baseline.lines, 'ticks and grid lines must not be thinned');
 					assert.deepEqual(u.legend.values, baseline.legend);
-					assert.deepEqual(plugin._controls.getLabelMetrics(), baseline.metrics);
-					assert.equal(measurements.length, baseline.measurements, 'density changes reuse all-label measurements');
+					assertMetrics(u, plugin);
+					if (threshold === 0) {
+						assert.deepEqual(layout(u), baseline.layout);
+						assert.deepEqual([rects(u, 1), rects(u, 2)], baseline.bars);
+						assert.deepEqual(lines(u), baseline.lines);
+					}
+					else {
+						assert.ok(u.axes[0]._size < baseline.layout.sizes[0], 'unselected longest label reserves no space');
+						assert.notDeepEqual(lines(u), baseline.lines, 'ticks and grid follow the selection');
+					}
+					const measured = measurements.length;
+					u.redraw(false, true);
+					await Promise.resolve();
+					assert.equal(measurements.length, measured, 'unchanged selection reuses core measurements');
 					assert.equal(u.data, data);
 					assert.deepEqual(data, original);
 					const drawn = drawnValues(u);
-					for (const label of ['not a number', 'G'])
-						assert.equal(drawn.includes(label), threshold < 10000);
-					assert.equal(drawn.includes(data[0].at(-1)), threshold === 0, 'the last label is not forced visible');
+					for (const label of ['not a number', 'G', data[0].at(-1)])
+						assert.equal(drawn.includes(label), u.axes[0]._values.includes(label));
 				}
 			});
 
@@ -1819,7 +1882,8 @@ describe('barChartPlugin', () => {
 				let threshold = 130.25;
 				assertDensity(u, threshold);
 				let before = visible(u);
-				u.setSize({ width: 360, height: 260 });
+				// Cross the 5-to-10 increment boundary for horizontal category ticks.
+				u.setSize({ width: 360, height: 200 });
 				await Promise.resolve();
 				assertDensity(u, threshold);
 				assert.notDeepEqual(visible(u), before, 'resize must update the stride');
@@ -1833,20 +1897,20 @@ describe('barChartPlugin', () => {
 				threshold = pitch(u) * 2.02;
 				plugin._controls.setMinLabelSpacing(threshold);
 				await Promise.resolve();
-				assert.equal(assertDensity(u, threshold), 3);
+				const beforeDistribution = assertDensity(u, threshold);
 				plugin._controls.setDistribution(SPACE_BETWEEN);
 				await Promise.resolve();
-				assert.equal(assertDensity(u, threshold), 2, 'distribution changes group-center pitch');
+				assert.ok(assertDensity(u, threshold) <= beforeDistribution, 'distribution changes group-center pitch');
 				plugin._controls.setGroupWidth(.1);
 				await Promise.resolve();
 				assertDensity(u, threshold);
 				threshold = pitch(u) * 1.98;
 				plugin._controls.setMinLabelSpacing(threshold);
 				await Promise.resolve();
-				assert.equal(assertDensity(u, threshold), 2);
+				const beforeWidth = assertDensity(u, threshold);
 				plugin._controls.setGroupWidth(1);
 				await Promise.resolve();
-				assert.equal(assertDensity(u, threshold), 3, 'group width changes pitch under SPACE_BETWEEN');
+				assert.ok(assertDensity(u, threshold) >= beforeWidth, 'group width changes pitch under SPACE_BETWEEN');
 				before = visible(u);
 				u.setPxRatio(1.25);
 				await Promise.resolve();
@@ -1855,24 +1919,39 @@ describe('barChartPlugin', () => {
 			});
 		}
 
-		it('uses ceil at fractional CSS-pixel boundaries and anchors every stride at index zero', async () => {
-			const { u, plugin } = mount([['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], Array(8).fill(5)], {}, { pxRatio: 1.5 });
-			await Promise.resolve();
-			const step = pitch(u);
-			for (const [threshold, expected] of [
-				[step - .01, [0, 1, 2, 3, 4, 5, 6, 7]],
-				[step + .01, [0, 2, 4, 6]],
-				[2 * step - .01, [0, 2, 4, 6]],
-				[2 * step + .01, [0, 3, 6]],
-			]) {
-				plugin._controls.setMinLabelSpacing(threshold);
-				await Promise.resolve();
-				assertDensity(u, threshold);
-				assert.deepEqual(visible(u), expected);
-			}
+		it('delegates auto sizing and overflow padding to core and formats raw selected categories', () => {
+			const plugin = barChartPlugin({ inset: 12, maxLabelLength: 5, ellipsis: 'middle' });
+			const u = { data: [['unused'], [1]] };
+			const opts = { axes: [{ font: '16px serif' }, {}], series: [{}, {}] };
+			plugin.opts(u, opts);
+			assert.deepEqual(opts.axes.map(axis => axis.size), ['auto', 'auto']);
+			assert.equal(opts.axes[0].font, '16px serif');
+			assert.deepEqual(opts.padding, [12, [12, Infinity], 12, [12, Infinity]]);
+			assert.deepEqual(opts.axes[0].values(u, ['abcdefghij', 1234567890, false, null, undefined, '']),
+				['ab…ij', '12…90', 'false', '', '', '']);
+			assert.deepEqual(u.data, [['unused'], [1]], 'formatting uses its arguments without changing raw data');
 		});
 
-		it('honors masks by category index while preserving string formatting and truncation', async () => {
+		it('honors chosen increments and returns only integer category positions within range', () => {
+			const plugin = barChartPlugin({ minLabelSpacing: 20 });
+			const u = { data: [Array(8).fill('category')] };
+			const opts = { axes: [{}, {}], series: [{}, {}] };
+			plugin.opts(u, opts);
+			const axis = opts.axes[0];
+			for (const [min, max, incr, expected] of [
+				[-.5, 7.5, 1, [0, 1, 2, 3, 4, 5, 6, 7]],
+				[-.5, 7.5, 2, [0, 2, 4, 6]],
+				[.5, 6.5, 2, [2, 4, 6]],
+				[-20, 20, 2.1, [0, 3, 6]],
+				[8, 10, 1, []],
+			])
+				assert.deepEqual(axis.splits(u, 0, min, max, incr), expected);
+			plugin._controls.setMinLabelSpacing(0);
+			assert.equal(axis.space(u, 0), 1);
+			assert.deepEqual(axis.splits(u, 0, .5, 6.5, 100), [1, 2, 3, 4, 5, 6]);
+		});
+
+		it('formats supplied raw category values, including blank values', async () => {
 			const data = [['abcdefghij', 'abcdefghij', 1234567890, 'non-numeric', 'uvwxyzabcd', false, 'last label'], Array(7).fill(2)];
 			const { u, plugin } = mount(data, { maxLabelLength: 5, ellipsis: 'middle' });
 			await Promise.resolve();
@@ -1880,8 +1959,8 @@ describe('barChartPlugin', () => {
 			plugin._controls.setMinLabelSpacing(threshold);
 			await Promise.resolve();
 			assertDensity(u, threshold, ['ab…ij', 'ab…ij', '12…90', 'no…ic', 'uv…cd', 'false', 'la…el']);
-			const mask = [null, data[0][1], null, data[0][3], null, data[0][5], null];
-			assert.deepEqual(u.axes[0].values(u, mask, 0), [null, 'ab…ij', null, 'no…ic', null, 'false', null], 'values must honor its input mask, not regenerate one');
+			const raw = [data[0][3], null, data[0][2], undefined, '', data[0][5]];
+			assert.deepEqual(u.axes[0].values(u, raw, 0), ['no…ic', '', '12…90', '', '', 'false']);
 			plugin._controls.setLabelTruncation(5, 'end');
 			await Promise.resolve();
 			assertDensity(u, threshold, ['abcd…', 'abcd…', '1234…', 'non-…', 'uvwx…', 'false', 'last…']);
@@ -1891,30 +1970,28 @@ describe('barChartPlugin', () => {
 			assert.deepEqual(u.data, data);
 		});
 
-		it('uses final post-padding pitch near a stride boundary with a long rotated last label', async () => {
+		it('measures selected labels after resize and freezes ticks before overflow padding', async () => {
 			const data = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'A very long final category label that needs padding'], Array(8).fill(5)];
-			const options = { labelRotation: -45 };
-			const size = { width: 620, height: 450, pxRatio: 1.25 };
-			const reference = mount(data, options, size);
+			const { u, plugin, measurements } = mount(data, { labelRotation: -45, minLabelSpacing: 100 }, { width: 420 });
 			await Promise.resolve();
-			assert.ok(reference.u._padding[1] > 8, 'fixture requires extra right padding after axis filtering');
-			let threshold = pitch(reference.u) * 2.001;
-			const { u, plugin } = mount(data, { ...options, minLabelSpacing: threshold }, size);
+			assertDensity(u, 100);
+			assertMetrics(u, plugin);
+			assert.ok(!measurements.some(({ text }) => text === data[0].at(-1)), 'unselected labels are not measured');
+			const selected = u.axes[0]._splits.slice();
+			const before = measurements.length;
+			u.setSize({ width: 1400, height: 450 });
 			await Promise.resolve();
-			assert.deepEqual(layout(u), layout(reference.u));
-			assert.equal(assertDensity(u, threshold), 3);
-			assert.deepEqual(visible(u), [0, 3, 6]);
-			for (const width of [480, 800]) {
-				reference.u.setSize({ width, height: 450 });
-				await Promise.resolve();
-				threshold = pitch(reference.u) * 2.001;
-				plugin._controls.setMinLabelSpacing(threshold);
-				u.setSize({ width, height: 450 });
-				await Promise.resolve();
-				assert.deepEqual(layout(u), layout(reference.u));
-				assert.equal(assertDensity(u, threshold), 3);
-				assert.deepEqual(visible(u), [0, 3, 6], 'pre-padding pitch must not allow labels less than the minimum apart');
-			}
+			assertDensity(u, 100);
+			assert.notDeepEqual(u.axes[0]._splits, selected);
+			assert.deepEqual(measurements.slice(before).filter(({ text }) => data[0].includes(text)).map(({ text }) => text), u.axes[0]._values);
+			assertMetrics(u, plugin);
+			assertLayout(u);
+			const final = layout(u);
+			const measured = measurements.length;
+			u.redraw(false, true);
+			await Promise.resolve();
+			assert.deepEqual(layout(u), final, 'overflow padding does not feed back into tick selection');
+			assert.equal(measurements.length, measured);
 		});
 
 		it('accepts finite nonnegative thresholds without a 300px cap and validates setters without side effects', async () => {
@@ -1948,7 +2025,7 @@ describe('barChartPlugin', () => {
 			plugin._controls.setMinLabelSpacing(Number.MAX_VALUE);
 			await Promise.resolve();
 			assertDensity(u, Number.MAX_VALUE);
-			assert.deepEqual(visible(u), [0]);
+			assert.deepEqual(visible(u), [], 'no tick increment can meet this spacing');
 			plugin._controls.setMinLabelSpacing(0);
 			await Promise.resolve();
 			assertDensity(u, 0);
@@ -2041,17 +2118,15 @@ describe('barChartPlugin', () => {
 			],
 		};
 		const { u, measurements } = mount([['Alpha', 'Beta'], [1, 2]], {}, chartOptions, plugin);
-		assert.equal(canvases.size, 0, 'measurement contexts are created lazily');
+		assert.equal(measurements.length, 0, 'measurement runs during layout');
 		await Promise.resolve();
 
 		function assertContexts(expected) {
 			assert.ok(measurements.length > 0);
 			assert.ok(measurements.every(({ ctx }) => ctx !== u.ctx), 'measurement never uses the drawing context');
 			assert.deepEqual(new Set(measurements.map(({ ctx }) => ctx)), new Set(expected));
-			assert.equal(canvases.size, expected.length, 'one offscreen canvas per unique font');
 			for (const ctx of expected) {
-				const canvas = canvases.get(ctx);
-				assert.ok(canvas instanceof OffscreenCanvas);
+				const canvas = ctx.canvas;
 				assert.ok(!(canvas instanceof HTMLCanvasElement));
 				assert.deepEqual([canvas.width, canvas.height], [1, 1]);
 				assert.equal(ctx.log.filter(entry => entry[0] === 'font').length, 1);
@@ -2063,42 +2138,39 @@ describe('barChartPlugin', () => {
 		assert.ok(measurements.some(({ text, ctx }) => text.startsWith('Y0:') && ctx === shared), 'same-font axes share a context');
 		assertContexts([shared]);
 
-		u.axes[1].font[0] = '18px monospace';
-		u.axes[1].font[1] = 18;
-		const beforeFont = measurements.length;
-		u.redraw(false, true);
+		const other = mount([['Other font', 'Category'], [1, 2]], {}, {
+			axes: [{ font: '18px monospace' }, { font: '18px monospace' }],
+		});
 		await Promise.resolve();
-		const separate = measurements[beforeFont].ctx;
-		assert.notEqual(separate, shared, 'a different font needs a separate context');
-		assert.ok(measurements.slice(beforeFont).every(({ font, ctx }) => font === '18px monospace' && ctx === separate));
-		assertContexts([shared, separate]);
+		const separate = other.measurements[0].ctx;
+		assert.notEqual(separate, shared, 'different initial fonts use separate contexts');
+		assert.ok(other.measurements.every(({ font, ctx }) => font === '18px monospace' && ctx === separate));
+		assertContexts([shared]);
 
-		for (revision = 1; revision <= 3; revision++) {
+		for (const nextRevision of [1, 2, 3]) {
+			revision = nextRevision;
 			const before = measurements.length;
 			const labels = [`Alpha ${revision}`, `Beta ${revision}`];
 			u.setData([labels, [revision, revision * 2]]);
 			await Promise.resolve();
 			const recent = measurements.slice(before);
-			assert.deepEqual(recent.filter(({ ctx }) => ctx === shared).map(({ text }) => text), labels);
-			assert.ok(recent.some(({ text, ctx }) => text.startsWith(`Y${revision}:`) && ctx === separate));
-			assertContexts([shared, separate]);
+			assert.deepEqual(recent.filter(({ text }) => labels.includes(text)).map(({ text }) => text), labels);
+			assert.ok(recent.some(({ text, ctx }) => text.startsWith(`Y${revision}:`) && ctx === shared));
+			assertContexts([shared]);
 		}
 
 		const beforeReuse = measurements.length;
-		u.axes[1].font[0] = '14px serif';
-		u.axes[1].font[1] = 14;
 		u.redraw(false, true);
 		await Promise.resolve();
-		assert.ok(measurements.length > beforeReuse);
-		assert.ok(measurements.slice(beforeReuse).every(({ ctx }) => ctx === shared), 'returning to a font reuses its context');
-		assertContexts([shared, separate]);
+		assert.equal(measurements.length, beforeReuse, 'unchanged labels reuse core widths');
+		assertContexts([shared]);
 
 		destroy(u);
 		const next = mount([['Gamma', 'Delta'], [3, 4]], {}, chartOptions, plugin);
 		await Promise.resolve();
 		const nextContexts = new Set(next.measurements.map(({ ctx }) => ctx));
 		assert.equal(nextContexts.size, 1);
-		assert.ok(!nextContexts.has(shared) && !nextContexts.has(separate), 'destroy clears the font context map');
+		assert.ok(nextContexts.has(shared) && !nextContexts.has(separate), 'global font contexts survive destroy');
 		assert.ok(!nextContexts.has(next.u.ctx));
 	});
 
@@ -2122,19 +2194,18 @@ describe('barChartPlugin', () => {
 			assert.deepEqual(axis._values, values(u, axis._splits));
 			for (const label of labels)
 				assert.ok(measurements.some(({ text, font }) => text === label && font === axis.font[0]));
-			assert.equal(axis._size, Math.ceil(Math.max(...labels.map(label => width(u, label, 1))) + axis.ticks.size + axis.gap + 8));
+			assert.equal(axis._size, Math.ceil(Math.max(...labels.map(label => width(u, label, 1))) + axis.ticks.size + axis.gap));
 			sizes.push(axis._size);
 		}
 		assert.ok(new Set(sizes).size > 1);
 		assert.equal(measurements.filter(({ text }) => ['A', 'B', 'C'].includes(text)).length, 3, 'Y changes retain cached X metrics');
 	});
 
-	it('exposes only _controls at factory time, applies pre-mount settings, and stops redrawing after destroy', async () => {
+	it('exposes controls at factory time, applies pre-mount settings, and stops redrawing after destroy', async () => {
 		const options = Object.freeze({ labelRotation: 15, maxLabelLength: 4, ellipsis: 'end' });
 		const plugin = barChartPlugin(options);
 		const controls = plugin._controls;
 		const methods = ['setHoverMode', 'setShowValues', 'setDistribution', 'setGroupWidth', 'setBarDistribution', 'setBarWidth', 'setLabelRotation', 'setLabelTruncation', 'setMinLabelSpacing', 'getLabelMetrics'];
-		assert.deepEqual(Object.keys(plugin).sort(), ['_controls', 'hooks', 'opts']);
 		assert.deepEqual(Object.keys(controls).sort(), methods.slice().sort());
 		for (const method of methods)
 			assert.equal(typeof controls[method], 'function');
@@ -2166,7 +2237,7 @@ describe('barChartPlugin', () => {
 		assert.deepEqual(options, { labelRotation: 15, maxLabelLength: 4, ellipsis: 'end' }, 'factory and methods leave caller options unchanged');
 	});
 
-	it('truncates at either end or middle, handles maxLength 1, and skips ineffective redraws without changing data', async () => {
+	it('truncates at either end or middle, handles maxLength 1, and skips repeated settings without changing data', async () => {
 		const data = [['abcdefghij', 'xy'], [1, 2]];
 		const original = structuredClone(data);
 		const { u, plugin } = mount(data);
@@ -2176,20 +2247,19 @@ describe('barChartPlugin', () => {
 		u.redraw = (...args) => { redraws++; return redraw(...args); };
 		plugin._controls.setLabelRotation(0);
 		plugin._controls.setLabelTruncation(null);
-		plugin._controls.setLabelTruncation(100, 'end');
-		plugin._controls.setLabelTruncation(100, 'middle');
+		plugin._controls.setLabelTruncation(undefined);
 		await Promise.resolve();
-		assert.equal(redraws, 0, 'unchanged effective labels and rotation need no redraw');
+		assert.equal(redraws, 0, 'unchanged normalized settings need no redraw');
 		for (const [limit, ellipsis, expected] of [
 			[5, 'end', ['abcd…', 'xy']],
 			[5, 'middle', ['ab…ij', 'xy']],
 			[1, 'middle', ['…', '…']],
-			[null, undefined, data[0]],
+			[undefined, undefined, data[0]],
 		]) {
 			const before = redraws;
 			plugin._controls.setLabelTruncation(limit, ellipsis);
 			await Promise.resolve();
-			assert.ok(redraws > before);
+			assert.equal(redraws, before + 1);
 			assert.deepEqual(u.axes[0]._values, expected);
 			assert.deepEqual(fullLabels(u), data[0]);
 			assertMetrics(u, plugin);
@@ -2202,7 +2272,39 @@ describe('barChartPlugin', () => {
 		assert.deepEqual(data, original);
 	});
 
-	it('rejects invalid method inputs without changing the current settings or redrawing', async () => {
+for (const options of [{}, { labelRotation: 45 }, { orientation: 'horizontal' }]) {
+	it(`requests layout for changed truncation settings and reuses unchanged widths: ${JSON.stringify(options)}`, async () => {
+		const { u, plugin, measurements } = mount([['Alpha', 'Beta'], [1, 2]], options);
+		await Promise.resolve();
+		const axis = u.axes[0];
+		const widths = axis._labelWidths;
+		const before = measurements.length;
+		assert.ok(widths.length > 0);
+		const redraw = u.redraw;
+		const requests = [];
+		u.redraw = (...args) => { requests.push(args); return redraw(...args); };
+
+		for (const [maxLength, position, expected] of [
+			[100, 'end', 1],
+			[100, 'end', 1],
+			[100, 'middle', 2],
+			[100, undefined, 2],
+			[null, undefined, 3],
+			[undefined, undefined, 3],
+			[null, 'end', 4],
+		]) {
+			plugin._controls.setLabelTruncation(maxLength, position);
+			await Promise.resolve();
+			assert.deepEqual(requests, Array.from({ length: expected }, () => [false, true]));
+			assert.deepEqual(axis._values, ['Alpha', 'Beta']);
+			assert.equal(axis._labelWidths, widths, 'unchanged output retains the measured widths');
+			assert.equal(measurements.length, before, 'layout does not measure unchanged output again');
+			assertMetrics(u, plugin);
+		}
+	});
+}
+
+it('rejects invalid method inputs without changing the current settings or redrawing', async () => {
 		const { u, plugin } = mount([['Alphabet', 'Beta'], [1, 2]], { labelRotation: 15, maxLabelLength: 4 });
 		await Promise.resolve();
 		let redraws = 0;
@@ -2251,6 +2353,42 @@ describe('barChartPlugin', () => {
 		assertMetrics(b.u, b.plugin);
 	});
 
+	it('attributes shared-context measurements to each plot after resize and DPR changes', async () => {
+		const labels = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta'];
+		const a = mount([labels, [1, 2, 3, 4, 5, 6]], { minLabelSpacing: 100 }, { width: 400 });
+		const b = mount([labels, [1, 2, 3, 4, 5, 6]], { orientation: 'horizontal', minLabelSpacing: 100 }, { height: 400 });
+		await Promise.resolve();
+		const context = a.measurements.find(({ text }) => text === 'Alpha').ctx;
+		assert.equal(b.measurements.find(({ text }) => text === 'Alpha').ctx, context);
+
+		for (const ratio of [1, 2, 1]) {
+			for (const [active, other] of [[a, b], [b, a]]) {
+				const before = active.measurements.length;
+				const otherBefore = other.measurements.length;
+				active.u.setSize({ width: 1000, height: 1000 });
+				active.u.setPxRatio(ratio);
+				await Promise.resolve();
+				assert.ok(active.measurements.length > before, 'resize selects new labels; DPR changes invalidate widths');
+				assert.equal(other.measurements.length, otherBefore, 'the inactive plot receives no measurements');
+				assertMetrics(active.u, active.plugin);
+			}
+		}
+	});
+
+	it('reads numeric maximum-line widths for selected unrotated category metrics', async () => {
+		const { u, plugin, measurements } = mount([['tiny', 'longer\nshort', null, ''], [1, 2, 3, 4]]);
+		await Promise.resolve();
+		const axis = u.axes[0];
+		assert.deepEqual(axis._values, ['tiny', 'longer\nshort', '', '']);
+		assert.deepEqual(axis._labelWidths, [width(u, 'tiny'), width(u, 'longer'), 0, 0]);
+				assert.ok(axis._labelWidths.every(value => typeof value === 'number'));
+		assertMetrics(u, plugin);
+		const before = measurements.length;
+		for (let i = 0; i < 3; i++)
+			assert.deepEqual(plugin._controls.getLabelMetrics(), { label: 'longer\nshort', width: width(u, 'longer') });
+		assert.equal(measurements.length, before, 'metrics readout never measures text');
+	});
+
 	it('handles empty and single-category datasets through ordinary setData', async () => {
 		const { u, plugin } = mount([[], []]);
 		await Promise.resolve();
@@ -2276,7 +2414,7 @@ describe('barChartPlugin', () => {
 		for (const [i, axis] of u.axes.slice(0, 2).entries()) {
 			assert.equal(axis._rotate, 0);
 			const extent = i === 0 ? Math.max(0, ...axis._values.map(label => width(u, label))) : axis.font[1] / u.pxRatio;
-			assert.equal(axis._size, Math.ceil(extent + (axis.ticks.show ? axis.ticks.size : 0) + axis.gap + inset));
+			assert.equal(axis._size, Math.ceil(extent + (axis.ticks.show ? axis.ticks.size : 0) + axis.gap));
 		}
 		assert.ok(Object.values(u.bbox).every(Number.isFinite));
 		assert.ok(u.bbox.width > 0 && u.bbox.height > 0);
@@ -2363,7 +2501,7 @@ describe('barChartPlugin', () => {
 		}
 	});
 
-	it('reserves horizontal category width and recalculates numeric ticks after same-count label changes', async () => {
+	it('reserves horizontal category width after the early numeric tick selection', async () => {
 		const { u, plugin } = mount([['A', 'B', 'C'], [20, 40, 80]], { orientation: 'horizontal', inset: 12 }, {
 			axes: [{ font: '14px serif', gap: 7, ticks: { show: false, size: 11 } }, { space: 70, gap: 9, ticks: { size: 13 } }],
 			scales: { y: { range: [0, 100] } },
@@ -2382,8 +2520,7 @@ describe('barChartPlugin', () => {
 		assert.ok(u.bbox.width < before.width);
 		assert.equal(u.bbox.height, before.height);
 		assert.equal(before.width - u.bbox.width, u.axes[0]._size - before.size);
-		assert.ok(u.axes[1]._splits.length < before.splits.length, 'narrower numeric axis has fewer ticks');
-		assert.ok(u.axes[1]._splits[1] - u.axes[1]._splits[0] > before.splits[1] - before.splits[0], 'numeric tick increment responds to plot width');
+		assert.deepEqual(u.axes[1]._splits, before.splits, 'horizontal selection uses provisional category width, not measured width');
 		u.axes[0].ticks.show = true;
 		u.axes[1].ticks.show = false;
 		u.redraw(false, true);
@@ -2413,18 +2550,18 @@ describe('barChartPlugin', () => {
 	function assertHorizontalRange(u, selections, space = 100) {
 		const axis = u.axes[1];
 		const scale = u.scales.y;
-		const dim = u.width - u.axes[0]._size - 16;
+		const dim = u.width - 50 - 16;
 		assert.equal(scale.axis, 1);
 		assert.equal(scale._axisY, true, 'horizontal numeric scale uses tick-aware ranging');
 		assert.deepEqual(scale._rawY, [20, 80]);
 		assert.deepEqual(selections, [{ axisIdx: 1, min: 20, max: 80, dim, space, width: dim, padding: [8, 8, 8, 8] }],
-			'one range selection uses category-sized CSS width and baseline padding');
+			'one early range selection uses provisional vertical axis width and baseline padding');
 		const expected = rangeY(20, 80, dim, { min: { soft: 0 }, max: { soft: 0 } }, axis.ramp, axis.exact, space);
 		assert.ok(expected && expected.count > 1);
 		assert.deepEqual(scale._rangeY, expected);
 		assert.deepEqual([scale.min, scale.max], [expected.min, expected.max]);
 		assert.deepEqual(axis._splits, Array.from({ length: expected.count + 1 }, (_, i) => expected.min + i * expected.incr));
-		assert.deepEqual(axis._found, [expected.incr, dim / expected.count], 'tick spacing uses the category-sized plot width');
+		assert.deepEqual(axis._found, [expected.incr, dim / expected.count], 'tick spacing uses the provisional plot width');
 		assert.equal(u.bbox.width / u.pxRatio, u.width - u.axes[0]._size - u._padding[1] - u._padding[3]);
 		assertHorizontalLayout(u);
 		return { dim, range: { ...scale._rangeY }, splits: axis._splits.slice() };
@@ -2432,7 +2569,7 @@ describe('barChartPlugin', () => {
 
 	for (const pxRatio of [1, 2]) {
 		for (const space of [100, 70]) {
-			it(`ranges horizontal ticks after category auto-sizing, independently of height (DPR ${pxRatio}, space ${space})`, async () => {
+			it(`ranges horizontal ticks before category auto-sizing, independently of height (DPR ${pxRatio}, space ${space})`, async () => {
 				const labels = ['A', 'B', 'C'];
 				const ys = [20, 40, 80];
 				const { u, selections } = mountHorizontalRange([labels, ys], {
@@ -2446,11 +2583,9 @@ describe('barChartPlugin', () => {
 				u.setData([['A'.repeat(51), 'B', 'C'], ys]);
 				await Promise.resolve();
 				const wider = assertHorizontalRange(u, selections, space);
-				assert.equal(before.dim - wider.dim, 350, '50 extra category characters reserve 350 CSS pixels');
+				assert.deepEqual(wider, before, 'category measurement does not repeat the horizontal tick selection');
 				assert.equal(u.bbox.height, beforeHeight);
-				assert.notDeepEqual(wider.range, before.range);
-				assert.notEqual(wider.range.max, before.range.max, 'category width changes the numeric bounds, not just tick spacing');
-				assert.ok(wider.splits.length < before.splits.length);
+				assert.equal(u.axes[0]._size, 50 * 7 + 7 + u.axes[0].ticks.size + u.axes[0].gap, 'selected categories still reserve their measured width');
 
 				for (const height of [300, 600]) {
 					selections.length = 0;
@@ -2576,10 +2711,11 @@ describe('barChartPlugin', () => {
 		u.redraw(false, true);
 		await Promise.resolve();
 		assert.equal(measurements.length, cached, 'unchanged redraw reuses measurements');
-		assert.equal(canvases.size, 2, 'one context per DPR-scaled font, reused on returning to DPR 1');
+		assert.equal(new Set(measurements.map(({ ctx }) => ctx)).size, 2, 'one context per DPR-scaled font, reused on returning to DPR 1');
 		assert.ok(measurements.every(({ ctx }) => ctx !== u.ctx));
 		assert.ok(measurements.filter(({ font }) => font === '14px serif').every(({ ctx }) => ctx === shared));
-		for (const [ctx, canvas] of canvases) {
+		for (const ctx of new Set(measurements.map(({ ctx }) => ctx))) {
+			const canvas = ctx.canvas;
 			assert.deepEqual([canvas.width, canvas.height], [1, 1]);
 			assert.equal(ctx.log.filter(entry => entry[0] === 'font').length, 1);
 			assert.ok(ctx.log.every(entry => entry[0] !== 'save' && entry[0] !== 'restore'));

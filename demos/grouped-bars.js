@@ -33,12 +33,12 @@ export function seriesBarsPlugin(opts) {
 		if (!barSpread) {
 			let layout = {
 				offs: Array(groupCount).fill(0),
-				size: Array(groupCount).fill(0),
+				size: 0,
 			};
 
 			distr(groupCount, groupWidth, groupDistr, null, (groupIdx, groupOffPct, groupDimPct) => {
 				layout.offs[groupIdx] = groupOffPct;
-				layout.size[groupIdx] = groupDimPct;
+				layout.size = groupDimPct;
 			});
 
 			return Array(barCount).fill(layout);
@@ -46,13 +46,13 @@ export function seriesBarsPlugin(opts) {
 
 		let out = Array.from({length: barCount}, () => ({
 			offs: Array(groupCount).fill(0),
-			size: Array(groupCount).fill(0),
+			size: 0,
 		}));
 
 		distr(groupCount, groupWidth, groupDistr, null, (groupIdx, groupOffPct, groupDimPct) => {
 			distr(barCount, barWidth, barDistr, null, (barIdx, barOffPct, barDimPct) => {
 				out[barIdx].offs[groupIdx] = groupOffPct + groupDimPct * barOffPct;
-				out[barIdx].size[groupIdx] = groupDimPct * barDimPct;
+				out[barIdx].size = groupDimPct * barDimPct;
 			});
 		});
 
@@ -69,6 +69,7 @@ export function seriesBarsPlugin(opts) {
 				values: (u, seriesIdx) => barsPctLayout[seriesIdx].offs,
 			},
 			size: {
+				kind: 1,
 				unit: 2,
 				values: (u, seriesIdx) => barsPctLayout[seriesIdx].size,
 			},
@@ -91,7 +92,7 @@ export function seriesBarsPlugin(opts) {
 		uPlot.orient(u, sidx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			const _dir = dir * (ori == 0 ? 1 : -1);
 
-			const wid = Math.round(barsPctLayout[sidx].size[0] * xDim);
+			const wid = Math.round(barsPctLayout[sidx].size * xDim);
 
 			barsPctLayout[sidx].offs.forEach((offs, ix) => {
 				if (dataY[ix] != null) {

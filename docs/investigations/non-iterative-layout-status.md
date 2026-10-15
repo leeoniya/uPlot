@@ -22,7 +22,7 @@ The governing constraint is directional dependency. A stage can use dimensions e
 - Replaced repeated full-rectangle calculations with directional calculations.
 - Reduced `_commit()` to orchestration of scales, layout, drawing, interactions, and lifecycle notifications.
 
-The current sequence is:
+The sequence at this checkpoint was:
 
 1. Resolve scale ranges and axis visibility.
 2. Reserve horizontal-axis heights and establish baseline padding.
@@ -72,7 +72,7 @@ The current sequence is:
 - Removed expectations for negative or collapsed plot dimensions. Nonpositive plot dimensions are undefined behavior, not a recovery guarantee.
 - Raised the three short precision-probe deadlines from 50ms to 100ms.
 
-## Current API contracts
+## API contracts at the checkpoint
 
 ### Axis sizes and participation
 
@@ -88,9 +88,9 @@ Vertical `axis.size(self, values, axisIdx)` callbacks run once with formatted la
 
 ### Padding and overflow
 
-All padding callbacks receive the `Layout` (0) phase for baseline padding. Only left/right callbacks then receive `Overflow` (1), after horizontal labels exist.
+At this checkpoint, padding callbacks used baseline and overflow phases. That callback API no longer exists.
 
-Both overflow callbacks see the same provisional geometry and baseline padding. Each returns a final total in CSS pixels, not an adjustment amount.
+Current padding sides accept only numbers, `null`, or `[min, max]` bounds. The default `null` heuristic is unchanged. Core reserves baseline padding before ticks, then resolves horizontal tuple overflow from selected formatted labels and final axis widths. There are no public padding phases. The [current layout documentation](../README.md#axis-layout--padding) describes automatic sizing and both layout orders.
 
 Horizontal ticks remain fixed after overflow padding changes. Drawing uses their positions in the final rectangle.
 

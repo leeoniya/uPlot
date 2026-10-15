@@ -676,7 +676,7 @@
 				scales: {
 					x: {
 						time: false,
-						auto: false,
+						scan: false,
 						dir: 1,
 						range: (u) => [
 							u.data[0][0],
@@ -752,40 +752,20 @@
 			};
 
 			{
-				let gap = 3;
 				let bars = uPlot.paths.bars({
+					align: 1,
 					size: [1, Infinity],
-					gap,
-
-					disp: {
-						x0: {
-							unit: 1,
-							values: (u, seriesIdx, idx0, idx1) => {
-								let xData = u.data[0];
-								let x0Val = xData[0];
-								let gapDelta = u.posToVal(gap, 'x') - x0Val;
-								return xData.map(v => v + gapDelta / 2);
-							}
-						},
-						size: {
-							unit: 1,
-							values: (u, seriesIdx, idx0, idx1) => {
-								let xData = u.data[0];
-								let size = xData[1] - xData[0];
-								return Array(xData.length).fill(size);
-							}
-						}
-					}
+					gap: [1.5, 1.5],
 				});
 
 				const opts3 = {
 					width: 1800,
 					height: 600,
-					title: "Latency Histogram (align: 1, gap: 2, stroke: 1, disp-gap-shift)",
+					title: "Latency Histogram (align: 1, gap: [1.5, 1.5], stroke: 1)",
 					scales: {
 						x: {
 							time: false,
-							auto: false,
+							scan: false,
 							dir: 1,
 							range: (u) => [
 								u.data[0][0],

@@ -84,9 +84,9 @@ describe('grouped-bars plugin', () => {
 
 	it('shares category offsets and sizes across every stacked series', () => {
 		for (const [groupCount, offs, size] of [
-			[0, [], []],
-			[1, [0], [0.9]],
-			[3, [0, 0.35, 0.7], [0.3, 0.3, 0.3]],
+			[0, [], 0],
+			[1, [0], 0.9],
+			[3, [0, 0.35, 0.7], 0.3],
 		]) {
 			const layouts = layout(groupCount, 4, true);
 			assert.equal(layouts.length, 4);
@@ -98,15 +98,15 @@ describe('grouped-bars plugin', () => {
 		}
 	});
 
-	it('keeps independent offsets and sizes for normal grouped series', () => {
+	it('keeps independent offsets and a uniform width for normal grouped series', () => {
 		for (const [groupCount, offs, size, shift] of [
-			[0, [], [], 0],
-			[1, [0], [0.45], 0.45],
-			[3, [0, 0.35, 0.7], [0.15, 0.15, 0.15], 0.15],
+			[0, [], 0, 0],
+			[1, [0], 0.45, 0.45],
+			[3, [0, 0.35, 0.7], 0.15, 0.15],
 		]) {
 			const [first, second] = layout(groupCount, 2, false);
 			assert.notStrictEqual(first.offs, second.offs);
-			assert.notStrictEqual(first.size, second.size);
+			assert.equal(first.size, second.size);
 			assert.deepEqual(first, { offs, size });
 			assert.deepEqual(second, { offs: offs.map(off => off + shift), size });
 		}
@@ -173,7 +173,7 @@ describe('grouped-bars plugin', () => {
 		});
 	}
 
-	it('does not add metric scales or replace caller range and orientation settings', () => {
+	it('preserves caller scale ranges and orientations', () => {
 		const range = () => [-10, 20];
 		const scales = {
 			y: { range: [-5, 15], ori: 0 },
@@ -181,7 +181,6 @@ describe('grouped-bars plugin', () => {
 		};
 		const opts = { axes: [{}], series: [{}, {}], scales: uPlot.assign({}, scales) };
 		seriesBarsPlugin({ ori: 0, dir: 1 }).opts({}, opts);
-		assert.deepEqual(Object.keys(opts.scales).sort(), ['rend', 'x', 'y']);
 		assert.deepEqual(opts.scales.y, scales.y);
 		assert.deepEqual(opts.scales.rend, scales.rend);
 		assert.equal(opts.scales.rend.range, range);

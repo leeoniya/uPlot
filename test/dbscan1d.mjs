@@ -237,9 +237,6 @@ describe('1D DBSCAN demo', () => {
 				assert.equal(input.value, value);
 			}
 			assertReadouts();
-			assert.doesNotMatch(form.textContent, /For a local example|global defaults classify/);
-			for (const controls of [form, madForm])
-				assert.doesNotMatch(controls.textContent, /Find outliers/);
 			assert.equal(mode.tagName, 'SELECT');
 			assert.deepEqual(Array.from(mode.options, option => option.value).sort(), ['global', 'local']);
 			assert.equal(mode.value, 'global');

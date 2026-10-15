@@ -131,10 +131,10 @@ That cache mode is not suitable for a guaranteed fresh full-domain query.
 
 Issues 790 and 864 require coordination between ranges, ticks, and layout.
 The ordered layout refactor does not make scale calculation depend on final tick layout.
-Issues 713 and 944 still require tick-spacing or label-padding policies.
+Issue 713 still requires a tick-spacing policy.
 
-Issue 944 has an accepted padding-callback workaround.
-The current `axis-autosize.html` demo also removes position feedback from its padding calculation.
+Issue 944 had an accepted padding-callback workaround. Padding callbacks no longer exist.
+The current `axis-autosize.html` demo uses literal padding bounds and core automatic overflow without position feedback.
 It does not provide automatic per-edge label alignment or prove the original CodeSandbox's pixel output.
 
 Invalid logarithmic domains remain unsafe.
@@ -224,7 +224,7 @@ Descriptions summarize the reports. They are not exact issue titles.
 | [926](https://github.com/leeoniya/uPlot/issues/926) | Rotate non-bottom tick labels | Open | Rotation remains restricted to the bottom axis. |
 | [928](https://github.com/leeoniya/uPlot/issues/928) | Justified categorical scale | Open | No distributed-category scale API. |
 | [933](https://github.com/leeoniya/uPlot/issues/933) | Binary linear ranges and ticks | Open | No built-in binary linear tick/range policy. |
-| [944](https://github.com/leeoniya/uPlot/issues/944) | Edge label clipping | Partial | Padding callbacks and the autosize demo cover a workaround. Automatic per-edge alignment remains absent. Not a scan fix. |
+| [944](https://github.com/leeoniya/uPlot/issues/944) | Edge label clipping | Partial | Literal `[min, max]` padding bounds enable core automatic overflow, as shown in the autosize demo. Automatic per-edge alignment remains absent. Not a scan fix. |
 | [954](https://github.com/leeoniya/uPlot/issues/954) | Keyboard accessibility | Open | No complete keyboard focus/navigation implementation. |
 | [978](https://github.com/leeoniya/uPlot/issues/978) | Sparse unaligned points | Partial | Join, mode 2, and overlays offer alternatives. Sparse storage with standard interactions remains unsupported as requested. |
 | [1008](https://github.com/leeoniya/uPlot/issues/1008) | Functional asinh threshold | Existing | Adaptive callbacks already update thresholds, transforms, ticks, and paths. |

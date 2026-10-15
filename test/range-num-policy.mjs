@@ -20,7 +20,7 @@ function checkRange(min, max, config, expected) {
 }
 
 describe('ordinary numeric range policy', () => {
-	it('exports independent padding and zero defaults without a limit mode', () => {
+	it('exports independent padding and zero defaults', () => {
 		assert.equal(rangePad, 0.1);
 		assert.equal(rangeZeroIf, 0.1);
 		assert.deepEqual(autoRangePart, { pad: 0.1 });

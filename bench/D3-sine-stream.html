@@ -1,0 +1,263 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Sine Stream (D3 v7.9.0 Canvas)</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<style>
+			body {
+				font: 12px Arial, sans-serif;
+			}
+
+			canvas {
+				display: block;
+				width: 1920px;
+				height: 600px;
+			}
+
+			.legend {
+				display: flex;
+				gap: 24px;
+				margin: 8px 60px;
+			}
+
+			.legend span {
+				min-width: 100px;
+			}
+		</style>
+
+		<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+	</head>
+	<body>
+		<h3>6 series x 600 points @ 60fps (D3 Canvas)</h3>
+		<canvas id="chart"></canvas>
+		<div class="legend"></div>
+
+		<script>
+			const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
+
+			// adapted from http://jsfiddle.net/Xotic750/3rfT6/
+			const boxMullerRandom = (function() {
+				let phase = 0,
+					random = Math.random,
+					x1, x2, w, z;
+
+				return () => {
+					if (!phase) {
+						do {
+							x1 = 2.0 * random() - 1.0;
+							x2 = 2.0 * random() - 1.0;
+							w = x1 * x1 + x2 * x2;
+						} while (w >= 1.0);
+
+						w = Math.sqrt((-2.0 * Math.log(w)) / w);
+						z = x1 * w;
+					} else {
+						z = x2 * w;
+					}
+
+					phase ^= 1;
+
+					return z;
+				}
+			}());
+
+			function randomWalk(steps, value = 0, min = -100, max = 100) {
+				steps = steps >>> 0 || 100;
+				let randFunc = boxMullerRandom;
+
+				let points = [], t;
+
+				for (t = 0; t < steps; t += 1) {
+					let extra = randFunc();
+					let newVal = value + extra;
+
+					if (newVal > max || newVal < min)
+						value = clamp(value - extra, min, max);
+					else
+						value = newVal;
+
+					points.push(value);
+				}
+
+				return points;
+			}
+		</script>
+		<script>
+			let now = Math.floor(Date.now()/1e3);
+			let length = 600;
+			let shift = length - 1;
+
+			function addRandData(data, howMany, min, max) {
+				let last = data[length - 1];
+				return data.slice(1).concat(randomWalk(howMany, last, min, max));
+			}
+
+			let xs = Array.from({length}, (v, i) => now + i * 60 * 5);
+			let sin = Array.from({length}, (v, i) => Math.sin(i / 16) * 5);
+			let _1 = randomWalk(600, -4, -6, 1);
+			let _2 = randomWalk(600, -2, -6, 1);
+			let _3 = randomWalk(600,  0, -2, 2);
+			let _4 = randomWalk(600,  2, -1, 6);
+			let _5 = randomWalk(600,  4, -1, 6);
+
+			let data = [xs, sin, _1, _2, _3, _4, _5];
+
+			function getData(shift) {
+				return [
+					xs = xs.slice(1).concat(now + shift * 60 * 5),
+					sin = sin.slice(1).concat(Math.sin(shift / 16) * 5),
+					_1 = addRandData(_1, 1, -6, -1),
+					_2 = addRandData(_2, 1, -6, -1),
+					_3 = addRandData(_3, 1, -2,  2),
+					_4 = addRandData(_4, 1, -1,  6),
+					_5 = addRandData(_5, 1, -1,  6),
+				];
+			}
+
+			const width = 1920;
+			const height = 600;
+			const pxRatio = devicePixelRatio;
+			const margin = {top: 20, right: 40, bottom: 50, left: 60};
+			const plotLeft = margin.left;
+			const plotRight = width - margin.right;
+			const plotTop = margin.top;
+			const plotBottom = height - margin.bottom;
+
+			const canvas = d3.select("#chart")
+				.attr("width", Math.round(width * pxRatio))
+				.attr("height", Math.round(height * pxRatio));
+			const ctx = canvas.node().getContext("2d");
+			ctx.scale(pxRatio, pxRatio);
+
+			const xScale = d3.scaleTime().range([plotLeft, plotRight]);
+			const yScale = d3.scaleLinear().domain([-6, 6]).range([plotBottom, plotTop]);
+			const line = d3.line()
+				.x((value, i) => xScale(xs[i] * 1e3))
+				.y(value => yScale(value))
+				.context(ctx);
+			const area = d3.area()
+				.x((value, i) => xScale(xs[i] * 1e3))
+				.y0(yScale(0))
+				.y1(value => yScale(value))
+				.context(ctx);
+
+			const series = [
+				{label: "Sine", stroke: "red", fill: "rgba(255,0,0,0.1)"},
+				{label: "_1", stroke: "green", fill: "#4caf505e"},
+				{label: "_2", stroke: "blue", fill: "#0000ff20"},
+				{label: "_3", stroke: "orange", fill: "#ffa5004f"},
+				{label: "_4", stroke: "magenta", fill: "#ff00ff20"},
+				{label: "_5", stroke: "purple", fill: "#80008020"},
+			];
+			const legend = d3.select(".legend").selectAll("span")
+				.data(series)
+				.join("span")
+				.style("color", s => s.stroke)
+				.text(s => s.label);
+
+			// D3's axes are SVG-only; use its scales, ticks, and formatters on Canvas.
+			function drawAxes() {
+				const xTicks = xScale.ticks(d3.timeHour.every(12));
+				const yTicks = yScale.ticks(6);
+				const xFormat = xScale.tickFormat();
+				const yFormat = yScale.tickFormat(6);
+
+				ctx.lineWidth = 1;
+				ctx.strokeStyle = "rgba(0,0,0,0.1)";
+				ctx.beginPath();
+				for (const tick of xTicks) {
+					const x = xScale(tick);
+					ctx.moveTo(x, plotTop);
+					ctx.lineTo(x, plotBottom);
+				}
+				for (const tick of yTicks) {
+					const y = yScale(tick);
+					ctx.moveTo(plotLeft, y);
+					ctx.lineTo(plotRight, y);
+				}
+				ctx.stroke();
+
+				ctx.font = "12px Arial";
+				ctx.fillStyle = "#000";
+				ctx.textAlign = "center";
+				ctx.textBaseline = "top";
+				for (const tick of xTicks)
+					ctx.fillText(xFormat(tick), xScale(tick), plotBottom + 10);
+
+				ctx.textAlign = "right";
+				ctx.textBaseline = "middle";
+				for (const tick of yTicks)
+					ctx.fillText(yFormat(tick), plotLeft - 10, yScale(tick));
+			}
+
+			let pointer = null;
+			canvas.on("pointermove", event => {
+				pointer = d3.pointer(event, canvas.node());
+			}).on("pointerleave", () => {
+				pointer = null;
+				legend.text(s => s.label);
+			});
+
+			function drawCursor() {
+				if (pointer == null || pointer[0] < plotLeft || pointer[0] > plotRight || pointer[1] < plotTop || pointer[1] > plotBottom) {
+					legend.text(s => s.label);
+					return;
+				}
+
+				const idx = d3.bisectCenter(xs, +xScale.invert(pointer[0]) / 1e3);
+				const x = xScale(xs[idx] * 1e3);
+				ctx.strokeStyle = "rgba(0,0,0,0.5)";
+				ctx.beginPath();
+				ctx.moveTo(x, plotTop);
+				ctx.lineTo(x, plotBottom);
+				ctx.stroke();
+
+				series.forEach((s, i) => {
+					ctx.beginPath();
+					ctx.arc(x, yScale(data[i + 1][idx]), 3, 0, Math.PI * 2);
+					ctx.fillStyle = s.stroke;
+					ctx.fill();
+				});
+				legend.text((s, i) => s.label + ": " + data[i + 1][idx].toFixed(2));
+			}
+
+			function draw() {
+				xScale.domain([xs[0] * 1e3, xs[length - 1] * 1e3]);
+				ctx.clearRect(0, 0, width, height);
+				drawAxes();
+
+				ctx.save();
+				ctx.beginPath();
+				ctx.rect(plotLeft, plotTop, plotRight - plotLeft, plotBottom - plotTop);
+				ctx.clip();
+				ctx.lineWidth = 1;
+
+				series.forEach((s, i) => {
+					ctx.beginPath();
+					area(data[i + 1]);
+					ctx.fillStyle = s.fill;
+					ctx.fill();
+
+					ctx.beginPath();
+					line(data[i + 1]);
+					ctx.strokeStyle = s.stroke;
+					ctx.stroke();
+				});
+
+				drawCursor();
+				ctx.restore();
+			}
+
+			function update() {
+				shift += 1;
+				data = getData(shift);
+				draw();
+				requestAnimationFrame(update);
+			}
+
+			update();
+		</script>
+	</body>
+</html>

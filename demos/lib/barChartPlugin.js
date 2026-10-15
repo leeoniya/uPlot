@@ -38,15 +38,10 @@ export function barChartPlugin({
 		throw new RangeError('Group series indices must be unique.');
 	const horizontal = orientation == 'horizontal';
 	let plot = null;
-	let fullLabels = [];
-	let labels = [];
-	let splits = [];
 	let rotation = 0;
 	let labelSpacing = 0;
 	let limit = null;
 	let placement = 'end';
-	const measured = [];
-	const measureContexts = new Map();
 	let justify;
 	let groupWidth;
 	let barJustify;
@@ -56,11 +51,10 @@ export function barChartPlugin({
 	let paths;
 	let groupPaths;
 	const groupOffsets = [];
-	const groupSize = [0];
+	let groupSize = 0;
 	const groupForSeries = [];
 	const barOffsets = [];
-	// Bar paths read only size[0]; every distributed slot has the same width.
-	const barWidth = [0];
+	let barWidth = 0;
 	const hover = createBarHover(horizontal);
 	hover.setMode(hoverMode);
 	const values = createBarValues(horizontal);
@@ -92,7 +86,7 @@ export function barChartPlugin({
 		const slots = [];
 		barOffsets.length = u.series.length;
 		barOffsets.fill(null);
-		barWidth[0] = groupSize[0] = 0;
+		barWidth = groupSize = 0;
 		groupOffsets.length = count;
 		firstGroupCenter = groupStep = 0;
 		for (let si = 1; si < u.series.length; si++) {
@@ -110,19 +104,24 @@ export function barChartPlugin({
 
 		distr(count, groupWidth, justify, null, (di, groupOff, size) => {
 			groupOffsets[di] = groupOff;
-			groupSize[0] = size;
+			groupSize = size;
 			const center = groupOff + size / 2;
 			if (di == 0)
 				firstGroupCenter = center;
 			else if (di == count - 1)
 				groupStep = (center - firstGroupCenter) / (count - 1);
-			if (slots.length > 0) {
-				distr(slots.length, barWidthFactor, barJustify, null, (slot, off, width) => {
-					barWidth[0] = size * width;
-					slots[slot][di] = groupOff + size * off;
-				});
-			}
 		});
+
+		if (count > 0 && slots.length > 0) {
+			const size = groupSize;
+			distr(slots.length, barWidthFactor, barJustify, null, (slot, off, width) => {
+				barWidth = size * width;
+				const offsets = slots[slot];
+				const offset = size * off;
+				for (let di = 0; di < count; di++)
+					offsets[di] = groupOffsets[di] + offset;
+			});
+		}
 	}
 
 	function refreshDistribution() {
@@ -178,25 +177,25 @@ export function barChartPlugin({
 		}
 	}
 
-	function formatLabels() {
-		return fullLabels.map(label => {
-			if (limit == null || label.length <= limit)
-				return label;
+	function formatLabel(value) {
+		const label = String(value ?? '');
+		if (limit == null || label.length <= limit)
+			return label;
 
-			const keep = limit - 1;
-			const end = Math.floor(keep / 2);
-			return placement == 'middle'
-				? label.slice(0, keep - end) + '…' + (end > 0 ? label.slice(-end) : '')
-				: label.slice(0, keep) + '…';
-		});
+		const keep = limit - 1;
+		const end = Math.floor(keep / 2);
+		return placement == 'middle'
+			? label.slice(0, keep - end) + '…' + (end > 0 ? label.slice(-end) : '')
+			: label.slice(0, keep) + '…';
 	}
 
-	function refreshLabels(u) {
-		const xs = u.data[0];
-		fullLabels = xs.map(value => String(value ?? ''));
-		splits = xs.map((_, i) => i);
-		labels = formatLabels();
-		values.invalidate();
+	function categorySplits(u, axisIdx, min, max, incr) {
+		const step = labelSpacing == 0 ? 1 : Math.max(1, Math.ceil(incr));
+		const splits = [];
+		const last = Math.min(u.data[0].length - 1, Math.floor(max));
+		for (let i = Math.ceil(Math.max(0, min) / step) * step; i <= last; i += step)
+			splits.push(i);
+		return splits;
 	}
 
 	function setLabelRotation(degrees) {
@@ -219,127 +218,31 @@ export function barChartPlugin({
 		}
 	}
 
-	function filterLabels(u, ticks) {
-		let stride = 1;
-		if (labelSpacing > 0 && ticks.length > 1) {
-			let span = u.bbox.height / u.pxRatio;
-			if (!horizontal) {
-				// Bottom-axis filtering precedes overflow padding; use the final width, not the provisional bbox.
-				span = u.width - padding(u, 1, null, 1) - padding(u, 3, null, 1);
-				for (const axis of u.axes) {
-					if (axis._show && axis.side % 2 == 1)
-						span -= Math.max(0, axis._size + (axis.label != null ? axis.labelSize : 0));
-				}
-				// Match the core's half-device-pixel rounding of the plot rectangle.
-				span = Math.round(span * u.pxRatio * 2) / (u.pxRatio * 2);
-			}
-			const pitch = Math.max(0, span) / (u.scales.x.max - u.scales.x.min);
-			stride = Math.max(1, Math.ceil(labelSpacing / pitch));
-		}
-		// Keep blank categories distinct from the null entries that hide labels.
-		return ticks.map((value, i) => i % stride == 0 ? value ?? '' : null);
-	}
-
 	function setLabelTruncation(maxLength, position = placement) {
 		if (maxLength != null && (!Number.isInteger(maxLength) || maxLength < 1))
 			throw new RangeError('Maximum label length must be a positive integer or null.');
 		if (position != 'end' && position != 'middle')
 			throw new RangeError('Ellipsis position must be end or middle.');
-		limit = maxLength;
-		placement = position;
-		const next = formatLabels();
-		if (next.length != labels.length || next.some((label, i) => label != labels[i])) {
-			labels = next;
+		maxLength ??= null;
+		if (limit != maxLength || placement != position) {
+			limit = maxLength;
+			placement = position;
 			plot?.redraw(false, true);
 		}
 	}
 
-	function measureLabels(u, axisIdx, values) {
-		const axis = u.axes[axisIdx];
-		let cache = measured[axisIdx];
-		if (cache == null || cache.font != axis.font[0] || cache.pxRatio != u.pxRatio ||
-			cache.values.length != values.length || values.some((value, i) => value != cache.values[i])) {
-			cache = { font: axis.font[0], pxRatio: u.pxRatio, values: values.slice(), widths: [], width: 0, label: '' };
-			let ctx = measureContexts.get(cache.font);
-			if (ctx == null) {
-				ctx = new OffscreenCanvas(1, 1).getContext('2d');
-				ctx.font = cache.font;
-				measureContexts.set(cache.font, ctx);
+	function getLabelMetrics() {
+		const axis = plot?.axes[0];
+		let label = '';
+		let width = 0;
+		for (let i = 0; i < (axis?._labelWidths?.length ?? 0); i++) {
+			const labelWidth = axis._labelWidths[i];
+			if (labelWidth > width) {
+				width = labelWidth;
+				label = axis._labelValues[i];
 			}
-			for (const value of values) {
-				const width = value == null ? 0 : ctx.measureText(String(value)).width / u.pxRatio;
-				cache.widths.push(width);
-				if (width > cache.width) {
-					cache.width = width;
-					cache.label = value;
-				}
-			}
-			measured[axisIdx] = cache;
 		}
-		return cache;
-	}
-
-	function xAxisSize(u, values, axisIdx) {
-		const axis = u.axes[axisIdx];
-		// Horizontal size runs before ticks; its formatted labels are already known.
-		const { width } = measureLabels(u, axisIdx, labels);
-		if (horizontal)
-			return Math.ceil((axis.ticks.show ? axis.ticks.size : 0) + axis.gap + width + inset);
-		const labelHeight = axis.font[1] / u.pxRatio;
-		const radians = Math.abs(rotation) * Math.PI / 180;
-		// Rotated labels use a middle baseline.
-		const height = rotation == 0 ? labelHeight : width * Math.sin(radians) + labelHeight / 2 * Math.cos(radians);
-
-		return Math.ceil((axis.ticks.show ? axis.ticks.size : 0) + axis.gap + height + inset);
-	}
-
-	function yAxisSize(u, values, axisIdx) {
-		const axis = u.axes[axisIdx];
-		const size = horizontal ? axis.font[1] / u.pxRatio : measureLabels(u, axisIdx, values).width;
-		return Math.ceil((axis.ticks.show ? axis.ticks.size : 0) + axis.gap + size + inset);
-	}
-
-	function padding(u, side, sidesWithAxes, phase) {
-		const axisIdx = horizontal ? 1 : 0;
-		const axis = u.axes[axisIdx];
-		if (phase == 0 || !axis._show)
-			return inset;
-
-		// Horizontal numeric ticks are available only after the category axis has its width.
-		const metrics = horizontal ? measureLabels(u, axisIdx, axis._values) : measured[axisIdx];
-		if (metrics == null)
-			return inset;
-
-		const axisSpace = [0, 0, 0, 0];
-		for (const axis of u.axes) {
-			if (axis._show)
-				axisSpace[axis.side] += Math.max(0, axis._size + (axis.label != null ? axis.labelSize : 0));
-		}
-
-		const { width, widths } = metrics;
-		const angled = !horizontal && rotation != 0;
-		const radians = Math.abs(rotation) * Math.PI / 180;
-		const left = angled ? (rotation > 0 ? Math.cos(radians) : 0) : .5;
-		const right = angled ? (rotation < 0 ? Math.cos(radians) : 0) : .5;
-		const labelOffset = angled ? axis.font[1] / u.pxRatio / 2 * Math.sin(radians) : 0;
-		const leftPad = Math.max(inset, Math.ceil(inset + width * left + labelOffset - axisSpace[3]));
-		const rightPad = Math.max(inset, Math.ceil(inset + width * right + labelOffset - axisSpace[1]));
-		// Credit each label's distance from the edge without depending on the previous plot width.
-		const minWidth = Math.max(0, u.width - axisSpace[3] - axisSpace[1] - leftPad - rightPad);
-		const factor = side == 3 ? left : right;
-		const scale = u.scales[axis.scale];
-		let pad = inset;
-		for (let i = 0; i < widths.length; i++) {
-			// Use the expanded range, not an assumed half-category inset.
-			let fraction = ((horizontal ? axis._splits[i] : i) - scale.min) / (scale.max - scale.min);
-			if (scale.dir == -1)
-				fraction = 1 - fraction;
-			if (side == 1)
-				fraction = 1 - fraction;
-			const extent = widths[i] * factor + labelOffset;
-			pad = Math.max(pad, inset + extent - axisSpace[side] - fraction * minWidth);
-		}
-		return Math.ceil(pad);
+		return { label, width };
 	}
 
 	setShowValues(showValues);
@@ -362,10 +265,10 @@ export function barChartPlugin({
 			setLabelRotation,
 			setMinLabelSpacing,
 			setLabelTruncation,
-			getLabelMetrics: () => ({ label: measured[0]?.label ?? '', width: measured[0]?.width ?? 0 }),
+			getLabelMetrics,
 		},
 		opts(u, opts) {
-			opts.padding = [inset, padding, inset, padding];
+			opts.padding = [inset, [inset, Infinity], inset, [inset, Infinity]];
 			opts.cursor = uPlot.assign({}, { points: { fill: 'rgba(255,255,255,0.3)' } }, opts.cursor, {
 				x: false,
 				y: false,
@@ -389,14 +292,14 @@ export function barChartPlugin({
 			opts.axes[0] = {
 				grid: { show: false },
 				...opts.axes[0],
-				scale: 'x', side: horizontal ? 3 : 2, align: 0, alignTo: 1, space: 1,
-				splits: () => splits,
-				filter: filterLabels,
-				values: (u, ticks) => labels.map((label, i) => ticks[i] == null ? null : label),
+				scale: 'x', side: horizontal ? 3 : 2, align: 0, alignTo: 1,
+				space: () => Math.max(1, labelSpacing),
+				splits: categorySplits,
+				values: (u, ticks) => ticks.map(value => formatLabel(value)),
 				rotate: () => rotation,
-				size: xAxisSize,
+				size: 'auto',
 			};
-			opts.axes[1] = { ...(horizontal ? { space: 100 } : {}), ...opts.axes[1], scale: 'y', size: yAxisSize };
+			opts.axes[1] = { ...(horizontal ? { space: 100 } : {}), ...opts.axes[1], scale: 'y', size: 'auto' };
 			if (horizontal)
 				Object.assign(opts.axes[1], { side: 2, rotate: 0, align: 0 });
 			opts.series ??= [{}, {}];
@@ -428,7 +331,7 @@ export function barChartPlugin({
 				...bars,
 				disp: {
 					x0: { unit: 2, values: (u, si) => barOffsets[si] },
-					size: { unit: 2, values: () => barWidth },
+					size: { kind: 1, unit: 2, values: () => barWidth },
 				},
 				each,
 			});
@@ -439,7 +342,7 @@ export function barChartPlugin({
 					size: [1, Infinity, 0], gap: 0,
 					disp: {
 						x0: { unit: 2, values: () => groupOffsets },
-						size: { unit: 2, values: () => groupSize },
+						size: { kind: 1, unit: 2, values: () => groupSize },
 					},
 					each,
 				});
@@ -459,7 +362,7 @@ export function barChartPlugin({
 				for (const el of u.over.querySelectorAll('.u-cursor-pt'))
 					el.style.borderRadius = 'unset';
 			},
-			setData: refreshLabels,
+			setData: () => values.invalidate(),
 			setCursor: hover.update,
 			drawClear: u => {
 				distributeBars(u);
@@ -478,10 +381,9 @@ export function barChartPlugin({
 				groupOffsets.length = 0;
 				bars = {};
 				groupForSeries.length = 0;
-				fullLabels = labels = splits = [];
+
 				barOffsets.length = 0;
-				measured.length = 0;
-				measureContexts.clear();
+
 			},
 		},
 	};

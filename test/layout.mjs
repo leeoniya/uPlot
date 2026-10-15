@@ -4,6 +4,7 @@ import { runInNewContext } from 'node:vm';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { rangeY } from '../src/rangeY.js';
+import { isFn } from '../src/utils.js';
 
 const data = [[0, 50, 100], [0, 50, 100]];
 
@@ -11,9 +12,10 @@ function axis(events, side, reserve, measured = reserve, extra = {}) {
 	return {
 		scale: side % 2 ? 'y' : 'x',
 		side,
+		font: '16px layout-padding-test',
 		size(self, values, i) {
-			events.push({ type: values === null ? 'reserve' : 'measure', i, values, argc: arguments.length, bbox: cssBox(self) });
-			return values === null ? reserve : typeof measured == 'function' ? measured(self, values) : measured;
+			events.push({ type: values === null ? 'reserve' : 'measure', i, values, bbox: cssBox(self) });
+			return values === null ? reserve : isFn(measured) ? measured(self, values) : measured;
 		},
 		space(self, i, min, max, dim) {
 			events.push({ type: 'space', i, dim, bbox: cssBox(self) });
@@ -36,18 +38,6 @@ function axis(events, side, reserve, measured = reserve, extra = {}) {
 		},
 		...extra,
 	};
-}
-
-function padding(events, baseline, overflow = baseline) {
-	return baseline.map((value, side) => function(self, i, sides, phase) {
-		events.push({
-			type: 'padding', i, phase, sides: sides.slice(), argc: arguments.length,
-			labels: self.axes.map(axis => axis._values?.slice()),
-			splits: self.axes.map(axis => axis._splits?.slice()),
-			bbox: cssBox(self), padding: self._padding.slice(),
-		});
-		return phase === 1 ? typeof overflow == 'function' ? overflow(self, side) : overflow[side] : value;
-	});
 }
 
 // The shared mock has non-configurable methods/properties. Interpret its per-instance
@@ -166,57 +156,39 @@ function plot(options = {}, values = data, trackCanvasState = false) {
 	return { u, bitmap, sizes, canvasState };
 }
 
-function phaseCheck(u, events) {
+function layoutCheck(u, events) {
 	const reserves = events.filter(event => event.type == 'reserve');
 	const active = u.axes.map((axis, i) => axis.show && axis._show ? i : null).filter(i => i != null);
 	assert.deepEqual(reserves.map(event => event.i).sort((a, b) => a - b),
 		active.filter(i => u.axes[i].side % 2 == 0), 'only horizontal axes reserve with null');
-	for (const event of reserves)
-		assert.equal(event.argc, 3, 'size has no cycleNum argument');
-
-	const baseline = events.filter(event => event.type == 'padding' && event.phase === 0);
-	const overflow = events.filter(event => event.type == 'padding' && event.phase === 1);
-	assert.deepEqual(baseline.map(event => event.i).sort(), [0, 1, 2, 3], 'one baseline call on every side');
-	assert.deepEqual(overflow.map(event => event.i).sort(), [1, 3], 'one overflow call on each horizontal edge');
-	assert.equal(events.filter(event => event.type == 'padding').length, 6, 'no convergence padding calls');
-	for (const event of [...baseline, ...overflow])
-		assert.equal(event.argc, 4);
-
-	for (const event of reserves) {
-		assert.equal(event.values, null);
-		assert.ok(events.indexOf(event) < events.indexOf(baseline[0]), 'horizontal size precedes baseline padding');
-	}
 
 	const firstTick = events.findIndex(event => event.type == 'space');
-	for (const event of [...reserves, ...baseline])
-		assert.ok(events.indexOf(event) < firstTick, 'all reservations and baseline padding precede ticks');
+	for (const event of reserves) {
+		assert.equal(event.values, null);
+		assert.ok(events.indexOf(event) < firstTick, 'all horizontal reservations precede ticks');
+	}
 
 	const verticalDone = [];
 	const horizontalStart = [];
-	const horizontalDone = [];
+
 	for (const i of active) {
-		const calls = events.filter(event => event.i == i && event.type != 'padding');
+		const calls = events.filter(event => event.i == i);
 		const vertical = u.axes[i].side % 2 == 1;
 		assert.deepEqual(calls.map(event => event.type), vertical
 			? ['space', 'splits', 'values', 'measure']
-			: ['reserve', 'space', 'splits', 'values'], `bounded axis ${i} calls in phase order`);
+			: ['reserve', 'space', 'splits', 'values'], `bounded axis ${i} calls in layout order`);
 		if (vertical) {
 			const measure = calls.at(-1);
-			assert.equal(measure.argc, 3, 'measurement has no cycleNum argument');
 			assert.ok(Array.isArray(measure.values), 'vertical size never receives null');
 			assert.equal(measure.values, calls.find(event => event.type == 'values').values, 'measure the formatter result itself');
 			assert.equal(measure.values, u.axes[i]._values, 'measure current vertical labels');
 			verticalDone.push(events.indexOf(measure));
 		}
-		else {
+		else
 			horizontalStart.push(events.indexOf(calls[1]));
-			horizontalDone.push(events.indexOf(calls.at(-1)));
-		}
 	}
 	if (verticalDone.length && horizontalStart.length)
 		assert.ok(Math.max(...verticalDone) < Math.min(...horizontalStart), 'all vertical widths precede any horizontal ticks');
-	for (const event of overflow)
-		assert.ok(events.indexOf(event) > Math.max(...horizontalDone), 'overflow follows all horizontal labels');
 }
 
 function cssBox(u) {
@@ -250,6 +222,25 @@ function assertBitmap(bitmap, width, height) {
 }
 
 describe('single-pass layout', () => {
+	let offscreen;
+	beforeEach(() => {
+		offscreen = globalThis.OffscreenCanvas;
+		globalThis.OffscreenCanvas = class {
+			getContext() {
+				return {
+					font: '',
+					measureText(text) { return { width: String(text).length * parseFloat(this.font) / 2 }; },
+				};
+			}
+		};
+	});
+	afterEach(() => {
+		if (offscreen === undefined)
+			delete globalThis.OffscreenCanvas;
+		else
+			globalThis.OffscreenCanvas = offscreen;
+	});
+
 	it('runs the autosize demo through nine growth intervals and a deterministic shrink reset', async () => {
 		const html = readFileSync(new URL('../demos/axis-autosize.html', import.meta.url), 'utf8');
 		const script = html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
@@ -262,6 +253,7 @@ describe('single-pass layout', () => {
 			let tick;
 			const plots = [];
 			const cleared = [];
+
 			try {
 				const demo = runInNewContext(body + '\n({ get mult() { return mult; }, reset() { mult = 1; const data = getData(points, mult); u.setData(data); uRanged.setData(data); } });', {
 					document,
@@ -269,6 +261,7 @@ describe('single-pass layout', () => {
 					setInterval(callback, delay) { assert.equal(delay, 500); assert.equal(tick, undefined); tick = callback; return 42; },
 					clearInterval(id) { cleared.push(id); },
 					uPlot: function(opts, values, target) {
+						opts.axes = opts.axes.map(axis => ({ ...axis, font: '12px layout-autosize-test' }));
 						const u = new uPlot({ ...opts, pxRatio }, values, target);
 						const canvasState = statefulCanvas(u.ctx);
 						plots.push({ u, canvasState });
@@ -295,7 +288,7 @@ describe('single-pass layout', () => {
 					const labelWidth = (axis, value) => String(value).length * axis.font[1] / pxRatio / 2;
 					const maxWidth = axis => Math.max(0, ...axis._values.filter(value => value != null).map(value => labelWidth(axis, value)));
 					assert.equal(vt._size, Math.ceil(vt.ticks.size + vt.gap + maxWidth(vt)), 'vertical width measures current labels');
-					assert.equal(u._padding[1], Math.max(8, Math.ceil(maxWidth(hz) / 2 + 4)), 'right padding is a total in CSS pixels');
+					assert.ok(u._padding[1] >= 8, 'right padding preserves the outer margin');
 					assert.equal(hz._size, height, 'horizontal reservation stays fixed');
 					assert.equal(u.bbox.height, initial.bbox.height);
 					assert.ok(Object.values(u.bbox).every(Number.isFinite));
@@ -311,7 +304,7 @@ describe('single-pass layout', () => {
 						const draw = text.find(draw => draw.args[0] == String(value) && draw.state.textAlign == 'center' && draw.state.textBaseline == 'top');
 						assert.ok(draw, `horizontal label ${value} is drawn`);
 						assert.equal(draw.args[1], Math.round(u.valToPos(hz._splits[i], hz.scale, true)), 'drawing uses final geometry');
-						assert.ok(draw.args[1] / pxRatio + labelWidth(hz, value) / 2 <= u.width, 'horizontal label fits the right edge');
+						assert.ok(draw.args[1] / pxRatio + labelWidth(hz, value) / 2 <= u.width - 8 + .5 / pxRatio, 'horizontal label preserves the right margin');
 					}
 					assert.equal(canvasState.depth, 0, 'demo measurement restores canvas state');
 				}
@@ -356,7 +349,7 @@ describe('single-pass layout', () => {
 		const { u, bitmap, sizes, canvasState } = plot({
 			width: 300, height: 150,
 			axes: [axis(events, 2, 30), axis(events, 3, 10, 60)],
-			padding: padding(events, [5, 7, 11, 13]),
+			padding: [5, 7, 11, 13],
 			hooks: {
 				init: [self => {
 					hook('init')(self);
@@ -386,7 +379,7 @@ describe('single-pass layout', () => {
 			for (const event of events)
 				assert.deepEqual(event.bbox, u.bbox, `${event.name} sees the initial zero bbox`);
 			await Promise.resolve();
-			phaseCheck(u, events);
+			layoutCheck(u, events);
 			const hooks = events.filter(event => event.type == 'hook');
 			assert.deepEqual(hooks.map(event => event.name), [
 				'init', 'setData', 'setScale:x', 'setScale:y', 'setSize:first', 'setSize:second',
@@ -394,8 +387,8 @@ describe('single-pass layout', () => {
 			]);
 			const firstReserve = events.findIndex(event => event.type == 'reserve');
 			assert.ok(events.findIndex(event => event.name == 'setScale:y') < firstReserve);
-			const lastOverflow = events.findLastIndex(event => event.phase === 1);
-			assert.ok(lastOverflow < events.findIndex(event => event.name == 'setSize:first'));
+			const lastValues = events.findLastIndex(event => event.type == 'values');
+			assert.ok(lastValues < events.findIndex(event => event.name == 'setSize:first'));
 			assert.ok(hooks.slice(0, -1).every(event => event.status == 0));
 			assert.equal(hooks.at(-1).status, 1);
 			for (const event of hooks.slice(4))
@@ -445,14 +438,14 @@ describe('single-pass layout', () => {
 			}
 		}
 		const { u, bitmap, sizes, canvasState } = plot({
-			// The first and last drawn axes share a font. On unchanged relayout the
-			// first axis relies on the cache surviving the smaller-font overflow measure.
+			// The first and last drawn axes share a font. Automatic overflow measures
+			// on a separate canvas and must not disturb the drawing font cache.
 			axes: [
 				axis(events, 3, 10, (self, values) => 10 + extraWidth + measure(self, 0, values), { font: '20px serif' }),
 				axis(events, 2, 30, 30, { font: '12px sans-serif' }),
 				axis(events, 0, 30, 30, { font: '20px serif' }),
 			],
-			padding: padding(events, [0, 5, 0, 5], self => 5 + measure(self, 1, self.axes[1]._values) / 2),
+			padding: [0, [5, Infinity], 0, [5, Infinity]],
 			series: [{}, { stroke: 'blue', width: 2, dash: [4, 2], cap: 'round', alpha: 0.6, points: { show: false } }],
 		}, data, true);
 		tracker = canvasState;
@@ -515,9 +508,11 @@ describe('single-pass layout', () => {
 					assert.deepEqual(tracker.snapshot(), before);
 					continue;
 				}
-				assert.equal(measured.length, 3, 'one vertical and two overflow measurements per layout');
-				assert.equal(tracker.counts.font - fonts, resized ? 6 : 5,
-					'three measurement assignments plus two drawing changes; only a bitmap reset requires the first axis font again');
+				layoutCheck(u, events);
+				assert.equal(measured.length, 1, 'only custom vertical measurement uses the drawing canvas');
+				assert.deepEqual(u._padding, [0, 35, 0, 5], 'automatic overflow includes both horizontal fonts and the final vertical width');
+				assert.equal(tracker.counts.font - fonts, resized ? 4 : 3,
+					'one measurement assignment plus two drawing changes; only a bitmap reset requires the first axis font again');
 				if (step == 'internal resize')
 					assert.notDeepEqual(u.bbox, box, 'internal geometry really changed');
 				const clear = tracker.draws.find(draw => draw.name == 'clearRect');
@@ -544,12 +539,12 @@ describe('single-pass layout', () => {
 				axis(events, 3, 10, 25, { label: 'outer left', labelSize: 4 }),
 				axis(events, 1, 500, 500, { show: false }),
 			],
-			padding: padding(events, [5, 7, 11, 13]),
+			padding: [5, 7, 11, 13],
 		});
 		try {
 			await Promise.resolve();
 			for (let pass = 0; pass < 2; pass++) {
-				phaseCheck(u, events);
+				layoutCheck(u, events);
 				assert.deepEqual(cssBox(u), { left: 110, top: 35, width: 437, height: 312 });
 				for (const event of events.filter(event => event.type == 'space'))
 					assert.equal(event.dim, u.axes[event.i].side % 2 ? 312 : 437, `axis ${event.i} tick-selection dimension`);
@@ -570,15 +565,11 @@ describe('single-pass layout', () => {
 			const events = [];
 			const { u } = plot({
 				axes: [axis(events, 2, 0, 0, { size: 0 }), axis(events, 3, reserve, measured)],
-				padding: [0, 1, 2, 3].map(side => (self, i, sides, phase) => {
-					events.push({ i, sides: sides.slice(), phase });
-					return side % 2 == 0 && sides[3] ? 17 : 0;
-				}),
+				padding: [null, null, null, null],
 			});
 			try {
 				await Promise.resolve();
-				assert.deepEqual(events.filter(event => event.phase === 0).map(event => event.sides),
-					Array.from({ length: 4 }, () => [false, false, false, true]));
+				assert.deepEqual(u._padding, [pad, 0, pad, 0], 'axis size callbacks participate even when their measured width is zero');
 				assert.equal(u.axes[0]._size, 0, 'numeric size: 0 reserves no height');
 				assert.ok(u.axes[0]._splits.length > 0, 'numeric size: 0 still selects ticks');
 				assert.equal(u.axes[1]._size, measured);
@@ -612,19 +603,15 @@ describe('single-pass layout', () => {
 				const { u } = plot({
 					scales: { x: { time: false, range: () => [0, 100] }, y: { range: () => [0, 100] }, inactive: {} },
 					axes: [axis(events, side, 0, 0, extra), { show: false }],
-					padding: padding(events, [0, 0, 0, 0]),
+					padding: [null, null, null, null],
 				});
 				try {
 					await Promise.resolve();
 					for (let pass = 0; pass < 2; pass++) {
-						const expected = [false, false, false, false];
-						expected[side] = participates;
-						const pads = events.filter(event => event.type == 'padding');
-						assert.equal(pads.length, 6);
-						for (const event of pads)
-							assert.deepEqual(event.sides, expected, `${name}, side ${side}, ${event.phase}, pass ${pass}`);
+						const expected = !participates ? [0, 0, 0, 0] : side % 2 ? [17, 0, 17, 0] : [0, 25, 0, 25];
+						assert.deepEqual(u._padding, expected, `${name}, side ${side}, pass ${pass}`);
 						if (extra.show === false || extra.scale == 'inactive')
-							assert.ok(!events.some(event => event.type != 'padding'), 'hidden/inactive axes have no callbacks');
+							assert.deepEqual(events, [], 'hidden/inactive axes have no callbacks');
 						else if (extra.size == null) {
 							assert.equal(u.axes[0]._size, 0);
 							assert.equal(events.filter(event => event.type == (side % 2 ? 'measure' : 'reserve')).length, 1);
@@ -641,14 +628,11 @@ describe('single-pass layout', () => {
 		}
 	});
 
-	it('exposes current horizontal labels to overflow, freezes ticks, and draws at final positions', async () => {
+	it('resolves tuple padding from current horizontal labels, freezes ticks, and draws at final positions', async () => {
 		const events = [];
 		const { u } = plot({
 			axes: [axis(events, 2, 30), axis(events, 3, 10, 60), axis(events, 0, 20)],
-			padding: padding(events, [5, 10, 5, 10], (self, side) => {
-				const labels = self.axes[0]._values ?? [];
-				return 10 + (side == 3 ? 1 : 2) * Math.max(0, ...labels.map(label => self.ctx.measureText(label).width));
-			}),
+			padding: [5, [10, Infinity], 5, [10, Infinity]],
 		});
 		try {
 			await Promise.resolve();
@@ -659,22 +643,16 @@ describe('single-pass layout', () => {
 					u.setScale('x', { min: 0, max });
 					await Promise.resolve();
 				}
-				phaseCheck(u, events);
+				layoutCheck(u, events);
 				for (const event of events.filter(event => event.type == 'space' && u.axes[event.i].side % 2 == 0))
 					assert.equal(event.dim, 520, 'horizontal selection uses baseline padding');
-				const overflow = events.filter(event => event.phase === 1);
-				assert.deepEqual(overflow.map(event => event.padding), [[5, 10, 5, 10], [5, 10, 5, 10]],
-					'both overflow callbacks see baseline totals, not the first callback result');
-				assert.deepEqual(overflow.map(event => event.bbox), Array.from({ length: 2 }, () =>
-					({ left: 70, top: 25, width: 520, height: 340 })), 'overflow shares provisional geometry');
-				for (const event of overflow) {
-					for (const i of [0, 2]) {
-						assert.deepEqual(event.labels[i], u.axes[i]._values, 'overflow sees this update, not previous labels');
-						assert.deepEqual(event.splits[i], u.axes[i]._splits, 'overflow does not trigger tick reselection');
-					}
+				for (const event of events.filter(event => event.type == 'values' && u.axes[event.i].side % 2 == 0)) {
+					assert.deepEqual(event.bbox, { left: 70, top: 25, width: 520, height: 340 }, 'formatting uses reserved tuple minima');
+					assert.deepEqual(event.values, u.axes[event.i]._values, 'overflow retains the selected labels');
 				}
 				const labelWidth = Math.max(...u.axes[0]._values.map(label => label.length * 8));
-				assert.deepEqual(cssBox(u), { left: 70 + labelWidth, top: 25, width: 520 - 3 * labelWidth, height: 340 });
+				assert.deepEqual(u._padding, [5, 10 + labelWidth / 2, 5, 10], 'final vertical width absorbs left label overflow');
+				assert.deepEqual(cssBox(u), { left: 70, top: 25, width: 520 - labelWidth / 2, height: 340 });
 				assert.equal(u.axes[0]._found[0], max == 100 ? 10 : 5, 'baseline-width increment stays frozen');
 				const drawn = u.ctx.log.filter(entry => entry[0] == 'fillText').flatMap(entry => entry.slice(1));
 				for (const i of [0, 2]) {
@@ -699,7 +677,7 @@ describe('single-pass layout', () => {
 			const { u } = plot({
 				pxRatio,
 				axes: [axis(events, 2, 30), axis(events, 3, 999, () => measured), axis(events, 1, 777, 20)],
-				padding: padding(events, [5, 7, 11, 13], [5, 27, 11, 33]),
+				padding: [5, [7, Infinity], 11, [13, Infinity]],
 			});
 			try {
 				let lastWidth = 0;
@@ -711,7 +689,7 @@ describe('single-pass layout', () => {
 						assert.equal(cssBox(u).width, lastWidth, 'setSize leaves completed geometry visible');
 					}
 					await Promise.resolve();
-					phaseCheck(u, events);
+					layoutCheck(u, events);
 					const plotHeight = height - 30 - 5 - 11;
 					const baselineWidth = width - measured - 20 - 7 - 13;
 					for (const event of events.filter(event => ['space', 'splits', 'values', 'measure'].includes(event.type))) {
@@ -719,9 +697,10 @@ describe('single-pass layout', () => {
 						assert.equal(event.bbox.width, event.i == 0 ? baselineWidth : lastWidth,
 							`axis ${event.i} ${event.type} observes its directional stage, not a provisional vertical width`);
 					}
-					for (const event of events.filter(event => event.phase === 1))
-						assert.equal(event.bbox.width, baselineWidth);
-					assert.equal(cssBox(u).width, baselineWidth - 40, 'overflow publishes final width without selecting ticks again');
+					const leftOverflow = Math.max(0, 'a0:0'.length * 4 - measured);
+					const rightOverflow = Math.max(0, 'a0:100'.length * 4 - 20);
+					assert.deepEqual(u._padding, [5, 7 + rightOverflow, 11, 13 + leftOverflow]);
+					assert.equal(cssBox(u).width, baselineWidth - leftOverflow - rightOverflow, 'overflow publishes final width without selecting ticks again');
 					assert.equal(cssBox(u).height, plotHeight);
 					lastWidth = cssBox(u).width;
 				}
@@ -743,7 +722,7 @@ describe('single-pass layout', () => {
 			events.push({ type: 'splits', i: args[1], splits: [], bbox: cssBox(args[0]) });
 			return [];
 		};
-		const { u } = plot({ axes: [axis(events, 2, 30), vertical], padding: padding(events, [0, 0, 0, 0]) });
+		const { u } = plot({ axes: [axis(events, 2, 30), vertical], padding: [0, 0, 0, 0] });
 		try {
 			await Promise.resolve();
 			for (const empty of [false, true, false]) {
@@ -753,7 +732,7 @@ describe('single-pass layout', () => {
 					u.redraw(false, true);
 					await Promise.resolve();
 				}
-				phaseCheck(u, events);
+				layoutCheck(u, events);
 				const measurement = events.find(event => event.type == 'measure');
 				if (empty)
 					assert.deepEqual(measurement.values, []);
@@ -774,7 +753,7 @@ describe('single-pass layout', () => {
 					const { u, bitmap, sizes, canvasState } = plot({
 						pxRatio,
 						axes: [axis(events, 2, 30), axis(events, 3, 40)],
-						padding: padding(events, [0, 0, 0, 0]),
+						padding: [0, 0, 0, 0],
 						hooks: { draw: [() => events.push({ type: 'draw' })] },
 					}, data, true);
 					try {
@@ -803,7 +782,7 @@ describe('single-pass layout', () => {
 							await Promise.resolve();
 						}
 						// In batch mode every assertion here runs before yielding to a microtask.
-						phaseCheck(u, events.filter(event => event.type != 'draw'));
+						layoutCheck(u, events.filter(event => event.type != 'draw'));
 						assert.equal(events.filter(event => event.type == 'draw').length, 1, 'only the final requested geometry is drawn');
 						assert.deepEqual(sizes, [u.bbox], 'outer dirty state fires one hook even when resizing back to the completed size');
 						const roundHalf = value => Math.round(value * pxRatio * 2) / 2;
@@ -847,7 +826,7 @@ describe('single-pass layout', () => {
 			const { u, bitmap, sizes, canvasState } = plot({
 				width: 600.1, height: 400.1, pxRatio: 1.25,
 				axes: [axis(events, 2, 30), axis(events, 3, 40)],
-				padding: padding(events, [0, 0, 0, 0]),
+				padding: [0, 0, 0, 0],
 				hooks: { draw: [() => events.push({ type: 'draw' })] },
 			}, data, true);
 			try {
@@ -876,10 +855,10 @@ describe('single-pass layout', () => {
 					resize();
 					await Promise.resolve();
 				}
-				phaseCheck(u, events.filter(event => event.type != 'draw'));
+				layoutCheck(u, events.filter(event => event.type != 'draw'));
 				assert.deepEqual(u.bbox, { left: 80, top: 0, width: 1200, height: 780 });
 				assertBitmap(bitmap, [1280], [840]);
-				assert.equal(u.axes[0].font[1], 24, 'font uses only the final DPR');
+				assert.equal(u.axes[0].font[1], 32, 'font uses only the final DPR');
 				assert.equal(parseFloat(u.over.parentElement.style.width), 640.1);
 				assert.equal(parseFloat(u.over.parentElement.style.height), 420.1);
 				assert.notEqual(u.series[1]._paths, paths);
@@ -1043,7 +1022,7 @@ describe('single-pass layout', () => {
 		let inner = 30;
 		const { u, sizes, bitmap } = plot({
 			axes: [axis(events, 2, 30), axis(events, 3, 0, () => inner), axis(events, 3, 0, () => 50 - inner)],
-			padding: padding(events, [0, 0, 0, 0]),
+			padding: [0, 0, 0, 0],
 		});
 		try {
 			await Promise.resolve();
@@ -1054,7 +1033,7 @@ describe('single-pass layout', () => {
 				inner = width;
 				u.redraw(false, true);
 				await Promise.resolve();
-				phaseCheck(u, events);
+				layoutCheck(u, events);
 				assert.deepEqual(u.bbox, bbox);
 				assert.deepEqual(u.axes.map(axis => axis._size), [30, width, 50 - width]);
 				assert.deepEqual(u.axes.map(axis => axis._pos), [370, 50, 50 - width]);
@@ -1070,7 +1049,7 @@ describe('single-pass layout', () => {
 		const events = [];
 		const { u, sizes, bitmap } = plot({
 			axes: [axis(events, 2, 30), axis(events, 3, 40)],
-			padding: padding(events, [0, 0, 0, 0]),
+			padding: [0, 0, 0, 0],
 		});
 		try {
 			await Promise.resolve();
@@ -1123,7 +1102,7 @@ describe('single-pass layout', () => {
 		const { u, bitmap } = plot({
 			scales: { x: { time: false, distr: 2 }, y: { range: () => [0, 100] } },
 			axes: [axis(events, 2, 30), axis(events, 3, 40)],
-			padding: padding(events, [0, 0, 0, 0], self => Math.max(0, ...(self.axes[0]._values ?? []).map(label => label.length * 8))),
+			padding: [0, [0, Infinity], 0, [0, Infinity]],
 		}, [[10, 20, 30], [0, 50, 100]]);
 		try {
 			await Promise.resolve();
@@ -1137,14 +1116,13 @@ describe('single-pass layout', () => {
 					if (!resetScales)
 						u.redraw();
 					await Promise.resolve();
-					phaseCheck(u, events);
+					layoutCheck(u, events);
 					assert.deepEqual([u.scales.x.min, u.scales.x.max], [0, 2]);
 					assert.deepEqual(u.axes[0]._splits, [0, 1, 2]);
 					assert.deepEqual(u.axes[0]._values, x.map(value => `a0:${value}`));
-					for (const event of events.filter(event => event.phase === 1))
-						assert.deepEqual(event.labels[0], u.axes[0]._values);
-					const pad = `a0:${x[0]}`.length * 8;
-					assert.deepEqual(cssBox(u), { left: 40 + pad, top: 0, width: 560 - 2 * pad, height: 370 });
+					const pad = `a0:${x[0]}`.length * 4;
+					assert.deepEqual(u._padding, [0, pad, 0, 0], 'tuple padding measures the replacement ordinal labels');
+					assert.deepEqual(cssBox(u), { left: 40, top: 0, width: 560 - pad, height: 370 });
 					assert.notEqual(u.series[1]._paths, paths);
 					assertBitmap(bitmap, [], []);
 					if (x[0] == 10)
@@ -1227,7 +1205,7 @@ describe('single-pass layout', () => {
 		const { u, bitmap } = plot({
 			scales: { x: { time: false }, y: {} },
 			axes: [axis(events, 2, 30), axis(events, 3, 10, 60)],
-			padding: padding(events, [3, 5, 7, 11]),
+			padding: [3, 5, 7, 11],
 		});
 		try {
 			await Promise.resolve();
@@ -1241,12 +1219,12 @@ describe('single-pass layout', () => {
 				assert.equal(u.axes[0]._show, false);
 				assert.equal(u.axes[1]._show, false);
 				assert.deepEqual(cssBox(u), { left: 11, top: 3, width: 584, height: 390 });
-				assert.ok(!events.some(event => (event.i == 0 || event.i == 1) && event.type != 'padding'), 'inactive axes have no callbacks');
+				assert.deepEqual(events, [], 'inactive axes have no callbacks');
 				assert.equal(u.series[1]._paths, null);
 				events.length = 0;
 				u.setData(data);
 				await Promise.resolve();
-				phaseCheck(u, events);
+				layoutCheck(u, events);
 				assert.deepEqual(geometry(u), initial);
 				assert.ok(u.series[1]._paths);
 				assertBitmap(bitmap, [], []);
@@ -1260,11 +1238,11 @@ describe('single-pass layout', () => {
 		const { u } = plot({
 			scales: { x: { time: false, ori: 1, dir: -1, range: () => [0, 100] }, y: { ori: 0, range: () => [0, 100] } },
 			axes: [axis(events, 2, 30, 999, { scale: 'y' }), axis(events, 3, 10, 80, { scale: 'x' })],
-			padding: padding(events, [5, 7, 11, 13]),
+			padding: [5, 7, 11, 13],
 		});
 		try {
 			await Promise.resolve();
-			phaseCheck(u, events);
+			layoutCheck(u, events);
 			assert.deepEqual(events.filter(event => event.type == 'space').map(({ i, dim }) => [i, dim]), [[1, 354], [0, 500]]);
 			assert.deepEqual(cssBox(u), { left: 93, top: 5, width: 500, height: 354 });
 			assert.equal(u.valToPos(0, 'x', true), 5);

@@ -1,0 +1,107 @@
+{
+  "bun": "1.4.3",
+  "grafanaCommit": "891f7973f81c6e4e0a24bed3120cca3b3cc93ebc",
+  "sourceCounts": {
+    "bars.ts": {
+      "lines": 671,
+      "nonblank": 564
+    },
+    "quadtree.ts": {
+      "lines": 148,
+      "nonblank": 124
+    },
+    "distribute.ts": {
+      "lines": 47,
+      "nonblank": 38
+    },
+    "utils.ts": {
+      "lines": 559,
+      "nonblank": 481
+    },
+    "stack-slice": {
+      "lines": 320,
+      "nonblank": 253
+    },
+    "barChartPlugin.js": {
+      "lines": 488,
+      "nonblank": 457
+    },
+    "barHover.js": {
+      "lines": 195,
+      "nonblank": 184
+    },
+    "barValues.js": {
+      "lines": 303,
+      "nonblank": 294
+    },
+    "distr.js": {
+      "lines": 38,
+      "nonblank": 30
+    }
+  },
+  "results": [
+    {
+      "scope": "legacy-bars",
+      "minified": 7091,
+      "gzip9": 3454,
+      "brotli11": 3162,
+      "loadedFiles": [
+        "bars.ts",
+        "distribute.ts",
+        "quadtree.ts"
+      ],
+      "externals": [
+        "@grafana/data",
+        "@grafana/schema",
+        "@grafana/ui",
+        "@grafana/ui/internal",
+        "uplot"
+      ]
+    },
+    {
+      "scope": "legacy-stack-helpers",
+      "minified": 2531,
+      "gzip9": 1249,
+      "brotli11": 1121,
+      "loadedFiles": [],
+      "externals": [
+        "./internal",
+        "@grafana/schema"
+      ]
+    },
+    {
+      "scope": "legacy-bars-and-stack",
+      "minified": 9618,
+      "gzip9": 4510,
+      "brotli11": 4125,
+      "loadedFiles": [
+        "bars.ts",
+        "distribute.ts",
+        "quadtree.ts"
+      ],
+      "externals": [
+        "./internal",
+        "@grafana/data",
+        "@grafana/schema",
+        "@grafana/ui",
+        "@grafana/ui/internal",
+        "uplot"
+      ]
+    },
+    {
+      "scope": "plugin-current",
+      "minified": 14617,
+      "gzip9": 6470,
+      "brotli11": 5843,
+      "loadedFiles": [
+        "demos/lib/barChartPlugin.js",
+        "demos/lib/barHover.js",
+        "demos/lib/barValues.js",
+        "demos/lib/distr.js"
+      ],
+      "externals": [
+        "uplot"
+      ]
+    }
+  ]
+}

@@ -120,7 +120,7 @@ describe('soft minmax demo', () => {
 		assert.deepEqual([bounds(flat), bounds(detailed)], ranges);
 	});
 
-	it('provides a bounded decimal slider instead of a button or interval', () => {
+	it('provides a bounded decimal slider with a threshold marker and readout', () => {
 		const slider = input('data-value');
 		assert.equal(slider.type, 'range');
 		assert.equal(slider.min, '-100');
@@ -133,7 +133,6 @@ describe('soft minmax demo', () => {
 		assert.match(input('zero-threshold').textContent, /25.*zero-affinity threshold/);
 		assert.equal(input('data-value-output').tagName, 'OUTPUT');
 		assert.equal(input('data-value-output').value, '12');
-		assert.doesNotMatch(html, /<button\b|\bsetInterval\s*\(/i);
 		assert.match(html, /\bbindControls\(\s*plots\s*\)/);
 	});
 

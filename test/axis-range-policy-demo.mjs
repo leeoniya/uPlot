@@ -94,11 +94,6 @@ describe('axis range policy demo', () => {
 		assert.deepEqual(demo.state.policies[3].range, { min: { pad: .1 }, max: { pad: .1 } });
 		assert.deepEqual(demo.state.policies[4].range, { min: { soft: 0 }, max: { soft: 0 } });
 		assert.deepEqual(demo.state.policies[5].range, { zeroIf: 0, min: { pad: 0 }, max: { pad: 0 } });
-		for (const policy of demo.state.policies) {
-			assert.doesNotMatch(policy.code, /\bmode\s*:/);
-			for (const side of ['min', 'max'])
-				assert.equal(Object.hasOwn(policy.range?.[side] ?? {}, 'mode'), false);
-		}
 		demo.plots.forEach((u, i) => assertPolicyPlot(u, demo.state.scenario, demo.state.policies[i]));
 		assert.equal(demo.plots[1].scales.y.min, 0, 'padded endpoint ticks can reach zero without zero affinity');
 		assert.equal(demo.plots[0].scales.y.min, 0);

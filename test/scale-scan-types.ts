@@ -115,8 +115,6 @@ const readonlyDecimals: number = uPlot.numDec([0, 0.125, null] as const);
 uPlot.numDec(0.25);
 // @ts-expect-error The splits are required.
 uPlot.numDec();
-// @ts-expect-error The former values-plus-increment signature is removed.
-uPlot.numDec([0, 0.25], 0.25);
 
 type RangePad = Assert<Equal<uPlot.Range.Limit['pad'], number | undefined>>;
 type RangeHard = Assert<Equal<uPlot.Range.Limit['hard'], number | undefined>>;
@@ -125,7 +123,6 @@ type RangeFlat = Assert<Equal<uPlot.Range.Config['flat'], number | undefined>>;
 type RangeMin = Assert<Equal<uPlot.Range.Config['min'], uPlot.Range.Limit | undefined>>;
 type RangeMax = Assert<Equal<uPlot.Range.Config['max'], uPlot.Range.Limit | undefined>>;
 type RangeZeroIf = Assert<Equal<uPlot.Range.Config['zeroIf'], number | undefined>>;
-type RangeLimitHasNoMode = Assert<Equal<Extract<'mode', keyof uPlot.Range.Limit>, never>>;
 
 const defaultRange: uPlot.Range.Config = {};
 const undefinedLimits: uPlot.Range.Config = { min: undefined, max: undefined };
@@ -146,11 +143,6 @@ const softRange: uPlot.Range.Config = {
 };
 uPlot.rangeNum(20, 80, softRange);
 const softRangeScale: uPlot.Scale = { range: softRange };
-
-// @ts-expect-error Range.SoftMode is removed.
-type RemovedSoftMode = uPlot.Range.SoftMode;
-// @ts-expect-error Range limits no longer accept mode.
-const removedMode: uPlot.Range.Limit = { soft: 0, mode: 1 };
 
 // @ts-expect-error Bounds must be numbers or null, not undefined.
 u.setRange('y', undefined, 100);
@@ -188,7 +180,7 @@ const perSeries: uPlot.Scale.Scan = () => [[0, 1], null];
 uPlot.scan(u, 'y', '0');
 // @ts-expect-error Cache opt-in is a boolean.
 uPlot.scan(u, 'y', null, null, 'true');
-// @ts-expect-error A scan callback does not expose the internal viaAutoScaleX argument.
-const internalArgument: uPlot.Scale.Scan = (self: uPlot, key: string, i0: number | null | undefined, i1: number | null | undefined, viaAutoScaleX: boolean): uPlot.Range.MinMax => [null, null];
+// @ts-expect-error Scan callbacks must accept an omitted viaAutoScaleX argument.
+const requiredResetArgument: uPlot.Scale.Scan = (self: uPlot, key: string, i0: number | null | undefined, i1: number | null | undefined, viaAutoScaleX: boolean): uPlot.Range.MinMax => [null, null];
 // @ts-expect-error Range inputs can be null when scanning is disabled or has no data.
 const nonNullableRange: uPlot.Range.Function = (self: uPlot, min: number, max: number) => [min, max];

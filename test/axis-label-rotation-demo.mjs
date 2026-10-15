@@ -11,6 +11,7 @@ import { distr } from '../demos/lib/distr.js';
 const html = await readFile(new URL('../demos/axis-label-rotation.html', import.meta.url), 'utf8');
 
 describe('random label rotation demo', () => {
+	const measureHook = Symbol.for('uplot.test.axisMeasure');
 	let root, demo, u, measurements, originalOffscreenCanvas, originalResizeObserver, observers;
 	const input = id => root.querySelector(`#${id}`);
 	const stackingInputs = [
@@ -39,6 +40,10 @@ describe('random label rotation demo', () => {
 		root.innerHTML = html.match(/<main\b[^]*?<\/main>/)[0];
 		document.body.appendChild(root);
 		measurements = { x: [], y: [] };
+		// Core contexts survive chart destruction and can originate in another test suite.
+		globalThis[measureHook] = ({ text }) => {
+			measurements[demo.plot.axes[1]._values?.includes(text) ? 'y' : 'x'].push(text);
+		};
 		originalResizeObserver = globalThis.ResizeObserver;
 		observers = [];
 		globalThis.ResizeObserver = class {
@@ -59,8 +64,14 @@ describe('random label rotation demo', () => {
 		};
 		originalOffscreenCanvas = globalThis.OffscreenCanvas;
 		globalThis.OffscreenCanvas = class {
-			constructor() {
+			constructor(width, height) {
+				this.width = width;
+				this.height = height;
 				this.ctx = {
+					canvas: this,
+					log: [],
+					set font(value) { this.log.push(['font', value]); },
+					get font() { return this.log.at(-1)[1]; },
 					clearRect() {},
 					fillRect() {},
 					getImageData() {
@@ -73,7 +84,7 @@ describe('random label rotation demo', () => {
 						return { data };
 					},
 					measureText(text) {
-						measurements[demo.plot.axes[1]._values?.includes(text) ? 'y' : 'x'].push(text);
+						globalThis[measureHook]?.({ text: String(text), font: this.font, ctx: this });
 						return { width: String(text).length * parseFloat(this.font) / 2 };
 					},
 				};
@@ -96,6 +107,7 @@ describe('random label rotation demo', () => {
 			root?.remove();
 		}
 		finally {
+			delete globalThis[measureHook];
 			if (originalResizeObserver === undefined)
 				delete globalThis.ResizeObserver;
 			else
@@ -313,19 +325,13 @@ describe('random label rotation demo', () => {
 
 	function assertLabelSpacing(spacing, labels = fullLabels()) {
 		const axis = u.axes[0];
-		const indices = labels.map((_, i) => i);
-		assert.deepEqual(axis._splits, indices, 'spacing retains every category tick');
-		assert.deepEqual(axis.ticks.filter(u, axis._splits, 0, axis._space, 1), indices, 'tick filtering is independent of label spacing');
-		const positions = indices.map(i => u.valToPos(i, 'x'));
-		const pitch = Math.abs(positions[1] - positions[0]);
-		assert.ok(Number.isFinite(pitch) && pitch > 0, 'final category pitch is in CSS pixels');
-		for (let i = 2; i < positions.length; i++)
-			assert.ok(Math.abs(Math.abs(positions[i] - positions[i - 1]) - pitch) < 1e-9, 'category pitch stays uniform');
-		const ratio = spacing / pitch;
-		// Ignore floating-point noise at an exact stride boundary, not layout differences.
-		const stride = Math.max(1, Math.ceil(Math.abs(ratio - Math.round(ratio)) < 1e-9 ? Math.round(ratio) : ratio));
-		assert.deepEqual(axis._values, labels.map((label, i) => i % stride == 0 ? label : null),
-			`spacing ${spacing}px, final pitch ${pitch}px: keep every ${stride}th label from the first without forcing the last`);
+		const stride = spacing === 0 ? 1 : Math.max(1, Math.ceil(axis._found[0]));
+		const indices = labels.map((_, i) => i).filter(i => i % stride === 0);
+		assert.deepEqual(axis._splits, indices, 'ticks honor the core-selected increment');
+		assert.deepEqual(axis.ticks.filter(u, axis._splits, 0, axis._space, 1), indices);
+		assert.deepEqual(axis._values, indices.map(i => labels[i]), 'unselected categories have no label entries');
+		assert.deepEqual(axis._labelWidths, axis._values.map(labelWidth));
+		assertReadout();
 		assert.equal(input('label-spacing-value').textContent, `${spacing}px`);
 	}
 
@@ -364,7 +370,7 @@ describe('random label rotation demo', () => {
 			const axisSpace = u.axes.reduce((space, axis) => space + (axis._show && axis.side == side
 				? Math.max(0, axis._size + (axis.label != null ? axis.labelSize : 0)) : 0), 0);
 			for (const [i, label] of u.axes[0]._values.entries()) {
-				const center = u.valToPos(i, 'x', true) / u.pxRatio;
+				const center = u.valToPos(u.axes[0]._splits[i], 'x', true) / u.pxRatio;
 				const available = side == 3 ? center : u.width - center;
 				const bounds = labelExtents(labelWidth(label));
 				assert.ok(available >= (side == 3 ? bounds.left : bounds.right) + 8 - .5 / u.pxRatio,
@@ -384,7 +390,7 @@ describe('random label rotation demo', () => {
 		assert.ok(scale.max >= Math.max(0, ...u.data.slice(1).flat()));
 		const labels = axis._values.filter(label => label != null);
 		const width = Math.max(0, ...labels.map(label => String(label).length * parseFloat(axis.font[0]) / 2 / u.pxRatio));
-		assert.equal(axis._size, Math.ceil(width + axis.ticks.size + axis.gap + 8), 'Y size measures formatted labels');
+		assert.equal(axis._size, Math.ceil(width + axis.ticks.size + axis.gap), 'Y size measures formatted labels');
 		assert.deepEqual(measurements.y.slice(-labels.length), labels, 'Y measurements use formatted labels');
 		assertPadding();
 	}
@@ -469,8 +475,6 @@ describe('random label rotation demo', () => {
 					assert.equal(input(id).checked, id == selected, `${group} choices are mutually exclusive`);
 			}
 		}
-		for (const id of ['truncate', 'height', 'height-value', 'height-label'])
-			assert.equal(input(id), null, `${id} is removed, not hidden`);
 		assert.equal(input('max-length').type, 'range');
 		assert.deepEqual(['min', 'max', 'step', 'value'].map(attr => input('max-length').getAttribute(attr)), ['0', '20', '1', '0']);
 		assert.equal(input('max-length').valueAsNumber, 0);
@@ -936,10 +940,10 @@ describe('random label rotation demo', () => {
 				const corners = [x0, x0 + width].flatMap(x => [y0, y0 + height].map(y => [x * cos - y * sin, x * sin + y * cos]));
 				const maxY = Math.max(...corners.map(p => p[1]));
 				assertPadding();
-				assert.ok(axis._size >= axis.ticks.size + axis.gap + maxY + 8 - 1e-9);
+				assert.ok(axis._size >= axis.ticks.size + axis.gap + maxY - 1e-9);
 				assert.ok(u.bbox.height / ratio > 300);
 				if (degrees == 0) {
-					assert.equal(axis._size, axis.ticks.size + axis.gap + height + 8);
+					assert.equal(axis._size, axis.ticks.size + axis.gap + height);
 				}
 			}
 		}
@@ -1115,9 +1119,9 @@ describe('random label rotation demo', () => {
 		assertLabelSpacing(0);
 	});
 
-	it('changes minimum label spacing live without changing the plot, data, geometry, or layout', async () => {
+	it('changes minimum label spacing live and sizes selected labels without replacing the plot or data', async () => {
 		u.setData([
-			['First label', 'The longest label stays reserved even when hidden', 'C', 'D', 'E', 'F', 'G', 'Last label'],
+			['First label', 'The longest label needs space only when selected', 'C', 'D', 'E', 'F', 'G', 'Last label'],
 			[13, 14, 15, 16, 17, 18, 19, 20],
 			[26, 27, 28, 29, 30, 31, 32, 33],
 		]);
@@ -1126,14 +1130,8 @@ describe('random label rotation demo', () => {
 		const original = structuredClone(data);
 		const layout = () => structuredClone({
 			size: [u.width, u.height],
-			bbox: u.bbox,
-			padding: u._padding,
-			axes: u.axes.map(axis => [axis._size, axis._rotate, axis._splits]),
-			ranges: ['x', 'y'].map(key => [u.scales[key].min, u.scales[key].max]),
-			positions: u._data[0].map(value => u.valToPos(value, 'x')),
-			geometry: [rects(1), rects(2)],
+			xRange: [u.scales.x.min, u.scales.x.max],
 			internalData: u._data,
-			stats: input('stats').textContent,
 		});
 		for (const horizontal of [false, true]) {
 			await toggle('horizontal', horizontal);
@@ -1144,20 +1142,22 @@ describe('random label rotation demo', () => {
 					await Promise.resolve();
 					const current = u;
 					const before = layout();
-					const measured = measurements.x.length;
 					for (const spacing of [150, 300, 5, 0]) {
 						await change('label-spacing', spacing, 'input');
 						assert.equal(demo.plot, current, 'spacing does not rebuild');
 						assert.equal(current.root.isConnected, true);
 						assert.equal(u.data, data);
 						assert.deepEqual(u.data, original);
-						assert.deepEqual(layout(), before, 'hidden labels still reserve their full layout space');
-						assert.equal(measurements.x.length, measured, 'spacing reuses all cached label measurements');
+						assert.deepEqual(layout(), before, 'spacing preserves chart size, category range, and data');
 						assertLabelSpacing(spacing);
 						if (spacing == 300) {
-							assert.equal(u.axes[0]._values[1], null, 'exercise a hidden longest label');
-							assert.equal(u.axes[0]._values.at(-1), null, 'the last label is not forced visible');
+							assert.ok(!u.axes[0]._splits.includes(1), 'exercise an unselected longest label');
+							assert.ok(!u.axes[0]._values.includes(data[0][1]));
 						}
+						const measured = measurements.x.length;
+						u.redraw(false, true);
+						await Promise.resolve();
+						assert.equal(measurements.x.length, measured, 'unchanged selection reuses core widths');
 					}
 				}
 			}
@@ -1209,7 +1209,7 @@ describe('random label rotation demo', () => {
 		assert.deepEqual(u.data, original);
 		assert.equal(input('label-spacing').valueAsNumber, 300);
 		assertLabelSpacing(300);
-		assert.ok(u.axes[0]._values.some(label => label == null), 'initial options thin the labels without an input event');
+		assert.ok(u.axes[0]._values.length < u.data[0].length, 'initial options select fewer ticks without an input event');
 		await change('label-spacing', 0, 'input');
 		assertLabelSpacing(0);
 	});
@@ -1975,7 +1975,7 @@ describe('random label rotation demo', () => {
 	});
 
 
-	it('reuses X measurements until labels, font, or pixel ratio changes', async () => {
+	it('reuses X measurements until selected labels or pixel ratio changes', async () => {
 		const count = u.data[0].length;
 		assert.equal(measurements.x.length, count);
 		for (const degrees of [-90, -45, 0, 45, 90])
@@ -2002,11 +2002,7 @@ describe('random label rotation demo', () => {
 		await Promise.resolve();
 		measured += u.data[0].length;
 		assert.equal(measurements.x.length, measured);
-		u.axes[0].font[0] = u.axes[0].font[0].replace('system-ui', 'serif');
-		u.redraw(false, true);
-		await Promise.resolve();
-		measured += u.data[0].length;
-		assert.equal(measurements.x.length, measured);
+
 		await rotate(0);
 		assert.equal(measurements.x.length, measured);
 	});
@@ -2067,7 +2063,7 @@ describe('random label rotation demo', () => {
 		assert.equal(measurements.x.length, 3 * count);
 		await rotate(90);
 		assert.equal(measurements.x.length, 3 * count);
-		assert.equal(u.axes[0]._size, Math.ceil(u.axes[0].ticks.size + u.axes[0].gap + longestWidth() + 8));
+		assert.equal(u.axes[0]._size, Math.ceil(u.axes[0].ticks.size + u.axes[0].gap + longestWidth()));
 
 		input('max-length').value = '4';
 		input('max-length').dispatchEvent(new Event('input'));
@@ -2164,20 +2160,12 @@ describe('random label rotation demo', () => {
 		}
 	});
 
-	it('invalidates the Y measurement cache for font and DPR changes', async () => {
+	it('invalidates the Y measurement cache for DPR changes', async () => {
 		setYData((i, si) => (i - (u.data[0].length - 1) / 2) * si);
 		await Promise.resolve();
 		assertYAxis();
 		let before = measurements.y.length;
-		u.axes[1].font[0] += ', monospace';
-		assert.notEqual(u.axes[1].font[0], u.axes[0].font[0]);
-		u.redraw(false, true);
-		await Promise.resolve();
-		assert.ok(measurements.y.length > before, 'Y font changes invalidate measurements');
-		assert.equal(measurements.x.length, u.data[0].length);
-		assertYAxis();
 
-		before = measurements.y.length;
 		u.setPxRatio(u.pxRatio == 1 ? 2 : 1);
 		await Promise.resolve();
 		assert.ok(measurements.y.length > before, 'DPR changes invalidate Y measurements');

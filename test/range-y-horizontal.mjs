@@ -30,10 +30,26 @@ function assertRange(u, dim, space, extrema = [13, 87]) {
 
 describe('horizontal tick-aware Y ranging', () => {
 	let plots;
-	beforeEach(() => { plots = []; });
+	let offscreen;
+	beforeEach(() => {
+		plots = [];
+		offscreen = globalThis.OffscreenCanvas;
+		globalThis.OffscreenCanvas = class {
+			getContext() {
+				return {
+					font: '',
+					measureText(text) { return { width: String(text).length * parseFloat(this.font) / 2 }; },
+				};
+			}
+		};
+	});
 	afterEach(() => {
 		for (const u of plots)
 			u.destroy();
+		if (offscreen === undefined)
+			delete globalThis.OffscreenCanvas;
+		else
+			globalThis.OffscreenCanvas = offscreen;
 	});
 
 	function mount({ width = 900, height = 300, pxRatio = 1, y = {}, axis = {}, xAxis = {}, padding = [0, 10, 0, 20], hooks = {}, plotData = data } = {}) {
@@ -102,7 +118,7 @@ describe('horizontal tick-aware Y ranging', () => {
 		it(`ranges after axis auto-sizing and baseline padding, before overflow padding (DPR ${pxRatio})`, async () => {
 			const events = [];
 			let labels = ['A', 'B', 'C'];
-			let overflow = 180;
+			let labelLength = 45;
 			const baseline = [7, 11, 13, 17];
 			const { u, scans } = mount({
 				pxRatio,
@@ -117,36 +133,30 @@ describe('horizontal tick-aware Y ranging', () => {
 				},
 				axis: {
 					exact: true,
+					font: '16px horizontal-range-padding-test',
 					size(u, values) {
 						events.push(['numeric-size', values]);
 						return u.axes[1].font[1] / u.pxRatio + 28;
 					},
 					space(u, i, min, max, dim) {
 						events.push(['space', i, min, max, dim]);
+						assert.deepEqual(u._padding, baseline, 'ranging uses the tuple minimum');
 						return 100;
 					},
 					values(u, values) {
 						events.push(['numeric-values', values.slice()]);
-						return values.map(String);
+						return values.map(value => String(value).padEnd(labelLength, ' '));
 					},
 				},
-				padding: baseline.map((pad, side) => (u, i, sides, phase) => {
-					events.push(['padding', side, phase]);
-					assert.equal(i, side);
-					if (phase === 1) {
-						assert.ok(u.axes[1]._values.length > 0, 'overflow sees current numeric labels');
-						assert.deepEqual([splits(u)[0], splits(u).at(-1)], bounds(u));
-						assert.deepEqual(u._padding, baseline, 'both overflow callbacks see baseline padding');
-					}
-					return pad + (phase === 1 && side === 1 ? overflow : 0);
-				}),
+				padding: [7, [11, Infinity], 13, 17],
 			});
 			await tick();
+			const initial = { bbox: { ...u.bbox }, padding: u._padding.slice(), range: { ...u.scales.y._rangeY }, splits: splits(u).slice() };
 			const counts = [];
 			for (const nextLabels of [labels, ['A much longer category label', 'B', 'C'], ['A', 'B', 'C']]) {
 				labels = nextLabels;
-				for (const nextOverflow of [180, 0, 180]) {
-					overflow = nextOverflow;
+				for (const nextLength of [45, 0, 45]) {
+					labelLength = nextLength;
 					events.length = 0;
 					u.redraw(false, true);
 					await tick();
@@ -154,17 +164,23 @@ describe('horizontal tick-aware Y ranging', () => {
 					const dim = 900 - categorySize - 11 - 17;
 					assert.equal(u.axes[0]._size, categorySize);
 					const expected = assertRange(u, dim, 100);
+					const overflow = u.axes[1]._values.at(-1).length * 4;
 					assert.equal(u.bbox.width / pxRatio, dim - overflow, 'overflow changes final geometry, not the ranger input');
+					if (labelLength == 45) {
+						assert.equal(overflow, 180);
+						assert.notEqual(rangeYCount(dim - overflow, u.axes[1].ramp, 100), expected.count, 'final width would select a different tick count');
+					}
+					else
+						assert.ok(overflow < 180, 'shorter numeric labels reduce overflow');
 					assert.deepEqual(u._padding, [7, 11 + overflow, 13, 17]);
 					assert.equal(u.bbox.height / pxRatio, 300 - u.axes[1]._size - 7 - 13);
 					assert.deepEqual(events.map(event => event[0]), [
-						'numeric-size', 'padding', 'padding', 'padding', 'padding',
-						'category-size', 'space', 'numeric-values', 'padding', 'padding',
+						'numeric-size', 'category-size', 'space', 'numeric-values',
 					], 'one sizing/ranging pass in layout order');
 					assert.deepEqual(events[0], ['numeric-size', null]);
-					assert.deepEqual(events[5], ['category-size', labels]);
-					assert.deepEqual(events[6], ['space', 1, 13, 87, dim], 'spacing receives raw bounds and provisional CSS width');
-					assert.deepEqual(events[7], ['numeric-values', splits(u)]);
+					assert.deepEqual(events[1], ['category-size', labels]);
+					assert.deepEqual(events[2], ['space', 1, 13, 87, dim], 'spacing receives raw bounds and provisional CSS width');
+					assert.deepEqual(events[3], ['numeric-values', splits(u)]);
 					counts.push(expected.count);
 				}
 			}
@@ -172,7 +188,9 @@ describe('horizontal tick-aware Y ranging', () => {
 			assert.equal(counts[1], counts[2]);
 			assert.ok(counts[3] < counts[0], 'wider categories reduce the tick target');
 			assert.deepEqual(counts.slice(0, 3), counts.slice(6), 'no layout feedback on restoration');
-			assert.equal(scans.length, 1);
+			assert.deepEqual({ bbox: u.bbox, padding: u._padding, range: u.scales.y._rangeY, splits: splits(u) }, initial,
+				'restoring labels restores geometry, range, and ticks without feedback');
+			assert.equal(scans.length, 1, 'category sizing and label overflow reuse raw extrema');
 		});
 	}
 

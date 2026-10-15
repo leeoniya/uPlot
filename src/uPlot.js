@@ -16,6 +16,7 @@ import {
 
 import { rangeY, rangeYAuto } from './rangeY.js';
 import { createLegend } from './legend-dom.js';
+import { autoAxisSize, resolvePadding } from './axis.js';
 
 import {
 	copy,
@@ -893,6 +894,14 @@ export default function uPlot(opts, data, then) {
 		return changed;
 	}
 
+	function reserveVerticalAxes(sizes) {
+		// Do not use previous measurements: tick selection must not depend on resize history.
+		for (let axis of axes) {
+			if (axis._show && axis.side % 2 == 1)
+				sizes[axis.side] += max(0, axis._sizeHint + (axis.label != null ? axis.labelSize : 0));
+		}
+	}
+
 	function calcPlotDim(ori, sizes) {
 		let start = ori == 0 ? 3 : 0;
 		let end = ori == 0 ? 1 : 2;
@@ -944,7 +953,10 @@ export default function uPlot(opts, data, then) {
 
 		if (pxRatioChanged) {
 			pxRatio = self.pxRatio;
-			axes.forEach(axis => syncFontSize(axis, pxRatio));
+			axes.forEach(axis => {
+				syncFontSize(axis, pxRatio);
+				axis._labelValues = axis._labelWidths = null;
+			});
 		}
 
 		let prevLeft = plotLftCss;
@@ -952,6 +964,7 @@ export default function uPlot(opts, data, then) {
 		let prevWidth = plotWidCss;
 		let prevHeight = plotHgtCss;
 		let axesChanged = false;
+		let early = false;
 		let sizes = [0, 0, 0, 0];
 		sidesWithAxes.fill(false);
 
@@ -961,27 +974,41 @@ export default function uPlot(opts, data, then) {
 			axesChanged = axesChanged || axis._show != show;
 			axis._show = show;
 			axis._splits = axis._values = null;
+			early = early || show && axis.size === autoAxisSize && axis.side % 2 == 0;
 
-			if (show && (axis._hasSize || axis.label != null && axis.labelSize > 0))
+			if (show && (axis._sizeHint > 0 || axis.label != null && axis.labelSize > 0))
 				sidesWithAxes[axis.side] = true;
 		});
 
-		// Height is final before vertical tick selection and measurement.
-		axesChanged = sizeAxes(0, sizes) || axesChanged;
-		paddingCalc(0);
-		calcPlotDim(1, sizes);
-
 		let changedY = [];
+		if (!early)
+			axesChanged = sizeAxes(0, sizes) || axesChanged;
+		padding.forEach((p, i) => { _padding[i] = isArr(p) ? p[0] : p ?? autoPadSide(i); });
+
+		if (early) {
+			// Freeze horizontal ticks before their label heights determine the vertical layout.
+			reserveVerticalAxes(sizes);
+			calcPlotDim(0, sizes);
+			rangeYScales(0, plotWidCss, changedY);
+			axesCalc(0);
+			axesChanged = sizeAxes(0, sizes) || axesChanged;
+			sizes[1] = sizes[3] = 0;
+		}
+
+		// Height is final before vertical tick selection and measurement.
+		calcPlotDim(1, sizes);
 		rangeYScales(1, plotHgtCss, changedY);
 		axesCalc(1);
 
 		axesChanged = sizeAxes(1, sizes) || axesChanged;
-		calcPlotDim(0, sizes);
-		rangeYScales(0, plotWidCss, changedY);
-		axesCalc(0);
+		if (!early) {
+			calcPlotDim(0, sizes);
+			rangeYScales(0, plotWidCss, changedY);
+			axesCalc(0);
+		}
 
 		// Overflow changes only width, not the selected ticks or axis sizes.
-		paddingCalc(1);
+		resolvePadding(self, sizes[3], sizes[1]);
 		calcPlotDim(0, sizes);
 		axesChanged = calcAxesRects() || axesChanged;
 
@@ -1236,6 +1263,7 @@ export default function uPlot(opts, data, then) {
 
 		opts = mode == 1 ? setDefault(opts, si, xSeriesOpts, ySeriesOpts) : setDefault(opts, si, {}, xySeriesOpts);
 
+		clearDispCache();
 		series.splice(si, 0, opts);
 		invalidateBandGroups();
 		FEAT_LEGEND && legend.values.splice(si, 0, null);
@@ -1251,6 +1279,7 @@ export default function uPlot(opts, data, then) {
 		if (stackGroups.length > 0)
 			return;
 
+		clearDispCache();
 		series.splice(i, 1);
 		invalidateBandGroups();
 
@@ -1299,9 +1328,12 @@ export default function uPlot(opts, data, then) {
 			// also set defaults for incrs & values based on axis distr
 			let isTime = FEAT_TIME && sc.time;
 
-			axis._hasSize = isFn(axis.size) || axis.size > 0;
+			let autoSize = axis.size == 'auto';
+			// Preserve the configured numeric reservation before axis.size is normalized to a function.
+			axis._sizeHint = autoSize || isFn(axis.size) ? yAxisOpts.size : axis.size;
 
-			axis.size   = fnOrSelf(axis.size);
+
+			axis.size   = autoSize ? autoAxisSize : fnOrSelf(axis.size);
 			axis.space  = fnOrSelf(axis.space);
 			axis.rotate = fnOrSelf(axis.rotate);
 
@@ -1348,9 +1380,11 @@ export default function uPlot(opts, data, then) {
 			axis._incrs  =
 			axis._found  =	// foundIncrSpace
 			axis._splits =
-			axis._values = null;
+			axis._values =
+			axis._labelValues =
+			axis._labelWidths = null;
 
-			if (domRoot && axis.dom && axis._hasSize)
+			if (domRoot && axis.dom && axis._sizeHint > 0)
 				axis._el = placeDiv(AXIS, wrap);
 
 			// debug
@@ -1358,7 +1392,7 @@ export default function uPlot(opts, data, then) {
 		}
 	}
 
-	function autoPadSide(self, side, sidesWithAxes) {
+	function autoPadSide(side) {
 		let [hasTopAxis, hasRgtAxis, hasBtmAxis, hasLftAxis] = sidesWithAxes;
 
 		let ori = side % 2;
@@ -1372,7 +1406,7 @@ export default function uPlot(opts, data, then) {
 		return size;
 	}
 
-	const padding = self.padding = (opts.padding || [autoPadSide,autoPadSide,autoPadSide,autoPadSide]).map(p => fnOrSelf(p ?? autoPadSide));
+	const padding = self.padding = (opts.padding || [null, null, null, null]).slice();
 	const _padding = self._padding = [0, 0, 0, 0];
 
 	let dataLen;
@@ -1491,6 +1525,9 @@ export default function uPlot(opts, data, then) {
 
 	function setData(_data, _resetScales) {
 		let rawData = _data ?? [];
+
+		if (rawData !== self.data)
+			clearDispCache();
 
 		if (mode == 2) {
 			self.data = self._data = data = rawData;
@@ -1922,12 +1959,15 @@ export default function uPlot(opts, data, then) {
 			if (_points && FEAT_POINTS) {
 				let _gaps = s._paths != null ? s._paths.gaps : null;
 
-				let show = s.points.show(self, i, i0, i1, _gaps);
+				let idx0 = mode == 2 ? 0 : i0;
+				let idx1 = mode == 2 ? data[i][0].length - 1 : i1;
+				let show = s.points.show(self, i, idx0, idx1, _gaps);
 				let idxs = s.points.filter(self, i, show, _gaps);
 
 				if (show || idxs) {
-					s.points._paths = s.points.paths(self, i, i0, i1, idxs);
-					drawPath(i, true);
+					s.points._paths = s.points.paths(self, i, idx0, idx1, idxs);
+					if (s.points._paths != null)
+						drawPath(i, true);
 				}
 			}
 
@@ -2237,11 +2277,6 @@ export default function uPlot(opts, data, then) {
 		});
 	}
 
-	function paddingCalc(phase) {
-		// Both overflow callbacks see the same provisional geometry and padding.
-		let next = padding.map((p, i) => phase == 0 || i % 2 == 1 ? p(self, i, sidesWithAxes, phase) : _padding[i]);
-		next.forEach((p, i) => { _padding[i] = p; });
-	}
 
 	function drawAxesGrid() {
 		for (let i = 0; i < axes.length; i++) {
@@ -2699,7 +2734,12 @@ export default function uPlot(opts, data, then) {
 		});
 	}
 
+	function clearDispCache() {
+		series.forEach(s => { s._disp = null; });
+	}
+
 	function clearDataCache() {
+		clearDispCache();
 		// TODO: Require all interactive/data-dependent features to be disabled (cursor, legend toggling, resize, DPR updates, etc.).
 		let emptyData = src => mode == 1 ? src.map(() => []) : src.map(facets => facets == null ? facets : facets.map(() => []));
 		self.data = self._data = data = emptyData(self.data ?? EMPTY_ARR);
@@ -4065,6 +4105,7 @@ export default function uPlot(opts, data, then) {
 }
 
 uPlot.assign = assign;
+
 uPlot.fmtNum = fmtNum;
 uPlot.numDec = numDec;
 uPlot.rangeNum = rangeNum;

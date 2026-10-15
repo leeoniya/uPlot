@@ -446,8 +446,7 @@ describe('axis-ranging chart POC: one Y scale', () => {
 		const { u, scans } = makePlot({
 			paths: null,
 			axes: [{ show: false }, { size: 50 }],
-			// Offset outer-width changes so the path's coordinate system stays fixed.
-			padding: [0, self => self.width - 700, 0, 0],
+			padding: [0, 0, 0, 0],
 		});
 		try {
 			await tick();
@@ -457,6 +456,8 @@ describe('axis-ranging chart POC: one Y scale', () => {
 			const initialBounds = bounds(u);
 			scans.length = 0;
 			for (const width of [700, 760, 700]) {
+				// Offset outer-width changes so the path's coordinate system stays fixed.
+				u.padding[1] = width - 700;
 				if (width != u.width)
 					u.setSize({ width, height: 413 });
 				else
