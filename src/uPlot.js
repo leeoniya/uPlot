@@ -265,7 +265,9 @@ function findIncr(minVal, maxVal, incrs, dim, minSpace) {
 		let foundIncr = incrs[incrIdx];
 		let foundSpace = dim * foundIncr / delta;
 
-		if (foundSpace >= minSpace && intDigits + (foundIncr < 5 ? fixedDec.get(foundIncr) : 0) <= 17)
+		// Reject increments lost to floating-point precision at either bound.
+		if (foundSpace >= minSpace && intDigits + (foundIncr < 5 ? fixedDec.get(foundIncr) : 0) <= 17 &&
+			minVal + foundIncr > minVal && maxVal + foundIncr > maxVal)
 			return [foundIncr, foundSpace];
 	} while (++incrIdx < incrs.length);
 

@@ -551,8 +551,17 @@ export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foun
 
 	scaleMin = forceMin ? scaleMin : roundDec(incrRoundUp(scaleMin, foundIncr), numDec);
 
-	for (let val = scaleMin; val <= scaleMax; val = roundDec(val + foundIncr, numDec))
+	for (let val = scaleMin; val <= scaleMax;) {
 		splits.push(Object.is(val, -0) ? 0 : val);		// coalesces -0
+
+		let next = roundDec(val + foundIncr, numDec);
+
+		// A custom increment can be smaller than the precision at this magnitude.
+		if (!(next > val))
+			break;
+
+		val = next;
+	}
 
 	return splits;
 }
