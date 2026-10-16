@@ -6,16 +6,59 @@ declare const u: uPlot;
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 type Assert<T extends true> = T;
 
-const full: uPlot.Range.MinMax = uPlot.scan(u, 'y');
-const windowed: uPlot.Range.MinMax = uPlot.scan(u, 'y', 0, 10);
-const nullIndices: uPlot.Range.MinMax = uPlot.scan(u, 'y', null, null);
-const omittedStart: uPlot.Range.MinMax = uPlot.scan(u, 'y', undefined, 10, false);
-const cached: uPlot.Range.MinMax = uPlot.scan(u, 'y', null, undefined, true);
+const full: uPlot.ScanResult = uPlot.scan(u, 'y');
+const windowed: uPlot.ScanResult = uPlot.scan(u, 'y', 0, 10);
+const nullIndices: uPlot.ScanResult = uPlot.scan(u, 'y', null, null);
+const omittedStart: uPlot.ScanResult = uPlot.scan(u, 'y', undefined, 10, false);
+const cached: uPlot.ScanResult = uPlot.scan(u, 'y', null, undefined, true);
 
 const enabled: uPlot.Scale.Scan = true;
 const disabled: uPlot.Scale.Scan = false;
+const configured: uPlot.Scale.Scan = { minAbs: 2 };
+const defaultConfig: uPlot.Scale.Scan = {};
+const undefinedCutoff: uPlot.Scale.Scan = { minAbs: undefined };
+const config: uPlot.Scale.Scan.Config = { minAbs: 0 };
+const configuredAsinhScale: uPlot.Scale = { distr: 4, scan: configured };
+type ScanCutoff = Assert<Equal<uPlot.Scale.Scan.Config['minAbs'], number | undefined>>;
+// @ts-expect-error The cutoff must be numeric.
+const stringCutoff: uPlot.Scale.Scan = { minAbs: '2' };
+// @ts-expect-error The cutoff is optional, not nullable.
+const nullCutoff: uPlot.Scale.Scan = { minAbs: null };
+// @ts-expect-error The scanner configuration uses minAbs, not cutoff.
+const obsoleteCutoff: uPlot.Scale.Scan = { cutoff: 2 };
 const empty: uPlot.Scale.Scan = () => [null, null];
 const pureHelper: uPlot.Scale.Scan = uPlot.scan;
+const asinh: uPlot.Scale.Scan = self => {
+	[self.series[1].min, self.series[1].max] = [-100, 100];
+	return [-100, 100, 3];
+};
+const noQualifyingValue: uPlot.Scale.Scan = self => {
+	[self.series[1].min, self.series[1].max] = [-10, 10];
+	return [-10, 10, null];
+};
+const asinhScale: uPlot.Scale = { distr: 4, scan: asinh };
+const noQualifyingAsinhScale: uPlot.Scale = { distr: 4, scan: noQualifyingValue };
+type ScanMinAbs = Assert<Equal<uPlot.ScanResult[2], number | null | undefined>>;
+type SeriesMinAbs = Assert<Equal<uPlot.Series['minAbs'], number | null | undefined>>;
+type FacetMinAbs = Assert<Equal<uPlot.Series.Facet['minAbs'], number | null | undefined>>;
+type SeriesHasNoPrivateMinAbs = Assert<Equal<Extract<'_minAbs', keyof uPlot.Series>, never>>;
+type FacetHasNoPrivateMinAbs = Assert<Equal<Extract<'_minAbs', keyof uPlot.Series.Facet>, never>>;
+type ScaleHasNoMinAbsCache = Assert<Equal<Extract<'minAbs' | '_minAbs', keyof uPlot.Scale>, never>>;
+
+const seriesMinAbs: number | null | undefined = u.series[1].minAbs;
+const facetMinAbs: number | null | undefined = u.series[1].facets![1].minAbs;
+for (const minAbs of [3, null, undefined]) {
+	const series: uPlot.Series = { minAbs };
+	const facet: uPlot.Series.Facet = { scale: 'y', minAbs };
+	u.series[1].minAbs = minAbs;
+	u.series[1].facets![1].minAbs = minAbs;
+}
+// @ts-expect-error Cached statistics must be numeric or nullish.
+const stringSeriesMinAbs: uPlot.Series = { minAbs: '3' };
+// @ts-expect-error Cached statistics must be numeric or nullish.
+const stringFacetMinAbs: uPlot.Series.Facet = { scale: 'y', minAbs: '3' };
+// @ts-expect-error Scales do not publish an aggregate minAbs cache.
+const scaleMinAbs: uPlot.Scale = { minAbs: 3 };
 
 const opts: uPlot.Options = {
 	width: 400,

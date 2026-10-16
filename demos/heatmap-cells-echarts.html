@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Sparse Heatmap — ECharts</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<style>
+			body { margin: 24px; color: #b7bdc5; background: #181b1f; font: 14px system-ui, sans-serif; }
+			h1 { font-size: 20px; }
+			a { color: #8ab4f8; }
+			.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
+			#height { width: min(400px, 50vw); }
+			#height-value { min-width: 6ch; }
+			#plot { width: 100%; height: 560px; }
+			#legend { width: 260px; margin: 12px 0 12px 85px; }
+			#color-ramp { height: 10px; }
+			#color-labels { display: flex; justify-content: space-between; margin-top: 4px; }
+			#hover { display: block; min-height: 2em; font: 13px monospace; }
+		</style>
+	</head>
+	<body>
+		<main id="demo">
+			<h1>Sparse heatmap · ECharts 6.1.0</h1>
+			<p>Native heatmap counterpart to the <a href="heatmap-cells.html">uPlot demo</a>, using the same synthetic dataset (~250k generated cells) and colors.
+			ECharts uses a local heatmap patch. Run <code>node scripts/patch-echarts-heatmap.mjs</code> to download and generate the library.</p>
+			<p>Equal-width time categories and equal-height exponential bucket categories preserve gaps and log-view spacing.
+			Linear/asinh Y scales and negative mirroring are not supported here. Axis labels mark category centers; hover shows original cell bounds.</p>
+			<p id="status">Generating ~250k synthetic heatmap cells…</p>
+			<div class="controls">
+				<label for="color-scale">Color scale</label>
+				<select id="color-scale" disabled>
+					<option value="linear" selected>Linear</option>
+					<option value="sqrt">Square root</option>
+					<option value="log">Log</option>
+				</select>
+				<label><input id="progressive" type="checkbox" checked disabled> Progressive rendering</label>
+				<label for="height">Chart height</label>
+				<input id="height" type="range" min="200" max="1200" step="10" value="560" disabled>
+				<output id="height-value" for="height">560px</output>
+				<button id="set-data" type="button" disabled>setOption() — same data</button>
+			</div>
+			<div id="plot"></div>
+			<div id="legend">
+				<div id="color-ramp"></div>
+				<div id="color-labels"><span id="color-min"></span><span id="color-scale-label">Count · linear scale</span><span id="color-max"></span></div>
+			</div>
+			<output id="hover"></output>
+		</main>
+		<script src="./lib/echarts-6.1.0.heatmap-patched.js"></script>
+		<script type="module">
+			import { createDemo } from './heatmap-cells-echarts.js';
+			import { generateHeatmapCells } from './lib/heatmapCellsData.js';
+
+			try {
+				createDemo(document.querySelector('#demo'), generateHeatmapCells({ xGapProbability: 0.02 }));
+			}
+			catch (error) {
+				document.querySelector('#status').textContent = `Cannot load heatmap: ${error.message}. Serve the repository root over HTTP. If the local library is missing, run node scripts/patch-echarts-heatmap.mjs.`;
+				console.error(error);
+			}
+		</script>
+	</body>
+</html>

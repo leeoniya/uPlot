@@ -101,6 +101,31 @@ function getMinMax(data, _i0, _i1, sorted = 0, log = false) {
 	return [_min ?? inf, _max ?? -inf]; // todo: fix to return nulls
 }
 
+function getMinMaxAsinh(data, i0, i1, sorted = 0, cutoff = 0) {
+	// Keep the sorted argument for scan compatibility; asinh always uses one pass.
+	let _min = inf;
+	let _max = -inf;
+	let minAbs = inf;
+
+	for (let i = i0; i <= i1; i++) {
+		let v = data[i];
+
+		if (v != null) {
+			if (v < _min)
+				_min = v;
+			if (v > _max)
+				_max = v;
+
+			let a = abs(v);
+
+			if (a > cutoff && a < minAbs)
+				minAbs = a;
+		}
+	}
+
+	return [_min, _max, minAbs];
+}
+
 function rangeLog(min, max, base, fullMags) {
 	if (base == 2)
 		fullMags = true;
@@ -2024,7 +2049,16 @@ const RE_12357 = /[12357]/;
 const RE_125   = /[125]/;
 const RE_1     = /1/;
 
-const _filt = (splits, distr, re, keepMod) => splits.map((v, i) => ((distr == 4 && v == 0) || i % keepMod == 0 && re.test(v.toExponential()[v < 0 ? 1 : 0])) ? v : null);
+const _filt = (splits, distr, re, keepMod, logFn) => {
+	let asinh = distr == 4;
+	// Share the asinh skip phase across signs, counting powers rather than base-10 mantissas.
+	let mag = asinh && keepMod > 1 ? floor(logFn(max(abs(splits[0]), abs(splits.at(-1))))) : null;
+
+	return splits.map((v, i) => (asinh && v == 0 ||
+		re.test(v.toExponential()[v < 0 ? 1 : 0]) &&
+		(mag == null ? i : mag - round(logFn(abs(v)))) % keepMod == 0
+	) ? v : null);
+};
 
 function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
@@ -2055,7 +2089,7 @@ function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 		let magSpace = abs(valToPos(linthresh, scaleKey) - _10);
 
 		if (magSpace < minSpace)
-			return _filt(splits.slice().reverse(), sc.distr, re, ceil(minSpace / magSpace)).reverse(); // max->min skip
+			return _filt(splits.slice().reverse(), sc.distr, re, ceil(minSpace / magSpace), log10).reverse(); // max->min skip
 	}
 
 	return _filt(splits, sc.distr, re, 1);
@@ -2076,7 +2110,7 @@ function log2AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let magSpace = abs(valToPos(linthresh, scaleKey) - valToPos(2 * linthresh, scaleKey));
 
 	if (magSpace < minSpace)
-		return _filt(splits.slice().reverse(), sc.distr, RE_ALL, ceil(minSpace / magSpace)).reverse(); // max->min skip
+		return _filt(splits.slice().reverse(), sc.distr, RE_ALL, ceil(minSpace / magSpace), log2).reverse(); // max->min skip
 
 	return splits;
 }
@@ -2192,41 +2226,7 @@ function clampScale(self, val, scaleMin, scaleMax, scaleKey) {
 		return self.posToVal(cssHgt + fromBtm, scaleKey);
 	}
 */
-	return self.scales[scaleKey].distr == 4 ? 0 : scaleMin / 10;
-}
-
-function asinhScale(self, scaleKey) {
-	let { series, data, mode } = self;
-	let sc = self.scales[scaleKey];
-	let cutoff = sc.clamp(self, 0, sc.min, sc.max, scaleKey);
-	let linthresh = inf;
-
-	for (let i = 1; i < series.length; i++) {
-		let s = series[i];
-
-		if (!s.show || !s.scan)
-			continue;
-
-		for (let fi = 0; fi < (mode == 1 ? 1 : s.facets.length); fi++) {
-			let scale = mode == 1 ? s.scale : s.facets[fi].scale;
-
-			if (scale == scaleKey && (mode == 1 || s.facets[fi].scan)) {
-				let yData = mode == 1 ? data[i] : data[i][fi];
-				let [i0, i1] = mode == 1 ? series[0].idxs : [0, yData.length - 1];
-
-				for (let j = i0; j <= i1; j++) {
-					if (yData[j] != null) {
-						let val = abs(yData[j]);
-
-						if (val > cutoff && val < linthresh)
-							linthresh = val;
-					}
-				}
-			}
-		}
-	}
-
-	return linthresh == inf ? 1 : linthresh;
+	return scaleMin / 10;
 }
 
 const xScaleOpts = {
@@ -2234,7 +2234,7 @@ const xScaleOpts = {
 	auto: true,
 	distr: 1,
 	log: 10,
-	asinh: asinhScale,
+	asinh: null,
 	min: null,
 	max: null,
 	dir: 1,
@@ -4378,20 +4378,31 @@ function scanScaleInternal(self, scaleKey, i0, i1, cache, allValues) {
 	let scaleMin = inf;
 	let scaleMax = -inf;
 	let log = !allValues && scale.distr == 3;
+	let asinh = scale.distr == 4;
+	let minAbs = inf;
 
 	function acc(si, data, facet, sorted, mirror) {
 		if (data != null && data.length > 0) {
 			let facetMin = facet.min;
 			let facetMax = facet.max;
+			// Series/facet minAbs caches the smallest qualifying magnitude. undefined means uncomputed, null means none qualifies.
+			let facetMinAbs = facet.minAbs;
+			let scanAbs = asinh && (!cache || facetMinAbs === undefined);
 
-			if (!cache || self.mode == 1 && si == 0 || facetMin == null) {
+			// Shared X extrema hold visible endpoints, so cache hits still read their requested extrema.
+			if (!cache || si == 0 || (asinh ? scanAbs : facetMin == null)) {
 				facetMin = facetMax = null;
 
 				let _i0 = max(0, ceil(i0 ?? 0));
 				let _i1 = min(data.length - 1, floor(i1 ?? data.length - 1));
 
-				if (_i0 <= _i1)
+				if (scanAbs)
+					[facetMin, facetMax, facetMinAbs] = getMinMaxAsinh(data, _i0, _i1, sorted, scale._minAbs);
+				else if (_i0 <= _i1)
 					[facetMin, facetMax] = getMinMax(data, _i0, _i1, sorted, log);
+
+				if (facetMinAbs == inf)
+					facetMinAbs = null;
 
 				if (facetMin > facetMax)
 					facetMin = facetMax = null;
@@ -4399,18 +4410,23 @@ function scanScaleInternal(self, scaleKey, i0, i1, cache, allValues) {
 				if (cache) {
 					facet.min = facetMin;
 					facet.max = facetMax;
+					if (asinh) facet.minAbs = facetMinAbs;
 				}
 			}
 
 			if (cache && mirror) {
 				series[si].min = facetMin;
 				series[si].max = facetMax;
+				// Mode 2 exposes the primary Y facet's cached statistic on series.minAbs, alongside min/max.
+				if (asinh) series[si].minAbs = facetMinAbs;
 			}
 
 			if (facetMin != null)
 				scaleMin = min(scaleMin, facetMin);
 			if (facetMax != null)
 				scaleMax = max(scaleMax, facetMax);
+			if (asinh && facetMinAbs != null)
+				minAbs = min(minAbs, facetMinAbs);
 		}
 	}
 
@@ -4441,10 +4457,13 @@ function scanScaleInternal(self, scaleKey, i0, i1, cache, allValues) {
 		}
 	}
 
-	return [
+	let result = [
 		scaleMin ==  inf ? null : scaleMin,
 		scaleMax == -inf ? null : scaleMax,
 	];
+	if (asinh)
+		result.push(minAbs == inf ? null : minAbs);
+	return result;
 }
 
 function scanScale(self, scaleKey, i0, i1, cache = false) {
@@ -4457,6 +4476,11 @@ function scanCached(self, scaleKey, i0, i1) {
 
 function scanCachedX(self, scaleKey) {
 	return scanScaleInternal(self, scaleKey, null, null, true, true);
+}
+
+function asinhScale(self, scaleKey) {
+	let idxs = self.mode == 1 && self.series[0].scale != scaleKey ? self.series[0].idxs : EMPTY_ARR;
+	return scanCached(self, scaleKey, idxs[0], idxs[1])[2] ?? 1;
 }
 
 function scanNone() {
@@ -4685,9 +4709,7 @@ function uPlot(opts, data, then) {
 				// Retains the declarative range policy for tick-aware ranging, or null for unsupported policies.
 				sc._policyY = rangeYPolicy;
 
-				let scan = sc.scan ?? (rangeIsArr && rn[0] != null && rn[1] != null ? false : null);
-				sc.scan = scan == null ? scanAuto : scan === true ? scanCached : scan === false ? scanNone : scan;
-
+				sc.scan ??= rangeIsArr && rn[0] != null && rn[1] != null ? false : null;
 
 				// caches for expensive ops like asinh() & log()
 				sc._min = sc._max = null;
@@ -4695,8 +4717,14 @@ function uPlot(opts, data, then) {
 				sc.valToPct = initValToPct(sc);
 			}
 
+			let scan = sc.scan;
+			// Live scale _minAbs stores the fixed scan.minAbs cutoff. Dependent scales inherit it unless scan is overridden.
+			if (sc.from == null || scaleOpts.scan != null)
+				sc._minAbs = isObj(scan) ? scan.minAbs ?? 0 : 0;
+			sc.scan = scan == null ? scanAuto : scan === true || isObj(scan) ? scanCached : scan === false ? scanNone : scan;
+
 			sc.clamp = fnOrSelf(sc.clamp ?? clampScale);
-			sc.asinh = fnOrSelf(sc.asinh);
+			sc.asinh = sc.asinh == null ? asinhScale : fnOrSelf(sc.asinh);
 		}
 	}
 
@@ -5239,6 +5267,8 @@ function uPlot(opts, data, then) {
 	// Unrounded CSS positions for visibility and resize, not the painted centers.
 	let cursorPtsLft = [];
 	let cursorPtsTop = [];
+	let cursorPtsWid = [];
+	let cursorPtsHgt = [];
 	let cursorPtSeries = null;
 
 	function initCursorPt(s, si) {
@@ -5316,6 +5346,8 @@ function uPlot(opts, data, then) {
 			cursorPts.splice(i, 0, pt);
 			cursorPtsLft.splice(i, 0, 0);
 			cursorPtsTop.splice(i, 0, 0);
+			cursorPtsWid.splice(i, 0, 0);
+			cursorPtsHgt.splice(i, 0, 0);
 		}
 
 		focusedSeries != null && setSeriesFocus(s, i);
@@ -5358,6 +5390,8 @@ function uPlot(opts, data, then) {
 			cursorPts.splice(i, 1)[0].remove();
 			cursorPtsLft.splice(i, 1);
 			cursorPtsTop.splice(i, 1);
+			cursorPtsWid.splice(i, 1);
+			cursorPtsHgt.splice(i, 1);
 		}
 
 		// TODO: de-init no-longer-needed scales?
@@ -5687,11 +5721,8 @@ function uPlot(opts, data, then) {
 			ctx.textBaseline = ctxBaseline = baseline;
 	}
 
-	function getScan(wsc, scaleKey, i0, i1) {
-		return wsc.scan(self, scaleKey, i0, i1, viaAutoScaleX);
-	}
-
 	function applyScanRange(wsc, psc, minMax, key) {
+		wsc._minAbs = minMax[2];
 		if (wsc._axisY && isFullyImplicit(psc.min, psc.max)) {
 			// Stores raw scanner extrema for layout-time ranging and preserves them across resizes.
 			scales[key]._rawY = minMax;
@@ -5734,15 +5765,16 @@ function uPlot(opts, data, then) {
 			resetYSeries(false);
 
 			for (let k in scales) {
-				if (k == xScaleKey)
+				// Mode 2 scans full facets, independent of the displayed X window.
+				if (mode == 2 || k == xScaleKey)
 					continue;
 
-				// Retain deferred invalidation when explicit bounds or auto suppress Y ranging.
+				// Asinh needs current-window statistics even when explicit bounds or auto suppress Y ranging.
 				if (!pendScales[xScaleKey].redraw)
 					redrawDirty.add(k);
 
 				let psc = pendScales[k];
-				if (redrawDirty.has(k) && psc != null && !isFullyExplicit(psc.min, psc.max))
+				if (redrawDirty.has(k) && (scales[k].distr == 4 || psc != null && !isFullyExplicit(psc.min, psc.max)))
 					resetScaleSeries(k);
 			}
 		}
@@ -5754,6 +5786,8 @@ function uPlot(opts, data, then) {
 
 			if (psc != null) {
 				let wsc = wipScales[k] = copy(scales[k], fastIsObj);
+				// Working-scale _minAbs holds a transient aggregate for adaptive threshold selection. Clear the copied cutoff before scanning.
+				wsc._minAbs = undefined;
 				if (scales[k]._rawY != null) {
 					shouldLayout = true;
 					scales[k]._rawY = null;
@@ -5764,7 +5798,7 @@ function uPlot(opts, data, then) {
 					wsc.max = psc.max;
 				}
 				else if (dataLen == 0 && wsc.from == null) {
-					let minMax = getScan(wsc, k);
+					let minMax = wsc.scan(self, k, undefined, undefined, viaAutoScaleX);
 					applyScanRange(wsc, psc, minMax, k);
 				}
 				else if (k != xScaleKey || mode == 2) {
@@ -5788,7 +5822,8 @@ function uPlot(opts, data, then) {
 
 					if (i == 0) {
 						if (!isFullyExplicit(psc.min, psc.max)) {
-							let minMax = wsc.scan == scanAuto || wsc.scan == scanCached ? scanCachedX(self, k) : getScan(wsc, k);
+							let minMax = wsc.scan == scanAuto || wsc.scan == scanCached ? scanCachedX(self, k) : wsc.scan(self, k, undefined, undefined, viaAutoScaleX);
+							wsc._minAbs = minMax[2];
 
 							applyCalculatedRange(wsc, psc, wsc.range(self, minMax[0], minMax[1], k), k);
 						}
@@ -5820,7 +5855,7 @@ function uPlot(opts, data, then) {
 				let psc = pendScales[k];
 
 				if (wsc.from == null && !isFullyExplicit(psc.min, psc.max) && (mode == 2 || k != xScaleKey)) {
-					let minMax = getScan(wsc, k, i0, i1);
+					let minMax = wsc.scan(self, k, i0, i1, viaAutoScaleX);
 					applyScanRange(wsc, psc, minMax, k);
 				}
 			}
@@ -5862,9 +5897,10 @@ function uPlot(opts, data, then) {
 			}
 
 			if (distr == 4) {
-				let linthresh = sc.asinh(self, k);
+				let linthresh = sc.asinh == asinhScale && wsc._minAbs !== undefined ? wsc._minAbs ?? 1 : sc.asinh(self, k);
 
 				if (sc._asinh != linthresh) {
+					// _asinh is the effective transform threshold from configuration or adaptive selection, including fallback 1.
 					sc._asinh = linthresh;
 					changed[k] = anyChanged = true;
 				}
@@ -6522,24 +6558,13 @@ function uPlot(opts, data, then) {
 		fire("drawAxes");
 	}
 
+	// Only mode-1 window changes and stacking invalidate individual scales.
 	function resetScaleSeries(scaleKey) {
 		redrawDirty.delete(scaleKey);
 		series.forEach((s, i) => {
-			if (i > 0) {
-				if (mode == 1) {
-					if (s.scale == scaleKey)
-						s.min = s.max = null;
-				}
-				else {
-					s.facets.forEach((facet, fi) => {
-						if (facet.scale == scaleKey) {
-							facet.min = facet.max = null;
-
-							if (fi == 1)
-								s.min = s.max = null;
-						}
-					});
-				}
+			if (i > 0 && s.scale == scaleKey) {
+				s.min = s.max = null;
+				if (s.minAbs !== undefined) s.minAbs = undefined;
 			}
 		});
 	}
@@ -6551,18 +6576,18 @@ function uPlot(opts, data, then) {
 			redrawDirty.clear();
 
 		series.forEach((s, i) => {
+			if (minMax && s.minAbs !== undefined) s.minAbs = undefined;
 			if (i > 0) {
 				s._paths = null;
 
 				if (minMax) {
-					if (mode == 1) {
-						s.min = null;
-						s.max = null;
-					}
-					else {
+					s.min = null;
+					s.max = null;
+					if (mode == 2) {
 						s.facets.forEach(f => {
 							f.min = null;
 							f.max = null;
+							if (f.minAbs !== undefined) f.minAbs = undefined;
 						});
 					}
 				}
@@ -7204,7 +7229,7 @@ function uPlot(opts, data, then) {
 		}
 	}
 
-	function setCursorPointPos(pt, si, left, top) {
+	function setCursorPointPos(pt, si, left, top, width, height) {
 		let s = series[si];
 
 		if (cursor.left < 0 || s == null || !s.show) {
@@ -7213,7 +7238,10 @@ function uPlot(opts, data, then) {
 		}
 
 		if (points.bbox != null) {
-			elTrans(pt, ceil(left), ceil(top), plotWidCss, plotHgtCss);
+			let off = width <= 0 || height <= 0 || left + width <= 0 || top + height <= 0 || left >= plotWidCss || top >= plotHgtCss;
+
+			// Preserve exact CSS bounds and show rectangles that partially overlap the plot.
+			elTrans(pt, left, top, plotWidCss, plotHgtCss, off);
 			return;
 		}
 
@@ -7278,7 +7306,7 @@ function uPlot(opts, data, then) {
 	function syncCursorPoints() {
 		cursorPts.forEach((pt, i) => {
 			if (pt != null && cursorPtsLft[i] != null)
-				setCursorPointPos(pt, cursorOnePt ? cursorPtSeries : i, cursorPtsLft[i], cursorPtsTop[i]);
+				setCursorPointPos(pt, cursorOnePt ? cursorPtSeries : i, cursorPtsLft[i], cursorPtsTop[i], cursorPtsWid[i], cursorPtsHgt[i]);
 		});
 	}
 
@@ -7455,10 +7483,12 @@ function uPlot(opts, data, then) {
 							if (pt != null) {
 								cursorPtsLft[i] = ptLft;
 								cursorPtsTop[i] = ptTop;
+								cursorPtsWid[i] = ptWid;
+								cursorPtsHgt[i] = ptHgt;
 
 								elSize(pt, ptWid, ptHgt, centered);
 								elColor(pt, ptFill, ptStroke);
-								setCursorPointPos(pt, i, ptLft, ptTop);
+								setCursorPointPos(pt, i, ptLft, ptTop, ptWid, ptHgt);
 							}
 						}
 					}
@@ -7476,11 +7506,13 @@ function uPlot(opts, data, then) {
 					if (pt != null) {
 						cursorPtsLft[0] = _ptLft;
 						cursorPtsTop[0] = _ptTop;
+						cursorPtsWid[0] = _ptWid;
+						cursorPtsHgt[0] = _ptHgt;
 
 						elSize(pt, _ptWid, _ptHgt, _centered);
 						elColor(pt, _ptFill, _ptStroke);
 						cursorPtSeries = pointSeries;
-						setCursorPointPos(pt, cursorPtSeries, _ptLft, _ptTop);
+						setCursorPointPos(pt, cursorPtSeries, _ptLft, _ptTop, _ptWid, _ptHgt);
 					}
 				}
 			}

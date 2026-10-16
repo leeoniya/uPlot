@@ -212,7 +212,7 @@ describe('redraw scan cache', () => {
 			}
 		}
 
-		it(`mode ${mode}: X zoom with explicit Y defers invalidation until redraw, then reuses caches`, async () => {
+		it(`mode ${mode}: X zoom with explicit Y refreshes the correct extrema on redraw, then reuses caches`, async () => {
 			const f = makePlot(mode);
 			try {
 				await Promise.resolve();
@@ -227,7 +227,7 @@ describe('redraw scan cache', () => {
 				assert.deepEqual(bounds(owner), [10, 200], 'explicit Y retains public caches during zoom');
 
 				const extrema = mode == 1 ? [10, 30] : [10, 200];
-				for (const rescanned of [true, false]) {
+				for (const rescanned of [mode == 1, false]) {
 					const oldPaths = f.reset();
 					f.u.redraw();
 					await Promise.resolve();
@@ -274,7 +274,7 @@ describe('redraw scan cache', () => {
 
 					auto = true;
 					const extrema = mode == 1 ? [10, 30] : [10, 200];
-					for (const rescanned of [true, false]) {
+					for (const rescanned of [mode == 1, false]) {
 						const oldPaths = f.reset();
 						f.u.redraw(true, true);
 						await Promise.resolve();
@@ -307,7 +307,7 @@ describe('redraw scan cache', () => {
 							await Promise.resolve();
 							assert.deepEqual(bounds(f.u.scales.x), reset ? [0, 5] : [1, 3]);
 							const extrema = mode == 1 && !reset ? [10, 30] : [10, 200];
-							assertRefresh(f, oldPaths, extrema, true);
+							assertRefresh(f, oldPaths, extrema, mode == 1);
 							assert.deepEqual(bounds(f.u.scales.y), extrema);
 						}
 						finally {

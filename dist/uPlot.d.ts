@@ -146,9 +146,12 @@ declare class uPlot {
 
 	/**
 	 * returns aggregate data extrema for a scale. nullish indices use the full array bounds.
-	 * cache = true reuses and populates extrema caches, regardless of the requested interval. default: false.
+	 * asinh scales also return minAbs, even with an explicit asinh threshold.
+	 * built-in scans use the scale.scan.minAbs cutoff captured at initialization.
+	 * cache = true reuses and populates caches. default: false.
+	 * cached callers must use the interval associated with the current series/facet caches; interval changes are not checked.
 	 */
-	static scan(self: uPlot, scaleKey: string, i0?: number | null, i1?: number | null, cache?: boolean): uPlot.Range.MinMax;
+	static scan(self: uPlot, scaleKey: string, i0?: number | null, i1?: number | null, cache?: boolean): uPlot.ScanResult;
 
 	/** expands/snaps numeric bounds with padding and optional zero affinity */
 	static rangeNum(min: number, max: number, mult: number, zeroAffinity: boolean): uPlot.Range.MinMax;
@@ -704,10 +707,30 @@ declare namespace uPlot {
 		event?: MouseEvent;
 	}
 
+	/**
+	 * Custom asinh callbacks must return [min, max, minAbs].
+	 * For built-in scans, minAbs is the smallest absolute value strictly greater than scale.scan.minAbs, or null if none qualifies.
+	 * The cutoff does not exclude values from min/max.
+	 * The third element is optional in this type to permit pairs for other distributions.
+	 */
+	export type ScanResult = [min: number | null, max: number | null, minAbs?: number | null];
+
 	export namespace Scale {
 		export type Auto = boolean | ((self: uPlot, resetScales: boolean) => boolean);
 
-		export type Scan = boolean | ((self: uPlot, scaleKey: string, i0?: number | null, i1?: number | null, viaAutoScaleX?: boolean) => Range.MinMax);
+		/** Custom asinh callbacks must return all three ScanResult elements; pair-only results are not supported for asinh. */
+		export type Scan = boolean | Scan.Config | ((self: uPlot, scaleKey: string, i0?: number | null, i1?: number | null, viaAutoScaleX?: boolean) => ScanResult);
+
+		export namespace Scan {
+			/** Selects the built-in cached scanner, like scan: true. */
+			export interface Config {
+				/**
+				 * Exclusive lower magnitude cutoff for asinh minAbs (default: 0). Captured at initialization.
+				 * Does not affect min/max, other distributions, or explicit asinh thresholds.
+				 */
+				minAbs?: number;
+			}
+		}
 
 		export type Range = Range.MinMax | Range.Function | Range.Config;
 
@@ -732,8 +755,11 @@ declare namespace uPlot {
 		auto?: Scale.Auto;
 
 		/**
-		 * calculates data extrema for range(). true uses the cached scanner; false supplies [null, null].
-		 * custom callbacks must populate participating series/facet min/max caches.
+		 * Calculates data extrema for range(). true or a configuration object selects the built-in cached scanner. false supplies [null, null].
+		 * The configuration is captured at initialization. Dependent scales inherit the cutoff unless they override scan.
+		 * Custom callbacks must populate participating series/facet min/max caches.
+		 * Custom asinh callbacks must return [min, max, minAbs]. Use null when no value qualifies.
+		 * Adaptive asinh consumes that minAbs without another data scan. null selects fallback 1. Pair-only asinh callbacks are not supported.
 		 */
 		scan?: Scale.Scan;
 
@@ -750,10 +776,8 @@ declare namespace uPlot {
 		log?: Scale.LogBase; // 10;
 
 		/**
-		 * For log scales, replaces values <= 0 during positioning (default: scaleMin / 10).
-		 * For default adaptive asinh, excludes absolute values <= this nonnegative cutoff from threshold selection (default: 0).
-		 * Adaptive asinh calls the callback once per threshold calculation, with val = 0 and the current scale bounds.
-		 * The asinh cutoff does not clamp data values or affect explicit numeric or callback asinh settings.
+		 * For log scales only, replaces values <= 0 during positioning (default: scaleMin / 10).
+		 * Accepts a number or callback and normalizes to a function. Has no effect on asinh scales.
 		 */
 		clamp?: Scale.Clamp;
 
@@ -1036,6 +1060,9 @@ declare namespace uPlot {
 			/** cached data extrema */
 			min?: number | null;
 			max?: number | null;
+
+			/** Cached asinh statistic above the scale.scan.minAbs cutoff. null means none qualifies. undefined means invalid or uncomputed. */
+			minAbs?: number | null;
 		}
 
 		export type Gap = [from: number, to: number];
@@ -1142,6 +1169,9 @@ declare namespace uPlot {
 
 		/** cached maximum data value */
 		max?: number | null;
+
+		/** Cached asinh statistic above the scale.scan.minAbs cutoff. Mode 2 mirrors facet 1. null means none qualifies. undefined means invalid or uncomputed. */
+		minAbs?: number | null;
 	}
 
 	export namespace Band {

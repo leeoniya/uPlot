@@ -37,12 +37,12 @@ function checkTransform(u, threshold, values = [-0.25, 0, 0.25, 2]) {
 describe('scale clamp', () => {
 	for (const mode of [1, 2]) {
 		it(`admits tiny nonzero values with default and zero cutoffs (mode ${mode})`, async () => {
-			for (const options of [{}, { clamp: null }, { clamp: 0 }]) {
+			for (const options of [{}, { scan: true }, { scan: {} }, { scan: { minAbs: undefined } }, { scan: { minAbs: 0 } }]) {
 				const u = plot(mode, options, [0, -0, null, -1e-128, 1e-128, 2]);
 				try {
 					await Promise.resolve();
+					assert.equal(typeof u.scales.y.scan, 'function');
 					assert.equal(typeof u.scales.y.clamp, 'function');
-					assert.equal(u.scales.y.clamp(u, 0, -10, 10, 'y'), 0);
 					checkTransform(u, 1e-128, [-1e-128, 0, 1e-128]);
 					u.setData(toData(mode, [0, -0, null, -1e-129, 1e-129, 2]));
 					await Promise.resolve();
@@ -57,10 +57,10 @@ describe('scale clamp', () => {
 
 		it(`excludes absolute values at or below a numeric cutoff without clamping coordinates (mode ${mode})`, async () => {
 			const above = 2 * (1 + Number.EPSILON);
-			const u = plot(mode, { clamp: 2 }, [-2, 2, -0.25, 0, 0.25, 4]);
+			const u = plot(mode, { scan: { minAbs: 2 } }, [-2, 2, -0.25, 0, 0.25, 4]);
 			try {
 				await Promise.resolve();
-				assert.equal(u.scales.y.clamp(u, 0, -10, 10, 'y'), 2);
+				assert.deepEqual(uPlot.scan(u, 'y'), [-2, 4, 4]);
 				checkTransform(u, 4);
 				for (const values of [[-2, 2, above], [-2, 2, -above]]) {
 					u.setData(toData(mode, values));
@@ -74,40 +74,6 @@ describe('scale clamp', () => {
 			finally { u.destroy(); }
 		});
 
-		it(`calls the cutoff once per adaptive calculation across same-range updates (mode ${mode})`, async () => {
-			const calls = [];
-			let cutoff = 0.5;
-			const clamp = (...args) => {
-				calls.push(args);
-				return cutoff;
-			};
-			const u = plot(mode, { clamp }, [-8, -2, -0.5, 0, 0.5, 2, 8]);
-			const check = (count, threshold) => {
-				assert.equal(u.scales.y.clamp, clamp);
-				assert.equal(calls.length, count);
-				assert.deepEqual(calls[count - 1], [u, 0, -10, 10, 'y']);
-				assert.deepEqual([u.scales.y.min, u.scales.y.max], [-10, 10]);
-				checkTransform(u, threshold);
-				assert.equal(calls.length, count, 'coordinate conversion must not call the cutoff');
-			};
-			try {
-				await Promise.resolve();
-				check(1, 2);
-				for (const [resetScales, threshold, count] of [[true, 3, 2], [false, 4, 3]]) {
-					cutoff = 1;
-					u.setData(toData(mode, [-8, -threshold, -0.25, 0, 0.25, threshold, 8]), resetScales);
-					if (!resetScales)
-						u.redraw();
-					await Promise.resolve();
-					check(count, threshold);
-				}
-				cutoff = 4;
-				u.setScale('x', { min: 1, max: 6 });
-				await Promise.resolve();
-				check(4, 8);
-			}
-			finally { u.destroy(); }
-		});
 
 		it(`bypasses the cutoff for numeric and callback asinh settings (mode ${mode})`, async () => {
 			for (const custom of [false, true]) {
@@ -115,7 +81,7 @@ describe('scale clamp', () => {
 				const asinh = custom ? (...args) => { calls.push(args); return 2; } : 2;
 				const u = plot(mode, {
 					asinh,
-					clamp: () => assert.fail('explicit asinh must bypass the cutoff'),
+					scan: { minAbs: 100 },
 				}, [-0.01, 0, 0.01]);
 				try {
 					await Promise.resolve();
@@ -134,8 +100,8 @@ describe('scale clamp', () => {
 			}
 		});
 
-		it(`normalizes inherited and overridden dependent numeric clamps (mode ${mode})`, async () => {
-			const u = plot(mode, { clamp: 2 }, [-8, 0, 8], {
+		it(`normalizes inherited and overridden dependent log clamps (mode ${mode})`, async () => {
+			const u = plot(mode, { distr: 3, clamp: 2, range: [1, 100] }, [1, 10, 100], {
 				inherited: { from: 'y' },
 				zero: { from: 'y', clamp: 0 },
 				override: { from: 'y', clamp: 4 },
@@ -145,11 +111,28 @@ describe('scale clamp', () => {
 				for (const [key, expected] of [['y', 2], ['inherited', 2], ['zero', 0], ['override', 4]]) {
 					const sc = u.scales[key];
 					assert.equal(typeof sc.clamp, 'function');
-					assert.equal(sc.clamp(u, 0, sc.min, sc.max, key), expected);
+					assert.equal(sc.clamp(u, 0, 1, 100, key), expected);
 				}
 				assert.equal(u.scales.inherited.clamp, u.scales.y.clamp);
 			}
 			finally { u.destroy(); }
+		});
+
+		it(`ignores numeric and callback clamps for asinh scans and coordinates (mode ${mode})`, async () => {
+			for (const clamp of [100, () => { throw new Error('asinh must not call clamp'); }]) {
+				for (const scan of [undefined, { minAbs: 2 }]) {
+					const u = plot(mode, { clamp, scan }, [-8, -0.25, 0, 2, 4]);
+					try {
+						await Promise.resolve();
+						const threshold = scan ? 4 : 0.25;
+						assert.equal(typeof u.scales.y.clamp, 'function');
+						checkTransform(u, threshold);
+						assert.deepEqual(uPlot.scan(u, 'y'), [-8, 4, threshold]);
+						assert.deepEqual(uPlot.scan(u, 'y', null, null, true), [-8, 4, threshold]);
+					}
+					finally { u.destroy(); }
+				}
+			}
 		});
 
 		it(`retains default and numeric log clamps only for nonpositive values (mode ${mode})`, async () => {
@@ -158,6 +141,8 @@ describe('scale clamp', () => {
 				try {
 					await Promise.resolve();
 					const sc = u.scales.y;
+					assert.equal(typeof sc.clamp, 'function');
+					assert.equal(sc.clamp(u, 0, 1, 100, 'y'), replacement);
 					for (const value of [-10, -0, 0])
 						assert.equal(sc.valToPct(value), Math.log10(replacement) / 2);
 					for (const value of [0.01, 1, 10, 100])

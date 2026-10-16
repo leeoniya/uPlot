@@ -709,7 +709,16 @@ const RE_12357 = /[12357]/;
 const RE_125   = /[125]/;
 const RE_1     = /1/;
 
-const _filt = (splits, distr, re, keepMod) => splits.map((v, i) => ((distr == 4 && v == 0) || i % keepMod == 0 && re.test(v.toExponential()[v < 0 ? 1 : 0])) ? v : null);
+const _filt = (splits, distr, re, keepMod, logFn) => {
+	let asinh = distr == 4;
+	// Share the asinh skip phase across signs, counting powers rather than base-10 mantissas.
+	let mag = asinh && keepMod > 1 ? floor(logFn(max(abs(splits[0]), abs(splits.at(-1))))) : null;
+
+	return splits.map((v, i) => (asinh && v == 0 ||
+		re.test(v.toExponential()[v < 0 ? 1 : 0]) &&
+		(mag == null ? i : mag - round(logFn(abs(v)))) % keepMod == 0
+	) ? v : null);
+};
 
 export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let axis = self.axes[axisIdx];
@@ -740,7 +749,7 @@ export function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) 
 		let magSpace = abs(valToPos(linthresh, scaleKey) - _10);
 
 		if (magSpace < minSpace)
-			return _filt(splits.slice().reverse(), sc.distr, re, ceil(minSpace / magSpace)).reverse(); // max->min skip
+			return _filt(splits.slice().reverse(), sc.distr, re, ceil(minSpace / magSpace), log10).reverse(); // max->min skip
 	}
 
 	return _filt(splits, sc.distr, re, 1);
@@ -761,7 +770,7 @@ export function log2AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 	let magSpace = abs(valToPos(linthresh, scaleKey) - valToPos(2 * linthresh, scaleKey));
 
 	if (magSpace < minSpace)
-		return _filt(splits.slice().reverse(), sc.distr, RE_ALL, ceil(minSpace / magSpace)).reverse(); // max->min skip
+		return _filt(splits.slice().reverse(), sc.distr, RE_ALL, ceil(minSpace / magSpace), log2).reverse(); // max->min skip
 
 	return splits;
 }
@@ -877,41 +886,7 @@ export function clampScale(self, val, scaleMin, scaleMax, scaleKey) {
 		return self.posToVal(cssHgt + fromBtm, scaleKey);
 	}
 */
-	return self.scales[scaleKey].distr == 4 ? 0 : scaleMin / 10;
-}
-
-function asinhScale(self, scaleKey) {
-	let { series, data, mode } = self;
-	let sc = self.scales[scaleKey];
-	let cutoff = sc.clamp(self, 0, sc.min, sc.max, scaleKey);
-	let linthresh = inf;
-
-	for (let i = 1; i < series.length; i++) {
-		let s = series[i];
-
-		if (!s.show || !s.scan)
-			continue;
-
-		for (let fi = 0; fi < (mode == 1 ? 1 : s.facets.length); fi++) {
-			let scale = mode == 1 ? s.scale : s.facets[fi].scale;
-
-			if (scale == scaleKey && (mode == 1 || s.facets[fi].scan)) {
-				let yData = mode == 1 ? data[i] : data[i][fi];
-				let [i0, i1] = mode == 1 ? series[0].idxs : [0, yData.length - 1];
-
-				for (let j = i0; j <= i1; j++) {
-					if (yData[j] != null) {
-						let val = abs(yData[j]);
-
-						if (val > cutoff && val < linthresh)
-							linthresh = val;
-					}
-				}
-			}
-		}
-	}
-
-	return linthresh == inf ? 1 : linthresh;
+	return scaleMin / 10;
 }
 
 export const xScaleOpts = {
@@ -919,7 +894,7 @@ export const xScaleOpts = {
 	auto: true,
 	distr: 1,
 	log: 10,
-	asinh: asinhScale,
+	asinh: null,
 	min: null,
 	max: null,
 	dir: 1,

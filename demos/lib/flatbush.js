@@ -80,6 +80,8 @@ class Flatbush {
     #levelBounds;
     #pos = 0;
     #queue = new Queue();
+    /** @type {Int32Array | undefined} */
+    #hilbertValues;
 
     /**
      * Create a Flatbush index that will hold a given number of items.
@@ -107,6 +109,15 @@ class Flatbush {
 
         this.#boxes = new ArrayType(numNodes * 4);
         this.#indices = new this.IndexArrayType(numNodes);
+        this.minX = Infinity;
+        this.minY = Infinity;
+        this.maxX = -Infinity;
+        this.maxY = -Infinity;
+    }
+
+    /** Reuse storage for the same item count; add all items and finish before searching. */
+    reset() {
+        this.#pos = 0;
         this.minX = Infinity;
         this.minY = Infinity;
         this.maxX = -Infinity;
@@ -158,7 +169,7 @@ class Flatbush {
         const levelBounds = this.#levelBounds;
         const width = (this.maxX - minX) || 1;
         const height = (this.maxY - minY) || 1;
-        const hilbertValues = new Int32Array(numItems);
+        const hilbertValues = this.#hilbertValues ??= new Int32Array(numItems);
         const hilbertMax = (1 << 16) - 1;
         const sx = hilbertMax / width;
         const sy = hilbertMax / height;
@@ -211,14 +222,19 @@ class Flatbush {
 
     /**
      * Search the index by a bounding box.
+     * Supplied arrays are cleared at entry; use separate arrays for nested searches.
      * @param {number} minX
      * @param {number} minY
      * @param {number} maxX
      * @param {number} maxY
      * @param {(index: number, x0: number, y0: number, x1: number, y1: number) => boolean} [filterFn] An optional function that is called on every found item; if supplied, only items for which this function returns true will be included in the results array.
+     * @param {number[]} [results=[]] Caller-owned result array.
+     * @param {number[]} [q=[]] Caller-owned traversal scratch array, distinct from results.
      * @returns {number[]} An array of indices of items intersecting or touching the given bounding box.
      */
-    search(minX, minY, maxX, maxY, filterFn) {
+    search(minX, minY, maxX, maxY, filterFn, results = [], q = []) {
+        results.length = 0;
+        q.length = 0;
         const {nodeSize} = this;
         const boxes = this.#boxes;
         const levelBounds = this.#levelBounds;
@@ -228,8 +244,6 @@ class Flatbush {
         /** @type number | undefined */
         let nodeIndex = boxes.length - 4;
         let level = levelBounds.length - 1; // start at the root level
-        const q = [];
-        const results = [];
 
         let contained = false; // whether the current node's bbox is fully inside the query
 

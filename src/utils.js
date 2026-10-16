@@ -88,6 +88,31 @@ export function getMinMax(data, _i0, _i1, sorted = 0, log = false) {
 	return [_min ?? inf, _max ?? -inf]; // todo: fix to return nulls
 }
 
+export function getMinMaxAsinh(data, i0, i1, sorted = 0, cutoff = 0) {
+	// Keep the sorted argument for scan compatibility; asinh always uses one pass.
+	let _min = inf;
+	let _max = -inf;
+	let minAbs = inf;
+
+	for (let i = i0; i <= i1; i++) {
+		let v = data[i];
+
+		if (v != null) {
+			if (v < _min)
+				_min = v;
+			if (v > _max)
+				_max = v;
+
+			let a = abs(v);
+
+			if (a > cutoff && a < minAbs)
+				minAbs = a;
+		}
+	}
+
+	return [_min, _max, minAbs];
+}
+
 export function rangeLog(min, max, base, fullMags) {
 	if (base == 2)
 		fullMags = true;

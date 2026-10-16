@@ -1,0 +1,11 @@
+body { margin: 24px; color: #b7bdc5; background: #181b1f; font: 14px system-ui, sans-serif; }
+h1 { font-size: 20px; }
+a { color: #8ab4f8; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
+#height { width: min(400px, 50vw); }
+#height-value { min-width: 6ch; }
+#plot { width: 100%; height: 560px; position: relative; }
+#legend { width: 260px; margin: 12px 0 12px 85px; }
+#color-ramp { height: 10px; }
+#color-labels { display: flex; justify-content: space-between; margin-top: 4px; }
+#hover { display: block; min-height: 2em; font: 13px monospace; }
