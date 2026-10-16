@@ -270,7 +270,7 @@ describe('asinh scale scan', () => {
 			finally { u.destroy(); }
 		});
 
-		for (const scale of [{ min: -20, max: 20 }, { scan: false }, { scan: false, min: -20, max: 20 }]) {
+		for (const scale of [{}, { min: -20, max: 20 }]) {
 			it(`mode ${mode}: default adaptive asinh works with ${JSON.stringify(scale)}`, async () => {
 				const input = tracked([-8, -2, 0, 3, 8]);
 				const u = makePlot(mode, input.data, scale);
@@ -289,6 +289,42 @@ describe('asinh scale scan', () => {
 				}
 				finally { u.destroy(); }
 			});
+		}
+
+		for (const bounds of [{}, { min: -20, max: 20 }]) {
+			for (const asinh of [undefined, 4, () => 4]) {
+				it(`mode ${mode}: scan:false avoids threshold reads with ${JSON.stringify(bounds)} and ${typeof asinh} asinh`, async () => {
+					const input = tracked([-8, -2, 0, 3, 8]);
+					const u = makePlot(mode, input.data, { ...bounds, scan: false, asinh });
+					const expected = asinh == null ? 1 : 4;
+					try {
+						await Promise.resolve();
+						assert.equal(u.scales.y._asinh, expected);
+						assert.equal(owner(u).minAbs, undefined);
+						assert.deepEqual(input.reads, []);
+						assert.equal(u.scales.y.asinh(u, 'y'), expected);
+						u.setScale('y', { min: -30, max: 30 });
+						await Promise.resolve();
+						u.redraw();
+						await Promise.resolve();
+						input.values[1] = -5;
+						u.setData(toData(mode, input.data));
+						await Promise.resolve();
+						assert.equal(u.scales.y._asinh, expected);
+						assert.equal(owner(u).minAbs, undefined);
+						assert.deepEqual(input.reads, [], 'initialization, zoom, redraw, and setData must not scan Y');
+						assert.deepEqual(uPlot.scan(u, 'y', null, null, true), [-8, 8, 3]);
+						assertOnePass(input);
+						assert.equal(owner(u).minAbs, 3, 'explicit scans still populate the statistic');
+						input.reset();
+						u.redraw();
+						await Promise.resolve();
+						assert.equal(u.scales.y._asinh, expected, 'a cached statistic must not enable adaptive selection');
+						assert.deepEqual(input.reads, []);
+					}
+					finally { u.destroy(); }
+				});
+			}
 		}
 
 		it(`mode ${mode}: captures scan configuration before the first scan and retains it after invalidation`, async () => {
@@ -386,11 +422,11 @@ describe('asinh scale scan', () => {
 				await Promise.resolve();
 				for (const [key, expected, cutoff] of [['y', 3, 2], ['inherited', 3, 2], ['overridden', 8, 4], ['empty', 2, 0], ['enabled', 2, 0], ['disabled', 2, 0]]) {
 					assertCutoff(u, key, cutoff);
-					assert.equal(u.scales[key]._asinh, expected, 'derived-scale fallback must not consume the copied cutoff');
+					assert.equal(u.scales[key]._asinh, key == 'disabled' ? 1 : expected, 'derived-scale fallback must honor scan:false and ignore the copied cutoff');
 					assert.equal(typeof u.scales[key].scan, 'function');
 					assert.deepEqual(uPlot.scan(u, key), [-8, 8, expected]);
 					assert.deepEqual(uPlot.scan(u, key, null, null, true), [-8, 8, expected]);
-					assert.equal(u.scales[key].asinh(u, key), expected);
+					assert.equal(u.scales[key].asinh(u, key), key == 'disabled' ? 1 : expected);
 				}
 				assert.equal(u.scales.inherited.scan, u.scales.y.scan);
 				assert.deepEqual(u.scales.disabled.scan(u, 'disabled'), [null, null]);

@@ -4482,6 +4482,9 @@ var uPlot = (function () {
 	}
 
 	function asinhScale(self, scaleKey) {
+		if (self.scales[scaleKey].scan == scanNone)
+			return 1;
+
 		let idxs = self.mode == 1 && self.series[0].scale != scaleKey ? self.series[0].idxs : EMPTY_ARR;
 		return scanCached(self, scaleKey, idxs[0], idxs[1])[2] ?? 1;
 	}

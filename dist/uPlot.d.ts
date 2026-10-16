@@ -756,7 +756,9 @@ declare namespace uPlot {
 
 		/**
 		 * Calculates data extrema for range(). true or a configuration object selects the built-in cached scanner. false supplies [null, null].
-		 * The configuration is captured at initialization. Dependent scales inherit the cutoff unless they override scan.
+		 * false also disables adaptive asinh scans. The threshold defaults to 1 unless asinh supplies a number or callback.
+				 * Explicit uPlot.scan() calls still scan the data.
+				 * The configuration is captured at initialization. Dependent scales inherit the cutoff unless they override scan.
 		 * Custom callbacks must populate participating series/facet min/max caches.
 		 * Custom asinh callbacks must return [min, max, minAbs]. Use null when no value qualifies.
 		 * Adaptive asinh consumes that minAbs without another data scan. null selects fallback 1. Pair-only asinh callbacks are not supported.
@@ -781,7 +783,7 @@ declare namespace uPlot {
 		 */
 		clamp?: Scale.Clamp;
 
-		/** arcsinh linear threshold (default: adaptive) */
+		/** arcsinh linear threshold (default: adaptive, or 1 with scan:false, auto:false, or a static range array) */
 		asinh?: number | ((self: uPlot, scaleKey: string) => number);
 
 		/** forward transform fn, with custom distr: 100 */
