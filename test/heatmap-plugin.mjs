@@ -2,9 +2,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
+import { rangeY } from '../src/rangeY.js';
 import { heatmapPlugin } from '../demos/lib/heatmapPlugin.js';
 import { createDemo } from '../demos/heatmap-cells.js';
 import Flatbush from '../demos/lib/flatbush.js';
+
+function linearDemoBounds(u, min, max) {
+	const result = rangeY(min, max, u.bbox.height / u.pxRatio);
+	return [result?.min ?? null, result?.max ?? null];
+}
 
 const empty = () => [null, [[], [], [], []]];
 const enter = u => u.over.dispatchEvent(new MouseEvent('mouseenter'));
@@ -1285,8 +1291,10 @@ describe('heatmap cells demo integration', () => {
 			}
 			signed.checked = false; signed.dispatchEvent(new Event('change')); await Promise.resolve();
 			await checkMasks(320);
-			select.value = 'log'; select.dispatchEvent(new Event('change')); await Promise.resolve();
-			await checkMasks();
+			for (const mode of ['log', 'log10']) {
+				select.value = mode; select.dispatchEvent(new Event('change')); await Promise.resolve();
+				await checkMasks();
+			}
 		}
 		finally { demo?.destroy(); root.remove(); }
 	});
@@ -1304,7 +1312,7 @@ describe('heatmap cells demo integration', () => {
 		assert.ok(signed, 'the signed-data checkbox exists');
 		assert.equal(signed.type, 'checkbox');
 		assert.equal(signed.checked, false);
-		assert.deepEqual(Array.from(select.options, o => o.value), ['log', 'linear', 'asinh']);
+		assert.deepEqual(Array.from(select.options, o => o.value), ['log', 'log10', 'linear', 'asinh']);
 		assert.equal(select.value, 'log');
 		assert.ok(height.disabled && button.disabled && select.disabled && signed.disabled && color.disabled);
 		const registrations = [], removals = [], restore = [];
@@ -1397,7 +1405,7 @@ describe('heatmap cells demo integration', () => {
 				checkDemoColors(u, retainedColor, minCount, maxCount);
 				assert.equal(u.scales.y.distr, distr);
 				assert.deepEqual([u.scales.x.min, u.scales.x.max], [0, 480]);
-				assert.deepEqual([u.scales.y.min, u.scales.y.max], mode == 'log' ? [2 ** -16, 2 ** -4] : [0, maxY]);
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], mode == 'log' ? [2 ** -16, 2 ** -4] : mode == 'asinh' ? [0, 2 ** -4] : linearDemoBounds(u, 0, maxY));
 				assert.equal(u.scales.y.asinh(u, 'y'), minY);
 				if (mode == 'asinh') {
 					for (const change of [() => u.redraw(), () => u.setScale('y', { min: .02, max: 2 }), () => u.setSize({ width: 777, height: 720 })]) {
@@ -1441,7 +1449,7 @@ describe('heatmap cells demo integration', () => {
 		finally { demo?.destroy(); restore.forEach(fn => fn()); root.remove(); }
 	});
 
-	for (const initialMode of ['log', 'linear', 'asinh']) {
+	for (const initialMode of ['log', 'log10', 'linear', 'asinh']) {
 		it(`toggles signed demo data from ${initialMode}, preserves dimensions, and restores log availability`, async () => {
 			const root = createDemoRoot(), select = root.querySelector('#y-scale'), signed = root.querySelector('#signed-data');
 			select.value = initialMode;
@@ -1464,11 +1472,11 @@ describe('heatmap cells demo integration', () => {
 				assert.equal(destroyed, 1); assert.equal(old.root.isConnected, false);
 				assert.equal(root.querySelectorAll('.uplot').length, 1);
 				assert.deepEqual([demo.plot.width, demo.plot.height], [777, 640]);
-				assert.equal(select.value, initialMode == 'log' ? 'asinh' : initialMode);
+				assert.equal(select.value, initialMode.startsWith('log') ? 'asinh' : initialMode);
 				assert.equal(color.value, 'log', 'signed recreation retains color selection');
 				assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels.log);
 				checkDemoColors(demo.plot, 'log', 1, 4);
-				assert.equal(select.querySelector('option[value="log"]').disabled, true);
+				for (const option of select.querySelectorAll('option[value^="log"]')) assert.equal(option.disabled, true);
 				assert.notEqual(data, original);
 				assert.equal(xs.length, original[1][0].length * 2);
 				let index = 0;
@@ -1523,7 +1531,7 @@ describe('heatmap cells demo integration', () => {
 						u.setCursor({ left: (x + w / 2 - u.bbox.left) / u.pxRatio, top: (y + h / 2 - u.bbox.top) / u.pxRatio });
 						assert.equal(u.cursor.dataIdx(u, 1), box.id);
 						const format = v => Number(v.toPrecision(5)).toString();
-						assert.ok(root.querySelector('#hover').textContent.includes(`Y: ${format(lo[box.id])}–${format(hi[box.id])}`));
+						assert.ok(root.querySelector('#hover').textContent.includes(`Y: ${lo[box.id]} s–${hi[box.id]} s`));
 						assert.ok(root.querySelector('#hover').textContent.includes(`Count: ${format(counts[box.id])}`));
 					}
 					const setData = u.setData;
@@ -1535,7 +1543,7 @@ describe('heatmap cells demo integration', () => {
 				const lastSigned = demo.plot;
 				signed.checked = false; signed.dispatchEvent(new Event('change')); await Promise.resolve();
 				assert.equal(lastSigned.root.isConnected, false);
-				assert.equal(select.querySelector('option[value="log"]').disabled, false);
+				for (const option of select.querySelectorAll('option[value^="log"]')) assert.equal(option.disabled, false);
 				assert.equal(demo.plot.data, original);
 				assert.equal(color.value, 'log'); checkDemoColors(demo.plot, 'log', 1, 4);
 				assert.deepEqual(original, originalSnapshot); assert.equal(JSON.stringify(frames), snapshot);
@@ -1567,11 +1575,12 @@ describe('heatmap cells demo integration', () => {
 				const u = demo.plot;
 				assert.equal(u.data, replacement, 'display changes retain externally replaced data');
 				assert.deepEqual([u.scales.x.min, u.scales.x.max], [240, 360]);
-				assert.deepEqual([u.scales.y.min, u.scales.y.max], [-8, 0]);
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], mode == 'linear' ? linearDemoBounds(u, -8, 0) : [-8, 0]);
 				assert.equal(u.scales.y.asinh(noReads, 'y'), .5, 'nearest edge is not the signed minimum');
 				assert.deepEqual(u.scales.x.range(noReads, null, null, 'x'), [240, 360]);
-				assert.deepEqual(u.scales.y.range(noReads, null, null, 'y'), [-8, 0]);
-				for (const key of ['x', 'y']) assert.deepEqual(u.scales[key].scan(noReads, key), [null, null]);
+				if (mode != 'linear') assert.deepEqual(u.scales.y.range(noReads, null, null, 'y'), [-8, 0]);
+				assert.deepEqual(u.scales.x.scan(noReads, 'x'), [null, null]);
+				assert.deepEqual(u.scales.y.scan(noReads, 'y'), mode == 'linear' ? [-8, 0] : [null, null]);
 				if (mode == 'asinh') assert.equal(u.scales.y._asinh, .5);
 				checkOracle(u, sourceFixture(replacement, 60), false);
 				root.querySelector('#set-data').click(); await Promise.resolve();
@@ -1612,8 +1621,10 @@ describe('heatmap cells demo integration', () => {
 					assert.equal(u.data[1][0].length, lo.length * (signed ? 2 : 1));
 					assert.equal(u.scales.y.asinh(u, 'y'), cutoff * 2, 'edges equal to minAbs do not qualify on any display');
 					if (mode == 'asinh') assert.equal(u.scales.y._asinh, cutoff * 2);
-					assert.deepEqual(u.scales.y.scan(u, 'y'), [null, null]);
-					assert.deepEqual(u.scales.y.range(u, null, null, 'y'), [signed ? -8 * cutoff : mode == 'log' ? cutoff / 4 : 0, 8 * cutoff]);
+					const prepared = [signed ? -8 * cutoff : mode == 'log' ? cutoff / 4 : 0, 8 * cutoff];
+					assert.deepEqual(u.scales.y.scan(u, 'y'), mode == 'linear' ? prepared : [null, null]);
+					if (mode == 'linear') assert.deepEqual([u.scales.y.min, u.scales.y.max], linearDemoBounds(u, ...prepared));
+					else assert.deepEqual(u.scales.y.range(u, null, null, 'y'), prepared);
 					checkOracle(u, sourceFixture(u.data, 60), false, cutoff);
 					checkDemoColors(u, root.querySelector('#color-scale').value, 1, 5);
 					for (const sign of signed ? [-1, 1] : [1]) hover(u, 30, sign * cutoff * .75, null);
@@ -1685,7 +1696,7 @@ describe('heatmap cells demo integration', () => {
 	});
 
 	for (const mode of ['log', 'linear', 'asinh']) {
-		it(`skips core data scans with precomputed ${mode} ranges`, async () => {
+		it(`skips core data scans with prepared ${mode} bounds`, async () => {
 			const root = createDemoRoot();
 			root.querySelector('#y-scale').value = mode;
 			const frames = framesFor([[60000, 60000, 120000, 120000], [1, 2, 1, 2], [2, 4, 2, 4], [1, 2, 3, 4]]);
@@ -1695,6 +1706,7 @@ describe('heatmap cells demo integration', () => {
 				await Promise.resolve();
 				const u = demo.plot;
 				let scanning = false, calls = 0;
+				let prepared = [0, 4];
 				for (let fi = 0; fi < 3; fi++) {
 					u.data[1][fi] = new Proxy(u.data[1][fi], { get(target, key) {
 						if (scanning) throw new Error('Core scanner must not read heatmap coordinates');
@@ -1708,7 +1720,7 @@ describe('heatmap cells demo integration', () => {
 						calls++;
 						try {
 							const result = scan(...args);
-							assert.deepEqual(result, [null, null]);
+							assert.deepEqual(result, key == 'y' && mode == 'linear' ? prepared : [null, null]);
 							return result;
 						}
 						finally { scanning = false; }
@@ -1716,7 +1728,7 @@ describe('heatmap cells demo integration', () => {
 				}
 				const checkRange = () => {
 					assert.deepEqual([u.scales.x.min, u.scales.x.max], [0, 120]);
-					assert.deepEqual([u.scales.y.min, u.scales.y.max], [mode == 'log' ? 1 : 0, 4]);
+					assert.deepEqual([u.scales.y.min, u.scales.y.max], mode == 'linear' ? linearDemoBounds(u, 0, 4) : [mode == 'log' ? 1 : 0, 4]);
 					if (mode == 'asinh') assert.equal(u.scales.y._asinh, 1);
 					assert.equal(rects(u).length, 4);
 				};
@@ -1725,7 +1737,7 @@ describe('heatmap cells demo integration', () => {
 					change(); await Promise.resolve();
 					checkRange();
 				}
-				assert.ok(calls >= 2, 'range calculation called the no-op scanners');
+				assert.ok(calls >= 2, 'range calculation called the metadata/no-op scanners');
 				u.setScale('x', { min: 20, max: 100 });
 				u.setScale('y', { min: 1.25, max: 3 });
 				await Promise.resolve();
@@ -1740,14 +1752,15 @@ describe('heatmap cells demo integration', () => {
 						return target[key];
 					} });
 				}
+				prepared = [0, 16];
 				u.setData(next); await Promise.resolve();
 				assert.deepEqual([u.scales.x.min, u.scales.x.max], [240, 420]);
-				assert.deepEqual([u.scales.y.min, u.scales.y.max], [mode == 'log' ? .25 : 0, 16]);
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], mode == 'linear' ? linearDemoBounds(u, 0, 16) : [mode == 'log' ? .25 : 0, 16]);
 				assert.equal(u.scales.y.asinh(u, 'y'), .25);
 				checkOracle(u, sourceFixture(next, 60), false);
 				u.setData(empty()); await Promise.resolve();
 				assert.deepEqual([u.scales.x.min, u.scales.x.max], [240, 420]);
-				assert.deepEqual([u.scales.y.min, u.scales.y.max], [mode == 'log' ? .25 : 0, 16]);
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], mode == 'linear' ? linearDemoBounds(u, 0, 16) : [mode == 'log' ? .25 : 0, 16]);
 				assert.equal(u.scales.y.asinh(u, 'y'), 1);
 				assert.deepEqual(rects(u), []);
 			}

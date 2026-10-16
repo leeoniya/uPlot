@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
+import { rangeY } from '../src/rangeY.js';
+import { timeAxisVals, timeAxisStamps, _timeAxisStampsS } from '../src/opts.js';
 import { generateHeatmapCells } from '../demos/lib/heatmapCellsData.js';
 import { createDemo } from '../demos/heatmap-cells.js';
 
@@ -17,6 +19,18 @@ function rectangles(u) {
 	return u.ctx.log.slice(u.ctx.log.findLastIndex(entry => entry[0] == 'clearRect'))
 		.filter(entry => entry[0] == 'fill').flatMap(entry => entry.slice(1))
 		.flatMap(([path]) => path?.log?.filter(entry => entry[0] == 'rect').flatMap(entry => entry.slice(1)) ?? []);
+}
+
+const nativeTimeValues = timeAxisVals(
+	seconds => uPlot.tzDate(seconds * 1000, 'Etc/UTC'),
+	timeAxisStamps(_timeAxisStampsS, uPlot.fmtDate),
+);
+
+function assertNativeTimeLabels(u) {
+	const axis = u.axes[0];
+	const [incr, space] = axis._found;
+	assert.ok(axis._splits.length > 1);
+	assert.deepEqual(axis._values, nativeTimeValues(u, axis._splits, 0, space, incr));
 }
 
 describe('heatmap cells demo', () => {
@@ -54,14 +68,317 @@ describe('heatmap cells demo', () => {
 					`2 cells · 2 ${label} intervals · log₂ Y · uniform-grid hover · no densification or exemplars`);
 				if (seconds == 60) {
 					const u = demo.plot;
-					assert.deepEqual(u.axes[0].values(u, [0, null, 60]), ['00:00', null, '00:01']);
+					assertNativeTimeLabels(u);
+					assert.deepEqual(u.axes[0].values(u, [0, 60], 0, 50, 60), ['12:00am\n1/1/70', '12:01am']);
 					u.setCursor({ left: u.valToPos(30, 'x'), top: u.valToPos(1.5, 'y') });
-					assert.equal(root.querySelector('#hover').textContent, '00:00:00–00:01:00 UTC · Y: 1–2 s · Count: 3');
+					assert.equal(root.querySelector('#hover').textContent, '12:00am 1/1/70–12:01am UTC · Y: 1 s–2 s · Count: 3');
 				}
+				const u = demo.plot;
+				u.setCursor({ left: u.valToPos(seconds / 2, 'x'), top: u.valToPos(1.5, 'y') });
+				const timeRange = nativeTimeValues(u, [0, seconds], 0, 0, seconds).join('–').replace(/\n/g, ' ');
+				assert.equal(root.querySelector('#hover').textContent, `${timeRange} UTC · Y: 1 s–2 s · Count: 3`);
 			}
 			finally { demo?.destroy(); root.remove(); }
 		});
 	}
+
+	it('switches log bases without changing cells or colors and snaps log10 bounds to decades', async () => {
+		const root = createDemoRoot();
+		const select = root.querySelector('#y-scale');
+		select.value = 'log10';
+		root.querySelector('#color-scale').value = 'sqrt';
+		const frames = [{ schema: { meta: { type: 'heatmap-cells' }, fields: [
+			{ name: 'xMax', config: { interval: 60000 } },
+			{ name: 'yMin' }, { name: 'yMax' }, { name: 'count' },
+		] }, data: { values: [[60000, 60000], [.125, 8], [.25, 16], [3, 4]] } }];
+		let demo;
+		try {
+			demo = createDemo(root, frames);
+			await Promise.resolve();
+			const data = demo.plot.data, original = structuredClone(data);
+			for (const [mode, base, bounds, label] of [
+				['log10', 10, [.1, 100], 'log₁₀'],
+				['log', 2, [.125, 16], 'log₂'],
+				['log10', 10, [.1, 100], 'log₁₀'],
+			]) {
+				select.value = mode;
+				select.dispatchEvent(new Event('change'));
+				await Promise.resolve();
+				const u = demo.plot;
+				assert.equal(u.scales.y.distr, 3);
+				assert.equal(u.scales.y.log, base);
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], bounds);
+				assert.equal(u.data, data);
+				assert.deepEqual(data, original);
+				assert.equal(root.querySelector('#color-scale').value, 'sqrt');
+				assert.ok(root.querySelector('#status').textContent.includes(`${label} Y`));
+				assert.equal(rectangles(u).length, 2);
+				u.setCursor({ left: u.valToPos(30, 'x'), top: u.valToPos(.1875, 'y') });
+				assert.ok(root.querySelector('#hover').textContent.endsWith('Y: 125 ms–250 ms · Count: 3'));
+				u.setSize({ width: 777, height: 640 });
+				u.setScale('y', { min: .2, max: 10 });
+				await Promise.resolve();
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], [.2, 10]);
+				root.querySelector('#set-data').click();
+				await Promise.resolve();
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], bounds);
+				assert.deepEqual([u.width, u.height], [777, 640]);
+				assert.equal(u.scales.y._axisY, false, 'log scales do not use linear tick-aware ranging');
+			}
+		}
+		finally { demo?.destroy(); root.remove(); }
+	});
+
+	for (const initialMode of ['linear', 'sqrt', 'log']) {
+		it(`positions legend colors on a linear count domain, starting with ${initialMode}`, async () => {
+			const root = createDemoRoot();
+			const select = root.querySelector('#color-scale');
+			select.value = initialMode;
+			const frames = [{ schema: { meta: { type: 'heatmap-cells' }, fields: [
+				{ name: 'xMax', config: { interval: 60000 } },
+				{ name: 'yMin' }, { name: 'yMax' }, { name: 'count' },
+			] }, data: { values: [[60000, 120000], [1, 1], [2, 2], [1, 100]] } }];
+			let demo;
+			try {
+				demo = createDemo(root, frames);
+				await Promise.resolve();
+				const u = demo.plot;
+				const ramp = root.querySelector('#color-ramp');
+				let colors;
+				for (const mode of [initialMode, 'linear', 'sqrt', 'log', 'linear']) {
+					if (colors != null) {
+						select.value = mode;
+						select.dispatchEvent(new Event('change'));
+						await Promise.resolve();
+					}
+					const stops = Array.from(ramp.style.background.matchAll(/(rgb\([^)]+\))\s+([\d.e+-]+)%/g));
+					assert.equal(stops.length, 32);
+					const positions = stops.map(stop => Number(stop[2]) / 100);
+					assert.equal(positions[0], 0);
+					assert.equal(positions.at(-1), 1);
+					positions.forEach((pos, i) => {
+						const t = mode == 'sqrt' ? Math.sqrt(pos) : mode == 'log' ? Math.log(1 + 99 * pos) / Math.log(100) : pos;
+						assert.ok(Math.abs(t - i / 31) < 1e-12, `${mode} palette stop ${i}`);
+						if (i > 0) assert.ok(pos > positions[i - 1]);
+					});
+					colors ??= stops.map(stop => stop[1]);
+					assert.deepEqual(stops.map(stop => stop[1]), colors);
+					assert.equal(root.querySelector('#color-min').textContent, '1');
+					assert.equal(root.querySelector('#color-max').textContent, '100');
+					assert.equal(demo.plot, u, 'changing the legend does not recreate the plot');
+				}
+				const background = ramp.style.background;
+				const yScale = root.querySelector('#y-scale');
+				yScale.value = 'linear';
+				yScale.dispatchEvent(new Event('change'));
+				await Promise.resolve();
+				assert.equal(ramp.style.background, background, 'Y scale does not affect the count legend');
+			}
+			finally { demo?.destroy(); root.remove(); }
+		});
+	}
+
+	it('uses a single legend color for a constant count domain in all color scales', async () => {
+		const root = createDemoRoot();
+		const frames = [{ schema: { meta: { type: 'heatmap-cells' }, fields: [
+			{ name: 'xMax', config: { interval: 60000 } },
+			{ name: 'yMin' }, { name: 'yMax' }, { name: 'count' },
+		] }, data: { values: [[60000], [1], [2], [3]] } }];
+		let demo;
+		try {
+			demo = createDemo(root, frames);
+			await Promise.resolve();
+			for (const mode of ['linear', 'sqrt', 'log']) {
+				const select = root.querySelector('#color-scale');
+				select.value = mode;
+				select.dispatchEvent(new Event('change'));
+				await Promise.resolve();
+				assert.equal(root.querySelector('#color-ramp').style.background.replace(/\s/g, ''), 'rgb(94,79,162)');
+				assert.equal(root.querySelector('#color-min').textContent, '3');
+				assert.equal(root.querySelector('#color-max').textContent, '3');
+			}
+		}
+		finally { demo?.destroy(); root.remove(); }
+	});
+
+	it('formats duration ticks and matches tick strokes to gridlines across Y scales', async () => {
+		const root = createDemoRoot();
+		let demo;
+		try {
+			demo = createDemo(root, generateHeatmapCells({ columns: 2 }));
+			await Promise.resolve();
+			const splits = [null, -2, -.25, -.001, -1e-6, -0, 0, 1e-9, 1e-6, .000125, .0009765625, .001, .125, 1, 1.23456, 12];
+			const expected = [null, '-2 s', '-250 ms', '-1 ms', '-1 µs', '0 s', '0 s', '0.001 µs', '1 µs', '125 µs', '977 µs', '1 ms', '125 ms', '1 s', '1.23 s', '12 s'];
+			for (const mode of ['log', 'log10', 'linear', 'asinh']) {
+				const select = root.querySelector('#y-scale');
+				select.value = mode;
+				select.dispatchEvent(new Event('change'));
+				await Promise.resolve();
+				const u = demo.plot;
+				assert.deepEqual(u.axes[1].values(u, splits), expected);
+				for (let i = 0; i < u.axes.length; i++) {
+					const axis = u.axes[i];
+					assert.equal(axis.ticks.width, axis.grid.width);
+					assert.equal(axis.ticks.stroke(u, i), axis.grid.stroke(u, i));
+					const [incr, space] = axis._found;
+					assert.deepEqual(axis.ticks.filter(u, axis._splits, i, space, incr), axis.grid.filter(u, axis._splits, i, space, incr));
+				}
+			}
+			root.querySelector('#signed-data').click();
+			await Promise.resolve();
+			const labels = demo.plot.axes[1]._values.filter(v => v != null);
+			assert.ok(labels.some(v => v.startsWith('-')));
+			assert.ok(labels.includes('0 s'));
+		}
+		finally { demo?.destroy(); root.remove(); }
+	});
+
+	it('refreshes the active range and formats hover bounds across units and mirrored data', async () => {
+		const frames = [{ schema: { meta: { type: 'heatmap-cells' }, fields: [
+			{ name: 'xMax', config: { interval: 60000 } },
+			{ name: 'yMin' }, { name: 'yMax' }, { name: 'count' },
+		] }, data: { values: [[60000], [.0005], [.001], [3]] } }];
+		const root = createDemoRoot();
+		let demo;
+		try {
+			demo = createDemo(root, frames);
+			await Promise.resolve();
+			const select = root.querySelector('#y-scale');
+			const hover = (y, expected) => {
+				const u = demo.plot;
+				u.setCursor({ left: u.valToPos(30, 'x'), top: u.valToPos(y, 'y') });
+				assert.ok(root.querySelector('#hover').textContent.endsWith(` · Y: ${expected} · Count: 3`));
+			};
+			for (const mode of ['log', 'log10', 'linear', 'asinh', 'log']) {
+				select.value = mode;
+				select.dispatchEvent(new Event('change'));
+				await Promise.resolve();
+				const u = demo.plot;
+				for (const [lo, hi, label] of [[.0005, .001, '500 µs–1 ms'], [.5, 1, '500 ms–1 s']]) {
+					u.setData([null, [[60], [lo], [hi], [3]]]);
+					await Promise.resolve();
+					const linear = rangeY(0, hi, u.bbox.height / u.pxRatio);
+						assert.deepEqual([u.scales.y.min, u.scales.y.max], mode.startsWith('log') ? uPlot.rangeLog(lo, hi, mode == 'log10' ? 10 : 2, true) :
+							mode == 'asinh' ? uPlot.rangeAsinh(0, hi, 2, true) : [linear.min, linear.max]);
+					assert.equal(rectangles(u).length, 1);
+					hover((lo + hi) / 2, label);
+				}
+			}
+			root.querySelector('#signed-data').click();
+			await Promise.resolve();
+			assert.equal(select.value, 'asinh');
+			assert.deepEqual([demo.plot.scales.y.min, demo.plot.scales.y.max], uPlot.rangeAsinh(-.001, .001, 2, true));
+			assert.equal(rectangles(demo.plot).length, 2);
+			hover(-.00075, '-1 ms–-500 µs');
+			hover(.00075, '500 µs–1 ms');
+			root.querySelector('#signed-data').click();
+			await Promise.resolve();
+			select.value = 'log';
+			select.dispatchEvent(new Event('change'));
+			await Promise.resolve();
+			assert.deepEqual([demo.plot.scales.y.min, demo.plot.scales.y.max], uPlot.rangeLog(.0005, .001, 2, true));
+			hover(.00075, '500 µs–1 ms');
+		}
+		finally { demo?.destroy(); root.remove(); }
+	});
+
+	it('snaps asinh ranges to magnitudes and keeps outer gridlines beyond every cell', async () => {
+		const root = createDemoRoot();
+		root.querySelector('#y-scale').value = 'asinh';
+		const frames = [{ schema: { meta: { type: 'heatmap-cells' }, fields: [
+			{ name: 'xMax', config: { interval: 60000 } },
+			{ name: 'yMin' }, { name: 'yMax' }, { name: 'count' },
+		] }, data: { values: [[60000, 60000], [2 ** -17, 2 ** 3.625], [2 ** -16.875, 2 ** 3.75], [1, 2]] } }];
+		let demo;
+		try {
+			demo = createDemo(root, frames);
+			await Promise.resolve();
+			for (const signed of [false, true]) {
+				if (signed) {
+					root.querySelector('#signed-data').click();
+					await Promise.resolve();
+				}
+				const u = demo.plot;
+				for (const height of [200, 560, 1200]) {
+					u.setSize({ width: 1000, height });
+					await Promise.resolve();
+					assert.deepEqual([u.scales.y.min, u.scales.y.max], [signed ? -16 : 0, 16]);
+					const axis = u.axes[1], [incr, space] = axis._found;
+					const ticks = axis.grid.filter(u, axis._splits, 1, space, incr).filter(v => v != null);
+					assert.equal(ticks[0], signed ? -16 : 0);
+					assert.equal(ticks.at(-1), 16);
+					assert.ok(u.data[1][1].every(v => v >= ticks[0]));
+					assert.ok(u.data[1][2].every(v => v <= ticks.at(-1)));
+				}
+			}
+		}
+		finally { demo?.destroy(); root.remove(); }
+	});
+
+	it('uses tick-aware linear bounds through resize, signed data, zoom, and reset', async () => {
+		const root = createDemoRoot();
+		root.querySelector('#y-scale').value = 'linear';
+		const frames = [{ schema: { meta: { type: 'heatmap-cells' }, fields: [
+			{ name: 'xMax', config: { interval: 60000 } },
+			{ name: 'yMin' }, { name: 'yMax' }, { name: 'count' },
+		] }, data: { values: [[60000], [8], [16], [3]] } }];
+		let demo;
+		try {
+			demo = createDemo(root, frames);
+			await Promise.resolve();
+			for (const signed of [false, true]) {
+				if (signed) {
+					root.querySelector('#signed-data').click();
+					await Promise.resolve();
+				}
+				const u = demo.plot;
+				const check = () => {
+					const expected = rangeY(signed ? -16 : 0, 16, u.bbox.height / u.pxRatio);
+					assert.deepEqual([u.scales.y.min, u.scales.y.max], [expected.min, expected.max]);
+					assert.deepEqual([u.axes[1]._splits[0], u.axes[1]._splits.at(-1)], [expected.min, expected.max]);
+					assert.ok(expected.min <= (signed ? -16 : 0) && expected.max >= 16);
+					assert.equal(rectangles(u).length, signed ? 2 : 1);
+				};
+				let scans = 0;
+				const scan = u.scales.y.scan;
+				u.scales.y.scan = (...args) => { scans++; return scan(...args); };
+				for (const height of [200, 560, 1200, 560]) {
+					u.setSize({ width: 1000, height });
+					await Promise.resolve();
+					check();
+				}
+				assert.equal(scans, 0, 'resize reuses prepared bounds');
+				u.setScale('y', { min: 7, max: 10 });
+				await Promise.resolve();
+				u.setSize({ width: 800, height: 400 });
+				await Promise.resolve();
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], [7, 10]);
+				u.setScale('y', { min: null, max: null });
+				await Promise.resolve();
+				check();
+				root.querySelector('#set-data').click();
+				await Promise.resolve();
+				check();
+
+				const raw = u.scales.y._rawY.slice();
+				const beforeScans = scans;
+				u.setData([null, [[60], [32], [64], [3]]], false);
+				assert.deepEqual(u.scales.y._rawY, raw, 'deferred preparation must not mutate captured scan bounds');
+				u.setSize({ width: 800, height: 600 });
+				u.redraw(false, true);
+				await Promise.resolve();
+				const retained = rangeY(...raw, u.bbox.height / u.pxRatio);
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], [retained.min, retained.max]);
+				assert.equal(scans, beforeScans, 'layout alone does not request replacement bounds');
+				u.redraw();
+				await Promise.resolve();
+				assert.deepEqual(u.scales.y._rawY, [0, 64]);
+				const replaced = rangeY(0, 64, u.bbox.height / u.pxRatio);
+				assert.deepEqual([u.scales.y.min, u.scales.y.max], [replaced.min, replaced.max]);
+			}
+		}
+		finally { demo?.destroy(); root.remove(); }
+	});
 
 	for (const xGapProbability of [.5, 1]) {
 		it(`keeps generated column gaps empty through zoom and setData (p=${xGapProbability})`, async function() {
@@ -184,9 +501,7 @@ describe('heatmap cells demo', () => {
 			assert.deepEqual([u.scales.y.min, u.scales.y.max], uPlot.rangeLog(minY, maxY, 2, true));
 			assert.ok(root.querySelector('#status').textContent.startsWith(`${xs.length.toLocaleString()} cells · 64 720-minute intervals`));
 			const start = u.scales.x.min, end = u.scales.x.max;
-			const splits = [start, null, end];
-			const dates = splits.map(v => v == null ? null : new Date(v * 1000).toISOString().slice(5, 10));
-			assert.deepEqual(u.axes[0].values(u, splits), dates);
+			assertNativeTimeLabels(u);
 			for (const control of root.querySelectorAll('select, input, button')) assert.equal(control.disabled, false);
 			const drawn = rectangles(u);
 			assert.ok(drawn.length > 0);
@@ -196,16 +511,14 @@ describe('heatmap cells demo', () => {
 			root.querySelector('#set-data').click();
 			await Promise.resolve();
 			assert.deepEqual(rectangles(u), drawn);
-			for (const span of [86400, 86399, 3600]) {
+			for (const span of [86400, 86399, 3600, 60, 1]) {
 				u.setScale('x', { min: start, max: start + span });
 				await Promise.resolve();
-				const visibleSplits = [start, null, start + span];
-				assert.deepEqual(u.axes[0].values(u, visibleSplits), visibleSplits.map(v => v == null ? null :
-					new Date(v * 1000).toISOString().slice(...(span >= 86400 ? [5, 10] : [11, 16]))));
+				assertNativeTimeLabels(u);
 			}
 			u.setScale('x', { min: start, max: end });
 			await Promise.resolve();
-			assert.deepEqual(u.axes[0].values(u, splits), dates);
+			assertNativeTimeLabels(u);
 		}
 		finally { demo?.destroy(); root.remove(); }
 	});

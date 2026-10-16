@@ -5023,6 +5023,13 @@ var uPlot = (function () {
 			}
 		}
 
+		function resetScalePaths(changed) {
+			series.forEach((s, i) => {
+				if (mode == 2 ? i > 0 && s.facets.some(f => changed[f.scale]) : changed[s.scale])
+					s._paths = null;
+			});
+		}
+
 		function rangeYScales(ori, dim, changedY) {
 			for (let k in scales) {
 				let sc = scales[k];
@@ -5041,7 +5048,7 @@ var uPlot = (function () {
 					sc.min = sc._min = min;
 					sc.max = sc._max = max;
 					changedY.push(k);
-					series.forEach(s => { if (s.scale == k) s._paths = null; });
+					resetScalePaths({[k]: true});
 					if (showCursor && cursor.left >= 0)
 						shouldSetCursor = shouldSetLegend = true;
 				}
@@ -5426,7 +5433,7 @@ var uPlot = (function () {
 				// Experimental opt-in; custom and fixed range policies remain authoritative.
 				let cfg = opts.scales?.[axis.scale];
 				// Caches whether the selected axis and scale support tick-aware ranging, not the axis index.
-				sc._axisY = sc._axisY || (sc.axis === i && mode == 1 && axis.scale != xScaleKey &&
+				sc._axisY = sc._axisY || (sc.axis === i && (mode == 2 || axis.scale != xScaleKey) &&
 					sc.ori == isVt && sc.distr == 1 && !sc.time && cfg?.auto !== false && sc._policyY != null &&
 					sc.from == null && !Object.values(scales).some(s => s.from == axis.scale) &&
 					axis.incrs == null && axis.splits == null && (!isVt || opts.axes?.[i]?.space == null));
@@ -5919,17 +5926,7 @@ var uPlot = (function () {
 			}
 
 			if (anyChanged) {
-				// invalidate paths of all series on changed scales
-				series.forEach((s, i) => {
-					if (mode == 2) {
-						if (i > 0 && s.facets.some(f => changed[f.scale]))
-							s._paths = null;
-					}
-					else {
-						if (changed[s.scale])
-							s._paths = null;
-					}
-				});
+				resetScalePaths(changed);
 
 				for (let k in changed) {
 					shouldLayout = true;
@@ -6861,8 +6858,9 @@ var uPlot = (function () {
 			shouldLayout = shouldLayout || recalcAxes || false;
 
 			if (rebuildPaths !== false) {
-				// Preserve real pending requests. Current ordinal bounds are already index values.
-				pendScales[xScaleKey] ??= { min: scaleX.min, max: scaleX.max, redraw: true };
+				// Preserve real pending requests and active tick-aware ranging. Ordinal bounds are already index values.
+				let ranged = scaleX._rawY != null;
+				pendScales[xScaleKey] ??= { min: ranged ? null : scaleX.min, max: ranged ? null : scaleX.max, redraw: true };
 				shouldSetScales = true;
 			}
 

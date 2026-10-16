@@ -18,6 +18,15 @@ for (let i = 0; i < colorCount; i++)
 	colorLookup.fill(i, i == 0 ? 0 : (2 * i - 1) ** 2, (2 * i + 1) ** 2);
 
 const filterAxisSplits = (u, splits, axisIdx, space, incr) => u.axes[axisIdx].filter(u, splits, axisIdx, space, incr);
+const axisLines = { stroke: '#252a30', width: 2 };
+const utcDate = seconds => uPlot.tzDate(seconds * 1000, 'Etc/UTC');
+
+function formatSeconds(seconds) {
+	const abs = Math.abs(seconds);
+	const scale = abs == 0 || abs >= 1 ? 1 : abs >= 1e-3 ? 1e3 : 1e6;
+	const unit = scale == 1 ? 's' : scale == 1e3 ? 'ms' : 'µs';
+	return `${Number((seconds * scale).toPrecision(3))} ${unit}`;
+}
 
 export function createDemo(root, frames) {
 	const frame = frames.find(f => f.schema.meta?.type == 'heatmap-cells');
@@ -60,9 +69,17 @@ export function createDemo(root, frames) {
 			return color;
 		},
 	};
+	// Legend position is linear in count; invert each transform to place palette stops.
+	const colorRamps = {};
+	for (const mode of ['linear', 'sqrt', 'log']) {
+		colorRamps[mode] = minCount == maxCount ? palette[0] : `linear-gradient(to right, ${palette.map((color, i) => {
+			const t = i / (colorCount - 1);
+			const pos = mode == 'sqrt' ? t * t : mode == 'log' ? minCount * Math.expm1(logRange * t) / countRange : t;
+			return `${color} ${i == colorCount - 1 ? 100 : pos * 100}%`;
+		}).join(',')})`;
+	}
 	const xRange = [0, xSize];
-	const logYRange = [1, 2];
-	const zeroYRange = [0, 1];
+
 	const sourceData = [null, [xs, yMin, yMax, counts]];
 	let data = sourceData;
 	let signedData;
@@ -92,14 +109,14 @@ export function createDemo(root, frames) {
 		return signedData;
 	}
 	const format = value => Number(value.toPrecision(5)).toString();
-	const time = seconds => new Date(seconds * 1000).toISOString().slice(11, 19);
+
 	const readout = root.querySelector('#hover');
 	const readoutText = readout.firstChild ?? readout.appendChild(document.createTextNode(''));
 	let hoverIdx;
 	const hint = 'Hover a cell for its bounds and count. Drag to zoom; double-click to reset. Changing Y scale resets zoom.';
 	const status = root.querySelector('#status');
 	readoutText.data = hint;
-	root.querySelector('#color-ramp').style.background = `linear-gradient(to right, ${palette.join(',')})`;
+	const colorRamp = root.querySelector('#color-ramp');
 	root.querySelector('#color-min').textContent = format(minCount);
 	root.querySelector('#color-max').textContent = format(maxCount);
 
@@ -113,42 +130,59 @@ export function createDemo(root, frames) {
 	let colorIdx;
 	const updateColorScale = () => {
 		colorIdx = colorIndices[colorScale.value];
+		colorRamp.style.background = colorRamps[colorScale.value];
 		colorScaleLabel.textContent = `Count · ${colorScale.value == 'sqrt' ? '√' : colorScale.value} scale`;
 	};
 	updateColorScale();
 	const signed = root.querySelector('#signed-data');
-	const logOption = yScale.querySelector('option[value="log"]');
+	const logOptions = yScale.querySelectorAll('option[value^="log"]');
 	if (signed.checked) data = mirroredData();
 	heightValue.data = `${height.value}px`;
 
 	function createPlot(width, plotHeight = height.valueAsNumber) {
-		logOption.disabled = signed.checked;
-		if (signed.checked && yScale.value == 'log') yScale.value = 'asinh';
+		for (const option of logOptions) option.disabled = signed.checked;
+		if (signed.checked && yScale.value.startsWith('log')) yScale.value = 'asinh';
 		const mode = yScale.value;
-		const yRange = mode == 'log' ? logYRange : zeroYRange;
-		const scaleLabel = mode == 'log' ? 'log₂' : mode;
+		const isLog = mode.startsWith('log');
+		const logBase = mode == 'log10' ? 10 : 2;
+		const yRange = isLog ? [1, logBase] : [0, 1];
+		const scaleLabel = isLog ? (logBase == 10 ? 'log₁₀' : 'log₂') : mode;
 		let asinhThreshold = 1;
 
 		return new uPlot({
 			mode: 2,
+			tzDate: utcDate,
 			width,
 			height: plotHeight,
 			legend: { show: false },
 			cursor: { drag: { x: true, y: true } },
 			scales: {
-				// Preparation supplies ranges and the adaptive threshold without core data scans.
+				// Preparation supplies bounds and the adaptive threshold without core data scans.
 				x: { scan: false, range: () => xRange },
-				y: { scan: false, distr: mode == 'log' ? 3 : mode == 'asinh' ? 4 : 1, log: 2, asinh: () => asinhThreshold, range: () => yRange },
+				y: {
+					distr: isLog ? 3 : mode == 'asinh' ? 4 : 1,
+					log: logBase,
+					asinh: () => asinhThreshold,
+					axis: mode == 'linear' ? 1 : undefined,
+					scan: mode == 'linear' ? () => yRange.slice() : false,
+					range: mode == 'linear' ? undefined : () => yRange,
+				},
 			},
 			axes: [
-				{ stroke: '#b7bdc5', grid: { stroke: '#252a30' }, ticks: { stroke: '#343a42' }, values: (u, splits) => splits.map(v => v == null ? null : new Date(v * 1000).toISOString().slice(...(u.scales.x.max - u.scales.x.min >= 86400 ? [5, 10] : [11, 16]))) },
-				{ stroke: '#b7bdc5', grid: { stroke: '#252a30', filter: filterAxisSplits }, ticks: { stroke: '#343a42', filter: filterAxisSplits }, size: 85, values: (u, splits) => splits.map(v => v == null ? null : format(v)) },
+				{ stroke: '#b7bdc5', grid: axisLines, ticks: axisLines },
+				{
+					stroke: '#b7bdc5',
+					grid: { ...axisLines, filter: filterAxisSplits },
+					ticks: { ...axisLines, filter: filterAxisSplits },
+					size: 85,
+					values: (u, splits) => splits.map(v => v == null ? null : formatSeconds(v)),
+				},
 			],
 			series: [{}, { label: 'Heatmap' }],
 			plugins: [heatmapPlugin({
 				xSize,
 				minAbs: 2 ** -128,
-				grid: { x: { distr: 1 }, y: signed.checked ? { distr: 3, factor } : { distr: 3 } },
+				grid: signed.checked ? { y: { distr: 3, factor } } : undefined,
 				colors: palette,
 				colorIdx: count => colorIdx(count),
 				onPrepare(u, minY, maxY, threshold) {
@@ -159,11 +193,14 @@ export function createDemo(root, frames) {
 					if (xs.length > 0) {
 						xRange[0] = xs[0] - xSize;
 						xRange[1] = xs.at(-1);
-						zeroYRange[0] = Math.min(0, minY);
-						zeroYRange[1] = Math.max(0, maxY);
-
-						if (minY > 0)
-							[logYRange[0], logYRange[1]] = uPlot.rangeLog(minY, maxY, 2, true);
+						if (isLog)
+							[yRange[0], yRange[1]] = uPlot.rangeLog(minY, maxY, logBase, true);
+						else if (mode == 'asinh')
+							[yRange[0], yRange[1]] = uPlot.rangeAsinh(Math.min(0, minY), Math.max(0, maxY), 2, true);
+						else {
+							yRange[0] = Math.min(0, minY);
+							yRange[1] = Math.max(0, maxY);
+						}
 					}
 					const intervals = xs.length == 0 ? 0 : Math.round((xRange[1] - xRange[0]) / xSize);
 					status.textContent = `${xs.length.toLocaleString()} cells · ${intervals} ${intervalLabel} intervals · ${scaleLabel} Y · uniform-grid hover · ${signed.checked ? 'mirrored example' : 'no densification or exemplars'}`;
@@ -173,7 +210,8 @@ export function createDemo(root, frames) {
 						return;
 					hoverIdx = i;
 					const [xs, yMin, yMax, counts] = u.data[1];
-					readoutText.data = i == null ? hint : `${time(xs[i] - xSize)}–${time(xs[i])} UTC · Y: ${format(yMin[i])}–${format(yMax[i])} s · Count: ${format(counts[i])}`;
+					const timeRange = i == null ? '' : u.axes[0].values(u, [xs[i] - xSize, xs[i]], 0, 0, xSize).join('–').replace(/\n/g, ' ');
+					readoutText.data = i == null ? hint : `${timeRange} UTC · Y: ${formatSeconds(yMin[i])}–${formatSeconds(yMax[i])} · Count: ${format(counts[i])}`;
 				},
 			})],
 		}, data, host);

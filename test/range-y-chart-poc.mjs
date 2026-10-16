@@ -840,7 +840,6 @@ describe('axis-ranging chart POC: one Y scale', () => {
 		['configured flat policy', { y: { range: { min: {}, max: {}, flat: 1e-7 } } }],
 		['configured flat zero policy', { y: { range: { min: {}, max: {}, flat: 0 } } }],
 
-		['mode 2', { mode: 2 }],
 
 		['time Y', { y: { time: true } }],
 		['logarithmic Y', { y: { distr: 3 } }],
@@ -856,21 +855,23 @@ describe('axis-ranging chart POC: one Y scale', () => {
 		['hidden designated axis', { axes: [{ show: false }, { show: false }] }],
 		['missing designated axis', { y: { axis: 2 } }],
 	]) {
-		it(`does not activate for ${name}`, async () => {
-			const { u } = makePlot(options);
-			const { u: control } = makePlot({ ...options, optIn: false, y: { ...options.y, axis: undefined } });
-			try {
-				await tick();
-				assertOrdinary(u, control);
-				for (const height of [40, 525, 413]) {
-					u.setSize({ width: 700, height });
-					control.setSize({ width: 700, height });
+		for (const mode of [1, 2]) {
+			it(`mode ${mode}: does not activate for ${name}`, async () => {
+				const { u } = makePlot({ ...options, mode });
+				const { u: control } = makePlot({ ...options, mode, optIn: false, y: { ...options.y, axis: undefined } });
+				try {
 					await tick();
 					assertOrdinary(u, control);
+					for (const height of [40, 525, 413]) {
+						u.setSize({ width: 700, height });
+						control.setSize({ width: 700, height });
+						await tick();
+						assertOrdinary(u, control);
+					}
 				}
-			}
-			finally { u.destroy(); control.destroy(); }
-		});
+				finally { u.destroy(); control.destroy(); }
+			});
+		}
 	}
 
 	it('clears unsupported numeric bounds and ticks without ordinary fallback, then recovers', async () => {

@@ -768,6 +768,13 @@ declare namespace uPlot {
 		/** can define a static scale range or re-range an initially-determined range from series data */
 		range?: Scale.Range;
 
+		/**
+		 * Experimental axis index for tick-aware ranging of independent linear numeric scales.
+		 * Supports both modes, except the primary X scale in mode 1. Requires a compatible axis and declarative range policy.
+		 * Explicit bounds and custom range functions bypass tick-aware ranging. Mode 2 scans full facets, independent of X zoom.
+		 */
+		axis?: number;
+
 		/** scale key from which this scale is derived */
 		from?: string;
 

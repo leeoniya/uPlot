@@ -8,7 +8,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 
 const exec = promisify(execFile);
 
-async function capture(zone, signal) {
+async function capture(zone) {
 	let closed;
 	try {
 		const pending = exec(process.execPath, ['test/fixtures/timezones-dst.mjs'], {
@@ -17,9 +17,8 @@ async function capture(zone, signal) {
 			encoding: 'utf8',
 			maxBuffer: 8 * 1024 * 1024,
 			timeout: 15000,
-			signal,
 		});
-		// Aborting execFile rejects before exit; cleanup must also wait for close.
+		// Wait for the child to close before starting another timezone.
 		closed = new Promise(resolve => pending.child.once('close', resolve));
 		const { stdout } = await pending;
 		const result = JSON.parse(stdout);
@@ -39,21 +38,17 @@ async function capture(zone, signal) {
 describe('timezone/DST demo host independence', () => {
 	it('preserves all 51 pinned charts under ' + zones.join(', '), async function() {
 		this.timeout(20000);
-		const controller = new AbortController();
-		// At most five children, one per host TZ, not one per chart.
-		const captures = zones.map(zone => capture(zone, controller.signal));
-
-		try {
-			const results = await Promise.all(captures);
-			for (let z = 0; z < zones.length; z++) {
-				results[z].forEach((chart, i) => {
-					assert.deepEqual(chart, results[0][i], zones[z] + ' chart ' + chart.id + ': ticks, labels, scales, and legend');
+		let expected;
+		// Each child renders all 51 charts. Run one at a time to limit peak memory.
+		for (const zone of zones) {
+			const charts = await capture(zone);
+			if (expected == null)
+				expected = charts;
+			else {
+				charts.forEach((chart, i) => {
+					assert.deepEqual(chart, expected[i], zone + ' chart ' + chart.id + ': ticks, labels, scales, and legend');
 				});
 			}
-		}
-		finally {
-			controller.abort();
-			await Promise.allSettled(captures);
 		}
 	});
 });

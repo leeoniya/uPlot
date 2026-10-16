@@ -2,6 +2,7 @@
 
 - [Installation](#installation)
 - [Data Format](#data-format)
+- [Data Modes: Aligned and Faceted](data-modes.md)
 - [Basics](#basics)
 - [Optional DOM](#optional-dom)
 - [High/Low Bands](#highlow-bands)
@@ -25,6 +26,10 @@
 ---
 #### Data Format
 
+uPlot supports aligned data (`mode: 1`, the default) and per-series faceted data (`mode: 2`).
+The example and alignment requirements below describe mode 1.
+[Data Modes](data-modes.md) compares their data shapes, facet configuration, ordering, cursor behavior, selection, and automatic ranging.
+
 ```js
 let data = [
   [1546300800, 1546387200],    // x-values (timestamps)
@@ -33,11 +38,11 @@ let data = [
 ];
 ```
 
-uPlot expects a columnar data format as shown above.
+Mode 1 uses the columnar data format shown above.
 
 - x-values must be numbers, unique, and in ascending order.
 - y-values must be numbers (or `null`s for missing data).
-- x-values and y-values arrays must be of equal lengths >= 2.
+- x-values and y-values arrays must have equal lengths. Empty and single-point datasets are supported.
 
 By default, x-values are assumed to be [unix timestamps](https://en.wikipedia.org/wiki/Unix_time) (seconds since 1970-01-01 00:00:00) but can be treated as plain numbers via `scales.x.time = false`.
 JavaScript uses millisecond-precision timestamps, but this precision is rarely necessary on calendar-aware `time: true` scales/plots, which honor DST, timezones, leap years, etc.
@@ -45,14 +50,14 @@ For sub-second periods, it's recommended to set `time: false` and simply use ms 
 If you truly need calendar-aware ms level precision, simply provide the timestamps as floats, e.g. `1575354886.419`.
 [More info...](https://github.com/leeoniya/uPlot/issues/60#issuecomment-561158077).
 
-This format has implications that can make uPlot an awkward choice for multi-series datasets which cannot be easily aligned along their x-values.
-If one series is data-dense and the other is sparse, then the latter will need to be filled in with mostly `null` y-values.
-If each series has data at arbitrary x-values, then the x-values array must be augmented with all x-values, and all y-values arrays must be augmented with `null`s, potentially leading to exponential growth in dataset size, and a structure consisting of mostly `null`s.
+Alignment can increase storage for series with different X values.
+Mode 1 needs the union of their X values and corresponding `null` entries in each Y array.
+Mode 2 retains separate X arrays and avoids cross-series null padding, but its interaction and ranging behavior differs.
 
 This does not mean that all series must have identical x-values - just that they are alignable.
 For instance, it is possible to plot [series that express different time periods](https://leeoniya.github.io/uPlot/demos/time-periods.html), because the data is equally spaced.
 
-**Before choosing uPlot, ensure your data can conform to these requirements.**
+For unaligned or unordered data, see [mode 2 and its current behavior](data-modes.md).
 
 ---
 #### Basics
