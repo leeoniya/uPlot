@@ -132,13 +132,14 @@ describe('ECharts heatmap cells demo', () => {
 
 	it('prepares and passes every generated source cell to native ECharts without changing the source', function() {
 		this.timeout(15000);
-		const frames = generateHeatmapCells();
+		const frames = generateHeatmapCells({ seed: 1, columns: 64, interval: 12 * 60 * 60 * 1000, xGapProbability: .1 });
 		const snapshot = structuredClone(frames);
 		const prepared = prepareData(frames);
 		const xs = source(frames, 'xMax'), lo = source(frames, 'yMin');
 		const hi = source(frames, 'yMax'), counts = source(frames, 'count');
 		assert.ok(prepared.data instanceof Float64Array);
-		assert.ok(xs.length >= 225000 && xs.length <= 275000);
+		assert.ok(xs.length >= 5000 && xs.length <= 7000);
+		assert.ok(new Set(xs).size < 64, 'fixture includes missing columns');
 		assert.equal(prepared.data.length, xs.length * 3);
 		assert.equal(prepared.data.byteLength, xs.length * 3 * 8);
 		assert.equal(prepared.times, xs);
@@ -151,6 +152,7 @@ describe('ECharts heatmap cells demo', () => {
 		const minX = xs.reduce((a, b) => Math.min(a, b), Infinity);
 		const maxX = xs.reduce((a, b) => Math.max(a, b), -Infinity);
 		assert.equal(prepared.xCategories.length, Math.round((maxX - minX) / interval) + 1);
+		assert.equal(maxX - minX + interval, 32 * 24 * 60 * 60 * 1000);
 		const minY = lo.reduce((a, b) => Math.min(a, b), Infinity);
 		const maxY = hi.reduce((a, b) => Math.max(a, b), -Infinity);
 		const factor = hi[0] / lo[0];
@@ -176,7 +178,7 @@ describe('ECharts heatmap cells demo', () => {
 			demo = createDemo(root, frames, mock);
 			assertNativeOption(mock.calls.setOption[0][0], prepared);
 			const axis = first(mock.calls.setOption[0][0].xAxis);
-			assert.equal(prepared.xCategories.length, 2569);
+			assert.equal(prepared.xCategories.length, 64);
 			for (const value of [axis.data[0], axis.data.at(-1)])
 				assert.equal(axis.axisLabel.formatter(value), new Date(Number(value) - interval / 2).toISOString().slice(5, 10));
 			assert.ok(root.querySelector('#status').textContent.includes(xs.length.toLocaleString()));

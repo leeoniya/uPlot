@@ -323,6 +323,17 @@ The Bun precision worker receives an explicit preload because child processes do
 The worker-coverage regression verifies instrumentation and the coverage file after normal shutdown under both runtimes.
 Each Bun run clears `.nyc_output/bun`. A Node test run clears `.nyc_output`, including the Bun results.
 
+The runner caches instrumented source in `.cache/test-instrument/<namespace>` across runs.
+A cold run loads Babel to instrument source files. A warm run reuses unchanged source and does not load Babel for those files.
+The namespace changes with either lockfile, the instrumentation implementation, the loader, or the installed Istanbul instrumenter version.
+Each entry also depends on the filename, source contents, and instrumentation configuration.
+
+The cache contains no test results or coverage counters. Each run collects fresh coverage and clears its previous coverage output.
+
+To remove the default cache, run `rm -rf .cache/test-instrument`.
+To use another directory, set `UPLOT_INSTRUMENT_CACHE_DIR`. The runner creates that directory and preserves the explicit path without adding a namespace.
+After dependency or instrumentation changes, remove the contents of that explicit directory.
+
 Full validation passed 554 tests under Node 26.8.2 and Bun 1.4.3, with identical Istanbul statement, function, and branch hit sets.
 Both launcher paths returned status 1 for Mocha's `--fail-zero` check and status 2 for a fixture with two failing tests.
 The two-failure runs also generated coverage reports.

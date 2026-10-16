@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getInstrumentCacheNamespace } from './instrument-source.mjs';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 const mocha = fileURLToPath(import.meta.resolve('mocha/bin/mocha.js'));
@@ -21,6 +22,8 @@ function run(args, env) {
 }
 
 const env = { ...process.env };
+env.UPLOT_INSTRUMENT_CACHE_DIR ??= resolve(cwd, '.cache/test-instrument', getInstrumentCacheNamespace(cwd));
+mkdirSync(resolve(cwd, env.UPLOT_INSTRUMENT_CACHE_DIR), { recursive: true });
 let coverageDir;
 let testArgs;
 let testEnv;

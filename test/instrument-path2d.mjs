@@ -32,6 +32,27 @@ function replayPaths(ctx) {
 }
 
 describe('Path2D recorder', () => {
+	it('preserves own method descriptors and detached calls for every path operation', () => {
+		const methods = ['moveTo', 'lineTo', 'bezierCurveTo', 'quadraticCurveTo', 'rect', 'arc', 'arcTo', 'ellipse', 'roundRect', 'closePath', 'addPath'];
+		const path = new Path2D();
+		const other = new Path2D();
+		assert.deepStrictEqual(Reflect.ownKeys(path), ['log', 'record', ...methods]);
+		assert.deepStrictEqual(Object.keys(path), ['log']);
+		assert.equal(Object.getPrototypeOf(path), Object.prototype);
+		for (const name of ['record', ...methods]) {
+			assert.deepStrictEqual(Object.getOwnPropertyDescriptor(path, name), {
+				value: path[name], enumerable: false, writable: false, configurable: false,
+			});
+		}
+		for (const name of methods) {
+			const method = path[name];
+			method(-0, 1);
+			method.call(other, 2, 3);
+			assert.deepStrictEqual(path.log.at(-1), [name, [0, 1], [2, 3]]);
+		}
+		assert.deepStrictEqual(other.log, []);
+	});
+
 	it('copies empty paths without sharing later operations', () => {
 		const source = new Path2D();
 		const copy = new Path2D(source);

@@ -9,21 +9,42 @@ import { createBarControls } from '../demos/lib/barControls.js';
 import { distr } from '../demos/lib/distr.js';
 
 const html = await readFile(new URL('../demos/axis-label-rotation.html', import.meta.url), 'utf8');
+// Keep the real controls, accessible labels, and chart containers, not explanatory prose.
+const fixture = html.match(/<main\b[^]*?<\/main>/)[0]
+	.replace(/<details\b[^]*?<\/details>|<h1\b[^]*?<\/h1>|<p\b[^]*?<\/p>/g, '')
+	.replace(/>\s+</g, '><');
+const template = document.createElement('template');
+template.innerHTML = fixture;
+const controlsTemplate = document.createElement('template');
+// Behavior tests need the real form elements and chart slots, not their layout wrappers.
+controlsTemplate.innerHTML = Array.from(template.content.querySelectorAll('input, select, button, output, #chart-resize'), el => el.outerHTML).join('');
 
 describe('random label rotation demo', () => {
 	const measureHook = Symbol.for('uplot.test.axisMeasure');
+	const markupTests = new Set();
+	function markupIt(title, run) {
+		markupTests.add(it(title, run));
+	}
 	let root, demo, u, measurements, originalOffscreenCanvas, originalResizeObserver, observers;
-	const input = id => root.querySelector(`#${id}`);
+	// Controls survive plot rebuilds. Weak keys also let the teardown test collect its root.
+	const inputs = new WeakMap();
+	const input = id => {
+		const cache = inputs.get(root);
+		if (!cache.has(id))
+			cache.set(id, root.querySelector(`#${id}`));
+		return cache.get(id);
+	};
 	const stackingInputs = [
 		['stacking-off', 'grouped'],
 		['stacking-normal', 'value'],
 		['stacking-percent', 'percent'],
 	];
-	const stacking = () => Array.from(root.querySelectorAll('input[name="stacking"]')).find(el => el.checked).value;
+	const stackingRadios = () => stackingInputs.map(([id]) => input(id));
+	const stacking = () => stackingRadios().find(el => el.checked).value;
 
 	function assertStackingMode(mode) {
 		assert.equal(stacking(), mode);
-		assert.equal(Array.from(root.querySelectorAll('input[name="stacking"]')).filter(el => el.checked).length, 1, 'stacking modes are mutually exclusive');
+		assert.equal(stackingRadios().filter(el => el.checked).length, 1, 'stacking modes are mutually exclusive');
 		for (const [id, value] of stackingInputs) {
 			assert.equal(input(id).checked, value == mode);
 			assert.equal(input(id).disabled, false, 'every stacking mode is directly selectable');
@@ -35,9 +56,10 @@ describe('random label rotation demo', () => {
 		assertStackingMode(mode);
 	}
 
-	beforeEach(async () => {
+	beforeEach(async function() {
 		root = document.createElement('div');
-		root.innerHTML = html.match(/<main\b[^]*?<\/main>/)[0];
+		root.appendChild((markupTests.has(this.currentTest) ? template : controlsTemplate).content.cloneNode(true));
+		inputs.set(root, new Map());
 		document.body.appendChild(root);
 		measurements = { x: [], y: [] };
 		// Core contexts survive chart destruction and can originate in another test suite.
@@ -69,9 +91,7 @@ describe('random label rotation demo', () => {
 				this.height = height;
 				this.ctx = {
 					canvas: this,
-					log: [],
-					set font(value) { this.log.push(['font', value]); },
-					get font() { return this.log.at(-1)[1]; },
+					font: '',
 					clearRect() {},
 					fillRect() {},
 					getImageData() {
@@ -254,7 +274,18 @@ describe('random label rotation demo', () => {
 		assertBars();
 	}
 
+	// Geometry lives in series._paths; these helpers need only the next canvas frame.
+	function clearDrawLog() {
+		u.ctx.log.length = 0;
+	}
+
+	function randomize() {
+		clearDrawLog();
+		input('randomize').click();
+	}
+
 	async function change(id, value, event) {
+		clearDrawLog();
 		input(id).value = String(value);
 		input(id).dispatchEvent(new Event(event));
 		await Promise.resolve();
@@ -277,6 +308,7 @@ describe('random label rotation demo', () => {
 	}
 
 	async function resize(width, height, observer = observers.at(-1)) {
+		clearDrawLog();
 		// Deliver even after disconnect to exercise the production callback's guard.
 		observer.callback([{ target: input('plot'), contentRect: { width, height } }], observer);
 		await Promise.resolve();
@@ -320,6 +352,7 @@ describe('random label rotation demo', () => {
 	}
 
 	function setYData(value) {
+		clearDrawLog();
 		u.setData([u.data[0], ...[1, 2].map(si => u.data[0].map((_, i) => value(i, si)))]);
 	}
 
@@ -396,6 +429,7 @@ describe('random label rotation demo', () => {
 	}
 
 	async function rotate(degrees) {
+		clearDrawLog();
 		input('rotation').value = String(degrees);
 		input('rotation').dispatchEvent(new Event('input'));
 		await Promise.resolve();
@@ -403,7 +437,7 @@ describe('random label rotation demo', () => {
 		assert.equal(input('rotation-value').textContent, `${degrees}°`);
 	}
 
-	it('groups controls into labeled sections with separate label and control columns', () => {
+	markupIt('groups controls into labeled sections with separate label and control columns', () => {
 		const groups = [
 			['Geometry', ['stacking-off', 'stacking-normal', 'stacking-percent', 'vertical', 'horizontal', 'distribution', 'group-width', 'bar-distribution', 'bar-width']],
 			['Axis labels', ['rotation', 'label-spacing', 'max-length', 'end-ellipsis', 'middle-ellipsis']],
@@ -451,7 +485,7 @@ describe('random label rotation demo', () => {
 		assertComponents(2);
 	});
 
-	it('uses labeled orientation and ellipsis radios with truncation off by default', async () => {
+	markupIt('uses labeled orientation and ellipsis radios with truncation off by default', async () => {
 		for (const [group, label, choices] of [
 			['orientation', 'Bars orientation', [['vertical', 'vertical'], ['horizontal', 'horizontal']]],
 			['ellipsis', 'Ellipsis', [['end-ellipsis', 'end'], ['middle-ellipsis', 'middle']]],
@@ -748,7 +782,7 @@ describe('random label rotation demo', () => {
 		await selectStacking('grouped');
 		assertGeneratedTotals(3);
 		const current = u;
-		input('randomize').click();
+		randomize();
 		await Promise.resolve();
 		assert.equal(demo.plot, current);
 		assert.notDeepEqual(u.data[0], generated[0]);
@@ -836,7 +870,7 @@ describe('random label rotation demo', () => {
 			await selectCount(5);
 			const beforeRandomize = u.data;
 			const current = u;
-			input('randomize').click();
+			randomize();
 			await Promise.resolve();
 			assert.equal(demo.plot, current, 'randomize keeps the chosen-count plot');
 			assertComponents(5);
@@ -977,7 +1011,7 @@ describe('random label rotation demo', () => {
 		const reducedSides = new Set();
 		await withSeededRandom(async () => {
 			for (let sample = 0; sample < 32; sample++) {
-				input('randomize').click();
+				randomize();
 				await Promise.resolve();
 				const measured = measurements.x.length;
 				for (const width of [400, 1200]) {
@@ -1287,7 +1321,7 @@ describe('random label rotation demo', () => {
 		assertValueTexts(false);
 	});
 
-	it('switches hover mode synchronously without replacing or redrawing the chart or data', async () => {
+	markupIt('switches hover mode synchronously without replacing or redrawing the chart or data', async () => {
 		assert.equal(input('hover-mode').getAttribute('role'), 'radiogroup');
 		assert.equal(input('hover-mode').getAttribute('aria-labelledby'), 'hover-label');
 		assert.equal(input('hover-label').textContent, 'Hover');
@@ -1485,7 +1519,7 @@ describe('random label rotation demo', () => {
 				assert.equal(u.data, data);
 
 				await withSeededRandom(async () => {
-					input('randomize').click();
+					randomize();
 					u = demo.plot;
 					await Promise.resolve();
 				});
@@ -1513,7 +1547,7 @@ describe('random label rotation demo', () => {
 		assertPadding();
 	});
 
-	it('selects mutually exclusive grouped, value, and percent modes at the same size in both orientations', async () => {
+	markupIt('selects mutually exclusive grouped, value, and percent modes at the same size in both orientations', async () => {
 		assert.equal(input('stacking').getAttribute('role'), 'radiogroup');
 		assert.equal(input('stacking').getAttribute('aria-labelledby'), 'stacking-label');
 		assert.ok(input('stacking-label').textContent.trim());
@@ -1797,7 +1831,7 @@ describe('random label rotation demo', () => {
 		await withSeededRandom(async () => {
 			for (let i = 0; i < 3; i++) {
 				const previous = u.data;
-				input('randomize').click();
+				randomize();
 				await Promise.resolve();
 				assert.equal(demo.plot, current);
 				assert.notEqual(u.data[0], previous[0]);
@@ -1855,7 +1889,7 @@ describe('random label rotation demo', () => {
 		assert.deepEqual(u._data[2], [8, -6, -1]);
 		await selectStacking('percent');
 		await withSeededRandom(async () => {
-			input('randomize').click();
+			randomize();
 			await Promise.resolve();
 		});
 		assertDataShape();
@@ -1986,11 +2020,11 @@ describe('random label rotation demo', () => {
 
 		await withSeededRandom(async () => {
 			// The first seeded click can reproduce the initial labels; the next must change them.
-			input('randomize').click();
+			randomize();
 			await Promise.resolve();
 			const previous = fullLabels();
 			const before = measurements.x.length;
-			input('randomize').click();
+			randomize();
 			await Promise.resolve();
 			assert.notDeepEqual(fullLabels(), previous);
 			assert.equal(measurements.x.length, before + u.data[0].length);
@@ -2191,7 +2225,7 @@ describe('random label rotation demo', () => {
 				const previous = u.data;
 				const labels = fullLabels();
 				const before = measurements.x.length;
-				input('randomize').click();
+				randomize();
 				await Promise.resolve();
 				assertDataShape();
 				assert.notEqual(u.data, previous);
@@ -2239,7 +2273,7 @@ describe('random label rotation demo', () => {
 				for (let i = 0; i < 16; i++) {
 					const previous = u.axes[0]._values.slice();
 					const before = measurements.x.length;
-					input('randomize').click();
+					randomize();
 					await Promise.resolve();
 					assertDataShape();
 					const labels = fullLabels();

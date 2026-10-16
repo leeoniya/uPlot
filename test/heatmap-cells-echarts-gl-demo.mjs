@@ -166,7 +166,7 @@ function sizeUpdate(mock, start, expected) {
 describe('ECharts GL heatmap cells demo', () => {
 	it('reuses native preparation for all generated cells without changing or densifying the source', function() {
 		this.timeout(15000);
-		const frames = generateHeatmapCells();
+		const frames = generateHeatmapCells({ seed: 1, columns: 64, interval: 12 * 60 * 60 * 1000, xGapProbability: .1 });
 		const snapshot = structuredClone(frames), prepared = prepareData(frames);
 		const xs = source(frames, 'xMax'), lo = source(frames, 'yMin');
 		const hi = source(frames, 'yMax'), counts = source(frames, 'count');
@@ -174,7 +174,8 @@ describe('ECharts GL heatmap cells demo', () => {
 		assert.equal(prepared.yMin, lo);
 		assert.equal(prepared.yMax, hi);
 		assert.equal(prepared.counts, counts);
-		assert.ok(xs.length >= 225000 && xs.length <= 275000);
+		assert.ok(xs.length >= 5000 && xs.length <= 7000);
+		assert.ok(new Set(xs).size < 64, 'fixture includes missing columns');
 		assert.equal(prepared.data.length, xs.length * 3);
 		assert.equal(prepared.data.byteLength, xs.length * 3 * 8);
 		const frame = frames.find(f => f.schema.meta?.type == 'heatmap-cells');
@@ -185,6 +186,7 @@ describe('ECharts GL heatmap cells demo', () => {
 		const maxY = hi.reduce((a, b) => Math.max(a, b), -Infinity);
 		assert.equal(prepared.xSize, interval);
 		assert.equal(prepared.xCategories.length, Math.round((maxX - minX) / interval) + 1);
+		assert.equal(maxX - minX + interval, 32 * 24 * 60 * 60 * 1000);
 		assert.equal(prepared.yCategories.length, Math.round(Math.log(maxY / minY) / Math.log(hi[0] / lo[0])));
 		const lookup = createCellLookup(prepared.data, prepared.yCategories.length);
 		for (let i = 0; i < xs.length; i++) {
@@ -198,23 +200,19 @@ describe('ECharts GL heatmap cells demo', () => {
 		withDemo(({ root, mock }) => {
 			assertOption(mock.calls.setOption[0][0], prepared);
 			const axis = mock.calls.setOption[0][0].xAxis;
-			assert.equal(prepared.xCategories.length, 2569);
+			assert.equal(prepared.xCategories.length, 64);
 			for (const value of [axis.data[0], axis.data.at(-1)])
 				assert.equal(axis.axisLabel.formatter(value), new Date(Number(value) - interval / 2).toISOString().slice(5, 10));
 			assert.ok(root.querySelector('#status').textContent.includes(xs.length.toLocaleString()));
 			const height = root.querySelector('#height'), start = mock.calls.setOption.length;
-			const cellWidth = 895 / prepared.xCategories.length;
-			const assertRenderNote = plotHeight => {
-				const cellHeight = (plotHeight - 70) / prepared.yCategories.length;
-				assert.match(root.querySelector('#render-note').textContent, Math.max(cellWidth, cellHeight) <= 2
-					? /GL uses square points/ : /Thin symbols and GPU point-size limits/);
-			};
-			assertRenderNote(height.valueAsNumber);
+			// A narrow host keeps cells below 2px wide so resizing still tests both GL notes.
+			const cellWidth = 120 / prepared.xCategories.length;
+			assert.match(root.querySelector('#render-note').textContent, /Thin symbols and GPU point-size limits/);
 			height.value = '200';
 			height.dispatchEvent(new Event('input'));
 			sizeUpdate(mock, start, [cellWidth, 130 / prepared.yCategories.length]);
-			assertRenderNote(200);
-		}, frames);
+			assert.match(root.querySelector('#render-note').textContent, /GL uses square points/);
+		}, frames, 225);
 		assert.deepEqual(frames, snapshot);
 	});
 

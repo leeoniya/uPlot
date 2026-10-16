@@ -68,7 +68,7 @@ describe('Perspective heatmap cells demo', () => {
 	});
 
 	it('maps every generated bucket to its numeric log2 center without creating missing cells', () => {
-		const f = generateHeatmapCells();
+		const f = generateHeatmapCells({ seed: 1, columns: 64, interval: 12 * 60 * 60 * 1000, xGapProbability: .1 });
 		const frame = f.find(f => f.schema.meta?.type == 'heatmap-cells');
 		const values = name => frame.data.values[frame.schema.fields.findIndex(f => f.name == name)];
 		const xs = values('xMax'), lo = values('yMin'), hi = values('yMax');
@@ -78,7 +78,10 @@ describe('Perspective heatmap cells demo', () => {
 		const minY = lo.reduce((a, b) => Math.min(a, b), Infinity);
 		const maxY = hi.reduce((a, b) => Math.max(a, b), -Infinity);
 		const c = prepareData(f);
-		assert.ok(xs.length >= 225000 && xs.length <= 275000);
+		assert.ok(xs.length >= 5000 && xs.length <= 7000);
+		assert.ok(new Set(xs).size < 64, 'fixture includes missing columns');
+		assert.equal(maxX - minX + interval, 32 * 24 * 60 * 60 * 1000);
+		assert.equal(c.nx, 64);
 		assert.equal(c.times, xs);
 		assert.equal(c.yMin, lo);
 		assert.equal(c.yMax, hi);

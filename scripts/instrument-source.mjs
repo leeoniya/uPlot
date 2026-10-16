@@ -1,9 +1,23 @@
-import { readFileSync, writeFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 
 const require = createRequire(import.meta.url);
+
+export function getInstrumentCacheNamespace(cwd, instrumentVersion = require('istanbul-lib-instrument/package.json').version) {
+	const files = ['package-lock.json', 'bun.lock', 'scripts/instrument-source.mjs', 'scripts/register-hooks.mjs'];
+	const contents = files.map(file => {
+		try { return [file, readFileSync(resolve(cwd, file), 'utf8')]; }
+		catch (error) {
+			if (error.code != 'ENOENT' || file.startsWith('scripts/'))
+				throw error;
+			return [file, null];
+		}
+	});
+
+	return createHash('sha256').update(JSON.stringify([instrumentVersion, contents])).digest('hex');
+}
 
 export function createSourceInstrumenter(config, cacheDir) {
 	const cacheConfig = JSON.stringify(config);
@@ -31,7 +45,13 @@ export function createSourceInstrumenter(config, cacheDir) {
 		if (map != null)
 			code += '\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,' + Buffer.from(JSON.stringify(map)).toString('base64');
 
-		writeFileSync(cacheFile, code);
+		// Publish a complete entry even when independent runs share this cache.
+		const temporary = cacheFile + '.' + process.pid + '.' + randomUUID() + '.tmp';
+		try {
+			writeFileSync(temporary, code, { flag: 'wx' });
+			renameSync(temporary, cacheFile);
+		}
+		finally { rmSync(temporary, { force: true }); }
 		return code;
 	};
 }

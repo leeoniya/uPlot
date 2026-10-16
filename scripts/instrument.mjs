@@ -19,10 +19,8 @@ Object.defineProperty(Node.prototype, 'textContent', {
 });
 
 function defProp(obj, name, rest) {
-	Object.defineProperty(obj, name, {
-		enumerable: false,
-		...rest,
-	});
+	// All callers define new own properties, whose enumerable default is false.
+	Object.defineProperty(obj, name, rest);
 
 	return obj;
 }

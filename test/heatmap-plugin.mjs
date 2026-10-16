@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { heatmapPlugin } from '../demos/lib/heatmapPlugin.js';
-import { createDemo } from '../demos/heatmap-sparse.js';
+import { createDemo } from '../demos/heatmap-cells.js';
 import Flatbush from '../demos/lib/flatbush.js';
 
 const empty = () => [null, [[], [], [], []]];
@@ -86,19 +86,23 @@ function projectedRect(u, x0, x1, y0, y1) {
 
 // The oracle uses the fixture's explicit edges, not plugin row IDs, paths, or lookup results.
 function oracleRects(u, f, minAbs = 0) {
+	const { left, top, width, height } = u.bbox;
+	const xs = f.xEdges.map(v => Math.max(left, Math.min(left + width, Math.round(u.valToPos(v, 'x', true)))));
+	const ys = f.yEdges.map(v => Math.max(top, Math.min(top + height, Math.round(u.valToPos(v, 'y', true)))));
 	return f.cells.map(({ col, row }, id) => ({ id,
 		rect: Math.max(Math.abs(f.yEdges[row]), Math.abs(f.yEdges[row + 1])) <= minAbs ? null :
-			projectedRect(u, f.xEdges[col], f.xEdges[col + 1], f.yEdges[row], f.yEdges[row + 1]),
+			[xs[col], ys[row + 1], xs[col + 1] - xs[col], ys[row] - ys[row + 1]],
 	})).filter(({ rect }) => rect != null && rect[2] > 0 && rect[3] > 0);
 }
 
 function oracleHit(boxes, px, py) {
-	let hit = null;
-	for (const { id, rect: [x, y, w, h] } of boxes) {
-		if (px >= x && px <= x + w && py >= y && py <= y + h)
-			hit = id;
+	// Reverse source order implements last-source precedence without scanning past a hit.
+	for (let i = boxes.length - 1; i >= 0; i--) {
+		const { id, rect } = boxes[i];
+		if (px >= rect[0] && px <= rect[0] + rect[2] && py >= rect[1] && py <= rect[1] + rect[3])
+			return id;
 	}
-	return hit;
+	return null;
 }
 
 function canvasMapping(u) {
@@ -113,11 +117,11 @@ function canvasMapping(u) {
 	};
 }
 
-function pixelQuery(u, px, py, expected) {
-	const mapping = canvasMapping(u);
+function pixelQuery(u, px, py, expected, mapping = canvasMapping(u)) {
 	u.cursor.left = px / mapping.x - mapping.left;
 	u.cursor.top = py / mapping.y - mapping.top;
-	assert.equal(u.cursor.dataIdx(u, 1), expected, `canvas (${px}, ${py})`);
+	const actual = u.cursor.dataIdx(u, 1);
+	assert.equal(actual, expected, actual === expected ? undefined : `canvas (${px}, ${py})`);
 }
 
 function checkOracle(u, f, ordered = true, minAbs = 0) {
@@ -150,21 +154,21 @@ function checkOracle(u, f, ordered = true, minAbs = 0) {
 		for (let iy = -1; iy <= 14; iy++)
 			probes.push([u.bbox.left + ix * u.bbox.width / 17, u.bbox.top + iy * u.bbox.height / 13]);
 	}
+	// Geometry is fixed during these probes; refresh the reference on every checkOracle call.
 	const mapping = canvasMapping(u);
+	const hidden = { left: -10, top: -10, width: 0, height: 0 };
+	const hoverBoxes = [];
+	for (const { id, rect: [l, t, w, h] } of boxes)
+		hoverBoxes[id] = { left: l / mapping.x - mapping.left, top: t / mapping.y - mapping.top,
+			width: w / mapping.x, height: h / mapping.y };
 	for (const [px, py] of probes) {
 		// Match the CSS-to-canvas round trip, including rounded canvas dimensions.
 		const x = (mapping.left + (px / mapping.x - mapping.left)) * mapping.x;
 		const y = (mapping.top + (py / mapping.y - mapping.top)) * mapping.y;
 		const expected = oracleHit(boxes, x, y);
-		pixelQuery(u, px, py, expected);
+		pixelQuery(u, px, py, expected, mapping);
 		const box = u.cursor.points.bbox(u, 1);
-		if (expected == null)
-			assert.deepEqual(box, { left: -10, top: -10, width: 0, height: 0 });
-		else {
-			const [l, t, w, h] = boxes.find(b => b.id == expected).rect;
-			assert.deepEqual(box, { left: l / mapping.x - mapping.left, top: t / mapping.y - mapping.top,
-				width: w / mapping.x, height: h / mapping.y });
-		}
+		assert.deepEqual(box, expected == null ? hidden : hoverBoxes[expected]);
 	}
 }
 
@@ -182,20 +186,33 @@ function bounds(u, idx, canvas = false, xSize = 1) {
 }
 
 function createDemoRoot() {
-	const html = readFileSync(new URL('../demos/heatmap-sparse.html', import.meta.url), 'utf8');
+	const html = readFileSync(new URL('../demos/heatmap-cells.html', import.meta.url), 'utf8');
 	const page = new DOMParser().parseFromString(html, 'text/html');
 	const root = document.importNode(page.querySelector('#demo'), true);
 	document.body.appendChild(root);
 	return root;
 }
 
-function dashboardFor(values) {
-	const frame = { schema: { meta: { type: 'heatmap-cells' },
-		fields: ['xMax', 'yMin', 'yMax', 'count'].map(name => ({ name, config: { interval: 60000 } })) },
-		data: { values } };
-	return { panels: [{ targets: [{ rawFrameContent: JSON.stringify([frame]) }] }] };
+function framesFor(values) {
+	return [{ schema: { meta: { type: 'heatmap-cells' },
+		fields: ['xMax', 'yMin', 'yMax', 'count'].map(name => ({ name, config: name == 'xMax' ? { interval: 60000 } : {} })) },
+		data: { values } }];
 }
-const realDashboard = () => JSON.parse(readFileSync(new URL('../demos/data/heatmap-cells-exemplars.json', import.meta.url), 'utf8'));
+
+function sparseFrames() {
+	const xs = [], lo = [], hi = [], counts = [];
+	// Half-octave rows with holes, fractional counts, and an upper edge between log ticks.
+	for (let col = 0; col < 8; col++) {
+		for (let row = 0; row < 23; row++) {
+			if ((col + row) % 5 == 2) continue;
+			xs.push((col + 1) * 60000);
+			lo.push(2 ** (-16 + row / 2));
+			hi.push(2 ** (-16 + (row + 1) / 2));
+			counts.push((1 + (col * 23 + row) % 32) / 285);
+		}
+	}
+	return framesFor([xs, lo, hi, counts]);
+}
 
 const demoMinAbs = 2 ** -128;
 const colorLabels = { linear: 'Count · linear scale', sqrt: 'Count · √ scale', log: 'Count · log scale' };
@@ -933,9 +950,13 @@ describe('heatmapPlugin uniform grid', () => {
 
 	for (const distr of [1, 3, 4]) {
 		it(`finds X run ends around powers of two, across missing columns, with grid ${distr}`, () => {
-			const lengths = Array.from({ length: 257 }, (_, i) => i + 1);
+			// Exercise every exponential-search boundary in both directions, without hundreds of interior lengths.
+			const lengths = [1, 2];
+			for (let power = 4; power <= 256; power *= 2)
+				lengths.push(power - 1, power, power + 1);
 			lengths.push(...lengths.slice().reverse());
-			const f = fixture({ x: { distr }, y: { distr: 1 }, xOrigin: -2, xSize: .01, ySize: 1,
+			// Keep the transformed span crossing zero even with fewer columns (including signed asinh X).
+			const f = fixture({ x: { distr }, y: { distr: 1 }, xOrigin: -2, xSize: .12, ySize: 1,
 				nx: lengths.length * 2 - 1, ny: 257, include: (col, row) => col % 2 == 0 && row < lengths[col / 2] });
 			let reads = 0;
 			const data = [null, [...f.data[1]]];
@@ -1212,14 +1233,14 @@ describe('heatmapPlugin uniform grid', () => {
 	});
 });
 
-describe('heatmapPlugin demo', () => {
+describe('heatmap cells demo integration', () => {
 	it('matches Y grid and tick masks to visible labels across signed asinh resizes and display switches', async () => {
 		const root = createDemoRoot(), select = root.querySelector('#y-scale'), signed = root.querySelector('#signed-data');
 		const lo = Array.from({ length: 33 }, (_, i) => 2 ** (i - 16));
-		const dashboard = dashboardFor([lo.map(() => 60000), lo, lo.map(v => v * 2), lo.map(() => 1)]);
+		const frames = framesFor([lo.map(() => 60000), lo, lo.map(v => v * 2), lo.map(() => 1)]);
 		let demo;
 		try {
-			demo = createDemo(root, dashboard); await Promise.resolve();
+			demo = createDemo(root, frames); await Promise.resolve();
 
 			async function checkMasks(height) {
 				const u = demo.plot, axis = u.axes[1], seen = {};
@@ -1271,7 +1292,7 @@ describe('heatmapPlugin demo', () => {
 	});
 
 	it('redraws color scales in place, recreates Y scales with the selected color, and cleans up all control listeners', async () => {
-		const dashboard = realDashboard(), snapshot = JSON.stringify(dashboard);
+		const frames = sparseFrames(), snapshot = JSON.stringify(frames);
 		const root = createDemoRoot();
 		const height = root.querySelector('#height'), button = root.querySelector('#set-data'), select = root.querySelector('#y-scale');
 		const signed = root.querySelector('#signed-data'), color = root.querySelector('#color-scale');
@@ -1299,7 +1320,7 @@ describe('heatmapPlugin demo', () => {
 		}
 		let demo;
 		try {
-			demo = createDemo(root, dashboard);
+			demo = createDemo(root, frames);
 			await Promise.resolve();
 			const originalData = demo.plot.data, dataSnapshot = structuredClone(originalData);
 			const minY = originalData[1][1].reduce((a, b) => Math.min(a, b), Infinity);
@@ -1352,7 +1373,7 @@ describe('heatmapPlugin demo', () => {
 			for (const [mode, distr, retainedColor] of [['linear', 1, 'linear'], ['asinh', 4, 'log'], ['log', 3, 'linear'], ['asinh', 4, 'log']]) {
 				const old = demo.plot;
 				old.setSize({ width: 777, height: 720 });
-				old.setScale('x', { min: 1698438000, max: 1698440000 });
+				old.setScale('x', { min: 60, max: 240 });
 				old.setScale('y', { min: .01, max: 1 });
 				await Promise.resolve();
 				for (const colorMode of [...colorModes, retainedColor]) await changeColor(colorMode);
@@ -1375,7 +1396,7 @@ describe('heatmapPlugin demo', () => {
 				assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels[retainedColor]);
 				checkDemoColors(u, retainedColor, minCount, maxCount);
 				assert.equal(u.scales.y.distr, distr);
-				assert.deepEqual([u.scales.x.min, u.scales.x.max], [1698437700, 1698459360]);
+				assert.deepEqual([u.scales.x.min, u.scales.x.max], [0, 480]);
 				assert.deepEqual([u.scales.y.min, u.scales.y.max], mode == 'log' ? [2 ** -16, 2 ** -4] : [0, maxY]);
 				assert.equal(u.scales.y.asinh(u, 'y'), minY);
 				if (mode == 'asinh') {
@@ -1397,7 +1418,7 @@ describe('heatmapPlugin demo', () => {
 			}
 			assert.equal(destroyed, 4);
 			assert.equal(dataCalls, 4);
-			assert.equal(JSON.stringify(dashboard), snapshot);
+			assert.equal(JSON.stringify(frames), snapshot);
 			assert.equal(registrations.filter(([target]) => target == color).length, 1, 'recreation does not duplicate color listeners');
 			const latest = demo.plot, beforeSize = sizeCalls;
 			let redrawsAfterDestroy = 0;
@@ -1426,11 +1447,11 @@ describe('heatmapPlugin demo', () => {
 			select.value = initialMode;
 			const color = root.querySelector('#color-scale');
 			assert.ok(signed, 'the signed-data checkbox exists');
-			const dashboard = dashboardFor([[60000, 60000, 120000, 240000, 240000], [1, 4, 2, 1, 2], [2, 8, 4, 2, 4], [1, 2, 3, 4, 2]]);
-			const snapshot = JSON.stringify(dashboard), threshold = 1;
+			const frames = framesFor([[60000, 60000, 120000, 240000, 240000], [1, 4, 2, 1, 2], [2, 8, 4, 2, 4], [1, 2, 3, 4, 2]]);
+			const snapshot = JSON.stringify(frames), threshold = 1;
 			let demo;
 			try {
-				demo = createDemo(root, dashboard); await Promise.resolve();
+				demo = createDemo(root, frames); await Promise.resolve();
 				const original = demo.plot.data, originalSnapshot = structuredClone(original), old = demo.plot;
 				color.value = 'log'; color.dispatchEvent(new Event('change')); await Promise.resolve();
 				checkDemoColors(old, 'log', 1, 4);
@@ -1517,7 +1538,7 @@ describe('heatmapPlugin demo', () => {
 				assert.equal(select.querySelector('option[value="log"]').disabled, false);
 				assert.equal(demo.plot.data, original);
 				assert.equal(color.value, 'log'); checkDemoColors(demo.plot, 'log', 1, 4);
-				assert.deepEqual(original, originalSnapshot); assert.equal(JSON.stringify(dashboard), snapshot);
+				assert.deepEqual(original, originalSnapshot); assert.equal(JSON.stringify(frames), snapshot);
 				select.value = 'log'; select.dispatchEvent(new Event('change')); await Promise.resolve();
 				assert.equal(demo.plot.scales.y.distr, 3);
 				assert.equal(color.value, 'log'); checkDemoColors(demo.plot, 'log', 1, 4);
@@ -1533,10 +1554,10 @@ describe('heatmapPlugin demo', () => {
 		const root = createDemoRoot(), signed = root.querySelector('#signed-data'), select = root.querySelector('#y-scale');
 		assert.ok(signed, 'the signed-data checkbox exists');
 		signed.checked = true;
-		const dashboard = dashboardFor([[60000, 60000], [1, 2], [2, 4], [1, 4]]);
+		const frames = framesFor([[60000, 60000], [1, 2], [2, 4], [1, 4]]);
 		let demo;
 		try {
-			demo = createDemo(root, dashboard); await Promise.resolve();
+			demo = createDemo(root, frames); await Promise.resolve();
 			assert.equal(select.value, 'asinh', 'an initially checked signed control also disallows log display');
 			const replacement = [null, [[300, 300, 360, 360], [-8, -2, -4, -1], [-4, -1, -2, -.5], [1, 2, 3, 4]]];
 			demo.plot.setData(replacement); await Promise.resolve();
@@ -1583,10 +1604,10 @@ describe('heatmapPlugin demo', () => {
 				root.querySelector('#y-scale').value = mode;
 				const cutoff = demoMinAbs;
 				const lo = [cutoff / 4, cutoff / 2, cutoff, cutoff * 2, cutoff * 4];
-				const dashboard = dashboardFor([lo.map(() => 60000), lo, lo.map(v => v * 2), lo.map((_, i) => i + 1)]);
+				const frames = framesFor([lo.map(() => 60000), lo, lo.map(v => v * 2), lo.map((_, i) => i + 1)]);
 				let demo;
 				try {
-					demo = createDemo(root, dashboard); await Promise.resolve();
+					demo = createDemo(root, frames); await Promise.resolve();
 					const u = demo.plot, snapshot = structuredClone(u.data);
 					assert.equal(u.data[1][0].length, lo.length * (signed ? 2 : 1));
 					assert.equal(u.scales.y.asinh(u, 'y'), cutoff * 2, 'edges equal to minAbs do not qualify on any display');
@@ -1620,10 +1641,10 @@ describe('heatmapPlugin demo', () => {
 	it('refreshes the cached asinh threshold on replacement, in-place, and empty setData', async () => {
 		const root = createDemoRoot();
 		root.querySelector('#y-scale').value = 'asinh';
-		const dashboard = dashboardFor([[60000, 60000, 120000, 120000], [1, 2, 1, 4], [2, 4, 2, 8], [1, 2, 3, 4]]);
+		const frames = framesFor([[60000, 60000, 120000, 120000], [1, 2, 1, 4], [2, 4, 2, 8], [1, 2, 3, 4]]);
 		let demo;
 		try {
-			demo = createDemo(root, dashboard);
+			demo = createDemo(root, frames);
 			await Promise.resolve();
 			const u = demo.plot;
 			const before = u.valToPos(1, 'y');
@@ -1667,10 +1688,10 @@ describe('heatmapPlugin demo', () => {
 		it(`skips core data scans with precomputed ${mode} ranges`, async () => {
 			const root = createDemoRoot();
 			root.querySelector('#y-scale').value = mode;
-			const dashboard = dashboardFor([[60000, 60000, 120000, 120000], [1, 2, 1, 2], [2, 4, 2, 4], [1, 2, 3, 4]]);
+			const frames = framesFor([[60000, 60000, 120000, 120000], [1, 2, 1, 2], [2, 4, 2, 4], [1, 2, 3, 4]]);
 			let demo;
 			try {
-				demo = createDemo(root, dashboard);
+				demo = createDemo(root, frames);
 				await Promise.resolve();
 				const u = demo.plot;
 				let scanning = false, calls = 0;
@@ -1742,11 +1763,11 @@ describe('heatmapPlugin demo', () => {
 		]);
 		for (const counts of [...fixtures, Array(16).fill(1.234)]) {
 			const xs = counts.map((_, i) => 1698437760000 + i * 60000);
-			const dashboard = dashboardFor([xs, counts.map(() => .01), counts.map(() => .02), counts]);
+			const frames = framesFor([xs, counts.map(() => .01), counts.map(() => .02), counts]);
 			const root = createDemoRoot();
 			let demo;
 			try {
-				demo = createDemo(root, dashboard);
+				demo = createDemo(root, frames);
 				await Promise.resolve();
 				const u = demo.plot;
 				const min = counts.reduce((a, b) => Math.min(a, b), Infinity);
@@ -1781,10 +1802,10 @@ describe('heatmapPlugin demo', () => {
 		root.querySelector('#y-scale').value = 'linear';
 		const min = 1, max = 64;
 		const initial = [1, 2, 4, 8, 32, 64];
-		const dashboard = dashboardFor([initial.map((_, i) => (i + 1) * 60000), initial.map(() => 1), initial.map(() => 2), initial]);
+		const frames = framesFor([initial.map((_, i) => (i + 1) * 60000), initial.map(() => 1), initial.map(() => 2), initial]);
 		let demo;
 		try {
-			demo = createDemo(root, dashboard); await Promise.resolve();
+			demo = createDemo(root, frames); await Promise.resolve();
 			const u = demo.plot;
 			let drawing = false, prepares = 0, dataCalls = 0, redraws = 0;
 			let reads = [];
@@ -1872,7 +1893,7 @@ describe('heatmapPlugin demo', () => {
 		const root = createDemoRoot();
 		let demo;
 		try {
-			demo = createDemo(root, dashboardFor([xs, lo, hi, counts]));
+			demo = createDemo(root, framesFor([xs, lo, hi, counts]));
 			await Promise.resolve();
 			const u = demo.plot;
 			assert.equal(u.data[1][0].length, length);
@@ -1890,18 +1911,18 @@ describe('heatmapPlugin demo', () => {
 		finally { demo?.destroy(); root.remove(); }
 	});
 
-	it('renders the real sparse fixture with its full cell count, ranges, and per-color counts', async () => {
+	it('renders a deterministic sparse fixture with its full cell count, ranges, and per-color counts', async () => {
 		const root = createDemoRoot();
 		let demo;
 		try {
-			demo = createDemo(root, realDashboard());
+			demo = createDemo(root, sparseFrames());
 			await Promise.resolve();
 			const u = demo.plot;
 			assert.equal(u.mode, 2);
-			assert.deepEqual(u.data[1].map(facet => facet.length), [14997, 14997, 14997, 14997]);
-			assert.equal(rects(u).length, 14997);
-			assert.equal(new Set(u.data[1][0]).size, 361);
-			assert.equal(u.data[1][2].reduce((a, b) => Math.max(a, b), -Infinity), 0.044194173824159216);
+			assert.deepEqual(u.data[1].map(facet => facet.length), [146, 146, 146, 146]);
+			assert.equal(rects(u).length, 146);
+			assert.equal(new Set(u.data[1][0]).size, 8);
+			assert.equal(u.data[1][2].reduce((a, b) => Math.max(a, b), -Infinity), 2 ** -4.5);
 			assert.equal(fills(u).length, 32);
 			const colorChanges = lastDraw(u).filter(e => e[0] === 'fillStyle').flatMap(e => e.slice(1)).filter(fill => fill.startsWith('rgb('));
 			assert.equal(colorChanges.length, 32);
@@ -1917,7 +1938,7 @@ describe('heatmapPlugin demo', () => {
 				color.value = mode; color.dispatchEvent(new Event('change')); await Promise.resolve();
 				assert.equal(demo.plot, u);
 				assert.equal(u.data[1][3], counts);
-				assert.equal(rects(u).length, 14997);
+				assert.equal(rects(u).length, 146);
 				checkDemoColors(u, mode, min, max);
 				assert.deepEqual(lastDraw(u).filter(e => e[0] === 'fillStyle').flatMap(e => e.slice(1)).filter(fill => fill.startsWith('rgb(')), colorChanges,
 					'all modes retain the same ordered Spectral palette');
@@ -1925,11 +1946,11 @@ describe('heatmapPlugin demo', () => {
 				assert.equal(root.querySelector('#color-min').textContent, format(min));
 				assert.equal(root.querySelector('#color-max').textContent, format(max));
 			}
-			assert.deepEqual([u.scales.x.min, u.scales.x.max], [1698437700, 1698459360]);
+			assert.deepEqual([u.scales.x.min, u.scales.x.max], [0, 480]);
 			assert.deepEqual([u.scales.y.min, u.scales.y.max], [2 ** -16, 2 ** -4]);
 			assert.equal(u.scales.y.distr, 3);
 			assert.equal(u.scales.y.log, 2);
-			assert.ok(root.querySelector('#status').textContent.startsWith(`${(14997).toLocaleString()} cells`));
+			assert.ok(root.querySelector('#status').textContent.startsWith('146 cells · 8 one-minute intervals'));
 		}
 		finally { demo?.destroy(); root.remove(); }
 	});

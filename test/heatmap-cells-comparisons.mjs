@@ -183,7 +183,7 @@ describe('native-library heatmap comparisons', () => {
 
 	it('maps every generated cell to the correct matrix pixel and sparse hover entry', function() {
 		this.timeout(15000);
-		const f = generateHeatmapCells();
+		const f = generateHeatmapCells({ seed: 1, columns: 64, interval: 12 * 60 * 60 * 1000, xGapProbability: .1 });
 		const frame = f.find(f => f.schema.meta?.type == 'heatmap-cells');
 		const values = name => frame.data.values[frame.schema.fields.findIndex(f => f.name == name)];
 		const xs = values('xMax'), lo = values('yMin'), hi = values('yMax');
@@ -193,7 +193,10 @@ describe('native-library heatmap comparisons', () => {
 		const minY = lo.reduce((a, b) => Math.min(a, b), Infinity);
 		const maxY = hi.reduce((a, b) => Math.max(a, b), -Infinity);
 		const p = plotlyData(f), find = cellLookup(p);
-		assert.ok(xs.length >= 225000 && xs.length <= 275000);
+		assert.ok(xs.length >= 5000 && xs.length <= 7000);
+		assert.ok(new Set(xs).size < 64, 'fixture includes missing columns');
+		assert.equal(maxX - minX + interval, 32 * 24 * 60 * 60 * 1000);
+		assert.equal(p.nx, 64);
 		assert.equal(p.times, xs);
 		assert.equal(p.yMin, lo);
 		assert.equal(p.yMax, hi);

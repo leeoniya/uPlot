@@ -4,10 +4,9 @@ import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { generateHeatmapCells } from '../demos/lib/heatmapCellsData.js';
 import { createDemo } from '../demos/heatmap-cells.js';
-import { createDemo as createOriginalDemo } from '../demos/heatmap-sparse.js';
 
-function rootFor(name) {
-	const html = readFileSync(new URL(`../demos/${name}.html`, import.meta.url), 'utf8');
+function createDemoRoot() {
+	const html = readFileSync(new URL('../demos/heatmap-cells.html', import.meta.url), 'utf8');
 	const page = new DOMParser().parseFromString(html, 'text/html');
 	const root = document.importNode(page.querySelector('#demo'), true);
 	document.body.appendChild(root);
@@ -20,19 +19,8 @@ function rectangles(u) {
 		.flatMap(([path]) => path?.log?.filter(entry => entry[0] == 'rect').flatMap(entry => entry.slice(1)) ?? []);
 }
 
-function state(demo, root) {
-	const u = demo.plot;
-	return {
-		data: u.data,
-		scales: ['x', 'y'].map(key => [u.scales[key].min, u.scales[key].max, u.scales[key]._asinh]),
-		rectangles: rectangles(u),
-		status: root.querySelector('#status').textContent,
-		legend: root.querySelector('#color-scale-label').textContent,
-	};
-}
-
 describe('heatmap cells demo', () => {
-	it('matches the original demo when given the same frames without the dashboard wrapper', async () => {
+	it('selects the heatmap frame and resolves reordered fields by name', async () => {
 		const frames = [
 			{ schema: { meta: { type: 'other' } } },
 			{ schema: { meta: { type: 'heatmap-cells' }, fields: [
@@ -40,34 +28,15 @@ describe('heatmap cells demo', () => {
 				{ name: 'yLayout' }, { name: 'yMin' },
 			] }, data: { values: [[1, 2, 3, 4], [2, 4, 2, 8], [60000, 60000, 120000, 120000], [0, 0, 0, 0], [1, 2, 1, 4]] } },
 		];
-		const roots = [rootFor('heatmap-sparse'), rootFor('heatmap-cells')];
-		const demos = [];
+		const root = createDemoRoot();
+		let demo;
 		try {
-			demos.push(createOriginalDemo(roots[0], { panels: [{ targets: [{ rawFrameContent: JSON.stringify(frames) }] }] }));
-			demos.push(createDemo(roots[1], frames));
+			demo = createDemo(root, frames);
 			await Promise.resolve();
-			assert.deepEqual(state(demos[1], roots[1]), state(demos[0], roots[0]));
-			for (const [id, value] of [['color-scale', 'sqrt'], ['color-scale', 'log'], ['y-scale', 'asinh'], ['y-scale', 'linear'], ['y-scale', 'log']]) {
-				for (const root of roots) {
-					const select = root.querySelector(`#${id}`);
-					select.value = value;
-					select.dispatchEvent(new Event('change'));
-				}
-				await Promise.resolve();
-				assert.deepEqual(state(demos[1], roots[1]), state(demos[0], roots[0]));
-			}
-			for (const root of roots) {
-				const signed = root.querySelector('#signed-data');
-				signed.checked = true;
-				signed.dispatchEvent(new Event('change'));
-			}
-			await Promise.resolve();
-			assert.deepEqual(state(demos[1], roots[1]), state(demos[0], roots[0]));
+			assert.deepEqual(demo.plot.data, [null, [[60, 60, 120, 120], [1, 2, 1, 4], [2, 4, 2, 8], [1, 2, 3, 4]]]);
+			assert.equal(demo.plot.data[1][3], frames[1].data.values[0]);
 		}
-		finally {
-			demos.forEach(demo => demo.destroy());
-			roots.forEach(root => root.remove());
-		}
+		finally { demo?.destroy(); root.remove(); }
 	});
 
 	for (const [seconds, label] of [[60, 'one-minute'], [1200, '20-minute'], [30, '30-second'], [90, '90-second'], [.5, '0.5-second']]) {
@@ -76,7 +45,7 @@ describe('heatmap cells demo', () => {
 				{ name: 'xMax', config: { interval: seconds * 1000 } },
 				{ name: 'yMin' }, { name: 'yMax' }, { name: 'count' },
 			] }, data: { values: [[seconds * 1000, seconds * 2000], [1, 1], [2, 2], [3, 4]] } }];
-			const root = rootFor('heatmap-cells');
+			const root = createDemoRoot();
 			let demo;
 			try {
 				demo = createDemo(root, frames);
@@ -98,15 +67,20 @@ describe('heatmap cells demo', () => {
 		it(`keeps generated column gaps empty through zoom and setData (p=${xGapProbability})`, async function() {
 			this.timeout(15000);
 			const options = { seed: 1, columns: 16, start: 0, interval: 60000 };
+			// Keep adjacent dense buckets and sparse fast buckets without a quadratic full-Y oracle.
+			const buckets = new Set([-84, -83, -60, -59, -58, -57].map(exponent => 2 ** (exponent / 8)));
+			const selectBuckets = values => values.map(facet => facet.filter((_, i) => buckets.has(values[1][i])));
 			const frames = generateHeatmapCells({ ...options, xGapProbability });
-			const source = frames[0].data.values;
-			const full = generateHeatmapCells(options)[0].data.values;
+			const source = frames[0].data.values = selectBuckets(frames[0].data.values);
+			const full = selectBuckets(generateHeatmapCells(options)[0].data.values);
+			assert.equal(new Set(full[1]).size, buckets.size);
+			assert.ok(full[0].length < options.columns * buckets.size, 'retained buckets include missing Y cells');
 			const present = new Set(source[0]);
 			const missing = Array.from({ length: options.columns }, (_, col) => col)
 				.filter(col => !present.has((col + 1) * options.interval));
 			assert.deepEqual(missing, xGapProbability == .5 ? [1, 2, 9, 10, 14] : Array.from({ length: 14 }, (_, i) => i + 1));
 			assert.deepEqual(source, full.map(values => values.filter((_, i) => present.has(full[0][i]))));
-			const root = rootFor('heatmap-cells');
+			const root = createDemoRoot();
 			let demo;
 			try {
 				demo = createDemo(root, frames);
@@ -185,16 +159,17 @@ describe('heatmap cells demo', () => {
 
 	it('renders all generated source cells with the existing controls', async function() {
 		this.timeout(15000);
-		const frames = generateHeatmapCells();
+		// Keep a month-long date range; the plugin suite covers the 250k-cell smoke test.
+		const frames = generateHeatmapCells({ columns: 64, interval: 12 * 60 * 60 * 1000 });
 		const frame = frames.find(f => f.schema.meta?.type == 'heatmap-cells');
 		const values = name => frame.data.values[frame.schema.fields.findIndex(f => f.name == name)];
-		const root = rootFor('heatmap-cells');
+		const root = createDemoRoot();
 		let demo;
 		try {
 			demo = createDemo(root, frames);
 			await Promise.resolve();
 			const u = demo.plot, xs = values('xMax');
-			assert.ok(xs.length >= 225000 && xs.length <= 275000);
+			assert.equal(new Set(xs).size, 64);
 			const interval = frame.schema.fields.find(f => f.name == 'xMax').config.interval;
 			const minX = xs.reduce((a, b) => Math.min(a, b), Infinity);
 			const maxX = xs.reduce((a, b) => Math.max(a, b), -Infinity);
@@ -207,7 +182,7 @@ describe('heatmap cells demo', () => {
 			assert.deepEqual(u.data[1][0], xs.map(x => x / 1000));
 			assert.deepEqual([u.scales.x.min, u.scales.x.max], [minX / 1000 - interval / 1000, maxX / 1000]);
 			assert.deepEqual([u.scales.y.min, u.scales.y.max], uPlot.rangeLog(minY, maxY, 2, true));
-			assert.ok(root.querySelector('#status').textContent.startsWith(`${xs.length.toLocaleString()} cells · 2569 20-minute intervals`));
+			assert.ok(root.querySelector('#status').textContent.startsWith(`${xs.length.toLocaleString()} cells · 64 720-minute intervals`));
 			const start = u.scales.x.min, end = u.scales.x.max;
 			const splits = [start, null, end];
 			const dates = splits.map(v => v == null ? null : new Date(v * 1000).toISOString().slice(5, 10));

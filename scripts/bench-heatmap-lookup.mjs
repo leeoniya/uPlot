@@ -6,12 +6,17 @@ import { execFileSync } from 'node:child_process';
 import { cpus } from 'node:os';
 import './instrument.mjs';
 import uPlot from '../src/uPlot.js';
+import { generateHeatmapCells } from '../demos/lib/heatmapCellsData.js';
 
 const root = new URL('../', import.meta.url);
 const baselineRef = '88ebc9f5fd763e9483b0fc826d4b1238ee82ca11';
 const source = execFileSync('git', ['--no-pager', 'show', `${baselineRef}:demos/lib/heatmapPlugin.js`], { cwd: root, encoding: 'utf8' });
 const binarySource = readFileSync(new URL('demos/lib/heatmapPlugin.js', root), 'utf8');
-const fixtureSource = readFileSync(new URL('demos/data/heatmap-cells-exemplars.json', root), 'utf8');
+const generatorPath = 'demos/lib/heatmapCellsData.js';
+const generatorSource = readFileSync(new URL(generatorPath, root), 'utf8');
+const generatorOptions = { seed: 1, columns: 160, interval: 60000 };
+const frames = generateHeatmapCells(generatorOptions);
+const fixtureSource = JSON.stringify(frames);
 const sha256 = text => createHash('sha256').update(text).digest('hex');
 
 // Compare the committed guess-based implementation with the actual working-tree binary-search implementation.
@@ -61,16 +66,16 @@ function synthetic(name, columns, edges, signed = false) {
 	return describeFixture(name, cells, signed ? { distr: 3, factor: 2 ** .25 } : { distr: 3 }, signed ? 2 ** -5 : 0);
 }
 
-const frame = JSON.parse(JSON.parse(fixtureSource).panels[0].targets[0].rawFrameContent)
-	.find(f => f.schema.meta?.type == 'heatmap-cells');
+const frame = frames.find(f => f.schema.meta?.type == 'heatmap-cells');
 const field = name => frame.data.values[frame.schema.fields.findIndex(f => f.name == name)];
-const real = describeFixture('real-15k', [field('xMax').map(v => v / 1000), field('yMin'), field('yMax'), field('count')]);
+const generated = describeFixture('generated-160-columns', [field('xMax').map(v => v / 1000), field('yMin'), field('yMax'), field('count')],
+	{ distr: 3 }, 0, frame.schema.fields.find(f => f.name == 'xMax').config.interval / 1000);
 const small = synthetic('64x64', 64, Array.from({ length: 65 }, (_, i) => 2 ** (-8 + i / 32)));
 const large = synthetic('1000x1000', 1000, Array.from({ length: 1001 }, (_, i) => 2 ** (-8 + i / 32)));
 const positive = Array.from({ length: 65 }, (_, i) => 2 ** (-8 + i / 4));
 const signed = synthetic('512x129-signed', 512, [...positive.map(v => -v).reverse(), ...positive], true);
 const cases = [];
-for (const fixture of [real, small, large, signed]) {
+for (const fixture of [generated, small, large, signed]) {
 	for (const display of fixture == signed ? ['linear', 'asinh'] : ['log', 'linear', 'asinh'])
 		cases.push({ fixture, display, clipped: false });
 }
@@ -185,7 +190,8 @@ const report = {
 	metadata: { engine, version: process.versions.bun ?? process.version, nodeCompat: process.version,
 		cpu: cpus()[0]?.model, logicalCpus: cpus().length, baselineRef,
 		head: execFileSync('git', ['--no-pager', 'rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
-		sourceSha256: sha256(source), binarySha256: sha256(binarySource), fixtureSha256: sha256(fixtureSource) },
+		sourceSha256: sha256(source), binarySha256: sha256(binarySource),
+		fixtureGenerator: { path: generatorPath, options: generatorOptions, sourceSha256: sha256(generatorSource) }, fixtureSha256: sha256(fixtureSource) },
 	protocol: { warmup, samples, repeats, queryCount, alternatingOrder: true, units: 'microseconds/query',
 		chart: { width: 1001, height: 601, dpr: 1.25 },
 		implementations: { current: 'guess-based baseline', binary: 'working-tree binary search with shared bisect helper' },

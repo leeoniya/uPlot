@@ -103,28 +103,35 @@ function validate(frames, options = {}) {
 	return cells;
 }
 
-function aggregate(cells) {
-	const perColumn = Array.from({length: defaults.columns}, () => ({
-		rows: 0, total: 0, ...Object.fromEntries(Object.keys(bands).map(name => [name, 0])),
-	}));
-	const bandRows = Object.fromEntries(Object.keys(bands).map(name => [name, 0]));
-	const mass = new Float64Array(169);
+function bucketMetadata(bands) {
 	const entries = Object.entries(bands);
+	return new Map(edges.slice(0, -1).map((lo, row) => {
+		const y = Math.sqrt(lo * edges[row + 1]);
+		return [lo, {row, names: entries.filter(([, [min, max]]) => y >= min && y < max).map(([name]) => name)}];
+	}));
+}
+
+function aggregate(cells) {
+	const zeroBands = Object.fromEntries(Object.keys(bands).map(name => [name, 0]));
+	const keys = ['rows', 'total', ...Object.keys(bands)];
+	const totals = Object.fromEntries(keys.map(key => [key, new Float64Array(defaults.columns)]));
+	const bandRows = {...zeroBands};
+	const mass = new Float64Array(169);
+	const buckets = bucketMetadata(bands);
 	for (let i = 0; i < cells.times.length; i++) {
 		const col = (cells.times[i] - defaults.start) / defaults.interval - 1;
-		const column = perColumn[col];
-		const y = Math.sqrt(cells.yMin[i] * cells.yMax[i]);
+		const bucket = buckets.get(cells.yMin[i]);
 		const count = cells.counts[i];
-		column.rows++;
-		column.total += count;
-		mass[Math.round(Math.log2(cells.yMin[i]) * 8) + 139] += count;
-		for (const [name, [lo, hi]] of entries) {
-			if (y >= lo && y < hi) {
-				column[name] += count;
-				bandRows[name]++;
-			}
+		totals.rows[col]++;
+		totals.total[col] += count;
+		mass[bucket.row] += count;
+		for (const name of bucket.names) {
+			totals[name][col] += count;
+			bandRows[name]++;
 		}
 	}
+	const perColumn = Array.from({length: defaults.columns}, (_, col) =>
+		Object.fromEntries(keys.map(key => [key, totals[key][col]])));
 	const total = mass.reduce((a, b) => a + b, 0);
 	return {
 		perColumn, bandRows,
@@ -138,14 +145,21 @@ function aggregate(cells) {
 			assert.fail(`No weighted quantile for ${p}`);
 		},
 		window(from, to) {
-			const columns = perColumn.filter((_, i) => {
+			const sums = {...zeroBands, rows: 0, total: 0};
+			const keys = Object.keys(sums);
+			let length = 0;
+			for (let i = 0; i < perColumn.length; i++) {
 				const t = i / (defaults.columns - 1);
-				return t >= from && t < to;
-			});
-			assert.ok(columns.length > 0, `Empty time window [${from}, ${to})`);
-			return Object.fromEntries(Object.keys(columns[0]).map(key => [
-				key, columns.reduce((sum, column) => sum + column[key], 0) / columns.length,
-			]));
+				if (t >= from && t < to) {
+					length++;
+					for (const key of keys)
+						sums[key] += perColumn[i][key];
+				}
+			}
+			assert.ok(length > 0, `Empty time window [${from}, ${to})`);
+			for (const key of keys)
+				sums[key] /= length;
+			return sums;
 		},
 	};
 }
@@ -289,7 +303,7 @@ describe('procedural heatmap cells data', function() {
 	it('keeps the default size near 250k cells with a sparse, low-rate distribution', () => {
 		between(cells.counts.length, 225000, 275000, 'Default cell count');
 		between(cells.counts.length / (defaults.columns * 169), 0.5, 0.65, 'Grid occupancy');
-		const counts = [...cells.counts].sort((a, b) => a - b);
+		const counts = Float64Array.from(cells.counts).sort();
 		between(quantile(counts, 0.05), 1 / 285, 3 / 285, 'Rate p05');
 		between(quantile(counts, 0.5), 0.008, 0.04, 'Rate p50');
 		between(quantile(counts, 0.95), 0.06, 0.2, 'Rate p95');
@@ -316,10 +330,19 @@ describe('procedural heatmap cells data', function() {
 	it('retains all five major latency bands across early, middle, and late windows', () => {
 		for (const [from, to] of [[0.02, 0.18], [0.3, 0.7], [0.81, 0.92], [0.93, 0.965], [0.98, 1.001]]) {
 			const window = stats.window(from, to);
+			const presence = Object.fromEntries(persistent.map(name => [name, 0]));
+			let length = 0;
+			for (let i = 0; i < stats.perColumn.length; i++) {
+				const t = i / (defaults.columns - 1);
+				if (t >= from && t < to) {
+					length++;
+					for (const name of persistent)
+						presence[name] += stats.perColumn[i][name] > 0;
+				}
+			}
 			for (const name of persistent) {
 				between(window[name] / window.total, 0.02, 0.4, `${name} weight share in [${from}, ${to})`);
-				const columns = stats.perColumn.filter((_, i) => i / (defaults.columns - 1) >= from && i / (defaults.columns - 1) < to);
-				between(columns.filter(c => c[name] > 0).length / columns.length, 0.95, 1, `${name} presence in [${from}, ${to})`);
+				between(presence[name] / length, 0.95, 1, `${name} presence in [${from}, ${to})`);
 			}
 		}
 	});
@@ -348,8 +371,10 @@ describe('procedural heatmap cells data', function() {
 		for (const name of ['hundred', 'mid', 'slow'])
 			assert.ok(outage[name] < before[name] * 0.05, `${name} must disappear during the outage`);
 		between(after.total / before.total, 0.7, 1.4, 'Recovery');
-		const low = stats.perColumn.filter(c => c.total < before.total * 0.3);
-		between(low.length / defaults.columns, 0.002, 0.015, 'Brief outage duration');
+		let low = 0;
+		for (const column of stats.perColumn)
+			low += column.total < before.total * 0.3;
+		between(low / defaults.columns, 0.002, 0.015, 'Brief outage duration');
 		assert.ok(stats.perColumn.every(c => c.rows > 0 && c.total > 0));
 	});
 
@@ -378,16 +403,30 @@ describe('procedural heatmap cells data', function() {
 		const names = Object.keys(rateBands);
 		const pulsed = ['millis', 'tens', 'subsecond'];
 
-		function summarize(columns) {
-			assert.ok(columns.length > 0, 'Statistical windows must contain columns');
-			const rates = Object.fromEntries(names.map(name => [
-				name, columns.reduce((sum, c) => sum + c[name], 0) / columns.length,
-			]));
-			const mass = new Float64Array(edges.length - 1);
+		let buckets, zeroRates;
+
+		function summarize(columns, from, to, tails) {
+			const rates = {...zeroRates};
+			const mass = tails ? new Float64Array(edges.length - 1) : null;
+			const heights = tails ? [] : null;
+			let length = 0;
 			for (const column of columns) {
-				for (let row = 0; row < mass.length; row++)
-					mass[row] += column.mass[row];
+				if (column.phase >= from && column.phase < to) {
+					length++;
+					for (const name of names)
+						rates[name] += column[name];
+					if (tails) {
+						for (let row = 0; row < mass.length; row++)
+							mass[row] += column.mass[row];
+						heights.push(column.height);
+					}
+				}
 			}
+			assert.ok(length > 0, 'Statistical windows must contain columns');
+			for (const name of names)
+				rates[name] /= length;
+			if (!tails)
+				return rates;
 			const total = mass.reduce((a, b) => a + b, 0);
 			const weighted = p => {
 				let sum = 0;
@@ -398,7 +437,7 @@ describe('procedural heatmap cells data', function() {
 				}
 				assert.fail(`No phase-weighted quantile for ${p}`);
 			};
-			const heights = columns.map(c => c.height).sort((a, b) => a - b);
+			heights.sort((a, b) => a - b);
 			return {
 				...rates, q99: weighted(0.99), q999: weighted(0.999),
 				height: quantile(heights, 0.5),
@@ -406,7 +445,7 @@ describe('procedural heatmap cells data', function() {
 			};
 		}
 
-		const phaseWindow = (columns, from, to) => summarize(columns.filter(c => c.phase >= from && c.phase < to));
+		const phaseWindow = (columns, from, to, tails = true) => summarize(columns, from, to, tails);
 		const peakPhase = (profile, value) => {
 			const peak = profile.reduce((best, column, i) => value(column) > value(profile[best]) ? i : best, 0);
 			return (peak + 0.5) / profile.length;
@@ -417,27 +456,33 @@ describe('procedural heatmap cells data', function() {
 				let columns, baseline, profile;
 
 				before(() => {
+					// Build shared grid metadata inside the timed hooks, not during test registration.
+					buckets ??= bucketMetadata(rateBands);
+					zeroRates ??= Object.fromEntries(names.map(name => [name, 0]));
 					// Different timestamps must not change the normalized-day phase measurements.
 					const source = seed == 1 ? cells : readCells(generateHeatmapCells({seed, start: 0, interval: 137}));
+					const rates = Object.fromEntries(names.map(name => [name, new Float64Array(defaults.columns)]));
+					const heights = new Float64Array(defaults.columns);
 					columns = Array.from({length: defaults.columns}, (_, col) => {
 						const t = col / (defaults.columns - 1);
 						const day = t * 35.7;
-						return {
+						return Object.assign({
 							t, day, phase: day % 1, height: 0, mass: new Float64Array(edges.length - 1),
-							...Object.fromEntries(names.map(name => [name, 0])),
-						};
+						}, zeroRates);
 					});
-					const entries = Object.entries(rateBands);
 					for (let i = 0; i < source.times.length; i++) {
-						const column = columns[(source.times[i] - source.minX) / source.xSize - 1];
-						const y = Math.sqrt(source.yMin[i] * source.yMax[i]);
+						const col = (source.times[i] - source.minX) / source.xSize - 1;
+						const bucket = buckets.get(source.yMin[i]);
 						const count = source.counts[i];
-						column.height = Math.max(column.height, source.yMax[i]);
-						column.mass[Math.round(Math.log2(source.yMin[i]) * 8) + 139] += count;
-						for (const [name, [lo, hi]] of entries) {
-							if (y >= lo && y < hi)
-								column[name] += count;
-						}
+						heights[col] = Math.max(heights[col], source.yMax[i]);
+						columns[col].mass[bucket.row] += count;
+						for (const name of bucket.names)
+							rates[name][col] += count;
+					}
+					for (let col = 0; col < columns.length; col++) {
+						columns[col].height = heights[col];
+						for (const name of names)
+							columns[col][name] = rates[name][col];
 					}
 					// Complete mature days exclude both the outage and the late traffic regimes.
 					baseline = columns.filter(c => c.day >= 11 && c.day < 26);
@@ -445,8 +490,8 @@ describe('procedural heatmap cells data', function() {
 				});
 
 				it('brightens the millisecond-to-subsecond bands together each day without pulsing the microband', () => {
-					const pulse = phaseWindow(baseline, 0.67, 0.72);
-					const quiet = phaseWindow(baseline, 0.85, 0.95);
+					const pulse = phaseWindow(baseline, 0.67, 0.72, false);
+					const quiet = phaseWindow(baseline, 0.85, 0.95, false);
 					for (const name of pulsed) {
 						between(pulse[name] / quiet[name], 1.25, 2.1, `${name} pulse/off rate`);
 						between(peakPhase(profile, c => c[name]), 0.65, 0.75, `${name} daily peak phase`);
@@ -456,8 +501,8 @@ describe('procedural heatmap cells data', function() {
 					let coherent = 0;
 					for (let day = 11; day < 26; day++) {
 						const daily = baseline.filter(c => Math.floor(c.day) == day);
-						const on = phaseWindow(daily, 0.67, 0.72);
-						const off = phaseWindow(daily, 0.85, 0.95);
+						const on = phaseWindow(daily, 0.67, 0.72, false);
+						const off = phaseWindow(daily, 0.85, 0.95, false);
 						if (pulsed.every(name => on[name] > off[name] * 1.2))
 							coherent++;
 					}
@@ -481,14 +526,25 @@ describe('procedural heatmap cells data', function() {
 				it('elevates phase-matched populations above three milliseconds throughout the late heat streak', () => {
 					const before = columns.filter(c => c.t >= 0.6 && c.t < 0.79);
 					// Match the phase distribution of each window, including its partial days.
-					const phaseRates = Array.from({length: 72}, (_, bin) => phaseWindow(before, bin / 72, (bin + 1) / 72));
+					const phaseRates = Array.from({length: 72}, (_, bin) => phaseWindow(before, bin / 72, (bin + 1) / 72, false));
 					const ratios = (from, to) => {
-						const selected = columns.filter(c => c.t >= from && c.t < to);
-						assert.ok(selected.length > 0, 'Heat comparison must contain columns');
-						return Object.fromEntries(names.map(name => [name,
-							selected.reduce((sum, c) => sum + c[name], 0) /
-							selected.reduce((sum, c) => sum + phaseRates[Math.floor(c.phase * 72)][name], 0),
-						]));
+						const actual = {...zeroRates};
+						const reference = {...zeroRates};
+						let length = 0;
+						for (const column of columns) {
+							if (column.t >= from && column.t < to) {
+								length++;
+								const matched = phaseRates[Math.floor(column.phase * 72)];
+								for (const name of names) {
+									actual[name] += column[name];
+									reference[name] += matched[name];
+								}
+							}
+						}
+						assert.ok(length > 0, 'Heat comparison must contain columns');
+						for (const name of names)
+							actual[name] /= reference[name];
+						return actual;
 					};
 					for (const [from, to] of [[0.796, 0.84], [0.84, 0.924]]) {
 						const heat = ratios(from, to);

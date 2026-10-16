@@ -13,11 +13,11 @@ const colors = (() => {
 const lut = new Array(3845);
 for (let i = 0; i < 32; i++) lut.fill(i, i == 0 ? 0 : (2 * i - 1) ** 2, (2 * i + 1) ** 2);
 
-function fixtures(dashboard) {
-	const f = JSON.parse(dashboard.panels[0].targets[0].rawFrameContent).find(f => f.schema.meta?.type == 'heatmap-cells');
+function fixtures(frames) {
+	const f = frames.find(f => f.schema.meta?.type == 'heatmap-cells');
 	const field = name => f.data.values[f.schema.fields.findIndex(f => f.name == name)];
-	const real = [field('xMax').map(v => v / 1000), field('yMin'), field('yMax'), field('count')];
-	assert(real[0].length == 15358 && f.schema.fields[0].config.interval == 60000, 'Unexpected fixture');
+	const generated = [field('xMax').map(v => v / 1000), field('yMin'), field('yMax'), field('count')];
+	assert(generated[0].length > 0 && f.schema.fields.find(f => f.name == 'xMax').config.interval == 60000, 'Expected nonempty generated cells with a one-minute interval');
 	let seed = 0x51f15e;
 	const synthetic = [[], [], [], []], edges = Array.from({ length: 1001 }, (_, i) => 2 ** (i / 32));
 	for (let col = 0; col < 1000; col++) for (let j = 0; j < 250; j++) {
@@ -25,7 +25,7 @@ function fixtures(dashboard) {
 		const row = j * 4 + Math.floor(seed / 2 ** 32 * 4);
 		synthetic[0].push((col + 1) * 60); synthetic[1].push(edges[row]); synthetic[2].push(edges[row + 1]); synthetic[3].push(1 + seed % 1000);
 	}
-	return [['fixture-15358', real], ['synthetic-250k', synthetic]].map(([name, cells]) => {
+	return [['generated-160-columns', generated], ['synthetic-250k', synthetic]].map(([name, cells]) => {
 		const [xs, lo, hi, counts] = cells;
 		let minY = Infinity, maxY = -Infinity, minCount = Infinity, maxCount = -Infinity;
 		for (let i = 0; i < xs.length; i++) {
@@ -159,14 +159,14 @@ function validate(factories, fixture, display, dpr, clipped) {
 	finally { states.forEach(s => s.destroy()); globalThis.Path2D = saved; }
 }
 
-export function runBenchmark(baselineFactory, dashboard, metadata = {}) {
+export function runBenchmark(baselineFactory, frames, metadata = {}) {
 	const browser = typeof document != 'undefined', saved = globalThis.Path2D, start = performance.now();
 	const report = { metadata, environment: { runtime: browser ? navigator.userAgent : process.version, renderer: browser ? 'real Canvas/Path2D submissions, not presentation' : 'checksum Path2D stub; no rendering' },
 		protocol: { warmup: 3, samples: 9, alternatingOrder: true, timedDpr: 1, validationDpr: [1, 2], xSize: 60, grid: { x: { distr: 1 }, y: { distr: 3 } }, syntheticSeed: '0x51f15e', synthetic: '1000 columns; one row per group of four of 1000 Y buckets; 2**(1/32) edges',
 			notes: 'Steady-state setData alone; redraw outside excludes old finish; redraw inside includes old finish. Resize changes mock bbox height and draws inside, not uPlot layout. No validation or readback timed. Canvas is not cleared between draws. Single hook call per sample; GC included. Palette/LUT shared.' }, cases: [] };
 	const factories = [baselineFactory, heatmapPlugin];
 	try {
-		for (const fixture of fixtures(dashboard)) for (const display of ['log', 'linear', 'asinh']) {
+		for (const fixture of fixtures(frames)) for (const display of ['log', 'linear', 'asinh']) {
 			const validation = [1, 2].flatMap(dpr => [false, true].map(clipped => validate(factories, fixture, display, dpr, clipped)));
 			globalThis.Path2D = browser ? saved : ChecksumPath;
 			const states = factories.map(factory => {
@@ -212,9 +212,15 @@ export async function loadInputs() {
 	assert(baselineSource.includes("import Flatbush from './flatbush.js'"), 'Baseline must contain the original Flatbush plugin');
 	const currentSource = readFileSync(new URL('../demos/lib/heatmapPlugin.js', import.meta.url), 'utf8');
 	const flatbushSource = readFileSync(new URL('../demos/lib/flatbush.js', import.meta.url), 'utf8');
-	const fixtureSource = readFileSync(new URL('../demos/data/heatmap-cells-exemplars.json', import.meta.url), 'utf8');
+	// Generate in Node so the browser runner can keep serving the same serialized fixture.
+	const { generateHeatmapCells } = await import('../demos/lib/heatmapCellsData.js');
+	const generatorPath = 'demos/lib/heatmapCellsData.js';
+	const generatorSource = readFileSync(new URL(generatorPath, cwd), 'utf8');
+	const generatorOptions = { seed: 1, columns: 160, interval: 60000 };
+	const fixtureSource = JSON.stringify(generateHeatmapCells(generatorOptions));
 	const sha256 = text => createHash('sha256').update(text).digest('hex');
-	return { baselineSource, currentSource, flatbushSource, fixtureSource, metadata: { head: git(['rev-parse', 'HEAD']).trim(), baselineRef, baselineSha256: sha256(baselineSource), currentSha256: sha256(currentSource), flatbushSha256: sha256(flatbushSource), fixtureSha256: sha256(fixtureSource) } };
+	return { baselineSource, currentSource, flatbushSource, fixtureSource, metadata: { head: git(['rev-parse', 'HEAD']).trim(), baselineRef, baselineSha256: sha256(baselineSource), currentSha256: sha256(currentSource), flatbushSha256: sha256(flatbushSource),
+		fixtureGenerator: { path: generatorPath, options: generatorOptions, sourceSha256: sha256(generatorSource) }, fixtureSha256: sha256(fixtureSource) } };
 }
 export function printReport(report) {
 	console.log(report.environment, 'Validation:', report.validationPassed);
