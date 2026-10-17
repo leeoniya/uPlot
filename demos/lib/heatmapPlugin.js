@@ -7,12 +7,28 @@
 // edges are factor ** integer, mirrored below zero. Each cell has nonzero, same-sign bounds.
 // Grid transforms default to linear X and log Y, independently of the displayed uPlot scales.
 // xSize is the bucket width in transformed X units. Implicit Y width comes from the first cell.
+// cellGap is a CSS-pixel number or (u) => number, read once per draw; it defaults to 0.
+// Omit gaps globally if they remove over 10% of the area formed by the smallest visible grid width/height.
+// Ignore collapsed, excluded, and partially clipped intervals; omit gaps if either minimum is unavailable.
+// Half the effective gap is inset from each rounded, clipped cell edge.
+// Gaps affect drawing, not hit testing. Cells too small for the gap stay hoverable with full-cell outlines.
+// An effective positive gap disables adjacent-row merging. Fractional gaps are not rounded to device pixels.
 // colorIdx returns a palette index. onHover receives the original source index or null.
 // onPrepare receives (u, minY, maxY, asinhThreshold), with null bounds for empty data.
 // minAbs defaults to 0 and is fixed at initialization. The cutoff must align with Y bucket boundaries.
 // Buckets entirely within [-minAbs, minAbs] do not draw or respond to hover. Source extrema remain unchanged.
 // asinhThreshold is the smallest absolute source Y edge strictly greater than minAbs, with fallback 1.
-export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, colors = ['steelblue'], colorIdx = () => 0, onHover = () => {}, onPrepare }) {
+export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, cellGap = 0, colors = ['steelblue'], colorIdx = () => 0, onHover = () => {}, onPrepare }) {
+	const gapOption = cellGap;
+	function readGap(u) {
+		const gap = typeof gapOption == 'function' ? gapOption(u) : gapOption;
+		if (!Number.isFinite(gap) || gap < 0)
+			throw new RangeError('cellGap must be a finite, nonnegative number of CSS pixels');
+		return gap;
+	}
+	if (typeof gapOption != 'function')
+		readGap();
+
 	function axis(options, distr) {
 		distr = options?.distr ?? distr;
 		const threshold = options?.asinh ?? 1;
@@ -185,9 +201,21 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, colors = ['steelbl
 
 	function project(u, axis, key, offset, size) {
 		const { values, pixels } = axis;
-		for (let i = 0; i < values.length; i++)
-			pixels[i] = Math.max(offset, Math.min(offset + size, Math.round(u.valToPos(values[i], key, true))));
+		const end = offset + size;
+		let previous, minSize = Infinity;
+		for (let i = 0; i < values.length; i++) {
+			const pixel = Math.round(u.valToPos(values[i], key, true));
+			pixels[i] = Math.max(offset, Math.min(end, pixel));
+			if (cellGap > 0 && i > 0 && pixel >= offset && pixel <= end && previous >= offset && previous <= end &&
+				(axis != y || i - 1 < hiddenMin || i - 1 > hiddenMax)) {
+				const span = Math.abs(pixel - previous);
+				if (span > 0)
+					minSize = Math.min(minSize, span);
+			}
+			previous = pixel;
+		}
 		pixels.length = values.length;
+		return minSize;
 	}
 
 	// Search rounded drawing bounds directly, including collapsed edges. Y pixels descend as values increase.
@@ -232,6 +260,12 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, colors = ['steelbl
 								box.top = y0 / cssToCanY - cssTop;
 								box.width = (x1 - x0) / cssToCanX;
 								box.height = (y1 - y0) / cssToCanY;
+								if (cellGap > 0 && x1 - x0 > cellGap * cssToCanX && y1 - y0 > cellGap * cssToCanY) {
+									box.left += cellGap / 2;
+									box.top += cellGap / 2;
+									box.width -= cellGap;
+									box.height -= cellGap;
+								}
 								return hit;
 							}
 						}
@@ -262,6 +296,7 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, colors = ['steelbl
 
 	function draw(u) {
 		const { ctx, bbox } = u;
+		cellGap = typeof gapOption == 'function' ? readGap(u) : gapOption;
 		// Match the rounded canvas dimensions and the overlay's CSS origin, not nominal DPR.
 		cssToCanX = Math.round(u.width * u.pxRatio) / u.width;
 		cssToCanY = Math.round(u.height * u.pxRatio) / u.height;
@@ -269,22 +304,41 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, colors = ['steelbl
 		cssTop = parseFloat(u.over.style.top);
 		invalidate();
 		if (length > 0 && u.series[1].show) {
-			project(u, x, 'x', bbox.left, bbox.width);
-			project(u, y, 'y', bbox.top, bbox.height);
+			const minWidth = project(u, x, 'x', bbox.left, bbox.width);
+			const minHeight = project(u, y, 'y', bbox.top, bbox.height);
 			heights.length = y.count;
 			for (let row = 0; row < y.count; row++)
 				heights[row] = row >= hiddenMin && row <= hiddenMax ? 0 : y.pixels[row] - y.pixels[row + 1];
+			if (cellGap > 0) {
+				// Projection collects both minima; this decision needs no source-cell scan or extra traversal.
+				const gapX = cellGap * cssToCanX, gapY = cellGap * cssToCanY;
+				if (minWidth == Infinity || minHeight == Infinity || minWidth <= gapX || minHeight <= gapY ||
+					(minWidth - gapX) * (minHeight - gapY) < .9 * minWidth * minHeight)
+					cellGap = 0;
+			}
 			paths.length = colors.length;
 			for (let i = 0; i < paths.length; i++)
 				paths[i] = new Path2D();
 
 			const counts = u.data[1][3];
+			const gapX = cellGap * cssToCanX, gapY = cellGap * cssToCanY;
 			ctx.save();
 			for (let col = 0; col < x.count; col++) {
 				const left = x.pixels[col];
 				const width = x.pixels[col + 1] - left;
 				if (width <= 0)
 					continue;
+				if (cellGap > 0) {
+					if (width > gapX) {
+						for (let i = starts[col], end = starts[col + 1]; i < end; i++) {
+							const row = cellRows[i];
+							const height = heights[row] - gapY;
+							if (height > 0)
+								paths[colorIdx(counts[i])].rect(left + gapX / 2, y.pixels[row + 1] + gapY / 2, width - gapX, height);
+						}
+					}
+					continue;
+				}
 				// Consecutive same-color rows share X bounds; gaps and excluded rows break the run.
 				let runColor = -1, lastRow = -2, top = 0, bottom = 0;
 				for (let i = starts[col], end = starts[col + 1]; i < end; i++) {

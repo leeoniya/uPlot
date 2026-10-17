@@ -48,6 +48,80 @@ function assertNativeTimeLabels(u) {
 }
 
 describe('heatmap cells demo', () => {
+	for (const initial of [0, .5]) {
+		it(`updates cell gaps in place from ${initial}px and retains them on plot recreation`, async () => {
+			const root = createDemoRoot();
+			const slider = root.querySelector('#cell-gap');
+			const output = root.querySelector('#cell-gap-value').firstChild;
+			assert.deepEqual([slider.min, slider.max, slider.step, slider.value, slider.disabled], ['0', '1', '0.25', '0', true]);
+			slider.value = `${initial}`;
+			const frames = [{ schema: { meta: { type: 'heatmap-cells' }, fields: [
+				{ name: 'xMax', config: { interval: 60000 } }, { name: 'yMin' }, { name: 'yMax' }, { name: 'count' },
+			] }, data: { values: [[60000, 60000, 120000, 120000], [1, 2, 1, 2], [2, 4, 2, 4], [1, 1, 1, 1]] } }];
+			let demo;
+			try {
+				demo = createDemo(root, frames);
+				await Promise.resolve();
+				const u = demo.plot, data = u.data, snapshot = structuredClone(data);
+				const check = (u, gap) => {
+					const canvas = u.root.querySelector('canvas');
+					const sx = canvas.width / u.width, sy = canvas.height / u.height;
+					const { left, top, width, height } = u.bbox;
+					const px = v => Math.max(left, Math.min(left + width, Math.round(u.valToPos(v, 'x', true))));
+					const py = v => Math.max(top, Math.min(top + height, Math.round(u.valToPos(v, 'y', true))));
+					const [xs, lo, hi] = u.data[1];
+					const expected = xs.map((x, i) => [px(x - 60) + gap * sx / 2, py(hi[i]) + gap * sy / 2,
+						px(x) - px(x - 60) - gap * sx, py(lo[i]) - py(hi[i]) - gap * sy]);
+					assert.deepEqual(coverage(rectangles(u)), coverage(expected));
+					assert.equal(rectangles(u).length, gap == 0 ? 2 : 4, 'returning to zero restores adjacent-row merging');
+				};
+				assert.equal(slider.disabled, false);
+				assert.equal(output.data, `${initial}px`);
+				check(u, initial);
+				u.setScale('x', { min: 15, max: 120 });
+				await Promise.resolve();
+				u.over.dispatchEvent(new MouseEvent('mouseenter'));
+				u.setCursor({ left: u.valToPos(30, 'x'), top: u.valToPos(1.5, 'y') });
+				const bounds = [u.scales.x.min, u.scales.x.max, u.scales.y.min, u.scales.y.max];
+				const readout = root.querySelector('#hover').firstChild;
+				const text = readout.data;
+				for (const gap of [.25, .5, .75, 1, 0]) {
+					slider.value = `${gap}`;
+					slider.dispatchEvent(new Event('input'));
+					await Promise.resolve();
+					assert.equal(demo.plot, u);
+					assert.equal(u.data, data);
+					assert.deepEqual([u.scales.x.min, u.scales.x.max, u.scales.y.min, u.scales.y.max], bounds);
+					assert.equal(root.querySelector('#cell-gap-value').firstChild, output);
+					assert.equal(output.data, `${gap}px`);
+					assert.equal(u.cursor.idxs[1], 0);
+					assert.equal(root.querySelector('#hover').firstChild, readout);
+					assert.equal(readout.data, text);
+					check(u, gap);
+				}
+				assert.deepEqual(data, snapshot);
+				slider.value = '.75';
+				slider.dispatchEvent(new Event('input'));
+				await Promise.resolve();
+				const yScale = root.querySelector('#y-scale');
+				yScale.value = 'linear';
+				yScale.dispatchEvent(new Event('change'));
+				await Promise.resolve();
+				assert.notEqual(demo.plot, u);
+				check(demo.plot, .75);
+				const latest = demo.plot;
+				demo.destroy();
+				demo = null;
+				assert.equal(slider.disabled, true);
+				latest.redraw = () => assert.fail('gap listener must be removed on destroy');
+				slider.value = '0';
+				slider.dispatchEvent(new Event('input'));
+				assert.equal(output.data, '0.75px');
+			}
+			finally { demo?.destroy(); root.remove(); }
+		});
+	}
+
 	for (const constant of [false, true]) {
 		it(`resizes the palette from 32 to 11 and back with ${constant ? 'constant' : 'varying'} counts`, async () => {
 			const root = createDemoRoot();

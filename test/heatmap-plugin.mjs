@@ -355,6 +355,240 @@ describe('heatmapPlugin uniform grid', () => {
 		return u;
 	}
 
+	function checkGap(u, f, gap, minAbs = 0) {
+		const mapping = canvasMapping(u);
+		const boxes = oracleRects(u, f, minAbs);
+		const gapX = gap * mapping.x, gapY = gap * mapping.y;
+		const minSpan = (edges, key, start, end) => {
+			const pixels = edges.map(value => Math.round(u.valToPos(value, key, true)));
+			const spans = edges.slice(1).map((value, i) => {
+				if (pixels[i] < start || pixels[i] > end || pixels[i + 1] < start || pixels[i + 1] > end ||
+					key == 'y' && Math.max(Math.abs(edges[i]), Math.abs(value)) <= minAbs) return Infinity;
+				return Math.abs(pixels[i + 1] - pixels[i]) || Infinity;
+			});
+			return Math.min(...spans);
+		};
+		const minWidth = minSpan(f.xEdges, 'x', u.bbox.left, u.bbox.left + u.bbox.width);
+		const minHeight = minSpan(f.yEdges, 'y', u.bbox.top, u.bbox.top + u.bbox.height);
+		if (!Number.isFinite(minWidth + minHeight) || minWidth <= gapX || minHeight <= gapY ||
+			(minWidth - gapX) * (minHeight - gapY) < .9 * minWidth * minHeight) {
+			checkOracle(u, f, minAbs);
+			return;
+		}
+		const expected = boxes.filter(({ rect: [, , w, h] }) => w > gapX && h > gapY)
+			.map(({ rect: [x, y, w, h] }) => [x + gapX / 2, y + gapY / 2, w - gapX, h - gapY]);
+		const actual = rects(u);
+		assert.equal(actual.length, expected.length, 'gapped cells remain separate even with the same color');
+		actual.forEach((rect, i) => close(rect, expected[i]));
+		let retainedBox;
+		for (const { rect: [x, y, w, h] } of boxes) {
+			for (const [px, py] of [[x + w / 2, y + h / 2], [x + Math.min(w / 4, gapX / 4), y + h / 2],
+				[x + w / 2, y + Math.min(h / 4, gapY / 4)], [x, y], [x + w, y + h]]) {
+				const canX = (mapping.left + (px / mapping.x - mapping.left)) * mapping.x;
+				const canY = (mapping.top + (py / mapping.y - mapping.top)) * mapping.y;
+				const id = oracleHit(boxes, canX, canY);
+				pixelQuery(u, px, py, id, mapping);
+				if (id == null) continue;
+				const box = u.cursor.points.bbox(u, 1);
+				retainedBox ??= box;
+				assert.equal(box, retainedBox, 'hover reuses the existing bounds object');
+				const { rect: [left, top, width, height] } = boxes.find(b => b.id == id);
+				const inset = width > gapX && height > gapY ? gap : 0;
+				close([box.left, box.top, box.width, box.height], [
+					left / mapping.x - mapping.left + inset / 2, top / mapping.y - mapping.top + inset / 2,
+					width / mapping.x - inset, height / mapping.y - inset,
+				]);
+			}
+		}
+	}
+
+	it('rejects negative and nonfinite cell gaps', () => {
+		for (const cellGap of [-1, NaN, Infinity, -Infinity, '1', null])
+			assert.throws(() => heatmapPlugin({ xSize: 1, cellGap }), /cellGap must be a finite, nonnegative number/);
+	});
+
+	it('reads a dynamic cellGap once per draw, not during hover', () => {
+		const f = fixture({ nx: 1, ny: 2, y: { distr: 1 }, ySize: 1, include: () => true });
+		let gap = 0, calls = 0;
+		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, cellGap: plot => {
+			assert.equal(plot, u);
+			calls++;
+			return gap;
+		} }, f.data);
+		try {
+			plugin.hooks.setData(u);
+			u.valToPos = (v, key) => key == 'x' ? v * 10 : 100 - v * 10;
+			for (const value of [0, .25, .5, 0]) {
+				gap = value;
+				drawn.length = 0;
+				const before = calls;
+				plugin.hooks.draw(u);
+				assert.equal(calls, before + 1);
+				assert.equal(drawn.flatMap(pathRects).length, gap == 0 ? 1 : 2);
+				pixelQuery(u, .1, 99.5, 0);
+				pixelQuery(u, .9, 99.5, 0);
+				assert.equal(calls, before + 1);
+			}
+			gap = NaN;
+			assert.throws(() => plugin.hooks.draw(u), /cellGap must be a finite, nonnegative number/);
+		}
+		finally { plugin.hooks.destroy(); }
+	});
+
+	it('uses one area decision for the entire draw and restores numeric gap settings as cells grow', () => {
+		const f = fixture({ nx: 2, ny: 2, y: { distr: 1 }, ySize: 1, include: () => true });
+		for (const ratio of [1, 2]) {
+			for (const gap of [.25, .5, 1]) {
+				const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, cellGap: gap }, f.data);
+				try {
+					u.pxRatio = ratio;
+					u.bbox.width = u.bbox.height = 100 * ratio;
+					plugin.hooks.setData(u);
+					for (const [w, h] of [[1, 20], [20, 1], [5, 5], [10, 10], [2, 2], [20, 20]]) {
+						u.valToPos = (v, key) => (key == 'x' ? v * w : 100 - v * h) * ratio;
+						drawn.length = 0;
+						plugin.hooks.draw(u);
+						const enabled = w > gap && h > gap && (w - gap) * (h - gap) >= .9 * w * h;
+						const rects = drawn.flatMap(pathRects);
+						assert.equal(rects.length, enabled ? 4 : 2, `${w}x${h} cells, ${gap}px gap, DPR ${ratio}`);
+						close(rects[0], enabled ? [gap / 2 * ratio, (100 - h + gap / 2) * ratio, (w - gap) * ratio, (h - gap) * ratio] :
+							[0, (100 - 2 * h) * ratio, w * ratio, 2 * h * ratio]);
+						u.cursor.left = w / 2;
+						u.cursor.top = 100 - h / 2;
+						assert.equal(u.cursor.dataIdx(u, 1), 0);
+						const inset = enabled ? gap : 0;
+						assert.deepEqual(u.cursor.points.bbox(u, 1), { left: inset / 2, top: 100 - h + inset / 2, width: w - inset, height: h - inset });
+					}
+				}
+				finally { plugin.hooks.destroy(); }
+			}
+		}
+	});
+
+	it('uses the smallest row even when the center row is large, without extra projections', () => {
+		const f = fixture({ nx: 2, ny: 3, y: { distr: 1 }, ySize: 1, include: () => true });
+		const { u, plugin, drawn, projected } = isolated({ xSize: 1, grid: f.grid, cellGap: 1 }, f.data);
+		try {
+			plugin.hooks.setData(u);
+			for (const [edges, enabled] of [[[100, 99, 40, 0], false], [[100, 51, 49, 0], false], [[100, 80, 40, 0], true]]) {
+				u.valToPos = (v, key) => { projected[key].push(v); return key == 'x' ? v * 50 : edges[v]; };
+				drawn.length = projected.x.length = projected.y.length = 0;
+				plugin.hooks.draw(u);
+				assert.deepEqual(projected, { x: f.xEdges, y: f.yEdges }, 'reuse projected edges without extra projection or source scans');
+				const rects = drawn.flatMap(pathRects);
+				assert.equal(rects.length, enabled ? 6 : 2);
+				assert.equal(rects[0][0], enabled ? .5 : 0);
+				assert.equal(rects[0][2], enabled ? 49 : 50);
+			}
+		}
+		finally { plugin.hooks.destroy(); }
+	});
+
+	it('ignores clipped and collapsed intervals and applies one conservative decision across both axes', () => {
+		const f = fixture({ nx: 3, ny: 3, y: { distr: 1 }, ySize: 1, include: () => true });
+		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, cellGap: 1 }, f.data);
+		try {
+			plugin.hooks.setData(u);
+			for (const [xs, ys, count, left] of [
+				[[0, 1, 50, 100], [100, 80, 40, 0], 3, 0],
+				[[-1, 1, 50, 100], [101, 99, 50, 0], 4, 1.5],
+				[[0, 0, 50, 100], [100, 100, 50, 0], 4, .5],
+				[[-100, -50, -10, 110], [100, 80, 40, 0], 1, 0],
+				[[0, 30, 60, 100], [200, -10, -20, -30], 3, 0],
+			]) {
+				u.valToPos = (v, key) => (key == 'x' ? xs : ys)[v];
+				drawn.length = 0;
+				plugin.hooks.draw(u);
+				const rects = drawn.flatMap(pathRects);
+				assert.equal(rects.length, count);
+				assert.equal(rects[0][0], left);
+			}
+		}
+		finally { plugin.hooks.destroy(); }
+	});
+
+	it('excludes near-zero hidden rows from the minimum height', () => {
+		const f = fixture({ nx: 2, ny: 3, y: { distr: 1 }, yOrigin: -1, ySize: 1, include: () => true });
+		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, cellGap: 1, minAbs: 1 }, f.data);
+		try {
+			plugin.hooks.setData(u);
+			u.valToPos = (v, key) => key == 'x' ? v * 50 : [100, 99, 98, 0][v + 1];
+			plugin.hooks.draw(u);
+			assert.deepEqual(drawn.flatMap(pathRects), [[.5, .5, 49, 97], [50.5, .5, 49, 97]]);
+			pixelQuery(u, 25, 99.5, null);
+			pixelQuery(u, 25, 50, 2);
+		}
+		finally { plugin.hooks.destroy(); }
+	});
+
+	it('retains merged geometry with omitted or zero cellGap', async () => {
+		const f = fixture({ nx: 2, ny: 4, include: () => true });
+		const original = await mount(f);
+		const zero = await mount(f, 1, { cellGap: 0 });
+		assert.deepEqual(rects(zero), rects(original));
+		assert.equal(rects(zero).length, 2);
+		checkOracle(zero, f);
+	});
+
+	for (const dpr of [1, 1.25, 1.5, 2]) {
+		for (const cellGap of [.25, .5, 1]) {
+			it(`insets cells by ${cellGap} CSS pixels without changing hits at DPR ${dpr}`, async () => {
+				const f = fixture();
+				const snapshot = structuredClone(f.data);
+				const u = await mount(f, dpr, { cellGap });
+				checkGap(u, f, cellGap);
+				u.setSize({ width: 317, height: 213 });
+				u.setScale('x', { min: .3, max: 5.7 });
+				u.setScale('y', { min: 1.3, max: 40 });
+				await Promise.resolve();
+				checkGap(u, f, cellGap);
+				u.setPxRatio(dpr == 2 ? 1.25 : 2);
+				await Promise.resolve();
+				checkGap(u, f, cellGap);
+				assert.deepEqual(f.data, snapshot);
+				pixelQuery(u, u.bbox.left - 1, u.bbox.top - 1, null);
+			});
+		}
+	}
+
+	it('preserves cutoff and sparse hover behavior with gaps on signed asinh and linear displays', async () => {
+		const f = edgeFixture(signedEdges(), { distr: 3, factor: 2 });
+		for (const distr of [1, 4]) {
+			const u = await mount(f, 1.25, { cellGap: .5, minAbs: 1 }, { y: { distr, asinh: 1 } });
+			checkGap(u, f, .5, 1);
+			hover(u, .5, .75, null);
+			hover(u, 2.5, 4, null);
+			u.setData(empty());
+			await Promise.resolve();
+			assert.deepEqual(rects(u), []);
+			u.setData(f.data);
+			await Promise.resolve();
+			checkGap(u, f, .5, 1);
+		}
+	});
+
+	it('suppresses gaps and restores merged cells when the gap consumes either dimension', () => {
+		const f = fixture({ nx: 2, ny: 3, y: { distr: 1 }, ySize: 1, include: () => true });
+		for (const cellGap of [1, 2]) {
+			const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, cellGap }, f.data);
+			try {
+				plugin.hooks.setData(u);
+				plugin.hooks.draw(u);
+				assert.deepEqual(drawn.flatMap(pathRects), [[0, 97, 1, 3], [1, 97, 1, 3]]);
+				pixelQuery(u, .5, 99.5, 0);
+				assert.deepEqual(u.cursor.points.bbox(u, 1), { left: 0, top: 99, width: 1, height: 1 });
+				pixelQuery(u, 1, 99.5, 3);
+				u.valToPos = (v, key) => key == 'x' ? v * 10 : 100 - v;
+				drawn.length = 0;
+				plugin.hooks.draw(u);
+				assert.deepEqual(drawn.flatMap(pathRects), [[0, 97, 10, 3], [10, 97, 10, 3]]);
+				pixelQuery(u, 5, 99.5, 0);
+				assert.deepEqual(u.cursor.points.bbox(u, 1), { left: 0, top: 99, width: 10, height: 1 });
+			}
+			finally { plugin.hooks.destroy(); }
+		}
+	});
+
 	for (const dpr of [1, 1.25, 1.5, 2]) {
 		it(`aligns the DOM hover rectangle with painted signed-asinh cells at DPR ${dpr}`, async () => {
 			const f = edgeFixture(signedEdges(2, -12, -3), { distr: 3, factor: 2 }, () => true, 17);

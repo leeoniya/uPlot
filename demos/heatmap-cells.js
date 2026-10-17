@@ -134,6 +134,10 @@ export function createDemo(root, frames) {
 	const host = root.querySelector('#plot');
 	const height = root.querySelector('#height');
 	const heightValue = root.querySelector('#height-value').firstChild;
+	const cellGap = root.querySelector('#cell-gap');
+	const cellGapValue = root.querySelector('#cell-gap-value').firstChild;
+	let gap = cellGap.valueAsNumber;
+	cellGapValue.data = `${gap}px`;
 	const setDataButton = root.querySelector('#set-data');
 	const yScale = root.querySelector('#y-scale');
 	const colorScale = root.querySelector('#color-scale');
@@ -193,6 +197,7 @@ export function createDemo(root, frames) {
 			plugins: [heatmapPlugin({
 				xSize,
 				minAbs: 2 ** -128,
+				cellGap: () => gap,
 				grid: signed.checked ? { y: { distr: 3, factor } } : undefined,
 				colors: palette,
 				colorIdx: count => colorIdx(count),
@@ -235,6 +240,11 @@ export function createDemo(root, frames) {
 		heightValue.data = `${height.value}px`;
 		resize();
 	};
+	const setGap = () => {
+		gap = cellGap.valueAsNumber;
+		cellGapValue.data = `${gap}px`;
+		plot.redraw(false, false);
+	};
 	const setData = () => plot.setData(plot.data);
 	const setColorScale = () => {
 		updateColorScale();
@@ -256,24 +266,26 @@ export function createDemo(root, frames) {
 		setYScale();
 	};
 	height.addEventListener('input', setHeight);
+	cellGap.addEventListener('input', setGap);
 	setDataButton.addEventListener('click', setData);
 	yScale.addEventListener('change', setYScale);
 	colorScale.addEventListener('change', setColorScale);
 	colorCountInput.addEventListener('input', setColorCount);
 	signed.addEventListener('change', setSigned);
 	window.addEventListener('resize', resize);
-	height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = colorCountInput.disabled = signed.disabled = false;
+	height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = colorCountInput.disabled = cellGap.disabled = signed.disabled = false;
 	return {
 		get plot() { return plot; },
 		destroy() {
 			height.removeEventListener('input', setHeight);
+			cellGap.removeEventListener('input', setGap);
 			setDataButton.removeEventListener('click', setData);
 			yScale.removeEventListener('change', setYScale);
 			colorScale.removeEventListener('change', setColorScale);
 			colorCountInput.removeEventListener('input', setColorCount);
 			signed.removeEventListener('change', setSigned);
 			window.removeEventListener('resize', resize);
-			height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = colorCountInput.disabled = signed.disabled = true;
+			height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = colorCountInput.disabled = cellGap.disabled = signed.disabled = true;
 			plot.destroy();
 		},
 	};
