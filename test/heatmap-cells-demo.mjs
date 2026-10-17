@@ -21,6 +21,20 @@ function rectangles(u) {
 		.flatMap(([path]) => path?.log?.filter(entry => entry[0] == 'rect').flatMap(entry => entry.slice(1)) ?? []);
 }
 
+// Normalize vertical coverage only; keep column widths, gaps, and overlaps observable.
+function coverage(rectangles) {
+	const result = [];
+	for (const [x, y, w, h] of rectangles.slice().sort((a, b) => a[0] - b[0] || a[2] - b[2] || a[1] - b[1])) {
+		assert.ok(w > 0 && h > 0, 'drawn rectangles have positive area');
+		const previous = result.at(-1);
+		if (previous && previous[0] == x && previous[2] == w && previous[1] + previous[3] == y)
+			previous[3] += h;
+		else
+			result.push([x, y, w, h]);
+	}
+	return result;
+}
+
 const nativeTimeValues = timeAxisVals(
 	seconds => uPlot.tzDate(seconds * 1000, 'Etc/UTC'),
 	timeAxisStamps(_timeAxisStampsS, uPlot.fmtDate),
@@ -416,8 +430,7 @@ describe('heatmap cells demo', () => {
 						return { id, rect: [x, y, px(time / 1000) - x, py(source[1][id]) - y] };
 					}).filter(({ rect: [, , w, h] }) => w > 0 && h > 0);
 					const drawn = rectangles(u);
-					const compare = (a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b));
-					assert.deepEqual(drawn.slice().sort(compare), boxes.map(b => b.rect).sort(compare));
+					assert.deepEqual(coverage(drawn), coverage(boxes.map(b => b.rect)));
 					const hit = (x, y, expected) => {
 						u.setCursor({ left: (x - left) / u.pxRatio, top: (y - top) / u.pxRatio });
 						assert.equal(u.cursor.dataIdx(u, 1), expected, `canvas (${x}, ${y})`);

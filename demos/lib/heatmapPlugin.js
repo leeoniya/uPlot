@@ -284,12 +284,24 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, colors = ['steelbl
 				const width = x.pixels[col + 1] - left;
 				if (width <= 0)
 					continue;
+				// Consecutive same-color rows share X bounds; gaps and excluded rows break the run.
+				let runColor = -1, lastRow = -2, top = 0, bottom = 0;
 				for (let i = starts[col], end = starts[col + 1]; i < end; i++) {
 					const row = cellRows[i];
-					const height = heights[row];
-					if (height > 0)
-						paths[colorIdx(counts[i])].rect(left, y.pixels[row + 1], width, height);
+					if (heights[row] > 0) {
+						const color = colorIdx(counts[i]);
+						if (color != runColor || row != lastRow + 1) {
+							if (runColor >= 0)
+								paths[runColor].rect(left, top, width, bottom - top);
+							runColor = color;
+							bottom = y.pixels[row];
+						}
+						top = y.pixels[row + 1];
+						lastRow = row;
+					}
 				}
+				if (runColor >= 0)
+					paths[runColor].rect(left, top, width, bottom - top);
 			}
 			for (let i = 0; i < paths.length; i++) {
 				ctx.fillStyle = colors[i];

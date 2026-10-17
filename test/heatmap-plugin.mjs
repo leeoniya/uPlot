@@ -21,6 +21,20 @@ const fills = u => lastDraw(u).filter(e => e[0] === 'fill').flatMap(e => e.slice
 const pathRects = path => path.log.flatMap(e => e[0] === 'rect' ? e.slice(1) : []);
 const rects = u => fills(u).flatMap(pathRects);
 
+// Normalize vertical coverage only; keep column widths, gaps, and overlaps observable.
+function coverage(rectangles) {
+	const result = [];
+	for (const [x, y, w, h] of rectangles.slice().sort((a, b) => a[0] - b[0] || a[2] - b[2] || a[1] - b[1])) {
+		assert.ok(w > 0 && h > 0, 'drawn rectangles have positive area');
+		const previous = result.at(-1);
+		if (previous && previous[0] == x && previous[2] == w && previous[1] + previous[3] == y)
+			previous[3] += h;
+		else
+			result.push([x, y, w, h]);
+	}
+	return result;
+}
+
 const backward = ({ distr, asinh = 1 }, v) => distr == 3 ? Math.exp(v) : distr == 4 ? Math.sinh(v) * asinh : v;
 
 
@@ -130,14 +144,9 @@ function pixelQuery(u, px, py, expected, mapping = canvasMapping(u)) {
 	assert.equal(actual, expected, actual === expected ? undefined : `canvas (${px}, ${py})`);
 }
 
-function checkOracle(u, f, ordered = true, minAbs = 0) {
+function checkOracle(u, f, minAbs = 0) {
 	const boxes = oracleRects(u, f, minAbs);
-	const actual = rects(u), expectedRects = boxes.map(b => b.rect);
-	if (!ordered) {
-		const compare = (a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b));
-		actual.sort(compare); expectedRects.sort(compare);
-	}
-	assert.deepEqual(actual, expectedRects, 'one rounded, clipped rectangle per visible valid source cell');
+	assert.deepEqual(coverage(rects(u)), coverage(boxes.map(b => b.rect)), 'exact rounded, clipped source-cell coverage');
 	const probes = [];
 	for (const { rect: [x, y, w, h] } of boxes) {
 		probes.push([x + w / 2, y + h / 2]);
@@ -250,7 +259,7 @@ function checkDemoColors(u, mode, min, max) {
 	});
 	const paths = fills(u).slice(-32);
 	assert.equal(paths.length, 32);
-	paths.forEach((path, color) => assert.deepEqual(pathRects(path), expected[color], `${mode} palette index ${color}`));
+	paths.forEach((path, color) => assert.deepEqual(coverage(pathRects(path)), coverage(expected[color]), `${mode} palette index ${color}`));
 }
 
 function withoutColorMath(fn) {
@@ -356,7 +365,8 @@ describe('heatmapPlugin uniform grid', () => {
 				const id = u.cursor.idxs[1];
 				assert.notEqual(id, null);
 				const expected = bounds(u, id, true);
-				assert.ok(rects(u).some(rect => rect.every((v, i) => v == expected[i])), 'the hovered rectangle was painted');
+				assert.ok(rects(u).some(([x, y, w, h]) => x == expected[0] && w == expected[2] &&
+					y <= expected[1] && y + h >= expected[1] + expected[3]), 'the merged drawing contains the hovered source cell');
 				const point = u.over.querySelector('.u-cursor-pt');
 				assert.ok(!point.classList.contains('u-off'));
 				const [left, top] = point.style.transform.match(/-?[\d.]+(?:e[+-]?\d+)?/gi).map(Number);
@@ -580,10 +590,10 @@ describe('heatmapPlugin uniform grid', () => {
 				{ y: { distr: 4, asinh: () => prepared.at(-1)?.[3] ?? 1 } });
 			assert.deepEqual(prepared, [[u, edges[0], edges.at(-1), expected]]);
 			assert.equal(u.scales.y._asinh, expected);
-			checkOracle(u, f, true, cutoff);
+			checkOracle(u, f, cutoff);
 			u.redraw(); await Promise.resolve();
 			assert.equal(prepared.length, 1);
-			checkOracle(u, f, true, cutoff);
+			checkOracle(u, f, cutoff);
 			assert.deepEqual(f.data, snapshot, 'filtering never removes or rewrites source cells');
 		});
 	}
@@ -612,13 +622,13 @@ describe('heatmapPlugin uniform grid', () => {
 						{ y: { distr, asinh: () => prepared.at(-1)?.[3] ?? 1 } });
 					assert.deepEqual(prepared, [[u, ...expected]], 'metadata uses unfiltered source extrema');
 					assert.deepEqual(selected, oracleRects(u, f, minAbs).map(b => f.data[1][3][b.id]));
-					checkOracle(u, f, true, minAbs);
+					checkOracle(u, f, minAbs);
 					for (const [width, height] of [[317, 213], [91, 61], [601, 361]]) {
 						selected.length = 0;
 						u.setSize({ width, height });
 						u.setScale('x', { min: .2, max: 4.7 });
 						await Promise.resolve();
-						checkOracle(u, f, true, minAbs);
+						checkOracle(u, f, minAbs);
 						assert.deepEqual(selected, oracleRects(u, f, minAbs).map(b => f.data[1][3][b.id]), 'hidden cells never select colors');
 					}
 					assert.equal(prepared.length, 1, 'resize and hover reuse preparation');
@@ -634,7 +644,7 @@ describe('heatmapPlugin uniform grid', () => {
 		const hovered = [];
 		const u = await mount(f, 1, { minAbs: 1, colors: ['red', 'blue'], colorIdx: count => count % 2,
 			onHover: (u, id) => hovered.push(id) }, { y: { distr: 1 } });
-		checkOracle(u, f, false, 1);
+		checkOracle(u, f, 1);
 		enter(u);
 		for (const [x, y, row] of [[.5, -1, 1], [.5, 1, 4], [1, -1, 1], [1, 1, 4],
 			[.5, -.5, null], [.5, .5, null], [1.5, -1, null], [1.5, 1, null], [2.5, 2.5, null]]) {
@@ -651,13 +661,13 @@ describe('heatmapPlugin uniform grid', () => {
 		const u = await mount(initial, 1.25, { minAbs: 1, onPrepare: (...args) => prepared.push(args) },
 			{ y: { distr: 4, asinh: 1 } });
 		assert.deepEqual(prepared, [[u, null, null, 1]]);
-		checkOracle(u, initial, true, 1);
+		checkOracle(u, initial, 1);
 		for (const edges of [[.125, .25, .5, 1], [-8, -4, -2], [-1, -.5, -.25], [2, 4, 8],
 			[-4, -2, -1, -.5, .5, 1, 2, 4]]) {
 			const f = edgeFixture(edges, gridY);
 			u.setData(f.data); await Promise.resolve();
 			assert.deepEqual(prepared.at(-1).slice(1, 3), [Math.min(...f.data[1][1]), Math.max(...f.data[1][2])]);
-			checkOracle(u, f, true, 1);
+			checkOracle(u, f, 1);
 		}
 	});
 
@@ -669,7 +679,7 @@ describe('heatmapPlugin uniform grid', () => {
 			{ y: { distr: 4, asinh: () => prepared.at(-1)?.[3] ?? 1 } });
 		assert.deepEqual(prepared, [[u, f.yEdges[0], f.yEdges.at(-1), expected]]);
 		assert.equal(u.scales.y._asinh, expected);
-		checkOracle(u, f, true, cutoff);
+		checkOracle(u, f, cutoff);
 	});
 
 	for (const distr of [1, 3, 4]) {
@@ -684,7 +694,7 @@ describe('heatmapPlugin uniform grid', () => {
 					plugin.hooks.setData(u);
 					assert.deepEqual(prepared, [[u, -4, 4, minAbs == 1 ? 2 : .125]]);
 					plugin.hooks.draw(u);
-					assert.deepEqual(drawn.flatMap(pathRects), oracleRects(u, f, minAbs).map(b => b.rect));
+					assert.deepEqual(coverage(drawn.flatMap(pathRects)), coverage(oracleRects(u, f, minAbs).map(b => b.rect)));
 					pixelQuery(u, .5, 97, f.cells.findIndex(c => c.col == 0 && f.yEdges[c.row] == 2));
 				}
 				finally { plugin.hooks.destroy(); }
@@ -700,11 +710,11 @@ describe('heatmapPlugin uniform grid', () => {
 			{ y: { distr: 4, asinh: () => prepared.at(-1)?.[3] ?? 1, min: -32, max: 32 } });
 		assert.deepEqual(prepared, [[u, -8, 8, 4]]);
 		assert.equal(u.scales.y._asinh, 4);
-		checkOracle(u, f, true, minAbs);
+		checkOracle(u, f, minAbs);
 		f = edgeFixture([-32, -16, -8, .25, .5, 1], f.grid.y, () => true);
 		u.setData(f.data); await Promise.resolve();
 		assert.deepEqual(prepared.at(-1), [u, -32, 1, 8]);
-		checkOracle(u, f, true, minAbs);
+		checkOracle(u, f, minAbs);
 		for (const facet of [1, 2]) f.data[1][facet].forEach((v, i, a) => { a[i] = v / 4; });
 		f.yEdges = f.yEdges.map(v => v / 4);
 		u.setData(f.data, false);
@@ -712,17 +722,17 @@ describe('heatmapPlugin uniform grid', () => {
 		assert.deepEqual(prepared.at(-1), [u, -8, .25, 4]);
 		u.redraw(); await Promise.resolve();
 		assert.equal(prepared.length, 3);
-		checkOracle(u, f, true, minAbs);
+		checkOracle(u, f, minAbs);
 		u.setSize({ width: 317, height: 213 });
 		u.setScale('y', { min: -16, max: 16 });
 		await Promise.resolve();
 		u.redraw(); await Promise.resolve();
-		checkOracle(u, f, true, minAbs);
+		checkOracle(u, f, minAbs);
 		assert.equal(prepared.length, 3);
 		const skipped = edgeFixture([-2, -1, -.5, .5, 1, 2], f.grid.y, () => true);
 		u.setData(skipped.data); await Promise.resolve();
 		assert.deepEqual(prepared.at(-1), [u, -2, 2, 1]);
-		checkOracle(u, skipped, true, minAbs);
+		checkOracle(u, skipped, minAbs);
 		u.setData(empty()); await Promise.resolve();
 		assert.deepEqual(prepared.at(-1), [u, null, null, 1]);
 		assert.deepEqual(rects(u), []);
@@ -730,7 +740,7 @@ describe('heatmapPlugin uniform grid', () => {
 		u.setData(f.data); await Promise.resolve();
 		assert.deepEqual(prepared.at(-1), [u, -8, .25, 4]);
 		assert.equal(u.scales.y._asinh, 4);
-		checkOracle(u, f, true, minAbs);
+		checkOracle(u, f, minAbs);
 	});
 
 	it('bounds signed IDs by actual nearest edges and reuses their buffer through initially empty, grow, shrink, and empty data', () => {
@@ -821,7 +831,7 @@ describe('heatmapPlugin uniform grid', () => {
 				});
 				assert.equal(allocations.length, 1, 'draw and hover allocate no additional typed indexes');
 				u.data = coordinates;
-				assert.deepEqual(pathRects(drawn.at(-1)), oracleRects(u, f, 2).map(b => b.rect));
+				assert.deepEqual(coverage(pathRects(drawn.at(-1))), coverage(oracleRects(u, f, 2).map(b => b.rect)));
 				for (const next of [empty(), coordinates, coordinates]) {
 					u.data = next;
 					withoutIndexes(() => plugin.hooks.setData(u), true);
@@ -845,6 +855,114 @@ describe('heatmapPlugin uniform grid', () => {
 		assert.equal(fills(u).length, 1);
 		assert.deepEqual(lastDraw(u).filter(e => e[0] == 'fillStyle').flatMap(e => e.slice(1)), ['steelblue']);
 		checkOracle(u, f);
+	});
+
+	it('merges consecutive rows by palette index, not count or CSS color, without crossing gaps or columns', () => {
+		const f = fixture({ nx: 4, ny: 7, y: { distr: 1 }, ySize: 1,
+			include: (col, row) => col != 2 && row != 2,
+			count: (col, row) => [1, 2, 0, 3, 11, 4, 5][row] });
+		const snapshot = structuredClone(f.data), selected = [], hovered = [];
+		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, colors: ['red', 'red'],
+			colorIdx: count => { selected.push(count); return Math.floor(count / 10); },
+			onHover: (self, id) => hovered.push([self, id]) }, f.data);
+		try {
+			plugin.hooks.setData(u);
+			plugin.hooks.draw(u);
+			assert.deepEqual(selected, f.data[1][3], 'every visible source cell still selects its own color');
+			assert.deepEqual(drawn.map(pathRects), [
+				[0, 1, 3].flatMap(col => [[col, 98, 1, 2], [col, 96, 1, 1], [col, 93, 1, 2]]),
+				[0, 1, 3].map(col => [col, 95, 1, 1]),
+			]);
+			const boxes = oracleRects(u, f);
+			for (const { id, rect: [x, y, w, h] } of boxes) {
+				pixelQuery(u, x + w / 2, y + h / 2, id);
+				plugin.hooks.setCursor(u);
+				assert.deepEqual(hovered.at(-1), [u, id]);
+				assert.deepEqual(u.cursor.points.bbox(u, 1), { left: x, top: y, width: w, height: h });
+				for (const py of [y, y + h])
+					pixelQuery(u, x + w / 2, py, oracleHit(boxes, x + w / 2, py));
+			}
+			pixelQuery(u, .5, 97.5, null);
+			pixelQuery(u, 2.5, 99.5, null);
+			pixelQuery(u, 1, 99.5, 6);
+			assert.deepEqual(f.data, snapshot);
+		}
+		finally { plugin.hooks.destroy(); }
+	});
+
+	it('breaks same-color runs at excluded and zero-height rows even when their pixel edges touch', () => {
+		const f = fixture({ nx: 1, ny: 8, y: { distr: 1 }, yOrigin: -4, ySize: 1, include: () => true });
+		const selected = [];
+		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, minAbs: 1,
+			colorIdx: count => { selected.push(count); return 0; } }, f.data);
+		try {
+			plugin.hooks.setData(u);
+			for (const [pixels, expected, counts] of [
+				[[54, 53, 52, 51, 50, 49, 48, 47, 46], [[0, 51, 1, 3], [0, 46, 1, 3]], [1, 2, 3, 6, 7, 8]],
+				[[100, 99, 98, 97, 97, 97, 96, 96, 95], [[0, 97, 1, 3], [0, 96, 1, 1], [0, 95, 1, 1]], [1, 2, 3, 6, 8]],
+			]) {
+				u.valToPos = (v, key) => key == 'x' ? v : pixels[v + 4];
+				drawn.length = selected.length = 0;
+				plugin.hooks.draw(u);
+				assert.deepEqual(drawn.flatMap(pathRects), expected);
+				assert.deepEqual(selected, counts, 'excluded and collapsed source cells do not select colors');
+				const boxes = oracleRects(u, f, 1);
+				for (const { id, rect: [x, y, w, h] } of boxes) {
+					pixelQuery(u, x + w / 2, y + h / 2, id);
+					assert.deepEqual(u.cursor.points.bbox(u, 1), { left: x, top: y, width: w, height: h });
+					for (const py of [y, y + h])
+						pixelQuery(u, .5, py, oracleHit(boxes, .5, py));
+				}
+				if (pixels[3] != pixels[5]) pixelQuery(u, .5, 50, null);
+			}
+		}
+		finally { plugin.hooks.destroy(); }
+	});
+
+	it('rebuilds merged runs on color redraw, count edits, replacement, in-place, and empty setData', () => {
+		const f = fixture({ nx: 2, ny: 3, y: { distr: 1 }, ySize: 1, include: () => true });
+		const snapshot = structuredClone(f.data), prepared = [];
+		let split = false;
+		const { u, plugin, drawn } = isolated({ xSize: 1, grid: f.grid, colors: ['red', 'blue'],
+			colorIdx: count => split ? count % 2 : 0, onPrepare: () => prepared.push(true) }, f.data);
+		const draw = expected => {
+			drawn.length = 0;
+			plugin.hooks.draw(u);
+			assert.deepEqual(drawn.map(pathRects), expected);
+		};
+		try {
+			plugin.hooks.setData(u);
+			draw([[[0, 97, 1, 3], [1, 97, 1, 3]], []]);
+			split = true;
+			draw([[[0, 98, 1, 1], [1, 99, 1, 1], [1, 97, 1, 1]], [[0, 99, 1, 1], [0, 97, 1, 1], [1, 98, 1, 1]]]);
+			assert.deepEqual(f.data, snapshot, 'color redraw does not mutate source data');
+			f.data[1][3].fill(2);
+			draw([[[0, 97, 1, 3], [1, 97, 1, 3]], []]);
+			pixelQuery(u, .5, 98.5, 1);
+			assert.deepEqual(u.cursor.points.bbox(u, 1), { left: 0, top: 98, width: 1, height: 1 });
+			assert.equal(prepared.length, 1, 'color and count redraws need no preparation');
+
+			u.data = fixture({ nx: 1, ny: 4, y: { distr: 1 }, ySize: 1, include: (col, row) => row != 1 }).data;
+			split = false;
+			plugin.hooks.setData(u);
+			pixelQuery(u, .5, 98.5, null);
+			draw([[[0, 99, 1, 1], [0, 96, 1, 2]], []]);
+			pixelQuery(u, .5, 98.5, null);
+			for (const facet of [1, 2]) u.data[1][facet].forEach((v, i, a) => { a[i] = v + 10; });
+			plugin.hooks.setData(u);
+			draw([[[0, 89, 1, 1], [0, 86, 1, 2]], []]);
+			pixelQuery(u, .5, 86.5, 2);
+			u.data = empty();
+			plugin.hooks.setData(u);
+			draw([]);
+			pixelQuery(u, .5, 86.5, null);
+			u.data = f.data;
+			plugin.hooks.setData(u);
+			draw([[[0, 97, 1, 3], [1, 97, 1, 3]], []]);
+			pixelQuery(u, 1.5, 97.5, 5);
+			assert.equal(prepared.length, 5);
+		}
+		finally { plugin.hooks.destroy(); }
 	});
 
 	it('allocates all palette paths before color selection and replaces them on every draw', async () => {
@@ -913,7 +1031,7 @@ describe('heatmapPlugin uniform grid', () => {
 		await Promise.resolve();
 		const boxes = oracleRects(u, f);
 		assert.deepEqual(counts, boxes.map(({ id }) => f.data[1][3][id]));
-		assert.deepEqual(fills(u).map(path => pathRects(path).length), [0, 2, 0, 0]);
+		assert.deepEqual(fills(u).map(path => pathRects(path).length), [0, 1, 0, 0]);
 		checkOracle(u, f);
 	});
 
@@ -935,7 +1053,8 @@ describe('heatmapPlugin uniform grid', () => {
 					plugin.hooks.draw(u);
 					assert.deepEqual(projected.x, f.xEdges);
 					assert.deepEqual(projected.y, f.yEdges);
-					assert.equal(drawn.flatMap(pathRects).length, 63 * 63);
+					assert.deepEqual(drawn.flatMap(pathRects), f.xEdges.slice(0, -1).filter(col => col != 2)
+						.flatMap(col => [[col, 98, 1, 2], [col, 36, 1, 61]]));
 					pixelQuery(u, .5, 99.5, 0);
 					pixelQuery(u, 2.5, 99.5, null);
 					pixelQuery(u, .5, 97.5, null);
@@ -980,7 +1099,7 @@ describe('heatmapPlugin uniform grid', () => {
 				plugin.hooks.setData(u);
 				assert.ok(reads < f.cells.length / 2, 'run search avoids a full X scan');
 				plugin.hooks.draw(u);
-				assert.deepEqual(drawn.flatMap(pathRects), f.cells.map(({ col, row }) => [col, 299 - row, 1, 1]));
+				assert.deepEqual(drawn.flatMap(pathRects), lengths.map((height, col) => [col * 2, 300 - height, 1, height]));
 				let start = 0;
 				for (let col = 0; col < lengths.length; col++) {
 					pixelQuery(u, col * 2 + .5, 299.5, start);
@@ -1521,7 +1640,7 @@ describe('heatmap cells demo integration', () => {
 					assert.deepEqual([u.scales.y.min, u.scales.y.max], [-8, 8]);
 					assert.equal(u.scales.y.asinh(u, 'y'), threshold);
 					if (mode == 'asinh') assert.equal(u.scales.y._asinh, threshold);
-					checkOracle(u, f, false);
+					checkOracle(u, f);
 					const boxes = oracleRects(u, f);
 					hover(u, 30, 0, null);
 					for (const sign of [-1, 1]) {
@@ -1538,7 +1657,7 @@ describe('heatmap cells demo integration', () => {
 					let calls = 0;
 					u.setData = next => { calls++; assert.equal(next, data); setData(next); };
 					root.querySelector('#set-data').click(); await Promise.resolve();
-					assert.equal(calls, 1); checkOracle(u, f, false);
+					assert.equal(calls, 1); checkOracle(u, f);
 				}
 				const lastSigned = demo.plot;
 				signed.checked = false; signed.dispatchEvent(new Event('change')); await Promise.resolve();
@@ -1552,7 +1671,7 @@ describe('heatmap cells demo integration', () => {
 				assert.equal(color.value, 'log'); checkDemoColors(demo.plot, 'log', 1, 4);
 				assert.deepEqual([demo.plot.scales.y.min, demo.plot.scales.y.max], [1, 8]);
 				assert.deepEqual([demo.plot.width, demo.plot.height], [777, 640]);
-				checkOracle(demo.plot, sourceFixture(original, 60), false);
+				checkOracle(demo.plot, sourceFixture(original, 60));
 			}
 			finally { demo?.destroy(); root.remove(); }
 		});
@@ -1582,10 +1701,10 @@ describe('heatmap cells demo integration', () => {
 				assert.deepEqual(u.scales.x.scan(noReads, 'x'), [null, null]);
 				assert.deepEqual(u.scales.y.scan(noReads, 'y'), mode == 'linear' ? [-8, 0] : [null, null]);
 				if (mode == 'asinh') assert.equal(u.scales.y._asinh, .5);
-				checkOracle(u, sourceFixture(replacement, 60), false);
+				checkOracle(u, sourceFixture(replacement, 60));
 				root.querySelector('#set-data').click(); await Promise.resolve();
 				assert.equal(u.data, replacement, 'the same-data button reads plot.data rather than the original fixture');
-				checkOracle(u, sourceFixture(replacement, 60), false);
+				checkOracle(u, sourceFixture(replacement, 60));
 			}
 			const u = demo.plot;
 			for (const facet of [1, 2]) replacement[1][facet].forEach((v, i, a) => { a[i] = v * 2; });
@@ -1600,7 +1719,7 @@ describe('heatmap cells demo integration', () => {
 			assert.equal(u.scales.y.asinh(noReads, 'y'), 1);
 			assert.deepEqual(rects(u), []);
 			u.setData(replacement); await Promise.resolve();
-			checkOracle(u, sourceFixture(replacement, 60), false);
+			checkOracle(u, sourceFixture(replacement, 60));
 		}
 		finally { demo?.destroy(); root.remove(); }
 	});
@@ -1625,24 +1744,24 @@ describe('heatmap cells demo integration', () => {
 					assert.deepEqual(u.scales.y.scan(u, 'y'), mode == 'linear' ? prepared : [null, null]);
 					if (mode == 'linear') assert.deepEqual([u.scales.y.min, u.scales.y.max], linearDemoBounds(u, ...prepared));
 					else assert.deepEqual(u.scales.y.range(u, null, null, 'y'), prepared);
-					checkOracle(u, sourceFixture(u.data, 60), false, cutoff);
+					checkOracle(u, sourceFixture(u.data, 60), cutoff);
 					checkDemoColors(u, root.querySelector('#color-scale').value, 1, 5);
 					for (const sign of signed ? [-1, 1] : [1]) hover(u, 30, sign * cutoff * .75, null);
 					u.setSize({ width: 777, height: 413 }); await Promise.resolve();
-					checkOracle(u, sourceFixture(u.data, 60), false, cutoff);
+					checkOracle(u, sourceFixture(u.data, 60), cutoff);
 					assert.deepEqual(u.data, snapshot);
 					const skipped = signed ? [null, [[60, 60], [-cutoff, cutoff / 2], [-cutoff / 2, cutoff], [1, 1]]] :
 						[null, [[60], [cutoff / 2], [cutoff], [1]]];
 					u.setData(skipped); await Promise.resolve();
 					assert.equal(u.scales.y.asinh(u, 'y'), 1, 'all-skipped data uses fallback 1');
-					checkOracle(u, sourceFixture(skipped, 60), false, cutoff);
+					checkOracle(u, sourceFixture(skipped, 60), cutoff);
 					assert.deepEqual(rects(u), []);
 					u.setData(empty()); await Promise.resolve();
 					assert.equal(u.scales.y.asinh(u, 'y'), 1);
 					assert.deepEqual(rects(u), []);
 					u.setData(snapshot); await Promise.resolve();
 					assert.equal(u.scales.y.asinh(u, 'y'), cutoff * 2);
-					checkOracle(u, sourceFixture(snapshot, 60), false, cutoff);
+					checkOracle(u, sourceFixture(snapshot, 60), cutoff);
 				}
 				finally { demo?.destroy(); root.remove(); }
 			});
@@ -1757,7 +1876,7 @@ describe('heatmap cells demo integration', () => {
 				assert.deepEqual([u.scales.x.min, u.scales.x.max], [240, 420]);
 				assert.deepEqual([u.scales.y.min, u.scales.y.max], mode == 'linear' ? linearDemoBounds(u, 0, 16) : [mode == 'log' ? .25 : 0, 16]);
 				assert.equal(u.scales.y.asinh(u, 'y'), .25);
-				checkOracle(u, sourceFixture(next, 60), false);
+				checkOracle(u, sourceFixture(next, 60));
 				u.setData(empty()); await Promise.resolve();
 				assert.deepEqual([u.scales.x.min, u.scales.x.max], [240, 420]);
 				assert.deepEqual([u.scales.y.min, u.scales.y.max], mode == 'linear' ? linearDemoBounds(u, 0, 16) : [mode == 'log' ? .25 : 0, 16]);
@@ -1924,7 +2043,7 @@ describe('heatmap cells demo integration', () => {
 		finally { demo?.destroy(); root.remove(); }
 	});
 
-	it('renders a deterministic sparse fixture with its full cell count, ranges, and per-color counts', async () => {
+	it('renders a deterministic sparse fixture with its full source count, ranges, and per-color coverage', async () => {
 		const root = createDemoRoot();
 		let demo;
 		try {
@@ -1951,8 +2070,8 @@ describe('heatmap cells demo integration', () => {
 				color.value = mode; color.dispatchEvent(new Event('change')); await Promise.resolve();
 				assert.equal(demo.plot, u);
 				assert.equal(u.data[1][3], counts);
-				assert.equal(rects(u).length, 146);
 				checkDemoColors(u, mode, min, max);
+				checkOracle(u, sourceFixture(u.data, 60));
 				assert.deepEqual(lastDraw(u).filter(e => e[0] === 'fillStyle').flatMap(e => e.slice(1)).filter(fill => fill.startsWith('rgb(')), colorChanges,
 					'all modes retain the same ordered Spectral palette');
 				assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels[mode]);
