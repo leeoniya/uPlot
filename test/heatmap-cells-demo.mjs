@@ -35,6 +35,25 @@ function coverage(rectangles) {
 	return result;
 }
 
+const colorModes = ['linear', 'sqrt', 'cbrt', 'log'];
+
+// Count snapped transitions directly; do not use the production lookup table.
+function approximateLogIndex(count, size, min, max) {
+	if (min == max) return 0;
+	const n = size - 1, logRange = Math.log(max) - Math.log(min), step = logRange / n;
+	const base = 4 * n * n, range = Math.expm1(logRange);
+	const minGap = Math.exp(step / 2) * Math.expm1(step) / range;
+	const intervals = base * Math.max(1, Math.ceil(1 / minGap / base)) * 4;
+	assert.ok(intervals <= 2 ** 24);
+	const j = Math.floor((count - min) * (intervals / (max - min)));
+	let color = 0;
+	for (let i = 0; i < n; i++)
+		if (Math.ceil(Math.expm1(step * (i + .5)) / range * intervals) <= j) color++;
+	const exact = Math.round(n * (Math.log(count) - Math.log(min)) / logRange);
+	assert.ok(Math.abs(color - exact) <= 1, `${size} colors, count ${count}: approximate ${color}, exact ${exact}`);
+	return color;
+}
+
 const nativeTimeValues = timeAxisVals(
 	seconds => uPlot.tzDate(seconds * 1000, 'Etc/UTC'),
 	timeAxisStamps(_timeAxisStampsS, uPlot.fmtDate),
@@ -122,6 +141,85 @@ describe('heatmap cells demo', () => {
 		});
 	}
 
+	it('maps both sides of every cube root threshold for all palette sizes', async () => {
+		for (let size = 11; size <= 32; size++) {
+			const root = createDemoRoot();
+			root.querySelector('#color-count').value = `${size}`;
+			root.querySelector('#color-scale').value = 'cbrt';
+			const counts = [1, 64];
+			const indices = [0, size - 1];
+			for (let i = 0; i < size - 1; i++) {
+				const t = ((i + .5) / (size - 1)) ** 3;
+				// Stay clear of floating-point ties while testing both adjacent colors.
+				counts.push(1 + 63 * (t - 1e-12), 1 + 63 * (t + 1e-12));
+				indices.push(i, i + 1);
+			}
+			const frames = [{ schema: { meta: { type: 'heatmap-cells' }, fields: [
+				{ name: 'xMax', config: { interval: 60000 } }, { name: 'yMin' }, { name: 'yMax' }, { name: 'count' },
+			] }, data: { values: [counts.map((_, i) => (i + 1) * 60000), counts.map(() => 1), counts.map(() => 2), counts] } }];
+			let demo;
+			try {
+				demo = createDemo(root, frames);
+				await Promise.resolve();
+				const u = demo.plot;
+				const start = u.ctx.log.length;
+				u.hooks.draw[0](u);
+				const paths = u.ctx.log.slice(start).filter(e => e[0] == 'fill').flatMap(e => e.slice(1)).map(([path]) => path);
+				const expected = Array.from({ length: size }, () => []);
+				indices.forEach((color, i) => expected[color].push(Math.round(u.valToPos(i * 60, 'x', true))));
+				assert.equal(paths.length, size);
+				paths.forEach((path, color) => {
+					const xs = path.log.filter(e => e[0] == 'rect').flatMap(e => e.slice(1)).map(rect => rect[0]);
+					assert.deepEqual(xs, expected[color], `${size} colors, palette index ${color}`);
+				});
+			}
+			finally { demo?.destroy(); root.remove(); }
+		}
+	});
+
+	it('maps approximate log transitions at their snapped left endpoints for every palette size', async () => {
+		for (let size = 11; size <= 32; size++) {
+			const min = 1, max = 64, n = size - 1, logRange = Math.log(max), step = logRange / n;
+			const base = 4 * n * n, range = Math.expm1(logRange);
+			const minGap = Math.exp(step / 2) * Math.expm1(step) / range;
+			const intervals = base * Math.max(1, Math.ceil(1 / minGap / base)) * 4;
+			const counts = [min, max];
+			for (let i = 0; i < n; i++) {
+				const threshold = Math.expm1(step * (i + .5)) / range;
+				const snapped = Math.ceil(threshold * intervals);
+				// Include the delayed transition and a point between the exact and snapped edges.
+				counts.push(...[
+					threshold * intervals - 1e-7, threshold * intervals + 1e-7,
+					snapped - 1e-7, snapped, snapped + 1e-7, (threshold * intervals + snapped) / 2,
+				].map(j => min + (max - min) * j / intervals));
+			}
+			const indices = counts.map(count => approximateLogIndex(count, size, min, max));
+			const root = createDemoRoot();
+			root.querySelector('#color-count').value = `${size}`;
+			root.querySelector('#color-scale').value = 'log';
+			const frames = [{ schema: { meta: { type: 'heatmap-cells' }, fields: [
+				{ name: 'xMax', config: { interval: 60000 } }, { name: 'yMin' }, { name: 'yMax' }, { name: 'count' },
+			] }, data: { values: [counts.map((_, i) => (i + 1) * 60000), counts.map(() => 1), counts.map(() => 2), counts] } }];
+			let demo;
+			try {
+				demo = createDemo(root, frames);
+				await Promise.resolve();
+				const u = demo.plot, start = u.ctx.log.length;
+				assert.equal(root.querySelector('#color-scale').value, 'log');
+				u.hooks.draw[0](u);
+				const paths = u.ctx.log.slice(start).filter(e => e[0] == 'fill').flatMap(e => e.slice(1)).map(([path]) => path);
+				const expected = Array.from({ length: size }, () => []);
+				indices.forEach((color, i) => expected[color].push(Math.round(u.valToPos(i * 60, 'x', true))));
+				assert.equal(paths.length, size);
+				paths.forEach((path, color) => {
+					const xs = path.log.filter(e => e[0] == 'rect').flatMap(e => e.slice(1)).map(rect => rect[0]);
+					assert.deepEqual(xs, expected[color], `${size} colors, approximate palette index ${color}`);
+				});
+			}
+			finally { demo?.destroy(); root.remove(); }
+		}
+	});
+
 	for (const constant of [false, true]) {
 		it(`resizes the palette from 32 to 11 and back with ${constant ? 'constant' : 'varying'} counts`, async () => {
 			const root = createDemoRoot();
@@ -164,7 +262,7 @@ describe('heatmap cells demo', () => {
 						const t = i / (size - 1) * 10, lo = Math.min(Math.floor(t), 9);
 						return `rgb(${stops[lo].map((v, c) => Math.round(v + (stops[lo + 1][c] - v) * (t - lo))).join(',')})`;
 					});
-					for (const mode of ['linear', 'sqrt', 'log']) {
+					for (const mode of colorModes) {
 						const select = root.querySelector('#color-scale');
 						select.value = mode;
 						select.dispatchEvent(new Event('change'));
@@ -174,12 +272,26 @@ describe('heatmap cells demo', () => {
 						assert.equal(paths.length, size, 'no stale paths after shrinking or growing');
 						const expectedCounts = new Array(size).fill(0);
 						for (const count of counts) {
-							const t = constant ? 0 : mode == 'log' ? Math.log(count) / Math.log(64) : (count - 1) / 63;
-							expectedCounts[Math.round((mode == 'sqrt' ? Math.sqrt(t) : t) * (size - 1))]++;
+							const t = constant ? 0 : (count - 1) / 63;
+							const index = (mode == 'sqrt' ? Math.sqrt(t) : mode == 'cbrt' ? Math.cbrt(t) : t) * (size - 1);
+							expectedCounts[mode == 'log' ? approximateLogIndex(count, size, constant ? 3 : 1, constant ? 3 : 64) : Math.round(index)]++;
 						}
 						assert.deepEqual(paths.map(path => path.log.filter(e => e[0] == 'rect').reduce((n, e) => n + e.length - 1, 0)), expectedCounts);
 						const ramp = root.querySelector('#color-ramp').style.background;
 						assert.equal(Array.from(ramp.matchAll(/rgb\(/g)).length, constant ? 1 : size);
+						if (!constant) {
+							const legendStops = Array.from(ramp.matchAll(/(rgb\([^)]+\))\s+([\d.e+-]+)%/g));
+							assert.deepEqual(legendStops.map(stop => stop[1].replace(/\s/g, '')), expectedPalette);
+							const positions = legendStops.map(stop => Number(stop[2]) / 100);
+							assert.equal(positions[0], 0);
+							assert.equal(positions.at(-1), 1);
+							positions.forEach((pos, i) => {
+								const t = i / (size - 1);
+								const expected = mode == 'sqrt' ? t ** 2 : mode == 'cbrt' ? t ** 3 : mode == 'log' ? (64 ** t - 1) / 63 : t;
+								assert.ok(Math.abs(pos - expected) < 1e-12, `${mode}, ${size} colors, legend stop ${i}`);
+								if (i > 0) assert.ok(pos > positions[i - 1]);
+							});
+						}
 						assert.equal(demo.plot, u);
 						assert.equal(u.data, data);
 						assert.deepEqual([u.scales.x.min, u.scales.x.max, u.scales.y.min, u.scales.y.max], scales);
@@ -306,7 +418,7 @@ describe('heatmap cells demo', () => {
 		finally { demo?.destroy(); root.remove(); }
 	});
 
-	for (const initialMode of ['linear', 'sqrt', 'log']) {
+	for (const initialMode of colorModes) {
 		it(`positions legend colors on a linear count domain, starting with ${initialMode}`, async () => {
 			const root = createDemoRoot();
 			const select = root.querySelector('#color-scale');
@@ -322,7 +434,7 @@ describe('heatmap cells demo', () => {
 				const u = demo.plot;
 				const ramp = root.querySelector('#color-ramp');
 				let colors;
-				for (const mode of [initialMode, 'linear', 'sqrt', 'log', 'linear']) {
+				for (const mode of [initialMode, ...colorModes, 'linear']) {
 					if (colors != null) {
 						select.value = mode;
 						select.dispatchEvent(new Event('change'));
@@ -334,7 +446,8 @@ describe('heatmap cells demo', () => {
 					assert.equal(positions[0], 0);
 					assert.equal(positions.at(-1), 1);
 					positions.forEach((pos, i) => {
-						const t = mode == 'sqrt' ? Math.sqrt(pos) : mode == 'log' ? Math.log(1 + 99 * pos) / Math.log(100) : pos;
+						const t = mode == 'sqrt' ? Math.sqrt(pos) : mode == 'cbrt' ? Math.cbrt(pos) :
+							mode == 'log' ? Math.log(1 + 99 * pos) / Math.log(100) : pos;
 						assert.ok(Math.abs(t - i / 23) < 1e-12, `${mode} palette stop ${i}`);
 						if (i > 0) assert.ok(pos > positions[i - 1]);
 					});
@@ -365,7 +478,7 @@ describe('heatmap cells demo', () => {
 		try {
 			demo = createDemo(root, frames);
 			await Promise.resolve();
-			for (const mode of ['linear', 'sqrt', 'log']) {
+			for (const mode of colorModes) {
 				const select = root.querySelector('#color-scale');
 				select.value = mode;
 				select.dispatchEvent(new Event('change'));

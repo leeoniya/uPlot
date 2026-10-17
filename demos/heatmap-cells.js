@@ -1,5 +1,6 @@
 import uPlot from '../src/uPlot.js';
 import { heatmapPlugin } from './lib/heatmapPlugin.js';
+import { logApproxLut } from './lib/heatmapColorLut.js';
 
 // Spectral, cool to warm; interpolate when the palette size changes, not for each cell.
 const stops = ['5e4fa2', '3288bd', '66c2a5', 'abdda4', 'e6f598', 'ffffbf', 'fee08b', 'fdae61', 'f46d43', 'd53e4f', '9e0142'];
@@ -55,38 +56,59 @@ export function createDemo(root, frames) {
 
 		// For round(sqrt(t) * (colorCount - 1)), transitions occur at odd squares
 		// when t is scaled by 4 * (colorCount - 1)^2. This keeps the lookup bins aligned.
-		const colorLookup = new Array(4 * (colorCount - 1) ** 2 + 1);
+		const colorLookup = new Uint8Array(4 * (colorCount - 1) ** 2 + 1);
 		for (let i = 0; i < colorCount; i++)
 			colorLookup.fill(i, i == 0 ? 0 : (2 * i - 1) ** 2, (2 * i + 1) ** 2);
 		const countScale = (colorLookup.length - 1) / countRange;
 		const linearScale = (colorCount - 1) / countRange;
-		const logThresholds = Array.from({ length: colorCount - 1 }, (_, i) => minCount * Math.exp(logRange * (i + .5) / (colorCount - 1)));
-		const logLookup = new Uint8Array(colorLookup.length);
-		for (let i = 0, color = 0; i < logLookup.length; i++) {
-			const count = minCount + i / countScale;
-			while (color < colorCount - 1 && count >= logThresholds[color]) color++;
-			logLookup[i] = color;
+
+		// Cube-root transitions occur at odd cubes on an 8 * (colorCount - 1)^3 grid.
+		// Share solid 64-entry blocks; only blocks crossing transitions need unique data.
+		const cubeIntervals = 8 * (colorCount - 1) ** 3;
+		const cubeDirectory = new Uint8Array(Math.ceil((cubeIntervals + 1) / 64));
+		// At most one solid block per color and one mixed block per transition.
+		const cubeBlocks = new Uint8Array((2 * colorCount - 1) * 64);
+		const solidBlocks = new Array(colorCount);
+		let blockCount = 0;
+		for (let block = 0, color = 0, next = 1; block < cubeDirectory.length; block++) {
+			const start = block * 64;
+			while (start >= next) next = (2 * ++color + 1) ** 3;
+			const solid = start + 64 <= next;
+			let id = solid ? solidBlocks[color] : undefined;
+			if (id == null) {
+				id = blockCount++;
+				if (solid) solidBlocks[color] = id;
+				for (let i = 0; i < 64; i++) {
+					while (start + i >= next) next = (2 * ++color + 1) ** 3;
+					cubeBlocks[id * 64 + i] = color;
+				}
+			}
+			cubeDirectory[block] = id;
 		}
+		const cubeLookup = cubeBlocks.slice(0, blockCount * 64);
+		const cubeScale = cubeIntervals / countRange;
 		colorIndices = {
 			sqrt: count => colorLookup[Math.floor((count - minCount) * countScale)],
 			linear: count => Math.round((count - minCount) * linearScale),
-			log: minCount == maxCount ? () => 0 : count => {
-				let color = logLookup[Math.floor((count - minCount) * countScale)];
-				// Log transitions do not align with uniform LUT bins. Correct boundary bins
-				// with comparisons, without computing logarithms while drawing.
-				while (color < colorCount - 1 && count >= logThresholds[color]) color++;
-				while (color > 0 && count < logThresholds[color - 1]) color--;
-				return color;
+			cbrt: count => {
+				const i = Math.floor((count - minCount) * cubeScale);
+				return cubeLookup[(cubeDirectory[i >>> 6] << 6) | (i & 63)];
 			},
+
 		};
 		// Legend position is linear in count; invert each transform to place palette stops.
-		for (const mode of ['linear', 'sqrt', 'log']) {
+		for (const mode of ['linear', 'sqrt', 'cbrt', 'log']) {
 			colorRamps[mode] = minCount == maxCount ? palette[0] : `linear-gradient(to right, ${palette.map((color, i) => {
 				const t = i / (colorCount - 1);
-				const pos = mode == 'sqrt' ? t * t : mode == 'log' ? minCount * Math.expm1(logRange * t) / countRange : t;
+				const pos = mode == 'sqrt' ? t * t : mode == 'cbrt' ? t * t * t : mode == 'log' ? minCount * Math.expm1(logRange * t) / countRange : t;
 				return `${color} ${i == colorCount - 1 ? 100 : pos * 100}%`;
 			}).join(',')})`;
 		}
+		const logLut = logApproxLut(colorCount, minCount, maxCount);
+		colorIndices.log = logLut?.lookup;
+		const logOption = root.querySelector('#color-scale option[value="log"]');
+		logOption.disabled = logLut == null;
+		logOption.title = logLut == null ? 'Unavailable: the count domain is invalid or the LUT exceeds its size or numeric limit.' : '';
 	}
 	updatePalette();
 	const xRange = [0, xSize];
@@ -144,9 +166,10 @@ export function createDemo(root, frames) {
 	const colorScaleLabel = root.querySelector('#color-scale-label');
 	let colorIdx;
 	const updateColorScale = () => {
+		if (colorScale.value == 'log' && colorIndices.log == null) colorScale.value = 'linear';
 		colorIdx = colorIndices[colorScale.value];
 		colorRamp.style.background = colorRamps[colorScale.value];
-		colorScaleLabel.textContent = `Count · ${colorScale.value == 'sqrt' ? '√' : colorScale.value} scale`;
+		colorScaleLabel.textContent = `Count · ${colorScale.value == 'sqrt' ? '√' : colorScale.value == 'cbrt' ? '∛' : colorScale.value} scale`;
 	};
 	updateColorScale();
 	const signed = root.querySelector('#signed-data');

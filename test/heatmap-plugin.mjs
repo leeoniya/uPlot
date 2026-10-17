@@ -230,23 +230,49 @@ function sparseFrames() {
 }
 
 const demoMinAbs = 2 ** -128;
-const colorLabels = { linear: 'Count · linear scale', sqrt: 'Count · √ scale', log: 'Count · log scale' };
+const colorLabels = { linear: 'Count · linear scale', sqrt: 'Count · √ scale', cbrt: 'Count · ∛ scale', log: 'Count · log scale' };
 const colorModes = Object.keys(colorLabels);
+
+// Independent reference: retain only the snapped transitions, not a lookup table.
+function approximateLogTransitions(min, max) {
+	const n = 23, logRange = Math.log(max) - Math.log(min), step = logRange / n;
+	const base = 4 * n * n, range = Math.expm1(logRange);
+	const minGap = Math.exp(step / 2) * Math.expm1(step) / range;
+	const intervals = base * Math.max(1, Math.ceil(1 / minGap / base)) * 4;
+	assert.ok(intervals <= 2 ** 24);
+	const transitions = Array.from({ length: n }, (_, i) => Math.ceil(Math.expm1(step * (i + .5)) / range * intervals));
+	return { intervals, transitions };
+}
 
 function demoColorIndex(count, mode, min, max) {
 	if (min == max) return 0;
+	if (mode == 'log') {
+		const { intervals, transitions } = approximateLogTransitions(min, max);
+		const j = Math.floor((count - min) * (intervals / (max - min)));
+		const color = transitions.filter(edge => edge <= j).length;
+		const exact = Math.round(23 * (Math.log(count) - Math.log(min)) / (Math.log(max) - Math.log(min)));
+		assert.ok(Math.abs(color - exact) <= 1, `count ${count}: approximate ${color}, exact ${exact}`);
+		return color;
+	}
 	const t = (count - min) / (max - min);
-	return Math.round(23 * (mode == 'sqrt' ? Math.sqrt(t) : mode == 'log' ? (Math.log(count) - Math.log(min)) / (Math.log(max) - Math.log(min)) : t));
+	return Math.round(23 * (mode == 'sqrt' ? Math.sqrt(t) : mode == 'cbrt' ? Math.cbrt(t) : t));
 }
 
 function colorBoundaryCounts(mode, min, max) {
-	return Array.from({ length: 23 }, (_, j) => {
+	const counts = Array.from({ length: 23 }, (_, j) => {
 		const t = (j + .5) / 23;
-		const edge = mode == 'log' ? min * Math.exp((Math.log(max) - Math.log(min)) * (j + .5) / 23) : min + (max - min) * (mode == 'sqrt' ? t * t : t);
+		const position = mode == 'sqrt' ? t * t : mode == 'cbrt' ? t ** 3 : t;
+		const edge = mode == 'log' ? min * Math.exp((Math.log(max) - Math.log(min)) * (j + .5) / 23) : min + (max - min) * position;
 		// Exact ties can differ by a few ulps between the direct and inverse formulas.
 		const eps = (mode == 'log' ? edge : max - min) * 1e-12;
 		return [edge - eps, edge + eps];
 	}).flat();
+	if (mode == 'log') {
+		// Probe true-log boundaries above and snapped transitions below; both use the approximate drawing oracle.
+		const { intervals, transitions } = approximateLogTransitions(min, max);
+		counts.push(...transitions.flatMap(edge => [edge - 1e-7, edge, edge + 1e-7].map(j => min + (max - min) * j / intervals)));
+	}
+	return counts;
 }
 
 function checkDemoColors(u, mode, min, max) {
@@ -263,7 +289,7 @@ function checkDemoColors(u, mode, min, max) {
 }
 
 function withoutColorMath(fn) {
-	const names = ['log', 'log1p', 'sqrt', 'exp'];
+	const names = ['log', 'log1p', 'sqrt', 'cbrt', 'exp', 'expm1'];
 	const originals = names.map(name => Math[name]);
 	try {
 		for (const name of names)
@@ -1659,7 +1685,8 @@ describe('heatmap cells demo integration', () => {
 		const signed = root.querySelector('#signed-data'), color = root.querySelector('#color-scale');
 		assert.ok(color, 'the color-scale selector exists');
 		assert.equal(color.tagName, 'SELECT');
-		assert.deepEqual(Array.from(color.options, o => o.value), colorModes);
+		assert.deepEqual(Array.from(color.options, o => o.value), ['linear', 'sqrt', 'cbrt', 'log']);
+		assert.equal(color.querySelector('option[value="log"]').textContent, 'Log');
 		assert.equal(color.value, 'linear');
 		assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels.linear);
 		assert.ok(signed, 'the signed-data checkbox exists');
@@ -1691,6 +1718,7 @@ describe('heatmap cells demo integration', () => {
 			assert.ok(!height.disabled && !button.disabled && !select.disabled && !signed.disabled && !color.disabled);
 			assert.equal(registrations.filter(([target]) => target == color).length, 1);
 			assert.equal(color.value, 'linear');
+			assert.equal(color.querySelector('option[value="log"]').disabled, false);
 			assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels.linear);
 
 			async function changeColor(mode) {
@@ -1731,7 +1759,7 @@ describe('heatmap cells demo integration', () => {
 			assert.equal(demo.plot.height, 720);
 			assert.equal(root.querySelector('#height-value').textContent, '720px');
 			let destroyed = 0, dataCalls = 0, sizeCalls = 0;
-			for (const [mode, distr, retainedColor] of [['linear', 1, 'linear'], ['asinh', 4, 'log'], ['log', 3, 'linear'], ['asinh', 4, 'log']]) {
+			for (const [mode, distr, retainedColor] of [['linear', 1, 'linear'], ['asinh', 4, 'log'], ['log', 3, 'log'], ['asinh', 4, 'log']]) {
 				const old = demo.plot;
 				old.setSize({ width: 777, height: 720 });
 				old.setScale('x', { min: 60, max: 240 });
@@ -1855,7 +1883,7 @@ describe('heatmap cells demo integration', () => {
 					assert.equal(u.scales.y.distr, mode == 'linear' ? 1 : 4);
 					assert.equal(color.value, 'log');
 					checkDemoColors(u, 'log', 1, 4);
-					for (const colorMode of ['sqrt', 'linear', 'log']) {
+					for (const colorMode of [...colorModes, 'log']) {
 						u.setScale('x', { min: 20, max: 220 });
 						u.setScale('y', { min: -6, max: 6 }); await Promise.resolve();
 						color.value = colorMode; color.dispatchEvent(new Event('change')); await Promise.resolve();
@@ -2121,7 +2149,60 @@ describe('heatmap cells demo integration', () => {
 		});
 	}
 
-	it('uses exact sqrt, linear, and log colors across transitions and constant count ranges', async () => {
+	it('disables log for a huge count ratio and falls back to linear without giant allocations', async () => {
+		for (const initial of [null, 'log']) {
+			const root = createDemoRoot(), color = root.querySelector('#color-scale');
+			if (initial != null) color.value = initial;
+			const counts = [1, 10, 1e3, 1e6, 1e9, 1e12];
+			const frames = framesFor([counts.map((_, i) => (i + 1) * 60000), counts.map(() => 1), counts.map(() => 2), counts]);
+			const names = ['Array', 'ArrayBuffer', 'Uint8Array', 'Uint8ClampedArray', 'Uint16Array', 'Uint32Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Float32Array', 'Float64Array'];
+			const originals = names.map(name => globalThis[name]);
+			const guard = args => {
+				if (typeof args[0] == 'number') assert.ok(args[0] <= 2 ** 24, 'reject oversized grids before allocating');
+			};
+			let demo;
+			try {
+				names.forEach((name, i) => {
+					globalThis[name] = new Proxy(originals[i], {
+						construct(target, args) { guard(args); return Reflect.construct(target, args); },
+						apply(target, receiver, args) { guard(args); return Reflect.apply(target, receiver, args); },
+					});
+				});
+				demo = createDemo(root, frames);
+				await Promise.resolve();
+				const u = demo.plot;
+				assert.equal(color.querySelector('option[value="log"]').disabled, true);
+				assert.equal(color.disabled, false, 'linear and root modes remain available');
+				assert.equal(color.value, 'linear');
+				assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels.linear);
+				checkDemoColors(u, 'linear', 1, 1e12);
+				const legend = root.querySelector('#color-ramp').style.background;
+				color.value = 'log';
+				withoutColorMath(() => color.dispatchEvent(new Event('change')));
+				await Promise.resolve();
+				assert.equal(color.value, 'linear', 'an unavailable changed selection also falls back');
+				assert.equal(root.querySelector('#color-scale-label').textContent, colorLabels.linear);
+				assert.equal(root.querySelector('#color-ramp').style.background, legend);
+				assert.equal(demo.plot, u);
+				checkDemoColors(u, 'linear', 1, 1e12);
+				for (const size of [11, 32, 24]) {
+					const slider = root.querySelector('#color-count');
+					slider.value = `${size}`;
+					slider.dispatchEvent(new Event('input'));
+					await Promise.resolve();
+					assert.equal(color.querySelector('option[value="log"]').disabled, true);
+					assert.equal(color.value, 'linear');
+				}
+				checkDemoColors(u, 'linear', 1, 1e12);
+			}
+			finally {
+				names.forEach((name, i) => { globalThis[name] = originals[i]; });
+				demo?.destroy(); root.remove();
+			}
+		}
+	});
+
+	it('uses exact linear/root colors and independently bounded log colors across transitions and constant count ranges', async () => {
 		const fixtures = [[1, 2], [.125, 2048], [1e-5, .01]].map(([min, max]) => [
 			min, max,
 			...Array.from({ length: 256 }, (_, i) => min + (max - min) * (i + 1) / 257),
@@ -2240,7 +2321,7 @@ describe('heatmap cells demo integration', () => {
 				assert.deepEqual([dataCalls, prepares], [phase, phase]);
 				// Keep offscreen counts so a full-domain scan cannot masquerade as drawing.
 				u.setScale('x', { min: 90, max: u.data[1][0].at(-2) }); await Promise.resolve();
-				for (const mode of ['log', 'linear', 'sqrt', 'log']) {
+				for (const mode of ['log', ...colorModes]) {
 					await checkRedraw(mode, true);
 					await checkRedraw(mode, false);
 				}
