@@ -5,8 +5,8 @@ import { generateHeatmapCells } from '../demos/lib/heatmapCellsData.js';
 import { readCells, gridShape, gridCells, cellLookup, colorPosition, colorBoundary, palette, cellText, setupControls } from '../demos/heatmap-cells-compare.js';
 import { prepareData as bokehData, createDemo as createBokeh } from '../demos/heatmap-cells-bokeh.js';
 import { prepareData as plotlyData, colorScale, createDemo as createPlotly } from '../demos/heatmap-cells-plotly.js';
-import { prepareData as d3fcData } from '../demos/heatmap-cells-d3fc.js';
-import { prepareData as observableData, rasterOptions } from '../demos/heatmap-cells-observable.js';
+import { prepareData as d3fcData, createDemo as createD3FC } from '../demos/heatmap-cells-d3fc.js';
+import { prepareData as observableData, rasterOptions, createDemo as createObservable } from '../demos/heatmap-cells-observable.js';
 
 function frames() {
 	return [{ schema: { meta: { type: 'other' } } }, {
@@ -31,6 +31,17 @@ function change(root, selector, value, type = 'change') {
 }
 
 function close(a, b) { assert.ok(Math.abs(a - b) < Math.max(1, Math.abs(b)) * 1e-10, `${a} ≈ ${b}`); }
+
+function trackReadout(root) {
+	const readout = root.querySelector('#hover');
+	const text = readout.firstChild;
+	assert.equal(text?.nodeType, Node.TEXT_NODE);
+	return expected => {
+		assert.equal(readout.childNodes.length, 1);
+		assert.equal(readout.firstChild, text, 'hover updates retain the same text node');
+		if (expected !== undefined) assert.equal(text.data, expected);
+	};
+}
 
 describe('native-library heatmap comparisons', () => {
 	it('reads named, reordered columns without changing or copying the source', () => {
@@ -167,17 +178,23 @@ describe('native-library heatmap comparisons', () => {
 		assert.equal(p.xDates.at(-1), '1970-01-01T00:03:00.000Z');
 		assert.deepEqual(d.indices, [0, 1, 2]);
 		assert.deepEqual(d.indices.map(i => d.counts[i]), [17.25, 3.5, 29.75]);
-		const identity = d => d;
-		const r = rasterOptions(o, { identity });
-		assert.equal(r.fill, identity);
+		const r = rasterOptions(o);
+		assert.equal(r.x, o.xCenters);
+		assert.equal(r.y, o.yCenters);
+		assert.equal(r.fill, o.countValues);
+		assert.ok(Array.isArray(r.x));
+		assert.ok(r.y instanceof Float64Array);
+		assert.ok(r.fill instanceof Float64Array);
+		assert.deepEqual(Array.from(r.fill), o.counts);
 		assert.equal(r.interpolate, 'none');
 		assert.equal(r.imageRendering, 'pixelated');
 		assert.equal(r.clip, true);
 		assert.deepEqual([r.width, r.height, r.x1, r.x2, r.y1, r.y2], [3, 3, 0, 180000, 1, 8]);
 		for (const c of [b, p, d, o]) assert.equal(c.counts, f[1].data.values[0]);
 		for (let i = 0; i < 3; i++) {
-			assert.equal(r.x(o.counts[i], i), o.times[i] - o.xSize / 2);
-			close(r.y(o.counts[i], i), Math.sqrt(o.yMin[i] * o.yMax[i]));
+			assert.ok(r.x[i] instanceof Date);
+			assert.equal(+r.x[i], o.times[i] - o.xSize / 2);
+			close(r.y[i], Math.sqrt(o.yMin[i] * o.yMax[i]));
 		}
 	});
 
@@ -218,16 +235,21 @@ describe('native-library heatmap comparisons', () => {
 
 	it('binds shared controls and removes every listener on disposal', () => {
 		const root = rootFor('bokeh'), calls = [];
+		root.querySelector('#hover').appendChild(document.createTextNode('initial'));
+		const checkReadout = trackReadout(root);
 		try {
 			const cleanup = setupControls(root, readCells(frames()), {
 				resize: () => calls.push('resize'), setData: () => calls.push('data'), setColor: mode => calls.push(mode),
 			}, 'hint');
+			checkReadout('hint');
 			change(root, '#height', '720', 'input');
+			checkReadout('hint');
 			change(root, '#color-scale', 'sqrt');
 			root.querySelector('#set-data').click();
 			assert.deepEqual(calls, ['resize', 'sqrt', 'data']);
 			assert.equal(root.querySelector('#height-value').textContent, '720px');
 			assert.equal(root.querySelector('#color-scale-label').textContent, 'Count · √ scale');
+			checkReadout('hint');
 			cleanup();
 			change(root, '#height', '560', 'input');
 			window.dispatchEvent(new Event('resize'));
@@ -251,6 +273,15 @@ describe('native-library heatmap comparisons', () => {
 		let demo;
 		try {
 			demo = await createPlotly(root, frames(), Plotly);
+			const checkReadout = trackReadout(root), hint = root.querySelector('#hover').textContent;
+			for (let i = 0; i < 20; i++) {
+				listeners.get('plotly_hover')({ points: [{ pointNumber: [0, 0] }] });
+				checkReadout(cellText(0, 60000, 1, 2, 3.5));
+				listeners.get('plotly_hover')({ points: [{ pointNumber: [2, 2] }] });
+				checkReadout(cellText(120000, 180000, 4, 8, 17.25));
+				listeners.get('plotly_unhover')();
+				checkReadout(hint);
+			}
 			const { data: [trace], layout } = calls[0];
 			assert.equal(trace.type, 'heatmap');
 			assert.equal(trace.zsmooth, false);
@@ -267,11 +298,203 @@ describe('native-library heatmap comparisons', () => {
 			assert.equal(calls.at(-1).z[0], trace.z);
 			change(root, '#height', '720', 'input');
 			assert.equal(calls.at(-1).height, 720);
+			checkReadout(hint);
+			listeners.get('plotly_relayout')();
+			listeners.get('plotly_hover')({ points: [{ pointNumber: [2, 2] }] });
+			checkReadout(cellText(120000, 180000, 4, 8, 17.25));
 			demo.destroy(); demo = null;
 			assert.equal(listeners.size, 0);
 			assert.equal(calls.at(-1), 'purge');
 		}
 		finally { demo?.destroy(); root.remove(); }
+	});
+
+	it('reuses Observable channels across updates and rebuilds on resize only for changed dimensions', () => {
+		const input = frames(), snapshot = structuredClone(input);
+		const root = rootFor('observable'), calls = [], listeners = new Map();
+		const host = root.querySelector('#plot');
+		let width = 800, brushEnd;
+		Object.defineProperty(host, 'clientWidth', { get: () => width });
+		const Plot = {
+			raster: (data, options) => ({ data, options }),
+			plot(options) {
+				calls.push(options);
+				const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+				svg.scale = axis => ({ invert: value => axis == 'x' ? value : 1000 / value });
+				return svg;
+			},
+		};
+		const selection = {
+			append() { return this; },
+			call(fn, ...args) { fn(this, ...args); return this; },
+			style() { return this; },
+			on(event, handler) { listeners.set(event, handler); return this; },
+		};
+		const d3 = {
+			select: () => selection,
+			brush() {
+				const brush = () => {};
+				brush.extent = () => brush;
+				brush.on = (event, handler) => { brushEnd = handler; return brush; };
+				brush.move = () => {};
+				return brush;
+			},
+		};
+		let demo;
+		try {
+			demo = createObservable(root, input, Plot, d3);
+			const checkReadout = trackReadout(root), hint = root.querySelector('#hover').textContent;
+			const hover = () => {
+				listeners.get('pointermove.hover')({ offsetX: 100, offsetY: 200 });
+				checkReadout(cellText(0, 60000, 4, 8, 29.75));
+			};
+			for (let i = 0; i < 20; i++) {
+				hover();
+				listeners.get('pointermove.hover')({ offsetX: 0, offsetY: 0 });
+				checkReadout(hint);
+				hover();
+				listeners.get('pointerleave.hover')();
+				checkReadout(hint);
+			}
+			const resize = () => window.dispatchEvent(new Event('resize'));
+			const unchanged = () => {
+				const plot = demo.plot, count = calls.length;
+				resize(); resize();
+				assert.equal(calls.length, count);
+				assert.equal(demo.plot, plot);
+				assert.equal(host.firstChild, plot);
+				checkReadout(hint);
+			};
+			assert.equal(calls.length, 1);
+			assert.deepEqual([calls[0].width, calls[0].height], [800, 560]);
+			unchanged();
+
+			width = 900; resize();
+			assert.equal(calls.length, 2);
+			assert.equal(calls.at(-1).width, 900);
+			unchanged();
+			change(root, '#height', '720', 'input');
+			assert.equal(calls.length, 3);
+			assert.equal(calls.at(-1).height, 720);
+			assert.equal(host.style.height, '720px');
+			change(root, '#height', '720', 'input');
+			unchanged();
+			assert.equal(calls.length, 3);
+
+			change(root, '#color-scale', 'sqrt');
+			assert.equal(calls.length, 4);
+			root.querySelector('#set-data').click();
+			assert.equal(calls.length, 5);
+			brushEnd({ sourceEvent: {}, selection: [[100, 100], [300, 200]] });
+			assert.equal(calls.length, 6);
+			assert.deepEqual(calls.at(-1).x.domain, [100, 300]);
+			assert.deepEqual(calls.at(-1).y.domain, [5, 10]);
+			unchanged();
+			listeners.get('dblclick.reset')();
+			assert.equal(calls.length, 7);
+			assert.deepEqual(calls.at(-1).x.domain, [0, 180000]);
+			assert.deepEqual(calls.at(-1).y.domain, [1, 8]);
+			unchanged();
+
+			width = 100; resize();
+			assert.equal(calls.length, 8);
+			assert.equal(calls.at(-1).width, 140);
+			width = 120; unchanged();
+			width = 0; resize();
+			assert.equal(calls.length, 9);
+			assert.equal(calls.at(-1).width, 1000);
+			unchanged();
+			const original = calls[0].marks[0];
+			for (const { marks: [mark] } of calls) {
+				assert.equal(mark.data, input[1].data.values[0], 'mark data retains the original counts');
+				for (const channel of ['x', 'y', 'fill'])
+					assert.equal(mark.options[channel], original.options[channel], `${channel} channel is reused on every rebuild`);
+			}
+			assert.deepEqual(input, snapshot, 'preparation and redraws leave source data unchanged');
+			hover();
+			demo.destroy(); demo = null;
+			width = 800; resize();
+			assert.equal(calls.length, 9);
+			assert.equal(host.childElementCount, 0);
+		}
+		finally { demo?.destroy(); root.remove(); }
+	});
+
+	it('retains the D3FC hover text node through hover, redraw, resize, and reset', () => {
+		const root = rootFor('d3fc'), listeners = new Map();
+		const node = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		const selection = {
+			append() { return this; },
+			style() { return this; },
+			attr() { return this; },
+			call(fn, ...args) { fn(this, ...args); return this; },
+			on(event, handler) { listeners.set(event, handler); return this; },
+			node: () => node,
+		};
+		const scale = log => {
+			const fn = value => value;
+			fn.domain = fn.range = () => fn;
+			fn.invert = value => log ? (value < 200 ? 1.5 : 6) : value * 1000;
+			return fn;
+		};
+		const axis = () => {
+			const fn = () => {};
+			fn.ticks = fn.tickSizeOuter = () => fn;
+			return fn;
+		};
+		const d3 = {
+			select: () => selection,
+			scaleUtc: () => scale(false), scaleLog: () => scale(true),
+			axisBottom: axis, axisLeft: axis,
+			brush() {
+				const fn = () => {};
+				fn.on = fn.extent = () => fn;
+				fn.move = () => {};
+				return fn;
+			},
+		};
+		const fc = { seriesCanvasHeatmap() {
+			const series = () => {};
+			for (const name of ['context', 'xScale', 'yScale', 'xValue', 'yValue', 'colorValue', 'xBandwidth', 'yBandwidth', 'colorInterpolate'])
+				series[name] = () => series;
+			return series;
+		} };
+		const getContext = HTMLCanvasElement.prototype.getContext;
+		HTMLCanvasElement.prototype.getContext = () => ({
+			setTransform() {}, clearRect() {}, save() {}, translate() {}, beginPath() {}, rect() {}, clip() {}, restore() {},
+		});
+		let demo;
+		try {
+			demo = createD3FC(root, frames(), d3, fc);
+			const checkReadout = trackReadout(root), hint = root.querySelector('#hover').textContent;
+			const hover = () => {
+				listeners.get('pointermove.hover')({ offsetX: 115, offsetY: 130 });
+				checkReadout(cellText(0, 60000, 1, 2, 3.5));
+			};
+			for (let i = 0; i < 20; i++) {
+				hover();
+				listeners.get('pointermove.hover')({ offsetX: 115, offsetY: 330 });
+				checkReadout(cellText(0, 60000, 4, 8, 29.75));
+				listeners.get('pointermove.hover')({ offsetX: 185, offsetY: 130 });
+				checkReadout(hint);
+				hover();
+				listeners.get('pointerleave.hover')();
+				checkReadout(hint);
+			}
+			for (const update of [
+				() => change(root, '#height', '720', 'input'),
+				() => change(root, '#color-scale', 'sqrt'),
+				() => root.querySelector('#set-data').click(),
+				() => window.dispatchEvent(new Event('resize')),
+				() => listeners.get('dblclick.reset')(),
+			]) {
+				hover();
+				update();
+				checkReadout(hint);
+			}
+			hover();
+		}
+		finally { HTMLCanvasElement.prototype.getContext = getContext; demo?.destroy(); root.remove(); }
 	});
 
 	it('uses native Bokeh quads, original count hover, and source updates', async () => {
@@ -280,22 +503,37 @@ describe('native-library heatmap comparisons', () => {
 			setv(options) { Object.assign(this, options); }
 		}
 		let glyph, hover, removed = false;
+		const renderer = { hover_glyph: {} };
 		const Bokeh = {
 			ColumnDataSource: Model, LinearColorMapper: Model, BoxZoomTool: Model, PanTool: Model,
 			WheelZoomTool: Model, ResetTool: Model, Range1d: Model, HoverTool: Model,
 			Plotting: {
 				figure(options) {
 					return Object.assign(new Model(options), { xaxis: [], yaxis: [], xgrid: [], ygrid: [],
-						quad(options) { glyph = options; return {}; }, add_tools(tool) { hover = tool; },
+						quad(options) { glyph = options; return renderer; }, add_tools(tool) { hover = tool; },
 					});
 				},
-				async show() { return { remove() { removed = true; } }; },
+				async show() {
+					assert.equal(renderer.hover_glyph, null, 'disable hover painting before Bokeh creates its views and signal connections');
+					assert.deepEqual(hover.renderers, [renderer], 'keep native hit testing on the quad renderer');
+					assert.equal(hover.tooltips, null);
+					return { remove() { removed = true; } };
+				},
 			},
 		};
 		const root = rootFor('bokeh');
 		let demo;
 		try {
 			demo = await createBokeh(root, frames(), Bokeh);
+			const checkReadout = trackReadout(root), hint = root.querySelector('#hover').textContent;
+			for (let i = 0; i < 20; i++) {
+				hover.callback(null, { index: { indices: [0] } });
+				checkReadout(cellText(120000, 180000, 4, 8, 17.25));
+				hover.callback(null, { index: { indices: [1] } });
+				checkReadout(cellText(0, 60000, 1, 2, 3.5));
+				hover.callback(null, { index: { indices: [] } });
+				checkReadout(hint);
+			}
 			assert.equal(demo.plot.output_backend, 'webgl');
 			assert.equal(demo.plot.y_axis_type, 'log');
 			assert.equal(glyph.line_color, null);
@@ -311,6 +549,11 @@ describe('native-library heatmap comparisons', () => {
 			assert.equal(demo.source.emits, 1);
 			change(root, '#height', '720', 'input');
 			assert.equal(demo.plot.height, 720);
+			checkReadout(hint);
+			hover.callback(null, { index: { indices: [0] } });
+			checkReadout(cellText(120000, 180000, 4, 8, 17.25));
+			root.querySelector('#plot').dispatchEvent(new Event('dblclick'));
+			checkReadout(hint);
 			demo.destroy(); demo = null;
 			assert.equal(removed, true);
 		}

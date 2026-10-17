@@ -118,18 +118,19 @@ export function setupControls(root, cells, { resize, setData, setColor }, hint) 
 	const mode = root.querySelector('#color-scale');
 	const button = root.querySelector('#set-data');
 	const readout = root.querySelector('#hover');
-	readout.textContent = hint;
+	const readoutText = readout.firstChild ?? readout.appendChild(document.createTextNode(''));
+	readoutText.data = hint;
 	root.querySelector('#color-ramp').style.background = `linear-gradient(to right, ${palette.join(',')})`;
 	root.querySelector('#color-min').textContent = format(cells.minCount);
 	root.querySelector('#color-max').textContent = format(cells.maxCount);
 	const label = () => root.querySelector('#color-scale-label').textContent = `Count · ${mode.value == 'sqrt' ? '√' : mode.value} scale`;
 	const onResize = () => {
 		root.querySelector('#height-value').textContent = `${height.value}px`;
-		readout.textContent = hint;
+		readoutText.data = hint;
 		resize();
 	};
 	const onColor = () => { label(); setColor(mode.value); };
-	const onData = () => { readout.textContent = hint; setData(); };
+	const onData = () => { readoutText.data = hint; setData(); };
 	label();
 	height.addEventListener('input', onResize);
 	mode.addEventListener('change', onColor);

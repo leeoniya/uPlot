@@ -14,6 +14,7 @@ export async function createDemo(root, frames, Bokeh = globalThis.Bokeh) {
 	const host = root.querySelector('#plot');
 	const height = root.querySelector('#height');
 	const readout = root.querySelector('#hover');
+	const readoutText = readout.firstChild ?? readout.appendChild(document.createTextNode(''));
 	const hint = 'Hover a cell for its bounds and count. Drag to zoom; double-click or use Reset to reset.';
 	const colorValues = mode => Float64Array.from(cells.counts, v => 31 * colorPosition(v, cells.minCount, cells.maxCount, mode));
 	const source = new Bokeh.ColumnDataSource({ data: {
@@ -37,6 +38,8 @@ export async function createDemo(root, frames, Bokeh = globalThis.Bokeh) {
 		source, fill_color: { field: 'color', transform: mapper }, line_color: null,
 		nonselection_fill_alpha: 1,
 	});
+	// Source-derived optimization, not official performance advice: BokehJS 3.10.0 api/figure.ts creates a hover glyph; renderers/glyph_renderer.ts repaints on inspection when it exists.
+	renderer.hover_glyph = null;
 	for (const axis of [...plot.xaxis, ...plot.yaxis]) {
 		axis.major_label_text_color = '#b7bdc5';
 		axis.axis_line_color = '#343a42';
@@ -51,11 +54,11 @@ export async function createDemo(root, frames, Bokeh = globalThis.Bokeh) {
 			const i = index.indices[0];
 			if (i === hoverIndex) return;
 			hoverIndex = i;
-			readout.textContent = i == null ? hint : cellText(cells.left[i], cells.times[i], cells.yMin[i], cells.yMax[i], cells.counts[i]);
+			readoutText.data = i == null ? hint : cellText(cells.left[i], cells.times[i], cells.yMin[i], cells.yMax[i], cells.counts[i]);
 		},
 	}));
 	const view = await Bokeh.Plotting.show(plot, host);
-	const clearHover = () => { hoverIndex = undefined; readout.textContent = hint; };
+	const clearHover = () => { hoverIndex = undefined; readoutText.data = hint; };
 	const resetZoom = () => {
 		plot.x_range.setv({ start: cells.minX, end: cells.maxX });
 		plot.y_range.setv({ start: cells.minY, end: cells.maxY });

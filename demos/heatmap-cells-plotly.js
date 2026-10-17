@@ -28,6 +28,7 @@ export async function createDemo(root, frames, Plotly = globalThis.Plotly) {
 	const host = root.querySelector('#plot');
 	const height = root.querySelector('#height');
 	const readout = root.querySelector('#hover');
+	const readoutText = readout.firstChild ?? readout.appendChild(document.createTextNode(''));
 	const hint = 'Hover a cell for its bounds and count. Drag to zoom; double-click to reset.';
 	const trace = {
 		type: 'heatmap', x: cells.xDates, y: cells.yEdges, z: cells.z,
@@ -48,14 +49,14 @@ export async function createDemo(root, frames, Plotly = globalThis.Plotly) {
 	const config = { displaylogo: false, scrollZoom: false, doubleClick: 'reset', responsive: false };
 	await Plotly.newPlot(host, [trace], layout, config);
 	let hoverKey;
-	const clearHover = () => { hoverKey = undefined; readout.textContent = hint; };
+	const clearHover = () => { hoverKey = undefined; readoutText.data = hint; };
 	const onHover = event => {
 		const point = event.points[0];
 		const [y, x] = point.pointNumber;
 		const key = y * cells.nx + x;
 		if (key === hoverKey) return;
 		hoverKey = key;
-		readout.textContent = cellText(cells.xEdges[x], cells.xEdges[x + 1], cells.yEdges[y], cells.yEdges[y + 1], cells.values[key]);
+		readoutText.data = cellText(cells.xEdges[x], cells.xEdges[x + 1], cells.yEdges[y], cells.yEdges[y + 1], cells.values[key]);
 	};
 	host.on('plotly_hover', onHover);
 	host.on('plotly_unhover', clearHover);

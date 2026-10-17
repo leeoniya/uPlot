@@ -14,6 +14,7 @@ export function createDemo(root, frames, d3 = globalThis.d3, fc = globalThis.fc)
 	const host = root.querySelector('#plot');
 	const height = root.querySelector('#height');
 	const readout = root.querySelector('#hover');
+	const readoutText = readout.firstChild ?? readout.appendChild(document.createTextNode(''));
 	const hint = 'Hover a cell for its bounds and count. Drag to zoom; double-click to reset.';
 	const canvas = document.createElement('canvas');
 	canvas.style.position = 'absolute';
@@ -30,7 +31,7 @@ export function createDemo(root, frames, d3 = globalThis.d3, fc = globalThis.fc)
 	let width, innerWidth, innerHeight;
 	let mode = root.querySelector('#color-scale').value;
 	let hoverIndex;
-	const clearHover = () => { hoverIndex = undefined; readout.textContent = hint; };
+	const clearHover = () => { hoverIndex = undefined; readoutText.data = hint; };
 	const series = fc.seriesCanvasHeatmap()
 		.context(context).xScale(x).yScale(y)
 		.xValue(i => cells.times[i] - cells.xSize / 2)
@@ -85,7 +86,7 @@ export function createDemo(root, frames, d3 = globalThis.d3, fc = globalThis.fc)
 		const i = px < 0 || px >= innerWidth || py < 0 || py >= innerHeight ? -1 : findCell(+x.invert(px), y.invert(py));
 		if (i === hoverIndex) return;
 		hoverIndex = i;
-		readout.textContent = i < 0 ? hint : cellText(cells.times[i] - cells.xSize, cells.times[i], cells.yMin[i], cells.yMax[i], cells.counts[i]);
+		readoutText.data = i < 0 ? hint : cellText(cells.times[i] - cells.xSize, cells.times[i], cells.yMin[i], cells.yMax[i], cells.counts[i]);
 	};
 	const resetZoom = () => {
 		x.domain([cells.minX, cells.maxX]);

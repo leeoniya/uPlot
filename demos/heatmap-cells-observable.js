@@ -2,14 +2,21 @@ import { readCells, gridShape, cellLookup, palette, colorBoundary, cellText, set
 
 export function prepareData(frames) {
 	const cells = readCells(frames);
-	return { ...cells, ...gridShape(cells) };
+	// Source-derived detail, not a documented performance tip: Plot 0.6.17 src/options.js coerceDate reuses existing Dates (but still maps the array).
+	const xCenters = Array.from(cells.times, time => new Date(time - cells.xSize / 2));
+	// Source-derived detail, not a documented performance tip: Plot 0.6.17 src/options.js coerceNumbers skips conversion for numeric typed arrays.
+	const yCenters = Float64Array.from(cells.yMin, (lo, i) => Math.sqrt(lo * cells.yMax[i]));
+	// Source-derived detail, not a documented performance tip: the same coerceNumbers fast path avoids copying the count channel on each rebuild.
+	const countValues = Float64Array.from(cells.counts);
+	return { ...cells, ...gridShape(cells), xCenters, yCenters, countValues };
 }
 
-export function rasterOptions(cells, Plot) {
+export function rasterOptions(cells) {
+	// Documented user optimization: channel arrays improve efficiency (https://observablehq.com/plot/features/marks#mark-options); reuse them across rebuilds.
 	return {
-		x: (_, i) => cells.times[i] - cells.xSize / 2,
-		y: (_, i) => Math.sqrt(cells.yMin[i] * cells.yMax[i]),
-		fill: Plot.identity,
+		x: cells.xCenters,
+		y: cells.yCenters,
+		fill: cells.countValues,
 		x1: cells.minX, x2: cells.maxX, y1: cells.minY, y2: cells.maxY,
 		width: cells.nx, height: cells.ny,
 		// One raster pixel per original grid position, not per screen pixel.
@@ -24,14 +31,16 @@ export function createDemo(root, frames, Plot = globalThis.Plot, d3 = globalThis
 	const host = root.querySelector('#plot');
 	const height = root.querySelector('#height');
 	const readout = root.querySelector('#hover');
+	const readoutText = readout.firstChild ?? readout.appendChild(document.createTextNode(''));
 	const hint = 'Hover a cell for its bounds and count. Drag to zoom; double-click to reset.';
 	const margin = { marginLeft: 85, marginRight: 20, marginTop: 30, marginBottom: 40 };
 	let xDomain = [cells.minX, cells.maxX], yDomain = [cells.minY, cells.maxY];
 	let mode = root.querySelector('#color-scale').value;
-	let plot, hoverIndex;
-	const clearHover = () => { hoverIndex = undefined; readout.textContent = hint; };
+	let plot, hoverIndex, renderedWidth, renderedHeight;
+	const getWidth = () => Math.max(140, host.clientWidth || 1000);
+	const clearHover = () => { hoverIndex = undefined; readoutText.data = hint; };
 	const draw = () => {
-		const width = Math.max(140, host.clientWidth || 1000);
+		const width = getWidth();
 		const chartHeight = height.valueAsNumber;
 		host.style.height = `${chartHeight}px`;
 		const domain = cells.minCount == cells.maxCount ? [] : Array.from({ length: 31 }, (_, i) => colorBoundary((i + .5) / 31, cells.minCount, cells.maxCount, mode));
@@ -41,7 +50,7 @@ export function createDemo(root, frames, Plot = globalThis.Plot, d3 = globalThis
 			x: { type: 'utc', domain: xDomain, label: null, nice: false, ticks: Math.max(2, width / 130) },
 			y: { type: 'log', domain: yDomain, label: null, nice: false, ticks: 8 },
 			color: { type: 'threshold', domain, range: domain.length ? palette : [palette[0]], unknown: null },
-			marks: [Plot.raster(cells.counts, rasterOptions(cells, Plot))],
+			marks: [Plot.raster(cells.counts, rasterOptions(cells))],
 		});
 		host.replaceChildren(plot);
 		const x = plot.scale('x'), y = plot.scale('y');
@@ -65,7 +74,7 @@ export function createDemo(root, frames, Plot = globalThis.Plot, d3 = globalThis
 				const i = px < margin.marginLeft || px >= width - margin.marginRight || py < margin.marginTop || py >= chartHeight - margin.marginBottom ? -1 : findCell(+x.invert(px), y.invert(py));
 				if (i === hoverIndex) return;
 				hoverIndex = i;
-				readout.textContent = i < 0 ? hint : cellText(cells.times[i] - cells.xSize, cells.times[i], cells.yMin[i], cells.yMax[i], cells.counts[i]);
+				readoutText.data = i < 0 ? hint : cellText(cells.times[i] - cells.xSize, cells.times[i], cells.yMin[i], cells.yMax[i], cells.counts[i]);
 			})
 			.on('pointerleave.hover', clearHover)
 			.on('dblclick.reset', () => {
@@ -73,11 +82,18 @@ export function createDemo(root, frames, Plot = globalThis.Plot, d3 = globalThis
 				yDomain = [cells.minY, cells.maxY];
 				draw();
 			});
+		renderedWidth = width;
+		renderedHeight = chartHeight;
 		clearHover();
 	};
 	draw();
 	const cleanup = setupControls(root, cells, {
-		resize: draw, setData: draw,
+		resize() {
+			clearHover();
+			if (getWidth() != renderedWidth || height.valueAsNumber != renderedHeight)
+				draw();
+		},
+		setData: draw,
 		setColor(value) { mode = value; draw(); },
 	}, hint);
 	root.querySelector('#status').textContent = `${cells.times.length.toLocaleString()} cells · native ${cells.nx} × ${cells.ny} raster from sparse samples · no interpolation · UTC X / logarithmic Y`;
