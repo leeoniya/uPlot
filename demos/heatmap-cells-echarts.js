@@ -1,8 +1,9 @@
-// Spectral, cool to warm; the same 32 colors as the uPlot counterpart.
+// Spectral, cool to warm; matches the uPlot demo's default 24-color palette.
 const stops = ['5e4fa2', '3288bd', '66c2a5', 'abdda4', 'e6f598', 'ffffbf', 'fee08b', 'fdae61', 'f46d43', 'd53e4f', '9e0142'];
 const rgb = stops.map(hex => [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16)));
-const palette = Array.from({ length: 32 }, (_, i) => {
-	const t = i / 31 * (rgb.length - 1);
+const colorCount = 24;
+const palette = Array.from({ length: colorCount }, (_, i) => {
+	const t = i / (colorCount - 1) * (rgb.length - 1);
 	const lo = Math.min(Math.floor(t), rgb.length - 2);
 	return `rgb(${rgb[lo].map((v, c) => Math.round(v + (rgb[lo + 1][c] - v) * (t - lo))).join(',')})`;
 });

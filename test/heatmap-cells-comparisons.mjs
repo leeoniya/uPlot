@@ -148,16 +148,17 @@ describe('native-library heatmap comparisons', () => {
 	});
 
 	for (const mode of ['linear', 'sqrt', 'log']) {
-		it(`keeps original counts and matches the 32-color ${mode} mapping`, () => {
+		it(`keeps original counts and matches the 24-color ${mode} mapping`, () => {
 			const min = .01, max = 1.4;
+			assert.equal(palette.length, 24);
 			assert.equal(colorPosition(min, min, max, mode), 0);
 			close(colorPosition(max, min, max, mode), 1);
 			assert.equal(colorPosition(min, min, min, mode), 0);
 			const stops = colorScale(min, max, mode);
 			assert.deepEqual(stops[0], [0, palette[0]]);
 			assert.deepEqual(stops.at(-1), [1, palette.at(-1)]);
-			for (let i = 0; i < 31; i++) {
-				const t = (i + .5) / 31;
+			for (let i = 0; i < palette.length - 1; i++) {
+				const t = (i + .5) / (palette.length - 1);
 				const v = colorBoundary(t, min, max, mode);
 				close(colorPosition(v, min, max, mode), t);
 				close(stops[1 + 2 * i][0], (v - min) / (max - min));
@@ -538,13 +539,15 @@ describe('native-library heatmap comparisons', () => {
 			assert.equal(demo.plot.y_axis_type, 'log');
 			assert.equal(glyph.line_color, null);
 			assert.deepEqual(glyph.fill_color.transform.palette, palette);
+						assert.equal(glyph.fill_color.transform.low, -.5);
+						assert.equal(glyph.fill_color.transform.high, 23.5);
 			assert.deepEqual(Array.from(demo.source.data.left), [120000, 0, 0]);
 			hover.callback(null, { index: { indices: [0] } });
 			assert.equal(root.querySelector('#hover').textContent, cellText(120000, 180000, 4, 8, 17.25));
 			const counts = demo.source.data.count;
 			change(root, '#color-scale', 'sqrt');
 			assert.equal(demo.source.data.count, counts);
-			close(demo.source.data.color[0], 31 * colorPosition(17.25, 3.5, 29.75, 'sqrt'));
+			close(demo.source.data.color[0], 23 * colorPosition(17.25, 3.5, 29.75, 'sqrt'));
 			root.querySelector('#set-data').click();
 			assert.equal(demo.source.emits, 1);
 			change(root, '#height', '720', 'input');

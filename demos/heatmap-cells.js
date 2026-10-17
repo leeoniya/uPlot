@@ -1,21 +1,9 @@
 import uPlot from '../src/uPlot.js';
 import { heatmapPlugin } from './lib/heatmapPlugin.js';
 
-// Spectral, cool to warm; interpolate once rather than for each cell.
+// Spectral, cool to warm; interpolate when the palette size changes, not for each cell.
 const stops = ['5e4fa2', '3288bd', '66c2a5', 'abdda4', 'e6f598', 'ffffbf', 'fee08b', 'fdae61', 'f46d43', 'd53e4f', '9e0142'];
 const rgb = stops.map(hex => [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16)));
-const colorCount = 32;
-const palette = Array.from({ length: colorCount }, (_, i) => {
-	const t = i / (colorCount - 1) * (rgb.length - 1);
-	const lo = Math.min(Math.floor(t), rgb.length - 2);
-	return `rgb(${rgb[lo].map((v, c) => Math.round(v + (rgb[lo + 1][c] - v) * (t - lo))).join(',')})`;
-});
-
-// For round(sqrt(t) * (colorCount - 1)), transitions occur at odd squares
-// when t is scaled by 4 * (colorCount - 1)^2. This keeps the lookup bins aligned.
-const colorLookup = new Array(4 * (colorCount - 1) ** 2 + 1);
-for (let i = 0; i < colorCount; i++)
-	colorLookup.fill(i, i == 0 ? 0 : (2 * i - 1) ** 2, (2 * i + 1) ** 2);
 
 const filterAxisSplits = (u, splits, axisIdx, space, incr) => u.axes[axisIdx].filter(u, splits, axisIdx, space, incr);
 const axisLines = { stroke: '#252a30', width: 2 };
@@ -47,37 +35,60 @@ export function createDemo(root, frames) {
 		maxCount = Math.max(maxCount, counts[i]);
 	}
 	const countRange = maxCount - minCount || 1;
-	const countScale = (colorLookup.length - 1) / countRange;
-	const linearScale = (colorCount - 1) / countRange;
 	const logRange = Math.log(maxCount) - Math.log(minCount);
-	const logThresholds = Array.from({ length: colorCount - 1 }, (_, i) => minCount * Math.exp(logRange * (i + .5) / (colorCount - 1)));
-	const logLookup = new Uint8Array(colorLookup.length);
-	for (let i = 0, color = 0; i < logLookup.length; i++) {
-		const count = minCount + i / countScale;
-		while (color < colorCount - 1 && count >= logThresholds[color]) color++;
-		logLookup[i] = color;
-	}
-	const colorIndices = {
-		sqrt: count => colorLookup[Math.floor((count - minCount) * countScale)],
-		linear: count => Math.round((count - minCount) * linearScale),
-		log: minCount == maxCount ? () => 0 : count => {
-			let color = logLookup[Math.floor((count - minCount) * countScale)];
-			// Log transitions do not align with uniform LUT bins. Correct boundary bins
-			// with comparisons, without computing logarithms while drawing.
-			while (color < colorCount - 1 && count >= logThresholds[color]) color++;
-			while (color > 0 && count < logThresholds[color - 1]) color--;
-			return color;
-		},
-	};
-	// Legend position is linear in count; invert each transform to place palette stops.
+	const colorCountInput = root.querySelector('#color-count');
+	const colorCountValue = root.querySelector('#color-count-value').firstChild;
+	// Retain the array passed to the plugin, including when the palette shrinks or grows.
+	const palette = [];
+	let colorIndices;
 	const colorRamps = {};
-	for (const mode of ['linear', 'sqrt', 'log']) {
-		colorRamps[mode] = minCount == maxCount ? palette[0] : `linear-gradient(to right, ${palette.map((color, i) => {
-			const t = i / (colorCount - 1);
-			const pos = mode == 'sqrt' ? t * t : mode == 'log' ? minCount * Math.expm1(logRange * t) / countRange : t;
-			return `${color} ${i == colorCount - 1 ? 100 : pos * 100}%`;
-		}).join(',')})`;
+
+	function updatePalette() {
+		const colorCount = colorCountInput.valueAsNumber;
+		colorCountValue.data = `${colorCount}`;
+		palette.length = colorCount;
+		for (let i = 0; i < colorCount; i++) {
+			const t = i / (colorCount - 1) * (rgb.length - 1);
+			const lo = Math.min(Math.floor(t), rgb.length - 2);
+			palette[i] = `rgb(${rgb[lo].map((v, c) => Math.round(v + (rgb[lo + 1][c] - v) * (t - lo))).join(',')})`;
+		}
+
+		// For round(sqrt(t) * (colorCount - 1)), transitions occur at odd squares
+		// when t is scaled by 4 * (colorCount - 1)^2. This keeps the lookup bins aligned.
+		const colorLookup = new Array(4 * (colorCount - 1) ** 2 + 1);
+		for (let i = 0; i < colorCount; i++)
+			colorLookup.fill(i, i == 0 ? 0 : (2 * i - 1) ** 2, (2 * i + 1) ** 2);
+		const countScale = (colorLookup.length - 1) / countRange;
+		const linearScale = (colorCount - 1) / countRange;
+		const logThresholds = Array.from({ length: colorCount - 1 }, (_, i) => minCount * Math.exp(logRange * (i + .5) / (colorCount - 1)));
+		const logLookup = new Uint8Array(colorLookup.length);
+		for (let i = 0, color = 0; i < logLookup.length; i++) {
+			const count = minCount + i / countScale;
+			while (color < colorCount - 1 && count >= logThresholds[color]) color++;
+			logLookup[i] = color;
+		}
+		colorIndices = {
+			sqrt: count => colorLookup[Math.floor((count - minCount) * countScale)],
+			linear: count => Math.round((count - minCount) * linearScale),
+			log: minCount == maxCount ? () => 0 : count => {
+				let color = logLookup[Math.floor((count - minCount) * countScale)];
+				// Log transitions do not align with uniform LUT bins. Correct boundary bins
+				// with comparisons, without computing logarithms while drawing.
+				while (color < colorCount - 1 && count >= logThresholds[color]) color++;
+				while (color > 0 && count < logThresholds[color - 1]) color--;
+				return color;
+			},
+		};
+		// Legend position is linear in count; invert each transform to place palette stops.
+		for (const mode of ['linear', 'sqrt', 'log']) {
+			colorRamps[mode] = minCount == maxCount ? palette[0] : `linear-gradient(to right, ${palette.map((color, i) => {
+				const t = i / (colorCount - 1);
+				const pos = mode == 'sqrt' ? t * t : mode == 'log' ? minCount * Math.expm1(logRange * t) / countRange : t;
+				return `${color} ${i == colorCount - 1 ? 100 : pos * 100}%`;
+			}).join(',')})`;
+		}
 	}
+	updatePalette();
 	const xRange = [0, xSize];
 
 	const sourceData = [null, [xs, yMin, yMax, counts]];
@@ -229,6 +240,10 @@ export function createDemo(root, frames) {
 		updateColorScale();
 		plot.redraw(false, false);
 	};
+	const setColorCount = () => {
+		updatePalette();
+		setColorScale();
+	};
 	const setYScale = () => {
 		const { width, height: plotHeight } = plot;
 		plot.destroy();
@@ -244,9 +259,10 @@ export function createDemo(root, frames) {
 	setDataButton.addEventListener('click', setData);
 	yScale.addEventListener('change', setYScale);
 	colorScale.addEventListener('change', setColorScale);
+	colorCountInput.addEventListener('input', setColorCount);
 	signed.addEventListener('change', setSigned);
 	window.addEventListener('resize', resize);
-	height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = signed.disabled = false;
+	height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = colorCountInput.disabled = signed.disabled = false;
 	return {
 		get plot() { return plot; },
 		destroy() {
@@ -254,9 +270,10 @@ export function createDemo(root, frames) {
 			setDataButton.removeEventListener('click', setData);
 			yScale.removeEventListener('change', setYScale);
 			colorScale.removeEventListener('change', setColorScale);
+			colorCountInput.removeEventListener('input', setColorCount);
 			signed.removeEventListener('change', setSigned);
 			window.removeEventListener('resize', resize);
-			height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = signed.disabled = true;
+			height.disabled = setDataButton.disabled = yScale.disabled = colorScale.disabled = colorCountInput.disabled = signed.disabled = true;
 			plot.destroy();
 		},
 	};

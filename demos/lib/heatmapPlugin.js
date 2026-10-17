@@ -274,6 +274,7 @@ export function heatmapPlugin({ xSize, grid = {}, minAbs = 0, colors = ['steelbl
 			heights.length = y.count;
 			for (let row = 0; row < y.count; row++)
 				heights[row] = row >= hiddenMin && row <= hiddenMax ? 0 : y.pixels[row] - y.pixels[row + 1];
+			paths.length = colors.length;
 			for (let i = 0; i < paths.length; i++)
 				paths[i] = new Path2D();
 

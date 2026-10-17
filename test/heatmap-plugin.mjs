@@ -236,13 +236,13 @@ const colorModes = Object.keys(colorLabels);
 function demoColorIndex(count, mode, min, max) {
 	if (min == max) return 0;
 	const t = (count - min) / (max - min);
-	return Math.round(31 * (mode == 'sqrt' ? Math.sqrt(t) : mode == 'log' ? (Math.log(count) - Math.log(min)) / (Math.log(max) - Math.log(min)) : t));
+	return Math.round(23 * (mode == 'sqrt' ? Math.sqrt(t) : mode == 'log' ? (Math.log(count) - Math.log(min)) / (Math.log(max) - Math.log(min)) : t));
 }
 
 function colorBoundaryCounts(mode, min, max) {
-	return Array.from({ length: 31 }, (_, j) => {
-		const t = (j + .5) / 31;
-		const edge = mode == 'log' ? min * Math.exp((Math.log(max) - Math.log(min)) * (j + .5) / 31) : min + (max - min) * (mode == 'sqrt' ? t * t : t);
+	return Array.from({ length: 23 }, (_, j) => {
+		const t = (j + .5) / 23;
+		const edge = mode == 'log' ? min * Math.exp((Math.log(max) - Math.log(min)) * (j + .5) / 23) : min + (max - min) * (mode == 'sqrt' ? t * t : t);
 		// Exact ties can differ by a few ulps between the direct and inverse formulas.
 		const eps = (mode == 'log' ? edge : max - min) * 1e-12;
 		return [edge - eps, edge + eps];
@@ -250,15 +250,15 @@ function colorBoundaryCounts(mode, min, max) {
 }
 
 function checkDemoColors(u, mode, min, max) {
-	const expected = Array.from({ length: 32 }, () => []);
+	const expected = Array.from({ length: 24 }, () => []);
 	u.data[1][3].forEach((count, i) => {
 		if (Math.max(Math.abs(u.data[1][1][i]), Math.abs(u.data[1][2][i])) <= demoMinAbs) return;
 		const rect = bounds(u, i, true, 60);
 		if (rect[2] > 0 && rect[3] > 0)
 			expected[demoColorIndex(count, mode, min, max)].push(rect);
 	});
-	const paths = fills(u).slice(-32);
-	assert.equal(paths.length, 32);
+	const paths = fills(u).slice(-24);
+	assert.equal(paths.length, 24);
 	paths.forEach((path, color) => assert.deepEqual(coverage(pathRects(path)), coverage(expected[color]), `${mode} palette index ${color}`));
 }
 
@@ -1917,12 +1917,12 @@ describe('heatmap cells demo integration', () => {
 					// Isolate the plugin from core axis math when checking its hot path.
 					withoutColorMath(() => u.hooks.draw[0](u));
 					checkDemoColors(u, mode, min, max);
-					const paths = fills(u).slice(-32);
+					const paths = fills(u).slice(-24);
 					assert.ok(pathRects(paths[0]).length > 0, 'minimum uses palette index 0');
 					if (min != max)
-						assert.ok(pathRects(paths[31]).length > 0, 'maximum uses palette index 31');
+						assert.ok(pathRects(paths[23]).length > 0, 'maximum uses palette index 23');
 					else
-						assert.deepEqual(paths.map(path => pathRects(path).length), [counts.length, ...Array(31).fill(0)]);
+						assert.deepEqual(paths.map(path => pathRects(path).length), [counts.length, ...Array(23).fill(0)]);
 				}
 			}
 			finally { demo?.destroy(); root.remove(); }
@@ -2052,15 +2052,15 @@ describe('heatmap cells demo integration', () => {
 			const u = demo.plot;
 			assert.equal(u.mode, 2);
 			assert.deepEqual(u.data[1].map(facet => facet.length), [146, 146, 146, 146]);
-			assert.equal(rects(u).length, 146);
+			assert.equal(rects(u).length, 120, '24 colors merge adjacent same-color cells');
 			assert.equal(new Set(u.data[1][0]).size, 8);
 			assert.equal(u.data[1][2].reduce((a, b) => Math.max(a, b), -Infinity), 2 ** -4.5);
-			assert.equal(fills(u).length, 32);
+			assert.equal(fills(u).length, 24);
 			const colorChanges = lastDraw(u).filter(e => e[0] === 'fillStyle').flatMap(e => e.slice(1)).filter(fill => fill.startsWith('rgb('));
-			assert.equal(colorChanges.length, 32);
-			assert.equal(new Set(colorChanges).size, 32);
+			assert.equal(colorChanges.length, 24);
+			assert.equal(new Set(colorChanges).size, 24);
 			assert.equal(colorChanges[0], 'rgb(94,79,162)');
-			assert.equal(colorChanges[31], 'rgb(158,1,66)');
+			assert.equal(colorChanges[23], 'rgb(158,1,66)');
 			const counts = u.data[1][3];
 			const min = counts.reduce((a, b) => Math.min(a, b), Infinity);
 			const max = counts.reduce((a, b) => Math.max(a, b), -Infinity);

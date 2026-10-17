@@ -16,12 +16,12 @@ export async function createDemo(root, frames, Bokeh = globalThis.Bokeh) {
 	const readout = root.querySelector('#hover');
 	const readoutText = readout.firstChild ?? readout.appendChild(document.createTextNode(''));
 	const hint = 'Hover a cell for its bounds and count. Drag to zoom; double-click or use Reset to reset.';
-	const colorValues = mode => Float64Array.from(cells.counts, v => 31 * colorPosition(v, cells.minCount, cells.maxCount, mode));
+	const colorValues = mode => Float64Array.from(cells.counts, v => (palette.length - 1) * colorPosition(v, cells.minCount, cells.maxCount, mode));
 	const source = new Bokeh.ColumnDataSource({ data: {
 		left: cells.left, right: cells.times, bottom: cells.yMin, top: cells.yMax,
 		count: cells.counts, color: colorValues(root.querySelector('#color-scale').value),
 	} });
-	const mapper = new Bokeh.LinearColorMapper({ palette, low: -.5, high: 31.5 });
+	const mapper = new Bokeh.LinearColorMapper({ palette, low: -.5, high: palette.length - .5 });
 	const boxZoom = new Bokeh.BoxZoomTool();
 	const plot = Bokeh.Plotting.figure({
 		width: host.clientWidth || 1000, height: height.valueAsNumber,

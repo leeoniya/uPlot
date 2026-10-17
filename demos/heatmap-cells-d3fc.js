@@ -39,7 +39,7 @@ export function createDemo(root, frames, d3 = globalThis.d3, fc = globalThis.fc)
 		.colorValue(i => cells.counts[i])
 		.xBandwidth(() => Math.abs(x(cells.minX + cells.xSize) - x(cells.minX)))
 		.yBandwidth(i => Math.abs(y(cells.yMin[i]) - y(cells.yMax[i])))
-		.colorInterpolate(t => palette[Math.round(31 * colorPosition(cells.minCount + t * (cells.maxCount - cells.minCount), cells.minCount, cells.maxCount, mode))]);
+		.colorInterpolate(t => palette[Math.round((palette.length - 1) * colorPosition(cells.minCount + t * (cells.maxCount - cells.minCount), cells.minCount, cells.maxCount, mode))]);
 	const draw = () => {
 		const ratio = window.devicePixelRatio || 1;
 		context.setTransform(ratio, 0, 0, ratio, 0, 0);

@@ -48,6 +48,95 @@ function assertNativeTimeLabels(u) {
 }
 
 describe('heatmap cells demo', () => {
+	for (const constant of [false, true]) {
+		it(`resizes the palette from 32 to 11 and back with ${constant ? 'constant' : 'varying'} counts`, async () => {
+			const root = createDemoRoot();
+			const slider = root.querySelector('#color-count');
+			const output = root.querySelector('#color-count-value').firstChild;
+			assert.deepEqual([slider.min, slider.max, slider.step, slider.value, slider.disabled], ['11', '32', '1', '24', true]);
+			if (constant) slider.value = '11';
+			const counts = constant ? [3, 3, 3, 3] : [1, 2, 3, 5, 8, 13, 21, 34, 55, 64];
+			const frames = [{ schema: { meta: { type: 'heatmap-cells' }, fields: [
+				{ name: 'xMax', config: { interval: 60000 } }, { name: 'yMin' }, { name: 'yMax' }, { name: 'count' },
+			] }, data: { values: [counts.map((_, i) => (i + 1) * 60000), counts.map(() => 1), counts.map(() => 2), counts] } }];
+			const stops = ['5e4fa2', '3288bd', '66c2a5', 'abdda4', 'e6f598', 'ffffbf', 'fee08b', 'fdae61', 'f46d43', 'd53e4f', '9e0142']
+				.map(hex => [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16)));
+			let demo;
+			try {
+				demo = createDemo(root, frames);
+				await Promise.resolve();
+				const u = demo.plot, data = u.data, snapshot = structuredClone(data);
+				assert.equal(slider.disabled, false);
+				assert.equal(output.data, slider.value);
+				u.setScale('x', { min: 15, max: counts.length * 60 - 15 });
+				await Promise.resolve();
+				const scales = [u.scales.x.min, u.scales.x.max, u.scales.y.min, u.scales.y.max];
+				const paint = (plot = u) => {
+					const start = plot.ctx.log.length;
+					plot.hooks.draw[0](plot);
+					const log = plot.ctx.log.slice(start);
+					return {
+						colors: log.filter(e => e[0] == 'fillStyle').map(e => e[1]),
+						paths: log.filter(e => e[0] == 'fill').flatMap(e => e.slice(1)).map(([path]) => path),
+					};
+				};
+				for (const size of [...Array.from({ length: 22 }, (_, i) => 32 - i), 20, 32]) {
+					slider.value = `${size}`;
+					slider.dispatchEvent(new Event('input'));
+					await Promise.resolve();
+					assert.equal(root.querySelector('#color-count-value').firstChild, output);
+					assert.equal(output.data, `${size}`);
+					const expectedPalette = Array.from({ length: size }, (_, i) => {
+						const t = i / (size - 1) * 10, lo = Math.min(Math.floor(t), 9);
+						return `rgb(${stops[lo].map((v, c) => Math.round(v + (stops[lo + 1][c] - v) * (t - lo))).join(',')})`;
+					});
+					for (const mode of ['linear', 'sqrt', 'log']) {
+						const select = root.querySelector('#color-scale');
+						select.value = mode;
+						select.dispatchEvent(new Event('change'));
+						await Promise.resolve();
+						const { colors, paths } = paint();
+						assert.deepEqual(colors, expectedPalette);
+						assert.equal(paths.length, size, 'no stale paths after shrinking or growing');
+						const expectedCounts = new Array(size).fill(0);
+						for (const count of counts) {
+							const t = constant ? 0 : mode == 'log' ? Math.log(count) / Math.log(64) : (count - 1) / 63;
+							expectedCounts[Math.round((mode == 'sqrt' ? Math.sqrt(t) : t) * (size - 1))]++;
+						}
+						assert.deepEqual(paths.map(path => path.log.filter(e => e[0] == 'rect').reduce((n, e) => n + e.length - 1, 0)), expectedCounts);
+						const ramp = root.querySelector('#color-ramp').style.background;
+						assert.equal(Array.from(ramp.matchAll(/rgb\(/g)).length, constant ? 1 : size);
+						assert.equal(demo.plot, u);
+						assert.equal(u.data, data);
+						assert.deepEqual([u.scales.x.min, u.scales.x.max, u.scales.y.min, u.scales.y.max], scales);
+						u.setCursor({ left: u.valToPos(30, 'x'), top: u.valToPos(1.5, 'y') });
+						assert.equal(u.cursor.idxs[1], 0);
+					}
+				}
+				assert.deepEqual(data, snapshot);
+				slider.value = '11';
+				slider.dispatchEvent(new Event('input'));
+				await Promise.resolve();
+				assert.deepEqual(paint().colors, stops.map(rgb => `rgb(${rgb.join(',')})`), '11 colors reproduce the original stops exactly');
+				const signed = root.querySelector('#signed-data');
+				signed.checked = true;
+				signed.dispatchEvent(new Event('change'));
+				await Promise.resolve();
+				assert.equal(slider.value, '11');
+				assert.deepEqual(paint(demo.plot).colors, stops.map(rgb => `rgb(${rgb.join(',')})`));
+				const latest = demo.plot;
+				demo.destroy();
+				demo = null;
+				assert.equal(slider.disabled, true);
+				latest.redraw = () => assert.fail('palette listener must be removed');
+				slider.value = '32';
+				slider.dispatchEvent(new Event('input'));
+				assert.equal(output.data, '11');
+			}
+			finally { demo?.destroy(); root.remove(); }
+		});
+	}
+
 	it('selects the heatmap frame and resolves reordered fields by name', async () => {
 		const frames = [
 			{ schema: { meta: { type: 'other' } } },
@@ -166,13 +255,13 @@ describe('heatmap cells demo', () => {
 						await Promise.resolve();
 					}
 					const stops = Array.from(ramp.style.background.matchAll(/(rgb\([^)]+\))\s+([\d.e+-]+)%/g));
-					assert.equal(stops.length, 32);
+					assert.equal(stops.length, 24);
 					const positions = stops.map(stop => Number(stop[2]) / 100);
 					assert.equal(positions[0], 0);
 					assert.equal(positions.at(-1), 1);
 					positions.forEach((pos, i) => {
 						const t = mode == 'sqrt' ? Math.sqrt(pos) : mode == 'log' ? Math.log(1 + 99 * pos) / Math.log(100) : pos;
-						assert.ok(Math.abs(t - i / 31) < 1e-12, `${mode} palette stop ${i}`);
+						assert.ok(Math.abs(t - i / 23) < 1e-12, `${mode} palette stop ${i}`);
 						if (i > 0) assert.ok(pos > positions[i - 1]);
 					});
 					colors ??= stops.map(stop => stop[1]);

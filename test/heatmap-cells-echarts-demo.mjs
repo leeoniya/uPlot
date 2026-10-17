@@ -212,24 +212,24 @@ describe('ECharts heatmap cells demo', () => {
 		});
 	}
 
-	it('provides 32 contiguous, monotonic native color pieces for each scale', () => {
+	it('provides 24 contiguous, monotonic native color pieces for each scale', () => {
 		const byMode = {};
 		for (const mode of ['linear', 'sqrt', 'log']) {
 			const pieces = byMode[mode] = colorPieces(1, 1024, mode);
-			assert.equal(pieces.length, 32);
+			assert.equal(pieces.length, 24);
 			pieces.forEach((piece, i) => {
 				assert.equal(typeof piece.color, 'string');
 				assert.ok(piece.color.length > 0);
-				assert.deepEqual(Object.keys(piece).sort(), (i == 0 ? ['color', 'lte'] : i == 31 ? ['color', 'gt'] : ['color', 'gt', 'lte']).sort());
+				assert.deepEqual(Object.keys(piece).sort(), (i == 0 ? ['color', 'lte'] : i == pieces.length - 1 ? ['color', 'gt'] : ['color', 'gt', 'lte']).sort());
 				if (i > 0) assert.equal(piece.gt, pieces[i - 1].lte);
-				if (i < 31) {
+				if (i < pieces.length - 1) {
 					assert.ok(Number.isFinite(piece.lte));
 					assert.ok(piece.lte > (i == 0 ? 1 : piece.gt) && piece.lte < 1024);
 					assert.deepEqual(pieces.filter(p => matches(p, piece.lte)), [piece]);
 				}
 			});
 			assert.deepEqual(pieces.filter(p => matches(p, 1)), [pieces[0]]);
-			assert.deepEqual(pieces.filter(p => matches(p, 1024)), [pieces[31]]);
+			assert.deepEqual(pieces.filter(p => matches(p, 1024)), [pieces.at(-1)]);
 			for (let value = 1; value <= 1024; value += .5)
 				assert.equal(pieces.filter(p => matches(p, value)).length, 1);
 		}

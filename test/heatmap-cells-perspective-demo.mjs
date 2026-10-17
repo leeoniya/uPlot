@@ -106,11 +106,12 @@ describe('Perspective heatmap cells demo', () => {
 			const min = .01, max = 1.4;
 			const gradient = colorGradient(min, max, mode);
 			const stops = Array.from(gradient.matchAll(/(rgb\([^)]+\)) ([\d.eE+-]+)%/g), m => ({ color: m[1], t: +m[2] / 100 }));
-			assert.equal(stops.length, 64);
+			assert.equal(palette.length, 24);
+						assert.equal(stops.length, 48);
 			assert.deepEqual(stops[0], { color: palette[0], t: 0 });
 			assert.deepEqual(stops.at(-1), { color: palette.at(-1), t: 1 });
-			for (let i = 0; i < 31; i++) {
-				const v = colorBoundary((i + .5) / 31, min, max, mode);
+			for (let i = 0; i < palette.length - 1; i++) {
+				const v = colorBoundary((i + .5) / (palette.length - 1), min, max, mode);
 				close(stops[1 + 2 * i].t, .5 + .5 * v / max);
 				assert.equal(stops[1 + 2 * i].color, palette[i]);
 				assert.equal(stops[2 + 2 * i].color, palette[i + 1]);

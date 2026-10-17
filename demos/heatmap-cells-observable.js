@@ -43,7 +43,7 @@ export function createDemo(root, frames, Plot = globalThis.Plot, d3 = globalThis
 		const width = getWidth();
 		const chartHeight = height.valueAsNumber;
 		host.style.height = `${chartHeight}px`;
-		const domain = cells.minCount == cells.maxCount ? [] : Array.from({ length: 31 }, (_, i) => colorBoundary((i + .5) / 31, cells.minCount, cells.maxCount, mode));
+		const domain = cells.minCount == cells.maxCount ? [] : Array.from({ length: palette.length - 1 }, (_, i) => colorBoundary((i + .5) / (palette.length - 1), cells.minCount, cells.maxCount, mode));
 		plot = Plot.plot({
 			width, height: chartHeight, ...margin,
 			style: { background: '#181b1f', color: '#b7bdc5', fontFamily: 'system-ui, sans-serif' },
