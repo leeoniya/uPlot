@@ -274,7 +274,9 @@ function findIncr(minVal, maxVal, incrs, dim, minSpace) {
 			if (dec == null)
 				fixedDec.set(foundIncr, dec = guessDec(foundIncr));
 
-			if (intDigits + (foundIncr < 5 ? dec : 0) <= 17)
+			// Reject increments lost to floating-point precision at either bound.
+			if (intDigits + (foundIncr < 5 ? dec : 0) <= 17 &&
+				minVal + foundIncr > minVal && maxVal + foundIncr > maxVal)
 				return [foundIncr, foundSpace];
 		}
 	} while (++incrIdx < incrs.length);

@@ -11,6 +11,7 @@
     "bench:legend": "node --max-old-space-size=96 ./scripts/bench-legend.mjs",
     "demos": "node ./scripts/demos.mjs",
     "test": "node ./scripts/test.mjs",
+    "test:axis": "node --test test/axis-splits.test.js",
     "test:server": "mocha test/server/*.mjs",
     "test:update": "UPDATE=1 node ./scripts/test.mjs"
   },
