@@ -164,6 +164,20 @@ describe('cursor point alignment', () => {
 			finally { u.destroy(); }
 		});
 
+		it(`keeps points on plot edges visible after a resize with one=${one}`, async () => {
+			// For this resize, multiplying by the size ratio overshoots the right (idx 4) and bottom (idx 0) edges by a float error.
+			for (const idx of [4, 0]) {
+				const u = await plot({ one });
+				try {
+					hover(u, idx);
+					u.setSize({ width: 207, height: 201 });
+					await Promise.resolve();
+					assertAligned(u, idx);
+				}
+				finally { u.destroy(); }
+			}
+		});
+
 		it(`keeps missing values hidden and restores their markers with one=${one}`, async () => {
 			const u = await plot({ one, pxRatio: 2 });
 			try {

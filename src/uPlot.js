@@ -2663,8 +2663,9 @@ export default function uPlot(opts, data, then) {
 				let pt = cursorPts[i];
 
 				if (pt != null) {
-					cursorPtsLft[i] *= pctWid;
-					cursorPtsTop[i] *= pctHgt;
+					// Divide by the old size first: multiplying by the size ratio can put an edge point a float error past the new edge, hiding it.
+					cursorPtsLft[i] = cursorPtsLft[i] / prevWidth * plotWidCss;
+					cursorPtsTop[i] = cursorPtsTop[i] / prevHeight * plotHgtCss;
 				}
 			}
 		}
