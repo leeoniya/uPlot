@@ -1,8 +1,11 @@
+import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createProbeWorker } from '../scripts/probe-worker.mjs';
+import '../scripts/instrument.mjs';
+import uPlot from '../src/uPlot.js';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 const helper = fileURLToPath(new URL('../scripts/precision-probe.mjs', import.meta.url));
@@ -66,4 +69,31 @@ describe('precision: source scale ranging and axis splits', function() {
 		['1084-custom-flat', '#1084 terminates for the single-point custom padding ranger'],
 	])
 		it(title, () => worker.run(name, 100));
+});
+
+describe('precision: numeric axis increment selection', () => {
+	for (const [name, positiveTicks, increment] of [
+		['sub-ULP increments (PR #1154)', [4220788960490496, 4220788960490496.5, 4220788960490497], 0.5],
+		// Adding 0.5 advances both bounds, but stalls at the even middle integer.
+		['half-ULP ties', [4503599627370497, 4503599627370498, 4503599627370499], 1],
+	]) {
+		for (const sign of [1, -1]) {
+			it(`skips ${name} for ${sign > 0 ? 'positive' : 'negative'} values`, async () => {
+				const ticks = sign > 0 ? positiveTicks : positiveTicks.map(value => -value).reverse();
+				const u = new uPlot({
+					width: 800, height: 320, padding: [0, 0, 0, 0],
+					legend: { show: false }, cursor: { show: false },
+					scales: { x: { time: false }, y: { range: () => [ticks[0], ticks[2]] } },
+					axes: [{ show: false }, { space: 50 }],
+					series: [{}, {}],
+				}, [[0, 1, 2], ticks], document.body);
+				try {
+					await Promise.resolve();
+					assert.equal(u.axes[1]._found[0], increment);
+					assert.deepEqual(u.axes[1]._splits, ticks);
+				}
+				finally { u.destroy(); }
+			});
+		}
+	}
 });

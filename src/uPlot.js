@@ -260,6 +260,8 @@ const snapAsinhX = snapAsinhY;
 // dim is logical (getClientBoundingRect) pixels, not canvas pixels
 function findIncr(minVal, maxVal, incrs, dim, minSpace) {
 	let intDigits = max(numIntDigits(minVal), numIntDigits(maxVal));
+	// Exclude half-ULP ties as well as increments that cannot advance at all.
+	let minIncr = max(abs(minVal), abs(maxVal)) * (Number.EPSILON / 2);
 
 	let delta = maxVal - minVal;
 
@@ -274,7 +276,7 @@ function findIncr(minVal, maxVal, incrs, dim, minSpace) {
 			if (dec == null)
 				fixedDec.set(foundIncr, dec = guessDec(foundIncr));
 
-			if (intDigits + (foundIncr < 5 ? dec : 0) <= 17)
+			if (foundIncr > minIncr && intDigits + (foundIncr < 5 ? dec : 0) <= 17)
 				return [foundIncr, foundSpace];
 		}
 	} while (++incrIdx < incrs.length);
