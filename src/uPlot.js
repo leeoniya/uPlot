@@ -108,6 +108,7 @@ import {
 	CURSOR_X,
 	CURSOR_Y,
 	CURSOR_PT,
+	LEGEND_EXCLUDE,
 } from './domClasses.js';
 
 import {
@@ -782,8 +783,12 @@ export default function uPlot(opts, data, then) {
 	const showCursor = cursor.show = over != null && cursor.show;
 	const markers    = FEAT_LEGEND && legend.markers;
 
+
 	if (FEAT_LEGEND) {
 		legend.idxs = activeIdxs;
+		legend.order = [];
+		legend.count = 0;
+		legend.range = [0, 0];
 
 		markers.width  = fnOrSelf(markers.width);
 		markers.dash   = fnOrSelf(markers.dash);
@@ -792,9 +797,69 @@ export default function uPlot(opts, data, then) {
 	}
 
 	let legendView;
+	let shouldRenderLegend = showLegend;
 	let legendCols;
 	let multiValLegend = false;
 	const legendValuesPrev = [];
+	let legendCandidates = null;
+	let shouldSelectLegend = true;
+
+	function hasLegendSelection() {
+		return FEAT_LEGEND && (legend.filter != null || legend.sort != null || legend.limit != null);
+	}
+
+	function compareLegendSeries(a, b) {
+		return legend.sort(self, a, b) || a - b;
+	}
+
+	function selectLegend(force = false) {
+		if (!FEAT_LEGEND || !force && !shouldSelectLegend)
+			return false;
+
+		shouldSelectLegend = false;
+		let count = max(0, series.length - 1);
+		let start = 0, end = count;
+
+		if (hasLegendSelection()) {
+			legendCandidates ??= [];
+			count = 0;
+			for (let i = 1; i < series.length; i++) {
+				if (legend.filter == null || legend.filter(self, i))
+					legendCandidates[count++] = i;
+			}
+			legendCandidates.length = count;
+
+			if (legend.sort != null)
+				legendCandidates.sort(compareLegendSeries);
+
+			end = count;
+			if (legend.limit != null) {
+				const range = legend.limit(self, legendCandidates);
+				start = clamp(floor(range[0]) || 0, 0, count);
+				end = clamp(floor(range[1]) || 0, start, count);
+			}
+		}
+		else
+			legendCandidates = null;
+
+		const order = legend.order;
+		let changed = order.length != end - start;
+		for (let i = start, j = 0; i < end; i++, j++) {
+			const index = legendCandidates == null ? i + 1 : legendCandidates[i];
+			changed = order[j] != index || changed;
+			order[j] = index;
+		}
+		order.length = end - start;
+		if (changed && showLegend)
+			shouldRenderLegend = true;
+
+		changed = changed || legend.count != count || legend.range[0] != start || legend.range[1] != end;
+		legend.count = count;
+		legend.range[0] = start;
+		legend.range[1] = end;
+		showCursor && syncCursorPointLegend(order);
+		return changed;
+	}
 	let NULL_LEGEND_VALUES = {};
 
 	if (FEAT_LEGEND && legend.live) {
@@ -983,8 +1048,9 @@ export default function uPlot(opts, data, then) {
 				sc.max = sc._max = max;
 				changedY.push(k);
 				resetScalePaths({[k]: true});
-				if (showCursor && cursor.left >= 0)
+				if ((showCursor || cursorDists != null || hasLegendSelection()) && cursor.left >= 0)
 					shouldSetCursor = shouldSetLegend = true;
+				shouldSelectLegend = shouldSelectLegend || hasLegendSelection();
 			}
 		}
 	}
@@ -1070,6 +1136,7 @@ export default function uPlot(opts, data, then) {
 			syncCursorPoints();
 
 		if (resized || plotChanged || axesChanged) {
+			shouldSelectLegend = shouldSelectLegend || hasLegendSelection();
 			applyLayout(plotChanged, axesChanged);
 			fire("setSize");
 		}
@@ -1193,6 +1260,7 @@ export default function uPlot(opts, data, then) {
 	const setCursorEvent = e => { cursor.event = e; };
 
 	cursor.idxs = activeIdxs;
+	const cursorDists = cursor.dists = cursor.trackDists ? [] : null;
 
 	cursor._lock = false;
 
@@ -1217,6 +1285,31 @@ export default function uPlot(opts, data, then) {
 	let cursorPtsWid = [];
 	let cursorPtsHgt = [];
 	let cursorPtSeries = null;
+	let cursorPtMembers = null;
+
+	function syncCursorPointLegend(order) {
+		const restricted = order.length < series.length - 1;
+
+		if (!restricted && !cursorPtMembers?.length)
+			return;
+
+		if (restricted) {
+			cursorPtMembers ??= [];
+			cursorPtMembers.length = series.length;
+			cursorPtMembers.fill(false);
+			for (let si of order)
+				cursorPtMembers[si] = true;
+		}
+
+		for (let i = 0; i < cursorPts.length; i++) {
+			let pt = cursorPts[i];
+			if (pt != null)
+				(restricted && !cursorPtMembers[cursorOnePt ? cursorPtSeries : i] ? addClass : remClass)(pt, LEGEND_EXCLUDE);
+		}
+
+		if (!restricted)
+			cursorPtMembers.length = 0;
+	}
 
 	function initCursorPt(s, si) {
 		let pt = points.show(self, si);
@@ -1279,6 +1372,7 @@ export default function uPlot(opts, data, then) {
 
 
 		activeIdxs.splice(i, 0, null);
+		cursorDists?.splice(i, 0, inf);
 
 		if (showCursor) {
 			let pt = null;
@@ -1314,7 +1408,12 @@ export default function uPlot(opts, data, then) {
 		FEAT_LEGEND && legend.values.splice(si, 0, null);
 		multiValLegend && legendValuesPrev.splice(si, 0, null);
 		initSeries(series[si], si);
-		showLegend && invalidateLegend();
+		if (cursorPtSeries != null && cursorPtSeries >= si) {
+			cursorPtSeries++;
+			shouldSetCursor = true;
+		}
+		shouldSelectLegend = true;
+		shouldRenderLegend = showLegend;
 		fire("addSeries", si);
 	}
 
@@ -1330,15 +1429,23 @@ export default function uPlot(opts, data, then) {
 
 		FEAT_LEGEND && legend.values.splice(i, 1);
 		multiValLegend && legendValuesPrev.splice(i, 1);
-		showLegend && invalidateLegend();
+		shouldRenderLegend = showLegend;
 		activeIdxs.splice(i, 1);
+		cursorDists?.splice(i, 1);
+		shouldSelectLegend = true;
 
 		if (showCursor) {
-			cursorPts.splice(i, 1)[0].remove();
+			cursorPts.splice(i, 1)[0]?.remove();
 			cursorPtsLft.splice(i, 1);
 			cursorPtsTop.splice(i, 1);
 			cursorPtsWid.splice(i, 1);
 			cursorPtsHgt.splice(i, 1);
+		}
+
+		if (cursorPtSeries != null && cursorPtSeries >= i) {
+			cursorPtSeries = cursorPtSeries == i ? null : cursorPtSeries - 1;
+			cursorPtSeries == null && syncCursorPoints();
+			shouldSetCursor = true;
 		}
 
 		// TODO: de-init no-longer-needed scales?
@@ -1593,6 +1700,11 @@ export default function uPlot(opts, data, then) {
 		}
 
 		resetYSeries(true);
+
+		if (cursorDists != null || hasLegendSelection()) {
+			shouldSetCursor = shouldSetCursor || cursor.left >= 0;
+			shouldSetLegend = shouldSelectLegend = true;
+		}
 
 		fire("setData");
 
@@ -1867,8 +1979,9 @@ export default function uPlot(opts, data, then) {
 				fire("setScale", k);
 			}
 
-			if (showCursor && cursor.left >= 0)
+			if ((showCursor || cursorDists != null || hasLegendSelection()) && cursor.left >= 0)
 				shouldSetCursor = shouldSetLegend = true;
+			shouldSelectLegend = shouldSelectLegend || hasLegendSelection();
 		}
 
 		for (let k in pendScales)
@@ -2534,21 +2647,13 @@ export default function uPlot(opts, data, then) {
 
 	let destroyed = false;
 	let queuedCommit = false;
-	let queuedFrame = null;
-	let shouldRenderLegend = false;
 
-	function invalidateLegend() {
-		shouldRenderLegend = true;
-		if (!destroyed && queuedFrame == null)
-			queuedFrame = requestAnimationFrame(flushFrame);
-	}
-
-	function flushFrame() {
-		queuedFrame = null;
-		if (!destroyed && shouldRenderLegend) {
-			// Clear before rendering so callbacks can request another frame.
+	function syncLegend() {
+		if (ready && !destroyed && shouldRenderLegend && !shouldSelectLegend) {
 			shouldRenderLegend = false;
 			legendView.render(legend.values, focusedSeries);
+			// Legend dimensions can move the overlay within the grid.
+			syncRect(true);
 		}
 	}
 
@@ -2654,19 +2759,26 @@ export default function uPlot(opts, data, then) {
 		let pctWid = plotWidCss / prevWidth;
 		let pctHgt = plotHgtCss / prevHeight;
 
-		if (showCursor && !shouldSetCursor && cursor.left >= 0) {
+		if ((showCursor || cursorDists != null || hasLegendSelection()) && !shouldSetCursor && cursor.left >= 0) {
 			cursor.left *= pctWid;
 			cursor.top  *= pctHgt;
 
-			vCursor && elTrans(vCursor, round(cursor.left), 0, plotWidCss, plotHgtCss);
-			hCursor && elTrans(hCursor, 0, round(cursor.top), plotWidCss, plotHgtCss);
+			if (cursorDists != null || hasLegendSelection()) {
+				mouseLeft1 = cursor.left;
+				mouseTop1 = cursor.top;
+				shouldSetCursor = shouldSetLegend = true;
+			}
+			else {
+				vCursor && elTrans(vCursor, round(cursor.left), 0, plotWidCss, plotHgtCss);
+				hCursor && elTrans(hCursor, 0, round(cursor.top), plotWidCss, plotHgtCss);
 
-			for (let i = 0; i < cursorPts.length; i++) {
-				let pt = cursorPts[i];
+				for (let i = 0; i < cursorPts.length; i++) {
+					let pt = cursorPts[i];
 
-				if (pt != null) {
-					cursorPtsLft[i] *= pctWid;
-					cursorPtsTop[i] *= pctHgt;
+					if (pt != null) {
+						cursorPtsLft[i] *= pctWid;
+						cursorPtsTop[i] *= pctHgt;
+					}
 				}
 			}
 		}
@@ -2721,17 +2833,19 @@ export default function uPlot(opts, data, then) {
 			shouldSetSelect = false;
 		}
 
-		if (showCursor && shouldSetCursor) {
-			updateCursor(null, true, false);
-			shouldSetCursor = false;
-		}
-
-		if (FEAT_LEGEND && legend.show && legend.live && shouldSetLegend) {
-			setLegend();
-			shouldSetLegend = false; // redundant currently
-		}
-
+		// Cursor and legend hooks can request a follow-up after drawing has finished.
 		queuedCommit = false;
+
+		if ((showCursor || cursorDists != null || hasLegendSelection()) && shouldSetCursor)
+			updateCursor(null, true, false);
+		else if (FEAT_LEGEND && shouldSetLegend && (showLegend && legend.live || hasLegendSelection()))
+			setLegend();
+		else {
+			const selectionChanged = selectLegend() && hasLegendSelection();
+			syncLegend();
+			if (selectionChanged)
+				fire("setLegend");
+		}
 
 		// Late hooks can request work after its phase has already finished.
 		if (stackDirty.size > 0 || shouldSetScales || shouldLayout)
@@ -2741,15 +2855,17 @@ export default function uPlot(opts, data, then) {
 			clearPathCache();
 
 		// Keep data needed by a pending render.
-		if (!useDataCache && didDraw && stackDirty.size == 0 && !shouldSetScales && !shouldLayout)
+		if (!useDataCache && didDraw && !queuedCommit && stackDirty.size == 0 && !shouldSetScales && !shouldLayout)
 			clearDataCache();
 
-		if (!ready) {
+		if (!ready && !queuedCommit) {
 			ready = true;
 			self.status = 1;
 
-			// Setters in ready can schedule a follow-up commit.
-			fire("ready");
+			// Mount and ready callbacks can schedule a follow-up commit.
+			syncLegend();
+			if (!destroyed)
+				fire("ready");
 		}
 	}
 
@@ -2888,9 +3004,10 @@ export default function uPlot(opts, data, then) {
 			hCursor = xCursor;
 		}
 
-		mouseLeft1 = cursor.left;
-		mouseTop1 = cursor.top;
 	}
+
+	mouseLeft1 = cursor.left;
+	mouseTop1 = cursor.top;
 
 	const select = self.select = assign({
 		show:   true,
@@ -2933,9 +3050,16 @@ export default function uPlot(opts, data, then) {
 		let s = series[i];
 		let showChanged = s.show != show;
 		if (showLegend && showChanged)
-			invalidateLegend();
+			shouldRenderLegend = true;
 		s.show = show;
 		hideCursorPoint(i);
+		if (showChanged) {
+			shouldSelectLegend = shouldSelectLegend || hasLegendSelection();
+			if (cursorDists != null && !show)
+				cursorDists[i] = inf;
+			if (cursorDists != null || hasLegendSelection())
+				shouldSetCursor = cursor.left >= 0;
+		}
 
 		if (showChanged && stackedSeries[i])
 			stackDirty.add(s.scale);
@@ -2970,6 +3094,7 @@ export default function uPlot(opts, data, then) {
 			}
 		}
 
+		syncLegend();
 		_fire !== false && fire("setSeries", i, opts);
 
 		_pub && pubSync("setSeries", self, i, opts);
@@ -3028,8 +3153,9 @@ export default function uPlot(opts, data, then) {
 
 			focusedSeries = focused;
 			series.forEach(setSeriesFocus);
-			if (focus.alpha != 1) {
-				showLegend && invalidateLegend();
+			shouldSelectLegend = shouldSelectLegend || hasLegendSelection();
+			if (focus.alpha != 1 || hasLegendSelection()) {
+				shouldRenderLegend = showLegend;
 				commit();
 			}
 			return true;
@@ -3113,11 +3239,8 @@ export default function uPlot(opts, data, then) {
 
 	function setLegend(opts, _fire) {
 		if (opts != null) {
-			if (opts.idxs) {
-				opts.idxs.forEach((didx, sidx) => {
-					activeIdxs[sidx] = didx;
-				});
-			}
+			if (opts.idxs)
+				opts.idxs.forEach((idx, i) => activeIdxs[i] = idx);
 			else if (!isUndef(opts.idx))
 				activeIdxs.fill(opts.idx);
 
@@ -3131,10 +3254,13 @@ export default function uPlot(opts, data, then) {
 					changed = setLegendValues(sidx, activeIdxs[sidx]) || changed;
 			}
 
-			changed && invalidateLegend();
+			shouldRenderLegend = shouldRenderLegend || changed;
 		}
 
+		// Also restore identity order once if callers removed all selection callbacks.
+		selectLegend(hasLegendSelection() || opts != null && legendCandidates != null);
 		shouldSetLegend = false;
+		syncLegend();
 
 		_fire !== false && fire("setLegend");
 	}
@@ -3251,6 +3377,9 @@ export default function uPlot(opts, data, then) {
 	function updateCursor(src, _fire, _pub) {
 	//	ts == null && log("updateCursor()", arguments);
 
+		const forceCursor = shouldSetCursor;
+		shouldSetCursor = false;
+
 		rawMouseLeft1 = mouseLeft1;
 		rawMouseTop1 = mouseTop1;
 
@@ -3273,6 +3402,7 @@ export default function uPlot(opts, data, then) {
 		let closestDist = inf;
 		let closestSeries = null;
 		let cursorHidden = mouseLeft1 < 0 || dataLen == 0 || noDataInRange;
+		cursorDists?.fill(inf);
 
 		// TODO: extract
 		let xDim = scaleX.ori == 0 ? plotWidCss : plotHgtCss;
@@ -3291,7 +3421,7 @@ export default function uPlot(opts, data, then) {
 			if (cursorOnePt)
 				cursorPtSeries = null;
 
-			if (FEAT_LEGEND && legend.live) {
+			if (FEAT_LEGEND && legend.live || cursorDists != null || hasLegendSelection()) {
 				activeIdxs.fill(idx);
 				shouldSetLegend = true;
 			}
@@ -3336,11 +3466,13 @@ export default function uPlot(opts, data, then) {
 					// this doesnt really work for state timeline, heatmap, status history (where the value maps to color, not y coords)
 					let yPos = yVal2 == null ? -10 : valToPosY(yVal2, mode == 1 ? scales[s.scale] : scales[s.facets[1].scale], yDim, 0);
 
-					if (cursorFocus && yVal2 != null) {
+					if ((cursorFocus || cursorDists != null) && yVal2 != null) {
 						let mouseYPos = scaleX.ori == 1 ? mouseLeft1 : mouseTop1;
 						let dist = abs(focus.dist(self, i, idx2, yPos, mouseYPos));
+						if (cursorDists != null)
+							cursorDists[i] = dist >= 0 ? dist : inf;
 
-						if (dist < closestDist) {
+						if (cursorFocus && dist < closestDist) {
 							let bias = focus.bias;
 
 							if (bias != 0) {
@@ -3438,7 +3570,7 @@ export default function uPlot(opts, data, then) {
 			if (cursorOnePt) {
 				let pointSeries = closestDist <= focus.prox ? closestSeries : null;
 
-				if (shouldSetLegend || pointSeries != cursorPtSeries || points.bbox != null) {
+				if (forceCursor || shouldSetLegend || pointSeries != cursorPtSeries || points.bbox != null) {
 					let pt = cursorPts[0];
 
 					if (pt != null) {
@@ -3450,6 +3582,8 @@ export default function uPlot(opts, data, then) {
 						elSize(pt, _ptWid, _ptHgt, _centered);
 						elColor(pt, _ptFill, _ptStroke);
 						cursorPtSeries = pointSeries;
+						if (cursorPtMembers?.length)
+							(cursorPtMembers[cursorPtSeries] ? remClass : addClass)(pt, LEGEND_EXCLUDE);
 						setCursorPointPos(pt, cursorPtSeries, _ptLft, _ptTop, _ptWid, _ptHgt);
 					}
 				}
@@ -3607,6 +3741,12 @@ export default function uPlot(opts, data, then) {
 		if (shouldSetLegend) {
 			legend.idx = idx;
 			setLegend();
+		}
+		else {
+			const selectionChanged = selectLegend(hasLegendSelection());
+			syncLegend();
+			if (selectionChanged)
+				fire("setLegend");
 		}
 
 		if (src == null && _pub) {
@@ -4010,11 +4150,8 @@ export default function uPlot(opts, data, then) {
 		if (deferHooks)
 			hooksQueue.push([evName, a1, a2]);
 		else {
-			if (evName in hooks) {
-				hooks[evName].forEach(fn => {
-					fn.call(null, self, a1, a2);
-				});
-			}
+			if (evName in hooks)
+				hooks[evName].forEach(fn => fn.call(null, self, a1, a2));
 		}
 	}
 
@@ -4065,9 +4202,6 @@ export default function uPlot(opts, data, then) {
 			return;
 		destroyed = true;
 		queuedCommit = false;
-		if (queuedFrame != null)
-			cancelAnimationFrame(queuedFrame);
-		queuedFrame = null;
 		sync.unsub(self);
 		cursorPlots.delete(self);
 		stopGlobalMouseMove();
@@ -4110,6 +4244,7 @@ export default function uPlot(opts, data, then) {
 	if (showLegend) {
 		legendView = createLegend(self, root, {
 			legend,
+			side: legend.side,
 			series,
 			columns: legendCols,
 			multi: multiValLegend,
@@ -4119,7 +4254,6 @@ export default function uPlot(opts, data, then) {
 			bind: cursor.bind,
 			emit: handleLegendEvent,
 		});
-		invalidateLegend();
 	}
 
 	series.forEach((s, i) => { fire("addSeries", i); });

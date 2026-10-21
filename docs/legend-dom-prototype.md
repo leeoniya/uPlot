@@ -35,6 +35,10 @@ It does not use a longest increasing subsequence (LIS) algorithm to minimize eve
 
 ## Selection and future features
 
+Core applies `legend.filter`, `legend.sort`, and `legend.limit` before the DOM update.
+The adapter reads the resulting `legend.order` and adds the eligible X row before the selected Y rows.
+The [live selection contract](investigations/legend-selection.md) describes callbacks, cursor distances, readback, and invalidation.
+
 The adapter creates reusable entries with `{series, index}`.
 `series` is the identity key. `index` always refers to the core series array, not the display position.
 Values, focus, marker callbacks, and X-series binding eligibility use this core index.
@@ -52,15 +56,67 @@ This is not a complete virtualization implementation.
 Scroll handling, overscan, row measurements, and spacer calculations remain future work.
 Core still prepares the complete legend values array.
 
+## Layout and position
+
+`legend.mode` selects `'inline'` or `'table'` independently of value formatting.
+The default `null` retains layout inference from `series.values`.
+Scalar tables retain the eligible X row and do not show an internal column-key header.
+Multi-value legends retain their named headers. Nonlive legends contain labels without value cells.
+
+`legend.side` selects top (`0`), right (`1`), bottom (`2`, default), or left (`3`).
+Both layout options apply at initialization.
+All positions use one fixed CSS Grid on the root, without another wrapper.
+The legend table receives `.u-top`, `.u-rgt`, `.u-btm`, or `.u-lft`. The default bottom legend also receives `.u-btm`.
+The root has no position attribute or class. Side columns use `max-content`, while the center column uses `auto`.
+The title spans the layout, and left/right legends align with the chart wrapper's top edge.
+Chart dimensions exclude the legend. Custom mounting remains available.
+Every legend render invalidates cached overlay geometry for the next pointer event, without an immediate geometry read.
+
 ## Metadata and lifecycle
 
 The template caches labels and marker presentation by series identity.
+Rows prepare metadata when created. The adapter does not make a separate preparation pass over selected entries.
+Metadata callbacks can interleave with earlier row updates. No separate preparation-phase ordering is guaranteed.
 Live row instances separately own DOM references, previous cell values, and event bindings.
 A row that leaves the selected subset loses its instance. If it returns, the renderer creates a new row from cached metadata.
 
 Caller-supplied HTMLElement labels retain their identity, input state, and external listeners.
 Row destruction detaches these labels so the metadata cache does not retain discarded rows and value cells.
 The table mount callback runs once, after the initial table is complete and attached.
+This mount occurs after pending initial commits finish, with initialized data and layout.
+Core sets its internal ready state to `true` and `status` to `1` before the mount, then calls the `ready` hook.
+Core does not render the legend during constructor setup.
+
+## Synchronous updates and structural refresh
+
+Core keeps a render-dirty flag separate from selection invalidation.
+The render helper updates only the DOM. It does not evaluate selection, format values, or schedule work.
+Cursor updates and explicit `setLegend` calls complete values and selection before the synchronous DOM update.
+After initialization, the associated `setLegend` and `setCursor` hooks observe the completed DOM.
+During initialization, these hooks can run before the initial mount.
+A cursor operation that changes focus and values renders the legend once, after both changes.
+
+Dynamic visibility and focus selection still wait for the existing normal chart commit.
+At that commit, core updates the DOM synchronously without a later legend frame.
+There is no legend animation-frame scheduler, replacement microtask scheduler, or `legend.rAF` option.
+
+Standalone `addSeries()` and `delSeries()` only mark selection and rendering dirty, for visible and hidden legends alike.
+Neither method schedules a frame or forces a new canvas commit.
+This intentionally changes the previous behavior for visible legends.
+Structural changes inside a `setLegend` hook also remain pending until another refresh.
+
+Before the next refresh, supply data columns that match the changed series array.
+For a legend-only refresh, use this sequence:
+
+```js
+u.addSeries(newSeries, index);
+u.setData(newData, false);
+u.setLegend({});
+```
+
+This sequence protects selection callbacks from unaligned data and does not force a canvas commit.
+Deletion requires the same data alignment before refresh.
+A cursor update or a normal commit from `setData(data)` or `redraw()` can also complete pending structural work.
 
 ## Validation commands
 
@@ -117,4 +173,8 @@ The measurements cover synchronous DOM updates with a hidden host, not layout or
 | Keyed add/remove | 310 µs |
 
 These are historical measurements from one run, not confidence intervals or new validation results.
+They do not measure the effect of removing core animation-frame scheduling.
+That removal does not guarantee a performance gain.
+Synchronous DOM updates remove the frame delay but do not combine separate operations into one frame.
+Browser layout, paint, callback costs, and formatting still require separate measurements.
 The local file `node_modules/.cache/uplot-bench/legend-dom-final-n300-i300.json` contains older VM timings, not the results in this table.

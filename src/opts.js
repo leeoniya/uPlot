@@ -398,7 +398,12 @@ export function legendFill(self, seriesIdx) {
 export const legendOpts = {
 	show: true,
 	live: true,
+	mode: null,
+	side: 2,
 	isolate: false,
+	filter: null,
+	sort: null,
+	limit: null,
 	mount: noop,
 	markers: {
 		show: true,
@@ -525,6 +530,8 @@ export const cursorOpts = {
 	idx: null,
 	dataIdx: null,
 	idxs: null,
+	trackDists: false,
+	dists: null,
 
 	event: null,
 };

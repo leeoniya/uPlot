@@ -32,7 +32,6 @@ function makeChart(o, d, enabled) {
 			},
 		],
 		legend: {
-			mount: (u, legend) => legend.after(toggles),
 			live: false,
 			markers: {
 				width: 0,

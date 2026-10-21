@@ -279,7 +279,8 @@ describe('DOM legend prototype', () => {
 			const data = f.series.map((_, index) => Object.assign(Object.create({ Inherited: `inherited:${index}` }), { Own: `own:${index}` }));
 			f.renderer.render(data, null);
 			const table = f.parent.firstChild;
-			assert.equal(table.className, config.multi ? 'u-legend' : `u-legend u-inline${config.live === false ? '' : ' u-live'}`);
+			assert.deepEqual([...table.classList].sort(),
+				(config.multi ? ['u-legend', 'u-btm'] : ['u-legend', 'u-btm', 'u-inline', ...(config.live === false ? [] : ['u-live'])]).sort());
 			assert.equal(table.querySelectorAll('thead').length, config.multi ? 1 : 0);
 			if (config.multi)
 				assert.deepEqual([...table.querySelectorAll('thead th')].map(cell => cell.textContent), ['', ...config.keys]);
@@ -333,8 +334,6 @@ describe('DOM legend prototype', () => {
 		const list = createKeyedList(template.body, entry => entry.series, template.createRow);
 		try {
 			const entries = [3, 1].map(index => ({ series: f.series[index], index }));
-			for (const entry of entries)
-				template.prepare(entry);
 			template.update(f.series.map((_, i) => ({ First: `first:${i}`, Second: `second:${i}` })), f.series[1]);
 			list.update(entries);
 			const roots = [...template.body.children];

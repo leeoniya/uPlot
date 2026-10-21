@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Live legend selection</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="Compare legend limits, proximity filtering, and live player-count ranking on one chart.">
+	<link rel="stylesheet" href="../src/uPlot.css">
+	<style>
+		body { margin: 24px; font: 14px system-ui, sans-serif; color: #222; }
+		main { max-width: 1280px; margin: auto; }
+		h1 { font-size: 24px; }
+
+		article { min-width: 0; max-width: 100%; }
+		article p { max-width: 1000px; }
+		article label:not([hidden]) { display: block; margin-bottom: 12px; }
+		select { font: inherit; }
+		output { display: block; max-width: 1000px; min-height: 32px; font: 12px monospace; overflow-wrap: anywhere; }
+	</style>
+</head>
+<body>
+	<main id="demo">
+		<h1>Live legend selection</h1>
+		<p>This chart uses the <a href="log-scales.html">log-scale demo's dataset</a>: 24 hours of player counts for 12 Minecraft servers, from July 17–18, 2020.</p>
+		<p>The logarithmic Y axis separates clusters of smaller servers from outliers such as Hypixel. Zero counts use 1, as in the log-scale demo.</p>
+		<p>Choose a behavior: limit the legend, show the top servers, filter by cursor proximity, or rank all servers by player count.</p>
+		<p>Choose the legend position: top, right, bottom, or left. Limit only and Top servers use Per page: 5–50 in steps of 5, or 0 for all. The Time row does not consume the limit.</p>
+		<p>Nearby servers shows all visible servers until hovered, then applies the selected proximity threshold. Leaving the plot restores all visible servers.</p>
+		<p>Top servers uses the final sample when nothing is hovered, including its timestamp. A hover switches the ranking and displayed values to the cursor time.</p>
+		<p>Choose inline or table legend mode. The default is a table on the right. The controls are outside the legend.</p>
+			<p>Hover points automatically follow the final legend selection. Hidden series, missing values, and offscreen points remain hidden. Focus dimming is disabled.</p>
+		<p><a href="../docs/investigations/legend-selection.md">Investigation and API contract</a></p>
+
+		<section id="charts" aria-label="Legend selection example"></section>
+	</main>
+	<script type="module">
+		import { createDemo } from './legend-selection.js';
+		createDemo(document.querySelector('#demo'));
+	</script>
+</body>
+</html>

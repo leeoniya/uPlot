@@ -5,6 +5,7 @@
 - [Data Modes: Aligned and Faceted](data-modes.md)
 - [Basics](#basics)
 - [Optional DOM](#optional-dom)
+- [Live Legend Selection](investigations/legend-selection.md)
 - [High/Low Bands](#highlow-bands)
 - [Series, Scales, Axes, Grid](#series-scales-axes-grid)
 - [Multiple Scales & Axes](#multiple-scales--axes)

@@ -1,6 +1,6 @@
 import { h } from './h.js';
 import { on, off } from './dom.js';
-import { LEGEND, LEGEND_LIVE, LEGEND_INLINE, LEGEND_SERIES, LEGEND_MARKER, LEGEND_LABEL, LEGEND_VALUE, OFF } from './domClasses.js';
+import { LEGEND, LEGEND_LIVE, LEGEND_INLINE, LEGEND_SERIES, LEGEND_MARKER, LEGEND_LABEL, LEGEND_VALUE, LEGEND_SIDES, OFF } from './domClasses.js';
 import { mouseenter, mouseleave, LEGEND_DISP } from './strings.js';
 
 function textValue(value) {
@@ -33,10 +33,12 @@ function createValueCells(keys) {
 	};
 }
 
-// The adapter selects entries and prepares them in forward order before reconciliation.
-// It also owns table placement, legend.mount, and removal; rows own only their contents.
+// The adapter owns selection, table placement, legend.mount, and removal.
+// Rows prepare their metadata on creation and own only their contents.
 export function createLegendTemplate(self, opts, keys, markersShow) {
 	const {legend, multi, focusAlpha, cursorFocus, bind, emit} = opts;
+	const inline = legend.mode == null ? !multi : legend.mode == 'inline';
+	const sideClass = LEGEND_SIDES[opts.side ?? legend.side ?? 2];
 	const rowMeta = new WeakMap();
 	let body;
 	const node = h('table', null,
@@ -164,12 +166,11 @@ export function createLegendTemplate(self, opts, keys, markersShow) {
 	return {
 		node,
 		body,
-		prepare,
 		createRow,
 		update(data, focusedSeries) {
 			values = data;
 			focused = focusedSeries;
-			const className = LEGEND + (!multi ? ' ' + LEGEND_INLINE + (legend.live ? ' ' + LEGEND_LIVE : '') : '');
+			const className = LEGEND + ' ' + sideClass + (inline ? ' ' + LEGEND_INLINE + (legend.live ? ' ' + LEGEND_LIVE : '') : '');
 			if (className !== tableClass)
 				node.className = tableClass = className;
 		},

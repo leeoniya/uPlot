@@ -45,7 +45,7 @@ async function plot(mode) {
 
 for (const mode of [1, 2]) {
 	describe(`setSeries target selection in mode ${mode}`, () => {
-		it('selects a single Y series without reading unrelated series entries', async () => {
+		it('targets one Y series and reads unrelated entries only for one synchronous legend render', async () => {
 			const f = await plot(mode);
 			const { u, hooks, publications, ranges } = f;
 			const descriptors = [1, 3].map(i => Object.getOwnPropertyDescriptor(u.series, i));
@@ -58,7 +58,9 @@ for (const mode of [1, 2]) {
 				u.setSeries(2, { show: false }, true, true);
 				const selectionReads = reads;
 				[1, 3].forEach((i, j) => Object.defineProperty(u.series, i, descriptors[j]));
-				assert.equal(selectionReads, 0, 'synchronous target selection must not scan other series');
+				assert.equal(selectionReads, 2, 'the legend adapter reads each unrelated series once');
+								assert.equal(f.legendRenders, 1, 'the completed visibility change renders synchronously');
+								assert.equal(f.draws, 0, 'canvas drawing still waits for the normal commit');
 				assert.deepEqual(u.series.slice(1).map(s => s.show), [true, false, true]);
 				assert.deepEqual(hooks, [[2, false]]);
 				assert.deepEqual(publications, [[2, false]]);
@@ -190,7 +192,7 @@ for (const mode of [1, 2]) {
 			finally { u.destroy(); }
 		});
 
-		it('coalesces actual visibility changes without canceling them on later no-op requests', async () => {
+		it('renders each visibility change synchronously and skips later no-op requests', async () => {
 			const f = await plot(mode);
 			const { u } = f;
 			try {
@@ -198,9 +200,9 @@ for (const mode of [1, 2]) {
 				u.setSeries(2, { show: true });
 				u.setSeries(2, { show: true });
 				u.setSeries(0, { show: false });
-				assert.equal(f.legendRenders, 0);
+				assert.equal(f.legendRenders, 2);
 				await frame();
-				assert.equal(f.legendRenders, 1);
+				assert.equal(f.legendRenders, 2);
 				assert.equal(f.draws, 1);
 				assert.deepEqual([...u.root.querySelectorAll('tbody tr')].slice(-3).map(tr => tr.classList.contains('u-off')), [false, false, false]);
 			}

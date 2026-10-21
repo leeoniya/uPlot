@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Mousemove event rate</title>
+	<style>
+		* { box-sizing: border-box; }
+		body {
+			margin: 0;
+			padding: 24px;
+			min-height: 100vh;
+			font: 16px/1.5 system-ui, sans-serif;
+			color: #e8edf4;
+			background: #141a23;
+			user-select: none;
+		}
+		h1 { margin: 0 0 8px; font-size: 24px; }
+		p { margin: 8px 0; }
+		.readouts {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+			gap: 16px;
+			margin: 24px 0 12px;
+		}
+		.readout { padding: 16px; background: #222d3c; border-radius: 8px; }
+		.label { display: block; color: #b7c7dc; }
+		.value {
+			display: block;
+			font-size: 36px;
+			font-weight: 600;
+			font-variant-numeric: tabular-nums;
+		}
+		.details { font-variant-numeric: tabular-nums; color: #b7c7dc; }
+		button { padding: 8px 16px; font: inherit; cursor: pointer; }
+		#surface {
+			display: grid;
+			place-items: center;
+			min-height: 50vh;
+			margin-top: 20px;
+			border: 2px dashed #5b7596;
+			border-radius: 8px;
+			color: #b7c7dc;
+			text-align: center;
+			padding: 24px;
+		}
+	</style>
+</head>
+<body>
+	<h1>Mousemove event rate</h1>
+	<p>Close developer tools. Move your mouse rapidly inside this page without pressing a mouse button.</p>
+	<p>All trusted <code>mousemove</code> events in this page count, not only events inside the dashed area.</p>
+
+	<div class="readouts">
+		<div class="readout">
+			<span class="label">Latest window · events/second</span>
+			<span class="value" id="current">0.0</span>
+		</div>
+		<div class="readout">
+			<span class="label">Peak window · events/second</span>
+			<span class="value" id="peak">0.0</span>
+		</div>
+	</div>
+	<p class="details" id="details">Waiting for the first measurement window.</p>
+	<button type="button" id="reset">Reset measurement</button>
+	<p>The readouts update once per second. Each rate uses the actual elapsed time between updates.</p>
+	<p>This measures browser-delivered events, not the hardware polling rate. There is no animation loop or uPlot code.</p>
+	<p>For a separate drag test, reset the measurement, then move with a mouse button held down.</p>
+	<div id="surface">Move rapidly here for at least 10 seconds.<br>Report the peak, browser version, and whether a button was held.</div>
+
+	<script>
+		const currentOutput = document.getElementById('current');
+		const peakOutput = document.getElementById('peak');
+		const detailsOutput = document.getElementById('details');
+		let pending = 0;
+		let total = 0;
+		let peak = 0;
+		let windowStart;
+		let timer;
+
+		window.addEventListener('mousemove', event => {
+			if (event.isTrusted)
+				pending++;
+		}, { passive: true });
+
+		function sample() {
+			const now = performance.now();
+			const elapsed = now - windowStart;
+			const count = pending;
+			pending = 0;
+			windowStart = now;
+			total += count;
+
+			const rate = count * 1000 / elapsed;
+			peak = Math.max(peak, rate);
+			currentOutput.textContent = rate.toFixed(1);
+			peakOutput.textContent = peak.toFixed(1);
+			detailsOutput.textContent = `${count} events in ${elapsed.toFixed(1)} ms · ${total} events in completed windows`;
+		}
+
+		function startWindow() {
+			clearInterval(timer);
+			pending = 0;
+			windowStart = performance.now();
+			if (!document.hidden)
+				timer = setInterval(sample, 1000);
+		}
+
+		document.getElementById('reset').addEventListener('click', () => {
+			total = peak = 0;
+			currentOutput.textContent = peakOutput.textContent = '0.0';
+			detailsOutput.textContent = 'Waiting for the first measurement window.';
+			startWindow();
+		});
+
+		// Discard partial windows across tab switches, but retain the peak.
+		document.addEventListener('visibilitychange', startWindow);
+		startWindow();
+	</script>
+</body>
+</html>

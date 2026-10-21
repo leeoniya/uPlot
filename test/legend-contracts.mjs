@@ -4,7 +4,7 @@ import uPlot from '../src/uPlot.js';
 import { createLegend } from '../src/legend-dom.js';
 
 const data = [[0, 1, 2], [10, 20, 30], [40, 50, 60]];
-const frame = () => new Promise(requestAnimationFrame);
+const commit = () => Promise.resolve();
 
 function mouse(type, target) {
 	const event = new MouseEvent(type, { bubbles: type == 'click', cancelable: true, button: 0 });
@@ -39,15 +39,6 @@ function trackFrames() {
 	};
 	return {
 		queued, canceled, pending,
-		flush() {
-			// Snapshot this frame so reentrant requests wait for the next one.
-			for (const [id, callback] of [...pending]) {
-				if (pending.delete(id)) {
-					cancel(id);
-					callback(performance.now());
-				}
-			}
-		},
 		restore() {
 			for (const id of pending.keys())
 				cancel(id);
@@ -62,11 +53,13 @@ for (const table of [false, true]) {
 		let plots;
 		let renderers;
 		let bodyChildren;
+		let scheduledFrames;
 
 		beforeEach(() => {
 			plots = [];
 			renderers = [];
 			bodyChildren = new Set(document.body.children);
+			scheduledFrames = trackFrames();
 		});
 
 		afterEach(async () => {
@@ -79,14 +72,18 @@ for (const table of [false, true]) {
 				if (!bodyChildren.has(child))
 					child.remove();
 			}
+			scheduledFrames.restore();
+			assert.equal(scheduledFrames.queued.length, 0, 'legend operations never request animation frames');
+			assert.equal(scheduledFrames.canceled.length, 0, 'legend destruction has no animation frames to cancel');
 		});
 
-		async function plot({ label = 'Alpha', mount = () => {}, bind = {}, cursor = {}, hooks = {}, legend = {}, series = {}, scales = {}, mode = 1, focusAlpha = 0.25, render = true } = {}) {
+		async function plot({ label = 'Alpha', mount = () => {}, bind = {}, cursor = {}, hooks = {}, legend = {}, series = {}, scales = {}, mode = 1, focusAlpha = 0.25, cache } = {}) {
 			const u = new uPlot({
 				width: 600,
 				height: 400,
 				pxRatio: 1,
 				mode,
+				...(cache == null ? {} : { cache }),
 				legend: { mount, ...legend },
 				cursor: { focus: { prox: 1 }, bind, ...cursor },
 				focus: { alpha: focusAlpha },
@@ -115,8 +112,6 @@ for (const table of [false, true]) {
 				init();
 			});
 			await Promise.resolve();
-			if (render)
-				await frame();
 			return u;
 		}
 
@@ -220,27 +215,26 @@ for (const table of [false, true]) {
 			}
 		});
 
-		it('coalesces initial mount and later public setters into one pending legend frame each', async () => {
+		it('renders the initial mount and each completed public setter without frames', async () => {
 			const frames = trackFrames();
 			const work = { rows: 0, mounts: 0 };
 			try {
-				const u = await plot({ render: false, scales: { y: { range: [0, 100] } }, mount: () => work.mounts++ });
+				const u = await plot({ scales: { y: { range: [0, 100] } }, mount: () => work.mounts++ });
 				Object.defineProperty(u.series[1], 'class', { get() { work.rows++; return ''; } });
-				assert.equal(frames.queued.length, 1);
+				assert.deepEqual(work, { rows: 0, mounts: 1 });
+				assert.equal(frames.queued.length, 0);
 				u.setLegend({ idx: 0 });
+				assertValues(row(u, 1), 10);
 				u.setSeries(1, { focus: true });
+				assert.equal(row(u, 2).style.opacity, '0.25');
 				u.setLegend({ idx: 1 });
+				assertValues(row(u, 1), 20);
 				u.setSeries(2, { focus: true });
 				u.setSeries(1, { show: false });
 				u.setLegend({ idx: 2 });
+				assert.deepEqual(work, { rows: 6, mounts: 1 });
 				await Promise.resolve();
-				assert.deepEqual(work, { rows: 0, mounts: 0 });
-				assert.equal(u.root.querySelector('.u-legend') === null, true);
-				assert.equal(frames.queued.length, 1);
-				assert.equal(frames.pending.size, 1);
-				frames.flush();
-				assert.equal(frames.pending.size, 0);
-				assert.deepEqual(work, { rows: 1, mounts: 1 });
+				assert.deepEqual(work, { rows: 6, mounts: 1 });
 				const rows = [...u.root.querySelectorAll('tbody tr')];
 				const alpha = row(u, 1);
 				assertValues(alpha, 30);
@@ -252,14 +246,11 @@ for (const table of [false, true]) {
 				u.setSeries(1, { focus: true });
 				u.setLegend({ idx: 1 });
 				u.setSeries(null, { focus: true });
+				assert.deepEqual(work, { rows: 11, mounts: 1 });
 				await Promise.resolve();
-				assert.deepEqual(work, { rows: 1, mounts: 1 });
-				assertValues(alpha, 30);
-				assert.equal(frames.queued.length, 2);
-				assert.equal(frames.pending.size, 1);
-				frames.flush();
+				assert.deepEqual(work, { rows: 11, mounts: 1 });
+				assert.equal(frames.queued.length, 0);
 				assert.equal(frames.pending.size, 0);
-				assert.deepEqual(work, { rows: 2, mounts: 1 });
 				assertNodes([...u.root.querySelectorAll('tbody tr')], rows);
 				assertValues(alpha, 20);
 				assert.equal(alpha.style.opacity, '');
@@ -271,27 +262,27 @@ for (const table of [false, true]) {
 		});
 
 		for (const mounted of [false, true]) {
-			it(`cancels the plot's ${mounted ? 'pending legend update' : 'first legend frame'} and ignores a retained callback after destroy`, async () => {
+			it(`destroys ${mounted ? 'a mounted plot with a pending commit' : 'a plot before its first commit'} without legend frames`, async () => {
 				const frames = trackFrames();
 				const work = { rows: 0, mounts: 0 };
 				try {
-					const u = await plot({ render: false, mount: () => work.mounts++ });
-					Object.defineProperty(u.series[1], 'class', { get() { work.rows++; return ''; } });
-					if (mounted)
-						frames.flush();
-					u.setLegend({ idx: 1 });
-					u.setSeries(2, { focus: true });
-					assert.equal(frames.queued.length, mounted ? 2 : 1);
-					assert.equal(frames.pending.size, 1);
-					const queued = frames.queued[frames.queued.length - 1];
-					u.destroy();
+					const u = await plot({ mount: () => work.mounts++, hooks: {
+						init: [self => {
+							if (!mounted)
+								self.destroy();
+						}],
+					} });
+					if (mounted) {
+						Object.defineProperty(u.series[1], 'class', { get() { work.rows++; return ''; } });
+						u.setLegend({ idx: 1 });
+						assertValues(row(u, 1), 20);
+						u.setSize({ width: 620, height: 420 });
+						u.destroy();
+					}
 					plots.splice(plots.indexOf(u), 1);
-					assert.equal(frames.canceled.some(id => id === queued.id), true, 'destroy cancels the scheduled frame');
-					assert.equal(frames.pending.size, 0);
-					// A callback already handed off by the browser must also be harmless.
-					queued.callback(performance.now());
 					await Promise.resolve();
-					assert.equal(frames.queued.length, mounted ? 2 : 1);
+					assert.equal(frames.queued.length, 0);
+					assert.equal(frames.canceled.length, 0);
 					assert.equal(frames.pending.size, 0);
 					assert.deepEqual(work, { rows: mounted ? 1 : 0, mounts: mounted ? 1 : 0 });
 					assert.equal(u.root.isConnected, false);
@@ -314,41 +305,137 @@ for (const table of [false, true]) {
 			});
 		}
 
-		it('schedules mount-callback invalidation for the following frame without losing it', async () => {
+		it('renders mount-callback setters synchronously and retains their followup chart commit', async () => {
 			const frames = trackFrames();
-			const work = { rows: 0, mounts: 0 };
+			const work = { draws: 0, mounts: 0 };
+			const order = [];
 			try {
-				const u = await plot({ render: false, mount(self, element) {
+				const u = await plot({ mount(self, element) {
 					work.mounts++;
+					order.push('mount');
+					assert.equal(self.status, 1);
 					assert.equal(element.querySelectorAll('tbody tr').length, table ? 2 : 3);
 					self.setLegend({ idx: 1 });
+					assertValues(row(self, 1), 20);
 					self.setSeries(2, { focus: true });
+					assert.equal(row(self, 1).style.opacity, '0.25');
 					self.setLegend({ idx: 2 });
+					assertValues(row(self, 1), 30);
+					self.setSize({ width: 620, height: 420 });
+				}, hooks: {
+					draw: [() => { work.draws++; order.push('draw'); }],
+					ready: [self => {
+						order.push('ready');
+						assertValues(row(self, 1), 30);
+					}],
 				} });
-				Object.defineProperty(u.series[1], 'class', { get() { work.rows++; return ''; } });
-				u.setLegend({ idx: 0 });
-				assert.equal(frames.queued.length, 1);
-				frames.flush();
-				assert.deepEqual(work, { rows: 1, mounts: 1 });
-				assert.deepEqual(values(u), ['v=30', 'v=60']);
-				const alpha = row(u, 1);
-				assertValues(alpha, 10);
-				assert.equal(alpha.style.opacity, '');
-				assert.equal(frames.queued.length, 2);
-				assert.equal(frames.pending.size, 1);
 				await Promise.resolve();
-				frames.flush();
-				assert.deepEqual(work, { rows: 2, mounts: 1 });
-				assert.equal(row(u, 1) === alpha, true);
-				assertValues(alpha, 30);
-				assert.equal(alpha.style.opacity, '0.25');
-				assert.equal(frames.queued.length, 2);
+				assert.deepEqual(work, { draws: 2, mounts: 1 });
+				assert.deepEqual(order, ['draw', 'mount', 'ready', 'draw']);
+				assert.equal(u.width, 620);
+				assert.equal(frames.queued.length, 0);
 				assert.equal(frames.pending.size, 0);
 			}
 			finally {
 				frames.restore();
 			}
 		});
+
+		for (const cache of [undefined, { paths: false, data: false }]) {
+			for (const mounted of [false, true]) {
+				it(`completes commit-hook focus selection on ${mounted ? 'a mounted' : 'an initial'} plot with ${cache == null ? 'default' : 'disabled'} caches`, async () => {
+					const lifecycle = [];
+					const drawData = [];
+					let changedFocus = false;
+					let mounts = 0;
+					let ready = 0;
+					let legendElement;
+					const assertSelection = self => {
+						assert.deepEqual(self.legend.order, [2]);
+						assert.deepEqual(self.series.slice(1).map(s => s._focus), [false, true]);
+						assert.equal(self.root.querySelector('.u-legend'), legendElement);
+						const rows = [...legendElement.querySelectorAll('tbody tr')];
+						assert.deepEqual(rows.map(tr => tr.querySelector('.u-label').textContent), table ? ['Beta'] : ['Time', 'Beta']);
+						const beta = rows.at(-1);
+						assert.equal(beta.style.opacity, '');
+						assert.equal(beta.classList.contains('u-off'), false);
+						if (mounted)
+							assertValues(beta, 51);
+						else
+							assert.deepEqual([...beta.querySelectorAll('td')].map(td => td.textContent), table ? ['--', '--'] : ['--']);
+					};
+					const changeFocus = self => {
+						if (changedFocus)
+							return;
+						changedFocus = true;
+						lifecycle.push('focus');
+						assert.equal(drawData.length, 1, 'the hook runs after the initiating commit draws');
+						self.setSeries(2, { focus: true });
+						assert.deepEqual(self.legend.order, [1, 2], 'focus-dependent selection waits for the followup commit');
+						assert.equal(mounts, mounted ? 1 : 0);
+						assert.equal(ready, mounted ? 1 : 0);
+						if (!mounted)
+							assert.equal(self.root.querySelector('.u-legend'), null);
+					};
+					const u = await plot({
+						cache,
+						cursor: { focus: { prox: -1 } },
+						legend: { filter: (self, si) => self.series[si]._focus !== false },
+						mount(self, element) {
+							mounts++;
+							legendElement = element;
+							lifecycle.push('mount');
+							assert.equal(self.status, 1);
+							assert.equal(ready, 0);
+							if (!mounted)
+								assertSelection(self);
+						},
+						hooks: {
+							draw: [self => {
+								lifecycle.push('draw');
+								drawData.push(self.data.map(column => column.length));
+							}],
+							setLegend: mounted ? [] : [changeFocus],
+							ready: [self => {
+								ready++;
+								lifecycle.push('ready');
+								assert.equal(mounts, 1);
+								if (!mounted)
+									assertSelection(self);
+							}],
+						},
+					});
+					let beta;
+					if (mounted) {
+						assert.deepEqual(lifecycle, ['draw', 'mount', 'ready']);
+						beta = row(u, 2);
+						// Refill disposed data before positioning the cursor without a canvas commit.
+						u.setData(data, false);
+						u.setCursor({ left: u.valToPos(1, 'x'), top: 20 });
+						drawData.length = 0;
+						u.hooks.setLegend = [changeFocus];
+						u.setData([data[0], [11, 21, 31], [41, 51, 61]]);
+					}
+					await commit();
+					await commit();
+					assert.equal(changedFocus, true);
+					assertSelection(u);
+					if (mounted)
+						assert.equal(legendElement.querySelector('tbody').lastElementChild, beta);
+					assert.deepEqual(drawData, [[3, 3, 3], [3, 3, 3]], 'both the initiating draw and followup draw retain data');
+					assert.deepEqual(lifecycle, mounted
+						? ['draw', 'mount', 'ready', 'draw', 'focus', 'draw']
+						: ['draw', 'focus', 'draw', 'mount', 'ready']);
+					assert.equal(mounts, 1);
+					assert.equal(ready, 1);
+					assert.deepEqual(u.data.map(column => column.length), cache == null ? [3, 3, 3] : [0, 0, 0]);
+					await commit();
+					assert.equal(drawData.length, 2, 'the followup settles without another draw');
+					assert.equal(scheduledFrames.queued.length, 0);
+					assert.equal(scheduledFrames.pending.size, 0);
+				});
+			}
+		}
 
 		// Historical guarantee: destruction inside marker callbacks is unsupported.
 		it.skip('does not mount or retain a table when an initial marker callback destroys the renderer', () => {
@@ -436,7 +523,7 @@ for (const table of [false, true]) {
 			assert.equal(parent.querySelector('table') === null, true);
 		});
 
-		it('cancels a pending chart commit and legend frame when the plot is destroyed', async () => {
+		it('cancels a pending chart commit when the plot is destroyed', async () => {
 			const work = { draws: 0, legends: 0, mounts: 0 };
 			const u = await plot({ mount: () => work.mounts++ });
 			work.mounts = 0;
@@ -448,7 +535,7 @@ for (const table of [false, true]) {
 			work.legends = 0;
 			u.destroy();
 			plots.splice(plots.indexOf(u), 1);
-			await frame();
+			await commit();
 			assert.deepEqual(work, { draws: 0, legends: 0, mounts: 0 });
 			assert.equal(u.root.isConnected, false);
 			assert.equal(u.root.querySelector('.u-legend') === null, true);
@@ -464,7 +551,7 @@ for (const table of [false, true]) {
 
 			for (const idx of [0, 1, 2, null, 0]) {
 				u.setLegend({ idx });
-				await frame();
+				await commit();
 				assert.equal(u.root.querySelector('.u-legend') === legend, true);
 				assertNodes([...legend.querySelectorAll('tbody tr')], rows);
 				if (idx == null)
@@ -475,23 +562,23 @@ for (const table of [false, true]) {
 
 			u.setSeries(1, { show: false });
 			assert.equal(u.series[1].show, false);
-			await frame();
+			await commit();
 			assert.equal(row(u, 1) === alpha, true);
 			assert.equal(alpha.classList.contains('u-off'), true);
 			u.setSeries(1, { show: true });
 			mouse('mouseenter', alpha.firstChild);
-			await frame();
+			await commit();
 			assert.equal(row(u, 2) === beta, true);
 			assert.equal(Number(beta.style.opacity), 0.25);
 			mouse('mouseleave', legend);
-			await frame();
+			await commit();
 			assert.ok(rows.every(tr => tr.style.opacity == ''), 'cleared focus removes inline opacity');
 		});
 
-		it('skips legend frames while streaming outside the cursor but still formats and notifies', async () => {
+		it('skips reconciliation while streaming outside the cursor but still formats and notifies', async () => {
 			const u = await plot();
 			u.setCursor({ left: -10, top: -10 });
-			await frame();
+			await commit();
 			let rowReads = 0;
 			Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
 			const calls = [];
@@ -517,7 +604,6 @@ for (const table of [false, true]) {
 					assert.deepEqual(snapshots, [[null, [null, null, null], ['--', '--']]]);
 					assert.equal(frames.queued.length, 0);
 					assert.equal(frames.pending.size, 0);
-					frames.flush();
 					assert.equal(rowReads, 0);
 				}
 			}
@@ -526,13 +612,13 @@ for (const table of [false, true]) {
 			}
 		});
 
-		it('schedules changing custom formatted data even when the cursor index is null', async () => {
+		it('renders changing custom formatted data during the chart commit even when the cursor index is null', async () => {
 			const latest = (self, si) => `latest=${self.data?.[si]?.at(-1) ?? '--'}`;
 			const u = await plot({ series: table ? {
 				values: (self, si) => ({ Value: latest(self, si), Double: '--' }),
 			} : { value: (self, value, si) => latest(self, si) } });
 			u.setCursor({ left: -10, top: -10 });
-			await frame();
+			await commit();
 			let rowReads = 0;
 			Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
 			const snapshots = [];
@@ -546,11 +632,9 @@ for (const table of [false, true]) {
 					await Promise.resolve();
 					const expected = [`latest=${30 + shift}`, `latest=${60 + shift}`];
 					assert.deepEqual(snapshots, [[null, expected]]);
-					assert.equal(rowReads, 0);
-					assert.equal(frames.queued.length, shift);
-					assert.equal(frames.pending.size, 1);
-					frames.flush();
 					assert.equal(rowReads, 1);
+					assert.equal(frames.queued.length, 0);
+					assert.equal(frames.pending.size, 0);
 					assert.deepEqual([1, 2].map(si => row(u, si).querySelector('td').textContent), expected);
 				}
 			}
@@ -562,7 +646,7 @@ for (const table of [false, true]) {
 		it('publishes repeated formatted outputs without frames, ignoring fresh records and undisplayed properties', async () => {
 			const u = await plot();
 			u.setLegend({ idx: 0 });
-			await frame();
+			await commit();
 			let rowReads = 0;
 			Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
 			const indices = table ? [1, 2] : [0, 1, 2];
@@ -603,7 +687,6 @@ for (const table of [false, true]) {
 					}
 					assert.equal(frames.queued.length, 0);
 					assert.equal(frames.pending.size, 0);
-					frames.flush();
 					assert.equal(rowReads, 0);
 					assertValues(row(u, 1), 10);
 					assertValues(row(u, 2), 40);
@@ -614,10 +697,10 @@ for (const table of [false, true]) {
 			}
 		});
 
-		it('detects later series and column changes in reused records after a prior frame', async () => {
+		it('detects later series and column changes in reused records after a prior render', async () => {
 			const u = await plot();
 			u.setLegend({ idx: 0 });
-			await frame();
+			await commit();
 			const records = u.legend.values.map(record => record == null ? null : { ...record });
 			const indices = table ? [1, 2] : [0, 1, 2];
 			const calls = [];
@@ -627,15 +710,14 @@ for (const table of [false, true]) {
 					return table ? records[si] : records[si]._;
 				};
 			}
-			// Publish the retained records before mutating them after a completed frame.
+			// Publish the retained records before mutating them after a completed render.
 			u.setLegend({ idx: 0 });
-			await frame();
+			await commit();
 			let rowReads = 0;
 			Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
 			const frames = trackFrames();
 			try {
 				for (const [si, column] of [[2, table ? 'Double' : '_'], [1, table ? 'Value' : '_']]) {
-					const requests = frames.queued.length;
 					rowReads = 0;
 					calls.length = 0;
 					records[si][column] = 'changed';
@@ -644,11 +726,9 @@ for (const table of [false, true]) {
 					assert.equal(u.legend.values[si][column], 'changed');
 					if (table)
 						assert.equal(u.legend.values[si], records[si]);
-					assert.equal(rowReads, 0);
-					assert.equal(frames.queued.length, requests + 1);
-					assert.equal(frames.pending.size, 1);
-					frames.flush();
 					assert.equal(rowReads, 1);
+					assert.equal(frames.queued.length, 0);
+					assert.equal(frames.pending.size, 0);
 					for (const i of [1, 2])
 						assert.deepEqual([...row(u, i).querySelectorAll('td')].map(cell => cell.textContent), Object.values(records[i]));
 				}
@@ -658,10 +738,10 @@ for (const table of [false, true]) {
 			}
 		});
 
-		it('clears values once, preserves the pending render, and treats normalized placeholders as unchanged', async () => {
+		it('clears values synchronously once and treats normalized placeholders as unchanged', async () => {
 			const u = await plot();
 			u.setLegend({ idx: 2 });
-			await frame();
+			await commit();
 			let empty = null;
 			for (const s of u.series.slice(table ? 1 : 0))
 				s[table ? 'values' : 'value'] = () => empty;
@@ -672,16 +752,14 @@ for (const table of [false, true]) {
 			const frames = trackFrames();
 			try {
 				u.setLegend({ idx: null });
-				assert.equal(frames.queued.length, 1);
-				assert.equal(frames.pending.size, 1);
-				u.setLegend({ idx: null });
-				assert.equal(frames.queued.length, 1);
-				assert.equal(frames.pending.size, 1, 'an identical update retains the changed render');
-				assert.equal(frames.canceled.length, 0);
-				assert.equal(rowReads, 0);
-				assertValues(row(u, 1), 30);
-				frames.flush();
 				assert.equal(rowReads, 1);
+				for (const si of [1, 2])
+					assert.ok([...row(u, si).querySelectorAll('td')].every(cell => cell.textContent == '--'));
+				u.setLegend({ idx: null });
+				assert.equal(frames.queued.length, 0);
+				assert.equal(frames.pending.size, 0);
+				assert.equal(frames.canceled.length, 0);
+				assert.equal(rowReads, 1, 'an identical update does not reconcile again');
 				assert.deepEqual(snapshots, Array.from({ length: 2 }, () => [null, ['--', '--']]));
 				for (const si of [1, 2])
 					assert.ok([...row(u, si).querySelectorAll('td')].every(cell => cell.textContent == '--'));
@@ -691,9 +769,8 @@ for (const table of [false, true]) {
 					snapshots.length = 0;
 					u.setLegend({ idx: null });
 					assert.deepEqual(snapshots, [[null, ['--', '--']]]);
-					assert.equal(frames.queued.length, 1);
+					assert.equal(frames.queued.length, 0);
 					assert.equal(frames.pending.size, 0);
-					frames.flush();
 					assert.equal(rowReads, 0);
 				}
 			}
@@ -710,9 +787,10 @@ for (const table of [false, true]) {
 			try {
 				for (const si of [1, 2, null]) {
 					u.setSeries(si, { focus: true });
+					assert.equal(rowReads, 1);
 					await Promise.resolve();
-					assert.equal(frames.pending.size, 1);
-					frames.flush();
+					assert.equal(frames.queued.length, 0);
+					assert.equal(frames.pending.size, 0);
 					assert.equal(rowReads, 1);
 					const requests = frames.queued.length;
 					rowReads = 0;
@@ -721,7 +799,6 @@ for (const table of [false, true]) {
 					assert.equal(u.series[1]._focus, si == null ? null : si == 1);
 					assert.equal(frames.queued.length, requests);
 					assert.equal(frames.pending.size, 0);
-					frames.flush();
 					assert.equal(rowReads, 0);
 				}
 			}
@@ -742,17 +819,14 @@ for (const table of [false, true]) {
 					await Promise.resolve();
 					assert.equal(frames.queued.length, 0);
 					assert.equal(frames.pending.size, 0);
-					frames.flush();
 					assert.equal(row(u, 1).style.opacity, '');
 					assert.equal(row(u, 2).style.opacity, '');
 				}
 				assert.equal(rowReads, 0);
 				u.setLegend({ idx: 1 });
-				assert.equal(rowReads, 0);
-				assert.equal(frames.queued.length, 1);
-				assert.equal(frames.pending.size, 1);
-				frames.flush();
-				assert.equal(rowReads, 1, 'value updates still reconcile the legend');
+				assert.equal(frames.queued.length, 0);
+				assert.equal(frames.pending.size, 0);
+				assert.equal(rowReads, 1, 'value updates still reconcile the legend synchronously');
 				assertValues(row(u, 1), 20);
 			}
 			finally {
@@ -760,7 +834,7 @@ for (const table of [false, true]) {
 			}
 		});
 
-		it('exposes cursor data before hooks and coalesces focus and values in one frame', async () => {
+		it('renders cursor values and focus once synchronously before hooks', async () => {
 			const u = await plot({ cursor: { points: { one: true } } });
 			let rowReads = 0;
 			let formats = 0;
@@ -783,6 +857,8 @@ for (const table of [false, true]) {
 					values: values(self),
 					show: self.series.slice(1).map(s => s.show),
 					rowReads, formats,
+					text: [1, 2].map(i => row(self, i).querySelector('td').textContent),
+					opacity: [1, 2].map(i => row(self, i).style.opacity),
 				})];
 			}
 
@@ -805,7 +881,7 @@ for (const table of [false, true]) {
 				});
 				const opacity = [1, 2].map(i => si == null || si == i ? 1 : 0.25);
 				const text = [1, 2].map(i => idx == null ? '--' : `v=${data[i][idx]}`);
-				assert.equal(rowReads, 0, 'no reconciliation before the frame');
+				assert.equal(rowReads, renders, 'one completed cursor update renders before returning');
 				assert.equal(formats, refresh ? table ? 2 : 3 : 0);
 				assert.equal(u.cursor.idx, idx);
 				assert.deepEqual(snapshots.map(s => s.name).sort(), events.slice().sort());
@@ -814,11 +890,12 @@ for (const table of [false, true]) {
 						idx, idxs: [idx, idx, idx],
 						focus: [1, 2].map(i => si == null ? null : si == i),
 						alpha: opacity, values: text, show: [true, true],
-						rowReads: 0, formats,
+						rowReads: renders, formats,
+						text, opacity: opacity.map(alpha => alpha == 1 ? '' : String(alpha)),
 					}, name);
 				}
 				const formatted = formats;
-				await frame();
+				await commit();
 				if (!refresh && renders == 1)
 					assert.notEqual(point.style.transform, previousPoint, 'Y-only focus moves the single point');
 				assert.equal(rowReads, renders);
@@ -826,6 +903,33 @@ for (const table of [false, true]) {
 				assert.deepEqual([1, 2].map(i => row(u, i).querySelector('td').textContent), text);
 				assert.deepEqual([1, 2].map(i => row(u, i).style.opacity), opacity.map(alpha => alpha == 1 ? '' : String(alpha)));
 			}
+		});
+
+		it('completes dynamic cursor selection before its single render and hooks', async () => {
+			const u = await plot({ legend: {
+				filter: (self, si) => self.series[si]._focus !== false,
+			} });
+			let rowReads = 0;
+			for (const s of u.series.slice(1))
+				Object.defineProperty(s, 'class', { get() { rowReads++; return ''; } });
+			let hooks = 0;
+			for (const name of ['setLegend', 'setSeries', 'setCursor']) {
+				u.hooks[name] = [self => {
+					hooks++;
+					assert.equal(rowReads, 1, `${name} sees one completed render`);
+					assert.deepEqual(self.legend.order, [2]);
+					const rows = [...self.root.querySelectorAll('tbody tr')];
+					assert.equal(rows.length, table ? 1 : 2);
+					assert.equal(rows.at(-1).querySelector('.u-label').textContent, 'Beta');
+					assertValues(rows.at(-1), 50);
+					assert.equal(rows.at(-1).style.opacity, '');
+				}];
+			}
+			u.setCursor({ left: u.valToPos(1, 'x'), top: u.valToPos(50, 'y') });
+			assert.equal(hooks, 3);
+			assert.equal(rowReads, 1);
+			await commit();
+			assert.equal(rowReads, 1);
 		});
 
 		it('updates cursor focus with nonlive and hidden legends', async () => {
@@ -843,10 +947,10 @@ for (const table of [false, true]) {
 					assert.deepEqual(u.series.slice(1).map(s => s._focus), [1, 2].map(i => si == null ? null : si == i));
 					const opacity = [1, 2].map(i => si == null || si == i ? 1 : 0.25);
 					assert.deepEqual(u.series.slice(1).map(s => s.alpha), opacity);
-					assert.equal(rowReads, 0);
+					assert.equal(rowReads, legend.show === false ? 0 : 1);
 					if (legend.show === false)
 						assert.deepEqual(u.legend.values, [null, null, null]);
-					await frame();
+					await commit();
 					assert.equal(rowReads, legend.show === false ? 0 : 1);
 					if (legend.show === false)
 						assert.equal(u.root.querySelector('.u-legend') === null, true);
@@ -860,20 +964,26 @@ for (const table of [false, true]) {
 				const point = u.over.querySelector('.u-cursor-pt');
 				const hiddenPoint = point.style.transform;
 				u.setCursor({ left: u.valToPos(1, 'x'), top: u.valToPos(50, 'y') });
-				await frame();
+				await commit();
 				assert.notEqual(point.style.transform, hiddenPoint, 'the shared point returns after a hidden cursor');
 			}
 		});
 
-		it('coalesces multiple public setters while hooks observe synchronous data', async () => {
-			const u = await plot();
+		it('renders separate public setters before their hooks without cross-call coalescing', async () => {
+			const u = await plot({ scales: { y: { range: [0, 100] } } });
 			let rowReads = 0;
 			Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
 			const snapshots = [];
-			u.hooks.setSeries = [self => snapshots.push([
-				self.series[2]._focus, self.series[2].show, self.series[1].alpha,
-			])];
-			u.hooks.setLegend = [self => snapshots.push([self.legend.idx, ...values(self)])];
+			u.hooks.setSeries = [self => {
+				assert.equal(row(self, 1).style.opacity, '0.25');
+				assert.equal(row(self, 2).classList.contains('u-off'), !self.series[2].show);
+				snapshots.push([self.series[2]._focus, self.series[2].show, self.series[1].alpha]);
+			}];
+			u.hooks.setLegend = [self => {
+				assertValues(row(self, 1), data[1][self.legend.idx]);
+				assertValues(row(self, 2), data[2][self.legend.idx]);
+				snapshots.push([self.legend.idx, ...values(self)]);
+			}];
 			u.setLegend({ idx: 0 });
 			u.setSeries(2, { focus: true, show: false });
 			u.setLegend({ idx: 2 });
@@ -882,15 +992,15 @@ for (const table of [false, true]) {
 				[0, 'v=10', 'v=40'], [true, false, 0.25],
 				[2, 'v=30', 'v=60'], [true, true, 0.25],
 			]);
-			assert.equal(rowReads, 0);
-			await frame();
-			assert.equal(rowReads, 1);
+			assert.equal(rowReads, 4);
+			await commit();
+			assert.equal(rowReads, 4);
 			assertValues(row(u, 1), 30);
 			assert.equal(row(u, 1).style.opacity, '0.25');
 			assert.equal(row(u, 2).classList.contains('u-off'), false);
 		});
 
-		it('preserves reentrant setter data and renders the final state once', async () => {
+		it('renders each reentrant setter before nested hooks observe its state', async () => {
 			// Keep the scale fixed so visibility does not trigger a separate cursor recalculation.
 			const u = await plot({ scales: { y: { range: [0, 100] } } });
 			let rowReads = 0;
@@ -906,6 +1016,11 @@ for (const table of [false, true]) {
 				assert.deepEqual(self.series.slice(1).map(s => s._focus), [focus == 1, focus == 2]);
 				assert.deepEqual(self.series.slice(1).map(s => s.alpha), focus == 1 ? [1, 0.25] : [0.25, 1]);
 				assert.deepEqual(self.series.slice(1).map(s => s.show), [true, show]);
+				assertValues(row(self, 1), data[1][idx]);
+				assertValues(row(self, 2), data[2][idx]);
+				assert.equal(row(self, 1).style.opacity, focus == 1 ? '' : '0.25');
+				assert.equal(row(self, 2).style.opacity, focus == 2 ? '' : '0.25');
+				assert.equal(row(self, 2).classList.contains('u-off'), !show);
 			};
 			for (const name of ['setLegend', 'setCursor']) {
 				u.hooks[name] = [self => {
@@ -928,19 +1043,19 @@ for (const table of [false, true]) {
 			}];
 			u.setCursor({ left: u.valToPos(1, 'x'), top: u.valToPos(20, 'y') });
 			u.hooks.setSeries = [];
-			assert.equal(rowReads, 0);
+			assert.equal(rowReads, 3);
 			assert.deepEqual(events.slice().sort(), ['focus:1', 'focus:2', 'setCursor', 'setLegend', 'setLegend']);
 			assertState(u);
 			assert.equal(u.legend.idx, 2);
-			await frame();
-			assert.equal(rowReads, 1);
+			await commit();
+			assert.equal(rowReads, 3);
 			assertValues(row(u, 1), 30);
 			assert.equal(row(u, 1).style.opacity, '0.25');
 			assert.equal(row(u, 2).style.opacity, '');
 			assert.equal(row(u, 2).classList.contains('u-off'), true);
 		});
 
-		it('publishes current data before rendering and clears received hidden focus without echo', async () => {
+		it('publishes current data and DOM together and clears received hidden focus without echo', async () => {
 			const publications = [];
 			const events = [];
 			const snapshots = [];
@@ -962,7 +1077,7 @@ for (const table of [false, true]) {
 			source.setCursor({ left: -10, top: -10 });
 			source.setCursor({ left: -10, top: -10 });
 			assert.deepEqual(publications, [], 'programmatic focus and hidden clears do not publish');
-			await frame();
+			await commit();
 
 			for (const name of ['setSeries', 'setLegend', 'setCursor']) {
 				source.hooks[name] = [u => {
@@ -976,12 +1091,12 @@ for (const table of [false, true]) {
 			source.over.dispatchEvent(new MouseEvent('mousemove', {
 				clientX: source.rect.left + left, clientY: source.rect.top + top,
 			}));
-			assert.equal(rowReads, 0);
+			assert.equal(rowReads, 1);
 			assert.deepEqual(publications.slice().sort(), ['mousemove', 'setSeries']);
 			assert.deepEqual(events.slice().sort(), ['pub:mousemove', 'pub:setSeries', 'setCursor', 'setLegend', 'setSeries']);
 			for (const state of snapshots)
-				assert.deepEqual(state, [0, [1, 1, 1], true, false, ['v=20', 'v=50'], [true, true]]);
-			await frame();
+				assert.deepEqual(state, [1, [1, 1, 1], true, false, ['v=20', 'v=50'], [true, true]]);
+			await commit();
 			assert.equal(rowReads, 1);
 			assertValues(row(source, 1), 20);
 			assert.equal(row(source, 2).style.opacity, '0.25');
@@ -999,7 +1114,7 @@ for (const table of [false, true]) {
 			assert.deepEqual(values(peer), ['v=20', 'v=50']);
 			assert.deepEqual(peer.cursor.idxs, [1, 1, 1]);
 			assert.deepEqual(peer.series.slice(1).map(s => s._focus), [false, true]);
-			await frame();
+			await commit();
 			assertValues(row(peer, 1), 20);
 			assert.equal(row(peer, 1).style.opacity, '0.25');
 			assert.deepEqual(focused, [], 'received visible moves do not select local focus');
@@ -1008,14 +1123,14 @@ for (const table of [false, true]) {
 			assert.deepEqual(focused, [null]);
 			assert.deepEqual(peer.series.slice(1).map(s => s._focus), [null, null]);
 			assert.deepEqual(values(peer), ['--', '--']);
-			await frame();
+			await commit();
 			assert.equal(row(peer, 1).style.opacity, '');
 			assert.equal(row(peer, 2).style.opacity, '');
 			assert.equal(row(peer, 1).querySelector('td').textContent, '--');
 			assert.equal(receivedPublications, 0, 'received moves do not echo focus');
 		});
 
-		it('coalesces real two-chart sync values and focus once per legend per frame', async () => {
+		it('renders each two-chart sync message synchronously without cross-message coalescing', async () => {
 			const publications = [];
 			const key = `legend-contracts-${table}`;
 			const source = await plot({ cursor: { sync: { key, setSeries: true, filters: {
@@ -1028,6 +1143,8 @@ for (const table of [false, true]) {
 				Object.defineProperty(u.series[1], 'class', { get() { reads[i]++; return ''; } });
 				for (const name of ['setLegend', 'setSeries', 'setCursor']) {
 					u.hooks[name] = [self => {
+						assert.deepEqual([1, 2].map(si => row(self, si).querySelector('td').textContent), values(self));
+						assert.deepEqual([1, 2].map(si => row(self, si).style.opacity), self.series.slice(1).map(s => s.alpha == 1 ? '' : String(s.alpha)));
 						snapshots.push([i, name, self.cursor.idxs.slice(), values(self), self.series.slice(1).map(s => s._focus)]);
 					}];
 				}
@@ -1061,11 +1178,11 @@ for (const table of [false, true]) {
 					assert.deepEqual(values(u), text);
 					assert.deepEqual(u.series.slice(1).map(s => s._focus), focus);
 				}
-				assert.deepEqual(reads, [0, 0]);
+				assert.deepEqual(reads, idx == 1 ? [1, 2] : [2, 4]);
 				previousFocus = focus;
 			}
-			await frame();
-			assert.deepEqual(reads, [1, 1]);
+			await commit();
+			assert.deepEqual(reads, [2, 4]);
 			for (const u of [source, peer]) {
 				assertValues(row(u, 1), 30);
 				assertValues(row(u, 2), 60);
@@ -1108,7 +1225,7 @@ for (const table of [false, true]) {
 				assert.deepEqual(u.series.slice(1).map(s => s._focus), [false, true]);
 				assert.deepEqual(values(u), ['v=20', 'v=50']);
 			}
-			await frame();
+			await commit();
 			for (const u of [source, peer]) {
 				assert.deepEqual(u.series.slice(1).map(s => s._focus), [false, true]);
 				assert.equal(row(u, 1).style.opacity, '0.25');
@@ -1138,7 +1255,7 @@ for (const table of [false, true]) {
 				snapshots.length = 0;
 				u.setLegend({ idx: 2 });
 				assert.deepEqual(snapshots, [[[2, 2, 2], ['v=30', 'v=60']]]);
-				await frame();
+				await commit();
 				if (show)
 					assertValues(row(u, 1), 30);
 				else
@@ -1154,7 +1271,6 @@ for (const table of [false, true]) {
 					try {
 						const u = await plot({
 							mode,
-							render: false,
 							legend: { show: false },
 							cursor: { show: showCursor },
 							mount: () => mounts++,
@@ -1225,7 +1341,7 @@ for (const table of [false, true]) {
 					assert.equal(formats, 0, 'cursor updates do not format hidden values');
 					hooks = 0;
 					u.setData(mode == 2 ? [null, [data[0], data[1]], [data[0], data[2]]] : data);
-					await frame();
+					await commit();
 					assert.equal(formats, 0, 'data commits do not format hidden values');
 					if (!showCursor)
 						assert.equal(hooks, 0, 'hidden legend commits do not add setLegend hooks');
@@ -1235,7 +1351,7 @@ for (const table of [false, true]) {
 			}
 		}
 
-		it('coalesces mode 2 values and focus with explicit per-series indices', async () => {
+		it('renders mode 2 values and focus once synchronously with explicit per-series indices', async () => {
 			const yValue = (self, si, idx) => idx == null ? null : self.data?.[si]?.[1]?.[idx];
 			const u = await plot({
 				mode: 2,
@@ -1258,8 +1374,8 @@ for (const table of [false, true]) {
 			for (const [idx, si] of [[0, 1], [2, 2]]) {
 				rowReads = 0;
 				u.setCursor({ left: u.valToPos(idx, 'x'), top: u.valToPos(data[si][idx], 'y') });
-				assert.equal(rowReads, 0);
-				await frame();
+				assert.equal(rowReads, 1);
+				await commit();
 				assert.equal(rowReads, 1);
 				assertValues(rows[0], data[1][idx]);
 				assertValues(rows[1], data[2][idx]);
@@ -1267,8 +1383,8 @@ for (const table of [false, true]) {
 				assert.deepEqual(u.series.slice(1).map(s => s._focus), [si == 1, si == 2]);
 			}
 			assert.deepEqual(snapshots, [
-				[1, 0, [0, 0], ['v=10', 'v=40'], [1, 0.25]],
-				[2, 0, [2, 2], ['v=30', 'v=60'], [0.25, 1]],
+				[1, 1, [0, 0], ['v=10', 'v=40'], [1, 0.25]],
+				[2, 1, [2, 2], ['v=30', 'v=60'], [0.25, 1]],
 			]);
 		});
 
@@ -1285,7 +1401,7 @@ for (const table of [false, true]) {
 			u.setData([data[0], [70, 80, 90], data[1], data[2]], false);
 			u.setLegend({ idx: 1 });
 			assert.equal(u.series[3] === beta, true);
-			await frame();
+			await commit();
 			assert.equal(row(u, 3) === betaRow, true);
 			assert.equal(betaRow.style.opacity, '');
 			assert.equal(row(u, 2).style.opacity, '0.25');
@@ -1299,7 +1415,7 @@ for (const table of [false, true]) {
 			u.setData(data, false);
 			u.setLegend({ idx: 2 });
 			assert.equal(u.series[2] === beta, true);
-			await frame();
+			await commit();
 			assert.equal(row(u, 2) === betaRow, true);
 			assert.equal(betaRow.style.opacity, '');
 			assert.equal(row(u, 1).style.opacity, '0.25');
@@ -1310,7 +1426,7 @@ for (const table of [false, true]) {
 			const u = await plot({ cursor: { points: { one: true, size: (self, si) => 10 * si } } });
 			const position = { left: u.valToPos(1, 'x'), top: u.valToPos(50, 'y') };
 			u.setCursor(position);
-			await frame();
+			await commit();
 			const point = u.over.querySelector('.u-cursor-pt');
 			assert.equal(point.style.width, '20px');
 			u.addSeries({
@@ -1320,7 +1436,7 @@ for (const table of [false, true]) {
 			}, 1);
 			u.setData([data[0], [70, 80, 90], data[1], data[2]], false);
 			u.setLegend({ idx: 1 });
-			await frame();
+			await commit();
 			let focusEvents = 0;
 			let rowReads = 0;
 			u.hooks.setSeries = [() => focusEvents++];
@@ -1331,7 +1447,7 @@ for (const table of [false, true]) {
 			assert.equal(u.series[1].alpha, 0.25);
 			assert.equal(focusEvents, 0);
 			assert.equal(rowReads, 0);
-			await frame();
+			await commit();
 			assert.equal(rowReads, 0);
 			assert.equal(point.style.width, '30px');
 		});
@@ -1342,13 +1458,13 @@ for (const table of [false, true]) {
 				values: (self, si, idx) => ({ Value: format(self.data?.[si]?.[idx]), Double: format(self.data?.[si]?.[idx]) }),
 			} : { value: (self, value) => format(value) } });
 			u.setLegend({ idx: 0 });
-			await frame();
+			await commit();
 			const cells = [...row(u, 1).querySelectorAll('td')];
 			const textNodes = cells.map(cell => cell.firstChild);
 			for (const idx of [1, 2, 0]) {
 				u.setLegend({ idx });
 				const expected = format(data[1][idx]);
-				await frame();
+				await commit();
 				assert.deepEqual(cells.map(cell => cell.textContent), table ? [expected, expected] : [expected]);
 				assert.ok(cells.every(cell => cell.childNodes.length == 1));
 				assertNodes(cells.map(cell => cell.firstChild), textNodes);
@@ -1539,7 +1655,7 @@ for (const table of [false, true]) {
 		// Historical contract: neither index changes nor marker-mode toggles refresh cached presentation.
 		it.skip('derives markers only from the final coalesced index and marker mode', async () => {
 			const calls = [];
-			const u = await plot({ render: false, legend: { markers: {
+			const u = await plot({ legend: { markers: {
 				show: true,
 				width: (self, i) => (calls.push(`width:${self.series[i].label}:${i}`), i),
 				dash: () => 'solid',
@@ -1551,7 +1667,7 @@ for (const table of [false, true]) {
 			u.setLegend({ idx: 1 });
 			u.legend.markers.show = true;
 			assert.equal(calls.length, 0);
-			await frame();
+			await commit();
 			assert.deepEqual([...calls].sort(), ['width:Alpha:1', 'fill:Alpha:1', 'width:Beta:2', 'fill:Beta:2'].sort());
 			const rows = [...u.root.querySelectorAll('tbody tr')].slice(-2);
 			for (const changed of [true, false]) {
@@ -1566,7 +1682,7 @@ for (const table of [false, true]) {
 				u.legend.markers.show = true;
 				u.setLegend({ idx: 2 });
 				assert.equal(calls.length, 0);
-				await frame();
+				await commit();
 				assert.deepEqual([...calls].sort(), changed ? ['width:Beta:1', 'fill:Beta:1', 'width:Alpha:2', 'fill:Alpha:2'].sort() : []);
 				assertNodes([...u.root.querySelectorAll('tbody tr')].slice(-2), [rows[1], rows[0]]);
 				for (const [i, tr] of [rows[1], rows[0]].entries()) {
@@ -1868,7 +1984,7 @@ for (const table of [false, true]) {
 				const cell = alpha.querySelector('td');
 				for (const [idx, expected] of [[0, '0'], [1, ''], [null, '--'], [2, '30']]) {
 					u.setLegend({ idx });
-					await frame();
+					await commit();
 					assert.equal(row(u, 1) === alpha, true);
 					assert.equal(alpha.querySelectorAll('td').length, 1);
 					assert.equal(alpha.querySelector('td') === cell, true);
@@ -1890,7 +2006,7 @@ for (const table of [false, true]) {
 				const legend = u.root.querySelector('.u-legend');
 				assert.deepEqual([...legend.querySelectorAll('thead th')].map(cell => cell.textContent), ['', 'Value', 'Double']);
 				u.setLegend({ idx: 2 });
-				await frame();
+				await commit();
 				assertValues(row(u, 1), 30);
 				assertValues(row(u, 2), 60);
 			});
@@ -1904,13 +2020,13 @@ for (const table of [false, true]) {
 
 			const nonlive = await plot({ legend: { live: false } });
 			const nonliveLegend = nonlive.root.querySelector('.u-legend');
-			assert.equal(nonliveLegend.className, 'u-legend u-inline');
+			assert.deepEqual([...nonliveLegend.classList].sort(), ['u-btm', 'u-inline', 'u-legend']);
 			assert.deepEqual([...nonliveLegend.querySelectorAll('tbody tr')].map(tr => tr.querySelector('.u-label').textContent), ['Alpha', 'Beta']);
 			assert.equal(nonliveLegend.querySelectorAll('.u-value').length, 0);
 			const nonliveRows = [...nonliveLegend.querySelectorAll('tbody tr')];
 			nonlive.setSeries(1, { show: false });
 			nonlive.setSeries(2, { focus: true });
-			await frame();
+			await commit();
 			assertNodes([...nonliveLegend.querySelectorAll('tbody tr')], nonliveRows);
 			assert.equal(nonliveLegend.querySelectorAll('td').length, 0);
 			assert.equal(nonliveRows[0].classList.contains('u-off'), true);
@@ -2063,17 +2179,25 @@ for (const table of [false, true]) {
 		it('exposes initial series data in lifecycle hooks without requiring legend DOM', async () => {
 			const added = [];
 			const lifecycle = [];
-			const u = await plot({ render: false, hooks: {
+			const u = await plot({ hooks: {
 				addSeries: [(u, si) => added.push([si, u.series[si].label, u.series[si].show])],
-				init: [u => lifecycle.push(['init', u.series.map(s => s.label)])],
-				ready: [u => lifecycle.push(['ready', u.series.map(s => s.label)])],
+				init: [u => {
+					assert.equal(u.root.querySelector('.u-legend'), null);
+					lifecycle.push(['init', u.series.map(s => s.label)]);
+				}],
+				draw: [u => {
+					assert.equal(u.root.querySelector('.u-legend'), null, 'the first draw precedes legend creation');
+				}],
+				ready: [u => {
+					assert.equal(u.status, 1);
+					assert.equal(u.root.querySelectorAll('tbody tr').length, table ? 2 : 3);
+					lifecycle.push(['ready', u.series.map(s => s.label)]);
+				}],
 			} });
 			assert.deepEqual(added, [[0, 'Time', true], [1, 'Alpha', true], [2, 'Beta', true]]);
 			assert.deepEqual(lifecycle, [
 				['init', ['Time', 'Alpha', 'Beta']], ['ready', ['Time', 'Alpha', 'Beta']],
 			]);
-			assert.equal(u.root.querySelector('.u-legend') === null, true);
-			await frame();
 			assert.equal(u.root.querySelectorAll('tbody tr').length, table ? 2 : 3);
 		});
 
@@ -2089,7 +2213,8 @@ for (const table of [false, true]) {
 					legend = element;
 					body = element.firstElementChild;
 					assert.equal(element.parentNode === self.root, true);
-					assert.equal(element.className, table ? 'u-legend' : 'u-legend u-inline u-live');
+					assert.deepEqual([...element.classList].sort(),
+						table ? ['u-btm', 'u-legend'] : ['u-btm', 'u-inline', 'u-legend', 'u-live']);
 					assert.equal(body.tagName, table ? 'THEAD' : 'TBODY');
 					assert.equal(element.querySelector('tbody').children.length, table ? 2 : 3);
 					element.classList.add('mounted');
@@ -2097,14 +2222,14 @@ for (const table of [false, true]) {
 				},
 				hooks: { init: [() => order.push('init')], ready: [() => order.push('ready')] },
 			});
-			assert.deepEqual(order.slice().sort(), ['init', 'mount', 'ready']);
+			assert.deepEqual(order, ['init', 'mount', 'ready']);
 			assert.equal(host.firstChild === legend, true);
 			assert.equal(legend.classList.contains('mounted'), true);
 			const legendBody = legend.querySelector('tbody');
 			assert.equal(legendBody.children.length, table ? 2 : 3);
 			u.setLegend({ idx: 1 });
 			assert.deepEqual(values(u), ['v=20', 'v=50']);
-			await frame();
+			await commit();
 			assert.equal(host.firstChild === legend, true);
 			assert.equal(legend.firstElementChild === body, true);
 			assert.equal(legend.classList.contains('mounted'), true);
@@ -2118,7 +2243,6 @@ for (const table of [false, true]) {
 			const key = `legend-shared-host-${table}`;
 			const makePlot = label => plot({
 				label,
-				render: false,
 				cursor: { focus: { prox: -1 }, sync: { key } },
 				mount(self, element) {
 					legends.push(element);
@@ -2128,7 +2252,7 @@ for (const table of [false, true]) {
 			const top = await makePlot('In');
 			const bottom = await makePlot('Out');
 			bottom.root.appendChild(host);
-			await frame();
+			await commit();
 			assert.equal(top.root.querySelector('.u-legend') === null, true);
 			assert.equal(host.querySelectorAll('.u-legend').length, 2);
 			const rows = legends.map(el => el.querySelectorAll('tbody tr')[table ? 0 : 1]);
@@ -2136,7 +2260,7 @@ for (const table of [false, true]) {
 
 			top.setCursor({ left: top.valToPos(1, 'x'), top: 20 }, true, true);
 			assert.deepEqual([top.cursor.idx, bottom.cursor.idx], [1, 1]);
-			await frame();
+			await commit();
 			rows.forEach(el => assertValues(el, 20));
 			for (const [i, u] of [top, bottom].entries()) {
 				const other = i == 0 ? bottom : top;
@@ -2144,10 +2268,10 @@ for (const table of [false, true]) {
 				mouse('click', label);
 				assert.equal(u.series[1].show, false);
 				assert.equal(other.series[1].show, true);
-				await frame();
+				await commit();
 				assert.equal(rows[i].classList.contains('u-off'), true);
 				mouse('click', label);
-				await frame();
+				await commit();
 				assert.equal(u.series[1].show, true);
 				assert.equal(rows[i].classList.contains('u-off'), false);
 			}
@@ -2157,11 +2281,106 @@ for (const table of [false, true]) {
 			assert.equal(host.querySelectorAll('.u-legend').length, 1);
 			assert.equal(host.firstChild === legends[1], true);
 			bottom.setLegend({ idx: 2 });
-			await frame();
+			await commit();
 			assertValues(rows[1], 30);
 		});
 
-		it('coalesces same-turn add and remove without rendering transient rows', async () => {
+		for (const change of ['visibility', 'focus']) {
+			it(`defers dynamic ${change} selection to the normal chart commit without rendering pending selection`, async () => {
+				let selections = 0;
+				const u = await plot({ legend: {
+					filter(self, si) {
+						selections++;
+						return change == 'visibility' ? self.series[si].show : self.series[si]._focus !== false;
+					},
+				} });
+				const rows = [...u.root.querySelectorAll('tbody tr')];
+				let rowReads = 0;
+				Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
+				selections = 0;
+				let hooks = 0;
+				u.hooks.setSeries = [self => {
+					hooks++;
+					assert.equal(selections, 0);
+					assert.equal(rowReads, 0);
+					assert.deepEqual(self.legend.order, [1, 2]);
+					assertNodes([...self.root.querySelectorAll('tbody tr')], rows);
+				}];
+				u.setSeries(1, change == 'visibility' ? { show: false } : { focus: true });
+				assert.equal(hooks, 1);
+				assert.equal(rowReads, 0);
+				assert.ok(rows.every(tr => !tr.classList.contains('u-off') && tr.style.opacity == ''));
+				await commit();
+				assert.ok(selections > 0);
+				assert.deepEqual(u.legend.order, change == 'visibility' ? [2] : [1]);
+				const labels = [...u.root.querySelectorAll('tbody .u-label')].map(el => el.textContent);
+				assert.deepEqual(labels, [...(table ? [] : ['Time']), change == 'visibility' ? 'Beta' : 'Alpha']);
+			});
+		}
+
+		for (const complete of ['setLegend', 'commit', 'cursor']) {
+			it(`keeps structural edits idle until ${complete} completes aligned data and selection`, async () => {
+				const u = await plot({ cursor: { focus: { prox: -1 } } });
+				let draws = 0;
+				let rowReads = 0;
+				u.hooks.draw = [() => draws++];
+				Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
+				const rows = [...u.root.querySelectorAll('tbody tr')];
+				u.addSeries({ label: 'Added', stroke: 'blue', ...(table && { values: () => ({ Value: '--', Double: '--' }) }) });
+				await commit();
+				assert.equal(draws, 0, 'addSeries does not force a canvas commit');
+				assert.equal(rowReads, 0);
+				assertNodes([...u.root.querySelectorAll('tbody tr')], rows);
+				u.setData([...data, [70, 80, 90]], complete == 'commit');
+				if (complete == 'setLegend')
+					u.setLegend({});
+				else if (complete == 'cursor')
+					u.setCursor({ left: u.valToPos(1, 'x'), top: 20 });
+				else
+					await commit();
+				assert.equal(u.root.querySelectorAll('tbody tr').length, rows.length + 1);
+				assert.deepEqual(u.legend.order, [1, 2, 3]);
+				rowReads = draws = 0;
+				u.delSeries(3);
+				await commit();
+				assert.equal(draws, 0, 'delSeries does not force a canvas commit');
+				assert.equal(rowReads, 0);
+				assert.equal(u.root.querySelectorAll('tbody tr').length, rows.length + 1);
+				u.setData(data, false);
+				u.setLegend({});
+				assertNodes([...u.root.querySelectorAll('tbody tr')], rows);
+				assert.deepEqual(u.legend.order, [1, 2]);
+			});
+		}
+
+		for (const operation of ['setLegend', 'setCursor']) {
+			it(`retains structural dirty work created by a ${operation} hook until an explicit completion`, async () => {
+				const u = await plot({ cursor: { focus: { prox: -1 } } });
+				const rows = [...u.root.querySelectorAll('tbody tr')];
+				let added = false;
+				u.hooks.setLegend = [self => {
+					if (added)
+						return;
+					added = true;
+					assertValues(row(self, 1), 20);
+					self.addSeries({ label: 'From hook', stroke: 'blue', ...(table && { values: () => ({ Value: '--', Double: '--' }) }) });
+					self.setData([...data, [70, 80, 90]], false);
+				}];
+				if (operation == 'setLegend')
+					u.setLegend({ idx: 1 });
+				else
+					u.setCursor({ left: u.valToPos(1, 'x'), top: 20 });
+				assert.equal(added, true);
+				assertNodes([...u.root.querySelectorAll('tbody tr')], rows);
+				await commit();
+				assertNodes([...u.root.querySelectorAll('tbody tr')], rows);
+				u.setLegend({});
+				assert.equal(u.root.querySelectorAll('tbody tr').length, rows.length + 1);
+				assert.deepEqual(u.legend.order, [1, 2, 3]);
+			});
+		}
+
+		it('keeps add and remove dirty until setLegend without rendering transient rows', async () => {
 			const u = await plot();
 			const rows = [...u.root.querySelectorAll('tbody tr')];
 			let rowReads = 0;
@@ -2170,11 +2389,12 @@ for (const table of [false, true]) {
 			u.addSeries({ label: 'Transient', stroke: 'blue' }, 1);
 			Object.defineProperty(u.series[1], 'class', { get() { transientReads++; return ''; } });
 			u.delSeries(1);
-			u.setLegend({ idx: 2 });
 			assert.equal(rowReads, 0);
+			u.setLegend({ idx: 2 });
+			assert.equal(rowReads, 1);
 			assert.equal(transientReads, 0);
 			assert.deepEqual(values(u), ['v=30', 'v=60']);
-			await frame();
+			await commit();
 			assert.equal(rowReads, 1);
 			assert.equal(transientReads, 0);
 			assertNodes([...u.root.querySelectorAll('tbody tr')], rows);
@@ -2189,10 +2409,9 @@ for (const table of [false, true]) {
 
 			mouse('mouseenter', alpha.firstChild);
 			mouse('mouseleave', legend);
-			await frame();
+			await commit();
 			u.delSeries(1);
 			u.setData([data[0], data[2]], false);
-			u.setLegend({ idx: 1 });
 			let events = 0;
 			u.hooks.setSeries = [() => events++];
 			assert.equal(alpha.isConnected, true);
@@ -2202,8 +2421,9 @@ for (const table of [false, true]) {
 			assert.equal(u.series[1].label, 'Beta');
 			assert.equal(u.series[1].show, true);
 			assert.equal(u.series[1]._focus, null);
+			assert.equal(alpha.isConnected, true);
+			u.setLegend({ idx: 1 });
 			assert.deepEqual(values(u), ['v=50']);
-			await frame();
 			assert.equal(alpha.isConnected, false);
 			assert.equal(row(u, 1) === beta, true);
 			assert.equal(beta.style.opacity, '');
@@ -2226,17 +2446,17 @@ for (const table of [false, true]) {
 			};
 			u.addSeries(added, 2);
 			u.setData([data[0], data[1], [70, 80, 90], data[2]]);
-			await frame();
+			await commit();
 			assert.deepEqual([...u.root.querySelectorAll('tbody .u-label')].map(el => el.textContent),
 				table ? ['Alpha', 'Added', 'Beta'] : ['Time', 'Alpha', 'Added', 'Beta']);
 			assert.equal(row(u, 1) === alpha, true);
 			assert.equal(row(u, 3) === beta, true);
 			u.setLegend({ idx: 1 });
-			await frame();
+			await commit();
 			assertValues(row(u, 2), 80);
 			u.delSeries(2);
 			u.setData(data, false);
-			await frame();
+			u.setLegend({});
 			assert.equal(row(u, 1) === alpha, true);
 			assert.equal(row(u, 2) === beta, true);
 			assert.deepEqual([...u.root.querySelectorAll('tbody .u-label')].map(el => el.textContent),
@@ -2274,7 +2494,7 @@ for (const table of [false, true]) {
 			});
 			for (const u of [source, peer])
 				assert.deepEqual(u.series.slice(1).map(s => s.show), [true, true]);
-			await frame();
+			await commit();
 			for (const u of [source, peer]) {
 				assert.deepEqual(u.series.slice(1).map(s => s.show), [true, true]);
 				assert.deepEqual([1, 2].map(si => row(u, si).classList.contains('u-off')), [false, false]);
@@ -2282,7 +2502,7 @@ for (const table of [false, true]) {
 		});
 
 		for (const mode of [1, 2]) {
-			it(`notifies each isolation setter with intermediate visibility and coalesces synced DOM in mode ${mode}`, async () => {
+			it(`notifies each isolation setter with intermediate visibility and synchronous fixed-membership DOM in mode ${mode}`, async () => {
 				const events = { source: [], peer: [], pub: [] };
 				const snapshot = (self, si, opts) => [si, opts.show, self.series.slice(1).map(s => s.show)];
 				const key = `legend-sequential-isolate-${table}-${mode}`;
@@ -2310,10 +2530,10 @@ for (const table of [false, true]) {
 					}));
 					const expected = [[1, true, [true, !show]], [2, show, [true, show]]];
 					assert.deepEqual(events, { source: expected, peer: expected, pub: expected });
-					assert.deepEqual(rowReads, [0, 0]);
+					assert.deepEqual(rowReads, [1, 1]);
 					for (const u of [source, peer])
 						assert.deepEqual(u.series.slice(1).map(s => s.show), [true, show]);
-					await frame();
+					await commit();
 					assert.deepEqual(rowReads, [1, 1]);
 					for (const u of [source, peer])
 						assert.deepEqual([...u.root.querySelectorAll('tbody tr')].slice(-2).map(tr => !tr.classList.contains('u-off')), [true, show]);
@@ -2343,7 +2563,7 @@ for (const table of [false, true]) {
 					}));
 					assert.equal(rowReads, 0);
 					assert.deepEqual(snapshots, expected.map((show, i) => ({ i: i + 1, show, state: expected })));
-					await frame();
+					await commit();
 					assert.equal(rowReads, 1);
 					assert.deepEqual([...u.root.querySelectorAll('tbody tr')].slice(-2).map(tr => !tr.classList.contains('u-off')), expected);
 				}

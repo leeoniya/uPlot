@@ -19,10 +19,11 @@ export function createLegend(self, parent, opts, selectRows) {
 
 	function select(data) {
 		let count = 0;
-		for (let index = 0; index < series.length; index++) {
-			if (index == 0 && (multi || !legend.live || mode == 2))
-				continue;
-
+		const order = legend.order;
+		const length = order == null ? series.length - 1 : order.length;
+		const start = multi || !legend.live || mode == 2 ? 0 : -1;
+		for (let i = start; i < length; i++) {
+			const index = i == -1 ? 0 : order == null ? i + 1 : order[i];
 			const s = series[index];
 			let entry = entriesBySeries.get(s);
 			if (entry == null) {
@@ -49,8 +50,6 @@ export function createLegend(self, parent, opts, selectRows) {
 			}
 
 			const selected = select(data);
-			for (let i = 0; i < selected.length; i++)
-				template.prepare(selected[i]);
 			template.update(data, focus);
 			rows.update(selected);
 

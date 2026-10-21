@@ -9,6 +9,13 @@
 	font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 	line-height: 1.5;
 	width: min-content;
+	display: grid;
+	grid-template-columns: max-content auto max-content;
+	grid-template-areas:
+		"title title title"
+		". top ."
+		"left plot right"
+		". bottom .";
 }
 
 .u-title {
@@ -48,6 +55,35 @@
 	text-align: center;
 }
 
+.uplot > .u-title {
+	grid-area: title;
+}
+
+.uplot > .u-wrap,
+.uplot > canvas {
+	grid-area: plot;
+}
+
+.uplot > .u-legend.u-top {
+	grid-area: top;
+}
+
+.uplot > .u-legend.u-btm {
+	grid-area: bottom;
+}
+
+.uplot > .u-legend.u-rgt {
+	grid-area: right;
+	align-self: start;
+	margin: 0 0 0 16px;
+}
+
+.uplot > .u-legend.u-lft {
+	grid-area: left;
+	align-self: start;
+	margin: 0 16px 0 0;
+}
+
 .u-inline {
 	display: block;
 }
@@ -62,6 +98,19 @@
 
 .u-legend th {
 	font-weight: 600;
+}
+
+.u-legend:not(.u-inline) tbody th {
+	text-align: left;
+}
+
+.u-legend:not(.u-inline) .u-value,
+.u-legend:not(.u-inline) thead th {
+	text-align: right;
+}
+
+.u-legend:not(.u-inline) .u-value {
+	font-variant-numeric: tabular-nums;
 }
 
 .u-legend th > * {
@@ -140,6 +189,7 @@
 .u-select.u-off,
 .u-cursor-x.u-off,
 .u-cursor-y.u-off,
-.u-cursor-pt.u-off {
+.u-cursor-pt.u-off,
+.u-cursor-pt.u-excl {
 	display: none;
 }

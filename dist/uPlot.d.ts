@@ -88,8 +88,8 @@ declare class uPlot {
 	/** sets the cursor position (relative to plotting area) */
 	setCursor(opts: {left: number, top: number}, fireHook?: boolean): void;
 
-	/** sets the legend to the values of the specified idx */
-	setLegend(opts: {idx?: number, idxs?: (number | null)[]}, fireHook?: boolean): void;
+	/** refreshes legend values and selection; {} refreshes callback closure state without changing indices */
+	setLegend(opts: {idx?: number | null, idxs?: (number | null)[]}, fireHook?: boolean): void;
 
 	// TODO: include other series style opts which are dynamically pulled?
 	/** toggles series visibility or focus */
@@ -327,8 +327,25 @@ declare namespace uPlot {
 		show?: boolean;	// true
 		/** show series values at current cursor.idx */
 		live?: boolean;	// true
+		/** initial layout; null or omitted infers table from series.values, otherwise inline */
+		mode?: 'inline' | 'table' | null;
+		/** initial position outside chart width/height: 0 top, 1 right, 2 bottom (default), 3 left */
+		side?: 0 | 1 | 2 | 3;
 		/** switches primary interaction mode to toggle-one/toggle-all */
 		isolate?: boolean; // false
+		/** retains Y series before sorting; indices refer to u.series, not display positions */
+		filter?: (self: uPlot, seriesIdx: number) => boolean;
+		/** compares filtered Y series; ties retain original series order */
+		sort?: (self: uPlot, seriesIdxA: number, seriesIdxB: number) => number;
+		/** selects a half-open range from the filtered, sorted Y indices; X stays pinned outside this range */
+		limit?: (self: uPlot, seriesIdxs: readonly number[]) => readonly [start: number, end: number];
+		/** selected Y indices in display order (readback-only, borrowed core-owned buffer).
+		 * Mutations can leave selection pending; setLegend({}) refreshes it synchronously. */
+		order?: readonly number[];
+		/** filtered Y count before limiting (readback-only) */
+		count?: number;
+		/** effective nonnegative integer range, clamped to count (readback-only, borrowed buffer) */
+		range?: readonly [start: number, end: number];
 		/** series indicators */
 		markers?: Legend.Markers;
 
@@ -678,6 +695,13 @@ declare namespace uPlot {
 
 		/** a series-matched array of indices returned by dataIdx() */
 		idxs?: (number | null)[];
+
+		/** collects per-series distances independently of focus effects (false by default) */
+		trackDists?: boolean;
+
+		/** absolute focus.dist results before bias/prox checks; CSS pixels by default, Infinity when unavailable.
+		 * Readback-only, updated in place and indexed by series; null when trackDists is false. */
+		dists?: readonly number[] | null;
 
 		/** fires on debounced mousemove events; returns refined [left, top] tuple to snap cursor position */
 		move?: Cursor.MousePosRefiner;
