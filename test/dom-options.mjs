@@ -179,10 +179,11 @@ describe('DOM options', () => {
 		['merged root without layers', { dom: { over: false, under: false }, legend: { show: false } }, false],
 		['canvas-only root', { dom: { uplot: false, over: true, under: true }, title: 'Suppressed', legend: { show: true } }, false],
 	]) {
-		it(`exposes final DOM to plugin opts and preserves its mutations with ${name}`, async () => {
+		it(`exposes final DOM to plugin init and preserves its mutations with ${name}`, async () => {
 			const canvasOnly = options.dom?.uplot === false;
 			const events = [];
 			const additions = [];
+			let provisional;
 			let refs;
 			let can;
 			let wrap;
@@ -222,7 +223,7 @@ describe('DOM options', () => {
 			function assertPreserved(self, event) {
 				events.push(event);
 				for (const key of ['root', 'over', 'under', 'ctx'])
-					assert.equal(self[key], refs[key], `${key} identity survives plugin opts`);
+					assert.equal(self[key], refs[key], `${key} identity survives plugin init`);
 				assertDOM(self);
 				assert.equal(self.root.parentElement, document.body);
 				for (const el of new Set([self.root, can, self.over, self.under].filter(Boolean)))
@@ -238,23 +239,27 @@ describe('DOM options', () => {
 				plugins: [{
 					opts(self) {
 						events.push('opts');
-						assert.ok(self.root, 'root exists before plugin opts');
-						refs = { root: self.root, over: self.over, under: self.under, ctx: self.ctx };
-						can = canvas(self);
-						wrap = nested ? self.root.querySelector('.u-wrap') : self.root;
-						assertDOM(self);
-						assert.equal(self.root.parentElement, null, 'internal hierarchy exists before mounting');
-						for (const el of new Set([self.root, can, self.over, self.under].filter(Boolean))) {
-							el.classList.add('plugin-dom');
-							if (el !== can) {
-								const child = document.createElement('span');
-								el.appendChild(child);
-								additions.push([el, child]);
-							}
-						}
+						provisional = self;
+						for (const key of ['root', 'over', 'under', 'ctx'])
+							assert.equal(self[key], undefined, `${key} is not initialized during plugin opts`);
 					},
 					hooks: {
-						init: [self => assertPreserved(self, 'init')],
+						init: [self => {
+							assert.equal(self, provisional);
+							refs = { root: self.root, over: self.over, under: self.under, ctx: self.ctx };
+							can = canvas(self);
+							wrap = nested ? self.root.querySelector('.u-wrap') : self.root;
+							assertDOM(self);
+							for (const el of new Set([self.root, can, self.over, self.under].filter(Boolean))) {
+								el.classList.add('plugin-dom');
+								if (el !== can) {
+									const child = document.createElement('span');
+									el.appendChild(child);
+									additions.push([el, child]);
+								}
+							}
+							assertPreserved(self, 'init');
+						}],
 						ready: [self => assertPreserved(self, 'ready')],
 					},
 				}],

@@ -34,7 +34,9 @@ describe('canvas context attributes', () => {
 
 				assert.equal(calls.length, 1);
 				assert.equal(calls[0].args[0], '2d');
-				assert.equal(calls[0].args[1], attrs);
+				assert.deepEqual(calls[0].args[1], attrs);
+				if (attrs !== undefined)
+					assert.notEqual(calls[0].args[1], attrs, 'context attributes come from copied options');
 				assert.equal(calls[0].ctx, u.ctx);
 
 				u.setSize({ width: 500, height: 350 });

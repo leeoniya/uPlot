@@ -4506,7 +4506,20 @@ function scanAuto(self, scaleKey, i0, i1, viaAutoScaleX) {
 }
 
 function uPlot(opts, data, then) {
-	let pxRatio$1 = opts.pxRatio ?? pxRatio;
+	const self = {
+		uid: rand().toString(36).slice(-6),
+		status: 0,
+	};
+
+	opts = copy(opts);
+
+	(opts.plugins || []).forEach(p => {
+		if (p.opts)
+			opts = p.opts(self, opts) || opts;
+	});
+
+	let pxRatio$1 = self.pxRatio = opts.pxRatio ?? pxRatio;
+	const mode = self.mode = opts.mode ?? 1;
 
 	function setPxRatio(_pxRatio) {
 		_pxRatio ??= pxRatio;
@@ -4517,15 +4530,8 @@ function uPlot(opts, data, then) {
 			commit();
 		}
 	}
-	const self = {
-		uid: rand().toString(36).slice(-6),
-		mode: opts.mode ?? 1,
-		pxRatio: pxRatio$1,
-		setPxRatio,
-	};
 
 	self.setPxRatio = setPxRatio;
-	const mode = self.mode;
 
 	function getHPos(val, scale, dim, off) {
 		let pct = scale.valToPct(val);
@@ -4545,7 +4551,6 @@ function uPlot(opts, data, then) {
 	self.valToPosV = getVPos;
 
 	let ready = false;
-	self.status = 0;
 
 	const can = placeTag("canvas");
 	const ctx = self.ctx = can.getContext("2d", opts.ctxAttrs);
@@ -4575,19 +4580,12 @@ function uPlot(opts, data, then) {
 		wrap.appendChild(can);
 	const over = self.over = domRoot && opts.dom?.over !== false ? placeDiv(OVER, wrap) : null;
 
-	opts = copy(opts);
-
 	const usePathCache = opts.cache?.paths ?? true;
 	const useDataCache = opts.cache?.data ?? true;
 
 	const pxAlign = +(opts.pxAlign ?? 1);
 
 	const pxRound = pxRoundGen(pxAlign);
-
-	(opts.plugins || []).forEach(p => {
-		if (p.opts)
-			opts = p.opts(self, opts) || opts;
-	});
 
 	const ms = opts.ms || 1e-3;
 

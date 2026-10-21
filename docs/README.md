@@ -154,7 +154,12 @@ A missing overlay or underlay has the value `null` in `u.over` or `u.under`.
 Without `.u-over`, `u.rect` returns `null` without measuring the canvas or firing a `syncRect` hook.
 With `.u-over`, rectangle measurement is unchanged. Only cursor-enabled charts expose `u.syncRect()` and invalidate the rectangle cache on scroll and window resize.
 
-Plugin `opts` callbacks receive the root, canvas context, and any enabled layers. The constructor options determine this DOM before plugins run.
+Plugin `opts` callbacks run in plugin order on a copy of the constructor options, before option-dependent initialization.
+Each callback can modify the options or return replacement options for the next callback.
+The provisional `self` object has `uid` and `status`, but no chart DOM, canvas context, or chart methods.
+The constructor uses the final options to initialize that same object and create the DOM.
+Use `hooks.init` for code that needs the chart DOM or methods, including code previously in an `opts` callback.
+
 For a merged root, `u.root.querySelector(".u-wrap")` returns `null` because the root itself is the wrapper.
 A root-inclusive lookup is `u.root.matches(".u-wrap") ? u.root : u.root.querySelector(".u-wrap")`.
 Borders and padding belong on an external host, not the merged root or canvas.

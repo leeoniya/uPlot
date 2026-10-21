@@ -1479,7 +1479,7 @@ declare namespace uPlot {
 	}
 
 	export interface Plugin {
-		/** can mutate provided opts as necessary */
+		/** modifies or replaces copied options before initialization; self is provisional, with DOM and methods available in hooks.init */
 		opts?: (self: uPlot, opts: Options) => void | Options;
 		hooks: Hooks.ArraysOrFuncs;
 	}
