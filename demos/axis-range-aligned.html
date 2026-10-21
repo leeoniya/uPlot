@@ -56,7 +56,12 @@
 			<output id="ramp-value" for="ramp">1</output>
 			<label><input id="exact-count" type="checkbox"> Exact tick count (aligned axes)</label>
 		</div>
-		<p>The height and walk controls update both charts. Ramp and exact-count controls affect D3 only when uPlot ranging is enabled.</p>
+		<div class="axis-control">
+			<label for="scale-padding">Scale padding</label>
+			<input id="scale-padding" type="range" min="0" max="20" step="5" value="10">
+			<output id="scale-padding-value" for="scale-padding">10%</output>
+		</div>
+		<p>The height and walk controls update both charts. Ramp, exact-count, and scale-padding controls affect D3 only when uPlot ranging is enabled.</p>
 		<h2>uPlot automatic Y range</h2>
 		<output id="stats" aria-live="polite"></output>
 		<p>Only the left Y axis draws horizontal grid lines. With exact counts enabled, the right ticks stay aligned with those lines.</p>
@@ -66,7 +71,7 @@
 		<label><input id="d3-ranging" type="checkbox"> Use uPlot ranging in D3</label>
 		<output id="d3-stats" aria-live="polite"></output>
 		<p>By default, D3 uses <code>nice(count)</code> and <code>ticks(count)</code> with a height-based hint of one interval per 50px. Its two Y axes are independent.</p>
-		<p>With uPlot ranging enabled, D3 uses uPlot’s bounds, ticks, and numeric labels, including the ramp and exact-count settings.</p>
+		<p>With uPlot ranging enabled, D3 uses uPlot’s bounds, ticks, and numeric labels, including the ramp, exact-count, and scale-padding settings.</p>
 		<div id="d3-plot"></div>
 	</main>
 	<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>

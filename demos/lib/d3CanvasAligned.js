@@ -3,7 +3,7 @@ import { numAxisSplits, numAxisVals } from '../../src/opts.js';
 
 const margins = {top: 10, right: 100, bottom: 40, left: 100};
 
-export function createD3CanvasAligned(d3, host, stats, data, size, { ramp = 1, exact = false, useUplot = false } = {}) {
+export function createD3CanvasAligned(d3, host, stats, data, size, { ramp = 1, exact = false, pad = .1, useUplot = false } = {}) {
 	const canvas = document.createElement('canvas');
 	const ctx = canvas.getContext('2d');
 	host.appendChild(canvas);
@@ -42,7 +42,7 @@ export function createD3CanvasAligned(d3, host, stats, data, size, { ramp = 1, e
 		function yAxis(extent) {
 			const scale = d3.scaleLinear().range([plotBottom, plotTop]);
 			if (useUplot) {
-				const result = rangeY(extent[0], extent[1], plotHeight, undefined, ramp, exact);
+				const result = rangeY(extent[0], extent[1], plotHeight, { min: { pad }, max: { pad } }, ramp, exact);
 				const ticks = result?.count > 0 ? (result.count == 1 ? [result.min, result.max] :
 					numAxisSplits(null, 0, result.min, result.max, result.incr, 0, true)) : [];
 				scale.domain(result?.count > 0 ? [result.min, result.max] : extent);
@@ -134,8 +134,10 @@ export function createD3CanvasAligned(d3, host, stats, data, size, { ramp = 1, e
 			draw();
 		},
 		setRanging(options) {
-			const changed = options.useUplot != useUplot || options.useUplot && (options.ramp != ramp || options.exact != exact);
+			const nextPad = options.pad ?? .1;
+			const changed = options.useUplot != useUplot || options.useUplot && (options.ramp != ramp || options.exact != exact || nextPad != pad);
 			({ ramp, exact, useUplot } = options);
+			pad = nextPad;
 			if (changed)
 				draw();
 		},

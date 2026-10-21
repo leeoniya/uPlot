@@ -81,6 +81,38 @@ describe('aligned random-walk demo', () => {
 		approximate(u);
 	});
 
+	it('updates both Y scales at every padding step without replacing data or resetting zoom', async () => {
+		assert.equal(input('scale-padding').min, '0');
+		assert.equal(input('scale-padding').max, '20');
+		assert.equal(input('scale-padding').step, '5');
+		assert.equal(input('scale-padding').valueAsNumber, 10);
+		assert.equal(input('scale-padding-value').value, '10%');
+		u.setScale('x', { min: 100, max: 200 });
+		await Promise.resolve();
+		const data = u.data;
+		for (const exact of [false, true]) {
+			input('exact-count').checked = exact;
+			input('exact-count').dispatchEvent(new Event('change'));
+			for (const percent of [0, 5, 10, 15, 20]) {
+				input('scale-padding').value = percent;
+				input('scale-padding').dispatchEvent(new Event('input'));
+				await Promise.resolve();
+				assert.equal(input('scale-padding-value').value, `${percent}%`);
+				const pad = percent / 100;
+				for (const [i, key] of ['left', 'right'].entries()) {
+					const series = u.series[i + 1];
+					const expected = rangeY(series.min, series.max, u.bbox.height / u.pxRatio,
+						{ min: { pad }, max: { pad } }, 1, exact);
+					assert.deepEqual([u.scales[key].min, u.scales[key].max], [expected.min, expected.max]);
+				}
+				assert.equal(u.data, data);
+				assert.deepEqual([u.scales.x.min, u.scales.x.max], [100, 200]);
+				if (exact)
+					aligned(u);
+			}
+		}
+	});
+
 	it('applies the decimal precision preset and resets zoom and density controls', async () => {
 		u.setScale('x', { min: 100, max: 200 });
 		input('height').value = 600;
@@ -300,16 +332,18 @@ describe('aligned random-walk demo', () => {
 		for (const method of ['setSize', 'redraw', 'setData', 'setScale'])
 			u[method] = () => calls.push(method);
 		const settings = ['left-start', 'left-spread', 'right-start', 'right-spread'].map(id => input(id).value);
-		const outputs = ['height-value', 'ramp-value'].map(id => input(id).value);
+		const outputs = ['height-value', 'ramp-value', 'scale-padding-value'].map(id => input(id).value);
 		u.destroy();
 		u = null;
 		assert.equal(input('plot').children.length, 0);
 		input('height').value = 600;
 		input('ramp').value = .25;
+		input('scale-padding').value = 20;
 		input('exact-count').checked = true;
 		window.dispatchEvent(new Event('resize'));
 		input('height').dispatchEvent(new Event('input'));
 		input('ramp').dispatchEvent(new Event('input'));
+		input('scale-padding').dispatchEvent(new Event('input'));
 		input('exact-count').dispatchEvent(new Event('change'));
 		input('d3-ranging').checked = true;
 		input('d3-ranging').dispatchEvent(new Event('change'));
@@ -320,6 +354,6 @@ describe('aligned random-walk demo', () => {
 		await Promise.resolve();
 		assert.deepEqual(calls, []);
 		assert.deepEqual(['left-start', 'left-spread', 'right-start', 'right-spread'].map(id => input(id).value), settings);
-		assert.deepEqual(['height-value', 'ramp-value'].map(id => input(id).value), outputs);
+		assert.deepEqual(['height-value', 'ramp-value', 'scale-padding-value'].map(id => input(id).value), outputs);
 	});
 });

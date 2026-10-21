@@ -14,6 +14,8 @@ export function createDemo(root) {
 	const ramp = root.querySelector('#ramp');
 	const rampValue = root.querySelector('#ramp-value');
 	const exactCount = root.querySelector('#exact-count');
+	const scalePadding = root.querySelector('#scale-padding');
+	const scalePaddingValue = root.querySelector('#scale-padding-value');
 	const randomize = root.querySelector('#randomize');
 	const precision = root.querySelector('#decimal-precision');
 	const reset = root.querySelector('#reset-zoom');
@@ -22,7 +24,7 @@ export function createDemo(root) {
 	const d3Stats = root.querySelector('#d3-stats');
 	const d3Plot = root.querySelector('#d3-plot');
 	const d3Ranging = root.querySelector('#d3-ranging');
-	const d3Options = () => ({ ramp: ramp.valueAsNumber, exact: exactCount.checked, useUplot: d3Ranging.checked });
+	const d3Options = () => ({ ramp: ramp.valueAsNumber, exact: exactCount.checked, pad: scalePadding.valueAsNumber / 100, useUplot: d3Ranging.checked });
 	const controls = ['left', 'right'].map(key => ({
 		start: root.querySelector(`#${key}-start`),
 		spread: root.querySelector(`#${key}-spread`),
@@ -51,8 +53,8 @@ export function createDemo(root) {
 		cursor: { drag: { x: true, y: false } },
 		scales: {
 			x: { time: false },
-			left: { axis: 1 },
-			right: { axis: 2 },
+			left: { axis: 1, range: { min: { pad: scalePadding.valueAsNumber / 100 }, max: { pad: scalePadding.valueAsNumber / 100 } } },
+			right: { axis: 2, range: { min: { pad: scalePadding.valueAsNumber / 100 }, max: { pad: scalePadding.valueAsNumber / 100 } } },
 		},
 		axes: [
 			{ size: 40 },
@@ -72,6 +74,7 @@ export function createDemo(root) {
 				height.removeEventListener('input', resize);
 				ramp.removeEventListener('input', setRamp);
 				exactCount.removeEventListener('change', setRamp);
+				scalePadding.removeEventListener('input', setPadding);
 				d3Ranging.removeEventListener('change', setD3Ranging);
 				form.removeEventListener('submit', regenerate);
 				randomize.removeEventListener('click', randomSettings);
@@ -95,6 +98,16 @@ export function createDemo(root) {
 		rampValue.value = ramp.value;
 		u.axes[1].ramp = u.axes[2].ramp = ramp.valueAsNumber;
 		u.axes[1].exact = u.axes[2].exact = exactCount.checked;
+		u.redraw(false, true);
+		setD3Ranging();
+	}
+
+	function setPadding() {
+		scalePaddingValue.value = `${scalePadding.value}%`;
+		for (const key of ['left', 'right']) {
+			const policy = u.scales[key]._policyY;
+			policy.min.pad = policy.max.pad = scalePadding.valueAsNumber / 100;
+		}
 		u.redraw(false, true);
 		setD3Ranging();
 	}
@@ -145,6 +158,7 @@ export function createDemo(root) {
 	height.addEventListener('input', resize);
 	ramp.addEventListener('input', setRamp);
 	exactCount.addEventListener('change', setRamp);
+	scalePadding.addEventListener('input', setPadding);
 	d3Ranging.addEventListener('change', setD3Ranging);
 	window.addEventListener('resize', resize);
 	form.addEventListener('submit', regenerate);

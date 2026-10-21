@@ -64,7 +64,7 @@ function createD3Spy() {
 	};
 }
 
-function assertDraw(d3, data, width, height, { ramp = 1, exact = false, useUplot = false } = {}, canvas, stats) {
+function assertDraw(d3, data, width, height, { ramp = 1, exact = false, pad = .1, useUplot = false } = {}, canvas, stats) {
 	const [x, left, right] = d3.scales.slice(-3);
 	const count = useUplot ? rangeYCount(height - 50, ramp) : Math.max(1, Math.floor((height - 50) / 50));
 	const axes = [];
@@ -80,7 +80,7 @@ function assertDraw(d3, data, width, height, { ramp = 1, exact = false, useUplot
 		let domain = extent, ticks = extent;
 		let labels = ticks.map(value => `scale${scale.id}:${count}:${value}`);
 		if (useUplot) {
-			const result = rangeY(...extent, height - 50, undefined, ramp, exact);
+			const result = rangeY(...extent, height - 50, { min: { pad }, max: { pad } }, ramp, exact);
 			assert.ok(result);
 			domain = [result.min, result.max];
 			ticks = result.count === 1 ? domain : numAxisSplits(null, i + 1, ...domain, result.incr, undefined, true);
@@ -182,6 +182,31 @@ describe('D3 aligned canvas wiring (API spy, not D3 numeric algorithms)', () => 
 		assert.equal(input('d3-plot').children.length, 1);
 		assertCurrentDraw(data, 900, 480);
 		assert.ok(canvas().getContext('2d').log.some(call => call[0] === 'rect' && JSON.stringify(call[1]) === '[100,10,700,430]'));
+	});
+
+	it('applies the padding slider only in uPlot mode and matches both chart ranges', async () => {
+		await withSeededRandom(() => { chart = createDemo(root); });
+		await Promise.resolve();
+		const draws = d3.scales.length;
+		input('scale-padding').value = 20;
+		input('scale-padding').dispatchEvent(new Event('input'));
+		await Promise.resolve();
+		assert.equal(d3.scales.length, draws, 'padding does not redraw native D3 ranging');
+		input('d3-ranging').checked = true;
+		input('d3-ranging').dispatchEvent(new Event('change'));
+		assertCurrentDraw(chart.data, chart.width, chart.height, { pad: .2, useUplot: true });
+		const scans = d3.extents.length;
+		for (const exact of [false, true]) {
+			input('exact-count').checked = exact;
+			input('exact-count').dispatchEvent(new Event('change'));
+			for (const percent of [0, 5, 10, 15, 20]) {
+				input('scale-padding').value = percent;
+				input('scale-padding').dispatchEvent(new Event('input'));
+				await Promise.resolve();
+				assertCurrentDraw(chart.data, chart.width, chart.height, { pad: percent / 100, exact, useUplot: true });
+			}
+		}
+		assert.equal(d3.extents.length, scans, 'padding changes reuse cached extents');
 	});
 
 	it('defaults omitted exact to approximate custom ranging', () => {
