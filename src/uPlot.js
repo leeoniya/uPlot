@@ -277,7 +277,7 @@ function findIncr(minVal, maxVal, incrs, dim, minSpace) {
 			if (dec == null)
 				fixedDec.set(foundIncr, dec = guessDec(foundIncr));
 
-			if (foundIncr > minIncr && intDigits + (foundIncr < 5 ? dec : 0) <= 17)
+			if (foundIncr > minIncr && (foundIncr >= 5 || intDigits + dec <= 17))
 				return [foundIncr, foundSpace];
 		}
 	} while (++incrIdx < incrs.length);
