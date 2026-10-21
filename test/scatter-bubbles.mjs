@@ -17,9 +17,10 @@ const fixture = () => dataFor(
 	[[80, 20, 100, 'E']],
 );
 
-function createDemo(data = fixture(), {pxRatio = 1, nodeSize, scatterData, configure = () => {}} = {}) {
+function createDemo(data = fixture(), {pxRatio = 1, nodeSize, scatterData, levels = false, configure = () => {}} = {}) {
 	const indexes = [], titles = [], listeners = [], removed = [], cursorCalls = [];
 	let scatter = null;
+	let levelPlot = null;
 
 	class TrackedFlatbush extends Flatbush {
 		constructor(numItems, ...args) {
@@ -73,6 +74,13 @@ function createDemo(data = fixture(), {pxRatio = 1, nodeSize, scatterData, confi
 			opts.scales.x.range = opts.scales.y.range = [0, 100];
 			return scatter = new uPlot(opts, scatterData, target);
 		}
+		if (opts.title == 'Scatter Plot by Level') {
+			if (!levels)
+				return {};
+			Object.assign(opts, {width: 400, height: 300, pxRatio, axes: []});
+			opts.scales.x.range = opts.scales.y.range = [0, 500];
+			return levelPlot = new uPlot(opts, demoData, target);
+		}
 		assert.equal(opts.title, 'Bubble Plot');
 		Object.assign(opts, {width: 400, height: 300, pxRatio, pxAlign: 0, padding: [12, 18, 24, 30]});
 		opts.axes.forEach(axis => { axis.show = false; });
@@ -109,9 +117,9 @@ function createDemo(data = fixture(), {pxRatio = 1, nodeSize, scatterData, confi
 	assert.ok(script, 'scatter demo has an inline module');
 	const source = script.replace(/^\s*import\s+[^\n]+;\s*$/gm, '').replace(/let points\s*=\s*10000\s*;/, 'let points = 4;');
 	const u = new Function('uPlot', 'scatterPlugin', source + '\nreturn u2;')(DemoPlot, trackedPlugin);
-	assert.deepEqual(titles, ['Scatter Plot', 'Bubble Plot']);
+	assert.deepEqual(titles, ['Scatter Plot', 'Bubble Plot', 'Scatter Plot by Level']);
 	return {
-		u, scatter, indexes, listeners, removed, cursorCalls,
+		u, scatter, levelPlot, indexes, listeners, removed, cursorCalls,
 		enter: () => u.over.dispatchEvent(new MouseEvent('mouseenter')),
 		latest(count) {
 			const index = indexes.at(-1);
@@ -120,7 +128,7 @@ function createDemo(data = fixture(), {pxRatio = 1, nodeSize, scatterData, confi
 			assert.equal(index.bounds.length, count);
 			return index;
 		},
-		destroy() { try { u.destroy(); } finally { scatter?.destroy(); } },
+		destroy() { try { u.destroy(); } finally { scatter?.destroy(); levelPlot?.destroy(); } },
 	};
 }
 
@@ -220,6 +228,30 @@ describe('scatter demo bubbles', () => {
 		await tick();
 		return demo.u;
 	}
+
+	it('colors 300 points from the third level facet in a single series', async () => {
+		await plot(undefined, {levels: true});
+		const u = demo.levelPlot;
+		const level = u.data[1][2];
+		assert.equal(u.series.length, 2);
+		assert.deepEqual(u.data[1].map(values => values.length), [300, 300, 300]);
+		assert.deepEqual([0, 1, 2].map(value => level.filter(v => v == value).length), [265, 25, 10]);
+		assert.equal(u.series[1]._paths, null, 'no connecting line');
+
+		const start = u.ctx.log.length;
+		u.redraw(true);
+		await tick();
+		const events = ops(u.ctx.log.slice(start));
+		assert.equal(events.filter(e => e.name == 'fill').length, 300);
+		assert.deepEqual(events.filter(e => e.name == 'fillStyle').map(e => e.args),
+			level.map(value => ['green', 'orange', 'red'][value]));
+		assert.ok(events.filter(e => e.name == 'arc').every(e => e.args[2] === 5));
+		for (const i of [0, 265, 290]) {
+			assert.deepEqual(u.series[1].values(u, 1, i), {
+				x: u.data[1][0][i], y: u.data[1][1][i], level: level[i],
+			});
+		}
+	});
 
 	for (const pxRatio of [1, 2]) {
 		it(`uses native opaque 5px scatter points through redraw, resize, zoom, and data changes at DPR ${pxRatio}`, async () => {

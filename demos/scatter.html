@@ -200,6 +200,50 @@
 			};
 
 			let u2 = new uPlot(opts2, data2, document.body);
+
+			const levelColors = ['green', 'orange', 'red'];
+			const level = filledArr(300, i => i < 265 ? 0 : i < 290 ? 1 : 2);
+			const data3 = [null, [
+				filledArr(level.length, i => randInt(0,500)),
+				filledArr(level.length, i => randInt(0,500)),
+				level,
+			]];
+
+			const opts3 = {
+				title: "Scatter Plot by Level",
+				mode: 2,
+				width: 1920,
+				height: 600,
+				plugins: [scatterPlugin({
+					hover: true,
+					points: {size: 10, width: 0},
+					disp: {
+						fill: {
+							kind: 2,
+							values: (u, seriesIdx) => [levelColors, u.data[seriesIdx][2]],
+						},
+					},
+				})],
+				scales: {
+					x: {time: false, range: guardedRange},
+					y: {range: guardedRange},
+				},
+				series: [
+					null,
+					{
+						label: "Level (0: green, 1: orange, 2: red)",
+						values: (u, seriesIdx, dataIdx) => {
+							if (u.data == null || dataIdx == null)
+								return {x: '--', y: '--', level: '--'};
+
+							let [x, y, level] = u.data[seriesIdx];
+							return {x: x[dataIdx], y: y[dataIdx], level: level[dataIdx]};
+						},
+					},
+				],
+			};
+
+			let u3 = new uPlot(opts3, data3, document.body);
 		</script>
 	</body>
 </html>
