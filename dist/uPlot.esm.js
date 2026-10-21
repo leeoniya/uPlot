@@ -7402,7 +7402,7 @@ function uPlot(opts, data, then) {
 			return;
 		}
 
-		let off = left < 0 || top < 0 || left > plotWidCss || top > plotHgtCss;
+		let off = left < -1e-9 || top < -1e-9 || left > plotWidCss + 1e-9 || top > plotHgtCss + 1e-9;
 
 		if (!off) {
 			let sh, sv, hVal, vVal;
