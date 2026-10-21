@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { captureStep, getDemoSteps } from '../scripts/demoSteps.mjs';
@@ -85,12 +86,25 @@ describe('demo migrations', () => {
 		});
 	}
 
+	it('places multi-bars controls below the explicit grid with spacing between charts', async () => {
+		const html = await readFile(new URL('../demos/multi-bars.html', import.meta.url), 'utf8');
+		const sheet = new CSSStyleSheet();
+		sheet.replaceSync(html.match(/<style>([^]*?)<\/style>/)[1]);
+		const rules = [...sheet.cssRules];
+		const toggles = rules.find(rule => rule.selectorText == '.lib-toggles').style;
+		assert.equal(toggles.gridColumn, '1 / -1');
+		assert.equal(toggles.gridRow, '-1');
+		assert.equal(toggles.marginTop, '');
+		assert.equal(rules.find(rule => rule.selectorText == '.uplot').style.marginBottom, '20px');
+	});
+
 	for (const [index, orientation] of [[1, 'horizontal'], [2, 'vertical']]) {
-		it(`keeps ${orientation} multi-bars controls after the deferred legend`, async () => {
+		it(`keeps ${orientation} multi-bars controls as a separate grid item`, async () => {
 			const [plot] = await render(multiBars, index);
 			const legend = plot.root.querySelector('.u-legend');
 			const toggles = plot.root.querySelector('.lib-toggles');
-			assert.equal(legend.nextElementSibling === toggles, true);
+			assert.equal(legend.parentElement, plot.root);
+			assert.equal(toggles.parentElement, plot.root);
 			const button = toggles.firstElementChild;
 			const count = plot.data[0].length;
 			for (const hidden of [true, false]) {
@@ -98,7 +112,9 @@ describe('demo migrations', () => {
 				await new Promise(requestAnimationFrame);
 				assert.equal(button.classList.contains('hidden'), hidden);
 				assert.equal(plot.data[0].length, count - (hidden ? 1 : 0));
-				assert.equal(legend.nextElementSibling === toggles, true);
+				assert.equal(toggles.parentElement, plot.root);
+				assert.equal(plot.root.querySelector('.u-legend'), legend);
+				assert.deepEqual([...plot.root.querySelectorAll('.lib-toggles')], [toggles]);
 			}
 		});
 	}

@@ -125,10 +125,10 @@ describe('legend mode and side layout', () => {
 				.map(rule => rule.style.getPropertyValue(property).trim()).filter(Boolean).at(-1);
 			assert.equal(declaration('.uplot', 'display'), 'grid');
 			assert.equal(declaration('.uplot', 'grid-template-columns'), 'max-content auto max-content');
-			assert.match(declaration('.uplot', 'grid-template-areas') ?? '', /\bplot\b/);
-			for (const [i, area] of ['top', 'right', 'bottom', 'left'].entries())
+			assert.equal(declaration('.uplot', 'grid-template-areas').replace(/\s+/g, ' '), '"tit tit tit" ". top ." "lft plot rgt" ". btm ."');
+			for (const [i, area] of ['top', 'rgt', 'btm', 'lft'].entries())
 				assert.equal(declaration(`.uplot > .u-legend.${sideClasses[i]}`, 'grid-area'), area);
-			assert.equal(declaration('.uplot > .u-title', 'grid-area'), 'title');
+			assert.equal(declaration('.uplot > .u-title', 'grid-area'), 'tit');
 			assert.equal(declaration('.uplot > .u-wrap', 'grid-area'), 'plot');
 			assert.equal(declaration('.uplot > canvas', 'grid-area'), 'plot');
 			assert.equal(rules.some(rule => rule.selectorText?.includes('data-legend-side')), false);
