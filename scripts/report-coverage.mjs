@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import coverage from 'istanbul-lib-coverage';
 import report from 'istanbul-lib-report';
-import reports from 'istanbul-reports';
+import SmartTextReport from 'istanbul-smart-text-reporter';
 
 const tempDir = resolve(process.argv[2] ?? '.nyc_output');
 const coverageMap = coverage.createCoverageMap({});
@@ -25,4 +25,4 @@ const context = report.createContext({
 	coverageMap,
 });
 
-reports.create('text').execute(context);
+new SmartTextReport().execute(context);

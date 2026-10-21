@@ -13,7 +13,7 @@ function cssmin(css) {
 let minicss = cssmin(fs.readFileSync('./src/uPlot.css', 'utf8'));
 fs.writeFileSync('./dist/uPlot.min.css', minicss);
 
-import terser from '@rollup/plugin-terser';
+import { minify } from 'terser';
 
 const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
 const ver = "v" + pkg.version;
@@ -123,7 +123,10 @@ export default [
 		},
 		plugins: [
 			bannerlessESM(),
-			terser(terserOpts),
+			{
+				name: 'terser',
+				renderChunk: code => minify(code, terserOpts),
+			},
 			trimTrailingWhitespace(),
 		]
 	},

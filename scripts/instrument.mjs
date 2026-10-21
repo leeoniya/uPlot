@@ -2,7 +2,7 @@
 
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 
-GlobalRegistrator.register({ width: 1920, height: 1080, settings: { errorCapture: 'disabled' } });
+GlobalRegistrator.register({ width: 1920, height: 1080, settings: { errorCapture: 'disabled', handleDisabledFileLoadingAsSuccess: true } });
 
 // Happy DOM's base Node setter is a no-op on elements. Delegate to its Element
 // implementation so cached Node setters work with DOM string conversion.

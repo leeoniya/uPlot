@@ -6,15 +6,15 @@
       "name": "uplot",
       "devDependencies": {
         "@happy-dom/global-registrator": "^21.0.4",
-        "@rollup/plugin-terser": "^1.0.0",
         "happy-dom": "^21.0.4",
         "istanbul-lib-coverage": "^3.2.2",
         "istanbul-lib-instrument": "^6.0.3",
         "istanbul-lib-report": "^3.0.1",
-        "istanbul-reports": "^3.2.0",
+        "istanbul-smart-text-reporter": "^1.1.5",
         "json-stringify-pretty-compact": "^4.0.0",
         "mocha": "^12.0.3",
         "rollup": "^4.64.12",
+        "terser": "^5.51.2",
         "test-exclude": "^8.0.0",
       },
     },
@@ -69,8 +69,6 @@
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, ""],
 
     "@napi-rs/lzma-linux-x64-gnu": ["@napi-rs/lzma-linux-x64-gnu@1.5.1", "", { "os": "linux", "cpu": "x64", "libc": "glibc" }, ""],
-
-    "@rollup/plugin-terser": ["@rollup/plugin-terser@1.0.0", "", { "dependencies": { "serialize-javascript": "^7.0.3", "smob": "^1.0.0", "terser": "^5.17.4" }, "peerDependencies": { "rollup": "^2.0.0||^3.0.0||^4.0.0" }, "optionalPeers": ["rollup"] }, ""],
 
     "@rollup/rollup-android-arm-eabi": ["@rollup/rollup-android-arm-eabi@4.64.12", "", { "os": "android", "cpu": "arm" }, "sha512-Z8lz+5UOiCJLonjeqwJlhUtHA/Sr6R1AidkccQxdWF0nigNzP81aLoU+udgOaGfL5s1uzFXzcux/pCwGAMu0lw=="],
 
@@ -178,8 +176,6 @@
 
     "has-flag": ["has-flag@4.0.0", "", {}, ""],
 
-    "html-escaper": ["html-escaper@2.0.2", "", {}, ""],
-
     "is-path-inside": ["is-path-inside@4.0.0", "", {}, ""],
 
     "is-unicode-supported": ["is-unicode-supported@0.1.0", "", {}, ""],
@@ -190,7 +186,7 @@
 
     "istanbul-lib-report": ["istanbul-lib-report@3.0.1", "", { "dependencies": { "istanbul-lib-coverage": "^3.0.0", "make-dir": "^4.0.0", "supports-color": "^7.1.0" } }, ""],
 
-    "istanbul-reports": ["istanbul-reports@3.2.0", "", { "dependencies": { "html-escaper": "^2.0.0", "istanbul-lib-report": "^3.0.0" } }, ""],
+    "istanbul-smart-text-reporter": ["istanbul-smart-text-reporter@1.1.5", "", { "dependencies": { "istanbul-lib-coverage": "^3.2.2", "istanbul-lib-report": "^3.0.1" } }, "sha512-vwMgnu+JWaD7EonOJioKmG6wjo2tu2EPH7qkOb4EFRd3TOFlEmAgtXkN0ulFU185UKasERji3t6L/mHFj+bnbQ=="],
 
     "js-tokens": ["js-tokens@4.0.0", "", {}, ""],
 
@@ -227,8 +223,6 @@
     "semver": ["semver@7.8.5", "", { "bin": "bin/semver.js" }, ""],
 
     "serialize-javascript": ["serialize-javascript@7.1.2", "", {}, "sha512-GL2BWwVa6JydKO6l/ljVgjAZF4QJ3S7dWDWi53s5GZT8PJzD2fNxi67HANQGKAqPrwEpL5ba7gUBGi0Ls/sEoQ=="],
-
-    "smob": ["smob@1.6.2", "", {}, ""],
 
     "source-map": ["source-map@0.6.1", "", {}, ""],
 
