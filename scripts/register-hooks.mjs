@@ -2,12 +2,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { loadNycConfig } from '@istanbuljs/load-nyc-config';
+
 import { createSourceInstrumenter } from './instrument-source.mjs';
 import TestExclude from 'test-exclude';
 
+const cwd = fileURLToPath(new URL('../', import.meta.url));
 const config = process.env.NYC_CONFIG == null
-	? await loadNycConfig({ cwd: process.env.NYC_CWD || process.cwd() })
+	? { ...JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).nyc, cwd }
 	: JSON.parse(process.env.NYC_CONFIG);
 const exclude = new TestExclude(config);
 

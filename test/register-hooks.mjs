@@ -7,7 +7,7 @@ import { join } from 'node:path';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 
-function coverage(config, cacheDir) {
+function coverage(config, cacheDir, runCwd = cwd) {
 	const env = { ...process.env, NODE_OPTIONS: '' };
 	delete env.NYC_CONFIG;
 	delete env.NYC_CWD;
@@ -24,14 +24,14 @@ function coverage(config, cacheDir) {
 	const result = JSON.parse(execFileSync(process.execPath, [
 		...args,
 		'-e', `
-			await import('./scripts/register-hooks.mjs');
-			const { domEnv, doc, win, setStylePx } = await import('./src/dom.js');
+			await import(${JSON.stringify(new URL('../scripts/register-hooks.mjs', import.meta.url).href)});
+			const { domEnv, doc, win, setStylePx } = await import(${JSON.stringify(new URL('../src/dom.js', import.meta.url).href)});
 			const dom = { domEnv, doc, win };
-			await import('./demos/renderDemo.js');
+			await import(${JSON.stringify(new URL('../demos/renderDemo.js', import.meta.url).href)});
 			setStylePx({ style: {} }, 'width', 1);
 			console.log(JSON.stringify({ coverage: globalThis.__coverage__ || {}, cacheDir: process.env.UPLOT_INSTRUMENT_CACHE_DIR, dom }));
 		`,
-	], { cwd, env, encoding: 'utf8', timeout: 10000 }));
+	], { cwd: runCwd, env, encoding: 'utf8', timeout: 10000 }));
 	assert.deepStrictEqual(result.dom, { domEnv: false, doc: null, win: null });
 	assert.equal(typeof result.cacheDir, 'string');
 	assert.equal(existsSync(result.cacheDir), cacheDir != null, 'only the cache owner removes the directory');
@@ -48,6 +48,17 @@ describe('coverage loader', function() {
 		assert.ok(Object.values(result[filename].s).some(count => count > 0));
 		assert.ok(Object.values(result[filename].f).some(count => count > 0));
 		assert.ok(Object.keys(result).every(path => !path.includes('/demos/')));
+	});
+
+	it('loads project config when launched outside the project', () => {
+		const runCwd = mkdtempSync(join(tmpdir(), 'uplot-coverage-cwd-'));
+		try {
+			const result = coverage(undefined, undefined, runCwd);
+			const filename = fileURLToPath(new URL('../src/dom.js', import.meta.url));
+			assert.ok(result[filename]);
+			assert.ok(Object.keys(result).every(path => !path.includes('/demos/')));
+		}
+		finally { rmSync(runCwd, { recursive: true, force: true }); }
 	});
 
 	it('honors NYC_CONFIG include and exclude rules', () => {

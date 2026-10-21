@@ -45,7 +45,6 @@
   "homepage": "https://github.com/leeoniya/uPlot#readme",
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.14.5",
-    "@istanbuljs/load-nyc-config": "^1.1.0",
     "@rollup/plugin-terser": "^1.0.0",
     "happy-dom": "^20.14.5",
     "istanbul-lib-coverage": "^3.2.2",
