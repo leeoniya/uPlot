@@ -45,7 +45,7 @@
 									console.log("focus!", seriesIdx, opts);
 
 									u.series.forEach((s, i) => {
-										s.width = i == seriesIdx ? 2 : 1;
+										s.width = i == seriesIdx ? 3 : 1.5;
 									});
 								}
 							}
@@ -112,8 +112,7 @@
 				return series._focus === false ? unfocused : focused;
 			};
 
-			// setting alpha: 1.1 bypasses the internal (alpha == 1) check that skips redraw() on focus changes
-			let u2 = new uPlot(prepareChartOpts('Dynamic Focus', 1.1, [
+			let u2 = new uPlot(prepareChartOpts('Dynamic Focus', 1, [
 				{
 					label: "sin(x)",
 					stroke: focusColorSwitch("red", "black"),
@@ -130,6 +129,77 @@
 					fill: focusColorSwitch("rgba(0,255,0,0.1)", "rgba(0,0,0,0.1)"),
 				}
 			], 0, 30), data, document.body);
+		</script>
+
+		<h2>Multi-series focus</h2>
+		<p>Hover a curve or legend entry to focus its related run: raw, smoothed, and both band endpoints.</p>
+		<p>The hook sets the private <code>u.series[i]._focus</code> flags and each series' <code>alpha</code>, then calls <code>u.redraw(false)</code>.
+			The focused run stays fully opaque; other runs use 30% opacity. Band groups retain their internal fill, stroke, and point order.</p>
+		<script>
+			const runX = Array.from({length: 241}, (_, i) => i / 20);
+			const runData = [runX];
+			const runSeries = [{label: 'x'}];
+			const runBands = [];
+			const runBySeries = [null];
+
+			[
+				['Run A', '#d33', 'rgba(221,51,51,0.18)'],
+				['Run B', '#167ac6', 'rgba(22,122,198,0.18)'],
+			].forEach(([label, stroke, fill], run) => {
+				let smooth = runX.map(x => Math.sin(x + run * 0.65) + 0.2 * Math.cos(2 * x));
+				let raw = smooth.map((y, i) => y + 0.12 * Math.sin(13 * runX[i] + run));
+				let upper = smooth.map((y, i) => y + 0.4 + 0.08 * Math.cos(3 * runX[i] + run));
+				let lower = smooth.map((y, i) => y - 0.4 - 0.08 * Math.cos(3 * runX[i] + run));
+				let first = runSeries.length;
+
+				// The endpoints enclose the raw and smoothed curves in one band group.
+				runData.push(upper, raw, smooth, lower);
+				[['upper', 1], ['raw', 3], ['smoothed', 1.5], ['lower', 1]].forEach(([kind, width]) => {
+					runSeries.push({
+						label: label + ' ' + kind,
+						stroke,
+						width,
+						points: {show: false},
+					});
+					runBySeries.push(run);
+				});
+				runBands.push({series: [first, first + 3], fill});
+			});
+
+			let multiFocus = new uPlot({
+				title: 'Overlapping runs — multi-series focus',
+				width: 1920,
+				height: 600,
+				focus: {
+					alpha: 1,
+				},
+				cursor: {
+					focus: {
+						prox: 30,
+					},
+				},
+				scales: {
+					x: {time: false},
+					y: {range: [-2, 2]},
+				},
+				series: runSeries,
+				bands: runBands,
+				hooks: {
+					setSeries: [
+						(u, seriesIdx, opts) => {
+							if (opts.focus != null) {
+								let run = seriesIdx == null ? null : runBySeries[seriesIdx];
+
+								u.series.forEach((s, i) => {
+									s._focus = i == 0 || run == null ? null : runBySeries[i] == run;
+									s.alpha = s._focus === false ? 0.3 : 1;
+								});
+								u.redraw(false);
+							}
+						}
+					],
+				},
+			}, runData, document.body);
 		</script>
 
 		<script>

@@ -5,8 +5,9 @@ import uPlot from '../src/uPlot.js';
 const data = [[0, 1, 2], [10, 20, 30], [40, 50, 60], [70, 80, 90]];
 const frame = () => new Promise(requestAnimationFrame);
 
-async function plot(mode) {
+async function plot(mode, alpha = 0.25) {
 	const hooks = [];
+	const drawOrder = [];
 	const publications = [];
 	const ranges = [];
 	let draws = 0;
@@ -15,7 +16,7 @@ async function plot(mode) {
 		mode, width: 200, height: 200, pxRatio: 1,
 		padding: [0, 0, 0, 0],
 		axes: [{ show: false }, { show: false }],
-		focus: { alpha: 0.25 },
+		focus: { alpha },
 		cursor: { sync: { filters: { pub(type, self, i, opts) {
 			if (type == 'setSeries')
 				publications.push([i, opts.show]);
@@ -34,13 +35,14 @@ async function plot(mode) {
 		hooks: {
 			setSeries: [(self, i, opts) => hooks.push([i, opts.show])],
 			draw: [() => draws++],
+			drawSeries: [(u, si) => drawOrder.push(si)],
 		},
 	}, mode == 1 ? data : [null, ...data.slice(1).map(y => [data[0], y])], document.body);
 	await frame();
-	hooks.length = publications.length = ranges.length = 0;
+	hooks.length = publications.length = ranges.length = drawOrder.length = 0;
 	draws = 0;
 	Object.defineProperty(u.series[1], 'class', { get() { legendRenders++; return ''; } });
-	return { u, hooks, publications, ranges, get draws() { return draws; }, get legendRenders() { return legendRenders; } };
+	return { u, hooks, publications, ranges, drawOrder, get draws() { return draws; }, get legendRenders() { return legendRenders; } };
 }
 
 for (const mode of [1, 2]) {
@@ -168,6 +170,21 @@ for (const mode of [1, 2]) {
 				assert.deepEqual(publications, hooks);
 			}
 			finally { u.destroy(); }
+		});
+
+		it('redraws changed focus at full opacity, but not unchanged focus', async () => {
+			const f = await plot(mode, 1);
+			try {
+				for (const [si, order] of [[1, [2, 3, 1]], [2, [1, 3, 2]], [2, []], [null, [1, 2, 3]], [null, []]]) {
+					f.drawOrder.length = 0;
+					f.u.setSeries(si, { focus: true });
+					await frame();
+					assert.deepEqual(f.drawOrder, order);
+					assert.deepEqual(f.u.series.slice(1).map(s => s.alpha), [1, 1, 1]);
+				}
+				assert.equal(f.draws, 3);
+			}
+			finally { f.u.destroy(); }
 		});
 
 		it('still renders changed focus and explicit values with unchanged visibility', async () => {

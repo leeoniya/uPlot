@@ -6149,21 +6149,30 @@ var uPlot = (function () {
 					bandGroupsDirty = false;
 				}
 
-				for (let i = 1; i < series.length; i++) {
-					let end = bandEnds[i] || 0;
+				// Promote whole band groups, preserving their fill/stroke/point order.
+				for (let pass = 0; pass < 2; pass++) {
+					for (let i = 1; i < series.length; i++) {
+						let end = bandEnds[i] || i;
+						let focused = false;
 
-					if (end > 0) {
-						for (let j = i; j <= end; j++)
-							drawSeriesPart(j, BAND_CLIP_FILL, false);
-						for (let j = i; j <= end; j++)
-							drawSeriesPart(j, BAND_CLIP_STROKE, false);
-						for (let j = i; j <= end; j++)
-							drawSeriesPart(j, 0, true);
+						for (let j = i; j <= end && !focused; j++)
+							focused = series[j].show && !!series[j]._focus;
+
+						if (focused == (pass == 1)) {
+							if (bandEnds[i] > 0) {
+								for (let j = i; j <= end; j++)
+									drawSeriesPart(j, BAND_CLIP_FILL, false);
+								for (let j = i; j <= end; j++)
+									drawSeriesPart(j, BAND_CLIP_STROKE, false);
+								for (let j = i; j <= end; j++)
+									drawSeriesPart(j, 0, true);
+							}
+							else
+								drawSeriesPart(i, CLIP_FILL_STROKE, true);
+						}
 
 						i = end;
 					}
-					else
-						drawSeriesPart(i, CLIP_FILL_STROKE, true);
 				}
 
 				if (shouldAlpha)
@@ -7228,10 +7237,9 @@ var uPlot = (function () {
 				focusedSeries = focused;
 				series.forEach(setSeriesFocus);
 				shouldSelectLegend = shouldSelectLegend || hasLegendSelection();
-				if (focus.alpha != 1 || hasLegendSelection()) {
+				if (focus.alpha != 1 || hasLegendSelection())
 					shouldRenderLegend = showLegend;
-					commit();
-				}
+				commit();
 				return true;
 			}
 			return false;

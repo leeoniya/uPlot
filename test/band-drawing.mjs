@@ -90,7 +90,7 @@ function recordCanvas(ctx, labels, events, operations = []) {
 	};
 }
 
-function makePlot({ count = 5, bands = [], hidden = [], stack, series = () => ({}), paths = uPlot.paths.linear(), points = true, data, xRange = [0, 2], pxRatio = 1, Plot = uPlot } = {}) {
+function makePlot({ count = 5, bands = [], hidden = [], stack, focus = {}, series = () => ({}), paths = uPlot.paths.linear(), points = true, data, xRange = [0, 2], pxRatio = 1, Plot = uPlot } = {}) {
 	const events = [];
 	const operations = [];
 	const labels = new WeakMap();
@@ -118,7 +118,7 @@ function makePlot({ count = 5, bands = [], hidden = [], stack, series = () => ({
 		axes: [{ show: false }, { show: false }],
 		cursor: { show: false }, legend: { show: false },
 		scales: { x: { time: false, range: xRange }, y: { range: [0, count + 2] } },
-		bands, stack,
+		bands, stack, focus,
 		series: [{}, ...Array.from({ length: count }, (_, idx) => ({
 			show: !hidden.includes(idx + 1),
 			fill: 'silver', stroke: 'black', width: 2,
@@ -594,7 +594,7 @@ describe('band-local drawing', () => {
 				change();
 				await Promise.resolve();
 				assert.equal(f.groupBuilds, 1, name + ' does not regroup');
-				assertOrder(f, expected);
+				assertOrder(f, name == 'focus' ? [...group([4, 5]), ...group([1, 2, 3])] : expected);
 				if (name == 'focus')
 					for (const e of f.events.filter(e => e.kind != 'hook'))
 						assert.equal(e.alpha, e.si == 2 ? 1 : f.u.focus.alpha);
@@ -602,6 +602,77 @@ describe('band-local drawing', () => {
 		}
 		finally { f.u.destroy(); }
 	});
+
+	for (const alpha of [0.3, 1]) {
+		it(`paints ordinary focus changes and clearing without rebuilding paths, alpha=${alpha}`, async () => {
+			const f = makePlot({ count: 3, focus: { alpha } });
+			try {
+				await Promise.resolve();
+				for (const [si, order] of [[1, [2, 3, 1]], [2, [1, 3, 2]], [null, [1, 2, 3]]]) {
+					f.events.length = 0;
+					f.u.setSeries(si, { focus: true });
+					await Promise.resolve();
+					assertOrder(f, order.flatMap(ordinary));
+					assert.deepEqual(f.builds, [0, 1, 1, 1]);
+					for (const e of f.events.filter(e => e.kind != 'hook'))
+						assert.equal(e.alpha, si == null || e.si == si ? 1 : alpha);
+				}
+			}
+			finally { f.u.destroy(); }
+		});
+	}
+
+	it('stably promotes multiple ordinary series on cached redraw and ignores hidden focus', async () => {
+		const f = makePlot({ count: 4, hidden: [2], focus: { alpha: 1 } });
+		try {
+			await Promise.resolve();
+			for (const [focused, order] of [
+				[[1, 3], [4, 1, 3]],
+				[[2], [1, 3, 4]],
+				[[1, 2, 3, 4], [1, 3, 4]],
+				[[], [1, 3, 4]],
+			]) {
+				f.u.series.forEach((s, si) => s._focus = focused.length == 0 ? null : focused.includes(si));
+				f.events.length = 0;
+				f.u.redraw(false);
+				await Promise.resolve();
+				assertOrder(f, order.flatMap(ordinary));
+				assert.deepEqual(f.builds, [0, 1, 0, 1, 1]);
+			}
+		}
+		finally { f.u.destroy(); }
+	});
+
+	for (const [name, options, focused, expected] of [
+		['paired endpoints and a related ordinary series', { bands: [band(1, 3), band(5, 6)] }, [1, 3, 4], [...group([5, 6]), ...ordinary(7), ...group([1, 2, 3]), ...ordinary(4)]],
+		['one intervening member', { bands: [band(1, 3)] }, [2], [...[4, 5, 6, 7].flatMap(ordinary), ...group([1, 2, 3])]],
+		['multiple focused groups', { bands: [band(1, 3), band(5, 6)] }, [1, 3, 5, 6], [...ordinary(4), ...ordinary(7), ...group([1, 2, 3]), ...group([5, 6])]],
+		['overlapping intervals', { bands: [band(1, 4), band(3, 5)] }, [1, 4], [...ordinary(6), ...ordinary(7), ...group([1, 2, 3, 4, 5])]],
+		['a hidden member only', { bands: [band(1, 3)], hidden: [2] }, [2], [...group([1, 3]), ...[4, 5, 6, 7].flatMap(ordinary)]],
+		['a hidden endpoint with a visible focused endpoint', { bands: [band(1, 3)], hidden: [1] }, [1, 3], [...[4, 5, 6, 7].flatMap(ordinary), ...group([2, 3])]],
+		['a stack member', { stack: { groups: [{ series: [1, 2, 3], dir: 1 }, { series: [4, 5], dir: 1 }] } }, [2], [...group([4, 5]), ...ordinary(6), ...ordinary(7), ...group([1, 2, 3])]],
+	]) {
+		it(`promotes whole groups for ${name} without rebuilding caches`, async () => {
+			const f = makeProbedPlot({ count: 7, focus: { alpha: 1 }, ...options });
+			try {
+				await Promise.resolve();
+				const initial = f.events.map(e => `${e.kind}${e.points ? 'P' : ''}${e.si}`);
+				const builds = f.builds.slice();
+				const paths = f.u.series.map(s => s._paths);
+				for (const active of [true, false, true]) {
+					f.u.series.forEach((s, si) => s._focus = active ? focused.includes(si) : null);
+					f.events.length = 0;
+					f.u.redraw(false);
+					await Promise.resolve();
+					assertOrder(f, active ? expected : initial);
+					assert.equal(f.groupBuilds, 1);
+					assert.deepEqual(f.builds, builds);
+					f.u.series.forEach((s, si) => assert.equal(s._paths, paths[si]));
+				}
+			}
+			finally { f.u.destroy(); }
+		});
+	}
 
 	it('regroups after adding and deleting a series without changing the bands', async () => {
 		const f = makeProbedPlot({ bands: [band(1, 3)] });

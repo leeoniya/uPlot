@@ -422,6 +422,68 @@ describe('scatter demo bubbles', () => {
 		}
 	});
 
+	for (const alpha of [0.3, 1]) {
+		it(`maps hover and exact ties after focusing the first series at alpha ${alpha}`, async () => {
+			const u = await plot(dataFor(
+				[[50, -50, 100, 'A']],
+				[[50, 50, 100, 'B']],
+				[[20, 20, 100, 'C']],
+			), {configure: opts => { opts.cursor = {focus: {alpha, prox: -1}}; }});
+			const first = demo.latest(3);
+			u.setCursor(center(u, 1));
+			selected(u, 2);
+			u.setSeries(1, {focus: true});
+			await tick();
+			const focused = demo.latest(3);
+			assert.notEqual(focused, first, 'focus alone rebuilds the index, including at alpha 1');
+			assert.deepEqual(focused.bounds, [first.bounds[1], first.bounds[2], first.bounds[0]]);
+			selected(u, 1, 0);
+			u.setCursor(center(u, 3));
+			selected(u, 3);
+			u.setCursor(center(u, 1));
+			selected(u, 1);
+			u.setSeries(null, {focus: true});
+			await tick();
+			assert.deepEqual(demo.latest(3).bounds, first.bounds);
+			selected(u, 2);
+		});
+	}
+
+	it('maps filtered and missing points with multiple manual focuses and unvisited series', async () => {
+		const indices = [3, 1, 0];
+		const u = await plot(dataFor(
+			[[10, -10, 100, 'disabled'], [30, -30, 100, 'disabled'], [40, -40, 100, 'disabled']],
+			[[50, 50, 100, 'last-painted'], [null, 50, 100, 'missing'], [80, 20, 100, 'filtered out'], [50, 50, 100, 'first-painted']],
+			[[null, 20, 100, 'missing'], [20, 20, 100, 'C'], [20, null, 100, 'missing tail']],
+			[[80, 80, 100, 'D']],
+		), {nodeSize: 2, configure: opts => {
+			opts.cursor = {focus: {alpha: 1, prox: -1}};
+			opts.series[1].points = {show: false};
+			opts.series[2].points = {filter: () => indices};
+		}});
+		u.series[2]._focus = u.series[3]._focus = true;
+		u.redraw(true);
+		await tick();
+		for (let redraw = 0; redraw < 2; redraw++) {
+			const index = demo.latest(11);
+			assert.deepEqual(index.bounds.map(b => b[2] - b[0]), [61, 61, 0, 61, 0, 0, 61, 0, 0, 0, 0]);
+			for (const si of [4, 2, 3]) {
+				const di = si == 3 ? 1 : 0;
+				u.setCursor(center(u, si, di));
+				selected(u, si, di);
+			}
+			u.setCursor(center(u, 2, 2));
+			selected(u);
+			u.setCursor(center(u, 1));
+			selected(u);
+			u.setCursor(center(u, 2));
+			selected(u, 2);
+			u.redraw(true);
+			await tick();
+			selected(u, 2);
+		}
+	});
+
 	it('uses native cached sizes, immediate translucent painting, and a strict plot clip', async () => {
 		const u = await plot(dataFor(
 			[[50, -50, 100, 'A0'], [50, -50, 25, 'A1']],

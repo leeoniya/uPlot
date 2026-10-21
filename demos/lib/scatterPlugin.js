@@ -41,6 +41,7 @@ function pointHover() {
 	let hoverDiameter = 0;
 	const slots = [];
 	let nextSlot = 0;
+	let slotEnd = 0;
 
 	function cursorInside(u) {
 		return u.cursor.left >= 0 && u.cursor.top >= 0;
@@ -58,7 +59,7 @@ function pointHover() {
 		hoverDiameter = 0;
 		indexReady = false;
 		slots.length = 0;
-		nextSlot = 0;
+		nextSlot = slotEnd = 0;
 	}
 
 	function resetHoverIndex(u) {
@@ -66,7 +67,7 @@ function pointHover() {
 		let count = 0;
 		for (let si = 1; si < u.series.length; si++) {
 			const length = u.series[si].show ? u.data[si][0].length : 0;
-			slots[si] = {start: count, length, indices: null};
+			slots[si] = {start: -1, length, indices: null};
 			count += length;
 		}
 		if (count > 0)
@@ -93,7 +94,12 @@ function pointHover() {
 
 	return {
 		setFilter(seriesIdx, indices) {
-			slots[seriesIdx].indices = indices;
+			// Reserve each series in paint order, after padding the previous series.
+			padSlots(slotEnd);
+			const slot = slots[seriesIdx];
+			slot.start = nextSlot;
+			slotEnd = nextSlot + slot.length;
+			slot.indices = indices;
 		},
 		each: (u, seriesIdx, dataIdx, lft, top, wid, hgt) => {
 			const slot = slots[seriesIdx];
@@ -140,7 +146,7 @@ function pointHover() {
 						if (bestId != -1) {
 							for (let si = 1; si < slots.length; si++) {
 								const slot = slots[si];
-								if (bestId >= slot.start && bestId < slot.start + slot.length) {
+								if (slot.start != -1 && bestId >= slot.start && bestId < slot.start + slot.length) {
 									hoverSeries = si;
 									const offset = bestId - slot.start;
 									hoverDataIdx = slot.indices == null ? offset : slot.indices[offset];
