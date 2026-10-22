@@ -367,15 +367,6 @@ const isFinite$1 = Number.isFinite;
 const decPows = Array.from({length: 65}, (_, i) => +`1e${i - 32}`);
 const pow10 = exp => decPows[exp + 32] ?? +`1e${exp}`;
 
-function numIntDigits(x) {
-	x = abs(x);
-	if (x < 10)
-		return 1;
-
-	let exp = floor(log10(x));
-	return exp + (x < pow10(exp) ? 0 : 1);
-}
-
 function clamp(num, _min, _max) {
 	return min(max(num, _min), _max);
 }
@@ -4368,7 +4359,6 @@ const snapAsinhX = snapAsinhY;
 
 // dim is logical (getClientBoundingRect) pixels, not canvas pixels
 function findIncr(minVal, maxVal, incrs, dim, minSpace) {
-	let intDigits = max(numIntDigits(minVal), numIntDigits(maxVal));
 	// Exclude half-ULP ties as well as increments that cannot advance at all.
 	let minIncr = max(abs(minVal), abs(maxVal)) * (Number.EPSILON / 2);
 
@@ -4380,14 +4370,8 @@ function findIncr(minVal, maxVal, incrs, dim, minSpace) {
 		let foundIncr = incrs[incrIdx];
 		let foundSpace = dim * foundIncr / delta;
 
-		if (foundSpace >= minSpace) {
-			let dec = fixedDec.get(foundIncr);
-			if (dec == null)
-				fixedDec.set(foundIncr, dec = guessDec(foundIncr));
-
-			if (foundIncr > minIncr && intDigits + (foundIncr < 5 ? dec : 0) <= 17)
-				return [foundIncr, foundSpace];
-		}
+		if (foundSpace >= minSpace && foundIncr > minIncr)
+			return [foundIncr, foundSpace];
 	} while (++incrIdx < incrs.length);
 
 	return [0, 0];

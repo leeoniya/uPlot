@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import '../scripts/instrument.mjs';
-import { incrRound, incrRoundUp, incrRoundDn, roundDec, rangeNum, fixedDec, numIntDigits } from '../src/utils.js';
+import { incrRound, incrRoundUp, incrRoundDn, roundDec, rangeNum, fixedDec } from '../src/utils.js';
 import { numIncrs } from '../src/opts.js';
 
 
@@ -89,31 +89,6 @@ describe('precision: increment and decimal rounding', () => {
 		assert.equal(incrRoundDn(value, increment, false), Math.floor(value / increment) * increment);
 		assert.notEqual(incrRoundUp(value, increment, false), incrRoundUp(value, increment));
 	});
-});
-
-// https://github.com/leeoniya/uPlot/pull/1142
-// Derived boundary cases for the proposed int32 digit-count correction.
-describe('precision: PR #1142 integer digit counts', () => {
-	it('preserves the small-value and int32-boundary contract', () => {
-		for (const [value, digits] of [[0, 1], [0.1, 1], [9, 1], [10, 2], [99, 2], [100, 3], [2147483647, 10], [2147483648, 10]]) {
-			assert.equal(numIntDigits(value), digits);
-			assert.equal(numIntDigits(-value), digits);
-		}
-	});
-
-	it('counts values near 2^32 without int32 wraparound', () => {
-		for (const value of [4294967295, 4294967296, 4294967297]) {
-			assert.equal(numIntDigits(value), 10);
-			assert.equal(numIntDigits(-value), 10);
-		}
-	});
-
-	it('counts 1e14, 1e18, and 1e21 on both signs', () => {
-		for (const [value, digits] of [[1e14, 15], [1e18, 19], [1e21, 22]]) {
-			assert.equal(numIntDigits(value), digits);
-			assert.equal(numIntDigits(-value), digits);
-		}
-	});
 
 	// Existing #1135 endpoint, with the increment observed during its chart probe.
 	// This must remain a cheap test: running all the misplaced ticks exhausts memory.
@@ -121,12 +96,6 @@ describe('precision: PR #1142 integer digit counts', () => {
 		const min = 2.7000000476837114;
 		const start = roundDec(incrRoundUp(min, 1e-15), 15);
 		assert.ok(start >= min && start <= min + 2e-15, `misplaced first tick: ${start}`);
-	});
-
-	// The PR's abs/log10 implementation also fails this exact representable integer.
-	it('does not overcount 999999999999999 when log10 rounds up', () => {
-		assert.equal(numIntDigits(999999999999999), 15);
-		assert.equal(numIntDigits(-999999999999999), 15);
 	});
 });
 

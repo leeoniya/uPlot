@@ -90,10 +90,6 @@ function gridCalls(grids) {
 }
 const commonGrids = gridCalls([0.001, 0.01, 0.1, 0.2, 0.25, 0.5, 1, 2.5, 5, 10]);
 const tinyGrids = gridCalls([1e-7, 2.5e-8, 1e-12, 2e-20, 1e-24, 2.5e-24]);
-const digits = [0, 0.001, -0.5, 1, -9, 9.999999999999998, 10, 99, 100, 999.9,
-	1000, -12345, 1e6, 2147483647, 2147483648, 4294967296, -4294967296,
-	999999999999999, 1e15, Number.MAX_SAFE_INTEGER, 1e18, 1e21, 1e100];
-const digitCalls = Array.from({ length: 128 }, (_, i) => [digits[i % digits.length]]);
 const normalRanges = [[0, 100], [-100, -10], [-5, 15], [36, 51], [0.001, 0.009],
 	[1e6, 2e6], [0, 0], [10, 10]].map(([min, max]) => [min, max, 0.1, true]);
 const grafanaConfig = {
@@ -120,11 +116,10 @@ for (const symbol of ['incrRound', 'incrRoundUp', 'incrRoundDn']) {
 	results.push(compare(symbol + ' common grids', symbol, commonGrids));
 	results.push(compare(symbol + ' tiny grids', symbol, tinyGrids));
 }
-results.push(compare('numIntDigits representative', 'numIntDigits', digitCalls));
 results.push(compare('rangeNum normal/flat', 'rangeNum', normalCalls, rangeBatch));
 results.push(compare('rangeNum Grafana near-flat', 'rangeNum', grafanaCalls, rangeBatch));
 console.table(results);
 console.log('Checksums (consumption only, not correctness or equality checks):');
 console.table(checksums);
-console.log('Caveats: rounding/ties, large digit counts, and near-flat range behavior differ after fixes.');
+console.log('Caveats: rounding/ties and near-flat range behavior differ after fixes.');
 console.log('This is a warm microbenchmark, not a correctness test or a chart-rendering benchmark.');

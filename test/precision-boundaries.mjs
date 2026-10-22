@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import '../scripts/instrument.mjs';
-import { incrRound, incrRoundUp, incrRoundDn, numIntDigits, rangeNum, roundDec } from '../src/utils.js';
+import { incrRound, incrRoundUp, incrRoundDn, rangeNum, roundDec } from '../src/utils.js';
 import { numIncrs } from '../src/opts.js';
 import uPlot from '../src/uPlot.js';
 
@@ -13,28 +13,6 @@ function adjacent(value, direction) {
 }
 
 describe('precision: canonical decimal boundaries', () => {
-	it('counts both signs at decimal boundaries in the built-in increment range', () => {
-		const failures = [];
-		for (let exp = 1; exp <= 32; exp++) {
-			// Canonical thresholds, not exact binary-integer digit counts: e.g. 1e23
-			// represents an integer below mathematical 10^23 but starts magnitude 24.
-
-			const threshold = Number('1e' + exp);
-			for (const [value, expected] of [
-				[adjacent(threshold, -1), exp],
-				[threshold, exp + 1],
-				[adjacent(threshold, 1), exp + 1],
-			]) {
-				for (const sign of [-1, 1]) {
-					const actual = numIntDigits(sign * value);
-					if (actual !== expected)
-						failures.push({ exp, value: sign * value, expected, actual });
-				}
-			}
-		}
-		assert.deepEqual(failures.slice(0, 12), [], `${failures.length} boundary mismatches; showing at most 12`);
-	});
-
 	it('preserves the remaining Grafana frequency samples at excess decimal precision', () => {
 		// Other two measurements from Grafana #116559; precision-rounding covers the first.
 		for (const value of [9999999.999959, 9999999.999753])

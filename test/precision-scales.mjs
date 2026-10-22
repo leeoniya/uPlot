@@ -72,10 +72,65 @@ describe('precision: source scale ranging and axis splits', function() {
 });
 
 describe('precision: numeric axis increment selection', () => {
+	for (const magnitude of [1e17, 1e18]) {
+		for (const sign of [1, -1]) {
+			for (const axisIdx of [0, 1]) {
+				it(`retains ticks at ${sign * magnitude} on the ${axisIdx == 0 ? 'X' : 'Y'} axis (PR #1157)`, async () => {
+					const positiveTicks = Array.from({ length: 5 }, (_, i) => magnitude + i * (magnitude / 10));
+					const ticks = sign > 0 ? positiveTicks : positiveTicks.map(value => -value).reverse();
+					const range = () => [ticks[0], ticks[4]];
+					const u = new uPlot({
+						width: 800, height: 320, padding: [0, 0, 0, 0],
+						legend: { show: false }, cursor: { show: false },
+						scales: {
+							x: { time: false, ...(axisIdx == 0 ? { range } : {}) },
+							y: axisIdx == 1 ? { range } : {},
+						},
+						axes: [{ show: axisIdx == 0, space: 150 }, { show: axisIdx == 1, space: 50 }],
+						series: [{}, {}],
+					}, axisIdx == 0 ? [ticks, [0, 1, 2, 3, 4]] : [[0, 1, 2, 3, 4], ticks], document.body);
+					try {
+						await Promise.resolve();
+						assert.equal(u.axes[axisIdx]._found[0], magnitude / 10);
+						assert.deepEqual(u.axes[axisIdx]._splits, ticks);
+					}
+					finally { u.destroy(); }
+				});
+			}
+		}
+	}
+
+	for (const [min, max] of [[1e-20, 1.4e-20], [-1.4e-20, -1e-20], [-2e-21, 2e-21]]) {
+		it(`retains small increments without a decimal digit budget in [${min}, ${max}]`, async () => {
+			const u = new uPlot({
+				width: 800, height: 320, padding: [0, 0, 0, 0],
+				legend: { show: false }, cursor: { show: false },
+				scales: { x: { time: false }, y: { range: () => [min, max] } },
+				axes: [{ show: false }, { space: 50 }],
+				series: [{}, {}],
+			}, [[0, 1], [min, max]], document.body);
+			try {
+				await Promise.resolve();
+				assert.equal(u.axes[1]._found[0], 1e-21);
+				const splits = u.axes[1]._splits;
+				assert.equal(splits.length, 5);
+				for (let i = 0; i < splits.length; i++) {
+					const expected = min + i * 1e-21;
+					assert.ok(Math.abs(splits[i] - expected) <= Math.max(Math.abs(min), Math.abs(max)) * Number.EPSILON);
+					assert.ok(!Object.is(splits[i], -0));
+					if (i > 0)
+						assert.ok(splits[i] > splits[i - 1]);
+				}
+			}
+			finally { u.destroy(); }
+		});
+	}
+
 	for (const [name, positiveTicks, increment] of [
 		['sub-ULP increments (PR #1154)', [4220788960490496, 4220788960490496.5, 4220788960490497], 0.5],
 		// Adding 0.5 advances both bounds, but stalls at the even middle integer.
 		['half-ULP ties', [4503599627370497, 4503599627370498, 4503599627370499], 1],
+		['sub-ULP increments near 1', [1, 1 + Number.EPSILON, 1 + 2 * Number.EPSILON], 2e-16],
 	]) {
 		for (const sign of [1, -1]) {
 			it(`skips ${name} for ${sign > 0 ? 'positive' : 'negative'} values`, async () => {

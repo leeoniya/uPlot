@@ -64,7 +64,6 @@ import {
 	autoRangePart,
 	rangePad,
 	hasData,
-	numIntDigits,
 	isUndef,
 	guessDec,
 	cmpObj,
@@ -260,7 +259,6 @@ const snapAsinhX = snapAsinhY;
 
 // dim is logical (getClientBoundingRect) pixels, not canvas pixels
 function findIncr(minVal, maxVal, incrs, dim, minSpace) {
-	let intDigits = max(numIntDigits(minVal), numIntDigits(maxVal));
 	// Exclude half-ULP ties as well as increments that cannot advance at all.
 	let minIncr = max(abs(minVal), abs(maxVal)) * (Number.EPSILON / 2);
 
@@ -272,14 +270,8 @@ function findIncr(minVal, maxVal, incrs, dim, minSpace) {
 		let foundIncr = incrs[incrIdx];
 		let foundSpace = dim * foundIncr / delta;
 
-		if (foundSpace >= minSpace) {
-			let dec = fixedDec.get(foundIncr);
-			if (dec == null)
-				fixedDec.set(foundIncr, dec = guessDec(foundIncr));
-
-			if (foundIncr > minIncr && (foundIncr >= 5 || intDigits + dec <= 17))
-				return [foundIncr, foundSpace];
-		}
+		if (foundSpace >= minSpace && foundIncr > minIncr)
+			return [foundIncr, foundSpace];
 	} while (++incrIdx < incrs.length);
 
 	return [0, 0];

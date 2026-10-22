@@ -355,15 +355,6 @@ export const isFinite = Number.isFinite;
 const decPows = Array.from({length: 65}, (_, i) => +`1e${i - 32}`);
 const pow10 = exp => decPows[exp + 32] ?? +`1e${exp}`;
 
-export function numIntDigits(x) {
-	x = abs(x);
-	if (x < 10)
-		return 1;
-
-	let exp = floor(log10(x));
-	return exp + (x < pow10(exp) ? 0 : 1);
-}
-
 export function clamp(num, _min, _max) {
 	return min(max(num, _min), _max);
 }
