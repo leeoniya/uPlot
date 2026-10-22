@@ -157,12 +157,15 @@
 				.style("color", s => s.stroke)
 				.text(s => s.label);
 
+			const xTickInterval = d3.timeHour.every(12);
+			const xFormat = xScale.tickFormat();
+			const yFormat = yScale.tickFormat(6);
+			// The Y domain and plot dimensions stay fixed throughout the stream.
+			const yTicks = yScale.ticks(6).map(value => ({y: yScale(value), label: yFormat(value)}));
+
 			// D3's axes are SVG-only; use its scales, ticks, and formatters on Canvas.
 			function drawAxes() {
-				const xTicks = xScale.ticks(d3.timeHour.every(12));
-				const yTicks = yScale.ticks(6);
-				const xFormat = xScale.tickFormat();
-				const yFormat = yScale.tickFormat(6);
+				const xTicks = xScale.ticks(xTickInterval);
 
 				ctx.lineWidth = 1;
 				ctx.strokeStyle = "rgba(0,0,0,0.1)";
@@ -173,9 +176,8 @@
 					ctx.lineTo(x, plotBottom);
 				}
 				for (const tick of yTicks) {
-					const y = yScale(tick);
-					ctx.moveTo(plotLeft, y);
-					ctx.lineTo(plotRight, y);
+					ctx.moveTo(plotLeft, tick.y);
+					ctx.lineTo(plotRight, tick.y);
 				}
 				ctx.stroke();
 
@@ -189,20 +191,29 @@
 				ctx.textAlign = "right";
 				ctx.textBaseline = "middle";
 				for (const tick of yTicks)
-					ctx.fillText(yFormat(tick), plotLeft - 10, yScale(tick));
+					ctx.fillText(tick.label, plotLeft - 10, tick.y);
 			}
 
 			let pointer = null;
+			let legendHasValues = false;
+
+			function resetLegend() {
+				if (legendHasValues) {
+					legend.text(s => s.label);
+					legendHasValues = false;
+				}
+			}
+
 			canvas.on("pointermove", event => {
 				pointer = d3.pointer(event, canvas.node());
 			}).on("pointerleave", () => {
 				pointer = null;
-				legend.text(s => s.label);
+				resetLegend();
 			});
 
 			function drawCursor() {
 				if (pointer == null || pointer[0] < plotLeft || pointer[0] > plotRight || pointer[1] < plotTop || pointer[1] > plotBottom) {
-					legend.text(s => s.label);
+					resetLegend();
 					return;
 				}
 
@@ -221,6 +232,7 @@
 					ctx.fill();
 				});
 				legend.text((s, i) => s.label + ": " + data[i + 1][idx].toFixed(2));
+				legendHasValues = true;
 			}
 
 			function draw() {

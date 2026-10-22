@@ -1,0 +1,246 @@
+{
+  "measuredAt": "2026-10-22T22:01:29.327Z",
+  "runtime": {
+    "node": "v26.12.0",
+    "zlib": "1.3.2",
+    "brotli": "1.2.0"
+  },
+  "versions": {
+    "d3": "7.9.0",
+    "chart.js": "4.6.1",
+    "chartjs-adapter-date-fns": "3.0.0",
+    "date-fns": "2.19.0",
+    "echarts": "6.1.0",
+    "rolldown": "1.2.15",
+    "uplot": "1.6.32"
+  },
+  "dependencies": {
+    "node_modules/@kurkle/color": "0.3.4",
+    "node_modules/chart.js": "4.6.1",
+    "node_modules/chartjs-adapter-date-fns": "3.0.0",
+    "node_modules/commander": "7.2.0",
+    "node_modules/d3": "7.9.0",
+    "node_modules/d3-array": "3.2.4",
+    "node_modules/d3-axis": "3.0.0",
+    "node_modules/d3-brush": "3.0.0",
+    "node_modules/d3-chord": "3.0.1",
+    "node_modules/d3-color": "3.1.0",
+    "node_modules/d3-contour": "4.0.2",
+    "node_modules/d3-delaunay": "6.0.4",
+    "node_modules/d3-dispatch": "3.0.1",
+    "node_modules/d3-drag": "3.0.0",
+    "node_modules/d3-dsv": "3.0.1",
+    "node_modules/d3-ease": "3.0.1",
+    "node_modules/d3-fetch": "3.0.1",
+    "node_modules/d3-force": "3.0.0",
+    "node_modules/d3-format": "3.1.2",
+    "node_modules/d3-geo": "3.1.1",
+    "node_modules/d3-hierarchy": "3.1.2",
+    "node_modules/d3-interpolate": "3.0.1",
+    "node_modules/d3-path": "3.1.0",
+    "node_modules/d3-polygon": "3.0.1",
+    "node_modules/d3-quadtree": "3.0.1",
+    "node_modules/d3-random": "3.0.1",
+    "node_modules/d3-scale": "4.0.2",
+    "node_modules/d3-scale-chromatic": "3.1.0",
+    "node_modules/d3-selection": "3.0.0",
+    "node_modules/d3-shape": "3.2.0",
+    "node_modules/d3-time": "3.1.0",
+    "node_modules/d3-time-format": "4.1.0",
+    "node_modules/d3-timer": "3.0.1",
+    "node_modules/d3-transition": "3.0.1",
+    "node_modules/d3-zoom": "3.0.0",
+    "node_modules/date-fns": "2.19.0",
+    "node_modules/delaunator": "5.1.0",
+    "node_modules/echarts": "6.1.0",
+    "node_modules/iconv-lite": "0.6.3",
+    "node_modules/internmap": "2.0.3",
+    "node_modules/robust-predicates": "3.0.3",
+    "node_modules/rw": "1.3.3",
+    "node_modules/safer-buffer": "2.1.2",
+    "node_modules/tslib": "2.3.0",
+    "node_modules/zrender": "6.1.0"
+  },
+  "configuration": {
+    "platform": "browser",
+    "libraryFormat": "es",
+    "demoFormat": "iife",
+    "minify": true,
+    "define": {
+      "process.env.NODE_ENV": "\"production\""
+    },
+    "treeShaking": "default",
+    "sourcemap": false,
+    "gzipLevel": 9,
+    "brotliQuality": 11
+  },
+  "inputs": {
+    "bench/D3-sine-stream.html": {
+      "sha256": "1d3b4c62ee771ba90646afd01ee5e55421a62443721928e85d4ddc170f14cb69",
+      "scripts": [
+        "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"
+      ]
+    },
+    "bench/Chart.js4-sine-stream.html": {
+      "sha256": "edadd08b508737626b0a2c4258504b3ab55fee9148b820ff0b7878cfe893ad6a",
+      "scripts": [
+        "https://cdn.jsdelivr.net/npm/chart.js@4.6.1/dist/chart.umd.min.js",
+        "https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0"
+      ]
+    },
+    "bench/ECharts5-sine-stream.html": {
+      "sha256": "fc4ad6bd065df23bd378dc75fabb95eb02ffa67e2521110c04c3126583a12118",
+      "scripts": [
+        "https://fastly.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js"
+      ]
+    },
+    "demos/sine-stream.html": {
+      "sha256": "3d787b0470ecbf6051b64c23638ddf13e6991aa90c87da152fd538af583e2c27",
+      "scripts": [
+        "../dist/uPlot.iife.js"
+      ]
+    },
+    "dist/uPlot.esm.js": {
+      "sha256": "2748a138716c159e2e51a9290a14f2295ef056d2f7a0e322a73fac6e46206b3d"
+    }
+  },
+  "distributions": {
+    "d3": {
+      "path": ".cache/sine-stream-size/node_modules/d3/dist/d3.min.js",
+      "bytes": 279706,
+      "gzip9": 92459,
+      "brotli11": 77652,
+      "sha256": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539"
+    },
+    "chartjs": {
+      "path": ".cache/sine-stream-size/node_modules/chart.js/dist/chart.umd.min.js",
+      "bytes": 210082,
+      "gzip9": 71003,
+      "brotli11": 61412,
+      "sha256": "87364cc2b2a76a6684929e7d6b80b18a897794db38400caff1fcf1791c6925d2"
+    },
+    "chartjsAdapter": {
+      "path": ".cache/sine-stream-size/node_modules/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js",
+      "bytes": 50650,
+      "gzip9": 11688,
+      "brotli11": 10105,
+      "sha256": "ea7ab30d26c38dcf1f2d26bb43e73a94537b58f1906f55e1a546dd09321b5615"
+    },
+    "echarts": {
+      "path": ".cache/sine-stream-size/node_modules/echarts/dist/echarts.min.js",
+      "bytes": 1121883,
+      "gzip9": 368202,
+      "brotli11": 298840,
+      "sha256": "b66b25aeb4df84e33199dc21694014d336d222cbd9deb0e5a7c14bd6aa0d0fd0"
+    },
+    "uplotMinified": {
+      "path": "dist/uPlot.iife.min.js",
+      "bytes": 76138,
+      "gzip9": 31893,
+      "brotli11": 28842,
+      "sha256": "249d40553ae77efbd0c316dcd5736596af8c517937b38a2e00500c24b916ea78"
+    },
+    "uplotLoadedUnminified": {
+      "path": "dist/uPlot.iife.js",
+      "bytes": 185025,
+      "gzip9": 47474,
+      "brotli11": 41312,
+      "sha256": "e9cb803a30d09c05d92f31d085aa3c67c623da03acbbcaac4c90cccf98f5f291"
+    },
+    "uplotCSS": {
+      "path": "dist/uPlot.min.css",
+      "bytes": 2556,
+      "gzip9": 968,
+      "brotli11": 800,
+      "sha256": "47abe89afb93c70d428fdec950a50abbb1f4001eabe35895dc3b140bb0f23d46"
+    },
+    "chartjsTotal": {
+      "bytes": 260732,
+      "gzip9": 82691,
+      "brotli11": 71517
+    }
+  },
+  "builds": {
+    "d3UmbrellaLibrary": {
+      "file": ".cache/sine-stream-size/d3UmbrellaLibrary.min.js",
+      "format": "es",
+      "warnings": [],
+      "bytes": 67541,
+      "gzip9": 22301,
+      "brotli11": 19806,
+      "sha256": "8137353197fa2e637997ae4e9b941019f6d2f80b5bdc8478bb063ee5edd5e1d9"
+    },
+    "d3Library": {
+      "file": ".cache/sine-stream-size/d3Library.min.js",
+      "format": "es",
+      "warnings": [],
+      "bytes": 51027,
+      "gzip9": 17278,
+      "brotli11": 15382,
+      "sha256": "14df9a8b83f5657192500e5532baee62af13b14bc5d6811b8af9c6fcd49b7288"
+    },
+    "d3Demo": {
+      "file": ".cache/sine-stream-size/d3Demo.min.js",
+      "format": "iife",
+      "warnings": [],
+      "bytes": 53982,
+      "gzip9": 18593,
+      "brotli11": 16544,
+      "sha256": "8e18e41162c89a94193fd37d3ad8c8fe4a0cfcb8a50453a07c44c22348b62af9"
+    },
+    "chartjsLibrary": {
+      "file": ".cache/sine-stream-size/chartjsLibrary.min.js",
+      "format": "es",
+      "warnings": [],
+      "bytes": 219327,
+      "gzip9": 69180,
+      "brotli11": 60561,
+      "sha256": "89fd20d76413d56c08f2791940a5daf3e2012a0c50981ab3dda6eff618035a04"
+    },
+    "chartjsDemo": {
+      "file": ".cache/sine-stream-size/chartjsDemo.min.js",
+      "format": "iife",
+      "warnings": [],
+      "bytes": 221647,
+      "gzip9": 70192,
+      "brotli11": 61271,
+      "sha256": "f7be91ab7126275489c47c90c3687b9b77bdd627b7ca167f7e244bc69b474dbd"
+    },
+    "echartsLibrary": {
+      "file": ".cache/sine-stream-size/echartsLibrary.min.js",
+      "format": "es",
+      "warnings": [],
+      "bytes": 512754,
+      "gzip9": 170850,
+      "brotli11": 145613,
+      "sha256": "158b7535f39b0f92c316f697e19fde3d23f5778bf94d76facdd4ea0a8388d21a"
+    },
+    "echartsDemo": {
+      "file": ".cache/sine-stream-size/echartsDemo.min.js",
+      "format": "iife",
+      "warnings": [],
+      "bytes": 515881,
+      "gzip9": 171946,
+      "brotli11": 146177,
+      "sha256": "5029824b496f01948b23d161afe6d914dc074df0d3adc57a7f2b285fd8c9086d"
+    },
+    "uplotLibrary": {
+      "file": ".cache/sine-stream-size/uplotLibrary.min.js",
+      "format": "es",
+      "warnings": [],
+      "bytes": 76441,
+      "gzip9": 31929,
+      "brotli11": 28864,
+      "sha256": "5c471aa141248051af769c3863ca7ced632e97df3a7422466b936ce8962240de"
+    },
+    "uplotDemo": {
+      "file": ".cache/sine-stream-size/uplotDemo.min.js",
+      "format": "iife",
+      "warnings": [],
+      "bytes": 77678,
+      "gzip9": 32546,
+      "brotli11": 29415,
+      "sha256": "15826edd273da8a505703935ef7bcf6e40ea9dfe9e22a50964d4f3cbb65c0aec"
+    }
+  }
+}

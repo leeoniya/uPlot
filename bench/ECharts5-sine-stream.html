@@ -9,7 +9,7 @@
 		<p>This is an adaptation of <a href="../demos/sine-stream.html">/demos/sine-stream.html</a> using ECharts v6.1.0.</p>
 		<script src="https://fastly.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js"></script>
 
-		<div id="chart" style="width: 2540px; height: 600px;"></div>
+		<div id="chart" style="width: 1920px; height: 600px;"></div>
 
 		<script>
 			const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
@@ -146,11 +146,13 @@
 				},
 				legend: {},
 				grid: {
-					containLabel: true,
-					left: 0,
+					containLabel: false,
+					// Keep plot bounds fixed instead of resizing for axis labels.
+					outerBoundsMode: "none",
+					left: 50,
 					top: 50,
-					right: 0,
-					bottom: 30
+					right: 40,
+					bottom: 50
 				},
 				xAxis: {
 					type: "time"
@@ -171,7 +173,8 @@
 					//	sampling: "minmax",
 						lineStyle: { width: 1, color: "red" },
 						areaStyle: {
-							color: "rgba(255,0,0,0.1)"
+							color: "rgba(255,0,0,0.1)",
+							opacity: 1
 						},
 						emphasis: { lineStyle: { width: 1 } },
 						encode: {
@@ -187,7 +190,8 @@
 					//	sampling: "minmax",
 						lineStyle: { width: 1, color: "green" },
 						areaStyle: {
-							color: "#4caf505e"
+							color: "#4caf505e",
+							opacity: 1
 						},
 						emphasis: { lineStyle: { width: 1 } },
 						encode: {
@@ -203,7 +207,8 @@
 					//	sampling: "minmax",
 						lineStyle: { width: 1, color: "blue" },
 						areaStyle: {
-							color: "#0000ff20"
+							color: "#0000ff20",
+							opacity: 1
 						},
 						emphasis: { lineStyle: { width: 1 } },
 						encode: {
@@ -219,7 +224,8 @@
 					//	sampling: "minmax",
 						lineStyle: { width: 1, color: "orange" },
 						areaStyle: {
-							color: "#ffa5004f"
+							color: "#ffa5004f",
+							opacity: 1
 						},
 						emphasis: { lineStyle: { width: 1 } },
 						encode: {
@@ -235,7 +241,8 @@
 					//	sampling: "minmax",
 						lineStyle: { width: 1, color: "magenta" },
 						areaStyle: {
-							color: "#ff00ff20"
+							color: "#ff00ff20",
+							opacity: 1
 						},
 						emphasis: { lineStyle: { width: 1 } },
 						encode: {
@@ -251,7 +258,8 @@
 					//	sampling: "minmax",
 						lineStyle: { width: 1, color: "purple" },
 						areaStyle: {
-							color: "#80008020"
+							color: "#80008020",
+							opacity: 1
 						},
 						emphasis: { lineStyle: { width: 1 } },
 						encode: {
