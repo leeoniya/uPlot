@@ -7,7 +7,7 @@
   "module": "./dist/uPlot.esm.js",
   "typings": "./dist/uPlot.d.ts",
   "scripts": {
-    "build": "rollup -c --bundleConfigAsCjs",
+    "build": "rolldown -c",
     "bench:legend": "node --max-old-space-size=96 ./scripts/bench-legend.mjs",
     "demos": "node ./scripts/demos.mjs",
     "test": "node ./scripts/test.mjs",
@@ -52,8 +52,7 @@
     "istanbul-smart-text-reporter": "^1.1.5",
     "json-stringify-pretty-compact": "^4.0.0",
     "mocha": "^12.0.3",
-    "rollup": "^4.64.12",
-    "terser": "^5.51.2",
+    "rolldown": "^1.2.15",
     "test-exclude": "^8.0.0"
   },
   "nyc": {

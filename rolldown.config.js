@@ -1,4 +1,4 @@
-const fs = require('fs');
+import fs from 'node:fs';
 
 function cssmin(css) {
 	return css
@@ -12,8 +12,6 @@ function cssmin(css) {
 
 let minicss = cssmin(fs.readFileSync('./src/uPlot.css', 'utf8'));
 fs.writeFileSync('./dist/uPlot.min.css', minicss);
-
-import { minify } from 'terser';
 
 const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
 const ver = "v" + pkg.version;
@@ -61,20 +59,13 @@ function bannerlessESM() {
 	};
 }
 
-const terserOpts = {
+const minifyOpts = {
 	compress: {
-		inline: 0,
-		passes: 2,
-		keep_fargs: false,
-		pure_getters: true,
-		unsafe: true,
-		unsafe_comps: true,
-		unsafe_math: true,
-		unsafe_undefined: true,
+		target: 'es2022',
+		treeshake: { propertyReadSideEffects: false },
 	},
-	output: {
-		comments: /^!/
-	}
+	mangle: { toplevel: false, reserved: ['uPlot'] },
+	codegen: { removeWhitespace: true, legalComments: 'inline' },
 };
 
 export default [
@@ -84,6 +75,7 @@ export default [
 			name: 'uPlot',
 			file: './dist/uPlot.esm.js',
 			format: 'es',
+			minify: false,
 			banner,
 		//	sourcemap: true,
 		},
@@ -94,6 +86,7 @@ export default [
 			name: 'uPlot',
 			file: './dist/uPlot.cjs.js',
 			format: 'cjs',
+			minify: false,
 			exports: "auto",
 			banner,
 		},
@@ -104,6 +97,7 @@ export default [
 			name: 'uPlot',
 			file: './dist/uPlot.iife.js',
 			format: 'iife',
+			minify: false,
 			esModule: false,
 			banner,
 		},
@@ -120,13 +114,11 @@ export default [
 			format: 'iife',
 			esModule: false,
 			banner: "/*! " + urlVer + " */",
+			minify: minifyOpts,
+			comments: { legal: true, annotation: false, jsdoc: false },
 		},
 		plugins: [
 			bannerlessESM(),
-			{
-				name: 'terser',
-				renderChunk: code => minify(code, terserOpts),
-			},
 			trimTrailingWhitespace(),
 		]
 	},
