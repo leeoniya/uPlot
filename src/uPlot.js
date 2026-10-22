@@ -1352,6 +1352,7 @@ export default function uPlot(opts, data, then) {
 
 			let _ptDia = ptDia(max(1, s.width), 1);
 			let points = s.points = assign({}, {
+				shape: 1,
 				size: _ptDia,
 				width: max(1, _ptDia * .2),
 				stroke: s.stroke,

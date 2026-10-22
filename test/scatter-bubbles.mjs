@@ -116,10 +116,10 @@ function createDemo(data = fixture(), {pxRatio = 1, nodeSize, scatterData, level
 	const script = html.match(/<script\b[^>]*type="module"[^>]*>([^]*?)<\/script>/)?.[1];
 	assert.ok(script, 'scatter demo has an inline module');
 	const source = script.replace(/^\s*import\s+[^\n]+;\s*$/gm, '').replace(/let points\s*=\s*10000\s*;/, 'let points = 4;');
-	const u = new Function('uPlot', 'scatterPlugin', source + '\nreturn u2;')(DemoPlot, trackedPlugin);
+	const {u, shapeToggle} = new Function('uPlot', 'scatterPlugin', source + '\nreturn {u: u2, shapeToggle};')(DemoPlot, trackedPlugin);
 	assert.deepEqual(titles, ['Scatter Plot', 'Bubble Plot', 'Scatter Plot by Level']);
 	return {
-		u, scatter, levelPlot, indexes, listeners, removed, cursorCalls,
+		u, scatter, levelPlot, shapeToggle, indexes, listeners, removed, cursorCalls,
 		enter: () => u.over.dispatchEvent(new MouseEvent('mouseenter')),
 		latest(count) {
 			const index = indexes.at(-1);
@@ -128,7 +128,7 @@ function createDemo(data = fixture(), {pxRatio = 1, nodeSize, scatterData, level
 			assert.equal(index.bounds.length, count);
 			return index;
 		},
-		destroy() { try { u.destroy(); } finally { scatter?.destroy(); levelPlot?.destroy(); } },
+		destroy() { try { u.destroy(); } finally { scatter?.destroy(); levelPlot?.destroy(); shapeToggle.parentElement.remove(); } },
 	};
 }
 
@@ -192,6 +192,31 @@ describe('scatter plugin', () => {
 				const fills = ops(u.ctx.log.slice(start)).filter(e => e.name == 'fill');
 				assert.equal(fills.length, batch === true ? 1 : 3);
 				assert.ok(fills.every(e => batch === true ? e.args[0]?.log : e.args.length == 0));
+			}
+			finally { u.destroy(); }
+		});
+	}
+
+	for (const batch of [false, true]) {
+		it(`selects square corners but rejects circle corners (batch ${batch})`, async () => {
+			const u = new uPlot({
+				mode: 2, width: 400, height: 300, pxRatio: 2, axes: [],
+				scales: {x: {time: false, range: [0, 100]}, y: {range: [0, 100]}},
+				series: [null, {fill: 'red', points: {shape: 1}}, {fill: 'blue', points: {shape: 2}}],
+				cursor: {focus: {alpha: 1, prox: -1}},
+				plugins: [scatterPlugin({batch, hover: true, points: {size: 10, width: 0}})],
+			}, [null, [[25], [50]], [[75], [50]]], document.body);
+			try {
+				await tick();
+				for (const si of [1, 2]) {
+					const pos = center(u, si);
+					u.setCursor({left: pos.left + 4, top: pos.top + 4});
+					await tick();
+					assert.deepEqual(u.cursor.idxs.slice(1), si == 1 ? [null, null] : [null, 0]);
+					u.setCursor(pos);
+					await tick();
+					assert.equal(u.cursor.idxs[si], 0, 'both shapes include their centers');
+				}
 			}
 			finally { u.destroy(); }
 		});
@@ -273,6 +298,41 @@ describe('scatter demo bubbles', () => {
 			assert.deepEqual(u.series[1].values(u, 1, i), {
 				x: u.data[1][0][i], y: u.data[1][1][i], level: level[i],
 			});
+		}
+	});
+
+	it('toggles level point shapes and refreshes stationary corner hover', async () => {
+		await plot(undefined, {levels: true});
+		const u = demo.levelPlot;
+		const toggle = demo.shapeToggle;
+		assert.equal(toggle.type, 'checkbox');
+		assert.equal(toggle.checked, false);
+		assert.equal(u.root.nextElementSibling, toggle.parentElement, 'control follows the level chart');
+		u.setData([null, [[250], [250], [0]]]);
+		await tick();
+		const data = u.data;
+		const cache = u.series[1]._disp;
+		const pos = center(u, 1);
+		u.setCursor({left: pos.left + 4, top: pos.top + 4});
+		await tick();
+		assert.equal(u.cursor.idxs[1], null, 'circle excludes bounding-box corner');
+
+		for (const square of [true, false, true]) {
+			const start = u.ctx.log.length;
+			toggle.checked = square;
+			toggle.dispatchEvent(new Event('change', {bubbles: true}));
+			await tick();
+			assert.equal(u.series[1].points.shape, square ? 2 : 1);
+			assert.equal(u.data, data);
+			assert.equal(u.series[1]._disp, cache, 'shape change retains cached palette');
+			assert.equal(u.cursor.idxs[1], square ? 0 : null, 'redraw refreshes hover without moving the cursor');
+			const fills = ops(u.ctx.log.slice(start)).filter(e => e.name == 'fill');
+			assert.ok(fills.length > 0);
+			for (const fill of fills) {
+				const geometry = ops(fill.args[0].log);
+				assert.equal(geometry.filter(e => e.name == (square ? 'rect' : 'arc')).length, 1);
+				assert.equal(geometry.filter(e => e.name == (square ? 'arc' : 'rect')).length, 0);
+			}
 		}
 	});
 

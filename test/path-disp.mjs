@@ -1213,6 +1213,98 @@ describe('point batching', () => {
 	});
 });
 
+describe('point shapes', () => {
+	for (const [mode, batch, display] of [
+		['default shared path', undefined, false],
+		['display shared groups', true, true],
+		['ordered without display', false, false],
+		['ordered with display', false, true],
+	]) {
+		for (const ori of [0, 1]) {
+			for (const pxRatio of [1, 2]) {
+				for (const shape of [undefined, 1, 2]) {
+					it(`${mode}: shape ${shape ?? 'default'}, ori ${ori}, DPR ${pxRatio}`, async () => {
+						const bounds = [];
+						const sizes = [10, 12, 14, 16, 18, 10, 10, 10, 10, 0, 2];
+						const data = [[0, 1, 2, 3, 4, -2, 2, null, 2, 2, 2], [2, 3, 4, 3, 2, 2, 7, 2, null, 2, 2]];
+						const disp = display ? {
+							fill: {kind: 2, values: () => [['red', 'blue', 'unused'], [0, 2, 1, 2, 0, 2, 2, 2, 2, 2, 2]]},
+							size: {values: () => sizes},
+						} : undefined;
+						const builder = uPlot.paths.points({batch, disp, each: (u, si, di, ...box) => bounds.push([si, di, ...box])});
+						const u = plot('points', () => null, data, {
+							pxRatio,
+							scales: {x: {time: false, ori, range: [-1, 5]}, y: {ori: 1 - ori, range: [-1, 6]}},
+							series: [{}, {paths: () => null, pxAlign: 0, points: {
+								show: true, paths: () => null, size: 10, width: 2, fill: 'gray', stroke: 'black',
+								...(shape == null ? {} : {shape}),
+							}}],
+						});
+						try {
+							await tick();
+
+							const filter = [4, 5, 2, 6, 7, 8, 0, ...(display ? [9, 10] : [])];
+							const drawn = [4, 2, 0];
+							const expectedBounds = [];
+							const expected = drawn.map(di => {
+								const x = u.valToPos(data[0][di], 'x', true);
+								const y = u.valToPos(data[1][di], 'y', true);
+								const [cx, cy] = ori == 0 ? [x, y] : [y, x];
+								const size = (display ? sizes[di] : 10) * pxRatio;
+								const side = size - 2 * pxRatio;
+								const rad = side / 2;
+								expectedBounds.push([1, di, cx - size / 2, cy - size / 2, size, size]);
+								return shape == 2
+									? [{name: 'rect', args: [cx - rad, cy - rad, side, side]}]
+									: [{name: 'moveTo', args: [cx + rad, cy]}, {name: 'arc', args: [cx, cy, rad, 0, Math.PI * 2]}];
+							});
+							const start = u.ctx.log.length;
+							const captured = capturePaths(() => builder(u, 1, 0, 10, filter));
+							const events = ops(u.ctx.log.slice(start));
+							const paints = paintOps(events);
+							const single = batch == null;
+							const clip = single ? captured.result.clip : events.find(e => e.name == 'clip').args[0];
+							const paths = captured.paths.filter(path => path !== clip);
+							assert.deepEqual(bounds, expectedBounds, 'each preserves filter order and reports outer bounds including stroke');
+
+							if (single) {
+								assert.equal(captured.result.fill, captured.result.stroke, 'fill and stroke share geometry');
+								assert.deepEqual(paths, [captured.result.fill], 'construct geometry only once');
+								assert.deepEqual(ops(paths[0].log), expected.flat());
+								assert.equal(paints.length, 0, 'single-path mode defers painting');
+							}
+							else if (batch) {
+								assert.equal(captured.result, null);
+								assert.equal(paths.length, 2, 'allocate only the two drawn color groups');
+								assert.deepEqual(paints.map(e => e.name), ['fill', 'fill', 'stroke', 'stroke']);
+								const [red, blue] = paints.slice(0, 2).map(e => e.args[0]);
+								assert.equal(new Set([red, blue]).size, 2);
+								assert.deepEqual(new Set(paths), new Set([red, blue]), 'no duplicate or unpainted geometry');
+								assert.equal(paints[2].args[0], red, 'red fill/stroke share one path');
+								assert.equal(paints[3].args[0], blue, 'blue fill/stroke share one path');
+								assert.deepEqual(ops(red.log), [...expected[0], ...expected[2]]);
+								assert.deepEqual(ops(blue.log), expected[1]);
+								assert.deepEqual(events.filter(e => e.name == 'fillStyle').map(e => e.args), ['red', 'blue']);
+							}
+							else {
+								assert.equal(captured.result, null);
+								assert.equal(paths.length, 0, 'ordered mode draws directly to the context');
+								assert.deepEqual(events.filter(e => ['beginPath', 'rect', 'moveTo', 'arc', 'fill', 'stroke'].includes(e.name)),
+									expected.flatMap(geometry => [
+										{name: 'beginPath', args: []}, ...geometry,
+										{name: 'fill', args: []}, {name: 'stroke', args: []},
+									]), 'draw one shape per point, then fill and stroke in filter order');
+								assert.deepEqual(events.filter(e => e.name == 'fillStyle').map(e => e.args), display ? ['red', 'blue', 'red'] : ['gray', 'gray', 'gray']);
+							}
+						}
+						finally { u.destroy(); }
+					});
+				}
+			}
+		}
+	}
+});
+
 describe('ordered point display painting', () => {
 	for (const ori of [0, 1]) {
 		for (const pxRatio of [1, 2]) {

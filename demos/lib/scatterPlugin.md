@@ -27,6 +27,8 @@ const chart = new uPlot({
 ## Configuration
 
 - `points` supplies common `series.points` defaults. Per-series point configuration takes precedence, except for `points.paths`.
+- `points.shape` selects circles (`1`, the default) or squares (`2`). TypeScript exposes these values as `uPlot.Series.PointShape.Circle` and `.Square`.
+- `points.size` and `disp.size` specify the outer diameter or square side length in CSS pixels, including the outline.
 - `disp` passes native display descriptors to `uPlot.paths.points()`. It supports colors, CSS sizes, and scale-backed sizes.
 - `batch` defaults to `false`, with or without `disp`. Points paint individually in data or filter order.
 - `hover` defaults to `false`. This setting adds no spatial index or hover hooks.
@@ -39,7 +41,7 @@ The caller must set `mode: 2` before chart construction.
 
 ## Batched points
 
-`batch: true` constructs each circle once and shares one `Path2D` between the fill and stroke of each group.
+`batch: true` constructs each point once and shares one `Path2D` between the fill and stroke of each group.
 The `disp.fill` color defines each group when that descriptor exists.
 Otherwise, `disp.stroke` defines the groups.
 Without color descriptors, all points share one group.
@@ -106,7 +108,8 @@ The plugin reserves one Flatbush slot per data point in each visible series befo
 Drawn point bounds go directly into the index in absolute canvas coordinates.
 Each hover query converts the CSS cursor position to canvas coordinates once.
 Skipped points receive zero-sized `(0, 0, 0, 0)` placeholders, which cannot produce hover hits.
-The point builder culls by center coordinates, not individual circle bounds.
+The point builder culls by center coordinates, not individual point bounds.
+Hover selection uses circular bounds for circles and rectangular bounds for squares.
 For scale-backed `disp.size`, its center window extends beyond each plot edge by half the largest configured diameter.
 This includes partially visible edge bubbles without changing the displayed scale ranges.
 Strict plot clipping still applies, and hover selects only the visible portion inside the plot.
@@ -122,8 +125,8 @@ A programmatic cursor update inside the plot also finishes a pending index.
 The plugin refreshes selection after a redraw beneath a stationary pointer.
 Chart destruction removes the entry listener and releases the index.
 
-Selection compares circle diameters, then center distances, then callback order.
-It prefers the smallest circle, then the closest center, then the last point in data or filter order.
+Selection compares point sizes, then center distances, then callback order.
+It prefers the smallest point, then the closest center, then the last point in data or filter order.
 Batching does not change this selection order, even when color groups change the paint order.
 The retained hover state contains only the series index, data index, and diameter.
 The plugin owns `cursor.dataIdx`, `cursor.points.size`, and `cursor.focus.dist` when hover is enabled.

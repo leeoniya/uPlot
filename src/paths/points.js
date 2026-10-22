@@ -1,7 +1,15 @@
-import { orient, pointPos, moveToH, moveToV, rectH, arcH, arcV, pxOffset, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './utils.js';
+import { orient, pointPos, rectH, pxOffset, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './utils.js';
 import { roundDec, PI, EMPTY_OBJ, EMPTY_ARR } from '../utils.js';
 import { cacheDisp, cacheColors, colorPaths, dispReader } from './disp.js';
 
+function circle(path, x, y, rad) {
+	path.moveTo(x + rad, y);
+	path.arc(x, y, rad, 0, PI * 2);
+}
+
+function square(path, x, y, rad) {
+	path.rect(x - rad, y - rad, rad * 2, rad * 2);
+}
 
 export function points(opts) {
 	opts = opts || EMPTY_OBJ;
@@ -16,8 +24,7 @@ export function points(opts) {
 		return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 			let { pxRound, points } = series;
 			const horizontal = scaleX.ori == 0;
-			const moveTo = horizontal ? moveToH : moveToV;
-			const arc = horizontal ? arcH : arcV;
+			const drawShape = points.shape == 2 ? square : circle;
 			const width = roundDec(points.width * pxRatio, 3);
 			const sizes = disp?.size == null ? null : cacheDisp(u, seriesIdx, disp.size);
 			const fills = batch || disp?.fill == null ? null : cacheColors(u, seriesIdx, disp.fill);
@@ -92,14 +99,15 @@ export function points(opts) {
 					rad = (size - points.width) / 2 * pxRatio;
 				}
 
+				const cx = horizontal ? x : y;
+				const cy = horizontal ? y : x;
 
 				if (colors != null) {
 					const path = colors.path(pi);
 					if (path == null)
 						return;
 
-					moveTo(path, x + (horizontal ? rad : 0), y + (horizontal ? 0 : rad));
-					arc(path, x, y, rad, 0, PI * 2);
+					drawShape(path, cx, cy, rad);
 				}
 				else if (!singlePath) {
 					const colorFill = fills == null ? fillStyle : fills[0][fillIndex(fills[1], pi)];
@@ -108,8 +116,7 @@ export function points(opts) {
 						return;
 
 					ctx.beginPath();
-					moveTo(ctx, x + (horizontal ? rad : 0), y + (horizontal ? 0 : rad));
-					arc(ctx, x, y, rad, 0, PI * 2);
+					drawShape(ctx, cx, cy, rad);
 					if (colorFill != null) {
 						ctx.fillStyle = colorFill;
 						ctx.fill();
@@ -119,16 +126,12 @@ export function points(opts) {
 						ctx.stroke();
 					}
 				}
-				else {
-					moveTo(fill, x + (horizontal ? rad : 0), y + (horizontal ? 0 : rad));
-					arc(fill, x, y, rad, 0, PI * 2);
-				}
+				else
+					drawShape(fill, cx, cy, rad);
 
 				if (each != null) {
-					const cx = (horizontal ? x : y) + offset;
-					const cy = (horizontal ? y : x) + offset;
 					const outer = rad + width / 2;
-					each(u, seriesIdx, pi, cx - outer, cy - outer, outer * 2, outer * 2);
+					each(u, seriesIdx, pi, cx + offset - outer, cy + offset - outer, outer * 2, outer * 2);
 				}
 			};
 

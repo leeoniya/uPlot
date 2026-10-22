@@ -972,14 +972,14 @@ declare namespace uPlot {
 			each?: PathBuilderEach;
 		}
 
-		/** finite CSS outer diameters including stroke, cached like colors. sizes <= stroke width skip the point */
+		/** finite CSS outer sizes (diameter or square side), including stroke, cached like colors. sizes <= stroke width skip the point */
 		export type PointsPathBuilderSizeFacet = {unit?: 3} & PathBuilderFacet<number>;
 
 		/** maps raw values through a native scale, independently of plot dimensions and orientation */
 		export type PointsPathBuilderScaledSizeFacet = {
 			unit?: 1;
 			scale: string;
-			/** ascending CSS outer diameters [minDiameter, maxDiameter] at the scale min/max. transformed values are clamped to this range. maxDiameter / 2 pads the center-culling window */
+			/** ascending CSS outer sizes [minSize, maxSize] at the scale min/max. transformed values are clamped to this range. maxSize / 2 pads the center-culling window */
 			range: [number, number];
 		} & PathBuilderFacet<number>;
 
@@ -1056,8 +1056,13 @@ declare namespace uPlot {
 			export type PathBuilder = (self: uPlot, seriesIdx: number, idx0: number, idx1: number, filtIdxs?: number[] | null) => Paths | null;
 		}
 
+		export const enum PointShape {
+			Circle = 1,
+			Square = 2,
+		}
+
 		export interface Points {
-			/** if boolean or returns boolean, round points are drawn with defined options, else fn should draw own custom points via self.ctx */
+			/** if boolean or returns boolean, points are drawn with defined options, else fn should draw own custom points via self.ctx */
 			show?: Points.Show;
 
 			paths?: Points.PathBuilder;
@@ -1065,16 +1070,19 @@ declare namespace uPlot {
 			/** may return an array of points indices to draw */
 			filter?: Points.Filter;
 
-			/** diameter of point in CSS pixels */
+			/** marker shape (default: Circle). used by the native points path builder */
+			shape?: PointShape;
+
+			/** outer diameter or square side length in CSS pixels, including the outline */
 			size?: number;
 
 			/** minimum avg space between point centers before they're shown (default: size * 2) */
 			space?: number;
 
-			/** line width of circle outline in CSS pixels */
+			/** line width of point outline in CSS pixels */
 			width?: number;
 
-			/** line color of circle outline (defaults to series.stroke) */
+			/** line color of point outline (defaults to series.stroke) */
 			stroke?: Stroke;
 
 			/** line dash segment array */
@@ -1083,7 +1091,7 @@ declare namespace uPlot {
 			/** line cap */
 			cap?: Series.Cap;
 
-			/** fill color of circle (defaults to #fff) */
+			/** fill color of point (defaults to #fff) */
 			fill?: Fill;
 		}
 

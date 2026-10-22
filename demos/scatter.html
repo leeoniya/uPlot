@@ -245,6 +245,17 @@
 			};
 
 			let u3 = new uPlot(opts3, data3, document.body);
+
+			const shapeToggle = document.createElement('input');
+			shapeToggle.type = 'checkbox';
+			const shapeLabel = document.createElement('label');
+			shapeLabel.append(shapeToggle, ' Square points');
+			document.body.append(shapeLabel);
+
+			shapeToggle.onchange = () => {
+				u3.series[1].points.shape = shapeToggle.checked ? 2 : 1;
+				u3.redraw(true);
+			};
 		</script>
 	</body>
 </html>

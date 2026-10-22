@@ -67,7 +67,7 @@ function pointHover() {
 		let count = 0;
 		for (let si = 1; si < u.series.length; si++) {
 			const length = u.series[si].show ? u.data[si][0].length : 0;
-			slots[si] = {start: -1, length, indices: null};
+			slots[si] = {start: -1, length, indices: null, square: u.series[si].points.shape == 2};
 			count += length;
 		}
 		if (count > 0)
@@ -128,12 +128,16 @@ function pointHover() {
 						hoverIndex.search(cx, cy, cx, cy, (id, x0, y0, x1, y1) => {
 							const w = x1 - x0;
 
-							if (w == 0)
+							if (w == 0 || w > diameter)
 								return false;
+							const square = slots.some(slot => slot.square && slot.start != -1 && id >= slot.start && id < slot.start + slot.length);
 							const d = (x0 + w / 2 - cx) ** 2 + ((y0 + y1) / 2 - cy) ** 2;
+							// Flatbush already checks square containment. Distance still breaks equal-size ties.
+							if (!square && d > w * w / 4)
+								return false;
 
-							// Prefer the smallest circle, then nearest center, then last-painted point.
-							if (d <= w * w / 4 && (w < diameter || w == diameter && (d < dist || d == dist && id > bestId))) {
+							// Prefer the smallest point, then nearest center, then last-added point.
+							if (w < diameter || d < dist || d == dist && id > bestId) {
 								diameter = w;
 								dist = d;
 								bestId = id;
