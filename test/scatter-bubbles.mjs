@@ -176,6 +176,14 @@ describe('scatter plugin', () => {
 		assert.equal(typeof series.points.paths, 'function');
 	});
 
+	it('does not install series focus configuration for point hover', () => {
+		const opts = {series: [null, {fill: 'red'}]};
+		scatterPlugin({hover: true}).opts({mode: 2}, opts);
+		assert.equal(Object.hasOwn(opts.cursor, 'focus'), false);
+		assert.equal(typeof opts.cursor.dataIdx, 'function');
+		assert.equal(typeof opts.cursor.points.size, 'function');
+	});
+
 	for (const batch of [undefined, false, true]) {
 		it(`uses ordered uniform scatter painting unless batching is enabled (${batch})`, async () => {
 			const u = new uPlot({
@@ -275,6 +283,35 @@ describe('scatter demo bubbles', () => {
 		return demo.u;
 	}
 
+	it('updates bubble hover across series without dimming, painting or index rebuilds', async () => {
+		const u = await plot();
+		assert.equal(u.focus.prox, -1);
+		const index = demo.latest(4);
+		const indexCount = demo.indexes.length;
+		const start = u.ctx.log.length;
+		let builds = 0;
+		for (const series of u.series.slice(1)) {
+			const paths = series.points.paths;
+			series.points.paths = (...args) => { builds++; return paths(...args); };
+		}
+		for (const si of [1, 2, 3, 4]) {
+			u.setCursor(center(u, si));
+			await tick();
+			selected(u, si);
+			assert.ok(u.cursor.points.size(u, si) > 0);
+			assert.ok(u.series.slice(1).every(s => s._focus == null && s.alpha == 1));
+		}
+		u.setCursor({left: -10, top: -10});
+		await tick();
+		selected(u);
+		assert.equal(builds, 0);
+		assert.equal(u.ctx.log.length, start);
+		assert.equal(demo.indexes.length, indexCount);
+		assert.equal(demo.latest(4), index);
+		assert.equal(index.finishes, 1);
+		assert.ok(index.searches.length >= 4);
+	});
+
 	it('colors 300 points from the third level facet in a single series', async () => {
 		await plot(undefined, {levels: true});
 		const u = demo.levelPlot;
@@ -300,6 +337,46 @@ describe('scatter demo bubbles', () => {
 			});
 		}
 	});
+
+	for (const shape of [1, 2]) {
+		it(`updates level hover without series focus, painting or index rebuilds (shape ${shape})`, async () => {
+			await plot(undefined, {levels: true});
+			const u = demo.levelPlot;
+			assert.equal(u.focus.prox, -1, 'hover preserves the default disabled series focus');
+			u.series[1].points.shape = shape;
+			u.setData([null, [[125, 375], [250, 250], [0, 2]]]);
+			await tick();
+			const index = demo.indexes.at(-1);
+			const indexCount = demo.indexes.length;
+			const start = u.ctx.log.length;
+			let builds = 0;
+			const paths = u.series[1].points.paths;
+			u.series[1].points.paths = (...args) => { builds++; return paths(...args); };
+			const first = center(u, 1, 0);
+			for (const [pos, di] of [
+				[first, 0],
+				[{left: first.left + 30, top: first.top + 30}, null],
+				[center(u, 1, 1), 1],
+				[{left: -10, top: -10}, null],
+			]) {
+				u.setCursor(pos);
+				await tick();
+				assert.equal(u.cursor.idxs[1], di);
+				if (pos.left >= 0)
+					assert.equal(u.cursor.points.size(u, 1), di == null ? 0 : 10);
+				if (di != null)
+					assert.equal(u.legend.values[1].level, u.data[1][2][di]);
+				assert.equal(u.series[1]._focus, null);
+				assert.equal(u.series[1].alpha, 1);
+			}
+			assert.equal(builds, 0, 'hover must not invoke the points path builder');
+			assert.equal(u.ctx.log.length, start, 'hover must not repaint the canvas');
+			assert.equal(demo.indexes.length, indexCount);
+			assert.equal(demo.indexes.at(-1), index);
+			assert.equal(index.finishes, 1, 'finish the existing spatial index once');
+			assert.ok(index.searches.length > 0, 'point selection still queries the spatial index');
+		});
+	}
 
 	it('toggles level point shapes and refreshes stationary corner hover', async () => {
 		await plot(undefined, {levels: true});
@@ -879,7 +956,7 @@ describe('scatter demo bubbles', () => {
 			u.setCursor({left: 0, top: 0});
 			selected(u);
 			assert.equal(u.cursor.points.size(u, 4), 0);
-			assert.equal(u.cursor.focus.dist(u, 4), Infinity);
+
 			const searches = index.searches.length;
 			for (const cursor of [
 				{left: -1, top: 0}, {left: 0, top: -1},

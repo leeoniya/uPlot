@@ -24,7 +24,7 @@ export function scatterPlugin({points = {}, disp, batch = false, hover = false} 
 				opts.cursor = uPlot.assign({}, hit.cursor, opts.cursor, {
 					dataIdx: hit.cursor.dataIdx,
 					points: {size: hit.cursor.points.size},
-					focus: {dist: hit.cursor.focus.dist},
+
 				});
 			}
 		},
@@ -167,11 +167,7 @@ function pointHover() {
 			points: {
 				size: (u, seriesIdx) => seriesIdx == hoverSeries ? hoverDiameter / u.pxRatio : 0,
 			},
-			focus: {
-				prox: 1e3,
-				alpha: 0.3,
-				dist: (u, seriesIdx) => seriesIdx == hoverSeries ? 0 : Infinity,
-			},
+
 		},
 		hooks: {
 			init: u => u.over.addEventListener('mouseenter', finishHoverIndex),

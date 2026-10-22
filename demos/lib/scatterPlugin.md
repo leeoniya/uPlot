@@ -32,7 +32,7 @@ const chart = new uPlot({
 - `disp` passes native display descriptors to `uPlot.paths.points()`. It supports colors, CSS sizes, and scale-backed sizes.
 - `batch` defaults to `false`, with or without `disp`. Points paint individually in data or filter order.
 - `hover` defaults to `false`. This setting adds no spatial index or hover hooks.
-- With `hover: true`, the plugin supplies point selection, cursor marker sizes, and series focus.
+- With `hover: true`, the plugin supplies point selection and cursor marker sizes. It does not configure series focus.
 
 The plugin owns `series.paths` and `series.points.paths` for the initial series.
 It defaults `points.show` to `true` and point fill to the series fill.
@@ -129,6 +129,6 @@ Selection compares point sizes, then center distances, then callback order.
 It prefers the smallest point, then the closest center, then the last point in data or filter order.
 Batching does not change this selection order, even when color groups change the paint order.
 The retained hover state contains only the series index, data index, and diameter.
-The plugin owns `cursor.dataIdx`, `cursor.points.size`, and `cursor.focus.dist` when hover is enabled.
+The plugin owns `cursor.dataIdx` and `cursor.points.size` when hover is enabled.
 Other cursor configuration and caller hooks remain available.
-For hover markers without series dimming, the chart can set `cursor.focus: {prox: -1, alpha: 1}`.
+All scatter demos leave series focus disabled. Point hover updates do not dim series, repaint the chart, or rebuild the spatial index.
