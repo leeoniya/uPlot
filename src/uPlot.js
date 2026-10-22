@@ -2321,7 +2321,10 @@ export default function uPlot(opts, data, then) {
 			if (strokePath instanceof Map) {
 				strokePath.forEach((strokePath, strokeStyle) => {
 					ctx.strokeStyle = ctxStroke = strokeStyle;
-					ctx.stroke(strokePath);
+					if (isArr(strokePath))
+						strokePath.forEach(path => ctx.stroke(path));
+					else
+						ctx.stroke(strokePath);
 				});
 			}
 			else
@@ -2333,7 +2336,10 @@ export default function uPlot(opts, data, then) {
 		if (fillPath instanceof Map) {
 			fillPath.forEach((fillPath, fillStyle) => {
 				ctx.fillStyle = ctxFill = fillStyle;
-				ctx.fill(fillPath);
+				if (isArr(fillPath))
+					fillPath.forEach(path => ctx.fill(path));
+				else
+					ctx.fill(fillPath);
 			});
 		}
 		else

@@ -3397,27 +3397,58 @@ var uPlot = (function () {
 		return cacheDisp(u, seriesIdx, facet, facet.kind == 1 ? unaryColor : facet.kind == 2 ? null : indexColors);
 	}
 
-	function colorPaths(u, seriesIdx, facet) {
-		const [palette, indices] = cacheColors(u, seriesIdx, facet);
+	// The primary color identifies the whole fill/stroke combination. Callers supply matched groups.
+	function colorPaths(u, seriesIdx, disp, fillStyle, strokeStyle, stroke = true) {
+		const fills = disp.fill == null ? null : cacheColors(u, seriesIdx, disp.fill);
+		const strokes = disp.stroke == null || !stroke && fills != null ? null : cacheColors(u, seriesIdx, disp.stroke);
+		const fillIndex = dispReader(disp.fill?.kind == 1 ? 1 : 3);
+		const strokeIndex = dispReader(disp.stroke?.kind == 1 ? 1 : 3);
+		const primary = fills ?? strokes;
+		const index = fills == null ? strokeIndex : fillIndex;
+		const groups = new Map();
+
+		// Preserve palette order, but allocate geometry only for groups with drawn items.
+		primary?.[0].forEach(color => groups.set(color ?? null, null));
+
+		return {
+			groups,
+			path(i) {
+				const color = primary == null ? fillStyle : primary[0][index(primary[1], i)];
+				const key = color ?? null;
+				let group = groups.get(key);
+				if (group == null) {
+					const fill = fills == null ? fillStyle : color;
+					const strokeColor = !stroke ? null : strokes == null ? strokeStyle : fills == null ? color : strokes[0][strokeIndex(strokes[1], i)];
+					group = {fill, stroke: strokeColor, path: fill == null && strokeColor == null ? null : new Path2D()};
+					groups.set(key, group);
+				}
+				return group.path;
+			},
+		};
+	}
+
+	function paintPaths(groups, channel) {
 		const paths = new Map();
-		const lookup = Array(palette.length);
-
-		for (let i = 0; i < palette.length; i++) {
-			const color = palette[i];
-			if (color != null) {
-				let path = paths.get(color);
-				if (path == null)
-					paths.set(color, path = new Path2D());
-				lookup[i] = path;
+		groups.forEach(group => {
+			if (group != null && group.path != null && group[channel] != null) {
+				const color = group[channel];
+				const prev = paths.get(color);
+				if (prev == null)
+					paths.set(color, group.path);
+				else if (Array.isArray(prev))
+					prev.push(group.path);
+				else
+					paths.set(color, [prev, group.path]);
 			}
-		}
-
-		return {paths, lookup, indices, index: dispReader(facet.kind == 1 ? 1 : 3)};
+		});
+		return paths;
 	}
 
 	function points(opts) {
 		opts = opts || EMPTY_OBJ;
 		const disp = opts.disp;
+		const batch = opts.batch ?? (disp == null);
+		const singlePath = batch && disp == null;
 		const each = opts.each;
 
 		return (u, seriesIdx, idx0, idx1, filtIdxs) => {
@@ -3430,8 +3461,8 @@ var uPlot = (function () {
 				const arc = horizontal ? arcH : arcV;
 				const width = roundDec(points.width * pxRatio, 3);
 				const sizes = disp?.size == null ? null : cacheDisp(u, seriesIdx, disp.size);
-				const fills = disp?.fill == null ? null : cacheColors(u, seriesIdx, disp.fill);
-				const strokes = disp?.stroke == null ? null : cacheColors(u, seriesIdx, disp.stroke);
+				const fills = batch || disp?.fill == null ? null : cacheColors(u, seriesIdx, disp.fill);
+				const strokes = batch || width <= 0 || disp?.stroke == null ? null : cacheColors(u, seriesIdx, disp.stroke);
 				const sizeValue = dispReader(disp?.size?.kind);
 				const fillIndex = dispReader(disp?.fill?.kind == 1 ? 1 : 3);
 				const strokeIndex = dispReader(disp?.stroke?.kind == 1 ? 1 : 3);
@@ -3444,7 +3475,7 @@ var uPlot = (function () {
 				let rad = (points.size - points.width) / 2 * pxRatio;
 				const clipPad = sizes != null ? 0 : disp == null ? roundDec(rad * 2, 3) : points.size * pxRatio / 2;
 
-				let fill = disp == null ? new Path2D() : null;
+				let fill = singlePath ? new Path2D() : null;
 				let clip = new Path2D();
 				let { left: lft, top, width: wid, height: hgt } = u.bbox;
 
@@ -3459,8 +3490,9 @@ var uPlot = (function () {
 				const strokeStyle = points._stroke;
 				const fillStyle = points._fill ?? (width > 0 ? '#fff' : strokeStyle);
 
-				if (disp != null) {
-					// Paint in data order: batching overlapping translucent points changes their colors.
+				const colors = !singlePath && batch ? colorPaths(u, seriesIdx, disp, fillStyle, strokeStyle, width > 0) : null;
+
+				if (!singlePath) {
 					ctx.save();
 					// Bubble clipping stays at the plot boundary, independent of stroke alignment.
 					if (sizes != null)
@@ -3502,8 +3534,15 @@ var uPlot = (function () {
 					}
 
 
-					if (disp != null) {
+					if (colors != null) {
+						const path = colors.path(pi);
+						if (path == null)
+							return;
 
+						moveTo(path, x + (horizontal ? rad : 0), y + (horizontal ? 0 : rad));
+						arc(path, x, y, rad, 0, PI * 2);
+					}
+					else if (!singlePath) {
 						const colorFill = fills == null ? fillStyle : fills[0][fillIndex(fills[1], pi)];
 						const colorStroke = strokes == null ? strokeStyle : strokes[0][strokeIndex(strokes[1], pi)];
 						if (colorFill == null && (width <= 0 || colorStroke == null))
@@ -3541,7 +3580,21 @@ var uPlot = (function () {
 						drawPoint(pi);
 				}
 
-				if (disp != null) {
+				if (!singlePath) {
+					if (colors != null) {
+						colors.groups.forEach(group => {
+							if (group?.fill != null) {
+								ctx.fillStyle = group.fill;
+								ctx.fill(group.path);
+							}
+						});
+						colors.groups.forEach(group => {
+							if (group?.stroke != null) {
+								ctx.strokeStyle = group.stroke;
+								ctx.stroke(group.path);
+							}
+						});
+					}
 					ctx.restore();
 					return null;
 				}
@@ -3943,24 +3996,6 @@ var uPlot = (function () {
 
 				let strokeWidth = pxRound(series.width * pxRatio);
 
-				let multiPath = false;
-
-				let fillColors = null;
-				let fillPaths = null;
-				let strokeColors = null;
-				let strokePaths = null;
-
-				if (dispFills != null && (strokeWidth == 0 || dispStrokes != null)) {
-					multiPath = true;
-
-					fillColors = colorPaths(u, seriesIdx, dispFills);
-					fillPaths = fillColors.paths;
-
-					if (strokeWidth > 0) {
-						strokeColors = colorPaths(u, seriesIdx, dispStrokes);
-						strokePaths = strokeColors.paths;
-					}
-				}
 
 				let { x0, size } = disp;
 				let xToPos = valToPosX;
@@ -4018,7 +4053,8 @@ var uPlot = (function () {
 
 				const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: 0};  // disp, geom
 
-				const stroke = multiPath ? null : new Path2D();
+				const colors = dispFills != null || dispStrokes != null ? colorPaths(u, seriesIdx, disp, series._fill, series._stroke, strokeWidth > 0) : null;
+				const stroke = colors == null ? new Path2D() : null;
 
 				let yValue = dispReader();
 				let y0Value = dispReader();
@@ -4073,18 +4109,9 @@ var uPlot = (function () {
 						let rv = yPos < fillToY ? radVal : radBase;
 						let rb = yPos < fillToY ? radBase : radVal;
 
-						if (multiPath) {
-							let strokePath = strokeWidth > 0 ? strokeColors.lookup[strokeColors.index(strokeColors.indices, i)] : null;
-							let fillPath = fillColors.lookup[fillColors.index(fillColors.indices, i)];
-
-							if (strokePath != null)
-								rect(strokePath, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
-
-							if (fillPath != null)
-								rect(fillPath, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
-						}
-						else
-							rect(stroke, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
+						const path = colors == null ? stroke : colors.path(i);
+						if (path != null)
+							rect(path, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
 
 						each(u, seriesIdx, i,
 							lft    - strokeWidth / 2,
@@ -4096,13 +4123,13 @@ var uPlot = (function () {
 				}
 
 				if (strokeWidth > 0)
-					_paths.stroke = multiPath ? strokePaths : stroke;
-				else if (!multiPath) {
+					_paths.stroke = colors == null ? stroke : paintPaths(colors.groups, 'stroke');
+				else if (colors == null) {
 					_paths._fill = series.width == 0 ? series._fill : series._stroke ?? series._fill;
 					_paths.width = 0;
 				}
 
-				_paths.fill = multiPath ? fillPaths : stroke;
+				_paths.fill = colors == null ? stroke : paintPaths(colors.groups, 'fill');
 
 				return _paths;
 			});
@@ -6397,7 +6424,10 @@ var uPlot = (function () {
 				if (strokePath instanceof Map) {
 					strokePath.forEach((strokePath, strokeStyle) => {
 						ctx.strokeStyle = ctxStroke = strokeStyle;
-						ctx.stroke(strokePath);
+						if (isArr(strokePath))
+							strokePath.forEach(path => ctx.stroke(path));
+						else
+							ctx.stroke(strokePath);
 					});
 				}
 				else
@@ -6409,7 +6439,10 @@ var uPlot = (function () {
 			if (fillPath instanceof Map) {
 				fillPath.forEach((fillPath, fillStyle) => {
 					ctx.fillStyle = ctxFill = fillStyle;
-					ctx.fill(fillPath);
+					if (isArr(fillPath))
+						fillPath.forEach(path => ctx.fill(path));
+					else
+						ctx.fill(fillPath);
 				});
 			}
 			else

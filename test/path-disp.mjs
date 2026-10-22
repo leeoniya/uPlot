@@ -6,6 +6,52 @@ import uPlot from '../src/uPlot.js';
 const ops = log => log.flatMap(([name, ...entries]) => entries.map(args => ({name, args})));
 const counts = (path, op) => ops(path.log).filter(e => e.name == op).length;
 const tick = () => Promise.resolve();
+const pathList = value => value == null ? [] : Array.isArray(value) ? value : [value];
+const paintOps = events => events.filter(e => e.name == 'fill' || e.name == 'stroke');
+
+function appendPath(map, color, path) {
+	if (!map.has(color))
+		map.set(color, path);
+	else
+		map.set(color, [...pathList(map.get(color)), path]);
+}
+
+function batches(events) {
+	const styles = {};
+	const result = {fill: new Map(), stroke: new Map()};
+	const painted = {fill: new Set(), stroke: new Set()};
+	for (const {name, args} of events) {
+		if (name == 'fillStyle' || name == 'strokeStyle')
+			styles[name] = args;
+		else if (name == 'fill' || name == 'stroke') {
+			const color = styles[`${name}Style`];
+			assert.ok(color != null, 'paint uses a non-null color');
+			assert.ok(args[0]?.log != null, 'batched paint receives a Path2D');
+			assert.ok(!painted[name].has(args[0]), `paint each group only once per ${name}`);
+			assert.ok(counts(args[0], 'arc') > 0, 'do not paint unused colors');
+			painted[name].add(args[0]);
+			appendPath(result[name], color, args[0]);
+		}
+	}
+	assert.deepEqual(paintOps(events).map(e => e.name), [
+		...Array(painted.fill.size).fill('fill'), ...Array(painted.stroke.size).fill('stroke'),
+	], 'paint every fill before any stroke');
+	return result;
+}
+
+function capturePaths(draw) {
+	const OriginalPath2D = globalThis.Path2D;
+	const paths = new Set();
+	// The mock has own, non-writable methods. Capture all unique construction logs,
+	// including unpainted paths, instead of counting geometry once per paint.
+	globalThis.Path2D = function(source) {
+		const path = new OriginalPath2D(source);
+		paths.add(path);
+		return path;
+	};
+	try { return {result: draw(), paths: [...paths]}; }
+	finally { globalThis.Path2D = OriginalPath2D; }
+}
 
 function plot(kind, builder, data = [[0, 1, 2, 3, 4], [2, 3, 4, 3, 2]], extra = {}) {
 	const style = kind == 'bars'
@@ -469,7 +515,7 @@ describe('cached path display values', () => {
 	it('bar palettes share duplicate colors and skip null/out-of-range entries', async () => {
 		const builder = uPlot.paths.bars({disp: {
 			fill: {kind: 2, values: () => [['red', 'blue', null, 'red'], new Uint8Array([0, 1, 2, 3, 9])]},
-			stroke: {values: () => ['black', null, 'black', 'black', null]},
+			stroke: {values: () => ['black', null, 'black', 'black', 'black']},
 		}});
 		const u = plot('bars', builder);
 		try {
@@ -478,7 +524,12 @@ describe('cached path display values', () => {
 			assert.deepEqual([...paths.fill.keys()], ['red', 'blue']);
 			assert.equal(counts(paths.fill.get('red'), 'rect'), 2);
 			assert.equal(counts(paths.fill.get('blue'), 'rect'), 1);
-			assert.equal(counts(paths.stroke.get('black'), 'rect'), 3);
+			const strokes = paths.stroke.get('black');
+			assert.ok(Array.isArray(strokes), 'a repeated counterpart color retains separate group paths');
+			assert.equal(strokes.length, 2);
+			assert.equal(strokes[0], paths.fill.get('red'));
+			assert.deepEqual(strokes.map(path => counts(path, 'rect')), [2, 2]);
+			assert.notEqual(strokes[0], strokes[1]);
 			const rebuilt = builder(u, 1, 1, 3);
 			assert.notEqual(rebuilt.fill.get('red'), paths.fill.get('red'), 'only color data, not pixel paths, survives a rebuild');
 			assert.equal(counts(rebuilt.fill.get('red'), 'rect'), 1);
@@ -523,6 +574,640 @@ describe('cached path display values', () => {
 			assert.equal(u.series[2]._disp, null);
 			u.delSeries(1);
 			assert.equal(u.series[1]._disp, null);
+		}
+		finally { u.destroy(); }
+	});
+});
+
+describe('shared primary-color groups', () => {
+	for (const primary of ['fill', 'stroke']) {
+		it(`bars: redraw paints repeated fallback colors separately (${primary} descriptor)`, async () => {
+			const builder = uPlot.paths.bars({disp: {
+				[primary]: {kind: 2, values: () => [['blue', 'unused', 'red'], [2, 0, 2]]},
+			}});
+			const u = plot('bars', builder, [[0, 1, 2], [2, 3, 4]], {
+				axes: [{show: false}, {show: false}],
+			});
+			try {
+				await tick();
+				const paths = u.series[1]._paths;
+				assert.ok(paths.fill instanceof Map);
+				assert.ok(paths.stroke instanceof Map);
+				const groups = ['blue', 'red'].map(color => paths[primary].get(color));
+				const fallback = paths[primary == 'fill' ? 'stroke' : 'fill'].get(primary == 'fill' ? 'black' : 'gray');
+				assert.ok(Array.isArray(fallback));
+				assert.equal(fallback.length, 2);
+				for (let i = 0; i < groups.length; i++)
+					assert.equal(fallback[i], groups[i]);
+				for (const rebuild of [false, true]) {
+					const start = u.ctx.log.length;
+					u.redraw(rebuild);
+					await tick();
+					const current = u.series[1]._paths;
+					const events = paintOps(ops(u.ctx.log.slice(start)));
+					for (const channel of ['fill', 'stroke']) {
+						const paints = events.filter(e => e.name == channel);
+						assert.equal(paints.length, 2, 'paint each group even when its fallback color repeats');
+						for (let i = 0; i < paints.length; i++)
+							assert.equal(paints[i].args[0], current[primary].get(['blue', 'red'][i]),
+								'pass the shared Path2D, not its containing array, to canvas');
+					}
+				}
+			}
+			finally { u.destroy(); }
+		});
+	}
+
+	for (const builderKind of ['bars', 'points']) {
+		const op = builderKind == 'bars' ? 'rect' : 'arc';
+
+		for (const kind of [1, 2, 3]) {
+			for (const mode of ['both', 'fill-only', 'stroke-only']) {
+				for (const width of [0, 2]) {
+					it(`${builderKind}: shares geometry by primary color (kind ${kind}, ${mode}, width ${width})`, async () => {
+						const primary = mode == 'stroke-only' ? 'stroke' : 'fill';
+						const counterpart = primary == 'fill' ? 'stroke' : 'fill';
+						const disp = {[primary]: {kind, values: () => kind == 1 ? 'red' : kind == 2
+							? [['blue', 'unused', 'red'], new Uint8Array([2, 0, 2])]
+							: ['red', 'blue', 'red']}};
+						if (mode == 'both')
+							disp.stroke = {kind, values: () => kind == 1 ? 'black' : kind == 2
+								? [['black'], new Uint8Array(3)] : Array(3).fill('black')};
+						const drawn = [];
+						const builder = uPlot.paths[builderKind]({batch: true, disp, each: (u, si, di) => drawn.push(di)});
+						const style = builderKind == 'bars'
+							? {paths: builder, width, fill: 'gray', stroke: 'black', points: {show: false}}
+							: {paths: () => null, points: {show: true, paths: builder, size: 10, width, fill: 'gray', stroke: 'black'}};
+						const u = plot(builderKind, builder, [[0, 1, 2], [2, 3, 4]], {series: [{}, style]});
+						try {
+							await tick();
+							drawn.length = 0;
+							const start = u.ctx.log.length;
+							const captured = capturePaths(() => builder(u, 1, 0, 2));
+							const events = ops(u.ctx.log.slice(start));
+							const paths = builderKind == 'bars' ? captured.result : batches(events);
+							if (builderKind == 'points')
+								assert.equal(captured.result, null, 'batches paint directly');
+							const colors = kind == 1 ? ['red'] : kind == 2 ? ['blue', 'red'] : ['red', 'blue'];
+							assert.equal(captured.paths.reduce((sum, path) => sum + counts(path, op), 0), 3,
+								'construct each visible shape once, including geometry on unpainted paths');
+							const groups = captured.paths.filter(path => counts(path, op) > 0);
+							assert.equal(groups.length, colors.length, 'one geometry path per primary-color group');
+							assert.deepEqual(drawn, [0, 1, 2]);
+							assert.ok(paths.fill instanceof Map);
+							assert.deepEqual([...(paths.stroke?.keys() ?? [])], width == 0 ? [] : primary == 'stroke' ? colors : ['black']);
+							const fallback = pathList(paths[counterpart]?.get(primary == 'fill' ? 'black' : 'gray'));
+							if (counterpart == 'fill' || width > 0) {
+								assert.equal(fallback.length, colors.length, 'do not merge groups with the same counterpart color');
+								assert.equal(Array.isArray(paths[counterpart].get(primary == 'fill' ? 'black' : 'gray')), colors.length > 1,
+									'use arrays only for repeated paint colors');
+							}
+							assert.deepEqual([...paths.fill.keys()], primary == 'fill' ? colors : ['gray']);
+							for (let i = 0; i < colors.length; i++) {
+								const path = primary == 'stroke' && width == 0 ? fallback[i] : paths[primary].get(colors[i]);
+								assert.ok(!Array.isArray(path), 'unique primary paint colors have a single path');
+								assert.ok(groups.includes(path));
+								assert.equal(counts(path, op), kind == 1 ? 3 : colors[i] == 'red' ? 2 : 1);
+								if (width > 0)
+									assert.equal(path, fallback[i], 'fill and stroke share the exact same Path2D');
+							}
+							assert.equal(new Set(fallback).size, fallback.length, 'repeated colors paint distinct paths');
+							if (builderKind == 'points') {
+								const paints = paintOps(events);
+								assert.deepEqual(paints.filter(e => e.name == 'fill').map(e => e.args[0]),
+									primary == 'fill' ? colors.map(color => paths.fill.get(color)) : fallback);
+								if (width > 0)
+									assert.deepEqual(paints.filter(e => e.name == 'stroke').map(e => e.args[0]),
+									primary == 'stroke' ? colors.map(color => paths.stroke.get(color)) : fallback);
+							}
+						}
+						finally { u.destroy(); }
+					});
+				}
+			}
+		}
+
+		it(`${builderKind}: does not evaluate the stroke counterpart when stroke is disabled`, async () => {
+			const builder = uPlot.paths[builderKind]({batch: true, disp: {
+				fill: {kind: 3, values: () => ['red', 'blue', 'red']},
+				stroke: {kind: 3, values: () => assert.fail('disabled stroke must not evaluate its descriptor')},
+			}});
+			const style = builderKind == 'bars'
+				? {paths: builder, width: 0, fill: 'gray', points: {show: false}}
+				: {paths: () => null, points: {show: true, paths: builder, size: 10, width: 0, fill: 'gray'}};
+			const u = plot(builderKind, builder, [[0, 1, 2], [2, 3, 4]], {series: [{}, style]});
+			try {
+				await tick();
+				const start = u.ctx.log.length;
+				const captured = capturePaths(() => builder(u, 1, 0, 2));
+				const paths = builderKind == 'bars' ? captured.result : batches(ops(u.ctx.log.slice(start)));
+				assert.deepEqual([...paths.fill.keys()], ['red', 'blue']);
+				assert.deepEqual([...(paths.stroke?.keys() ?? [])], []);
+				assert.equal(captured.paths.reduce((sum, path) => sum + counts(path, op), 0), 3);
+			}
+			finally { u.destroy(); }
+		});
+
+		for (const [kind, unary] of [[1, null], [1, undefined], [2], [3]]) {
+			it(`${builderKind}: combines null/undefined primary colors while painting their counterpart (kind ${kind}, ${unary})`, async () => {
+				const fill = {kind, values: () => kind == 1 ? unary : kind == 2
+					? [['red', undefined, null, 'unused'], [2, 1, 2, 0, 1, 0]]
+					: [null, undefined, null, 'red', undefined, 'red']};
+				const stroke = {kind: 3, values: () => kind == 1 ? Array(6).fill('black')
+					: ['black', 'black', 'black', 'green', 'black', 'green']};
+				const builder = uPlot.paths[builderKind]({batch: true, disp: {fill, stroke}});
+				const u = plot(builderKind, builder, [[0, .5, 1, 1.5, 2, 2.5], Array(6).fill(2)]);
+				try {
+					await tick();
+					const start = u.ctx.log.length;
+					const captured = capturePaths(() => builder(u, 1, 0, 5));
+					const paths = builderKind == 'bars' ? captured.result : batches(ops(u.ctx.log.slice(start)));
+					assert.deepEqual([...paths.fill.keys()], kind == 1 ? [] : ['red']);
+					assert.deepEqual([...paths.stroke.keys()], kind == 1 ? ['black'] : kind == 2 ? ['green', 'black'] : ['black', 'green']);
+					assert.ok(!Array.isArray(paths.stroke.get('black')), 'all suppressed primary colors share one group');
+					assert.equal(counts(paths.stroke.get('black'), op), kind == 1 ? 6 : 4);
+					if (kind != 1) {
+						assert.equal(paths.fill.get('red'), paths.stroke.get('green'));
+						assert.equal(counts(paths.fill.get('red'), op), 2);
+					}
+					assert.equal(captured.paths.reduce((sum, path) => sum + counts(path, op), 0), 6);
+					assert.equal(captured.paths.filter(path => counts(path, op) > 0).length, kind == 1 ? 1 : 2);
+				}
+				finally { u.destroy(); }
+			});
+		}
+
+		for (const kind of [1, 2, 3]) {
+			it(`${builderKind}: reads counterpart kind ${kind} only at the first drawn member of each group`, async () => {
+				const drawn = [];
+				const fill = {kind: 2, values: () => [['unused', 'red', 'blue'], [1, 2, 1, 1, 2, 1, 0, 1, 2]]};
+				const stroke = {kind, values: () => kind == 1 ? 'black' : kind == 2
+					? [['black', 'green', 'unused'], [0, 1, 0, 0, 1, 0, 2, 0, 1]]
+					: ['black', 'green', 'black', 'black', 'green', 'black', 'unused', 'black', 'green']};
+				const disp = {fill, stroke, ...(builderKind == 'points' ? {size: {values: () => [10, 10, 0, 10, 10, 10, 10, 10, 10]}} : {})};
+				const builder = uPlot.paths[builderKind]({batch: true, disp, each: (u, si, di) => drawn.push(di)});
+				const u = plot(builderKind, builder, [[0, .5, 1, 1.5, 2, 2.5, 3, 3.5, 4], [null, 2, 0, 2, 3, 4, 2, 20, 2]]);
+				try {
+					await tick();
+					const entry = u.series[1]._disp.get(stroke);
+					const original = entry.value;
+					const paletteReads = [], indexReads = [];
+					const observe = (values, reads) => new Proxy(values, {get(target, key) {
+						if (typeof key == 'string' && /^\d+$/.test(key))
+							reads.push(Number(key));
+						return Reflect.get(target, key);
+					}});
+					// Observe cached lookups, not the full-data normalization pass.
+					entry.value = [observe(original[0], paletteReads), kind == 1 ? original[1] : observe(original[1], indexReads)];
+					drawn.length = 0;
+					const start = u.ctx.log.length;
+					let captured;
+					try {
+						captured = capturePaths(() => builderKind == 'bars' ? builder(u, 1, 0, 5)
+							: builder(u, 1, 0, 8, [0, 2, 7, 5, 4, 3, 1]));
+					}
+					finally { entry.value = original; }
+					assert.deepEqual(drawn, builderKind == 'bars' ? [1, 3, 4, 5] : [5, 4, 3, 1]);
+					assert.deepEqual(indexReads, kind == 1 ? [] : builderKind == 'bars' ? [1, 3] : [5, 4],
+						'skipped, filtered and later group members do not read counterpart indices');
+					assert.equal(paletteReads.length, 2, 'resolve counterpart color once per initialized group');
+					const paths = builderKind == 'bars' ? captured.result : batches(ops(u.ctx.log.slice(start)));
+					assert.deepEqual([...paths.fill.keys()], ['red', 'blue'], 'omit unused groups and keep palette order');
+					assert.equal(captured.paths.reduce((sum, path) => sum + counts(path, op), 0), 4);
+					if (kind == 1) {
+						assert.equal(paths.stroke.get('black')[0], paths.fill.get('red'));
+						assert.equal(paths.stroke.get('black')[1], paths.fill.get('blue'));
+					}
+					else {
+						assert.equal(paths.stroke.get('black'), paths.fill.get('red'));
+						assert.equal(paths.stroke.get('green'), paths.fill.get('blue'));
+					}
+				}
+				finally { u.destroy(); }
+			});
+		}
+	}
+});
+
+describe('point batching', () => {
+	const geometry = events => events.filter(e => e.name == 'moveTo' || e.name == 'arc');
+
+	for (const batch of [undefined, null, false, true]) {
+		for (const disp of [undefined, null, {}]) {
+			it(`selects the default drawing mode (batch ${batch}, disp ${disp == null ? disp : '{}'})`, async () => {
+				const drawn = [];
+				const builder = uPlot.paths.points({batch, disp, each: (u, si, di) => drawn.push(di)});
+				const u = plot('points', builder);
+				try {
+					await tick();
+					drawn.length = 0;
+					const start = u.ctx.log.length;
+					const result = builder(u, 1, 0, 4);
+					const events = ops(u.ctx.log.slice(start));
+					const batched = batch ?? (disp == null);
+					assert.deepEqual(drawn, [0, 1, 2, 3, 4]);
+					if (disp == null && batched) {
+						assert.ok(result.fill?.log != null);
+						assert.equal(result.stroke, result.fill);
+						assert.equal(counts(result.fill, 'arc'), 5);
+						assert.equal(paintOps(events).length, 0, 'single-path mode defers painting');
+					}
+					else {
+						assert.equal(result, null);
+						assert.equal(u.series[1].points._paths, null);
+						assert.equal(events.filter(e => e.name == 'save').length, 1);
+						assert.equal(events.filter(e => e.name == 'restore').length, 1);
+						assert.equal(events.filter(e => e.name == 'clip').length, 1);
+						if (batched) {
+							const paths = batches(events);
+							assert.deepEqual([...paths.fill.keys()], ['gray']);
+							assert.deepEqual([...paths.stroke.keys()], ['black']);
+							assert.equal(counts(paths.fill.get('gray'), 'arc'), 5);
+							assert.equal(counts(paths.stroke.get('black'), 'arc'), 5);
+							assert.equal(paths.fill.get('gray'), paths.stroke.get('black'), 'uniform fallback paints share one group path');
+						}
+						else {
+							assert.deepEqual(paintOps(events).map(e => e.name), Array(5).fill(['fill', 'stroke']).flat());
+							assert.ok(paintOps(events).every(e => e.args.length == 0));
+							assert.equal(events.filter(e => e.name == 'beginPath').length, 5);
+							assert.equal(events.filter(e => e.name == 'arc').length, 5);
+						}
+					}
+					assert.equal(u.series[1]._disp, null, 'no display descriptors need caching');
+				}
+				finally { u.destroy(); }
+			});
+		}
+	}
+
+	for (const batch of [false, true]) {
+		it(`preserves each series alpha during redraw (${batch ? 'batched disp' : 'immediate no disp'})`, async () => {
+			const fill = 'rgba(255,0,0,.3)';
+			const builder = uPlot.paths.points({batch, ...(batch ? {disp: {fill: {kind: 1, values: () => fill}}} : {})});
+			const alphas = [.25, .75];
+			const u = plot('points', builder, [[0, 1], [2, 2], [3, 3]], {
+				axes: [{show: false}, {show: false}],
+				series: [{}, ...alphas.map(alpha => ({
+					alpha, paths: () => null,
+					points: {show: true, paths: builder, size: 10, width: 2, fill, stroke: 'black'},
+				}))],
+			});
+			try {
+				await tick();
+				for (const rebuild of [true, false]) {
+					let alpha = u.ctx.globalAlpha;
+					assert.equal(alpha, 1);
+					const start = u.ctx.log.length;
+					u.redraw(rebuild);
+					await tick();
+					const events = ops(u.ctx.log.slice(start));
+					const stack = [], painted = [];
+					// The recorder logs save/restore but does not restore state itself.
+					for (const {name, args} of events) {
+						if (name == 'globalAlpha')
+							alpha = args;
+						else if (name == 'save')
+							stack.push(alpha);
+						else if (name == 'restore') {
+							assert.ok(stack.length > 0);
+							alpha = stack.pop();
+						}
+						else if (name == 'fill' || name == 'stroke') {
+							painted.push([name, alpha]);
+							assert.ok(batch ? args[0]?.log != null : args.length == 0);
+						}
+					}
+					assert.deepEqual(painted, alphas.flatMap(alpha =>
+						Array.from({length: batch ? 1 : 2}, () => [['fill', alpha], ['stroke', alpha]]).flat()),
+						'both channels use their own series alpha, independently of CSS color alpha');
+					assert.deepEqual(stack, []);
+					assert.equal(alpha, 1, 'redraw restores alpha after the last series');
+					assert.ok(u.series.slice(1).every(s => s.points._paths == null));
+				}
+			}
+			finally { u.destroy(); }
+		});
+	}
+
+	it('groups overlapping points by fill with matched strokes, not by adjacent runs', async () => {
+		const alpha = 'rgba(255,0,0,.3)';
+		const drawn = [];
+		const builder = uPlot.paths.points({batch: true, disp: {
+			fill: {kind: 3, values: () => [alpha, 'blue', alpha, 'blue', alpha]},
+			stroke: {kind: 3, values: () => ['black', 'green', 'black', 'green', 'black']},
+		}, each: (u, si, di) => drawn.push(di)});
+		const u = plot('points', builder, [Array(5).fill(1), Array(5).fill(2)]);
+		try {
+			await tick();
+			drawn.length = 0;
+			const start = u.ctx.log.length;
+			assert.equal(builder(u, 1, 0, 4), null);
+			const events = ops(u.ctx.log.slice(start));
+			const paths = batches(events);
+			assert.deepEqual(drawn, [0, 1, 2, 3, 4]);
+			assert.equal(paths.fill.size, 2);
+			assert.equal(paths.stroke.size, 2);
+			for (const [channel, color, count] of [['fill', alpha, 3], ['fill', 'blue', 2], ['stroke', 'black', 3], ['stroke', 'green', 2]])
+				assert.equal(counts(paths[channel].get(color), 'arc'), count);
+			assert.equal(paths.fill.get(alpha), paths.stroke.get('black'));
+			assert.equal(paths.fill.get('blue'), paths.stroke.get('green'));
+			assert.equal(geometry(events).length, 0, 'batched geometry belongs to paths, not the current canvas path');
+		}
+		finally { u.destroy(); }
+	});
+
+	for (const kind of [1, 2, 3, undefined]) {
+		it(`reuses normalized colors across batching modes, resize and zoom; refreshes on new data (kind ${kind})`, async () => {
+			const calls = [];
+			let reads = 0;
+			let colors = Object.freeze(['red', 'blue', 'red', 'blue', 'red']);
+			let encoded;
+			const values = (u, si, i0, i1) => {
+				calls.push([si, i0, i1]);
+				encoded = kind == 1 ? colors[0] : kind == 2
+					? Object.freeze([Object.freeze([...new Set(colors)]), new Uint8Array([0, 1, 0, 1, 0])])
+					: colors;
+				return encoded;
+			};
+			const color = Object.freeze({kind, get values() { reads++; return values; }});
+			const disp = {fill: color, stroke: color};
+			const direct = uPlot.paths.points({batch: false, disp});
+			const builder = uPlot.paths.points({batch: true, disp});
+			const u = plot('points', direct);
+			try {
+				await tick();
+				const cached = u.series[1]._disp.get(color).value;
+				if (kind == 1)
+					assert.deepEqual(cached, [['red'], 0]);
+				else if (kind == 2)
+					assert.equal(cached, encoded, 'retain the original palette and typed indices');
+				else
+					assert.deepEqual(Array.from(cached[1], i => cached[0][i]), colors);
+				for (const change of [
+					() => {},
+					() => u.setSize({width: 520, height: 300}),
+					() => u.setScale('x', {min: 1, max: 3}),
+				]) {
+					change();
+					await tick();
+					const start = u.ctx.log.length;
+					assert.equal(builder(u, 1, 1, 3), null);
+					const paths = batches(ops(u.ctx.log.slice(start)));
+					for (const channel of ['fill', 'stroke']) {
+						assert.equal(paths[channel].size, kind == 1 ? 1 : 2);
+						assert.equal(counts(paths[channel].get('red'), 'arc'), kind == 1 ? 3 : 1);
+						if (kind != 1)
+							assert.equal(counts(paths[channel].get('blue'), 'arc'), 2);
+					}
+					assert.equal(u.series[1]._disp.get(color).value, cached);
+					assert.deepEqual(calls, [[1, 0, 4]], 'shared fill/stroke normalize once over the full data range');
+					assert.equal(reads, 1);
+				}
+				colors = Object.freeze(['orange', 'purple', 'orange', 'purple', 'orange']);
+				u.setData(u.data.map(column => column.slice()), false);
+				const start = u.ctx.log.length;
+				builder(u, 1, 1, 3);
+				const paths = batches(ops(u.ctx.log.slice(start)));
+				assert.deepEqual([...paths.fill.keys()].sort(), kind == 1 ? ['orange'] : ['orange', 'purple']);
+				assert.notEqual(u.series[1]._disp.get(color).value, cached);
+				assert.deepEqual(calls, [[1, 0, 4], [1, 0, 4]]);
+				assert.equal(reads, 2);
+			}
+			finally { u.destroy(); }
+		});
+	}
+
+	it('merges duplicate palette entries and skips suppressed, invalid and unused colors in filter order', async () => {
+		const drawn = [];
+		const tuple = Object.freeze([
+			Object.freeze(['red', 'red', null, undefined, 'unused', 'blue']),
+			Object.freeze([0, 1, 2, 3, 99, -1, 4, 5, 5]),
+		]);
+		const builder = uPlot.paths.points({batch: true, disp: {
+			fill: {kind: 2, values: () => tuple},
+			stroke: {kind: 3, values: () => ['black', 'black', null, undefined, null, null, 'unused', 'green', 'green']},
+		}, each: (u, si, di) => drawn.push(di)});
+		const u = plot('points', builder, [Array.from({length: 9}, (_, i) => i / 2), Array(9).fill(2)]);
+		try {
+			await tick();
+			drawn.length = 0;
+			const start = u.ctx.log.length;
+			assert.equal(builder(u, 1, 0, 8, [8, 1, 5, 4, 3, 2, 0]), null);
+			const paths = batches(ops(u.ctx.log.slice(start)));
+			assert.deepEqual(drawn, [8, 1, 0], 'each runs once for a point with at least one painted channel');
+			assert.deepEqual([...paths.fill.keys()], ['red', 'blue'], 'paint in palette order, not filter order');
+			assert.deepEqual([...paths.stroke.keys()], ['black', 'green']);
+			assert.equal(paths.fill.get('red'), paths.stroke.get('black'));
+			assert.equal(paths.fill.get('blue'), paths.stroke.get('green'));
+			assert.equal(counts(paths.fill.get('red'), 'arc'), 2);
+			assert.equal(counts(paths.fill.get('blue'), 'arc'), 1);
+			assert.equal(counts(paths.stroke.get('black'), 'arc'), 2);
+			assert.equal(counts(paths.stroke.get('green'), 'arc'), 1);
+			for (const [channel, color, indices] of [
+				['fill', 'blue', [8]], ['fill', 'red', [1, 0]],
+				['stroke', 'black', [1, 0]], ['stroke', 'green', [8]],
+			]) {
+				assert.deepEqual(ops(paths[channel].get(color).log).filter(e => e.name == 'arc').map(e => e.args),
+					indices.map(i => [u.valToPos(u.data[0][i], 'x', true), u.valToPos(2, 'y', true), 4, 0, Math.PI * 2]),
+					`${channel} ${color} contains only its filtered points`);
+			}
+			for (const filter of [[], [2, 3, 5]]) {
+				drawn.length = 0;
+				const start = u.ctx.log.length;
+				assert.equal(builder(u, 1, 0, 8, filter), null);
+				assert.deepEqual(drawn, []);
+				assert.deepEqual(paintOps(ops(u.ctx.log.slice(start))), [], 'do not paint empty palette paths');
+			}
+		}
+		finally { u.destroy(); }
+	});
+
+	for (const channel of ['fill', 'stroke']) {
+		for (const width of [0, 2]) {
+			it(`uses fallback styles only for omitted channels (${channel} displayed, width ${width})`, async () => {
+				const drawn = [];
+				const builder = uPlot.paths.points({batch: true, disp: {
+					[channel]: {kind: 3, values: () => [null, undefined, 'red']},
+				}, each: (u, si, di) => drawn.push(di)});
+				const u = plot('points', builder, [[0, 1, 2], [2, 3, 4]], {
+					series: [{}, {paths: () => null, points: {show: true, paths: builder, size: 10, width, fill: 'gray', stroke: 'black'}}],
+				});
+				try {
+					await tick();
+					drawn.length = 0;
+					const start = u.ctx.log.length;
+					assert.equal(builder(u, 1, 0, 2), null);
+					const paths = batches(ops(u.ctx.log.slice(start)));
+					assert.deepEqual(drawn, channel == 'fill' && width == 0 ? [2] : [0, 1, 2]);
+					assert.deepEqual([...paths.fill.keys()], [channel == 'fill' ? 'red' : 'gray']);
+					assert.deepEqual(pathList(paths.fill.values().next().value).map(path => counts(path, 'arc')), channel == 'fill' ? [1] : [2, 1]);
+					assert.deepEqual([...paths.stroke.keys()], width == 0 ? [] : [channel == 'stroke' ? 'red' : 'black']);
+					if (width > 0) {
+						assert.deepEqual(pathList(paths.stroke.values().next().value).map(path => counts(path, 'arc')), channel == 'stroke' ? [1] : [2, 1]);
+						const fallback = pathList(paths[channel == 'fill' ? 'stroke' : 'fill'].values().next().value);
+						assert.equal(fallback[1], paths[channel].get('red'));
+						assert.notEqual(fallback[0], fallback[1]);
+					}
+				}
+				finally { u.destroy(); }
+			});
+		}
+	}
+
+	for (const width of [0, 2]) {
+		it(`resolves the default fill when an omitted channel has no explicit fill (width ${width})`, async () => {
+			const builder = uPlot.paths.points({batch: true, disp: {}});
+			const u = plot('points', builder, [[0, 1], [2, 3]], {
+				series: [{}, {paths: () => null, points: {show: true, paths: builder, size: 10, width, fill: null, stroke: 'black'}}],
+			});
+			try {
+				await tick();
+				const start = u.ctx.log.length;
+				assert.equal(builder(u, 1, 0, 1), null);
+				const paths = batches(ops(u.ctx.log.slice(start)));
+				const fill = width == 0 ? 'black' : '#fff';
+				assert.deepEqual([...paths.fill.keys()], [fill]);
+				assert.equal(counts(paths.fill.get(fill), 'arc'), 2);
+				assert.deepEqual([...paths.stroke.keys()], width == 0 ? [] : ['black']);
+			}
+			finally { u.destroy(); }
+		});
+	}
+
+	it('draws no-display points immediately with the same filtered geometry and callbacks as empty disp', async () => {
+		const bounds = [];
+		const each = (u, si, di, ...box) => bounds.push([si, di, ...box]);
+		const direct = uPlot.paths.points({disp: {}, each});
+		const builder = uPlot.paths.points({batch: false, each});
+		const u = plot('points', direct, [[-2, 0, 1, 2, 3], [2, 3, null, 4, 2]], {pxRatio: 2});
+		try {
+			await tick();
+			bounds.length = 0;
+			const filter = [4, 2, 0, 1];
+			let start = u.ctx.log.length;
+			direct(u, 1, 0, 4, filter);
+			const reference = ops(u.ctx.log.slice(start));
+			const expected = bounds.slice();
+			assert.deepEqual(expected.map(b => b[1]), [4, 1]);
+			bounds.length = 0;
+			start = u.ctx.log.length;
+			assert.equal(builder(u, 1, 0, 4, filter), null);
+			const events = ops(u.ctx.log.slice(start));
+			assert.deepEqual(bounds, expected);
+			assert.deepEqual(geometry(events), geometry(reference));
+			assert.deepEqual(paintOps(events), paintOps(reference));
+			assert.equal(u.series[1]._disp, null);
+		}
+		finally { u.destroy(); }
+	});
+
+	it('aligns the expanded no-display immediate clip and boundary points with pxAlign', async () => {
+		const bounds = [];
+		const builder = uPlot.paths.points({batch: false, each: (u, si, di, ...box) => bounds.push([di, ...box])});
+		const data = [null, [[0, 1, .5, .5, -.001, 1.001], [.5, .5, 0, 1, .5, .5]]];
+		const u = plot('points', builder, data, {
+			mode: 2, pxRatio: 1.5,
+			scales: {x: {time: false, range: [0, 1]}, y: {range: [0, 1]}},
+			series: [null, {paths: () => null, pxAlign: 1, points: {show: true, paths: builder, size: 10, width: 2, fill: 'gray', stroke: 'black'}}],
+		});
+		try {
+			await tick();
+			bounds.length = 0;
+			const start = u.ctx.log.length;
+			assert.equal(builder(u, 1, 0, 5), null);
+			const events = ops(u.ctx.log.slice(start));
+			const translateIdx = events.findIndex(e => e.name == 'translate');
+			const clipIdx = events.findIndex(e => e.name == 'clip');
+			assert.deepEqual(events.filter(e => e.name == 'translate'), [{name: 'translate', args: [.5, .5]}]);
+			assert.equal(events[0].name, 'save');
+			assert.ok(translateIdx < clipIdx && clipIdx < events.findIndex(e => e.name == 'beginPath'),
+				'align the expanded clip before drawing any boundary point');
+			assert.equal(events.filter(e => e.name == 'clip').length, 1);
+			// No disp retains twice the arc radius as padding: (10 - 2) * 1.5 = 12, not 7.5.
+			assert.deepEqual(ops(events[clipIdx].args[0].log), [{name: 'rect', args: [
+				u.bbox.left - 12, u.bbox.top - 12, u.bbox.width + 24, u.bbox.height + 24,
+			]}]);
+			assert.deepEqual(events.filter(e => e.name == 'lineWidth').map(e => e.args), [3]);
+			assert.deepEqual(bounds.map(b => b[0]), [0, 1, 2, 3], 'expanded clipping does not include out-of-domain centers');
+			const centers = [0, 1, 2, 3].map(i => [
+				Math.round(u.valToPos(data[1][0][i], 'x', true)),
+				Math.round(u.valToPos(data[1][1][i], 'y', true)),
+			]);
+			assert.deepEqual(geometry(events), centers.flatMap(([x, y]) => [
+				{name: 'moveTo', args: [x + 6, y]},
+				{name: 'arc', args: [x, y, 6, 0, Math.PI * 2]},
+			]));
+			assert.deepEqual(bounds, centers.map(([x, y], i) => [i, x + .5 - 7.5, y + .5 - 7.5, 15, 15]),
+				'each reports aligned full bounds, not bounds truncated at the plot edge');
+			assert.deepEqual(paintOps(events).map(e => e.name), Array(4).fill(['fill', 'stroke']).flat());
+			assert.ok(paintOps(events).every(e => e.args.length == 0));
+			assert.equal(events.at(-1).name, 'restore');
+			assert.equal(events.filter(e => e.name == 'save').length, 1);
+			assert.equal(events.filter(e => e.name == 'restore').length, 1);
+		}
+		finally { u.destroy(); }
+	});
+
+	for (const ori of [0, 1]) {
+		for (const scaled of [false, true]) {
+			it(`preserves variable-size geometry, filter order, clipping and alignment (ori ${ori}, scaled ${scaled})`, async () => {
+				const bounds = [];
+				const disp = {
+					fill: {kind: 1, values: () => 'red'},
+					size: {values: () => [6, 10, 14, 0, 1, 6, 6, 6, 6], ...(scaled ? {scale: 'size', range: [0, 14]} : {})},
+				};
+				const each = (u, si, di, ...box) => bounds.push([si, di, ...box]);
+				const direct = uPlot.paths.points({batch: false, disp, each});
+				const builder = uPlot.paths.points({batch: true, disp, each});
+				const u = plot('points', direct, [null, [[0, .5, 1, .5, .5, null, .5, -2, -.001], [.5, .5, .5, .5, .5, .5, null, .5, .5]]], {
+					mode: 2, pxRatio: 1.5,
+					scales: {x: {time: false, ori, range: [0, 1]}, y: {ori: 1 - ori, range: [0, 1]}, size: {range: [0, 14]}},
+					series: [null, {paths: () => null, pxAlign: 1, points: {show: true, paths: direct, size: 10, width: 1, fill: 'gray', stroke: 'black'}}],
+				});
+				try {
+					await tick();
+					const filter = [8, 2, 7, 0, 6, 4, 5, 3, 1];
+					bounds.length = 0;
+					let start = u.ctx.log.length;
+					assert.equal(direct(u, 1, 0, 8, filter), null);
+					const reference = ops(u.ctx.log.slice(start));
+					const expected = bounds.slice();
+					assert.deepEqual(expected.map(b => b[1]), scaled ? [8, 2, 0, 1] : [2, 0, 1]);
+					bounds.length = 0;
+					start = u.ctx.log.length;
+					assert.equal(builder(u, 1, 0, 8, filter), null);
+					const events = ops(u.ctx.log.slice(start));
+					const paths = batches(events);
+					assert.deepEqual(bounds, expected, 'batching must not reorder or duplicate each callbacks');
+					for (const path of [paths.fill.get('red'), paths.stroke.get('black')]) {
+						assert.deepEqual(geometry(ops(path.log)), geometry(reference));
+						assert.equal(counts(path, 'arc'), expected.length);
+					}
+					const clipIdx = events.findIndex(e => e.name == 'clip');
+					assert.ok(clipIdx >= 0 && clipIdx < events.findIndex(e => e.name == 'translate'));
+					assert.deepEqual(ops(events[clipIdx].args[0].log), [{name: 'rect', args: [u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height]}]);
+					for (const name of ['translate', 'lineWidth', 'lineCap', 'lineJoin', 'setLineDash'])
+						assert.deepEqual(events.filter(e => e.name == name), reference.filter(e => e.name == name));
+				}
+				finally { u.destroy(); }
+			});
+		}
+	}
+
+	it('retains expanded direct clipping for color-only batches', async () => {
+		const builder = uPlot.paths.points({batch: true, disp: {fill: {kind: 1, values: () => 'red'}}});
+		const u = plot('points', builder, [[-1], [2]]);
+		try {
+			await tick();
+			const start = u.ctx.log.length;
+			assert.equal(builder(u, 1, 0, 0), null);
+			const events = ops(u.ctx.log.slice(start));
+			const clipIdx = events.findIndex(e => e.name == 'clip');
+			assert.ok(clipIdx > events.findIndex(e => e.name == 'translate'));
+			assert.deepEqual(ops(events[clipIdx].args[0].log), [{name: 'rect', args: [u.bbox.left - 5, u.bbox.top - 5, u.bbox.width + 10, u.bbox.height + 10]}]);
+			const paths = batches(events);
+			assert.equal(counts(paths.fill.get('red'), 'arc'), 1);
+			assert.equal(counts(paths.stroke.get('black'), 'arc'), 1);
 		}
 		finally { u.destroy(); }
 	});

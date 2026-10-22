@@ -840,11 +840,11 @@ declare namespace uPlot {
 
 	export namespace Series {
 		export interface Paths {
-			/** path to stroke */
-			stroke?: Path2D | Map<CanvasRenderingContext2D['strokeStyle'], Path2D> | null;
+			/** path to stroke. arrays in style maps paint shared group paths separately */
+			stroke?: Path2D | Map<CanvasRenderingContext2D['strokeStyle'], Path2D | Path2D[]> | null;
 
-			/** path to fill */
-			fill?: Path2D | Map<CanvasRenderingContext2D['fillStyle'], Path2D> | null;
+			/** path to fill. arrays in style maps paint shared group paths separately */
+			fill?: Path2D | Map<CanvasRenderingContext2D['fillStyle'], Path2D | Path2D[]> | null;
 
 			/** path for clipping fill & stroke (used for gaps) */
 			clip?: Path2D | null;
@@ -924,9 +924,11 @@ declare namespace uPlot {
 
 		export type PathBuilderColorValues = PathBuilderColor | ArrayLike<PathBuilderColor> | PathBuilderDiscreteValues<PathBuilderColor>;
 
-		/** shared bar and point colors. bars group equal colors; points with disp paint individually.
+		/** shared bar and point colors. bars group equal colors. points with disp paint individually unless batch is true.
 		 *  full-range values (0..N-1) are cached per series/descriptor. descriptors and callbacks must remain stable.
 		 *  core data replacement and series changes clear the cache. null/undefined colors suppress the channel.
+		 *  bars and batched points group by fill when supplied, otherwise stroke. each group must have one fill/stroke combination.
+		 *  the first drawn member supplies the counterpart style. mismatched groups are not detected or supported.
 		 */
 		export type PathBuilderColorFacet = {unit?: 3} & PathBuilderFacet<PathBuilderColor>;
 
@@ -990,8 +992,14 @@ declare namespace uPlot {
 		}
 
 		export interface PointsPathBuilderOpts {
-			/** draws each point immediately in data order, fill then stroke, and returns null. omitted disp retains single-path behavior */
+			/** custom point colors and sizes. draws directly and returns null, including when batch is true */
 			disp?: PointsPathBuilderDisplay;
+
+			/** shares one path per primary-color group between fill and stroke. defaults to true without disp, false with disp.
+			 *  true paints all fills before all strokes and can change overlap order, opacity, and antialiasing.
+			 *  false paints each point immediately, fill then stroke, in data/filter order and returns null.
+			 */
+			batch?: boolean;
 
 			/** called with each drawn point's full bbox, including stroke, in canvas pixels. bounds are not truncated by plot clipping */
 			each?: PathBuilderEach;

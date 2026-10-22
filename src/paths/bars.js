@@ -1,6 +1,6 @@
 import { abs, floor, min, max, inf, EMPTY_OBJ, fnOrSelf, clamp, retArg0, EMPTY_ARR } from '../utils.js';
 import { orient, rectV, rectH } from './utils.js';
-import { colorPaths, dispReader } from './disp.js';
+import { colorPaths, paintPaths, dispReader } from './disp.js';
 
 function percentToPos(pct, scale, dim, off) {
 	return off + pct * dim;
@@ -93,24 +93,6 @@ export function bars(opts) {
 
 			let strokeWidth = pxRound(series.width * pxRatio);
 
-			let multiPath = false;
-
-			let fillColors = null;
-			let fillPaths = null;
-			let strokeColors = null;
-			let strokePaths = null;
-
-			if (dispFills != null && (strokeWidth == 0 || dispStrokes != null)) {
-				multiPath = true;
-
-				fillColors = colorPaths(u, seriesIdx, dispFills);
-				fillPaths = fillColors.paths;
-
-				if (strokeWidth > 0) {
-					strokeColors = colorPaths(u, seriesIdx, dispStrokes);
-					strokePaths = strokeColors.paths;
-				}
-			}
 
 			let { x0, size } = disp;
 			let xToPos = valToPosX;
@@ -168,7 +150,8 @@ export function bars(opts) {
 
 			const _paths = {stroke: null, fill: null, clip: null, band: null, gaps: null, flags: 0};  // disp, geom
 
-			const stroke = multiPath ? null : new Path2D();
+			const colors = dispFills != null || dispStrokes != null ? colorPaths(u, seriesIdx, disp, series._fill, series._stroke, strokeWidth > 0) : null;
+			const stroke = colors == null ? new Path2D() : null;
 
 			let yValue = dispReader();
 			let y0Value = dispReader();
@@ -223,18 +206,9 @@ export function bars(opts) {
 					let rv = yPos < fillToY ? radVal : radBase;
 					let rb = yPos < fillToY ? radBase : radVal;
 
-					if (multiPath) {
-						let strokePath = strokeWidth > 0 ? strokeColors.lookup[strokeColors.index(strokeColors.indices, i)] : null;
-						let fillPath = fillColors.lookup[fillColors.index(fillColors.indices, i)];
-
-						if (strokePath != null)
-							rect(strokePath, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
-
-						if (fillPath != null)
-							rect(fillPath, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
-					}
-					else
-						rect(stroke, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
+					const path = colors == null ? stroke : colors.path(i);
+					if (path != null)
+						rect(path, lft, top + floor(strokeWidth / 2), barWid, max(0, barHgt - strokeWidth), rv, rb);
 
 					each(u, seriesIdx, i,
 						lft    - strokeWidth / 2,
@@ -246,13 +220,13 @@ export function bars(opts) {
 			}
 
 			if (strokeWidth > 0)
-				_paths.stroke = multiPath ? strokePaths : stroke;
-			else if (!multiPath) {
+				_paths.stroke = colors == null ? stroke : paintPaths(colors.groups, 'stroke');
+			else if (colors == null) {
 				_paths._fill = series.width == 0 ? series._fill : series._stroke ?? series._fill;
 				_paths.width = 0;
 			}
 
-			_paths.fill = multiPath ? fillPaths : stroke;
+			_paths.fill = colors == null ? stroke : paintPaths(colors.groups, 'fill');
 
 			return _paths;
 		});

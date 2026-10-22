@@ -2,9 +2,9 @@ import uPlot from '../../src/uPlot.js';
 import Flatbush from './flatbush.js';
 
 // One instance per mode-2 chart. Scales, facets, styles, and legend formatting belong to the caller.
-export function scatterPlugin({points = {}, disp, hover = false} = {}) {
+export function scatterPlugin({points = {}, disp, batch = false, hover = false} = {}) {
 	const hit = hover ? pointHover() : null;
-	const pointPaths = uPlot.paths.points({disp, each: hit?.each});
+	const pointPaths = uPlot.paths.points({batch, disp, each: hit?.each});
 		const paths = hit == null ? pointPaths : (u, si, i0, i1, indices) => {
 			hit.setFilter(si, indices);
 			return pointPaths(u, si, i0, i1, indices);

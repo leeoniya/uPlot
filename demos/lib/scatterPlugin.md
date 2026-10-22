@@ -28,6 +28,7 @@ const chart = new uPlot({
 
 - `points` supplies common `series.points` defaults. Per-series point configuration takes precedence, except for `points.paths`.
 - `disp` passes native display descriptors to `uPlot.paths.points()`. It supports colors, CSS sizes, and scale-backed sizes.
+- `batch` defaults to `false`, with or without `disp`. Points paint individually in data or filter order.
 - `hover` defaults to `false`. This setting adds no spatial index or hover hooks.
 - With `hover: true`, the plugin supplies point selection, cursor marker sizes, and series focus.
 
@@ -35,6 +36,46 @@ The plugin owns `series.paths` and `series.points.paths` for the initial series.
 It defaults `points.show` to `true` and point fill to the series fill.
 Pixel alignment defaults to zero unless the chart or series specifies it.
 The caller must set `mode: 2` before chart construction.
+
+## Batched points
+
+`batch: true` constructs each circle once and shares one `Path2D` between the fill and stroke of each group.
+The `disp.fill` color defines each group when that descriptor exists.
+Otherwise, `disp.stroke` defines the groups.
+Without color descriptors, all points share one group.
+
+Each group must have one fill/stroke combination, including null colors that suppress a channel.
+The first drawn member supplies the other style for the group.
+The builder does not detect or support mismatched combinations within a group.
+Omitted descriptors use the uniform point styles.
+
+Each group needs one paint call per enabled channel.
+Different groups can use the same counterpart color without copying or combining their paths.
+All fills paint before all strokes.
+With `disp`, point groups paint in primary palette order, not point order.
+Continuous color arrays use a cached palette in first-occurrence order.
+
+```js
+scatterPlugin({
+  batch: true,
+  points: {size: 10, width: 0},
+  disp: {
+    fill: {
+      kind: 2,
+      values: (u, seriesIdx) => [['green', 'orange', 'red'], u.data[seriesIdx][2]],
+    },
+  },
+});
+```
+
+Batching can change overlap order, translucent opacity, and antialiased edges.
+It does not inspect color alpha or canvas alpha.
+The [scatter demo](../scatter.html) enables batching for opaque uniform points and level colors.
+Bubbles retain individual painting.
+
+The native builder also accepts `uPlot.paths.points({batch, disp})` without this plugin.
+Its default is `true` without `disp` and `false` with `disp`.
+An explicit `batch: false` disables batching even without `disp`.
 
 ## Bubbles
 
@@ -81,8 +122,9 @@ A programmatic cursor update inside the plot also finishes a pending index.
 The plugin refreshes selection after a redraw beneath a stationary pointer.
 Chart destruction removes the entry listener and releases the index.
 
-Selection compares circle diameters, then center distances, then paint order.
-It prefers the smallest circle, then the closest center, then the last-painted point.
+Selection compares circle diameters, then center distances, then callback order.
+It prefers the smallest circle, then the closest center, then the last point in data or filter order.
+Batching does not change this selection order, even when color groups change the paint order.
 The retained hover state contains only the series index, data index, and diameter.
 The plugin owns `cursor.dataIdx`, `cursor.points.size`, and `cursor.focus.dist` when hover is enabled.
 Other cursor configuration and caller hooks remain available.

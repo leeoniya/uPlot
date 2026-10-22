@@ -1,11 +1,13 @@
 import { orient, pointPos, moveToH, moveToV, rectH, arcH, arcV, pxOffset, BAND_CLIP_FILL, BAND_CLIP_STROKE } from './utils.js';
 import { roundDec, PI, EMPTY_OBJ, EMPTY_ARR } from '../utils.js';
-import { cacheDisp, cacheColors, dispReader } from './disp.js';
+import { cacheDisp, cacheColors, colorPaths, dispReader } from './disp.js';
 
 
 export function points(opts) {
 	opts = opts || EMPTY_OBJ;
 	const disp = opts.disp;
+	const batch = opts.batch ?? (disp == null);
+	const singlePath = batch && disp == null;
 	const each = opts.each;
 
 	return (u, seriesIdx, idx0, idx1, filtIdxs) => {
@@ -18,8 +20,8 @@ export function points(opts) {
 			const arc = horizontal ? arcH : arcV;
 			const width = roundDec(points.width * pxRatio, 3);
 			const sizes = disp?.size == null ? null : cacheDisp(u, seriesIdx, disp.size);
-			const fills = disp?.fill == null ? null : cacheColors(u, seriesIdx, disp.fill);
-			const strokes = disp?.stroke == null ? null : cacheColors(u, seriesIdx, disp.stroke);
+			const fills = batch || disp?.fill == null ? null : cacheColors(u, seriesIdx, disp.fill);
+			const strokes = batch || width <= 0 || disp?.stroke == null ? null : cacheColors(u, seriesIdx, disp.stroke);
 			const sizeValue = dispReader(disp?.size?.kind);
 			const fillIndex = dispReader(disp?.fill?.kind == 1 ? 1 : 3);
 			const strokeIndex = dispReader(disp?.stroke?.kind == 1 ? 1 : 3);
@@ -32,7 +34,7 @@ export function points(opts) {
 			let rad = (points.size - points.width) / 2 * pxRatio;
 			const clipPad = sizes != null ? 0 : disp == null ? roundDec(rad * 2, 3) : points.size * pxRatio / 2;
 
-			let fill = disp == null ? new Path2D() : null;
+			let fill = singlePath ? new Path2D() : null;
 			let clip = new Path2D();
 			let { left: lft, top, width: wid, height: hgt } = u.bbox;
 
@@ -47,8 +49,9 @@ export function points(opts) {
 			const strokeStyle = points._stroke;
 			const fillStyle = points._fill ?? (width > 0 ? '#fff' : strokeStyle);
 
-			if (disp != null) {
-				// Paint in data order: batching overlapping translucent points changes their colors.
+			const colors = !singlePath && batch ? colorPaths(u, seriesIdx, disp, fillStyle, strokeStyle, width > 0) : null;
+
+			if (!singlePath) {
 				ctx.save();
 				// Bubble clipping stays at the plot boundary, independent of stroke alignment.
 				if (sizes != null)
@@ -90,8 +93,15 @@ export function points(opts) {
 				}
 
 
-				if (disp != null) {
+				if (colors != null) {
+					const path = colors.path(pi);
+					if (path == null)
+						return;
 
+					moveTo(path, x + (horizontal ? rad : 0), y + (horizontal ? 0 : rad));
+					arc(path, x, y, rad, 0, PI * 2);
+				}
+				else if (!singlePath) {
 					const colorFill = fills == null ? fillStyle : fills[0][fillIndex(fills[1], pi)];
 					const colorStroke = strokes == null ? strokeStyle : strokes[0][strokeIndex(strokes[1], pi)];
 					if (colorFill == null && (width <= 0 || colorStroke == null))
@@ -129,7 +139,21 @@ export function points(opts) {
 					drawPoint(pi);
 			}
 
-			if (disp != null) {
+			if (!singlePath) {
+				if (colors != null) {
+					colors.groups.forEach(group => {
+						if (group?.fill != null) {
+							ctx.fillStyle = group.fill;
+							ctx.fill(group.path);
+						}
+					});
+					colors.groups.forEach(group => {
+						if (group?.stroke != null) {
+							ctx.strokeStyle = group.stroke;
+							ctx.stroke(group.path);
+						}
+					});
+				}
 				ctx.restore();
 				return null;
 			}

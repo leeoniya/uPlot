@@ -176,6 +176,27 @@ describe('scatter plugin', () => {
 		assert.equal(typeof series.points.paths, 'function');
 	});
 
+	for (const batch of [undefined, false, true]) {
+		it(`uses ordered uniform scatter painting unless batching is enabled (${batch})`, async () => {
+			const u = new uPlot({
+				mode: 2, width: 400, height: 300, pxRatio: 1, axes: [],
+				scales: {x: {time: false, range: [0, 100]}, y: {range: [0, 100]}},
+				series: [null, {fill: 'rgba(255,0,0,0.3)'}],
+				plugins: [scatterPlugin({batch, points: {size: 10, width: 0}})],
+			}, [null, [[50, 50, 50], [50, 50, 50]]], document.body);
+			try {
+				await tick();
+				const start = u.ctx.log.length;
+				u.redraw(true);
+				await tick();
+				const fills = ops(u.ctx.log.slice(start)).filter(e => e.name == 'fill');
+				assert.equal(fills.length, batch === true ? 1 : 3);
+				assert.ok(fills.every(e => batch === true ? e.args[0]?.log : e.args.length == 0));
+			}
+			finally { u.destroy(); }
+		});
+	}
+
 	it('composes with caller hooks and keeps hover state independent between plugin instances', async () => {
 		const plots = [];
 		const calls = [];
@@ -242,10 +263,12 @@ describe('scatter demo bubbles', () => {
 		u.redraw(true);
 		await tick();
 		const events = ops(u.ctx.log.slice(start));
-		assert.equal(events.filter(e => e.name == 'fill').length, 300);
-		assert.deepEqual(events.filter(e => e.name == 'fillStyle').map(e => e.args),
-			level.map(value => ['green', 'orange', 'red'][value]));
-		assert.ok(events.filter(e => e.name == 'arc').every(e => e.args[2] === 5));
+		const fills = events.filter(e => e.name == 'fill');
+		assert.equal(fills.length, 3, 'one fill per level color');
+		assert.deepEqual(events.filter(e => e.name == 'fillStyle').map(e => e.args), ['green', 'orange', 'red']);
+		const arcs = fills.map(e => ops(e.args[0].log).filter(e => e.name == 'arc'));
+		assert.deepEqual(arcs.map(group => group.length), [265, 25, 10]);
+		assert.ok(arcs.flat().every(e => e.args[2] === 5));
 		for (const i of [0, 265, 290]) {
 			assert.deepEqual(u.series[1].values(u, 1, i), {
 				x: u.data[1][0][i], y: u.data[1][1][i], level: level[i],

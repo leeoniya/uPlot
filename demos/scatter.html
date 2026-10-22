@@ -65,7 +65,7 @@
 				width: 1920,
 				height: 600,
 				legend: {live: false},
-				plugins: [scatterPlugin({points: {size: 5, width: 0}})],
+				plugins: [scatterPlugin({batch: true, points: {size: 5, width: 0}})],
 				scales: {
 					x: {time: false, range: guardedRange},
 					y: {range: guardedRange},
@@ -216,6 +216,7 @@
 				height: 600,
 				plugins: [scatterPlugin({
 					hover: true,
+					batch: true,
 					points: {size: 10, width: 0},
 					disp: {
 						fill: {

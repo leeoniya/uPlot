@@ -60,20 +60,49 @@ export function cacheColors(u, seriesIdx, facet) {
 	return cacheDisp(u, seriesIdx, facet, facet.kind == 1 ? unaryColor : facet.kind == 2 ? null : indexColors);
 }
 
-export function colorPaths(u, seriesIdx, facet) {
-	const [palette, indices] = cacheColors(u, seriesIdx, facet);
+// The primary color identifies the whole fill/stroke combination. Callers supply matched groups.
+export function colorPaths(u, seriesIdx, disp, fillStyle, strokeStyle, stroke = true) {
+	const fills = disp.fill == null ? null : cacheColors(u, seriesIdx, disp.fill);
+	const strokes = disp.stroke == null || !stroke && fills != null ? null : cacheColors(u, seriesIdx, disp.stroke);
+	const fillIndex = dispReader(disp.fill?.kind == 1 ? 1 : 3);
+	const strokeIndex = dispReader(disp.stroke?.kind == 1 ? 1 : 3);
+	const primary = fills ?? strokes;
+	const index = fills == null ? strokeIndex : fillIndex;
+	const groups = new Map();
+
+	// Preserve palette order, but allocate geometry only for groups with drawn items.
+	primary?.[0].forEach(color => groups.set(color ?? null, null));
+
+	return {
+		groups,
+		path(i) {
+			const color = primary == null ? fillStyle : primary[0][index(primary[1], i)];
+			const key = color ?? null;
+			let group = groups.get(key);
+			if (group == null) {
+				const fill = fills == null ? fillStyle : color;
+				const strokeColor = !stroke ? null : strokes == null ? strokeStyle : fills == null ? color : strokes[0][strokeIndex(strokes[1], i)];
+				group = {fill, stroke: strokeColor, path: fill == null && strokeColor == null ? null : new Path2D()};
+				groups.set(key, group);
+			}
+			return group.path;
+		},
+	};
+}
+
+export function paintPaths(groups, channel) {
 	const paths = new Map();
-	const lookup = Array(palette.length);
-
-	for (let i = 0; i < palette.length; i++) {
-		const color = palette[i];
-		if (color != null) {
-			let path = paths.get(color);
-			if (path == null)
-				paths.set(color, path = new Path2D());
-			lookup[i] = path;
+	groups.forEach(group => {
+		if (group != null && group.path != null && group[channel] != null) {
+			const color = group[channel];
+			const prev = paths.get(color);
+			if (prev == null)
+				paths.set(color, group.path);
+			else if (Array.isArray(prev))
+				prev.push(group.path);
+			else
+				paths.set(color, [prev, group.path]);
 		}
-	}
-
-	return {paths, lookup, indices, index: dispReader(facet.kind == 1 ? 1 : 3)};
+	});
+	return paths;
 }
