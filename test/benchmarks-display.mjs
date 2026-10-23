@@ -58,6 +58,58 @@ function screenAfter(writes, columns = 100, height = 40) {
 }
 
 describe('benchmark display', () => {
+	it('omits quotes and the index, left-aligns names, and right-aligns one-decimal values', () => {
+		assert.equal(formatBenchmarkDisplay({rows: two}), [
+			'┌─────────┬─────┐',
+			'│ variant │  ms │',
+			'├─────────┼─────┤',
+			'│ uplot   │ 1.3 │',
+			'│ chartjs │ 3.5 │',
+			'└─────────┴─────┘',
+			'',
+		].join('\n'));
+	});
+
+	it('formats integers, zero, negative values, and missing measurements without changing inputs', () => {
+		const rows = [
+			{variant: 'uplot', ms: 0}, {variant: 'chartjs', ms: 12}, {variant: 'd3', ms: -1.25},
+			{variant: 'echarts', ms: 'unavailable'}, {variant: 'flot', ms: null}, {variant: 'dygraphs', ms: NaN},
+		];
+		const original = structuredClone(rows);
+		const cells = formatBenchmarkDisplay({rows}).split('\n').filter(line => line.startsWith('│')).slice(1);
+		assert.deepEqual(cells.map(line => line.split('│')[2]),
+			['         0.0 ', '        12.0 ', '        -1.3 ', ' unavailable ', ' unavailable ', ' unavailable ']);
+		assert.deepEqual(rows, original);
+	});
+
+	it('pads Unicode names by display width and prevents multiline cells or terminal escapes', () => {
+		const rows = [{variant: '\x1b[31m界界\x1b[0m\n', ms: 1}, {variant: 'e\u0301', ms: 2}];
+		const text = formatBenchmarkDisplay({rows});
+		assert.doesNotMatch(text, /\x1b/);
+		assert.ok(text.includes('│ 界界    │ 1.0 │'));
+		assert.ok(text.includes('│ e\u0301       │ 2.0 │'));
+		assert.equal(countTerminalLines(text, 17), 6);
+	});
+
+	it('fits the full combined table in 86 columns and counts wrapping below that width', () => {
+		const rows = ['uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs'].map(variant => ({
+			variant, 'prep ms': 4.05, 'init ms': 8.994, 'main ms': 12.011, 'gpu ms': 2.006,
+			'total ms': 15.642, 'peak MB': 25.538, 'retained MB': 18.375,
+		}));
+		const frame = {rows, status: 'Running'};
+		const text = formatBenchmarkDisplay(frame);
+		assert.equal(text.split('\n')[0].length, 86);
+		assert.equal(countTerminalLines(text, 86), 11);
+		assert.ok(text.indexOf('peak MB') < text.indexOf('retained MB'));
+		for (const columns of [85, 86, 100]) {
+			const {display, writes} = capture({columns, rows: 12});
+			display.update(frame);
+			assert.equal(writes[0], columns < 86 ? 'Running\n' : text);
+			display.update({...frame, status: 'Done', final: true});
+			assert.equal(writes[1], clear(columns < 86 ? 1 : 11) + formatBenchmarkDisplay({...frame, status: 'Done'}));
+		}
+	});
+
 	it('shows status without an empty table, then replaces the entire growing frame', () => {
 		const {display, writes} = capture();
 		display.update({status: 'Starting', warnings: ['No results yet']});

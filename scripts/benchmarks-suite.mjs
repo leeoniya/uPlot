@@ -3,12 +3,12 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { summarizeAdjustedProcessMemory } from './analyze-benchmarks-process-memory.mjs';
-import { createBenchmarkDisplay } from './benchmarks-display.mjs';
+import { createBenchmarkDisplay, formatBenchmarkDisplay } from './benchmarks-display.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const cache = fileURLToPath(new URL('../.cache/benchmarks/', import.meta.url));
 const VARIANTS = ['idle', 'uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs'];
-const display = value => Number.isFinite(value) ? +value.toFixed(3) : 'unavailable';
+const display = value => Number.isFinite(value) ? value : 'unavailable';
 
 function measurementsFor({trace = false, memory = false, raf = false}) {
 	if (raf && (trace || memory))
@@ -62,13 +62,21 @@ function benchmarkView(report) {
 		}
 		if (memory) {
 			const stats = group(report.adjustedAnalysis)?.scopes.tree.pssMB;
-			metric('retained MB', stats?.live);
 			metric('peak MB', stats?.peak);
+			metric('retained MB', stats?.live);
 		}
 		if (issues.length)
 			warnings.push(`${variant} (DPR ${dpr}): ${issues.join('; ')}.`);
 		return row;
 	});
+
+	if (trace) {
+		rows.sort((a, b) => {
+			const left = Number.isFinite(a['total ms']) ? a['total ms'] : Infinity;
+			const right = Number.isFinite(b['total ms']) ? b['total ms'] : Infinity;
+			return left === right ? 0 : left - right;
+		});
+	}
 
 	if (memory) {
 		for (const raw of report.reports) {
@@ -94,7 +102,7 @@ export function summarizeSavedBenchmarks(options, output = resolve(cache, suiteR
 	writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
 	const {rows, warnings} = benchmarkView(report);
 	if (rows.length)
-		console.table(rows);
+		console.log(formatBenchmarkDisplay({rows}).trimEnd());
 	for (const warning of warnings)
 		console.log('Warning: ' + warning);
 	console.log('Updated summary from saved samples. No browser was started.');

@@ -49,6 +49,9 @@ Each library has 3 warmups and 7 measured rounds.
 There is no 30-second pause between libraries.
 The benchmark retains its rendering-settling waits and command timeouts.
 An interactive terminal shows one table that updates in place after each library finishes.
+Trace and combined tables sort completed libraries by ascending `total ms`, before display rounding, with unavailable totals last.
+Ties retain execution order. The sort does not change execution order or raw report order.
+Saved summaries use the same sort. Memory-only and rAF tables retain execution order.
 The current progress status appears below the table.
 Worker output is captured and shown only on failure, so it cannot interrupt the table.
 Redirected output contains plain-text progress and one final table, without cursor-control sequences.
@@ -120,10 +123,13 @@ The combined table shows medians for:
 - Renderer main-thread work in the chart window.
 - `gpu ms`: GPU-process main-thread work in the chart window.
 - `total ms`: total tracked thread work in the chart window.
-- Baseline-adjusted retained browser-tree PSS.
 - Baseline-adjusted sampled peak browser-tree PSS.
+- Baseline-adjusted retained browser-tree PSS.
 
-The table omits sample-count and DPR columns. These values remain in JSON.
+The table omits the index, sample-count, and DPR columns. Sample counts and DPR remain in JSON.
+Library names have no quotes and align left. Numeric columns align right and show one decimal place.
+The JSON retains full measurement precision.
+The terminal-fit check uses the formatted table width, including line wrapping.
 Explanatory notes do not appear above the table. Measurement warnings appear below it.
 Times use milliseconds.
 Thread work is wall duration, not exclusive CPU time or hardware GPU execution time.

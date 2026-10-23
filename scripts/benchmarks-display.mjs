@@ -1,5 +1,4 @@
-import { Console } from 'node:console';
-import { Writable } from 'node:stream';
+
 import { stripVTControlCharacters } from 'node:util';
 
 const segments = new Intl.Segmenter(undefined, {granularity: 'grapheme'});
@@ -47,17 +46,28 @@ export function countTerminalLines(text, columns) {
 	return count;
 }
 
+function formatTable(rows) {
+	const columns = [...new Set(rows.flatMap(row => Object.keys(row)))];
+	const width = text => [...cellWidths(text)].reduce((sum, size) => sum + size, 0);
+	const cell = value => clean(value).replace(/\n/g, ' ');
+	const cells = rows.map(row => columns.map(key => key === 'variant' ? cell(row[key] ?? '')
+		: Number.isFinite(row[key]) ? row[key].toFixed(1)
+		: cell(typeof row[key] === 'string' ? row[key] : 'unavailable')));
+	const headers = columns.map(cell);
+	const widths = headers.map((header, i) => Math.max(width(header), ...cells.map(row => width(row[i]))));
+	const border = (left, middle, right) => left + widths.map(size => '─'.repeat(size + 2)).join(middle) + right + '\n';
+	const line = values => '│ ' + values.map((value, i) => {
+		const padding = ' '.repeat(widths[i] - width(value));
+		return columns[i] === 'variant' ? value + padding : padding + value;
+	}).join(' │ ') + ' │\n';
+	return border('┌', '┬', '┐') + line(headers) + border('├', '┼', '┤') + cells.map(line).join('') + border('└', '┴', '┘');
+}
+
 export function formatBenchmarkDisplay({rows = [], status = '', warnings = []} = {}) {
 	if (!rows.length)
 		return terminated(clean(status));
 
-	let text = '';
-	const output = new Writable({write(chunk, encoding, callback) {
-		text += chunk.toString();
-		callback();
-	}});
-	new Console({stdout: output, colorMode: false, ignoreErrors: false}).table(rows);
-	text = clean(text) + terminated(clean(status));
+	let text = formatTable(rows) + terminated(clean(status));
 	const unique = [...new Set(warnings.map(warning => clean(warning).replace(/\s+/g, ' ').trim()).filter(Boolean))];
 	for (const warning of unique.slice(0, 3)) {
 		const chars = Array.from(warning);

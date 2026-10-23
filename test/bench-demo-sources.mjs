@@ -16,6 +16,14 @@ const packed = [8, 'epoch', 'idl', 'recv', 'send', 'read', 'writ', 'used', 'free
 	10, 75, 2, 3, 4, 25, 75, 0,
 	11, 50, 2, 6, 4, 50, 50, 0];
 
+function checkModuleSyntax(source) {
+	// Bun's --check checks the project rather than parsing stdin like Node.
+	if (process.versions.bun)
+		new globalThis.Bun.Transpiler({loader: 'js'}).transformSync(source);
+	else
+		execFileSync(process.execPath, ['--input-type=module', '--check'], {input: source, stdio: 'pipe'});
+}
+
 function evaluate(id, extra = {}) {
 	const wait = {textContent: 'not started'};
 	const calls = [];
@@ -57,6 +65,11 @@ function withChangedDemo(file, transform, check) {
 }
 
 describe('benchmark demo sources', () => {
+	it('checks module syntax without executing it and rejects invalid syntax', () => {
+		assert.doesNotThrow(() => checkModuleSyntax('throw new Error("must not execute"); export const value = 1;'));
+		assert.throws(() => checkModuleSyntax('export const = ;'));
+	});
+
 	it('selects only one demo and its dependencies for isolated process runs', () => {
 		for (const [id] of demos) {
 			const selected = loadBenchDemoSources(root, id);
@@ -85,7 +98,7 @@ describe('benchmark demo sources', () => {
 			const source = files.get(`/bench/${id}-source.mjs`);
 			assert.equal(source, inline.slice(0, boundary) + footer);
 			assert.doesNotMatch(source, /fetch\(|setTimeout\(|Fetching|Rendering\.\.\./);
-			execFileSync(process.execPath, ['--input-type=module', '--check'], {input: source});
+			checkModuleSyntax(source);
 		}
 	});
 

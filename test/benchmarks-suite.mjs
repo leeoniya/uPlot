@@ -39,16 +39,27 @@ function browser(variant, measurements = combined, dpr = 1) {
 }
 
 function capture(fn) {
-	const {log, table} = console;
+	const {log} = console;
 	const logs = [], tables = [], events = [];
 	try {
-		console.log = (...args) => { logs.push(args); events.push({type: 'log', args}); };
-		console.table = rows => { tables.push(structuredClone(rows)); events.push({type: 'table', rows: structuredClone(rows)}); };
+		console.log = (...args) => {
+			if (typeof args[0] === 'string' && args[0].startsWith('┌')) {
+				const [headers, ...cells] = args[0].split('\n').filter(line => line.startsWith('│'))
+					.map(line => line.split('│').slice(1, -1).map(value => value.trim()));
+				const rows = cells.map(row => Object.fromEntries(headers.map((key, i) =>
+					[key, key === 'variant' || row[i] === 'unavailable' ? row[i] : Number(row[i])])));
+				tables.push(rows);
+				events.push({type: 'table', rows});
+			}
+			else {
+				logs.push(args);
+				events.push({type: 'log', args});
+			}
+		};
 		return {result: fn(), logs, tables, events};
 	}
 	finally {
 		console.log = log;
-		console.table = table;
 	}
 }
 
@@ -203,6 +214,32 @@ describe('benchmark suite modes and workers', () => {
 		assert.equal(h.requests[0].args.includes('--gpu'), false);
 	});
 
+	it('reorders each completed table by unrounded total time without changing execution or report order', async () => {
+		const totals = {uplot: 10.04, chartjs: 2, d3: null, echarts: 10.01, flot: 2, dygraphs: null};
+		const h = harness();
+		const worker = h.dependencies.runWorker;
+		h.dependencies.runWorker = async request => {
+			const raw = await worker(request);
+			if (request.variant !== 'idle')
+				raw.analysis.groups[0].metrics.totalTrackedThreadWorkMs.median = totals[request.variant];
+			return raw;
+		};
+		const result = await runBenchmarkSuite({}, h.dependencies);
+		assert.deepEqual(h.tables.map(rows => rows.map(row => row.variant)), [
+			['uplot'],
+			['chartjs', 'uplot'],
+			['chartjs', 'uplot', 'd3'],
+			['chartjs', 'echarts', 'uplot', 'd3'],
+			['chartjs', 'flot', 'echarts', 'uplot', 'd3'],
+			['chartjs', 'flot', 'echarts', 'uplot', 'd3', 'dygraphs'],
+		]);
+		const executionOrder = ['idle', ...Object.keys(totals)];
+		assert.deepEqual(h.requests.map(request => request.variant), executionOrder);
+		assert.deepEqual(result.reports.map(report => report.runner.variant), executionOrder);
+		assert.deepEqual(result.progress.completed, executionOrder);
+		assert.deepEqual(h.frames.at(-1).rows, h.tables.at(-1));
+	});
+
 	it('runs an explicitly selected idle only once', async () => {
 		const h = harness();
 		await runBenchmarkSuite({memory: true, variant: 'idle'}, h.dependencies);
@@ -283,14 +320,33 @@ describe('benchmark suite modes and workers', () => {
 });
 
 describe('benchmark table and offline summary', () => {
+	for (const measurements of [combined, {trace: true, memory: false, raf: false},
+		{trace: false, memory: true, raf: false}, {trace: false, memory: false, raf: true}]) {
+		it(`${benchmarkMode(measurements)} summary sorts by total time only when available in this mode`, () => {
+			const reports = ['idle', 'uplot', 'chartjs', 'echarts'].map(variant => browser(variant, measurements));
+			if (measurements.trace) {
+				reports[1].analysis.groups[0].metrics.totalTrackedThreadWorkMs.median = null;
+				reports[2].analysis.groups[0].metrics.totalTrackedThreadWorkMs.median = 10;
+				reports[3].analysis.groups[0].metrics.totalTrackedThreadWorkMs.median = 0;
+			}
+			const input = savedReport(reports, measurements);
+			const original = structuredClone(input);
+			const result = offline(input);
+			assert.deepEqual(result.tables[0].map(row => row.variant), measurements.trace
+				? ['echarts', 'chartjs', 'uplot'] : ['uplot', 'chartjs', 'echarts']);
+			assert.deepEqual(input, original);
+			assert.deepEqual(result.result.reports, original.reports);
+		});
+	}
+
 	it('projects only requested trace medians and adjusted tree PSS, preserving raw reports', () => {
 		const input = savedReport([browser('idle'), browser('uplot')]);
 		const original = structuredClone(input);
 		const result = offline(input);
 		const row = result.tables[0][0];
 		assert.deepEqual(Object.keys(row),
-			['variant', 'prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms', 'retained MB', 'peak MB']);
-		for (const [key, value] of Object.entries({'prep ms': 1.123, 'init ms': 2, 'main ms': 3, 'gpu ms': 4, 'total ms': 5, 'retained MB': 69, 'peak MB': 129}))
+			['variant', 'prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms', 'peak MB', 'retained MB']);
+		for (const [key, value] of Object.entries({'prep ms': 1.1, 'init ms': 2, 'main ms': 3, 'gpu ms': 4, 'total ms': 5, 'retained MB': 69, 'peak MB': 129}))
 			assert.equal(row[key], value);
 		assert.deepEqual(input, original);
 		assert.deepEqual(result.events, [
@@ -347,7 +403,7 @@ describe('benchmark table and offline summary', () => {
 		const row = result.tables[0][0];
 		assert.equal(row['retained MB'], -6);
 		assert.equal(row['peak MB'], 39);
-		assert.deepEqual(Object.keys(row), ['variant', 'retained MB', 'peak MB']);
+		assert.deepEqual(Object.keys(row), ['variant', 'peak MB', 'retained MB']);
 		assert.equal(result.events[0].type, 'table');
 		assert.deepEqual(result.logs, [['Updated summary from saved samples. No browser was started.']]);
 	});
