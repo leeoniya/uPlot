@@ -4,10 +4,11 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { summarizeAdjustedProcessMemory } from './analyze-benchmarks-process-memory.mjs';
 import { createBenchmarkDisplay, formatBenchmarkDisplay } from './benchmarks-display.mjs';
+import { demoDependencies, benchmarkVariants, demoRestrictions, assertDemoAvailable } from '../bench/demo-dependencies.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const cache = fileURLToPath(new URL('../.cache/benchmarks/', import.meta.url));
-const VARIANTS = ['idle', 'uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs'];
+const VARIANTS = ['idle', ...benchmarkVariants];
 const display = value => Number.isFinite(value) ? value : 'unavailable';
 
 function measurementsFor({trace = false, memory = false, raf = false}) {
@@ -31,7 +32,7 @@ export function suiteReportName(mode) {
 
 function benchmarkView(report) {
 	const {trace, memory, raf} = report.measurements;
-	const warnings = [];
+	const warnings = (report.skipped ?? []).map(({variant, reason}) => `${variant}: skipped (${reason})`);
 	const rows = report.reports.filter(raw => raw.runner.variant !== 'idle').map(raw => {
 		const {variant, dpr} = raw.runner;
 		const group = analysis => analysis?.groups?.find(group => group.variant === variant && group.dpr === dpr);
@@ -175,11 +176,13 @@ function runWorker(request, {
 }
 
 // Tests may supply runWorker(request), returning a raw report or writing request.output.
-export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = false, variant = null}, dependencies = {}) {
+export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = false, variant = null, lightningOptions}, dependencies = {}) {
 	if (!Number.isFinite(dpr) || dpr <= 0)
 		throw new TypeError('dpr must be positive and finite');
-	if (variant !== null && !VARIANTS.includes(variant))
+	if (variant !== null && !Object.hasOwn(demoDependencies, variant))
 		throw new Error(`Unsupported benchmark variant: ${variant}`);
+	if (variant !== null)
+		assertDemoAvailable(variant, lightningOptions);
 	const measurements = measurementsFor({trace, memory, raf});
 	const mode = benchmarkMode(measurements);
 	const variants = variant === null ? [...VARIANTS] : variant === 'idle' ? ['idle'] : ['idle', variant];
@@ -190,6 +193,7 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 	const output = resolve(outputDirectory, suiteReportName(mode));
 	const report = {
 		date: new Date().toISOString(), mode, measurements, dpr, gpu, complete: false,
+		skipped: variant === null ? Object.entries(demoRestrictions).map(([variant, reason]) => ({variant, reason})) : [],
 		progress: {total: variants.length, completed: [], current: null, failed: null},
 		protocol: {
 			freshBrowserPerVariant: true, selectedDependenciesOnly: true, variants,

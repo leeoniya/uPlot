@@ -14,6 +14,7 @@ import { chromeBinary } from './chrome-headless-shell.mjs';
 import { summarizeBenchmarkRaf } from './analyze-benchmarks-raf.mjs';
 import { loadBenchDemoSources } from './bench-demo-sources.mjs';
 import { benchmarkMode, variantReportName, runBenchmarkSuite, summarizeSavedBenchmarks } from './benchmarks-suite.mjs';
+import { demoDependencies, benchmarkVariants, assertDemoAvailable } from '../bench/demo-dependencies.mjs';
 
 const root = new URL('../', import.meta.url);
 const cache = fileURLToPath(new URL('.cache/benchmarks/', root));
@@ -43,17 +44,20 @@ bench:trace records only trace timings. bench:memory measures only process memor
 bench:raf measures untraced next-rAF latency, without memory polling or forced GC.
 There is no JS-heap benchmark or heap-usage sampling.
 
-Defaults: uPlot, Chart.js, D3, ECharts, Flot, and Dygraphs, plus an idle control measured first.
+Defaults: ${benchmarkVariants.join(', ')}, plus an idle control measured first.
+LightningChart is opt-in with a license and written benchmark permission.
 Each variant gets a fresh browser with only its own library and demo dependencies.
 Each library has 3 warmups and 7 measured rounds. There is no inter-library cooling pause.
 The table shows per-metric minima after warmups: best observed performance, not typical latency.
 Columns can come from different rounds. Total work is the minimum per-round total, not a sum of column minima.
 Progress, partial results, and a cumulative table update after each library finishes.
-Use --variant NAME to run one library plus idle. Supported: uplot, chartjs, d3, echarts, flot, dygraphs, idle.
+Use --variant NAME to run one library plus idle. Registered: ${Object.keys(demoDependencies).join(', ')}.
+LightningChart requires LIGHTNINGCHART_LICENSE and LIGHTNINGCHART_BENCHMARK_PERMISSION=1.
+LIGHTNINGCHART_LICENSE_INFORMATION can supply vendor-required metadata as JSON.
 DPR defaults to 1. --dpr selects one browser and canvas DPR.
 
 Library loading, raw JSON parsing, and fixture setup occur outside chart timing.
-Data preparation is timed separately. Init covers options, chart construction, and its initial microtask commit.
+Data preparation is timed separately. Init covers options, chart construction, async library completion, and its initial microtask commit.
 Trace chart windows include settling and deferred rendering, but exclude prep, forced GC, and teardown.
 Settling is a heuristic, not a GPU completion fence. GPU thread work is not hardware GPU execution time.
 Trace and rAF timings are not idle-subtracted; idle subtraction applies only to memory.
@@ -85,7 +89,7 @@ if (values.browser !== 'chrome')
 const dpr = Number(values.dpr);
 if (!Number.isFinite(dpr) || dpr <= 0)
 	throw new Error('--dpr must be a positive finite number.');
-if (values.variant && !['uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs', 'idle'].includes(values.variant))
+if (values.variant && !Object.hasOwn(demoDependencies, values.variant))
 	throw new Error('Unsupported benchmark variant.');
 if (values.worker && !values.variant)
 	throw new Error('--worker requires --variant.');
@@ -98,10 +102,17 @@ if (values['summarize-only']) {
 	summarizeSavedBenchmarks(measurements);
 	process.exit(0);
 }
+const lightningOptions = values.variant === 'lightningchart' ? {
+	license: process.env.LIGHTNINGCHART_LICENSE,
+	benchmarkPermission: process.env.LIGHTNINGCHART_BENCHMARK_PERMISSION === '1',
+	licenseInformation: process.env.LIGHTNINGCHART_LICENSE_INFORMATION ? JSON.parse(process.env.LIGHTNINGCHART_LICENSE_INFORMATION) : undefined,
+} : undefined;
+if (values.variant)
+	assertDemoAvailable(values.variant, lightningOptions);
 if (measurements.memory && platform() !== 'linux')
 	throw new Error('Process memory measurement requires Linux /proc.');
 if (!values.worker && !values['install-only']) {
-	await runBenchmarkSuite({...measurements, dpr, gpu: values.gpu, variant: values.variant ?? null});
+	await runBenchmarkSuite({...measurements, dpr, gpu: values.gpu, variant: values.variant ?? null, lightningOptions});
 	process.exit(0);
 }
 const binary = await chromeBinary({version: chromeVersion});
@@ -190,7 +201,7 @@ try {
 	browser.once('error', rejectResult);
 	browser.once('exit', code => rejectResult(new Error(`Chrome exited with code ${code}.\n${browserLog}`)));
 	const report = await Promise.race([captureBenchmarkTrace({
-		profile, url, cache, ...measurements, dpr, processPid: measurements.memory ? browser.pid : null,
+		profile, url, cache, ...measurements, dpr, lightningOptions, processPid: measurements.memory ? browser.pid : null,
 		traceName: `trace-chrome-${mode}-${values.variant}.json`,
 	}), failure]);
 	report.measurements = measurements;

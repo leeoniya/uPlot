@@ -41,7 +41,7 @@ async function evaluate(client, expression) {
 	return result.result.value;
 }
 
-export async function captureBenchmarkTrace({profile, url, cache, trace = true, raf = false, memory = false, dpr = 1, processPid = null, traceName = 'trace-chrome.json'}) {
+export async function captureBenchmarkTrace({profile, url, cache, trace = true, raf = false, memory = false, dpr = 1, processPid = null, traceName = 'trace-chrome.json', lightningOptions}) {
 	if (raf && (trace || memory))
 		throw new Error('rAF measurement requires a separate pass without tracing or memory polling.');
 	if (memory && (!Number.isSafeInteger(processPid) || processPid <= 0))
@@ -67,6 +67,9 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 		page = await connect(target.webSocketDebuggerUrl);
 		await page.send('Page.enable');
 		await page.send('Runtime.enable');
+		// Supply credentials before tracing, without putting them in files or reports.
+		if (lightningOptions)
+			await page.send('Page.addScriptToEvaluateOnNewDocument', {source: `globalThis.benchmarkLightningChartOptions = ${JSON.stringify(lightningOptions)};`});
 		await page.send('Emulation.setDeviceMetricsOverride', {width: 1920, height: 900, deviceScaleFactor: dpr, mobile: false});
 
 		const config = {

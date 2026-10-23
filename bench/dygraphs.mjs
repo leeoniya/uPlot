@@ -9,16 +9,17 @@ function round3(val) {
 function prepData(packed) {
 	console.time('prep');
 
-	// epoch,idl,recv,send,read,writ,used,free
+	// epoch,idl,recv,send,writ,used,free
 
 	const numFields = packed[0];
-	packed = packed.slice(numFields + 1);
+	const start = numFields + 1;
+	const rows = (packed.length - start) / numFields;
 
-	let data = Array(packed.length/numFields);
+	let data = Array(rows);
 
-	for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
+	for (let i = start, j = 0; i < packed.length; i += numFields, j++) {
 		let rec = Array(4);
-		rec[0] = new Date(packed[i] * 60 * 1000);
+		rec[0] = packed[i] * 60 * 1000;
 		rec[1] = round3(100 - packed[i+1]);
 		rec[2] = round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))
 		rec[3] = packed[i+3];
@@ -45,12 +46,11 @@ function makeChart(data, host, wait) {
 			'RAM',
 			'TCP Out',
 		],
-	/*	series: {
-		  'TCP Out': {
-			axis: 'y2'
-		  },
+		series: {
+			'TCP Out': {
+				axis: 'y2'
+			},
 		},
-	*/
 		colors: [
 			'rgba(255,0,0,1)',
 			'rgba(0,0,255,1)',
@@ -59,6 +59,7 @@ function makeChart(data, host, wait) {
 		],
 		axes: {
 			x: {
+				ticker: Dygraph.dateTicker,
 				axisLabelFormatter: function (d, gran) {
 					return dateFormat(d);
 				},

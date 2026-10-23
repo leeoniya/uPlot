@@ -11,18 +11,17 @@ function round3(val) {
 function prepData(packed) {
 	console.time("prep");
 
-	// epoch,idl,recv,send,read,writ,used,free
+	// epoch,idl,recv,send,writ,used,free
 
 	const numFields = packed[0];
-	packed = packed.slice(numFields + 1);
+	const start = numFields + 1;
+	const rows = (packed.length - start) / numFields;
 
-	let data = new Float64Array(packed.length / numFields * 4);
+	let data = new Float64Array(rows * 4);
 
 	let off = 0;
-	let date = packed[0];
-	for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
-		date += 1;
-		data[off++] = date * 60 * 1000;
+	for (let i = start; i < packed.length; i += numFields) {
+		data[off++] = packed[i] * 60 * 1000;
 		data[off++] = round3(100 - packed[i + 1]);
 		data[off++] = round2(100 * packed[i + 5] / (packed[i + 5] + packed[i + 6]));
 		data[off++] = packed[i + 3];
@@ -91,7 +90,6 @@ function makeChart(data, host, wait) {
 				emphasis: {
 					disabled: true,
 				},
-				silent: true,
 				encode: {
 					x: "date",
 					y: "cpu"

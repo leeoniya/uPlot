@@ -9,21 +9,22 @@ function round3(val) {
 function prepData(packed) {
 	console.time("prep");
 
-	// epoch,idl,recv,send,read,writ,used,free
+	// epoch,idl,recv,send,writ,used,free
 
 	const numFields = packed[0];
 
-	packed = packed.slice(numFields + 1);
+	const start = numFields + 1;
+	const len = (packed.length - start) / numFields;
 
 	// 55,550 data points x 3 series = 166,650
 	let data = [
-		Array(packed.length/numFields),
-		Array(packed.length/numFields),
-		Array(packed.length/numFields),
-		Array(packed.length/numFields),
+		Array(len),
+		Array(len),
+		Array(len),
+		Array(len),
 	];
 
-	for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
+	for (let i = start, j = 0; i < packed.length; i += numFields, j++) {
 		data[0][j] = packed[i] * 60;	// * 1e3
 		data[1][j] = round3(100 - packed[i+1]);
 		data[2][j] = round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]));

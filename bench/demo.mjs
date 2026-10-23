@@ -1,13 +1,9 @@
-import {demoDependencies} from './demo-dependencies.mjs';
+import {demoDependencies, dependencyUrl, assertDemoAvailable} from './demo-dependencies.mjs';
 import {applyDemoStyles, setupDemo} from './demo-fixture.mjs';
 
 const dependencyLoads = new Map();
-const packagePrefix = 'https://cdn.jsdelivr.net/npm/';
-
 function loadDependency(dependency) {
-	const url = dependency.name
-		? `${packagePrefix}${dependency.name}@${dependency.version}/${dependency.path}`
-		: new URL(dependency.path, import.meta.url).href;
+	const url = dependencyUrl(dependency, import.meta.url);
 
 	if (!dependencyLoads.has(url)) {
 		dependencyLoads.set(url, new Promise((resolve, reject) => {
@@ -39,6 +35,7 @@ export async function runDemo(variant) {
 	parent.append(wait);
 
 	try {
+		assertDemoAvailable(variant, globalThis.benchmarkLightningChartOptions);
 		for (const dependency of demoDependencies[variant])
 			await loadDependency(dependency);
 

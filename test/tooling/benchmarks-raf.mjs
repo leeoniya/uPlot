@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { summarizeBenchmarkRaf } from '../../scripts/analyze-benchmarks-raf.mjs';
+import { demoDependencies } from '../../bench/demo-dependencies.mjs';
 
 const METRICS = ['dataPrepMs', 'prepAndInitMs', 'jsMs', 'raf1Ms', 'postJsRaf1Ms'];
-const REFERENCES = ['d3', 'chartjs', 'echarts', 'flot', 'dygraphs'];
+const REFERENCES = Object.keys(demoDependencies).filter(id => id !== 'uplot' && id !== 'idle');
 const REMOVED_METRICS = ['raf2Ms', 'postJsRaf2Ms', 'rafGapMs'];
 
 function sample(round = 0, extra = {}) {
@@ -114,8 +115,8 @@ describe('uPlot rAF analysis', () => {
 				sample(2, {variant: 'echarts', [metric]: 3}),
 				sample(0, {variant: 'chartjs', [metric]: 10}),
 			]);
-			const [d3, chartjs, echarts] = result.comparisons;
-			assert.deepEqual(result.comparisons.map(c => c.reference), ['d3', 'chartjs', 'echarts']);
+			const [d3, echarts, chartjs] = result.comparisons;
+			assert.deepEqual(result.comparisons.map(c => c.reference), ['d3', 'echarts', 'chartjs']);
 			for (const comparison of result.comparisons) {
 				assert.equal(comparison.dpr, 1);
 				assert.equal(comparison.variant, 'uplot');
@@ -296,6 +297,24 @@ describe('uPlot rAF analysis', () => {
 			assert.equal(comparison.metrics.jsMs.pairedCount, 1);
 			assert.equal(comparison.metrics.jsMs.deltaOfMinimaMs, REFERENCES.indexOf(comparison.reference) + 1);
 		}
+	});
+
+	it('compares new references in report order without a fixed library allowlist', () => {
+		const result = summarize([
+			sample(0, {variant: 'amcharts', warmup: true, jsMs: 0}),
+			sample(0, {variant: 'amcharts', jsMs: 8}),
+			sample(0, {variant: 'future-library', jsMs: 6}),
+			sample(0, {variant: 'idle', jsMs: 100}),
+			sample(0, {jsMs: 2}),
+		]);
+		assert.deepEqual(result.comparisons.map(c => c.reference), ['amcharts', 'future-library']);
+		assert.deepEqual(result.comparisons[0].metrics.jsMs, {
+			pairedCount: 1, wins: 1, ties: 0, losses: 0, deltaOfMinimaMs: 6,
+			ratioOfMinima: 4, reductionPct: 75,
+		});
+		assert.equal(result.comparisons[1].metrics.jsMs.ratioOfMinima, 3);
+		assert.equal(result.groups[0].warmupCount, 1);
+		assert.equal(result.groups[0].sampleCount, 1);
 	});
 
 	it('omits removed metrics from groups, comparisons, and definitions even when supplied', () => {

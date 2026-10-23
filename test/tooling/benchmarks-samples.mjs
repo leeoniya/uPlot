@@ -5,6 +5,10 @@ import { runInNewContext } from 'node:vm';
 import { setTimeout as delay } from 'node:timers/promises';
 import { captureBenchmarkSamples } from '../../scripts/benchmarks-samples.mjs';
 import { summarizeProcessMemory } from '../../scripts/analyze-benchmarks-process-memory.mjs';
+import { demoDependencies, benchmarkVariants, demoRestrictions, assertDemoAvailable } from '../../bench/demo-dependencies.mjs';
+
+const allVariants = Object.keys(demoDependencies);
+const demoVariants = allVariants.filter(id => id !== 'idle');
 
 const browserSource = readFileSync(new URL('../../scripts/benchmarks-trace-browser.mjs', import.meta.url), 'utf8');
 const collectorSource = readFileSync(new URL('../../scripts/benchmarks-samples.mjs', import.meta.url), 'utf8');
@@ -124,7 +128,7 @@ function browserFixture(options = {}) {
 	const events = [];
 	const marks = [];
 	const context = {
-		VARIANTS: ['uplot', 'chartjs', 'idle'], ALL_VARIANTS: ['uplot', 'd3', 'chartjs', 'echarts', 'flot', 'dygraphs', 'idle'],
+		VARIANTS: ['uplot', 'chartjs', 'idle'], ALL_VARIANTS: allVariants,
 		WARMUPS: 3, ROUNDS: 7, dpr: 2, WIDTH: 1920, HEIGHT: 600, VIEWPORT_HEIGHT: 900, IDLE_MS: 200, ROWS: 55550,
 		packed: {raw: true},
 		crypto: {randomUUID: () => 'browser-capture'},
@@ -187,13 +191,14 @@ describe('shared browser sample lifecycle', () => {
 		const source = browserSource.slice(browserSource.indexOf('function prepFor('), browserSource.indexOf('function validateChart('));
 		const input = {}, host = {}, wait = {}, chart = {};
 		const calls = [];
-		const sources = Object.fromEntries(['uplot', 'd3', 'chartjs', 'echarts', 'flot', 'dygraphs'].map(variant => [variant, {
+		const sources = Object.fromEntries(demoVariants.map(variant => [variant, {
 			prepData: packed => ({variant, packed}),
 			makeChart: (...args) => { calls.push([variant, ...args]); return chart; },
 		}]));
 		const api = runInNewContext(source + '\n({prepFor, construct});', {sources, wait});
 		for (const variant of Object.keys(sources)) {
 			assert.equal(api.prepFor(variant), sources[variant].prepData);
+			assert.deepEqual(api.prepFor(variant)(input), {variant, packed: input});
 			const sample = {variant, input, host};
 			api.construct(sample);
 			assert.equal(sample.chart, chart);
@@ -201,13 +206,106 @@ describe('shared browser sample lifecycle', () => {
 		}
 		assert.equal(api.prepFor('idle')(), null);
 		api.construct({variant: 'idle'});
-		assert.equal(calls.length, 6);
+		assert.equal(calls.length, demoVariants.length);
 		assert.doesNotMatch(browserSource, /function options\(/);
+	});
+
+	it('waits for async chart construction, stores the resolved instance, then flushes a microtask', async () => {
+		const source = browserSource.slice(browserSource.indexOf('function prepFor('), browserSource.indexOf('function validateChart('));
+		for (const variant of ['apexcharts', 'plotly', 'zingchart', 'amcharts']) {
+			let pending;
+			const chart = {}, input = {}, host = {}, wait = {};
+			const sources = {[variant]: {makeChart(...args) {
+				assert.deepEqual(args, [input, host, wait]);
+				return pending.promise;
+			}}};
+			const api = runInNewContext(source + `
+				const pending = {};
+				pending.promise = new Promise(resolve => { pending.resolve = resolve; });
+				({construct, finishMicrotask, pending});
+			`, {sources, wait});
+			pending = api.pending;
+			const sample = {variant, input, host};
+			api.construct(sample);
+			assert.equal(sample.chart, pending.promise);
+			let finished = false, flushed = false;
+			const completion = api.finishMicrotask(sample).then(() => {
+				assert.equal(flushed, true, 'flush one microtask after replacing the Promise with its chart');
+				finished = true;
+			});
+			await Promise.resolve();
+			assert.equal(finished, false);
+			assert.equal(sample.chart, pending.promise);
+			const update = pending.promise.then(() => {
+				assert.equal(sample.chart, chart);
+				queueMicrotask(() => { flushed = true; });
+			});
+			pending.resolve(chart);
+			await Promise.all([completion, update]);
+			assert.equal(sample.chart, chart);
+			assert.equal(flushed, true);
+		}
+	});
+
+	it('flushes synchronous chart updates and accepts thenables as well as Promises', async () => {
+		const source = browserSource.slice(browserSource.indexOf('async function finishMicrotask('), browserSource.indexOf('function validateChart('));
+		const finish = runInNewContext(source + '\nfinishMicrotask;');
+		const chart = {};
+		for (const value of [chart, null, undefined, {then(resolve) { resolve(chart); }}]) {
+			const sample = {chart: value};
+			let updated = false;
+			queueMicrotask(() => { updated = true; });
+			await finish(sample);
+			assert.equal(updated, true);
+			assert.equal(sample.chart, value?.then ? chart : value);
+		}
+	});
+
+	it('clears rejected async construction and does not destroy an adapter that already cleaned up', async () => {
+		const source = browserSource.slice(browserSource.indexOf('async function finishMicrotask('), browserSource.indexOf('function environment('));
+		const events = [];
+		const sources = {amcharts: {destroyChart() { assert.fail('adapter already cleaned up'); }}};
+		const api = runInNewContext(source + '\n({finishMicrotask, teardown});', {sources});
+		const error = new Error('async render failed');
+		const sample = {variant: 'amcharts', chart: Promise.reject(error), host: {
+			replaceChildren() { events.push('clear'); }, remove() { events.push('remove'); },
+		}};
+		await assert.rejects(api.finishMicrotask(sample), actual => actual === error);
+		assert.equal(sample.chart, null);
+		api.teardown(sample);
+		assert.deepEqual(events, ['clear', 'remove']);
+	});
+
+	it('validates rendered adapter charts and delegates teardown while always removing their hosts', () => {
+		const source = browserSource.slice(browserSource.indexOf('function validateChart('), browserSource.indexOf('function environment('));
+		const oldVariants = ['uplot', 'd3', 'chartjs', 'echarts', 'flot', 'dygraphs'];
+		for (const variant of demoVariants.filter(id => !oldVariants.includes(id))) {
+			for (const fail of [false, true]) {
+				const chart = {}, events = [], error = new Error('destroy failed');
+				const host = {
+					querySelector(selector) { assert.equal(selector, 'canvas, svg'); return {}; },
+					replaceChildren() { events.push('clear'); }, remove() { events.push('remove'); },
+				};
+				const sources = {[variant]: {destroyChart(instance) {
+					assert.equal(instance, chart);
+					events.push('destroy');
+					if (fail) throw error;
+				}}};
+				const api = runInNewContext(source + '\n({validateChart, teardown});', {sources, dpr: 1.5});
+				const sample = {variant, chart, host};
+				assert.equal(api.validateChart(sample), 1.5);
+				assert.throws(() => api.validateChart({...sample, chart: null}), /did not return a rendered chart/);
+				assert.throws(() => api.validateChart({...sample, host: {querySelector: () => null}}), /did not return a rendered chart/);
+				if (fail) assert.throws(() => api.teardown(sample), actual => actual === error);
+				else api.teardown(sample);
+				assert.deepEqual(events, ['destroy', 'clear', 'remove']);
+			}
+		}
 	});
 
 	it('rejects uPlot bundles that retain series or point paths after drawing', () => {
 		const source = browserSource.slice(browserSource.indexOf('function validateChart('), browserSource.indexOf('function teardown('));
-		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1});
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, sources: {}});
 		const chart = {pxRatio: 1, series: [{}, {_paths: null, points: {_paths: null}}]};
 		assert.equal(validate({variant: 'uplot', chart}), 1);
 		chart.series[1]._paths = {};
@@ -313,9 +411,20 @@ describe('shared browser sample lifecycle', () => {
 		await assert.rejects(raf.api.setup('uplot', 'sample-0'), /begin/);
 	});
 
-	it('defaults to all variants, preserves query variants, and delegates the chart call', () => {
-		assert.match(browserSource, /const VARIANTS = selectedVariant \? \[selectedVariant\] : ALL_VARIANTS/);
-		assert.match(browserSource, /const ALL_VARIANTS = \['uplot', 'd3', 'chartjs', 'echarts', 'flot', 'dygraphs', 'idle'\]/);
+	it('defaults to runnable manifest variants, preserves query variants, and blocks unavailable libraries', () => {
+		assert.match(browserSource, /await import\('\/bench\/demo-dependencies.mjs'\)/);
+		const source = browserSource.slice(browserSource.indexOf('const ALL_VARIANTS'), browserSource.indexOf('const WARMUPS'));
+		const select = selectedVariant => runInNewContext(source + '\n({ALL_VARIANTS, VARIANTS});', {
+			selectedVariant, demoDependencies, benchmarkVariants, assertDemoAvailable,
+		});
+		assert.deepEqual(structuredClone(select(null).VARIANTS), [...benchmarkVariants, 'idle']);
+		assert.deepEqual(new Set(select(null).ALL_VARIANTS), new Set(allVariants));
+		for (const variant of [...benchmarkVariants, 'idle'])
+			assert.deepEqual(structuredClone(select(variant).VARIANTS), [variant]);
+		for (const [variant, reason] of Object.entries(demoRestrictions))
+			assert.throws(() => select(variant), error => error.message.includes(reason));
+		for (const variant of ['unknown', 'toString', '__proto__'])
+			assert.throws(() => select(variant), /Unknown variant/);
 		assert.match(browserSource, /sources\[sample.variant\]\.makeChart\(sample.input, sample.host, wait\)/);
 		for (const source of [browserSource, collectorSource]) {
 			assert.doesNotMatch(source, /Runtime\.getHeapUsage|HeapProfiler\.enable|usedSize|backingStorageSize|heapMetrics|benchmarkMemory/);

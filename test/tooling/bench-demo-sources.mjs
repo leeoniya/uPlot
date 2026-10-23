@@ -8,12 +8,13 @@ import { loadBenchDemoSources } from '../../scripts/bench-demo-sources.mjs';
 import { demoDependencies } from '../../bench/demo-dependencies.mjs';
 
 const root = new URL('../../', import.meta.url);
+const variants = Object.keys(demoDependencies).filter(id => id !== 'idle');
 const shared = ['/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs', '/bench/demo.css'];
 
 function remoteDependencies(variants) {
-	return variants.flatMap(id => demoDependencies[id].filter(dep => dep.name).map(({name, version, path, type}) => {
+	return variants.flatMap(id => demoDependencies[id].filter(dep => dep.name).map(({name, version, path, type, url}) => {
 		const cacheName = `${name.replace(/^@/, '').replaceAll('/', '-')}-${version}-${path.replaceAll('/', '-')}`;
-		return {name, version, url: `https://cdn.jsdelivr.net/npm/${name}@${version}/${path}`,
+		return {name, version, url: url ?? `https://cdn.jsdelivr.net/npm/${name}@${version}/${path}`,
 			route: '/bench/vendor/' + cacheName, cacheName, ...(type === 'style' ? {type} : {})};
 	}));
 }
@@ -28,7 +29,7 @@ function withAssets(check, {dist = true} = {}) {
 	const dir = mkdtempSync(join(tmpdir(), 'uplot-bench-demo-sources-'));
 	try {
 		mkdirSync(join(dir, 'bench'));
-		for (const route of [...shared, ...demos.map(([id]) => `/bench/${id}.mjs`), '/bench/fmtDate.js'])
+		for (const route of [...shared, ...variants.map(id => `/bench/${id}.mjs`), '/bench/fmtDate.js'])
 			copyFileSync(new URL(route.slice(1), root), join(dir, route.slice(1)));
 		if (dist) {
 			mkdirSync(join(dir, 'dist'));
@@ -65,14 +66,13 @@ describe('benchmark demo asset loader', () => {
 		assert.throws(() => checkModuleSyntax('export const = ;'));
 	});
 
-	it('loads all six literal modules, shared assets, and manifest dependencies by default or null', () => {
-		const variants = demos.map(([id]) => id);
+	it('loads all literal modules including blocked adapters, shared assets, and manifest dependencies by default or null', () => {
 		checkAssets(loadBenchDemoSources(root), variants);
 		assert.deepEqual(loadBenchDemoSources(root, null), loadBenchDemoSources(root));
 		assert.deepEqual(loadBenchDemoSources(root.href), loadBenchDemoSources(root));
 	});
 
-	for (const [id] of demos) {
+	for (const id of variants) {
 		it(`${id}: loads only its module, shared assets, and ordered manifest dependencies`, () => {
 			checkAssets(loadBenchDemoSources(root, id), [id]);
 		});
@@ -91,8 +91,8 @@ describe('benchmark demo asset loader', () => {
 		checkAssets(loadBenchDemoSources(root, 'idle'), []);
 	});
 
-	it('preserves pinned production dependency order, style types, and unique vendor routes', () => {
-		const {dependencies} = loadBenchDemoSources(root);
+	it('preserves the old six pinned production dependency order and style types', () => {
+		const dependencies = demos.flatMap(([id]) => loadBenchDemoSources(root, id).dependencies);
 		assert.deepEqual(dependencies.map(({name, version}) => [name, version]), [
 			['d3', '7.9.0'], ['chart.js', '4.6.1'], ['@date-fns/cdn', '4.4.0'],
 			['chartjs-adapter-date-fns', '3.0.0'], ['echarts', '6.1.0'],
@@ -114,10 +114,25 @@ describe('benchmark demo asset loader', () => {
 		assert.ok(dependencies.every(dep => !dep.url.includes('/source/')));
 	});
 
+	it('keeps all vendor routes unique and honors explicit amCharts GitHub distribution URLs', () => {
+		const {dependencies} = loadBenchDemoSources(root);
+		assert.equal(new Set(dependencies.map(dep => dep.route)).size, dependencies.length);
+		assert.equal(new Set(dependencies.map(dep => dep.cacheName)).size, dependencies.length);
+		const amcharts = loadBenchDemoSources(root, 'amcharts').dependencies;
+		assert.deepEqual(amcharts.map(dep => dep.url), [
+			'https://cdn.jsdelivr.net/gh/amcharts/amcharts5-dist@5.21.4/index.js',
+			'https://cdn.jsdelivr.net/gh/amcharts/amcharts5-dist@5.21.4/xy.js',
+		]);
+		for (const dep of dependencies) {
+			assert.equal(dep.route, '/bench/vendor/' + dep.cacheName);
+			assert.match(dep.cacheName, dep.type === 'style' ? /^[\w.-]+\.css$/ : /^[\w.-]+\.js$/);
+		}
+	});
+
 	it('does not require HTML or derive dependencies from HTML script and style tags', () => {
 		withAssets((assetRoot, dir) => {
 			const original = loadBenchDemoSources(assetRoot);
-			checkAssets(original, demos.map(([id]) => id), assetRoot);
+			checkAssets(original, variants, assetRoot);
 			for (const [, html] of demos)
 				writeFileSync(join(dir, 'bench', html), '<script src="https://invalid.test/unpinned.js"></script><link rel="stylesheet" href="missing.css">');
 			assert.deepEqual(loadBenchDemoSources(assetRoot), original);
@@ -126,8 +141,8 @@ describe('benchmark demo asset loader', () => {
 
 	it('reads literal module, fixture, script, and stylesheet contents afresh without extraction or execution', () => {
 		withAssets((assetRoot, dir) => {
-			const routes = ['/bench/d3.mjs', '/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs',
-				'/bench/demo.css', '/bench/fmtDate.js', '/dist/uPlot.iife.min.js', '/dist/uPlot.min.css'];
+			const routes = [...variants.map(id => `/bench/${id}.mjs`), ...shared,
+				'/bench/fmtDate.js', '/dist/uPlot.iife.min.js', '/dist/uPlot.min.css'];
 			for (const route of routes) {
 				const path = join(dir, route.slice(1));
 				const original = readFileSync(path, 'utf8');
@@ -140,7 +155,7 @@ describe('benchmark demo asset loader', () => {
 
 	it('does not read unrelated modules or local library assets for an isolated variant', () => {
 		withAssets((assetRoot, dir) => {
-			for (const [id] of demos) {
+			for (const id of variants) {
 				if (id !== 'd3') rmSync(join(dir, `bench/${id}.mjs`));
 			}
 			rmSync(join(dir, 'bench/fmtDate.js'));

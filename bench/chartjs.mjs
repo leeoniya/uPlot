@@ -9,16 +9,17 @@ function round3(val) {
 function prepData(packed) {
 	console.time('prep');
 
-	// epoch,idl,recv,send,read,writ,used,free
+	// epoch,idl,recv,send,writ,used,free
 
 	const numFields = packed[0];
-	packed = packed.slice(numFields + 1);
+	const start = numFields + 1;
+	const rows = (packed.length - start) / numFields;
 
-	var cpu = Array(packed.length/numFields);
-	var ram = Array(packed.length/numFields);
-	var tcp = Array(packed.length/numFields);
+	var cpu = Array(rows);
+	var ram = Array(rows);
+	var tcp = Array(rows);
 
-	for (let i = 0, j = 0; i < packed.length; i += numFields, j++) {
+	for (let i = start, j = 0; i < packed.length; i += numFields, j++) {
 		let date = packed[i] * 60 * 1000;
 		cpu[j] = {x: date, y: round3(100 - packed[i+1])};
 		ram[j] = {x: date, y: round2(100 * packed[i+5] / (packed[i+5] + packed[i+6]))};
@@ -96,18 +97,18 @@ function makeChart(data, host, wait) {
 					type: 'linear',
 					position: 'left',
 					stacked: false,
-					scaleLabel: {
+					title: {
 						display: true,
-						labelString: '%'
+						text: '%'
 					}
 				},
 				y2: {
 					type: 'linear',
 					stacked: false,
 					position: 'right',
-					scaleLabel: {
+					title: {
 						display: true,
-						labelString: 'MB'
+						text: 'MB'
 					}
 				}
 			},

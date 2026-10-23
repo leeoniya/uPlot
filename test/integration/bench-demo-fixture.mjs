@@ -2,8 +2,16 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { demos } from '../helpers/bench-demo-evaluator.mjs';
+import { demoDependencies, benchmarkVariants, demoRestrictions, dependencyUrl, assertDemoAvailable } from '../../bench/demo-dependencies.mjs';
 
 const root = new URL('../../', import.meta.url);
+const extraHtml = {
+	apexcharts: 'ApexCharts.html', highcharts: 'Highcharts.html', lightweight: 'lightweight-charts.html',
+	plotly: 'Plotly.js.html', canvasjs: 'CanvasJS.html', zingchart: 'ZingChart.html',
+	amcharts: 'amCharts5.html', lightningchart: 'LightningChart.html',
+};
+const allDemos = [...demos, ...Object.keys(demoDependencies)
+	.filter(id => id !== 'idle' && !demos.some(([old]) => old === id)).map(id => [id, extraHtml[id]])];
 
 function inBrowserStub(source) {
 	execFileSync(process.execPath, ['--input-type=module', '-e', `
@@ -29,8 +37,9 @@ function inBrowserStub(source) {
 }
 
 describe('shared benchmark demo fixture and standalone boot', () => {
-	it('all six HTML entry points import the same standalone runner with their own variant', () => {
-		for (const [id, file] of demos) {
+	it('all HTML entry points import the same standalone runner with their own variant', () => {
+		for (const [id, file] of allDemos) {
+			assert.equal(typeof file, 'string', id);
 			const html = readFileSync(new URL('bench/' + file, root), 'utf8');
 			const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
 			assert.equal(scripts.length, 1, file);
@@ -44,15 +53,14 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 	it('creates variant-scoped hosts and shares one awaited stylesheet load', () => {
 		inBrowserStub(`
 			const {applyDemoStyles, setupDemo} = await import(new URL('bench/demo-fixture.mjs', root));
+			const {demoDependencies} = await import(new URL('bench/demo-dependencies.mjs', root));
 			assert.equal(loaded.length, 0, 'import must not start styles or create DOM');
 			assert.equal(document.body.children.length, 0);
 			const parent = document.createElement('section');
 			parent.classList.add('keep-me', 'flot');
 			document.body.append(parent);
-			for (const [id, selector] of [
-				['uplot', null], ['d3', '#plot'], ['chartjs', '#chart1'],
-				['echarts', null], ['flot', '#placeholder'], ['dygraphs', null], ['idle', null],
-			]) {
+			for (const id of Object.keys(demoDependencies)) {
+				const selector = {d3: '#plot', chartjs: '#chart1', flot: '#placeholder'}[id];
 				parent.replaceChildren();
 				const host = setupDemo(id, parent);
 				assert.equal(host.parentNode, parent);
@@ -72,6 +80,12 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 				}
 				if (id === 'dygraphs') assert.equal(host.id, 'graphdiv');
 				if (id === 'uplot' || id === 'idle') assert.equal(host.children.length, 0);
+				if (${JSON.stringify(Object.keys(extraHtml))}.includes(id)) {
+					assert.equal(host.id, 'benchmark-' + id);
+					assert.equal(host.style.width, '1920px');
+					assert.equal(host.style.height, '600px');
+					assert.equal(host.children.length, 0);
+				}
 			}
 			const before = parent.outerHTML;
 			assert.throws(() => setupDemo('unknown', parent), /Unknown demo variant/);
@@ -90,6 +104,51 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 			assert.equal(ready, true);
 			await applyDemoStyles();
 			assert.equal(loaded.length, 1);
+		`);
+	});
+
+	it('keeps default runnable variants ordered and excludes restricted adapters and idle', () => {
+		assert.deepEqual(benchmarkVariants.slice(0, 6), ['uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs']);
+		assert.deepEqual(benchmarkVariants.slice(6), ['apexcharts', 'highcharts', 'lightweight', 'plotly', 'canvasjs', 'zingchart', 'amcharts']);
+		assert.equal(new Set(benchmarkVariants).size, benchmarkVariants.length);
+		assert.deepEqual(new Set(benchmarkVariants), new Set(Object.keys(demoDependencies)
+			.filter(id => id !== 'idle' && !Object.hasOwn(demoRestrictions, id))));
+		for (const id of [...benchmarkVariants, 'idle'])
+			assert.doesNotThrow(() => assertDemoAvailable(id));
+		for (const id of ['unknown', 'toString', '__proto__'])
+			assert.throws(() => assertDemoAvailable(id), /Unknown demo variant/);
+	});
+
+	it('requires both LightningChart prerequisites', () => {
+		for (const options of [undefined, {}, {license: 'test'}, {benchmarkPermission: true},
+			{license: '', benchmarkPermission: true}, {license: '  ', benchmarkPermission: true},
+			{license: 123, benchmarkPermission: true}, {license: 'test', benchmarkPermission: 'true'}])
+			assert.throws(() => assertDemoAvailable('lightningchart', options), error =>
+				error.message.includes(demoRestrictions.lightningchart) && /license and explicit benchmark permission/.test(error.message));
+		assert.doesNotThrow(() => assertDemoAvailable('lightningchart', {license: 'test', benchmarkPermission: true}));
+
+	});
+
+	it('resolves local and npm dependencies and gives explicit remote URLs precedence', () => {
+		assert.equal(dependencyUrl({path: '../dist/uPlot.min.css'}, new URL('bench/demo.mjs', root)), new URL('dist/uPlot.min.css', root).href);
+		assert.equal(dependencyUrl(demoDependencies.d3[0]), 'https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js');
+		for (const dependency of demoDependencies.amcharts) {
+			assert.match(dependency.url, /^https:\/\/cdn\.jsdelivr\.net\/gh\/amcharts\/amcharts5-dist@/);
+			assert.equal(dependencyUrl(dependency, root), dependency.url);
+		}
+	});
+
+	it('rejects restricted standalone demos before loading dependencies or fetching data', () => {
+		inBrowserStub(`
+			const {runDemo} = await import(new URL('bench/demo.mjs', root));
+			const {demoRestrictions} = await import(new URL('bench/demo-dependencies.mjs', root));
+			for (const [id, reason] of Object.entries(demoRestrictions)) {
+				document.body.replaceChildren();
+				await assert.rejects(runDemo(id), error => error.message.includes(reason));
+				assert.equal(loaded.length, 0);
+				assert.ok(document.getElementById('wait').textContent.startsWith('Error: ' + id + ': '));
+				assert.equal(document.body.children.length, 1);
+			}
 		`);
 	});
 

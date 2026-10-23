@@ -5,7 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { summarizeBenchmarkRaf } from '../../scripts/analyze-benchmarks-raf.mjs';
 import { benchmarkMode, variantReportName, suiteReportName, runBenchmarkSuite, summarizeSavedBenchmarks } from '../../scripts/benchmarks-suite.mjs';
+import { benchmarkVariants, demoRestrictions } from '../../bench/demo-dependencies.mjs';
 
+const variants = ['idle', ...benchmarkVariants];
+const skipped = Object.entries(demoRestrictions).map(([variant, reason]) => ({variant, reason}));
+const skippedWarnings = skipped.map(entry => `${entry.variant}: skipped (${entry.reason})`);
 const combined = {trace: true, memory: true, raf: false};
 const tuple = pssMB => ({rssMB: pssMB * 4 + 50, pssMB, privateMB: pssMB / 2, swapMB: 1, swapPssMB: 0.5});
 const observation = (phase, value) => ({
@@ -154,6 +158,8 @@ describe('benchmark suite modes and workers', () => {
 				assert.equal(request.timeoutMs, 270000);
 			}
 			assert.equal(report.complete, true);
+			assert.deepEqual(report.skipped, []);
+			assert.ok(h.frames.every(frame => frame.warnings.length === 0));
 			assert.equal('heapMemory' in report, false);
 			const persisted = saved(mode);
 			assert.equal(persisted.dpr, 2);
@@ -174,8 +180,7 @@ describe('benchmark suite modes and workers', () => {
 		});
 	}
 
-	it('runs idle and all six libraries and saves/displays each library before the next starts', async () => {
-		const variants = ['idle', 'uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs'];
+	it('runs idle and all default runnable libraries and saves/displays each before the next starts', async () => {
 		const h = harness();
 		const worker = h.dependencies.runWorker;
 		h.dependencies.runWorker = async request => {
@@ -188,7 +193,8 @@ describe('benchmark suite modes and workers', () => {
 			assert.equal(frame.status, `Starting ${request.variant} (${partial.progress.completed.length + 1}/${variants.length})...`);
 			assert.notEqual(frame.final, true);
 			assert.deepEqual(frame.rows.map(row => row.variant), partial.progress.completed.filter(variant => variant !== 'idle'));
-			assert.deepEqual(frame.warnings, []);
+			assert.deepEqual(frame.warnings, skippedWarnings);
+			assert.deepEqual(partial.skipped, skipped);
 			if (request.variant === 'idle')
 				assert.deepEqual(partial.adjustedAnalysis.groups, []);
 			if (request.variant === 'chartjs') {
@@ -200,14 +206,18 @@ describe('benchmark suite modes and workers', () => {
 		assert.equal(benchmarkMode({}), 'combined');
 		const result = await runBenchmarkSuite({}, h.dependencies);
 		assert.deepEqual(result.progress.completed, variants);
+		assert.equal(result.progress.total, variants.length);
+		assert.deepEqual(result.protocol.variants, variants);
+		assert.deepEqual(result.skipped, skipped);
 		assert.deepEqual(h.tables.map(rows => rows.map(row => row.variant)), variants.slice(1).map((_, i) => variants.slice(1, i + 2)));
 		assert.equal(h.events.filter(event => event.startsWith('Starting')).length, variants.length);
 		assert.equal(h.events.filter(event => event.startsWith('Completed')).length, variants.length);
-				assert.equal(h.frames.length, variants.length * 2);
-				assert.ok(h.frames.slice(0, -1).every(frame => !frame.final));
-				assert.deepEqual(h.frames.at(-1), {
-					rows: h.tables.at(-1), warnings: [], status: 'Completed dygraphs (7/7).', final: true,
-				});
+		assert.equal(h.frames.length, variants.length * 2);
+		assert.ok(h.frames.slice(0, -1).every(frame => !frame.final));
+		assert.deepEqual(h.frames.at(-1), {
+			rows: h.tables.at(-1), warnings: skippedWarnings,
+			status: `Completed ${variants.at(-1)} (${variants.length}/${variants.length}).`, final: true,
+		});
 		assert.deepEqual(saved(), result);
 		assert.equal(result.protocol.coolingBetweenVariantsMs, 0);
 		assert.equal(result.protocol.freshBrowserPerVariant, true);
@@ -216,6 +226,8 @@ describe('benchmark suite modes and workers', () => {
 
 	it('reorders each completed table by unrounded total time without changing execution or report order', async () => {
 		const totals = {uplot: 10.04, chartjs: 2, d3: null, echarts: 10.01, flot: 2, dygraphs: null};
+		const additions = benchmarkVariants.filter(variant => !Object.hasOwn(totals, variant));
+		for (const variant of additions) totals[variant] = 20;
 		const h = harness();
 		const worker = h.dependencies.runWorker;
 		h.dependencies.runWorker = async request => {
@@ -232,17 +244,51 @@ describe('benchmark suite modes and workers', () => {
 			['chartjs', 'echarts', 'uplot', 'd3'],
 			['chartjs', 'flot', 'echarts', 'uplot', 'd3'],
 			['chartjs', 'flot', 'echarts', 'uplot', 'd3', 'dygraphs'],
+			...additions.map((_, i) => ['chartjs', 'flot', 'echarts', 'uplot', ...additions.slice(0, i + 1), 'd3', 'dygraphs']),
 		]);
-		const executionOrder = ['idle', ...Object.keys(totals)];
+		const executionOrder = variants;
 		assert.deepEqual(h.requests.map(request => request.variant), executionOrder);
 		assert.deepEqual(result.reports.map(report => report.runner.variant), executionOrder);
 		assert.deepEqual(result.progress.completed, executionOrder);
 		assert.deepEqual(h.frames.at(-1).rows, h.tables.at(-1));
 	});
 
+	for (const variant of benchmarkVariants.slice(6)) {
+		it(`runs explicitly selected ${variant} with idle and no skipped warnings`, async () => {
+			const h = harness();
+			const report = await runBenchmarkSuite({variant}, h.dependencies);
+			assert.deepEqual(h.requests.map(request => request.variant), ['idle', variant]);
+			assert.deepEqual(report.skipped, []);
+			assert.deepEqual(saved().skipped, []);
+			assert.ok(h.frames.every(frame => frame.warnings.length === 0));
+			assert.equal(report.complete, true);
+		});
+	}
+
+	for (const [variant, reason] of Object.entries(demoRestrictions)) {
+		it(`rejects explicit ${variant} before creating reports or starting even a fake worker`, async () => {
+			const outputDirectory = join(directory, 'not-created');
+			const h = harness({outputDirectory});
+			await assert.rejects(runBenchmarkSuite({variant}, h.dependencies), error => error.message.includes(reason));
+			assert.equal(existsSync(outputDirectory), false);
+			assert.deepEqual(h.requests, []);
+			assert.deepEqual(h.events, []);
+		});
+	}
+
+	it('rejects unknown and inherited variant names before worker side effects', async () => {
+		for (const variant of ['unknown', 'toString', '__proto__']) {
+			const h = harness();
+			await assert.rejects(runBenchmarkSuite({variant}, h.dependencies), /Unsupported benchmark variant/);
+			assert.deepEqual(h.requests, []);
+			assert.deepEqual(h.events, []);
+		}
+	});
+
 	it('runs an explicitly selected idle only once', async () => {
 		const h = harness();
-		await runBenchmarkSuite({memory: true, variant: 'idle'}, h.dependencies);
+		const report = await runBenchmarkSuite({memory: true, variant: 'idle'}, h.dependencies);
+		assert.deepEqual(report.skipped, []);
 		assert.deepEqual(h.requests.map(request => request.variant), ['idle']);
 		assert.deepEqual(h.tables, []);
 		assert.deepEqual(h.frames.at(-1), {rows: [], warnings: [], status: 'Completed idle (1/1).', final: true});
@@ -260,13 +306,14 @@ describe('benchmark suite modes and workers', () => {
 		const partial = saved();
 		assert.equal(partial.complete, false);
 		assert.equal(partial.progress.failed, 'chartjs');
+		assert.deepEqual(partial.skipped, skipped);
 		assert.deepEqual(partial.progress.completed, ['idle', 'uplot']);
 		assert.equal(partial.adjustedAnalysis.groups[0].scopes.tree.pssMB.live.min, 0);
 		assert.equal(h.tables.length, 1);
 		assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'uplot']);
 		assert.ok(h.frames.slice(0, -1).every(frame => !frame.final));
 		assert.deepEqual(h.frames.at(-1), {
-			rows: h.tables[0], warnings: [],
+			rows: h.tables[0], warnings: skippedWarnings,
 			status: `Benchmark suite incomplete. Partial report saved: ${join(directory, suiteReportName('combined'))}`,
 			final: true,
 		});
@@ -280,7 +327,7 @@ describe('benchmark suite modes and workers', () => {
 					const completed = h.frames.at(-2), starting = h.frames.at(-1);
 					assert.deepEqual(starting.rows, completed.rows);
 					assert.deepEqual(starting.warnings, completed.warnings);
-					assert.deepEqual(starting.warnings, ['uplot (DPR 1): gpu ms (2/3 valid, 1 missing).']);
+					assert.deepEqual(starting.warnings, [...skippedWarnings, 'uplot (DPR 1): gpu ms (2/3 valid, 1 missing).']);
 				}
 				const raw = await worker(request);
 				if (request.variant === 'uplot')
@@ -389,7 +436,7 @@ describe('benchmark table and offline summary', () => {
 		metrics.rendererMainTaskMs = {min: 2, max: 4, count: 2, missing: 1};
 		metrics.gpuMainTaskMs = {min: 1, max: 7, count: 4, missing: 0};
 		metrics.totalTrackedThreadWorkMs = {min: null, max: null, count: 3, missing: 0};
-		const result = offline(savedReport([browser('idle'), raw]));
+		const result = offline({...savedReport([browser('idle'), raw]), skipped});
 		const row = result.tables[0][0];
 		assert.equal('n' in row, false);
 		assert.equal('dpr' in row, false);
@@ -397,13 +444,15 @@ describe('benchmark table and offline summary', () => {
 		assert.equal(row['gpu ms'], 1);
 		assert.equal(row['total ms'], 'unavailable');
 		assert.equal(Object.keys(row).some(key => key.endsWith(' n') || key.endsWith(' missing')), false);
-		assert.deepEqual(result.logs.filter(([text]) => text.startsWith('Warning:')), [[
-			'Warning: uplot (DPR 1): main ms (2/3 valid, 1 missing); gpu ms (4/3 valid, 0 missing); total ms (3/3 valid, 0 missing, unavailable).',
-		]]);
-		assert.deepEqual(result.events.map(event => event.type), ['table', 'log', 'log']);
+		assert.deepEqual(result.logs.filter(([text]) => text.startsWith('Warning:')), [
+			...skippedWarnings.map(warning => ['Warning: ' + warning]),
+			['Warning: uplot (DPR 1): main ms (2/3 valid, 1 missing); gpu ms (4/3 valid, 0 missing); total ms (3/3 valid, 0 missing, unavailable).'],
+		]);
+		assert.deepEqual(result.events.map(event => event.type), ['table', ...skipped.map(() => 'log'), 'log', 'log']);
 		assert.match(result.events[1].args[0], /^Warning:/);
-		assert.equal(result.events[2].args[0], 'Updated summary from saved samples. No browser was started.');
+		assert.equal(result.events.at(-1).args[0], 'Updated summary from saved samples. No browser was started.');
 		const persisted = JSON.parse(readFileSync(join(directory, 'offline.json'), 'utf8'));
+		assert.deepEqual(persisted.skipped, skipped);
 		assert.deepEqual(persisted.reports[1].analysis.groups[0].metrics, metrics);
 		assert.deepEqual(persisted.adjustedAnalysis.groups[0].scopes.tree.pssMB.live,
 			{min: 0, max: 225, count: 3, missing: 0});

@@ -4,20 +4,24 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
 import { checkModuleSyntax, demos, evaluate } from '../helpers/bench-demo-evaluator.mjs';
+import { demoDependencies } from '../../bench/demo-dependencies.mjs';
 
 const root = new URL('../../', import.meta.url);
-const files = new Map([...demos.map(([id]) => `/bench/${id}.mjs`), '/bench/fmtDate.js']
+const variants = Object.keys(demoDependencies).filter(id => id !== 'idle');
+const oldVariants = demos.map(([id]) => id);
+const files = new Map([...variants.map(id => `/bench/${id}.mjs`), '/bench/fmtDate.js']
 	.map(route => [route, readFileSync(new URL(route.slice(1), root), 'utf8')]));
-const packed = [8, 'epoch', 'idl', 'recv', 'send', 'read', 'writ', 'used', 'free',
-	10, 75, 2, 3, 4, 25, 75, 0,
-	11, 50, 2, 6, 4, 50, 50, 0];
+const packed = [7, 'epoch', 'idl', 'recv', 'send', 'writ', 'used', 'free',
+	10, 75, 2, 3, 4, 25, 75,
+	11, 50, 2, 6, 4, 50, 50];
 
 describe('benchmark demo sources', () => {
-	it('parses all six literal ES modules with the shared export contract', () => {
-		for (const [id] of demos) {
+	it('parses all literal ES modules and preserves the old six export contract', () => {
+		for (const id of variants) {
 			const source = files.get(`/bench/${id}.mjs`);
 
-			assert.match(source, /export \{makeChart, prepData\};\s*$/);
+			if (oldVariants.includes(id))
+				assert.match(source, /export \{makeChart, prepData\};\s*$/);
 			checkModuleSyntax(source);
 		}
 	});
@@ -33,7 +37,7 @@ describe('benchmark demo sources', () => {
 	}
 
 	it('imports the actual ES modules without fetching or creating charts', () => {
-		const urls = demos.map(([id]) => new URL(`bench/${id}.mjs`, root).href);
+		const urls = variants.map(id => new URL(`bench/${id}.mjs`, root).href);
 		execFileSync(process.execPath, ['--input-type=module', '-e', `
 			import assert from 'node:assert/strict';
 			const wait = {textContent: 'not started'};
@@ -42,7 +46,10 @@ describe('benchmark demo sources', () => {
 			globalThis.fetch = globalThis.setTimeout = globalThis.requestAnimationFrame = () => assert.fail('auto-start');
 			for (const url of ${JSON.stringify(urls)}) {
 				const demo = await import(url);
-				assert.deepEqual(Object.keys(demo), ['makeChart', 'prepData']);
+				const id = new URL(url).pathname.split('/').at(-1).replace('.mjs', '');
+				const old = ${JSON.stringify(oldVariants)}.includes(id);
+				assert.deepEqual(Object.keys(demo), old ? ['makeChart', 'prepData'] : ['destroyChart', 'makeChart', 'prepData']);
+				if (!old) assert.equal(typeof demo.destroyChart, 'function');
 				assert.equal(typeof demo.makeChart, 'function');
 				assert.equal(typeof demo.prepData, 'function');
 			}
@@ -59,9 +66,47 @@ describe('benchmark demo sources', () => {
 				id === 'chartjs' ? [[{x: 600000, y: 25}, {x: 660000, y: 50}],
 					[{x: 600000, y: 25}, {x: 660000, y: 50}], [{x: 600000, y: 3}, {x: 660000, y: 6}]] :
 				id === 'flot' ? [[[600000, 25], [660000, 50]], [[600000, 25], [660000, 50]], [[600000, 3], [660000, 6]]] :
-				id === 'dygraphs' ? [['1970-01-01T00:10:00.000Z', 25, 25, 3], ['1970-01-01T00:11:00.000Z', 50, 50, 6]] :
-					[660000, 25, 25, 3, 720000, 50, 50, 6];
+				id === 'dygraphs' ? [[600000, 25, 25, 3], [660000, 50, 50, 6]] :
+					[600000, 25, 25, 3, 660000, 50, 50, 6];
 			assert.deepEqual(JSON.parse(JSON.stringify(Array.from(data))), expected);
+		});
+
+		it(`${id}: preserves irregular timestamps and rounded values without mutating input`, () => {
+			const {exports} = evaluate(files, id);
+			const input = [...packed];
+			input[packed[0] + 1 + packed[0]] = 17;
+			input.push(31, 87.6543, 2, 9, 4, 1, 2);
+			const original = [...input];
+			const data = exports.prepData(Object.freeze(input));
+			const rows = Array.from({length: 3}, (_, j) =>
+				id === 'uplot' || id === 'd3' ? [data[0][j] * (id === 'uplot' ? 1000 : 1), data[1][j], data[2][j], data[3][j]] :
+				id === 'chartjs' ? [data[0][j].x, data[0][j].y, data[1][j].y, data[2][j].y] :
+				id === 'flot' ? [data[0][j][0], data[0][j][1], data[1][j][1], data[2][j][1]] :
+				id === 'dygraphs' ? Array.from(data[j]) : Array.from(data.subarray(j * 4, j * 4 + 4)));
+			assert.deepEqual(rows, [[600000, 25, 25, 3], [1020000, 50, 50, 6], [1860000, 12.346, 33.33, 9]]);
+			if (id === 'chartjs' || id === 'flot') {
+				for (const series of data)
+					assert.deepEqual(Array.from(series, point => id === 'chartjs' ? point.x : point[0]), rows.map(row => row[0]));
+			}
+			assert.deepEqual(input, original);
+		});
+	}
+
+	for (const [id] of demos) {
+		it(`${id}: reads packed fields directly without copying the input`, () => {
+			const {exports} = evaluate(files, id);
+			const input = new Proxy(Object.freeze([...packed]), {
+				get(target, key) {
+					if (key !== 'length' && key !== '0') {
+						assert.match(String(key), /^\d+$/, `${id}: must not use input copy methods or iteration`);
+						const offset = Number(key) - (packed[0] + 1);
+						// A full copy also reads headers and unused recv/writ fields.
+						assert.ok(offset >= 0 && ![2, 4].includes(offset % packed[0]), `${id}: unnecessary input read at ${key}`);
+					}
+					return Reflect.get(target, key);
+				},
+			});
+			assert.deepEqual(Array.from(exports.prepData(input)), Array.from(exports.prepData(packed)));
 		});
 	}
 
@@ -139,11 +184,16 @@ describe('benchmark demo sources', () => {
 				assert.deepEqual(Array.from(config.data.datasets, s => [s.label, s.yAxisID]),
 					[['CPU', 'y'], ['RAM', 'y'], ['TCP Out', 'y2']]);
 				axes = [config.options.scales.y, config.options.scales.y2];
+				assert.deepEqual(axes.map(axis => [axis.title.display, axis.title.text]), [[true, '%'], [true, 'MB']]);
+				for (const axis of axes)
+					assert.equal(Object.hasOwn(axis, 'scaleLabel'), false);
 			}
 			else {
 				assert.deepEqual(Array.from(config.series, s => [s.name, s.yAxisIndex]),
 					[['CPU', 0], ['RAM', 0], ['TCP Out', 1]]);
 				axes = Array.from(config.yAxis);
+				for (const series of config.series)
+					assert.equal(Object.hasOwn(series, 'silent'), false);
 			}
 			assert.deepEqual(axes.map(axis => axis.position), ['left', 'right']);
 			for (const axis of axes) {
@@ -153,7 +203,7 @@ describe('benchmark demo sources', () => {
 		});
 	}
 
-	it('Flot returns the plot before its deferred overlay hook, without changing options', () => {
+	it('Flot retains deferred completion and shares prepared arrays across labeled, autoranged axes', () => {
 		let options, destroyed = false;
 		const plot = {destroy() { destroyed = true; }};
 		const data = [[], [], []];
@@ -162,14 +212,23 @@ describe('benchmark demo sources', () => {
 		const $ = element => { assert.equal(element, placeholder); return wrapped; };
 		$.plot = (element, input, config) => {
 			assert.equal(element, wrapped);
-			assert.equal(input, data);
+			assert.deepEqual(Array.from(input, series => [series.label, series.yaxis]), [['CPU', 1], ['RAM', 1], ['TCP Out', 2]]);
+			for (let i = 0; i < data.length; i++)
+				assert.equal(input[i].data, data[i]);
 			options = config;
 			return plot;
 		};
 		const {exports, wait} = evaluate(files, 'flot', {$});
 		assert.equal(exports.makeChart(data, host, wait), plot);
 		assert.equal(wait.textContent, 'not started');
-		assert.deepEqual(Object.keys(options), ['xaxis', 'hooks']);
+		assert.deepEqual(Object.keys(options), ['xaxis', 'yaxes', 'hooks']);
+		assert.deepEqual(Array.from(options.yaxes, axis => axis.position), ['left', 'right']);
+		assert.equal(options.yaxes[0].tickFormatter(25.5), '25.5%');
+		assert.equal(options.yaxes[1].tickFormatter(6.25), '6.25 MB');
+		for (const axis of [options.xaxis, ...options.yaxes]) {
+			for (const key of ['min', 'max', 'autoScale'])
+				assert.equal(Object.hasOwn(axis, key), false, `leave ${key} to native autoranging`);
+		}
 		assert.deepEqual(JSON.parse(JSON.stringify(options.xaxis)), {mode: 'time', timeBase: 'milliseconds'});
 		assert.equal(options.hooks.drawOverlay.length, 1);
 		options.hooks.drawOverlay[0]();
@@ -179,29 +238,36 @@ describe('benchmark demo sources', () => {
 		assert.equal(destroyed, true);
 	});
 
-	it('Dygraphs returns its instance for destroy and uses the local formatter without changing options', () => {
+	it('Dygraphs uses numeric time rows, the date ticker, and two autoranged axes with local formatting', () => {
 		const formatter = {};
 		runInNewContext(files.get('/bench/fmtDate.js'), {window: formatter});
 		assert.equal(typeof formatter.fmtDate, 'function');
 		const dom = {}, wait = {};
 		let options, destroyed = false;
 		const instance = {destroy() { destroyed = true; }};
+		const dateTicker = () => {};
 		const {exports} = evaluate(files, 'dygraphs', {
 			fmtDate: formatter.fmtDate,
 
-			Dygraph: function(element, data, config) {
+			Dygraph: Object.assign(function(element, data, config) {
 				assert.equal(element, dom);
 				assert.equal(data, prepared);
 				options = config;
 				return instance;
-			},
+			}, {dateTicker}),
 		});
 		const prepared = exports.prepData(packed);
-		assert.equal(Object.prototype.toString.call(prepared[0][0]), '[object Date]');
-		assert.equal(+prepared[0][0], 600000);
+		assert.equal(typeof prepared[0][0], 'number');
+		assert.equal(prepared[0][0], 600000);
 		assert.equal(exports.makeChart(prepared, dom, wait), instance);
 		assert.equal(wait.textContent, 'Done!');
-		assert.deepEqual(Object.keys(options), ['width', 'height', 'labels', 'colors', 'axes']);
+		assert.deepEqual(Object.keys(options), ['width', 'height', 'labels', 'series', 'colors', 'axes']);
+		assert.deepEqual(JSON.parse(JSON.stringify(options.series)), {'TCP Out': {axis: 'y2'}});
+		assert.equal(options.axes.x.ticker, dateTicker);
+		for (const config of [options, ...Object.values(options.axes)]) {
+			for (const key of ['valueRange', 'dateWindow', 'includeZero'])
+				assert.equal(Object.hasOwn(config, key), false, `leave ${key} to native autoranging`);
+		}
 		assert.equal(options.width, 1920);
 		assert.equal(options.height, 600);
 		assert.deepEqual(Array.from(options.labels), ['Time', 'CPU', 'RAM', 'TCP Out']);

@@ -1,5 +1,5 @@
 const METRICS = ['dataPrepMs', 'prepAndInitMs', 'jsMs', 'raf1Ms', 'postJsRaf1Ms'];
-const REFERENCES = ['d3', 'chartjs', 'echarts', 'flot', 'dygraphs'];
+
 
 function statistics(values) {
 	const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
@@ -57,7 +57,9 @@ export function summarizeBenchmarkRaf(report) {
 		if (!uplot)
 			continue;
 
-		for (const reference of REFERENCES) {
+		for (const reference of variants.keys()) {
+					if (reference === 'uplot' || reference === 'idle')
+						continue;
 			const baseline = variants.get(reference);
 			if (!baseline)
 				continue;
@@ -106,8 +108,8 @@ export function summarizeBenchmarkRaf(report) {
 			clock: 'Chart work starts inside an aligned requestAnimationFrame (rAF) callback. Times use performance.now() at callback entry, not the shared rAF timestamp.',
 			dataPrepMs: 'Reported duration of actual demo prepData conversion from already-parsed packed JSON. Excludes network transfer, JSON parsing, and synthetic-data cloning. Data preparation occurs before chart start, outside the start/js-end/end markers.',
 			prepAndInitMs: 'Reported sum dataPrepMs + jsMs: data preparation plus JS/DOM initialization, not end-to-end wall latency. Excludes the gap between preparation and chart start, rAF waits, and settling.',
-			jsMs: 'Elapsed time from chart start through synchronous JS/DOM work, the initial microtask commit, and the status update.',
-			raf1Ms: 'Elapsed time from chart start to entry of the next subsequent rAF callback.',
+			jsMs: 'Elapsed time from chart start through JS/DOM work, async library completion when returned, the initial microtask commit, and the status update. Includes async waits, not exclusive CPU time.',
+			raf1Ms: 'Elapsed time from chart start to entry of the first rAF callback requested after initialization completes. Async initialization can span earlier frames.',
 			postJsRaf1Ms: 'Elapsed time from JavaScript end to entry of the next subsequent rAF callback.',
 			interpretation: 'rAF latency is a scheduling/frame-progress proxy, not a GPU fence or proof of completed rendering or presentation. Subtracting JavaScript time does not measure GPU cost.',
 			aggregation: 'Groups separate DPR and variant. Warmups are excluded. Each metric uses its minimum measured value for best-case performance; minima may come from different rounds. Only finite numeric metrics enter min, max, and count; absent, null, and invalid values count as missing. Empty min and max are null. prepAndInitMs uses each round\'s reported sum, not the sum of component minima.',

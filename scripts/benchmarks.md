@@ -3,9 +3,15 @@
 The benchmarks compare chart libraries, including their data preparation and sampling or decimation choices.
 They use Chrome Headless Shell, pinned demo dependencies, and `bench/data.json`.
 
-The six HTML demos and benchmark import the same `bench/{uplot,d3,chartjs,echarts,flot,dygraphs}.mjs` modules.
+The HTML demos and benchmark import the same `bench/<variant>.mjs` modules.
+The original modules are `uplot`, `d3`, `chartjs`, `echarts`, `flot`, and `dygraphs`.
+Eight additional HTML wrappers use modules: `apexcharts`, `highcharts`, `lightweight`, `plotly`, `canvasjs`, `zingchart`, `amcharts`, and `lightningchart`.
 Each module exports `prepData(packed)` and `makeChart(data, host, wait)`.
+The added modules also export `destroyChart(chart)`. The harness uses this optional hook for library-specific cleanup.
+`makeChart` returns a chart or a promise that resolves after the library completes initialization.
+
 Chart configuration and data preparation have one implementation per library. No HTML parsing or source extraction occurs.
+`scripts/bench-demo-sources.mjs` reads the shared files, and the browser imports each selected module directly.
 `bench/demo-fixture.mjs` and `bench/demo.css` provide shared hosts, markup, and styles.
 `bench/demo-dependencies.mjs` defines the dependency versions and production paths for both entry points.
 The HTML pages use `bench/demo.mjs` to load dependencies and start the demo.
@@ -25,8 +31,166 @@ Flot uses its published `dist/es5/jquery.flot.js` bundle, which is minified desp
 This bundle also includes other Flot plugins, unlike the previous core-and-time source selection.
 The local Dygraphs date formatter remains demo code, not a third-party library bundle.
 Dependency cache filenames include the package path so source and distribution files cannot share a cache entry.
-Each chart contains 55,550 rows and three data series, at 1920 × 600 CSS pixels.
+Each runnable chart receives 55,550 rows and three data series: 166,650 input points, at 1920 × 600 CSS pixels.
+The runnable demos share a left percentage axis for CPU and RAM, with TCP Out on a right MB axis.
+Both y-axis ranges are automatic. No fixed y-axis bounds force the percentage series to use 0–100.
 DPR defaults to 1.
+
+## Pinned dependencies and chart configuration
+
+`bench/demo-dependencies.mjs` contains the current verified dependency pins, not floating latest-version URLs.
+
+| Variant | Manifest dependency versions |
+| --- | --- |
+| `uplot` | Local production assets in `dist/` |
+| `chartjs` | `chart.js` 4.6.1, `@date-fns/cdn` 4.4.0, `chartjs-adapter-date-fns` 3.0.0 |
+| `d3` | `d3` 7.9.0 |
+| `echarts` | `echarts` 6.1.0 |
+| `flot` | `flot` 4.2.6, `jquery` 3.7.1 |
+| `dygraphs` | `dygraphs` 2.2.2 |
+| `apexcharts` | `apexcharts` 8.4.1, including `dist/features/renderer-canvas.js` |
+| `highcharts` | `highcharts` 13.1.1, including `modules/boost.js` |
+| `lightweight` | `lightweight-charts` 5.2.1 |
+| `plotly` | `plotly.js-dist-min` 4.1.2 |
+| `canvasjs` | `@canvasjs/charts` 3.17.8 |
+| `zingchart` | `zingchart` 2.9.16-1 |
+| `amcharts` | GitHub `amcharts/amcharts5-dist` tag 5.21.4, `index.js` and `xy.js` |
+| `lightningchart` | `@lightningchart/lcjs` 9.0.0, `dist/lcjs.iife.es2019.js` |
+
+
+LightningChart 9 uses `@lightningchart/lcjs`, not the former `@arction/lcjs` package.
+amCharts uses the tagged GitHub browser distribution through jsDelivr, not npm entry points that require a bundler.
+
+The modules use these performance choices:
+
+| Variant | Chart configuration |
+| --- | --- |
+| `uplot` | Aligned columns, native pixel-level path reduction, and `cache.paths: false`. |
+| `d3` | Aligned columns and a canvas line generator, without point objects or external sampling. |
+| `chartjs` | Numeric points, `parsing: false`, `normalized: true`, native min/max sampling, and no animation or point markers. |
+| `echarts` | One interleaved typed buffer, explicit dimensions, native min/max sampling, and no animation or point markers. |
+| `flot` | Native XY pairs and canvas lines, with automatic ranges on two y axes. |
+| `dygraphs` | Numeric timestamp rows and `Dygraph.dateTicker`, without per-row Date objects or CSV parsing. |
+| `apexcharts` | Native canvas addon and zoom-aware LTTB reduction. `targetPoints: 1920`, `threshold: 3840`. Full input remains available. |
+| `highcharts` | Boost with typed data columns. `useGPUTranslations: false` avoids Float32 precision loss for epoch-millisecond timestamps. |
+| `lightweight` | Native line conflation (`enableConflation: true`), two automatic axes, and a custom legend with visibility controls and attribution. |
+| `plotly` | WebGL `scattergl` line traces with typed arrays. |
+| `canvasjs` | Native canvas line chart, without animation or point markers. |
+| `zingchart` | Canvas output, fast mode, `sampling-step: 1`, no trackers, no point markers, and no tooltips. |
+| `amcharts` | Native `groupData: true`, `groupCount: 1920`, and `groupIntervals` of one minute, ten minutes, and one hour. `minDistance: 1`, `valueYGrouped: 'average'`. |
+| `lightningchart` | Progressive Float64 x data, native zoom-dependent grouping, no automatic sorting, and full input retention. |
+
+These configurations do not provide identical rendering or interaction features.
+Native reduction and grouping change the displayed detail without removing the full input.
+amCharts averages and Lightweight Charts conflation can hide peaks. Finer detail returns at closer zoom levels.
+Lightweight Charts uses grouped closing values for lines, not a min/max envelope.
+Native sampling can also change automatic ranges.
+For example, ECharts 6.1.0 min/max sampling ends the visible time range three minutes early for this fixture at DPR 1.
+All 55,550 raw rows remain available. The adapter does not override the range to conceal this behavior.
+These results compare the configured demos, not identical drawing algorithms.
+
+## Data formats and performance audit
+
+The audit covers all registered adapters, including the opt-in LightningChart adapter.
+Each preparation function reads the packed input directly and allocates fresh output.
+No adapter rewrites the input, caches prepared data between samples, or removes rows before library initialization.
+The six original adapters no longer copy the packed input with `slice()`.
+That removes one temporary array of 388,850 values per preparation.
+
+| Library | Prepared representation | Reason |
+| --- | --- | --- |
+| uPlot, D3 | Four aligned numeric arrays | Shared timestamps, without point records. |
+| Highcharts | Four Float64 columns in three data-table configurations | Boost supports typed columns. All tables share the prepared x column. |
+| Plotly | Four Float64 columns | `scattergl` accepts separate x and y arrays. All traces share x. |
+| LightningChart | Four Float64 columns | The progressive dataset API accepts typed columns without row objects. |
+| ECharts | One interleaved Float64 buffer | A supported typed-data path, without row objects. Keyed columns are not necessarily faster. |
+| amCharts | One array of `{date, cpu, ram, tcp}` rows | All three series share the prepared records. |
+| Dygraphs | Rows of `[timestamp, cpu, ram, tcp]` | The native numeric format avoids Date allocation and date-input conversion copies. |
+| Chart.js | Three arrays of `{x, y}` | The skipped-parsing and sampling path needs the internal point format. |
+| ApexCharts | Three arrays of `[x, y]` | Native reduction needs explicit x values, unlike scalar series with shared labels. |
+| Flot, ZingChart | Three arrays of `[x, y]` | Ordinary supported XY input, without custom ingestion hooks or index-based time spacing. |
+| CanvasJS | Three arrays of `{x, y}` | The documented point format, with numeric timestamps rather than Date objects. |
+| Lightweight Charts | Three arrays of `{time, value}` | The public `setData()` contract uses point records. |
+
+Each four-column Float64 representation contains 1,777,600 bytes of numeric data, excluding wrappers and library allocations.
+Columnar preparation does not imply zero-copy initialization.
+Highcharts copies columns internally. Plotly converts date-axis data and allocates rendering structures.
+Library-owned copies remain part of the measured initialization and memory costs.
+
+The adapters retain automatic y ranges and original timestamp values.
+Dygraphs uses the public date ticker to preserve calendar ticks with numeric timestamps.
+The audit did not add fixed y bounds, manual sampling, input-mutation switches, hidden HTML, or custom ingestion hooks.
+Normal chart and legend construction still creates DOM elements inside initialization.
+
+The existing amCharts static-logo override is a private-API exception, requested separately to stop its entrance animation.
+It preserves the logo and link, but needs a version and license review before publication.
+Interaction features still differ: ZingChart disables trackers and tooltips, while other adapters provide different hover and legend behavior.
+Highcharts completion awaits its Boost canvas events, not a guarantee that all deferred hover-tree work has finished.
+These limits prevent a claim of identical output or interaction costs across libraries.
+
+### Audit references
+
+The audit used the pinned distributions as well as these public API references:
+
+- [uPlot data contract](https://github.com/leeoniya/uPlot/blob/master/docs/README.md#data-format) and [D3 canvas line generators](https://d3js.org/d3-shape/line#line_context).
+- [Chart.js performance](https://www.chartjs.org/docs/latest/general/performance.html) and [sampling requirements](https://www.chartjs.org/docs/latest/configuration/decimation.html).
+- [ECharts dataset formats](https://echarts.apache.org/handbook/en/concepts/dataset/) and [6.1.0 typed-data implementation](https://github.com/apache/echarts/blob/6.1.0/src/data/helper/dataProvider.ts).
+- [Flot data and axis API](https://www.flotcharts.org/flot/docs/API/) and [Dygraphs native formats](https://dygraphs.com/data.html).
+- [ApexCharts canvas renderer](https://apexcharts.com/docs/options/chart/renderer/) and [8.4.1 data-reduction implementation](https://cdn.jsdelivr.net/npm/apexcharts@8.4.1/src/modules/Data.js).
+- [Highcharts Boost guidance](https://www.highcharts.com/docs/advanced-chart-features/boost-module) and [Plotly initialization API](https://plotly.com/javascript/plotlyjs-function-reference/).
+- [CanvasJS data formats](https://canvasjs.com/docs/charts/basics-of-creating-html5-chart/working-with-data/) and [Lightweight Charts time-scale configuration](https://tradingview.github.io/lightweight-charts/docs/api/interfaces/TimeScaleOptions).
+- [amCharts grouping guidance](https://www.amcharts.com/docs/v5/charts/xy-chart/axes/date-axis/#Performance_implications).
+- [LightningChart 9 declarations](https://cdn.jsdelivr.net/npm/@lightningchart/lcjs@9.0.0/dist/lcjs.d.ts).
+
+ZingChart documentation was unreachable during the audit. Its pinned bundle and browser probes provided the format evidence.
+LightningChart API checks did not include a browser run, because that requires a license and written benchmark permission.
+
+## License and availability limits
+
+Runnable code does not establish permission for every use. The applicable vendor terms remain separate from benchmark configuration.
+
+| Library | Terms relevant to these demos |
+| --- | --- |
+| ApexCharts | Custom Community, Commercial, and OEM terms, not MIT. The competing-product restriction requires review for use in this repository. |
+| Highcharts | Proprietary license terms. |
+| CanvasJS | Branded noncommercial or evaluation use. Commercial use requires a license. |
+| ZingChart | Branded evaluation distribution. The demo supplies no license keys and no longer uses the old copied `ZC.LICENSE` keys. |
+| amCharts | Linkware terms require the original license and prohibit disabling, hiding, or altering the branding link. The demo retains the logo and link, but removes its entrance animation. |
+| Lightweight Charts | Apache-2.0 with attribution requirements. The demo retains the attribution logo and adds a TradingView notice and link. |
+| Plotly | MIT. |
+| LightningChart | Vendor license and prior written permission for performance comparisons under EULA Article XXIV. Publication permission also applies where required. |
+
+The default suite skips LightningChart, even with license configuration present.
+
+
+### Authorized LightningChart runs
+
+Before a LightningChart run, obtain a vendor license and the required prior written permission.
+Do not commit license keys or put them in manifests, reports, or shared command examples.
+
+Supply these environment variables through your local environment or secret manager:
+
+| Variable | Value |
+| --- | --- |
+| `LIGHTNINGCHART_LICENSE` | Your valid vendor-issued license key |
+| `LIGHTNINGCHART_BENCHMARK_PERMISSION` | `1`, only after you obtain the required prior written permission |
+| `LIGHTNINGCHART_LICENSE_INFORMATION` | Optional JSON containing vendor-required license metadata |
+
+Then select LightningChart explicitly:
+
+```sh
+npm run bench -- --variant lightningchart
+```
+
+The permission flag records your acknowledgment. It does not grant permission.
+The harness supplies the license configuration to the browser through CDP before tracing starts.
+The manifest and report JSON contain no supplied license secrets.
+The vendor can require online license validation and telemetry under its EULA.
+A local dependency cache does not guarantee offline operation or prevent vendor network traffic.
+
+For an authorized standalone demo, supply `globalThis.benchmarkLightningChartOptions` before `runDemo('lightningchart')`.
+The object requires `license` and `benchmarkPermission: true`, with optional `licenseInformation`.
+There is no fabricated key or automatic community-license fallback.
 
 ## Commands
 
@@ -63,7 +227,23 @@ npm run bench -- --dpr 2
 
 ## Library scope and progress
 
-The default order is idle, uPlot, Chart.js, D3, ECharts, Flot, then Dygraphs.
+The default suite runs idle first, then 13 libraries in this order:
+
+1. uPlot
+2. Chart.js
+3. D3
+4. ECharts
+5. Flot
+6. Dygraphs
+7. ApexCharts
+8. Highcharts
+9. Lightweight Charts
+10. Plotly
+11. CanvasJS
+12. ZingChart
+13. amCharts
+
+The seven added default libraries join the original six.
 Each variant uses a fresh browser with only its library and required demo dependencies.
 The idle control runs first so the first completed library can show adjusted memory values.
 The main table omits the idle row.
@@ -90,18 +270,35 @@ To select one library plus the idle control, use:
 npm run bench -- --variant chartjs
 ```
 
-Supported variants are `uplot`, `chartjs`, `d3`, `echarts`, `flot`, `dygraphs`, and `idle`.
-All six libraries run by default.
+Default library identifiers are `uplot`, `chartjs`, `d3`, `echarts`, `flot`, `dygraphs`, `apexcharts`, `highcharts`, `lightweight`, `plotly`, `canvasjs`, `zingchart`, and `amcharts`.
+`idle` is also selectable. `lightningchart` requires explicit selection and authorization.
+Default suite reports include the skipped variants and their reasons.
 
 ## Timing and memory protocol
 
 Library loading, raw JSON parsing, and fixture setup occur outside the chart timers.
 Each sample times the actual demo preparation function separately from chart initialization.
 uPlot uses its own shared preparation function, with timestamps in seconds and the default time scale.
-Other libraries use millisecond timestamps, including Date objects for Dygraphs.
+Lightweight Charts also uses timestamps in seconds.
+The other runnable libraries use numeric millisecond timestamps.
 The benchmark does not convert uPlot data to milliseconds or override its chart configuration.
-Chart initialization includes options construction, the constructor, and its initial microtask commit.
+Chart initialization includes configuration construction, chart construction, async library completion, and the initial microtask commit.
+If `makeChart` returns a promise, the harness awaits it inside the initialization span, then awaits one microtask.
+The `jsMs` field therefore measures elapsed initialization time, including async waits, not exclusive JavaScript CPU time.
 Validation occurs outside both timers.
+
+Async completion follows each module's library-specific promise or event.
+Highcharts also waits for Boost hover-point processing. amCharts waits for an idle render loop after `frameended`.
+The amCharts adapter shows the logo immediately in its final state, with its link, tooltip, and hover behavior intact.
+A version-specific override gives only its entrance animations zero duration. The vendor's delayed callback remains, but no longer starts an animation.
+This override uses `root._logo` and requires review when the pinned version changes.
+LightningChart waits for `renderframe` without pending async rendering.
+These completion signals do not establish GPU completion or presentation.
+
+The rAF mode aligns chart start with an animation-frame callback.
+`raf1Ms` ends at the first rAF callback requested after initialization completes.
+Async initialization can span earlier frames, so this callback is not necessarily the next frame after chart start.
+`postJsRaf1Ms` measures only the interval from completed initialization to that callback.
 
 The trace window starts at chart construction and ends after rendering settles.
 It includes deferred rendering but excludes data preparation, forced GC, and teardown.
@@ -168,6 +365,9 @@ Times use milliseconds.
 Thread work is wall duration, not exclusive CPU time or hardware GPU execution time.
 Tracked work excludes data preparation and can overlap across threads.
 Initialization time and renderer thread work are not additive.
+`total ms` remains independent of the initialization and rAF elapsed spans.
+It sums per-thread unions of tracked work intervals within each chart window. Overlapping intervals on one thread count once.
+Async waits do not become tracked work merely because they occur inside initialization.
 Memory uses decimal MB: 1 MB = 1,000,000 bytes.
 
 Each measured library sample uses this adjustment:

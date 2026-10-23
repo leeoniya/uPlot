@@ -13,10 +13,13 @@ const WIDTH = 1920;
 const HEIGHT = 600;
 const VIEWPORT_HEIGHT = 900;
 const dpr = devicePixelRatio;
-const ALL_VARIANTS = ['uplot', 'd3', 'chartjs', 'echarts', 'flot', 'dygraphs', 'idle'];
+const {demoDependencies, benchmarkVariants, assertDemoAvailable} = await import('/bench/demo-dependencies.mjs');
+const ALL_VARIANTS = [...benchmarkVariants, ...Object.keys(demoDependencies).filter(id => !benchmarkVariants.includes(id))];
 if (selectedVariant && !ALL_VARIANTS.includes(selectedVariant))
 	throw new Error(`Unknown variant: ${selectedVariant}`);
-const VARIANTS = selectedVariant ? [selectedVariant] : ALL_VARIANTS;
+const VARIANTS = selectedVariant ? [selectedVariant] : [...benchmarkVariants, 'idle'];
+for (const variant of VARIANTS)
+	assertDemoAvailable(variant, globalThis.benchmarkLightningChartOptions);
 const WARMUPS = 3;
 const ROUNDS = 7;
 const IDLE_MS = 200;
@@ -35,7 +38,15 @@ if (typeof Path2D !== 'function' ||
 	VARIANTS.includes('chartjs') && !globalThis.Chart?.version ||
 	VARIANTS.includes('echarts') && !globalThis.echarts?.init ||
 	VARIANTS.includes('flot') && !globalThis.jQuery?.plot ||
-	VARIANTS.includes('dygraphs') && (!globalThis.Dygraph || typeof globalThis.fmtDate !== 'function'))
+	VARIANTS.includes('dygraphs') && (!globalThis.Dygraph || typeof globalThis.fmtDate !== 'function') ||
+	VARIANTS.includes('apexcharts') && !globalThis.ApexCharts ||
+	VARIANTS.includes('highcharts') && !globalThis.Highcharts?.chart ||
+	VARIANTS.includes('lightweight') && !globalThis.LightweightCharts?.createChart ||
+	VARIANTS.includes('plotly') && !globalThis.Plotly?.newPlot ||
+	VARIANTS.includes('canvasjs') && !globalThis.CanvasJS?.Chart ||
+	VARIANTS.includes('zingchart') && !globalThis.zingchart?.render ||
+	VARIANTS.includes('amcharts') && (!globalThis.am5?.Root || !globalThis.am5xy?.XYChart) ||
+	VARIANTS.includes('lightningchart') && !globalThis.lcjs?.lightningChart)
 	throw new Error('Load the selected demo libraries and dependencies before this module.');
 if (VARIANTS.includes('chartjs') && globalThis.Chart._adapters?._date?.prototype._id !== 'date-fns')
 	throw new Error('Load the Chart.js date-fns adapter before this module.');
@@ -97,16 +108,16 @@ function checkPage() {
 }
 
 function prepFor(variant) {
-	// Demo prepData functions slice packed without mutating it. No clones are needed.
+	// Demo prepData functions do not mutate packed. No clones are needed.
 	return variant === 'idle' ? () => null : sources[variant].prepData;
 }
 
 function validateInput({variant, input}) {
-	if (variant === 'uplot' || variant === 'd3') {
+	if (variant === 'uplot' || variant === 'd3' || variant === 'plotly') {
 		if (input.length !== 4 || !input.every(values => values.length === ROWS && values.every(Number.isFinite)))
 			throw new Error('Expected 55,550 finite rows with x values and three y series.');
 	}
-	else if (variant === 'chartjs') {
+	else if (variant === 'chartjs' || variant === 'canvasjs') {
 		if (input.length !== 3 || !input.every(values => values.length === ROWS && values.every(point => Number.isFinite(point.x) && Number.isFinite(point.y))))
 			throw new Error('Expected three Chart.js series of 55,550 finite {x, y} points.');
 	}
@@ -114,13 +125,29 @@ function validateInput({variant, input}) {
 		if (!(input instanceof Float64Array) || input.length !== ROWS * 4 || !input.every(Number.isFinite))
 			throw new Error('Expected 55,550 finite ECharts rows in an interleaved Float64Array.');
 	}
-	else if (variant === 'flot') {
+	else if (variant === 'flot' || variant === 'apexcharts' || variant === 'zingchart') {
 		if (input.length !== 3 || !input.every(values => values.length === ROWS && values.every(point => point.length === 2 && point.every(Number.isFinite))))
 			throw new Error('Expected three Flot series of 55,550 finite [x, y] pairs.');
 	}
+	else if (variant === 'lightweight') {
+		if (input.length !== 3 || !input.every(series => series.length === ROWS && series.every(point => Number.isFinite(point.time) && Number.isFinite(point.value))))
+			throw new Error('Expected three Lightweight Charts series of 55,550 finite {time, value} points.');
+	}
+	else if (variant === 'highcharts') {
+		if (input.length !== 3 || !input.every(table => ['x', 'y'].every(key => table.columns[key].length === ROWS && table.columns[key].every(Number.isFinite))))
+			throw new Error('Expected three Highcharts data tables of 55,550 finite x and y values.');
+	}
+	else if (variant === 'amcharts') {
+		if (input.length !== ROWS || !input.every(row => ['date', 'cpu', 'ram', 'tcp'].every(key => Number.isFinite(row[key]))))
+			throw new Error('Expected 55,550 finite amCharts records.');
+	}
+	else if (variant === 'lightningchart') {
+		if (!['x', 'cpu', 'ram', 'tcp'].every(key => input[key].length === ROWS && input[key].every(Number.isFinite)))
+			throw new Error('Expected four LightningChart columns of 55,550 finite values.');
+	}
 	else if (variant === 'dygraphs') {
-		if (input.length !== ROWS || !input.every(row => row.length === 4 && row[0] instanceof Date && Number.isFinite(+row[0]) && Number.isFinite(row[1]) && Number.isFinite(row[2]) && Number.isFinite(row[3])))
-			throw new Error('Expected 55,550 Dygraphs rows with a Date and three finite values.');
+		if (input.length !== ROWS || !input.every(row => row.length === 4 && Number.isFinite(row[0]) && Number.isFinite(row[1]) && Number.isFinite(row[2]) && Number.isFinite(row[3])))
+			throw new Error('Expected 55,550 Dygraphs rows with numeric milliseconds and three finite values.');
 	}
 }
 
@@ -129,12 +156,23 @@ function construct(sample) {
 		sample.chart = sources[sample.variant].makeChart(sample.input, sample.host, wait);
 }
 
-async function finishMicrotask() {
+async function finishMicrotask(sample) {
+	// Async adapters resolve at their library's initial-render completion event.
+	// Their elapsed init time includes those yields, not just synchronous JS work.
+	if (typeof sample.chart?.then === 'function') {
+		try { sample.chart = await sample.chart; }
+		catch (error) {
+			sample.chart = null; // The adapter cleans up a failed async construction.
+			throw error;
+		}
+	}
 	// uPlot queues its initial commit; its demo and D3 also queue status updates.
 	await Promise.resolve();
 }
 
 function validateChart({variant, chart, host}) {
+	if (sources[variant]?.destroyChart && (!chart || !host.querySelector('canvas, svg')))
+		throw new Error(`${variant} did not return a rendered chart.`);
 	if (variant === 'uplot' && chart.series.some(series => series._paths != null || series.points?._paths != null))
 		throw new Error('uPlot retained paths despite cache.paths:false. Rebuild dist before benchmarking.');
 	if (variant === 'chartjs' && (!chart || globalThis.Chart.getChart(host.firstElementChild) !== chart))
@@ -170,7 +208,11 @@ function validateChart({variant, chart, host}) {
 
 function teardown({variant, chart, host}) {
 	try {
-		if (variant === 'echarts') {
+		if (sources[variant]?.destroyChart) {
+			if (chart)
+				sources[variant].destroyChart(chart);
+		}
+		else if (variant === 'echarts') {
 			const instance = chart ?? globalThis.echarts.getInstanceByDom(host);
 			instance?.dispose();
 			if (globalThis.echarts.getInstanceByDom(host) || (instance && !instance.isDisposed()))
@@ -219,6 +261,12 @@ function environment() {
 		dygraphsVersion: globalThis.Dygraph?.VERSION ?? null,
 		dateAdapter: globalThis.Chart?._adapters?._date?.prototype._id ?? null,
 		dateAdapterVersion: globalThis.Chart?._adapters?._date?.version ?? null,
+		highchartsVersion: globalThis.Highcharts?.version ?? null,
+		lightweightVersion: globalThis.LightweightCharts?.version?.() ?? null,
+		plotlyVersion: globalThis.Plotly?.version ?? null,
+		canvasjsVersion: globalThis.CanvasJS?.version ?? null,
+		zingchartVersion: globalThis.zingchart?.version ?? null,
+		amchartsVersion: globalThis.am5?.registry?.version ?? null,
 	};
 }
 
@@ -438,20 +486,28 @@ function reportMetadata(raf = false) {
 			uplot: '/dist/uPlot.iife.min.js',
 			uplotCss: '/dist/uPlot.min.css',
 			uplotDemo: '/bench/uplot.mjs',
+			demos: Object.fromEntries(ALL_VARIANTS.filter(id => id !== 'idle').map(id => [id, `/bench/${id}.mjs`])),
 			d3: '/bench/d3.mjs',
 			chartjs: '/bench/chartjs.mjs',
 			echarts: '/bench/echarts.mjs',
 			flot: '/bench/flot.mjs',
 			dygraphs: '/bench/dygraphs.mjs',
-			demoContract: 'Shared bench/*.mjs modules used by the HTML pages and benchmark without source extraction. makeChart(data, host, wait) returns the real instance for teardown; D3 returns none.',
+			demoContract: 'Shared bench/*.mjs modules used by HTML and benchmark without source extraction. makeChart(data, host, wait) returns a chart or a promise of one; D3 returns none. Async adapters resolve on library completion. New adapters export destroyChart(chart).',
 			data: '/bench/data.json',
 			prepData: 'Each sample calls its own shared nonmutating demo prepData(packed) afresh. Only raw packed JSON persists. No clones.',
-			dataRepresentations: {uplot: 'aligned arrays', d3: 'aligned arrays', chartjs: 'three arrays of {x, y} points', echarts: 'interleaved Float64Array', flot: 'three arrays of [x, y] pairs', dygraphs: 'rows of [Date, y, y, y]'},
-			echartsTimestamps: 'Preserve demo behavior: start at the first packed timestamp, increment by one minute before each emitted row, rather than use each packed row timestamp.',
+			dataRepresentations: {
+							uplot: 'aligned arrays', d3: 'aligned arrays', chartjs: 'three arrays of {x, y} points',
+							echarts: 'interleaved Float64Array', flot: 'three arrays of [x, y] pairs', dygraphs: 'rows of [milliseconds, y, y, y]',
+							apexcharts: 'three arrays of [x, y] pairs', highcharts: 'three data tables with Float64Array x/y columns',
+							lightweight: 'three arrays of {time, value} points', plotly: 'four aligned Float64Array columns',
+							canvasjs: 'three arrays of {x, y} points', zingchart: 'three arrays of [x, y] pairs',
+							amcharts: 'rows of {date, cpu, ram, tcp}', lightningchart: '{x, cpu, ram, tcp} Float64Array columns',
+						},
+			echartsTimestamps: 'Use each packed row timestamp, converted from minutes to milliseconds.',
 			rows: ROWS,
 			ySeries: 3,
 			yValues: ROWS * 3,
-			xUnit: 'uPlot: seconds since Unix epoch. Other libraries: milliseconds since Unix epoch (Date objects for Dygraphs).',
+			xUnit: 'uPlot and Lightweight Charts: seconds since Unix epoch. Other available libraries: milliseconds since Unix epoch.',
 			strokeWidthDevicePixels: {uplot: 1, d3: 1},
 			strokeWidthCssPixels: {chartjs: 1, echarts: 1},
 		},
@@ -470,10 +526,10 @@ function reportMetadata(raf = false) {
 			unit: 'milliseconds',
 			dataPrepMs: 'performance.now() immediately around actual prepData(packed), after host setup and before validation and pre-sample settling. Idle measures a no-op.',
 			prepAndInitMs: 'dataPrepMs + jsMs per sample. This sum excludes validation, the settling gap and rAF waits. It is not end-to-end latency.',
-			jsMs: 'Start through options construction, constructor/makeChart and initial microtask commit/status update. Elapsed time, not exclusive JS CPU time.',
+			jsMs: 'Start through options, constructor/makeChart, async library completion when returned, and initial microtask commit/status update. Includes async waits, not exclusive JS CPU time.',
 			aggregation: 'Use the minimum of seven measured rounds per metric, variant and DPR. Exclude three warmups. Columns can come from different rounds. Take prepAndInitMs minima from per-sample sums.',
 			windowMs: 'Start through js-end, two requestAnimationFrame callbacks, and a 200ms timeout.',
-			raf1Ms: 'Start to performance.now() at the first post-JS rAF callback entry; rAF mode only.',
+			raf1Ms: 'Start to performance.now() at the first post-init rAF callback entry; rAF mode only. Async adapters can span frames before initialization completes.',
 			postJsRaf1Ms: 'js-end to that same first callback entry; rAF mode only.',
 			settling: {animationFrames: 2, idleMs: IDLE_MS, beforeStart: true, afterJsEnd: true},
 			drain: 'In rAF mode the extra post-JS frame is unmeasured draining before the 200ms wait. It is included only in the trace window, not the rAF latency fields.',
@@ -481,6 +537,12 @@ function reportMetadata(raf = false) {
 
 		limitations: [
 			'Initial creation only: each non-idle sample prepares fresh input and creates a fresh chart. No redraw or cached-path reuse is measured.',
+						'Async initialization waits for the library completion promise/event inside init and trace spans. This can include timers, frames, and deferred interaction setup, not just drawing CPU work.',
+			'Libraries share CPU/RAM on the left percentage scale and TCP Out on the right MB scale with automatic y ranges. Native sampling and grouping can change displayed detail and ranges.',
+			'ApexCharts uses Canvas and LTTB; Highcharts uses Boost without GPU epoch translations; Plotly uses scattergl; amCharts uses native date grouping and line simplification. Branding remains enabled.',
+			'Lightweight Charts uses native line conflation with full input retention. Grouped closing values and amCharts averages can hide peaks at wide zoom levels.',
+			'ECharts 6.1.0 minmax sampling retains every raw row but ends the visible time range three minutes early for this fixture at DPR 1.',
+			'The requested static amCharts logo uses a version-guarded private override. The logo and link remain; branding/license terms need review before publication.',
 			'Data preparation is timed separately, outside chart markers. CDP chart-window totals exclude prep. Output validation is outside both prep and chart timers.',
 			'Library loading, fixture setup and teardown are outside sample markers. All chart options construction, including uPlot options, is inside chart markers.',
 			'D3 static title, legend and canvases, the Chart.js canvas/container, and ECharts, Flot and Dygraphs hosts exist at start; library-created DOM is inside the window.',
@@ -494,7 +556,7 @@ function reportMetadata(raf = false) {
 			'Idle has the same marker/wait schedule but no chart mutation between markers. Report it separately; do not assume subtraction isolates chart GPU cost.',
 			'One actual browser DPR is captured from devicePixelRatio and reported on every sample. The parent configures deviceScaleFactor before navigation (default 1); this fixture does not emulate DPR changes. The CSS viewport is 1920x900.',
 			'Demo renderings and configurations differ: axes, domains, colors, line widths, sampling, layout and defaults are preserved. This is not pixel-identical rendering or an isolated decimation algorithm comparison.',
-			'ECharts prepData synthesizes incrementing minute timestamps rather than reading each row timestamp. Its original behavior is preserved, so x values can differ from the other demos.',
+
 			'Pointer events are disabled on the visible fixture to prevent hover drawing; the chart interaction options and D3 listener installation remain unchanged.',
 			'The parent can collect process memory in the shared sample lifecycle, with GC only at baseline, live, and cleanup checkpoints. The separate rAF path uses no forced GC.',
 			'JIT, automatic GC, scheduling, tracing overhead and machine load can affect prep, creation and downstream work.',
