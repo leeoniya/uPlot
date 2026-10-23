@@ -1,4 +1,4 @@
-export default [
+const demos = [
 	'axis-control',
 	'area-fill',
 	'missing-data',
@@ -32,3 +32,15 @@ export default [
 	'log-scales2',
 	'stacked-series',
 ];
+
+export const pluginDemos = [
+	'multi-bars',
+	'box-whisker',
+	'bars-grouped-stacked',
+	'candlestick-ohlc',
+	'annotations',
+];
+
+export const coreDemos = demos.filter(name => !pluginDemos.includes(name));
+
+export default demos;

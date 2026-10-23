@@ -1,0 +1,61 @@
+body.bench-demo.uplot,
+body.bench-demo.d3 {
+	margin: 0;
+}
+
+.bench-demo.uplot .u-legend.u-inline .u-value {
+	width: 150px;
+	text-align: left;
+}
+
+.bench-demo.d3 {
+	font: 12px Arial, sans-serif;
+}
+
+.bench-demo.d3 .chart {
+	position: relative;
+	width: 1920px;
+	height: 600px;
+}
+
+.bench-demo.d3 .chart canvas {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 1920px;
+	height: 600px;
+}
+
+.bench-demo.d3 .legend {
+	display: flex;
+	gap: 24px;
+	margin: 8px 55px;
+}
+
+.bench-demo.d3 .legend span {
+	display: inline-block;
+	min-width: 150px;
+}
+
+.bench-demo.chartjs .chart-container {
+	position: relative;
+	margin: auto;
+	width: 1920px;
+	height: 600px;
+}
+
+.bench-demo.echarts #chart,
+.bench-demo.flot .demo-container,
+.bench-demo.dygraphs #graphdiv {
+	width: 1920px;
+	height: 600px;
+}
+
+.bench-demo.flot .demo-placeholder {
+	width: 100%;
+	height: 100%;
+}
+
+.bench-demo.dygraphs #graphdiv {
+	margin-bottom: 20px;
+}

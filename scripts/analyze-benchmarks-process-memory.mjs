@@ -7,14 +7,7 @@ const VALUES = [...CHECKPOINTS, 'peak', 'peakDelta', 'dataDelta', 'chartDelta', 
 function statistics(values) {
 	const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
 	const n = sorted.length;
-	let median = null;
-	if (n > 0) {
-		const low = sorted[(n - 1) >> 1];
-		const high = sorted[n >> 1];
-		// Avoid overflow for opposite signs and underflow for equal subnormal values.
-		median = low < 0 && high > 0 ? low / 2 + high / 2 : low + (high - low) / 2;
-	}
-	return {median, min: sorted[0] ?? null, max: sorted[n - 1] ?? null, count: n, missing: values.length - n};
+	return {min: sorted[0] ?? null, max: sorted[n - 1] ?? null, count: n, missing: values.length - n};
 }
 
 function validMemory(observation) {
@@ -153,7 +146,7 @@ export function summarizeAdjustedProcessMemory(reports) {
 				variant, dpr, sampleCount: samples.length, warmupCount,
 				scopes: byScope((scope, metric) => {
 					const blank = fixture.scopes[scope][metric].blank;
-					const idleLiveAboveBlank = controlsByDpr.get(dpr)?.scopes[scope][metric].liveAboveBlank.median ?? null;
+					const idleLiveAboveBlank = controlsByDpr.get(dpr)?.scopes[scope][metric].liveAboveBlank.min ?? null;
 					return {
 						live: statistics(samples.map(sample => difference(difference(sample.scopes[scope][metric].live, blank), idleLiveAboveBlank))),
 						peak: statistics(samples.map(sample => difference(difference(sample.scopes[scope][metric].peak, blank), idleLiveAboveBlank))),
@@ -165,14 +158,14 @@ export function summarizeAdjustedProcessMemory(reports) {
 		controls,
 		definitions: {
 			units: 'All memory values use decimal MB (1,000,000 bytes). No unit conversion occurs.',
-			formula: 'Each adjusted sample equals (raw live or peak minus its browser blank) minus median(idle measured live minus idle browser blank). Controls match DPR, scope, and metric. Idle peak, warm baseline, and loaded baseline never enter the subtraction.',
-			aggregation: 'Statistics derive from raw observations, not cached summaries. Each measured sample contributes one adjusted value before aggregation. Warmups contribute no values. Statistics contain median, min, max, count, and missing. Negative values remain negative.',
+			formula: 'Each adjusted sample equals (raw live or peak minus its browser blank) minus min(idle measured live minus idle browser blank). Controls match DPR, scope, and metric. Idle peak, warm baseline, and loaded baseline never enter the subtraction.',
+			aggregation: 'Statistics derive from raw observations, not cached summaries. Each measured sample contributes one adjusted value before aggregation. Warmups contribute no values. Statistics contain min, max, count, and missing. The minimum represents the best measured case. Negative values remain negative.',
 			validity: 'Valid observations require complete === true and finite nonnegative values for every metric in both scopes. Sample observations also require a recognized lifecycle phase. Live requires exactly one valid live checkpoint. Invalid or duplicate live checkpoints yield null. Missing inputs yield null, not zero. Absent controls or controls without valid liveAboveBlank values make all adjusted values null. No cached control fallback exists.',
 			inputs: 'Each nonempty browser report contains one variant and DPR, including warmups. Duplicate variant/DPR reports and duplicate measured rounds cause errors. Empty reports contribute nothing. processObservations takes precedence over observations when present. The input remains unchanged.',
-			baselines: 'Each group metric exposes scalar blank and idleLiveAboveBlank offsets, or null. Blank comes from that library browser. idleLiveAboveBlank is the matched control median.',
+			baselines: 'Each group metric exposes scalar blank and idleLiveAboveBlank offsets, or null. Blank comes from that library browser. idleLiveAboveBlank is the minimum measured live-minus-blank value from the matched control.',
 			controls: 'Controls contain idle reports only. Each metric exposes blank statistics for one checkpoint and liveAboveBlank statistics for measured samples. validBlankCount is zero or one. validLiveCount counts valid, unambiguous measured live checkpoints, regardless of blank validity. liveAboveBlank.count counts valid paired differences. sampleCount and warmupCount count measured samples and warmups separately.',
-			variability: 'Adjusted statistics describe conditional variability with the observed blank and idle median held fixed. They do not include idle or blank uncertainty.',
-			peak: 'Each metric peak is its maximum across valid prepare/construct observations and baseline, prepared, live, and cleanup checkpoints. Duplicate checkpoints remain eligible. These sampled peaks are lower bounds for a GC-intervened pass, not exact peaks for normal runs. Invalid reads can hide peaks. Metrics can peak at different observations.',
+			variability: 'Adjusted statistics describe conditional variability with the observed blank and idle minimum held fixed. They do not include idle or blank uncertainty.',
+			peak: 'Each metric peak is its maximum across valid prepare/construct observations and baseline, prepared, live, and cleanup checkpoints. Duplicate checkpoints remain eligible. These sampled peaks are lower bounds for a GC-intervened pass, not exact peaks for normal runs. Invalid reads can hide peaks. Metrics can peak at different observations. The best-case peak is the minimum of these per-sample maxima, not the minimum observation.',
 			ownership: 'Adjusted process memory is not isolated library ownership. Allocator reuse, process churn, and shared mappings affect differences. Forced GC does not guarantee native memory release.',
 			scopes: 'Renderer sums renderer processes. Tree includes the browser root and discovered descendants. These scopes overlap and are not additive. Metrics are not added together.',
 			jsMemory: 'JavaScript heap and backing-store memory overlap process memory. No scope or JS sums occur in this summary.',
@@ -229,13 +222,13 @@ export function summarizeProcessMemory(report) {
 		definitions: {
 			units: 'All memory values use decimal MB (1,000,000 bytes), as returned by readProcessMemory. This summary does not convert units.',
 			validity: 'A valid observation requires complete === true and finite nonnegative values for all five metrics in both scopes. Any invalid metric invalidates the entire observation. Sample observations also require a recognized lifecycle phase. Timing fields do not determine memory validity.',
-			aggregation: 'Groups separate variant and DPR. Statistics exclude warmups and report median, min, max, count, and missing. Each sample contributes one value per statistic. Deltas use paired checkpoints within each sample, before aggregation. Duplicate measured rounds cause an error within a group.',
+			aggregation: 'Groups separate variant and DPR. Statistics exclude warmups and report min, max, count, and missing. The minimum represents the best measured case. Each sample contributes one value per statistic. Deltas use paired checkpoints within each sample, before aggregation. Duplicate measured rounds cause an error within a group.',
 			checkpoints: 'Each checkpoint requires exactly one observation with that phase. A missing, invalid, or duplicate checkpoint yields null, not zero. A delta is null if either input is null.',
 			baseline: 'Absolute process memory after the baseline GC checkpoint, before preparation. Reused processes can retain warm allocator baselines from earlier samples. A baseline is not a fresh-browser measurement.',
 			prepared: 'Absolute process memory after preparation and settling, without forced GC. This snapshot can include temporary allocations.',
 			live: 'Absolute process memory at the live GC checkpoint, with the chart present.',
 			cleanup: 'Absolute process memory at the cleanup GC checkpoint, after chart destruction.',
-			peak: 'Each metric uses its maximum across complete, valid prepare/construct observations and all four checkpoint phases, including endpoints. This sampled peak is a lower bound for the GC-intervened pass, not an exact peak for a normal run. Invalid reads can hide peaks. Separate metrics can reach their peaks at different observations. Duplicate checkpoint observations remain eligible for the peak.',
+			peak: 'Each metric uses its maximum across complete, valid prepare/construct observations and all four checkpoint phases, including endpoints. This sampled peak is a lower bound for the GC-intervened pass, not an exact peak for a normal run. Invalid reads can hide peaks. Separate metrics can reach their peaks at different observations. Duplicate checkpoint observations remain eligible for the peak. The best-case peak is the minimum of these per-sample maxima, not the minimum observation.',
 			peakDelta: 'Per-sample peak minus baseline.',
 			dataDelta: 'Per-sample prepared snapshot minus post-GC baseline. This can include temporary allocations; it is not retained data ownership.',
 			chartDelta: 'Per-sample post-GC live memory minus the prepared snapshot without forced GC. This is not an isolated chart allocation or retention cost.',

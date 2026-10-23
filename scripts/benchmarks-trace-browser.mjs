@@ -40,7 +40,6 @@ if (typeof Path2D !== 'function' ||
 if (VARIANTS.includes('chartjs') && globalThis.Chart._adapters?._date?.prototype._id !== 'date-fns')
 	throw new Error('Load the Chart.js date-fns adapter before this module.');
 
-// The source-derived demo modules capture this node at import time. Do not replace it.
 const fixture = document.createElement('div');
 fixture.id = 'benchmark-fixture';
 const wait = document.createElement('h2');
@@ -59,57 +58,13 @@ style.textContent = `
 		width: ${WIDTH}px;
 		pointer-events: none;
 	}
-	#benchmark-fixture.d3 { font: 12px Arial, sans-serif; }
-	#benchmark-fixture .chart {
-		position: relative;
-		width: ${WIDTH}px;
-		height: ${HEIGHT}px;
-	}
-	#benchmark-fixture .chart canvas {
-		position: absolute;
-		left: 0;
-		top: 0;
-		width: ${WIDTH}px;
-		height: ${HEIGHT}px;
-	}
-	#benchmark-fixture .chart-container {
-		position: relative;
-		margin: auto;
-		width: ${WIDTH}px;
-		height: ${HEIGHT}px;
-	}
-	#benchmark-fixture #chart,
-	#benchmark-fixture .demo-container,
-	#benchmark-fixture #graphdiv { width: ${WIDTH}px; height: ${HEIGHT}px; }
-	#benchmark-fixture .demo-placeholder { width: 100%; height: 100%; }
-	#benchmark-fixture #graphdiv { margin-bottom: 20px; }
-	#benchmark-fixture .legend { display: flex; gap: 24px; margin: 8px 55px; }
-	#benchmark-fixture .legend span { display: inline-block; min-width: 150px; }
-	.u-legend.u-inline .u-value { width: 150px; text-align: left; }
 `;
 document.head.append(style);
 
-const cssReady = !VARIANTS.includes('uplot') ? Promise.resolve() : new Promise((resolve, reject) => {
-	const link = document.createElement('link');
-	link.rel = 'stylesheet';
-	link.href = '/dist/uPlot.min.css';
-	link.onload = resolve;
-	link.onerror = () => reject(new Error('Failed to load /dist/uPlot.min.css'));
-	document.head.append(link);
-});
-
-// These endpoints export actual demo functions, without their fetch/auto-start code.
-const sourceFor = id => VARIANTS.includes(id) || id === 'd3' && VARIANTS.includes('uplot')
-	? import(`/bench/${id}-source.mjs`) : null;
-const [d3Source, chartjsSource, echartsSource, flotSource, dygraphsSource, response] = await Promise.all([
-	sourceFor('d3'),
-	sourceFor('chartjs'),
-	sourceFor('echarts'),
-	sourceFor('flot'),
-	sourceFor('dygraphs'),
-	fetch('/bench/data.json'),
-	cssReady,
-]);
+const {setupDemo} = await import('/bench/demo-fixture.mjs');
+const sources = Object.fromEntries(await Promise.all(VARIANTS.filter(id => id !== 'idle')
+	.map(async id => [id, await import(`/bench/${id}.mjs`)])));
+const response = await fetch('/bench/data.json');
 if (!response.ok)
 	throw new Error(`Data fetch: HTTP ${response.status}`);
 const packed = await response.json();
@@ -125,84 +80,11 @@ for (let i = FIELDS + 1; i < packed.length; i++) {
 	if (!Number.isFinite(packed[i]))
 		throw new Error(`Expected a finite packed value at index ${i}.`);
 }
-const sources = {d3: d3Source, chartjs: chartjsSource, echarts: echartsSource, flot: flotSource, dygraphs: dygraphsSource};
 await document.fonts.ready;
 
-function options() {
-	// bench/uPlot.html, with milliseconds and explicit DPR for fresh D3-prepared data.
-	const opts = {
-		title: 'Server Events',
-		width: WIDTH,
-		height: HEIGHT,
-		ms: 1,
-		pxRatio: dpr,
-		cache: {paths: false},
-		series: [
-			{},
-			{
-				label: 'CPU', scale: '%',
-				value: (u, v) => v == null ? null : v.toFixed(1) + '%',
-				stroke: 'red', width: 1 / dpr,
-			},
-			{
-				label: 'RAM', scale: '%',
-				value: (u, v) => v == null ? null : v.toFixed(1) + '%',
-				stroke: 'blue', width: 1 / dpr,
-			},
-			{
-				label: 'TCP Out', scale: 'mb',
-				value: (u, v) => v == null ? null : v.toFixed(2) + ' MB',
-				stroke: 'green', width: 1 / dpr,
-			},
-		],
-		axes: [
-			{},
-			{
-				scale: '%',
-				values: (u, vals, space) => vals.map(v => +v.toFixed(1) + '%'),
-			},
-			{
-				side: 1, scale: 'mb', size: 60,
-				values: (u, vals, space) => vals.map(v => +v.toFixed(2) + ' MB'),
-				grid: {show: false},
-			},
-		],
-	};
-	return opts;
-}
-
 function setup(variant) {
-	fixture.className = variant;
 	wait.textContent = 'Rendering...';
-	const host = document.createElement('div');
-	if (variant === 'd3') {
-		host.innerHTML = `
-			<h3>Server Events</h3>
-			<div class="legend">
-				<span id="cpu-value" style="color: red">CPU: --</span>
-				<span id="ram-value" style="color: blue">RAM: --</span>
-				<span id="tcp-value" style="color: green">TCP Out: --</span>
-			</div>
-			<div class="chart">
-				<canvas id="plot"></canvas>
-				<canvas id="overlay"></canvas>
-			</div>
-		`;
-	}
-	else if (variant === 'chartjs') {
-		host.className = 'chart-container';
-		host.innerHTML = '<canvas id="chart1"></canvas>';
-	}
-	else if (variant === 'echarts')
-		host.id = 'chart';
-	else if (variant === 'flot') {
-		host.className = 'demo-container';
-		host.innerHTML = '<div id="placeholder" class="demo-placeholder"></div>';
-	}
-	else if (variant === 'dygraphs')
-		host.id = 'graphdiv';
-	fixture.append(host);
-	return host;
+	return setupDemo(variant, fixture);
 }
 
 function checkPage() {
@@ -216,13 +98,13 @@ function checkPage() {
 
 function prepFor(variant) {
 	// Demo prepData functions slice packed without mutating it. No clones are needed.
-	return variant === 'idle' ? () => null : sources[variant === 'uplot' ? 'd3' : variant].prepData;
+	return variant === 'idle' ? () => null : sources[variant].prepData;
 }
 
 function validateInput({variant, input}) {
 	if (variant === 'uplot' || variant === 'd3') {
 		if (input.length !== 4 || !input.every(values => values.length === ROWS && values.every(Number.isFinite)))
-			throw new Error('Expected 55,550 finite rows with millisecond x values and three y series.');
+			throw new Error('Expected 55,550 finite rows with x values and three y series.');
 	}
 	else if (variant === 'chartjs') {
 		if (input.length !== 3 || !input.every(values => values.length === ROWS && values.every(point => Number.isFinite(point.x) && Number.isFinite(point.y))))
@@ -243,21 +125,13 @@ function validateInput({variant, input}) {
 }
 
 function construct(sample) {
-	if (sample.variant === 'uplot') {
-		console.time('chart');
-		sample.chart = new uPlot(options(), sample.input, sample.host);
-	}
-	else if (sample.variant !== 'idle')
-		sample.chart = sources[sample.variant].makeChart(sample.input);
+	if (sample.variant !== 'idle')
+		sample.chart = sources[sample.variant].makeChart(sample.input, sample.host, wait);
 }
 
-async function finishMicrotask({variant}) {
-	// uPlot queues its initial commit; D3 queues its original status update.
+async function finishMicrotask() {
+	// uPlot queues its initial commit; its demo and D3 also queue status updates.
 	await Promise.resolve();
-	if (variant === 'uplot') {
-		wait.textContent = 'Done!';
-		console.timeEnd('chart');
-	}
 }
 
 function validateChart({variant, chart, host}) {
@@ -562,22 +436,22 @@ function reportMetadata(raf = false) {
 		order: 'Rotate variants by round and reverse on alternate rounds; one actual browser DPR per capture.',
 		source: {
 			uplot: '/dist/uPlot.iife.min.js',
-						uplotCss: '/dist/uPlot.min.css',
-			uplotOptions: 'bench/uPlot.html; ms:1, explicit pxRatio, series width:1/dpr, cache.paths:false; data caching, points, legend, cursor and scale defaults retained.',
-			d3: '/bench/d3-source.mjs',
-			chartjs: '/bench/chartjs-source.mjs',
-			echarts: '/bench/echarts-source.mjs',
-			flot: '/bench/flot-source.mjs',
-			dygraphs: '/bench/dygraphs-source.mjs',
-			demoContract: 'Actual selected bench/*.html functions before auto-start, exporting prepData/makeChart. Chart libraries return their real instances for teardown; D3 returns none.',
+			uplotCss: '/dist/uPlot.min.css',
+			uplotDemo: '/bench/uplot.mjs',
+			d3: '/bench/d3.mjs',
+			chartjs: '/bench/chartjs.mjs',
+			echarts: '/bench/echarts.mjs',
+			flot: '/bench/flot.mjs',
+			dygraphs: '/bench/dygraphs.mjs',
+			demoContract: 'Shared bench/*.mjs modules used by the HTML pages and benchmark without source extraction. makeChart(data, host, wait) returns the real instance for teardown; D3 returns none.',
 			data: '/bench/data.json',
-			prepData: 'Each sample calls its nonmutating demo prepData(packed) afresh. Only raw packed JSON persists. uPlot uses D3 prep with ms:1. No clones.',
+			prepData: 'Each sample calls its own shared nonmutating demo prepData(packed) afresh. Only raw packed JSON persists. No clones.',
 			dataRepresentations: {uplot: 'aligned arrays', d3: 'aligned arrays', chartjs: 'three arrays of {x, y} points', echarts: 'interleaved Float64Array', flot: 'three arrays of [x, y] pairs', dygraphs: 'rows of [Date, y, y, y]'},
 			echartsTimestamps: 'Preserve demo behavior: start at the first packed timestamp, increment by one minute before each emitted row, rather than use each packed row timestamp.',
 			rows: ROWS,
 			ySeries: 3,
 			yValues: ROWS * 3,
-			xUnit: 'milliseconds since Unix epoch',
+			xUnit: 'uPlot: seconds since Unix epoch. Other libraries: milliseconds since Unix epoch (Date objects for Dygraphs).',
 			strokeWidthDevicePixels: {uplot: 1, d3: 1},
 			strokeWidthCssPixels: {chartjs: 1, echarts: 1},
 		},
@@ -597,7 +471,7 @@ function reportMetadata(raf = false) {
 			dataPrepMs: 'performance.now() immediately around actual prepData(packed), after host setup and before validation and pre-sample settling. Idle measures a no-op.',
 			prepAndInitMs: 'dataPrepMs + jsMs per sample. This sum excludes validation, the settling gap and rAF waits. It is not end-to-end latency.',
 			jsMs: 'Start through options construction, constructor/makeChart and initial microtask commit/status update. Elapsed time, not exclusive JS CPU time.',
-			aggregation: 'Use medians of seven measured rounds per variant and DPR. Exclude three warmups. Take prepAndInitMs medians from per-sample sums.',
+			aggregation: 'Use the minimum of seven measured rounds per metric, variant and DPR. Exclude three warmups. Columns can come from different rounds. Take prepAndInitMs minima from per-sample sums.',
 			windowMs: 'Start through js-end, two requestAnimationFrame callbacks, and a 200ms timeout.',
 			raf1Ms: 'Start to performance.now() at the first post-JS rAF callback entry; rAF mode only.',
 			postJsRaf1Ms: 'js-end to that same first callback entry; rAF mode only.',

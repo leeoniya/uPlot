@@ -35,7 +35,6 @@ function statistics(values) {
 	const sorted = values.filter(validTime).sort((a, b) => a - b);
 	const n = sorted.length;
 	return {
-		median: n === 0 ? null : (sorted[Math.floor((n - 1) / 2)] + sorted[Math.floor(n / 2)]) / 2,
 		min: n === 0 ? null : sorted[0],
 		max: n === 0 ? null : sorted[n - 1],
 		count: n,
@@ -335,12 +334,12 @@ export function analyzeBenchmarkTrace(traceObject, report) {
 			gpuMainTaskMs: 'Sum of selected task unions on CrGpuMain threads in GPU Process; not hardware GPU time.',
 			vizCompositorMs: 'Sum of selected task unions on VizCompositorThread threads in GPU Process.',
 			GPUTaskMs: 'Sum of per-thread GPUTask unions in the marker renderer and GPU processes. Separate diagnostic, not hardware execution time.',
-			totalTrackedThreadWorkMs: 'Sum of per-thread unions of selected task, RasterTask, and GPUTask intervals. Cross-metric overlaps on one thread count once. Not latency or CPU time.',
+			totalTrackedThreadWorkMs: 'Sum of per-thread unions of selected task, RasterTask, and GPUTask intervals within each round. Cross-metric overlaps on one thread count once. The group minimum is the minimum of these own-round totals, not the sum of component minima. Not latency or CPU time.',
 			trackedBusyElapsedMs: 'Global union of the same selected intervals across threads. Concurrent thread intervals count once; not end-to-end rendering latency.',
 			hardwareGpuMs: 'Null: no supported hardware GPU execution measurement is available from these event types.',
 			taskSelection: 'Use RunTask if valid intervals exist anywhere on that thread; otherwise use ThreadControllerImpl::RunTask. Never combine both wrappers.',
 			availability: 'A metric is null when no matching valid intervals exist anywhere in the trace for its relevant threads. Zero means available but no overlap in this sample, not proven absence of work.',
-			aggregation: 'Group by DPR and variant; exclude warmups. Median, min, and max use non-null values, with count and missing reported. Idle remains a separate variant; no baseline subtraction.',
+			aggregation: 'Group by DPR and variant; exclude warmups. Each metric uses its minimum measured value for best-case performance; minima may come from different rounds. Min, max, and count use only finite numbers; absent, null, and invalid values count as missing. Empty min and max are null. Totals use each round\'s values before taking the minimum, not the sum of component minima. Idle remains a separate variant; no baseline subtraction.',
 			boundaries: 'Crossing counts use selected raw intervals, not unions. Tail spans end to the next sample start, or trace end for the last sample. Tail work is unassigned.',
 			attribution: 'Renderer work is scoped to the marker process. GPU processes are shared: temporal overlap does not establish causality or chart ownership.',
 		},

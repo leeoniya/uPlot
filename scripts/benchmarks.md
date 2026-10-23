@@ -2,6 +2,16 @@
 
 The benchmarks compare chart libraries, including their data preparation and sampling or decimation choices.
 They use Chrome Headless Shell, pinned demo dependencies, and `bench/data.json`.
+
+The six HTML demos and benchmark import the same `bench/{uplot,d3,chartjs,echarts,flot,dygraphs}.mjs` modules.
+Each module exports `prepData(packed)` and `makeChart(data, host, wait)`.
+Chart configuration and data preparation have one implementation per library. No HTML parsing or source extraction occurs.
+`bench/demo-fixture.mjs` and `bench/demo.css` provide shared hosts, markup, and styles.
+`bench/demo-dependencies.mjs` defines the dependency versions and production paths for both entry points.
+The HTML pages use `bench/demo.mjs` to load dependencies and start the demo.
+The benchmark loads cached dependencies and calls the shared functions within its measurement lifecycle.
+
+The standalone HTML pages require an HTTP server because they import ES modules.
 uPlot uses `dist/uPlot.iife.min.js` and `dist/uPlot.min.css`, not source modules.
 The benchmark records SHA-256 hashes of these assets in `runner.sourceSha256`.
 If the assets are missing or source changes need a new bundle, run `npm run build` before the benchmark.
@@ -87,7 +97,9 @@ All six libraries run by default.
 
 Library loading, raw JSON parsing, and fixture setup occur outside the chart timers.
 Each sample times the actual demo preparation function separately from chart initialization.
-uPlot reuses the D3 demo preparation function without the D3 library.
+uPlot uses its own shared preparation function, with timestamps in seconds and the default time scale.
+Other libraries use millisecond timestamps, including Date objects for Dygraphs.
+The benchmark does not convert uPlot data to milliseconds or override its chart configuration.
 Chart initialization includes options construction, the constructor, and its initial microtask commit.
 Validation occurs outside both timers.
 
@@ -104,7 +116,7 @@ Chrome Headless Shell 156 captures all required thread roles and work events wit
 Browser upgrades require another event-coverage check.
 
 Memory modes record blank-page and loaded-library/raw-data checkpoints before warmups.
-These checkpoints are single observations, not medians.
+These checkpoints are single observations, not round aggregates.
 Each memory sample then has this sequence:
 
 1. Create the static host and allow rendering to settle.
@@ -130,7 +142,7 @@ The separate commands provide measurements without the other instrumentation.
 
 ## Output table
 
-The combined table shows medians for:
+The combined table shows minimum measured values for:
 
 - Data preparation time.
 - Chart initialization time.
@@ -139,6 +151,13 @@ The combined table shows medians for:
 - `total ms`: total tracked thread work in the chart window.
 - Baseline-adjusted sampled peak browser-tree PSS.
 - Baseline-adjusted retained browser-tree PSS.
+
+Each column uses its minimum finite value across measured rounds, excluding warmups.
+These values describe best observed performance, not typical latency or a guarantee of fully warmed JIT or GC-free execution.
+Columns can come from different rounds.
+`total ms` uses the minimum per-round total, not the sum of component minima.
+`peak MB` uses the minimum per-round peak. Each round's peak remains the maximum sampled observation.
+Trace and rAF timings do not subtract idle timings.
 
 The table omits the index, sample-count, and DPR columns. Sample counts and DPR remain in JSON.
 Library names have no quotes and align left. Numeric columns align right and show one decimal place.
@@ -154,14 +173,15 @@ Memory uses decimal MB: 1 MB = 1,000,000 bytes.
 Each measured library sample uses this adjustment:
 
 ```text
-idle overhead = median(idle retained memory - idle browser blank memory)
+idle overhead = min(idle retained memory - idle browser blank memory)
 adjusted retained = library retained memory - library browser blank memory - idle overhead
 adjusted peak = library sampled peak - library browser blank memory - idle overhead
 ```
 
 The idle control has the same DPR and measurement mode as the library.
 Controls come only from the current run.
-Both memory columns subtract settled idle memory, not the idle peak.
+Both memory columns subtract the minimum measured settled idle overhead, not the idle peak.
+The table then selects the minimum adjusted value for each column.
 Negative estimates remain negative.
 Missing observations produce unavailable values, not zero.
 
@@ -211,6 +231,7 @@ To summarize the saved combined report without starting Chrome, use:
 npm run bench -- --summarize-only
 ```
 
+Saved tables use the same minimum-value aggregation as live tables.
 The same option applies to each separate command and selects its matching saved report.
 It uses the saved DPR and rejects `--dpr`, `--variant`, `--worker`, and `--install-only`.
 The internal `--worker` option captures one variant for the suite runner.

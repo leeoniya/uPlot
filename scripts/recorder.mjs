@@ -8,7 +8,6 @@ import stringify from "json-stringify-pretty-compact";
 import './instrument.mjs';
 import { withSeededRandom } from './withSeededRandom.mjs';
 import { getDemoSteps, captureStep } from './demoSteps.mjs';
-import demos from '../test/demos.mjs';
 
 // console.time('import uPlot');
 const { default: uPlot } = await import('../src/uPlot.js');
@@ -47,41 +46,43 @@ after(async () => {
 	}
 });
 
-for (const name of demos) {
-	const { default: groups } = await import(`../demos/${name}.js`);
-	const steps = getDemoSteps(groups);
+export async function registerDemos(demos) {
+	for (const name of demos) {
+		const { default: groups } = await import(`../demos/${name}.js`);
+		const steps = getDemoSteps(groups);
 
-	describe(name, () => {
-		const dir = path.resolve('test/demos', name);
+		describe(name, () => {
+			const dir = path.resolve('test/demos', name);
 
-		for (const { id, step } of steps) {
-			it(id, async () => {
-				let firstError;
+			for (const { id, step } of steps) {
+				it(id, async () => {
+					let firstError;
 
-				await withSeededRandom(() => captureStep(step, id, async (actual, snapshotId) => {
-					const filename = path.join(dir, `${snapshotId}.json`);
-					if (update) {
-						fs.mkdirSync(path.dirname(filename), { recursive: true });
-						fs.writeFileSync(filename, stringify(actual, { indent: 2, maxLength: 160 }) + '\n');
-					}
-					else {
-						const expected = JSON.parse(fs.readFileSync(filename, 'utf8'));
-
-						try {
-							assert.deepStrictEqual(actual, expected);
+					await withSeededRandom(() => captureStep(step, id, async (actual, snapshotId) => {
+						const filename = path.join(dir, `${snapshotId}.json`);
+						if (update) {
+							fs.mkdirSync(path.dirname(filename), { recursive: true });
+							fs.writeFileSync(filename, stringify(actual, { indent: 2, maxLength: 160 }) + '\n');
 						}
-						catch (error) {
-							// Preserve the recording before plot cleanup or later steps can change it.
-							failures.push({ title: `${name} ${snapshotId}`, expected, actual: JSON.parse(JSON.stringify(actual)) });
-							error.message += `\nVisual comparisons: ${path.relative('.', report)}`;
-							firstError ??= error;
-						}
-					}
-				}));
+						else {
+							const expected = JSON.parse(fs.readFileSync(filename, 'utf8'));
 
-				if (firstError)
-					throw firstError;
-			});
-		}
-	});
+							try {
+								assert.deepStrictEqual(actual, expected);
+							}
+							catch (error) {
+								// Preserve the recording before plot cleanup or later steps can change it.
+								failures.push({ title: `${name} ${snapshotId}`, expected, actual: JSON.parse(JSON.stringify(actual)) });
+								error.message += `\nVisual comparisons: ${path.relative('.', report)}`;
+								firstError ??= error;
+							}
+						}
+					}));
+
+					if (firstError)
+						throw firstError;
+				});
+			}
+		});
+	}
 }

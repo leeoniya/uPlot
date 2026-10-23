@@ -39,10 +39,10 @@ function benchmarkView(report) {
 		const row = {variant};
 		const issues = [];
 		const metric = (label, stats) => {
-			row[label] = display(stats?.median);
+			row[label] = display(stats?.min);
 			const count = stats?.count ?? 0;
 			const missing = stats?.missing ?? measured;
-			const unavailable = !Number.isFinite(stats?.median);
+			const unavailable = !Number.isFinite(stats?.min);
 			if (unavailable || count !== measured || missing !== 0)
 				issues.push(`${label} (${count}/${measured} valid, ${missing} missing${unavailable ? ', unavailable' : ''})`);
 		};
@@ -195,7 +195,8 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 			freshBrowserPerVariant: true, selectedDependenciesOnly: true, variants,
 			idleFirst: true, sameRunControlsOnly: true, coolingBetweenVariantsMs: 0,
 			tracing: measurements.trace, gpuSpecificMemory: false,
-			blankAndLoaded: 'One cold checkpoint each per browser, not round medians.',
+			blankAndLoaded: 'One cold checkpoint each per browser, not a round aggregate.',
+			aggregation: 'Each table metric uses its minimum finite measured value after warmups. Columns can come from different rounds; total work uses the minimum per-sample total, not a sum of column minima.',
 			warmSamples: 'Warmups are excluded. Each browser reuses its selected library between samples; allocator reuse affects process deltas.',
 		},
 		reports: [], adjustedAnalysis: measurements.memory ? summarizeAdjustedProcessMemory([]) : null,

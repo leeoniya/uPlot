@@ -1,4 +1,80 @@
-# Demo regression tests
+# Tests
+
+## Test suites
+
+| Command | Scope | Source coverage |
+| --- | --- | --- |
+| `npm test` | Core and plugin suites together in one Mocha run | Yes |
+| `npm run test:core` | Core behavior and core-owned demo regressions in `test/*.mjs` | Yes |
+| `npm run test:plugins` | Plugin behavior, helpers, and plugin-owned demo regressions in `test/plugins/*.mjs` | Yes |
+| `npm run test:tooling` | Tooling in `test/tooling/*.mjs` and the demo HTTP server in `test/server/*.mjs` | No suite-wide report |
+| `npm run test:integration` | Demo support, adapters, and asset integration in `test/integration/*.mjs` | No suite-wide report |
+| `npm run test:all` | Core, plugins, integration, and tooling in one Mocha run | Yes |
+| `npm run test:server` | Only the demo HTTP server | No |
+| `npm run test:update` | Default suite, with snapshot updates | Yes |
+
+Use `bun run` instead of `npm run` to select Bun for each command.
+The default command selects `test/*.mjs` and `test/plugins/*.mjs` explicitly, without recursive discovery.
+Helpers, fixtures, and manual browser tests are not part of test discovery.
+
+The core suite covers native paths, stacking, scales, axes, cursor behavior, legends, and the plugin extension API.
+The plugin suite covers bar-chart, heatmap, and scatter implementations, their helpers, and the older grouped-bars, candlestick, box-whisker, and annotation demos.
+Plugin tests also exercise core code through normal chart construction.
+
+`npm test` runs the union of the two suites, not two npm subprocesses.
+Unless `--bail` is supplied, Mocha continues after test failures and lists failures from both suites in one report.
+The command returns zero when tests and coverage reporting succeed, or nonzero if either fails.
+The shared recorder collects snapshot failures from both suites in one `test/output/index.html` report.
+Coverage merges once after the combined run, including when tests fail.
+
+The tooling suite covers benchmark measurement and reports, profiling, patch utilities, canvas recording and replay, snapshot capture, worker protocols, and coverage infrastructure.
+Coverage tests enable their own instrumentation.
+The tooling command does not clear or replace the source coverage output.
+It includes the server tests, which bind a temporary loopback port.
+
+The integration suite covers synthetic heatmap data, benchmark and third-party adapters, demo support helpers, repeatability, and actual demo asset contracts.
+It also checks generated ECharts and Bokeh bundles when those files exist.
+Those two checks skip when the generated bundles are absent. They do not download bundles.
+The integration command does not clear or replace the source coverage output.
+
+Both default groups retain their rendering snapshots. The core group retains the timezone/DST matrix and legend-selection regressions.
+The plugin group retains the larger rotation and heatmap integration regressions.
+The tooling suite retains extractor validation, patch transformations, installation, rollback, and CLI checks.
+No browser benchmark runs as part of any suite.
+
+Mocha arguments work with each command:
+
+```sh
+npm test -- --grep '^demo migrations'
+npm run test:core -- --grep '^cursor'
+npm run test:plugins -- --grep '^barChartPlugin'
+npm run test:tooling -- --grep '^sequential probe worker'
+npm run test:integration -- --grep '^demo migrations'
+npm run test:all -- --reporter dot
+```
+
+## Coverage tables
+
+The shared runner reports separate coverage tables for core and plugin code:
+
+- **uPlot core**: the existing `src` and distribution coverage.
+- **Plugins**: `barChartPlugin.js`, `barHover.js`, `barValues.js`, `distr.js`, `heatmapPlugin.js`, and `scatterPlugin.js` under `demos/lib/`.
+
+The plugin list includes the local dependencies of the three plugins, except Flatbush.
+Other demo modules, controls, data generators, and third-party libraries remain outside coverage instrumentation.
+The `nyc.include` list in `package.json` defines the instrumented files.
+
+Each table has its own totals and uncovered lines.
+Plugin coverage does not change the core percentages.
+The reporter merges coverage from the main process and workers before it separates the tables.
+Only loaded modules appear, and empty tables are omitted for focused runs.
+`test:core` and `test:plugins` report coverage for the code each suite exercises.
+Use `npm test` for combined coverage. Separate invocations replace the previous coverage output rather than merge it.
+
+The plugin tests remain in the default suite.
+No additional test suite or browser run is necessary to collect plugin coverage.
+
+## Demo regression tests
 
 The demo tests render uPlot with a deterministic random-number generator. Each
 snapshot stores the DOM and canvas commands for one plot.
@@ -44,13 +120,21 @@ The snapshots retain the original datasets. They total approximately 812 KiB, wi
 Each render creates fresh mutable state. The harness resets the random seed for each step.
 `log-scales2` uses a fixed timestamp by default. Its HTML page supplies the current timestamp through `createGroups(now)`.
 
-`test/demo-migrations.mjs` verifies repeatable renders, shared data updates, legend toggles, linked cursors, annotations, hover behavior, and listener cleanup.
+`test/demo-migrations.mjs` verifies core data updates, stacking, linked cursors, and legend behavior.
+`test/plugins/demo-migrations.mjs` verifies plugin controls, annotations, hover behavior, and listener cleanup.
+`test/integration/demo-repeatability.mjs` verifies repeated renders with fresh state.
 The recorder normalizes signed-zero drawing arguments because JSON stores `-0` as `0`. Shared paths still appear separately in fill and stroke commands.
 
-Run the migration regressions:
+Run the chart migration regressions:
 
 ```sh
 npm test -- --grep '^demo migrations'
+```
+
+Run the repeatability checks:
+
+```sh
+npm run test:integration -- --grep '^demo migrations'
 ```
 
 ## Points demo snapshots
@@ -201,7 +285,7 @@ The process that creates the cache removes it on exit. Children do not remove an
 Without the coverage preload, the precision suite creates and removes its own cache.
 The existing loader test explicitly checks imports without a DOM, instead of relying on numeric-only subprocesses to exercise that path.
 
-`test/probe-worker.mjs` covers reuse, assertion failures, crashes, synchronous hangs, startup failures, invalid replies, shutdown failures, and active-request cancellation.
+`test/tooling/probe-worker.mjs` covers reuse, assertion failures, crashes, synchronous hangs, startup failures, invalid replies, shutdown failures, and active-request cancellation.
 It also verifies normal exit hooks and rejects concurrent requests. The watchdog tests use small fixtures, not repeated chart imports.
 
 ### Runtime investigation
@@ -299,7 +383,9 @@ use the recorded commands, not pixels.
 
 ## Node and Bun runtimes
 
-Both runtimes use `scripts/test.mjs`. The runner detects `process.versions.bun` and prints the selected runtime before the tests start.
+The core, plugin, default, and all-tests commands use `scripts/test.mjs` under both runtimes.
+The runner detects `process.versions.bun` and prints the selected runtime before the tests start.
+The tooling and integration suites run Mocha directly under the selected runtime, without suite-wide source instrumentation.
 There is no separate Bun test implementation.
 The project's `bunfig.toml` sets `[run] bun = true`, so `bun run` uses Bun even when a script specifies `node`.
 This configuration applies to all `bun run` scripts. It does not affect npm.
@@ -308,8 +394,8 @@ This configuration applies to all `bun run` scripts. It does not affect npm.
 | --- | --- |
 | `npm test` | Node |
 | `bun run test` | Bun |
-| `node scripts/test.mjs` | Node |
-| `bun scripts/test.mjs` | Bun |
+| `node scripts/test.mjs "test/*.mjs" "test/plugins/*.mjs"` | Node |
+| `bun scripts/test.mjs "test/*.mjs" "test/plugins/*.mjs"` | Bun |
 
 The shared runner detects the actual runtime.
 Bare `bun test` invokes Bun's built-in test runner, not this Mocha harness.
@@ -368,7 +454,7 @@ output. Review the JSON changes before you commit them.
 ## Add a demo
 
 1. Export the demo's test groups from `demos/<name>.js`.
-2. Add `<name>` to `test/demos.mjs`.
+2. Add `<name>` to `demos` in `test/demos.mjs`. For a plugin demo, also add it to `pluginDemos`.
 3. Run `npm run test:update`.
 4. Run `npm test`.
 
@@ -414,8 +500,8 @@ Update mode does not remove obsolete snapshots.
 The following commands skip coverage and limit the JavaScript heap to 256 MiB.
 
 ```sh
-UPDATE=1 node --max-old-space-size=256 --import ./scripts/register-hooks.mjs ./node_modules/mocha/bin/mocha.js --grep '^multi-bars '
-node --max-old-space-size=256 --import ./scripts/register-hooks.mjs ./node_modules/mocha/bin/mocha.js --grep '^multi-bars '
+UPDATE=1 node --max-old-space-size=256 --import ./scripts/register-hooks.mjs ./node_modules/mocha/bin/mocha.js test/plugins/test.mjs --grep '^multi-bars '
+node --max-old-space-size=256 --import ./scripts/register-hooks.mjs ./node_modules/mocha/bin/mocha.js test/plugins/test.mjs --grep '^multi-bars '
 ```
 
 For multiple demos, run one process at a time.

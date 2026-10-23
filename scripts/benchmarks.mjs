@@ -46,6 +46,8 @@ There is no JS-heap benchmark or heap-usage sampling.
 Defaults: uPlot, Chart.js, D3, ECharts, Flot, and Dygraphs, plus an idle control measured first.
 Each variant gets a fresh browser with only its own library and demo dependencies.
 Each library has 3 warmups and 7 measured rounds. There is no inter-library cooling pause.
+The table shows per-metric minima after warmups: best observed performance, not typical latency.
+Columns can come from different rounds. Total work is the minimum per-round total, not a sum of column minima.
 Progress, partial results, and a cumulative table update after each library finishes.
 Use --variant NAME to run one library plus idle. Supported: uplot, chartjs, d3, echarts, flot, dygraphs, idle.
 DPR defaults to 1. --dpr selects one browser and canvas DPR.
@@ -54,12 +56,14 @@ Library loading, raw JSON parsing, and fixture setup occur outside chart timing.
 Data preparation is timed separately. Init covers options, chart construction, and its initial microtask commit.
 Trace chart windows include settling and deferred rendering, but exclude prep, forced GC, and teardown.
 Settling is a heuristic, not a GPU completion fence. GPU thread work is not hardware GPU execution time.
+Trace and rAF timings are not idle-subtracted; idle subtraction applies only to memory.
 
 Memory requires Linux /proc access. It polls process memory with a requested 50 ms delay after each read.
 Retained memory is measured after initialization, settling, and forced JS GC, with chart and prepared input alive.
 GC occurs before preparation, after the chart window ends, and after teardown, never between prep and construction.
 The headline shows baseline-adjusted browser-tree PSS in decimal MB. Renderer measurements stay in JSON.
-Each sample subtracts its blank-page checkpoint and the median idle retained-minus-blank footprint.
+Each sample subtracts its blank-page checkpoint and the minimum measured idle retained-minus-blank footprint.
+Memory columns show minimum adjusted retained memory and the minimum of the per-round sampled peaks.
 Peaks subtract settled idle memory, not the idle peak. Peaks are sampled, and negative estimates remain negative.
 Combined trace and process polling affect both timing and memory, including trace-buffer allocations.
 Use bench:memory for an untraced footprint. Native allocators need not release pages after GC.
@@ -104,7 +108,7 @@ const binary = await chromeBinary({version: chromeVersion});
 if (values['install-only'])
 	process.exit(0);
 mkdirSync(cache, {recursive: true});
-const {files, dependencies, localScripts} = loadBenchDemoSources(root, values.variant);
+const {files, dependencies, localScripts, localStyles} = loadBenchDemoSources(root, values.variant);
 for (const dependency of dependencies) {
 	const path = join(cache, dependency.cacheName);
 	if (!existsSync(path)) {
@@ -125,6 +129,7 @@ const page = '<!doctype html><meta charset="utf-8"><style>body{margin:0}</style>
 		? `<link rel="stylesheet" href="${dependency.route}">`
 		: `<script src="${dependency.route}"></script>`).join('') +
 	localScripts.map(route => `<script src="${route}"></script>`).join('') +
+	localStyles.map(route => `<link rel="stylesheet" href="${route}">`).join('') +
 	'<script type="module" src="/bench.mjs"></script>';
 const profile = mkdtempSync(join(cache, 'chrome-'));
 let rejectResult;

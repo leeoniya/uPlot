@@ -15,9 +15,14 @@
     "bench:memory": "node --max-old-space-size=512 ./scripts/benchmarks.mjs --browser chrome --memory --gpu",
 
     "demos": "node ./scripts/demos.mjs",
-    "test": "node ./scripts/test.mjs",
+    "test": "node ./scripts/test.mjs \"test/*.mjs\" \"test/plugins/*.mjs\"",
+    "test:core": "node ./scripts/test.mjs \"test/*.mjs\"",
+    "test:plugins": "node ./scripts/test.mjs \"test/plugins/*.mjs\"",
+    "test:tooling": "node ./node_modules/mocha/bin/mocha.js \"test/tooling/*.mjs\" \"test/server/*.mjs\"",
+    "test:integration": "node ./node_modules/mocha/bin/mocha.js \"test/integration/*.mjs\"",
+    "test:all": "node ./scripts/test.mjs \"test/*.mjs\" \"test/plugins/*.mjs\" \"test/integration/*.mjs\" \"test/tooling/*.mjs\" \"test/server/*.mjs\"",
     "test:server": "mocha test/server/*.mjs",
-    "test:update": "UPDATE=1 node ./scripts/test.mjs"
+    "test:update": "UPDATE=1 node ./scripts/test.mjs \"test/*.mjs\" \"test/plugins/*.mjs\""
   },
   "repository": {
     "type": "git",
@@ -63,10 +68,17 @@
   "nyc": {
     "include": [
       "dist/**/*.esm.js",
-      "src/**/*.js"
+      "src/**/*.js",
+      "demos/lib/barChartPlugin.js",
+      "demos/lib/barHover.js",
+      "demos/lib/barValues.js",
+      "demos/lib/distr.js",
+      "demos/lib/heatmapPlugin.js",
+      "demos/lib/scatterPlugin.js"
     ],
     "exclude": [
-      "src/paths/catmullRomCentrip.js"
+      "src/paths/catmullRomCentrip.js",
+      "demos/lib/flatbush.js"
     ]
   }
 }

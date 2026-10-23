@@ -127,7 +127,7 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 				rootPid: processPid, tracing: trace, heapSampling: false, gpuSpecificMemory: false,
 				roles: 'Browser CDP SystemInfo.getProcessInfo; /proc cmdline fallback for unmapped descendants.',
 				source: '/proc/<pid>/smaps_rollup for the browser root and discovered descendants.',
-				blankAndLoaded: 'Single post-GC checkpoints before warmups, not repeated medians.',
+				blankAndLoaded: 'Single post-GC checkpoints before warmups, not round aggregates.',
 			});
 			report.processAnalysis = summarizeProcessMemory({blank, loaded,
 				samples: report.samples.map(sample => ({...sample, observations: sample.processObservations})),

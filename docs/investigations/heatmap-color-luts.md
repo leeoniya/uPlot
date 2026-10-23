@@ -390,13 +390,13 @@ bun scripts/bench-heatmap-color-blocks.mjs --json
 
 ## Integration tests
 
-The focused suites are `test/heatmap-color-lut.mjs`, `test/heatmap-cells-demo.mjs`, and `test/heatmap-plugin.mjs`.
+The focused suites are `test/plugins/heatmap-color-lut.mjs`, `test/plugins/heatmap-cells-demo.mjs`, and `test/plugins/heatmap-plugin.mjs`.
 
 Run each suite with both runtimes, sequentially:
 
 ```sh
-node scripts/test.mjs test/heatmap-color-lut.mjs test/heatmap-plugin.mjs test/heatmap-cells-demo.mjs --reporter dot
-bun scripts/test.mjs test/heatmap-color-lut.mjs test/heatmap-plugin.mjs test/heatmap-cells-demo.mjs --reporter dot
+node scripts/test.mjs test/plugins/heatmap-color-lut.mjs test/plugins/heatmap-plugin.mjs test/plugins/heatmap-cells-demo.mjs --reporter dot
+bun scripts/test.mjs test/plugins/heatmap-color-lut.mjs test/plugins/heatmap-plugin.mjs test/plugins/heatmap-cells-demo.mjs --reporter dot
 ```
 
 The integration checks for the current design cover:

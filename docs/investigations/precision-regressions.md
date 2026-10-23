@@ -13,7 +13,7 @@ The review includes open and closed uPlot issues, issue comments, attached repro
 - `scripts/bench-rounding.mjs`: warm rounding and ranging benchmarks against commit `443333f`.
 - `scripts/precision-probe.mjs`: chart and tick probes in a shared worker.
 - `scripts/probe-worker.mjs`: sequential IPC requests, parent-enforced deadlines, and worker recovery.
-- `test/probe-worker.mjs`: watchdog, failure-reporting, and cleanup regressions.
+- `test/tooling/probe-worker.mjs`: watchdog, failure-reporting, and cleanup regressions (`npm run test:tooling`).
 
 The tests exercise exported source functions. They do not require a rebuilt bundle or network access.
 
@@ -36,7 +36,7 @@ To isolate the Grafana cases, use:
 npx mocha 'test/precision-*.mjs' --grep 'Grafana #116559'
 ```
 
-Run the full suite with coverage:
+Run the source and demo suite with coverage:
 
 ```sh
 npm test
