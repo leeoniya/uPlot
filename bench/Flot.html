@@ -19,16 +19,9 @@
 	<body>
 		<h2 id="wait">Loading lib....</h2>
 
-		<!-- Flot uses jQuery APIs removed in 4.x. Core + time do not need Globalize. -->
+		<!-- Flot needs jQuery 3.x. Its distribution bundle is minified and includes the time plugin. -->
 		<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
-		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.canvaswrapper.js"></script>
-		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.colorhelpers.js"></script>
-		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.flot.js"></script>
-		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.flot.saturated.js"></script>
-		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.flot.browser.js"></script>
-		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.flot.drawSeries.js"></script>
-		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.flot.uiConstants.js"></script>
-		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.flot.time.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/dist/es5/jquery.flot.js"></script>
 
 		<div class="demo-container">
 			<div id="placeholder" class="demo-placeholder"></div>

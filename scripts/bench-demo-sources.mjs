@@ -11,14 +11,7 @@ const demos = [
 	{file: 'ECharts5.html', id: 'echarts', scripts: [['echarts', 'dist/echarts.min.js']], returns: 'myChart'},
 	{file: 'Flot.html', id: 'flot', scripts: [
 		['jquery', 'dist/jquery.min.js'],
-		['flot', 'source/jquery.canvaswrapper.js'],
-		['flot', 'source/jquery.colorhelpers.js'],
-		['flot', 'source/jquery.flot.js'],
-		['flot', 'source/jquery.flot.saturated.js'],
-		['flot', 'source/jquery.flot.browser.js'],
-		['flot', 'source/jquery.flot.drawSeries.js'],
-		['flot', 'source/jquery.flot.uiConstants.js'],
-		['flot', 'source/jquery.flot.time.js'],
+		['flot', 'dist/es5/jquery.flot.js'],
 	], returns: 'plot'},
 	{file: 'dygraphs.html', id: 'dygraphs', scripts: [
 		['dygraphs', 'dist/dygraph.min.js'],
@@ -48,7 +41,7 @@ function extractDemo(html, demo) {
 		guard(pin, file, 'explicit stable CDN version and browser build');
 		const [, name, version, path] = pin;
 		guard(name === expectedName && path === expectedPath, file, 'dependency order or browser build');
-		const cacheName = `${name.replace(/^@/, '').replaceAll('/', '-')}-${version}-${path.split('/').pop()}`;
+		const cacheName = `${name.replace(/^@/, '').replaceAll('/', '-')}-${version}-${path.replaceAll('/', '-')}`;
 		return {name, version, url, route: '/bench/vendor/' + cacheName, cacheName,
 			...(type === 'style' ? {type} : {})};
 	});
@@ -114,6 +107,19 @@ export function loadBenchDemoSources(root, variant = null) {
 			files.set(route, readFileSync(new URL('bench/' + path, root), 'utf8'));
 			localScripts.push(route);
 		}
+	}
+	if (variant === 'uplot') {
+		for (const route of ['/dist/uPlot.iife.min.js', '/dist/uPlot.min.css']) {
+			try {
+				files.set(route, readFileSync(new URL(route.slice(1), root), 'utf8'));
+			}
+			catch (error) {
+				if (error.code === 'ENOENT')
+					throw new Error(`uPlot benchmark requires ${route.slice(1)}. Run npm run build first.`, {cause: error});
+				throw error;
+			}
+		}
+		localScripts.push('/dist/uPlot.iife.min.js');
 	}
 	return {files, dependencies, localScripts};
 }

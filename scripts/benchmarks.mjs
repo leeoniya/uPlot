@@ -148,8 +148,6 @@ const server = createServer((req, res) => {
 			res.end(page);
 		}
 		else {
-			if (!files.has(req.url) && /^\/src\/(?:[\w-]+\/)*[\w-]+\.(?:js|css)$/.test(req.url))
-				files.set(req.url, readFileSync(new URL(req.url.slice(1), root), 'utf8'));
 			if (files.has(req.url)) {
 				res.setHeader('Content-Type', req.url.endsWith('.css') ? 'text/css' : req.url.endsWith('.json') ? 'application/json' : 'text/javascript');
 				res.end(files.get(req.url));

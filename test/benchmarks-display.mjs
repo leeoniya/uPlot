@@ -104,9 +104,9 @@ describe('benchmark display', () => {
 		for (const columns of [85, 86, 100]) {
 			const {display, writes} = capture({columns, rows: 12});
 			display.update(frame);
-			assert.equal(writes[0], columns < 86 ? 'Running\n' : text);
+			assert.equal(writes[0], text);
 			display.update({...frame, status: 'Done', final: true});
-			assert.equal(writes[1], clear(columns < 86 ? 1 : 11) + formatBenchmarkDisplay({...frame, status: 'Done'}));
+			assert.equal(writes[1], clear(Math.min(countTerminalLines(text, columns), 11)) + formatBenchmarkDisplay({...frame, status: 'Done'}));
 		}
 	});
 
@@ -189,61 +189,60 @@ describe('benchmark display', () => {
 		assert.doesNotMatch(writes[4], /\x1b/);
 	});
 
-	it('defers tall tables and clears only the previous status', () => {
+	it('prints tall tables and bounds cursor erasure to the visible viewport', () => {
 		const {display, writes} = capture({rows: 4});
-		display.update({rows: two, status: 'Running'});
+		const frame = {rows: two, status: 'Running'};
+		display.update(frame);
 		display.update({status: 'Failed', final: true});
-		assert.deepEqual(writes, ['Running\n', clear(1) + 'Failed\n']);
+		assert.deepEqual(writes, [formatBenchmarkDisplay(frame), clear(3) + 'Failed\n']);
 		const result = screenAfter(writes, 100, 4);
-		assert.equal(result.scrollback, '');
-		assert.equal(result.screen, 'prior\nFailed');
+		assert.ok(result.scrollback.startsWith('prior\n┌'));
+		assert.equal(result.screen, 'Failed');
 	});
 
-	it('prints exactly one final table in a 100-column, 6-row viewport', () => {
+	it('prints every incremental table in a 100-column, 6-row viewport', () => {
 		const {display, writes} = capture({columns: 100, rows: 6});
-		display.update({rows: one, status: 'Running chartjs'});
-		display.update({rows: two, status: 'Running d3', warnings: ['partial results']});
-		display.update({rows: two, status: 'Finishing'});
-		assert.deepEqual(writes, ['Running chartjs\n', clear(1) + 'Running d3\n', clear(1) + 'Finishing\n']);
-		assert.doesNotMatch(writes.join(''), /[┌└]|Warning/);
-		assert.deepEqual(screenAfter(writes, 100, 6), {screen: 'prior\nFinishing', scrollback: '', column: 0});
-
-		const frame = {rows: two, status: 'Done', warnings: ['partial results'], final: true};
-		display.update(frame);
-		assert.equal(writes[3], clear(1) + formatBenchmarkDisplay(frame));
-		display.update(frame);
+		const frames = [
+			{rows: one, status: 'Running chartjs'},
+			{rows: two, status: 'Running d3', warnings: ['partial results']},
+			{rows: two, status: 'Finishing'},
+			{rows: two, status: 'Done', warnings: ['partial results'], final: true},
+		];
+		for (const [i, frame] of frames.entries()) {
+			display.update(frame);
+			assert.equal(writes[i], (i === 0 ? '' : clear(5)) + formatBenchmarkDisplay(frame));
+		}
+		display.update(frames.at(-1));
 		assert.equal(writes.length, 4);
-		assert.equal(writes.join('').match(/┌/g).length, 1);
-		assert.equal(writes.join('').match(/└/g).length, 1);
+		assert.equal(writes.join('').match(/┌/g).length, 4);
+		assert.equal(writes.join('').match(/└/g).length, 4);
 		const result = screenAfter(writes, 100, 6);
-		assert.equal(result.scrollback + '\n' + result.screen, 'prior\n' + formatBenchmarkDisplay(frame).trimEnd());
+		assert.ok(result.scrollback.startsWith('prior\n'));
+		assert.ok(result.screen.endsWith('Done\nWarning: partial results'));
 		assert.equal(result.column, 0);
 	});
 
-	it('renders frames that exactly fit, then replaces growing frames with status only', () => {
+	it('keeps rendering the full table as it grows beyond the viewport', () => {
 		const {display, writes} = capture({rows: 7});
 		const frame = {rows: one, status: 'Running'};
 		display.update(frame);
 		assert.equal(countTerminalLines(writes[0], 100), 6);
 		assert.equal(writes[0], formatBenchmarkDisplay(frame));
 		display.update({rows: two, status: 'Next'});
-		assert.equal(writes[1], clear(6) + 'Next\n');
-		const result = screenAfter(writes, 100, 7);
-		assert.equal(result.scrollback, 'prior');
-		assert.equal(result.screen, 'Next');
+		assert.equal(writes[1], clear(6) + formatBenchmarkDisplay({rows: two, status: 'Next'}));
 		display.update(frame);
-		assert.equal(writes[2], clear(1) + formatBenchmarkDisplay(frame));
+		assert.equal(writes[2], clear(6) + formatBenchmarkDisplay(frame));
 	});
 
-	it('includes wrapped lines and warnings when deciding whether a frame fits', () => {
+	it('always includes wrapped tables and warnings even when the frame does not fit', () => {
 		for (const options of [{columns: 10, rows: 10}, {columns: 100, rows: 7}]) {
 			const {display, writes} = capture(options);
 			const frame = {rows: one, status: 'Running', warnings: ['missing samples']};
 			assert.ok(countTerminalLines(formatBenchmarkDisplay(frame), options.columns) > options.rows - 1);
 			display.update(frame);
-			assert.deepEqual(writes, ['Running\n']);
+			assert.deepEqual(writes, [formatBenchmarkDisplay(frame)]);
 			display.update({...frame, status: 'Failed', final: true});
-			assert.equal(writes[1], clear(1) + formatBenchmarkDisplay({...frame, status: 'Failed'}));
+			assert.equal(writes[1], clear(options.rows - 1) + formatBenchmarkDisplay({...frame, status: 'Failed'}));
 		}
 	});
 

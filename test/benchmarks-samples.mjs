@@ -183,10 +183,43 @@ function browserFixture(options = {}) {
 }
 
 describe('shared browser sample lifecycle', () => {
+	it('disables only path caching in the demo and matching benchmark options', () => {
+		const source = browserSource.slice(browserSource.indexOf('function options()'), browserSource.indexOf('function setup('));
+		const options = runInNewContext(source + '\noptions();', {WIDTH: 1920, HEIGHT: 600, dpr: 1});
+		assert.deepEqual(structuredClone(options.cache), {paths: false});
+		const demo = readFileSync(new URL('../bench/uPlot.html', import.meta.url), 'utf8');
+		assert.match(demo, /cache: \{paths: false\}/);
+	});
+
+	it('rejects uPlot bundles that retain series or point paths after drawing', () => {
+		const source = browserSource.slice(browserSource.indexOf('function validateChart('), browserSource.indexOf('function teardown('));
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1});
+		const chart = {pxRatio: 1, series: [{}, {_paths: null, points: {_paths: null}}]};
+		assert.equal(validate({variant: 'uplot', chart}), 1);
+		chart.series[1]._paths = {};
+		assert.throws(() => validate({variant: 'uplot', chart}), /retained paths despite cache.paths:false/);
+		chart.series[1]._paths = null;
+		chart.series[1].points._paths = {};
+		assert.throws(() => validate({variant: 'uplot', chart}), /retained paths despite cache.paths:false/);
+	});
+
+	it('uses the preloaded uPlot IIFE and fails rather than importing source modules', () => {
+		const startup = browserSource.slice(0, browserSource.indexOf('const WIDTH')) + '\nuPlot;';
+		const uPlot = function() {};
+		const context = {URL, location: {href: 'http://localhost/?variant=uplot'}, uPlot};
+		assert.equal(runInNewContext(startup, context), uPlot);
+		assert.throws(() => runInNewContext(startup, {...context, uPlot: undefined}), /Expected \/dist\/uPlot\.iife\.min\.js/);
+		assert.equal(runInNewContext(startup, {URL, location: {href: 'http://localhost/?variant=idle'}}), null);
+		assert.doesNotMatch(browserSource, /\/src\//);
+		assert.match(browserSource, /link.href = '\/dist\/uPlot.min.css'/);
+	});
+
 	it('returns only metadata and numeric timing fields, with validation outside timers', async () => {
 		const fake = browserFixture();
 		const begin = fake.api.begin();
 		assert.equal(begin.captureId, 'browser-capture');
+		assert.equal(begin.source.uplot, '/dist/uPlot.iife.min.js');
+		assert.equal(begin.source.uplotCss, '/dist/uPlot.min.css');
 		assert.deepEqual(structuredClone(begin.config), {variants: ['uplot', 'chartjs', 'idle'], dpr: 2, warmups: 3, rounds: 7});
 		assert.equal(begin.expectedInstances.samples, 30);
 		assert.equal(begin.expectedInstances.chartCreations, 20);

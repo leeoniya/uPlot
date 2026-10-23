@@ -2,6 +2,19 @@
 
 The benchmarks compare chart libraries, including their data preparation and sampling or decimation choices.
 They use Chrome Headless Shell, pinned demo dependencies, and `bench/data.json`.
+uPlot uses `dist/uPlot.iife.min.js` and `dist/uPlot.min.css`, not source modules.
+The benchmark records SHA-256 hashes of these assets in `runner.sourceSha256`.
+If the assets are missing or source changes need a new bundle, run `npm run build` before the benchmark.
+The benchmark does not rebuild them automatically.
+The uPlot demo and benchmark set `cache: {paths: false}`. Data caching keeps its default behavior.
+Path construction remains measured, but uPlot releases the cached paths after each commit.
+The benchmark checks that series and point paths are no longer retained after drawing.
+
+The other libraries and CDN dependencies use minified production builds.
+Flot uses its published `dist/es5/jquery.flot.js` bundle, which is minified despite its filename and includes the time plugin.
+This bundle also includes other Flot plugins, unlike the previous core-and-time source selection.
+The local Dygraphs date formatter remains demo code, not a third-party library bundle.
+Dependency cache filenames include the package path so source and distribution files cannot share a cache entry.
 Each chart contains 55,550 rows and three data series, at 1920 × 600 CSS pixels.
 DPR defaults to 1.
 
@@ -55,7 +68,8 @@ Saved summaries use the same sort. Memory-only and rAF tables retain execution o
 The current progress status appears below the table.
 Worker output is captured and shown only on failure, so it cannot interrupt the table.
 Redirected output contains plain-text progress and one final table, without cursor-control sequences.
-Terminals too small for the live table show progress until the final table is ready.
+Interactive terminals always receive the incremental table, regardless of their reported width or height.
+Oversized tables can leave earlier rows in scrollback because cursor movement cannot erase that region.
 After a terminal resize, the display starts a fresh block to avoid erasing unrelated output.
 The suite saves partial results after each variant, including the idle control.
 A failed run keeps its completed results and marks the suite report incomplete.
@@ -129,7 +143,7 @@ The combined table shows medians for:
 The table omits the index, sample-count, and DPR columns. Sample counts and DPR remain in JSON.
 Library names have no quotes and align left. Numeric columns align right and show one decimal place.
 The JSON retains full measurement precision.
-The terminal-fit check uses the formatted table width, including line wrapping.
+Terminal dimensions and line wrapping affect cursor erasure, not whether an interactive table is shown.
 Explanatory notes do not appear above the table. Measurement warnings appear below it.
 Times use milliseconds.
 Thread work is wall duration, not exclusive CPU time or hardware GPU execution time.

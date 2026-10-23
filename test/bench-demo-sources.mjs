@@ -78,14 +78,34 @@ describe('benchmark demo sources', () => {
 			assert.ok(selected.dependencies.length > 0);
 		}
 		const uplot = loadBenchDemoSources(root, 'uplot');
-		assert.deepEqual([...uplot.files.keys()], ['/bench/d3-source.mjs']);
+		assert.deepEqual([...uplot.files.keys()], ['/bench/d3-source.mjs', '/dist/uPlot.iife.min.js', '/dist/uPlot.min.css']);
 		assert.deepEqual(uplot.dependencies, []);
-		assert.deepEqual(uplot.localScripts, []);
+		assert.deepEqual(uplot.localScripts, ['/dist/uPlot.iife.min.js']);
+		for (const route of ['/dist/uPlot.iife.min.js', '/dist/uPlot.min.css'])
+			assert.equal(uplot.files.get(route), readFileSync(new URL(route.slice(1), root), 'utf8'));
 		const idle = loadBenchDemoSources(root, 'idle');
 		assert.equal(idle.files.size, 0);
 		assert.deepEqual(idle.dependencies, []);
 		assert.throws(() => loadBenchDemoSources(root, 'unknown'), /Unknown demo variant/);
 	});
+	it('requires the uPlot distribution assets instead of falling back to source modules', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'uplot-bench-dist-'));
+		try {
+			mkdirSync(join(dir, 'bench'));
+			copyFileSync(new URL('bench/D3.html', root), join(dir, 'bench/D3.html'));
+			const fixtureRoot = pathToFileURL(dir + '/');
+			assert.throws(() => loadBenchDemoSources(fixtureRoot, 'uplot'), /requires dist\/uPlot\.iife\.min\.js\. Run npm run build first/);
+			mkdirSync(join(dir, 'dist'));
+			writeFileSync(join(dir, 'dist/uPlot.iife.min.js'), 'var uPlot = function() {};');
+			assert.throws(() => loadBenchDemoSources(fixtureRoot, 'uplot'), /requires dist\/uPlot\.min\.css\. Run npm run build first/);
+			writeFileSync(join(dir, 'dist/uPlot.min.css'), '.uplot {}');
+			assert.equal(loadBenchDemoSources(fixtureRoot, 'uplot').files.get('/dist/uPlot.iife.min.js'), 'var uPlot = function() {};');
+		}
+		finally {
+			rmSync(dir, {recursive: true, force: true});
+		}
+	});
+
 	it('returns five verbatim ES modules and the local date formatter', () => {
 		assert.ok(files instanceof Map);
 		assert.deepEqual([...files.keys()], [...demos.map(([id]) => `/bench/${id}-source.mjs`), '/bench/fmtDate.js']);
@@ -106,14 +126,14 @@ describe('benchmark demo sources', () => {
 		assert.deepEqual(dependencies.map(({name, version}) => [name, version]), [
 			['d3', '7.9.0'], ['chart.js', '4.6.1'], ['@date-fns/cdn', '4.4.0'],
 			['chartjs-adapter-date-fns', '3.0.0'], ['echarts', '6.1.0'],
-			['jquery', '3.7.1'], ...Array.from({length: 8}, () => ['flot', '4.2.6']),
+			['jquery', '3.7.1'], ['flot', '4.2.6'],
 			['dygraphs', '2.2.2'], ['dygraphs', '2.2.2'],
 		]);
 		const urls = demos.flatMap(([, file]) => [...readFileSync(new URL('bench/' + file, root), 'utf8')
 			.matchAll(/(?:<script src="|<link rel="stylesheet" href=")(https:[^"]+)"/g)].map(match => match[1]));
 		assert.deepEqual(dependencies.map(dep => dep.url), urls);
-		assert.equal(new Set(dependencies.map(dep => dep.route)).size, 16);
-		assert.equal(new Set(dependencies.map(dep => dep.cacheName)).size, 16);
+		assert.equal(new Set(dependencies.map(dep => dep.route)).size, 9);
+		assert.equal(new Set(dependencies.map(dep => dep.cacheName)).size, 9);
 		for (const dep of dependencies) {
 			assert.deepEqual(Object.keys(dep), ['name', 'version', 'url', 'route', 'cacheName',
 				...(dep.type === 'style' ? ['type'] : [])]);
@@ -128,7 +148,11 @@ describe('benchmark demo sources', () => {
 		assert.deepEqual(dependencies.filter(dep => dep.type), [dependencies.at(-1)]);
 		assert.equal(dependencies.at(-1).type, 'style');
 		assert.equal(dependencies.some(dep => dep.name === 'globalize'), false);
-		assert.ok(dependencies.filter(dep => dep.name === 'flot').every(dep => dep.url.includes('/source/')));
+		const flot = dependencies.find(dep => dep.name === 'flot');
+				assert.ok(flot.url.endsWith('/dist/es5/jquery.flot.js'));
+				assert.equal(flot.cacheName, 'flot-4.2.6-dist-es5-jquery.flot.js');
+				assert.ok(dependencies.every(dep => dep === flot || /\.min\.(js|css)$/.test(dep.url)));
+				assert.ok(dependencies.every(dep => !dep.url.includes('/source/')));
 	});
 
 	it('reads versions afresh from the demos, including cache names and routes', () => {
@@ -146,7 +170,7 @@ describe('benchmark demo sources', () => {
 			const dep = loadBenchDemoSources(changedRoot).dependencies.at(-1);
 			assert.equal(dep.type, 'style');
 			assert.equal(dep.version, '2.2.3');
-			assert.equal(dep.cacheName, 'dygraphs-2.2.3-dygraph.min.css');
+			assert.equal(dep.cacheName, 'dygraphs-2.2.3-dist-dygraph.min.css');
 			assert.equal(dep.route, '/bench/vendor/' + dep.cacheName);
 		});
 		withChangedDemo('fmtDate.js', source => source + '\n// fresh local source\n', changedRoot => {
@@ -356,9 +380,9 @@ describe('benchmark demo sources', () => {
 		['Chart.js4.html', 'missing return', html => html.replace('return chart;', '')],
 		['ECharts5.html', 'missing return', html => html.replace('return myChart;', '')],
 		['Flot.html', 'missing return', html => html.replace('return plot;', '')],
-		['Flot.html', 'all-plugin bundle', html => html.replace('/source/jquery.flot.js', '/dist/es5/jquery.flot.js')],
-		['Flot.html', 'missing time plugin', html => html.replace(/<script src="[^"]*jquery\.flot\.time\.js"><\/script>/, '')],
-		['Flot.html', 'dependency order', html => html.replace('source/jquery.canvaswrapper.js', 'source/jquery.colorhelpers.js')],
+		['Flot.html', 'unbundled source', html => html.replace('/dist/es5/jquery.flot.js', '/source/jquery.flot.js')],
+		['Flot.html', 'missing production bundle', html => html.replace(/<script src="[^"]*flot@[^\n]+/, '')],
+		['Flot.html', 'dependency order', html => html.replace(/(<script src="[^"]*jquery@[^\n]+)(\s*)(<script src="[^"]*flot@[^\n]+)/, '$3$2$1')],
 		['Flot.html', 'unpinned jQuery', html => html.replace('jquery@3.7.1/', 'jquery/')],
 		['Flot.html', 'changed auto-fetch', html => html.replace('fetch("data.json")', 'fetch("other.json")')],
 		['dygraphs.html', 'missing return', html => html.replace('return dyCpuMem;', '')],

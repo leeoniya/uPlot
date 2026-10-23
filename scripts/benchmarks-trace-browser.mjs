@@ -5,7 +5,9 @@
 // process memory and optionally forces GC at baseline, live, and cleanup checkpoints.
 // runBenchmarkTrace({raf:true}) is a mutually exclusive, browser-driven path.
 const selectedVariant = new URL(location.href).searchParams.get('variant');
-const uPlot = !selectedVariant || selectedVariant === 'uplot' ? (await import('/src/uPlot.js')).default : null;
+const uPlot = !selectedVariant || selectedVariant === 'uplot' ? globalThis.uPlot : null;
+if ((!selectedVariant || selectedVariant === 'uplot') && typeof uPlot !== 'function')
+	throw new Error('Expected /dist/uPlot.iife.min.js to load before the benchmark fixture.');
 
 const WIDTH = 1920;
 const HEIGHT = 600;
@@ -90,9 +92,9 @@ document.head.append(style);
 const cssReady = !VARIANTS.includes('uplot') ? Promise.resolve() : new Promise((resolve, reject) => {
 	const link = document.createElement('link');
 	link.rel = 'stylesheet';
-	link.href = '/src/uPlot.css';
+	link.href = '/dist/uPlot.min.css';
 	link.onload = resolve;
-	link.onerror = () => reject(new Error('Failed to load /src/uPlot.css'));
+	link.onerror = () => reject(new Error('Failed to load /dist/uPlot.min.css'));
 	document.head.append(link);
 });
 
@@ -134,6 +136,7 @@ function options() {
 		height: HEIGHT,
 		ms: 1,
 		pxRatio: dpr,
+		cache: {paths: false},
 		series: [
 			{},
 			{
@@ -258,6 +261,8 @@ async function finishMicrotask({variant}) {
 }
 
 function validateChart({variant, chart, host}) {
+	if (variant === 'uplot' && chart.series.some(series => series._paths != null || series.points?._paths != null))
+		throw new Error('uPlot retained paths despite cache.paths:false. Rebuild dist before benchmarking.');
 	if (variant === 'chartjs' && (!chart || globalThis.Chart.getChart(host.firstElementChild) !== chart))
 		throw new Error('Chart.js makeChart must return its registered chart instance.');
 	if (variant === 'echarts' && (!chart || globalThis.echarts.getInstanceByDom(host) !== chart))
@@ -556,8 +561,9 @@ function reportMetadata(raf = false) {
 		roundConvention: 'Warmups -3..-1; measured rounds 0..6. IDs include warmups in chronological order.',
 		order: 'Rotate variants by round and reverse on alternate rounds; one actual browser DPR per capture.',
 		source: {
-			uplot: '/src/uPlot.js',
-			uplotOptions: 'bench/uPlot.html; ms:1, explicit pxRatio, series width:1/dpr; points, legend, cursor and scale defaults retained.',
+			uplot: '/dist/uPlot.iife.min.js',
+						uplotCss: '/dist/uPlot.min.css',
+			uplotOptions: 'bench/uPlot.html; ms:1, explicit pxRatio, series width:1/dpr, cache.paths:false; data caching, points, legend, cursor and scale defaults retained.',
 			d3: '/bench/d3-source.mjs',
 			chartjs: '/bench/chartjs-source.mjs',
 			echarts: '/bench/echarts-source.mjs',
@@ -604,7 +610,7 @@ function reportMetadata(raf = false) {
 			'Data preparation is timed separately, outside chart markers. CDP chart-window totals exclude prep. Output validation is outside both prep and chart timers.',
 			'Library loading, fixture setup and teardown are outside sample markers. All chart options construction, including uPlot options, is inside chart markers.',
 			'D3 static title, legend and canvases, the Chart.js canvas/container, and ECharts, Flot and Dygraphs hosts exist at start; library-created DOM is inside the window.',
-			'Runtime versions come from loaded library exports, not demo titles. A null version means the runtime does not expose it (including source uPlot and the date-fns adapter).',
+			'Runtime versions come from loaded library exports, not demo titles. A null version means the runtime does not expose it (such as the date-fns adapter).',
 			'Flot 4.2.6 exposes a stale runtime version of 3.0.0. Use runner.dependencies for the pinned package version.',
 			'Flot retains its timer-delayed overlay hook. JS/DOM and next-rAF spans do not necessarily include that hook; the longer trace window can include it.',
 			'Warmups can appear in the trace. Exclude samples with warmup:true from measured aggregates.',

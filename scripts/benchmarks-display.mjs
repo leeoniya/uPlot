@@ -90,20 +90,16 @@ export function createBenchmarkDisplay({stream = process.stdout} = {}) {
 			const tty = !!stream.isTTY;
 			const columns = dimension(stream.columns);
 			const height = dimension(stream.rows);
-			let text = tty || final
+			const text = tty || final
 				? formatBenchmarkDisplay({rows, status, warnings})
 				: terminated(clean(status));
-			// Defer oversized tables so live updates cannot leave partial tables
-			// in scrollback. The final frame is always printed in full.
-			if (tty && !final && height && countTerminalLines(text, columns) > height - 1)
-				text = terminated(clean(status));
 			let erase = '';
 
 			// Resize/reflow behavior differs between terminals. Abandon the old
 			// frame on a size change (or unknown size), rather than erase above it.
 			if (tty && columns && height && previous?.columns === columns && previous.height === height) {
-				// LF needs one screen row. Even status alone can be oversized;
-				// leave any prefix already in scrollback untouched.
+				// LF needs one screen row. Oversized frames can leave a prefix in
+				// scrollback, which cursor movement cannot erase.
 				const up = Math.min(previous.lines, height - 1);
 				erase = (up ? `\x1b[${up}A` : '') + '\r\x1b[J';
 			}
