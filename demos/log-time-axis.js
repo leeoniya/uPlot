@@ -285,8 +285,7 @@ export function createLogTimeDemo(uPlot, root, now = Date.now()) {
 	const widthStatus = root.querySelector('#width-status');
 	const domainStatus = root.querySelector('#domain-status');
 	const syncKey = `log-time-axis-${++demoId}`;
-	const ownerDocument = root.ownerDocument || root;
-	const measureCanvas = typeof OffscreenCanvas == 'undefined' ? ownerDocument.createElement('canvas') : new OffscreenCanvas(1, 1);
+	const measureCanvas = new OffscreenCanvas(1, 1);
 	const measureCtx = measureCanvas.getContext('2d');
 	measureCtx.font = AXIS_FONT;
 	const measureLabel = label => Math.max(...label.split('\n').map(line => measureCtx.measureText(line).width));

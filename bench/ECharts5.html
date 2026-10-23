@@ -53,7 +53,8 @@
 
 				let myChart = echarts.init(dom, null, {
 					width: 1920,
-					height: 600
+					height: 600,
+					devicePixelRatio
 				});
 
 				let opts = {
@@ -80,12 +81,14 @@
 					yAxis: [
 						{
 							type: "value",
+							position: "left",
 							axisLabel: {
 								formatter: "{value} %"
 							}
 						},
 						{
 							type: "value",
+							position: "right",
 							axisLabel: {
 								formatter: "{value} MB"
 							}
@@ -94,6 +97,7 @@
 					series: [
 						{
 							name: "CPU",
+							yAxisIndex: 0,
 							z: 0,
 							type: "line",
 							showSymbol: false,
@@ -112,7 +116,7 @@
 							name: "RAM",
 							z: 1,
 							type: "line",
-							yAxisIndex: 1,
+							yAxisIndex: 0,
 							showSymbol: false,
 							sampling: "minmax",
 							lineStyle: { width: 1 },
@@ -149,6 +153,7 @@
 
 				wait.textContent = "Done!";
 				console.timeEnd("chart");
+				return myChart;
 			}
 
 			let wait = document.getElementById("wait");

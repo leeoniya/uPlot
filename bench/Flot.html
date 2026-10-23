@@ -19,16 +19,16 @@
 	<body>
 		<h2 id="wait">Loading lib....</h2>
 
-		<script src="https://www.flotcharts.org/flot/lib/globalize.js"></script>
-		<script src="https://www.flotcharts.org/flot/source/jquery.js"></script>
-		<script src="https://www.flotcharts.org/flot/source/jquery.canvaswrapper.js"></script>
-		<script src="https://www.flotcharts.org/flot/source/jquery.colorhelpers.js"></script>
-		<script src="https://www.flotcharts.org/flot/source/jquery.flot.js"></script>
-		<script src="https://www.flotcharts.org/flot/source/jquery.flot.saturated.js"></script>
-		<script src="https://www.flotcharts.org/flot/source/jquery.flot.browser.js"></script>
-		<script src="https://www.flotcharts.org/flot/source/jquery.flot.drawSeries.js"></script>
-		<script src="https://www.flotcharts.org/flot/source/jquery.flot.uiConstants.js"></script>
-		<script src="https://www.flotcharts.org/flot/source/jquery.flot.time.js"></script>
+		<!-- Flot uses jQuery APIs removed in 4.x. Core + time do not need Globalize. -->
+		<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.canvaswrapper.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.colorhelpers.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.flot.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.flot.saturated.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.flot.browser.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.flot.drawSeries.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.flot.uiConstants.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/flot@4.2.6/source/jquery.flot.time.js"></script>
 
 		<div class="demo-container">
 			<div id="placeholder" class="demo-placeholder"></div>
@@ -70,7 +70,7 @@
 			function makeChart(data) {
 				console.time('chart');
 
-				$.plot("#placeholder", data, {
+				const plot = $.plot("#placeholder", data, {
 					xaxis: { mode: "time", timeBase: "milliseconds"},
 					hooks: {
 						drawOverlay: [
@@ -81,6 +81,8 @@
 						]
 					}
 				});
+
+				return plot;
 			}
 
 			let wait = document.getElementById("wait");

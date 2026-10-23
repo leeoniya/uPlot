@@ -16,8 +16,8 @@
 	<body>
 		<h2 id="wait">Loading lib....</h2>
 
-		<script src="https://cdn.jsdelivr.net/npm/dygraphs@2.2.1/dist/dygraph.min.js"></script>
-		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dygraphs@2.2.1/dist/dygraph.min.css">
+		<script src="https://cdn.jsdelivr.net/npm/dygraphs@2.2.2/dist/dygraph.min.js"></script>
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dygraphs@2.2.2/dist/dygraph.min.css">
 		<script src="fmtDate.js"></script>
 
 		<div id="graphdiv"></div>
@@ -115,6 +115,8 @@
 
 				wait.textContent = "Done!";
 				console.timeEnd('chart');
+
+				return dyCpuMem;
 			}
 
 			let wait = document.getElementById("wait");

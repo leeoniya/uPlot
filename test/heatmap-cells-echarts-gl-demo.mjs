@@ -533,7 +533,8 @@ describe('ECharts GL heatmap cells demo', () => {
 		const boot = page.querySelector('script[type="module"]').textContent;
 		assert.match(boot, /import\s*\{\s*createDemo\s*\}\s*from\s*'\.\/heatmap-cells-echarts-gl\.js'/);
 		assert.match(boot, /!globalThis\.echarts\s*\|\|\s*document\.querySelector\('#echarts-gl'\)\.dataset\.loaded\s*!=\s*'true'/);
-		assert.match(boot, /getContext\('webgl'\)\s*\|\|\s*canvas\.getContext\('experimental-webgl'\)/);
+		assert.match(boot, /const gl = canvas\.getContext\('webgl'\);/);
+		assert.doesNotMatch(boot, /experimental-webgl/);
 		assert.match(boot, /if\s*\(!gl\)\s*throw new Error\('WebGL is unavailable in this browser'\)/);
 		assert.match(boot, /getExtension\('WEBGL_lose_context'\)\?\.loseContext\(\)/);
 		assert.match(boot, /import\s*\{\s*generateHeatmapCells\s*\}\s*from\s*'\.\/lib\/heatmapCellsData\.js'/);

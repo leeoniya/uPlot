@@ -748,8 +748,6 @@ export function join(tables, nullModes) {
 	return data;
 }
 
-export const microTask = typeof queueMicrotask == "undefined" ? fn => Promise.resolve().then(fn) : queueMicrotask;
-
 // TODO: https://github.com/dy/sort-ids (~2x faster for 1e5+ arrays)
 function sortCols(table) {
 	let head = table[0];

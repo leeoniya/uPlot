@@ -56,8 +56,8 @@ export function createBarValues(horizontal) {
 				metric = {
 					text,
 					width: measured.width,
-					ascent: measured.actualBoundingBoxAscent ?? measureSize * .8,
-					descent: measured.actualBoundingBoxDescent ?? measureSize * .2,
+					ascent: measured.actualBoundingBoxAscent,
+					descent: measured.actualBoundingBoxDescent,
 				};
 				textMetrics.set(text, metric);
 			}

@@ -1,0 +1,348 @@
+const TASK = 'RunTask';
+const FALLBACK_TASK = 'ThreadControllerImpl::RunTask';
+const STYLE = new Set(['UpdateLayoutTree', 'Layout', 'PrePaint', 'Paint', 'Layerize']);
+const EVENT_NAMES = [TASK, FALLBACK_TASK, ...STYLE, 'RasterTask', 'GPUTask'];
+const TRACKED = new Set(EVENT_NAMES);
+const WORK_METRICS = ['rendererMainTaskMs', 'styleLayoutPaintMs', 'rasterWorkerMs', 'rendererCompositorMs', 'gpuMainTaskMs', 'vizCompositorMs', 'GPUTaskMs'];
+const METRICS = ['dataPrepMs', 'prepAndInitMs', 'jsMs', 'windowMs', 'jsIntervalMs', 'traceWindowMs', ...WORK_METRICS, 'totalTrackedThreadWorkMs', 'trackedBusyElapsedMs', 'hardwareGpuMs'];
+
+const threadKey = ({pid, tid}) => JSON.stringify([pid, tid]);
+const validTime = value => typeof value === 'number' && Number.isFinite(value);
+
+function unionMs(intervals, start, end) {
+	const clipped = intervals.map(event => [Math.max(start, event.start), Math.min(end, event.end)])
+		.filter(([a, b]) => b > a).sort((a, b) => a[0] - b[0]);
+	let total = 0;
+	let right = -Infinity;
+	for (const [a, b] of clipped) {
+		total += Math.max(0, b - Math.max(a, right));
+		right = Math.max(right, b);
+	}
+	return total / 1000;
+}
+
+function threadSumMs(intervals, start, end) {
+	const threads = new Map();
+	for (const event of intervals) {
+		if (!threads.has(event.key))
+			threads.set(event.key, []);
+		threads.get(event.key).push(event);
+	}
+	return [...threads.values()].reduce((sum, events) => sum + unionMs(events, start, end), 0);
+}
+
+function statistics(values) {
+	const sorted = values.filter(validTime).sort((a, b) => a - b);
+	const n = sorted.length;
+	return {
+		median: n === 0 ? null : (sorted[Math.floor((n - 1) / 2)] + sorted[Math.floor(n / 2)]) / 2,
+		min: n === 0 ? null : sorted[0],
+		max: n === 0 ? null : sorted[n - 1],
+		count: n,
+		missing: values.length - n,
+	};
+}
+
+function backendInfo(systemInfo) {
+	const gpu = systemInfo?.gpu;
+	const aux = gpu?.auxAttributes;
+	// Feature status can differ by operation. A physical device alone does not prove acceleration.
+	const renderer = aux?.glRenderer ?? null;
+	const implementation = aux?.glImplementationParts ?? aux?.displayType ?? null;
+	const software = /swiftshader|swangle|llvmpipe|softpipe|software/i.test([renderer, implementation].join(' '));
+	return {
+		kind: software ? 'software' : gpu ? 'unverified' : 'unknown',
+		renderer,
+		implementation,
+		devices: gpu?.devices ?? null,
+		featureStatus: gpu?.featureStatus ?? null,
+		warning: software
+			? 'Software graphics backend detected. GPU-process thread work is not hardware GPU execution.'
+			: 'Hardware acceleration is not established by thread names or device presence. Check featureStatus for each rendering operation.',
+	};
+}
+
+/** Analyze Chrome trace wall-duration intervals without estimating CPU or hardware GPU time. */
+export function analyzeBenchmarkTrace(traceObject, report) {
+	const events = Array.isArray(traceObject) ? traceObject : traceObject?.traceEvents;
+	if (!Array.isArray(events) || !Array.isArray(report?.samples))
+		throw new Error('Expected traceEvents and report.samples arrays');
+
+
+	if (report.captureId != null) {
+		const captures = events.filter(event => event.ph === 'I' && event.cat?.split(',').includes('blink.user_timing') && event.name?.startsWith('benchmark:capture:'));
+		if (captures.length !== 1 || captures[0].name !== 'benchmark:capture:' + report.captureId)
+			throw new Error('Trace/report capture ID mismatch');
+	}
+
+	const processes = new Map();
+	const threads = new Map();
+	const markers = new Map();
+	const eventTypes = Object.fromEntries(EVENT_NAMES.map(name => [name, {observedCount: 0, intervalCount: 0, available: false}]));
+	const parsing = {invalidIntervals: 0, unmatchedBegins: 0, unmatchedEnds: 0, mismatchedEnds: 0, ignoredAsyncEvents: 0};
+	let traceEnd = -Infinity;
+
+	function getThread(event) {
+		const key = threadKey(event);
+		if (!threads.has(key))
+			threads.set(key, {key, pid: event.pid, tid: event.tid, name: null, intervals: [], pairs: []});
+		return threads.get(key);
+	}
+
+	function addInterval(event, end) {
+		if (!TRACKED.has(event.name))
+			return;
+		if (!validTime(event.ts) || !validTime(end) || end < event.ts || event.pid == null || event.tid == null) {
+			parsing.invalidIntervals++;
+			return;
+		}
+		const thread = getThread(event);
+		thread.intervals.push({name: event.name, key: thread.key, start: event.ts, end});
+		eventTypes[event.name].intervalCount++;
+	}
+
+	for (const event of events) {
+		if (validTime(event.ts))
+			traceEnd = Math.max(traceEnd, event.ts, event.ph === 'X' && validTime(event.dur) ? event.ts + event.dur : event.ts);
+		if (event.ph === 'M') {
+			if (event.name === 'process_name')
+				processes.set(event.pid, event.args?.name);
+			if (event.name === 'thread_name')
+				getThread(event).name = event.args?.name ?? null;
+		}
+		if (typeof event.name === 'string' && event.name.startsWith('benchmark:sample-')) {
+			const match = /^benchmark:(sample-\d+):(start|js-end|end)$/.exec(event.name);
+			if (!match || event.ph !== 'I' || !event.cat?.split(',').includes('blink.user_timing') || !validTime(event.ts) || event.pid == null || event.tid == null)
+				throw new Error(`Invalid sample marker: ${event.name}`);
+			const [, id, phase] = match;
+			if (!markers.has(id))
+				markers.set(id, {});
+			if (markers.get(id)[phase])
+				throw new Error(`Duplicate marker: ${event.name}`);
+			markers.get(id)[phase] = event;
+			getThread(event);
+		}
+		if (TRACKED.has(event.name)) {
+			eventTypes[event.name].observedCount++;
+			if (!['X', 'B', 'E'].includes(event.ph))
+				parsing.ignoredAsyncEvents++;
+		}
+		if (event.ph === 'X')
+			addInterval(event, validTime(event.dur) ? event.ts + event.dur : NaN);
+		else if (event.ph === 'B' || event.ph === 'E')
+			getThread(event).pairs.push(event);
+	}
+
+	// Include unselected B/E events in the stack: their unnamed ends must not close a selected task.
+	for (const thread of threads.values()) {
+		const stack = [];
+		thread.pairs.sort((a, b) => a.ts - b.ts);
+		for (const event of thread.pairs) {
+			if (event.ph === 'B')
+				stack.push(event);
+			else {
+				const begin = stack.pop();
+				if (!begin)
+					parsing.unmatchedEnds++;
+				else if (event.name && event.name !== begin.name)
+					parsing.mismatchedEnds++;
+				else
+					addInterval(begin, event.ts);
+			}
+		}
+		parsing.unmatchedBegins += stack.length;
+		delete thread.pairs;
+		thread.taskEventName = thread.intervals.some(event => event.name === TASK) ? TASK
+			: thread.intervals.some(event => event.name === FALLBACK_TASK) ? FALLBACK_TASK : null;
+	}
+	for (const availability of Object.values(eventTypes))
+		availability.available = availability.intervalCount > 0;
+
+	const ids = new Set();
+	const windows = report.samples.map(sample => {
+		if (!/^sample-\d+$/.test(sample.id) || ids.has(sample.id))
+			throw new Error(`Invalid or duplicate report sample id: ${sample.id}`);
+		ids.add(sample.id);
+		if (typeof sample.warmup !== 'boolean')
+			throw new Error(`Expected boolean warmup for ${sample.id}`);
+		const marks = markers.get(sample.id);
+		for (const phase of ['start', 'js-end', 'end']) {
+			if (!marks?.[phase])
+				throw new Error(`Missing marker: benchmark:${sample.id}:${phase}`);
+		}
+		const start = marks.start;
+		if (['js-end', 'end'].some(phase => threadKey(marks[phase]) !== threadKey(start)))
+			throw new Error(`Markers must use the same thread: ${sample.id}`);
+		if (!(start.ts <= marks['js-end'].ts && marks['js-end'].ts <= marks.end.ts && start.ts < marks.end.ts))
+			throw new Error(`Invalid marker order: ${sample.id}`);
+		// Legacy captures lack an ID. Check spans too, allowing timer quantization.
+		for (const [metric, end] of [['jsMs', marks['js-end']], ['windowMs', marks.end]]) {
+			if (!validTime(sample[metric]) || Math.abs(sample[metric] - (end.ts - start.ts) / 1000) > 1)
+				throw new Error(`Trace/report duration mismatch: ${sample.id} ${metric}`);
+		}
+		const thread = threads.get(threadKey(start));
+		if ((processes.has(start.pid) && processes.get(start.pid) !== 'Renderer') || (thread.name && thread.name !== 'CrRendererMain'))
+			throw new Error(`Markers must use the renderer main thread: ${sample.id}`);
+		return {sample, pid: start.pid, tid: start.tid, key: thread.key, start: start.ts, jsEnd: marks['js-end'].ts, end: marks.end.ts};
+	});
+	for (const id of markers.keys()) {
+		if (!ids.has(id))
+			throw new Error(`Marker has no report sample: ${id}`);
+	}
+	const ordered = [...windows].sort((a, b) => a.start - b.start);
+	for (let i = 1; i < ordered.length; i++) {
+		if (ordered[i].start < ordered[i - 1].end)
+			throw new Error(`Overlapping sample windows: ${ordered[i - 1].sample.id}, ${ordered[i].sample.id}`);
+	}
+	const nextStarts = new Map(ordered.map((window, i) => [window.sample.id, ordered[i + 1]?.start ?? traceEnd]));
+	const boundaries = [];
+	const availabilityBySample = [];
+	const selectedThreads = new Map();
+
+	const samples = windows.map(window => {
+		const {sample, start, end} = window;
+		const buckets = Object.fromEntries(WORK_METRICS.map(metric => [metric, []]));
+		const tracked = [];
+		const perThread = [];
+		for (const thread of threads.values()) {
+			const gpu = processes.get(thread.pid) === 'GPU Process';
+			const renderer = thread.pid === window.pid && !gpu;
+			const main = thread.key === window.key;
+			const taskMetric = main ? 'rendererMainTaskMs'
+				: renderer && thread.name === 'Compositor' ? 'rendererCompositorMs'
+				: gpu && thread.name === 'CrGpuMain' ? 'gpuMainTaskMs'
+				: gpu && thread.name === 'VizCompositorThread' ? 'vizCompositorMs' : null;
+			const selected = [];
+			for (const event of thread.intervals) {
+				let metric = null;
+				if (taskMetric && event.name === thread.taskEventName)
+					metric = taskMetric;
+				else if (main && STYLE.has(event.name))
+					metric = 'styleLayoutPaintMs';
+				else if (renderer && !main && thread.name !== 'CrRendererMain' && thread.name !== 'Compositor' && event.name === 'RasterTask')
+					metric = 'rasterWorkerMs';
+				else if ((gpu || renderer) && event.name === 'GPUTask')
+					metric = 'GPUTaskMs';
+				if (metric) {
+					buckets[metric].push(event);
+					// Style events are a breakdown of main-thread work, never an additional total.
+					if (metric !== 'styleLayoutPaintMs')
+						selected.push(event);
+				}
+			}
+			if (selected.length) {
+				tracked.push(...selected);
+				const info = {pid: thread.pid, tid: thread.tid, processName: processes.get(thread.pid) ?? null, threadName: thread.name, taskEventName: thread.taskEventName};
+				selectedThreads.set(thread.key, info);
+				perThread.push({...info, trackedWorkMs: unionMs(selected, start, end)});
+			}
+		}
+		const availability = Object.fromEntries(WORK_METRICS.map(metric => [metric, buckets[metric].length > 0]));
+		availabilityBySample.push({id: sample.id, ...availability});
+		const metrics = Object.fromEntries(WORK_METRICS.map(metric => [metric,
+			availability[metric] ? threadSumMs(buckets[metric], start, end) : null,
+		]));
+		const tailEnd = nextStarts.get(sample.id);
+		boundaries.push({
+			id: sample.id,
+			crossingStartEvents: tracked.filter(event => event.start < start && event.end > start).length,
+			crossingEndEvents: tracked.filter(event => event.start < end && event.end > end).length,
+			tailEndUs: tailEnd,
+			tailWindowMs: (tailEnd - end) / 1000,
+			tailTrackedThreadWorkMs: threadSumMs(tracked, end, tailEnd),
+			tailTrackedBusyElapsedMs: unionMs(tracked, end, tailEnd),
+		});
+		return {
+			...sample,
+			markerPid: window.pid,
+			markerTid: window.tid,
+			startUs: start,
+			jsEndUs: window.jsEnd,
+			endUs: end,
+			jsIntervalMs: (window.jsEnd - start) / 1000,
+			traceWindowMs: (end - start) / 1000,
+			...metrics,
+			totalTrackedThreadWorkMs: perThread.reduce((sum, thread) => sum + thread.trackedWorkMs, 0),
+			trackedBusyElapsedMs: unionMs(tracked, start, end),
+			hardwareGpuMs: null,
+			threads: perThread,
+		};
+	});
+
+	const grouped = new Map();
+	for (const sample of samples) {
+		const key = JSON.stringify([sample.dpr, sample.variant]);
+		if (!grouped.has(key))
+			grouped.set(key, {dpr: sample.dpr, variant: sample.variant, warmupCount: 0, samples: []});
+		const group = grouped.get(key);
+		if (sample.warmup)
+			group.warmupCount++;
+		else
+			group.samples.push(sample);
+	}
+	const groups = [...grouped.values()].map(group => ({
+		dpr: group.dpr,
+		variant: group.variant,
+		sampleCount: group.samples.length,
+		warmupCount: group.warmupCount,
+		sampleIds: group.samples.map(sample => sample.id),
+		metrics: Object.fromEntries(METRICS.map(metric => [metric, statistics(group.samples.map(sample => sample[metric]))])),
+	}));
+	const backend = backendInfo(report.systemInfo);
+	const warnings = [
+		'Thread wall durations can include waits and preemption. They are not CPU time; tdur is not proportionally clipped.',
+		'Settling is a heuristic, not a completion fence. Tail work can include teardown, unrelated work, or the next setup; it is not attributed to the sample.',
+		'GPU-process and GPUTask intervals do not measure hardware GPU execution. hardwareGpuMs is null.',
+		'Tracked totals cover only selected observed intervals. Missing event types can cause incomplete totals; zero is not proof of no work.',
+		backend.warning,
+	];
+	if (boundaries.some(boundary => boundary.crossingEndEvents > 0))
+		warnings.push('Selected events cross sample end markers; those intervals were clipped at the marker.');
+	if (boundaries.some(boundary => boundary.tailTrackedThreadWorkMs > 0))
+		warnings.push('Selected work exists after sample end markers, outside the reported sample totals.');
+	if (Object.values(parsing).some(count => count > 0))
+		warnings.push('Some events could not form synchronous intervals. Inspect diagnostics.parsing.');
+	if (report.trace?.dataLoss || traceObject?.metadata?.dataLoss)
+		warnings.push('Trace data loss was reported; work totals are incomplete.');
+	if (windows.some(window => !processes.has(window.pid) || !threads.get(window.key).name))
+		warnings.push('Some marker process/thread names are missing; marker identity defines the renderer main thread.');
+
+	return {
+		samples,
+		groups,
+		diagnostics: {
+			eventTypes,
+			missingEventTypes: EVENT_NAMES.filter(name => !eventTypes[name].available),
+			availabilityBySample,
+			selectedThreads: [...selectedThreads.values()],
+			parsing,
+			boundaries,
+			backend,
+			warnings,
+		},
+		definitions: {
+			units: 'All durations are milliseconds. Marker timestamps ending in Us are trace microseconds.',
+			dataPrepMs: 'Reported duration of actual demo prepData conversion from already-parsed packed JSON. Excludes network transfer, JSON parsing, and synthetic-data cloning. Data preparation occurs before chart start, outside the start/js-end/end markers.',
+			prepAndInitMs: 'Reported sum dataPrepMs + jsMs: data preparation plus JS/DOM initialization, not end-to-end wall latency. Excludes the gap between preparation and chart start, rAF waits, and settling.',
+			jsMs: 'Unmodified report JS interval span, not exclusive JavaScript CPU time.',
+			windowMs: 'Unmodified report sample window duration.',
+			jsIntervalMs: 'Trace start to js-end elapsed span, including synchronous JS/DOM and other work or waits in that interval.',
+			traceWindowMs: 'Trace start to end elapsed span, including the settling interval.',
+			rendererMainTaskMs: 'Union of selected task intervals on the marker thread, clipped to [start, end].',
+			styleLayoutPaintMs: 'Union of UpdateLayoutTree, Layout, PrePaint, Paint, and Layerize on the marker thread. A main-work breakdown, not added to totals.',
+			rasterWorkerMs: 'Sum of per-thread RasterTask unions in the marker renderer, excluding main and compositor threads. RasterTask identifies worker work.',
+			rendererCompositorMs: 'Sum of selected task unions on Compositor threads in the marker renderer.',
+			gpuMainTaskMs: 'Sum of selected task unions on CrGpuMain threads in GPU Process; not hardware GPU time.',
+			vizCompositorMs: 'Sum of selected task unions on VizCompositorThread threads in GPU Process.',
+			GPUTaskMs: 'Sum of per-thread GPUTask unions in the marker renderer and GPU processes. Separate diagnostic, not hardware execution time.',
+			totalTrackedThreadWorkMs: 'Sum of per-thread unions of selected task, RasterTask, and GPUTask intervals. Cross-metric overlaps on one thread count once. Not latency or CPU time.',
+			trackedBusyElapsedMs: 'Global union of the same selected intervals across threads. Concurrent thread intervals count once; not end-to-end rendering latency.',
+			hardwareGpuMs: 'Null: no supported hardware GPU execution measurement is available from these event types.',
+			taskSelection: 'Use RunTask if valid intervals exist anywhere on that thread; otherwise use ThreadControllerImpl::RunTask. Never combine both wrappers.',
+			availability: 'A metric is null when no matching valid intervals exist anywhere in the trace for its relevant threads. Zero means available but no overlap in this sample, not proven absence of work.',
+			aggregation: 'Group by DPR and variant; exclude warmups. Median, min, and max use non-null values, with count and missing reported. Idle remains a separate variant; no baseline subtraction.',
+			boundaries: 'Crossing counts use selected raw intervals, not unions. Tail spans end to the next sample start, or trace end for the last sample. Tail work is unassigned.',
+			attribution: 'Renderer work is scoped to the marker process. GPU processes are shared: temporal overlap does not establish causality or chart ownership.',
+		},
+	};
+}

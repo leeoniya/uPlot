@@ -41,7 +41,7 @@ export function createDemo(root, frames, d3 = globalThis.d3, fc = globalThis.fc)
 		.yBandwidth(i => Math.abs(y(cells.yMin[i]) - y(cells.yMax[i])))
 		.colorInterpolate(t => palette[Math.round((palette.length - 1) * colorPosition(cells.minCount + t * (cells.maxCount - cells.minCount), cells.minCount, cells.maxCount, mode))]);
 	const draw = () => {
-		const ratio = window.devicePixelRatio || 1;
+		const ratio = window.devicePixelRatio;
 		context.setTransform(ratio, 0, 0, ratio, 0, 0);
 		context.clearRect(0, 0, width, height.valueAsNumber);
 		context.save();
@@ -69,7 +69,7 @@ export function createDemo(root, frames, d3 = globalThis.d3, fc = globalThis.fc)
 		innerWidth = width - margin.left - margin.right;
 		innerHeight = height.valueAsNumber - margin.top - margin.bottom;
 		host.style.height = `${height.value}px`;
-		const ratio = window.devicePixelRatio || 1;
+		const ratio = window.devicePixelRatio;
 		canvas.width = Math.round(width * ratio);
 		canvas.height = Math.round(height.valueAsNumber * ratio);
 		canvas.style.width = `${width}px`;

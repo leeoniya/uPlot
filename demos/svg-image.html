@@ -79,17 +79,15 @@
 		can.style.height = Math.ceil(rect.height) + "px";
 		document.body.appendChild(can);
 
-		let DOMURL = window.URL || window.webkitURL;
-
 		let img = new Image();
 		let blob = new Blob([svgText], {type: 'image/svg+xml;charset=utf-8'});
-		let url = DOMURL.createObjectURL(blob);
+		let url = URL.createObjectURL(blob);
 
 		ctx.drawImage(u.ctx.canvas, 0, (rect2.top - rect.top) * pxRatio);
 
 		img.onload = () => {
 			ctx.drawImage(img, 0, 0);
-			DOMURL.revokeObjectURL(url);
+			URL.revokeObjectURL(url);
 		};
 
 		img.src = url;

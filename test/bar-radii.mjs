@@ -1,32 +1,38 @@
 import assert from 'node:assert/strict';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
+import { rectH, rectV } from '../src/paths/utils.js';
 
 function checkCorners(u, path, baseline, value, radii) {
-	const arcs = path.log.filter(([name]) => name == 'arcTo').flatMap(entry => entry.slice(1));
-	assert.equal(arcs.length, 4, 'each rounded bar has four corner arcs');
+	const rects = path.log.filter(([name]) => name == 'roundRect').flatMap(entry => entry.slice(1));
+	assert.equal(rects.length, 1, 'each rounded bar uses one native rounded rectangle');
+	const [x, y, w, h, corners] = rects[0];
+	const points = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+	assert.equal(corners.length, 4);
 
 	const axis = u.scales.y.ori == 0 ? 0 : 1;
-	const along = arcs.map(args => args[axis]);
-	const across = arcs.map(args => args[1 - axis]);
+	assert.equal(Math.sign(w * h), axis == 0 ? -1 : 1, 'preserves path winding');
+	const along = points.map(point => point[axis]);
+	const across = points.map(point => point[1 - axis]);
 	const length = Math.max(...along) - Math.min(...along);
 	const thickness = Math.max(...across) - Math.min(...across);
 	const valuePos = u.valToPos(value, 'y', true);
 	const basePos = u.valToPos(baseline, 'y', true);
 
 	let valueCorners = 0;
-	for (const args of arcs) {
-		const atValue = Math.abs(args[axis] - valuePos) < Math.abs(args[axis] - basePos);
+	for (let i = 0; i < points.length; i++) {
+		const atValue = Math.abs(points[i][axis] - valuePos) < Math.abs(points[i][axis] - basePos);
 		valueCorners += atValue;
 		const expected = Math.min(radii[atValue ? 0 : 1] * thickness, thickness / 2, length / 2);
-		assert.ok(Math.abs(args[4] - expected) < 1e-9,
-			`${atValue ? 'value' : 'baseline'} corner: expected radius ${expected}, got ${args[4]}`);
+		assert.ok(Math.abs(corners[i] - expected) < 1e-9,
+			`${atValue ? 'value' : 'baseline'} corner: expected radius ${expected}, got ${corners[i]}`);
 	}
 	assert.equal(valueCorners, 2);
 }
 
 const variants = [
 	{name: 'scalar', radius: 0.3, radii: [0.3, 0], width: 0},
+	{name: 'clamped asymmetric pair', radius: [2, 0.1], radii: [2, 0.1], width: 0},
 	{name: 'pair with stroke', radius: [0.3, 0.1], radii: [0.3, 0.1], width: 2},
 	{name: 'callback with colors', radius: () => [0.3, 0.1], radii: [0.3, 0.1], width: 2, colors: true},
 ];
@@ -34,6 +40,27 @@ const variants = [
 const sources = ['zero', 'positive fillTo', 'negative fillTo', 'disp', 'band', 'stack'];
 
 describe('bar value and baseline radii', () => {
+	it('clamps each radius independently for short and zero-height bars', () => {
+		for (const height of [0, 4, 100]) {
+			const end = Math.min(30, 10, height / 2);
+			const base = Math.min(1, height / 2);
+			const horizontal = new Path2D();
+			const vertical = new Path2D();
+			rectH(horizontal, 10, 20, 20, height, 30, 1);
+			rectV(vertical, 10, 20, 20, height, 30, 1);
+			assert.deepEqual(horizontal.log, [['roundRect', [10, 20, 20, height, [end, end, base, base]]]]);
+			assert.deepEqual(vertical.log, [['roundRect', [20, 30, height, -20, [end, base, base, end]]]]);
+		}
+	});
+
+	it('keeps the plain rectangle fast path when both radii are zero', () => {
+		const horizontal = new Path2D();
+		const vertical = new Path2D();
+		rectH(horizontal, 10, 20, 30, 40);
+		rectV(vertical, 10, 20, 30, 40);
+		assert.deepEqual(horizontal.log, [['rect', [10, 20, 30, 40]]]);
+		assert.deepEqual(vertical.log, [['rect', [20, 10, 40, 30]]]);
+	});
 	for (const horizontal of [false, true]) {
 		for (const dir of [1, -1]) {
 			for (const source of sources) {

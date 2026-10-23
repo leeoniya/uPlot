@@ -59,7 +59,7 @@
 				if (!globalThis.echarts || document.querySelector('#echarts-gl').dataset.loaded != 'true')
 					throw new Error('ECharts or ECharts GL did not load from the CDN');
 				const canvas = document.createElement('canvas');
-				const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+				const gl = canvas.getContext('webgl');
 				if (!gl)
 					throw new Error('WebGL is unavailable in this browser');
 				gl.getExtension('WEBGL_lose_context')?.loseContext();

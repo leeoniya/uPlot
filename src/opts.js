@@ -609,8 +609,7 @@ export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 
 	let fmt = numAxisFmts.get(dec);
 	if (fmt == null) {
-		// Older Intl implementations support at most 20 fraction digits; toFixed supports 100.
-		fmt = dec > 100 ? v => v.toExponential() : dec > 20 ? v => v.toFixed(dec) :
+		fmt = dec > 100 ? v => v.toExponential() :
 			new Intl.NumberFormat(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }).format;
 		numAxisFmts.set(dec, fmt);
 	}

@@ -465,7 +465,6 @@ var uPlot = (function() {
 		}
 		return data;
 	}
-	const microTask = typeof queueMicrotask == "undefined" ? (fn) => Promise.resolve().then(fn) : queueMicrotask;
 	function sortCols(table) {
 		let head = table[0];
 		let rlen = head.length;
@@ -1252,7 +1251,7 @@ var uPlot = (function() {
 		let dec = numDec(splits);
 		let fmt = numAxisFmts.get(dec);
 		if (fmt == null) {
-			fmt = dec > 100 ? (v) => v.toExponential() : dec > 20 ? (v) => v.toFixed(dec) : new Intl.NumberFormat(void 0, {
+			fmt = dec > 100 ? (v) => v.toExponential() : new Intl.NumberFormat(void 0, {
 				minimumFractionDigits: dec,
 				maximumFractionDigits: dec
 			}).format;
@@ -2096,11 +2095,20 @@ var uPlot = (function() {
 		return pxAlign == 0 ? retArg0 : pxAlign == 1 ? round : (v) => incrRound(v, pxAlign);
 	}
 	function rect(ori) {
-		let moveTo = ori == 0 ? moveToH : moveToV;
-		let arcTo = ori == 0 ? (p, x1, y1, x2, y2, r) => {
-			p.arcTo(x1, y1, x2, y2, r);
-		} : (p, y1, x1, y2, x2, r) => {
-			p.arcTo(x1, y1, x2, y2, r);
+		let roundRect = ori == 0 ? (p, x, y, w, h, endRad, baseRad) => {
+			p.roundRect(x, y, w, h, [
+				endRad,
+				endRad,
+				baseRad,
+				baseRad
+			]);
+		} : (p, x, y, w, h, endRad, baseRad) => {
+			p.roundRect(y, x + w, h, -w, [
+				endRad,
+				baseRad,
+				baseRad,
+				endRad
+			]);
 		};
 		let rect = ori == 0 ? (p, x, y, w, h) => {
 			p.rect(x, y, w, h);
@@ -2112,12 +2120,7 @@ var uPlot = (function() {
 			else {
 				endRad = min(endRad, w / 2, h / 2);
 				baseRad = min(baseRad, w / 2, h / 2);
-				moveTo(p, x + endRad, y);
-				arcTo(p, x + w, y, x + w, y + h, endRad);
-				arcTo(p, x + w, y + h, x, y + h, baseRad);
-				arcTo(p, x, y + h, x, y, baseRad);
-				arcTo(p, x, y, x + w, y, endRad);
-				p.closePath();
+				roundRect(p, x, y, w, h, endRad, baseRad);
 			}
 		};
 	}
@@ -4355,7 +4358,7 @@ var uPlot = (function() {
 				let run = queuedCommit = () => {
 					if (queuedCommit == run) _commit();
 				};
-				microTask(run);
+				queueMicrotask(run);
 			}
 		}
 		function batch(fn, _deferHooks = false) {

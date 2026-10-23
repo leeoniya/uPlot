@@ -52,7 +52,6 @@ import {
 	numDec,
 	fixedDec,
 	join,
-	microTask,
 	retArg0,
 	retArg1,
 	retNull,
@@ -2682,7 +2681,7 @@ export default function uPlot(opts, data, then) {
 				if (queuedCommit == run)
 					_commit();
 			};
-			microTask(run);
+			queueMicrotask(run);
 		}
 	}
 

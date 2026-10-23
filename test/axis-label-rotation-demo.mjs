@@ -105,7 +105,8 @@ describe('random label rotation demo', () => {
 					},
 					measureText(text) {
 						globalThis[measureHook]?.({ text: String(text), font: this.font, ctx: this });
-						return { width: String(text).length * parseFloat(this.font) / 2 };
+						const size = parseFloat(this.font);
+						return { width: String(text).length * size / 2, actualBoundingBoxAscent: size * .8, actualBoundingBoxDescent: size * .2 };
 					},
 				};
 			}

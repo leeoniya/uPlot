@@ -266,19 +266,16 @@ export function costlyLerp(i, idx0, idx1, _dirX, dataY) {
 */
 
 function rect(ori) {
-	let moveTo = ori == 0 ?
-		moveToH :
-		moveToV;
-
-	let arcTo = ori == 0 ?
-		(p, x1, y1, x2, y2, r) => { p.arcTo(x1, y1, x2, y2, r) } :
-		(p, y1, x1, y2, x2, r) => { p.arcTo(x1, y1, x2, y2, r) };
+	let roundRect = ori == 0 ?
+		(p, x, y, w, h, endRad, baseRad) => { p.roundRect(x, y, w, h, [endRad, endRad, baseRad, baseRad]); } :
+		// Negative height preserves the winding of the transposed path.
+		(p, x, y, w, h, endRad, baseRad) => { p.roundRect(y, x + w, h, -w, [endRad, baseRad, baseRad, endRad]); };
 
 	let rect = ori == 0 ?
 		(p, x, y, w, h) => { p.rect(x, y, w, h); } :
 		(p, y, x, h, w) => { p.rect(x, y, w, h); };
 
-	// TODO (pending better browser support): https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/roundRect
+
 	return (p, x, y, w, h, endRad = 0, baseRad = 0) => {
 		if (endRad == 0 && baseRad == 0)
 			rect(p, x, y, w, h);
@@ -286,13 +283,7 @@ function rect(ori) {
 			endRad  = min(endRad,  w / 2, h / 2);
 			baseRad = min(baseRad, w / 2, h / 2);
 
-			// adapted from https://stackoverflow.com/questions/1255512/how-to-draw-a-rounded-rectangle-using-html-canvas/7838871#7838871
-			moveTo(p, x + endRad, y);
-			arcTo(p, x + w, y, x + w, y + h, endRad);
-			arcTo(p, x + w, y + h, x, y + h, baseRad);
-			arcTo(p, x, y + h, x, y, baseRad);
-			arcTo(p, x, y, x + w, y, endRad);
-			p.closePath();
+			roundRect(p, x, y, w, h, endRad, baseRad);
 		}
 	};
 }

@@ -33,7 +33,8 @@ describe('barChartPlugin', () => {
 					measureText(text) {
 						const font = this.log.at(-1)[1];
 						globalThis[measureHook]?.({ text: String(text), font, ctx: this });
-						return { width: String(text).length * parseFloat(font) / 2 };
+						const size = parseFloat(font);
+						return { width: String(text).length * size / 2, actualBoundingBoxAscent: size * .8, actualBoundingBoxDescent: size * .2 };
 					},
 				};
 

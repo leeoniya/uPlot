@@ -104,18 +104,31 @@ describe('numeric axis label precision', () => {
 		assert.deepEqual(labels([.003, .006, .009], .003), localized([.003, .006, .009], 3));
 	});
 
-	it('retains tiny increments beyond the portable Intl fraction-digit limit', () => {
-		for (const [incr, dec] of [[2.5e-24, 25], [1e-32, 32]]) {
+	it('localizes tiny increments through the Intl fraction-digit limit', () => {
+		for (const [incr, dec] of [[1e-20, 20], [1e-21, 21], [2.5e-24, 25], [1e-32, 32], [1e-100, 100]]) {
 			const values = [-incr, 0, incr, incr * 2];
 			const actual = labels(values, incr);
-			assert.deepEqual(actual, values.map(value => value.toFixed(dec)));
+			assert.deepEqual(actual, localized(values, dec));
 			assert.equal(new Set(actual).size, values.length);
 		}
 	});
 
-	it('uses scientific notation rather than zeros beyond toFixed precision', () => {
-		const values = [0, 1e-200, 2e-200];
-		assert.deepEqual(labels(values, 1e-200), values.map(value => value.toExponential()));
+	it('uses decimal Intl formatting rather than exposing binary toFixed residue', () => {
+		const values = [-1.1, 0, 1e-21, 1.1, 1000];
+		const actual = labels(values, 1e-21);
+		assert.deepEqual(actual, localized(values, 21));
+		assert.notEqual(actual[3], values[3].toFixed(21));
+	});
+
+	it('preserves filtered labels and negative zero above 20 fraction digits', () => {
+		assert.deepEqual(labels([null, -0, undefined, 1e-100], 1e-100), ['', ...localized([0], 100), '', ...localized([1e-100], 100)]);
+	});
+
+	it('uses scientific notation rather than zeros beyond Intl precision', () => {
+		for (const incr of [1e-101, 1e-200, Number.MIN_VALUE]) {
+			const values = [0, incr, incr * 2];
+			assert.deepEqual(labels(values, incr), values.map(value => value.toExponential()));
+		}
 	});
 
 	it('does not change the public number formatter or legend formatting', () => {
