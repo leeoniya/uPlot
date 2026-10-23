@@ -1,5 +1,6 @@
 import {demoDependencies, dependencyUrl, assertDemoAvailable} from './demo-dependencies.mjs';
 import {applyDemoStyles, setupDemo} from './demo-fixture.mjs';
+import {prepareDemoRuntime} from './demo-runtime.mjs';
 
 const dependencyLoads = new Map();
 function loadDependency(dependency) {
@@ -36,11 +37,15 @@ export async function runDemo(variant) {
 
 	try {
 		assertDemoAvailable(variant, globalThis.benchmarkLightningChartOptions);
-		for (const dependency of demoDependencies[variant])
-			await loadDependency(dependency);
+		for (const dependency of demoDependencies[variant]) {
+			if (dependency.type !== 'wasm' && dependency.type !== 'module')
+				await loadDependency(dependency);
+		}
+		await prepareDemoRuntime(variant);
 
 		await applyDemoStyles();
 		const source = variant === 'idle' ? null : await import(`./${variant}.mjs`);
+		await source?.prepareRuntime?.();
 		const host = setupDemo(variant, parent);
 		if (!source) {
 			wait.textContent = 'Done!';

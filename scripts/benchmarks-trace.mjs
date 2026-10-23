@@ -6,6 +6,18 @@ import { CDP, stopTrace } from './profile-manual.mjs';
 import { captureBenchmarkSamples } from './benchmarks-samples.mjs';
 import { readProcessMemory } from './bench-process-memory.mjs';
 import { summarizeProcessMemory } from './analyze-benchmarks-process-memory.mjs';
+import { createWebGLCapture } from './bench-webgl.mjs';
+import { SAMPLE_TIMEOUT_MS, createSampleWatchdog } from './bench-sample-timeout.mjs';
+
+export function benchmarkTraceConfig() {
+	return {
+		recordMode: 'recordUntilFull', traceBufferSizeInKb: 128 * 1024,
+		// Chrome emits RunTask and GPUTask here; RasterTask also lists cc.
+		// These are host-thread wall intervals, not device execution or completion.
+		// More GPU categories do not establish that an async chart finished rendering.
+		includedCategories: ['blink.user_timing', 'disabled-by-default-devtools.timeline'],
+	};
+}
 
 async function connect(url) {
 	const socket = new WebSocket(url);
@@ -41,7 +53,7 @@ async function evaluate(client, expression) {
 	return result.result.value;
 }
 
-export async function captureBenchmarkTrace({profile, url, cache, trace = true, raf = false, memory = false, dpr = 1, processPid = null, traceName = 'trace-chrome.json', lightningOptions}) {
+export async function captureBenchmarkTrace({profile, url, cache, trace = true, raf = false, memory = false, dpr = 1, processPid = null, traceName = 'trace-chrome.json', lightningOptions, sciChartOptions, sampleTimeoutMs = SAMPLE_TIMEOUT_MS, onSampleTimeout = () => {}}) {
 	if (raf && (trace || memory))
 		throw new Error('rAF measurement requires a separate pass without tracing or memory polling.');
 	if (memory && (!Number.isSafeInteger(processPid) || processPid <= 0))
@@ -58,6 +70,19 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 	const browser = await connect(`ws://127.0.0.1:${port}${browserPath}`);
 	let page;
 	let recording = false;
+	let timeoutError;
+	let watchdog;
+	let sampleBoundary;
+	const timedOut = error => {
+		timeoutError = error;
+		try {
+			Promise.resolve(onSampleTimeout(error)).catch(() => {});
+		}
+		finally {
+			try { page?.close(); }
+			finally { browser.close(); }
+		}
+	};
 	try {
 		const systemInfo = await browser.send('SystemInfo.getInfo');
 		const response = await fetch(endpoint + '/json/list', {signal: AbortSignal.timeout(5000)});
@@ -67,23 +92,47 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 		page = await connect(target.webSocketDebuggerUrl);
 		await page.send('Page.enable');
 		await page.send('Runtime.enable');
+		if (raf) {
+			watchdog = createSampleWatchdog(timedOut, {timeoutMs: sampleTimeoutMs});
+			let activeVariant = null;
+			sampleBoundary = event => {
+				if (timeoutError)
+					return;
+				try {
+					const message = JSON.parse(event.data);
+					if (message?.method !== 'Runtime.bindingCalled' || message.params?.name !== 'benchmarkSampleBoundary')
+						return;
+					const boundary = JSON.parse(message.params.payload);
+					if (typeof boundary?.variant !== 'string' || !boundary.variant)
+						return;
+					if (boundary.phase === 'start' && activeVariant === null) {
+						watchdog.start(boundary.variant);
+						activeVariant = boundary.variant;
+					}
+					else if (boundary.phase === 'end' && activeVariant === boundary.variant) {
+						watchdog.stop();
+						activeVariant = null;
+					}
+				}
+				catch {}
+			};
+			page.socket.addEventListener('message', sampleBoundary);
+			await page.send('Runtime.addBinding', {name: 'benchmarkSampleBoundary'});
+		}
+				if (!raf)
+					await page.send('Page.addScriptToEvaluateOnNewDocument', {source: `globalThis.benchmarkWebGL = (${createWebGLCapture.toString()})();`});
+				if (sciChartOptions)
+					await page.send('Page.addScriptToEvaluateOnNewDocument', {source: `globalThis.benchmarkSciChartOptions = ${JSON.stringify(sciChartOptions)};`});
 		// Supply credentials before tracing, without putting them in files or reports.
 		if (lightningOptions)
 			await page.send('Page.addScriptToEvaluateOnNewDocument', {source: `globalThis.benchmarkLightningChartOptions = ${JSON.stringify(lightningOptions)};`});
 		await page.send('Emulation.setDeviceMetricsOverride', {width: 1920, height: 900, deviceScaleFactor: dpr, mobile: false});
 
-		const config = {
-			recordMode: 'recordUntilFull', traceBufferSizeInKb: 128 * 1024,
-			// RunTask, RasterTask, and GPUTask share the disabled timeline category.
-			// Broader categories add detail that the headline work totals do not use.
-			includedCategories: [
-				'blink.user_timing', 'disabled-by-default-devtools.timeline',
-			],
-		};
+		const config = benchmarkTraceConfig();
 		// Combined runs include the tracer in both cold memory checkpoints.
 		// Recording buffers can still grow later; this is an instrumented footprint.
 		if (trace) {
-			await browser.send('Tracing.start', {transferMode: 'ReturnAsStream', streamFormat: 'json', traceConfig: config});
+			await browser.send('Tracing.start', {transferMode: 'ReturnAsStream', streamFormat: 'json', streamCompression: 'gzip', traceConfig: config});
 			recording = true;
 		}
 		const processRead = memory ? async () => {
@@ -122,7 +171,8 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 		const loaded = memory ? await checkpoint() : null;
 		const report = raf
 			? await evaluate(page, 'globalThis.runBenchmarkTrace({raf: true})')
-			: await captureBenchmarkSamples(page, evaluate, {processRead});
+			: await captureBenchmarkSamples(page, evaluate, {processRead, sampleTimeoutMs, onSampleTimeout: timedOut});
+		report.sampleTimeoutMs = sampleTimeoutMs;
 		if (memory) {
 			report.blank = blank;
 			report.loaded = loaded;
@@ -143,7 +193,7 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 		if (!trace)
 			return {...report, trace: null, systemInfo};
 		await delay(300);
-		const tracePath = join(cache, traceName);
+		const tracePath = join(cache, traceName.endsWith('.gz') ? traceName : traceName + '.gz');
 		const file = await open(tracePath, 'w');
 		let saved;
 		try {
@@ -155,12 +205,21 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 		}
 		if (saved.dataLoss)
 			throw new Error('Chrome lost trace data; shorten the recording before interpreting results.');
-		return {...report, trace: {path: tracePath, ...saved, config}, systemInfo};
+		// bytes counts the saved gzip bytes, not the decompressed JSON document.
+		return {...report, trace: {path: tracePath, ...saved, compression: 'gzip', compressedBytes: saved.bytes, config}, systemInfo};
+	}
+	catch (error) {
+		throw timeoutError ?? error;
 	}
 	finally {
-		if (recording)
+		watchdog?.stop();
+		if (sampleBoundary)
+			page.socket.removeEventListener('message', sampleBoundary);
+		if (recording && !timeoutError)
 			await browser.send('Tracing.end').catch(() => {});
-		page?.close();
-		browser.close();
+		if (!timeoutError) {
+			page?.close();
+			browser.close();
+		}
 	}
 }

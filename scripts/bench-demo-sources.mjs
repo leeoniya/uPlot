@@ -23,7 +23,7 @@ export function loadBenchDemoSources(root, variant = null) {
 			throw error;
 		}
 	};
-	for (const route of ['/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs', '/bench/demo.css'])
+	for (const route of ['/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs', '/bench/demo-runtime.mjs', '/bench/framework-runtime.mjs', '/bench/demo.css'])
 		read(route);
 
 	const variants = variant === null ? Object.keys(demoDependencies) : [variant];
@@ -31,11 +31,12 @@ export function loadBenchDemoSources(root, variant = null) {
 		if (id !== 'idle')
 			read(`/bench/${id}.mjs`);
 		for (const dependency of demoDependencies[id]) {
-					const {name, version, path, type} = dependency;
+			const {name, version, path, type, option, global} = dependency;
 			if (name) {
-				const cacheName = `${name.replace(/^@/, '').replaceAll('/', '-')}-${version}-${path.replaceAll('/', '-')}`;
-				dependencies.push({name, version, url: dependencyUrl(dependency),
-					route: '/bench/vendor/' + cacheName, cacheName, ...(type === 'style' ? {type} : {})});
+				const cacheName = `${name.replace(/^@/, '').replaceAll('/', '-')}-${version}-${path.replaceAll('/', '-')}${type === 'module' ? '-' + id : ''}`;
+				if (!dependencies.some(existing => existing.cacheName === cacheName))
+					dependencies.push({name, version, url: dependencyUrl(dependency),
+						route: '/bench/vendor/' + cacheName, cacheName, ...(type ? {type} : {}), ...(option ? {option} : {}), ...(global ? {global} : {})});
 			}
 			else {
 				const route = new URL(path, 'http://localhost/bench/').pathname;

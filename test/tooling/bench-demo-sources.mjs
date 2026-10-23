@@ -1,22 +1,42 @@
 import assert from 'node:assert/strict';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { runInNewContext } from 'node:vm';
 import { checkModuleSyntax, demos } from '../helpers/bench-demo-evaluator.mjs';
 import { loadBenchDemoSources } from '../../scripts/bench-demo-sources.mjs';
-import { demoDependencies } from '../../bench/demo-dependencies.mjs';
+import { demoDependencies, benchmarkRestrictions, assertBenchmarkAvailable } from '../../bench/demo-dependencies.mjs';
 
 const root = new URL('../../', import.meta.url);
 const variants = Object.keys(demoDependencies).filter(id => id !== 'idle');
-const shared = ['/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs', '/bench/demo.css'];
+const shared = ['/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs', '/bench/demo-runtime.mjs', '/bench/framework-runtime.mjs', '/bench/demo.css'];
 
 function remoteDependencies(variants) {
-	return variants.flatMap(id => demoDependencies[id].filter(dep => dep.name).map(({name, version, path, type, url}) => {
-		const cacheName = `${name.replace(/^@/, '').replaceAll('/', '-')}-${version}-${path.replaceAll('/', '-')}`;
+	const dependencies = variants.flatMap(id => demoDependencies[id].filter(dep => dep.name).map(({name, version, path, type, option, global, url}) => {
+		const cacheName = `${name.replace(/^@/, '').replaceAll('/', '-')}-${version}-${path.replaceAll('/', '-')}${type === 'module' ? '-' + id : ''}`;
 		return {name, version, url: url ?? `https://cdn.jsdelivr.net/npm/${name}@${version}/${path}`,
-			route: '/bench/vendor/' + cacheName, cacheName, ...(type === 'style' ? {type} : {})};
+			route: '/bench/vendor/' + cacheName, cacheName, ...(type ? {type} : {}), ...(option ? {option} : {}), ...(global ? {global} : {})};
 	}));
+	return [...new Map(dependencies.map(dep => [dep.cacheName, dep])).values()];
+}
+
+// Exercise the CLI's actual download/page/server code without installing Chrome,
+// opening sockets, or starting a benchmark worker.
+function workerAssets(cache, fetch, {variant = 'scichart', bundleModuleDependencies = () => assert.fail('unexpected module bundle')} = {}) {
+	const source = readFileSync(new URL('scripts/benchmarks.mjs', root), 'utf8');
+	const start = source.indexOf('const {files, dependencies, localScripts, localStyles} = loadBenchDemoSources(');
+	const end = source.indexOf('const profile =', start);
+	const serverStart = source.indexOf('const server = createServer(');
+	const serverEnd = source.indexOf('const timeoutMs =', serverStart);
+	assert.ok(start >= 0 && end > start && serverStart > end && serverEnd > serverStart);
+	return runInNewContext(`(async () => {\n${source.slice(start, end)}\n${source.slice(serverStart, serverEnd)}\nreturn {files, dependencies, page, server};\n})()`, {
+		root, cache, fetch, loadBenchDemoSources, bundleModuleDependencies, demoDependencies, values: {variant},
+		join, existsSync, readFileSync, writeFileSync, createHash, Buffer, URL, AbortSignal,
+		console: {log() {}}, createServer: handler => handler,
+		rejectResult: error => assert.fail(error),
+	});
 }
 
 function localRoutes(variants, type) {
@@ -66,7 +86,7 @@ describe('benchmark demo asset loader', () => {
 		assert.throws(() => checkModuleSyntax('export const = ;'));
 	});
 
-	it('loads all literal modules including blocked adapters, shared assets, and manifest dependencies by default or null', () => {
+	it('loads all literal modules including license-gated adapters, shared assets, and manifest dependencies by default or null', () => {
 		checkAssets(loadBenchDemoSources(root), variants);
 		assert.deepEqual(loadBenchDemoSources(root, null), loadBenchDemoSources(root));
 		assert.deepEqual(loadBenchDemoSources(root.href), loadBenchDemoSources(root));
@@ -87,7 +107,7 @@ describe('benchmark demo asset loader', () => {
 		assert.equal(result.files.has('/bench/d3.mjs'), false);
 	});
 
-	it('idle loads only shared fixture, manifest, and CSS assets', () => {
+	it('idle loads only shared fixture, manifest, binary/module and framework runtimes, and CSS assets', () => {
 		checkAssets(loadBenchDemoSources(root, 'idle'), []);
 	});
 
@@ -125,9 +145,273 @@ describe('benchmark demo asset loader', () => {
 		]);
 		for (const dep of dependencies) {
 			assert.equal(dep.route, '/bench/vendor/' + dep.cacheName);
-			assert.match(dep.cacheName, dep.type === 'style' ? /^[\w.-]+\.css$/ : /^[\w.-]+\.js$/);
+			if (dep.type === 'module')
+				assert.match(dep.cacheName, /^[\w.-]+\.mjs-(?:recharts|muicharts|financialcharts|visx)$/);
+			else {
+				const extension = dep.type === 'wasm' ? 'wasm' : dep.type === 'style' ? 'css' : 'js';
+				assert.match(dep.cacheName, new RegExp('^[\\w.-]+\\.' + extension + '$'));
+			}
 		}
 	});
+
+	it('deduplicates the shared D3 dependency while preserving d3fc dependency order', () => {
+		const d3 = loadBenchDemoSources(root, 'd3').dependencies;
+		const d3fc = loadBenchDemoSources(root, 'd3fc').dependencies;
+		assert.deepEqual(d3fc.map(dep => dep.name), ['d3', 'd3fc']);
+		assert.deepEqual(d3fc[0], d3[0]);
+		const all = loadBenchDemoSources(root).dependencies;
+		assert.deepEqual(all.filter(dep => dep.name === 'd3'), d3);
+		assert.ok(all.findIndex(dep => dep.name === 'd3') < all.findIndex(dep => dep.name === 'd3fc'));
+	});
+
+	it('keeps framework modules variant-scoped with explicit namespace globals and pinned remote URLs', () => {
+		const all = loadBenchDemoSources(root).dependencies;
+		for (const id of ['recharts', 'muicharts', 'financialcharts', 'visx']) {
+			const {dependencies, files, localScripts, localStyles} = loadBenchDemoSources(root, id);
+			assert.deepEqual(localScripts, []);
+			assert.deepEqual(localStyles, ['/bench/demo.css']);
+			assert.ok(files.has('/bench/framework-runtime.mjs'));
+			assert.equal(dependencies.length, demoDependencies[id].length);
+			assert.deepEqual(dependencies.map(dep => dep.global), demoDependencies[id].map(dep => dep.global));
+			assert.equal(new Set(dependencies.map(dep => dep.global)).size, dependencies.length);
+			dependencies.forEach((dep, i) => {
+				assert.equal(dep.type, 'module');
+				assert.equal(dep.url, demoDependencies[id][i].url);
+				assert.match(dep.url, /^https:\/\/esm\.sh\/.+@\d+\.\d+\.\d+/);
+				assert.ok(dep.cacheName.endsWith('.mjs-' + id));
+				assert.equal(files.has(dep.route), false, 'bundling belongs to worker setup');
+				assert.equal(all.filter(other => other.cacheName === dep.cacheName).length, 1);
+			});
+		}
+		const react = all.filter(dep => dep.global === 'benchmarkReact');
+		assert.equal(react.length, 4, 'shared package URLs must not merge variant bundles');
+		assert.equal(new Set(react.map(dep => dep.route)).size, 4);
+	});
+
+	it('preserves both SciChart binary types and runtime option names without treating them as scripts or styles', () => {
+		const {dependencies, localScripts, localStyles, files} = loadBenchDemoSources(root, 'scichart');
+		assert.deepEqual(dependencies.map(dep => [dep.name, dep.version, dep.type, dep.option]), [
+			['scichart', '6.0.14', undefined, undefined],
+			['scichart', '6.0.14', 'wasm', 'wasmBinary'],
+			['scichart', '6.0.14', 'wasm', 'wasmNoSimdBinary'],
+		]);
+		assert.deepEqual(localScripts, []);
+		assert.deepEqual(localStyles, ['/bench/demo.css']);
+		assert.ok(files.has('/bench/demo-runtime.mjs'));
+		for (const dep of dependencies.filter(dep => dep.type === 'wasm')) {
+			assert.ok(dep.route.endsWith('.wasm'));
+			assert.ok(dep.url.endsWith('.wasm'));
+			assert.equal(files.has(dep.route), false, 'loader leaves remote downloads to the worker');
+		}
+	});
+
+	it('rejects explicit JSCharting in CLI and worker modes before browser setup or suite side effects', async () => {
+		const source = readFileSync(new URL('scripts/benchmarks.mjs', root), 'utf8');
+		const start = source.indexOf('const lightningOptions =');
+		const browser = source.indexOf('const binary = await chromeBinary(', start);
+		const end = source.indexOf('\n', browser);
+		assert.ok(start >= 0 && browser > start && end > browser);
+		for (const worker of [false, true]) {
+			for (const installOnly of [false, true]) {
+				const effects = [];
+				await assert.rejects(runInNewContext(`(async () => {\n${source.slice(start, end)}\n})()`, {
+					values: {variant: 'jscharting', worker, 'install-only': installOnly}, dpr: 1,
+					measurements: {trace: true, memory: false, raf: false},
+					assertBenchmarkAvailable,
+					process: {env: {LIGHTNINGCHART_LICENSE: 'test', LIGHTNINGCHART_LICENSE_INFORMATION: '{invalid'}, exit: code => effects.push(['exit', code])},
+					console: {log: () => effects.push('log')},
+					runBenchmarkSuite: async () => effects.push('suite'),
+					chromeVersion: 'test', chromeBinary: async () => effects.push('browser'),
+				}), error => error.message === `jscharting: ${benchmarkRestrictions.jscharting}`);
+				assert.deepEqual(effects, []);
+			}
+		}
+	});
+
+	it('ignores malformed LightningChart metadata for explicit uPlot but validates it for default and LightningChart runs', async () => {
+		const source = readFileSync(new URL('scripts/benchmarks.mjs', root), 'utf8');
+		const start = source.indexOf('const lightningOptions =');
+		const end = source.indexOf('const binary = await chromeBinary(', start);
+		assert.ok(start >= 0 && end > start);
+		const env = Object.freeze({
+			LIGHTNINGCHART_LICENSE: 'test-license-not-a-vendor-key',
+			LIGHTNINGCHART_LICENSE_INFORMATION: '{"private-metadata":',
+		});
+		for (const variant of ['uplot', undefined, 'lightningchart']) {
+			const requests = [], exits = [], logs = [];
+			const pending = runInNewContext(`(async () => {\n${source.slice(start, end)}\n})()`, {
+				values: {variant, gpu: false}, dpr: 1,
+				measurements: {trace: true, memory: false, raf: false},
+				assertBenchmarkAvailable,
+				process: {env, exit: code => exits.push(code)},
+				console: {log: (...args) => logs.push(args)},
+				runBenchmarkSuite: async options => { requests.push(options); },
+			});
+			if (variant === 'uplot') {
+				await pending;
+				assert.equal(requests.length, 1);
+				assert.equal(requests[0].variant, 'uplot');
+				assert.equal(requests[0].lightningOptions, undefined);
+				assert.deepEqual(exits, [0]);
+				for (const secret of Object.values(env))
+					assert.equal(JSON.stringify(requests).includes(secret), false, 'unrelated suite must not receive license secrets');
+			}
+			else {
+				await assert.rejects(pending, error => error.name === 'SyntaxError');
+				assert.deepEqual(requests, [], 'invalid metadata must fail before the suite can write reports');
+				assert.deepEqual(exits, []);
+			}
+			assert.deepEqual(logs, []);
+		}
+	});
+
+	it('downloads, caches, hashes, and serves exact binary bytes with WASM metadata and MIME type', async () => {
+		const cache = mkdtempSync(join(tmpdir(), 'uplot-bench-binaries-'));
+		try {
+			const dependencies = loadBenchDemoSources(root, 'scichart').dependencies;
+			const bytes = dependencies.map((dep, i) => dep.type === 'wasm' ?
+				Buffer.from([0, 97, 115, 109, 255, 128, 0, i]) : Buffer.from('/* vendor script */'));
+			const downloads = [];
+			const first = await workerAssets(cache, async (url, options) => {
+				const index = downloads.length;
+				assert.equal(url, dependencies[index].url);
+				assert.ok(options.signal instanceof AbortSignal);
+				downloads.push(url);
+				return {ok: true, arrayBuffer: async () => Uint8Array.from(bytes[index]).buffer};
+			});
+			assert.deepEqual(downloads, dependencies.map(dep => dep.url));
+			const second = await workerAssets(cache, () => assert.fail('cached dependency must not download'));
+			for (const result of [first, second]) {
+				for (let i = 0; i < dependencies.length; i++) {
+					const dep = result.dependencies[i];
+					assert.deepEqual(readFileSync(join(cache, dep.cacheName)), bytes[i]);
+					assert.ok(Buffer.isBuffer(result.files.get(dep.route)));
+					assert.deepEqual(result.files.get(dep.route), bytes[i]);
+					assert.equal(dep.sha256, createHash('sha256').update(bytes[i]).digest('hex'));
+					const headers = {};
+					let body;
+					result.server({url: dep.route}, {
+						setHeader(name, value) { headers[name] = value; },
+						end(value) { body = value; },
+						writeHead() { assert.fail('unexpected HTTP error'); },
+					});
+					assert.deepEqual(body, bytes[i]);
+					assert.equal(headers['Content-Type'], dep.type === 'wasm' ? 'application/wasm' : 'text/javascript');
+					assert.equal(headers['Cross-Origin-Embedder-Policy'], 'require-corp');
+					assert.equal(headers['Cross-Origin-Opener-Policy'], 'same-origin');
+					assert.equal(result.page.includes(dep.route), dep.type !== 'wasm');
+				}
+				assert.deepEqual(JSON.parse(result.files.get('/bench/runtime-assets.json')),
+					result.dependencies.filter(dep => dep.type === 'wasm').map(dep => ({...dep, url: dep.route})));
+			}
+		}
+		finally {
+			rmSync(cache, {recursive: true, force: true});
+		}
+	});
+
+	it('bundles a complete framework variant once, serves local ESM, and never downloads modules as scripts', async () => {
+		const cache = mkdtempSync(join(tmpdir(), 'uplot-bench-modules-'));
+		try {
+			const variant = 'recharts';
+			const entries = demoDependencies[variant].filter(dep => dep.type === 'module');
+			const before = JSON.stringify(entries);
+			const code = entries.map(dep => `export const ${dep.global} = {};`).join('\n');
+			const sha256 = createHash('sha256').update(code).digest('hex');
+			const bundle = {code, cacheName: `modules-${sha256}.mjs`, sha256, bytes: Buffer.byteLength(code),
+				schema: 3, rolldown: 'test', globals: entries.map(dep => dep.global), dependencies: entries,
+				sources: [{url: entries[0].url, sha256, bytes: Buffer.byteLength(code)}]};
+			const calls = [];
+			const result = await workerAssets(cache, () => assert.fail('module entry must not use the script downloader'), {
+				variant,
+				async bundleModuleDependencies(dependencies, options) {
+					calls.push(dependencies);
+					assert.deepEqual(dependencies, entries);
+					assert.equal(options.cacheDir, join(cache, 'modules'));
+					return bundle;
+				},
+			});
+			assert.equal(calls.length, 1);
+			assert.equal(JSON.stringify(entries), before);
+			const route = '/bench/vendor/' + bundle.cacheName;
+			assert.equal(String(result.files.get(route)), code);
+			assert.deepEqual([...result.files.keys()].filter(path => path.startsWith('/bench/vendor/')), [route]);
+			assert.equal(result.dependencies.length, entries.length);
+			for (const dep of result.dependencies) {
+				assert.equal(dep.type, 'module');
+				assert.equal(dep.route, route);
+				assert.equal(dep.sha256, sha256);
+				assert.equal(result.page.includes(dep.route), false);
+				assert.equal(result.page.includes(dep.url), false);
+			}
+			const metadata = result.dependencies.filter(dep => dep.bundle);
+			assert.equal(metadata.length, 1, 'store shared bundle provenance once');
+			assert.deepEqual(metadata[0].bundle.sources, bundle.sources);
+			assert.equal(JSON.stringify(metadata[0].bundle).includes(code), false, 'reports must not embed bundle code');
+			const assets = JSON.parse(result.files.get('/bench/module-assets.json'));
+			assert.deepEqual(assets, JSON.parse(JSON.stringify(result.dependencies.map(dep => ({...dep, url: dep.route, export: dep.global})))));
+			assert.deepEqual(JSON.parse(result.files.get('/bench/runtime-assets.json')), []);
+			assert.match(result.page, /<script type="module" src="\/bench\.mjs"><\/script>/);
+			for (const [path, mime, expected] of [[route, 'text/javascript', code],
+				['/bench/module-assets.json', 'application/json', JSON.stringify(assets)]]) {
+				const headers = {};
+				let body;
+				result.server({url: path}, {
+					setHeader(name, value) { headers[name] = value; },
+					end(value) { body = value; },
+					writeHead() { assert.fail('unexpected HTTP error'); },
+				});
+				assert.equal(String(body), expected);
+				assert.equal(headers['Content-Type'], mime);
+			}
+		}
+		finally { rmSync(cache, {recursive: true, force: true}); }
+	});
+
+	it('propagates a module bundle failure before downloads or benchmark page creation', async () => {
+		const cache = mkdtempSync(join(tmpdir(), 'uplot-bench-modules-'));
+		try {
+			const error = new Error('bundle failed');
+			let calls = 0;
+			await assert.rejects(workerAssets(cache, () => assert.fail('unexpected download'), {
+				variant: 'visx',
+				async bundleModuleDependencies() { calls++; throw error; },
+			}), actual => actual === error);
+			assert.equal(calls, 1);
+		}
+		finally { rmSync(cache, {recursive: true, force: true}); }
+	});
+
+	for (const failure of ['HTTP', 'network', 'body']) {
+		it(`does not cache a failed ${failure} binary download and retries it on the next worker load`, async () => {
+			const cache = mkdtempSync(join(tmpdir(), 'uplot-bench-binaries-'));
+			try {
+				const [script, wasm, noSimd] = loadBenchDemoSources(root, 'scichart').dependencies;
+				writeFileSync(join(cache, script.cacheName), '/* cached script */');
+				const error = new Error('synthetic download failure');
+				await assert.rejects(workerAssets(cache, async url => {
+					assert.equal(url, wasm.url);
+					if (failure === 'network') throw error;
+					return {ok: failure !== 'HTTP', status: 503, arrayBuffer: async () => {
+						assert.notEqual(failure, 'HTTP');
+						throw error;
+					}};
+				}), caught => failure === 'HTTP' ? caught.message === 'scichart download: HTTP 503' : caught === error);
+				assert.equal(existsSync(join(cache, wasm.cacheName)), false);
+				assert.equal(existsSync(join(cache, noSimd.cacheName)), false);
+				assert.equal(readFileSync(join(cache, script.cacheName), 'utf8'), '/* cached script */');
+				const downloads = [];
+				await workerAssets(cache, async url => {
+					downloads.push(url);
+					return {ok: true, arrayBuffer: async () => Uint8Array.of(0, 255, 128).buffer};
+				});
+				assert.deepEqual(downloads, [wasm.url, noSimd.url]);
+			}
+			finally {
+				rmSync(cache, {recursive: true, force: true});
+			}
+		});
+	}
 
 	it('does not require HTML or derive dependencies from HTML script and style tags', () => {
 		withAssets((assetRoot, dir) => {

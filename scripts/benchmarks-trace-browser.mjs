@@ -13,13 +13,13 @@ const WIDTH = 1920;
 const HEIGHT = 600;
 const VIEWPORT_HEIGHT = 900;
 const dpr = devicePixelRatio;
-const {demoDependencies, benchmarkVariants, assertDemoAvailable} = await import('/bench/demo-dependencies.mjs');
+const {demoDependencies, benchmarkVariants, assertBenchmarkAvailable} = await import('/bench/demo-dependencies.mjs');
 const ALL_VARIANTS = [...benchmarkVariants, ...Object.keys(demoDependencies).filter(id => !benchmarkVariants.includes(id))];
 if (selectedVariant && !ALL_VARIANTS.includes(selectedVariant))
 	throw new Error(`Unknown variant: ${selectedVariant}`);
 const VARIANTS = selectedVariant ? [selectedVariant] : [...benchmarkVariants, 'idle'];
 for (const variant of VARIANTS)
-	assertDemoAvailable(variant, globalThis.benchmarkLightningChartOptions);
+	assertBenchmarkAvailable(variant, globalThis.benchmarkLightningChartOptions);
 const WARMUPS = 3;
 const ROUNDS = 7;
 const IDLE_MS = 200;
@@ -46,7 +46,12 @@ if (typeof Path2D !== 'function' ||
 	VARIANTS.includes('canvasjs') && !globalThis.CanvasJS?.Chart ||
 	VARIANTS.includes('zingchart') && !globalThis.zingchart?.render ||
 	VARIANTS.includes('amcharts') && (!globalThis.am5?.Root || !globalThis.am5xy?.XYChart) ||
-	VARIANTS.includes('lightningchart') && !globalThis.lcjs?.lightningChart)
+	VARIANTS.includes('lightningchart') && !globalThis.lcjs?.lightningChart ||
+	VARIANTS.includes('bokeh') && !globalThis.Bokeh?.Plotting ||
+	VARIANTS.includes('d3fc') && !globalThis.fc?.seriesWebglLine ||
+	VARIANTS.includes('agcharts') && !globalThis.agCharts?.AgCharts ||
+	VARIANTS.includes('vega') && !globalThis.vega?.View ||
+	VARIANTS.includes('scichart') && !globalThis.SciChart?.SciChartSurface)
 	throw new Error('Load the selected demo libraries and dependencies before this module.');
 if (VARIANTS.includes('chartjs') && globalThis.Chart._adapters?._date?.prototype._id !== 'date-fns')
 	throw new Error('Load the Chart.js date-fns adapter before this module.');
@@ -73,8 +78,25 @@ style.textContent = `
 document.head.append(style);
 
 const {setupDemo} = await import('/bench/demo-fixture.mjs');
+const {prepareDemoRuntime} = await import('/bench/demo-runtime.mjs');
+if (VARIANTS.includes('scichart')) {
+	const assets = await fetch('/bench/runtime-assets.json');
+	if (!assets.ok)
+		throw new Error(`Runtime assets: HTTP ${assets.status}`);
+	await prepareDemoRuntime('scichart', await assets.json());
+}
+if (VARIANTS.some(id => demoDependencies[id].some(dependency => dependency.type === 'module'))) {
+	const assets = await fetch('/bench/module-assets.json');
+	if (!assets.ok)
+		throw new Error(`Module assets: HTTP ${assets.status}`);
+	await prepareDemoRuntime(selectedVariant, await assets.json());
+}
 const sources = Object.fromEntries(await Promise.all(VARIANTS.filter(id => id !== 'idle')
-	.map(async id => [id, await import(`/bench/${id}.mjs`)])));
+	.map(async id => {
+		const source = await import(`/bench/${id}.mjs`);
+		await source.prepareRuntime?.();
+		return [id, source];
+	})));
 const response = await fetch('/bench/data.json');
 if (!response.ok)
 	throw new Error(`Data fetch: HTTP ${response.status}`);
@@ -125,7 +147,7 @@ function validateInput({variant, input}) {
 		if (!(input instanceof Float64Array) || input.length !== ROWS * 4 || !input.every(Number.isFinite))
 			throw new Error('Expected 55,550 finite ECharts rows in an interleaved Float64Array.');
 	}
-	else if (variant === 'flot' || variant === 'apexcharts' || variant === 'zingchart') {
+	else if (['flot', 'apexcharts', 'zingchart', 'jscharting'].includes(variant)) {
 		if (input.length !== 3 || !input.every(values => values.length === ROWS && values.every(point => point.length === 2 && point.every(Number.isFinite))))
 			throw new Error('Expected three Flot series of 55,550 finite [x, y] pairs.');
 	}
@@ -141,14 +163,40 @@ function validateInput({variant, input}) {
 		if (input.length !== ROWS || !input.every(row => ['date', 'cpu', 'ram', 'tcp'].every(key => Number.isFinite(row[key]))))
 			throw new Error('Expected 55,550 finite amCharts records.');
 	}
-	else if (variant === 'lightningchart') {
+	else if (['lightningchart', 'scichart', 'bokeh', 'd3fc'].includes(variant)) {
 		if (!['x', 'cpu', 'ram', 'tcp'].every(key => input[key].length === ROWS && input[key].every(Number.isFinite)))
-			throw new Error('Expected four LightningChart columns of 55,550 finite values.');
+			throw new Error(`Expected four ${variant} columns of 55,550 finite values.`);
 	}
-	else if (variant === 'dygraphs') {
+	else if (['agcharts', 'vega', 'g2', 'recharts', 'muicharts', 'financialcharts', 'visx'].includes(variant)) {
+		if (input.length !== ROWS || !input.every(row => ['time', 'cpu', 'ram', 'tcp'].every(key => Number.isFinite(row[key]))))
+			throw new Error(`Expected 55,550 finite ${variant} records.`);
+	}
+	else if (variant === 'billboard') {
+		if (input.length !== 4 || !input.every((column, index) => column.length === ROWS + 1 &&
+			column[0] === ['time', 'cpu', 'ram', 'tcp'][index] && column.slice(1).every(Number.isFinite)))
+			throw new Error('Expected four named Billboard columns with 55,550 finite values.');
+	}
+	else if (variant === 'syncfusion' || variant === 'devextreme') {
+		if (input.length !== ROWS || !input.every(row => row.time instanceof Date && Number.isFinite(+row.time) &&
+			['cpu', 'ram', 'tcp'].every(key => Number.isFinite(row[key]))))
+			throw new Error(`Expected 55,550 ${variant} records with Date timestamps and three finite values.`);
+	}
+	else if (variant === 'kendo') {
+		if (input.length !== 3 || !input.every(series => series.length === ROWS && series.every(point =>
+			point.length === 2 && point[0] instanceof Date && Number.isFinite(+point[0]) && Number.isFinite(point[1]))))
+			throw new Error('Expected three Kendo series of 55,550 [Date, value] pairs.');
+	}
+	else if (variant === 'googlecharts') {
+		if (input.length !== ROWS || !input.every(row => row.length === 4 && row[0] instanceof Date &&
+			Number.isFinite(+row[0]) && row.slice(1).every(Number.isFinite)))
+			throw new Error('Expected 55,550 Google Charts rows with Date timestamps and three finite values.');
+	}
+	else if (['dygraphs', 'anychart', 'fusiontime'].includes(variant)) {
 		if (input.length !== ROWS || !input.every(row => row.length === 4 && Number.isFinite(row[0]) && Number.isFinite(row[1]) && Number.isFinite(row[2]) && Number.isFinite(row[3])))
-			throw new Error('Expected 55,550 Dygraphs rows with numeric milliseconds and three finite values.');
+			throw new Error(`Expected 55,550 ${variant} rows with numeric milliseconds and three finite values.`);
 	}
+	else if (variant !== 'idle')
+		throw new Error(`No prepared-input validation for ${variant}.`);
 }
 
 function construct(sample) {
@@ -170,8 +218,13 @@ async function finishMicrotask(sample) {
 	await Promise.resolve();
 }
 
+function hasChartSurface(root) {
+	return !!root.querySelector('canvas, svg') || [...root.querySelectorAll('*')]
+		.some(element => element.shadowRoot && hasChartSurface(element.shadowRoot));
+}
+
 function validateChart({variant, chart, host}) {
-	if (sources[variant]?.destroyChart && (!chart || !host.querySelector('canvas, svg')))
+	if (sources[variant]?.destroyChart && (!chart || !hasChartSurface(host)))
 		throw new Error(`${variant} did not return a rendered chart.`);
 	if (variant === 'uplot' && chart.series.some(series => series._paths != null || series.points?._paths != null))
 		throw new Error('uPlot retained paths despite cache.paths:false. Rebuild dist before benchmarking.');
@@ -267,6 +320,8 @@ function environment() {
 		canvasjsVersion: globalThis.CanvasJS?.version ?? null,
 		zingchartVersion: globalThis.zingchart?.version ?? null,
 		amchartsVersion: globalThis.am5?.registry?.version ?? null,
+		bokehVersion: globalThis.Bokeh?.version ?? null,
+		vegaVersion: globalThis.vega?.version ?? null,
 	};
 }
 
@@ -305,6 +360,7 @@ globalThis.benchmarkLifecycle = {
 			throw new Error(`Expected sample-${sampleIndex}, got ${id}`);
 		checkPage();
 		sampleIndex++;
+		globalThis.benchmarkWebGL?.begin();
 		state = {id, variant, host: setup(variant), input: null, chart: null, phase: 'setup'};
 		lifecycleBusy = true;
 		try {
@@ -344,15 +400,21 @@ globalThis.benchmarkLifecycle = {
 			construct(state);
 			await finishMicrotask(state);
 			const jsEnd = performance.mark(prefix + 'js-end');
+			for (const gl of state.chart?.getWebGLContexts?.() ?? [])
+				globalThis.benchmarkWebGL?.track(gl);
 			await settle();
+			const webgl = await globalThis.benchmarkWebGL?.complete({webgl1Finish: true});
 			const end = performance.mark(prefix + 'end');
 			checkPage();
 			const effectiveDpr = validateChart(state);
+			if (webgl?.status === 'incomplete' ||
+				['highcharts', 'plotly', 'bokeh', 'd3fc', 'scichart', 'lightningchart'].includes(state.variant) && webgl?.status !== 'complete')
+				throw new Error(`${state.variant}: WebGL completion not verified: ${JSON.stringify(webgl)}`);
 			state.phase = 'constructed';
 			const jsMs = jsEnd.startTime - start.startTime;
 			return {
 				id: state.id, dpr, effectiveDpr, variant: state.variant,
-				dataPrepMs: state.dataPrepMs, jsMs,
+				dataPrepMs: state.dataPrepMs, jsMs, ...(webgl ? {webgl} : {}),
 				prepAndInitMs: state.dataPrepMs + jsMs,
 				windowMs: end.startTime - start.startTime,
 			};
@@ -371,6 +433,7 @@ globalThis.benchmarkLifecycle = {
 		}
 		finally {
 			// No local alias can keep the input, chart or host alive during cleanup GC.
+			globalThis.benchmarkWebGL?.reset();
 			state = null;
 			try {
 				await settle();
@@ -408,6 +471,7 @@ globalThis.runBenchmarkTrace = async function runBenchmarkTrace({raf = false} = 
 		if (turn % 2)
 			ordered.reverse();
 		for (const variant of ordered) {
+			globalThis.benchmarkSampleBoundary?.(JSON.stringify({phase: 'start', variant}));
 			checkPage();
 			let sample = {variant, host: setup(variant), input: null, chart: null};
 			try {
@@ -458,6 +522,7 @@ globalThis.runBenchmarkTrace = async function runBenchmarkTrace({raf = false} = 
 				}
 				finally {
 					sample = null;
+					globalThis.benchmarkSampleBoundary?.(JSON.stringify({phase: 'end', variant}));
 				}
 			}
 		}
@@ -496,18 +561,28 @@ function reportMetadata(raf = false) {
 			data: '/bench/data.json',
 			prepData: 'Each sample calls its own shared nonmutating demo prepData(packed) afresh. Only raw packed JSON persists. No clones.',
 			dataRepresentations: {
-							uplot: 'aligned arrays', d3: 'aligned arrays', chartjs: 'three arrays of {x, y} points',
-							echarts: 'interleaved Float64Array', flot: 'three arrays of [x, y] pairs', dygraphs: 'rows of [milliseconds, y, y, y]',
-							apexcharts: 'three arrays of [x, y] pairs', highcharts: 'three data tables with Float64Array x/y columns',
-							lightweight: 'three arrays of {time, value} points', plotly: 'four aligned Float64Array columns',
-							canvasjs: 'three arrays of {x, y} points', zingchart: 'three arrays of [x, y] pairs',
-							amcharts: 'rows of {date, cpu, ram, tcp}', lightningchart: '{x, cpu, ram, tcp} Float64Array columns',
-						},
+				uplot: 'aligned arrays', d3: 'aligned arrays', chartjs: 'three arrays of {x, y} points',
+				echarts: 'interleaved Float64Array', flot: 'three arrays of [x, y] pairs', dygraphs: 'rows of [milliseconds, y, y, y]',
+				apexcharts: 'three arrays of [x, y] pairs', highcharts: 'three data tables with Float64Array x/y columns',
+				lightweight: 'three arrays of {time, value} points', plotly: 'four aligned Float64Array columns',
+				canvasjs: 'three arrays of {x, y} points', zingchart: 'three arrays of [x, y] pairs',
+				amcharts: 'rows of {date, cpu, ram, tcp}', lightningchart: '{x, cpu, ram, tcp} Float64Array columns',
+				bokeh: '{x, cpu, ram, tcp} Float64Array columns', d3fc: '{x, cpu, ram, tcp} Float64Array columns',
+				scichart: '{x, cpu, ram, tcp} Float64Array columns; native ingestion inside init',
+				agcharts: 'rows of {time, cpu, ram, tcp}', vega: 'rows of {time, cpu, ram, tcp}; tuple copy inside init',
+				billboard: 'four named columns, each with 55,550 numeric values', g2: 'rows of {time, cpu, ram, tcp}',
+				syncfusion: 'rows of {time: Date, cpu, ram, tcp}', devextreme: 'rows of {time: Date, cpu, ram, tcp}',
+				jscharting: 'three arrays of [milliseconds, value] pairs', kendo: 'three arrays of [Date, value] pairs',
+				anychart: 'rows of [milliseconds, cpu, ram, tcp]', fusiontime: 'rows of [milliseconds, cpu, ram, tcp]; ingestion copy inside init',
+				googlecharts: 'rows of [Date, cpu, ram, tcp]; DataTable construction inside init',
+				recharts: 'rows of {time, cpu, ram, tcp}', muicharts: 'rows of {time, cpu, ram, tcp}',
+				financialcharts: 'rows of {time, cpu, ram, tcp}', visx: 'rows of {time, cpu, ram, tcp}',
+			},
 			echartsTimestamps: 'Use each packed row timestamp, converted from minutes to milliseconds.',
 			rows: ROWS,
 			ySeries: 3,
 			yValues: ROWS * 3,
-			xUnit: 'uPlot and Lightweight Charts: seconds since Unix epoch. Other available libraries: milliseconds since Unix epoch.',
+			xUnit: 'uPlot, SciChart and Lightweight Charts: seconds since Unix epoch. Other available libraries: milliseconds since Unix epoch.',
 			strokeWidthDevicePixels: {uplot: 1, d3: 1},
 			strokeWidthCssPixels: {chartjs: 1, echarts: 1},
 		},
@@ -528,7 +603,7 @@ function reportMetadata(raf = false) {
 			prepAndInitMs: 'dataPrepMs + jsMs per sample. This sum excludes validation, the settling gap and rAF waits. It is not end-to-end latency.',
 			jsMs: 'Start through options, constructor/makeChart, async library completion when returned, and initial microtask commit/status update. Includes async waits, not exclusive JS CPU time.',
 			aggregation: 'Use the minimum of seven measured rounds per metric, variant and DPR. Exclude three warmups. Columns can come from different rounds. Take prepAndInitMs minima from per-sample sums.',
-			windowMs: 'Start through js-end, two requestAnimationFrame callbacks, and a 200ms timeout.',
+			windowMs: 'Start through js-end, two requestAnimationFrame callbacks, a 200ms timeout, and WebGL completion validation in trace/memory mode.',
 			raf1Ms: 'Start to performance.now() at the first post-init rAF callback entry; rAF mode only. Async adapters can span frames before initialization completes.',
 			postJsRaf1Ms: 'js-end to that same first callback entry; rAF mode only.',
 			settling: {animationFrames: 2, idleMs: IDLE_MS, beforeStart: true, afterJsEnd: true},
@@ -540,6 +615,9 @@ function reportMetadata(raf = false) {
 						'Async initialization waits for the library completion promise/event inside init and trace spans. This can include timers, frames, and deferred interaction setup, not just drawing CPU work.',
 			'Libraries share CPU/RAM on the left percentage scale and TCP Out on the right MB scale with automatic y ranges. Native sampling and grouping can change displayed detail and ranges.',
 			'ApexCharts uses Canvas and LTTB; Highcharts uses Boost without GPU epoch translations; Plotly uses scattergl; amCharts uses native date grouping and line simplification. Branding remains enabled.',
+			'Billboard uses Canvas without workers. Syncfusion uses native line reduction. DevExtreme, AnyStock and FusionTime use native average aggregation that can hide peaks.',
+			'React module loading is outside timing; root creation, chart rendering and commits are inside init. Framework memory remains included. visx measures this primitive composition, not a standard chart preset.',
+			'Google Charts requests frozen release 52 outside sample timers. Its mutable loader and remote runtime packages require network access and are not fully pinned or locally cached.',
 			'Lightweight Charts uses native line conflation with full input retention. Grouped closing values and amCharts averages can hide peaks at wide zoom levels.',
 			'ECharts 6.1.0 minmax sampling retains every raw row but ends the visible time range three minutes early for this fixture at DPR 1.',
 			'The requested static amCharts logo uses a version-guarded private override. The logo and link remain; branding/license terms need review before publication.',
@@ -550,8 +628,8 @@ function reportMetadata(raf = false) {
 			'Flot 4.2.6 exposes a stale runtime version of 3.0.0. Use runner.dependencies for the pinned package version.',
 			'Flot retains its timer-delayed overlay hook. JS/DOM and next-rAF spans do not necessarily include that hook; the longer trace window can include it.',
 			'Warmups can appear in the trace. Exclude samples with warmup:true from measured aggregates.',
-			'Native canvas is unwrapped. No readback, screenshots, pixel export, command instrumentation, or harness-forced layout reads are used. Original chart layout work remains included.',
-			'Two animation frames plus 200ms idle are a settling heuristic, not a GPU fence. Work can cross marker boundaries; windowMs minus jsMs is not GPU execution time.',
+			'Trace/memory observes current-realm canvas getContext calls, not draw calls. Reused contexts can be registered by adapters. No readback, screenshots, pixel export, or harness-forced layout reads are used.',
+			'After settling, trace/memory checks WebGL2 fences or calls WebGL1 finish before the end marker. These checks add thread-wall overhead outside init. Completion covers prior commands in observed contexts, not later draws, other realms, or presentation. rAF has no observer or completion check.',
 			'Use Chrome trace process/thread events to distinguish renderer JS/DOM, raster, compositor and GPU-process thread work. GPU-process thread duration is not CPU time or hardware GPU execution time, and asynchronous attribution is approximate.',
 			'Idle has the same marker/wait schedule but no chart mutation between markers. Report it separately; do not assume subtraction isolates chart GPU cost.',
 			'One actual browser DPR is captured from devicePixelRatio and reported on every sample. The parent configures deviceScaleFactor before navigation (default 1); this fixture does not emulate DPR changes. The CSS viewport is 1920x900.',

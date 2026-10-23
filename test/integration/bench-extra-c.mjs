@@ -293,16 +293,47 @@ describe('additional benchmark adapters C', () => {
 	});
 
 	it('LightningChart: refuses initialization without a supplied license', async () => {
-		const saved = globalThis.benchmarkLightningChartOptions;
-		delete globalThis.benchmarkLightningChartOptions;
+		const saved = Object.getOwnPropertyDescriptor(globalThis, 'benchmarkLightningChartOptions');
 		try {
 			const element = host('lightningchart');
+			for (const license of [undefined, null, '', '  ', 123, true]) {
+				globalThis.benchmarkLightningChartOptions = {license, benchmarkPermission: true};
+				await assert.rejects(lightningchart.makeChart({}, element), /requires a user-supplied license/);
+			}
+			delete globalThis.benchmarkLightningChartOptions;
 			await assert.rejects(lightningchart.makeChart({}, element), /requires a user-supplied license/);
 			assert.equal(element.id, 'benchmark-lightningchart');
 			assert.deepEqual(element.style, {width: '1920px', height: '600px'});
 		}
 		finally {
-			globalThis.benchmarkLightningChartOptions = saved;
+			if (saved) Object.defineProperty(globalThis, 'benchmarkLightningChartOptions', saved);
+			else delete globalThis.benchmarkLightningChartOptions;
+		}
+	});
+
+	it('LightningChart: forwards license and metadata to the vendor without a permission gate or option mutation', async () => {
+		const keys = ['lcjs', 'benchmarkLightningChartOptions'];
+		const saved = keys.map(key => Object.getOwnPropertyDescriptor(globalThis, key));
+		const vendorError = new Error('vendor license validation');
+		const licenseInformation = Object.freeze({appTitle: 'test'});
+		const calls = [];
+		globalThis.lcjs = {lightningChart(options) { calls.push(options); throw vendorError; }};
+		try {
+			for (const extra of [{}, {benchmarkPermission: false}]) {
+				const options = Object.freeze({license: 'test-not-a-vendor-key', licenseInformation, timeoutMs: 100, ...extra});
+				globalThis.benchmarkLightningChartOptions = options;
+				await assert.rejects(lightningchart.makeChart({}, host('lightningchart')), error => error === vendorError);
+				assert.equal(globalThis.benchmarkLightningChartOptions, options);
+				assert.deepEqual(calls.at(-1), {license: options.license, licenseInformation});
+				assert.equal(calls.at(-1).licenseInformation, licenseInformation);
+			}
+			assert.equal(calls.length, 2);
+		}
+		finally {
+			keys.forEach((key, i) => {
+				if (saved[i]) Object.defineProperty(globalThis, key, saved[i]);
+				else delete globalThis[key];
+			});
 		}
 	});
 

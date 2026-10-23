@@ -16,15 +16,15 @@ const packed = [7, 'epoch', 'idl', 'recv', 'send', 'writ', 'used', 'free',
 	11, 50, 2, 6, 4, 50, 50];
 
 describe('benchmark demo sources', () => {
-	it('parses all literal ES modules and preserves the old six export contract', () => {
-		for (const id of variants) {
+	for (const id of variants) {
+		it(`${id}: parses its ES module and preserves the original export contract`, () => {
 			const source = files.get(`/bench/${id}.mjs`);
 
 			if (oldVariants.includes(id))
 				assert.match(source, /export \{makeChart, prepData\};\s*$/);
 			checkModuleSyntax(source);
-		}
-	});
+		});
+	}
 
 	for (const [id] of demos) {
 		it(`${id}: defines callable functions without auto-fetching, rendering, or changing wait text`, () => {
@@ -48,7 +48,9 @@ describe('benchmark demo sources', () => {
 				const demo = await import(url);
 				const id = new URL(url).pathname.split('/').at(-1).replace('.mjs', '');
 				const old = ${JSON.stringify(oldVariants)}.includes(id);
-				assert.deepEqual(Object.keys(demo), old ? ['makeChart', 'prepData'] : ['destroyChart', 'makeChart', 'prepData']);
+				assert.deepEqual(Object.keys(demo), old ? ['makeChart', 'prepData'] :
+									['destroyChart', 'makeChart', 'prepData', ...(id === 'googlecharts' ? ['prepareRuntime'] : [])]);
+								if (id === 'googlecharts') assert.equal(typeof demo.prepareRuntime, 'function');
 				if (!old) assert.equal(typeof demo.destroyChart, 'function');
 				assert.equal(typeof demo.makeChart, 'function');
 				assert.equal(typeof demo.prepData, 'function');

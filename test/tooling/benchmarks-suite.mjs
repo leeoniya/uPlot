@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { summarizeBenchmarkRaf } from '../../scripts/analyze-benchmarks-raf.mjs';
 import { benchmarkMode, variantReportName, suiteReportName, runBenchmarkSuite, summarizeSavedBenchmarks } from '../../scripts/benchmarks-suite.mjs';
-import { benchmarkVariants, demoRestrictions } from '../../bench/demo-dependencies.mjs';
+import { benchmarkVariants, demoRestrictions, benchmarkRestrictions } from '../../bench/demo-dependencies.mjs';
 
 const variants = ['idle', ...benchmarkVariants];
-const skipped = Object.entries(demoRestrictions).map(([variant, reason]) => ({variant, reason}));
+const skipped = Object.entries({...demoRestrictions, ...benchmarkRestrictions}).map(([variant, reason]) => ({variant, reason}));
 const skippedWarnings = skipped.map(entry => `${entry.variant}: skipped (${entry.reason})`);
 const combined = {trace: true, memory: true, raf: false};
 const tuple = pssMB => ({rssMB: pssMB * 4 + 50, pssMB, privateMB: pssMB / 2, swapMB: 1, swapPssMB: 0.5});
@@ -206,6 +206,11 @@ describe('benchmark suite modes and workers', () => {
 		assert.equal(benchmarkMode({}), 'combined');
 		const result = await runBenchmarkSuite({}, h.dependencies);
 		assert.deepEqual(result.progress.completed, variants);
+		assert.deepEqual(result.protocol.variants.slice(-12), ['billboard', 'g2', 'syncfusion', 'devextreme', 'kendo',
+					'anychart', 'fusiontime', 'googlecharts', 'recharts', 'muicharts', 'financialcharts', 'visx']);
+		assert.deepEqual(result.skipped.map(entry => entry.variant), ['lightningchart', 'jscharting']);
+				assert.equal(result.protocol.variants.length, 31, 'idle plus 30 runnable benchmarks');
+				assert.ok(h.requests.every(request => request.variant !== 'jscharting'));
 		assert.equal(result.progress.total, variants.length);
 		assert.deepEqual(result.protocol.variants, variants);
 		assert.deepEqual(result.skipped, skipped);
@@ -265,7 +270,7 @@ describe('benchmark suite modes and workers', () => {
 		});
 	}
 
-	for (const [variant, reason] of Object.entries(demoRestrictions)) {
+	for (const [variant, reason] of Object.entries({...demoRestrictions, ...benchmarkRestrictions})) {
 		it(`rejects explicit ${variant} before creating reports or starting even a fake worker`, async () => {
 			const outputDirectory = join(directory, 'not-created');
 			const h = harness({outputDirectory});
@@ -275,6 +280,60 @@ describe('benchmark suite modes and workers', () => {
 			assert.deepEqual(h.events, []);
 		});
 	}
+
+	for (const variant of [null, 'lightningchart']) {
+		it(`includes licensed LightningChart with variant=${variant} without a permission flag`, async () => {
+			const h = harness();
+			const lightningOptions = Object.freeze({license: 'test-license-not-a-vendor-key'});
+			const report = await runBenchmarkSuite({variant, lightningOptions}, h.dependencies);
+			const expected = variant === null ? [...variants, 'lightningchart'] : ['idle', 'lightningchart'];
+			assert.deepEqual(h.requests.map(request => request.variant), expected);
+			assert.deepEqual(report.protocol.variants, expected);
+			assert.deepEqual(report.progress.completed, expected);
+			assert.equal(report.progress.total, expected.length);
+			assert.equal(report.complete, true);
+			const expectedSkipped = variant === null ? skipped.filter(entry => entry.variant === 'jscharting') : [];
+			assert.deepEqual(report.skipped, expectedSkipped);
+			const warnings = expectedSkipped.map(entry => `${entry.variant}: skipped (${entry.reason})`);
+			assert.ok(h.frames.every(frame => JSON.stringify(frame.warnings) === JSON.stringify(warnings)));
+			assert.ok(h.requests.every(request => request.variant !== 'jscharting'));
+			assert.deepEqual(saved(), report);
+			assert.equal(h.tables.at(-1).at(-1).variant, 'lightningchart');
+			assert.ok(h.requests.every(request => !request.args.some(arg => /license|permission/i.test(arg))));
+			assert.doesNotMatch(JSON.stringify(report), /test-license-not-a-vendor-key/);
+		});
+	}
+
+	it('rejects explicit JSCharting even with a LightningChart license without overwriting saved reports', async () => {
+		const output = join(directory, suiteReportName('combined'));
+		const original = '{"preserve":"prior report"}\n';
+		writeFileSync(output, original);
+		const h = harness();
+		await assert.rejects(runBenchmarkSuite({variant: 'jscharting',
+			lightningOptions: {license: 'test', benchmarkPermission: true}}, h.dependencies), error =>
+			error.message === `jscharting: ${benchmarkRestrictions.jscharting}`);
+		assert.deepEqual(h.requests, []);
+		assert.deepEqual(h.frames, []);
+		assert.equal(readFileSync(output, 'utf8'), original);
+	});
+
+	it('keeps LightningChart skipped by default for missing or blank licenses', async () => {
+		for (const lightningOptions of [{}, {license: ''}, {license: ' \t ', benchmarkPermission: true}]) {
+			const h = harness();
+			const report = await runBenchmarkSuite({lightningOptions}, h.dependencies);
+			assert.deepEqual(h.requests.map(request => request.variant), variants);
+			assert.deepEqual(report.skipped, skipped);
+			assert.deepEqual(h.frames.at(-1).warnings, skippedWarnings);
+		}
+	});
+
+	it('does not add licensed LightningChart to an explicitly selected unrelated variant', async () => {
+		const h = harness();
+		const report = await runBenchmarkSuite({variant: 'scichart', lightningOptions: {license: 'test'}}, h.dependencies);
+		assert.deepEqual(report.protocol.variants, ['idle', 'scichart']);
+		assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'scichart']);
+		assert.deepEqual(report.skipped, []);
+	});
 
 	it('rejects unknown and inherited variant names before worker side effects', async () => {
 		for (const variant of ['unknown', 'toString', '__proto__']) {
@@ -567,6 +626,32 @@ describe('worker subprocess cleanup', () => {
 			assert.equal(signalSource.listenerCount('SIGTERM'), 0);
 		});
 	}
+
+	it('reports a sample timeout without a stack or worker log dump and stops the suite', async () => {
+		const h = harness({
+			runWorker: undefined, signalSource: new EventEmitter(), kill: () => {},
+			spawnWorker: () => {
+				const child = new EventEmitter();
+				child.stdout = new EventEmitter();
+				child.stderr = new EventEmitter();
+				queueMicrotask(() => {
+					child.stdout.emit('data', Buffer.from('Using cached Chrome\n'));
+					child.stderr.emit('data', Buffer.from('idle: timed out after 5s\n'));
+					child.emit('close', 124, null);
+				});
+				return child;
+			},
+		});
+		await assert.rejects(runBenchmarkSuite({variant: 'idle'}, h.dependencies), {
+			code: 'BENCHMARK_SAMPLE_TIMEOUT', message: 'idle: timed out after 5s',
+		});
+		assert.equal(saved().error, 'idle: timed out after 5s');
+		assert.equal(saved().protocol.sampleTimeoutMs, 5000);
+		assert.equal(saved().complete, false);
+		assert.equal(saved().progress.failed, 'idle');
+		assert.deepEqual(saved().reports, []);
+		assert.equal(h.frames.at(-1).final, true);
+	});
 
 	it('bounds combined worker output and preserves the latest stdout/stderr in the failure and partial report', async () => {
 		const chunks = ['discarded stdout prefix\n' + 'a'.repeat(20000), 'discarded stderr prefix\n' + 'b'.repeat(20000), '\nlatest stdout\n', 'latest stderr\n'];

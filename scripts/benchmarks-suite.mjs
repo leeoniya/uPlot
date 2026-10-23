@@ -1,10 +1,11 @@
 import { spawn } from 'node:child_process';
+import { SAMPLE_TIMEOUT_MS, SAMPLE_TIMEOUT_EXIT_CODE } from './bench-sample-timeout.mjs';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { summarizeAdjustedProcessMemory } from './analyze-benchmarks-process-memory.mjs';
 import { createBenchmarkDisplay, formatBenchmarkDisplay } from './benchmarks-display.mjs';
-import { demoDependencies, benchmarkVariants, demoRestrictions, assertDemoAvailable } from '../bench/demo-dependencies.mjs';
+import { demoDependencies, benchmarkVariants, demoRestrictions, benchmarkRestrictions, assertBenchmarkAvailable } from '../bench/demo-dependencies.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const cache = fileURLToPath(new URL('../.cache/benchmarks/', import.meta.url));
@@ -164,8 +165,11 @@ function runWorker(request, {
 		child.once('close', (code, signal) => {
 			cleanup();
 			if (failure || code !== 0) {
-				const error = failure ?? new Error(`Benchmark ${request.variant} exited with ${signal ?? code}`);
-				if (workerOutput.trim())
+				const sampleTimeout = !failure && code === SAMPLE_TIMEOUT_EXIT_CODE;
+				const error = failure ?? (sampleTimeout
+					? Object.assign(new Error(`${request.variant}: timed out after ${SAMPLE_TIMEOUT_MS / 1000}s`), {code: 'BENCHMARK_SAMPLE_TIMEOUT'})
+					: new Error(`Benchmark ${request.variant} exited with ${signal ?? code}`));
+				if (!sampleTimeout && workerOutput.trim())
 					error.message += '\n' + workerOutput.trim();
 				reject(error);
 			}
@@ -182,10 +186,11 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 	if (variant !== null && !Object.hasOwn(demoDependencies, variant))
 		throw new Error(`Unsupported benchmark variant: ${variant}`);
 	if (variant !== null)
-		assertDemoAvailable(variant, lightningOptions);
+		assertBenchmarkAvailable(variant, lightningOptions);
 	const measurements = measurementsFor({trace, memory, raf});
 	const mode = benchmarkMode(measurements);
-	const variants = variant === null ? [...VARIANTS] : variant === 'idle' ? ['idle'] : ['idle', variant];
+	const variants = variant === null ? [...VARIANTS, ...(lightningOptions?.license?.trim() ? ['lightningchart'] : [])]
+			: variant === 'idle' ? ['idle'] : ['idle', variant];
 	const {outputDirectory = cache} = dependencies;
 		const display = dependencies.display ?? createBenchmarkDisplay();
 	const worker = dependencies.runWorker ?? (request => runWorker(request, dependencies));
@@ -193,12 +198,13 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 	const output = resolve(outputDirectory, suiteReportName(mode));
 	const report = {
 		date: new Date().toISOString(), mode, measurements, dpr, gpu, complete: false,
-		skipped: variant === null ? Object.entries(demoRestrictions).map(([variant, reason]) => ({variant, reason})) : [],
+		skipped: variant === null ? Object.entries({...demoRestrictions, ...benchmarkRestrictions}).filter(([id]) => !variants.includes(id))
+					.map(([variant, reason]) => ({variant, reason})) : [],
 		progress: {total: variants.length, completed: [], current: null, failed: null},
 		protocol: {
 			freshBrowserPerVariant: true, selectedDependenciesOnly: true, variants,
 			idleFirst: true, sameRunControlsOnly: true, coolingBetweenVariantsMs: 0,
-			tracing: measurements.trace, gpuSpecificMemory: false,
+			tracing: measurements.trace, gpuSpecificMemory: false, sampleTimeoutMs: SAMPLE_TIMEOUT_MS,
 			blankAndLoaded: 'One cold checkpoint each per browser, not a round aggregate.',
 			aggregation: 'Each table metric uses its minimum finite measured value after warmups. Columns can come from different rounds; total work uses the minimum per-sample total, not a sum of column minima.',
 			warmSamples: 'Warmups are excluded. Each browser reuses its selected library between samples; allocator reuse affects process deltas.',

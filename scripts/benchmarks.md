@@ -5,7 +5,18 @@ They use Chrome Headless Shell, pinned demo dependencies, and `bench/data.json`.
 
 The HTML demos and benchmark import the same `bench/<variant>.mjs` modules.
 The original modules are `uplot`, `d3`, `chartjs`, `echarts`, `flot`, and `dygraphs`.
-Eight additional HTML wrappers use modules: `apexcharts`, `highcharts`, `lightweight`, `plotly`, `canvasjs`, `zingchart`, `amcharts`, and `lightningchart`.
+The existing additions are `apexcharts`, `highcharts`, `lightweight`, `plotly`, `canvasjs`, `zingchart`, `amcharts`, and `lightningchart`.
+The first expansion added `bokeh`, `d3fc`, `agcharts`, `vega`, and `scichart`.
+The second expansion adds 13 adapters:
+
+- `billboard`, `g2`, `syncfusion`, `devextreme`, `jscharting`, and `kendo`.
+- `anychart`, `fusiontime`, `googlecharts`, `recharts`, `muicharts`, `financialcharts`, and `visx`.
+
+The default set contains 30 runnable libraries: 18 existing libraries plus 12 additions. The idle control is separate.
+All 13 adapters passed agent-reported direct browser smoke checks. JSCharting remains standalone-only because vendor cleanup leaks across repeated samples.
+All 12 runnable additions passed integrated combined measurements across a partial suite and separate workers, not one complete suite.
+The previous 18-library validation remains historical.
+The [candidate review](../docs/investigations/benchmark-library-expansion.md) records decisions, adapter caveats, and validation status.
 Each module exports `prepData(packed)` and `makeChart(data, host, wait)`.
 The added modules also export `destroyChart(chart)`. The harness uses this optional hook for library-specific cleanup.
 `makeChart` returns a chart or a promise that resolves after the library completes initialization.
@@ -13,8 +24,9 @@ The added modules also export `destroyChart(chart)`. The harness uses this optio
 Chart configuration and data preparation have one implementation per library. No HTML parsing or source extraction occurs.
 `scripts/bench-demo-sources.mjs` reads the shared files, and the browser imports each selected module directly.
 `bench/demo-fixture.mjs` and `bench/demo.css` provide shared hosts, markup, and styles.
-`bench/demo-dependencies.mjs` defines the dependency versions and production paths for both entry points.
-The HTML pages use `bench/demo.mjs` to load dependencies and start the demo.
+`bench/demo-dependencies.mjs` defines central dependency versions and production paths.
+`bench/framework-runtime.mjs` defines the new React package and peer pins.
+Every HTML demo uses the shared `bench/demo.mjs` to load dependencies and start the demo.
 The benchmark loads cached dependencies and calls the shared functions within its measurement lifecycle.
 
 The standalone HTML pages require an HTTP server because they import ES modules.
@@ -38,9 +50,10 @@ DPR defaults to 1.
 
 ## Pinned dependencies and chart configuration
 
-`bench/demo-dependencies.mjs` contains the current verified dependency pins, not floating latest-version URLs.
+The tables record pins from `bench/demo-dependencies.mjs`, `bench/framework-runtime.mjs`, and the adapter comments.
+Google Charts is an exception: frozen version `52` uses a mutable loader and remote packages.
 
-| Variant | Manifest dependency versions |
+| Variant | Dependency versions |
 | --- | --- |
 | `uplot` | Local production assets in `dist/` |
 | `chartjs` | `chart.js` 4.6.1, `@date-fns/cdn` 4.4.0, `chartjs-adapter-date-fns` 3.0.0 |
@@ -55,8 +68,47 @@ DPR defaults to 1.
 | `canvasjs` | `@canvasjs/charts` 3.17.8 |
 | `zingchart` | `zingchart` 2.9.16-1 |
 | `amcharts` | GitHub `amcharts/amcharts5-dist` tag 5.21.4, `index.js` and `xy.js` |
+| `bokeh` | `@bokeh/bokehjs` 3.10.1, core, GL, and plotting API bundles |
+| `d3fc` | `d3fc` 15.2.13 and `d3` 7.9.0 |
+| `agcharts` | `ag-charts-community` 14.2.0, Community UMD bundle |
+| `vega` | `vega` 6.4.0, `build/vega.min.js` |
+| `scichart` | `scichart` 6.0.14, `index.min.js` and SIMD/non-SIMD WASM assets |
 | `lightningchart` | `@lightningchart/lcjs` 9.0.0, `dist/lcjs.iife.es2019.js` |
+| `billboard` | `billboard.js` 4.1.3, packaged D3 bundle and CSS |
+| `g2` | `@antv/g2` 5.4.8, Canvas bundle |
+| `syncfusion` | `@syncfusion/ej2-charts` 35.1.41 and its global dependencies |
+| `devextreme` | DevExpress 26.1.6, production `dx.viz.js` |
+| `jscharting` | `jscharting` 3.4.0, minified `dist/jscharting.js`, reported build `3.4.0.20230215`. Standalone only. |
+| `kendo` | `@progress/kendo-ui` 2026.3.1015, `umd/kendo.dataviz.min.js`, with jQuery |
+| `anychart` | `anychart` 9.0.0, core and stock bundles |
+| `fusiontime` | `fusioncharts` 4.2.3, core and timeseries bundles |
+| `googlecharts` | Frozen `52`, `corechart`, mutable `https://www.gstatic.com/charts/loader.js` |
+| `recharts` | `recharts` 3.10.1, `d3-scale` 4.0.2 |
+| `muicharts` | `@mui/x-charts` 9.16.0, `LineChart` entry |
+| `financialcharts` | `react-financial-charts` 2.0.1, `d3-scale` 4.0.2 |
+| `visx` | `@visx/shape`, `@visx/axis`, `@visx/scale`, and `@visx/grid` 4.0.0 |
 
+### Production ESM and remote runtime delivery
+
+The React adapters use production esm.sh entries with exact entry and peer versions, targeting ES2022.
+Recharts, MUI, and visx pin React, React DOM, and `react-is` to 19.3.1.
+React Financial Charts pins those packages to 18.3.1.
+MUI also pins `@mui/material` and `@mui/system` to 9.5.0, `@emotion/react` to 11.14.0, and `@emotion/styled` to 11.14.1.
+
+The CLI integration uses `scripts/bench-module-bundle.mjs` and the existing Rolldown/cache path before browser startup and chart timers.
+It bundles all module dependencies for a variant together. Separate dependency bundles can duplicate React and break shared hooks or context identity.
+The browser imports the resulting local production ESM bundle.
+The cache records dependency URLs, source SHA-256 hashes, byte counts, the bundle hash, and the Rolldown version.
+Version pins identify requested versions. Source hashes identify captured bytes, not a guarantee that CDN output never changes.
+React root creation, component construction, and commits remain inside chart initialization. Dependency loading does not mount a hidden warmup root.
+
+Google Charts loads frozen version `52` and remote `corechart` code through `prepareRuntime()` before chart timers start.
+DataTable construction, ingestion, layout, and drawing remain inside initialization.
+The loader is mutable, and Google can apply critical fixes to frozen releases.
+Network access remains necessary. A cached loader does not make the remote packages fully offline or reproducible.
+Recorded dependency hashes do not establish an immutable Google runtime.
+
+### Renderer configuration
 
 LightningChart 9 uses `@lightningchart/lcjs`, not the former `@arction/lcjs` package.
 amCharts uses the tagged GitHub browser distribution through jsDelivr, not npm entry points that require a bundler.
@@ -78,11 +130,39 @@ The modules use these performance choices:
 | `canvasjs` | Native canvas line chart, without animation or point markers. |
 | `zingchart` | Canvas output, fast mode, `sampling-step: 1`, no trackers, no point markers, and no tooltips. |
 | `amcharts` | Native `groupData: true`, `groupCount: 1920`, and `groupIntervals` of one minute, ten minutes, and one hour. `minDistance: 1`, `valueYGrouped: 'average'`. |
+| `bokeh` | WebGL lines, Float64 columns, separate automatic y ranges, and no level-of-detail sampling. Canvas fallback causes an error. |
+| `d3fc` | WebGL lines and SVG axes. Public `scaleMapper` projects timestamps in double precision before upload. No sampling. |
+| `agcharts` | Community Canvas lines, native line aggregation, keyed axes, no point markers, and no Enterprise modules. |
+| `vega` | Canvas lines from one wide dataset, independent y scales, and no sampling or fold transform. |
+| `scichart` | WebGL/WASM lines, Float64 input, native automatic min/max resampling, and full native data retention. |
 | `lightningchart` | Progressive Float64 x data, native zoom-dependent grouping, no automatic sorting, and full input retention. |
+| `billboard` | Canvas lines, named columns, native `y`/`y2`, no animation or markers, and `boost.useWorker: false`. |
+| `g2` | Canvas lines from wide rows, shared percentage-scale keys, a separate TCP scale key, and no animation. |
+| `syncfusion` | Canvas lines, Date input, native pixel-tolerance reduction, and no animation or markers. |
+| `devextreme` | Continuous datetime axis, native average aggregation with `aggregationGroupWidth: 1`, and `synchronizeMultiAxes: false`. |
+| `jscharting` | Standalone only. Ordinary lines, numeric XY pairs, time axis, independent y axes, and no adapter decimator. |
+| `kendo` | Canvas `scatterLine`, Date-valued XY pairs, independent y axes, and no transitions or markers. |
+| `anychart` | AnyStock, continuous `scatter` time scale, native average grouping, and independent linear y scales. |
+| `fusiontime` | Specialized timeseries renderer, native calendar bins with average aggregation, and `multiCanvas: false` for both axes in one plot. |
+| `googlecharts` | Classic `LineChart`, datetime column, native `targetAxisIndex`, and no startup animation or markers. |
+| `recharts` | SVG lines, public calendar ticks from `d3-scale`, continuous time scale, independent `yAxisId` values, and no animation or markers. |
+| `muicharts` | Community SVG `LineChart`, continuous time scale, independent y axes, and no animation or markers. |
+| `financialcharts` | Canvas lines, continuous `scaleTime()`, `plotFull: true`, and two native Chart contexts at the same origin. |
+| `visx` | Custom SVG composition with native lines, axes, grid, and independent scales. Domain scans and component construction remain inside initialization. |
+
+Recharts generates `scaleTime().domain([data[0].time, data[data.length - 1].time]).ticks(12).map(Number)` inside `makeChart()` and supplies public `XAxis.ticks`.
+In Recharts 3.10.1, automatic `niceTicks` applies only to linear scales.
+For this time axis, `combineAxisTicks` selected all timestamps before `scale.ticks()`, so `tickCount` alone did not produce calendar ticks.
+
+The correction retains all input rows and uses data-derived bounds, not sampling or hardcoded bounds.
+It adds no custom grid generator, cache, measurement-span patch, or internal override.
+Browser checks retained all 55,550 points per series, with full-fixture labels at local midnight.
+For irregular input from 03:07 to 07:59, calendar ticks ran from 03:30 through 07:30.
 
 These configurations do not provide identical rendering or interaction features.
 Native reduction and grouping change the displayed detail without removing the full input.
-amCharts averages and Lightweight Charts conflation can hide peaks. Finer detail returns at closer zoom levels.
+Native averages in amCharts, DevExtreme, AnyChart, and FusionTime can hide peaks. Lightweight Charts conflation can also hide peaks.
+Finer detail depends on each library's grouping and zoom behavior.
 Lightweight Charts uses grouped closing values for lines, not a min/max envelope.
 Native sampling can also change automatic ranges.
 For example, ECharts 6.1.0 min/max sampling ends the visible time range three minutes early for this fixture at DPR 1.
@@ -91,7 +171,7 @@ These results compare the configured demos, not identical drawing algorithms.
 
 ## Data formats and performance audit
 
-The audit covers all registered adapters, including the opt-in LightningChart adapter.
+The audit covers the registered adapters, including LightningChart with a supplied runtime key.
 Each preparation function reads the packed input directly and allocates fresh output.
 No adapter rewrites the input, caches prepared data between samples, or removes rows before library initialization.
 The six original adapters no longer copy the packed input with `slice()`.
@@ -103,6 +183,9 @@ That removes one temporary array of 388,850 values per preparation.
 | Highcharts | Four Float64 columns in three data-table configurations | Boost supports typed columns. All tables share the prepared x column. |
 | Plotly | Four Float64 columns | `scattergl` accepts separate x and y arrays. All traces share x. |
 | LightningChart | Four Float64 columns | The progressive dataset API accepts typed columns without row objects. |
+| Bokeh, d3fc | Four Float64 columns | Bokeh uses `ColumnDataSource`. d3fc uses accessors over the columns. |
+| SciChart | Four Float64 columns, with timestamps in seconds | `appendRange()` copies full input into native storage during initialization. |
+| AG Charts Community, Vega | One array of `{time, cpu, ram, tcp}` rows | All three series share the wide dataset. Vega copies rows during initialization before tuple ingestion. |
 | ECharts | One interleaved Float64 buffer | A supported typed-data path, without row objects. Keyed columns are not necessarily faster. |
 | amCharts | One array of `{date, cpu, ram, tcp}` rows | All three series share the prepared records. |
 | Dygraphs | Rows of `[timestamp, cpu, ram, tcp]` | The native numeric format avoids Date allocation and date-input conversion copies. |
@@ -111,6 +194,13 @@ That removes one temporary array of 388,850 values per preparation.
 | Flot, ZingChart | Three arrays of `[x, y]` | Ordinary supported XY input, without custom ingestion hooks or index-based time spacing. |
 | CanvasJS | Three arrays of `{x, y}` | The documented point format, with numeric timestamps rather than Date objects. |
 | Lightweight Charts | Three arrays of `{time, value}` | The public `setData()` contract uses point records. |
+| Billboard | Four named columns | Native `data.columns` input shares numeric timestamps. |
+| G2, Recharts, MUI, React Financial Charts, visx | One array of `{time, cpu, ram, tcp}` rows | Shared wide input with numeric millisecond timestamps. |
+| Syncfusion, DevExtreme | Wide rows with Date-valued `time` | Native datetime input. Date allocation remains in preparation. |
+| JSCharting | Three arrays of numeric `[x, y]` pairs | Native point input on a continuous time axis. |
+| Kendo | Three arrays of `[Date, y]` pairs | `scatterLine` preserves calendar spacing without category aggregation. |
+| AnyChart, FusionTime | Rows of `[timestamp, cpu, ram, tcp]` | Native table input. FusionTime copies rows during initialization before DataStore adds row identifiers. |
+| Google Charts | Rows of `[Date, cpu, ram, tcp]` | DataTable construction and ingestion remain inside initialization. |
 
 Each four-column Float64 representation contains 1,777,600 bytes of numeric data, excluding wrappers and library allocations.
 Columnar preparation does not imply zero-copy initialization.
@@ -143,7 +233,11 @@ The audit used the pinned distributions as well as these public API references:
 - [LightningChart 9 declarations](https://cdn.jsdelivr.net/npm/@lightningchart/lcjs@9.0.0/dist/lcjs.d.ts).
 
 ZingChart documentation was unreachable during the audit. Its pinned bundle and browser probes provided the format evidence.
-LightningChart API checks did not include a browser run, because that requires a license and written benchmark permission.
+LightningChart runtime validation requires a valid user-supplied key. API checks alone do not establish a successful browser run.
+The expansion review links upstream references from adapter comments and records validation results.
+The first expansion passed the full 18-library trace-and-memory suite and separate rAF runs for its five additions.
+All 13 second-expansion adapters passed agent-reported direct browser smoke checks, but JSCharting is excluded from repeated samples.
+The expanded suite timed out after partial success. Separate worker results do not establish a completed full suite.
 
 ## License and availability limits
 
@@ -158,39 +252,58 @@ Runnable code does not establish permission for every use. The applicable vendor
 | amCharts | Linkware terms require the original license and prohibit disabling, hiding, or altering the branding link. The demo retains the logo and link, but removes its entrance animation. |
 | Lightweight Charts | Apache-2.0 with attribution requirements. The demo retains the attribution logo and adds a TradingView notice and link. |
 | Plotly | MIT. |
-| LightningChart | Vendor license and prior written permission for performance comparisons under EULA Article XXIV. Publication permission also applies where required. |
+| AG Charts Community | MIT Community bundle only. No Enterprise modules. |
+| Vega | BSD-3-Clause. |
+| SciChart | Vendor Community startup or a supplied runtime key. Vendor technical checks and branding remain intact. |
+| LightningChart | Vendor-issued runtime key required. Vendor technical checks and branding remain intact. |
 
-The default suite skips LightningChart, even with license configuration present.
+The new adapters retain vendor technical checks, evaluation notices, and license branding.
+Successful browser rendering does not establish license or publication permission for Syncfusion, DevExtreme, JSCharting, Kendo, AnyChart, or FusionTime.
+DevExtreme evaluation warnings remain visible. Licensed v26.1 use requires the appropriate vendor runtime key.
+No new adapter removes branding to improve timing or appearance.
 
+The user approved removal of the harness publication-policy gate, not removal of vendor license enforcement.
+The harness no longer requires `benchmarkPermission` or `LIGHTNINGCHART_BENCHMARK_PERMISSION`.
+Publication remains the user's decision. This documentation states no legal conclusion and claims no vendor agreement or publication permission.
 
-### Authorized LightningChart runs
+### JSCharting benchmark restriction
 
-Before a LightningChart run, obtain a vendor license and the required prior written permission.
+The adapter and `bench/JSCharting.html` remain available, with the pinned source `https://cdn.jsdelivr.net/npm/jscharting@3.4.0/dist/jscharting.js`.
+Build `3.4.0.20230215` becomes ready correctly, but vendor `destroy()` retains charts and listeners.
+The references include a global validate queue, window pointer listeners, and anonymous `beforeprint`/`afterprint` listeners.
+Post-GC memory reached 415 MB, 818 MB, and 1,221 MB after three successive samples.
+Diagnostic private-API/CDP removal reduced those observations to 8.6 MB, 8.9 MB, and 9.3 MB. That cleanup is not shipped.
+
+`benchmarkRestrictions` blocks repeated samples. The default suite emits an explicit JSCharting skip, and explicit benchmark selection fails.
+A vendor fix or a future fresh-page sample protocol is necessary before re-entry.
+
+### LightningChart and SciChart runtime configuration
+
 Do not commit license keys or put them in manifests, reports, or shared command examples.
-
 Supply these environment variables through your local environment or secret manager:
 
 | Variable | Value |
 | --- | --- |
-| `LIGHTNINGCHART_LICENSE` | Your valid vendor-issued license key |
-| `LIGHTNINGCHART_BENCHMARK_PERMISSION` | `1`, only after you obtain the required prior written permission |
+| `LIGHTNINGCHART_LICENSE` | Required vendor-issued LightningChart runtime key |
 | `LIGHTNINGCHART_LICENSE_INFORMATION` | Optional JSON containing vendor-required license metadata |
+| `SCICHART_LICENSE` | Optional SciChart runtime key. Without it, the adapter calls the vendor's `UseCommunityLicense()`. |
 
-Then select LightningChart explicitly:
+With `LIGHTNINGCHART_LICENSE`, the default suite includes LightningChart after the 30 runnable default libraries.
+Without a key, the suite reports an explicit LightningChart skip. Explicit selection without a key fails the availability check.
+
+To select LightningChart plus idle, use:
 
 ```sh
 npm run bench -- --variant lightningchart
 ```
 
-The permission flag records your acknowledgment. It does not grant permission.
 The harness supplies the license configuration to the browser through CDP before tracing starts.
 The manifest and report JSON contain no supplied license secrets.
-The vendor can require online license validation and telemetry under its EULA.
-A local dependency cache does not guarantee offline operation or prevent vendor network traffic.
+Vendor license validation can require network access. A local dependency cache does not guarantee offline operation or prevent vendor network traffic.
 
-For an authorized standalone demo, supply `globalThis.benchmarkLightningChartOptions` before `runDemo('lightningchart')`.
-The object requires `license` and `benchmarkPermission: true`, with optional `licenseInformation`.
-There is no fabricated key or automatic community-license fallback.
+For a standalone demo, supply `globalThis.benchmarkLightningChartOptions` before `runDemo('lightningchart')`.
+The object requires `license`, with optional `licenseInformation`. There is no fabricated key or automatic Community fallback for LightningChart 9.
+SciChart accepts `globalThis.benchmarkSciChartOptions.runtimeLicenseKey`. Its Community path does not bypass vendor validation or branding.
 
 ## Commands
 
@@ -227,7 +340,7 @@ npm run bench -- --dpr 2
 
 ## Library scope and progress
 
-The default suite runs idle first, then 13 libraries in this order:
+The expanded suite did not complete. The default suite runs idle first, then 30 runnable libraries in this order:
 
 1. uPlot
 2. Chart.js
@@ -242,8 +355,26 @@ The default suite runs idle first, then 13 libraries in this order:
 11. CanvasJS
 12. ZingChart
 13. amCharts
+14. Bokeh
+15. d3fc
+16. AG Charts Community
+17. Vega
+18. SciChart
+19. Billboard (`billboard`)
+20. AntV G2 (`g2`)
+21. Syncfusion (`syncfusion`)
+22. DevExtreme (`devextreme`)
+23. Kendo (`kendo`)
+24. AnyChart (`anychart`)
+25. FusionTime (`fusiontime`)
+26. Google Charts (`googlecharts`)
+27. Recharts (`recharts`)
+28. MUI X Charts (`muicharts`)
+29. React Financial Charts (`financialcharts`)
+30. visx (`visx`)
 
-The seven added default libraries join the original six.
+LightningChart follows these libraries when `LIGHTNINGCHART_LICENSE` supplies a runtime key.
+Without that key, the suite records an explicit skip rather than an empty benchmark row.
 Each variant uses a fresh browser with only its library and required demo dependencies.
 The idle control runs first so the first completed library can show adjusted memory values.
 The main table omits the idle row.
@@ -270,17 +401,81 @@ To select one library plus the idle control, use:
 npm run bench -- --variant chartjs
 ```
 
-Default library identifiers are `uplot`, `chartjs`, `d3`, `echarts`, `flot`, `dygraphs`, `apexcharts`, `highcharts`, `lightweight`, `plotly`, `canvasjs`, `zingchart`, and `amcharts`.
-`idle` is also selectable. `lightningchart` requires explicit selection and authorization.
+`benchmarkVariants` in `bench/demo-dependencies.mjs` controls execution order.
+`benchmarkRestrictions` excludes JSCharting from repeated samples without disabling its standalone demo.
+`idle` is also selectable. `lightningchart` requires a runtime key, not a harness permission flag.
 Default suite reports include the skipped variants and their reasons.
+
+### Current validation status
+
+The suite attempt timed out after 600 seconds, after idle and 22 libraries through DevExtreme. Its partial report is not a completed suite.
+Billboard, G2, Syncfusion, and DevExtreme passed with 3 warmups and 7 measured samples each in that run.
+Separate workers for Kendo, AnyChart, FusionTime, Google Charts, MUI, React Financial Charts, and visx passed the same sample counts.
+The final Recharts combined worker passed 3 warmups and 7 measured samples under a 512 MiB Node heap limit.
+Its gzip archive reported no `dataLoss` after the calendar-axis correction.
+All 12 runnable additions therefore passed integrated combined measurements across these runs, not one complete suite.
+No full-suite rerun followed the timeout, and these results establish no performance ranking.
+
+The focused benchmark and manual-profiler tests passed: 758 passing, with 20 optional browser tests pending in that invocation.
+`git diff --check` passed.
+
+The separate rAF pass completed 11 additions with 3 warmups and 7 measured samples each.
+Google Charts exceeded the 120-second CDP limit for its entire ten-sample rAF batch. Its combined worker passed with separate phase commands.
+No Google Charts rAF report was saved. These runs preceded the five-second sample deadline described below.
+The [investigation](../docs/investigations/benchmark-library-expansion.md#trace-storage-and-recharts-investigation) records the Recharts trace diagnosis and JSCharting cleanup evidence.
+
+### Candidates outside the default set
+
+The [candidate review](../docs/investigations/benchmark-library-expansion.md#deferred-held-and-removed-candidates) records each decision and its limits.
+These are workload, delivery, or priority decisions, not blanket incompatibility claims.
+
+| Candidate | Decision |
+| --- | --- |
+| ChartGPU | User hold. WebGPU needs different completion checks and device accounting. |
+| Perspective | User hold. Analytics and worker transforms need a fair workload. Current tracked totals omit worker CPU. |
+| Observable Plot | Defer. The ordinary API lacks an independent second y scale for this workload. |
+| Vega-Lite | Separate compile workload. The Vega result does not include Vega-Lite compilation. |
+| LayerCake 11.0.0 | Defer. Raw Svelte components require a dedicated compiler and custom chart setup. |
+| Nivo | Defer. The normal Canvas line chart has one y scale. A right axis is not an independent scale. |
+| Victory | Lower priority. Native dual-axis and dense-line audits remain outstanding. |
+| Tremor | Defer until its underlying renderer is clear, to avoid a duplicate wrapper comparison. |
+| Frappe Charts | Defer. A continuous-time, independent-dual-axis path is not established. |
+| Cytoscape | Network graphs do not match this time-series workload. |
+| FusionCharts ordinary line | No separate adapter. Specialized FusionTime represents this family for this workload. |
+| dvxCharts | Removed because the upstream distribution was unavailable during review. |
+
+LayerCake 11.0.0 requires Svelte >=5.40. The pinned esm.sh request with Svelte 5.57.2 returned HTTP 500.
+The recorded error was `esbuild: Expected ";" but found "Cake"`.
+A dedicated Svelte compiler and custom chart components remain possible. The deferral does not mean that independent dual axes are impossible.
 
 ## Timing and memory protocol
 
+### Sample timeout
+
+Each warmup and measured sample has a hard five-second budget in trace, memory, combined, and rAF modes.
+The budget starts before sample setup and ends after cleanup. It includes preparation, drawing, settling, WebGL completion, and applicable memory checkpoints.
+Library downloads, initial page loading, and final trace analysis are outside this budget. They retain separate command and worker limits.
+
+The watchdog runs in Node, outside the renderer. A synchronous JavaScript loop cannot block this watchdog.
+On timeout, the runner reports `<library>: timed out after 5s` and exits with code 124.
+It kills Chrome and its discovered descendants, closes CDP connections, and skips chart teardown and trace download.
+The suite stops and preserves results from completed libraries. It does not save the timed-out library's incomplete trace or replace its previous successful trace.
+Linux process-tree discovery uses a non-atomic `/proc` snapshot. Newly created or already-reparented descendants can escape discovery.
+
+The rAF runner sends sample-boundary notifications to the Node watchdog. These notifications are outside the measured chart interval.
+The five-second budget resets for each sample, not each phase. It is not a five-second limit for all ten samples together.
+
+### Measurement boundaries
+
 Library loading, raw JSON parsing, and fixture setup occur outside the chart timers.
+`bench/demo-runtime.mjs` downloads WASM bytes before timing. Stable Blob URLs permit normal compiler-cache reuse across samples.
+WASM compilation, instantiation, and native ingestion initially occur inside chart initialization, subject to normal browser and vendor cache reuse.
+The benchmark does not force repeated compilation through artificial cache busting.
 Each sample times the actual demo preparation function separately from chart initialization.
 uPlot uses its own shared preparation function, with timestamps in seconds and the default time scale.
-Lightweight Charts also uses timestamps in seconds.
-The other runnable libraries use numeric millisecond timestamps.
+Lightweight Charts and SciChart also use timestamps in seconds.
+Syncfusion, DevExtreme, Kendo, and Google Charts prepare Date values.
+The other adapters prepare numeric millisecond timestamps. Financial Charts constructs Date values through its x accessor during initialization.
 The benchmark does not convert uPlot data to milliseconds or override its chart configuration.
 Chart initialization includes configuration construction, chart construction, async library completion, and the initial microtask commit.
 If `makeChart` returns a promise, the harness awaits it inside the initialization span, then awaits one microtask.
@@ -293,20 +488,46 @@ The amCharts adapter shows the logo immediately in its final state, with its lin
 A version-specific override gives only its entrance animations zero duration. The vendor's delayed callback remains, but no longer starts an animation.
 This override uses `root._logo` and requires review when the pinned version changes.
 LightningChart waits for `renderframe` without pending async rendering.
-These completion signals do not establish GPU completion or presentation.
+Bokeh awaits `Plotting.show()` and document idle. AG Charts awaits `waitForUpdate()`. Vega awaits `runAsync()`.
+SciChart awaits `renderInstructionsCompleted` with no invalidation or animation. d3fc submits its initial draw synchronously and calls `gl.flush()`.
+Billboard awaits `onrendered`, G2 awaits `render()`, Syncfusion awaits `loaded`, and DevExtreme awaits `onDone`.
+The standalone JSCharting adapter awaits its chart-ready callback.
+Kendo awaits `render`. Its pinned source completes initial Canvas drawing synchronously before this event.
+A separate pixel probe validated Kendo output. The adapter no longer adds an extra rAF wait.
+AnyChart awaits `chartDraw`, FusionTime awaits `renderComplete`, and Google Charts awaits `ready`.
+The React helper creates and commits roots through `flushSync` inside initialization.
+Recharts, MUI, and visx await three complete SVG line paths. Financial Charts checks its committed Canvas chart and full `plotData` length.
+These library signals do not establish GPU completion or presentation. Trace and memory modes add the completion checks described next.
 
 The rAF mode aligns chart start with an animation-frame callback.
 `raf1Ms` ends at the first rAF callback requested after initialization completes.
 Async initialization can span earlier frames, so this callback is not necessarily the next frame after chart start.
 `postJsRaf1Ms` measures only the interval from completed initialization to that callback.
+The rAF mode remains uninstrumented by the WebGL observer, completion checks, and context-info queries.
 
-The trace window starts at chart construction and ends after rendering settles.
+The chart window starts at chart construction and ends after settling and the WebGL completion checks.
 It includes deferred rendering but excludes data preparation, forced GC, and teardown.
-Settling uses two animation frames and a 200 ms wait.
-This wait is a heuristic, not a GPU completion fence.
+Settling uses two animation frames and a 200 ms wait. This wait alone is a heuristic, not a completion guarantee.
+
+Trace and memory modes run WebGL completion checks after library readiness and settling, after `js-end` but before the sample `end` marker.
+WebGL2 uses async fences: `fenceSync()`, `flush()`, and timer-based `clientWaitSync()` polling with zero timeout.
+WebGL1 uses blocking `gl.finish()`. The fence timeout cannot interrupt a blocking GL call, so the browser watchdog remains necessary.
+The observer then queries raw renderer/version strings and the optional unmasked renderer string. Unavailable strings remain `null`.
+These strings can be masked. They do not prove hardware acceleration.
+
+`scripts/bench-webgl.mjs` observes current-realm `HTMLCanvasElement` and `OffscreenCanvas` context acquisition.
+Adapter `getWebGLContexts()` hooks also expose reused contexts that do not call `getContext()` during a sample.
+Workers and other realms remain outside this coverage unless they install their own observer.
+Completion covers only commands before each fence or finish call, not later draws or compositor presentation.
+No observed context is not proof that a library performed no GPU work.
+
+Completion checks occur outside initialization but inside the chart window.
+Thread-wall totals include blocking finish waits, fence submission/polling, and context-info queries.
+This overhead can change scheduling. Neither these totals nor completion latency measures hardware GPU busy time.
 
 The trace enables only `blink.user_timing` and `disabled-by-default-devtools.timeline`.
 These categories supply sample markers, thread tasks, raster tasks, and GPU task events.
+The completion protocol does not add arbitrary broad GPU tracing categories.
 The main-thread total includes style, layout, and paint work, but the trace omits their separate breakdown.
 The JSON field `styleLayoutPaintMs` is therefore unavailable (`null`), not zero.
 Chrome Headless Shell 156 captures all required thread roles and work events with these categories.
@@ -321,7 +542,7 @@ Each memory sample then has this sequence:
 3. Prepare fresh input data while process polling runs.
 4. Record the prepared snapshot without forced GC.
 5. Construct the chart and allow rendering to settle while process polling runs.
-6. End the chart timing window.
+6. Run the WebGL completion checks and context-info queries, then end the chart timing window.
 7. Force JS GC and record retained process memory.
 8. Destroy the chart, release input references, and allow rendering to settle.
 9. Force JS GC and record cleanup memory.
@@ -405,10 +626,17 @@ Adjusted statistics hold the chosen blank and idle baselines fixed.
 Their ranges do not include baseline uncertainty or establish exclusive library ownership.
 Cleanup growth alone is not proof of a leak.
 
+Tracked thread totals do not account for worker CPU. Billboard therefore disables its worker path.
+WebGL completion checks do not cover WebGPU. A future ChartGPU adapter needs a separate completion protocol and device-accounting review.
+Perspective needs a fair analytics workload and worker accounting before comparison with these chart adapters.
+
+Google Charts added no observed WebGL context. The expansion establishes no new hardware-GPU measurement claim.
 Browser-tree PSS includes CPU-resident mappings in the GPU helper process.
 It does not measure GPU-specific allocations or complete device memory.
-The benchmark uses no heap snapshots, canvas readbacks, or screenshots.
+The benchmark uses no heap snapshots, canvas readbacks, or screenshots. Separate diagnostic probes do not change this measurement protocol.
 rAF latency does not prove GPU completion or presentation.
+WebGL completion evidence also does not prove presentation, hardware acceleration, or full coverage of worker-owned contexts.
+Results with completion checks include overhead absent from older unfenced runs. They are not directly equivalent measurement protocols.
 
 ## Saved results
 
@@ -424,6 +652,22 @@ Per-variant reports use `results-chrome-MODE-VARIANT.json`.
 Traces use `trace-chrome-MODE-VARIANT.json.gz`.
 Each run replaces its default output files.
 Suite reports retain raw per-variant reports, adjusted statistics, progress, and completion status.
+
+Chrome supplies `streamCompression: 'gzip'`, and capture writes directly to the archive without a raw intermediate file.
+The JSON analyzer streams the trace instead of loading the complete document into memory.
+The archive retains the full trace, and trace validation and `dataLoss` checks remain intact.
+`trace.bytes` now measures saved gzip bytes and equals `trace.compressedBytes`. It no longer represents uncompressed JSON size.
+
+The first Recharts trace attempt exhausted disk space after about 225 MiB of raw output. The incomplete trace was removed.
+Compression solved disk exhaustion, but the next attempt still reported `dataLoss` with the 128 MiB trace buffer.
+
+Before the calendar-axis correction, a diagnostic single-sample trace contained 55,504,254 bytes and 254,491 events.
+`InvalidateLayout` and `ScheduleStyleRecalculation` accounted for 98.35% of those events.
+The probe counted 126,146 text-measurement `getBoundingClientRect()` calls, about 63,000 distinct strings, and a 2,000-entry cache. No React profiler was active.
+These are pre-fix diagnostics, not measurements of the corrected adapter. The final combined worker passed without `dataLoss`.
+
+A 690 MiB synthetic trace test used 189 MiB peak RSS with a 512 MiB Node heap limit.
+That test validates trace handling separately from the final Recharts worker.
 
 To summarize the saved combined report without starting Chrome, use:
 

@@ -3,9 +3,11 @@ import { readFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { runInNewContext } from 'node:vm';
 import { setTimeout as delay } from 'node:timers/promises';
+import { Window } from 'happy-dom';
 import { captureBenchmarkSamples } from '../../scripts/benchmarks-samples.mjs';
+import { SAMPLE_TIMEOUT_MS, createSampleWatchdog, abortable } from '../../scripts/bench-sample-timeout.mjs';
 import { summarizeProcessMemory } from '../../scripts/analyze-benchmarks-process-memory.mjs';
-import { demoDependencies, benchmarkVariants, demoRestrictions, assertDemoAvailable } from '../../bench/demo-dependencies.mjs';
+import { demoDependencies, benchmarkVariants, demoRestrictions, benchmarkRestrictions, assertBenchmarkAvailable } from '../../bench/demo-dependencies.mjs';
 
 const allVariants = Object.keys(demoDependencies);
 const demoVariants = allVariants.filter(id => id !== 'idle');
@@ -100,7 +102,7 @@ function fixture(options = {}) {
 	};
 	return {
 		events, page, evaluate,
-		capture: (captureOptions = {}) => captureBenchmarkSamples(page, evaluate, {
+		capture: (captureOptions = {}) => (options.collector ?? captureBenchmarkSamples)(page, evaluate, {
 			...(options.memory ? {processRead} : {}), ...captureOptions,
 		}),
 	};
@@ -122,13 +124,49 @@ async function assertSettled(fake, assertion) {
 	}
 }
 
+// Run the collector with a manual clock, without adding timer injection to its public API.
+function collectorClock() {
+	let now = 0;
+	let nextId = 0;
+	const timers = new Map();
+	const setTimer = (callback, ms) => {
+		const id = ++nextId;
+		timers.set(id, {callback, at: now + ms});
+		return id;
+	};
+	const clearTimer = id => timers.delete(id);
+	const context = {
+		performance, SAMPLE_TIMEOUT_MS, abortable,
+		setTimeout: setTimer, clearTimeout: clearTimer,
+		createSampleWatchdog: (callback, options) => createSampleWatchdog(callback, {...options, setTimer, clearTimer}),
+	};
+	runInNewContext(collectorSource.replace(/^import .*\n/gm, '').replace('export async function', 'async function') + '\nglobalThis.capture = captureBenchmarkSamples;', context);
+	return {
+		capture: context.capture, timers,
+		advance(ms) {
+			const end = now + ms;
+			while (true) {
+				const next = [...timers].sort((a, b) => a[1].at - b[1].at)[0];
+				if (!next || next[1].at > end)
+					break;
+				const [id, {callback, at}] = next;
+				timers.delete(id);
+				now = at;
+				callback();
+			}
+			now = end;
+		},
+	};
+}
+
 // Execute the actual lifecycle and report code with deterministic browser primitives.
 function browserFixture(options = {}) {
 	let clock = 0;
 	const events = [];
 	const marks = [];
 	const context = {
-		VARIANTS: ['uplot', 'chartjs', 'idle'], ALL_VARIANTS: allVariants,
+		VARIANTS: options.variants ?? ['uplot', 'chartjs', 'idle'], ALL_VARIANTS: allVariants,
+				benchmarkWebGL: options.webgl,
 		WARMUPS: 3, ROUNDS: 7, dpr: 2, WIDTH: 1920, HEIGHT: 600, VIEWPORT_HEIGHT: 900, IDLE_MS: 200, ROWS: 55550,
 		packed: {raw: true},
 		crypto: {randomUUID: () => 'browser-capture'},
@@ -144,7 +182,7 @@ function browserFixture(options = {}) {
 		console: {time() {}, timeEnd() {}},
 		environment: () => ({actualDPR: 2}),
 		checkPage: () => events.push('checkPage'),
-		setup: () => ({host: true}),
+		setup: () => { events.push('setup'); return {host: true}; },
 		prepFor: () => {
 			clock += 50; // Selecting prepData must not be timed.
 			return packed => {
@@ -164,7 +202,7 @@ function browserFixture(options = {}) {
 			events.push('construct');
 			sample.chart = {chart: true};
 			clock += 5;
-			options.construct?.();
+			options.construct?.(sample);
 		},
 		finishMicrotask: async () => { events.push('microtask'); clock += 2; },
 		settle: async () => { events.push('settle'); clock += 100; await options.settle?.(); },
@@ -183,7 +221,8 @@ function browserFixture(options = {}) {
 		},
 	};
 	runInNewContext(browserSource.slice(browserSource.indexOf('let invoked = null;')), context);
-	return {api: context.benchmarkLifecycle, runTrace: context.runBenchmarkTrace, context, events, marks};
+	return {api: context.benchmarkLifecycle, runTrace: context.runBenchmarkTrace, context, events, marks,
+			advance: ms => { clock += ms; }};
 }
 
 describe('shared browser sample lifecycle', () => {
@@ -277,7 +316,7 @@ describe('shared browser sample lifecycle', () => {
 	});
 
 	it('validates rendered adapter charts and delegates teardown while always removing their hosts', () => {
-		const source = browserSource.slice(browserSource.indexOf('function validateChart('), browserSource.indexOf('function environment('));
+		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function environment('));
 		const oldVariants = ['uplot', 'd3', 'chartjs', 'echarts', 'flot', 'dygraphs'];
 		for (const variant of demoVariants.filter(id => !oldVariants.includes(id))) {
 			for (const fail of [false, true]) {
@@ -295,7 +334,7 @@ describe('shared browser sample lifecycle', () => {
 				const sample = {variant, chart, host};
 				assert.equal(api.validateChart(sample), 1.5);
 				assert.throws(() => api.validateChart({...sample, chart: null}), /did not return a rendered chart/);
-				assert.throws(() => api.validateChart({...sample, host: {querySelector: () => null}}), /did not return a rendered chart/);
+				assert.throws(() => api.validateChart({...sample, host: {querySelector: () => null, querySelectorAll: () => []}}), /did not return a rendered chart/);
 				if (fail) assert.throws(() => api.teardown(sample), actual => actual === error);
 				else api.teardown(sample);
 				assert.deepEqual(events, ['destroy', 'clear', 'remove']);
@@ -303,8 +342,35 @@ describe('shared browser sample lifecycle', () => {
 		}
 	});
 
+	it('accepts chart surfaces in nested shadow roots but rejects empty shadow renderers', () => {
+		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 2, sources: {bokeh: {destroyChart() {}}}});
+		const window = new Window();
+		try {
+			const host = window.document.createElement('div');
+			const outer = window.document.createElement('div');
+			const inner = window.document.createElement('div');
+			host.append(outer);
+			outer.attachShadow({mode: 'open'}).append(inner);
+			const root = inner.attachShadow({mode: 'open'});
+			const sample = {variant: 'bokeh', chart: {}, host};
+			assert.throws(() => validate(sample), /did not return a rendered chart/);
+			for (const tag of ['canvas', 'svg']) {
+				root.append(tag === 'svg' ? window.document.createElementNS('http://www.w3.org/2000/svg', tag) : window.document.createElement(tag));
+				assert.equal(host.querySelector('canvas, svg'), null, 'surface is invisible to a light-DOM query');
+				assert.equal(validate(sample), 2);
+				assert.throws(() => validate({...sample, chart: null}), /did not return a rendered chart/);
+				root.replaceChildren();
+				assert.throws(() => validate(sample), /did not return a rendered chart/);
+			}
+		}
+		finally {
+			window.close();
+		}
+	});
+
 	it('rejects uPlot bundles that retain series or point paths after drawing', () => {
-		const source = browserSource.slice(browserSource.indexOf('function validateChart('), browserSource.indexOf('function teardown('));
+		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
 		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, sources: {}});
 		const chart = {pxRatio: 1, series: [{}, {_paths: null, points: {_paths: null}}]};
 		assert.equal(validate({variant: 'uplot', chart}), 1);
@@ -355,6 +421,142 @@ describe('shared browser sample lifecycle', () => {
 		await fake.api.destroy();
 	});
 
+	it('captures reused GL contexts after js-end and awaits completion inside the chart window', async () => {
+		const entered = signal(), pending = signal();
+		const contexts = [{}, {}];
+		const webgl = {
+			status: 'complete', waitMs: 11, webgl1Finish: true,
+			contexts: [
+				{index: 0, type: 'webgl', method: 'finish', status: 'complete', blockingMs: 4},
+				{index: 1, type: 'webgl2', method: 'fence', status: 'complete', waitMs: 11},
+			],
+		};
+		const tracked = [];
+		const fake = browserFixture({
+			variants: ['scichart'],
+			construct: sample => {
+				sample.chart.getWebGLContexts = function() {
+					assert.equal(this, sample.chart);
+					fake.events.push('getWebGLContexts');
+					return contexts;
+				};
+			},
+			webgl: {
+				begin() { fake.events.push('webgl:begin'); },
+				track(gl) { tracked.push(gl); fake.events.push('webgl:track'); fake.advance(3); },
+				async complete(options) {
+					assert.deepEqual(structuredClone(options), {webgl1Finish: true});
+					fake.events.push('webgl:complete');
+					entered.resolve();
+					await pending.promise;
+					fake.advance(11);
+					fake.events.push('webgl:completed');
+					return webgl;
+				},
+				reset() { fake.events.push('webgl:reset'); },
+			},
+		});
+		fake.api.begin();
+		await fake.api.setup('scichart', 'sample-0');
+		await fake.api.prepare();
+		const completion = fake.api.construct();
+		await waitFor(entered.promise);
+		assert.equal(fake.marks.some(mark => mark.name === 'benchmark:sample-0:end'), false);
+		await assert.rejects(fake.api.destroy(), /inactive/);
+		pending.resolve();
+		const sample = await completion;
+		assert.deepEqual(tracked, contexts);
+		assert.deepEqual(structuredClone(sample), {...timing('scichart', 'sample-0', 2), windowMs: 124, webgl});
+		assert.deepEqual(fake.events.slice(fake.events.indexOf('webgl:begin')), [
+			'webgl:begin', 'setup', 'settle', 'checkPage',
+			'prepData', 'validateInput', 'settle', 'checkPage', 'checkPage',
+			'benchmark:sample-0:start', 'construct', 'microtask', 'benchmark:sample-0:js-end',
+			'getWebGLContexts', 'webgl:track', 'webgl:track', 'settle',
+			'webgl:complete', 'webgl:completed', 'benchmark:sample-0:end', 'checkPage', 'validateChart',
+		]);
+		await fake.api.destroy();
+		assert.deepEqual(fake.events.slice(-3), ['teardown', 'webgl:reset', 'settle']);
+		await fake.api.setup('scichart', 'sample-1');
+		assert.equal(fake.events.filter(event => event === 'webgl:begin').length, 2);
+		await fake.api.destroy();
+	});
+
+	for (const variant of ['highcharts', 'plotly', 'bokeh', 'd3fc', 'scichart', 'lightningchart']) {
+		for (const status of ['complete', 'incomplete', 'not-observed', 'missing-result', 'missing-observer']) {
+			it(`${variant} requires complete GL evidence (${status})`, async () => {
+				const webgl = status === 'missing-result' ? undefined : {status, contexts: []};
+				let resets = 0;
+				const fake = browserFixture({variants: [variant], webgl: status === 'missing-observer' ? undefined : {
+					begin() {}, track() {}, complete: async () => webgl, reset() { resets++; },
+				}});
+				fake.api.begin();
+				await fake.api.setup(variant, 'sample-0');
+				await fake.api.prepare();
+				if (status === 'complete')
+					assert.deepEqual(structuredClone((await fake.api.construct()).webgl), webgl);
+				else {
+					await assert.rejects(fake.api.construct(), error => error.message.startsWith(`${variant}: WebGL completion not verified:`));
+					await assert.rejects(fake.api.construct(), /prepared/);
+				}
+				await fake.api.destroy();
+				assert.equal(resets, status === 'missing-observer' ? 0 : 1);
+				await fake.api.setup(variant, 'sample-1');
+				await fake.api.destroy();
+			});
+		}
+	}
+
+	for (const status of ['not-observed', 'incomplete']) {
+		it(`handles ${status} GL evidence for a non-GL variant`, async () => {
+			const webgl = {status, contexts: []};
+			const fake = browserFixture({webgl: {begin() {}, complete: async () => webgl, reset() {}}});
+			fake.api.begin();
+			await fake.api.setup('uplot', 'sample-0');
+			await fake.api.prepare();
+			if (status === 'not-observed')
+				assert.deepEqual(structuredClone((await fake.api.construct()).webgl), webgl);
+			else
+				await assert.rejects(fake.api.construct(), /uplot: WebGL completion not verified/);
+			await fake.api.destroy();
+		});
+	}
+
+	for (const phase of ['prepare', 'construct', 'complete', 'teardown']) {
+		it(`resets GL capture and clears sample state after ${phase} fails`, async () => {
+			const primary = new Error(`${phase} failed`);
+			const fail = () => { throw primary; };
+			const fake = browserFixture({
+				validateInput: phase === 'prepare' ? fail : undefined,
+				construct: phase === 'construct' ? fail : undefined,
+				teardown: phase === 'teardown' ? fail : undefined,
+				webgl: {
+					begin() { fake.events.push('webgl:begin'); },
+					async complete() { if (phase === 'complete') throw primary; return {status: 'not-observed'}; },
+					reset() { fake.events.push('webgl:reset'); },
+				},
+			});
+			fake.api.begin();
+			await fake.api.setup('uplot', 'sample-0');
+			if (phase === 'prepare')
+				await assert.rejects(fake.api.prepare(), error => error === primary);
+			else {
+				await fake.api.prepare();
+				if (phase === 'teardown') await fake.api.construct();
+				else await assert.rejects(fake.api.construct(), error => error === primary);
+			}
+			if (phase === 'teardown') await assert.rejects(fake.api.destroy(), error => error === primary);
+			else await fake.api.destroy();
+			assert.deepEqual(fake.events.slice(-3), ['teardown', 'webgl:reset', 'settle']);
+			await fake.api.destroy();
+			assert.equal(fake.events.filter(event => event === 'teardown').length, 1);
+			assert.equal(fake.events.filter(event => event === 'webgl:reset').length, 2);
+			await fake.api.setup('uplot', 'sample-1');
+			assert.equal(fake.events.filter(event => event === 'webgl:begin').length, 2);
+			if (phase === 'teardown') await assert.rejects(fake.api.destroy(), error => error === primary);
+			else await fake.api.destroy();
+		});
+	}
+
 	it('requires begin, valid variants and chronological IDs, and enforces phase order', async () => {
 		const {api} = browserFixture();
 		await assert.rejects(api.setup('uplot', 'sample-0'), /begin/);
@@ -399,10 +601,14 @@ describe('shared browser sample lifecycle', () => {
 		const shared = browserFixture();
 		shared.api.begin();
 		await assert.rejects(shared.runTrace({raf: true}), /exclusive/);
-		const raf = browserFixture();
+		const raf = browserFixture({
+			webgl: Object.fromEntries(['begin', 'track', 'complete', 'reset'].map(method => [method, () => assert.fail(`rAF must not call WebGL ${method}`)])),
+			construct: sample => { sample.chart.getWebGLContexts = () => assert.fail('rAF must not enumerate GL contexts'); },
+		});
 		const report = await raf.runTrace({raf: true});
 		assert.equal(report.samples.length, 30);
 		assert.equal(report.samples.filter(sample => sample.warmup).length, 9);
+				assert.ok(report.samples.every(sample => !Object.hasOwn(sample, 'webgl')));
 		assert.equal(report.raf.enabled, true);
 		assert.equal(report.raf.frameIntervalsMs.length, 16);
 		assert.equal(report.samples[0].raf1Ms, 23);
@@ -411,17 +617,41 @@ describe('shared browser sample lifecycle', () => {
 		await assert.rejects(raf.api.setup('uplot', 'sample-0'), /begin/);
 	});
 
+	it('notifies optional rAF sample boundaries before setup and after teardown for every round', async () => {
+		const fake = browserFixture({
+			webgl: Object.fromEntries(['begin', 'track', 'complete', 'reset'].map(method => [method, () => assert.fail(`rAF must not call WebGL ${method}`)])),
+		});
+		const boundaries = [];
+		fake.context.benchmarkSampleBoundary = payload => {
+			const boundary = JSON.parse(payload);
+			boundaries.push(boundary);
+			fake.events.push(`boundary:${boundary.phase}`);
+		};
+		const report = await fake.runTrace({raf: true});
+		assert.deepEqual(boundaries, Array.from(report.samples).flatMap(({variant}) => [{phase: 'start', variant}, {phase: 'end', variant}]));
+		assert.equal(boundaries.length, 60);
+		for (let i = 0; i < fake.events.length; i++) {
+			if (fake.events[i] === 'boundary:start')
+				assert.deepEqual(fake.events.slice(i + 1, i + 4), ['checkPage', 'setup', 'prepData']);
+			if (fake.events[i] === 'boundary:end')
+				assert.equal(fake.events[i - 1], 'teardown');
+		}
+		assert.equal(report.raf.frameIntervalsMs.length, 16);
+		assert.ok(report.samples.every(sample => sample.raf1Ms === 23 && sample.postJsRaf1Ms === 16));
+		assert.equal(fake.marks.filter(mark => /:sample-/.test(mark.name)).length, 90);
+	});
+
 	it('defaults to runnable manifest variants, preserves query variants, and blocks unavailable libraries', () => {
 		assert.match(browserSource, /await import\('\/bench\/demo-dependencies.mjs'\)/);
 		const source = browserSource.slice(browserSource.indexOf('const ALL_VARIANTS'), browserSource.indexOf('const WARMUPS'));
 		const select = selectedVariant => runInNewContext(source + '\n({ALL_VARIANTS, VARIANTS});', {
-			selectedVariant, demoDependencies, benchmarkVariants, assertDemoAvailable,
+			selectedVariant, demoDependencies, benchmarkVariants, assertBenchmarkAvailable,
 		});
 		assert.deepEqual(structuredClone(select(null).VARIANTS), [...benchmarkVariants, 'idle']);
 		assert.deepEqual(new Set(select(null).ALL_VARIANTS), new Set(allVariants));
 		for (const variant of [...benchmarkVariants, 'idle'])
 			assert.deepEqual(structuredClone(select(variant).VARIANTS), [variant]);
-		for (const [variant, reason] of Object.entries(demoRestrictions))
+		for (const [variant, reason] of Object.entries({...demoRestrictions, ...benchmarkRestrictions}))
 			assert.throws(() => select(variant), error => error.message.includes(reason));
 		for (const variant of ['unknown', 'toString', '__proto__'])
 			assert.throws(() => select(variant), /Unknown variant/);
@@ -440,6 +670,7 @@ describe('shared sample capture', () => {
 		assert.equal(report.captureId, 'capture-id');
 		assert.deepEqual(report.env, {actualDPR: 1});
 		assert.equal(report.phase, 'initial-chart-creation');
+		assert.equal(report.sampleTimeoutMs, 5000);
 		assert.equal(report.markerPattern, 'benchmark:<id>:start|js-end|end');
 		assert.ok(report.limitations.includes('fixture limitation'));
 		assert.equal(report.processProtocol, undefined);
@@ -469,6 +700,8 @@ describe('shared sample capture', () => {
 			'begin', 'setup', gc, 'read', 'read', 'prepare', 'read', 'read', 'read', 'construct', 'read', gc, 'read', 'destroy', gc, 'read',
 		]);
 		assert.equal(report.processProtocol.requestedProcessPollIntervalMs, 50);
+		assert.equal(report.processProtocol.sampleTimeoutMs, 5000);
+		assert.equal(report.processProtocol.phaseTimeoutMs, undefined);
 		assert.equal(report.processProtocol.separatePass, false);
 		assert.match(report.processProtocol.prepared, /without GC/);
 		// The existing raw summary accepts process observations via its observations field.
@@ -643,32 +876,190 @@ describe('shared sample capture', () => {
 		assert.equal(fake.events.at(-1).method, 'destroy:end');
 	});
 
-	for (const blocked of ['setup', 'GC']) {
-		it(`bounds a stalled ${blocked} command and attempts destruction`, async () => {
-			const events = [];
-			const context = {
-				performance, clearTimeout,
-				// Shorten only the command deadlines, not the polling schedule.
-				setTimeout: (callback, ms) => setTimeout(callback, ms >= 30000 ? 5 : ms),
+	for (const blocked of ['setup', 'prepare', 'construct', 'destroy', 'baseline GC', 'live GC', 'cleanup GC', ...Array.from({length: 8}, (_, i) => `read ${i + 1}`)]) {
+		it(`uses the sample deadline for stalled ${blocked} without starting more work`, async () => {
+			const clock = collectorClock();
+			const entered = signal();
+			let rejectPending;
+			const pending = new Promise((resolve, reject) => { rejectPending = reject; });
+			const stall = name => {
+				if (name === blocked) {
+					entered.resolve();
+					return pending;
+				}
 			};
-			runInNewContext(collectorSource.replace(/^import .*\n/, '').replace('export async function', 'async function') + '\nglobalThis.capture = captureBenchmarkSamples;', context);
-			const page = {send: async method => {
-				events.push(method);
-				return new Promise(() => {});
-			}};
-			const evaluate = async (target, expression) => {
-				events.push(expression);
-				if (expression === 'benchmarkLifecycle.begin()')
-					return {config: {variants: ['uplot'], dpr: 1, warmups: 0, rounds: 1}};
-				if (blocked === 'setup' && expression.includes('.setup('))
-					return new Promise(() => {});
-			};
-			await assert.rejects(context.capture(page, evaluate, blocked === 'GC' ? {processRead: memory} : {}), /timed out after (30000|120000)ms/);
-			assert.equal(events.at(-1), 'benchmarkLifecycle.destroy()');
+			let gcCount = 0;
+			const fake = fixture({
+				collector: clock.capture, memory: true,
+				operation: stall,
+				gc: () => stall(['baseline GC', 'live GC', 'cleanup GC'][gcCount++]),
+				read: count => stall(`read ${count}`),
+			});
+			const timeouts = [];
+			const unhandled = [];
+			const listener = error => unhandled.push(error);
+			process.on('unhandledRejection', listener);
+			try {
+				const capture = fake.capture({onSampleTimeout: error => {
+					timeouts.push(error);
+					throw new Error('callback failure');
+				}});
+				const rejected = assert.rejects(capture, error => {
+					assert.equal(error, timeouts[0]);
+					assert.equal(error.message, 'uplot: timed out after 5s');
+					assert.equal(error.code, 'BENCHMARK_SAMPLE_TIMEOUT');
+					assert.equal(error.variant, 'uplot');
+					assert.equal(error.timeoutMs, 5000);
+					return true;
+				});
+				await waitFor(entered.promise);
+				clock.advance(4999);
+				assert.equal(timeouts.length, 0);
+				clock.advance(1);
+				assert.equal(timeouts.length, 1, 'timeout callback runs before pending operations settle');
+				await rejected;
+				rejectPending(new Error('late browser failure'));
+				await delay(0);
+				const count = fake.events.length;
+				clock.advance(120000);
+				await delay(0);
+				assert.equal(fake.events.length, count);
+				assert.equal(timeouts.length, 1);
+				assert.equal(clock.timers.size, 0);
+				assert.deepEqual(unhandled, []);
+				const destroyed = ['destroy', 'cleanup GC', 'read 8'].includes(blocked);
+				assert.equal(fake.events.filter(event => event.method === 'destroy').length, destroyed ? 1 : 0);
+			}
+			finally {
+				process.removeListener('unhandledRejection', listener);
+			}
 		});
 	}
 
+	for (const phase of ['prepare', 'construct']) {
+		it(`bounds a stalled ${phase} poll drain and skips destruction`, async () => {
+			const clock = collectorClock();
+			const evaluating = signal();
+			const polled = signal();
+			const returned = signal();
+			const fake = fixture({
+				collector: clock.capture, memory: true,
+				operation: async method => {
+					if (method === phase) {
+						evaluating.resolve();
+						await polled.promise;
+						returned.resolve();
+					}
+				},
+				read: (count, active) => {
+					if (active === phase) {
+						polled.resolve();
+						return new Promise(() => {});
+					}
+				},
+			});
+			const timeouts = [];
+			const capture = fake.capture({processPollIntervalMs: 1, onSampleTimeout: error => timeouts.push(error)});
+			const rejected = assert.rejects(capture, error => error === timeouts[0]);
+			await waitFor(evaluating.promise);
+			clock.advance(1);
+			await waitFor(returned.promise);
+			// Let evaluation finish so the collector is draining the blocked poll.
+			await delay(0);
+			clock.advance(4999);
+			await rejected;
+			assert.equal(timeouts.length, 1);
+			assert.equal(clock.timers.size, 0);
+			assert.ok(!fake.events.some(event => event.method === 'destroy'));
+			const count = fake.events.length;
+			clock.advance(120000);
+			await delay(0);
+			assert.equal(fake.events.length, count);
+		});
+	}
+
+	it('uses one cumulative deadline across phases rather than resetting each phase', async () => {
+		const clock = collectorClock();
+		const timeouts = [];
+		const fake = fixture({
+			collector: clock.capture, memory: true,
+			operation: () => clock.advance(700),
+			gc: () => clock.advance(700),
+			read: () => clock.advance(100),
+		});
+		await assert.rejects(fake.capture({processPollIntervalMs: 10000, onSampleTimeout: error => timeouts.push(error)}), error => error === timeouts[0]);
+		assert.equal(timeouts.length, 1);
+		assert.equal(fake.events.filter(event => event.method === gc).length, 3, 'budget lasts through destruction, but expires in cleanup GC');
+		assert.equal(fake.events.filter(event => event.method === 'read').length, 7, 'no cleanup read after timeout');
+		assert.equal(clock.timers.size, 0);
+	});
+
+	it('resets the full budget for every variant and sample, including warmups', async () => {
+		const clock = collectorClock();
+		const fake = fixture({
+			collector: clock.capture, memory: true,
+			config: {variants: ['uplot', 'chartjs'], warmups: 3, rounds: 7},
+			operation: () => clock.advance(500),
+			gc: () => clock.advance(500),
+			read: () => clock.advance(100),
+		});
+		const report = await fake.capture({sampleTimeoutMs: 4500, processPollIntervalMs: 10000, onSampleTimeout: () => assert.fail('sample must fit its own budget')});
+		assert.equal(report.samples.length, 20);
+		assert.equal(report.samples.filter(sample => sample.warmup).length, 6);
+		assert.equal(report.sampleTimeoutMs, 4500);
+		assert.equal(report.processProtocol.sampleTimeoutMs, 4500);
+		assert.equal(clock.timers.size, 0);
+		clock.advance(120000);
+	});
+
+	it('preserves the watchdog error if normal failure cleanup stalls', async () => {
+		const clock = collectorClock();
+		const destroying = signal();
+		const timeouts = [];
+		const fake = fixture({collector: clock.capture, operation: method => {
+			if (method === 'prepare') throw new Error('primary');
+			if (method === 'destroy') {
+				destroying.resolve();
+				return new Promise(() => {});
+			}
+		}});
+		const rejected = assert.rejects(fake.capture({onSampleTimeout: error => timeouts.push(error)}), error => error === timeouts[0]);
+		await waitFor(destroying.promise);
+		clock.advance(5000);
+		await rejected;
+		assert.equal(timeouts.length, 1);
+		assert.equal(clock.timers.size, 0);
+	});
+
+	it('retains the command fallback for begin before any sample is active', async () => {
+		const clock = collectorClock();
+		const entered = signal();
+		let timeouts = 0;
+		const capture = clock.capture({}, () => {
+			entered.resolve();
+			return new Promise(() => {});
+		}, {onSampleTimeout: () => timeouts++});
+		const rejected = assert.rejects(capture, /benchmarkLifecycle.begin\(\) timed out after 30000ms/);
+		await waitFor(entered.promise);
+		clock.advance(5000);
+		assert.equal(timeouts, 0);
+		clock.advance(25000);
+		await rejected;
+		assert.equal(timeouts, 0);
+		assert.equal(clock.timers.size, 0);
+	});
+
 	it('validates arguments before begin and config before setup', async () => {
+		for (const sampleTimeoutMs of [0, -1, NaN, Infinity, '5000']) {
+			const fake = fixture();
+			await assert.rejects(fake.capture({sampleTimeoutMs}), /positive and finite/);
+			assert.deepEqual(fake.events, []);
+		}
+		for (const onSampleTimeout of [null, false, {}]) {
+			const fake = fixture();
+			await assert.rejects(fake.capture({onSampleTimeout}), /must be a function/);
+			assert.deepEqual(fake.events, []);
+		}
 		for (const processPollIntervalMs of [0, -1, NaN, Infinity, '50']) {
 			const fake = fixture();
 			await assert.rejects(fake.capture({processPollIntervalMs}), /positive and finite/);

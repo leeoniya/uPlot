@@ -2,13 +2,18 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { demos } from '../helpers/bench-demo-evaluator.mjs';
-import { demoDependencies, benchmarkVariants, demoRestrictions, dependencyUrl, assertDemoAvailable } from '../../bench/demo-dependencies.mjs';
+import { demoDependencies, benchmarkVariants, demoRestrictions, benchmarkRestrictions, dependencyUrl, assertDemoAvailable, assertBenchmarkAvailable } from '../../bench/demo-dependencies.mjs';
 
 const root = new URL('../../', import.meta.url);
 const extraHtml = {
 	apexcharts: 'ApexCharts.html', highcharts: 'Highcharts.html', lightweight: 'lightweight-charts.html',
 	plotly: 'Plotly.js.html', canvasjs: 'CanvasJS.html', zingchart: 'ZingChart.html',
 	amcharts: 'amCharts5.html', lightningchart: 'LightningChart.html',
+	bokeh: 'Bokeh.html', d3fc: 'd3fc.html', agcharts: 'AGCharts.html', vega: 'Vega.html', scichart: 'SciChart.html',
+		billboard: 'Billboard.html', g2: 'G2.html', syncfusion: 'Syncfusion.html', devextreme: 'DevExtreme.html',
+		jscharting: 'JSCharting.html', kendo: 'Kendo.html', anychart: 'AnyChart.html', fusiontime: 'FusionTime.html',
+		googlecharts: 'GoogleCharts.html', recharts: 'recharts.html', muicharts: 'muicharts.html',
+		financialcharts: 'financialcharts.html', visx: 'visx.html',
 };
 const allDemos = [...demos, ...Object.keys(demoDependencies)
 	.filter(id => id !== 'idle' && !demos.some(([old]) => old === id)).map(id => [id, extraHtml[id]])];
@@ -109,24 +114,75 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 
 	it('keeps default runnable variants ordered and excludes restricted adapters and idle', () => {
 		assert.deepEqual(benchmarkVariants.slice(0, 6), ['uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs']);
-		assert.deepEqual(benchmarkVariants.slice(6), ['apexcharts', 'highcharts', 'lightweight', 'plotly', 'canvasjs', 'zingchart', 'amcharts']);
+		assert.deepEqual(benchmarkVariants.slice(6), ['apexcharts', 'highcharts', 'lightweight', 'plotly', 'canvasjs', 'zingchart', 'amcharts',
+			'bokeh', 'd3fc', 'agcharts', 'vega', 'scichart',
+			'billboard', 'g2', 'syncfusion', 'devextreme', 'kendo',
+			'anychart', 'fusiontime', 'googlecharts', 'recharts', 'muicharts', 'financialcharts', 'visx']);
+		assert.equal(benchmarkVariants.length, 30);
+		assert.equal(Object.keys(demoDependencies).length, 33);
+		assert.deepEqual(Object.keys(demoRestrictions), ['lightningchart']);
+				assert.deepEqual(Object.keys(benchmarkRestrictions), ['jscharting']);
 		assert.equal(new Set(benchmarkVariants).size, benchmarkVariants.length);
 		assert.deepEqual(new Set(benchmarkVariants), new Set(Object.keys(demoDependencies)
-			.filter(id => id !== 'idle' && !Object.hasOwn(demoRestrictions, id))));
-		for (const id of [...benchmarkVariants, 'idle'])
-			assert.doesNotThrow(() => assertDemoAvailable(id));
-		for (const id of ['unknown', 'toString', '__proto__'])
-			assert.throws(() => assertDemoAvailable(id), /Unknown demo variant/);
+			.filter(id => id !== 'idle' && !Object.hasOwn(demoRestrictions, id) && !Object.hasOwn(benchmarkRestrictions, id))));
+		for (const check of [assertDemoAvailable, assertBenchmarkAvailable]) {
+			for (const id of [...benchmarkVariants, 'idle'])
+				assert.doesNotThrow(() => check(id));
+			for (const id of ['unknown', 'toString', '__proto__'])
+				assert.throws(() => check(id), /Unknown demo variant/);
+		}
 	});
 
-	it('requires both LightningChart prerequisites', () => {
-		for (const options of [undefined, {}, {license: 'test'}, {benchmarkPermission: true},
-			{license: '', benchmarkPermission: true}, {license: '  ', benchmarkPermission: true},
-			{license: 123, benchmarkPermission: true}, {license: 'test', benchmarkPermission: 'true'}])
-			assert.throws(() => assertDemoAvailable('lightningchart', options), error =>
-				error.message.includes(demoRestrictions.lightningchart) && /license and explicit benchmark permission/.test(error.message));
-		assert.doesNotThrow(() => assertDemoAvailable('lightningchart', {license: 'test', benchmarkPermission: true}));
+	it('requires only a nonblank LightningChart license, not benchmark permission', () => {
+		for (const check of [assertDemoAvailable, assertBenchmarkAvailable]) {
+			for (const license of [undefined, null, '', '  ', 123, true, {}])
+				assert.throws(() => check('lightningchart', {license, benchmarkPermission: true}), error =>
+					error.message.includes(demoRestrictions.lightningchart) && /LIGHTNINGCHART_LICENSE/.test(error.message));
+			assert.throws(() => check('lightningchart'), /runtime license key/);
+			for (const options of [{license: 'test'}, {license: ' test ', benchmarkPermission: false}])
+				assert.doesNotThrow(() => check('lightningchart', Object.freeze(options)));
+		}
+		assert.doesNotMatch(demoRestrictions.lightningchart, /permission/i);
+	});
 
+	it('permits JSCharting standalone but rejects benchmarks regardless of credentials', () => {
+		assert.ok(demoDependencies.jscharting.length > 0);
+		assert.equal(Object.hasOwn(demoRestrictions, 'jscharting'), false);
+		assert.match(benchmarkRestrictions.jscharting, /3\.4\.0.*retains destroyed charts and window listeners/);
+		for (const options of [undefined, {license: 'test', benchmarkPermission: true}]) {
+			assert.doesNotThrow(() => assertDemoAvailable('jscharting', options));
+			assert.throws(() => assertBenchmarkAvailable('jscharting', options), error =>
+				error.message === `jscharting: ${benchmarkRestrictions.jscharting}`);
+		}
+	});
+
+	it('boots JSCharting through the standalone runner despite its benchmark-only restriction', () => {
+		inBrowserStub(`
+			const {runDemo} = await import(new URL('bench/demo.mjs', root));
+			const {demoDependencies, dependencyUrl} = await import(new URL('bench/demo-dependencies.mjs', root));
+			document.head.append = element => { loaded.push(element); queueMicrotask(() => element.onload()); };
+			globalThis.setTimeout = (callback, delay) => { assert.equal(delay, 0); queueMicrotask(callback); };
+			let fetches = 0, creates = 0;
+			globalThis.fetch = async url => {
+				assert.equal(url.href, new URL('bench/data.json', root).href);
+				fetches++;
+				return {ok: true, json: async () => [7, 'epoch', 'idl', 'recv', 'send', 'writ', 'used', 'free', 10, 75, 2, 3, 4, 25, 75]};
+			};
+			const chart = {};
+			globalThis.JSC = {chart(host, options, ready) {
+				creates++;
+				assert.equal(host, document.getElementById('benchmark-jscharting'));
+				assert.deepEqual(options.series.map(series => series.points), [[[600000, 25]], [[600000, 25]], [[600000, 3]]]);
+				queueMicrotask(() => ready.call(chart));
+				return chart;
+			}};
+			assert.equal(await runDemo('jscharting'), chart);
+			assert.equal(fetches, 1);
+			assert.equal(creates, 1);
+			assert.equal(document.getElementById('wait').textContent, 'Done!');
+			assert.deepEqual(loaded.map(element => element.tagName), ['SCRIPT', 'LINK']);
+			assert.equal(loaded[0].src, dependencyUrl(demoDependencies.jscharting[0]));
+		`);
 	});
 
 	it('resolves local and npm dependencies and gives explicit remote URLs precedence', () => {
@@ -149,6 +205,200 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 				assert.ok(document.getElementById('wait').textContent.startsWith('Error: ' + id + ': '));
 				assert.equal(document.body.children.length, 1);
 			}
+		`);
+	});
+
+	it('prefetches SciChart binaries before data preparation, preserves options, and never loads WASM as scripts', () => {
+		inBrowserStub(`
+			const {runDemo} = await import(new URL('bench/demo.mjs', root));
+			const {demoDependencies, dependencyUrl} = await import(new URL('bench/demo-dependencies.mjs', root));
+			const binaries = demoDependencies.scichart.filter(dep => dep.type === 'wasm');
+			const buffers = binaries.map(() => new ArrayBuffer(8));
+			const options = {runtimeLicenseKey: 'test', timeoutMs: 1234};
+			globalThis.benchmarkSciChartOptions = options;
+			document.head.append = element => { loaded.push(element); queueMicrotask(() => element.onload()); };
+			const downloads = [];
+			let dataFetches = 0;
+			globalThis.fetch = async url => {
+				if (url instanceof URL) {
+					assert.equal(url.href, new URL('bench/data.json', root).href);
+					assert.equal(globalThis.benchmarkSciChartOptions, options);
+					binaries.forEach((dep, i) => assert.equal(options[dep.option], buffers[i]));
+					dataFetches++;
+					return {ok: false, status: 503, statusText: 'test stop before rendering'};
+				}
+				const index = downloads.length;
+				assert.equal(url, dependencyUrl(binaries[index]));
+				assert.equal(document.getElementById('wait').textContent, 'Loading lib....');
+				downloads.push(url);
+				return {ok: true, arrayBuffer: async () => buffers[index]};
+			};
+			for (let i = 0; i < 2; i++) {
+				document.body.replaceChildren();
+				await assert.rejects(runDemo('scichart'), /Failed to load data.json: 503 test stop before rendering/);
+				assert.equal(document.getElementById('wait').textContent, 'Error: Failed to load data.json: 503 test stop before rendering');
+			}
+			assert.equal(dataFetches, 2);
+			assert.deepEqual(downloads, binaries.map(dep => dependencyUrl(dep)));
+			assert.deepEqual(loaded.map(element => element.tagName), ['SCRIPT', 'LINK']);
+			assert.equal(loaded[0].src, dependencyUrl(demoDependencies.scichart[0]));
+			assert.equal(loaded[1].href, new URL('bench/demo.css', root).href);
+			assert.equal(options.runtimeLicenseKey, 'test');
+			assert.equal(options.timeoutMs, 1234);
+		`);
+	});
+
+	it('reports a standalone binary download failure before creating a chart host or fetching data', () => {
+		inBrowserStub(`
+			const {runDemo} = await import(new URL('bench/demo.mjs', root));
+			document.head.append = element => { loaded.push(element); queueMicrotask(() => element.onload()); };
+			let fetches = 0;
+			globalThis.fetch = async url => {
+				assert.match(url, /scichart[.]wasm$/);
+				fetches++;
+				return {ok: false, status: 503, arrayBuffer() { assert.fail('must not read failed body'); }};
+			};
+			await assert.rejects(runDemo('scichart'), /Failed to load .*scichart[.]wasm: HTTP 503/);
+			assert.equal(fetches, 1);
+			assert.equal(loaded.length, 1);
+			assert.equal(document.body.children.length, 1);
+			assert.match(document.getElementById('wait').textContent, /^Error: Failed to load .*HTTP 503$/);
+		`);
+	});
+
+	it('loads module namespaces before host/data setup without inserting module script tags', () => {
+		inBrowserStub(`
+			const {runDemo} = await import(new URL('bench/demo.mjs', root));
+			const {demoDependencies} = await import(new URL('bench/demo-dependencies.mjs', root));
+			const {promise, resolve} = Promise.withResolvers();
+			globalThis.moduleGate = promise;
+			globalThis.moduleStarted = false;
+			const url = 'data:text/javascript,' + encodeURIComponent('globalThis.moduleStarted = true; await globalThis.moduleGate; export const ready = true;');
+			demoDependencies.recharts = [{type: 'module', global: 'benchmarkReact', url}];
+			document.head.append = element => { loaded.push(element); queueMicrotask(() => element.onload()); };
+			let fetches = 0;
+			globalThis.fetch = async url => {
+				assert.equal(globalThis.benchmarkReact.ready, true);
+				assert.ok(document.getElementById('benchmark-recharts'));
+				assert.equal(url.href, new URL('bench/data.json', root).href);
+				fetches++;
+				return {ok: false, status: 503, statusText: 'test stop'};
+			};
+			const pending = runDemo('recharts');
+			const rejected = assert.rejects(pending, /Failed to load data.json: 503 test stop/);
+			for (let i = 0; !globalThis.moduleStarted && i < 100; i++) await new Promise(setImmediate);
+			assert.equal(globalThis.moduleStarted, true);
+			assert.equal(document.body.children.length, 1);
+			assert.equal(document.getElementById('wait').textContent, 'Loading lib....');
+			assert.equal(fetches, 0);
+			assert.equal(loaded.length, 0);
+			resolve();
+			await rejected;
+			assert.equal(fetches, 1);
+			assert.deepEqual(loaded.map(element => element.tagName), ['LINK']);
+			assert.equal(loaded[0].href, new URL('bench/demo.css', root).href);
+		`);
+	});
+
+	it('reports a module import failure before styles, host creation, or data fetch', () => {
+		inBrowserStub(`
+			const {runDemo} = await import(new URL('bench/demo.mjs', root));
+			const {demoDependencies} = await import(new URL('bench/demo-dependencies.mjs', root));
+			globalThis.moduleError = new Error('module failed');
+			demoDependencies.recharts = [{type: 'module', global: 'benchmarkReact',
+				url: 'data:text/javascript,' + encodeURIComponent('throw globalThis.moduleError;')}];
+			await assert.rejects(runDemo('recharts'), error => error === globalThis.moduleError);
+			assert.equal(loaded.length, 0);
+			assert.equal(document.body.children.length, 1);
+			assert.equal(document.getElementById('wait').textContent, 'Error: module failed');
+		`);
+	});
+
+	it('awaits Google runtime preparation before host/data setup and leaves table construction and draw in the render callback', () => {
+		inBrowserStub(`
+			const {runDemo} = await import(new URL('bench/demo.mjs', root));
+			const {promise, resolve} = Promise.withResolvers();
+			const order = [], renders = [], deadlines = [], cleared = [];
+			globalThis.setTimeout = (callback, ms) => {
+				if (ms === 0) { order.push('render-scheduled'); renders.push(callback); }
+				else { assert.equal(ms, 30000); deadlines.push(callback); }
+				return callback;
+			};
+			globalThis.clearTimeout = timer => cleared.push(timer);
+			document.head.append = element => {
+				loaded.push(element);
+				queueMicrotask(() => element.onload());
+			};
+			let finishDraw;
+			const rows = [];
+			const chart = {draw(table) { order.push('draw'); assert.equal(table.rows, rows); }};
+			globalThis.google = {charts: {load(version, options) {
+				assert.equal(version, '52');
+				assert.deepEqual(options, {packages: ['corechart'], language: 'en'});
+				assert.equal(document.getElementById('benchmark-googlecharts'), null);
+				assert.equal(document.getElementById('wait').textContent, 'Loading lib....');
+				order.push('runtime-load');
+				return promise;
+			}}};
+			globalThis.fetch = async url => {
+				order.push('data-fetch');
+				assert.equal(url.href, new URL('bench/data.json', root).href);
+				assert.ok(document.getElementById('benchmark-googlecharts'));
+				return {ok: true, json: async () => {
+					order.push('data-json');
+					return [7, 'epoch', 'idl', 'recv', 'send', 'writ', 'used', 'free', 10, 75, 2, 3, 4, 25, 75];
+				}};
+			};
+			const pending = runDemo('googlecharts');
+			for (let i = 0; order.length === 0 && i < 100; i++) await new Promise(setImmediate);
+			assert.deepEqual(order, ['runtime-load']);
+			assert.equal(document.body.children.length, 1);
+			assert.equal(renders.length, 0);
+			assert.deepEqual(loaded.map(element => element.tagName), ['SCRIPT', 'LINK']);
+			assert.equal(loaded[0].src, 'https://www.gstatic.com/charts/loader.js');
+			globalThis.google.visualization = {
+				DataTable: class {
+					constructor() { order.push('table'); this.rows = rows; }
+					addColumn() {}
+					addRows(data) { rows.push(...data); }
+				},
+				LineChart: function(host) {
+					order.push('chart');
+					assert.equal(host, document.getElementById('benchmark-googlecharts'));
+					return chart;
+				},
+				events: {
+					addListener(target, name, callback) { assert.equal(target, chart); if (name === 'ready') finishDraw = callback; return name; },
+					removeListener() {},
+				},
+			};
+			order.push('runtime-resolved');
+			resolve();
+			for (let i = 0; renders.length === 0 && i < 100; i++) await new Promise(setImmediate);
+			assert.deepEqual(order, ['runtime-load', 'runtime-resolved', 'data-fetch', 'data-json', 'render-scheduled']);
+			assert.deepEqual(cleared, [deadlines[0]]);
+			renders.shift()();
+			assert.deepEqual(order.slice(-3), ['table', 'chart', 'draw']);
+			assert.deepEqual(rows, [[new Date(600000), 25, 25, 3]]);
+			assert.equal(document.getElementById('wait').textContent, 'Rendering...');
+			finishDraw();
+			assert.equal(await pending, chart);
+			assert.equal(document.getElementById('wait').textContent, 'Done!');
+			assert.deepEqual(cleared, deadlines);
+		`);
+	});
+
+	it('propagates Google preparation errors before creating a host or fetching data', () => {
+		inBrowserStub(`
+			const {runDemo} = await import(new URL('bench/demo.mjs', root));
+			document.head.append = element => { loaded.push(element); queueMicrotask(() => element.onload()); };
+			globalThis.setTimeout = (callback, ms) => { assert.equal(ms, 30000); return callback; };
+			globalThis.clearTimeout = () => {};
+			const error = new Error('corechart unavailable');
+			globalThis.google = {charts: {load: () => Promise.reject(error)}};
+			await assert.rejects(runDemo('googlecharts'), actual => actual === error);
+			assert.equal(document.body.children.length, 1);
+			assert.equal(document.getElementById('wait').textContent, 'Error: corechart unavailable');
 		`);
 	});
 

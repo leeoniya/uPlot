@@ -7,14 +7,17 @@ import { cpus, platform, release } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { gzipSync } from 'node:zlib';
+
 import { captureBenchmarkTrace } from './benchmarks-trace.mjs';
-import { analyzeBenchmarkTrace } from './analyze-benchmarks-trace.mjs';
+import { killBenchmarkBrowser } from './bench-browser-process.mjs';
+import { SAMPLE_TIMEOUT_EXIT_CODE } from './bench-sample-timeout.mjs';
+import { analyzeBenchmarkTraceFile } from './analyze-benchmarks-trace.mjs';
 import { chromeBinary } from './chrome-headless-shell.mjs';
 import { summarizeBenchmarkRaf } from './analyze-benchmarks-raf.mjs';
 import { loadBenchDemoSources } from './bench-demo-sources.mjs';
+import { bundleModuleDependencies } from './bench-module-bundle.mjs';
 import { benchmarkMode, variantReportName, runBenchmarkSuite, summarizeSavedBenchmarks } from './benchmarks-suite.mjs';
-import { demoDependencies, benchmarkVariants, assertDemoAvailable } from '../bench/demo-dependencies.mjs';
+import { demoDependencies, benchmarkVariants, assertBenchmarkAvailable } from '../bench/demo-dependencies.mjs';
 
 const root = new URL('../', import.meta.url);
 const cache = fileURLToPath(new URL('.cache/benchmarks/', root));
@@ -45,21 +48,25 @@ bench:raf measures untraced next-rAF latency, without memory polling or forced G
 There is no JS-heap benchmark or heap-usage sampling.
 
 Defaults: ${benchmarkVariants.join(', ')}, plus an idle control measured first.
-LightningChart is opt-in with a license and written benchmark permission.
+LightningChart runs when LIGHTNINGCHART_LICENSE supplies a runtime key.
+JSCharting is demo-only: version 3.4.0 retains destroyed charts across repeated samples.
 Each variant gets a fresh browser with only its own library and demo dependencies.
 Each library has 3 warmups and 7 measured rounds. There is no inter-library cooling pause.
+Each sample has a hard 5s budget from setup through cleanup, including preparation and memory checkpoints.
+A sample timeout kills Chrome and its descendants, discards the incomplete trace, and stops the suite.
 The table shows per-metric minima after warmups: best observed performance, not typical latency.
 Columns can come from different rounds. Total work is the minimum per-round total, not a sum of column minima.
 Progress, partial results, and a cumulative table update after each library finishes.
 Use --variant NAME to run one library plus idle. Registered: ${Object.keys(demoDependencies).join(', ')}.
-LightningChart requires LIGHTNINGCHART_LICENSE and LIGHTNINGCHART_BENCHMARK_PERMISSION=1.
+LightningChart requires LIGHTNINGCHART_LICENSE. SCICHART_LICENSE optionally supplies a SciChart runtime key.
 LIGHTNINGCHART_LICENSE_INFORMATION can supply vendor-required metadata as JSON.
 DPR defaults to 1. --dpr selects one browser and canvas DPR.
 
 Library loading, raw JSON parsing, and fixture setup occur outside chart timing.
 Data preparation is timed separately. Init covers options, chart construction, async library completion, and its initial microtask commit.
 Trace chart windows include settling and deferred rendering, but exclude prep, forced GC, and teardown.
-Settling is a heuristic, not a GPU completion fence. GPU thread work is not hardware GPU execution time.
+After settling, trace/memory runs check WebGL2 fences or call WebGL1 finish, outside init but inside the chart window.
+GPU thread work is host-thread wall time, not hardware GPU execution time. Completion checks add overhead.
 Trace and rAF timings are not idle-subtracted; idle subtraction applies only to memory.
 
 Memory requires Linux /proc access. It polls process memory with a requested 50 ms delay after each read.
@@ -102,41 +109,71 @@ if (values['summarize-only']) {
 	summarizeSavedBenchmarks(measurements);
 	process.exit(0);
 }
-const lightningOptions = values.variant === 'lightningchart' ? {
+const lightningOptions = (!values.variant || values.variant === 'lightningchart') &&
+	(process.env.LIGHTNINGCHART_LICENSE || values.variant === 'lightningchart') ? {
 	license: process.env.LIGHTNINGCHART_LICENSE,
-	benchmarkPermission: process.env.LIGHTNINGCHART_BENCHMARK_PERMISSION === '1',
+
 	licenseInformation: process.env.LIGHTNINGCHART_LICENSE_INFORMATION ? JSON.parse(process.env.LIGHTNINGCHART_LICENSE_INFORMATION) : undefined,
 } : undefined;
+const sciChartOptions = process.env.SCICHART_LICENSE ? {runtimeLicenseKey: process.env.SCICHART_LICENSE} : undefined;
 if (values.variant)
-	assertDemoAvailable(values.variant, lightningOptions);
+	assertBenchmarkAvailable(values.variant, lightningOptions);
 if (measurements.memory && platform() !== 'linux')
 	throw new Error('Process memory measurement requires Linux /proc.');
 if (!values.worker && !values['install-only']) {
-	await runBenchmarkSuite({...measurements, dpr, gpu: values.gpu, variant: values.variant ?? null, lightningOptions});
-	process.exit(0);
+	try {
+		await runBenchmarkSuite({...measurements, dpr, gpu: values.gpu, variant: values.variant ?? null, lightningOptions});
+	}
+	catch (error) {
+		if (error.code !== 'BENCHMARK_SAMPLE_TIMEOUT')
+			throw error;
+		console.error(error.message);
+		process.exitCode = SAMPLE_TIMEOUT_EXIT_CODE;
+	}
+	process.exit(process.exitCode ?? 0);
 }
 const binary = await chromeBinary({version: chromeVersion});
 if (values['install-only'])
 	process.exit(0);
 mkdirSync(cache, {recursive: true});
 const {files, dependencies, localScripts, localStyles} = loadBenchDemoSources(root, values.variant);
+const moduleDependencies = dependencies.filter(dependency => dependency.type === 'module');
+if (moduleDependencies.length) {
+	const bundle = await bundleModuleDependencies(demoDependencies[values.variant].filter(dependency => dependency.type === 'module'), {
+		cacheDir: join(cache, 'modules'),
+	});
+	const route = '/bench/vendor/' + bundle.cacheName;
+	files.set(route, bundle.code);
+	for (const dependency of moduleDependencies) {
+		dependency.route = route;
+		dependency.sha256 = bundle.sha256;
+	}
+	// Preserve source provenance once, rather than repeating the graph per namespace.
+	moduleDependencies[0].bundle = {cacheName: bundle.cacheName, sha256: bundle.sha256, sources: bundle.sources};
+}
 for (const dependency of dependencies) {
+	if (dependency.type === 'module')
+		continue;
 	const path = join(cache, dependency.cacheName);
 	if (!existsSync(path)) {
 		console.log('Downloading ' + dependency.url);
 		const response = await fetch(dependency.url, {signal: AbortSignal.timeout(30000)});
 		if (!response.ok)
 			throw new Error(`${dependency.name} download: HTTP ${response.status}`);
-		writeFileSync(path, await response.text());
+		writeFileSync(path, Buffer.from(await response.arrayBuffer()));
 	}
-	const source = readFileSync(path, 'utf8');
+	const source = readFileSync(path);
 	files.set(dependency.route, source);
 	dependency.sha256 = createHash('sha256').update(source).digest('hex');
 }
 files.set('/bench.mjs', readFileSync(new URL('scripts/benchmarks-trace-browser.mjs', root), 'utf8'));
 files.set('/bench/data.json', readFileSync(new URL('bench/data.json', root), 'utf8'));
+files.set('/bench/runtime-assets.json', JSON.stringify(dependencies.filter(dep => dep.type === 'wasm')
+	.map(dep => ({...dep, url: dep.route}))));
+files.set('/bench/module-assets.json', JSON.stringify(moduleDependencies
+	.map(dependency => ({...dependency, url: dependency.route, export: dependency.global}))));
 const page = '<!doctype html><meta charset="utf-8"><style>body{margin:0}</style>' +
-	dependencies.map(dependency => dependency.type === 'style'
+	dependencies.filter(dependency => dependency.type !== 'wasm' && dependency.type !== 'module').map(dependency => dependency.type === 'style'
 		? `<link rel="stylesheet" href="${dependency.route}">`
 		: `<script src="${dependency.route}"></script>`).join('') +
 	localScripts.map(route => `<script src="${route}"></script>`).join('') +
@@ -165,7 +202,7 @@ const server = createServer((req, res) => {
 		}
 		else {
 			if (files.has(req.url)) {
-				res.setHeader('Content-Type', req.url.endsWith('.css') ? 'text/css' : req.url.endsWith('.json') ? 'application/json' : 'text/javascript');
+				res.setHeader('Content-Type', req.url.endsWith('.wasm') ? 'application/wasm' : req.url.endsWith('.css') ? 'text/css' : req.url.endsWith('.json') ? 'application/json' : 'text/javascript');
 				res.end(files.get(req.url));
 			}
 			else
@@ -201,8 +238,14 @@ try {
 	browser.once('error', rejectResult);
 	browser.once('exit', code => rejectResult(new Error(`Chrome exited with code ${code}.\n${browserLog}`)));
 	const report = await Promise.race([captureBenchmarkTrace({
-		profile, url, cache, ...measurements, dpr, lightningOptions, processPid: measurements.memory ? browser.pid : null,
+		profile, url, cache, ...measurements, dpr, lightningOptions, sciChartOptions, processPid: measurements.memory ? browser.pid : null,
 		traceName: `trace-chrome-${mode}-${values.variant}.json`,
+		onSampleTimeout(error) {
+			// Preserve the timeout instead of a subsequent Chrome-disconnected error.
+			rejectResult(error);
+			try { killBenchmarkBrowser(browser); }
+			catch (cleanupError) { console.error(cleanupError); }
+		},
 	}), failure]);
 	report.measurements = measurements;
 	report.runner = {
@@ -213,20 +256,19 @@ try {
 			.map(([path, source]) => [path, createHash('sha256').update(source).digest('hex')])),
 		browserLog,
 	};
-	if (measurements.trace) {
-		const raw = readFileSync(report.trace.path);
-		report.analysis = analyzeBenchmarkTrace(JSON.parse(raw), report);
-		const compressed = gzipSync(raw);
-		const compressedPath = report.trace.path + '.gz';
-		writeFileSync(compressedPath, compressed);
-		rmSync(report.trace.path);
-		Object.assign(report.trace, {path: compressedPath, compression: 'gzip', compressedBytes: compressed.length});
-	}
+	if (measurements.trace)
+		report.analysis = await analyzeBenchmarkTraceFile(report.trace.path, report);
 	if (measurements.raf)
 		report.rafAnalysis = summarizeBenchmarkRaf(report);
 	const output = join(cache, variantReportName(mode, values.variant));
 	writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
 	console.log(`${values.variant}: ${report.samples.filter(sample => !sample.warmup).length} measured samples. ${browserVersion}`);
+}
+catch (error) {
+	if (error.code !== 'BENCHMARK_SAMPLE_TIMEOUT')
+		throw error;
+	console.error(error.message);
+	process.exitCode = SAMPLE_TIMEOUT_EXIT_CODE;
 }
 finally {
 	clearTimeout(timer);

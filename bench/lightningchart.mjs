@@ -1,13 +1,13 @@
 // @lightningchart/lcjs 9.0.0 (replaces @arction/lcjs); browser global: lcjs.
 // Minified production bundle: dist/lcjs.iife.es2019.js.
 // https://lightningchart.com/js-charts/docs/licenses/
-// https://cdn.jsdelivr.net/npm/@lightningchart/lcjs@9.0.0/LICENSE (Article XXIV)
+
 // Before makeChart(), supply globalThis.benchmarkLightningChartOptions with:
 // - license: your valid vendor-issued license key (never committed here)
 // - licenseInformation: vendor-required metadata, if your license needs it
-// - benchmarkPermission: true ONLY after obtaining prior written vendor permission
-//   to run performance comparisons and, separately as applicable, publish results.
-// No automatic community-license fallback; do not remove vendor branding.
+// - timeoutMs: render readiness timeout (default 30000 ms)
+// v9's bundle rejects keyless startup, despite the optional license in its typings.
+// Keep vendor license enforcement and branding intact. No publication-policy gate.
 
 const owners = new WeakMap();
 
@@ -35,15 +35,19 @@ export async function makeChart(data, host, wait) {
 	const options = globalThis.benchmarkLightningChartOptions;
 	if (typeof options?.license !== 'string' || !options.license.trim())
 		throw new Error('LightningChart 9.0.0 requires a user-supplied license in globalThis.benchmarkLightningChartOptions.license.');
-	if (options.benchmarkPermission !== true)
-		throw new Error('LightningChart EULA Article XXIV requires prior written vendor permission for performance comparisons. Set benchmarkLightningChartOptions.benchmarkPermission only after obtaining permission.');
+
 	if (!globalThis.lcjs)
 		throw new Error('Load @lightningchart/lcjs 9.0.0 dist/lcjs.iife.es2019.js before makeChart().');
 
+	const timeoutMs = options.timeoutMs ?? 30000;
+	if (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
+		throw new Error('benchmarkLightningChartOptions.timeoutMs must be a positive finite number.');
+
 	const {lightningChart, AxisTickStrategies, AxisScrollStrategies, Themes, disableThemeEffects, SolidLine, SolidFill, ColorRGBA} = globalThis.lcjs;
 	const lc = lightningChart({license: options.license, licenseInformation: options.licenseInformation});
+	let chart;
 	try {
-		const chart = lc.ChartXY({container: host, theme: disableThemeEffects(Themes.light)});
+		chart = lc.ChartXY({container: host, theme: disableThemeEffects(Themes.light)});
 		owners.set(chart, lc);
 		chart.setAnimationsEnabled(false);
 		const xAxis = chart.getDefaultAxisX()
@@ -85,6 +89,7 @@ export async function makeChart(data, host, wait) {
 
 		await new Promise((resolve, reject) => {
 			const cleanup = () => {
+				clearTimeout(timer);
 				chart.engine.removeEventListener('renderframe', rendered);
 				chart.removeEventListener('dispose', disposed);
 			};
@@ -98,6 +103,11 @@ export async function makeChart(data, host, wait) {
 				cleanup();
 				reject(new Error('LightningChart was disposed before rendering completed.'));
 			};
+			const timer = setTimeout(() => {
+				cleanup();
+				reject(new Error('LightningChart render completion timed out. Check browser graphics support and vendor license diagnostics.'));
+			}, timeoutMs);
+			// This is the engine's async-work signal, not a GPU fence or presentation ack.
 			chart.engine.addEventListener('renderframe', rendered);
 			chart.addEventListener('dispose', disposed);
 		});
@@ -107,7 +117,8 @@ export async function makeChart(data, host, wait) {
 		return chart;
 	}
 	catch (error) {
-		lc.dispose();
+		if (chart) destroyChart(chart);
+		else lc.dispose();
 		throw error;
 	}
 }

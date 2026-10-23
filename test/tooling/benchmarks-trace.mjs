@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
-import { analyzeBenchmarkTrace } from '../../scripts/analyze-benchmarks-trace.mjs';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
+import { setTimeout as delay } from 'node:timers/promises';
+import { SAMPLE_TIMEOUT_MS } from '../../scripts/bench-sample-timeout.mjs';
+import { analyzeBenchmarkTrace, analyzeBenchmarkTraceFile } from '../../scripts/analyze-benchmarks-trace.mjs';
+import { benchmarkTraceConfig, captureBenchmarkTrace } from '../../scripts/benchmarks-trace.mjs';
 
 const metadata = [
 	{ph: 'M', name: 'process_name', pid: 1, args: {name: 'Renderer'}},
@@ -33,6 +40,56 @@ function close(actual, expected) {
 }
 
 describe('benchmark trace analysis', () => {
+	it('keeps the measured trace categories narrow and reports actual event categories and phases', () => {
+		assert.deepEqual(benchmarkTraceConfig().includedCategories, ['blink.user_timing', 'disabled-by-default-devtools.timeline']);
+		const result = analyze([
+			{...interval('RasterTask', 0, 1, 1, 3), cat: 'cc,disabled-by-default-devtools.timeline'},
+			{...interval('GPUTask', 0, 2, 2, 1), cat: 'disabled-by-default-devtools.timeline'},
+			{name: 'GPUTask', ph: 'b', ts: 3000, pid: 2, tid: 1, cat: 'other'},
+		]);
+		assert.deepEqual(result.diagnostics.eventTypes.RasterTask.categories, {'cc,disabled-by-default-devtools.timeline': 1});
+		assert.deepEqual(result.diagnostics.eventTypes.GPUTask.phases, {X: 1, b: 1});
+		assert.equal(result.samples[0].GPUTaskMs, 2);
+		assert.equal(result.samples[0].hardwareGpuMs, null);
+	});
+
+	it('includes GPU-process raster workers and overlapping GPU tasks once per thread', () => {
+		const result = analyze([
+			{ph: 'M', name: 'thread_name', pid: 2, tid: 3, args: {name: 'ThreadPoolForegroundWorker'}},
+			interval('RasterTask', -1, 4, 2, 3),
+			interval('GPUTask', 2, 6, 2, 3),
+			interval('RunTask', 0, 10, 2, 3), // Generic worker wrappers remain unselected.
+			interval('RasterTask', 3, 5, 1, 3),
+			interval('RasterTask', 0, 10, 2, 2), // Viz compositor is not a worker.
+			interval('RasterTask', 0, 10, 3, 3), // Another renderer is not this sample.
+		]);
+		const s = result.samples[0];
+		assert.equal(s.rasterWorkerMs, 6);
+		assert.equal(s.GPUTaskMs, 4);
+		assert.equal(s.totalTrackedThreadWorkMs, 8);
+		assert.equal(s.trackedBusyElapsedMs, 6);
+		assert.equal(s.hardwareGpuMs, null);
+	});
+
+	it('distinguishes unrecorded, unobserved, incomplete, and prior-command fence completion', () => {
+		assert.equal(analyze().diagnostics.webglCompletion[0].status, 'not-recorded');
+		for (const status of ['not-observed', 'incomplete', 'complete']) {
+			const contexts = status === 'not-observed' ? [] : [{type: 'webgl2', status: status === 'complete' ? 'complete' : 'timeout'}];
+			const webgl = {status, contexts, waitMs: 1};
+			const result = analyze([], [sample(0, {webgl})]);
+			assert.deepEqual(result.samples[0].webgl, webgl);
+			assert.equal(result.diagnostics.webglCompletion[0].status, status);
+			assert.equal(result.diagnostics.webglCompletion[0].contextCount, contexts.length);
+			assert.equal(result.samples[0].hardwareGpuMs, null);
+			assert.equal(result.samples[0].totalTrackedThreadWorkMs, 0); // Never add fence waits.
+			if (status === 'incomplete')
+				assert.ok(result.diagnostics.warnings.some(w => w.includes('checks are incomplete')));
+			if (status === 'complete')
+				assert.ok(result.diagnostics.warnings.some(w => w.includes('not GPU execution time')));
+			if (contexts.length)
+				assert.ok(result.diagnostics.warnings.some(w => w.includes('without matching GPU-process task intervals')));
+		}
+	});
 	it('unions nested intervals per thread, clips boundaries, and separates occupancy from elapsed time', () => {
 		const result = analyze([
 			interval('RunTask', -2, 6),
@@ -375,6 +432,71 @@ describe('benchmark trace analysis', () => {
 			assert.throws(() => analyze([], [sample(0, patch)]), /duration mismatch/);
 	});
 
+	it('matches file analysis for all tracked names, phases, categories, pairs, metadata, and untracked tails', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'bench-trace-analysis-'));
+		try {
+			const names = ['RunTask', 'ThreadControllerImpl::RunTask', 'UpdateLayoutTree', 'Layout', 'PrePaint', 'Paint', 'Layerize', 'RasterTask', 'GPUTask'];
+			const phases = ['X', 'B', 'E', 'b', 'e', 's', 't', 'f', 'I', 'C', 'M', 'R', undefined];
+			const pair = (ph, ts, name) => ({ph, ts, name, pid: 1, tid: 1});
+			const events = [...metadata, ...markers(), ...markers(1, 20), ...markers(2, 40),
+				{ph: 'I', cat: 'blink.user_timing', name: 'benchmark:capture:stream'},
+				...names.flatMap((name, index) => phases.map((ph, i) => ({
+					...interval(name, i, i + 1, index % 2 + 1, index % 3 + 1), ph,
+					cat: ['cc,disabled-by-default-devtools.timeline', 'blink.user_timing', undefined, '__proto__'][i % 4],
+					args: {text: 'é😀 \\ " } [ nested payload', nested: [{a: true}]},
+				}))),
+				pair('E', 19000), pair('B', 12000, 'RunTask'),
+				pair('B', 13000, 'untracked'), pair('E', 14000),
+				pair('E', 21000, 'mismatch'), pair('B', 20000, 'RunTask'),
+				pair('B', 22000, 'unfinished'),
+				interval('RunTask', 3, 1), {name: 'Layout', ph: 'X', ts: 1},
+				interval('RunTask', 48, 55),
+				{name: 'InvalidateLayout', ph: 'I', ts: 60000},
+				{name: 'ScheduleStyleRecalculation', ph: 'X', ts: 59000, dur: 20000},
+			];
+			const report = {captureId: 'stream', samples: [sample(2, {dpr: 2}), sample(0, {warmup: true}), sample(1, {variant: 'idle', dataPrepMs: 1, prepAndInitMs: 3.01})]};
+			for (const trace of [events, {metadata: {dataLoss: true}, traceEvents: events}, {traceEvents: events, metadata: {dataLoss: false}}]) {
+				const raw = JSON.stringify(trace);
+				const expected = analyzeBenchmarkTrace(JSON.parse(raw), report);
+				assert.equal(expected.diagnostics.boundaries[0].tailEndUs, 79000);
+				for (const compressed of [false, true]) {
+					const path = join(dir, 'trace.json' + (compressed ? '.gz' : ''));
+					await writeFile(path, compressed ? gzipSync(raw) : raw);
+					assert.deepEqual(await analyzeBenchmarkTraceFile(path, report), expected);
+				}
+			}
+		}
+		finally {
+			await rm(dir, {recursive: true, force: true});
+		}
+	});
+
+	it('preserves marker and capture validation in file analysis', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'bench-trace-errors-'));
+		try {
+			const capture = {ph: 'I', cat: 'blink.user_timing', name: 'benchmark:capture:good'};
+			for (const [events, report] of [
+				[markers(), {samples: [sample()], captureId: 'missing'}],
+				[[...markers(), capture, capture], {samples: [sample()], captureId: 'good'}],
+				[markers().slice(1), {samples: [sample()]}],
+				[[...markers(), markers()[0]], {samples: [sample()]}],
+				[[{...markers()[0], ph: 'X'}, ...markers().slice(1)], {samples: [sample()]}],
+				[markers(), {samples: [sample(0, {jsMs: 20})]}],
+			]) {
+				const path = join(dir, 'trace.json.gz');
+				await writeFile(path, gzipSync(JSON.stringify(events)));
+				let expected;
+				try { analyzeBenchmarkTrace(events, report); }
+				catch (error) { expected = error; }
+				assert.ok(expected);
+				await assert.rejects(analyzeBenchmarkTraceFile(path, report), {message: expected.message});
+			}
+		}
+		finally {
+			await rm(dir, {recursive: true, force: true});
+		}
+	});
+
 	it('reports software backend evidence and does not infer hardware execution from device presence', () => {
 		const systemInfo = {gpu: {auxAttributes: {glRenderer: 'ANGLE (SwiftShader Device)', glImplementationParts: 'angle=swiftshader'}, featureStatus: {rasterization: 'disabled_software'}, devices: [{deviceString: 'SwiftShader'}]}};
 		const software = analyze([], [sample()], markers(), {systemInfo, trace: {dataLoss: true}});
@@ -385,5 +507,285 @@ describe('benchmark trace analysis', () => {
 		assert.equal(hardware.diagnostics.backend.kind, 'unverified');
 		assert.equal(hardware.samples[0].hardwareGpuMs, null);
 		assert.equal(analyze().diagnostics.backend.kind, 'unknown');
+	});
+});
+
+async function withCaptureSocket(onEvaluate, test) {
+	const dir = await mkdtemp(join(tmpdir(), 'bench-trace-timeout-'));
+	const originalSocket = globalThis.WebSocket;
+	const originalFetch = globalThis.fetch;
+	const calls = [];
+	const sockets = [];
+	class Socket extends EventTarget {
+		closed = false;
+		messageListeners = new Set();
+		constructor() {
+			super();
+			sockets.push(this);
+			queueMicrotask(() => this.dispatchEvent(new Event('open')));
+		}
+		addEventListener(type, listener, options) {
+			if (type === 'message')
+				this.messageListeners.add(listener);
+			super.addEventListener(type, listener, options);
+		}
+		removeEventListener(type, listener, options) {
+			if (type === 'message')
+				this.messageListeners.delete(listener);
+			super.removeEventListener(type, listener, options);
+		}
+		message(message) {
+			this.dispatchEvent(new MessageEvent('message', {data: JSON.stringify(message)}));
+		}
+		boundary(phase, variant = 'uplot') {
+			this.message({method: 'Runtime.bindingCalled', params: {name: 'benchmarkSampleBoundary', payload: JSON.stringify({phase, variant})}});
+		}
+		send(text) {
+			const {id, method, params} = JSON.parse(text);
+			calls.push({method, params});
+			let result = {};
+			if (method === 'Runtime.evaluate') {
+				if (onEvaluate(this, id, params.expression))
+					return;
+				let value = true;
+				if (params.expression === 'benchmarkLifecycle.begin()')
+					value = {config: {variants: ['uplot'], dpr: 1, warmups: 0, rounds: 1}};
+				if (params.expression === 'benchmarkLifecycle.construct()')
+					value = sample();
+				result = {result: {value}};
+			}
+			this.message({id, result});
+		}
+		close() {
+			this.closed = true;
+			this.dispatchEvent(new Event('close'));
+		}
+	}
+	try {
+		await writeFile(join(dir, 'DevToolsActivePort'), '1234\n/devtools/browser/test');
+		globalThis.WebSocket = Socket;
+		globalThis.fetch = async () => ({json: async () => [{type: 'page', webSocketDebuggerUrl: 'ws://127.0.0.1:1234/page'}]});
+		await test({dir, calls, sockets, capture: options => captureBenchmarkTrace({profile: dir, cache: dir, url: 'http://127.0.0.1:1234/bench', ...options})});
+	}
+	finally {
+		globalThis.WebSocket = originalSocket;
+		globalThis.fetch = originalFetch;
+		await rm(dir, {recursive: true, force: true});
+	}
+}
+
+describe('benchmark trace sample timeout integration', () => {
+	for (const phase of ['prepare', 'construct']) {
+		it(`closes both clients without cleanup or output when ${phase} stays silent`, async () => {
+			await withCaptureSocket((socket, id, expression) => expression === `benchmarkLifecycle.${phase}()`, async ({dir, calls, sockets, capture}) => {
+				const timeouts = [];
+				const callbackClosedStates = [];
+				const output = [];
+				const originalConsole = Object.fromEntries(['log', 'warn', 'error'].map(name => [name, console[name]]));
+				for (const name of Object.keys(originalConsole))
+					console[name] = (...args) => output.push(args);
+				try {
+					await assert.rejects(capture({sampleTimeoutMs: 20, onSampleTimeout(error) {
+						timeouts.push(error);
+						callbackClosedStates.push(sockets.map(socket => socket.closed));
+						if (phase === 'prepare')
+							throw new Error('parent callback failed');
+						return Promise.reject(new Error('parent callback rejected'));
+					}}), error => {
+						assert.equal(error, timeouts[0]);
+						assert.equal(error.message, 'uplot: timed out after 0.02s');
+						assert.equal(error.code, 'BENCHMARK_SAMPLE_TIMEOUT');
+						assert.equal(error.variant, 'uplot');
+						assert.equal(error.timeoutMs, 20);
+						return true;
+					});
+				}
+				finally {
+					Object.assign(console, originalConsole);
+				}
+				assert.equal(timeouts.length, 1);
+				assert.deepEqual(callbackClosedStates, [[false, false]], 'notify parent before closing CDP');
+				assert.equal(sockets.length, 2);
+				assert.ok(sockets.every(socket => socket.closed));
+				assert.ok(calls.some(call => call.method === 'Tracing.start'));
+				assert.ok(!calls.some(call => call.method === 'Tracing.end' || call.method.startsWith('IO.') || call.params.expression === 'benchmarkLifecycle.destroy()'));
+				assert.deepEqual(await readdir(dir), ['DevToolsActivePort']);
+				assert.deepEqual(output, []);
+			});
+		});
+	}
+
+	for (const stuck of [false, true]) {
+		it(`resets queued rAF boundaries and ${stuck ? 'times out a stuck evaluation' : 'disposes the watchdog after success'}`, async () => {
+			let entered;
+			const evaluating = new Promise(resolve => { entered = resolve; });
+			await withCaptureSocket((socket, id, expression) => {
+				if (expression !== 'globalThis.runBenchmarkTrace({raf: true})')
+					return false;
+				entered({socket, id});
+				return true;
+			}, async ({dir, calls, sockets, capture}) => {
+				const timeouts = [];
+				const capturePromise = capture({trace: false, raf: true, sampleTimeoutMs: 100, onSampleTimeout: error => timeouts.push(error)});
+				const completion = stuck ? assert.rejects(capturePromise, error => {
+					assert.equal(error, timeouts[0]);
+					assert.equal(error.message, 'chartjs: timed out after 0.1s');
+					return true;
+				}) : capturePromise;
+				const {socket, id} = await evaluating;
+				assert.equal(socket.messageListeners.size, 2);
+				assert.ok(calls.findIndex(call => call.method === 'Runtime.addBinding') < calls.findIndex(call => call.method === 'Page.navigate'));
+				assert.deepEqual(calls.find(call => call.method === 'Runtime.addBinding').params, {name: 'benchmarkSampleBoundary'});
+				// Adjacent end/start notifications arrive in one turn. Total run time exceeds a sample budget.
+				for (let i = 0; i < 4; i++) {
+					socket.boundary('start');
+					await delay(40);
+					socket.boundary('end');
+				}
+				if (stuck) {
+					socket.boundary('start', 'chartjs');
+					for (const payload of ['{', 'null', '{}', '{"phase":"end"}', '{"phase":"end","variant":3}'])
+						socket.message({method: 'Runtime.bindingCalled', params: {name: 'benchmarkSampleBoundary', payload}});
+					socket.message({method: 'Runtime.bindingCalled', params: {name: 'otherBinding', payload: '{"phase":"end","variant":"chartjs"}'}});
+					socket.message({method: 'unrelated', params: {name: 'benchmarkSampleBoundary', payload: '{"phase":"end","variant":"chartjs"}'}});
+					socket.boundary('end', 'uplot');
+					socket.boundary('start', 'idle');
+				}
+				else
+					socket.message({id, result: {result: {value: {samples: [], raf: {enabled: true}}}}});
+				const report = await completion;
+				assert.ok(sockets.every(socket => socket.closed));
+				assert.equal(socket.messageListeners.size, 1, 'remove the boundary listener');
+				if (!stuck) {
+					assert.equal(report.sampleTimeoutMs, 100);
+					assert.equal(report.trace, null);
+					// Neither a stale timer nor events after disposal can time out the finished capture.
+					socket.boundary('start');
+					await delay(120);
+				}
+				assert.equal(timeouts.length, stuck ? 1 : 0);
+				assert.equal(calls.filter(call => call.params.expression === 'globalThis.runBenchmarkTrace({raf: true})').length, 1);
+				assert.ok(!calls.some(call => /^(Tracing\.|IO\.|HeapProfiler\.)/.test(call.method) || call.method === 'Page.addScriptToEvaluateOnNewDocument' || call.params.expression?.startsWith('benchmarkLifecycle.')));
+				assert.deepEqual(await readdir(dir), ['DevToolsActivePort']);
+			});
+		});
+	}
+
+	it('stops an active rAF watchdog on ordinary evaluation failure', async () => {
+		await withCaptureSocket((socket, id, expression) => {
+			if (expression !== 'globalThis.runBenchmarkTrace({raf: true})')
+				return false;
+			socket.boundary('start');
+			socket.message({id, result: {exceptionDetails: {text: 'construction failed'}}});
+			return true;
+		}, async ({capture, sockets}) => {
+			const timeouts = [];
+			await assert.rejects(capture({trace: false, raf: true, sampleTimeoutMs: 20, onSampleTimeout: error => timeouts.push(error)}), /construction failed/);
+			assert.ok(sockets.every(socket => socket.closed));
+			assert.equal(sockets[1].messageListeners.size, 1);
+			await delay(40);
+			assert.deepEqual(timeouts, []);
+		});
+	});
+
+	it('still ends tracing on an ordinary sample failure', async () => {
+		await withCaptureSocket((socket, id, expression) => {
+			if (expression !== 'benchmarkLifecycle.prepare()')
+				return false;
+			socket.message({id, result: {exceptionDetails: {text: 'preparation failed'}}});
+			return true;
+		}, async ({capture, calls, sockets}) => {
+			await assert.rejects(capture({}), /preparation failed/);
+			assert.ok(calls.some(call => call.params.expression === 'benchmarkLifecycle.destroy()'));
+			assert.equal(calls.filter(call => call.method === 'Tracing.end').length, 1);
+			assert.ok(sockets.every(socket => socket.closed));
+		});
+	});
+
+	it('reports the default timeout on normal captures', async () => {
+		await withCaptureSocket(() => false, async ({capture}) => {
+			const report = await capture({trace: false});
+			assert.equal(report.sampleTimeoutMs, SAMPLE_TIMEOUT_MS);
+		});
+	});
+});
+
+describe('compressed benchmark trace capture', () => {
+	it('saves only exact gzip bytes, reports disk size, and still rejects Chrome data loss', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'bench-trace-capture-'));
+		const originalSocket = globalThis.WebSocket;
+		const originalFetch = globalThis.fetch;
+		const raw = JSON.stringify({traceEvents: [...metadata, ...markers(), {name: 'InvalidateLayout', ph: 'I', ts: 12345}]});
+		const compressed = gzipSync(raw);
+		const calls = [];
+		let dataLoss = false;
+		let offset = 0;
+		class Socket extends EventTarget {
+			constructor() {
+				super();
+				queueMicrotask(() => this.dispatchEvent(new Event('open')));
+			}
+			message(message) {
+				this.dispatchEvent(new MessageEvent('message', {data: JSON.stringify(message)}));
+			}
+			send(text) {
+				const {id, method, params} = JSON.parse(text);
+				calls.push({method, params});
+				let result = {};
+				if (method === 'Tracing.end')
+					this.message({method: 'Tracing.tracingComplete', params: {stream: 'gzip-stream', dataLossOccurred: dataLoss}});
+				if (method === 'IO.read') {
+					const end = Math.min(offset + 17, compressed.length);
+					result = {data: compressed.subarray(offset, end).toString('base64'), base64Encoded: true, eof: end === compressed.length};
+					offset = end;
+				}
+				if (method === 'Runtime.evaluate') {
+					let value = true;
+					if (params.expression === 'benchmarkLifecycle.begin()')
+						value = {config: {variants: ['uplot'], dpr: 1, warmups: 0, rounds: 1}};
+					if (params.expression === 'benchmarkLifecycle.construct()')
+						value = sample();
+					result = {result: {value}};
+				}
+				this.message({id, result});
+			}
+			close() { this.dispatchEvent(new Event('close')); }
+		}
+		try {
+			await writeFile(join(dir, 'DevToolsActivePort'), '1234\n/devtools/browser/test');
+			globalThis.WebSocket = Socket;
+			globalThis.fetch = async () => ({json: async () => [{type: 'page', webSocketDebuggerUrl: 'ws://127.0.0.1:1234/page'}]});
+			for (const traceName of [undefined, 'custom.json', 'already.json.gz']) {
+				offset = 0;
+				const report = await captureBenchmarkTrace({profile: dir, cache: dir, url: 'http://127.0.0.1:1234/bench', traceName});
+				const name = traceName === undefined ? 'trace-chrome.json.gz' : traceName.endsWith('.gz') ? traceName : traceName + '.gz';
+				assert.equal(report.sampleTimeoutMs, SAMPLE_TIMEOUT_MS);
+				assert.equal(report.trace.path, join(dir, name));
+				assert.equal(report.trace.compression, 'gzip');
+				assert.equal(report.trace.bytes, compressed.length);
+				assert.equal(report.trace.compressedBytes, (await stat(report.trace.path)).size);
+				assert.equal(report.trace.dataLoss, false);
+				assert.deepEqual(await readFile(report.trace.path), compressed);
+				assert.deepEqual(await readdir(dir), ['DevToolsActivePort', name].sort());
+				assert.deepEqual(await analyzeBenchmarkTraceFile(report.trace.path, report), analyzeBenchmarkTrace(JSON.parse(raw), report));
+				await rm(report.trace.path);
+			}
+			for (const call of calls.filter(call => call.method === 'Tracing.start')) {
+				assert.equal(call.params.streamCompression, 'gzip');
+				assert.equal(call.params.transferMode, 'ReturnAsStream');
+				assert.equal(call.params.streamFormat, 'json');
+				assert.equal(call.params.traceConfig.recordMode, 'recordUntilFull');
+				assert.equal(call.params.traceConfig.traceBufferSizeInKb, 128 * 1024);
+			}
+			assert.equal(calls.filter(call => call.method === 'IO.close').length, 3);
+			dataLoss = true;
+			offset = 0;
+			await assert.rejects(captureBenchmarkTrace({profile: dir, cache: dir, url: 'http://127.0.0.1:1234/bench'}), /Chrome lost trace data/);
+		}
+		finally {
+			globalThis.WebSocket = originalSocket;
+			globalThis.fetch = originalFetch;
+			await rm(dir, {recursive: true, force: true});
+		}
 	});
 });

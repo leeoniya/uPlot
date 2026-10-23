@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks';
+import { SAMPLE_TIMEOUT_MS, createSampleWatchdog, abortable } from './bench-sample-timeout.mjs';
 
 const COMMAND_TIMEOUT_MS = 30000;
-const PHASE_TIMEOUT_MS = 120000;
 
 function bounded(operation, timeoutMs, label) {
 	let timer;
@@ -14,15 +14,14 @@ function bounded(operation, timeoutMs, label) {
 }
 
 // The caller starts tracing first and supplies a returnByValue evaluator.
-export async function captureBenchmarkSamples(page, evaluate, {processRead = null, processPollIntervalMs = 50} = {}) {
+export async function captureBenchmarkSamples(page, evaluate, {processRead = null, processPollIntervalMs = 50, sampleTimeoutMs = SAMPLE_TIMEOUT_MS, onSampleTimeout = () => {}} = {}) {
 	if (processRead !== null && typeof processRead !== 'function')
 		throw new TypeError('processRead must be a function or null');
 	if (!Number.isFinite(processPollIntervalMs) || processPollIntervalMs <= 0)
 		throw new TypeError('processPollIntervalMs must be positive and finite');
+	const watchdog = createSampleWatchdog(onSampleTimeout, {timeoutMs: sampleTimeoutMs});
 	const epoch = performance.now();
-	const invoke = expression => bounded(() => evaluate(page, expression), PHASE_TIMEOUT_MS, expression);
-	const collectGarbage = () => bounded(() => page.send('HeapProfiler.collectGarbage'), COMMAND_TIMEOUT_MS, 'Checkpoint GC');
-	const {config, ...metadata} = await invoke('benchmarkLifecycle.begin()');
+	const {config, ...metadata} = await bounded(() => evaluate(page, 'benchmarkLifecycle.begin()'), COMMAND_TIMEOUT_MS, 'benchmarkLifecycle.begin()');
 	if (!Array.isArray(config?.variants) || config.variants.length === 0 ||
 		config.variants.some(variant => typeof variant !== 'string' || !variant) ||
 		new Set(config.variants).size !== config.variants.length ||
@@ -39,11 +38,15 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 		if (turn % 2)
 			ordered.reverse();
 		for (const variant of ordered) {
+			const signal = watchdog.start(variant);
+			const invoke = expression => abortable(() => evaluate(page, expression), signal);
+			const collectGarbage = () => abortable(() => page.send('HeapProfiler.collectGarbage'), signal);
 			const id = `sample-${samples.length}`;
 			const processObservations = [];
 			const readProcess = async (phase, kind) => {
 				const processRequestedAtMs = performance.now() - epoch;
-				const processMemory = await bounded(processRead, COMMAND_TIMEOUT_MS, 'Process memory read');
+				const processMemory = await abortable(processRead, signal);
+				signal.throwIfAborted();
 				processObservations.push({phase, kind, processMemory, processRequestedAtMs, processTimestampMs: performance.now() - epoch});
 			};
 			const checkpoint = async phase => {
@@ -63,12 +66,12 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 				let pollFailed = false;
 				// Node-side reads do not wait for the renderer's evaluation response.
 				const loop = (async () => {
-					while (!stopped) {
-						await new Promise(resolve => {
+					while (!stopped && !signal.aborted) {
+						await abortable(() => new Promise(resolve => {
 							wake = resolve;
 							timer = setTimeout(resolve, processPollIntervalMs);
-						});
-						if (!stopped)
+						}), signal);
+						if (!stopped && !signal.aborted)
 							await readProcess(phase, 'poll');
 					}
 				})().catch(error => { pollFailed = true; pollError = error; });
@@ -81,7 +84,7 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 					clearTimeout(timer);
 					wake?.();
 					// Drain before endpoints, checkpoint GC, or destruction, even on failure.
-					await loop;
+					await abortable(() => loop, signal);
 				}
 				if (pollFailed)
 					throw pollError;
@@ -89,32 +92,43 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 				return result;
 			};
 
-			let timing;
-			let failed = false;
 			try {
-				await invoke(`benchmarkLifecycle.setup(${JSON.stringify(variant)}, ${JSON.stringify(id)})`);
-				await checkpoint('baseline');
-				await pollPhase('prepare');
-				if (processRead)
-					await readProcess('prepared', 'snapshot');
-				timing = await pollPhase('construct');
-				await checkpoint('live');
+				let timing;
+				let failed = false;
+				try {
+					await invoke(`benchmarkLifecycle.setup(${JSON.stringify(variant)}, ${JSON.stringify(id)})`);
+					await checkpoint('baseline');
+					await pollPhase('prepare');
+					if (processRead)
+						await readProcess('prepared', 'snapshot');
+					timing = await pollPhase('construct');
+					await checkpoint('live');
+				}
+				catch (error) {
+					failed = true;
+					throw error;
+				}
+				finally {
+					try {
+						if (!signal.aborted)
+							await invoke('benchmarkLifecycle.destroy()');
+					}
+					catch (error) {
+						if (!failed)
+							throw error;
+					}
+				}
+				await checkpoint('cleanup');
+				signal.throwIfAborted();
+				samples.push({...timing, round, warmup: round < 0, ...(processRead ? {processObservations} : {})});
 			}
 			catch (error) {
-				failed = true;
+				signal.throwIfAborted();
 				throw error;
 			}
 			finally {
-				try {
-					await invoke('benchmarkLifecycle.destroy()');
-				}
-				catch (error) {
-					if (!failed)
-						throw error;
-				}
+				watchdog.stop();
 			}
-			await checkpoint('cleanup');
-			samples.push({...timing, round, warmup: round < 0, ...(processRead ? {processObservations} : {})});
 		}
 	}
 
@@ -122,10 +136,11 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 		...metadata,
 		...config,
 		phase: 'initial-chart-creation',
+		sampleTimeoutMs,
 		samples,
 		...(processRead ? {processProtocol: {
 			requestedProcessPollIntervalMs: processPollIntervalMs,
-			commandTimeoutMs: COMMAND_TIMEOUT_MS, phaseTimeoutMs: PHASE_TIMEOUT_MS,
+			commandTimeoutMs: COMMAND_TIMEOUT_MS, sampleTimeoutMs,
 			order: 'Rotate by round + warmups; reverse on odd turns. Warmup rounds are -warmups through -1; measured rounds start at 0.',
 			sequence: ['setup', 'GC', 'baseline', 'poll prepare', 'drain', 'prepared', 'poll construct', 'drain', 'GC', 'live', 'destroy', 'GC', 'cleanup'],
 			prepared: 'Process snapshot after preparation, without GC. No forced GC occurs between preparation and construction.',
@@ -135,7 +150,8 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 		}} : {}),
 		limitations: [
 			...(metadata.limitations ?? []),
-			'Timeouts bound local waits, not browser execution or external reads. Pending operations cannot be cancelled here; discard the page after capture failure.',
+			'Each sample has one deadline from setup through cleanup, including checkpoint GC, process reads, settling, and fences. Warmups use the same per-sample budget.',
+			'The sample timeout aborts local waits, not browser execution or external reads. The caller must terminate the browser on timeout and discard the page after capture failure.',
 			...(processRead ? [
 				'Process polling and checkpoint GC share the timing capture. They can affect timings; this is not an uninstrumented pass.',
 				'Process peaks are sampled lower bounds. GC does not force native memory release, and process deltas do not establish ownership.',
