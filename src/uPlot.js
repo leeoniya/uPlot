@@ -2044,8 +2044,9 @@ export default function uPlot(opts, data, then) {
 					nextBand[bi] = firstBand[si];
 					firstBand[si] = bi;
 
-					let lo = min(si, b.series[1]);
-					let hi = max(si, b.series[1]);
+					let to = b.series[1] ?? si;
+					let lo = min(si, to);
+					let hi = max(si, to);
 					bandEnds[lo] = max(bandEnds[lo], hi);
 				}
 
@@ -2201,7 +2202,11 @@ export default function uPlot(opts, data, then) {
 			let gapsClip2;
 			let _fillStyle = fillStyle;
 
-			if (b != null) {
+			if (b != null && b.series[1] == null) {
+				if (draw & BAND_CLIP_FILL)
+					_fillStyle = b.fill(self, bi) || fillStyle;
+			}
+			else if (b != null) {
 				let lowerEdge = series[b.series[1]];
 				let lowerData = data[b.series[1]];
 

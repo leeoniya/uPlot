@@ -155,10 +155,12 @@ export function bars(opts) {
 
 			let yValue = dispReader();
 			let y0Value = dispReader();
-			let hasY0 = dataY0 != null || band != null;
+			let hasY0 = dataY0 != null || band?.series[1] != null;
 
-			if (band != null)
-				dataY0 = u._data[band.series[1]];
+			if (band != null) {
+				if (hasY0)
+					dataY0 = u._data[band.series[1]];
+			}
 			else if (dataY0 == null) {
 				let { y0, y1 } = disp;
 

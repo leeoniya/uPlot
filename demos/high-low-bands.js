@@ -757,6 +757,35 @@ const renders = [
     };
 
     return new uPlot(opts, data, document.body);
+  },
+
+  () => {
+    const data = [
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      [7, 8, 8, 7, 6, 7, 8, 9, 8, 7],
+      [3, 4, 3, 2, 2, 3, 4, 4, 3, 2],
+      [5, 6, 9, 6, 1, 5, 7, 10, 5, 1],
+    ];
+
+    return new uPlot({
+      title: 'Unbounded threshold bands',
+      width: 800,
+      height: 300,
+      scales: {
+        x: { time: false },
+        y: { range: [0, 12] },
+      },
+      series: [
+        {},
+        { label: 'High threshold', stroke: 'red', dash: [5, 5], points: { show: false } },
+        { label: 'Low threshold', stroke: 'red', dash: [5, 5], points: { show: false } },
+        { label: 'Actual', stroke: 'blue', width: 2 },
+      ],
+      bands: [
+        { series: [1, null], dir: 1, fill: 'rgba(255, 0, 0, 0.12)' },
+        { series: [2, null], dir: -1, fill: 'rgba(255, 0, 0, 0.12)' },
+      ],
+    }, data, document.body);
   }
 ];
 

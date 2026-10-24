@@ -90,7 +90,7 @@ function recordCanvas(ctx, labels, events, operations = []) {
 	};
 }
 
-function makePlot({ count = 5, bands = [], hidden = [], stack, focus = {}, series = () => ({}), paths = uPlot.paths.linear(), points = true, data, xRange = [0, 2], pxRatio = 1, Plot = uPlot } = {}) {
+function makePlot({ count = 5, bands = [], hidden = [], stack, focus = {}, series = () => ({}), paths = uPlot.paths.linear(), points = true, data, xRange = [0, 2], scales = {}, pxRatio = 1, Plot = uPlot } = {}) {
 	const events = [];
 	const operations = [];
 	const labels = new WeakMap();
@@ -117,7 +117,7 @@ function makePlot({ count = 5, bands = [], hidden = [], stack, focus = {}, serie
 		width: 400, height: 240, pxRatio,
 		axes: [{ show: false }, { show: false }],
 		cursor: { show: false }, legend: { show: false },
-		scales: { x: { time: false, range: xRange }, y: { range: [0, count + 2] } },
+		scales: { x: { time: false, range: xRange, ...scales.x }, y: { range: [0, count + 2], ...scales.y } },
 		bands, stack, focus,
 		series: [{}, ...Array.from({ length: count }, (_, idx) => ({
 			show: !hidden.includes(idx + 1),
@@ -174,6 +174,78 @@ function customPaths(flags, maps) {
 }
 
 describe('band-local drawing', () => {
+	for (const [name, paths] of [
+		['linear', uPlot.paths.linear()],
+		['stepped', uPlot.paths.stepped({ align: 1 })],
+		['spline', uPlot.paths.spline()],
+		['bars', uPlot.paths.bars({ size: [0.6, 100] })],
+	]) {
+		for (const dir of [-1, 1]) {
+			for (const ori of [0, 1]) {
+				for (const xDir of [-1, 1]) {
+					for (const yDir of [-1, 1]) {
+						it(`fills unbounded ${name} bands with dir=${dir}, ori=${ori}, xDir=${xDir}, yDir=${yDir}`, async () => {
+							const options = {
+								count: 1, paths, points: false, xRange: [0, 4],
+								data: [[0, 1, 2, 3, 4], [1, 2, null, 2, 1]],
+								scales: { x: { ori, dir: xDir }, y: { ori: 1 - ori, dir: yDir } },
+							};
+							let fills = 0;
+							const f = makePlot({ ...options, bands: [{ series: [1, null], dir, fill: (u, bi) => {
+								assert.equal(bi, 0);
+								fills++;
+								return 'orange';
+							} }] });
+							const reference = makePlot({ ...options, series: () => ({
+								fillTo: u => dir == 1 ? u.scales.y.max : u.scales.y.min,
+							}) });
+							try {
+								await Promise.resolve();
+								assert.deepEqual(f.geometry[1], reference.geometry[1], 'fills to the selected visible scale limit');
+								assert.deepEqual([f.u.scales.y.min, f.u.scales.y.max], [0, 3]);
+								const fill = f.events.find(e => e.kind == 'fill');
+								assert.ok(fill);
+								// Bars retain their existing series-fill behavior (zero band-clip flags).
+								assert.equal(fill.style, name == 'bars' ? 'silver' : 'orange');
+								assert.equal(fills, name == 'bars' ? 0 : 1);
+								if (name != 'bars') {
+									assert.ok(f.u.series[1]._paths.clip, 'threshold gaps remain clipped');
+									assert.ok(fill.clips.includes(f.u.series[1]._paths.clip));
+								}
+								assert.equal(fill.clips.length, name == 'bars' ? 1 : 2, 'no second-edge clip');
+								const built = f.u.series[1]._paths;
+								f.u.redraw(false);
+								await Promise.resolve();
+								assert.equal(f.u.series[1]._paths, built);
+								assert.equal(fills, name == 'bars' ? 0 : 2);
+								f.checkState();
+								reference.checkState();
+							}
+							finally { f.u.destroy(); reference.u.destroy(); }
+						});
+					}
+				}
+			}
+		}
+	}
+
+	it('keeps unbounded owners local, defaults to dir=-1, and skips hidden or empty thresholds', async () => {
+		const f = makeProbedPlot({ bands: [band(2, null), band(4, null)], hidden: [4] });
+		try {
+			await Promise.resolve();
+			assertOrder(f, [1, 2, 3, 5].flatMap(ordinary));
+			assert.equal(f.u.bands[0].dir, -1);
+			assert.deepEqual(caches.get(f.u).bandEnds, [0, 0, 2, 0, 4, 0]);
+			assert.equal(f.events.find(e => e.si == 2 && e.kind == 'fill').style, 'orange');
+			f.events.length = 0;
+			f.u.setData([f.u.data[0], ...f.u.data.slice(1).map(values => values.map(() => null))]);
+			await Promise.resolve();
+			assert.ok(f.events.every(e => e.kind == 'hook' || e.points), 'empty thresholds have no line or band paint');
+						assert.equal(f.u.series[2]._paths, null);
+			f.checkState();
+		}
+		finally { f.u.destroy(); }
+	});
 	it('observes saved translations and bitmap resets, including consecutive operations', () => {
 		const canvas = document.createElement('canvas');
 		const ctx = canvas.getContext('2d');
@@ -524,7 +596,9 @@ describe('band-local drawing', () => {
 			assertOrder(f, [1, 2, 3, 4, 5].flatMap(ordinary));
 			for (const [change, expected] of [
 				[() => f.u.addBand(band(1, 3)), [...group([1, 2, 3]), ...ordinary(4), ...ordinary(5)]],
-				[() => f.u.setBand(0, { series: [5, 3] }), [...ordinary(1), ...ordinary(2), ...group([3, 4, 5])]],
+				[() => f.u.setBand(0, { series: [5, null], dir: 1 }), [1, 2, 3, 4, 5].flatMap(ordinary)],
+								[() => f.u.setBand(0, { dir: -1 }), [1, 2, 3, 4, 5].flatMap(ordinary)],
+								[() => f.u.setBand(0, { series: [5, 3] }), [...ordinary(1), ...ordinary(2), ...group([3, 4, 5])]],
 				[() => f.u.addBand(band(1, 3), 0), group([1, 2, 3, 4, 5])],
 				[() => f.u.delBand(0), [...ordinary(1), ...ordinary(2), ...group([3, 4, 5])]],
 				[() => f.u.delBand(), [1, 2, 3, 4, 5].flatMap(ordinary)],

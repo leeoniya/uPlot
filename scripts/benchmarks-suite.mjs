@@ -33,7 +33,11 @@ export function suiteReportName(mode) {
 
 function benchmarkView(report) {
 	const {trace, memory, raf} = report.measurements;
-	const warnings = (report.skipped ?? []).map(({variant, reason}) => `${variant}: skipped (${reason})`);
+	const warnings = [
+		...(report.timeouts ?? []).map(({error}) => error),
+		...(report.failures ?? []).map(({variant, error}) => `${variant}: ${error}`),
+		...(report.skipped ?? []).map(({variant, reason}) => `${variant}: skipped (${reason})`),
+	];
 	const rows = report.reports.filter(raw => raw.runner.variant !== 'idle').map(raw => {
 		const {variant, dpr} = raw.runner;
 		const group = analysis => analysis?.groups?.find(group => group.variant === variant && group.dpr === dpr);
@@ -72,6 +76,17 @@ function benchmarkView(report) {
 		return row;
 	});
 
+	const columns = [
+		...(trace ? ['prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms'] : []),
+		...(raf ? ['prep ms', 'init ms', 'next rAF ms'] : []),
+		...(memory ? ['peak MB', 'retained MB'] : []),
+	];
+	for (const {variant} of [...(report.timeouts ?? []), ...(report.failures ?? [])])
+		rows.push({variant, ...Object.fromEntries(columns.map(column => [column, '-']))});
+
+	// Preserve execution order in memory/rAF reports, including failed entries.
+	if (report.protocol?.variants)
+		rows.sort((a, b) => report.protocol.variants.indexOf(a.variant) - report.protocol.variants.indexOf(b.variant));
 	if (trace) {
 		rows.sort((a, b) => {
 			const left = Number.isFinite(a['total ms']) ? a['total ms'] : Infinity;
@@ -117,7 +132,13 @@ function runWorker(request, {
 	setTimer = setTimeout, clearTimer = clearTimeout,
 } = {}) {
 	return new Promise((resolve, reject) => {
-		const child = spawnWorker(request.command, request.args, {cwd: root, stdio: ['ignore', 'pipe', 'pipe'], detached: true});
+		let child;
+		try {
+			child = spawnWorker(request.command, request.args, {cwd: root, stdio: ['ignore', 'pipe', 'pipe'], detached: true});
+		}
+		catch (error) {
+			throw Object.assign(new Error(error.message, {cause: error}), {code: 'BENCHMARK_WORKER_START_FAILED'});
+		}
 				// Child logs must not move the cursor inside the live table region.
 				let workerOutput = '';
 				for (const stream of [child.stdout, child.stderr])
@@ -130,7 +151,7 @@ function runWorker(request, {
 			try { kill(-child.pid, signal); }
 			catch (error) {
 				if (error.code !== 'ESRCH')
-					failure ??= error;
+					failure = Object.assign(new Error(error.message, {cause: error}), {code: 'BENCHMARK_CLEANUP_FAILED'});
 			}
 		};
 		const stop = (error, signal = 'SIGTERM') => {
@@ -140,8 +161,8 @@ function runWorker(request, {
 			send(signal);
 			escalation = setTimer(() => send('SIGKILL'), 2000);
 		};
-		const onInt = () => stop(new Error('Benchmark interrupted by SIGINT'), 'SIGINT');
-		const onTerm = () => stop(new Error('Benchmark interrupted by SIGTERM'));
+		const onInt = () => stop(Object.assign(new Error('Benchmark interrupted by SIGINT'), {code: 'BENCHMARK_INTERRUPTED'}), 'SIGINT');
+		const onTerm = () => stop(Object.assign(new Error('Benchmark interrupted by SIGTERM'), {code: 'BENCHMARK_INTERRUPTED'}));
 		signalSource.on('SIGINT', onInt);
 		signalSource.on('SIGTERM', onTerm);
 		const timer = setTimer(() => stop(new Error(`Benchmark ${request.variant} timed out after ${request.timeoutMs}ms`)), request.timeoutMs);
@@ -158,6 +179,7 @@ function runWorker(request, {
 		};
 		child.once('error', error => {
 			cleanup();
+			error = Object.assign(new Error(error.message, {cause: error}), {code: 'BENCHMARK_WORKER_START_FAILED'});
 			if (workerOutput.trim())
 				error.message += '\n' + workerOutput.trim();
 			reject(error);
@@ -209,15 +231,16 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 			aggregation: 'Each table metric uses its minimum finite measured value after warmups. Columns can come from different rounds; total work uses the minimum per-sample total, not a sum of column minima.',
 			warmSamples: 'Warmups are excluded. Each browser reuses its selected library between samples; allocator reuse affects process deltas.',
 		},
-		reports: [], adjustedAnalysis: measurements.memory ? summarizeAdjustedProcessMemory([]) : null,
+		reports: [], timeouts: [], failures: [], adjustedAnalysis: measurements.memory ? summarizeAdjustedProcessMemory([]) : null,
 	};
+	const processed = () => report.progress.completed.length + report.timeouts.length + report.failures.length;
 	const save = () => writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
 	save();
 	try {
 		for (const name of variants) {
 			report.progress.current = name;
 			save();
-			display.update({...benchmarkView(report), status: `Starting ${name} (${report.progress.completed.length + 1}/${variants.length})...`});
+			display.update({...benchmarkView(report), status: `Starting ${name} (${processed() + 1}/${variants.length})...`});
 			const variantOutput = resolve(outputDirectory, variantReportName(mode, name));
 			// A successful worker must produce this run's report, never a cached predecessor.
 			rmSync(variantOutput, {force: true});
@@ -227,21 +250,41 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 				...Object.keys(measurements).filter(key => measurements[key]).map(key => `--${key}`),
 				...(gpu ? ['--gpu'] : []),
 			];
-			const returned = await worker({command: process.execPath, args, variant: name, dpr, gpu, measurements: {...measurements}, output: variantOutput, timeoutMs: 270000});
-			const raw = returned ?? JSON.parse(readFileSync(variantOutput, 'utf8'));
-			if (raw.runner?.variant !== name || raw.runner?.dpr !== dpr || !Array.isArray(raw.samples) ||
-				Object.keys(measurements).some(key => raw.measurements?.[key] !== measurements[key]) ||
-				raw.samples.some(sample => sample.variant !== name || sample.dpr !== dpr))
-				throw new Error(`Unexpected benchmark report for ${name}`);
-			const reports = [...report.reports, raw];
-			const adjustedAnalysis = measurements.memory ? summarizeAdjustedProcessMemory(reports) : null;
+			let reports;
+			let adjustedAnalysis;
+			try {
+				const returned = await worker({command: process.execPath, args, variant: name, dpr, gpu, measurements: {...measurements}, output: variantOutput, timeoutMs: 270000});
+				const raw = returned ?? JSON.parse(readFileSync(variantOutput, 'utf8'));
+				if (raw?.runner?.variant !== name || raw.runner?.dpr !== dpr || !Array.isArray(raw.samples) ||
+					Object.keys(measurements).some(key => raw.measurements?.[key] !== measurements[key]) ||
+					raw.samples.some(sample => sample.variant !== name || sample.dpr !== dpr))
+					throw new Error(`Unexpected benchmark report for ${name}`);
+				reports = [...report.reports, raw];
+				adjustedAnalysis = measurements.memory ? summarizeAdjustedProcessMemory(reports) : null;
+			}
+			catch (error) {
+				// Cancellation and suite infrastructure failures are not library results.
+				if (name === 'idle' || ['BENCHMARK_INTERRUPTED', 'BENCHMARK_WORKER_START_FAILED', 'BENCHMARK_CLEANUP_FAILED'].includes(error?.code))
+					throw error;
+				const message = error instanceof Error ? error.message : String(error);
+				const timedOut = error?.code === 'BENCHMARK_SAMPLE_TIMEOUT';
+				if (timedOut)
+					report.timeouts.push({variant: name, dpr, timeoutMs: SAMPLE_TIMEOUT_MS, error: message});
+				else
+					report.failures.push({variant: name, dpr, error: message});
+				report.progress.current = null;
+				report.complete = processed() === variants.length;
+				save();
+				display.update({...benchmarkView(report), status: `${timedOut ? message : `Failed ${name}`} (${processed()}/${variants.length}).`, final: report.complete});
+				continue;
+			}
 			report.reports = reports;
 			report.adjustedAnalysis = adjustedAnalysis;
 			report.progress.completed.push(name);
 			report.progress.current = null;
-			report.complete = report.progress.completed.length === variants.length;
+			report.complete = processed() === variants.length;
 			save();
-			display.update({...benchmarkView(report), status: `Completed ${name} (${report.progress.completed.length}/${variants.length}).`, final: report.complete});
+			display.update({...benchmarkView(report), status: `Completed ${name} (${processed()}/${variants.length}).`, final: report.complete});
 		}
 	}
 	catch (error) {

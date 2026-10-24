@@ -1226,20 +1226,20 @@ declare namespace uPlot {
 	export namespace Band {
 		export type Fill = CanvasRenderingContext2D['fillStyle'] | ((self: uPlot, bandIdx: number, highSeriesFill: CanvasRenderingContext2D['fillStyle']) => CanvasRenderingContext2D['fillStyle']);
 
-		export type Bounds = [fromSeriesIdx: number, toSeriesIdx: number];
+		export type Bounds = [fromSeriesIdx: number, toSeriesIdx: number | null];
 	}
 
 	export interface Band {
 		/** band on/off */
 	//	show?: boolean;
 
-		/** series indices of upper and lower band edges */
+		/** series indices of band edges. A null second edge fills to the scale limit selected by dir. */
 		series: Band.Bounds;
 
 		/** area fill style */
 		fill?: Band.Fill;
 
-		/** whether to fill towards yMin (-1) or yMax (+1) between "from" & "to" series */
+		/** fill direction: towards yMin (-1, default) or yMax (+1) */
 		dir?: 1 | -1; // -1
 	}
 

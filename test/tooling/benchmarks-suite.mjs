@@ -51,7 +51,7 @@ function capture(fn) {
 				const [headers, ...cells] = args[0].split('\n').filter(line => line.startsWith('│'))
 					.map(line => line.split('│').slice(1, -1).map(value => value.trim()));
 				const rows = cells.map(row => Object.fromEntries(headers.map((key, i) =>
-					[key, key === 'variant' || row[i] === 'unavailable' ? row[i] : Number(row[i])])));
+					[key, key === 'variant' || row[i] === 'unavailable' || row[i] === '-' ? row[i] : Number(row[i])])));
 				tables.push(rows);
 				events.push({type: 'table', rows});
 			}
@@ -121,6 +121,75 @@ function offline(report) {
 }
 
 describe('benchmark suite modes and workers', () => {
+	for (const measurements of [combined, {trace: true}, {memory: true}, {raf: true}]) {
+		it(`continues after a library timeout and preserves dash rows in ${benchmarkMode(measurements)} summaries`, async () => {
+			const mode = benchmarkMode(measurements);
+			const h = harness();
+			const worker = h.dependencies.runWorker;
+			h.dependencies.runWorker = async request => {
+				if (request.variant === 'recharts') {
+					const partial = saved(mode);
+					assert.deepEqual(partial.timeouts, [{variant: 'googlecharts', dpr: 1, timeoutMs: 5000, error: 'googlecharts: timed out after 5s'}]);
+					assert.equal(partial.complete, false);
+					assert.equal(partial.progress.current, 'recharts');
+					assert.equal(h.frames.at(-1).status, `Starting recharts (${variants.indexOf('recharts') + 1}/${variants.length})...`);
+					const row = h.frames.at(-1).rows.find(row => row.variant === 'googlecharts');
+					assert.ok(row);
+					assert.ok(Object.entries(row).every(([key, value]) => key === 'variant' || value === '-'));
+				}
+				if (['googlecharts', 'visx'].includes(request.variant)) {
+					h.requests.push(request);
+					throw Object.assign(new Error(`${request.variant}: timed out after 5s`), {code: 'BENCHMARK_SAMPLE_TIMEOUT'});
+				}
+				return worker(request);
+			};
+			const report = await runBenchmarkSuite(measurements, h.dependencies);
+			assert.deepEqual(h.requests.map(request => request.variant), variants);
+			assert.equal(report.complete, true);
+			assert.equal(report.progress.failed, null);
+			assert.equal(report.progress.current, null);
+			assert.equal('error' in report, false);
+			assert.deepEqual(report.timeouts.map(entry => entry.variant), ['googlecharts', 'visx']);
+			assert.deepEqual(report.progress.completed, variants.filter(id => !['googlecharts', 'visx'].includes(id)));
+			assert.deepEqual(report.reports.map(raw => raw.runner.variant), report.progress.completed);
+			assert.equal(h.frames.at(-1).final, true, 'last-library timeout completes the suite');
+			assert.match(h.frames.at(-1).status, new RegExp(`${variants.length}/${variants.length}`));
+			const rows = h.frames.at(-1).rows;
+			const labels = mode === 'combined' ? ['prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms', 'peak MB', 'retained MB']
+				: mode === 'trace' ? ['prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms']
+				: mode === 'memory' ? ['peak MB', 'retained MB'] : ['prep ms', 'init ms', 'next rAF ms'];
+			for (const id of ['googlecharts', 'visx']) {
+				assert.deepEqual(rows.find(row => row.variant === id), {variant: id, ...Object.fromEntries(labels.map(label => [label, '-']))});
+				assert.equal(existsSync(join(directory, variantReportName(mode, id))), false);
+			}
+			if (measurements.trace)
+				assert.deepEqual(rows.slice(-2).map(row => row.variant), ['googlecharts', 'visx']);
+			else
+				assert.deepEqual(rows.map(row => row.variant), variants.slice(1));
+			assert.deepEqual(offline(report).tables[0], rows.map(row => Object.fromEntries(Object.entries(row)
+							.map(([key, value]) => [key, Number.isFinite(value) ? Number(value.toFixed(1)) : value]))));
+			assert.deepEqual(saved(mode), report);
+		});
+	}
+
+	it('finishes an explicitly selected timed-out library without loading a stale report', async () => {
+		const stale = join(directory, variantReportName('combined', 'googlecharts'));
+		writeFileSync(stale, JSON.stringify(browser('googlecharts')));
+		const h = harness();
+		const worker = h.dependencies.runWorker;
+		h.dependencies.runWorker = async request => {
+			if (request.variant === 'googlecharts')
+				throw Object.assign(new Error('googlecharts: timed out after 5s'), {code: 'BENCHMARK_SAMPLE_TIMEOUT'});
+			return worker(request);
+		};
+		const report = await runBenchmarkSuite({variant: 'googlecharts'}, h.dependencies);
+		assert.equal(report.complete, true);
+		assert.equal(existsSync(stale), false);
+		assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
+		assert.equal(report.timeouts.length, 1);
+		assert.ok(Object.values(h.frames.at(-1).rows[0]).slice(1).every(value => value === '-'));
+	});
+
 	for (let mask = 0; mask < 8; mask++) {
 		const flags = {trace: !!(mask & 1), memory: !!(mask & 2), raf: !!(mask & 4)};
 		if (flags.raf && (flags.trace || flags.memory)) {
@@ -353,30 +422,59 @@ describe('benchmark suite modes and workers', () => {
 		assert.deepEqual(h.frames.at(-1), {rows: [], warnings: [], status: 'Completed idle (1/1).', final: true});
 	});
 
-	it('preserves the completed partial aggregate on failure and does not start later workers', async () => {
-		const h = harness();
-		const worker = h.dependencies.runWorker;
-		h.dependencies.runWorker = request => {
-			if (request.variant === 'chartjs')
-				throw new Error('synthetic worker failure');
-			return worker(request);
-		};
-		await assert.rejects(runBenchmarkSuite({}, h.dependencies), /synthetic worker failure/);
-		const partial = saved();
-		assert.equal(partial.complete, false);
-		assert.equal(partial.progress.failed, 'chartjs');
-		assert.deepEqual(partial.skipped, skipped);
-		assert.deepEqual(partial.progress.completed, ['idle', 'uplot']);
-		assert.equal(partial.adjustedAnalysis.groups[0].scopes.tree.pssMB.live.min, 0);
-		assert.equal(h.tables.length, 1);
-		assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'uplot']);
-		assert.ok(h.frames.slice(0, -1).every(frame => !frame.final));
-		assert.deepEqual(h.frames.at(-1), {
-			rows: h.tables[0], warnings: skippedWarnings,
-			status: `Benchmark suite incomplete. Partial report saved: ${join(directory, suiteReportName('combined'))}`,
-			final: true,
+	for (const measurements of [combined, {trace: true}, {memory: true}, {raf: true}]) {
+		it(`continues after library errors and preserves failure rows in ${benchmarkMode(measurements)}`, async () => {
+			const h = harness();
+			const worker = h.dependencies.runWorker;
+			h.dependencies.runWorker = request => {
+				if (request.variant === 'd3') {
+					const partial = saved(benchmarkMode(measurements));
+					assert.equal(partial.failures[0].variant, 'chartjs');
+					assert.equal(partial.progress.current, 'd3');
+					assert.deepEqual(partial.progress.completed, ['idle', 'uplot']);
+				}
+				if (['chartjs', 'visx'].includes(request.variant)) {
+					h.requests.push(request);
+					throw new Error('synthetic worker failure');
+				}
+				return worker(request);
+			};
+			const result = await runBenchmarkSuite(measurements, h.dependencies);
+			assert.equal(result.complete, true);
+			assert.equal(result.progress.failed, null);
+			assert.equal(result.progress.current, null);
+			assert.equal('error' in result, false);
+			assert.deepEqual(result.failures, ['chartjs', 'visx'].map(variant => ({variant, dpr: 1, error: 'synthetic worker failure'})));
+			assert.deepEqual(h.requests.map(request => request.variant), variants);
+			assert.deepEqual(result.reports.map(raw => raw.runner.variant), variants.filter(id => !['chartjs', 'visx'].includes(id)));
+			const frame = h.frames.at(-1);
+			assert.equal(frame.final, true);
+			assert.equal(frame.status, `Failed visx (${variants.length}/${variants.length}).`);
+			for (const id of ['chartjs', 'visx']) {
+				assert.ok(frame.warnings.includes(`${id}: synthetic worker failure`));
+				assert.ok(Object.entries(frame.rows.find(row => row.variant === id)).every(([key, value]) => key === 'variant' || value === '-'));
+			}
+			assert.deepEqual(offline(result).tables[0], frame.rows.map(row => Object.fromEntries(Object.entries(row)
+				.map(([key, value]) => [key, Number.isFinite(value) ? Number(value.toFixed(1)) : value]))));
 		});
-	});
+	}
+
+	for (const failure of ['missing', 'invalid JSON', 'mismatch']) {
+		it(`rejects a library's ${failure} report without stopping later workers`, async () => {
+			const h = harness();
+			const worker = h.dependencies.runWorker;
+			h.dependencies.runWorker = request => {
+				if (request.variant !== 'chartjs') return worker(request);
+				if (failure === 'invalid JSON') writeFileSync(request.output, '{');
+				if (failure === 'mismatch') return browser('uplot');
+			};
+			const result = await runBenchmarkSuite({}, h.dependencies);
+			assert.equal(result.complete, true);
+			assert.deepEqual(result.failures.map(entry => entry.variant), ['chartjs']);
+			assert.equal(result.reports.some(raw => raw.runner.variant === 'chartjs'), false);
+			assert.equal(result.progress.completed.at(-1), 'visx');
+		});
+	}
 
 	it('keeps completed rows and warnings in the next worker start and final display', async () => {
 			const h = harness();
@@ -582,6 +680,52 @@ describe('benchmark table and offline summary', () => {
 });
 
 describe('worker subprocess cleanup', () => {
+	for (const event of ['exit', 'crash', 'SIGINT', 'SIGTERM', 'spawn error']) {
+		it(`isolates a library ${event} while honoring cancellation and launch errors`, async () => {
+			const signalSource = new EventEmitter();
+			const started = [];
+			const h = harness({
+				runWorker: undefined, signalSource, kill: () => {},
+				spawnWorker: (command, args) => {
+					const id = args[args.indexOf('--variant') + 1];
+					started.push(id);
+					const child = new EventEmitter();
+					child.stdout = new EventEmitter();
+					child.stderr = new EventEmitter();
+					queueMicrotask(() => {
+						if (id === 'chartjs') {
+							child.stderr.emit('data', Buffer.from('vendor error detail'));
+							if (event.startsWith('SIG')) signalSource.emit(event);
+							if (event === 'spawn error') child.emit('error', new Error('launch failed'));
+							else child.emit('close', event === 'crash' ? null : 1, event === 'crash' ? 'SIGSEGV' : null);
+						}
+						else {
+							writeFileSync(join(directory, variantReportName('combined', id)), JSON.stringify(browser(id)));
+							child.emit('close', 0, null);
+						}
+					});
+					return child;
+				},
+			});
+			if (event === 'exit' || event === 'crash') {
+				const result = await runBenchmarkSuite({}, h.dependencies);
+				assert.equal(result.complete, true);
+				assert.deepEqual(started, variants);
+				assert.deepEqual(result.failures.map(entry => entry.variant), ['chartjs']);
+				assert.match(result.failures[0].error, /vendor error detail/);
+				assert.deepEqual(result.progress.completed, variants.filter(id => id !== 'chartjs'));
+			}
+			else {
+				await assert.rejects(runBenchmarkSuite({}, h.dependencies), {
+					code: event === 'spawn error' ? 'BENCHMARK_WORKER_START_FAILED' : 'BENCHMARK_INTERRUPTED',
+				});
+				assert.deepEqual(started, ['idle', 'uplot', 'chartjs']);
+				assert.equal(saved().complete, false);
+				assert.deepEqual(saved().failures, []);
+			}
+		});
+	}
+
 	for (const event of ['success', 'failure', 'error', 'SIGINT', 'SIGTERM']) {
 		it(`captures both worker streams without printing them on ${event}`, async () => {
 			const signalSource = new EventEmitter();
@@ -627,7 +771,7 @@ describe('worker subprocess cleanup', () => {
 		});
 	}
 
-	it('reports a sample timeout without a stack or worker log dump and stops the suite', async () => {
+	it('keeps an idle-control timeout fatal without a stack or worker log dump', async () => {
 		const h = harness({
 			runWorker: undefined, signalSource: new EventEmitter(), kill: () => {},
 			spawnWorker: () => {

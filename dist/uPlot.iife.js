@@ -2638,9 +2638,10 @@ var uPlot = (function() {
 				const stroke = colors == null ? new Path2D() : null;
 				let yValue = dispReader();
 				let y0Value = dispReader();
-				let hasY0 = dataY0 != null || band != null;
-				if (band != null) dataY0 = u._data[band.series[1]];
-				else if (dataY0 == null) {
+				let hasY0 = dataY0 != null || band?.series[1] != null;
+				if (band != null) {
+					if (hasY0) dataY0 = u._data[band.series[1]];
+				} else if (dataY0 == null) {
 					let { y0, y1 } = disp;
 					if (y0 != null && y1 != null) {
 						dataY = y1.values(u, seriesIdx, idx0, idx1);
@@ -4001,8 +4002,9 @@ var uPlot = (function() {
 						let si = b.series[0];
 						nextBand[bi] = firstBand[si];
 						firstBand[si] = bi;
-						let lo = min(si, b.series[1]);
-						let hi = max(si, b.series[1]);
+						let to = b.series[1] ?? si;
+						let lo = min(si, to);
+						let hi = max(si, to);
 						bandEnds[lo] = max(bandEnds[lo], hi);
 					}
 					for (let i = 1; i < bandEnds.length; i++) {
@@ -4087,7 +4089,9 @@ var uPlot = (function() {
 				let bandClip = null;
 				let gapsClip2;
 				let _fillStyle = fillStyle;
-				if (b != null) {
+				if (b != null && b.series[1] == null) {
+					if (draw & 1) _fillStyle = b.fill(self, bi) || fillStyle;
+				} else if (b != null) {
 					let lowerEdge = series[b.series[1]];
 					let lowerData = data[b.series[1]];
 					bandClip = (lowerEdge._paths || EMPTY_OBJ).band;

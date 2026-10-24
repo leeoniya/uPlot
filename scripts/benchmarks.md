@@ -457,9 +457,19 @@ The budget starts before sample setup and ends after cleanup. It includes prepar
 Library downloads, initial page loading, and final trace analysis are outside this budget. They retain separate command and worker limits.
 
 The watchdog runs in Node, outside the renderer. A synchronous JavaScript loop cannot block this watchdog.
-On timeout, the runner reports `<library>: timed out after 5s` and exits with code 124.
+On timeout, the worker reports `<library>: timed out after 5s` and exits with code 124.
 It kills Chrome and its discovered descendants, closes CDP connections, and skips chart teardown and trace download.
-The suite stops and preserves results from completed libraries. It does not save the timed-out library's incomplete trace or replace its previous successful trace.
+The suite records the timeout, shows `-` in every metric column, and continues with the next library.
+Timing tables place timed-out libraries after measured results. Memory-only and rAF tables retain execution order.
+Library errors also produce `-` rows without stopping later libraries. These include crashes, dependency errors, and missing or invalid worker reports.
+The suite exits successfully after every library produces measurements, times out, or fails.
+User cancellation, idle-control failures, worker-launch failures, unsafe process cleanup, and suite-report write failures still stop the suite.
+The suite does not save the timed-out library's incomplete trace or replace its previous successful trace.
+
+The suite JSON stores timeout details in `timeouts` and other library errors in `failures`.
+Both remain separate from successful `reports` and `progress.completed` entries. Error details include the captured worker output when available.
+`complete: true` means every selected variant was attempted, not that every library produced measurements.
+Saved summaries preserve timeout and failure rows. Failed samples do not contribute to timing or memory statistics.
 Linux process-tree discovery uses a non-atomic `/proc` snapshot. Newly created or already-reparented descendants can escape discovery.
 
 The rAF runner sends sample-boundary notifications to the Node watchdog. These notifications are outside the measured chart interval.

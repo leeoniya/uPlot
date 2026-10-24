@@ -53,7 +53,9 @@ JSCharting is demo-only: version 3.4.0 retains destroyed charts across repeated 
 Each variant gets a fresh browser with only its own library and demo dependencies.
 Each library has 3 warmups and 7 measured rounds. There is no inter-library cooling pause.
 Each sample has a hard 5s budget from setup through cleanup, including preparation and memory checkpoints.
-A sample timeout kills Chrome and its descendants, discards the incomplete trace, and stops the suite.
+A library timeout kills Chrome, discards the incomplete trace, shows '-' for all metrics, and continues the suite.
+Library errors also show '-' and continue; details remain in the suite JSON.
+Cancellation, idle-control failures, and suite infrastructure failures still stop the suite.
 The table shows per-metric minima after warmups: best observed performance, not typical latency.
 Columns can come from different rounds. Total work is the minimum per-round total, not a sum of column minima.
 Progress, partial results, and a cumulative table update after each library finishes.
