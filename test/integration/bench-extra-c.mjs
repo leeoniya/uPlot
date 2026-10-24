@@ -91,14 +91,14 @@ describe('additional benchmark adapters C', () => {
 		});
 	}
 
-	it('amCharts: auto-ranging axes, full series, render-loop completion, and root cleanup', async () => {
+	it('amCharts: no grouping or line simplification, exact timestamps, render-loop completion, and root cleanup', async () => {
 		const saved = {am5: globalThis.am5, am5xy: globalThis.am5xy};
 		const mock = amchartsMock();
 		Object.assign(globalThis, {am5: mock.am5, am5xy: mock.am5xy});
 		try {
 			const element = host('amcharts');
 			const wait = {textContent: 'Rendering...'};
-			const data = amcharts.prepData(packed);
+			const data = Object.freeze(amcharts.prepData(packed).map(Object.freeze));
 			const pending = amcharts.makeChart(data, element, wait);
 			let resolved = false;
 			pending.then(() => { resolved = true; });
@@ -113,14 +113,10 @@ describe('additional benchmark adapters C', () => {
 			assert.equal(wait.textContent, 'Done!');
 			assert.deepEqual(element, {id: 'benchmark-amcharts', style: {width: '1920px', height: '600px'}});
 			const dateAxis = mock.created.find(value => value.type === 'DateAxis');
-			assert.equal(dateAxis.settings.groupData, true);
-			assert.equal(dateAxis.settings.groupCount, 1920);
+			assert.equal(dateAxis.settings.groupData, false);
+			assert.equal(Object.hasOwn(dateAxis.settings, 'groupCount'), false);
 			assert.deepEqual(dateAxis.settings.baseInterval, {timeUnit: 'minute', count: 1});
-			assert.deepEqual(dateAxis.settings.groupIntervals, [
-				{timeUnit: 'minute', count: 1},
-				{timeUnit: 'minute', count: 10},
-				{timeUnit: 'hour', count: 1},
-			]);
+			assert.equal(Object.hasOwn(dateAxis.settings, 'groupIntervals'), false);
 			assert.equal(dateAxis.settings.min, undefined);
 			assert.equal(dateAxis.settings.max, undefined);
 			assert.equal(dateAxis.settings.start, undefined);
@@ -139,8 +135,9 @@ describe('additional benchmark adapters C', () => {
 			for (const value of series) {
 				assert.equal(value.data.values, data);
 				assert.equal(value.settings.interpolationDuration, 0);
-				assert.equal(value.settings.valueYGrouped, 'average');
-				assert.equal(value.settings.minDistance, 1);
+				assert.equal(Object.hasOwn(value.settings, 'valueYGrouped'), false);
+				assert.equal(value.settings.minDistance, 0);
+				assert.equal(value.settings.exactLocationX, true);
 				assert.equal(value.settings.xAxis, dateAxis);
 			}
 			amcharts.destroyChart(mock.root);

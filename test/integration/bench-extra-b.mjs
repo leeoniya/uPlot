@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as plotly from '../../bench/plotly.mjs';
+import * as plotlySvg from '../../bench/plotly-svg.mjs';
 import * as canvasjs from '../../bench/canvasjs.mjs';
 import * as zingchart from '../../bench/zingchart.mjs';
 
@@ -30,7 +31,8 @@ describe('additional benchmark adapters B', () => {
 
 	for (const [name, source] of Object.entries(modules)) {
 		it(`${name}: preserves all 55,550 rows and prepares independent data without mutation`, () => {
-			assert.deepEqual(Object.keys(source).sort(), ['destroyChart', 'makeChart', 'prepData']);
+			assert.deepEqual(Object.keys(source).sort(), name === 'plotly' ?
+				['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData'] : ['destroyChart', 'makeChart', 'prepData']);
 			const first = source.prepData(packed);
 			const second = source.prepData(packed);
 			assert.equal(first[0].length, 55550);
@@ -64,49 +66,81 @@ describe('additional benchmark adapters B', () => {
 		}
 	});
 
-	it('Plotly awaits newPlot, uses GL lines and two autoranged y axes, and purges', async () => {
-		const host = {id: 'benchmark-plotly'}, wait = {};
+	for (const [name, source, type] of [['GL', plotly, 'scattergl'], ['SVG', plotlySvg, 'scatter']]) {
+		it(`Plotly ${name} awaits newPlot, uses two autoranged y axes, and purges`, async () => {
+			const host = {id: 'benchmark-plotly'}, wait = {};
+			const data = source.prepData(packed);
+			let finish, purged;
+			globalThis.Plotly = {
+				newPlot(target, traces, layout, config) {
+					assert.equal(target, host);
+					assert.equal(layout.width, 1920);
+					assert.equal(layout.height, 600);
+					assert.deepEqual(layout.xaxis.range, [data[0][0], data[0].at(-1)]);
+					assert.deepEqual(traces.map(t => t.yaxis), ['y', 'y', 'y2']);
+					assert.equal(layout.yaxis2.overlaying, 'y');
+					for (const axis of [layout.yaxis, layout.yaxis2]) {
+						assert.equal(axis.autorange, true);
+						assert.equal(axis.range, undefined);
+					}
+					for (const [i, trace] of traces.entries()) {
+						assert.equal(trace.type, type);
+						assert.equal(trace.y, data[i + 1]);
+						assert.ok(trace.x instanceof Float64Array);
+						assert.ok(trace.y instanceof Float64Array);
+						assert.equal(Object.hasOwn(trace.line, 'simplify'), false);
+						assert.equal(trace.mode, 'lines');
+						assert.equal(trace.x, data[0]);
+						assert.equal(trace.line.width, 0.5);
+					}
+					assert.equal(layout.transition.duration, 0);
+					assert.equal(config.plotGlPixelRatio, 2);
+					return new Promise(resolve => { finish = resolve; });
+				},
+				purge(target) { purged = target; },
+			};
+			const pending = source.makeChart(data, host, wait, {type: 'not-a-renderer'});
+			await Promise.resolve();
+			assert.notEqual(wait.textContent, 'Done!');
+			finish(host);
+			assert.equal(await pending, host);
+			assert.equal(wait.textContent, 'Done!');
+			source.destroyChart(host);
+			assert.equal(purged, host);
+			for (const async of [false, true]) {
+				const error = new Error('newPlot failed');
+				purged = null;
+				Plotly.newPlot = () => { if (async) return Promise.reject(error); throw error; };
+				const failedWait = {textContent: 'Rendering...'};
+				await assert.rejects(source.makeChart(data, host, failedWait), e => e === error);
+				assert.equal(failedWait.textContent, 'Rendering...');
+				assert.equal(purged, host);
+			}
+		});
+	}
+
+	it('Plotly SVG shares prep and cleanup and changes only the trace type', async () => {
+		assert.equal(plotlySvg.prepData, plotly.prepData);
+		assert.equal(plotlySvg.destroyChart, plotly.destroyChart);
 		const data = plotly.prepData(packed);
-		let finish, purged;
+		const host = {};
+		const calls = [];
 		globalThis.Plotly = {
 			newPlot(target, traces, layout, config) {
-				assert.equal(target, host);
-				assert.equal(layout.width, 1920);
-				assert.equal(layout.height, 600);
-				assert.deepEqual(layout.xaxis.range, [data[0][0], data[0].at(-1)]);
-				assert.deepEqual(traces.map(t => t.yaxis), ['y', 'y', 'y2']);
-				assert.equal(layout.yaxis2.overlaying, 'y');
-				for (const axis of [layout.yaxis, layout.yaxis2]) {
-					assert.equal(axis.autorange, true);
-					assert.equal(axis.range, undefined);
-				}
-				for (const trace of traces) {
-					assert.equal(trace.type, 'scattergl');
-					assert.equal(trace.mode, 'lines');
+				calls.push({traces, layout, config});
+				for (const [i, trace] of traces.entries()) {
 					assert.equal(trace.x, data[0]);
-					assert.equal(trace.line.width, 0.5);
+					assert.equal(trace.y, data[i + 1]);
 				}
-				assert.equal(layout.transition.duration, 0);
-				assert.equal(config.plotGlPixelRatio, 2);
-				return new Promise(resolve => { finish = resolve; });
+				return Promise.resolve(target);
 			},
-			purge(target) { purged = target; },
 		};
-		const pending = plotly.makeChart(data, host, wait);
-		await Promise.resolve();
-		assert.notEqual(wait.textContent, 'Done!');
-		finish(host);
-		assert.equal(await pending, host);
-		assert.equal(wait.textContent, 'Done!');
-		plotly.destroyChart(host);
-		assert.equal(purged, host);
-		for (const async of [false, true]) {
-			const error = new Error('newPlot failed');
-			purged = null;
-			Plotly.newPlot = () => { if (async) return Promise.reject(error); throw error; };
-			await assert.rejects(plotly.makeChart(data, host, {}), e => e === error);
-			assert.equal(purged, host);
-		}
+		await plotly.makeChart(data, host);
+		await plotlySvg.makeChart(data, host);
+		assert.deepEqual(calls[1], {
+			...calls[0],
+			traces: calls[0].traces.map(trace => ({...trace, type: 'scatter'})),
+		});
 	});
 
 	it('CanvasJS returns synchronously after render, uses two axes, and destroys on failure', () => {

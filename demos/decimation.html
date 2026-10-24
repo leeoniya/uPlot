@@ -39,6 +39,7 @@
 
 <body>
   <h1>Decimation</h1>
+  <p><a href="reduction-accuracy.html">Interactive uPlot-versus-library comparisons: LTTB, averaging, grouping, and min/max alternatives.</a></p>
   <p>These examples illustrate the LTTB limitations discussed in <a href="https://github.com/leeoniya/uPlot/pull/1025">#1025</a>.</p>
   <p>The green uPlot reference charts use all 10,002 input samples with the default linear pathbuilder.
     Its pixel-column min/max decimation retains both the +100 and -100 spikes.</p>
@@ -49,10 +50,10 @@
     This compares visible features, not equal output sizes or execution times.</p>
   <section id="library-comparisons" hidden>
     <h2>Native ECharts and Chart.js downsampling</h2>
-    <p>These charts use ECharts 6.1.0 and Chart.js 4.5.1 from jsDelivr. The examples require network access to load these libraries.</p>
+    <p>These charts use the ECharts and Chart.js versions pinned in the benchmark dependency manifest. The examples require network access to load these libraries.</p>
     <p>Each pair compares all input samples in green with native LTTB selection in red. Both charts receive the same 10,002 input samples.
       The output under each chart reports the actual retained samples and spike counts.</p>
-    <p>LTTB is opt-in in both libraries. ECharts uses <code>sampling: lttb</code>, as in <a href="../bench/ECharts5.html">the benchmark</a>.
+    <p>LTTB is opt-in in both libraries. This demo uses ECharts <code>sampling: lttb</code>. The <a href="../bench/ECharts5.html">benchmark</a> uses <code>minmax</code> instead.
       Its default sampling budget depends on the plot width and browser pixel ratio. The grid and pixel ratio use library defaults.</p>
     <p>Chart.js uses <code>enabled: true, algorithm: lttb</code> with <code>parsing: false</code>, which its decimation plugin requires.
       The output target defaults to the chart width in CSS pixels. The activation threshold defaults to four times that width.
@@ -60,8 +61,7 @@
     <p>These are default LTTB sampling settings, not completely default charts.
       The demo fixes chart sizes and axis limits, disables animation and point symbols, and sets line colors and widths for comparison.
       ECharts uses sample indices for triangle geometry. Chart.js uses actual x values, so their selected samples need not match.</p>
-    <p>The results depend on chart size and pixel ratio. At DPR 1, both libraries lose a spike in all three examples at this size.
-      At DPR 2, ECharts retains both spikes in these examples, while Chart.js still loses one.
+    <p>The results depend on chart size, library version, and pixel ratio.
       The readouts report the actual selected samples and spike counts. Retaining both spikes does not guarantee their original shape.</p>
     <p>Smaller buckets mean more output samples and can recover a missing feature in a particular dataset.
       Changing the sample count also changes bucket boundaries, so recovery is not a general preservation guarantee.
@@ -168,7 +168,7 @@
     <p>Implementation sources:
       <a href="https://cdn.jsdelivr.net/npm/echarts@6.1.0/lib/data/DataStore.js">ECharts LTTB</a>,
       <a href="https://cdn.jsdelivr.net/npm/echarts@6.1.0/lib/processor/dataSample.js">ECharts sampling rate</a>,
-      <a href="https://github.com/chartjs/Chart.js/blob/v4.5.1/src/plugins/plugin.decimation.js">Chart.js decimation</a>.
+      <a href="https://www.chartjs.org/docs/latest/configuration/decimation.html">Chart.js decimation</a>.
     </p>
   </section>
 
@@ -185,16 +185,14 @@
 
     const { renderLibraryComparisons } = await import('./decimation-libs.js');
 
-    async function loadLibrary(id, url, globalName) {
+    const {demoDependencies} = await import('../bench/demo-dependencies.mjs');
+    const {loadDependency} = await import('../bench/demo.mjs');
+
+    async function loadLibrary(id, globalName) {
       const status = document.getElementById(`${id}-status`);
       try {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = url;
-          script.onload = resolve;
-          script.onerror = () => reject(new Error(`Cannot load ${url}`));
-          document.head.appendChild(script);
-        });
+        for (const dependency of demoDependencies[id])
+          await loadDependency(dependency);
         renderLibraryComparisons(id, window[globalName]);
         status.textContent = `${globalName}: ready.`;
       }
@@ -205,8 +203,8 @@
     }
 
     await Promise.all([
-      loadLibrary('echarts', 'https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js', 'echarts'),
-      loadLibrary('chartjs', 'https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js', 'Chart'),
+      loadLibrary('echarts', 'echarts'),
+      loadLibrary('chartjs', 'Chart'),
     ]);
   </script>
 </body>

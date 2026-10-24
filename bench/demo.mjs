@@ -3,7 +3,7 @@ import {applyDemoStyles, setupDemo} from './demo-fixture.mjs';
 import {prepareDemoRuntime} from './demo-runtime.mjs';
 
 const dependencyLoads = new Map();
-function loadDependency(dependency) {
+export function loadDependency(dependency) {
 	const url = dependencyUrl(dependency, import.meta.url);
 
 	if (!dependencyLoads.has(url)) {

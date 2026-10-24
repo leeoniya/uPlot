@@ -300,10 +300,18 @@ describe('benchmark trace availability checks', () => {
 		assert.deepEqual([...await check('lightningchart', {license: 'test'})], ['lightningchart']);
 	});
 
-	it('defaults to the 30 runnable benchmarks plus idle, without JSCharting or LightningChart', async () => {
+	it('rejects timeout-prone variants before fixture/runtime setup', async () => {
+		for (const variant of ['g2-webgl', 'googlecharts'])
+			await assert.rejects(check(variant), error =>
+				error.message === `${variant}: ${benchmarkRestrictions[variant]}`);
+	});
+
+	it('defaults to the 34 runnable variants plus idle, without restricted adapters', async () => {
 		const selected = [...await check(null)];
 		assert.deepEqual(selected, [...benchmarkVariants, 'idle']);
-		assert.equal(selected.length, 31);
+		assert.equal(selected.length, 35);
+				assert.equal(selected.includes('g2-webgl'), false);
+				assert.equal(selected.includes('googlecharts'), false);
 		assert.equal(selected.includes('jscharting'), false);
 		assert.equal(selected.includes('lightningchart'), false);
 	});

@@ -57,16 +57,7 @@ export async function makeChart(data, host, wait) {
 		}));
 		const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
 			baseInterval: {timeUnit: 'minute', count: 1},
-			// Native zoom-dependent aggregation; retain the full input in series.data.
-			// Limit precomputed intervals to those useful for this minute-based dataset.
-			// https://www.amcharts.com/docs/v5/charts/xy-chart/axes/date-axis/#Performance_implications
-			groupData: true,
-			groupCount: 1920,
-			groupIntervals: [
-				{timeUnit: 'minute', count: 1},
-				{timeUnit: 'minute', count: 10},
-				{timeUnit: 'hour', count: 1},
-			],
+			groupData: false,
 			interpolationDuration: 0,
 			renderer: am5xy.AxisRendererX.new(root, {}),
 		}));
@@ -96,11 +87,9 @@ export async function makeChart(data, host, wait) {
 				fill: am5.color(color),
 				interpolationDuration: 0,
 				stateAnimationDuration: 0,
-				// Native averages summarize each time bucket; zooming restores finer data.
-				valueYGrouped: 'average',
-				// Skip subpixel line segments, not input samples. No bullet factories.
-				// https://www.amcharts.com/docs/v5/charts/xy-chart/series/line-series/#Simplifying_the_lines
-				minDistance: 1,
+				// Keep every line segment at its original timestamp.
+				minDistance: 0,
+				exactLocationX: true,
 			}));
 			series.strokes.template.setAll({strokeWidth: 1});
 			series.data.setAll(data);

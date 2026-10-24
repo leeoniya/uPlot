@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { demoDependencies, dependencyUrl } from '../bench/demo-dependencies.mjs';
+import { demoDependencies, demoModuleDependencies, dependencyUrl } from '../bench/demo-dependencies.mjs';
 
 // Serve the same modules and styles as the standalone demos, without parsing HTML.
 export function loadBenchDemoSources(root, variant = null) {
@@ -28,8 +28,10 @@ export function loadBenchDemoSources(root, variant = null) {
 
 	const variants = variant === null ? Object.keys(demoDependencies) : [variant];
 	for (const id of variants) {
-		if (id !== 'idle')
-			read(`/bench/${id}.mjs`);
+		if (id !== 'idle') {
+			for (const module of [id, ...(demoModuleDependencies[id] ?? [])])
+				read(`/bench/${module}.mjs`);
+		}
 		for (const dependency of demoDependencies[id]) {
 			const {name, version, path, type, option, global} = dependency;
 			if (name) {

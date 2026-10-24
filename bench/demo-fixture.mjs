@@ -25,7 +25,7 @@ export function setupDemo(variant, parent) {
 	parent.classList.add('bench-demo', variant);
 
 	const host = document.createElement('div');
-	if (variant === 'd3') {
+	if (variant === 'd3' || variant === 'd3-svg') {
 		host.innerHTML = `
 			<h3>Server Events</h3>
 			<div class="legend">
@@ -34,8 +34,9 @@ export function setupDemo(variant, parent) {
 				<span id="tcp-value" style="color: green">TCP Out: --</span>
 			</div>
 			<div class="chart">
-				<canvas id="plot"></canvas>
-				<canvas id="overlay"></canvas>
+				${variant === 'd3-svg'
+					? '<svg id="plot" width="1920" height="600"></svg>'
+					: '<canvas id="plot"></canvas><canvas id="overlay"></canvas>'}
 			</div>
 		`;
 	}

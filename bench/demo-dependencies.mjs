@@ -115,21 +115,46 @@ export const demoDependencies = {
 	idle: [],
 };
 
+// Keep vendor loading identical within each renderer comparison.
+demoDependencies['d3-svg'] = demoDependencies.d3;
+demoDependencies['plotly-svg'] = demoDependencies.plotly;
+demoDependencies['highcharts-svg'] = demoDependencies.highcharts;
+demoDependencies['bokeh-canvas'] = demoDependencies.bokeh;
+demoDependencies['d3fc-canvas'] = demoDependencies.d3fc;
+demoDependencies['g2-webgl'] = [
+	...demoDependencies.g2,
+	{name: '@antv/g-lite', version: '2.7.2', path: 'dist/index.umd.min.js'},
+	{name: '@antv/g-webgl', version: '2.1.3', path: 'dist/index.umd.min.js'},
+];
+
+// Explicit local imports let the CLI serve shared adapters without source parsing.
+export const demoModuleDependencies = {
+	'd3-svg': ['d3'],
+	'plotly-svg': ['plotly'],
+	'highcharts-svg': ['highcharts'],
+	'bokeh-canvas': ['bokeh'],
+	'd3fc-canvas': ['d3fc'],
+	'g2-webgl': ['g2'],
+};
+
 export const demoRestrictions = {
 	lightningchart: 'Requires a vendor-issued runtime license key (LIGHTNINGCHART_LICENSE).',
 
 };
 
 export const benchmarkRestrictions = {
+	'g2-webgl': 'Disabled after full-data benchmark timeouts, including with fill disabled. The standalone demo remains available.',
+	googlecharts: 'Disabled after benchmark timeouts. The standalone demo remains available.',
 	jscharting: 'JSCharting 3.4.0 retains destroyed charts and window listeners. Repeated samples accumulate hundreds of MB. The standalone demo remains available.',
 };
 
 // Keep execution order separate from the table, which sorts by measured total.
-export const benchmarkVariants = ['uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs',
-	'apexcharts', 'highcharts', 'lightweight', 'plotly', 'canvasjs', 'zingchart', 'amcharts',
-	'bokeh', 'd3fc', 'agcharts', 'vega', 'scichart',
-	'billboard', 'g2', 'syncfusion', 'devextreme', 'kendo',
-	'anychart', 'fusiontime', 'googlecharts', 'recharts', 'muicharts', 'financialcharts', 'visx'];
+export const benchmarkVariants = [
+	'uplot', 'chartjs', 'apexcharts', 'echarts', 'd3', 'd3-svg', 'flot', 'd3fc', 'd3fc-canvas', 'financialcharts',
+	'agcharts', 'dygraphs', 'anychart', 'visx', 'bokeh', 'bokeh-canvas', 'canvasjs', 'plotly', 'plotly-svg', 'lightweight',
+	'muicharts', 'fusiontime', 'devextreme', 'vega', 'highcharts', 'highcharts-svg', 'scichart', 'billboard',
+	'g2', 'syncfusion', 'zingchart', 'amcharts', 'recharts', 'kendo',
+];
 
 export function dependencyUrl(dependency, base) {
 	return dependency.url ?? (dependency.name

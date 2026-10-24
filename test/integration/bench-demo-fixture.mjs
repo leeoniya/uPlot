@@ -6,6 +6,8 @@ import { demoDependencies, benchmarkVariants, demoRestrictions, benchmarkRestric
 
 const root = new URL('../../', import.meta.url);
 const extraHtml = {
+	'd3-svg': 'D3-SVG.html', 'plotly-svg': 'Plotly-SVG.html', 'highcharts-svg': 'Highcharts-SVG.html',
+	'bokeh-canvas': 'Bokeh-Canvas.html', 'd3fc-canvas': 'd3fc-Canvas.html', 'g2-webgl': 'G2-WebGL.html',
 	apexcharts: 'ApexCharts.html', highcharts: 'Highcharts.html', lightweight: 'lightweight-charts.html',
 	plotly: 'Plotly.js.html', canvasjs: 'CanvasJS.html', zingchart: 'ZingChart.html',
 	amcharts: 'amCharts5.html', lightningchart: 'LightningChart.html',
@@ -65,15 +67,21 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 			parent.classList.add('keep-me', 'flot');
 			document.body.append(parent);
 			for (const id of Object.keys(demoDependencies)) {
-				const selector = {d3: '#plot', chartjs: '#chart1', flot: '#placeholder'}[id];
+				const selector = {d3: '#plot', 'd3-svg': 'svg#plot', chartjs: '#chart1', flot: '#placeholder'}[id];
 				parent.replaceChildren();
 				const host = setupDemo(id, parent);
 				assert.equal(host.parentNode, parent);
 				assert.equal(parent.children.length, 1);
 				assert.deepEqual([...parent.classList].sort(), ['keep-me', 'bench-demo', id].sort());
 				if (selector) assert.ok(host.querySelector(selector), id);
-				if (id === 'd3') {
-					for (const selector of ['#overlay', '#cpu-value', '#ram-value', '#tcp-value'])
+				if (id === 'd3' || id === 'd3-svg') {
+					if (id === 'd3') assert.ok(host.querySelector('#overlay'));
+					else {
+						assert.equal(host.querySelector('canvas'), null);
+						assert.equal(host.querySelector('svg').getAttribute('width'), '1920');
+						assert.equal(host.querySelector('svg').getAttribute('height'), '600');
+					}
+					for (const selector of ['#cpu-value', '#ram-value', '#tcp-value'])
 						assert.ok(host.querySelector(selector), selector);
 					assert.equal(host.querySelector('h3').textContent, 'Server Events');
 				}
@@ -85,7 +93,7 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 				}
 				if (id === 'dygraphs') assert.equal(host.id, 'graphdiv');
 				if (id === 'uplot' || id === 'idle') assert.equal(host.children.length, 0);
-				if (${JSON.stringify(Object.keys(extraHtml))}.includes(id)) {
+				if (id !== 'd3-svg' && ${JSON.stringify(Object.keys(extraHtml))}.includes(id)) {
 					assert.equal(host.id, 'benchmark-' + id);
 					assert.equal(host.style.width, '1920px');
 					assert.equal(host.style.height, '600px');
@@ -113,15 +121,16 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 	});
 
 	it('keeps default runnable variants ordered and excludes restricted adapters and idle', () => {
-		assert.deepEqual(benchmarkVariants.slice(0, 6), ['uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs']);
-		assert.deepEqual(benchmarkVariants.slice(6), ['apexcharts', 'highcharts', 'lightweight', 'plotly', 'canvasjs', 'zingchart', 'amcharts',
-			'bokeh', 'd3fc', 'agcharts', 'vega', 'scichart',
-			'billboard', 'g2', 'syncfusion', 'devextreme', 'kendo',
-			'anychart', 'fusiontime', 'googlecharts', 'recharts', 'muicharts', 'financialcharts', 'visx']);
-		assert.equal(benchmarkVariants.length, 30);
-		assert.equal(Object.keys(demoDependencies).length, 33);
+		assert.deepEqual(benchmarkVariants, [
+			'uplot', 'chartjs', 'apexcharts', 'echarts', 'd3', 'd3-svg', 'flot', 'd3fc', 'd3fc-canvas', 'financialcharts',
+			'agcharts', 'dygraphs', 'anychart', 'visx', 'bokeh', 'bokeh-canvas', 'canvasjs', 'plotly', 'plotly-svg', 'lightweight',
+			'muicharts', 'fusiontime', 'devextreme', 'vega', 'highcharts', 'highcharts-svg', 'scichart', 'billboard',
+			'g2', 'syncfusion', 'zingchart', 'amcharts', 'recharts', 'kendo',
+		]);
+		assert.equal(benchmarkVariants.length, 34);
+		assert.equal(Object.keys(demoDependencies).length, 39);
 		assert.deepEqual(Object.keys(demoRestrictions), ['lightningchart']);
-				assert.deepEqual(Object.keys(benchmarkRestrictions), ['jscharting']);
+		assert.deepEqual(Object.keys(benchmarkRestrictions), ['g2-webgl', 'googlecharts', 'jscharting']);
 		assert.equal(new Set(benchmarkVariants).size, benchmarkVariants.length);
 		assert.deepEqual(new Set(benchmarkVariants), new Set(Object.keys(demoDependencies)
 			.filter(id => id !== 'idle' && !Object.hasOwn(demoRestrictions, id) && !Object.hasOwn(benchmarkRestrictions, id))));
@@ -130,6 +139,14 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 				assert.doesNotThrow(() => check(id));
 			for (const id of ['unknown', 'toString', '__proto__'])
 				assert.throws(() => check(id), /Unknown demo variant/);
+		}
+	});
+
+	it('keeps timeout-prone standalone demos available but rejects benchmark runs', () => {
+		for (const id of ['g2-webgl', 'googlecharts']) {
+			assert.doesNotThrow(() => assertDemoAvailable(id));
+			assert.throws(() => assertBenchmarkAvailable(id), error =>
+				error.message === `${id}: ${benchmarkRestrictions[id]}` && /timeouts/.test(error.message));
 		}
 	});
 

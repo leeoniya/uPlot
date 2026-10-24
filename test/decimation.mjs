@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import groups from '../demos/decimation.js';
 import { libraryCases, echartsOptions, chartjsOptions } from '../demos/decimation-libs.js';
+import { accuracyCases, referenceOptions } from '../demos/reduction-accuracy.js';
 
 describe('decimation examples', () => {
 	it('provides sorted finite fixtures with the intended spike spacing', () => {
@@ -63,6 +64,28 @@ describe('decimation examples', () => {
 		}
 		for (const node of section.querySelectorAll('h2, h3, p, code, strong, figcaption'))
 			assert.ok(node.textContent.trim(), `Empty ${node.tagName}`);
+	});
+
+	it('retains the finite extrema of every accuracy fixture in the actual reduced path', async () => {
+		await import('../scripts/instrument.mjs');
+		const {default: uPlot} = await import('../src/uPlot.js');
+		for (const {id, data} of accuracyCases) {
+			const chart = new uPlot(referenceOptions(data), data, document.body);
+			try {
+				const finite = data[1].filter(Number.isFinite);
+				for (const ratio of [1, 2, 3]) {
+					chart.setPxRatio(ratio);
+					await Promise.resolve();
+					const series = chart.series[1];
+					const ys = series._paths.stroke.log.filter(cmd => cmd[0] === 'lineTo')
+						.flatMap(cmd => cmd.slice(1).map(point => point[1]));
+					for (const value of [Math.min(...finite), Math.max(...finite)])
+						assert.ok(ys.includes(series.pxRound(chart.valToPos(value, 'y', true))), `${id}, DPR ${ratio}, extrema ${value}`);
+					assert.ok(ys.length < data[0].length, `${id}: path is reduced`);
+				}
+			}
+			finally { chart.destroy(); }
+		}
 	});
 
 	it('retains both extrema in native linear references at DPR 1, 2, and 3', async () => {

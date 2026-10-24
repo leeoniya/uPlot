@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import { checkModuleSyntax, demos } from '../helpers/bench-demo-evaluator.mjs';
 import { loadBenchDemoSources } from '../../scripts/bench-demo-sources.mjs';
-import { demoDependencies, benchmarkRestrictions, assertBenchmarkAvailable } from '../../bench/demo-dependencies.mjs';
+import { demoDependencies, demoModuleDependencies, benchmarkRestrictions, assertBenchmarkAvailable } from '../../bench/demo-dependencies.mjs';
 
 const root = new URL('../../', import.meta.url);
 const variants = Object.keys(demoDependencies).filter(id => id !== 'idle');
@@ -68,7 +68,7 @@ function checkAssets(result, variants, assetRoot = root) {
 	const styles = ['/bench/demo.css', ...localRoutes(variants, 'style')];
 	assert.ok(result.files instanceof Map);
 	assert.deepEqual(new Set(result.files.keys()), new Set([
-		...shared, ...variants.map(id => `/bench/${id}.mjs`), ...scripts, ...styles,
+		...shared, ...variants.flatMap(id => [id, ...(demoModuleDependencies[id] ?? [])].map(module => `/bench/${module}.mjs`)), ...scripts, ...styles,
 	]));
 	assert.deepEqual(result.dependencies, remoteDependencies(variants));
 	assert.deepEqual(result.localScripts, scripts);
@@ -97,6 +97,39 @@ describe('benchmark demo asset loader', () => {
 			checkAssets(loadBenchDemoSources(root, id), [id]);
 		});
 	}
+
+	for (const id of ['d3', 'plotly', 'highcharts']) {
+		it(`${id}: SVG serves the shared implementation and identical vendor assets`, () => {
+			const base = loadBenchDemoSources(root, id);
+			const svg = loadBenchDemoSources(root, id + '-svg');
+			assert.equal(svg.files.get(`/bench/${id}.mjs`), base.files.get(`/bench/${id}.mjs`));
+			assert.deepEqual(svg.dependencies, base.dependencies);
+			assert.ok(svg.files.has(`/bench/${id}-svg.mjs`));
+			assert.equal(base.files.has(`/bench/${id}-svg.mjs`), false);
+		});
+	}
+
+	for (const id of ['bokeh', 'd3fc']) {
+		it(`${id}: Canvas serves the shared implementation and identical vendor assets`, () => {
+			const base = loadBenchDemoSources(root, id);
+			const canvas = loadBenchDemoSources(root, id + '-canvas');
+			assert.equal(canvas.files.get(`/bench/${id}.mjs`), base.files.get(`/bench/${id}.mjs`));
+			assert.deepEqual(canvas.dependencies, base.dependencies);
+			assert.ok(canvas.files.has(`/bench/${id}-canvas.mjs`));
+			assert.equal(base.files.has(`/bench/${id}-canvas.mjs`), false);
+		});
+	}
+
+	it('G2 WebGL adds the compatible production renderer dependencies in global load order', () => {
+		const base = loadBenchDemoSources(root, 'g2');
+		const webgl = loadBenchDemoSources(root, 'g2-webgl');
+		assert.equal(webgl.files.get('/bench/g2.mjs'), base.files.get('/bench/g2.mjs'));
+		assert.deepEqual(webgl.dependencies[0], base.dependencies[0]);
+		assert.deepEqual(webgl.dependencies.map(({name, version}) => [name, version]), [
+			['@antv/g2', '5.4.8'], ['@antv/g-lite', '2.7.2'], ['@antv/g-webgl', '2.1.3'],
+		]);
+		assert.ok(webgl.dependencies.every(dependency => dependency.url.endsWith('.min.js')));
+	});
 
 	it('uPlot loads its own module and distribution JS/CSS, never D3', () => {
 		const result = loadBenchDemoSources(root, 'uplot');
@@ -205,24 +238,24 @@ describe('benchmark demo asset loader', () => {
 		}
 	});
 
-	it('rejects explicit JSCharting in CLI and worker modes before browser setup or suite side effects', async () => {
+	it('rejects restricted variants in CLI and worker modes before browser setup or suite side effects', async () => {
 		const source = readFileSync(new URL('scripts/benchmarks.mjs', root), 'utf8');
 		const start = source.indexOf('const lightningOptions =');
 		const browser = source.indexOf('const binary = await chromeBinary(', start);
 		const end = source.indexOf('\n', browser);
 		assert.ok(start >= 0 && browser > start && end > browser);
-		for (const worker of [false, true]) {
+		for (const variant of Object.keys(benchmarkRestrictions)) for (const worker of [false, true]) {
 			for (const installOnly of [false, true]) {
 				const effects = [];
 				await assert.rejects(runInNewContext(`(async () => {\n${source.slice(start, end)}\n})()`, {
-					values: {variant: 'jscharting', worker, 'install-only': installOnly}, dpr: 1,
+					values: {variant, worker, 'install-only': installOnly}, dpr: 1,
 					measurements: {trace: true, memory: false, raf: false},
 					assertBenchmarkAvailable,
 					process: {env: {LIGHTNINGCHART_LICENSE: 'test', LIGHTNINGCHART_LICENSE_INFORMATION: '{invalid'}, exit: code => effects.push(['exit', code])},
 					console: {log: () => effects.push('log')},
 					runBenchmarkSuite: async () => effects.push('suite'),
 					chromeVersion: 'test', chromeBinary: async () => effects.push('browser'),
-				}), error => error.message === `jscharting: ${benchmarkRestrictions.jscharting}`);
+				}), error => error.message === `${variant}: ${benchmarkRestrictions[variant]}`);
 				assert.deepEqual(effects, []);
 			}
 		}

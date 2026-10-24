@@ -35,7 +35,7 @@ async function makeChart(data, host, wait) {
 				width: 1 / devicePixelRatio,
 				point: {visible: false},
 				label: {visible: false},
-				aggregation: {enabled: true, method: 'avg'},
+				aggregation: {enabled: false},
 			},
 			series: ['cpu', 'ram', 'tcp'].map((valueField, i) => ({
 				valueField,
@@ -43,7 +43,7 @@ async function makeChart(data, host, wait) {
 				name: ['CPU', 'RAM', 'TCP Out'][i],
 				color: ['red', 'blue', 'green'][i],
 			})),
-			argumentAxis: {argumentType: 'datetime', type: 'continuous', aggregationGroupWidth: 1},
+			argumentAxis: {argumentType: 'datetime', type: 'continuous'},
 			valueAxis: [
 				{name: 'percent', position: 'left', label: {customizeText: ({valueText}) => `${valueText}%`}},
 				{name: 'tcp', position: 'right', label: {customizeText: ({valueText}) => `${valueText} MB`}},

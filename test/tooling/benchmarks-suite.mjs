@@ -124,20 +124,22 @@ describe('benchmark suite modes and workers', () => {
 	for (const measurements of [combined, {trace: true}, {memory: true}, {raf: true}]) {
 		it(`continues after a library timeout and preserves dash rows in ${benchmarkMode(measurements)} summaries`, async () => {
 			const mode = benchmarkMode(measurements);
+			const [timedOut, nextVariant] = variants.slice(-4);
+			const timedOutVariants = [timedOut, variants.at(-1)];
 			const h = harness();
 			const worker = h.dependencies.runWorker;
 			h.dependencies.runWorker = async request => {
-				if (request.variant === 'recharts') {
+				if (request.variant === nextVariant) {
 					const partial = saved(mode);
-					assert.deepEqual(partial.timeouts, [{variant: 'googlecharts', dpr: 1, timeoutMs: 5000, error: 'googlecharts: timed out after 5s'}]);
+					assert.deepEqual(partial.timeouts, [{variant: timedOut, dpr: 1, timeoutMs: 5000, error: `${timedOut}: timed out after 5s`}]);
 					assert.equal(partial.complete, false);
-					assert.equal(partial.progress.current, 'recharts');
-					assert.equal(h.frames.at(-1).status, `Starting recharts (${variants.indexOf('recharts') + 1}/${variants.length})...`);
-					const row = h.frames.at(-1).rows.find(row => row.variant === 'googlecharts');
+					assert.equal(partial.progress.current, nextVariant);
+					assert.equal(h.frames.at(-1).status, `Starting ${nextVariant} (${variants.indexOf(nextVariant) + 1}/${variants.length})...`);
+					const row = h.frames.at(-1).rows.find(row => row.variant === timedOut);
 					assert.ok(row);
 					assert.ok(Object.entries(row).every(([key, value]) => key === 'variant' || value === '-'));
 				}
-				if (['googlecharts', 'visx'].includes(request.variant)) {
+				if (timedOutVariants.includes(request.variant)) {
 					h.requests.push(request);
 					throw Object.assign(new Error(`${request.variant}: timed out after 5s`), {code: 'BENCHMARK_SAMPLE_TIMEOUT'});
 				}
@@ -149,8 +151,8 @@ describe('benchmark suite modes and workers', () => {
 			assert.equal(report.progress.failed, null);
 			assert.equal(report.progress.current, null);
 			assert.equal('error' in report, false);
-			assert.deepEqual(report.timeouts.map(entry => entry.variant), ['googlecharts', 'visx']);
-			assert.deepEqual(report.progress.completed, variants.filter(id => !['googlecharts', 'visx'].includes(id)));
+			assert.deepEqual(report.timeouts.map(entry => entry.variant), timedOutVariants);
+			assert.deepEqual(report.progress.completed, variants.filter(id => !timedOutVariants.includes(id)));
 			assert.deepEqual(report.reports.map(raw => raw.runner.variant), report.progress.completed);
 			assert.equal(h.frames.at(-1).final, true, 'last-library timeout completes the suite');
 			assert.match(h.frames.at(-1).status, new RegExp(`${variants.length}/${variants.length}`));
@@ -158,12 +160,12 @@ describe('benchmark suite modes and workers', () => {
 			const labels = mode === 'combined' ? ['prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms', 'peak MB', 'retained MB']
 				: mode === 'trace' ? ['prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms']
 				: mode === 'memory' ? ['peak MB', 'retained MB'] : ['prep ms', 'init ms', 'next rAF ms'];
-			for (const id of ['googlecharts', 'visx']) {
+			for (const id of timedOutVariants) {
 				assert.deepEqual(rows.find(row => row.variant === id), {variant: id, ...Object.fromEntries(labels.map(label => [label, '-']))});
 				assert.equal(existsSync(join(directory, variantReportName(mode, id))), false);
 			}
 			if (measurements.trace)
-				assert.deepEqual(rows.slice(-2).map(row => row.variant), ['googlecharts', 'visx']);
+				assert.deepEqual(rows.slice(-2).map(row => row.variant), timedOutVariants);
 			else
 				assert.deepEqual(rows.map(row => row.variant), variants.slice(1));
 			assert.deepEqual(offline(report).tables[0], rows.map(row => Object.fromEntries(Object.entries(row)
@@ -173,16 +175,16 @@ describe('benchmark suite modes and workers', () => {
 	}
 
 	it('finishes an explicitly selected timed-out library without loading a stale report', async () => {
-		const stale = join(directory, variantReportName('combined', 'googlecharts'));
-		writeFileSync(stale, JSON.stringify(browser('googlecharts')));
+		const stale = join(directory, variantReportName('combined', 'g2'));
+		writeFileSync(stale, JSON.stringify(browser('g2')));
 		const h = harness();
 		const worker = h.dependencies.runWorker;
 		h.dependencies.runWorker = async request => {
-			if (request.variant === 'googlecharts')
-				throw Object.assign(new Error('googlecharts: timed out after 5s'), {code: 'BENCHMARK_SAMPLE_TIMEOUT'});
+			if (request.variant === 'g2')
+				throw Object.assign(new Error('g2: timed out after 5s'), {code: 'BENCHMARK_SAMPLE_TIMEOUT'});
 			return worker(request);
 		};
-		const report = await runBenchmarkSuite({variant: 'googlecharts'}, h.dependencies);
+		const report = await runBenchmarkSuite({variant: 'g2'}, h.dependencies);
 		assert.equal(report.complete, true);
 		assert.equal(existsSync(stale), false);
 		assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
@@ -275,11 +277,10 @@ describe('benchmark suite modes and workers', () => {
 		assert.equal(benchmarkMode({}), 'combined');
 		const result = await runBenchmarkSuite({}, h.dependencies);
 		assert.deepEqual(result.progress.completed, variants);
-		assert.deepEqual(result.protocol.variants.slice(-12), ['billboard', 'g2', 'syncfusion', 'devextreme', 'kendo',
-					'anychart', 'fusiontime', 'googlecharts', 'recharts', 'muicharts', 'financialcharts', 'visx']);
-		assert.deepEqual(result.skipped.map(entry => entry.variant), ['lightningchart', 'jscharting']);
-				assert.equal(result.protocol.variants.length, 31, 'idle plus 30 runnable benchmarks');
-				assert.ok(h.requests.every(request => request.variant !== 'jscharting'));
+		assert.deepEqual(result.protocol.variants.slice(-12), variants.slice(-12));
+		assert.deepEqual(result.skipped.map(entry => entry.variant), ['lightningchart', 'g2-webgl', 'googlecharts', 'jscharting']);
+		assert.equal(result.protocol.variants.length, 35, 'idle plus 34 runnable variants');
+		assert.ok(h.requests.every(request => !Object.hasOwn(benchmarkRestrictions, request.variant)));
 		assert.equal(result.progress.total, variants.length);
 		assert.deepEqual(result.protocol.variants, variants);
 		assert.deepEqual(result.skipped, skipped);
@@ -311,15 +312,8 @@ describe('benchmark suite modes and workers', () => {
 			return raw;
 		};
 		const result = await runBenchmarkSuite({}, h.dependencies);
-		assert.deepEqual(h.tables.map(rows => rows.map(row => row.variant)), [
-			['uplot'],
-			['chartjs', 'uplot'],
-			['chartjs', 'uplot', 'd3'],
-			['chartjs', 'echarts', 'uplot', 'd3'],
-			['chartjs', 'flot', 'echarts', 'uplot', 'd3'],
-			['chartjs', 'flot', 'echarts', 'uplot', 'd3', 'dygraphs'],
-			...additions.map((_, i) => ['chartjs', 'flot', 'echarts', 'uplot', ...additions.slice(0, i + 1), 'd3', 'dygraphs']),
-		]);
+		assert.deepEqual(h.tables.map(rows => rows.map(row => row.variant)), variants.slice(1).map((_, i) =>
+			variants.slice(1, i + 2).sort((a, b) => (totals[a] ?? Infinity) - (totals[b] ?? Infinity))));
 		const executionOrder = variants;
 		assert.deepEqual(h.requests.map(request => request.variant), executionOrder);
 		assert.deepEqual(result.reports.map(report => report.runner.variant), executionOrder);
@@ -327,7 +321,7 @@ describe('benchmark suite modes and workers', () => {
 		assert.deepEqual(h.frames.at(-1).rows, h.tables.at(-1));
 	});
 
-	for (const variant of benchmarkVariants.slice(6)) {
+	for (const variant of benchmarkVariants.filter(variant => !['uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs'].includes(variant))) {
 		it(`runs explicitly selected ${variant} with idle and no skipped warnings`, async () => {
 			const h = harness();
 			const report = await runBenchmarkSuite({variant}, h.dependencies);
@@ -361,7 +355,7 @@ describe('benchmark suite modes and workers', () => {
 			assert.deepEqual(report.progress.completed, expected);
 			assert.equal(report.progress.total, expected.length);
 			assert.equal(report.complete, true);
-			const expectedSkipped = variant === null ? skipped.filter(entry => entry.variant === 'jscharting') : [];
+			const expectedSkipped = variant === null ? skipped.filter(entry => Object.hasOwn(benchmarkRestrictions, entry.variant)) : [];
 			assert.deepEqual(report.skipped, expectedSkipped);
 			const warnings = expectedSkipped.map(entry => `${entry.variant}: skipped (${entry.reason})`);
 			assert.ok(h.frames.every(frame => JSON.stringify(frame.warnings) === JSON.stringify(warnings)));
@@ -424,16 +418,18 @@ describe('benchmark suite modes and workers', () => {
 
 	for (const measurements of [combined, {trace: true}, {memory: true}, {raf: true}]) {
 		it(`continues after library errors and preserves failure rows in ${benchmarkMode(measurements)}`, async () => {
+			const failedVariants = [variants[2], variants.at(-1)];
+			const nextVariant = variants[3];
 			const h = harness();
 			const worker = h.dependencies.runWorker;
 			h.dependencies.runWorker = request => {
-				if (request.variant === 'd3') {
+				if (request.variant === nextVariant) {
 					const partial = saved(benchmarkMode(measurements));
-					assert.equal(partial.failures[0].variant, 'chartjs');
-					assert.equal(partial.progress.current, 'd3');
-					assert.deepEqual(partial.progress.completed, ['idle', 'uplot']);
+					assert.equal(partial.failures[0].variant, failedVariants[0]);
+					assert.equal(partial.progress.current, nextVariant);
+					assert.deepEqual(partial.progress.completed, variants.slice(0, 2));
 				}
-				if (['chartjs', 'visx'].includes(request.variant)) {
+				if (failedVariants.includes(request.variant)) {
 					h.requests.push(request);
 					throw new Error('synthetic worker failure');
 				}
@@ -444,13 +440,13 @@ describe('benchmark suite modes and workers', () => {
 			assert.equal(result.progress.failed, null);
 			assert.equal(result.progress.current, null);
 			assert.equal('error' in result, false);
-			assert.deepEqual(result.failures, ['chartjs', 'visx'].map(variant => ({variant, dpr: 1, error: 'synthetic worker failure'})));
+			assert.deepEqual(result.failures, failedVariants.map(variant => ({variant, dpr: 1, error: 'synthetic worker failure'})));
 			assert.deepEqual(h.requests.map(request => request.variant), variants);
-			assert.deepEqual(result.reports.map(raw => raw.runner.variant), variants.filter(id => !['chartjs', 'visx'].includes(id)));
+			assert.deepEqual(result.reports.map(raw => raw.runner.variant), variants.filter(id => !failedVariants.includes(id)));
 			const frame = h.frames.at(-1);
 			assert.equal(frame.final, true);
-			assert.equal(frame.status, `Failed visx (${variants.length}/${variants.length}).`);
-			for (const id of ['chartjs', 'visx']) {
+			assert.equal(frame.status, `Failed ${variants.at(-1)} (${variants.length}/${variants.length}).`);
+			for (const id of failedVariants) {
 				assert.ok(frame.warnings.includes(`${id}: synthetic worker failure`));
 				assert.ok(Object.entries(frame.rows.find(row => row.variant === id)).every(([key, value]) => key === 'variant' || value === '-'));
 			}
@@ -472,7 +468,7 @@ describe('benchmark suite modes and workers', () => {
 			assert.equal(result.complete, true);
 			assert.deepEqual(result.failures.map(entry => entry.variant), ['chartjs']);
 			assert.equal(result.reports.some(raw => raw.runner.variant === 'chartjs'), false);
-			assert.equal(result.progress.completed.at(-1), 'visx');
+			assert.equal(result.progress.completed.at(-1), variants.at(-1));
 		});
 	}
 

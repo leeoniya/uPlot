@@ -26,6 +26,8 @@ async function makeChart(data, host, wait) {
 		chart.title('Server Events');
 		// Ordinal stock scales collapse missing calendar intervals.
 		chart.xScale('scatter');
+		chart.grouping().enabled(false);
+		chart.scrollerGrouping().enabled(false);
 		chart.scroller().enabled(false);
 		const plot = chart.plot(0);
 		const percent = anychart.scales.linear();
@@ -41,7 +43,7 @@ async function makeChart(data, host, wait) {
 		const table = handle.table = anychart.data.table(0);
 		table.addData(data);
 		for (let i = 0; i < 3; i++) {
-			// Native calendar grouping remains enabled; average each gauge, not sum it.
+			// This average mapping is inactive while grouping is disabled.
 			const mapping = table.mapAs({value: {column: i + 1, type: 'average'}});
 			handle.mappings.push(mapping);
 			const series = plot.line(mapping);

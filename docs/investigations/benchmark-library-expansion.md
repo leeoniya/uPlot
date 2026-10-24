@@ -3,9 +3,12 @@
 ## Status and scope
 
 The user approved the candidate decisions and implementation scope in this document.
-The second expansion implements 13 adapters. Twelve join the existing 18 libraries, for 30 runnable defaults plus the idle control.
+The second expansion implements 13 adapters. The current default set contains 29 libraries and 34 variants, plus the idle control.
+G2 WebGL and Google Charts are disabled for benchmarks after timeouts. Their standalone demos remain available.
+Further G2 WebGL diagnostics stopped at the user's request.
+`benchmarkVariants` in `bench/demo-dependencies.mjs` defines their order. Each alternative follows its original.
 All 13 passed agent-reported direct browser smoke checks. JSCharting remains available as a standalone demo but fails the repeated-sample requirement.
-All 12 runnable additions passed integrated combined measurements across the partial suite and separate workers.
+Before the accuracy configuration changes, all 12 runnable additions passed integrated combined measurements across the partial suite and separate workers.
 The expanded suite did not complete as one run. The validation record distinguishes these results.
 The successful 18-library run with Chrome Headless Shell 156.0.8078.47 is historical evidence for the first expansion only.
 The [benchmark guide](../../scripts/benchmarks.md) describes commands, configuration, and measurement fields.
@@ -29,8 +32,8 @@ The comparison does not require identical interaction features or drawing algori
 | Highcharts Boost | Already present | Existing Boost adapter. No duplicate candidate. |
 
 The first expansion established 18 default libraries, plus the idle control.
-The second expansion extends that default set to 30 runnable libraries.
-`benchmarkRestrictions` blocks JSCharting repeated samples. The default suite reports an explicit skip, and explicit benchmark selection fails.
+The second expansion initially extended that default set to 30 runnable libraries. Google Charts is now disabled.
+`benchmarkRestrictions` blocks G2 WebGL, Google Charts, and JSCharting. The default suite reports explicit skips, and explicit benchmark selection fails.
 With `LIGHTNINGCHART_LICENSE`, the suite also includes LightningChart after those libraries.
 Without a key, the suite reports an explicit LightningChart skip and its reason.
 Explicit LightningChart selection without a key fails the availability check.
@@ -45,11 +48,11 @@ Full-suite validation remains incomplete. JSCharting is excluded from repeated-s
 | Billboard (`billboard`) | `billboard.js` 4.1.3 | Packaged D3 bundle, Canvas lines, native `y`/`y2`, workers disabled. |
 | AntV G2 (`g2`) | `@antv/g2` 5.4.8 | Canvas lines with shared percentage-scale keys and a separate TCP scale key. |
 | Syncfusion (`syncfusion`) | `@syncfusion/ej2-charts` 35.1.41 | Canvas lines, Date input, native pixel-tolerance reduction. |
-| DevExtreme (`devextreme`) | 26.1.6 `dx.viz.js` | Continuous datetime axis, native average aggregation, independent value axes. |
+| DevExtreme (`devextreme`) | 26.1.6 `dx.viz.js` | Continuous datetime axis, series aggregation disabled, independent value axes. |
 | JSCharting (`jscharting`) | `jscharting` 3.4.0 | Standalone only. Numeric XY pairs and native dual axes work, but vendor cleanup retains charts across samples. |
 | Kendo (`kendo`) | `@progress/kendo-ui` 2026.3.1015 | Canvas `scatterLine`, Date input, and two native y axes. |
-| AnyChart (`anychart`) | `anychart` 9.0.0 | AnyStock with continuous scatter time scale and native average grouping. |
-| FusionTime (`fusiontime`) | `fusioncharts` 4.2.3 | Specialized timeseries renderer, native calendar bins, and two axes in one plot. |
+| AnyChart (`anychart`) | `anychart` 9.0.0 | AnyStock with continuous scatter time scale and main and scroller grouping disabled. |
+| FusionTime (`fusiontime`) | `fusioncharts` 4.2.3 | Specialized timeseries renderer, one-minute bins with average aggregation, and two axes in one plot. |
 | Google Charts (`googlecharts`) | Frozen `52`, mutable loader | Classic `LineChart`, datetime column, and native `targetAxisIndex`. |
 | Recharts (`recharts`) | `recharts` 3.10.1, `d3-scale` 4.0.2 | SVG lines, public calendar ticks, continuous time scale, and independent `yAxisId` values. |
 | MUI X Charts (`muicharts`) | `@mui/x-charts` 9.16.0 | Community SVG `LineChart` with independent y axes. |
@@ -80,6 +83,245 @@ LayerCake 11.0.0 requires Svelte >=5.40 and exports raw Svelte components, not r
 The esm.sh request with Svelte 5.57.2 returned HTTP 500 and `esbuild: Expected ";" but found "Cake"`.
 A future adapter needs compilation before timing, custom axes and line layers, and browser validation of continuous time and independent y scales.
 
+## Renderer alternatives
+
+The renderer audit covers the pinned versions and this connected-line workload, not all chart types.
+Six renderer alternatives are implemented. Five remain enabled, for a default set of 34 variants across 29 libraries, plus idle.
+They are `d3-svg`, `plotly-svg`, `highcharts-svg`, `bokeh-canvas`, `d3fc-canvas`, and `g2-webgl`.
+Each thin wrapper uses its original adapter through `makeChartWithOptions` and shares preparation, automatic axes, and cleanup.
+All retain 55,550 rows across three series. No custom sampling replaces the full workload.
+
+The D3, Plotly, Highcharts, Bokeh, and d3fc pairs load identical vendor bundles.
+The Highcharts SVG variant loads Boost but disables it through its public API.
+G2 WebGL adds production renderer bundles to the original G2 dependency.
+
+| Library | Current adapter | Alternative and decision |
+| --- | --- | --- |
+| D3 7.9.0 | Canvas lines | Added `d3-svg` with three full-data SVG paths and SVG axes, grid, and cursor. Shared automatic ranges and calendar ticks. |
+| Plotly 4.1.2 | WebGL `scattergl` | Added `plotly-svg` with SVG `scatter`. Native SVG line simplification remains enabled by default. |
+| Highcharts 13.1.1 | WebGL Boost | Added `highcharts-svg` with `boost.enabled: false`. Typed columns and automatic dual axes remain unchanged. |
+| Bokeh 3.10.1 | WebGL lines | Added `bokeh-canvas` through `output_backend: 'canvas'`, with identical bundles and no WebGL contexts. SVG remains a candidate. |
+| d3fc 15.2.13 | `seriesWebglLine` | Added `d3fc-canvas` through native `seriesCanvasLine`, with shared scales, SVG axes, and cursor. SVG remains a candidate. |
+| AntV G2 5.4.8 | Canvas | Added `g2-webgl` through `@antv/g-webgl`. The 200-row smoke passed, but the full-data sample timed out. SVG remains a candidate. |
+| ECharts 6.1.0 | Canvas `line` with minmax sampling | SVG is a direct renderer choice. ECharts GL is not a renderer switch for ordinary `line` series. |
+| ApexCharts 8.4.1 | Canvas series with SVG decorations | SVG is another comparison candidate. The pinned implementation does not provide a WebGL renderer. |
+| MUI X Charts 9.16.0 | Community SVG lines | Premium WebGL supports Bar, Scatter, and Heatmap, not Line. No GL substitution for this workload. |
+| AG Charts Community 14.2.0 | Canvas lines with native aggregation | No supported WebGL or alternate SVG renderer found in the pinned implementation. |
+| SciChart and LightningChart | GPU-oriented implementations | No interchangeable Canvas or SVG line backend verified in this audit. |
+
+Highcharts Boost changes more than the drawing backend. It also changes data processing and interaction features.
+Plotly SVG and GL have different internal algorithms and feature support.
+These pairs compare supported end-to-end modes, not an isolated GPU-versus-CPU drawing operation.
+Canvas and SVG can still cause GPU rasterization and compositing. Non-WebGL does not mean zero GPU-process work.
+
+D3 Canvas and SVG share preparation, scale construction, ticks, pixel rounding, and pointer/legend behavior through `bench/d3.mjs`.
+The SVG wrapper uses D3's native line-string generator without sampling or point objects.
+Each series retains all 55,550 points. SVG string precision preserves the shared device-pixel coordinates, including fractional DPRs.
+The fixture contains no Canvas element. Path generation and DOM construction occur inside initialization.
+Cleanup removes listeners and cancels pending cursor frames.
+
+### Renderer validation
+
+The latest direct combined trace/memory workers ran sequentially in this order:
+`idle`, `bokeh-canvas`, `bokeh`, `d3fc-canvas`, `d3fc`, and `g2`.
+Each passed 3 warmups and 7 measured samples with all 55,550 rows and three series at DPR 1.
+The current reports remain cached in `.cache/benchmarks/results-chrome-combined-VARIANT.json`.
+The runs used hardware GPU acceleration. The Canvas alternatives added no WebGL contexts.
+All ten samples of each WebGL counterpart passed completion checks.
+
+| Variant | Minimum init ms | Minimum GPU thread ms | Minimum total ms | Peak MB | Retained MB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `d3fc` | 100.3 | 17.7 | 131.6 | 20.9 | 18.6 |
+| `d3fc-canvas` | 111.4 | 18.4 | 147.1 | 26.3 | 22.9 |
+| `bokeh` | 215.3 | 26.2 | 271.6 | 68.4 | 61.8 |
+| `bokeh-canvas` | 215.2 | 59.9 | 317.0 | 66.6 | 57.4 |
+| `g2` | 1304.6 | 13.3 | 1397.6 | 380.1 | 128.7 |
+| `g2-webgl` | - | - | - | - | - |
+
+These are per-metric minima from seven measured rounds, not one common best round.
+Memory uses the existing browser-tree PSS calculation with the fresh idle worker and per-sample blank baselines.
+Peak MB is the minimum of sampled per-round peaks. GPU thread time is host-thread work, not hardware GPU execution time.
+The focused adapter and harness regression run passed 381 tests, with 13 opt-in tests skipped.
+
+The first full-data `g2-webgl` combined sample exceeded the unchanged five-second budget. The worker exited with code 124.
+The variant now has a benchmark restriction because of these timeouts. Its standalone demo remains available.
+No timeout increase or reduced benchmark workload replaces this result. No full-workload G2 WebGL performance result is available.
+
+The separate opt-in `test/integration/bench-g2-webgl-browser.mjs` passed one 200-row sample in 857 ms on AMD hardware WebGL2.
+It checked three native GPU line paths, real GL draws, initial and reused-context fences, and cleanup.
+Cleanup removed the canvas and cleared the exposed context.
+Some resources had no observed explicit delete call. This observation does not prove a leak or complete resource release.
+The smoke result validates the small workload only. It does not measure full-workload performance.
+
+No full-suite rerun followed this batch. No cooldown separated the workers, and the runs did not reproduce controlled idle-machine conditions.
+These results do not establish a controlled performance ranking. This documentation update did not rerun benchmarks or browser tests.
+
+To rerun the enabled Canvas alternatives with the idle control, run the corresponding command:
+
+```sh
+npm run bench -- --variant bokeh-canvas
+npm run bench -- --variant d3fc-canvas
+```
+
+For the separate 200-row smoke, run:
+
+```sh
+TEST_G2_WEBGL_BROWSER=1 node node_modules/mocha/bin/mocha.js test/integration/bench-g2-webgl-browser.mjs
+```
+
+The smoke requires cached Chrome and vendor bundles. It downloads neither and does not retry the full workload.
+
+The following results describe earlier renderer validation.
+
+D3 SVG completed combined trace/memory and untraced rAF runs with 3 warmups and 7 measured rounds each.
+The refactored D3 Canvas adapter also completed a combined worker run.
+All used Chrome Headless Shell 156.0.8078.47, DPR 1, and the unchanged five-second sample budget.
+The SVG combined run reported 8 incomplete idle process reads and 1 incomplete SVG process read. Details remain in its JSON reports.
+The focused adapter, fixture, source-loader, and harness tests passed: 376 tests, including full-path and fractional-DPR checks with real cached D3.
+
+All four Plotly and Highcharts variants completed 3 warmups and 7 measured rounds with Chrome Headless Shell 156.0.8078.47 at DPR 1.
+These combined trace/memory workers used the unchanged five-second sample budget.
+Both SVG variants reported no observed WebGL contexts in all samples.
+Plotly used two WebGL1 contexts. Highcharts Boost used one. All GL completion checks passed with AMD hardware-backed ANGLE.
+
+| Variant | Minimum init ms | Minimum total ms |
+| --- | ---: | ---: |
+| `plotly` | 349.9 | 417.5 |
+| `plotly-svg` | 293.6 | 317.5 |
+| `highcharts` | 640.9 | 663.0 |
+| `highcharts-svg` | 951.0 | 1002.4 |
+
+These local validation measurements do not reproduce the user's idle-machine conditions.
+No fresh idle control accompanied these direct workers, so this table does not report adjusted memory.
+The full expanded suite was not rerun. Renderer alternatives outside the implemented set remain source-audited, not browser-validated.
+
+### G2 WebGL invisible-fill investigation
+
+A source audit and bounded browser diagnostic identified unnecessary fill geometry for stroke-only G2 lines.
+G2 5.4.8 sets the line theme’s `fill` to an empty string. The parsed style retains that empty string.
+The WebGL path renderer tests `fill?.isNone`, not whether the fill is empty or transparent.
+It therefore creates an `InstancedFillDrawcall` for each series and triangulates the open path with Earcut.
+The uploaded fill color is fully transparent, but the renderer still constructs the geometry.
+
+The diagnostic compared the unchanged adapter with the public line style `fill: 'none'`.
+At both 200 and 2,000 rows, explicit `none` removed all three unique series fill drawcalls.
+Both configurations retained one shared native stroke drawcall for the three series.
+Path hashes, stroke colors, and widths matched. No pixel-by-pixel or interaction comparison was performed.
+Both configurations completed hardware WebGL2 fences and chart cleanup.
+
+| Rows per series | Default sample ms | Explicit `none` sample ms | Default fill count-calculation ms | Explicit `none` fill count-calculation ms |
+| --- | ---: | ---: | ---: | ---: |
+| 200 | 782 | 357 | 109.2 | 19.3 |
+| 2,000 | 1467 | 452 | 966.1 | 8.9 |
+
+These are single instrumented observations, not benchmark minima or representative timings.
+Method times include nested work and must not be added together.
+The count calculation also runs during batching merge checks, which repeatedly triangulate candidate paths.
+Other chart components still need fill geometry, so scene-wide fill work does not reach zero.
+
+This confirms unnecessary invisible-fill work in the theme/renderer interaction.
+The shared G2 adapter now sets `style.fill: 'none'` for both Canvas and WebGL lines.
+A subsequent full-data WebGL combined worker still timed out after five seconds and exited with code 124.
+The change removes unnecessary work but does not resolve the full-workload timeout.
+Neither the five-second sample budget nor the dataset size changed. No further full-data retry followed.
+
+The updated 200-row browser smoke passed in 518 ms, including fences and cleanup.
+All three rendered series reported `fill.isNone: true` and zero fill drawcalls, with native stroke drawcalls intact.
+The focused G2 and grammar-adapter tests passed: 38 tests.
+The earlier full-data Canvas measurements predate this configuration change. Canvas was not rebenchmarked in this follow-up.
+
+Reproduce the four bounded samples with cached vendor bundles and Chrome:
+
+```sh
+node scripts/investigate-g2-webgl-fill.mjs
+```
+
+The script records `.cache/benchmarks/g2-webgl-fill-diagnostic.json` and uses a hard five-second limit per sample.
+It adds temporary instrumentation only to the diagnostic page, restores the hooks, and removes its browser profile.
+The script downloads no dependencies and does not retry the full dataset.
+Its control explicitly restores the original empty fill, so the diagnostic remains reproducible after the adapter correction.
+
+Pinned source references:
+
+- [G2 5.4.8 line theme](https://unpkg.com/@antv/g2@5.4.8/lib/theme/create.js).
+- [G2 5.4.8 line shape](https://unpkg.com/@antv/g2@5.4.8/lib/shape/line/curve.js).
+- [g-webgl 2.1.3 source map](https://unpkg.com/@antv/g-webgl@2.1.3/dist/index.umd.min.js.map), including the path renderer and Earcut implementation.
+
+### ECharts GL
+
+The published `echarts-gl@2.1.0` package supports ECharts `^5.1.2 || ^6.0.0`.
+Its README still describes the older ECharts 5 requirement. The published peer dependency is the current compatibility evidence.
+The package exports `linesGL`, `scatterGL`, and 3D chart types, but no ordinary `lineGL` series.
+
+`linesGL` supports Cartesian coordinates, polylines, and axis indices.
+However, its series stores path coordinates separately from its one-dimensional `value` list.
+That list does not expose the path coordinates as x/y dimensions for automatic axis ranges.
+This source audit does not establish a fair automatic-range replacement for the existing `line` adapter.
+No hardcoded bounds, invisible helper series, or manual domain workaround was added.
+An ECharts GL variant remains deferred pending a supported automatic-range solution and browser validation.
+
+### Remaining renderer candidates
+
+Bokeh Canvas, d3fc Canvas, and G2 WebGL are implemented. Their validation results appear in [Renderer validation](#renderer-validation).
+ECharts SVG and ApexCharts SVG remain lower-cost additional comparisons.
+Bokeh SVG, d3fc SVG, and G2 SVG also remain candidates.
+MUI Pro line sampling is a possible separate paid-feature comparison, not a WebGL line variant.
+The experimental G2 WebGPU renderer remains separate from this WebGL audit and requires a different completion protocol.
+
+### Renderer audit references
+
+- [Plotly WebGL and SVG](https://plotly.com/javascript/webgl-vs-svg/).
+- [Highcharts Boost configuration and limits](https://www.highcharts.com/docs/advanced-chart-features/boost-module).
+- [Bokeh WebGL glyph support](https://docs.bokeh.org/en/latest/docs/user_guide/output/webgl.html).
+- [d3fc Canvas, SVG, and WebGL series](https://github.com/d3fc/d3fc/blob/master/packages/d3fc-series/README.md).
+- [G2 5.4.8 renderer guide](https://github.com/antvis/G2/blob/v5.4.8/site/docs/manual/extra-topics/plugin/renderer.en.md) and [WebGL example](https://github.com/antvis/G2/blob/v5.4.8/site/examples/renderer/renderer/demo/webgl.ts).
+- [ECharts Canvas and SVG](https://echarts.apache.org/handbook/en/best-practices/canvas-vs-svg/).
+- [ECharts GL 2.1.0 package](https://cdn.jsdelivr.net/npm/echarts-gl@2.1.0/package.json), [chart exports](https://cdn.jsdelivr.net/npm/echarts-gl@2.1.0/lib/export/charts.js), and [LinesGLSeries](https://cdn.jsdelivr.net/npm/echarts-gl@2.1.0/lib/chart/linesGL/LinesGLSeries.js).
+- [ApexCharts 8.4.1 renderer controller](https://github.com/apexcharts/apexcharts.js/blob/v8.4.1/src/modules/RendererController.js).
+- [MUI X 9.16.0 performance guide](https://github.com/mui/mui-x/blob/v9.16.0/docs/data/charts/performance/performance.md).
+- [AG Charts large-dataset guidance](https://www.ag-grid.com/charts/javascript/large-dataset-interactivity/).
+
+## ApexCharts spike preservation
+
+The demo disables `chart.dataReducer` in ApexCharts 8.4.1 to avoid the loss of opposite extrema within one LTTB bucket.
+The pinned [Data.js implementation](https://github.com/apexcharts/apexcharts.js/blob/v8.4.1/src/modules/Data.js) calls `Data.lttbDownsample()` directly for scalar-y lines.
+The [type declarations](https://github.com/apexcharts/apexcharts.js/blob/v8.4.1/types/apexcharts.d.ts) provide no `name: 'minmax'` selection.
+The deprecated `algorithm: 'lttb'` field also has no effect.
+Range and OHLC inputs use different aggregators, but changing the chart's data shape would change this workload.
+
+The benchmark keeps the Canvas renderer, full input, and automatic dual axes.
+A runtime check rejects series shorter than 55,550 values. The check uses public `getState()` after the chart timing window.
+Earlier ApexCharts results used LTTB and are not directly comparable to the current configuration.
+The revised adapter passed 3 warmups and 7 measured rounds in Chrome Headless Shell 156 at DPR 1, within the five-second sample budget.
+Every round passed the full-series check. The run reported two incomplete process-memory reads, retained as warnings in its JSON report.
+The focused adapter and sample-lifecycle tests passed: 113 tests.
+
+For a future native min/max reducer, the bucket count must track the visible plot width and intended pixel resolution.
+An output-point target is not necessarily a bucket count. Each bucket can require two extrema, or first/min/max/last in time order.
+Min/max preserves the bucket's range, not every oscillation inside it.
+No width-derived LTTB target can guarantee preservation of both opposite extrema.
+
+## Grouping and accuracy limits
+
+amCharts sets `groupData: false`, `minDistance: 0`, and `exactLocationX: true`.
+These controls disable date grouping and distance-based line simplification and use original timestamps.
+DevExtreme disables series aggregation. AnyChart disables both main and scroller grouping, so its average mapping remains inactive.
+
+FusionTime permits only `minute: [1]` bins. All other binning units use empty arrays.
+Average aggregation remains enabled. The current minute-aligned fixture has one observation per bin, so the average does not combine observations.
+Multiple observations within a minute can merge and hide peaks. This configuration does not preserve arbitrary sub-minute data.
+
+ApexCharts already disables its LTTB-only reducer. ECharts still uses `sampling: 'minmax'`.
+ECharts 6.1.0 ends the visible time range three minutes early for this fixture at DPR 1, despite full raw input retention.
+Input retention and disabled reducers do not guarantee identical output or preservation of every visible feature.
+Native reduction in other adapters and differences in ranges, pixel resolution, and rendering remain relevant limits.
+
+The previous agent reported 63 passing tests and 3 skipped opt-in tests for the four grouping-related adapter changes.
+Sequential combined trace/memory workers passed 7 measured samples each for amCharts and AnyChart.
+DevExtreme and FusionTime timed out under the unchanged five-second sample budget.
+Those timeouts do not establish completed measurements or visual fidelity for their current configurations.
+This documentation update did not rerun tests or workers and did not change the timeout.
+
 ## Adapter decisions and caveats
 
 Dependency pins come from [`bench/demo-dependencies.mjs`](../../bench/demo-dependencies.mjs) and [`bench/framework-runtime.mjs`](../../bench/framework-runtime.mjs).
@@ -89,7 +331,12 @@ Preparation allocates fresh data from the packed fixture. No adapter caches prep
 
 ### Bokeh
 
-Source: [`bench/bokeh.mjs`](../../bench/bokeh.mjs).
+Sources: [`bench/bokeh.mjs`](../../bench/bokeh.mjs) and [`bench/bokeh-canvas.mjs`](../../bench/bokeh-canvas.mjs).
+
+Both modes share `makeChartWithOptions`, preparation, automatic axes, full Float64 columns, and cleanup.
+The Canvas wrapper selects `output_backend: 'canvas'` and creates no WebGL contexts.
+It loads the same core, GL, and plotting API bundles as the original to control library-load costs.
+The WebGL checks and shared-context behavior below apply to the original mode.
 
 - The loader supplies the core, GL, and plotting API bundles in that order.
 - `ColumnDataSource` receives four Float64 columns with millisecond timestamps.
@@ -106,7 +353,12 @@ The chart includes pan, wheel zoom, reset, and a vertical hover tool.
 
 ### d3fc
 
-Source: [`bench/d3fc.mjs`](../../bench/d3fc.mjs).
+Sources: [`bench/d3fc.mjs`](../../bench/d3fc.mjs) and [`bench/d3fc-canvas.mjs`](../../bench/d3fc-canvas.mjs).
+
+The Canvas wrapper uses shared `makeChartWithOptions` with native `seriesCanvasLine` and no custom sampling.
+Both modes share full Float64 columns, automatic scales, SVG axes, and the SVG cursor.
+Both use `lineWidth(1 / DPR)` or its Canvas equivalent for one-physical-pixel lines. The validation runs used DPR 1.
+The Canvas mode returns no WebGL contexts. The WebGL requirements and projection below apply to the original mode.
 
 - Four Float64 columns retain every input point and millisecond timestamp.
 - `seriesWebglLine()` draws the lines. D3 constructs the SVG axes, title, legend, and hover cursor inside initialization.
@@ -196,13 +448,29 @@ Sources: [`billboard.mjs`](../../bench/billboard.mjs) and [`g2.mjs`](../../bench
 - G2 receives one wide dataset. Explicit scale keys share CPU/RAM domains without merging TCP into that scale.
 - Both adapters disable animation and point markers. Cleanup calls the native `destroy()` method.
 
+The [`g2-webgl.mjs`](../../bench/g2-webgl.mjs) wrapper uses shared G2 `makeChartWithOptions` with a `G.WebGL.Renderer`.
+Preparation, full wide rows, automatic dual axes, and chart configuration remain shared with G2 Canvas.
+The loader supplies these production UMD bundles in order:
+
+1. `@antv/g2` 5.4.8, `dist/g2.min.js`, with global `G2`.
+2. `@antv/g-lite` 2.7.2, `dist/index.umd.min.js`, with global `G`.
+3. `@antv/g-webgl` 2.1.3, `dist/index.umd.min.js`, with global `G.WebGL`.
+
+The adapter requires an active renderer-owned context and rejects Canvas fallback.
+It checks that all three line elements are native GPU paths with `InstancedPathDrawcall` or `InstancedLineDrawcall` instances.
+It exposes the renderer-owned context through `getWebGLContexts()` for capture and completion checks, including WebGL2 fences.
+It creates no probe context. Cleanup calls native `destroy()` and clears the context hook.
+These internal path checks require review after a version change.
+
+The [validation record](#renderer-validation) separates the successful 200-row smoke from the full-data timeout.
+
 ### Syncfusion, DevExtreme, JSCharting, and Kendo
 
 Sources: [`syncfusion.mjs`](../../bench/syncfusion.mjs), [`devextreme.mjs`](../../bench/devextreme.mjs), [`jscharting.mjs`](../../bench/jscharting.mjs), and [`kendo.mjs`](../../bench/kendo.mjs).
 
 - Syncfusion and DevExtreme receive wide rows with Date values. Kendo receives Date-valued XY pairs. JSCharting receives numeric XY pairs.
 - Syncfusion uses Canvas and native pixel-tolerance reduction. Initialization awaits `loaded`.
-- DevExtreme enables native average aggregation with `aggregationGroupWidth: 1`. `synchronizeMultiAxes: false` preserves independent axes.
+- DevExtreme sets `aggregation: {enabled: false}` in `commonSeriesSettings`. `synchronizeMultiAxes: false` preserves independent axes.
 - DevExtreme awaits `onDone` and rejects error incidents. Evaluation warnings remain visible.
 - JSCharting uses the ordinary line renderer without an adapter decimator. Initialization awaits the chart-ready callback.
 - Kendo uses Canvas `scatterLine`, not a date-category line chart. This choice preserves calendar spacing.
@@ -227,11 +495,13 @@ Re-entry requires a vendor fix or a future fresh-page sample protocol, not anoth
 Sources: [`anychart.mjs`](../../bench/anychart.mjs), [`fusiontime.mjs`](../../bench/fusiontime.mjs), and [`googlecharts.mjs`](../../bench/googlecharts.mjs).
 
 - AnyChart uses AnyStock with `xScale('scatter')`, not ordinal spacing that collapses calendar gaps.
-- Its table receives all rows. Native grouping averages values, and two linear scales supply the y axes.
+- Its table receives all rows. `grouping().enabled(false)` and `scrollerGrouping().enabled(false)` disable grouping. The average mapping remains inactive. Two linear scales supply the y axes.
 - AnyChart awaits `chartDraw`. Cleanup disposes the chart, table, mappings, and scales.
 - FusionTime receives numeric timestamp rows. DataStore construction and ingestion remain inside initialization.
 - DataStore appends row identifiers, so the adapter copies rows inside initialization before ingestion.
-- Native calendar bins average each series. `multiCanvas: false` puts both y axes in one plot.
+- `xAxis.binning` sets `minute: [1]` and empty arrays for `year`, `month`, `day`, `hour`, `second`, and `millisecond`.
+- Average aggregation remains enabled, with one observation per bin for the current minute-aligned fixture. Multiple observations within a minute can merge and hide peaks.
+- `multiCanvas: false` puts both y axes in one plot.
 - FusionTime awaits `renderComplete`. Cleanup disposes the chart and DataStore.
 - Google Charts prepares Date-valued rows. DataTable construction, ingestion, layout, and draw remain inside initialization.
 - Its classic `LineChart` assigns CPU/RAM to axis 0 and TCP Out to axis 1. Initialization awaits `ready` and rejects chart errors.
@@ -355,6 +625,66 @@ The archive retains the full trace. Trace validation and `dataLoss` checks remai
 A 690 MiB synthetic trace test used 189 MiB peak RSS with a 512 MiB Node heap limit.
 The synthetic test validates trace handling separately from the successful final Recharts worker.
 
+## Visual reduction accuracy
+
+[`demos/reduction-accuracy.html`](../../demos/reduction-accuracy.html) compares uPlot with seven libraries, one pair at a time.
+Both charts receive the same input. The demo uses native reducers, not a custom implementation or pre-reduced data.
+It shares vendor version pins and the dependency loader with the benchmark demos.
+
+The datasets cover opposite spikes, nonuniform spacing, adjacent peaks, an isolated peak, a short plateau, and a missing interval.
+Each dataset has 10,002 samples. All libraries receive the same millisecond-grid fixture.
+Date-based libraries receive integer timestamps from January 1, 2024 (UTC).
+The nonuniform fixture quantizes generated timestamps by less than 0.5 ms, without changing sample count, order, or values.
+This avoids FusionTime’s `%Q` parser rejecting fractional milliseconds and silently replacing them with epoch zero.
+Chart dimensions and axis bounds are fixed for comparison. Native plot areas can differ because axis layouts differ.
+
+The labels distinguish default behavior from opt-in algorithms:
+
+- ECharts: opt-in LTTB, average, minimum, maximum, or min/max. A sampling-disabled mode supplies a control.
+- Chart.js: opt-in LTTB or the plugin’s default min/max. A decimation-disabled mode supplies a control.
+- ApexCharts: opt-in scalar-line LTTB, or the disabled reducer.
+- amCharts: opt-in grouping with default close or explicit average. Grouping-disabled mode supplies a control.
+- DevExtreme: opt-in aggregation with the default average method, or aggregation disabled.
+- AnyStock: default grouping with last-value mapping, explicit average mapping, or grouping disabled.
+- FusionTime: default average binning. No verified aggregation-off mode is available.
+
+The demo does not override sampling targets, activation thresholds, group counts, or grouping intervals.
+The benchmark retains its separate accuracy-first settings, including FusionTime’s fixture-specific one-minute bins.
+The visual demo includes only default FusionTime binning, not the benchmark’s fixture-specific bin restriction.
+
+### Output and interpretation
+
+Readouts use actual processed output for ECharts, Chart.js, ApexCharts, amCharts, DevExtreme, and AnyStock.
+FusionTime reports its current bin and states that processed points are unavailable. Input rows are not substituted for processed output.
+uPlot reports input statistics separately from its rendered path.
+
+The uPlot detail magnifies the cached path, including pixel rounding and gap clipping.
+The other detail draws a polyline through processed output, before any further renderer simplification or rounding.
+Neither detail changes the viewport or runs another sampling pass.
+
+At DPR 1, the opposite-spike case lost its negative spike under default-budget LTTB in ECharts, Chart.js, and ApexCharts.
+ECharts and Chart.js min/max retained both extrema in the same case.
+ECharts average, amCharts grouping, and DevExtreme average removed both extrema.
+AnyStock average attenuated them to approximately −3.333 and +3.333.
+At DPR 2, ECharts LTTB retained both extrema in this case, with 912 processed points instead of 437.
+These observations describe the pinned libraries at this chart size, not every viewport or dataset.
+
+The short missing interval also demonstrates a uPlot limit: its rounded, subpixel gap disappears at DPR 1.
+Pixel-column extrema preservation does not guarantee gap boundaries, precise timestamps, pulse shape, or every signal statistic.
+The demo makes no universal fidelity or performance claim. Timing remains the responsibility of the separate benchmark.
+
+The opt-in browser regression uses cached Headless Shell 156 and cached vendor assets, without downloads or tracing:
+
+```sh
+TEST_REDUCTION_BROWSER=1 node node_modules/mocha/bin/mocha.js test/integration/reduction-accuracy-browser.mjs
+```
+
+Validation passed all 120 dataset/mode combinations in Headless Shell 156, plus dropdown interactions and a DPR 2 UI check.
+The test checks input preservation and verifies FusionTime’s parsed timestamps and values before assessing its native bin.
+The corrected nonuniform fixture selects a one-minute FusionTime bin over the expected 100-minute domain.
+Results and screenshots go to `.cache/benchmarks/reduction-accuracy-*`.
+The offline test blocks uncached external assets, including AnyChart’s logo image. The production demo does not block or remove branding.
+
 ## Publication and vendor requirements
 
 The user decides whether to publish results. The harness does not enforce a publication-policy acknowledgment.
@@ -368,7 +698,14 @@ SciChart Community startup and LightningChart runtime-key startup remain distinc
 
 ## Known limits and validation status
 
+The latest [renderer validation](#renderer-validation) covers Bokeh Canvas, d3fc Canvas, their originals, G2 Canvas, and the G2 WebGL timeout.
+It includes a separate 200-row G2 WebGL smoke, not a successful full-workload measurement or a full-suite rerun.
+The following expansion results are historical.
+
 ### Second expansion: partial suite and separate workers
+
+These historical results predate the grouping-related changes described in [Grouping and accuracy limits](#grouping-and-accuracy-limits).
+The current DevExtreme and FusionTime configurations timed out under the five-second sample budget.
 
 All 13 new adapters passed agent-reported direct browser smoke checks. JSCharting is now excluded from repeated-sample benchmarks.
 The suite attempt reached its 600-second timeout after idle and 22 libraries, through DevExtreme. The suite report remains incomplete.

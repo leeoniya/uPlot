@@ -320,9 +320,16 @@ describe('shared browser sample lifecycle', () => {
 		const oldVariants = ['uplot', 'd3', 'chartjs', 'echarts', 'flot', 'dygraphs'];
 		for (const variant of demoVariants.filter(id => !oldVariants.includes(id))) {
 			for (const fail of [false, true]) {
-				const chart = {}, events = [], error = new Error('destroy failed');
+				const chart = variant === 'plotly-svg' ? {data: Array.from({length: 3}, () => ({type: 'scatter'}))}
+									: variant === 'highcharts-svg' ? {options: {boost: {enabled: false}}, series: [{}, {}, {}]}
+														: variant === 'apexcharts' ? {getState: () => ({series: Array.from({length: 3}, () => ({length: 55550}))})} : {};
+								const events = [], error = new Error('destroy failed');
 				const host = {
-					querySelector(selector) { assert.equal(selector, 'canvas, svg'); return {}; },
+					querySelector(selector) {
+											if (variant === 'd3-svg' && selector === 'canvas') return null;
+											assert.equal(selector, 'canvas, svg'); return {};
+										},
+										querySelectorAll(selector) { assert.equal(selector, 'svg .series path'); return [{}, {}, {}]; },
 					replaceChildren() { events.push('clear'); }, remove() { events.push('remove'); },
 				};
 				const sources = {[variant]: {destroyChart(instance) {
@@ -330,7 +337,7 @@ describe('shared browser sample lifecycle', () => {
 					events.push('destroy');
 					if (fail) throw error;
 				}}};
-				const api = runInNewContext(source + '\n({validateChart, teardown});', {sources, dpr: 1.5});
+				const api = runInNewContext(source + '\n({validateChart, teardown});', {sources, dpr: 1.5, ROWS: 55550});
 				const sample = {variant, chart, host};
 				assert.equal(api.validateChart(sample), 1.5);
 				assert.throws(() => api.validateChart({...sample, chart: null}), /did not return a rendered chart/);
@@ -340,6 +347,51 @@ describe('shared browser sample lifecycle', () => {
 				assert.deepEqual(events, ['destroy', 'clear', 'remove']);
 			}
 		}
+	});
+
+	it('rejects reduced ApexCharts series even when a chart surface exists', () => {
+		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, ROWS: 55550, sources: {}});
+		for (const lengths of [[55550, 55550, 55550], [1920, 1920, 1920], [55550, 1920, 55550], [55550, 55550]]) {
+			const sample = {variant: 'apexcharts', chart: {getState: () => ({series: lengths.map(length => ({length}))})}};
+			if (lengths.length === 3 && lengths.every(length => length === 55550))
+				assert.equal(validate(sample), 1);
+			else
+				assert.throws(() => validate(sample), /all 55,550 rendered values/);
+		}
+	});
+
+	it('requires three SVG paths and no Canvas in the D3 SVG variant', async () => {
+		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1.5, sources: {'d3-svg': {destroyChart() {}}}});
+		const window = new Window();
+		try {
+			const host = window.document.createElement('div');
+			host.innerHTML = '<svg><g class="series"><path/><path/><path/></g></svg>';
+			const sample = {variant: 'd3-svg', chart: {}, host};
+			assert.equal(validate(sample), 1.5);
+			host.append(window.document.createElement('canvas'));
+			assert.throws(() => validate(sample), /three SVG line paths without Canvas/);
+			host.querySelector('canvas').remove();
+			host.querySelector('path').remove();
+			assert.throws(() => validate(sample), /three SVG line paths without Canvas/);
+		}
+		finally {
+			await window.happyDOM.close();
+		}
+	});
+
+	it('rejects GL rendering in the explicitly SVG variants', () => {
+		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, sources: {}});
+		const plotly = {data: Array.from({length: 3}, () => ({type: 'scatter'}))};
+		const highcharts = {options: {boost: {enabled: false}}, series: [{}, {}, {}]};
+		assert.equal(validate({variant: 'plotly-svg', chart: plotly}), 1);
+		assert.equal(validate({variant: 'highcharts-svg', chart: highcharts}), 1);
+		plotly.data[2].type = 'scattergl';
+		highcharts.series[2].boosted = true;
+		assert.throws(() => validate({variant: 'plotly-svg', chart: plotly}), /SVG scatter traces/);
+		assert.throws(() => validate({variant: 'highcharts-svg', chart: highcharts}), /non-boosted series/);
 	});
 
 	it('accepts chart surfaces in nested shadow roots but rejects empty shadow renderers', () => {
@@ -481,7 +533,7 @@ describe('shared browser sample lifecycle', () => {
 		await fake.api.destroy();
 	});
 
-	for (const variant of ['highcharts', 'plotly', 'bokeh', 'd3fc', 'scichart', 'lightningchart']) {
+	for (const variant of ['highcharts', 'plotly', 'bokeh', 'd3fc', 'g2-webgl', 'scichart', 'lightningchart']) {
 		for (const status of ['complete', 'incomplete', 'not-observed', 'missing-result', 'missing-observer']) {
 			it(`${variant} requires complete GL evidence (${status})`, async () => {
 				const webgl = status === 'missing-result' ? undefined : {status, contexts: []};

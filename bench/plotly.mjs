@@ -14,10 +14,14 @@ function prepData(packed) {
 	return data;
 }
 
-async function makeChart(data, host, wait) {
+function makeChart(data, host, wait, runtimeOptions) {
+	return makeChartWithOptions(data, host, wait, runtimeOptions);
+}
+
+async function makeChartWithOptions(data, host, wait, runtimeOptions, {type = 'scattergl'} = {}) {
 	const traces = ['CPU', 'RAM', 'TCP Out'].map((name, i) => ({
 		name,
-		type: 'scattergl',
+		type,
 		mode: 'lines',
 		x: data[0],
 		y: data[i + 1],
@@ -55,4 +59,4 @@ function destroyChart(chart) {
 	Plotly.purge(chart);
 }
 
-export {prepData, makeChart, destroyChart};
+export {prepData, makeChart, destroyChart, makeChartWithOptions};

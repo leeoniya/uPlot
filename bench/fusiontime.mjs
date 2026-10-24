@@ -45,13 +45,17 @@ async function makeChart(data, host, wait) {
 				},
 				caption: {text: 'Server Events'},
 				data: table,
-				xAxis: {plot: 'Time'},
+				xAxis: {
+					plot: 'Time',
+					// The fixture has exactly one row per minute, so each bin retains one sample.
+					// Average aggregation remains enabled; larger calendar bins are excluded.
+					binning: {year: [], month: [], day: [], hour: [], minute: [1], second: [], millisecond: []},
+				},
 				yAxis: [
 					{plot: [line('CPU'), line('RAM')], orientation: 'left', format: {suffix: '%'}},
 					{plot: [line('TCP Out')], orientation: 'right', format: {suffix: ' MB'}},
 				],
 				// No persistent anchors; native styles also suppress hover markers.
-				// Leave calendar binning at its native defaults.
 				plotConfig: {line: {style: {
 					line: {'stroke-width': 1 / devicePixelRatio},
 					anchor: {opacity: 0},

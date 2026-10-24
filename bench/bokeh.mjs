@@ -14,7 +14,11 @@ function prepData(packed) {
 	return data;
 }
 
-async function makeChart(data, host, wait) {
+function makeChart(data, host, wait, runtimeOptions) {
+	return makeChartWithOptions(data, host, wait, runtimeOptions);
+}
+
+async function makeChartWithOptions(data, host, wait, runtimeOptions, {outputBackend = 'webgl'} = {}) {
 	const source = new Bokeh.ColumnDataSource({data});
 	const pctRange = new Bokeh.DataRange1d();
 	const mbRange = new Bokeh.DataRange1d();
@@ -23,13 +27,13 @@ async function makeChart(data, host, wait) {
 		height: 600,
 		sizing_mode: 'fixed',
 		title: 'Server Events',
-		output_backend: 'webgl',
+		output_backend: outputBackend,
 		x_axis_type: 'datetime',
 		y_axis_label: '%',
 		y_range: pctRange,
 		extra_y_ranges: {mb: mbRange},
 		tools: 'pan,wheel_zoom,reset',
-		// WebGL draws the complete lines; do not sample during interaction either.
+		// Draw complete lines; do not sample during interaction either.
 		lod_threshold: null,
 	});
 	plot.yaxis.formatter = new Bokeh.PrintfTickFormatter({format: '%g%%'});
@@ -68,10 +72,10 @@ async function makeChart(data, host, wait) {
 	try {
 		// In 3.10.1 show() resolves only after the document becomes idle.
 		view = await Bokeh.Plotting.show(plot, host);
-		if (!view.canvas_view.webgl || renderers.some(renderer => !view.renderer_views.get(renderer)?.has_webgl))
+		if (outputBackend === 'webgl' && (!view.canvas_view.webgl || renderers.some(renderer => !view.renderer_views.get(renderer)?.has_webgl)))
 			throw new Error('Bokeh benchmark requires WebGL line rendering; Canvas fallback is not allowed.');
 		// Expose the shared context for per-sample capture, including reused plots.
-		view.getWebGLContexts = () => view.is_destroyed ? [] : [view.canvas_view.webgl.canvas.getContext('webgl')];
+		view.getWebGLContexts = () => outputBackend !== 'webgl' || view.is_destroyed ? [] : [view.canvas_view.webgl.canvas.getContext('webgl')];
 		if (wait) wait.textContent = 'Done!';
 		return view;
 	}
@@ -98,4 +102,4 @@ function destroyChart(view) {
 	disposePlot(view.model, view);
 }
 
-export {prepData, makeChart, destroyChart};
+export {prepData, makeChart, destroyChart, makeChartWithOptions};

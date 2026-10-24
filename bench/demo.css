@@ -1,5 +1,6 @@
 body.bench-demo.uplot,
-body.bench-demo.d3 {
+body.bench-demo.d3,
+body.bench-demo.d3-svg {
 	margin: 0;
 }
 
@@ -8,17 +9,17 @@ body.bench-demo.d3 {
 	text-align: left;
 }
 
-.bench-demo.d3 {
+.bench-demo:is(.d3, .d3-svg) {
 	font: 12px Arial, sans-serif;
 }
 
-.bench-demo.d3 .chart {
+.bench-demo:is(.d3, .d3-svg) .chart {
 	position: relative;
 	width: 1920px;
 	height: 600px;
 }
 
-.bench-demo.d3 .chart canvas {
+.bench-demo:is(.d3, .d3-svg) .chart :is(canvas, svg) {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -26,13 +27,13 @@ body.bench-demo.d3 {
 	height: 600px;
 }
 
-.bench-demo.d3 .legend {
+.bench-demo:is(.d3, .d3-svg) .legend {
 	display: flex;
 	gap: 24px;
 	margin: 8px 55px;
 }
 
-.bench-demo.d3 .legend span {
+.bench-demo:is(.d3, .d3-svg) .legend span {
 	display: inline-block;
 	min-width: 150px;
 }

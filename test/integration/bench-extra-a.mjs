@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as apex from '../../bench/apexcharts.mjs';
 import * as highcharts from '../../bench/highcharts.mjs';
+import * as highchartsSvg from '../../bench/highcharts-svg.mjs';
 import * as lightweight from '../../bench/lightweight.mjs';
 
 const packed = Object.freeze(JSON.parse(readFileSync(new URL('../../bench/data.json', import.meta.url))));
@@ -69,14 +70,16 @@ describe('extra benchmark adapters A', () => {
 			destroy() { destroyed++; }
 		};
 		const wait = {textContent: 'Rendering...'};
-		const result = apex.makeChart([[], [], []], host, wait);
+		const data = apex.prepData(packed);
+				const result = apex.makeChart(data, host, wait);
 		assert.equal(wait.textContent, 'Rendering...');
 		assert.deepEqual(options.yaxis[0].seriesName, ['CPU', 'RAM']);
 		assert.equal(options.yaxis[1].seriesName, 'TCP Out');
 		assert.equal(options.yaxis[1].opposite, true);
 		autoAxes(options.yaxis);
 		assert.equal(options.chart.renderer, 'canvas');
-		assert.equal(options.chart.dataReducer.enabled, true);
+		assert.deepEqual(options.chart.dataReducer, {enabled: false});
+				assert.ok(options.series.every((series, i) => series.data === data[i] && series.data.length === 55550));
 		assert.equal(options.chart.animations.enabled, false);
 				assert.equal(options.chart.parentHeightOffset, 0);
 		finish({notTheChart: true});
@@ -133,13 +136,76 @@ describe('extra benchmark adapters A', () => {
 		});
 	}
 
-	it('Highcharts handles a synchronous non-boosted load without waiting for boost events', async () => {
-		const chart = {series: [{boosted: false}, {boosted: false}, {boosted: false}]};
+	for (const [name, source] of [['GL', highcharts], ['SVG', highchartsSvg]]) {
+		it(`Highcharts ${name} handles a synchronous non-boosted load and cleans up`, async () => {
+			let destroyed = false;
+			const chart = {series: [{boosted: false}, {boosted: false}, {}], destroy() { destroyed = true; }};
+			globalThis.Highcharts = {chart(element, options) {
+				assert.equal(element, host);
+				assert.equal(options.boost.enabled, name === 'SVG' ? false : undefined);
+				options.chart.events.load.call(chart);
+				return chart;
+			}};
+			const wait = {textContent: 'Rendering...'};
+			assert.equal(await source.makeChart([{}, {}, {}], host, wait, {boost: {enabled: true}}), chart);
+			assert.equal(wait.textContent, 'Done!');
+			source.destroyChart(chart);
+			assert.equal(destroyed, true);
+		});
+
+		it(`Highcharts ${name} preserves construction failures without reporting readiness`, async () => {
+			const failure = new Error('chart failed');
+			globalThis.Highcharts = {chart() { throw failure; }};
+			const wait = {textContent: 'Rendering...'};
+			await assert.rejects(source.makeChart([{}, {}, {}], host, wait), error => error === failure);
+			assert.equal(wait.textContent, 'Rendering...');
+		});
+	}
+
+	it('Highcharts SVG shares prep and cleanup, disables only boost, and awaits load', async () => {
+		assert.equal(highchartsSvg.prepData, highcharts.prepData);
+		assert.equal(highchartsSvg.destroyChart, highcharts.destroyChart);
+		const data = highcharts.prepData(packed);
+		const calls = [];
+		let destroyed = 0;
+		const chart = {series: [{}, {}, {}], destroy() { destroyed++; }};
 		globalThis.Highcharts = {chart(element, options) {
-			options.chart.events.load.call(chart);
+			assert.equal(element, host);
+			calls.push(options);
+			for (const [i, series] of options.series.entries()) {
+				assert.equal(series.dataTable, data[i]);
+				assert.equal(series.dataTable.columns.x, data[0].columns.x);
+				assert.ok(series.dataTable.columns.x instanceof Float64Array);
+				assert.ok(series.dataTable.columns.y instanceof Float64Array);
+			}
+			assert.deepEqual(options.series.map(series => series.yAxis), [0, 0, 1]);
+			autoAxes(options.yAxis);
 			return chart;
 		}};
-		assert.equal(await highcharts.makeChart([{}, {}, {}], host), chart);
+		for (const source of [highcharts, highchartsSvg]) {
+			const wait = {textContent: 'Rendering...'};
+			let ready = false;
+			const pending = source.makeChart(data, host, wait).then(result => { ready = true; return result; });
+			await Promise.resolve();
+			assert.equal(ready, false);
+			assert.equal(wait.textContent, 'Rendering...');
+			calls.at(-1).chart.events.load.call(chart);
+			assert.equal(await pending, chart);
+			assert.equal(wait.textContent, 'Done!');
+			source.destroyChart(chart);
+		}
+		assert.equal(destroyed, 2);
+		assert.equal(calls[0].boost.enabled, undefined);
+		assert.equal(calls[1].boost.enabled, false);
+		// Event callbacks have separate closures; compare the remaining configuration.
+		const config = options => ({
+			...options,
+			chart: {...options.chart, events: null},
+			plotOptions: {...options.plotOptions, series: {...options.plotOptions.series, events: null}},
+		});
+		assert.deepEqual(config(calls[1]), {
+			...config(calls[0]), boost: {...calls[0].boost, enabled: false},
+		});
 	});
 
 	it('Lightweight stays synchronous, preserves attribution, and cleans up its legend', () => {

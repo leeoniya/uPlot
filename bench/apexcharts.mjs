@@ -25,8 +25,8 @@ async function makeChart(data, host, wait) {
 			parentHeightOffset: 0,
 			animations: {enabled: false},
 			renderer: 'canvas',
-			// Native, zoom-aware LTTB keeps the full input and reduces only the view.
-			dataReducer: {enabled: true, targetPoints: 1920, threshold: 3840},
+			// 8.4.1 only offers LTTB for scalar lines, which can omit bucket extrema.
+			dataReducer: {enabled: false},
 			zoom: {type: 'x', enabled: true},
 		},
 		colors: ['red', 'blue', 'green'],
@@ -52,7 +52,7 @@ async function makeChart(data, host, wait) {
 				labels: {formatter: value => `${Number(value.toFixed(2))} MB`},
 			},
 		],
-		// LTTB can select different x values in each series.
+
 		tooltip: {
 			shared: false,
 			y: {formatter: (value, {seriesIndex}) => `${value} ${seriesIndex === 2 ? 'MB' : '%'}`},

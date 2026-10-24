@@ -34,21 +34,24 @@ async function settle() {
 }
 
 if (typeof Path2D !== 'function' ||
-	VARIANTS.includes('d3') && !globalThis.d3?.line ||
+	VARIANTS.some(id => id === 'd3' || id === 'd3-svg') && !globalThis.d3?.line ||
 	VARIANTS.includes('chartjs') && !globalThis.Chart?.version ||
 	VARIANTS.includes('echarts') && !globalThis.echarts?.init ||
 	VARIANTS.includes('flot') && !globalThis.jQuery?.plot ||
 	VARIANTS.includes('dygraphs') && (!globalThis.Dygraph || typeof globalThis.fmtDate !== 'function') ||
 	VARIANTS.includes('apexcharts') && !globalThis.ApexCharts ||
-	VARIANTS.includes('highcharts') && !globalThis.Highcharts?.chart ||
+	VARIANTS.some(id => id === 'highcharts' || id === 'highcharts-svg') && !globalThis.Highcharts?.chart ||
 	VARIANTS.includes('lightweight') && !globalThis.LightweightCharts?.createChart ||
-	VARIANTS.includes('plotly') && !globalThis.Plotly?.newPlot ||
+	VARIANTS.some(id => id === 'plotly' || id === 'plotly-svg') && !globalThis.Plotly?.newPlot ||
 	VARIANTS.includes('canvasjs') && !globalThis.CanvasJS?.Chart ||
 	VARIANTS.includes('zingchart') && !globalThis.zingchart?.render ||
 	VARIANTS.includes('amcharts') && (!globalThis.am5?.Root || !globalThis.am5xy?.XYChart) ||
 	VARIANTS.includes('lightningchart') && !globalThis.lcjs?.lightningChart ||
-	VARIANTS.includes('bokeh') && !globalThis.Bokeh?.Plotting ||
+	VARIANTS.some(id => id === 'bokeh' || id === 'bokeh-canvas') && !globalThis.Bokeh?.Plotting ||
 	VARIANTS.includes('d3fc') && !globalThis.fc?.seriesWebglLine ||
+		VARIANTS.includes('d3fc-canvas') && !globalThis.fc?.seriesCanvasLine ||
+		VARIANTS.some(id => id === 'g2' || id === 'g2-webgl') && !globalThis.G2?.Chart ||
+		VARIANTS.includes('g2-webgl') && !globalThis.G?.WebGL?.Renderer ||
 	VARIANTS.includes('agcharts') && !globalThis.agCharts?.AgCharts ||
 	VARIANTS.includes('vega') && !globalThis.vega?.View ||
 	VARIANTS.includes('scichart') && !globalThis.SciChart?.SciChartSurface)
@@ -135,7 +138,7 @@ function prepFor(variant) {
 }
 
 function validateInput({variant, input}) {
-	if (variant === 'uplot' || variant === 'd3' || variant === 'plotly') {
+	if (variant === 'uplot' || variant === 'd3' || variant === 'd3-svg' || variant === 'plotly' || variant === 'plotly-svg') {
 		if (input.length !== 4 || !input.every(values => values.length === ROWS && values.every(Number.isFinite)))
 			throw new Error('Expected 55,550 finite rows with x values and three y series.');
 	}
@@ -155,7 +158,7 @@ function validateInput({variant, input}) {
 		if (input.length !== 3 || !input.every(series => series.length === ROWS && series.every(point => Number.isFinite(point.time) && Number.isFinite(point.value))))
 			throw new Error('Expected three Lightweight Charts series of 55,550 finite {time, value} points.');
 	}
-	else if (variant === 'highcharts') {
+	else if (variant === 'highcharts' || variant === 'highcharts-svg') {
 		if (input.length !== 3 || !input.every(table => ['x', 'y'].every(key => table.columns[key].length === ROWS && table.columns[key].every(Number.isFinite))))
 			throw new Error('Expected three Highcharts data tables of 55,550 finite x and y values.');
 	}
@@ -163,11 +166,11 @@ function validateInput({variant, input}) {
 		if (input.length !== ROWS || !input.every(row => ['date', 'cpu', 'ram', 'tcp'].every(key => Number.isFinite(row[key]))))
 			throw new Error('Expected 55,550 finite amCharts records.');
 	}
-	else if (['lightningchart', 'scichart', 'bokeh', 'd3fc'].includes(variant)) {
+	else if (['lightningchart', 'scichart', 'bokeh', 'bokeh-canvas', 'd3fc', 'd3fc-canvas'].includes(variant)) {
 		if (!['x', 'cpu', 'ram', 'tcp'].every(key => input[key].length === ROWS && input[key].every(Number.isFinite)))
 			throw new Error(`Expected four ${variant} columns of 55,550 finite values.`);
 	}
-	else if (['agcharts', 'vega', 'g2', 'recharts', 'muicharts', 'financialcharts', 'visx'].includes(variant)) {
+	else if (['agcharts', 'vega', 'g2', 'g2-webgl', 'recharts', 'muicharts', 'financialcharts', 'visx'].includes(variant)) {
 		if (input.length !== ROWS || !input.every(row => ['time', 'cpu', 'ram', 'tcp'].every(key => Number.isFinite(row[key]))))
 			throw new Error(`Expected 55,550 finite ${variant} records.`);
 	}
@@ -226,6 +229,17 @@ function hasChartSurface(root) {
 function validateChart({variant, chart, host}) {
 	if (sources[variant]?.destroyChart && (!chart || !hasChartSurface(host)))
 		throw new Error(`${variant} did not return a rendered chart.`);
+	if (variant === 'apexcharts') {
+		const series = chart.getState().series;
+		if (series.length !== 3 || series.some(values => values.length !== ROWS))
+			throw new Error('ApexCharts must retain all 55,550 rendered values per series with its reducer disabled.');
+	}
+	if (variant === 'd3-svg' && (host.querySelector('canvas') || host.querySelectorAll('svg .series path').length !== 3))
+		throw new Error('d3-svg must render three SVG line paths without Canvas.');
+	if (variant === 'plotly-svg' && (chart.data?.length !== 3 || chart.data.some(trace => trace.type !== 'scatter')))
+		throw new Error('plotly-svg must render three SVG scatter traces.');
+	if (variant === 'highcharts-svg' && (chart.options?.boost?.enabled !== false || chart.series?.length !== 3 || chart.series.some(series => series.boosted)))
+		throw new Error('highcharts-svg must render three non-boosted series.');
 	if (variant === 'uplot' && chart.series.some(series => series._paths != null || series.points?._paths != null))
 		throw new Error('uPlot retained paths despite cache.paths:false. Rebuild dist before benchmarking.');
 	if (variant === 'chartjs' && (!chart || globalThis.Chart.getChart(host.firstElementChild) !== chart))
@@ -288,6 +302,8 @@ function teardown({variant, chart, host}) {
 			if (host.childNodes.length !== 0)
 				throw new Error('Dygraphs DOM survived destruction.');
 		}
+		else if (variant === 'd3')
+			chart?.destroy();
 		else if (variant === 'uplot') {
 			chart?.destroy();
 			if (chart?.root.isConnected)
@@ -408,7 +424,7 @@ globalThis.benchmarkLifecycle = {
 			checkPage();
 			const effectiveDpr = validateChart(state);
 			if (webgl?.status === 'incomplete' ||
-				['highcharts', 'plotly', 'bokeh', 'd3fc', 'scichart', 'lightningchart'].includes(state.variant) && webgl?.status !== 'complete')
+				['highcharts', 'plotly', 'bokeh', 'd3fc', 'g2-webgl', 'scichart', 'lightningchart'].includes(state.variant) && webgl?.status !== 'complete')
 				throw new Error(`${state.variant}: WebGL completion not verified: ${JSON.stringify(webgl)}`);
 			state.phase = 'constructed';
 			const jsMs = jsEnd.startTime - start.startTime;
@@ -561,13 +577,17 @@ function reportMetadata(raf = false) {
 			data: '/bench/data.json',
 			prepData: 'Each sample calls its own shared nonmutating demo prepData(packed) afresh. Only raw packed JSON persists. No clones.',
 			dataRepresentations: {
-				uplot: 'aligned arrays', d3: 'aligned arrays', chartjs: 'three arrays of {x, y} points',
+				uplot: 'aligned arrays', d3: 'aligned arrays', 'd3-svg': 'aligned arrays', chartjs: 'three arrays of {x, y} points',
 				echarts: 'interleaved Float64Array', flot: 'three arrays of [x, y] pairs', dygraphs: 'rows of [milliseconds, y, y, y]',
 				apexcharts: 'three arrays of [x, y] pairs', highcharts: 'three data tables with Float64Array x/y columns',
 				lightweight: 'three arrays of {time, value} points', plotly: 'four aligned Float64Array columns',
+				'plotly-svg': 'four aligned Float64Array columns',
+				'highcharts-svg': 'three data tables with Float64Array x/y columns',
 				canvasjs: 'three arrays of {x, y} points', zingchart: 'three arrays of [x, y] pairs',
 				amcharts: 'rows of {date, cpu, ram, tcp}', lightningchart: '{x, cpu, ram, tcp} Float64Array columns',
 				bokeh: '{x, cpu, ram, tcp} Float64Array columns', d3fc: '{x, cpu, ram, tcp} Float64Array columns',
+				'bokeh-canvas': '{x, cpu, ram, tcp} Float64Array columns', 'd3fc-canvas': '{x, cpu, ram, tcp} Float64Array columns',
+				'g2-webgl': 'rows of {time, cpu, ram, tcp}',
 				scichart: '{x, cpu, ram, tcp} Float64Array columns; native ingestion inside init',
 				agcharts: 'rows of {time, cpu, ram, tcp}', vega: 'rows of {time, cpu, ram, tcp}; tuple copy inside init',
 				billboard: 'four named columns, each with 55,550 numeric values', g2: 'rows of {time, cpu, ram, tcp}',
@@ -614,11 +634,14 @@ function reportMetadata(raf = false) {
 			'Initial creation only: each non-idle sample prepares fresh input and creates a fresh chart. No redraw or cached-path reuse is measured.',
 						'Async initialization waits for the library completion promise/event inside init and trace spans. This can include timers, frames, and deferred interaction setup, not just drawing CPU work.',
 			'Libraries share CPU/RAM on the left percentage scale and TCP Out on the right MB scale with automatic y ranges. Native sampling and grouping can change displayed detail and ranges.',
-			'ApexCharts uses Canvas and LTTB; Highcharts uses Boost without GPU epoch translations; Plotly uses scattergl; amCharts uses native date grouping and line simplification. Branding remains enabled.',
-			'Billboard uses Canvas without workers. Syncfusion uses native line reduction. DevExtreme, AnyStock and FusionTime use native average aggregation that can hide peaks.',
+			'ApexCharts uses Canvas with its LTTB-only reducer disabled. Highcharts uses Boost without GPU epoch translations. Plotly uses scattergl. Their -svg variants disable Boost or use scatter. Branding remains enabled.',
+			'amCharts disables date grouping with groupData: false and distance-based line simplification with minDistance: 0. exactLocationX: true uses original timestamps.',
+			'DevExtreme disables series aggregation. AnyStock disables main and scroller grouping. Its average mapping remains configured but inactive.',
+			'FusionTime permits only minute: [1] bins. All other binning units use empty arrays. Average aggregation remains enabled, with one observation per bin for this minute-aligned fixture. Multiple observations within a minute can merge and hide peaks.',
+			'Billboard uses Canvas without workers. Syncfusion uses native line reduction. Input retention and disabled reducers do not guarantee identical output or preservation of every visible feature.',
 			'React module loading is outside timing; root creation, chart rendering and commits are inside init. Framework memory remains included. visx measures this primitive composition, not a standard chart preset.',
 			'Google Charts requests frozen release 52 outside sample timers. Its mutable loader and remote runtime packages require network access and are not fully pinned or locally cached.',
-			'Lightweight Charts uses native line conflation with full input retention. Grouped closing values and amCharts averages can hide peaks at wide zoom levels.',
+			'Lightweight Charts uses native line conflation with full input retention. Grouped closing values can hide peaks at wide zoom levels.',
 			'ECharts 6.1.0 minmax sampling retains every raw row but ends the visible time range three minutes early for this fixture at DPR 1.',
 			'The requested static amCharts logo uses a version-guarded private override. The logo and link remain; branding/license terms need review before publication.',
 			'Data preparation is timed separately, outside chart markers. CDP chart-window totals exclude prep. Output validation is outside both prep and chart timers.',

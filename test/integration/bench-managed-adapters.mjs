@@ -39,10 +39,14 @@ function vendor(id) {
 		state.axes = [setting(), setting()];
 		state.legend = setting();
 		state.scroller = setting();
+		state.grouping = setting();
+		state.scrollerGrouping = setting();
 		Object.assign(chart, {
 			animation: record('animation'), bounds: record('bounds'), title: record('title'),
 			xScale: record('xScale'), container: record('container'),
 			scroller: () => state.scroller,
+			grouping: () => state.grouping,
+			scrollerGrouping: () => state.scrollerGrouping,
 			plot(index) {
 				assert.equal(index, 0);
 				return {
@@ -171,6 +175,8 @@ describe('managed benchmark adapters', () => {
 					['xScale', 'scatter'], ['container', host],
 				]);
 				assert.equal(mock.scroller.values.enabled, false);
+				assert.equal(mock.grouping.values.enabled, false);
+				assert.equal(mock.scrollerGrouping.values.enabled, false);
 				assert.equal(mock.legend.values.enabled, true);
 				assert.equal(mock.lines.length, 3);
 				for (let i = 0; i < 3; i++) {
@@ -197,10 +203,19 @@ describe('managed benchmark adapters', () => {
 				assert.equal(source.chart.enableUTC, true);
 				assert.deepEqual(mock.schema[0], {name: 'Time', type: 'date', format: '%Q'});
 				assert.equal(source.xAxis.plot, 'Time');
-				assert.equal(source.xAxis.binning, undefined);
+				assert.deepEqual(source.xAxis.binning, {
+					year: [], month: [], day: [], hour: [], minute: [1], second: [], millisecond: [],
+				});
+				assert.equal(data[0][0] % 60000, 0);
+				for (let i = 1; i < data.length; i++)
+					assert.equal(data[i][0] - data[i - 1][0], 60000, 'one sample per one-minute bin');
 				assert.deepEqual(source.yAxis.map(axis => axis.orientation), ['left', 'right']);
 				assert.deepEqual(source.yAxis.map(axis => axis.format.suffix), ['%', ' MB']);
-				assert.deepEqual(source.yAxis.flatMap(axis => axis.plot.map(plot => plot.value)), ['CPU', 'RAM', 'TCP Out']);
+				assert.deepEqual(source.yAxis.flatMap(axis => axis.plot), [
+					{value: 'CPU', type: 'line', aggregation: 'average'},
+					{value: 'RAM', type: 'line', aggregation: 'average'},
+					{value: 'TCP Out', type: 'line', aggregation: 'average'},
+				]);
 				source.yAxis.forEach(autoDomain);
 				assert.equal(source.navigator.enabled, false);
 				assert.equal(source.plotConfig.line.style.line['stroke-width'], 0.5);

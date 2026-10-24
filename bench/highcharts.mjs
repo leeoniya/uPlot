@@ -17,7 +17,11 @@ function prepData(packed) {
 	return [cpu, ram, tcp].map(y => ({columns: {x, y}}));
 }
 
-function makeChart(data, host, wait) {
+function makeChart(data, host, wait, runtimeOptions) {
+	return makeChartWithOptions(data, host, wait, runtimeOptions);
+}
+
+function makeChartWithOptions(data, host, wait, runtimeOptions, {boost = {}} = {}) {
 	return new Promise((resolve, reject) => {
 		const rendered = new Set();
 		let loaded = false;
@@ -50,6 +54,7 @@ function makeChart(data, host, wait) {
 				boost: {
 					// Float32 GPU translations lose small increments in epoch milliseconds.
 					useGPUTranslations: false,
+					...boost,
 				},
 				title: {text: 'Server Events'},
 				xAxis: {type: 'datetime'},
@@ -90,4 +95,4 @@ function destroyChart(chart) {
 	chart.destroy();
 }
 
-export {prepData, makeChart, destroyChart};
+export {prepData, makeChart, destroyChart, makeChartWithOptions};

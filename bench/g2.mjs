@@ -15,11 +15,15 @@ function prepData(packed) {
 	return data;
 }
 
-async function makeChart(data, host, wait) {
+function makeChart(data, host, wait, runtimeOptions) {
+	return makeChartWithOptions(data, host, wait, runtimeOptions);
+}
+
+async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer} = {}) {
 	let chart;
 	try {
-		// G2's default renderer is Canvas; no external renderer/plugin is needed.
-		chart = new G2.Chart({container: host, width: 1920, height: 600, autoFit: false});
+		// Omitting renderer preserves G2's built-in Canvas renderer.
+		chart = new G2.Chart({container: host, width: 1920, height: 600, autoFit: false, ...(renderer ? {renderer} : {})});
 		chart.options({
 			type: 'view',
 			title: 'Server Events',
@@ -39,7 +43,8 @@ async function makeChart(data, host, wait) {
 					x: {title: false},
 					y: {title: false, position: i === 2 ? 'right' : 'left', labelFormatter: value => i === 2 ? `${value} MB` : `${value}%`},
 				},
-				style: {lineWidth: 1 / devicePixelRatio},
+				// An empty fill still triggers invisible polygon triangulation in WebGL.
+				style: {lineWidth: 1 / devicePixelRatio, fill: 'none'},
 				animate: false,
 			})),
 		});
@@ -58,4 +63,5 @@ function destroyChart(chart) {
 	chart.destroy();
 }
 
+export {makeChartWithOptions};
 export {prepData, makeChart, destroyChart};

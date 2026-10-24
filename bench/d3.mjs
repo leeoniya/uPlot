@@ -45,16 +45,24 @@ function setupCanvas(canvas) {
 	return ctx;
 }
 
-function drawAxes(ctx, xScale, pctScale, mbScale) {
+function axisTicks(xScale, pctScale, mbScale) {
+	const xFormat = xScale.tickFormat(12);
+	return {
+		pct: pctScale.ticks(10).map(tick => [pctScale(tick), `${+tick.toFixed(1)}%`]),
+		mb: mbScale.ticks(10).map(tick => [mbScale(tick), `${+tick.toFixed(2)} MB`]),
+		x: xScale.ticks(12).map(tick => [pxRound(xScale(tick)), xFormat(tick)]),
+	};
+}
+
+function drawAxes(ctx, ticks) {
 	ctx.font = "10px Arial";
 	ctx.lineWidth = 1 / pxRatio;
 	ctx.textBaseline = "middle";
 
-	const pctTicks = pctScale.ticks(10);
 	ctx.strokeStyle = "rgba(0,0,0,0.1)";
 	ctx.beginPath();
-	for (const tick of pctTicks) {
-		const y = pxRound(pctScale(tick));
+	for (const [position] of ticks.pct) {
+		const y = pxRound(position);
 		ctx.moveTo(plotLeft, y);
 		ctx.lineTo(plotRight, y);
 	}
@@ -63,32 +71,152 @@ function drawAxes(ctx, xScale, pctScale, mbScale) {
 	ctx.fillStyle = "#000";
 	ctx.strokeStyle = "#000";
 	ctx.textAlign = "right";
-	for (const tick of pctTicks) {
-		const y = pctScale(tick);
-		ctx.fillText(`${+tick.toFixed(1)}%`, plotLeft - 8, y);
-	}
+	for (const [y, label] of ticks.pct)
+		ctx.fillText(label, plotLeft - 8, y);
 
 	ctx.textAlign = "left";
-	for (const tick of mbScale.ticks(10))
-		ctx.fillText(`${+tick.toFixed(2)} MB`, plotRight + 8, mbScale(tick));
+	for (const [y, label] of ticks.mb)
+		ctx.fillText(label, plotRight + 8, y);
 
-	const xTicks = xScale.ticks(12);
-	const xFormat = xScale.tickFormat(12);
 	ctx.textAlign = "center";
 	ctx.textBaseline = "top";
 	ctx.beginPath();
 	ctx.moveTo(plotLeft, plotBottom + 0.5);
 	ctx.lineTo(plotRight, plotBottom + 0.5);
-	for (const tick of xTicks) {
-		const x = pxRound(xScale(tick));
+	for (const [x, label] of ticks.x) {
 		ctx.moveTo(x, plotBottom);
 		ctx.lineTo(x, plotBottom + 5);
-		ctx.fillText(xFormat(tick), x, plotBottom + 7);
+		ctx.fillText(label, x, plotBottom + 7);
 	}
 	ctx.stroke();
 }
 
-function makeChart(data, host, wait) {
+function canvasRenderer(host, line, series, ticks) {
+	const plotCtx = setupCanvas(host.querySelector("#plot"));
+	const overlay = host.querySelector("#overlay");
+	const overlayCtx = setupCanvas(overlay);
+	line.context(plotCtx);
+
+	drawAxes(plotCtx, ticks);
+
+	plotCtx.save();
+	plotCtx.beginPath();
+	plotCtx.rect(plotLeft, plotTop, plotRight - plotLeft, plotBottom - plotTop);
+	plotCtx.clip();
+	plotCtx.lineWidth = 1 / pxRatio;
+
+	for (const [values, scale, color] of series) {
+		line.y(value => pxRound(scale(value)));
+		plotCtx.beginPath();
+		line(values);
+		plotCtx.strokeStyle = color;
+		plotCtx.stroke();
+	}
+	plotCtx.restore();
+
+	return {
+		overlay,
+		pointer: event => event.offsetX,
+		clearCursor: () => overlayCtx.clearRect(0, 0, width, height),
+		drawCursor(x, points) {
+			overlayCtx.strokeStyle = "rgba(0,0,0,0.5)";
+			overlayCtx.lineWidth = 1 / pxRatio;
+			overlayCtx.beginPath();
+			overlayCtx.moveTo(x, plotTop);
+			overlayCtx.lineTo(x, plotBottom);
+			overlayCtx.stroke();
+
+			for (const [y, color] of points) {
+				if (y != null) {
+					overlayCtx.beginPath();
+					overlayCtx.arc(x, y, 3, 0, Math.PI * 2);
+					overlayCtx.fillStyle = color;
+					overlayCtx.fill();
+				}
+			}
+		},
+		destroy() {},
+	};
+}
+
+let nextClipId = 0;
+
+function svgRenderer(host, line, series, ticks) {
+	const svg = host.querySelector("#plot");
+	const root = d3.select(svg).append("g").attr("class", "d3-svg-chart");
+	const clipId = `d3-svg-clip-${++nextClipId}`;
+	root.append("defs").append("clipPath")
+		.attr("id", clipId)
+		.attr("clipPathUnits", "userSpaceOnUse")
+		.append("rect")
+		.attr("x", plotLeft).attr("y", plotTop)
+		.attr("width", plotRight - plotLeft).attr("height", plotBottom - plotTop);
+
+	const axes = root.append("g")
+		.attr("class", "axes")
+		.attr("font-family", "Arial").attr("font-size", 10)
+		.attr("fill", "#000").attr("stroke-width", 1 / pxRatio);
+	const grid = axes.append("g").attr("class", "grid").attr("stroke", "rgba(0,0,0,0.1)");
+	for (const [y] of ticks.pct)
+		grid.append("line").attr("x1", plotLeft).attr("x2", plotRight)
+			.attr("y1", pxRound(y)).attr("y2", pxRound(y));
+
+	for (const [name, values, x, anchor] of [
+		["pct", ticks.pct, plotLeft - 8, "end"],
+		["mb", ticks.mb, plotRight + 8, "start"],
+	]) {
+		const axis = axes.append("g").attr("class", `axis-${name}`)
+			.attr("text-anchor", anchor).attr("dominant-baseline", "central");
+		for (const [y, label] of values)
+			axis.append("text").attr("x", x).attr("y", y).text(label);
+	}
+
+	const xAxis = axes.append("g").attr("class", "axis-x").attr("text-anchor", "middle");
+	xAxis.append("line").attr("stroke", "#000")
+		.attr("x1", plotLeft).attr("x2", plotRight)
+		.attr("y1", plotBottom + 0.5).attr("y2", plotBottom + 0.5);
+	for (const [x, label] of ticks.x) {
+		xAxis.append("line").attr("stroke", "#000")
+			.attr("x1", x).attr("x2", x).attr("y1", plotBottom).attr("y2", plotBottom + 5);
+		xAxis.append("text").attr("x", x).attr("y", plotBottom + 7)
+			.attr("dominant-baseline", "text-before-edge").text(label);
+	}
+
+	const paths = root.append("g").attr("class", "series")
+		.attr("clip-path", `url(#${clipId})`).attr("fill", "none").attr("stroke-width", 1 / pxRatio);
+	// Keep the shared device-pixel coordinates, including fractional DPRs.
+	line.digits(null);
+	for (const [values, scale, color] of series)
+		paths.append("path").attr("stroke", color)
+			.attr("d", line.y(value => pxRound(scale(value)))(values));
+
+	const cursor = root.append("g").attr("class", "cursor").attr("display", "none")
+		.attr("pointer-events", "none");
+	const cursorLine = cursor.append("line").attr("stroke", "rgba(0,0,0,0.5)")
+		.attr("stroke-width", 1 / pxRatio).attr("y1", plotTop).attr("y2", plotBottom);
+	const markers = series.map(([, , color]) => cursor.append("circle").attr("r", 3).attr("fill", color));
+	const overlay = root.append("rect").attr("class", "overlay")
+		.attr("width", width).attr("height", height).attr("fill", "transparent")
+		.attr("pointer-events", "all").node();
+
+	return {
+		overlay,
+		// offsetX can be relative to an SVG child rather than the plotting surface.
+		pointer: event => d3.pointer(event, svg)[0],
+		clearCursor: () => cursor.attr("display", "none"),
+		drawCursor(x, points) {
+			cursor.attr("display", null);
+			cursorLine.attr("x1", x).attr("x2", x);
+			points.forEach(([y], i) => {
+				markers[i].attr("display", y == null ? "none" : null)
+					.attr("cx", x).attr("cy", y);
+			});
+		},
+		destroy: () => root.remove(),
+	};
+}
+
+function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "canvas"} = {}) {
 	console.time("chart");
 
 	const [xs, cpu, ram, tcp] = data;
@@ -106,92 +234,79 @@ function makeChart(data, host, wait) {
 		.domain(d3.extent(tcp))
 		.nice()
 		.range([plotBottom, plotTop]);
-
-	const plotCtx = setupCanvas(host.querySelector("#plot"));
-	const overlay = host.querySelector("#overlay");
-	const overlayCtx = setupCanvas(overlay);
+	const series = [[cpu, pctScale, "red"], [ram, pctScale, "blue"], [tcp, mbScale, "green"]];
 	const line = d3.line()
 		.defined(value => value != null)
-		.x((value, i) => pxRound(xScale(xs[i])))
-		.context(plotCtx);
-
-	drawAxes(plotCtx, xScale, pctScale, mbScale);
-
-	plotCtx.save();
-	plotCtx.beginPath();
-	plotCtx.rect(plotLeft, plotTop, plotRight - plotLeft, plotBottom - plotTop);
-	plotCtx.clip();
-	plotCtx.lineWidth = 1 / pxRatio;
-
-	for (const [values, scale, color] of [
-		[cpu, pctScale, "red"],
-		[ram, pctScale, "blue"],
-		[tcp, mbScale, "green"],
-	]) {
-		line.y(value => pxRound(scale(value)));
-		plotCtx.beginPath();
-		line(values);
-		plotCtx.strokeStyle = color;
-		plotCtx.stroke();
-	}
-	plotCtx.restore();
+		.x((value, i) => pxRound(xScale(xs[i])));
+	const surface = (renderer === "svg" ? svgRenderer : canvasRenderer)(
+		host, line, series, axisTicks(xScale, pctScale, mbScale));
+	const overlay = surface.overlay;
 
 	const cpuValue = host.querySelector("#cpu-value");
 	const ramValue = host.querySelector("#ram-value");
 	const tcpValue = host.querySelector("#tcp-value");
 	let pointerX = -1;
-	let framePending = false;
+	let cursorFrame = null;
+	let destroyed = false;
 
 	function drawCursor() {
-		framePending = false;
-		overlayCtx.clearRect(0, 0, width, height);
+		cursorFrame = null;
+		surface.clearCursor();
 
 		if (pointerX < plotLeft || pointerX > plotRight)
 			return;
 
 		const idx = d3.bisectCenter(xs, +xScale.invert(pointerX));
 		const x = pxRound(xScale(xs[idx]));
-		overlayCtx.strokeStyle = "rgba(0,0,0,0.5)";
-		overlayCtx.lineWidth = 1 / pxRatio;
-		overlayCtx.beginPath();
-		overlayCtx.moveTo(x, plotTop);
-		overlayCtx.lineTo(x, plotBottom);
-		overlayCtx.stroke();
-
-		for (const [value, scale, color] of [
-			[cpu[idx], pctScale, "red"],
-			[ram[idx], pctScale, "blue"],
-			[tcp[idx], mbScale, "green"],
-		]) {
-			if (value != null) {
-				overlayCtx.beginPath();
-				overlayCtx.arc(x, pxRound(scale(value)), 3, 0, Math.PI * 2);
-				overlayCtx.fillStyle = color;
-				overlayCtx.fill();
-			}
-		}
+		surface.drawCursor(x, series.map(([values, scale, color]) => [
+			values[idx] == null ? null : pxRound(scale(values[idx])), color,
+		]));
 
 		cpuValue.textContent = `CPU: ${cpu[idx] == null ? "--" : cpu[idx].toFixed(1) + "%"}`;
 		ramValue.textContent = `RAM: ${ram[idx] == null ? "--" : ram[idx].toFixed(1) + "%"}`;
 		tcpValue.textContent = `TCP Out: ${tcp[idx] == null ? "--" : tcp[idx].toFixed(2) + " MB"}`;
 	}
 
-	overlay.addEventListener("pointermove", event => {
-		pointerX = event.offsetX;
-		if (!framePending) {
-			framePending = true;
-			requestAnimationFrame(drawCursor);
-		}
-	});
-	overlay.addEventListener("pointerleave", () => {
+	function pointerMove(event) {
+		pointerX = surface.pointer(event);
+		if (cursorFrame == null)
+			cursorFrame = requestAnimationFrame(drawCursor);
+	}
+
+	function pointerLeave() {
 		pointerX = -1;
-		overlayCtx.clearRect(0, 0, width, height);
-	});
+		if (cursorFrame != null) {
+			cancelAnimationFrame(cursorFrame);
+			cursorFrame = null;
+		}
+		surface.clearCursor();
+	}
+
+	overlay.addEventListener("pointermove", pointerMove);
+	overlay.addEventListener("pointerleave", pointerLeave);
 
 	Promise.resolve().then(() => {
-		wait.textContent = "Done!";
+		if (!destroyed)
+			wait.textContent = "Done!";
 		console.timeEnd("chart");
 	});
+
+	return {
+		destroy() {
+			if (destroyed)
+				return;
+			destroyed = true;
+			overlay.removeEventListener("pointermove", pointerMove);
+			overlay.removeEventListener("pointerleave", pointerLeave);
+			pointerLeave();
+			surface.destroy();
+		},
+	};
 }
 
+function makeChart(data, host, wait, runtimeOptions) {
+	return makeChartWithOptions(data, host, wait, runtimeOptions);
+}
+
+export {makeChartWithOptions};
 export {makeChart, prepData};

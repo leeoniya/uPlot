@@ -14,7 +14,11 @@ function prepData(packed) {
 	return data;
 }
 
-async function makeChart(data, host, wait) {
+function makeChart(data, host, wait, runtimeOptions) {
+	return makeChartWithOptions(data, host, wait, runtimeOptions);
+}
+
+async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = 'webgl'} = {}) {
 	const width = 1920;
 	const height = 600;
 	const margin = {left: 70, right: 80, top: 60, bottom: 40};
@@ -25,8 +29,8 @@ async function makeChart(data, host, wait) {
 	Object.assign(element.style, {position: 'relative', width: `${width}px`, height: `${height}px`});
 	host.append(element);
 	const chart = {
-		element, context: null, series: [],
-		getWebGLContexts() { return this.context ? [this.context] : []; },
+		element, renderer, context: null, series: [],
+		getWebGLContexts() { return this.renderer === 'webgl' && this.context ? [this.context] : []; },
 	};
 
 	try {
@@ -46,12 +50,21 @@ async function makeChart(data, host, wait) {
 			.style('position', 'absolute')
 			.style('left', `${margin.left}px`).style('top', `${margin.top}px`)
 			.style('width', `${plotWidth}px`).style('height', `${plotHeight}px`);
-		const gl = chart.context = canvas.node().getContext('webgl', {antialias: true, depth: false});
-		if (!gl || !gl.getExtension('ANGLE_instanced_arrays'))
-			throw new Error('d3fc benchmark requires WebGL with ANGLE_instanced_arrays.');
-		gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-		gl.clearColor(0, 0, 0, 0);
-		gl.clear(gl.COLOR_BUFFER_BIT);
+		let gl;
+		if (renderer === 'canvas') {
+			const context = chart.context = canvas.node().getContext('2d');
+			if (!context)
+				throw new Error('d3fc Canvas benchmark requires a 2D canvas context.');
+			context.scale(ratio, ratio);
+		}
+		else {
+			gl = chart.context = canvas.node().getContext('webgl', {antialias: true, depth: false});
+			if (!gl || !gl.getExtension('ANGLE_instanced_arrays'))
+				throw new Error('d3fc benchmark requires WebGL with ANGLE_instanced_arrays.');
+			gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+			gl.clearColor(0, 0, 0, 0);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+		}
 
 		const svg = d3.select(element).append('svg')
 			.attr('width', width).attr('height', height)
@@ -79,14 +92,22 @@ async function makeChart(data, host, wait) {
 			webglScale: fc.webglScaleLinear().domain(scale.range()),
 		});
 		for (let i = 0; i < values.length; i++) {
-			const color = d3.color(colors[i]);
-			const stroke = fc.webglStrokeColor().value([color.r / 255, color.g / 255, color.b / 255, 1]);
-			const series = fc.seriesWebglLine()
-				.context(gl).pixelRatio(ratio).lineWidth(1 / ratio)
-				.xScale(x).yScale(scales[i]).scaleMapper(scaleMapper)
-				.crossValue((_, j) => data.x[j]).mainValue(value => value)
-				.equals((previous, next) => previous === next)
-				.decorate(program => stroke(program));
+			let series;
+			if (renderer === 'canvas') {
+				series = fc.seriesCanvasLine().decorate(context => {
+					context.strokeStyle = colors[i];
+					context.lineWidth = 1 / ratio;
+				});
+			}
+			else {
+				const color = d3.color(colors[i]);
+				const stroke = fc.webglStrokeColor().value([color.r / 255, color.g / 255, color.b / 255, 1]);
+				series = fc.seriesWebglLine().pixelRatio(ratio).lineWidth(1 / ratio)
+					.scaleMapper(scaleMapper).equals((previous, next) => previous === next)
+					.decorate(program => stroke(program));
+			}
+			series.context(chart.context).xScale(x).yScale(scales[i])
+				.crossValue((_, j) => data.x[j]).mainValue(value => value);
 			chart.series.push(series);
 			series(values[i]);
 		}
@@ -109,11 +130,13 @@ async function makeChart(data, host, wait) {
 			legend.text((name, i) => `${name}: ${values[i][j].toFixed(i === 0 ? 3 : 2)}${i === 2 ? ' MB' : '%'}`);
 		}).on('pointerleave.benchmark', () => cursor.attr('display', 'none'));
 
-		// seriesWebglLine draws synchronously, including shader compilation and
-		// buffer uploads. No d3fc-element redraw queue or animation is used here.
-		gl.flush();
-		if (gl.isContextLost() || gl.getError() !== gl.NO_ERROR)
-			throw new Error('d3fc WebGL initial draw failed.');
+		// Both native series draw synchronously. No d3fc-element redraw queue
+		// or animation is used here.
+		if (gl) {
+			gl.flush();
+			if (gl.isContextLost() || gl.getError() !== gl.NO_ERROR)
+				throw new Error('d3fc WebGL initial draw failed.');
+		}
 		if (wait) wait.textContent = 'Done!';
 		return chart;
 	}
@@ -128,9 +151,10 @@ function destroyChart(chart) {
 	for (const series of chart.series) series.context(null);
 	chart.series.length = 0;
 	// d3fc has no chart-level disposer; this context belongs only to this chart.
-	chart.context?.getExtension('WEBGL_lose_context')?.loseContext();
+	if (chart.renderer === 'webgl')
+		chart.context?.getExtension('WEBGL_lose_context')?.loseContext();
 	chart.context = null;
 	chart.element.remove();
 }
 
-export {prepData, makeChart, destroyChart};
+export {prepData, makeChart, destroyChart, makeChartWithOptions};

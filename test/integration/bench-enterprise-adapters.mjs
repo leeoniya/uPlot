@@ -225,7 +225,7 @@ describe('enterprise benchmark adapters', () => {
 		});
 	});
 
-	it('DevExtreme: full source, native average aggregation, continuous dates, and independent dual axes', async () => {
+	it('DevExtreme: full source, disabled aggregation, continuous dates, and independent dual axes', async () => {
 		const state = vendor('devextreme');
 		const data = freeze(devextreme.prepData(packed));
 		await finish('devextreme', state, devextreme.makeChart(data, {}));
@@ -238,10 +238,10 @@ describe('enterprise benchmark adapters', () => {
 		assert.equal(o.commonSeriesSettings.width, 0.5);
 		assert.equal(o.commonSeriesSettings.point.visible, false);
 		assert.equal(o.commonSeriesSettings.label.visible, false);
-		assert.deepEqual(o.commonSeriesSettings.aggregation, {enabled: true, method: 'avg'});
+		assert.deepEqual(o.commonSeriesSettings.aggregation, {enabled: false});
 		assert.equal(o.argumentAxis.argumentType, 'datetime');
 		assert.equal(o.argumentAxis.type, 'continuous');
-		assert.equal(o.argumentAxis.aggregationGroupWidth, 1);
+		assert.equal(Object.hasOwn(o.argumentAxis, 'aggregationGroupWidth'), false);
 		assert.equal(o.synchronizeMultiAxes, false);
 		assert.deepEqual(o.series.map(s => s.valueField), ['cpu', 'ram', 'tcp']);
 		assert.deepEqual(o.series.map(s => s.axis), ['percent', 'percent', 'tcp']);

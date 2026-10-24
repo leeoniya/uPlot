@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Reduction accuracy — native library comparisons</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../dist/uPlot.min.css">
+	<style>
+		body { font: 15px/1.5 system-ui, sans-serif; margin: 24px; color: #222; background: white; }
+		h1 { font-size: 26px; }
+		p { max-width: 1180px; }
+		.controls { display: flex; flex-wrap: wrap; gap: 16px; margin: 24px 0; }
+		label { display: grid; gap: 4px; }
+		select { font: inherit; max-width: 100%; padding: 4px; }
+		.comparison-pair { display: grid; grid-template-columns: 580px 580px; gap: 24px; overflow-x: auto; }
+		#developer-details { margin: 16px 0; }
+		#developer-details > summary { cursor: pointer; font-weight: bold; }
+		figure { margin: 0; }
+		figcaption { font-weight: bold; min-height: 48px; }
+		figure > p { min-height: 68px; }
+		.chart { width: 580px; height: 250px; }
+		output { display: block; min-height: 80px; font: 13px/1.5 monospace; margin-top: 12px; }
+		.detail { display: block; }
+		.detail[hidden] { display: none; }
+		#status[data-state="error"] { color: #a00; }
+		#settings { background: #f3f3f3; padding: 12px; }
+	</style>
+</head>
+<body>
+	<h1>What does a performance optimization discard?</h1>
+	<p>Each comparison supplies identical input to uPlot and another library. All reduction and grouping occur inside the libraries.</p>
+	<p>The left chart uses uPlot’s default linear-path decimation. It preserves pixel-column extrema, without averaging spikes or selecting only one point per bucket.</p>
+	<p>The right chart uses the labeled native algorithm. Opt-in settings are explicit. Sampling targets, activation thresholds, and grouping budgets keep their library defaults.</p>
+	<p>These examples are not speed tests. They show accuracy tradeoffs that timing benchmarks alone cannot establish.</p>
+	<div class="controls">
+		<label>Library <select id="library"></select></label>
+		<label>Algorithm / setting <select id="mode"></select></label>
+		<label>Dataset <select id="dataset"></select></label>
+	</div>
+	<p id="settings"></p>
+	<p id="case-description"></p>
+	<p id="status" role="status" data-state="loading">Loading…</p>
+	<div id="comparison" class="comparison-pair">
+		<figure>
+			<figcaption>uPlot — default linear path, pixel-column extrema</figcaption>
+			<div id="reference-chart" class="chart"></div>
+			<output id="reference-output"></output>
+		</figure>
+		<figure>
+			<figcaption id="vendor-title"></figcaption>
+			<div id="vendor-chart" class="chart"></div>
+			<output id="vendor-output"></output>
+		</figure>
+	</div>
+	<details id="developer-details">
+		<summary>Developer details — magnified paths</summary>
+		<p>These troubleshooting views compare different rendering stages, not equivalent final images. Magnification exaggerates subpixel differences that can be invisible in the full-range charts.</p>
+		<div class="comparison-pair">
+			<figure>
+				<figcaption>uPlot — rendered path</figcaption>
+				<p>Magnified uPlot path from the full-range chart, including its gap clip and pixel rounding.</p>
+				<canvas id="reference-detail" class="detail" width="580" height="180"></canvas>
+			</figure>
+			<figure>
+				<figcaption>Other library — processed data</figcaption>
+				<p>Magnified polyline through the processed points, before renderer-specific rounding or further simplification. Unavailable when the library exposes no verified output.</p>
+				<canvas id="vendor-detail" class="detail" width="580" height="180"></canvas>
+			</figure>
+		</div>
+		<p id="detail-range"></p>
+	</details>
+	<h2>How to read the comparison</h2>
+	<ul>
+		<li>All charts use a fixed −120…120 y range and the full input x range. Animations and point symbols are disabled.</li>
+		<li>X values represent minutes on a shared millisecond grid. Date-based libraries receive integer timestamps from January 1, 2024 (UTC).</li>
+		<li>Readouts distinguish input samples from processed output. They do not equate an unchanged input array with an accurate rendered path.</li>
+		<li>Average can attenuate or cancel spikes. Minimum and maximum retain only one direction. First and last can miss interior events.</li>
+		<li>LTTB can omit an extremum or change a pulse shape. Nonuniform spacing can expose weaknesses in count-based budgets.</li>
+		<li>Min/max alternatives and reduction-disabled modes are included. A comparison can preserve the feature; failure is not a requirement.</li>
+		<li>Results depend on plot width, DPR, bucket boundaries, and library version. No dataset-specific budget forces a failure.</li>
+		<li>Pixel-column extrema do not preserve every subpixel detail, timestamp, pulse shape, or signal statistic. No universal accuracy claim follows from these examples.</li>
+		<li>The benchmark uses separate accuracy-first settings. FusionTime’s one-minute mode is exact only for suitable minute-aligned, one-sample-per-bin data.</li>
+	</ul>
+	<p>Libraries load on demand from the <a href="../bench/demo-dependencies.mjs">benchmark dependency manifest</a>. Network access is required for vendor bundles.</p>
+	<p>Native optimization documentation:
+		<a href="https://echarts.apache.org/en/option.html#series-line.sampling">ECharts sampling</a> ·
+		<a href="https://www.chartjs.org/docs/latest/configuration/decimation.html">Chart.js decimation</a> ·
+		<a href="https://apexcharts.com/docs/options/chart/">ApexCharts chart settings</a> ·
+		<a href="https://www.amcharts.com/docs/v5/charts/xy-chart/axes/date-axis/#Dynamic_data_item_grouping">amCharts grouping</a> ·
+		<a href="https://js.devexpress.com/jQuery/Documentation/ApiReference/UI_Components/dxChart/Configuration/commonSeriesSettings/aggregation/">DevExtreme aggregation</a> ·
+		<a href="https://docs.anychart.com/Stock_Charts/Data_Grouping">AnyStock grouping</a> ·
+		<a href="https://www.fusioncharts.com/dev/fusiontime/fusiontime-component/time-axis">FusionTime binning</a>.
+	</p>
+	<p><a href="decimation.html">More decimation examples</a> · <a href="index.html">All demos</a></p>
+	<script type="module">
+		import {mount} from './reduction-accuracy.js';
+		mount().catch(error => {
+			const status = document.getElementById('status');
+			status.dataset.state = 'error';
+			status.textContent = error.message;
+			console.error(error);
+		});
+	</script>
+</body>
+</html>

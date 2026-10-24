@@ -48,8 +48,8 @@ describe('benchmark demo sources', () => {
 				const demo = await import(url);
 				const id = new URL(url).pathname.split('/').at(-1).replace('.mjs', '');
 				const old = ${JSON.stringify(oldVariants)}.includes(id);
-				assert.deepEqual(Object.keys(demo), old ? ['makeChart', 'prepData'] :
-									['destroyChart', 'makeChart', 'prepData', ...(id === 'googlecharts' ? ['prepareRuntime'] : [])]);
+				assert.deepEqual(Object.keys(demo), old ? ['makeChart', ...(id === 'd3' ? ['makeChartWithOptions'] : []), 'prepData'] :
+									['destroyChart', 'makeChart', ...(['plotly', 'highcharts'].includes(id) ? ['makeChartWithOptions'] : []), 'prepData', ...(id === 'googlecharts' ? ['prepareRuntime'] : [])]);
 								if (id === 'googlecharts') assert.equal(typeof demo.prepareRuntime, 'function');
 				if (!old) assert.equal(typeof demo.destroyChart, 'function');
 				assert.equal(typeof demo.makeChart, 'function');

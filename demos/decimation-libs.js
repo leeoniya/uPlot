@@ -15,7 +15,7 @@ export function echartsOptions([xs, ys], sampled) {
     series: [{
       type: 'line',
       data: xs.map((x, i) => [x, ys[i]]),
-      sampling: sampled ? 'lttb' : 'none',
+      sampling: typeof sampled === 'string' ? sampled : sampled ? 'lttb' : 'none',
       showSymbol: false,
       smooth: false,
       lineStyle: {width: 1, color: sampled ? 'red' : 'green'},
@@ -53,8 +53,8 @@ export function chartjsOptions([xs, ys], sampled) {
         legend: {display: false},
         tooltip: {enabled: false},
         decimation: {
-          enabled: sampled,
-          algorithm: 'lttb',
+          enabled: !!sampled,
+          algorithm: typeof sampled === 'string' ? sampled : 'lttb',
 
         },
       },
