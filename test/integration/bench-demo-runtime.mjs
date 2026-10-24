@@ -13,20 +13,21 @@ const moduleDependency = (source, extra = {}) => Object.freeze({
 });
 
 // Run only unmeasured startup, stopping before packed-data validation and lifecycle setup.
-function traceStartup(variant, {fetch, prepareDemoRuntime, adapter}) {
+function traceStartup(variant, {fetch, prepareDemoRuntime, adapter, globals = {}}) {
 	const source = readFileSync(new URL('../../scripts/benchmarks-trace-browser.mjs', import.meta.url), 'utf8');
 	const start = source.indexOf("const {setupDemo} = await import('/bench/demo-fixture.mjs');");
 	const end = source.indexOf('const ROWS =', start);
 	assert.ok(start >= 0 && end > start);
-	return runInNewContext(`(async () => {\n${source.slice(start, end).replace(/\bimport\(/g, 'importModule(')}\n})()`, {
-		VARIANTS: [variant], selectedVariant: variant, demoDependencies, fetch,
+	const context = {
+		...globals, VARIANTS: [variant], selectedVariant: variant, demoDependencies, fetch,
 		async importModule(url) {
 			if (url === '/bench/demo-fixture.mjs') return {setupDemo() { assert.fail('startup must not create chart hosts'); }};
-			if (url === '/bench/demo-runtime.mjs') return {prepareDemoRuntime};
+			if (url === '/bench/demo-runtime.mjs') return {prepareDemoRuntime: (...args) => prepareDemoRuntime(...args, context)};
 			assert.equal(url, `/bench/${variant}.mjs`);
 			return adapter;
 		},
-	});
+	};
+	return runInNewContext(`(async () => {\n${source.slice(start, end).replace(/\bimport\(/g, 'importModule(')}\n})()`, context);
 }
 
 describe('shared benchmark binary and module runtime', () => {
@@ -300,20 +301,25 @@ describe('benchmark trace availability checks', () => {
 		assert.deepEqual([...await check('lightningchart', {license: 'test'})], ['lightningchart']);
 	});
 
+	it('permits explicitly selected ChartGPU', async () => {
+		assert.deepEqual([...await check('chartgpu')], ['chartgpu']);
+	});
+
 	it('rejects timeout-prone variants before fixture/runtime setup', async () => {
 		for (const variant of ['g2-webgl', 'googlecharts'])
 			await assert.rejects(check(variant), error =>
 				error.message === `${variant}: ${benchmarkRestrictions[variant]}`);
 	});
 
-	it('defaults to the 34 runnable variants plus idle, without restricted adapters', async () => {
+	it('defaults to the 35 runnable variants plus idle, without restricted adapters', async () => {
 		const selected = [...await check(null)];
 		assert.deepEqual(selected, [...benchmarkVariants, 'idle']);
-		assert.equal(selected.length, 35);
+		assert.equal(selected.length, 36);
 				assert.equal(selected.includes('g2-webgl'), false);
 				assert.equal(selected.includes('googlecharts'), false);
 		assert.equal(selected.includes('jscharting'), false);
 		assert.equal(selected.includes('lightningchart'), false);
+		assert.equal(selected.includes('chartgpu'), true);
 	});
 });
 
@@ -353,6 +359,43 @@ describe('unmeasured benchmark trace startup', () => {
 			fetch() { assert.fail('data must wait for successful preparation'); },
 		}), actual => actual === error);
 	});
+
+	it('checks the ChartGPU namespace only after awaited module assignment', async () => {
+		const {promise, resolve} = Promise.withResolvers();
+		const order = [];
+		const pending = traceStartup('chartgpu', {
+			adapter: noChartWork,
+			async fetch(url) {
+				order.push(url);
+				return {ok: true, json: async () => []};
+			},
+			async prepareDemoRuntime(variant, assets, realm) {
+				assert.equal(variant, 'chartgpu');
+				order.push('module-import');
+				await promise;
+				realm.benchmarkChartGPU = {ChartGPU: {create() { assert.fail('startup must not create charts'); }}};
+				order.push('module-ready');
+			},
+		});
+		for (let i = 0; !order.includes('module-import') && i < 100; i++) await Promise.resolve();
+		try { assert.deepEqual(order, ['/bench/module-assets.json', 'module-import']); }
+		finally { resolve(); await pending; }
+		assert.deepEqual(order, ['/bench/module-assets.json', 'module-import', 'module-ready', '/bench/data.json']);
+	});
+
+	for (const namespace of [undefined, {}, {ChartGPU: {}}, {default: {ChartGPU: {create() {}}}}]) {
+		it('rejects a missing or invalid ChartGPU export before adapter/data work', async () => {
+			await assert.rejects(traceStartup('chartgpu', {
+				globals: {benchmarkChartGPU: namespace},
+				adapter: {...noChartWork, prepareRuntime() { assert.fail('invalid runtime'); }},
+				async prepareDemoRuntime() {},
+				async fetch(url) {
+					assert.equal(url, '/bench/module-assets.json');
+					return {ok: true, json: async () => []};
+				},
+			}), /benchmarkChartGPU.ChartGPU.create/);
+		});
+	}
 
 	it('loads rewritten module assets and awaits module assignment before data fetch', async () => {
 		const assets = Object.freeze([{type: 'module', global: 'benchmarkReact', export: 'benchmarkReact', url: '/bench/vendor/modules-test.mjs'}]);

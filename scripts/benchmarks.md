@@ -12,7 +12,7 @@ The second expansion adds 13 adapters:
 - `billboard`, `g2`, `syncfusion`, `devextreme`, `jscharting`, and `kendo`.
 - `anychart`, `fusiontime`, `googlecharts`, `recharts`, `muicharts`, `financialcharts`, and `visx`.
 
-The default set contains 29 libraries and 34 variants. The idle control is separate.
+The default set contains 30 libraries and 35 variants, including ChartGPU. The idle control is separate.
 G2 WebGL and Google Charts are disabled for benchmarks after timeouts. Their standalone demos remain available.
 The renderer alternatives are `d3-svg`, `plotly-svg`, `highcharts-svg`, `bokeh-canvas`, `d3fc-canvas`, and `g2-webgl`.
 All 13 adapters passed agent-reported direct browser smoke checks. JSCharting remains standalone-only because vendor cleanup leaks across repeated samples.
@@ -84,6 +84,7 @@ Google Charts is an exception: frozen version `52` uses a mutable loader and rem
 | `devextreme` | DevExpress 26.1.6, production `dx.viz.js` |
 | `jscharting` | `jscharting` 3.4.0, minified `dist/jscharting.js`, reported build `3.4.0.20230215`. Standalone only. |
 | `kendo` | `@progress/kendo-ui` 2026.3.1015, `umd/kendo.dataviz.min.js`, with jQuery |
+| `chartgpu` | `chartgpu` 0.4.0, production ESM through esm.sh |
 | `anychart` | `anychart` 9.0.0, core and stock bundles |
 | `fusiontime` | `fusioncharts` 4.2.3, core and timeseries bundles |
 | `googlecharts` | Frozen `52`, `corechart`, mutable `https://www.gstatic.com/charts/loader.js` |
@@ -376,9 +377,26 @@ To select a different DPR, append `-- --dpr NUMBER`:
 npm run bench -- --dpr 2
 ```
 
+For the full default suite on this Linux host, run:
+
+```sh
+npm run bench -- --vulkan
+```
+
+ChartGPU is part of the default suite. No explicit selection is required for inclusion.
+`--vulkan` adds `--enable-gpu` and `--enable-features=Vulkan` to every worker, including idle.
+The browser backend defaults remain unchanged. Vulkan reports and traces use separate filenames.
+ChartGPU requires hardware WebGPU. This Linux host requires `--vulkan`, but other environments can support ChartGPU without it.
+
+To run only ChartGPU and idle on this host, use:
+
+```sh
+npm run bench -- --variant chartgpu --vulkan
+```
+
 ## Library scope and progress
 
-The expanded suite did not complete. The default suite runs idle first, then 34 variants for 29 libraries.
+The expanded suite did not complete. The default suite runs idle first, then 35 variants for 30 libraries.
 Each renderer alternative follows its original in `bench/demo-dependencies.mjs`. The manifest defines this order:
 
 1. uPlot
@@ -415,6 +433,7 @@ Each renderer alternative follows its original in `bench/demo-dependencies.mjs`.
 32. amCharts
 33. Recharts (`recharts`)
 34. Kendo (`kendo`)
+35. ChartGPU (`chartgpu`)
 
 LightningChart follows these libraries when `LIGHTNINGCHART_LICENSE` supplies a runtime key.
 Without that key, the suite records an explicit skip rather than an empty benchmark row.
@@ -447,6 +466,7 @@ npm run bench -- --variant chartjs
 `benchmarkVariants` in `bench/demo-dependencies.mjs` controls execution order.
 `benchmarkRestrictions` excludes G2 WebGL, Google Charts, and JSCharting without disabling their standalone demos.
 Explicit benchmark selection also rejects these variants and reports the reason.
+`benchmarkVariants` includes `chartgpu` after `kendo`. ChartGPU also remains available through explicit selection.
 `idle` is also selectable. `lightningchart` requires a runtime key, not a harness permission flag.
 Default suite reports include the skipped variants and their reasons.
 
@@ -509,7 +529,7 @@ These are workload, delivery, or priority decisions, not blanket incompatibility
 
 | Candidate | Decision |
 | --- | --- |
-| ChartGPU | User hold. WebGPU needs different completion checks and device accounting. |
+
 | Perspective | User hold. Analytics and worker transforms need a fair workload. Current tracked totals omit worker CPU. |
 | Observable Plot | Defer. The ordinary API lacks an independent second y scale for this workload. |
 | Vega-Lite | Separate compile workload. The Vega result does not include Vega-Lite compilation. |
@@ -525,6 +545,79 @@ These are workload, delivery, or priority decisions, not blanket incompatibility
 LayerCake 11.0.0 requires Svelte >=5.40. The pinned esm.sh request with Svelte 5.57.2 returned HTTP 500.
 The recorded error was `esbuild: Expected ";" but found "Cake"`.
 A dedicated Svelte compiler and custom chart components remain possible. The deferral does not mean that independent dual axes are impossible.
+
+### ChartGPU demo and default-suite benchmark
+
+[`bench/ChartGPU.html`](../bench/ChartGPU.html) uses the shared runner and pinned `chartgpu` 0.4.0 production ESM through esm.sh.
+The published package exports `version: '1.0.0'`, despite the 0.4.0 dependency pin. Saved dependency provenance identifies the loaded package.
+The adapter retains all 55,550 rows in typed columns, with native time and independent percentage/TCP axes.
+It uses `sampling: 'none'`, `performance.lod: 'strict'`, no animation, default antialiasing, and one-physical-pixel lines.
+Time ticks use native duration steps, not true calendar-month boundaries.
+
+Each chart creates its own WebGPU device during initialization. No device or pipeline cache persists across samples.
+The adapter submits its first frame in external mode, awaits the submission microtask, then awaits `queue.onSubmittedWorkDone()`.
+It then enables automatic rendering for interaction. Cleanup disposes the chart and destroys its owned device.
+These completion checks do not measure hardware GPU execution time or establish browser presentation completion.
+
+The baseline Chrome Headless Shell 156.0.8078.47 probe exposed `navigator.gpu`, but `requestAdapter()` returned `null`.
+Chrome reported `No available adapters.` The baseline report remains `.cache/benchmarks/chartgpu-browser-report.json`.
+A separate launch with `--enable-features=Vulkan` exposed a non-fallback AMD adapter and passed the 200-row and full-data smoke samples.
+Its report is `.cache/benchmarks/chartgpu-browser-vulkan-report.json`.
+The benchmark checks every adapter-exposed device queue after settling, with a one-second completion bound inside the five-second sample deadline.
+It records per-sample `webgpu` status and rejects device loss, GPU errors, incomplete queues, and failed cleanup.
+No probe devices or pixel readbacks enter the benchmark. The rAF mode adds no post-render fence but retains the adapter's initial queue wait.
+
+For the standalone demo, open `bench/ChartGPU.html` through localhost or HTTPS in a hardware-WebGPU-capable browser.
+The page downloads the pinned module from esm.sh.
+
+For the cache-only browser smoke, first cache the pinned module:
+
+```sh
+node --input-type=module -e 'import {bundleModuleDependencies} from "./scripts/bench-module-bundle.mjs"; import {demoDependencies} from "./bench/demo-dependencies.mjs"; await bundleModuleDependencies(demoDependencies.chartgpu, {cacheDir: ".cache/benchmarks/framework-modules"});'
+```
+
+Then run the opt-in test:
+
+```sh
+TEST_CHARTGPU_BROWSER=1 node node_modules/mocha/bin/mocha.js test/integration/bench-chartgpu-browser.mjs
+```
+
+For the verified Linux headless Vulkan configuration, run:
+
+```sh
+TEST_CHARTGPU_BROWSER=1 TEST_CHARTGPU_VULKAN=1 node node_modules/mocha/bin/mocha.js test/integration/bench-chartgpu-browser.mjs
+```
+
+This smoke-test opt-in adds only `--enable-features=Vulkan`. It does not change the browser backend defaults.
+Explicit Vulkan enablement bypasses normal Vulkan compatibility selection and changes Chrome's compositor from GaneshGL to GaneshVulkan on this machine.
+WebGL retained ANGLE/OpenGL. No `--enable-unsafe-webgpu`, `--ignore-gpu-blocklist`, software backend, or sandbox-disabling flag was added.
+Results from this configuration must not be mixed silently with the existing OpenGL-compositor results.
+
+The hardware smoke observed three submitted native line draws, each with 55,549 segment instances, covered by a completed queue fence.
+Both samples had no reported GPU errors. Cleanup removed canvases and references, and each device reported intentional destruction.
+The full-data sample took about 82 ms externally, including instrumentation, preparation, initialization, queue completion, and cleanup.
+It followed the small sample in the same browser. This single observation is not a benchmark minimum or a visual-equivalence result.
+
+The test requires the existing cached Chrome. It probes hardware before it loads vendor modules.
+With a hardware adapter, it checks fresh 200-row and 55,550-row charts, with a hard five-second limit per sample.
+The sample limit includes preparation, GPU completion, and cleanup. The test does not produce ranked benchmark results.
+
+The combined Vulkan benchmark completed on 2026-10-24 at DPR 1, with a fresh same-backend idle control.
+Both variants completed three warmups and seven measured rounds. All ten ChartGPU samples passed queue completion, with no sample timeout or trace data loss.
+
+| Variant | prep ms | init ms | main ms | gpu ms | total ms | peak MB | retained MB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| ChartGPU | 5.2 | 116.7 | 41.8 | 82.3 | 130.4 | 41.8 | 37.3 |
+
+Each column is a separate measured minimum. `total ms` covers selected traced host threads, not complete CPU work or hardware GPU execution.
+The trace audit found omitted renderer/GPU I/O work of 0.61–4.38 ms per measured round.
+Its inclusion would change the minimum tracked total to 134.8 ms. The current metrics remain unchanged.
+These trace categories expose no identifiable Dawn/Vulkan worker intervals, so complete worker coverage remains unverified.
+
+One idle poll and two ChartGPU polls encountered missing `/proc` entries during construction. The analyzer excluded these incomplete observations.
+All selected memory minima came from unaffected samples. Memory remains sampled browser-tree PSS, not device memory.
+Chrome also logged a tracing-session ACK timeout, but both traces reported `dataLoss: false` and retained all measured windows.
+The saved suite is `.cache/benchmarks/results-chrome-combined-vulkan.json`. This run establishes no ranking against earlier non-Vulkan results.
 
 ## Timing and memory protocol
 
@@ -687,7 +780,8 @@ adjusted retained = library retained memory - library browser blank memory - idl
 adjusted peak = library sampled peak - library browser blank memory - idle overhead
 ```
 
-The idle control has the same DPR and measurement mode as the library.
+The idle control has the same DPR, measurement mode, and requested backend as the library.
+The suite rejects worker reports with a different requested backend.
 Controls come only from the current run.
 Both memory columns subtract the minimum measured settled idle overhead, not the idle peak.
 The table then selects the minimum adjusted value for each column.
@@ -714,8 +808,9 @@ Adjusted statistics hold the chosen blank and idle baselines fixed.
 Their ranges do not include baseline uncertainty or establish exclusive library ownership.
 Cleanup growth alone is not proof of a leak.
 
-Tracked thread totals do not account for worker CPU. Billboard therefore disables its worker path.
-WebGL completion checks do not cover WebGPU. A future ChartGPU adapter needs a separate completion protocol and device-accounting review.
+Tracked thread totals cover selected renderer-main, compositor, raster, and GPU-process scopes, not all host threads or uninstrumented work.
+They omit general worker CPU and renderer/GPU I/O threads. Billboard therefore disables its worker path.
+WebGL completion checks do not cover WebGPU. ChartGPU uses separate device-queue completion checks, which establish neither complete trace coverage nor hardware execution time.
 Perspective needs a fair analytics workload and worker accounting before comparison with these chart adapters.
 
 Google Charts added no observed WebGL context. Its historical validation establishes no hardware-GPU measurement claim.
@@ -738,7 +833,10 @@ Each mode has its own suite report:
 
 Per-variant reports use `results-chrome-MODE-VARIANT.json`.
 Traces use `trace-chrome-MODE-VARIANT.json.gz`.
-Each run replaces its default output files.
+With `--vulkan`, suite reports use `results-chrome-MODE-vulkan.json`.
+Variant reports and traces use `results-chrome-MODE-vulkan-VARIANT.json` and `trace-chrome-MODE-vulkan-VARIANT.json.gz`.
+Each run replaces only its selected backend's output files. Reports record `requestedBackend: 'default'` or `'vulkan'`.
+This field describes the request. Chrome system information records the observed configuration.
 Suite reports retain raw per-variant reports, adjusted statistics, progress, and completion status.
 
 Chrome supplies `streamCompression: 'gzip'`, and capture writes directly to the archive without a raw intermediate file.
@@ -761,6 +859,12 @@ To summarize the saved combined report without starting Chrome, use:
 
 ```sh
 npm run bench -- --summarize-only
+```
+
+For the saved Vulkan report, use:
+
+```sh
+npm run bench -- --summarize-only --vulkan
 ```
 
 Saved tables use the same minimum-value aggregation as live tables.

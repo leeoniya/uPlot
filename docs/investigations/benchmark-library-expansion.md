@@ -3,10 +3,11 @@
 ## Status and scope
 
 The user approved the candidate decisions and implementation scope in this document.
-The second expansion implements 13 adapters. The current default set contains 29 libraries and 34 variants, plus the idle control.
+The second expansion implements 13 adapters. The current default set contains 30 libraries and 35 variants, plus the idle control.
 G2 WebGL and Google Charts are disabled for benchmarks after timeouts. Their standalone demos remain available.
 Further G2 WebGL diagnostics stopped at the user's request.
-`benchmarkVariants` in `bench/demo-dependencies.mjs` defines their order. Each alternative follows its original.
+ChartGPU is part of the default suite. No explicit selection is required for inclusion.
+`benchmarkVariants` in `bench/demo-dependencies.mjs` defines their order, with `chartgpu` after `kendo`. Each renderer alternative follows its original.
 All 13 passed agent-reported direct browser smoke checks. JSCharting remains available as a standalone demo but fails the repeated-sample requirement.
 Before the accuracy configuration changes, all 12 runnable additions passed integrated combined measurements across the partial suite and separate workers.
 The expanded suite did not complete as one run. The validation record distinguishes these results.
@@ -65,7 +66,7 @@ These decisions concern this workload and delivery path. They do not declare ent
 
 | Candidate | Decision | Reason and remaining work |
 | --- | --- | --- |
-| ChartGPU | User hold | WebGPU needs a different completion protocol and device accounting. Current WebGL checks do not cover it. No performance conclusion. |
+
 | Perspective | User hold | Analytics and worker transforms need a fair workload definition. Current tracked totals do not account for worker CPU. No performance conclusion. |
 | Observable Plot | Defer | The ordinary chart API lacks an independent second y scale for this workload. No fake scaling or relabeled substitute axis. |
 | Vega-Lite | Separate workload | Compilation into Vega needs its own timing boundary and result label. The Vega adapter does not measure compilation. |
@@ -83,10 +84,131 @@ LayerCake 11.0.0 requires Svelte >=5.40 and exports raw Svelte components, not r
 The esm.sh request with Svelte 5.57.2 returned HTTP 500 and `esbuild: Expected ";" but found "Cake"`.
 A future adapter needs compilation before timing, custom axes and line layers, and browser validation of continuous time and independent y scales.
 
+### ChartGPU default-suite inclusion
+
+The shared [`bench/chartgpu.mjs`](../../bench/chartgpu.mjs) adapter now supports the standalone [`ChartGPU.html`](../../bench/ChartGPU.html) demo.
+The manifest pins `chartgpu` 0.4.0 through the existing production ESM loader.
+The adapter uses native time and independent y axes, full typed columns, disabled sampling, and strict LOD.
+Each chart creates a fresh device, submits an initial frame, and awaits `queue.onSubmittedWorkDone()` before enabling automatic rendering.
+Cleanup disposes the chart and destroys the device. Native axes retain automatic domains and ticks without custom data scaling.
+Time ticks use epoch-aligned duration steps rather than true calendar-month boundaries.
+
+The cached Chrome Headless Shell 156.0.8078.47 exposed `navigator.gpu` in a secure localhost context.
+Its `requestAdapter()` returned `null`, and Chrome reported `No available adapters.`
+The opt-in browser test stopped before chart creation and recorded one pending test, not a successful rendering sample.
+This baseline result remains separate from the subsequent Vulkan probe.
+
+The adapter unit tests passed all 31 cases. The pinned production module bundle also built successfully.
+The later Vulkan configuration passed native draw, queue completion, and device cleanup checks. Visual equivalence remains unverified.
+The benchmark includes ChartGPU by default and checks WebGPU queue completion after settling.
+ChartGPU still requires hardware WebGPU. Explicit single-variant selection remains available, but is not required for inclusion.
+The [benchmark guide](../../scripts/benchmarks.md#chartgpu-demo-and-default-suite-benchmark) records the configuration and smoke-test commands.
+
+For the full default suite on this Linux host, run:
+
+```sh
+npm run bench -- --vulkan
+```
+
+Every worker, including idle, receives the same backend flags. The browser backend defaults remain unchanged.
+LightningChart remains optional and requires `LIGHTNINGCHART_LICENSE`.
+
+#### Headless WebGPU backend investigation
+
+`vulkaninfo --summary` found AMD Radeon Graphics (RADV RENOIR), Mesa 26.2.5, and Vulkan API 1.4.354.
+The installed driver exposes `VK_EXT_headless_surface`. Missing driver installation or render-device permissions did not explain the null adapter.
+
+The cached browser uses Chromium revision `1d17a2e2ee147bb7d6ae2ab6abdb3a2510c17775`.
+Its headless Ozone platform disables WebGPU Vulkan/GL interop.
+The Linux adapter-selection path then needs a Vulkan shared context, which `--enable-gpu` alone does not select.
+A separate launch added only `--enable-features=Vulkan` and obtained a non-fallback AMD adapter.
+A GPU compute dispatch returned the expected `[7, 10, 13, 16]` after queue completion and readback, with no validation error.
+
+| Observation | Baseline `--enable-gpu` | With `--enable-features=Vulkan` |
+| --- | --- | --- |
+| WebGPU service | Enabled | Enabled |
+| Vulkan | Disabled | Enabled |
+| WebGPU Vulkan/GL interop | Disabled | Disabled |
+| Skia backend | GaneshGL | GaneshVulkan |
+| WebGL renderer | AMD ANGLE/OpenGL | AMD ANGLE/OpenGL |
+| WebGPU adapter | None | AMD `gcn-5`, `isFallbackAdapter: false` |
+
+The flag explicitly selects native Vulkan and bypasses normal Vulkan compatibility selection. It is not a neutral benchmark configuration change.
+No unsafe-WebGPU, broad blocklist override, software backend, ANGLE override, or sandbox-disabling flag was added.
+The browser backend defaults remain unchanged.
+
+The opt-in ChartGPU smoke then passed a 200-row chart and a fresh 55,550-row chart, each within the existing five-second limit.
+The full chart submitted three `lineRenderer/pipeline` draws, each with six vertices and 55,549 segment instances.
+The queue fence covered those submissions before readiness. Sampling remained disabled and LOD remained strict.
+Both devices reported `reason: 'destroyed'` after explicit cleanup. No canvases or exposed device references remained.
+
+| Instrumented sample | Ready ms, including preparation | External ms, including cleanup |
+| --- | ---: | ---: |
+| 200 rows × 3 | 175.7 | 181.6 |
+| 55,550 rows × 3 | 77.1 | 81.6 |
+
+These are single smoke observations, not benchmark minima. The full sample followed the small sample in the same browser.
+Browser and driver caches can persist despite fresh devices. No controlled ranking or pixel-equivalence claim follows from these timings.
+
+The reusable hardware probe is `scripts/investigate-webgpu.mjs`. It uses a five-second GPU probe limit and a twenty-second overall limit.
+It saves separate `webgpu-probe-baseline.json` and `webgpu-probe-vulkan.json` reports under `.cache/benchmarks/`.
+The ChartGPU smoke saves `chartgpu-browser-vulkan-report.json` without replacing the baseline report.
+
+To reproduce the hardware-only comparison, run:
+
+```sh
+node scripts/investigate-webgpu.mjs baseline
+node scripts/investigate-webgpu.mjs vulkan
+```
+
+Pinned Chromium sources:
+- [Headless GPU and Ozone initialization](https://github.com/chromium/chromium/blob/1d17a2e2ee147bb7d6ae2ab6abdb3a2510c17775/headless/lib/headless_content_main_delegate.cc#L259-L272).
+- [Linux WebGPU backend selection](https://github.com/chromium/chromium/blob/1d17a2e2ee147bb7d6ae2ab6abdb3a2510c17775/gpu/command_buffer/service/webgpu_decoder_impl.cc#L1756-L1764).
+- [Ozone interop gate](https://github.com/chromium/chromium/blob/1d17a2e2ee147bb7d6ae2ab6abdb3a2510c17775/gpu/ipc/service/gpu_init.cc#L730-L749).
+- [Explicit Vulkan selection](https://github.com/chromium/chromium/blob/1d17a2e2ee147bb7d6ae2ab6abdb3a2510c17775/gpu/command_buffer/service/service_utils.cc#L272-L369).
+
+#### Integrated Vulkan benchmark
+
+The runner now accepts `--vulkan`, which adds `--enable-gpu` and `--enable-features=Vulkan` to every worker, including idle.
+It records the requested backend and rejects mismatched worker reports. Vulkan filenames preserve the separate default-backend results.
+
+The following command completed the full workload on 2026-10-24:
+
+```sh
+node --max-old-space-size=512 scripts/benchmarks.mjs --variant chartgpu --vulkan
+```
+
+Idle and ChartGPU each completed three warmups and seven measured rounds, at DPR 1 and the unchanged five-second sample deadline.
+All ten ChartGPU samples recorded successful device-queue completion. No sample timed out, and neither trace reported data loss.
+Both workers reported Vulkan enabled and Skia GaneshVulkan. The prior hardware probe identified the non-fallback AMD adapter.
+The dependency pin remains 0.4.0, despite the package's exported `version` value of 1.0.0.
+
+| Variant | prep ms | init ms | main ms | gpu ms | total ms | peak MB | retained MB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| ChartGPU | 5.2 | 116.7 | 41.8 | 82.3 | 130.4 | 41.8 | 37.3 |
+
+These are per-metric minima, not one representative sample. Initialization is elapsed time and includes asynchronous device creation and initial queue completion.
+`gpu ms` and `total ms` cover selected traced host-thread wall intervals, not hardware GPU execution or complete CPU work.
+Memory is baseline/idle-adjusted browser-tree PSS in decimal MB, not device memory.
+The suite report is `.cache/benchmarks/results-chrome-combined-vulkan.json`. No controlled ranking against older non-Vulkan measurements follows from this run.
+
+The trace audit found 17.353 ms of omitted renderer/GPU I/O work across seven measured ChartGPU rounds.
+This equals 1.59% of the aggregate tracked work. Its inclusion would change the minimum tracked total from 130.372 to 134.754 ms.
+The analyzer remains unchanged. Other omitted service-thread work was less than one millisecond across the measured rounds, excluding tracing instrumentation.
+The enabled categories exposed no identifiable Dawn/Vulkan worker intervals. Queue completion does not establish complete host-work coverage.
+
+Three construction polls encountered `/proc` entries that disappeared during discovery or verification: one idle observation and two ChartGPU observations.
+The analyzer excluded their incomplete aggregates. Every selected memory minimum came from an unaffected sample.
+One affected ChartGPU observation was a warmup. The missing measured poll can hide a higher round-specific peak, but cannot lower the selected minimum here.
+Chrome also logged `Timeout while waiting for ACKs for tracing session 1`. This was not a benchmark sample timeout.
+Unmatched trace begins occurred outside the measured chart windows or on another renderer. All measured windows retained valid timing metrics.
+
+Focused regression tests passed 473 cases across suite selection, sample lifecycle, WebGPU completion, ChartGPU behavior, and process-memory accounting.
+
 ## Renderer alternatives
 
 The renderer audit covers the pinned versions and this connected-line workload, not all chart types.
-Six renderer alternatives are implemented. Five remain enabled, for a default set of 34 variants across 29 libraries, plus idle.
+Six renderer alternatives are implemented. Five remain enabled. With ChartGPU, the default set contains 35 variants across 30 libraries, plus idle.
 They are `d3-svg`, `plotly-svg`, `highcharts-svg`, `bokeh-canvas`, `d3fc-canvas`, and `g2-webgl`.
 Each thin wrapper uses its original adapter through `makeChartWithOptions` and shares preparation, automatic axes, and cleanup.
 All retain 55,550 rows across three series. No custom sampling replaces the full workload.

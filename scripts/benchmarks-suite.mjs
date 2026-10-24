@@ -23,12 +23,12 @@ export function benchmarkMode(options) {
 	return enabled.length > 1 ? 'combined' : enabled[0][0];
 }
 
-export function variantReportName(mode, variant) {
-	return `results-chrome-${mode}-${variant}.json`;
+export function variantReportName(mode, variant, {vulkan = false} = {}) {
+	return `results-chrome-${mode}${vulkan ? '-vulkan' : ''}-${variant}.json`;
 }
 
-export function suiteReportName(mode) {
-	return `results-chrome-${mode}.json`;
+export function suiteReportName(mode, {vulkan = false} = {}) {
+	return `results-chrome-${mode}${vulkan ? '-vulkan' : ''}.json`;
 }
 
 function benchmarkView(report) {
@@ -106,7 +106,7 @@ function benchmarkView(report) {
 	return {rows, warnings};
 }
 
-export function summarizeSavedBenchmarks(options, output = resolve(cache, suiteReportName(benchmarkMode(options)))) {
+export function summarizeSavedBenchmarks(options, output = resolve(cache, suiteReportName(benchmarkMode(options), options))) {
 	const measurements = measurementsFor(options);
 	const report = JSON.parse(readFileSync(output, 'utf8'));
 	if (report.mode !== benchmarkMode(options) || !Array.isArray(report.reports) ||
@@ -114,6 +114,11 @@ export function summarizeSavedBenchmarks(options, output = resolve(cache, suiteR
 		throw new Error('Expected a benchmark suite report with matching measurements.');
 	if (report.reports.some(raw => !raw?.runner || !Array.isArray(raw.samples)))
 		throw new TypeError('Each report requires runner metadata and a samples array.');
+	const requestedBackend = options.vulkan ? 'vulkan' : 'default';
+	// Reports saved before backend selection used Chrome's default backend.
+	if ((report.requestedBackend ?? 'default') !== requestedBackend ||
+		report.reports.some(raw => (raw.runner.requestedBackend ?? 'default') !== requestedBackend))
+		throw new Error('Expected a benchmark suite report with matching requested backend.');
 	if (measurements.memory)
 		report.adjustedAnalysis = summarizeAdjustedProcessMemory(report.reports);
 	writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
@@ -202,7 +207,7 @@ function runWorker(request, {
 }
 
 // Tests may supply runWorker(request), returning a raw report or writing request.output.
-export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = false, variant = null, lightningOptions}, dependencies = {}) {
+export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = false, vulkan = false, variant = null, lightningOptions}, dependencies = {}) {
 	if (!Number.isFinite(dpr) || dpr <= 0)
 		throw new TypeError('dpr must be positive and finite');
 	if (variant !== null && !Object.hasOwn(demoDependencies, variant))
@@ -211,15 +216,17 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 		assertBenchmarkAvailable(variant, lightningOptions);
 	const measurements = measurementsFor({trace, memory, raf});
 	const mode = benchmarkMode(measurements);
+	const requestedBackend = vulkan ? 'vulkan' : 'default';
+	gpu = gpu || vulkan;
 	const variants = variant === null ? [...VARIANTS, ...(lightningOptions?.license?.trim() ? ['lightningchart'] : [])]
 			: variant === 'idle' ? ['idle'] : ['idle', variant];
 	const {outputDirectory = cache} = dependencies;
 		const display = dependencies.display ?? createBenchmarkDisplay();
 	const worker = dependencies.runWorker ?? (request => runWorker(request, dependencies));
 	mkdirSync(outputDirectory, {recursive: true});
-	const output = resolve(outputDirectory, suiteReportName(mode));
+	const output = resolve(outputDirectory, suiteReportName(mode, {vulkan}));
 	const report = {
-		date: new Date().toISOString(), mode, measurements, dpr, gpu, complete: false,
+		date: new Date().toISOString(), mode, measurements, dpr, gpu, requestedBackend, complete: false,
 		skipped: variant === null ? Object.entries({...demoRestrictions, ...benchmarkRestrictions}).filter(([id]) => !variants.includes(id))
 					.map(([variant, reason]) => ({variant, reason})) : [],
 		progress: {total: variants.length, completed: [], current: null, failed: null},
@@ -241,7 +248,7 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 			report.progress.current = name;
 			save();
 			display.update({...benchmarkView(report), status: `Starting ${name} (${processed() + 1}/${variants.length})...`});
-			const variantOutput = resolve(outputDirectory, variantReportName(mode, name));
+			const variantOutput = resolve(outputDirectory, variantReportName(mode, name, {vulkan}));
 			// A successful worker must produce this run's report, never a cached predecessor.
 			rmSync(variantOutput, {force: true});
 			const args = [
@@ -249,13 +256,14 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 				'--worker', '--variant', name, '--dpr', String(dpr),
 				...Object.keys(measurements).filter(key => measurements[key]).map(key => `--${key}`),
 				...(gpu ? ['--gpu'] : []),
+				...(vulkan ? ['--vulkan'] : []),
 			];
 			let reports;
 			let adjustedAnalysis;
 			try {
-				const returned = await worker({command: process.execPath, args, variant: name, dpr, gpu, measurements: {...measurements}, output: variantOutput, timeoutMs: 270000});
+				const returned = await worker({command: process.execPath, args, variant: name, dpr, gpu, vulkan, requestedBackend, measurements: {...measurements}, output: variantOutput, timeoutMs: 270000});
 				const raw = returned ?? JSON.parse(readFileSync(variantOutput, 'utf8'));
-				if (raw?.runner?.variant !== name || raw.runner?.dpr !== dpr || !Array.isArray(raw.samples) ||
+				if (raw?.runner?.variant !== name || raw.runner?.dpr !== dpr || raw.runner.requestedBackend !== requestedBackend || !Array.isArray(raw.samples) ||
 					Object.keys(measurements).some(key => raw.measurements?.[key] !== measurements[key]) ||
 					raw.samples.some(sample => sample.variant !== name || sample.dpr !== dpr))
 					throw new Error(`Unexpected benchmark report for ${name}`);

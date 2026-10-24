@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
+import { parseArgs } from 'node:util';
+import { benchmarkMode, variantReportName } from '../../scripts/benchmarks-suite.mjs';
 import { checkModuleSyntax, demos } from '../helpers/bench-demo-evaluator.mjs';
 import { loadBenchDemoSources } from '../../scripts/bench-demo-sources.mjs';
 import { demoDependencies, demoModuleDependencies, benchmarkRestrictions, assertBenchmarkAvailable } from '../../bench/demo-dependencies.mjs';
@@ -81,6 +83,72 @@ function checkAssets(result, variants, assetRoot = root) {
 }
 
 describe('benchmark demo asset loader', () => {
+	it('parses --vulkan and passes it to summary-only without starting a browser', () => {
+		const source = readFileSync(new URL('scripts/benchmarks.mjs', root), 'utf8');
+		const start = source.indexOf('const {values, tokens} = parseArgs(');
+		const end = source.indexOf('const lightningOptions =', start);
+		assert.ok(start >= 0 && end > start);
+		for (const flags of [[], ['--trace'], ['--memory'], ['--raf']]) {
+			for (const vulkan of [false, true]) {
+				const summaries = [];
+				const exited = new Error('exit');
+				assert.throws(() => runInNewContext(source.slice(start, end), {
+					parseArgs: options => parseArgs({...options, args: ['--summarize-only', ...flags, ...(vulkan ? ['--vulkan'] : [])]}),
+					benchmarkMode, demoDependencies,
+					summarizeSavedBenchmarks: options => summaries.push(options),
+					process: {exit: code => { assert.equal(code, 0); throw exited; }},
+				}), error => error === exited);
+				assert.equal(summaries.length, 1);
+				assert.equal(summaries[0].vulkan, vulkan);
+				assert.equal(benchmarkMode(summaries[0]), flags[0]?.slice(2) ?? 'combined');
+			}
+		}
+	});
+
+	it('keeps default headless flags and isolates Vulkan worker metadata, traces, and reports', async () => {
+		const source = readFileSync(new URL('scripts/benchmarks.mjs', root), 'utf8');
+		const argsStart = source.indexOf('const browserArgs = [');
+		const argsEnd = source.indexOf('\n\t];', argsStart) + '\n\t];'.length;
+		const start = source.indexOf('const report = await Promise.race([captureBenchmarkTrace(');
+		const end = source.indexOf('\n}\ncatch (error)', start);
+		assert.ok(argsStart >= 0 && argsEnd > argsStart && start > argsEnd && end > start);
+		for (const measurements of [{trace: true, memory: true, raf: false}, {trace: true, memory: false, raf: false},
+			{trace: false, memory: true, raf: false}, {trace: false, memory: false, raf: true}]) {
+			for (const flags of [{gpu: false, vulkan: false}, {gpu: true, vulkan: false}, {gpu: false, vulkan: true}, {gpu: true, vulkan: true}]) {
+				const values = {...flags, variant: 'chartgpu'};
+				const browserArgs = runInNewContext(`${source.slice(argsStart, argsEnd)}\nbrowserArgs;`, {values, profile: '/test/profile'});
+				assert.deepEqual(Array.from(browserArgs), [
+					'--no-first-run', '--no-default-browser-check', '--disable-background-networking',
+					'--disable-component-update', '--disable-sync', '--disable-extensions', '--user-data-dir=/test/profile',
+					...(flags.gpu || flags.vulkan ? ['--enable-gpu'] : []),
+					...(flags.vulkan ? ['--enable-features=Vulkan'] : []),
+					'--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1', '--window-size=1920,900', 'about:blank',
+				]);
+				const captures = [], outputs = [];
+				const mode = benchmarkMode(measurements);
+				await runInNewContext(`(async () => {\n${source.slice(start, end)}\n})()`, {
+					values, measurements, mode, variantReportName, browserArgs, dpr: 1,
+					profile: '/test/profile', url: 'http://test/', cache: '/test/cache', binary: '/test/chrome', browserVersion: 'test',
+					lightningOptions: undefined, sciChartOptions: undefined, browser: {pid: 123}, browserLog: '',
+					dependencies: [], files: new Map(), process: {version: 'test'},
+					cpus: () => [], platform: () => 'linux', release: () => 'test', join, createHash,
+					failure: new Promise(() => {}), console: {log() {}},
+					captureBenchmarkTrace: async options => {
+						captures.push(options);
+						return {samples: [{warmup: false}], trace: {path: options.traceName}};
+					},
+					analyzeBenchmarkTraceFile: async () => ({}), summarizeBenchmarkRaf: () => ({}),
+					writeFileSync: (path, bytes) => outputs.push({path, report: JSON.parse(bytes)}),
+				});
+				const suffix = flags.vulkan ? '-vulkan' : '';
+				assert.equal(captures[0].traceName, `trace-chrome-${mode}${suffix}-chartgpu.json`);
+				assert.equal(outputs[0].path, `/test/cache/results-chrome-${mode}${suffix}-chartgpu.json`);
+				assert.equal(outputs[0].report.runner.requestedBackend, flags.vulkan ? 'vulkan' : 'default');
+				assert.deepEqual(outputs[0].report.runner.browserArgs, Array.from(browserArgs));
+			}
+		}
+	});
+
 	it('checks module syntax without executing it and rejects invalid syntax', () => {
 		assert.doesNotThrow(() => checkModuleSyntax('throw new Error("must not execute"); export const value = 1;'));
 		assert.throws(() => checkModuleSyntax('export const = ;'));
@@ -179,7 +247,7 @@ describe('benchmark demo asset loader', () => {
 		for (const dep of dependencies) {
 			assert.equal(dep.route, '/bench/vendor/' + dep.cacheName);
 			if (dep.type === 'module')
-				assert.match(dep.cacheName, /^[\w.-]+\.mjs-(?:recharts|muicharts|financialcharts|visx)$/);
+				assert.match(dep.cacheName, /^[\w.-]+\.mjs-(?:chartgpu|recharts|muicharts|financialcharts|visx)$/);
 			else {
 				const extension = dep.type === 'wasm' ? 'wasm' : dep.type === 'style' ? 'css' : 'js';
 				assert.match(dep.cacheName, new RegExp('^[\\w.-]+\\.' + extension + '$'));
@@ -261,7 +329,7 @@ describe('benchmark demo asset loader', () => {
 		}
 	});
 
-	it('ignores malformed LightningChart metadata for explicit uPlot but validates it for default and LightningChart runs', async () => {
+	it('forwards Vulkan for explicit uPlot and ChartGPU without unrelated license metadata', async () => {
 		const source = readFileSync(new URL('scripts/benchmarks.mjs', root), 'utf8');
 		const start = source.indexOf('const lightningOptions =');
 		const end = source.indexOf('const binary = await chromeBinary(', start);
@@ -270,20 +338,21 @@ describe('benchmark demo asset loader', () => {
 			LIGHTNINGCHART_LICENSE: 'test-license-not-a-vendor-key',
 			LIGHTNINGCHART_LICENSE_INFORMATION: '{"private-metadata":',
 		});
-		for (const variant of ['uplot', undefined, 'lightningchart']) {
+		for (const variant of ['uplot', 'chartgpu', undefined, 'lightningchart']) for (const vulkan of [false, true]) {
 			const requests = [], exits = [], logs = [];
 			const pending = runInNewContext(`(async () => {\n${source.slice(start, end)}\n})()`, {
-				values: {variant, gpu: false}, dpr: 1,
+				values: {variant, gpu: false, vulkan}, dpr: 1,
 				measurements: {trace: true, memory: false, raf: false},
 				assertBenchmarkAvailable,
 				process: {env, exit: code => exits.push(code)},
 				console: {log: (...args) => logs.push(args)},
 				runBenchmarkSuite: async options => { requests.push(options); },
 			});
-			if (variant === 'uplot') {
+			if (variant === 'uplot' || variant === 'chartgpu') {
 				await pending;
 				assert.equal(requests.length, 1);
-				assert.equal(requests[0].variant, 'uplot');
+				assert.equal(requests[0].variant, variant);
+				assert.equal(requests[0].vulkan, vulkan);
 				assert.equal(requests[0].lightningOptions, undefined);
 				assert.deepEqual(exits, [0]);
 				for (const secret of Object.values(env))

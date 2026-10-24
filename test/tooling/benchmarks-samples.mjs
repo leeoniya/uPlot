@@ -5,6 +5,8 @@ import { runInNewContext } from 'node:vm';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Window } from 'happy-dom';
 import { captureBenchmarkSamples } from '../../scripts/benchmarks-samples.mjs';
+import { createWebGPUCapture } from '../../scripts/bench-webgpu.mjs';
+import { destroyChart as destroyChartGPU } from '../../bench/chartgpu.mjs';
 import { SAMPLE_TIMEOUT_MS, createSampleWatchdog, abortable } from '../../scripts/bench-sample-timeout.mjs';
 import { summarizeProcessMemory } from '../../scripts/analyze-benchmarks-process-memory.mjs';
 import { demoDependencies, benchmarkVariants, demoRestrictions, benchmarkRestrictions, assertBenchmarkAvailable } from '../../bench/demo-dependencies.mjs';
@@ -167,6 +169,7 @@ function browserFixture(options = {}) {
 	const context = {
 		VARIANTS: options.variants ?? ['uplot', 'chartjs', 'idle'], ALL_VARIANTS: allVariants,
 				benchmarkWebGL: options.webgl,
+						benchmarkWebGPU: options.webgpu,
 		WARMUPS: 3, ROUNDS: 7, dpr: 2, WIDTH: 1920, HEIGHT: 600, VIEWPORT_HEIGHT: 900, IDLE_MS: 200, ROWS: 55550,
 		packed: {raw: true},
 		crypto: {randomUUID: () => 'browser-capture'},
@@ -317,7 +320,7 @@ describe('shared browser sample lifecycle', () => {
 
 	it('validates rendered adapter charts and delegates teardown while always removing their hosts', () => {
 		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function environment('));
-		const oldVariants = ['uplot', 'd3', 'chartjs', 'echarts', 'flot', 'dygraphs'];
+		const oldVariants = ['uplot', 'd3', 'chartjs', 'echarts', 'flot', 'dygraphs', 'chartgpu'];
 		for (const variant of demoVariants.filter(id => !oldVariants.includes(id))) {
 			for (const fail of [false, true]) {
 				const chart = variant === 'plotly-svg' ? {data: Array.from({length: 3}, () => ({type: 'scatter'}))}
@@ -345,6 +348,82 @@ describe('shared browser sample lifecycle', () => {
 				if (fail) assert.throws(() => api.teardown(sample), actual => actual === error);
 				else api.teardown(sample);
 				assert.deepEqual(events, ['destroy', 'clear', 'remove']);
+			}
+		}
+	});
+
+	it('validates every ChartGPU value and requires four full Float64 columns', () => {
+		const source = browserSource.slice(browserSource.indexOf('function validateInput('), browserSource.indexOf('function construct('));
+		const validate = runInNewContext(source + '\nvalidateInput;', {ROWS: 55550, Float64Array});
+		const input = Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(55550)]));
+		validate({variant: 'chartgpu', input});
+		for (const key of Object.keys(input)) {
+			for (const index of [0, 27123, 55549]) {
+				input[key][index] = NaN;
+				assert.throws(() => validate({variant: 'chartgpu', input}), /ChartGPU Float64Array columns/);
+				input[key][index] = 0;
+			}
+			for (const column of [undefined, Array(55550).fill(0), new Float32Array(55550), new Float64Array(55549)])
+				assert.throws(() => validate({variant: 'chartgpu', input: {...input, [key]: column}}), /ChartGPU Float64Array columns/);
+		}
+	});
+
+	it('validates ChartGPU native state, retained columns and backing DPR without pixel or layout reads', () => {
+		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
+		const validate = runInNewContext(source + '\nvalidateChart;', {
+			sources: {chartgpu: {destroyChart() {}}}, ROWS: 55550, WIDTH: 1920, HEIGHT: 600, dpr: 2,
+		});
+		const input = Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(55550)]));
+		const series = ['cpu', 'ram', 'tcp'].map(key => ({data: {x: input.x, y: input[key]}}));
+		const canvas = {width: 3840, height: 1152,
+			getContext() { assert.fail('no pixels'); }, getBoundingClientRect() { assert.fail('no layout'); },
+			get clientWidth() { assert.fail('no layout'); }};
+		const host = {querySelector: () => canvas, querySelectorAll: () => [canvas]};
+		const instance = {disposed: false, renderFrame() {}, dispose() {}, options: {series}, getHitTestSeriesPointCount: () => 55550};
+		const chart = {instance, device: {}, element: {}, destroyed: false, error: null};
+		const sample = {variant: 'chartgpu', chart, host, input};
+		assert.equal(validate(sample), 2);
+		for (const patch of [{error: new Error('late GPU failure')}, {destroyed: true}, {device: null}, {instance: null},
+			{instance: {...instance, disposed: true}}, {instance: {...instance, renderFrame: null}}])
+			assert.throws(() => validate({...sample, chart: {...chart, ...patch}}), /not healthy/);
+		for (const patch of [{options: {series: series.slice(0, 2)}}, {getHitTestSeriesPointCount: () => 55549},
+			{options: {series: series.map(item => ({data: {...item.data, y: input.x}}))}}])
+			assert.throws(() => validate({...sample, chart: {...chart, instance: {...instance, ...patch}}}), /three full series/);
+		canvas.width = 1920;
+		assert.throws(() => validate(sample), /backing size.*DPR 2/);
+		canvas.width = 3840;
+		canvas.height = 1200;
+		assert.throws(() => validate(sample), /backing size.*DPR 2/);
+	});
+
+	it('always cleans ChartGPU resources and rejects failures between validation and teardown', () => {
+		const source = browserSource.slice(browserSource.indexOf('function teardown('), browserSource.indexOf('function environment('));
+		for (const failure of ['none', 'late-error', 'auto-destroyed', 'disposed', 'dispose-error', 'leaked-devices']) {
+			const events = [];
+			const chart = {
+				instance: {disposed: failure === 'disposed', dispose() {
+					events.push('dispose');
+					if (failure === 'dispose-error') throw new Error('dispose failed');
+				}},
+				device: {removeEventListener() { events.push('remove-listener'); }, destroy() { events.push('device-destroy'); }},
+				element: {remove() { events.push('element-remove'); }}, destroyed: false, error: null, onError() {},
+				getWebGPUDevices() { return this.destroyed ? [] : [this.device]; },
+			};
+			if (failure === 'late-error' || failure === 'auto-destroyed') chart.error = new Error('late GPU failure');
+			if (failure === 'auto-destroyed') destroyChartGPU(chart);
+			const teardown = runInNewContext(source + '\nteardown;', {sources: {chartgpu: {
+				destroyChart: failure === 'leaked-devices' ? () => {} : destroyChartGPU,
+			}}});
+			const sample = {variant: 'chartgpu', chart, host: {
+				replaceChildren() { events.push('clear'); }, remove() { events.push('remove'); },
+			}};
+			if (failure === 'none') teardown(sample);
+			else assert.throws(() => teardown(sample), /late GPU failure|destroyed or disposed|dispose failed|survived destruction/);
+			assert.deepEqual(events.slice(-2), ['clear', 'remove']);
+			if (failure !== 'leaked-devices') {
+				assert.deepEqual(chart.getWebGPUDevices(), []);
+				for (const key of ['instance', 'device', 'element', 'onError']) assert.equal(chart[key], null);
+				assert.deepEqual(events.slice(0, 4), ['remove-listener', 'dispose', 'device-destroy', 'element-remove']);
 			}
 		}
 	});
@@ -533,6 +612,80 @@ describe('shared browser sample lifecycle', () => {
 		await fake.api.destroy();
 	});
 
+	it('routes only actual ChartGPU devices after settling and saves completion before the end marker', async () => {
+		const entered = signal(), pending = signal();
+		const devices = [{}, {}];
+		const webgpu = {status: 'complete', waitMs: 13, devices: devices.map((_, index) => ({index, status: 'complete'}))};
+		const fake = browserFixture({variants: ['chartgpu'],
+			construct(sample) { sample.chart.getWebGPUDevices = function() {
+				assert.equal(this, sample.chart);
+				fake.events.push('getWebGPUDevices');
+				return devices;
+			}; },
+			webgpu: {async complete(actual) {
+				assert.equal(actual, devices);
+				assert.deepEqual(fake.events.slice(-2), ['settle', 'getWebGPUDevices']);
+				entered.resolve();
+				await pending.promise;
+				fake.advance(13);
+				return webgpu;
+			}},
+		});
+		fake.api.begin();
+		await fake.api.setup('chartgpu', 'sample-0');
+		await fake.api.prepare();
+		const completion = fake.api.construct();
+		await waitFor(entered.promise);
+		assert.equal(fake.marks.some(mark => mark.name.endsWith(':end')), false);
+		pending.resolve();
+		const sample = await completion;
+		assert.deepEqual(structuredClone(sample), {...timing('chartgpu', 'sample-0', 2), windowMs: 120, webgpu});
+		await fake.api.destroy();
+	});
+
+	for (const status of ['incomplete', 'not-observed', 'missing-result', 'missing-helper', 'empty-devices', 'failed-device']) {
+		it(`rejects ChartGPU completion without complete evidence (${status})`, async () => {
+			const fake = browserFixture({variants: ['chartgpu'], webgpu: status === 'missing-helper' ? undefined : {
+				complete: async () => status === 'missing-result' ? undefined : {
+					status: ['empty-devices', 'failed-device'].includes(status) ? 'complete' : status,
+					devices: status === 'empty-devices' ? [] : [{status: 'queue-error'}],
+				},
+			}});
+			fake.api.begin();
+			await fake.api.setup('chartgpu', 'sample-0');
+			await fake.api.prepare();
+			await assert.rejects(fake.api.construct(), /chartgpu: WebGPU completion not verified/);
+			await fake.api.destroy();
+		});
+	}
+
+	it('fails ChartGPU with missing exposed devices using the real completion helper', async () => {
+		const fake = browserFixture({variants: ['chartgpu'], webgpu: createWebGPUCapture()});
+		fake.api.begin();
+		await fake.api.setup('chartgpu', 'sample-0');
+		await fake.api.prepare();
+		await assert.rejects(fake.api.construct(), /WebGPU completion not verified.*not-observed/);
+		await fake.api.destroy();
+	});
+
+	it('does not query or fence WebGPU for unrelated adapters or the ChartGPU rAF pass', async () => {
+		const options = {
+			webgpu: {complete() { assert.fail('unexpected post-render fence'); }},
+			construct(sample) { sample.chart.getWebGPUDevices = () => assert.fail('unexpected device enumeration'); },
+		};
+		const fake = browserFixture(options);
+		fake.api.begin();
+		await fake.api.setup('uplot', 'sample-0');
+		await fake.api.prepare();
+		assert.equal((await fake.api.construct()).webgpu, undefined);
+		await fake.api.destroy();
+		const raf = await browserFixture({...options, variants: ['chartgpu']}).runTrace({raf: true});
+		assert.equal(raf.samples.length, 10);
+		assert.ok(raf.samples.every(sample => !Object.hasOwn(sample, 'webgpu')));
+		assert.ok(raf.limitations.some(text => /initial nonempty submission.*including rAF/.test(text)));
+		assert.ok(raf.limitations.some(text => /rAF adds no post-render WebGPU fence/.test(text)));
+	});
+
 	for (const variant of ['highcharts', 'plotly', 'bokeh', 'd3fc', 'g2-webgl', 'scichart', 'lightningchart']) {
 		for (const status of ['complete', 'incomplete', 'not-observed', 'missing-result', 'missing-observer']) {
 			it(`${variant} requires complete GL evidence (${status})`, async () => {
@@ -700,6 +853,8 @@ describe('shared browser sample lifecycle', () => {
 			selectedVariant, demoDependencies, benchmarkVariants, assertBenchmarkAvailable,
 		});
 		assert.deepEqual(structuredClone(select(null).VARIANTS), [...benchmarkVariants, 'idle']);
+		assert.equal(select(null).VARIANTS.includes('chartgpu'), true);
+		assert.deepEqual(structuredClone(select('chartgpu').VARIANTS), ['chartgpu']);
 		assert.deepEqual(new Set(select(null).ALL_VARIANTS), new Set(allVariants));
 		for (const variant of [...benchmarkVariants, 'idle'])
 			assert.deepEqual(structuredClone(select(variant).VARIANTS), [variant]);

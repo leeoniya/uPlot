@@ -6,6 +6,7 @@ import { demoDependencies, benchmarkVariants, demoRestrictions, benchmarkRestric
 
 const root = new URL('../../', import.meta.url);
 const extraHtml = {
+	chartgpu: 'ChartGPU.html',
 	'd3-svg': 'D3-SVG.html', 'plotly-svg': 'Plotly-SVG.html', 'highcharts-svg': 'Highcharts-SVG.html',
 	'bokeh-canvas': 'Bokeh-Canvas.html', 'd3fc-canvas': 'd3fc-Canvas.html', 'g2-webgl': 'G2-WebGL.html',
 	apexcharts: 'ApexCharts.html', highcharts: 'Highcharts.html', lightweight: 'lightweight-charts.html',
@@ -120,17 +121,18 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 		`);
 	});
 
-	it('keeps default runnable variants ordered and excludes restricted adapters and idle', () => {
+	it('keeps default runnable variants ordered, including ChartGPU, and excludes restricted adapters and idle', () => {
 		assert.deepEqual(benchmarkVariants, [
 			'uplot', 'chartjs', 'apexcharts', 'echarts', 'd3', 'd3-svg', 'flot', 'd3fc', 'd3fc-canvas', 'financialcharts',
 			'agcharts', 'dygraphs', 'anychart', 'visx', 'bokeh', 'bokeh-canvas', 'canvasjs', 'plotly', 'plotly-svg', 'lightweight',
 			'muicharts', 'fusiontime', 'devextreme', 'vega', 'highcharts', 'highcharts-svg', 'scichart', 'billboard',
-			'g2', 'syncfusion', 'zingchart', 'amcharts', 'recharts', 'kendo',
+			'g2', 'syncfusion', 'zingchart', 'amcharts', 'recharts', 'kendo', 'chartgpu',
 		]);
-		assert.equal(benchmarkVariants.length, 34);
-		assert.equal(Object.keys(demoDependencies).length, 39);
+		assert.equal(benchmarkVariants.length, 35);
+		assert.equal(Object.keys(demoDependencies).length, 40);
 		assert.deepEqual(Object.keys(demoRestrictions), ['lightningchart']);
 		assert.deepEqual(Object.keys(benchmarkRestrictions), ['g2-webgl', 'googlecharts', 'jscharting']);
+
 		assert.equal(new Set(benchmarkVariants).size, benchmarkVariants.length);
 		assert.deepEqual(new Set(benchmarkVariants), new Set(Object.keys(demoDependencies)
 			.filter(id => id !== 'idle' && !Object.hasOwn(demoRestrictions, id) && !Object.hasOwn(benchmarkRestrictions, id))));
@@ -148,6 +150,16 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 			assert.throws(() => assertBenchmarkAvailable(id), error =>
 				error.message === `${id}: ${benchmarkRestrictions[id]}` && /timeouts/.test(error.message));
 		}
+	});
+
+	it('permits explicit ChartGPU benchmarks without requiring backend flags', () => {
+		assert.doesNotThrow(() => assertDemoAvailable('chartgpu'));
+		assert.doesNotThrow(() => assertBenchmarkAvailable('chartgpu'));
+		assert.equal(benchmarkVariants.includes('chartgpu'), true);
+		assert.deepEqual(demoDependencies.chartgpu, [{
+			name: 'chartgpu', version: '0.4.0', path: 'index.mjs', type: 'module', global: 'benchmarkChartGPU',
+			url: 'https://esm.sh/chartgpu@0.4.0?bundle&target=es2022',
+		}]);
 	});
 
 	it('requires only a nonblank LightningChart license, not benchmark permission', () => {

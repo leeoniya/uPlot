@@ -7,6 +7,7 @@ import { captureBenchmarkSamples } from './benchmarks-samples.mjs';
 import { readProcessMemory } from './bench-process-memory.mjs';
 import { summarizeProcessMemory } from './analyze-benchmarks-process-memory.mjs';
 import { createWebGLCapture } from './bench-webgl.mjs';
+import { createWebGPUCapture } from './bench-webgpu.mjs';
 import { SAMPLE_TIMEOUT_MS, createSampleWatchdog } from './bench-sample-timeout.mjs';
 
 export function benchmarkTraceConfig() {
@@ -120,7 +121,7 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 			await page.send('Runtime.addBinding', {name: 'benchmarkSampleBoundary'});
 		}
 				if (!raf)
-					await page.send('Page.addScriptToEvaluateOnNewDocument', {source: `globalThis.benchmarkWebGL = (${createWebGLCapture.toString()})();`});
+					await page.send('Page.addScriptToEvaluateOnNewDocument', {source: `globalThis.benchmarkWebGL = (${createWebGLCapture.toString()})(); globalThis.benchmarkWebGPU = (${createWebGPUCapture.toString()})();`});
 				if (sciChartOptions)
 					await page.send('Page.addScriptToEvaluateOnNewDocument', {source: `globalThis.benchmarkSciChartOptions = ${JSON.stringify(sciChartOptions)};`});
 		// Supply credentials before tracing, without putting them in files or reports.

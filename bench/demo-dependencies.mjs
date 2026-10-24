@@ -107,6 +107,10 @@ export const demoDependencies = {
 		{name: 'fusioncharts', version: '4.2.3', path: 'fusioncharts.js'},
 		{name: 'fusioncharts', version: '4.2.3', path: 'fusioncharts.timeseries.js'},
 	],
+	chartgpu: [
+		{name: 'chartgpu', version: '0.4.0', path: 'index.mjs', type: 'module', global: 'benchmarkChartGPU',
+			url: 'https://esm.sh/chartgpu@0.4.0?bundle&target=es2022'},
+	],
 	googlecharts: [
 		// The loader is mutable; prepareRuntime requests frozen runtime release 52.
 		{name: 'googlecharts', version: '52', path: 'loader.js', url: 'https://www.gstatic.com/charts/loader.js'},
@@ -148,12 +152,13 @@ export const benchmarkRestrictions = {
 	jscharting: 'JSCharting 3.4.0 retains destroyed charts and window listeners. Repeated samples accumulate hundreds of MB. The standalone demo remains available.',
 };
 
+
 // Keep execution order separate from the table, which sorts by measured total.
 export const benchmarkVariants = [
 	'uplot', 'chartjs', 'apexcharts', 'echarts', 'd3', 'd3-svg', 'flot', 'd3fc', 'd3fc-canvas', 'financialcharts',
 	'agcharts', 'dygraphs', 'anychart', 'visx', 'bokeh', 'bokeh-canvas', 'canvasjs', 'plotly', 'plotly-svg', 'lightweight',
 	'muicharts', 'fusiontime', 'devextreme', 'vega', 'highcharts', 'highcharts-svg', 'scichart', 'billboard',
-	'g2', 'syncfusion', 'zingchart', 'amcharts', 'recharts', 'kendo',
+	'g2', 'syncfusion', 'zingchart', 'amcharts', 'recharts', 'kendo', 'chartgpu',
 ];
 
 export function dependencyUrl(dependency, base) {

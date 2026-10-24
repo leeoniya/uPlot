@@ -94,6 +94,8 @@ if (VARIANTS.some(id => demoDependencies[id].some(dependency => dependency.type 
 		throw new Error(`Module assets: HTTP ${assets.status}`);
 	await prepareDemoRuntime(selectedVariant, await assets.json());
 }
+if (VARIANTS.includes('chartgpu') && typeof globalThis.benchmarkChartGPU?.ChartGPU?.create !== 'function')
+	throw new Error('ChartGPU runtime must expose benchmarkChartGPU.ChartGPU.create.');
 const sources = Object.fromEntries(await Promise.all(VARIANTS.filter(id => id !== 'idle')
 	.map(async id => {
 		const source = await import(`/bench/${id}.mjs`);
@@ -145,6 +147,11 @@ function validateInput({variant, input}) {
 	else if (variant === 'chartjs' || variant === 'canvasjs') {
 		if (input.length !== 3 || !input.every(values => values.length === ROWS && values.every(point => Number.isFinite(point.x) && Number.isFinite(point.y))))
 			throw new Error('Expected three Chart.js series of 55,550 finite {x, y} points.');
+	}
+	else if (variant === 'chartgpu') {
+		if (!['x', 'cpu', 'ram', 'tcp'].every(key => input?.[key] instanceof Float64Array &&
+			input[key].length === ROWS && input[key].every(Number.isFinite)))
+			throw new Error('Expected four ChartGPU Float64Array columns of 55,550 finite values.');
 	}
 	else if (variant === 'echarts') {
 		if (!(input instanceof Float64Array) || input.length !== ROWS * 4 || !input.every(Number.isFinite))
@@ -226,9 +233,26 @@ function hasChartSurface(root) {
 		.some(element => element.shadowRoot && hasChartSurface(element.shadowRoot));
 }
 
-function validateChart({variant, chart, host}) {
+function validateChart({variant, chart, host, input}) {
 	if (sources[variant]?.destroyChart && (!chart || !hasChartSurface(host)))
 		throw new Error(`${variant} did not return a rendered chart.`);
+	if (variant === 'chartgpu') {
+		if (chart.error || chart.destroyed !== false || !chart.device || !chart.element || !chart.instance ||
+			chart.instance.disposed !== false || typeof chart.instance.renderFrame !== 'function' ||
+			typeof chart.instance.dispose !== 'function' || typeof chart.instance.getHitTestSeriesPointCount !== 'function')
+			throw new Error(`ChartGPU chart is not healthy: ${chart.error?.message ?? chart.error ?? 'missing or disposed instance'}`);
+		const series = chart.instance.options?.series;
+		if (series?.length !== 3 || !['cpu', 'ram', 'tcp'].every((key, index) =>
+			series[index]?.data?.x === input?.x && series[index]?.data?.y === input?.[key] &&
+			series[index]?.data?.x?.length === ROWS && series[index]?.data?.y?.length === ROWS &&
+			chart.instance.getHitTestSeriesPointCount(index) === ROWS))
+			throw new Error('ChartGPU must retain three full series of 55,550 values from the prepared columns.');
+		const canvases = host.querySelectorAll('canvas');
+		// The shared adapter reserves 24 CSS pixels for the title; no layout or pixel reads.
+		if (!canvases.length || [...canvases].some(canvas =>
+			!(Math.abs(canvas.width - WIDTH * dpr) <= 1 && Math.abs(canvas.height - (HEIGHT - 24) * dpr) <= 1)))
+			throw new Error(`ChartGPU canvas backing size does not match DPR ${dpr}`);
+	}
 	if (variant === 'apexcharts') {
 		const series = chart.getState().series;
 		if (series.length !== 3 || series.some(values => values.length !== ROWS))
@@ -276,8 +300,18 @@ function validateChart({variant, chart, host}) {
 function teardown({variant, chart, host}) {
 	try {
 		if (sources[variant]?.destroyChart) {
-			if (chart)
+			if (chart) {
+				const failed = variant === 'chartgpu' && (chart.error || chart.destroyed !== false || !chart.device ||
+									!chart.element || !chart.instance || chart.instance.disposed !== false);
 				sources[variant].destroyChart(chart);
+				if (variant === 'chartgpu') {
+					if (!chart.destroyed || chart.instance || chart.device || chart.element || chart.onError ||
+						typeof chart.getWebGPUDevices !== 'function' || chart.getWebGPUDevices().length !== 0)
+						throw new Error('ChartGPU resources or exposed devices survived destruction.');
+					if (failed || chart.error)
+						throw new Error(`ChartGPU failed before teardown: ${chart.error?.message ?? chart.error ?? 'destroyed or disposed chart'}`);
+				}
+			}
 		}
 		else if (variant === 'echarts') {
 			const instance = chart ?? globalThis.echarts.getInstanceByDom(host);
@@ -324,6 +358,7 @@ function environment() {
 		uplotVersion: uPlot?.version ?? null,
 		d3Version: globalThis.d3?.version ?? null,
 		chartjsVersion: globalThis.Chart?.version ?? null,
+		chartgpuVersion: globalThis.benchmarkChartGPU?.version ?? null,
 		echartsVersion: globalThis.echarts?.version ?? null,
 		flotRuntimeVersion: globalThis.jQuery?.plot?.version ?? null,
 		jqueryVersion: globalThis.jQuery?.fn?.jquery ?? null,
@@ -420,17 +455,22 @@ globalThis.benchmarkLifecycle = {
 				globalThis.benchmarkWebGL?.track(gl);
 			await settle();
 			const webgl = await globalThis.benchmarkWebGL?.complete({webgl1Finish: true});
+			const webgpu = state.variant === 'chartgpu'
+				? await globalThis.benchmarkWebGPU?.complete(state.chart?.getWebGPUDevices?.() ?? []) : undefined;
 			const end = performance.mark(prefix + 'end');
 			checkPage();
 			const effectiveDpr = validateChart(state);
 			if (webgl?.status === 'incomplete' ||
 				['highcharts', 'plotly', 'bokeh', 'd3fc', 'g2-webgl', 'scichart', 'lightningchart'].includes(state.variant) && webgl?.status !== 'complete')
 				throw new Error(`${state.variant}: WebGL completion not verified: ${JSON.stringify(webgl)}`);
+			if (state.variant === 'chartgpu' && (webgpu?.status !== 'complete' || !webgpu.devices?.length ||
+				webgpu.devices.some(device => device.status !== 'complete')))
+				throw new Error(`chartgpu: WebGPU completion not verified: ${JSON.stringify(webgpu)}`);
 			state.phase = 'constructed';
 			const jsMs = jsEnd.startTime - start.startTime;
 			return {
 				id: state.id, dpr, effectiveDpr, variant: state.variant,
-				dataPrepMs: state.dataPrepMs, jsMs, ...(webgl ? {webgl} : {}),
+				dataPrepMs: state.dataPrepMs, jsMs, ...(webgl ? {webgl} : {}), ...(webgpu ? {webgpu} : {}),
 				prepAndInitMs: state.dataPrepMs + jsMs,
 				windowMs: end.startTime - start.startTime,
 			};
@@ -589,6 +629,7 @@ function reportMetadata(raf = false) {
 				'bokeh-canvas': '{x, cpu, ram, tcp} Float64Array columns', 'd3fc-canvas': '{x, cpu, ram, tcp} Float64Array columns',
 				'g2-webgl': 'rows of {time, cpu, ram, tcp}',
 				scichart: '{x, cpu, ram, tcp} Float64Array columns; native ingestion inside init',
+				chartgpu: '{x, cpu, ram, tcp} Float64Array columns; three full series, sampling disabled',
 				agcharts: 'rows of {time, cpu, ram, tcp}', vega: 'rows of {time, cpu, ram, tcp}; tuple copy inside init',
 				billboard: 'four named columns, each with 55,550 numeric values', g2: 'rows of {time, cpu, ram, tcp}',
 				syncfusion: 'rows of {time: Date, cpu, ram, tcp}', devextreme: 'rows of {time: Date, cpu, ram, tcp}',
@@ -603,7 +644,7 @@ function reportMetadata(raf = false) {
 			ySeries: 3,
 			yValues: ROWS * 3,
 			xUnit: 'uPlot, SciChart and Lightweight Charts: seconds since Unix epoch. Other available libraries: milliseconds since Unix epoch.',
-			strokeWidthDevicePixels: {uplot: 1, d3: 1},
+			strokeWidthDevicePixels: {uplot: 1, d3: 1, chartgpu: 1},
 			strokeWidthCssPixels: {chartjs: 1, echarts: 1},
 		},
 		expectedInstances: {
@@ -623,7 +664,7 @@ function reportMetadata(raf = false) {
 			prepAndInitMs: 'dataPrepMs + jsMs per sample. This sum excludes validation, the settling gap and rAF waits. It is not end-to-end latency.',
 			jsMs: 'Start through options, constructor/makeChart, async library completion when returned, and initial microtask commit/status update. Includes async waits, not exclusive JS CPU time.',
 			aggregation: 'Use the minimum of seven measured rounds per metric, variant and DPR. Exclude three warmups. Columns can come from different rounds. Take prepAndInitMs minima from per-sample sums.',
-			windowMs: 'Start through js-end, two requestAnimationFrame callbacks, a 200ms timeout, and WebGL completion validation in trace/memory mode.',
+			windowMs: 'Start through js-end, two requestAnimationFrame callbacks, a 200ms timeout, and WebGL/WebGPU completion validation in trace/memory mode.',
 			raf1Ms: 'Start to performance.now() at the first post-init rAF callback entry; rAF mode only. Async adapters can span frames before initialization completes.',
 			postJsRaf1Ms: 'js-end to that same first callback entry; rAF mode only.',
 			settling: {animationFrames: 2, idleMs: IDLE_MS, beforeStart: true, afterJsEnd: true},
@@ -652,7 +693,9 @@ function reportMetadata(raf = false) {
 			'Flot retains its timer-delayed overlay hook. JS/DOM and next-rAF spans do not necessarily include that hook; the longer trace window can include it.',
 			'Warmups can appear in the trace. Exclude samples with warmup:true from measured aggregates.',
 			'Trace/memory observes current-realm canvas getContext calls, not draw calls. Reused contexts can be registered by adapters. No readback, screenshots, pixel export, or harness-forced layout reads are used.',
-			'After settling, trace/memory checks WebGL2 fences or calls WebGL1 finish before the end marker. These checks add thread-wall overhead outside init. Completion covers prior commands in observed contexts, not later draws, other realms, or presentation. rAF has no observer or completion check.',
+			'After settling, trace/memory checks WebGL2 fences or calls WebGL1 finish before the end marker. These checks add thread-wall overhead outside init. Completion covers prior commands in observed contexts, not later draws, other realms, or presentation. rAF has no WebGL observer or completion check.',
+			'ChartGPU makeChart waits for an initial nonempty submission and queue completion inside init in all modes, including rAF. Trace/memory then waits after settling for all actual adapter-exposed device queues, with a 1000ms bound and device-loss/error checks. Per-sample webgpu metadata records this wait. No probe devices are requested.',
+			'WebGPU completion covers prior submissions, not later draws, presentation, hardware acceleration, or GPU execution time. rAF adds no post-render WebGPU fence. ChartGPU health and full series counts are checked without pixel or layout reads; teardown rejects late adapter errors and requires cleared devices.',
 			'Use Chrome trace process/thread events to distinguish renderer JS/DOM, raster, compositor and GPU-process thread work. GPU-process thread duration is not CPU time or hardware GPU execution time, and asynchronous attribution is approximate.',
 			'Idle has the same marker/wait schedule but no chart mutation between markers. Report it separately; do not assume subtraction isolates chart GPU cost.',
 			'One actual browser DPR is captured from devicePixelRatio and reported on every sample. The parent configures deviceScaleFactor before navigation (default 1); this fixture does not emulate DPR changes. The CSS viewport is 1920x900.',

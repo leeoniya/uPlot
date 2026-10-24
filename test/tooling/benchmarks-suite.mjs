@@ -17,7 +17,7 @@ const observation = (phase, value) => ({
 	processMemory: {complete: true, processes: [], issues: [], renderer: tuple(value), tree: tuple(value * 3 + 100)},
 });
 
-function browser(variant, measurements = combined, dpr = 1) {
+function browser(variant, measurements = combined, dpr = 1, requestedBackend = 'default') {
 	const idle = variant === 'idle';
 	const values = idle ? [[15, 1000], [19, 3000], [17, 2000]] : [[50, 70], [100, 120], [25, 40]];
 	const sample = ([live, peak], round, warmup = false) => ({
@@ -26,7 +26,7 @@ function browser(variant, measurements = combined, dpr = 1) {
 		processObservations: [observation('baseline', 2), observation('prepared', 4), observation('construct', peak), observation('live', live), observation('cleanup', 1)],
 	});
 	const report = {
-		measurements: {...measurements}, runner: {variant, dpr},
+		measurements: {...measurements}, runner: {variant, dpr, requestedBackend},
 		blank: observation('blank', idle ? 10 : 20), loaded: observation('loaded', 9999),
 		samples: [sample([9000, 10000], -1, true), ...values.map((value, round) => sample(value, round))],
 	};
@@ -103,7 +103,7 @@ function harness(options = {}) {
 			runWorker: async request => {
 				requests.push(request);
 				events.push(`worker ${request.variant}`);
-				return browser(request.variant, request.measurements, request.dpr);
+				return browser(request.variant, request.measurements, request.dpr, request.requestedBackend);
 			},
 			...options,
 		},
@@ -251,6 +251,75 @@ describe('benchmark suite modes and workers', () => {
 		});
 	}
 
+	for (const flags of [{}, {trace: true}, {memory: true}, {raf: true}]) {
+		for (const vulkan of [false, true]) {
+			it(`runs explicit ChartGPU in ${benchmarkMode(flags)} with vulkan=${vulkan} and isolates its files`, async () => {
+				const mode = benchmarkMode(flags);
+				const suffix = vulkan ? '-vulkan' : '';
+				assert.equal(variantReportName(mode, 'chartgpu', {vulkan}), `results-chrome-${mode}${suffix}-chartgpu.json`);
+				assert.equal(suiteReportName(mode, {vulkan}), `results-chrome-${mode}${suffix}.json`);
+				const otherSuite = join(directory, suiteReportName(mode, {vulkan: !vulkan}));
+				const otherIdle = join(directory, variantReportName(mode, 'idle', {vulkan: !vulkan}));
+				const otherChart = join(directory, variantReportName(mode, 'chartgpu', {vulkan: !vulkan}));
+				for (const path of [otherSuite, otherIdle, otherChart])
+					writeFileSync(path, 'unrelated saved report');
+				const h = harness();
+				const report = await runBenchmarkSuite({...flags, variant: 'chartgpu', vulkan}, h.dependencies);
+				assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'chartgpu']);
+				assert.equal(report.gpu, vulkan);
+				assert.equal(report.requestedBackend, vulkan ? 'vulkan' : 'default');
+				assert.equal(report.complete, true);
+				assert.deepEqual(report.skipped, []);
+				for (const request of h.requests) {
+					assert.equal(request.args.includes('--vulkan'), vulkan);
+					assert.equal(request.args.includes('--gpu'), vulkan);
+					assert.equal(request.gpu, vulkan);
+					assert.equal(request.requestedBackend, report.requestedBackend);
+					assert.equal(request.output, join(directory, variantReportName(mode, request.variant, {vulkan})));
+				}
+				assert.ok(report.reports.every(raw => raw.runner.requestedBackend === report.requestedBackend));
+				assert.deepEqual(JSON.parse(readFileSync(join(directory, suiteReportName(mode, {vulkan})), 'utf8')), report);
+				for (const path of [otherSuite, otherIdle, otherChart])
+					assert.equal(readFileSync(path, 'utf8'), 'unrelated saved report');
+			});
+		}
+	}
+
+	for (const variant of ['idle', 'chartgpu']) {
+		for (const backend of [undefined, 'default']) {
+			it(`rejects ${variant} backend=${backend} in a Vulkan suite without mixing samples`, async () => {
+				const h = harness();
+				const worker = h.dependencies.runWorker;
+				h.dependencies.runWorker = async request => {
+					const raw = await worker(request);
+					if (request.variant === variant)
+						raw.runner.requestedBackend = backend;
+					return raw;
+				};
+				const run = runBenchmarkSuite({variant: 'chartgpu', vulkan: true}, h.dependencies);
+				if (variant === 'idle')
+					await assert.rejects(run, /Unexpected benchmark report for idle/);
+				else {
+					const report = await run;
+					assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
+					assert.match(report.failures[0].error, /Unexpected benchmark report for chartgpu/);
+				}
+			});
+		}
+	}
+
+	it('includes ChartGPU in a full Vulkan suite with the same backend for every worker', async () => {
+		const h = harness();
+		const result = await runBenchmarkSuite({vulkan: true}, h.dependencies);
+		assert.deepEqual(h.requests.map(request => request.variant), variants);
+		assert.equal(h.requests.filter(request => request.variant === 'chartgpu').length, 1);
+		assert.equal(result.skipped.some(entry => entry.variant === 'chartgpu'), false);
+		assert.equal(result.complete, true);
+		assert.ok(h.requests.every(request => request.requestedBackend === 'vulkan' &&
+			request.args.includes('--vulkan') && request.args.includes('--gpu')));
+		assert.ok(result.reports.every(raw => raw.runner.requestedBackend === 'vulkan'));
+	});
+
 	it('runs idle and all default runnable libraries and saves/displays each before the next starts', async () => {
 		const h = harness();
 		const worker = h.dependencies.runWorker;
@@ -279,7 +348,8 @@ describe('benchmark suite modes and workers', () => {
 		assert.deepEqual(result.progress.completed, variants);
 		assert.deepEqual(result.protocol.variants.slice(-12), variants.slice(-12));
 		assert.deepEqual(result.skipped.map(entry => entry.variant), ['lightningchart', 'g2-webgl', 'googlecharts', 'jscharting']);
-		assert.equal(result.protocol.variants.length, 35, 'idle plus 34 runnable variants');
+		assert.equal(result.protocol.variants.length, 36, 'idle plus 35 runnable variants');
+				assert.equal(h.requests.filter(request => request.variant === 'chartgpu').length, 1);
 		assert.ok(h.requests.every(request => !Object.hasOwn(benchmarkRestrictions, request.variant)));
 		assert.equal(result.progress.total, variants.length);
 		assert.deepEqual(result.protocol.variants, variants);
@@ -355,7 +425,7 @@ describe('benchmark suite modes and workers', () => {
 			assert.deepEqual(report.progress.completed, expected);
 			assert.equal(report.progress.total, expected.length);
 			assert.equal(report.complete, true);
-			const expectedSkipped = variant === null ? skipped.filter(entry => Object.hasOwn(benchmarkRestrictions, entry.variant)) : [];
+			const expectedSkipped = variant === null ? skipped.filter(entry => !Object.hasOwn(demoRestrictions, entry.variant)) : [];
 			assert.deepEqual(report.skipped, expectedSkipped);
 			const warnings = expectedSkipped.map(entry => `${entry.variant}: skipped (${entry.reason})`);
 			assert.ok(h.frames.every(frame => JSON.stringify(frame.warnings) === JSON.stringify(warnings)));
@@ -507,7 +577,7 @@ describe('benchmark suite modes and workers', () => {
 			writeFileSync(request.output, JSON.stringify(browser(request.variant, request.measurements, request.dpr)));
 		}});
 		await runBenchmarkSuite({variant: 'idle'}, h.dependencies);
-		for (const corrupt of [raw => raw.runner.variant = 'd3', raw => raw.runner.dpr = 2, raw => raw.measurements.memory = false, raw => raw.samples[0].variant = 'd3']) {
+		for (const corrupt of [raw => raw.runner.requestedBackend = 'vulkan', raw => delete raw.runner.requestedBackend, raw => raw.runner.variant = 'd3', raw => raw.runner.dpr = 2, raw => raw.measurements.memory = false, raw => raw.samples[0].variant = 'd3']) {
 			h.dependencies.runWorker = async () => {
 				const raw = browser('idle');
 				corrupt(raw);
@@ -520,6 +590,37 @@ describe('benchmark suite modes and workers', () => {
 });
 
 describe('benchmark table and offline summary', () => {
+	it('summarizes Vulkan reports and rejects mixed or mismatched saved backends without writing', () => {
+		const output = join(directory, suiteReportName('combined', {vulkan: true}));
+		const input = {...savedReport(['idle', 'chartgpu'].map(variant => browser(variant, combined, 1, 'vulkan'))), requestedBackend: 'vulkan'};
+		writeFileSync(output, JSON.stringify(input));
+		const options = {...combined, vulkan: true};
+		assert.equal(capture(() => summarizeSavedBenchmarks(options, output)).result.requestedBackend, 'vulkan');
+		for (const corrupt of [
+			report => report.requestedBackend = 'default',
+			report => delete report.requestedBackend,
+			report => report.reports[0].runner.requestedBackend = 'default',
+			report => delete report.reports[1].runner.requestedBackend,
+		]) {
+			const report = structuredClone(input);
+			corrupt(report);
+			const bytes = JSON.stringify(report);
+			writeFileSync(output, bytes);
+			assert.throws(() => summarizeSavedBenchmarks(options, output), /matching requested backend/);
+			assert.equal(readFileSync(output, 'utf8'), bytes);
+		}
+		writeFileSync(output, JSON.stringify(input));
+		assert.throws(() => summarizeSavedBenchmarks(combined, output), /matching requested backend/);
+	});
+
+	it('preserves legacy default reports without backend metadata', () => {
+		const input = savedReport([browser('idle'), browser('uplot')]);
+		for (const raw of input.reports)
+			delete raw.runner.requestedBackend;
+		const result = offline(input).result;
+		assert.deepEqual(result.reports, input.reports);
+		assert.equal(Object.hasOwn(result, 'requestedBackend'), false);
+	});
 	for (const measurements of [combined, {trace: true, memory: false, raf: false},
 		{trace: false, memory: true, raf: false}, {trace: false, memory: false, raf: true}]) {
 		it(`${benchmarkMode(measurements)} summary sorts by total time only when available in this mode`, () => {
