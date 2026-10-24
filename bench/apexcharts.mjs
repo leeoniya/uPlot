@@ -16,7 +16,11 @@ function prepData(packed) {
 	return [cpu, ram, tcp];
 }
 
-async function makeChart(data, host, wait) {
+function makeChart(data, host, wait, runtimeOptions) {
+	return makeChartWithOptions(data, host, wait, runtimeOptions);
+}
+
+async function makeChartWithOptions(data, host, wait, runtimeOptions, {sampling = false} = {}) {
 	const chart = new ApexCharts(host, {
 		chart: {
 			type: 'line',
@@ -26,7 +30,7 @@ async function makeChart(data, host, wait) {
 			animations: {enabled: false},
 			renderer: 'canvas',
 			// 8.4.1 only offers LTTB for scalar lines, which can omit bucket extrema.
-			dataReducer: {enabled: false},
+			dataReducer: sampling ? {enabled: true, targetPoints: 1920, threshold: 3840} : {enabled: false},
 			zoom: {type: 'x', enabled: true},
 		},
 		colors: ['red', 'blue', 'green'],
@@ -70,8 +74,18 @@ async function makeChart(data, host, wait) {
 	}
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart([[], [], []], host, wait);
+}
+
+async function updateChart(chart, input, host, wait) {
+	// Native 8.4.1 full updates retain the chart, but can replace its Canvas surface.
+	await chart.updateSeries(input.map((data, i) => ({name: ['CPU', 'RAM', 'TCP Out'][i], data})), false);
+	if (wait) wait.textContent = 'Done!';
+}
+
 function destroyChart(chart) {
 	chart.destroy();
 }
 
-export {prepData, makeChart, destroyChart};
+export {prepData, makeChart, makeEmptyChart, updateChart, makeChartWithOptions, destroyChart};

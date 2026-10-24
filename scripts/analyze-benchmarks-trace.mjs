@@ -1,4 +1,5 @@
 import { readTraceFile } from './bench-trace-stream.mjs';
+import { benchmarkTimingSamples, benchmarkOperations } from './benchmarks-phases.mjs';
 
 const TASK = 'RunTask';
 const FALLBACK_TASK = 'ThreadControllerImpl::RunTask';
@@ -187,7 +188,7 @@ function createTraceAnalyzer(report) {
 			availability.available = availability.intervalCount > 0;
 
 		const ids = new Set();
-		const windows = report.samples.map(sample => {
+		const windows = benchmarkTimingSamples(report).map(sample => {
 			if (!/^sample-\d+$/.test(sample.id) || ids.has(sample.id))
 				throw new Error(`Invalid or duplicate report sample id: ${sample.id}`);
 			ids.add(sample.id);
@@ -300,9 +301,9 @@ function createTraceAnalyzer(report) {
 
 		const grouped = new Map();
 		for (const sample of samples) {
-			const key = JSON.stringify([sample.dpr, sample.variant]);
+			const key = JSON.stringify([sample.dpr, sample.variant, sample.operation]);
 			if (!grouped.has(key))
-				grouped.set(key, {dpr: sample.dpr, variant: sample.variant, warmupCount: 0, samples: []});
+				grouped.set(key, {dpr: sample.dpr, variant: sample.variant, ...(sample.operation ? {operation: sample.operation} : {}), warmupCount: 0, samples: []});
 			const group = grouped.get(key);
 			if (sample.warmup)
 				group.warmupCount++;
@@ -312,6 +313,7 @@ function createTraceAnalyzer(report) {
 		const groups = [...grouped.values()].map(group => ({
 			dpr: group.dpr,
 			variant: group.variant,
+			...(group.operation ? {operation: group.operation} : {}),
 			sampleCount: group.samples.length,
 			warmupCount: group.warmupCount,
 			sampleIds: group.samples.map(sample => sample.id),
@@ -353,7 +355,8 @@ function createTraceAnalyzer(report) {
 
 		return {
 			samples,
-			groups,
+			groups: groups.filter(group => !group.operation || group.operation === 'data-update'),
+			...(benchmarkOperations(report) ? {phaseGroups: groups} : {}),
 			diagnostics: {
 				eventTypes,
 				missingEventTypes: EVENT_NAMES.filter(name => !eventTypes[name].available),
@@ -368,7 +371,7 @@ function createTraceAnalyzer(report) {
 			definitions: {
 				units: 'All durations are milliseconds. Marker timestamps ending in Us are trace microseconds.',
 				dataPrepMs: 'Reported duration of actual demo prepData conversion from already-parsed packed JSON. Excludes network transfer, JSON parsing, and synthetic-data cloning. Data preparation occurs before chart start, outside the start/js-end/end markers.',
-				prepAndInitMs: 'Reported sum dataPrepMs + jsMs: data preparation plus JS/DOM initialization, not end-to-end wall latency. Excludes the gap between preparation and chart start, rAF waits, and settling.',
+				prepAndInitMs: 'Legacy field name for dataPrepMs + jsMs. In lifecycle reports it combines preparation and operation readiness, not necessarily initialization. Excludes the gap between preparation and operation start, rAF waits, and settling. Validation is also excluded. This is not end-to-end wall latency.',
 				jsMs: 'Unmodified report JS interval span, not exclusive JavaScript CPU time.',
 				windowMs: 'Unmodified report sample window duration.',
 				jsIntervalMs: 'Trace start to js-end elapsed span, including synchronous JS/DOM and other work or waits in that interval.',
@@ -386,7 +389,7 @@ function createTraceAnalyzer(report) {
 				webglCompletion: 'Browser-reported completion status, not inferred from trace tasks. Complete covers preceding commands on observed contexts: asynchronous fences for WebGL2, blocking finish for WebGL1. Not-observed is not proof of no WebGL. Polling, flush, finish waits, and metadata queries belong to the instrumented window, after js-end. Wait duration is elapsed validation latency, not device busy time.',
 				taskSelection: 'Use RunTask if valid intervals exist anywhere on that thread; otherwise use ThreadControllerImpl::RunTask. Never combine both wrappers.',
 				availability: 'A metric is null when no matching valid intervals exist anywhere in the trace for its relevant threads. Zero means available but no overlap in this sample, not proven absence of work.',
-				aggregation: 'Group by DPR and variant; exclude warmups. Each metric uses its minimum measured value for best-case performance; minima may come from different rounds. Min, max, and count use only finite numbers; absent, null, and invalid values count as missing. Empty min and max are null. Totals use each round\'s values before taking the minimum, not the sum of component minima. Idle remains a separate variant; no baseline subtraction.',
+				aggregation: 'Group by DPR, variant and operation; exclude warmups. Lifecycle groups contains final updates only; phaseGroups contains all operations. Each metric uses its minimum measured value for best-case performance; minima may come from different rounds. Min, max, and count use only finite numbers; absent, null, and invalid values count as missing. Empty min and max are null. Totals use each round\'s values before taking the minimum, not the sum of component minima. Idle remains a separate variant; no baseline subtraction.',
 				boundaries: 'Crossing counts use selected raw intervals, not unions. Tail spans end to the next sample start, or trace end for the last sample. Tail work is unassigned.',
 				attribution: 'Renderer work is scoped to the marker process. GPU processes are shared: temporal overlap does not establish causality or chart ownership.',
 			},

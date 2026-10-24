@@ -1,4 +1,5 @@
 const cleanups = new WeakMap();
+const updates = new WeakMap();
 
 function prepData(packed) {
 	const fields = packed[0];
@@ -94,6 +95,12 @@ function makeChart(data, host, wait) {
 		attribution.style.cssText = 'margin-left:auto;color:#555;font-size:10px;pointer-events:auto';
 		legend.append(attribution);
 
+		updates.set(chart, input => {
+			series.forEach((line, i) => line.setData(input[i]));
+			data = input;
+			updateLegend();
+			chart.timeScale().fitContent();
+		});
 		updateLegend();
 		chart.subscribeCrosshairMove(updateLegend);
 		chart.timeScale().fitContent();
@@ -109,7 +116,29 @@ function makeChart(data, host, wait) {
 function destroyChart(chart) {
 	cleanups.get(chart)?.();
 	cleanups.delete(chart);
+	updates.delete(chart);
 	chart.remove();
 }
 
-export {prepData, makeChart, destroyChart};
+async function rendered(chart, wait) {
+	// setData/fitContent queue the native draw before this callback. The public
+	// API has no render-complete event; this is a frame barrier, not a GPU fence.
+	await new Promise(resolve => requestAnimationFrame(resolve));
+	if (wait) wait.textContent = 'Done!';
+	return chart;
+}
+
+function makeEmptyChart(host, wait) {
+	return makeLifecycleChart([[], [], []], host, wait);
+}
+
+export function makeLifecycleChart(data, host, wait) {
+	return rendered(makeChart(data, host), wait);
+}
+
+function updateChart(chart, input, host, wait) {
+	updates.get(chart)(input);
+	return rendered(chart, wait);
+}
+
+export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};

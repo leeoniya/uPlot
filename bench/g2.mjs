@@ -59,9 +59,18 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer}
 	}
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart([], host, wait);
+}
+
+async function updateChart(chart, input, host, wait) {
+	await chart.changeData(input);
+	if (wait) wait.textContent = 'Done!';
+}
+
 function destroyChart(chart) {
 	chart.destroy();
 }
 
 export {makeChartWithOptions};
-export {prepData, makeChart, destroyChart};
+export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};

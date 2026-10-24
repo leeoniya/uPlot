@@ -19,6 +19,8 @@ function prepData(packed) {
 	return data;
 }
 
+const renders = new WeakMap();
+
 async function makeChart(data, host, wait) {
 	let chart;
 	try {
@@ -54,7 +56,11 @@ async function makeChart(data, host, wait) {
 			legend: {show: true, position: 'bottom'},
 			// Capture the instance even if synchronous initialization throws.
 			onbeforeinit() { chart = this; },
-			onrendered() { rendered(); },
+			onrendered() {
+				rendered();
+				const complete = renders.get(this);
+				if (complete) { renders.delete(this); complete(); }
+			},
 		});
 		await ready;
 		if (wait)
@@ -67,8 +73,26 @@ async function makeChart(data, host, wait) {
 	}
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart(['time', 'cpu', 'ram', 'tcp'].map(key => [key]), host, wait);
+}
+
+async function updateChart(chart, input, host, wait) {
+	if (renders.has(chart)) throw new Error('Billboard update is already pending.');
+	try {
+		await new Promise((resolve, reject) => {
+			renders.set(chart, resolve);
+			try { chart.load({columns: input}); }
+			catch (error) { reject(error); }
+		});
+		if (wait) wait.textContent = 'Done!';
+	}
+	finally { renders.delete(chart); }
+}
+
 function destroyChart(chart) {
+	renders.delete(chart);
 	chart.destroy();
 }
 
-export {prepData, makeChart, destroyChart};
+export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};

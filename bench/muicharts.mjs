@@ -1,8 +1,10 @@
 import {prepRows, requireFramework, mountReact, destroyReact, waitForLines, calendarLabel, title} from './framework-runtime.mjs';
 
-function makeChart(data, host, wait) {
+import {mountEmptyReact, mountLifecycleReact, updateReact as updateChart} from './lifecycle-frameworks.mjs';
+
+function buildChart(data, React) {
 	const {LineChart} = requireFramework('benchmarkMuiCharts');
-	return mountReact(host, React => React.createElement(React.Fragment, null, title(React),
+	return React.createElement(React.Fragment, null, title(React),
 		React.createElement(LineChart, {
 			width: 1920, height: 560, dataset: data, skipAnimation: true,
 			margin: {top: 30, right: 20, bottom: 20, left: 20},
@@ -20,7 +22,21 @@ function makeChart(data, host, wait) {
 				legend: {direction: 'horizontal', position: {vertical: 'top', horizontal: 'center'}},
 				line: {className: 'benchmark-line', style: {strokeWidth: 1}},
 			},
-		})), chart => waitForLines(chart, '.benchmark-line'), wait);
+		}));
 }
 
-export {prepRows as prepData, makeChart, destroyReact as destroyChart};
+const ready = (chart, data) => data.length ? waitForLines(chart, '.benchmark-line') : undefined;
+
+function makeChart(data, host, wait) {
+	return mountReact(host, React => buildChart(data, React), chart => ready(chart, data), wait);
+}
+
+export function makeLifecycleChart(data, host, wait) {
+	return mountLifecycleReact(data, host, buildChart, ready, wait);
+}
+
+function makeEmptyChart(host, wait) {
+	return mountEmptyReact(host, buildChart, ready, wait);
+}
+
+export {prepRows as prepData, makeChart, destroyReact as destroyChart, makeEmptyChart, updateChart};

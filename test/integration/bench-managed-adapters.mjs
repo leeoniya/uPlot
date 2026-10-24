@@ -2,14 +2,18 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as anychart from '../../bench/anychart.mjs';
 import * as fusiontime from '../../bench/fusiontime.mjs';
+import * as anychartSampled from '../../bench/anychart-sampled.mjs';
+import * as fusiontimeSampled from '../../bench/fusiontime-sampled.mjs';
 import * as googlecharts from '../../bench/googlecharts.mjs';
 
 const packed = Object.freeze(JSON.parse(readFileSync(new URL('../../bench/data.json', import.meta.url))));
 const adapters = {anychart, fusiontime, googlecharts};
+const variants = {...adapters, 'anychart-sampled': anychartSampled, 'fusiontime-sampled': fusiontimeSampled};
 const host = Object.freeze({id: 'benchmark-managed', style: Object.freeze({width: '1920px', height: '600px'})});
 const turn = () => new Promise(resolve => setImmediate(resolve));
 
 function vendor(id) {
+	id = id.replace('-sampled', '');
 	const state = {calls: [], listeners: new Map(), disposed: [], error: new Error('vendor failure')};
 	const record = name => (...args) => { state.calls.push([name, ...args]); return chart; };
 	const chart = state.chart = {
@@ -41,12 +45,13 @@ function vendor(id) {
 		state.scroller = setting();
 		state.grouping = setting();
 		state.scrollerGrouping = setting();
+		state.groupingCalls = state.scrollerGroupingCalls = 0;
 		Object.assign(chart, {
 			animation: record('animation'), bounds: record('bounds'), title: record('title'),
 			xScale: record('xScale'), container: record('container'),
 			scroller: () => state.scroller,
-			grouping: () => state.grouping,
-			scrollerGrouping: () => state.scrollerGrouping,
+			grouping() { state.groupingCalls++; return state.grouping; },
+			scrollerGrouping() { state.scrollerGroupingCalls++; return state.scrollerGrouping; },
 			plot(index) {
 				assert.equal(index, 0);
 				return {
@@ -134,8 +139,10 @@ describe('managed benchmark adapters', () => {
 		}
 	});
 
-	for (const [id, adapter] of Object.entries(adapters)) {
-		it(`${id}: preserves all 55,550 rows, three series, and original timestamps`, () => {
+	for (const [name, adapter] of Object.entries(variants)) {
+		const id = name.replace('-sampled', '');
+		const sampled = name.endsWith('-sampled');
+		it(`${name}: preserves all 55,550 rows, three series, and original timestamps`, () => {
 			const rows = adapter.prepData(packed);
 			const again = adapter.prepData(packed);
 			assert.equal(rows.length, 55550);
@@ -152,13 +159,13 @@ describe('managed benchmark adapters', () => {
 			}
 		});
 
-		it(`${id}: waits for native readiness, shares full rows, and cleans up`, async () => {
+		it(`${name}: waits for native readiness, shares full rows, and cleans up`, async () => {
 			const mock = vendor(id);
 			await adapter.prepareRuntime?.();
 			const data = Object.freeze(adapter.prepData(packed).map(Object.freeze));
 			const wait = {textContent: 'Rendering...'};
 			let ready = false;
-			const pending = adapter.makeChart(data, host, wait).then(chart => { ready = true; return chart; });
+			const pending = adapter.makeChart(data, host, wait, {sampled: !sampled}).then(chart => { ready = true; return chart; });
 			await turn();
 			assert.equal(ready, false);
 			assert.equal(wait.textContent, 'Rendering...');
@@ -175,8 +182,10 @@ describe('managed benchmark adapters', () => {
 					['xScale', 'scatter'], ['container', host],
 				]);
 				assert.equal(mock.scroller.values.enabled, false);
-				assert.equal(mock.grouping.values.enabled, false);
-				assert.equal(mock.scrollerGrouping.values.enabled, false);
+				assert.equal(mock.groupingCalls, sampled ? 0 : 1);
+				assert.equal(mock.scrollerGroupingCalls, sampled ? 0 : 1);
+				assert.deepEqual(mock.grouping.values, sampled ? {} : {enabled: false});
+				assert.deepEqual(mock.scrollerGrouping.values, sampled ? {} : {enabled: false});
 				assert.equal(mock.legend.values.enabled, true);
 				assert.equal(mock.lines.length, 3);
 				for (let i = 0; i < 3; i++) {
@@ -202,9 +211,9 @@ describe('managed benchmark adapters', () => {
 				assert.equal(source.chart.animation, 0);
 				assert.equal(source.chart.enableUTC, true);
 				assert.deepEqual(mock.schema[0], {name: 'Time', type: 'date', format: '%Q'});
-				assert.equal(source.xAxis.plot, 'Time');
-				assert.deepEqual(source.xAxis.binning, {
-					year: [], month: [], day: [], hour: [], minute: [1], second: [], millisecond: [],
+				assert.deepEqual(source.xAxis, sampled ? {plot: 'Time'} : {
+					plot: 'Time',
+					binning: {year: [], month: [], day: [], hour: [], minute: [1], second: [], millisecond: []},
 				});
 				assert.equal(data[0][0] % 60000, 0);
 				for (let i = 1; i < data.length; i++)
@@ -247,7 +256,39 @@ describe('managed benchmark adapters', () => {
 				: id === 'fusiontime' ? ['chart', 'store'] : ['chart']);
 		});
 
-		it(`${id}: disposes partial initialization and preserves the original exception`, async () => {
+		if (id !== 'googlecharts') {
+			it(`${name}: supports synchronous readiness and repeated initialization without mutating prepared rows`, async () => {
+				const data = Object.freeze(adapter.prepData(packed).map(Object.freeze));
+				const timers = new Set();
+				globalThis.setTimeout = (callback, delay) => {
+					assert.equal(delay, 30000);
+					timers.add(callback);
+					return callback;
+				};
+				globalThis.clearTimeout = timer => { assert.ok(timers.delete(timer)); };
+				for (let i = 0; i < 2; i++) {
+					const mock = vendor(id);
+					mock.chart[id === 'anychart' ? 'draw' : 'render'] = () => {
+						assert.equal(mock.rows.length, 55550);
+						assert.deepEqual(mock.rows, data);
+						if (id === 'fusiontime')
+							mock.rows.forEach((row, index) => row.push(index));
+						mock.emit(id === 'anychart' ? 'chartDraw' : 'renderComplete');
+					};
+					const handle = await adapter.makeChart(data, host);
+					assert.equal(mock.listeners.size, 0);
+					assert.equal(timers.size, 0);
+					assert.equal(mock.disposed.length, 0);
+					adapter.destroyChart(handle);
+					assert.deepEqual(mock.disposed, id === 'anychart'
+						? ['chart', 'mapping', 'mapping', 'mapping', 'table', 'scale', 'scale']
+						: ['chart', 'store']);
+				}
+				assert.deepEqual(data, adapter.prepData(packed));
+			});
+		}
+
+		it(`${name}: disposes partial initialization and preserves the original exception`, async () => {
 			const mock = vendor(id);
 			await adapter.prepareRuntime?.();
 			mock.fail = true;
@@ -261,27 +302,29 @@ describe('managed benchmark adapters', () => {
 			if (id === 'fusiontime') assert.ok(mock.disposed.includes('store'));
 		});
 
-		it(`${id}: readiness timeout rejects and releases resources`, async () => {
+		it(`${name}: readiness timeout rejects and releases resources`, async () => {
 			const mock = vendor(id);
 			await adapter.prepareRuntime?.();
 			let timeout;
+			let cleared = false;
 			globalThis.setTimeout = callback => { timeout = callback; return 1; };
-			globalThis.clearTimeout = () => {};
+			globalThis.clearTimeout = timer => { assert.equal(timer, 1); cleared = true; };
 			const pending = adapter.makeChart(adapter.prepData(packed), host);
 			const rejected = assert.rejects(pending, /30 seconds/);
 			timeout();
 			await rejected;
+			assert.equal(cleared, true);
 			assert.equal(mock.listeners.size, 0);
 			assert.equal(mock.disposed[0], 'chart');
 		});
 	}
 
-	for (const [id, names] of [['fusiontime', ['dataInvalid', 'dataLoadError']], ['googlecharts', ['error']]]) {
+	for (const [id, names] of [['fusiontime', ['dataInvalid', 'dataLoadError']], ['fusiontime-sampled', ['dataInvalid', 'dataLoadError']], ['googlecharts', ['error']]]) {
 		for (const name of names) {
 			it(`${id}: rejects native ${name} instead of marking the chart ready`, async () => {
 				const mock = vendor(id);
-				await adapters[id].prepareRuntime?.();
-				const pending = adapters[id].makeChart(adapters[id].prepData(packed), host);
+				await variants[id].prepareRuntime?.();
+				const pending = variants[id].makeChart(variants[id].prepData(packed), host);
 				const rejected = assert.rejects(pending, /broken data/);
 				mock.emit(name, {message: 'broken data'}, {error: new Error('broken data')});
 				await rejected;
@@ -289,6 +332,14 @@ describe('managed benchmark adapters', () => {
 				assert.equal(mock.disposed[0], 'chart');
 			});
 		}
+	}
+
+	for (const [id, sampled] of [['anychart', anychartSampled], ['fusiontime', fusiontimeSampled]]) {
+		it(`${id}: sampled wrapper shares preparation and cleanup with the base`, () => {
+			assert.deepEqual(Object.keys(sampled).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), ['destroyChart', 'makeChart', 'prepData']);
+			assert.equal(sampled.prepData, adapters[id].prepData);
+			assert.equal(sampled.destroyChart, adapters[id].destroyChart);
+		});
 	}
 
 	it('Google: package preparation is frozen, shared, and contains no chart/data work', async () => {
@@ -320,10 +371,12 @@ describe('managed benchmark adapters', () => {
 	});
 
 	it('HTML pages delegate to the shared runner without separate fixtures or loaders', () => {
-		for (const [page, id] of [['AnyChart', 'anychart'], ['FusionTime', 'fusiontime'], ['GoogleCharts', 'googlecharts']]) {
+		for (const [page, id] of [['AnyChart', 'anychart'], ['AnyChart-Sampled', 'anychart-sampled'], ['FusionTime', 'fusiontime'], ['FusionTime-Sampled', 'fusiontime-sampled'], ['GoogleCharts', 'googlecharts']]) {
 			const html = readFileSync(new URL(`../../bench/${page}.html`, import.meta.url), 'utf8');
-			assert.ok(html.includes(`runDemo('${id}').catch(console.error)`));
-			assert.equal((html.match(/<script/g) ?? []).length, 1);
+			const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
+			assert.equal(scripts.length, 1);
+			assert.match(scripts[0][1], /^\s+type="module"\s*$/);
+			assert.equal(scripts[0][2].trim(), `import {runDemo} from './demo.mjs';\n\t\t\trunDemo('${id}').catch(console.error);`);
 			assert.doesNotMatch(html, /<style|<canvas|<div|https:|innerHTML/);
 		}
 	});

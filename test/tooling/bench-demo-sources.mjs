@@ -6,14 +6,14 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import { parseArgs } from 'node:util';
-import { benchmarkMode, variantReportName } from '../../scripts/benchmarks-suite.mjs';
+import { benchmarkMode, resolveBenchmarkVulkan, variantReportName } from '../../scripts/benchmarks-suite.mjs';
 import { checkModuleSyntax, demos } from '../helpers/bench-demo-evaluator.mjs';
 import { loadBenchDemoSources } from '../../scripts/bench-demo-sources.mjs';
-import { demoDependencies, demoModuleDependencies, benchmarkRestrictions, assertBenchmarkAvailable } from '../../bench/demo-dependencies.mjs';
+import { demoDependencies, demoModuleDependencies, benchmarkMetadata, benchmarkRestrictions, assertBenchmarkAvailable } from '../../bench/demo-dependencies.mjs';
 
 const root = new URL('../../', import.meta.url);
 const variants = Object.keys(demoDependencies).filter(id => id !== 'idle');
-const shared = ['/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs', '/bench/demo-runtime.mjs', '/bench/framework-runtime.mjs', '/bench/demo.css'];
+const shared = ['/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs', '/bench/demo-runtime.mjs', '/bench/framework-runtime.mjs', '/bench/lifecycle-data.mjs', '/bench/demo.css'];
 
 function remoteDependencies(variants) {
 	const dependencies = variants.flatMap(id => demoDependencies[id].filter(dep => dep.name).map(({name, version, path, type, option, global, url}) => {
@@ -51,7 +51,7 @@ function withAssets(check, {dist = true} = {}) {
 	const dir = mkdtempSync(join(tmpdir(), 'uplot-bench-demo-sources-'));
 	try {
 		mkdirSync(join(dir, 'bench'));
-		for (const route of [...shared, ...variants.map(id => `/bench/${id}.mjs`), '/bench/fmtDate.js'])
+		for (const route of [...shared, ...new Set(variants.flatMap(id => [id, ...(demoModuleDependencies[id] ?? [])]).map(id => `/bench/${id}.mjs`)), '/bench/fmtDate.js'])
 			copyFileSync(new URL(route.slice(1), root), join(dir, route.slice(1)));
 		if (dist) {
 			mkdirSync(join(dir, 'dist'));
@@ -83,23 +83,24 @@ function checkAssets(result, variants, assetRoot = root) {
 }
 
 describe('benchmark demo asset loader', () => {
-	it('parses --vulkan and passes it to summary-only without starting a browser', () => {
+	it('resolves automatic Vulkan and explicit overrides for summary-only without starting a browser', () => {
 		const source = readFileSync(new URL('scripts/benchmarks.mjs', root), 'utf8');
 		const start = source.indexOf('const {values, tokens} = parseArgs(');
 		const end = source.indexOf('const lightningOptions =', start);
 		assert.ok(start >= 0 && end > start);
 		for (const flags of [[], ['--trace'], ['--memory'], ['--raf']]) {
-			for (const vulkan of [false, true]) {
+			for (const vulkan of [undefined, false, true]) {
 				const summaries = [];
 				const exited = new Error('exit');
 				assert.throws(() => runInNewContext(source.slice(start, end), {
-					parseArgs: options => parseArgs({...options, args: ['--summarize-only', ...flags, ...(vulkan ? ['--vulkan'] : [])]}),
+					parseArgs: options => parseArgs({...options, args: ['--summarize-only', ...flags, ...(vulkan === undefined ? [] : [vulkan ? '--vulkan' : '--no-vulkan'])]}),
 					benchmarkMode, demoDependencies,
+					resolveBenchmarkVulkan: options => resolveBenchmarkVulkan(options, 'linux'),
 					summarizeSavedBenchmarks: options => summaries.push(options),
 					process: {exit: code => { assert.equal(code, 0); throw exited; }},
 				}), error => error === exited);
 				assert.equal(summaries.length, 1);
-				assert.equal(summaries[0].vulkan, vulkan);
+				assert.equal(summaries[0].vulkan, vulkan ?? true);
 				assert.equal(benchmarkMode(summaries[0]), flags[0]?.slice(2) ?? 'combined');
 			}
 		}
@@ -116,7 +117,7 @@ describe('benchmark demo asset loader', () => {
 			{trace: false, memory: true, raf: false}, {trace: false, memory: false, raf: true}]) {
 			for (const flags of [{gpu: false, vulkan: false}, {gpu: true, vulkan: false}, {gpu: false, vulkan: true}, {gpu: true, vulkan: true}]) {
 				const values = {...flags, variant: 'chartgpu'};
-				const browserArgs = runInNewContext(`${source.slice(argsStart, argsEnd)}\nbrowserArgs;`, {values, profile: '/test/profile'});
+				const browserArgs = runInNewContext(`${source.slice(argsStart, argsEnd)}\nbrowserArgs;`, {values, vulkan: resolveBenchmarkVulkan(values, 'linux'), profile: '/test/profile'});
 				assert.deepEqual(Array.from(browserArgs), [
 					'--no-first-run', '--no-default-browser-check', '--disable-background-networking',
 					'--disable-component-update', '--disable-sync', '--disable-extensions', '--user-data-dir=/test/profile',
@@ -127,7 +128,7 @@ describe('benchmark demo asset loader', () => {
 				const captures = [], outputs = [];
 				const mode = benchmarkMode(measurements);
 				await runInNewContext(`(async () => {\n${source.slice(start, end)}\n})()`, {
-					values, measurements, mode, variantReportName, browserArgs, dpr: 1,
+					values, vulkan: resolveBenchmarkVulkan(values, 'linux'), measurements, mode, variantReportName, benchmarkMetadata, browserArgs, dpr: 1,
 					profile: '/test/profile', url: 'http://test/', cache: '/test/cache', binary: '/test/chrome', browserVersion: 'test',
 					lightningOptions: undefined, sciChartOptions: undefined, browser: {pid: 123}, browserLog: '',
 					dependencies: [], files: new Map(), process: {version: 'test'},
@@ -144,6 +145,7 @@ describe('benchmark demo asset loader', () => {
 				assert.equal(captures[0].traceName, `trace-chrome-${mode}${suffix}-chartgpu.json`);
 				assert.equal(outputs[0].path, `/test/cache/results-chrome-${mode}${suffix}-chartgpu.json`);
 				assert.equal(outputs[0].report.runner.requestedBackend, flags.vulkan ? 'vulkan' : 'default');
+								assert.deepEqual(outputs[0].report.runner.benchmark, benchmarkMetadata.chartgpu);
 				assert.deepEqual(outputs[0].report.runner.browserArgs, Array.from(browserArgs));
 			}
 		}
@@ -174,6 +176,19 @@ describe('benchmark demo asset loader', () => {
 			assert.deepEqual(svg.dependencies, base.dependencies);
 			assert.ok(svg.files.has(`/bench/${id}-svg.mjs`));
 			assert.equal(base.files.has(`/bench/${id}-svg.mjs`), false);
+		});
+	}
+
+	for (const id of ['apexcharts', 'amcharts', 'devextreme', 'anychart', 'fusiontime']) {
+		it(`${id}: sampled serves the shared implementation and identical vendor assets`, () => {
+			const base = loadBenchDemoSources(root, id);
+			const sampled = loadBenchDemoSources(root, id + '-sampled');
+			assert.equal(demoDependencies[id + '-sampled'], demoDependencies[id]);
+			assert.deepEqual(demoModuleDependencies[id + '-sampled'], [id]);
+			assert.equal(sampled.files.get(`/bench/${id}.mjs`), base.files.get(`/bench/${id}.mjs`));
+			assert.deepEqual(sampled.dependencies, base.dependencies);
+			assert.ok(sampled.files.has(`/bench/${id}-sampled.mjs`));
+			assert.equal(base.files.has(`/bench/${id}-sampled.mjs`), false);
 		});
 	}
 
@@ -255,14 +270,24 @@ describe('benchmark demo asset loader', () => {
 		}
 	});
 
-	it('deduplicates the shared D3 dependency while preserving d3fc dependency order', () => {
+	it('deduplicates the shared D3 dependency while preserving d3fc and deck.gl dependency order', () => {
 		const d3 = loadBenchDemoSources(root, 'd3').dependencies;
 		const d3fc = loadBenchDemoSources(root, 'd3fc').dependencies;
 		assert.deepEqual(d3fc.map(dep => dep.name), ['d3', 'd3fc']);
 		assert.deepEqual(d3fc[0], d3[0]);
+		const deckgl = loadBenchDemoSources(root, 'deckgl');
+		assert.deepEqual(deckgl.dependencies.map(dep => [dep.name, dep.version]), [['d3', '7.9.0'], ['deck.gl', '9.4.0']]);
+		assert.deepEqual(deckgl.dependencies[0], d3[0]);
+		assert.equal(deckgl.dependencies[1].url, 'https://cdn.jsdelivr.net/npm/deck.gl@9.4.0/dist.min.js');
+		assert.equal(deckgl.dependencies[1].cacheName, 'deck.gl-9.4.0-dist.min.js');
+		assert.equal(deckgl.dependencies[1].route, '/bench/vendor/deck.gl-9.4.0-dist.min.js');
+		assert.equal(deckgl.files.has('/bench/deckgl.mjs'), true);
+		assert.equal(deckgl.files.has('/bench/d3.mjs'), false);
+		assert.equal(deckgl.files.has('/bench/d3fc.mjs'), false);
 		const all = loadBenchDemoSources(root).dependencies;
 		assert.deepEqual(all.filter(dep => dep.name === 'd3'), d3);
 		assert.ok(all.findIndex(dep => dep.name === 'd3') < all.findIndex(dep => dep.name === 'd3fc'));
+		assert.ok(all.findIndex(dep => dep.name === 'd3') < all.findIndex(dep => dep.name === 'deck.gl'));
 	});
 
 	it('keeps framework modules variant-scoped with explicit namespace globals and pinned remote URLs', () => {
@@ -341,7 +366,7 @@ describe('benchmark demo asset loader', () => {
 		for (const variant of ['uplot', 'chartgpu', undefined, 'lightningchart']) for (const vulkan of [false, true]) {
 			const requests = [], exits = [], logs = [];
 			const pending = runInNewContext(`(async () => {\n${source.slice(start, end)}\n})()`, {
-				values: {variant, gpu: false, vulkan}, dpr: 1,
+				values: {variant, gpu: false, vulkan}, vulkan: resolveBenchmarkVulkan({variant, vulkan}, 'linux'), dpr: 1,
 				measurements: {trace: true, memory: false, raf: false},
 				assertBenchmarkAvailable,
 				process: {env, exit: code => exits.push(code)},
@@ -364,6 +389,45 @@ describe('benchmark demo asset loader', () => {
 				assert.deepEqual(exits, []);
 			}
 			assert.deepEqual(logs, []);
+		}
+	});
+
+	it('reuses cached D3 and caches deck.gl as an ordered classic script with hashes', async () => {
+		const cache = mkdtempSync(join(tmpdir(), 'uplot-bench-deckgl-'));
+		try {
+			const dependencies = loadBenchDemoSources(root, 'deckgl').dependencies;
+			const bytes = [Buffer.from('/* cached D3 fixture */'), Buffer.from('/* deck.gl fixture */')];
+			writeFileSync(join(cache, dependencies[0].cacheName), bytes[0]);
+			const requests = [];
+			const first = await workerAssets(cache, async url => {
+				assert.equal(url, dependencies[1].url);
+				requests.push(url);
+				return {ok: true, arrayBuffer: async () => Uint8Array.from(bytes[1]).buffer};
+			}, {variant: 'deckgl'});
+			assert.deepEqual(requests, [dependencies[1].url]);
+			const second = await workerAssets(cache, () => assert.fail('cached scripts must not download'), {variant: 'deckgl'});
+			for (const result of [first, second]) {
+				assert.deepEqual(Array.from(result.dependencies, dep => dep.name), ['d3', 'deck.gl']);
+				for (const [i, dep] of result.dependencies.entries()) {
+					assert.deepEqual(readFileSync(join(cache, dep.cacheName)), bytes[i]);
+					assert.deepEqual(result.files.get(dep.route), bytes[i]);
+					assert.equal(dep.sha256, createHash('sha256').update(bytes[i]).digest('hex'));
+					assert.ok(result.page.includes(`<script src="${dep.route}"></script>`));
+					const headers = {};
+					let body;
+					result.server({url: dep.route}, {
+						setHeader(name, value) { headers[name] = value; },
+						end(value) { body = value; },
+						writeHead() { assert.fail('unexpected HTTP error'); },
+					});
+					assert.equal(headers['Content-Type'], 'text/javascript');
+					assert.deepEqual(body, bytes[i]);
+				}
+				assert.ok(result.page.indexOf(dependencies[0].route) < result.page.indexOf(dependencies[1].route));
+			}
+		}
+		finally {
+			rmSync(cache, {recursive: true, force: true});
 		}
 	});
 

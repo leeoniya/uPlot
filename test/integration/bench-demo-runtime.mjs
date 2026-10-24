@@ -22,9 +22,10 @@ function traceStartup(variant, {fetch, prepareDemoRuntime, adapter, globals = {}
 		...globals, VARIANTS: [variant], selectedVariant: variant, demoDependencies, fetch,
 		async importModule(url) {
 			if (url === '/bench/demo-fixture.mjs') return {setupDemo() { assert.fail('startup must not create chart hosts'); }};
+			if (url === '/bench/lifecycle-data.mjs') return {};
 			if (url === '/bench/demo-runtime.mjs') return {prepareDemoRuntime: (...args) => prepareDemoRuntime(...args, context)};
 			assert.equal(url, `/bench/${variant}.mjs`);
-			return adapter;
+			return {makeEmptyChart() { assert.fail('startup must not construct'); }, updateChart() { assert.fail('startup must not update'); }, ...adapter};
 		},
 	};
 	return runInNewContext(`(async () => {\n${source.slice(start, end).replace(/\bimport\(/g, 'importModule(')}\n})()`, context);
@@ -301,9 +302,34 @@ describe('benchmark trace availability checks', () => {
 		assert.deepEqual([...await check('lightningchart', {license: 'test'})], ['lightningchart']);
 	});
 
-	it('permits explicitly selected ChartGPU', async () => {
-		assert.deepEqual([...await check('chartgpu')], ['chartgpu']);
+	for (const id of ['apexcharts', 'amcharts', 'devextreme', 'anychart', 'fusiontime']) {
+		it(`permits explicitly selected ${id}-sampled`, async () => {
+			assert.deepEqual([...await check(id + '-sampled')], [id + '-sampled']);
+		});
+	}
+
+	it('checks both base and sampled ApexCharts/amCharts dependencies before fixture setup', () => {
+		const source = readFileSync(new URL('../../scripts/benchmarks-trace-browser.mjs', import.meta.url), 'utf8');
+		const checks = source.slice(source.indexOf("if (typeof Path2D"), source.indexOf('const fixture ='));
+		for (const id of ['apexcharts', 'amcharts']) {
+			const runtime = id === 'apexcharts' ? {ApexCharts() {}} : {am5: {Root: {}}, am5xy: {XYChart: {}}};
+			for (const variant of [id, id + '-sampled']) {
+				const context = {VARIANTS: [variant], Path2D() {}};
+				assert.throws(() => runInNewContext(checks, context), /Load the selected demo libraries/);
+				assert.doesNotThrow(() => runInNewContext(checks, {...context, ...runtime}));
+				if (id === 'amcharts') {
+					for (const key of ['am5', 'am5xy'])
+						assert.throws(() => runInNewContext(checks, {...context, ...runtime, [key]: undefined}), /Load the selected demo libraries/);
+				}
+			}
+		}
 	});
+
+	for (const id of ['chartgpu', 'deckgl']) {
+		it(`permits explicitly selected ${id}`, async () => {
+			assert.deepEqual([...await check(id)], [id]);
+		});
+	}
 
 	it('rejects timeout-prone variants before fixture/runtime setup', async () => {
 		for (const variant of ['g2-webgl', 'googlecharts'])
@@ -311,15 +337,16 @@ describe('benchmark trace availability checks', () => {
 				error.message === `${variant}: ${benchmarkRestrictions[variant]}`);
 	});
 
-	it('defaults to the 35 runnable variants plus idle, without restricted adapters', async () => {
+	it('defaults to the 41 runnable variants plus idle, without restricted adapters', async () => {
 		const selected = [...await check(null)];
 		assert.deepEqual(selected, [...benchmarkVariants, 'idle']);
-		assert.equal(selected.length, 36);
+		assert.equal(selected.length, 42);
 				assert.equal(selected.includes('g2-webgl'), false);
 				assert.equal(selected.includes('googlecharts'), false);
 		assert.equal(selected.includes('jscharting'), false);
 		assert.equal(selected.includes('lightningchart'), false);
 		assert.equal(selected.includes('chartgpu'), true);
+		assert.equal(selected.includes('deckgl'), true);
 	});
 });
 

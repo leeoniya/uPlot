@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as syncfusion from '../../bench/syncfusion.mjs';
 import * as devextreme from '../../bench/devextreme.mjs';
+import * as devextremeSampled from '../../bench/devextreme-sampled.mjs';
 import * as jscharting from '../../bench/jscharting.mjs';
 import * as kendo from '../../bench/kendo.mjs';
 
 const packed = Object.freeze(JSON.parse(readFileSync(new URL('../../bench/data.json', import.meta.url))));
-const adapters = {syncfusion, devextreme, jscharting, kendo};
+const adapters = {syncfusion, devextreme, 'devextreme-sampled': devextremeSampled, jscharting, kendo};
 const names = ['CPU', 'RAM', 'TCP Out'];
 const colors = ['red', 'blue', 'green'];
 const compact = id => id === 'jscharting' || id === 'kendo';
@@ -26,6 +27,7 @@ function values(id, data, j) {
 }
 
 function vendor(id, {sync = false, fail = false, cleanupError = false} = {}) {
+	id = id.replace('-sampled', '');
 	const state = {destroyed: 0, emptied: 0, error: new Error('render failed')};
 	const chart = state.chart = {
 		element: {
@@ -113,7 +115,9 @@ describe('enterprise benchmark adapters', () => {
 
 	for (const [id, adapter] of Object.entries(adapters)) {
 		it(`${id}: preserves every value of all 55,550 rows without source mutation`, () => {
-			assert.deepEqual(Object.keys(adapter), ['destroyChart', 'makeChart', 'prepData']);
+			assert.deepEqual(Object.keys(adapter).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), id === 'devextreme'
+				? ['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData']
+				: ['destroyChart', 'makeChart', 'prepData']);
 			const data = freeze(adapter.prepData(packed));
 			const again = adapter.prepData(packed);
 			assert.notEqual(data, again);
@@ -182,7 +186,7 @@ describe('enterprise benchmark adapters', () => {
 				const pending = adapter.makeChart(adapter.prepData(packed), {}, wait);
 				await assert.rejects(pending, error => error === state.error);
 				// Kendo/JSC expose no instance if their constructors throw before the callback.
-				const available = sync || id === 'syncfusion' || id === 'devextreme';
+				const available = sync || id === 'syncfusion' || id.startsWith('devextreme');
 				assert.equal(state.destroyed, available ? 1 : 0);
 				assert.equal(state.emptied, available && (id === 'kendo' || id === 'syncfusion') ? 1 : 0);
 				assert.equal(wait.textContent, 'Rendering...');
@@ -225,45 +229,55 @@ describe('enterprise benchmark adapters', () => {
 		});
 	});
 
-	it('DevExtreme: full source, disabled aggregation, continuous dates, and independent dual axes', async () => {
-		const state = vendor('devextreme');
-		const data = freeze(devextreme.prepData(packed));
-		await finish('devextreme', state, devextreme.makeChart(data, {}));
-		const o = state.options;
-		assert.equal(o.dataSource, data);
-		assert.deepEqual(o.size, {width: 1920, height: 600});
-		assert.equal(o.animation.enabled, false);
-		assert.equal(o.commonSeriesSettings.type, 'line');
-		assert.equal(o.commonSeriesSettings.argumentField, 'time');
-		assert.equal(o.commonSeriesSettings.width, 0.5);
-		assert.equal(o.commonSeriesSettings.point.visible, false);
-		assert.equal(o.commonSeriesSettings.label.visible, false);
-		assert.deepEqual(o.commonSeriesSettings.aggregation, {enabled: false});
-		assert.equal(o.argumentAxis.argumentType, 'datetime');
-		assert.equal(o.argumentAxis.type, 'continuous');
-		assert.equal(Object.hasOwn(o.argumentAxis, 'aggregationGroupWidth'), false);
-		assert.equal(o.synchronizeMultiAxes, false);
-		assert.deepEqual(o.series.map(s => s.valueField), ['cpu', 'ram', 'tcp']);
-		assert.deepEqual(o.series.map(s => s.axis), ['percent', 'percent', 'tcp']);
-		assert.deepEqual(o.series.map(s => s.name), names);
-		assert.deepEqual(o.series.map(s => s.color), colors);
-		assert.deepEqual(o.valueAxis.map(a => a.position), ['left', 'right']);
-		assert.equal(o.valueAxis[0].label.customizeText({valueText: '42'}), '42%');
-		assert.equal(o.valueAxis[1].label.customizeText({valueText: '7'}), '7 MB');
-		[o.argumentAxis, ...o.valueAxis].forEach(autoDomain);
-	});
+	for (const [id, adapter] of [['devextreme', devextreme], ['devextreme-sampled', devextremeSampled]]) {
+		it(`${id}: full source, exact aggregation settings, continuous dates, and independent dual axes`, async () => {
+			const sampled = id.endsWith('-sampled');
+			const state = vendor(id);
+			const data = freeze(adapter.prepData(packed));
+			await finish(id, state, adapter.makeChart(data, {}, undefined, {sampled: !sampled}));
+			const o = state.options;
+			assert.equal(o.dataSource, data);
+			assert.deepEqual(o.size, {width: 1920, height: 600});
+			assert.equal(o.animation.enabled, false);
+			assert.equal(o.commonSeriesSettings.type, 'line');
+			assert.equal(o.commonSeriesSettings.argumentField, 'time');
+			assert.equal(o.commonSeriesSettings.width, 0.5);
+			assert.equal(o.commonSeriesSettings.point.visible, false);
+			assert.equal(o.commonSeriesSettings.label.visible, false);
+			assert.equal(o.dataSource.length, 55550);
+			assert.deepEqual(o.dataPrepareSettings, {sortingMethod: false});
+			assert.deepEqual(o.commonSeriesSettings.aggregation, sampled ? {enabled: true, method: 'avg'} : {enabled: false});
+			assert.deepEqual(o.argumentAxis, {
+				argumentType: 'datetime', type: 'continuous', ...(sampled ? {aggregationGroupWidth: 1} : {}),
+			});
+			assert.equal(o.synchronizeMultiAxes, false);
+			assert.deepEqual(o.series.map(s => s.valueField), ['cpu', 'ram', 'tcp']);
+			assert.deepEqual(o.series.map(s => s.axis), ['percent', 'percent', 'tcp']);
+			assert.deepEqual(o.series.map(s => s.name), names);
+			assert.deepEqual(o.series.map(s => s.color), colors);
+			assert.deepEqual(o.valueAxis.map(a => a.position), ['left', 'right']);
+			assert.equal(o.valueAxis[0].label.customizeText({valueText: '42'}), '42%');
+			assert.equal(o.valueAxis[1].label.customizeText({valueText: '7'}), '7 MB');
+			[o.argumentAxis, ...o.valueAxis].forEach(autoDomain);
+		});
 
-	it('DevExtreme: rejects error incidents, but keeps evaluation warnings and waits for onDone', async () => {
-		const state = vendor('devextreme', {cleanupError: true});
-		const wait = {textContent: 'Rendering...'};
-		const pending = devextreme.makeChart([], {}, wait);
-		state.options.onIncidentOccurred({target: {id: 'W0019', text: 'Evaluation warning'}});
-		await Promise.resolve();
-		assert.equal(wait.textContent, 'Rendering...');
-		state.options.onIncidentOccurred({target: {id: 'E2001', text: 'Invalid data'}});
-		await assert.rejects(pending, /DevExtreme E2001: Invalid data/);
-		assert.equal(state.destroyed, 1);
-		assert.equal(wait.textContent, 'Rendering...');
+		it(`${id}: rejects error incidents, but keeps evaluation warnings and waits for onDone`, async () => {
+			const state = vendor(id, {cleanupError: true});
+			const wait = {textContent: 'Rendering...'};
+			const pending = adapter.makeChart([], {}, wait);
+			state.options.onIncidentOccurred({target: {id: 'W0019', text: 'Evaluation warning'}});
+			await Promise.resolve();
+			assert.equal(wait.textContent, 'Rendering...');
+			state.options.onIncidentOccurred({target: {id: 'E2001', text: 'Invalid data'}});
+			await assert.rejects(pending, /DevExtreme E2001: Invalid data/);
+			assert.equal(state.destroyed, 1);
+			assert.equal(wait.textContent, 'Rendering...');
+		});
+	}
+
+	it('DevExtreme sampled wrapper shares preparation and cleanup with the base', () => {
+		assert.equal(devextremeSampled.prepData, devextreme.prepData);
+		assert.equal(devextremeSampled.destroyChart, devextreme.destroyChart);
 	});
 
 	for (const id of ['jscharting', 'kendo']) {
@@ -325,7 +339,7 @@ describe('enterprise benchmark adapters', () => {
 	});
 
 	it('HTML entry points contain only the shared runner', () => {
-		for (const [id, file] of [['syncfusion', 'Syncfusion'], ['devextreme', 'DevExtreme'], ['jscharting', 'JSCharting'], ['kendo', 'Kendo']]) {
+		for (const [id, file] of [['syncfusion', 'Syncfusion'], ['devextreme', 'DevExtreme'], ['devextreme-sampled', 'DevExtreme-Sampled'], ['jscharting', 'JSCharting'], ['kendo', 'Kendo']]) {
 			const html = readFileSync(new URL(`../../bench/${file}.html`, import.meta.url), 'utf8');
 			const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
 			assert.equal(scripts.length, 1);

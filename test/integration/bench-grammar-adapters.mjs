@@ -96,7 +96,7 @@ describe('grammar benchmark adapters', () => {
 
 	for (const [id, adapter] of Object.entries(adapters)) {
 		it(`${id}: preserves every value in all 55,550 rows and three series`, () => {
-			assert.deepEqual(Object.keys(adapter), id === 'g2'
+			assert.deepEqual(Object.keys(adapter).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), id === 'g2'
 								? ['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData']
 								: ['destroyChart', 'makeChart', 'prepData']);
 			const data = adapter.prepData(packed);

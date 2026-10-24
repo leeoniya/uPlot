@@ -1,16 +1,18 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { createBenchmarkDisplay, formatBenchmarkDisplay, countTerminalLines } from '../../scripts/benchmarks-display.mjs';
+import { stripVTControlCharacters } from 'node:util';
+import { createBenchmarkDisplay, formatBenchmarkDisplay, countTerminalLines, benchmarkDisplayColorDepth } from '../../scripts/benchmarks-display.mjs';
+import { benchmarkLibraryName, benchmarkMetadata } from '../../bench/demo-dependencies.mjs';
 
 const one = [{variant: 'uplot', ms: 1.25}];
 const two = [...one, {variant: 'chartjs', ms: 3.5}];
 const clear = lines => (lines ? `\x1b[${lines}A` : '') + '\r\x1b[J';
 
-function capture(options = {}) {
+function capture(options = {}, env = {NO_COLOR: ''}) {
 	const stream = Object.assign(new EventEmitter(), {isTTY: true, columns: 100, rows: 40}, options);
 	const writes = [];
 	stream.write = text => { writes.push(text); return true; };
-	return {stream, writes, display: createBenchmarkDisplay({stream})};
+	return {stream, writes, display: createBenchmarkDisplay({stream, env})};
 }
 
 // Small terminal model for ASCII/table borders, including delayed wrap and scroll.
@@ -57,6 +59,102 @@ function screenAfter(writes, columns = 100, height = 40) {
 	return {screen: screen.join('\n'), scrollback: scrollback.join('\n'), column};
 }
 
+describe('benchmark display colors', () => {
+	const rgbs = ['34;197;94', '74;222;128', '134;239;172', '253;186;116', '251;146;60',
+		'249;115;22', '248;113;113', '239;68;68', '220;38;38', '185;28;28'];
+	const palette = [41, 78, 121, 216, 209, 202, 210, 203, 160, 124];
+	const totals = values => values.map(value => ({variant: 'custom', 'total ms': value}));
+	const coloredValues = text => [...text.matchAll(/\x1b\[(38;[25];[\d;]+)m([^\x1b]*)\x1b\[39m/g)].map(match => match.slice(1));
+
+	it('uses absolute raw-value bands at every boundary, including the inclusive 100 ms limit', () => {
+		const cases = [[0, 0], [-0, 0], [16.5999, 0], [16.6, 1], [16.6001, 1],
+			[34.9999, 1], [35, 2], [35.0001, 2], [99.9999, 2], [100, 2], [100.0001, 3],
+			[149.9999, 3], [150, 4], [150.0001, 4], [224.9999, 4], [225, 5], [225.0001, 5],
+			[299.9999, 5], [300, 6], [300.0001, 6], [499.9999, 6], [500, 7], [500.0001, 7],
+			[999.9999, 7], [1000, 8], [1000.0001, 8], [1999.9999, 8], [2000, 9], [2000.0001, 9], [1e12, 9]];
+		for (const colorDepth of [8, 24]) {
+			const rows = totals(cases.map(([value]) => value));
+			const text = formatBenchmarkDisplay({rows}, {colorDepth});
+			assert.deepEqual(coloredValues(text), cases.map(([value, band]) =>
+				[colorDepth === 24 ? `38;2;${rgbs[band]}` : `38;5;${palette[band]}`, value.toFixed(1)]));
+			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
+		}
+	});
+
+	it('never normalizes colors to the fastest or slowest row', () => {
+		const rows = totals([5, 45, 175, 750, 1000]);
+		const original = structuredClone(rows);
+		for (const colorDepth of [8, 24]) {
+			const base = coloredValues(formatBenchmarkDisplay({rows}, {colorDepth}));
+			const outlier = coloredValues(formatBenchmarkDisplay({rows: [...totals([0]), ...rows, ...totals([1e15])]}, {colorDepth}));
+			assert.deepEqual(outlier.slice(1, -1), base);
+		}
+		assert.deepEqual(rows, original);
+	});
+
+	it('colors only finite nonnegative numeric totals and resets foreground before padding or borders', () => {
+		const rows = totals([10, -1, NaN, Infinity, -Infinity, '10', '-', null, undefined, true, '\x1b[41m10\x1b[0m']);
+		rows[0] = {...rows[0], variant: '\x1b[31mcustom\x1b[0m', 'init ms': 1000, 'peak MB': 1000, 'total ms ': 1000};
+		const frame = {rows, status: '\x1b[32m1000\x1b[0m', warnings: ['\x1b[41m1000\x1b[0m']};
+		const original = structuredClone(frame);
+		const plain = formatBenchmarkDisplay(frame);
+		assert.doesNotMatch(plain, /\x1b/);
+		assert.equal(formatBenchmarkDisplay(frame, {colorDepth: 0}), plain);
+		const text = formatBenchmarkDisplay(frame, {colorDepth: 24});
+		assert.equal(text, plain.replace(/(│ custom[^\n]*?│ +)10\.0( │)/, '$1\x1b[38;2;34;197;94m10.0\x1b[39m$2'));
+		assert.deepEqual(coloredValues(text), [['38;2;34;197;94', '10.0']]);
+		assert.equal((text.match(/\x1b/g) ?? []).length, 2);
+		assert.deepEqual(frame, original);
+	});
+
+	for (const [label, isTTY, depth, env, expected] of [
+		['truecolor', true, 24, {}, 24], ['higher depth', true, 32, {}, 24],
+		['256 colors', true, 8, {}, 8], ['intermediate depth', true, 16, {}, 8],
+		['16 colors', true, 4, {}, 0], ['monochrome', true, 1, {}, 0],
+		['unknown depth', true, undefined, {}, 0], ['invalid depth', true, NaN, {}, 0],
+		['NO_COLOR empty', true, 24, {NO_COLOR: '', FORCE_COLOR: '3'}, 0],
+		['NO_COLOR set', true, 24, {NO_COLOR: '1'}, 0],
+		['dumb', true, 24, {TERM: 'dumb', FORCE_COLOR: '3'}, 0],
+		['redirect', false, 24, {FORCE_COLOR: '3'}, 0],
+	]) {
+		it(`detects ${label} without depending on the host environment`, () => {
+			const getColorDepth = depth === undefined ? undefined : function(received) {
+				assert.equal(received, env);
+				assert.equal(this.isTTY, isTTY);
+				return depth;
+			};
+			const {stream, display, writes} = capture({isTTY, getColorDepth}, env);
+			assert.equal(benchmarkDisplayColorDepth({stream, env}), expected);
+			const frame = {rows: totals([1000]), final: true};
+			display.update(frame);
+			assert.equal(writes[0], formatBenchmarkDisplay(frame, {colorDepth: expected}));
+		});
+	}
+
+	for (const columns of [10, 25, 100]) {
+		for (const height of [6, 100]) {
+			it(`keeps colored wrapping and erasure equivalent to plain at ${columns}x${height}`, () => {
+				const plain = capture({columns, rows: height});
+				const colored = capture({columns, rows: height, getColorDepth: () => 24}, {});
+				const frames = [
+					{rows: totals([16.6, 1000]), status: 'Running\nPlease wait', warnings: ['partial results']},
+					{rows: totals([16.6, 1000, 2000]), status: 'Next'},
+					{status: 'Done', final: true},
+				];
+				for (const frame of frames) {
+					plain.display.update(frame);
+					colored.display.update(frame);
+					assert.equal(countTerminalLines(colored.writes.at(-1), columns), countTerminalLines(plain.writes.at(-1), columns));
+				}
+				// Remove only SGR, leaving cursor commands for exact comparison and simulation.
+				const withoutColor = colored.writes.map(text => text.replace(/\x1b\[[\d;]+m/g, ''));
+				assert.deepEqual(withoutColor, plain.writes);
+				assert.deepEqual(screenAfter(withoutColor, columns, height), screenAfter(plain.writes, columns, height));
+			});
+		}
+	}
+});
+
 describe('benchmark display', () => {
 	it('omits quotes and the index, left-aligns names, and right-aligns one-decimal values', () => {
 		assert.equal(formatBenchmarkDisplay({rows: two}), [
@@ -68,6 +166,85 @@ describe('benchmark display', () => {
 			'└─────────┴─────┘',
 			'',
 		].join('\n'));
+	});
+
+	it('compacts only the eleven explicit alternative IDs, leaving unknown hyphenated and inherited names alone', () => {
+		const alternatives = [
+			['d3-svg', 'd3'], ['plotly-svg', 'plotly'], ['highcharts-svg', 'highcharts'],
+			['bokeh-canvas', 'bokeh'], ['d3fc-canvas', 'd3fc'], ['g2-webgl', 'g2'],
+			['apexcharts-sampled', 'apexcharts'], ['amcharts-sampled', 'amcharts'],
+			['devextreme-sampled', 'devextreme'], ['anychart-sampled', 'anychart'], ['fusiontime-sampled', 'fusiontime'],
+		];
+		const unchanged = ['uplot', 'bokeh', 'custom-svg', 'custom-sampled', 'bokeh-svg', 'd3-sampled',
+			'apexcharts-sampled-extra', 'toString', 'constructor', '__proto__'];
+		const pairs = [...alternatives, ...unchanged.map(id => [id, id])];
+		const rows = pairs.map(([variant]) => ({variant, ms: 1}));
+		const original = structuredClone(rows);
+		const text = formatBenchmarkDisplay({rows});
+		assert.deepEqual(text.split('\n').filter(line => line.startsWith('│')).slice(1)
+			.map(line => line.split('│')[1].trim()), pairs.map(([, library]) => library));
+		for (const [id, library] of pairs)
+			assert.equal(benchmarkLibraryName(id), library);
+		assert.deepEqual(rows, original);
+	});
+
+	it('measures and wraps the full metadata/combined table using compact names, without shortening progress or warnings', () => {
+		const rows = ['bokeh-canvas', 'd3-svg', 'plotly-svg', 'highcharts-svg', 'd3fc-canvas', 'g2-webgl',
+			'apexcharts-sampled', 'amcharts-sampled', 'devextreme-sampled', 'anychart-sampled', 'fusiontime-sampled'].map(variant => ({
+			variant, ...benchmarkMetadata[variant],
+			'prep ms': 4.05, 'init ms': 8.994, 'main ms': 12.011, 'gpu ms': 2.006,
+			'total ms': 15.642, 'peak MB': 25.538, 'retained MB': 18.375,
+		}));
+		// Avoid an unrelated unavailable context making this width fixture wider.
+		rows.find(row => row.variant === 'g2-webgl').context = 'webgl2';
+		const original = structuredClone(rows);
+		const frame = {rows, status: 'Starting bokeh-canvas', warnings: ['d3-svg: failed']};
+		const text = formatBenchmarkDisplay(frame);
+		const width = 123;
+		assert.equal(text.split('\n')[0].length, width);
+		assert.equal(countTerminalLines(text, width), rows.length + 6);
+		assert.equal(countTerminalLines(text, width - 1), 2 * (rows.length + 4) + 2);
+		assert.equal(text, formatBenchmarkDisplay({...frame, rows: rows.map(row => ({...row, variant: benchmarkLibraryName(row.variant)}))}));
+		assert.ok(text.endsWith('Starting bokeh-canvas\nWarning: d3-svg: failed\n'));
+		for (const columns of [width - 1, width, width + 1]) {
+			const {display, writes} = capture({columns, rows: 100});
+			display.update(frame);
+			const physical = text.split('\n').slice(0, -1).reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / columns)), 0);
+			display.update({status: 'Done', final: true});
+			assert.deepEqual(writes, [text, clear(physical) + 'Done\n']);
+			assert.equal(screenAfter(writes, columns, 100).screen, 'prior\nDone');
+		}
+		assert.deepEqual(rows, original);
+	});
+
+	it('orders and left-aligns metadata independently of row key order while keeping metrics right-aligned', () => {
+		const rows = [
+			{ms: 2, lossy: '', variant: 'uplot', sampling: 'minmax', context: '2d'},
+			{variant: 'old', sampling: 'unavailable', context: 'unavailable', lossy: '?', ms: '-'},
+			{variant: 'gpu', sampling: 'none', context: 'webgl2', lossy: '*', ms: 'unavailable'},
+		];
+		const original = structuredClone(rows);
+		const lines = formatBenchmarkDisplay({rows}).split('\n').filter(line => line.startsWith('│'));
+		assert.deepEqual(lines, [
+			'│ variant │ context     │ sampling    │ lossy │          ms │',
+			'│ uplot   │ 2d          │ minmax      │       │         2.0 │',
+			'│ old     │ unavailable │ unavailable │ ?     │           - │',
+			'│ gpu     │ webgl2      │             │ *     │ unavailable │',
+		]);
+		assert.deepEqual(rows, original);
+	});
+
+	it('formats lossy booleans and unknown snapshots and preserves text markers without a manifest fallback', () => {
+		const rows = [
+			{variant: 'uplot', lossy: true}, {variant: 'fusiontime', lossy: false},
+			{variant: 'chartjs', lossy: null}, {variant: 'echarts'},
+			...['*', '?', ''].map(lossy => ({variant: 'agcharts', lossy})),
+		];
+		const original = structuredClone(rows);
+		const lines = formatBenchmarkDisplay({rows}).split('\n').filter(line => line.startsWith('│'));
+		assert.deepEqual(lines.slice(1).map(line => line.split('│')[2]),
+			[' *     ', '       ', ' ?     ', ' ?     ', ' *     ', ' ?     ', '       ']);
+		assert.deepEqual(rows, original);
 	});
 
 	it('formats integers, zero, negative values, and missing measurements without changing inputs', () => {
@@ -113,9 +290,9 @@ describe('benchmark display', () => {
 	it('shows status without an empty table, then replaces the entire growing frame', () => {
 		const {display, writes} = capture();
 		display.update({status: 'Starting', warnings: ['No results yet']});
-		assert.equal(writes[0], 'Starting\n');
+		assert.equal(writes[0], 'Starting\nWarning: No results yet\n');
 		display.update({rows: one, status: 'Running chartjs'});
-		assert.equal(writes[1], clear(1) + formatBenchmarkDisplay({rows: one, status: 'Running chartjs'}));
+		assert.equal(writes[1], clear(2) + formatBenchmarkDisplay({rows: one, status: 'Running chartjs'}));
 		display.update({rows: two, status: 'Done', final: true});
 		assert.equal(writes[2], clear(6) + formatBenchmarkDisplay({rows: two, status: 'Done'}));
 		const result = screenAfter(writes);
@@ -141,11 +318,33 @@ describe('benchmark display', () => {
 		assert.match(writes[0], /Running\nWarning: missing samples\n/);
 		assert.equal(writes[0].match(/missing samples/g).length, 1);
 		assert.match(writes[0], new RegExp(`Warning: ${'x'.repeat(157)}\\.\\.\\.\\n`));
-		assert.match(writes[0], /Warning: 2 more warning\(s\)\n$/);
+		assert.match(writes[0], /Warning: third\nWarning: fourth\nWarning: fifth\n$/);
+				assert.doesNotMatch(writes[0], /more warning/);
 		display.update({rows: one, status: 'Done', final: true});
 		assert.equal(writes[1], clear(countTerminalLines(writes[0], 100)) + formatBenchmarkDisplay({rows: one, status: 'Done'}));
 		assert.doesNotMatch(screenAfter(writes).screen, /Warning|missing|third/);
 	});
+
+	for (const isTTY of [false, true]) {
+		it(`keeps the Google Charts timeout skip visible after earlier warnings (TTY=${isTTY})`, () => {
+			const {display, writes} = capture({isTTY});
+			const reason = 'googlecharts: skipped (Disabled after benchmark timeouts. The standalone demo remains available.)';
+			const warnings = ['first failure', 'second failure', 'third failure', reason, 'another skip'];
+			display.update({status: 'Starting idle', warnings});
+			if (isTTY)
+				assert.ok(writes[0].includes(`Warning: ${reason}\n`));
+			display.update({rows: one, status: 'Done', warnings, final: true});
+			for (const warning of warnings)
+				assert.ok(writes.at(-1).includes(`Warning: ${warning}\n`));
+			assert.doesNotMatch(writes.at(-1), /more warning/);
+		});
+
+		it(`shows skip reasons on final failure before any results (TTY=${isTTY})`, () => {
+			const {display, writes} = capture({isTTY});
+			display.update({status: 'Idle failed', warnings: ['googlecharts: skipped (Disabled after benchmark timeouts.)'], final: true});
+			assert.equal(writes[0], 'Idle failed\nWarning: googlecharts: skipped (Disabled after benchmark timeouts.)\n');
+		});
+	}
 
 	it('counts newlines, blank lines, exact-width lines, and physical wraps', () => {
 		for (const [text, columns, expected] of [

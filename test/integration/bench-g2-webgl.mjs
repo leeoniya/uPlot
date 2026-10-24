@@ -240,7 +240,7 @@ describe('G2 WebGL benchmark adapter (no browser)', () => {
 	it('keeps the legacy export declaration and exposes the shared factory on a separate line', () => {
 		const source = readFileSync(new URL('../../bench/g2.mjs', import.meta.url), 'utf8');
 		assert.match(source, /^export \{makeChartWithOptions\};$/m);
-		assert.match(source, /export \{prepData, makeChart, destroyChart\};\s*$/);
+		assert.match(source, /export \{prepData, makeChart, destroyChart, makeEmptyChart, updateChart\};\s*$/);
 		const legacy = runInNewContext(source.replace(/^export \{[^\n]+\};\s*$/gm, '') +
 			'\n({prepData, makeChart, destroyChart, makeChartWithOptions})');
 		assert.equal(typeof legacy.makeChart, 'function');

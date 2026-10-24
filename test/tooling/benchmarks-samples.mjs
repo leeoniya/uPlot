@@ -7,9 +7,12 @@ import { Window } from 'happy-dom';
 import { captureBenchmarkSamples } from '../../scripts/benchmarks-samples.mjs';
 import { createWebGPUCapture } from '../../scripts/bench-webgpu.mjs';
 import { destroyChart as destroyChartGPU } from '../../bench/chartgpu.mjs';
+import { destroyChart as destroyDeckGL } from '../../bench/deckgl.mjs';
 import { SAMPLE_TIMEOUT_MS, createSampleWatchdog, abortable } from '../../scripts/bench-sample-timeout.mjs';
 import { summarizeProcessMemory } from '../../scripts/analyze-benchmarks-process-memory.mjs';
 import { demoDependencies, benchmarkVariants, demoRestrictions, benchmarkRestrictions, assertBenchmarkAvailable } from '../../bench/demo-dependencies.mjs';
+
+import {smallLifecycleData} from '../../bench/lifecycle-data.mjs';
 
 const allVariants = Object.keys(demoDependencies);
 const demoVariants = allVariants.filter(id => id !== 'idle');
@@ -61,6 +64,8 @@ function fixture(options = {}) {
 				assert.equal(activeReads, 0, 'process reads must drain before destroy');
 			if (method === 'setup')
 				current = timing(variant, id, config.dpr);
+			if (method === 'prepare' && config.lifecycle)
+				current = {...current, id, operation: variant};
 			events.push({method, variant, id});
 			activeOperation = method;
 			try {
@@ -171,7 +176,8 @@ function browserFixture(options = {}) {
 				benchmarkWebGL: options.webgl,
 						benchmarkWebGPU: options.webgpu,
 		WARMUPS: 3, ROUNDS: 7, dpr: 2, WIDTH: 1920, HEIGHT: 600, VIEWPORT_HEIGHT: 900, IDLE_MS: 200, ROWS: 55550,
-		packed: {raw: true},
+		packed: [7, 'epoch', 'idl', 'recv', 'send', 'writ', 'used', 'free', 10, 50, 2, 3, 4, 25, 75,
+			11, 40, 2, 4, 4, 30, 70, 12, 30, 2, 5, 4, 35, 65],
 		crypto: {randomUUID: () => 'browser-capture'},
 		performance: {
 			now: () => clock,
@@ -189,7 +195,8 @@ function browserFixture(options = {}) {
 		prepFor: () => {
 			clock += 50; // Selecting prepData must not be timed.
 			return packed => {
-				assert.equal(packed, context.packed);
+				assert.ok(packed === null || packed === context.smallPacked || packed === context.packed);
+				options.prepData?.(packed);
 				events.push('prepData');
 				clock += 3;
 				return {input: true};
@@ -201,11 +208,12 @@ function browserFixture(options = {}) {
 			clock += 1000;
 			options.validateInput?.();
 		},
-		construct: sample => {
+		construct: async sample => {
 			events.push('construct');
-			sample.chart = {chart: true};
+			sample.chart ??= {chart: true};
 			clock += 5;
 			options.construct?.(sample);
+			await context.finishMicrotask();
 		},
 		finishMicrotask: async () => { events.push('microtask'); clock += 2; },
 		settle: async () => { events.push('settle'); clock += 100; await options.settle?.(); },
@@ -223,32 +231,132 @@ function browserFixture(options = {}) {
 			options.teardown?.();
 		},
 	};
+	context.smallPacked = smallLifecycleData(context.packed);
 	runInNewContext(browserSource.slice(browserSource.indexOf('let invoked = null;')), context);
 	return {api: context.benchmarkLifecycle, runTrace: context.runBenchmarkTrace, context, events, marks,
 			advance: ms => { clock += ms; }};
 }
 
+function deckGLFixture(dpr = 2) {
+	const events = [];
+	const element = {isConnected: true, remove() { this.isConnected = false; events.push('element-remove'); }};
+	const canvas = {
+		width: Math.round(1770 * dpr), height: Math.round(500 * dpr), style: {width: '1770px', height: '500px'},
+		getContext() { assert.fail('no context creation or pixels'); },
+		getBoundingClientRect() { assert.fail('no layout'); },
+		get clientWidth() { assert.fail('no layout'); }, get clientHeight() { assert.fail('no layout'); },
+	};
+	const context = {
+		lost: false, isContextLost() { return this.lost; },
+		getError() { assert.fail('no GL readback'); }, readPixels() { assert.fail('no pixels'); },
+		getExtension(name) {
+			assert.equal(name, 'WEBGL_lose_context');
+			return {loseContext() { context.lost = true; events.push('lose-context'); }};
+		},
+	};
+	const layers = Array.from({length: 3}, () => ({props: {positionFormat: 'XY', data: [new Float64Array(55550 * 2)]}}));
+	const deck = {isInitialized: true, props: {layers}, finalize() { this.isInitialized = false; events.push('finalize'); }};
+	const chart = {
+		deck, context, element, destroyed: false, error: null,
+		canvas: {node: () => canvas, on() { events.push('canvas-listeners'); }},
+		svg: {node: () => ({}), on() { events.push('svg-listeners'); }},
+		getWebGLContexts() { return this.context && !this.context.isContextLost() ? [this.context] : []; },
+	};
+	const host = {
+		querySelector: () => canvas, querySelectorAll: () => [canvas],
+		replaceChildren() { events.push('clear'); }, remove() { events.push('remove'); },
+	};
+	return {sample: {variant: 'deckgl', chart, host}, chart, canvas, context, deck, layers, element, events};
+}
+
 describe('shared browser sample lifecycle', () => {
-	it('delegates preparation and construction to each shared demo without benchmark options', () => {
+	it('prepares the original full fixture once per session after a separate small input', async () => {
+		const inputs = [], charts = [];
+		const fake = browserFixture({variants: ['uplot'],
+			prepData: input => inputs.push(input), construct: sample => charts.push(sample.chart)});
+		const report = await fake.runTrace({raf: true});
+		assert.equal(inputs.length, 20);
+		for (let i = 0; i < 10; i++) {
+			assert.equal(inputs[i * 2], fake.context.smallPacked);
+			assert.equal(inputs[i * 2 + 1], fake.context.packed);
+			assert.equal(charts[i * 2], charts[i * 2 + 1]);
+			if (i) assert.notEqual(charts[i * 2], charts[i * 2 - 1]);
+		}
+		assert.equal(report.phase, 'chart-population');
+		assert.equal(report.samples.length, 10);
+		assert.ok(report.samples.every(sample => sample.phases.length === 2));
+	});
+
+	it('uses optional populated lifecycle constructors and accepts only the retained update handle', async () => {
+		const source = browserSource.slice(browserSource.indexOf('function construct('), browserSource.indexOf('function hasChartSurface('));
+		const chart = {}, input = {}, host = {}, wait = {};
+		let result = chart;
+		const sources = {fixture: {
+			makeChart() { assert.fail('lifecycle constructor must take precedence'); },
+			async makeLifecycleChart(...args) { assert.deepEqual(args, [input, host, wait]); return chart; },
+			async updateChart(...args) { assert.deepEqual(args, [chart, input, host, wait]); return result; },
+		}};
+		const construct = runInNewContext(source + '\nconstruct;', {sources, wait});
+		const sample = {variant: 'fixture', input, host, operation: 'small-init'};
+		await construct(sample);
+		assert.equal(sample.chart, chart);
+		sample.operation = 'data-update';
+		await construct(sample);
+		result = undefined;
+		await construct(sample);
+		result = {};
+		await assert.rejects(construct(sample), /not return a new chart/);
+	});
+
+	it('mounts React with populated state and updates beneath the same component', async () => {
+		const source = readFileSync(new URL('../../bench/lifecycle-frameworks.mjs', import.meta.url), 'utf8')
+			.replace(/^import .*\n/gm, '').replaceAll('export ', '');
+		const initial = [{x: 1}, {x: 2}], full = [{x: 1}, {x: 2}, {x: 3}];
+		let data, component, builds = [], readiness = [];
+		const chart = {root: {}, readySignal: {throwIfAborted() {}}, flushSync: fn => fn()};
+		const React = {
+			useState(value) { data ??= value; return [data, next => { data = next; component(); }]; },
+			createElement(fn) { component = fn; return fn(); },
+		};
+		const api = runInNewContext(source + '\n({mountLifecycleReact, updateReact});', {
+			mountReact: async (host, build, ready) => { build(React, chart); await ready(chart); return chart; },
+		});
+		const build = input => { builds.push(input); }, ready = (instance, input) => {
+			assert.equal(instance, chart); readiness.push(input);
+		};
+		assert.equal(await api.mountLifecycleReact(initial, {}, build, ready), chart);
+		const original = component;
+		await api.updateReact(chart, full);
+		assert.equal(component, original);
+		assert.deepEqual(builds, [initial, full]);
+		assert.deepEqual(readiness, [initial, full]);
+	});
+
+	it('delegates populated construction and retained updates without benchmark options', async () => {
 		const source = browserSource.slice(browserSource.indexOf('function prepFor('), browserSource.indexOf('function validateChart('));
 		const input = {}, host = {}, wait = {}, chart = {};
 		const calls = [];
 		const sources = Object.fromEntries(demoVariants.map(variant => [variant, {
 			prepData: packed => ({variant, packed}),
 			makeChart: (...args) => { calls.push([variant, ...args]); return chart; },
+			updateChart: (...args) => { calls.push([variant, ...args]); },
 		}]));
 		const api = runInNewContext(source + '\n({prepFor, construct});', {sources, wait});
 		for (const variant of Object.keys(sources)) {
 			assert.equal(api.prepFor(variant), sources[variant].prepData);
 			assert.deepEqual(api.prepFor(variant)(input), {variant, packed: input});
-			const sample = {variant, input, host};
-			api.construct(sample);
+			const sample = {variant, input, host, operation: 'small-init'};
+			await api.construct(sample);
 			assert.equal(sample.chart, chart);
 			assert.deepEqual(calls.at(-1), [variant, input, host, wait]);
+			sample.operation = 'data-update';
+			await api.construct(sample);
+			assert.equal(sample.chart, chart);
+			assert.deepEqual(calls.at(-1), [variant, chart, input, host, wait]);
 		}
 		assert.equal(api.prepFor('idle')(), null);
 		api.construct({variant: 'idle'});
-		assert.equal(calls.length, demoVariants.length);
+		assert.equal(calls.length, demoVariants.length * 2);
 		assert.doesNotMatch(browserSource, /function options\(/);
 	});
 
@@ -267,11 +375,11 @@ describe('shared browser sample lifecycle', () => {
 				({construct, finishMicrotask, pending});
 			`, {sources, wait});
 			pending = api.pending;
-			const sample = {variant, input, host};
-			api.construct(sample);
+			const sample = {variant, input, host, operation: 'small-init'};
+			const construction = api.construct(sample);
 			assert.equal(sample.chart, pending.promise);
 			let finished = false, flushed = false;
-			const completion = api.finishMicrotask(sample).then(() => {
+			const completion = construction.then(() => {
 				assert.equal(flushed, true, 'flush one microtask after replacing the Promise with its chart');
 				finished = true;
 			});
@@ -320,12 +428,15 @@ describe('shared browser sample lifecycle', () => {
 
 	it('validates rendered adapter charts and delegates teardown while always removing their hosts', () => {
 		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function environment('));
-		const oldVariants = ['uplot', 'd3', 'chartjs', 'echarts', 'flot', 'dygraphs', 'chartgpu'];
+		const oldVariants = ['uplot', 'd3', 'chartjs', 'echarts', 'flot', 'dygraphs', 'chartgpu', 'deckgl'];
 		for (const variant of demoVariants.filter(id => !oldVariants.includes(id))) {
 			for (const fail of [false, true]) {
 				const chart = variant === 'plotly-svg' ? {data: Array.from({length: 3}, () => ({type: 'scatter'}))}
 									: variant === 'highcharts-svg' ? {options: {boost: {enabled: false}}, series: [{}, {}, {}]}
-														: variant === 'apexcharts' ? {getState: () => ({series: Array.from({length: 3}, () => ({length: 55550}))})} : {};
+														: variant === 'apexcharts' ? {getState: () => ({series: Array.from({length: 3}, () => ({length: 55550}))})}
+																			: variant === 'apexcharts-sampled' ? {getState: () => ({
+																				config: {chart: {dataReducer: {enabled: true}}}, series: [[1, 2], [3, 4], [5, 6]],
+																			})} : {};
 								const events = [], error = new Error('destroy failed');
 				const host = {
 					querySelector(selector) {
@@ -428,6 +539,130 @@ describe('shared browser sample lifecycle', () => {
 		}
 	});
 
+	it('validates every deck.gl input column and rejects corrupt or shortened columns', () => {
+		const source = browserSource.slice(browserSource.indexOf('function validateInput('), browserSource.indexOf('function construct('));
+		const validate = runInNewContext(source + '\nvalidateInput;', {ROWS: 55550});
+		const input = Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(55550)]));
+		validate({variant: 'deckgl', input});
+		for (const key of Object.keys(input)) {
+			for (const index of [0, 27123, 55549]) {
+				for (const value of [NaN, Infinity, -Infinity]) {
+					input[key][index] = value;
+					assert.throws(() => validate({variant: 'deckgl', input}), /four deckgl columns/);
+				}
+				input[key][index] = 0;
+			}
+			for (const length of [0, 55549, 55551])
+				assert.throws(() => validate({variant: 'deckgl', input: {...input, [key]: new Float64Array(length)}}), /four deckgl columns/);
+		}
+	});
+
+	it('validates deck.gl native readiness, context exposure and three full XY paths', () => {
+		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
+		const validate = runInNewContext(source + '\nvalidateChart;', {
+			sources: {deckgl: {destroyChart: destroyDeckGL}}, ROWS: 55550, WIDTH: 1920, HEIGHT: 600, dpr: 2,
+		});
+		const {sample, chart, deck, layers} = deckGLFixture();
+		assert.equal(validate(sample), 2);
+		assert.throws(() => validate({...sample, chart: null}), /did not return a rendered chart/);
+		assert.throws(() => validate({...sample, host: {querySelector: () => null, querySelectorAll: () => []}}), /did not return a rendered chart/);
+		for (const patch of [{error: new Error('late deck failure')}, {destroyed: true}, {element: null}, {svg: null},
+			{context: null}, {context: {isContextLost: () => true}}, {deck: null}, {deck: {}},
+			{deck: {...deck, isInitialized: false}}, {deck: {...deck, finalize: null}}])
+			assert.throws(() => validate({...sample, chart: {...chart, ...patch}}), /not healthy/);
+		for (const getWebGLContexts of [undefined, () => [], () => [{}], () => [chart.context, chart.context]])
+			assert.throws(() => validate({...sample, chart: {...chart, getWebGLContexts}}), /expose its live WebGL context/);
+		for (const invalid of [undefined, layers.slice(0, 2), [...layers, layers[0]]])
+			assert.throws(() => validate({...sample, chart: {...chart, deck: {...deck, props: {layers: invalid}}}}), /three full XY paths/);
+		for (let i = 0; i < 3; i++) {
+			for (const props of [{positionFormat: 'XYZ', data: layers[i].props.data}, {positionFormat: 'XY', data: []},
+				{positionFormat: 'XY', data: [new Float64Array(55549 * 2)]},
+				{positionFormat: 'XY', data: [new Float64Array(55550 * 3)]},
+				{positionFormat: 'XY', data: [...layers[i].props.data, ...layers[i].props.data]}]) {
+				const invalid = layers.map((layer, index) => index === i ? {props} : layer);
+				assert.throws(() => validate({...sample, chart: {...chart, deck: {...deck, props: {layers: invalid}}}}), /three full XY paths/);
+			}
+		}
+	});
+
+	for (const dpr of [1, 1.5, 2]) {
+		it(`checks deck.gl 1770x500 inline and backing dimensions at DPR ${dpr} without layout or readback`, () => {
+			const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
+			const validate = runInNewContext(source + '\nvalidateChart;', {
+				sources: {deckgl: {destroyChart: destroyDeckGL}}, ROWS: 55550, WIDTH: 1920, HEIGHT: 600, dpr,
+			});
+			const {sample, chart, canvas} = deckGLFixture(dpr);
+			assert.equal(validate(sample), dpr);
+			for (const patch of [{width: 1920 * dpr}, {height: 600 * dpr}, {width: NaN}, {height: 0},
+				{style: {width: '1920px', height: '500px'}}, {style: {width: '1770px', height: '600px'}},
+				{style: {width: '', height: '500px'}}]) {
+				const invalid = Object.assign(Object.create(canvas), patch);
+				assert.throws(() => validate({...sample, chart: {...chart, canvas: {node: () => invalid}},
+					host: {querySelector: () => invalid, querySelectorAll: () => [invalid]}}), /inline or backing size.*DPR/);
+			}
+			assert.throws(() => validate({...sample, chart: {...chart, canvas: null}}), /inline or backing size/);
+			for (const canvases of [[], [{}], [canvas, canvas]])
+				assert.throws(() => validate({...sample, host: {...sample.host, querySelectorAll: () => canvases}}), /inline or backing size/);
+		});
+	}
+
+	it('cleans deck.gl resources and rejects late errors, context loss and native finalization', () => {
+		const source = browserSource.slice(browserSource.indexOf('function teardown('), browserSource.indexOf('function environment('));
+		for (const failure of ['none', 'late-error', 'auto-destroyed', 'context-lost', 'finalized', 'finalize-error', 'error-during-destroy']) {
+			const {sample, chart, context, deck, element, events} = deckGLFixture();
+			if (failure === 'late-error' || failure === 'auto-destroyed') chart.error = new Error('late deck failure');
+			if (failure === 'auto-destroyed') destroyDeckGL(chart);
+			if (failure === 'context-lost') context.lost = true;
+			if (failure === 'finalized') deck.isInitialized = false;
+			if (failure === 'finalize-error') deck.finalize = () => { events.push('finalize'); throw new Error('finalize failed'); };
+			const teardown = runInNewContext(source + '\nteardown;', {sources: {deckgl: {destroyChart(chart) {
+				destroyDeckGL(chart);
+				if (failure === 'error-during-destroy') chart.error = new Error('late deck failure');
+			}}}});
+			if (failure === 'none') teardown(sample);
+			else assert.throws(() => teardown(sample), /late deck failure|lost-context chart|finalize failed/);
+			assert.deepEqual(events, ['svg-listeners', 'canvas-listeners', 'finalize', 'lose-context', 'element-remove', 'clear', 'remove']);
+			assert.equal(chart.destroyed, true);
+			assert.equal(chart.element, element);
+			assert.equal(element.isConnected, false);
+			assert.deepEqual(chart.getWebGLContexts(), []);
+			for (const key of ['deck', 'context', 'canvas', 'svg']) assert.equal(chart[key], null);
+		}
+	});
+
+	it('rejects deck.gl resource leaks or remaining context exposure but still removes the host', () => {
+		const source = browserSource.slice(browserSource.indexOf('function teardown('), browserSource.indexOf('function environment('));
+		for (const leak of ['deck', 'context', 'canvas', 'svg', 'element', 'destroyed', 'exposed-context', 'missing-accessor']) {
+			const {sample, chart, context, events} = deckGLFixture();
+			const teardown = runInNewContext(source + '\nteardown;', {sources: {deckgl: {destroyChart(chart) {
+				const retained = chart[leak];
+				destroyDeckGL(chart);
+				if (leak === 'element') chart.element.isConnected = true;
+				else if (leak === 'exposed-context') chart.getWebGLContexts = () => [context];
+				else if (leak === 'missing-accessor') chart.getWebGLContexts = undefined;
+				else chart[leak] = retained;
+			}}}});
+			assert.throws(() => teardown(sample), /resources or exposed contexts survived destruction/);
+			assert.deepEqual(events.slice(-2), ['clear', 'remove']);
+		}
+	});
+
+	it('exports deck.gl runtime version, representation, stroke and sample-count metadata', () => {
+		const source = browserSource.slice(browserSource.indexOf('function environment('), browserSource.indexOf('let invoked = null;'));
+		const runtime = {navigator: {userAgent: 'test'}, uPlot: null, dpr: 2, d3: {version: '7.9.0'}, deck: {Deck: {VERSION: '9.4.0'}}};
+		const environment = runInNewContext(source + '\nenvironment;', runtime);
+		assert.equal(environment().deckglVersion, '9.4.0');
+		assert.equal(environment().d3Version, '7.9.0');
+		delete runtime.deck;
+		assert.equal(environment().deckglVersion, null);
+		const report = browserFixture({variants: ['deckgl']}).api.begin();
+		assert.equal(report.source.demos.deckgl, '/bench/deckgl.mjs');
+		assert.match(report.source.dataRepresentations.deckgl, /Float64Array columns.*full PathLayer.*no sampling/);
+		assert.equal(report.source.strokeWidthDevicePixels.deckgl, 1);
+		assert.equal(report.expectedInstances.deckgl, 10);
+		assert.equal(report.expectedInstances.measuredDeckgl, 7);
+	});
+
 	it('rejects reduced ApexCharts series even when a chart surface exists', () => {
 		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
 		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, ROWS: 55550, sources: {}});
@@ -439,6 +674,47 @@ describe('shared browser sample lifecycle', () => {
 				assert.throws(() => validate(sample), /all 55,550 rendered values/);
 		}
 	});
+
+	it('accepts reduced ApexCharts output only with a native reducer and three finite nonempty series', () => {
+		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, ROWS: 55550, sources: {}});
+		const config = {chart: {dataReducer: {enabled: true}}};
+		const check = (series, options = config) => validate({
+			variant: 'apexcharts-sampled', chart: {getState: () => ({series, config: options})},
+		});
+		for (const length of [1, 1920, 55550])
+			assert.equal(check(Array.from({length: 3}, () => Array(length).fill(1))), 1);
+		for (const series of [undefined, [], [[1], [2]], [[1], [2], []], [[1], [NaN], [3]],
+			[[1], [2], [Infinity]], [[1], [2], [null]], [[1], [2], [[3, 4]]],
+			[[1], [2], Array(55551).fill(3)]])
+			assert.throws(() => check(series), /three nonempty finite series/);
+		for (const options of [{}, {chart: {dataReducer: {enabled: false}}}])
+			assert.throws(() => check([[1], [2], [3]], options), /enable its native data reducer/);
+	});
+
+	for (const id of ['apexcharts', 'amcharts', 'devextreme', 'anychart', 'fusiontime']) {
+		it(`${id}: sampled validates full prepared input, not reduced input`, async () => {
+			const source = browserSource.slice(browserSource.indexOf('function validateInput('), browserSource.indexOf('function construct('));
+			const validate = runInNewContext(source + '\nvalidateInput;', {ROWS: 55550, Date});
+			const base = await import(`../../bench/${id}.mjs`);
+			const sampled = await import(`../../bench/${id}-sampled.mjs`);
+			assert.equal(sampled.prepData, base.prepData);
+			const packed = [7, 'epoch', 'idl', 'recv', 'send', 'writ', 'used', 'free'];
+			for (let i = 0; i < 55550; i++)
+				packed.push(i, 75, 2, 3, 4, 25, 75);
+			const input = sampled.prepData(Object.freeze(packed));
+			for (const variant of [id, id + '-sampled']) {
+				assert.doesNotThrow(() => validate({variant, input}));
+				const reduced = id === 'apexcharts' ? input.map(series => series.slice(0, 1920)) : input.slice(0, 1920);
+				assert.throws(() => validate({variant, input: reduced}), /55,550/);
+			}
+			const last = id === 'apexcharts' ? input[2].at(-1) : input.at(-1);
+			const key = id === 'apexcharts' ? 1 : id === 'amcharts' || id === 'devextreme' ? 'tcp' : 3;
+			last[key] = NaN;
+			for (const variant of [id, id + '-sampled'])
+				assert.throws(() => validate({variant, input}), /55,550/);
+		});
+	}
 
 	it('requires three SVG paths and no Canvas in the D3 SVG variant', async () => {
 		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
@@ -529,21 +805,21 @@ describe('shared browser sample lifecycle', () => {
 		assert.equal(begin.captureId, 'browser-capture');
 		assert.equal(begin.source.uplot, '/dist/uPlot.iife.min.js');
 		assert.equal(begin.source.uplotCss, '/dist/uPlot.min.css');
-		assert.deepEqual(structuredClone(begin.config), {variants: ['uplot', 'chartjs', 'idle'], dpr: 2, warmups: 3, rounds: 7});
+		assert.deepEqual(structuredClone(begin.config), {variants: ['uplot', 'chartjs', 'idle'], dpr: 2, warmups: 3, rounds: 7, lifecycle: true, operations: ['small-init', 'data-update']});
 		assert.equal(begin.expectedInstances.samples, 30);
 		assert.equal(begin.expectedInstances.chartCreations, 20);
 		assert.equal(begin.expectedInstances.d3, 0);
 		assert.equal(await fake.api.setup('uplot', 'sample-0'), undefined);
 		assert.equal(await fake.api.prepare(), undefined);
 		const sample = await fake.api.construct();
-		assert.deepEqual(structuredClone(sample), timing('uplot', 'sample-0', 2));
+		assert.deepEqual(structuredClone(sample), {...timing('uplot', 'sample-0', 2), operation: 'small-init'});
 		assert.deepEqual(fake.marks.map(mark => mark.name), [
 			'benchmark:capture:browser-capture', 'benchmark:sample-0:start', 'benchmark:sample-0:js-end', 'benchmark:sample-0:end',
 		]);
 		const start = fake.events.indexOf('benchmark:sample-0:start');
-		assert.deepEqual(fake.events.slice(start, start + 8), [
+		assert.deepEqual(fake.events.slice(start, start + 7), [
 			'benchmark:sample-0:start', 'construct', 'microtask', 'benchmark:sample-0:js-end',
-			'settle', 'benchmark:sample-0:end', 'checkPage', 'validateChart',
+			'settle', 'benchmark:sample-0:end', 'checkPage',
 		]);
 		assert.equal(await fake.api.destroy(), undefined);
 		await fake.api.setup('chartjs', 'sample-1');
@@ -576,7 +852,7 @@ describe('shared browser sample lifecycle', () => {
 				begin() { fake.events.push('webgl:begin'); },
 				track(gl) { tracked.push(gl); fake.events.push('webgl:track'); fake.advance(3); },
 				async complete(options) {
-					assert.deepEqual(structuredClone(options), {webgl1Finish: true});
+					assert.deepEqual(structuredClone(options), {webgl1Finish: true, retainContexts: true});
 					fake.events.push('webgl:complete');
 					entered.resolve();
 					await pending.promise;
@@ -597,10 +873,9 @@ describe('shared browser sample lifecycle', () => {
 		pending.resolve();
 		const sample = await completion;
 		assert.deepEqual(tracked, contexts);
-		assert.deepEqual(structuredClone(sample), {...timing('scichart', 'sample-0', 2), windowMs: 124, webgl});
+		assert.deepEqual(structuredClone(sample), {...timing('scichart', 'sample-0', 2), operation: 'small-init', windowMs: 124, webgl});
 		assert.deepEqual(fake.events.slice(fake.events.indexOf('webgl:begin')), [
-			'webgl:begin', 'setup', 'settle', 'checkPage',
-			'prepData', 'validateInput', 'settle', 'checkPage', 'checkPage',
+			'webgl:begin', 'prepData', 'validateInput', 'settle', 'checkPage', 'checkPage',
 			'benchmark:sample-0:start', 'construct', 'microtask', 'benchmark:sample-0:js-end',
 			'getWebGLContexts', 'webgl:track', 'webgl:track', 'settle',
 			'webgl:complete', 'webgl:completed', 'benchmark:sample-0:end', 'checkPage', 'validateChart',
@@ -608,6 +883,7 @@ describe('shared browser sample lifecycle', () => {
 		await fake.api.destroy();
 		assert.deepEqual(fake.events.slice(-3), ['teardown', 'webgl:reset', 'settle']);
 		await fake.api.setup('scichart', 'sample-1');
+		await fake.api.prepare();
 		assert.equal(fake.events.filter(event => event === 'webgl:begin').length, 2);
 		await fake.api.destroy();
 	});
@@ -639,7 +915,7 @@ describe('shared browser sample lifecycle', () => {
 		assert.equal(fake.marks.some(mark => mark.name.endsWith(':end')), false);
 		pending.resolve();
 		const sample = await completion;
-		assert.deepEqual(structuredClone(sample), {...timing('chartgpu', 'sample-0', 2), windowMs: 120, webgpu});
+		assert.deepEqual(structuredClone(sample), {...timing('chartgpu', 'sample-0', 2), operation: 'small-init', windowMs: 120, webgpu});
 		await fake.api.destroy();
 	});
 
@@ -682,21 +958,25 @@ describe('shared browser sample lifecycle', () => {
 		const raf = await browserFixture({...options, variants: ['chartgpu']}).runTrace({raf: true});
 		assert.equal(raf.samples.length, 10);
 		assert.ok(raf.samples.every(sample => !Object.hasOwn(sample, 'webgpu')));
-		assert.ok(raf.limitations.some(text => /initial nonempty submission.*including rAF/.test(text)));
+		assert.ok(raf.limitations.some(text => /command submission.*including rAF/.test(text)));
 		assert.ok(raf.limitations.some(text => /rAF adds no post-render WebGPU fence/.test(text)));
 	});
 
-	for (const variant of ['highcharts', 'plotly', 'bokeh', 'd3fc', 'g2-webgl', 'scichart', 'lightningchart']) {
+	for (const variant of ['highcharts', 'plotly', 'bokeh', 'd3fc', 'deckgl', 'g2-webgl', 'scichart', 'lightningchart']) {
 		for (const status of ['complete', 'incomplete', 'not-observed', 'missing-result', 'missing-observer']) {
 			it(`${variant} requires complete GL evidence (${status})`, async () => {
 				const webgl = status === 'missing-result' ? undefined : {status, contexts: []};
 				let resets = 0;
+				let populated = false;
 				const fake = browserFixture({variants: [variant], webgl: status === 'missing-observer' ? undefined : {
-					begin() {}, track() {}, complete: async () => webgl, reset() { resets++; },
+					begin() {}, track() {}, complete: async () => populated ? webgl : {status: 'not-observed'}, reset() { resets++; },
 				}});
 				fake.api.begin();
 				await fake.api.setup(variant, 'sample-0');
-				await fake.api.prepare();
+				await fake.api.prepare('small-init');
+				await fake.api.construct();
+				populated = true;
+				await fake.api.prepare('data-update', 'sample-1');
 				if (status === 'complete')
 					assert.deepEqual(structuredClone((await fake.api.construct()).webgl), webgl);
 				else {
@@ -705,7 +985,7 @@ describe('shared browser sample lifecycle', () => {
 				}
 				await fake.api.destroy();
 				assert.equal(resets, status === 'missing-observer' ? 0 : 1);
-				await fake.api.setup(variant, 'sample-1');
+				await fake.api.setup(variant, 'sample-2');
 				await fake.api.destroy();
 			});
 		}
@@ -742,8 +1022,9 @@ describe('shared browser sample lifecycle', () => {
 			});
 			fake.api.begin();
 			await fake.api.setup('uplot', 'sample-0');
-			if (phase === 'prepare')
-				await assert.rejects(fake.api.prepare(), error => error === primary);
+			if (phase === 'prepare') {
+				await assert.rejects(fake.api.prepare('small-init'), error => error === primary);
+			}
 			else {
 				await fake.api.prepare();
 				if (phase === 'teardown') await fake.api.construct();
@@ -756,7 +1037,7 @@ describe('shared browser sample lifecycle', () => {
 			assert.equal(fake.events.filter(event => event === 'teardown').length, 1);
 			assert.equal(fake.events.filter(event => event === 'webgl:reset').length, 2);
 			await fake.api.setup('uplot', 'sample-1');
-			assert.equal(fake.events.filter(event => event === 'webgl:begin').length, 2);
+			assert.equal(fake.events.filter(event => event === 'webgl:begin').length, 1);
 			if (phase === 'teardown') await assert.rejects(fake.api.destroy(), error => error === primary);
 			else await fake.api.destroy();
 		});
@@ -773,7 +1054,7 @@ describe('shared browser sample lifecycle', () => {
 		await assert.rejects(api.construct(), /prepared/);
 		await assert.rejects(api.setup('uplot', 'sample-1'), /active sample/);
 		await api.prepare();
-		await assert.rejects(api.prepare(), /setup sample/);
+		await assert.rejects(api.prepare(), /constructed sample/);
 		await api.construct();
 		await assert.rejects(api.construct(), /prepared/);
 		await api.destroy();
@@ -819,7 +1100,7 @@ describe('shared browser sample lifecycle', () => {
 		assert.equal(report.samples[0].raf1Ms, 23);
 		assert.equal(report.samples[0].postJsRaf1Ms, 16);
 		assert.throws(() => raf.api.begin(), /exclusive/);
-		await assert.rejects(raf.api.setup('uplot', 'sample-0'), /begin/);
+		await assert.rejects(raf.api.setup('uplot', 'sample-0'), /Expected sample-/);
 	});
 
 	it('notifies optional rAF sample boundaries before setup and after teardown for every round', async () => {
@@ -833,17 +1114,14 @@ describe('shared browser sample lifecycle', () => {
 			fake.events.push(`boundary:${boundary.phase}`);
 		};
 		const report = await fake.runTrace({raf: true});
-		assert.deepEqual(boundaries, Array.from(report.samples).flatMap(({variant}) => [{phase: 'start', variant}, {phase: 'end', variant}]));
-		assert.equal(boundaries.length, 60);
-		for (let i = 0; i < fake.events.length; i++) {
-			if (fake.events[i] === 'boundary:start')
-				assert.deepEqual(fake.events.slice(i + 1, i + 4), ['checkPage', 'setup', 'prepData']);
-			if (fake.events[i] === 'boundary:end')
-				assert.equal(fake.events[i - 1], 'teardown');
-		}
+		assert.deepEqual(boundaries, Array.from(report.samples).flatMap(({variant}) =>
+			Array.from({length: 3}, () => [{phase: 'start', variant}, {phase: 'end', variant}]).flat()));
+		assert.equal(boundaries.length, 180);
+		assert.equal(fake.events.filter(event => event === 'setup').length, 30);
+		assert.equal(fake.events.filter(event => event === 'teardown').length, 30);
 		assert.equal(report.raf.frameIntervalsMs.length, 16);
 		assert.ok(report.samples.every(sample => sample.raf1Ms === 23 && sample.postJsRaf1Ms === 16));
-		assert.equal(fake.marks.filter(mark => /:sample-/.test(mark.name)).length, 90);
+		assert.equal(fake.marks.filter(mark => /:sample-/.test(mark.name)).length, 180);
 	});
 
 	it('defaults to runnable manifest variants, preserves query variants, and blocks unavailable libraries', () => {
@@ -862,7 +1140,8 @@ describe('shared browser sample lifecycle', () => {
 			assert.throws(() => select(variant), error => error.message.includes(reason));
 		for (const variant of ['unknown', 'toString', '__proto__'])
 			assert.throws(() => select(variant), /Unknown variant/);
-		assert.match(browserSource, /sources\[sample.variant\]\.makeChart\(sample.input, sample.host, wait\)/);
+		assert.match(browserSource, /source\.makeLifecycleChart \?\? source\.makeChart/);
+				assert.match(browserSource, /source\.updateChart\(sample.chart, sample.input, sample.host, wait\)/);
 		for (const source of [browserSource, collectorSource]) {
 			assert.doesNotMatch(source, /Runtime\.getHeapUsage|HeapProfiler\.enable|usedSize|backingStorageSize|heapMetrics|benchmarkMemory/);
 		}
@@ -870,6 +1149,38 @@ describe('shared browser sample lifecycle', () => {
 });
 
 describe('shared sample capture', () => {
+	const operations = ['small-init', 'data-update'];
+	it('gives each lifecycle operation its own budget and keeps GC outside the update sequence', async () => {
+		const clock = collectorClock();
+		const fake = fixture({memory: true, collector: clock.capture,
+			config: {lifecycle: true, operations},
+			operation(method) { if (method === 'construct') clock.advance(4000); },
+		});
+		const report = await fake.capture();
+		assert.equal(report.phase, 'chart-population');
+		assert.equal(report.samples.length, 1);
+		assert.deepEqual(structuredClone(report.samples[0].phases.map(phase => phase.operation)), operations);
+		assert.deepEqual(structuredClone(report.samples[0].phases.map(phase => phase.warmup)), [false, false]);
+		const methods = fake.events.map(event => event.method);
+		assert.equal(methods.filter(method => method === gc).length, 3);
+		const first = methods.indexOf('construct');
+		const last = methods.lastIndexOf('construct:end');
+		assert.ok(!methods.slice(first, last).includes(gc));
+		assert.equal(clock.timers.size, 0);
+	});
+
+	it('still stops a single over-budget lifecycle operation', async () => {
+		const clock = collectorClock();
+		let constructions = 0;
+		const fake = fixture({collector: clock.capture, config: {lifecycle: true, operations},
+			operation(method) {
+				if (method === 'construct') clock.advance(++constructions === 2 ? 5001 : 4000);
+			},
+		});
+		await assert.rejects(fake.capture(), error => error.code === 'BENCHMARK_SAMPLE_TIMEOUT');
+		assert.equal(constructions, 2);
+		assert.equal(clock.timers.size, 0);
+	});
 	it('starts with begin and preserves browser timings and metadata in trace-only mode, without GC', async () => {
 		const fake = fixture();
 		const report = await fake.capture();
@@ -926,9 +1237,14 @@ describe('shared sample capture', () => {
 		});
 		assert.equal(report.captureId, 'browser-capture');
 		assert.equal(report.samples.length, 30);
-		assert.equal(fake.marks.length, 91);
+		assert.equal(fake.marks.length, 181);
+		assert.equal(report.phase, 'chart-population');
 		report.samples.forEach((sample, index) => {
-			assert.deepEqual(sample, {...timing(sample.variant, `sample-${index}`, 2), round: Math.floor(index / 3) - 3, warmup: index < 9});
+			const {phases, ...update} = sample;
+			assert.deepEqual(update, {...timing(sample.variant, `sample-${index * 2 + 1}`, 2), operation: 'data-update', round: Math.floor(index / 3) - 3, warmup: index < 9});
+			assert.deepEqual(phases.map(phase => phase.operation), ['small-init', 'data-update']);
+			assert.deepEqual(phases.map(phase => phase.warmup), [index < 9, index < 9]);
+			assert.equal(phases[0].dataPrepMs, 3);
 		});
 	});
 

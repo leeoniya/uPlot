@@ -30,8 +30,8 @@ export function evaluate(files, id, extra = {}) {
 	};
 	const source = files.get(`/bench/${id}.mjs`);
 	assert.equal(typeof source, 'string', `missing /bench/${id}.mjs`);
-	assert.match(source, /export \{makeChart, prepData\};\s*$/);
-	const exports = runInNewContext(source.replace(/^export \{(?:makeChart, prepData|makeChartWithOptions)\};\s*$/gm, '') +
+	assert.match(source, /export \{makeChart, prepData(?:, makeEmptyChart, updateChart)?\};\s*$/);
+	const exports = runInNewContext(source.replace(/^export \{[^\n]+\};\s*$/gm, '') +
 		'\n({makeChart, prepData, setupCanvas: typeof setupCanvas === "function" ? setupCanvas : null})', sandbox);
 	return {exports, sandbox, wait, calls};
 }

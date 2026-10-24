@@ -42,7 +42,11 @@ function staticBranding(root, version) {
 	});
 }
 
-export async function makeChart(data, host, wait) {
+export function makeChart(data, host, wait, runtimeOptions) {
+	return makeChartWithOptions(data, host, wait, runtimeOptions);
+}
+
+export async function makeChartWithOptions(data, host, wait, runtimeOptions, {sampling = false} = {}) {
 	const {am5, am5xy} = globalThis;
 	if (!am5 || !am5xy)
 		throw new Error('Load the amCharts 5.21.4 index.js and xy.js browser bundles before makeChart().');
@@ -57,7 +61,15 @@ export async function makeChart(data, host, wait) {
 		}));
 		const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
 			baseInterval: {timeUnit: 'minute', count: 1},
-			groupData: false,
+			groupData: sampling,
+			...(sampling ? {
+				groupCount: 1920,
+				groupIntervals: [
+					{timeUnit: 'minute', count: 1},
+					{timeUnit: 'minute', count: 10},
+					{timeUnit: 'hour', count: 1},
+				],
+			} : {}),
 			interpolationDuration: 0,
 			renderer: am5xy.AxisRendererX.new(root, {}),
 		}));
@@ -87,9 +99,11 @@ export async function makeChart(data, host, wait) {
 				fill: am5.color(color),
 				interpolationDuration: 0,
 				stateAnimationDuration: 0,
-				// Keep every line segment at its original timestamp.
-				minDistance: 0,
-				exactLocationX: true,
+				...(sampling ? {valueYGrouped: 'average', minDistance: 1} : {
+					// Keep every line segment at its original timestamp.
+					minDistance: 0,
+					exactLocationX: true,
+				}),
 			}));
 			series.strokes.template.setAll({strokeWidth: 1});
 			series.data.setAll(data);
@@ -120,6 +134,32 @@ export async function makeChart(data, host, wait) {
 		root.dispose();
 		throw error;
 	}
+}
+
+export function makeEmptyChart(host, wait) {
+	return makeChart([], host, wait);
+}
+
+export async function updateChart(root, input, host, wait) {
+	const chart = root.container.children.getIndex(0);
+	await new Promise((resolve, reject) => {
+		const listener = root.events.on('frameended', () => {
+			queueMicrotask(() => {
+				if (root.animationTime === null) {
+					listener.dispose();
+					resolve();
+				}
+			});
+		});
+		try {
+			chart.series.each(series => series.data.setAll(input));
+		}
+		catch (error) {
+			listener.dispose();
+			reject(error);
+		}
+	});
+	if (wait) wait.textContent = 'Done!';
 }
 
 export function destroyChart(chart) {

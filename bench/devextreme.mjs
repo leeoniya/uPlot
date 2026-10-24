@@ -17,7 +17,11 @@ function prepData(packed) {
 	return data;
 }
 
-async function makeChart(data, host, wait) {
+function makeChart(data, host, wait, runtimeOptions) {
+	return makeChartWithOptions(data, host, wait, runtimeOptions);
+}
+
+async function makeChartWithOptions(data, host, wait, runtimeOptions, {sampled = false} = {}) {
 	let chart;
 	try {
 		let resolve, reject;
@@ -35,7 +39,7 @@ async function makeChart(data, host, wait) {
 				width: 1 / devicePixelRatio,
 				point: {visible: false},
 				label: {visible: false},
-				aggregation: {enabled: false},
+				aggregation: sampled ? {enabled: true, method: 'avg'} : {enabled: false},
 			},
 			series: ['cpu', 'ram', 'tcp'].map((valueField, i) => ({
 				valueField,
@@ -43,7 +47,7 @@ async function makeChart(data, host, wait) {
 				name: ['CPU', 'RAM', 'TCP Out'][i],
 				color: ['red', 'blue', 'green'][i],
 			})),
-			argumentAxis: {argumentType: 'datetime', type: 'continuous'},
+			argumentAxis: {argumentType: 'datetime', type: 'continuous', ...(sampled ? {aggregationGroupWidth: 1} : {})},
 			valueAxis: [
 				{name: 'percent', position: 'left', label: {customizeText: ({valueText}) => `${valueText}%`}},
 				{name: 'tcp', position: 'right', label: {customizeText: ({valueText}) => `${valueText} MB`}},
@@ -52,6 +56,8 @@ async function makeChart(data, host, wait) {
 			legend: {visible: true, verticalAlignment: 'bottom', horizontalAlignment: 'center'},
 			onInitialized: e => { chart = e.component; },
 			onDone: () => resolve(),
+						// Empty series never emit done in 26.1.6; drawn still reports the axes render.
+						onDrawn: () => { if (data.length === 0) resolve(); },
 			onIncidentOccurred: ({target}) => {
 				// W-codes include vendor evaluation notices; do not suppress them.
 				if (target.id?.startsWith('E'))
@@ -69,8 +75,33 @@ async function makeChart(data, host, wait) {
 	}
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart([], host, wait);
+}
+
+async function updateChart(chart, input, host, wait) {
+	let done, incident;
+	try {
+		await new Promise((resolve, reject) => {
+			done = resolve;
+			incident = ({target}) => {
+				if (target.id?.startsWith('E'))
+					reject(new Error(`DevExtreme ${target.id}: ${target.text}`));
+			};
+			chart.on(input.length === 0 ? 'drawn' : 'done', done);
+			chart.on('incidentOccurred', incident);
+			chart.option('dataSource', input);
+		});
+		if (wait) wait.textContent = 'Done!';
+	}
+	finally {
+		chart.off(input.length === 0 ? 'drawn' : 'done', done);
+		chart.off('incidentOccurred', incident);
+	}
+}
+
 function destroyChart(chart) {
 	chart.dispose();
 }
 
-export {prepData, makeChart, destroyChart};
+export {prepData, makeChart, makeEmptyChart, updateChart, destroyChart, makeChartWithOptions};

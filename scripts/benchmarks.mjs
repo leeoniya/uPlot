@@ -16,8 +16,8 @@ import { chromeBinary } from './chrome-headless-shell.mjs';
 import { summarizeBenchmarkRaf } from './analyze-benchmarks-raf.mjs';
 import { loadBenchDemoSources } from './bench-demo-sources.mjs';
 import { bundleModuleDependencies } from './bench-module-bundle.mjs';
-import { benchmarkMode, variantReportName, runBenchmarkSuite, summarizeSavedBenchmarks } from './benchmarks-suite.mjs';
-import { demoDependencies, benchmarkVariants, assertBenchmarkAvailable } from '../bench/demo-dependencies.mjs';
+import { benchmarkMode, resolveBenchmarkVulkan, variantReportName, runBenchmarkSuite, summarizeSavedBenchmarks } from './benchmarks-suite.mjs';
+import { demoDependencies, benchmarkVariants, benchmarkMetadata, assertBenchmarkAvailable } from '../bench/demo-dependencies.mjs';
 
 const root = new URL('../', import.meta.url);
 const cache = fileURLToPath(new URL('.cache/benchmarks/', root));
@@ -32,11 +32,13 @@ const {values, tokens} = parseArgs({tokens: true, options: {
 	worker: {type: 'boolean', default: false},
 	'summarize-only': {type: 'boolean', default: false},
 	gpu: {type: 'boolean', default: false},
-	vulkan: {type: 'boolean', default: false},
+	vulkan: {type: 'boolean'},
+	'no-vulkan': {type: 'boolean'},
 	dpr: {type: 'string', default: '1'},
 	'install-only': {type: 'boolean', default: false},
 	help: {type: 'boolean', short: 'h', default: false},
 }});
+const vulkan = resolveBenchmarkVulkan(values);
 if (values.help) {
 	console.log(`Usage: npm run bench [-- --dpr NUMBER]
        npm run bench:trace [-- --dpr NUMBER]
@@ -51,23 +53,39 @@ There is no JS-heap benchmark or heap-usage sampling.
 Defaults: ${benchmarkVariants.join(', ')}, plus an idle control measured first.
 LightningChart runs when LIGHTNINGCHART_LICENSE supplies a runtime key.
 JSCharting is demo-only: version 3.4.0 retains destroyed charts across repeated samples.
-ChartGPU runs in the default suite and requires hardware WebGPU. Use --vulkan for the verified Linux headless configuration.
+ChartGPU runs in the default suite and requires hardware WebGPU.
+On Linux, runs that include ChartGPU automatically request Vulkan for every worker, including idle.
+Other explicit variants and other platforms keep Chrome's default backend unless overridden.
 Each variant gets a fresh browser with only its own library and demo dependencies.
-Each library has 3 warmups and 7 measured rounds. There is no inter-library cooling pause.
-Each sample has a hard 5s budget from setup through cleanup, including preparation and memory checkpoints.
+Each library has 3 warmup sessions and 7 measured sessions. There is no inter-library cooling pause.
+A session creates a chart with two points per series, then measures one update to the full 166,650-point dataset.
+Each operation has a hard 5s budget, including preparation and completion checks. Final cleanup has its own 5s budget.
 A library timeout kills Chrome, discards the incomplete trace, shows '-' for all metrics, and continues the suite.
 Library errors also show '-' and continue; details remain in the suite JSON.
 Cancellation, idle-control failures, and suite infrastructure failures still stop the suite.
 The table shows per-metric minima after warmups: best observed performance, not typical latency.
 Columns can come from different rounds. Total work is the minimum per-round total, not a sum of column minima.
 Progress, partial results, and a cumulative table update after each library finishes.
+Table names omit renderer/sampling suffixes. Library groups stay together, fastest implementation first.
+Trace/combined groups rank by best total ms; rAF groups rank by best next rAF ms. Memory groups keep execution order.
+CLI selection, filenames, progress, warnings, and JSON retain full variant IDs.
+Columns start with variant, context, sampling, lossy. '*' flags potentially lossy reduction; '?' means unverified or missing classification.
+A blank lossy cell means no configured reduction or verified bucket-extrema preservation, not pixel-identical output.
+Total ms uses fixed colors: three greens through 100 ms, three oranges below 300 ms, then progressively deeper reds.
+Green thresholds: <16.6, <35, <=100 ms. Orange thresholds: <150, <225, <300 ms. Red thresholds: <500, <1000, <2000, >=2000 ms.
+Colors use unrounded totals, not table-relative scaling. Total ms measures selected host-thread work, not elapsed frame latency.
+Live tables and saved summaries use truecolor or 256 colors. Redirected output and JSON stay plain. NO_COLOR disables colors.
 Use --variant NAME to run one library plus idle. Registered: ${Object.keys(demoDependencies).join(', ')}.
 LightningChart requires LIGHTNINGCHART_LICENSE. SCICHART_LICENSE optionally supplies a SciChart runtime key.
 LIGHTNINGCHART_LICENSE_INFORMATION can supply vendor-required metadata as JSON.
 DPR defaults to 1. --dpr selects one browser and canvas DPR.
 
 Library loading, raw JSON parsing, and fixture setup occur outside chart timing.
-Data preparation is timed separately. Init covers options, chart construction, async library completion, and its initial microtask commit.
+Data preparation is timed separately for both operations. Small and full inputs have distinct references, lengths, and contents.
+prep ms measures full-data preparation. init ms measures two-point chart readiness. update ms measures small-to-full update readiness.
+main, gpu, total and next rAF describe the full-data update, not startup. Phase details remain in JSON.
+The update includes full-size allocation costs; it is not a steady-state full-to-full replacement measurement.
+HTML demos still construct directly with the full dataset.
 Trace chart windows include settling and deferred rendering, but exclude prep, forced GC, and teardown.
 After settling, trace/memory runs check WebGL2 fences or call WebGL1 finish, outside init but inside the chart window.
 ChartGPU also checks its actual WebGPU device queues after settling. Its initial queue wait remains inside init in every mode.
@@ -75,8 +93,8 @@ GPU thread work is host-thread wall time, not hardware GPU execution time. Compl
 Trace and rAF timings are not idle-subtracted; idle subtraction applies only to memory.
 
 Memory requires Linux /proc access. It polls process memory with a requested 50 ms delay after each read.
-Retained memory is measured after initialization, settling, and forced JS GC, with chart and prepared input alive.
-GC occurs before preparation, after the chart window ends, and after teardown, never between prep and construction.
+Retained memory follows the full-data update, settling, and forced JS GC, with chart and prepared input alive.
+Peaks cover the complete session. GC occurs only at baseline, after the full-data update, and after teardown.
 The headline shows baseline-adjusted browser-tree PSS in decimal MB. Renderer measurements stay in JSON.
 Each sample subtracts its blank-page checkpoint and the minimum measured idle retained-minus-blank footprint.
 Memory columns show minimum adjusted retained memory and the minimum of the per-round sampled peaks.
@@ -89,12 +107,14 @@ Chrome Headless Shell ${chromeVersion} and pinned demo dependencies are download
 CHROME_BIN overrides the browser. --install-only prepares the browser without a benchmark.
 Automatic browser installation requires Linux x64 and unzip.
 Results and compressed traces go to .cache/benchmarks. Each mode has its own default report files.
-Use --vulkan to enable GPU and request Vulkan. Vulkan reports and traces use separate filenames.
+Use --vulkan to enable GPU and request Vulkan on any platform. Use --no-vulkan to disable automatic Vulkan selection.
+These flags cannot be combined. Vulkan reports and traces use separate filenames and backend metadata.
 Use --summarize-only with any command to summarize its saved suite report without starting Chrome.
-Add --vulkan to summarize the saved Vulkan report.
+Summary-only uses the default-suite backend: Vulkan on Linux, Chrome's default elsewhere.
+Use --no-vulkan to select the saved default report, or --vulkan to select the saved Vulkan report.
 Summary-only mode uses the saved DPR and rejects --dpr, --variant, --worker, and --install-only.
 
-Direct runner: node scripts/benchmarks.mjs [--trace] [--memory] [--raf] [--gpu] [--vulkan] [--dpr NUMBER]
+Direct runner: node scripts/benchmarks.mjs [--trace] [--memory] [--raf] [--gpu] [--vulkan | --no-vulkan] [--dpr NUMBER]
 No measurement flags means trace + memory. rAF cannot be combined with tracing or memory.`);
 	process.exit(0);
 }
@@ -113,7 +133,7 @@ const mode = benchmarkMode(measurements);
 if (values['summarize-only']) {
 	if (values.variant || values.worker || values['install-only'] || tokens.some(token => token.kind === 'option' && token.name === 'dpr'))
 		throw new Error('--summarize-only cannot be combined with --dpr, --variant, --worker, or --install-only.');
-	summarizeSavedBenchmarks({...measurements, vulkan: values.vulkan});
+	summarizeSavedBenchmarks({...measurements, vulkan});
 	process.exit(0);
 }
 const lightningOptions = (!values.variant || values.variant === 'lightningchart') &&
@@ -129,7 +149,7 @@ if (measurements.memory && platform() !== 'linux')
 	throw new Error('Process memory measurement requires Linux /proc.');
 if (!values.worker && !values['install-only']) {
 	try {
-		await runBenchmarkSuite({...measurements, dpr, gpu: values.gpu, vulkan: values.vulkan, variant: values.variant ?? null, lightningOptions});
+		await runBenchmarkSuite({...measurements, dpr, gpu: values.gpu, vulkan, variant: values.variant ?? null, lightningOptions});
 	}
 	catch (error) {
 		if (error.code !== 'BENCHMARK_SAMPLE_TIMEOUT')
@@ -235,8 +255,8 @@ try {
 		'--no-first-run', '--no-default-browser-check', '--disable-background-networking',
 		'--disable-component-update', '--disable-sync', '--disable-extensions',
 		'--user-data-dir=' + profile,
-		...(values.gpu || values.vulkan ? ['--enable-gpu'] : []),
-		...(values.vulkan ? ['--enable-features=Vulkan'] : []),
+		...(values.gpu || vulkan ? ['--enable-gpu'] : []),
+		...(vulkan ? ['--enable-features=Vulkan'] : []),
 		'--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1', '--window-size=1920,900', 'about:blank',
 	];
 	// Keep Chrome in the worker's process group so the suite can clean up all descendants.
@@ -247,7 +267,7 @@ try {
 	browser.once('exit', code => rejectResult(new Error(`Chrome exited with code ${code}.\n${browserLog}`)));
 	const report = await Promise.race([captureBenchmarkTrace({
 		profile, url, cache, ...measurements, dpr, lightningOptions, sciChartOptions, processPid: measurements.memory ? browser.pid : null,
-		traceName: `trace-chrome-${mode}${values.vulkan ? '-vulkan' : ''}-${values.variant}.json`,
+		traceName: `trace-chrome-${mode}${vulkan ? '-vulkan' : ''}-${values.variant}.json`,
 		onSampleTimeout(error) {
 			// Preserve the timeout instead of a subsequent Chrome-disconnected error.
 			rejectResult(error);
@@ -260,7 +280,8 @@ try {
 		date: new Date().toISOString(), cpu: cpus()[0]?.model, os: `${platform()} ${release()}`,
 		headless: true, engine: 'chrome', binary, browserVersion, browserArgs, node: process.version,
 		dpr, dependencies, variant: values.variant,
-		requestedBackend: values.vulkan ? 'vulkan' : 'default',
+		benchmark: {...benchmarkMetadata[values.variant]},
+		requestedBackend: vulkan ? 'vulkan' : 'default',
 		sourceSha256: Object.fromEntries([...files].filter(([path]) => !path.startsWith('/bench/vendor/'))
 			.map(([path, source]) => [path, createHash('sha256').update(source).digest('hex')])),
 		browserLog,
@@ -269,7 +290,7 @@ try {
 		report.analysis = await analyzeBenchmarkTraceFile(report.trace.path, report);
 	if (measurements.raf)
 		report.rafAnalysis = summarizeBenchmarkRaf(report);
-	const output = join(cache, variantReportName(mode, values.variant, values));
+	const output = join(cache, variantReportName(mode, values.variant, {vulkan}));
 	writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
 	console.log(`${values.variant}: ${report.samples.filter(sample => !sample.warmup).length} measured samples. ${browserVersion}`);
 }

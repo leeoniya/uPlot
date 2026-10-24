@@ -59,6 +59,10 @@ export const demoDependencies = {
 		{name: 'd3', version: '7.9.0', path: 'dist/d3.min.js'},
 		{name: 'd3fc', version: '15.2.13', path: 'build/d3fc.min.js'},
 	],
+	deckgl: [
+		{name: 'd3', version: '7.9.0', path: 'dist/d3.min.js'},
+		{name: 'deck.gl', version: '9.4.0', path: 'dist.min.js'},
+	],
 	agcharts: [
 		{name: 'ag-charts-community', version: '14.2.0', path: 'dist/umd/ag-charts-community.min.js'},
 	],
@@ -131,8 +135,20 @@ demoDependencies['g2-webgl'] = [
 	{name: '@antv/g-webgl', version: '2.1.3', path: 'dist/index.umd.min.js'},
 ];
 
+for (const id of ['apexcharts', 'amcharts', 'devextreme', 'anychart', 'fusiontime'])
+	demoDependencies[id + '-sampled'] = demoDependencies[id];
+
 // Explicit local imports let the CLI serve shared adapters without source parsing.
 export const demoModuleDependencies = {
+	recharts: ['lifecycle-frameworks'],
+	muicharts: ['lifecycle-frameworks'],
+	financialcharts: ['lifecycle-frameworks'],
+	visx: ['lifecycle-frameworks'],
+	'apexcharts-sampled': ['apexcharts'],
+	'amcharts-sampled': ['amcharts'],
+	'devextreme-sampled': ['devextreme'],
+	'anychart-sampled': ['anychart'],
+	'fusiontime-sampled': ['fusiontime'],
 	'd3-svg': ['d3'],
 	'plotly-svg': ['plotly'],
 	'highcharts-svg': ['highcharts'],
@@ -140,6 +156,25 @@ export const demoModuleDependencies = {
 	'd3fc-canvas': ['d3fc'],
 	'g2-webgl': ['g2'],
 };
+
+// Presentation identity is independent of shared adapter/module dependencies.
+const benchmarkLibraries = {
+	'd3-svg': 'd3',
+	'plotly-svg': 'plotly',
+	'highcharts-svg': 'highcharts',
+	'bokeh-canvas': 'bokeh',
+	'd3fc-canvas': 'd3fc',
+	'g2-webgl': 'g2',
+	'apexcharts-sampled': 'apexcharts',
+	'amcharts-sampled': 'amcharts',
+	'devextreme-sampled': 'devextreme',
+	'anychart-sampled': 'anychart',
+	'fusiontime-sampled': 'fusiontime',
+};
+
+export function benchmarkLibraryName(variant) {
+	return Object.hasOwn(benchmarkLibraries, variant) ? benchmarkLibraries[variant] : variant;
+}
 
 export const demoRestrictions = {
 	lightningchart: 'Requires a vendor-issued runtime license key (LIGHTNINGCHART_LICENSE).',
@@ -155,11 +190,63 @@ export const benchmarkRestrictions = {
 
 // Keep execution order separate from the table, which sorts by measured total.
 export const benchmarkVariants = [
-	'uplot', 'chartjs', 'apexcharts', 'echarts', 'd3', 'd3-svg', 'flot', 'd3fc', 'd3fc-canvas', 'financialcharts',
-	'agcharts', 'dygraphs', 'anychart', 'visx', 'bokeh', 'bokeh-canvas', 'canvasjs', 'plotly', 'plotly-svg', 'lightweight',
-	'muicharts', 'fusiontime', 'devextreme', 'vega', 'highcharts', 'highcharts-svg', 'scichart', 'billboard',
-	'g2', 'syncfusion', 'zingchart', 'amcharts', 'recharts', 'kendo', 'chartgpu',
+	'uplot', 'chartjs', 'apexcharts', 'apexcharts-sampled', 'echarts', 'd3', 'd3-svg', 'flot', 'd3fc', 'd3fc-canvas', 'deckgl', 'financialcharts',
+	'agcharts', 'dygraphs', 'anychart', 'anychart-sampled', 'visx', 'bokeh', 'bokeh-canvas', 'canvasjs', 'plotly', 'plotly-svg', 'lightweight',
+	'muicharts', 'fusiontime', 'fusiontime-sampled', 'devextreme', 'devextreme-sampled', 'vega', 'highcharts', 'highcharts-svg', 'scichart', 'billboard',
+	'g2', 'syncfusion', 'zingchart', 'amcharts', 'amcharts-sampled', 'recharts', 'kendo', 'chartgpu',
 ];
+
+// Primary series renderer, not axes or support probes. Null contexts require runtime evidence.
+// "none" means no configured sampling; it does not exclude undocumented vendor optimizations.
+export const benchmarkMetadata = {
+	uplot: {sampling: 'minmax', context: '2d', lossy: false},
+	chartjs: {sampling: 'minmax', context: '2d', lossy: false},
+	apexcharts: {sampling: 'none', context: '2d', lossy: false},
+	'apexcharts-sampled': {sampling: 'LTTB (1920)', context: '2d', lossy: true},
+	echarts: {sampling: 'minmax', context: '2d', lossy: false},
+	d3: {sampling: 'none', context: '2d', lossy: false},
+	'd3-svg': {sampling: 'none', context: 'svg', lossy: false},
+	flot: {sampling: 'none', context: '2d', lossy: false},
+	d3fc: {sampling: 'none', context: 'webgl', lossy: false},
+	'd3fc-canvas': {sampling: 'none', context: '2d', lossy: false},
+	deckgl: {sampling: 'none', context: 'webgl2', lossy: false},
+	financialcharts: {sampling: 'none', context: '2d', lossy: false},
+	agcharts: {sampling: 'aggregation', context: '2d', lossy: false},
+	dygraphs: {sampling: 'none', context: '2d', lossy: false},
+	anychart: {sampling: 'none', context: 'svg', lossy: false},
+	'anychart-sampled': {sampling: 'avg (calendar)', context: 'svg', lossy: true},
+	visx: {sampling: 'none', context: 'svg', lossy: false},
+	bokeh: {sampling: 'none', context: 'webgl', lossy: false},
+	'bokeh-canvas': {sampling: 'none', context: '2d', lossy: false},
+	canvasjs: {sampling: 'none', context: '2d', lossy: false},
+	plotly: {sampling: 'none', context: 'webgl', lossy: false},
+	'plotly-svg': {sampling: 'simplify', context: 'svg', lossy: true},
+	lightweight: {sampling: 'conflation', context: '2d', lossy: true},
+	muicharts: {sampling: 'none', context: 'svg', lossy: false},
+	fusiontime: {sampling: 'avg (1min)', context: 'svg', lossy: true},
+	'fusiontime-sampled': {sampling: 'avg (calendar)', context: 'svg', lossy: true},
+	devextreme: {sampling: 'none', context: 'svg', lossy: false},
+	'devextreme-sampled': {sampling: 'avg (1px)', context: 'svg', lossy: true},
+	vega: {sampling: 'none', context: '2d', lossy: false},
+	highcharts: {sampling: 'pixel-distance', context: 'webgl', lossy: true},
+	'highcharts-svg': {sampling: 'none', context: 'svg', lossy: false},
+	// Auto matched explicit MinMax in the pinned native-output accuracy matrix.
+		scichart: {sampling: 'minmax', context: null, lossy: false},
+	billboard: {sampling: 'none', context: '2d', lossy: false},
+	g2: {sampling: 'none', context: '2d', lossy: false},
+	'g2-webgl': {sampling: 'none', context: null, lossy: false},
+	syncfusion: {sampling: 'pixel-tolerance', context: '2d', lossy: true},
+	zingchart: {sampling: 'none', context: '2d', lossy: false},
+	amcharts: {sampling: 'none', context: '2d', lossy: false},
+	'amcharts-sampled': {sampling: 'avg+distance', context: '2d', lossy: true},
+	recharts: {sampling: 'none', context: 'svg', lossy: false},
+	kendo: {sampling: 'none', context: '2d', lossy: false},
+	chartgpu: {sampling: 'none', context: 'webgpu', lossy: false},
+	googlecharts: {sampling: 'none', context: 'svg', lossy: false},
+	jscharting: {sampling: 'none', context: 'svg', lossy: false},
+	lightningchart: {sampling: 'grouping', context: null, lossy: null},
+	idle: {sampling: 'none', context: null, lossy: false},
+};
 
 export function dependencyUrl(dependency, base) {
 	return dependency.url ?? (dependency.name

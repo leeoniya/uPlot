@@ -97,6 +97,8 @@ function canvasRenderer(host, line, series, ticks) {
 	const overlayCtx = setupCanvas(overlay);
 	line.context(plotCtx);
 
+	function redraw() {
+	plotCtx.clearRect(0, 0, width, height);
 	drawAxes(plotCtx, ticks);
 
 	plotCtx.save();
@@ -113,8 +115,11 @@ function canvasRenderer(host, line, series, ticks) {
 		plotCtx.stroke();
 	}
 	plotCtx.restore();
+	}
+	redraw();
 
 	return {
+		update(nextTicks) { ticks = nextTicks; redraw(); },
 		overlay,
 		pointer: event => event.offsetX,
 		clearCursor: () => overlayCtx.clearRect(0, 0, width, height),
@@ -157,9 +162,12 @@ function svgRenderer(host, line, series, ticks) {
 		.attr("font-family", "Arial").attr("font-size", 10)
 		.attr("fill", "#000").attr("stroke-width", 1 / pxRatio);
 	const grid = axes.append("g").attr("class", "grid").attr("stroke", "rgba(0,0,0,0.1)");
-	for (const [y] of ticks.pct)
-		grid.append("line").attr("x1", plotLeft).attr("x2", plotRight)
-			.attr("y1", pxRound(y)).attr("y2", pxRound(y));
+	function drawGrid() {
+		grid.selectAll('line').data(ticks.pct).join('line')
+			.attr('x1', plotLeft).attr('x2', plotRight)
+			.attr('y1', ([y]) => pxRound(y)).attr('y2', ([y]) => pxRound(y));
+	}
+	drawGrid();
 
 	for (const [name, values, x, anchor] of [
 		["pct", ticks.pct, plotLeft - 8, "end"],
@@ -200,6 +208,23 @@ function svgRenderer(host, line, series, ticks) {
 		.attr("pointer-events", "all").node();
 
 	return {
+		update(nextTicks) {
+			ticks = nextTicks;
+			drawGrid();
+			for (const [name, x] of [['pct', plotLeft - 8], ['mb', plotRight + 8]])
+				axes.select(`.axis-${name}`).selectAll('text').data(ticks[name]).join('text')
+					.attr('x', x).attr('y', ([y]) => y).text(([, label]) => label);
+			xAxis.selectAll('line').data([[plotLeft, null], ...ticks.x]).join('line')
+				.attr('stroke', '#000').attr('x1', ([x]) => x)
+				.attr('x2', ([x], i) => i === 0 ? plotRight : x)
+				.attr('y1', (_, i) => plotBottom + (i === 0 ? 0.5 : 0))
+				.attr('y2', (_, i) => plotBottom + (i === 0 ? 0.5 : 5));
+			xAxis.selectAll('text').data(ticks.x).join('text')
+				.attr('x', ([x]) => x).attr('y', plotBottom + 7)
+				.attr('dominant-baseline', 'text-before-edge').text(([, label]) => label);
+			paths.selectAll('path').data(series)
+				.attr('d', ([values, scale]) => line.y(value => pxRound(scale(value)))(values));
+		},
 		overlay,
 		// offsetX can be relative to an SVG child rather than the plotting surface.
 		pointer: event => d3.pointer(event, svg)[0],
@@ -216,22 +241,24 @@ function svgRenderer(host, line, series, ticks) {
 	};
 }
 
+const updates = new WeakMap();
+
 function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "canvas"} = {}) {
 	console.time("chart");
 
-	const [xs, cpu, ram, tcp] = data;
+	let [xs, cpu, ram, tcp] = data;
 	const xScale = d3.scaleTime()
-		.domain([xs[0], xs[xs.length - 1]])
+		.domain(xs.length ? [xs[0], xs[xs.length - 1]] : [0, 1])
 		.range([plotLeft, plotRight]);
 	const pctScale = d3.scaleLinear()
-		.domain([
+		.domain(xs.length ? [
 			Math.min(d3.min(cpu), d3.min(ram)),
 			Math.max(d3.max(cpu), d3.max(ram)),
-		])
+		] : [0, 1])
 		.nice()
 		.range([plotBottom, plotTop]);
 	const mbScale = d3.scaleLinear()
-		.domain(d3.extent(tcp))
+		.domain(xs.length ? d3.extent(tcp) : [0, 1])
 		.nice()
 		.range([plotBottom, plotTop]);
 	const series = [[cpu, pctScale, "red"], [ram, pctScale, "blue"], [tcp, mbScale, "green"]];
@@ -253,7 +280,7 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "can
 		cursorFrame = null;
 		surface.clearCursor();
 
-		if (pointerX < plotLeft || pointerX > plotRight)
+		if (!xs.length || pointerX < plotLeft || pointerX > plotRight)
 			return;
 
 		const idx = d3.bisectCenter(xs, +xScale.invert(pointerX));
@@ -286,13 +313,14 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "can
 	overlay.addEventListener("pointerleave", pointerLeave);
 
 	Promise.resolve().then(() => {
-		if (!destroyed)
+		if (!destroyed && wait)
 			wait.textContent = "Done!";
 		console.timeEnd("chart");
 	});
 
-	return {
+	const chart = {
 		destroy() {
+			updates.delete(chart);
 			if (destroyed)
 				return;
 			destroyed = true;
@@ -302,6 +330,27 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "can
 			surface.destroy();
 		},
 	};
+	updates.set(chart, input => {
+		[xs, cpu, ram, tcp] = input;
+		xScale.domain(xs.length ? [xs[0], xs[xs.length - 1]] : [0, 1]);
+		pctScale.domain(xs.length ? [Math.min(d3.min(cpu), d3.min(ram)), Math.max(d3.max(cpu), d3.max(ram))] : [0, 1]).nice();
+		mbScale.domain(xs.length ? d3.extent(tcp) : [0, 1]).nice();
+		[cpu, ram, tcp].forEach((values, i) => { series[i][0] = values; });
+		pointerLeave();
+		surface.update(axisTicks(xScale, pctScale, mbScale));
+	});
+	return chart;
+}
+
+function makeEmptyChart(host, wait) {
+	return makeChart([[], [], [], []], host, wait);
+}
+
+function updateChart(chart, input, host, wait) {
+	const update = updates.get(chart);
+	if (!update) throw new Error('D3 chart is not live.');
+	update(input);
+	if (wait) wait.textContent = 'Done!';
 }
 
 function makeChart(data, host, wait, runtimeOptions) {
@@ -309,4 +358,4 @@ function makeChart(data, host, wait, runtimeOptions) {
 }
 
 export {makeChartWithOptions};
-export {makeChart, prepData};
+export {makeChart, prepData, makeEmptyChart, updateChart};

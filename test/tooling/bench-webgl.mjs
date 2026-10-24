@@ -54,6 +54,29 @@ function fixture() {
 	return {realm, context, calls, timers, drain, advance: ms => { now += ms; }};
 }
 
+describe('retained lifecycle GL contexts', () => {
+	it('fences reused contexts without reacquisition until session reset', async () => {
+		const f = fixture();
+		const capture = createWebGLCapture(f.realm);
+		const canvas = new f.realm.HTMLCanvasElement();
+		canvas.gl = f.context();
+		capture.begin();
+		canvas.getContext('webgl2');
+		const first = await f.drain(capture.complete({retainContexts: true}));
+		assert.equal(first.contexts.length, 1);
+		capture.begin();
+		const update = await f.drain(capture.complete({retainContexts: true}));
+		assert.equal(update.status, 'complete');
+		assert.equal(update.contexts.length, 1);
+		assert.equal(f.calls.filter(call => call[0] === 'getContext').length, 1);
+		assert.equal(f.calls.filter(call => call[0] === 'fence').length, 2);
+		capture.reset();
+		capture.begin();
+		assert.equal((await capture.complete()).status, 'not-observed');
+		capture.dispose();
+	});
+});
+
 // Opt-in only: use an existing Chrome Headless Shell, never download a browser.
 (process.env.BENCH_WEBGL_CHROME ? describe : describe.skip)('WebGL real-browser validation', function() {
 	this.timeout(30000);

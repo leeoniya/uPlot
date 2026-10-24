@@ -15,7 +15,11 @@ function prepData(packed) {
 	return rows;
 }
 
-async function makeChart(data, host, wait) {
+function makeChart(data, host, wait, runtimeOptions) {
+	return makeChartWithOptions(data, host, wait, runtimeOptions);
+}
+
+async function makeChartWithOptions(data, host, wait, runtimeOptions, {sampled = false} = {}) {
 	const handle = {chart: null, store: null};
 	let timer;
 	const listeners = [];
@@ -49,7 +53,7 @@ async function makeChart(data, host, wait) {
 					plot: 'Time',
 					// The fixture has exactly one row per minute, so each bin retains one sample.
 					// Average aggregation remains enabled; larger calendar bins are excluded.
-					binning: {year: [], month: [], day: [], hour: [], minute: [1], second: [], millisecond: []},
+					...(sampled ? {} : {binning: {year: [], month: [], day: [], hour: [], minute: [1], second: [], millisecond: []}}),
 				},
 				yAxis: [
 					{plot: [line('CPU'), line('RAM')], orientation: 'left', format: {suffix: '%'}},
@@ -98,6 +102,40 @@ async function makeChart(data, host, wait) {
 	}
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart([], host, wait);
+}
+
+async function updateChart(handle, input, host, wait) {
+	const {chart, store} = handle;
+	let timer;
+	const listeners = [];
+	try {
+		await new Promise((resolve, reject) => {
+			const on = (name, listener) => {
+				listeners.push([name, listener]);
+				chart.addEventListener(name, listener);
+			};
+			on('renderComplete', resolve);
+			for (const name of ['dataInvalid', 'dataLoadError'])
+				on(name, (event, detail) => reject(new Error(`FusionTime ${name}: ${detail?.error?.message ?? detail?.error ?? detail?.message ?? event?.eventType ?? 'chart update failed'}`)));
+			timer = setTimeout(() => reject(new Error('FusionTime did not finish rendering within 30 seconds.')), 30000);
+			// An empty query selects all rows. Keep the DataStore and its original table.
+			store.deleteRows([]);
+			store.appendRows(input.map(row => row.slice()));
+			// Empty charts have no data-engine subscriptions yet. Rebind through the
+			// public chart API so the first population follows the same update path.
+			chart.setJSONData({...chart.getJSONData(), data: store.getDataTable()});
+		});
+		if (wait) wait.textContent = 'Done!';
+	}
+	finally {
+		clearTimeout(timer);
+		for (const [name, listener] of listeners)
+			chart.removeEventListener(name, listener);
+	}
+}
+
 function destroyChart(handle) {
 	const {chart, store} = handle;
 	handle.chart = handle.store = null;
@@ -105,4 +143,4 @@ function destroyChart(handle) {
 	finally { store?.dispose(); }
 }
 
-export {prepData, makeChart, destroyChart};
+export {prepData, makeChart, makeEmptyChart, updateChart, destroyChart, makeChartWithOptions};

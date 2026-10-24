@@ -86,7 +86,7 @@ export function createWebGLCapture(realm = globalThis) {
 			restore();
 			disposed = true;
 		},
-		async complete({timeoutMs = 5000, pollIntervalMs = 4, webgl1Finish = false} = {}) {
+		async complete({timeoutMs = 5000, pollIntervalMs = 4, webgl1Finish = false, retainContexts = false} = {}) {
 			if (disposed || !active || pending)
 				throw new Error('WebGL completion requires an active sample without pending fences.');
 			if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isFinite(pollIntervalMs) || pollIntervalMs <= 0)
@@ -179,7 +179,9 @@ export function createWebGLCapture(realm = globalThis) {
 					waitMs: realm.performance.now() - start,
 					timeoutMs, pollIntervalMs, webgl1Finish, contexts: results,
 					coverage: {getContext: patches.map(patch => patch.name), observerIntact,
-						scope: 'Current realm acquisitions during this sample plus explicit track() calls. Workers and other realms require their own observer.'},
+						scope: retainContexts
+							? 'Current realm acquisitions since session reset plus explicit track() calls. Contexts remain tracked for subsequent operations. Workers and other realms require their own observer.'
+							: 'Current realm acquisitions during this sample plus explicit track() calls. Workers and other realms require their own observer.'},
 					completion: 'Only commands submitted before each fence or finish call. Not later draws, compositor presentation, GPU busy time, or proof of hardware acceleration.',
 					timing: 'waitMs is elapsed validation latency from batch start, not GPU execution time. Context waitMs ends at its completion check; batch waitMs also includes context-info queries. blockingMs measures the finish call wall duration.',
 					methods: {
@@ -197,7 +199,8 @@ export function createWebGLCapture(realm = globalThis) {
 						catch { /* A lost context must not prevent the other syncs from being deleted. */ }
 					}
 				}
-				contexts.clear();
+				if (!retainContexts)
+					contexts.clear();
 				active = pending = false;
 			}
 		},

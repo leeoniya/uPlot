@@ -56,6 +56,27 @@ async function makeChart(data, host, wait) {
 	}
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart([], host, wait);
+}
+
+async function updateChart(chart, input, host, wait) {
+	// Native Canvas data binding retains the Chart but recreates its drawing surface.
+	const loaded = chart.loaded;
+	try {
+		await new Promise(resolve => {
+			chart.loaded = resolve;
+			for (const series of chart.series)
+				series.dataSource = input;
+			chart.dataBind();
+		});
+		if (wait) wait.textContent = 'Done!';
+	}
+	finally {
+		chart.loaded = loaded;
+	}
+}
+
 function destroyChart(chart) {
 	// EJ2 leaves auxiliary elements in the host after destroying a Canvas chart.
 	const element = chart.element;
@@ -63,4 +84,4 @@ function destroyChart(chart) {
 	finally { element.replaceChildren(); }
 }
 
-export {prepData, makeChart, destroyChart};
+export {prepData, makeChart, makeEmptyChart, updateChart, destroyChart};

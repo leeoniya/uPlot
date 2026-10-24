@@ -91,8 +91,47 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {boost = {}} = {
 	});
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart(Array.from({length: 3}, () => ({columns: {x: [], y: []}})), host, wait);
+}
+
+function updateChart(chart, input, host, wait) {
+	return new Promise((resolve, reject) => {
+		const rendered = new Set();
+		const unbind = [];
+		let redrawn = false;
+		const cleanup = () => unbind.forEach(remove => remove());
+		const complete = () => {
+			if (redrawn && chart.series.every(series => !series.boosted || rendered.has(series))) {
+				cleanup();
+				if (wait) wait.textContent = 'Done!';
+				resolve();
+			}
+		};
+		try {
+			unbind.push(Highcharts.addEvent(chart, 'destroy', () => {
+				cleanup();
+				reject(new Error('Highcharts was destroyed before replacement completed.'));
+			}));
+			for (const series of chart.series)
+				unbind.push(Highcharts.addEvent(series, 'renderedCanvas', () => {
+					rendered.add(series);
+					complete();
+				}));
+			// 13.1.1 accepts DataTable options directly; retain each native series.
+			for (let i = 0; i < 3; i++)
+				chart.series[i].setData(input[i], false, false, false);
+			chart.redraw(false);
+			redrawn = true;
+			complete();
+		}
+		catch (error) { cleanup(); reject(error); }
+	});
+}
+
 function destroyChart(chart) {
 	chart.destroy();
 }
 
+export {makeEmptyChart, updateChart};
 export {prepData, makeChart, destroyChart, makeChartWithOptions};

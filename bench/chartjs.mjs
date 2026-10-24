@@ -128,4 +128,17 @@ function makeChart(data, host, wait) {
 	return chart;
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart([[], [], []], host, wait ?? {textContent: ''});
+}
+
+function updateChart(chart, input, host, wait) {
+	for (let i = 0; i < 3; i++)
+		// Assign through the decimation plugin's data setter, not its cached output.
+		chart.data.datasets[i].data = input[i];
+	chart.update('none');
+	if (wait) wait.textContent = 'Done!';
+}
+
+export {makeEmptyChart, updateChart};
 export {makeChart, prepData};

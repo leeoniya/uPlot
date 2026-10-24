@@ -68,4 +68,22 @@ function destroyChart(chart) {
 	finally { element.empty(); }
 }
 
-export {prepData, makeChart, destroyChart};
+function makeEmptyChart(host, wait) {
+	return makeChart([[], [], []], host, wait);
+}
+
+async function updateChart(chart, input, host, wait) {
+	let complete;
+	const ready = new Promise(resolve => { complete = resolve; });
+	chart.bind('render', complete);
+	try {
+		chart.options.series.forEach((series, i) => { series.data = input[i]; });
+		chart.redraw();
+		await ready;
+		if (wait) wait.textContent = 'Done!';
+		return chart;
+	}
+	finally { chart.unbind('render', complete); }
+}
+
+export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};

@@ -1,11 +1,12 @@
 import {prepRows, requireFramework, mountReact, destroyReact, waitForLines, calendarLabel} from './framework-runtime.mjs';
 
-function makeChart(data, host, wait) {
+import {mountEmptyReact, mountLifecycleReact, updateReact as updateChart} from './lifecycle-frameworks.mjs';
+
+function buildChart(data, React) {
 	const {LinePath} = requireFramework('benchmarkVisxShape');
 	const {AxisBottom, AxisLeft, AxisRight} = requireFramework('benchmarkVisxAxis');
 	const {scaleTime, scaleLinear} = requireFramework('benchmarkVisxScale');
 	const {GridRows} = requireFramework('benchmarkVisxGrid');
-	return mountReact(host, React => {
 		const h = React.createElement;
 		const width = 1920, height = 600;
 		const margin = {left: 75, right: 85, top: 60, bottom: 40};
@@ -16,6 +17,7 @@ function makeChart(data, host, wait) {
 			pmin = Math.min(pmin, row.cpu, row.ram); pmax = Math.max(pmax, row.cpu, row.ram);
 			tmin = Math.min(tmin, row.tcp); tmax = Math.max(tmax, row.tcp);
 		}
+		if (!data.length) { xmin = pmin = tmin = 0; xmax = pmax = tmax = 1; }
 		const x = scaleTime({domain: [xmin, xmax], range: [0, w]});
 		const percent = scaleLinear({domain: [pmin, pmax], range: [hgt, 0], nice: true});
 		const mb = scaleLinear({domain: [tmin, tmax], range: [hgt, 0], nice: true});
@@ -35,7 +37,20 @@ function makeChart(data, host, wait) {
 					strokeWidth: 1, fill: 'none',
 				})),
 			));
-	}, chart => waitForLines(chart, '.benchmark-line'), wait);
 }
 
-export {prepRows as prepData, makeChart, destroyReact as destroyChart};
+const ready = (chart, data) => data.length ? waitForLines(chart, '.benchmark-line') : undefined;
+
+function makeChart(data, host, wait) {
+	return mountReact(host, React => buildChart(data, React), chart => ready(chart, data), wait);
+}
+
+export function makeLifecycleChart(data, host, wait) {
+	return mountLifecycleReact(data, host, buildChart, ready, wait);
+}
+
+function makeEmptyChart(host, wait) {
+	return mountEmptyReact(host, buildChart, ready, wait);
+}
+
+export {prepRows as prepData, makeChart, destroyReact as destroyChart, makeEmptyChart, updateChart};

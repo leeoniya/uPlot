@@ -56,8 +56,18 @@ async function makeChart(data, host, wait) {
 	}
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart([], host, wait);
+}
+
+async function updateChart(chart, input, host, wait) {
+	// In 14.2.0 updateDelta replaces the data array and awaits native rendering.
+	await chart.updateDelta({data: input});
+	if (wait) wait.textContent = 'Done!';
+}
+
 function destroyChart(chart) {
 	chart.destroy();
 }
 
-export {prepData, makeChart, destroyChart};
+export {prepData, makeChart, makeEmptyChart, updateChart, destroyChart};

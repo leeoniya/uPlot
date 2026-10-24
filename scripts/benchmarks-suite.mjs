@@ -4,8 +4,8 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { summarizeAdjustedProcessMemory } from './analyze-benchmarks-process-memory.mjs';
-import { createBenchmarkDisplay, formatBenchmarkDisplay } from './benchmarks-display.mjs';
-import { demoDependencies, benchmarkVariants, demoRestrictions, benchmarkRestrictions, assertBenchmarkAvailable } from '../bench/demo-dependencies.mjs';
+import { createBenchmarkDisplay, formatBenchmarkDisplay, benchmarkDisplayColorDepth } from './benchmarks-display.mjs';
+import { demoDependencies, benchmarkVariants, benchmarkMetadata, benchmarkLibraryName, demoRestrictions, benchmarkRestrictions, assertBenchmarkAvailable } from '../bench/demo-dependencies.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const cache = fileURLToPath(new URL('../.cache/benchmarks/', import.meta.url));
@@ -23,6 +23,13 @@ export function benchmarkMode(options) {
 	return enabled.length > 1 ? 'combined' : enabled[0][0];
 }
 
+export function resolveBenchmarkVulkan({vulkan, 'no-vulkan': noVulkan = false, variant = null} = {}, platform = process.platform) {
+	if (vulkan && noVulkan)
+		throw new Error('--vulkan and --no-vulkan cannot be combined.');
+	return noVulkan ? false : vulkan ?? (platform === 'linux' &&
+		(variant === 'chartgpu' || (variant === null && benchmarkVariants.includes('chartgpu'))));
+}
+
 export function variantReportName(mode, variant, {vulkan = false} = {}) {
 	return `results-chrome-${mode}${vulkan ? '-vulkan' : ''}-${variant}.json`;
 }
@@ -31,8 +38,32 @@ export function suiteReportName(mode, {vulkan = false} = {}) {
 	return `results-chrome-${mode}${vulkan ? '-vulkan' : ''}.json`;
 }
 
+// Only these known GPU series can use captured GL contexts as renderer evidence.
+// Canvas/SVG libraries may acquire GL contexts solely for support probes.
+const webglSeries = new Set(['d3fc', 'bokeh', 'plotly', 'highcharts', 'scichart', 'lightningchart', 'g2-webgl']);
+
+function metadataFor(variant, snapshot, samples = []) {
+	let context = snapshot?.context;
+	if (context == null && webglSeries.has(variant)) {
+		const types = new Set(samples.filter(sample => !sample.warmup)
+			.flatMap(sample => sample.webgl?.contexts ?? [])
+			.map(({type}) => type === 'experimental-webgl' ? 'webgl' : type));
+		if (types.size === 1 && ['webgl', 'webgl2'].includes([...types][0]))
+			context = [...types][0];
+	}
+	return {
+		context: context ?? 'unavailable',
+		sampling: snapshot?.sampling === 'none' ? '' : snapshot?.sampling ?? 'unavailable',
+		lossy: snapshot?.lossy === true ? '*' : snapshot?.lossy === false ? '' : '?',
+	};
+}
+
 function benchmarkView(report) {
 	const {trace, memory, raf} = report.measurements;
+	const population = report.reports.some(raw => raw.phase === 'chart-population');
+	const lifecycle = population || report.reports.some(raw => raw.phase === 'chart-lifecycle');
+	if ((trace || raf || memory) && lifecycle && new Set(report.reports.map(raw => raw.phase)).size > 1)
+		throw new Error('Cannot combine different benchmark protocols (small-to-full, legacy lifecycle, or startup). Rerun all selected variants.');
 	const warnings = [
 		...(report.timeouts ?? []).map(({error}) => error),
 		...(report.failures ?? []).map(({variant, error}) => `${variant}: ${error}`),
@@ -42,7 +73,7 @@ function benchmarkView(report) {
 		const {variant, dpr} = raw.runner;
 		const group = analysis => analysis?.groups?.find(group => group.variant === variant && group.dpr === dpr);
 		const measured = raw.samples.filter(sample => !sample.warmup).length;
-		const row = {variant};
+		const row = {variant, ...metadataFor(variant, raw.runner.benchmark, raw.samples)};
 		const issues = [];
 		const metric = (label, stats) => {
 			row[label] = display(stats?.min);
@@ -55,7 +86,7 @@ function benchmarkView(report) {
 		if (trace) {
 			const metrics = group(raw.analysis)?.metrics;
 			for (const [label, key] of [
-				['prep ms', 'dataPrepMs'], ['init ms', 'jsIntervalMs'], ['main ms', 'rendererMainTaskMs'],
+				['prep ms', 'dataPrepMs'], [lifecycle ? 'update ms' : 'init ms', 'jsIntervalMs'], ['main ms', 'rendererMainTaskMs'],
 				['gpu ms', 'gpuMainTaskMs'], ['total ms', 'totalTrackedThreadWorkMs'],
 			])
 				metric(label, metrics?.[key]);
@@ -63,8 +94,15 @@ function benchmarkView(report) {
 		if (raf) {
 			const metrics = group(raw.rafAnalysis)?.metrics;
 			metric('prep ms', metrics?.dataPrepMs);
-			metric('init ms', metrics?.jsMs);
+			metric(lifecycle ? 'update ms' : 'init ms', metrics?.jsMs);
 			metric('next rAF ms', metrics?.raf1Ms);
+		}
+		if (lifecycle && (trace || raf)) {
+			const analysis = trace ? raw.analysis : raw.rafAnalysis;
+			for (const [label, operation] of population ? [['init ms', 'small-init']] : [['init ms', 'empty-init'], ['first ms', 'first-data']]) {
+				const metrics = analysis?.phaseGroups?.find(group => group.variant === variant && group.dpr === dpr && group.operation === operation)?.metrics;
+				metric(label, metrics?.[trace ? 'jsIntervalMs' : 'jsMs']);
+			}
 		}
 		if (memory) {
 			const stats = group(report.adjustedAnalysis)?.scopes.tree.pssMB;
@@ -77,44 +115,56 @@ function benchmarkView(report) {
 	});
 
 	const columns = [
-		...(trace ? ['prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms'] : []),
-		...(raf ? ['prep ms', 'init ms', 'next rAF ms'] : []),
+		...(trace || raf ? ['prep ms', 'init ms', ...(population ? ['update ms'] : lifecycle ? ['first ms', 'update ms'] : [])] : []),
+		...(trace ? ['main ms', 'gpu ms', 'total ms'] : []),
+		...(raf ? ['next rAF ms'] : []),
 		...(memory ? ['peak MB', 'retained MB'] : []),
 	];
-	for (const {variant} of [...(report.timeouts ?? []), ...(report.failures ?? [])])
-		rows.push({variant, ...Object.fromEntries(columns.map(column => [column, '-']))});
-
-	// Preserve execution order in memory/rAF reports, including failed entries.
-	if (report.protocol?.variants)
-		rows.sort((a, b) => report.protocol.variants.indexOf(a.variant) - report.protocol.variants.indexOf(b.variant));
-	if (trace) {
-		rows.sort((a, b) => {
-			const left = Number.isFinite(a['total ms']) ? a['total ms'] : Infinity;
-			const right = Number.isFinite(b['total ms']) ? b['total ms'] : Infinity;
-			return left === right ? 0 : left - right;
-		});
+	for (const {variant} of [...(report.timeouts ?? []), ...(report.failures ?? [])]) {
+		if (variant !== 'idle')
+			rows.push({variant, ...metadataFor(variant, report.variantMetadata?.[variant]),
+				...Object.fromEntries(columns.map(column => [column, '-']))});
 	}
 
-	if (memory) {
-		for (const raw of report.reports) {
-			const reads = [raw.blank, raw.loaded, ...raw.samples.flatMap(sample => sample.processObservations ?? [])];
-			const incomplete = reads.filter(read => read?.processMemory?.complete === false).length;
-			if (incomplete)
-				warnings.push(`${raw.runner.variant}: ${incomplete} incomplete process reads. Details remain in JSON.`);
-		}
+	// Establish stable tie order before grouping; legacy reports use first-seen order.
+	const order = new Map(report.protocol?.variants?.map((variant, index) => [variant, index]));
+	const compare = (left, right) => left === right ? 0 : left - right;
+	rows.sort((a, b) => compare(order.get(a.variant) ?? Infinity, order.get(b.variant) ?? Infinity));
+	const metric = trace ? 'total ms' : raf ? 'next rAF ms' : null;
+	const speed = row => Number.isFinite(row[metric]) ? row[metric] : Infinity;
+	const groups = new Map();
+	for (const row of rows) {
+		const library = benchmarkLibraryName(row.variant);
+		if (!groups.has(library))
+			groups.set(library, {rows: [], fastest: Infinity});
+		const group = groups.get(library);
+		group.rows.push(row);
+		group.fastest = Math.min(group.fastest, speed(row));
 	}
-	return {rows, warnings};
+	const ordered = [...groups.values()];
+	if (metric) {
+		ordered.sort((a, b) => compare(a.fastest, b.fastest));
+		for (const group of ordered)
+			group.rows.sort((a, b) => compare(speed(a), speed(b)));
+	}
+
+	return {rows: ordered.flatMap(group => group.rows).map(row => ({
+		variant: row.variant, context: row.context, sampling: row.sampling, lossy: row.lossy,
+		...Object.fromEntries(columns.map(column => [column, row[column]])),
+	})), warnings};
 }
 
-export function summarizeSavedBenchmarks(options, output = resolve(cache, suiteReportName(benchmarkMode(options), options))) {
+export function summarizeSavedBenchmarks(options, output, {platform = process.platform, outputDirectory = cache} = {}) {
+	const vulkan = resolveBenchmarkVulkan(options, platform);
 	const measurements = measurementsFor(options);
+	output ??= resolve(outputDirectory, suiteReportName(benchmarkMode(options), {vulkan}));
 	const report = JSON.parse(readFileSync(output, 'utf8'));
 	if (report.mode !== benchmarkMode(options) || !Array.isArray(report.reports) ||
 		Object.keys(measurements).some(key => report.measurements?.[key] !== measurements[key]))
 		throw new Error('Expected a benchmark suite report with matching measurements.');
 	if (report.reports.some(raw => !raw?.runner || !Array.isArray(raw.samples)))
 		throw new TypeError('Each report requires runner metadata and a samples array.');
-	const requestedBackend = options.vulkan ? 'vulkan' : 'default';
+	const requestedBackend = vulkan ? 'vulkan' : 'default';
 	// Reports saved before backend selection used Chrome's default backend.
 	if ((report.requestedBackend ?? 'default') !== requestedBackend ||
 		report.reports.some(raw => (raw.runner.requestedBackend ?? 'default') !== requestedBackend))
@@ -124,7 +174,7 @@ export function summarizeSavedBenchmarks(options, output = resolve(cache, suiteR
 	writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
 	const {rows, warnings} = benchmarkView(report);
 	if (rows.length)
-		console.log(formatBenchmarkDisplay({rows}).trimEnd());
+		console.log(formatBenchmarkDisplay({rows}, {colorDepth: benchmarkDisplayColorDepth()}).trimEnd());
 	for (const warning of warnings)
 		console.log('Warning: ' + warning);
 	console.log('Updated summary from saved samples. No browser was started.');
@@ -207,7 +257,7 @@ function runWorker(request, {
 }
 
 // Tests may supply runWorker(request), returning a raw report or writing request.output.
-export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = false, vulkan = false, variant = null, lightningOptions}, dependencies = {}) {
+export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = false, vulkan, 'no-vulkan': noVulkan, variant = null, lightningOptions}, dependencies = {}) {
 	if (!Number.isFinite(dpr) || dpr <= 0)
 		throw new TypeError('dpr must be positive and finite');
 	if (variant !== null && !Object.hasOwn(demoDependencies, variant))
@@ -216,6 +266,7 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 		assertBenchmarkAvailable(variant, lightningOptions);
 	const measurements = measurementsFor({trace, memory, raf});
 	const mode = benchmarkMode(measurements);
+	vulkan = resolveBenchmarkVulkan({vulkan, 'no-vulkan': noVulkan, variant}, dependencies.platform);
 	const requestedBackend = vulkan ? 'vulkan' : 'default';
 	gpu = gpu || vulkan;
 	const variants = variant === null ? [...VARIANTS, ...(lightningOptions?.license?.trim() ? ['lightningchart'] : [])]
@@ -227,6 +278,7 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 	const output = resolve(outputDirectory, suiteReportName(mode, {vulkan}));
 	const report = {
 		date: new Date().toISOString(), mode, measurements, dpr, gpu, requestedBackend, complete: false,
+		variantMetadata: Object.fromEntries(variants.map(id => [id, {...benchmarkMetadata[id]}])),
 		skipped: variant === null ? Object.entries({...demoRestrictions, ...benchmarkRestrictions}).filter(([id]) => !variants.includes(id))
 					.map(([variant, reason]) => ({variant, reason})) : [],
 		progress: {total: variants.length, completed: [], current: null, failed: null},
@@ -235,6 +287,10 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 			idleFirst: true, sameRunControlsOnly: true, coolingBetweenVariantsMs: 0,
 			tracing: measurements.trace, gpuSpecificMemory: false, sampleTimeoutMs: SAMPLE_TIMEOUT_MS,
 			blankAndLoaded: 'One cold checkpoint each per browser, not a round aggregate.',
+			lifecycle: 'Three warmup sessions and seven measured sessions. Each session creates a new chart with two points per series, then updates once with the full dataset.',
+			timingColumns: 'init/update are elapsed readiness for two-point construction and small-to-full population. main/gpu/total and next rAF describe the full-data update only. Prep measures full-data conversion separately.',
+			memoryColumns: 'Peak covers the whole session. Retained follows the full-data update. No forced GC occurs between chart operations.',
+			timeoutScope: 'Five seconds per operation, including preparation and settling. Setup/baseline belongs to the first operation. Final checkpoints and destruction have a separate five-second budget.',
 			aggregation: 'Each table metric uses its minimum finite measured value after warmups. Columns can come from different rounds; total work uses the minimum per-sample total, not a sum of column minima.',
 			warmSamples: 'Warmups are excluded. Each browser reuses its selected library between samples; allocator reuse affects process deltas.',
 		},
@@ -256,7 +312,8 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 				'--worker', '--variant', name, '--dpr', String(dpr),
 				...Object.keys(measurements).filter(key => measurements[key]).map(key => `--${key}`),
 				...(gpu ? ['--gpu'] : []),
-				...(vulkan ? ['--vulkan'] : []),
+				// Workers must not reselect the backend based on their own variant.
+				vulkan ? '--vulkan' : '--no-vulkan',
 			];
 			let reports;
 			let adjustedAnalysis;

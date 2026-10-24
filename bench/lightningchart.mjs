@@ -10,6 +10,7 @@
 // Keep vendor license enforcement and branding intact. No publication-policy gate.
 
 const owners = new WeakMap();
+const updates = new WeakMap();
 
 export function prepData(packed) {
 	const fields = packed[0];
@@ -49,6 +50,8 @@ export async function makeChart(data, host, wait) {
 	try {
 		chart = lc.ChartXY({container: host, theme: disableThemeEffects(Themes.light)});
 		owners.set(chart, lc);
+		const series = [];
+		updates.set(chart, {series, timeoutMs});
 		chart.setAnimationsEnabled(false);
 		const xAxis = chart.getDefaultAxisX()
 			.setTickStrategy(AxisTickStrategies.DateTime)
@@ -69,7 +72,7 @@ export async function makeChart(data, host, wait) {
 		]) {
 			// v9 schema replaces the old dataPattern API. Keep every input sample.
 			// addLineSeries disables point markers and area fill.
-			chart.addLineSeries({
+			const line = chart.addLineSeries({
 				xAxis,
 				yAxis,
 				schema: {
@@ -82,35 +85,14 @@ export async function makeChart(data, host, wait) {
 				allowDataGrouping: true,
 			})
 				.setName(name)
-				.setMaxSampleCount(data.x.length)
-				.setStrokeStyle(new SolidLine({thickness: 1, fillStyle: new SolidFill({color})}))
-				.appendSamples({x: data.x, y: values});
+				.setStrokeStyle(new SolidLine({thickness: 1, fillStyle: new SolidFill({color})}));
+			series.push(line);
+			// Do not use a zero retention limit or append synthetic samples for empty init.
+			if (data.x.length)
+				line.setMaxSampleCount(data.x.length).appendSamples({x: data.x, y: values});
 		}
 
-		await new Promise((resolve, reject) => {
-			const cleanup = () => {
-				clearTimeout(timer);
-				chart.engine.removeEventListener('renderframe', rendered);
-				chart.removeEventListener('dispose', disposed);
-			};
-			const rendered = event => {
-				if (!event.asyncRenderingPending) {
-					cleanup();
-					resolve();
-				}
-			};
-			const disposed = () => {
-				cleanup();
-				reject(new Error('LightningChart was disposed before rendering completed.'));
-			};
-			const timer = setTimeout(() => {
-				cleanup();
-				reject(new Error('LightningChart render completion timed out. Check browser graphics support and vendor license diagnostics.'));
-			}, timeoutMs);
-			// This is the engine's async-work signal, not a GPU fence or presentation ack.
-			chart.engine.addEventListener('renderframe', rendered);
-			chart.addEventListener('dispose', disposed);
-		});
+		await renderReady(chart, timeoutMs);
 
 		if (wait)
 			wait.textContent = 'Done!';
@@ -123,7 +105,54 @@ export async function makeChart(data, host, wait) {
 	}
 }
 
+function renderReady(chart, timeoutMs, update = () => {}) {
+	return new Promise((resolve, reject) => {
+		const cleanup = () => {
+			clearTimeout(timer);
+			chart.engine.removeEventListener('renderframe', rendered);
+			chart.removeEventListener('dispose', disposed);
+		};
+		const rendered = event => {
+			if (!event.asyncRenderingPending) {
+				cleanup();
+				resolve();
+			}
+		};
+		const disposed = () => {
+			cleanup();
+			reject(new Error('LightningChart was disposed before rendering completed.'));
+		};
+		const timer = setTimeout(() => {
+			cleanup();
+			reject(new Error('LightningChart render completion timed out. Check browser graphics support and vendor license diagnostics.'));
+		}, timeoutMs);
+		// This is the engine's async-work signal, not a GPU fence or presentation ack.
+		chart.engine.addEventListener('renderframe', rendered);
+		chart.addEventListener('dispose', disposed);
+		try { update(); }
+		catch (error) { cleanup(); reject(error); }
+	});
+}
+
+export function makeEmptyChart(host, wait) {
+	return makeChart({x: new Float64Array(0), cpu: new Float64Array(0), ram: new Float64Array(0), tcp: new Float64Array(0)}, host, wait);
+}
+
+export async function updateChart(chart, input, host, wait) {
+	const {series, timeoutMs} = updates.get(chart);
+	await renderReady(chart, timeoutMs, () => {
+		series.forEach((line, i) => {
+			line.clear();
+			if (input.x.length)
+				line.setMaxSampleCount(input.x.length).appendSamples({x: input.x, y: input[['cpu', 'ram', 'tcp'][i]]});
+		});
+	});
+	if (wait) wait.textContent = 'Done!';
+	return chart;
+}
+
 export function destroyChart(chart) {
+	updates.delete(chart);
 	const lc = owners.get(chart);
 	if (lc) {
 		owners.delete(chart);

@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as amcharts from '../../bench/amcharts.mjs';
+import * as amchartsSampled from '../../bench/amcharts-sampled.mjs';
 import * as lightningchart from '../../bench/lightningchart.mjs';
 import * as lightweight from '../../bench/lightweight.mjs';
 
 
 const packed = Object.freeze(JSON.parse(readFileSync(new URL('../../bench/data.json', import.meta.url))));
-const modules = {amcharts, lightningchart};
+const modules = {amcharts, amchartsSampled, lightningchart};
 
 function host(variant) {
 
@@ -61,12 +62,14 @@ function amchartsMock() {
 describe('additional benchmark adapters C', () => {
 	for (const [variant, module] of Object.entries(modules)) {
 		it(`${variant}: exports the shared contract and preserves all 55,550 × 3 values`, () => {
-			assert.deepEqual(Object.keys(module), ['destroyChart', 'makeChart', 'prepData']);
+			assert.deepEqual(Object.keys(module).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), variant === 'amcharts'
+				? ['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData']
+				: ['destroyChart', 'makeChart', 'prepData']);
 			const before = packed.slice();
 			const data = module.prepData(packed);
 			const count = (packed.length - packed[0] - 1) / packed[0];
 			assert.equal(count, 55550);
-			if (variant === 'amcharts')
+			if (module.prepData === amcharts.prepData)
 				assert.equal(data.length, count);
 			else {
 				for (const values of Object.values(data)) {
@@ -83,7 +86,7 @@ describe('additional benchmark adapters C', () => {
 					Math.round(100 * packed[i + 5] / (packed[i + 5] + packed[i + 6]) * 100) / 100,
 					packed[i + 3],
 				];
-				const actual = variant === 'amcharts' ? Object.values(data[j]) :
+				const actual = module.prepData === amcharts.prepData ? Object.values(data[j]) :
 					[data.x[j], data.cpu[j], data.ram[j], data.tcp[j]];
 				assert.deepEqual(actual, expected);
 			}
@@ -91,62 +94,106 @@ describe('additional benchmark adapters C', () => {
 		});
 	}
 
-	it('amCharts: no grouping or line simplification, exact timestamps, render-loop completion, and root cleanup', async () => {
-		const saved = {am5: globalThis.am5, am5xy: globalThis.am5xy};
-		const mock = amchartsMock();
-		Object.assign(globalThis, {am5: mock.am5, am5xy: mock.am5xy});
-		try {
-			const element = host('amcharts');
-			const wait = {textContent: 'Rendering...'};
-			const data = Object.freeze(amcharts.prepData(packed).map(Object.freeze));
-			const pending = amcharts.makeChart(data, element, wait);
-			let resolved = false;
-			pending.then(() => { resolved = true; });
-			mock.root.events.emit('frameended');
-			await Promise.resolve();
-			assert.equal(resolved, false);
-			assert.equal(wait.textContent, 'Rendering...');
-			mock.root.events.emit('frameended');
-			mock.root.animationTime = null;
-			assert.equal(await pending, mock.root);
-			assert.equal(mock.root.events.size, 0);
-			assert.equal(wait.textContent, 'Done!');
-			assert.deepEqual(element, {id: 'benchmark-amcharts', style: {width: '1920px', height: '600px'}});
-			const dateAxis = mock.created.find(value => value.type === 'DateAxis');
-			assert.equal(dateAxis.settings.groupData, false);
-			assert.equal(Object.hasOwn(dateAxis.settings, 'groupCount'), false);
-			assert.deepEqual(dateAxis.settings.baseInterval, {timeUnit: 'minute', count: 1});
-			assert.equal(Object.hasOwn(dateAxis.settings, 'groupIntervals'), false);
-			assert.equal(dateAxis.settings.min, undefined);
-			assert.equal(dateAxis.settings.max, undefined);
-			assert.equal(dateAxis.settings.start, undefined);
-			assert.equal(dateAxis.settings.end, undefined);
-			const axes = mock.created.filter(value => value.type === 'ValueAxis');
-			assert.equal(axes.length, 2);
-			assert.equal(axes[0].settings.renderer.settings.opposite, false);
-			assert.equal(axes[1].settings.renderer.settings.opposite, true);
-			for (const axis of axes) {
-				assert.equal(axis.settings.min, undefined);
-				assert.equal(axis.settings.max, undefined);
-			}
-			const series = mock.created.filter(value => value.type === 'LineSeries');
-			assert.deepEqual(series.map(value => value.settings.name), ['CPU', 'RAM', 'TCP Out']);
-			assert.deepEqual(series.map(value => value.settings.yAxis), [axes[0], axes[0], axes[1]]);
-			for (const value of series) {
-				assert.equal(value.data.values, data);
-				assert.equal(value.settings.interpolationDuration, 0);
-				assert.equal(Object.hasOwn(value.settings, 'valueYGrouped'), false);
-				assert.equal(value.settings.minDistance, 0);
-				assert.equal(value.settings.exactLocationX, true);
-				assert.equal(value.settings.xAxis, dateAxis);
-			}
-			amcharts.destroyChart(mock.root);
-			assert.equal(mock.root.disposed, true);
-		}
-		finally {
-			Object.assign(globalThis, saved);
-		}
+	it('amCharts sampled shares prep and cleanup and exposes a thin demo entry point', () => {
+		assert.equal(amchartsSampled.prepData, amcharts.prepData);
+		assert.equal(amchartsSampled.destroyChart, amcharts.destroyChart);
+		const base = readFileSync(new URL('../../bench/amCharts5.html', import.meta.url), 'utf8');
+		const sampled = readFileSync(new URL('../../bench/amCharts-Sampled.html', import.meta.url), 'utf8');
+		assert.equal(sampled, base.replace('amCharts 5 Demo', 'amCharts Sampled Demo').replace("runDemo('amcharts')", "runDemo('amcharts-sampled')"));
 	});
+
+	for (const [name, source, sampling] of [['base', amcharts, false], ['sampled', amchartsSampled, true]]) {
+		it(`amCharts ${name}: exact sampling options, full input, automatic axes, render-loop completion, and root cleanup`, async () => {
+			const saved = {am5: globalThis.am5, am5xy: globalThis.am5xy};
+			const mock = amchartsMock();
+			Object.assign(globalThis, {am5: mock.am5, am5xy: mock.am5xy});
+			try {
+				const element = host('amcharts');
+				const wait = {textContent: 'Rendering...'};
+				const data = Object.freeze(source.prepData(packed).map(Object.freeze));
+				const pending = source.makeChart(data, element, wait, {sampling: !sampling});
+				let resolved = false;
+				pending.then(() => { resolved = true; });
+				mock.root.events.emit('frameended');
+				await Promise.resolve();
+				assert.equal(resolved, false);
+				assert.equal(wait.textContent, 'Rendering...');
+				mock.root.events.emit('frameended');
+				mock.root.animationTime = null;
+				assert.equal(await pending, mock.root);
+				assert.equal(mock.root.events.size, 0);
+				assert.equal(mock.root.autoResize, false);
+				assert.equal(wait.textContent, 'Done!');
+				assert.deepEqual(element, {id: 'benchmark-amcharts', style: {width: '1920px', height: '600px'}});
+				const dateAxis = mock.created.find(value => value.type === 'DateAxis');
+				assert.deepEqual(dateAxis.settings, {
+					baseInterval: {timeUnit: 'minute', count: 1},
+					groupData: sampling,
+					...(sampling ? {
+						groupCount: 1920,
+						groupIntervals: [
+							{timeUnit: 'minute', count: 1},
+							{timeUnit: 'minute', count: 10},
+							{timeUnit: 'hour', count: 1},
+						],
+					} : {}),
+					interpolationDuration: 0,
+					renderer: mock.created.find(value => value.type === 'AxisRendererX'),
+				});
+				const axes = mock.created.filter(value => value.type === 'ValueAxis');
+				assert.equal(axes.length, 2);
+				assert.equal(axes[0].settings.renderer.settings.opposite, false);
+				assert.equal(axes[1].settings.renderer.settings.opposite, true);
+				for (const axis of [dateAxis, ...axes]) {
+					for (const key of ['min', 'max', 'start', 'end'])
+						assert.equal(Object.hasOwn(axis.settings, key), false);
+				}
+				const series = mock.created.filter(value => value.type === 'LineSeries');
+				assert.equal(series.length, 3);
+				for (const [i, value] of series.entries()) {
+					assert.equal(value.data.values, data);
+					assert.equal(value.data.values.length, 55550);
+					assert.deepEqual(value.strokes.template.settings, {strokeWidth: 1});
+					assert.deepEqual(value.settings, {
+						name: ['CPU', 'RAM', 'TCP Out'][i],
+						xAxis: dateAxis,
+						yAxis: i === 2 ? axes[1] : axes[0],
+						valueXField: 'date',
+						valueYField: ['cpu', 'ram', 'tcp'][i],
+						stroke: [0xff0000, 0x0000ff, 0x008000][i],
+						fill: [0xff0000, 0x0000ff, 0x008000][i],
+						interpolationDuration: 0,
+						stateAnimationDuration: 0,
+						...(sampling ? {valueYGrouped: 'average', minDistance: 1} : {minDistance: 0, exactLocationX: true}),
+					});
+					assert.equal(Object.hasOwn(value.settings, 'exactLocationX'), !sampling);
+				}
+				source.destroyChart(mock.root);
+				assert.equal(mock.root.disposed, true);
+			}
+			finally {
+				Object.assign(globalThis, saved);
+			}
+		});
+
+		it(`amCharts ${name}: disposes the root on setup failure without reporting readiness`, async () => {
+			const saved = {am5: globalThis.am5, am5xy: globalThis.am5xy};
+			const mock = amchartsMock();
+			const failure = new Error('series failed');
+			mock.am5xy.LineSeries.new = () => { throw failure; };
+			Object.assign(globalThis, {am5: mock.am5, am5xy: mock.am5xy});
+			try {
+				const wait = {textContent: 'Rendering...'};
+				await assert.rejects(source.makeChart([], host('amcharts'), wait), error => error === failure);
+				assert.equal(mock.root.disposed, true);
+				assert.equal(mock.root.events.size, 0);
+				assert.equal(wait.textContent, 'Rendering...');
+			}
+			finally {
+				Object.assign(globalThis, saved);
+			}
+		});
+	}
 
 	it('amCharts: shows static branding immediately and disables only its entrance animation', async () => {
 		const saved = {am5: globalThis.am5, am5xy: globalThis.am5xy};

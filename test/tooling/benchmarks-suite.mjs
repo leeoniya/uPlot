@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 import { summarizeBenchmarkRaf } from '../../scripts/analyze-benchmarks-raf.mjs';
-import { benchmarkMode, variantReportName, suiteReportName, runBenchmarkSuite, summarizeSavedBenchmarks } from '../../scripts/benchmarks-suite.mjs';
-import { benchmarkVariants, demoRestrictions, benchmarkRestrictions } from '../../bench/demo-dependencies.mjs';
+import { benchmarkMode, resolveBenchmarkVulkan, variantReportName, suiteReportName, runBenchmarkSuite, summarizeSavedBenchmarks } from '../../scripts/benchmarks-suite.mjs';
+import { demoDependencies, benchmarkMetadata, benchmarkVariants, benchmarkLibraryName, demoRestrictions, benchmarkRestrictions } from '../../bench/demo-dependencies.mjs';
 
 const variants = ['idle', ...benchmarkVariants];
 const skipped = Object.entries({...demoRestrictions, ...benchmarkRestrictions}).map(([variant, reason]) => ({variant, reason}));
@@ -26,7 +29,7 @@ function browser(variant, measurements = combined, dpr = 1, requestedBackend = '
 		processObservations: [observation('baseline', 2), observation('prepared', 4), observation('construct', peak), observation('live', live), observation('cleanup', 1)],
 	});
 	const report = {
-		measurements: {...measurements}, runner: {variant, dpr, requestedBackend},
+		measurements: {...measurements}, runner: {variant, dpr, requestedBackend, benchmark: {...benchmarkMetadata[variant]}},
 		blank: observation('blank', idle ? 10 : 20), loaded: observation('loaded', 9999),
 		samples: [sample([9000, 10000], -1, true), ...values.map((value, round) => sample(value, round))],
 	};
@@ -43,6 +46,8 @@ function browser(variant, measurements = combined, dpr = 1, requestedBackend = '
 }
 
 function capture(fn) {
+	const noColor = process.env.NO_COLOR;
+	process.env.NO_COLOR = '';
 	const {log} = console;
 	const logs = [], tables = [], events = [];
 	try {
@@ -51,7 +56,7 @@ function capture(fn) {
 				const [headers, ...cells] = args[0].split('\n').filter(line => line.startsWith('│'))
 					.map(line => line.split('│').slice(1, -1).map(value => value.trim()));
 				const rows = cells.map(row => Object.fromEntries(headers.map((key, i) =>
-					[key, key === 'variant' || row[i] === 'unavailable' || row[i] === '-' ? row[i] : Number(row[i])])));
+					[key, ['variant', 'context', 'sampling', 'lossy'].includes(key) || row[i] === 'unavailable' || row[i] === '-' ? row[i] : Number(row[i])])));
 				tables.push(rows);
 				events.push({type: 'table', rows});
 			}
@@ -64,6 +69,10 @@ function capture(fn) {
 	}
 	finally {
 		console.log = log;
+		if (noColor === undefined)
+			delete process.env.NO_COLOR;
+		else
+			process.env.NO_COLOR = noColor;
 	}
 }
 
@@ -110,6 +119,9 @@ function harness(options = {}) {
 	};
 }
 
+const renderedRow = row => Object.fromEntries(Object.entries(row).map(([key, value]) =>
+	[key, key === 'variant' ? benchmarkLibraryName(value) : Number.isFinite(value) ? Number(value.toFixed(1)) : value]));
+
 function savedReport(reports, measurements = combined) {
 	return {mode: benchmarkMode(measurements), measurements, reports, complete: false, progress: {completed: []}, protocol: {custom: true}};
 }
@@ -117,8 +129,523 @@ function savedReport(reports, measurements = combined) {
 function offline(report) {
 	const output = join(directory, 'offline.json');
 	writeFileSync(output, JSON.stringify(report));
-	return capture(() => summarizeSavedBenchmarks(report.measurements, output));
+	return capture(() => summarizeSavedBenchmarks({...report.measurements, vulkan: false}, output));
 }
+
+describe('lifecycle timing columns', () => {
+	for (const raf of [false, true]) it(`shows small init and full-data update without first ms (${raf ? 'rAF' : 'trace'})`, () => {
+		const raw = browser('uplot', {trace: !raf, memory: false, raf});
+		raw.phase = 'chart-population';
+		const analysis = raf ? raw.rafAnalysis : raw.analysis;
+		analysis.phaseGroups = ['small-init', 'data-update'].map(operation => ({
+			...analysis.groups[0], operation,
+			metrics: {...analysis.groups[0].metrics, [raf ? 'jsMs' : 'jsIntervalMs']: {min: 10, max: 20, count: 3, missing: 0}},
+		}));
+		const row = offline(savedReport([raw], raw.measurements)).tables[0][0];
+		assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'update ms',
+			...(raf ? ['next rAF ms'] : ['main ms', 'gpu ms', 'total ms'])]);
+		assert.equal(row['init ms'], 10);
+		assert.equal(row['update ms'], raf ? 3 : 2);
+		assert.equal(row[raf ? 'next rAF ms' : 'total ms'], raf ? 16 : 5);
+	});
+
+	for (const memory of [false, true]) it(`rejects mixed small-to-full and legacy lifecycle reports (${memory ? 'memory' : 'trace'})`, () => {
+		const old = browser('uplot', {trace: !memory, memory, raf: false});
+		old.phase = 'chart-lifecycle';
+		const next = browser('chartjs', old.measurements);
+		next.phase = 'chart-population';
+		assert.throws(() => offline(savedReport([old, next], old.measurements)), /different benchmark protocols/);
+	});
+
+	it('shows empty init, first data and update separately, keeping totals on the update', () => {
+		const raw = browser('uplot', {trace: true, memory: false, raf: false});
+		raw.phase = 'chart-lifecycle';
+		raw.analysis.phaseGroups = ['empty-init', 'first-data', 'data-update'].map((operation, index) => ({
+			...raw.analysis.groups[0], operation,
+			metrics: {...raw.analysis.groups[0].metrics, jsIntervalMs: {min: 10 + index, max: 20, count: 3, missing: 0}},
+		}));
+		const result = offline(savedReport([raw], raw.measurements));
+		const row = result.tables[0][0];
+		assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'first ms', 'update ms', 'main ms', 'gpu ms', 'total ms']);
+		assert.equal(row['init ms'], 10);
+		assert.equal(row['first ms'], 11);
+		assert.equal(row['update ms'], 2);
+		assert.equal(row['total ms'], 5);
+	});
+
+	it('rejects mixed legacy startup and lifecycle timing reports', () => {
+		const old = browser('uplot', {trace: true, memory: false, raf: false});
+		const next = browser('chartjs', old.measurements);
+		next.phase = 'chart-lifecycle';
+		assert.throws(() => offline(savedReport([old, next], old.measurements)), /different benchmark protocols/);
+	});
+});
+
+describe('benchmark library grouping', () => {
+	for (const measurements of [combined, {trace: true, memory: false, raf: false},
+		{trace: false, memory: false, raf: true}, {trace: false, memory: true, raf: false}]) {
+		for (const protocol of [false, true]) {
+			it(`orders saved ${benchmarkMode(measurements)} groups and ties by ${protocol ? 'protocol' : 'first-seen'} order, keeping unavailable members and unknown IDs`, () => {
+				const speeds = {
+					bokeh: null, 'custom-svg': 4, 'd3-svg': 2, apexcharts: 9, uplot: 2,
+					'bokeh-canvas': null, d3: 2, 'apexcharts-sampled': 0, 'amcharts-sampled': 1,
+					'plotly-svg': null, custom: 5, 'custom-sampled': 6,
+				};
+				const reports = Object.entries(speeds).map(([id, speed]) => {
+					const raw = browser(id, measurements);
+					// A unique snapshot identifies tied siblings even after their labels are compacted.
+					raw.runner.benchmark.sampling = id;
+					if (measurements.trace)
+						raw.analysis.groups[0].metrics.totalTrackedThreadWorkMs.min = speed;
+					if (measurements.raf)
+						raw.rafAnalysis.groups[0].metrics.raf1Ms.min = speed;
+					return raw;
+				});
+				const input = savedReport(reports, measurements);
+				input.failures = ['amcharts', 'plotly'].map(variant => ({variant, error: `${variant} failed`}));
+				input.timeouts = [{variant: 'highcharts-svg', error: 'highcharts-svg timed out'}];
+				input.variantMetadata = Object.fromEntries(['amcharts', 'plotly', 'highcharts-svg'].map(id => [id, {sampling: id}]));
+				if (protocol)
+					input.protocol.variants = ['plotly', 'highcharts-svg', 'amcharts', 'apexcharts', 'uplot', 'd3',
+						'bokeh-canvas', 'custom-sampled', 'custom', 'custom-svg', 'bokeh', 'd3-svg', 'apexcharts-sampled', 'amcharts-sampled', 'plotly-svg'];
+				const timed = measurements.trace || measurements.raf;
+				const expected = timed ? [
+					'apexcharts-sampled', 'apexcharts', 'amcharts-sampled', 'amcharts',
+					...(protocol ? ['uplot', 'd3', 'd3-svg'] : ['d3-svg', 'd3', 'uplot']),
+					'custom-svg', 'custom', 'custom-sampled',
+					...(protocol ? ['plotly', 'plotly-svg', 'highcharts-svg', 'bokeh-canvas', 'bokeh']
+						: ['bokeh', 'bokeh-canvas', 'plotly-svg', 'plotly', 'highcharts-svg']),
+				] : protocol ? [
+					'plotly', 'plotly-svg', 'highcharts-svg', 'amcharts', 'amcharts-sampled', 'apexcharts', 'apexcharts-sampled',
+					'uplot', 'd3', 'd3-svg', 'bokeh-canvas', 'bokeh', 'custom-sampled', 'custom', 'custom-svg',
+				] : [
+					'bokeh', 'bokeh-canvas', 'custom-svg', 'd3-svg', 'd3', 'apexcharts', 'apexcharts-sampled',
+					'uplot', 'amcharts-sampled', 'amcharts', 'plotly-svg', 'plotly', 'custom', 'custom-sampled', 'highcharts-svg',
+				];
+				const original = structuredClone(input);
+				const summary = offline(input);
+				assert.deepEqual(summary.tables[0].map(row => row.sampling), expected);
+				assert.deepEqual(summary.tables[0].map(row => row.variant), expected.map(benchmarkLibraryName));
+				assert.deepEqual(summary.result.reports, original.reports);
+				assert.deepEqual(summary.result.protocol, original.protocol);
+				assert.deepEqual(summary.result.failures, original.failures);
+				assert.deepEqual(summary.result.timeouts, original.timeouts);
+				assert.deepEqual(JSON.parse(readFileSync(join(directory, 'offline.json'), 'utf8')).reports, original.reports);
+				assert.deepEqual(input, original);
+				assert.ok(summary.logs.some(args => args[0] === 'Warning: highcharts-svg timed out'));
+			});
+		}
+	}
+
+	for (const measurements of [{trace: true, memory: false, raf: false}, {trace: false, memory: false, raf: true}]) {
+		it(`uses unrounded sibling times and the first group member for ${benchmarkMode(measurements)} group ties`, () => {
+			const speeds = {
+				bokeh: 100, uplot: 1.01, 'bokeh-canvas': 1.01,
+				d3: 2.04, 'd3-svg': 2.01,
+				amcharts: null, apexcharts: 5, 'amcharts-sampled': 5, 'apexcharts-sampled': null,
+				'custom-webgl': null,
+			};
+			const reports = Object.entries(speeds).map(([id, speed]) => {
+				const raw = browser(id, measurements);
+				raw.runner.benchmark.sampling = id;
+				const metrics = (raw.analysis ?? raw.rafAnalysis).groups[0].metrics;
+				metrics[measurements.trace ? 'totalTrackedThreadWorkMs' : 'raf1Ms'].min = speed;
+				return raw;
+			});
+			const rows = offline(savedReport(reports, measurements)).tables[0];
+			assert.deepEqual(rows.map(row => row.sampling), [
+				'bokeh-canvas', 'bokeh', 'uplot', 'd3-svg', 'd3',
+				'amcharts-sampled', 'amcharts', 'apexcharts', 'apexcharts-sampled', 'custom-webgl',
+			]);
+			const metric = measurements.trace ? 'total ms' : 'next rAF ms';
+			assert.equal(rows[3][metric], 2);
+			assert.equal(rows[4][metric], 2);
+		});
+	}
+
+	it('makes live memory groups contiguous in execution order, including a failed base before its sampled sibling', async () => {
+		const h = harness();
+		const worker = h.dependencies.runWorker;
+		h.dependencies.runWorker = request => {
+			if (request.variant === 'amcharts') {
+				h.requests.push(request);
+				throw new Error('amcharts failed');
+			}
+			return worker(request);
+		};
+		const report = await runBenchmarkSuite({memory: true, vulkan: false}, h.dependencies);
+		const rows = h.frames.at(-1).rows;
+		assert.deepEqual(rows.map(row => row.variant), benchmarkVariants);
+		assert.deepEqual(h.requests.map(request => request.variant), variants);
+		assert.deepEqual(offline(report).tables[0], rows.map(renderedRow));
+	});
+});
+
+describe('benchmark metadata snapshots', () => {
+	it('covers all 46 demo IDs and 41 default variants plus idle', () => {
+		assert.equal(Object.keys(benchmarkMetadata).length, 46);
+		assert.deepEqual(Object.keys(benchmarkMetadata).sort(), Object.keys(demoDependencies).sort());
+		assert.equal(variants.length, 42);
+		assert.equal(new Set(variants).size, 42);
+		assert.equal(new Set(benchmarkVariants.map(benchmarkLibraryName)).size, 31);
+		assert.equal(benchmarkLibraryName('deckgl'), 'deckgl');
+		for (const [id, metadata] of Object.entries(benchmarkMetadata)) {
+			assert.deepEqual(Object.keys(metadata).sort(), ['context', 'lossy', 'sampling'], id);
+						assert.ok([true, false, null].includes(metadata.lossy), id);
+			assert.equal(typeof metadata.sampling, 'string', id);
+			assert.ok(metadata.sampling.length, id);
+			assert.ok(['svg', '2d', 'webgl', 'webgl2', 'webgpu', null].includes(metadata.context), id);
+		}
+		for (const id of ['scichart', 'lightningchart', 'g2-webgl'])
+			assert.equal(benchmarkMetadata[id].context, null);
+		assert.equal(benchmarkMetadata.chartgpu.context, 'webgpu');
+		assert.deepEqual(benchmarkMetadata.deckgl, {sampling: 'none', context: 'webgl2', lossy: false});
+	});
+
+	it('classifies configured lossy reducers, exempting verified minmax and tested SciChart Auto but not unverified grouping', () => {
+		const lossy = new Set(['apexcharts-sampled', 'amcharts-sampled', 'devextreme-sampled', 'anychart-sampled',
+			'fusiontime-sampled', 'fusiontime', 'plotly-svg', 'lightweight', 'highcharts', 'syncfusion']);
+		const unknown = new Set(['lightningchart']);
+		for (const [id, metadata] of Object.entries(benchmarkMetadata))
+			assert.equal(metadata.lossy, unknown.has(id) ? null : lossy.has(id), id);
+		for (const id of ['uplot', 'chartjs', 'echarts'])
+			assert.deepEqual(benchmarkMetadata[id], {sampling: 'minmax', context: '2d', lossy: false});
+		assert.deepEqual(benchmarkMetadata.agcharts, {sampling: 'aggregation', context: '2d', lossy: false});
+		assert.deepEqual(benchmarkMetadata.scichart, {sampling: 'minmax', context: null, lossy: false});
+		assert.equal(benchmarkMetadata.lightningchart.sampling, 'grouping');
+		assert.equal(benchmarkMetadata.fusiontime.sampling, 'avg (1min)');
+	});
+
+	it('preserves the historical unknown SciChart classification after new accuracy evidence', () => {
+		const raw = browser('scichart');
+		raw.runner.benchmark.lossy = null;
+		assert.equal(offline(savedReport([raw])).tables[0][0].lossy, '?');
+		assert.equal(benchmarkMetadata.scichart.lossy, false);
+	});
+
+	for (const measurements of [combined, {trace: true, memory: false, raf: false},
+		{trace: false, memory: true, raf: false}, {trace: false, memory: false, raf: true}]) {
+		it(`preserves lossy markers and metadata order in live and saved ${benchmarkMode(measurements)} successes, failures, and timeouts`, async () => {
+			const h = harness();
+			const worker = h.dependencies.runWorker;
+			const failed = ['apexcharts-sampled', 'apexcharts', 'scichart'];
+			const timedOut = ['fusiontime', 'chartjs'];
+			h.dependencies.runWorker = async request => {
+				if (failed.includes(request.variant))
+					throw new Error('synthetic failure');
+				if (timedOut.includes(request.variant))
+					throw Object.assign(new Error('synthetic timeout'), {code: 'BENCHMARK_SAMPLE_TIMEOUT'});
+				const raw = await worker(request);
+				if (request.variant === 'uplot')
+					raw.runner.benchmark.lossy = true;
+				if (request.variant === 'chartgpu')
+					delete raw.runner.benchmark.lossy;
+				return raw;
+			};
+			const report = await runBenchmarkSuite({...measurements, vulkan: false}, h.dependencies);
+			const original = structuredClone(report);
+			const rows = h.frames.at(-1).rows;
+			for (const row of rows) {
+				const expected = row.variant === 'uplot' ? '*' : row.variant === 'chartgpu' ? '?'
+					: benchmarkMetadata[row.variant].lossy === true ? '*' : benchmarkMetadata[row.variant].lossy === false ? '' : '?';
+				assert.equal(row.lossy, expected, row.variant);
+				assert.deepEqual(Object.keys(row).slice(0, 4), ['variant', 'context', 'sampling', 'lossy']);
+				if ([...failed, ...timedOut].includes(row.variant))
+					assert.ok(Object.values(row).slice(4).every(value => value === '-'));
+			}
+			const summary = offline(report);
+			assert.deepEqual(summary.tables[0], rows.map(renderedRow));
+			assert.deepEqual(summary.result, original);
+			assert.deepEqual(report, original);
+			assert.deepEqual(saved(benchmarkMode(measurements)), original);
+		});
+	}
+
+	it('keeps missing historical lossy fields unknown without inferring from sampling, current config, or suite snapshots', () => {
+		const reports = Object.keys(benchmarkMetadata).map(id => {
+			const raw = browser(id);
+			delete raw.runner.benchmark.lossy;
+			return raw;
+		});
+		const input = {...savedReport(reports), variantMetadata: structuredClone(benchmarkMetadata)};
+		const original = structuredClone(input);
+		const result = offline(input);
+		assert.ok(result.tables[0].every(row => row.lossy === '?'));
+		assert.deepEqual(result.result.reports, original.reports);
+		assert.deepEqual(result.result.variantMetadata, original.variantMetadata);
+		assert.deepEqual(input, original);
+		const persisted = JSON.parse(readFileSync(join(directory, 'offline.json'), 'utf8'));
+		assert.deepEqual(persisted.reports, original.reports);
+		assert.deepEqual(persisted.variantMetadata, original.variantMetadata);
+
+		const failures = {...savedReport([]),
+			variantMetadata: Object.fromEntries(reports.map(raw => [raw.runner.variant, raw.runner.benchmark])),
+			failures: [{variant: 'uplot', error: 'old failure'}, {variant: 'fusiontime', error: 'old failure'}],
+			timeouts: [{variant: 'agcharts', error: 'old timeout'}],
+		};
+		const failed = offline(failures);
+		assert.ok(failed.tables[0].every(row => row.lossy === '?'));
+		assert.deepEqual(failed.result.variantMetadata, failures.variantMetadata);
+	});
+
+	it('copies and persists metadata through the actual CLI runner and raw JSON write blocks', async () => {
+		const source = readFileSync(new URL('../../scripts/benchmarks.mjs', import.meta.url), 'utf8');
+		const start = source.indexOf('report.runner = {');
+		const end = source.indexOf('\n\tconsole.log(`${values.variant}:', start);
+		assert.ok(start > 0 && end > start);
+		assert.ok(source.slice(start, end).includes('writeFileSync(output, JSON.stringify(report'));
+		for (const variant of Object.keys(benchmarkMetadata)) {
+			const report = {};
+			await runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
+				report, benchmarkMetadata, values: {variant}, cpus: () => [], platform: () => 'linux', release: () => 'test',
+				process: {version: 'test'}, binary: 'test', browserVersion: 'test', browserArgs: [], dpr: 1,
+				dependencies: [], vulkan: false, files: new Map(), browserLog: '',
+				measurements: {}, mode: 'raf', cache: directory, join, variantReportName, writeFileSync,
+			});
+			assert.notEqual(report.runner.benchmark, benchmarkMetadata[variant]);
+			const output = join(directory, variantReportName('raf', variant));
+			assert.deepEqual(JSON.parse(readFileSync(output, 'utf8')).runner.benchmark, benchmarkMetadata[variant]);
+		}
+	});
+
+	it('persists an independent suite snapshot before the first worker, including configured failures', async () => {
+		const h = harness();
+		const worker = h.dependencies.runWorker;
+		h.dependencies.runWorker = request => {
+			const partial = saved('raf');
+			assert.deepEqual(Object.keys(partial.variantMetadata), ['idle', 'scichart']);
+			assert.deepEqual(partial.variantMetadata.scichart, benchmarkMetadata.scichart);
+			if (request.variant === 'scichart')
+				throw new Error('synthetic failure');
+			return worker(request);
+		};
+		const report = await runBenchmarkSuite({raf: true, variant: 'scichart', vulkan: false}, h.dependencies);
+		assert.notEqual(report.variantMetadata.scichart, benchmarkMetadata.scichart);
+		assert.deepEqual(saved('raf').variantMetadata, report.variantMetadata);
+		assert.deepEqual(h.frames.at(-1).rows[0], {
+			variant: 'scichart', context: 'unavailable', sampling: benchmarkMetadata.scichart.sampling, lossy: '',
+			'prep ms': '-', 'init ms': '-', 'next rAF ms': '-',
+		});
+		assert.deepEqual(offline(report).tables[0], h.frames.at(-1).rows);
+	});
+
+	it('uses raw snapshots for successful rows and suite snapshots only for failed or timed-out rows', () => {
+		const raw = browser('uplot');
+		raw.runner.benchmark = {sampling: 'historical reducer', context: 'svg', lossy: true};
+		const input = {...savedReport([raw]),
+			variantMetadata: {
+				uplot: {sampling: 'not the raw snapshot', context: '2d', lossy: false},
+				chartjs: {sampling: 'historical failed reducer', context: 'svg', lossy: true},
+				chartgpu: {sampling: 'historical timeout reducer', context: 'webgpu', lossy: null},
+			},
+			failures: [{variant: 'chartjs', error: 'failed'}],
+			timeouts: [{variant: 'chartgpu', error: 'timed out'}],
+		};
+		const result = offline(input);
+		const metadata = Object.fromEntries(result.tables[0].map(({variant, sampling, context}) => [variant, {sampling, context}]));
+		assert.deepEqual(metadata, {
+			uplot: {sampling: 'historical reducer', context: 'svg'},
+						chartjs: {sampling: 'historical failed reducer', context: 'svg'},
+						chartgpu: {sampling: 'historical timeout reducer', context: 'webgpu'},
+		});
+		assert.deepEqual(result.tables[0].map(row => row.lossy), ['*', '?', '*']);
+		assert.deepEqual(result.result.reports[0].runner.benchmark, raw.runner.benchmark);
+		assert.deepEqual(result.result.variantMetadata, input.variantMetadata);
+	});
+
+	it('leaves no-sampling cells blank without losing stored metadata or hiding unknown sampling', () => {
+		const raw = browser('apexcharts');
+		const legacy = browser('chartjs');
+		delete legacy.runner.benchmark;
+		const input = {...savedReport([raw, legacy]),
+			variantMetadata: {chartgpu: benchmarkMetadata.chartgpu},
+			failures: [{variant: 'chartgpu', error: 'failed'}],
+		};
+		const result = offline(input);
+		const rows = Object.fromEntries(result.tables[0].map(row => [row.variant, row]));
+		assert.equal(rows.apexcharts.sampling, '');
+		assert.equal(rows.chartgpu.sampling, '');
+		assert.equal(rows.chartjs.sampling, 'unavailable');
+		assert.equal(rows.apexcharts.lossy, '');
+		assert.equal(rows.chartgpu.lossy, '');
+		assert.equal(rows.chartjs.lossy, '?');
+		assert.equal(result.result.reports[0].runner.benchmark.sampling, 'none');
+		assert.equal(result.result.variantMetadata.chartgpu.sampling, 'none');
+		for (const id of ['uplot', 'chartjs', 'echarts', 'scichart'])
+			assert.equal(benchmarkMetadata[id].sampling, 'minmax');
+	});
+
+	it('never fills historical sampling or static contexts from the current manifest or suite fallback', () => {
+		const reports = ['uplot', 'apexcharts', 'amcharts', 'fusiontime', 'd3-svg', 'chartgpu'].map(id => {
+			const raw = browser(id);
+			delete raw.runner.benchmark;
+			for (const sample of raw.samples)
+				sample.webgl = {contexts: [{type: 'webgl2', status: 'complete'}]};
+			return raw;
+		});
+		const input = {...savedReport(reports), variantMetadata: {uplot: benchmarkMetadata.uplot},
+			failures: [{variant: 'chartjs', error: 'old failure'}], timeouts: [{variant: 'scichart', error: 'old timeout'}]};
+		const result = offline(input);
+		for (const row of result.tables[0]) {
+			assert.equal(row.sampling, 'unavailable', row.variant);
+			assert.equal(row.context, 'unavailable', row.variant);
+			assert.equal(row.lossy, '?', row.variant);
+		}
+		assert.ok(result.result.reports.every(raw => !Object.hasOwn(raw.runner, 'benchmark')));
+	});
+
+	for (const variant of ['d3fc', 'bokeh', 'plotly', 'highcharts', 'scichart', 'lightningchart', 'g2-webgl']) {
+		for (const [types, expected] of [
+			[[], 'unavailable'], [['webgl'], 'webgl'], [['experimental-webgl', 'webgl'], 'webgl'],
+			[['webgl2', 'webgl2'], 'webgl2'], [['webgl', 'webgl2'], 'unavailable'],
+			[['experimental-webgl', 'webgl2'], 'unavailable'], [[null], 'unavailable'],
+		]) {
+			it(`derives legacy ${variant} context ${expected} from ${JSON.stringify(types)} only`, () => {
+				const raw = browser(variant);
+				delete raw.runner.benchmark;
+				raw.samples[0].webgl = {contexts: [{type: 'webgl'}, {type: 'webgl2'}]};
+				types.forEach((type, i) => { raw.samples[i + 1].webgl = {contexts: [{type, status: 'complete'}]}; });
+				const row = offline(savedReport([raw])).tables[0][0];
+				assert.equal(row.context, expected);
+				assert.equal(row.sampling, 'unavailable');
+				assert.equal(row.lossy, '?');
+			});
+		}
+	}
+
+	for (const variant of ['scichart', 'lightningchart', 'g2-webgl']) {
+		for (const types of [[], ['webgl'], ['experimental-webgl'], ['webgl2'], ['webgl', 'webgl2']]) {
+			it(`resolves null ${variant} snapshot with measured contexts ${JSON.stringify(types)}`, () => {
+				const raw = browser(variant);
+				raw.samples[0].webgl = {contexts: [{type: 'webgl'}, {type: 'webgl2'}]};
+				raw.samples[1].webgl = {contexts: types.map(type => ({type, status: 'complete'}))};
+				const result = offline(savedReport([raw]));
+				assert.equal(result.tables[0][0].context, types.length === 1 ? types[0].replace('experimental-', '') : 'unavailable');
+				assert.equal(result.tables[0][0].sampling, benchmarkMetadata[variant].sampling === 'none' ? '' : benchmarkMetadata[variant].sampling);
+				assert.equal(result.tables[0][0].lossy, variant === 'lightningchart' ? '?' : '');
+				assert.equal(result.result.reports[0].runner.benchmark.context, null, 'inference does not overwrite the snapshot');
+			});
+		}
+	}
+
+	it('honors static primary renderers despite GL probes and leaves unobserved rAF GL versions unavailable', () => {
+		const measurements = {trace: false, memory: false, raf: true};
+		const reports = ['uplot', 'd3-svg', 'chartgpu', 'highcharts', 'scichart', 'lightningchart', 'g2-webgl'].map(id => browser(id, measurements));
+		for (const raw of reports.slice(0, 4))
+			raw.samples[1].webgl = {contexts: [{type: 'webgl'}, {type: 'webgl2'}]};
+		const rows = offline(savedReport(reports, measurements)).tables[0];
+		assert.deepEqual(rows.map(row => row.context), ['2d', 'svg', 'webgpu', 'webgl', 'unavailable', 'unavailable', 'unavailable']);
+	});
+
+	it('sorts by numeric totals rather than metadata labels', () => {
+		const reports = ['uplot', 'chartjs', 'd3'].map(id => browser(id));
+		for (const [i, raw] of reports.entries()) {
+			raw.runner.benchmark = {sampling: ['a', 'z', 'm'][i], context: ['2d', 'webgpu', 'svg'][i]};
+			raw.analysis.groups[0].metrics.totalTrackedThreadWorkMs.min = [10, 2, null][i];
+		}
+		assert.deepEqual(offline(savedReport(reports)).tables[0].map(row => row.variant), ['chartjs', 'uplot', 'd3']);
+	});
+});
+
+describe('benchmark backend selection', () => {
+	for (const platform of ['linux', 'darwin', 'win32']) {
+		it(`resolves automatic selection and explicit overrides on ${platform}`, () => {
+			assert.equal(resolveBenchmarkVulkan({}, platform), platform === 'linux');
+			for (const variant of [undefined, null, ...variants]) {
+				const automatic = platform === 'linux' && (variant == null || variant === 'chartgpu');
+				assert.equal(resolveBenchmarkVulkan({variant}, platform), automatic);
+				assert.equal(resolveBenchmarkVulkan({variant, vulkan: undefined}, platform), automatic);
+				assert.equal(resolveBenchmarkVulkan({variant, vulkan: false}, platform), false);
+				assert.equal(resolveBenchmarkVulkan({variant, vulkan: true}, platform), true);
+				assert.equal(resolveBenchmarkVulkan({variant, 'no-vulkan': true}, platform), false);
+				assert.equal(resolveBenchmarkVulkan({variant, 'no-vulkan': false}, platform), automatic);
+				assert.throws(() => resolveBenchmarkVulkan({variant, vulkan: true, 'no-vulkan': true}, platform), /cannot be combined/);
+			}
+		});
+
+		for (const flags of [{}, {trace: true}, {memory: true}, {raf: true}]) {
+			for (const [selection, vulkan] of [
+				[{}, platform === 'linux'],
+				[{variant: 'chartgpu'}, platform === 'linux'],
+				[{variant: 'd3'}, false],
+				[{variant: 'idle'}, false],
+				[{variant: 'chartgpu', vulkan: false}, false],
+				[{variant: 'd3', vulkan: true}, true],
+				[{'no-vulkan': true}, false],
+			]) {
+				it(`propagates ${platform} ${benchmarkMode(flags)} ${JSON.stringify(selection)} to every worker`, async () => {
+					const options = {...flags, ...selection};
+					const original = {...options};
+					const h = harness({platform});
+					const report = await runBenchmarkSuite(options, h.dependencies);
+					const expected = selection.variant === undefined ? variants
+						: selection.variant === 'idle' ? ['idle'] : ['idle', selection.variant];
+					assert.deepEqual(h.requests.map(request => request.variant), expected);
+					assert.deepEqual(options, original);
+					assert.equal(report.complete, true);
+					assert.equal(report.gpu, vulkan);
+					assert.equal(report.requestedBackend, vulkan ? 'vulkan' : 'default');
+					for (const request of h.requests) {
+						assert.equal(request.vulkan, vulkan);
+						assert.equal(request.gpu, vulkan);
+						assert.equal(request.requestedBackend, report.requestedBackend);
+						assert.equal(request.args.includes('--vulkan'), vulkan);
+						assert.equal(request.args.includes('--no-vulkan'), !vulkan);
+						assert.equal(request.args.includes('--gpu'), vulkan);
+						assert.deepEqual(request.measurements, report.measurements);
+						assert.equal(request.output, join(directory, variantReportName(report.mode, request.variant, {vulkan})));
+						// Replaying the flags in a worker must preserve the suite decision, even for idle or ChartGPU.
+						assert.equal(resolveBenchmarkVulkan({variant: request.variant,
+							vulkan: request.args.includes('--vulkan') ? true : undefined,
+							'no-vulkan': request.args.includes('--no-vulkan')}, platform), vulkan);
+					}
+					assert.ok(report.reports.every(raw => raw.runner.requestedBackend === report.requestedBackend));
+					assert.deepEqual(JSON.parse(readFileSync(join(directory, suiteReportName(report.mode, {vulkan})), 'utf8')), report);
+				});
+			}
+		}
+	}
+
+	it('keeps an explicit GPU request when automatic Vulkan is disabled', async () => {
+		const h = harness({platform: 'linux'});
+		const report = await runBenchmarkSuite({variant: 'chartgpu', gpu: true, 'no-vulkan': true}, h.dependencies);
+		assert.equal(report.complete, true);
+		assert.equal(report.gpu, true);
+		assert.equal(report.requestedBackend, 'default');
+		assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'chartgpu']);
+		for (const request of h.requests) {
+			assert.equal(request.vulkan, false);
+			assert.equal(request.gpu, true);
+			assert.equal(request.args.includes('--gpu'), true);
+			assert.equal(request.args.includes('--no-vulkan'), true);
+			assert.equal(request.args.includes('--vulkan'), false);
+		}
+	});
+
+	it('rejects conflicting suite flags before worker or filesystem side effects', async () => {
+		const outputDirectory = join(directory, 'not-created');
+		const h = harness({outputDirectory});
+		await assert.rejects(runBenchmarkSuite({vulkan: true, 'no-vulkan': true}, h.dependencies), /cannot be combined/);
+		assert.equal(existsSync(outputDirectory), false);
+		assert.deepEqual(h.requests, []);
+		assert.deepEqual(h.events, []);
+	});
+
+	it('accepts both CLI overrides separately and rejects them together in either order', () => {
+		const script = fileURLToPath(new URL('../../scripts/benchmarks.mjs', import.meta.url));
+		for (const flag of [[], ['--vulkan'], ['--no-vulkan']]) {
+			const child = spawnSync(process.execPath, [script, '--help', ...flag], {encoding: 'utf8', timeout: 10000});
+			assert.equal(child.status, 0, child.stderr);
+			assert.match(child.stdout, /automatically request Vulkan for every worker, including idle/);
+			assert.match(child.stdout, /--no-vulkan to select the saved default report/);
+		}
+		for (const flags of [['--vulkan', '--no-vulkan'], ['--no-vulkan', '--vulkan']]) {
+			const child = spawnSync(process.execPath, [script, '--summarize-only', ...flags], {encoding: 'utf8', timeout: 10000});
+			assert.equal(child.status, 1, child.stderr);
+			assert.match(child.stderr, /--vulkan and --no-vulkan cannot be combined/);
+		}
+	});
+});
 
 describe('benchmark suite modes and workers', () => {
 	for (const measurements of [combined, {trace: true}, {memory: true}, {raf: true}]) {
@@ -137,7 +664,7 @@ describe('benchmark suite modes and workers', () => {
 					assert.equal(h.frames.at(-1).status, `Starting ${nextVariant} (${variants.indexOf(nextVariant) + 1}/${variants.length})...`);
 					const row = h.frames.at(-1).rows.find(row => row.variant === timedOut);
 					assert.ok(row);
-					assert.ok(Object.entries(row).every(([key, value]) => key === 'variant' || value === '-'));
+					assert.ok(Object.entries(row).every(([key, value]) => ['variant', 'context', 'sampling', 'lossy'].includes(key) || value === '-'));
 				}
 				if (timedOutVariants.includes(request.variant)) {
 					h.requests.push(request);
@@ -145,7 +672,7 @@ describe('benchmark suite modes and workers', () => {
 				}
 				return worker(request);
 			};
-			const report = await runBenchmarkSuite(measurements, h.dependencies);
+			const report = await runBenchmarkSuite({...measurements, vulkan: false}, h.dependencies);
 			assert.deepEqual(h.requests.map(request => request.variant), variants);
 			assert.equal(report.complete, true);
 			assert.equal(report.progress.failed, null);
@@ -161,15 +688,19 @@ describe('benchmark suite modes and workers', () => {
 				: mode === 'trace' ? ['prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms']
 				: mode === 'memory' ? ['peak MB', 'retained MB'] : ['prep ms', 'init ms', 'next rAF ms'];
 			for (const id of timedOutVariants) {
-				assert.deepEqual(rows.find(row => row.variant === id), {variant: id, ...Object.fromEntries(labels.map(label => [label, '-']))});
+				assert.deepEqual(rows.find(row => row.variant === id), {variant: id, ...benchmarkMetadata[id],
+									sampling: benchmarkMetadata[id].sampling === 'none' ? '' : benchmarkMetadata[id].sampling,
+									lossy: benchmarkMetadata[id].lossy ? '*' : '',
+									...Object.fromEntries(labels.map(label => [label, '-']))});
 				assert.equal(existsSync(join(directory, variantReportName(mode, id))), false);
 			}
-			if (measurements.trace)
-				assert.deepEqual(rows.slice(-2).map(row => row.variant), timedOutVariants);
+			if (measurements.trace || measurements.raf || mode === 'combined') {
+				assert.equal(rows.at(-1).variant, timedOutVariants[1]);
+				assert.equal(rows[rows.findIndex(row => row.variant === timedOut) - 1].variant, 'amcharts');
+			}
 			else
 				assert.deepEqual(rows.map(row => row.variant), variants.slice(1));
-			assert.deepEqual(offline(report).tables[0], rows.map(row => Object.fromEntries(Object.entries(row)
-							.map(([key, value]) => [key, Number.isFinite(value) ? Number(value.toFixed(1)) : value]))));
+			assert.deepEqual(offline(report).tables[0], rows.map(renderedRow));
 			assert.deepEqual(saved(mode), report);
 		});
 	}
@@ -189,7 +720,8 @@ describe('benchmark suite modes and workers', () => {
 		assert.equal(existsSync(stale), false);
 		assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
 		assert.equal(report.timeouts.length, 1);
-		assert.ok(Object.values(h.frames.at(-1).rows[0]).slice(1).every(value => value === '-'));
+		assert.equal(h.frames.at(-1).rows[0].lossy, '');
+				assert.ok(Object.values(h.frames.at(-1).rows[0]).slice(4).every(value => value === '-'));
 	});
 
 	for (let mask = 0; mask < 8; mask++) {
@@ -225,7 +757,7 @@ describe('benchmark suite modes and workers', () => {
 				assert.equal(request.command, process.execPath);
 				assert.match(request.args[1], /scripts\/benchmarks\.mjs$/);
 				assert.deepEqual(request.args.slice(2), ['--worker', '--variant', request.variant, '--dpr', '2',
-					...Object.keys(mask === 0 ? combined : flags).filter(key => (mask === 0 ? combined : flags)[key]).map(key => `--${key}`), '--gpu']);
+					...Object.keys(mask === 0 ? combined : flags).filter(key => (mask === 0 ? combined : flags)[key]).map(key => `--${key}`), '--gpu', '--no-vulkan']);
 				assert.equal(request.timeoutMs, 270000);
 			}
 			assert.equal(report.complete, true);
@@ -272,6 +804,7 @@ describe('benchmark suite modes and workers', () => {
 				assert.deepEqual(report.skipped, []);
 				for (const request of h.requests) {
 					assert.equal(request.args.includes('--vulkan'), vulkan);
+					assert.equal(request.args.includes('--no-vulkan'), !vulkan);
 					assert.equal(request.args.includes('--gpu'), vulkan);
 					assert.equal(request.gpu, vulkan);
 					assert.equal(request.requestedBackend, report.requestedBackend);
@@ -344,11 +877,13 @@ describe('benchmark suite modes and workers', () => {
 			return worker(request);
 		};
 		assert.equal(benchmarkMode({}), 'combined');
-		const result = await runBenchmarkSuite({}, h.dependencies);
+		const result = await runBenchmarkSuite({vulkan: false}, h.dependencies);
 		assert.deepEqual(result.progress.completed, variants);
 		assert.deepEqual(result.protocol.variants.slice(-12), variants.slice(-12));
 		assert.deepEqual(result.skipped.map(entry => entry.variant), ['lightningchart', 'g2-webgl', 'googlecharts', 'jscharting']);
-		assert.equal(result.protocol.variants.length, 36, 'idle plus 35 runnable variants');
+		assert.equal(result.protocol.variants.length, 42, 'idle plus 41 runnable variants');
+		assert.deepEqual(result.variantMetadata, Object.fromEntries(variants.map(id => [id, benchmarkMetadata[id]])));
+		assert.deepEqual(saved().variantMetadata, result.variantMetadata);
 				assert.equal(h.requests.filter(request => request.variant === 'chartgpu').length, 1);
 		assert.ok(h.requests.every(request => !Object.hasOwn(benchmarkRestrictions, request.variant)));
 		assert.equal(result.progress.total, variants.length);
@@ -369,32 +904,68 @@ describe('benchmark suite modes and workers', () => {
 		assert.equal(h.requests[0].args.includes('--gpu'), false);
 	});
 
-	it('reorders each completed table by unrounded total time without changing execution or report order', async () => {
-		const totals = {uplot: 10.04, chartjs: 2, d3: null, echarts: 10.01, flot: 2, dygraphs: null};
-		const additions = benchmarkVariants.filter(variant => !Object.hasOwn(totals, variant));
-		for (const variant of additions) totals[variant] = 20;
-		const h = harness();
-		const worker = h.dependencies.runWorker;
-		h.dependencies.runWorker = async request => {
-			const raw = await worker(request);
-			if (request.variant !== 'idle')
-				raw.analysis.groups[0].metrics.totalTrackedThreadWorkMs.min = totals[request.variant];
-			return raw;
-		};
-		const result = await runBenchmarkSuite({}, h.dependencies);
-		assert.deepEqual(h.tables.map(rows => rows.map(row => row.variant)), variants.slice(1).map((_, i) =>
-			variants.slice(1, i + 2).sort((a, b) => (totals[a] ?? Infinity) - (totals[b] ?? Infinity))));
-		const executionOrder = variants;
-		assert.deepEqual(h.requests.map(request => request.variant), executionOrder);
-		assert.deepEqual(result.reports.map(report => report.runner.variant), executionOrder);
-		assert.deepEqual(result.progress.completed, executionOrder);
-		assert.deepEqual(h.frames.at(-1).rows, h.tables.at(-1));
-	});
+	for (const measurements of [combined, {trace: true}, {raf: true}]) {
+		it(`groups each live and saved ${benchmarkMode(measurements)} table by its fastest sibling without changing execution or raw IDs`, async () => {
+			const speeds = {
+				uplot: 10.04, chartjs: 2, echarts: 10.01, flot: 2, dygraphs: null,
+				d3: 50, 'd3-svg': 1, bokeh: 60, 'bokeh-canvas': 0,
+				apexcharts: 70, 'apexcharts-sampled': 1.5,
+				amcharts: null, 'amcharts-sampled': 3,
+			};
+			const h = harness();
+			const worker = h.dependencies.runWorker;
+			h.dependencies.runWorker = async request => {
+				if (request.variant === 'plotly-svg') {
+					h.requests.push(request);
+					throw new Error('plotly-svg synthetic failure');
+				}
+				const raw = await worker(request);
+				const value = Object.hasOwn(speeds, request.variant) ? speeds[request.variant] : 20;
+				const metrics = (raw.analysis ?? raw.rafAnalysis).groups[0].metrics;
+				metrics[measurements.raf ? 'raf1Ms' : 'totalTrackedThreadWorkMs'].min = value;
+				return raw;
+			};
+			const report = await runBenchmarkSuite({...measurements, vulkan: false}, h.dependencies);
+			const ids = frame => frame.rows.map(row => row.variant);
+			const completed = id => h.frames.find(frame => frame.status.startsWith(`Completed ${id} (`));
+			assert.deepEqual(ids(completed('d3')).slice(0, 4), ['apexcharts-sampled', 'apexcharts', 'chartjs', 'echarts']);
+			assert.deepEqual(ids(completed('d3-svg')).slice(0, 4), ['d3-svg', 'd3', 'apexcharts-sampled', 'apexcharts']);
+			assert.deepEqual(ids(completed('bokeh-canvas')).slice(0, 4), ['bokeh-canvas', 'bokeh', 'd3-svg', 'd3']);
+			const rows = h.frames.at(-1).rows;
+			assert.deepEqual(rows.slice(0, 12).map(row => row.variant), [
+				'bokeh-canvas', 'bokeh', 'd3-svg', 'd3', 'apexcharts-sampled', 'apexcharts',
+				'chartjs', 'flot', 'amcharts-sampled', 'amcharts', 'echarts', 'uplot',
+			]);
+			assert.equal(rows.at(-1).variant, 'dygraphs');
+			assert.equal(rows[rows.findIndex(row => row.variant === 'plotly') + 1].variant, 'plotly-svg');
+			for (const frame of h.frames) {
+				const libraries = frame.rows.map(row => benchmarkLibraryName(row.variant));
+				for (const library of new Set(libraries))
+					assert.equal(libraries.lastIndexOf(library) - libraries.indexOf(library) + 1, libraries.filter(name => name === library).length);
+			}
+			assert.deepEqual(h.requests.map(request => request.variant), variants);
+			assert.deepEqual(report.reports.map(raw => raw.runner.variant), variants.filter(id => id !== 'plotly-svg'));
+			assert.deepEqual(report.progress.completed, report.reports.map(raw => raw.runner.variant));
+			assert.deepEqual(report.protocol.variants, variants);
+			for (const request of h.requests) {
+				assert.equal(request.args[request.args.indexOf('--variant') + 1], request.variant);
+				assert.ok(request.output.endsWith(`-${request.variant}.json`));
+			}
+			assert.ok(h.frames.at(-1).warnings.includes('plotly-svg: plotly-svg synthetic failure'));
+			const original = structuredClone(report);
+			const summary = offline(report);
+			assert.deepEqual(summary.tables[0], rows.map(renderedRow));
+			assert.deepEqual(summary.result.reports, original.reports);
+			assert.deepEqual(summary.result.failures, original.failures);
+			assert.deepEqual(report, original);
+			assert.deepEqual(saved(benchmarkMode(measurements)), original);
+		});
+	}
 
 	for (const variant of benchmarkVariants.filter(variant => !['uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs'].includes(variant))) {
 		it(`runs explicitly selected ${variant} with idle and no skipped warnings`, async () => {
 			const h = harness();
-			const report = await runBenchmarkSuite({variant}, h.dependencies);
+			const report = await runBenchmarkSuite({variant, vulkan: false}, h.dependencies);
 			assert.deepEqual(h.requests.map(request => request.variant), ['idle', variant]);
 			assert.deepEqual(report.skipped, []);
 			assert.deepEqual(saved().skipped, []);
@@ -418,7 +989,7 @@ describe('benchmark suite modes and workers', () => {
 		it(`includes licensed LightningChart with variant=${variant} without a permission flag`, async () => {
 			const h = harness();
 			const lightningOptions = Object.freeze({license: 'test-license-not-a-vendor-key'});
-			const report = await runBenchmarkSuite({variant, lightningOptions}, h.dependencies);
+			const report = await runBenchmarkSuite({variant, lightningOptions, vulkan: false}, h.dependencies);
 			const expected = variant === null ? [...variants, 'lightningchart'] : ['idle', 'lightningchart'];
 			assert.deepEqual(h.requests.map(request => request.variant), expected);
 			assert.deepEqual(report.protocol.variants, expected);
@@ -505,7 +1076,7 @@ describe('benchmark suite modes and workers', () => {
 				}
 				return worker(request);
 			};
-			const result = await runBenchmarkSuite(measurements, h.dependencies);
+			const result = await runBenchmarkSuite({...measurements, vulkan: false}, h.dependencies);
 			assert.equal(result.complete, true);
 			assert.equal(result.progress.failed, null);
 			assert.equal(result.progress.current, null);
@@ -518,10 +1089,9 @@ describe('benchmark suite modes and workers', () => {
 			assert.equal(frame.status, `Failed ${variants.at(-1)} (${variants.length}/${variants.length}).`);
 			for (const id of failedVariants) {
 				assert.ok(frame.warnings.includes(`${id}: synthetic worker failure`));
-				assert.ok(Object.entries(frame.rows.find(row => row.variant === id)).every(([key, value]) => key === 'variant' || value === '-'));
+				assert.ok(Object.entries(frame.rows.find(row => row.variant === id)).every(([key, value]) => ['variant', 'context', 'sampling', 'lossy'].includes(key) || value === '-'));
 			}
-			assert.deepEqual(offline(result).tables[0], frame.rows.map(row => Object.fromEntries(Object.entries(row)
-				.map(([key, value]) => [key, Number.isFinite(value) ? Number(value.toFixed(1)) : value]))));
+			assert.deepEqual(offline(result).tables[0], frame.rows.map(renderedRow));
 		});
 	}
 
@@ -567,7 +1137,7 @@ describe('benchmark suite modes and workers', () => {
 		const stale = join(directory, variantReportName('combined', 'idle'));
 		writeFileSync(stale, JSON.stringify(browser('idle')));
 		const h = harness({runWorker: async request => { assert.equal(existsSync(request.output), false); }});
-		await assert.rejects(runBenchmarkSuite({}, h.dependencies), /ENOENT/);
+		await assert.rejects(runBenchmarkSuite({vulkan: false}, h.dependencies), /ENOENT/);
 		assert.deepEqual(saved().reports, []);
 		assert.deepEqual(saved().adjustedAnalysis.controls, []);
 	});
@@ -583,13 +1153,99 @@ describe('benchmark suite modes and workers', () => {
 				corrupt(raw);
 				return raw;
 			};
-			await assert.rejects(runBenchmarkSuite({}, h.dependencies), /Unexpected benchmark report/);
+			await assert.rejects(runBenchmarkSuite({vulkan: false}, h.dependencies), /Unexpected benchmark report/);
 			assert.deepEqual(saved().reports, []);
 		}
 	});
 });
 
 describe('benchmark table and offline summary', () => {
+	it('uses the live TTY color policy offline without coloring saved reports or metrics', () => {
+		const output = join(directory, 'offline-colors.json');
+		const input = savedReport([browser('idle'), browser('uplot')]);
+		writeFileSync(output, JSON.stringify(input));
+		const {log} = console;
+		const env = process.env;
+		const descriptors = Object.fromEntries(['isTTY', 'getColorDepth'].map(key => [key, Object.getOwnPropertyDescriptor(process.stdout, key)]));
+		const logs = [];
+		try {
+			console.log = (...args) => logs.push(args.join(' '));
+			let plain, savedBytes;
+			for (const [isTTY, depth, environment, prefix] of [
+				[true, 24, {NO_COLOR: ''}, ''],
+				[true, 24, {}, '\x1b[38;2;34;197;94m'],
+				[true, 8, {}, '\x1b[38;5;41m'],
+				[true, 4, {}, ''],
+				[true, undefined, {}, ''],
+				[true, 24, {NO_COLOR: '', FORCE_COLOR: '3'}, ''],
+				[true, 24, {TERM: 'dumb', FORCE_COLOR: '3'}, ''],
+				[false, 24, {FORCE_COLOR: '3'}, ''],
+			]) {
+				process.env = environment;
+				Object.defineProperty(process.stdout, 'isTTY', {configurable: true, value: isTTY});
+				Object.defineProperty(process.stdout, 'getColorDepth', {configurable: true, value: depth === undefined ? undefined : received => {
+					assert.equal(received, environment);
+					return depth;
+				}});
+				logs.length = 0;
+				const result = summarizeSavedBenchmarks({...combined, vulkan: false}, output);
+				plain ??= logs[0];
+				assert.equal(logs[0], prefix ? plain.replace(/(?<= )5\.0(?= │)/, `${prefix}5.0\x1b[39m`) : plain);
+				assert.deepEqual(logs.slice(1), ['Updated summary from saved samples. No browser was started.']);
+				assert.deepEqual(result.reports, input.reports);
+				const bytes = readFileSync(output, 'utf8');
+				savedBytes ??= bytes;
+				assert.equal(bytes, savedBytes);
+				assert.doesNotMatch(bytes, /\x1b|\\u001b/i);
+			}
+		}
+		finally {
+			console.log = log;
+			process.env = env;
+			for (const [key, descriptor] of Object.entries(descriptors)) {
+				if (descriptor)
+					Object.defineProperty(process.stdout, key, descriptor);
+				else
+					delete process.stdout[key];
+			}
+		}
+	});
+	for (const platform of ['linux', 'darwin', 'win32']) {
+		for (const flags of [{}, {trace: true}, {memory: true}, {raf: true}]) {
+			for (const [selection, vulkan] of [[{}, platform === 'linux'], [{vulkan: true}, true], [{vulkan: false}, false], [{'no-vulkan': true}, false]]) {
+				it(`selects only the saved ${vulkan ? 'Vulkan' : 'default'} ${benchmarkMode(flags)} report on ${platform} with ${JSON.stringify(selection)}`, () => {
+					const mode = benchmarkMode(flags);
+					const measurements = {trace: mode === 'combined' || mode === 'trace', memory: mode === 'combined' || mode === 'memory', raf: mode === 'raf'};
+					const options = {...flags, ...selection};
+					const dependencies = {platform, outputDirectory: directory};
+					const inputs = [false, true].map(vulkan => {
+						const report = savedReport(['idle', 'chartgpu'].map(variant => browser(variant, measurements, 1, vulkan ? 'vulkan' : 'default')), measurements);
+						if (vulkan)
+							report.requestedBackend = 'vulkan';
+						else
+							for (const raw of report.reports) delete raw.runner.requestedBackend;
+						const bytes = JSON.stringify(report);
+						writeFileSync(join(directory, suiteReportName(mode, {vulkan})), bytes);
+						return bytes;
+					});
+					const selected = join(directory, suiteReportName(mode, {vulkan}));
+					const other = join(directory, suiteReportName(mode, {vulkan: !vulkan}));
+					const result = capture(() => summarizeSavedBenchmarks(options, undefined, dependencies)).result;
+					assert.equal(result.requestedBackend ?? 'default', vulkan ? 'vulkan' : 'default');
+					assert.deepEqual(result.reports, JSON.parse(inputs[Number(vulkan)]).reports);
+					assert.equal(readFileSync(other, 'utf8'), inputs[Number(!vulkan)]);
+					rmSync(selected);
+					assert.throws(() => summarizeSavedBenchmarks(options, undefined, dependencies), {code: 'ENOENT'});
+					assert.equal(existsSync(selected), false, 'must not fall back to the other backend');
+					writeFileSync(selected, inputs[Number(!vulkan)]);
+					assert.throws(() => summarizeSavedBenchmarks(options, undefined, dependencies), /matching requested backend/);
+					assert.equal(readFileSync(selected, 'utf8'), inputs[Number(!vulkan)]);
+					assert.equal(readFileSync(other, 'utf8'), inputs[Number(!vulkan)]);
+				});
+			}
+		}
+	}
+
 	it('summarizes Vulkan reports and rejects mixed or mismatched saved backends without writing', () => {
 		const output = join(directory, suiteReportName('combined', {vulkan: true}));
 		const input = {...savedReport(['idle', 'chartgpu'].map(variant => browser(variant, combined, 1, 'vulkan'))), requestedBackend: 'vulkan'};
@@ -610,7 +1266,7 @@ describe('benchmark table and offline summary', () => {
 			assert.equal(readFileSync(output, 'utf8'), bytes);
 		}
 		writeFileSync(output, JSON.stringify(input));
-		assert.throws(() => summarizeSavedBenchmarks(combined, output), /matching requested backend/);
+		assert.throws(() => summarizeSavedBenchmarks({...combined, vulkan: false}, output), /matching requested backend/);
 	});
 
 	it('preserves legacy default reports without backend metadata', () => {
@@ -623,7 +1279,7 @@ describe('benchmark table and offline summary', () => {
 	});
 	for (const measurements of [combined, {trace: true, memory: false, raf: false},
 		{trace: false, memory: true, raf: false}, {trace: false, memory: false, raf: true}]) {
-		it(`${benchmarkMode(measurements)} summary sorts by total time only when available in this mode`, () => {
+		it(`${benchmarkMode(measurements)} summary uses the mode's speed metric or stable execution order`, () => {
 			const reports = ['idle', 'uplot', 'chartjs', 'echarts'].map(variant => browser(variant, measurements));
 			if (measurements.trace) {
 				reports[1].analysis.groups[0].metrics.totalTrackedThreadWorkMs.min = null;
@@ -646,7 +1302,7 @@ describe('benchmark table and offline summary', () => {
 		const result = offline(input);
 		const row = result.tables[0][0];
 		assert.deepEqual(Object.keys(row),
-			['variant', 'prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms', 'peak MB', 'retained MB']);
+			['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms', 'peak MB', 'retained MB']);
 		for (const [key, value] of Object.entries({'prep ms': 1.1, 'init ms': 2, 'main ms': 3, 'gpu ms': 4, 'total ms': 5, 'retained MB': 0, 'peak MB': 45}))
 			assert.equal(row[key], value);
 		assert.deepEqual(input, original);
@@ -672,14 +1328,14 @@ describe('benchmark table and offline summary', () => {
 			return raw;
 		};
 		const report = await runBenchmarkSuite({...measurements, variant: 'uplot'}, h.dependencies);
-		assert.deepEqual(h.tables[0], [{variant: 'uplot', 'prep ms': 2, 'init ms': 3, 'next rAF ms': 16}]);
+		assert.deepEqual(h.tables[0], [{variant: 'uplot', ...benchmarkMetadata.uplot, lossy: '', 'prep ms': 2, 'init ms': 3, 'next rAF ms': 16}]);
 		const result = offline(report);
 		assert.deepEqual(result.tables[0], h.tables[0]);
 		const row = result.tables[0][0];
 		assert.equal(row['prep ms'], 2);
 		assert.equal(row['init ms'], 3);
 		assert.equal(row['next rAF ms'], 16);
-		assert.deepEqual(Object.keys(row), ['variant', 'prep ms', 'init ms', 'next rAF ms']);
+		assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'next rAF ms']);
 		assert.equal(result.events[0].type, 'table');
 		assert.deepEqual(result.logs, [['Updated summary from saved samples. No browser was started.']]);
 	});
@@ -721,9 +1377,34 @@ describe('benchmark table and offline summary', () => {
 		const row = result.tables[0][0];
 		assert.equal(row['retained MB'], -3);
 		assert.equal(row['peak MB'], 45);
-		assert.deepEqual(Object.keys(row), ['variant', 'peak MB', 'retained MB']);
+		assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'peak MB', 'retained MB']);
 		assert.equal(result.events[0].type, 'table');
 		assert.deepEqual(result.logs, [['Updated summary from saved samples. No browser was started.']]);
+	});
+
+	it('keeps incomplete process reads in JSON without live or offline console warnings', async () => {
+		const h = harness();
+		const worker = h.dependencies.runWorker;
+		h.dependencies.runWorker = async request => {
+			const raw = await worker(request);
+			raw.samples[1].processObservations.push({phase: 'construct', kind: 'poll',
+				processMemory: {complete: false, processes: [], renderer: null, tree: null,
+					issues: [{stage: 'read', code: 'ENOENT'}]},
+			});
+			return raw;
+		};
+		const report = await runBenchmarkSuite({variant: 'uplot', vulkan: false}, h.dependencies);
+		assert.ok(h.frames.every(frame => frame.warnings.length === 0));
+		const persisted = saved();
+		assert.deepEqual(persisted.reports, report.reports);
+		for (const raw of persisted.reports) {
+			const read = raw.samples[1].processObservations.at(-1).processMemory;
+			assert.equal(read.complete, false);
+			assert.deepEqual(read.issues, [{stage: 'read', code: 'ENOENT'}]);
+		}
+		const summary = offline(persisted);
+		assert.ok(summary.logs.every(([text]) => !text.startsWith('Warning:')));
+		assert.deepEqual(summary.result.reports, persisted.reports);
 	});
 
 	for (const missing of ['idle', 'blank', 'live', 'trace']) {
@@ -743,10 +1424,9 @@ describe('benchmark table and offline summary', () => {
 			assert.equal(`${label} n` in row, false);
 			assert.equal(`${label} missing` in row, false);
 			const warnings = result.logs.filter(([text]) => text.startsWith('Warning:'));
-			assert.equal(warnings.length, missing === 'blank' ? 2 : 1);
+			assert.equal(warnings.length, 1);
 			assert.ok(warnings[0][0].includes(`${label} (0/3 valid, 3 missing, unavailable)`));
-			if (missing === 'blank')
-				assert.deepEqual(warnings[1], ['Warning: idle: 1 incomplete process reads. Details remain in JSON.']);
+
 		});
 	}
 
@@ -756,13 +1436,13 @@ describe('benchmark table and offline summary', () => {
 		input.adjustedAnalysis = {stale: true};
 		const output = join(directory, 'offline.json');
 		writeFileSync(output, JSON.stringify(input));
-		const first = capture(() => summarizeSavedBenchmarks(combined, output));
+		const first = capture(() => summarizeSavedBenchmarks({...combined, vulkan: false}, output));
 		const {adjustedAnalysis, ...preserved} = first.result;
 		const {adjustedAnalysis: stale, ...expected} = input;
 		assert.deepEqual(preserved, expected);
 		assert.equal(adjustedAnalysis.groups[0].scopes.tree.pssMB.live.min, 0);
 		const bytes = readFileSync(output, 'utf8');
-		assert.deepEqual(capture(() => summarizeSavedBenchmarks(combined, output)), first);
+		assert.deepEqual(capture(() => summarizeSavedBenchmarks({...combined, vulkan: false}, output)), first);
 		assert.equal(readFileSync(output, 'utf8'), bytes);
 	});
 
@@ -805,7 +1485,7 @@ describe('worker subprocess cleanup', () => {
 				},
 			});
 			if (event === 'exit' || event === 'crash') {
-				const result = await runBenchmarkSuite({}, h.dependencies);
+				const result = await runBenchmarkSuite({vulkan: false}, h.dependencies);
 				assert.equal(result.complete, true);
 				assert.deepEqual(started, variants);
 				assert.deepEqual(result.failures.map(entry => entry.variant), ['chartjs']);
@@ -813,7 +1493,7 @@ describe('worker subprocess cleanup', () => {
 				assert.deepEqual(result.progress.completed, variants.filter(id => id !== 'chartjs'));
 			}
 			else {
-				await assert.rejects(runBenchmarkSuite({}, h.dependencies), {
+				await assert.rejects(runBenchmarkSuite({vulkan: false}, h.dependencies), {
 					code: event === 'spawn error' ? 'BENCHMARK_WORKER_START_FAILED' : 'BENCHMARK_INTERRUPTED',
 				});
 				assert.deepEqual(started, ['idle', 'uplot', 'chartjs']);

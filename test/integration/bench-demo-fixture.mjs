@@ -6,7 +6,10 @@ import { demoDependencies, benchmarkVariants, demoRestrictions, benchmarkRestric
 
 const root = new URL('../../', import.meta.url);
 const extraHtml = {
-	chartgpu: 'ChartGPU.html',
+	chartgpu: 'ChartGPU.html', deckgl: 'deckgl.html',
+	'apexcharts-sampled': 'ApexCharts-Sampled.html', 'amcharts-sampled': 'amCharts-Sampled.html',
+	'devextreme-sampled': 'DevExtreme-Sampled.html', 'anychart-sampled': 'AnyChart-Sampled.html',
+	'fusiontime-sampled': 'FusionTime-Sampled.html',
 	'd3-svg': 'D3-SVG.html', 'plotly-svg': 'Plotly-SVG.html', 'highcharts-svg': 'Highcharts-SVG.html',
 	'bokeh-canvas': 'Bokeh-Canvas.html', 'd3fc-canvas': 'd3fc-Canvas.html', 'g2-webgl': 'G2-WebGL.html',
 	apexcharts: 'ApexCharts.html', highcharts: 'Highcharts.html', lightweight: 'lightweight-charts.html',
@@ -123,13 +126,14 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 
 	it('keeps default runnable variants ordered, including ChartGPU, and excludes restricted adapters and idle', () => {
 		assert.deepEqual(benchmarkVariants, [
-			'uplot', 'chartjs', 'apexcharts', 'echarts', 'd3', 'd3-svg', 'flot', 'd3fc', 'd3fc-canvas', 'financialcharts',
-			'agcharts', 'dygraphs', 'anychart', 'visx', 'bokeh', 'bokeh-canvas', 'canvasjs', 'plotly', 'plotly-svg', 'lightweight',
-			'muicharts', 'fusiontime', 'devextreme', 'vega', 'highcharts', 'highcharts-svg', 'scichart', 'billboard',
-			'g2', 'syncfusion', 'zingchart', 'amcharts', 'recharts', 'kendo', 'chartgpu',
+			'uplot', 'chartjs', 'apexcharts', 'apexcharts-sampled', 'echarts', 'd3', 'd3-svg', 'flot', 'd3fc', 'd3fc-canvas', 'deckgl', 'financialcharts',
+			'agcharts', 'dygraphs', 'anychart', 'anychart-sampled', 'visx', 'bokeh', 'bokeh-canvas', 'canvasjs', 'plotly', 'plotly-svg', 'lightweight',
+			'muicharts', 'fusiontime', 'fusiontime-sampled', 'devextreme', 'devextreme-sampled', 'vega', 'highcharts', 'highcharts-svg', 'scichart', 'billboard',
+			'g2', 'syncfusion', 'zingchart', 'amcharts', 'amcharts-sampled', 'recharts', 'kendo', 'chartgpu',
 		]);
-		assert.equal(benchmarkVariants.length, 35);
-		assert.equal(Object.keys(demoDependencies).length, 40);
+		assert.equal(benchmarkVariants.length, 41);
+		assert.equal(new Set(benchmarkVariants.map(id => id.replace(/-(?:sampled|svg|canvas)$/, ''))).size, 31);
+		assert.equal(Object.keys(demoDependencies).length, 46);
 		assert.deepEqual(Object.keys(demoRestrictions), ['lightningchart']);
 		assert.deepEqual(Object.keys(benchmarkRestrictions), ['g2-webgl', 'googlecharts', 'jscharting']);
 
@@ -150,6 +154,17 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 			assert.throws(() => assertBenchmarkAvailable(id), error =>
 				error.message === `${id}: ${benchmarkRestrictions[id]}` && /timeouts/.test(error.message));
 		}
+	});
+
+	it('pins deck.gl after D3 and permits standalone and benchmark selection', () => {
+		assert.deepEqual(demoDependencies.deckgl, [
+			{name: 'd3', version: '7.9.0', path: 'dist/d3.min.js'},
+			{name: 'deck.gl', version: '9.4.0', path: 'dist.min.js'},
+		]);
+		assert.deepEqual(demoDependencies.deckgl[0], demoDependencies.d3[0]);
+		assert.equal(benchmarkVariants[benchmarkVariants.indexOf('d3fc-canvas') + 1], 'deckgl');
+		assert.doesNotThrow(() => assertDemoAvailable('deckgl'));
+		assert.doesNotThrow(() => assertBenchmarkAvailable('deckgl'));
 	});
 
 	it('permits explicit ChartGPU benchmarks without requiring backend flags', () => {

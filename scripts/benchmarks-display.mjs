@@ -1,5 +1,6 @@
 
 import { stripVTControlCharacters } from 'node:util';
+import { benchmarkLibraryName } from '../bench/demo-dependencies.mjs';
 
 const segments = new Intl.Segmenter(undefined, {granularity: 'grapheme'});
 const dimension = value => Number.isInteger(value) && value > 0 ? value : 0;
@@ -46,39 +47,72 @@ export function countTerminalLines(text, columns) {
 	return count;
 }
 
-function formatTable(rows) {
-	const columns = [...new Set(rows.flatMap(row => Object.keys(row)))];
+// Absolute bands use raw milliseconds, before display rounding. The xterm-256
+// approximations keep every band distinct, including the lighter reds.
+const totalBands = [
+	[16.6, '34;197;94', 41],
+	[35, '74;222;128', 78],
+	[100, '134;239;172', 121],
+	[150, '253;186;116', 216],
+	[225, '251;146;60', 209],
+	[300, '249;115;22', 202],
+	[500, '248;113;113', 210],
+	[1000, '239;68;68', 203],
+	[2000, '220;38;38', 160],
+	[Infinity, '185;28;28', 124],
+];
+
+// Unknown depth and basic 16-color terminals stay plain. FORCE_COLOR cannot
+// override redirection, NO_COLOR (including an empty value), or TERM=dumb.
+export function benchmarkDisplayColorDepth({stream = process.stdout, env = process.env} = {}) {
+	if (!stream.isTTY || env.NO_COLOR !== undefined || env.TERM === 'dumb')
+		return 0;
+	const depth = typeof stream.getColorDepth === 'function' ? stream.getColorDepth(env) : 0;
+	return Number.isFinite(depth) ? depth >= 24 ? 24 : depth >= 8 ? 8 : 0 : 0;
+}
+
+function colorTotal(text, value, colorDepth) {
+	if (!Number.isFinite(value) || value < 0 || !(colorDepth >= 8))
+		return text;
+	const [, rgb, palette] = totalBands.find(([limit]) => value < limit || limit === 100 && value === 100);
+	return `\x1b[${colorDepth >= 24 ? `38;2;${rgb}` : `38;5;${palette}`}m${text}\x1b[39m`;
+}
+
+function formatTable(rows, colorDepth) {
+	const keys = [...new Set(rows.flatMap(row => Object.keys(row)))];
+	const metadata = ['variant', 'context', 'sampling', 'lossy'];
+	const columns = [...metadata.filter(key => keys.includes(key)), ...keys.filter(key => !metadata.includes(key))];
 	const width = text => [...cellWidths(text)].reduce((sum, size) => sum + size, 0);
 	const cell = value => clean(value).replace(/\n/g, ' ');
-	const cells = rows.map(row => columns.map(key => key === 'variant' ? cell(row[key] ?? '')
+	const cells = rows.map(row => columns.map(key => key === 'variant' ? cell(benchmarkLibraryName(row[key] ?? ''))
+		: key === 'sampling' && row[key] === 'none' ? ''
+		: key === 'lossy' ? cell(typeof row[key] === 'string' ? row[key] : row[key] === true ? '*' : row[key] === false ? '' : '?')
 		: Number.isFinite(row[key]) ? row[key].toFixed(1)
 		: cell(typeof row[key] === 'string' ? row[key] : 'unavailable')));
 	const headers = columns.map(cell);
 	const widths = headers.map((header, i) => Math.max(width(header), ...cells.map(row => width(row[i]))));
 	const border = (left, middle, right) => left + widths.map(size => '─'.repeat(size + 2)).join(middle) + right + '\n';
-	const line = values => '│ ' + values.map((value, i) => {
+	const line = (values, row) => '│ ' + values.map((value, i) => {
 		const padding = ' '.repeat(widths[i] - width(value));
-		return columns[i] === 'variant' ? value + padding : padding + value;
+		if (row && columns[i] === 'total ms')
+			value = colorTotal(value, row[columns[i]], colorDepth);
+		return metadata.includes(columns[i]) ? value + padding : padding + value;
 	}).join(' │ ') + ' │\n';
-	return border('┌', '┬', '┐') + line(headers) + border('├', '┼', '┤') + cells.map(line).join('') + border('└', '┴', '┘');
+	return border('┌', '┬', '┐') + line(headers) + border('├', '┼', '┤') + cells.map((values, i) => line(values, rows[i])).join('') + border('└', '┴', '┘');
 }
 
-export function formatBenchmarkDisplay({rows = [], status = '', warnings = []} = {}) {
-	if (!rows.length)
-		return terminated(clean(status));
-
-	let text = formatTable(rows) + terminated(clean(status));
+export function formatBenchmarkDisplay({rows = [], status = '', warnings = []} = {}, {colorDepth = 0} = {}) {
+	let text = (rows.length ? formatTable(rows, colorDepth) : '') + terminated(clean(status));
 	const unique = [...new Set(warnings.map(warning => clean(warning).replace(/\s+/g, ' ').trim()).filter(Boolean))];
-	for (const warning of unique.slice(0, 3)) {
+	for (const warning of unique) {
 		const chars = Array.from(warning);
 		text += `Warning: ${chars.length > 160 ? chars.slice(0, 157).join('') + '...' : warning}\n`;
 	}
-	if (unique.length > 3)
-		text += `Warning: ${unique.length - 3} more warning(s)\n`;
+
 	return text;
 }
 
-export function createBenchmarkDisplay({stream = process.stdout} = {}) {
+export function createBenchmarkDisplay({stream = process.stdout, env = process.env} = {}) {
 	let previous = null;
 	let finished = false;
 
@@ -91,7 +125,7 @@ export function createBenchmarkDisplay({stream = process.stdout} = {}) {
 			const columns = dimension(stream.columns);
 			const height = dimension(stream.rows);
 			const text = tty || final
-				? formatBenchmarkDisplay({rows, status, warnings})
+				? formatBenchmarkDisplay({rows, status, warnings}, {colorDepth: benchmarkDisplayColorDepth({stream, env})})
 				: terminated(clean(status));
 			let erase = '';
 

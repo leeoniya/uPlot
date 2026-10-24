@@ -31,7 +31,7 @@ describe('additional benchmark adapters B', () => {
 
 	for (const [name, source] of Object.entries(modules)) {
 		it(`${name}: preserves all 55,550 rows and prepares independent data without mutation`, () => {
-			assert.deepEqual(Object.keys(source).sort(), name === 'plotly' ?
+			assert.deepEqual(Object.keys(source).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart').sort(), name === 'plotly' ?
 				['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData'] : ['destroyChart', 'makeChart', 'prepData']);
 			const first = source.prepData(packed);
 			const second = source.prepData(packed);

@@ -23,7 +23,7 @@ export function loadBenchDemoSources(root, variant = null) {
 			throw error;
 		}
 	};
-	for (const route of ['/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs', '/bench/demo-runtime.mjs', '/bench/framework-runtime.mjs', '/bench/demo.css'])
+	for (const route of ['/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs', '/bench/demo-runtime.mjs', '/bench/framework-runtime.mjs', '/bench/lifecycle-data.mjs', '/bench/demo.css'])
 		read(route);
 
 	const variants = variant === null ? Object.keys(demoDependencies) : [variant];

@@ -87,4 +87,31 @@ function destroyChart(chart) {
 	zingchart.exec(chart.id, 'destroy');
 }
 
-export {prepData, makeChart, destroyChart};
+function makeEmptyChart(host, wait) {
+	return makeChart([[], [], []], host, wait);
+}
+
+async function updateChart(chart, input, host, wait) {
+	const id = chart.id;
+	let complete, failed;
+	const ready = new Promise((resolve, reject) => {
+		complete = resolve;
+		failed = event => reject(new Error(event.error?.message || String(event.error), {cause: event.error}));
+	});
+	zingchart.bind(id, 'complete', complete);
+	zingchart.bind(id, 'error', failed);
+	try {
+		// Retains the graph and data canvases; the vendor rebuilds some hover/legend layers.
+		zingchart.exec(id, 'setseriesvalues', {values: input});
+		await ready;
+		if (wait) wait.textContent = 'Done!';
+		return chart;
+	}
+	finally {
+		// Unbind after dispatch, as in makeChart.
+		zingchart.unbind(id, 'complete', complete);
+		zingchart.unbind(id, 'error', failed);
+	}
+}
+
+export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};

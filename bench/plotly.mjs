@@ -18,8 +18,8 @@ function makeChart(data, host, wait, runtimeOptions) {
 	return makeChartWithOptions(data, host, wait, runtimeOptions);
 }
 
-async function makeChartWithOptions(data, host, wait, runtimeOptions, {type = 'scattergl'} = {}) {
-	const traces = ['CPU', 'RAM', 'TCP Out'].map((name, i) => ({
+function chartTraces(data, type) {
+	return ['CPU', 'RAM', 'TCP Out'].map((name, i) => ({
 		name,
 		type,
 		mode: 'lines',
@@ -28,20 +28,29 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {type = 's
 		yaxis: i === 2 ? 'y2' : 'y',
 		line: {width: 1 / devicePixelRatio, color: ['red', 'blue', 'green'][i]},
 	}));
+}
 
+function chartLayout(data) {
+	return {
+		title: {text: 'Server Events'},
+		width: 1920,
+		height: 600,
+		margin: {l: 70, r: 80, b: 60, t: 60},
+		transition: {duration: 0},
+		xaxis: data[0].length
+			? {type: 'date', range: [data[0][0], data[0][data[0].length - 1]]}
+			: {type: 'date', autorange: true},
+		yaxis: {side: 'left', ticksuffix: '%', autorange: true},
+		yaxis2: {side: 'right', overlaying: 'y', ticksuffix: ' MB', autorange: true, showgrid: false},
+		legend: {orientation: 'h', y: 1.1},
+	};
+}
+
+async function makeChartWithOptions(data, host, wait, runtimeOptions, {type = 'scattergl'} = {}) {
+	const traces = chartTraces(data, type);
 	try {
 		// Await the library's initial draw, not a timer or a browser paint heuristic.
-		const chart = await Plotly.newPlot(host, traces, {
-			title: {text: 'Server Events'},
-			width: 1920,
-			height: 600,
-			margin: {l: 70, r: 80, b: 60, t: 60},
-			transition: {duration: 0},
-			xaxis: {type: 'date', range: [data[0][0], data[0][data[0].length - 1]]},
-			yaxis: {side: 'left', ticksuffix: '%', autorange: true},
-			yaxis2: {side: 'right', overlaying: 'y', ticksuffix: ' MB', autorange: true, showgrid: false},
-			legend: {orientation: 'h', y: 1.1},
-		}, {
+		const chart = await Plotly.newPlot(host, traces, chartLayout(data), {
 			responsive: false,
 			plotGlPixelRatio: devicePixelRatio,
 		});
@@ -55,8 +64,19 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {type = 's
 	}
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChartWithOptions([[], [], [], []], host, wait);
+}
+
+async function updateChart(chart, input, host, wait) {
+	// Keep the original renderer (scattergl or scatter) and replace every column.
+	await Plotly.react(chart, chartTraces(input, chart.data[0].type), chartLayout(input));
+	if (wait) wait.textContent = 'Done!';
+}
+
 function destroyChart(chart) {
 	Plotly.purge(chart);
 }
 
+export {makeEmptyChart, updateChart};
 export {prepData, makeChart, destroyChart, makeChartWithOptions};

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as apex from '../../bench/apexcharts.mjs';
+import * as apexSampled from '../../bench/apexcharts-sampled.mjs';
 import * as highcharts from '../../bench/highcharts.mjs';
 import * as highchartsSvg from '../../bench/highcharts-svg.mjs';
 import * as lightweight from '../../bench/lightweight.mjs';
@@ -30,6 +31,7 @@ describe('extra benchmark adapters A', () => {
 
 	it('prepares all 55,550 rows without changing the packed input', () => {
 		const a = apex.prepData(packed);
+		assert.deepEqual(apexSampled.prepData(packed), a);
 		const h = highcharts.prepData(packed);
 		const l = lightweight.prepData(packed);
 		assert.equal(a.length, 3);
@@ -58,49 +60,70 @@ describe('extra benchmark adapters A', () => {
 		assert.notEqual(lightweight.prepData(packed)[0][0], l[0][0]);
 	});
 
-	it('ApexCharts awaits render, uses one percentage axis, and destroys the instance', async () => {
-		let finish, instance, options, destroyed = 0;
-		globalThis.ApexCharts = class {
-			constructor(element, config) {
-				assert.equal(element, host);
-				options = config;
-				instance = this;
-			}
-			render() { return new Promise(resolve => { finish = resolve; }); }
-			destroy() { destroyed++; }
-		};
-		const wait = {textContent: 'Rendering...'};
-		const data = apex.prepData(packed);
-				const result = apex.makeChart(data, host, wait);
-		assert.equal(wait.textContent, 'Rendering...');
-		assert.deepEqual(options.yaxis[0].seriesName, ['CPU', 'RAM']);
-		assert.equal(options.yaxis[1].seriesName, 'TCP Out');
-		assert.equal(options.yaxis[1].opposite, true);
-		autoAxes(options.yaxis);
-		assert.equal(options.chart.renderer, 'canvas');
-		assert.deepEqual(options.chart.dataReducer, {enabled: false});
-				assert.ok(options.series.every((series, i) => series.data === data[i] && series.data.length === 55550));
-		assert.equal(options.chart.animations.enabled, false);
-				assert.equal(options.chart.parentHeightOffset, 0);
-		finish({notTheChart: true});
-		assert.equal(await result, instance);
-		assert.equal(wait.textContent, 'Done!');
-		apex.destroyChart(instance);
-		assert.equal(destroyed, 1);
+	it('ApexCharts sampled shares prep and cleanup and exposes a thin demo entry point', () => {
+		assert.deepEqual(Object.keys(apex).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), ['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData']);
+		assert.deepEqual(Object.keys(apexSampled).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), ['destroyChart', 'makeChart', 'prepData']);
+		assert.equal(apexSampled.prepData, apex.prepData);
+		assert.equal(apexSampled.destroyChart, apex.destroyChart);
+		const base = readFileSync(new URL('../../bench/ApexCharts.html', import.meta.url), 'utf8');
+		const sampled = readFileSync(new URL('../../bench/ApexCharts-Sampled.html', import.meta.url), 'utf8');
+		assert.equal(sampled, base.replace('ApexCharts Demo', 'ApexCharts Sampled Demo').replace("runDemo('apexcharts')", "runDemo('apexcharts-sampled')"));
 	});
 
-	it('ApexCharts cleans up a rejected render and preserves the rejection', async () => {
-		const failure = new Error('render failed');
-		let destroyed = false;
-		globalThis.ApexCharts = class {
-			render() { return Promise.reject(failure); }
-			destroy() { destroyed = true; }
-		};
-		const wait = {textContent: 'Rendering...'};
-		await assert.rejects(apex.makeChart([[], [], []], host, wait), error => error === failure);
-		assert.equal(destroyed, true);
-		assert.equal(wait.textContent, 'Rendering...');
-	});
+	for (const [name, source, sampling] of [['base', apex, false], ['sampled', apexSampled, true]]) {
+		it(`ApexCharts ${name} awaits render, preserves full input and automatic axes, and destroys the instance`, async () => {
+			let finish, instance, options, destroyed = 0;
+			globalThis.ApexCharts = class {
+				constructor(element, config) {
+					assert.equal(element, host);
+					options = config;
+					instance = this;
+				}
+				render() { return new Promise(resolve => { finish = resolve; }); }
+				destroy() { destroyed++; }
+			};
+			const wait = {textContent: 'Rendering...'};
+			const data = Object.freeze(source.prepData(packed).map(series => Object.freeze(series.map(Object.freeze))));
+			const result = source.makeChart(data, host, wait, {sampling: !sampling});
+			let ready = false;
+			result.then(() => { ready = true; });
+			await Promise.resolve();
+			assert.equal(ready, false);
+			assert.equal(wait.textContent, 'Rendering...');
+			assert.deepEqual(options.yaxis[0].seriesName, ['CPU', 'RAM']);
+			assert.equal(options.yaxis[1].seriesName, 'TCP Out');
+			assert.equal(options.yaxis[1].opposite, true);
+			autoAxes([...options.yaxis, options.xaxis]);
+			assert.deepEqual(options.chart, {
+				type: 'line', width: 1920, height: 600, parentHeightOffset: 0,
+				animations: {enabled: false}, renderer: 'canvas',
+				dataReducer: sampling ? {enabled: true, targetPoints: 1920, threshold: 3840} : {enabled: false},
+				zoom: {type: 'x', enabled: true},
+			});
+			assert.equal(options.tooltip.shared, false);
+			assert.equal(options.tooltip.y.formatter(25, {seriesIndex: 0}), '25 %');
+			assert.equal(options.tooltip.y.formatter(25, {seriesIndex: 2}), '25 MB');
+			assert.ok(options.series.every((series, i) => series.data === data[i] && series.data.length === 55550));
+			finish({notTheChart: true});
+			assert.equal(await result, instance);
+			assert.equal(wait.textContent, 'Done!');
+			source.destroyChart(instance);
+			assert.equal(destroyed, 1);
+		});
+
+		it(`ApexCharts ${name} cleans up a rejected render and preserves the rejection`, async () => {
+			const failure = new Error('render failed');
+			let destroyed = 0;
+			globalThis.ApexCharts = class {
+				render() { return Promise.reject(failure); }
+				destroy() { destroyed++; }
+			};
+			const wait = {textContent: 'Rendering...'};
+			await assert.rejects(source.makeChart([[], [], []], host, wait), error => error === failure);
+			assert.equal(destroyed, 1);
+			assert.equal(wait.textContent, 'Rendering...');
+		});
+	}
 
 	for (const loadFirst of [false, true]) {
 		it(`Highcharts awaits load and every boosted series (loadFirst=${loadFirst})`, async () => {

@@ -164,7 +164,7 @@ export async function makeChart(data, host, wait) {
 			try {
 				line = new FastLineRenderableSeries(wasmContext, {
 					dataSeries: series, xAxisId: 'time', yAxisId, stroke, strokeThickness: 1,
-					// Native min/max resampling affects rendering, not stored input values.
+					// Auto matches MinMax in the pinned accuracy tests; selection remains native.
 					resamplingMode: EResamplingMode.Auto,
 				});
 				chart.renderableSeries.add(line);
@@ -178,40 +178,8 @@ export async function makeChart(data, host, wait) {
 			series.appendRange(data.x, values);
 		}
 
-		await new Promise((resolve, reject) => {
-			const cleanup = () => {
-				clearTimeout(timer);
-				chart.renderInstructionsCompleted.unsubscribe(rendered);
-				chart.renderError.unsubscribe(failed);
-				pendingRenders.delete(chart);
-			};
-			const failed = error => {
-				cleanup();
-				reject(error instanceof Error ? error : new Error(String(error)));
-			};
-			const rendered = isInvalidated => {
-				try {
-					if (!licenseReady(chart))
-						throw new Error('SciChart license requires validation before rendering can complete (LICENSE_TYPE_REQUIRES_VALIDATION).');
-					if (!isInvalidated && !chart.isInvalidated && !chart.isRunningAnimation) {
-						cleanup();
-						resolve();
-					}
-				}
-				catch (error) { failed(error); }
-			};
-			const timer = setTimeout(() => failed(new Error('SciChart render completion timed out. Check browser graphics support and vendor license diagnostics.')), timeoutMs);
-			pendingRenders.set(chart, failed);
-			chart.renderInstructionsCompleted.subscribe(rendered);
-			chart.renderError.subscribe(failed);
-			try {
-				// Subscribe before releasing the initially suspended, fully populated chart.
-				chart.resumeUpdates({invalidateOnResume: true});
-			}
-			catch (error) {
-				failed(error);
-			}
-		});
+		// Subscribe before releasing the initially suspended, fully populated chart.
+		await renderChart(chart, timeoutMs, () => chart.resumeUpdates({invalidateOnResume: true}));
 		if (wait)
 			wait.textContent = 'Done!';
 		return chart;
@@ -222,6 +190,57 @@ export async function makeChart(data, host, wait) {
 		throw error;
 	}
 
+}
+
+function renderChart(chart, timeoutMs, action) {
+	return new Promise((resolve, reject) => {
+		const cleanup = () => {
+			clearTimeout(timer);
+			chart.renderInstructionsCompleted.unsubscribe(rendered);
+			chart.renderError.unsubscribe(failed);
+			pendingRenders.delete(chart);
+		};
+		const failed = error => {
+			cleanup();
+			reject(error instanceof Error ? error : new Error(String(error)));
+		};
+		const rendered = isInvalidated => {
+			try {
+				if (!licenseReady(chart))
+					throw new Error('SciChart license requires validation before rendering can complete (LICENSE_TYPE_REQUIRES_VALIDATION).');
+				if (!isInvalidated && !chart.isInvalidated && !chart.isRunningAnimation) {
+					cleanup();
+					resolve();
+				}
+			}
+			catch (error) { failed(error); }
+		};
+		const timer = setTimeout(() => failed(new Error('SciChart render completion timed out. Check browser graphics support and vendor license diagnostics.')), timeoutMs);
+		pendingRenders.set(chart, failed);
+		chart.renderInstructionsCompleted.subscribe(rendered);
+		chart.renderError.subscribe(failed);
+		try { action(); }
+		catch (error) { failed(error); }
+	});
+}
+
+export function makeEmptyChart(host, wait) {
+	return makeChart(Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(0)])), host, wait);
+}
+
+export async function updateChart(chart, input, host, wait) {
+	await renderChart(chart, globalThis.benchmarkSciChartOptions?.timeoutMs ?? 30000, () => {
+		chart.suspendUpdates();
+		try {
+			const lines = chart.renderableSeries.asArray();
+			for (const [i, key] of ['cpu', 'ram', 'tcp'].entries()) {
+				lines[i].dataSeries.clear();
+				lines[i].dataSeries.appendRange(input.x, input[key]);
+			}
+		}
+		finally { chart.resumeUpdates({invalidateOnResume: true}); }
+	});
+	if (wait) wait.textContent = 'Done!';
 }
 
 export function destroyChart(chart) {

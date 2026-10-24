@@ -1,3 +1,5 @@
+import { benchmarkTimingSamples, benchmarkOperations } from './benchmarks-phases.mjs';
+
 const METRICS = ['dataPrepMs', 'prepAndInitMs', 'jsMs', 'raf1Ms', 'postJsRaf1Ms'];
 
 
@@ -15,6 +17,11 @@ export function summarizeBenchmarkRaf(report) {
 	if (!Array.isArray(report?.samples))
 		throw new TypeError('report.samples must be an array');
 
+	const timingSamples = benchmarkTimingSamples(report);
+	const operations = benchmarkOperations(report);
+	const phaseGroups = operations
+		? operations.flatMap(operation => summarizeBenchmarkRaf({samples: timingSamples.filter(sample => sample.operation === operation)})
+			.groups.map(group => ({...group, operation}))) : null;
 	const byDpr = new Map();
 	const grouped = [];
 
@@ -102,17 +109,18 @@ export function summarizeBenchmarkRaf(report) {
 
 	return {
 		groups,
+		...(phaseGroups ? {phaseGroups} : {}),
 		comparisons,
 		definitions: {
 			units: 'All durations and deltas are milliseconds; reductionPct is a percentage.',
 			clock: 'Chart work starts inside an aligned requestAnimationFrame (rAF) callback. Times use performance.now() at callback entry, not the shared rAF timestamp.',
 			dataPrepMs: 'Reported duration of actual demo prepData conversion from already-parsed packed JSON. Excludes network transfer, JSON parsing, and synthetic-data cloning. Data preparation occurs before chart start, outside the start/js-end/end markers.',
-			prepAndInitMs: 'Reported sum dataPrepMs + jsMs: data preparation plus JS/DOM initialization, not end-to-end wall latency. Excludes the gap between preparation and chart start, rAF waits, and settling.',
-			jsMs: 'Elapsed time from chart start through JS/DOM work, async library completion when returned, the initial microtask commit, and the status update. Includes async waits, not exclusive CPU time.',
-			raf1Ms: 'Elapsed time from chart start to entry of the first rAF callback requested after initialization completes. Async initialization can span earlier frames.',
+			prepAndInitMs: 'Legacy field name for dataPrepMs + jsMs. In lifecycle reports it combines preparation and operation readiness, not necessarily initialization. Excludes the gap between preparation and operation start, rAF waits, and settling. Validation is also excluded. This is not end-to-end wall latency.',
+			jsMs: 'Elapsed operation readiness, including JS/DOM work, async library completion, microtask commits and status updates. Lifecycle operations include empty construction and retained-chart updates. Not exclusive CPU time.',
+			raf1Ms: 'Elapsed time from operation start to entry of the first rAF callback requested after readiness. Async operations can span earlier frames. Lifecycle headline results describe replacement.',
 			postJsRaf1Ms: 'Elapsed time from JavaScript end to entry of the next subsequent rAF callback.',
 			interpretation: 'rAF latency is a scheduling/frame-progress proxy, not a GPU fence or proof of completed rendering or presentation. Subtracting JavaScript time does not measure GPU cost.',
-			aggregation: 'Groups separate DPR and variant. Warmups are excluded. Each metric uses its minimum measured value for best-case performance; minima may come from different rounds. Only finite numeric metrics enter min, max, and count; absent, null, and invalid values count as missing. Empty min and max are null. prepAndInitMs uses each round\'s reported sum, not the sum of component minima.',
+			aggregation: 'Groups separate DPR and variant. Lifecycle groups describe replacement only; phaseGroups separates all operations. Warmups are excluded. Each metric uses its minimum measured value for best-case performance; minima may come from different rounds. Only finite numeric metrics enter min, max, and count; absent, null, and invalid values count as missing. Empty min and max are null. prepAndInitMs uses each round\'s reported sum, not the sum of component minima.',
 			pairing: 'Pairs require the exact same round and DPR, with finite values on both sides for each metric. Duplicate measured rounds within a variant and DPR are rejected.',
 			wins: 'A win means uPlot is lower than the reference; equal values are ties; higher values are losses.',
 			deltaOfMinimaMs: 'Reference group minimum minus uPlot group minimum, not the minimum of paired differences. Minima may come from different rounds. Positive values favor uPlot. Null if either minimum is missing.',

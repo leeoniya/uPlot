@@ -135,7 +135,7 @@ describe('scientific benchmark adapters', () => {
 
 	for (const [name, adapter, factor] of [['SciChart', scichart, 60], ['LightningChart', lightningchart, 60000]]) {
 		it(`${name}: retains every timestamp and all 55,550 × 3 values in independent Float64 columns`, () => {
-			assert.deepEqual(Object.keys(adapter), ['destroyChart', 'makeChart', 'prepData']);
+			assert.deepEqual(Object.keys(adapter).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), ['destroyChart', 'makeChart', 'prepData']);
 			const data = adapter.prepData(packed), second = adapter.prepData(packed);
 			for (const [key, values] of Object.entries(data)) {
 				assert.ok(values instanceof Float64Array);

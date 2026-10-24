@@ -119,4 +119,16 @@ function makeChart(data, host, wait) {
 	return uplot;
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart([[], [], [], []], host, wait ?? {textContent: ''});
+}
+
+async function updateChart(chart, input, host, wait) {
+	chart.setData(input, true);
+	// uPlot batches its commit in a microtask, as in makeChart.
+	await Promise.resolve();
+	if (wait) wait.textContent = 'Done!';
+}
+
+export {makeEmptyChart, updateChart};
 export {makeChart, prepData};

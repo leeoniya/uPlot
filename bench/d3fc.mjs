@@ -14,6 +14,19 @@ function prepData(packed) {
 	return data;
 }
 
+const updates = new WeakMap();
+
+function makeEmptyChart(host, wait) {
+	return makeChart(Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(0)])), host, wait);
+}
+
+function updateChart(chart, input, host, wait) {
+	const update = updates.get(chart);
+	if (!update) throw new Error('d3fc chart is not live.');
+	update(input);
+	if (wait) wait.textContent = 'Done!';
+}
+
 function makeChart(data, host, wait, runtimeOptions) {
 	return makeChartWithOptions(data, host, wait, runtimeOptions);
 }
@@ -34,14 +47,14 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 	};
 
 	try {
-		const x = d3.scaleTime().domain(d3.extent(data.x)).range([0, plotWidth]);
-		const pct = d3.scaleLinear().domain([
+		const x = d3.scaleTime().domain(data.x.length ? d3.extent(data.x) : [0, 1]).range([0, plotWidth]);
+		const pct = d3.scaleLinear().domain(data.x.length ? [
 			Math.min(d3.min(data.cpu), d3.min(data.ram)),
 			Math.max(d3.max(data.cpu), d3.max(data.ram)),
-		]).nice().range([plotHeight, 0]);
-		const mb = d3.scaleLinear().domain(d3.extent(data.tcp)).nice().range([plotHeight, 0]);
+		] : [0, 1]).nice().range([plotHeight, 0]);
+		const mb = d3.scaleLinear().domain(data.x.length ? d3.extent(data.tcp) : [0, 1]).nice().range([plotHeight, 0]);
 		const colors = ['red', 'blue', 'green'];
-		const values = [data.cpu, data.ram, data.tcp];
+		let values = [data.cpu, data.ram, data.tcp];
 		const scales = [pct, pct, mb];
 
 		const canvas = d3.select(element).append('canvas')
@@ -76,12 +89,12 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 			.attr('x', (_, i) => margin.left + i * 230).attr('y', 43)
 			.attr('fill', (_, i) => colors[i]).text(name => name);
 		const axes = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-		axes.append('g').call(d3.axisLeft(pct).ticks(10).tickSize(-plotWidth).tickFormat(''))
+		const grid = axes.append('g').call(d3.axisLeft(pct).ticks(10).tickSize(-plotWidth).tickFormat(''))
 			.call(group => group.select('.domain').remove())
 			.call(group => group.selectAll('line').attr('stroke', 'rgba(0,0,0,0.1)'));
-		axes.append('g').attr('transform', `translate(0,${plotHeight})`).call(d3.axisBottom(x).ticks(12));
-		axes.append('g').call(d3.axisLeft(pct).ticks(10).tickFormat(value => `${value}%`));
-		axes.append('g').attr('transform', `translate(${plotWidth},0)`)
+		const xAxis = axes.append('g').attr('transform', `translate(0,${plotHeight})`).call(d3.axisBottom(x).ticks(12));
+		const pctAxis = axes.append('g').call(d3.axisLeft(pct).ticks(10).tickFormat(value => `${value}%`));
+		const mbAxis = axes.append('g').attr('transform', `translate(${plotWidth},0)`)
 			.call(d3.axisRight(mb).ticks(10).tickFormat(value => `${value} MB`));
 
 		// The default time mapper subtracts Date.now(), still too far from this
@@ -109,7 +122,8 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 			series.context(chart.context).xScale(x).yScale(scales[i])
 				.crossValue((_, j) => data.x[j]).mainValue(value => value);
 			chart.series.push(series);
-			series(values[i]);
+			// WebGL line draws use length - 1 segments; zero points is not a draw.
+			if (values[i].length) series(values[i]);
 		}
 
 		const cursor = axes.append('g').attr('display', 'none').attr('pointer-events', 'none');
@@ -118,7 +132,7 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 			.attr('r', 3).attr('fill', (_, i) => colors[i]);
 		svg.on('pointermove.benchmark', event => {
 			const [sx, sy] = d3.pointer(event, svg.node());
-			if (sx < margin.left || sx > margin.left + plotWidth || sy < margin.top || sy > margin.top + plotHeight) {
+			if (!data.x.length || sx < margin.left || sx > margin.left + plotWidth || sy < margin.top || sy > margin.top + plotHeight) {
 				cursor.attr('display', 'none');
 				return;
 			}
@@ -129,6 +143,31 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 			dots.attr('cx', cx).attr('cy', (column, i) => scales[i](column[j]));
 			legend.text((name, i) => `${name}: ${values[i][j].toFixed(i === 0 ? 3 : 2)}${i === 2 ? ' MB' : '%'}`);
 		}).on('pointerleave.benchmark', () => cursor.attr('display', 'none'));
+
+		updates.set(chart, input => {
+			data = input;
+			values = [data.cpu, data.ram, data.tcp];
+			x.domain(data.x.length ? d3.extent(data.x) : [0, 1]);
+			pct.domain(data.x.length ? [Math.min(d3.min(data.cpu), d3.min(data.ram)), Math.max(d3.max(data.cpu), d3.max(data.ram))] : [0, 1]).nice();
+			mb.domain(data.x.length ? d3.extent(data.tcp) : [0, 1]).nice();
+			grid.call(d3.axisLeft(pct).ticks(10).tickSize(-plotWidth).tickFormat(''))
+				.call(group => group.select('.domain').remove())
+				.call(group => group.selectAll('line').attr('stroke', 'rgba(0,0,0,0.1)'));
+			xAxis.call(d3.axisBottom(x).ticks(12));
+			pctAxis.call(d3.axisLeft(pct).ticks(10).tickFormat(value => `${value}%`));
+			mbAxis.call(d3.axisRight(mb).ticks(10).tickFormat(value => `${value} MB`));
+			cursor.attr('display', 'none');
+			dots.data(values);
+			legend.text(name => name);
+			if (gl) gl.clear(gl.COLOR_BUFFER_BIT);
+			else chart.context.clearRect(0, 0, plotWidth, plotHeight);
+			chart.series.forEach((series, i) => { if (values[i].length) series(values[i]); });
+			if (gl) {
+				gl.flush();
+				if (gl.isContextLost() || gl.getError() !== gl.NO_ERROR)
+					throw new Error('d3fc WebGL update failed.');
+			}
+		});
 
 		// Both native series draw synchronously. No d3fc-element redraw queue
 		// or animation is used here.
@@ -147,6 +186,7 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 }
 
 function destroyChart(chart) {
+	updates.delete(chart);
 	d3.select(chart.element).select('svg').on('.benchmark', null);
 	for (const series of chart.series) series.context(null);
 	chart.series.length = 0;
@@ -157,4 +197,4 @@ function destroyChart(chart) {
 	chart.element.remove();
 }
 
-export {prepData, makeChart, destroyChart, makeChartWithOptions};
+export {prepData, makeChart, destroyChart, makeChartWithOptions, makeEmptyChart, updateChart};

@@ -32,7 +32,11 @@ function prepData(packed) {
 }
 
 function makeChart(data, host, wait) {
-	console.time('chart');
+	return createChart(data, host, wait, false);
+}
+
+function createChart(data, host, wait, lifecycle) {
+	if (!lifecycle) console.time('chart');
 
 	const plot = $.plot($(host.querySelector("#placeholder")), [
 		{label: 'CPU', data: data[0], yaxis: 1},
@@ -45,7 +49,7 @@ function makeChart(data, host, wait) {
 			{position: 'right', tickFormatter: value => value + ' MB'},
 		],
 		hooks: {
-			drawOverlay: [
+			drawOverlay: lifecycle ? [] : [
 				() => {
 					wait.textContent = "Done!";
 					console.timeEnd('chart');
@@ -57,4 +61,38 @@ function makeChart(data, host, wait) {
 	return plot;
 }
 
-export {makeChart, prepData};
+async function overlayReady(chart, draw, wait) {
+	let complete;
+	const ready = new Promise(resolve => { complete = resolve; });
+	chart.hooks.drawOverlay.push(complete);
+	try {
+		draw();
+		await ready;
+		if (wait) wait.textContent = 'Done!';
+		return chart;
+	}
+	finally {
+		const hooks = chart.hooks.drawOverlay;
+		hooks.splice(hooks.indexOf(complete), 1);
+	}
+}
+
+function makeEmptyChart(host, wait) {
+	return makeLifecycleChart([[], [], []], host, wait);
+}
+
+export function makeLifecycleChart(data, host, wait) {
+	const chart = createChart(data, host, wait, true);
+	return overlayReady(chart, () => chart.triggerRedrawOverlay(), wait);
+}
+
+function updateChart(chart, input, host, wait) {
+	return overlayReady(chart, () => {
+		chart.setData(chart.getData().map((series, i) => ({...series, data: input[i]})));
+		chart.setupGrid();
+		chart.draw();
+		chart.triggerRedrawOverlay();
+	}, wait);
+}
+
+export {makeChart, prepData, makeEmptyChart, updateChart};

@@ -21,7 +21,7 @@ describe('benchmark demo sources', () => {
 			const source = files.get(`/bench/${id}.mjs`);
 
 			if (oldVariants.includes(id))
-				assert.match(source, /export \{makeChart, prepData\};\s*$/);
+				assert.match(source, /export \{makeChart, prepData(?:, makeEmptyChart, updateChart)?\};\s*$/);
 			checkModuleSyntax(source);
 		});
 	}
@@ -48,8 +48,8 @@ describe('benchmark demo sources', () => {
 				const demo = await import(url);
 				const id = new URL(url).pathname.split('/').at(-1).replace('.mjs', '');
 				const old = ${JSON.stringify(oldVariants)}.includes(id);
-				assert.deepEqual(Object.keys(demo), old ? ['makeChart', ...(id === 'd3' ? ['makeChartWithOptions'] : []), 'prepData'] :
-									['destroyChart', 'makeChart', ...(['plotly', 'highcharts'].includes(id) ? ['makeChartWithOptions'] : []), 'prepData', ...(id === 'googlecharts' ? ['prepareRuntime'] : [])]);
+				assert.deepEqual(Object.keys(demo).filter(key => !['makeEmptyChart', 'updateChart'].includes(key)), old ? ['makeChart', ...(id === 'd3' ? ['makeChartWithOptions'] : []), 'prepData'] :
+									['destroyChart', 'makeChart', ...(['plotly', 'highcharts', 'bokeh', 'd3fc', 'g2', 'apexcharts', 'amcharts', 'devextreme', 'anychart', 'fusiontime'].includes(id) ? ['makeChartWithOptions'] : []), 'prepData', ...(id === 'googlecharts' ? ['prepareRuntime'] : [])]);
 								if (id === 'googlecharts') assert.equal(typeof demo.prepareRuntime, 'function');
 				if (!old) assert.equal(typeof demo.destroyChart, 'function');
 				assert.equal(typeof demo.makeChart, 'function');
@@ -58,6 +58,19 @@ describe('benchmark demo sources', () => {
 			assert.equal(wait.textContent, 'not started');
 		`], {timeout: 10000, stdio: 'pipe'});
 	});
+
+	for (const id of ['apexcharts', 'amcharts', 'devextreme', 'anychart', 'fusiontime']) {
+		it(`${id}: sampled shares preparation and cleanup without preprocessing`, async () => {
+			const base = await import(new URL(`bench/${id}.mjs`, root));
+			const sampled = await import(new URL(`bench/${id}-sampled.mjs`, root));
+			assert.equal(sampled.prepData, base.prepData);
+			assert.equal(sampled.destroyChart, base.destroyChart);
+			assert.notEqual(sampled.makeChart, base.makeChart);
+			const input = Object.freeze([...packed]);
+			assert.deepEqual(sampled.prepData(input), base.prepData(input));
+			assert.deepEqual(input, packed);
+		});
+	}
 
 	for (const [id] of demos) {
 		it(id + ': prepares benchmark data', () => {

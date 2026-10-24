@@ -85,6 +85,24 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {outputBac
 	}
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart(Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(0)])), host, wait);
+}
+
+async function updateChart(view, input, host, wait) {
+	if (view.is_destroyed) throw new Error('Bokeh chart is not live.');
+	const renderer = view.model.renderers.find(renderer => renderer.data_source);
+	renderer.data_source.data = input;
+	// 3.10.1 chains async glyph ingestion and throttled paints onto root.ready.
+	// Ingestion can extend that chain while an earlier ready promise resolves.
+	let ready;
+	do {
+		ready = view.ready;
+		await ready;
+	} while (ready !== view.ready);
+	if (wait) wait.textContent = 'Done!';
+}
+
 function disposePlot(plot, view) {
 	const doc = plot.document;
 	if (doc) {
@@ -102,4 +120,4 @@ function destroyChart(view) {
 	disposePlot(view.model, view);
 }
 
-export {prepData, makeChart, destroyChart, makeChartWithOptions};
+export {prepData, makeChart, destroyChart, makeChartWithOptions, makeEmptyChart, updateChart};

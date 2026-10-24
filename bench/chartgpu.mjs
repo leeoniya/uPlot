@@ -1,4 +1,5 @@
 // chartgpu@0.4.0/dist/index.js ESM namespace: benchmarkChartGPU.
+const failures = new WeakMap();
 function prepData(packed) {
 	const fields = packed[0];
 	const count = (packed.length - fields - 1) / fields;
@@ -27,6 +28,7 @@ async function makeChart(data, host, wait, runtimeOptions) {
 	const failure = new Promise((_, reject) => { rejectFailure = reject; });
 	// Errors can arrive during asynchronous creation, before the queue wait starts.
 	failure.catch(() => {});
+	failures.set(chart, failure);
 	const fail = error => {
 		if (chart.destroyed || chart.error) return;
 		chart.error = error;
@@ -123,6 +125,55 @@ async function makeChart(data, host, wait, runtimeOptions) {
 	}
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart(Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(0)])), host, wait);
+}
+
+async function updateChart(chart, input, host, wait) {
+	if (chart.error) throw chart.error;
+	if (chart.destroyed) throw new Error('ChartGPU is disposed.');
+	const {instance, device} = chart;
+	const mode = instance.getRenderMode();
+	instance.setRenderMode('external');
+	const queue = device.queue;
+	const descriptor = Object.getOwnPropertyDescriptor(queue, 'submit');
+	const submit = queue.submit;
+	let submitted = false;
+	let submitError;
+	try {
+		Object.defineProperty(queue, 'submit', {configurable: true, writable: true, value(buffers) {
+			try {
+				submit.call(this, buffers);
+				if (buffers.length) submitted = true;
+			}
+			catch (error) { submitError = error; }
+		}});
+		try {
+			// 0.4.0 replaces options; retain all axes, styles and series slots.
+			const options = instance.options;
+			instance.setOption({...options, series: options.series.map((series, i) => ({
+				...series, data: {x: input.x, y: input[['cpu', 'ram', 'tcp'][i]]},
+			}))});
+			const rendered = instance.renderFrame();
+			await Promise.resolve();
+			if (submitError) throw submitError;
+			if (!rendered || !submitted || instance.needsRender())
+				throw new Error('ChartGPU replacement did not submit a complete frame.');
+		}
+		finally {
+			if (descriptor) Object.defineProperty(queue, 'submit', descriptor);
+			else delete queue.submit;
+		}
+		await Promise.race([queue.onSubmittedWorkDone(), failures.get(chart)]);
+		if (chart.error) throw chart.error;
+		if (chart.destroyed) throw new Error('ChartGPU was disposed during replacement.');
+	}
+	finally {
+		if (!chart.destroyed) instance.setRenderMode(mode);
+	}
+	if (wait) wait.textContent = 'Done!';
+}
+
 function destroyChart(chart) {
 	if (chart.destroyed) return;
 	chart.destroyed = true;
@@ -140,4 +191,5 @@ function destroyChart(chart) {
 	if (failure) throw failure;
 }
 
+export {makeEmptyChart, updateChart};
 export {prepData, makeChart, destroyChart};

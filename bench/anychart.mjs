@@ -15,7 +15,11 @@ function prepData(packed) {
 	return rows;
 }
 
-async function makeChart(data, host, wait) {
+function makeChart(data, host, wait, runtimeOptions) {
+	return makeChartWithOptions(data, host, wait, runtimeOptions);
+}
+
+async function makeChartWithOptions(data, host, wait, runtimeOptions, {sampled = false} = {}) {
 	const handle = {chart: null, table: null, mappings: [], scales: []};
 	let timer;
 	let drawn;
@@ -26,8 +30,10 @@ async function makeChart(data, host, wait) {
 		chart.title('Server Events');
 		// Ordinal stock scales collapse missing calendar intervals.
 		chart.xScale('scatter');
-		chart.grouping().enabled(false);
-		chart.scrollerGrouping().enabled(false);
+		if (!sampled) {
+			chart.grouping().enabled(false);
+			chart.scrollerGrouping().enabled(false);
+		}
 		chart.scroller().enabled(false);
 		const plot = chart.plot(0);
 		const percent = anychart.scales.linear();
@@ -76,6 +82,39 @@ async function makeChart(data, host, wait) {
 	}
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart([], host, wait);
+}
+
+async function updateChart(handle, input, host, wait) {
+	const {chart, table} = handle;
+	let drawn, timer;
+	try {
+		await new Promise((resolve, reject) => {
+			drawn = resolve;
+			chart.listenOnce('chartDraw', drawn);
+			timer = setTimeout(() => reject(new Error('AnyStock did not finish drawing within 30 seconds.')), 30000);
+			table.startTransaction();
+			try {
+				table.remove();
+				table.addData(input);
+				table.commit();
+			}
+			catch (error) {
+				table.rollback();
+				throw error;
+			}
+			chart.selectRange('max');
+			chart.draw();
+		});
+		if (wait) wait.textContent = 'Done!';
+	}
+	finally {
+		clearTimeout(timer);
+		chart.unlisten('chartDraw', drawn);
+	}
+}
+
 function destroyChart(handle) {
 	const {chart, table, mappings, scales} = handle;
 	handle.chart = handle.table = null;
@@ -91,4 +130,4 @@ function destroyChart(handle) {
 	}
 }
 
-export {prepData, makeChart, destroyChart};
+export {prepData, makeChart, makeEmptyChart, updateChart, destroyChart, makeChartWithOptions};

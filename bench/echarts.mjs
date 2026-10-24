@@ -139,4 +139,16 @@ function makeChart(data, host, wait) {
 	return myChart;
 }
 
+function makeEmptyChart(host, wait) {
+	return makeChart(new Float64Array(0), host, wait ?? {textContent: ''});
+}
+
+function updateChart(chart, input, host, wait) {
+	// The configured line series are non-progressive and animation is disabled:
+	// setOption flushes their render synchronously, just as in makeChart.
+	chart.setOption({dataset: {source: input}}, {lazyUpdate: false});
+	if (wait) wait.textContent = 'Done!';
+}
+
+export {makeEmptyChart, updateChart};
 export {makeChart, prepData};
