@@ -7,8 +7,6 @@ function round3(val) {
 }
 
 function prepData(packed) {
-	console.time('prep');
-
 	// epoch,idl,recv,send,writ,used,free
 
 	const numFields = packed[0];
@@ -26,8 +24,6 @@ function prepData(packed) {
 		tcp[j] = [date, packed[i+3]];
 	}
 
-	console.timeEnd('prep');
-
 	return [cpu, ram, tcp];
 }
 
@@ -36,8 +32,6 @@ function makeChart(data, host, wait) {
 }
 
 function createChart(data, host, wait, lifecycle) {
-	if (!lifecycle) console.time('chart');
-
 	const plot = $.plot($(host.querySelector("#placeholder")), [
 		{label: 'CPU', data: data[0], yaxis: 1},
 		{label: 'RAM', data: data[1], yaxis: 1},
@@ -52,7 +46,6 @@ function createChart(data, host, wait, lifecycle) {
 			drawOverlay: lifecycle ? [] : [
 				() => {
 					wait.textContent = "Done!";
-					console.timeEnd('chart');
 				}
 			]
 		}

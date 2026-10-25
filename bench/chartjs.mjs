@@ -7,8 +7,6 @@ function round3(val) {
 }
 
 function prepData(packed) {
-	console.time('prep');
-
 	// epoch,idl,recv,send,writ,used,free
 
 	const numFields = packed[0];
@@ -26,14 +24,10 @@ function prepData(packed) {
 		tcp[j] = {x: date, y: packed[i+3]};
 	}
 
-	console.timeEnd('prep');
-
 	return [cpu, ram, tcp];
 }
 
 function makeChart(data, host, wait) {
-	console.time('chart');
-
 	var ctx = host.querySelector('#chart1').getContext('2d');
 	var cfg = {
 		data: {
@@ -124,7 +118,6 @@ function makeChart(data, host, wait) {
 	var chart = new Chart(ctx, cfg);
 
 	wait.textContent = "Done!";
-	console.timeEnd('chart');
 	return chart;
 }
 

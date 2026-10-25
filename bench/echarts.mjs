@@ -9,8 +9,6 @@ function round3(val) {
 }
 
 function prepData(packed) {
-	console.time("prep");
-
 	// epoch,idl,recv,send,writ,used,free
 
 	const numFields = packed[0];
@@ -26,13 +24,11 @@ function prepData(packed) {
 		data[off++] = round2(100 * packed[i + 5] / (packed[i + 5] + packed[i + 6]));
 		data[off++] = packed[i + 3];
 	}
-	console.timeEnd("prep");
 
 	return data;
 }
 
 function makeChart(data, host, wait) {
-	console.time("chart");
 	let dom = host;
 
 	let myChart = echarts.init(dom, null, {
@@ -135,7 +131,6 @@ function makeChart(data, host, wait) {
 	});
 
 	wait.textContent = "Done!";
-	console.timeEnd("chart");
 	return myChart;
 }
 

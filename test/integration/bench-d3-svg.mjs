@@ -66,10 +66,10 @@ function checkAxes(host, d3, data) {
 		node.getAttribute('y1') === node.getAttribute('y2')));
 }
 
-describe('D3 SVG benchmark (real D3, offline)', function() {
+describe('D3 SVG and Canvas benchmarks (real D3, offline)', function() {
 	this.timeout(10000);
 	const originals = new Map();
-	let d3, canvas, svg, data, window, host, wait, chart, frames, nextFrame;
+	let d3, canvas, minmax, svg, svgMinmax, data, window, host, wait, chart, frames, nextFrame, originalGetContext;
 
 	before(async function() {
 		d3 = await loadD3();
@@ -88,6 +88,8 @@ describe('D3 SVG benchmark (real D3, offline)', function() {
 		try {
 			canvas = await import('../../bench/d3.mjs');
 			svg = await import('../../bench/d3-svg.mjs');
+			minmax = await import('../../bench/d3-minmax.mjs');
+			svgMinmax = await import('../../bench/d3-svg-minmax.mjs');
 		}
 		finally {
 			if (documentDescriptor) Object.defineProperty(globalThis, 'document', documentDescriptor);
@@ -111,6 +113,7 @@ describe('D3 SVG benchmark (real D3, offline)', function() {
 			'<span id="tcp-value">TCP Out: --</span></div>' +
 			'<div class="chart"><svg id="plot" width="1920" height="600"></svg></div>';
 		window.document.body.append(host);
+		originalGetContext = window.HTMLCanvasElement.prototype.getContext;
 		window.HTMLCanvasElement.prototype.getContext = () => assert.fail('SVG must not use Canvas');
 		wait = {textContent: 'Rendering...'};
 		frames = new Map();
@@ -123,6 +126,7 @@ describe('D3 SVG benchmark (real D3, offline)', function() {
 		chart?.destroy();
 		chart = null;
 		assert.equal(frames.size, 0);
+		window.HTMLCanvasElement.prototype.getContext = originalGetContext;
 		await window.happyDOM.close();
 	});
 
@@ -188,10 +192,10 @@ describe('D3 SVG benchmark (real D3, offline)', function() {
 		assert.equal(host.querySelector('.d3-svg-chart').lastElementChild, host.querySelector('.overlay'));
 	});
 
-	it('uses the same automatic scales for non-percentage ranges and preserves null gaps', async () => {
+	for (const variant of ['svg', 'svg-minmax']) it(`${variant} uses the same automatic scales for non-percentage ranges and preserves null gaps`, async () => {
 		const input = Object.freeze([[0, 60000, 900000, 1800000], [125, null, 160, 180],
 			[220, 230, 240, 250], [1500, 2000, null, 3500]].map(Object.freeze));
-		chart = svg.makeChart(input, host, wait);
+		chart = (variant === 'svg' ? svg : svgMinmax).makeChart(input, host, wait);
 		await Promise.resolve();
 		checkPaths(host, d3, input);
 		checkAxes(host, d3, input);
@@ -204,8 +208,9 @@ describe('D3 SVG benchmark (real D3, offline)', function() {
 		assert.equal(host.querySelector('.cursor circle').getAttribute('display'), 'none');
 	});
 
-	it('uses SVG-local pointer coordinates, coalesces frames, draws SVG markers, and cleans up', async () => {
-		chart = svg.makeChart(data, host, wait);
+	for (const variant of ['svg', 'svg-minmax']) it(`${variant} uses SVG-local pointer coordinates, coalesces frames, draws SVG markers, and cleans up`, async () => {
+		const adapter = variant === 'svg' ? svg : svgMinmax;
+		chart = adapter.makeChart(data, host, wait);
 		await Promise.resolve();
 		const [x, pct, mb] = scales(d3, data);
 		const overlay = host.querySelector('.overlay');
@@ -236,14 +241,68 @@ describe('D3 SVG benchmark (real D3, offline)', function() {
 		assert.equal(cursor.getAttribute('display'), 'none');
 		move(1000);
 		assert.equal(frames.size, 1);
-		svg.destroyChart(chart);
+		adapter.destroyChart(chart);
 		assert.equal(frames.size, 0);
 		assert.equal(host.querySelector('.d3-svg-chart'), null);
 		assert.ok(host.querySelector('#plot'));
 		move(1000, overlay);
 		assert.equal(frames.size, 0);
 		assert.deepEqual(legend(), expected);
-		svg.destroyChart(chart);
+		adapter.destroyChart(chart);
+	});
+
+	it('shares min/max path commands between SVG and Canvas on initialization and dense, sparse, gapped, and empty updates', async () => {
+		assert.equal(svgMinmax.prepData, canvas.prepData);
+		assert.equal(svgMinmax.updateChart, canvas.updateChart);
+		function canvasPaths(input) {
+			const canvasHost = window.document.createElement('div');
+			canvasHost.innerHTML = '<canvas id="plot"></canvas><canvas id="overlay"></canvas>';
+			let path;
+			const paths = [];
+			const ctx = {
+				scale() {}, clearRect() {}, fillText() {}, save() {}, restore() {}, rect() {}, clip() {},
+				beginPath() { path = d3.path(); },
+				moveTo(x, y) { path.moveTo(x, y); },
+				lineTo(x, y) { path.lineTo(x, y); },
+				closePath() { path.closePath(); },
+				stroke() { paths.push(path.toString() || null); },
+			};
+			for (const node of canvasHost.querySelectorAll('canvas')) node.getContext = () => ctx;
+			const other = minmax.makeChart(input, canvasHost);
+			other.destroy();
+			return paths.slice(-3);
+		}
+		function check(input) {
+			assert.equal(host.querySelector('canvas'), null);
+			const paths = [...host.querySelectorAll('.series path')];
+			assert.deepEqual(paths.map(path => path.getAttribute('stroke')), ['red', 'blue', 'green']);
+			assert.deepEqual(paths.map(path => path.getAttribute('d')), canvasPaths(input));
+			if (input[0].length) checkAxes(host, d3, input);
+			return paths;
+		}
+		chart = svgMinmax.makeChart(data, host, wait, Object.freeze({renderer: 'canvas'}));
+		await Promise.resolve();
+		assert.equal(wait.textContent, 'Done!');
+		for (const path of check(data)) {
+			const commands = path.getAttribute('d').match(/[ML]/g);
+			assert.ok(commands.length <= 4 * (1795 * ratio + 2));
+			assert.ok(commands.length < data[0].length / 2);
+		}
+		const gapped = Object.freeze(data.map((values, column) => Object.freeze(values.map((value, i) =>
+			column === 0 ? value + 86400000 : i === 1 || i === 3 || i === 30000 ? null : value * -2))));
+		const sparse = Object.freeze([[0, 60000], [10, 20], [30, 40], [1, 2]].map(Object.freeze));
+		for (const input of [gapped, sparse, [[], [], [], []], data]) {
+			svgMinmax.updateChart(chart, input, host, wait);
+			const paths = check(input);
+			if (input === gapped) assert.ok(paths.every(path => path.getAttribute('d').includes('Z')));
+			if (input === sparse) checkPaths(host, d3, input);
+		}
+		svgMinmax.destroyChart(chart);
+		chart = svgMinmax.makeEmptyChart(host, wait);
+		await Promise.resolve();
+		check([[], [], [], []]);
+		svgMinmax.updateChart(chart, data, host, wait);
+		check(data);
 	});
 
 	it('uses distinct clip IDs and does not report readiness after immediate destruction', async () => {
@@ -263,7 +322,7 @@ describe('D3 SVG benchmark (real D3, offline)', function() {
 		assert.equal(host.querySelector('clipPath').id, id);
 	});
 
-	it('keeps Canvas setup, coordinates, colors, and pointer legend behavior', async () => {
+	for (const variant of ['canvas', 'minmax']) it(`keeps ${variant} Canvas setup, sparse coordinates, colors, and pointer legend behavior`, async () => {
 		host.querySelector('.chart').innerHTML = '<canvas id="plot"></canvas><canvas id="overlay"></canvas>';
 		const input = [[0, 60000, 180000], [10, 20, 30], [40, 50, 60], [1, 2, 3]];
 		const contexts = [];
@@ -276,7 +335,7 @@ describe('D3 SVG benchmark (real D3, offline)', function() {
 			node.getContext = kind => { assert.equal(kind, '2d'); return context; };
 			contexts.push(context);
 		}
-		chart = canvas.makeChart(input, host, wait, Object.freeze({renderer: 'svg'}));
+		chart = (variant === 'canvas' ? canvas : minmax).makeChart(input, host, wait, Object.freeze({renderer: 'svg'}));
 		await Promise.resolve();
 		assert.equal(wait.textContent, 'Done!');
 		assert.equal(host.querySelector('svg'), null);
@@ -301,5 +360,71 @@ describe('D3 SVG benchmark (real D3, offline)', function() {
 		assert.equal(host.querySelector('#ram-value').textContent, 'RAM: 50.0%');
 		assert.equal(host.querySelector('#tcp-value').textContent, 'TCP Out: 2.00 MB');
 		assert.equal(contexts[1].calls.filter(call => call[0] === 'arc').length, 3);
+	});
+
+	it('reduces full-data Canvas paths on initialization and updates without changing source data or cursor lookup', async () => {
+		assert.equal(minmax.prepData, canvas.prepData);
+		assert.equal(minmax.updateChart, canvas.updateChart);
+		host.querySelector('.chart').innerHTML = '<canvas id="plot"></canvas><canvas id="overlay"></canvas>';
+		let points = [], paths = [];
+		const context = {
+			scale() {}, clearRect() {}, save() {}, restore() {}, rect() {}, clip() {}, fillText() {},
+			arc() {}, fill() {}, closePath() {},
+			beginPath() { points = []; },
+			moveTo(x, y) { points.push([x, y]); },
+			lineTo(x, y) { points.push([x, y]); },
+			stroke() { paths.push({color: this.strokeStyle, points}); },
+		};
+		for (const node of host.querySelectorAll('canvas'))
+			node.getContext = () => context;
+
+		function check(input) {
+			const series = paths.slice(-3);
+			assert.deepEqual(series.map(path => path.color), ['red', 'blue', 'green']);
+			const [x, pct, mb] = scales(d3, input);
+			for (const [s, scale] of [pct, pct, mb].entries()) {
+				const actual = series[s].points;
+				assert.ok(actual.length <= 4 * (1795 * ratio + 2));
+				assert.ok(actual.length < input[0].length / 2);
+				const expected = input[s + 1].map((y, i) => [round(x(input[0][i])), round(scale(y))]);
+				function buckets(vertices) {
+					const result = new Map();
+					for (const [x, y] of vertices) {
+						if (!result.has(x)) result.set(x, [y, y, y, y]);
+						const bucket = result.get(x);
+						bucket[1] = Math.min(bucket[1], y);
+						bucket[2] = Math.max(bucket[2], y);
+						bucket[3] = y;
+					}
+					return result;
+				}
+				assert.deepEqual(buckets(actual), buckets(expected));
+			}
+			const idx = 12345;
+			const event = new window.PointerEvent('pointermove');
+			Object.defineProperty(event, 'offsetX', {value: x(input[0][idx])});
+			host.querySelector('#overlay').dispatchEvent(event);
+			flush();
+			assert.equal(host.querySelector('#cpu-value').textContent, `CPU: ${input[1][idx].toFixed(1)}%`);
+			assert.equal(host.querySelector('#ram-value').textContent, `RAM: ${input[2][idx].toFixed(1)}%`);
+			assert.equal(host.querySelector('#tcp-value').textContent, `TCP Out: ${input[3][idx].toFixed(2)} MB`);
+		}
+
+		chart = minmax.makeChart(data, host, wait);
+		await Promise.resolve();
+		assert.equal(wait.textContent, 'Done!');
+		check(data);
+		const next = Object.freeze(data.map((values, column) => Object.freeze(values.map(value =>
+			column === 0 ? value + 86400000 : value * -2))));
+		paths = [];
+		minmax.updateChart(chart, next, host, wait);
+		check(next);
+		minmax.destroyChart(chart);
+		paths = [];
+		chart = minmax.makeEmptyChart(host, wait);
+		await Promise.resolve();
+		assert.ok(paths.slice(-3).every(path => path.points.length === 0));
+		minmax.updateChart(chart, data, host, wait);
+		check(data);
 	});
 });

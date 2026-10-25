@@ -10,6 +10,7 @@ const extraHtml = {
 	'apexcharts-sampled': 'ApexCharts-Sampled.html', 'amcharts-sampled': 'amCharts-Sampled.html',
 	'devextreme-sampled': 'DevExtreme-Sampled.html', 'anychart-sampled': 'AnyChart-Sampled.html',
 	'fusiontime-sampled': 'FusionTime-Sampled.html',
+	'd3-minmax': 'd3-minmax.html', 'd3-svg-minmax': 'd3-svg-minmax.html',
 	'd3-svg': 'D3-SVG.html', 'plotly-svg': 'Plotly-SVG.html', 'highcharts-svg': 'Highcharts-SVG.html',
 	'bokeh-canvas': 'Bokeh-Canvas.html', 'd3fc-canvas': 'd3fc-Canvas.html', 'g2-webgl': 'G2-WebGL.html',
 	apexcharts: 'ApexCharts.html', highcharts: 'Highcharts.html', lightweight: 'lightweight-charts.html',
@@ -71,15 +72,15 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 			parent.classList.add('keep-me', 'flot');
 			document.body.append(parent);
 			for (const id of Object.keys(demoDependencies)) {
-				const selector = {d3: '#plot', 'd3-svg': 'svg#plot', chartjs: '#chart1', flot: '#placeholder'}[id];
+				const selector = {d3: '#plot', 'd3-minmax': '#plot', 'd3-svg': 'svg#plot', 'd3-svg-minmax': 'svg#plot', chartjs: '#chart1', flot: '#placeholder'}[id];
 				parent.replaceChildren();
 				const host = setupDemo(id, parent);
 				assert.equal(host.parentNode, parent);
 				assert.equal(parent.children.length, 1);
 				assert.deepEqual([...parent.classList].sort(), ['keep-me', 'bench-demo', id].sort());
 				if (selector) assert.ok(host.querySelector(selector), id);
-				if (id === 'd3' || id === 'd3-svg') {
-					if (id === 'd3') assert.ok(host.querySelector('#overlay'));
+				if (id === 'd3' || id === 'd3-minmax' || id === 'd3-svg' || id === 'd3-svg-minmax') {
+					if (id === 'd3' || id === 'd3-minmax') assert.ok(host.querySelector('#overlay'));
 					else {
 						assert.equal(host.querySelector('canvas'), null);
 						assert.equal(host.querySelector('svg').getAttribute('width'), '1920');
@@ -97,7 +98,7 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 				}
 				if (id === 'dygraphs') assert.equal(host.id, 'graphdiv');
 				if (id === 'uplot' || id === 'idle') assert.equal(host.children.length, 0);
-				if (id !== 'd3-svg' && ${JSON.stringify(Object.keys(extraHtml))}.includes(id)) {
+				if (id !== 'd3-svg' && id !== 'd3-minmax' && id !== 'd3-svg-minmax' && ${JSON.stringify(Object.keys(extraHtml))}.includes(id)) {
 					assert.equal(host.id, 'benchmark-' + id);
 					assert.equal(host.style.width, '1920px');
 					assert.equal(host.style.height, '600px');
@@ -126,14 +127,14 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 
 	it('keeps default runnable variants ordered, including ChartGPU, and excludes restricted adapters and idle', () => {
 		assert.deepEqual(benchmarkVariants, [
-			'uplot', 'chartjs', 'apexcharts', 'apexcharts-sampled', 'echarts', 'd3', 'd3-svg', 'flot', 'd3fc', 'd3fc-canvas', 'deckgl', 'financialcharts',
+			'uplot', 'chartjs', 'apexcharts', 'apexcharts-sampled', 'echarts', 'd3', 'd3-minmax', 'd3-svg', 'd3-svg-minmax', 'flot', 'd3fc', 'd3fc-canvas', 'deckgl', 'financialcharts',
 			'agcharts', 'dygraphs', 'anychart', 'anychart-sampled', 'visx', 'bokeh', 'bokeh-canvas', 'canvasjs', 'plotly', 'plotly-svg', 'lightweight',
 			'muicharts', 'fusiontime', 'fusiontime-sampled', 'devextreme', 'devextreme-sampled', 'vega', 'highcharts', 'highcharts-svg', 'scichart', 'billboard',
 			'g2', 'syncfusion', 'zingchart', 'amcharts', 'amcharts-sampled', 'recharts', 'kendo', 'chartgpu',
 		]);
-		assert.equal(benchmarkVariants.length, 41);
-		assert.equal(new Set(benchmarkVariants.map(id => id.replace(/-(?:sampled|svg|canvas)$/, ''))).size, 31);
-		assert.equal(Object.keys(demoDependencies).length, 46);
+		assert.equal(benchmarkVariants.length, 43);
+		assert.equal(new Set(benchmarkVariants.map(id => id.replace(/(?:-(?:sampled|svg|canvas|minmax))+$/, ''))).size, 31);
+		assert.equal(Object.keys(demoDependencies).length, 48);
 		assert.deepEqual(Object.keys(demoRestrictions), ['lightningchart']);
 		assert.deepEqual(Object.keys(benchmarkRestrictions), ['g2-webgl', 'googlecharts', 'jscharting']);
 

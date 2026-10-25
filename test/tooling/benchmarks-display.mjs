@@ -251,9 +251,9 @@ describe('benchmark display', () => {
 		].join('\n'));
 	});
 
-	it('compacts only the eleven explicit alternative IDs, leaving unknown hyphenated and inherited names alone', () => {
+	it('compacts only the explicit alternative IDs, leaving unknown hyphenated and inherited names alone', () => {
 		const alternatives = [
-			['d3-svg', 'd3'], ['plotly-svg', 'plotly'], ['highcharts-svg', 'highcharts'],
+			['d3-svg', 'd3'], ['d3-minmax', 'd3'], ['d3-svg-minmax', 'd3'], ['plotly-svg', 'plotly'], ['highcharts-svg', 'highcharts'],
 			['bokeh-canvas', 'bokeh'], ['d3fc-canvas', 'd3fc'], ['g2-webgl', 'g2'],
 			['apexcharts-sampled', 'apexcharts'], ['amcharts-sampled', 'amcharts'],
 			['devextreme-sampled', 'devextreme'], ['anychart-sampled', 'anychart'], ['fusiontime-sampled', 'fusiontime'],

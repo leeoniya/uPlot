@@ -7,8 +7,6 @@ function round3(val) {
 }
 
 function prepData(packed) {
-	console.time("prep");
-
 	// epoch,idl,recv,send,writ,used,free
 
 	const numFields = packed[0];
@@ -51,14 +49,11 @@ function prepData(packed) {
 	data[1][36] = null;
 	data[2][730] = null;
 */
-	console.timeEnd("prep");
 
 	return data;
 }
 
 function makeChart(data, host, wait) {
-	console.time("chart");
-
 	const opts = {
 		title: "Server Events",
 		width: 1920,
@@ -113,7 +108,6 @@ function makeChart(data, host, wait) {
 
 	Promise.resolve().then(() => {
 		wait.textContent = "Done!";
-		console.timeEnd("chart");
 	});
 
 	return uplot;

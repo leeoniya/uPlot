@@ -464,9 +464,10 @@ describe('shared browser sample lifecycle', () => {
 								const events = [], error = new Error('destroy failed');
 				const host = {
 					querySelector(selector) {
-											if (variant === 'd3-svg' && selector === 'canvas') return null;
-											assert.equal(selector, 'canvas, svg'); return {};
-										},
+						if ((variant === 'd3-svg' || variant === 'd3-svg-minmax') && selector === 'canvas') return null;
+						if (variant === 'd3-minmax' && selector === '#plot') return {width: 2880};
+						assert.equal(selector, 'canvas, svg'); return {};
+					},
 										querySelectorAll(selector) { assert.equal(selector, 'svg .series path'); return [{}, {}, {}]; },
 					replaceChildren() { events.push('clear'); }, remove() { events.push('remove'); },
 				};
@@ -475,7 +476,7 @@ describe('shared browser sample lifecycle', () => {
 					events.push('destroy');
 					if (fail) throw error;
 				}}};
-				const api = runInNewContext(source + '\n({validateChart, teardown});', {sources, dpr: 1.5, ROWS: 55550});
+				const api = runInNewContext(source + '\n({validateChart, teardown});', {sources, dpr: 1.5, ROWS: 55550, WIDTH: 1920});
 				const sample = {variant, chart, host};
 				assert.equal(api.validateChart(sample), 1.5);
 				assert.throws(() => api.validateChart({...sample, chart: null}), /did not return a rendered chart/);
@@ -740,14 +741,14 @@ describe('shared browser sample lifecycle', () => {
 		});
 	}
 
-	it('requires three SVG paths and no Canvas in the D3 SVG variant', async () => {
+	for (const variant of ['d3-svg', 'd3-svg-minmax']) it(`requires three SVG paths and no Canvas in ${variant}`, async () => {
 		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
-		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1.5, sources: {'d3-svg': {destroyChart() {}}}});
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1.5, sources: {[variant]: {destroyChart() {}}}});
 		const window = new Window();
 		try {
 			const host = window.document.createElement('div');
 			host.innerHTML = '<svg><g class="series"><path/><path/><path/></g></svg>';
-			const sample = {variant: 'd3-svg', chart: {}, host};
+			const sample = {variant, chart: {}, host};
 			assert.equal(validate(sample), 1.5);
 			host.append(window.document.createElement('canvas'));
 			assert.throws(() => validate(sample), /three SVG line paths without Canvas/);

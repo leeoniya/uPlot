@@ -7,8 +7,6 @@ function round3(val) {
 }
 
 function prepData(packed) {
-	console.time('prep');
-
 	// epoch,idl,recv,send,writ,used,free
 
 	const numFields = packed[0];
@@ -27,14 +25,10 @@ function prepData(packed) {
 		data[j] = rec;
 	}
 
-	console.timeEnd('prep');
-
 	return data;
 }
 
 function makeChart(data, host, wait) {
-	console.time('chart');
-
 	let dateFormat = fmtDate('{M}/{DD}/{YY}\n{h}:{mm}{aa}');
 
 	var dyCpuMem = new Dygraph(host, data, {
@@ -90,7 +84,6 @@ function makeChart(data, host, wait) {
 	});
 
 	wait.textContent = "Done!";
-	console.timeEnd('chart');
 
 	return dyCpuMem;
 }

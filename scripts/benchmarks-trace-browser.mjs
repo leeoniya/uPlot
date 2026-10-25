@@ -35,7 +35,7 @@ async function settle() {
 }
 
 if (typeof Path2D !== 'function' ||
-	VARIANTS.some(id => id === 'd3' || id === 'd3-svg') && !globalThis.d3?.line ||
+	VARIANTS.some(id => id === 'd3' || id === 'd3-minmax' || id === 'd3-svg' || id === 'd3-svg-minmax') && !globalThis.d3?.line ||
 	VARIANTS.includes('chartjs') && !globalThis.Chart?.version ||
 	VARIANTS.includes('echarts') && !globalThis.echarts?.init ||
 	VARIANTS.includes('flot') && !globalThis.jQuery?.plot ||
@@ -147,7 +147,7 @@ function prepFor(variant) {
 
 function validateInput({variant, input, operation}) {
 	const ROWS = operation === 'small-init' ? 2 : 55550;
-	if (variant === 'uplot' || variant === 'd3' || variant === 'd3-svg' || variant === 'plotly' || variant === 'plotly-svg') {
+	if (variant === 'uplot' || variant === 'd3' || variant === 'd3-minmax' || variant === 'd3-svg' || variant === 'd3-svg-minmax' || variant === 'plotly' || variant === 'plotly-svg') {
 		if (input.length !== 4 || !input.every(values => values.length === ROWS && values.every(Number.isFinite)))
 			throw new Error(`Expected ${ROWS.toLocaleString("en-US")} finite rows with x values and three y series.`);
 	}
@@ -303,8 +303,8 @@ function validateChart({variant, chart, host, input, operation}) {
 			!Array.isArray(values) || values.length === 0 || values.length > ROWS || !values.every(Number.isFinite)))
 			throw new Error(`ApexCharts sampled must render three nonempty finite series with at most ${ROWS.toLocaleString("en-US")} values each.`);
 	}
-	if (variant === 'd3-svg' && (host.querySelector('canvas') || host.querySelectorAll('svg .series path').length !== 3))
-		throw new Error('d3-svg must render three SVG line paths without Canvas.');
+	if ((variant === 'd3-svg' || variant === 'd3-svg-minmax') && (host.querySelector('canvas') || host.querySelectorAll('svg .series path').length !== 3))
+		throw new Error(`${variant} must render three SVG line paths without Canvas.`);
 	if (variant === 'plotly-svg' && (chart.data?.length !== 3 || chart.data.some(trace => trace.type !== 'scatter')))
 		throw new Error('plotly-svg must render three SVG scatter traces.');
 	if (variant === 'highcharts-svg' && (chart.options?.boost?.enabled !== false || chart.series?.length !== 3 || chart.series.some(series => series.boosted)))
@@ -337,7 +337,7 @@ function validateChart({variant, chart, host, input, operation}) {
 		: variant === 'flot' ? chart.getSurface().pixelRatio : dpr;
 	if (effectiveDpr !== dpr)
 		throw new Error(`${variant} rendered at DPR ${effectiveDpr}, expected ${dpr}`);
-	if (variant === 'd3' && host.querySelector('#plot').width !== Math.round(WIDTH * dpr))
+	if ((variant === 'd3' || variant === 'd3-minmax') && host.querySelector('#plot').width !== Math.round(WIDTH * dpr))
 		throw new Error('D3 canvas backing width does not match the requested DPR.');
 	return effectiveDpr;
 }
@@ -659,7 +659,7 @@ function reportMetadata(raf = false) {
 			data: '/bench/data.json',
 			prepData: 'Each session calls shared prepData separately for two fixture rows and the original full fixture. Full-data preparation supplies prep ms. JSON parsing and small-fixture selection are excluded.',
 			dataRepresentations: {
-				uplot: 'aligned arrays', d3: 'aligned arrays', 'd3-svg': 'aligned arrays', chartjs: 'three arrays of {x, y} points',
+				uplot: 'aligned arrays', d3: 'aligned arrays', 'd3-minmax': 'aligned arrays', 'd3-svg': 'aligned arrays', 'd3-svg-minmax': 'aligned arrays', chartjs: 'three arrays of {x, y} points',
 				echarts: 'interleaved Float64Array', flot: 'three arrays of [x, y] pairs', dygraphs: 'rows of [milliseconds, y, y, y]',
 				'apexcharts-sampled': 'three full arrays of [x, y] pairs; native LTTB reduction inside init',
 				'amcharts-sampled': 'full rows of {date, cpu, ram, tcp}; native date grouping and line simplification inside init',
@@ -692,7 +692,7 @@ function reportMetadata(raf = false) {
 			ySeries: 3,
 			yValues: ROWS * 3,
 			xUnit: 'uPlot, SciChart and Lightweight Charts: seconds since Unix epoch. Other available libraries: milliseconds since Unix epoch.',
-			strokeWidthDevicePixels: {uplot: 1, d3: 1, chartgpu: 1, deckgl: 1},
+			strokeWidthDevicePixels: {uplot: 1, d3: 1, 'd3-minmax': 1, 'd3-svg-minmax': 1, chartgpu: 1, deckgl: 1},
 			strokeWidthCssPixels: {chartjs: 1, echarts: 1},
 		},
 		expectedInstances: {
@@ -705,7 +705,7 @@ function reportMetadata(raf = false) {
 				['measured' + variant[0].toUpperCase() + variant.slice(1), VARIANTS.includes(variant) ? ROUNDS : 0],
 			])),
 			perDprVariant: {warmup: 3, measured: 7},
-			perChartCanvases: {uplot: 1, d3: 2, chartjs: 1, echarts: 'renderer-managed layers', flot: 2, dygraphs: 2, idle: 0},
+			perChartCanvases: {uplot: 1, d3: 2, 'd3-minmax': 2, 'd3-svg-minmax': 0, chartjs: 1, echarts: 'renderer-managed layers', flot: 2, dygraphs: 2, idle: 0},
 		},
 		timing: {
 			unit: 'milliseconds',

@@ -125,6 +125,8 @@ export const demoDependencies = {
 
 // Keep vendor loading identical within each renderer comparison.
 demoDependencies['d3-svg'] = demoDependencies.d3;
+demoDependencies['d3-minmax'] = demoDependencies.d3;
+demoDependencies['d3-svg-minmax'] = demoDependencies.d3;
 demoDependencies['plotly-svg'] = demoDependencies.plotly;
 demoDependencies['highcharts-svg'] = demoDependencies.highcharts;
 demoDependencies['bokeh-canvas'] = demoDependencies.bokeh;
@@ -150,6 +152,8 @@ export const demoModuleDependencies = {
 	'anychart-sampled': ['anychart'],
 	'fusiontime-sampled': ['fusiontime'],
 	'd3-svg': ['d3'],
+	'd3-minmax': ['d3'],
+	'd3-svg-minmax': ['d3'],
 	'plotly-svg': ['plotly'],
 	'highcharts-svg': ['highcharts'],
 	'bokeh-canvas': ['bokeh'],
@@ -160,6 +164,8 @@ export const demoModuleDependencies = {
 // Presentation identity is independent of shared adapter/module dependencies.
 const benchmarkLibraries = {
 	'd3-svg': 'd3',
+	'd3-minmax': 'd3',
+	'd3-svg-minmax': 'd3',
 	'plotly-svg': 'plotly',
 	'highcharts-svg': 'highcharts',
 	'bokeh-canvas': 'bokeh',
@@ -190,7 +196,7 @@ export const benchmarkRestrictions = {
 
 // Keep execution order separate from the table, which sorts by measured total.
 export const benchmarkVariants = [
-	'uplot', 'chartjs', 'apexcharts', 'apexcharts-sampled', 'echarts', 'd3', 'd3-svg', 'flot', 'd3fc', 'd3fc-canvas', 'deckgl', 'financialcharts',
+	'uplot', 'chartjs', 'apexcharts', 'apexcharts-sampled', 'echarts', 'd3', 'd3-minmax', 'd3-svg', 'd3-svg-minmax', 'flot', 'd3fc', 'd3fc-canvas', 'deckgl', 'financialcharts',
 	'agcharts', 'dygraphs', 'anychart', 'anychart-sampled', 'visx', 'bokeh', 'bokeh-canvas', 'canvasjs', 'plotly', 'plotly-svg', 'lightweight',
 	'muicharts', 'fusiontime', 'fusiontime-sampled', 'devextreme', 'devextreme-sampled', 'vega', 'highcharts', 'highcharts-svg', 'scichart', 'billboard',
 	'g2', 'syncfusion', 'zingchart', 'amcharts', 'amcharts-sampled', 'recharts', 'kendo', 'chartgpu',
@@ -205,7 +211,9 @@ export const benchmarkMetadata = {
 	'apexcharts-sampled': {sampling: 'LTTB (1920)', context: '2d', lossy: true},
 	echarts: {sampling: 'minmax', context: '2d', lossy: false},
 	d3: {sampling: 'none', context: '2d', lossy: false},
+	'd3-minmax': {sampling: 'minmax', context: '2d', lossy: false},
 	'd3-svg': {sampling: 'none', context: 'svg', lossy: false},
+	'd3-svg-minmax': {sampling: 'minmax', context: 'svg', lossy: false},
 	flot: {sampling: 'none', context: '2d', lossy: false},
 	d3fc: {sampling: 'none', context: 'webgl', lossy: false},
 	'd3fc-canvas': {sampling: 'none', context: '2d', lossy: false},

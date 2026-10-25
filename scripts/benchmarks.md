@@ -12,9 +12,10 @@ The second expansion adds 13 adapters:
 - `billboard`, `g2`, `syncfusion`, `devextreme`, `jscharting`, and `kendo`.
 - `anychart`, `fusiontime`, `googlecharts`, `recharts`, `muicharts`, `financialcharts`, and `visx`.
 
-The default set contains 31 libraries and 41 variants, including ChartGPU and deck.gl. The idle control is separate.
-The manifest contains 46 demo IDs, including idle and the restricted variants.
+The default set contains 31 libraries and 43 variants, including ChartGPU and deck.gl. The idle control is separate.
+The manifest contains 48 demo IDs, including idle and the restricted variants.
 Five sampled variants follow their bases immediately: `apexcharts-sampled`, `amcharts-sampled`, `devextreme-sampled`, `anychart-sampled`, and `fusiontime-sampled`.
+The `d3-minmax` and `d3-svg-minmax` variants share streaming, device-pixel min/max reduction for the D3 canvas and SVG renderers.
 The base configurations remain unchanged.
 G2 WebGL and Google Charts are disabled for benchmarks after timeouts. Their standalone demos remain available.
 The renderer alternatives are `d3-svg`, `plotly-svg`, `highcharts-svg`, `bokeh-canvas`, `d3fc-canvas`, and `g2-webgl`.
@@ -69,7 +70,7 @@ Google Charts is an exception: frozen version `52` uses a mutable loader and rem
 | --- | --- |
 | `uplot` | Local production assets in `dist/` |
 | `chartjs` | `chart.js` 4.6.1, `@date-fns/cdn` 4.4.0, `chartjs-adapter-date-fns` 3.0.0 |
-| `d3`, `d3-svg` | `d3` 7.9.0 |
+| `d3`, `d3-minmax`, `d3-svg`, `d3-svg-minmax` | `d3` 7.9.0 |
 | `echarts` | `echarts` 6.1.0 |
 | `flot` | `flot` 4.2.6, `jquery` 3.7.1 |
 | `dygraphs` | `dygraphs` 2.2.2 |
@@ -134,7 +135,9 @@ The modules use these performance choices:
 | --- | --- |
 | `uplot` | Aligned columns, native pixel-level path reduction, and `cache.paths: false`. |
 | `d3` | Aligned columns and a canvas line generator, without point objects or external sampling. |
+| `d3-minmax` | The same canvas renderer, with streaming min/max reduction at roughly four samples per device pixel. No intermediate sampled arrays. |
 | `d3-svg` | The same aligned columns, scales, ticks, and pixel rounding. Three full-data SVG paths, SVG axes/grid, and an SVG cursor. No sampling or Canvas layer. |
+| `d3-svg-minmax` | The same SVG renderer, with the shared min/max reducer and density threshold. `d3.path()` receives reduced commands and builds SVG path strings. |
 | `chartjs` | Numeric points, `parsing: false`, `normalized: true`, native min/max sampling, and no animation or point markers. |
 | `echarts` | One interleaved typed buffer, explicit dimensions, native min/max sampling, and no animation or point markers. |
 | `flot` | Native XY pairs and canvas lines, with automatic ranges on two y axes. |
@@ -176,6 +179,15 @@ The modules use these performance choices:
 | `muicharts` | Community SVG `LineChart`, continuous time scale, independent y axes, and no animation or markers. |
 | `financialcharts` | Canvas lines, continuous `scaleTime()`, `plotFull: true`, and two native Chart contexts at the same origin. |
 | `visx` | Custom SVG composition with native lines, axes, grid, and independent scales. Domain scans and component construction remain inside initialization. |
+
+The standalone `bench/d3-minmax.html` demo and `bun run bench --variant d3-minmax` use the same adapter.
+The SVG equivalent is `bench/d3-svg-minmax.html`, also available through `bun run bench --variant d3-svg-minmax`.
+Both variants use the same reducer, without intermediate sampled arrays. SVG allocates its output path strings.
+
+The reducer scans each series once during rendering and keeps only the current pixel column's first, minimum, maximum, and last values.
+It projects X for each sample and projects Y only for emitted vertices. Null gaps restart the path, including gaps within one column.
+Full-resolution data remains available for cursor lookup and automatic axis ranges.
+Reduction costs belong to chart initialization and updates, not data preparation. This reduction preserves column extrema, not necessarily identical rasterized pixels.
 
 ApexCharts 8.4.1 does not support `dataReducer.name: 'minmax'`.
 Its scalar-line path calls LTTB directly, regardless of a supplied reducer name.
@@ -487,8 +499,8 @@ Focused runs without ChartGPU do not automatically select Vulkan. Reports from d
 
 ## Library scope and progress
 
-The expanded suite did not complete. The default suite runs idle first, then 41 variants for 31 libraries.
-Each renderer alternative and sampled variant follows its base immediately in `bench/demo-dependencies.mjs`. The manifest defines this order:
+The expanded suite did not complete. The default suite runs idle first, then 43 variants for 31 libraries.
+Renderer alternatives and sampled variants follow their base in `bench/demo-dependencies.mjs`. The manifest defines this order:
 
 1. uPlot
 2. Chart.js
@@ -496,41 +508,43 @@ Each renderer alternative and sampled variant follows its base immediately in `b
 4. ApexCharts sampled (`apexcharts-sampled`)
 5. ECharts
 6. D3 Canvas (`d3`)
-7. D3 SVG (`d3-svg`)
-8. Flot
-9. d3fc WebGL (`d3fc`)
-10. d3fc Canvas (`d3fc-canvas`)
-11. deck.gl+D3 WebGL2 (`deckgl`)
-12. React Financial Charts (`financialcharts`)
-13. AG Charts Community
-14. Dygraphs
-15. AnyChart (`anychart`)
-16. AnyChart sampled (`anychart-sampled`)
-17. visx (`visx`)
-18. Bokeh WebGL (`bokeh`)
-19. Bokeh Canvas (`bokeh-canvas`)
-20. CanvasJS
-21. Plotly WebGL (`plotly`)
-22. Plotly SVG (`plotly-svg`)
-23. Lightweight Charts
-24. MUI X Charts (`muicharts`)
-25. FusionTime (`fusiontime`)
-26. FusionTime sampled (`fusiontime-sampled`)
-27. DevExtreme (`devextreme`)
-28. DevExtreme sampled (`devextreme-sampled`)
-29. Vega
-30. Highcharts Boost (`highcharts`)
-31. Highcharts SVG (`highcharts-svg`)
-32. SciChart
-33. Billboard (`billboard`)
-34. AntV G2 Canvas (`g2`)
-35. Syncfusion (`syncfusion`)
-36. ZingChart
-37. amCharts
-38. amCharts sampled (`amcharts-sampled`)
-39. Recharts (`recharts`)
-40. Kendo (`kendo`)
-41. ChartGPU (`chartgpu`)
+7. D3 Canvas min/max (`d3-minmax`)
+8. D3 SVG (`d3-svg`)
+9. D3 SVG min/max (`d3-svg-minmax`)
+10. Flot
+11. d3fc WebGL (`d3fc`)
+12. d3fc Canvas (`d3fc-canvas`)
+13. deck.gl+D3 WebGL2 (`deckgl`)
+14. React Financial Charts (`financialcharts`)
+15. AG Charts Community
+16. Dygraphs
+17. AnyChart (`anychart`)
+18. AnyChart sampled (`anychart-sampled`)
+19. visx (`visx`)
+20. Bokeh WebGL (`bokeh`)
+21. Bokeh Canvas (`bokeh-canvas`)
+22. CanvasJS
+23. Plotly WebGL (`plotly`)
+24. Plotly SVG (`plotly-svg`)
+25. Lightweight Charts
+26. MUI X Charts (`muicharts`)
+27. FusionTime (`fusiontime`)
+28. FusionTime sampled (`fusiontime-sampled`)
+29. DevExtreme (`devextreme`)
+30. DevExtreme sampled (`devextreme-sampled`)
+31. Vega
+32. Highcharts Boost (`highcharts`)
+33. Highcharts SVG (`highcharts-svg`)
+34. SciChart
+35. Billboard (`billboard`)
+36. AntV G2 Canvas (`g2`)
+37. Syncfusion (`syncfusion`)
+38. ZingChart
+39. amCharts
+40. amCharts sampled (`amcharts-sampled`)
+41. Recharts (`recharts`)
+42. Kendo (`kendo`)
+43. ChartGPU (`chartgpu`)
 
 LightningChart follows these libraries when `LIGHTNINGCHART_LICENSE` supplies a runtime key.
 Without that key, the suite records an explicit skip rather than an empty benchmark row.

@@ -17,8 +17,6 @@ function round3(val) {
 }
 
 function prepData(packed) {
-	console.time("prep");
-
 	// epoch,idl,recv,send,writ,used,free
 	const numFields = packed[0];
 	const start = numFields + 1;
@@ -33,7 +31,6 @@ function prepData(packed) {
 		data[3][j] = packed[i + 3];
 	}
 
-	console.timeEnd("prep");
 	return data;
 }
 
@@ -91,7 +88,62 @@ function drawAxes(ctx, ticks) {
 	ctx.stroke();
 }
 
-function canvasRenderer(host, line, series, ticks) {
+function flushMinMax(ctx, x, first, min, max, last, scale) {
+	if (min !== max) {
+		if (min !== first && min !== last)
+			ctx.lineTo(x, pxRound(scale(min)));
+		if (max !== first && max !== last)
+			ctx.lineTo(x, pxRound(scale(max)));
+		ctx.lineTo(x, pxRound(scale(last)));
+	}
+}
+
+// Sorted X values share a device-pixel column. Keep raw Y extrema until emission,
+// with no sampled arrays or per-point objects. Gaps flush and restart the path.
+function drawMinMax(ctx, xs, values, xScale, yScale) {
+	let column, first, min, max, last;
+	let active = false;
+	let segmentLength = 0;
+
+	for (let i = 0; i < values.length; i++) {
+		const value = values[i];
+		if (value == null) {
+			if (active)
+				flushMinMax(ctx, column, first, min, max, last, yScale);
+			if (segmentLength === 1)
+				ctx.closePath();
+			active = false;
+			segmentLength = 0;
+			continue;
+		}
+
+		const x = pxRound(xScale(xs[i]));
+		if (!active || x !== column) {
+			if (active)
+				flushMinMax(ctx, column, first, min, max, last, yScale);
+			if (segmentLength === 0)
+				ctx.moveTo(x, pxRound(yScale(value)));
+			else
+				ctx.lineTo(x, pxRound(yScale(value)));
+			column = x;
+			first = min = max = value;
+			active = true;
+		}
+		else {
+			if (value < min) min = value;
+			if (value > max) max = value;
+		}
+		last = value;
+		segmentLength++;
+	}
+
+	if (active)
+		flushMinMax(ctx, column, first, min, max, last, yScale);
+	if (segmentLength === 1)
+		ctx.closePath();
+}
+
+function canvasRenderer(host, line, series, ticks, drawSeries) {
 	const plotCtx = setupCanvas(host.querySelector("#plot"));
 	const overlay = host.querySelector("#overlay");
 	const overlayCtx = setupCanvas(overlay);
@@ -108,9 +160,11 @@ function canvasRenderer(host, line, series, ticks) {
 	plotCtx.lineWidth = 1 / pxRatio;
 
 	for (const [values, scale, color] of series) {
-		line.y(value => pxRound(scale(value)));
 		plotCtx.beginPath();
-		line(values);
+		if (drawSeries)
+			drawSeries(plotCtx, values, scale);
+		else
+			line.y(value => pxRound(scale(value)))(values);
 		plotCtx.strokeStyle = color;
 		plotCtx.stroke();
 	}
@@ -146,7 +200,7 @@ function canvasRenderer(host, line, series, ticks) {
 
 let nextClipId = 0;
 
-function svgRenderer(host, line, series, ticks) {
+function svgRenderer(host, line, series, ticks, drawSeries) {
 	const svg = host.querySelector("#plot");
 	const root = d3.select(svg).append("g").attr("class", "d3-svg-chart");
 	const clipId = `d3-svg-clip-${++nextClipId}`;
@@ -194,9 +248,16 @@ function svgRenderer(host, line, series, ticks) {
 		.attr("clip-path", `url(#${clipId})`).attr("fill", "none").attr("stroke-width", 1 / pxRatio);
 	// Keep the shared device-pixel coordinates, including fractional DPRs.
 	line.digits(null);
+	function seriesPath(values, scale) {
+		if (!drawSeries)
+			return line.y(value => pxRound(scale(value)))(values);
+		const path = d3.path();
+		drawSeries(path, values, scale);
+		return path.toString() || null;
+	}
 	for (const [values, scale, color] of series)
 		paths.append("path").attr("stroke", color)
-			.attr("d", line.y(value => pxRound(scale(value)))(values));
+			.attr("d", seriesPath(values, scale));
 
 	const cursor = root.append("g").attr("class", "cursor").attr("display", "none")
 		.attr("pointer-events", "none");
@@ -223,7 +284,7 @@ function svgRenderer(host, line, series, ticks) {
 				.attr('x', ([x]) => x).attr('y', plotBottom + 7)
 				.attr('dominant-baseline', 'text-before-edge').text(([, label]) => label);
 			paths.selectAll('path').data(series)
-				.attr('d', ([values, scale]) => line.y(value => pxRound(scale(value)))(values));
+				.attr('d', ([values, scale]) => seriesPath(values, scale));
 		},
 		overlay,
 		// offsetX can be relative to an SVG child rather than the plotting surface.
@@ -243,9 +304,7 @@ function svgRenderer(host, line, series, ticks) {
 
 const updates = new WeakMap();
 
-function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "canvas"} = {}) {
-	console.time("chart");
-
+function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "canvas", minmax = false} = {}) {
 	let [xs, cpu, ram, tcp] = data;
 	const xScale = d3.scaleTime()
 		.domain(xs.length ? [xs[0], xs[xs.length - 1]] : [0, 1])
@@ -265,8 +324,14 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "can
 	const line = d3.line()
 		.defined(value => value != null)
 		.x((value, i) => pxRound(xScale(xs[i])));
+	const drawSeries = minmax ? (ctx, values, scale) => {
+		if (values.length - 1 >= (plotRight - plotLeft) * pxRatio * 4)
+			drawMinMax(ctx, xs, values, xScale, scale);
+		else
+			line.context(ctx).y(value => pxRound(scale(value)))(values);
+	} : null;
 	const surface = (renderer === "svg" ? svgRenderer : canvasRenderer)(
-		host, line, series, axisTicks(xScale, pctScale, mbScale));
+		host, line, series, axisTicks(xScale, pctScale, mbScale), drawSeries);
 	const overlay = surface.overlay;
 
 	const cpuValue = host.querySelector("#cpu-value");
@@ -315,7 +380,6 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "can
 	Promise.resolve().then(() => {
 		if (!destroyed && wait)
 			wait.textContent = "Done!";
-		console.timeEnd("chart");
 	});
 
 	const chart = {

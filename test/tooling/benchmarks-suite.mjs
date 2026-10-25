@@ -382,13 +382,17 @@ describe('benchmark library grouping', () => {
 });
 
 describe('benchmark metadata snapshots', () => {
-	it('covers all 46 demo IDs and 41 default variants plus idle', () => {
-		assert.equal(Object.keys(benchmarkMetadata).length, 46);
+	it('covers all 48 demo IDs and 43 default variants plus idle', () => {
+		assert.equal(Object.keys(benchmarkMetadata).length, 48);
 		assert.deepEqual(Object.keys(benchmarkMetadata).sort(), Object.keys(demoDependencies).sort());
-		assert.equal(variants.length, 42);
-		assert.equal(new Set(variants).size, 42);
+		assert.equal(variants.length, 44);
+		assert.equal(new Set(variants).size, 44);
 		assert.equal(new Set(benchmarkVariants.map(benchmarkLibraryName)).size, 31);
 		assert.equal(benchmarkLibraryName('deckgl'), 'deckgl');
+		assert.equal(benchmarkLibraryName('d3-minmax'), 'd3');
+		assert.deepEqual(benchmarkMetadata['d3-minmax'], {sampling: 'minmax', context: '2d', lossy: false});
+		assert.equal(benchmarkLibraryName('d3-svg-minmax'), 'd3');
+		assert.deepEqual(benchmarkMetadata['d3-svg-minmax'], {sampling: 'minmax', context: 'svg', lossy: false});
 		for (const [id, metadata] of Object.entries(benchmarkMetadata)) {
 			assert.deepEqual(Object.keys(metadata).sort(), ['context', 'lossy', 'sampling'], id);
 						assert.ok([true, false, null].includes(metadata.lossy), id);
@@ -981,7 +985,7 @@ describe('benchmark suite modes and workers', () => {
 		assert.deepEqual(result.progress.completed, variants);
 		assert.deepEqual(result.protocol.variants.slice(-12), variants.slice(-12));
 		assert.deepEqual(result.skipped.map(entry => entry.variant), ['lightningchart', 'g2-webgl', 'googlecharts', 'jscharting']);
-		assert.equal(result.protocol.variants.length, 42, 'idle plus 41 runnable variants');
+		assert.equal(result.protocol.variants.length, 44, 'idle plus 43 runnable variants');
 		assert.deepEqual(result.variantMetadata, Object.fromEntries(variants.map(id => [id, benchmarkMetadata[id]])));
 		assert.deepEqual(saved().variantMetadata, result.variantMetadata);
 				assert.equal(h.requests.filter(request => request.variant === 'chartgpu').length, 1);
@@ -1029,11 +1033,11 @@ describe('benchmark suite modes and workers', () => {
 			const ids = frame => frame.rows.map(row => row.variant);
 			const completed = id => h.frames.find(frame => frame.status.startsWith(`Completed ${id} (`));
 			assert.deepEqual(ids(completed('d3')).slice(0, 4), ['apexcharts-sampled', 'apexcharts', 'chartjs', 'echarts']);
-			assert.deepEqual(ids(completed('d3-svg')).slice(0, 4), ['d3-svg', 'd3', 'apexcharts-sampled', 'apexcharts']);
-			assert.deepEqual(ids(completed('bokeh-canvas')).slice(0, 4), ['bokeh-canvas', 'bokeh', 'd3-svg', 'd3']);
+			assert.deepEqual(ids(completed('d3-svg')).slice(0, 5), ['d3-svg', 'd3-minmax', 'd3', 'apexcharts-sampled', 'apexcharts']);
+			assert.deepEqual(ids(completed('bokeh-canvas')).slice(0, 6), ['bokeh-canvas', 'bokeh', 'd3-svg', 'd3-minmax', 'd3-svg-minmax', 'd3']);
 			const rows = h.frames.at(-1).rows;
-			assert.deepEqual(rows.slice(0, 12).map(row => row.variant), [
-				'bokeh-canvas', 'bokeh', 'd3-svg', 'd3', 'apexcharts-sampled', 'apexcharts',
+			assert.deepEqual(rows.slice(0, 14).map(row => row.variant), [
+				'bokeh-canvas', 'bokeh', 'd3-svg', 'd3-minmax', 'd3-svg-minmax', 'd3', 'apexcharts-sampled', 'apexcharts',
 				'chartjs', 'flot', 'amcharts-sampled', 'amcharts', 'echarts', 'uplot',
 			]);
 			assert.equal(rows.at(-1).variant, 'dygraphs');

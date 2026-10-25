@@ -83,6 +83,16 @@ function checkAssets(result, variants, assetRoot = root) {
 }
 
 describe('benchmark demo asset loader', () => {
+	it('keeps console output and direct timing out of registered adapters and their shared implementations', () => {
+		const modules = new Set(variants.flatMap(id => [id, ...(demoModuleDependencies[id] ?? [])]));
+		for (const id of modules) {
+			const source = readFileSync(new URL(`bench/${id}.mjs`, root), 'utf8')
+				.replace(/^\s*\/\/.*$/gm, '');
+			assert.doesNotMatch(source, /\bconsole\s*[.[]/, id);
+			assert.doesNotMatch(source, /\bperformance\s*\.\s*(?:now|mark|measure)\s*\(|\bDate\s*\.\s*now\s*\(/, id);
+		}
+	});
+
 	it('resolves automatic Vulkan and explicit overrides for summary-only without starting a browser', () => {
 		const source = readFileSync(new URL('scripts/benchmarks.mjs', root), 'utf8');
 		const start = source.indexOf('const {values, tokens} = parseArgs(');
