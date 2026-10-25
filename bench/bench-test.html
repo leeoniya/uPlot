@@ -1,0 +1,91 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>uPlot benchmark phases</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<link rel="stylesheet" href="./demo.css">
+		<script src="../dist/uPlot.iife.min.js"></script>
+		<style>
+			body { margin: 0; }
+			.controls { padding: 12px; font: 14px system-ui, sans-serif; }
+
+			#status { margin: 12px 0; }
+		</style>
+	</head>
+	<body>
+		<div class="controls">
+
+			<p id="status" role="status">Fetching and preparing data…</p>
+			<p>After page load: create with 2 points per series at 2 seconds, then setData with the full dataset at 4 seconds. Reload to repeat.</p>
+		</div>
+		<div id="fixture"></div>
+		<script type="module">
+			import {prepData, makeChart, updateChart} from './uplot.mjs';
+			import {smallLifecycleData} from './lifecycle-data.mjs';
+			import {setupDemo} from './demo-fixture.mjs';
+
+
+			const status = document.getElementById('status');
+			const fixture = document.getElementById('fixture');
+			let smallData, fullData, chart, host;
+			let prepared = false, stopped = false;
+			const timers = [];
+
+			function failed(error) {
+				stopped = true;
+				timers.forEach(clearTimeout);
+				status.textContent = `Error: ${error.message}. Reload the page to retry.`;
+				console.error(error);
+			}
+
+			async function createChart() {
+				if (stopped) return;
+				try {
+					if (!prepared)
+						throw new Error('Data preparation did not finish before the 2-second creation phase');
+					host = setupDemo('uplot', fixture);
+					chart = makeChart(smallData, host, status);
+					// The shared adapter and uPlot commit their initial work in microtasks.
+					await Promise.resolve();
+					status.textContent = 'Chart created with 2 points per series. Waiting for setData at 4 seconds after load.';
+				}
+				catch (error) { failed(error); }
+			}
+
+			async function setFullData() {
+				if (stopped) return;
+				try {
+					if (!chart)
+						throw new Error('Chart creation did not finish before the data update');
+					// Calls chart.setData(fullData, true), then awaits the microtask commit.
+					await updateChart(chart, fullData, host, status);
+					status.textContent = `Full dataset applied: ${fullData[0].length.toLocaleString()} points per series, ${(fullData[0].length * 3).toLocaleString()} total. Reload to repeat.`;
+				}
+				catch (error) { failed(error); }
+			}
+
+			window.addEventListener('load', () => {
+				if (stopped) return;
+				timers.push(setTimeout(createChart, 2000), setTimeout(setFullData, 4000));
+			}, {once: true});
+
+			try {
+				if (typeof globalThis.uPlot !== 'function')
+					throw new Error('Failed to load the local uPlot bundle');
+				const response = await fetch('./data.json');
+				if (!response.ok)
+					throw new Error(`Data fetch failed: HTTP ${response.status}`);
+				const packed = await response.json();
+				smallData = prepData(smallLifecycleData(packed));
+				fullData = prepData(packed);
+				await document.fonts.ready;
+				prepared = true;
+				if (!stopped)
+					status.textContent = `Ready: ${fullData[0].length.toLocaleString()} points per series prepared. Waiting for creation at 2 seconds after load.`;
+			}
+			catch (error) { failed(error); }
+		</script>
+	</body>
+</html>

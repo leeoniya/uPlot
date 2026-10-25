@@ -63,17 +63,23 @@ Each operation has a hard 5s budget, including preparation and completion checks
 A library timeout kills Chrome, discards the incomplete trace, shows '-' for all metrics, and continues the suite.
 Library errors also show '-' and continue; details remain in the suite JSON.
 Cancellation, idle-control failures, and suite infrastructure failures still stop the suite.
-The table shows per-metric minima after warmups: best observed performance, not typical latency.
-Columns can come from different rounds. Total work is the minimum per-round total, not a sum of column minima.
+Trace/combined timing columns show arithmetic means across the seven measured runs, excluding warmups.
+Total work averages per-run deduplicated totals, including observed main-thread and background GC. GC is not added again.
+JSON retains minima, maxima, means, and raw samples. rAF-only timings and memory columns still use minima.
 Progress, partial results, and a cumulative table update after each library finishes.
 Table names omit renderer/sampling suffixes. Library groups stay together, fastest implementation first.
-Trace/combined groups rank by best total ms; rAF groups rank by best next rAF ms. Memory groups keep execution order.
+Trace/combined groups rank by their lowest implementation mean update ms; rAF groups rank by best next rAF ms. Memory groups keep execution order.
 CLI selection, filenames, progress, warnings, and JSON retain full variant IDs.
 Columns start with variant, context, sampling, lossy. '*' flags potentially lossy reduction; '?' means unverified or missing classification.
 A blank lossy cell means no configured reduction or verified bucket-extrema preservation, not pixel-identical output.
-Total ms uses fixed colors: three greens through 100 ms, three oranges below 300 ms, then progressively deeper reds.
-Green thresholds: <16.6, <35, <=100 ms. Orange thresholds: <150, <225, <300 ms. Red thresholds: <500, <1000, <2000, >=2000 ms.
-Colors use unrounded totals, not table-relative scaling. Total ms measures selected host-thread work, not elapsed frame latency.
+Trace init ms and update ms use frame-based green bands. Darkest green includes one frame (1000/60 ms).
+Green ends at two frames (2000/60 ms). Orange shades split at 50 and 75 ms.
+Init is red at 100 ms and above. Update retains orange at exactly 100 ms and is red above that.
+Peak MB and retained MB share the same ranges and shades: darkest green through 20 MB, then lighter greens through 35 MB.
+Both memory columns use orange for more than 35 MB but less than 50 MB, then red at 50 MB and greater.
+Memory colors use unrounded values. Negative adjusted values and unavailable values remain plain.
+Context colors: 2d blue, svg orange, webgl yellow, webgl2 pink, webgpu purple. Unknown contexts remain plain.
+Colors use unrounded totals, not table-relative scaling. Trace update ms measures selected host-thread work, not elapsed frame latency.
 Live tables and saved summaries use truecolor or 256 colors. Redirected output and JSON stay plain. NO_COLOR disables colors.
 Use --variant NAME to run one library plus idle. Registered: ${Object.keys(demoDependencies).join(', ')}.
 LightningChart requires LIGHTNINGCHART_LICENSE. SCICHART_LICENSE optionally supplies a SciChart runtime key.
@@ -85,14 +91,18 @@ Data preparation is timed separately for both operations. Small and full inputs 
 prep ms measures full-data preparation. Trace init ms measures full-window initialization thread work, including deferred layout and paint.
 Idle gaps in the settling wait do not count as work. Constructor readiness remains in JSON.
 rAF-only reports init rAF ms instead: first callback latency, not settled work or proof of presentation.
-update ms measures small-to-full update readiness.
-main, gpu, total and next rAF describe the full-data update, not startup. Phase details remain in JSON.
+Trace/combined update ms measures full-window data-update and rendering thread work, using the same metric as init ms.
+Update readiness remains in JSON. rAF-only update ms still measures small-to-full update readiness, not thread work.
+main and gpu remain components of update work. next rAF describes update callback latency. Phase details remain in JSON.
+Legacy startup-only reports retain total ms because they contain no separate data update.
 The update includes full-size allocation costs; it is not a steady-state full-to-full replacement measurement.
 HTML demos still construct directly with the full dataset.
 Trace chart windows include settling and deferred rendering, but exclude prep, forced GC, and teardown.
 After settling, trace/memory runs check WebGL2 fences or call WebGL1 finish. This tracked work counts toward trace init ms.
 ChartGPU also checks its actual WebGPU device queues after settling. Its initial queue wait remains inside init in every mode.
 GPU thread work is host-thread wall time, not hardware GPU execution time. Completion checks add overhead.
+Trace totals include allowlisted background V8/CppGC work, with per-thread overlap removal. Unpark/wait scopes are not added.
+JSON records backgroundGcMs, gcAddedThreadWorkMs, and accountingProtocol. Saved summaries reject mixed accounting protocols.
 Trace and rAF timings are not idle-subtracted; idle subtraction applies only to memory.
 
 Memory requires Linux /proc access. It polls process memory with a requested 50 ms delay after each read.

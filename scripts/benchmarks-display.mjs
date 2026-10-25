@@ -47,20 +47,37 @@ export function countTerminalLines(text, columns) {
 	return count;
 }
 
-// Absolute bands use raw milliseconds, before display rounding. The xterm-256
+// Absolute bands use raw values, before display rounding. The xterm-256
 // approximations keep every band distinct, including the lighter reds.
-const totalBands = [
-	[16.6, '34;197;94', 41],
-	[35, '74;222;128', 78],
-	[100, '134;239;172', 121],
-	[150, '253;186;116', 216],
-	[225, '251;146;60', 209],
-	[300, '249;115;22', 202],
+const workBands = [
+	[1000 / 60, '34;197;94', 41],
+	[25, '163;230;53', 154],
+	[2000 / 60, '217;249;157', 193],
+	[50, '253;186;116', 216],
+	[75, '251;146;60', 209],
+	[100, '249;115;22', 202],
 	[500, '248;113;113', 210],
 	[1000, '239;68;68', 203],
 	[2000, '220;38;38', 160],
 	[Infinity, '185;28;28', 124],
 ];
+
+// Initialization reaches red at 100 ms; update work keeps its inclusive orange limit.
+const initBands = workBands.map(band => [...band, band[0] === 100]);
+
+// Both memory columns share MB limits and shades.
+// An exclusive upper limit puts exactly 50 MB in the red band.
+const memoryScale = [[20, 0], [27.5, 1], [35, 2], [40, 3], [45, 4], [50, 5, true], [100, 6], [200, 7], [400, 8], [Infinity, 9]]
+	.map(([limit, shade, exclusive = false]) => [limit, ...workBands[shade].slice(1), exclusive]);
+const memoryBands = new Map(['peak MB', 'retained MB'].map(column => [column, memoryScale]));
+
+const contextColors = new Map([
+	['2d', ['96;165;250', 75]],
+	['svg', ['249;115;22', 202]],
+	['webgl', ['250;204;21', 220]],
+	['webgl2', ['244;114;182', 212]],
+	['webgpu', ['192;132;252', 183]],
+]);
 
 // Unknown depth and basic 16-color terminals stay plain. FORCE_COLOR cannot
 // override redirection, NO_COLOR (including an empty value), or TERM=dumb.
@@ -71,17 +88,26 @@ export function benchmarkDisplayColorDepth({stream = process.stdout, env = proce
 	return Number.isFinite(depth) ? depth >= 24 ? 24 : depth >= 8 ? 8 : 0 : 0;
 }
 
-function colorTotal(text, value, colorDepth) {
+function colorText(text, color, colorDepth) {
+	if (!color || !(colorDepth >= 8))
+		return text;
+	const [rgb, palette] = color;
+	return `\x1b[${colorDepth >= 24 ? `38;2;${rgb}` : `38;5;${palette}`}m${text}\x1b[39m`;
+}
+
+function colorMetric(text, value, bands, colorDepth) {
 	if (!Number.isFinite(value) || value < 0 || !(colorDepth >= 8))
 		return text;
-	const [, rgb, palette] = totalBands.find(([limit]) => value < limit || limit === 100 && value === 100);
-	return `\x1b[${colorDepth >= 24 ? `38;2;${rgb}` : `38;5;${palette}`}m${text}\x1b[39m`;
+	const [, rgb, palette] = bands.find(([limit, , , exclusive]) => exclusive ? value < limit : value <= limit);
+	return colorText(text, [rgb, palette], colorDepth);
 }
 
 function formatTable(rows, colorDepth) {
 	const keys = [...new Set(rows.flatMap(row => Object.keys(row)))];
 	const metadata = ['variant', 'context', 'sampling', 'lossy'];
 	const columns = [...metadata.filter(key => keys.includes(key)), ...keys.filter(key => !metadata.includes(key))];
+	// Legacy startup totals keep their label; rAF update readiness is not thread work.
+	const workColumn = keys.includes('total ms') ? 'total ms' : keys.includes('main ms') ? 'update ms' : null;
 	const width = text => [...cellWidths(text)].reduce((sum, size) => sum + size, 0);
 	const cell = value => clean(value).replace(/\n/g, ' ');
 	const cells = rows.map(row => columns.map(key => key === 'variant' ? cell(benchmarkLibraryName(row[key] ?? ''))
@@ -94,8 +120,12 @@ function formatTable(rows, colorDepth) {
 	const border = (left, middle, right) => left + widths.map(size => '─'.repeat(size + 2)).join(middle) + right + '\n';
 	const line = (values, row) => '│ ' + values.map((value, i) => {
 		const padding = ' '.repeat(widths[i] - width(value));
-		if (row && columns[i] === 'total ms')
-			value = colorTotal(value, row[columns[i]], colorDepth);
+		if (row && columns[i] === 'context')
+			value = colorText(value, contextColors.get(row.context), colorDepth);
+		else if (row && memoryBands.has(columns[i]))
+			value = colorMetric(value, row[columns[i]], memoryBands.get(columns[i]), colorDepth);
+		else if (row && workColumn && (columns[i] === workColumn || columns[i] === 'init ms'))
+			value = colorMetric(value, row[columns[i]], columns[i] === 'init ms' ? initBands : workBands, colorDepth);
 		return metadata.includes(columns[i]) ? value + padding : padding + value;
 	}).join(' │ ') + ' │\n';
 	return border('┌', '┬', '┐') + line(headers) + border('├', '┼', '┤') + cells.map((values, i) => line(values, rows[i])).join('') + border('└', '┴', '┘');

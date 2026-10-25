@@ -7,6 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { SAMPLE_TIMEOUT_MS } from '../../scripts/bench-sample-timeout.mjs';
 import { analyzeBenchmarkTrace, analyzeBenchmarkTraceFile } from '../../scripts/analyze-benchmarks-trace.mjs';
 import { benchmarkTraceConfig, captureBenchmarkTrace } from '../../scripts/benchmarks-trace.mjs';
+import { TRACE_ACCOUNTING, LEGACY_TRACE_ACCOUNTING } from '../../scripts/bench-trace-policy.mjs';
 
 const metadata = [
 	{ph: 'M', name: 'process_name', pid: 1, args: {name: 'Renderer'}},
@@ -41,7 +42,7 @@ function close(actual, expected) {
 
 describe('benchmark trace analysis', () => {
 	it('keeps the measured trace categories narrow and reports actual event categories and phases', () => {
-		assert.deepEqual(benchmarkTraceConfig().includedCategories, ['blink.user_timing', 'disabled-by-default-devtools.timeline']);
+		assert.deepEqual(benchmarkTraceConfig().includedCategories, ['blink.user_timing', 'disabled-by-default-devtools.timeline', 'disabled-by-default-v8.gc', 'cppgc']);
 		const result = analyze([
 			{...interval('RasterTask', 0, 1, 1, 3), cat: 'cc,disabled-by-default-devtools.timeline'},
 			{...interval('GPUTask', 0, 2, 2, 1), cat: 'disabled-by-default-devtools.timeline'},
@@ -51,6 +52,82 @@ describe('benchmark trace analysis', () => {
 		assert.deepEqual(result.diagnostics.eventTypes.GPUTask.phases, {X: 1, b: 1});
 		assert.equal(result.samples[0].GPUTaskMs, 2);
 		assert.equal(result.samples[0].hardwareGpuMs, null);
+	});
+
+	it('clips and deduplicates background collectors against nested GC, raster, and GPU scopes', () => {
+		const result = analyze([
+			interval('RunTask', 0, 3),
+			interval('V8.GC_MC_BACKGROUND_MARKING', -2, 6, 1, 3),
+			interval('ConcurrentMarking::RunMajor Finished', 1, 5, 1, 3),
+			interval('CppGC.ConcurrentMark', 4, 8, 1, 3),
+			interval('RasterTask', 6, 9, 1, 3),
+			interval('GPUTask', 7, 10, 1, 3),
+			interval('V8.GC_MC_BACKGROUND_SWEEPING', 8, 12, 2, 3),
+			interval('CppGC.ConcurrentSweep', 20, 25, 1, 4),
+		], undefined, undefined, {trace: {accountingProtocol: TRACE_ACCOUNTING}});
+		const s = result.samples[0];
+		assert.equal(result.accountingProtocol, TRACE_ACCOUNTING);
+		assert.equal(s.backgroundGcMs, 10);
+		assert.equal(s.gcAddedThreadWorkMs, 8);
+		assert.equal(s.totalTrackedThreadWorkMs, 15);
+		assert.equal(s.trackedBusyElapsedMs, 10);
+		assert.equal(result.groups[0].metrics.backgroundGcMs.min, 10);
+		assert.equal(result.groups[0].metrics.gcAddedThreadWorkMs.min, 8);
+	});
+
+	it('excludes unpark, waits, unknown scopes, other processes, and main-thread GC additions', () => {
+		const events = [interval('RunTask', 0, 3),
+			interval('V8.GC_BACKGROUND_UNPARK', 0, 10, 1, 3),
+			interval('V8.GC_BACKGROUND_SAFEPOINT', 0, 10, 1, 3),
+			interval('V8.GC_MC_CLEAR_JOIN_JOB', 0, 10, 1, 3),
+			interval('V8.GC_NEW_UNKNOWN_SCOPE', 0, 10, 1, 3),
+			interval('RunTask', 0, 10, 1, 3),
+			interval('CppGC.ConcurrentMark', 0, 10, 3, 3),
+			interval('CppGC.ConcurrentMark', 0, 10, 4, 3),
+			interval('V8.GC_MC_BACKGROUND_MARKING', 0, 10),
+			interval('CppGC.ConcurrentSweep', 20, 25, 1, 4),
+		];
+		const s = analyze(events, undefined, undefined, {trace: {accountingProtocol: TRACE_ACCOUNTING}}).samples[0];
+		assert.equal(s.backgroundGcMs, 0);
+		assert.equal(s.gcAddedThreadWorkMs, 0);
+		assert.equal(s.totalTrackedThreadWorkMs, 3);
+	});
+
+	it('includes worker-side weak-reference clearing and pointer-table sweeping', () => {
+		const result = analyze([
+			interval('V8.GC_MC_CLEAR_WEAK_LISTS', 0, 1, 1, 3),
+			interval('V8.GC_MC_CLEAR_SWEEP_EXTERNAL_POINTER_TABLE', 1, 3, 1, 3),
+			interval('V8.GC_SCAVENGER_BACKGROUND_TRACED_HANDLES_RESET_PARALLEL', 0, 1, 1, 4),
+		], undefined, undefined, {trace: {accountingProtocol: TRACE_ACCOUNTING}});
+		assert.equal(result.samples[0].backgroundGcMs, 4);
+		assert.equal(result.samples[0].gcAddedThreadWorkMs, 4);
+	});
+
+	it('pairs GC B/E scopes around unselected nested scopes', () => {
+		const events = [
+			{ph: 'B', name: 'CppGC.ConcurrentMark', ts: -1000, pid: 1, tid: 3, cat: 'cppgc'},
+			{ph: 'B', name: 'unselected', ts: 1000, pid: 1, tid: 3},
+			{ph: 'E', ts: 2000, pid: 1, tid: 3},
+			{ph: 'E', ts: 4000, pid: 1, tid: 3},
+		];
+		const result = analyze(events, undefined, undefined, {trace: {accountingProtocol: TRACE_ACCOUNTING}});
+		assert.equal(result.samples[0].backgroundGcMs, 4);
+		assert.equal(result.samples[0].totalTrackedThreadWorkMs, 4);
+		assert.equal(result.diagnostics.eventTypes['CppGC.ConcurrentMark'].intervalCount, 1);
+	});
+
+	it('preserves legacy totals, distinguishes absent GC from zero, and rejects unknown policies', () => {
+		const events = [interval('CppGC.ConcurrentMark', 0, 5, 1, 3)];
+		for (const report of [{}, {trace: {accountingProtocol: LEGACY_TRACE_ACCOUNTING}}]) {
+			const result = analyze(events, undefined, undefined, report);
+			assert.equal(result.accountingProtocol, LEGACY_TRACE_ACCOUNTING);
+			assert.equal(result.samples[0].totalTrackedThreadWorkMs, 0);
+			assert.equal(result.samples[0].backgroundGcMs, null);
+			assert.equal(result.samples[0].gcAddedThreadWorkMs, null);
+		}
+		assert.equal(analyze([], undefined, undefined, {trace: {accountingProtocol: TRACE_ACCOUNTING}}).samples[0].backgroundGcMs, null);
+		assert.throws(() => analyze(events, undefined, undefined, {trace: {accountingProtocol: 'unknown'}}), /Unsupported trace accounting/);
+		assert.throws(() => analyze(events, undefined, undefined, {trace: {accountingProtocol: TRACE_ACCOUNTING}, analysis: {accountingProtocol: LEGACY_TRACE_ACCOUNTING}}), /capture and analysis accounting protocols differ/);
 	});
 
 	it('includes GPU-process raster workers and overlapping GPU tasks once per thread', () => {
@@ -186,7 +263,7 @@ describe('benchmark trace analysis', () => {
 				assert.deepEqual(result.groups[0].metrics[metric], stats);
 		}
 		for (const [metric, value] of Object.entries(prep))
-			assert.deepEqual(result.groups[0].metrics[metric], {min: value, max: value, count: 1, missing: 0});
+			assert.deepEqual(result.groups[0].metrics[metric], {min: value, max: value, mean: value, count: 1, missing: 0});
 		assert.throws(() => analyze(events, [sample(0, {...prep, jsMs: prep.prepAndInitMs})]), /duration mismatch/);
 		assert.throws(() => analyze(events, [sample(0, prep)], markers().slice(1)), /Missing marker/);
 	});
@@ -194,9 +271,9 @@ describe('benchmark trace analysis', () => {
 	it('reports missing prep metrics as null without deriving them', () => {
 		const result = analyze();
 		for (const metric of ['dataPrepMs', 'prepAndInitMs'])
-			assert.deepEqual(result.groups[0].metrics[metric], {min: null, max: null, count: 0, missing: 1});
+			assert.deepEqual(result.groups[0].metrics[metric], {min: null, max: null, mean: null, count: 0, missing: 1});
 		const partial = analyze([], [sample(0, {dataPrepMs: 3})]);
-		assert.deepEqual(partial.groups[0].metrics.prepAndInitMs, {min: null, max: null, count: 0, missing: 1});
+		assert.deepEqual(partial.groups[0].metrics.prepAndInitMs, {min: null, max: null, mean: null, count: 0, missing: 1});
 	});
 
 	for (const metric of ['dataPrepMs', 'prepAndInitMs']) {
@@ -213,11 +290,11 @@ describe('benchmark trace analysis', () => {
 			const [main, idle, dpr2, warmupOnly] = result.groups;
 			assert.equal(main.sampleCount, 11);
 			assert.equal(main.warmupCount, 1);
-			assert.deepEqual(main.metrics[metric], {min: 0, max: 8, count: 3, missing: 8});
-			assert.deepEqual(idle.metrics[metric], {min: 100, max: 100, count: 1, missing: 0});
-			assert.deepEqual(dpr2.metrics[metric], {min: 20, max: 20, count: 1, missing: 0});
+			assert.deepEqual(main.metrics[metric], {min: 0, max: 8, mean: 4, count: 3, missing: 8});
+			assert.deepEqual(idle.metrics[metric], {min: 100, max: 100, mean: 100, count: 1, missing: 0});
+			assert.deepEqual(dpr2.metrics[metric], {min: 20, max: 20, mean: 20, count: 1, missing: 0});
 			assert.equal(warmupOnly.warmupCount, 1);
-			assert.deepEqual(warmupOnly.metrics[metric], {min: null, max: null, count: 0, missing: 0});
+			assert.deepEqual(warmupOnly.metrics[metric], {min: null, max: null, mean: null, count: 0, missing: 0});
 		});
 	}
 
@@ -284,14 +361,14 @@ describe('benchmark trace analysis', () => {
 		const s = result.samples[0];
 		for (const metric of ['GPUTaskMs', 'gpuMainTaskMs', 'vizCompositorMs', 'hardwareGpuMs', 'rasterWorkerMs']) {
 			assert.equal(s[metric], null);
-			assert.deepEqual(result.groups[0].metrics[metric], {min: null, max: null, count: 0, missing: 1});
+			assert.deepEqual(result.groups[0].metrics[metric], {min: null, max: null, mean: null, count: 0, missing: 1});
 		}
 		assert.equal(result.diagnostics.eventTypes.GPUTask.available, false);
 		assert.ok(result.diagnostics.missingEventTypes.includes('GPUTask'));
 		assert.equal(result.diagnostics.availabilityBySample[0].GPUTaskMs, false);
 		const available = analyze([interval('GPUTask', 20, 21, 2, 1)]);
 		assert.equal(available.samples[0].GPUTaskMs, 0);
-		assert.deepEqual(available.groups[0].metrics.GPUTaskMs, {min: 0, max: 0, count: 1, missing: 0});
+		assert.deepEqual(available.groups[0].metrics.GPUTaskMs, {min: 0, max: 0, mean: 0, count: 1, missing: 0});
 		assert.equal(available.samples[0].hardwareGpuMs, null);
 	});
 
@@ -311,18 +388,18 @@ describe('benchmark trace analysis', () => {
 		assert.equal(main.warmupCount, 1);
 		assert.equal(main.sampleCount, 2);
 		assert.deepEqual(main.sampleIds, ['sample-1', 'sample-2']);
-		assert.deepEqual(main.metrics.rendererMainTaskMs, {min: 2, max: 4, count: 2, missing: 0});
+		assert.deepEqual(main.metrics.rendererMainTaskMs, {min: 2, max: 4, mean: 3, count: 2, missing: 0});
 		assert.equal(idle.variant, 'idle');
 		assert.equal(idle.metrics.rendererMainTaskMs.min, 1);
 		assert.equal(dpr2.metrics.rendererMainTaskMs.min, 5);
 		assert.equal(warmupOnly.sampleCount, 0);
-		assert.deepEqual(warmupOnly.metrics.rendererMainTaskMs, {min: null, max: null, count: 0, missing: 0});
+		assert.deepEqual(warmupOnly.metrics.rendererMainTaskMs, {min: null, max: null, mean: null, count: 0, missing: 0});
 	});
 
-	it('uses the minimum despite asymmetric values and reports missing counts', () => {
+	it('averages asymmetric values, retains extrema, and reports missing counts', () => {
 		const samples = [sample(0), sample(1), sample(2)];
 		const result = analyze([1, 9, 3].map((duration, i) => interval('RunTask', i * 20, i * 20 + duration)), samples, samples.flatMap((_, i) => markers(i, i * 20)));
-		assert.deepEqual(result.groups[0].metrics.rendererMainTaskMs, {min: 1, max: 9, count: 3, missing: 0});
+		assert.deepEqual(result.groups[0].metrics.rendererMainTaskMs, {min: 1, max: 9, mean: 13 / 3, count: 3, missing: 0});
 		assert.equal(result.groups[0].metrics.GPUTaskMs.missing, 3);
 	});
 
@@ -338,10 +415,10 @@ describe('benchmark trace analysis', () => {
 		assert.equal(metrics.rendererMainTaskMs.min, 1);
 		assert.equal(metrics.rasterWorkerMs.min, 1);
 		assert.deepEqual(result.samples.map(s => s.totalTrackedThreadWorkMs), [10, 9, 6, 18, 0.5]);
-		assert.deepEqual(metrics.totalTrackedThreadWorkMs, {min: 6, max: 18, count: 4, missing: 0});
-		assert.deepEqual(metrics.trackedBusyElapsedMs, {min: 3, max: 9, count: 4, missing: 0});
+		assert.deepEqual(metrics.totalTrackedThreadWorkMs, {min: 6, max: 18, mean: 10.75, count: 4, missing: 0});
+		assert.deepEqual(metrics.trackedBusyElapsedMs, {min: 3, max: 9, mean: 7.25, count: 4, missing: 0});
 		for (const stats of Object.values(metrics))
-			assert.deepEqual(Object.keys(stats), ['min', 'max', 'count', 'missing']);
+			assert.deepEqual(Object.keys(stats), ['min', 'max', 'mean', 'count', 'missing']);
 	});
 
 	it('takes the minimum of own-round prep-plus-init sums, not the sum of minima', () => {
@@ -353,18 +430,39 @@ describe('benchmark trace analysis', () => {
 		const metrics = result.groups[0].metrics;
 		assert.equal(metrics.dataPrepMs.min, 1);
 		assert.equal(metrics.jsMs.min, 1);
-		assert.deepEqual(metrics.prepAndInitMs, {min: 8, max: 9, count: 3, missing: 0});
+		assert.deepEqual(metrics.prepAndInitMs, {min: 8, max: 9, mean: 26 / 3, count: 3, missing: 0});
 	});
 
-	it('defines best-case per-metric minima and own-round totals without idle subtraction', () => {
+	it('defines arithmetic means and own-round totals without idle subtraction', () => {
 		const {definitions} = analyze();
 		assert.match(definitions.aggregation, /exclude warmups/);
-		assert.match(definitions.aggregation, /Each metric uses its minimum measured value for best-case performance/);
-		assert.match(definitions.aggregation, /minima may come from different rounds/);
+		assert.match(definitions.aggregation, /Headline trace timings use arithmetic means across measured runs, including zero values/);
+		assert.match(definitions.aggregation, /GC breakdowns are not added again/);
 		assert.match(definitions.aggregation, /only finite numbers/);
 		assert.match(definitions.aggregation, /Idle remains a separate variant; no baseline subtraction/);
-		assert.match(definitions.totalTrackedThreadWorkMs, /minimum of these own-round totals, not the sum of component minima/);
+		assert.match(definitions.totalTrackedThreadWorkMs, /headline mean averages these own-round totals/);
 		assert.doesNotMatch(JSON.stringify(definitions), /median/i);
+	});
+
+	it('averages all seven runs with intermittent background GC and main-thread pauses', () => {
+		const samples = Array.from({length: 8}, (_, i) => sample(i, {warmup: i === 7}));
+		const events = samples.flatMap((_, i) => [
+			interval('RunTask', i * 20, i * 20 + (i === 0 ? 1 : 9)),
+			...(i === 1 || i === 7 ? [
+				interval('V8.GC_MC_BACKGROUND_MARKING', i * 20, i * 20 + 8, 1, 3),
+				interval('CppGC.ConcurrentMark', i * 20 + 1, i * 20 + 7, 1, 3),
+				interval('RasterTask', i * 20 + 6, i * 20 + 10, 1, 3),
+			] : []),
+		]);
+		const result = analyze(events, samples, samples.flatMap((_, i) => markers(i, i * 20)), {trace: {accountingProtocol: TRACE_ACCOUNTING}});
+		const metrics = result.groups[0].metrics;
+		assert.equal(result.statistic, 'mean');
+		assert.equal(metrics.rendererMainTaskMs.mean, 55 / 7);
+		assert.equal(metrics.backgroundGcMs.mean, 8 / 7);
+		assert.equal(metrics.gcAddedThreadWorkMs.mean, 6 / 7);
+		assert.equal(metrics.totalTrackedThreadWorkMs.mean, 65 / 7);
+		assert.equal(metrics.totalTrackedThreadWorkMs.min, 1);
+		assert.equal(metrics.totalTrackedThreadWorkMs.count, 7);
 	});
 
 	it('measures unassigned tails only until the next start, including the last trace tail', () => {

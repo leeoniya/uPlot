@@ -60,25 +60,108 @@ function screenAfter(writes, columns = 100, height = 40) {
 }
 
 describe('benchmark display colors', () => {
-	const rgbs = ['34;197;94', '74;222;128', '134;239;172', '253;186;116', '251;146;60',
+	const rgbs = ['34;197;94', '163;230;53', '217;249;157', '253;186;116', '251;146;60',
 		'249;115;22', '248;113;113', '239;68;68', '220;38;38', '185;28;28'];
-	const palette = [41, 78, 121, 216, 209, 202, 210, 203, 160, 124];
+	const palette = [41, 154, 193, 216, 209, 202, 210, 203, 160, 124];
 	const totals = values => values.map(value => ({variant: 'custom', 'total ms': value}));
 	const coloredValues = text => [...text.matchAll(/\x1b\[(38;[25];[\d;]+)m([^\x1b]*)\x1b\[39m/g)].map(match => match.slice(1));
 
-	it('uses absolute raw-value bands at every boundary, including the inclusive 100 ms limit', () => {
-		const cases = [[0, 0], [-0, 0], [16.5999, 0], [16.6, 1], [16.6001, 1],
-			[34.9999, 1], [35, 2], [35.0001, 2], [99.9999, 2], [100, 2], [100.0001, 3],
-			[149.9999, 3], [150, 4], [150.0001, 4], [224.9999, 4], [225, 5], [225.0001, 5],
-			[299.9999, 5], [300, 6], [300.0001, 6], [499.9999, 6], [500, 7], [500.0001, 7],
-			[999.9999, 7], [1000, 8], [1000.0001, 8], [1999.9999, 8], [2000, 9], [2000.0001, 9], [1e12, 9]];
+	it('distinguishes low, middle, and upper green timings in both terminal palettes', () => {
+		const values = [4.3, 23.5, 32.4];
+		const rows = values.map(value => ({variant: 'custom', 'init ms': value, 'main ms': 0, 'update ms': '-'}));
+		for (const colorDepth of [8, 24]) {
+			const text = formatBenchmarkDisplay({rows}, {colorDepth});
+			assert.deepEqual(coloredValues(text), values.map((value, band) =>
+				[colorDepth === 24 ? `38;2;${rgbs[band]}` : `38;5;${palette[band]}`, value.toFixed(1)]));
+			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
+		}
+	});
+
+	it('uses exact frame boundaries and starts init red at 100 ms without changing update bands', () => {
+		const limits = [1000 / 60, 25, 2000 / 60, 50, 75, 100, 500, 1000, 2000];
+		const cases = [[0, 0], [-0, 0], [16.6666, 0], ...limits.flatMap((limit, band) => [
+			[limit - 0.0001, band], [limit, band], [limit + 0.0001, band + 1],
+		]), [1e12, 9]];
 		for (const colorDepth of [8, 24]) {
 			const rows = totals(cases.map(([value]) => value));
 			const text = formatBenchmarkDisplay({rows}, {colorDepth});
 			assert.deepEqual(coloredValues(text), cases.map(([value, band]) =>
 				[colorDepth === 24 ? `38;2;${rgbs[band]}` : `38;5;${palette[band]}`, value.toFixed(1)]));
 			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
+			const workRows = cases.map(([value]) => ({variant: 'custom', 'init ms': value, 'main ms': 1, 'gpu ms': 2, 'update ms': value}));
+			const workText = formatBenchmarkDisplay({rows: workRows}, {colorDepth});
+			assert.deepEqual(coloredValues(workText), cases.flatMap(([value, band]) =>
+								[value === 100 ? 6 : band, band].map(shade =>
+									[colorDepth === 24 ? `38;2;${rgbs[shade]}` : `38;5;${palette[shade]}`, value.toFixed(1)])));
+			assert.equal(stripVTControlCharacters(workText), formatBenchmarkDisplay({rows: workRows}));
 		}
+	});
+
+	for (const column of ['peak MB', 'retained MB']) {
+		const limits = [20, 27.5, 35, 40, 45, 50, 100, 200, 400];
+		it(`colors ${column} at exact raw-value boundaries in memory-only and combined tables`, () => {
+			const cases = [[0, 0], ...limits.flatMap((limit, band) => [
+				[limit - 0.0001, band],
+				[limit, limit === 50 ? band + 1 : band],
+				[limit + 0.0001, band + 1],
+			]), [1e12, 9]];
+			for (const colorDepth of [8, 24]) for (const combined of [false, true]) {
+				const rows = cases.map(([value]) => ({variant: 'custom',
+					...(combined ? {'main ms': 1, 'gpu ms': 2, 'update ms': null} : {}), [column]: value,
+				}));
+				const original = structuredClone(rows);
+				const text = formatBenchmarkDisplay({rows}, {colorDepth});
+				assert.deepEqual(coloredValues(text), cases.map(([value, band]) =>
+					[colorDepth === 24 ? `38;2;${rgbs[band]}` : `38;5;${palette[band]}`, value.toFixed(1)]));
+				assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
+				assert.deepEqual(rows, original);
+			}
+		});
+	}
+
+	it('uses a shared memory scale and leaves negative adjustments and missing memory plain', () => {
+		const rows = [{variant: 'custom', 'peak MB': 25, 'retained MB': 25},
+			...[-1, NaN, Infinity, -Infinity, null, undefined, '-', '25', true].map(value =>
+				({variant: 'custom', 'peak MB': value, 'retained MB': value})),
+		];
+		for (const colorDepth of [8, 24]) {
+			const text = formatBenchmarkDisplay({rows}, {colorDepth});
+			assert.deepEqual(coloredValues(text), [1, 1].map(band =>
+				[colorDepth === 24 ? `38;2;${rgbs[band]}` : `38;5;${palette[band]}`, '25.0']));
+			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
+			assert.match(text, /25\.0\x1b\[39m │/);
+		}
+	});
+
+	it('colors init and update work without coloring main/gpu or rAF readiness', () => {
+		const values = [0, 16.6666, 34, 99.9999, 100.0001, 500, 1000, 2000, -1, NaN, Infinity, null, '-', '10'];
+		const rows = values.map(value => ({variant: 'custom', 'init ms': value, 'main ms': 1000, 'gpu ms': 1000, 'update ms': value}));
+		for (const colorDepth of [8, 24]) {
+			const text = formatBenchmarkDisplay({rows}, {colorDepth});
+			assert.deepEqual(coloredValues(text), coloredValues(formatBenchmarkDisplay({rows: totals(values)}, {colorDepth})).flatMap(pair => [pair, pair]));
+			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
+			const raf = [{variant: 'custom', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16}];
+			assert.deepEqual(coloredValues(formatBenchmarkDisplay({rows: raf}, {colorDepth})), []);
+		}
+	});
+
+	it('gives each known context a distinct categorical color and leaves unknown contexts plain', () => {
+		const cases = [
+			['2d', '96;165;250', 75], ['svg', '249;115;22', 202], ['webgl', '250;204;21', 220],
+			['webgl2', '244;114;182', 212], ['webgpu', '192;132;252', 183],
+		];
+		const rows = [...cases.map(([context]) => context), 'unavailable', 'unknown', '', null, 'constructor', '\x1b[31m2d\x1b[0m']
+			.map(context => ({variant: 'custom', context}));
+		const original = structuredClone(rows);
+		for (const colorDepth of [8, 24]) {
+			const text = formatBenchmarkDisplay({rows}, {colorDepth});
+			const colors = coloredValues(text);
+			assert.deepEqual(colors, cases.map(([context, rgb, palette]) => [colorDepth === 24 ? `38;2;${rgb}` : `38;5;${palette}`, context]));
+			assert.equal(new Set(colors.map(([color]) => color)).size, 5);
+			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
+			assert.match(text, /2d\x1b\[39m +│/);
+		}
+		assert.deepEqual(rows, original);
 	});
 
 	it('never normalizes colors to the fastest or slowest row', () => {
@@ -94,7 +177,7 @@ describe('benchmark display colors', () => {
 
 	it('colors only finite nonnegative numeric totals and resets foreground before padding or borders', () => {
 		const rows = totals([10, -1, NaN, Infinity, -Infinity, '10', '-', null, undefined, true, '\x1b[41m10\x1b[0m']);
-		rows[0] = {...rows[0], variant: '\x1b[31mcustom\x1b[0m', 'init ms': 1000, 'peak MB': 1000, 'total ms ': 1000};
+		rows[0] = {...rows[0], variant: '\x1b[31mcustom\x1b[0m', 'init rAF ms': 1000, 'peak MB ': 1000, 'total ms ': 1000};
 		const frame = {rows, status: '\x1b[32m1000\x1b[0m', warnings: ['\x1b[41m1000\x1b[0m']};
 		const original = structuredClone(frame);
 		const plain = formatBenchmarkDisplay(frame);
@@ -125,7 +208,7 @@ describe('benchmark display colors', () => {
 			};
 			const {stream, display, writes} = capture({isTTY, getColorDepth}, env);
 			assert.equal(benchmarkDisplayColorDepth({stream, env}), expected);
-			const frame = {rows: totals([1000]), final: true};
+			const frame = {rows: [{variant: 'custom', context: 'webgpu', 'init ms': 16, 'main ms': 5, 'update ms': 1000, 'peak MB': 25, 'retained MB': 15}], final: true};
 			display.update(frame);
 			assert.equal(writes[0], formatBenchmarkDisplay(frame, {colorDepth: expected}));
 		});
@@ -137,8 +220,8 @@ describe('benchmark display colors', () => {
 				const plain = capture({columns, rows: height});
 				const colored = capture({columns, rows: height, getColorDepth: () => 24}, {});
 				const frames = [
-					{rows: totals([16.6, 1000]), status: 'Running\nPlease wait', warnings: ['partial results']},
-					{rows: totals([16.6, 1000, 2000]), status: 'Next'},
+					{rows: totals([16.6, 1000]).map(row => ({...row, context: 'webgpu', 'init ms': 25, 'peak MB': 50, 'retained MB': 30})), status: 'Running\nPlease wait', warnings: ['partial results']},
+					{rows: totals([16.6, 1000, 2000]).map(row => ({...row, context: 'webgpu', 'init ms': 25, 'peak MB': 50, 'retained MB': 30})), status: 'Next'},
 					{status: 'Done', final: true},
 				];
 				for (const frame of frames) {

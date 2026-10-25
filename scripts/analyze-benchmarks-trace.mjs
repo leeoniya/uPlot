@@ -1,13 +1,16 @@
 import { readTraceFile } from './bench-trace-stream.mjs';
 import { benchmarkTimingSamples, benchmarkOperations } from './benchmarks-phases.mjs';
+import { BACKGROUND_GC_EVENTS, TRACE_ACCOUNTING, traceAccountingProtocol } from './bench-trace-policy.mjs';
 
 const TASK = 'RunTask';
 const FALLBACK_TASK = 'ThreadControllerImpl::RunTask';
 const STYLE = new Set(['UpdateLayoutTree', 'Layout', 'PrePaint', 'Paint', 'Layerize']);
-const EVENT_NAMES = [TASK, FALLBACK_TASK, ...STYLE, 'RasterTask', 'GPUTask'];
+const EVENT_NAMES = [TASK, FALLBACK_TASK, ...STYLE, 'RasterTask', 'GPUTask', ...BACKGROUND_GC_EVENTS];
 const TRACKED = new Set(EVENT_NAMES);
-const WORK_METRICS = ['rendererMainTaskMs', 'styleLayoutPaintMs', 'rasterWorkerMs', 'rendererCompositorMs', 'gpuMainTaskMs', 'vizCompositorMs', 'GPUTaskMs'];
-const METRICS = ['dataPrepMs', 'prepAndInitMs', 'jsMs', 'windowMs', 'jsIntervalMs', 'traceWindowMs', ...WORK_METRICS, 'totalTrackedThreadWorkMs', 'trackedBusyElapsedMs', 'hardwareGpuMs'];
+const WORK_METRICS = ['rendererMainTaskMs', 'styleLayoutPaintMs', 'rasterWorkerMs', 'rendererCompositorMs', 'gpuMainTaskMs', 'vizCompositorMs', 'GPUTaskMs', 'backgroundGcMs'];
+const METRICS = ['dataPrepMs', 'prepAndInitMs', 'jsMs', 'windowMs', 'jsIntervalMs', 'traceWindowMs', ...WORK_METRICS, 'gcAddedThreadWorkMs', 'totalTrackedThreadWorkMs', 'trackedBusyElapsedMs', 'hardwareGpuMs'];
+
+export const TRACE_AGGREGATION = 'Group by DPR, variant and operation; exclude warmups. Lifecycle groups contains final updates only; phaseGroups contains all operations. Headline trace timings use arithmetic means across measured runs, including zero values. Minima and maxima remain available for diagnostics. Mean, min, max, and count use only finite numbers; absent, null, and invalid values count as missing. Empty mean, min, and max are null. Totals use each round\'s deduplicated work before averaging; GC breakdowns are not added again. Idle remains a separate variant; no baseline subtraction.';
 
 const threadKey = ({pid, tid}) => JSON.stringify([pid, tid]);
 const validTime = value => typeof value === 'number' && Number.isFinite(value);
@@ -40,9 +43,34 @@ function statistics(values) {
 	return {
 		min: n === 0 ? null : sorted[0],
 		max: n === 0 ? null : sorted[n - 1],
+		mean: n === 0 ? null : sorted.reduce((sum, value) => sum + value, 0) / n,
 		count: n,
 		missing: values.length - n,
 	};
+}
+
+/** Aggregate recorded phase metrics without reading a trace or changing work accounting. */
+export function summarizeBenchmarkTraceSamples(samples) {
+	const grouped = new Map();
+	for (const sample of samples) {
+		const key = JSON.stringify([sample.dpr, sample.variant, sample.operation]);
+		if (!grouped.has(key))
+			grouped.set(key, {dpr: sample.dpr, variant: sample.variant, ...(sample.operation ? {operation: sample.operation} : {}), warmupCount: 0, samples: []});
+		const group = grouped.get(key);
+		if (sample.warmup)
+			group.warmupCount++;
+		else
+			group.samples.push(sample);
+	}
+	return [...grouped.values()].map(group => ({
+		dpr: group.dpr,
+		variant: group.variant,
+		...(group.operation ? {operation: group.operation} : {}),
+		sampleCount: group.samples.length,
+		warmupCount: group.warmupCount,
+		sampleIds: group.samples.map(sample => sample.id),
+		metrics: Object.fromEntries(METRICS.map(metric => [metric, statistics(group.samples.map(sample => sample[metric]))])),
+	}));
 }
 
 function backendInfo(systemInfo) {
@@ -86,6 +114,8 @@ export async function analyzeBenchmarkTraceFile(path, report) {
 function createTraceAnalyzer(report) {
 	if (!Array.isArray(report?.samples))
 		throw new Error('Expected traceEvents and report.samples arrays');
+	const accountingProtocol = traceAccountingProtocol(report);
+	const includeGc = accountingProtocol === TRACE_ACCOUNTING;
 	let captureCount = 0;
 	let captureName;
 	const processes = new Map();
@@ -252,6 +282,8 @@ function createTraceAnalyzer(report) {
 						metric = 'rasterWorkerMs';
 					else if ((gpu || renderer) && event.name === 'GPUTask')
 						metric = 'GPUTaskMs';
+					else if (includeGc && (renderer || gpu) && !main && !['CrRendererMain', 'Compositor', 'CrGpuMain', 'VizCompositorThread'].includes(thread.name) && BACKGROUND_GC_EVENTS.has(event.name))
+						metric = 'backgroundGcMs';
 					if (metric) {
 						buckets[metric].push(event);
 						// Style events are a breakdown of main-thread work, never an additional total.
@@ -272,6 +304,8 @@ function createTraceAnalyzer(report) {
 			const metrics = Object.fromEntries(WORK_METRICS.map(metric => [metric,
 				availability[metric] ? threadSumMs(buckets[metric], start, end) : null,
 			]));
+			const totalTrackedThreadWorkMs = perThread.reduce((sum, thread) => sum + thread.trackedWorkMs, 0);
+			const withoutGcMs = threadSumMs(tracked.filter(event => !BACKGROUND_GC_EVENTS.has(event.name)), start, end);
 			const tailEnd = nextStarts.get(sample.id);
 			boundaries.push({
 				id: sample.id,
@@ -292,33 +326,15 @@ function createTraceAnalyzer(report) {
 				jsIntervalMs: (window.jsEnd - start) / 1000,
 				traceWindowMs: (end - start) / 1000,
 				...metrics,
-				totalTrackedThreadWorkMs: perThread.reduce((sum, thread) => sum + thread.trackedWorkMs, 0),
+				gcAddedThreadWorkMs: availability.backgroundGcMs ? Math.max(0, totalTrackedThreadWorkMs - withoutGcMs) : null,
+				totalTrackedThreadWorkMs,
 				trackedBusyElapsedMs: unionMs(tracked, start, end),
 				hardwareGpuMs: null,
 				threads: perThread,
 			};
 		});
 
-		const grouped = new Map();
-		for (const sample of samples) {
-			const key = JSON.stringify([sample.dpr, sample.variant, sample.operation]);
-			if (!grouped.has(key))
-				grouped.set(key, {dpr: sample.dpr, variant: sample.variant, ...(sample.operation ? {operation: sample.operation} : {}), warmupCount: 0, samples: []});
-			const group = grouped.get(key);
-			if (sample.warmup)
-				group.warmupCount++;
-			else
-				group.samples.push(sample);
-		}
-		const groups = [...grouped.values()].map(group => ({
-			dpr: group.dpr,
-			variant: group.variant,
-			...(group.operation ? {operation: group.operation} : {}),
-			sampleCount: group.samples.length,
-			warmupCount: group.warmupCount,
-			sampleIds: group.samples.map(sample => sample.id),
-			metrics: Object.fromEntries(METRICS.map(metric => [metric, statistics(group.samples.map(sample => sample[metric]))])),
-		}));
+		const groups = summarizeBenchmarkTraceSamples(samples);
 		// Completion is supplied by the browser helper; thread trace events cannot prove it.
 		const webglCompletion = samples.map(sample => ({
 			id: sample.id,
@@ -332,6 +348,7 @@ function createTraceAnalyzer(report) {
 			'Settling is a heuristic, not a completion fence. Tail work can include teardown, unrelated work, or the next setup; it is not attributed to the sample.',
 			'GPU-process and GPUTask intervals do not measure hardware GPU execution. hardwareGpuMs is null.',
 			'Tracked totals cover only selected observed intervals. Missing event types can cause incomplete totals; zero is not proof of no work.',
+			'Background GC uses an explicit collector-scope allowlist. Wait/unpark scopes and generic worker wrappers are not added. GC overlap is temporal, not proof that this chart caused collection.',
 			backend.warning,
 		];
 		if (webglCompletion.some(sample => sample.status === 'not-recorded'))
@@ -354,12 +371,15 @@ function createTraceAnalyzer(report) {
 			warnings.push('Some marker process/thread names are missing; marker identity defines the renderer main thread.');
 
 		return {
+			accountingProtocol,
+			statistic: 'mean',
 			samples,
 			groups: groups.filter(group => !group.operation || group.operation === 'data-update'),
 			...(benchmarkOperations(report) ? {phaseGroups: groups} : {}),
 			diagnostics: {
 				eventTypes,
 				missingEventTypes: EVENT_NAMES.filter(name => !eventTypes[name].available),
+				backgroundGc: {enabled: includeGc, allowedEvents: [...BACKGROUND_GC_EVENTS]},
 				availabilityBySample,
 				webglCompletion,
 				selectedThreads: [...selectedThreads.values()],
@@ -383,13 +403,15 @@ function createTraceAnalyzer(report) {
 				gpuMainTaskMs: 'Sum of selected task unions on CrGpuMain threads in GPU Process; not hardware GPU time.',
 				vizCompositorMs: 'Sum of selected task unions on VizCompositorThread threads in GPU Process.',
 				GPUTaskMs: 'Sum of per-thread GPUTask unions in the marker renderer and GPU processes. Separate diagnostic, not hardware execution time.',
-				totalTrackedThreadWorkMs: 'Sum of per-thread unions of selected task, RasterTask, and GPUTask intervals within each round. Cross-metric overlaps on one thread count once. The group minimum is the minimum of these own-round totals, not the sum of component minima. Not latency or CPU time.',
+				backgroundGcMs: 'Sum of per-thread unions of allowlisted background V8 and CppGC collector scopes in the marker renderer and GPU processes, excluding known main/compositor threads. Nested scopes count once. Wait/unpark scopes are not selected; enclosing collector wall durations can still include preemption or waits. Main-thread GC remains inside task totals. Null for legacy accounting or absent relevant events.',
+				gcAddedThreadWorkMs: 'Increase in totalTrackedThreadWorkMs from background GC after removing overlap with selected task, raster, and GPU intervals. Null when background GC is unavailable; otherwise zero means no added duration in this window.',
+				totalTrackedThreadWorkMs: 'Sum of per-thread unions of selected task, RasterTask, GPUTask, and (under thread-work-gc-v2) background GC intervals within each round. Cross-metric overlaps on one thread count once. The headline mean averages these own-round totals, with main-thread and selected background GC already included. Not latency or CPU time.',
 				trackedBusyElapsedMs: 'Global union of the same selected intervals across threads. Concurrent thread intervals count once; not end-to-end rendering latency.',
 				hardwareGpuMs: 'Null: no supported hardware GPU execution measurement is available from these event types.',
 				webglCompletion: 'Browser-reported completion status, not inferred from trace tasks. Complete covers preceding commands on observed contexts: asynchronous fences for WebGL2, blocking finish for WebGL1. Not-observed is not proof of no WebGL. Polling, flush, finish waits, and metadata queries belong to the instrumented window, after js-end. Wait duration is elapsed validation latency, not device busy time.',
 				taskSelection: 'Use RunTask if valid intervals exist anywhere on that thread; otherwise use ThreadControllerImpl::RunTask. Never combine both wrappers.',
 				availability: 'A metric is null when no matching valid intervals exist anywhere in the trace for its relevant threads. Zero means available but no overlap in this sample, not proven absence of work.',
-				aggregation: 'Group by DPR, variant and operation; exclude warmups. Lifecycle groups contains final updates only; phaseGroups contains all operations. Each metric uses its minimum measured value for best-case performance; minima may come from different rounds. Min, max, and count use only finite numbers; absent, null, and invalid values count as missing. Empty min and max are null. Totals use each round\'s values before taking the minimum, not the sum of component minima. Idle remains a separate variant; no baseline subtraction.',
+				aggregation: TRACE_AGGREGATION,
 				boundaries: 'Crossing counts use selected raw intervals, not unions. Tail spans end to the next sample start, or trace end for the last sample. Tail work is unassigned.',
 				attribution: 'Renderer work is scoped to the marker process. GPU processes are shared: temporal overlap does not establish causality or chart ownership.',
 			},

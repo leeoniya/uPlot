@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 import { SAMPLE_TIMEOUT_MS, SAMPLE_TIMEOUT_EXIT_CODE } from './bench-sample-timeout.mjs';
+import { traceAccountingProtocol } from './bench-trace-policy.mjs';
+import { summarizeBenchmarkTraceSamples, TRACE_AGGREGATION } from './analyze-benchmarks-trace.mjs';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,8 +66,11 @@ function benchmarkView(report) {
 	const lifecycle = population || report.reports.some(raw => raw.phase === 'chart-lifecycle');
 	const settledInit = population && report.reports.some(raw => raw.initProtocol === 'settled-work-v1');
 	const initLabel = settledInit && raf ? 'init rAF ms' : 'init ms';
+	const workLabel = lifecycle ? 'update ms' : 'total ms';
 	if ((trace || raf || memory) && lifecycle && new Set(report.reports.map(raw => `${raw.phase}:${raw.initProtocol ?? 'readiness'}`)).size > 1)
 		throw new Error('Cannot combine different benchmark protocols or initialization boundaries. Rerun all selected variants.');
+	if (trace && new Set(report.reports.map(traceAccountingProtocol)).size > 1)
+		throw new Error('Cannot combine different trace accounting protocols. Rerun all selected variants.');
 	const warnings = [
 		...(report.timeouts ?? []).map(({error}) => error),
 		...(report.failures ?? []).map(({variant, error}) => `${variant}: ${error}`),
@@ -77,21 +82,21 @@ function benchmarkView(report) {
 		const measured = raw.samples.filter(sample => !sample.warmup).length;
 		const row = {variant, ...metadataFor(variant, raw.runner.benchmark, raw.samples)};
 		const issues = [];
-		const metric = (label, stats) => {
-			row[label] = display(stats?.min);
+		const metric = (label, stats, statistic = 'min') => {
+			row[label] = display(stats?.[statistic]);
 			const count = stats?.count ?? 0;
 			const missing = stats?.missing ?? measured;
-			const unavailable = !Number.isFinite(stats?.min);
+			const unavailable = !Number.isFinite(stats?.[statistic]);
 			if (unavailable || count !== measured || missing !== 0)
 				issues.push(`${label} (${count}/${measured} valid, ${missing} missing${unavailable ? ', unavailable' : ''})`);
 		};
 		if (trace) {
 			const metrics = group(raw.analysis)?.metrics;
 			for (const [label, key] of [
-				['prep ms', 'dataPrepMs'], [lifecycle ? 'update ms' : 'init ms', 'jsIntervalMs'], ['main ms', 'rendererMainTaskMs'],
-				['gpu ms', 'gpuMainTaskMs'], ['total ms', 'totalTrackedThreadWorkMs'],
+				['prep ms', 'dataPrepMs'], ...(!lifecycle ? [['init ms', 'jsIntervalMs']] : []), ['main ms', 'rendererMainTaskMs'],
+				['gpu ms', 'gpuMainTaskMs'], [workLabel, 'totalTrackedThreadWorkMs'],
 			])
-				metric(label, metrics?.[key]);
+				metric(label, metrics?.[key], 'mean');
 		}
 		if (raf) {
 			const metrics = group(raw.rafAnalysis)?.metrics;
@@ -104,7 +109,7 @@ function benchmarkView(report) {
 			for (const [label, operation] of population ? [[initLabel, 'small-init']] : [['init ms', 'empty-init'], ['first ms', 'first-data']]) {
 				const metrics = analysis?.phaseGroups?.find(group => group.variant === variant && group.dpr === dpr && group.operation === operation)?.metrics;
 				const key = settledInit ? (trace ? 'totalTrackedThreadWorkMs' : 'raf1Ms') : (trace ? 'jsIntervalMs' : 'jsMs');
-				metric(label, metrics?.[key]);
+				metric(label, metrics?.[key], trace ? 'mean' : 'min');
 			}
 		}
 		if (memory) {
@@ -118,8 +123,8 @@ function benchmarkView(report) {
 	});
 
 	const columns = [
-		...(trace || raf ? ['prep ms', initLabel, ...(population ? ['update ms'] : lifecycle ? ['first ms', 'update ms'] : [])] : []),
-		...(trace ? ['main ms', 'gpu ms', 'total ms'] : []),
+		...(trace || raf ? ['prep ms', initLabel, ...(lifecycle && !population ? ['first ms'] : []), ...(raf && lifecycle ? ['update ms'] : [])] : []),
+		...(trace ? ['main ms', 'gpu ms', workLabel] : []),
 		...(raf ? ['next rAF ms'] : []),
 		...(memory ? ['peak MB', 'retained MB'] : []),
 	];
@@ -133,7 +138,7 @@ function benchmarkView(report) {
 	const order = new Map(report.protocol?.variants?.map((variant, index) => [variant, index]));
 	const compare = (left, right) => left === right ? 0 : left - right;
 	rows.sort((a, b) => compare(order.get(a.variant) ?? Infinity, order.get(b.variant) ?? Infinity));
-	const metric = trace ? 'total ms' : raf ? 'next rAF ms' : null;
+	const metric = trace ? workLabel : raf ? 'next rAF ms' : null;
 	const speed = row => Number.isFinite(row[metric]) ? row[metric] : Infinity;
 	const groups = new Map();
 	for (const row of rows) {
@@ -172,6 +177,19 @@ export function summarizeSavedBenchmarks(options, output, {platform = process.pl
 	if ((report.requestedBackend ?? 'default') !== requestedBackend ||
 		report.reports.some(raw => (raw.runner.requestedBackend ?? 'default') !== requestedBackend))
 		throw new Error('Expected a benchmark suite report with matching requested backend.');
+	if (measurements.trace) {
+		for (const raw of report.reports) {
+			const analysis = raw.analysis;
+			if (!Array.isArray(analysis?.samples))
+				continue;
+			const groups = summarizeBenchmarkTraceSamples(analysis.samples);
+			analysis.groups = groups.filter(group => !group.operation || group.operation === 'data-update');
+			if (analysis.phaseGroups)
+				analysis.phaseGroups = groups;
+			analysis.statistic = 'mean';
+			analysis.definitions = {...analysis.definitions, aggregation: TRACE_AGGREGATION};
+		}
+	}
 	if (measurements.memory)
 		report.adjustedAnalysis = summarizeAdjustedProcessMemory(report.reports);
 	writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
@@ -291,10 +309,10 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 			tracing: measurements.trace, gpuSpecificMemory: false, sampleTimeoutMs: SAMPLE_TIMEOUT_MS,
 			blankAndLoaded: 'One cold checkpoint each per browser, not a round aggregate.',
 			lifecycle: 'Three warmup sessions and seven measured sessions. Each session creates a new chart with two points per series, then updates once with the full dataset.',
-			timingColumns: 'Trace init ms is total tracked thread work for chart-specific host setup and settled two-point initialization. rAF-only init rAF ms is callback latency, not thread work. Update ms is update readiness; main/gpu/total and next rAF describe the full-data update only. Prep is separate.',
+			timingColumns: 'Trace init ms is total tracked thread work for chart-specific host setup and settled two-point initialization. rAF-only init rAF ms is callback latency, not thread work. Trace update ms is total tracked thread work for data update and rendering, including settling and completion checks. Main/gpu show update-window components. Update readiness remains in JSON and the rAF-only update ms column; next rAF is update callback latency. Prep is separate.',
 			memoryColumns: 'Peak covers the whole session. Retained follows the full-data update. No forced GC occurs between chart operations.',
 			timeoutScope: 'Five seconds per operation, including preparation and settling. Setup/baseline belongs to the first operation. Final checkpoints and destruction have a separate five-second budget.',
-			aggregation: 'Each table metric uses its minimum finite measured value after warmups. Columns can come from different rounds; total work uses the minimum per-sample total, not a sum of column minima.',
+			aggregation: 'Trace timing columns use arithmetic means after warmups. Total work averages deduplicated per-sample totals, including observed GC. rAF timings and memory columns retain minima.',
 			warmSamples: 'Warmups are excluded. Each browser reuses its selected library between samples; allocator reuse affects process deltas.',
 		},
 		reports: [], timeouts: [], failures: [], adjustedAnalysis: measurements.memory ? summarizeAdjustedProcessMemory([]) : null,

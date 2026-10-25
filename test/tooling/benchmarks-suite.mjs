@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import { summarizeBenchmarkRaf } from '../../scripts/analyze-benchmarks-raf.mjs';
+import { summarizeBenchmarkTraceSamples } from '../../scripts/analyze-benchmarks-trace.mjs';
+import { TRACE_ACCOUNTING, LEGACY_TRACE_ACCOUNTING } from '../../scripts/bench-trace-policy.mjs';
 import { benchmarkMode, resolveBenchmarkVulkan, variantReportName, suiteReportName, runBenchmarkSuite, summarizeSavedBenchmarks } from '../../scripts/benchmarks-suite.mjs';
 import { demoDependencies, benchmarkMetadata, benchmarkVariants, benchmarkLibraryName, demoRestrictions, benchmarkRestrictions } from '../../bench/demo-dependencies.mjs';
 
@@ -37,7 +39,7 @@ function browser(variant, measurements = combined, dpr = 1, requestedBackend = '
 		const metrics = Object.fromEntries([
 			['dataPrepMs', 1.123456], ['jsIntervalMs', 2], ['rendererMainTaskMs', 3],
 			['gpuMainTaskMs', 4], ['totalTrackedThreadWorkMs', 5], ['jsMs', 999], ['prepAndInitMs', 999],
-		].map(([key, min]) => [key, {min, max: min + 10, count: 3, missing: 0}]));
+		].map(([key, mean]) => [key, {min: mean / 2, max: mean + 10, mean, count: 3, missing: 0}]));
 		report.analysis = {groups: [{variant, dpr, sampleCount: 3, warmupCount: 1, metrics}]};
 	}
 	if (measurements.raf)
@@ -132,20 +134,71 @@ function offline(report) {
 	return capture(() => summarizeSavedBenchmarks({...report.measurements, vulkan: false}, output));
 }
 
+describe('trace accounting compatibility', () => {
+	for (const measurements of [combined, {trace: true, memory: false, raf: false}]) {
+		it(`rejects mixed legacy and GC accounting in ${benchmarkMode(measurements)}`, () => {
+			const old = browser('uplot', measurements), next = browser('chartjs', measurements);
+			next.trace = {accountingProtocol: TRACE_ACCOUNTING};
+			next.analysis.accountingProtocol = TRACE_ACCOUNTING;
+			assert.throws(() => offline(savedReport([old, next], measurements)), /different trace accounting protocols/);
+			old.trace = {accountingProtocol: LEGACY_TRACE_ACCOUNTING};
+			assert.throws(() => offline(savedReport([old, next], measurements)), /different trace accounting protocols/);
+			old.trace.accountingProtocol = TRACE_ACCOUNTING;
+			old.analysis.accountingProtocol = TRACE_ACCOUNTING;
+			assert.equal(offline(savedReport([old, next], measurements)).tables[0].length, 2);
+		});
+	}
+	it('rejects mismatched capture/analysis metadata and unknown accounting', () => {
+		const raw = browser('uplot');
+		raw.trace = {accountingProtocol: TRACE_ACCOUNTING};
+		raw.analysis.accountingProtocol = LEGACY_TRACE_ACCOUNTING;
+		assert.throws(() => offline(savedReport([raw])), /capture and analysis accounting protocols differ/);
+		raw.analysis.accountingProtocol = raw.trace.accountingProtocol = 'unknown';
+		assert.throws(() => offline(savedReport([raw])), /Unsupported trace accounting/);
+	});
+});
+
 describe('lifecycle timing columns', () => {
+	for (const measurements of [combined, {trace: true, memory: false, raf: false}]) {
+		it(`omits update readiness and its warnings from live and saved ${benchmarkMode(measurements)} tables`, async () => {
+			const h = harness();
+			const worker = h.dependencies.runWorker;
+			h.dependencies.runWorker = async request => {
+				const raw = await worker(request);
+				raw.phase = 'chart-population';
+				raw.initProtocol = 'settled-work-v1';
+				raw.analysis.phaseGroups = [{...raw.analysis.groups[0], operation: 'small-init'}];
+				delete raw.analysis.groups[0].metrics.jsIntervalMs;
+				return raw;
+			};
+			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
+			const columns = ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'main ms', 'gpu ms', 'update ms',
+				...(measurements.memory ? ['peak MB', 'retained MB'] : [])];
+			assert.deepEqual(Object.keys(h.frames.at(-1).rows[0]), columns);
+			assert.deepEqual(h.frames.at(-1).warnings, []);
+			const summary = offline(report);
+			assert.deepEqual(Object.keys(summary.tables[0][0]), columns);
+			assert.ok(!summary.logs.some(([text]) => text.startsWith('Warning:')));
+			report.failures = [{variant: 'chartjs', error: 'synthetic failure'}];
+			const failed = offline(report).tables[0].find(row => row.variant === 'chartjs');
+			assert.deepEqual(Object.keys(failed), columns);
+			assert.equal(failed['update ms'], '-');
+		});
+	}
 	for (const raf of [false, true]) it(`reports settled init work or explicitly labeled rAF latency (${raf ? 'rAF' : 'trace'})`, () => {
 		const raw = browser('uplot', {trace: !raf, memory: false, raf});
 		raw.phase = 'chart-population';
 		raw.initProtocol = 'settled-work-v1';
 		const analysis = raf ? raw.rafAnalysis : raw.analysis;
-		const stat = min => ({min, max: min + 1, count: 3, missing: 0});
+		const stat = value => ({min: raf ? value : value / 2, max: value + 1, mean: value, count: 3, missing: 0});
 		analysis.phaseGroups = [{...analysis.groups[0], operation: 'small-init', metrics: {
 			jsIntervalMs: stat(1.7), jsMs: stat(1.7), totalTrackedThreadWorkMs: stat(12), raf1Ms: stat(16), windowMs: stat(220),
 		}}];
 		const row = offline(savedReport([raw], raw.measurements)).tables[0][0];
 		assert.equal(row[raf ? 'init rAF ms' : 'init ms'], raf ? 16 : 12);
-		assert.equal(row['update ms'], raf ? 3 : 2);
-		assert.equal(row[raf ? 'next rAF ms' : 'total ms'], raf ? 16 : 5);
+		assert.equal(row['update ms'], raf ? 3 : 5);
+		assert.equal(row[raf ? 'next rAF ms' : 'main ms'], raf ? 16 : 3);
+		assert.equal(Object.hasOwn(row, 'total ms'), false);
 		assert.ok(!Object.hasOwn(row, raf ? 'init ms' : 'init rAF ms'));
 		assert.equal(Object.keys(row)[5], raf ? 'init rAF ms' : 'init ms');
 		delete analysis.phaseGroups[0].metrics[raf ? 'raf1Ms' : 'totalTrackedThreadWorkMs'];
@@ -166,14 +219,14 @@ describe('lifecycle timing columns', () => {
 		const analysis = raf ? raw.rafAnalysis : raw.analysis;
 		analysis.phaseGroups = ['small-init', 'data-update'].map(operation => ({
 			...analysis.groups[0], operation,
-			metrics: {...analysis.groups[0].metrics, [raf ? 'jsMs' : 'jsIntervalMs']: {min: 10, max: 20, count: 3, missing: 0}},
+			metrics: {...analysis.groups[0].metrics, [raf ? 'jsMs' : 'jsIntervalMs']: {min: 10, max: 20, mean: 10, count: 3, missing: 0}},
 		}));
 		const row = offline(savedReport([raw], raw.measurements)).tables[0][0];
-		assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'update ms',
-			...(raf ? ['next rAF ms'] : ['main ms', 'gpu ms', 'total ms'])]);
+		assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms',
+			...(raf ? ['update ms', 'next rAF ms'] : ['main ms', 'gpu ms', 'update ms'])]);
 		assert.equal(row['init ms'], 10);
-		assert.equal(row['update ms'], raf ? 3 : 2);
-		assert.equal(row[raf ? 'next rAF ms' : 'total ms'], raf ? 16 : 5);
+		assert.equal(row['update ms'], raf ? 3 : 5);
+		assert.equal(row[raf ? 'next rAF ms' : 'main ms'], raf ? 16 : 3);
 	});
 
 	for (const memory of [false, true]) it(`rejects mixed small-to-full and legacy lifecycle reports (${memory ? 'memory' : 'trace'})`, () => {
@@ -189,15 +242,35 @@ describe('lifecycle timing columns', () => {
 		raw.phase = 'chart-lifecycle';
 		raw.analysis.phaseGroups = ['empty-init', 'first-data', 'data-update'].map((operation, index) => ({
 			...raw.analysis.groups[0], operation,
-			metrics: {...raw.analysis.groups[0].metrics, jsIntervalMs: {min: 10 + index, max: 20, count: 3, missing: 0}},
+			metrics: {...raw.analysis.groups[0].metrics, jsIntervalMs: {min: 1, max: 20, mean: 10 + index, count: 3, missing: 0}},
 		}));
 		const result = offline(savedReport([raw], raw.measurements));
 		const row = result.tables[0][0];
-		assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'first ms', 'update ms', 'main ms', 'gpu ms', 'total ms']);
+		assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'first ms', 'main ms', 'gpu ms', 'update ms']);
 		assert.equal(row['init ms'], 10);
 		assert.equal(row['first ms'], 11);
-		assert.equal(row['update ms'], 2);
-		assert.equal(row['total ms'], 5);
+		assert.equal(Object.hasOwn(row, 'total ms'), false);
+		assert.equal(row['update ms'], 5);
+	});
+
+	it('ranks lifecycle reports by mean update work, not readiness or initialization work', () => {
+		const measurements = {trace: true, memory: false, raf: false};
+		const reports = ['uplot', 'chartjs'].map((variant, i) => {
+			const raw = browser(variant, measurements);
+			raw.phase = 'chart-population';
+			raw.initProtocol = 'settled-work-v1';
+			const group = raw.analysis.groups[0];
+			group.metrics.totalTrackedThreadWorkMs.mean = i === 0 ? 20 : 10;
+			group.metrics.jsIntervalMs.mean = i === 0 ? 1 : 9;
+			raw.analysis.phaseGroups = [{...group, operation: 'small-init', metrics: {
+				totalTrackedThreadWorkMs: {min: 1, mean: i === 0 ? 5 : 50, count: 3, missing: 0},
+			}}];
+			return raw;
+		});
+		const rows = offline(savedReport(reports, measurements)).tables[0];
+		assert.deepEqual(rows.map(row => row.variant), ['chartjs', 'uplot']);
+		assert.deepEqual(rows.map(row => row['update ms']), [10, 20]);
+		assert.deepEqual(rows.map(row => row['init ms']), [50, 5]);
 	});
 
 	it('rejects mixed legacy startup and lifecycle timing reports', () => {
@@ -223,7 +296,7 @@ describe('benchmark library grouping', () => {
 					// A unique snapshot identifies tied siblings even after their labels are compacted.
 					raw.runner.benchmark.sampling = id;
 					if (measurements.trace)
-						raw.analysis.groups[0].metrics.totalTrackedThreadWorkMs.min = speed;
+						raw.analysis.groups[0].metrics.totalTrackedThreadWorkMs.mean = speed;
 					if (measurements.raf)
 						raw.rafAnalysis.groups[0].metrics.raf1Ms.min = speed;
 					return raw;
@@ -276,7 +349,7 @@ describe('benchmark library grouping', () => {
 				const raw = browser(id, measurements);
 				raw.runner.benchmark.sampling = id;
 				const metrics = (raw.analysis ?? raw.rafAnalysis).groups[0].metrics;
-				metrics[measurements.trace ? 'totalTrackedThreadWorkMs' : 'raf1Ms'].min = speed;
+				metrics[measurements.trace ? 'totalTrackedThreadWorkMs' : 'raf1Ms'][measurements.trace ? 'mean' : 'min'] = speed;
 				return raw;
 			});
 			const rows = offline(savedReport(reports, measurements)).tables[0];
@@ -568,7 +641,7 @@ describe('benchmark metadata snapshots', () => {
 		const reports = ['uplot', 'chartjs', 'd3'].map(id => browser(id));
 		for (const [i, raw] of reports.entries()) {
 			raw.runner.benchmark = {sampling: ['a', 'z', 'm'][i], context: ['2d', 'webgpu', 'svg'][i]};
-			raw.analysis.groups[0].metrics.totalTrackedThreadWorkMs.min = [10, 2, null][i];
+			raw.analysis.groups[0].metrics.totalTrackedThreadWorkMs.mean = [10, 2, null][i];
 		}
 		assert.deepEqual(offline(savedReport(reports)).tables[0].map(row => row.variant), ['chartjs', 'uplot', 'd3']);
 	});
@@ -949,7 +1022,7 @@ describe('benchmark suite modes and workers', () => {
 				const raw = await worker(request);
 				const value = Object.hasOwn(speeds, request.variant) ? speeds[request.variant] : 20;
 				const metrics = (raw.analysis ?? raw.rafAnalysis).groups[0].metrics;
-				metrics[measurements.raf ? 'raf1Ms' : 'totalTrackedThreadWorkMs'].min = value;
+				metrics[measurements.raf ? 'raf1Ms' : 'totalTrackedThreadWorkMs'][measurements.raf ? 'min' : 'mean'] = value;
 				return raw;
 			};
 			const report = await runBenchmarkSuite({...measurements, vulkan: false}, h.dependencies);
@@ -1151,7 +1224,7 @@ describe('benchmark suite modes and workers', () => {
 				}
 				const raw = await worker(request);
 				if (request.variant === 'uplot')
-					raw.analysis.groups[0].metrics.gpuMainTaskMs = {min: 4, count: 2, missing: 1};
+					raw.analysis.groups[0].metrics.gpuMainTaskMs = {min: 2, mean: 4, count: 2, missing: 1};
 				return raw;
 			};
 			await runBenchmarkSuite({}, h.dependencies);
@@ -1217,7 +1290,12 @@ describe('benchmark table and offline summary', () => {
 				logs.length = 0;
 				const result = summarizeSavedBenchmarks({...combined, vulkan: false}, output);
 				plain ??= logs[0];
-				assert.equal(logs[0], prefix ? plain.replace(/(?<= )5\.0(?= │)/, `${prefix}5.0\x1b[39m`) : plain);
+				const contextPrefix = depth === 24 ? '\x1b[38;2;96;165;250m' : '\x1b[38;5;75m';
+				const peakPrefix = depth === 24 ? '\x1b[38;2;251;146;60m' : '\x1b[38;5;209m';
+				assert.equal(logs[0], prefix ? plain
+					.replace(/(?<= )(?:0|2|5)\.0(?= │)/g, value => `${prefix}${value}\x1b[39m`)
+					.replace('45.0', `${peakPrefix}45.0\x1b[39m`)
+					.replace('2d', `${contextPrefix}2d\x1b[39m`) : plain);
 				assert.deepEqual(logs.slice(1), ['Updated summary from saved samples. No browser was started.']);
 				assert.deepEqual(result.reports, input.reports);
 				const bytes = readFileSync(output, 'utf8');
@@ -1309,9 +1387,9 @@ describe('benchmark table and offline summary', () => {
 		it(`${benchmarkMode(measurements)} summary uses the mode's speed metric or stable execution order`, () => {
 			const reports = ['idle', 'uplot', 'chartjs', 'echarts'].map(variant => browser(variant, measurements));
 			if (measurements.trace) {
-				reports[1].analysis.groups[0].metrics.totalTrackedThreadWorkMs.min = null;
-				reports[2].analysis.groups[0].metrics.totalTrackedThreadWorkMs.min = 10;
-				reports[3].analysis.groups[0].metrics.totalTrackedThreadWorkMs.min = 0;
+				reports[1].analysis.groups[0].metrics.totalTrackedThreadWorkMs.mean = null;
+				reports[2].analysis.groups[0].metrics.totalTrackedThreadWorkMs.mean = 10;
+				reports[3].analysis.groups[0].metrics.totalTrackedThreadWorkMs.mean = 0;
 			}
 			const input = savedReport(reports, measurements);
 			const original = structuredClone(input);
@@ -1323,7 +1401,7 @@ describe('benchmark table and offline summary', () => {
 		});
 	}
 
-	it('projects requested trace minima and minimum adjusted tree PSS, preserving raw reports', () => {
+	it('projects requested trace means and minimum adjusted tree PSS, preserving raw reports', () => {
 		const input = savedReport([browser('idle'), browser('uplot')]);
 		const original = structuredClone(input);
 		const result = offline(input);
@@ -1339,6 +1417,60 @@ describe('benchmark table and offline summary', () => {
 		]);
 		const persisted = JSON.parse(readFileSync(join(directory, 'offline.json'), 'utf8'));
 		assert.deepEqual(persisted.reports, original.reports);
+	});
+
+	it('recomputes saved trace means from phase samples without changing accounting or raw samples', () => {
+		const raw = browser('uplot', {trace: true, memory: false, raf: false});
+		raw.phase = 'chart-population';
+		raw.initProtocol = 'settled-work-v1';
+		raw.trace = {accountingProtocol: TRACE_ACCOUNTING};
+		raw.analysis.accountingProtocol = TRACE_ACCOUNTING;
+		raw.analysis.samples = raw.samples.flatMap((s, i) => ['small-init', 'data-update'].map(operation => ({
+			...s, id: `${s.id}-${operation}`, operation,
+			jsIntervalMs: i === 0 ? 1000 : i * 2,
+			totalTrackedThreadWorkMs: i === 0 ? 1000 : (operation === 'small-init' ? i * 10 : i * 20),
+			gcAddedThreadWorkMs: i === 1 ? 6 : 0,
+		})));
+		raw.analysis.phaseGroups = [{operation: 'small-init', metrics: {totalTrackedThreadWorkMs: {min: 1}}}];
+		const original = structuredClone(raw);
+		const result = offline(savedReport([raw], raw.measurements));
+		const updated = result.result.reports[0];
+		assert.equal(result.tables[0][0]['init ms'], 20);
+		assert.equal(Object.hasOwn(result.tables[0][0], 'total ms'), false);
+		assert.equal(updated.analysis.groups[0].metrics.jsIntervalMs.mean, 4);
+		assert.equal(result.tables[0][0]['update ms'], 40);
+		assert.equal(updated.analysis.phaseGroups[0].metrics.gcAddedThreadWorkMs.mean, 2);
+		assert.equal(updated.analysis.groups[0].metrics.totalTrackedThreadWorkMs.min, 20);
+		assert.equal(updated.analysis.statistic, 'mean');
+		assert.equal(updated.analysis.accountingProtocol, TRACE_ACCOUNTING);
+		assert.deepEqual(updated.analysis.samples, original.analysis.samples);
+		assert.deepEqual(updated.samples, original.samples);
+		assert.deepEqual(offline(result.result), result);
+	});
+
+	it('does not substitute legacy minima for unavailable means without recorded phase samples', () => {
+		const raw = browser('uplot', {trace: true, memory: false, raf: false});
+		delete raw.analysis.groups[0].metrics.totalTrackedThreadWorkMs.mean;
+		const result = offline(savedReport([raw], raw.measurements));
+		assert.equal(result.tables[0][0]['total ms'], 'unavailable');
+		assert.ok(result.logs.some(([text]) => text.includes('total ms (3/3 valid, 0 missing, unavailable)')));
+	});
+
+	it('uses trace means in the live table and sorts by mean rather than minimum', async () => {
+		const h = harness();
+		const worker = h.dependencies.runWorker;
+		h.dependencies.runWorker = async request => {
+			const raw = await worker(request);
+			const values = request.variant === 'uplot' ? [1, 10, 10] : [5, 5, 5];
+			raw.analysis.samples = raw.samples.map((s, i) => ({...s, totalTrackedThreadWorkMs: s.warmup ? 999 : values[i - 1]}));
+			raw.analysis.groups = summarizeBenchmarkTraceSamples(raw.analysis.samples);
+			return raw;
+		};
+		const report = await runBenchmarkSuite({trace: true, vulkan: false}, h.dependencies);
+		const rows = h.frames.at(-1).rows;
+		assert.equal(rows.find(row => row.variant === 'uplot')['total ms'], 7);
+		assert.ok(rows.findIndex(row => row.variant === 'chartjs') < rows.findIndex(row => row.variant === 'uplot'));
+		assert.deepEqual(offline(report).tables[0], rows.map(renderedRow));
 	});
 
 	it('shows independent RAF minima in live and saved tables, excluding faster warmups', async () => {
@@ -1370,15 +1502,15 @@ describe('benchmark table and offline summary', () => {
 	it('warns separately about partial metrics and count mismatches without losing JSON statistics', () => {
 		const raw = browser('uplot');
 		const metrics = raw.analysis.groups[0].metrics;
-		metrics.rendererMainTaskMs = {min: 2, max: 4, count: 2, missing: 1};
-		metrics.gpuMainTaskMs = {min: 1, max: 7, count: 4, missing: 0};
-		metrics.totalTrackedThreadWorkMs = {min: null, max: null, count: 3, missing: 0};
+		metrics.rendererMainTaskMs = {min: 2, max: 4, mean: 3, count: 2, missing: 1};
+		metrics.gpuMainTaskMs = {min: 1, max: 7, mean: 4, count: 4, missing: 0};
+		metrics.totalTrackedThreadWorkMs = {min: null, max: null, mean: null, count: 3, missing: 0};
 		const result = offline({...savedReport([browser('idle'), raw]), skipped});
 		const row = result.tables[0][0];
 		assert.equal('n' in row, false);
 		assert.equal('dpr' in row, false);
-		assert.equal(row['main ms'], 2);
-		assert.equal(row['gpu ms'], 1);
+		assert.equal(row['main ms'], 3);
+		assert.equal(row['gpu ms'], 4);
 		assert.equal(row['total ms'], 'unavailable');
 		assert.equal(Object.keys(row).some(key => key.endsWith(' n') || key.endsWith(' missing')), false);
 		assert.deepEqual(result.logs.filter(([text]) => text.startsWith('Warning:')), [

@@ -9,6 +9,7 @@ import { summarizeProcessMemory } from './analyze-benchmarks-process-memory.mjs'
 import { createWebGLCapture } from './bench-webgl.mjs';
 import { createWebGPUCapture } from './bench-webgpu.mjs';
 import { SAMPLE_TIMEOUT_MS, createSampleWatchdog } from './bench-sample-timeout.mjs';
+import { GC_CATEGORIES, TRACE_ACCOUNTING } from './bench-trace-policy.mjs';
 
 export function benchmarkTraceConfig() {
 	return {
@@ -16,7 +17,7 @@ export function benchmarkTraceConfig() {
 		// Chrome emits RunTask and GPUTask here; RasterTask also lists cc.
 		// These are host-thread wall intervals, not device execution or completion.
 		// More GPU categories do not establish that an async chart finished rendering.
-		includedCategories: ['blink.user_timing', 'disabled-by-default-devtools.timeline'],
+		includedCategories: ['blink.user_timing', 'disabled-by-default-devtools.timeline', ...GC_CATEGORIES],
 	};
 }
 
@@ -207,7 +208,7 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 		if (saved.dataLoss)
 			throw new Error('Chrome lost trace data; shorten the recording before interpreting results.');
 		// bytes counts the saved gzip bytes, not the decompressed JSON document.
-		return {...report, trace: {path: tracePath, ...saved, compression: 'gzip', compressedBytes: saved.bytes, config}, systemInfo};
+		return {...report, trace: {path: tracePath, ...saved, compression: 'gzip', compressedBytes: saved.bytes, config, accountingProtocol: TRACE_ACCOUNTING}, systemInfo};
 	}
 	catch (error) {
 		throw timeoutError ?? error;

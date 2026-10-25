@@ -544,7 +544,7 @@ There is no 30-second pause between libraries.
 The benchmark retains its rendering-settling waits and command timeouts.
 An interactive terminal shows one table that updates in place after each library finishes.
 All implementations of a library stay together in the table.
-Trace and combined tables rank each library group by its fastest implementation's `total ms`, before display rounding.
+Trace and combined tables rank each library group by its lowest implementation-level mean `update ms`, before display rounding.
 Within each group, implementations appear from fastest to slowest. Failed or unavailable implementations appear last within their group.
 rAF tables use `next rAF ms` for both group and implementation order. Memory-only tables retain execution order, with library groups together.
 Groups without a finite timing appear last in timed tables. Ties retain execution order, or first-seen order for reports without an execution list.
@@ -717,7 +717,8 @@ Both variants completed three warmups and seven measured rounds. All ten ChartGP
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | ChartGPU | 5.2 | 116.7 | 41.8 | 82.3 | 130.4 | 41.8 | 37.3 |
 
-Each column is a separate measured minimum. `total ms` covers selected traced host threads, not complete CPU work or hardware GPU execution.
+This historical table uses separate measured minima, not the current arithmetic means.
+`total ms` covers selected traced host threads, not complete CPU work or hardware GPU execution.
 The trace audit found omitted renderer/GPU I/O work of 0.61–4.38 ms per measured round.
 Its inclusion would change the minimum tracked total to 134.8 ms. The current metrics remain unchanged.
 These trace categories expose no identifiable Dawn/Vulkan worker intervals, so complete worker coverage remains unverified.
@@ -852,13 +853,31 @@ Completion checks occur after constructor readiness but inside the chart window.
 Thread-wall totals include blocking finish waits, fence submission/polling, and context-info queries.
 This overhead can change scheduling. Neither these totals nor completion latency measures hardware GPU busy time.
 
-The trace enables only `blink.user_timing` and `disabled-by-default-devtools.timeline`.
-These categories supply sample markers, thread tasks, raster tasks, and GPU task events.
+The trace enables `blink.user_timing`, `disabled-by-default-devtools.timeline`, `disabled-by-default-v8.gc`, and `cppgc`.
+These categories supply sample markers, thread tasks, raster tasks, GPU tasks, and collector scopes.
 The completion protocol does not add arbitrary broad GPU tracing categories.
 The main-thread total includes style, layout, and paint work, but the trace omits their separate breakdown.
 The JSON field `styleLayoutPaintMs` is therefore unavailable (`null`), not zero.
-Chrome Headless Shell 156 captures all required thread roles and work events with these categories.
 Browser upgrades require another event-coverage check.
+
+The `thread-work-gc-v2` accounting protocol adds selected background V8 and Blink/C++ collector scopes.
+The allowlist in `scripts/bench-trace-policy.mjs` excludes unpark scopes, synchronization scopes, and generic worker wrappers.
+Selection covers workers in the chart renderer and GPU processes, not unrelated renderers or browser UI threads.
+Per-thread interval unions remove overlaps between nested collectors, raster tasks, and GPU tasks.
+Main-thread GC already belongs to main-thread task totals.
+
+JSON includes `backgroundGcMs` and `gcAddedThreadWorkMs` for each phase.
+The first field measures selected collector intervals. The second measures their addition to the total after overlap removal.
+Both fields are `null` without relevant recorded scopes or under legacy accounting.
+Zero means recorded scopes exist but add no duration in that window. It does not prove that no collection occurred.
+There is no new table column. GC additions affect initialization work and `update ms`.
+Collection during a phase can reclaim allocations from earlier phases. Temporal overlap does not establish allocation ownership.
+Collector wall durations can include preemption and internal waits. They do not measure exclusive CPU usage.
+
+Capture and analysis metadata record `accountingProtocol` separately from `initProtocol`.
+Reports without accounting metadata retain legacy `thread-work-v1` totals during analysis.
+Saved summaries reject mixed accounting protocols. New results require fresh captures for all compared variants.
+The [GC and cold/warm assessment](../docs/investigations/benchmark-gc-cold-warm.md) records focused measurements, category coverage, and instrumentation limits.
 
 Memory modes record blank-page and loaded-library/raw-data checkpoints before warmups.
 These checkpoints are single observations, not round aggregates.
@@ -946,29 +965,38 @@ SciChart, LightningChart, and G2 WebGL have conditional context labels from meas
 Missing or ambiguous evidence produces `unavailable`. This rule also applies to rAF reports, which do not capture GL contexts.
 Legacy reports can use unambiguous measured context evidence for known WebGL series, but cannot infer historical sampling configuration.
 
-The combined table shows minimum measured values for:
+The combined table shows these measurements:
 
 - `prep ms`: Preparation of the full dataset.
 - `init ms`: Total tracked thread work for host setup and two-point chart initialization, including deferred rendering and graphics completion checks.
-- `update ms`: Readiness time for the small-to-full data update.
 - `main ms`: Renderer main-thread work in the update window.
 - `gpu ms`: GPU-process main-thread work in the update window.
-- `total ms`: Total tracked thread work in the update window.
+- `update ms`: Total tracked thread work for the full-data update and rendering, including deferred work and graphics completion checks.
 - Baseline-adjusted sampled peak browser-tree PSS.
 - Baseline-adjusted retained browser-tree PSS.
 
-Each column uses its minimum finite value across measured rounds, excluding warmups.
-These values describe best observed performance, not typical latency or a guarantee of fully warmed JIT or GC-free execution.
-Columns can come from different rounds.
-`total ms` uses the minimum update-window total, not the sum of component minima.
-It excludes small initialization and preparation. The sorting and color thresholds apply to full-data update work.
-`init ms` uses the same thread-work metric as `total ms`, but for the separate initialization window.
-It includes main-thread layout and paint, raster tasks, compositor work, and GPU-process work that the trace captures.
+Trace and combined timing columns use arithmetic means across the seven measured rounds, excluding the three warmups.
+This applies to `prep ms`, `init ms`, `main ms`, `gpu ms`, and `update ms`.
+Zero values contribute to the mean. Missing or invalid values do not become zero, and incomplete metrics produce warnings.
+JSON retains `min`, `max`, `mean`, valid counts, missing counts, and individual phase samples.
+
+`update ms` averages each round's deduplicated update-window total.
+Main-thread GC and selected background GC already contribute to those totals. The analyzer does not add averaged GC again.
+The JSON GC breakdowns also include arithmetic means, with zero-GC windows included.
+These means account for observed work within the phase windows, not collection between windows or full amortized application cost.
+The update total excludes small initialization and preparation. The sorting and color thresholds apply to mean full-data update work.
+`init ms` uses the same thread-work metric as `update ms`, but for the separate initialization window.
+It includes captured main-thread work, raster tasks, compositor work, GPU-process work, and selected background GC.
 Idle gaps in the fixed settling wait do not count as work. Actual harness work within that window still counts.
-`update ms` remains elapsed readiness time, not thread work. The update `gpu ms` column does not describe initialization.
+Trace and combined tables omit update readiness. JSON retains it as `jsMs` and `jsIntervalMs` for the `data-update` phase.
+`main ms` and `gpu ms` remain update-window components, useful for comparing downsampling costs. They do not describe initialization.
+The JSON metric remains `totalTrackedThreadWorkMs` for both phases.
+Legacy startup-only reports retain `total ms` because they contain no separate data update.
 
 rAF tables use `init rAF ms` for the first callback after initialization readiness, rather than imply a settled thread-work measurement.
 They retain update readiness in `update ms` and update callback latency in `next rAF ms`.
+Unlike trace tables, rAF-only tables do not measure total thread work.
+rAF-only timing columns still use minima. Memory columns also retain their existing minimum-value aggregation.
 Neither rAF callbacks nor the settling heuristic prove compositor presentation or completion of every delayed library task.
 Trace totals cover selected host threads, not hardware GPU execution or all worker activity.
 Memory columns cover the complete session, not only the update window.
@@ -979,26 +1007,64 @@ The table omits the index, sample-count, and DPR columns. Sample counts and DPR 
 Variant names and the `context`, `sampling`, and `lossy` columns align left without quotes. Numeric columns align right and show one decimal place.
 The JSON retains full measurement precision.
 
-Interactive terminals color only the numeric `total ms` cells, in live tables and saved summaries.
+Interactive terminals color both `init ms` and `update ms` in trace tables, including live tables and saved summaries.
+Both columns use the same shades, but initialization reaches red at 100 ms and update work reaches red above 100 ms.
+Legacy startup-only tables also color `init ms` and `total ms`.
+The display leaves `main ms`, `gpu ms`, and rAF-only timings uncolored.
 Fixed bands use unrounded values. Extreme outliers do not change the colors of other rows.
+The frame reference is `F = 1000/60 ms` (about 16.67 ms), so green ends at `2F` (about 33.33 ms).
 
-| `total ms` | Color |
+The graded columns use these ranges. Context colors are categorical and appear separately below.
+
+| Column | Green shades | Orange shades | Red shades |
+| --- | --- | --- | --- |
+| `init ms` | `0–2F` (about 33.33 ms) | `2F < ms < 100` | `≥100 ms` |
+| `update ms` | `0–2F` (about 33.33 ms) | `>2F–100 ms` | `>100 ms` |
+| `peak MB` | `0–35 MB` | `35 < MB < 50` | `≥50 MB` |
+| `retained MB` | `0–35 MB` | `35 < MB < 50` | `≥50 MB` |
+
+The following table gives each shade's upper limit. Limits are inclusive unless marked `<`.
+Each shade starts after the previous used range. Darkest green starts at zero.
+An excluded boundary belongs to the next shade: exactly 50 MB is light red in both memory columns.
+The final row gives the lower boundary for darkest red.
+Fractions are exact thresholds. Decimal approximations are for reference only.
+
+| Shade | `init ms` | `update ms` | `peak MB` | `retained MB` |
+| --- | ---: | ---: | ---: | ---: |
+| Darkest green | `F ≈ 16.67` | `F ≈ 16.67` | 20 | 20 |
+| Medium green (yellow-green) | 25 | 25 | 27.5 | 27.5 |
+| Light green (pale lime) | `2F ≈ 33.33` | `2F ≈ 33.33` | 35 | 35 |
+| Light orange | 50 | 50 | 40 | 40 |
+| Medium orange | 75 | 75 | 45 | 45 |
+| Strong orange | `<100` | 100 | `<50` | `<50` |
+| Light red | 500 | 500 | 100 | 100 |
+| Strong red | 1000 | 1000 | 200 | 200 |
+| Deep red | 2000 | 2000 | 400 | 400 |
+| Darkest red | `>2000` | `>2000` | `>400` | `>400` |
+
+Memory colors apply in combined and memory-only tables.
+Peak and retained memory use the same ranges and shades, so equal values have equal colors.
+Both columns use darkest green through 20 MB, then lighter greens through 35 MB.
+The orange range has three equal-width bands.
+Negative baseline-adjusted estimates and unavailable values remain uncolored.
+Color changes do not change measurements or aggregation: trace timings use arithmetic means, while memory columns use minima.
+
+The `context` column uses categorical colors, not performance ratings:
+
+| Context | Color |
 | --- | --- |
-| `0 ≤ t < 16.6` | Strongest green |
-| `16.6 ≤ t < 35` | Medium green |
-| `35 ≤ t ≤ 100` | Light green |
-| `100 < t < 150` | Light orange |
-| `150 ≤ t < 225` | Medium orange |
-| `225 ≤ t < 300` | Strong orange |
-| `300 ≤ t < 500` | Light red |
-| `500 ≤ t < 1000` | Strong red |
-| `1000 ≤ t < 2000` | Deep red |
-| `t ≥ 2000` | Darkest red |
+| `2d` | Blue |
+| `svg` | Orange |
+| `webgl` | Yellow |
+| `webgl2` | Pink |
+| `webgpu` | Purple |
+
+Unknown or unavailable contexts remain uncolored.
 
 The display uses truecolor or distinct 256-color approximations, according to terminal support.
 Redirected output, basic-color terminals, `TERM=dumb`, and any `NO_COLOR` value disable colors. JSON remains uncolored.
-The 16.6 ms threshold is a reference, not a frame-latency claim.
-`total ms` sums selected host-thread wall work, not elapsed frame latency.
+The frame thresholds are references, not frame-latency claims.
+Trace `update ms` sums selected host-thread wall work, not elapsed frame latency.
 
 Terminal dimensions and line wrapping affect cursor erasure, not whether an interactive table is shown.
 Explanatory notes do not appear above the table. Measurement warnings and library skip reasons appear below it.
@@ -1008,7 +1074,7 @@ Times use milliseconds.
 Thread work is wall duration, not exclusive CPU time or hardware GPU execution time.
 Tracked work excludes data preparation and can overlap across threads.
 Initialization time and renderer thread work are not additive.
-`total ms` remains independent of the initialization and rAF elapsed spans.
+Trace `update ms` remains independent of the initialization and rAF elapsed spans.
 It sums per-thread unions of tracked work intervals within each chart window. Overlapping intervals on one thread count once.
 Async waits do not become tracked work merely because they occur inside initialization.
 Memory uses decimal MB: 1 MB = 1,000,000 bytes.
@@ -1049,7 +1115,7 @@ Adjusted statistics hold the chosen blank and idle baselines fixed.
 Their ranges do not include baseline uncertainty or establish exclusive library ownership.
 Cleanup growth alone is not proof of a leak.
 
-Tracked thread totals cover selected renderer-main, compositor, raster, and GPU-process scopes, not all host threads or uninstrumented work.
+Tracked totals cover selected renderer-main, compositor, raster, GPU-process, and background-GC scopes, not all host threads or uninstrumented work.
 They omit general worker CPU and renderer/GPU I/O threads. Billboard therefore disables its worker path.
 WebGL completion checks do not cover WebGPU. ChartGPU uses separate device-queue completion checks, which establish neither complete trace coverage nor hardware execution time.
 Perspective needs a fair analytics workload and worker accounting before comparison with these chart adapters.
@@ -1113,7 +1179,10 @@ npm run bench -- --summarize-only --no-vulkan
 
 `--summarize-only --vulkan` explicitly selects the saved Vulkan report on any platform.
 
-Saved tables use the same minimum-value aggregation as live tables.
+Saved tables use the same aggregation as live tables: arithmetic means for trace timings and minima for rAF timings and memory.
+Summary-only mode recomputes trace statistics from saved analyzed phase samples, without another browser run or trace read.
+It preserves each sample's existing work-accounting policy. It cannot recover GC that the original capture omitted.
+Reports without phase samples or stored means show unavailable trace means, rather than substitute historical minima.
 The same option applies to each separate command and selects its matching saved report.
 It uses the saved DPR and rejects `--dpr`, `--variant`, `--worker`, and `--install-only`.
 The internal `--worker` option captures one variant for the suite runner.
