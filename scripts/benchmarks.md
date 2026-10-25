@@ -733,7 +733,7 @@ The saved suite is `.cache/benchmarks/results-chrome-combined-vulkan.json`. This
 
 The benchmark measures two operations on one retained chart:
 
-1. `small-init`: Create the chart with two points per series, from the first and last fixture rows.
+1. `small-init`: Create the chart-specific host and the chart with two points per series, from the first and last fixture rows.
 2. `data-update`: Replace that input with the full dataset: 55,550 rows and 166,650 total series points.
 
 Each session starts with a new small chart. It never shrinks a full chart before measurement.
@@ -756,7 +756,8 @@ Timing analyzers expose both operation summaries in `phaseGroups`. Their ordinar
 
 The HTML demos still construct directly with the full dataset.
 Historical results in this document describe their original protocols, not small-to-full population.
-Saved summaries preserve the old columns for old reports. A summary rejects mixed population, legacy lifecycle, and startup reports.
+Reports with `initProtocol: 'settled-work-v1'` include chart-specific DOM setup and report full-window initialization work in trace modes.
+Saved summaries preserve readiness-based initialization for older reports. A summary rejects mixed initialization boundaries and mixed population, legacy lifecycle, or startup protocols.
 
 ### Operation timeout
 
@@ -788,7 +789,9 @@ The five-second budget resets for each operation and final cleanup. A session is
 
 ### Measurement boundaries
 
-Library loading, raw JSON parsing, and fixture setup occur outside the chart timers.
+Library loading, raw JSON parsing, and the shared page shell occur outside the chart timers.
+Chart-specific DOM creation and insertion occur inside initialization markers.
+This includes D3 titles, legends, and canvases, the Chart.js canvas, other chart hosts, and library-created DOM.
 `bench/demo-runtime.mjs` downloads WASM bytes before timing. Stable Blob URLs permit normal compiler-cache reuse across samples.
 WASM compilation, instantiation, and native ingestion initially occur inside chart initialization, subject to normal browser and vendor cache reuse.
 The benchmark does not force repeated compilation through artificial cache busting.
@@ -798,10 +801,11 @@ Lightweight Charts and SciChart also use timestamps in seconds.
 Syncfusion, DevExtreme, Kendo, and Google Charts prepare Date values.
 The other adapters prepare numeric millisecond timestamps. Financial Charts constructs Date values through its x accessor during initialization.
 The benchmark does not convert uPlot data to milliseconds or override its chart configuration.
-Small initialization includes configuration construction, chart construction with two points per series, async library completion, and the initial microtask commit.
+Small initialization includes host setup, configuration construction, chart construction with two points per series, async library completion, and the initial microtask commit.
 Data operations include the native update call, any ingestion work, and adapter readiness.
 The `jsMs` field measures elapsed readiness time for its operation, including async waits. It does not measure exclusive JavaScript CPU time.
-Validation occurs outside both timers.
+Trace `init ms` instead uses total tracked thread work through the end of the initialization window, after settling and graphics completion checks.
+The readiness interval remains available in JSON. Validation occurs outside both timers.
 
 Async completion follows each module's library-specific promise or event.
 Highcharts also waits for Boost hover-point processing. amCharts waits for an idle render loop after `frameended`.
@@ -844,7 +848,7 @@ Workers and other realms remain outside this coverage unless they install their 
 Completion covers only commands before each fence or finish call, not later draws or compositor presentation.
 No observed context is not proof that a library performed no GPU work.
 
-Completion checks occur outside initialization but inside the chart window.
+Completion checks occur after constructor readiness but inside the chart window. Their tracked work contributes to trace `init ms` for initialization.
 Thread-wall totals include blocking finish waits, fence submission/polling, and context-info queries.
 This overhead can change scheduling. Neither these totals nor completion latency measures hardware GPU busy time.
 
@@ -860,10 +864,10 @@ Memory modes record blank-page and loaded-library/raw-data checkpoints before wa
 These checkpoints are single observations, not round aggregates.
 Each memory sample then has this sequence:
 
-1. Create the static host and allow rendering to settle.
+1. Establish session state without a chart host and allow previous rendering to settle.
 2. Force JS GC and record the process-memory baseline.
 3. Prepare the two-point input while process polling runs.
-4. Create the small chart while process polling runs.
+4. Create the chart-specific host and small chart while process polling runs.
 5. Prepare the full input while process polling runs.
 6. Record the prepared snapshot without forced GC.
 7. Update the retained chart with the full input while process polling runs.
@@ -945,7 +949,7 @@ Legacy reports can use unambiguous measured context evidence for known WebGL ser
 The combined table shows minimum measured values for:
 
 - `prep ms`: Preparation of the full dataset.
-- `init ms`: Readiness time for a new chart with two points per series.
+- `init ms`: Total tracked thread work for host setup and two-point chart initialization, including deferred rendering and graphics completion checks.
 - `update ms`: Readiness time for the small-to-full data update.
 - `main ms`: Renderer main-thread work in the update window.
 - `gpu ms`: GPU-process main-thread work in the update window.
@@ -958,8 +962,15 @@ These values describe best observed performance, not typical latency or a guaran
 Columns can come from different rounds.
 `total ms` uses the minimum update-window total, not the sum of component minima.
 It excludes small initialization and preparation. The sorting and color thresholds apply to full-data update work.
-The two readiness columns measure elapsed time. They are not additive components of the host-thread total.
-rAF tables show the same readiness columns and update `next rAF ms`.
+`init ms` uses the same thread-work metric as `total ms`, but for the separate initialization window.
+It includes main-thread layout and paint, raster tasks, compositor work, and GPU-process work that the trace captures.
+Idle gaps in the fixed settling wait do not count as work. Actual harness work within that window still counts.
+`update ms` remains elapsed readiness time, not thread work. The update `gpu ms` column does not describe initialization.
+
+rAF tables use `init rAF ms` for the first callback after initialization readiness, rather than imply a settled thread-work measurement.
+They retain update readiness in `update ms` and update callback latency in `next rAF ms`.
+Neither rAF callbacks nor the settling heuristic prove compositor presentation or completion of every delayed library task.
+Trace totals cover selected host threads, not hardware GPU execution or all worker activity.
 Memory columns cover the complete session, not only the update window.
 `peak MB` uses the minimum per-round peak. Each round's peak remains the maximum sampled observation.
 Trace and rAF timings do not subtract idle timings.

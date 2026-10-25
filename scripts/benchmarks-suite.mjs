@@ -62,8 +62,10 @@ function benchmarkView(report) {
 	const {trace, memory, raf} = report.measurements;
 	const population = report.reports.some(raw => raw.phase === 'chart-population');
 	const lifecycle = population || report.reports.some(raw => raw.phase === 'chart-lifecycle');
-	if ((trace || raf || memory) && lifecycle && new Set(report.reports.map(raw => raw.phase)).size > 1)
-		throw new Error('Cannot combine different benchmark protocols (small-to-full, legacy lifecycle, or startup). Rerun all selected variants.');
+	const settledInit = population && report.reports.some(raw => raw.initProtocol === 'settled-work-v1');
+	const initLabel = settledInit && raf ? 'init rAF ms' : 'init ms';
+	if ((trace || raf || memory) && lifecycle && new Set(report.reports.map(raw => `${raw.phase}:${raw.initProtocol ?? 'readiness'}`)).size > 1)
+		throw new Error('Cannot combine different benchmark protocols or initialization boundaries. Rerun all selected variants.');
 	const warnings = [
 		...(report.timeouts ?? []).map(({error}) => error),
 		...(report.failures ?? []).map(({variant, error}) => `${variant}: ${error}`),
@@ -99,9 +101,10 @@ function benchmarkView(report) {
 		}
 		if (lifecycle && (trace || raf)) {
 			const analysis = trace ? raw.analysis : raw.rafAnalysis;
-			for (const [label, operation] of population ? [['init ms', 'small-init']] : [['init ms', 'empty-init'], ['first ms', 'first-data']]) {
+			for (const [label, operation] of population ? [[initLabel, 'small-init']] : [['init ms', 'empty-init'], ['first ms', 'first-data']]) {
 				const metrics = analysis?.phaseGroups?.find(group => group.variant === variant && group.dpr === dpr && group.operation === operation)?.metrics;
-				metric(label, metrics?.[trace ? 'jsIntervalMs' : 'jsMs']);
+				const key = settledInit ? (trace ? 'totalTrackedThreadWorkMs' : 'raf1Ms') : (trace ? 'jsIntervalMs' : 'jsMs');
+				metric(label, metrics?.[key]);
 			}
 		}
 		if (memory) {
@@ -115,7 +118,7 @@ function benchmarkView(report) {
 	});
 
 	const columns = [
-		...(trace || raf ? ['prep ms', 'init ms', ...(population ? ['update ms'] : lifecycle ? ['first ms', 'update ms'] : [])] : []),
+		...(trace || raf ? ['prep ms', initLabel, ...(population ? ['update ms'] : lifecycle ? ['first ms', 'update ms'] : [])] : []),
 		...(trace ? ['main ms', 'gpu ms', 'total ms'] : []),
 		...(raf ? ['next rAF ms'] : []),
 		...(memory ? ['peak MB', 'retained MB'] : []),
@@ -288,7 +291,7 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 			tracing: measurements.trace, gpuSpecificMemory: false, sampleTimeoutMs: SAMPLE_TIMEOUT_MS,
 			blankAndLoaded: 'One cold checkpoint each per browser, not a round aggregate.',
 			lifecycle: 'Three warmup sessions and seven measured sessions. Each session creates a new chart with two points per series, then updates once with the full dataset.',
-			timingColumns: 'init/update are elapsed readiness for two-point construction and small-to-full population. main/gpu/total and next rAF describe the full-data update only. Prep measures full-data conversion separately.',
+			timingColumns: 'Trace init ms is total tracked thread work for chart-specific host setup and settled two-point initialization. rAF-only init rAF ms is callback latency, not thread work. Update ms is update readiness; main/gpu/total and next rAF describe the full-data update only. Prep is separate.',
 			memoryColumns: 'Peak covers the whole session. Retained follows the full-data update. No forced GC occurs between chart operations.',
 			timeoutScope: 'Five seconds per operation, including preparation and settling. Setup/baseline belongs to the first operation. Final checkpoints and destruction have a separate five-second budget.',
 			aggregation: 'Each table metric uses its minimum finite measured value after warmups. Columns can come from different rounds; total work uses the minimum per-sample total, not a sum of column minima.',

@@ -80,14 +80,17 @@ LightningChart requires LIGHTNINGCHART_LICENSE. SCICHART_LICENSE optionally supp
 LIGHTNINGCHART_LICENSE_INFORMATION can supply vendor-required metadata as JSON.
 DPR defaults to 1. --dpr selects one browser and canvas DPR.
 
-Library loading, raw JSON parsing, and fixture setup occur outside chart timing.
+Library loading, raw JSON parsing, and the shared page shell occur outside chart timing. Chart-specific DOM setup is inside init.
 Data preparation is timed separately for both operations. Small and full inputs have distinct references, lengths, and contents.
-prep ms measures full-data preparation. init ms measures two-point chart readiness. update ms measures small-to-full update readiness.
+prep ms measures full-data preparation. Trace init ms measures full-window initialization thread work, including deferred layout and paint.
+Idle gaps in the settling wait do not count as work. Constructor readiness remains in JSON.
+rAF-only reports init rAF ms instead: first callback latency, not settled work or proof of presentation.
+update ms measures small-to-full update readiness.
 main, gpu, total and next rAF describe the full-data update, not startup. Phase details remain in JSON.
 The update includes full-size allocation costs; it is not a steady-state full-to-full replacement measurement.
 HTML demos still construct directly with the full dataset.
 Trace chart windows include settling and deferred rendering, but exclude prep, forced GC, and teardown.
-After settling, trace/memory runs check WebGL2 fences or call WebGL1 finish, outside init but inside the chart window.
+After settling, trace/memory runs check WebGL2 fences or call WebGL1 finish. This tracked work counts toward trace init ms.
 ChartGPU also checks its actual WebGPU device queues after settling. Its initial queue wait remains inside init in every mode.
 GPU thread work is host-thread wall time, not hardware GPU execution time. Completion checks add overhead.
 Trace and rAF timings are not idle-subtracted; idle subtraction applies only to memory.

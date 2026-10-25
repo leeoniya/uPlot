@@ -343,6 +343,7 @@ function validateChart({variant, chart, host, input, operation}) {
 }
 
 function teardown({variant, chart, host}) {
+	if (!host) return;
 	try {
 		if (sources[variant]?.destroyChart) {
 			if (chart) {
@@ -469,7 +470,7 @@ globalThis.benchmarkLifecycle = {
 			throw new Error(`Expected sample-${sampleIndex}, got ${id}`);
 		checkPage();
 		sampleIndex++;
-		state = {id, variant, host: setup(variant), input: null, chart: null, phase: 'setup', operationIndex: -1};
+		state = {id, variant, host: null, input: null, chart: null, phase: 'setup', operationIndex: -1};
 		lifecycleBusy = true;
 		try {
 			await settle();
@@ -518,6 +519,8 @@ globalThis.benchmarkLifecycle = {
 			const prefix = `benchmark:${state.id}:`;
 			if (rafMode) await nextFrame();
 			const start = performance.mark(prefix + 'start');
+			if (state.operation === 'small-init')
+				state.host = setup(state.variant);
 			await construct(state);
 			const jsEnd = performance.mark(prefix + 'js-end');
 			const rafTimes = {};
@@ -629,6 +632,7 @@ globalThis.runBenchmarkTrace = async function runBenchmarkTrace({raf = false} = 
 function reportMetadata(raf = false) {
 	return {
 		phase: 'chart-population',
+		initProtocol: 'settled-work-v1',
 		lifecycle: {operations: OPERATIONS, initialRows: 2, updateRows: ROWS,
 			data: 'Initialize with the first and last fixture rows, then update once with the original full dataset. Separate prepData calls create the library inputs. No full-fixture copy or synthetic value changes.'},
 		dpr,
@@ -707,7 +711,9 @@ function reportMetadata(raf = false) {
 			unit: 'milliseconds',
 			dataPrepMs: 'performance.now() around prepData(smallPacked) or prepData(packed), before validation and settling. The table uses full-data preparation. Idle measures a no-op.',
 			prepAndInitMs: 'dataPrepMs + jsMs per sample. This sum excludes validation, the settling gap and rAF waits. It is not end-to-end latency.',
-			jsMs: 'Elapsed operation readiness: two-point construction or full-data update, including async completion and microtask commit. Not exclusive JS CPU time.',
+			jsMs: 'Elapsed operation readiness: chart-specific host setup and two-point construction, or full-data update, including async completion and microtask commit. Retained in JSON; not the trace init ms column.',
+			initMs: 'Trace/combined: total tracked thread work in the complete small-init window, including host setup, deferred rendering and graphics completion. Excludes idle gaps, preparation and teardown. Not hardware GPU time or presentation latency.',
+			initRafMs: 'rAF-only: first post-readiness callback latency for small-init. Reported as init rAF ms, not settled thread work or proof of paint completion.',
 			aggregation: 'Use the minimum of seven measured rounds per metric, variant and DPR. Exclude three warmups. Columns can come from different rounds. Take prepAndInitMs minima from per-sample sums.',
 			windowMs: 'Start through js-end, two requestAnimationFrame callbacks, a 200ms timeout, and WebGL/WebGPU completion validation in trace/memory mode.',
 			raf1Ms: 'Start to performance.now() at the first post-init rAF callback entry; rAF mode only. Async adapters can span frames before initialization completes.',
@@ -736,8 +742,8 @@ function reportMetadata(raf = false) {
 			'ECharts 6.1.0 minmax sampling retains every raw row but ends the visible time range three minutes early for this fixture at DPR 1.',
 			'The requested static amCharts logo uses a version-guarded private override. The logo and link remain; branding/license terms need review before publication.',
 			'Data preparation is timed separately, outside chart markers. CDP chart-window totals exclude prep. Output validation is outside both prep and chart timers.',
-			'Library loading, fixture setup and teardown are outside sample markers. All chart options construction, including uPlot options, is inside chart markers.',
-			'D3 static title, legend and canvases, the Chart.js canvas/container, and ECharts, Flot and Dygraphs hosts exist at start; library-created DOM is inside the window.',
+			'Library loading, the shared page shell, preparation and teardown are outside sample markers. Chart-specific host setup and all chart options construction are inside initialization markers.',
+			'D3 title, legend and canvases, the Chart.js canvas/container, other chart hosts and library-created DOM are inside initialization. The full init trace window includes deferred rendering, not only constructor readiness.',
 			'Runtime versions come from loaded library exports, not demo titles. A null version means the runtime does not expose it (such as the date-fns adapter).',
 			'Flot 4.2.6 exposes a stale runtime version of 3.0.0. Use runner.dependencies for the pinned package version.',
 			'Flot retains its timer-delayed overlay hook. JS/DOM and next-rAF spans do not necessarily include that hook; the longer trace window can include it.',

@@ -133,6 +133,33 @@ function offline(report) {
 }
 
 describe('lifecycle timing columns', () => {
+	for (const raf of [false, true]) it(`reports settled init work or explicitly labeled rAF latency (${raf ? 'rAF' : 'trace'})`, () => {
+		const raw = browser('uplot', {trace: !raf, memory: false, raf});
+		raw.phase = 'chart-population';
+		raw.initProtocol = 'settled-work-v1';
+		const analysis = raf ? raw.rafAnalysis : raw.analysis;
+		const stat = min => ({min, max: min + 1, count: 3, missing: 0});
+		analysis.phaseGroups = [{...analysis.groups[0], operation: 'small-init', metrics: {
+			jsIntervalMs: stat(1.7), jsMs: stat(1.7), totalTrackedThreadWorkMs: stat(12), raf1Ms: stat(16), windowMs: stat(220),
+		}}];
+		const row = offline(savedReport([raw], raw.measurements)).tables[0][0];
+		assert.equal(row[raf ? 'init rAF ms' : 'init ms'], raf ? 16 : 12);
+		assert.equal(row['update ms'], raf ? 3 : 2);
+		assert.equal(row[raf ? 'next rAF ms' : 'total ms'], raf ? 16 : 5);
+		assert.ok(!Object.hasOwn(row, raf ? 'init ms' : 'init rAF ms'));
+		assert.equal(Object.keys(row)[5], raf ? 'init rAF ms' : 'init ms');
+		delete analysis.phaseGroups[0].metrics[raf ? 'raf1Ms' : 'totalTrackedThreadWorkMs'];
+		assert.equal(offline(savedReport([raw], raw.measurements)).tables[0][0][raf ? 'init rAF ms' : 'init ms'], 'unavailable');
+	});
+
+	for (const measurements of [combined, {trace: false, memory: false, raf: true}, {trace: false, memory: true, raf: false}])
+		it(`rejects mixed initialization boundaries in ${benchmarkMode(measurements)}`, () => {
+			const old = browser('uplot', measurements), next = browser('chartjs', measurements);
+			old.phase = next.phase = 'chart-population';
+			next.initProtocol = 'settled-work-v1';
+			assert.throws(() => offline(savedReport([old, next], measurements)), /initialization boundaries/);
+		});
+
 	for (const raf of [false, true]) it(`shows small init and full-data update without first ms (${raf ? 'rAF' : 'trace'})`, () => {
 		const raw = browser('uplot', {trace: !raf, memory: false, raf});
 		raw.phase = 'chart-population';

@@ -191,7 +191,7 @@ function browserFixture(options = {}) {
 		console: {time() {}, timeEnd() {}},
 		environment: () => ({actualDPR: 2}),
 		checkPage: () => events.push('checkPage'),
-		setup: () => { events.push('setup'); return {host: true}; },
+		setup: () => { events.push('setup'); clock += options.setupMs ?? 0; return {host: true}; },
 		prepFor: () => {
 			clock += 50; // Selecting prepData must not be timed.
 			return packed => {
@@ -227,7 +227,7 @@ function browserFixture(options = {}) {
 		},
 		teardown: sample => {
 			events.push('teardown');
-			assert.ok(sample.host);
+			if (sample.chart) assert.ok(sample.host);
 			options.teardown?.();
 		},
 	};
@@ -270,6 +270,30 @@ function deckGLFixture(dpr = 2) {
 }
 
 describe('shared browser sample lifecycle', () => {
+	it('includes host DOM setup inside init markers, never preparation or the update', async () => {
+		const fake = browserFixture({variants: ['uplot'], setupMs: 11});
+		assert.equal(fake.api.begin().initProtocol, 'settled-work-v1');
+		await fake.api.setup('uplot', 'sample-0');
+		await fake.api.prepare('small-init');
+		assert.ok(!fake.events.includes('setup'));
+		const init = await fake.api.construct();
+		assert.equal(init.jsMs, 18);
+		assert.equal(init.windowMs, 118);
+		assert.equal(init.dataPrepMs, 3);
+		assert.ok(fake.events.indexOf('setup') > fake.events.indexOf('benchmark:sample-0:start'));
+		assert.ok(fake.events.indexOf('setup') < fake.events.indexOf('construct'));
+		await fake.api.prepare('data-update', 'sample-1');
+		assert.equal((await fake.api.construct()).jsMs, 7);
+		assert.equal(fake.events.filter(event => event === 'setup').length, 1);
+		await fake.api.destroy();
+	});
+
+	it('can tear down a session that failed before chart-specific host creation', () => {
+		const source = browserSource.slice(browserSource.indexOf('function teardown('), browserSource.indexOf('function environment('));
+		const teardown = runInNewContext(source + '\nteardown;', {});
+		assert.doesNotThrow(() => teardown({variant: 'uplot', host: null, chart: null}));
+	});
+
 	it('prepares the original full fixture once per session after a separate small input', async () => {
 		const inputs = [], charts = [];
 		const fake = browserFixture({variants: ['uplot'],
@@ -817,8 +841,8 @@ describe('shared browser sample lifecycle', () => {
 			'benchmark:capture:browser-capture', 'benchmark:sample-0:start', 'benchmark:sample-0:js-end', 'benchmark:sample-0:end',
 		]);
 		const start = fake.events.indexOf('benchmark:sample-0:start');
-		assert.deepEqual(fake.events.slice(start, start + 7), [
-			'benchmark:sample-0:start', 'construct', 'microtask', 'benchmark:sample-0:js-end',
+		assert.deepEqual(fake.events.slice(start, start + 8), [
+			'benchmark:sample-0:start', 'setup', 'construct', 'microtask', 'benchmark:sample-0:js-end',
 			'settle', 'benchmark:sample-0:end', 'checkPage',
 		]);
 		assert.equal(await fake.api.destroy(), undefined);
@@ -876,7 +900,7 @@ describe('shared browser sample lifecycle', () => {
 		assert.deepEqual(structuredClone(sample), {...timing('scichart', 'sample-0', 2), operation: 'small-init', windowMs: 124, webgl});
 		assert.deepEqual(fake.events.slice(fake.events.indexOf('webgl:begin')), [
 			'webgl:begin', 'prepData', 'validateInput', 'settle', 'checkPage', 'checkPage',
-			'benchmark:sample-0:start', 'construct', 'microtask', 'benchmark:sample-0:js-end',
+			'benchmark:sample-0:start', 'setup', 'construct', 'microtask', 'benchmark:sample-0:js-end',
 			'getWebGLContexts', 'webgl:track', 'webgl:track', 'settle',
 			'webgl:complete', 'webgl:completed', 'benchmark:sample-0:end', 'checkPage', 'validateChart',
 		]);

@@ -23,6 +23,30 @@ function fixture(phase = 'chart-population', warmup = false) {
 }
 
 describe('benchmark population phases', () => {
+	it('includes post-readiness layout, paint, raster and compositor work without counting idle gaps', () => {
+		const {report, events} = fixture();
+		events.push({ph: 'M', name: 'process_name', pid: 2, args: {name: 'GPU Process'}});
+		for (const [pid, tid, name] of [[1, 2, 'CompositorTileWorker1'], [1, 3, 'Compositor'], [2, 1, 'CrGpuMain'], [2, 2, 'VizCompositorThread']])
+			events.push({ph: 'M', name: 'thread_name', pid, tid, args: {name}});
+		for (const [pid, tid, name, ts, dur] of [
+			[1, 1, 'RunTask', 2000, 3000], [1, 1, 'Layout', 2200, 1000], [1, 1, 'Paint', 3500, 1000],
+			[1, 2, 'RasterTask', 5000, 1000], [1, 3, 'RunTask', 6500, 500],
+			[2, 1, 'RunTask', 6000, 2000], [2, 2, 'RunTask', 8500, 500],
+			// Outside initialization and before the update: no attribution to either phase.
+			[1, 1, 'RunTask', 11000, 5000],
+		]) events.push({ph: 'X', pid, tid, name, ts, dur});
+		const analysis = analyzeBenchmarkTrace(events, report);
+		const init = analysis.phaseGroups.find(group => group.operation === 'small-init').metrics;
+		assert.equal(init.jsIntervalMs.min, 1);
+		assert.equal(init.rendererMainTaskMs.min, 4);
+		assert.equal(init.styleLayoutPaintMs.min, 2);
+		assert.equal(init.rasterWorkerMs.min, 1);
+		assert.equal(init.gpuMainTaskMs.min, 2);
+		assert.equal(init.totalTrackedThreadWorkMs.min, 8);
+		assert.equal(init.traceWindowMs.min, 10);
+		assert.equal(analysis.groups[0].metrics.totalTrackedThreadWorkMs.min, 2);
+	});
+
 	it('attributes two windows independently and keeps totals on the full-data update', () => {
 		const {report, events} = fixture();
 		const trace = analyzeBenchmarkTrace(events, report);
