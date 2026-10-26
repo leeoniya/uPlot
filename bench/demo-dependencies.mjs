@@ -194,12 +194,52 @@ export const benchmarkRestrictions = {
 };
 
 
-// Keep execution order separate from the table, which sorts by measured total.
+// Ascending update time from the reference run, without library grouping, to run fast variants before sustained heavy workloads.
+// This fixed execution order is independent of the table's grouping and newly measured timings.
 export const benchmarkVariants = [
-	'uplot', 'chartjs', 'apexcharts', 'apexcharts-sampled', 'echarts', 'd3', 'd3-minmax', 'd3-svg', 'd3-svg-minmax', 'flot', 'd3fc', 'd3fc-canvas', 'deckgl', 'financialcharts',
-	'agcharts', 'dygraphs', 'anychart', 'anychart-sampled', 'visx', 'bokeh', 'bokeh-canvas', 'canvasjs', 'plotly', 'plotly-svg', 'lightweight',
-	'muicharts', 'fusiontime', 'fusiontime-sampled', 'devextreme', 'devextreme-sampled', 'vega', 'highcharts', 'highcharts-svg', 'scichart', 'billboard',
-	'g2', 'syncfusion', 'zingchart', 'amcharts', 'amcharts-sampled', 'recharts', 'kendo', 'chartgpu',
+	'uplot',
+	'd3-minmax',
+	'scichart',
+	'chartjs',
+	'echarts',
+	'd3-svg-minmax',
+	'd3',
+	'apexcharts-sampled',
+	'd3fc',
+	'chartgpu',
+	'flot',
+	'apexcharts',
+	'financialcharts',
+	'deckgl',
+	'agcharts',
+	'd3fc-canvas',
+	'bokeh',
+	'bokeh-canvas',
+	'visx',
+	'dygraphs',
+	'd3-svg',
+	'anychart-sampled',
+	'plotly',
+	'canvasjs',
+	'fusiontime-sampled',
+	'plotly-svg',
+	'devextreme-sampled',
+	'highcharts',
+	'muicharts',
+	'vega',
+	'lightweight',
+	'billboard',
+	'g2',
+	'recharts',
+	'zingchart',
+	'anychart',
+	'highcharts-svg',
+	'syncfusion',
+	'amcharts-sampled',
+	'amcharts',
+	'kendo',
+	'fusiontime',
+	'devextreme',
 ];
 
 // Primary series renderer, not axes or support probes. Null contexts require runtime evidence.

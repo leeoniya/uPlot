@@ -121,6 +121,9 @@ function harness(options = {}) {
 	};
 }
 
+const groupedVariants = ids => [...new Set(ids.map(benchmarkLibraryName))]
+	.flatMap(library => ids.filter(id => benchmarkLibraryName(id) === library));
+
 const renderedRow = row => Object.fromEntries(Object.entries(row).map(([key, value]) =>
 	[key, key === 'variant' ? benchmarkLibraryName(value) : Number.isFinite(value) ? Number(value.toFixed(1)) : value]));
 
@@ -281,6 +284,29 @@ describe('lifecycle timing columns', () => {
 	});
 });
 
+describe('benchmark execution order', () => {
+	it('runs idle first, then variants by ascending reference update time without library grouping', async () => {
+		const updateMs = {
+			uplot: 9.4, 'd3-minmax': 15.4, 'd3-svg-minmax': 26.6, d3: 26.6, 'd3-svg': 170.3,
+			scichart: 17.4, chartjs: 19.9, echarts: 23.6, 'apexcharts-sampled': 32.6, apexcharts: 61.2,
+			d3fc: 38.4, 'd3fc-canvas': 80.2, chartgpu: 41.6, flot: 42.3, financialcharts: 65.4,
+			deckgl: 73.1, agcharts: 74.5, bokeh: 100.3, 'bokeh-canvas': 106.7, visx: 126.3,
+			dygraphs: 160.4, 'anychart-sampled': 172.6, anychart: 1122.7, plotly: 198.8, 'plotly-svg': 306.1,
+			canvasjs: 261.0, 'fusiontime-sampled': 300.2, fusiontime: 4760.2,
+			'devextreme-sampled': 309.6, devextreme: 6429.1, highcharts: 344.7, 'highcharts-svg': 1124.3,
+			muicharts: 398.3, vega: 602.7, lightweight: 605.7, billboard: 845.6, g2: 914.3,
+			recharts: 1057.3, zingchart: 1114.2, syncfusion: 1317.7, 'amcharts-sampled': 1670.0,
+			amcharts: 1952.5, kendo: 4122.9,
+		};
+		const expected = Object.keys(updateMs).sort((a, b) => updateMs[a] - updateMs[b]);
+		assert.deepEqual(benchmarkVariants, expected);
+		const h = harness();
+		const report = await runBenchmarkSuite({trace: true, vulkan: false}, h.dependencies);
+		assert.deepEqual(h.requests.map(request => request.variant), ['idle', ...expected]);
+		assert.deepEqual(report.protocol.variants, ['idle', ...expected]);
+	});
+});
+
 describe('benchmark library grouping', () => {
 	for (const measurements of [combined, {trace: true, memory: false, raf: false},
 		{trace: false, memory: false, raf: true}, {trace: false, memory: true, raf: false}]) {
@@ -363,7 +389,7 @@ describe('benchmark library grouping', () => {
 		});
 	}
 
-	it('makes live memory groups contiguous in execution order, including a failed base before its sampled sibling', async () => {
+	it('keeps live memory library groups contiguous despite interleaved execution and a failed sibling', async () => {
 		const h = harness();
 		const worker = h.dependencies.runWorker;
 		h.dependencies.runWorker = request => {
@@ -375,7 +401,11 @@ describe('benchmark library grouping', () => {
 		};
 		const report = await runBenchmarkSuite({memory: true, vulkan: false}, h.dependencies);
 		const rows = h.frames.at(-1).rows;
-		assert.deepEqual(rows.map(row => row.variant), benchmarkVariants);
+		assert.deepEqual(rows.map(row => row.variant), groupedVariants(benchmarkVariants));
+		assert.deepEqual(rows.filter(row => benchmarkLibraryName(row.variant) === 'd3').map(row => row.variant),
+			['d3-minmax', 'd3-svg-minmax', 'd3', 'd3-svg']);
+		assert.deepEqual(rows.filter(row => benchmarkLibraryName(row.variant) === 'amcharts').map(row => row.variant),
+			['amcharts-sampled', 'amcharts']);
 		assert.deepEqual(h.requests.map(request => request.variant), variants);
 		assert.deepEqual(offline(report).tables[0], rows.map(renderedRow));
 	});
@@ -798,12 +828,9 @@ describe('benchmark suite modes and workers', () => {
 									...Object.fromEntries(labels.map(label => [label, '-']))});
 				assert.equal(existsSync(join(directory, variantReportName(mode, id))), false);
 			}
-			if (measurements.trace || measurements.raf || mode === 'combined') {
-				assert.equal(rows.at(-1).variant, timedOutVariants[1]);
-				assert.equal(rows[rows.findIndex(row => row.variant === timedOut) - 1].variant, 'amcharts');
-			}
-			else
-				assert.deepEqual(rows.map(row => row.variant), variants.slice(1));
+			assert.deepEqual(rows.map(row => row.variant), groupedVariants(variants.slice(1)));
+			for (const id of timedOutVariants)
+				assert.equal(rows[rows.findIndex(row => row.variant === id) - 1].variant, id + '-sampled');
 			assert.deepEqual(offline(report).tables[0], rows.map(renderedRow));
 			assert.deepEqual(saved(mode), report);
 		});
@@ -969,7 +996,7 @@ describe('benchmark suite modes and workers', () => {
 			const frame = h.frames.at(-1);
 			assert.equal(frame.status, `Starting ${request.variant} (${partial.progress.completed.length + 1}/${variants.length})...`);
 			assert.notEqual(frame.final, true);
-			assert.deepEqual(frame.rows.map(row => row.variant), partial.progress.completed.filter(variant => variant !== 'idle'));
+			assert.deepEqual(frame.rows.map(row => row.variant), groupedVariants(partial.progress.completed.filter(variant => variant !== 'idle')));
 			assert.deepEqual(frame.warnings, skippedWarnings);
 			assert.deepEqual(partial.skipped, skipped);
 			if (request.variant === 'idle')
@@ -993,7 +1020,7 @@ describe('benchmark suite modes and workers', () => {
 		assert.equal(result.progress.total, variants.length);
 		assert.deepEqual(result.protocol.variants, variants);
 		assert.deepEqual(result.skipped, skipped);
-		assert.deepEqual(h.tables.map(rows => rows.map(row => row.variant)), variants.slice(1).map((_, i) => variants.slice(1, i + 2)));
+		assert.deepEqual(h.tables.map(rows => rows.map(row => row.variant)), variants.slice(1).map((_, i) => groupedVariants(variants.slice(1, i + 2))));
 		assert.equal(h.events.filter(event => event.startsWith('Starting')).length, variants.length);
 		assert.equal(h.events.filter(event => event.startsWith('Completed')).length, variants.length);
 		assert.equal(h.frames.length, variants.length * 2);
@@ -1032,9 +1059,9 @@ describe('benchmark suite modes and workers', () => {
 			const report = await runBenchmarkSuite({...measurements, vulkan: false}, h.dependencies);
 			const ids = frame => frame.rows.map(row => row.variant);
 			const completed = id => h.frames.find(frame => frame.status.startsWith(`Completed ${id} (`));
-			assert.deepEqual(ids(completed('d3')).slice(0, 4), ['apexcharts-sampled', 'apexcharts', 'chartjs', 'echarts']);
-			assert.deepEqual(ids(completed('d3-svg')).slice(0, 5), ['d3-svg', 'd3-minmax', 'd3', 'apexcharts-sampled', 'apexcharts']);
-			assert.deepEqual(ids(completed('bokeh-canvas')).slice(0, 6), ['bokeh-canvas', 'bokeh', 'd3-svg', 'd3-minmax', 'd3-svg-minmax', 'd3']);
+			assert.deepEqual(ids(completed('d3')).slice(0, 4), ['chartjs', 'echarts', 'uplot', 'd3-minmax']);
+			assert.deepEqual(ids(completed('d3-svg')).slice(0, 6), ['bokeh-canvas', 'bokeh', 'd3-svg', 'd3-minmax', 'd3-svg-minmax', 'd3']);
+			assert.deepEqual(ids(completed('bokeh-canvas')).slice(0, 6), ['bokeh-canvas', 'bokeh', 'apexcharts-sampled', 'apexcharts', 'chartjs', 'flot']);
 			const rows = h.frames.at(-1).rows;
 			assert.deepEqual(rows.slice(0, 14).map(row => row.variant), [
 				'bokeh-canvas', 'bokeh', 'd3-svg', 'd3-minmax', 'd3-svg-minmax', 'd3', 'apexcharts-sampled', 'apexcharts',
@@ -1659,7 +1686,7 @@ describe('worker subprocess cleanup', () => {
 				await assert.rejects(runBenchmarkSuite({vulkan: false}, h.dependencies), {
 					code: event === 'spawn error' ? 'BENCHMARK_WORKER_START_FAILED' : 'BENCHMARK_INTERRUPTED',
 				});
-				assert.deepEqual(started, ['idle', 'uplot', 'chartjs']);
+				assert.deepEqual(started, variants.slice(0, variants.indexOf('chartjs') + 1));
 				assert.equal(saved().complete, false);
 				assert.deepEqual(saved().failures, []);
 			}
