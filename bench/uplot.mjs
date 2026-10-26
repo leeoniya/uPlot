@@ -53,7 +53,7 @@ function prepData(packed) {
 	return data;
 }
 
-function makeChart(data, host, wait) {
+function makeChart(data, host, wait, UPlot = uPlot) {
 	const opts = {
 		title: "Server Events",
 		width: 1920,
@@ -104,7 +104,7 @@ function makeChart(data, host, wait) {
 		],
 	};
 
-	let uplot = new uPlot(opts, data, host);
+	let uplot = new UPlot(opts, data, host);
 
 	Promise.resolve().then(() => {
 		wait.textContent = "Done!";

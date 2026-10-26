@@ -16,10 +16,10 @@ const variants = Object.keys(demoDependencies).filter(id => id !== 'idle');
 const shared = ['/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs', '/bench/demo-runtime.mjs', '/bench/framework-runtime.mjs', '/bench/lifecycle-data.mjs', '/bench/demo.css'];
 
 function remoteDependencies(variants) {
-	const dependencies = variants.flatMap(id => demoDependencies[id].filter(dep => dep.name).map(({name, version, path, type, option, global, url}) => {
+	const dependencies = variants.flatMap(id => demoDependencies[id].filter(dep => dep.name).map(({name, version, path, type, option, global, alias, url}) => {
 		const cacheName = `${name.replace(/^@/, '').replaceAll('/', '-')}-${version}-${path.replaceAll('/', '-')}${type === 'module' ? '-' + id : ''}`;
 		return {name, version, url: url ?? `https://cdn.jsdelivr.net/npm/${name}@${version}/${path}`,
-			route: '/bench/vendor/' + cacheName, cacheName, ...(type ? {type} : {}), ...(option ? {option} : {}), ...(global ? {global} : {})};
+			route: '/bench/vendor/' + cacheName, cacheName, ...(type ? {type} : {}), ...(option ? {option} : {}), ...(global ? {global} : {}), ...(alias ? {alias} : {})};
 	}));
 	return [...new Map(dependencies.map(dep => [dep.cacheName, dep])).values()];
 }
@@ -232,6 +232,65 @@ describe('benchmark demo asset loader', () => {
 		assert.ok(result.files.has('/bench/uplot.mjs'));
 		assert.equal(result.files.has('/bench/d3.mjs'), false);
 	});
+
+	it('uPlot release shares only adapter code, with pinned remote JS/CSS isolated from master assets', () => {
+		assert.deepEqual(demoDependencies['uplot-release'], [
+			{name: 'uplot', version: '1.6.32', path: 'dist/uPlot.iife.min.js', global: 'uPlot', alias: 'uPlotRelease'},
+			{name: 'uplot', version: '1.6.32', path: 'dist/uPlot.min.css', type: 'style'},
+		]);
+		assert.deepEqual(demoModuleDependencies['uplot-release'], ['uplot']);
+		const master = loadBenchDemoSources(root, 'uplot');
+		const release = loadBenchDemoSources(root, 'uplot-release');
+		assert.equal(release.files.get('/bench/uplot.mjs'), master.files.get('/bench/uplot.mjs'));
+		assert.ok(release.files.has('/bench/uplot-release.mjs'));
+		assert.equal(master.files.has('/bench/uplot-release.mjs'), false);
+		assert.deepEqual(release.dependencies, remoteDependencies(['uplot-release']));
+		assert.equal(release.dependencies[0].global, 'uPlot');
+		assert.equal(release.dependencies[0].alias, 'uPlotRelease');
+		assert.deepEqual(release.localScripts, []);
+		assert.deepEqual(release.localStyles, ['/bench/demo.css']);
+		assert.equal([...release.files.keys()].some(route => route.startsWith('/dist/')), false);
+		assert.equal(release.files.has('/bench/d3.mjs'), false);
+		withAssets(assetRoot => checkAssets(loadBenchDemoSources(assetRoot, 'uplot-release'), ['uplot-release'], assetRoot), {dist: false});
+		const all = loadBenchDemoSources(root);
+		assert.deepEqual(all.dependencies.filter(dep => dep.name === 'uplot'), release.dependencies);
+		assert.ok(all.localScripts.includes('/dist/uPlot.iife.min.js'));
+	});
+
+	for (const includeMaster of [false, true]) {
+		it(`captures the release IIFE alias immediately after its script${includeMaster ? ' before a local master script' : ' in an isolated worker'}`, () => {
+			const source = readFileSync(new URL('scripts/benchmarks.mjs', root), 'utf8');
+			const start = source.indexOf('const page =');
+			const end = source.indexOf('const profile =', start);
+			assert.ok(start >= 0 && end > start);
+			const {dependencies, localScripts, localStyles} = loadBenchDemoSources(root, 'uplot-release');
+			// Exercise both IIFEs without loading or bundling any vendor code.
+			if (includeMaster) localScripts.push(...loadBenchDemoSources(root, 'uplot').localScripts);
+			const page = runInNewContext(source.slice(start, end) + '\npage;', {dependencies, localScripts, localStyles});
+			const scripts = [...page.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
+			const index = scripts.findIndex(([, attrs]) => attrs.includes(dependencies[0].route));
+			assert.ok(index >= 0);
+			assert.ok(scripts[index + 1], 'release script must be followed by an alias script');
+			assert.equal(scripts[index + 1][1].trim(), '', 'alias must be a classic inline script');
+			assert.equal(page.slice(scripts[index].index + scripts[index][0].length, scripts[index + 1].index).trim(), '');
+			const uPlotRelease = function Release() {};
+			const uPlot = function Master() {};
+			const context = {uPlot: uPlotRelease};
+			runInNewContext(scripts[index + 1][2], context);
+			assert.equal(context.uPlotRelease, uPlotRelease);
+			assert.equal(context.uPlot, uPlotRelease, 'capturing the alias must not replace the IIFE global');
+			const masterIndex = scripts.findIndex(([, attrs]) => attrs.includes('/dist/uPlot.iife.min.js'));
+			if (includeMaster) {
+				assert.ok(masterIndex > index + 1);
+				context.uPlot = uPlot;
+				assert.equal(context.uPlotRelease, uPlotRelease);
+			}
+			else assert.equal(masterIndex, -1);
+			assert.ok(page.includes(`<link rel="stylesheet" href="${dependencies[1].route}">`));
+			assert.ok(scripts.at(-1)[1].includes('src="/bench.mjs"'));
+			assert.equal(scripts.some(([, attrs]) => attrs.includes(dependencies[1].route)), false);
+		});
+	}
 
 	it('idle loads only shared fixture, manifest, binary/module and framework runtimes, and CSS assets', () => {
 		checkAssets(loadBenchDemoSources(root, 'idle'), []);

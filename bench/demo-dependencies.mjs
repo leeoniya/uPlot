@@ -5,6 +5,10 @@ export const demoDependencies = {
 		{path: '../dist/uPlot.iife.min.js'},
 		{path: '../dist/uPlot.min.css', type: 'style'},
 	],
+	'uplot-release': [
+		{name: 'uplot', version: '1.6.32', path: 'dist/uPlot.iife.min.js', global: 'uPlot', alias: 'uPlotRelease'},
+		{name: 'uplot', version: '1.6.32', path: 'dist/uPlot.min.css', type: 'style'},
+	],
 	d3: [
 		{name: 'd3', version: '7.9.0', path: 'dist/d3.min.js'},
 	],
@@ -142,6 +146,7 @@ for (const id of ['apexcharts', 'amcharts', 'devextreme', 'anychart', 'fusiontim
 
 // Explicit local imports let the CLI serve shared adapters without source parsing.
 export const demoModuleDependencies = {
+	'uplot-release': ['uplot'],
 	recharts: ['lifecycle-frameworks'],
 	muicharts: ['lifecycle-frameworks'],
 	financialcharts: ['lifecycle-frameworks'],
@@ -195,9 +200,10 @@ export const benchmarkRestrictions = {
 
 
 // Ascending update time from the reference run, without library grouping, to run fast variants before sustained heavy workloads.
-// This fixed execution order is independent of the table's grouping and newly measured timings.
+// The pinned uPlot release runs immediately after master. The remaining order is independent of table grouping and new timings.
 export const benchmarkVariants = [
 	'uplot',
+	'uplot-release',
 	'd3-minmax',
 	'scichart',
 	'chartjs',
@@ -246,6 +252,7 @@ export const benchmarkVariants = [
 // "none" means no configured sampling; it does not exclude undocumented vendor optimizations.
 export const benchmarkMetadata = {
 	uplot: {sampling: 'minmax', context: '2d', lossy: false},
+	'uplot-release': {sampling: 'minmax', context: '2d', lossy: false},
 	chartjs: {sampling: 'minmax', context: '2d', lossy: false},
 	apexcharts: {sampling: 'none', context: '2d', lossy: false},
 	'apexcharts-sampled': {sampling: 'LTTB (1920)', context: '2d', lossy: true},

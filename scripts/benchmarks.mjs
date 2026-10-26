@@ -51,6 +51,8 @@ bench:raf measures untraced next-rAF latency, without memory polling or forced G
 There is no JS-heap benchmark or heap-usage sampling.
 
 Defaults: ${benchmarkVariants.join(', ')}, plus an idle control measured first.
+uplot uses the local IIFE build. uplot-release uses pinned uPlot ${demoDependencies['uplot-release'][0].version} IIFE/CSS from jsDelivr and runs immediately after it.
+The release keeps its native behavior, including path caching when cache.paths:false is unsupported.
 LightningChart runs when LIGHTNINGCHART_LICENSE supplies a runtime key.
 JSCharting is demo-only: version 3.4.0 retains destroyed charts across repeated samples.
 ChartGPU runs in the default suite and requires hardware WebGPU.
@@ -215,7 +217,8 @@ files.set('/bench/module-assets.json', JSON.stringify(moduleDependencies
 const page = '<!doctype html><meta charset="utf-8"><style>body{margin:0}</style>' +
 	dependencies.filter(dependency => dependency.type !== 'wasm' && dependency.type !== 'module').map(dependency => dependency.type === 'style'
 		? `<link rel="stylesheet" href="${dependency.route}">`
-		: `<script src="${dependency.route}"></script>`).join('') +
+		: `<script src="${dependency.route}"></script>` + (dependency.alias
+			? `<script>globalThis[${JSON.stringify(dependency.alias)}] = globalThis[${JSON.stringify(dependency.global)}];</script>` : '')).join('') +
 	localScripts.map(route => `<script src="${route}"></script>`).join('') +
 	localStyles.map(route => `<link rel="stylesheet" href="${route}">`).join('') +
 	'<script type="module" src="/bench.mjs"></script>';

@@ -16,7 +16,11 @@ export function loadDependency(dependency) {
 			}
 			else
 				element.src = url;
-			element.onload = () => resolve();
+			element.onload = () => {
+				if (dependency.alias)
+					globalThis[dependency.alias] = globalThis[dependency.global];
+				resolve();
+			};
 			element.onerror = () => reject(new Error(`Failed to load ${url}`));
 			document.head.append(element);
 		}));

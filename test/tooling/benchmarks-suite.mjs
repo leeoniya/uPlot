@@ -285,7 +285,7 @@ describe('lifecycle timing columns', () => {
 });
 
 describe('benchmark execution order', () => {
-	it('runs idle first, then variants by ascending reference update time without library grouping', async () => {
+	it('runs idle, master and release first, then variants by ascending reference update time without library grouping', async () => {
 		const updateMs = {
 			uplot: 9.4, 'd3-minmax': 15.4, 'd3-svg-minmax': 26.6, d3: 26.6, 'd3-svg': 170.3,
 			scichart: 17.4, chartjs: 19.9, echarts: 23.6, 'apexcharts-sampled': 32.6, apexcharts: 61.2,
@@ -299,6 +299,8 @@ describe('benchmark execution order', () => {
 			amcharts: 1952.5, kendo: 4122.9,
 		};
 		const expected = Object.keys(updateMs).sort((a, b) => updateMs[a] - updateMs[b]);
+		// Release has no reference timing yet; its second chart slot is fixed.
+		expected.splice(1, 0, 'uplot-release');
 		assert.deepEqual(benchmarkVariants, expected);
 		const h = harness();
 		const report = await runBenchmarkSuite({trace: true, vulkan: false}, h.dependencies);
@@ -308,6 +310,21 @@ describe('benchmark execution order', () => {
 });
 
 describe('benchmark library grouping', () => {
+	for (const measurements of [combined, {trace: false, memory: true, raf: false}, {trace: false, memory: false, raf: true}]) {
+		it(`keeps master and release labels distinct with identical ${benchmarkMode(measurements)} metadata and timings`, () => {
+			const reports = ['uplot', 'uplot-release'].map(id => browser(id, measurements));
+			assert.deepEqual(reports[0].runner.benchmark, reports[1].runner.benchmark);
+			const input = savedReport(reports, measurements);
+			const original = structuredClone(input);
+			const summary = offline(input);
+			assert.deepEqual(summary.tables[0].map(row => row.variant), ['uplot', 'uplot-release']);
+			assert.deepEqual(summary.tables[0].map(row => [row.sampling, row.context, row.lossy]),
+				[['minmax', '2d', ''], ['minmax', '2d', '']]);
+			assert.deepEqual(summary.result.reports, original.reports);
+			assert.deepEqual(input, original);
+		});
+	}
+
 	for (const measurements of [combined, {trace: true, memory: false, raf: false},
 		{trace: false, memory: false, raf: true}, {trace: false, memory: true, raf: false}]) {
 		for (const protocol of [false, true]) {
@@ -412,12 +429,16 @@ describe('benchmark library grouping', () => {
 });
 
 describe('benchmark metadata snapshots', () => {
-	it('covers all 48 demo IDs and 43 default variants plus idle', () => {
-		assert.equal(Object.keys(benchmarkMetadata).length, 48);
+	it('covers all 49 demo IDs and 44 default variants plus idle', () => {
+		assert.equal(Object.keys(benchmarkMetadata).length, 49);
 		assert.deepEqual(Object.keys(benchmarkMetadata).sort(), Object.keys(demoDependencies).sort());
-		assert.equal(variants.length, 44);
-		assert.equal(new Set(variants).size, 44);
-		assert.equal(new Set(benchmarkVariants.map(benchmarkLibraryName)).size, 31);
+		assert.equal(variants.length, 45);
+		assert.equal(new Set(variants).size, 45);
+		assert.equal(new Set(benchmarkVariants.map(benchmarkLibraryName)).size, 32);
+		assert.deepEqual(Object.keys(demoDependencies).slice(0, 2), ['uplot', 'uplot-release']);
+		assert.equal(benchmarkLibraryName('uplot'), 'uplot');
+		assert.equal(benchmarkLibraryName('uplot-release'), 'uplot-release');
+		assert.deepEqual(benchmarkMetadata['uplot-release'], {sampling: 'minmax', context: '2d', lossy: false});
 		assert.equal(benchmarkLibraryName('deckgl'), 'deckgl');
 		assert.equal(benchmarkLibraryName('d3-minmax'), 'd3');
 		assert.deepEqual(benchmarkMetadata['d3-minmax'], {sampling: 'minmax', context: '2d', lossy: false});
@@ -442,7 +463,7 @@ describe('benchmark metadata snapshots', () => {
 		const unknown = new Set(['lightningchart']);
 		for (const [id, metadata] of Object.entries(benchmarkMetadata))
 			assert.equal(metadata.lossy, unknown.has(id) ? null : lossy.has(id), id);
-		for (const id of ['uplot', 'chartjs', 'echarts'])
+		for (const id of ['uplot', 'uplot-release', 'chartjs', 'echarts'])
 			assert.deepEqual(benchmarkMetadata[id], {sampling: 'minmax', context: '2d', lossy: false});
 		assert.deepEqual(benchmarkMetadata.agcharts, {sampling: 'aggregation', context: '2d', lossy: false});
 		assert.deepEqual(benchmarkMetadata.scichart, {sampling: 'minmax', context: null, lossy: false});
@@ -1012,7 +1033,7 @@ describe('benchmark suite modes and workers', () => {
 		assert.deepEqual(result.progress.completed, variants);
 		assert.deepEqual(result.protocol.variants.slice(-12), variants.slice(-12));
 		assert.deepEqual(result.skipped.map(entry => entry.variant), ['lightningchart', 'g2-webgl', 'googlecharts', 'jscharting']);
-		assert.equal(result.protocol.variants.length, 44, 'idle plus 43 runnable variants');
+		assert.equal(result.protocol.variants.length, 45, 'idle plus 44 runnable variants');
 		assert.deepEqual(result.variantMetadata, Object.fromEntries(variants.map(id => [id, benchmarkMetadata[id]])));
 		assert.deepEqual(saved().variantMetadata, result.variantMetadata);
 				assert.equal(h.requests.filter(request => request.variant === 'chartgpu').length, 1);
@@ -1059,13 +1080,13 @@ describe('benchmark suite modes and workers', () => {
 			const report = await runBenchmarkSuite({...measurements, vulkan: false}, h.dependencies);
 			const ids = frame => frame.rows.map(row => row.variant);
 			const completed = id => h.frames.find(frame => frame.status.startsWith(`Completed ${id} (`));
-			assert.deepEqual(ids(completed('d3')).slice(0, 4), ['chartjs', 'echarts', 'uplot', 'd3-minmax']);
+			assert.deepEqual(ids(completed('d3')).slice(0, 5), ['chartjs', 'echarts', 'uplot', 'uplot-release', 'd3-minmax']);
 			assert.deepEqual(ids(completed('d3-svg')).slice(0, 6), ['bokeh-canvas', 'bokeh', 'd3-svg', 'd3-minmax', 'd3-svg-minmax', 'd3']);
 			assert.deepEqual(ids(completed('bokeh-canvas')).slice(0, 6), ['bokeh-canvas', 'bokeh', 'apexcharts-sampled', 'apexcharts', 'chartjs', 'flot']);
 			const rows = h.frames.at(-1).rows;
-			assert.deepEqual(rows.slice(0, 14).map(row => row.variant), [
+			assert.deepEqual(rows.slice(0, 15).map(row => row.variant), [
 				'bokeh-canvas', 'bokeh', 'd3-svg', 'd3-minmax', 'd3-svg-minmax', 'd3', 'apexcharts-sampled', 'apexcharts',
-				'chartjs', 'flot', 'amcharts-sampled', 'amcharts', 'echarts', 'uplot',
+				'chartjs', 'flot', 'amcharts-sampled', 'amcharts', 'echarts', 'uplot', 'uplot-release',
 			]);
 			assert.equal(rows.at(-1).variant, 'dygraphs');
 			assert.equal(rows[rows.findIndex(row => row.variant === 'plotly') + 1].variant, 'plotly-svg');

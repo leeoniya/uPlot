@@ -452,7 +452,7 @@ describe('shared browser sample lifecycle', () => {
 
 	it('validates rendered adapter charts and delegates teardown while always removing their hosts', () => {
 		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function environment('));
-		const oldVariants = ['uplot', 'd3', 'chartjs', 'echarts', 'flot', 'dygraphs', 'chartgpu', 'deckgl'];
+		const oldVariants = ['uplot', 'uplot-release', 'd3', 'chartjs', 'echarts', 'flot', 'dygraphs', 'chartgpu', 'deckgl'];
 		for (const variant of demoVariants.filter(id => !oldVariants.includes(id))) {
 			for (const fail of [false, true]) {
 				const chart = variant === 'plotly-svg' ? {data: Array.from({length: 3}, () => ({type: 'scatter'}))}
@@ -813,16 +813,86 @@ describe('shared browser sample lifecycle', () => {
 		assert.throws(() => validate({variant: 'uplot', chart}), /retained paths despite cache.paths:false/);
 	});
 
-	it('uses the preloaded uPlot IIFE and fails rather than importing source modules', () => {
+	it('uses the selected preloaded uPlot IIFE and fails rather than importing source modules', () => {
 		const startup = browserSource.slice(0, browserSource.indexOf('const WIDTH')) + '\nuPlot;';
-		const uPlot = function() {};
-		const context = {URL, location: {href: 'http://localhost/?variant=uplot'}, uPlot};
-		assert.equal(runInNewContext(startup, context), uPlot);
-		assert.throws(() => runInNewContext(startup, {...context, uPlot: undefined}), /Expected \/dist\/uPlot\.iife\.min\.js/);
+		const uPlot = function Master() {}, uPlotRelease = function Release() {};
+		for (const variant of ['uplot', 'uplot-release']) {
+			const key = variant === 'uplot' ? 'uPlot' : 'uPlotRelease';
+			const other = variant === 'uplot' ? 'uPlotRelease' : 'uPlot';
+			const context = {URL, location: {href: `http://localhost/?variant=${variant}`}, uPlot, uPlotRelease};
+			assert.equal(runInNewContext(startup, context), context[key]);
+			assert.equal(runInNewContext(startup, {...context, [other]: undefined}), context[key]);
+			assert.throws(() => runInNewContext(startup, {...context, [key]: undefined}), /Expected .*uPlot/);
+		}
+		assert.equal(runInNewContext(startup, {URL, location: {href: 'http://localhost/'}, uPlot, uPlotRelease}), uPlot);
 		assert.equal(runInNewContext(startup, {URL, location: {href: 'http://localhost/?variant=idle'}}), null);
 		assert.doesNotMatch(browserSource, /\/src\//);
 		assert.match(browserSource, /import\('\/bench\/demo-fixture.mjs'\)/);
 	});
+
+	it('validates all four release input columns for both small initialization and full updates', () => {
+		const source = browserSource.slice(browserSource.indexOf('function validateInput('), browserSource.indexOf('function construct('));
+		const validate = runInNewContext(source + '\nvalidateInput;');
+		for (const [operation, rows] of [['small-init', 2], ['data-update', 55550]]) {
+			const input = Array.from({length: 4}, (_, column) => Array.from({length: rows}, (_, i) => i + column));
+			const sample = {variant: 'uplot-release', operation, input};
+			assert.doesNotThrow(() => validate(sample));
+			assert.throws(() => validate({...sample, input: input.slice(0, 3)}), /finite rows/);
+			for (const column of input) {
+				const last = column.pop();
+				assert.throws(() => validate(sample), /finite rows/);
+				column.push(NaN);
+				assert.throws(() => validate(sample), /finite rows/);
+				column[column.length - 1] = last;
+			}
+			assert.doesNotThrow(() => validate(sample));
+		}
+	});
+
+	it('accepts native release paths and uses instance DPR before the selected constructor fallback', () => {
+		const startup = browserSource.slice(0, browserSource.indexOf('const WIDTH'));
+		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
+		const uPlot = Object.assign(function Master() {}, {pxRatio: 9});
+		const uPlotRelease = Object.assign(function Release() {}, {pxRatio: 2});
+		const validate = runInNewContext(startup + source + '\nvalidateChart;', {
+			URL, location: {href: 'http://localhost/?variant=uplot-release'}, uPlot, uPlotRelease, dpr: 2, sources: {},
+		});
+		const paths = {}, pointPaths = {};
+		const chart = {series: [{}, {_paths: paths, points: {_paths: pointPaths}}]};
+		const sample = {variant: 'uplot-release', chart};
+		assert.equal(validate(sample), 2);
+		chart.pxRatio = null;
+		assert.equal(validate(sample), 2);
+		uPlotRelease.pxRatio = 9;
+		chart.pxRatio = 2;
+		assert.equal(validate(sample), 2);
+		for (const pxRatio of [0, 1, undefined, null]) {
+			chart.pxRatio = pxRatio;
+			assert.throws(() => validate(sample), /rendered at DPR .*expected 2/);
+		}
+		assert.equal(chart.series[1]._paths, paths);
+		assert.equal(chart.series[1].points._paths, pointPaths);
+	});
+
+	for (const variant of ['uplot', 'uplot-release']) {
+		it(`destroys ${variant} and removes its host even after destruction failures or retained roots`, () => {
+			const source = browserSource.slice(browserSource.indexOf('function teardown('), browserSource.indexOf('function environment('));
+			const teardown = runInNewContext(source + '\nteardown;', {sources: {}});
+			for (const failure of [null, 'root', 'throw']) {
+				const events = [], error = new Error('destroy failed');
+				const root = {isConnected: true};
+				const chart = {root, destroy() {
+					events.push('destroy');
+					if (failure === 'throw') throw error;
+					if (failure !== 'root') root.isConnected = false;
+				}};
+				const host = {replaceChildren() { events.push('clear'); }, remove() { events.push('remove'); }};
+				if (failure) assert.throws(() => teardown({variant, chart, host}), failure === 'throw' ? error : /root survived destruction/);
+				else assert.doesNotThrow(() => teardown({variant, chart, host}));
+				assert.deepEqual(events, ['destroy', 'clear', 'remove']);
+			}
+		});
+	}
 
 	it('returns only metadata and numeric timing fields, with validation outside timers', async () => {
 		const fake = browserFixture();

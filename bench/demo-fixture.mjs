@@ -52,7 +52,7 @@ export function setupDemo(variant, parent) {
 	}
 	else if (variant === 'dygraphs')
 		host.id = 'graphdiv';
-	else if (variant !== 'uplot' && variant !== 'idle') {
+	else if (variant !== 'uplot' && variant !== 'uplot-release' && variant !== 'idle') {
 		host.id = `benchmark-${variant}`;
 		host.style.width = '1920px';
 		host.style.height = '600px';

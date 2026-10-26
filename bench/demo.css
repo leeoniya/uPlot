@@ -1,4 +1,5 @@
 body.bench-demo.uplot,
+body.bench-demo.uplot-release,
 body.bench-demo.d3,
 body.bench-demo.d3-minmax,
 body.bench-demo.d3-svg,
@@ -6,7 +7,7 @@ body.bench-demo.d3-svg-minmax {
 	margin: 0;
 }
 
-.bench-demo.uplot .u-legend.u-inline .u-value {
+.bench-demo:is(.uplot, .uplot-release) .u-legend.u-inline .u-value {
 	width: 150px;
 	text-align: left;
 }

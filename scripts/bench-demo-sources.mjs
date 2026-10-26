@@ -33,12 +33,12 @@ export function loadBenchDemoSources(root, variant = null) {
 				read(`/bench/${module}.mjs`);
 		}
 		for (const dependency of demoDependencies[id]) {
-			const {name, version, path, type, option, global} = dependency;
+			const {name, version, path, type, option, global, alias} = dependency;
 			if (name) {
 				const cacheName = `${name.replace(/^@/, '').replaceAll('/', '-')}-${version}-${path.replaceAll('/', '-')}${type === 'module' ? '-' + id : ''}`;
 				if (!dependencies.some(existing => existing.cacheName === cacheName))
 					dependencies.push({name, version, url: dependencyUrl(dependency),
-						route: '/bench/vendor/' + cacheName, cacheName, ...(type ? {type} : {}), ...(option ? {option} : {}), ...(global ? {global} : {})});
+						route: '/bench/vendor/' + cacheName, cacheName, ...(type ? {type} : {}), ...(option ? {option} : {}), ...(global ? {global} : {}), ...(alias ? {alias} : {})});
 			}
 			else {
 				const route = new URL(path, 'http://localhost/bench/').pathname;

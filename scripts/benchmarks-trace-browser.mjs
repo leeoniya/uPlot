@@ -6,9 +6,10 @@
 // process memory and optionally forces GC at baseline, live, and cleanup checkpoints.
 // runBenchmarkTrace({raf:true}) is a mutually exclusive, browser-driven path.
 const selectedVariant = new URL(location.href).searchParams.get('variant');
-const uPlot = !selectedVariant || selectedVariant === 'uplot' ? globalThis.uPlot : null;
-if ((!selectedVariant || selectedVariant === 'uplot') && typeof uPlot !== 'function')
-	throw new Error('Expected /dist/uPlot.iife.min.js to load before the benchmark fixture.');
+const uPlot = selectedVariant === 'uplot-release' ? globalThis.uPlotRelease
+	: !selectedVariant || selectedVariant === 'uplot' ? globalThis.uPlot : null;
+if ((!selectedVariant || selectedVariant === 'uplot' || selectedVariant === 'uplot-release') && typeof uPlot !== 'function')
+	throw new Error('Expected the selected uPlot IIFE to load before the benchmark fixture.');
 
 const WIDTH = 1920;
 const HEIGHT = 600;
@@ -147,7 +148,7 @@ function prepFor(variant) {
 
 function validateInput({variant, input, operation}) {
 	const ROWS = operation === 'small-init' ? 2 : 55550;
-	if (variant === 'uplot' || variant === 'd3' || variant === 'd3-minmax' || variant === 'd3-svg' || variant === 'd3-svg-minmax' || variant === 'plotly' || variant === 'plotly-svg') {
+	if (variant === 'uplot' || variant === 'uplot-release' || variant === 'd3' || variant === 'd3-minmax' || variant === 'd3-svg' || variant === 'd3-svg-minmax' || variant === 'plotly' || variant === 'plotly-svg') {
 		if (input.length !== 4 || !input.every(values => values.length === ROWS && values.every(Number.isFinite)))
 			throw new Error(`Expected ${ROWS.toLocaleString("en-US")} finite rows with x values and three y series.`);
 	}
@@ -332,6 +333,7 @@ function validateChart({variant, chart, host, input, operation}) {
 		}
 	}
 	const effectiveDpr = variant === 'uplot' ? chart.pxRatio
+		: variant === 'uplot-release' ? chart.pxRatio ?? globalThis.uPlotRelease.pxRatio
 		: variant === 'chartjs' ? chart.currentDevicePixelRatio
 		: variant === 'echarts' ? chart.getDevicePixelRatio()
 		: variant === 'flot' ? chart.getSurface().pixelRatio : dpr;
@@ -393,7 +395,7 @@ function teardown({variant, chart, host}) {
 		}
 		else if (variant === 'd3')
 			chart?.destroy();
-		else if (variant === 'uplot') {
+		else if (variant === 'uplot' || variant === 'uplot-release') {
 			chart?.destroy();
 			if (chart?.root.isConnected)
 				throw new Error('uPlot root survived destruction.');
