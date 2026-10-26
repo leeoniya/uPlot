@@ -10,7 +10,7 @@ import { parseArgs } from 'node:util';
 import { summarizeBenchmarkRaf } from '../../scripts/analyze-benchmarks-raf.mjs';
 import { summarizeBenchmarkTraceSamples } from '../../scripts/analyze-benchmarks-trace.mjs';
 import { TRACE_ACCOUNTING, LEGACY_TRACE_ACCOUNTING } from '../../scripts/bench-trace-policy.mjs';
-import { benchmarkMode, resolveBenchmarkVulkan, variantReportName, suiteReportName, runBenchmarkSuite, summarizeSavedBenchmarks } from '../../scripts/benchmarks-suite.mjs';
+import { benchmarkMode, resolveBenchmarkVulkan, variantReportName, suiteReportName, benchmarkVariantMetadata, runBenchmarkSuite, summarizeSavedBenchmarks } from '../../scripts/benchmarks-suite.mjs';
 import { demoDependencies, benchmarkMetadata, benchmarkVariants, benchmarkLibraryName, demoRestrictions, benchmarkRestrictions } from '../../bench/demo-dependencies.mjs';
 
 const variants = ['idle', ...benchmarkVariants];
@@ -1009,7 +1009,7 @@ describe('benchmark metadata snapshots', () => {
 		for (const variant of Object.keys(benchmarkMetadata)) {
 			const report = {};
 			await runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
-				report, benchmarkMetadata, values: {variant}, cpus: () => [], platform: () => 'linux', release: () => 'test',
+				report, benchmarkVariantMetadata, values: {variant}, cpus: () => [], platform: () => 'linux', release: () => 'test',
 				process: {version: 'test'}, binary: 'test', browserVersion: 'test', browserArgs: [], dpr: 1,
 				dependencies: [], vulkan: false, files: new Map(), browserLog: '',
 				measurements: {}, mode: 'raf', cache: directory, join, variantReportName, writeFileSync,

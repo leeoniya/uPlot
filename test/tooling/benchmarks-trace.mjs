@@ -3,6 +3,9 @@ import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
+import { runInNewContext } from 'node:vm';
+import { dashboardWorkload } from '../../scripts/benchmarks-phases.mjs';
+import { summarizeProcessMemory } from '../../scripts/analyze-benchmarks-process-memory.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { SAMPLE_TIMEOUT_MS } from '../../scripts/bench-sample-timeout.mjs';
 import { analyzeBenchmarkTrace, analyzeBenchmarkTraceFile } from '../../scripts/analyze-benchmarks-trace.mjs';
@@ -673,6 +676,32 @@ async function withCaptureSocket(onEvaluate, test) {
 }
 
 describe('benchmark trace sample timeout integration', () => {
+	for (const dashboard of [false, true]) {
+		it(`uses the matching viewport for dashboard=${dashboard}`, async () => {
+			await withCaptureSocket((socket, id, expression) => {
+				if (expression !== 'globalThis.runBenchmarkTrace({raf: true})') return false;
+				socket.message({id, result: {result: {value: {samples: []}}}});
+				return true;
+			}, async ({capture, calls}) => {
+				await capture({dashboard, trace: false, raf: true, dpr: 2});
+				assert.deepEqual(calls.find(call => call.method === 'Emulation.setDeviceMetricsOverride').params,
+					{width: 1920, height: dashboard ? 1080 : 900, deviceScaleFactor: 2, mobile: false});
+			});
+		});
+	}
+
+	it('preserves dashboard identity and lifecycle in the captured process-memory analysis', async () => {
+		const source = await readFile(new URL('../../scripts/benchmarks-trace.mjs', import.meta.url), 'utf8');
+		const start = source.indexOf('report.processAnalysis = summarizeProcessMemory(');
+		const end = source.indexOf('\n\t\t\tfor (const key', start);
+		assert.ok(start >= 0 && end > start);
+		const report = {workload: {...dashboardWorkload}, phase: 'chart-population', initProtocol: 'settled-work-v1',
+			lifecycle: {operations: ['small-init', 'data-update']}, memoryProtocol: 'through-update-v1', samples: []};
+		runInNewContext(source.slice(start, end), {report, blank: undefined, loaded: undefined, summarizeProcessMemory});
+		assert.deepEqual(report.processAnalysis.workload, dashboardWorkload);
+		assert.match(report.processAnalysis.definitions.live, /all dashboard charts/);
+	});
+
 	for (const phase of ['prepare', 'construct']) {
 		it(`closes both clients without cleanup or output when ${phase} stays silent`, async () => {
 			await withCaptureSocket((socket, id, expression) => expression === `benchmarkLifecycle.${phase}()`, async ({dir, calls, sockets, capture}) => {

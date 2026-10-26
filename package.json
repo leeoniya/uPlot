@@ -10,6 +10,7 @@
     "build": "rolldown -c",
     "bench:legend": "node --max-old-space-size=96 ./scripts/bench-legend.mjs",
     "bench": "node --max-old-space-size=512 ./scripts/benchmarks.mjs --gpu",
+        "bench:dash": "node --max-old-space-size=512 ./scripts/benchmarks.mjs --dashboard --gpu",
         "bench:trace": "node --max-old-space-size=512 ./scripts/benchmarks.mjs --trace --gpu",
     "bench:raf": "node --max-old-space-size=512 ./scripts/benchmarks.mjs --browser chrome --raf --gpu",
     "bench:memory": "node --max-old-space-size=512 ./scripts/benchmarks.mjs --browser chrome --memory --gpu",

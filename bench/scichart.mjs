@@ -33,7 +33,7 @@ function wasmAssetUrl(options, urlKey, binaryKey) {
 
 // Public in 6.0.14: SciChartSurfaceBase.getLicenseContext() returns TLicenseContext.
 // Match the vendor's accepted native states, not hasInvalidState or a rendered overlay.
-function licenseReady(chart) {
+export function licenseReady(chart) {
 	const {SCRTCredentials, SCRTLicenseType} = chart.getLicenseContext();
 	const type = SCRTCredentials.GetLicenseType();
 	if (type != null && [
@@ -68,7 +68,7 @@ export function prepData(packed) {
 	return {x, cpu, ram, tcp};
 }
 
-export async function makeChart(data, host, wait) {
+export function configureRuntime() {
 	if (!globalThis.SciChart)
 		throw new Error('Load scichart 6.0.14 index.min.js before makeChart().');
 
@@ -80,23 +80,26 @@ export async function makeChart(data, host, wait) {
 	if (options.runtimeLicenseKey != null && (typeof options.runtimeLicenseKey !== 'string' || !options.runtimeLicenseKey.trim()))
 		throw new Error('benchmarkSciChartOptions.runtimeLicenseKey must be a nonempty vendor-issued runtime key.');
 
-	const {SciChartSurface, SciChartDefaults, EUseWasm64, EUseWasmSimd,
-		SciChartJSLightTheme, DateTimeNumericAxis, NumericAxis, EAutoRange,
-		EAxisAlignment, XyDataSeries, FastLineRenderableSeries, EResamplingMode} = globalThis.SciChart;
-
+	const {SciChartSurface, SciChartDefaults, EUseWasm64, EUseWasmSimd} = globalThis.SciChart;
 	const wasmUrl = wasmAssetUrl(options, 'wasmUrl', 'wasmBinary');
 	const wasmNoSimdUrl = wasmAssetUrl(options, 'wasmNoSimdUrl', 'wasmNoSimdBinary');
+	SciChartDefaults.useWasm64 = EUseWasm64.Never;
+	SciChartDefaults.useWasmSimd = EUseWasmSimd.Auto;
+	SciChartDefaults.useNativeText = true;
+	SciChartSurface.configure({wasmUrl, wasmNoSimdUrl});
+	if (options.runtimeLicenseKey != null)
+		SciChartSurface.setRuntimeLicenseKey(options.runtimeLicenseKey);
+	else
+		SciChartSurface.UseCommunityLicense();
+	return {timeoutMs};
+}
+
+export async function makeChart(data, host, wait) {
+	const {timeoutMs} = configureRuntime();
+	const {SciChartSurface, SciChartJSLightTheme, DateTimeNumericAxis, NumericAxis, EAutoRange,
+		EAxisAlignment, XyDataSeries, FastLineRenderableSeries, EResamplingMode} = globalThis.SciChart;
 	let chart;
 	try {
-		SciChartDefaults.useWasm64 = EUseWasm64.Never;
-		SciChartDefaults.useWasmSimd = EUseWasmSimd.Auto;
-		SciChartDefaults.useNativeText = true;
-		SciChartSurface.configure({wasmUrl, wasmNoSimdUrl});
-		if (options.runtimeLicenseKey != null)
-			SciChartSurface.setRuntimeLicenseKey(options.runtimeLicenseKey);
-		else
-			SciChartSurface.UseCommunityLicense();
-
 		const result = await new Promise((resolve, reject) => {
 			let expired = false;
 			const timer = setTimeout(() => {

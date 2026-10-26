@@ -8,15 +8,15 @@ export function mountEmptyReact(host, build, ready, wait) {
 	return mountLifecycleReact([], host, build, ready, wait);
 }
 
-export function mountLifecycleReact(initialData, host, build, ready, wait) {
+export function mountLifecycleReact(initialData, host, build, ready, wait, {width = 1920, height = 600} = {}) {
 	return mountReact(host, (React, chart) => {
 		function LifecycleChart() {
-			const [state, setState] = React.useState({data: initialData, width: 1920, height: 600});
+			const [state, setState] = React.useState({data: initialData, width, height});
 			updates.set(chart, {state, setState, ready});
 			return build(state.data, React, chart, state);
 		}
 		return React.createElement(LifecycleChart);
-	}, chart => ready(chart, initialData, updates.get(chart).state), wait);
+	}, chart => ready(chart, initialData, updates.get(chart).state), wait, {width, height});
 }
 
 export async function updateReact(chart, input, host, wait) {

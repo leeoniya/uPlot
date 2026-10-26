@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>canvasjs Dashboard</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+	</head>
+	<body>
+		<script type="module">
+			import {runDashboardDemo} from "./demo.mjs";
+			runDashboardDemo("canvasjs").then(demo => { globalThis.dashboardDemo = demo; }).catch(console.error);
+		</script>
+	</body>
+</html>

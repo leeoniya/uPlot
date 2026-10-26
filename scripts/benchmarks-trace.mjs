@@ -56,7 +56,7 @@ async function evaluate(client, expression) {
 	return result.result.value;
 }
 
-export async function captureBenchmarkTrace({profile, url, cache, trace = true, raf = false, memory = false, dpr = 1, processPid = null, traceName = 'trace-chrome.json', lightningOptions, sciChartOptions, sampleTimeoutMs = SAMPLE_TIMEOUT_MS, onSampleTimeout = () => {}}) {
+export async function captureBenchmarkTrace({profile, url, cache, trace = true, raf = false, memory = false, dashboard = false, dpr = 1, processPid = null, traceName = 'trace-chrome.json', lightningOptions, sciChartOptions, sampleTimeoutMs = SAMPLE_TIMEOUT_MS, onSampleTimeout = () => {}}) {
 	if (raf && (trace || memory))
 		throw new Error('rAF measurement requires a separate pass without tracing or memory polling.');
 	if (memory && (!Number.isSafeInteger(processPid) || processPid <= 0))
@@ -131,7 +131,7 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 		// Supply credentials before tracing, without putting them in files or reports.
 		if (lightningOptions)
 			await page.send('Page.addScriptToEvaluateOnNewDocument', {source: `globalThis.benchmarkLightningChartOptions = ${JSON.stringify(lightningOptions)};`});
-		await page.send('Emulation.setDeviceMetricsOverride', {width: 1920, height: 900, deviceScaleFactor: dpr, mobile: false});
+		await page.send('Emulation.setDeviceMetricsOverride', {width: 1920, height: dashboard ? 1080 : 900, deviceScaleFactor: dpr, mobile: false});
 
 		const config = benchmarkTraceConfig();
 		// Combined runs include the tracer in both cold memory checkpoints.
@@ -188,6 +188,7 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 				blankAndLoaded: 'Single post-GC checkpoints before warmups, not round aggregates.',
 			});
 			report.processAnalysis = summarizeProcessMemory({blank, loaded, memoryProtocol: report.memoryProtocol,
+				workload: report.workload, phase: report.phase, initProtocol: report.initProtocol, lifecycle: report.lifecycle,
 				samples: report.samples.map(sample => ({...sample, observations: sample.processObservations})),
 			});
 			for (const key of ['pssMB', 'peak', 'gc', 'exclusions'])

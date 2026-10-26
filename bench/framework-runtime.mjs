@@ -57,12 +57,12 @@ export function calendarLabel(value) {
 
 // Child layout lifecycles and effects run inside flushSync. Observe actual line
 // output for libraries that schedule a second commit; a timeout is failure only.
-export async function mountReact(host, build, ready, wait) {
+export async function mountReact(host, build, ready, wait, {width = 1920, height = 600} = {}) {
 	const React = requireFramework('benchmarkReact');
 	const ReactDOM = requireFramework('benchmarkReactDOM');
 	const {createRoot} = requireFramework('benchmarkReactDOMClient');
 	const element = host.ownerDocument.createElement('div');
-	Object.assign(element.style, {width: '1920px', height: '600px', font: '12px Arial, sans-serif'});
+	Object.assign(element.style, {width: `${width}px`, height: `${height}px`, font: '12px Arial, sans-serif'});
 	host.append(element);
 	const controller = new AbortController();
 	const chart = {element, root: null, flushSync: ReactDOM.flushSync, readySignal: controller.signal};
@@ -101,12 +101,12 @@ export function destroyReact(chart) {
 	}
 }
 
-export function waitForLines(chart, selector, previousPaths) {
+export function waitForLines(chart, selector, previousPaths, expectedLines = 3) {
 	const signal = chart.readySignal;
 	signal?.throwIfAborted();
 	const complete = () => {
 		const paths = chart.element.querySelectorAll(selector);
-		return paths.length === 3 && [...paths].every(path => {
+		return paths.length === expectedLines && [...paths].every(path => {
 			const d = path.getAttribute('d');
 			return d && d.includes('L') && !/NaN|Infinity/.test(d) &&
 				(!previousPaths || d !== previousPaths.get(path));
@@ -119,7 +119,7 @@ export function waitForLines(chart, selector, previousPaths) {
 		});
 		const timer = setTimeout(() => {
 			cleanup();
-			reject(new Error(`Render did not produce three complete, current lines: ${selector}`));
+			reject(new Error(`Render did not produce ${expectedLines === 3 ? 'three' : expectedLines} complete, current lines: ${selector}`));
 		}, 15000);
 		const aborted = () => { cleanup(); reject(signal.reason); };
 		function cleanup() {
@@ -129,6 +129,22 @@ export function waitForLines(chart, selector, previousPaths) {
 		signal?.addEventListener('abort', aborted, {once: true});
 		observer.observe(chart.element, {subtree: true, childList: true, attributes: true});
 	});
+}
+
+// Diagnostics only: inspect the committed vendor components, not adapter-owned
+// copies of their inputs. React's private fiber shape is tied to the pinned versions.
+export function committedReactProps(chart, type) {
+	const root = chart.root?._internalRoot?.current;
+	if (!root || !type) throw new Error('React committed component tree is unavailable.');
+	const props = [];
+	function visit(fiber) {
+		for (; fiber; fiber = fiber.sibling) {
+			if (fiber.type === type || fiber.elementType === type) props.push(fiber.memoizedProps);
+			if (fiber.child) visit(fiber.child);
+		}
+	}
+	visit(root.child);
+	return props;
 }
 
 export function title(React) {

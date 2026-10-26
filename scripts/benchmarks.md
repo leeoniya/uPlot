@@ -1,7 +1,10 @@
 # Benchmarks
 
 The benchmarks compare chart libraries, including their data preparation and sampling or decimation choices.
-They use Chrome Headless Shell, pinned demo dependencies, and `bench/data.json`.
+The single-chart benchmarks use Chrome Headless Shell, pinned demo dependencies, and `bench/data.json`.
+The separate [dashboard benchmark](#dashboard-benchmark) uses generated data and 20 charts. Its entry point is `bun run bench:dash`.
+The single-chart workload and output filenames remain unchanged.
+Unless a section explicitly describes the dashboard, chart configuration and lifecycle details refer to the single-chart workload.
 
 The HTML demos and benchmark import the same `bench/<variant>.mjs` modules.
 The original modules are `uplot`, `d3`, `chartjs`, `echarts`, `flot`, and `dygraphs`.
@@ -422,9 +425,99 @@ For a standalone demo, supply `globalThis.benchmarkLightningChartOptions` before
 The object requires `license`, with optional `licenseInformation`. There is no fabricated key or automatic Community fallback for LightningChart 9.
 SciChart accepts `globalThis.benchmarkSciChartOptions.runtimeLicenseKey`. Its Community path does not bypass vendor validation or branding.
 
+## Dashboard benchmark
+
+From the repository root, run the dashboard benchmark:
+
+```sh
+bun run bench:dash
+```
+
+The package script selects `--dashboard --gpu`. The default mode combines trace timings and process memory on the same samples.
+Bun forwards arguments directly, without an extra `--` separator.
+
+| Command | Purpose |
+| --- | --- |
+| `bun run bench:dash --trace` | Trace only |
+| `bun run bench:dash --memory` | Process memory only |
+| `bun run bench:dash --raf` | Untraced rAF latency only |
+| `bun run bench:dash --variant uplot` | Idle control and local uPlot |
+| `bun run bench:dash --variant chartjs --dpr 2` | Idle control and Chart.js at DPR 2 |
+| `bun run bench:dash --verbose` | Include trace thread columns in the table |
+| `bun run bench:dash --summarize-only` | Recompute the saved combined summary without Chrome |
+| `bun run bench:dash --no-vulkan` | Disable automatic Vulkan selection, but retain `--gpu` |
+
+`--trace --memory` explicitly selects combined mode. `--raf` cannot combine with either flag.
+`--summarize-only` also accepts the measurement flags and `--verbose`. It uses the saved DPR and rejects `--dpr` and `--variant`.
+
+Combined and memory-only modes require Linux `/proc`.
+The existing backend policy applies: Linux suites with ChartGPU automatically request Vulkan, including for idle.
+Focused runs without ChartGPU use the default Chrome backend unless `--vulkan` selects Vulkan explicitly.
+
+The dashboard contains 20 independent charts in four columns and five rows, without gaps.
+Each tile measures 480 × 216 CSS pixels. The grid fills the 1920 × 1080 CSS viewport.
+Each chart has five same-unit signals on one Y axis and 300 rows per series: 30,000 points across the dashboard.
+
+`bench/dashboard/common.mjs` generates deterministic, independent inputs. It does not use the original packed data.
+The lifecycle validates and freezes the canonical frames at fixture load, before capture and the memory baseline.
+Charts have no point markers or animation. Adapters use native legends where available and small custom legends where necessary.
+
+Every mode uses three warmup sessions and seven measured sessions per variant.
+`small-init` creates all charts with the first and last source rows, so the two-row input retains the full time range.
+`data-update` updates those same charts to 300 rows. There is no resize or hover operation.
+
+Tile operations start as one asynchronous batch, not a sequence of per-chart readiness waits.
+Each operation has one shared five-second watchdog for all 20 tiles, including preparation and settling.
+Post-update GC/live and final destruction each have a separate five-second budget.
+
+Markers cover the whole dashboard. Host creation belongs to initialization, while input preparation occurs outside chart markers.
+Trace columns describe tracked host-thread work, not per-chart averages or true exclusive CPU time.
+The `gpu ms` column does not measure hardware GPU execution time. The `jsMs` field describes elapsed readiness, including asynchronous waits.
+
+Trace timings use means after warmups. Memory and rAF statistics retain minima.
+
+Deep native-data validation requires explicit `benchmarkLifecycle.validate()` calls in separate diagnostic fixtures.
+Neither capture nor preflight calls this method. This separation prevents validation-only allocations from contaminating peak memory.
+Capture retains page/grid geometry checks, checks for 20 distinct chart handles, and graphics-health checks.
+Trace and memory modes also retain graphics completion checks.
+
+Memory uses the existing `through-update-v1` methodology and a same-run idle control with 20 empty hosts.
+Peak covers initialization, preparation, and update through the post-update GC/live checkpoint.
+All 20 charts and their full prepared inputs remain alive at `live`.
+There is no post-update polling phase, cleanup snapshot, or cleanup GC. Normal chart destruction still occurs.
+No process reads or forced GC occur after `live`.
+
+There are 45 matched dashboard variant modules: 44 default variants plus license-gated LightningChart.
+They reuse pinned vendors, native updates, cleanup, readiness helpers, and the existing React helpers where applicable.
+The existing skip policy remains unchanged for `g2-webgl`, `googlecharts`, `jscharting`, and unlicensed LightningChart.
+
+Highcharts retains native Boost thresholds and uses SVG at 300 rows. Its dashboard metadata records SVG rather than WebGL.
+
+DevExtreme, Syncfusion, and Kendo license banners can obscure charts. The harness does not hide or dismiss these banners.
+
+Reports contain the `dashboard-v1` workload snapshot, including chart count, series count, row count, grid dimensions, and tile size.
+All modes reject mixed single-chart/dashboard reports and different dashboard dimensions, including idle controls and saved summaries.
+Dashboard reports use separate filenames, as described under [Saved results](#saved-results).
+
+Browser validation first passed 32 chart variants plus idle. Seven adapter fixes and rechecks brought coverage to 39 of 44 default variants.
+
+The remaining five are `bokeh`, `d3fc`, `deckgl`, `plotly`, and `scichart`.
+Their errors concern Chrome WebGL context capacity during 20 concurrent cold constructions. Bokeh also has an asynchronous shared-cache initialization race.
+The benchmark uses no context-limit overrides, renderer fallback, or prewarming to bypass these errors.
+ChartGPU passed with 20 WebGPU devices.
+
+Full three-warmup, seven-measured-session runs passed for idle, uPlot, and Chart.js in combined and memory-only modes.
+DPR 2 checks passed for uPlot and Chart.js geometry and canvas backing dimensions.
+Explicit native-data diagnostics also passed for Bokeh Canvas and visx at DPR 1 and DPR 2.
+The browser validation artifacts reside under `/tmp/dashboard-validation/`, outside the repository.
+`FINAL.md` and `LATEST.json` identify the final captures, which passed after the validation-boundary correction and supersede earlier measurement artifacts.
+Separate guarded captures completed with throwing validators and zero validation calls during measurement.
+These separate diagnostic runs establish coverage, not a comparative timing or memory ranking.
+The [dashboard README](../bench/dashboard/README.md) describes the protocol, adapter contract, output names, and validation caveats.
+
 ## Commands
 
-Run the combined trace and process-memory benchmark:
+Run the combined trace and process-memory single-chart benchmark:
 
 ```sh
 npm run bench
@@ -1335,7 +1428,20 @@ Results with completion checks include overhead absent from older unfenced runs.
 ## Saved results
 
 Reports and compressed traces are in `.cache/benchmarks/`.
-With Chrome's default backend, each mode has its own suite report:
+Dashboard filenames include `dashboard-` before the mode, as defined by the naming helpers in `scripts/benchmarks-suite.mjs`:
+
+| Dashboard output | Default Chrome backend | Vulkan |
+| --- | --- | --- |
+| Suite | `results-chrome-dashboard-MODE.json` | `results-chrome-dashboard-MODE-vulkan.json` |
+| Variant | `results-chrome-dashboard-MODE-VARIANT.json` | `results-chrome-dashboard-MODE-vulkan-VARIANT.json` |
+| Trace | `trace-chrome-dashboard-MODE-VARIANT.json.gz` | `trace-chrome-dashboard-MODE-vulkan-VARIANT.json.gz` |
+
+`MODE` is `combined`, `trace`, `memory`, or `raf`. Only modes with tracing produce trace archives.
+`bun run bench:dash --summarize-only` selects the saved dashboard report for the requested measurements and backend.
+Dashboard compatibility checks reject mixed workloads and different dashboard dimensions in all modes, including idle controls.
+The separate filenames leave single-chart reports untouched.
+
+With Chrome's default backend, each single-chart mode has its own suite report:
 
 - `results-chrome-combined.json`
 - `results-chrome-trace.json`

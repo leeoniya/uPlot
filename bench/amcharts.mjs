@@ -22,7 +22,7 @@ export function prepData(packed) {
 	return data;
 }
 
-function staticBranding(root, version) {
+export function staticBranding(root, version) {
 	const logo = root._logo;
 	if (!logo)
 		return;

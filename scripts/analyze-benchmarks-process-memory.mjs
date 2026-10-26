@@ -1,3 +1,5 @@
+import {assertCompatibleWorkloads, benchmarkWorkload, benchmarkOperations} from './benchmarks-phases.mjs';
+
 const SCOPES = ['renderer', 'tree'];
 const METRICS = ['rssMB', 'pssMB', 'privateMB', 'swapMB', 'swapPssMB'];
 const CHECKPOINTS = ['baseline', 'prepared', 'live', 'cleanup'];
@@ -24,6 +26,7 @@ const byScope = fn => Object.fromEntries(SCOPES.map(scope => [scope,
 ]));
 
 export function memoryProtocol(report) {
+	if (report?.workload !== undefined) benchmarkOperations(report);
 	const protocol = report?.memoryProtocol;
 	if (protocol !== undefined && protocol !== 'through-update-v1')
 		throw new Error(`Unknown memoryProtocol: ${JSON.stringify(protocol)}`);
@@ -31,6 +34,7 @@ export function memoryProtocol(report) {
 }
 
 export function assertCompatibleMemoryReports(reports) {
+	assertCompatibleWorkloads(reports);
 	if (new Set(reports.map(memoryProtocol)).size > 1)
 		throw new Error('Cannot combine different memory protocols. Rerun all selected variants, including idle controls.');
 }
@@ -113,6 +117,7 @@ export function summarizeAdjustedProcessMemory(reports) {
 		throw new TypeError('reports must be an array');
 	assertCompatibleMemoryReports(reports);
 	const throughUpdate = reports.length > 0 && memoryProtocol(reports[0]) === 'through-update-v1';
+	const workload = reports.length ? benchmarkWorkload(reports[0]) : null;
 	const browsers = new Map();
 	for (const report of reports) {
 		if (!Array.isArray(report?.samples))
@@ -165,6 +170,7 @@ export function summarizeAdjustedProcessMemory(reports) {
 	});
 	const controlsByDpr = new Map(controls.map(control => [control.dpr, control]));
 	return {
+		...(workload ? {workload: {...workload}} : {}),
 		groups: [...browsers.values()].filter(browser => browser.variant !== 'idle').map(browser => {
 			const {variant, dpr, samples, warmupCount, fixture} = browser;
 			return {
@@ -190,7 +196,7 @@ export function summarizeAdjustedProcessMemory(reports) {
 			baselines: 'Each group metric exposes scalar blank and idleLiveAboveBlank offsets, or null. Blank comes from that library browser. idleLiveAboveBlank is the minimum measured live-minus-blank value from the matched control.',
 			controls: 'Controls contain idle reports only. Each metric exposes blank statistics for one checkpoint and liveAboveBlank statistics for measured samples. validBlankCount is zero or one. validLiveCount counts valid, unambiguous measured live checkpoints, regardless of blank validity. liveAboveBlank.count counts valid paired differences. sampleCount and warmupCount count measured samples and warmups separately.',
 			variability: 'Adjusted statistics describe conditional variability with the observed blank and idle minimum held fixed. They do not include idle or blank uncertainty.',
-			peak: throughUpdate ? 'Each metric peak is its maximum across valid observations through the unique live checkpoint after settled data-update. Later observations never contribute. Resize and hover are timing-only. These sampled peaks are lower bounds for a GC-intervened pass, not exact peaks for normal runs. Invalid reads can hide peaks. The best-case peak is the minimum of per-sample maxima.' : 'Each metric peak is its maximum across valid prepare/construct observations and baseline, prepared, live, and cleanup checkpoints. Duplicate checkpoints remain eligible. These sampled peaks are lower bounds for a GC-intervened pass, not exact peaks for normal runs. Invalid reads can hide peaks. Metrics can peak at different observations. The best-case peak is the minimum of these per-sample maxima, not the minimum observation.',
+			peak: throughUpdate ? 'Each metric peak is its maximum across valid observations through the unique live checkpoint after settled data-update. Later observations never contribute. ' + (workload ? 'The dashboard has no resize or hover operation. ' : 'Resize and hover are timing-only. ') + 'These sampled peaks are lower bounds for a GC-intervened pass, not exact peaks for normal runs. Invalid reads can hide peaks. The best-case peak is the minimum of per-sample maxima.' : 'Each metric peak is its maximum across valid prepare/construct observations and baseline, prepared, live, and cleanup checkpoints. Duplicate checkpoints remain eligible. These sampled peaks are lower bounds for a GC-intervened pass, not exact peaks for normal runs. Invalid reads can hide peaks. Metrics can peak at different observations. The best-case peak is the minimum of these per-sample maxima, not the minimum observation.',
 			ownership: 'Adjusted process memory is not isolated library ownership. Allocator reuse, process churn, and shared mappings affect differences. Forced GC does not guarantee native memory release.',
 			scopes: 'Renderer sums renderer processes. Tree includes the browser root and discovered descendants. These scopes overlap and are not additive. Metrics are not added together.',
 			jsMemory: 'JavaScript heap and backing-store memory overlap process memory. No scope or JS sums occur in this summary.',
@@ -208,6 +214,7 @@ export function summarizeProcessMemory(report) {
 	if (!Array.isArray(report?.samples))
 		throw new TypeError('report.samples must be an array');
 	const throughUpdate = memoryProtocol(report) === 'through-update-v1';
+	const workload = benchmarkWorkload(report);
 	const groups = new Map();
 	for (const sample of report.samples) {
 		if (!sample || typeof sample.variant !== 'string' || !sample.variant ||
@@ -229,6 +236,7 @@ export function summarizeProcessMemory(report) {
 		}
 	}
 	return {
+		...(workload ? {workload: {...workload}} : {}),
 		groups: [...groups.values()].map(({variant, dpr, warmupCount, rounds}) => {
 			const samples = [...rounds.values()];
 			const counts = Object.fromEntries([
@@ -252,9 +260,9 @@ export function summarizeProcessMemory(report) {
 			checkpoints: (throughUpdate ? 'A missing or duplicate live boundary, or a misplaced checkpoint, causes an error. Cleanup is not expected. ' : '') + 'Each checkpoint requires exactly one observation with that phase. A missing, invalid, or duplicate checkpoint yields null, not zero. A delta is null if either input is null.',
 			baseline: 'Absolute process memory after the baseline GC checkpoint, before preparation. Reused processes can retain warm allocator baselines from earlier samples. A baseline is not a fresh-browser measurement.',
 			prepared: 'Absolute process memory after full-data preparation and settling, without forced GC. Multi-operation sessions record this after initialization, before the first full-data update. The snapshot includes the initial chart and can include temporary allocations.',
-			live: throughUpdate ? 'Absolute process memory after forced GC immediately after settled data-update, before resize preparation, with the chart and full prepared input alive.' : 'Absolute process memory at the live GC checkpoint, with the chart present. In multi-operation sessions this follows the final data update.',
+			live: throughUpdate ? (workload ? 'Absolute process memory after forced GC immediately after settled data-update, with all dashboard charts and their full prepared inputs alive. No resize or hover occurs.' : 'Absolute process memory after forced GC immediately after settled data-update, before resize preparation, with the chart and full prepared input alive.') : 'Absolute process memory at the live GC checkpoint, with the chart present. In multi-operation sessions this follows the final data update.',
 			cleanup: throughUpdate ? 'No cleanup snapshot or cleanup GC occurs. Chart destruction still runs. Cleanup fields are null, and the omitted checkpoint is not missing.' : 'Absolute process memory at the cleanup GC checkpoint, after chart destruction.',
-			peak: throughUpdate ? 'Each metric uses its maximum across valid observations through the unique live checkpoint after settled data-update. Later observations never contribute. Resize and hover are timing-only. This sampled peak is a lower bound for the GC-intervened pass. The best-case peak is the minimum of per-sample maxima.' : 'Each metric uses its maximum across complete, valid prepare/construct observations and all four checkpoint phases, including endpoints. This sampled peak is a lower bound for the GC-intervened pass, not an exact peak for a normal run. Invalid reads can hide peaks. Separate metrics can reach their peaks at different observations. Duplicate checkpoint observations remain eligible for the peak. The best-case peak is the minimum of these per-sample maxima, not the minimum observation.',
+			peak: throughUpdate ? 'Each metric uses its maximum across valid observations through the unique live checkpoint after settled data-update. Later observations never contribute. ' + (workload ? 'The dashboard has no resize or hover operation. ' : 'Resize and hover are timing-only. ') + 'This sampled peak is a lower bound for the GC-intervened pass. The best-case peak is the minimum of per-sample maxima.' : 'Each metric uses its maximum across complete, valid prepare/construct observations and all four checkpoint phases, including endpoints. This sampled peak is a lower bound for the GC-intervened pass, not an exact peak for a normal run. Invalid reads can hide peaks. Separate metrics can reach their peaks at different observations. Duplicate checkpoint observations remain eligible for the peak. The best-case peak is the minimum of these per-sample maxima, not the minimum observation.',
 			peakDelta: 'Per-sample peak minus baseline.',
 			dataDelta: 'Per-sample prepared snapshot minus post-GC baseline. In multi-operation sessions this also includes chart initialization. Temporary allocations can contribute. Not retained data ownership.',
 			chartDelta: 'Per-sample post-GC live memory minus the prepared snapshot without forced GC. This is not an isolated chart allocation or retention cost.',

@@ -3,7 +3,37 @@ const resizeOperations = lifecycleOperations.slice(0, 3);
 const populationOperations = ['small-init', 'data-update'];
 const legacyOperations = ['empty-init', 'first-data', 'warmup-update', 'data-update'];
 
+export const dashboardWorkload = Object.freeze({
+	protocol: 'dashboard-v1', charts: 20, series: 5, rows: 300,
+	columns: 4, gridRows: 5, width: 480, height: 216,
+});
+
+export function benchmarkWorkload(report) {
+	const workload = report?.workload;
+	if (workload === undefined) return null;
+	if (!workload || workload.protocol !== 'dashboard-v1' ||
+		Object.keys(dashboardWorkload).some(key => key !== 'protocol' &&
+			(!Number.isSafeInteger(workload[key]) || workload[key] <= 0)) ||
+		workload.rows < 2 || workload.charts !== workload.columns * workload.gridRows)
+		throw new Error('Invalid dashboard workload protocol or dimensions.');
+	// Canonical key order makes saved snapshots independent of JSON property order.
+	return Object.fromEntries(Object.keys(workload).sort().map(key => [key, workload[key]]));
+}
+
+export function assertCompatibleWorkloads(reports) {
+	if (new Set(reports.map(report => JSON.stringify(benchmarkWorkload(report)))).size > 1)
+		throw new Error('Cannot combine different benchmark workloads or dashboard dimensions, including idle controls. Rerun all selected variants.');
+}
+
 export function benchmarkOperations(report) {
+	if (benchmarkWorkload(report)) {
+		if (report.phase !== 'chart-population' || report.initProtocol !== 'settled-work-v1' ||
+			report.resizeProtocol !== undefined || report.hoverProtocol !== undefined || report.hover !== undefined ||
+			report.lifecycle?.resizeSize !== undefined ||
+			JSON.stringify(report.lifecycle?.operations) !== JSON.stringify(populationOperations))
+			throw new Error('Dashboard lifecycle requires settled-work-v1 chart-population with small-init and data-update only, without resize or hover.');
+		return populationOperations;
+	}
 	if (report.resizeProtocol !== undefined && (report.resizeProtocol !== 'retained-resize-v1' ||
 		report.phase !== 'chart-population' || report.initProtocol !== 'settled-work-v1'))
 		throw new Error('Unsupported lifecycle resize protocol or initialization boundary.');

@@ -6,10 +6,10 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import { parseArgs } from 'node:util';
-import { benchmarkMode, resolveBenchmarkVulkan, variantReportName } from '../../scripts/benchmarks-suite.mjs';
+import { benchmarkMode, resolveBenchmarkVulkan, variantReportName, traceReportName, benchmarkVariantMetadata } from '../../scripts/benchmarks-suite.mjs';
 import { checkModuleSyntax, demos } from '../helpers/bench-demo-evaluator.mjs';
 import { loadBenchDemoSources } from '../../scripts/bench-demo-sources.mjs';
-import { demoDependencies, demoModuleDependencies, benchmarkMetadata, benchmarkRestrictions, assertBenchmarkAvailable } from '../../bench/demo-dependencies.mjs';
+import { demoDependencies, demoModuleDependencies, benchmarkVariants, benchmarkMetadata, benchmarkRestrictions, assertBenchmarkAvailable } from '../../bench/demo-dependencies.mjs';
 
 const root = new URL('../../', import.meta.url);
 const variants = Object.keys(demoDependencies).filter(id => id !== 'idle');
@@ -83,6 +83,42 @@ function checkAssets(result, variants, assetRoot = root) {
 }
 
 describe('benchmark demo asset loader', () => {
+	it('indexes every single-chart variant with the correct HTML filename and links both demo indexes', () => {
+		const index = readFileSync(new URL('bench/index.html', root), 'utf8');
+		const links = [...index.matchAll(/<a href="([^"]+\.html)">([^<]+)<\/a>/g)];
+		assert.deepEqual(links.map(([, , variant]) => variant).sort(), [...variants].sort());
+		assert.equal(new Set(links.map(([, path]) => path)).size, variants.length);
+		for (const [, path, variant] of links) {
+			const html = readFileSync(new URL(`bench/${path}`, root), 'utf8');
+			assert.ok(html.includes(`runDemo('${variant}')`), `${path} must load ${variant}`);
+		}
+		assert.match(index, /href="dashboard\/"/);
+		assert.match(readFileSync(new URL('bench/dashboard/index.html', root), 'utf8'), /href="\.\.\/"/);
+	});
+
+	for (const variant of ['idle', ...benchmarkVariants, 'lightningchart']) {
+		it(`${variant}: serves the dashboard module graph without single-chart layout styles`, () => {
+			const result = loadBenchDemoSources(root, variant, {dashboard: true});
+			assert.deepEqual(result.dependencies, loadBenchDemoSources(root, variant).dependencies);
+			assert.ok(!result.localStyles.includes('/bench/demo.css'));
+			const visited = new Set();
+			function visit(route) {
+				if (visited.has(route)) return;
+				visited.add(route);
+				const source = result.files.get(route);
+				assert.equal(typeof source, 'string', `missing ${route}`);
+				checkModuleSyntax(source);
+				for (const match of source.matchAll(/(?:from\s*|import\s*\(?\s*)['"]([^'"]+)['"]/g)) {
+					const path = match[1];
+					if (path.startsWith('.') || path.startsWith('/bench/'))
+						visit(new URL(path, `http://fixture${route}`).pathname);
+				}
+			}
+			visit('/bench/dashboard/browser.mjs');
+			if (variant !== 'idle') visit(`/bench/dashboard/${variant}.mjs`);
+		});
+	}
+
 	it('keeps console output and direct timing out of registered adapters and their shared implementations', () => {
 		const modules = new Set(variants.flatMap(id => [id, ...(demoModuleDependencies[id] ?? [])]));
 		for (const id of modules) {
@@ -138,7 +174,7 @@ describe('benchmark demo asset loader', () => {
 				const captures = [], outputs = [];
 				const mode = benchmarkMode(measurements);
 				await runInNewContext(`(async () => {\n${source.slice(start, end)}\n})()`, {
-					values, vulkan: resolveBenchmarkVulkan(values, 'linux'), measurements, mode, variantReportName, benchmarkMetadata, browserArgs, dpr: 1,
+					values, vulkan: resolveBenchmarkVulkan(values, 'linux'), measurements, mode, variantReportName, traceReportName, benchmarkVariantMetadata, benchmarkMetadata, browserArgs, dpr: 1,
 					profile: '/test/profile', url: 'http://test/', cache: '/test/cache', binary: '/test/chrome', browserVersion: 'test',
 					lightningOptions: undefined, sciChartOptions: undefined, browser: {pid: 123}, browserLog: '',
 					dependencies: [], files: new Map(), process: {version: 'test'},

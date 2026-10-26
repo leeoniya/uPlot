@@ -1,0 +1,58 @@
+import {WIDTH, HEIGHT, SERIES, prepColumns, assertSeries} from './common.mjs';
+
+export const prepData = prepColumns;
+
+function traces(input, type) {
+	return SERIES.map(({id, label, color}) => ({
+		uid: id, name: label, type, mode: 'lines', x: input.x, y: input[id], yaxis: 'y',
+		line: {width: 1 / devicePixelRatio, color},
+	}));
+}
+
+function layout(input) {
+	return {
+		width: WIDTH, height: HEIGHT, autosize: false,
+		margin: {l: 40, r: 10, b: 40, t: 40}, transition: {duration: 0},
+		xaxis: input.x.length ? {type: 'date', range: [input.x[0], input.x.at(-1)]} : {type: 'date', autorange: true},
+		yaxis: {autorange: true},
+		showlegend: true, legend: {orientation: 'h', y: 1.25, font: {size: 10}},
+	};
+}
+
+export function makeChart(input, host, wait) {
+	return makeChartWithOptions(input, host, wait);
+}
+
+export async function makeChartWithOptions(input, host, wait, {type = 'scattergl'} = {}) {
+	try {
+		const chart = await Plotly.newPlot(host, traces(input, type), layout(input), {
+			responsive: false, displayModeBar: false, plotGlPixelRatio: devicePixelRatio,
+		});
+		if (wait) wait.textContent = 'Done!';
+		return chart;
+	}
+	catch (error) {
+		try { Plotly.purge(host); }
+		finally { throw error; }
+	}
+}
+
+export async function updateChart(chart, input, host, wait) {
+	await Plotly.react(chart, traces(input, chart.data[0].type), layout(input));
+	if (wait) wait.textContent = 'Done!';
+}
+
+export function destroyChart(chart) {
+	Plotly.purge(chart);
+}
+
+export function validateChart(chart, input, {rows}) {
+	assertSeries(chart.data.map(trace => trace.y), rows);
+	assertSeries(chart.data.map(trace => trace.x), rows);
+	for (let s = 0; s < SERIES.length; s++) {
+		const trace = chart.data[s], {id, label} = SERIES[s];
+		if (trace.name !== label || trace.y.some((y, i) => y !== input[id][i] || trace.x[i] !== input.x[i]))
+			throw new Error('Plotly dashboard data mismatch.');
+	}
+	return true;
+}

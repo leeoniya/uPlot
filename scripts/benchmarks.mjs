@@ -3,7 +3,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { cpus, platform, release } from 'node:os';
+import { cpus, platform, release, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -16,8 +16,8 @@ import { chromeBinary } from './chrome-headless-shell.mjs';
 import { summarizeBenchmarkRaf } from './analyze-benchmarks-raf.mjs';
 import { loadBenchDemoSources } from './bench-demo-sources.mjs';
 import { bundleModuleDependencies } from './bench-module-bundle.mjs';
-import { benchmarkMode, resolveBenchmarkVulkan, variantReportName, runBenchmarkSuite, summarizeSavedBenchmarks } from './benchmarks-suite.mjs';
-import { demoDependencies, benchmarkVariants, benchmarkMetadata, assertBenchmarkAvailable } from '../bench/demo-dependencies.mjs';
+import { benchmarkMode, resolveBenchmarkVulkan, variantReportName, traceReportName, benchmarkVariantMetadata, runBenchmarkSuite, summarizeSavedBenchmarks } from './benchmarks-suite.mjs';
+import { demoDependencies, benchmarkVariants, assertBenchmarkAvailable } from '../bench/demo-dependencies.mjs';
 
 const root = new URL('../', import.meta.url);
 const cache = fileURLToPath(new URL('.cache/benchmarks/', root));
@@ -28,6 +28,7 @@ const {values, tokens} = parseArgs({tokens: true, options: {
 	trace: {type: 'boolean', default: false},
 	raf: {type: 'boolean', default: false},
 	memory: {type: 'boolean', default: false},
+	dashboard: {type: 'boolean', default: false},
 	variant: {type: 'string'},
 	worker: {type: 'boolean', default: false},
 	'summarize-only': {type: 'boolean', default: false},
@@ -40,6 +41,44 @@ const {values, tokens} = parseArgs({tokens: true, options: {
 	help: {type: 'boolean', short: 'h', default: false},
 }});
 const vulkan = resolveBenchmarkVulkan(values);
+if (values.help && values.dashboard) {
+	console.log(`Usage: bun run bench:dash [--trace | --memory | --raf] [--variant NAME] [--dpr NUMBER]
+       node scripts/benchmarks.mjs --dashboard [--trace] [--memory] [--raf] [--gpu]
+
+--dashboard selects 20 charts in a 4x5 grid at 1920x1080 CSS pixels.
+Each 480x216 chart has five series. Each session initializes two rows, then updates to 300 rows per series.
+The same 20 chart instances survive the update. No resize or hover phase occurs.
+Reports use workload.protocol dashboard-v1, phase chart-population, and initProtocol settled-work-v1.
+The only operations are small-init and data-update. Each browser runs three warmups and seven measured sessions.
+Whole-dashboard timings are not divided by the number of charts.
+Trace init ms and update ms measure full-window thread work, including deferred work and completion checks.
+rAF-only init rAF ms and next rAF ms measure callback latency, not presentation or thread work.
+rAF-only update ms measures update readiness. prep ms measures full-data preparation.
+Memory uses through-update-v1: polling covers initialization, preparation, and update through the live checkpoint.
+Forced GC precedes baseline and post-update live. All charts and full prepared inputs remain alive at live.
+No memory polling or forced GC occurs after live. Chart teardown still runs.
+Memory columns show minimum baseline-adjusted browser-tree PSS, with matching dashboard idle controls.
+There is no JS-heap sampling or GPU device-memory measurement.
+
+No measurement flags means trace + memory. --trace and --memory can be combined. --raf requires a separate pass.
+--variant NAME selects one variant plus idle. Defaults: ${benchmarkVariants.join(', ')}.
+LIGHTNINGCHART_LICENSE adds licensed LightningChart. LIGHTNINGCHART_LICENSE_INFORMATION accepts vendor metadata as JSON.
+SCICHART_LICENSE optionally supplies a SciChart runtime key. Existing benchmark restrictions still apply.
+Each variant uses a fresh browser and shared cached vendor assets. CHROME_BIN overrides the pinned browser.
+--gpu enables GPU. --vulkan requests Vulkan. --no-vulkan disables automatic Vulkan selection.
+On Linux, the default suite and explicit ChartGPU select Vulkan automatically. Overrides cannot be combined.
+Twenty independent WebGL contexts can exceed browser limits. No fallback renderer or context-limit override is implied.
+--dpr defaults to 1. --verbose adds main ms and gpu ms to tables without changing measurements.
+--summarize-only refreshes the saved dashboard suite without a browser, using its saved DPR.
+It rejects --dpr, --variant, --worker, and --install-only. Workload dimensions must match across all reports and controls.
+--install-only prepares the browser without a benchmark. --browser supports chrome only.
+Each operation has a five-second budget. Library errors or timeouts leave unavailable metrics and continue the suite.
+Cancellation, idle failures, and infrastructure failures stop the suite.
+Reports use results-chrome-dashboard-<mode>[-vulkan][-variant].json in .cache/benchmarks.
+Traces use trace-chrome-dashboard-<mode>[-vulkan]-<variant>.json with the capture compression suffix.
+Single-chart reports use separate paths. Temporary Chrome profiles use the system temporary directory.`);
+	process.exit(0);
+}
 if (values.help) {
 	console.log(`Usage: npm run bench [-- --dpr NUMBER]
        npm run bench:trace [-- --dpr NUMBER]
@@ -50,6 +89,8 @@ bench records trace timings and process memory together on the same chart sample
 bench:trace records only trace timings, without memory polling or forced GC. bench:memory measures only process memory.
 bench:raf measures untraced next-rAF latency, without memory polling or forced GC.
 There is no JS-heap benchmark or heap-usage sampling.
+Use bun run bench:dash or --dashboard for 20 five-series charts at 1920x1080, with no resize or hover.
+Use --dashboard --help for that workload. The lifecycle details below describe the single-chart benchmark.
 
 Defaults: ${benchmarkVariants.join(', ')}, plus an idle control measured first.
 uplot uses the local IIFE build. uplot-release uses pinned uPlot ${demoDependencies['uplot-release'][0].version} IIFE/CSS from jsDelivr and runs immediately after it.
@@ -182,7 +223,7 @@ const mode = benchmarkMode(measurements);
 if (values['summarize-only']) {
 	if (values.variant || values.worker || values['install-only'] || tokens.some(token => token.kind === 'option' && token.name === 'dpr'))
 		throw new Error('--summarize-only cannot be combined with --dpr, --variant, --worker, or --install-only.');
-	summarizeSavedBenchmarks({...measurements, vulkan, verbose: values.verbose});
+	summarizeSavedBenchmarks({...measurements, vulkan, verbose: values.verbose, dashboard: values.dashboard});
 	process.exit(0);
 }
 const lightningOptions = (!values.variant || values.variant === 'lightningchart') &&
@@ -198,7 +239,7 @@ if (measurements.memory && platform() !== 'linux')
 	throw new Error('Process memory measurement requires Linux /proc.');
 if (!values.worker && !values['install-only']) {
 	try {
-		await runBenchmarkSuite({...measurements, dpr, gpu: values.gpu, vulkan, variant: values.variant ?? null, lightningOptions, verbose: values.verbose});
+		await runBenchmarkSuite({...measurements, dpr, gpu: values.gpu, vulkan, variant: values.variant ?? null, lightningOptions, verbose: values.verbose, dashboard: values.dashboard});
 	}
 	catch (error) {
 		if (error.code !== 'BENCHMARK_SAMPLE_TIMEOUT')
@@ -212,7 +253,7 @@ const binary = await chromeBinary({version: chromeVersion});
 if (values['install-only'])
 	process.exit(0);
 mkdirSync(cache, {recursive: true});
-const {files, dependencies, localScripts, localStyles} = loadBenchDemoSources(root, values.variant);
+const {files, dependencies, localScripts, localStyles} = loadBenchDemoSources(root, values.variant, {dashboard: values.dashboard});
 const moduleDependencies = dependencies.filter(dependency => dependency.type === 'module');
 if (moduleDependencies.length) {
 	const bundle = await bundleModuleDependencies(demoDependencies[values.variant].filter(dependency => dependency.type === 'module'), {
@@ -242,8 +283,9 @@ for (const dependency of dependencies) {
 	files.set(dependency.route, source);
 	dependency.sha256 = createHash('sha256').update(source).digest('hex');
 }
-files.set('/bench.mjs', readFileSync(new URL('scripts/benchmarks-trace-browser.mjs', root), 'utf8'));
-files.set('/bench/data.json', readFileSync(new URL('bench/data.json', root), 'utf8'));
+files.set('/bench.mjs', readFileSync(new URL(values.dashboard ? 'bench/dashboard/browser.mjs' : 'scripts/benchmarks-trace-browser.mjs', root), 'utf8'));
+if (!values.dashboard)
+	files.set('/bench/data.json', readFileSync(new URL('bench/data.json', root), 'utf8'));
 files.set('/bench/runtime-assets.json', JSON.stringify(dependencies.filter(dep => dep.type === 'wasm')
 	.map(dep => ({...dep, url: dep.route}))));
 files.set('/bench/module-assets.json', JSON.stringify(moduleDependencies
@@ -256,7 +298,7 @@ const page = '<!doctype html><meta charset="utf-8"><style>body{margin:0}</style>
 	localScripts.map(route => `<script src="${route}"></script>`).join('') +
 	localStyles.map(route => `<link rel="stylesheet" href="${route}">`).join('') +
 	'<script type="module" src="/bench.mjs"></script>';
-const profile = mkdtempSync(join(cache, 'chrome-'));
+const profile = mkdtempSync(join(tmpdir(), 'uplot-bench-chrome-'));
 let rejectResult;
 const failure = new Promise((resolve, reject) => { rejectResult = reject; });
 failure.catch(() => {});
@@ -307,7 +349,7 @@ try {
 		'--user-data-dir=' + profile,
 		...(values.gpu || vulkan ? ['--enable-gpu'] : []),
 		...(vulkan ? ['--enable-features=Vulkan'] : []),
-		'--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1', '--window-size=1920,900', 'about:blank',
+		'--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1', `--window-size=1920,${values.dashboard ? 1080 : 900}`, 'about:blank',
 	];
 	// Keep Chrome in the worker's process group so the suite can clean up all descendants.
 	browser = spawn(binary, browserArgs, {detached: false, stdio: ['ignore', 'pipe', 'pipe']});
@@ -316,8 +358,8 @@ try {
 	browser.once('error', rejectResult);
 	browser.once('exit', code => rejectResult(new Error(`Chrome exited with code ${code}.\n${browserLog}`)));
 	const report = await Promise.race([captureBenchmarkTrace({
-		profile, url, cache, ...measurements, dpr, lightningOptions, sciChartOptions, processPid: measurements.memory ? browser.pid : null,
-		traceName: `trace-chrome-${mode}${vulkan ? '-vulkan' : ''}-${values.variant}.json`,
+		profile, url, cache, ...measurements, dpr, dashboard: values.dashboard, lightningOptions, sciChartOptions, processPid: measurements.memory ? browser.pid : null,
+		traceName: traceReportName(mode, values.variant, {vulkan, dashboard: values.dashboard}),
 		onSampleTimeout(error) {
 			// Preserve the timeout instead of a subsequent Chrome-disconnected error.
 			rejectResult(error);
@@ -330,7 +372,7 @@ try {
 		date: new Date().toISOString(), cpu: cpus()[0]?.model, os: `${platform()} ${release()}`,
 		headless: true, engine: 'chrome', binary, browserVersion, browserArgs, node: process.version,
 		dpr, dependencies, variant: values.variant,
-		benchmark: {...benchmarkMetadata[values.variant]},
+		benchmark: benchmarkVariantMetadata(values.variant, {dashboard: values.dashboard}),
 		requestedBackend: vulkan ? 'vulkan' : 'default',
 		sourceSha256: Object.fromEntries([...files].filter(([path]) => !path.startsWith('/bench/vendor/'))
 			.map(([path, source]) => [path, createHash('sha256').update(source).digest('hex')])),
@@ -340,7 +382,7 @@ try {
 		report.analysis = await analyzeBenchmarkTraceFile(report.trace.path, report);
 	if (measurements.raf)
 		report.rafAnalysis = summarizeBenchmarkRaf(report);
-	const output = join(cache, variantReportName(mode, values.variant, {vulkan}));
+	const output = join(cache, variantReportName(mode, values.variant, {vulkan, dashboard: values.dashboard}));
 	writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
 	console.log(`${values.variant}: ${report.samples.filter(sample => !sample.warmup).length} measured samples. ${browserVersion}`);
 }

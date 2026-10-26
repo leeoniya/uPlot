@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { demoDependencies, demoModuleDependencies, dependencyUrl } from '../bench/demo-dependencies.mjs';
 
 // Serve the same modules and styles as the standalone demos, without parsing HTML.
-export function loadBenchDemoSources(root, variant = null) {
+export function loadBenchDemoSources(root, variant = null, {dashboard = false} = {}) {
 	if (variant !== null && !Object.hasOwn(demoDependencies, variant))
 		throw new Error(`Unknown demo variant: ${variant}`);
 	root = new URL(root);
@@ -12,7 +12,7 @@ export function loadBenchDemoSources(root, variant = null) {
 	const files = new Map();
 	const dependencies = [];
 	const localScripts = [];
-	const localStyles = ['/bench/demo.css'];
+	const localStyles = dashboard ? [] : ['/bench/demo.css'];
 	const read = route => {
 		try {
 			files.set(route, readFileSync(new URL(route.slice(1), root), 'utf8'));
@@ -25,6 +25,11 @@ export function loadBenchDemoSources(root, variant = null) {
 	};
 	for (const route of ['/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs', '/bench/demo-runtime.mjs', '/bench/framework-runtime.mjs', '/bench/lifecycle-data.mjs', '/bench/hover.mjs', '/bench/demo.css'])
 		read(route);
+
+	if (dashboard) {
+		for (const name of readdirSync(new URL('bench/dashboard/', root)).filter(name => name.endsWith('.mjs')))
+			read(`/bench/dashboard/${name}`);
+	}
 
 	const variants = variant === null ? Object.keys(demoDependencies) : [variant];
 	for (const id of variants) {

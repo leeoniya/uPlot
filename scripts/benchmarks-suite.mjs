@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { SAMPLE_TIMEOUT_MS, SAMPLE_TIMEOUT_EXIT_CODE } from './bench-sample-timeout.mjs';
 import { traceAccountingProtocol } from './bench-trace-policy.mjs';
-import { benchmarkOperations, benchmarkTimingSamples } from './benchmarks-phases.mjs';
+import { benchmarkOperations, benchmarkTimingSamples, dashboardWorkload, assertCompatibleWorkloads } from './benchmarks-phases.mjs';
 import { summarizeBenchmarkTraceSamples, TRACE_AGGREGATION } from './analyze-benchmarks-trace.mjs';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -33,12 +33,23 @@ export function resolveBenchmarkVulkan({vulkan, 'no-vulkan': noVulkan = false, v
 		(variant === 'chartgpu' || (variant === null && benchmarkVariants.includes('chartgpu'))));
 }
 
-export function variantReportName(mode, variant, {vulkan = false} = {}) {
-	return `results-chrome-${mode}${vulkan ? '-vulkan' : ''}-${variant}.json`;
+export function variantReportName(mode, variant, {vulkan = false, dashboard = false} = {}) {
+	return `results-chrome-${dashboard ? 'dashboard-' : ''}${mode}${vulkan ? '-vulkan' : ''}-${variant}.json`;
 }
 
-export function suiteReportName(mode, {vulkan = false} = {}) {
-	return `results-chrome-${mode}${vulkan ? '-vulkan' : ''}.json`;
+export function suiteReportName(mode, {vulkan = false, dashboard = false} = {}) {
+	return `results-chrome-${dashboard ? 'dashboard-' : ''}${mode}${vulkan ? '-vulkan' : ''}.json`;
+}
+
+export function traceReportName(mode, variant, {vulkan = false, dashboard = false} = {}) {
+	return `trace-chrome-${dashboard ? 'dashboard-' : ''}${mode}${vulkan ? '-vulkan' : ''}-${variant}.json`;
+}
+
+export function benchmarkVariantMetadata(variant, {dashboard = false} = {}) {
+	// Pinned Boost defaults: 5,000 points per series or 50 series per chart.
+	// The dashboard leaves those thresholds unchanged (300 points, five series).
+	return {...benchmarkMetadata[variant], ...(dashboard && variant === 'highcharts'
+		? {context: 'svg', sampling: 'none', lossy: false} : {})};
 }
 
 // Only these known GPU series can use captured GL contexts as renderer evidence.
@@ -65,7 +76,7 @@ function assertCompatibleReports(reports, {trace}) {
 	assertCompatibleMemoryReports(reports);
 	for (const raw of reports) {
 		benchmarkOperations(raw);
-		if (raw.hoverProtocol)
+		if (raw.hoverProtocol || raw.workload)
 			benchmarkTimingSamples(raw);
 	}
 	if (reports.some(raw => benchmarkOperations(raw)) &&
@@ -78,6 +89,7 @@ function assertCompatibleReports(reports, {trace}) {
 }
 
 function benchmarkView(report) {
+	assertCompatibleWorkloads([report, ...report.reports]);
 	assertCompatibleReports(report.reports, report.measurements);
 	const {trace, memory, raf} = report.measurements;
 	const population = report.reports.some(raw => raw.phase === 'chart-population');
@@ -193,8 +205,9 @@ function benchmarkView(report) {
 
 export function summarizeSavedBenchmarks(options, output, {platform = process.platform, outputDirectory = cache} = {}) {
 	const vulkan = resolveBenchmarkVulkan(options, platform);
+	const {dashboard = false} = options;
 	const measurements = measurementsFor(options);
-	output ??= resolve(outputDirectory, suiteReportName(benchmarkMode(options), {vulkan}));
+	output ??= resolve(outputDirectory, suiteReportName(benchmarkMode(options), {vulkan, dashboard}));
 	const report = JSON.parse(readFileSync(output, 'utf8'));
 	if (report.mode !== benchmarkMode(options) || !Array.isArray(report.reports) ||
 		Object.keys(measurements).some(key => report.measurements?.[key] !== measurements[key]))
@@ -206,6 +219,9 @@ export function summarizeSavedBenchmarks(options, output, {platform = process.pl
 	if ((report.requestedBackend ?? 'default') !== requestedBackend ||
 		report.reports.some(raw => (raw.runner.requestedBackend ?? 'default') !== requestedBackend))
 		throw new Error('Expected a benchmark suite report with matching requested backend.');
+	if ((report.workload !== undefined) !== dashboard)
+		throw new Error('Expected a benchmark suite report with matching dashboard workload selection.');
+	assertCompatibleWorkloads([report, ...report.reports]);
 	assertCompatibleReports(report.reports, measurements);
 	if (measurements.trace) {
 		for (const raw of report.reports) {
@@ -309,7 +325,7 @@ function runWorker(request, {
 }
 
 // Tests may supply runWorker(request), returning a raw report or writing request.output.
-export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = false, vulkan, 'no-vulkan': noVulkan, variant = null, lightningOptions, verbose = false}, dependencies = {}) {
+export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = false, vulkan, 'no-vulkan': noVulkan, variant = null, lightningOptions, verbose = false, dashboard = false}, dependencies = {}) {
 	if (!Number.isFinite(dpr) || dpr <= 0)
 		throw new TypeError('dpr must be positive and finite');
 	if (variant !== null && !Object.hasOwn(demoDependencies, variant))
@@ -327,10 +343,11 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 	const display = dependencies.display ?? createBenchmarkDisplay({verbose});
 	const worker = dependencies.runWorker ?? (request => runWorker(request, dependencies));
 	mkdirSync(outputDirectory, {recursive: true});
-	const output = resolve(outputDirectory, suiteReportName(mode, {vulkan}));
+	const output = resolve(outputDirectory, suiteReportName(mode, {vulkan, dashboard}));
 	const report = {
 		date: new Date().toISOString(), mode, measurements, dpr, gpu, requestedBackend, complete: false,
-		variantMetadata: Object.fromEntries(variants.map(id => [id, {...benchmarkMetadata[id]}])),
+		...(dashboard ? {workload: {...dashboardWorkload}} : {}),
+		variantMetadata: Object.fromEntries(variants.map(id => [id, benchmarkVariantMetadata(id, {dashboard})])),
 		skipped: variant === null ? Object.entries({...demoRestrictions, ...benchmarkRestrictions}).filter(([id]) => !variants.includes(id))
 					.map(([variant, reason]) => ({variant, reason})) : [],
 		progress: {total: variants.length, completed: [], current: null, failed: null},
@@ -339,10 +356,10 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 			idleFirst: true, sameRunControlsOnly: true, coolingBetweenVariantsMs: 0,
 			tracing: measurements.trace, gpuSpecificMemory: false, sampleTimeoutMs: SAMPLE_TIMEOUT_MS,
 			blankAndLoaded: 'One cold checkpoint each per browser, not a round aggregate.',
-			lifecycle: 'Three warmup sessions and seven measured sessions. Each session initializes a two-point chart, updates it with the full dataset, then resizes the retained chart to 1200x400. New reports use chart-population, settled-work-v1 initialization, retained-resize-v1 resize, and hover-ten-v3. lifecycle.resizeSize records width and height. Supported variants, including idle, then perform hover-10. Unsupported variants have only three phases.',
-			hover: 'hover.variants records supported variants, including idle. hover.count is 10 and hover.intervalMs is 50 for hover-ten-v2 and hover-ten-v3. One hover-10 window covers 10 mousemoves and the final settle/fence. Current hover-ten-v3 sends all ten coordinate targets through one browser binding. Node sends ten CDP dispatches with nine 50 ms waits, each after the preceding CDP acknowledgment. Node sends one browser Runtime.evaluate completion acknowledgment after the tenth dispatch acknowledgment. No catch-up, per-point renderer timer, renderer acknowledgment, or rAF occurs. No value verification or harness DOM/canvas reads occur in this window. Batching reduces input-bridge overhead but does not eliminate it. Node scheduling is outside measured browser threads. No CPU profiling is added. Idle spacing is not thread work, but rAF wall latency includes at least 450 ms of spacing. Target preparation and bounds validation occur outside the window. Diagnostic verification never runs during capture or preflight. Legacy hover-ten-v1 used frame-paced, verified displays. Legacy hover-ten-v2 used per-point browser bindings, renderer timers, and completion acknowledgments. Reports retain count and interval without verification evidence. The result is cumulative, not a per-point average. Unsupported variants have no hover marker or sample and show a blank cell.',
-			timingColumns: 'Trace init ms, update ms, resize ms, and hover10 ms use total tracked thread work from each complete operation window. Each window includes settling and completion checks. Init includes chart-specific host setup. Main/gpu and prep describe data-update only. rAF-only init rAF ms and resize rAF ms use each operation\'s raf1Ms, not thread work. rAF-only update ms shows update readiness. Next rAF shows update callback latency. Primary groups and library ordering still describe data-update. phaseGroups contains all recorded operations. Untraced rAF hover10 ms uses the minimum hover raf1Ms, not the full-work equivalent.',
-			memoryColumns: 'Lifecycle process-memory reports use memoryProtocol through-update-v1. After baseline GC, peak covers small-init, full-data preparation, and data-update through the live checkpoint. Forced GC and the live checkpoint follow settled data-update immediately, before resize preparation, with the chart and full prepared input alive. No process reads or forced GC occur after this checkpoint. Resize and hover are timing-only. No cleanup snapshot occurs, but chart destruction still runs. Saved summaries cannot mix memory protocols, including idle controls. Legacy reports without memoryProtocol retain whole-session memory accounting.',
+			lifecycle: dashboard ? 'Three warmup sessions and seven measured sessions. Each session initializes 20 charts with five series and two rows each, then updates the retained charts to 300 rows per series. The 4x5 grid uses 480x216 tiles in a 1920x1080 viewport. Reports use dashboard-v1, chart-population, and settled-work-v1. The only operations are small-init and data-update. No resize or hover occurs.' : 'Three warmup sessions and seven measured sessions. Each session initializes a two-point chart, updates it with the full dataset, then resizes the retained chart to 1200x400. New reports use chart-population, settled-work-v1 initialization, retained-resize-v1 resize, and hover-ten-v3. lifecycle.resizeSize records width and height. Supported variants, including idle, then perform hover-10. Unsupported variants have only three phases.',
+			hover: dashboard ? 'No hover operation occurs.' : 'hover.variants records supported variants, including idle. hover.count is 10 and hover.intervalMs is 50 for hover-ten-v2 and hover-ten-v3. One hover-10 window covers 10 mousemoves and the final settle/fence. Current hover-ten-v3 sends all ten coordinate targets through one browser binding. Node sends ten CDP dispatches with nine 50 ms waits, each after the preceding CDP acknowledgment. Node sends one browser Runtime.evaluate completion acknowledgment after the tenth dispatch acknowledgment. No catch-up, per-point renderer timer, renderer acknowledgment, or rAF occurs. No value verification or harness DOM/canvas reads occur in this window. Batching reduces input-bridge overhead but does not eliminate it. Node scheduling is outside measured browser threads. No CPU profiling is added. Idle spacing is not thread work, but rAF wall latency includes at least 450 ms of spacing. Target preparation and bounds validation occur outside the window. Diagnostic verification never runs during capture or preflight. Legacy hover-ten-v1 used frame-paced, verified displays. Legacy hover-ten-v2 used per-point browser bindings, renderer timers, and completion acknowledgments. Reports retain count and interval without verification evidence. The result is cumulative, not a per-point average. Unsupported variants have no hover marker or sample and show a blank cell.',
+			timingColumns: dashboard ? 'Trace init ms and update ms use total tracked thread work from each complete dashboard operation window, including settling and completion checks. Init includes all 20 hosts and charts. Main/gpu and prep describe data-update only. In rAF-only mode, init rAF ms uses initialization raf1Ms, update ms shows update readiness, and next rAF shows update callback latency. These are whole-dashboard measurements, not per-chart averages. Primary groups describe data-update. phaseGroups contains small-init and data-update only.' : 'Trace init ms, update ms, resize ms, and hover10 ms use total tracked thread work from each complete operation window. Each window includes settling and completion checks. Init includes chart-specific host setup. Main/gpu and prep describe data-update only. rAF-only init rAF ms and resize rAF ms use each operation\'s raf1Ms, not thread work. rAF-only update ms shows update readiness. Next rAF shows update callback latency. Primary groups and library ordering still describe data-update. phaseGroups contains all recorded operations. Untraced rAF hover10 ms uses the minimum hover raf1Ms, not the full-work equivalent.',
+			memoryColumns: dashboard ? 'Dashboard process-memory reports use memoryProtocol through-update-v1. After baseline GC, peak covers initialization, preparation, and data-update through the live checkpoint. Forced GC and live follow settled data-update with all 20 charts and their full prepared inputs alive. No process reads or forced GC occur after live. No cleanup snapshot occurs, but all charts are destroyed. Memory controls must have the same dashboard workload and dimensions.' : 'Lifecycle process-memory reports use memoryProtocol through-update-v1. After baseline GC, peak covers small-init, full-data preparation, and data-update through the live checkpoint. Forced GC and the live checkpoint follow settled data-update immediately, before resize preparation, with the chart and full prepared input alive. No process reads or forced GC occur after this checkpoint. Resize and hover are timing-only. No cleanup snapshot occurs, but chart destruction still runs. Saved summaries cannot mix memory protocols, including idle controls. Legacy reports without memoryProtocol retain whole-session memory accounting.',
 			timeoutScope: 'Five seconds per operation, including preparation and settling. Setup/baseline belongs to the first operation. Post-update GC/live and final destruction each have a separate five-second budget.',
 			aggregation: 'Trace timing columns use arithmetic means after warmups. Total work averages deduplicated per-sample totals, including observed GC. rAF timings and memory columns retain minima.',
 			warmSamples: 'Warmups are excluded. Each browser reuses its selected library between samples; allocator reuse affects process deltas.',
@@ -357,7 +374,7 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 			report.progress.current = name;
 			save();
 			display.update({...benchmarkView(report), status: `Starting ${name} (${processed() + 1}/${variants.length})...`});
-			const variantOutput = resolve(outputDirectory, variantReportName(mode, name, {vulkan}));
+			const variantOutput = resolve(outputDirectory, variantReportName(mode, name, {vulkan, dashboard}));
 			// A successful worker must produce this run's report, never a cached predecessor.
 			rmSync(variantOutput, {force: true});
 			const args = [
@@ -365,18 +382,20 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 				'--worker', '--variant', name, '--dpr', String(dpr),
 				...Object.keys(measurements).filter(key => measurements[key]).map(key => `--${key}`),
 				...(gpu ? ['--gpu'] : []),
+								...(dashboard ? ['--dashboard'] : []),
 				// Workers must not reselect the backend based on their own variant.
 				vulkan ? '--vulkan' : '--no-vulkan',
 			];
 			let reports;
 			let adjustedAnalysis;
 			try {
-				const returned = await worker({command: process.execPath, args, variant: name, dpr, gpu, vulkan, requestedBackend, measurements: {...measurements}, output: variantOutput, timeoutMs: 270000});
+				const returned = await worker({command: process.execPath, args, variant: name, dpr, gpu, vulkan, dashboard, requestedBackend, measurements: {...measurements}, output: variantOutput, timeoutMs: 270000});
 				const raw = returned ?? JSON.parse(readFileSync(variantOutput, 'utf8'));
 				if (raw?.runner?.variant !== name || raw.runner?.dpr !== dpr || raw.runner.requestedBackend !== requestedBackend || !Array.isArray(raw.samples) ||
 					Object.keys(measurements).some(key => raw.measurements?.[key] !== measurements[key]) ||
 					raw.samples.some(sample => sample.variant !== name || sample.dpr !== dpr))
 					throw new Error(`Unexpected benchmark report for ${name}`);
+				assertCompatibleWorkloads([report, raw]);
 				reports = [...report.reports, raw];
 				assertCompatibleReports(reports, measurements);
 				adjustedAnalysis = measurements.memory ? summarizeAdjustedProcessMemory(reports) : null;
