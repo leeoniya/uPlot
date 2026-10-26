@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
+import { parseArgs } from 'node:util';
 import { summarizeBenchmarkRaf } from '../../scripts/analyze-benchmarks-raf.mjs';
 import { summarizeBenchmarkTraceSamples } from '../../scripts/analyze-benchmarks-trace.mjs';
 import { TRACE_ACCOUNTING, LEGACY_TRACE_ACCOUNTING } from '../../scripts/bench-trace-policy.mjs';
@@ -14,7 +15,7 @@ import { demoDependencies, benchmarkMetadata, benchmarkVariants, benchmarkLibrar
 
 const variants = ['idle', ...benchmarkVariants];
 const skipped = Object.entries({...demoRestrictions, ...benchmarkRestrictions}).map(([variant, reason]) => ({variant, reason}));
-const skippedWarnings = skipped.map(entry => `${entry.variant}: skipped (${entry.reason})`);
+
 const combined = {trace: true, memory: true, raf: false};
 const tuple = pssMB => ({rssMB: pssMB * 4 + 50, pssMB, privateMB: pssMB / 2, swapMB: 1, swapPssMB: 0.5});
 const observation = (phase, value) => ({
@@ -56,7 +57,7 @@ function capture(fn) {
 		console.log = (...args) => {
 			if (typeof args[0] === 'string' && args[0].startsWith('┌')) {
 				const [headers, ...cells] = args[0].split('\n').filter(line => line.startsWith('│'))
-					.map(line => line.split('│').slice(1, -1).map(value => value.trim()));
+					.map(line => line.split(/[│║]/).slice(1, -1).map(value => value.trim()));
 				const rows = cells.map(row => Object.fromEntries(headers.map((key, i) =>
 					[key, ['variant', 'context', 'sampling', 'lossy'].includes(key) || row[i] === 'unavailable' || row[i] === '-' || row[i] === '' ? row[i] : Number(row[i])])));
 				tables.push(rows);
@@ -131,10 +132,11 @@ function savedReport(reports, measurements = combined) {
 	return {mode: benchmarkMode(measurements), measurements, reports, complete: false, progress: {completed: []}, protocol: {custom: true}};
 }
 
-function offline(report) {
+// Metric regressions inspect every column; presentation regressions override this option.
+function offline(report, options = {verbose: true}) {
 	const output = join(directory, 'offline.json');
 	writeFileSync(output, JSON.stringify(report));
-	return capture(() => summarizeSavedBenchmarks({...report.measurements, vulkan: false}, output));
+	return capture(() => summarizeSavedBenchmarks({...report.measurements, vulkan: false, ...options}, output));
 }
 
 describe('trace accounting compatibility', () => {
@@ -255,7 +257,7 @@ describe('through-update memory reports', () => {
 		h.dependencies.runWorker = async request => updatedBrowser(request.variant, request.measurements, request.dpr, request.requestedBackend);
 		const report = await runBenchmarkSuite({variant: 'uplot', vulkan: false}, h.dependencies);
 		const columns = ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'main ms', 'gpu ms',
-			'update ms', 'peak MB', 'retained MB', 'resize ms', 'hover 10 ms'];
+			'update ms', 'peak MB', 'retained MB', 'resize ms', 'hover10 ms'];
 		assert.deepEqual(Object.keys(h.frames.at(-1).rows[0]), columns);
 		report.reports.push(updatedBrowser('d3'));
 		report.failures = [{variant: 'chartjs', error: 'failed'}, {variant: 'd3-svg', error: 'failed'}];
@@ -263,9 +265,9 @@ describe('through-update memory reports', () => {
 		const original = structuredClone(report.reports);
 		const summary = offline(report);
 		for (const row of summary.tables[0]) assert.deepEqual(Object.keys(row), columns);
-		assert.deepEqual(summary.tables[0].filter(row => row.variant === 'd3').map(row => row['hover 10 ms']), ['', '']);
-		assert.equal(summary.tables[0].find(row => row.variant === 'chartjs')['hover 10 ms'], '-');
-		assert.equal(summary.tables[0].find(row => row.variant === 'bokeh')['hover 10 ms'], '-');
+		assert.deepEqual(summary.tables[0].filter(row => row.variant === 'd3').map(row => row['hover10 ms']), ['', '']);
+		assert.equal(summary.tables[0].find(row => row.variant === 'chartjs')['hover10 ms'], '-');
+		assert.equal(summary.tables[0].find(row => row.variant === 'bokeh')['hover10 ms'], '-');
 		assert.deepEqual(summary.result.reports.map(raw => raw.samples), original.map(raw => raw.samples));
 	});
 
@@ -307,12 +309,12 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3']) describ
 			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
 			const row = h.frames.at(-1).rows[0];
 			const baseline = offline(savedReport([resizedBrowser('idle', measurements), resizedBrowser('uplot', measurements)], measurements)).tables[0][0];
-			assert.deepEqual(renderedRow(Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'hover 10 ms'))), baseline);
+			assert.deepEqual(renderedRow(Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'hover10 ms'))), baseline);
 			if (measurements.trace || measurements.raf) {
-				assert.equal(row['hover 10 ms'], measurements.raf ? 40 : 60);
-				assert.equal(Object.keys(row).indexOf('hover 10 ms'), Object.keys(row).indexOf(measurements.raf ? 'resize rAF ms' : 'resize ms') + 1);
+				assert.equal(row['hover10 ms'], measurements.raf ? 40 : 60);
+				assert.equal(Object.keys(row).indexOf('hover10 ms'), Object.keys(row).indexOf(measurements.raf ? 'resize rAF ms' : 'resize ms') + 1);
 			}
-			else assert.equal(Object.hasOwn(row, 'hover 10 ms'), false);
+			else assert.equal(Object.hasOwn(row, 'hover10 ms'), false);
 			assert.deepEqual(h.frames.at(-1).warnings, []);
 			const original = structuredClone(report.reports);
 			const summary = offline(report);
@@ -397,7 +399,7 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3']) describ
 			assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
 			assert.equal(report.failures.length, 1);
 			assert.match(report.failures[0].error, /hover protocols/);
-			if (measurements.trace || measurements.raf) assert.equal(h.frames.at(-1).rows[0]['hover 10 ms'], '-');
+			if (measurements.trace || measurements.raf) assert.equal(h.frames.at(-1).rows[0]['hover10 ms'], '-');
 		});
 	}
 
@@ -406,7 +408,7 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3']) describ
 			const h = harness();
 			h.dependencies.runWorker = async request => hoveredBrowser(request.variant, request.measurements, request.dpr, request.requestedBackend);
 			await runBenchmarkSuite({...measurements, variant: 'd3', vulkan: false}, h.dependencies);
-			assert.equal(h.frames.at(-1).rows[0]['hover 10 ms'], '');
+			assert.equal(h.frames.at(-1).rows[0]['hover10 ms'], '');
 			assert.deepEqual(h.frames.at(-1).warnings, []);
 			const raw = hoveredBrowser('uplot', measurements), unsupported = hoveredBrowser('d3', measurements);
 			if (measurements.trace)
@@ -418,10 +420,10 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3']) describ
 			const input = savedReport([hoveredBrowser('idle', measurements), raw, unsupported], measurements);
 			input.failures = [{variant: 'chartjs', error: 'synthetic supported failure'}, {variant: 'd3fc', error: 'synthetic unsupported failure'}];
 			const {tables, logs} = offline(input);
-			assert.equal(tables[0].find(row => row.variant === 'uplot')['hover 10 ms'], 0);
-			assert.equal(tables[0].find(row => row.variant === 'd3')['hover 10 ms'], '');
-			assert.equal(tables[0].find(row => row.variant === 'chartjs')['hover 10 ms'], '-');
-			assert.equal(tables[0].find(row => row.variant === 'd3fc')['hover 10 ms'], '');
+			assert.equal(tables[0].find(row => row.variant === 'uplot')['hover10 ms'], 0);
+			assert.equal(tables[0].find(row => row.variant === 'd3')['hover10 ms'], '');
+			assert.equal(tables[0].find(row => row.variant === 'chartjs')['hover10 ms'], '-');
+			assert.equal(tables[0].find(row => row.variant === 'd3fc')['hover10 ms'], '');
 			assert.equal(logs.some(([text]) => text.startsWith('Warning:') && !text.includes('synthetic')), false);
 		});
 
@@ -438,8 +440,8 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3']) describ
 				raw.rafAnalysis = summarizeBenchmarkRaf(raw);
 			}
 			const summary = offline(savedReport([raw], measurements));
-			assert.equal(summary.tables[0][0]['hover 10 ms'], 'unavailable');
-			assert.ok(summary.logs.some(([text]) => text.includes('hover 10 ms (0/3 valid, 3 missing, unavailable)')));
+			assert.equal(summary.tables[0][0]['hover10 ms'], 'unavailable');
+			assert.ok(summary.logs.some(([text]) => text.includes('hover10 ms (0/3 valid, 3 missing, unavailable)')));
 		});
 	}
 
@@ -463,7 +465,7 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3']) describ
 		const rows = offline(savedReport(reports, measurements)).tables[0];
 		assert.deepEqual(rows.map(row => row.variant), ['bokeh', 'bokeh', 'uplot']);
 		assert.deepEqual(rows.map(row => row[raf ? 'next rAF ms' : 'update ms']), [10, 30, 20]);
-		assert.deepEqual(rows.map(row => row['hover 10 ms']), [300, 1, 2]);
+		assert.deepEqual(rows.map(row => row['hover10 ms']), [300, 1, 2]);
 	});
 
 	it('preserves legacy whole-session memory without memoryProtocol, including hover polls and the post-hover live checkpoint', () => {
@@ -1473,7 +1475,7 @@ describe('benchmark suite modes and workers', () => {
 			assert.equal(frame.status, `Starting ${request.variant} (${partial.progress.completed.length + 1}/${variants.length})...`);
 			assert.notEqual(frame.final, true);
 			assert.deepEqual(frame.rows.map(row => row.variant), groupedVariants(partial.progress.completed.filter(variant => variant !== 'idle')));
-			assert.deepEqual(frame.warnings, skippedWarnings);
+			assert.deepEqual(frame.warnings, []);
 			assert.deepEqual(partial.skipped, skipped);
 			if (request.variant === 'idle')
 				assert.deepEqual(partial.adjustedAnalysis.groups, []);
@@ -1502,7 +1504,7 @@ describe('benchmark suite modes and workers', () => {
 		assert.equal(h.frames.length, variants.length * 2);
 		assert.ok(h.frames.slice(0, -1).every(frame => !frame.final));
 		assert.deepEqual(h.frames.at(-1), {
-			rows: h.tables.at(-1), warnings: skippedWarnings,
+			rows: h.tables.at(-1), warnings: [],
 			status: `Completed ${variants.at(-1)} (${variants.length}/${variants.length}).`, final: true,
 		});
 		assert.deepEqual(saved(), result);
@@ -1605,8 +1607,7 @@ describe('benchmark suite modes and workers', () => {
 			assert.equal(report.complete, true);
 			const expectedSkipped = variant === null ? skipped.filter(entry => !Object.hasOwn(demoRestrictions, entry.variant)) : [];
 			assert.deepEqual(report.skipped, expectedSkipped);
-			const warnings = expectedSkipped.map(entry => `${entry.variant}: skipped (${entry.reason})`);
-			assert.ok(h.frames.every(frame => JSON.stringify(frame.warnings) === JSON.stringify(warnings)));
+			assert.ok(h.frames.every(frame => frame.warnings.length === 0));
 			assert.ok(h.requests.every(request => request.variant !== 'jscharting'));
 			assert.deepEqual(saved(), report);
 			assert.equal(h.tables.at(-1).at(-1).variant, 'lightningchart');
@@ -1634,7 +1635,7 @@ describe('benchmark suite modes and workers', () => {
 			const report = await runBenchmarkSuite({lightningOptions}, h.dependencies);
 			assert.deepEqual(h.requests.map(request => request.variant), variants);
 			assert.deepEqual(report.skipped, skipped);
-			assert.deepEqual(h.frames.at(-1).warnings, skippedWarnings);
+			assert.deepEqual(h.frames.at(-1).warnings, []);
 		}
 	});
 
@@ -1727,7 +1728,7 @@ describe('benchmark suite modes and workers', () => {
 					const completed = h.frames.at(-2), starting = h.frames.at(-1);
 					assert.deepEqual(starting.rows, completed.rows);
 					assert.deepEqual(starting.warnings, completed.warnings);
-					assert.deepEqual(starting.warnings, [...skippedWarnings, 'uplot (DPR 1): gpu ms (2/3 valid, 1 missing).']);
+					assert.deepEqual(starting.warnings, ['uplot (DPR 1): gpu ms (2/3 valid, 1 missing).']);
 				}
 				const raw = await worker(request);
 				if (request.variant === 'uplot')
@@ -1763,6 +1764,105 @@ describe('benchmark suite modes and workers', () => {
 			await assert.rejects(runBenchmarkSuite({vulkan: false}, h.dependencies), /Unexpected benchmark report/);
 			assert.deepEqual(saved().reports, []);
 		}
+	});
+});
+
+describe('benchmark verbosity', () => {
+	it('accepts the boolean CLI flag and documents live and saved summaries', () => {
+		const script = fileURLToPath(new URL('../../scripts/benchmarks.mjs', import.meta.url));
+		const child = spawnSync(process.execPath, [script, '--help', '--verbose'], {encoding: 'utf8', timeout: 10000});
+		assert.equal(child.status, 0, child.stderr);
+		assert.match(child.stdout, /--verbose to show main ms and gpu ms.*live tables and saved summaries/);
+		assert.match(child.stdout, /hover10 ms/);
+		assert.doesNotMatch(child.stdout, /hover\s10 ms/);
+		const invalid = spawnSync(process.execPath, [script, '--help', '--verbose=false'], {encoding: 'utf8', timeout: 10000});
+		assert.equal(invalid.status, 1, invalid.stderr);
+		assert.match(invalid.stderr, /does not take an argument/);
+	});
+
+	it('forwards false by default and true with --verbose through both actual CLI dispatch paths', async () => {
+		const source = readFileSync(new URL('../../scripts/benchmarks.mjs', import.meta.url), 'utf8');
+		const start = source.indexOf('const chromeVersion =');
+		const end = source.indexOf('const binary = await chromeBinary(');
+		assert.ok(start >= 0 && end > start);
+		for (const summarize of [false, true]) {
+			for (const verbose of [false, true]) {
+				const calls = [];
+				const exited = new Error('CLI exited');
+				const args = ['--no-vulkan', ...(summarize ? ['--summarize-only'] : []), ...(verbose ? ['--verbose'] : [])];
+				await assert.rejects(runInNewContext(`(async () => {${source.slice(start, end)}})()`, {
+					parseArgs: options => parseArgs({...options, args}),
+					resolveBenchmarkVulkan, benchmarkMode,
+					platform: () => 'linux',
+					process: {env: {}, exit: code => { assert.equal(code, 0); throw exited; }},
+					runBenchmarkSuite: async options => calls.push(['live', options]),
+					summarizeSavedBenchmarks: options => calls.push(['saved', options]),
+				}), error => error === exited);
+				assert.equal(calls.length, 1);
+				assert.equal(calls[0][0], summarize ? 'saved' : 'live');
+				assert.equal(calls[0][1].verbose, verbose);
+				assert.equal(calls[0][1].trace, true);
+				assert.equal(calls[0][1].memory, true);
+			}
+		}
+	});
+
+	for (const measurements of [combined, {trace: true, memory: false, raf: false},
+		{trace: false, memory: true, raf: false}, {trace: false, memory: false, raf: true}]) {
+		it(`${benchmarkMode(measurements)} saved verbosity changes only table columns`, () => {
+			const input = savedReport(['idle', 'uplot'].map(variant => hoverBrowser(variant, measurements)), measurements);
+			const original = structuredClone(input);
+			const normal = offline(input, {});
+			const bytes = readFileSync(join(directory, 'offline.json'), 'utf8');
+			const verbose = offline(input, {verbose: true});
+			assert.deepEqual(input, original);
+			assert.deepEqual(normal.result, verbose.result);
+			assert.equal(readFileSync(join(directory, 'offline.json'), 'utf8'), bytes);
+			assert.deepEqual(normal.logs, verbose.logs);
+			assert.deepEqual(normal.tables[0], verbose.tables[0].map(row => Object.fromEntries(
+				Object.entries(row).filter(([key]) => key !== 'main ms' && key !== 'gpu ms'))));
+			for (const key of ['main ms', 'gpu ms']) {
+				assert.equal(Object.hasOwn(normal.tables[0][0], key), false);
+				assert.equal(Object.hasOwn(verbose.tables[0][0], key), measurements.trace);
+			}
+			assert.equal(Object.hasOwn(normal.tables[0][0], 'hover10 ms'), measurements.trace || measurements.raf);
+		});
+	}
+
+	it('passes verbosity to the live formatter without changing worker requests, full rows, or reports', async () => {
+		const outputs = [], reports = [], requests = [], rows = [];
+		for (const options of [{}, {verbose: true}]) {
+			const h = harness();
+			await runBenchmarkSuite({variant: 'uplot', vulkan: false, ...options}, h.dependencies);
+			rows.push(h.frames.at(-1).rows);
+			const writes = [];
+			const write = process.stdout.write;
+			const noColor = process.env.NO_COLOR;
+			try {
+				process.env.NO_COLOR = '1';
+				process.stdout.write = chunk => { writes.push(String(chunk)); return true; };
+				const report = await runBenchmarkSuite({variant: 'uplot', vulkan: false, ...options}, {...h.dependencies, display: undefined});
+				const {date, ...stable} = report;
+				reports.push(stable);
+			}
+			finally {
+				process.stdout.write = write;
+				if (noColor === undefined) delete process.env.NO_COLOR;
+				else process.env.NO_COLOR = noColor;
+			}
+			outputs.push(writes.join(''));
+			requests.push(h.requests);
+		}
+		assert.deepEqual(requests[0], requests[1]);
+		assert.deepEqual(reports[0], reports[1]);
+		assert.deepEqual(rows[0], rows[1]);
+		assert.equal(rows[0][0]['main ms'], 3);
+		assert.equal(rows[0][0]['gpu ms'], 4);
+		assert.equal(Object.hasOwn(reports[0], 'verbose'), false);
+		for (const request of requests.flat()) assert.ok(!request.args.includes('--verbose'));
+		assert.doesNotMatch(outputs[0], /main ms|gpu ms/);
+		assert.match(outputs[1], /main ms/);
+		assert.match(outputs[1], /gpu ms/);
 	});
 });
 
@@ -2006,6 +2106,16 @@ describe('benchmark table and offline summary', () => {
 		assert.deepEqual(result.logs, [['Updated summary from saved samples. No browser was started.']]);
 	});
 
+	for (const verbose of [false, true]) {
+		it(`suppresses preemptive skip warnings in saved summaries with verbose=${verbose} but preserves their reasons`, () => {
+			const input = {...savedReport([browser('idle'), browser('uplot')]), skipped};
+			const result = offline(input, {verbose});
+			assert.deepEqual(result.logs, [['Updated summary from saved samples. No browser was started.']]);
+			assert.deepEqual(result.result.skipped, skipped);
+			assert.deepEqual(JSON.parse(readFileSync(join(directory, 'offline.json'), 'utf8')).skipped, skipped);
+		});
+	}
+
 	it('warns separately about partial metrics and count mismatches without losing JSON statistics', () => {
 		const raw = browser('uplot');
 		const metrics = raw.analysis.groups[0].metrics;
@@ -2021,10 +2131,10 @@ describe('benchmark table and offline summary', () => {
 		assert.equal(row['total ms'], 'unavailable');
 		assert.equal(Object.keys(row).some(key => key.endsWith(' n') || key.endsWith(' missing')), false);
 		assert.deepEqual(result.logs.filter(([text]) => text.startsWith('Warning:')), [
-			...skippedWarnings.map(warning => ['Warning: ' + warning]),
+
 			['Warning: uplot (DPR 1): main ms (2/3 valid, 1 missing); gpu ms (4/3 valid, 0 missing); total ms (3/3 valid, 0 missing, unavailable).'],
 		]);
-		assert.deepEqual(result.events.map(event => event.type), ['table', ...skipped.map(() => 'log'), 'log', 'log']);
+		assert.deepEqual(result.events.map(event => event.type), ['table', 'log', 'log']);
 		assert.match(result.events[1].args[0], /^Warning:/);
 		assert.equal(result.events.at(-1).args[0], 'Updated summary from saved samples. No browser was started.');
 		const persisted = JSON.parse(readFileSync(join(directory, 'offline.json'), 'utf8'));

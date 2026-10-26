@@ -430,6 +430,15 @@ Run the combined trace and process-memory benchmark:
 npm run bench
 ```
 
+To include `main ms` and `gpu ms` in the live table, use:
+
+```sh
+npm run bench -- --verbose
+```
+
+`--verbose` defaults to false. It changes only the table, not the measurements, full rows, or saved JSON.
+The flag applies to live tables and saved summaries. Memory-only and rAF-only tables have no `main ms` or `gpu ms` columns.
+
 For separate measurements, use:
 
 ```sh
@@ -786,7 +795,7 @@ Reports with `initProtocol: 'settled-work-v1'` include chart-specific DOM setup 
 Saved summaries preserve readiness-based initialization for older reports. A summary rejects mixed initialization boundaries and mixed population, legacy lifecycle, or startup protocols.
 Legacy two-operation reports remain readable without a resize column. All modes reject comparisons between reports with and without the resize protocol.
 Saved summaries also reject mixed hover protocols, capability lists, or interval snapshots, including memory-only reports.
-Legacy `hover-ten-v1` and `hover-ten-v2` reports remain readable and use the same `hover 10 ms` column independently of v3.
+Legacy `hover-ten-v1` and `hover-ten-v2` reports remain readable and use the same `hover10 ms` column independently of v3.
 A summary cannot combine different hover protocols, including v2 with v3. This rule also applies to memory-only reports.
 Reports without hover remain readable without the hover column.
 Legacy memory reports remain readable under their original boundaries. Summaries reject mixed memory boundaries, including legacy reports combined with `through-update-v1`.
@@ -818,7 +827,7 @@ The optional licensed LightningChart adapter has unit coverage, but no resize br
 
 ### Hover protocol and adapter contract
 
-In trace modes, `hover 10 ms` measures cumulative work for ten mouse moves, not the average cost of one hover.
+In trace modes, `hover10 ms` measures cumulative work for ten mouse moves, not the average cost of one hover.
 The hover phase follows resize, so it uses the full dataset at 1200×400.
 The pointer starts outside the chart. Chrome receives trusted `Input.dispatchMouseEvent` mouse moves at data-derived coordinates through `scripts/benchmarks-mouse.mjs`.
 The benchmark never calls a tooltip API or dispatches synthetic DOM events to bypass normal hit testing.
@@ -1035,7 +1044,7 @@ JSON includes `backgroundGcMs` and `gcAddedThreadWorkMs` for each phase.
 The first field measures selected collector intervals. The second measures their addition to the total after overlap removal.
 Both fields are `null` without relevant recorded scopes or under legacy accounting.
 Zero means recorded scopes exist but add no duration in that window. It does not prove that no collection occurred.
-GC has no separate table column. GC additions affect initialization work, `update ms`, `resize ms`, and `hover 10 ms`.
+GC has no separate table column. GC additions affect initialization work, `update ms`, `resize ms`, and `hover10 ms`.
 Collection during a phase can reclaim allocations from earlier phases. Temporal overlap does not establish allocation ownership.
 Collector wall durations can include preemption and internal waits. They do not measure exclusive CPU usage.
 
@@ -1140,20 +1149,30 @@ SciChart, LightningChart, and G2 WebGL have conditional context labels from meas
 Missing or ambiguous evidence produces `unavailable`. This rule also applies to rAF reports, which do not capture GL contexts.
 Legacy reports can use unambiguous measured context evidence for known WebGL series, but cannot infer historical sampling configuration.
 
-The combined table shows these measurements in this order:
+By default, the combined table shows these measurements in this order:
 
 - `prep ms`: Preparation of the full dataset.
 - `init ms`: Total tracked thread work for host setup and two-point chart initialization, including deferred rendering and graphics completion checks.
-- `main ms`: Renderer main-thread work in the update window.
-- `gpu ms`: GPU-process main-thread work in the update window.
 - `update ms`: Total tracked thread work for the full-data update and rendering, including deferred work and graphics completion checks.
 - `peak MB`: Baseline-adjusted sampled peak browser-tree PSS through the post-update `live` checkpoint.
 - `retained MB`: Baseline-adjusted retained browser-tree PSS at that checkpoint, before resize or tooltip interaction.
 - `resize ms`: Total tracked thread work for resize, including host sizing, deferred work, and graphics completion checks.
-- `hover 10 ms`: Cumulative tracked thread work for ten mouse moves, including deferred work and graphics completion checks.
+- `hover10 ms`: Cumulative tracked thread work for ten mouse moves, including deferred work and graphics completion checks.
+
+With `--verbose`, current trace and combined tables also show these columns between `init ms` and `update ms`:
+
+- `main ms`: Renderer main-thread work in the update window.
+- `gpu ms`: GPU-process main-thread work in the update window.
+
+The flag does not remove metrics from full rows or JSON. It does not change sorting, aggregation, warnings, or capture.
+Trace-only tables omit the memory columns. Memory-only tables show `peak MB` and `retained MB` after the four metadata columns.
+
+A double boundary follows `retained MB` only when the next column is `resize ms`, `resize rAF ms`, or `hover10 ms`.
+This boundary separates memory through the data update from later timing-only operations.
+Tables without a following resize or hover column have no extra boundary.
 
 Trace and combined timing columns use arithmetic means across the seven measured rounds, excluding the three warmups.
-This applies to `prep ms`, `init ms`, `main ms`, `gpu ms`, `update ms`, `resize ms`, and `hover 10 ms`.
+This applies to `prep ms`, `init ms`, `main ms`, `gpu ms`, `update ms`, `resize ms`, and `hover10 ms`.
 Zero values contribute to the mean. Missing or invalid values do not become zero, and incomplete metrics produce warnings.
 JSON retains `min`, `max`, `mean`, valid counts, missing counts, and individual phase samples.
 
@@ -1162,7 +1181,7 @@ Main-thread GC and selected background GC already contribute to those totals. Th
 The JSON GC breakdowns also include arithmetic means, with zero-GC windows included.
 These means account for observed work within the phase windows, not collection between windows or full amortized application cost.
 The update total excludes small initialization and preparation. The sorting and color thresholds apply to mean full-data update work.
-`init ms`, `resize ms`, and `hover 10 ms` use the same thread-work metric as `update ms`, but for their separate windows.
+`init ms`, `resize ms`, and `hover10 ms` use the same thread-work metric as `update ms`, but for their separate windows.
 It includes captured main-thread work, raster tasks, compositor work, GPU-process work, and selected background GC.
 Idle gaps in the fixed settling wait do not count as work. Actual harness work within that window still counts.
 Trace and combined tables omit update readiness. JSON retains it as `jsMs` and `jsIntervalMs` for the `data-update` phase.
@@ -1173,7 +1192,7 @@ Legacy startup-only reports retain `total ms` because they contain no separate d
 rAF tables use `init rAF ms` for the first callback after initialization readiness, rather than imply a settled thread-work measurement.
 They retain update readiness in `update ms` and update callback latency in `next rAF ms`.
 The `resize rAF ms` column shows the minimum resize `raf1Ms`.
-In rAF mode, `hover 10 ms` shows minimum latency from sequence start to the first callback after readiness.
+In rAF mode, `hover10 ms` shows minimum latency from sequence start to the first callback after readiness.
 Current v3 readiness follows one browser completion acknowledgment after all ten CDP dispatch acknowledgments.
 Current v3 and legacy v2 latency includes nine 50 ms waits, or at least 450 ms, plus input-bridge and timer overhead.
 Legacy v1 latency includes per-point frame waits and value verification instead.
@@ -1190,7 +1209,7 @@ The table omits the index, sample-count, and DPR columns. Sample counts and DPR 
 Variant names and the `context`, `sampling`, and `lossy` columns align left without quotes. Numeric columns align right and show one decimal place.
 The JSON retains full measurement precision.
 
-Interactive terminals color `init ms`, `update ms`, `resize ms`, and `hover 10 ms` in trace tables.
+Interactive terminals color `init ms`, `update ms`, `resize ms`, and `hover10 ms` in trace tables.
 These columns use the same shades. Initialization reaches red at 100 ms, while the other three reach red at more than 100 ms.
 Legacy startup-only tables also color `init ms` and `total ms`.
 The display leaves `main ms`, `gpu ms`, and rAF-only timings uncolored.
@@ -1202,7 +1221,7 @@ The graded columns use these ranges. Context colors are categorical and appear s
 | Column | Green shades | Orange shades | Red shades |
 | --- | --- | --- | --- |
 | `init ms` | `0–2F` (about 33.33 ms) | `2F < ms < 100` | `≥100 ms` |
-| `update ms`, `resize ms`, `hover 10 ms` | `0–2F` (about 33.33 ms) | `>2F–100 ms` | `>100 ms` |
+| `update ms`, `resize ms`, `hover10 ms` | `0–2F` (about 33.33 ms) | `>2F–100 ms` | `>100 ms` |
 | `peak MB` | `0–35 MB` | `35 < MB < 50` | `≥50 MB` |
 | `retained MB` | `0–35 MB` | `35 < MB < 50` | `≥50 MB` |
 
@@ -1212,7 +1231,7 @@ An excluded boundary belongs to the next shade: exactly 50 MB is light red in bo
 The final row gives the lower boundary for darkest red.
 Fractions are exact thresholds. Decimal approximations are for reference only.
 
-| Shade | `init ms` | `update ms` / `resize ms` / `hover 10 ms` | `peak MB` | `retained MB` |
+| Shade | `init ms` | `update ms` / `resize ms` / `hover10 ms` | `peak MB` | `retained MB` |
 | --- | ---: | ---: | ---: | ---: |
 | Darkest green | `F ≈ 16.67` | `F ≈ 16.67` | 20 | 20 |
 | Medium green (yellow-green) | 25 | 25 | 27.5 | 27.5 |
@@ -1250,8 +1269,9 @@ The frame thresholds are references, not frame-latency claims.
 Trace `update ms` sums selected host-thread wall work, not elapsed frame latency.
 
 Terminal dimensions and line wrapping affect cursor erasure, not whether an interactive table is shown.
-Explanatory notes do not appear above the table. Measurement warnings and library skip reasons appear below it.
-The display shows every distinct warning, including the Google Charts timeout restriction, without a three-warning limit.
+Explanatory notes do not appear above the table. Measurement warnings appear below it without a three-warning limit.
+Live tables and saved summaries omit warnings for libraries excluded before execution, even with `--verbose`.
+The library investigations and suite JSON retain the exclusion reasons. Runtime failures, timeouts, and incomplete measurements still produce warnings.
 Interactive output also shows warnings before the first result. Non-interactive output shows warnings in the final summary.
 Times use milliseconds.
 Thread work is wall duration, not exclusive CPU time or hardware GPU execution time.
@@ -1351,6 +1371,14 @@ To summarize the saved combined report without starting Chrome, use:
 ```sh
 npm run bench -- --summarize-only
 ```
+
+To include `main ms` and `gpu ms` in the saved summary, use:
+
+```sh
+npm run bench -- --summarize-only --verbose
+```
+
+Without `--verbose`, saved summaries hide these two columns, just like live tables. Both forms retain all metrics in JSON.
 
 Summary-only mode selects the default-suite backend: Vulkan on Linux and Chrome's default elsewhere.
 It does not fall back to another backend's report when the selected report is missing.

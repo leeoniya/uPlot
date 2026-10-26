@@ -31,6 +31,7 @@ const {values, tokens} = parseArgs({tokens: true, options: {
 	variant: {type: 'string'},
 	worker: {type: 'boolean', default: false},
 	'summarize-only': {type: 'boolean', default: false},
+	verbose: {type: 'boolean', default: false},
 	gpu: {type: 'boolean', default: false},
 	vulkan: {type: 'boolean'},
 	'no-vulkan': {type: 'boolean'},
@@ -63,7 +64,7 @@ Each library has 3 warmup sessions and 7 measured sessions. There is no inter-li
 A session creates a two-point chart, updates it with the full dataset, then resizes the retained chart to 1200x400.
 Supported variants then hover ten distinct datapoints, cycling through the three series.
 New reports use chart-population, settled-work-v1, retained-resize-v1, and hoverProtocol: hover-ten-v3, with hover.count: 10 and hover.intervalMs: 50.
-The hover.variants snapshot records supported variants. Unimplemented variants omit the hover phase and leave hover 10 ms blank.
+The hover.variants snapshot records supported variants. Unimplemented variants omit the hover phase and leave hover10 ms blank.
 The lifecycle.resizeSize metadata records width: 1200 and height: 400. Top-level session timings still describe data-update.
 Each operation has a hard 5s budget, including preparation and completion checks. Final cleanup has its own 5s budget.
 A library timeout kills Chrome, discards the incomplete trace, shows '-' for all metrics, and continues the suite.
@@ -78,8 +79,11 @@ Trace/combined groups rank by their lowest implementation mean update ms; rAF gr
 CLI selection, filenames, progress, warnings, and JSON retain full variant IDs.
 Columns start with variant, context, sampling, lossy. '*' flags potentially lossy reduction; '?' means unverified or missing classification.
 A blank lossy cell means no configured reduction or verified bucket-extrema preservation, not pixel-identical output.
-Combined measurement columns: prep ms, init ms, main ms, gpu ms, update ms, peak MB, retained MB, resize ms, hover 10 ms.
-Trace init ms, update ms, resize ms, and hover 10 ms use frame-based green bands. Darkest green includes one frame (1000/60 ms).
+Default combined measurement columns: prep ms, init ms, update ms, peak MB, retained MB, resize ms, hover10 ms.
+Use --verbose to show main ms and gpu ms before update ms in live tables and saved summaries.
+--verbose defaults to false and changes only the table. Full rows, metrics, and JSON remain unchanged.
+A double boundary follows retained MB only before resize ms, resize rAF ms, or hover10 ms.
+Trace init ms, update ms, resize ms, and hover10 ms use frame-based green bands. Darkest green includes one frame (1000/60 ms).
 Green ends at two frames (2000/60 ms). Orange shades split at 50 and 75 ms.
 Init is red at 100 ms and above. Update, resize, and hover retain orange at exactly 100 ms and are red above that.
 Peak MB and retained MB share the same ranges and shades: darkest green through 20 MB, then lighter greens through 35 MB.
@@ -101,7 +105,7 @@ rAF-only reports init rAF ms instead: first callback latency, not settled work o
 Trace/combined update ms and resize ms measure full-window thread work, using the same metric as init ms.
 Resize includes deferred layout, paint, raster, GPU-process work, and observed GC within its complete window.
 rAF-only resize rAF ms uses resize raf1Ms. This callback latency is not thread work.
-hover 10 ms is cumulative complete-window thread work for ten mousemoves in trace/combined modes, not an average per point.
+hover10 ms is cumulative complete-window thread work for ten mousemoves in trace/combined modes, not an average per point.
 Trusted CDP mouse moves drive normal chart hit testing. One browser binding sends all ten coordinate targets to Node.
 Node sends ten CDP dispatches with nine 50 ms waits, each after the preceding CDP acknowledgment.
 Node sends one browser Runtime.evaluate completion acknowledgment after the tenth dispatch acknowledgment.
@@ -111,7 +115,7 @@ The final two rAF callbacks, 200 ms settling wait, and graphics-completion check
 Batching reduces input-bridge overhead but does not eliminate it. Node scheduling is outside measured browser threads. No CPU profiling is added.
 Target preparation and bounds validation occur outside the window. Diagnostic value verification never runs during capture or preflight.
 Hover phases retain count: 10 and intervalMs: 50 without verification evidence.
-rAF-only hover 10 ms uses sequence-to-post-readiness callback latency, including at least 450 ms of spacing but excluding final settling/fences.
+rAF-only hover10 ms uses sequence-to-post-readiness callback latency, including at least 450 ms of spacing but excluding final settling/fences.
 Idle spacing is not thread work. Legacy hover-ten-v1 used frame-paced, verified displays.
 Legacy hover-ten-v2 used per-point browser bindings, renderer timers, and completion acknowledgments. Both legacy protocols remain readable separately from v3.
 V2 and v3 require intervalMs: 50. Summaries reject mixed hover protocols, including v2 with v3, even in memory-only mode.
@@ -159,7 +163,7 @@ Legacy reports remain readable without resize or hover columns when those phases
 Suite summaries reject mixed resize/hover protocols and hover capability lists in every mode, including memory-only.
 Legacy memory reports remain readable under their original boundaries. Summaries reject mixed memory boundaries, including legacy reports combined with through-update-v1.
 
-Direct runner: node scripts/benchmarks.mjs [--trace] [--memory] [--raf] [--gpu] [--vulkan | --no-vulkan] [--dpr NUMBER]
+Direct runner: node scripts/benchmarks.mjs [--trace] [--memory] [--raf] [--gpu] [--vulkan | --no-vulkan] [--dpr NUMBER] [--verbose]
 No measurement flags means trace + memory. rAF cannot be combined with tracing or memory.`);
 	process.exit(0);
 }
@@ -178,7 +182,7 @@ const mode = benchmarkMode(measurements);
 if (values['summarize-only']) {
 	if (values.variant || values.worker || values['install-only'] || tokens.some(token => token.kind === 'option' && token.name === 'dpr'))
 		throw new Error('--summarize-only cannot be combined with --dpr, --variant, --worker, or --install-only.');
-	summarizeSavedBenchmarks({...measurements, vulkan});
+	summarizeSavedBenchmarks({...measurements, vulkan, verbose: values.verbose});
 	process.exit(0);
 }
 const lightningOptions = (!values.variant || values.variant === 'lightningchart') &&
@@ -194,7 +198,7 @@ if (measurements.memory && platform() !== 'linux')
 	throw new Error('Process memory measurement requires Linux /proc.');
 if (!values.worker && !values['install-only']) {
 	try {
-		await runBenchmarkSuite({...measurements, dpr, gpu: values.gpu, vulkan, variant: values.variant ?? null, lightningOptions});
+		await runBenchmarkSuite({...measurements, dpr, gpu: values.gpu, vulkan, variant: values.variant ?? null, lightningOptions, verbose: values.verbose});
 	}
 	catch (error) {
 		if (error.code !== 'BENCHMARK_SAMPLE_TIMEOUT')

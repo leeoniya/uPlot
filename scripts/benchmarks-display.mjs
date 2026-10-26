@@ -102,10 +102,13 @@ function colorMetric(text, value, bands, colorDepth) {
 	return colorText(text, [rgb, palette], colorDepth);
 }
 
-function formatTable(rows, colorDepth) {
+function formatTable(rows, colorDepth, verbose) {
 	const keys = [...new Set(rows.flatMap(row => Object.keys(row)))];
 	const metadata = ['variant', 'context', 'sampling', 'lossy'];
-	const columns = [...metadata.filter(key => keys.includes(key)), ...keys.filter(key => !metadata.includes(key))];
+	const columns = [...metadata.filter(key => keys.includes(key)),
+		...keys.filter(key => !metadata.includes(key) && (verbose || !['main ms', 'gpu ms'].includes(key)))];
+	const split = columns.indexOf('retained MB') + 1;
+	const divided = split > 0 && ['resize ms', 'resize rAF ms', 'hover10 ms'].includes(columns[split]);
 	// Legacy startup totals keep their label; rAF readiness and latency are not thread work.
 	const workColumn = keys.includes('total ms') ? 'total ms' : keys.includes('main ms') ? 'update ms' : null;
 	const width = text => [...cellWidths(text)].reduce((sum, size) => sum + size, 0);
@@ -117,22 +120,24 @@ function formatTable(rows, colorDepth) {
 		: cell(typeof row[key] === 'string' ? row[key] : 'unavailable')));
 	const headers = columns.map(cell);
 	const widths = headers.map((header, i) => Math.max(width(header), ...cells.map(row => width(row[i]))));
-	const border = (left, middle, right) => left + widths.map(size => '─'.repeat(size + 2)).join(middle) + right + '\n';
-	const line = (values, row) => '│ ' + values.map((value, i) => {
+	const join = (values, middle, double) => values.map((value, i) =>
+		(i ? divided && i === split ? double : middle : '') + value).join('');
+	const border = (left, middle, double, right) => left + join(widths.map(size => '─'.repeat(size + 2)), middle, double) + right + '\n';
+	const line = (values, row) => '│ ' + join(values.map((value, i) => {
 		const padding = ' '.repeat(widths[i] - width(value));
 		if (row && columns[i] === 'context')
 			value = colorText(value, contextColors.get(row.context), colorDepth);
 		else if (row && memoryBands.has(columns[i]))
 			value = colorMetric(value, row[columns[i]], memoryBands.get(columns[i]), colorDepth);
-		else if (row && workColumn && (columns[i] === workColumn || columns[i] === 'init ms' || columns[i] === 'resize ms' || columns[i] === 'hover 10 ms'))
+		else if (row && workColumn && (columns[i] === workColumn || columns[i] === 'init ms' || columns[i] === 'resize ms' || columns[i] === 'hover10 ms'))
 			value = colorMetric(value, row[columns[i]], columns[i] === 'init ms' ? initBands : workBands, colorDepth);
 		return metadata.includes(columns[i]) ? value + padding : padding + value;
-	}).join(' │ ') + ' │\n';
-	return border('┌', '┬', '┐') + line(headers) + border('├', '┼', '┤') + cells.map((values, i) => line(values, rows[i])).join('') + border('└', '┴', '┘');
+	}), ' │ ', ' ║ ') + ' │\n';
+	return border('┌', '┬', '╥', '┐') + line(headers) + border('├', '┼', '╫', '┤') + cells.map((values, i) => line(values, rows[i])).join('') + border('└', '┴', '╨', '┘');
 }
 
-export function formatBenchmarkDisplay({rows = [], status = '', warnings = []} = {}, {colorDepth = 0} = {}) {
-	let text = (rows.length ? formatTable(rows, colorDepth) : '') + terminated(clean(status));
+export function formatBenchmarkDisplay({rows = [], status = '', warnings = []} = {}, {colorDepth = 0, verbose = false} = {}) {
+	let text = (rows.length ? formatTable(rows, colorDepth, verbose) : '') + terminated(clean(status));
 	const unique = [...new Set(warnings.map(warning => clean(warning).replace(/\s+/g, ' ').trim()).filter(Boolean))];
 	for (const warning of unique) {
 		const chars = Array.from(warning);
@@ -142,7 +147,7 @@ export function formatBenchmarkDisplay({rows = [], status = '', warnings = []} =
 	return text;
 }
 
-export function createBenchmarkDisplay({stream = process.stdout, env = process.env} = {}) {
+export function createBenchmarkDisplay({stream = process.stdout, env = process.env, verbose = false} = {}) {
 	let previous = null;
 	let finished = false;
 
@@ -155,7 +160,7 @@ export function createBenchmarkDisplay({stream = process.stdout, env = process.e
 			const columns = dimension(stream.columns);
 			const height = dimension(stream.rows);
 			const text = tty || final
-				? formatBenchmarkDisplay({rows, status, warnings}, {colorDepth: benchmarkDisplayColorDepth({stream, env})})
+				? formatBenchmarkDisplay({rows, status, warnings}, {colorDepth: benchmarkDisplayColorDepth({stream, env}), verbose})
 				: terminated(clean(status));
 			let erase = '';
 

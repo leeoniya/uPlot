@@ -135,37 +135,37 @@ describe('benchmark display colors', () => {
 
 	it('colors init, update, resize and hover work without coloring main/gpu or rAF readiness and latency', () => {
 		const values = [0, 16.6666, 34, 99.9999, 100.0001, 500, 1000, 2000, -1, NaN, Infinity, null, '-', '10'];
-		const rows = values.map(value => ({variant: 'custom', 'init ms': value, 'main ms': 1000, 'gpu ms': 1000, 'update ms': value, 'resize ms': value, 'hover 10 ms': value}));
+		const rows = values.map(value => ({variant: 'custom', 'init ms': value, 'main ms': 1000, 'gpu ms': 1000, 'update ms': value, 'resize ms': value, 'hover10 ms': value}));
 		for (const colorDepth of [8, 24]) {
 			const text = formatBenchmarkDisplay({rows}, {colorDepth});
 			assert.deepEqual(coloredValues(text), coloredValues(formatBenchmarkDisplay({rows: totals(values)}, {colorDepth})).flatMap(pair => [pair, pair, pair, pair]));
 			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
-			const raf = [{variant: 'custom', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16, 'resize rAF ms': 20, 'hover 10 ms': 470}];
+			const raf = [{variant: 'custom', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16, 'resize rAF ms': 20, 'hover10 ms': 470}];
 			assert.deepEqual(coloredValues(formatBenchmarkDisplay({rows: raf}, {colorDepth})), []);
 		}
 	});
 
 	it('shows cumulative paced hover latency without dividing by ten or subtracting spacing', () => {
-		const rows = [{variant: 'uplot', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16, 'resize rAF ms': 20, 'hover 10 ms': 470}];
+		const rows = [{variant: 'uplot', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16, 'resize rAF ms': 20, 'hover10 ms': 470}];
 		const original = structuredClone(rows);
 		for (const colorDepth of [0, 8, 24]) {
 			const text = formatBenchmarkDisplay({rows}, {colorDepth});
 			const cells = stripVTControlCharacters(text).split('\n').filter(line => line.startsWith('│'))
 				.map(line => line.split('│').at(-2).trim());
-			assert.deepEqual(cells, ['hover 10 ms', '470.0']);
+			assert.deepEqual(cells, ['hover10 ms', '470.0']);
 			assert.deepEqual(coloredValues(text), []);
 		}
 		assert.deepEqual(rows, original);
 	});
 
 	it('preserves blank hover cells, measured zero, and failed supported cells', () => {
-		const rows = ['', 0, '-', 'unavailable'].map(value => ({variant: 'custom', 'main ms': 1, 'update ms': '-', 'hover 10 ms': value}));
+		const rows = ['', 0, '-', 'unavailable'].map(value => ({variant: 'custom', 'main ms': 1, 'update ms': '-', 'hover10 ms': value}));
 		const original = structuredClone(rows);
 		for (const colorDepth of [0, 8, 24]) {
 			const text = formatBenchmarkDisplay({rows}, {colorDepth});
 			const cells = stripVTControlCharacters(text).split('\n').filter(line => line.startsWith('│'))
 				.map(line => line.split('│').at(-2).trim());
-			assert.deepEqual(cells, ['hover 10 ms', '', '0.0', '-', 'unavailable']);
+			assert.deepEqual(cells, ['hover10 ms', '', '0.0', '-', 'unavailable']);
 			assert.deepEqual(coloredValues(text), colorDepth ? [[colorDepth === 24 ? `38;2;${rgbs[0]}` : `38;5;${palette[0]}`, '0.0']] : []);
 		}
 		assert.deepEqual(rows, original);
@@ -265,6 +265,59 @@ describe('benchmark display colors', () => {
 });
 
 describe('benchmark display', () => {
+	it('hides main/gpu by default without changing rows, work colors, or verbose column order', () => {
+		const rows = [{variant: 'uplot', 'init ms': 10, 'main ms': 3, 'gpu ms': 2, 'update ms': 16,
+			'peak MB': 20, 'retained MB': 15, 'resize ms': 8, 'hover10 ms': 12}];
+		const original = structuredClone(rows);
+		for (const colorDepth of [0, 8, 24]) {
+			const plain = formatBenchmarkDisplay({rows}, {colorDepth});
+			const verbose = formatBenchmarkDisplay({rows}, {colorDepth, verbose: true});
+			assert.doesNotMatch(plain, /main ms|gpu ms/);
+			assert.match(verbose, /init ms │ main ms │ gpu ms │ update ms/);
+			const colors = text => [...text.matchAll(/\x1b\[[\d;]+m[^\x1b]*\x1b\[39m/g)].map(match => match[0]);
+			assert.deepEqual(colors(plain), colors(verbose));
+		}
+		assert.deepEqual(rows, original);
+	});
+
+	it('joins a double divider after retained memory to all borders and keeps later separators single', () => {
+		const rows = [{variant: 'uplot', 'retained MB': 15, 'resize ms': 8, 'hover10 ms': 12},
+			{variant: 'flot', 'retained MB': '-', 'resize ms': '-', 'hover10 ms': ''}];
+		const text = formatBenchmarkDisplay({rows});
+		assert.equal(text, [
+			'┌─────────┬─────────────╥───────────┬────────────┐',
+			'│ variant │ retained MB ║ resize ms │ hover10 ms │',
+			'├─────────┼─────────────╫───────────┼────────────┤',
+			'│ uplot   │        15.0 ║       8.0 │       12.0 │',
+			'│ flot    │           - ║         - │            │',
+			'└─────────┴─────────────╨───────────┴────────────┘',
+			'',
+		].join('\n'));
+		const width = text.indexOf('\n');
+		assert.equal(countTerminalLines(text, width), 6);
+		assert.equal(countTerminalLines(text, width - 1), 12);
+		for (const columns of [width - 1, width, width + 1]) {
+			const {display, writes} = capture({columns});
+			display.update({rows});
+			display.update({status: 'Done', final: true});
+			assert.equal(writes[1], clear(countTerminalLines(text, columns)) + 'Done\n');
+			assert.equal(screenAfter(writes, columns).screen, 'prior\nDone');
+		}
+	});
+
+	it('adds no divider without a retained-memory boundary followed by a final timing column', () => {
+		for (const row of [
+			{'update ms': 10, 'resize ms': 8, 'hover10 ms': 12},
+			{'peak MB': 20, 'retained MB': 15},
+			{'retained MB': 15, 'update ms': 10},
+		]) assert.doesNotMatch(formatBenchmarkDisplay({rows: [{variant: 'uplot', ...row}]}), /[║╥╫╨]/);
+		for (const column of ['resize ms', 'resize rAF ms', 'hover10 ms']) {
+			const text = formatBenchmarkDisplay({rows: [{variant: 'uplot', 'retained MB': 15, [column]: 8}]});
+			assert.match(text, /retained MB ║/);
+			assert.equal((text.match(/║/g) ?? []).length, 2);
+		}
+	});
+
 	it('omits quotes and the index, left-aligns names, and right-aligns one-decimal values', () => {
 		assert.equal(formatBenchmarkDisplay({rows: two}), [
 			'┌─────────┬─────┐',
@@ -309,7 +362,7 @@ describe('benchmark display', () => {
 		const original = structuredClone(rows);
 		const frame = {rows, status: 'Starting bokeh-canvas', warnings: ['d3-svg: failed']};
 		const text = formatBenchmarkDisplay(frame);
-		const width = 136;
+		const width = 117;
 		assert.equal(text.split('\n')[0].length, width);
 		assert.equal(countTerminalLines(text, width), rows.length + 6);
 		assert.equal(countTerminalLines(text, width - 1), 2 * (rows.length + 4) + 2);
@@ -377,17 +430,17 @@ describe('benchmark display', () => {
 		assert.equal(countTerminalLines(text, 17), 6);
 	});
 
-	it('fits the full combined table in 86 columns and counts wrapping below that width', () => {
+	it('fits the default legacy combined table in 67 columns and counts wrapping below that width', () => {
 		const rows = ['uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs'].map(variant => ({
 			variant, 'prep ms': 4.05, 'init ms': 8.994, 'main ms': 12.011, 'gpu ms': 2.006,
 			'total ms': 15.642, 'peak MB': 25.538, 'retained MB': 18.375,
 		}));
 		const frame = {rows, status: 'Running'};
 		const text = formatBenchmarkDisplay(frame);
-		assert.equal(text.split('\n')[0].length, 86);
-		assert.equal(countTerminalLines(text, 86), 11);
+		assert.equal(text.split('\n')[0].length, 67);
+		assert.equal(countTerminalLines(text, 67), 11);
 		assert.ok(text.indexOf('peak MB') < text.indexOf('retained MB'));
-		for (const columns of [85, 86, 100]) {
+		for (const columns of [66, 67, 100]) {
 			const {display, writes} = capture({columns, rows: 12});
 			display.update(frame);
 			assert.equal(writes[0], text);
