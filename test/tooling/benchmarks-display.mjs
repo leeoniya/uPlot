@@ -280,17 +280,17 @@ describe('benchmark display', () => {
 		assert.deepEqual(rows, original);
 	});
 
-	it('joins a double divider after retained memory to all borders and keeps later separators single', () => {
+	it('separates the final timing panel with a one-space gap and matching corners', () => {
 		const rows = [{variant: 'uplot', 'retained MB': 15, 'resize ms': 8, 'hover10 ms': 12},
 			{variant: 'flot', 'retained MB': '-', 'resize ms': '-', 'hover10 ms': ''}];
 		const text = formatBenchmarkDisplay({rows});
 		assert.equal(text, [
-			'┌─────────┬─────────────╥───────────┬────────────┐',
-			'│ variant │ retained MB ║ resize ms │ hover10 ms │',
-			'├─────────┼─────────────╫───────────┼────────────┤',
-			'│ uplot   │        15.0 ║       8.0 │       12.0 │',
-			'│ flot    │           - ║         - │            │',
-			'└─────────┴─────────────╨───────────┴────────────┘',
+			'┌─────────┬─────────────┐ ┌───────────┬────────────┐',
+			'│ variant │ retained MB │ │ resize ms │ hover10 ms │',
+			'├─────────┼─────────────┤ ├───────────┼────────────┤',
+			'│ uplot   │        15.0 │ │       8.0 │       12.0 │',
+			'│ flot    │           - │ │         - │            │',
+			'└─────────┴─────────────┘ └───────────┴────────────┘',
 			'',
 		].join('\n'));
 		const width = text.indexOf('\n');
@@ -310,11 +310,11 @@ describe('benchmark display', () => {
 			{'update ms': 10, 'resize ms': 8, 'hover10 ms': 12},
 			{'peak MB': 20, 'retained MB': 15},
 			{'retained MB': 15, 'update ms': 10},
-		]) assert.doesNotMatch(formatBenchmarkDisplay({rows: [{variant: 'uplot', ...row}]}), /[║╥╫╨]/);
+		]) assert.doesNotMatch(formatBenchmarkDisplay({rows: [{variant: 'uplot', ...row}]}), /│ │|┐ ┌|┤ ├|┘ └/);
 		for (const column of ['resize ms', 'resize rAF ms', 'hover10 ms']) {
 			const text = formatBenchmarkDisplay({rows: [{variant: 'uplot', 'retained MB': 15, [column]: 8}]});
-			assert.match(text, /retained MB ║/);
-			assert.equal((text.match(/║/g) ?? []).length, 2);
+			assert.match(text, /retained MB │ │/);
+			assert.equal((text.match(/│ │/g) ?? []).length, 2);
 		}
 	});
 

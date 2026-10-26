@@ -1167,8 +1167,8 @@ With `--verbose`, current trace and combined tables also show these columns betw
 The flag does not remove metrics from full rows or JSON. It does not change sorting, aggregation, warnings, or capture.
 Trace-only tables omit the memory columns. Memory-only tables show `peak MB` and `retained MB` after the four metadata columns.
 
-A double boundary follows `retained MB` only when the next column is `resize ms`, `resize rAF ms`, or `hover10 ms`.
-This boundary separates memory through the data update from later timing-only operations.
+A one-space gap between separate borders follows `retained MB` only before `resize ms`, `resize rAF ms`, or `hover10 ms`.
+This gap separates memory through the data update from the panel for later timing-only operations.
 Tables without a following resize or hover column have no extra boundary.
 
 Trace and combined timing columns use arithmetic means across the seven measured rounds, excluding the three warmups.

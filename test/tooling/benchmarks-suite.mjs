@@ -57,7 +57,7 @@ function capture(fn) {
 		console.log = (...args) => {
 			if (typeof args[0] === 'string' && args[0].startsWith('┌')) {
 				const [headers, ...cells] = args[0].split('\n').filter(line => line.startsWith('│'))
-					.map(line => line.split(/[│║]/).slice(1, -1).map(value => value.trim()));
+					.map(line => line.split(/│ │|│/).slice(1, -1).map(value => value.trim()));
 				const rows = cells.map(row => Object.fromEntries(headers.map((key, i) =>
 					[key, ['variant', 'context', 'sampling', 'lossy'].includes(key) || row[i] === 'unavailable' || row[i] === '-' || row[i] === '' ? row[i] : Number(row[i])])));
 				tables.push(rows);

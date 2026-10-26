@@ -82,7 +82,7 @@ A blank lossy cell means no configured reduction or verified bucket-extrema pres
 Default combined measurement columns: prep ms, init ms, update ms, peak MB, retained MB, resize ms, hover10 ms.
 Use --verbose to show main ms and gpu ms before update ms in live tables and saved summaries.
 --verbose defaults to false and changes only the table. Full rows, metrics, and JSON remain unchanged.
-A double boundary follows retained MB only before resize ms, resize rAF ms, or hover10 ms.
+A one-space gap between separate borders follows retained MB only before resize ms, resize rAF ms, or hover10 ms.
 Trace init ms, update ms, resize ms, and hover10 ms use frame-based green bands. Darkest green includes one frame (1000/60 ms).
 Green ends at two frames (2000/60 ms). Orange shades split at 50 and 75 ms.
 Init is red at 100 ms and above. Update, resize, and hover retain orange at exactly 100 ms and are red above that.

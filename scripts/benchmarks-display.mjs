@@ -132,8 +132,8 @@ function formatTable(rows, colorDepth, verbose) {
 		else if (row && workColumn && (columns[i] === workColumn || columns[i] === 'init ms' || columns[i] === 'resize ms' || columns[i] === 'hover10 ms'))
 			value = colorMetric(value, row[columns[i]], columns[i] === 'init ms' ? initBands : workBands, colorDepth);
 		return metadata.includes(columns[i]) ? value + padding : padding + value;
-	}), ' │ ', ' ║ ') + ' │\n';
-	return border('┌', '┬', '╥', '┐') + line(headers) + border('├', '┼', '╫', '┤') + cells.map((values, i) => line(values, rows[i])).join('') + border('└', '┴', '╨', '┘');
+	}), ' │ ', ' │ │ ') + ' │\n';
+	return border('┌', '┬', '┐ ┌', '┐') + line(headers) + border('├', '┼', '┤ ├', '┤') + cells.map((values, i) => line(values, rows[i])).join('') + border('└', '┴', '┘ └', '┘');
 }
 
 export function formatBenchmarkDisplay({rows = [], status = '', warnings = []} = {}, {colorDepth = 0, verbose = false} = {}) {
