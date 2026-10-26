@@ -1,5 +1,5 @@
 import {makeChart as makeUPlotChart} from './uplot.mjs';
-export {prepData, updateChart, resizeChart} from './uplot.mjs';
+export {prepData, updateChart, resizeChart, getHoverPlan} from './uplot.mjs';
 
 export function makeChart(data, host, wait) {
 	if (typeof globalThis.uPlotRelease !== 'function')

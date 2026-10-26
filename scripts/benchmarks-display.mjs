@@ -124,7 +124,7 @@ function formatTable(rows, colorDepth) {
 			value = colorText(value, contextColors.get(row.context), colorDepth);
 		else if (row && memoryBands.has(columns[i]))
 			value = colorMetric(value, row[columns[i]], memoryBands.get(columns[i]), colorDepth);
-		else if (row && workColumn && (columns[i] === workColumn || columns[i] === 'init ms' || columns[i] === 'resize ms'))
+		else if (row && workColumn && (columns[i] === workColumn || columns[i] === 'init ms' || columns[i] === 'resize ms' || columns[i] === 'hover 10 ms'))
 			value = colorMetric(value, row[columns[i]], columns[i] === 'init ms' ? initBands : workBands, colorDepth);
 		return metadata.includes(columns[i]) ? value + padding : padding + value;
 	}).join(' │ ') + ' │\n';

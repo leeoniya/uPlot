@@ -1,7 +1,7 @@
 // The parent sets browser deviceScaleFactor (default 1) before navigation.
 // HTML loads the demo libraries, their dependencies, and styles before this module.
 // CDP waits for benchmarkTraceReady and starts tracing before benchmarkLifecycle.begin().
-// Shared sessions: two-point populated init -> full-data update -> retained resize.
+// Shared sessions: two-point init -> full-data update -> retained resize -> optional hover.
 // Each operation has separate markers. Only the parent polls
 // process memory and optionally forces GC at baseline, live, and cleanup checkpoints.
 // runBenchmarkTrace({raf:true}) is a mutually exclusive, browser-driven path.
@@ -87,6 +87,7 @@ document.head.append(style);
 
 const {setupDemo} = await import('/bench/demo-fixture.mjs');
 const {smallLifecycleData} = await import('/bench/lifecycle-data.mjs');
+const {hoverVariants, hoverTargets, validateHoverPlan, runHover} = await import('/bench/hover.mjs');
 const {prepareDemoRuntime} = await import('/bench/demo-runtime.mjs');
 if (VARIANTS.includes('scichart')) {
 	const assets = await fetch('/bench/runtime-assets.json');
@@ -106,6 +107,8 @@ const sources = Object.fromEntries(await Promise.all(VARIANTS.filter(id => id !=
 	.map(async id => {
 		const source = await import(`/bench/${id}.mjs`);
 		await source.prepareRuntime?.();
+		if (hoverVariants.includes(id) && typeof source.getHoverPlan !== 'function')
+			throw new Error(`${id}: missing hover target and value verification adapter.`);
 		if (typeof source.makeChart !== 'function' || typeof source.updateChart !== 'function' || typeof source.resizeChart !== 'function')
 			throw new Error(`${id}: benchmark requires populated initialization, retained-chart updates and resize.`);
 		return [id, source];
@@ -256,8 +259,9 @@ function hasChartSurface(root) {
 
 function validateChart({variant, chart, host, input, operation}) {
 	const ROWS = operation === 'small-init' ? 2 : 55550;
-	const width = operation === 'resize' ? RESIZE_WIDTH : WIDTH;
-	const height = operation === 'resize' ? RESIZE_HEIGHT : HEIGHT;
+	const resized = operation === 'resize' || operation === 'hover-10';
+	const width = resized ? RESIZE_WIDTH : WIDTH;
+	const height = resized ? RESIZE_HEIGHT : HEIGHT;
 	if (sources[variant]?.destroyChart && (!chart || !hasChartSurface(host)))
 		throw new Error(`${variant} did not return a rendered chart.`);
 	if (variant === 'chartgpu') {
@@ -447,7 +451,8 @@ let sampleIndex = 0;
 let state = null;
 let lifecycleBusy = false;
 let rafMode = false;
-const OPERATIONS = ['small-init', 'data-update', 'resize'];
+const OPERATIONS = ['small-init', 'data-update', 'resize', 'hover-10'];
+const operationsFor = variant => OPERATIONS.filter(operation => operation !== 'hover-10' || hoverVariants.includes(variant));
 
 function requireSample(phase) {
 	if (invoked !== 'samples' || lifecycleBusy || !state || state.phase !== phase)
@@ -467,7 +472,7 @@ globalThis.benchmarkLifecycle = {
 		console.time = console.timeEnd = () => {};
 		return {
 			...reportMetadata(raf), captureId, env: environment(),
-			config: {variants: [...VARIANTS], dpr, warmups: WARMUPS, rounds: ROUNDS, lifecycle: true, operations: OPERATIONS},
+			config: {variants: [...VARIANTS], dpr, warmups: WARMUPS, rounds: ROUNDS, lifecycle: true, operations: OPERATIONS, hoverVariants},
 		};
 	},
 	async setup(variant, id) {
@@ -480,8 +485,11 @@ globalThis.benchmarkLifecycle = {
 		checkPage();
 		sampleIndex++;
 		state = {id, variant, host: null, input: null, chart: null, phase: 'setup', operationIndex: -1};
+		fixture.style.pointerEvents = 'none';
 		lifecycleBusy = true;
 		try {
+			// Park outside every chart before construction, not inside a measured window.
+			await globalThis.benchmarkMoveMouse?.(WIDTH - 1, VIEWPORT_HEIGHT - 1);
 			await settle();
 			checkPage();
 		}
@@ -489,9 +497,9 @@ globalThis.benchmarkLifecycle = {
 			lifecycleBusy = false;
 		}
 	},
-	async prepare(operation = OPERATIONS[state?.operationIndex + 1], id = state?.id) {
+	async prepare(operation = operationsFor(state?.variant)[state?.operationIndex + 1], id = state?.id) {
 		requireSample(state?.operationIndex === -1 ? 'setup' : 'constructed');
-		if (operation !== OPERATIONS[state.operationIndex + 1])
+		if (operation !== operationsFor(state.variant)[state.operationIndex + 1])
 			throw new Error(`Unexpected lifecycle operation: ${operation}`);
 		if (state.operationIndex >= 0) {
 			if (id !== `sample-${sampleIndex}`)
@@ -506,13 +514,24 @@ globalThis.benchmarkLifecycle = {
 		try {
 			if (!rafMode) globalThis.benchmarkWebGL?.begin();
 			state.dataPrepMs = 0;
-			if (operation !== 'resize') {
+			if (operation === 'small-init' || operation === 'data-update') {
 				const packedInput = state.variant === 'idle' ? null : operation === 'small-init' ? smallPacked : packed;
 				const prepData = prepFor(state.variant);
 				const start = performance.now();
 				state.input = prepData(packedInput);
 				state.dataPrepMs = performance.now() - start;
 				validateInput(state);
+			}
+			else if (operation === 'hover-10') {
+				const plan = state.variant === 'idle' ? {
+					idle: true,
+					targets: hoverTargets(ROWS, (index, seriesIndex) => ({x: 100 + index / ROWS * 1000, y: 100 + seriesIndex * 50})),
+					verify: target => ({index: target.index, seriesIndex: target.seriesIndex, idle: true}),
+				} : sources[state.variant].getHoverPlan(state.chart, state.input, state.host);
+				if (state.variant !== 'idle' && plan?.idle)
+					throw new Error('Only the idle control can omit hover value verification.');
+				validateHoverPlan(plan, WIDTH, VIEWPORT_HEIGHT);
+				state.hoverTargets = plan.targets;
 			}
 			await settle();
 			checkPage();
@@ -537,7 +556,13 @@ globalThis.benchmarkLifecycle = {
 				state.host.style.width = RESIZE_WIDTH + 'px';
 				state.host.style.height = RESIZE_HEIGHT + 'px';
 			}
-			await construct(state);
+			let hover;
+			if (state.operation === 'hover-10') {
+				fixture.style.pointerEvents = 'auto';
+				hover = await runHover(state.hoverTargets);
+			}
+			else
+				await construct(state);
 			const jsEnd = performance.mark(prefix + 'js-end');
 			const rafTimes = {};
 			if (rafMode) {
@@ -571,6 +596,7 @@ globalThis.benchmarkLifecycle = {
 				dataPrepMs: state.dataPrepMs, jsMs, ...(webgl ? {webgl} : {}), ...(webgpu ? {webgpu} : {}),
 				prepAndInitMs: state.dataPrepMs + jsMs,
 				windowMs: end.startTime - start.startTime,
+				...(hover ? {hover} : {}),
 			};
 		}
 		finally {
@@ -587,6 +613,7 @@ globalThis.benchmarkLifecycle = {
 		}
 		finally {
 			// No local alias can keep the input, chart or host alive during cleanup GC.
+			fixture.style.pointerEvents = 'none';
 			if (!rafMode) globalThis.benchmarkWebGL?.reset();
 			state = null;
 			try {
@@ -622,7 +649,7 @@ globalThis.runBenchmarkTrace = async function runBenchmarkTrace({raf = false} = 
 			boundary('start', variant);
 			try {
 				await globalThis.benchmarkLifecycle.setup(variant, `sample-${sampleIndex}`);
-				for (const operation of OPERATIONS) {
+				for (const operation of operationsFor(variant)) {
 					if (phases.length) {
 						boundary('end', variant);
 						boundary('start', variant);
@@ -650,9 +677,16 @@ function reportMetadata(raf = false) {
 		phase: 'chart-population',
 		initProtocol: 'settled-work-v1',
 		resizeProtocol: 'retained-resize-v1',
+		hoverProtocol: 'hover-ten-v2',
+		hover: {variants: hoverVariants, count: 10, intervalMs: 50,
+			input: 'Trusted CDP mouseMoved events at data-derived viewport coordinates, cycling series 0, 1, 2.',
+			cadence: 'Ten mouse moves with nine 50ms waits, each after the preceding input acknowledgment. No catch-up bursts or per-point frame barriers.',
+			validation: 'Value-display verification is a separate harness-development diagnostic, never a capture or preflight step. Results record dispatch count and interval, not selected-value evidence.',
+			preparation: 'Target geometry and layout reads occur before the window. Only target coordinates enter the measured driver. Input-bridge and timer overhead remain inside the window.',
+			unsupported: 'Adapters without hover support omit this phase and leave hover 10 ms blank.'},
 		lifecycle: {operations: OPERATIONS, initialRows: 2, updateRows: ROWS,
 			resizeSize: {width: RESIZE_WIDTH, height: RESIZE_HEIGHT},
-			data: 'Initialize with the first and last fixture rows, then update once with the original full dataset. Resize the same chart without preparing or replacing its data.'},
+			data: 'Initialize with the first and last fixture rows, then update once with the original full dataset. Resize the retained chart, then hover ten points when supported. Resize and hover retain the full input.'},
 		dpr,
 		dprs: [dpr],
 		variants: VARIANTS,
@@ -673,9 +707,9 @@ function reportMetadata(raf = false) {
 			echarts: '/bench/echarts.mjs',
 			flot: '/bench/flot.mjs',
 			dygraphs: '/bench/dygraphs.mjs',
-			demoContract: 'HTML uses makeChart with full data. Benchmarks use makeLifecycleChart when provided, otherwise makeChart, with two points per series, then updateChart with full data and resizeChart(chart, {width, height}, host, wait) on the retained chart. The harness sizes the host inside resize markers. Async adapters resolve on library completion. Optional destroyChart handles cleanup.',
+			demoContract: 'HTML uses makeChart with full data. Benchmarks use makeLifecycleChart when provided, otherwise makeChart, with two points per series, then updateChart with full data and resizeChart(chart, {width, height}, host, wait) on the retained chart. The harness sizes the host inside resize markers. Async adapters resolve on library completion. getHoverPlan supplies coordinates and a diagnostic-only display verifier for supported variants. Optional destroyChart handles cleanup.',
 			data: '/bench/data.json',
-			prepData: 'Each session calls shared prepData separately for two fixture rows and the original full fixture. Full-data preparation supplies prep ms. Resize reuses the full-data input with no preparation. JSON parsing and small-fixture selection are excluded.',
+			prepData: 'Each session calls shared prepData separately for two fixture rows and the original full fixture. Full-data preparation supplies prep ms. Resize and hover reuse the full-data input without data preparation. Hover geometry preparation is outside chart markers. JSON parsing and small-fixture selection are excluded.',
 			dataRepresentations: {
 				uplot: 'aligned arrays', d3: 'aligned arrays', 'd3-minmax': 'aligned arrays', 'd3-svg': 'aligned arrays', 'd3-svg-minmax': 'aligned arrays', chartjs: 'three arrays of {x, y} points',
 				echarts: 'interleaved Float64Array', flot: 'three arrays of [x, y] pairs', dygraphs: 'rows of [milliseconds, y, y, y]',
@@ -714,7 +748,7 @@ function reportMetadata(raf = false) {
 			strokeWidthCssPixels: {chartjs: 1, echarts: 1},
 		},
 		expectedInstances: {
-			operationWindows: VARIANTS.length * (WARMUPS + ROUNDS) * OPERATIONS.length,
+			operationWindows: VARIANTS.reduce((sum, variant) => sum + operationsFor(variant).length, 0) * (WARMUPS + ROUNDS),
 						samples: VARIANTS.length * (WARMUPS + ROUNDS), warmupSamples: VARIANTS.length * WARMUPS, measuredSamples: VARIANTS.length * ROUNDS,
 			chartCreations: VARIANTS.filter(variant => variant !== 'idle').length * (WARMUPS + ROUNDS),
 			measuredChartCreations: VARIANTS.filter(variant => variant !== 'idle').length * ROUNDS,
@@ -727,10 +761,11 @@ function reportMetadata(raf = false) {
 		},
 		timing: {
 			unit: 'milliseconds',
-			dataPrepMs: 'performance.now() around prepData(smallPacked) or prepData(packed), before validation and settling. The table uses full-data preparation. Resize preparation is zero. Idle preparation measures a no-op.',
-			prepAndInitMs: 'dataPrepMs + jsMs per sample. This sum excludes validation, the settling gap and rAF waits. It is not end-to-end latency.',
-			jsMs: 'Elapsed operation readiness: chart-specific host setup and two-point construction, full-data update, or retained resize, including async completion and microtask commit. Retained in JSON; not the trace init ms column.',
+			dataPrepMs: 'performance.now() around prepData(smallPacked) or prepData(packed), before validation and settling. The table uses full-data preparation. Resize and hover data preparation is zero. Idle preparation measures a no-op.',
+			prepAndInitMs: 'dataPrepMs + jsMs per sample. This sum excludes chart validation and the final settling gap. Hover readiness includes input acknowledgments and nine 50ms waits, with no value verification. It is not end-to-end latency.',
+			jsMs: 'Elapsed operation readiness: chart-specific host setup and two-point construction, full-data update, retained resize, or ten paced mouse moves, including async completion and microtask commit. Retained in JSON; not the trace init ms column.',
 			initMs: 'Trace/combined: total tracked thread work in the complete small-init window, including host setup, deferred rendering and graphics completion. Excludes idle gaps, preparation and teardown. Not hardware GPU time or presentation latency.',
+			hoverMs: 'hover 10 ms: mean cumulative tracked thread work for ten paced mouse moves and final settling/fences, without value verification or idle wait time, in trace/combined mode. rAF mode instead reports minimum sequence-to-first-post-readiness-frame latency.',
 			resizeMs: 'Trace/combined: mean tracked thread work in the complete resize window, including host sizing, deferred rendering and graphics completion. Excludes preparation and teardown.',
 			resizeRafMs: 'rAF-only: minimum first post-readiness callback latency for resize. Not proof of paint or GPU completion.',
 			initRafMs: 'rAF-only: first post-readiness callback latency for small-init. Reported as init rAF ms, not settled thread work or proof of paint completion.',
@@ -743,7 +778,7 @@ function reportMetadata(raf = false) {
 		},
 
 		limitations: [
-			'Each session creates a chart with two points per series, updates it with the full dataset, then resizes it to 1200x400. Three warmup sessions precede seven measured sessions.',
+			'Each session creates a chart with two points per series, updates it with the full dataset, then resizes it to 1200x400 and hovers ten distinct points when supported. Three warmup sessions precede seven measured sessions.',
 			'Resize preserves chart identity, source data, title/margin conventions and fixed sampling targets. Width-dependent geometry may change. The browser viewport remains 1920x900.',
 			'HTML demos still construct directly with full data. Small-to-full population is neither direct populated startup nor steady-state full-to-full replacement. Updates include full-size allocation costs.',
 						'Async initialization waits for the library completion promise/event inside init and trace spans. This can include timers, frames, and deferred interaction setup, not just drawing CPU work.',
@@ -762,14 +797,14 @@ function reportMetadata(raf = false) {
 			'Lightweight Charts uses native line conflation with full input retention. Grouped closing values can hide peaks at wide zoom levels.',
 			'ECharts 6.1.0 minmax sampling retains every raw row but ends the visible time range three minutes early for this fixture at DPR 1.',
 			'The requested static amCharts logo uses a version-guarded private override. The logo and link remain; branding/license terms need review before publication.',
-			'Data preparation is timed separately, outside chart markers. CDP chart-window totals exclude prep. Output validation is outside both prep and chart timers.',
+			'Data preparation is timed separately, outside chart markers. CDP chart-window totals exclude prep. Chart validation is outside both prep and chart timers. Hover value verification is diagnostic-only and never runs during captures or preflight.',
 			'Library loading, the shared page shell, preparation and teardown are outside sample markers. Chart-specific host setup and all chart options construction are inside initialization markers.',
 			'D3 title, legend and canvases, the Chart.js canvas/container, other chart hosts and library-created DOM are inside initialization. The full init trace window includes deferred rendering, not only constructor readiness.',
 			'Runtime versions come from loaded library exports, not demo titles. A null version means the runtime does not expose it (such as the date-fns adapter).',
 			'Flot 4.2.6 exposes a stale runtime version of 3.0.0. Use runner.dependencies for the pinned package version.',
 			'Flot retains its timer-delayed overlay hook. JS/DOM and next-rAF spans do not necessarily include that hook; the longer trace window can include it.',
 			'Warmups can appear in the trace. Exclude samples with warmup:true from measured aggregates.',
-			'Trace/memory observes current-realm canvas getContext calls, not draw calls. Reused contexts can be registered by adapters. No readback, screenshots, pixel export, or harness-forced layout reads are used.',
+			'Trace/memory observes current-realm canvas getContext calls, not draw calls. Reused contexts can be registered by adapters. No readback, screenshots, or pixel export is used. Hover target preparation reads geometry before markers. Measured hover performs no harness value-verification reads; library-owned layout and rendering remain measured.',
 			'After settling, trace/memory checks WebGL2 fences or calls WebGL1 finish before the end marker. These checks add thread-wall overhead outside init. Completion covers prior commands in observed contexts, not later draws, other realms, or presentation. rAF has no WebGL observer or completion check.',
 			'ChartGPU construction, updates and resize wait for a command submission and queue completion inside readiness in all modes, including rAF. Trace/memory then waits after settling for all actual adapter-exposed device queues, with a 1000ms bound and device-loss/error checks. Per-sample webgpu metadata records this wait. No probe devices are requested.',
 			'WebGPU completion covers prior submissions, not later draws, presentation, hardware acceleration, or GPU execution time. rAF adds no post-render WebGPU fence. ChartGPU health and full series counts are checked without pixel or layout reads; teardown rejects late adapter errors and requires cleared devices.',
@@ -778,8 +813,9 @@ function reportMetadata(raf = false) {
 			'One actual browser DPR is captured from devicePixelRatio and reported on every sample. The parent configures deviceScaleFactor before navigation (default 1); this fixture does not emulate DPR changes. The CSS viewport is 1920x900.',
 			'Demo renderings and configurations differ: axes, domains, colors, line widths, sampling, layout and defaults are preserved. This is not pixel-identical rendering or an isolated decimation algorithm comparison.',
 
-			'Pointer events are disabled on the visible fixture to prevent hover drawing; the chart interaction options and D3 listener installation remain unchanged.',
-			'The parent can collect process memory in the shared sample lifecycle, with GC only at baseline, live after resize, and cleanup checkpoints. No forced GC occurs between operations. The separate rAF path uses no forced GC.',
+			'The pointer parks outside the chart before each session. The fixture enables pointer interaction for the hover phase. Tooltip/legend configuration and listener installation remain part of initialization.',
+			'Hover includes input-bridge and timer overhead, but no value verification. Nine 50ms waits separate acknowledged moves to avoid coalescing. Idle waits do not count as tracked thread work, but do count toward rAF wall latency. Displayed values are checked only in separate development diagnostics.',
+			'The parent can collect process memory in the shared sample lifecycle, with GC only at baseline, live after hover (or resize when unsupported), and cleanup checkpoints. No forced GC occurs between operations. The separate rAF path uses no forced GC.',
 			'JIT, automatic GC, scheduling, tracing overhead and machine load can affect prep, creation and downstream work.',
 			...(raf ? [
 				'rAF mode starts construction inside an animation frame. This differs from the default timer-aligned trace protocol.',

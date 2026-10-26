@@ -1,3 +1,5 @@
+import {hoverTargets, visibleText, nearHoverIndex} from './hover.mjs';
+
 function prepData(packed) {
 	const fields = packed[0];
 	const start = fields + 1;
@@ -14,6 +16,11 @@ function prepData(packed) {
 		tcp[j] = packed[i + 3];
 	}
 
+	// Highcharts 13.1.1 Boost line tooltips read series.options.data, not table y values.
+	// For working shared tooltips with Boost active, return pairs instead:
+	// return [cpu, ram, tcp].map(y => Array.from(x, (x, i) => [x, y[i]]));
+	// Then pass each series {data: data[i]}, not {dataTable: data[i]}.
+	// Keep tables here to avoid the extra per-point array allocations.
 	return [cpu, ram, tcp].map(y => ({columns: {x, y}}));
 }
 
@@ -66,6 +73,8 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {boost = {}} = {
 				plotOptions: {
 					series: {
 						animation: false,
+						// SVG's first mousemove must build the native search tree synchronously.
+						...(boost.enabled === false ? {kdNow: true} : {}),
 						events: {
 							// Boost processes hover points in chunks after drawing. Do not
 							// report completion at the earlier chart render event.
@@ -75,7 +84,12 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {boost = {}} = {
 							},
 						},
 					},
-					line: {lineWidth: 1, marker: {enabled: false}},
+					// In SVG, a hover marker under the stationary pointer can trigger
+					// tracker mouseout while the tooltip remains visible.
+					line: {lineWidth: 1, marker: {
+						enabled: false,
+						...(boost.enabled === false ? {states: {hover: {enabled: false}}} : {}),
+					}},
 				},
 				series: [
 					{name: 'CPU', color: 'red', dataTable: data[0], yAxis: 0, tooltip: {valueSuffix: ' %'}},
@@ -142,6 +156,37 @@ export function resizeChart(chart, {width, height}, host, wait) {
 		return Promise.resolve();
 	}
 	return renderChart(chart, () => chart.setSize(width, height, false), wait);
+}
+
+export function getHoverPlan(chart, input, host) {
+	// Only the SVG adapter has browser-verified table-backed tooltip values.
+	if (chart.options.boost?.enabled !== false || chart.series.some(series => series.boosted))
+		throw new Error('Highcharts hover requires SVG rendering with Boost disabled.');
+	const rect = chart.container.getBoundingClientRect();
+	const sx = rect.width / chart.chartWidth, sy = rect.height / chart.chartHeight;
+	const length = input[0].columns.x.length;
+	const xAxis = chart.xAxis[0];
+	const tolerance = (length - 1) / (Math.abs(xAxis.toPixels(input[0].columns.x[length - 1]) - xAxis.toPixels(input[0].columns.x[0])) * sx);
+	return {
+		targets: hoverTargets(length, (index, seriesIndex) => ({
+			x: rect.left + xAxis.toPixels(input[seriesIndex].columns.x[index]) * sx,
+			y: rect.top + chart.series[seriesIndex].yAxis.toPixels(input[seriesIndex].columns.y[index]) * sy,
+		})),
+		verify(target) {
+			const seriesIndex = target.seriesIndex;
+			const point = chart.hoverPoints?.find(point => point.series === chart.series[seriesIndex]);
+			const index = point?.index;
+			if (chart.tooltip?.isHidden !== false || !nearHoverIndex(index, target, tolerance) || index < 0 || index >= length) return null;
+			const {x, y} = input[seriesIndex].columns;
+			const value = y[index];
+			if (point.x !== x[index] || point.y !== value || Math.abs(xAxis.toPixels(x[index]) - xAxis.toPixels(x[target.index])) * sx > 1) return null;
+			const text = visibleText(chart.tooltip.label?.element);
+			const formatted = chart.numberFormatter(value, 2);
+			const suffix = seriesIndex === 2 ? 'MB' : '%';
+			if (!text.replace(/\s+/g, ' ').includes(`${point.series.name}: ${formatted} ${suffix}`.replace(/\s+/g, ' '))) return null;
+			return {index, seriesIndex, value, text};
+		},
+	};
 }
 
 function destroyChart(chart) {

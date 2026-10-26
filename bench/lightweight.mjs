@@ -1,3 +1,6 @@
+import {hoverTargets, visibleText, nearHoverIndex} from './hover.mjs';
+
+const hoverStates = new WeakMap();
 const cleanups = new WeakMap();
 const updates = new WeakMap();
 
@@ -46,8 +49,11 @@ function makeChart(data, host, wait) {
 	const colors = ['red', 'blue', 'green'];
 	const series = [];
 	const buttons = [];
+	const hoverState = {series, buttons, param: null};
+	hoverStates.set(chart, hoverState);
 	const format = (value, index) => `${value == null ? '--' : Number(value.toFixed(2))} ${index === 2 ? 'MB' : '%'}`;
 	const updateLegend = param => {
+		hoverState.param = param ?? null;
 		series.forEach((line, i) => {
 			const point = param?.time == null ? data[i][data[i].length - 1] : param.seriesData.get(line);
 			buttons[i].textContent = `${names[i]}: ${format(point?.value, i)}`;
@@ -117,6 +123,7 @@ function destroyChart(chart) {
 	cleanups.get(chart)?.();
 	cleanups.delete(chart);
 	updates.delete(chart);
+	hoverStates.delete(chart);
 	chart.remove();
 }
 
@@ -146,6 +153,43 @@ export function resizeChart(chart, {width, height}, host, wait) {
 	// Preserve the benchmark's all-data view without calling setData again.
 	chart.timeScale().fitContent();
 	return rendered(chart, wait);
+}
+
+export function getHoverPlan(chart, input, host) {
+	const state = hoverStates.get(chart);
+	const rect = host.getBoundingClientRect();
+	const sx = rect.width / host.clientWidth, sy = rect.height / host.clientHeight;
+	const timeScale = chart.timeScale();
+	const left = chart.priceScale('left').width();
+	const length = input[0].length;
+	const tolerance = (length - 1) / (Math.abs(timeScale.timeToCoordinate(input[0][length - 1].time) - timeScale.timeToCoordinate(input[0][0].time)) * sx);
+	return {
+		targets: hoverTargets(length, (index, seriesIndex) => ({
+			x: rect.left + (left + timeScale.timeToCoordinate(input[seriesIndex][index].time)) * sx,
+			y: rect.top + state.series[seriesIndex].priceToCoordinate(input[seriesIndex][index].value) * sy,
+		})),
+		verify(target) {
+			// The always-visible legend also shows the final row when not hovered.
+			// Only a native crosshair event with a live point can prove selection.
+			const param = state.param;
+			if (!param?.point || !Number.isFinite(param.time)) return null;
+			let index = 0, end = length;
+			while (index < end) {
+				const mid = (index + end) >>> 1;
+				if (input[0][mid].time < param.time) index = mid + 1;
+				else end = mid;
+			}
+			if (input[0][index]?.time !== param.time || !nearHoverIndex(index, target, tolerance)) return null;
+			const seriesIndex = target.seriesIndex;
+			const point = param.seriesData.get(state.series[seriesIndex]);
+			const value = input[seriesIndex][index].value;
+			if (point?.time !== input[seriesIndex][index].time || point?.value !== value || Math.abs(timeScale.timeToCoordinate(point.time) - timeScale.timeToCoordinate(input[seriesIndex][target.index].time)) * sx > 1) return null;
+			const text = visibleText(state.buttons[seriesIndex]);
+			const name = ['CPU', 'RAM', 'TCP Out'][seriesIndex];
+			if (text !== `${name}: ${Number(value.toFixed(2))} ${seriesIndex === 2 ? 'MB' : '%'}`) return null;
+			return {index, seriesIndex, value, text};
+		},
+	};
 }
 
 export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};

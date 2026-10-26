@@ -731,9 +731,10 @@ describe('benchmark trace sample timeout integration', () => {
 					return true;
 				}) : capturePromise;
 				const {socket, id} = await evaluating;
-				assert.equal(socket.messageListeners.size, 2);
+				assert.equal(socket.messageListeners.size, 3);
 				assert.ok(calls.findIndex(call => call.method === 'Runtime.addBinding') < calls.findIndex(call => call.method === 'Page.navigate'));
-				assert.deepEqual(calls.find(call => call.method === 'Runtime.addBinding').params, {name: 'benchmarkSampleBoundary'});
+				assert.deepEqual(calls.filter(call => call.method === 'Runtime.addBinding').map(call => call.params.name), ['benchmarkMouseInput', 'benchmarkSampleBoundary']);
+				assert.ok(calls.findIndex(call => call.method === 'Page.addScriptToEvaluateOnNewDocument') < calls.findIndex(call => call.method === 'Page.navigate'));
 				// Adjacent end/start notifications arrive in one turn. Total run time exceeds a sample budget.
 				for (let i = 0; i < 4; i++) {
 					socket.boundary('start');
@@ -763,7 +764,7 @@ describe('benchmark trace sample timeout integration', () => {
 				}
 				assert.equal(timeouts.length, stuck ? 1 : 0);
 				assert.equal(calls.filter(call => call.params.expression === 'globalThis.runBenchmarkTrace({raf: true})').length, 1);
-				assert.ok(!calls.some(call => /^(Tracing\.|IO\.|HeapProfiler\.)/.test(call.method) || call.method === 'Page.addScriptToEvaluateOnNewDocument' || call.params.expression?.startsWith('benchmarkLifecycle.')));
+				assert.ok(!calls.some(call => /^(Tracing\.|IO\.|HeapProfiler\.)/.test(call.method) || call.params.expression?.startsWith('benchmarkLifecycle.')));
 				assert.deepEqual(await readdir(dir), ['DevToolsActivePort']);
 			});
 		});
@@ -800,10 +801,15 @@ describe('benchmark trace sample timeout integration', () => {
 		});
 	});
 
-	it('reports the default timeout on normal captures', async () => {
-		await withCaptureSocket(() => false, async ({capture}) => {
+	it('reports the default timeout and installs trusted mouse input before normal capture navigation', async () => {
+		await withCaptureSocket(() => false, async ({capture, calls, sockets}) => {
 			const report = await capture({trace: false});
 			assert.equal(report.sampleTimeoutMs, SAMPLE_TIMEOUT_MS);
+			const binding = calls.findIndex(call => call.method === 'Runtime.addBinding' && call.params.name === 'benchmarkMouseInput');
+			const script = calls.findIndex(call => call.method === 'Page.addScriptToEvaluateOnNewDocument' && call.params.source.includes('benchmarkMoveMouse'));
+			const navigation = calls.findIndex(call => call.method === 'Page.navigate');
+			assert.ok(binding >= 0 && binding < script && script < navigation);
+			assert.equal(sockets[1].messageListeners.size, 1, 'remove the mouse listener after capture');
 		});
 	});
 });

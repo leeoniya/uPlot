@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
+import * as hover from '../../bench/hover.mjs';
 
 const source = readFileSync(new URL('../../bench/d3.mjs', import.meta.url), 'utf8')
+	.replace(/^import .* from '\.\/hover\.mjs';\s*$/gm, '')
 	.replace(/^export \{[^\n]+\};\s*$/gm, '');
 
 function recorder() {
@@ -31,7 +33,7 @@ function buckets(points) {
 }
 
 for (const ratio of [1, 1.5, 2]) describe(`D3 streaming min/max at DPR ${ratio}`, () => {
-	const draw = runInNewContext(source + '\ndrawMinMax;', {devicePixelRatio: ratio});
+	const draw = runInNewContext(source + '\ndrawMinMax;', {devicePixelRatio: ratio, ...hover});
 	const round = value => (Math.round(value * ratio) + 0.5) / ratio;
 	const xScale = x => 55 + x * 0.01;
 	const yScale = y => 570 - y * 5;

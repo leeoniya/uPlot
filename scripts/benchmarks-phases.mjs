@@ -1,4 +1,5 @@
-export const lifecycleOperations = ['small-init', 'data-update', 'resize'];
+export const lifecycleOperations = ['small-init', 'data-update', 'resize', 'hover-10'];
+const resizeOperations = lifecycleOperations.slice(0, 3);
 const populationOperations = ['small-init', 'data-update'];
 const legacyOperations = ['empty-init', 'first-data', 'warmup-update', 'data-update'];
 
@@ -6,7 +7,19 @@ export function benchmarkOperations(report) {
 	if (report.resizeProtocol !== undefined && (report.resizeProtocol !== 'retained-resize-v1' ||
 		report.phase !== 'chart-population' || report.initProtocol !== 'settled-work-v1'))
 		throw new Error('Unsupported lifecycle resize protocol or initialization boundary.');
-	return report.phase === 'chart-population' ? (report.resizeProtocol ? lifecycleOperations : populationOperations)
+	if (report.hoverProtocol !== undefined || report.hover !== undefined) {
+		if (!['hover-ten-v1', 'hover-ten-v2'].includes(report.hoverProtocol) || report.resizeProtocol !== 'retained-resize-v1')
+			throw new Error('Unsupported lifecycle hover protocol or resize boundary.');
+		const hover = report.hover;
+		if (report.hoverProtocol === 'hover-ten-v2' && hover?.intervalMs !== 50)
+			throw new Error('Lifecycle hover-ten-v2 metadata requires intervalMs 50.');
+		if (hover?.count !== 10 || !Array.isArray(hover.variants) || !hover.variants.includes('idle') ||
+			hover.variants.some(variant => typeof variant !== 'string' || !variant.trim() || variant !== variant.trim()) ||
+			new Set(hover.variants).size !== hover.variants.length)
+			throw new Error('Lifecycle hover metadata requires count 10 and distinct supported variants including idle.');
+		return lifecycleOperations;
+	}
+	return report.phase === 'chart-population' ? (report.resizeProtocol ? resizeOperations : populationOperations)
 		: report.phase === 'chart-lifecycle' ? legacyOperations : null;
 }
 
@@ -23,14 +36,15 @@ export function benchmarkTimingSamples(report) {
 	}
 	const ids = new Set();
 	return report.samples.flatMap(sample => {
-		if (!Array.isArray(sample.phases) || sample.phases.length !== operations.length)
-			throw new Error(`Expected ${operations.length} lifecycle operation windows per session.`);
-		for (let i = 0; i < operations.length; i++) {
+		const sampleOperations = operations.filter(operation => operation !== 'hover-10' || report.hover.variants.includes(sample.variant));
+		if (!Array.isArray(sample.phases) || sample.phases.length !== sampleOperations.length)
+			throw new Error(`Expected ${sampleOperations.length} lifecycle operation windows per session.`);
+		for (let i = 0; i < sampleOperations.length; i++) {
 			const phase = sample.phases[i];
-			if (typeof phase.id !== 'string' || !phase.id || ids.has(phase.id))
+			if (typeof phase?.id !== 'string' || !phase.id || ids.has(phase.id))
 				throw new Error('Lifecycle operation windows require distinct ids.');
 			ids.add(phase.id);
-			if (phase.operation !== operations[i] || phase.variant !== sample.variant ||
+			if (phase.operation !== sampleOperations[i] || phase.variant !== sample.variant ||
 				phase.dpr !== sample.dpr || phase.round !== sample.round ||
 				phase.warmup !== (sample.warmup || phase.operation === 'warmup-update'))
 				throw new Error('Lifecycle operation metadata does not match its session.');

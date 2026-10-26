@@ -2,15 +2,16 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {it as test} from 'mocha';
+import * as hover from '../../bench/hover.mjs';
 
 // These doubles exercise adapter geometry and completion contracts, not vendor rendering.
 const source = name => readFileSync(new URL(`../../bench/${name}.mjs`, import.meta.url), 'utf8');
 const plain = value => JSON.parse(JSON.stringify(value));
 const target = {width: 1200, height: 400};
 function load(name, globals = {}) {
-	return runInNewContext(source(name).replace(/^export \{[^\n]+\};\s*$/gm, '') +
+	return runInNewContext(source(name).replace(/^import .* from '\.\/hover\.mjs';\s*$/gm, '').replace(/^export \{[^\n]+\};\s*$/gm, '') +
 		'\n({makeChart, resizeChart, updateChart, destroyChart: typeof destroyChart === "function" ? destroyChart : c => c.destroy(), makeChartWithOptions: typeof makeChartWithOptions === "function" ? makeChartWithOptions : null});',
-		{devicePixelRatio: 1, queueMicrotask, ...globals});
+		{devicePixelRatio: 1, queueMicrotask, ...hover, ...globals});
 }
 function context2d() {
 	const calls = [];

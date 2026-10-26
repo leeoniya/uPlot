@@ -58,7 +58,7 @@ function capture(fn) {
 				const [headers, ...cells] = args[0].split('\n').filter(line => line.startsWith('│'))
 					.map(line => line.split('│').slice(1, -1).map(value => value.trim()));
 				const rows = cells.map(row => Object.fromEntries(headers.map((key, i) =>
-					[key, ['variant', 'context', 'sampling', 'lossy'].includes(key) || row[i] === 'unavailable' || row[i] === '-' ? row[i] : Number(row[i])])));
+					[key, ['variant', 'context', 'sampling', 'lossy'].includes(key) || row[i] === 'unavailable' || row[i] === '-' || row[i] === '' ? row[i] : Number(row[i])])));
 				tables.push(rows);
 				events.push({type: 'table', rows});
 			}
@@ -188,6 +188,207 @@ function resizedBrowser(variant, measurements, dpr = 1, requestedBackend = 'defa
 		raw.rafAnalysis = summarizeBenchmarkRaf(raw);
 	return raw;
 }
+
+function hoverBrowser(variant, measurements, dpr = 1, requestedBackend = 'default', protocol = 'hover-ten-v2') {
+	const raw = resizedBrowser(variant, measurements, dpr, requestedBackend);
+	raw.hoverProtocol = protocol;
+	raw.hover = {variants: ['idle', 'uplot', 'chartjs', 'bokeh', 'bokeh-canvas'], count: 10,
+		...(protocol === 'hover-ten-v2' ? {intervalMs: 50} : {})};
+	raw.operations.push('hover-10');
+	raw.lifecycle.operations.push('hover-10');
+	if (raw.hover.variants.includes(variant)) {
+		for (const sample of raw.samples) {
+			const phase = {...sample.phases[2], id: `${sample.id}-hover`, operation: 'hover-10',
+				jsMs: 0.1, raf1Ms: sample.warmup ? 0.01 : [70, 40, 100][sample.round]};
+			sample.phases.push(phase);
+			if (measurements.trace)
+				raw.analysis.samples.push({...phase, totalTrackedThreadWorkMs: sample.warmup ? 9999 : [0, 60, 120][sample.round]});
+		}
+	}
+	if (measurements.trace) {
+		raw.analysis.phaseGroups = summarizeBenchmarkTraceSamples(raw.analysis.samples);
+		raw.analysis.groups = raw.analysis.phaseGroups.filter(group => group.operation === 'data-update');
+	}
+	if (measurements.raf)
+		raw.rafAnalysis = summarizeBenchmarkRaf(raw);
+	return raw;
+}
+
+for (const protocol of ['hover-ten-v1', 'hover-ten-v2']) describe(`optional hover reports (${protocol})`, () => {
+	const hoveredBrowser = (variant, measurements, dpr, requestedBackend) => hoverBrowser(variant, measurements, dpr, requestedBackend, protocol);
+	const modes = [combined, {trace: true, memory: false, raf: false}, {trace: false, memory: false, raf: true}, {trace: false, memory: true, raf: false}];
+	for (const measurements of modes) {
+		const mode = benchmarkMode(measurements);
+		it(`shows cumulative hover means or rAF minima without update regression in live and saved ${mode}`, async () => {
+			const h = harness();
+			h.dependencies.runWorker = async request => hoveredBrowser(request.variant, request.measurements, request.dpr, request.requestedBackend);
+			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
+			const row = h.frames.at(-1).rows[0];
+			const baseline = offline(savedReport([resizedBrowser('idle', measurements), resizedBrowser('uplot', measurements)], measurements)).tables[0][0];
+			assert.deepEqual(renderedRow(Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'hover 10 ms'))), baseline);
+			if (measurements.trace || measurements.raf) {
+				assert.equal(row['hover 10 ms'], measurements.raf ? 40 : 60);
+				assert.equal(Object.keys(row).indexOf('hover 10 ms'), Object.keys(row).indexOf(measurements.raf ? 'resize rAF ms' : 'resize ms') + 1);
+			}
+			else assert.equal(Object.hasOwn(row, 'hover 10 ms'), false);
+			assert.deepEqual(h.frames.at(-1).warnings, []);
+			const original = structuredClone(report.reports);
+			const summary = offline(report);
+			assert.deepEqual(summary.tables[0], [renderedRow(row)]);
+			for (const [i, raw] of summary.result.reports.entries()) {
+				assert.deepEqual(raw.samples, original[i].samples);
+				const analysis = measurements.trace ? raw.analysis : raw.rafAnalysis;
+				if (analysis) {
+					assert.deepEqual(analysis.phaseGroups.map(group => group.operation), raw.operations);
+					assert.equal(analysis.groups.length, 1);
+				}
+			}
+			assert.match(report.protocol.hover, /10 mousemoves.*final settle\/fence/);
+			assert.match(report.protocol.hover, /cumulative, not a per-point average/);
+						assert.match(report.protocol.hover, /hover.intervalMs is 50 for hover-ten-v2/);
+						assert.match(report.protocol.hover, /No per-point rAF, value verification, or harness DOM\/canvas reads/);
+						assert.match(report.protocol.hover, /at least 450 ms/);
+			assert.match(report.protocol.timingColumns, /not the full-work equivalent/);
+			assert.match(report.protocol.memoryColumns, /retained memory includes the tooltip/);
+		});
+
+		it(`rejects mixed hover protocols and capabilities before rewriting saved ${mode} reports`, () => {
+			for (const reverse of [false, true]) for (const change of [
+				raw => { delete raw.hoverProtocol; delete raw.hover; },
+				raw => raw.hoverProtocol = 'unknown',
+				raw => {
+					raw.hoverProtocol = protocol === 'hover-ten-v1' ? 'hover-ten-v2' : 'hover-ten-v1';
+					if (raw.hoverProtocol === 'hover-ten-v2') raw.hover.intervalMs = 50;
+					else delete raw.hover.intervalMs;
+				},
+				raw => raw.hover.intervalMs = 25,
+				raw => raw.hover.intervalMs = null,
+				raw => raw.hover.intervalMs = '50',
+				raw => raw.hover.count = 9,
+				raw => raw.hover.count = 11,
+				raw => raw.hover.variants.push('d3'),
+			]) {
+				const old = hoveredBrowser('idle', measurements), next = hoveredBrowser('uplot', measurements);
+				change(old);
+				const output = join(directory, 'mixed-hover.json');
+				const bytes = JSON.stringify(savedReport(reverse ? [next, old] : [old, next], measurements));
+				writeFileSync(output, bytes);
+				assert.throws(() => capture(() => summarizeSavedBenchmarks({...measurements, vulkan: false}, output)), /hover/);
+				assert.equal(readFileSync(output, 'utf8'), bytes);
+			}
+		});
+
+		it(`accepts reordered capability snapshots and rejects incomplete hover sessions in ${mode}`, () => {
+			const idle = hoveredBrowser('idle', measurements), raw = hoveredBrowser('uplot', measurements);
+			raw.hover.variants.reverse();
+			const original = structuredClone(raw.hover);
+			assert.equal(offline(savedReport([idle, raw], measurements)).tables[0].length, 1);
+			assert.deepEqual(raw.hover, original);
+			raw.samples[0].phases.pop();
+			assert.throws(() => offline(savedReport([idle, raw], measurements)), /4 lifecycle operation windows/);
+		});
+
+		it(`rejects a live v1/v2 mixture in ${mode}`, async () => {
+					const h = harness();
+					h.dependencies.runWorker = async request => hoverBrowser(request.variant, request.measurements, request.dpr, request.requestedBackend,
+						request.variant === 'idle' ? protocol : protocol === 'hover-ten-v1' ? 'hover-ten-v2' : 'hover-ten-v1');
+					const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
+					assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
+					assert.equal(report.failures.length, 1);
+					assert.match(report.failures[0].error, /hover protocols/);
+				});
+
+				it(`rejects a mismatched live ${mode} worker`, async () => {
+			const h = harness();
+			h.dependencies.runWorker = async request => (request.variant === 'idle' ? hoveredBrowser : resizedBrowser)(request.variant, request.measurements);
+			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
+			assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
+			assert.equal(report.failures.length, 1);
+			assert.match(report.failures[0].error, /hover protocols/);
+			if (measurements.trace || measurements.raf) assert.equal(h.frames.at(-1).rows[0]['hover 10 ms'], '-');
+		});
+	}
+
+	for (const measurements of modes.filter(mode => mode.trace || mode.raf)) {
+		it(`keeps unsupported hover blank, measured zero numeric, and supported failures marked in ${benchmarkMode(measurements)}`, async () => {
+			const h = harness();
+			h.dependencies.runWorker = async request => hoveredBrowser(request.variant, request.measurements, request.dpr, request.requestedBackend);
+			await runBenchmarkSuite({...measurements, variant: 'd3', vulkan: false}, h.dependencies);
+			assert.equal(h.frames.at(-1).rows[0]['hover 10 ms'], '');
+			assert.deepEqual(h.frames.at(-1).warnings, []);
+			const raw = hoveredBrowser('uplot', measurements), unsupported = hoveredBrowser('d3', measurements);
+			if (measurements.trace)
+				for (const phase of raw.analysis.samples.filter(phase => phase.operation === 'hover-10')) phase.totalTrackedThreadWorkMs = 0;
+			else {
+				for (const sample of raw.samples) sample.phases[3].raf1Ms = 0;
+				raw.rafAnalysis = summarizeBenchmarkRaf(raw);
+			}
+			const input = savedReport([hoveredBrowser('idle', measurements), raw, unsupported], measurements);
+			input.failures = [{variant: 'chartjs', error: 'synthetic supported failure'}, {variant: 'd3fc', error: 'synthetic unsupported failure'}];
+			const {tables, logs} = offline(input);
+			assert.equal(tables[0].find(row => row.variant === 'uplot')['hover 10 ms'], 0);
+			assert.equal(tables[0].find(row => row.variant === 'd3')['hover 10 ms'], '');
+			assert.equal(tables[0].find(row => row.variant === 'chartjs')['hover 10 ms'], '-');
+			assert.equal(tables[0].find(row => row.variant === 'd3fc')['hover 10 ms'], '');
+			assert.equal(logs.some(([text]) => text.startsWith('Warning:') && !text.includes('synthetic')), false);
+		});
+
+		it(`does not substitute readiness or window duration for missing hover metrics in ${benchmarkMode(measurements)}`, () => {
+			const raw = hoveredBrowser('uplot', measurements);
+			if (measurements.trace) {
+				for (const sample of raw.analysis.samples.filter(sample => sample.operation === 'hover-10')) {
+					delete sample.totalTrackedThreadWorkMs;
+					sample.windowMs = 999;
+				}
+			}
+			else {
+				for (const sample of raw.samples) delete sample.phases[3].raf1Ms;
+				raw.rafAnalysis = summarizeBenchmarkRaf(raw);
+			}
+			const summary = offline(savedReport([raw], measurements));
+			assert.equal(summary.tables[0][0]['hover 10 ms'], 'unavailable');
+			assert.ok(summary.logs.some(([text]) => text.includes('hover 10 ms (0/3 valid, 3 missing, unavailable)')));
+		});
+	}
+
+	for (const raf of [false, true]) it(`keeps sorting update-based rather than hover-based (${raf ? 'rAF' : 'trace'})`, () => {
+		const measurements = {trace: !raf, memory: false, raf};
+		const reports = ['bokeh', 'uplot', 'bokeh-canvas'].map((variant, i) => {
+			const raw = hoveredBrowser(variant, measurements);
+			if (raf) {
+				for (const sample of raw.samples) {
+					sample.raf1Ms = sample.phases[1].raf1Ms = [30, 20, 10][i];
+					sample.phases[3].raf1Ms = [1, 2, 300][i];
+				}
+				raw.rafAnalysis = summarizeBenchmarkRaf(raw);
+			}
+			else for (const sample of raw.analysis.samples) {
+				if (sample.operation === 'data-update') sample.totalTrackedThreadWorkMs = [30, 20, 10][i];
+				if (sample.operation === 'hover-10') sample.totalTrackedThreadWorkMs = [1, 2, 300][i];
+			}
+			return raw;
+		});
+		const rows = offline(savedReport(reports, measurements)).tables[0];
+		assert.deepEqual(rows.map(row => row.variant), ['bokeh', 'bokeh', 'uplot']);
+		assert.deepEqual(rows.map(row => row[raf ? 'next rAF ms' : 'update ms']), [10, 30, 20]);
+		assert.deepEqual(rows.map(row => row['hover 10 ms']), [300, 1, 2]);
+	});
+
+	it('uses hover polls for peaks and the post-hover live checkpoint for retained memory', () => {
+		const measurements = {trace: false, memory: true, raf: false};
+		const idle = hoveredBrowser('idle', measurements), raw = hoveredBrowser('uplot', measurements);
+		for (const sample of raw.samples) {
+			const observations = sample.processObservations;
+			observations.splice(3, 0, {...observation('construct', 1000), operation: 'hover-10'});
+			observations[4] = {...observation('live', 200), operation: 'hover-10'};
+		}
+		const original = structuredClone(raw);
+		const summary = offline(savedReport([idle, raw], measurements));
+		assert.equal(summary.tables[0][0]['peak MB'], 2925);
+		assert.equal(summary.tables[0][0]['retained MB'], 525);
+		assert.deepEqual(summary.result.reports[1], original);
+	});
+});
 
 describe('retained resize reports', () => {
 	for (const measurements of [combined, {trace: true, memory: false, raf: false}, {trace: false, memory: false, raf: true}]) {

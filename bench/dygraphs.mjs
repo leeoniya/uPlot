@@ -1,3 +1,5 @@
+import {hoverTargets, visibleText, nearHoverIndex} from './hover.mjs';
+
 function round2(val) {
 	return Math.round(val * 100) / 100;
 }
@@ -105,6 +107,32 @@ export function resizeChart(chart, {width, height}, host, wait) {
 	chart.resize(width, height);
 	if (wait) wait.textContent = 'Done!';
 	return chart;
+}
+
+export function getHoverPlan(chart, input, host) {
+	const rect = host.getBoundingClientRect();
+	const sx = rect.width / host.clientWidth, sy = rect.height / host.clientHeight;
+	const length = input.length;
+	const tolerance = (length - 1) / (Math.abs(chart.toDomXCoord(input[length - 1][0]) - chart.toDomXCoord(input[0][0])) * sx);
+	return {
+		targets: hoverTargets(length, (index, seriesIndex) => ({
+			x: rect.left + chart.toDomXCoord(input[index][0]) * sx,
+			y: rect.top + chart.toDomYCoord(input[index][seriesIndex + 1], seriesIndex === 2 ? 1 : 0) * sy,
+		})),
+		verify(target) {
+			const index = chart.getSelection();
+			if (!nearHoverIndex(index, target, tolerance) || index < 0 || index >= length) return null;
+			const seriesIndex = target.seriesIndex;
+			const name = ['CPU', 'RAM', 'TCP Out'][seriesIndex];
+			const point = chart.selPoints_?.find(point => point.name === name);
+			const value = input[index][seriesIndex + 1];
+			if (!point || point.idx !== index || point.xval !== input[index][0] || point.yval !== value || Math.abs(chart.toDomXCoord(input[index][0]) - chart.toDomXCoord(input[target.index][0])) * sx > 1) return null;
+			const text = visibleText(host.querySelector('.dygraph-legend'));
+			const formatted = seriesIndex === 2 ? `${value} MB` : `${round2(value)}%`;
+			if (!text.replace(/\s+/g, ' ').includes(`${name}: ${formatted}`)) return null;
+			return {index, seriesIndex, value, text};
+		},
+	};
 }
 
 export {makeChart, prepData, makeEmptyChart, updateChart};

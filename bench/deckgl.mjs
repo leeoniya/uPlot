@@ -1,7 +1,16 @@
+import {hoverTargets, visibleText, nearHoverIndex} from './hover.mjs';
+
 // Globals d3 and deck: d3@7.9.0/dist/d3.min.js and deck.gl@9.4.0/dist.min.js.
 const replacements = new WeakMap();
 const resizes = new WeakMap();
 const pendingRenders = new WeakMap();
+const hovers = new WeakMap();
+
+function getHoverPlan(chart, input, host) {
+	const hover = hovers.get(chart);
+	if (!hover) throw new Error('deck.gl chart is not live.');
+	return hover(input);
+}
 function prepData(packed) {
 	const fields = packed[0];
 	const count = (packed.length - fields - 1) / fields;
@@ -93,6 +102,8 @@ async function makeChart(data, host, wait) {
 
 		const layers = makeLayers();
 
+		let displayedIndex = null;
+		let hoverVersion = 0;
 		const cursor = axes.append('g').attr('display', 'none').attr('pointer-events', 'none');
 		const rule = cursor.append('line').attr('y1', 0).attr('y2', plotHeight).attr('stroke', 'rgba(0,0,0,0.5)');
 		const dots = cursor.selectAll('circle').data(values).join('circle')
@@ -100,6 +111,7 @@ async function makeChart(data, host, wait) {
 		svg.on('pointermove.benchmark', event => {
 			const [sx, sy] = d3.pointer(event, svg.node());
 			if (!data.x.length || sx < margin.left || sx > margin.left + plotWidth || sy < margin.top || sy > margin.top + plotHeight) {
+				displayedIndex = null;
 				cursor.attr('display', 'none');
 				return;
 			}
@@ -109,7 +121,37 @@ async function makeChart(data, host, wait) {
 			rule.attr('x1', cx).attr('x2', cx);
 			dots.attr('cx', cx).attr('cy', (column, i) => scales[i](column[j]));
 			legend.text((name, i) => `${name}: ${values[i][j].toFixed(i === 0 ? 3 : 2)}${i === 2 ? ' MB' : '%'}`);
-		}).on('pointerleave.benchmark', () => cursor.attr('display', 'none'));
+			displayedIndex = j;
+			hoverVersion++;
+		}).on('pointerleave.benchmark', () => {
+			displayedIndex = null;
+			cursor.attr('display', 'none');
+		});
+
+		hovers.set(chart, input => {
+			const rect = svg.node().getBoundingClientRect();
+			const previousVersion = hoverVersion;
+			const tolerance = (data.x.length - 1) / plotWidth;
+			const cells = legend.nodes();
+			return {
+				targets: hoverTargets(data.x.length, (index, seriesIndex) => ({
+					x: Math.round(rect.left + margin.left + x(data.x[index])),
+					y: Math.round(rect.top + margin.top + Math.max(1, Math.min(plotHeight - 1,
+						scales[seriesIndex](values[seriesIndex][index])))),
+				})),
+				verify(target) {
+					const {seriesIndex} = target;
+					const index = displayedIndex;
+					if (chart.destroyed || chart.error || input !== data || hoverVersion === previousVersion ||
+						!nearHoverIndex(index, target, tolerance)) return null;
+					const value = values[seriesIndex][index];
+					if (!Number.isFinite(value)) return null;
+					const expected = `${['CPU', 'RAM', 'TCP Out'][seriesIndex]}: ${value.toFixed(seriesIndex === 0 ? 3 : 2)}${seriesIndex === 2 ? ' MB' : '%'}`;
+					const text = visibleText(cells[seriesIndex]);
+					return text === expected ? {index, seriesIndex, value, text} : null;
+				},
+			};
+		});
 
 		replacements.set(chart, input => {
 			data = input;
@@ -126,6 +168,7 @@ async function makeChart(data, host, wait) {
 		});
 
 		function redrawAxes() {
+			displayedIndex = null;
 			grid.call(d3.axisLeft(pct).ticks(10).tickSize(-plotWidth).tickFormat(''))
 				.call(group => group.select('.domain').remove())
 				.call(group => group.selectAll('line').attr('stroke', 'rgba(0,0,0,0.1)'));
@@ -260,6 +303,7 @@ function destroyChart(chart) {
 	pendingRenders.delete(chart);
 	replacements.delete(chart);
 	resizes.delete(chart);
+	hovers.delete(chart);
 	const errors = [];
 	const cleanup = fn => { try { fn(); } catch (error) { errors.push(error); } };
 	cleanup(() => chart.svg?.on('.benchmark', null));
@@ -272,5 +316,5 @@ function destroyChart(chart) {
 	if (errors.length) throw new AggregateError(errors, 'deck.gl cleanup failed.');
 }
 
-export {makeEmptyChart, updateChart, resizeChart};
+export {makeEmptyChart, updateChart, resizeChart, getHoverPlan};
 export {prepData, makeChart, destroyChart};

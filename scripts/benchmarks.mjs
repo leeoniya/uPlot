@@ -60,8 +60,10 @@ On Linux, runs that include ChartGPU automatically request Vulkan for every work
 Other explicit variants and other platforms keep Chrome's default backend unless overridden.
 Each variant gets a fresh browser with only its own library and demo dependencies.
 Each library has 3 warmup sessions and 7 measured sessions. There is no inter-library cooling pause.
-A session creates a two-point chart, updates it with the full 166,650-point dataset, then resizes the retained chart to 1200x400.
-Reports keep phase: chart-population and initProtocol: settled-work-v1, and add resizeProtocol: retained-resize-v1.
+A session creates a two-point chart, updates it with the full dataset, then resizes the retained chart to 1200x400.
+Supported variants then hover ten distinct datapoints, cycling through the three series.
+Reports use chart-population, settled-work-v1, retained-resize-v1, and hoverProtocol: hover-ten-v2, with hover.count: 10 and hover.intervalMs: 50.
+The hover.variants snapshot records supported variants. Unimplemented variants omit the hover phase and leave hover 10 ms blank.
 The lifecycle.resizeSize metadata records width: 1200 and height: 400. Top-level session timings still describe data-update.
 Each operation has a hard 5s budget, including preparation and completion checks. Final cleanup has its own 5s budget.
 A library timeout kills Chrome, discards the incomplete trace, shows '-' for all metrics, and continues the suite.
@@ -76,9 +78,9 @@ Trace/combined groups rank by their lowest implementation mean update ms; rAF gr
 CLI selection, filenames, progress, warnings, and JSON retain full variant IDs.
 Columns start with variant, context, sampling, lossy. '*' flags potentially lossy reduction; '?' means unverified or missing classification.
 A blank lossy cell means no configured reduction or verified bucket-extrema preservation, not pixel-identical output.
-Trace init ms, update ms, and resize ms use frame-based green bands. Darkest green includes one frame (1000/60 ms).
+Trace init ms, update ms, resize ms, and hover 10 ms use frame-based green bands. Darkest green includes one frame (1000/60 ms).
 Green ends at two frames (2000/60 ms). Orange shades split at 50 and 75 ms.
-Init is red at 100 ms and above. Update and resize retain orange at exactly 100 ms and are red above that.
+Init is red at 100 ms and above. Update, resize, and hover retain orange at exactly 100 ms and are red above that.
 Peak MB and retained MB share the same ranges and shades: darkest green through 20 MB, then lighter greens through 35 MB.
 Both memory columns use orange for more than 35 MB but less than 50 MB, then red at 50 MB and greater.
 Memory colors use unrounded values. Negative adjusted values and unavailable values remain plain.
@@ -91,16 +93,24 @@ LIGHTNINGCHART_LICENSE_INFORMATION can supply vendor-required metadata as JSON.
 DPR defaults to 1. --dpr selects one browser and canvas DPR.
 
 Library loading, raw JSON parsing, and the shared page shell occur outside chart timing. Chart-specific DOM setup is inside init.
-Data preparation is timed separately for initialization and data-update. Resize reuses the retained full-data chart. Small and full inputs have distinct references, lengths, and contents.
+Data preparation is timed separately for initialization and data-update. Resize and hover reuse the retained full-data chart. Small and full inputs have distinct references, lengths, and contents.
 prep ms measures full-data preparation. Trace init ms measures full-window initialization thread work, including deferred layout and paint.
 Idle gaps in the settling wait do not count as work. Constructor readiness remains in JSON.
 rAF-only reports init rAF ms instead: first callback latency, not settled work or proof of presentation.
 Trace/combined update ms and resize ms measure full-window thread work, using the same metric as init ms.
 Resize includes deferred layout, paint, raster, GPU-process work, and observed GC within its complete window.
 rAF-only resize rAF ms uses resize raf1Ms. This callback latency is not thread work.
+hover 10 ms is cumulative complete-window thread work for ten mousemoves in trace/combined modes, not an average per point.
+Trusted CDP mouse moves drive normal chart hit testing. Nine 50 ms waits follow each input acknowledgment before the next move.
+There is no catch-up, per-point rAF, value verification, or harness DOM/canvas read in the measured window.
+The final two rAF callbacks, 200 ms settling wait, and graphics-completion checks remain unchanged.
+Hover includes input-bridge and timer overhead. Target preparation and bounds validation occur outside its window.
+Diagnostic value verification runs only during harness development, never automatically or as prewarming.
+rAF-only hover 10 ms uses sequence-to-post-readiness callback latency, including at least 450 ms of spacing but excluding final settling/fences.
+Idle spacing is not thread work. Legacy hover-ten-v1 used frame-paced, verified displays and remains readable separately from v2.
 Update readiness remains in JSON. rAF-only update ms still measures small-to-full update readiness, not thread work.
 main, gpu, and prep remain data-update columns. next rAF describes update callback latency.
-Primary groups contain data-update only. phaseGroups contains all three operations, with distinct IDs and full trace metric details.
+Primary groups contain data-update only. phaseGroups contains all captured operations, with distinct IDs and full trace metric details.
 Legacy startup-only reports retain total ms because they contain no separate data update.
 The update includes full-size allocation costs; it is not a steady-state full-to-full replacement measurement.
 HTML demos still construct directly with the full dataset.
@@ -113,8 +123,9 @@ JSON records backgroundGcMs, gcAddedThreadWorkMs, and accountingProtocol. Saved 
 Trace and rAF timings are not idle-subtracted; idle subtraction applies only to memory.
 
 Memory requires Linux /proc access. It polls process memory with a requested 50 ms delay after each read.
-Retained memory follows resize, settling, and forced JS GC, with the chart and full prepared input alive.
-Peaks cover the complete three-phase session. Forced GC occurs only at baseline, after resize, and after teardown.
+Retained memory follows hover for supported variants, otherwise resize, after settling and forced JS GC.
+It includes the chart, full prepared input, and final hover display when supported.
+Peaks cover the complete session. Forced GC occurs only at baseline, after the last operation, and after teardown.
 The headline shows baseline-adjusted browser-tree PSS in decimal MB. Renderer measurements stay in JSON.
 Each sample subtracts its blank-page checkpoint and the minimum measured idle retained-minus-blank footprint.
 Memory columns show minimum adjusted retained memory and the minimum of the per-round sampled peaks.
@@ -133,8 +144,8 @@ Use --summarize-only with any command to summarize its saved suite report withou
 Summary-only uses the default-suite backend: Vulkan on Linux, Chrome's default elsewhere.
 Use --no-vulkan to select the saved default report, or --vulkan to select the saved Vulkan report.
 Summary-only mode uses the saved DPR and rejects --dpr, --variant, --worker, and --install-only.
-Legacy two-operation reports remain readable without a resize column.
-Suite summaries reject mixed resize protocols, including reports with and without resizeProtocol, in every mode, including memory-only.
+Legacy reports remain readable without resize or hover columns when those phases were absent.
+Suite summaries reject mixed resize/hover protocols and hover capability lists in every mode, including memory-only.
 
 Direct runner: node scripts/benchmarks.mjs [--trace] [--memory] [--raf] [--gpu] [--vulkan | --no-vulkan] [--dpr NUMBER]
 No measurement flags means trace + memory. rAF cannot be combined with tracing or memory.`);

@@ -553,7 +553,8 @@ The idle control runs first so the first completed library can show adjusted mem
 The main table omits the idle row.
 
 Each library has 3 warmup sessions and 7 measured sessions.
-Each session creates a chart with two points per series, updates it with the full dataset, then resizes it to 1200×400.
+Each session creates a two-point chart, updates it with the full dataset, then resizes it to 1200×400.
+Supported variants then measure ten mouse moves with 50 ms between each acknowledgment and the next move.
 There is no 30-second pause between libraries.
 The benchmark retains its rendering-settling waits and command timeouts.
 An interactive terminal shows one table that updates in place after each library finishes.
@@ -746,17 +747,19 @@ The saved suite is `.cache/benchmarks/results-chrome-combined-vulkan.json`. This
 
 ### Lifecycle phases
 
-The benchmark measures three operations on one retained chart:
+The benchmark measures three operations on one retained chart, plus hover for supported variants:
 
 1. `small-init`: Create the chart-specific host and the chart with two points per series, from the first and last fixture rows.
 2. `data-update`: Replace that input with the full dataset: 55,550 rows and 166,650 total series points.
 3. `resize`: Resize the same chart from 1920×600 to 1200×400, without replacing its data.
+4. `hover-10`: Move the mouse over ten distinct datapoints, with CPU, RAM, and TCP Out as alternating targets.
 
 Each session starts with a new small chart. It never shrinks a full chart before measurement.
 The small fixture preserves the full timestamp range. Y-axis ranges remain automatic and can change during the update.
 
 Initialization and data update call the shared `prepData` function separately. The small and full inputs have different references, lengths, and contents.
-Resize retains the full input and records zero preparation time.
+Resize and hover retain the full input and record zero data-preparation time.
+Hover target preparation includes geometry reads outside its marker window. The `prep ms` column still measures only full-data conversion.
 The harness uses the original full fixture without a packed copy or synthetic value changes.
 JSON parsing and small-fixture selection occur outside the preparation and chart timers.
 The `prep ms` column measures full-data conversion. Small-data preparation remains in the initialization phase's JSON record.
@@ -767,9 +770,11 @@ There is no forced GC between these operations.
 The update includes buffer growth, geometry allocation, and work that the library defers until it receives substantial data.
 This protocol measures small-to-full population, not steady-state full-to-full replacement or direct populated startup.
 
-Each session contains three independent marker windows. The report retains `phase: 'chart-population'` and adds `resizeProtocol: 'retained-resize-v1'`.
+Each session contains three independent marker windows, or four with hover. Reports retain `phase: 'chart-population'` and `resizeProtocol: 'retained-resize-v1'`.
 The `lifecycle.resizeSize` field records `{width: 1200, height: 400}`.
-The report stores all three windows in `samples[].phases`. The outer sample still describes the full-data update and holds session-wide memory observations.
+New reports identify `hoverProtocol: 'hover-ten-v2'` and store the supported variants in `hover.variants`.
+The hover metadata requires `count: 10` and `intervalMs: 50`.
+The report stores each window in `samples[].phases`. The outer sample still describes the full-data update and holds session-wide memory observations.
 Timing analyzers expose all operation summaries in `phaseGroups`. Their ordinary `groups` contain update results only.
 
 The HTML demos still construct directly with the full dataset.
@@ -777,7 +782,9 @@ Historical results in this document describe their original protocols, not small
 Reports with `initProtocol: 'settled-work-v1'` include chart-specific DOM setup and report full-window initialization work in trace modes.
 Saved summaries preserve readiness-based initialization for older reports. A summary rejects mixed initialization boundaries and mixed population, legacy lifecycle, or startup protocols.
 Legacy two-operation reports remain readable without a resize column. All modes reject comparisons between reports with and without the resize protocol.
-This restriction also applies to memory-only reports because retained memory now follows resize.
+Saved summaries also reject mixed hover protocols, capability lists, or interval snapshots, including memory-only reports.
+Legacy `hover-ten-v1` reports remain readable and use the same `hover 10 ms` column independently of v2.
+A summary cannot combine v1 and v2. Reports without hover remain readable without the hover column.
 
 ### Resize adapter contract
 
@@ -803,6 +810,80 @@ The production timeout remains unchanged. These single-session checks establish 
 Additional checks covered uPlot, D3 min/max, Deck.gl, and ChartGPU at DPR 2.
 uPlot also completed untraced rAF, combined trace/memory, and production-count captures with 30 operation windows.
 The optional licensed LightningChart adapter has unit coverage, but no resize browser check.
+
+### Hover protocol and adapter contract
+
+In trace modes, `hover 10 ms` measures cumulative work for ten mouse moves, not the average cost of one hover.
+The hover phase follows resize, so it uses the full dataset at 1200×400.
+The pointer starts outside the chart. Chrome receives trusted `Input.dispatchMouseEvent` mouse moves at data-derived coordinates through `scripts/benchmarks-mouse.mjs`.
+The benchmark never calls a tooltip API or dispatches synthetic DOM events to bypass normal hit testing.
+
+The ten targets span the time range and cycle through series indices `0, 1, 2`.
+Production calls `runHover(targets, {move, wait})` and sends ten real CDP mouse moves.
+After each of the first nine input acknowledgments, the harness waits 50 ms before the next move.
+These nine waits give at least 50 ms between moves. There is no catch-up schedule or wait after the tenth acknowledgment.
+The helper returns `{count: 10, intervalMs: 50}`.
+No per-point rAF, value verification, or harness DOM/canvas reads occur in this measured sequence.
+
+The entire sequence uses one marker window.
+After the tenth acknowledgment, the window includes the usual two rAF callbacks, 200 ms wait, and graphics completion checks.
+Trace totals include observed layout, paint, raster, compositor, GPU-process, and GC work within this window.
+Input-bridge and timer overhead remain in the measurement. Idle spacing does not count as thread work.
+rAF wall latency includes at least 450 ms of spacing, but excludes the final settling interval and graphics fences.
+These completion checks do not establish compositor presentation or coverage of every worker and delayed task.
+
+Legacy `hover-ten-v1` used frame-paced moves and value verification inside the window.
+Its reports describe ten verified displays, unlike the fixed-delay v2 input sequence.
+The protocols are not interchangeable.
+
+Supported adapters export `getHoverPlan(chart, input, host)`.
+This read-only preparation hook returns ten viewport targets and a diagnostic `verify(target)` function.
+Each target contains `x`, `y`, `index`, and `seriesIndex`.
+Browser preparation computes the plan and validates target bounds outside the marker window.
+Production retains only the targets. It neither retains nor calls the verifier.
+
+The separate `verifyHover(plan, ...)` helper supports harness-development diagnostics outside the benchmark.
+It checks each target after 50 ms and requires a matching visible tooltip or legend value.
+Diagnostic verification never runs automatically and never prewarms the measured chart.
+Successful diagnostic evidence contains the actual `index`, `seriesIndex`, `value`, and `text`.
+Production hover phases record the count and interval, not per-point verification evidence.
+
+Pixel rounding can select a nearby source row. Diagnostic adapters permit at most one CSS pixel of horizontal data displacement and record the actual row.
+A tooltip container, date header, static legend, or native selection without matching value text does not pass diagnostic verification.
+Diagnostic DOM checks include visibility, ancestor visibility, and nonzero geometry.
+Chart.js diagnostic verification uses active points, formatted tooltip text, opacity, and dimensions.
+No harness value, DOM, canvas, screenshot, or pixel-readback checks occur during measured hover.
+
+The initial supported set contains 15 chart variants:
+
+| Library | Supported variants | Display |
+| --- | --- | --- |
+| uPlot | `uplot`, `uplot-release` | Live legend |
+| D3 | `d3`, `d3-minmax`, `d3-svg`, `d3-svg-minmax` | Live legend |
+| d3fc | `d3fc`, `d3fc-canvas` | Live legend |
+| Deck.gl | `deckgl` | D3-based live legend |
+| Chart.js | `chartjs` | Native Canvas tooltip |
+| Dygraphs | `dygraphs` | Live legend |
+| Highcharts | `highcharts-svg` | Shared tooltip |
+| Plotly | `plotly`, `plotly-svg` | Shared-x hover labels |
+| Lightweight Charts | `lightweight` | Live legend |
+
+The idle control uses ten mouse moves and the same nine 50 ms waits, but requires no chart values.
+Unimplemented variants omit the hover phase and leave the column blank, rather than report zero.
+Production target-preparation or input errors fail the session. Diagnostic value failures belong to separate harness-development checks.
+
+Chart.js explicitly selects tooltips along x. Plotly uses shared-x hover so overlapping near-zero series remain reachable.
+Highcharts SVG builds its first search tree synchronously inside mouse handling and suppresses hover markers that can trigger tracker mouseout.
+Highcharts Boost keeps its previous configuration and remains unsupported: its table-backed hover points lack the required y-value and index in the pinned release.
+ECharts also remains unsupported: pixel rounding can make another independently sampled series win axis-tooltip selection.
+These exclusions do not mean that the libraries lack hover support.
+
+Historical v1 browser checks passed all supported variants and the idle control with pinned Chrome 156.0.8078.47 at DPR 1.
+Additional DPR 2 checks covered uPlot release, D3 min/max, Chart.js, Plotly, Highcharts SVG, and Lightweight Charts.
+uPlot also passed untraced rAF and a production-count combined capture with 40 operation windows.
+Unsupported visx, ECharts, and Highcharts Boost retained three windows and blank hover cells.
+These historical checks establish v1 input and value-display coverage, not comparative performance or pixel-level presentation proof.
+They do not validate v2 pacing or the separate 50 ms diagnostics. Fresh browser checks for v2 remain required.
 
 ### Operation timeout
 
@@ -851,7 +932,9 @@ Data operations include the native update call, any ingestion work, and adapter 
 Resize includes the host-size change, native resize call, geometry changes, and adapter readiness.
 The `jsMs` field measures elapsed readiness time for its operation, including async waits. It does not measure exclusive JavaScript CPU time.
 Trace `init ms` instead uses total tracked thread work through the end of the initialization window, after settling and graphics completion checks.
-The readiness interval remains available in JSON. Validation occurs outside both timers.
+The readiness interval remains available in JSON. Chart validation occurs outside both timers.
+V2 hover value verification belongs only to separate harness-development diagnostics, outside the benchmark.
+The measured sequence performs no per-point verification or harness DOM/canvas reads.
 
 Async completion follows each module's library-specific promise or event.
 Highcharts also waits for Boost hover-point processing. amCharts waits for an idle render loop after `frameended`.
@@ -915,7 +998,7 @@ JSON includes `backgroundGcMs` and `gcAddedThreadWorkMs` for each phase.
 The first field measures selected collector intervals. The second measures their addition to the total after overlap removal.
 Both fields are `null` without relevant recorded scopes or under legacy accounting.
 Zero means recorded scopes exist but add no duration in that window. It does not prove that no collection occurred.
-GC has no separate table column. GC additions affect initialization work, `update ms`, and `resize ms`.
+GC has no separate table column. GC additions affect initialization work, `update ms`, `resize ms`, and `hover 10 ms`.
 Collection during a phase can reclaim allocations from earlier phases. Temporal overlap does not establish allocation ownership.
 Collector wall durations can include preemption and internal waits. They do not measure exclusive CPU usage.
 
@@ -936,17 +1019,18 @@ Each memory sample then has this sequence:
 6. Record the prepared snapshot without forced GC.
 7. Update the retained chart with the full input while process polling runs.
 8. Resize the retained chart to 1200×400 while process polling runs.
-9. Force JS GC and record retained process memory.
-10. Destroy the chart and release input references.
-11. Allow rendering to settle.
-12. Force JS GC and record cleanup memory.
+9. For supported variants, hover ten datapoints while process polling runs.
+10. Force JS GC and record retained process memory.
+11. Destroy the chart and release input references.
+12. Allow rendering to settle.
+13. Force JS GC and record cleanup memory.
 
 Each chart operation includes its own settling interval and graphics completion checks.
-No forced GC occurs between initialization, data update, and resize.
+No forced GC occurs between initialization, data update, resize, and hover.
 The prepared snapshot includes the small chart and temporary allocations.
 Consequently, the historical `dataDelta` field also includes small initialization. It does not isolate preparation from chart initialization.
-The retained checkpoint includes both the resized chart and the full prepared input.
-Peak memory covers all three operations, not only data update.
+The retained checkpoint includes the resized chart, full prepared input, and final hover display when supported.
+Peak memory covers the complete session, including hover preparation and execution when supported.
 GC does not force native allocators or graphics caches to return pages to the operating system.
 
 The combined mode records a trace during the memory checkpoints and chart samples.
@@ -1020,11 +1104,12 @@ The combined table shows these measurements:
 - `gpu ms`: GPU-process main-thread work in the update window.
 - `update ms`: Total tracked thread work for the full-data update and rendering, including deferred work and graphics completion checks.
 - `resize ms`: Total tracked thread work for resize, including host sizing, deferred work, and graphics completion checks.
+- `hover 10 ms`: Cumulative tracked thread work for ten mouse moves, including deferred work and graphics completion checks.
 - Baseline-adjusted sampled peak browser-tree PSS.
 - Baseline-adjusted retained browser-tree PSS.
 
 Trace and combined timing columns use arithmetic means across the seven measured rounds, excluding the three warmups.
-This applies to `prep ms`, `init ms`, `main ms`, `gpu ms`, `update ms`, and `resize ms`.
+This applies to `prep ms`, `init ms`, `main ms`, `gpu ms`, `update ms`, `resize ms`, and `hover 10 ms`.
 Zero values contribute to the mean. Missing or invalid values do not become zero, and incomplete metrics produce warnings.
 JSON retains `min`, `max`, `mean`, valid counts, missing counts, and individual phase samples.
 
@@ -1033,17 +1118,21 @@ Main-thread GC and selected background GC already contribute to those totals. Th
 The JSON GC breakdowns also include arithmetic means, with zero-GC windows included.
 These means account for observed work within the phase windows, not collection between windows or full amortized application cost.
 The update total excludes small initialization and preparation. The sorting and color thresholds apply to mean full-data update work.
-`init ms` and `resize ms` use the same thread-work metric as `update ms`, but for their separate operation windows.
+`init ms`, `resize ms`, and `hover 10 ms` use the same thread-work metric as `update ms`, but for their separate windows.
 It includes captured main-thread work, raster tasks, compositor work, GPU-process work, and selected background GC.
 Idle gaps in the fixed settling wait do not count as work. Actual harness work within that window still counts.
 Trace and combined tables omit update readiness. JSON retains it as `jsMs` and `jsIntervalMs` for the `data-update` phase.
-`main ms` and `gpu ms` remain update-window components, useful for comparing downsampling costs. They describe neither initialization nor resize.
-The JSON metric remains `totalTrackedThreadWorkMs` for all three phases.
+`main ms` and `gpu ms` remain update-window components, useful for comparing downsampling costs. They do not describe initialization, resize, or hover.
+The JSON metric remains `totalTrackedThreadWorkMs` for every phase.
 Legacy startup-only reports retain `total ms` because they contain no separate data update.
 
 rAF tables use `init rAF ms` for the first callback after initialization readiness, rather than imply a settled thread-work measurement.
 They retain update readiness in `update ms` and update callback latency in `next rAF ms`.
 The `resize rAF ms` column shows the minimum resize `raf1Ms`.
+In rAF mode, `hover 10 ms` instead shows minimum latency from sequence start to the first callback after all ten input acknowledgments.
+V2 latency includes nine 50 ms waits, or at least 450 ms, plus input-bridge and timer overhead.
+Legacy v1 latency includes per-point frame waits and value verification instead.
+Both exclude final settling and fences. Neither is comparable to trace-mode hover thread work.
 Unlike trace tables, rAF-only tables do not measure total thread work.
 rAF-only timing columns still use minima. Memory columns also retain their existing minimum-value aggregation.
 Neither rAF callbacks nor the settling heuristic prove compositor presentation or completion of every delayed library task.
@@ -1056,8 +1145,8 @@ The table omits the index, sample-count, and DPR columns. Sample counts and DPR 
 Variant names and the `context`, `sampling`, and `lossy` columns align left without quotes. Numeric columns align right and show one decimal place.
 The JSON retains full measurement precision.
 
-Interactive terminals color `init ms`, `update ms`, and `resize ms` in trace tables, including live tables and saved summaries.
-All three columns use the same shades. Initialization reaches red at 100 ms, while update and resize reach red at more than 100 ms.
+Interactive terminals color `init ms`, `update ms`, `resize ms`, and `hover 10 ms` in trace tables.
+These columns use the same shades. Initialization reaches red at 100 ms, while the other three reach red at more than 100 ms.
 Legacy startup-only tables also color `init ms` and `total ms`.
 The display leaves `main ms`, `gpu ms`, and rAF-only timings uncolored.
 Fixed bands use unrounded values. Extreme outliers do not change the colors of other rows.
@@ -1068,7 +1157,7 @@ The graded columns use these ranges. Context colors are categorical and appear s
 | Column | Green shades | Orange shades | Red shades |
 | --- | --- | --- | --- |
 | `init ms` | `0–2F` (about 33.33 ms) | `2F < ms < 100` | `≥100 ms` |
-| `update ms`, `resize ms` | `0–2F` (about 33.33 ms) | `>2F–100 ms` | `>100 ms` |
+| `update ms`, `resize ms`, `hover 10 ms` | `0–2F` (about 33.33 ms) | `>2F–100 ms` | `>100 ms` |
 | `peak MB` | `0–35 MB` | `35 < MB < 50` | `≥50 MB` |
 | `retained MB` | `0–35 MB` | `35 < MB < 50` | `≥50 MB` |
 
@@ -1078,7 +1167,7 @@ An excluded boundary belongs to the next shade: exactly 50 MB is light red in bo
 The final row gives the lower boundary for darkest red.
 Fractions are exact thresholds. Decimal approximations are for reference only.
 
-| Shade | `init ms` | `update ms` / `resize ms` | `peak MB` | `retained MB` |
+| Shade | `init ms` | `update ms` / `resize ms` / `hover 10 ms` | `peak MB` | `retained MB` |
 | --- | ---: | ---: | ---: | ---: |
 | Darkest green | `F ≈ 16.67` | `F ≈ 16.67` | 20 | 20 |
 | Medium green (yellow-green) | 25 | 25 | 27.5 | 27.5 |

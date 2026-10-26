@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { SAMPLE_TIMEOUT_MS, SAMPLE_TIMEOUT_EXIT_CODE } from './bench-sample-timeout.mjs';
 import { traceAccountingProtocol } from './bench-trace-policy.mjs';
-import { benchmarkOperations } from './benchmarks-phases.mjs';
+import { benchmarkOperations, benchmarkTimingSamples } from './benchmarks-phases.mjs';
 import { summarizeBenchmarkTraceSamples, TRACE_AGGREGATION } from './analyze-benchmarks-trace.mjs';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -62,11 +62,16 @@ function metadataFor(variant, snapshot, samples = []) {
 }
 
 function assertCompatibleReports(reports, {trace}) {
-	for (const raw of reports)
+	for (const raw of reports) {
 		benchmarkOperations(raw);
+		if (raw.hoverProtocol)
+			benchmarkTimingSamples(raw);
+	}
 	if (reports.some(raw => benchmarkOperations(raw)) &&
-		new Set(reports.map(raw => JSON.stringify([raw.phase, raw.initProtocol ?? 'readiness', raw.resizeProtocol ?? null]))).size > 1)
-		throw new Error('Cannot combine different benchmark protocols, initialization boundaries, or resize protocols. Rerun all selected variants.');
+		new Set(reports.map(raw => JSON.stringify([raw.phase, raw.initProtocol ?? 'readiness', raw.resizeProtocol ?? null,
+			raw.hoverProtocol ?? null, raw.hover ? [...raw.hover.variants].sort() : null,
+			...(raw.hover && Object.hasOwn(raw.hover, 'intervalMs') ? [{intervalMs: raw.hover.intervalMs}] : [])]))).size > 1)
+		throw new Error('Cannot combine different benchmark protocols, initialization boundaries, resize protocols, or hover protocols/capabilities. Rerun all selected variants.');
 	if (trace && new Set(reports.map(traceAccountingProtocol)).size > 1)
 		throw new Error('Cannot combine different trace accounting protocols. Rerun all selected variants.');
 }
@@ -78,6 +83,7 @@ function benchmarkView(report) {
 	const lifecycle = population || report.reports.some(raw => raw.phase === 'chart-lifecycle');
 	const settledInit = population && report.reports.some(raw => raw.initProtocol === 'settled-work-v1');
 	const resize = report.reports.some(raw => raw.resizeProtocol === 'retained-resize-v1');
+	const hover = report.reports.find(raw => raw.hoverProtocol)?.hover;
 	const resizeLabel = raf ? 'resize rAF ms' : 'resize ms';
 	const initLabel = settledInit && raf ? 'init rAF ms' : 'init ms';
 	const workLabel = lifecycle ? 'update ms' : 'total ms';
@@ -119,6 +125,12 @@ function benchmarkView(report) {
 			const analysis = trace ? raw.analysis : raw.rafAnalysis;
 			const phases = population ? [[initLabel, 'small-init'], ...(resize ? [[resizeLabel, 'resize']] : [])]
 				: [['init ms', 'empty-init'], ['first ms', 'first-data']];
+			if (hover) {
+				if (raw.hover.variants.includes(variant))
+					phases.push(['hover 10 ms', 'hover-10']);
+				else
+					row['hover 10 ms'] = '';
+			}
 			for (const [label, operation] of phases) {
 				const metrics = analysis?.phaseGroups?.find(group => group.variant === variant && group.dpr === dpr && group.operation === operation)?.metrics;
 				const key = settledInit ? (trace ? 'totalTrackedThreadWorkMs' : 'raf1Ms') : (trace ? 'jsIntervalMs' : 'jsMs');
@@ -140,12 +152,14 @@ function benchmarkView(report) {
 		...(trace ? ['main ms', 'gpu ms', workLabel] : []),
 		...(raf ? ['next rAF ms'] : []),
 		...(resize && (trace || raf) ? [resizeLabel] : []),
+		...(hover && (trace || raf) ? ['hover 10 ms'] : []),
 		...(memory ? ['peak MB', 'retained MB'] : []),
 	];
 	for (const {variant} of [...(report.timeouts ?? []), ...(report.failures ?? [])]) {
 		if (variant !== 'idle')
 			rows.push({variant, ...metadataFor(variant, report.variantMetadata?.[variant]),
-				...Object.fromEntries(columns.map(column => [column, '-']))});
+				...Object.fromEntries(columns.map(column => [column,
+					column === 'hover 10 ms' && !hover.variants.includes(variant) ? '' : '-']))});
 	}
 
 	// Establish stable tie order before grouping; legacy reports use first-seen order.
@@ -323,9 +337,10 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 			idleFirst: true, sameRunControlsOnly: true, coolingBetweenVariantsMs: 0,
 			tracing: measurements.trace, gpuSpecificMemory: false, sampleTimeoutMs: SAMPLE_TIMEOUT_MS,
 			blankAndLoaded: 'One cold checkpoint each per browser, not a round aggregate.',
-			lifecycle: 'Three warmup sessions and seven measured sessions. Each session initializes a two-point chart, updates it with the full dataset, then resizes the retained chart to 1200x400. Reports use chart-population, settled-work-v1 initialization, and retained-resize-v1 resize. lifecycle.resizeSize records width and height.',
-			timingColumns: 'Trace init ms, update ms, and resize ms use total tracked thread work from each complete operation window, including settling and completion checks. Init includes chart-specific host setup. Main/gpu and prep describe data-update only. rAF-only init rAF ms and resize rAF ms use each operation\'s raf1Ms, not thread work. rAF-only update ms shows update readiness. Next rAF shows update callback latency. Primary groups and library ordering still describe data-update. phaseGroups contains all three operations.',
-			memoryColumns: 'Peak covers the whole three-phase session. Retained follows resize and forced GC, with the chart and full prepared input alive. No forced GC occurs between chart operations. Saved summaries cannot mix reports with and without retained-resize-v1, including memory-only reports.',
+			lifecycle: 'Three warmup sessions and seven measured sessions. Each session initializes a two-point chart, updates it with the full dataset, then resizes the retained chart to 1200x400. Reports use chart-population, settled-work-v1 initialization, retained-resize-v1 resize, and hover-ten-v2. lifecycle.resizeSize records width and height. Supported variants, including idle, then perform hover-10. Unsupported variants have only three phases.',
+			hover: 'hover.variants records supported variants, including idle. hover.count is 10 and hover.intervalMs is 50 for hover-ten-v2. One hover-10 window covers 10 mousemoves and the final settle/fence. Nine 50 ms waits follow input acknowledgments before the next move, without catch-up. No per-point rAF, value verification, or harness DOM/canvas reads occur in this window. Input-bridge and timer overhead remain. Idle spacing is not thread work, but rAF wall latency includes at least 450 ms of spacing. Target preparation and bounds validation occur outside the window. Diagnostic verification runs only during harness development, never automatically or as prewarming. Legacy hover-ten-v1 used frame-paced, verified displays. The result is cumulative, not a per-point average. Unsupported variants have no hover marker or sample and show a blank cell.',
+			timingColumns: 'Trace init ms, update ms, resize ms, and hover 10 ms use total tracked thread work from each complete operation window. Each window includes settling and completion checks. Init includes chart-specific host setup. Main/gpu and prep describe data-update only. rAF-only init rAF ms and resize rAF ms use each operation\'s raf1Ms, not thread work. rAF-only update ms shows update readiness. Next rAF shows update callback latency. Primary groups and library ordering still describe data-update. phaseGroups contains all recorded operations. Untraced rAF hover 10 ms uses the minimum hover raf1Ms, not the full-work equivalent.',
+			memoryColumns: 'Peak covers the whole session, including optional hover. Retained follows resize, optional hover, and forced GC, with the chart and full prepared input alive. For supported variants, retained memory includes the tooltip. No forced GC occurs between chart operations. Saved summaries cannot mix resize or hover protocols, including memory-only reports.',
 			timeoutScope: 'Five seconds per operation, including preparation and settling. Setup/baseline belongs to the first operation. Final checkpoints and destruction have a separate five-second budget.',
 			aggregation: 'Trace timing columns use arithmetic means after warmups. Total work averages deduplicated per-sample totals, including observed GC. rAF timings and memory columns retain minima.',
 			warmSamples: 'Warmups are excluded. Each browser reuses its selected library between samples; allocator reuse affects process deltas.',

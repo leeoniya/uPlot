@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { CDP, stopTrace } from './profile-manual.mjs';
 import { captureBenchmarkSamples } from './benchmarks-samples.mjs';
+import { installBenchmarkMouseInput } from './benchmarks-mouse.mjs';
 import { readProcessMemory } from './bench-process-memory.mjs';
 import { summarizeProcessMemory } from './analyze-benchmarks-process-memory.mjs';
 import { createWebGLCapture } from './bench-webgl.mjs';
@@ -75,6 +76,7 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 	let timeoutError;
 	let watchdog;
 	let sampleBoundary;
+	let removeMouseInput;
 	const timedOut = error => {
 		timeoutError = error;
 		try {
@@ -94,6 +96,7 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 		page = await connect(target.webSocketDebuggerUrl);
 		await page.send('Page.enable');
 		await page.send('Runtime.enable');
+		removeMouseInput = await installBenchmarkMouseInput(page);
 		if (raf) {
 			watchdog = createSampleWatchdog(timedOut, {timeoutMs: sampleTimeoutMs});
 			let activeVariant = null;
@@ -215,6 +218,7 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 	}
 	finally {
 		watchdog?.stop();
+		removeMouseInput?.();
 		if (sampleBoundary)
 			page.socket.removeEventListener('message', sampleBoundary);
 		if (recording && !timeoutError)

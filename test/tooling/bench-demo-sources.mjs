@@ -13,7 +13,7 @@ import { demoDependencies, demoModuleDependencies, benchmarkMetadata, benchmarkR
 
 const root = new URL('../../', import.meta.url);
 const variants = Object.keys(demoDependencies).filter(id => id !== 'idle');
-const shared = ['/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs', '/bench/demo-runtime.mjs', '/bench/framework-runtime.mjs', '/bench/lifecycle-data.mjs', '/bench/demo.css'];
+const shared = ['/bench/demo-fixture.mjs', '/bench/demo-dependencies.mjs', '/bench/demo-runtime.mjs', '/bench/framework-runtime.mjs', '/bench/lifecycle-data.mjs', '/bench/hover.mjs', '/bench/demo.css'];
 
 function remoteDependencies(variants) {
 	const dependencies = variants.flatMap(id => demoDependencies[id].filter(dep => dep.name).map(({name, version, path, type, option, global, alias, url}) => {

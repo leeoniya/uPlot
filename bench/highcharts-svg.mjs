@@ -1,6 +1,6 @@
 import {makeChartWithOptions} from './highcharts.mjs';
 
-export {prepData, destroyChart, updateChart, resizeChart} from './highcharts.mjs';
+export {prepData, destroyChart, updateChart, resizeChart, getHoverPlan} from './highcharts.mjs';
 
 export function makeEmptyChart(host, wait) {
 	return makeChartWithOptions(Array.from({length: 3}, () => ({columns: {x: [], y: []}})),

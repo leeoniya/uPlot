@@ -36,8 +36,13 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 	if (config.lifecycle && ![
 		['small-init', 'data-update'],
 		['small-init', 'data-update', 'resize'],
+		['small-init', 'data-update', 'resize', 'hover-10'],
 	].some(expected => JSON.stringify(operations) === JSON.stringify(expected)))
 		throw new Error('Unexpected benchmark lifecycle operations.');
+	if (operations?.includes('hover-10') && (!Array.isArray(config.hoverVariants) ||
+		config.hoverVariants.some(variant => typeof variant !== 'string' || !variant) ||
+		new Set(config.hoverVariants).size !== config.hoverVariants.length))
+		throw new Error('Invalid benchmark hover capabilities.');
 	for (let round = 0 - config.warmups; round < config.rounds; round++) {
 		const turn = round + config.warmups;
 		const offset = turn % config.variants.length;
@@ -113,6 +118,7 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 					if (operations) {
 						const phases = [];
 						for (const operation of operations) {
+							if (operation === 'hover-10' && !config.hoverVariants.includes(variant)) continue;
 							if (phases.length) nextBudget();
 							const phaseId = phases.length ? `sample-${sampleIndex++}` : id;
 							await pollPhase('prepare', `benchmarkLifecycle.prepare(${JSON.stringify(operation)}, ${JSON.stringify(phaseId)})`);
@@ -172,9 +178,9 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 			commandTimeoutMs: COMMAND_TIMEOUT_MS, sampleTimeoutMs,
 			order: 'Rotate by round + warmups; reverse on odd turns. Warmup rounds are -warmups through -1; measured rounds start at 0.',
 			sequence: operations
-				? ['setup', 'GC', 'baseline', 'prepare small data', 'small init', 'prepare full data', 'prepared', 'data update', ...(operations.includes('resize') ? ['resize'] : []), 'GC', 'live', 'destroy', 'GC', 'cleanup']
+				? ['setup', 'GC', 'baseline', 'prepare small data', 'small init', 'prepare full data', 'prepared', 'data update', ...(operations.includes('resize') ? ['resize'] : []), ...(operations.includes('hover-10') ? ['hover 10 when supported'] : []), 'GC', 'live', 'destroy', 'GC', 'cleanup']
 				: ['setup', 'GC', 'baseline', 'poll prepare', 'drain', 'prepared', 'poll construct', 'drain', 'GC', 'live', 'destroy', 'GC', 'cleanup'],
-			lifecycle: operations ? `All operations are polled. No forced GC occurs between operations. Prepared includes the small chart; dataDelta therefore also includes initialization. Live follows ${operations.includes('resize') ? 'resize' : 'the full-data update'}. Peak covers the whole session.` : null,
+			lifecycle: operations ? `All operations are polled. No forced GC occurs between operations. Prepared includes the small chart; dataDelta therefore also includes initialization. Live follows ${operations.includes('hover-10') ? 'hover for supported variants, otherwise resize' : operations.includes('resize') ? 'resize' : 'the full-data update'}. Peak covers the whole session.` : null,
 			prepared: 'Process snapshot after preparation, without GC. No forced GC occurs between preparation and construction.',
 			sampling: 'Serial process reads wait the requested interval after each response, plus phase endpoints. Reads run independently of renderer evaluation.',
 			clock: 'Process timestamps use Node performance.now() relative to capture start. processTimestampMs records response receipt, not allocation time.',

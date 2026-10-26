@@ -6,11 +6,14 @@ import {summarizeBenchmarkRaf} from '../../scripts/analyze-benchmarks-raf.mjs';
 import {benchmarkVariants} from '../../bench/demo-dependencies.mjs';
 import {TRACE_ACCOUNTING} from '../../scripts/bench-trace-policy.mjs';
 
-function fixture(phase = 'chart-population', warmup = false, resize = false) {
+const resizeOperations = ['small-init', 'data-update', 'resize'];
+
+function fixture(phase = 'chart-population', warmup = false, resize = false, hover = false, variant = 'uplot') {
 	const metadata = {phase, ...(resize ? {initProtocol: 'settled-work-v1', resizeProtocol: 'retained-resize-v1',
-		lifecycle: {operations: lifecycleOperations, resizeSize: {width: 1200, height: 400}}} : {})};
-	const phases = benchmarkOperations(metadata).map((operation, index) => ({
-		id: `sample-${index}`, variant: 'uplot', dpr: 1, round: warmup ? -1 : 0,
+		lifecycle: {operations: hover ? lifecycleOperations : resizeOperations, resizeSize: {width: 1200, height: 400}}} : {}),
+		...(hover ? {hoverProtocol: 'hover-ten-v2', hover: {variants: ['idle', 'uplot'], count: 10, intervalMs: 50}} : {})};
+	const phases = benchmarkOperations(metadata).filter(operation => operation !== 'hover-10' || metadata.hover.variants.includes(variant)).map((operation, index) => ({
+		id: `sample-${index}`, variant, dpr: 1, round: warmup ? -1 : 0,
 		operation, warmup: warmup || operation === 'warmup-update',
 		jsMs: index + 1, dataPrepMs: 0.5, windowMs: 10, raf1Ms: index + 2,
 	}));
@@ -82,7 +85,7 @@ describe('benchmark population phases', () => {
 		]) events.push({ph: 'X', pid, tid, name, ts, dur});
 		const original = structuredClone(report);
 		const trace = analyzeBenchmarkTrace(events, report);
-		assert.deepEqual(trace.phaseGroups.map(group => group.operation), lifecycleOperations);
+		assert.deepEqual(trace.phaseGroups.map(group => group.operation), resizeOperations);
 		assert.deepEqual(trace.samples.map(sample => sample.id), ['sample-0', 'sample-1', 'sample-2']);
 		assert.equal(trace.groups.length, 1);
 		assert.equal(trace.groups[0].operation, 'data-update');
@@ -97,7 +100,7 @@ describe('benchmark population phases', () => {
 		assert.equal(trace.diagnostics.boundaries[2].crossingEndEvents, 1);
 		assert.equal(trace.diagnostics.boundaries[2].tailTrackedThreadWorkMs, 5.5);
 		const raf = summarizeBenchmarkRaf(report);
-		assert.deepEqual(raf.phaseGroups.map(group => group.operation), lifecycleOperations);
+		assert.deepEqual(raf.phaseGroups.map(group => group.operation), resizeOperations);
 		assert.equal(raf.groups[0].metrics.raf1Ms.min, 3);
 		assert.equal(raf.phaseGroups[2].metrics.raf1Ms.min, 4);
 		assert.equal(raf.phaseGroups[2].metrics.jsMs.min, 3);
@@ -167,6 +170,165 @@ describe('benchmark population phases', () => {
 	it('does not modify or relabel legacy startup records', () => {
 		const report = {samples: [{id: 'sample-0'}]};
 		assert.equal(benchmarkTimingSamples(report), report.samples);
+	});
+});
+
+describe('optional hover phases', () => {
+	it('preserves legacy frame-paced reports without requiring an interval or changing their samples', () => {
+		const {report, events} = fixture('chart-population', false, true, true);
+		report.hoverProtocol = 'hover-ten-v1';
+		delete report.hover.intervalMs;
+		const original = structuredClone(report);
+		for (const analysis of [analyzeBenchmarkTrace(events, report), summarizeBenchmarkRaf(report)]) {
+			assert.deepEqual(analysis.phaseGroups.map(group => group.operation), lifecycleOperations);
+			assert.match(analysis.definitions.hover, /hover-ten-v1.*frame-paced, verified/);
+			assert.match(analysis.definitions.hover, /hover-ten-v2.*nine 50 ms waits/);
+		}
+		assert.deepEqual(report, original);
+	});
+
+	it('requires a numeric 50 ms interval for v2 in both analyzers', () => {
+		for (const intervalMs of [undefined, null, '50', 0, 49, 51, NaN, Infinity]) {
+			const {report, events} = fixture('chart-population', false, true, true);
+			if (intervalMs === undefined) delete report.hover.intervalMs;
+			else report.hover.intervalMs = intervalMs;
+			for (const analyze of [benchmarkTimingSamples, summarizeBenchmarkRaf, r => analyzeBenchmarkTrace(events, r)])
+				assert.throws(() => analyze(report), /hover-ten-v2.*intervalMs 50/);
+		}
+	});
+	it('keeps canonical operations but requires no hover markers or samples for unsupported variants', () => {
+		assert.deepEqual(lifecycleOperations, ['small-init', 'data-update', 'resize', 'hover-10']);
+		for (const variant of ['idle', 'uplot', 'd3']) {
+			const {report, events} = fixture('chart-population', false, true, true, variant);
+			const operations = variant === 'd3' ? resizeOperations : lifecycleOperations;
+			assert.deepEqual(benchmarkOperations(report), lifecycleOperations);
+			assert.deepEqual(benchmarkTimingSamples(report).map(sample => sample.operation), operations);
+			for (const analysis of [analyzeBenchmarkTrace(events, report), summarizeBenchmarkRaf(report)]) {
+				assert.deepEqual(analysis.phaseGroups.map(group => group.operation), operations);
+				assert.equal(analysis.groups.length, 1);
+				assert.equal(analysis.groups[0].metrics[analysis.samples ? 'jsIntervalMs' : 'jsMs'].min, 2);
+			}
+		}
+	});
+
+	it('requires hover markers for supported variants and distinct IDs across sessions', () => {
+		const {report, events} = fixture('chart-population', false, true, true);
+		assert.throws(() => analyzeBenchmarkTrace(events.filter(event => !event.name.startsWith('benchmark:sample-3:')), report), /marker/i);
+		const duplicate = structuredClone(report.samples[0]);
+		duplicate.round++;
+		for (const phase of duplicate.phases) phase.round++;
+		report.samples.push(duplicate);
+		assert.throws(() => benchmarkTimingSamples(report), /distinct ids/);
+	});
+
+	it('filters hover support per session in a report with multiple variants', () => {
+		const {report} = fixture('chart-population', false, true, true);
+		const unsupported = fixture('chart-population', false, true, true, 'd3').report.samples[0];
+		unsupported.id = `d3-${unsupported.id}`;
+		for (const phase of unsupported.phases) phase.id = `d3-${phase.id}`;
+		report.samples.push(unsupported);
+		assert.equal(benchmarkTimingSamples(report).length, 7);
+		const analysis = summarizeBenchmarkRaf(report);
+		assert.equal(analysis.groups.length, 2);
+		assert.deepEqual(analysis.phaseGroups.filter(group => group.operation === 'hover-10').map(group => group.variant), ['uplot']);
+	});
+
+	it('includes deferred hover work and clips a single cumulative window without changing update totals', () => {
+		const {report, events} = fixture('chart-population', false, true, true);
+		report.trace = {accountingProtocol: TRACE_ACCOUNTING};
+		events.push({ph: 'M', name: 'process_name', pid: 2, args: {name: 'GPU Process'}});
+		for (const [pid, tid, name] of [[1, 2, 'CompositorTileWorker1'], [1, 3, 'Compositor'], [2, 1, 'CrGpuMain'], [2, 2, 'VizCompositorThread']])
+			events.push({ph: 'M', name: 'thread_name', pid, tid, args: {name}});
+		for (const [pid, tid, name, ts, dur] of [
+			// Hover readiness ends at 64 ms. The window ends at 70 ms.
+			[1, 1, 'RunTask', 59000, 2000], [1, 1, 'RunTask', 65000, 2000],
+			[1, 1, 'Layout', 65000, 500], [1, 1, 'Paint', 65500, 500],
+			[1, 2, 'RasterTask', 65000, 2000], [1, 2, 'CppGC.ConcurrentMark', 66000, 2000],
+			[1, 3, 'RunTask', 68000, 500], [2, 1, 'RunTask', 66000, 2000],
+			[2, 1, 'GPUTask', 66500, 1000], [2, 2, 'RunTask', 69500, 1000],
+			[1, 1, 'RunTask', 71000, 5000],
+		]) events.push({ph: 'X', pid, tid, name, ts, dur});
+		const original = structuredClone(report);
+		const trace = analyzeBenchmarkTrace(events, report);
+		const hover = trace.phaseGroups.find(group => group.operation === 'hover-10').metrics;
+		for (const [key, value] of Object.entries({jsIntervalMs: 4, traceWindowMs: 10,
+			rendererMainTaskMs: 6, styleLayoutPaintMs: 1, rasterWorkerMs: 2, rendererCompositorMs: 0.5,
+			gpuMainTaskMs: 2, vizCompositorMs: 0.5, GPUTaskMs: 1, backgroundGcMs: 2, gcAddedThreadWorkMs: 1,
+			totalTrackedThreadWorkMs: 12, trackedBusyElapsedMs: 8,
+		})) assert.equal(hover[key].mean, value, key);
+		assert.equal(trace.diagnostics.boundaries[3].crossingStartEvents, 1);
+		assert.equal(trace.diagnostics.boundaries[3].crossingEndEvents, 1);
+		assert.equal(trace.diagnostics.boundaries[3].tailTrackedThreadWorkMs, 5.5);
+		assert.equal(trace.groups[0].metrics.totalTrackedThreadWorkMs.mean, 2);
+		const raf = summarizeBenchmarkRaf(report);
+		assert.equal(raf.phaseGroups[3].metrics.raf1Ms.min, 5);
+		assert.equal(raf.groups[0].metrics.raf1Ms.min, 3);
+		assert.deepEqual(report, original);
+	});
+
+	it('keeps 450 ms of v2 spacing in wall latency but out of tracked thread work', () => {
+		const {report, events} = fixture('chart-population', false, true, true);
+		const phase = report.samples[0].phases[3];
+		Object.assign(phase, {jsMs: 460, raf1Ms: 470, windowMs: 675});
+		for (const event of events) {
+			if (event.name === `benchmark:${phase.id}:js-end`) event.ts = 520000;
+			if (event.name === `benchmark:${phase.id}:end`) event.ts = 735000;
+		}
+		const spaced = events.filter(event => !(event.name === 'RunTask' && event.ts === 60000));
+		for (let i = 0; i < 10; i++)
+			spaced.push({name: 'RunTask', ph: 'X', ts: 60000 + i * 51000, dur: 1000, pid: 1, tid: 1});
+		const trace = analyzeBenchmarkTrace(spaced, report);
+		const hover = trace.phaseGroups[3].metrics;
+		assert.equal(hover.jsIntervalMs.mean, 460);
+		assert.equal(hover.traceWindowMs.mean, 675);
+		assert.equal(hover.totalTrackedThreadWorkMs.mean, 10);
+		assert.equal(trace.groups[0].metrics.totalTrackedThreadWorkMs.mean, 2);
+		const raf = summarizeBenchmarkRaf(report);
+		assert.equal(raf.phaseGroups[3].metrics.raf1Ms.min, 470);
+		assert.equal(raf.groups[0].metrics.raf1Ms.min, 3);
+		for (const analysis of [trace, raf]) {
+			assert.match(analysis.definitions.hover, /No value verification or harness DOM\/canvas reads/);
+			assert.match(analysis.definitions.hover, /timer overhead/);
+		}
+	});
+
+	it('excludes hover warmups and preserves measured zero', () => {
+		for (const warmup of [false, true]) {
+			const {report, events} = fixture('chart-population', warmup, true, true);
+			report.samples[0].phases[3].raf1Ms = 0;
+			const trace = analyzeBenchmarkTrace(events.filter(event => !(event.name === 'RunTask' && event.ts === 60000)), report);
+			const raf = summarizeBenchmarkRaf(report);
+			assert.equal(trace.phaseGroups[3].metrics.totalTrackedThreadWorkMs.mean, warmup ? null : 0);
+			assert.equal(raf.phaseGroups[3].metrics.raf1Ms.min, warmup ? null : 0);
+			for (const analysis of [trace, raf]) {
+				assert.deepEqual(analysis.phaseGroups.map(group => group.sampleCount), Array(4).fill(warmup ? 0 : 1));
+				assert.deepEqual(analysis.phaseGroups.map(group => group.warmupCount), Array(4).fill(warmup ? 1 : 0));
+			}
+		}
+	});
+
+	it('validates capability metadata, ten-count protocol, distinct IDs and update-scoped sessions without requiring pending evidence fields', () => {
+		for (const change of [
+			r => delete r.hoverProtocol, r => r.hoverProtocol = 'unknown', r => r.hoverProtocol = null,
+			r => delete r.hover, r => r.hover = null, r => r.hover.count = 9, r => r.hover.count = 11, r => r.hover.count = '10',
+			r => r.hover.variants = null, r => r.hover.variants = [], r => r.hover.variants = ['uplot'],
+			r => r.hover.variants.push('idle'), r => r.hover.variants.push(''), r => r.hover.variants.push(1),
+			r => r.hover.variants.push(' uplot'), r => delete r.resizeProtocol, r => delete r.initProtocol,
+			r => r.phase = 'chart-lifecycle', r => r.samples[0].phases.pop(),
+			r => r.hover.variants = ['idle'], r => r.samples[0].phases.reverse(),
+			r => r.samples[0].phases[3].id = r.samples[0].phases[2].id,
+			r => r.samples[0].phases[3].warmup = true,
+			r => Object.assign(r.samples[0], r.samples[0].phases[3]),
+		]) {
+			const {report, events} = fixture('chart-population', false, true, true);
+			change(report);
+			for (const analyze of [benchmarkTimingSamples, summarizeBenchmarkRaf, r => analyzeBenchmarkTrace(events, r)])
+				assert.throws(() => analyze(report), /[Ll]ifecycle|session/);
+		}
+		const {report} = fixture('chart-population', false, true, true);
+		assert.equal(benchmarkTimingSamples(report).length, 4);
+		report.samples[0].phases[3].hover = {futureEvidence: true};
+		assert.equal(benchmarkTimingSamples(report).length, 4);
 	});
 });
 

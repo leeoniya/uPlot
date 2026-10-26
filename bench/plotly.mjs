@@ -1,3 +1,5 @@
+import {hoverTargets, visibleText, nearHoverIndex} from './hover.mjs';
+
 // plotly.js-dist-min@4.1.2/plotly.min.js exposes Plotly (MIT).
 function prepData(packed) {
 	const fields = packed[0];
@@ -37,6 +39,8 @@ function chartLayout(data) {
 		height: 600,
 		margin: {l: 70, r: 80, b: 60, t: 60},
 		transition: {duration: 0},
+		// Show all series at x; near-zero CPU/TCP lines can share a mouse pixel.
+		hovermode: 'x',
 		xaxis: data[0].length
 			? {type: 'date', range: [data[0][0], data[0][data[0].length - 1]]}
 			: {type: 'date', autorange: true},
@@ -78,6 +82,47 @@ export async function resizeChart(chart, {width, height}, host, wait) {
 	// Plots.resize skips graphs with both layout dimensions explicitly set.
 	await Plotly.relayout(chart, {width, height});
 	if (wait) wait.textContent = 'Done!';
+}
+
+export function getHoverPlan(chart, input, host) {
+	const rect = chart.getBoundingClientRect();
+	const layout = chart._fullLayout;
+	const sx = rect.width / layout.width, sy = rect.height / layout.height;
+	const xAxis = layout.xaxis;
+	const length = input[0].length;
+	const tolerance = (length - 1) / (Math.abs(xAxis.d2p(input[0][length - 1]) - xAxis.d2p(input[0][0])) * sx);
+	return {
+		targets: hoverTargets(length, (index, seriesIndex) => {
+			const yAxis = seriesIndex === 2 ? layout.yaxis2 : layout.yaxis;
+			return {
+				x: rect.left + (xAxis._offset + xAxis.d2p(input[0][index])) * sx,
+				y: rect.top + (yAxis._offset + yAxis.d2p(input[seriesIndex + 1][index])) * sy,
+			};
+		}),
+		verify(target) {
+			const seriesIndex = target.seriesIndex;
+			const point = chart._hoverdata?.find(point => point.curveNumber === seriesIndex);
+			const index = point?.pointNumber;
+			if (!nearHoverIndex(index, target, tolerance) || index < 0 || index >= length) return null;
+			const value = input[seriesIndex + 1][index];
+			if (point.y !== value || Math.abs(xAxis.d2p(input[0][index]) - xAxis.d2p(input[0][target.index])) * sx > 1) return null;
+			for (const label of chart.querySelectorAll('.hoverlayer .hovertext')) {
+				// D3 binds the native formatted tooltip model to this SVG group.
+				// Check it against _hoverdata AND the rendered text, retaining the
+				// library's date, SI-prefix, and precision formatting defaults.
+				const model = label.__data__;
+				// Date-axis label values use Plotly's converted calendar coordinates.
+				const event = model?.eventData?.[0];
+				if (event?.curveNumber !== seriesIndex || event.pointNumber !== index || model.yLabelVal !== value || model.xLabelVal !== xAxis.d2c(input[0][index]) || !model.yLabel) continue;
+				const text = visibleText(label);
+				const nums = visibleText(label.querySelector('.nums'));
+				const name = visibleText(label.querySelector('.name'));
+				const expected = model.yLabel.replace(/<[^>]*>/g, '');
+				if (text && name === ['CPU', 'RAM', 'TCP Out'][seriesIndex] && nums.replace(/\s+/g, '') === expected.replace(/\s+/g, '')) return {index, seriesIndex, value, text};
+			}
+			return null;
+		},
+	};
 }
 
 function destroyChart(chart) {

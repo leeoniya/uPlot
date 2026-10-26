@@ -13,6 +13,7 @@ import { summarizeProcessMemory } from '../../scripts/analyze-benchmarks-process
 import { demoDependencies, benchmarkVariants, demoRestrictions, benchmarkRestrictions, assertBenchmarkAvailable } from '../../bench/demo-dependencies.mjs';
 
 import {smallLifecycleData} from '../../bench/lifecycle-data.mjs';
+import {hoverVariants, hoverTargets, validateHoverPlan, runHover} from '../../bench/hover.mjs';
 
 const allVariants = Object.keys(demoDependencies);
 const demoVariants = allVariants.filter(id => id !== 'idle');
@@ -47,7 +48,7 @@ async function waitFor(promise) {
 
 function fixture(options = {}) {
 	const events = [];
-	const config = {variants: ['uplot'], dpr: 1, warmups: 0, rounds: 1, ...options.config};
+	const config = {variants: ['uplot'], dpr: 1, warmups: 0, rounds: 1, hoverVariants, ...options.config};
 	let activeReads = 0;
 	let activeOperation = null;
 	let reads = 0;
@@ -173,6 +174,28 @@ function browserFixture(options = {}) {
 	const marks = [];
 	const context = {
 		VARIANTS: options.variants ?? ['uplot', 'chartjs', 'idle'], ALL_VARIANTS: allVariants,
+		hoverVariants, hoverTargets, validateHoverPlan,
+		fixture: {style: new Proxy({}, {
+			set(style, key, value) { events.push(`fixture:${key}:${value}`); style[key] = value; return true; },
+		})},
+		benchmarkMoveMouse: async (x, y) => { events.push(`move:${x}:${y}`); await options.move?.(x, y); },
+		runHover: targets => {
+			assert.ok(Array.isArray(targets), 'measured hover receives only the target array');
+			options.runHover?.(targets);
+			return runHover(targets, {
+				move: context.benchmarkMoveMouse,
+				wait: async ms => { events.push(`hoverWait:${ms}`); clock += ms; },
+			});
+		},
+		sources: Object.fromEntries(allVariants.map(variant => [variant, {
+			getHoverPlan(chart, input, host) {
+				events.push('getHoverPlan');
+				return options.getHoverPlan?.(chart, input, host) ?? {
+					targets: hoverTargets(55550, (index, seriesIndex) => ({x: 100 + index / 55550 * 1000, y: 100 + seriesIndex * 50})),
+					verify: target => ({index: target.index, seriesIndex: target.seriesIndex, value: 42, text: '42'}),
+				};
+			},
+		}])),
 				benchmarkWebGL: options.webgl,
 						benchmarkWebGPU: options.webgpu,
 		WARMUPS: 3, ROUNDS: 7, dpr: 2, WIDTH: 1920, HEIGHT: 600, RESIZE_WIDTH: 1200, RESIZE_HEIGHT: 400, VIEWPORT_HEIGHT: 900, IDLE_MS: 200, ROWS: 55550,
@@ -241,7 +264,7 @@ function browserFixture(options = {}) {
 	context.smallPacked = smallLifecycleData(context.packed);
 	runInNewContext(browserSource.slice(browserSource.indexOf('let invoked = null;')), context);
 	return {api: context.benchmarkLifecycle, runTrace: context.runBenchmarkTrace, context, events, marks,
-			advance: ms => { clock += ms; }};
+			sampleState: () => runInNewContext('state', context), advance: ms => { clock += ms; }};
 }
 
 function deckGLFixture(dpr = 2) {
@@ -277,6 +300,125 @@ function deckGLFixture(dpr = 2) {
 }
 
 describe('shared browser sample lifecycle', () => {
+	for (const raf of [false, true]) {
+		it(`retains only hover targets and measures input with nine fixed waits, never verification (${raf ? 'rAF' : 'normal'})`, async () => {
+			let retained, input, host, hoverPlan;
+			const fake = browserFixture({variants: ['uplot'],
+				construct(sample) { retained = sample.chart; input = sample.input; host = sample.host; },
+				getHoverPlan(chart, data, element) {
+					assert.equal(chart, retained);
+					assert.equal(data, input);
+					assert.equal(element, host);
+					assert.deepEqual({...host.style}, {width: '1200px', height: '400px'});
+					assert.equal(fake.context.fixture.style.pointerEvents, 'none');
+					assert.ok(!fake.events.includes('benchmark:sample-3:start'));
+					fake.advance(250); // Geometry reads must remain outside hover timing.
+					hoverPlan = {targets: hoverTargets(55550, (index, seriesIndex) => ({x: index / 100, y: 100 + seriesIndex * 50})),
+						verify() { assert.fail('preparation and measured hover must never verify displayed values'); }};
+					hoverPlan.targets.forEach(Object.freeze);
+					Object.freeze(hoverPlan.targets);
+					return hoverPlan;
+				},
+				runHover(targets) { assert.equal(targets, hoverPlan.targets); },
+				validateChart(sample) {
+					if (sample.operation === 'hover-10') {
+						assert.equal(sample.input, input);
+						assert.equal(sample.chart, retained);
+						assert.equal(sample.host, host);
+					}
+				},
+				webgl: {begin() {}, complete() { fake.events.push('fence'); return {status: 'complete'}; }, reset() {}},
+			});
+			const begin = fake.api.begin({raf});
+			assert.deepEqual(Array.from(begin.config.hoverVariants), hoverVariants);
+			await fake.api.setup('uplot', 'sample-0');
+			assert.ok(fake.events.indexOf('move:1919:899') < fake.events.indexOf('settle'));
+			for (const [i, operation] of ['small-init', 'data-update', 'resize'].entries()) {
+				await fake.api.prepare(operation, `sample-${i}`);
+				await fake.api.construct();
+			}
+			const preparations = fake.events.filter(event => event === 'prepData').length;
+			await fake.api.prepare('hover-10', 'sample-3');
+			assert.equal(fake.events.filter(event => event === 'prepData').length, preparations);
+			assert.equal(fake.events.filter(event => event.startsWith('move:')).length, 1);
+			const state = fake.sampleState();
+			assert.equal(state.hoverTargets, hoverPlan.targets);
+			assert.equal(Object.hasOwn(state, 'hoverPlan'), false);
+			assert.ok(!Object.values(state).includes(hoverPlan));
+			assert.ok(!Object.values(state).includes(hoverPlan.verify));
+			validateHoverPlan(hoverPlan, 1920, 900);
+			Object.defineProperty(hoverPlan, 'verify', {get() { assert.fail('measured hover must not read the verifier'); }});
+			const result = await fake.api.construct();
+			assert.equal(result.operation, 'hover-10');
+			assert.equal(result.dataPrepMs, 0);
+			assert.equal(result.jsMs, 450);
+			assert.equal(result.prepAndInitMs, result.jsMs);
+			assert.deepEqual(structuredClone(result.hover), {count: 10, intervalMs: 50});
+			assert.equal(result.windowMs, raf ? 682 : 550);
+			const start = fake.events.indexOf('benchmark:sample-3:start');
+			const jsEnd = fake.events.indexOf('benchmark:sample-3:js-end');
+			const end = fake.events.indexOf('benchmark:sample-3:end');
+			assert.ok(fake.events.indexOf('getHoverPlan') < start);
+			assert.equal(fake.events[start + 1], 'fixture:pointerEvents:auto');
+			assert.equal(fake.events.slice(start, jsEnd).filter(event => event.startsWith('move:')).length, 10);
+			assert.deepEqual(fake.events.slice(start + 2, jsEnd), hoverPlan.targets.flatMap(({x, y}, i) => [
+				`move:${x}:${y}`, ...(i < 9 ? ['hoverWait:50'] : []),
+			]));
+			assert.equal(state.hoverTargets, hoverPlan.targets);
+			assert.ok(!fake.events.slice(start, end).includes('construct'));
+			if (!raf) assert.deepEqual(fake.events.slice(jsEnd + 1, end), ['settle', 'fence']);
+			else {
+				assert.equal(result.postJsRaf1Ms, 16);
+				assert.equal(result.raf1Ms, 466);
+				assert.ok(!fake.events.slice(start, end).includes('fence'));
+			}
+			await fake.api.destroy();
+			assert.equal(fake.context.fixture.style.pointerEvents, 'none');
+		});
+
+		it(`omits hover only for unsupported variants and keeps the full capability snapshot (${raf ? 'rAF' : 'normal'})`, async () => {
+			const fake = browserFixture({variants: ['uplot', 'flot', 'idle']});
+			const report = await fake.runTrace({raf});
+			assert.deepEqual(Array.from(report.hoverVariants), hoverVariants);
+			assert.deepEqual(Array.from(report.hover.variants), hoverVariants);
+			assert.equal(report.hoverProtocol, 'hover-ten-v2');
+			assert.equal(report.hover.count, 10);
+			assert.equal(report.hover.intervalMs, 50);
+			assert.equal(report.hover.moves, undefined);
+			assert.doesNotMatch(JSON.stringify(report), /ten verified|ten successful hovers|per-point hover verification is inside|per-point verification, input acknowledgments and frames are inside/i);
+			assert.equal(report.expectedInstances.operationWindows, 110);
+			let id = 0;
+			for (const sample of report.samples) {
+				const operations = ['small-init', 'data-update', 'resize', ...(sample.variant === 'flot' ? [] : ['hover-10'])];
+				assert.deepEqual(Array.from(sample.phases, phase => phase.operation), operations);
+				assert.deepEqual(Array.from(sample.phases, phase => phase.id), operations.map(() => `sample-${id++}`));
+				assert.equal(sample.operation, 'data-update');
+				assert.equal(sample.hover, undefined);
+				if (sample.variant !== 'flot')
+					assert.deepEqual(structuredClone(sample.phases[3].hover), {count: 10, intervalMs: 50});
+			}
+			assert.equal(fake.events.filter(event => event === 'getHoverPlan').length, 10);
+		});
+	}
+
+	for (const invalid of ['idle', 'bounds', 'missing']) {
+		it(`rejects a ${invalid} hover plan before opening a measured window`, async () => {
+			const fake = browserFixture({variants: ['uplot'], getHoverPlan() {
+				if (invalid === 'missing') return {targets: []};
+				return {idle: invalid === 'idle', targets: hoverTargets(55550, () => ({x: -1, y: 0})), verify() {}};
+			}});
+			fake.api.begin();
+			await fake.api.setup('uplot', 'sample-0');
+			for (const [i, operation] of ['small-init', 'data-update', 'resize'].entries()) {
+				await fake.api.prepare(operation, `sample-${i}`);
+				await fake.api.construct();
+			}
+			await assert.rejects(fake.api.prepare('hover-10', 'sample-3'), /idle control|Invalid hover target|ten targets/);
+			assert.ok(!fake.events.includes('benchmark:sample-3:start'));
+			await fake.api.destroy();
+			assert.equal(fake.context.fixture.style.pointerEvents, 'none');
+		});
+	}
 	it('includes host DOM setup inside init markers, never preparation, update or resize', async () => {
 		const fake = browserFixture({variants: ['uplot'], setupMs: 11});
 		assert.equal(fake.api.begin().initProtocol, 'settled-work-v1');
@@ -387,8 +529,8 @@ describe('shared browser sample lifecycle', () => {
 		assert.equal(report.samples.length, 10);
 		assert.equal(charts.length, 30);
 		for (const [index, sample] of report.samples.entries()) {
-			assert.deepEqual(Array.from(sample.phases, phase => phase.operation), ['small-init', 'data-update', 'resize']);
-			assert.deepEqual(Array.from(sample.phases, phase => phase.id), [0, 1, 2].map(offset => `sample-${index * 3 + offset}`));
+			assert.deepEqual(Array.from(sample.phases, phase => phase.operation), ['small-init', 'data-update', 'resize', 'hover-10']);
+			assert.deepEqual(Array.from(sample.phases, phase => phase.id), [0, 1, 2, 3].map(offset => `sample-${index * 4 + offset}`));
 			const {phases, ...update} = sample;
 			assert.deepEqual(update, {...phases[1]});
 			assert.equal(phases[2].dataPrepMs, 0);
@@ -695,10 +837,11 @@ describe('shared browser sample lifecycle', () => {
 					sources: {[variant]: {destroyChart() {}}}, WIDTH: 1920, HEIGHT: 600,
 					RESIZE_WIDTH: 1200, RESIZE_HEIGHT: 400, dpr,
 				});
-				for (const operation of ['small-init', 'data-update', 'resize']) {
+				for (const operation of ['small-init', 'data-update', 'resize', ...(hoverVariants.includes(variant) ? ['hover-10'] : [])]) {
 					const rows = operation === 'small-init' ? 2 : 55550;
-					const width = operation === 'resize' ? 1200 : 1920;
-					const height = operation === 'resize' ? 400 : 600;
+					const resized = operation === 'resize' || operation === 'hover-10';
+					const width = resized ? 1200 : 1920;
+					const height = resized ? 400 : 600;
 					const {sample, canvas, layers} = deckGLFixture(dpr);
 					sample.variant = variant;
 					sample.operation = operation;
@@ -1103,11 +1246,15 @@ describe('shared browser sample lifecycle', () => {
 		assert.equal(begin.captureId, 'browser-capture');
 		assert.equal(begin.source.uplot, '/dist/uPlot.iife.min.js');
 		assert.equal(begin.source.uplotCss, '/dist/uPlot.min.css');
-		assert.deepEqual(structuredClone(begin.config), {variants: ['uplot', 'chartjs', 'idle'], dpr: 2, warmups: 3, rounds: 7, lifecycle: true, operations: ['small-init', 'data-update', 'resize']});
+		assert.deepEqual(structuredClone(begin.config), {variants: ['uplot', 'chartjs', 'idle'], dpr: 2, warmups: 3, rounds: 7, lifecycle: true, operations: ['small-init', 'data-update', 'resize', 'hover-10'], hoverVariants});
+		assert.equal(begin.hoverProtocol, 'hover-ten-v2');
+		assert.equal(begin.hover.count, 10);
+		assert.equal(begin.hover.intervalMs, 50);
+		assert.deepEqual(Array.from(begin.hover.variants), hoverVariants);
 		assert.equal(begin.resizeProtocol, 'retained-resize-v1');
 		assert.deepEqual(structuredClone(begin.lifecycle.resizeSize), {width: 1200, height: 400});
-		assert.deepEqual(structuredClone(begin.lifecycle.operations), ['small-init', 'data-update', 'resize']);
-		assert.equal(begin.expectedInstances.operationWindows, 90);
+		assert.deepEqual(structuredClone(begin.lifecycle.operations), ['small-init', 'data-update', 'resize', 'hover-10']);
+		assert.equal(begin.expectedInstances.operationWindows, 120);
 		assert.equal(begin.expectedInstances.samples, 30);
 		assert.equal(begin.expectedInstances.chartCreations, 20);
 		assert.equal(begin.expectedInstances.d3, 0);
@@ -1183,7 +1330,7 @@ describe('shared browser sample lifecycle', () => {
 			'webgl:complete', 'webgl:completed', 'benchmark:sample-0:end', 'checkPage', 'validateChart',
 		]);
 		await fake.api.destroy();
-		assert.deepEqual(fake.events.slice(-3), ['teardown', 'webgl:reset', 'settle']);
+		assert.deepEqual(fake.events.slice(-4), ['teardown', 'fixture:pointerEvents:none', 'webgl:reset', 'settle']);
 		await fake.api.setup('scichart', 'sample-1');
 		await fake.api.prepare();
 		assert.equal(fake.events.filter(event => event === 'webgl:begin').length, 2);
@@ -1396,7 +1543,7 @@ describe('shared browser sample lifecycle', () => {
 			}
 			if (phase === 'teardown') await assert.rejects(fake.api.destroy(), error => error === primary);
 			else await fake.api.destroy();
-			assert.deepEqual(fake.events.slice(-3), ['teardown', 'webgl:reset', 'settle']);
+			assert.deepEqual(fake.events.slice(-4), ['teardown', 'fixture:pointerEvents:none', 'webgl:reset', 'settle']);
 			await fake.api.destroy();
 			assert.equal(fake.events.filter(event => event === 'teardown').length, 1);
 			assert.equal(fake.events.filter(event => event === 'webgl:reset').length, 2);
@@ -1489,13 +1636,13 @@ describe('shared browser sample lifecycle', () => {
 		};
 		const report = await fake.runTrace({raf: true});
 		assert.deepEqual(boundaries, Array.from(report.samples).flatMap(({variant}) =>
-			Array.from({length: 4}, () => [{phase: 'start', variant}, {phase: 'end', variant}]).flat()));
-		assert.equal(boundaries.length, 240);
+			Array.from({length: hoverVariants.includes(variant) ? 5 : 4}, () => [{phase: 'start', variant}, {phase: 'end', variant}]).flat()));
+		assert.equal(boundaries.length, 300);
 		assert.equal(fake.events.filter(event => event === 'setup').length, 30);
 		assert.equal(fake.events.filter(event => event === 'teardown').length, 30);
 		assert.equal(report.raf.frameIntervalsMs.length, 16);
 		assert.ok(report.samples.every(sample => sample.raf1Ms === 23 && sample.postJsRaf1Ms === 16));
-		assert.equal(fake.marks.filter(mark => /:sample-/.test(mark.name)).length, 270);
+		assert.equal(fake.marks.filter(mark => /:sample-/.test(mark.name)).length, 360);
 	});
 
 	it('defaults to runnable manifest variants, preserves query variants, and blocks unavailable libraries', () => {
@@ -1523,7 +1670,7 @@ describe('shared browser sample lifecycle', () => {
 });
 
 describe('shared sample capture', () => {
-	const operations = ['small-init', 'data-update', 'resize'];
+	const operations = ['small-init', 'data-update', 'resize', 'hover-10'];
 	it('gives each lifecycle operation its own budget and keeps GC outside the retained-chart sequence', async () => {
 		const clock = collectorClock();
 		const fake = fixture({memory: true, collector: clock.capture,
@@ -1534,7 +1681,7 @@ describe('shared sample capture', () => {
 		assert.equal(report.phase, 'chart-population');
 		assert.equal(report.samples.length, 1);
 		assert.deepEqual(structuredClone(report.samples[0].phases.map(phase => phase.operation)), operations);
-		assert.deepEqual(structuredClone(report.samples[0].phases.map(phase => phase.warmup)), [false, false, false]);
+		assert.deepEqual(structuredClone(report.samples[0].phases.map(phase => phase.warmup)), operations.map(() => false));
 		assert.equal(report.samples[0].operation, 'data-update');
 		assert.equal(report.samples[0].id, 'sample-1');
 		assert.deepEqual(structuredClone(report.samples[0].processObservations.filter(read => read.kind === 'gc').map(read => read.phase)), ['baseline', 'live', 'cleanup']);
@@ -1551,22 +1698,51 @@ describe('shared sample capture', () => {
 		assert.equal(clock.timers.size, 0);
 	});
 
-	it('accepts the exact legacy two-operation parent config and keeps data-update as the sample', async () => {
-		const legacy = ['small-init', 'data-update'];
+	for (const legacy of [['small-init', 'data-update'], ['small-init', 'data-update', 'resize']]) it(`accepts the legacy ${legacy.length}-operation parent config and keeps data-update as the sample`, async () => {
 		const fake = fixture({memory: true, config: {lifecycle: true, operations: legacy, warmups: 1, rounds: 1}});
 		const report = await fake.capture();
 		assert.deepEqual(report.operations, legacy);
 		assert.equal(report.samples.length, 2);
 		for (const [index, sample] of report.samples.entries()) {
 			assert.deepEqual(sample.phases.map(phase => phase.operation), legacy);
-			assert.equal(sample.id, `sample-${index * 2 + 1}`);
+			assert.equal(sample.id, `sample-${index * legacy.length + 1}`);
 			assert.equal(sample.operation, 'data-update');
 			assert.equal(sample.warmup, index === 0);
 		}
 		assert.equal(fake.events.filter(event => event.method === gc).length, 6);
 	});
 
-	it('rejects missing, reordered, repeated and extended lifecycle operation sequences before setup', async () => {
+	it('uses the capability snapshot per variant, with live memory after the last supported operation', async () => {
+			const fake = fixture({memory: true, config: {lifecycle: true, operations, variants: ['uplot', 'flot', 'idle']}});
+			const report = await fake.capture();
+			assert.deepEqual(report.hoverVariants, hoverVariants);
+			let id = 0;
+			for (const sample of report.samples) {
+				const expected = sample.variant === 'flot' ? operations.slice(0, 3) : operations;
+				assert.deepEqual(sample.phases.map(phase => phase.operation), expected);
+				assert.deepEqual(sample.phases.map(phase => phase.id), expected.map(() => `sample-${id++}`));
+				assert.equal(sample.operation, 'data-update');
+				const setup = fake.events.findIndex(event => event.method === 'setup' && event.variant === sample.variant);
+				const destroy = fake.events.findIndex((event, i) => i > setup && event.method === 'destroy');
+				const session = fake.events.slice(setup, destroy);
+				const collections = session.flatMap((event, i) => event.method === gc ? [i] : []);
+				assert.equal(collections.length, 2);
+				assert.ok(collections[0] < session.findIndex(event => event.method === 'prepare'));
+				assert.ok(collections[1] > session.findLastIndex(event => event.method === 'construct:end'));
+				assert.deepEqual(sample.processObservations.filter(read => read.kind === 'gc').map(read => read.phase), ['baseline', 'live', 'cleanup']);
+			}
+			assert.match(report.processProtocol.lifecycle, /Live follows hover for supported variants, otherwise resize/);
+		});
+
+		it('rejects malformed hover capability snapshots before setup', async () => {
+			for (const invalid of [undefined, null, {}, ['uplot', 'uplot'], [''], [1]]) {
+				const fake = fixture({config: {lifecycle: true, operations, hoverVariants: invalid}});
+				await assert.rejects(fake.capture(), /Invalid benchmark hover capabilities/);
+				assert.deepEqual(fake.events, [{method: 'begin'}]);
+			}
+		});
+
+		it('rejects missing, reordered, repeated and extended lifecycle operation sequences before setup', async () => {
 		for (const invalid of [undefined, [], ['small-init'], ['resize'], ['small-init', 'resize'],
 			['data-update', 'small-init'], ['small-init', 'resize', 'data-update'],
 			['small-init', 'data-update', 'data-update'], [...operations, 'resize'], [...operations, 'unknown']]) {
@@ -1576,8 +1752,8 @@ describe('shared sample capture', () => {
 		}
 	});
 
-	for (const stalledMethod of ['prepare', 'construct']) {
-		it(`stops an over-budget resize ${stalledMethod} without starting cleanup or another session`, async () => {
+	for (const operation of ['resize', 'hover-10']) for (const stalledMethod of ['prepare', 'construct']) {
+		it(`stops an over-budget ${operation} ${stalledMethod} without starting cleanup or another session`, async () => {
 			const clock = collectorClock();
 			let preparations = 0;
 			const timeouts = [];
@@ -1585,12 +1761,12 @@ describe('shared sample capture', () => {
 				config: {lifecycle: true, operations, warmups: 1, rounds: 1},
 				operation(method) {
 					if (method === 'prepare') preparations++;
-					if (method === stalledMethod && preparations === 3) clock.advance(5001);
+					if (method === stalledMethod && preparations === operations.indexOf(operation) + 1) clock.advance(5001);
 				},
 			});
 			await assertSettled(fake, () => assert.rejects(fake.capture({onSampleTimeout: error => timeouts.push(error)}),
 				error => error.code === 'BENCHMARK_SAMPLE_TIMEOUT'));
-			assert.equal(preparations, 3);
+			assert.equal(preparations, operations.indexOf(operation) + 1);
 			assert.equal(timeouts.length, 1);
 			assert.equal(fake.events.filter(event => event.method === gc).length, 1);
 			assert.equal(fake.events.filter(event => event.method === 'setup').length, 1);
@@ -1667,16 +1843,16 @@ describe('shared sample capture', () => {
 		});
 		assert.equal(report.captureId, 'browser-capture');
 		assert.equal(report.samples.length, 30);
-		assert.equal(fake.marks.length, 271);
+		assert.equal(fake.marks.length, 361);
 		assert.equal(report.resizeProtocol, 'retained-resize-v1');
 		assert.deepEqual(report.lifecycle.resizeSize, {width: 1200, height: 400});
 		assert.equal(report.phase, 'chart-population');
 		report.samples.forEach((sample, index) => {
 			const {phases, ...update} = sample;
-			assert.deepEqual(update, {...timing(sample.variant, `sample-${index * 3 + 1}`, 2), operation: 'data-update', round: Math.floor(index / 3) - 3, warmup: index < 9});
+			assert.deepEqual(update, {...timing(sample.variant, `sample-${index * 4 + 1}`, 2), operation: 'data-update', round: Math.floor(index / 3) - 3, warmup: index < 9});
 			assert.deepEqual(phases.map(phase => phase.operation), operations);
-			assert.deepEqual(phases.map(phase => phase.id), [0, 1, 2].map(offset => `sample-${index * 3 + offset}`));
-			assert.deepEqual(phases.map(phase => phase.warmup), [index < 9, index < 9, index < 9]);
+			assert.deepEqual(phases.map(phase => phase.id), [0, 1, 2, 3].map(offset => `sample-${index * 4 + offset}`));
+			assert.deepEqual(phases.map(phase => phase.warmup), operations.map(() => index < 9));
 			assert.equal(phases[0].dataPrepMs, 3);
 			assert.equal(phases[2].dataPrepMs, 0);
 			assert.equal(phases[2].prepAndInitMs, phases[2].jsMs);

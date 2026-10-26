@@ -133,16 +133,29 @@ describe('benchmark display colors', () => {
 		}
 	});
 
-	it('colors init, update and resize work without coloring main/gpu or rAF readiness and latency', () => {
+	it('colors init, update, resize and hover work without coloring main/gpu or rAF readiness and latency', () => {
 		const values = [0, 16.6666, 34, 99.9999, 100.0001, 500, 1000, 2000, -1, NaN, Infinity, null, '-', '10'];
-		const rows = values.map(value => ({variant: 'custom', 'init ms': value, 'main ms': 1000, 'gpu ms': 1000, 'update ms': value, 'resize ms': value}));
+		const rows = values.map(value => ({variant: 'custom', 'init ms': value, 'main ms': 1000, 'gpu ms': 1000, 'update ms': value, 'resize ms': value, 'hover 10 ms': value}));
 		for (const colorDepth of [8, 24]) {
 			const text = formatBenchmarkDisplay({rows}, {colorDepth});
-			assert.deepEqual(coloredValues(text), coloredValues(formatBenchmarkDisplay({rows: totals(values)}, {colorDepth})).flatMap(pair => [pair, pair, pair]));
+			assert.deepEqual(coloredValues(text), coloredValues(formatBenchmarkDisplay({rows: totals(values)}, {colorDepth})).flatMap(pair => [pair, pair, pair, pair]));
 			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
-			const raf = [{variant: 'custom', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16, 'resize rAF ms': 20}];
+			const raf = [{variant: 'custom', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16, 'resize rAF ms': 20, 'hover 10 ms': 70}];
 			assert.deepEqual(coloredValues(formatBenchmarkDisplay({rows: raf}, {colorDepth})), []);
 		}
+	});
+
+	it('preserves blank hover cells, measured zero, and failed supported cells', () => {
+		const rows = ['', 0, '-', 'unavailable'].map(value => ({variant: 'custom', 'main ms': 1, 'update ms': '-', 'hover 10 ms': value}));
+		const original = structuredClone(rows);
+		for (const colorDepth of [0, 8, 24]) {
+			const text = formatBenchmarkDisplay({rows}, {colorDepth});
+			const cells = stripVTControlCharacters(text).split('\n').filter(line => line.startsWith('│'))
+				.map(line => line.split('│').at(-2).trim());
+			assert.deepEqual(cells, ['hover 10 ms', '', '0.0', '-', 'unavailable']);
+			assert.deepEqual(coloredValues(text), colorDepth ? [[colorDepth === 24 ? `38;2;${rgbs[0]}` : `38;5;${palette[0]}`, '0.0']] : []);
+		}
+		assert.deepEqual(rows, original);
 	});
 
 	it('gives each known context a distinct categorical color and leaves unknown contexts plain', () => {

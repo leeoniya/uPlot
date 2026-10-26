@@ -1,3 +1,5 @@
+import {hoverTargets, visibleText, nearHoverIndex} from './hover.mjs';
+
 function round2(val) {
 	return Math.round(val * 100) / 100;
 }
@@ -130,5 +132,33 @@ async function resizeChart(chart, {width, height}, host, wait) {
 	if (wait) wait.textContent = 'Done!';
 }
 
-export {makeEmptyChart, updateChart, resizeChart};
+function getHoverPlan(chart, input, host) {
+	const rect = chart.over.getBoundingClientRect();
+	const tolerance = (input[0].length - 1) / rect.width;
+	const previousEvent = chart.cursor.event;
+	const cells = chart.root.querySelectorAll('.u-legend .u-value');
+	// Leave room for integer mouse hit testing at fractional plot boundaries.
+	return {
+		targets: hoverTargets(input[0].length, (index, seriesIndex) => ({
+			x: Math.round(rect.left + chart.valToPos(input[0][index], 'x')),
+			y: Math.round(rect.top + Math.max(2, Math.min(rect.height - 2,
+				chart.valToPos(input[seriesIndex + 1][index], seriesIndex === 2 ? 'mb' : '%')))),
+		})),
+		verify(target) {
+			const {seriesIndex} = target;
+			const index = chart.cursor.idx;
+			if (chart.data !== input || !chart.cursor.event || chart.cursor.event === previousEvent ||
+				!nearHoverIndex(index, target, tolerance) || chart.legend.idx !== index ||
+				chart.legend.idxs[seriesIndex + 1] !== index)
+				return null;
+			const value = input[seriesIndex + 1][index];
+			if (!Number.isFinite(value)) return null;
+			const expected = value.toFixed(seriesIndex === 2 ? 2 : 1) + (seriesIndex === 2 ? ' MB' : '%');
+			const text = visibleText(cells[seriesIndex + 1]);
+			return text === expected ? {index, seriesIndex, value, text} : null;
+		},
+	};
+}
+
+export {makeEmptyChart, updateChart, resizeChart, getHoverPlan};
 export {makeChart, prepData};

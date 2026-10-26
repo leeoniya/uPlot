@@ -1,3 +1,5 @@
+import {hoverTargets, visibleText, nearHoverIndex} from './hover.mjs';
+
 // d3@7.9.0/dist/d3.min.js then d3fc@15.2.13/build/d3fc.min.js; globals d3 and fc.
 function prepData(packed) {
 	const fields = packed[0];
@@ -16,6 +18,13 @@ function prepData(packed) {
 
 const updates = new WeakMap();
 const resizes = new WeakMap();
+const hovers = new WeakMap();
+
+function getHoverPlan(chart, input, host) {
+	const hover = hovers.get(chart);
+	if (!hover) throw new Error('d3fc chart is not live.');
+	return hover(input);
+}
 
 function makeEmptyChart(host, wait) {
 	return makeChart(Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(0)])), host, wait);
@@ -136,6 +145,8 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 			if (values[i].length) series(values[i]);
 		}
 
+		let displayedIndex = null;
+		let hoverVersion = 0;
 		const cursor = axes.append('g').attr('display', 'none').attr('pointer-events', 'none');
 		const rule = cursor.append('line').attr('y1', 0).attr('y2', plotHeight).attr('stroke', 'rgba(0,0,0,0.5)');
 		const dots = cursor.selectAll('circle').data(values).join('circle')
@@ -143,6 +154,7 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 		svg.on('pointermove.benchmark', event => {
 			const [sx, sy] = d3.pointer(event, svg.node());
 			if (!data.x.length || sx < margin.left || sx > margin.left + plotWidth || sy < margin.top || sy > margin.top + plotHeight) {
+				displayedIndex = null;
 				cursor.attr('display', 'none');
 				return;
 			}
@@ -152,7 +164,37 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 			rule.attr('x1', cx).attr('x2', cx);
 			dots.attr('cx', cx).attr('cy', (column, i) => scales[i](column[j]));
 			legend.text((name, i) => `${name}: ${values[i][j].toFixed(i === 0 ? 3 : 2)}${i === 2 ? ' MB' : '%'}`);
-		}).on('pointerleave.benchmark', () => cursor.attr('display', 'none'));
+			displayedIndex = j;
+			hoverVersion++;
+		}).on('pointerleave.benchmark', () => {
+			displayedIndex = null;
+			cursor.attr('display', 'none');
+		});
+
+		hovers.set(chart, input => {
+			const rect = svg.node().getBoundingClientRect();
+			const previousVersion = hoverVersion;
+			const tolerance = (data.x.length - 1) / plotWidth;
+			const cells = legend.nodes();
+			return {
+				targets: hoverTargets(data.x.length, (index, seriesIndex) => ({
+					x: Math.round(rect.left + margin.left + x(data.x[index])),
+					y: Math.round(rect.top + margin.top + Math.max(1, Math.min(plotHeight - 1,
+						scales[seriesIndex](values[seriesIndex][index])))),
+				})),
+				verify(target) {
+					const {seriesIndex} = target;
+					const index = displayedIndex;
+					if (!hovers.has(chart) || input !== data || hoverVersion === previousVersion ||
+						!nearHoverIndex(index, target, tolerance)) return null;
+					const value = values[seriesIndex][index];
+					if (!Number.isFinite(value)) return null;
+					const expected = `${['CPU', 'RAM', 'TCP Out'][seriesIndex]}: ${value.toFixed(seriesIndex === 0 ? 3 : 2)}${seriesIndex === 2 ? ' MB' : '%'}`;
+					const text = visibleText(cells[seriesIndex]);
+					return text === expected ? {index, seriesIndex, value, text} : null;
+				},
+			};
+		});
 
 		updates.set(chart, input => {
 			data = input;
@@ -164,6 +206,7 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 		});
 
 		function redraw() {
+			displayedIndex = null;
 			grid.call(d3.axisLeft(pct).ticks(10).tickSize(-plotWidth).tickFormat(''))
 				.call(group => group.select('.domain').remove())
 				.call(group => group.selectAll('line').attr('stroke', 'rgba(0,0,0,0.1)'));
@@ -221,6 +264,7 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 function destroyChart(chart) {
 	updates.delete(chart);
 	resizes.delete(chart);
+	hovers.delete(chart);
 	d3.select(chart.element).select('svg').on('.benchmark', null);
 	for (const series of chart.series) series.context(null);
 	chart.series.length = 0;
@@ -231,4 +275,4 @@ function destroyChart(chart) {
 	chart.element.remove();
 }
 
-export {prepData, makeChart, destroyChart, makeChartWithOptions, makeEmptyChart, updateChart, resizeChart};
+export {prepData, makeChart, destroyChart, makeChartWithOptions, makeEmptyChart, updateChart, resizeChart, getHoverPlan};

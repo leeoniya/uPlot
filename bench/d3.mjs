@@ -1,3 +1,5 @@
+import {hoverTargets, visibleText, nearHoverIndex} from './hover.mjs';
+
 const pxRatio = devicePixelRatio;
 const pxRound = value => (Math.round(value * pxRatio) + 0.5) / pxRatio;
 const margin = {top: 10, right: 70, bottom: 30, left: 55};
@@ -317,6 +319,7 @@ function svgRenderer(host, line, series, ticks, drawSeries, size) {
 
 const updates = new WeakMap();
 const resizes = new WeakMap();
+const hovers = new WeakMap();
 
 function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "canvas", minmax = false} = {}) {
 	let [xs, cpu, ram, tcp] = data;
@@ -355,9 +358,12 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "can
 	let pointerX = -1;
 	let cursorFrame = null;
 	let destroyed = false;
+	let displayedIndex = null;
+	let hoverVersion = 0;
 
 	function drawCursor() {
 		cursorFrame = null;
+		displayedIndex = null;
 		surface.clearCursor();
 
 		if (!xs.length || pointerX < plotLeft || pointerX > size.plotRight)
@@ -372,6 +378,8 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "can
 		cpuValue.textContent = `CPU: ${cpu[idx] == null ? "--" : cpu[idx].toFixed(1) + "%"}`;
 		ramValue.textContent = `RAM: ${ram[idx] == null ? "--" : ram[idx].toFixed(1) + "%"}`;
 		tcpValue.textContent = `TCP Out: ${tcp[idx] == null ? "--" : tcp[idx].toFixed(2) + " MB"}`;
+		displayedIndex = idx;
+		hoverVersion++;
 	}
 
 	function pointerMove(event) {
@@ -382,6 +390,7 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "can
 
 	function pointerLeave() {
 		pointerX = -1;
+		displayedIndex = null;
 		if (cursorFrame != null) {
 			cancelAnimationFrame(cursorFrame);
 			cursorFrame = null;
@@ -401,6 +410,7 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "can
 		destroy() {
 			updates.delete(chart);
 			resizes.delete(chart);
+			hovers.delete(chart);
 			if (destroyed)
 				return;
 			destroyed = true;
@@ -429,7 +439,37 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "can
 		surface.resize();
 		surface.update(axisTicks(xScale, pctScale, mbScale));
 	});
+	hovers.set(chart, input => {
+		const rect = host.querySelector('#plot').getBoundingClientRect();
+		const previousVersion = hoverVersion;
+		const tolerance = (xs.length - 1) / (size.plotRight - plotLeft);
+		const cells = [cpuValue, ramValue, tcpValue];
+		return {
+			targets: hoverTargets(xs.length, (index, seriesIndex) => ({
+				x: Math.round(rect.left + xScale(xs[index])),
+				y: Math.round(rect.top + Math.max(plotTop + 1, Math.min(size.plotBottom - 1,
+					series[seriesIndex][1](series[seriesIndex][0][index])))),
+			})),
+			verify(target) {
+				const {seriesIndex} = target;
+				const index = displayedIndex;
+				if (destroyed || input[0] !== xs || cursorFrame != null || hoverVersion === previousVersion ||
+					!nearHoverIndex(index, target, tolerance)) return null;
+				const value = input[seriesIndex + 1][index];
+				if (!Number.isFinite(value)) return null;
+				const expected = `${['CPU', 'RAM', 'TCP Out'][seriesIndex]}: ${value.toFixed(seriesIndex === 2 ? 2 : 1)}${seriesIndex === 2 ? ' MB' : '%'}`;
+				const text = visibleText(cells[seriesIndex]);
+				return text === expected ? {index, seriesIndex, value, text} : null;
+			},
+		};
+	});
 	return chart;
+}
+
+function getHoverPlan(chart, input, host) {
+	const hover = hovers.get(chart);
+	if (!hover) throw new Error('D3 chart is not live.');
+	return hover(input);
 }
 
 function resizeChart(chart, {width, height}, host, wait) {
@@ -457,4 +497,4 @@ function makeChart(data, host, wait, runtimeOptions) {
 }
 
 export {makeChartWithOptions};
-export {makeChart, prepData, makeEmptyChart, updateChart, resizeChart};
+export {makeChart, prepData, makeEmptyChart, updateChart, resizeChart, getHoverPlan};
