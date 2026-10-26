@@ -42,7 +42,6 @@
 
 
 		<script type="module">
-			import { Quadtree, pointWithin } from './lib/quadtree.js';
 			import { distr, SPACE_BETWEEN } from './lib/distr.js';
 
 			const { round, min, max, ceil } = Math;
@@ -99,7 +98,7 @@
 					strokePaths.clear();
 				}
 
-				function putBox(ctx, rect, xOff, yOff, lft, top, wid, hgt, strokeWidth, iy, ix, value) {
+				function putBox(rect, lft, top, wid, hgt, strokeWidth, iy, ix, value) {
 					let fillStyle = fill(iy + 1, ix, value);
 					let fillPath = fillPaths.get(fillStyle);
 
@@ -117,15 +116,6 @@
 
 						rect(strokePath, lft + strokeWidth / 2, top + strokeWidth / 2, wid - strokeWidth, hgt - strokeWidth);
 					}
-
-					qt.add({
-						x: round(lft - xOff),
-						y: round(top - yOff),
-						w: wid,
-						h: hgt,
-						sidx: iy + 1,
-						didx: ix
-					});
 				}
 
 				function drawPaths(u, sidx, idx0, idx1) {
@@ -137,6 +127,23 @@
 						u.ctx.clip();
 
 						walk(sidx - 1, count, yDim, (iy, y0, hgt) => {
+							let lane = lanes[iy] = {
+								strokeWidth,
+								idx0,
+								idx1,
+								span: {
+									left: Infinity,
+									right: -Infinity,
+									box: {
+										left: -10,
+										top: round((round(yOff + y0) - yOff) / uPlot.pxRatio),
+										width: 0,
+										height: round(round(hgt) / uPlot.pxRatio),
+										didx: null,
+									},
+								},
+							};
+
 							// draw spans
 							if (mode == 1) {
 								for (let ix = 0; ix < dataY.length; ix++) {
@@ -150,10 +157,7 @@
 										let rgt = nextIx == dataY.length ? xOff + xDim + strokeWidth : round(valToPosX(dataX[nextIx], scaleX, xDim, xOff));
 
 										putBox(
-											u.ctx,
 											rect,
-											xOff,
-											yOff,
 											lft,
 											round(yOff + y0),
 											rgt - lft,
@@ -174,6 +178,8 @@
 								let gapWid = colWid * gapFactor;
 								let barWid = round(min(maxWidth, colWid - gapWid) - strokeWidth);
 								let xShift = align == 1 ? 0 : align == -1 ? barWid : barWid / 2;
+								lane.barWid = barWid;
+								lane.xShift = xShift;
 
 								for (let ix = idx0; ix <= idx1; ix++) {
 									if (dataY[ix] != null) {
@@ -181,10 +187,7 @@
 										let lft = valToPosX(dataX[ix], scaleX, xDim, xOff);
 
 										putBox(
-											u.ctx,
 											rect,
-											xOff,
-											yOff,
 											round(lft - xShift),
 											round(yOff + y0),
 											barWid,
@@ -237,38 +240,42 @@
 					return false;
 				}
 
-				let qt;
+				function xPos(u, ix) {
+					return u.valToPos(u.data[0][ix], 'x', true);
+				}
+
+				let lanes = Array(count).fill(null);
 				let hovered = Array(count).fill(null);
+				const emptyBox = {left: -10, top: -10, width: 0, height: 0};
 
 				let yMids = Array(count).fill(0);
 				let ySplits = Array(count).fill(0);
 
 				let fmtDate = uPlot.fmtDate('{YYYY}-{MM}-{DD} {HH}:{mm}:{ss}');
-				let legendTimeValueEl = null;
+				let legendTimeValueNode = null;
 
 				return {
 					hooks: {
 						init: u => {
-							legendTimeValueEl = u.root.querySelector('.u-series:first-child .u-value');
 							window.addEventListener('dppxchange', recalcDppxVars);
+						},
+						ready: u => {
+							if (mode == 1) {
+								let el = u.root.querySelector('.u-series:first-child .u-value');
+								legendTimeValueNode = el.firstChild ?? el.appendChild(document.createTextNode(''));
+							}
 						},
 						destroy: u => {
 							window.removeEventListener('dppxchange', recalcDppxVars);
 						},
 						drawClear: u => {
-							qt = qt || new Quadtree(0, 0, u.bbox.width, u.bbox.height);
-
-							qt.clear();
-
-							// force-clear the path cache to cause drawBars() to rebuild new quadtree
-							u.series.forEach(s => {
-								s._paths = null;
-							});
+							lanes.fill(null);
+							hovered.fill(null);
 						},
 						setCursor: u => {
-							if (mode == 1) {
+							if (mode == 1 && legendTimeValueNode != null) {
 								let val = u.posToVal(u.cursor.left, 'x');
-								legendTimeValueEl.textContent = u.scales.x.time ? fmtDate(new Date(val * 1e3)) : val.toFixed(2);
+								legendTimeValueNode.data = u.scales.x.time ? fmtDate(new Date(val * 1e3)) : val.toFixed(2);
 							}
 						},
 					},
@@ -278,37 +285,71 @@
 							//	x: false,
 								y: false,
 								points: {show: false},
-								dataIdx: (u, seriesIdx, closestIdx, xValue) => {
+								dataIdx: (u, seriesIdx, closestIdx) => {
 									if (seriesIdx == 0)
 										return closestIdx;
 
+									let iy = seriesIdx - 1;
+									let lane = lanes[iy];
 									let cx = round(u.cursor.left * uPlot.pxRatio);
+									hovered[iy] = null;
 
-									if (cx >= 0) {
-										let cy = yMids[seriesIdx - 1];
+									if (lane == null || !u.series[seriesIdx].show || closestIdx == null || cx < 0 || cx > u.bbox.width)
+										return null;
 
-										hovered[seriesIdx - 1] = null;
+									let dataY = u.data[seriesIdx];
+									let span = lane.span;
+									let box = span.box;
 
-										qt.get(cx, cy, 1, 1, o => {
-											if (pointWithin(cx, cy, o.x, o.y, o.x + o.w, o.y + o.h))
-												hovered[seriesIdx - 1] = o;
-										});
+									if (mode == 1) {
+										if (cx < span.left || cx >= span.right) {
+											let ix = closestIdx;
+											if (round(xPos(u, ix)) - u.bbox.left > cx)
+												ix--;
+
+											// Undefined continues a state; null starts an empty interval.
+											while (ix >= 0 && dataY[ix] === undefined)
+												ix--;
+
+											let nextIx = ix + 1;
+											while (nextIx < dataY.length && dataY[nextIx] === undefined)
+												nextIx++;
+
+											let left = ix < 0 ? -Infinity : round(xPos(u, ix)) - u.bbox.left;
+											let right = nextIx == dataY.length ? u.bbox.width + lane.strokeWidth : round(xPos(u, nextIx)) - u.bbox.left;
+
+											// Cache gaps too, so moving through them does not repeat the scan.
+											span.left = left;
+											span.right = right;
+											box.left = round(left / uPlot.pxRatio);
+											box.width = round((right - left) / uPlot.pxRatio);
+											box.didx = dataY[ix] == null ? null : ix;
+										}
+
+										hovered[iy] = box.didx == null ? null : box;
+									}
+									else {
+										// An aligned cell can extend into the neighboring sample's half-column.
+										for (let ix = min(lane.idx1, closestIdx + 1); ix >= max(lane.idx0, closestIdx - 1); ix--) {
+											if (dataY[ix] == null)
+												continue;
+
+											let left = round(xPos(u, ix) - lane.xShift) - u.bbox.left;
+											if (cx >= left && cx <= left + lane.barWid) {
+												box.left = round(left / uPlot.pxRatio);
+												box.width = round(lane.barWid / uPlot.pxRatio);
+												box.didx = ix;
+												hovered[iy] = box;
+												break;
+											}
+										}
 									}
 
-									return hovered[seriesIdx - 1]?.didx;
+									return hovered[iy]?.didx;
 								},
 								points: {
 									fill: "rgba(0,0,0,0.3)",
-									bbox: (u, seriesIdx) => {
-										let hRect = hovered[seriesIdx - 1];
-
-										return {
-											left:   hRect ? round(hRect.x / devicePixelRatio) : -10,
-											top:    hRect ? round(hRect.y / devicePixelRatio) : -10,
-											width:  hRect ? round(hRect.w / devicePixelRatio) : 0,
-											height: hRect ? round(hRect.h / devicePixelRatio) : 0,
-										};
-									}
+									bbox: (u, seriesIdx) => hovered[seriesIdx - 1] ?? emptyBox
 								}
 							},
 							scales: {
