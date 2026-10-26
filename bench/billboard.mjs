@@ -1,3 +1,5 @@
+import {hoverTargets, nearHoverIndex, visibleText} from './hover.mjs';
+
 // billboard.js@4.1.3/dist/billboard.pkgd.min.js exposes bb and includes D3 (MIT).
 // Canvas styles also use dist/billboard.min.css.
 function prepData(packed) {
@@ -100,6 +102,40 @@ async function resizeChart(chart, {width, height}, host, wait) {
 		if (wait) wait.textContent = 'Done!';
 	}
 	finally { renders.delete(chart); }
+}
+
+export function getHoverPlan(chart, input, host) {
+	const internal = chart.internal;
+	const {scale, state, $el} = internal;
+	const rect = $el.canvas.node().getBoundingClientRect();
+	const sx = rect.width / state.current.width, sy = rect.height / state.current.height;
+	const ids = ['cpu', 'ram', 'tcp'];
+	const length = input[0].length - 1;
+	const x = index => rect.left + (state.margin.left + scale.x(input[0][index + 1])) * sx;
+	return {
+		targets: hoverTargets(length, (index, seriesIndex) => ({
+			x: x(index),
+			y: rect.top + (state.margin.top + internal.getYScaleById(ids[seriesIndex])(input[seriesIndex + 1][index + 1])) * sy,
+		})),
+		verify(target) {
+			// 4.1.3 binds the actual displayed grouped rows in showTooltip(), clearing them on hide.
+			const tooltip = $el.tooltip.node();
+			const selected = $el.tooltip.datum();
+			const seriesIndex = target.seriesIndex, id = ids[seriesIndex];
+			const point = selected?.data?.find(point => point?.id === id);
+			const index = point?.index, value = point?.value;
+			if (!nearHoverIndex(index, target, length - 1) || index >= length || !(Math.abs(x(index) - target.x) <= 1) ||
+				selected.index !== index || +selected.x !== input[0][index + 1] || +point.x !== input[0][index + 1] ||
+				!Number.isFinite(value) || value !== input[seriesIndex + 1][index + 1])
+				return false;
+			const row = tooltip.querySelector(`.bb-tooltip-name-${id}`);
+			const text = visibleText(row);
+			const name = internal.config.data_names[id];
+			const formatted = String(internal.getDefaultValueFormat()(value, point.ratio, id, index));
+			return visibleText(tooltip) && text && visibleText(row?.querySelector('.name')) === name &&
+				visibleText(row?.querySelector('.value')) === formatted && {index, seriesIndex, value, text};
+		},
+	};
 }
 
 function destroyChart(chart) {

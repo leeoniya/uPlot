@@ -1,4 +1,5 @@
 // @bokeh/bokehjs@3.10.1: build/js/bokeh{,-gl,-api}.min.js, in that order; global Bokeh.
+import {hoverTargets, nearHoverIndex, visibleText} from './hover.mjs';
 function prepData(packed) {
 	const fields = packed[0];
 	const count = (packed.length - fields - 1) / fields;
@@ -132,6 +133,62 @@ function disposePlot(plot, view) {
 
 function destroyChart(view) {
 	disposePlot(view.model, view);
+}
+
+// visibleText stops at a shadow root; tooltip hosts can be hidden independently.
+function tooltipText(element) {
+	for (let node = element; node; node = node.parentElement ?? node.getRootNode()?.host) {
+		if (!node.isConnected) return '';
+		const style = node.ownerDocument.defaultView.getComputedStyle(node);
+		if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse' || Number(style.opacity) === 0)
+			return '';
+	}
+	return visibleText(element);
+}
+
+export function getHoverPlan(chart, input, host) {
+	if (chart.model.lod_threshold !== null)
+		throw new Error('Bokeh hover requires unsampled lines.');
+	const fields = ['cpu', 'ram', 'tcp'], names = ['CPU', 'RAM', 'TCP Out'];
+	const renderers = fields.map(field => chart.model.renderers.find(renderer => renderer.glyph?.y.field === field));
+	const views = renderers.map(renderer => chart.renderer_views.get(renderer));
+	const hover = [...chart.tool_views.values()].find(view => view.model.type === 'HoverTool');
+	const canvas = chart.canvas_view, rect = canvas.el.getBoundingClientRect();
+	const sx = rect.width / canvas.bbox.width, sy = rect.height / canvas.bbox.height;
+	const length = input.x.length, xScale = views[0].coordinates.x_scale;
+	const tolerance = (length - 1) / (Math.abs(xScale.compute(input.x[length - 1]) - xScale.compute(input.x[0])) * sx);
+	return {
+		targets: hoverTargets(length, (index, seriesIndex) => ({
+			x: rect.left + views[seriesIndex].coordinates.x_scale.compute(input.x[index]) * sx,
+			y: rect.top + views[seriesIndex].coordinates.y_scale.compute(input[fields[seriesIndex]][index]) * sy,
+		})),
+		verify(target) {
+			const {seriesIndex} = target, renderer = renderers[seriesIndex], glyph = views[seriesIndex].glyph;
+			const selection = renderer.get_selection_manager().inspectors.get(renderer);
+			const tooltip = hover.ttmodels.get(renderer), mouse = hover._current_sxy;
+			if (chart.is_destroyed || !hover.model.active || !mouse || !tooltip?.visible || !tooltip.position || !selection?.line_indices.length)
+				return null;
+			// vline/nearest selects the closer x endpoint (ties go to the next).
+			// With no filters, the last hit segment supplies the tooltip position.
+			const segment = selection.line_indices.at(-1);
+			const index = Math.abs(glyph.sx[segment] - mouse[0]) < Math.abs(glyph.sx[segment + 1] - mouse[0]) ? segment : segment + 1;
+			const value = input[fields[seriesIndex]][index], data = renderer.data_source.data;
+			if (!nearHoverIndex(index, target, tolerance) || !Number.isFinite(value) ||
+				data.x[index] !== input.x[index] || data[fields[seriesIndex]][index] !== value ||
+				glyph.x[index] !== input.x[index] || glyph.y[index] !== value ||
+				tooltip.position[0] !== glyph.sx[index] || tooltip.position[1] !== glyph.sy[index])
+				return null;
+			// Each native tooltip entry is a table with Time, CPU, RAM, TCP rows.
+			const table = tooltip.content.lastElementChild;
+			const row = table?.children[seriesIndex + 1];
+			const label = row?.querySelector('.bk-tooltip-row-label');
+			const displayed = row?.querySelector('[data-value]');
+			const expected = value.toFixed(seriesIndex === 0 ? 3 : 2) + (seriesIndex === 2 ? ' MB' : '%');
+			if (!displayed || tooltipText(label) !== names[seriesIndex] + ':' || tooltipText(displayed) !== expected)
+				return null;
+			return {index, seriesIndex, value, text: tooltipText(row)};
+		},
+	};
 }
 
 export {prepData, makeChart, destroyChart, makeChartWithOptions, makeEmptyChart, updateChart, resizeChart};

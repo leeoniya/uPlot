@@ -36,6 +36,92 @@ function freezeDeep(value) {
 	return value;
 }
 
+describe('through-update process memory', () => {
+	const report = (variant = 'uplot') => ({
+		memoryProtocol: 'through-update-v1', blank: observation('blank', 1),
+		samples: [sample(0, {variant, observations: lifecycle().filter(read => read.phase !== 'cleanup')})],
+	});
+
+	it('stops peaks and request diagnostics at live and expects no cleanup checkpoint', () => {
+		const raw = report();
+		const expected = summarizeProcessMemory(raw);
+		const group = expected.groups[0];
+		assert.equal(group.missingCheckpointCount, 0);
+		assert.equal(group.ambiguousCheckpointCount, 0);
+		assert.deepEqual(group.scopes.renderer.pssMB.peak, stats(30));
+		assert.deepEqual(group.scopes.renderer.pssMB.live, stats(8));
+		assert.deepEqual(group.scopes.renderer.pssMB.cleanup, absent(1));
+		assert.deepEqual(group.scopes.renderer.pssMB.cleanupDelta, absent(1));
+		raw.samples[0].observations.push(
+			observation('prepare', 1e9, {operation: 'resize'}),
+			observation('construct', 2e9, {operation: 'hover-10'}),
+			observation('cleanup', 3e9, {processRequestedAtMs: 1e9}),
+		);
+		assert.deepEqual(summarizeProcessMemory(freezeDeep(raw)), expected);
+	});
+
+	it('uses the same boundary for direct adjusted peaks and idle retention', () => {
+		const reports = [report(), report('idle')];
+		const expected = summarizeAdjustedProcessMemory(reports);
+		for (const raw of reports) {
+			raw.samples[0].processObservations = [...raw.samples[0].observations,
+				observation('construct', 1e9), observation('cleanup', 2e9)];
+			raw.samples[0].observations = [observation('live', 9e9)];
+		}
+		assert.deepEqual(summarizeAdjustedProcessMemory(freezeDeep(reports)), expected);
+		assert.deepEqual(expected.groups[0].scopes.renderer.pssMB.peak, stats(22));
+		assert.deepEqual(expected.groups[0].scopes.renderer.pssMB.live, stats(0));
+	});
+
+	it('rejects missing, duplicate, and misplaced live boundaries without requiring valid memory reads', () => {
+		for (const change of [
+			reads => reads.filter(read => read.phase !== 'live'),
+			reads => [...reads, observation('live', 999)],
+			reads => [...reads, observation('prepared', 999)],
+			reads => [observation('cleanup', 999), ...reads],
+			reads => [observation('construct', 999, {operation: 'resize'}), ...reads],
+		]) {
+			const raw = report();
+			raw.samples[0].observations = change(raw.samples[0].observations);
+			assert.throws(() => summarizeProcessMemory(raw), /through-update-v1/);
+			assert.throws(() => summarizeAdjustedProcessMemory([raw]), /through-update-v1/);
+		}
+		const raw = report();
+		raw.samples[0].observations.at(-1).processMemory.complete = false;
+		const metric = summarizeProcessMemory(raw).groups[0].scopes.renderer.pssMB;
+		assert.deepEqual(metric.live, absent(1));
+		assert.deepEqual(metric.peak, stats(30));
+	});
+
+	it('rejects mixed memory protocols in either order, including idle and warmup-only controls', () => {
+		for (const reverse of [false, true]) for (const warmup of [false, true]) {
+			const raw = report(), idle = report('idle');
+			delete idle.memoryProtocol;
+			idle.samples[0].warmup = warmup;
+			assert.throws(() => summarizeAdjustedProcessMemory(reverse ? [idle, raw] : [raw, idle]), /different memory protocols/);
+		}
+	});
+
+	it('rejects unknown protocols rather than treating them as legacy, even on empty reports', () => {
+		for (const protocol of ['future-v2', 'legacy', null, false, 1]) {
+			const raw = {...report(), memoryProtocol: protocol};
+			assert.throws(() => summarizeProcessMemory(raw), /Unknown memoryProtocol/);
+			assert.throws(() => summarizeAdjustedProcessMemory([raw]), /Unknown memoryProtocol/);
+			assert.throws(() => summarizeAdjustedProcessMemory([{...raw, samples: []}]), /Unknown memoryProtocol/);
+		}
+	});
+
+	it('preserves legacy peaks after live and legacy missing-cleanup diagnostics', () => {
+		const raw = report();
+		delete raw.memoryProtocol;
+		assert.equal(summarizeProcessMemory(raw).groups[0].missingCheckpointCount, 1);
+		raw.samples[0].observations.push(observation('construct', 999), observation('cleanup', 1000));
+		const group = summarizeProcessMemory(raw).groups[0];
+		assert.equal(group.missingCheckpointCount, 0);
+		assert.deepEqual(group.scopes.renderer.pssMB.peak, stats(1000));
+	});
+});
+
 describe('baseline-adjusted process memory', () => {
 	const browser = (variant = 'uplot', dpr = 1, blank = 20, values = [[50, 70]]) => ({
 		blank: observation('blank', blank),

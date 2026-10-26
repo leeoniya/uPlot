@@ -60,11 +60,13 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 			const collectGarbage = () => abortable(() => page.send('HeapProfiler.collectGarbage'), signal);
 			const id = `sample-${sampleIndex++}`;
 			const processObservations = [];
+			let memoryComplete = false;
+			let memoryOperation;
 			const readProcess = async (phase, kind) => {
 				const processRequestedAtMs = performance.now() - epoch;
 				const processMemory = await abortable(processRead, signal);
 				signal.throwIfAborted();
-				processObservations.push({phase, kind, processMemory, processRequestedAtMs, processTimestampMs: performance.now() - epoch});
+				processObservations.push({phase, kind, ...(memoryOperation ? {operation: memoryOperation} : {}), processMemory, processRequestedAtMs, processTimestampMs: performance.now() - epoch});
 			};
 			const checkpoint = async phase => {
 				if (processRead) {
@@ -73,7 +75,7 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 				}
 			};
 			const pollPhase = async (phase, expression = `benchmarkLifecycle.${phase}()`) => {
-				if (!processRead)
+				if (!processRead || memoryComplete)
 					return invoke(expression);
 				await readProcess(phase, 'start');
 				let stopped = false;
@@ -121,11 +123,17 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 							if (operation === 'hover-10' && !config.hoverVariants.includes(variant)) continue;
 							if (phases.length) nextBudget();
 							const phaseId = phases.length ? `sample-${sampleIndex++}` : id;
+							memoryOperation = operation;
 							await pollPhase('prepare', `benchmarkLifecycle.prepare(${JSON.stringify(operation)}, ${JSON.stringify(phaseId)})`);
 							if (processRead && operation === 'data-update')
 								await readProcess('prepared', 'snapshot');
 							const phase = await pollPhase('construct');
 							phases.push({...phase, round, warmup: round < 0});
+							if (operation === 'data-update') {
+								nextBudget();
+								await checkpoint('live');
+								memoryComplete = true;
+							}
 						}
 						timing = {...phases.find(phase => phase.operation === 'data-update'), phases};
 						nextBudget();
@@ -135,8 +143,8 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 						if (processRead)
 							await readProcess('prepared', 'snapshot');
 						timing = await pollPhase('construct');
+						await checkpoint('live');
 					}
-					await checkpoint('live');
 				}
 				catch (error) {
 					failed = true;
@@ -152,7 +160,8 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 							throw error;
 					}
 				}
-				await checkpoint('cleanup');
+				if (!operations)
+					await checkpoint('cleanup');
 				signal.throwIfAborted();
 				samples.push({...timing, round, warmup: round < 0, ...(processRead ? {processObservations} : {})});
 			}
@@ -171,6 +180,7 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 		...config,
 		...(metadata.lifecycle ? {lifecycle: metadata.lifecycle} : {}),
 		phase: operations ? 'chart-population' : 'initial-chart-creation',
+		...(operations && processRead ? {memoryProtocol: 'through-update-v1'} : {}),
 		sampleTimeoutMs,
 		samples,
 		...(processRead ? {processProtocol: {
@@ -178,9 +188,9 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 			commandTimeoutMs: COMMAND_TIMEOUT_MS, sampleTimeoutMs,
 			order: 'Rotate by round + warmups; reverse on odd turns. Warmup rounds are -warmups through -1; measured rounds start at 0.',
 			sequence: operations
-				? ['setup', 'GC', 'baseline', 'prepare small data', 'small init', 'prepare full data', 'prepared', 'data update', ...(operations.includes('resize') ? ['resize'] : []), ...(operations.includes('hover-10') ? ['hover 10 when supported'] : []), 'GC', 'live', 'destroy', 'GC', 'cleanup']
+				? ['setup', 'GC', 'baseline', 'prepare small data', 'small init', 'prepare full data', 'prepared', 'data update', 'GC', 'live', ...(operations.includes('resize') ? ['resize'] : []), ...(operations.includes('hover-10') ? ['hover 10 when supported'] : []), 'destroy']
 				: ['setup', 'GC', 'baseline', 'poll prepare', 'drain', 'prepared', 'poll construct', 'drain', 'GC', 'live', 'destroy', 'GC', 'cleanup'],
-			lifecycle: operations ? `All operations are polled. No forced GC occurs between operations. Prepared includes the small chart; dataDelta therefore also includes initialization. Live follows ${operations.includes('hover-10') ? 'hover for supported variants, otherwise resize' : operations.includes('resize') ? 'resize' : 'the full-data update'}. Peak covers the whole session.` : null,
+			lifecycle: operations ? 'Memory polling ends after data-update. Live follows the settled full-data update and forced GC, before resize or hover preparation. Peak covers baseline, initialization, preparation, update and live. Prepared includes the small chart, so dataDelta also includes initialization. No forced GC occurs between initialization and update. Resize and hover are timing-only. No cleanup memory snapshot or GC follows destruction.' : null,
 			prepared: 'Process snapshot after preparation, without GC. No forced GC occurs between preparation and construction.',
 			sampling: 'Serial process reads wait the requested interval after each response, plus phase endpoints. Reads run independently of renderer evaluation.',
 			clock: 'Process timestamps use Node performance.now() relative to capture start. processTimestampMs records response receipt, not allocation time.',
@@ -189,7 +199,7 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 		limitations: [
 			...(metadata.limitations ?? []),
 			operations
-				? 'Each operation has its own deadline including preparation, process reads, settling and fences. The first includes setup/baseline. Final GC/live/destroy/cleanup has a separate deadline. Warmups use the same budgets.'
+				? 'Each operation has its own deadline including preparation, settling and fences. Memory reads occur only through data-update. The first budget includes setup/baseline. Post-update GC/live and final destruction each have a separate deadline. Warmups use the same budgets.'
 				: 'Each sample has one deadline from setup through cleanup, including checkpoint GC, process reads, settling, and fences. Warmups use the same per-sample budget.',
 			'The sample timeout aborts local waits, not browser execution or external reads. The caller must terminate the browser on timeout and discard the page after capture failure.',
 			...(processRead ? [

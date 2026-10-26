@@ -140,9 +140,22 @@ describe('benchmark display colors', () => {
 			const text = formatBenchmarkDisplay({rows}, {colorDepth});
 			assert.deepEqual(coloredValues(text), coloredValues(formatBenchmarkDisplay({rows: totals(values)}, {colorDepth})).flatMap(pair => [pair, pair, pair, pair]));
 			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
-			const raf = [{variant: 'custom', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16, 'resize rAF ms': 20, 'hover 10 ms': 70}];
+			const raf = [{variant: 'custom', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16, 'resize rAF ms': 20, 'hover 10 ms': 470}];
 			assert.deepEqual(coloredValues(formatBenchmarkDisplay({rows: raf}, {colorDepth})), []);
 		}
+	});
+
+	it('shows cumulative paced hover latency without dividing by ten or subtracting spacing', () => {
+		const rows = [{variant: 'uplot', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16, 'resize rAF ms': 20, 'hover 10 ms': 470}];
+		const original = structuredClone(rows);
+		for (const colorDepth of [0, 8, 24]) {
+			const text = formatBenchmarkDisplay({rows}, {colorDepth});
+			const cells = stripVTControlCharacters(text).split('\n').filter(line => line.startsWith('│'))
+				.map(line => line.split('│').at(-2).trim());
+			assert.deepEqual(cells, ['hover 10 ms', '470.0']);
+			assert.deepEqual(coloredValues(text), []);
+		}
+		assert.deepEqual(rows, original);
 	});
 
 	it('preserves blank hover cells, measured zero, and failed supported cells', () => {

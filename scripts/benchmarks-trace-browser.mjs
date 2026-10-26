@@ -2,8 +2,8 @@
 // HTML loads the demo libraries, their dependencies, and styles before this module.
 // CDP waits for benchmarkTraceReady and starts tracing before benchmarkLifecycle.begin().
 // Shared sessions: two-point init -> full-data update -> retained resize -> optional hover.
-// Each operation has separate markers. Only the parent polls
-// process memory and optionally forces GC at baseline, live, and cleanup checkpoints.
+// Each operation has separate markers. The parent polls memory through data-update
+// and optionally forces GC at baseline and post-update live checkpoints.
 // runBenchmarkTrace({raf:true}) is a mutually exclusive, browser-driven path.
 const selectedVariant = new URL(location.href).searchParams.get('variant');
 const uPlot = selectedVariant === 'uplot-release' ? globalThis.uPlotRelease
@@ -677,12 +677,12 @@ function reportMetadata(raf = false) {
 		phase: 'chart-population',
 		initProtocol: 'settled-work-v1',
 		resizeProtocol: 'retained-resize-v1',
-		hoverProtocol: 'hover-ten-v2',
+		hoverProtocol: 'hover-ten-v3',
 		hover: {variants: hoverVariants, count: 10, intervalMs: 50,
 			input: 'Trusted CDP mouseMoved events at data-derived viewport coordinates, cycling series 0, 1, 2.',
-			cadence: 'Ten mouse moves with nine 50ms waits, each after the preceding input acknowledgment. No catch-up bursts or per-point frame barriers.',
+			cadence: 'One browser binding sends all ten coordinate targets. Node sends ten CDP dispatches with nine 50 ms waits, each after the preceding CDP acknowledgment. Node sends one browser Runtime.evaluate completion acknowledgment after the tenth dispatch acknowledgment. No catch-up, per-point renderer timer, renderer acknowledgment, or rAF occurs.',
 			validation: 'Value-display verification is a separate harness-development diagnostic, never a capture or preflight step. Results record dispatch count and interval, not selected-value evidence.',
-			preparation: 'Target geometry and layout reads occur before the window. Only target coordinates enter the measured driver. Input-bridge and timer overhead remain inside the window.',
+			preparation: 'Target geometry and layout reads occur before the window. Only target coordinates enter the measured driver. Batching reduces input-bridge overhead but does not eliminate it. Node scheduling is outside measured browser threads. No CPU profiling is added.',
 			unsupported: 'Adapters without hover support omit this phase and leave hover 10 ms blank.'},
 		lifecycle: {operations: OPERATIONS, initialRows: 2, updateRows: ROWS,
 			resizeSize: {width: RESIZE_WIDTH, height: RESIZE_HEIGHT},
@@ -762,7 +762,7 @@ function reportMetadata(raf = false) {
 		timing: {
 			unit: 'milliseconds',
 			dataPrepMs: 'performance.now() around prepData(smallPacked) or prepData(packed), before validation and settling. The table uses full-data preparation. Resize and hover data preparation is zero. Idle preparation measures a no-op.',
-			prepAndInitMs: 'dataPrepMs + jsMs per sample. This sum excludes chart validation and the final settling gap. Hover readiness includes input acknowledgments and nine 50ms waits, with no value verification. It is not end-to-end latency.',
+			prepAndInitMs: 'dataPrepMs + jsMs per sample. This sum excludes chart validation and the final settling gap. Hover readiness includes ten CDP acknowledgments, nine Node-side 50 ms waits, and one browser completion acknowledgment. It excludes value verification. It is not end-to-end latency.',
 			jsMs: 'Elapsed operation readiness: chart-specific host setup and two-point construction, full-data update, retained resize, or ten paced mouse moves, including async completion and microtask commit. Retained in JSON; not the trace init ms column.',
 			initMs: 'Trace/combined: total tracked thread work in the complete small-init window, including host setup, deferred rendering and graphics completion. Excludes idle gaps, preparation and teardown. Not hardware GPU time or presentation latency.',
 			hoverMs: 'hover 10 ms: mean cumulative tracked thread work for ten paced mouse moves and final settling/fences, without value verification or idle wait time, in trace/combined mode. rAF mode instead reports minimum sequence-to-first-post-readiness-frame latency.',
@@ -814,8 +814,12 @@ function reportMetadata(raf = false) {
 			'Demo renderings and configurations differ: axes, domains, colors, line widths, sampling, layout and defaults are preserved. This is not pixel-identical rendering or an isolated decimation algorithm comparison.',
 
 			'The pointer parks outside the chart before each session. The fixture enables pointer interaction for the hover phase. Tooltip/legend configuration and listener installation remain part of initialization.',
-			'Hover includes input-bridge and timer overhead, but no value verification. Nine 50ms waits separate acknowledged moves to avoid coalescing. Idle waits do not count as tracked thread work, but do count toward rAF wall latency. Displayed values are checked only in separate development diagnostics.',
-			'The parent can collect process memory in the shared sample lifecycle, with GC only at baseline, live after hover (or resize when unsupported), and cleanup checkpoints. No forced GC occurs between operations. The separate rAF path uses no forced GC.',
+			'Hover-ten-v3 batches all ten targets through one browser binding and uses one browser completion acknowledgment. Nine Node-side 50 ms waits follow CDP acknowledgments. Batching reduces input-bridge overhead but does not eliminate it. Node scheduling is outside measured browser threads. Idle waits count toward rAF wall latency, not tracked thread work. No CPU profiling is added. Value verification never runs during capture or preflight.',
+			'Legacy hover-ten-v1 used frame-paced, verified displays. Legacy hover-ten-v2 used per-point browser bindings, renderer timers, and completion acknowledgments. Saved reports remain readable, but summaries reject mixed hover protocols in every mode.',
+			'Memory-enabled lifecycle reports from the parent use memoryProtocol: through-update-v1. Process polling covers only preparation, small-init, and data-update. Memory collection ends at the forced-GC live snapshot after the settled data update and graphics completion checks, before resize or tooltip interaction.',
+			'Retained memory includes the live chart and full prepared input at the original 1920x600 size. Peak memory includes baseline, initialization, preparation, update, and the post-update live checkpoint. It excludes resize, hover preparation, hover execution, and teardown.',
+			'Within each memory-enabled session, forced GC occurs only at baseline and after the settled data update. No forced GC separates initialization and update. No process polling, memory observations, or cleanup GC occur after live. Normal chart destruction still runs. Trace-only and rAF modes request no memory GC.',
+			'Post-update forced GC precedes resize outside timing windows, but can affect later combined timings. All timing phases retain their full settling intervals and graphics completion checks. Legacy memory reports remain readable under their original boundaries. Summaries reject mixed memory boundaries.',
 			'JIT, automatic GC, scheduling, tracing overhead and machine load can affect prep, creation and downstream work.',
 			...(raf ? [
 				'rAF mode starts construction inside an animation frame. This differs from the default timer-aligned trace protocol.',

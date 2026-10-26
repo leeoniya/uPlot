@@ -1,3 +1,5 @@
+import {hoverTargets, nearHoverIndex, visibleText} from './hover.mjs';
+
 // https://cdn3.devexpress.com/jslib/26.1.6/js/dx.viz.js is the minified production bundle.
 // https://js.devexpress.com/jQuery/Documentation/ApiReference/UI_Components/dxChart/
 // Evaluation warnings remain intact. Licensed runs must configure a valid v26.1 runtime key.
@@ -33,6 +35,8 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {sampled =
 			title: 'Server Events',
 			dataSource: data,
 			animation: {enabled: false},
+			// Shared argument hover avoids choosing the wrong overlapping line.
+			...(sampled ? {} : {tooltip: {enabled: true, shared: true}}),
 			dataPrepareSettings: {sortingMethod: false},
 			commonSeriesSettings: {
 				type: 'line', argumentField: 'time',
@@ -126,4 +130,47 @@ function destroyChart(chart) {
 	chart.dispose();
 }
 
-export {prepData, makeChart, makeEmptyChart, updateChart, resizeChart, destroyChart, makeChartWithOptions};
+function getHoverPlan(chart, input, host) {
+	if (chart.option('commonSeriesSettings.aggregation.enabled'))
+		throw new Error('DevExtreme hover requires unsampled points.');
+	const rect = host.getBoundingClientRect();
+	const size = chart.option('size');
+	const sx = rect.width / size.width, sy = rect.height / size.height;
+	const pointAt = (index, s) => chart.getSeriesByPos(s).getPointByPos(index);
+	const span = Math.abs(pointAt(input.length - 1, 0).getCoords().x - pointAt(0, 0).getCoords().x) * sx;
+	const tolerance = Math.ceil(input.length / span) + 1;
+	return {
+		targets: hoverTargets(input.length, (index, s) => {
+			const {x, y} = pointAt(index, s).getCoords();
+			return {x: rect.left + x * sx, y: rect.top + y * sy};
+		}),
+		verify(target) {
+			// 26.1.6 keeps the tooltipShown target and its formatted model here.
+			// Read only during diagnostics; no event subscription or hover setter.
+			const tooltip = chart._tooltip;
+			const selected = chart._tracker?.pointAtShownTooltip;
+			const index = selected?.index, seriesIndex = target.seriesIndex;
+			if (!nearHoverIndex(index, target, tolerance) || index >= input.length ||
+				tooltip?._eventData?.target !== selected || tooltip?._state?.eventData?.target !== selected) return null;
+			const row = input[index], keys = ['cpu', 'ram', 'tcp'];
+			const model = tooltip._state.formatObject, entries = model?.points;
+			const textElement = tooltip._text?.element;
+			const lines = [...(textElement?.querySelectorAll('tspan') ?? [])].map(visibleText);
+			if (model?.point !== selected || model.value !== selected.value || +model.argument !== +selected.argument ||
+				model.seriesName !== selected.series.name || !entries || entries.length !== 3 || lines.length !== 3 ||
+				!entries.some(entry => entry.point === selected) ||
+				!entries.every((entry, s) => {
+					const point = pointAt(index, s), value = row[keys[s]];
+					return entry.point === point && point.series === chart.getSeriesByPos(s) &&
+						point.value === value && +point.argument === +row.time && entry.value === value &&
+						+entry.argument === +row.time && entry.seriesName === point.series.name &&
+						lines[s] === `${entry.seriesName}: ${entry.valueText}`;
+				}) || lines.join('\n') !== model.valueText ||
+				Math.abs(pointAt(index, seriesIndex).getCoords().x - pointAt(target.index, seriesIndex).getCoords().x) * sx > 1) return null;
+			const text = visibleText(textElement);
+			return text && text === lines.join('') ? {index, seriesIndex, value: row[keys[seriesIndex]], text} : null;
+		},
+	};
+}
+
+export {prepData, makeChart, makeEmptyChart, updateChart, resizeChart, destroyChart, makeChartWithOptions, getHoverPlan};

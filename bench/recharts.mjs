@@ -1,6 +1,21 @@
+import {hoverTargets, nearHoverIndex, visibleText} from './hover.mjs';
 import {prepRows, requireFramework, destroyReact, waitForLines, calendarLabel, title} from './framework-runtime.mjs';
 
 import {mountEmptyReact, mountLifecycleReact, updateReact as updateChart, resizeReact as resizeChart} from './lifecycle-frameworks.mjs';
+
+const hoverScales = new WeakMap();
+
+function HoverScales({React, C, chart, data, width, height}) {
+	const x = C.useXAxisScale();
+	const percent = C.useYAxisScale('percent');
+	const mb = C.useYAxisScale('mb');
+	const plot = C.usePlotArea();
+	React.useLayoutEffect(() => {
+		hoverScales.set(chart, {x, percent, mb, plot, data, width, height});
+		return () => { hoverScales.delete(chart); };
+	}, [chart, x, percent, mb, plot, data, width, height]);
+	return null;
+}
 
 function buildChart(data, React, chart, {width, height}) {
 	const C = requireFramework('benchmarkRecharts');
@@ -17,6 +32,7 @@ function buildChart(data, React, chart, {width, height}) {
 				h(C.YAxis, {yAxisId: 'mb', orientation: 'right', domain: ['auto', 'auto'], tickFormatter: value => `${value} MB`, width: 75}),
 				h(C.Legend, {verticalAlign: 'top', height: 30}),
 				h(C.Tooltip, {labelFormatter: calendarLabel, isAnimationActive: false}),
+				C.useXAxisScale && C.useYAxisScale && C.usePlotArea && h(HoverScales, {React, C, chart, data, width, height: height - 40}),
 				...['cpu', 'ram', 'tcp'].map((key, i) => h(C.Line, {
 					key, dataKey: key, name: ['CPU', 'RAM', 'TCP Out'][i], yAxisId: i === 2 ? 'mb' : 'percent',
 					type: 'linear', stroke: ['red', 'blue', 'green'][i], strokeWidth: 1,
@@ -39,4 +55,45 @@ function makeEmptyChart(host, wait) {
 	return mountEmptyReact(host, buildChart, ready, wait);
 }
 
-export {prepRows as prepData, makeChart, destroyReact as destroyChart, makeEmptyChart, updateChart, resizeChart};
+function getHoverPlan(chart, input, host) {
+	const scales = hoverScales.get(chart);
+	const wrapper = host.querySelector('.recharts-wrapper');
+	if (!wrapper || scales?.data !== input || !scales.x || !scales.percent || !scales.mb || !scales.plot)
+		throw new Error('Recharts native hover scales are not ready.');
+	const rect = wrapper.getBoundingClientRect();
+	const sx = rect.width / scales.width, sy = rect.height / scales.height;
+	const tolerance = Math.ceil(input.length / (scales.plot.width * sx)) + 1;
+	const keys = ['cpu', 'ram', 'tcp'], names = ['CPU', 'RAM', 'TCP Out'];
+	return {
+		targets: hoverTargets(input.length, (index, s) => ({
+			x: rect.left + scales.x(input[index].time) * sx,
+			y: rect.top + (s === 2 ? scales.mb : scales.percent)(input[index][keys[s]]) * sy,
+		})),
+		verify(target) {
+			if (hoverScales.get(chart) !== scales) return null;
+			const tooltip = wrapper.querySelector('.recharts-tooltip-wrapper');
+			if (!visibleText(tooltip)) return null;
+			// React 19's current DOM props contain Recharts 3.10.1's native
+			// DefaultTooltipContent element. Inspect only during diagnostics;
+			// subscribing to tooltip hooks would add per-hover React renders.
+			const propsKey = Object.keys(tooltip).find(key => key.startsWith('__reactProps$'));
+			const model = tooltip[propsKey]?.children?.props;
+			const index = typeof model?.activeIndex === 'string' && /^\d+$/.test(model.activeIndex) ? Number(model.activeIndex) : model?.activeIndex;
+			const seriesIndex = target.seriesIndex, key = keys[seriesIndex], name = names[seriesIndex];
+			if (model?.active !== true || !nearHoverIndex(index, target, tolerance) || index >= input.length) return null;
+			const row = input[index], value = row[key];
+			const point = model.payload?.find(point => point.dataKey === key && point.name === name);
+			if (point?.payload !== row || point.value !== value || model.label !== row.time ||
+				Math.abs(scales.x(row.time) - scales.x(input[target.index].time)) * sx > 1) return null;
+			for (const item of tooltip.querySelectorAll('.recharts-tooltip-item')) {
+				if (visibleText(item.querySelector('.recharts-tooltip-item-name')) !== name ||
+					visibleText(item.querySelector('.recharts-tooltip-item-value')) !== String(value)) continue;
+				const text = visibleText(item);
+				if (text) return {index, seriesIndex, value, text};
+			}
+			return null;
+		},
+	};
+}
+
+export {prepRows as prepData, makeChart, destroyReact as destroyChart, makeEmptyChart, updateChart, resizeChart, getHoverPlan};

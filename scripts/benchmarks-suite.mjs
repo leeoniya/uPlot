@@ -6,7 +6,7 @@ import { summarizeBenchmarkTraceSamples, TRACE_AGGREGATION } from './analyze-ben
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { summarizeAdjustedProcessMemory } from './analyze-benchmarks-process-memory.mjs';
+import { summarizeAdjustedProcessMemory, assertCompatibleMemoryReports } from './analyze-benchmarks-process-memory.mjs';
 import { createBenchmarkDisplay, formatBenchmarkDisplay, benchmarkDisplayColorDepth } from './benchmarks-display.mjs';
 import { demoDependencies, benchmarkVariants, benchmarkMetadata, benchmarkLibraryName, demoRestrictions, benchmarkRestrictions, assertBenchmarkAvailable } from '../bench/demo-dependencies.mjs';
 
@@ -62,6 +62,7 @@ function metadataFor(variant, snapshot, samples = []) {
 }
 
 function assertCompatibleReports(reports, {trace}) {
+	assertCompatibleMemoryReports(reports);
 	for (const raw of reports) {
 		benchmarkOperations(raw);
 		if (raw.hoverProtocol)
@@ -151,9 +152,9 @@ function benchmarkView(report) {
 		...(trace || raf ? ['prep ms', initLabel, ...(lifecycle && !population ? ['first ms'] : []), ...(raf && lifecycle ? ['update ms'] : [])] : []),
 		...(trace ? ['main ms', 'gpu ms', workLabel] : []),
 		...(raf ? ['next rAF ms'] : []),
+		...(memory ? ['peak MB', 'retained MB'] : []),
 		...(resize && (trace || raf) ? [resizeLabel] : []),
 		...(hover && (trace || raf) ? ['hover 10 ms'] : []),
-		...(memory ? ['peak MB', 'retained MB'] : []),
 	];
 	for (const {variant} of [...(report.timeouts ?? []), ...(report.failures ?? [])]) {
 		if (variant !== 'idle')
@@ -337,11 +338,11 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 			idleFirst: true, sameRunControlsOnly: true, coolingBetweenVariantsMs: 0,
 			tracing: measurements.trace, gpuSpecificMemory: false, sampleTimeoutMs: SAMPLE_TIMEOUT_MS,
 			blankAndLoaded: 'One cold checkpoint each per browser, not a round aggregate.',
-			lifecycle: 'Three warmup sessions and seven measured sessions. Each session initializes a two-point chart, updates it with the full dataset, then resizes the retained chart to 1200x400. Reports use chart-population, settled-work-v1 initialization, retained-resize-v1 resize, and hover-ten-v2. lifecycle.resizeSize records width and height. Supported variants, including idle, then perform hover-10. Unsupported variants have only three phases.',
-			hover: 'hover.variants records supported variants, including idle. hover.count is 10 and hover.intervalMs is 50 for hover-ten-v2. One hover-10 window covers 10 mousemoves and the final settle/fence. Nine 50 ms waits follow input acknowledgments before the next move, without catch-up. No per-point rAF, value verification, or harness DOM/canvas reads occur in this window. Input-bridge and timer overhead remain. Idle spacing is not thread work, but rAF wall latency includes at least 450 ms of spacing. Target preparation and bounds validation occur outside the window. Diagnostic verification runs only during harness development, never automatically or as prewarming. Legacy hover-ten-v1 used frame-paced, verified displays. The result is cumulative, not a per-point average. Unsupported variants have no hover marker or sample and show a blank cell.',
+			lifecycle: 'Three warmup sessions and seven measured sessions. Each session initializes a two-point chart, updates it with the full dataset, then resizes the retained chart to 1200x400. New reports use chart-population, settled-work-v1 initialization, retained-resize-v1 resize, and hover-ten-v3. lifecycle.resizeSize records width and height. Supported variants, including idle, then perform hover-10. Unsupported variants have only three phases.',
+			hover: 'hover.variants records supported variants, including idle. hover.count is 10 and hover.intervalMs is 50 for hover-ten-v2 and hover-ten-v3. One hover-10 window covers 10 mousemoves and the final settle/fence. Current hover-ten-v3 sends all ten coordinate targets through one browser binding. Node sends ten CDP dispatches with nine 50 ms waits, each after the preceding CDP acknowledgment. Node sends one browser Runtime.evaluate completion acknowledgment after the tenth dispatch acknowledgment. No catch-up, per-point renderer timer, renderer acknowledgment, or rAF occurs. No value verification or harness DOM/canvas reads occur in this window. Batching reduces input-bridge overhead but does not eliminate it. Node scheduling is outside measured browser threads. No CPU profiling is added. Idle spacing is not thread work, but rAF wall latency includes at least 450 ms of spacing. Target preparation and bounds validation occur outside the window. Diagnostic verification never runs during capture or preflight. Legacy hover-ten-v1 used frame-paced, verified displays. Legacy hover-ten-v2 used per-point browser bindings, renderer timers, and completion acknowledgments. Reports retain count and interval without verification evidence. The result is cumulative, not a per-point average. Unsupported variants have no hover marker or sample and show a blank cell.',
 			timingColumns: 'Trace init ms, update ms, resize ms, and hover 10 ms use total tracked thread work from each complete operation window. Each window includes settling and completion checks. Init includes chart-specific host setup. Main/gpu and prep describe data-update only. rAF-only init rAF ms and resize rAF ms use each operation\'s raf1Ms, not thread work. rAF-only update ms shows update readiness. Next rAF shows update callback latency. Primary groups and library ordering still describe data-update. phaseGroups contains all recorded operations. Untraced rAF hover 10 ms uses the minimum hover raf1Ms, not the full-work equivalent.',
-			memoryColumns: 'Peak covers the whole session, including optional hover. Retained follows resize, optional hover, and forced GC, with the chart and full prepared input alive. For supported variants, retained memory includes the tooltip. No forced GC occurs between chart operations. Saved summaries cannot mix resize or hover protocols, including memory-only reports.',
-			timeoutScope: 'Five seconds per operation, including preparation and settling. Setup/baseline belongs to the first operation. Final checkpoints and destruction have a separate five-second budget.',
+			memoryColumns: 'Lifecycle process-memory reports use memoryProtocol through-update-v1. After baseline GC, peak covers small-init, full-data preparation, and data-update through the live checkpoint. Forced GC and the live checkpoint follow settled data-update immediately, before resize preparation, with the chart and full prepared input alive. No process reads or forced GC occur after this checkpoint. Resize and hover are timing-only. No cleanup snapshot occurs, but chart destruction still runs. Saved summaries cannot mix memory protocols, including idle controls. Legacy reports without memoryProtocol retain whole-session memory accounting.',
+			timeoutScope: 'Five seconds per operation, including preparation and settling. Setup/baseline belongs to the first operation. Post-update GC/live and final destruction each have a separate five-second budget.',
 			aggregation: 'Trace timing columns use arithmetic means after warmups. Total work averages deduplicated per-sample totals, including observed GC. rAF timings and memory columns retain minima.',
 			warmSamples: 'Warmups are excluded. Each browser reuses its selected library between samples; allocator reuse affects process deltas.',
 		},

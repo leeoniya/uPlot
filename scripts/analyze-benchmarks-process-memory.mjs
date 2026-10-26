@@ -23,8 +23,31 @@ const byScope = fn => Object.fromEntries(SCOPES.map(scope => [scope,
 	Object.fromEntries(METRICS.map(metric => [metric, fn(scope, metric)])),
 ]));
 
-function deriveSample(sample) {
-	const observations = sample.observations ?? [];
+export function memoryProtocol(report) {
+	const protocol = report?.memoryProtocol;
+	if (protocol !== undefined && protocol !== 'through-update-v1')
+		throw new Error(`Unknown memoryProtocol: ${JSON.stringify(protocol)}`);
+	return protocol ?? 'legacy';
+}
+
+export function assertCompatibleMemoryReports(reports) {
+	if (new Set(reports.map(memoryProtocol)).size > 1)
+		throw new Error('Cannot combine different memory protocols. Rerun all selected variants, including idle controls.');
+}
+
+function deriveSample(sample, throughUpdate) {
+	let observations = sample.observations ?? [];
+	if (throughUpdate) {
+		const live = observations.flatMap((observation, i) => observation?.phase === 'live' ? [i] : []);
+		if (live.length !== 1)
+			throw new Error('through-update-v1 requires exactly one live checkpoint.');
+		if (observations.some((observation, i) =>
+			(['baseline', 'prepared'].includes(observation?.phase) && i >= live[0]) ||
+			(i <= live[0] && (observation?.phase === 'cleanup' || ['resize', 'hover-10'].includes(observation?.operation)))))
+			throw new Error('Invalid through-update-v1 checkpoint order: live must follow data-update and precede resize and hover.');
+		observations = observations.slice(0, live[0] + 1);
+	}
+	const expectedCheckpoints = throughUpdate ? CHECKPOINTS.slice(0, -1) : CHECKPOINTS;
 	const valid = observations.map(observation => PHASES.has(observation?.phase) && validMemory(observation));
 	const checkpointIndices = Object.fromEntries(CHECKPOINTS.map(phase => [phase,
 		observations.flatMap((observation, i) => observation?.phase === phase ? [i] : []),
@@ -41,7 +64,7 @@ function deriveSample(sample) {
 		validObservationCount,
 		invalidObservationCount: observations.length - validObservationCount,
 		pollCount: observations.filter(observation => observation?.kind === 'poll').length,
-		missingCheckpointCount: CHECKPOINTS.filter(phase => checkpointIndices[phase].length === 0).length,
+		missingCheckpointCount: expectedCheckpoints.filter(phase => checkpointIndices[phase].length === 0).length,
 		ambiguousCheckpointCount: CHECKPOINTS.filter(phase => checkpointIndices[phase].length > 1).length,
 		requestedGaps,
 		scopes: byScope((scope, metric) => {
@@ -88,6 +111,8 @@ function summarizeFixture(report) {
 export function summarizeAdjustedProcessMemory(reports) {
 	if (!Array.isArray(reports))
 		throw new TypeError('reports must be an array');
+	assertCompatibleMemoryReports(reports);
+	const throughUpdate = reports.length > 0 && memoryProtocol(reports[0]) === 'through-update-v1';
 	const browsers = new Map();
 	for (const report of reports) {
 		if (!Array.isArray(report?.samples))
@@ -119,7 +144,7 @@ export function summarizeAdjustedProcessMemory(reports) {
 			const observations = sample.processObservations !== undefined ? sample.processObservations : sample.observations;
 			if (observations !== undefined && !Array.isArray(observations))
 				throw new TypeError('sample processObservations or observations must be an array when present');
-			browser.samples.push(deriveSample({observations}));
+			browser.samples.push(deriveSample({observations}, throughUpdate));
 		}
 	}
 
@@ -160,12 +185,12 @@ export function summarizeAdjustedProcessMemory(reports) {
 			units: 'All memory values use decimal MB (1,000,000 bytes). No unit conversion occurs.',
 			formula: 'Each adjusted sample equals (raw live or peak minus its browser blank) minus min(idle measured live minus idle browser blank). Controls match DPR, scope, and metric. Idle peak, warm baseline, and loaded baseline never enter the subtraction.',
 			aggregation: 'Statistics derive from raw observations, not cached summaries. Each measured sample contributes one adjusted value before aggregation. Warmups contribute no values. Statistics contain min, max, count, and missing. The minimum represents the best measured case. Negative values remain negative.',
-			validity: 'Valid observations require complete === true and finite nonnegative values for every metric in both scopes. Sample observations also require a recognized lifecycle phase. Live requires exactly one valid live checkpoint. Invalid or duplicate live checkpoints yield null. Missing inputs yield null, not zero. Absent controls or controls without valid liveAboveBlank values make all adjusted values null. No cached control fallback exists.',
+			validity: (throughUpdate ? 'A missing or duplicate live boundary, or a misplaced checkpoint, causes an error. ' : '') + 'Valid observations require complete === true and finite nonnegative values for every metric in both scopes. Sample observations also require a recognized lifecycle phase. Live requires exactly one valid live checkpoint. Invalid memory reads yield null. Legacy duplicate live checkpoints yield null. Missing inputs yield null, not zero. Absent controls or controls without valid liveAboveBlank values make all adjusted values null. No cached control fallback exists.',
 			inputs: 'Each nonempty browser report contains one variant and DPR, including warmups. Duplicate variant/DPR reports and duplicate measured rounds cause errors. Empty reports contribute nothing. processObservations takes precedence over observations when present. The input remains unchanged.',
 			baselines: 'Each group metric exposes scalar blank and idleLiveAboveBlank offsets, or null. Blank comes from that library browser. idleLiveAboveBlank is the minimum measured live-minus-blank value from the matched control.',
 			controls: 'Controls contain idle reports only. Each metric exposes blank statistics for one checkpoint and liveAboveBlank statistics for measured samples. validBlankCount is zero or one. validLiveCount counts valid, unambiguous measured live checkpoints, regardless of blank validity. liveAboveBlank.count counts valid paired differences. sampleCount and warmupCount count measured samples and warmups separately.',
 			variability: 'Adjusted statistics describe conditional variability with the observed blank and idle minimum held fixed. They do not include idle or blank uncertainty.',
-			peak: 'Each metric peak is its maximum across valid prepare/construct observations and baseline, prepared, live, and cleanup checkpoints. Duplicate checkpoints remain eligible. These sampled peaks are lower bounds for a GC-intervened pass, not exact peaks for normal runs. Invalid reads can hide peaks. Metrics can peak at different observations. The best-case peak is the minimum of these per-sample maxima, not the minimum observation.',
+			peak: throughUpdate ? 'Each metric peak is its maximum across valid observations through the unique live checkpoint after settled data-update. Later observations never contribute. Resize and hover are timing-only. These sampled peaks are lower bounds for a GC-intervened pass, not exact peaks for normal runs. Invalid reads can hide peaks. The best-case peak is the minimum of per-sample maxima.' : 'Each metric peak is its maximum across valid prepare/construct observations and baseline, prepared, live, and cleanup checkpoints. Duplicate checkpoints remain eligible. These sampled peaks are lower bounds for a GC-intervened pass, not exact peaks for normal runs. Invalid reads can hide peaks. Metrics can peak at different observations. The best-case peak is the minimum of these per-sample maxima, not the minimum observation.',
 			ownership: 'Adjusted process memory is not isolated library ownership. Allocator reuse, process churn, and shared mappings affect differences. Forced GC does not guarantee native memory release.',
 			scopes: 'Renderer sums renderer processes. Tree includes the browser root and discovered descendants. These scopes overlap and are not additive. Metrics are not added together.',
 			jsMemory: 'JavaScript heap and backing-store memory overlap process memory. No scope or JS sums occur in this summary.',
@@ -182,6 +207,7 @@ export function summarizeAdjustedProcessMemory(reports) {
 export function summarizeProcessMemory(report) {
 	if (!Array.isArray(report?.samples))
 		throw new TypeError('report.samples must be an array');
+	const throughUpdate = memoryProtocol(report) === 'through-update-v1';
 	const groups = new Map();
 	for (const sample of report.samples) {
 		if (!sample || typeof sample.variant !== 'string' || !sample.variant ||
@@ -199,7 +225,7 @@ export function summarizeProcessMemory(report) {
 				throw new Error(`Duplicate measured round ${sample.round} for variant ${sample.variant} at DPR ${sample.dpr}`);
 			if (sample.observations !== undefined && !Array.isArray(sample.observations))
 				throw new TypeError('sample.observations must be an array when present');
-			group.rounds.set(sample.round, deriveSample(sample));
+			group.rounds.set(sample.round, deriveSample(sample, throughUpdate));
 		}
 	}
 	return {
@@ -223,12 +249,12 @@ export function summarizeProcessMemory(report) {
 			units: 'All memory values use decimal MB (1,000,000 bytes), as returned by readProcessMemory. This summary does not convert units.',
 			validity: 'A valid observation requires complete === true and finite nonnegative values for all five metrics in both scopes. Any invalid metric invalidates the entire observation. Sample observations also require a recognized lifecycle phase. Timing fields do not determine memory validity.',
 			aggregation: 'Groups separate variant and DPR. Statistics exclude warmups and report min, max, count, and missing. The minimum represents the best measured case. Each sample contributes one value per statistic. Deltas use paired checkpoints within each sample, before aggregation. Duplicate measured rounds cause an error within a group.',
-			checkpoints: 'Each checkpoint requires exactly one observation with that phase. A missing, invalid, or duplicate checkpoint yields null, not zero. A delta is null if either input is null.',
+			checkpoints: (throughUpdate ? 'A missing or duplicate live boundary, or a misplaced checkpoint, causes an error. Cleanup is not expected. ' : '') + 'Each checkpoint requires exactly one observation with that phase. A missing, invalid, or duplicate checkpoint yields null, not zero. A delta is null if either input is null.',
 			baseline: 'Absolute process memory after the baseline GC checkpoint, before preparation. Reused processes can retain warm allocator baselines from earlier samples. A baseline is not a fresh-browser measurement.',
 			prepared: 'Absolute process memory after full-data preparation and settling, without forced GC. Multi-operation sessions record this after initialization, before the first full-data update. The snapshot includes the initial chart and can include temporary allocations.',
-			live: 'Absolute process memory at the live GC checkpoint, with the chart present. In multi-operation sessions this follows the final data update.',
-			cleanup: 'Absolute process memory at the cleanup GC checkpoint, after chart destruction.',
-			peak: 'Each metric uses its maximum across complete, valid prepare/construct observations and all four checkpoint phases, including endpoints. This sampled peak is a lower bound for the GC-intervened pass, not an exact peak for a normal run. Invalid reads can hide peaks. Separate metrics can reach their peaks at different observations. Duplicate checkpoint observations remain eligible for the peak. The best-case peak is the minimum of these per-sample maxima, not the minimum observation.',
+			live: throughUpdate ? 'Absolute process memory after forced GC immediately after settled data-update, before resize preparation, with the chart and full prepared input alive.' : 'Absolute process memory at the live GC checkpoint, with the chart present. In multi-operation sessions this follows the final data update.',
+			cleanup: throughUpdate ? 'No cleanup snapshot or cleanup GC occurs. Chart destruction still runs. Cleanup fields are null, and the omitted checkpoint is not missing.' : 'Absolute process memory at the cleanup GC checkpoint, after chart destruction.',
+			peak: throughUpdate ? 'Each metric uses its maximum across valid observations through the unique live checkpoint after settled data-update. Later observations never contribute. Resize and hover are timing-only. This sampled peak is a lower bound for the GC-intervened pass. The best-case peak is the minimum of per-sample maxima.' : 'Each metric uses its maximum across complete, valid prepare/construct observations and all four checkpoint phases, including endpoints. This sampled peak is a lower bound for the GC-intervened pass, not an exact peak for a normal run. Invalid reads can hide peaks. Separate metrics can reach their peaks at different observations. Duplicate checkpoint observations remain eligible for the peak. The best-case peak is the minimum of these per-sample maxima, not the minimum observation.',
 			peakDelta: 'Per-sample peak minus baseline.',
 			dataDelta: 'Per-sample prepared snapshot minus post-GC baseline. In multi-operation sessions this also includes chart initialization. Temporary allocations can contribute. Not retained data ownership.',
 			chartDelta: 'Per-sample post-GC live memory minus the prepared snapshot without forced GC. This is not an isolated chart allocation or retention cost.',
@@ -245,9 +271,9 @@ export function summarizeProcessMemory(report) {
 			exclusions: 'These process metrics do not measure GPU device memory or total GPU allocations. Host mappings in GPU helper processes can contribute to tree values. The report has no GPU-specific metrics and does not claim total system memory.',
 			jsMemory: 'JavaScript memory overlaps process memory. Adding JS heap or backing-store numbers to process numbers causes double counting.',
 			fixture: 'fixture.scopes contains scalar blank, loaded, and loadedDelta values from optional checkpoints in one fresh browser. loadedDelta is loaded minus blank. It measures blank-to-loaded fixture overhead, including libraries and raw data, not pure library ownership. Missing or invalid inputs yield null. Fixture values never enter variant statistics, peaks, or baseline subtraction.',
-			observationCount: 'Group observation counts include measured samples only. invalidObservationCount counts incomplete results, malformed metrics, missing processMemory, and unknown phases. pollCount counts observations with kind poll, including invalid reads. Fixture counts are separate. Omitted blank or loaded observations do not count as invalid.',
-			checkpointCounts: 'missingCheckpointCount counts absent checkpoint phases. ambiguousCheckpointCount counts checkpoint phases with multiple observations. Both counts sum across measured samples. An ambiguous checkpoint can contain valid individual observations.',
-			requestedGapMs: 'Statistics cover request-time gaps between all consecutive observations within each measured sample, in input order. They include GC checkpoints, phase transitions, and invalid memory reads, not only periodic polls. They use processRequestedAtMs, not processTimestampMs or JS timestamps. Missing, negative, non-finite, or decreasing request times yield missing gaps. No gap crosses a sample boundary or skips an observation.',
+			observationCount: (throughUpdate ? 'Only observations through the unique live checkpoint contribute. ' : '') + 'Group observation counts include measured samples only. invalidObservationCount counts incomplete results, malformed metrics, missing processMemory, and unknown phases. pollCount counts observations with kind poll, including invalid reads. Fixture counts are separate. Omitted blank or loaded observations do not count as invalid.',
+			checkpointCounts: (throughUpdate ? 'Cleanup is intentionally omitted and does not count as missing. ' : '') + 'missingCheckpointCount counts absent checkpoint phases. ambiguousCheckpointCount counts checkpoint phases with multiple observations. Both counts sum across measured samples. An ambiguous checkpoint can contain valid individual observations.',
+			requestedGapMs: (throughUpdate ? 'Only observations through the unique live checkpoint contribute. ' : '') + 'Statistics cover request-time gaps between all consecutive observations within each measured sample, in input order. They include GC checkpoints, phase transitions, and invalid memory reads, not only periodic polls. They use processRequestedAtMs, not processTimestampMs or JS timestamps. Missing, negative, non-finite, or decreasing request times yield missing gaps. No gap crosses a sample boundary or skips an observation.',
 			maxRequestedGapMs: 'Statistics cover the largest valid request-time gap per measured sample. A sample without a valid adjacent pair contributes a missing value. These gaps describe observed request cadence, not an exact configured polling interval.',
 		},
 	};

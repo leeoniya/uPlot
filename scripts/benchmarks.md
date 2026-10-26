@@ -733,6 +733,7 @@ Both variants completed three warmups and seven measured rounds. All ten ChartGP
 | ChartGPU | 5.2 | 116.7 | 41.8 | 82.3 | 130.4 | 41.8 | 37.3 |
 
 This historical table uses separate measured minima, not the current arithmetic means.
+Its memory values predate `through-update-v1` and retain their original measurement boundary. The numbers remain unchanged.
 `total ms` covers selected traced host threads, not complete CPU work or hardware GPU execution.
 The trace audit found omitted renderer/GPU I/O work of 0.61–4.38 ms per measured round.
 Its inclusion would change the minimum tracked total to 134.8 ms. The current metrics remain unchanged.
@@ -766,25 +767,29 @@ The `prep ms` column measures full-data conversion. Small-data preparation remai
 Adapter copies that protect caller data from library mutation remain unchanged.
 
 A session retains the chart, framework root, and available graphics resources across operations.
-There is no forced GC between these operations.
+Memory-enabled sessions force GC after the settled data update, before resize. No forced GC occurs between initialization and data update.
 The update includes buffer growth, geometry allocation, and work that the library defers until it receives substantial data.
 This protocol measures small-to-full population, not steady-state full-to-full replacement or direct populated startup.
 
 Each session contains three independent marker windows, or four with hover. Reports retain `phase: 'chart-population'` and `resizeProtocol: 'retained-resize-v1'`.
 The `lifecycle.resizeSize` field records `{width: 1200, height: 400}`.
-New reports identify `hoverProtocol: 'hover-ten-v2'` and store the supported variants in `hover.variants`.
-The hover metadata requires `count: 10` and `intervalMs: 50`.
-The report stores each window in `samples[].phases`. The outer sample still describes the full-data update and holds session-wide memory observations.
+New reports identify `hoverProtocol: 'hover-ten-v3'` and store the supported variants in `hover.variants`.
+Both v2 and v3 require `count: 10` and numeric `intervalMs: 50`.
+The report stores each window in `samples[].phases`. The outer sample describes the full-data update and holds memory observations through the post-update `live` checkpoint.
+New memory-enabled lifecycle reports identify `memoryProtocol: 'through-update-v1'`.
 Timing analyzers expose all operation summaries in `phaseGroups`. Their ordinary `groups` contain update results only.
 
 The HTML demos still construct directly with the full dataset.
-Historical results in this document describe their original protocols, not small-to-full population.
+Historical results in this document describe their original protocols, not small-to-full population or `through-update-v1`.
+Their numbers and table layouts remain unchanged. They do not establish measurements under the current memory boundary.
 Reports with `initProtocol: 'settled-work-v1'` include chart-specific DOM setup and report full-window initialization work in trace modes.
 Saved summaries preserve readiness-based initialization for older reports. A summary rejects mixed initialization boundaries and mixed population, legacy lifecycle, or startup protocols.
 Legacy two-operation reports remain readable without a resize column. All modes reject comparisons between reports with and without the resize protocol.
 Saved summaries also reject mixed hover protocols, capability lists, or interval snapshots, including memory-only reports.
-Legacy `hover-ten-v1` reports remain readable and use the same `hover 10 ms` column independently of v2.
-A summary cannot combine v1 and v2. Reports without hover remain readable without the hover column.
+Legacy `hover-ten-v1` and `hover-ten-v2` reports remain readable and use the same `hover 10 ms` column independently of v3.
+A summary cannot combine different hover protocols, including v2 with v3. This rule also applies to memory-only reports.
+Reports without hover remain readable without the hover column.
+Legacy memory reports remain readable under their original boundaries. Summaries reject mixed memory boundaries, including legacy reports combined with `through-update-v1`.
 
 ### Resize adapter contract
 
@@ -819,32 +824,43 @@ The pointer starts outside the chart. Chrome receives trusted `Input.dispatchMou
 The benchmark never calls a tooltip API or dispatches synthetic DOM events to bypass normal hit testing.
 
 The ten targets span the time range and cycle through series indices `0, 1, 2`.
-Production calls `runHover(targets, {move, wait})` and sends ten real CDP mouse moves.
-After each of the first nine input acknowledgments, the harness waits 50 ms before the next move.
+In `hover-ten-v3`, one browser binding sends all ten coordinate targets to Node.
+Node sends ten `Input.dispatchMouseEvent` calls in order.
+After each of the first nine CDP acknowledgments, Node waits 50 ms before the next dispatch.
 These nine waits give at least 50 ms between moves. There is no catch-up schedule or wait after the tenth acknowledgment.
-The helper returns `{count: 10, intervalMs: 50}`.
-No per-point rAF, value verification, or harness DOM/canvas reads occur in this measured sequence.
+
+After the tenth CDP acknowledgment, Node sends one browser `Runtime.evaluate` completion acknowledgment.
+The measured sequence has no per-point renderer timer, renderer acknowledgment, or rAF.
+
+Hover phases still record `hover: {count: 10, intervalMs: 50}` without verification evidence.
+No value verification or harness DOM/canvas reads occur in this measured sequence.
 
 The entire sequence uses one marker window.
-After the tenth acknowledgment, the window includes the usual two rAF callbacks, 200 ms wait, and graphics completion checks.
+After the batch completion acknowledgment, the window includes the unchanged two rAF callbacks, 200 ms wait, and graphics completion checks.
 Trace totals include observed layout, paint, raster, compositor, GPU-process, and GC work within this window.
-Input-bridge and timer overhead remain in the measurement. Idle spacing does not count as thread work.
-rAF wall latency includes at least 450 ms of spacing, but excludes the final settling interval and graphics fences.
+
+Batching reduces input-bridge overhead but does not eliminate it. Browser work for the binding, input dispatch, and completion acknowledgment remains in the window.
+Node scheduling is outside measured browser threads. Idle spacing does not count as thread work. This change adds no CPU profiling.
+
+rAF wall latency includes at least 450 ms of spacing plus input-bridge and timer overhead.
+It excludes the final settling interval and graphics fences.
 These completion checks do not establish compositor presentation or coverage of every worker and delayed task.
 
 Legacy `hover-ten-v1` used frame-paced moves and value verification inside the window.
-Its reports describe ten verified displays, unlike the fixed-delay v2 input sequence.
+Its reports describe ten verified displays, unlike the fixed-delay v2 and v3 input sequences.
+Legacy `hover-ten-v2` used a browser binding, renderer timer, and browser completion acknowledgment for each point.
+Current v3 moves the nine waits to Node and batches the browser binding and completion acknowledgment.
 The protocols are not interchangeable.
 
 Supported adapters export `getHoverPlan(chart, input, host)`.
 This read-only preparation hook returns ten viewport targets and a diagnostic `verify(target)` function.
 Each target contains `x`, `y`, `index`, and `seriesIndex`.
 Browser preparation computes the plan and validates target bounds outside the marker window.
-Production retains only the targets. It neither retains nor calls the verifier.
+Production retains only target coordinates. It neither retains nor calls the verifier.
 
 The separate `verifyHover(plan, ...)` helper supports harness-development diagnostics outside the benchmark.
 It checks each target after 50 ms and requires a matching visible tooltip or legend value.
-Diagnostic verification never runs automatically and never prewarms the measured chart.
+Diagnostic verification never runs during capture or preflight and never prewarms the measured chart.
 Successful diagnostic evidence contains the actual `index`, `seriesIndex`, `value`, and `text`.
 Production hover phases record the count and interval, not per-point verification evidence.
 
@@ -854,7 +870,7 @@ Diagnostic DOM checks include visibility, ancestor visibility, and nonzero geome
 Chart.js diagnostic verification uses active points, formatted tooltip text, opacity, and dimensions.
 No harness value, DOM, canvas, screenshot, or pixel-readback checks occur during measured hover.
 
-The initial supported set contains 15 chart variants:
+The supported set contains 23 chart variants:
 
 | Library | Supported variants | Display |
 | --- | --- | --- |
@@ -867,15 +883,27 @@ The initial supported set contains 15 chart variants:
 | Highcharts | `highcharts-svg` | Shared tooltip |
 | Plotly | `plotly`, `plotly-svg` | Shared-x hover labels |
 | Lightweight Charts | `lightweight` | Live legend |
+| Bokeh | `bokeh`, `bokeh-canvas` | Native nearest-point tooltips |
+| CanvasJS | `canvasjs` | Native tooltip |
+| ApexCharts | `apexcharts` | Native shared-x tooltip |
+| Billboard | `billboard` | Native grouped tooltip |
+| AnyChart | `anychart` | Native union tooltip |
+| Recharts | `recharts` | Native axis tooltip |
+| DevExtreme | `devextreme` | Native shared tooltip |
 
 The idle control uses ten mouse moves and the same nine 50 ms waits, but requires no chart values.
 Unimplemented variants omit the hover phase and leave the column blank, rather than report zero.
 Production target-preparation or input errors fail the session. Diagnostic value failures belong to separate harness-development checks.
 
 Chart.js explicitly selects tooltips along x. Plotly uses shared-x hover so overlapping near-zero series remain reachable.
+Unsampled ApexCharts and DevExtreme also use native shared tooltips to keep overlapping series accessible.
+Their sampled variants retain their previous tooltip configuration and remain outside the hover capability list.
+Recharts uses a small scale-only component to expose native coordinates. No new per-hover state or custom tooltip component is necessary.
 Highcharts SVG builds its first search tree synchronously inside mouse handling and suppresses hover markers that can trigger tracker mouseout.
 Highcharts Boost keeps its previous configuration and remains unsupported: its table-backed hover points lack the required y-value and index in the pinned release.
 ECharts also remains unsupported: pixel rounding can make another independently sampled series win axis-tooltip selection.
+Kendo remains unchanged and unsupported. Its pinned scatter-line tooltip has a fixed 100 ms delay that cancels nine displays at the 50 ms cadence.
+Native shared-tooltip configuration does not change that behavior for this series type.
 These exclusions do not mean that the libraries lack hover support.
 
 Historical v1 browser checks passed all supported variants and the idle control with pinned Chrome 156.0.8078.47 at DPR 1.
@@ -883,14 +911,23 @@ Additional DPR 2 checks covered uPlot release, D3 min/max, Chart.js, Plotly, Hig
 uPlot also passed untraced rAF and a production-count combined capture with 40 operation windows.
 Unsupported visx, ECharts, and Highcharts Boost retained three windows and blank hover cells.
 These historical checks establish v1 input and value-display coverage, not comparative performance or pixel-level presentation proof.
-They do not validate v2 pacing or the separate 50 ms diagnostics. Fresh browser checks for v2 remain required.
+They do not validate legacy v2 pacing, current v3 batching, or the separate 50 ms diagnostics.
+These historical results do not establish browser validation for v3.
+
+Separate v3 diagnostics verified ten distinct source rows, requested series values, and visible native tooltip text for all eight additions.
+Bokeh and Recharts diagnostics observed native DOM mutations and animation frames throughout the batch and final settle.
+Fixed-delay checks alone can miss their visible updates when native work delays the diagnostic timer.
+These observers ran only in diagnostic fixtures. Measured fixtures rejected any verifier call and retained all four operation windows.
+DPR 2 checks covered Bokeh Canvas, CanvasJS, and Recharts. CanvasJS and Recharts also completed production-count captures.
+DevExtreme passed hover diagnostics with an extended diagnostic timeout, but its data update exceeded the normal five-second budget in measured runs.
+The production watchdog remains unchanged. These checks do not establish compositor presentation or comparative performance.
 
 ### Operation timeout
 
 Each operation has a hard five-second budget in trace, memory, combined, and rAF modes.
 The budget includes preparation, drawing, settling, completion checks, and process polling.
 The first budget also includes host setup and the baseline memory checkpoint.
-Final memory checkpoints and chart destruction share a separate five-second budget.
+The post-update live checkpoint occurs before resize. Chart destruction retains a separate five-second budget.
 Library downloads, initial page loading, and final trace analysis are outside this budget. They retain separate command and worker limits.
 
 The watchdog runs in Node, outside the renderer. A synchronous JavaScript loop cannot block this watchdog.
@@ -933,7 +970,7 @@ Resize includes the host-size change, native resize call, geometry changes, and 
 The `jsMs` field measures elapsed readiness time for its operation, including async waits. It does not measure exclusive JavaScript CPU time.
 Trace `init ms` instead uses total tracked thread work through the end of the initialization window, after settling and graphics completion checks.
 The readiness interval remains available in JSON. Chart validation occurs outside both timers.
-V2 hover value verification belongs only to separate harness-development diagnostics, outside the benchmark.
+Current v3 and legacy v2 keep hover value verification in separate harness-development diagnostics, outside capture and preflight.
 The measured sequence performs no per-point verification or harness DOM/canvas reads.
 
 Async completion follows each module's library-specific promise or event.
@@ -1018,24 +1055,31 @@ Each memory sample then has this sequence:
 5. Prepare the full input while process polling runs.
 6. Record the prepared snapshot without forced GC.
 7. Update the retained chart with the full input while process polling runs.
-8. Resize the retained chart to 1200×400 while process polling runs.
-9. For supported variants, hover ten datapoints while process polling runs.
-10. Force JS GC and record retained process memory.
-11. Destroy the chart and release input references.
-12. Allow rendering to settle.
-13. Force JS GC and record cleanup memory.
+8. After the data update settles and graphics completion checks finish, force JS GC.
+9. Record retained process memory at the `live` checkpoint. End memory collection.
+10. Resize the retained chart to 1200×400 without process polling or memory observations.
+11. For supported variants, hover ten datapoints without process polling or memory observations.
+12. Destroy the chart and release input references as usual.
+13. Allow rendering to settle without cleanup GC or a cleanup memory observation.
 
-Each chart operation includes its own settling interval and graphics completion checks.
-No forced GC occurs between initialization, data update, resize, and hover.
+Each chart operation retains its full settling interval and graphics completion checks. Memory collection does not shorten any timing phase.
+Within each session, forced GC occurs only at baseline and after the settled data update.
+No forced GC occurs between initialization and data update. Trace-only and rAF modes request no memory GC.
 The prepared snapshot includes the small chart and temporary allocations.
 Consequently, the historical `dataDelta` field also includes small initialization. It does not isolate preparation from chart initialization.
-The retained checkpoint includes the resized chart, full prepared input, and final hover display when supported.
-Peak memory covers the complete session, including hover preparation and execution when supported.
+
+The retained checkpoint includes the live chart and full prepared input at the original 1920×600 size, before resize or tooltip interaction.
+Process polling covers only preparation, small initialization, and data update.
+Peak memory includes the baseline, initialization, preparation, update, and post-update `live` checkpoint.
+It excludes resize, hover preparation, hover execution, and teardown.
+No process polling, memory observations, or cleanup GC occur after `live`. Normal chart destruction still runs.
+
 GC does not force native allocators or graphics caches to return pages to the operating system.
 
 The combined mode records a trace during the memory checkpoints and chart samples.
 Tracing starts before the blank-page checkpoint.
-Trace buffers can grow later, and process polling also affects the workload.
+The post-update forced GC occurs before resize, outside all timing windows. It can still affect later combined-mode timings.
+Trace buffers can grow during memory collection, and process polling also affects the workload.
 Combined results therefore describe an instrumented run, not independent timing and footprint measurements.
 The separate commands provide measurements without the other instrumentation.
 
@@ -1096,17 +1140,17 @@ SciChart, LightningChart, and G2 WebGL have conditional context labels from meas
 Missing or ambiguous evidence produces `unavailable`. This rule also applies to rAF reports, which do not capture GL contexts.
 Legacy reports can use unambiguous measured context evidence for known WebGL series, but cannot infer historical sampling configuration.
 
-The combined table shows these measurements:
+The combined table shows these measurements in this order:
 
 - `prep ms`: Preparation of the full dataset.
 - `init ms`: Total tracked thread work for host setup and two-point chart initialization, including deferred rendering and graphics completion checks.
 - `main ms`: Renderer main-thread work in the update window.
 - `gpu ms`: GPU-process main-thread work in the update window.
 - `update ms`: Total tracked thread work for the full-data update and rendering, including deferred work and graphics completion checks.
+- `peak MB`: Baseline-adjusted sampled peak browser-tree PSS through the post-update `live` checkpoint.
+- `retained MB`: Baseline-adjusted retained browser-tree PSS at that checkpoint, before resize or tooltip interaction.
 - `resize ms`: Total tracked thread work for resize, including host sizing, deferred work, and graphics completion checks.
 - `hover 10 ms`: Cumulative tracked thread work for ten mouse moves, including deferred work and graphics completion checks.
-- Baseline-adjusted sampled peak browser-tree PSS.
-- Baseline-adjusted retained browser-tree PSS.
 
 Trace and combined timing columns use arithmetic means across the seven measured rounds, excluding the three warmups.
 This applies to `prep ms`, `init ms`, `main ms`, `gpu ms`, `update ms`, `resize ms`, and `hover 10 ms`.
@@ -1129,15 +1173,16 @@ Legacy startup-only reports retain `total ms` because they contain no separate d
 rAF tables use `init rAF ms` for the first callback after initialization readiness, rather than imply a settled thread-work measurement.
 They retain update readiness in `update ms` and update callback latency in `next rAF ms`.
 The `resize rAF ms` column shows the minimum resize `raf1Ms`.
-In rAF mode, `hover 10 ms` instead shows minimum latency from sequence start to the first callback after all ten input acknowledgments.
-V2 latency includes nine 50 ms waits, or at least 450 ms, plus input-bridge and timer overhead.
+In rAF mode, `hover 10 ms` shows minimum latency from sequence start to the first callback after readiness.
+Current v3 readiness follows one browser completion acknowledgment after all ten CDP dispatch acknowledgments.
+Current v3 and legacy v2 latency includes nine 50 ms waits, or at least 450 ms, plus input-bridge and timer overhead.
 Legacy v1 latency includes per-point frame waits and value verification instead.
-Both exclude final settling and fences. Neither is comparable to trace-mode hover thread work.
+All three exclude final settling and fences. None is comparable to trace-mode hover thread work.
 Unlike trace tables, rAF-only tables do not measure total thread work.
 rAF-only timing columns still use minima. Memory columns also retain their existing minimum-value aggregation.
 Neither rAF callbacks nor the settling heuristic prove compositor presentation or completion of every delayed library task.
 Trace totals cover selected host threads, not hardware GPU execution or all worker activity.
-Memory columns cover the complete session, not only the update window.
+Memory columns end at the post-update `live` checkpoint, before resize or hover. Peak memory also includes baseline, preparation, and small initialization.
 `peak MB` uses the minimum per-round peak. Each round's peak remains the maximum sampled observation.
 Trace and rAF timings do not subtract idle timings.
 
@@ -1225,7 +1270,7 @@ adjusted retained = library retained memory - library browser blank memory - idl
 adjusted peak = library sampled peak - library browser blank memory - idle overhead
 ```
 
-The idle control has the same DPR, measurement mode, and requested backend as the library.
+The idle control has the same DPR, measurement mode, memory boundary, and requested backend as the library.
 The suite rejects worker reports with a different requested backend.
 Controls come only from the current run.
 Both memory columns subtract the minimum measured settled idle overhead, not the idle peak.
@@ -1241,8 +1286,9 @@ These metrics do not exactly reproduce Chrome Task Manager's Memory footprint co
 
 ## Measurement limits
 
-Process polling requests a 50 ms delay after each completed read, plus phase endpoints.
-It runs independently of renderer evaluation, but reads are not atomic.
+Process polling requests a 50 ms delay after each completed read, plus endpoints for preparation, small initialization, and data update.
+Memory collection ends with the post-update forced-GC `live` snapshot, before resize or hover.
+Process polling runs independently of renderer evaluation, but reads are not atomic.
 Process identity checks reject detected exits, PID reuse, and unavailable fields.
 Processes that exist entirely between scans can escape detection.
 Restricted `/proc` access can also hide processes or prevent measurements.
@@ -1251,7 +1297,7 @@ Peaks are sampled lower bounds for this measurement protocol, not exact peaks of
 Warmup can leave allocator pages resident, and shared-page accounting can change without a local allocation.
 Adjusted statistics hold the chosen blank and idle baselines fixed.
 Their ranges do not include baseline uncertainty or establish exclusive library ownership.
-Cleanup growth alone is not proof of a leak.
+Legacy cleanup observations remain historical. Cleanup growth alone is not proof of a leak.
 
 Tracked totals cover selected renderer-main, compositor, raster, GPU-process, and background-GC scopes, not all host threads or uninstrumented work.
 They omit general worker CPU and renderer/GPU I/O threads. Billboard therefore disables its worker path.
@@ -1320,6 +1366,7 @@ npm run bench -- --summarize-only --no-vulkan
 Saved tables use the same aggregation as live tables: arithmetic means for trace timings and minima for rAF timings and memory.
 Summary-only mode recomputes trace statistics from saved analyzed phase samples, without another browser run or trace read.
 It preserves each sample's existing work-accounting policy. It cannot recover GC that the original capture omitted.
+Legacy memory reports retain their original boundaries. Summaries reject mixed memory boundaries rather than relabel historical observations as `through-update-v1`.
 Reports without phase samples or stored means show unavailable trace means, rather than substitute historical minima.
 The same option applies to each separate command and selects its matching saved report.
 It uses the saved DPR and rejects `--dpr`, `--variant`, `--worker`, and `--install-only`.

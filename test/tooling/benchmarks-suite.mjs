@@ -189,11 +189,11 @@ function resizedBrowser(variant, measurements, dpr = 1, requestedBackend = 'defa
 	return raw;
 }
 
-function hoverBrowser(variant, measurements, dpr = 1, requestedBackend = 'default', protocol = 'hover-ten-v2') {
+function hoverBrowser(variant, measurements, dpr = 1, requestedBackend = 'default', protocol = 'hover-ten-v3') {
 	const raw = resizedBrowser(variant, measurements, dpr, requestedBackend);
 	raw.hoverProtocol = protocol;
 	raw.hover = {variants: ['idle', 'uplot', 'chartjs', 'bokeh', 'bokeh-canvas'], count: 10,
-		...(protocol === 'hover-ten-v2' ? {intervalMs: 50} : {})};
+		...(['hover-ten-v2', 'hover-ten-v3'].includes(protocol) ? {intervalMs: 50} : {})};
 	raw.operations.push('hover-10');
 	raw.lifecycle.operations.push('hover-10');
 	if (raw.hover.variants.includes(variant)) {
@@ -214,7 +214,89 @@ function hoverBrowser(variant, measurements, dpr = 1, requestedBackend = 'defaul
 	return raw;
 }
 
-for (const protocol of ['hover-ten-v1', 'hover-ten-v2']) describe(`optional hover reports (${protocol})`, () => {
+describe('through-update memory reports', () => {
+	const updatedBrowser = (variant, measurements = combined, dpr, backend) => {
+		const raw = hoverBrowser(variant, measurements, dpr, backend);
+		raw.memoryProtocol = 'through-update-v1';
+		for (const sample of raw.samples)
+			sample.processObservations = sample.processObservations.filter(read => read.phase !== 'cleanup');
+		return raw;
+	};
+
+	for (const measurements of [combined, {trace: false, memory: true, raf: false}]) {
+		it(`rejects v2/v3 hover mixtures with the same through-update memory boundary in ${benchmarkMode(measurements)}`, () => {
+			for (const reverse of [false, true]) {
+				const idle = updatedBrowser('idle', measurements), raw = updatedBrowser('uplot', measurements);
+				idle.hoverProtocol = 'hover-ten-v2';
+				const output = join(directory, 'mixed-hover-through-update.json');
+				const bytes = JSON.stringify(savedReport(reverse ? [raw, idle] : [idle, raw], measurements));
+				writeFileSync(output, bytes);
+				assert.throws(() => capture(() => summarizeSavedBenchmarks({...measurements, vulkan: false}, output)), /hover protocols/);
+				assert.equal(readFileSync(output, 'utf8'), bytes);
+			}
+		});
+
+		it(`rejects mixed and unknown memory protocols before rewriting saved ${benchmarkMode(measurements)} reports`, () => {
+			for (const reverse of [false, true]) for (const protocol of [undefined, 'future-v2', null]) {
+				const idle = updatedBrowser('idle', measurements), raw = updatedBrowser('uplot', measurements);
+				if (protocol === undefined) delete idle.memoryProtocol;
+				else idle.memoryProtocol = protocol;
+				const output = join(directory, 'mixed-memory.json');
+				const bytes = JSON.stringify(savedReport(reverse ? [raw, idle] : [idle, raw], measurements));
+				writeFileSync(output, bytes);
+				assert.throws(() => capture(() => summarizeSavedBenchmarks({...measurements, vulkan: false}, output)), /memory[Pp]rotocol|memory protocols/);
+				assert.equal(readFileSync(output, 'utf8'), bytes);
+			}
+		});
+	}
+
+	it('keeps memory before resize and hover for successful, unsupported, failed, and timed-out rows', async () => {
+		const h = harness();
+		h.dependencies.runWorker = async request => updatedBrowser(request.variant, request.measurements, request.dpr, request.requestedBackend);
+		const report = await runBenchmarkSuite({variant: 'uplot', vulkan: false}, h.dependencies);
+		const columns = ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'main ms', 'gpu ms',
+			'update ms', 'peak MB', 'retained MB', 'resize ms', 'hover 10 ms'];
+		assert.deepEqual(Object.keys(h.frames.at(-1).rows[0]), columns);
+		report.reports.push(updatedBrowser('d3'));
+		report.failures = [{variant: 'chartjs', error: 'failed'}, {variant: 'd3-svg', error: 'failed'}];
+		report.timeouts = [{variant: 'bokeh', error: 'timed out'}];
+		const original = structuredClone(report.reports);
+		const summary = offline(report);
+		for (const row of summary.tables[0]) assert.deepEqual(Object.keys(row), columns);
+		assert.deepEqual(summary.tables[0].filter(row => row.variant === 'd3').map(row => row['hover 10 ms']), ['', '']);
+		assert.equal(summary.tables[0].find(row => row.variant === 'chartjs')['hover 10 ms'], '-');
+		assert.equal(summary.tables[0].find(row => row.variant === 'bokeh')['hover 10 ms'], '-');
+		assert.deepEqual(summary.result.reports.map(raw => raw.samples), original.map(raw => raw.samples));
+	});
+
+	it('rejects a missing or duplicate live boundary before rewriting a saved report', () => {
+		for (const duplicate of [false, true]) {
+			const reports = [updatedBrowser('idle'), updatedBrowser('uplot')];
+			const sample = reports[1].samples.find(sample => !sample.warmup);
+			if (duplicate) sample.processObservations.push(observation('live', 1e9));
+			else sample.processObservations = sample.processObservations.filter(read => read.phase !== 'live');
+			const output = join(directory, 'invalid-memory-boundary.json');
+			const bytes = JSON.stringify(savedReport(reports));
+			writeFileSync(output, bytes);
+			assert.throws(() => capture(() => summarizeSavedBenchmarks({vulkan: false}, output)), /exactly one live checkpoint/);
+			assert.equal(readFileSync(output, 'utf8'), bytes);
+		}
+	});
+
+	it('ignores late huge resize, hover, and cleanup observations in saved adjusted memory', () => {
+		const reports = [updatedBrowser('idle'), updatedBrowser('uplot')];
+		const expected = offline(savedReport(reports)).result.adjustedAnalysis;
+		for (const raw of reports) for (const sample of raw.samples)
+			sample.processObservations.push(
+				{...observation('construct', 1e9), operation: 'resize'},
+				{...observation('construct', 2e9), operation: 'hover-10'},
+				observation('cleanup', 3e9),
+			);
+		assert.deepEqual(offline(savedReport(reports)).result.adjustedAnalysis, expected);
+	});
+});
+
+for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3']) describe(`optional hover reports (${protocol})`, () => {
 	const hoveredBrowser = (variant, measurements, dpr, requestedBackend) => hoverBrowser(variant, measurements, dpr, requestedBackend, protocol);
 	const modes = [combined, {trace: true, memory: false, raf: false}, {trace: false, memory: false, raf: true}, {trace: false, memory: true, raf: false}];
 	for (const measurements of modes) {
@@ -245,22 +327,31 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2']) describe(`optional hove
 			}
 			assert.match(report.protocol.hover, /10 mousemoves.*final settle\/fence/);
 			assert.match(report.protocol.hover, /cumulative, not a per-point average/);
-						assert.match(report.protocol.hover, /hover.intervalMs is 50 for hover-ten-v2/);
-						assert.match(report.protocol.hover, /No per-point rAF, value verification, or harness DOM\/canvas reads/);
-						assert.match(report.protocol.hover, /at least 450 ms/);
+			assert.match(report.protocol.hover, /hover.intervalMs is 50 for hover-ten-v2 and hover-ten-v3/);
+			assert.match(report.protocol.hover, /all ten coordinate targets through one browser binding/);
+			assert.match(report.protocol.hover, /one browser Runtime.evaluate completion acknowledgment/);
+			assert.match(report.protocol.hover, /No value verification or harness DOM\/canvas reads/);
+			assert.match(report.protocol.hover, /reduces input-bridge overhead but does not eliminate it/);
+			assert.match(report.protocol.hover, /Node scheduling is outside measured browser threads/);
+			assert.match(report.protocol.hover, /No CPU profiling is added/);
+			assert.match(report.protocol.hover, /at least 450 ms/);
 			assert.match(report.protocol.timingColumns, /not the full-work equivalent/);
-			assert.match(report.protocol.memoryColumns, /retained memory includes the tooltip/);
+			assert.match(report.protocol.memoryColumns, /through-update-v1/);
+						assert.match(report.protocol.memoryColumns, /before resize preparation/);
+						assert.match(report.protocol.memoryColumns, /No process reads or forced GC occur after this checkpoint/);
+						assert.match(report.protocol.memoryColumns, /No cleanup snapshot occurs, but chart destruction still runs/);
 		});
 
 		it(`rejects mixed hover protocols and capabilities before rewriting saved ${mode} reports`, () => {
 			for (const reverse of [false, true]) for (const change of [
 				raw => { delete raw.hoverProtocol; delete raw.hover; },
 				raw => raw.hoverProtocol = 'unknown',
-				raw => {
-					raw.hoverProtocol = protocol === 'hover-ten-v1' ? 'hover-ten-v2' : 'hover-ten-v1';
-					if (raw.hoverProtocol === 'hover-ten-v2') raw.hover.intervalMs = 50;
-					else delete raw.hover.intervalMs;
-				},
+				...['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3'].filter(other => other !== protocol).map(other => raw => {
+					raw.hoverProtocol = other;
+					if (other === 'hover-ten-v1') delete raw.hover.intervalMs;
+					else raw.hover.intervalMs = 50;
+				}),
+				...(protocol === 'hover-ten-v1' ? [] : [raw => delete raw.hover.intervalMs]),
 				raw => raw.hover.intervalMs = 25,
 				raw => raw.hover.intervalMs = null,
 				raw => raw.hover.intervalMs = '50',
@@ -288,15 +379,16 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2']) describe(`optional hove
 			assert.throws(() => offline(savedReport([idle, raw], measurements)), /4 lifecycle operation windows/);
 		});
 
-		it(`rejects a live v1/v2 mixture in ${mode}`, async () => {
-					const h = harness();
-					h.dependencies.runWorker = async request => hoverBrowser(request.variant, request.measurements, request.dpr, request.requestedBackend,
-						request.variant === 'idle' ? protocol : protocol === 'hover-ten-v1' ? 'hover-ten-v2' : 'hover-ten-v1');
-					const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
-					assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
-					assert.equal(report.failures.length, 1);
-					assert.match(report.failures[0].error, /hover protocols/);
-				});
+		for (const other of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3'].filter(other => other !== protocol))
+		it(`rejects a live ${protocol}/${other} mixture in ${mode}`, async () => {
+			const h = harness();
+			h.dependencies.runWorker = async request => hoverBrowser(request.variant, request.measurements, request.dpr, request.requestedBackend,
+				request.variant === 'idle' ? protocol : other);
+			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
+			assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
+			assert.equal(report.failures.length, 1);
+			assert.match(report.failures[0].error, /hover protocols/);
+		});
 
 				it(`rejects a mismatched live ${mode} worker`, async () => {
 			const h = harness();
@@ -374,7 +466,7 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2']) describe(`optional hove
 		assert.deepEqual(rows.map(row => row['hover 10 ms']), [300, 1, 2]);
 	});
 
-	it('uses hover polls for peaks and the post-hover live checkpoint for retained memory', () => {
+	it('preserves legacy whole-session memory without memoryProtocol, including hover polls and the post-hover live checkpoint', () => {
 		const measurements = {trace: false, memory: true, raf: false};
 		const idle = hoveredBrowser('idle', measurements), raw = hoveredBrowser('uplot', measurements);
 		for (const sample of raw.samples) {
@@ -403,8 +495,8 @@ describe('retained resize reports', () => {
 			const row = h.frames.at(-1).rows[0];
 			const label = measurements.raf ? 'resize rAF ms' : 'resize ms';
 			assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms',
-				...(measurements.raf ? ['init rAF ms', 'update ms', 'next rAF ms', label] : ['init ms', 'main ms', 'gpu ms', 'update ms', label]),
-				...(measurements.memory ? ['peak MB', 'retained MB'] : [])]);
+				...(measurements.raf ? ['init rAF ms', 'update ms', 'next rAF ms'] : ['init ms', 'main ms', 'gpu ms', 'update ms']),
+				...(measurements.memory ? ['peak MB', 'retained MB'] : []), label]);
 			assert.equal(row[label], measurements.raf ? 40 : 60);
 			assert.equal(row['update ms'], measurements.raf ? 3 : 20);
 			assert.equal(row['prep ms'], 2);

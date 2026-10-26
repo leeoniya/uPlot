@@ -1,3 +1,5 @@
+import {hoverTargets, nearHoverIndex, visibleText} from './hover.mjs';
+
 function prepData(packed) {
 	const fields = packed[0];
 	const start = fields + 1;
@@ -58,7 +60,10 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {sampling 
 		],
 
 		tooltip: {
-			shared: false,
+			// Dense lines overlap within a CSS pixel. Native shared-x hover keeps
+			// all three source values available regardless of the closest series.
+			shared: !sampling,
+			intersect: false,
 			y: {formatter: (value, {seriesIndex}) => `${value} ${seriesIndex === 2 ? 'MB' : '%'}`},
 		},
 	});
@@ -89,6 +94,50 @@ export async function resizeChart(chart, {width, height}, host, wait) {
 	// and propagation to other charts. Native updates can replace the canvas.
 	await chart.updateOptions({chart: {width, height}}, false, false, false);
 	if (wait) wait.textContent = 'Done!';
+}
+
+export function getHoverPlan(chart, input, host) {
+	const {w} = chart;
+	if (w.config.chart.dataReducer?.enabled)
+		throw new Error('ApexCharts hover requires unsampled data.');
+	const g = w.globals;
+	const rect = w.dom.elWrap.getBoundingClientRect();
+	const sx = rect.width / g.svgWidth, sy = rect.height / g.svgHeight;
+	const length = input[0].length;
+	const x = (index, seriesIndex) => rect.left + (g.translateX + g.seriesXvalues[seriesIndex][index]) * sx;
+	return {
+		targets: hoverTargets(length, (index, seriesIndex) => ({
+			x: x(index, seriesIndex),
+			y: rect.top + (g.translateY + g.seriesYvalues[seriesIndex][index]) * sy,
+		})),
+		verify(target) {
+			// 8.4.1 writes these on w.interact; w.globals also exposes compatibility getters.
+			const {capturedSeriesIndex, capturedDataPointIndex: index} = w.interact;
+			const seriesIndex = target.seriesIndex, shared = w.config.tooltip.shared;
+			if ((!shared && capturedSeriesIndex !== seriesIndex) || !nearHoverIndex(index, target, length - 1) || index >= length ||
+				!(Math.abs(x(index, seriesIndex) - target.x) <= 1))
+				return false;
+			const value = g.series[seriesIndex]?.[index];
+			const source = input[seriesIndex][index];
+			if (!Number.isFinite(value) || value !== source[1] || g.seriesX[seriesIndex]?.[index] !== source[0])
+				return false;
+			const tooltip = g.tooltip;
+			const items = tooltip?.ttItems;
+			if (shared && (!items || items.length !== 3 || !items.every((item, s) => {
+				const value = g.series[s]?.[index], source = input[s][index];
+				return source && value === source[1] && g.seriesX[s]?.[index] === source[0] &&
+					visibleText(item) && visibleText(item.querySelector('.apexcharts-tooltip-text-y-label')) === `${w.config.series[s].name}:` &&
+					visibleText(item.querySelector('.apexcharts-tooltip-text-y-value')) === w.config.tooltip.y.formatter(value, {seriesIndex: s});
+			}))) return false;
+			const item = items?.[items.length === 1 ? 0 : seriesIndex];
+			const text = visibleText(item);
+			const label = visibleText(item?.querySelector('.apexcharts-tooltip-text-y-label'));
+			const displayed = visibleText(item?.querySelector('.apexcharts-tooltip-text-y-value'));
+			const formatted = w.config.tooltip.y.formatter(value, {seriesIndex});
+			return visibleText(tooltip?.getElTooltip()) && text && label === `${w.config.series[seriesIndex].name}:` &&
+				displayed === formatted && {index, seriesIndex, value, text};
+		},
+	};
 }
 
 function destroyChart(chart) {

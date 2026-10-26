@@ -1,3 +1,5 @@
+import {hoverTargets, nearHoverIndex, visibleText} from './hover.mjs';
+
 // anychart@9.0.0: dist/js/anychart-core.min.js, then dist/js/anychart-stock.min.js.
 // https://docs.anychart.com/Stock_Charts/Scales
 // https://docs.anychart.com/Stock_Charts/Data_Grouping
@@ -138,6 +140,48 @@ async function resizeChart(handle, {width, height}, host, wait) {
 		clearTimeout(timer);
 		chart.unlisten('chartDraw', drawn);
 	}
+}
+
+export function getHoverPlan(handle, input, host) {
+	const {chart} = handle;
+	if (chart.grouping().enabled())
+		throw new Error('AnyStock hover requires unsampled data.');
+	const plot = chart.plot(0), bounds = plot.getPlotBounds();
+	const stage = chart.container().getStage();
+	const rect = stage.getDomWrapper().getBoundingClientRect();
+	const sx = rect.width / stage.width(), sy = rect.height / stage.height();
+	const length = input.length;
+	const x = index => rect.left + (bounds.left + chart.xScale().transform(input[index][0]) * bounds.width) * sx;
+	return {
+		targets: hoverTargets(length, (index, seriesIndex) => ({
+			x: x(index),
+			y: rect.top + (bounds.top + (1 - plot.getSeriesAt(seriesIndex).yScale().transform(input[index][seriesIndex + 1])) * bounds.height) * sy,
+		})),
+		verify(target) {
+			const seriesIndex = target.seriesIndex, series = plot.getSeriesAt(seriesIndex);
+			// Pinned 9.0.0: Uea distinguishes hover from the last-visible-row fallback.
+			// getPoint() is null for stock; getCurrentPoint() is the native hovered TableSelectable row.
+			const point = series.Uea && series.getCurrentPoint();
+			const index = point ? point.getIndex() : -1;
+			if (!nearHoverIndex(index, target, length - 1) || index >= length || !(Math.abs(x(index) - target.x) <= 1))
+				return false;
+			const value = point.get('value');
+			if (!Number.isFinite(value) || value !== input[index][seriesIndex + 1] || point.getKey() !== input[index][0])
+				return false;
+			// Stock's default union tooltip joins the per-series formatted lines with newlines.
+			const content = chart.tooltip().contentInternal();
+			const expected = `${series.name()}: ${anychart.format.number(value, series.defaultDecimalDigitsCount || undefined)}`;
+			if (!content.text().split('\n').includes(expected)) return false;
+			const root = content.container()?.domElement();
+			const compact = text => text.replace(/\s/g, '');
+			for (const node of root?.querySelectorAll('text') ?? []) {
+				const text = visibleText(node);
+				if (text && compact(text) === compact(content.text()))
+					return {index, seriesIndex, value, text};
+			}
+			return false;
+		},
+	};
 }
 
 function destroyChart(handle) {

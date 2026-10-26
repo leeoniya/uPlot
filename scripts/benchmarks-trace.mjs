@@ -187,7 +187,7 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 				source: '/proc/<pid>/smaps_rollup for the browser root and discovered descendants.',
 				blankAndLoaded: 'Single post-GC checkpoints before warmups, not round aggregates.',
 			});
-			report.processAnalysis = summarizeProcessMemory({blank, loaded,
+			report.processAnalysis = summarizeProcessMemory({blank, loaded, memoryProtocol: report.memoryProtocol,
 				samples: report.samples.map(sample => ({...sample, observations: sample.processObservations})),
 			});
 			for (const key of ['pssMB', 'peak', 'gc', 'exclusions'])

@@ -16,8 +16,28 @@ const signal = () => {
 describe('benchmark hover helpers', () => {
 	it('exports the full fixed capability snapshot including idle', () => {
 		assert.deepEqual(hoverVariants, ['idle', 'uplot', 'uplot-release', 'd3', 'd3-minmax', 'd3-svg', 'd3-svg-minmax',
-			'd3fc', 'd3fc-canvas', 'deckgl', 'chartjs', 'dygraphs', 'highcharts-svg', 'plotly', 'plotly-svg', 'lightweight']);
-		assert.equal(new Set(hoverVariants).size, 16);
+			'd3fc', 'd3fc-canvas', 'deckgl', 'chartjs', 'dygraphs', 'highcharts-svg', 'plotly', 'plotly-svg', 'lightweight',
+			'bokeh', 'bokeh-canvas', 'canvasjs', 'apexcharts', 'billboard', 'anychart', 'recharts', 'devextreme']);
+		assert.equal(new Set(hoverVariants).size, 24);
+	});
+
+	it('registers only adapters with hover plans and leaves sampled variants and Kendo unsupported', async () => {
+		const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'devicePixelRatio');
+		try {
+			Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, value: 1});
+			for (const variant of hoverVariants.filter(variant => variant !== 'idle')) {
+				const adapter = await import(`../../bench/${variant}.mjs`);
+				assert.equal(typeof adapter.getHoverPlan, 'function', variant);
+			}
+			for (const variant of ['kendo', 'apexcharts-sampled', 'anychart-sampled', 'devextreme-sampled']) {
+				assert.equal(hoverVariants.includes(variant), false);
+				assert.equal((await import(`../../bench/${variant}.mjs`)).getHoverPlan, undefined);
+			}
+		}
+		finally {
+			if (descriptor) Object.defineProperty(globalThis, 'devicePixelRatio', descriptor);
+			else delete globalThis.devicePixelRatio;
+		}
 	});
 
 	it('projects ten unique interior rows and cycles all three series', () => {
@@ -97,87 +117,49 @@ describe('benchmark hover helpers', () => {
 		assert.equal(visibleText(null), '');
 	});
 
-	it('moves immediately, awaits each acknowledgement and waits 50ms only between the ten moves', async () => {
+	it('submits the targets once and waits for the complete batch acknowledgement', async () => {
 		const input = targets();
-		const events = [];
-		let time = 0;
+		const acknowledgement = signal();
+		let calls = 0, completed = false;
 		const pending = runHover(input, {
-			async move(x, y) {
-				events.push(['move', x, y, time]);
-				await Promise.resolve();
-				events.push(['ack', x, y, time]);
+			moveBatch(points) {
+				assert.equal(points, input);
+				calls++;
+				return acknowledgement.promise;
 			},
-			async wait(ms) {
-				events.push(['wait', ms]);
-				await Promise.resolve();
-				time += ms;
-				events.push(['waited', ms]);
-			},
-		});
-		assert.deepEqual(events, [['move', input[0].x, input[0].y, 0]]);
+		}).then(result => { completed = true; return result; });
+		await Promise.resolve();
+		assert.equal(calls, 1);
+		assert.equal(completed, false);
+		acknowledgement.resolve();
 		assert.deepEqual(await pending, {count: 10, intervalMs: 50});
-		assert.deepEqual(events, input.flatMap(({x, y}, i) => [
-			['move', x, y, i * 50], ['ack', x, y, i * 50],
-			...(i < 9 ? [['wait', 50], ['waited', 50]] : []),
-		]));
-		assert.equal(time, 450);
-	});
-
-	it('does not compress waits after slow acknowledgements or send moves while a wait is pending', async () => {
-		const acknowledgements = Array.from({length: 10}, signal);
-		const waits = Array.from({length: 9}, signal);
-		const events = [];
-		let moves = 0, waiting = 0, time = 0;
-		const pending = runHover(targets(), {
-			move() { events.push(['move', time]); return acknowledgements[moves++].promise; },
-			wait(ms) { events.push(['wait', ms, time]); return waits[waiting++].promise; },
-		});
-		for (let i = 0; i < 10; i++) {
-			assert.equal(moves, i + 1);
-			assert.equal(waiting, i);
-			time += 120;
-			acknowledgements[i].resolve();
-			await Promise.resolve();
-			if (i < 9) {
-				assert.equal(waiting, i + 1);
-				assert.equal(moves, i + 1);
-				assert.deepEqual(events.at(-1), ['wait', 50, time]);
-				time += 50;
-				waits[i].resolve();
-				await Promise.resolve();
-			}
-		}
-		assert.deepEqual(await pending, {count: 10, intervalMs: 50});
-		assert.deepEqual(events.filter(event => event[0] === 'move').map(event => event[1]),
-			Array.from({length: 10}, (_, i) => i * 170));
-		assert.equal(waiting, 9);
+		assert.equal(calls, 1);
 	});
 
 	it('reads only immutable coordinates, never verification, selected data, frames or a clock', async () => {
 		const input = targets().map(({x, y}) => ({x, y}));
-		const options = {...immediate};
+		const options = {moveBatch: async points => assert.equal(points, input)};
 		for (const object of [input, options, ...input]) {
-			for (const key of ['targets', 'verify', 'idle', 'index', 'seriesIndex', 'value', 'text', 'frame', 'now', 'timeoutMs', 'requestAnimationFrame', 'document', 'getBoundingClientRect', 'readPixels'])
+			for (const key of ['targets', 'verify', 'idle', 'index', 'seriesIndex', 'value', 'text', 'frame', 'now', 'timeoutMs', 'requestAnimationFrame', 'document', 'getBoundingClientRect', 'readPixels', 'move', 'wait'])
 				Object.defineProperty(object, key, {get() { assert.fail(`must not read ${key}`); }});
 			Object.freeze(object);
 		}
 		assert.deepEqual(await runHover(input, options), {count: 10, intervalMs: 50});
 	});
 
-	it('propagates move and wait failures without sending subsequent moves', async () => {
-		await assert.rejects(runHover(targets(), {...immediate, move: null}), /mouse-input bridge/);
-		for (const phase of ['move', 'wait']) {
-			for (const asynchronous of [false, true]) {
-				const error = new Error(`${phase} failed`);
-				let moves = 0, waits = 0;
-				const fail = () => { if (asynchronous) return Promise.reject(error); throw error; };
-				await assert.rejects(runHover(targets(), {
-					move() { moves++; return phase === 'move' ? fail() : Promise.resolve(); },
-					wait() { waits++; return fail(); },
-				}), actual => actual === error);
-				assert.equal(moves, 1);
-				assert.equal(waits, phase === 'wait' ? 1 : 0);
-			}
+	it('propagates a missing bridge or batch failure without retrying', async () => {
+		await assert.rejects(runHover(targets(), {moveBatch: null}), /batched browser mouse-input bridge/);
+		for (const asynchronous of [false, true]) {
+			const error = new Error('batch failed');
+			let batches = 0;
+			await assert.rejects(runHover(targets(), {
+				moveBatch() {
+					batches++;
+					if (asynchronous) return Promise.reject(error);
+					throw error;
+				},
+			}), actual => actual === error);
+			assert.equal(batches, 1);
 		}
 	});
 

@@ -11,7 +11,7 @@ const resizeOperations = ['small-init', 'data-update', 'resize'];
 function fixture(phase = 'chart-population', warmup = false, resize = false, hover = false, variant = 'uplot') {
 	const metadata = {phase, ...(resize ? {initProtocol: 'settled-work-v1', resizeProtocol: 'retained-resize-v1',
 		lifecycle: {operations: hover ? lifecycleOperations : resizeOperations, resizeSize: {width: 1200, height: 400}}} : {}),
-		...(hover ? {hoverProtocol: 'hover-ten-v2', hover: {variants: ['idle', 'uplot'], count: 10, intervalMs: 50}} : {})};
+		...(hover ? {hoverProtocol: 'hover-ten-v3', hover: {variants: ['idle', 'uplot'], count: 10, intervalMs: 50}} : {})};
 	const phases = benchmarkOperations(metadata).filter(operation => operation !== 'hover-10' || metadata.hover.variants.includes(variant)).map((operation, index) => ({
 		id: `sample-${index}`, variant, dpr: 1, round: warmup ? -1 : 0,
 		operation, warmup: warmup || operation === 'warmup-update',
@@ -174,26 +174,32 @@ describe('benchmark population phases', () => {
 });
 
 describe('optional hover phases', () => {
-	it('preserves legacy frame-paced reports without requiring an interval or changing their samples', () => {
+	for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3'])
+	it(`preserves ${protocol} reports without changing their samples or requiring evidence`, () => {
 		const {report, events} = fixture('chart-population', false, true, true);
-		report.hoverProtocol = 'hover-ten-v1';
-		delete report.hover.intervalMs;
+		report.hoverProtocol = protocol;
+		if (protocol === 'hover-ten-v1') delete report.hover.intervalMs;
+		report.samples[0].phases[3].hover = {count: 10, ...(protocol === 'hover-ten-v1' ? {} : {intervalMs: 50})};
 		const original = structuredClone(report);
 		for (const analysis of [analyzeBenchmarkTrace(events, report), summarizeBenchmarkRaf(report)]) {
 			assert.deepEqual(analysis.phaseGroups.map(group => group.operation), lifecycleOperations);
 			assert.match(analysis.definitions.hover, /hover-ten-v1.*frame-paced, verified/);
-			assert.match(analysis.definitions.hover, /hover-ten-v2.*nine 50 ms waits/);
+			assert.match(analysis.definitions.hover, /Legacy hover-ten-v2.*nine 50 ms waits/);
+			assert.match(analysis.definitions.hover, /hover-ten-v3.*all ten coordinate targets through one browser binding/);
+			assert.match(analysis.definitions.hover, /one browser Runtime.evaluate completion acknowledgment/);
 		}
 		assert.deepEqual(report, original);
 	});
 
-	it('requires a numeric 50 ms interval for v2 in both analyzers', () => {
+	for (const protocol of ['hover-ten-v2', 'hover-ten-v3'])
+	it(`requires a numeric 50 ms interval for ${protocol} in both analyzers`, () => {
 		for (const intervalMs of [undefined, null, '50', 0, 49, 51, NaN, Infinity]) {
 			const {report, events} = fixture('chart-population', false, true, true);
+			report.hoverProtocol = protocol;
 			if (intervalMs === undefined) delete report.hover.intervalMs;
 			else report.hover.intervalMs = intervalMs;
 			for (const analyze of [benchmarkTimingSamples, summarizeBenchmarkRaf, r => analyzeBenchmarkTrace(events, r)])
-				assert.throws(() => analyze(report), /hover-ten-v2.*intervalMs 50/);
+				assert.throws(() => analyze(report), new RegExp(`${protocol}.*intervalMs 50`));
 		}
 	});
 	it('keeps canonical operations but requires no hover markers or samples for unsupported variants', () => {
@@ -266,8 +272,10 @@ describe('optional hover phases', () => {
 		assert.deepEqual(report, original);
 	});
 
-	it('keeps 450 ms of v2 spacing in wall latency but out of tracked thread work', () => {
+	for (const protocol of ['hover-ten-v2', 'hover-ten-v3'])
+	it(`keeps 450 ms of ${protocol} spacing in wall latency but out of tracked thread work`, () => {
 		const {report, events} = fixture('chart-population', false, true, true);
+		report.hoverProtocol = protocol;
 		const phase = report.samples[0].phases[3];
 		Object.assign(phase, {jsMs: 460, raf1Ms: 470, windowMs: 675});
 		for (const event of events) {
@@ -288,7 +296,10 @@ describe('optional hover phases', () => {
 		assert.equal(raf.groups[0].metrics.raf1Ms.min, 3);
 		for (const analysis of [trace, raf]) {
 			assert.match(analysis.definitions.hover, /No value verification or harness DOM\/canvas reads/);
-			assert.match(analysis.definitions.hover, /timer overhead/);
+			assert.match(analysis.definitions.hover, /reduces input-bridge overhead but does not eliminate it/);
+			assert.match(analysis.definitions.hover, /Node scheduling is outside measured browser threads/);
+			assert.match(analysis.definitions.hover, /No CPU profiling is added/);
+			assert.match(analysis.definitions.hover, /never runs during capture or preflight/);
 		}
 	});
 

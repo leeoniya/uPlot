@@ -183,8 +183,14 @@ function browserFixture(options = {}) {
 			assert.ok(Array.isArray(targets), 'measured hover receives only the target array');
 			options.runHover?.(targets);
 			return runHover(targets, {
-				move: context.benchmarkMoveMouse,
-				wait: async ms => { events.push(`hoverWait:${ms}`); clock += ms; },
+				async moveBatch(points) {
+					assert.equal(points, targets);
+					// Simulate the Node driver without renderer timers or per-move callbacks.
+					for (let i = 0; i < points.length; i++) {
+						if (i > 0) { events.push('hoverWait:50'); clock += 50; }
+						await context.benchmarkMoveMouse(points[i].x, points[i].y);
+					}
+				},
 			});
 		},
 		sources: Object.fromEntries(allVariants.map(variant => [variant, {
@@ -381,7 +387,7 @@ describe('shared browser sample lifecycle', () => {
 			const report = await fake.runTrace({raf});
 			assert.deepEqual(Array.from(report.hoverVariants), hoverVariants);
 			assert.deepEqual(Array.from(report.hover.variants), hoverVariants);
-			assert.equal(report.hoverProtocol, 'hover-ten-v2');
+			assert.equal(report.hoverProtocol, 'hover-ten-v3');
 			assert.equal(report.hover.count, 10);
 			assert.equal(report.hover.intervalMs, 50);
 			assert.equal(report.hover.moves, undefined);
@@ -1247,7 +1253,7 @@ describe('shared browser sample lifecycle', () => {
 		assert.equal(begin.source.uplot, '/dist/uPlot.iife.min.js');
 		assert.equal(begin.source.uplotCss, '/dist/uPlot.min.css');
 		assert.deepEqual(structuredClone(begin.config), {variants: ['uplot', 'chartjs', 'idle'], dpr: 2, warmups: 3, rounds: 7, lifecycle: true, operations: ['small-init', 'data-update', 'resize', 'hover-10'], hoverVariants});
-		assert.equal(begin.hoverProtocol, 'hover-ten-v2');
+		assert.equal(begin.hoverProtocol, 'hover-ten-v3');
 		assert.equal(begin.hover.count, 10);
 		assert.equal(begin.hover.intervalMs, 50);
 		assert.deepEqual(Array.from(begin.hover.variants), hoverVariants);
@@ -1671,7 +1677,7 @@ describe('shared browser sample lifecycle', () => {
 
 describe('shared sample capture', () => {
 	const operations = ['small-init', 'data-update', 'resize', 'hover-10'];
-	it('gives each lifecycle operation its own budget and keeps GC outside the retained-chart sequence', async () => {
+	it('gives each lifecycle operation its own budget and ends memory after update, before resize', async () => {
 		const clock = collectorClock();
 		const fake = fixture({memory: true, collector: clock.capture,
 			config: {lifecycle: true, operations},
@@ -1684,18 +1690,68 @@ describe('shared sample capture', () => {
 		assert.deepEqual(structuredClone(report.samples[0].phases.map(phase => phase.warmup)), operations.map(() => false));
 		assert.equal(report.samples[0].operation, 'data-update');
 		assert.equal(report.samples[0].id, 'sample-1');
-		assert.deepEqual(structuredClone(report.samples[0].processObservations.filter(read => read.kind === 'gc').map(read => read.phase)), ['baseline', 'live', 'cleanup']);
+		assert.equal(report.memoryProtocol, 'through-update-v1');
+		assert.deepEqual(structuredClone(report.samples[0].processObservations.filter(read => read.kind === 'gc').map(read => read.phase)), ['baseline', 'live']);
 		const methods = fake.events.map(event => event.method);
-		assert.equal(methods.filter(method => method === gc).length, 3);
-		const first = methods.indexOf('construct');
-		const last = methods.lastIndexOf('construct:end');
-		assert.ok(!methods.slice(first, last).includes(gc));
+		assert.equal(methods.filter(method => method === gc).length, 2);
+		const updateEnd = methods.indexOf('construct:end', methods.indexOf('construct:end') + 1);
+		const resizeStart = fake.events.findIndex(event => event.method === 'prepare' && event.variant === 'resize');
+		assert.ok(!methods.slice(methods.indexOf('construct'), updateEnd).includes(gc));
 		assert.ok(methods.indexOf(gc) < methods.indexOf('prepare'));
-		assert.ok(methods.indexOf(gc, methods.indexOf(gc) + 1) > last);
-		assert.ok(methods.lastIndexOf(gc) > methods.indexOf('destroy:end'));
+		assert.ok(methods.lastIndexOf(gc) > updateEnd);
+		assert.ok(methods.lastIndexOf('read') > methods.lastIndexOf(gc));
+		assert.ok(methods.lastIndexOf('read:end') < resizeStart);
+		assert.ok(methods.includes('destroy:end'));
 		assert.deepEqual(fake.events.filter(event => event.method === 'prepare').map(({variant, id}) => [variant, id]),
 			operations.map((operation, index) => [operation, `sample-${index}`]));
 		assert.equal(clock.timers.size, 0);
+	});
+
+	it('gives post-update GC its own budget and does not poll timing-only operations', async () => {
+		const clock = collectorClock();
+		let collections = 0;
+		let timingOnly = false;
+		const fake = fixture({memory: true, collector: clock.capture,
+			config: {lifecycle: true, operations},
+			operation(method) {
+				if (method === 'construct') clock.advance(4000);
+				if (collections === 2) timingOnly = true;
+			},
+			gc() { if (++collections === 2) clock.advance(4000); },
+			read() { assert.equal(timingOnly, false, 'memory reads must stop before resize'); },
+		});
+		const report = await fake.capture();
+		assert.equal(collections, 2);
+		assert.equal(report.samples[0].phases.length, 4);
+		assert.equal(report.samples[0].processObservations.at(-1).phase, 'live');
+		assert.equal(clock.timers.size, 0);
+	});
+
+	it('destroys the chart without resize or more memory reads if post-update GC fails', async () => {
+		const error = new Error('live GC failed');
+		let collections = 0;
+		const fake = fixture({memory: true, config: {lifecycle: true, operations},
+			gc() { if (++collections === 2) throw error; },
+		});
+		await assertSettled(fake, () => assert.rejects(fake.capture(), actual => actual === error));
+		assert.equal(collections, 2);
+		assert.deepEqual(fake.events.filter(event => event.method === 'prepare').map(event => event.variant), ['small-init', 'data-update']);
+		const lastGC = fake.events.findLastIndex(event => event.method === gc);
+		assert.ok(!fake.events.slice(lastGC + 1).some(event => event.method === 'read'));
+		assert.equal(fake.events.at(-1).method, 'destroy:end');
+	});
+
+	it('keeps the same two memory checkpoints across warmups and measured lifecycle sessions', async () => {
+		const fake = fixture({memory: true, config: {lifecycle: true, operations, warmups: 3, rounds: 7}});
+		const report = await fake.capture();
+		assert.equal(report.samples.length, 10);
+		assert.equal(report.samples.filter(sample => sample.warmup).length, 3);
+		assert.equal(fake.events.filter(event => event.method === gc).length, 20);
+		assert.equal(fake.events.filter(event => event.method === 'destroy').length, 10);
+		for (const sample of report.samples) {
+			assert.deepEqual(sample.processObservations.filter(read => read.kind === 'gc').map(read => read.phase), ['baseline', 'live']);
+			assert.equal(sample.processObservations.at(-1).operation, 'data-update');
+		}
 	});
 
 	for (const legacy of [['small-init', 'data-update'], ['small-init', 'data-update', 'resize']]) it(`accepts the legacy ${legacy.length}-operation parent config and keeps data-update as the sample`, async () => {
@@ -1709,10 +1765,10 @@ describe('shared sample capture', () => {
 			assert.equal(sample.operation, 'data-update');
 			assert.equal(sample.warmup, index === 0);
 		}
-		assert.equal(fake.events.filter(event => event.method === gc).length, 6);
+		assert.equal(fake.events.filter(event => event.method === gc).length, 4);
 	});
 
-	it('uses the capability snapshot per variant, with live memory after the last supported operation', async () => {
+	it('uses the same post-update memory boundary regardless of hover capabilities', async () => {
 			const fake = fixture({memory: true, config: {lifecycle: true, operations, variants: ['uplot', 'flot', 'idle']}});
 			const report = await fake.capture();
 			assert.deepEqual(report.hoverVariants, hoverVariants);
@@ -1728,10 +1784,19 @@ describe('shared sample capture', () => {
 				const collections = session.flatMap((event, i) => event.method === gc ? [i] : []);
 				assert.equal(collections.length, 2);
 				assert.ok(collections[0] < session.findIndex(event => event.method === 'prepare'));
-				assert.ok(collections[1] > session.findLastIndex(event => event.method === 'construct:end'));
-				assert.deepEqual(sample.processObservations.filter(read => read.kind === 'gc').map(read => read.phase), ['baseline', 'live', 'cleanup']);
+				const updateEnd = session.findIndex((event, i) => event.method === 'construct:end' && i > session.findIndex(event => event.method === 'prepare' && event.variant === 'data-update'));
+				const resize = session.findIndex(event => event.method === 'prepare' && event.variant === 'resize');
+				assert.ok(collections[1] > updateEnd && collections[1] < resize);
+				assert.ok(!session.slice(resize).some(event => event.method === 'read' || event.method === gc));
+				assert.deepEqual(sample.processObservations.filter(read => read.kind === 'gc').map(read => read.phase), ['baseline', 'live']);
+				assert.equal(sample.processObservations.at(-1).phase, 'live');
+				assert.equal(sample.processObservations.at(-1).operation, 'data-update');
+				assert.ok(sample.processObservations.every(read => !read.operation || ['small-init', 'data-update'].includes(read.operation)));
 			}
-			assert.match(report.processProtocol.lifecycle, /Live follows hover for supported variants, otherwise resize/);
+			assert.match(report.processProtocol.lifecycle, /Live follows the settled full-data update/);
+			assert.deepEqual(report.processProtocol.sequence, ['setup', 'GC', 'baseline', 'prepare small data', 'small init', 'prepare full data', 'prepared', 'data update', 'GC', 'live', 'resize', 'hover 10 when supported', 'destroy']);
+			const summary = summarizeProcessMemory({...report, samples: report.samples.map(sample => ({...sample, observations: sample.processObservations}))});
+			assert.ok(summary.groups.every(group => group.missingCheckpointCount === 0));
 		});
 
 		it('rejects malformed hover capability snapshots before setup', async () => {
@@ -1768,7 +1833,7 @@ describe('shared sample capture', () => {
 				error => error.code === 'BENCHMARK_SAMPLE_TIMEOUT'));
 			assert.equal(preparations, operations.indexOf(operation) + 1);
 			assert.equal(timeouts.length, 1);
-			assert.equal(fake.events.filter(event => event.method === gc).length, 1);
+			assert.equal(fake.events.filter(event => event.method === gc).length, 2);
 			assert.equal(fake.events.filter(event => event.method === 'setup').length, 1);
 			assert.equal(fake.events.filter(event => event.method === 'destroy').length, 0);
 			assert.equal(clock.timers.size, 0);

@@ -5,6 +5,8 @@ export const hoverVariants = [
 	'idle', 'uplot', 'uplot-release', 'd3', 'd3-minmax', 'd3-svg', 'd3-svg-minmax',
 	'd3fc', 'd3fc-canvas', 'deckgl', 'chartjs', 'dygraphs',
 	'highcharts-svg', 'plotly', 'plotly-svg', 'lightweight',
+	'bokeh', 'bokeh-canvas', 'canvasjs', 'apexcharts', 'billboard', 'anychart',
+	'recharts', 'devextreme',
 ];
 
 export function hoverTargets(length, project) {
@@ -50,15 +52,12 @@ export function validateHoverPlan(plan, width, height) {
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// Measurement receives only coordinates, never an adapter's verifier. Waiting
-// after acknowledgement avoids catch-up bursts when input handling is slow.
-export async function runHover(targets, {move = globalThis.benchmarkMoveMouse, wait = delay} = {}) {
-	if (typeof move !== 'function')
-		throw new Error('Hover requires the browser mouse-input bridge.');
-	for (let i = 0; i < targets.length; i++) {
-		if (i > 0) await wait(50);
-		await move(targets[i].x, targets[i].y);
-	}
+// Node paces the entire sequence. The renderer receives only the final
+// acknowledgement, and never calls an adapter's verifier during measurement.
+export async function runHover(targets, {moveBatch = globalThis.benchmarkMoveMouseBatch} = {}) {
+	if (typeof moveBatch !== 'function')
+		throw new Error('Hover requires the batched browser mouse-input bridge.');
+	await moveBatch(targets);
 	return {count: targets.length, intervalMs: 50};
 }
 

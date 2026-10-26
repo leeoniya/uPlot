@@ -8,11 +8,11 @@ export function benchmarkOperations(report) {
 		report.phase !== 'chart-population' || report.initProtocol !== 'settled-work-v1'))
 		throw new Error('Unsupported lifecycle resize protocol or initialization boundary.');
 	if (report.hoverProtocol !== undefined || report.hover !== undefined) {
-		if (!['hover-ten-v1', 'hover-ten-v2'].includes(report.hoverProtocol) || report.resizeProtocol !== 'retained-resize-v1')
+		if (!['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3'].includes(report.hoverProtocol) || report.resizeProtocol !== 'retained-resize-v1')
 			throw new Error('Unsupported lifecycle hover protocol or resize boundary.');
 		const hover = report.hover;
-		if (report.hoverProtocol === 'hover-ten-v2' && hover?.intervalMs !== 50)
-			throw new Error('Lifecycle hover-ten-v2 metadata requires intervalMs 50.');
+		if (['hover-ten-v2', 'hover-ten-v3'].includes(report.hoverProtocol) && hover?.intervalMs !== 50)
+			throw new Error(`Lifecycle ${report.hoverProtocol} metadata requires intervalMs 50.`);
 		if (hover?.count !== 10 || !Array.isArray(hover.variants) || !hover.variants.includes('idle') ||
 			hover.variants.some(variant => typeof variant !== 'string' || !variant.trim() || variant !== variant.trim()) ||
 			new Set(hover.variants).size !== hover.variants.length)
