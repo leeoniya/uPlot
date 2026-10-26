@@ -142,10 +142,10 @@ export function fmtDate(tpl, names) {
 	}
 }
 
-const localTz = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+let localTz;
 
 export function tzDate(dateOrTs, tz) {
-	if (tz == null || tz == localTz)
+	if (tz == null || tz == (localTz ??= new Intl.DateTimeFormat().resolvedOptions().timeZone))
 		return typeof dateOrTs == 'number' ? new Date(dateOrTs) : dateOrTs;
 
 	let d = new DateZoned(dateOrTs);

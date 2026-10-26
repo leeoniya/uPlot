@@ -132,14 +132,14 @@ describe('aligned random-walk demo', () => {
 		assert.deepEqual(u.data.slice(1).map(values => [...new Set(values)]), [[1], [.0001]]);
 		assert.deepEqual(['left-start', 'left-spread', 'right-start', 'right-spread'].map(id => input(id).valueAsNumber), [1, 0, .0001, 0]);
 		for (const [i, dec] of [2, 6].entries()) {
-			const fmt = new Intl.NumberFormat(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec });
+			const fmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
 			const axis = u.axes[i + 1];
 			assert.deepEqual(axis._values, axis._splits.map(value => fmt.format(value)));
 			assert.equal(new Set(axis._values).size, 9);
 		}
 		assert.equal(u.axes[1]._found[0], .25);
 		assert.equal(u.axes[2]._found[0], .000025);
-		const legacyFormat = new Intl.NumberFormat().format;
+		const legacyFormat = new Intl.NumberFormat('en-US').format;
 		assert.ok(u.axes[2]._splits.every(value => legacyFormat(value) === legacyFormat(0)));
 		aligned(u);
 	});

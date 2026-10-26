@@ -20,6 +20,7 @@ import {
 	roundDec,
 	floor,
 	fmtNum,
+	fmtNumDec,
 	fixedDec,
 	numDec,
 	guessDec,
@@ -602,19 +603,9 @@ export const xSeriesOpts = {
 	idxs: [],
 };
 
-const numAxisFmts = new Map();
-
 export function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 	let dec = numDec(splits);
-
-	let fmt = numAxisFmts.get(dec);
-	if (fmt == null) {
-		fmt = dec > 100 ? v => v.toExponential() :
-			new Intl.NumberFormat(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }).format;
-		numAxisFmts.set(dec, fmt);
-	}
-
-	return splits.map(v => v == null ? "" : fmt(v == 0 ? 0 : v));
+	return splits.map(v => v == null ? "" : dec > 100 ? v.toExponential() : fmtNumDec(v == 0 ? 0 : v, dec, dec));
 }
 
 export function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {

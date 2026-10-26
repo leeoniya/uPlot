@@ -163,7 +163,7 @@ declare class uPlot {
 	/** re-ranges a given min/max outwards to nearest 10% of given min/max's magnitudes, unless fullMags = true */
 	static rangeAsinh(min: number, max: number, base: uPlot.Scale.LogBase, fullMags: boolean): uPlot.Range.MinMax;
 
-	/** default numeric formatter using browser's locale: new Intl.NumberFormat(navigator.language).format */
+	/** English numeric formatter with comma grouping and up to three fraction digits; independent of browser locale */
 	static fmtNum(val: number): string;
 
 	/** maximum decimal places needed for numeric splits */

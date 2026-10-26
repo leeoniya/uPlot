@@ -215,8 +215,42 @@ var uPlot = (function() {
 		}
 		return [max(hardMin, minLim), min(hardMax, maxLim)];
 	}
-	const numFormatter = new Intl.NumberFormat();
-	const fmtNum = (val) => numFormatter.format(val);
+	const fmtNum = (val) => fmtNumDec(val);
+	function fmtNumDec(value, min = 0, max = 3) {
+		const sign = value < 0 || Object.is(value, -0) ? "-" : "";
+		if (!isFinite$1(value)) return isNaN(value) ? "NaN" : sign + "∞";
+		let digits = "" + abs(value);
+		const exp = digits.indexOf("e");
+		const dot = digits.indexOf(".");
+		let point = dot < 0 ? exp < 0 ? digits.length : exp : dot;
+		if (exp >= 0) {
+			point += +digits.slice(exp + 1);
+			digits = digits.slice(0, exp);
+		}
+		if (dot >= 0) digits = digits.slice(0, dot) + digits.slice(dot + 1);
+		if (point < 1) {
+			digits = "0".repeat(1 - point) + digits;
+			point = 1;
+		}
+		let end = point + max;
+		if (digits.length > end) {
+			if (digits[end] >= "5") {
+				while (end && digits[end - 1] === "9") end--;
+				digits = end ? digits.slice(0, end - 1) + (+digits[end - 1] + 1) : "1";
+				if (!end) point++;
+			} else digits = digits.slice(0, end);
+		}
+		end = digits.length;
+		const stop = point + min;
+		while (end > stop && digits[end - 1] === "0") end--;
+		digits = digits.slice(0, end).padEnd(stop, "0");
+		let out = digits.length > point ? "." + digits.slice(point) : "";
+		while (point > 3) {
+			out = "," + digits.slice(point - 3, point) + out;
+			point -= 3;
+		}
+		return sign + digits.slice(0, point) + out;
+	}
 	const M = Math;
 	const rand = M.random;
 	const PI = M.PI;
@@ -708,9 +742,9 @@ var uPlot = (function() {
 			return out;
 		};
 	}
-	const localTz = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+	let localTz;
 	function tzDate(dateOrTs, tz) {
-		if (tz == null || tz == localTz) return typeof dateOrTs == "number" ? new Date(dateOrTs) : dateOrTs;
+		if (tz == null || tz == (localTz ??= new Intl.DateTimeFormat().resolvedOptions().timeZone)) return typeof dateOrTs == "number" ? new Date(dateOrTs) : dateOrTs;
 		let d = new DateZoned(dateOrTs);
 		d.setTimeZone(tz);
 		return d;
@@ -1246,18 +1280,9 @@ var uPlot = (function() {
 		max: -Infinity,
 		idxs: []
 	};
-	const numAxisFmts = /* @__PURE__ */ new Map();
 	function numAxisVals(self, splits, axisIdx, foundSpace, foundIncr) {
 		let dec = numDec(splits);
-		let fmt = numAxisFmts.get(dec);
-		if (fmt == null) {
-			fmt = dec > 100 ? (v) => v.toExponential() : new Intl.NumberFormat(void 0, {
-				minimumFractionDigits: dec,
-				maximumFractionDigits: dec
-			}).format;
-			numAxisFmts.set(dec, fmt);
-		}
-		return splits.map((v) => v == null ? "" : fmt(v == 0 ? 0 : v));
+		return splits.map((v) => v == null ? "" : dec > 100 ? v.toExponential() : fmtNumDec(v == 0 ? 0 : v, dec, dec));
 	}
 	function numAxisSplits(self, axisIdx, scaleMin, scaleMax, foundIncr, foundSpace, forceMin) {
 		let splits = [];

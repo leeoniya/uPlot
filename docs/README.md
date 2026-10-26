@@ -4,6 +4,7 @@
 - [Data Format](#data-format)
 - [Data Modes: Aligned and Faceted](data-modes.md)
 - [Basics](#basics)
+- [Numeric Formatting](#numeric-formatting)
 - [Optional DOM](#optional-dom)
 - [Live Legend Selection](investigations/legend-selection.md)
 - [High/Low Bands](#highlow-bands)
@@ -101,6 +102,51 @@ let uplot = new uPlot(opts, data, document.body);
 - All series' options are optional; `label` will default to "Value" and `stroke` will default to "black".
 - `width` is the series' line width in CSS pixels.
 - `stroke`, `width`, `fill`, and `dash` map directly to Canvas API's [ctx.strokeStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeStyle), [ctx.lineWidth](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineWidth), [ctx.fillStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fillStyle), and [ctx.setLineDash](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash).
+
+---
+#### Numeric Formatting
+
+Default numeric labels use English formatting, independent of the browser locale: `1,234.5`, not `1.234,5`.
+This replaces the previous locale-dependent defaults. Default numeric formatting no longer constructs `Intl.NumberFormat` objects.
+Date and timezone formatting also avoid eager `Intl` initialization.
+`tzDate()` resolves and caches the local timezone on its first explicit timezone argument.
+An omitted or `null` timezone bypasses this lookup.
+An explicit timezone that matches the cached local name uses native `Date` operations, not `DateZoned`.
+Explicit `UTC` and `Etc/UTC` arguments perform the same initial lookup, but need no additional per-zone formatter.
+
+- `uPlot.fmtNum(value)` and default legend values use comma grouping and up to three fractional digits.
+- Numeric axes use the precision of their visible splits, with equal fractional padding across labels.
+- Axis precision above 100 fractional digits still uses scientific notation.
+- Decimal rounding uses the shortest decimal representation, so ties round away from zero without `toFixed()` residue.
+
+For localized output, supply `series.value` and numeric `axes.values` callbacks.
+This example uses the browser locale and preserves automatic axis precision:
+
+```js
+const legendFormat = new Intl.NumberFormat().format;
+const axisFormats = new Map();
+
+function localizedAxisValues(u, splits) {
+  const dec = uPlot.numDec(splits);
+  let format = axisFormats.get(dec);
+  if (format == null) {
+    format = dec > 100 ? value => value.toExponential() :
+      new Intl.NumberFormat(undefined, {
+        minimumFractionDigits: dec,
+        maximumFractionDigits: dec,
+      }).format;
+    axisFormats.set(dec, format);
+  }
+  return splits.map(value => value == null ? '' : format(value == 0 ? 0 : value));
+}
+
+function localizedSeriesValue(u, value, seriesIdx, dataIdx) {
+  return dataIdx == null ? '--' : value == null ? '' : legendFormat(value);
+}
+```
+
+Set each numeric axis's `values` to `localizedAxisValues` and each numeric series's `value` to `localizedSeriesValue`.
+These callbacks opt back into `Intl` and its initialization cost.
 
 ---
 #### Optional DOM

@@ -5,7 +5,7 @@ import { numAxisVals } from '../src/opts.js';
 
 const labels = (splits, incr) => numAxisVals(null, splits, 0, 50, incr);
 const localized = (values, dec) => {
-	const fmt = new Intl.NumberFormat(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec });
+	const fmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
 	return values.map(value => fmt.format(value));
 };
 
@@ -104,7 +104,7 @@ describe('numeric axis label precision', () => {
 		assert.deepEqual(labels([.003, .006, .009], .003), localized([.003, .006, .009], 3));
 	});
 
-	it('localizes tiny increments through the Intl fraction-digit limit', () => {
+	it('formats tiny increments through 100 fraction digits', () => {
 		for (const [incr, dec] of [[1e-20, 20], [1e-21, 21], [2.5e-24, 25], [1e-32, 32], [1e-100, 100]]) {
 			const values = [-incr, 0, incr, incr * 2];
 			const actual = labels(values, incr);
@@ -113,7 +113,7 @@ describe('numeric axis label precision', () => {
 		}
 	});
 
-	it('uses decimal Intl formatting rather than exposing binary toFixed residue', () => {
+	it('matches English decimal formatting without binary toFixed residue', () => {
 		const values = [-1.1, 0, 1e-21, 1.1, 1000];
 		const actual = labels(values, 1e-21);
 		assert.deepEqual(actual, localized(values, 21));
@@ -124,15 +124,15 @@ describe('numeric axis label precision', () => {
 		assert.deepEqual(labels([null, -0, undefined, 1e-100], 1e-100), ['', ...localized([0], 100), '', ...localized([1e-100], 100)]);
 	});
 
-	it('uses scientific notation rather than zeros beyond Intl precision', () => {
+	it('uses scientific notation rather than zeros beyond 100 fraction digits', () => {
 		for (const incr of [1e-101, 1e-200, Number.MIN_VALUE]) {
 			const values = [0, incr, incr * 2];
 			assert.deepEqual(labels(values, incr), values.map(value => value.toExponential()));
 		}
 	});
 
-	it('does not change the public number formatter or legend formatting', () => {
-		const fmt = new Intl.NumberFormat();
+	it('keeps public and legend formatting at up to three English fraction digits', () => {
+		const fmt = new Intl.NumberFormat('en-US');
 		assert.equal(uPlot.fmtNum(.00025), fmt.format(.00025));
 		assert.equal(uPlot.fmtNum(2.5), fmt.format(2.5));
 	});

@@ -1,0 +1,419 @@
+{
+  "scope": "Node formatting throughput, not browser timings or memory measurements",
+  "runs": [
+    {
+      "node": "v26.12.0",
+      "v8": "14.6.202.34-node.39",
+      "rounds": 7,
+      "callsPerRound": 262144,
+      "results": [
+        {
+          "name": "legend: up to 3 decimals",
+          "dataset": "percent",
+          "medianNs": {
+            "intl": 508.2345848083495,
+            "loop": 172.4376144409175,
+            "regex": 245.31330108642535
+          },
+          "loopSpeedup": 2.9473533744720557,
+          "mismatchCount": 206,
+          "mismatchExamples": [
+            {
+              "value": 3.9595,
+              "intl": "3.96",
+              "candidate": "3.959"
+            },
+            {
+              "value": 19.7975,
+              "intl": "19.798",
+              "candidate": "19.797"
+            },
+            {
+              "value": 27.7165,
+              "intl": "27.717",
+              "candidate": "27.716"
+            }
+          ]
+        },
+        {
+          "name": "legend: up to 3 decimals",
+          "dataset": "mixed",
+          "medianNs": {
+            "intl": 510.8637390136717,
+            "loop": 243.9031105041494,
+            "regex": 410.91769790649323
+          },
+          "loopSpeedup": 2.0945355635592873,
+          "mismatchCount": 33,
+          "mismatchExamples": [
+            {
+              "value": -98271.9715,
+              "intl": "-98,271.972",
+              "candidate": "-98,271.971"
+            },
+            {
+              "value": -97538.8685,
+              "intl": "-97,538.869",
+              "candidate": "-97,538.868"
+            },
+            {
+              "value": -9738.1775,
+              "intl": "-9,738.178",
+              "candidate": "-9,738.177"
+            }
+          ]
+        },
+        {
+          "name": "axis: fixed 2 decimals",
+          "dataset": "percent",
+          "medianNs": {
+            "intl": 472.9830551147458,
+            "loop": 146.17149353027617,
+            "regex": 227.264678955081
+          },
+          "loopSpeedup": 3.2358091423399045,
+          "mismatchCount": 24,
+          "mismatchExamples": [
+            {
+              "value": 39.595,
+              "intl": "39.60",
+              "candidate": "39.59"
+            },
+            {
+              "value": 97.975,
+              "intl": "97.98",
+              "candidate": "97.97"
+            },
+            {
+              "value": 56.355,
+              "intl": "56.36",
+              "candidate": "56.35"
+            }
+          ]
+        },
+        {
+          "name": "axis: fixed 2 decimals",
+          "dataset": "mixed",
+          "medianNs": {
+            "intl": 512.3201980590832,
+            "loop": 224.96055603027366,
+            "regex": 400.52557754516675
+          },
+          "loopSpeedup": 2.2773778972618586,
+          "mismatchCount": 30,
+          "mismatchExamples": [
+            {
+              "value": -995287.195,
+              "intl": "-995,287.20",
+              "candidate": "-995,287.19"
+            },
+            {
+              "value": -973294.105,
+              "intl": "-973,294.11",
+              "candidate": "-973,294.10"
+            },
+            {
+              "value": -965963.075,
+              "intl": "-965,963.08",
+              "candidate": "-965,963.07"
+            }
+          ]
+        },
+        {
+          "name": "axis: fixed 6 decimals",
+          "dataset": "percent",
+          "medianNs": {
+            "intl": 475.90787506103516,
+            "loop": 162.51227569580305,
+            "regex": 242.66769409179642
+          },
+          "loopSpeedup": 2.9284426239397354,
+          "mismatchCount": 0,
+          "mismatchExamples": []
+        },
+        {
+          "name": "axis: fixed 6 decimals",
+          "dataset": "mixed",
+          "medianNs": {
+            "intl": 553.1729774475094,
+            "loop": 268.0369148254369,
+            "regex": 451.987033843991
+          },
+          "loopSpeedup": 2.063794003179643,
+          "mismatchCount": 0,
+          "mismatchExamples": []
+        }
+      ],
+      "fixed2Edges": [
+        {
+          "input": "0",
+          "intl": "0.00",
+          "candidate": "0.00"
+        },
+        {
+          "input": "-0",
+          "intl": "-0.00",
+          "candidate": "-0.00"
+        },
+        {
+          "input": "-0.00001",
+          "intl": "-0.00",
+          "candidate": "-0.00"
+        },
+        {
+          "input": "1.005",
+          "intl": "1.01",
+          "candidate": "1.00"
+        },
+        {
+          "input": "2.675",
+          "intl": "2.68",
+          "candidate": "2.67"
+        },
+        {
+          "input": "-1.005",
+          "intl": "-1.01",
+          "candidate": "-1.00"
+        },
+        {
+          "input": "1.2345",
+          "intl": "1.23",
+          "candidate": "1.23"
+        },
+        {
+          "input": "1234.5",
+          "intl": "1,234.50",
+          "candidate": "1,234.50"
+        },
+        {
+          "input": "1e+21",
+          "intl": "1,000,000,000,000,000,000,000.00",
+          "candidate": "1e+21"
+        },
+        {
+          "input": "NaN",
+          "intl": "NaN",
+          "candidate": "NaN"
+        },
+        {
+          "input": "Infinity",
+          "intl": "\u221e",
+          "candidate": "\u221e"
+        },
+        {
+          "input": "-Infinity",
+          "intl": "-\u221e",
+          "candidate": "-\u221e"
+        }
+      ],
+      "sink": 2073162672
+    },
+    {
+      "node": "v26.12.0",
+      "v8": "14.6.202.34-node.39",
+      "rounds": 7,
+      "callsPerRound": 262144,
+      "results": [
+        {
+          "name": "legend: up to 3 decimals",
+          "dataset": "percent",
+          "medianNs": {
+            "intl": 465.53701400756836,
+            "loop": 151.3881874084474,
+            "regex": 225.31744766235343
+          },
+          "loopSpeedup": 3.0751211304983994,
+          "mismatchCount": 206,
+          "mismatchExamples": [
+            {
+              "value": 3.9595,
+              "intl": "3.96",
+              "candidate": "3.959"
+            },
+            {
+              "value": 19.7975,
+              "intl": "19.798",
+              "candidate": "19.797"
+            },
+            {
+              "value": 27.7165,
+              "intl": "27.717",
+              "candidate": "27.716"
+            }
+          ]
+        },
+        {
+          "name": "legend: up to 3 decimals",
+          "dataset": "mixed",
+          "medianNs": {
+            "intl": 506.82361602783203,
+            "loop": 240.92452239990286,
+            "regex": 414.88444900512724
+          },
+          "loopSpeedup": 2.1036613914567477,
+          "mismatchCount": 33,
+          "mismatchExamples": [
+            {
+              "value": -98271.9715,
+              "intl": "-98,271.972",
+              "candidate": "-98,271.971"
+            },
+            {
+              "value": -97538.8685,
+              "intl": "-97,538.869",
+              "candidate": "-97,538.868"
+            },
+            {
+              "value": -9738.1775,
+              "intl": "-9,738.178",
+              "candidate": "-9,738.177"
+            }
+          ]
+        },
+        {
+          "name": "axis: fixed 2 decimals",
+          "dataset": "percent",
+          "medianNs": {
+            "intl": 481.05895233154297,
+            "loop": 149.61347961425787,
+            "regex": 226.48393630981394
+          },
+          "loopSpeedup": 3.215344991452889,
+          "mismatchCount": 24,
+          "mismatchExamples": [
+            {
+              "value": 39.595,
+              "intl": "39.60",
+              "candidate": "39.59"
+            },
+            {
+              "value": 97.975,
+              "intl": "97.98",
+              "candidate": "97.97"
+            },
+            {
+              "value": 56.355,
+              "intl": "56.36",
+              "candidate": "56.35"
+            }
+          ]
+        },
+        {
+          "name": "axis: fixed 2 decimals",
+          "dataset": "mixed",
+          "medianNs": {
+            "intl": 524.8042716979977,
+            "loop": 230.39523315429923,
+            "regex": 405.09403610229646
+          },
+          "loopSpeedup": 2.2778434454263565,
+          "mismatchCount": 30,
+          "mismatchExamples": [
+            {
+              "value": -995287.195,
+              "intl": "-995,287.20",
+              "candidate": "-995,287.19"
+            },
+            {
+              "value": -973294.105,
+              "intl": "-973,294.11",
+              "candidate": "-973,294.10"
+            },
+            {
+              "value": -965963.075,
+              "intl": "-965,963.08",
+              "candidate": "-965,963.07"
+            }
+          ]
+        },
+        {
+          "name": "axis: fixed 6 decimals",
+          "dataset": "percent",
+          "medianNs": {
+            "intl": 487.699001312257,
+            "loop": 168.21316909790275,
+            "regex": 244.73188018798302
+          },
+          "loopSpeedup": 2.899291440305773,
+          "mismatchCount": 0,
+          "mismatchExamples": []
+        },
+        {
+          "name": "axis: fixed 6 decimals",
+          "dataset": "mixed",
+          "medianNs": {
+            "intl": 557.4891548156754,
+            "loop": 280.4732856750494,
+            "regex": 461.24068832397586
+          },
+          "loopSpeedup": 1.987672920342121,
+          "mismatchCount": 0,
+          "mismatchExamples": []
+        }
+      ],
+      "fixed2Edges": [
+        {
+          "input": "0",
+          "intl": "0.00",
+          "candidate": "0.00"
+        },
+        {
+          "input": "-0",
+          "intl": "-0.00",
+          "candidate": "-0.00"
+        },
+        {
+          "input": "-0.00001",
+          "intl": "-0.00",
+          "candidate": "-0.00"
+        },
+        {
+          "input": "1.005",
+          "intl": "1.01",
+          "candidate": "1.00"
+        },
+        {
+          "input": "2.675",
+          "intl": "2.68",
+          "candidate": "2.67"
+        },
+        {
+          "input": "-1.005",
+          "intl": "-1.01",
+          "candidate": "-1.00"
+        },
+        {
+          "input": "1.2345",
+          "intl": "1.23",
+          "candidate": "1.23"
+        },
+        {
+          "input": "1234.5",
+          "intl": "1,234.50",
+          "candidate": "1,234.50"
+        },
+        {
+          "input": "1e+21",
+          "intl": "1,000,000,000,000,000,000,000.00",
+          "candidate": "1e+21"
+        },
+        {
+          "input": "NaN",
+          "intl": "NaN",
+          "candidate": "NaN"
+        },
+        {
+          "input": "Infinity",
+          "intl": "\u221e",
+          "candidate": "\u221e"
+        },
+        {
+          "input": "-Infinity",
+          "intl": "-\u221e",
+          "candidate": "-\u221e"
+        }
+      ],
+      "sink": 2073162672
+    }
+  ]
+}

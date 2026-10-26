@@ -1,0 +1,756 @@
+{
+  "units": "decimal MB",
+  "pairedIntervention": "new Intl.NumberFormat(); new Intl.DateTimeFormat().resolvedOptions().timeZone; void 0",
+  "paired": [
+    {
+      "source": "/tmp/uplot-intl-memory-KnLfad/results.json",
+      "variant": "d3-minmax",
+      "browser": "HeadlessChrome/156.0.8078.47",
+      "treePssDeltaMB": 3.9485440000000267,
+      "rendererPssDeltaMB": 5.675008000000005,
+      "jsHeapDeltaBytes": 0,
+      "mappingDeltas": {
+        "icudtl.dat": 2.095104,
+        "[anon:partition_alloc]": 1.606656,
+        "chrome-headless-shell": 0.24576,
+        "libc.so.6": 0.001024
+      },
+      "before": {
+        "treePssMB": 294.066176,
+        "rendererPssMB": 78.304256,
+        "heap": {
+          "usedSize": 7472872,
+          "totalSize": 7798784,
+          "embedderHeapUsedSize": 498848,
+          "backingStorageSize": 368290
+        }
+      },
+      "after": {
+        "treePssMB": 298.01472,
+        "rendererPssMB": 83.979264,
+        "heap": {
+          "usedSize": 7472872,
+          "totalSize": 7798784,
+          "embedderHeapUsedSize": 498848,
+          "backingStorageSize": 368290
+        }
+      }
+    },
+    {
+      "source": "/tmp/uplot-intl-memory-7pbOvV/results.json",
+      "variant": "uplot",
+      "browser": "HeadlessChrome/156.0.8078.47",
+      "treePssDeltaMB": 0.04095999999998412,
+      "rendererPssDeltaMB": 0.04095999999999833,
+      "jsHeapDeltaBytes": 0,
+      "mappingDeltas": {
+        "[anon:partition_alloc]": 0.04096
+      },
+      "before": {
+        "treePssMB": 299.188224,
+        "rendererPssMB": 83.115008,
+        "heap": {
+          "usedSize": 7419548,
+          "totalSize": 8060928,
+          "embedderHeapUsedSize": 578408,
+          "backingStorageSize": 149846
+        }
+      },
+      "after": {
+        "treePssMB": 299.229184,
+        "rendererPssMB": 83.155968,
+        "heap": {
+          "usedSize": 7419548,
+          "totalSize": 8060928,
+          "embedderHeapUsedSize": 578408,
+          "backingStorageSize": 149846
+        }
+      }
+    },
+    {
+      "source": "/tmp/uplot-intl-memory-tCH3dW/results.json",
+      "variant": "d3-svg-minmax",
+      "browser": "HeadlessChrome/156.0.8078.47",
+      "treePssDeltaMB": 3.9874560000000656,
+      "rendererPssDeltaMB": 5.744640000000004,
+      "jsHeapDeltaBytes": 0,
+      "mappingDeltas": {
+        "icudtl.dat": 2.095104,
+        "[anon:partition_alloc]": 1.5616,
+        "chrome-headless-shell": 0.32768,
+        "libc.so.6": 0.001024
+      },
+      "before": {
+        "treePssMB": 298.916864,
+        "rendererPssMB": 78.821376,
+        "heap": {
+          "usedSize": 7629368,
+          "totalSize": 8323072,
+          "embedderHeapUsedSize": 597752,
+          "backingStorageSize": 368562
+        }
+      },
+      "after": {
+        "treePssMB": 302.90432000000004,
+        "rendererPssMB": 84.566016,
+        "heap": {
+          "usedSize": 7629368,
+          "totalSize": 8323072,
+          "embedderHeapUsedSize": 597752,
+          "backingStorageSize": 368562
+        }
+      }
+    }
+  ],
+  "crossBrowser": [
+    {
+      "source": "/tmp/uplot-native-memory-UVIGHw/results.json",
+      "spec": "uplot:lazyintl",
+      "idleAdjusted": false,
+      "lazyNumberUses": 0,
+      "minPeakAboveBlankMB": 41.21702399999998,
+      "minLiveAboveBlankMB": 37.45279999999997,
+      "samples": [
+        {
+          "round": 3,
+          "peakAboveBlankMB": 43.41657600000002,
+          "liveAboveBlankMB": 37.489664000000005,
+          "liveHeap": {
+            "usedSize": 7421128,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 581112,
+            "backingStorageSize": 150094
+          }
+        },
+        {
+          "round": 4,
+          "peakAboveBlankMB": 43.44524799999999,
+          "liveAboveBlankMB": 37.45279999999997,
+          "liveHeap": {
+            "usedSize": 7504072,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 582008,
+            "backingStorageSize": 150094
+          }
+        },
+        {
+          "round": 5,
+          "peakAboveBlankMB": 41.21702399999998,
+          "liveAboveBlankMB": 37.469183999999984,
+          "liveHeap": {
+            "usedSize": 7507064,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 584448,
+            "backingStorageSize": 150094
+          }
+        }
+      ]
+    },
+    {
+      "source": "/tmp/uplot-native-memory-UVIGHw/results.json",
+      "spec": "d3-minmax:numberintl",
+      "idleAdjusted": false,
+      "lazyNumberUses": null,
+      "minPeakAboveBlankMB": 47.87916799999999,
+      "minLiveAboveBlankMB": 41.724928000000034,
+      "samples": [
+        {
+          "round": 3,
+          "peakAboveBlankMB": 47.87916799999999,
+          "liveAboveBlankMB": 41.724928000000034,
+          "liveHeap": {
+            "usedSize": 7471952,
+            "totalSize": 7798784,
+            "embedderHeapUsedSize": 501536,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 4,
+          "peakAboveBlankMB": 51.6096,
+          "liveAboveBlankMB": 41.934848000000045,
+          "liveHeap": {
+            "usedSize": 7532704,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 502432,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 5,
+          "peakAboveBlankMB": 48.34099200000003,
+          "liveAboveBlankMB": 42.04953599999999,
+          "liveHeap": {
+            "usedSize": 7533732,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 504872,
+            "backingStorageSize": 368290
+          }
+        }
+      ]
+    },
+    {
+      "source": "/tmp/uplot-native-memory-UVIGHw/results.json",
+      "spec": "uplot",
+      "idleAdjusted": false,
+      "lazyNumberUses": null,
+      "minPeakAboveBlankMB": 47.54432000000003,
+      "minLiveAboveBlankMB": 41.81401599999998,
+      "samples": [
+        {
+          "round": 3,
+          "peakAboveBlankMB": 47.54432000000003,
+          "liveAboveBlankMB": 41.81401599999998,
+          "liveHeap": {
+            "usedSize": 7419480,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 576464,
+            "backingStorageSize": 149846
+          }
+        },
+        {
+          "round": 4,
+          "peakAboveBlankMB": 47.99897600000003,
+          "liveAboveBlankMB": 42.10073599999998,
+          "liveHeap": {
+            "usedSize": 7502448,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 577360,
+            "backingStorageSize": 149846
+          }
+        },
+        {
+          "round": 5,
+          "peakAboveBlankMB": 48.162815999999964,
+          "liveAboveBlankMB": 42.366975999999966,
+          "liveHeap": {
+            "usedSize": 7505220,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 579800,
+            "backingStorageSize": 149846
+          }
+        }
+      ]
+    },
+    {
+      "source": "/tmp/uplot-native-memory-UVIGHw/results.json",
+      "spec": "d3-minmax",
+      "idleAdjusted": false,
+      "lazyNumberUses": null,
+      "minPeakAboveBlankMB": 43.78624000000002,
+      "minLiveAboveBlankMB": 38.211584000000016,
+      "samples": [
+        {
+          "round": 3,
+          "peakAboveBlankMB": 43.78624000000002,
+          "liveAboveBlankMB": 38.211584000000016,
+          "liveHeap": {
+            "usedSize": 7473024,
+            "totalSize": 7798784,
+            "embedderHeapUsedSize": 496904,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 4,
+          "peakAboveBlankMB": 48.726016000000016,
+          "liveAboveBlankMB": 38.473727999999994,
+          "liveHeap": {
+            "usedSize": 7533156,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 497800,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 5,
+          "peakAboveBlankMB": 44.23680000000002,
+          "liveAboveBlankMB": 39.05536000000001,
+          "liveHeap": {
+            "usedSize": 7534180,
+            "totalSize": 7798784,
+            "embedderHeapUsedSize": 500240,
+            "backingStorageSize": 368290
+          }
+        }
+      ]
+    },
+    {
+      "source": "/tmp/uplot-native-memory-UVIGHw/results.json",
+      "spec": "d3-svg-minmax",
+      "idleAdjusted": false,
+      "lazyNumberUses": null,
+      "minPeakAboveBlankMB": 48.874495999999965,
+      "minLiveAboveBlankMB": 38.278144,
+      "samples": [
+        {
+          "round": 3,
+          "peakAboveBlankMB": 48.874495999999965,
+          "liveAboveBlankMB": 38.278144,
+          "liveHeap": {
+            "usedSize": 7629216,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 599048,
+            "backingStorageSize": 368562
+          }
+        },
+        {
+          "round": 4,
+          "peakAboveBlankMB": 49.00147199999998,
+          "liveAboveBlankMB": 38.78195199999999,
+          "liveHeap": {
+            "usedSize": 7687676,
+            "totalSize": 8585216,
+            "embedderHeapUsedSize": 599944,
+            "backingStorageSize": 368562
+          }
+        },
+        {
+          "round": 5,
+          "peakAboveBlankMB": 49.73465599999997,
+          "liveAboveBlankMB": 39.412735999999995,
+          "liveHeap": {
+            "usedSize": 7689472,
+            "totalSize": 8585216,
+            "embedderHeapUsedSize": 602384,
+            "backingStorageSize": 368562
+          }
+        }
+      ]
+    },
+    {
+      "source": "/tmp/uplot-native-memory-cBc5n4/results.json",
+      "spec": "d3-svg-minmax:nopathapply",
+      "idleAdjusted": false,
+      "lazyNumberUses": null,
+      "minPeakAboveBlankMB": 48.940031999999974,
+      "minLiveAboveBlankMB": 38.679551999999944,
+      "samples": [
+        {
+          "round": 3,
+          "peakAboveBlankMB": 48.940031999999974,
+          "liveAboveBlankMB": 38.679551999999944,
+          "liveHeap": {
+            "usedSize": 7630424,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 597656,
+            "backingStorageSize": 368560
+          }
+        },
+        {
+          "round": 4,
+          "peakAboveBlankMB": 49.52575999999999,
+          "liveAboveBlankMB": 38.966272000000004,
+          "liveHeap": {
+            "usedSize": 7695212,
+            "totalSize": 8585216,
+            "embedderHeapUsedSize": 598552,
+            "backingStorageSize": 368560
+          }
+        },
+        {
+          "round": 5,
+          "peakAboveBlankMB": 49.509375999999975,
+          "liveAboveBlankMB": 39.12601599999999,
+          "liveHeap": {
+            "usedSize": 7697088,
+            "totalSize": 8585216,
+            "embedderHeapUsedSize": 601176,
+            "backingStorageSize": 368560
+          }
+        }
+      ]
+    },
+    {
+      "source": "/tmp/uplot-native-memory-cBc5n4/results.json",
+      "spec": "d3-svg-minmax:nostring",
+      "idleAdjusted": false,
+      "lazyNumberUses": null,
+      "minPeakAboveBlankMB": 42.18367999999998,
+      "minLiveAboveBlankMB": 36.47385600000001,
+      "samples": [
+        {
+          "round": 3,
+          "peakAboveBlankMB": 42.61376000000001,
+          "liveAboveBlankMB": 36.47385600000001,
+          "liveHeap": {
+            "usedSize": 7613596,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 596832,
+            "backingStorageSize": 368612
+          }
+        },
+        {
+          "round": 4,
+          "peakAboveBlankMB": 42.24102399999998,
+          "liveAboveBlankMB": 36.686848,
+          "liveHeap": {
+            "usedSize": 7689296,
+            "totalSize": 8585216,
+            "embedderHeapUsedSize": 597664,
+            "backingStorageSize": 368612
+          }
+        },
+        {
+          "round": 5,
+          "peakAboveBlankMB": 42.18367999999998,
+          "liveAboveBlankMB": 36.88755199999997,
+          "liveHeap": {
+            "usedSize": 7691284,
+            "totalSize": 8585216,
+            "embedderHeapUsedSize": 600104,
+            "backingStorageSize": 368612
+          }
+        }
+      ]
+    },
+    {
+      "source": "/tmp/uplot-native-memory-rYT8se/results.json",
+      "spec": "uplot",
+      "idleAdjusted": false,
+      "lazyNumberUses": null,
+      "minPeakAboveBlankMB": 44.787712,
+      "minLiveAboveBlankMB": 41.07571200000001,
+      "samples": [
+        {
+          "round": 3,
+          "peakAboveBlankMB": 44.787712,
+          "liveAboveBlankMB": 41.12998399999998,
+          "liveHeap": {
+            "usedSize": 7419792,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 577136,
+            "backingStorageSize": 149846
+          }
+        },
+        {
+          "round": 4,
+          "peakAboveBlankMB": 47.40812799999998,
+          "liveAboveBlankMB": 41.45254399999999,
+          "liveHeap": {
+            "usedSize": 7503112,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 578032,
+            "backingStorageSize": 149846
+          }
+        },
+        {
+          "round": 5,
+          "peakAboveBlankMB": 47.26886400000001,
+          "liveAboveBlankMB": 41.100288000000035,
+          "liveHeap": {
+            "usedSize": 7505492,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 580472,
+            "backingStorageSize": 149846
+          }
+        },
+        {
+          "round": 6,
+          "peakAboveBlankMB": 47.33440000000002,
+          "liveAboveBlankMB": 41.07571200000001,
+          "liveHeap": {
+            "usedSize": 7513836,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 580912,
+            "backingStorageSize": 149846
+          }
+        },
+        {
+          "round": 7,
+          "peakAboveBlankMB": 47.125504000000035,
+          "liveAboveBlankMB": 41.41568000000001,
+          "liveHeap": {
+            "usedSize": 7629236,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 581824,
+            "backingStorageSize": 149846
+          }
+        },
+        {
+          "round": 8,
+          "peakAboveBlankMB": 47.756287999999984,
+          "liveAboveBlankMB": 41.77203199999997,
+          "liveHeap": {
+            "usedSize": 7665912,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 582688,
+            "backingStorageSize": 149846
+          }
+        },
+        {
+          "round": 9,
+          "peakAboveBlankMB": 47.490048,
+          "liveAboveBlankMB": 42.09152,
+          "liveHeap": {
+            "usedSize": 7687764,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 583616,
+            "backingStorageSize": 149846
+          }
+        }
+      ]
+    },
+    {
+      "source": "/tmp/uplot-native-memory-rYT8se/results.json",
+      "spec": "uplot:lazyintl",
+      "idleAdjusted": false,
+      "lazyNumberUses": 0,
+      "minPeakAboveBlankMB": 43.08480000000003,
+      "minLiveAboveBlankMB": 39.18131199999999,
+      "samples": [
+        {
+          "round": 3,
+          "peakAboveBlankMB": 44.78873600000003,
+          "liveAboveBlankMB": 39.18131199999999,
+          "liveHeap": {
+            "usedSize": 7421284,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 580168,
+            "backingStorageSize": 150094
+          }
+        },
+        {
+          "round": 4,
+          "peakAboveBlankMB": 45.82911999999999,
+          "liveAboveBlankMB": 39.25913600000001,
+          "liveHeap": {
+            "usedSize": 7504696,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 581064,
+            "backingStorageSize": 150094
+          }
+        },
+        {
+          "round": 5,
+          "peakAboveBlankMB": 45.612032000000056,
+          "liveAboveBlankMB": 39.20179200000001,
+          "liveHeap": {
+            "usedSize": 7506824,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 583504,
+            "backingStorageSize": 150094
+          }
+        },
+        {
+          "round": 6,
+          "peakAboveBlankMB": 43.08480000000003,
+          "liveAboveBlankMB": 39.56224000000003,
+          "liveHeap": {
+            "usedSize": 7515376,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 583944,
+            "backingStorageSize": 150094
+          }
+        },
+        {
+          "round": 7,
+          "peakAboveBlankMB": 45.34579200000002,
+          "liveAboveBlankMB": 39.42707200000007,
+          "liveHeap": {
+            "usedSize": 7630748,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 584856,
+            "backingStorageSize": 150094
+          }
+        },
+        {
+          "round": 8,
+          "peakAboveBlankMB": 45.42771200000004,
+          "liveAboveBlankMB": 39.57452800000004,
+          "liveHeap": {
+            "usedSize": 7667172,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 585720,
+            "backingStorageSize": 150094
+          }
+        },
+        {
+          "round": 9,
+          "peakAboveBlankMB": 45.87008000000003,
+          "liveAboveBlankMB": 40.18483200000003,
+          "liveHeap": {
+            "usedSize": 7689528,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 586648,
+            "backingStorageSize": 150094
+          }
+        }
+      ]
+    },
+    {
+      "source": "/tmp/uplot-native-memory-rYT8se/results.json",
+      "spec": "d3-minmax",
+      "idleAdjusted": false,
+      "lazyNumberUses": null,
+      "minPeakAboveBlankMB": 42.86976000000004,
+      "minLiveAboveBlankMB": 37.18451200000004,
+      "samples": [
+        {
+          "round": 3,
+          "peakAboveBlankMB": 42.86976000000004,
+          "liveAboveBlankMB": 37.18451200000004,
+          "liveHeap": {
+            "usedSize": 7472664,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 496904,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 4,
+          "peakAboveBlankMB": 47.85868800000003,
+          "liveAboveBlankMB": 37.19680000000005,
+          "liveHeap": {
+            "usedSize": 7533496,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 497800,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 5,
+          "peakAboveBlankMB": 43.95929600000005,
+          "liveAboveBlankMB": 37.65555200000006,
+          "liveHeap": {
+            "usedSize": 7534476,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 500240,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 6,
+          "peakAboveBlankMB": 43.185152000000016,
+          "liveAboveBlankMB": 38.14297600000003,
+          "liveHeap": {
+            "usedSize": 7543700,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 500200,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 7,
+          "peakAboveBlankMB": 47.27296000000001,
+          "liveAboveBlankMB": 38.15936000000005,
+          "liveHeap": {
+            "usedSize": 7543800,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 501040,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 8,
+          "peakAboveBlankMB": 43.746304000000066,
+          "liveAboveBlankMB": 38.22899200000006,
+          "liveHeap": {
+            "usedSize": 7580296,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 501904,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 9,
+          "peakAboveBlankMB": 44.196864000000005,
+          "liveAboveBlankMB": 38.269952000000046,
+          "liveHeap": {
+            "usedSize": 7591508,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 502832,
+            "backingStorageSize": 368290
+          }
+        }
+      ]
+    },
+    {
+      "source": "/tmp/uplot-native-memory-rYT8se/results.json",
+      "spec": "d3-minmax:numberintl",
+      "idleAdjusted": false,
+      "lazyNumberUses": null,
+      "minPeakAboveBlankMB": 44.85631999999998,
+      "minLiveAboveBlankMB": 39.232511999999986,
+      "samples": [
+        {
+          "round": 3,
+          "peakAboveBlankMB": 44.85631999999998,
+          "liveAboveBlankMB": 39.232511999999986,
+          "liveHeap": {
+            "usedSize": 7472884,
+            "totalSize": 7798784,
+            "embedderHeapUsedSize": 501536,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 4,
+          "peakAboveBlankMB": 49.28819199999998,
+          "liveAboveBlankMB": 39.57657599999999,
+          "liveHeap": {
+            "usedSize": 7532976,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 502432,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 5,
+          "peakAboveBlankMB": 46.21004800000003,
+          "liveAboveBlankMB": 40.19097599999998,
+          "liveHeap": {
+            "usedSize": 7533920,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 504872,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 6,
+          "peakAboveBlankMB": 46.658559999999966,
+          "liveAboveBlankMB": 40.46950399999997,
+          "liveHeap": {
+            "usedSize": 7543060,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 504760,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 7,
+          "peakAboveBlankMB": 50.32038399999999,
+          "liveAboveBlankMB": 40.51046400000001,
+          "liveHeap": {
+            "usedSize": 7565072,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 505672,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 8,
+          "peakAboveBlankMB": 46.20799999999997,
+          "liveAboveBlankMB": 40.64563199999998,
+          "liveHeap": {
+            "usedSize": 7579652,
+            "totalSize": 8323072,
+            "embedderHeapUsedSize": 506536,
+            "backingStorageSize": 368290
+          }
+        },
+        {
+          "round": 9,
+          "peakAboveBlankMB": 45.937663999999984,
+          "liveAboveBlankMB": 40.666112,
+          "liveHeap": {
+            "usedSize": 7590868,
+            "totalSize": 8060928,
+            "embedderHeapUsedSize": 507464,
+            "backingStorageSize": 368290
+          }
+        }
+      ]
+    }
+  ]
+}

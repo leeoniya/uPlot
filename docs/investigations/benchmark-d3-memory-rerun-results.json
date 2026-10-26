@@ -1,0 +1,1851 @@
+{
+  "protocol": "Production memory-only capture and idle adjustment; decimal MB; minima across seven measured sessions after three warmups; serial fresh browsers",
+  "runs": [
+    {
+      "sourceDirectory": "/tmp/uplot-memory-rerun-QRE25Y",
+      "date": "2026-10-26T00:45:04.112Z",
+      "order": [
+        "idle",
+        "uplot-before",
+        "uplot",
+        "d3-minmax",
+        "d3-svg-minmax"
+      ],
+      "summary": [
+        {
+          "variant": "uplot-before",
+          "peakMB": {
+            "min": 18.36441599999995,
+            "max": 21.20703999999995,
+            "count": 7,
+            "missing": 0
+          },
+          "retainedMB": {
+            "min": 14.882815999999934,
+            "max": 15.247359999999958,
+            "count": 7,
+            "missing": 0
+          }
+        },
+        {
+          "variant": "uplot",
+          "peakMB": {
+            "min": 14.090239999999937,
+            "max": 17.149951999999928,
+            "count": 7,
+            "missing": 0
+          },
+          "retainedMB": {
+            "min": 10.178560000000004,
+            "max": 11.509759999999972,
+            "count": 7,
+            "missing": 0
+          }
+        },
+        {
+          "variant": "d3-minmax",
+          "peakMB": {
+            "min": 14.857215999999937,
+            "max": 20.006911999999943,
+            "count": 7,
+            "missing": 0
+          },
+          "retainedMB": {
+            "min": 9.404415999999912,
+            "max": 10.860543999999948,
+            "count": 7,
+            "missing": 0
+          }
+        },
+        {
+          "variant": "d3-svg-minmax",
+          "peakMB": {
+            "min": 21.617663999999934,
+            "max": 26.82470399999994,
+            "count": 7,
+            "missing": 0
+          },
+          "retainedMB": {
+            "min": 10.91071999999997,
+            "max": 12.910591999999951,
+            "count": 7,
+            "missing": 0
+          }
+        }
+      ],
+      "idleLiveAboveBlankMB": 22.592512000000056,
+      "records": [
+        {
+          "variant": "idle",
+          "blankTreePssMB": 263.80697599999996,
+          "runner": {
+            "variant": "idle",
+            "servedVariant": "idle",
+            "beforeCommit": null,
+            "browserVersion": "Google Chrome for Testing 156.0.8078.47",
+            "browserArgs": [
+              "--no-first-run",
+              "--no-default-browser-check",
+              "--disable-background-networking",
+              "--disable-component-update",
+              "--disable-sync",
+              "--disable-extensions",
+              "--user-data-dir=/tmp/uplot-memory-rerun-QRE25Y/idle-profile",
+              "--enable-gpu",
+              "--enable-features=Vulkan",
+              "--remote-debugging-port=0",
+              "--remote-debugging-address=127.0.0.1",
+              "--window-size=1920,900",
+              "about:blank"
+            ],
+            "dpr": 1,
+            "requestedBackend": "vulkan",
+            "node": "v26.12.0",
+            "cpu": "AMD Ryzen 7 PRO 5850U with Radeon Graphics",
+            "os": "linux 7.2.11-arch1-1",
+            "dependencies": [],
+            "sourceSha256": {
+              "/bench/demo-fixture.mjs": "856479aeb4b9b4f0c5a72e7fb15e52b24aca5bdd81f996ac5c23911e58a0063f",
+              "/bench/demo-dependencies.mjs": "78604e410cdac8b71c19e16708e50cc821c5c555f83dca9910fdf0a042931bef",
+              "/bench/demo-runtime.mjs": "a573160a196df5a48be73be08806604a6fc6aef45fbf01ce9068043254c54695",
+              "/bench/framework-runtime.mjs": "5dd77bcd44110998cf4143caef47d0290eb85fedbd63d61e5eda06773417fa9e",
+              "/bench/lifecycle-data.mjs": "bf13f6ba0d4b257d4b5600a6a01254f67c1d195c4995b4e5d506ec253a79f46b",
+              "/bench/demo.css": "d6b4a01c489443f5ca68ab7e359ad42e119832803c1f496998de3109c9ed2e6b",
+              "/bench.mjs": "96f716834090a537d0305cc559819ec10ca1eba02ec82d64383c88b82e5230d0",
+              "/bench/data.json": "620ec683dfb856af79185dc1e42536c5e39a1fb1deebcff9202c7a660e54bf41",
+              "/bench/runtime-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "/bench/module-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+            },
+            "browserLog": "\nDevTools listening on ws://127.0.0.1:38221/devtools/browser/47edc175-01ea-4feb-b3bc-3def506d0f83\n[1025/194337.509554:WARNING:components/dbus/xdg/portal.cc:126] Failed to register with org.freedesktop.host.portal.Registry\n[1025/194337.694730:WARNING:sandbox/policy/linux/sandbox_linux.cc:405] InitializeSandbox() called with multiple threads in process gpu-process.\n"
+          },
+          "glRenderer": "ANGLE (AMD, AMD Radeon Graphics (radeonsi renoir ACO DRM 3.64 7.2.11-arch1-1), OpenGL 4.6 (Core Profile) Mesa 26.2.5-arch1.1)",
+          "rounds": [
+            {
+              "round": -3,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 286.367744,
+              "rawLiveMB": 286.367744,
+              "adjustedPeakMB": -0.031744000000003325,
+              "adjustedLiveMB": -0.031744000000003325
+            },
+            {
+              "round": -2,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 286.40870400000006,
+              "rawLiveMB": 286.38822400000004,
+              "adjustedPeakMB": 0.009216000000037639,
+              "adjustedLiveMB": -0.011263999999982843
+            },
+            {
+              "round": -1,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 286.42406400000004,
+              "rawLiveMB": 286.403584,
+              "adjustedPeakMB": 0.024576000000024578,
+              "adjustedLiveMB": 0.004096000000004096
+            },
+            {
+              "round": 0,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 286.41587200000004,
+              "rawLiveMB": 286.399488,
+              "adjustedPeakMB": 0.016384000000016385,
+              "adjustedLiveMB": 0.0
+            },
+            {
+              "round": 1,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 286.53056000000004,
+              "rawLiveMB": 286.47321600000004,
+              "adjustedPeakMB": 0.1310720000000174,
+              "adjustedLiveMB": 0.07372800000001689
+            },
+            {
+              "round": 2,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 286.47321600000004,
+              "rawLiveMB": 286.452736,
+              "adjustedPeakMB": 0.07372800000001689,
+              "adjustedLiveMB": 0.05324799999999641
+            },
+            {
+              "round": 3,
+              "warmup": false,
+              "invalidObservations": [
+                {
+                  "phase": "baseline",
+                  "kind": "gc",
+                  "issues": [
+                    {
+                      "pid": 87784,
+                      "stage": "discover",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/87784/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 286.58790400000004,
+              "rawLiveMB": 286.58790400000004,
+              "adjustedPeakMB": 0.1884160000000179,
+              "adjustedLiveMB": 0.1884160000000179
+            },
+            {
+              "round": 4,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 286.59609600000005,
+              "rawLiveMB": 286.555136,
+              "adjustedPeakMB": 0.1966080000000261,
+              "adjustedLiveMB": 0.15564799999998513
+            },
+            {
+              "round": 5,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 286.546944,
+              "rawLiveMB": 286.52646400000003,
+              "adjustedPeakMB": 0.14745599999997694,
+              "adjustedLiveMB": 0.1269760000000133
+            },
+            {
+              "round": 6,
+              "warmup": false,
+              "invalidObservations": [
+                {
+                  "phase": "construct",
+                  "kind": "start",
+                  "issues": [
+                    {
+                      "pid": 87786,
+                      "stage": "discover",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/87786/stat'"
+                    },
+                    {
+                      "pid": 87788,
+                      "stage": "verify-tree",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/87788/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 286.606336,
+              "rawLiveMB": 286.58380800000003,
+              "adjustedPeakMB": 0.2068479999999795,
+              "adjustedLiveMB": 0.1843200000000138
+            }
+          ]
+        },
+        {
+          "variant": "uplot-before",
+          "blankTreePssMB": 261.472256,
+          "runner": {
+            "variant": "uplot-before",
+            "servedVariant": "uplot",
+            "beforeCommit": "28b7be5dd5301daf6d61e76ffaa14a17063be88b",
+            "browserVersion": "Google Chrome for Testing 156.0.8078.47",
+            "browserArgs": [
+              "--no-first-run",
+              "--no-default-browser-check",
+              "--disable-background-networking",
+              "--disable-component-update",
+              "--disable-sync",
+              "--disable-extensions",
+              "--user-data-dir=/tmp/uplot-memory-rerun-QRE25Y/uplot-before-profile",
+              "--enable-gpu",
+              "--enable-features=Vulkan",
+              "--remote-debugging-port=0",
+              "--remote-debugging-address=127.0.0.1",
+              "--window-size=1920,900",
+              "about:blank"
+            ],
+            "dpr": 1,
+            "requestedBackend": "vulkan",
+            "node": "v26.12.0",
+            "cpu": "AMD Ryzen 7 PRO 5850U with Radeon Graphics",
+            "os": "linux 7.2.11-arch1-1",
+            "dependencies": [],
+            "sourceSha256": {
+              "/bench/demo-fixture.mjs": "856479aeb4b9b4f0c5a72e7fb15e52b24aca5bdd81f996ac5c23911e58a0063f",
+              "/bench/demo-dependencies.mjs": "78604e410cdac8b71c19e16708e50cc821c5c555f83dca9910fdf0a042931bef",
+              "/bench/demo-runtime.mjs": "a573160a196df5a48be73be08806604a6fc6aef45fbf01ce9068043254c54695",
+              "/bench/framework-runtime.mjs": "5dd77bcd44110998cf4143caef47d0290eb85fedbd63d61e5eda06773417fa9e",
+              "/bench/lifecycle-data.mjs": "bf13f6ba0d4b257d4b5600a6a01254f67c1d195c4995b4e5d506ec253a79f46b",
+              "/bench/demo.css": "d6b4a01c489443f5ca68ab7e359ad42e119832803c1f496998de3109c9ed2e6b",
+              "/bench/uplot.mjs": "e3fc1ef89e67e9207b539622e8dafcf80b68584a1cda3962c4d4bd07518e11c6",
+              "/dist/uPlot.iife.min.js": "329af668720df79337a3d9d8d387ffe9ae0be8f630cc0d75dc045b2ecbc36668",
+              "/dist/uPlot.min.css": "47abe89afb93c70d428fdec950a50abbb1f4001eabe35895dc3b140bb0f23d46",
+              "/bench.mjs": "96f716834090a537d0305cc559819ec10ca1eba02ec82d64383c88b82e5230d0",
+              "/bench/data.json": "620ec683dfb856af79185dc1e42536c5e39a1fb1deebcff9202c7a660e54bf41",
+              "/bench/runtime-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "/bench/module-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+            },
+            "browserLog": "\nDevTools listening on ws://127.0.0.1:35603/devtools/browser/3f272cc6-0d94-4200-83f0-855c3fe0a72a\n[1025/194354.500238:WARNING:components/dbus/xdg/portal.cc:126] Failed to register with org.freedesktop.host.portal.Registry\n[1025/194354.698871:WARNING:sandbox/policy/linux/sandbox_linux.cc:405] InitializeSandbox() called with multiple threads in process gpu-process.\n"
+          },
+          "glRenderer": "ANGLE (AMD, AMD Radeon Graphics (radeonsi renoir ACO DRM 3.64 7.2.11-arch1-1), OpenGL 4.6 (Core Profile) Mesa 26.2.5-arch1.1)",
+          "rounds": [
+            {
+              "round": -3,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 301.712384,
+              "rawLiveMB": 297.341952,
+              "adjustedPeakMB": 17.647615999999914,
+              "adjustedLiveMB": 13.27718399999992
+            },
+            {
+              "round": -2,
+              "warmup": true,
+              "invalidObservations": [
+                {
+                  "phase": "prepare",
+                  "kind": "poll",
+                  "issues": [
+                    {
+                      "pid": 87885,
+                      "stage": "discover",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/87885/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 303.797248,
+              "rawLiveMB": 297.993216,
+              "adjustedPeakMB": 19.732479999999953,
+              "adjustedLiveMB": 13.928447999999946
+            },
+            {
+              "round": -1,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 304.717824,
+              "rawLiveMB": 298.496,
+              "adjustedPeakMB": 20.653055999999935,
+              "adjustedLiveMB": 14.431231999999909
+            },
+            {
+              "round": 0,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 302.64115200000003,
+              "rawLiveMB": 298.995712,
+              "adjustedPeakMB": 18.576383999999962,
+              "adjustedLiveMB": 14.930943999999954
+            },
+            {
+              "round": 1,
+              "warmup": false,
+              "invalidObservations": [
+                {
+                  "phase": "prepared",
+                  "kind": "snapshot",
+                  "issues": [
+                    {
+                      "pid": 87889,
+                      "stage": "verify-tree",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/87889/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 304.90726400000005,
+              "rawLiveMB": 298.947584,
+              "adjustedPeakMB": 20.842495999999983,
+              "adjustedLiveMB": 14.882815999999934
+            },
+            {
+              "round": 2,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 302.887936,
+              "rawLiveMB": 299.246592,
+              "adjustedPeakMB": 18.823167999999953,
+              "adjustedLiveMB": 15.18182399999995
+            },
+            {
+              "round": 3,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 302.429184,
+              "rawLiveMB": 299.168768,
+              "adjustedPeakMB": 18.36441599999995,
+              "adjustedLiveMB": 15.103999999999928
+            },
+            {
+              "round": 4,
+              "warmup": false,
+              "invalidObservations": [
+                {
+                  "phase": "construct",
+                  "kind": "poll",
+                  "issues": [
+                    {
+                      "pid": 87892,
+                      "stage": "discover",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/87892/stat'"
+                    },
+                    {
+                      "pid": 87894,
+                      "stage": "verify-tree",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/87894/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 304.91136,
+              "rawLiveMB": 299.205632,
+              "adjustedPeakMB": 20.84659199999993,
+              "adjustedLiveMB": 15.140863999999908
+            },
+            {
+              "round": 5,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 302.633984,
+              "rawLiveMB": 299.168768,
+              "adjustedPeakMB": 18.569215999999926,
+              "adjustedLiveMB": 15.103999999999928
+            },
+            {
+              "round": 6,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 305.271808,
+              "rawLiveMB": 299.31212800000003,
+              "adjustedPeakMB": 21.20703999999995,
+              "adjustedLiveMB": 15.247359999999958
+            }
+          ]
+        },
+        {
+          "variant": "uplot",
+          "blankTreePssMB": 260.184064,
+          "runner": {
+            "variant": "uplot",
+            "servedVariant": "uplot",
+            "beforeCommit": null,
+            "browserVersion": "Google Chrome for Testing 156.0.8078.47",
+            "browserArgs": [
+              "--no-first-run",
+              "--no-default-browser-check",
+              "--disable-background-networking",
+              "--disable-component-update",
+              "--disable-sync",
+              "--disable-extensions",
+              "--user-data-dir=/tmp/uplot-memory-rerun-QRE25Y/uplot-profile",
+              "--enable-gpu",
+              "--enable-features=Vulkan",
+              "--remote-debugging-port=0",
+              "--remote-debugging-address=127.0.0.1",
+              "--window-size=1920,900",
+              "about:blank"
+            ],
+            "dpr": 1,
+            "requestedBackend": "vulkan",
+            "node": "v26.12.0",
+            "cpu": "AMD Ryzen 7 PRO 5850U with Radeon Graphics",
+            "os": "linux 7.2.11-arch1-1",
+            "dependencies": [],
+            "sourceSha256": {
+              "/bench/demo-fixture.mjs": "856479aeb4b9b4f0c5a72e7fb15e52b24aca5bdd81f996ac5c23911e58a0063f",
+              "/bench/demo-dependencies.mjs": "78604e410cdac8b71c19e16708e50cc821c5c555f83dca9910fdf0a042931bef",
+              "/bench/demo-runtime.mjs": "a573160a196df5a48be73be08806604a6fc6aef45fbf01ce9068043254c54695",
+              "/bench/framework-runtime.mjs": "5dd77bcd44110998cf4143caef47d0290eb85fedbd63d61e5eda06773417fa9e",
+              "/bench/lifecycle-data.mjs": "bf13f6ba0d4b257d4b5600a6a01254f67c1d195c4995b4e5d506ec253a79f46b",
+              "/bench/demo.css": "d6b4a01c489443f5ca68ab7e359ad42e119832803c1f496998de3109c9ed2e6b",
+              "/bench/uplot.mjs": "e3fc1ef89e67e9207b539622e8dafcf80b68584a1cda3962c4d4bd07518e11c6",
+              "/dist/uPlot.iife.min.js": "4939926f0895e58243db9c6760d5f59109428c375c61553e1708f431d2d47e4e",
+              "/dist/uPlot.min.css": "47abe89afb93c70d428fdec950a50abbb1f4001eabe35895dc3b140bb0f23d46",
+              "/bench.mjs": "96f716834090a537d0305cc559819ec10ca1eba02ec82d64383c88b82e5230d0",
+              "/bench/data.json": "620ec683dfb856af79185dc1e42536c5e39a1fb1deebcff9202c7a660e54bf41",
+              "/bench/runtime-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "/bench/module-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+            },
+            "browserLog": "\nDevTools listening on ws://127.0.0.1:32823/devtools/browser/c43eac04-5e44-4fc7-b681-b0e3054305f2\n[1025/194411.876692:WARNING:components/dbus/xdg/portal.cc:126] Failed to register with org.freedesktop.host.portal.Registry\n[1025/194412.200003:WARNING:sandbox/policy/linux/sandbox_linux.cc:405] InitializeSandbox() called with multiple threads in process gpu-process.\n"
+          },
+          "glRenderer": "ANGLE (AMD, AMD Radeon Graphics (radeonsi renoir ACO DRM 3.64 7.2.11-arch1-1), OpenGL 4.6 (Core Profile) Mesa 26.2.5-arch1.1)",
+          "rounds": [
+            {
+              "round": -3,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 296.906752,
+              "rawLiveMB": 291.442688,
+              "adjustedPeakMB": 14.130175999999949,
+              "adjustedLiveMB": 8.666111999999941
+            },
+            {
+              "round": -2,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 298.382336,
+              "rawLiveMB": 292.000768,
+              "adjustedPeakMB": 15.605759999999975,
+              "adjustedLiveMB": 9.22419199999996
+            },
+            {
+              "round": -1,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 298.750976,
+              "rawLiveMB": 292.631552,
+              "adjustedPeakMB": 15.974399999999946,
+              "adjustedLiveMB": 9.854975999999965
+            },
+            {
+              "round": 0,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 298.710016,
+              "rawLiveMB": 292.95513600000004,
+              "adjustedPeakMB": 15.933439999999962,
+              "adjustedLiveMB": 10.178560000000004
+            },
+            {
+              "round": 1,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 296.866816,
+              "rawLiveMB": 293.045248,
+              "adjustedPeakMB": 14.090239999999937,
+              "adjustedLiveMB": 10.268671999999981
+            },
+            {
+              "round": 2,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 299.10732799999994,
+              "rawLiveMB": 293.20089599999994,
+              "adjustedPeakMB": 16.330751999999904,
+              "adjustedLiveMB": 10.42431999999991
+            },
+            {
+              "round": 3,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 299.19334399999997,
+              "rawLiveMB": 293.39340799999997,
+              "adjustedPeakMB": 16.416767999999934,
+              "adjustedLiveMB": 10.616831999999931
+            },
+            {
+              "round": 4,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 299.92652799999996,
+              "rawLiveMB": 293.45075199999997,
+              "adjustedPeakMB": 17.149951999999928,
+              "adjustedLiveMB": 10.674175999999932
+            },
+            {
+              "round": 5,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 299.19744,
+              "rawLiveMB": 293.823488,
+              "adjustedPeakMB": 16.420863999999938,
+              "adjustedLiveMB": 11.046911999999963
+            },
+            {
+              "round": 6,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 298.56255999999996,
+              "rawLiveMB": 294.286336,
+              "adjustedPeakMB": 15.785983999999928,
+              "adjustedLiveMB": 11.509759999999972
+            }
+          ]
+        },
+        {
+          "variant": "d3-minmax",
+          "blankTreePssMB": 260.704256,
+          "runner": {
+            "variant": "d3-minmax",
+            "servedVariant": "d3-minmax",
+            "beforeCommit": null,
+            "browserVersion": "Google Chrome for Testing 156.0.8078.47",
+            "browserArgs": [
+              "--no-first-run",
+              "--no-default-browser-check",
+              "--disable-background-networking",
+              "--disable-component-update",
+              "--disable-sync",
+              "--disable-extensions",
+              "--user-data-dir=/tmp/uplot-memory-rerun-QRE25Y/d3-minmax-profile",
+              "--enable-gpu",
+              "--enable-features=Vulkan",
+              "--remote-debugging-port=0",
+              "--remote-debugging-address=127.0.0.1",
+              "--window-size=1920,900",
+              "about:blank"
+            ],
+            "dpr": 1,
+            "requestedBackend": "vulkan",
+            "node": "v26.12.0",
+            "cpu": "AMD Ryzen 7 PRO 5850U with Radeon Graphics",
+            "os": "linux 7.2.11-arch1-1",
+            "dependencies": [
+              {
+                "name": "d3",
+                "version": "7.9.0",
+                "url": "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js",
+                "route": "/bench/vendor/d3-7.9.0-dist-d3.min.js",
+                "cacheName": "d3-7.9.0-dist-d3.min.js",
+                "sha256": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539"
+              }
+            ],
+            "sourceSha256": {
+              "/bench/demo-fixture.mjs": "856479aeb4b9b4f0c5a72e7fb15e52b24aca5bdd81f996ac5c23911e58a0063f",
+              "/bench/demo-dependencies.mjs": "78604e410cdac8b71c19e16708e50cc821c5c555f83dca9910fdf0a042931bef",
+              "/bench/demo-runtime.mjs": "a573160a196df5a48be73be08806604a6fc6aef45fbf01ce9068043254c54695",
+              "/bench/framework-runtime.mjs": "5dd77bcd44110998cf4143caef47d0290eb85fedbd63d61e5eda06773417fa9e",
+              "/bench/lifecycle-data.mjs": "bf13f6ba0d4b257d4b5600a6a01254f67c1d195c4995b4e5d506ec253a79f46b",
+              "/bench/demo.css": "d6b4a01c489443f5ca68ab7e359ad42e119832803c1f496998de3109c9ed2e6b",
+              "/bench/d3-minmax.mjs": "028721e947cf611254f8c74ae40fd30964c4df8c4a9ba11e656bb2bec7b16fb1",
+              "/bench/d3.mjs": "cb639cc99f3a0df1a4aefedadee729de20e7650dcd5753c791f0ad163f34de7a",
+              "/bench/vendor/d3-7.9.0-dist-d3.min.js": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539",
+              "/bench.mjs": "96f716834090a537d0305cc559819ec10ca1eba02ec82d64383c88b82e5230d0",
+              "/bench/data.json": "620ec683dfb856af79185dc1e42536c5e39a1fb1deebcff9202c7a660e54bf41",
+              "/bench/runtime-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "/bench/module-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+            },
+            "browserLog": "\nDevTools listening on ws://127.0.0.1:39711/devtools/browser/50289528-f7dc-4025-9f39-27eb50627a42\n[1025/194429.356577:WARNING:components/dbus/xdg/portal.cc:126] Failed to register with org.freedesktop.host.portal.Registry\n[1025/194429.563906:WARNING:sandbox/policy/linux/sandbox_linux.cc:405] InitializeSandbox() called with multiple threads in process gpu-process.\n"
+          },
+          "glRenderer": "ANGLE (AMD, AMD Radeon Graphics (radeonsi renoir ACO DRM 3.64 7.2.11-arch1-1), OpenGL 4.6 (Core Profile) Mesa 26.2.5-arch1.1)",
+          "rounds": [
+            {
+              "round": -3,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 299.583488,
+              "rawLiveMB": 291.48979199999997,
+              "adjustedPeakMB": 16.286719999999946,
+              "adjustedLiveMB": 8.193023999999923
+            },
+            {
+              "round": -2,
+              "warmup": true,
+              "invalidObservations": [
+                {
+                  "phase": "prepare",
+                  "kind": "end",
+                  "issues": [
+                    {
+                      "pid": 88095,
+                      "stage": "verify-tree",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/88095/stat'"
+                    }
+                  ]
+                },
+                {
+                  "phase": "prepared",
+                  "kind": "snapshot",
+                  "issues": [
+                    {
+                      "pid": 88097,
+                      "stage": "discover",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/88097/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 302.00012799999996,
+              "rawLiveMB": 292.411392,
+              "adjustedPeakMB": 18.70335999999992,
+              "adjustedLiveMB": 9.114623999999935
+            },
+            {
+              "round": -1,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 298.100736,
+              "rawLiveMB": 292.85375999999997,
+              "adjustedPeakMB": 14.80396799999994,
+              "adjustedLiveMB": 9.556991999999923
+            },
+            {
+              "round": 0,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 298.153984,
+              "rawLiveMB": 292.709376,
+              "adjustedPeakMB": 14.857215999999937,
+              "adjustedLiveMB": 9.412607999999977
+            },
+            {
+              "round": 1,
+              "warmup": false,
+              "invalidObservations": [
+                {
+                  "phase": "construct",
+                  "kind": "poll",
+                  "issues": [
+                    {
+                      "pid": 88102,
+                      "stage": "discover",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/88102/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 303.186944,
+              "rawLiveMB": 292.70118399999996,
+              "adjustedPeakMB": 19.89017599999994,
+              "adjustedLiveMB": 9.404415999999912
+            },
+            {
+              "round": 2,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 298.658816,
+              "rawLiveMB": 293.440512,
+              "adjustedPeakMB": 15.362047999999959,
+              "adjustedLiveMB": 10.14374399999997
+            },
+            {
+              "round": 3,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 298.720256,
+              "rawLiveMB": 293.57568000000003,
+              "adjustedPeakMB": 15.423487999999963,
+              "adjustedLiveMB": 10.278911999999991
+            },
+            {
+              "round": 4,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 303.30368,
+              "rawLiveMB": 293.74361600000003,
+              "adjustedPeakMB": 20.006911999999943,
+              "adjustedLiveMB": 10.446847999999989
+            },
+            {
+              "round": 5,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 301.538304,
+              "rawLiveMB": 293.874688,
+              "adjustedPeakMB": 18.24153599999994,
+              "adjustedLiveMB": 10.57791999999995
+            },
+            {
+              "round": 6,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 299.50668799999994,
+              "rawLiveMB": 294.157312,
+              "adjustedPeakMB": 16.209919999999897,
+              "adjustedLiveMB": 10.860543999999948
+            }
+          ]
+        },
+        {
+          "variant": "d3-svg-minmax",
+          "blankTreePssMB": 260.92544,
+          "runner": {
+            "variant": "d3-svg-minmax",
+            "servedVariant": "d3-svg-minmax",
+            "beforeCommit": null,
+            "browserVersion": "Google Chrome for Testing 156.0.8078.47",
+            "browserArgs": [
+              "--no-first-run",
+              "--no-default-browser-check",
+              "--disable-background-networking",
+              "--disable-component-update",
+              "--disable-sync",
+              "--disable-extensions",
+              "--user-data-dir=/tmp/uplot-memory-rerun-QRE25Y/d3-svg-minmax-profile",
+              "--enable-gpu",
+              "--enable-features=Vulkan",
+              "--remote-debugging-port=0",
+              "--remote-debugging-address=127.0.0.1",
+              "--window-size=1920,900",
+              "about:blank"
+            ],
+            "dpr": 1,
+            "requestedBackend": "vulkan",
+            "node": "v26.12.0",
+            "cpu": "AMD Ryzen 7 PRO 5850U with Radeon Graphics",
+            "os": "linux 7.2.11-arch1-1",
+            "dependencies": [
+              {
+                "name": "d3",
+                "version": "7.9.0",
+                "url": "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js",
+                "route": "/bench/vendor/d3-7.9.0-dist-d3.min.js",
+                "cacheName": "d3-7.9.0-dist-d3.min.js",
+                "sha256": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539"
+              }
+            ],
+            "sourceSha256": {
+              "/bench/demo-fixture.mjs": "856479aeb4b9b4f0c5a72e7fb15e52b24aca5bdd81f996ac5c23911e58a0063f",
+              "/bench/demo-dependencies.mjs": "78604e410cdac8b71c19e16708e50cc821c5c555f83dca9910fdf0a042931bef",
+              "/bench/demo-runtime.mjs": "a573160a196df5a48be73be08806604a6fc6aef45fbf01ce9068043254c54695",
+              "/bench/framework-runtime.mjs": "5dd77bcd44110998cf4143caef47d0290eb85fedbd63d61e5eda06773417fa9e",
+              "/bench/lifecycle-data.mjs": "bf13f6ba0d4b257d4b5600a6a01254f67c1d195c4995b4e5d506ec253a79f46b",
+              "/bench/demo.css": "d6b4a01c489443f5ca68ab7e359ad42e119832803c1f496998de3109c9ed2e6b",
+              "/bench/d3-svg-minmax.mjs": "0c601a04100d61bd5e6af2b6e1e925c8143da595c6271161a738cb6c7b9ebcff",
+              "/bench/d3.mjs": "cb639cc99f3a0df1a4aefedadee729de20e7650dcd5753c791f0ad163f34de7a",
+              "/bench/vendor/d3-7.9.0-dist-d3.min.js": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539",
+              "/bench.mjs": "96f716834090a537d0305cc559819ec10ca1eba02ec82d64383c88b82e5230d0",
+              "/bench/data.json": "620ec683dfb856af79185dc1e42536c5e39a1fb1deebcff9202c7a660e54bf41",
+              "/bench/runtime-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "/bench/module-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+            },
+            "browserLog": "\nDevTools listening on ws://127.0.0.1:40365/devtools/browser/f2a671e4-f129-45a5-953d-623e5f839dd7\n[1025/194446.741987:WARNING:components/dbus/xdg/portal.cc:126] Failed to register with org.freedesktop.host.portal.Registry\n[1025/194446.962933:WARNING:sandbox/policy/linux/sandbox_linux.cc:405] InitializeSandbox() called with multiple threads in process gpu-process.\n"
+          },
+          "glRenderer": "ANGLE (AMD, AMD Radeon Graphics (radeonsi renoir ACO DRM 3.64 7.2.11-arch1-1), OpenGL 4.6 (Core Profile) Mesa 26.2.5-arch1.1)",
+          "rounds": [
+            {
+              "round": -3,
+              "warmup": true,
+              "invalidObservations": [
+                {
+                  "phase": "prepare",
+                  "kind": "start",
+                  "issues": [
+                    {
+                      "pid": 88201,
+                      "stage": "verify-tree",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/88201/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 302.8224,
+              "rawLiveMB": 293.188608,
+              "adjustedPeakMB": 19.30444799999998,
+              "adjustedLiveMB": 9.670655999999951
+            },
+            {
+              "round": -2,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 307.905536,
+              "rawLiveMB": 294.515712,
+              "adjustedPeakMB": 24.387583999999947,
+              "adjustedLiveMB": 10.997759999999971
+            },
+            {
+              "round": -1,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 305.905664,
+              "rawLiveMB": 294.342656,
+              "adjustedPeakMB": 22.387711999999965,
+              "adjustedLiveMB": 10.82470399999994
+            },
+            {
+              "round": 0,
+              "warmup": false,
+              "invalidObservations": [
+                {
+                  "phase": "prepare",
+                  "kind": "poll",
+                  "issues": [
+                    {
+                      "pid": 88205,
+                      "stage": "discover",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/88205/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 307.601408,
+              "rawLiveMB": 294.428672,
+              "adjustedPeakMB": 24.083455999999956,
+              "adjustedLiveMB": 10.91071999999997
+            },
+            {
+              "round": 1,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 305.13561599999997,
+              "rawLiveMB": 295.09632,
+              "adjustedPeakMB": 21.617663999999934,
+              "adjustedLiveMB": 11.578367999999955
+            },
+            {
+              "round": 2,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 308.830208,
+              "rawLiveMB": 295.69433599999996,
+              "adjustedPeakMB": 25.31225599999999,
+              "adjustedLiveMB": 12.176383999999928
+            },
+            {
+              "round": 3,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 309.73542399999997,
+              "rawLiveMB": 296.030208,
+              "adjustedPeakMB": 26.21747199999993,
+              "adjustedLiveMB": 12.51225599999998
+            },
+            {
+              "round": 4,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 308.80255999999997,
+              "rawLiveMB": 296.428544,
+              "adjustedPeakMB": 25.284607999999935,
+              "adjustedLiveMB": 12.910591999999951
+            },
+            {
+              "round": 5,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 310.342656,
+              "rawLiveMB": 296.17868799999997,
+              "adjustedPeakMB": 26.82470399999994,
+              "adjustedLiveMB": 12.660735999999929
+            },
+            {
+              "round": 6,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 306.844672,
+              "rawLiveMB": 296.39168,
+              "adjustedPeakMB": 23.326719999999966,
+              "adjustedLiveMB": 12.873727999999971
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "sourceDirectory": "/tmp/uplot-memory-rerun-2H1xXP",
+      "date": "2026-10-26T00:46:39.610Z",
+      "order": [
+        "idle",
+        "d3-svg-minmax",
+        "d3-minmax",
+        "uplot",
+        "uplot-before"
+      ],
+      "summary": [
+        {
+          "variant": "d3-svg-minmax",
+          "peakMB": {
+            "min": 21.719040000000007,
+            "max": 25.15148800000003,
+            "count": 7,
+            "missing": 0
+          },
+          "retainedMB": {
+            "min": 9.87340800000004,
+            "max": 12.052480000000003,
+            "count": 7,
+            "missing": 0
+          }
+        },
+        {
+          "variant": "d3-minmax",
+          "peakMB": {
+            "min": 12.926976000000025,
+            "max": 17.67833600000006,
+            "count": 7,
+            "missing": 0
+          },
+          "retainedMB": {
+            "min": 6.746112000000039,
+            "max": 8.401920000000018,
+            "count": 7,
+            "missing": 0
+          }
+        },
+        {
+          "variant": "uplot",
+          "peakMB": {
+            "min": 10.711040000000025,
+            "max": 14.46707200000003,
+            "count": 7,
+            "missing": 0
+          },
+          "retainedMB": {
+            "min": 7.4465280000000575,
+            "max": 8.695808000000056,
+            "count": 7,
+            "missing": 0
+          }
+        },
+        {
+          "variant": "uplot-before",
+          "peakMB": {
+            "min": 16.189440000000047,
+            "max": 19.78060800000003,
+            "count": 7,
+            "missing": 0
+          },
+          "retainedMB": {
+            "min": 12.535808000000088,
+            "max": 13.338624000000038,
+            "count": 7,
+            "missing": 0
+          }
+        }
+      ],
+      "idleLiveAboveBlankMB": 24.15308799999997,
+      "records": [
+        {
+          "variant": "idle",
+          "blankTreePssMB": 260.086784,
+          "runner": {
+            "variant": "idle",
+            "servedVariant": "idle",
+            "beforeCommit": null,
+            "browserVersion": "Google Chrome for Testing 156.0.8078.47",
+            "browserArgs": [
+              "--no-first-run",
+              "--no-default-browser-check",
+              "--disable-background-networking",
+              "--disable-component-update",
+              "--disable-sync",
+              "--disable-extensions",
+              "--user-data-dir=/tmp/uplot-memory-rerun-2H1xXP/idle-profile",
+              "--enable-gpu",
+              "--enable-features=Vulkan",
+              "--remote-debugging-port=0",
+              "--remote-debugging-address=127.0.0.1",
+              "--window-size=1920,900",
+              "about:blank"
+            ],
+            "dpr": 1,
+            "requestedBackend": "vulkan",
+            "node": "v26.12.0",
+            "cpu": "AMD Ryzen 7 PRO 5850U with Radeon Graphics",
+            "os": "linux 7.2.11-arch1-1",
+            "dependencies": [],
+            "sourceSha256": {
+              "/bench/demo-fixture.mjs": "856479aeb4b9b4f0c5a72e7fb15e52b24aca5bdd81f996ac5c23911e58a0063f",
+              "/bench/demo-dependencies.mjs": "78604e410cdac8b71c19e16708e50cc821c5c555f83dca9910fdf0a042931bef",
+              "/bench/demo-runtime.mjs": "a573160a196df5a48be73be08806604a6fc6aef45fbf01ce9068043254c54695",
+              "/bench/framework-runtime.mjs": "5dd77bcd44110998cf4143caef47d0290eb85fedbd63d61e5eda06773417fa9e",
+              "/bench/lifecycle-data.mjs": "bf13f6ba0d4b257d4b5600a6a01254f67c1d195c4995b4e5d506ec253a79f46b",
+              "/bench/demo.css": "d6b4a01c489443f5ca68ab7e359ad42e119832803c1f496998de3109c9ed2e6b",
+              "/bench.mjs": "96f716834090a537d0305cc559819ec10ca1eba02ec82d64383c88b82e5230d0",
+              "/bench/data.json": "620ec683dfb856af79185dc1e42536c5e39a1fb1deebcff9202c7a660e54bf41",
+              "/bench/runtime-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "/bench/module-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+            },
+            "browserLog": "\nDevTools listening on ws://127.0.0.1:35731/devtools/browser/3f22d2ff-4f43-4e02-8a52-24898259db90\n[1025/194513.073395:WARNING:components/dbus/xdg/portal.cc:126] Failed to register with org.freedesktop.host.portal.Registry\n[1025/194513.257973:WARNING:sandbox/policy/linux/sandbox_linux.cc:405] InitializeSandbox() called with multiple threads in process gpu-process.\n"
+          },
+          "glRenderer": "ANGLE (AMD, AMD Radeon Graphics (radeonsi renoir ACO DRM 3.64 7.2.11-arch1-1), OpenGL 4.6 (Core Profile) Mesa 26.2.5-arch1.1)",
+          "rounds": [
+            {
+              "round": -3,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 284.140544,
+              "rawLiveMB": 284.032,
+              "adjustedPeakMB": -0.09932800000001407,
+              "adjustedLiveMB": -0.20787200000000894
+            },
+            {
+              "round": -2,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 284.11391999999995,
+              "rawLiveMB": 284.01151999999996,
+              "adjustedPeakMB": -0.1259520000000407,
+              "adjustedLiveMB": -0.22835200000002942
+            },
+            {
+              "round": -1,
+              "warmup": true,
+              "invalidObservations": [
+                {
+                  "phase": "prepare",
+                  "kind": "start",
+                  "issues": [
+                    {
+                      "pid": 88331,
+                      "stage": "verify-tree",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/88331/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 284.268544,
+              "rawLiveMB": 284.207104,
+              "adjustedPeakMB": 0.028672000000028675,
+              "adjustedLiveMB": -0.03276799999997593
+            },
+            {
+              "round": 0,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 284.248064,
+              "rawLiveMB": 284.239872,
+              "adjustedPeakMB": 0.008192000000008193,
+              "adjustedLiveMB": 0.0
+            },
+            {
+              "round": 1,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 284.411904,
+              "rawLiveMB": 284.280832,
+              "adjustedPeakMB": 0.17203200000000152,
+              "adjustedLiveMB": 0.04095999999998412
+            },
+            {
+              "round": 2,
+              "warmup": false,
+              "invalidObservations": [
+                {
+                  "phase": "prepare",
+                  "kind": "poll",
+                  "issues": [
+                    {
+                      "pid": 88336,
+                      "stage": "discover",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/88336/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 284.391424,
+              "rawLiveMB": 284.297216,
+              "adjustedPeakMB": 0.15155199999998104,
+              "adjustedLiveMB": 0.057344000000000506
+            },
+            {
+              "round": 3,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 284.387328,
+              "rawLiveMB": 284.321792,
+              "adjustedPeakMB": 0.14745600000003378,
+              "adjustedLiveMB": 0.08192000000002508
+            },
+            {
+              "round": 4,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 284.370944,
+              "rawLiveMB": 284.35456,
+              "adjustedPeakMB": 0.1310720000000174,
+              "adjustedLiveMB": 0.11468800000000101
+            },
+            {
+              "round": 5,
+              "warmup": false,
+              "invalidObservations": [
+                {
+                  "phase": "construct",
+                  "kind": "poll",
+                  "issues": [
+                    {
+                      "pid": 88338,
+                      "stage": "discover",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/88338/stat'"
+                    },
+                    {
+                      "pid": 88341,
+                      "stage": "verify-tree",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/88341/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 284.403712,
+              "rawLiveMB": 284.383232,
+              "adjustedPeakMB": 0.16383999999999332,
+              "adjustedLiveMB": 0.14336000000002969
+            },
+            {
+              "round": 6,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 284.440576,
+              "rawLiveMB": 284.387328,
+              "adjustedPeakMB": 0.2007040000000302,
+              "adjustedLiveMB": 0.14745600000003378
+            }
+          ]
+        },
+        {
+          "variant": "d3-svg-minmax",
+          "blankTreePssMB": 259.54304,
+          "runner": {
+            "variant": "d3-svg-minmax",
+            "servedVariant": "d3-svg-minmax",
+            "beforeCommit": null,
+            "browserVersion": "Google Chrome for Testing 156.0.8078.47",
+            "browserArgs": [
+              "--no-first-run",
+              "--no-default-browser-check",
+              "--disable-background-networking",
+              "--disable-component-update",
+              "--disable-sync",
+              "--disable-extensions",
+              "--user-data-dir=/tmp/uplot-memory-rerun-2H1xXP/d3-svg-minmax-profile",
+              "--enable-gpu",
+              "--enable-features=Vulkan",
+              "--remote-debugging-port=0",
+              "--remote-debugging-address=127.0.0.1",
+              "--window-size=1920,900",
+              "about:blank"
+            ],
+            "dpr": 1,
+            "requestedBackend": "vulkan",
+            "node": "v26.12.0",
+            "cpu": "AMD Ryzen 7 PRO 5850U with Radeon Graphics",
+            "os": "linux 7.2.11-arch1-1",
+            "dependencies": [
+              {
+                "name": "d3",
+                "version": "7.9.0",
+                "url": "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js",
+                "route": "/bench/vendor/d3-7.9.0-dist-d3.min.js",
+                "cacheName": "d3-7.9.0-dist-d3.min.js",
+                "sha256": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539"
+              }
+            ],
+            "sourceSha256": {
+              "/bench/demo-fixture.mjs": "856479aeb4b9b4f0c5a72e7fb15e52b24aca5bdd81f996ac5c23911e58a0063f",
+              "/bench/demo-dependencies.mjs": "78604e410cdac8b71c19e16708e50cc821c5c555f83dca9910fdf0a042931bef",
+              "/bench/demo-runtime.mjs": "a573160a196df5a48be73be08806604a6fc6aef45fbf01ce9068043254c54695",
+              "/bench/framework-runtime.mjs": "5dd77bcd44110998cf4143caef47d0290eb85fedbd63d61e5eda06773417fa9e",
+              "/bench/lifecycle-data.mjs": "bf13f6ba0d4b257d4b5600a6a01254f67c1d195c4995b4e5d506ec253a79f46b",
+              "/bench/demo.css": "d6b4a01c489443f5ca68ab7e359ad42e119832803c1f496998de3109c9ed2e6b",
+              "/bench/d3-svg-minmax.mjs": "0c601a04100d61bd5e6af2b6e1e925c8143da595c6271161a738cb6c7b9ebcff",
+              "/bench/d3.mjs": "cb639cc99f3a0df1a4aefedadee729de20e7650dcd5753c791f0ad163f34de7a",
+              "/bench/vendor/d3-7.9.0-dist-d3.min.js": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539",
+              "/bench.mjs": "96f716834090a537d0305cc559819ec10ca1eba02ec82d64383c88b82e5230d0",
+              "/bench/data.json": "620ec683dfb856af79185dc1e42536c5e39a1fb1deebcff9202c7a660e54bf41",
+              "/bench/runtime-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "/bench/module-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+            },
+            "browserLog": "\nDevTools listening on ws://127.0.0.1:39335/devtools/browser/36d9a8ea-ec65-45b7-bb4a-d902f6c03f9f\n[1025/194530.206586:WARNING:components/dbus/xdg/portal.cc:126] Failed to register with org.freedesktop.host.portal.Registry\n[1025/194530.428532:WARNING:sandbox/policy/linux/sandbox_linux.cc:405] InitializeSandbox() called with multiple threads in process gpu-process.\n"
+          },
+          "glRenderer": "ANGLE (AMD, AMD Radeon Graphics (radeonsi renoir ACO DRM 3.64 7.2.11-arch1-1), OpenGL 4.6 (Core Profile) Mesa 26.2.5-arch1.1)",
+          "rounds": [
+            {
+              "round": -3,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 301.917184,
+              "rawLiveMB": 291.959808,
+              "adjustedPeakMB": 18.221056000000033,
+              "adjustedLiveMB": 8.263680000000022
+            },
+            {
+              "round": -2,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 304.751616,
+              "rawLiveMB": 292.975616,
+              "adjustedPeakMB": 21.055488000000025,
+              "adjustedLiveMB": 9.279488000000015
+            },
+            {
+              "round": -1,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 307.28294400000004,
+              "rawLiveMB": 293.364736,
+              "adjustedPeakMB": 23.586816000000056,
+              "adjustedLiveMB": 9.668608000000006
+            },
+            {
+              "round": 0,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 305.415168,
+              "rawLiveMB": 293.569536,
+              "adjustedPeakMB": 21.719040000000007,
+              "adjustedLiveMB": 9.87340800000004
+            },
+            {
+              "round": 1,
+              "warmup": false,
+              "invalidObservations": [
+                {
+                  "phase": "baseline",
+                  "kind": "gc",
+                  "issues": [
+                    {
+                      "pid": 88437,
+                      "stage": "verify-tree",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/88437/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 307.78265600000003,
+              "rawLiveMB": 294.081536,
+              "adjustedPeakMB": 24.086528000000044,
+              "adjustedLiveMB": 10.38540800000004
+            },
+            {
+              "round": 2,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 308.47488,
+              "rawLiveMB": 294.44198400000005,
+              "adjustedPeakMB": 24.778751999999997,
+              "adjustedLiveMB": 10.74585600000006
+            },
+            {
+              "round": 3,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 308.20864,
+              "rawLiveMB": 294.827008,
+              "adjustedPeakMB": 24.512512000000015,
+              "adjustedLiveMB": 11.13087999999999
+            },
+            {
+              "round": 4,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 308.233216,
+              "rawLiveMB": 295.097344,
+              "adjustedPeakMB": 24.53708800000004,
+              "adjustedLiveMB": 11.401216000000034
+            },
+            {
+              "round": 5,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 308.847616,
+              "rawLiveMB": 295.482368,
+              "adjustedPeakMB": 25.15148800000003,
+              "adjustedLiveMB": 11.78624000000002
+            },
+            {
+              "round": 6,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 307.311616,
+              "rawLiveMB": 295.748608,
+              "adjustedPeakMB": 23.615488000000028,
+              "adjustedLiveMB": 12.052480000000003
+            }
+          ]
+        },
+        {
+          "variant": "d3-minmax",
+          "blankTreePssMB": 261.485568,
+          "runner": {
+            "variant": "d3-minmax",
+            "servedVariant": "d3-minmax",
+            "beforeCommit": null,
+            "browserVersion": "Google Chrome for Testing 156.0.8078.47",
+            "browserArgs": [
+              "--no-first-run",
+              "--no-default-browser-check",
+              "--disable-background-networking",
+              "--disable-component-update",
+              "--disable-sync",
+              "--disable-extensions",
+              "--user-data-dir=/tmp/uplot-memory-rerun-2H1xXP/d3-minmax-profile",
+              "--enable-gpu",
+              "--enable-features=Vulkan",
+              "--remote-debugging-port=0",
+              "--remote-debugging-address=127.0.0.1",
+              "--window-size=1920,900",
+              "about:blank"
+            ],
+            "dpr": 1,
+            "requestedBackend": "vulkan",
+            "node": "v26.12.0",
+            "cpu": "AMD Ryzen 7 PRO 5850U with Radeon Graphics",
+            "os": "linux 7.2.11-arch1-1",
+            "dependencies": [
+              {
+                "name": "d3",
+                "version": "7.9.0",
+                "url": "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js",
+                "route": "/bench/vendor/d3-7.9.0-dist-d3.min.js",
+                "cacheName": "d3-7.9.0-dist-d3.min.js",
+                "sha256": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539"
+              }
+            ],
+            "sourceSha256": {
+              "/bench/demo-fixture.mjs": "856479aeb4b9b4f0c5a72e7fb15e52b24aca5bdd81f996ac5c23911e58a0063f",
+              "/bench/demo-dependencies.mjs": "78604e410cdac8b71c19e16708e50cc821c5c555f83dca9910fdf0a042931bef",
+              "/bench/demo-runtime.mjs": "a573160a196df5a48be73be08806604a6fc6aef45fbf01ce9068043254c54695",
+              "/bench/framework-runtime.mjs": "5dd77bcd44110998cf4143caef47d0290eb85fedbd63d61e5eda06773417fa9e",
+              "/bench/lifecycle-data.mjs": "bf13f6ba0d4b257d4b5600a6a01254f67c1d195c4995b4e5d506ec253a79f46b",
+              "/bench/demo.css": "d6b4a01c489443f5ca68ab7e359ad42e119832803c1f496998de3109c9ed2e6b",
+              "/bench/d3-minmax.mjs": "028721e947cf611254f8c74ae40fd30964c4df8c4a9ba11e656bb2bec7b16fb1",
+              "/bench/d3.mjs": "cb639cc99f3a0df1a4aefedadee729de20e7650dcd5753c791f0ad163f34de7a",
+              "/bench/vendor/d3-7.9.0-dist-d3.min.js": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539",
+              "/bench.mjs": "96f716834090a537d0305cc559819ec10ca1eba02ec82d64383c88b82e5230d0",
+              "/bench/data.json": "620ec683dfb856af79185dc1e42536c5e39a1fb1deebcff9202c7a660e54bf41",
+              "/bench/runtime-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "/bench/module-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+            },
+            "browserLog": "\nDevTools listening on ws://127.0.0.1:34349/devtools/browser/2f8c832f-e28a-4eaf-bd66-ea17919ea5c0\n[1025/194547.858547:WARNING:components/dbus/xdg/portal.cc:126] Failed to register with org.freedesktop.host.portal.Registry\n[1025/194548.061675:WARNING:sandbox/policy/linux/sandbox_linux.cc:405] InitializeSandbox() called with multiple threads in process gpu-process.\n"
+          },
+          "glRenderer": "ANGLE (AMD, AMD Radeon Graphics (radeonsi renoir ACO DRM 3.64 7.2.11-arch1-1), OpenGL 4.6 (Core Profile) Mesa 26.2.5-arch1.1)",
+          "rounds": [
+            {
+              "round": -3,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 296.94054400000005,
+              "rawLiveMB": 291.779584,
+              "adjustedPeakMB": 11.301888000000076,
+              "adjustedLiveMB": 6.140928000000031
+            },
+            {
+              "round": -2,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 303.296512,
+              "rawLiveMB": 292.47488,
+              "adjustedPeakMB": 17.657856000000038,
+              "adjustedLiveMB": 6.836224000000016
+            },
+            {
+              "round": -1,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 298.061824,
+              "rawLiveMB": 292.696064,
+              "adjustedPeakMB": 12.423168000000032,
+              "adjustedLiveMB": 7.0574080000000095
+            },
+            {
+              "round": 0,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 301.555712,
+              "rawLiveMB": 292.384768,
+              "adjustedPeakMB": 15.91705600000006,
+              "adjustedLiveMB": 6.746112000000039
+            },
+            {
+              "round": 1,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 302.235648,
+              "rawLiveMB": 292.98278400000004,
+              "adjustedPeakMB": 16.596992000000057,
+              "adjustedLiveMB": 7.344128000000069
+            },
+            {
+              "round": 2,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 298.565632,
+              "rawLiveMB": 293.322752,
+              "adjustedPeakMB": 12.926976000000025,
+              "adjustedLiveMB": 7.684096000000011
+            },
+            {
+              "round": 3,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 298.92608,
+              "rawLiveMB": 293.70777599999997,
+              "adjustedPeakMB": 13.287424000000044,
+              "adjustedLiveMB": 8.069119999999998
+            },
+            {
+              "round": 4,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 303.316992,
+              "rawLiveMB": 293.834752,
+              "adjustedPeakMB": 17.67833600000006,
+              "adjustedLiveMB": 8.196096000000011
+            },
+            {
+              "round": 5,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 299.196416,
+              "rawLiveMB": 293.974016,
+              "adjustedPeakMB": 13.55776000000003,
+              "adjustedLiveMB": 8.335360000000037
+            },
+            {
+              "round": 6,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 299.25478400000003,
+              "rawLiveMB": 294.040576,
+              "adjustedPeakMB": 13.61612800000006,
+              "adjustedLiveMB": 8.401920000000018
+            }
+          ]
+        },
+        {
+          "variant": "uplot",
+          "blankTreePssMB": 260.959232,
+          "runner": {
+            "variant": "uplot",
+            "servedVariant": "uplot",
+            "beforeCommit": null,
+            "browserVersion": "Google Chrome for Testing 156.0.8078.47",
+            "browserArgs": [
+              "--no-first-run",
+              "--no-default-browser-check",
+              "--disable-background-networking",
+              "--disable-component-update",
+              "--disable-sync",
+              "--disable-extensions",
+              "--user-data-dir=/tmp/uplot-memory-rerun-2H1xXP/uplot-profile",
+              "--enable-gpu",
+              "--enable-features=Vulkan",
+              "--remote-debugging-port=0",
+              "--remote-debugging-address=127.0.0.1",
+              "--window-size=1920,900",
+              "about:blank"
+            ],
+            "dpr": 1,
+            "requestedBackend": "vulkan",
+            "node": "v26.12.0",
+            "cpu": "AMD Ryzen 7 PRO 5850U with Radeon Graphics",
+            "os": "linux 7.2.11-arch1-1",
+            "dependencies": [],
+            "sourceSha256": {
+              "/bench/demo-fixture.mjs": "856479aeb4b9b4f0c5a72e7fb15e52b24aca5bdd81f996ac5c23911e58a0063f",
+              "/bench/demo-dependencies.mjs": "78604e410cdac8b71c19e16708e50cc821c5c555f83dca9910fdf0a042931bef",
+              "/bench/demo-runtime.mjs": "a573160a196df5a48be73be08806604a6fc6aef45fbf01ce9068043254c54695",
+              "/bench/framework-runtime.mjs": "5dd77bcd44110998cf4143caef47d0290eb85fedbd63d61e5eda06773417fa9e",
+              "/bench/lifecycle-data.mjs": "bf13f6ba0d4b257d4b5600a6a01254f67c1d195c4995b4e5d506ec253a79f46b",
+              "/bench/demo.css": "d6b4a01c489443f5ca68ab7e359ad42e119832803c1f496998de3109c9ed2e6b",
+              "/bench/uplot.mjs": "e3fc1ef89e67e9207b539622e8dafcf80b68584a1cda3962c4d4bd07518e11c6",
+              "/dist/uPlot.iife.min.js": "4939926f0895e58243db9c6760d5f59109428c375c61553e1708f431d2d47e4e",
+              "/dist/uPlot.min.css": "47abe89afb93c70d428fdec950a50abbb1f4001eabe35895dc3b140bb0f23d46",
+              "/bench.mjs": "96f716834090a537d0305cc559819ec10ca1eba02ec82d64383c88b82e5230d0",
+              "/bench/data.json": "620ec683dfb856af79185dc1e42536c5e39a1fb1deebcff9202c7a660e54bf41",
+              "/bench/runtime-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "/bench/module-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+            },
+            "browserLog": "\nDevTools listening on ws://127.0.0.1:42233/devtools/browser/8f20e792-38aa-4822-a773-8ca3e225aa18\n[1025/194605.176116:WARNING:components/dbus/xdg/portal.cc:126] Failed to register with org.freedesktop.host.portal.Registry\n[1025/194605.362187:WARNING:sandbox/policy/linux/sandbox_linux.cc:405] InitializeSandbox() called with multiple threads in process gpu-process.\n"
+          },
+          "glRenderer": "ANGLE (AMD, AMD Radeon Graphics (radeonsi renoir ACO DRM 3.64 7.2.11-arch1-1), OpenGL 4.6 (Core Profile) Mesa 26.2.5-arch1.1)",
+          "rounds": [
+            {
+              "round": -3,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 295.14752,
+              "rawLiveMB": 291.191808,
+              "adjustedPeakMB": 10.035200000000032,
+              "adjustedLiveMB": 6.079488000000026
+            },
+            {
+              "round": -2,
+              "warmup": true,
+              "invalidObservations": [
+                {
+                  "phase": "baseline",
+                  "kind": "gc",
+                  "issues": [
+                    {
+                      "pid": 88645,
+                      "stage": "verify-tree",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/88645/stat'"
+                    }
+                  ]
+                },
+                {
+                  "phase": "prepare",
+                  "kind": "start",
+                  "issues": [
+                    {
+                      "pid": 88647,
+                      "stage": "discover",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/88647/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 297.270272,
+              "rawLiveMB": 291.634176,
+              "adjustedPeakMB": 12.157952000000023,
+              "adjustedLiveMB": 6.521856000000071
+            },
+            {
+              "round": -1,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 296.220672,
+              "rawLiveMB": 292.128768,
+              "adjustedPeakMB": 11.108352000000025,
+              "adjustedLiveMB": 7.016448000000025
+            },
+            {
+              "round": 0,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 295.93395200000003,
+              "rawLiveMB": 292.63257600000003,
+              "adjustedPeakMB": 10.82163200000008,
+              "adjustedLiveMB": 7.520256000000074
+            },
+            {
+              "round": 1,
+              "warmup": false,
+              "invalidObservations": [
+                {
+                  "phase": "prepare",
+                  "kind": "poll",
+                  "issues": [
+                    {
+                      "pid": 88651,
+                      "stage": "discover",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/88651/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 295.82336,
+              "rawLiveMB": 292.558848,
+              "adjustedPeakMB": 10.711040000000025,
+              "adjustedLiveMB": 7.4465280000000575
+            },
+            {
+              "round": 2,
+              "warmup": false,
+              "invalidObservations": [
+                {
+                  "phase": "prepare",
+                  "kind": "poll",
+                  "issues": [
+                    {
+                      "pid": 84265,
+                      "stage": "discover",
+                      "code": "ENOENT",
+                      "message": "ENOENT: no such file or directory, open '/proc/84265/stat'"
+                    }
+                  ]
+                }
+              ],
+              "rawPeakMB": 296.470528,
+              "rawLiveMB": 292.591616,
+              "adjustedPeakMB": 11.358208000000047,
+              "adjustedLiveMB": 7.4792960000000335
+            },
+            {
+              "round": 3,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 298.62912,
+              "rawLiveMB": 292.665344,
+              "adjustedPeakMB": 13.516800000000046,
+              "adjustedLiveMB": 7.55302400000005
+            },
+            {
+              "round": 4,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 299.53024,
+              "rawLiveMB": 292.97664,
+              "adjustedPeakMB": 14.417920000000038,
+              "adjustedLiveMB": 7.864320000000021
+            },
+            {
+              "round": 5,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 299.03872,
+              "rawLiveMB": 293.275648,
+              "adjustedPeakMB": 13.926400000000058,
+              "adjustedLiveMB": 8.163328000000035
+            },
+            {
+              "round": 6,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 299.579392,
+              "rawLiveMB": 293.808128,
+              "adjustedPeakMB": 14.46707200000003,
+              "adjustedLiveMB": 8.695808000000056
+            }
+          ]
+        },
+        {
+          "variant": "uplot-before",
+          "blankTreePssMB": 259.784704,
+          "runner": {
+            "variant": "uplot-before",
+            "servedVariant": "uplot",
+            "beforeCommit": "28b7be5dd5301daf6d61e76ffaa14a17063be88b",
+            "browserVersion": "Google Chrome for Testing 156.0.8078.47",
+            "browserArgs": [
+              "--no-first-run",
+              "--no-default-browser-check",
+              "--disable-background-networking",
+              "--disable-component-update",
+              "--disable-sync",
+              "--disable-extensions",
+              "--user-data-dir=/tmp/uplot-memory-rerun-2H1xXP/uplot-before-profile",
+              "--enable-gpu",
+              "--enable-features=Vulkan",
+              "--remote-debugging-port=0",
+              "--remote-debugging-address=127.0.0.1",
+              "--window-size=1920,900",
+              "about:blank"
+            ],
+            "dpr": 1,
+            "requestedBackend": "vulkan",
+            "node": "v26.12.0",
+            "cpu": "AMD Ryzen 7 PRO 5850U with Radeon Graphics",
+            "os": "linux 7.2.11-arch1-1",
+            "dependencies": [],
+            "sourceSha256": {
+              "/bench/demo-fixture.mjs": "856479aeb4b9b4f0c5a72e7fb15e52b24aca5bdd81f996ac5c23911e58a0063f",
+              "/bench/demo-dependencies.mjs": "78604e410cdac8b71c19e16708e50cc821c5c555f83dca9910fdf0a042931bef",
+              "/bench/demo-runtime.mjs": "a573160a196df5a48be73be08806604a6fc6aef45fbf01ce9068043254c54695",
+              "/bench/framework-runtime.mjs": "5dd77bcd44110998cf4143caef47d0290eb85fedbd63d61e5eda06773417fa9e",
+              "/bench/lifecycle-data.mjs": "bf13f6ba0d4b257d4b5600a6a01254f67c1d195c4995b4e5d506ec253a79f46b",
+              "/bench/demo.css": "d6b4a01c489443f5ca68ab7e359ad42e119832803c1f496998de3109c9ed2e6b",
+              "/bench/uplot.mjs": "e3fc1ef89e67e9207b539622e8dafcf80b68584a1cda3962c4d4bd07518e11c6",
+              "/dist/uPlot.iife.min.js": "329af668720df79337a3d9d8d387ffe9ae0be8f630cc0d75dc045b2ecbc36668",
+              "/dist/uPlot.min.css": "47abe89afb93c70d428fdec950a50abbb1f4001eabe35895dc3b140bb0f23d46",
+              "/bench.mjs": "96f716834090a537d0305cc559819ec10ca1eba02ec82d64383c88b82e5230d0",
+              "/bench/data.json": "620ec683dfb856af79185dc1e42536c5e39a1fb1deebcff9202c7a660e54bf41",
+              "/bench/runtime-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "/bench/module-assets.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+            },
+            "browserLog": "\nDevTools listening on ws://127.0.0.1:44781/devtools/browser/1255e36d-b987-4f0d-a31b-963f5a2bc21a\n[1025/194622.437130:WARNING:components/dbus/xdg/portal.cc:126] Failed to register with org.freedesktop.host.portal.Registry\n[1025/194622.629279:WARNING:sandbox/policy/linux/sandbox_linux.cc:405] InitializeSandbox() called with multiple threads in process gpu-process.\n"
+          },
+          "glRenderer": "ANGLE (AMD, AMD Radeon Graphics (radeonsi renoir ACO DRM 3.64 7.2.11-arch1-1), OpenGL 4.6 (Core Profile) Mesa 26.2.5-arch1.1)",
+          "rounds": [
+            {
+              "round": -3,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 300.25318400000003,
+              "rawLiveMB": 295.174144,
+              "adjustedPeakMB": 16.315392000000088,
+              "adjustedLiveMB": 11.236352000000068
+            },
+            {
+              "round": -2,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 301.63763199999994,
+              "rawLiveMB": 295.92780799999997,
+              "adjustedPeakMB": 17.699839999999995,
+              "adjustedLiveMB": 11.990016000000026
+            },
+            {
+              "round": -1,
+              "warmup": true,
+              "invalidObservations": [],
+              "rawPeakMB": 302.019584,
+              "rawLiveMB": 296.399872,
+              "adjustedPeakMB": 18.081792000000064,
+              "adjustedLiveMB": 12.462080000000071
+            },
+            {
+              "round": 0,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 302.27353600000004,
+              "rawLiveMB": 296.47360000000003,
+              "adjustedPeakMB": 18.33574400000009,
+              "adjustedLiveMB": 12.535808000000088
+            },
+            {
+              "round": 1,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 300.19584,
+              "rawLiveMB": 297.07468800000004,
+              "adjustedPeakMB": 16.25804800000003,
+              "adjustedLiveMB": 13.136896000000092
+            },
+            {
+              "round": 2,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 303.7184,
+              "rawLiveMB": 296.920064,
+              "adjustedPeakMB": 19.78060800000003,
+              "adjustedLiveMB": 12.98227200000008
+            },
+            {
+              "round": 3,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 302.09331199999997,
+              "rawLiveMB": 297.059328,
+              "adjustedPeakMB": 18.155520000000024,
+              "adjustedLiveMB": 13.121536000000049
+            },
+            {
+              "round": 4,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 300.127232,
+              "rawLiveMB": 297.00608,
+              "adjustedPeakMB": 16.189440000000047,
+              "adjustedLiveMB": 13.068288000000052
+            },
+            {
+              "round": 5,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 303.15008,
+              "rawLiveMB": 297.112576,
+              "adjustedPeakMB": 19.212288000000058,
+              "adjustedLiveMB": 13.174784000000045
+            },
+            {
+              "round": 6,
+              "warmup": false,
+              "invalidObservations": [],
+              "rawPeakMB": 300.65152,
+              "rawLiveMB": 297.276416,
+              "adjustedPeakMB": 16.71372800000006,
+              "adjustedLiveMB": 13.338624000000038
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "pairedIntlIntervention": {
+    "source": "/tmp/uplot-intl-memory-tB597Y/results.json",
+    "variant": "uplot",
+    "browser": "HeadlessChrome/156.0.8078.47",
+    "treePssDeltaMB": 3.6526080000000434,
+    "rendererPssDeltaMB": 5.358592000000002,
+    "jsHeapDeltaBytes": 0,
+    "mappingDeltas": {
+      "icudtl.dat": 2.095104,
+      "[anon:partition_alloc]": 1.319936,
+      "chrome-headless-shell": 0.237568,
+      "libc.so.6": 0.001024
+    }
+  }
+}

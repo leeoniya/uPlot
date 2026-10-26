@@ -6,7 +6,7 @@ const root = new URL('../', import.meta.url);
 
 
 describe('legend build artifacts', function() {
-	it('loads source and every distribution without a DOM and exposes public utilities', function() {
+	it('loads source and every distribution without a DOM or Intl formatters and exposes public utilities', function() {
 		this.timeout(6000);
 
 		const output = execFileSync(process.execPath, [
@@ -14,6 +14,9 @@ describe('legend build artifacts', function() {
 				import assert from 'node:assert/strict';
 				import { readFileSync } from 'node:fs';
 				import { runInNewContext } from 'node:vm';
+
+				Intl.NumberFormat = function() { throw new Error('unexpected Intl.NumberFormat construction'); };
+				Intl.DateTimeFormat = function() { throw new Error('unexpected Intl.DateTimeFormat construction'); };
 
 				function checkNoDOM(scope) {
 					for (const key of ['window', 'document', 'Node', 'Element'])
@@ -25,8 +28,12 @@ describe('legend build artifacts', function() {
 					for (const key of ['assign', 'fmtNum', 'rangeNum', 'rangeLog', 'rangeAsinh', 'scan', 'join', 'fmtDate', 'tzDate', 'sync'])
 						assert.equal(typeof uPlot[key], 'function', filename + ': ' + key);
 					assert.equal(typeof uPlot.paths.linear, 'function', filename + ': paths.linear');
-					assert.equal(uPlot.fmtNum(123), '123', filename + ': fmtNum result');
-					assert.equal(uPlot.fmtDate('{YYYY}')(new Date(2020, 0, 2)), '2020', filename + ': fmtDate result');
+					assert.equal(uPlot.fmtNum(1234.5678), '1,234.568', filename + ': fmtNum result');
+					assert.deepEqual([1.2345, -0, 1e21].map(uPlot.fmtNum), ['1.235', '-0', '1,000,000,000,000,000,000,000']);
+					const date = new Date(2020, 0, 2);
+					assert.equal(uPlot.tzDate(date), date, filename + ': local Date identity');
+					assert.equal(uPlot.tzDate(date.getTime(), null).getTime(), date.getTime(), filename + ': local timestamp');
+					assert.equal(uPlot.fmtDate('{YYYY}')(date), '2020', filename + ': fmtDate result');
 					const range = uPlot.rangeNum(0, 100, 0.1, true);
 					assert.equal(range.length, 2, filename + ': rangeNum length');
 					assert.ok(range[0] <= 0 && range[1] >= 100, filename + ': rangeNum bounds');
@@ -40,7 +47,7 @@ describe('legend build artifacts', function() {
 					const commonJS = filename.endsWith('.cjs.js');
 					const module = { exports: {} };
 					// The .cjs.js file is under type: module, so evaluate it as CommonJS in a VM.
-					const context = { queueMicrotask, setTimeout, clearTimeout };
+					const context = { queueMicrotask, setTimeout, clearTimeout, Intl };
 					if (commonJS)
 						Object.assign(context, { module, exports: module.exports });
 					checkNoDOM(context);
