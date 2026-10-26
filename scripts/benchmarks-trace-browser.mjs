@@ -1,7 +1,7 @@
 // The parent sets browser deviceScaleFactor (default 1) before navigation.
 // HTML loads the demo libraries, their dependencies, and styles before this module.
 // CDP waits for benchmarkTraceReady and starts tracing before benchmarkLifecycle.begin().
-// Shared sessions: two-point populated init -> full-data update.
+// Shared sessions: two-point populated init -> full-data update -> retained resize.
 // Each operation has separate markers. Only the parent polls
 // process memory and optionally forces GC at baseline, live, and cleanup checkpoints.
 // runBenchmarkTrace({raf:true}) is a mutually exclusive, browser-driven path.
@@ -13,6 +13,8 @@ if ((!selectedVariant || selectedVariant === 'uplot' || selectedVariant === 'upl
 
 const WIDTH = 1920;
 const HEIGHT = 600;
+const RESIZE_WIDTH = 1200;
+const RESIZE_HEIGHT = 400;
 const VIEWPORT_HEIGHT = 900;
 const dpr = devicePixelRatio;
 const {demoDependencies, benchmarkVariants, assertBenchmarkAvailable} = await import('/bench/demo-dependencies.mjs');
@@ -104,8 +106,8 @@ const sources = Object.fromEntries(await Promise.all(VARIANTS.filter(id => id !=
 	.map(async id => {
 		const source = await import(`/bench/${id}.mjs`);
 		await source.prepareRuntime?.();
-		if (typeof source.makeChart !== 'function' || typeof source.updateChart !== 'function')
-			throw new Error(`${id}: benchmark requires populated initialization and retained-chart updates.`);
+		if (typeof source.makeChart !== 'function' || typeof source.updateChart !== 'function' || typeof source.resizeChart !== 'function')
+			throw new Error(`${id}: benchmark requires populated initialization, retained-chart updates and resize.`);
 		return [id, source];
 	})));
 const response = await fetch('/bench/data.json');
@@ -224,9 +226,12 @@ function construct(sample) {
 		sample.chart = (source.makeLifecycleChart ?? source.makeChart)(sample.input, sample.host, wait);
 		return finishMicrotask(sample);
 	}
-	return Promise.resolve(source.updateChart(sample.chart, sample.input, sample.host, wait)).then(result => {
+	const resize = sample.operation === 'resize';
+	const method = resize ? 'resizeChart' : 'updateChart';
+	const input = resize ? {width: RESIZE_WIDTH, height: RESIZE_HEIGHT} : sample.input;
+	return Promise.resolve(source[method](sample.chart, input, sample.host, wait)).then(result => {
 		if (result !== undefined && result !== sample.chart)
-			throw new Error(`${sample.variant}: updateChart must update the retained chart, not return a new chart.`);
+			throw new Error(`${sample.variant}: ${method} must update the retained chart, not return a new chart.`);
 	});
 }
 
@@ -251,6 +256,8 @@ function hasChartSurface(root) {
 
 function validateChart({variant, chart, host, input, operation}) {
 	const ROWS = operation === 'small-init' ? 2 : 55550;
+	const width = operation === 'resize' ? RESIZE_WIDTH : WIDTH;
+	const height = operation === 'resize' ? RESIZE_HEIGHT : HEIGHT;
 	if (sources[variant]?.destroyChart && (!chart || !hasChartSurface(host)))
 		throw new Error(`${variant} did not return a rendered chart.`);
 	if (variant === 'chartgpu') {
@@ -267,7 +274,7 @@ function validateChart({variant, chart, host, input, operation}) {
 		const canvases = host.querySelectorAll('canvas');
 		// The shared adapter reserves 24 CSS pixels for the title; no layout or pixel reads.
 		if (!canvases.length || [...canvases].some(canvas =>
-			!(Math.abs(canvas.width - WIDTH * dpr) <= 1 && Math.abs(canvas.height - (HEIGHT - 24) * dpr) <= 1)))
+			!(Math.abs(canvas.width - width * dpr) <= 1 && Math.abs(canvas.height - (height - 24) * dpr) <= 1)))
 			throw new Error(`ChartGPU canvas backing size does not match DPR ${dpr}`);
 	}
 	if (variant === 'deckgl') {
@@ -285,10 +292,10 @@ function validateChart({variant, chart, host, input, operation}) {
 		const canvas = chart.canvas?.node?.();
 		const canvases = host.querySelectorAll('canvas');
 		// The shared adapter reserves 150 horizontal and 100 vertical CSS pixels for margins.
-		const width = WIDTH - 150, height = HEIGHT - 100;
+		const plotWidth = width - 150, plotHeight = height - 100;
 		if (!canvas || canvases.length !== 1 || canvases[0] !== canvas ||
-			parseFloat(canvas.style.width) !== width || parseFloat(canvas.style.height) !== height ||
-			!(Math.abs(canvas.width - width * dpr) <= 1 && Math.abs(canvas.height - height * dpr) <= 1))
+			parseFloat(canvas.style.width) !== plotWidth || parseFloat(canvas.style.height) !== plotHeight ||
+			!(Math.abs(canvas.width - plotWidth * dpr) <= 1 && Math.abs(canvas.height - plotHeight * dpr) <= 1))
 			throw new Error(`deck.gl canvas inline or backing size does not match DPR ${dpr}`);
 	}
 	if (variant === 'apexcharts') {
@@ -339,7 +346,7 @@ function validateChart({variant, chart, host, input, operation}) {
 		: variant === 'flot' ? chart.getSurface().pixelRatio : dpr;
 	if (effectiveDpr !== dpr)
 		throw new Error(`${variant} rendered at DPR ${effectiveDpr}, expected ${dpr}`);
-	if ((variant === 'd3' || variant === 'd3-minmax') && host.querySelector('#plot').width !== Math.round(WIDTH * dpr))
+	if ((variant === 'd3' || variant === 'd3-minmax') && host.querySelector('#plot').width !== Math.round(width * dpr))
 		throw new Error('D3 canvas backing width does not match the requested DPR.');
 	return effectiveDpr;
 }
@@ -440,7 +447,7 @@ let sampleIndex = 0;
 let state = null;
 let lifecycleBusy = false;
 let rafMode = false;
-const OPERATIONS = ['small-init', 'data-update'];
+const OPERATIONS = ['small-init', 'data-update', 'resize'];
 
 function requireSample(phase) {
 	if (invoked !== 'samples' || lifecycleBusy || !state || state.phase !== phase)
@@ -498,12 +505,15 @@ globalThis.benchmarkLifecycle = {
 		state.phase = 'preparing';
 		try {
 			if (!rafMode) globalThis.benchmarkWebGL?.begin();
-			const packedInput = state.variant === 'idle' ? null : operation === 'small-init' ? smallPacked : packed;
-			const prepData = prepFor(state.variant);
-			const start = performance.now();
-			state.input = prepData(packedInput);
-			state.dataPrepMs = performance.now() - start;
-			validateInput(state);
+			state.dataPrepMs = 0;
+			if (operation !== 'resize') {
+				const packedInput = state.variant === 'idle' ? null : operation === 'small-init' ? smallPacked : packed;
+				const prepData = prepFor(state.variant);
+				const start = performance.now();
+				state.input = prepData(packedInput);
+				state.dataPrepMs = performance.now() - start;
+				validateInput(state);
+			}
 			await settle();
 			checkPage();
 			state.phase = 'prepared';
@@ -523,6 +533,10 @@ globalThis.benchmarkLifecycle = {
 			const start = performance.mark(prefix + 'start');
 			if (state.operation === 'small-init')
 				state.host = setup(state.variant);
+			else if (state.operation === 'resize') {
+				state.host.style.width = RESIZE_WIDTH + 'px';
+				state.host.style.height = RESIZE_HEIGHT + 'px';
+			}
 			await construct(state);
 			const jsEnd = performance.mark(prefix + 'js-end');
 			const rafTimes = {};
@@ -617,7 +631,7 @@ globalThis.runBenchmarkTrace = async function runBenchmarkTrace({raf = false} = 
 					const timing = await globalThis.benchmarkLifecycle.construct();
 					phases.push({...timing, round, warmup: round < 0});
 				}
-				samples.push({...phases[phases.length - 1], phases});
+				samples.push({...phases.find(phase => phase.operation === 'data-update'), phases});
 			}
 			finally {
 				boundary('end', variant);
@@ -627,7 +641,7 @@ globalThis.runBenchmarkTrace = async function runBenchmarkTrace({raf = false} = 
 			}
 		}
 	}
-	return {...metadata, ...config, samples,
+	return {...metadata, ...config, lifecycle: metadata.lifecycle, samples,
 		raf: {enabled: raf, startAligned: raf, frameIntervalsMs, clock: 'performance.now() at callback entry'}};
 };
 
@@ -635,8 +649,10 @@ function reportMetadata(raf = false) {
 	return {
 		phase: 'chart-population',
 		initProtocol: 'settled-work-v1',
+		resizeProtocol: 'retained-resize-v1',
 		lifecycle: {operations: OPERATIONS, initialRows: 2, updateRows: ROWS,
-			data: 'Initialize with the first and last fixture rows, then update once with the original full dataset. Separate prepData calls create the library inputs. No full-fixture copy or synthetic value changes.'},
+			resizeSize: {width: RESIZE_WIDTH, height: RESIZE_HEIGHT},
+			data: 'Initialize with the first and last fixture rows, then update once with the original full dataset. Resize the same chart without preparing or replacing its data.'},
 		dpr,
 		dprs: [dpr],
 		variants: VARIANTS,
@@ -657,9 +673,9 @@ function reportMetadata(raf = false) {
 			echarts: '/bench/echarts.mjs',
 			flot: '/bench/flot.mjs',
 			dygraphs: '/bench/dygraphs.mjs',
-			demoContract: 'HTML uses makeChart with full data. Benchmarks use makeLifecycleChart when provided, otherwise makeChart, with two points per series, then updateChart on the retained chart with full data. Async adapters resolve on library completion. Optional destroyChart handles cleanup.',
+			demoContract: 'HTML uses makeChart with full data. Benchmarks use makeLifecycleChart when provided, otherwise makeChart, with two points per series, then updateChart with full data and resizeChart(chart, {width, height}, host, wait) on the retained chart. The harness sizes the host inside resize markers. Async adapters resolve on library completion. Optional destroyChart handles cleanup.',
 			data: '/bench/data.json',
-			prepData: 'Each session calls shared prepData separately for two fixture rows and the original full fixture. Full-data preparation supplies prep ms. JSON parsing and small-fixture selection are excluded.',
+			prepData: 'Each session calls shared prepData separately for two fixture rows and the original full fixture. Full-data preparation supplies prep ms. Resize reuses the full-data input with no preparation. JSON parsing and small-fixture selection are excluded.',
 			dataRepresentations: {
 				uplot: 'aligned arrays', d3: 'aligned arrays', 'd3-minmax': 'aligned arrays', 'd3-svg': 'aligned arrays', 'd3-svg-minmax': 'aligned arrays', chartjs: 'three arrays of {x, y} points',
 				echarts: 'interleaved Float64Array', flot: 'three arrays of [x, y] pairs', dygraphs: 'rows of [milliseconds, y, y, y]',
@@ -711,22 +727,25 @@ function reportMetadata(raf = false) {
 		},
 		timing: {
 			unit: 'milliseconds',
-			dataPrepMs: 'performance.now() around prepData(smallPacked) or prepData(packed), before validation and settling. The table uses full-data preparation. Idle measures a no-op.',
+			dataPrepMs: 'performance.now() around prepData(smallPacked) or prepData(packed), before validation and settling. The table uses full-data preparation. Resize preparation is zero. Idle preparation measures a no-op.',
 			prepAndInitMs: 'dataPrepMs + jsMs per sample. This sum excludes validation, the settling gap and rAF waits. It is not end-to-end latency.',
-			jsMs: 'Elapsed operation readiness: chart-specific host setup and two-point construction, or full-data update, including async completion and microtask commit. Retained in JSON; not the trace init ms column.',
+			jsMs: 'Elapsed operation readiness: chart-specific host setup and two-point construction, full-data update, or retained resize, including async completion and microtask commit. Retained in JSON; not the trace init ms column.',
 			initMs: 'Trace/combined: total tracked thread work in the complete small-init window, including host setup, deferred rendering and graphics completion. Excludes idle gaps, preparation and teardown. Not hardware GPU time or presentation latency.',
+			resizeMs: 'Trace/combined: mean tracked thread work in the complete resize window, including host sizing, deferred rendering and graphics completion. Excludes preparation and teardown.',
+			resizeRafMs: 'rAF-only: minimum first post-readiness callback latency for resize. Not proof of paint or GPU completion.',
 			initRafMs: 'rAF-only: first post-readiness callback latency for small-init. Reported as init rAF ms, not settled thread work or proof of paint completion.',
-			aggregation: 'Use the minimum of seven measured rounds per metric, variant and DPR. Exclude three warmups. Columns can come from different rounds. Take prepAndInitMs minima from per-sample sums.',
+			aggregation: 'Trace/combined timing columns use arithmetic means across seven measured rounds per variant and DPR. rAF timings and memory use minima. Exclude three warmups. JSON retains phase samples and summary statistics.',
 			windowMs: 'Start through js-end, two requestAnimationFrame callbacks, a 200ms timeout, and WebGL/WebGPU completion validation in trace/memory mode.',
-			raf1Ms: 'Start to performance.now() at the first post-init rAF callback entry; rAF mode only. Async adapters can span frames before initialization completes.',
+			raf1Ms: 'Start to performance.now() at the first post-readiness rAF callback entry; rAF mode only. Async operations can span earlier frames.',
 			postJsRaf1Ms: 'js-end to that same first callback entry; rAF mode only.',
 			settling: {animationFrames: 2, idleMs: IDLE_MS, beforeStart: true, afterJsEnd: true},
 			drain: 'In rAF mode the extra post-JS frame is unmeasured draining before the 200ms wait. It is included only in the trace window, not the rAF latency fields.',
 		},
 
 		limitations: [
-			'Each session creates a new chart with two points per series, then updates once with the full dataset. Three warmup sessions precede seven measured sessions.',
-						'HTML demos still construct directly with full data. Small-to-full population is neither direct populated startup nor steady-state full-to-full replacement. Updates include full-size allocation costs.',
+			'Each session creates a chart with two points per series, updates it with the full dataset, then resizes it to 1200x400. Three warmup sessions precede seven measured sessions.',
+			'Resize preserves chart identity, source data, title/margin conventions and fixed sampling targets. Width-dependent geometry may change. The browser viewport remains 1920x900.',
+			'HTML demos still construct directly with full data. Small-to-full population is neither direct populated startup nor steady-state full-to-full replacement. Updates include full-size allocation costs.',
 						'Async initialization waits for the library completion promise/event inside init and trace spans. This can include timers, frames, and deferred interaction setup, not just drawing CPU work.',
 			'Libraries share CPU/RAM on the left percentage scale and TCP Out on the right MB scale with automatic y ranges. Native sampling and grouping can change displayed detail and ranges.',
 			'Sampled variants receive all 55,550 input rows through the base prepData function. Only native library reducers change rendered data; no custom preprocessing is used.',
@@ -752,15 +771,15 @@ function reportMetadata(raf = false) {
 			'Warmups can appear in the trace. Exclude samples with warmup:true from measured aggregates.',
 			'Trace/memory observes current-realm canvas getContext calls, not draw calls. Reused contexts can be registered by adapters. No readback, screenshots, pixel export, or harness-forced layout reads are used.',
 			'After settling, trace/memory checks WebGL2 fences or calls WebGL1 finish before the end marker. These checks add thread-wall overhead outside init. Completion covers prior commands in observed contexts, not later draws, other realms, or presentation. rAF has no WebGL observer or completion check.',
-			'ChartGPU construction and updates wait for a command submission and queue completion inside readiness in all modes, including rAF. Trace/memory then waits after settling for all actual adapter-exposed device queues, with a 1000ms bound and device-loss/error checks. Per-sample webgpu metadata records this wait. No probe devices are requested.',
+			'ChartGPU construction, updates and resize wait for a command submission and queue completion inside readiness in all modes, including rAF. Trace/memory then waits after settling for all actual adapter-exposed device queues, with a 1000ms bound and device-loss/error checks. Per-sample webgpu metadata records this wait. No probe devices are requested.',
 			'WebGPU completion covers prior submissions, not later draws, presentation, hardware acceleration, or GPU execution time. rAF adds no post-render WebGPU fence. ChartGPU health and full series counts are checked without pixel or layout reads; teardown rejects late adapter errors and requires cleared devices.',
 			'Use Chrome trace process/thread events to distinguish renderer JS/DOM, raster, compositor and GPU-process thread work. GPU-process thread duration is not CPU time or hardware GPU execution time, and asynchronous attribution is approximate.',
-			'Idle has the same marker/wait schedule but no chart mutation between markers. Report it separately; do not assume subtraction isolates chart GPU cost.',
+			'Idle has the same marker/wait schedule and host sizing, but no chart mutation between markers. Report it separately; do not assume subtraction isolates chart GPU cost.',
 			'One actual browser DPR is captured from devicePixelRatio and reported on every sample. The parent configures deviceScaleFactor before navigation (default 1); this fixture does not emulate DPR changes. The CSS viewport is 1920x900.',
 			'Demo renderings and configurations differ: axes, domains, colors, line widths, sampling, layout and defaults are preserved. This is not pixel-identical rendering or an isolated decimation algorithm comparison.',
 
 			'Pointer events are disabled on the visible fixture to prevent hover drawing; the chart interaction options and D3 listener installation remain unchanged.',
-			'The parent can collect process memory in the shared sample lifecycle, with GC only at baseline, live, and cleanup checkpoints. The separate rAF path uses no forced GC.',
+			'The parent can collect process memory in the shared sample lifecycle, with GC only at baseline, live after resize, and cleanup checkpoints. No forced GC occurs between operations. The separate rAF path uses no forced GC.',
 			'JIT, automatic GC, scheduling, tracing overhead and machine load can affect prep, creation and downstream work.',
 			...(raf ? [
 				'rAF mode starts construction inside an animation frame. This differs from the default timer-aligned trace protocol.',

@@ -1,6 +1,6 @@
 import {makeChartWithOptions} from './d3fc.mjs';
 
-export {prepData, destroyChart, updateChart} from './d3fc.mjs';
+export {prepData, destroyChart, updateChart, resizeChart} from './d3fc.mjs';
 
 export function makeEmptyChart(host, wait) {
 	return makeChart(Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(0)])), host, wait);

@@ -101,14 +101,15 @@ export function destroyReact(chart) {
 	}
 }
 
-export function waitForLines(chart, selector) {
+export function waitForLines(chart, selector, previousPaths) {
 	const signal = chart.readySignal;
 	signal?.throwIfAborted();
 	const complete = () => {
 		const paths = chart.element.querySelectorAll(selector);
 		return paths.length === 3 && [...paths].every(path => {
 			const d = path.getAttribute('d');
-			return d && d.includes('L') && !/NaN|Infinity/.test(d);
+			return d && d.includes('L') && !/NaN|Infinity/.test(d) &&
+				(!previousPaths || d !== previousPaths.get(path));
 		});
 	};
 	if (complete()) return;
@@ -118,7 +119,7 @@ export function waitForLines(chart, selector) {
 		});
 		const timer = setTimeout(() => {
 			cleanup();
-			reject(new Error(`Initial render did not produce three complete lines: ${selector}`));
+			reject(new Error(`Render did not produce three complete, current lines: ${selector}`));
 		}, 15000);
 		const aborted = () => { cleanup(); reject(signal.reason); };
 		function cleanup() {

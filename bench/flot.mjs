@@ -88,4 +88,14 @@ function updateChart(chart, input, host, wait) {
 	}, wait);
 }
 
+export function resizeChart(chart, size, host, wait) {
+	return overlayReady(chart, () => {
+		// The placeholder is 100% of the host sized by the harness.
+		chart.resize();
+		chart.setupGrid();
+		chart.draw();
+		chart.triggerRedrawOverlay();
+	}, wait);
+}
+
 export {makeChart, prepData, makeEmptyChart, updateChart};

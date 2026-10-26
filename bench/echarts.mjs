@@ -145,5 +145,28 @@ function updateChart(chart, input, host, wait) {
 	if (wait) wait.textContent = 'Done!';
 }
 
+export function resizeChart(chart, {width, height}, host, wait) {
+	return new Promise((resolve, reject) => {
+		const cleanup = () => {
+			clearTimeout(timer);
+			chart.off('finished', finished);
+		};
+		const finished = () => {
+			cleanup();
+			if (wait) wait.textContent = 'Done!';
+			resolve();
+		};
+		const timer = setTimeout(() => {
+			cleanup();
+			reject(new Error('ECharts resize render completion timed out.'));
+		}, 30000);
+		// resize can paint the old display list before relaying out the series.
+		// Wait for the subsequent finished event, not just the resize return.
+		chart.on('finished', finished);
+		try { chart.resize({width, height, animation: {duration: 0}}); }
+		catch (error) { cleanup(); reject(error); }
+	});
+}
+
 export {makeEmptyChart, updateChart};
 export {makeChart, prepData};

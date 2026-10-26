@@ -115,6 +115,31 @@ async function updateChart(handle, input, host, wait) {
 	}
 }
 
+async function resizeChart(handle, {width, height}, host, wait) {
+	const {chart} = handle;
+	let drawn, timer;
+	try {
+		await new Promise((resolve, reject) => {
+			drawn = resolve;
+			chart.listenOnce('chartDraw', drawn);
+			timer = setTimeout(() => reject(new Error('AnyStock did not finish resizing within 30 seconds.')), 30000);
+			// Batch stage and bounds changes so an intermediate draw cannot finish the wait.
+			chart.suspendSignalsDispatching();
+			try {
+				chart.container().getStage().resize(width, height);
+				chart.bounds(0, 0, width, height);
+			}
+			finally { chart.resumeSignalsDispatching(false); }
+			chart.draw();
+		});
+		if (wait) wait.textContent = 'Done!';
+	}
+	finally {
+		clearTimeout(timer);
+		chart.unlisten('chartDraw', drawn);
+	}
+}
+
 function destroyChart(handle) {
 	const {chart, table, mappings, scales} = handle;
 	handle.chart = handle.table = null;
@@ -130,4 +155,4 @@ function destroyChart(handle) {
 	}
 }
 
-export {prepData, makeChart, makeEmptyChart, updateChart, destroyChart, makeChartWithOptions};
+export {prepData, makeChart, makeEmptyChart, updateChart, resizeChart, destroyChart, makeChartWithOptions};

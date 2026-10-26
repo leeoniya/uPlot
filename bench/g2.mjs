@@ -68,9 +68,14 @@ async function updateChart(chart, input, host, wait) {
 	if (wait) wait.textContent = 'Done!';
 }
 
+async function resizeChart(chart, {width, height}, host, wait) {
+	await chart.changeSize(width, height);
+	if (wait) wait.textContent = 'Done!';
+}
+
 function destroyChart(chart) {
 	chart.destroy();
 }
 
 export {makeChartWithOptions};
-export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};
+export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart, resizeChart};

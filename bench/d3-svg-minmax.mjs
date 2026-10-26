@@ -1,6 +1,6 @@
 import {makeChartWithOptions} from './d3.mjs';
 
-export {prepData, updateChart} from './d3.mjs';
+export {prepData, updateChart, resizeChart} from './d3.mjs';
 
 export function makeEmptyChart(host, wait) {
 	return makeChart([[], [], [], []], host, wait);

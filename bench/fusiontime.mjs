@@ -136,6 +136,35 @@ async function updateChart(handle, input, host, wait) {
 	}
 }
 
+async function resizeChart(handle, {width, height}, host, wait) {
+	const {chart} = handle;
+	let timer;
+	const listeners = [];
+	try {
+		await new Promise((resolve, reject) => {
+			const on = (name, listener) => {
+				listeners.push([name, listener]);
+				chart.addEventListener(name, listener);
+			};
+			// resizeTo schedules work; resized runs as a post-render job in 4.2.3.
+			on('resized', (event, detail) => {
+				if (Number(detail?.width) === width && Number(detail?.height) === height)
+					resolve();
+			});
+			for (const name of ['resizecancelled', 'dataInvalid', 'dataLoadError'])
+				on(name, (event, detail) => reject(new Error(`FusionTime ${name}: ${detail?.error?.message ?? detail?.error ?? detail?.message ?? event?.eventType ?? 'chart resize failed'}`)));
+			timer = setTimeout(() => reject(new Error('FusionTime did not finish resizing within 30 seconds.')), 30000);
+			chart.resizeTo(width, height);
+		});
+		if (wait) wait.textContent = 'Done!';
+	}
+	finally {
+		clearTimeout(timer);
+		for (const [name, listener] of listeners)
+			chart.removeEventListener(name, listener);
+	}
+}
+
 function destroyChart(handle) {
 	const {chart, store} = handle;
 	handle.chart = handle.store = null;
@@ -143,4 +172,4 @@ function destroyChart(handle) {
 	finally { store?.dispose(); }
 }
 
-export {prepData, makeChart, makeEmptyChart, updateChart, destroyChart, makeChartWithOptions};
+export {prepData, makeChart, makeEmptyChart, updateChart, resizeChart, destroyChart, makeChartWithOptions};

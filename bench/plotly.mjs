@@ -74,6 +74,12 @@ async function updateChart(chart, input, host, wait) {
 	if (wait) wait.textContent = 'Done!';
 }
 
+export async function resizeChart(chart, {width, height}, host, wait) {
+	// Plots.resize skips graphs with both layout dimensions explicitly set.
+	await Plotly.relayout(chart, {width, height});
+	if (wait) wait.textContent = 'Done!';
+}
+
 function destroyChart(chart) {
 	Plotly.purge(chart);
 }

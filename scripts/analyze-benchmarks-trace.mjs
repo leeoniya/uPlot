@@ -10,7 +10,7 @@ const TRACKED = new Set(EVENT_NAMES);
 const WORK_METRICS = ['rendererMainTaskMs', 'styleLayoutPaintMs', 'rasterWorkerMs', 'rendererCompositorMs', 'gpuMainTaskMs', 'vizCompositorMs', 'GPUTaskMs', 'backgroundGcMs'];
 const METRICS = ['dataPrepMs', 'prepAndInitMs', 'jsMs', 'windowMs', 'jsIntervalMs', 'traceWindowMs', ...WORK_METRICS, 'gcAddedThreadWorkMs', 'totalTrackedThreadWorkMs', 'trackedBusyElapsedMs', 'hardwareGpuMs'];
 
-export const TRACE_AGGREGATION = 'Group by DPR, variant and operation; exclude warmups. Lifecycle groups contains final updates only; phaseGroups contains all operations. Headline trace timings use arithmetic means across measured runs, including zero values. Minima and maxima remain available for diagnostics. Mean, min, max, and count use only finite numbers; absent, null, and invalid values count as missing. Empty mean, min, and max are null. Totals use each round\'s deduplicated work before averaging; GC breakdowns are not added again. Idle remains a separate variant; no baseline subtraction.';
+export const TRACE_AGGREGATION = 'Group by DPR, variant and operation; exclude warmups. Lifecycle groups contains data-update only. phaseGroups contains all operations, including retained resize when present. Headline trace timings use arithmetic means across measured runs, including zero values. Minima and maxima remain available for diagnostics. Mean, min, max, and count use only finite numbers; absent, null, and invalid values count as missing. Empty mean, min, and max are null. Totals use each round\'s deduplicated work before averaging; GC breakdowns are not added again. Idle remains a separate variant; no baseline subtraction.';
 
 const threadKey = ({pid, tid}) => JSON.stringify([pid, tid]);
 const validTime = value => typeof value === 'number' && Number.isFinite(value);
@@ -395,7 +395,7 @@ function createTraceAnalyzer(report) {
 				jsMs: 'Unmodified report JS interval span, not exclusive JavaScript CPU time.',
 				windowMs: 'Unmodified report sample window duration.',
 				jsIntervalMs: 'Trace start to js-end elapsed span, including synchronous JS/DOM and other work or waits in that interval.',
-				traceWindowMs: 'Trace start to end elapsed span, including the settling interval.',
+				traceWindowMs: 'Trace start to end elapsed span, including the settling interval. Initialization, data-update, and resize each use their complete marked window.',
 				rendererMainTaskMs: 'Union of selected task intervals on the marker thread, clipped to [start, end].',
 				styleLayoutPaintMs: 'Union of UpdateLayoutTree, Layout, PrePaint, Paint, and Layerize on the marker thread. A main-work breakdown, not added to totals.',
 				rasterWorkerMs: 'Sum of per-thread RasterTask unions in the marker renderer and GPU processes, excluding known main and compositor threads. RasterTask identifies worker work; generic worker task wrappers are not added.',
@@ -405,7 +405,7 @@ function createTraceAnalyzer(report) {
 				GPUTaskMs: 'Sum of per-thread GPUTask unions in the marker renderer and GPU processes. Separate diagnostic, not hardware execution time.',
 				backgroundGcMs: 'Sum of per-thread unions of allowlisted background V8 and CppGC collector scopes in the marker renderer and GPU processes, excluding known main/compositor threads. Nested scopes count once. Wait/unpark scopes are not selected; enclosing collector wall durations can still include preemption or waits. Main-thread GC remains inside task totals. Null for legacy accounting or absent relevant events.',
 				gcAddedThreadWorkMs: 'Increase in totalTrackedThreadWorkMs from background GC after removing overlap with selected task, raster, and GPU intervals. Null when background GC is unavailable; otherwise zero means no added duration in this window.',
-				totalTrackedThreadWorkMs: 'Sum of per-thread unions of selected task, RasterTask, GPUTask, and (under thread-work-gc-v2) background GC intervals within each round. Cross-metric overlaps on one thread count once. The headline mean averages these own-round totals, with main-thread and selected background GC already included. Not latency or CPU time.',
+				totalTrackedThreadWorkMs: 'Sum of per-thread unions of selected task, RasterTask, GPUTask, and (under thread-work-gc-v2) background GC intervals within each round. Cross-metric overlaps on one thread count once. The headline mean averages these own-round totals, with main-thread and selected background GC already included. Trace init ms, update ms, and resize ms use this metric for their respective complete windows. Not latency or CPU time.',
 				trackedBusyElapsedMs: 'Global union of the same selected intervals across threads. Concurrent thread intervals count once; not end-to-end rendering latency.',
 				hardwareGpuMs: 'Null: no supported hardware GPU execution measurement is available from these event types.',
 				webglCompletion: 'Browser-reported completion status, not inferred from trace tasks. Complete covers preceding commands on observed contexts: asynchronous fences for WebGL2, blocking finish for WebGL1. Not-observed is not proof of no WebGL. Polling, flush, finish waits, and metadata queries belong to the instrumented window, after js-end. Wait duration is elapsed validation latency, not device busy time.',

@@ -162,6 +162,28 @@ export async function updateChart(root, input, host, wait) {
 	if (wait) wait.textContent = 'Done!';
 }
 
+export async function resizeChart(root, {width, height}, host, wait) {
+	let listener;
+	let active = true;
+	try {
+		await new Promise(resolve => {
+			listener = root.events.on('frameended', () => {
+				queueMicrotask(() => {
+					if (active && root.animationTime === null)
+						resolve();
+				});
+			});
+			// The harness sets host CSS before this call; Root measures that host.
+			root.resize();
+		});
+		if (wait) wait.textContent = 'Done!';
+	}
+	finally {
+		active = false;
+		listener?.dispose();
+	}
+}
+
 export function destroyChart(chart) {
 	chart.dispose();
 }

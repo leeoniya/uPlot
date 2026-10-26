@@ -1,7 +1,7 @@
 // Load G2 5.4.8, g-lite 2.7.2 (G), then g-webgl 2.1.3 (G.WebGL), all production UMD.
 import {makeChartWithOptions, destroyChart} from './g2.mjs';
 
-export {prepData, destroyChart} from './g2.mjs';
+export {prepData, destroyChart, resizeChart} from './g2.mjs';
 
 export async function makeChart(data, host, wait, runtimeOptions) {
 	const renderer = new G.WebGL.Renderer();

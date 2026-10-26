@@ -1,12 +1,8 @@
-const width = 1920;
-const height = 600;
 const pxRatio = devicePixelRatio;
 const pxRound = value => (Math.round(value * pxRatio) + 0.5) / pxRatio;
 const margin = {top: 10, right: 70, bottom: 30, left: 55};
 const plotLeft = margin.left;
-const plotRight = width - margin.right;
 const plotTop = margin.top;
-const plotBottom = height - margin.bottom;
 
 function round2(val) {
 	return Math.round(val * 100) / 100;
@@ -34,7 +30,8 @@ function prepData(packed) {
 	return data;
 }
 
-function setupCanvas(canvas) {
+function setupCanvas(canvas, {width, height}) {
+	Object.assign(canvas.style, {width: `${width}px`, height: `${height}px`});
 	canvas.width = Math.round(width * pxRatio);
 	canvas.height = Math.round(height * pxRatio);
 	const ctx = canvas.getContext("2d");
@@ -51,7 +48,7 @@ function axisTicks(xScale, pctScale, mbScale) {
 	};
 }
 
-function drawAxes(ctx, ticks) {
+function drawAxes(ctx, ticks, {plotRight, plotBottom}) {
 	ctx.font = "10px Arial";
 	ctx.lineWidth = 1 / pxRatio;
 	ctx.textBaseline = "middle";
@@ -143,15 +140,17 @@ function drawMinMax(ctx, xs, values, xScale, yScale) {
 		ctx.closePath();
 }
 
-function canvasRenderer(host, line, series, ticks, drawSeries) {
-	const plotCtx = setupCanvas(host.querySelector("#plot"));
+function canvasRenderer(host, line, series, ticks, drawSeries, size) {
+	const plot = host.querySelector("#plot");
+	const plotCtx = setupCanvas(plot, size);
 	const overlay = host.querySelector("#overlay");
-	const overlayCtx = setupCanvas(overlay);
+	const overlayCtx = setupCanvas(overlay, size);
 	line.context(plotCtx);
 
 	function redraw() {
+	const {width, height, plotRight, plotBottom} = size;
 	plotCtx.clearRect(0, 0, width, height);
-	drawAxes(plotCtx, ticks);
+	drawAxes(plotCtx, ticks, size);
 
 	plotCtx.save();
 	plotCtx.beginPath();
@@ -174,10 +173,15 @@ function canvasRenderer(host, line, series, ticks, drawSeries) {
 
 	return {
 		update(nextTicks) { ticks = nextTicks; redraw(); },
+		resize() {
+			setupCanvas(plot, size);
+			setupCanvas(overlay, size);
+		},
 		overlay,
 		pointer: event => event.offsetX,
-		clearCursor: () => overlayCtx.clearRect(0, 0, width, height),
+		clearCursor: () => overlayCtx.clearRect(0, 0, size.width, size.height),
 		drawCursor(x, points) {
+			const {plotBottom} = size;
 			overlayCtx.strokeStyle = "rgba(0,0,0,0.5)";
 			overlayCtx.lineWidth = 1 / pxRatio;
 			overlayCtx.beginPath();
@@ -200,11 +204,12 @@ function canvasRenderer(host, line, series, ticks, drawSeries) {
 
 let nextClipId = 0;
 
-function svgRenderer(host, line, series, ticks, drawSeries) {
+function svgRenderer(host, line, series, ticks, drawSeries, size) {
+	let {width, height, plotRight, plotBottom} = size;
 	const svg = host.querySelector("#plot");
 	const root = d3.select(svg).append("g").attr("class", "d3-svg-chart");
 	const clipId = `d3-svg-clip-${++nextClipId}`;
-	root.append("defs").append("clipPath")
+	const clip = root.append("defs").append("clipPath")
 		.attr("id", clipId)
 		.attr("clipPathUnits", "userSpaceOnUse")
 		.append("rect")
@@ -286,6 +291,14 @@ function svgRenderer(host, line, series, ticks, drawSeries) {
 			paths.selectAll('path').data(series)
 				.attr('d', ([values, scale]) => seriesPath(values, scale));
 		},
+		resize() {
+			({width, height, plotRight, plotBottom} = size);
+			d3.select(svg).attr('width', width).attr('height', height)
+				.style('width', `${width}px`).style('height', `${height}px`);
+			clip.attr('width', plotRight - plotLeft).attr('height', plotBottom - plotTop);
+			d3.select(overlay).attr('width', width).attr('height', height);
+			cursorLine.attr('y2', plotBottom);
+		},
 		overlay,
 		// offsetX can be relative to an SVG child rather than the plotting surface.
 		pointer: event => d3.pointer(event, svg)[0],
@@ -303,35 +316,37 @@ function svgRenderer(host, line, series, ticks, drawSeries) {
 }
 
 const updates = new WeakMap();
+const resizes = new WeakMap();
 
 function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "canvas", minmax = false} = {}) {
 	let [xs, cpu, ram, tcp] = data;
+	const size = {width: 1920, height: 600, plotRight: 1920 - margin.right, plotBottom: 600 - margin.bottom};
 	const xScale = d3.scaleTime()
 		.domain(xs.length ? [xs[0], xs[xs.length - 1]] : [0, 1])
-		.range([plotLeft, plotRight]);
+		.range([plotLeft, size.plotRight]);
 	const pctScale = d3.scaleLinear()
 		.domain(xs.length ? [
 			Math.min(d3.min(cpu), d3.min(ram)),
 			Math.max(d3.max(cpu), d3.max(ram)),
 		] : [0, 1])
 		.nice()
-		.range([plotBottom, plotTop]);
+		.range([size.plotBottom, plotTop]);
 	const mbScale = d3.scaleLinear()
 		.domain(xs.length ? d3.extent(tcp) : [0, 1])
 		.nice()
-		.range([plotBottom, plotTop]);
+		.range([size.plotBottom, plotTop]);
 	const series = [[cpu, pctScale, "red"], [ram, pctScale, "blue"], [tcp, mbScale, "green"]];
 	const line = d3.line()
 		.defined(value => value != null)
 		.x((value, i) => pxRound(xScale(xs[i])));
 	const drawSeries = minmax ? (ctx, values, scale) => {
-		if (values.length - 1 >= (plotRight - plotLeft) * pxRatio * 4)
+		if (values.length - 1 >= (size.plotRight - plotLeft) * pxRatio * 4)
 			drawMinMax(ctx, xs, values, xScale, scale);
 		else
 			line.context(ctx).y(value => pxRound(scale(value)))(values);
 	} : null;
 	const surface = (renderer === "svg" ? svgRenderer : canvasRenderer)(
-		host, line, series, axisTicks(xScale, pctScale, mbScale), drawSeries);
+		host, line, series, axisTicks(xScale, pctScale, mbScale), drawSeries, size);
 	const overlay = surface.overlay;
 
 	const cpuValue = host.querySelector("#cpu-value");
@@ -345,7 +360,7 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "can
 		cursorFrame = null;
 		surface.clearCursor();
 
-		if (!xs.length || pointerX < plotLeft || pointerX > plotRight)
+		if (!xs.length || pointerX < plotLeft || pointerX > size.plotRight)
 			return;
 
 		const idx = d3.bisectCenter(xs, +xScale.invert(pointerX));
@@ -385,6 +400,7 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "can
 	const chart = {
 		destroy() {
 			updates.delete(chart);
+			resizes.delete(chart);
 			if (destroyed)
 				return;
 			destroyed = true;
@@ -403,7 +419,26 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer = "can
 		pointerLeave();
 		surface.update(axisTicks(xScale, pctScale, mbScale));
 	});
+	resizes.set(chart, ({width, height}) => {
+		pointerLeave();
+		Object.assign(size, {width, height, plotRight: width - margin.right, plotBottom: height - margin.bottom});
+		Object.assign(host.querySelector('.chart').style, {width: `${width}px`, height: `${height}px`});
+		xScale.range([plotLeft, size.plotRight]);
+		pctScale.range([size.plotBottom, plotTop]);
+		mbScale.range([size.plotBottom, plotTop]);
+		surface.resize();
+		surface.update(axisTicks(xScale, pctScale, mbScale));
+	});
 	return chart;
+}
+
+function resizeChart(chart, {width, height}, host, wait) {
+	const resize = resizes.get(chart);
+	if (!resize) throw new Error('D3 chart is not live.');
+	if (!Number.isFinite(width) || !Number.isFinite(height) || width <= margin.left + margin.right || height <= margin.top + margin.bottom)
+		throw new Error('D3 resize dimensions must leave a positive plot area.');
+	resize({width, height});
+	if (wait) wait.textContent = 'Done!';
 }
 
 function makeEmptyChart(host, wait) {
@@ -422,4 +457,4 @@ function makeChart(data, host, wait, runtimeOptions) {
 }
 
 export {makeChartWithOptions};
-export {makeChart, prepData, makeEmptyChart, updateChart};
+export {makeChart, prepData, makeEmptyChart, updateChart, resizeChart};

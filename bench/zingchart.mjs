@@ -114,4 +114,25 @@ async function updateChart(chart, input, host, wait) {
 	}
 }
 
-export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};
+async function resizeChart(chart, {width, height}, host, wait) {
+	const id = chart.id;
+	let complete, failed;
+	try {
+		await new Promise((resolve, reject) => {
+			complete = resolve;
+			failed = event => reject(new Error(event.error?.message || String(event.error), {cause: event.error}));
+			zingchart.bind(id, 'complete', complete);
+			zingchart.bind(id, 'error', failed);
+			zingchart.exec(id, 'resize', {width, height});
+		});
+		if (wait) wait.textContent = 'Done!';
+		return chart;
+	}
+	finally {
+		// ZingChart iterates live listeners; remove only after event dispatch.
+		zingchart.unbind(id, 'complete', complete);
+		zingchart.unbind(id, 'error', failed);
+	}
+}
+
+export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart, resizeChart};

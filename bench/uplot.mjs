@@ -124,5 +124,11 @@ async function updateChart(chart, input, host, wait) {
 	if (wait) wait.textContent = 'Done!';
 }
 
-export {makeEmptyChart, updateChart};
+async function resizeChart(chart, {width, height}, host, wait) {
+	chart.setSize({width, height});
+	await Promise.resolve();
+	if (wait) wait.textContent = 'Done!';
+}
+
+export {makeEmptyChart, updateChart, resizeChart};
 export {makeChart, prepData};

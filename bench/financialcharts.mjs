@@ -1,8 +1,9 @@
-import {prepRows, requireFramework, mountReact, destroyReact, calendarLabel} from './framework-runtime.mjs';
+import {prepRows, requireFramework, destroyReact, calendarLabel} from './framework-runtime.mjs';
 
-import {mountEmptyReact, mountLifecycleReact, updateReact as updateChart} from './lifecycle-frameworks.mjs';
+import {mountEmptyReact, mountLifecycleReact, updateReact as updateChart, resizeReact as resizeChart} from './lifecycle-frameworks.mjs';
 
-function buildChart(data, React, chart) {
+function buildChart(data, React, chart, {width, height}) {
+	chart.ratio ??= globalThis.devicePixelRatio || 1;
 	const C = requireFramework('benchmarkFinancialCharts');
 	const {scaleTime} = requireFramework('benchmarkD3Scale');
 		const h = React.createElement;
@@ -13,8 +14,8 @@ function buildChart(data, React, chart) {
 				...['CPU', 'RAM', 'TCP Out'].map((label, i) => h('span', {key: label,
 					style: {color: ['red', 'blue', 'green'][i], margin: '0 30px'}}, label))),
 			h(C.ChartCanvas, {
-				ref: instance => { chart.instance = instance; }, width: 1920, height: 550,
-				ratio: globalThis.devicePixelRatio || 1, margin: {left: 75, right: 85, top: 10, bottom: 40},
+				ref: instance => { chart.instance = instance; }, width, height: height - 50,
+				ratio: chart.ratio, margin: {left: 75, right: 85, top: 10, bottom: 40},
 				data, seriesName: 'Server Events', xScale: scaleTime(), xAccessor,
 				xExtents: data.length ? [xAccessor(data[0]), xAccessor(data[data.length - 1])] : [new Date(0), new Date(1)],
 				// Without plotFull the default 2 points/pixel threshold trims history.
@@ -35,17 +36,18 @@ function buildChart(data, React, chart) {
 			));
 }
 
-function ready(chart, data) {
+function ready(chart, data, {width, height}) {
 		// GenericComponent draws on canvas in componentDidMount/DidUpdate,
 		// completed by mountReact's flushSync, not a guessed number of frames.
 		const instance = chart.instance;
 		if (instance?.state.plotData.length !== data.length || instance.state.chartConfigs.length !== 2 ||
-			!instance.getCanvasContexts()?.axes)
+			!instance.getCanvasContexts()?.axes || instance.props.width !== width ||
+			instance.props.height !== height - 50 || instance.props.ratio !== chart.ratio)
 			throw new Error('Financial Charts did not commit the complete dual-axis canvas chart.');
 }
 
 function makeChart(data, host, wait) {
-	return mountReact(host, (React, chart) => buildChart(data, React, chart), chart => ready(chart, data), wait);
+	return mountLifecycleReact(data, host, buildChart, ready, wait);
 }
 
 export function makeLifecycleChart(data, host, wait) {
@@ -56,4 +58,4 @@ function makeEmptyChart(host, wait) {
 	return mountEmptyReact(host, buildChart, ready, wait);
 }
 
-export {prepRows as prepData, makeChart, destroyReact as destroyChart, makeEmptyChart, updateChart};
+export {prepRows as prepData, makeChart, destroyReact as destroyChart, makeEmptyChart, updateChart, resizeChart};

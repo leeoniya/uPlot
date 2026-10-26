@@ -100,8 +100,30 @@ async function updateChart(chart, input, host, wait) {
 	}
 }
 
+async function resizeChart(chart, {width, height}, host, wait) {
+	let drawn, incident;
+	try {
+		await new Promise((resolve, reject) => {
+			drawn = resolve;
+			incident = ({target}) => {
+				if (target.id?.startsWith('E'))
+					reject(new Error(`DevExtreme ${target.id}: ${target.text}`));
+			};
+			// Animations are disabled; drawn also covers charts with no series points.
+			chart.on('drawn', drawn);
+			chart.on('incidentOccurred', incident);
+			chart.option('size', {width, height});
+		});
+		if (wait) wait.textContent = 'Done!';
+	}
+	finally {
+		chart.off('drawn', drawn);
+		chart.off('incidentOccurred', incident);
+	}
+}
+
 function destroyChart(chart) {
 	chart.dispose();
 }
 
-export {prepData, makeChart, makeEmptyChart, updateChart, destroyChart, makeChartWithOptions};
+export {prepData, makeChart, makeEmptyChart, updateChart, resizeChart, destroyChart, makeChartWithOptions};

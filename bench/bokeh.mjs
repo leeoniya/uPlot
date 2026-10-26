@@ -93,6 +93,21 @@ async function updateChart(view, input, host, wait) {
 	if (view.is_destroyed) throw new Error('Bokeh chart is not live.');
 	const renderer = view.model.renderers.find(renderer => renderer.data_source);
 	renderer.data_source.data = input;
+	await waitForReady(view);
+	if (wait) wait.textContent = 'Done!';
+}
+
+async function resizeChart(view, {width, height}, host, wait) {
+	if (view.is_destroyed) throw new Error('Bokeh chart is not live.');
+	view.model.setv({width, height});
+	await waitForReady(view);
+	const bounds = view.el.getBoundingClientRect();
+	if (view.model.width !== width || view.model.height !== height || bounds.width !== width || bounds.height !== height)
+		throw new Error('Bokeh chart did not commit resized dimensions.');
+	if (wait) wait.textContent = 'Done!';
+}
+
+async function waitForReady(view) {
 	// 3.10.1 chains async glyph ingestion and throttled paints onto root.ready.
 	// Ingestion can extend that chain while an earlier ready promise resolves.
 	let ready;
@@ -100,7 +115,6 @@ async function updateChart(view, input, host, wait) {
 		ready = view.ready;
 		await ready;
 	} while (ready !== view.ready);
-	if (wait) wait.textContent = 'Done!';
 }
 
 function disposePlot(plot, view) {
@@ -120,4 +134,4 @@ function destroyChart(view) {
 	disposePlot(view.model, view);
 }
 
-export {prepData, makeChart, destroyChart, makeChartWithOptions, makeEmptyChart, updateChart};
+export {prepData, makeChart, destroyChart, makeChartWithOptions, makeEmptyChart, updateChart, resizeChart};

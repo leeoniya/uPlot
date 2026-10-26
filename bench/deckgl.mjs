@@ -1,5 +1,6 @@
 // Globals d3 and deck: d3@7.9.0/dist/d3.min.js and deck.gl@9.4.0/dist.min.js.
 const replacements = new WeakMap();
+const resizes = new WeakMap();
 const pendingRenders = new WeakMap();
 function prepData(packed) {
 	const fields = packed[0];
@@ -20,8 +21,8 @@ async function makeChart(data, host, wait) {
 	const width = 1920;
 	const height = 600;
 	const margin = {left: 70, right: 80, top: 60, bottom: 40};
-	const plotWidth = width - margin.left - margin.right;
-	const plotHeight = height - margin.top - margin.bottom;
+	let plotWidth = width - margin.left - margin.right;
+	let plotHeight = height - margin.top - margin.bottom;
 	const ratio = globalThis.devicePixelRatio || 1;
 	const element = host.ownerDocument.createElement('div');
 	Object.assign(element.style, {position: 'relative', width: `${width}px`, height: `${height}px`});
@@ -119,6 +120,12 @@ async function makeChart(data, host, wait) {
 				Math.max(d3.max(data.cpu), d3.max(data.ram)),
 			] : [0, 1]).nice();
 			mb.domain(data.x.length ? d3.extent(data.tcp) : [0, 1]).nice();
+			redrawAxes();
+			// Stable layer IDs let Deck transfer native layer state on setProps.
+			return makeLayers();
+		});
+
+		function redrawAxes() {
 			grid.call(d3.axisLeft(pct).ticks(10).tickSize(-plotWidth).tickFormat(''))
 				.call(group => group.select('.domain').remove())
 				.call(group => group.selectAll('line').attr('stroke', 'rgba(0,0,0,0.1)'));
@@ -128,8 +135,29 @@ async function makeChart(data, host, wait) {
 			dots.data(values);
 			cursor.attr('display', 'none');
 			legend.text(name => name);
-			// Stable layer IDs let Deck transfer native layer state on setProps.
-			return makeLayers();
+		}
+
+		resizes.set(chart, ({width, height}) => {
+			plotWidth = width - margin.left - margin.right;
+			plotHeight = height - margin.top - margin.bottom;
+			Object.assign(element.style, {width: `${width}px`, height: `${height}px`});
+			const backingWidth = Math.round(plotWidth * ratio), backingHeight = Math.round(plotHeight * ratio);
+			canvas.attr('width', backingWidth).attr('height', backingHeight)
+				.style('width', `${plotWidth}px`).style('height', `${plotHeight}px`);
+			// Keep luma's external-context drawing-buffer bookkeeping in sync too.
+			chart.deck.device.getDefaultCanvasContext().setDrawingBufferSize(backingWidth, backingHeight);
+			gl.viewport(0, 0, backingWidth, backingHeight);
+			x.range([0, plotWidth]);
+			pct.range([plotHeight, 0]);
+			mb.range([plotHeight, 0]);
+			svg.attr('width', width).attr('height', height);
+			svg.select('text').attr('x', width / 2);
+			xAxis.attr('transform', `translate(0,${plotHeight})`);
+			mbAxis.attr('transform', `translate(${plotWidth},0)`);
+			rule.attr('y2', plotHeight);
+			redrawAxes();
+			return {width: plotWidth, height: plotHeight,
+				viewState: {target: [plotWidth / 2, plotHeight / 2, 0], zoom: 0}, layers: makeLayers()};
 		});
 
 		let ready = false;
@@ -163,7 +191,13 @@ async function makeChart(data, host, wait) {
 						gl.flush();
 						if (gl.getError() !== gl.NO_ERROR)
 							throw new Error('deck.gl WebGL2 initial draw failed.');
-						if (ready) pendingRenders.get(chart).resolve();
+						if (ready) {
+							const pending = pendingRenders.get(chart);
+							// Deck receives CSS-size changes through its canvas observer. An
+							// immediate redraw can still use the previous viewport dimensions.
+							if (pending.width != null && (chart.deck.width !== pending.width || chart.deck.height !== pending.height)) return;
+							pending.resolve();
+						}
 						else resolve();
 					}
 					catch (error) {
@@ -194,12 +228,23 @@ function makeEmptyChart(host, wait) {
 }
 
 async function updateChart(chart, input, host, wait) {
+	await renderChange(chart, () => ({layers: replacements.get(chart)(input)}), wait);
+}
+
+async function resizeChart(chart, {width, height}, host, wait) {
+	if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 150 || height <= 100)
+		throw new Error('deck.gl resize dimensions must leave a positive plot area.');
+	await renderChange(chart, () => resizes.get(chart)({width, height}), wait);
+}
+
+async function renderChange(chart, change, wait) {
 	if (chart.error) throw chart.error;
 	if (chart.destroyed) throw new Error('deck.gl is disposed.');
 	try {
 		await new Promise((resolve, reject) => {
-			pendingRenders.set(chart, {resolve, reject});
-			chart.deck.setProps({layers: replacements.get(chart)(input)});
+			const props = change();
+			pendingRenders.set(chart, {resolve, reject, width: props.width, height: props.height});
+			chart.deck.setProps(props);
 			chart.deck.redraw(true);
 		});
 		if (chart.error) throw chart.error;
@@ -214,6 +259,7 @@ function destroyChart(chart) {
 	pendingRenders.get(chart)?.reject(new Error('deck.gl was disposed before replacement completed.'));
 	pendingRenders.delete(chart);
 	replacements.delete(chart);
+	resizes.delete(chart);
 	const errors = [];
 	const cleanup = fn => { try { fn(); } catch (error) { errors.push(error); } };
 	cleanup(() => chart.svg?.on('.benchmark', null));
@@ -226,5 +272,5 @@ function destroyChart(chart) {
 	if (errors.length) throw new AggregateError(errors, 'deck.gl cleanup failed.');
 }
 
-export {makeEmptyChart, updateChart};
+export {makeEmptyChart, updateChart, resizeChart};
 export {prepData, makeChart, destroyChart};

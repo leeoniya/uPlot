@@ -175,7 +175,7 @@ function browserFixture(options = {}) {
 		VARIANTS: options.variants ?? ['uplot', 'chartjs', 'idle'], ALL_VARIANTS: allVariants,
 				benchmarkWebGL: options.webgl,
 						benchmarkWebGPU: options.webgpu,
-		WARMUPS: 3, ROUNDS: 7, dpr: 2, WIDTH: 1920, HEIGHT: 600, VIEWPORT_HEIGHT: 900, IDLE_MS: 200, ROWS: 55550,
+		WARMUPS: 3, ROUNDS: 7, dpr: 2, WIDTH: 1920, HEIGHT: 600, RESIZE_WIDTH: 1200, RESIZE_HEIGHT: 400, VIEWPORT_HEIGHT: 900, IDLE_MS: 200, ROWS: 55550,
 		packed: [7, 'epoch', 'idl', 'recv', 'send', 'writ', 'used', 'free', 10, 50, 2, 3, 4, 25, 75,
 			11, 40, 2, 4, 4, 30, 70, 12, 30, 2, 5, 4, 35, 65],
 		crypto: {randomUUID: () => 'browser-capture'},
@@ -191,7 +191,13 @@ function browserFixture(options = {}) {
 		console: {time() {}, timeEnd() {}},
 		environment: () => ({actualDPR: 2}),
 		checkPage: () => events.push('checkPage'),
-		setup: () => { events.push('setup'); clock += options.setupMs ?? 0; return {host: true}; },
+		setup: () => {
+			events.push('setup');
+			clock += options.setupMs ?? 0;
+			return {style: new Proxy({width: '1920px', height: '600px'}, {
+				set(style, key, value) { events.push(`style:${key}:${value}`); style[key] = value; return true; },
+			})};
+		},
 		prepFor: () => {
 			clock += 50; // Selecting prepData must not be timed.
 			return packed => {
@@ -206,13 +212,13 @@ function browserFixture(options = {}) {
 			assert.ok(sample.input);
 			events.push('validateInput');
 			clock += 1000;
-			options.validateInput?.();
+			options.validateInput?.(sample);
 		},
 		construct: async sample => {
 			events.push('construct');
 			sample.chart ??= {chart: true};
 			clock += 5;
-			options.construct?.(sample);
+			await options.construct?.(sample);
 			await context.finishMicrotask();
 		},
 		finishMicrotask: async () => { events.push('microtask'); clock += 2; },
@@ -222,6 +228,7 @@ function browserFixture(options = {}) {
 		validateChart: sample => {
 			assert.ok(sample.chart);
 			events.push('validateChart');
+			options.validateChart?.(sample);
 			clock += 1000;
 			return 2;
 		},
@@ -270,7 +277,7 @@ function deckGLFixture(dpr = 2) {
 }
 
 describe('shared browser sample lifecycle', () => {
-	it('includes host DOM setup inside init markers, never preparation or the update', async () => {
+	it('includes host DOM setup inside init markers, never preparation, update or resize', async () => {
 		const fake = browserFixture({variants: ['uplot'], setupMs: 11});
 		assert.equal(fake.api.begin().initProtocol, 'settled-work-v1');
 		await fake.api.setup('uplot', 'sample-0');
@@ -284,9 +291,78 @@ describe('shared browser sample lifecycle', () => {
 		assert.ok(fake.events.indexOf('setup') < fake.events.indexOf('construct'));
 		await fake.api.prepare('data-update', 'sample-1');
 		assert.equal((await fake.api.construct()).jsMs, 7);
+		await fake.api.prepare('resize', 'sample-2');
+		assert.equal((await fake.api.construct()).jsMs, 7);
 		assert.equal(fake.events.filter(event => event === 'setup').length, 1);
 		await fake.api.destroy();
 	});
+
+	for (const variant of ['uplot', 'idle']) {
+		it(`${variant} retains input without preparation and sizes the host inside an async resize window`, async () => {
+			const entered = signal(), pending = signal();
+			let retainedInput, retainedChart, retainedHost;
+			const fake = browserFixture({variants: [variant],
+				webgl: {
+					begin() { fake.events.push('webgl:begin'); },
+					async complete() { return {status: 'not-observed'}; },
+					reset() {},
+				},
+				async construct(sample) {
+					if (sample.operation === 'data-update') {
+						retainedInput = sample.input;
+						retainedChart = sample.chart;
+						retainedHost = sample.host;
+					}
+					if (sample.operation === 'resize') {
+						assert.equal(sample.input, retainedInput);
+						assert.equal(sample.chart, retainedChart);
+						assert.equal(sample.host, retainedHost);
+						assert.deepEqual({...sample.host.style}, {width: '1200px', height: '400px'});
+						entered.resolve();
+						await pending.promise;
+						fake.advance(17);
+					}
+				},
+				validateChart(sample) {
+					if (sample.operation === 'resize') {
+						assert.equal(sample.input, retainedInput);
+						assert.equal(sample.chart, retainedChart);
+					}
+				},
+			});
+			fake.api.begin();
+			await fake.api.setup(variant, 'sample-0');
+			await fake.api.prepare('small-init');
+			await fake.api.construct();
+			await fake.api.prepare('data-update', 'sample-1');
+			await fake.api.construct();
+			const before = fake.events.length;
+			fake.context.prepFor = () => assert.fail('resize must not select or call prepData');
+			await fake.api.prepare('resize', 'sample-2');
+			const preparation = fake.events.slice(before);
+			assert.equal(preparation[0], 'webgl:begin');
+			assert.deepEqual(preparation.slice(-2), ['settle', 'checkPage']);
+			assert.ok(!preparation.some(event => event.startsWith('style:')));
+			assert.deepEqual({...retainedHost.style}, {width: '1920px', height: '600px'});
+			const completion = fake.api.construct();
+			await waitFor(entered.promise);
+			assert.deepEqual(fake.marks.filter(mark => mark.name.includes('sample-2')).map(mark => mark.name), ['benchmark:sample-2:start']);
+			assert.deepEqual(fake.events.slice(fake.events.indexOf('benchmark:sample-2:start')), [
+				'benchmark:sample-2:start', 'style:width:1200px', 'style:height:400px', 'construct',
+			]);
+			await assert.rejects(fake.api.destroy(), /inactive/);
+			pending.resolve();
+			const resize = await completion;
+			assert.deepEqual(structuredClone(resize), {
+				...timing(variant, 'sample-2', 2), operation: 'resize', dataPrepMs: 0,
+				jsMs: 24, prepAndInitMs: 24, windowMs: 124, webgl: {status: 'not-observed'},
+			});
+			assert.deepEqual(fake.events.slice(-6), [
+				'microtask', 'benchmark:sample-2:js-end', 'settle', 'benchmark:sample-2:end', 'checkPage', 'validateChart',
+			]);
+			await fake.api.destroy();
+		});
+	}
 
 	it('can tear down a session that failed before chart-specific host creation', () => {
 		const source = browserSource.slice(browserSource.indexOf('function teardown('), browserSource.indexOf('function environment('));
@@ -303,34 +379,111 @@ describe('shared browser sample lifecycle', () => {
 		for (let i = 0; i < 10; i++) {
 			assert.equal(inputs[i * 2], fake.context.smallPacked);
 			assert.equal(inputs[i * 2 + 1], fake.context.packed);
-			assert.equal(charts[i * 2], charts[i * 2 + 1]);
-			if (i) assert.notEqual(charts[i * 2], charts[i * 2 - 1]);
+			assert.equal(charts[i * 3], charts[i * 3 + 1]);
+			assert.equal(charts[i * 3 + 1], charts[i * 3 + 2]);
+			if (i) assert.notEqual(charts[i * 3], charts[i * 3 - 1]);
 		}
 		assert.equal(report.phase, 'chart-population');
 		assert.equal(report.samples.length, 10);
-		assert.ok(report.samples.every(sample => sample.phases.length === 2));
+		assert.equal(charts.length, 30);
+		for (const [index, sample] of report.samples.entries()) {
+			assert.deepEqual(Array.from(sample.phases, phase => phase.operation), ['small-init', 'data-update', 'resize']);
+			assert.deepEqual(Array.from(sample.phases, phase => phase.id), [0, 1, 2].map(offset => `sample-${index * 3 + offset}`));
+			const {phases, ...update} = sample;
+			assert.deepEqual(update, {...phases[1]});
+			assert.equal(phases[2].dataPrepMs, 0);
+		}
 	});
 
-	it('uses optional populated lifecycle constructors and accepts only the retained update handle', async () => {
+	it('uses optional populated lifecycle constructors and accepts only retained update and resize handles', async () => {
 		const source = browserSource.slice(browserSource.indexOf('function construct('), browserSource.indexOf('function hasChartSurface('));
 		const chart = {}, input = {}, host = {}, wait = {};
 		let result = chart;
+		const calls = [];
 		const sources = {fixture: {
 			makeChart() { assert.fail('lifecycle constructor must take precedence'); },
 			async makeLifecycleChart(...args) { assert.deepEqual(args, [input, host, wait]); return chart; },
-			async updateChart(...args) { assert.deepEqual(args, [chart, input, host, wait]); return result; },
+			async updateChart(...args) { calls.push('data-update'); assert.deepEqual(args, [chart, input, host, wait]); return result; },
+			async resizeChart(actual, size, actualHost, actualWait) {
+				calls.push('resize');
+				assert.equal(actual, chart);
+				assert.deepEqual(structuredClone(size), {width: 1200, height: 400});
+				assert.equal(actualHost, host);
+				assert.equal(actualWait, wait);
+				return result;
+			},
 		}};
-		const construct = runInNewContext(source + '\nconstruct;', {sources, wait});
+		const construct = runInNewContext(source + '\nconstruct;', {sources, wait, RESIZE_WIDTH: 1200, RESIZE_HEIGHT: 400});
 		const sample = {variant: 'fixture', input, host, operation: 'small-init'};
 		await construct(sample);
 		assert.equal(sample.chart, chart);
-		sample.operation = 'data-update';
-		await construct(sample);
-		result = undefined;
-		await construct(sample);
-		result = {};
-		await assert.rejects(construct(sample), /not return a new chart/);
+		for (const operation of ['data-update', 'resize']) {
+			sample.operation = operation;
+			for (result of [chart, undefined]) {
+				await construct(sample);
+				assert.equal(sample.chart, chart);
+			}
+			result = {};
+			await assert.rejects(construct(sample), /not return a new chart/);
+			assert.equal(sample.chart, chart);
+		}
+		assert.deepEqual(calls, ['data-update', 'data-update', 'data-update', 'resize', 'resize', 'resize']);
+		await construct({variant: 'idle', operation: 'resize', host});
+		assert.equal(calls.length, 6);
 	});
+
+	it('every runnable adapter exports populated initialization, retained update and resize hooks', async () => {
+		const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'devicePixelRatio');
+		try {
+			Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, value: 1});
+			for (const variant of benchmarkVariants) {
+				const adapter = await import(`../../bench/${variant}.mjs`);
+				for (const hook of ['makeChart', 'updateChart', 'resizeChart'])
+					assert.equal(typeof adapter[hook], 'function', `${variant}.${hook}`);
+			}
+		}
+		finally {
+			if (descriptor) Object.defineProperty(globalThis, 'devicePixelRatio', descriptor);
+			else delete globalThis.devicePixelRatio;
+		}
+	});
+
+	for (const variant of ['uplot', 'uplot-release']) {
+		it(`${variant} resizes the retained chart with setSize and waits for its commit microtask`, async () => {
+			const {resizeChart} = await import(`../../bench/${variant}.mjs`);
+			const size = Object.freeze({width: 1200, height: 400});
+			const data = Object.freeze([[], [], [], []]);
+			const host = {}, wait = {textContent: 'waiting'}, events = [];
+			const chart = {
+				data,
+				setSize(actual) {
+					assert.equal(this, chart);
+					assert.deepEqual(actual, size);
+					events.push('setSize');
+					queueMicrotask(() => {
+						assert.equal(wait.textContent, 'waiting');
+						events.push('commit');
+					});
+				},
+				setData() { assert.fail('resize must retain data'); },
+				destroy() { assert.fail('resize must retain the chart'); },
+			};
+			const completion = resizeChart(chart, size, host, wait);
+			assert.deepEqual(events, ['setSize']);
+			assert.equal(wait.textContent, 'waiting');
+			assert.equal(await completion, undefined);
+			assert.deepEqual(events, ['setSize', 'commit']);
+			assert.equal(wait.textContent, 'Done!');
+			assert.equal(chart.data, data);
+			wait.textContent = 'waiting';
+			await resizeChart(chart, size, host);
+			assert.equal(wait.textContent, 'waiting');
+			const error = new Error('setSize failed');
+			chart.setSize = () => { throw error; };
+			await assert.rejects(resizeChart(chart, size, host, wait), actual => actual === error);
+			assert.equal(wait.textContent, 'waiting');
+		});
+	}
 
 	it('mounts React with populated state and updates beneath the same component', async () => {
 		const source = readFileSync(new URL('../../bench/lifecycle-frameworks.mjs', import.meta.url), 'utf8')
@@ -476,7 +629,7 @@ describe('shared browser sample lifecycle', () => {
 					events.push('destroy');
 					if (fail) throw error;
 				}}};
-				const api = runInNewContext(source + '\n({validateChart, teardown});', {sources, dpr: 1.5, ROWS: 55550, WIDTH: 1920});
+				const api = runInNewContext(source + '\n({validateChart, teardown});', {sources, dpr: 1.5, ROWS: 55550, WIDTH: 1920, HEIGHT: 600});
 				const sample = {variant, chart, host};
 				assert.equal(api.validateChart(sample), 1.5);
 				assert.throws(() => api.validateChart({...sample, chart: null}), /did not return a rendered chart/);
@@ -531,6 +684,56 @@ describe('shared browser sample lifecycle', () => {
 		canvas.height = 1200;
 		assert.throws(() => validate(sample), /backing size.*DPR 2/);
 	});
+
+	for (const variant of ['d3', 'deckgl', 'chartgpu']) {
+		it(`${variant} validates operation-specific dimensions without layout or pixel reads`, () => {
+			const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
+			assert.match(browserSource, /const RESIZE_WIDTH = 1200;/);
+			assert.match(browserSource, /const RESIZE_HEIGHT = 400;/);
+			for (const dpr of [1, 2]) {
+				const validate = runInNewContext(source + '\nvalidateChart;', {
+					sources: {[variant]: {destroyChart() {}}}, WIDTH: 1920, HEIGHT: 600,
+					RESIZE_WIDTH: 1200, RESIZE_HEIGHT: 400, dpr,
+				});
+				for (const operation of ['small-init', 'data-update', 'resize']) {
+					const rows = operation === 'small-init' ? 2 : 55550;
+					const width = operation === 'resize' ? 1200 : 1920;
+					const height = operation === 'resize' ? 400 : 600;
+					const {sample, canvas, layers} = deckGLFixture(dpr);
+					sample.variant = variant;
+					sample.operation = operation;
+					if (variant === 'deckgl') {
+						for (const layer of layers) layer.props.data = [new Float64Array(rows * 2)];
+						canvas.width = (width - 150) * dpr;
+						canvas.height = (height - 100) * dpr;
+						canvas.style = {width: `${width - 150}px`, height: `${height - 100}px`};
+					}
+					else {
+						canvas.width = width * dpr;
+						canvas.height = (height - 24) * dpr;
+						if (variant === 'chartgpu') {
+							sample.input = Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(rows)]));
+							sample.chart = {device: {}, element: {}, destroyed: false, error: null, instance: {
+								disposed: false, renderFrame() {}, dispose() {}, getHitTestSeriesPointCount: () => rows,
+								options: {series: ['cpu', 'ram', 'tcp'].map(key => ({data: {x: sample.input.x, y: sample.input[key]}}))},
+							}};
+						}
+					}
+					assert.equal(validate(sample), dpr);
+					canvas.width += 10;
+					assert.throws(() => validate(sample), /DPR/);
+					canvas.width -= 10;
+					if (variant !== 'd3') {
+						canvas.height += 10;
+						assert.throws(() => validate(sample), /DPR/);
+						canvas.height -= 10;
+					}
+					if (operation === 'resize')
+						assert.throws(() => validate({...sample, operation: 'data-update'}), /DPR/);
+				}
+			}
+		});
+	}
 
 	it('always cleans ChartGPU resources and rejects failures between validation and teardown', () => {
 		const source = browserSource.slice(browserSource.indexOf('function teardown('), browserSource.indexOf('function environment('));
@@ -690,7 +893,7 @@ describe('shared browser sample lifecycle', () => {
 
 	it('rejects reduced ApexCharts series even when a chart surface exists', () => {
 		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
-		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, ROWS: 55550, sources: {}});
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, ROWS: 55550, WIDTH: 1920, HEIGHT: 600, sources: {}});
 		for (const lengths of [[55550, 55550, 55550], [1920, 1920, 1920], [55550, 1920, 55550], [55550, 55550]]) {
 			const sample = {variant: 'apexcharts', chart: {getState: () => ({series: lengths.map(length => ({length}))})}};
 			if (lengths.length === 3 && lengths.every(length => length === 55550))
@@ -702,7 +905,7 @@ describe('shared browser sample lifecycle', () => {
 
 	it('accepts reduced ApexCharts output only with a native reducer and three finite nonempty series', () => {
 		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
-		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, ROWS: 55550, sources: {}});
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, ROWS: 55550, WIDTH: 1920, HEIGHT: 600, sources: {}});
 		const config = {chart: {dataReducer: {enabled: true}}};
 		const check = (series, options = config) => validate({
 			variant: 'apexcharts-sampled', chart: {getState: () => ({series, config: options})},
@@ -743,7 +946,7 @@ describe('shared browser sample lifecycle', () => {
 
 	for (const variant of ['d3-svg', 'd3-svg-minmax']) it(`requires three SVG paths and no Canvas in ${variant}`, async () => {
 		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
-		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1.5, sources: {[variant]: {destroyChart() {}}}});
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1.5, WIDTH: 1920, HEIGHT: 600, sources: {[variant]: {destroyChart() {}}}});
 		const window = new Window();
 		try {
 			const host = window.document.createElement('div');
@@ -763,7 +966,7 @@ describe('shared browser sample lifecycle', () => {
 
 	it('rejects GL rendering in the explicitly SVG variants', () => {
 		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
-		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, sources: {}});
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, WIDTH: 1920, HEIGHT: 600, sources: {}});
 		const plotly = {data: Array.from({length: 3}, () => ({type: 'scatter'}))};
 		const highcharts = {options: {boost: {enabled: false}}, series: [{}, {}, {}]};
 		assert.equal(validate({variant: 'plotly-svg', chart: plotly}), 1);
@@ -776,7 +979,7 @@ describe('shared browser sample lifecycle', () => {
 
 	it('accepts chart surfaces in nested shadow roots but rejects empty shadow renderers', () => {
 		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
-		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 2, sources: {bokeh: {destroyChart() {}}}});
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 2, WIDTH: 1920, HEIGHT: 600, sources: {bokeh: {destroyChart() {}}}});
 		const window = new Window();
 		try {
 			const host = window.document.createElement('div');
@@ -803,7 +1006,7 @@ describe('shared browser sample lifecycle', () => {
 
 	it('rejects uPlot bundles that retain series or point paths after drawing', () => {
 		const source = browserSource.slice(browserSource.indexOf('function hasChartSurface('), browserSource.indexOf('function teardown('));
-		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, sources: {}});
+		const validate = runInNewContext(source + '\nvalidateChart;', {dpr: 1, WIDTH: 1920, HEIGHT: 600, sources: {}});
 		const chart = {pxRatio: 1, series: [{}, {_paths: null, points: {_paths: null}}]};
 		assert.equal(validate({variant: 'uplot', chart}), 1);
 		chart.series[1]._paths = {};
@@ -855,7 +1058,7 @@ describe('shared browser sample lifecycle', () => {
 		const uPlot = Object.assign(function Master() {}, {pxRatio: 9});
 		const uPlotRelease = Object.assign(function Release() {}, {pxRatio: 2});
 		const validate = runInNewContext(startup + source + '\nvalidateChart;', {
-			URL, location: {href: 'http://localhost/?variant=uplot-release'}, uPlot, uPlotRelease, dpr: 2, sources: {},
+			URL, location: {href: 'http://localhost/?variant=uplot-release'}, uPlot, uPlotRelease, dpr: 2, WIDTH: 1920, HEIGHT: 600, sources: {},
 		});
 		const paths = {}, pointPaths = {};
 		const chart = {series: [{}, {_paths: paths, points: {_paths: pointPaths}}]};
@@ -900,7 +1103,11 @@ describe('shared browser sample lifecycle', () => {
 		assert.equal(begin.captureId, 'browser-capture');
 		assert.equal(begin.source.uplot, '/dist/uPlot.iife.min.js');
 		assert.equal(begin.source.uplotCss, '/dist/uPlot.min.css');
-		assert.deepEqual(structuredClone(begin.config), {variants: ['uplot', 'chartjs', 'idle'], dpr: 2, warmups: 3, rounds: 7, lifecycle: true, operations: ['small-init', 'data-update']});
+		assert.deepEqual(structuredClone(begin.config), {variants: ['uplot', 'chartjs', 'idle'], dpr: 2, warmups: 3, rounds: 7, lifecycle: true, operations: ['small-init', 'data-update', 'resize']});
+		assert.equal(begin.resizeProtocol, 'retained-resize-v1');
+		assert.deepEqual(structuredClone(begin.lifecycle.resizeSize), {width: 1200, height: 400});
+		assert.deepEqual(structuredClone(begin.lifecycle.operations), ['small-init', 'data-update', 'resize']);
+		assert.equal(begin.expectedInstances.operationWindows, 90);
 		assert.equal(begin.expectedInstances.samples, 30);
 		assert.equal(begin.expectedInstances.chartCreations, 20);
 		assert.equal(begin.expectedInstances.d3, 0);
@@ -982,6 +1189,68 @@ describe('shared browser sample lifecycle', () => {
 		assert.equal(fake.events.filter(event => event === 'webgl:begin').length, 2);
 		await fake.api.destroy();
 	});
+
+	for (const variant of ['scichart', 'chartgpu']) {
+		for (const status of ['complete', 'incomplete']) {
+			it(`${variant} settles and awaits ${status} resize completion before the end marker`, async () => {
+				const entered = signal(), pending = signal();
+				const resource = {};
+				let resizing = false;
+				const evidence = {status, contexts: [], devices: [{status}]};
+				const complete = async () => {
+					if (!resizing) return {status: 'complete', contexts: [], devices: [{status: 'complete'}]};
+					assert.ok(fake.events.lastIndexOf('settle') > fake.events.indexOf('benchmark:sample-2:js-end'));
+					fake.events.push('fence:resize');
+					entered.resolve();
+					await pending.promise;
+					fake.advance(13);
+					return evidence;
+				};
+				const fake = browserFixture({variants: [variant],
+					construct(sample) {
+						resizing = sample.operation === 'resize';
+						if (variant === 'scichart') sample.chart.getWebGLContexts = () => [resource];
+						else sample.chart.getWebGPUDevices = () => [resource];
+					},
+					webgl: variant === 'scichart' ? {
+						begin() {}, reset() {},
+						track(actual) {
+							assert.equal(actual, resource);
+							if (resizing) assert.equal(fake.events.at(-1), 'benchmark:sample-2:js-end');
+						},
+						complete,
+					} : undefined,
+					webgpu: variant === 'chartgpu' ? {complete(actual) {
+						assert.deepEqual(Array.from(actual), [resource]);
+						return complete();
+					}} : undefined,
+				});
+				fake.api.begin();
+				await fake.api.setup(variant, 'sample-0');
+				await fake.api.prepare('small-init');
+				await fake.api.construct();
+				await fake.api.prepare('data-update', 'sample-1');
+				await fake.api.construct();
+				await fake.api.prepare('resize', 'sample-2');
+				const completion = fake.api.construct();
+				await waitFor(entered.promise);
+				assert.equal(fake.marks.some(mark => mark.name === 'benchmark:sample-2:end'), false);
+				await assert.rejects(fake.api.destroy(), /inactive/);
+				pending.resolve();
+				if (status === 'complete') {
+					const resize = await completion;
+					assert.equal(resize.jsMs, 7);
+					assert.equal(resize.windowMs, 120);
+					assert.equal(resize.dataPrepMs, 0);
+					assert.deepEqual(structuredClone(resize[variant === 'scichart' ? 'webgl' : 'webgpu']), evidence);
+				}
+				else await assert.rejects(completion, /completion not verified/);
+				assert.ok(fake.events.indexOf('benchmark:sample-2:end') > fake.events.indexOf('fence:resize'));
+				assert.ok(fake.events.lastIndexOf('validateChart') > fake.events.indexOf('benchmark:sample-2:end'));
+				await fake.api.destroy();
+			});
+		}
+	}
 
 	it('routes only actual ChartGPU devices after settling and saves completion before the end marker', async () => {
 		const entered = signal(), pending = signal();
@@ -1152,6 +1421,16 @@ describe('shared browser sample lifecycle', () => {
 		await assert.rejects(api.prepare(), /constructed sample/);
 		await api.construct();
 		await assert.rejects(api.construct(), /prepared/);
+		await assert.rejects(api.prepare('resize', 'sample-1'), /Unexpected lifecycle operation/);
+		await api.prepare('data-update', 'sample-1');
+		await api.construct();
+		await assert.rejects(api.prepare('resize', 'sample-3'), /Expected sample-2/);
+		await api.prepare('resize', 'sample-2');
+		await assert.rejects(api.prepare('resize', 'sample-2'), /constructed sample/);
+		await api.construct();
+		await assert.rejects(api.prepare('resize', 'sample-3'), /Unexpected lifecycle operation/);
+		await api.destroy();
+		await api.setup('uplot', 'sample-3');
 		await api.destroy();
 	});
 
@@ -1210,13 +1489,13 @@ describe('shared browser sample lifecycle', () => {
 		};
 		const report = await fake.runTrace({raf: true});
 		assert.deepEqual(boundaries, Array.from(report.samples).flatMap(({variant}) =>
-			Array.from({length: 3}, () => [{phase: 'start', variant}, {phase: 'end', variant}]).flat()));
-		assert.equal(boundaries.length, 180);
+			Array.from({length: 4}, () => [{phase: 'start', variant}, {phase: 'end', variant}]).flat()));
+		assert.equal(boundaries.length, 240);
 		assert.equal(fake.events.filter(event => event === 'setup').length, 30);
 		assert.equal(fake.events.filter(event => event === 'teardown').length, 30);
 		assert.equal(report.raf.frameIntervalsMs.length, 16);
 		assert.ok(report.samples.every(sample => sample.raf1Ms === 23 && sample.postJsRaf1Ms === 16));
-		assert.equal(fake.marks.filter(mark => /:sample-/.test(mark.name)).length, 180);
+		assert.equal(fake.marks.filter(mark => /:sample-/.test(mark.name)).length, 270);
 	});
 
 	it('defaults to runnable manifest variants, preserves query variants, and blocks unavailable libraries', () => {
@@ -1236,7 +1515,7 @@ describe('shared browser sample lifecycle', () => {
 		for (const variant of ['unknown', 'toString', '__proto__'])
 			assert.throws(() => select(variant), /Unknown variant/);
 		assert.match(browserSource, /source\.makeLifecycleChart \?\? source\.makeChart/);
-				assert.match(browserSource, /source\.updateChart\(sample.chart, sample.input, sample.host, wait\)/);
+
 		for (const source of [browserSource, collectorSource]) {
 			assert.doesNotMatch(source, /Runtime\.getHeapUsage|HeapProfiler\.enable|usedSize|backingStorageSize|heapMetrics|benchmarkMemory/);
 		}
@@ -1244,8 +1523,8 @@ describe('shared browser sample lifecycle', () => {
 });
 
 describe('shared sample capture', () => {
-	const operations = ['small-init', 'data-update'];
-	it('gives each lifecycle operation its own budget and keeps GC outside the update sequence', async () => {
+	const operations = ['small-init', 'data-update', 'resize'];
+	it('gives each lifecycle operation its own budget and keeps GC outside the retained-chart sequence', async () => {
 		const clock = collectorClock();
 		const fake = fixture({memory: true, collector: clock.capture,
 			config: {lifecycle: true, operations},
@@ -1255,14 +1534,70 @@ describe('shared sample capture', () => {
 		assert.equal(report.phase, 'chart-population');
 		assert.equal(report.samples.length, 1);
 		assert.deepEqual(structuredClone(report.samples[0].phases.map(phase => phase.operation)), operations);
-		assert.deepEqual(structuredClone(report.samples[0].phases.map(phase => phase.warmup)), [false, false]);
+		assert.deepEqual(structuredClone(report.samples[0].phases.map(phase => phase.warmup)), [false, false, false]);
+		assert.equal(report.samples[0].operation, 'data-update');
+		assert.equal(report.samples[0].id, 'sample-1');
+		assert.deepEqual(structuredClone(report.samples[0].processObservations.filter(read => read.kind === 'gc').map(read => read.phase)), ['baseline', 'live', 'cleanup']);
 		const methods = fake.events.map(event => event.method);
 		assert.equal(methods.filter(method => method === gc).length, 3);
 		const first = methods.indexOf('construct');
 		const last = methods.lastIndexOf('construct:end');
 		assert.ok(!methods.slice(first, last).includes(gc));
+		assert.ok(methods.indexOf(gc) < methods.indexOf('prepare'));
+		assert.ok(methods.indexOf(gc, methods.indexOf(gc) + 1) > last);
+		assert.ok(methods.lastIndexOf(gc) > methods.indexOf('destroy:end'));
+		assert.deepEqual(fake.events.filter(event => event.method === 'prepare').map(({variant, id}) => [variant, id]),
+			operations.map((operation, index) => [operation, `sample-${index}`]));
 		assert.equal(clock.timers.size, 0);
 	});
+
+	it('accepts the exact legacy two-operation parent config and keeps data-update as the sample', async () => {
+		const legacy = ['small-init', 'data-update'];
+		const fake = fixture({memory: true, config: {lifecycle: true, operations: legacy, warmups: 1, rounds: 1}});
+		const report = await fake.capture();
+		assert.deepEqual(report.operations, legacy);
+		assert.equal(report.samples.length, 2);
+		for (const [index, sample] of report.samples.entries()) {
+			assert.deepEqual(sample.phases.map(phase => phase.operation), legacy);
+			assert.equal(sample.id, `sample-${index * 2 + 1}`);
+			assert.equal(sample.operation, 'data-update');
+			assert.equal(sample.warmup, index === 0);
+		}
+		assert.equal(fake.events.filter(event => event.method === gc).length, 6);
+	});
+
+	it('rejects missing, reordered, repeated and extended lifecycle operation sequences before setup', async () => {
+		for (const invalid of [undefined, [], ['small-init'], ['resize'], ['small-init', 'resize'],
+			['data-update', 'small-init'], ['small-init', 'resize', 'data-update'],
+			['small-init', 'data-update', 'data-update'], [...operations, 'resize'], [...operations, 'unknown']]) {
+			const fake = fixture({config: {lifecycle: true, operations: invalid}});
+			await assert.rejects(fake.capture(), /Unexpected benchmark lifecycle operations/);
+			assert.deepEqual(fake.events, [{method: 'begin'}]);
+		}
+	});
+
+	for (const stalledMethod of ['prepare', 'construct']) {
+		it(`stops an over-budget resize ${stalledMethod} without starting cleanup or another session`, async () => {
+			const clock = collectorClock();
+			let preparations = 0;
+			const timeouts = [];
+			const fake = fixture({memory: true, collector: clock.capture,
+				config: {lifecycle: true, operations, warmups: 1, rounds: 1},
+				operation(method) {
+					if (method === 'prepare') preparations++;
+					if (method === stalledMethod && preparations === 3) clock.advance(5001);
+				},
+			});
+			await assertSettled(fake, () => assert.rejects(fake.capture({onSampleTimeout: error => timeouts.push(error)}),
+				error => error.code === 'BENCHMARK_SAMPLE_TIMEOUT'));
+			assert.equal(preparations, 3);
+			assert.equal(timeouts.length, 1);
+			assert.equal(fake.events.filter(event => event.method === gc).length, 1);
+			assert.equal(fake.events.filter(event => event.method === 'setup').length, 1);
+			assert.equal(fake.events.filter(event => event.method === 'destroy').length, 0);
+			assert.equal(clock.timers.size, 0);
+		});
+	}
 
 	it('still stops a single over-budget lifecycle operation', async () => {
 		const clock = collectorClock();
@@ -1332,14 +1667,19 @@ describe('shared sample capture', () => {
 		});
 		assert.equal(report.captureId, 'browser-capture');
 		assert.equal(report.samples.length, 30);
-		assert.equal(fake.marks.length, 181);
+		assert.equal(fake.marks.length, 271);
+		assert.equal(report.resizeProtocol, 'retained-resize-v1');
+		assert.deepEqual(report.lifecycle.resizeSize, {width: 1200, height: 400});
 		assert.equal(report.phase, 'chart-population');
 		report.samples.forEach((sample, index) => {
 			const {phases, ...update} = sample;
-			assert.deepEqual(update, {...timing(sample.variant, `sample-${index * 2 + 1}`, 2), operation: 'data-update', round: Math.floor(index / 3) - 3, warmup: index < 9});
-			assert.deepEqual(phases.map(phase => phase.operation), ['small-init', 'data-update']);
-			assert.deepEqual(phases.map(phase => phase.warmup), [index < 9, index < 9]);
+			assert.deepEqual(update, {...timing(sample.variant, `sample-${index * 3 + 1}`, 2), operation: 'data-update', round: Math.floor(index / 3) - 3, warmup: index < 9});
+			assert.deepEqual(phases.map(phase => phase.operation), operations);
+			assert.deepEqual(phases.map(phase => phase.id), [0, 1, 2].map(offset => `sample-${index * 3 + offset}`));
+			assert.deepEqual(phases.map(phase => phase.warmup), [index < 9, index < 9, index < 9]);
 			assert.equal(phases[0].dataPrepMs, 3);
+			assert.equal(phases[2].dataPrepMs, 0);
+			assert.equal(phases[2].prepAndInitMs, phases[2].jsMs);
 		});
 	});
 

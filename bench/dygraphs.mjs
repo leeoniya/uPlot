@@ -101,4 +101,10 @@ function updateChart(chart, input, host, wait) {
 	return chart;
 }
 
+export function resizeChart(chart, {width, height}, host, wait) {
+	chart.resize(width, height);
+	if (wait) wait.textContent = 'Done!';
+	return chart;
+}
+
 export {makeChart, prepData, makeEmptyChart, updateChart};

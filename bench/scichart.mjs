@@ -192,11 +192,11 @@ export async function makeChart(data, host, wait) {
 
 }
 
-function renderChart(chart, timeoutMs, action) {
+function renderChart(chart, timeoutMs, action, completed = chart.renderInstructionsCompleted) {
 	return new Promise((resolve, reject) => {
 		const cleanup = () => {
 			clearTimeout(timer);
-			chart.renderInstructionsCompleted.unsubscribe(rendered);
+			completed.unsubscribe(rendered);
 			chart.renderError.unsubscribe(failed);
 			pendingRenders.delete(chart);
 		};
@@ -217,7 +217,7 @@ function renderChart(chart, timeoutMs, action) {
 		};
 		const timer = setTimeout(() => failed(new Error('SciChart render completion timed out. Check browser graphics support and vendor license diagnostics.')), timeoutMs);
 		pendingRenders.set(chart, failed);
-		chart.renderInstructionsCompleted.subscribe(rendered);
+		completed.subscribe(rendered);
 		chart.renderError.subscribe(failed);
 		try { action(); }
 		catch (error) { failed(error); }
@@ -240,6 +240,15 @@ export async function updateChart(chart, input, host, wait) {
 		}
 		finally { chart.resumeUpdates({invalidateOnResume: true}); }
 	});
+	if (wait) wait.textContent = 'Done!';
+}
+
+export async function resizeChart(chart, {width, height}, host, wait) {
+	// Root 2D surfaces take CSS pixels and scale the back buffer themselves.
+	// Await a fresh CPU render, not an older frame's delayed GPU completion;
+	// the harness fences GPU work after the hook and its settling frames.
+	await renderChart(chart, globalThis.benchmarkSciChartOptions?.timeoutMs ?? 30000,
+		() => chart.changeViewportSize(width, height), chart.rendered);
 	if (wait) wait.textContent = 'Done!';
 }
 

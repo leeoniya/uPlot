@@ -1,6 +1,6 @@
 import {makeChartWithOptions} from './anychart.mjs';
 
-export {prepData, destroyChart, updateChart} from './anychart.mjs';
+export {prepData, destroyChart, updateChart, resizeChart} from './anychart.mjs';
 
 export function makeEmptyChart(host, wait) {
 	return makeChart([], host, wait);

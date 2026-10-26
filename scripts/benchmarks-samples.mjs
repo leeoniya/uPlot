@@ -32,8 +32,11 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 
 	const samples = [];
 	let sampleIndex = 0;
-	const operations = config.lifecycle ? ['small-init', 'data-update'] : null;
-	if (config.lifecycle && JSON.stringify(config.operations) !== JSON.stringify(operations))
+	const operations = config.lifecycle ? config.operations : null;
+	if (config.lifecycle && ![
+		['small-init', 'data-update'],
+		['small-init', 'data-update', 'resize'],
+	].some(expected => JSON.stringify(operations) === JSON.stringify(expected)))
 		throw new Error('Unexpected benchmark lifecycle operations.');
 	for (let round = 0 - config.warmups; round < config.rounds; round++) {
 		const turn = round + config.warmups;
@@ -118,7 +121,7 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 							const phase = await pollPhase('construct');
 							phases.push({...phase, round, warmup: round < 0});
 						}
-						timing = {...phases[phases.length - 1], phases};
+						timing = {...phases.find(phase => phase.operation === 'data-update'), phases};
 						nextBudget();
 					}
 					else {
@@ -160,6 +163,7 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 	return {
 		...metadata,
 		...config,
+		...(metadata.lifecycle ? {lifecycle: metadata.lifecycle} : {}),
 		phase: operations ? 'chart-population' : 'initial-chart-creation',
 		sampleTimeoutMs,
 		samples,
@@ -168,9 +172,9 @@ export async function captureBenchmarkSamples(page, evaluate, {processRead = nul
 			commandTimeoutMs: COMMAND_TIMEOUT_MS, sampleTimeoutMs,
 			order: 'Rotate by round + warmups; reverse on odd turns. Warmup rounds are -warmups through -1; measured rounds start at 0.',
 			sequence: operations
-				? ['setup', 'GC', 'baseline', 'prepare small data', 'small init', 'prepare full data', 'prepared', 'data update', 'GC', 'live', 'destroy', 'GC', 'cleanup']
+				? ['setup', 'GC', 'baseline', 'prepare small data', 'small init', 'prepare full data', 'prepared', 'data update', ...(operations.includes('resize') ? ['resize'] : []), 'GC', 'live', 'destroy', 'GC', 'cleanup']
 				: ['setup', 'GC', 'baseline', 'poll prepare', 'drain', 'prepared', 'poll construct', 'drain', 'GC', 'live', 'destroy', 'GC', 'cleanup'],
-			lifecycle: operations ? 'Both operations are polled. No forced GC occurs between two-point initialization and the full-data update. Prepared includes the small chart; dataDelta therefore also includes initialization. Live follows the full-data update. Peak covers the whole session.' : null,
+			lifecycle: operations ? `All operations are polled. No forced GC occurs between operations. Prepared includes the small chart; dataDelta therefore also includes initialization. Live follows ${operations.includes('resize') ? 'resize' : 'the full-data update'}. Peak covers the whole session.` : null,
 			prepared: 'Process snapshot after preparation, without GC. No forced GC occurs between preparation and construction.',
 			sampling: 'Serial process reads wait the requested interval after each response, plus phase endpoints. Reads run independently of renderer evaluation.',
 			clock: 'Process timestamps use Node performance.now() relative to capture start. processTimestampMs records response receipt, not allocation time.',

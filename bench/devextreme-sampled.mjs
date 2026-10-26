@@ -1,6 +1,6 @@
 import {makeChartWithOptions} from './devextreme.mjs';
 
-export {prepData, destroyChart, updateChart} from './devextreme.mjs';
+export {prepData, destroyChart, updateChart, resizeChart} from './devextreme.mjs';
 
 export function makeEmptyChart(host, wait) {
 	return makeChart([], host, wait);

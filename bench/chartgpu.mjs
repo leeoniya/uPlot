@@ -130,6 +130,26 @@ function makeEmptyChart(host, wait) {
 }
 
 async function updateChart(chart, input, host, wait) {
+	await renderChange(chart, () => {
+		// 0.4.0 replaces options; retain all axes, styles and series slots.
+		const options = chart.instance.options;
+		chart.instance.setOption({...options, series: options.series.map((series, i) => ({
+			...series, data: {x: input.x, y: input[['cpu', 'ram', 'tcp'][i]]},
+		}))});
+	}, wait);
+}
+
+async function resizeChart(chart, {width, height}, host, wait) {
+	if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 150 || height <= 104)
+		throw new Error('ChartGPU resize dimensions must leave a positive plot area.');
+	await renderChange(chart, () => {
+		Object.assign(chart.element.style, {width: `${width}px`, height: `${height}px`});
+		Object.assign(chart.element.lastElementChild.style, {width: `${width}px`, height: `${height - 24}px`});
+		chart.instance.resize();
+	}, wait, true);
+}
+
+async function renderChange(chart, change, wait, allowClean = false) {
 	if (chart.error) throw chart.error;
 	if (chart.destroyed) throw new Error('ChartGPU is disposed.');
 	const {instance, device} = chart;
@@ -149,16 +169,14 @@ async function updateChart(chart, input, host, wait) {
 			catch (error) { submitError = error; }
 		}});
 		try {
-			// 0.4.0 replaces options; retain all axes, styles and series slots.
-			const options = instance.options;
-			instance.setOption({...options, series: options.series.map((series, i) => ({
-				...series, data: {x: input.x, y: input[['cpu', 'ram', 'tcp'][i]]},
-			}))});
-			const rendered = instance.renderFrame();
+			change();
+			// A repeated size can leave the native chart clean: there is no new frame to submit.
+			const clean = allowClean && !instance.needsRender();
+			const rendered = clean ? false : instance.renderFrame();
 			await Promise.resolve();
 			if (submitError) throw submitError;
-			if (!rendered || !submitted || instance.needsRender())
-				throw new Error('ChartGPU replacement did not submit a complete frame.');
+			if ((!clean && (!rendered || !submitted)) || instance.needsRender())
+				throw new Error('ChartGPU change did not submit a complete frame.');
 		}
 		finally {
 			if (descriptor) Object.defineProperty(queue, 'submit', descriptor);
@@ -166,7 +184,7 @@ async function updateChart(chart, input, host, wait) {
 		}
 		await Promise.race([queue.onSubmittedWorkDone(), failures.get(chart)]);
 		if (chart.error) throw chart.error;
-		if (chart.destroyed) throw new Error('ChartGPU was disposed during replacement.');
+		if (chart.destroyed) throw new Error('ChartGPU was disposed during change.');
 	}
 	finally {
 		if (!chart.destroyed) instance.setRenderMode(mode);
@@ -191,5 +209,5 @@ function destroyChart(chart) {
 	if (failure) throw failure;
 }
 
-export {makeEmptyChart, updateChart};
+export {makeEmptyChart, updateChart, resizeChart};
 export {prepData, makeChart, destroyChart};

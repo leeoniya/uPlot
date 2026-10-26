@@ -88,10 +88,10 @@ describe('benchmark display colors', () => {
 			assert.deepEqual(coloredValues(text), cases.map(([value, band]) =>
 				[colorDepth === 24 ? `38;2;${rgbs[band]}` : `38;5;${palette[band]}`, value.toFixed(1)]));
 			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
-			const workRows = cases.map(([value]) => ({variant: 'custom', 'init ms': value, 'main ms': 1, 'gpu ms': 2, 'update ms': value}));
+			const workRows = cases.map(([value]) => ({variant: 'custom', 'init ms': value, 'main ms': 1, 'gpu ms': 2, 'update ms': value, 'resize ms': value}));
 			const workText = formatBenchmarkDisplay({rows: workRows}, {colorDepth});
 			assert.deepEqual(coloredValues(workText), cases.flatMap(([value, band]) =>
-								[value === 100 ? 6 : band, band].map(shade =>
+								[value === 100 ? 6 : band, band, band].map(shade =>
 									[colorDepth === 24 ? `38;2;${rgbs[shade]}` : `38;5;${palette[shade]}`, value.toFixed(1)])));
 			assert.equal(stripVTControlCharacters(workText), formatBenchmarkDisplay({rows: workRows}));
 		}
@@ -133,14 +133,14 @@ describe('benchmark display colors', () => {
 		}
 	});
 
-	it('colors init and update work without coloring main/gpu or rAF readiness', () => {
+	it('colors init, update and resize work without coloring main/gpu or rAF readiness and latency', () => {
 		const values = [0, 16.6666, 34, 99.9999, 100.0001, 500, 1000, 2000, -1, NaN, Infinity, null, '-', '10'];
-		const rows = values.map(value => ({variant: 'custom', 'init ms': value, 'main ms': 1000, 'gpu ms': 1000, 'update ms': value}));
+		const rows = values.map(value => ({variant: 'custom', 'init ms': value, 'main ms': 1000, 'gpu ms': 1000, 'update ms': value, 'resize ms': value}));
 		for (const colorDepth of [8, 24]) {
 			const text = formatBenchmarkDisplay({rows}, {colorDepth});
-			assert.deepEqual(coloredValues(text), coloredValues(formatBenchmarkDisplay({rows: totals(values)}, {colorDepth})).flatMap(pair => [pair, pair]));
+			assert.deepEqual(coloredValues(text), coloredValues(formatBenchmarkDisplay({rows: totals(values)}, {colorDepth})).flatMap(pair => [pair, pair, pair]));
 			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
-			const raf = [{variant: 'custom', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16}];
+			const raf = [{variant: 'custom', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16, 'resize rAF ms': 20}];
 			assert.deepEqual(coloredValues(formatBenchmarkDisplay({rows: raf}, {colorDepth})), []);
 		}
 	});
@@ -276,14 +276,14 @@ describe('benchmark display', () => {
 			'apexcharts-sampled', 'amcharts-sampled', 'devextreme-sampled', 'anychart-sampled', 'fusiontime-sampled'].map(variant => ({
 			variant, ...benchmarkMetadata[variant],
 			'prep ms': 4.05, 'init ms': 8.994, 'main ms': 12.011, 'gpu ms': 2.006,
-			'total ms': 15.642, 'peak MB': 25.538, 'retained MB': 18.375,
+			'update ms': 15.642, 'resize ms': 23.456, 'peak MB': 25.538, 'retained MB': 18.375,
 		}));
 		// Avoid an unrelated unavailable context making this width fixture wider.
 		rows.find(row => row.variant === 'g2-webgl').context = 'webgl2';
 		const original = structuredClone(rows);
 		const frame = {rows, status: 'Starting bokeh-canvas', warnings: ['d3-svg: failed']};
 		const text = formatBenchmarkDisplay(frame);
-		const width = 123;
+		const width = 136;
 		assert.equal(text.split('\n')[0].length, width);
 		assert.equal(countTerminalLines(text, width), rows.length + 6);
 		assert.equal(countTerminalLines(text, width - 1), 2 * (rows.length + 4) + 2);

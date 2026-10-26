@@ -66,4 +66,12 @@ function updateChart(chart, input, host, wait) {
 	return chart;
 }
 
+export function resizeChart(chart, {width, height}, host, wait) {
+	chart.options.width = width;
+	chart.options.height = height;
+	chart.render();
+	if (wait) wait.textContent = 'Done!';
+	return chart;
+}
+
 export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};

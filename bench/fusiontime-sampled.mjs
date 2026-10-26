@@ -1,6 +1,6 @@
 import {makeChartWithOptions} from './fusiontime.mjs';
 
-export {prepData, destroyChart, updateChart} from './fusiontime.mjs';
+export {prepData, destroyChart, updateChart, resizeChart} from './fusiontime.mjs';
 
 export function makeEmptyChart(host, wait) {
 	return makeChart([], host, wait);

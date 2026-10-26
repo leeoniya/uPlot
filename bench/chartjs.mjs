@@ -133,5 +133,12 @@ function updateChart(chart, input, host, wait) {
 	if (wait) wait.textContent = 'Done!';
 }
 
+export function resizeChart(chart, {width, height}, host, wait) {
+	// The harness sizes the responsive canvas parent first. Animation and
+	// maintainAspectRatio are disabled; the default resizeDelay is zero.
+	chart.resize(width, height);
+	if (wait) wait.textContent = 'Done!';
+}
+
 export {makeEmptyChart, updateChart};
 export {makeChart, prepData};

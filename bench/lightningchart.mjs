@@ -151,6 +151,14 @@ export async function updateChart(chart, input, host, wait) {
 	return chart;
 }
 
+export async function resizeChart(chart, size, host, wait) {
+	const {timeoutMs} = updates.get(chart);
+	// A user-managed container needs an explicit layout after its CSS changes.
+	await renderReady(chart, timeoutMs, () => chart.engine.layout());
+	if (wait) wait.textContent = 'Done!';
+	return chart;
+}
+
 export function destroyChart(chart) {
 	updates.delete(chart);
 	const lc = owners.get(chart);

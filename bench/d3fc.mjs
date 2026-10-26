@@ -15,6 +15,7 @@ function prepData(packed) {
 }
 
 const updates = new WeakMap();
+const resizes = new WeakMap();
 
 function makeEmptyChart(host, wait) {
 	return makeChart(Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(0)])), host, wait);
@@ -27,6 +28,15 @@ function updateChart(chart, input, host, wait) {
 	if (wait) wait.textContent = 'Done!';
 }
 
+function resizeChart(chart, {width, height}, host, wait) {
+	const resize = resizes.get(chart);
+	if (!resize) throw new Error('d3fc chart is not live.');
+	if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 150 || height <= 100)
+		throw new Error('d3fc resize dimensions must leave a positive plot area.');
+	resize({width, height});
+	if (wait) wait.textContent = 'Done!';
+}
+
 function makeChart(data, host, wait, runtimeOptions) {
 	return makeChartWithOptions(data, host, wait, runtimeOptions);
 }
@@ -35,8 +45,8 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 	const width = 1920;
 	const height = 600;
 	const margin = {left: 70, right: 80, top: 60, bottom: 40};
-	const plotWidth = width - margin.left - margin.right;
-	const plotHeight = height - margin.top - margin.bottom;
+	let plotWidth = width - margin.left - margin.right;
+	let plotHeight = height - margin.top - margin.bottom;
 	const ratio = globalThis.devicePixelRatio || 1;
 	const element = host.ownerDocument.createElement('div');
 	Object.assign(element.style, {position: 'relative', width: `${width}px`, height: `${height}px`});
@@ -150,6 +160,10 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 			x.domain(data.x.length ? d3.extent(data.x) : [0, 1]);
 			pct.domain(data.x.length ? [Math.min(d3.min(data.cpu), d3.min(data.ram)), Math.max(d3.max(data.cpu), d3.max(data.ram))] : [0, 1]).nice();
 			mb.domain(data.x.length ? d3.extent(data.tcp) : [0, 1]).nice();
+			redraw();
+		});
+
+		function redraw() {
 			grid.call(d3.axisLeft(pct).ticks(10).tickSize(-plotWidth).tickFormat(''))
 				.call(group => group.select('.domain').remove())
 				.call(group => group.selectAll('line').attr('stroke', 'rgba(0,0,0,0.1)'));
@@ -167,6 +181,25 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 				if (gl.isContextLost() || gl.getError() !== gl.NO_ERROR)
 					throw new Error('d3fc WebGL update failed.');
 			}
+		}
+
+		resizes.set(chart, ({width, height}) => {
+			plotWidth = width - margin.left - margin.right;
+			plotHeight = height - margin.top - margin.bottom;
+			Object.assign(element.style, {width: `${width}px`, height: `${height}px`});
+			canvas.attr('width', Math.round(plotWidth * ratio)).attr('height', Math.round(plotHeight * ratio))
+				.style('width', `${plotWidth}px`).style('height', `${plotHeight}px`);
+			if (gl) gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+			else chart.context.setTransform(ratio, 0, 0, ratio, 0, 0);
+			x.range([0, plotWidth]);
+			pct.range([plotHeight, 0]);
+			mb.range([plotHeight, 0]);
+			svg.attr('width', width).attr('height', height);
+			svg.select('text').attr('x', width / 2);
+			xAxis.attr('transform', `translate(0,${plotHeight})`);
+			mbAxis.attr('transform', `translate(${plotWidth},0)`);
+			rule.attr('y2', plotHeight);
+			redraw();
 		});
 
 		// Both native series draw synchronously. No d3fc-element redraw queue
@@ -187,6 +220,7 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {renderer 
 
 function destroyChart(chart) {
 	updates.delete(chart);
+	resizes.delete(chart);
 	d3.select(chart.element).select('svg').on('.benchmark', null);
 	for (const series of chart.series) series.context(null);
 	chart.series.length = 0;
@@ -197,4 +231,4 @@ function destroyChart(chart) {
 	chart.element.remove();
 }
 
-export {prepData, makeChart, destroyChart, makeChartWithOptions, makeEmptyChart, updateChart};
+export {prepData, makeChart, destroyChart, makeChartWithOptions, makeEmptyChart, updateChart, resizeChart};

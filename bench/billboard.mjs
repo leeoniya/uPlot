@@ -90,9 +90,21 @@ async function updateChart(chart, input, host, wait) {
 	finally { renders.delete(chart); }
 }
 
+async function resizeChart(chart, {width, height}, host, wait) {
+	if (renders.has(chart)) throw new Error('Billboard update or resize is already pending.');
+	try {
+		await new Promise(resolve => {
+			renders.set(chart, resolve);
+			chart.resize({width, height});
+		});
+		if (wait) wait.textContent = 'Done!';
+	}
+	finally { renders.delete(chart); }
+}
+
 function destroyChart(chart) {
 	renders.delete(chart);
 	chart.destroy();
 }
 
-export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};
+export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart, resizeChart};

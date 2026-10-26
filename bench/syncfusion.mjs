@@ -77,6 +77,20 @@ async function updateChart(chart, input, host, wait) {
 	}
 }
 
+async function resizeChart(chart, {width, height}, host, wait) {
+	const loaded = chart.loaded;
+	try {
+		await new Promise(resolve => {
+			chart.loaded = resolve;
+			chart.width = String(width);
+			chart.height = String(height);
+			chart.dataBind();
+		});
+		if (wait) wait.textContent = 'Done!';
+	}
+	finally { chart.loaded = loaded; }
+}
+
 function destroyChart(chart) {
 	// EJ2 leaves auxiliary elements in the host after destroying a Canvas chart.
 	const element = chart.element;
@@ -84,4 +98,4 @@ function destroyChart(chart) {
 	finally { element.replaceChildren(); }
 }
 
-export {prepData, makeChart, makeEmptyChart, updateChart, destroyChart};
+export {prepData, makeChart, makeEmptyChart, updateChart, resizeChart, destroyChart};

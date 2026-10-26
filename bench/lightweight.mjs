@@ -141,4 +141,11 @@ function updateChart(chart, input, host, wait) {
 	return rendered(chart, wait);
 }
 
+export function resizeChart(chart, {width, height}, host, wait) {
+	chart.resize(width, height, true);
+	// Preserve the benchmark's all-data view without calling setData again.
+	chart.timeScale().fitContent();
+	return rendered(chart, wait);
+}
+
 export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};

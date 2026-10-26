@@ -4,14 +4,17 @@ import {benchmarkTimingSamples, benchmarkOperations, lifecycleOperations} from '
 import {analyzeBenchmarkTrace} from '../../scripts/analyze-benchmarks-trace.mjs';
 import {summarizeBenchmarkRaf} from '../../scripts/analyze-benchmarks-raf.mjs';
 import {benchmarkVariants} from '../../bench/demo-dependencies.mjs';
+import {TRACE_ACCOUNTING} from '../../scripts/bench-trace-policy.mjs';
 
-function fixture(phase = 'chart-population', warmup = false) {
-	const phases = benchmarkOperations({phase}).map((operation, index) => ({
+function fixture(phase = 'chart-population', warmup = false, resize = false) {
+	const metadata = {phase, ...(resize ? {initProtocol: 'settled-work-v1', resizeProtocol: 'retained-resize-v1',
+		lifecycle: {operations: lifecycleOperations, resizeSize: {width: 1200, height: 400}}} : {})};
+	const phases = benchmarkOperations(metadata).map((operation, index) => ({
 		id: `sample-${index}`, variant: 'uplot', dpr: 1, round: warmup ? -1 : 0,
 		operation, warmup: warmup || operation === 'warmup-update',
 		jsMs: index + 1, dataPrepMs: 0.5, windowMs: 10, raf1Ms: index + 2,
 	}));
-	const report = {phase, samples: [{...phases.at(-1), phases}]};
+	const report = {...metadata, samples: [{...phases.findLast(phase => phase.operation === 'data-update'), phases}]};
 	const events = [{ph: 'M', name: 'thread_name', pid: 1, tid: 1, args: {name: 'CrRendererMain'}}];
 	phases.forEach((sample, index) => {
 		const start = index * 20000;
@@ -54,12 +57,81 @@ describe('benchmark population phases', () => {
 		assert.equal(trace.groups.length, 1);
 		assert.equal(trace.groups[0].operation, 'data-update');
 		assert.equal(trace.groups[0].metrics.totalTrackedThreadWorkMs.min, 2);
-		assert.deepEqual(trace.phaseGroups.map(group => group.operation), lifecycleOperations);
+		assert.deepEqual(trace.phaseGroups.map(group => group.operation), ['small-init', 'data-update']);
 		assert.deepEqual(trace.phaseGroups.map(group => group.metrics.totalTrackedThreadWorkMs.min), [1, 2]);
 		assert.deepEqual(trace.phaseGroups.map(group => group.sampleCount), [1, 1]);
 		const raf = summarizeBenchmarkRaf(report);
 		assert.equal(raf.groups[0].metrics.jsMs.min, 2);
 		assert.deepEqual(raf.phaseGroups.map(group => group.metrics.jsMs.min), [1, 2]);
+	});
+
+	it('accounts for the complete resize window without moving update metrics or counting idle gaps', () => {
+		const {report, events} = fixture('chart-population', false, true);
+		report.trace = {accountingProtocol: TRACE_ACCOUNTING};
+		events.push({ph: 'M', name: 'process_name', pid: 2, args: {name: 'GPU Process'}});
+		for (const [pid, tid, name] of [[1, 2, 'CompositorTileWorker1'], [1, 3, 'Compositor'], [2, 1, 'CrGpuMain'], [2, 2, 'VizCompositorThread']])
+			events.push({ph: 'M', name: 'thread_name', pid, tid, args: {name}});
+		for (const [pid, tid, name, ts, dur] of [
+			// Readiness ends at 43 ms. Deferred work must still enter resize totals.
+			[1, 1, 'RunTask', 44000, 2000], [1, 1, 'Layout', 44000, 500], [1, 1, 'Paint', 44500, 500],
+			[1, 2, 'RasterTask', 46000, 2000], [1, 2, 'CppGC.ConcurrentMark', 47000, 2000],
+			[1, 3, 'RunTask', 49000, 500], [2, 1, 'RunTask', 46000, 2000],
+			[2, 1, 'GPUTask', 46500, 1000], [2, 2, 'RunTask', 49500, 1000],
+			// Before resize and after its end are not part of its total.
+			[1, 1, 'RunTask', 35000, 4000], [1, 1, 'RunTask', 51000, 5000],
+		]) events.push({ph: 'X', pid, tid, name, ts, dur});
+		const original = structuredClone(report);
+		const trace = analyzeBenchmarkTrace(events, report);
+		assert.deepEqual(trace.phaseGroups.map(group => group.operation), lifecycleOperations);
+		assert.deepEqual(trace.samples.map(sample => sample.id), ['sample-0', 'sample-1', 'sample-2']);
+		assert.equal(trace.groups.length, 1);
+		assert.equal(trace.groups[0].operation, 'data-update');
+		assert.equal(trace.groups[0].metrics.totalTrackedThreadWorkMs.mean, 2);
+		const resize = trace.phaseGroups[2].metrics;
+		for (const [key, value] of Object.entries({jsIntervalMs: 3, traceWindowMs: 10,
+			rendererMainTaskMs: 5, styleLayoutPaintMs: 1, rasterWorkerMs: 2, rendererCompositorMs: 0.5,
+			gpuMainTaskMs: 2, vizCompositorMs: 0.5, GPUTaskMs: 1, backgroundGcMs: 2, gcAddedThreadWorkMs: 1,
+			totalTrackedThreadWorkMs: 11, trackedBusyElapsedMs: 9,
+		})) assert.equal(resize[key].mean, value, key);
+		assert.equal(resize.hardwareGpuMs.mean, null);
+		assert.equal(trace.diagnostics.boundaries[2].crossingEndEvents, 1);
+		assert.equal(trace.diagnostics.boundaries[2].tailTrackedThreadWorkMs, 5.5);
+		const raf = summarizeBenchmarkRaf(report);
+		assert.deepEqual(raf.phaseGroups.map(group => group.operation), lifecycleOperations);
+		assert.equal(raf.groups[0].metrics.raf1Ms.min, 3);
+		assert.equal(raf.phaseGroups[2].metrics.raf1Ms.min, 4);
+		assert.equal(raf.phaseGroups[2].metrics.jsMs.min, 3);
+		assert.equal(Object.hasOwn(raf.phaseGroups[2].metrics, 'totalTrackedThreadWorkMs'), false);
+		assert.deepEqual(report, original);
+	});
+
+	it('excludes all three phases of resize warmup sessions', () => {
+		const {report, events} = fixture('chart-population', true, true);
+		for (const analysis of [analyzeBenchmarkTrace(events, report), summarizeBenchmarkRaf(report)]) {
+			assert.deepEqual(analysis.phaseGroups.map(group => group.sampleCount), [0, 0, 0]);
+			assert.deepEqual(analysis.phaseGroups.map(group => group.warmupCount), [1, 1, 1]);
+			assert.equal(analysis.groups.length, 1);
+		}
+	});
+
+	it('requires the resize protocol, distinct phase IDs, and update-scoped session fields', () => {
+		for (const change of [
+			r => delete r.resizeProtocol,
+			r => r.resizeProtocol = 'unknown',
+			r => r.resizeProtocol = null,
+			r => delete r.initProtocol,
+			r => r.samples[0].phases.pop(),
+			r => r.samples[0].phases.reverse(),
+			r => r.samples[0].phases[2].id = r.samples[0].phases[1].id,
+			r => r.samples[0].phases[2].round++,
+			r => Object.assign(r.samples[0], r.samples[0].phases[2]),
+		]) {
+			const {report, events} = fixture('chart-population', false, true);
+			change(report);
+			assert.throws(() => benchmarkTimingSamples(report), /Lifecycle|lifecycle|session/);
+			assert.throws(() => summarizeBenchmarkRaf(report), /Lifecycle|lifecycle|session/);
+			assert.throws(() => analyzeBenchmarkTrace(events, report), /Lifecycle|lifecycle|session/);
+		}
 	});
 
 	it('excludes both phases of warmup sessions', () => {

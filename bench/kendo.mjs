@@ -86,4 +86,18 @@ async function updateChart(chart, input, host, wait) {
 	finally { chart.unbind('render', complete); }
 }
 
-export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};
+async function resizeChart(chart, {width, height}, host, wait) {
+	let complete;
+	try {
+		await new Promise(resolve => {
+			complete = resolve;
+			chart.bind('render', complete);
+			Object.assign(chart.options.chartArea, {width, height});
+			chart.redraw();
+		});
+		if (wait) wait.textContent = 'Done!';
+	}
+	finally { chart.unbind('render', complete); }
+}
+
+export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart, resizeChart};

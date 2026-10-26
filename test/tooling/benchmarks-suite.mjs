@@ -161,6 +161,168 @@ describe('trace accounting compatibility', () => {
 	});
 });
 
+function resizedBrowser(variant, measurements, dpr = 1, requestedBackend = 'default') {
+	const raw = browser(variant, measurements, dpr, requestedBackend);
+	raw.phase = 'chart-population';
+	raw.initProtocol = 'settled-work-v1';
+	raw.resizeProtocol = 'retained-resize-v1';
+	raw.operations = ['small-init', 'data-update', 'resize'];
+	raw.lifecycle = {operations: [...raw.operations], resizeSize: {width: 1200, height: 400}};
+	raw.samples = raw.samples.map(sample => ({...sample, operation: 'data-update',
+		phases: raw.operations.map(operation => ({...sample, id: operation === 'data-update' ? sample.id : `${sample.id}-${operation}`, operation,
+			jsMs: operation === 'resize' ? 0.2 : sample.jsMs,
+			raf1Ms: operation === 'data-update' ? sample.raf1Ms : sample.warmup ? 1
+							: operation === 'resize' ? [50, 40, 60][sample.round] : [19, 18, 20][sample.round],
+		})),
+	}));
+	if (measurements.trace) {
+		const samples = raw.samples.flatMap(sample => sample.phases.map(phase => ({...phase,
+			jsIntervalMs: phase.jsMs, rendererMainTaskMs: 3, gpuMainTaskMs: 4,
+			totalTrackedThreadWorkMs: phase.warmup ? 9999 : phase.operation === 'resize' ? phase.round * 60
+				: (phase.round + 1) * (phase.operation === 'data-update' ? 10 : 3),
+		})));
+		const phaseGroups = summarizeBenchmarkTraceSamples(samples);
+		raw.analysis = {samples, groups: phaseGroups.filter(group => group.operation === 'data-update'), phaseGroups};
+	}
+	if (measurements.raf)
+		raw.rafAnalysis = summarizeBenchmarkRaf(raw);
+	return raw;
+}
+
+describe('retained resize reports', () => {
+	for (const measurements of [combined, {trace: true, memory: false, raf: false}, {trace: false, memory: false, raf: true}]) {
+		it(`shows independent resize timing in live and saved ${benchmarkMode(measurements)} tables`, async () => {
+			const h = harness();
+			h.dependencies.runWorker = async request => {
+				h.requests.push(request);
+				return resizedBrowser(request.variant, request.measurements, request.dpr, request.requestedBackend);
+			};
+			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
+			assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'uplot']);
+			const row = h.frames.at(-1).rows[0];
+			const label = measurements.raf ? 'resize rAF ms' : 'resize ms';
+			assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms',
+				...(measurements.raf ? ['init rAF ms', 'update ms', 'next rAF ms', label] : ['init ms', 'main ms', 'gpu ms', 'update ms', label]),
+				...(measurements.memory ? ['peak MB', 'retained MB'] : [])]);
+			assert.equal(row[label], measurements.raf ? 40 : 60);
+			assert.equal(row['update ms'], measurements.raf ? 3 : 20);
+			assert.equal(row['prep ms'], 2);
+			assert.equal(row[measurements.raf ? 'init rAF ms' : 'init ms'], measurements.raf ? 18 : 6);
+			assert.equal(row[measurements.raf ? 'next rAF ms' : 'main ms'], measurements.raf ? 16 : 3);
+			if (measurements.trace) assert.equal(row['gpu ms'], 4);
+			assert.deepEqual(h.frames.at(-1).warnings, []);
+			const original = structuredClone(report.reports);
+			const summary = offline(report);
+			assert.deepEqual(summary.tables[0], [renderedRow(row)]);
+			for (const [i, raw] of summary.result.reports.entries()) {
+				assert.deepEqual(raw.samples, original[i].samples);
+				assert.deepEqual(raw.lifecycle.resizeSize, {width: 1200, height: 400});
+				const analysis = measurements.trace ? raw.analysis : raw.rafAnalysis;
+				assert.deepEqual(analysis.phaseGroups.map(group => group.operation), raw.operations);
+				assert.equal(analysis.groups.length, 1);
+				if (measurements.trace) {
+					assert.equal(analysis.groups[0].operation, 'data-update');
+					assert.equal(analysis.phaseGroups[2].metrics.totalTrackedThreadWorkMs.min, 0);
+					assert.equal(analysis.phaseGroups[2].metrics.totalTrackedThreadWorkMs.mean, 60);
+				}
+			}
+			report.failures = [{variant: 'chartjs', error: 'synthetic failure'}];
+			const failed = offline(report).tables[0].find(row => row.variant === 'chartjs');
+			assert.deepEqual(Object.keys(failed), Object.keys(row));
+			assert.equal(failed[label], '-');
+		});
+
+		it(`does not substitute resize readiness or window latency for missing ${benchmarkMode(measurements)} timing`, () => {
+			const raw = resizedBrowser('uplot', measurements);
+			if (measurements.trace) {
+				for (const sample of raw.analysis.samples.filter(sample => sample.operation === 'resize')) {
+					delete sample.totalTrackedThreadWorkMs;
+					sample.windowMs = 999;
+				}
+			}
+			else {
+				for (const sample of raw.samples) delete sample.phases[2].raf1Ms;
+				raw.rafAnalysis = summarizeBenchmarkRaf(raw);
+			}
+			const summary = offline(savedReport([raw], measurements));
+			const label = measurements.raf ? 'resize rAF ms' : 'resize ms';
+			assert.equal(summary.tables[0][0][label], 'unavailable');
+			assert.ok(summary.logs.some(([text]) => text.includes(`${label} (0/3 valid, 3 missing, unavailable)`)));
+		});
+	}
+
+	for (const measurements of [combined, {trace: true, memory: false, raf: false}, {trace: false, memory: false, raf: true}, {trace: false, memory: true, raf: false}]) {
+		it(`rejects old/new resize protocols before rewriting saved ${benchmarkMode(measurements)} reports`, () => {
+			for (const reverse of [false, true]) {
+				const old = browser('idle', measurements), next = resizedBrowser('uplot', measurements);
+				old.phase = next.phase;
+				old.initProtocol = next.initProtocol;
+				const input = savedReport(reverse ? [next, old] : [old, next], measurements);
+				const output = join(directory, 'mixed.json');
+				const bytes = JSON.stringify(input);
+				writeFileSync(output, bytes);
+				assert.throws(() => capture(() => summarizeSavedBenchmarks({...measurements, vulkan: false}, output)), /different benchmark protocols.*resize protocols/);
+				assert.equal(readFileSync(output, 'utf8'), bytes);
+			}
+		});
+
+		it(`rejects a mismatched live worker without mixing ${benchmarkMode(measurements)} summaries`, async () => {
+			const h = harness();
+			h.dependencies.runWorker = async request => {
+				if (request.variant !== 'idle') return resizedBrowser(request.variant, request.measurements);
+				const raw = browser('idle', request.measurements);
+				raw.phase = 'chart-population';
+				raw.initProtocol = 'settled-work-v1';
+				return raw;
+			};
+			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
+			assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
+			assert.equal(report.failures.length, 1);
+			assert.match(report.failures[0].error, /resize protocols/);
+			assert.deepEqual(saved(benchmarkMode(measurements)).reports, report.reports);
+		});
+	}
+
+	it('uses resize polls for session peaks and the post-resize live checkpoint for retained memory', () => {
+		const measurements = {trace: false, memory: true, raf: false};
+		const idle = resizedBrowser('idle', measurements), raw = resizedBrowser('uplot', measurements);
+		for (const sample of raw.samples) {
+			const observations = sample.processObservations;
+			observations.splice(3, 0, {...observation('construct', 1000), operation: 'resize'});
+			observations[4] = {...observation('live', 200), operation: 'resize'};
+		}
+		const original = structuredClone(raw);
+		const summary = offline(savedReport([idle, raw], measurements));
+		assert.deepEqual(Object.keys(summary.tables[0][0]), ['variant', 'context', 'sampling', 'lossy', 'peak MB', 'retained MB']);
+		assert.equal(summary.tables[0][0]['peak MB'], 2925);
+		assert.equal(summary.tables[0][0]['retained MB'], 525);
+		assert.deepEqual(summary.result.reports[1], original);
+	});
+
+	for (const raf of [false, true]) it(`keeps library groups ordered by update rather than resize (${raf ? 'rAF' : 'trace'})`, () => {
+		const measurements = {trace: !raf, memory: false, raf};
+		const reports = ['bokeh', 'uplot', 'bokeh-canvas'].map((variant, i) => {
+			const raw = resizedBrowser(variant, measurements);
+			if (raf) {
+				for (const sample of raw.samples) {
+					sample.raf1Ms = sample.phases[1].raf1Ms = [30, 20, 10][i];
+					sample.phases[2].raf1Ms = [1, 2, 300][i];
+				}
+				raw.rafAnalysis = summarizeBenchmarkRaf(raw);
+			}
+			else for (const sample of raw.analysis.samples) {
+				if (sample.operation === 'data-update') sample.totalTrackedThreadWorkMs = [30, 20, 10][i];
+				if (sample.operation === 'resize') sample.totalTrackedThreadWorkMs = [1, 2, 300][i];
+			}
+			return raw;
+		});
+		const rows = offline(savedReport(reports, measurements)).tables[0];
+		assert.deepEqual(rows.map(row => row.variant), ['bokeh', 'bokeh', 'uplot']);
+		assert.deepEqual(rows.map(row => row[raf ? 'next rAF ms' : 'update ms']), [10, 30, 20]);
+		assert.deepEqual(rows.map(row => row[raf ? 'resize rAF ms' : 'resize ms']), [300, 1, 2]);
+	});
+});
+
 describe('lifecycle timing columns', () => {
 	for (const measurements of [combined, {trace: true, memory: false, raf: false}]) {
 		it(`omits update readiness and its warnings from live and saved ${benchmarkMode(measurements)} tables`, async () => {

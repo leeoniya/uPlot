@@ -95,7 +95,7 @@ function makeEmptyChart(host, wait) {
 	return makeChart(Array.from({length: 3}, () => ({columns: {x: [], y: []}})), host, wait);
 }
 
-function updateChart(chart, input, host, wait) {
+function renderChart(chart, action, wait) {
 	return new Promise((resolve, reject) => {
 		const rendered = new Set();
 		const unbind = [];
@@ -111,22 +111,37 @@ function updateChart(chart, input, host, wait) {
 		try {
 			unbind.push(Highcharts.addEvent(chart, 'destroy', () => {
 				cleanup();
-				reject(new Error('Highcharts was destroyed before replacement completed.'));
+				reject(new Error('Highcharts was destroyed before rendering completed.'));
 			}));
 			for (const series of chart.series)
 				unbind.push(Highcharts.addEvent(series, 'renderedCanvas', () => {
 					rendered.add(series);
 					complete();
 				}));
-			// 13.1.1 accepts DataTable options directly; retain each native series.
-			for (let i = 0; i < 3; i++)
-				chart.series[i].setData(input[i], false, false, false);
-			chart.redraw(false);
+			action();
 			redrawn = true;
 			complete();
 		}
 		catch (error) { cleanup(); reject(error); }
 	});
+}
+
+function updateChart(chart, input, host, wait) {
+	return renderChart(chart, () => {
+		// 13.1.1 accepts DataTable options directly; retain each native series.
+		for (let i = 0; i < 3; i++)
+			chart.series[i].setData(input[i], false, false, false);
+		chart.redraw(false);
+	}, wait);
+}
+
+export function resizeChart(chart, {width, height}, host, wait) {
+	// setSize skips redraw for a clean, unchanged size, so Boost emits no completion.
+	if (chart.chartWidth === width && chart.chartHeight === height && !chart.isDirtyBox) {
+		if (wait) wait.textContent = 'Done!';
+		return Promise.resolve();
+	}
+	return renderChart(chart, () => chart.setSize(width, height, false), wait);
 }
 
 function destroyChart(chart) {

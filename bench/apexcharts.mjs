@@ -84,6 +84,13 @@ async function updateChart(chart, input, host, wait) {
 	if (wait) wait.textContent = 'Done!';
 }
 
+export async function resizeChart(chart, {width, height}, host, wait) {
+	// Keep the configured series and fixed sampling budget; disable animation
+	// and propagation to other charts. Native updates can replace the canvas.
+	await chart.updateOptions({chart: {width, height}}, false, false, false);
+	if (wait) wait.textContent = 'Done!';
+}
+
 function destroyChart(chart) {
 	chart.destroy();
 }

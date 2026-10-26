@@ -60,7 +60,9 @@ On Linux, runs that include ChartGPU automatically request Vulkan for every work
 Other explicit variants and other platforms keep Chrome's default backend unless overridden.
 Each variant gets a fresh browser with only its own library and demo dependencies.
 Each library has 3 warmup sessions and 7 measured sessions. There is no inter-library cooling pause.
-A session creates a chart with two points per series, then measures one update to the full 166,650-point dataset.
+A session creates a two-point chart, updates it with the full 166,650-point dataset, then resizes the retained chart to 1200x400.
+Reports keep phase: chart-population and initProtocol: settled-work-v1, and add resizeProtocol: retained-resize-v1.
+The lifecycle.resizeSize metadata records width: 1200 and height: 400. Top-level session timings still describe data-update.
 Each operation has a hard 5s budget, including preparation and completion checks. Final cleanup has its own 5s budget.
 A library timeout kills Chrome, discards the incomplete trace, shows '-' for all metrics, and continues the suite.
 Library errors also show '-' and continue; details remain in the suite JSON.
@@ -74,9 +76,9 @@ Trace/combined groups rank by their lowest implementation mean update ms; rAF gr
 CLI selection, filenames, progress, warnings, and JSON retain full variant IDs.
 Columns start with variant, context, sampling, lossy. '*' flags potentially lossy reduction; '?' means unverified or missing classification.
 A blank lossy cell means no configured reduction or verified bucket-extrema preservation, not pixel-identical output.
-Trace init ms and update ms use frame-based green bands. Darkest green includes one frame (1000/60 ms).
+Trace init ms, update ms, and resize ms use frame-based green bands. Darkest green includes one frame (1000/60 ms).
 Green ends at two frames (2000/60 ms). Orange shades split at 50 and 75 ms.
-Init is red at 100 ms and above. Update retains orange at exactly 100 ms and is red above that.
+Init is red at 100 ms and above. Update and resize retain orange at exactly 100 ms and are red above that.
 Peak MB and retained MB share the same ranges and shades: darkest green through 20 MB, then lighter greens through 35 MB.
 Both memory columns use orange for more than 35 MB but less than 50 MB, then red at 50 MB and greater.
 Memory colors use unrounded values. Negative adjusted values and unavailable values remain plain.
@@ -89,13 +91,16 @@ LIGHTNINGCHART_LICENSE_INFORMATION can supply vendor-required metadata as JSON.
 DPR defaults to 1. --dpr selects one browser and canvas DPR.
 
 Library loading, raw JSON parsing, and the shared page shell occur outside chart timing. Chart-specific DOM setup is inside init.
-Data preparation is timed separately for both operations. Small and full inputs have distinct references, lengths, and contents.
+Data preparation is timed separately for initialization and data-update. Resize reuses the retained full-data chart. Small and full inputs have distinct references, lengths, and contents.
 prep ms measures full-data preparation. Trace init ms measures full-window initialization thread work, including deferred layout and paint.
 Idle gaps in the settling wait do not count as work. Constructor readiness remains in JSON.
 rAF-only reports init rAF ms instead: first callback latency, not settled work or proof of presentation.
-Trace/combined update ms measures full-window data-update and rendering thread work, using the same metric as init ms.
+Trace/combined update ms and resize ms measure full-window thread work, using the same metric as init ms.
+Resize includes deferred layout, paint, raster, GPU-process work, and observed GC within its complete window.
+rAF-only resize rAF ms uses resize raf1Ms. This callback latency is not thread work.
 Update readiness remains in JSON. rAF-only update ms still measures small-to-full update readiness, not thread work.
-main and gpu remain components of update work. next rAF describes update callback latency. Phase details remain in JSON.
+main, gpu, and prep remain data-update columns. next rAF describes update callback latency.
+Primary groups contain data-update only. phaseGroups contains all three operations, with distinct IDs and full trace metric details.
 Legacy startup-only reports retain total ms because they contain no separate data update.
 The update includes full-size allocation costs; it is not a steady-state full-to-full replacement measurement.
 HTML demos still construct directly with the full dataset.
@@ -108,8 +113,8 @@ JSON records backgroundGcMs, gcAddedThreadWorkMs, and accountingProtocol. Saved 
 Trace and rAF timings are not idle-subtracted; idle subtraction applies only to memory.
 
 Memory requires Linux /proc access. It polls process memory with a requested 50 ms delay after each read.
-Retained memory follows the full-data update, settling, and forced JS GC, with chart and prepared input alive.
-Peaks cover the complete session. GC occurs only at baseline, after the full-data update, and after teardown.
+Retained memory follows resize, settling, and forced JS GC, with the chart and full prepared input alive.
+Peaks cover the complete three-phase session. Forced GC occurs only at baseline, after resize, and after teardown.
 The headline shows baseline-adjusted browser-tree PSS in decimal MB. Renderer measurements stay in JSON.
 Each sample subtracts its blank-page checkpoint and the minimum measured idle retained-minus-blank footprint.
 Memory columns show minimum adjusted retained memory and the minimum of the per-round sampled peaks.
@@ -128,6 +133,8 @@ Use --summarize-only with any command to summarize its saved suite report withou
 Summary-only uses the default-suite backend: Vulkan on Linux, Chrome's default elsewhere.
 Use --no-vulkan to select the saved default report, or --vulkan to select the saved Vulkan report.
 Summary-only mode uses the saved DPR and rejects --dpr, --variant, --worker, and --install-only.
+Legacy two-operation reports remain readable without a resize column.
+Suite summaries reject mixed resize protocols, including reports with and without resizeProtocol, in every mode, including memory-only.
 
 Direct runner: node scripts/benchmarks.mjs [--trace] [--memory] [--raf] [--gpu] [--vulkan | --no-vulkan] [--dpr NUMBER]
 No measurement flags means trace + memory. rAF cannot be combined with tracing or memory.`);

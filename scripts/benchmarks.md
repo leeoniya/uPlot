@@ -553,7 +553,7 @@ The idle control runs first so the first completed library can show adjusted mem
 The main table omits the idle row.
 
 Each library has 3 warmup sessions and 7 measured sessions.
-Each session creates a chart with two points per series, then measures one update to the full dataset.
+Each session creates a chart with two points per series, updates it with the full dataset, then resizes it to 1200×400.
 There is no 30-second pause between libraries.
 The benchmark retains its rendering-settling waits and command timeouts.
 An interactive terminal shows one table that updates in place after each library finishes.
@@ -746,15 +746,17 @@ The saved suite is `.cache/benchmarks/results-chrome-combined-vulkan.json`. This
 
 ### Lifecycle phases
 
-The benchmark measures two operations on one retained chart:
+The benchmark measures three operations on one retained chart:
 
 1. `small-init`: Create the chart-specific host and the chart with two points per series, from the first and last fixture rows.
 2. `data-update`: Replace that input with the full dataset: 55,550 rows and 166,650 total series points.
+3. `resize`: Resize the same chart from 1920×600 to 1200×400, without replacing its data.
 
 Each session starts with a new small chart. It never shrinks a full chart before measurement.
 The small fixture preserves the full timestamp range. Y-axis ranges remain automatic and can change during the update.
 
-Each operation calls the shared `prepData` function separately. The small and full inputs have different references, lengths, and contents.
+Initialization and data update call the shared `prepData` function separately. The small and full inputs have different references, lengths, and contents.
+Resize retains the full input and records zero preparation time.
 The harness uses the original full fixture without a packed copy or synthetic value changes.
 JSON parsing and small-fixture selection occur outside the preparation and chart timers.
 The `prep ms` column measures full-data conversion. Small-data preparation remains in the initialization phase's JSON record.
@@ -765,14 +767,42 @@ There is no forced GC between these operations.
 The update includes buffer growth, geometry allocation, and work that the library defers until it receives substantial data.
 This protocol measures small-to-full population, not steady-state full-to-full replacement or direct populated startup.
 
-Each session contains two independent marker windows. The report identifies this protocol as `phase: 'chart-population'`.
-The report stores both windows in `samples[].phases`. The outer sample describes the full-data update and holds session-wide memory observations.
-Timing analyzers expose both operation summaries in `phaseGroups`. Their ordinary `groups` contain update results only.
+Each session contains three independent marker windows. The report retains `phase: 'chart-population'` and adds `resizeProtocol: 'retained-resize-v1'`.
+The `lifecycle.resizeSize` field records `{width: 1200, height: 400}`.
+The report stores all three windows in `samples[].phases`. The outer sample still describes the full-data update and holds session-wide memory observations.
+Timing analyzers expose all operation summaries in `phaseGroups`. Their ordinary `groups` contain update results only.
 
 The HTML demos still construct directly with the full dataset.
 Historical results in this document describe their original protocols, not small-to-full population.
 Reports with `initProtocol: 'settled-work-v1'` include chart-specific DOM setup and report full-window initialization work in trace modes.
 Saved summaries preserve readiness-based initialization for older reports. A summary rejects mixed initialization boundaries and mixed population, legacy lifecycle, or startup protocols.
+Legacy two-operation reports remain readable without a resize column. All modes reject comparisons between reports with and without the resize protocol.
+This restriction also applies to memory-only reports because retained memory now follows resize.
+
+### Resize adapter contract
+
+Each runnable adapter exports `resizeChart(chart, {width, height}, host, wait)`.
+The hook retains the chart and source data. It returns `undefined` or the same chart, directly or through a promise.
+A replacement chart causes the benchmark to fail.
+
+The harness changes the host dimensions inside the resize markers, before the adapter call.
+The adapter resizes its internal containers, native surfaces, scales, and axes through the library API or retained component state.
+Existing title and margin conventions remain unchanged. The browser viewport remains 1920×900.
+Fixed sampling targets remain unchanged, but pixel-dependent geometry can change with the width.
+
+Async adapters await a fresh completion signal for the resized chart. Existing SVG paths alone do not establish completion.
+FusionTime waits for `resized`, rather than its data-update `renderComplete` event. SciChart waits for a fresh, settled CPU `rendered` event.
+React adapters retain the root and await geometry for the new dimensions. ChartGPU waits for command submission and queue completion.
+The harness then applies the same settling and graphics completion checks as data updates.
+
+Serial smoke tests covered all 44 default chart variants with cached Chrome 156.0.8078.47 and Vulkan at DPR 1.
+Forty-two variants completed within the normal five-second operation budget. Unsampled FusionTime and DevExtreme exceeded that budget during data update, before resize.
+Both completed resize in diagnostic runs with a 20-second budget. FusionTime resize also exceeded five seconds in that diagnostic.
+The production timeout remains unchanged. These single-session checks establish adapter coverage, not comparative performance.
+
+Additional checks covered uPlot, D3 min/max, Deck.gl, and ChartGPU at DPR 2.
+uPlot also completed untraced rAF, combined trace/memory, and production-count captures with 30 operation windows.
+The optional licensed LightningChart adapter has unit coverage, but no resize browser check.
 
 ### Operation timeout
 
@@ -818,6 +848,7 @@ The other adapters prepare numeric millisecond timestamps. Financial Charts cons
 The benchmark does not convert uPlot data to milliseconds or override its chart configuration.
 Small initialization includes host setup, configuration construction, chart construction with two points per series, async library completion, and the initial microtask commit.
 Data operations include the native update call, any ingestion work, and adapter readiness.
+Resize includes the host-size change, native resize call, geometry changes, and adapter readiness.
 The `jsMs` field measures elapsed readiness time for its operation, including async waits. It does not measure exclusive JavaScript CPU time.
 Trace `init ms` instead uses total tracked thread work through the end of the initialization window, after settling and graphics completion checks.
 The readiness interval remains available in JSON. Validation occurs outside both timers.
@@ -840,9 +871,9 @@ Recharts, MUI, and visx await three complete SVG line paths. Financial Charts ch
 These library signals do not establish GPU completion or presentation. Trace and memory modes add the completion checks described next.
 
 The rAF mode aligns chart start with an animation-frame callback.
-`raf1Ms` ends at the first rAF callback requested after initialization completes.
-Async initialization can span earlier frames, so this callback is not necessarily the next frame after chart start.
-`postJsRaf1Ms` measures only the interval from completed initialization to that callback.
+`raf1Ms` ends at the first rAF callback requested after the operation reaches readiness.
+Async operations can span earlier frames, so this callback is not necessarily the next frame after chart start.
+`postJsRaf1Ms` measures only the interval from readiness to that callback.
 The rAF mode remains uninstrumented by the WebGL observer, completion checks, and context-info queries.
 
 Each chart window starts at its operation call and ends after settling and the graphics completion checks.
@@ -884,7 +915,7 @@ JSON includes `backgroundGcMs` and `gcAddedThreadWorkMs` for each phase.
 The first field measures selected collector intervals. The second measures their addition to the total after overlap removal.
 Both fields are `null` without relevant recorded scopes or under legacy accounting.
 Zero means recorded scopes exist but add no duration in that window. It does not prove that no collection occurred.
-There is no new table column. GC additions affect initialization work and `update ms`.
+GC has no separate table column. GC additions affect initialization work, `update ms`, and `resize ms`.
 Collection during a phase can reclaim allocations from earlier phases. Temporal overlap does not establish allocation ownership.
 Collector wall durations can include preemption and internal waits. They do not measure exclusive CPU usage.
 
@@ -904,16 +935,18 @@ Each memory sample then has this sequence:
 5. Prepare the full input while process polling runs.
 6. Record the prepared snapshot without forced GC.
 7. Update the retained chart with the full input while process polling runs.
-8. Force JS GC and record retained process memory.
-9. Destroy the chart and release input references.
-10. Allow rendering to settle.
-11. Force JS GC and record cleanup memory.
+8. Resize the retained chart to 1200×400 while process polling runs.
+9. Force JS GC and record retained process memory.
+10. Destroy the chart and release input references.
+11. Allow rendering to settle.
+12. Force JS GC and record cleanup memory.
 
 Each chart operation includes its own settling interval and graphics completion checks.
-No forced GC occurs between small initialization and the full-data update.
+No forced GC occurs between initialization, data update, and resize.
 The prepared snapshot includes the small chart and temporary allocations.
 Consequently, the historical `dataDelta` field also includes small initialization. It does not isolate preparation from chart initialization.
-The retained checkpoint includes both the chart and the prepared input.
+The retained checkpoint includes both the resized chart and the full prepared input.
+Peak memory covers all three operations, not only data update.
 GC does not force native allocators or graphics caches to return pages to the operating system.
 
 The combined mode records a trace during the memory checkpoints and chart samples.
@@ -986,11 +1019,12 @@ The combined table shows these measurements:
 - `main ms`: Renderer main-thread work in the update window.
 - `gpu ms`: GPU-process main-thread work in the update window.
 - `update ms`: Total tracked thread work for the full-data update and rendering, including deferred work and graphics completion checks.
+- `resize ms`: Total tracked thread work for resize, including host sizing, deferred work, and graphics completion checks.
 - Baseline-adjusted sampled peak browser-tree PSS.
 - Baseline-adjusted retained browser-tree PSS.
 
 Trace and combined timing columns use arithmetic means across the seven measured rounds, excluding the three warmups.
-This applies to `prep ms`, `init ms`, `main ms`, `gpu ms`, and `update ms`.
+This applies to `prep ms`, `init ms`, `main ms`, `gpu ms`, `update ms`, and `resize ms`.
 Zero values contribute to the mean. Missing or invalid values do not become zero, and incomplete metrics produce warnings.
 JSON retains `min`, `max`, `mean`, valid counts, missing counts, and individual phase samples.
 
@@ -999,16 +1033,17 @@ Main-thread GC and selected background GC already contribute to those totals. Th
 The JSON GC breakdowns also include arithmetic means, with zero-GC windows included.
 These means account for observed work within the phase windows, not collection between windows or full amortized application cost.
 The update total excludes small initialization and preparation. The sorting and color thresholds apply to mean full-data update work.
-`init ms` uses the same thread-work metric as `update ms`, but for the separate initialization window.
+`init ms` and `resize ms` use the same thread-work metric as `update ms`, but for their separate operation windows.
 It includes captured main-thread work, raster tasks, compositor work, GPU-process work, and selected background GC.
 Idle gaps in the fixed settling wait do not count as work. Actual harness work within that window still counts.
 Trace and combined tables omit update readiness. JSON retains it as `jsMs` and `jsIntervalMs` for the `data-update` phase.
-`main ms` and `gpu ms` remain update-window components, useful for comparing downsampling costs. They do not describe initialization.
-The JSON metric remains `totalTrackedThreadWorkMs` for both phases.
+`main ms` and `gpu ms` remain update-window components, useful for comparing downsampling costs. They describe neither initialization nor resize.
+The JSON metric remains `totalTrackedThreadWorkMs` for all three phases.
 Legacy startup-only reports retain `total ms` because they contain no separate data update.
 
 rAF tables use `init rAF ms` for the first callback after initialization readiness, rather than imply a settled thread-work measurement.
 They retain update readiness in `update ms` and update callback latency in `next rAF ms`.
+The `resize rAF ms` column shows the minimum resize `raf1Ms`.
 Unlike trace tables, rAF-only tables do not measure total thread work.
 rAF-only timing columns still use minima. Memory columns also retain their existing minimum-value aggregation.
 Neither rAF callbacks nor the settling heuristic prove compositor presentation or completion of every delayed library task.
@@ -1021,8 +1056,8 @@ The table omits the index, sample-count, and DPR columns. Sample counts and DPR 
 Variant names and the `context`, `sampling`, and `lossy` columns align left without quotes. Numeric columns align right and show one decimal place.
 The JSON retains full measurement precision.
 
-Interactive terminals color both `init ms` and `update ms` in trace tables, including live tables and saved summaries.
-Both columns use the same shades, but initialization reaches red at 100 ms and update work reaches red above 100 ms.
+Interactive terminals color `init ms`, `update ms`, and `resize ms` in trace tables, including live tables and saved summaries.
+All three columns use the same shades. Initialization reaches red at 100 ms, while update and resize reach red at more than 100 ms.
 Legacy startup-only tables also color `init ms` and `total ms`.
 The display leaves `main ms`, `gpu ms`, and rAF-only timings uncolored.
 Fixed bands use unrounded values. Extreme outliers do not change the colors of other rows.
@@ -1033,7 +1068,7 @@ The graded columns use these ranges. Context colors are categorical and appear s
 | Column | Green shades | Orange shades | Red shades |
 | --- | --- | --- | --- |
 | `init ms` | `0–2F` (about 33.33 ms) | `2F < ms < 100` | `≥100 ms` |
-| `update ms` | `0–2F` (about 33.33 ms) | `>2F–100 ms` | `>100 ms` |
+| `update ms`, `resize ms` | `0–2F` (about 33.33 ms) | `>2F–100 ms` | `>100 ms` |
 | `peak MB` | `0–35 MB` | `35 < MB < 50` | `≥50 MB` |
 | `retained MB` | `0–35 MB` | `35 < MB < 50` | `≥50 MB` |
 
@@ -1043,7 +1078,7 @@ An excluded boundary belongs to the next shade: exactly 50 MB is light red in bo
 The final row gives the lower boundary for darkest red.
 Fractions are exact thresholds. Decimal approximations are for reference only.
 
-| Shade | `init ms` | `update ms` | `peak MB` | `retained MB` |
+| Shade | `init ms` | `update ms` / `resize ms` | `peak MB` | `retained MB` |
 | --- | ---: | ---: | ---: | ---: |
 | Darkest green | `F ≈ 16.67` | `F ≈ 16.67` | 20 | 20 |
 | Medium green (yellow-green) | 25 | 25 | 27.5 | 27.5 |

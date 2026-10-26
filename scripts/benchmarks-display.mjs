@@ -106,7 +106,7 @@ function formatTable(rows, colorDepth) {
 	const keys = [...new Set(rows.flatMap(row => Object.keys(row)))];
 	const metadata = ['variant', 'context', 'sampling', 'lossy'];
 	const columns = [...metadata.filter(key => keys.includes(key)), ...keys.filter(key => !metadata.includes(key))];
-	// Legacy startup totals keep their label; rAF update readiness is not thread work.
+	// Legacy startup totals keep their label; rAF readiness and latency are not thread work.
 	const workColumn = keys.includes('total ms') ? 'total ms' : keys.includes('main ms') ? 'update ms' : null;
 	const width = text => [...cellWidths(text)].reduce((sum, size) => sum + size, 0);
 	const cell = value => clean(value).replace(/\n/g, ' ');
@@ -124,7 +124,7 @@ function formatTable(rows, colorDepth) {
 			value = colorText(value, contextColors.get(row.context), colorDepth);
 		else if (row && memoryBands.has(columns[i]))
 			value = colorMetric(value, row[columns[i]], memoryBands.get(columns[i]), colorDepth);
-		else if (row && workColumn && (columns[i] === workColumn || columns[i] === 'init ms'))
+		else if (row && workColumn && (columns[i] === workColumn || columns[i] === 'init ms' || columns[i] === 'resize ms'))
 			value = colorMetric(value, row[columns[i]], columns[i] === 'init ms' ? initBands : workBands, colorDepth);
 		return metadata.includes(columns[i]) ? value + padding : padding + value;
 	}).join(' │ ') + ' │\n';

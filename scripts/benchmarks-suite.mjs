@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { SAMPLE_TIMEOUT_MS, SAMPLE_TIMEOUT_EXIT_CODE } from './bench-sample-timeout.mjs';
 import { traceAccountingProtocol } from './bench-trace-policy.mjs';
+import { benchmarkOperations } from './benchmarks-phases.mjs';
 import { summarizeBenchmarkTraceSamples, TRACE_AGGREGATION } from './analyze-benchmarks-trace.mjs';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -60,17 +61,27 @@ function metadataFor(variant, snapshot, samples = []) {
 	};
 }
 
+function assertCompatibleReports(reports, {trace}) {
+	for (const raw of reports)
+		benchmarkOperations(raw);
+	if (reports.some(raw => benchmarkOperations(raw)) &&
+		new Set(reports.map(raw => JSON.stringify([raw.phase, raw.initProtocol ?? 'readiness', raw.resizeProtocol ?? null]))).size > 1)
+		throw new Error('Cannot combine different benchmark protocols, initialization boundaries, or resize protocols. Rerun all selected variants.');
+	if (trace && new Set(reports.map(traceAccountingProtocol)).size > 1)
+		throw new Error('Cannot combine different trace accounting protocols. Rerun all selected variants.');
+}
+
 function benchmarkView(report) {
+	assertCompatibleReports(report.reports, report.measurements);
 	const {trace, memory, raf} = report.measurements;
 	const population = report.reports.some(raw => raw.phase === 'chart-population');
 	const lifecycle = population || report.reports.some(raw => raw.phase === 'chart-lifecycle');
 	const settledInit = population && report.reports.some(raw => raw.initProtocol === 'settled-work-v1');
+	const resize = report.reports.some(raw => raw.resizeProtocol === 'retained-resize-v1');
+	const resizeLabel = raf ? 'resize rAF ms' : 'resize ms';
 	const initLabel = settledInit && raf ? 'init rAF ms' : 'init ms';
 	const workLabel = lifecycle ? 'update ms' : 'total ms';
-	if ((trace || raf || memory) && lifecycle && new Set(report.reports.map(raw => `${raw.phase}:${raw.initProtocol ?? 'readiness'}`)).size > 1)
-		throw new Error('Cannot combine different benchmark protocols or initialization boundaries. Rerun all selected variants.');
-	if (trace && new Set(report.reports.map(traceAccountingProtocol)).size > 1)
-		throw new Error('Cannot combine different trace accounting protocols. Rerun all selected variants.');
+
 	const warnings = [
 		...(report.timeouts ?? []).map(({error}) => error),
 		...(report.failures ?? []).map(({variant, error}) => `${variant}: ${error}`),
@@ -106,7 +117,9 @@ function benchmarkView(report) {
 		}
 		if (lifecycle && (trace || raf)) {
 			const analysis = trace ? raw.analysis : raw.rafAnalysis;
-			for (const [label, operation] of population ? [[initLabel, 'small-init']] : [['init ms', 'empty-init'], ['first ms', 'first-data']]) {
+			const phases = population ? [[initLabel, 'small-init'], ...(resize ? [[resizeLabel, 'resize']] : [])]
+				: [['init ms', 'empty-init'], ['first ms', 'first-data']];
+			for (const [label, operation] of phases) {
 				const metrics = analysis?.phaseGroups?.find(group => group.variant === variant && group.dpr === dpr && group.operation === operation)?.metrics;
 				const key = settledInit ? (trace ? 'totalTrackedThreadWorkMs' : 'raf1Ms') : (trace ? 'jsIntervalMs' : 'jsMs');
 				metric(label, metrics?.[key], trace ? 'mean' : 'min');
@@ -126,6 +139,7 @@ function benchmarkView(report) {
 		...(trace || raf ? ['prep ms', initLabel, ...(lifecycle && !population ? ['first ms'] : []), ...(raf && lifecycle ? ['update ms'] : [])] : []),
 		...(trace ? ['main ms', 'gpu ms', workLabel] : []),
 		...(raf ? ['next rAF ms'] : []),
+		...(resize && (trace || raf) ? [resizeLabel] : []),
 		...(memory ? ['peak MB', 'retained MB'] : []),
 	];
 	for (const {variant} of [...(report.timeouts ?? []), ...(report.failures ?? [])]) {
@@ -177,6 +191,7 @@ export function summarizeSavedBenchmarks(options, output, {platform = process.pl
 	if ((report.requestedBackend ?? 'default') !== requestedBackend ||
 		report.reports.some(raw => (raw.runner.requestedBackend ?? 'default') !== requestedBackend))
 		throw new Error('Expected a benchmark suite report with matching requested backend.');
+	assertCompatibleReports(report.reports, measurements);
 	if (measurements.trace) {
 		for (const raw of report.reports) {
 			const analysis = raw.analysis;
@@ -184,7 +199,7 @@ export function summarizeSavedBenchmarks(options, output, {platform = process.pl
 				continue;
 			const groups = summarizeBenchmarkTraceSamples(analysis.samples);
 			analysis.groups = groups.filter(group => !group.operation || group.operation === 'data-update');
-			if (analysis.phaseGroups)
+			if (analysis.phaseGroups || benchmarkOperations(raw))
 				analysis.phaseGroups = groups;
 			analysis.statistic = 'mean';
 			analysis.definitions = {...analysis.definitions, aggregation: TRACE_AGGREGATION};
@@ -308,9 +323,9 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 			idleFirst: true, sameRunControlsOnly: true, coolingBetweenVariantsMs: 0,
 			tracing: measurements.trace, gpuSpecificMemory: false, sampleTimeoutMs: SAMPLE_TIMEOUT_MS,
 			blankAndLoaded: 'One cold checkpoint each per browser, not a round aggregate.',
-			lifecycle: 'Three warmup sessions and seven measured sessions. Each session creates a new chart with two points per series, then updates once with the full dataset.',
-			timingColumns: 'Trace init ms is total tracked thread work for chart-specific host setup and settled two-point initialization. rAF-only init rAF ms is callback latency, not thread work. Trace update ms is total tracked thread work for data update and rendering, including settling and completion checks. Main/gpu show update-window components. Update readiness remains in JSON and the rAF-only update ms column; next rAF is update callback latency. Prep is separate.',
-			memoryColumns: 'Peak covers the whole session. Retained follows the full-data update. No forced GC occurs between chart operations.',
+			lifecycle: 'Three warmup sessions and seven measured sessions. Each session initializes a two-point chart, updates it with the full dataset, then resizes the retained chart to 1200x400. Reports use chart-population, settled-work-v1 initialization, and retained-resize-v1 resize. lifecycle.resizeSize records width and height.',
+			timingColumns: 'Trace init ms, update ms, and resize ms use total tracked thread work from each complete operation window, including settling and completion checks. Init includes chart-specific host setup. Main/gpu and prep describe data-update only. rAF-only init rAF ms and resize rAF ms use each operation\'s raf1Ms, not thread work. rAF-only update ms shows update readiness. Next rAF shows update callback latency. Primary groups and library ordering still describe data-update. phaseGroups contains all three operations.',
+			memoryColumns: 'Peak covers the whole three-phase session. Retained follows resize and forced GC, with the chart and full prepared input alive. No forced GC occurs between chart operations. Saved summaries cannot mix reports with and without retained-resize-v1, including memory-only reports.',
 			timeoutScope: 'Five seconds per operation, including preparation and settling. Setup/baseline belongs to the first operation. Final checkpoints and destruction have a separate five-second budget.',
 			aggregation: 'Trace timing columns use arithmetic means after warmups. Total work averages deduplicated per-sample totals, including observed GC. rAF timings and memory columns retain minima.',
 			warmSamples: 'Warmups are excluded. Each browser reuses its selected library between samples; allocator reuse affects process deltas.',
@@ -346,6 +361,7 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 					raw.samples.some(sample => sample.variant !== name || sample.dpr !== dpr))
 					throw new Error(`Unexpected benchmark report for ${name}`);
 				reports = [...report.reports, raw];
+				assertCompatibleReports(reports, measurements);
 				adjustedAnalysis = measurements.memory ? summarizeAdjustedProcessMemory(reports) : null;
 			}
 			catch (error) {

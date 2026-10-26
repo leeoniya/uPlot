@@ -79,6 +79,11 @@ async function updateChart(view, input, host, wait) {
 	if (wait) wait.textContent = 'Done!';
 }
 
+async function resizeChart(view, {width, height}, host, wait) {
+	await view.width(width).height(height).resize().runAsync();
+	if (wait) wait.textContent = 'Done!';
+}
+
 function destroyChart(view) {
 	const host = view.container();
 	try { view.finalize(); }
@@ -88,4 +93,4 @@ function destroyChart(view) {
 	}
 }
 
-export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};
+export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart, resizeChart};
