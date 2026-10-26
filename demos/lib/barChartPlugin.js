@@ -18,6 +18,7 @@ export function barChartPlugin({
 	barDistribution = SPACE_AROUND,
 	barWidth: initialBarWidth = 1,
 	groupSeries = [],
+	ignore = [],
 	showValues = false,
 	hoverMode = 'bar',
 	labelRotation = 0,
@@ -29,8 +30,10 @@ export function barChartPlugin({
 } = {}) {
 	if (orientation != 'vertical' && orientation != 'horizontal')
 		throw new RangeError('Orientation must be vertical or horizontal.');
-	if (bars.disp != null)
-		throw new TypeError('Custom bar display options are not supported.');
+	if (bars.disp != null && (typeof bars.disp != 'object' || Array.isArray(bars.disp) || Object.keys(bars.disp).some(key => key != 'fill' && key != 'stroke')))
+		throw new TypeError('Only bar fill and stroke display options are supported.');
+	if (!Array.isArray(ignore))
+		throw new TypeError('Ignored series must be an array of trailing series indices.');
 	if (!Array.isArray(groupSeries))
 		throw new TypeError('Group series must be an array of series indices.');
 	const fullGroupSeries = new Set(groupSeries);
@@ -50,12 +53,13 @@ export function barChartPlugin({
 	let groupStep = 0;
 	let paths;
 	let groupPaths;
+	let seriesEnd;
 	const groupOffsets = [];
 	let groupSize = 0;
 	const groupForSeries = [];
 	const barOffsets = [];
 	let barWidth = 0;
-	const hover = createBarHover(horizontal);
+	const hover = createBarHover(horizontal, ignore.length);
 	hover.setMode(hoverMode);
 	const values = createBarValues(horizontal);
 	let valuesShown = false;
@@ -89,7 +93,7 @@ export function barChartPlugin({
 		barWidth = groupSize = 0;
 		groupOffsets.length = count;
 		firstGroupCenter = groupStep = 0;
-		for (let si = 1; si < u.series.length; si++) {
+		for (let si = 1; si < seriesEnd; si++) {
 			const series = u.series[si];
 			if (!series.show || series.paths != paths)
 				continue;
@@ -282,13 +286,14 @@ export function barChartPlugin({
 				time: false, distr: 2, ori: horizontal ? 1 : 0, dir: horizontal ? -1 : 1,
 				range: xRange,
 			};
-			opts.scales.y = {
+			opts.axes ??= [{}, {}];
+			const numericScale = opts.axes[1]?.scale ?? 'y';
+			opts.scales[numericScale] = {
 				axis: 1,
 				range: { min: { soft: 0 }, max: { soft: 0 } },
-				...opts.scales.y,
+				...opts.scales[numericScale],
 				ori: horizontal ? 0 : 1,
 			};
-			opts.axes ??= [{}, {}];
 			opts.axes[0] = {
 				grid: { show: false },
 				...opts.axes[0],
@@ -299,24 +304,34 @@ export function barChartPlugin({
 				rotate: () => rotation,
 				size: 'auto',
 			};
-			opts.axes[1] = { ...(horizontal ? { space: 100 } : {}), ...opts.axes[1], scale: 'y', size: 'auto' };
+			opts.axes[1] = { ...(horizontal ? { space: 100 } : {}), ...opts.axes[1], scale: numericScale, size: 'auto' };
 			if (horizontal)
 				Object.assign(opts.axes[1], { side: 2, rotate: 0, align: 0 });
 			opts.series ??= [{}, {}];
+			seriesEnd = opts.series.length - ignore.length;
+			if (seriesEnd < 1)
+				throw new RangeError('Ignored series must be trailing value series.');
+			for (let i = 0; i < ignore.length; i++) {
+				if (ignore[i] !== seriesEnd + i)
+					throw new RangeError('Ignored series must be contiguous trailing value series.');
+			}
 			opts.series[0].value ??= (u, value) => String(value ?? '');
 			const stackGroups = opts.stack?.groups ?? [];
 			for (const si of fullGroupSeries) {
-				if (!Number.isInteger(si) || si < 1 || si >= opts.series.length)
+				if (!Number.isInteger(si) || si < 1 || si >= seriesEnd)
 					throw new RangeError('Group series indices must refer to value series.');
 			}
 			if (fullGroupSeries.size > 0 && stackGroups.length > 0)
 				throw new RangeError('Group series require stacking to be off.');
 			groupForSeries.length = 0;
 			for (let gi = 0; gi < stackGroups.length; gi++) {
-				for (const si of stackGroups[gi].series)
+				for (const si of stackGroups[gi].series) {
+					if (!Number.isInteger(si) || si < 1 || si >= seriesEnd)
+						throw new RangeError('Stack groups must refer to bar series.');
 					groupForSeries[si] = gi;
+				}
 			}
-			for (let si = 1; si < opts.series.length; si++) {
+			for (let si = 1; si < seriesEnd; si++) {
 				if (stackGroups.length == 0)
 					groupForSeries[si] = si;
 				else if (groupForSeries[si] == null)
@@ -330,6 +345,7 @@ export function barChartPlugin({
 			paths = uPlot.paths.bars({
 				...bars,
 				disp: {
+					...bars.disp,
 					x0: { unit: 2, values: (u, si) => barOffsets[si] },
 					size: { kind: 1, unit: 2, values: () => barWidth },
 				},
@@ -341,14 +357,17 @@ export function barChartPlugin({
 					// Individual bar gaps and width limits must not shrink the group background.
 					size: [1, Infinity, 0], gap: 0,
 					disp: {
+						...bars.disp,
 						x0: { unit: 2, values: () => groupOffsets },
 						size: { kind: 1, unit: 2, values: () => groupSize },
 					},
 					each,
 				});
 			}
-			for (let si = 1; si < opts.series.length; si++) {
+			for (let si = 1; si < seriesEnd; si++) {
 				const series = opts.series[si];
+				const scale = series.scale ?? 'y';
+				opts.scales[scale] = { ...opts.scales[scale], ori: horizontal ? 0 : 1 };
 				series.paths = fullGroupSeries.has(si) ? groupPaths : paths;
 				series.width ??= 0;
 				series.fill ??= series.stroke ?? 'royalblue';

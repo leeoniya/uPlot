@@ -267,6 +267,57 @@ describe('barChartPlugin', () => {
 			return { left, top, width: width / u.pxRatio, height: height / u.pxRatio };
 		}
 
+		for (const orientation of ['vertical', 'horizontal']) {
+			for (const mode of ['grouped', 'value', 'percent']) {
+				it(`keeps trailing ignored lines out of ${mode} slots, labels, stacks, and bar hover (${orientation})`, async () => {
+					const horizontal = orientation === 'horizontal';
+					const data = [['A', 'B'], [2, -3], [4, -5], [8, 9], [7, 6]];
+					const original = structuredClone(data);
+					const chartOptions = () => ({
+						axes: [{ show: false }, { show: false }], series: [{}, {}, {}],
+						stack: { groups: mode === 'grouped' ? [] : [{ series: [2, 1], dir: 0 }], percent: mode === 'percent' },
+						scales: { y: { range: mode === 'percent' ? [-1, 1] : [-10, 10] }, line: { ori: horizontal ? 0 : 1, range: [0, 10] } },
+					});
+					const reference = mount(data.slice(0, 3), { orientation, showValues: true }, chartOptions()).u;
+					const opts = chartOptions();
+					const linePaths = uPlot.paths.linear();
+					opts.series.push({ scale: 'line', paths: linePaths, stroke: 'darkorange', width: 2, points: { show: true } }, { scale: 'line', stroke: 'royalblue' });
+					const { u } = mount(data, { orientation, ignore: [3, 4], showValues: true }, opts);
+					await Promise.resolve();
+					enter(u);
+					assert.equal(u.series[3].paths, linePaths);
+					assert.equal(u.series[3].points.show(u, 3), true);
+					assert.ok(u.series[3]._paths.stroke.log.some(entry => entry[0] === 'lineTo'), 'ignored series still renders its line');
+					assert.ok(u.series[3].points._paths.fill.log.some(entry => entry[0] === 'arc'), 'ignored points still render');
+					assert.deepEqual(drawnValues(u), drawnValues(reference), 'ignored lines have no bar value labels or totals');
+					for (const si of [1, 2]) {
+						assert.deepEqual(rects(u, si), rects(reference, si), 'ignored lines consume no bar or stack slots');
+						assert.deepEqual(u._data[si], reference._data[si]);
+						if (mode !== 'grouped')
+							assert.deepEqual(u._base[si], reference._base[si]);
+						for (const di of [0, 1]) {
+							hoverRect(u, si, di);
+							assert.deepEqual(u.cursor.idxs, [di, si === 1 ? di : null, si === 2 ? di : null, null, null]);
+						}
+					}
+					for (const si of [3, 4]) {
+						assert.deepEqual(u._data[si], data[si], 'ignored data is not stacked or normalized');
+						const category = u.valToPos(0, 'x'), value = u.valToPos(data[si][0], 'line');
+						u.setCursor(horizontal ? { left: value, top: category } : { left: category, top: value });
+						assert.equal(u.cursor.idxs[si], null);
+						assert.equal(u.cursor.points.bbox(u, si).width, 0);
+						assert.equal(u.cursor.points.bbox(u, si).height, 0);
+						u.setSeries(si, { show: false });
+					}
+					await Promise.resolve();
+					for (const si of [1, 2])
+						assert.deepEqual(rects(u, si), rects(reference, si), 'hiding ignored lines does not redistribute bars');
+					assert.equal(u.data, data);
+					assert.deepEqual(data, original);
+				});
+			}
+		}
+
 		it('supports programmatic hover before pointer entry and after pointer leave', async () => {
 			const { u } = mount([['A', 'B'], [4, 2]]);
 			await Promise.resolve();
@@ -902,6 +953,43 @@ describe('barChartPlugin', () => {
 				}
 			});
 
+			for (const mode of ['grouped', 'stacked', 'groupSeries']) {
+				it(`excludes trailing ignored lines from ${mode} group hover, including when all bars are hidden (${orientation})`, async () => {
+					const { u, plugin } = mount([['A', 'B'], [8, null], [2, 0], [9, 9], [7, 7]], {
+						orientation, ignore: [3, 4], hoverMode: 'group', groupSeries: mode === 'groupSeries' ? [1] : [],
+					}, {
+						series: [{}, {}, {}, { stroke: 'darkorange' }, { stroke: 'royalblue' }],
+						stack: { groups: mode === 'stacked' ? [{ series: [1, 2], dir: 0 }] : [] },
+						scales: { y: { range: [0, 12] } },
+					});
+					await Promise.resolve();
+					enter(u);
+					for (const di of [0, 1]) {
+						u.setCursor(point(horizontal, u.valToPos(di, 'x'), span(u, !horizontal) / 2));
+						assert.deepEqual(u.cursor.idxs, [di, di, di, null, null], 'missing and zero bars remain selected, but lines do not');
+						assertBand(u, horizontal, di);
+						for (let si = 0; si < u.series.length; si++) {
+							assert.equal(u.cursor.points.bbox(u, si).width, 0);
+							assert.equal(u.cursor.points.bbox(u, si).height, 0);
+						}
+					}
+					u.setSeries(1, { show: false });
+					await Promise.resolve();
+					assert.deepEqual(u.cursor.idxs, [1, null, 1, null, null]);
+					u.setSeries(2, { show: false });
+					await Promise.resolve();
+					assertSelection(u, null);
+					assert.ok(u.series[3].show && u.series[4].show, 'visible ignored lines do not keep group hover active');
+					u.setSeries(2, { show: true });
+					await Promise.resolve();
+					assert.deepEqual(u.cursor.idxs, [1, null, 1, null, null]);
+					assertBand(u, horizontal, 1);
+					plugin._controls.setHoverMode('bar');
+					plugin._controls.setHoverMode('group');
+					assert.deepEqual(u.cursor.idxs, [1, null, 1, null, null]);
+				});
+			}
+
 			it(`refreshes stationary band geometry without changing the category (${orientation})`, async () => {
 				const { u, plugin } = mount([['A', 'B', 'C', 'D'], [2, 3, 4, 5]], {
 					orientation, hoverMode: 'group', distribution: SPACE_BETWEEN,
@@ -1456,6 +1544,81 @@ describe('barChartPlugin', () => {
 		}
 	});
 
+	describe('ignored trailing series', () => {
+		const data = () => [['A', 'B'], [2, 3], [4, 5], [8, 9], [7, 6]];
+		const series = () => Array.from({ length: 5 }, () => ({}));
+
+		for (const ignore of [null, false, 1, '3,4', {}, new Set([3, 4]), new Uint8Array([3, 4])]) {
+			it(`rejects non-array ignore (${String(ignore)})`, () => {
+				assert.throws(() => {
+					const plugin = barChartPlugin({ ignore });
+					plugin.opts({ data: data() }, { axes: [{}, {}], series: series() });
+				}, TypeError);
+			});
+		}
+
+		for (const ignore of [[0], [0, 1, 2, 3, 4], [-1], [1.5], ['4'], [NaN], [Infinity], [null], [undefined], [5], [3], [2, 3], [1, 4], [4, 3], [3, 4, 4], [4, 4], Array(1), [, 4], [3, , 4]]) {
+			it(`rejects ignore indices that are not an ordered contiguous value-series suffix (${ignore.map(String).join(',')})`, () => {
+				assert.throws(() => {
+					const plugin = barChartPlugin({ ignore });
+					plugin.opts({ data: data() }, { axes: [{}, {}], series: series() });
+				});
+			});
+		}
+
+		for (const ignore of [[], [4], [3, 4], [2, 3, 4]]) {
+			it(`accepts suffix [${ignore}] and leaves excluded series options untouched`, () => {
+				const supplied = series();
+				for (const si of ignore) {
+					supplied[si] = {
+						paths: uPlot.paths.linear(), width: 3, stroke: 'darkorange', fill: null,
+						points: { show: true, size: 7 }, scale: 'line', spanGaps: true,
+						value: (u, value) => `line ${value}`,
+					};
+				}
+				const before = supplied.map(s => ({ ...s }));
+				const plugin = barChartPlugin({ ignore: Object.freeze([...ignore]) });
+				const opts = { axes: [{}, {}], series: supplied };
+				const configured = plugin.opts({ data: data() }, opts) ?? opts;
+				for (let si = 1; si < supplied.length; si++) {
+					if (ignore.includes(si)) {
+						assert.equal(configured.series[si], supplied[si]);
+						assert.deepEqual(configured.series[si], before[si]);
+						assert.equal(configured.series[si].points, before[si].points);
+					}
+					else {
+						assert.equal(typeof configured.series[si].paths, 'function');
+						assert.equal(configured.series[si].points.show, false);
+					}
+				}
+			});
+		}
+
+		it('does not add bar defaults to an unconfigured ignored line', () => {
+			const opts = { axes: [{}, {}], series: series() };
+			const plugin = barChartPlugin({ ignore: [4] });
+			const configured = plugin.opts({ data: data() }, opts) ?? opts;
+			assert.deepEqual(configured.series[4], {});
+		});
+
+		it('treats an explicit empty ignore list like the default', async () => {
+			const a = mount(data(), {}, { series: series() }).u;
+			const b = mount(data(), { ignore: [] }, { series: series() }).u;
+			await Promise.resolve();
+			for (let si = 1; si < 5; si++)
+				assert.deepEqual(rects(a, si), rects(b, si));
+		});
+
+		for (const groups of [[{ series: [1], dir: 0 }], [{ series: [1, 2, 3], dir: 0 }], [{ series: [1, 2], dir: 0 }, { series: [4], dir: 0 }]]) {
+			it(`rejects stack membership that omits a bar or includes an ignored line (${JSON.stringify(groups)})`, () => {
+				assert.throws(() => {
+					const plugin = barChartPlugin({ ignore: [3, 4] });
+					plugin.opts({ data: data() }, { axes: [{}, {}], series: series(), stack: { groups } });
+				}, RangeError);
+			});
+		}
+	});
+
 	it('releases stack groups and custom bar options when the destroyed plugin is retained', async function() {
 		if (!globalThis.gc)
 			this.skip();
@@ -1491,28 +1654,101 @@ describe('barChartPlugin', () => {
 					axes: [{}, {}], series: [{}, {}, { show: !hidden }, {}],
 					stack: { groups: members.map(series => ({ series, dir: 0 })) },
 				};
-				assert.throws(() => plugin.opts({ data: [['A'], [1], [2], [3]] }, opts), {
-					name: 'RangeError', message: 'Stack groups must include all value series.',
-				});
+				assert.throws(() => plugin.opts({ data: [['A'], [1], [2], [3]] }, opts), RangeError);
 			});
 		}
 	}
 
-	for (const disp of [{}, { x0: { unit: 1, values: () => [0] } }, false, 0]) {
-		it(`rejects non-null custom bars.disp (${JSON.stringify(disp)})`, () => {
+	for (const disp of [
+		...['x0', 'size', 'y0', 'y1', 'other'].map(key => ({ [key]: { values: () => [0] } })),
+		{ fill: { values: () => ['royalblue'] }, x0: undefined },
+		false, true, 0, 1, '', 'fill', [], ['fill'], () => {},
+	]) {
+		it(`rejects unsupported bars.disp keys or types (${String(disp)})`, () => {
 			assert.throws(() => {
 				const plugin = barChartPlugin({ bars: { disp } });
 				plugin.opts({ data: [['A'], [1]] }, { axes: [{}, {}], series: [{}, {}] });
-			}, { name: 'TypeError', message: 'Custom bar display options are not supported.' });
+			}, { name: 'TypeError', message: 'Only bar fill and stroke display options are supported.' });
 		});
 	}
 
-	it('accepts null and undefined bars.disp as absent', () => {
-		for (const disp of [null, undefined]) {
+	it('accepts empty, null, and undefined bars.disp', () => {
+		for (const disp of [{}, null, undefined]) {
 			const plugin = barChartPlugin({ bars: { disp } });
 			assert.doesNotThrow(() => plugin.opts({ data: [['A'], [1]] }, { axes: [{}, {}], series: [{}, {}] }));
 		}
 	});
+
+	it('forwards fill and stroke descriptors to both component and group bar paths without mutating them', () => {
+		const original = uPlot.paths.bars;
+		const calls = [];
+		const fill = Object.freeze({ kind: 3, values: () => ['royalblue', 'darkorange'] });
+		const stroke = Object.freeze({ kind: 1, values: () => 'darkorange' });
+		const disp = Object.freeze({ fill, stroke });
+		const bars = Object.freeze({ disp });
+		uPlot.paths.bars = options => {
+			calls.push(options);
+			return () => {};
+		};
+		try {
+			const plugin = barChartPlugin({ bars, groupSeries: [1] });
+			plugin.opts({ data: [['A', 'B'], [6, 8], [2, 3]] }, { axes: [{}, {}], series: [{}, {}, {}] });
+			assert.equal(calls.length, 2);
+			for (const options of calls) {
+				assert.equal(options.disp.fill, fill);
+				assert.equal(options.disp.stroke, stroke);
+				assert.equal(options.disp.x0.unit, 2);
+				assert.equal(options.disp.size.unit, 2);
+				assert.equal(typeof options.disp.x0.values, 'function');
+				assert.equal(typeof options.disp.size.values, 'function');
+			}
+			assert.deepEqual(Object.keys(disp), ['fill', 'stroke']);
+			assert.equal(bars.disp, disp);
+		}
+		finally {
+			uPlot.paths.bars = original;
+		}
+	});
+
+	for (const orientation of ['vertical', 'horizontal']) {
+		for (const channels of [['fill'], ['stroke'], ['fill', 'stroke']]) {
+			it(`renders per-category ${channels.join('/')} colors on component and group bars (${orientation})`, async () => {
+				const colors = { fill: ['royalblue', 'darkorange'], stroke: ['darkorange', 'royalblue'] };
+				const disp = Object.fromEntries(channels.map(channel => [channel, { kind: 3, values: () => colors[channel] }]));
+				const data = [['A', 'B'], [8, 9], [2, 3]];
+				const chartOptions = () => ({
+					axes: [{ show: false }, { show: false }],
+					series: [{}, { width: 2, fill: 'royalblue', stroke: 'darkorange' }, { width: 2, fill: 'royalblue', stroke: 'darkorange' }],
+					scales: { y: { range: [0, 10] } },
+				});
+				const reference = mount(data, { orientation, groupSeries: [1] }, chartOptions()).u;
+				const { u } = mount(data, { orientation, groupSeries: [1], bars: { disp } }, chartOptions());
+				await Promise.resolve();
+				for (const si of [1, 2]) {
+					for (const channel of channels) {
+						const paths = u.series[si]._paths[channel];
+						assert.ok(paths instanceof Map);
+						assert.deepEqual([...paths.keys()].sort(), [...colors[channel]].sort());
+						for (const [di, color] of colors[channel].entries()) {
+							const path = paths.get(color);
+							assert.deepEqual(path.log.filter(entry => entry[0] === 'rect').flatMap(entry => entry.slice(1)), [rects(reference, si)[di]], 'color descriptors do not replace plugin geometry');
+							let style;
+							let painted = false;
+							for (const [name, ...args] of u.ctx.log) {
+								if (name === `${channel}Style`)
+									style = args.at(-1);
+								if (name === channel && args.some(args => args[0] === path)) {
+									assert.equal(style, color);
+									painted = true;
+								}
+							}
+							assert.ok(painted, `${channel} paints series ${si}, category ${di}`);
+						}
+					}
+				}
+			});
+		}
+	}
 
 	it('installs bar paths through opts and forwards bars options', () => {
 		const original = uPlot.paths.bars;
@@ -2082,6 +2318,70 @@ describe('barChartPlugin', () => {
 		}
 
 	});
+
+	for (const orientation of ['vertical', 'horizontal']) {
+		const horizontal = orientation === 'horizontal';
+
+		it(`preserves a custom numeric axis scale and range functions while orienting every bar scale (${orientation})`, async () => {
+			const amountRange = () => [-10, 10];
+			const countRange = () => [-100, 100];
+			const lineRange = () => [0, 1];
+			const values = (u, ticks) => ticks.map(value => `amount ${value}`);
+			const chartOptions = () => ({
+				axes: [{}, { scale: 'amount', values }],
+				series: [{}, { scale: 'amount' }, { scale: 'count' }, { scale: 'line', stroke: 'darkorange' }],
+				scales: {
+					amount: { ori: horizontal ? 1 : 0, range: amountRange },
+					count: { ori: horizontal ? 1 : 0, range: countRange },
+					line: { ori: horizontal ? 0 : 1, range: lineRange },
+				},
+			});
+			const data = [['A', 'B'], [4, -6], [30, -50], [.25, .75]];
+			const opts = chartOptions();
+			const lineScale = { ...opts.scales.line };
+			const plugin = barChartPlugin({ orientation, ignore: [3] });
+			const configured = plugin.opts({ data }, opts) ?? opts;
+			assert.equal(configured.axes[1].scale, 'amount');
+			assert.equal(configured.axes[1].values, values);
+			for (const [key, range] of [['amount', amountRange], ['count', countRange]]) {
+				assert.equal(configured.scales[key].ori, horizontal ? 0 : 1);
+				assert.equal(configured.scales[key].range, range);
+			}
+			assert.deepEqual(configured.scales.line, lineScale, 'a scale used only by ignored lines is unchanged');
+			const { u } = mount(data, { orientation, ignore: [3] }, chartOptions());
+			await Promise.resolve();
+			assert.equal(u.axes[1].scale, 'amount');
+			assert.ok(u.axes[1]._values.every(value => value.startsWith('amount ')));
+			for (const si of [1, 2]) {
+				const key = u.series[si].scale;
+				const range = si === 1 ? amountRange : countRange;
+				assert.equal(u.scales[key].range, range);
+				assert.equal(u.scales[key].ori, horizontal ? 0 : 1);
+				assert.deepEqual([u.scales[key].min, u.scales[key].max], range());
+				for (const [di, rect] of rects(u, si).entries()) {
+					const pos = horizontal ? 0 : 1;
+					const zero = u.valToPos(0, key, true), end = u.valToPos(data[si][di], key, true);
+					assert.ok(Math.abs(rect[pos] - Math.min(zero, end)) <= 1);
+					assert.ok(Math.abs(rect[pos] + rect[pos + 2] - Math.max(zero, end)) <= 1, 'each bar uses its own numeric scale');
+				}
+			}
+			u.setData([['A', 'B'], [8, -2], [70, -10], [.1, .9]]);
+			await Promise.resolve();
+			assert.equal(u.scales.amount.range, amountRange);
+			assert.equal(u.scales.count.range, countRange);
+			assert.deepEqual([u.scales.amount.min, u.scales.amount.max], [-10, 10]);
+			assert.deepEqual([u.scales.count.min, u.scales.count.max], [-100, 100]);
+		});
+
+		it(`creates orientation defaults for undeclared custom bar scales without replacing the numeric axis scale (${orientation})`, () => {
+			const opts = { axes: [{}, { scale: 'amount' }], series: [{}, { scale: 'amount' }, { scale: 'count' }, {}] };
+			const plugin = barChartPlugin({ orientation });
+			const configured = plugin.opts({ data: [['A'], [2], [3], [4]] }, opts) ?? opts;
+			assert.equal(configured.axes[1].scale, 'amount');
+			for (const key of ['amount', 'count', 'y'])
+				assert.equal(configured.scales[key].ori, horizontal ? 0 : 1);
+		});
+	}
 
 	it('preserves caller fonts, formatted Y values, fills, and explicit Y range configurations', async () => {
 		const values = (u, splits) => splits.map(value => `${value.toFixed(2)} widgets`);

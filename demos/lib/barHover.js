@@ -1,5 +1,5 @@
 // Final bar bounds, grouped by category for constant-time category lookup.
-export function createBarHover(horizontal) {
+export function createBarHover(horizontal, ignoreCount = 0) {
 	let plot = null;
 	let over = null;
 	let band = null;
@@ -127,7 +127,7 @@ export function createBarHover(horizontal) {
 			if (seriesIdx == 0)
 				lookup(u);
 			if (mode == 'group')
-				return seriesIdx == 0 || u.series[seriesIdx].show ? hovered.dataIdx : null;
+				return seriesIdx <= seriesCount && (seriesIdx == 0 || u.series[seriesIdx].show) ? hovered.dataIdx : null;
 			return seriesIdx == 0 || seriesIdx == hovered.seriesIdx ? hovered.dataIdx : null;
 		},
 		bbox: (u, seriesIdx) => mode == 'bar' && hovered.dataIdx != null && seriesIdx == hovered.seriesIdx ? hovered : emptyBox,
@@ -157,9 +157,9 @@ export function createBarHover(horizontal) {
 			const span = horizontal ? u.bbox.height : u.bbox.width;
 			categoryStart = firstCenter * span;
 			categoryStep = step * span;
-			seriesCount = u.series.length - 1;
+			seriesCount = u.series.length - 1 - ignoreCount;
 			hasVisibleSeries = false;
-			for (let si = 1; si < u.series.length; si++) {
+			for (let si = 1; si <= seriesCount; si++) {
 				const s = u.series[si];
 				if (s.show && (s.paths == paths || groupPaths != null && s.paths == groupPaths)) {
 					hasVisibleSeries = true;

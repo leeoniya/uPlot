@@ -1,9 +1,10 @@
+import uPlot from '../src/uPlot.js';
 import { plotStep } from './renderDemo.js';
-import { seriesBarsPlugin } from './grouped-bars.js';
+import { barChartPlugin } from './lib/barChartPlugin.js';
+import { SPACE_BETWEEN } from './lib/distr.js';
 
 function makeChart(o, data) {
 	let ori = o.ori;
-	let dir = o.dir;
 	let stacked = o.stacked;
 	let series = o.series;
 
@@ -16,27 +17,24 @@ function makeChart(o, data) {
 					min: {soft: 0},
 					max: {soft: 0},
 				},
-				ori: ori == 0 ? 1 : 0,
 			}
 		},
-		axes: [
-			{},
-			{
-				side: ori == 0 ? 3 : 0,
-			},
-		],
 		legend: {
 			live: false,
 			markers: {
 				width: 0,
 			}
 		},
-		padding: [null, 0, null, 0],
 		series,
 		plugins: [
-			seriesBarsPlugin({
-				ori,
-				dir,
+			barChartPlugin({
+				orientation: ori == 0 ? 'vertical' : 'horizontal',
+				showValues: true,
+				distribution: SPACE_BETWEEN,
+				barDistribution: SPACE_BETWEEN,
+				bars: {
+					size: [0.9],
+				},
 			}),
 		],
 	};

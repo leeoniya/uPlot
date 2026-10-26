@@ -67,6 +67,65 @@ function getMock(meths = [], props = [], log = []) {
 	return out;
 }
 
+// Measurement and single-pixel contrast sampling stay separate from drawing logs.
+const namedColors = {
+	black: '#000000', white: '#ffffff', red: '#ff0000', green: '#008000', blue: '#0000ff',
+	lime: '#00ff00', yellow: '#ffff00', cyan: '#00ffff', aqua: '#00ffff',
+	magenta: '#ff00ff', fuchsia: '#ff00ff', gray: '#808080', grey: '#808080',
+	silver: '#c0c0c0', maroon: '#800000', purple: '#800080', olive: '#808000',
+	navy: '#000080', teal: '#008080', orange: '#ffa500', transparent: '#00000000',
+	royalblue: '#4169e1', darkorange: '#ff8c00', seagreen: '#2e8b57',
+	orchid: '#da70d6', crimson: '#dc143c', lightgray: '#d3d3d3', lightgrey: '#d3d3d3',
+};
+
+globalThis.OffscreenCanvas = class {
+	constructor(width, height) {
+		this.width = width;
+		this.height = height;
+		const pixel = new Uint8ClampedArray(4);
+		const style = document.createElement('span').style;
+		this.ctx = {
+			canvas: this,
+			font: '10px sans-serif',
+			fillStyle: '#000000',
+			measureText(text) {
+				const size = parseFloat(this.font.match(/([\d.]+)px\b/)?.[1] ?? '10');
+				return { width: String(text).length * size / 2, actualBoundingBoxAscent: size * .8, actualBoundingBoxDescent: size * .2 };
+			},
+			clearRect() {
+				pixel.fill(0);
+			},
+			fillRect() {
+				style.color = '';
+				style.color = this.fillStyle;
+				// Happy DOM normalizes CSS syntax, but leaves named colors as names.
+				let color = Object.hasOwn(namedColors, style.color) ? namedColors[style.color] : style.color;
+				if (/^#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i.test(color)) {
+					color = color.slice(1);
+					if (color.length <= 4)
+						color = [...color].map(c => c + c).join('');
+					pixel.set([0, 0, 0, 255]);
+					pixel.set(color.match(/../g).map(c => parseInt(c, 16)));
+				}
+				else if (/^rgba?\(/.test(color)) {
+					const channels = color.match(/[\d.]+%?/g);
+					pixel.set(channels.slice(0, 3).map(c => Math.round(parseFloat(c) * (c.endsWith('%') ? 255 / 100 : 1))));
+					const alpha = channels[3] ?? '1';
+					pixel[3] = Math.round(parseFloat(alpha) * (alpha.endsWith('%') ? 255 / 100 : 255));
+				}
+				else
+					throw new Error(`Unsupported OffscreenCanvas mock color: ${this.fillStyle}`);
+			},
+			getImageData() {
+				return { data: pixel.slice() };
+			},
+		};
+	}
+	getContext(type) {
+		return type === '2d' ? this.ctx : null;
+	}
+};
+
 const CanProto = HTMLCanvasElement.prototype;
 const widthProp = Object.getOwnPropertyDescriptor(CanProto, 'width');
 const heightProp = Object.getOwnPropertyDescriptor(CanProto, 'height');

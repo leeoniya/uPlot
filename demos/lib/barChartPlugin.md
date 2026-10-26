@@ -57,7 +57,7 @@ Horizontal bars do not support label rotation. A nonzero `labelRotation` or `_co
 
 ## Grouping and stacking
 
-The plugin uses `distr()` from the grouped-bars demo to distribute category widths inside the plot.
+The plugin uses `distr()` from `demos/lib/distr.js` to distribute category widths inside the plot.
 The `distribution` option accepts constants from `demos/lib/distr.js`:
 
 - `SPACE_BETWEEN`: gaps appear only between groups. For multiple categories, the outer groups reach the plot edges unless bar-width limits apply.
@@ -68,7 +68,7 @@ The X range expands to align ordinal ticks with the distributed group centers.
 Outer padding credits the space inside the plot and reserves additional space for label overhang.
 Grouped charts give each visible component series a separate slot. Stacked charts give each native stack group one shared slot.
 Hidden series do not reserve slots. Multiple independent stack groups appear side by side.
-Stack groups must include every value series, including hidden series. Mixed stacked and unstacked charts are not supported.
+Stack groups must include every bar series, including hidden series, but must exclude ignored series. Mixed stacked and unstacked bars are not supported.
 The plugin records series-to-group membership once during initialization, rather than searching the groups on each redraw.
 Each layout calculates the category distribution once and the inner slot distribution once, then fills the per-slot offset arrays.
 This avoids repeated slot-distribution calculations inside the category loop. It does not add a layout cache.
@@ -103,7 +103,7 @@ At `1`, the bars fill the group without gaps. Smaller fractions leave space for 
 With one slot, `SPACE_BETWEEN` places it at the group start. The other modes center it.
 Internal bar spacing does not change group centers, category ticks, or axis padding.
 The maximum and minimum widths in `bars.size` still apply to each bar.
-The plugin controls bar positions and widths through the distribution options. Custom `bars.disp` options are not supported.
+The plugin controls bar positions and widths through the distribution options. Custom `bars.disp` options support only `fill` and `stroke`.
 
 ## Group-wide series and external totals
 
@@ -165,7 +165,8 @@ Orientation changes preserve component and total visibility. Copy-link URLs cont
 | `distribution` | `SPACE_AROUND` (`2`) | Group distribution: `SPACE_BETWEEN` (`1`), `SPACE_AROUND` (`2`), or `SPACE_EVENLY` (`3`) from `distr.js`. |
 | `barDistribution` | `SPACE_AROUND` (`2`) | Distribution of bars or stacks inside each category group, using the same constants. |
 | `barWidth` | `1` | Fraction of each group occupied by its bars or stacks, greater than `0` and at most `1`. |
-| `groupSeries` | `[]` | Unique value-series indices that span the full group width without taking component slots. Not supported with stack groups. |
+| `groupSeries` | `[]` | Unique bar-series indices that span the full group width without taking component slots. Not supported with stack groups. |
+| `ignore` | `[]` | Ordered, contiguous indices of trailing non-bar series. For example, `[3, 4]` excludes the last two of four value series. |
 | `showValues` | `false` | Draw automatically sized bar values and value-stack totals. |
 | `hoverMode` | `'bar'` | Select an individual bar (`'bar'`) or an entire category (`'group'`). |
 | `labelRotation` | `0` | A finite angle in degrees, from `-90` through `90`. Horizontal bars require `0`. |
@@ -173,7 +174,10 @@ Orientation changes preserve component and total visibility. Copy-link URLs cont
 | `maxLabelLength` | `null` | No truncation, or an integer of at least `1`. The limit includes the ellipsis character (`…`). |
 | `ellipsis` | `'end'` | The ellipsis position: `'end'` or `'middle'`. |
 | `inset` | `8` | The minimum outer padding in CSS pixels. Axis sizes do not include this padding. |
-| `bars` | `{}` | Options for `uPlot.paths.bars()`, except `disp` and `each`, which the plugin supplies. |
+| `bars` | `{}` | Options for `uPlot.paths.bars()`. Custom `disp` accepts only `fill` and `stroke`. The plugin supplies positions, widths, and `each`. |
+
+Ignored series retain their paths and point options. They do not occupy bar slots or participate in bar labels and hover selection.
+All bar series must precede ignored series. An `ignore` list cannot contain gaps or include indices from `groupSeries` or stack groups.
 
 Category labels come directly from `data[0]`. uPlot's ordinal scale assigns their numeric positions internally.
 The plugin converts X values to strings for display. Null entries become empty strings.
@@ -330,9 +334,11 @@ Orientation and stack rebuilds retain the data before they destroy the old chart
 
 The plugin manages ordinal X spacing and the full-category X range. It disables drag zoom.
 Vertical bars use bottom-X/left-Y axes. Horizontal bars use left-X/bottom-Y axes with inverted scale orientations.
-It manages primary axes `0` and `1`, padding, axis sizes, and bar paths for every Y series. It hides series points.
+It manages primary axes `0` and `1`, padding, axis sizes, and paths for each bar series. It hides bar-series points.
 It preserves axis styles, fonts, Y-axis value formatters, and explicit series fills.
-The Y scale defaults to `axis: 1` and soft-zero limits. `opts.scales.y` can override these defaults, except for orientation.
+The numeric axis preserves `opts.axes[1].scale`, with `'y'` as the default.
+Its scale defaults to `axis: 1` and soft-zero limits. Explicit scale options override these defaults, except for orientation.
+The plugin sets the orientation of each numeric scale used by bars and preserves its other options, including custom ranges.
 Tick-aware `axis: 1` ranging uses plot height for vertical numeric axes and available plot width for horizontal numeric axes.
 Horizontal numeric axes default to `space: 100` CSS pixels. `opts.axes[1].space` can override this target spacing.
 Fixed ranges and custom range functions retain standard ranging. Automatic label fitting is not implemented.

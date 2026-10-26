@@ -180,9 +180,9 @@ The new X behavior affects demos that used `scale.range()` to modify explicit zo
 
 This demo uses one X-range helper for automatic ranges and built-in drag zoom. The drag callback restores snapping to exact data values without routing explicit bounds through `scale.range()`.
 
-### `demos/grouped-bars.js`
+### Grouped-bar demos
 
-The X-range helper always returns the full category range. The drag callback uses that helper to prevent built-in X drag zoom, as the old `scale.range()` behavior did.
+These demos now use `demos/lib/barChartPlugin.js`. Its X-range helper returns the full category range, and the plugin disables drag zoom.
 
 ### `demos/bars-values-autosize.html`
 

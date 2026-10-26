@@ -1,10 +1,11 @@
+import uPlot from '../src/uPlot.js';
 import { plotStep } from './renderDemo.js';
 import { loadFixture } from './demoResources.js';
-import { seriesBarsPlugin } from './grouped-bars.js';
+import { barChartPlugin } from './lib/barChartPlugin.js';
+import { SPACE_BETWEEN } from './lib/distr.js';
 
 function makeChart(o, d, enabled) {
 	let ori = o.ori;
-	let dir = o.dir;
 	let toggles = document.createElement("div");
 	toggles.classList.add("lib-toggles");
 
@@ -37,7 +38,6 @@ function makeChart(o, d, enabled) {
 				width: 0,
 			}
 		},
-		padding: [null, 0, null, 0],
 		series: [
 			{
 				label: "Lib Name"
@@ -86,11 +86,16 @@ function makeChart(o, d, enabled) {
 			},
 		],
 		plugins: [
-			seriesBarsPlugin({
-				radius: 0.3,
+			barChartPlugin({
+				orientation: ori == 0 ? 'vertical' : 'horizontal',
+				showValues: true,
+				distribution: SPACE_BETWEEN,
+				barDistribution: SPACE_BETWEEN,
 				ignore: [7],
-				ori,
-				dir,
+				bars: {
+					size: [0.9],
+					radius: 0.3,
+				},
 			}),
 		],
 	};
@@ -135,7 +140,6 @@ function makeChart2(d) {
 		width:  800,
 		height: 400,
 		title: "Variable bar colors",
-		padding: [null, 0, null, 0],
 		axes: [
 			{},
 			{
@@ -168,26 +172,31 @@ function makeChart2(d) {
 			},
 		],
 		plugins: [
-			seriesBarsPlugin({
-				ori: 0,
-				dir: 1,
-				radius: 0.5,
-				disp: {
-					stroke: {
-						unit: 3,
-						values: (u, seriesIdx) => u.data[2].map(v =>
-							v == 0 ? "#33BB55" :
-							v == 1 ? "#F79420" :
-							         "#BB1133"
-						),
-					},
-					fill: {
-						unit: 3,
-						values: (u, seriesIdx) => u.data[2].map(v =>
-							v == 0 ? "#33BB55A0" :
-							v == 1 ? "#F79420A0" :
-							         "#BB1133A0"
-						),
+			barChartPlugin({
+				orientation: 'vertical',
+				showValues: true,
+				distribution: SPACE_BETWEEN,
+				barDistribution: SPACE_BETWEEN,
+				bars: {
+					size: [0.9],
+					radius: 0.5,
+					disp: {
+						stroke: {
+							unit: 3,
+							values: (u, seriesIdx) => u.data[2].map(v =>
+								v == 0 ? "#33BB55" :
+								v == 1 ? "#F79420" :
+								         "#BB1133"
+							),
+						},
+						fill: {
+							unit: 3,
+							values: (u, seriesIdx) => u.data[2].map(v =>
+								v == 0 ? "#33BB55A0" :
+								v == 1 ? "#F79420A0" :
+								         "#BB1133A0"
+							),
+						}
 					}
 				}
 			}),

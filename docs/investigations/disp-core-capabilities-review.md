@@ -84,7 +84,7 @@ The unrelated patched ECharts bundle, data files, documentation examples, and co
 
 | Executable source | Builder and channels | Actual requirement |
 | --- | --- | --- |
-| [grouped-bars.js](../../demos/grouped-bars.js), lines 23–84 | Native bars: fractional `x0`, unary fractional `size`; forwards caller descriptors | Category distribution and nested series slots |
+| `grouped-bars.js` (removed; demos now use `barChartPlugin.js`) | Native bars: fractional `x0`, unary fractional `size`; forwarded caller descriptors | Category distribution and nested series slots |
 | [multi-bars.js](../../demos/multi-bars.js), lines 134–265 | Native bars: `fill` and `stroke`, directly and through the grouped plugin | Status code to per-bar color |
 | [sparklines-bars.js](../../demos/sparklines-bars.js), lines 87–211 | Native bars: `y0`, `y1`; optional per-bar `fill` | Floating intervals and a derived color rule |
 | [latency-heatmap.html](../../demos/latency-heatmap.html), lines 436–650 | Custom heatmap: `fill.lookup` plus palette-index callback | Grid cells and count quantization |
@@ -192,7 +192,7 @@ Those policies are separate from point-size projection.
 | Demo page | Indirect use |
 | --- | --- |
 | `multi-bars.html` | Benchmark charts in both orientations, plus grouped and ordinary status-colored bars |
-| `bars-grouped-stacked.html` | Ten orientation/grouping/stacking/category-count variants through `grouped-bars.js` |
+| `bars-grouped-stacked.html` | Ten orientation/grouping/stacking/category-count variants through `barChartPlugin.js` |
 | `sparklines-bars.html` | Gradient and per-bar-color floating-bar variants |
 | `scatter.html` | One plain scatter chart without descriptors, and one size-encoded bubble chart |
 | `axis-label-rotation.html` | Interactive bar plugin, including grouping, native stacks, percent values, and optional full-group totals |

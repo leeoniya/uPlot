@@ -109,13 +109,10 @@ describe('demo migrations', () => {
 		}
 	});
 
-	it('keeps grouped-bar drag zoom on the full category range', async () => {
-		const [plot] = await render(barsGroupedStacked);
-		const candidate = [1, 2];
-		const expected = plot.scales.x.range(plot, ...candidate, 'x');
-		const refined = plot.cursor.drag.setRange(plot, 'x', ...candidate);
-		assert.deepStrictEqual(refined, expected);
-		assert.notDeepStrictEqual(refined, candidate);
+	it('disables grouped-bar drag zoom', async () => {
+		const plots = await render(barsGroupedStacked);
+		for (const plot of plots)
+			assert.equal(plot.cursor.drag.setScale, false);
 	});
 
 	it('uses explicit baselines without bands in every grouped-bar stack', async () => {
