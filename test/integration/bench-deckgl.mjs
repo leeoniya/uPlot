@@ -428,7 +428,7 @@ describe('deck.gl benchmark adapter (no browser)', () => {
 		assert.doesNotMatch(html, /<style\b|<link\b|<canvas\b|fetch\(|https?:|style=/);
 		const source = readFileSync(new URL('../../bench/deckgl.mjs', import.meta.url), 'utf8');
 		assert.match(source, /export \{prepData, makeChart, destroyChart\};\s*$/);
-		assert.deepEqual(Object.keys(adapter), ['destroyChart', 'getHoverPlan', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
+		assert.deepEqual(Object.keys(adapter), ['destroyChart', 'getHoverPlan', 'makeChart', 'prepData', 'resizeChart', 'updateChart']);
 		for (const value of Object.values(adapter)) assert.equal(typeof value, 'function');
 	});
 });

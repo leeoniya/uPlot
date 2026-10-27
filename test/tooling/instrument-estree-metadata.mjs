@@ -5,7 +5,7 @@ import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import { parseSource, generateSource } from '../../scripts/vendor/istanbul/backend.mjs';
 import { createInstrumenter } from '../../scripts/vendor/istanbul/index.mjs';
 
-// Keep the old metadata AST builder as an independent byte/map reference.
+// Use standard ESTree nodes as an independent byte/map reference.
 const identifierPattern = /^[$A-Z_a-z][$\w]*$/;
 const identifier = name => ({ type: 'Identifier', name });
 const literal = value => ({ type: 'Literal', value });
@@ -123,8 +123,8 @@ describe('ESTree CoverageData metadata emission', () => {
 					const snapshot = structuredClone(ast);
 					const expected = generateSource(metadataAst(value, false), source, filename, options);
 					const actual = generateSource(ast, source, filename, options);
-					assert.equal(actual.code, expected.code, 'exact legacy code bytes');
-					assert.deepEqual(actual.map, expected.map, 'exact legacy source map');
+					assert.equal(actual.code, expected.code, 'exact ESTree code bytes');
+					assert.deepEqual(actual.map, expected.map, 'exact ESTree source map');
 					assert.deepEqual(ast, snapshot, 'generation must not mark or mutate parsed nodes or metadata');
 					assert.ok(actual.code.includes("text: 'before'"), 'preserve original string raw spelling');
 					assert.ok(actual.code.includes("value: ['after', 0x2a]"), 'ordinary parsed objects are not metadata');
@@ -147,7 +147,7 @@ describe('ESTree CoverageData metadata emission', () => {
 			}
 		}
 
-		it(`preserves undefined entries, sparse holes, and legacy numeric values at runtime (compact: ${compact})`, () => {
+		it(`preserves undefined entries, sparse holes, and JSON numeric serialization at runtime (compact: ${compact})`, () => {
 			const value = { omitted: undefined, entries: [undefined, null], sparse, numbers: [-0, NaN, Infinity, -Infinity] };
 			const { code } = generateSource(metadataAst(value, true), source, filename, { compact, produceSourceMap: false });
 			const result = execute(code).result[0];
@@ -160,7 +160,7 @@ describe('ESTree CoverageData metadata emission', () => {
 			assert.deepEqual(Object.keys(result.sparse), ['1', '3']);
 			assert.equal(result.sparse[1], undefined);
 			assert.deepEqual(plain(result.sparse[3]), { nested: [] });
-			// Literal generation historically uses JSON numeric serialization.
+			// Literal generation uses JSON numeric serialization.
 			assert.equal(Object.is(result.numbers[0], 0), true);
 			assert.deepEqual(Array.from(result.numbers).slice(1), [null, null, null]);
 		});

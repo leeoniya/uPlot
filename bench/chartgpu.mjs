@@ -125,10 +125,6 @@ async function makeChart(data, host, wait, runtimeOptions) {
 	}
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart(Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(0)])), host, wait);
-}
-
 async function updateChart(chart, input, host, wait) {
 	await renderChange(chart, () => {
 		// 0.4.0 replaces options; retain all axes, styles and series slots.
@@ -209,5 +205,5 @@ function destroyChart(chart) {
 	if (failure) throw failure;
 }
 
-export {makeEmptyChart, updateChart, resizeChart};
+export {updateChart, resizeChart};
 export {prepData, makeChart, destroyChart};

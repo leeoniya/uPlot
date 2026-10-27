@@ -74,7 +74,7 @@ function main() {
 
 	if (bun) {
 		env.NODE_OPTIONS = '';
-		// bun test defaults to UTC; retain the caller's timezone like Node and Mocha.
+		// bun test defaults to UTC; retain the caller's timezone.
 		env.TZ ??= new Intl.DateTimeFormat().resolvedOptions().timeZone;
 	}
 

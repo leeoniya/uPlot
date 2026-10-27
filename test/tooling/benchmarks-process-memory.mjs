@@ -4,12 +4,21 @@ import { summarizeProcessMemory, summarizeAdjustedProcessMemory } from '../../sc
 
 const SCOPES = ['renderer', 'tree'];
 const METRICS = ['rssMB', 'pssMB', 'privateMB', 'swapMB', 'swapPssMB'];
-const VALUES = ['baseline', 'prepared', 'live', 'cleanup', 'peak', 'peakDelta', 'dataDelta', 'chartDelta', 'retainedDelta', 'cleanupDelta'];
+const VALUES = ['baseline', 'prepared', 'live', 'peak', 'peakDelta', 'dataDelta', 'chartDelta', 'retainedDelta'];
 const tuple = value => Object.fromEntries(METRICS.map(metric => [metric, value]));
 const stats = (min, max = min, count = 1, missing = 0) => ({min, max, count, missing});
 const absent = missing => stats(null, null, 0, missing);
 const sample = (round = 0, extra = {}) => ({variant: 'uplot', dpr: 1, round, warmup: false, observations: lifecycle(), ...extra});
-const summarize = samples => summarizeProcessMemory({samples});
+const memoryReport = (samples = [], extra = {}) => ({memoryProtocol: 'through-update-v1', samples, ...extra});
+const summarize = samples => summarizeProcessMemory(memoryReport(samples));
+const processSample = (round = 0, extra = {}) => {
+	const {observations, ...fields} = sample(round);
+	return {...fields, processObservations: observations, ...extra};
+};
+const summarizeCaptured = report => summarizeProcessMemory({...report,
+	samples: report.samples.map(sample => ({...sample, observations: sample.processObservations})),
+});
+const unavailableLive = () => observation('live', 0, {processMemory: undefined});
 const groupOf = observations => summarize([sample(0, {observations})]).groups[0];
 const pssOf = observations => groupOf(observations).scopes.renderer.pssMB;
 
@@ -24,7 +33,7 @@ function observation(phase, value = 10, extra = {}) {
 function lifecycle() {
 	return [
 		observation('baseline', 10), observation('prepare', 20), observation('prepared', 6),
-		observation('construct', 30), observation('live', 8), observation('cleanup', 5),
+		observation('construct', 30), observation('live', 8),
 	].map((read, i) => ({...read, processRequestedAtMs: i * 10, processTimestampMs: i * 10 + 2}));
 }
 
@@ -38,12 +47,12 @@ function freezeDeep(value) {
 }
 
 describe('through-update process memory', () => {
-	const report = (variant = 'uplot') => ({
-		memoryProtocol: 'through-update-v1', blank: observation('blank', 1),
-		samples: [sample(0, {variant, observations: lifecycle().filter(read => read.phase !== 'cleanup')})],
-	});
+	const report = (variant = 'uplot') => {
+		const observations = lifecycle();
+		return memoryReport([sample(0, {variant, observations, processObservations: observations})], {blank: observation('blank', 1)});
+	};
 
-	it('stops peaks and request diagnostics at live and expects no cleanup checkpoint', () => {
+	it('stops peaks and request diagnostics at the live checkpoint', () => {
 		const raw = report();
 		const expected = summarizeProcessMemory(raw);
 		const group = expected.groups[0];
@@ -51,8 +60,7 @@ describe('through-update process memory', () => {
 		assert.equal(group.ambiguousCheckpointCount, 0);
 		assert.deepEqual(group.scopes.renderer.pssMB.peak, stats(30));
 		assert.deepEqual(group.scopes.renderer.pssMB.live, stats(8));
-		assert.deepEqual(group.scopes.renderer.pssMB.cleanup, absent(1));
-		assert.deepEqual(group.scopes.renderer.pssMB.cleanupDelta, absent(1));
+		assert.deepEqual(Object.keys(group.scopes.renderer.pssMB), VALUES);
 		raw.samples[0].observations.push(
 			observation('prepare', 1e9, {operation: 'resize'}),
 			observation('construct', 2e9, {operation: 'hover-10'}),
@@ -79,11 +87,15 @@ describe('through-update process memory', () => {
 			reads => reads.filter(read => read.phase !== 'live'),
 			reads => [...reads, observation('live', 999)],
 			reads => [...reads, observation('prepared', 999)],
+			reads => [...reads, observation('baseline', 999)],
+			reads => [reads.at(-1), ...reads.slice(0, -1)],
 			reads => [observation('cleanup', 999), ...reads],
 			reads => [observation('construct', 999, {operation: 'resize'}), ...reads],
+			reads => [observation('prepare', 999, {operation: 'hover-10'}), ...reads],
 		]) {
 			const raw = report();
 			raw.samples[0].observations = change(raw.samples[0].observations);
+			raw.samples[0].processObservations = raw.samples[0].observations;
 			assert.throws(() => summarizeProcessMemory(raw), /through-update-v1/);
 			assert.throws(() => summarizeAdjustedProcessMemory([raw]), /through-update-v1/);
 		}
@@ -94,41 +106,34 @@ describe('through-update process memory', () => {
 		assert.deepEqual(metric.peak, stats(30));
 	});
 
-	it('rejects mixed memory protocols in either order, including idle and warmup-only controls', () => {
+	it('rejects unversioned reports in either order, including idle and warmup-only controls', () => {
 		for (const reverse of [false, true]) for (const warmup of [false, true]) {
 			const raw = report(), idle = report('idle');
 			delete idle.memoryProtocol;
 			idle.samples[0].warmup = warmup;
-			assert.throws(() => summarizeAdjustedProcessMemory(reverse ? [idle, raw] : [raw, idle]), /different memory protocols/);
+			assert.throws(() => summarizeAdjustedProcessMemory(reverse ? [idle, raw] : [raw, idle]), /Unknown memoryProtocol/);
 		}
 	});
 
-	it('rejects unknown protocols rather than treating them as legacy, even on empty reports', () => {
-		for (const protocol of ['future-v2', 'legacy', null, false, 1]) {
+	it('requires the current protocol even on empty reports', () => {
+		for (const protocol of [undefined, 'unknown', null, false, 1]) {
 			const raw = {...report(), memoryProtocol: protocol};
 			assert.throws(() => summarizeProcessMemory(raw), /Unknown memoryProtocol/);
 			assert.throws(() => summarizeAdjustedProcessMemory([raw]), /Unknown memoryProtocol/);
 			assert.throws(() => summarizeAdjustedProcessMemory([{...raw, samples: []}]), /Unknown memoryProtocol/);
+			assert.throws(() => summarizeProcessMemory({...raw, samples: []}), /Unknown memoryProtocol/);
 		}
 	});
 
-	it('preserves legacy peaks after live and legacy missing-cleanup diagnostics', () => {
-		const raw = report();
-		delete raw.memoryProtocol;
-		assert.equal(summarizeProcessMemory(raw).groups[0].missingCheckpointCount, 1);
-		raw.samples[0].observations.push(observation('construct', 999), observation('cleanup', 1000));
-		const group = summarizeProcessMemory(raw).groups[0];
-		assert.equal(group.missingCheckpointCount, 0);
-		assert.deepEqual(group.scopes.renderer.pssMB.peak, stats(1000));
-	});
 });
 
 describe('baseline-adjusted process memory', () => {
 	const browser = (variant = 'uplot', dpr = 1, blank = 20, values = [[50, 70]]) => ({
+		memoryProtocol: 'through-update-v1',
 		blank: observation('blank', blank),
 		loaded: observation('loaded', 9999),
-		samples: values.map(([live, peak, baseline = 0], round) => sample(round, {
-			variant, dpr, observations: [observation('baseline', baseline), observation('construct', peak), observation('live', live)],
+		samples: values.map(([live, peak, baseline = 0], round) => processSample(round, {
+			variant, dpr, processObservations: [observation('baseline', baseline), observation('construct', peak), observation('live', live)],
 		})),
 	});
 	const idle = () => browser('idle', 1, 10, [[15, 1000], [19, 3000], [17, 2000]]);
@@ -138,8 +143,8 @@ describe('baseline-adjusted process memory', () => {
 		const library = browser('uplot', 1, 20, [[50, 70, 40], [100, 120, 90], [25, 40, 30]]);
 		const control = idle();
 		// Cached summaries deliberately disagree with the raw observations.
-		library.processAnalysis = summarizeProcessMemory(browser('uplot', 1, 900, [[9000, 9999]]));
-		control.processAnalysis = summarizeProcessMemory(browser('idle', 1, 800, [[8000, 9999]]));
+		library.processAnalysis = summarizeCaptured(browser('uplot', 1, 900, [[9000, 9999]]));
+		control.processAnalysis = summarizeCaptured(browser('idle', 1, 800, [[8000, 9999]]));
 		const result = summarizeAdjustedProcessMemory([library, control]);
 		assert.deepEqual(Object.keys(result), ['groups', 'controls', 'definitions']);
 		assert.equal(result.groups.length, 1);
@@ -176,10 +181,10 @@ describe('baseline-adjusted process memory', () => {
 		const library = browser('uplot', 1, 20, [[70, 90, 5], [40, 130, 7], [100, 120, 9]]);
 		const control = browser('idle', 1, 10, [[19, 80], [13, 900], [42, 60]]);
 		for (const report of [library, control]) {
-			report.samples.unshift(sample(-1, {variant: report.samples[0].variant, warmup: true, observations: [observation('live', 0)]}));
-			report.samples.push(sample(3, {variant: report.samples[0].variant, observations: [observation('live', 0, {processMemory: {complete: false}})]}));
+			report.samples.unshift(processSample(-1, {variant: report.samples[0].variant, warmup: true, processObservations: [observation('live', 0)]}));
+			report.samples.push(processSample(3, {variant: report.samples[0].variant, processObservations: [observation('live', 0, {processMemory: {complete: false}})]}));
 		}
-		const raw = summarizeProcessMemory(library).groups[0];
+		const raw = summarizeCaptured(library).groups[0];
 		const result = summarizeAdjustedProcessMemory([library, control]);
 		for (const scope of SCOPES) {
 			const factor = scope === 'tree' ? 2 : 1;
@@ -196,19 +201,23 @@ describe('baseline-adjusted process memory', () => {
 		}
 	});
 
-	it('uses actual processObservations ahead of synthetic observations without changing the raw API', () => {
+	it('uses only processObservations for adjusted reports while preserving the raw observations API', () => {
 		const library = browser();
-		library.samples[0].processObservations = library.samples[0].observations;
 		library.samples[0].observations = [observation('live', 9999)];
 		const control = idle();
-		for (const sample of control.samples) {
-			sample.processObservations = sample.observations;
-			delete sample.observations;
-		}
 		assert.deepEqual(metricOf(summarizeAdjustedProcessMemory([library, control])).live, stats(25));
 		assert.deepEqual(summarizeProcessMemory(library).groups[0].scopes.renderer.pssMB.live, stats(9999));
-		library.samples[0].processObservations = [];
-		assert.deepEqual(metricOf(summarizeAdjustedProcessMemory([library, control])).live, absent(1));
+		for (const observations of [null, {}, 'ignored']) {
+			library.samples[0].observations = observations;
+			assert.deepEqual(metricOf(summarizeAdjustedProcessMemory([library, control])).live, stats(25));
+		}
+		library.samples[0].observations = [observation('live', 9999)];
+		for (const processObservations of [[], undefined]) {
+			library.samples[0].processObservations = processObservations;
+			assert.throws(() => summarizeAdjustedProcessMemory([library, control]), /exactly one live checkpoint/);
+		}
+		delete library.samples[0].processObservations;
+		assert.throws(() => summarizeAdjustedProcessMemory([library, control]), /exactly one live checkpoint/);
 	});
 
 	it('matches controls by DPR independently of report order and never reuses a previous control', () => {
@@ -231,7 +240,7 @@ describe('baseline-adjusted process memory', () => {
 		const library = browser();
 		const control = idle();
 		for (const report of [library, control])
-			report.samples.unshift({...report.samples[0], warmup: true, observations: [observation('live', 0)]});
+			report.samples.unshift({...report.samples[0], warmup: true, processObservations: [observation('live', 0)]});
 		const result = summarizeAdjustedProcessMemory([library, control]);
 		assert.deepEqual(metricOf(result).live, stats(25));
 		assert.equal(result.groups[0].sampleCount, 1);
@@ -287,8 +296,12 @@ describe('baseline-adjusted process memory', () => {
 			[observation('live', 12), observation('live', 14)],
 			[observation('live', 12, {processMemory: {complete: false}})]]) {
 			const control = browser('idle', 1, 10);
-			control.processAnalysis = summarizeProcessMemory(control);
-			control.samples[0].observations = [observation('construct', 1000), ...reads];
+			control.processAnalysis = summarizeCaptured(control);
+			control.samples[0].processObservations = [observation('construct', 1000), ...reads];
+			if (reads.filter(read => read?.phase === 'live').length !== 1) {
+				assert.throws(() => summarizeAdjustedProcessMemory([browser(), control]), /exactly one live checkpoint/);
+				continue;
+			}
 			const result = summarizeAdjustedProcessMemory([browser(), control]);
 			assert.deepEqual(metricOf(result).live, absent(1));
 			assert.deepEqual(metricOf(result).peak, absent(1));
@@ -296,7 +309,7 @@ describe('baseline-adjusted process memory', () => {
 			assert.deepEqual(result.controls[0].scopes.renderer.pssMB.liveAboveBlank, absent(1));
 		}
 		const control = idle();
-		control.samples[1].observations = [observation('construct', 10000)];
+		control.samples[1].processObservations = [observation('construct', 10000), unavailableLive()];
 		const result = summarizeAdjustedProcessMemory([browser(), control]);
 		assert.equal(result.controls[0].validLiveCount, 2);
 		assert.deepEqual(result.controls[0].scopes.renderer.pssMB.liveAboveBlank, stats(5, 7, 2, 1));
@@ -305,8 +318,8 @@ describe('baseline-adjusted process memory', () => {
 
 	it('derives independent per-sample live and peak populations before aggregation', () => {
 		const library = browser('uplot', 1, 20, [[50, 70], [100, 120], [25, 40], [0, 0]]);
-		library.samples[1].observations.push(observation('live', 999));
-		library.samples[3].observations = [null, observation('unknown', 9999)];
+		library.samples[1].processObservations = [observation('construct', 999), unavailableLive()];
+		library.samples[3].processObservations = [null, observation('unknown', 9999), unavailableLive()];
 		const result = summarizeAdjustedProcessMemory([library, idle()]);
 		assert.equal(result.groups[0].sampleCount, 4);
 		assert.deepEqual(metricOf(result).live, stats(0, 25, 2, 2));
@@ -315,9 +328,9 @@ describe('baseline-adjusted process memory', () => {
 
 	it('keeps invalid library live values missing while retaining independently valid peaks', () => {
 		const library = browser('uplot', 1, 20, [[50, 70], [100, 120], [25, 40]]);
-		library.samples[0].observations[2].processMemory.tree.swapMB = NaN;
-		library.samples[1].observations = undefined;
-		library.samples[2].observations = [observation('baseline', 60)];
+		library.samples[0].processObservations[2].processMemory.tree.swapMB = NaN;
+		library.samples[1].processObservations = [unavailableLive()];
+		library.samples[2].processObservations = [observation('baseline', 60), unavailableLive()];
 		const result = summarizeAdjustedProcessMemory([library, idle()]);
 		assert.deepEqual(metricOf(result).live, absent(3));
 		assert.deepEqual(metricOf(result).peak, stats(35, 45, 2, 1));
@@ -339,7 +352,7 @@ describe('baseline-adjusted process memory', () => {
 	it('keeps scope and metric offsets independent and does not add JS memory', () => {
 		const reports = [browser(), idle()];
 		for (const report of reports) {
-			for (const read of [report.blank, ...report.samples.flatMap(sample => sample.observations)]) {
+			for (const read of [report.blank, ...report.samples.flatMap(sample => sample.processObservations)]) {
 				read.usedSize = 1e12;
 				read.backingStorageSize = 1e12;
 				for (const scope of SCOPES)
@@ -368,7 +381,7 @@ describe('baseline-adjusted process memory', () => {
 		for (const extra of [{variant: 'idle'}, {dpr: 2}]) {
 			for (const warmup of [false, true]) {
 				const report = browser();
-				report.samples.push(sample(1, {...extra, warmup}));
+				report.samples.push(processSample(1, {...extra, warmup}));
 				assert.throws(() => summarizeAdjustedProcessMemory([report]), /exactly one variant and DPR/);
 			}
 		}
@@ -382,12 +395,10 @@ describe('baseline-adjusted process memory', () => {
 			assert.throws(() => summarizeAdjustedProcessMemory(reports), /reports must be an array/);
 		for (const report of [null, {}, {samples: null}])
 			assert.throws(() => summarizeAdjustedProcessMemory([report]), /report.samples must be an array/);
-		for (const invalid of [null, {}, sample(0, {variant: ''}), sample(0, {dpr: 0}), sample(0, {warmup: 1}), sample(0.5)])
-			assert.throws(() => summarizeAdjustedProcessMemory([{samples: [invalid]}]), /Each sample requires/);
-		for (const field of ['observations', 'processObservations']) {
-			for (const invalid of [null, {}, 'invalid'])
-				assert.throws(() => summarizeAdjustedProcessMemory([{samples: [sample(0, {[field]: invalid})]}]), /must be an array/);
-		}
+		for (const invalid of [null, {}, processSample(0, {variant: ''}), processSample(0, {dpr: 0}), processSample(0, {warmup: 1}), processSample(0.5)])
+			assert.throws(() => summarizeAdjustedProcessMemory([memoryReport([invalid])]), /Each sample requires/);
+		for (const processObservations of [null, {}, 'invalid'])
+			assert.throws(() => summarizeAdjustedProcessMemory([memoryReport([processSample(0, {processObservations})])]), /processObservations must be an array/);
 		for (const reports of [[], [browser('idle', 1, 10, [])]]) {
 			const result = summarizeAdjustedProcessMemory(reports);
 			assert.deepEqual(result.groups, []);
@@ -398,14 +409,14 @@ describe('baseline-adjusted process memory', () => {
 	it('leaves frozen raw reports and raw summaries unchanged and returns JSON-safe independent results', () => {
 		const reports = freezeDeep([browser(), idle()]);
 		const original = structuredClone(reports);
-		const raw = reports.map(summarizeProcessMemory);
+		const raw = reports.map(summarizeCaptured);
 		const result = summarizeAdjustedProcessMemory(reports);
 		assert.deepEqual(JSON.parse(JSON.stringify(result)), result);
 		result.groups[0].scopes.renderer.pssMB.live.min = 999;
 		result.groups[0].scopes.renderer.pssMB.baselines.blank = 999;
 		result.controls[0].scopes.renderer.pssMB.liveAboveBlank.min = 999;
 		assert.deepEqual(reports, original);
-		assert.deepEqual(reports.map(summarizeProcessMemory), raw);
+		assert.deepEqual(reports.map(summarizeCaptured), raw);
 		assert.deepEqual(metricOf(summarizeAdjustedProcessMemory(reports)).live, stats(25));
 	});
 
@@ -422,7 +433,6 @@ describe('baseline-adjusted process memory', () => {
 				assert.match(definitions.baselines, /minimum measured live-minus-blank/);
 				assert.match(definitions.aggregation, /min, max, count, and missing.*minimum represents the best measured case/);
 				assert.match(definitions.peak, /minimum of these per-sample maxima, not the minimum observation/);
-				assert.doesNotMatch(JSON.stringify(definitions), /median/);
 	});
 });
 
@@ -432,8 +442,8 @@ describe('process memory summary calculations', () => {
 		assert.equal(group.sampleCount, 1);
 		assert.equal(group.warmupCount, 0);
 		assert.deepEqual(Object.keys(group.scopes), SCOPES);
-		const expected = {baseline: 10, prepared: 6, live: 8, cleanup: 5, peak: 30,
-			peakDelta: 20, dataDelta: -4, chartDelta: 2, retainedDelta: -2, cleanupDelta: -5};
+		const expected = {baseline: 10, prepared: 6, live: 8, peak: 30,
+			peakDelta: 20, dataDelta: -4, chartDelta: 2, retainedDelta: -2};
 		for (const scope of SCOPES) {
 			assert.deepEqual(Object.keys(group.scopes[scope]), METRICS);
 			for (const metric of METRICS) {
@@ -445,8 +455,8 @@ describe('process memory summary calculations', () => {
 	});
 
 	it('aggregates paired per-sample deltas rather than subtracting checkpoint minima', () => {
-		const samples = [[0, 100, 200, 0], [100, 101, 50, 90], [101, 0, 0, 1]].map((values, round) => sample(round, {
-			observations: ['baseline', 'prepared', 'live', 'cleanup'].map((phase, i) => observation(phase, values[i])),
+		const samples = [[0, 100, 200], [100, 101, 50], [101, 0, 0]].map((values, round) => sample(round, {
+			observations: ['baseline', 'prepared', 'live'].map((phase, i) => observation(phase, values[i])),
 		}));
 		const result = summarize(samples).groups[0].scopes.renderer.pssMB;
 		assert.deepEqual(result.baseline, stats(0, 101, 3));
@@ -454,16 +464,15 @@ describe('process memory summary calculations', () => {
 		assert.deepEqual(result.dataDelta, stats(-101, 100, 3));
 		assert.deepEqual(result.chartDelta, stats(-51, 100, 3));
 		assert.deepEqual(result.retainedDelta, stats(-101, 200, 3));
-		assert.deepEqual(result.cleanupDelta, stats(-100, 0, 3));
 		assert.deepEqual(result.peak, stats(101, 200, 3));
 		assert.deepEqual(result.peakDelta, stats(0, 200, 3));
 	});
 
 	it('reports minima for even populations and per-sample missing counts', () => {
 		const result = summarize([
-			sample(0, {observations: [observation('baseline', 2)]}),
-			sample(1, {observations: [observation('baseline', 10)]}),
-			sample(2, {observations: []}),
+			sample(0, {observations: [observation('baseline', 2), unavailableLive()]}),
+			sample(1, {observations: [observation('baseline', 10), unavailableLive()]}),
+			sample(2, {observations: [unavailableLive()]}),
 		]).groups[0].scopes.renderer.pssMB;
 		assert.deepEqual(result.baseline, stats(2, 10, 2, 1));
 		assert.deepEqual(result.peak, stats(2, 10, 2, 1));
@@ -473,8 +482,8 @@ describe('process memory summary calculations', () => {
 
 	it('does not combine observations from different samples into a delta', () => {
 		const result = summarize([
-			sample(0, {observations: [observation('baseline', 10)]}),
-			sample(1, {observations: [observation('prepared', 20)]}),
+			sample(0, {observations: [observation('baseline', 10), unavailableLive()]}),
+			sample(1, {observations: [observation('prepared', 20), unavailableLive()]}),
 		]).groups[0].scopes.renderer.pssMB;
 		assert.deepEqual(result.baseline, stats(10, 10, 1, 1));
 		assert.deepEqual(result.prepared, stats(20, 20, 1, 1));
@@ -482,7 +491,7 @@ describe('process memory summary calculations', () => {
 	});
 
 	it('preserves decimal MB, real zero values, and negative deltas without adding JS memory', () => {
-		const reads = ['baseline', 'prepared', 'live', 'cleanup'].map((phase, i) => observation(phase, [1.024, 0, 0, 0][i], {
+		const reads = ['baseline', 'prepared', 'live'].map((phase, i) => observation(phase, [1.024, 0, 0][i], {
 			usedSize: 1e12, backingStorageSize: 1e12,
 		}));
 		const result = pssOf(reads);
@@ -490,15 +499,15 @@ describe('process memory summary calculations', () => {
 		assert.deepEqual(result.prepared, stats(0));
 		assert.deepEqual(result.peakDelta, stats(0));
 		assert.deepEqual(result.chartDelta, stats(0));
-		for (const key of ['dataDelta', 'retainedDelta', 'cleanupDelta'])
+		for (const key of ['dataDelta', 'retainedDelta'])
 			assert.deepEqual(result[key], stats(-1.024));
-		const zeros = pssOf([observation('baseline', 0)]);
+		const zeros = pssOf([observation('baseline', 0), unavailableLive()]);
 		assert.deepEqual(zeros.peak, stats(0));
 		assert.deepEqual(zeros.retainedDelta, absent(1));
 	});
 
 	it('finds each metric peak independently and never sums component maxima or overlapping scopes', () => {
-		const reads = [observation('prepare', 1), observation('construct', 1)];
+		const reads = [observation('prepare', 1), observation('construct', 1), unavailableLive()];
 		for (const [i, metric] of METRICS.entries()) {
 			reads[i % 2].processMemory.renderer[metric] = i + 10;
 			reads[(i + 1) % 2].processMemory.tree[metric] = i + 100;
@@ -511,15 +520,18 @@ describe('process memory summary calculations', () => {
 	});
 
 	it('includes every lifecycle phase and all endpoint kinds in the sampled peak', () => {
-		for (const phase of ['baseline', 'prepare', 'prepared', 'construct', 'live', 'cleanup']) {
-			for (const kind of ['start', 'end', 'poll', 'gc'])
-				assert.deepEqual(pssOf([observation(phase, 99, {kind})]).peak, stats(99), `${phase}/${kind}`);
+		for (const phase of ['baseline', 'prepare', 'prepared', 'construct', 'live']) {
+			for (const kind of ['start', 'end', 'poll', 'gc']) {
+				const reads = [observation(phase, 99, {kind})];
+				if (phase !== 'live') reads.push(unavailableLive());
+				assert.deepEqual(pssOf(reads).peak, stats(99), `${phase}/${kind}`);
+			}
 		}
 	});
 
 	it('preserves extreme finite minima and subnormal values', () => {
 		const huge = Number.MAX_VALUE;
-		const reads = value => ['baseline', 'prepared', 'live', 'cleanup'].map(phase => {
+		const reads = value => ['baseline', 'prepared', 'live'].map(phase => {
 			const read = observation(phase, value);
 			read.processMemory.tree = tuple(value);
 			return read;
@@ -528,8 +540,8 @@ describe('process memory summary calculations', () => {
 		assert.deepEqual(result.groups[0].scopes.renderer.pssMB.baseline, stats(huge, huge, 2));
 		result = summarize([sample(0, {observations: reads(Number.MIN_VALUE)}), sample(1, {observations: reads(Number.MIN_VALUE)})]);
 		assert.deepEqual(result.groups[0].scopes.renderer.pssMB.baseline, stats(Number.MIN_VALUE, Number.MIN_VALUE, 2));
-		const positive = [reads(0)[0], reads(huge)[1]];
-		const negative = [reads(huge)[0], reads(0)[1]];
+		const positive = [reads(0)[0], reads(huge)[1], unavailableLive()];
+		const negative = [reads(huge)[0], reads(0)[1], unavailableLive()];
 		result = summarize([sample(0, {observations: positive}), sample(1, {observations: negative})]);
 		assert.deepEqual(result.groups[0].scopes.renderer.pssMB.dataDelta, stats(-huge, huge, 2));
 	});
@@ -541,13 +553,13 @@ describe('process memory summary validity and grouping', () => {
 		reads[0].processMemory.complete = false;
 		reads[3].processMemory.complete = false;
 		const group = groupOf(reads);
-		assert.equal(group.observationCount, 6);
-		assert.equal(group.validObservationCount, 4);
+		assert.equal(group.observationCount, 5);
+		assert.equal(group.validObservationCount, 3);
 		assert.equal(group.invalidObservationCount, 2);
 		assert.equal(group.pollCount, 2);
 		assert.deepEqual(group.scopes.renderer.pssMB.peak, stats(20));
 		assert.deepEqual(group.scopes.renderer.pssMB.baseline, absent(1));
-		for (const key of ['peakDelta', 'dataDelta', 'retainedDelta', 'cleanupDelta'])
+		for (const key of ['peakDelta', 'dataDelta', 'retainedDelta'])
 			assert.deepEqual(group.scopes.renderer.pssMB[key], absent(1));
 		assert.deepEqual(group.scopes.renderer.pssMB.chartDelta, stats(2));
 	});
@@ -557,7 +569,7 @@ describe('process memory summary validity and grouping', () => {
 		for (const complete of [undefined, null, false, 0, 1, 'true'])
 			invalid.push({...observation('baseline').processMemory, complete});
 		for (const processMemory of invalid) {
-			const group = groupOf([observation('baseline', 1, {processMemory})]);
+			const group = groupOf([observation('live', 1, {processMemory})]);
 			assert.equal(group.invalidObservationCount, 1);
 			for (const scope of SCOPES) {
 				for (const metric of METRICS) {
@@ -572,11 +584,11 @@ describe('process memory summary validity and grouping', () => {
 		for (const scope of SCOPES) {
 			for (const metric of METRICS) {
 				for (const value of [undefined, null, NaN, Infinity, -Infinity, -1, '0', false]) {
-					const read = observation('baseline');
+					const read = observation('live');
 					read.processMemory[scope][metric] = value;
 					const group = groupOf([read]);
 					assert.equal(group.invalidObservationCount, 1);
-					assert.deepEqual(group.scopes.renderer.rssMB.baseline, absent(1));
+					assert.deepEqual(group.scopes.renderer.rssMB.live, absent(1));
 					assert.deepEqual(group.scopes.tree.pssMB.peak, absent(1));
 				}
 			}
@@ -585,21 +597,24 @@ describe('process memory summary validity and grouping', () => {
 
 	it('keeps missing and invalid checkpoints null without discarding independent deltas', () => {
 		for (const [phase, dependent] of [
-			['baseline', ['peakDelta', 'dataDelta', 'retainedDelta', 'cleanupDelta']],
+			['baseline', ['peakDelta', 'dataDelta', 'retainedDelta']],
 			['prepared', ['dataDelta', 'chartDelta']],
 			['live', ['chartDelta', 'retainedDelta']],
-			['cleanup', ['cleanupDelta']],
 		]) {
 			for (const missing of [true, false]) {
 				const reads = lifecycle().filter(read => !missing || read.phase !== phase);
 				if (!missing)
 					reads.find(read => read.phase === phase).processMemory.complete = false;
+				if (missing && phase === 'live') {
+					assert.throws(() => groupOf(reads), /exactly one live checkpoint/);
+					continue;
+				}
 				const group = groupOf(reads);
 				const result = group.scopes.renderer.pssMB;
 				assert.deepEqual(result[phase], absent(1));
 				for (const key of dependent)
 					assert.deepEqual(result[key], absent(1), `${phase}/${key}`);
-				for (const key of ['peakDelta', 'dataDelta', 'chartDelta', 'retainedDelta', 'cleanupDelta'].filter(key => !dependent.includes(key)))
+				for (const key of ['peakDelta', 'dataDelta', 'chartDelta', 'retainedDelta'].filter(key => !dependent.includes(key)))
 					assert.equal(result[key].count, 1, `${phase}/${key}`);
 				assert.equal(group.missingCheckpointCount, missing ? 1 : 0);
 			}
@@ -611,7 +626,7 @@ describe('process memory summary validity and grouping', () => {
 			const reads = lifecycle();
 			const duplicate = observation('prepared', 99);
 			duplicate.processMemory.complete = complete;
-			reads.push(duplicate);
+			reads.splice(3, 0, duplicate);
 			const group = groupOf(reads);
 			assert.equal(group.ambiguousCheckpointCount, 1);
 			assert.deepEqual(group.scopes.renderer.pssMB.prepared, absent(1));
@@ -623,11 +638,11 @@ describe('process memory summary validity and grouping', () => {
 	});
 
 	it('counts absent processMemory, null observations, and unknown phases as invalid', () => {
-		const group = groupOf([null, {}, observation('blank', 1000), observation('unknown', 2000), observation('prepare', 7)]);
-		assert.equal(group.observationCount, 5);
+		const group = groupOf([null, {}, observation('blank', 1000), observation('unknown', 2000), observation('prepare', 7), observation('live', 0)]);
+		assert.equal(group.observationCount, 6);
 		assert.equal(group.invalidObservationCount, 4);
-		assert.equal(group.validObservationCount, 1);
-		assert.equal(group.missingCheckpointCount, 4);
+		assert.equal(group.validObservationCount, 2);
+		assert.equal(group.missingCheckpointCount, 2);
 		assert.deepEqual(group.scopes.renderer.pssMB.peak, stats(7));
 	});
 
@@ -641,9 +656,9 @@ describe('process memory summary validity and grouping', () => {
 		const [group, idle, dpr2, warmup] = result.groups;
 		assert.equal(group.warmupCount, 1);
 		assert.equal(group.sampleCount, 2);
-		assert.equal(group.observationCount, 12);
+		assert.equal(group.observationCount, 10);
 		assert.equal(group.invalidObservationCount, 0);
-		assert.equal(group.requestedGapMs.count, 10);
+		assert.equal(group.requestedGapMs.count, 8);
 		assert.deepEqual(group.scopes.renderer.pssMB.baseline, stats(10, 10, 2));
 		assert.equal(idle.sampleCount, 1);
 		assert.equal(dpr2.sampleCount, 1);
@@ -664,15 +679,19 @@ describe('process memory summary validity and grouping', () => {
 		assert.equal(group.sampleCount, 1);
 	});
 
-	it('handles empty reports, empty observations, and samples without observations', () => {
+	it('accepts empty reports but rejects measured samples without a live boundary', () => {
 		assert.deepEqual(summarize([]).groups, []);
-		const group = summarize([sample(0, {observations: []}), sample(1, {observations: undefined})]).groups[0];
-		assert.equal(group.sampleCount, 2);
-		assert.equal(group.observationCount, 0);
-		assert.equal(group.invalidObservationCount, 0);
-		assert.equal(group.missingCheckpointCount, 8);
+		for (const observations of [[], undefined])
+			assert.throws(() => summarize([sample(0, {observations})]), /exactly one live checkpoint/);
+		const raw = sample();
+		delete raw.observations;
+		assert.throws(() => summarize([raw]), /exactly one live checkpoint/);
+		const group = summarize([sample(0, {observations: [unavailableLive()]})]).groups[0];
+		assert.equal(group.observationCount, 1);
+		assert.equal(group.invalidObservationCount, 1);
+		assert.equal(group.missingCheckpointCount, 2);
 		for (const value of VALUES)
-			assert.deepEqual(group.scopes.renderer.pssMB[value], absent(2));
+			assert.deepEqual(group.scopes.renderer.pssMB[value], absent(1));
 	});
 
 	it('rejects malformed reports, grouping fields, and observation collections', () => {
@@ -690,7 +709,7 @@ describe('process memory summary validity and grouping', () => {
 describe('process memory request timing', () => {
 	it('uses all consecutive request times, including checkpoints, phase transitions, and incomplete reads', () => {
 		const reads = lifecycle();
-		const times = [0, 10, 30, 100, 105, 150];
+		const times = [0, 10, 30, 100, 105];
 		for (const [i, read] of reads.entries()) {
 			read.processRequestedAtMs = times[i];
 			read.processTimestampMs = 10000 - i;
@@ -699,29 +718,29 @@ describe('process memory request timing', () => {
 		}
 		reads[2].processMemory.complete = false;
 		const group = groupOf(reads);
-		assert.deepEqual(group.requestedGapMs, stats(5, 70, 5));
+		assert.deepEqual(group.requestedGapMs, stats(5, 70, 4));
 		assert.deepEqual(group.maxRequestedGapMs, stats(70));
 		assert.equal(group.pollCount, 2);
 	});
 
 	it('does not bridge missing timestamps, sort reversed times, or coerce invalid times', () => {
 		for (const invalid of [undefined, null, NaN, Infinity, -1, '10', false]) {
-			const reads = [0, invalid, 30, 50].map(processRequestedAtMs => observation('prepare', 7, {processRequestedAtMs}));
+			const reads = [0, invalid, 30, 50].map((processRequestedAtMs, i) => observation(i === 3 ? 'live' : 'prepare', 7, {processRequestedAtMs}));
 			const group = groupOf(reads);
 			assert.deepEqual(group.requestedGapMs, stats(20, 20, 1, 2));
 			assert.deepEqual(group.maxRequestedGapMs, stats(20));
 			assert.equal(group.invalidObservationCount, 0, 'missing timing does not invalidate memory');
 		}
-		const group = groupOf([20, 10, 10].map(processRequestedAtMs => observation('prepare', 7, {processRequestedAtMs})));
+		const group = groupOf([20, 10, 10].map((processRequestedAtMs, i) => observation(i === 2 ? 'live' : 'prepare', 7, {processRequestedAtMs})));
 		assert.deepEqual(group.requestedGapMs, stats(0, 0, 1, 1));
 	});
 
 	it('does not cross sample boundaries and distinguishes pooled gaps from sample maxima', () => {
 		const result = summarize([
-			sample(0, {observations: [0, 10, 30].map(processRequestedAtMs => observation('prepare', 1, {processRequestedAtMs}))}),
-			sample(1, {observations: [1000, 1040].map(processRequestedAtMs => observation('construct', 1, {processRequestedAtMs}))}),
-			sample(2, {observations: [observation('baseline', 1, {processRequestedAtMs: 2000})]}),
-			sample(3, {observations: []}),
+			sample(0, {observations: [0, 10, 30].map((processRequestedAtMs, i) => observation(i === 2 ? 'live' : 'prepare', 1, {processRequestedAtMs}))}),
+			sample(1, {observations: [1000, 1040].map((processRequestedAtMs, i) => observation(i === 1 ? 'live' : 'construct', 1, {processRequestedAtMs}))}),
+			sample(2, {observations: [observation('live', 1, {processRequestedAtMs: 2000})]}),
+			sample(3, {observations: [unavailableLive()]}),
 		]).groups[0];
 		assert.deepEqual(result.requestedGapMs, stats(10, 40, 3));
 		assert.deepEqual(result.maxRequestedGapMs, stats(20, 40, 2, 2));
@@ -736,7 +755,7 @@ describe('process memory request timing', () => {
 
 describe('process memory fixture checkpoints and definitions', () => {
 	it('reports separate blank, loaded, and signed fixture overhead scalars for all metrics and scopes', () => {
-		const result = summarizeProcessMemory({samples: [sample()], blank: observation('blank', 1000), loaded: observation('loaded', 900)});
+		const result = summarizeProcessMemory(memoryReport([sample()], {blank: observation('blank', 1000), loaded: observation('loaded', 900)}));
 		assert.equal(result.fixture.observationCount, 2);
 		assert.equal(result.fixture.validObservationCount, 2);
 		assert.equal(result.fixture.invalidObservationCount, 0);
@@ -747,7 +766,7 @@ describe('process memory fixture checkpoints and definitions', () => {
 		}
 		assert.deepEqual(result.groups[0].scopes.renderer.pssMB.peak, stats(30));
 		assert.deepEqual(result.groups[0].scopes.renderer.pssMB.baseline, stats(10));
-		assert.equal(result.groups[0].observationCount, 6);
+		assert.equal(result.groups[0].observationCount, 5);
 	});
 
 	it('keeps absent fixture checkpoints and unpaired deltas null', () => {
@@ -756,7 +775,7 @@ describe('process memory fixture checkpoints and definitions', () => {
 		assert.equal(none.observationCount, 0);
 		assert.equal(none.invalidObservationCount, 0);
 		for (const phase of ['blank', 'loaded']) {
-			const fixture = summarizeProcessMemory({samples: [], [phase]: observation(phase, 10)}).fixture;
+			const fixture = summarizeProcessMemory(memoryReport([], {[phase]: observation(phase, 10)})).fixture;
 			assert.deepEqual(fixture.scopes.renderer.pssMB, {blank: null, loaded: null, loadedDelta: null, [phase]: 10});
 			assert.equal(fixture.observationCount, 1);
 			assert.equal(fixture.validObservationCount, 1);
@@ -766,16 +785,16 @@ describe('process memory fixture checkpoints and definitions', () => {
 
 	it('rejects incomplete and malformed fixture metrics but accepts genuine zero overhead', () => {
 		for (const invalid of [null, {}, observation('blank', 1, {processMemory: {complete: false, renderer: tuple(1), tree: tuple(2)}})]) {
-			const fixture = summarizeProcessMemory({samples: [], blank: invalid, loaded: observation('loaded', 2)}).fixture;
+			const fixture = summarizeProcessMemory(memoryReport([], {blank: invalid, loaded: observation('loaded', 2)})).fixture;
 			assert.equal(fixture.invalidObservationCount, 1);
 			assert.equal(fixture.observationCount, 2);
 			assert.deepEqual(fixture.scopes.renderer.pssMB, {blank: null, loaded: 2, loadedDelta: null});
 		}
 		const invalid = observation('loaded', 2);
 		invalid.processMemory.tree.swapPssMB = null;
-		const fixture = summarizeProcessMemory({samples: [], blank: observation('blank', 1), loaded: invalid}).fixture;
+		const fixture = summarizeProcessMemory(memoryReport([], {blank: observation('blank', 1), loaded: invalid})).fixture;
 		assert.deepEqual(fixture.scopes.renderer.pssMB, {blank: 1, loaded: null, loadedDelta: null});
-		const zero = summarizeProcessMemory({samples: [], blank: observation('blank', 0), loaded: observation('loaded', 0)}).fixture;
+		const zero = summarizeProcessMemory(memoryReport([], {blank: observation('blank', 0), loaded: observation('loaded', 0)})).fixture;
 		assert.deepEqual(zero.scopes.renderer.pssMB, {blank: 0, loaded: 0, loadedDelta: 0});
 	});
 
@@ -794,11 +813,10 @@ describe('process memory fixture checkpoints and definitions', () => {
 		assert.match(definitions.checkpoints, /null, not zero/);
 				assert.match(definitions.aggregation, /min, max, count, and missing.*minimum represents the best measured case/);
 				assert.match(definitions.peak, /minimum of these per-sample maxima, not the minimum observation/);
-				assert.doesNotMatch(JSON.stringify(definitions), /median/);
 	});
 
 	it('does not mutate frozen input and returns JSON-safe nulls rather than non-finite values', () => {
-		const input = freezeDeep({samples: [sample(), sample(1, {observations: [null]})], blank: observation('blank', 1)});
+		const input = freezeDeep(memoryReport([sample(), sample(1, {observations: [null, unavailableLive()]})], {blank: observation('blank', 1)}));
 		const original = structuredClone(input);
 		const result = summarizeProcessMemory(input);
 		assert.deepEqual(input, original);

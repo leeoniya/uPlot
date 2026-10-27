@@ -1,19 +1,19 @@
 # ESTree instrumenter
 
-This directory contains the project's default and only source instrumenter.
+This directory contains the source instrumenter.
 It uses Meriyah for parsing, Astring for code generation, and the Jridgewell source-map libraries.
-It does not load Babel or the upstream instrumenter.
+
 
 ## Provenance
 
 This code derives from the `istanbul-lib-instrument@6.0.3` npm package.
 Upstream repository: <https://github.com/istanbuljs/istanbuljs/tree/master/packages/istanbul-lib-instrument>.
-The upstream package is no longer a project dependency or a lockfile entry.
+
 The upstream BSD-3-Clause license remains in `LICENSE`.
 
 - `source-coverage.cjs` is an unchanged copy of upstream `src/source-coverage.js`, with a `.cjs` extension.
 - `index.mjs` adapts the rules from `visitor.js`, `instrumenter.js`, `read-coverage.js`, and `constants.js` to ESTree.
-- `backend.mjs` implements parsing and code generation without a Babel API compatibility layer.
+- `backend.mjs` implements parsing and code generation.
 
 The instrumenter retains the Istanbul coverage schema, helper naming, metadata hashes, counter allocation, and anonymous-function naming.
 It uses `istanbul-lib-coverage` for coverage data.
@@ -36,7 +36,7 @@ Cache entries depend on the filename, source contents, and instrumentation confi
 
 This instrumenter supports the project's JavaScript coverage requirements, not the complete upstream package API.
 It exposes `createInstrumenter()`, `instrumentSync()`, `instrument()`, `lastFileCoverage()`, and `lastSourceMap()`.
-It does not expose the Babel-specific `programVisitor()` API.
+
 
 Supported behavior includes functions, classes, defaults, branches, loops, ignore directives, custom coverage globals, repeat instrumentation, and generated source maps.
 The instrumenter can compose an explicit input source map with the generated map.
@@ -49,7 +49,7 @@ The following configuration values cause explicit errors:
 
 The instrumenter does not support TypeScript, JSX, or Babel plugin transforms.
 Comments supply ignore directives, but the generator does not retain ordinary comments.
-`compact: true` removes indentation but keeps line breaks. Generated formatting is not byte-compatible with Babel.
+`compact: true` removes indentation but keeps line breaks.
 The instrumenter does not automatically load an input map from a source-map comment.
 Callers must supply `inputSourceMap` explicitly.
 

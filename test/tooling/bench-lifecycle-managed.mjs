@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {smallLifecycleData} from '../../bench/lifecycle-data.mjs';
 
 const ids = ['apexcharts', 'apexcharts-sampled', 'amcharts', 'amcharts-sampled', 'anychart', 'anychart-sampled',
 	'devextreme', 'devextreme-sampled', 'fusiontime', 'fusiontime-sampled', 'agcharts', 'syncfusion'];
@@ -169,12 +170,13 @@ describe('bench-lifecycle-managed: native API contracts', () => {
 	async function finish(state, promise) { state.complete(); return promise; }
 
 	for (const [id, adapter] of Object.entries(adapters)) {
-		it(`${id}: creates a genuinely empty chart, replaces all prepared rows twice, and keeps the handle`, async () => {
+		it(`${id}: creates a two-row chart, replaces all prepared rows twice, and keeps the handle`, async () => {
 			const state = vendor(id);
-			const wait = {textContent: 'Empty...'};
-			const handle = await finish(state, adapter.makeEmptyChart({}, wait));
+			const wait = {textContent: 'Rendering...'};
+			const small = freeze(adapter.prepData(smallLifecycleData(packed)));
+			const handle = await finish(state, adapter.makeChart(small, {}, wait));
 			assert.equal(wait.textContent, 'Done!');
-			assert.deepEqual(state.data(), id.startsWith('apexcharts') ? [[], [], []] : []);
+			assert.deepEqual(state.data(), small);
 			assert.equal(state.constructed, 1);
 			const store = handle.store, table = handle.table;
 			for (let revision = 0; revision < 2; revision++) {
@@ -222,7 +224,7 @@ describe('bench-lifecycle-managed: native API contracts', () => {
 
 		it(`${id}: rejects native update errors, removes listeners, and leaves teardown to the caller`, async () => {
 			const state = vendor(id);
-			const handle = await finish(state, adapter.makeEmptyChart({}));
+			const handle = await finish(state, adapter.makeChart(adapter.prepData(smallLifecycleData(packed)), {}, {textContent: ''}));
 			state.error = new Error('native replacement failed');
 			const wait = {textContent: 'Updating...'};
 			await assert.rejects(async () => adapter.updateChart(handle, adapter.prepData(packed), {}, wait), error => error === state.error);
@@ -235,7 +237,7 @@ describe('bench-lifecycle-managed: native API contracts', () => {
 
 		if (!id.startsWith('amcharts')) it(`${id}: observes synchronous native update completion`, async () => {
 			const state = vendor(id);
-			const handle = await finish(state, adapter.makeEmptyChart({}));
+			const handle = await finish(state, adapter.makeChart(adapter.prepData(smallLifecycleData(packed)), {}, {textContent: ''}));
 			state.sync = true;
 			assert.equal(await adapter.updateChart(handle, adapter.prepData(packed), {}), undefined);
 			assert.equal(state.listenerCount(), 0);
@@ -243,16 +245,24 @@ describe('bench-lifecycle-managed: native API contracts', () => {
 		});
 	}
 
-	it('DevExtreme resolves native empty drawn, not a missing series done event', async () => {
-		const state = vendor('devextreme');
-		const pending = adapters.devextreme.makeEmptyChart({});
+	it('DevExtreme waits for populated series completion, not just axes drawing', async () => {
+		const state = vendor('devextreme'), adapter = adapters.devextreme;
+		const wait = {textContent: 'Rendering...'};
+		let settled = false;
+		const pending = adapter.makeChart(adapter.prepData(smallLifecycleData(packed)), {}, wait)
+			.then(chart => { settled = true; return chart; });
 		state.options.onDrawn();
-		adapters.devextreme.destroyChart(await pending);
+		await turn();
+		assert.equal(settled, false);
+		assert.equal(wait.textContent, 'Rendering...');
+		state.options.onDone();
+		adapter.destroyChart(await pending);
+		assert.equal(wait.textContent, 'Done!');
 	});
 
 	it('DevExtreme update rejects E incidents but leaves W evaluation notices alone', async () => {
 		const state = vendor('devextreme');
-		const handle = await finish(state, adapters.devextreme.makeEmptyChart({}));
+		const handle = await finish(state, adapters.devextreme.makeChart(adapters.devextreme.prepData(smallLifecycleData(packed)), {}, {textContent: ''}));
 		const pending = adapters.devextreme.updateChart(handle, adapters.devextreme.prepData(packed), {});
 		const incident = [...state.listeners.get('incidentOccurred')][0];
 		incident({target: {id: 'W0019', text: 'Evaluation'}});

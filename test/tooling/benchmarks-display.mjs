@@ -64,7 +64,7 @@ describe('benchmark display colors', () => {
 	const rgbs = ['34;197;94', '163;230;53', '217;249;157', '253;186;116', '251;146;60',
 		'249;115;22', '248;113;113', '239;68;68', '220;38;38', '185;28;28'];
 	const palette = [41, 154, 193, 216, 209, 202, 210, 203, 160, 124];
-	const totals = values => values.map(value => ({variant: 'custom', 'total ms': value}));
+	const updateRows = values => values.map(value => ({variant: 'custom', 'main ms': 0, 'update ms': value}));
 	const coloredValues = text => [...text.matchAll(/\x1b\[(38;[25];[\d;]+)m([^\x1b]*)\x1b\[39m/g)].map(match => match.slice(1));
 
 	it('distinguishes low, middle, and upper green timings in both terminal palettes', () => {
@@ -84,7 +84,7 @@ describe('benchmark display colors', () => {
 			[limit - 0.0001, band], [limit, band], [limit + 0.0001, band + 1],
 		]), [1e12, 9]];
 		for (const colorDepth of [8, 24]) {
-			const rows = totals(cases.map(([value]) => value));
+			const rows = updateRows(cases.map(([value]) => value));
 			const text = formatBenchmarkDisplay({rows}, {colorDepth});
 			assert.deepEqual(coloredValues(text), cases.map(([value, band]) =>
 				[colorDepth === 24 ? `38;2;${rgbs[band]}` : `38;5;${palette[band]}`, value.toFixed(1)]));
@@ -139,7 +139,7 @@ describe('benchmark display colors', () => {
 		const rows = values.map(value => ({variant: 'custom', 'init ms': value, 'main ms': 1000, 'gpu ms': 1000, 'update ms': value, 'resize ms': value, 'hover10 ms': value}));
 		for (const colorDepth of [8, 24]) {
 			const text = formatBenchmarkDisplay({rows}, {colorDepth});
-			assert.deepEqual(coloredValues(text), coloredValues(formatBenchmarkDisplay({rows: totals(values)}, {colorDepth})).flatMap(pair => [pair, pair, pair, pair]));
+			assert.deepEqual(coloredValues(text), coloredValues(formatBenchmarkDisplay({rows: updateRows(values)}, {colorDepth})).flatMap(pair => [pair, pair, pair, pair]));
 			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
 			const raf = [{variant: 'custom', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16, 'resize rAF ms': 20, 'hover10 ms': 470}];
 			assert.deepEqual(coloredValues(formatBenchmarkDisplay({rows: raf}, {colorDepth})), []);
@@ -192,19 +192,19 @@ describe('benchmark display colors', () => {
 	});
 
 	it('never normalizes colors to the fastest or slowest row', () => {
-		const rows = totals([5, 45, 175, 750, 1000]);
+		const rows = updateRows([5, 45, 175, 750, 1000]);
 		const original = structuredClone(rows);
 		for (const colorDepth of [8, 24]) {
 			const base = coloredValues(formatBenchmarkDisplay({rows}, {colorDepth}));
-			const outlier = coloredValues(formatBenchmarkDisplay({rows: [...totals([0]), ...rows, ...totals([1e15])]}, {colorDepth}));
+			const outlier = coloredValues(formatBenchmarkDisplay({rows: [...updateRows([0]), ...rows, ...updateRows([1e15])]}, {colorDepth}));
 			assert.deepEqual(outlier.slice(1, -1), base);
 		}
 		assert.deepEqual(rows, original);
 	});
 
-	it('colors only finite nonnegative numeric totals and resets foreground before padding or borders', () => {
-		const rows = totals([10, -1, NaN, Infinity, -Infinity, '10', '-', null, undefined, true, '\x1b[41m10\x1b[0m']);
-		rows[0] = {...rows[0], variant: '\x1b[31mcustom\x1b[0m', 'init rAF ms': 1000, 'peak MB ': 1000, 'total ms ': 1000};
+	it('colors only finite nonnegative numeric update work and resets foreground before padding or borders', () => {
+		const rows = updateRows([10, -1, NaN, Infinity, -Infinity, '10', '-', null, undefined, true, '\x1b[41m10\x1b[0m']);
+		rows[0] = {...rows[0], variant: '\x1b[31mcustom\x1b[0m', 'init rAF ms': 1000, 'peak MB ': 1000, 'update ms ': 1000};
 		const frame = {rows, status: '\x1b[32m1000\x1b[0m', warnings: ['\x1b[41m1000\x1b[0m']};
 		const original = structuredClone(frame);
 		const plain = formatBenchmarkDisplay(frame);
@@ -247,8 +247,8 @@ describe('benchmark display colors', () => {
 				const plain = capture({columns, rows: height});
 				const colored = capture({columns, rows: height, getColorDepth: () => 24}, {});
 				const frames = [
-					{rows: totals([16.6, 1000]).map(row => ({...row, context: 'webgpu', 'init ms': 25, 'peak MB': 50, 'retained MB': 30})), status: 'Running\nPlease wait', warnings: ['partial results']},
-					{rows: totals([16.6, 1000, 2000]).map(row => ({...row, context: 'webgpu', 'init ms': 25, 'peak MB': 50, 'retained MB': 30})), status: 'Next'},
+					{rows: updateRows([16.6, 1000]).map(row => ({...row, context: 'webgpu', 'init ms': 25, 'peak MB': 50, 'retained MB': 30})), status: 'Running\nPlease wait', warnings: ['partial results']},
+					{rows: updateRows([16.6, 1000, 2000]).map(row => ({...row, context: 'webgpu', 'init ms': 25, 'peak MB': 50, 'retained MB': 30})), status: 'Next'},
 					{status: 'Done', final: true},
 				];
 				for (const frame of frames) {
@@ -431,17 +431,17 @@ describe('benchmark display', () => {
 		assert.equal(countTerminalLines(text, 17), 6);
 	});
 
-	it('fits the default legacy combined table in 67 columns and counts wrapping below that width', () => {
+	it('fits the update and memory table in 68 columns and counts wrapping below that width', () => {
 		const rows = ['uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs'].map(variant => ({
 			variant, 'prep ms': 4.05, 'init ms': 8.994, 'main ms': 12.011, 'gpu ms': 2.006,
-			'total ms': 15.642, 'peak MB': 25.538, 'retained MB': 18.375,
+			'update ms': 15.642, 'peak MB': 25.538, 'retained MB': 18.375,
 		}));
 		const frame = {rows, status: 'Running'};
 		const text = formatBenchmarkDisplay(frame);
-		assert.equal(text.split('\n')[0].length, 67);
-		assert.equal(countTerminalLines(text, 67), 11);
+		assert.equal(text.split('\n')[0].length, 68);
+		assert.equal(countTerminalLines(text, 68), 11);
 		assert.ok(text.indexOf('peak MB') < text.indexOf('retained MB'));
-		for (const columns of [66, 67, 100]) {
+		for (const columns of [67, 68, 100]) {
 			const {display, writes} = capture({columns, rows: 12});
 			display.update(frame);
 			assert.equal(writes[0], text);

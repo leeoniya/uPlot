@@ -133,11 +133,11 @@ describe('retained framework resize hooks', () => {
 	}));
 
 	for (const [id, adapter] of Object.entries({recharts, muicharts, financialcharts, visx})) {
-		for (const factory of ['makeChart', 'makeLifecycleChart', 'makeEmptyChart']) {
+		for (const factory of ['makeChart', 'makeLifecycleChart']) {
 			it(`${id}/${factory}: retains root, boundary, components, data and keys while changing dimensions`, async () => {
 				const fixture = reactFixture(), wait = {textContent: ''};
-				const chart = factory === 'makeEmptyChart' ? await adapter[factory](fixture.host, wait) : await adapter[factory](data, fixture.host, wait);
-				if (factory === 'makeEmptyChart') await adapter.updateChart(chart, data, fixture.host, wait);
+				const chart = await adapter[factory](data, fixture.host, wait);
+				if (factory === 'makeLifecycleChart') await adapter.updateChart(chart, data, fixture.host, wait);
 				const root = chart.root, instance = chart.instance, counts = fixture.counts();
 				const records = [...fixture.records.values()];
 				const oldPaths = fixture.paths.map(p => p.d);

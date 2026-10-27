@@ -304,7 +304,7 @@ describe('bench-resize-vendors', () => {
 	for (const id of variants) {
 		it(`${id}: resize capability and sampled exports`, () => {
 			assert.ok(benchmarkVariants.includes(id));
-			for (const name of ['makeChart', 'makeEmptyChart', 'updateChart', 'resizeChart', 'destroyChart'])
+			for (const name of ['makeChart', 'updateChart', 'resizeChart', 'destroyChart'])
 				assert.equal(typeof adapters[id][name], 'function', name);
 			if (id.endsWith('-sampled'))
 				assert.equal(adapters[id].resizeChart, adapters[id.replace('-sampled', '')].resizeChart);

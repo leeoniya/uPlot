@@ -13,18 +13,18 @@
 | `npm run test:server` | Only the demo HTTP server | No |
 | `npm run test:update` | Default suite, with snapshot updates | Yes |
 
-Script names are unchanged. Use `bun run test` for the default suite under Bun.
+Use `bun run test` for the default suite under Bun.
 For the other commands, use `bun run` instead of `npm run` to select Bun.
 The default command selects `test/*.mjs` and `test/plugins/*.mjs` explicitly, without recursive discovery.
 Helpers, fixtures, and manual browser tests are not part of test discovery.
 
 The core suite covers native paths, stacking, scales, axes, cursor behavior, legends, and the plugin extension API.
-The plugin suite covers bar-chart, heatmap, and scatter implementations, their helpers, and the older grouped-bars, candlestick, box-whisker, and annotation demos.
+The plugin suite covers bar-chart, heatmap, and scatter implementations, their helpers, and the grouped-bars, candlestick, box-whisker, and annotation demos.
 Plugin tests also exercise core code through normal chart construction.
 
 `npm test` runs the union of the two suites, not two npm subprocesses.
 The runner continues after test failures and reports failures from both suites.
-Node's test runner has no equivalent to Mocha's `--bail`.
+
 The command returns zero when tests and coverage reporting succeed, or nonzero if either fails.
 The shared recorder collects snapshot failures from both suites in one `test/output/index.html` report.
 The recorder finalizes this combined report synchronously at process exit.
@@ -75,11 +75,11 @@ The tables cover:
 The plugin list includes the local dependencies of the three plugins, except Flatbush.
 Other demo modules, controls, data generators, and third-party libraries remain outside coverage instrumentation.
 The `nyc.include` list in `package.json` defines the instrumented files.
-`scripts/coverage-files.mjs` selects files with native filesystem globs and path matching, without `test-exclude`.
+`scripts/coverage-files.mjs` selects files with native filesystem globs and path matching.
 It supports string or array patterns, directory patterns, negated include/exclude patterns, and extension filters.
 It rejects paths outside `cwd` and excludes `node_modules` unless `excludeNodeModules` is false.
 `NYC_CONFIG` can override the selection configuration. Paths remain relative to `cwd`. The selector does not support `relativePath: false`.
-Native glob rules replace minimatch rules. Explicit dotfile paths work, but implicit dotfile matching and advanced globs can differ between runtimes.
+Explicit dotfile paths work, but implicit dotfile matching and advanced globs can differ between runtimes.
 
 Each table has its own totals and uncovered lines.
 Plugin coverage does not change the core percentages.
@@ -175,9 +175,6 @@ npm run test:integration -- --test-name-pattern '^demo migrations'
 `demos/points.html` uses `renderDemo()` and one step that returns all four original charts.
 The snapshots include default points, filled points, points without lines, density limits, and sparse-data filtering.
 
-The four snapshots come from commit `8c0bce3`, before the cursor-marker alignment changes.
-The original inline demo and the extracted demo produce identical recordings with that build.
-The current implementation matches the same snapshots without updates.
 
 Each render creates fresh random-walk state so that seeded recordings do not depend on previous renders.
 `test/demo-extractions.mjs` checks that repeated seeded renders match.
@@ -244,7 +241,8 @@ NODE_OPTIONS='--max-old-space-size=256' node scripts/test.mjs --no-coverage test
 
 ### Native hover performance benchmark
 
-[`scripts/bench-hover.mjs`](../scripts/bench-hover.mjs) compares the pre-alignment commit with the current distribution build in headless Firefox.
+[`scripts/bench-hover.mjs`](../scripts/bench-hover.mjs) compares Git commit `8c0bce3` with the local distribution build in headless Firefox.
+The commit must exist in the local repository. `FIREFOX_BIN` selects the executable, with `firefox` as the default.
 It measures mouse handlers and forced style/layout updates separately. Cases include 1, 10, and 100 series, pixel-ratio overrides, and an inline legend.
 
 Run the build and benchmark sequentially:
@@ -255,7 +253,7 @@ node --max-old-space-size=128 scripts/bench-hover.mjs
 ```
 
 The runner has a 120-second limit and removes its temporary browser profile.
-[Recorded results and limitations](../docs/investigations/hover-performance.md) describe the measured slowdown and the extra scale conversions.
+The results describe handler and forced-layout costs, not end-to-end presentation latency.
 
 ## Legend interaction regressions
 
@@ -289,13 +287,13 @@ nonadvancing tick loops, and exact `fixedDec` keys and decimal counts.
 Sources and expected behavior are documented in
 [`docs/investigations/precision-regressions.md`](../docs/investigations/precision-regressions.md).
 
-Run the historical regression cases:
+Run the precision regression cases:
 
 ```sh
 node scripts/test.mjs --no-coverage 'test/precision-*.mjs'
 ```
 
-The previously pending #827, #620, and #1084 cases now run by default.
+The #827, #620, and #1084 regression cases run by default.
 A stalled step discards all accumulated splits.
 Reaching the upper bound completes generation without requiring another step.
 Automatic-ranging tests cover flat and near-flat data updates on both signs, with finite ticks and pixel positions.
@@ -321,53 +319,6 @@ The existing loader test explicitly checks imports without a DOM, instead of rel
 `test/tooling/probe-worker.mjs` covers reuse, assertion failures, crashes, synchronous hangs, startup failures, invalid replies, shutdown failures, and active-request cancellation.
 It also verifies normal exit hooks and rejects concurrent requests. The watchdog tests use small fixtures, not repeated chart imports.
 
-### Runtime investigation
-
-These historical measurements used Mocha, before the migration to `node:test`.
-Sequential measurements on Node 26.8.2 identified subprocess startup as the main cost.
-One baseline run spent 16.1 seconds in the 24 precision tests and 1.2 seconds in all 237 demo snapshot tests.
-A separate precision run spent 14.6 of its 16.0 seconds on child startup.
-
-The final comparison used the original harness from `9f77dfb` and the sequential worker, with the same 553 tests in both runs.
-Both runs included the new cache and watchdog regressions.
-
-| Measurement | One process per probe | Sequential worker |
-| --- | ---: | ---: |
-| Full command, including coverage reporting | 37.37 s | 17.98 s |
-| Mocha execution | 32.75 s | 13.83 s |
-| Precision test bodies | 20.17 s | 1.14 s |
-
-The precision suite improved by approximately 94%, and the full command improved by approximately 52%.
-Absolute timings varied with machine load, so these numbers are not performance thresholds.
-Both runs passed all tests and produced identical Istanbul statement, function, and branch hit sets.
-All 24 probes also passed in forward, reverse, and forward order in the same worker (72 executions).
-
-No precision cases or assertions were removed. The per-case execution limits and Node heap limit are unchanged.
-The execution timer no longer includes process shutdown or coverage serialization.
-The investigation rejected Node compilation caching and an exclusion-filter shortcut.
-
-### Follow-up: test harness overhead
-
-NYC's spawn hook added its preload to child processes even when lifecycle fixtures cleared `NODE_OPTIONS`.
-Both runtimes now use the instrumentation preload to write per-process coverage. The harness uses Istanbul libraries directly to generate the report after the tests.
-The worker regression verifies that a fixture can disable the preload. It also verifies the worker's coverage file under both runtimes.
-All lifecycle cases and deadlines remain unchanged.
-
-The loader regression now instruments `src/dom.js` instead of the larger `src/utils.js`.
-It still verifies project configuration, include/exclude rules, executed coverage counters, imports without a DOM, and cache cleanup ownership.
-The failure-report regression retains two separate invocations to verify failing and passing exit statuses, report contents, and stale-report removal.
-
-Sequential full runs passed the same 554 tests before and after these changes:
-
-| Measurement | Node before | Node after | Bun before | Bun after |
-| --- | ---: | ---: | ---: | ---: |
-| Worker lifecycle test bodies | 3.83 s | 1.70 s | 0.89 s | 0.90 s |
-| Coverage-loader test bodies | 1.24 s | 0.92 s | 1.64 s | 0.98 s |
-| Full command, including coverage reporting | 17.59 s | 15.47 s | 12.08 s | 11.23 s |
-
-These are single-run measurements, not timing guarantees. Unchanged test groups also varied with machine load.
-Statement, function, and branch hit sets were identical before and after, and across both runtimes.
-
 ### Benchmark increment generation and metadata
 
 ```sh
@@ -375,7 +326,7 @@ node scripts/bench-fixed-dec.mjs
 bun scripts/bench-fixed-dec.mjs
 ```
 
-The benchmark compares source with the pre-fix implementation, without coverage or DOM startup.
+The benchmark compares source with an embedded baseline, without coverage or DOM startup.
 It reports median timings for decimal/binary generation and plain/scientific-notation metadata extraction.
 These operations affect initialization and registration, not per-frame rendering.
 
@@ -386,7 +337,7 @@ node scripts/bench-rounding.mjs
 bun scripts/bench-rounding.mjs
 ```
 
-This benchmark compares source with Git commit `443333f`, after the `fixedDec` fixes and before the broader rounding changes.
+This benchmark compares source with Git commit `443333f`.
 The commit must exist in the local repository. The benchmark uses no network access or coverage instrumentation.
 Results include both common and tiny grids, large digit counts, and the Grafana near-flat ranges.
 
@@ -470,10 +421,6 @@ With coverage enabled, each run collects fresh coverage and clears its previous 
 To remove the default cache, run `rm -rf .cache/test-instrument`.
 To use another directory, set `UPLOT_INSTRUMENT_CACHE_DIR`. The runner creates that directory and preserves the explicit path without adding a namespace.
 After dependency or instrumentation changes, remove the contents of that explicit directory.
-
-Before the migration, full validation passed 554 tests under Node 26.8.2 and Bun 1.4.3.
-Those runs produced identical Istanbul statement, function, and branch hit sets.
-These historical results do not validate the `node:test` migration.
 
 Pass test-name filters through the wrapper:
 

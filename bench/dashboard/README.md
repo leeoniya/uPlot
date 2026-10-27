@@ -2,7 +2,7 @@
 
 The dashboard benchmark measures 20 independent charts of one selected variant in one page.
 It uses the existing benchmark runner, pinned vendors, trace accounting, and process-memory methodology.
-The single-chart workload and its output filenames remain unchanged.
+
 
 ## Commands
 
@@ -149,7 +149,7 @@ The primary groups, preparation column, and verbose thread columns describe `dat
 `phaseGroups` contains only `small-init` and `data-update`.
 
 In rAF mode, `init rAF ms` ends at the first callback after initialization readiness.
-`update ms` describes update readiness, and `next rAF` describes the callback latency after update readiness.
+`update ms` describes elapsed update readiness. `next rAF ms` measures from operation start to the first callback after readiness.
 The rAF mode does not perform graphics completion checks or measure presentation.
 
 ## Memory
@@ -168,7 +168,7 @@ Each session then uses this sequence:
 There is no post-update polling phase. The final GC and `live` checkpoint end memory capture.
 No process reads or forced GC occur after `live`.
 Peak memory covers the baseline through `live`, including initialization and preparation.
-The historical `dataDelta` field includes small initialization. It does not isolate input preparation.
+The `dataDelta` field includes small initialization. It does not isolate input preparation.
 
 Idle adjustment uses the same-run dashboard control with 20 empty hosts and matching dimensions.
 Process measurements describe Linux process memory, not JS heap size or GPU device memory.
@@ -189,7 +189,7 @@ The diagnostic-only `benchmarkLifecycle.validate()` method checks the canonical 
 In a separate diagnostic fixture, call `await benchmarkLifecycle.validate()` after each completed `benchmarkLifecycle.construct()`.
 Do not call it during capture or preflight.
 
-The existing skip policy remains unchanged:
+The suite applies these restrictions:
 
 - `g2-webgl` and `googlecharts` remain disabled after benchmark timeouts.
 - `jscharting` remains disabled because repeated samples retain destroyed charts and listeners.
@@ -204,10 +204,15 @@ The harness does not hide or dismiss these banners.
 Vendor license checks and publication requirements remain separate from technical validation.
 The [benchmark guide](../../scripts/benchmarks.md#license-and-availability-limits) describes license configuration and restrictions.
 
+Twenty charts can exceed native WebGL context limits, including with `bokeh`, `d3fc`, `deckgl`, and `scichart`.
+Bokeh caches its shared initializer result after module loading, not the pending promise. Concurrent first use can therefore allocate extra contexts.
+The benchmark uses no context-limit overrides, renderer fallback, or prewarming. Only dashboard Plotly uses virtual WebGL.
+ChartGPU creates one WebGPU device per chart and requires hardware WebGPU support.
+
 ### Plotly virtual WebGL
 
-The existing `plotly` dashboard loads `virtual-webgl@1.0.7/src/virtual-webgl.js` before Plotly.
-Both automated capture and `plotly.html` use this pinned WebGL1 build. Single-chart Plotly and dashboard `plotly-svg` remain unchanged.
+The `plotly` dashboard loads `virtual-webgl@1.0.7/src/virtual-webgl.js` before Plotly.
+Both automated capture and `plotly.html` use this pinned WebGL1 build. Single-chart Plotly and dashboard `plotly-svg` do not use virtualization.
 The package default is a different WebGL2 build, so the dependency specifies the full path.
 
 The 20 charts use 40 virtual contexts over one shared native WebGL context.
@@ -223,15 +228,16 @@ That initial allocation belongs to loaded-library memory, not the per-session ch
 Cleanup calls `Plotly.purge()`, destroys retained regl instances, and disposes acquired virtual contexts, including contexts from partial construction failures.
 Cleanup never acquires new contexts. The shared native context and compositor remain until the page closes.
 Version 1.0.7 does not explicitly delete each virtual context's default VAO in `dispose()`.
-Separate diagnostics found increasing VAO creation counts without explicit deletion. This does not prove permanent driver leaks, but cleanup is not proven leak-free.
+This does not prove permanent driver leaks, but cleanup is not proven leak-free.
 The benchmark does not patch vendor internals or measure GPU device memory.
 
 Reports retain the case name `plotly` and record `virtualWebGL` version, path, and context type in the benchmark metadata.
-Saved summaries reject old native-dashboard Plotly reports or mismatched virtual-WebGL metadata. A new capture is necessary for those reports.
+Saved summaries require matching `virtualWebGL` metadata.
+Virtualization does not remove the shared five-second operation budget or guarantee that a full capture completes.
 
 ## Saved results
 
-Reports and compressed traces reside in `.cache/benchmarks/`.
+Reports and compressed traces reside in `.cache/benchmarks/`. This cache is disposable.
 The naming helpers in `scripts/benchmarks-suite.mjs` add `dashboard-` before the mode.
 `MODE` is `combined`, `trace`, `memory`, or `raf`. Traces exist only for modes that enable tracing.
 
@@ -260,59 +266,3 @@ Compatibility checks reject mixed single-chart and dashboard reports, or differe
 These checks also cover idle controls and saved summaries.
 Separate filenames prevent dashboard runs from replacing single-chart outputs.
 They do not make different backends, DPRs, or diagnostic runs equivalent comparisons.
-
-## Browser validation
-
-The browser validation artifacts are local files outside the repository:
-
-- `/tmp/dashboard-validation/REPORT.md`
-- `/tmp/dashboard-validation/RECHECK.md`
-- `/tmp/dashboard-validation/FINAL.md`
-- `/tmp/dashboard-validation/LATEST.json` (authoritative artifact manifest)
-
-The initial validation passed 32 chart variants plus idle.
-After seven adapter fixes, rechecks passed seven more variants.
-The resulting coverage is 39 of 44 default chart variants, plus idle.
-LightningChart is license-gated and is outside that default count.
-
-The initial failures included `bokeh`, `d3fc`, `deckgl`, `plotly`, and `scichart`.
-Four still have unresolved context-capacity errors: `bokeh`, `d3fc`, `deckgl`, and `scichart`.
-The virtualized Plotly dashboard no longer has the observed context-capacity error, but full capture remains unverified as described below.
-Bokeh also has an asynchronous cache race: its shared initializer caches the result after module loading, not the pending promise.
-Concurrent first use can therefore allocate extra contexts.
-
-The benchmark uses no context-limit overrides, renderer fallback, or prewarming. Only dashboard Plotly explicitly uses virtual WebGL.
-ChartGPU passed with 20 WebGPU devices. That result does not establish WebGL capacity for another adapter.
-
-Full three-warmup, seven-measured-session runs passed for idle, uPlot, and Chart.js in combined and memory-only modes.
-Explicit native-data diagnostics passed for uPlot, Chart.js, Bokeh Canvas, and visx at DPR 1 and DPR 2.
-uPlot and Chart.js also passed checks for tile geometry and canvas backing dimensions.
-These checks do not establish equivalent coverage for every variant, DPR, backend, or measurement mode.
-
-Final captures passed after the validation-boundary correction and supersede the earlier measurement artifacts.
-Separate guarded captures completed with throwing validators and zero validation calls during measurement.
-The diagnostic runs were separate. This coverage record contains no comparative timing or memory numbers and establishes no performance ranking.
-
-### Plotly follow-up
-
-The actual manual HTML page passed separate DPR 1 and DPR 2 diagnostics with all 20 charts visible.
-All charts passed native-data validation, tile-geometry checks, canvas-backing-size checks, and nonblank-pixel checks.
-Completion reported 40 complete virtual contexts with an intact observer. Cleanup disposed all 40 contexts exactly once.
-Three repeated diagnostic sessions created and disposed 120 virtual contexts. The vendor registry returned to empty after each session.
-Native context acquisitions stayed at one. The VAO caveat described above still applies.
-
-Combined capture exceeded the unchanged five-second watchdog during the first warmup's `small-init` on this machine.
-A separate timing diagnostic observed approximately 5.8 seconds from budget start through construction completion.
-Both the default backend and Vulkan-requested combined runs timed out. A default-backend memory-only run also timed out.
-The default-backend trace-only run reached trace export but exceeded the external 180-second timeout without a usable trace or report.
-No complete Plotly timing/memory result or DPR 2 capture is available. The idle combined control completed all three warmups and seven measured sessions.
-No deep validation, screenshots, or pixel readbacks occurred during measured capture.
-
-Follow-up artifacts reside under `/tmp/dashboard-validation/`:
-
-- `plotly-validation-summary.json`: manual-page and cleanup diagnostics.
-- `plotly-timeout-evidence.json`: first-warmup timing evidence.
-- `plotly-default-summary.json`: default-backend capture results.
-- `plotly-retry-combined-idle-dpr1.json`: completed idle control.
-
-These follow-up artifacts supersede the earlier Plotly context-failure classification, not the successful captures for other variants.

@@ -5,7 +5,6 @@ import { demoDependencies } from '../../bench/demo-dependencies.mjs';
 
 const METRICS = ['dataPrepMs', 'prepAndInitMs', 'jsMs', 'raf1Ms', 'postJsRaf1Ms'];
 const REFERENCES = Object.keys(demoDependencies).filter(id => id !== 'uplot' && id !== 'idle');
-const REMOVED_METRICS = ['raf2Ms', 'postJsRaf2Ms', 'rafGapMs'];
 
 function sample(round = 0, extra = {}) {
 	return {id: `sample-${round}`, dpr: 1, variant: 'uplot', round, warmup: false, ...extra};
@@ -318,19 +317,6 @@ describe('uPlot rAF analysis', () => {
 		assert.equal(result.groups[0].sampleCount, 1);
 	});
 
-	it('omits removed metrics from groups, comparisons, and definitions even when supplied', () => {
-		const removed = Object.fromEntries(REMOVED_METRICS.map(metric => [metric, 42]));
-		const result = summarize(['uplot', ...REFERENCES].map(variant => sample(0, {variant, ...removed})));
-		assert.equal(result.comparisons.length, REFERENCES.length);
-		for (const {metrics} of [...result.groups, ...result.comparisons]) {
-			assert.deepEqual(Object.keys(metrics), METRICS);
-			for (const metric of REMOVED_METRICS)
-				assert.equal(Object.hasOwn(metrics, metric), false);
-		}
-		for (const metric of REMOVED_METRICS)
-			assert.equal(Object.hasOwn(result.definitions, metric), false);
-	});
-
 	it('defines the callback-entry clock and limitations of rAF timing', () => {
 		const {definitions} = summarize([]);
 		for (const metric of METRICS)
@@ -350,10 +336,7 @@ describe('uPlot rAF analysis', () => {
 		assert.match(definitions.aggregation, /minima may come from different rounds/);
 		assert.match(definitions.deltaOfMinimaMs, /not the minimum of paired differences/);
 		assert.match(definitions.ratioOfMinima, /using all valid measured values, not only pairs/);
-		assert.doesNotMatch(JSON.stringify(definitions), /median/i);
-		for (const key of ['wins', 'deltaOfMinimaMs', 'ratioOfMinima', 'reductionPct']) {
+		for (const key of ['wins', 'deltaOfMinimaMs', 'ratioOfMinima', 'reductionPct'])
 			assert.match(definitions[key], /uPlot/);
-			assert.doesNotMatch(definitions[key], /decimat|controlled comparison/i);
-		}
 	});
 });

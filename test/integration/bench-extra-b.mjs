@@ -35,7 +35,7 @@ describe('additional benchmark adapters B', () => {
 			assert.deepEqual(Object.keys(source), [
 				'destroyChart', ...(name !== 'zingchart' ? ['getHoverPlan'] : []), 'makeChart',
 				...(name === 'plotly' ? ['makeChartWithOptions'] : []),
-				'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart',
+				'prepData', 'resizeChart', 'updateChart',
 			]);
 			const first = source.prepData(packed);
 			const second = source.prepData(packed);

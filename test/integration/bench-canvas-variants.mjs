@@ -153,8 +153,8 @@ describe('Canvas benchmark variants', function() {
 
 	for (const [name, original, canvas] of [['Bokeh', bokeh, bokehCanvas], ['d3fc', d3fc, d3fcCanvas]]) {
 		it(`${name}: shares prep and destroy, and retains every input value`, {timeout: 10000}, () => {
-			assert.deepEqual(Object.keys(original), ['destroyChart', 'getHoverPlan', 'makeChart', 'makeChartWithOptions', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
-			assert.deepEqual(Object.keys(canvas), ['destroyChart', 'getHoverPlan', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
+			assert.deepEqual(Object.keys(original), ['destroyChart', 'getHoverPlan', 'makeChart', 'makeChartWithOptions', 'prepData', 'resizeChart', 'updateChart']);
+			assert.deepEqual(Object.keys(canvas), ['destroyChart', 'getHoverPlan', 'makeChart', 'prepData', 'resizeChart', 'updateChart']);
 			assert.equal(canvas.prepData, original.prepData);
 			assert.equal(canvas.destroyChart, original.destroyChart);
 			const data = canvas.prepData(packed), second = canvas.prepData(packed);

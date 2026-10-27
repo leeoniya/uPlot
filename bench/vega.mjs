@@ -68,10 +68,6 @@ async function makeChart(data, host, wait) {
 	}
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart([], host, wait);
-}
-
 async function updateChart(view, input, host, wait) {
 	// As in makeChart, do not let Vega's tuple IDs mutate prepared input.
 	view.change('table', vega.changeset().remove(() => true).insert(input.map(row => ({...row}))));
@@ -93,4 +89,4 @@ function destroyChart(view) {
 	}
 }
 
-export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart, resizeChart};
+export {prepData, makeChart, destroyChart, updateChart, resizeChart};

@@ -136,10 +136,6 @@ export async function makeChartWithOptions(data, host, wait, runtimeOptions, {sa
 	}
 }
 
-export function makeEmptyChart(host, wait) {
-	return makeChart([], host, wait);
-}
-
 export async function updateChart(root, input, host, wait) {
 	const chart = root.container.children.getIndex(0);
 	await new Promise((resolve, reject) => {

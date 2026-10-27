@@ -134,10 +134,6 @@ function renderReady(chart, timeoutMs, update = () => {}) {
 	});
 }
 
-export function makeEmptyChart(host, wait) {
-	return makeChart({x: new Float64Array(0), cpu: new Float64Array(0), ram: new Float64Array(0), tcp: new Float64Array(0)}, host, wait);
-}
-
 export async function updateChart(chart, input, host, wait) {
 	const {series, timeoutMs} = updates.get(chart);
 	await renderReady(chart, timeoutMs, () => {

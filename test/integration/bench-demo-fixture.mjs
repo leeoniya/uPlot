@@ -190,23 +190,22 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 		}]);
 	});
 
-	it('requires only a nonblank LightningChart license, not benchmark permission', () => {
+	it('requires a nonblank LightningChart license for standalone demos and benchmarks', () => {
 		for (const check of [assertDemoAvailable, assertBenchmarkAvailable]) {
 			for (const license of [undefined, null, '', '  ', 123, true, {}])
-				assert.throws(() => check('lightningchart', {license, benchmarkPermission: true}), error =>
+				assert.throws(() => check('lightningchart', {license}), error =>
 					error.message.includes(demoRestrictions.lightningchart) && /LIGHTNINGCHART_LICENSE/.test(error.message));
 			assert.throws(() => check('lightningchart'), /runtime license key/);
-			for (const options of [{license: 'test'}, {license: ' test ', benchmarkPermission: false}])
-				assert.doesNotThrow(() => check('lightningchart', Object.freeze(options)));
+			for (const license of ['test', ' test '])
+				assert.doesNotThrow(() => check('lightningchart', Object.freeze({license})));
 		}
-		assert.doesNotMatch(demoRestrictions.lightningchart, /permission/i);
 	});
 
-	it('permits JSCharting standalone but rejects benchmarks regardless of credentials', () => {
+	it('permits JSCharting standalone but rejects benchmarks regardless of license', () => {
 		assert.ok(demoDependencies.jscharting.length > 0);
 		assert.equal(Object.hasOwn(demoRestrictions, 'jscharting'), false);
 		assert.match(benchmarkRestrictions.jscharting, /3\.4\.0.*retains destroyed charts and window listeners/);
-		for (const options of [undefined, {license: 'test', benchmarkPermission: true}]) {
+		for (const options of [undefined, {license: 'test'}]) {
 			assert.doesNotThrow(() => assertDemoAvailable('jscharting', options));
 			assert.throws(() => assertBenchmarkAvailable('jscharting', options), error =>
 				error.message === `jscharting: ${benchmarkRestrictions.jscharting}`);

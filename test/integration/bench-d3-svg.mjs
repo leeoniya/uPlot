@@ -297,7 +297,7 @@ describe('D3 SVG and Canvas benchmarks (real D3, offline)', {
 			if (input === sparse) checkPaths(host, d3, input);
 		}
 		svgMinmax.destroyChart(chart);
-		chart = svgMinmax.makeEmptyChart(host, wait);
+		chart = svgMinmax.makeChart([[], [], [], []], host, wait);
 		await Promise.resolve();
 		check([[], [], [], []]);
 		svgMinmax.updateChart(chart, data, host, wait);
@@ -420,7 +420,7 @@ describe('D3 SVG and Canvas benchmarks (real D3, offline)', {
 		check(next);
 		minmax.destroyChart(chart);
 		paths = [];
-		chart = minmax.makeEmptyChart(host, wait);
+		chart = minmax.makeChart([[], [], [], []], host, wait);
 		await Promise.resolve();
 		assert.ok(paths.slice(-3).every(path => path.points.length === 0));
 		minmax.updateChart(chart, data, host, wait);

@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {smallLifecycleData} from '../../bench/lifecycle-data.mjs';
-import {benchmarkTimingSamples, benchmarkOperations, lifecycleOperations} from '../../scripts/benchmarks-phases.mjs';
+import {benchmarkTimingSamples, benchmarkOperations, lifecycleOperations, dashboardWorkload} from '../../scripts/benchmarks-phases.mjs';
 import {analyzeBenchmarkTrace} from '../../scripts/analyze-benchmarks-trace.mjs';
 import {summarizeBenchmarkRaf} from '../../scripts/analyze-benchmarks-raf.mjs';
 import {benchmarkVariants} from '../../bench/demo-dependencies.mjs';
@@ -9,13 +9,16 @@ import {TRACE_ACCOUNTING} from '../../scripts/bench-trace-policy.mjs';
 
 const resizeOperations = ['small-init', 'data-update', 'resize'];
 
-function fixture(phase = 'chart-population', warmup = false, resize = false, hover = false, variant = 'uplot') {
-	const metadata = {phase, ...(resize ? {initProtocol: 'settled-work-v1', resizeProtocol: 'retained-resize-v1',
-		lifecycle: {operations: hover ? lifecycleOperations : resizeOperations, resizeSize: {width: 1200, height: 400}}} : {}),
-		...(hover ? {hoverProtocol: 'hover-ten-v3', hover: {variants: ['idle', 'uplot'], count: 10, intervalMs: 50}} : {})};
+function fixture(warmup = false, dashboard = true, variant = 'uplot') {
+	const metadata = {phase: 'chart-population', initProtocol: 'settled-work-v1', trace: {accountingProtocol: TRACE_ACCOUNTING},
+		...(dashboard ? {workload: {...dashboardWorkload}, lifecycle: {operations: ['small-init', 'data-update']}} : {
+			resizeProtocol: 'retained-resize-v1',
+			lifecycle: {operations: lifecycleOperations, resizeSize: {width: 1200, height: 400}},
+			hoverProtocol: 'hover-ten-v3', hover: {variants: ['idle', 'uplot'], count: 10, intervalMs: 50},
+		})};
 	const phases = benchmarkOperations(metadata).filter(operation => operation !== 'hover-10' || metadata.hover.variants.includes(variant)).map((operation, index) => ({
 		id: `sample-${index}`, variant, dpr: 1, round: warmup ? -1 : 0,
-		operation, warmup: warmup || operation === 'warmup-update',
+		operation, warmup,
 		jsMs: index + 1, dataPrepMs: 0.5, windowMs: 10, raf1Ms: index + 2,
 	}));
 	const report = {...metadata, samples: [{...phases.findLast(phase => phase.operation === 'data-update'), phases}]};
@@ -70,7 +73,7 @@ describe('benchmark population phases', () => {
 	});
 
 	it('accounts for the complete resize window without moving update metrics or counting idle gaps', () => {
-		const {report, events} = fixture('chart-population', false, true);
+		const {report, events} = fixture(false, false, 'd3');
 		report.trace = {accountingProtocol: TRACE_ACCOUNTING};
 		events.push({ph: 'M', name: 'process_name', pid: 2, args: {name: 'GPU Process'}});
 		for (const [pid, tid, name] of [[1, 2, 'CompositorTileWorker1'], [1, 3, 'Compositor'], [2, 1, 'CrGpuMain'], [2, 2, 'VizCompositorThread']])
@@ -110,7 +113,7 @@ describe('benchmark population phases', () => {
 	});
 
 	it('excludes all three phases of resize warmup sessions', () => {
-		const {report, events} = fixture('chart-population', true, true);
+		const {report, events} = fixture(true, false, 'd3');
 		for (const analysis of [analyzeBenchmarkTrace(events, report), summarizeBenchmarkRaf(report)]) {
 			assert.deepEqual(analysis.phaseGroups.map(group => group.sampleCount), [0, 0, 0]);
 			assert.deepEqual(analysis.phaseGroups.map(group => group.warmupCount), [1, 1, 1]);
@@ -130,7 +133,7 @@ describe('benchmark population phases', () => {
 			r => r.samples[0].phases[2].round++,
 			r => Object.assign(r.samples[0], r.samples[0].phases[2]),
 		]) {
-			const {report, events} = fixture('chart-population', false, true);
+			const {report, events} = fixture(false, false, 'd3');
 			change(report);
 			assert.throws(() => benchmarkTimingSamples(report), /Lifecycle|lifecycle|session/);
 			assert.throws(() => summarizeBenchmarkRaf(report), /Lifecycle|lifecycle|session/);
@@ -139,7 +142,7 @@ describe('benchmark population phases', () => {
 	});
 
 	it('excludes both phases of warmup sessions', () => {
-		const {report, events} = fixture('chart-population', true);
+		const {report, events} = fixture(true);
 		assert.deepEqual(analyzeBenchmarkTrace(events, report).phaseGroups.map(group => group.sampleCount), [0, 0]);
 		assert.deepEqual(summarizeBenchmarkRaf(report).phaseGroups.map(group => group.sampleCount), [0, 0]);
 	});
@@ -152,8 +155,7 @@ describe('benchmark population phases', () => {
 			r => r.samples[0].phases[1].variant = 'plotly',
 			r => r.samples[0].phases[1].round = 2,
 			r => r.samples[0].id = 'sample-0',
-			r => r.phase = 'initial-chart-creation',
-			r => r.phase = 'chart-lifecycle',
+			...['unknown', null].map(value => r => r.phase = value),
 		]) {
 			const {report} = fixture();
 			change(report);
@@ -161,52 +163,42 @@ describe('benchmark population phases', () => {
 		}
 	});
 
-	it('preserves analysis of legacy four-window reports without relabeling them', () => {
-		const {report, events} = fixture('chart-lifecycle');
-		const trace = analyzeBenchmarkTrace(events, report);
-		assert.deepEqual(trace.phaseGroups.map(group => group.metrics.totalTrackedThreadWorkMs.min), [1, 2, null, 4]);
-		assert.deepEqual(summarizeBenchmarkRaf(report).phaseGroups.map(group => group.metrics.jsMs.min), [1, 2, null, 4]);
-	});
-
-	it('does not modify or relabel legacy startup records', () => {
+	it('preserves flat samples for internal analyzer calls', () => {
 		const report = {samples: [{id: 'sample-0'}]};
+		assert.equal(benchmarkOperations(report), null);
 		assert.equal(benchmarkTimingSamples(report), report.samples);
+		assert.throws(() => benchmarkOperations({samples: [{phases: []}]}), /Lifecycle/);
+		for (const key of ['phase', 'initProtocol', 'resizeProtocol', 'hoverProtocol', 'hover', 'lifecycle', 'operations', 'workload'])
+			assert.throws(() => benchmarkOperations({...report, [key]: undefined}), /Lifecycle/);
 	});
 });
 
 describe('optional hover phases', () => {
-	for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3'])
-	it(`preserves ${protocol} reports without changing their samples or requiring evidence`, () => {
-		const {report, events} = fixture('chart-population', false, true, true);
-		report.hoverProtocol = protocol;
-		if (protocol === 'hover-ten-v1') delete report.hover.intervalMs;
-		report.samples[0].phases[3].hover = {count: 10, ...(protocol === 'hover-ten-v1' ? {} : {intervalMs: 50})};
+	it('preserves current reports and describes batched hover dispatch', () => {
+		const {report, events} = fixture(false, false);
+		report.samples[0].phases[3].hover = {count: 10, intervalMs: 50};
 		const original = structuredClone(report);
 		for (const analysis of [analyzeBenchmarkTrace(events, report), summarizeBenchmarkRaf(report)]) {
 			assert.deepEqual(analysis.phaseGroups.map(group => group.operation), lifecycleOperations);
-			assert.match(analysis.definitions.hover, /hover-ten-v1.*frame-paced, verified/);
-			assert.match(analysis.definitions.hover, /Legacy hover-ten-v2.*nine 50 ms waits/);
 			assert.match(analysis.definitions.hover, /hover-ten-v3.*all ten coordinate targets through one browser binding/);
 			assert.match(analysis.definitions.hover, /one browser Runtime.evaluate completion acknowledgment/);
 		}
 		assert.deepEqual(report, original);
 	});
 
-	for (const protocol of ['hover-ten-v2', 'hover-ten-v3'])
-	it(`requires a numeric 50 ms interval for ${protocol} in both analyzers`, () => {
+	it('requires a numeric 50 ms interval in both analyzers', () => {
 		for (const intervalMs of [undefined, null, '50', 0, 49, 51, NaN, Infinity]) {
-			const {report, events} = fixture('chart-population', false, true, true);
-			report.hoverProtocol = protocol;
+			const {report, events} = fixture(false, false);
 			if (intervalMs === undefined) delete report.hover.intervalMs;
 			else report.hover.intervalMs = intervalMs;
 			for (const analyze of [benchmarkTimingSamples, summarizeBenchmarkRaf, r => analyzeBenchmarkTrace(events, r)])
-				assert.throws(() => analyze(report), new RegExp(`${protocol}.*intervalMs 50`));
+				assert.throws(() => analyze(report), /hover-ten-v3.*intervalMs 50/);
 		}
 	});
 	it('keeps canonical operations but requires no hover markers or samples for unsupported variants', () => {
 		assert.deepEqual(lifecycleOperations, ['small-init', 'data-update', 'resize', 'hover-10']);
 		for (const variant of ['idle', 'uplot', 'd3']) {
-			const {report, events} = fixture('chart-population', false, true, true, variant);
+			const {report, events} = fixture(false, false, variant);
 			const operations = variant === 'd3' ? resizeOperations : lifecycleOperations;
 			assert.deepEqual(benchmarkOperations(report), lifecycleOperations);
 			assert.deepEqual(benchmarkTimingSamples(report).map(sample => sample.operation), operations);
@@ -219,7 +211,7 @@ describe('optional hover phases', () => {
 	});
 
 	it('requires hover markers for supported variants and distinct IDs across sessions', () => {
-		const {report, events} = fixture('chart-population', false, true, true);
+		const {report, events} = fixture(false, false);
 		assert.throws(() => analyzeBenchmarkTrace(events.filter(event => !event.name.startsWith('benchmark:sample-3:')), report), /marker/i);
 		const duplicate = structuredClone(report.samples[0]);
 		duplicate.round++;
@@ -229,8 +221,8 @@ describe('optional hover phases', () => {
 	});
 
 	it('filters hover support per session in a report with multiple variants', () => {
-		const {report} = fixture('chart-population', false, true, true);
-		const unsupported = fixture('chart-population', false, true, true, 'd3').report.samples[0];
+		const {report} = fixture(false, false);
+		const unsupported = fixture(false, false, 'd3').report.samples[0];
 		unsupported.id = `d3-${unsupported.id}`;
 		for (const phase of unsupported.phases) phase.id = `d3-${phase.id}`;
 		report.samples.push(unsupported);
@@ -241,7 +233,7 @@ describe('optional hover phases', () => {
 	});
 
 	it('includes deferred hover work and clips a single cumulative window without changing update totals', () => {
-		const {report, events} = fixture('chart-population', false, true, true);
+		const {report, events} = fixture(false, false);
 		report.trace = {accountingProtocol: TRACE_ACCOUNTING};
 		events.push({ph: 'M', name: 'process_name', pid: 2, args: {name: 'GPU Process'}});
 		for (const [pid, tid, name] of [[1, 2, 'CompositorTileWorker1'], [1, 3, 'Compositor'], [2, 1, 'CrGpuMain'], [2, 2, 'VizCompositorThread']])
@@ -273,10 +265,8 @@ describe('optional hover phases', () => {
 		assert.deepEqual(report, original);
 	});
 
-	for (const protocol of ['hover-ten-v2', 'hover-ten-v3'])
-	it(`keeps 450 ms of ${protocol} spacing in wall latency but out of tracked thread work`, () => {
-		const {report, events} = fixture('chart-population', false, true, true);
-		report.hoverProtocol = protocol;
+	it('keeps 450 ms of hover spacing in wall latency but out of tracked thread work', () => {
+		const {report, events} = fixture(false, false);
 		const phase = report.samples[0].phases[3];
 		Object.assign(phase, {jsMs: 460, raf1Ms: 470, windowMs: 675});
 		for (const event of events) {
@@ -299,14 +289,14 @@ describe('optional hover phases', () => {
 			assert.match(analysis.definitions.hover, /No value verification or harness DOM\/canvas reads/);
 			assert.match(analysis.definitions.hover, /reduces input-bridge overhead but does not eliminate it/);
 			assert.match(analysis.definitions.hover, /Node scheduling is outside measured browser threads/);
-			assert.match(analysis.definitions.hover, /No CPU profiling is added/);
+
 			assert.match(analysis.definitions.hover, /never runs during capture or preflight/);
 		}
 	});
 
 	it('excludes hover warmups and preserves measured zero', () => {
 		for (const warmup of [false, true]) {
-			const {report, events} = fixture('chart-population', warmup, true, true);
+			const {report, events} = fixture(warmup, false);
 			report.samples[0].phases[3].raf1Ms = 0;
 			const trace = analyzeBenchmarkTrace(events.filter(event => !(event.name === 'RunTask' && event.ts === 60000)), report);
 			const raf = summarizeBenchmarkRaf(report);
@@ -319,28 +309,25 @@ describe('optional hover phases', () => {
 		}
 	});
 
-	it('validates capability metadata, ten-count protocol, distinct IDs and update-scoped sessions without requiring pending evidence fields', () => {
+	it('validates capability metadata, ten-count protocol, distinct IDs and update-scoped sessions', () => {
 		for (const change of [
-			r => delete r.hoverProtocol, r => r.hoverProtocol = 'unknown', r => r.hoverProtocol = null,
+			r => delete r.hoverProtocol, ...['unknown', null].map(value => r => r.hoverProtocol = value),
 			r => delete r.hover, r => r.hover = null, r => r.hover.count = 9, r => r.hover.count = 11, r => r.hover.count = '10',
 			r => r.hover.variants = null, r => r.hover.variants = [], r => r.hover.variants = ['uplot'],
 			r => r.hover.variants.push('idle'), r => r.hover.variants.push(''), r => r.hover.variants.push(1),
 			r => r.hover.variants.push(' uplot'), r => delete r.resizeProtocol, r => delete r.initProtocol,
-			r => r.phase = 'chart-lifecycle', r => r.samples[0].phases.pop(),
+			r => r.phase = 'unknown', r => r.samples[0].phases.pop(),
 			r => r.hover.variants = ['idle'], r => r.samples[0].phases.reverse(),
 			r => r.samples[0].phases[3].id = r.samples[0].phases[2].id,
 			r => r.samples[0].phases[3].warmup = true,
 			r => Object.assign(r.samples[0], r.samples[0].phases[3]),
 		]) {
-			const {report, events} = fixture('chart-population', false, true, true);
+			const {report, events} = fixture(false, false);
 			change(report);
 			for (const analyze of [benchmarkTimingSamples, summarizeBenchmarkRaf, r => analyzeBenchmarkTrace(events, r)])
 				assert.throws(() => analyze(report), /[Ll]ifecycle|session/);
 		}
-		const {report} = fixture('chart-population', false, true, true);
-		assert.equal(benchmarkTimingSamples(report).length, 4);
-		report.samples[0].phases[3].hover = {futureEvidence: true};
-		assert.equal(benchmarkTimingSamples(report).length, 4);
+
 	});
 });
 

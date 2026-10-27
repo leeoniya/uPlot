@@ -68,10 +68,6 @@ function destroyChart(chart) {
 	finally { element.empty(); }
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart([[], [], []], host, wait);
-}
-
 async function updateChart(chart, input, host, wait) {
 	let complete;
 	const ready = new Promise(resolve => { complete = resolve; });
@@ -100,4 +96,4 @@ async function resizeChart(chart, {width, height}, host, wait) {
 	finally { chart.unbind('render', complete); }
 }
 
-export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart, resizeChart};
+export {prepData, makeChart, destroyChart, updateChart, resizeChart};

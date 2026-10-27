@@ -26,10 +26,6 @@ function getHoverPlan(chart, input, host) {
 	return hover(input);
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart(Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(0)])), host, wait);
-}
-
 function updateChart(chart, input, host, wait) {
 	const update = updates.get(chart);
 	if (!update) throw new Error('d3fc chart is not live.');
@@ -275,4 +271,4 @@ function destroyChart(chart) {
 	chart.element.remove();
 }
 
-export {prepData, makeChart, destroyChart, makeChartWithOptions, makeEmptyChart, updateChart, resizeChart, getHoverPlan};
+export {prepData, makeChart, destroyChart, makeChartWithOptions, updateChart, resizeChart, getHoverPlan};

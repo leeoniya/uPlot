@@ -1,7 +1,7 @@
 import {hoverTargets, nearHoverIndex, visibleText} from './hover.mjs';
 import {prepRows, requireFramework, destroyReact, waitForLines, calendarLabel, title} from './framework-runtime.mjs';
 
-import {mountEmptyReact, mountLifecycleReact, updateReact as updateChart, resizeReact as resizeChart} from './lifecycle-frameworks.mjs';
+import {mountLifecycleReact, updateReact as updateChart, resizeReact as resizeChart} from './lifecycle-frameworks.mjs';
 
 const hoverScales = new WeakMap();
 
@@ -51,10 +51,6 @@ export function makeLifecycleChart(data, host, wait) {
 	return mountLifecycleReact(data, host, buildChart, ready, wait);
 }
 
-function makeEmptyChart(host, wait) {
-	return mountEmptyReact(host, buildChart, ready, wait);
-}
-
 function getHoverPlan(chart, input, host) {
 	const scales = hoverScales.get(chart);
 	const wrapper = host.querySelector('.recharts-wrapper');
@@ -96,4 +92,4 @@ function getHoverPlan(chart, input, host) {
 	};
 }
 
-export {prepRows as prepData, makeChart, destroyReact as destroyChart, makeEmptyChart, updateChart, resizeChart, getHoverPlan};
+export {prepRows as prepData, makeChart, destroyReact as destroyChart, updateChart, resizeChart, getHoverPlan};

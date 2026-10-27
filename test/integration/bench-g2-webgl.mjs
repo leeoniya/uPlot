@@ -1,7 +1,6 @@
 import {describe, it, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {runInNewContext} from 'node:vm';
 import * as canvas from '../../bench/g2.mjs';
 import * as webgl from '../../bench/g2-webgl.mjs';
 
@@ -238,15 +237,12 @@ describe('G2 WebGL benchmark adapter (no browser)', () => {
 		});
 	}
 
-	it('keeps the legacy export declaration and exposes the shared factory on a separate line', () => {
-		const source = readFileSync(new URL('../../bench/g2.mjs', import.meta.url), 'utf8');
-		assert.match(source, /^export \{makeChartWithOptions\};$/m);
-		assert.match(source, /export \{prepData, makeChart, destroyChart, makeEmptyChart, updateChart, resizeChart\};\s*$/);
-		const legacy = runInNewContext(source.replace(/^export \{[^\n]+\};\s*$/gm, '') +
-			'\n({prepData, makeChart, destroyChart, makeChartWithOptions, makeEmptyChart, updateChart, resizeChart})');
-		assert.deepEqual(Object.keys(legacy).sort(), Object.keys(canvas));
-		for (const value of Object.values(legacy)) assert.equal(typeof value, 'function');
+	it('exports callable Canvas and WebGL APIs with shared resize support', () => {
+		assert.deepEqual(Object.keys(canvas), ['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData', 'resizeChart', 'updateChart']);
 		assert.deepEqual(Object.keys(webgl), ['destroyChart', 'makeChart', 'prepData', 'resizeChart']);
+		for (const api of [canvas, webgl])
+			for (const value of Object.values(api)) assert.equal(typeof value, 'function');
+		assert.equal(webgl.resizeChart, canvas.resizeChart);
 	});
 
 	it('uses only the shared runner in the HTML entry point', () => {

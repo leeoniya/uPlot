@@ -5,13 +5,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { runInNewContext } from 'node:vm';
-import { dashboardWorkload } from '../../scripts/benchmarks-phases.mjs';
+import { dashboardWorkload, lifecycleOperations } from '../../scripts/benchmarks-phases.mjs';
 import { summarizeProcessMemory } from '../../scripts/analyze-benchmarks-process-memory.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { SAMPLE_TIMEOUT_MS } from '../../scripts/bench-sample-timeout.mjs';
 import { analyzeBenchmarkTrace, analyzeBenchmarkTraceFile } from '../../scripts/analyze-benchmarks-trace.mjs';
 import { benchmarkTraceConfig, captureBenchmarkTrace } from '../../scripts/benchmarks-trace.mjs';
-import { TRACE_ACCOUNTING, LEGACY_TRACE_ACCOUNTING } from '../../scripts/bench-trace-policy.mjs';
+import { TRACE_ACCOUNTING, BACKGROUND_GC_EVENTS, GC_CATEGORIES, traceAccountingProtocol } from '../../scripts/bench-trace-policy.mjs';
 
 const metadata = [
 	{ph: 'M', name: 'process_name', pid: 1, args: {name: 'Renderer'}},
@@ -37,7 +37,9 @@ function interval(name, start, end, pid = 1, tid = 1) {
 }
 
 function analyze(extra = [], samples = [sample()], marks = markers(), report = {}) {
-	return analyzeBenchmarkTrace({traceEvents: [...metadata, ...marks, ...extra]}, {...report, samples});
+	return analyzeBenchmarkTrace({traceEvents: [...metadata, ...marks, ...extra]}, {
+		...report, trace: {accountingProtocol: TRACE_ACCOUNTING, ...report.trace}, samples,
+	});
 }
 
 function close(actual, expected) {
@@ -120,18 +122,37 @@ describe('benchmark trace analysis', () => {
 		assert.equal(result.diagnostics.eventTypes['CppGC.ConcurrentMark'].intervalCount, 1);
 	});
 
-	it('preserves legacy totals, distinguishes absent GC from zero, and rejects unknown policies', () => {
-		const events = [interval('CppGC.ConcurrentMark', 0, 5, 1, 3)];
-		for (const report of [{}, {trace: {accountingProtocol: LEGACY_TRACE_ACCOUNTING}}]) {
-			const result = analyze(events, undefined, undefined, report);
-			assert.equal(result.accountingProtocol, LEGACY_TRACE_ACCOUNTING);
-			assert.equal(result.samples[0].totalTrackedThreadWorkMs, 0);
-			assert.equal(result.samples[0].backgroundGcMs, null);
-			assert.equal(result.samples[0].gcAddedThreadWorkMs, null);
+	it('requires current accounting metadata and rejects mismatched capture and analysis policies', () => {
+		for (const protocol of [undefined, null, 'unknown']) {
+			for (const source of ['trace', 'analysis']) {
+				const report = {samples: [sample()], [source]: {accountingProtocol: protocol}};
+				assert.throws(() => traceAccountingProtocol(report), /Unsupported trace accounting/);
+				assert.throws(() => analyzeBenchmarkTrace(markers(), report), /Unsupported trace accounting/);
+			}
 		}
-		assert.equal(analyze([], undefined, undefined, {trace: {accountingProtocol: TRACE_ACCOUNTING}}).samples[0].backgroundGcMs, null);
-		assert.throws(() => analyze(events, undefined, undefined, {trace: {accountingProtocol: 'unknown'}}), /Unsupported trace accounting/);
-		assert.throws(() => analyze(events, undefined, undefined, {trace: {accountingProtocol: TRACE_ACCOUNTING}, analysis: {accountingProtocol: LEGACY_TRACE_ACCOUNTING}}), /capture and analysis accounting protocols differ/);
+		for (const report of [
+			{trace: {accountingProtocol: TRACE_ACCOUNTING}},
+			{analysis: {accountingProtocol: TRACE_ACCOUNTING}},
+			{trace: {accountingProtocol: TRACE_ACCOUNTING}, analysis: {accountingProtocol: TRACE_ACCOUNTING}},
+		]) {
+			assert.equal(traceAccountingProtocol(report), TRACE_ACCOUNTING);
+			assert.equal(analyzeBenchmarkTrace(markers(), {...report, samples: [sample()]}).accountingProtocol, TRACE_ACCOUNTING);
+		}
+		for (const [captured, analyzed] of [[TRACE_ACCOUNTING, 'unknown'], ['unknown', TRACE_ACCOUNTING]])
+			assert.throws(() => analyze([], undefined, undefined, {trace: {accountingProtocol: captured}, analysis: {accountingProtocol: analyzed}}), /capture and analysis accounting protocols differ/);
+	});
+
+	it('keeps GC categories enabled even without observed GC and distinguishes unavailable intervals from zero', () => {
+		assert.ok(GC_CATEGORIES.every(category => benchmarkTraceConfig().includedCategories.includes(category)));
+		const absent = analyze([], undefined, undefined, {trace: {config: benchmarkTraceConfig()}});
+		assert.equal(absent.diagnostics.backgroundGc.enabled, true);
+		assert.equal(absent.samples[0].backgroundGcMs, null);
+		assert.equal(absent.samples[0].gcAddedThreadWorkMs, null);
+		assert.equal(absent.diagnostics.availabilityBySample[0].backgroundGcMs, false);
+		const outside = analyze([interval('CppGC.ConcurrentMark', 20, 25, 1, 3)]);
+		assert.equal(outside.samples[0].backgroundGcMs, 0);
+		assert.equal(outside.samples[0].gcAddedThreadWorkMs, 0);
+		assert.equal(outside.diagnostics.availabilityBySample[0].backgroundGcMs, true);
 	});
 
 	it('includes GPU-process raster workers and overlapping GPU tasks once per thread', () => {
@@ -445,7 +466,6 @@ describe('benchmark trace analysis', () => {
 		assert.match(definitions.aggregation, /only finite numbers/);
 		assert.match(definitions.aggregation, /Idle remains a separate variant; no baseline subtraction/);
 		assert.match(definitions.totalTrackedThreadWorkMs, /headline mean averages these own-round totals/);
-		assert.doesNotMatch(JSON.stringify(definitions), /median/i);
 	});
 
 	it('averages all seven runs with intermittent background GC and main-thread pauses', () => {
@@ -479,7 +499,7 @@ describe('benchmark trace analysis', () => {
 	});
 
 	it('accepts array traces, missing thread metadata, touching windows, and unordered report samples', () => {
-		const result = analyzeBenchmarkTrace([...markers(0), ...markers(1, 10), interval('RunTask', -1, 21)], {samples: [sample(1), sample(0)]});
+		const result = analyzeBenchmarkTrace([...markers(0), ...markers(1, 10), interval('RunTask', -1, 21)], {trace: {accountingProtocol: TRACE_ACCOUNTING}, samples: [sample(1), sample(0)]});
 		assert.deepEqual(result.samples.map(s => s.id), ['sample-1', 'sample-0']);
 		assert.equal(result.samples[0].rendererMainTaskMs, 10);
 		assert.ok(result.diagnostics.warnings.some(warning => warning.includes('names are missing')));
@@ -537,7 +557,7 @@ describe('benchmark trace analysis', () => {
 	it('matches file analysis for all tracked names, phases, categories, pairs, metadata, and untracked tails', async () => {
 		const dir = await mkdtemp(join(tmpdir(), 'bench-trace-analysis-'));
 		try {
-			const names = ['RunTask', 'ThreadControllerImpl::RunTask', 'UpdateLayoutTree', 'Layout', 'PrePaint', 'Paint', 'Layerize', 'RasterTask', 'GPUTask'];
+			const names = ['RunTask', 'ThreadControllerImpl::RunTask', 'UpdateLayoutTree', 'Layout', 'PrePaint', 'Paint', 'Layerize', 'RasterTask', 'GPUTask', ...BACKGROUND_GC_EVENTS];
 			const phases = ['X', 'B', 'E', 'b', 'e', 's', 't', 'f', 'I', 'C', 'M', 'R', undefined];
 			const pair = (ph, ts, name) => ({ph, ts, name, pid: 1, tid: 1});
 			const events = [...metadata, ...markers(), ...markers(1, 20), ...markers(2, 40),
@@ -556,7 +576,7 @@ describe('benchmark trace analysis', () => {
 				{name: 'InvalidateLayout', ph: 'I', ts: 60000},
 				{name: 'ScheduleStyleRecalculation', ph: 'X', ts: 59000, dur: 20000},
 			];
-			const report = {captureId: 'stream', samples: [sample(2, {dpr: 2}), sample(0, {warmup: true}), sample(1, {variant: 'idle', dataPrepMs: 1, prepAndInitMs: 3.01})]};
+			const report = {trace: {accountingProtocol: TRACE_ACCOUNTING}, captureId: 'stream', samples: [sample(2, {dpr: 2}), sample(0, {warmup: true}), sample(1, {variant: 'idle', dataPrepMs: 1, prepAndInitMs: 3.01})]};
 			for (const trace of [events, {metadata: {dataLoss: true}, traceEvents: events}, {traceEvents: events, metadata: {dataLoss: false}}]) {
 				const raw = JSON.stringify(trace);
 				const expected = analyzeBenchmarkTrace(JSON.parse(raw), report);
@@ -585,6 +605,7 @@ describe('benchmark trace analysis', () => {
 				[[{...markers()[0], ph: 'X'}, ...markers().slice(1)], {samples: [sample()]}],
 				[markers(), {samples: [sample(0, {jsMs: 20})]}],
 			]) {
+				report.trace = {accountingProtocol: TRACE_ACCOUNTING};
 				const path = join(dir, 'trace.json.gz');
 				await writeFile(path, gzipSync(JSON.stringify(events)));
 				let expected;
@@ -612,13 +633,37 @@ describe('benchmark trace analysis', () => {
 	});
 });
 
-async function withCaptureSocket(onEvaluate, test) {
+function lifecycleMock(dashboard = false) {
+	const operations = dashboard ? ['small-init', 'data-update'] : lifecycleOperations;
+	let phase;
+	return expression => {
+		if (expression === 'benchmarkLifecycle.begin()')
+			return {
+				phase: 'chart-population', initProtocol: 'settled-work-v1',
+								lifecycle: {operations, ...(!dashboard && {resizeSize: {width: 1200, height: 400}})},
+				...(dashboard ? {workload: {...dashboardWorkload}} : {
+					resizeProtocol: 'retained-resize-v1', hoverProtocol: 'hover-ten-v3',
+					hover: {count: 10, intervalMs: 50, variants: ['idle', 'uplot']},
+				}),
+				config: {variants: ['uplot'], dpr: 1, warmups: 0, rounds: 1,
+					lifecycle: true, operations, hoverVariants: ['idle', 'uplot']},
+			};
+		if (expression.startsWith('benchmarkLifecycle.prepare(')) {
+			const [operation, id] = JSON.parse('[' + expression.slice('benchmarkLifecycle.prepare('.length, -1) + ']');
+			phase = sample(Number(id.slice('sample-'.length)), {operation});
+		}
+		return expression === 'benchmarkLifecycle.construct()' ? phase : true;
+	};
+}
+
+async function withCaptureSocket(onEvaluate, test, {dashboard = false} = {}) {
 	const dir = await mkdtemp(join(tmpdir(), 'bench-trace-timeout-'));
 	const originalSocket = globalThis.WebSocket;
 	const originalFetch = globalThis.fetch;
 	const calls = [];
 	const sockets = [];
 	class Socket extends EventTarget {
+		lifecycle = lifecycleMock(dashboard);
 		closed = false;
 		messageListeners = new Set();
 		constructor() {
@@ -649,12 +694,7 @@ async function withCaptureSocket(onEvaluate, test) {
 			if (method === 'Runtime.evaluate') {
 				if (onEvaluate(this, id, params.expression))
 					return;
-				let value = true;
-				if (params.expression === 'benchmarkLifecycle.begin()')
-					value = {config: {variants: ['uplot'], dpr: 1, warmups: 0, rounds: 1}};
-				if (params.expression === 'benchmarkLifecycle.construct()')
-					value = sample();
-				result = {result: {value}};
+				result = {result: {value: this.lifecycle(params.expression)}};
 			}
 			this.message({id, result});
 		}
@@ -689,6 +729,24 @@ describe('benchmark trace sample timeout integration', () => {
 					{width: 1920, height: dashboard ? 1080 : 900, deviceScaleFactor: 2, mobile: false});
 			});
 		});
+
+		it(`captures lifecycle phase returns for dashboard=${dashboard}`, async () => {
+			await withCaptureSocket(() => false, async ({capture, calls}) => {
+				const report = await capture({dashboard, trace: false});
+				const operations = dashboard ? ['small-init', 'data-update'] : lifecycleOperations;
+				assert.equal(report.phase, 'chart-population');
+				assert.deepEqual(report.lifecycle.operations, operations);
+				assert.equal(report.samples.length, 1);
+				assert.equal(report.samples[0].operation, 'data-update');
+				assert.equal(report.samples[0].id, 'sample-1');
+				assert.deepEqual(report.samples[0].phases.map(phase => phase.operation), operations);
+				assert.deepEqual(report.samples[0].phases.map(phase => phase.id), operations.map((operation, index) => `sample-${index}`));
+				assert.equal(calls.filter(call => call.params.expression === 'benchmarkLifecycle.destroy()').length, 1);
+				assert.equal(calls.filter(call => call.method === 'HeapProfiler.collectGarbage').length, 0);
+				if (dashboard)
+					assert.deepEqual(report.workload, dashboardWorkload);
+			}, {dashboard});
+		});
 	}
 
 	it('preserves dashboard identity and lifecycle in the captured process-memory analysis', async () => {
@@ -705,7 +763,7 @@ describe('benchmark trace sample timeout integration', () => {
 
 	for (const phase of ['prepare', 'construct']) {
 		it(`closes both clients without cleanup or output when ${phase} stays silent`, async () => {
-			await withCaptureSocket((socket, id, expression) => expression === `benchmarkLifecycle.${phase}()`, async ({dir, calls, sockets, capture}) => {
+			await withCaptureSocket((socket, id, expression) => expression.startsWith(`benchmarkLifecycle.${phase}(`), async ({dir, calls, sockets, capture}) => {
 				const timeouts = [];
 				const callbackClosedStates = [];
 				const output = [];
@@ -819,7 +877,7 @@ describe('benchmark trace sample timeout integration', () => {
 
 	it('still ends tracing on an ordinary sample failure', async () => {
 		await withCaptureSocket((socket, id, expression) => {
-			if (expression !== 'benchmarkLifecycle.prepare()')
+			if (!expression.startsWith('benchmarkLifecycle.prepare('))
 				return false;
 			socket.message({id, result: {exceptionDetails: {text: 'preparation failed'}}});
 			return true;
@@ -849,12 +907,13 @@ describe('compressed benchmark trace capture', () => {
 		const dir = await mkdtemp(join(tmpdir(), 'bench-trace-capture-'));
 		const originalSocket = globalThis.WebSocket;
 		const originalFetch = globalThis.fetch;
-		const raw = JSON.stringify({traceEvents: [...metadata, ...markers(), {name: 'InvalidateLayout', ph: 'I', ts: 12345}]});
+		const raw = JSON.stringify({traceEvents: [...metadata, ...lifecycleOperations.flatMap((operation, index) => markers(index, index * 20)), {name: 'InvalidateLayout', ph: 'I', ts: 80000}]});
 		const compressed = gzipSync(raw);
 		const calls = [];
 		let dataLoss = false;
 		let offset = 0;
 		class Socket extends EventTarget {
+			lifecycle = lifecycleMock();
 			constructor() {
 				super();
 				queueMicrotask(() => this.dispatchEvent(new Event('open')));
@@ -874,12 +933,7 @@ describe('compressed benchmark trace capture', () => {
 					offset = end;
 				}
 				if (method === 'Runtime.evaluate') {
-					let value = true;
-					if (params.expression === 'benchmarkLifecycle.begin()')
-						value = {config: {variants: ['uplot'], dpr: 1, warmups: 0, rounds: 1}};
-					if (params.expression === 'benchmarkLifecycle.construct()')
-						value = sample();
-					result = {result: {value}};
+					result = {result: {value: this.lifecycle(params.expression)}};
 				}
 				this.message({id, result});
 			}
@@ -899,6 +953,8 @@ describe('compressed benchmark trace capture', () => {
 				assert.equal(report.trace.bytes, compressed.length);
 				assert.equal(report.trace.compressedBytes, (await stat(report.trace.path)).size);
 				assert.equal(report.trace.dataLoss, false);
+				assert.equal(report.trace.accountingProtocol, TRACE_ACCOUNTING);
+				assert.deepEqual(report.samples[0].phases.map(phase => phase.operation), lifecycleOperations);
 				assert.deepEqual(await readFile(report.trace.path), compressed);
 				assert.deepEqual((await readdir(dir)).sort(), ['DevToolsActivePort', name].sort());
 				assert.deepEqual(await analyzeBenchmarkTraceFile(report.trace.path, report), analyzeBenchmarkTrace(JSON.parse(raw), report));

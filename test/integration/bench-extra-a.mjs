@@ -62,8 +62,8 @@ describe('extra benchmark adapters A', () => {
 	});
 
 	it('ApexCharts sampled shares prep and cleanup and exposes a thin demo entry point', () => {
-		assert.deepEqual(Object.keys(apex), ['destroyChart', 'getHoverPlan', 'makeChart', 'makeChartWithOptions', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
-		assert.deepEqual(Object.keys(apexSampled), ['destroyChart', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
+		assert.deepEqual(Object.keys(apex), ['destroyChart', 'getHoverPlan', 'makeChart', 'makeChartWithOptions', 'prepData', 'resizeChart', 'updateChart']);
+		assert.deepEqual(Object.keys(apexSampled), ['destroyChart', 'makeChart', 'prepData', 'resizeChart', 'updateChart']);
 		assert.equal(apexSampled.prepData, apex.prepData);
 		assert.equal(apexSampled.destroyChart, apex.destroyChart);
 		const base = readFileSync(new URL('../../bench/ApexCharts.html', import.meta.url), 'utf8');

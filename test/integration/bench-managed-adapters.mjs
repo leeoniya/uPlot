@@ -337,7 +337,7 @@ describe('managed benchmark adapters', () => {
 
 	for (const [id, sampled] of [['anychart', anychartSampled], ['fusiontime', fusiontimeSampled]]) {
 		it(`${id}: sampled wrapper shares preparation and cleanup with the base`, () => {
-			assert.deepEqual(Object.keys(sampled), ['destroyChart', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
+			assert.deepEqual(Object.keys(sampled), ['destroyChart', 'makeChart', 'prepData', 'resizeChart', 'updateChart']);
 			assert.equal(sampled.prepData, adapters[id].prepData);
 			assert.equal(sampled.destroyChart, adapters[id].destroyChart);
 		});

@@ -56,10 +56,6 @@ function destroyChart(chart) {
 	chart.destroy();
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart([[], [], []], host, wait);
-}
-
 function updateChart(chart, input, host, wait) {
 	chart.options.data.forEach((series, i) => { series.dataPoints = input[i]; });
 	chart.render();
@@ -103,4 +99,4 @@ export function getHoverPlan(chart, input, host) {
 	};
 }
 
-export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};
+export {prepData, makeChart, destroyChart, updateChart};

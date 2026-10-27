@@ -125,10 +125,6 @@ function makeChart(data, host, wait) {
 	return chart;
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart([[], [], []], host, wait ?? {textContent: ''});
-}
-
 function updateChart(chart, input, host, wait) {
 	for (let i = 0; i < 3; i++)
 		// Assign through the decimation plugin's data setter, not its cached output.
@@ -217,5 +213,5 @@ export function getHoverPlan(chart, input, host) {
 	}};
 }
 
-export {makeEmptyChart, updateChart};
+export {updateChart};
 export {makeChart, prepData};

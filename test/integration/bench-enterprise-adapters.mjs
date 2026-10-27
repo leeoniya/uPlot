@@ -117,9 +117,9 @@ describe('enterprise benchmark adapters', () => {
 	for (const [id, adapter] of Object.entries(adapters)) {
 		it(`${id}: preserves every value of all 55,550 rows without source mutation`, () => {
 			assert.deepEqual(Object.keys(adapter), id === 'devextreme'
-				? ['destroyChart', 'getHoverPlan', 'makeChart', 'makeChartWithOptions', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']
+				? ['destroyChart', 'getHoverPlan', 'makeChart', 'makeChartWithOptions', 'prepData', 'resizeChart', 'updateChart']
 				: id === 'jscharting' ? ['destroyChart', 'makeChart', 'prepData']
-				: ['destroyChart', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
+				: ['destroyChart', 'makeChart', 'prepData', 'resizeChart', 'updateChart']);
 			const data = freeze(adapter.prepData(packed));
 			const again = adapter.prepData(packed);
 			assert.notEqual(data, again);

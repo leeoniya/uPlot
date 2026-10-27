@@ -46,7 +46,7 @@ function evaluate(files, id, extra = {}) {
 function expectedExports(id) {
 	const names = ['makeChart', 'prepData'];
 	if (!oldVariants.includes(id) && id !== 'uplot-release') names.push('destroyChart');
-	if (!['jscharting', 'googlecharts', 'g2-webgl'].includes(id)) names.push('makeEmptyChart', 'updateChart');
+	if (!['jscharting', 'googlecharts', 'g2-webgl'].includes(id)) names.push('updateChart');
 	if (!['jscharting', 'googlecharts'].includes(id)) names.push('resizeChart');
 	if (['uplot', 'uplot-release', 'd3', 'chartjs', 'dygraphs', 'apexcharts', 'highcharts', 'lightweight', 'plotly',
 		'canvasjs', 'bokeh', 'd3fc', 'deckgl', 'billboard', 'devextreme', 'anychart', 'recharts', 'd3-svg',

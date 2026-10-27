@@ -11,6 +11,7 @@ import {CDP} from '../../scripts/profile-manual.mjs';
 import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 import {loadBenchDemoSources} from '../../scripts/bench-demo-sources.mjs';
 import * as lightningchart from '../../bench/lightningchart.mjs';
+import {smallLifecycleData} from '../../bench/lifecycle-data.mjs';
 
 // TEST_BENCH_LIFECYCLE_NATIVE=1 node --test --test-isolation=none test/integration/bench-lifecycle-native.mjs
 // Cache-only browser checks: no downloads, screenshots, traces, or saved reports.
@@ -21,6 +22,7 @@ const variants = ['flot', 'dygraphs', 'canvasjs', 'lightweight', 'zingchart', 'k
 async function exercise(id) {
 	const check = (ok, message) => { if (!ok) throw new Error(id + ': ' + message); };
 	const adapter = await import('/bench/' + id + '.mjs');
+	const {smallLifecycleData} = await import('/bench/lifecycle-data.mjs');
 	const {setupDemo} = await import('/bench/demo-fixture.mjs');
 	const packed = await (await fetch('/bench/data.json')).json();
 	const count = (packed.length - packed[0] - 1) / packed[0];
@@ -64,12 +66,12 @@ async function exercise(id) {
 		return chart.options.series.map(s => s.data.map(p => [+p[0], p[1]]));
 	};
 	const verify = input => {
+		const rows = id === 'dygraphs' ? input.length : input[0].length;
 		const actual = read();
 		check(actual.length === 3, 'missing configured series');
 		for (let s = 0; s < 3; s++) {
-			check(actual[s].length === (input ? count : 0), 'wrong native point count');
-			if (!input) continue;
-			for (let j = 0; j < count; j++) {
+			check(actual[s].length === rows, 'wrong native point count');
+			for (let j = 0; j < rows; j++) {
 				const point = id === 'dygraphs' ? [input[j][0], input[j][s + 1]]
 					: id === 'canvasjs' ? [input[s][j].x, input[s][j].y]
 					: id === 'lightweight' ? [input[s][j].time, input[s][j].value]
@@ -84,11 +86,12 @@ async function exercise(id) {
 	try {
 		host = setupDemo(id, parent);
 		const wait = {textContent: 'waiting'};
-		chart = await adapter.makeEmptyChart(host, wait);
-		check(wait.textContent === 'Done!', 'empty readiness missing');
-		verify(null);
+		const small = adapter.prepData(smallLifecycleData(packed));
+		chart = await (adapter.makeLifecycleChart ?? adapter.makeChart)(small, host, wait);
+		check(wait.textContent === 'Done!', 'initial readiness missing');
+		verify(small);
 		let canvases = [...host.querySelectorAll('canvas')];
-		check(canvases.length > 0, 'empty chart has no canvas');
+		check(canvases.length > 0, 'initial chart has no canvas');
 		let contexts = canvases.map(canvas => canvas.getContext('2d'));
 		const replacedLayers = new Set();
 		if (id === 'flot' || id === 'dygraphs') check(canvases.length === 2, 'expected base and overlay canvases');
@@ -118,7 +121,7 @@ async function exercise(id) {
 		if (id === 'lightweight') {
 			check(constructed === 1 && lines.length === 3, 'chart or series recreated');
 			const last = lines[0].data().at(-1).value;
-			check(host.querySelector('button').textContent.includes(String(Number(last.toFixed(2)))), 'legend retained empty/old data');
+			check(host.querySelector('button').textContent.includes(String(Number(last.toFixed(2)))), 'legend retained stale data');
 		}
 		destroy();
 		// Keep the HTML direct initialization path covered separately.
@@ -137,11 +140,13 @@ async function exercise(id) {
 }
 
 describe('bench-lifecycle-native license boundary', () => {
-	it('LightningChart empty startup rejects missing licenses before touching the vendor engine', async () => {
+	it('LightningChart two-row startup rejects missing licenses before touching the vendor engine', async () => {
 		const saved = Object.getOwnPropertyDescriptor(globalThis, 'benchmarkLightningChartOptions');
 		try {
 			delete globalThis.benchmarkLightningChartOptions;
-			await assert.rejects(lightningchart.makeEmptyChart({}), /requires a user-supplied license/);
+			const packed = JSON.parse(await readFile(new URL('bench/data.json', root), 'utf8'));
+			const small = lightningchart.prepData(smallLifecycleData(packed));
+			await assert.rejects(lightningchart.makeChart(small, {}, {textContent: ''}), /requires a user-supplied license/);
 			assert.equal(typeof lightningchart.updateChart, 'function');
 		}
 		finally {
@@ -164,6 +169,7 @@ describe('bench-lifecycle-native license boundary', () => {
 			for (const dependency of source.dependencies) assets.set(dependency.route, await readFile(join(cache, dependency.cacheName)));
 		}
 		assets.set('/bench/data.json', await readFile(new URL('bench/data.json', root)));
+		assets.set('/bench/lifecycle-data.mjs', await readFile(new URL('bench/lifecycle-data.mjs', root)));
 		server = createServer((request, response) => {
 			const route = new URL(request.url, 'http://localhost').pathname;
 			if (!assets.has(route)) { response.writeHead(404).end(); return; }
@@ -198,7 +204,7 @@ describe('bench-lifecycle-native license boundary', () => {
 		if (profile) await rm(profile, {recursive: true, force: true});
 	}, {timeout: 45000});
 	for (const id of variants) {
-		it(`${id}: zero rows, two full replacements, retained contexts, teardown, and direct init`, {timeout: 45000}, async () => {
+		it(`${id}: two-row init, two full replacements, retained contexts, teardown, and direct init`, {timeout: 45000}, async () => {
 			const loaded = client.wait('Page.loadEventFired');
 			await client.send('Page.navigate', {url: `http://127.0.0.1:${server.address().port}/?variant=${id}`});
 			await loaded;

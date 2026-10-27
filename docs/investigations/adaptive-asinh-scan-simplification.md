@@ -7,7 +7,6 @@ Date: 2026-10-05
 This document records the combined extrema and adaptive-asinh scan investigation on `sparse-heatmap`.
 The core now uses the chosen scalar cache design described next.
 The historical findings and benchmark results describe earlier implementations, not current recommendations.
-The helper-placement benchmark changed temporary source snapshots, not the core implementation.
 
 The goals are one data pass for asinh, cheap cached redraws, and no additional per-value work for non-asinh scales.
 The public `uPlot.scan()` API is unreleased.
@@ -62,7 +61,6 @@ The prepared threshold uses source edges with absolute values strictly greater t
 
 The numeric scanner computes extrema and `minAbs` in one pass.
 It uses infinity sentinels internally and leaves fallback selection to the adaptive threshold consumer.
-The core no longer has a `scanAsinh()` helper or an `asinhStats` argument.
 All asinh scans use the same triple contract without a public/internal statistics distinction.
 
 Custom threshold callbacks remain supported.
@@ -114,7 +112,7 @@ Custom scanner results also avoid a fallback data scan.
 Shared X retains the existing endpoint reread for extrema on cache hits.
 Its `series[0].min/max` fields can hold visible endpoints rather than extrema for the cached query.
 The cache-hit path combines the reread extrema with cached `minAbs`.
-It does not restore the old `scanAsinh()` helper or store a separate extrema tuple.
+It does not store a separate extrema tuple.
 
 Explicit pending bounds and `scan: false` can suppress an extrema scan while the default threshold still needs data.
 The adaptive threshold fallback obtains missing statistics through a cached scan.
@@ -203,86 +201,6 @@ The chosen contract assigns current-interval correctness to `cache = true` calle
 It requires `setData` for data mutations instead of direct-mutation detection.
 These constraints remove the need for interval/cutoff metadata.
 
-## Historical helper-placement benchmark evidence
-
-These measurements predate the final scalar cache design.
-They do not measure its performance.
-
-The first implementation kept the asinh cache branch inside the shared `acc()` closure.
-Earlier measurements suggested an approximately 10% Node penalty in a large linear control.
-The implementation then moved that branch into `scanAsinh()`.
-
-A later comparison isolated function placement.
-The inline variant moved the helper body from that snapshot directly into `acc()` without other algorithm changes.
-It did not restore an older implementation with unrelated differences.
-
-### Method
-
-- Node 26.10.0 and Bun 1.4.3, with no browser runs.
-- Two suites per engine, with reversed import and initial timing order in the second suite.
-- A 60-second cooldown before the first suite and between every suite.
-- Four warmup batches and twelve measured pairs per workload, with alternating AB/BA timing order.
-- Minimum batch-average microseconds per update, not minimum individual update time.
-- Real chart updates with drawing disabled and data preparation excluded.
-- The 110-point adaptive demo model and expanded 100k/250k workloads.
-
-### Selected results
-
-The table shows the helper time change relative to inline at 250k points.
-Each cell contains the normal-order result followed by the reversed-order result.
-Negative values mean that the helper took less time.
-
-| Scale | Operation | Node | Bun |
-| --- | --- | ---: | ---: |
-| Adaptive asinh | `setData` | -0.6% / -1.5% | -1.9% / -7.1% |
-| Adaptive asinh | Pan/zoom | +0.6% / -0.8% | -2.8% / -7.6% |
-| Adaptive asinh | Redraw | -1.5% / +0.7% | -1.9% / +6.8% |
-| Linear | `setData` | -0.6% / +0.2% | -5.3% / -2.1% |
-| Linear | Pan/zoom | +3.6% / +0.7% | -6.1% / +2.4% |
-| Log | `setData` | +5.6% / +4.1% | +2.5% / +4.7% |
-| Log | Pan/zoom | +4.4% / +1.8% | +2.7% / +1.2% |
-
-The earlier Node linear penalty did not recur.
-The helper reduced time for large Bun adaptive updates, but inline reduced time for large log updates in both engines.
-The original 110-point demo remained mixed.
-Node adaptive redraw changed from a 17% helper advantage to a 9.7% helper penalty after order reversal.
-
-All four suites produced identical correctness hashes and data-read probes.
-Source hashes showed that only `uPlot.js` differed between variants.
-The helper snapshot matched the core source at the time of those runs.
-
-**Historical conclusion:** these runs did not establish a general performance advantage for the helper.
-Minimum timings and cooldowns did not remove all variation.
-The measurements did not establish thermal throttling as the cause of earlier results.
-The final design removes the helper without a claim of a measured performance improvement.
-
-### Historical commands: no longer runnable
-
-The following commands record the original experiment.
-The current harness rejects `--inline` and `--reverse` because their mechanical transformation required the removed `scanAsinh()` helper.
-These commands require the historical harness and matching source snapshots.
-
-```sh
-sleep 60
-node scripts/bench-asinh-scan.mjs --inline --min
-sleep 60
-bun scripts/bench-asinh-scan.mjs --inline --min
-sleep 60
-node scripts/bench-asinh-scan.mjs --inline --reverse --min
-sleep 60
-bun scripts/bench-asinh-scan.mjs --inline --reverse --min
-```
-
-The original reports are local artifacts under `test/output/asinh-scan/`:
-
-- `node-26.10.0-inline-helper-6ctPaB/report.json`
-- `node-26.10.0-helper-inline-OsRJof/report.json`
-- `bun-1.4.3-inline-helper-gXDj3C/report.json`
-- `bun-1.4.3-helper-inline-k4ePHa/report.json`
-
-These artifacts are not durable repository documentation.
-The full test suite clears `test/output`.
-
 ## Current reproduction commands
 
 The [benchmark script](../../scripts/bench-asinh-scan.mjs) retains temporary source snapshots, hashes, probes, and raw timing samples.
@@ -290,7 +208,6 @@ Its default mode compares the pinned baseline with current `src/`.
 `--baseline` runs frozen-source A/A calibration without current source imports.
 `--expect-fused` adds assertions for asinh triples, fewer `setData` reads, and zero cached adaptive-callback reads.
 `--min` selects minimum batch timings instead of medians.
-These modes do not extract or depend on the removed helper.
 
 From the repository root, run:
 
@@ -304,7 +221,7 @@ sleep 60
 bun scripts/bench-asinh-scan.mjs --expect-fused --min
 ```
 
-These comparisons do not isolate helper placement or the scalar cache change.
+These comparisons do not isolate the scalar cache change.
 The harness covers mode 1 with one Y series, not shared X, mode 2, hide/show, or custom callbacks.
 
 

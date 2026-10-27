@@ -227,10 +227,6 @@ function renderChart(chart, timeoutMs, action, completed = chart.renderInstructi
 	});
 }
 
-export function makeEmptyChart(host, wait) {
-	return makeChart(Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(0)])), host, wait);
-}
-
 export async function updateChart(chart, input, host, wait) {
 	await renderChart(chart, globalThis.benchmarkSciChartOptions?.timeoutMs ?? 30000, () => {
 		chart.suspendUpdates();

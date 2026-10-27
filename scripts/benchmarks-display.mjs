@@ -109,8 +109,8 @@ function formatTable(rows, colorDepth, verbose) {
 		...keys.filter(key => !metadata.includes(key) && (verbose || !['main ms', 'gpu ms'].includes(key)))];
 	const split = columns.indexOf('retained MB') + 1;
 	const divided = split > 0 && ['resize ms', 'resize rAF ms', 'hover10 ms'].includes(columns[split]);
-	// Legacy startup totals keep their label; rAF readiness and latency are not thread work.
-	const workColumn = keys.includes('total ms') ? 'total ms' : keys.includes('main ms') ? 'update ms' : null;
+	// rAF readiness and latency are not thread work.
+	const workColumn = keys.includes('main ms') ? 'update ms' : null;
 	const width = text => [...cellWidths(text)].reduce((sum, size) => sum + size, 0);
 	const cell = value => clean(value).replace(/\n/g, ' ');
 	const cells = rows.map(row => columns.map(key => key === 'variant' ? cell(benchmarkLibraryName(row[key] ?? ''))

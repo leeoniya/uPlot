@@ -10,7 +10,9 @@ import {parseArgs} from 'node:util';
 import {runInNewContext} from 'node:vm';
 import {benchmarkMode, benchmarkVariantMetadata, resolveBenchmarkVulkan, variantReportName, suiteReportName,
 	traceReportName, runBenchmarkSuite, summarizeSavedBenchmarks} from '../../scripts/benchmarks-suite.mjs';
-import {dashboardWorkload, benchmarkOperations, benchmarkTimingSamples, assertCompatibleWorkloads} from '../../scripts/benchmarks-phases.mjs';
+import {dashboardWorkload, lifecycleOperations, benchmarkOperations, benchmarkTimingSamples, assertCompatibleWorkloads} from '../../scripts/benchmarks-phases.mjs';
+import {TRACE_ACCOUNTING} from '../../scripts/bench-trace-policy.mjs';
+import {hoverVariants} from '../../bench/hover.mjs';
 import {summarizeAdjustedProcessMemory, summarizeProcessMemory} from '../../scripts/analyze-benchmarks-process-memory.mjs';
 import {summarizeBenchmarkTraceSamples} from '../../scripts/analyze-benchmarks-trace.mjs';
 import {summarizeBenchmarkRaf} from '../../scripts/analyze-benchmarks-raf.mjs';
@@ -29,15 +31,20 @@ const observation = (phase, value) => ({phase, kind: phase === 'construct' ? 'po
 	processMemory: {complete: true, renderer: memory(value), tree: memory(value)}});
 
 function browser({variant, dpr = 1, requestedBackend = 'default', measurements = modes[0], dashboard = true}) {
+	const reportOperations = dashboard ? operations : lifecycleOperations;
 	const raw = {
 		measurements: {...measurements}, phase: 'chart-population', initProtocol: 'settled-work-v1',
-		...(dashboard ? {workload: {...dashboardWorkload}} : {}),
-		lifecycle: {operations: [...operations], initialRows: 2, updateRows: dashboard ? 300 : 55550},
+		...(dashboard ? {workload: {...dashboardWorkload}} : {
+			resizeProtocol: 'retained-resize-v1', hoverProtocol: 'hover-ten-v3',
+			hover: {count: 10, intervalMs: 50, variants: [...hoverVariants]},
+		}),
+		lifecycle: {operations: [...reportOperations], initialRows: 2, updateRows: dashboard ? 300 : 55550,
+			...(!dashboard ? {resizeSize: {width: 1200, height: 400}} : {})},
 		memoryProtocol: 'through-update-v1',
 		runner: {variant, dpr, requestedBackend, benchmark: benchmarkVariantMetadata(variant, {dashboard})},
 		blank: observation('blank', 10), loaded: observation('loaded', 20),
 		samples: [-1, 0, 1].map(round => {
-			const phases = operations.map((operation, index) => ({
+			const phases = reportOperations.filter(operation => operation !== 'hover-10' || hoverVariants.includes(variant)).map((operation, index) => ({
 				id: `${variant}-${round}-${index}`, variant, dpr, round, warmup: round < 0, operation,
 				dataPrepMs: 2, jsMs: index + 3, raf1Ms: index + 10, windowMs: 220,
 			}));
@@ -51,7 +58,7 @@ function browser({variant, dpr = 1, requestedBackend = 'default', measurements =
 			rendererMainTaskMs: 3, gpuMainTaskMs: 1, totalTrackedThreadWorkMs: phase.operation === 'small-init' ? 12 : 25,
 		})));
 		const phaseGroups = summarizeBenchmarkTraceSamples(samples);
-		raw.analysis = {samples, groups: phaseGroups.filter(group => group.operation === 'data-update'), phaseGroups};
+		raw.analysis = {accountingProtocol: TRACE_ACCOUNTING, samples, groups: phaseGroups.filter(group => group.operation === 'data-update'), phaseGroups};
 	}
 	if (measurements.raf) raw.rafAnalysis = summarizeBenchmarkRaf(raw);
 	return raw;
@@ -357,7 +364,7 @@ describe('dashboard benchmark suite', () => {
 			raw => raw.resizeProtocol = 'retained-resize-v1',
 			raw => raw.hover = {count: 10},
 			raw => raw.initProtocol = 'readiness',
-			raw => raw.phase = 'chart-lifecycle',
+			raw => raw.phase = 'unknown',
 			raw => raw.lifecycle.operations.push('resize'),
 			raw => raw.samples[0].phases.pop(),
 		]) {

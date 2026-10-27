@@ -90,12 +90,6 @@ function makeChart(data, host, wait) {
 	return dyCpuMem;
 }
 
-function makeEmptyChart(host, wait) {
-	// Dygraphs turns [] into [[0]], which conflicts with the four labels.
-	// A blank inline CSV parses to zero rows without a synthetic point or URL fetch.
-	return makeChart('\n', host, wait ?? {textContent: ''});
-}
-
 function updateChart(chart, input, host, wait) {
 	// Inline array replacement parses and draws synchronously.
 	chart.updateOptions({file: input.length ? input : '\n'});
@@ -135,4 +129,4 @@ export function getHoverPlan(chart, input, host) {
 	};
 }
 
-export {makeChart, prepData, makeEmptyChart, updateChart};
+export {makeChart, prepData, updateChart};

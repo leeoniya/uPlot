@@ -135,10 +135,6 @@ async function rendered(chart, wait) {
 	return chart;
 }
 
-function makeEmptyChart(host, wait) {
-	return makeLifecycleChart([[], [], []], host, wait);
-}
-
 export function makeLifecycleChart(data, host, wait) {
 	return rendered(makeChart(data, host), wait);
 }
@@ -192,4 +188,4 @@ export function getHoverPlan(chart, input, host) {
 	};
 }
 
-export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart};
+export {prepData, makeChart, destroyChart, updateChart};

@@ -213,7 +213,7 @@ describe('native benchmark hover plans', () => {
 			await highcharts.makeChart(input, element()),
 			await highcharts.makeChartWithOptions(input, element(), null, null, {boost: {enabled: true}}),
 			await highchartsSvg.makeChart(input, element()),
-			await highchartsSvg.makeEmptyChart(element()),
+
 		]) {
 			const svg = chart.options.boost.enabled === false;
 			const {series, line} = chart.options.plotOptions;

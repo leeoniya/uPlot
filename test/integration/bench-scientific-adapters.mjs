@@ -138,8 +138,8 @@ describe('scientific benchmark adapters', () => {
 	for (const [name, adapter, factor] of [['SciChart', scichart, 60], ['LightningChart', lightningchart, 60000]]) {
 		it(`${name}: retains every timestamp and all 55,550 × 3 values in independent Float64 columns`, () => {
 			assert.deepEqual(Object.keys(adapter), name === 'SciChart'
-				? ['configureRuntime', 'destroyChart', 'licenseReady', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']
-				: ['destroyChart', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
+				? ['configureRuntime', 'destroyChart', 'licenseReady', 'makeChart', 'prepData', 'resizeChart', 'updateChart']
+				: ['destroyChart', 'makeChart', 'prepData', 'resizeChart', 'updateChart']);
 			const data = adapter.prepData(packed), second = adapter.prepData(packed);
 			for (const [key, values] of Object.entries(data)) {
 				assert.ok(values instanceof Float64Array);
@@ -384,7 +384,7 @@ describe('scientific benchmark adapters', () => {
 		assert.equal(mock.chart.deletions, 1);
 	});
 
-	it('LightningChart: accepts runtime options without a permission gate; retains full native columns', async () => {
+	it('LightningChart: forwards the runtime license and retains full native columns', async () => {
 		const mock = installLC(), data = lightningchart.prepData(packed), wait = {textContent: 'Rendering...'};
 		const pending = lightningchart.makeChart(data, host, wait);
 		assert.equal(mock.options.license, globalThis.benchmarkLightningChartOptions.license);
@@ -425,7 +425,7 @@ describe('scientific benchmark adapters', () => {
 		});
 	}
 
-	it('LightningChart: reports the technical license blocker', async () => {
+	it('LightningChart: rejects initialization without a supplied license', async () => {
 		delete globalThis.benchmarkLightningChartOptions;
 		await assert.rejects(lightningchart.makeChart({}, host), /requires a user-supplied license/);
 	});
@@ -435,7 +435,7 @@ describe('scientific benchmark adapters', () => {
 			const source = readFileSync(new URL(`../../bench/${page}.html`, import.meta.url), 'utf8');
 			const script = source.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
 			assert.equal(script.trim(), `import {runDemo} from './demo.mjs';\n\t\t\trunDemo('${variant}').catch(console.error);`);
-			assert.doesNotMatch(source, /<form|<input|<button|fetch\(|performance\.now\(|benchmarkPermission/);
+			assert.doesNotMatch(source, /<form|<input|<button|fetch\(|performance\.now\(/);
 		}
 	});
 });

@@ -180,13 +180,13 @@ describe('benchmark lifecycle core exports', () => {
 		finally { dispose(id, chart); }
 	});
 
-	for (const id of ids) for (const empty of [true, false]) {
-		it(`${id}: ${empty ? 'empty' : 'direct populated'} creation and two full replacements retain native ownership`, async () => {
+	for (const id of ids) for (const small of [true, false]) {
+		it(`${id}: ${small ? 'two-row' : 'direct full-data'} creation and two full replacements retain native ownership`, async () => {
 			const state = vendors(), adapter = adapters[id], wait = {textContent: ''};
-			const input = adapter.prepData(packed);
-			const chart = await (empty ? adapter.makeEmptyChart(state.host, wait) : adapter.makeChart(input, state.host, wait));
+			const input = adapter.prepData(small ? smallLifecycleData(packed) : packed);
+			const chart = await (small ? adapter.makeLifecycleChart ?? adapter.makeChart : adapter.makeChart)(input, state.host, wait);
 			assert.equal(state.created, 1);
-			assert.deepEqual(seriesData(id, chart).map(a => a.length), Array(3).fill(empty ? 0 : id === 'deckgl' ? 111100 : 55550));
+			assert.deepEqual(seriesData(id, chart).map(a => a.length), Array(3).fill((small ? 2 : 55550) * (id === 'deckgl' ? 2 : 1)));
 			const identity = chart.instance ?? chart.deck ?? chart;
 			const series = chart.series ?? chart.data?.datasets ?? chart.renderableSeries?.asArray();
 			if (id.startsWith('plotly')) assert.equal(chart.data[0].type, id === 'plotly-svg' ? 'scatter' : 'scattergl');
@@ -220,7 +220,7 @@ describe('benchmark lifecycle core exports', () => {
 	for (const id of ['plotly', 'plotly-svg', 'scichart', 'chartgpu', 'deckgl', 'highcharts']) {
 		it(`${id}: replacement waits for native completion`, async () => {
 			const state = vendors(), adapter = adapters[id];
-			const chart = await adapter.makeEmptyChart(state.host);
+			const chart = await adapter.makeChart(adapter.prepData(smallLifecycleData(packed)), state.host, {textContent: ''});
 			const gate = Promise.withResolvers();
 			state.gate = gate.promise;
 			state.held = true;
@@ -249,7 +249,7 @@ describe('benchmark lifecycle core exports', () => {
 
 	it('ChartGPU propagates deferred submit failures and restores queue/mode without recreating', async () => {
 		const state = vendors(), adapter = adapters.chartgpu;
-		const chart = await adapter.makeEmptyChart(state.host);
+		const chart = await adapter.makeChart(adapter.prepData(smallLifecycleData(packed)), state.host, {textContent: ''});
 		const submit = state.device.queue.submit;
 		state.submitError = new Error('submit failed');
 		await assert.rejects(adapter.updateChart(chart, nextInput('chartgpu', 10)), /submit failed/);
@@ -262,7 +262,7 @@ describe('benchmark lifecycle core exports', () => {
 
 	for (const id of ['scichart', 'deckgl', 'highcharts']) it(`${id}: teardown rejects a pending replacement`, async () => {
 		const state = vendors(), adapter = adapters[id];
-		const chart = await adapter.makeEmptyChart(state.host);
+		const chart = await adapter.makeChart(adapter.prepData(smallLifecycleData(packed)), state.host, {textContent: ''});
 		state.held = true;
 		const pending = adapter.updateChart(chart, nextInput(id, 10));
 		const rejected = assert.rejects(pending, /disposed|destroyed/);

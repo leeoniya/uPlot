@@ -56,10 +56,6 @@ async function makeChart(data, host, wait) {
 	}
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart([], host, wait);
-}
-
 async function updateChart(chart, input, host, wait) {
 	// Native Canvas data binding retains the Chart but recreates its drawing surface.
 	const loaded = chart.loaded;
@@ -98,4 +94,4 @@ function destroyChart(chart) {
 	finally { element.replaceChildren(); }
 }
 
-export {prepData, makeChart, makeEmptyChart, updateChart, resizeChart, destroyChart};
+export {prepData, makeChart, updateChart, resizeChart, destroyChart};

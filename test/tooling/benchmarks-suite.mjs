@@ -10,8 +10,9 @@ import { runInNewContext } from 'node:vm';
 import { parseArgs } from 'node:util';
 import { summarizeBenchmarkRaf } from '../../scripts/analyze-benchmarks-raf.mjs';
 import { summarizeBenchmarkTraceSamples } from '../../scripts/analyze-benchmarks-trace.mjs';
-import { TRACE_ACCOUNTING, LEGACY_TRACE_ACCOUNTING } from '../../scripts/bench-trace-policy.mjs';
+import { TRACE_ACCOUNTING } from '../../scripts/bench-trace-policy.mjs';
 import { benchmarkMode, resolveBenchmarkVulkan, variantReportName, suiteReportName, benchmarkVariantMetadata, runBenchmarkSuite, summarizeSavedBenchmarks } from '../../scripts/benchmarks-suite.mjs';
+import { lifecycleOperations } from '../../scripts/benchmarks-phases.mjs';
 import { demoDependencies, benchmarkMetadata, benchmarkVariants, benchmarkLibraryName, demoRestrictions, benchmarkRestrictions } from '../../bench/demo-dependencies.mjs';
 
 const variants = ['idle', ...benchmarkVariants];
@@ -30,19 +31,31 @@ function browser(variant, measurements = combined, dpr = 1, requestedBackend = '
 	const sample = ([live, peak], round, warmup = false) => ({
 		id: `${variant}-${round}`, variant, dpr, round, warmup,
 		dataPrepMs: warmup ? 9000 : 2, jsMs: warmup ? 9000 : 3, raf1Ms: warmup ? 9000 : 16,
-		processObservations: [observation('baseline', 2), observation('prepared', 4), observation('construct', peak), observation('live', live), observation('cleanup', 1)],
+		processObservations: [observation('baseline', 2), observation('prepared', 4), observation('construct', peak), {...observation('live', live), operation: 'data-update'}],
 	});
 	const report = {
-		measurements: {...measurements}, runner: {variant, dpr, requestedBackend, benchmark: {...benchmarkMetadata[variant]}},
+		phase: 'chart-population', initProtocol: 'settled-work-v1', resizeProtocol: 'retained-resize-v1',
+		hoverProtocol: 'hover-ten-v3', hover: {variants: ['idle', 'uplot', 'chartjs', 'bokeh', 'bokeh-canvas'], count: 10, intervalMs: 50},
+		operations: [...lifecycleOperations], lifecycle: {operations: [...lifecycleOperations], resizeSize: {width: 1200, height: 400}},
+		...(measurements.memory ? {memoryProtocol: 'through-update-v1'} : {}),
+		measurements: {...measurements}, runner: {variant, dpr, requestedBackend, benchmark: {...(benchmarkMetadata[variant] ?? {sampling: 'none', context: '2d', lossy: false})}},
 		blank: observation('blank', idle ? 10 : 20), loaded: observation('loaded', 9999),
 		samples: [sample([9000, 10000], -1, true), ...values.map((value, round) => sample(value, round))],
 	};
+	for (const sample of report.samples) {
+		sample.operation = 'data-update';
+		sample.phases = report.operations.filter(operation => operation !== 'hover-10' || report.hover.variants.includes(variant))
+			.map(operation => ({...sample, id: operation === 'data-update' ? sample.id : `${sample.id}-${operation}`, operation}));
+	}
 	if (measurements.trace) {
+		report.trace = {accountingProtocol: TRACE_ACCOUNTING};
 		const metrics = Object.fromEntries([
 			['dataPrepMs', 1.123456], ['jsIntervalMs', 2], ['rendererMainTaskMs', 3],
 			['gpuMainTaskMs', 4], ['totalTrackedThreadWorkMs', 5], ['jsMs', 999], ['prepAndInitMs', 999],
 		].map(([key, mean]) => [key, {min: mean / 2, max: mean + 10, mean, count: 3, missing: 0}]));
-		report.analysis = {groups: [{variant, dpr, sampleCount: 3, warmupCount: 1, metrics}]};
+		const group = {variant, dpr, operation: 'data-update', sampleCount: 3, warmupCount: 1, metrics};
+		report.analysis = {accountingProtocol: TRACE_ACCOUNTING, groups: [group],
+			phaseGroups: report.samples[0].phases.map(({operation}) => ({...structuredClone(group), operation}))};
 	}
 	if (measurements.raf)
 		report.rafAnalysis = summarizeBenchmarkRaf(report);
@@ -130,7 +143,8 @@ const renderedRow = row => Object.fromEntries(Object.entries(row).map(([key, val
 	[key, key === 'variant' ? benchmarkLibraryName(value) : Number.isFinite(value) ? Number(value.toFixed(1)) : value]));
 
 function savedReport(reports, measurements = combined) {
-	return {mode: benchmarkMode(measurements), measurements, reports, complete: false, progress: {completed: []}, protocol: {custom: true}};
+	return {mode: benchmarkMode(measurements), measurements, reports, requestedBackend: 'default',
+		variantMetadata: structuredClone(benchmarkMetadata), complete: false, progress: {completed: []}, protocol: {custom: true}};
 }
 
 // Metric regressions inspect every column; presentation regressions override this option.
@@ -140,44 +154,13 @@ function offline(report, options = {verbose: true}) {
 	return capture(() => summarizeSavedBenchmarks({...report.measurements, vulkan: false, ...options}, output));
 }
 
-describe('trace accounting compatibility', () => {
-	for (const measurements of [combined, {trace: true, memory: false, raf: false}]) {
-		it(`rejects mixed legacy and GC accounting in ${benchmarkMode(measurements)}`, () => {
-			const old = browser('uplot', measurements), next = browser('chartjs', measurements);
-			next.trace = {accountingProtocol: TRACE_ACCOUNTING};
-			next.analysis.accountingProtocol = TRACE_ACCOUNTING;
-			assert.throws(() => offline(savedReport([old, next], measurements)), /different trace accounting protocols/);
-			old.trace = {accountingProtocol: LEGACY_TRACE_ACCOUNTING};
-			assert.throws(() => offline(savedReport([old, next], measurements)), /different trace accounting protocols/);
-			old.trace.accountingProtocol = TRACE_ACCOUNTING;
-			old.analysis.accountingProtocol = TRACE_ACCOUNTING;
-			assert.equal(offline(savedReport([old, next], measurements)).tables[0].length, 2);
-		});
-	}
-	it('rejects mismatched capture/analysis metadata and unknown accounting', () => {
-		const raw = browser('uplot');
-		raw.trace = {accountingProtocol: TRACE_ACCOUNTING};
-		raw.analysis.accountingProtocol = LEGACY_TRACE_ACCOUNTING;
-		assert.throws(() => offline(savedReport([raw])), /capture and analysis accounting protocols differ/);
-		raw.analysis.accountingProtocol = raw.trace.accountingProtocol = 'unknown';
-		assert.throws(() => offline(savedReport([raw])), /Unsupported trace accounting/);
-	});
-});
-
 function resizedBrowser(variant, measurements, dpr = 1, requestedBackend = 'default') {
 	const raw = browser(variant, measurements, dpr, requestedBackend);
-	raw.phase = 'chart-population';
-	raw.initProtocol = 'settled-work-v1';
-	raw.resizeProtocol = 'retained-resize-v1';
-	raw.operations = ['small-init', 'data-update', 'resize'];
-	raw.lifecycle = {operations: [...raw.operations], resizeSize: {width: 1200, height: 400}};
-	raw.samples = raw.samples.map(sample => ({...sample, operation: 'data-update',
-		phases: raw.operations.map(operation => ({...sample, id: operation === 'data-update' ? sample.id : `${sample.id}-${operation}`, operation,
-			jsMs: operation === 'resize' ? 0.2 : sample.jsMs,
-			raf1Ms: operation === 'data-update' ? sample.raf1Ms : sample.warmup ? 1
-							: operation === 'resize' ? [50, 40, 60][sample.round] : [19, 18, 20][sample.round],
-		})),
-	}));
+	for (const sample of raw.samples) for (const phase of sample.phases) {
+		phase.jsMs = phase.operation === 'resize' ? 0.2 : sample.jsMs;
+		phase.raf1Ms = phase.operation === 'data-update' ? sample.raf1Ms : sample.warmup ? 1
+			: phase.operation === 'resize' ? [50, 40, 60][sample.round] : [19, 18, 20][sample.round];
+	}
 	if (measurements.trace) {
 		const samples = raw.samples.flatMap(sample => sample.phases.map(phase => ({...phase,
 			jsIntervalMs: phase.jsMs, rendererMainTaskMs: 3, gpuMainTaskMs: 4,
@@ -185,60 +168,65 @@ function resizedBrowser(variant, measurements, dpr = 1, requestedBackend = 'defa
 				: (phase.round + 1) * (phase.operation === 'data-update' ? 10 : 3),
 		})));
 		const phaseGroups = summarizeBenchmarkTraceSamples(samples);
-		raw.analysis = {samples, groups: phaseGroups.filter(group => group.operation === 'data-update'), phaseGroups};
+		raw.analysis = {accountingProtocol: TRACE_ACCOUNTING, samples, groups: phaseGroups.filter(group => group.operation === 'data-update'), phaseGroups};
 	}
 	if (measurements.raf)
 		raw.rafAnalysis = summarizeBenchmarkRaf(raw);
 	return raw;
 }
 
-function hoverBrowser(variant, measurements, dpr = 1, requestedBackend = 'default', protocol = 'hover-ten-v3') {
+function hoverBrowser(variant, measurements = combined, dpr = 1, requestedBackend = 'default') {
 	const raw = resizedBrowser(variant, measurements, dpr, requestedBackend);
-	raw.hoverProtocol = protocol;
-	raw.hover = {variants: ['idle', 'uplot', 'chartjs', 'bokeh', 'bokeh-canvas'], count: 10,
-		...(['hover-ten-v2', 'hover-ten-v3'].includes(protocol) ? {intervalMs: 50} : {})};
-	raw.operations.push('hover-10');
-	raw.lifecycle.operations.push('hover-10');
-	if (raw.hover.variants.includes(variant)) {
-		for (const sample of raw.samples) {
-			const phase = {...sample.phases[2], id: `${sample.id}-hover`, operation: 'hover-10',
-				jsMs: 0.1, raf1Ms: sample.warmup ? 0.01 : [70, 40, 100][sample.round]};
-			sample.phases.push(phase);
-			if (measurements.trace)
-				raw.analysis.samples.push({...phase, totalTrackedThreadWorkMs: sample.warmup ? 9999 : [0, 60, 120][sample.round]});
-		}
+	for (const sample of raw.samples) {
+		const phase = sample.phases.find(phase => phase.operation === 'hover-10');
+		if (phase) Object.assign(phase, {jsMs: 0.1, raf1Ms: sample.warmup ? 0.01 : [70, 40, 100][sample.round]});
 	}
 	if (measurements.trace) {
+		for (const phase of raw.analysis.samples.filter(phase => phase.operation === 'hover-10'))
+			phase.totalTrackedThreadWorkMs = phase.warmup ? 9999 : [0, 60, 120][phase.round];
 		raw.analysis.phaseGroups = summarizeBenchmarkTraceSamples(raw.analysis.samples);
 		raw.analysis.groups = raw.analysis.phaseGroups.filter(group => group.operation === 'data-update');
 	}
-	if (measurements.raf)
-		raw.rafAnalysis = summarizeBenchmarkRaf(raw);
+	if (measurements.raf) raw.rafAnalysis = summarizeBenchmarkRaf(raw);
 	return raw;
 }
 
+describe('current saved report contract', () => {
+	it('rejects unsupported protocols and incomplete metadata before rewriting reports', () => {
+		for (const change of [
+			r => delete r.requestedBackend,
+			r => delete r.reports[0].runner.requestedBackend,
+			r => { for (const key of ['phase', 'initProtocol', 'resizeProtocol', 'hoverProtocol', 'hover', 'lifecycle', 'operations']) delete r.reports[0][key]; },
+			...['unknown', null].map(phase => r => r.reports[0].phase = phase),
+			r => delete r.reports[0].initProtocol,
+			r => delete r.reports[0].lifecycle,
+			r => r.reports[0].lifecycle.operations = ['small-init', 'data-update'],
+			r => delete r.reports[0].lifecycle.resizeSize,
+			r => r.reports[0].lifecycle.resizeSize = {width: 0, height: '400'},
+			r => delete r.reports[0].resizeProtocol,
+			...['unknown', null].map(protocol => r => r.reports[0].hoverProtocol = protocol),
+			r => delete r.reports[0].runner.benchmark,
+			...['sampling', 'context', 'lossy'].map(key => r => delete r.reports[0].runner.benchmark[key]),
+			r => r.reports[0].runner.benchmark.context = 42,
+			r => r.reports[0].runner.benchmark.lossy = 'false',
+			r => r.reports[0].trace.accountingProtocol = 'unknown',
+			r => { r.reports[0].trace.accountingProtocol = r.reports[0].analysis.accountingProtocol = 'unknown'; },
+		]) {
+			const report = savedReport([browser('idle'), browser('uplot')]);
+			change(report);
+			const output = join(directory, 'invalid-report.json');
+			const bytes = JSON.stringify(report);
+			writeFileSync(output, bytes);
+			assert.throws(() => summarizeSavedBenchmarks({vulkan: false}, output), /backend|[Ll]ifecycle|metadata|accounting/);
+			assert.equal(readFileSync(output, 'utf8'), bytes);
+		}
+	});
+});
+
 describe('through-update memory reports', () => {
-	const updatedBrowser = (variant, measurements = combined, dpr, backend) => {
-		const raw = hoverBrowser(variant, measurements, dpr, backend);
-		raw.memoryProtocol = 'through-update-v1';
-		for (const sample of raw.samples)
-			sample.processObservations = sample.processObservations.filter(read => read.phase !== 'cleanup');
-		return raw;
-	};
+	const updatedBrowser = hoverBrowser;
 
 	for (const measurements of [combined, {trace: false, memory: true, raf: false}]) {
-		it(`rejects v2/v3 hover mixtures with the same through-update memory boundary in ${benchmarkMode(measurements)}`, () => {
-			for (const reverse of [false, true]) {
-				const idle = updatedBrowser('idle', measurements), raw = updatedBrowser('uplot', measurements);
-				idle.hoverProtocol = 'hover-ten-v2';
-				const output = join(directory, 'mixed-hover-through-update.json');
-				const bytes = JSON.stringify(savedReport(reverse ? [raw, idle] : [idle, raw], measurements));
-				writeFileSync(output, bytes);
-				assert.throws(() => capture(() => summarizeSavedBenchmarks({...measurements, vulkan: false}, output)), /hover protocols/);
-				assert.equal(readFileSync(output, 'utf8'), bytes);
-			}
-		});
-
 		it(`rejects mixed and unknown memory protocols before rewriting saved ${benchmarkMode(measurements)} reports`, () => {
 			for (const reverse of [false, true]) for (const protocol of [undefined, 'future-v2', null]) {
 				const idle = updatedBrowser('idle', measurements), raw = updatedBrowser('uplot', measurements);
@@ -261,6 +249,7 @@ describe('through-update memory reports', () => {
 			'update ms', 'peak MB', 'retained MB', 'resize ms', 'hover10 ms'];
 		assert.deepEqual(Object.keys(h.frames.at(-1).rows[0]), columns);
 		report.reports.push(updatedBrowser('d3'));
+		Object.assign(report.variantMetadata, structuredClone(benchmarkMetadata));
 		report.failures = [{variant: 'chartjs', error: 'failed'}, {variant: 'd3-svg', error: 'failed'}];
 		report.timeouts = [{variant: 'bokeh', error: 'timed out'}];
 		const original = structuredClone(report.reports);
@@ -299,8 +288,8 @@ describe('through-update memory reports', () => {
 	});
 });
 
-for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3']) describe(`optional hover reports (${protocol})`, () => {
-	const hoveredBrowser = (variant, measurements, dpr, requestedBackend) => hoverBrowser(variant, measurements, dpr, requestedBackend, protocol);
+describe('optional hover reports', () => {
+	const hoveredBrowser = hoverBrowser;
 	const modes = [combined, {trace: true, memory: false, raf: false}, {trace: false, memory: false, raf: true}, {trace: false, memory: true, raf: false}];
 	for (const measurements of modes) {
 		const mode = benchmarkMode(measurements);
@@ -310,7 +299,8 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3']) describ
 			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
 			const row = h.frames.at(-1).rows[0];
 			const baseline = offline(savedReport([resizedBrowser('idle', measurements), resizedBrowser('uplot', measurements)], measurements)).tables[0][0];
-			assert.deepEqual(renderedRow(Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'hover10 ms'))), baseline);
+			assert.deepEqual(renderedRow(Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'hover10 ms'))),
+				Object.fromEntries(Object.entries(baseline).filter(([key]) => key !== 'hover10 ms')));
 			if (measurements.trace || measurements.raf) {
 				assert.equal(row['hover10 ms'], measurements.raf ? 40 : 60);
 				assert.equal(Object.keys(row).indexOf('hover10 ms'), Object.keys(row).indexOf(measurements.raf ? 'resize rAF ms' : 'resize ms') + 1);
@@ -330,13 +320,13 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3']) describ
 			}
 			assert.match(report.protocol.hover, /10 mousemoves.*final settle\/fence/);
 			assert.match(report.protocol.hover, /cumulative, not a per-point average/);
-			assert.match(report.protocol.hover, /hover.intervalMs is 50 for hover-ten-v2 and hover-ten-v3/);
+			assert.match(report.protocol.hover, /hover.intervalMs is 50/);
 			assert.match(report.protocol.hover, /all ten coordinate targets through one browser binding/);
 			assert.match(report.protocol.hover, /one browser Runtime.evaluate completion acknowledgment/);
 			assert.match(report.protocol.hover, /No value verification or harness DOM\/canvas reads/);
 			assert.match(report.protocol.hover, /reduces input-bridge overhead but does not eliminate it/);
 			assert.match(report.protocol.hover, /Node scheduling is outside measured browser threads/);
-			assert.match(report.protocol.hover, /No CPU profiling is added/);
+
 			assert.match(report.protocol.hover, /at least 450 ms/);
 			assert.match(report.protocol.timingColumns, /not the full-work equivalent/);
 			assert.match(report.protocol.memoryColumns, /through-update-v1/);
@@ -349,12 +339,7 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3']) describ
 			for (const reverse of [false, true]) for (const change of [
 				raw => { delete raw.hoverProtocol; delete raw.hover; },
 				raw => raw.hoverProtocol = 'unknown',
-				...['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3'].filter(other => other !== protocol).map(other => raw => {
-					raw.hoverProtocol = other;
-					if (other === 'hover-ten-v1') delete raw.hover.intervalMs;
-					else raw.hover.intervalMs = 50;
-				}),
-				...(protocol === 'hover-ten-v1' ? [] : [raw => delete raw.hover.intervalMs]),
+				raw => delete raw.hover.intervalMs,
 				raw => raw.hover.intervalMs = 25,
 				raw => raw.hover.intervalMs = null,
 				raw => raw.hover.intervalMs = '50',
@@ -382,24 +367,17 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3']) describ
 			assert.throws(() => offline(savedReport([idle, raw], measurements)), /4 lifecycle operation windows/);
 		});
 
-		for (const other of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3'].filter(other => other !== protocol))
-		it(`rejects a live ${protocol}/${other} mixture in ${mode}`, async () => {
+		it(`rejects a mismatched live ${mode} worker`, async () => {
 			const h = harness();
-			h.dependencies.runWorker = async request => hoverBrowser(request.variant, request.measurements, request.dpr, request.requestedBackend,
-				request.variant === 'idle' ? protocol : other);
+			h.dependencies.runWorker = async request => {
+				const raw = hoveredBrowser(request.variant, request.measurements);
+				if (request.variant !== 'idle') delete raw.hoverProtocol;
+				return raw;
+			};
 			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
 			assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
 			assert.equal(report.failures.length, 1);
-			assert.match(report.failures[0].error, /hover protocols/);
-		});
-
-				it(`rejects a mismatched live ${mode} worker`, async () => {
-			const h = harness();
-			h.dependencies.runWorker = async request => (request.variant === 'idle' ? hoveredBrowser : resizedBrowser)(request.variant, request.measurements);
-			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
-			assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
-			assert.equal(report.failures.length, 1);
-			assert.match(report.failures[0].error, /hover protocols/);
+			assert.match(report.failures[0].error, /hover protocol/);
 			if (measurements.trace || measurements.raf) assert.equal(h.frames.at(-1).rows[0]['hover10 ms'], '-');
 		});
 	}
@@ -469,20 +447,6 @@ for (const protocol of ['hover-ten-v1', 'hover-ten-v2', 'hover-ten-v3']) describ
 		assert.deepEqual(rows.map(row => row['hover10 ms']), [300, 1, 2]);
 	});
 
-	it('preserves legacy whole-session memory without memoryProtocol, including hover polls and the post-hover live checkpoint', () => {
-		const measurements = {trace: false, memory: true, raf: false};
-		const idle = hoveredBrowser('idle', measurements), raw = hoveredBrowser('uplot', measurements);
-		for (const sample of raw.samples) {
-			const observations = sample.processObservations;
-			observations.splice(3, 0, {...observation('construct', 1000), operation: 'hover-10'});
-			observations[4] = {...observation('live', 200), operation: 'hover-10'};
-		}
-		const original = structuredClone(raw);
-		const summary = offline(savedReport([idle, raw], measurements));
-		assert.equal(summary.tables[0][0]['peak MB'], 2925);
-		assert.equal(summary.tables[0][0]['retained MB'], 525);
-		assert.deepEqual(summary.result.reports[1], original);
-	});
 });
 
 describe('retained resize reports', () => {
@@ -499,7 +463,7 @@ describe('retained resize reports', () => {
 			const label = measurements.raf ? 'resize rAF ms' : 'resize ms';
 			assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms',
 				...(measurements.raf ? ['init rAF ms', 'update ms', 'next rAF ms'] : ['init ms', 'main ms', 'gpu ms', 'update ms']),
-				...(measurements.memory ? ['peak MB', 'retained MB'] : []), label]);
+				...(measurements.memory ? ['peak MB', 'retained MB'] : []), label, 'hover10 ms']);
 			assert.equal(row[label], measurements.raf ? 40 : 60);
 			assert.equal(row['update ms'], measurements.raf ? 3 : 20);
 			assert.equal(row['prep ms'], 2);
@@ -522,6 +486,7 @@ describe('retained resize reports', () => {
 					assert.equal(analysis.phaseGroups[2].metrics.totalTrackedThreadWorkMs.mean, 60);
 				}
 			}
+			report.variantMetadata.chartjs = {...benchmarkMetadata.chartjs};
 			report.failures = [{variant: 'chartjs', error: 'synthetic failure'}];
 			const failed = offline(report).tables[0].find(row => row.variant === 'chartjs');
 			assert.deepEqual(Object.keys(failed), Object.keys(row));
@@ -546,54 +511,6 @@ describe('retained resize reports', () => {
 			assert.ok(summary.logs.some(([text]) => text.includes(`${label} (0/3 valid, 3 missing, unavailable)`)));
 		});
 	}
-
-	for (const measurements of [combined, {trace: true, memory: false, raf: false}, {trace: false, memory: false, raf: true}, {trace: false, memory: true, raf: false}]) {
-		it(`rejects old/new resize protocols before rewriting saved ${benchmarkMode(measurements)} reports`, () => {
-			for (const reverse of [false, true]) {
-				const old = browser('idle', measurements), next = resizedBrowser('uplot', measurements);
-				old.phase = next.phase;
-				old.initProtocol = next.initProtocol;
-				const input = savedReport(reverse ? [next, old] : [old, next], measurements);
-				const output = join(directory, 'mixed.json');
-				const bytes = JSON.stringify(input);
-				writeFileSync(output, bytes);
-				assert.throws(() => capture(() => summarizeSavedBenchmarks({...measurements, vulkan: false}, output)), /different benchmark protocols.*resize protocols/);
-				assert.equal(readFileSync(output, 'utf8'), bytes);
-			}
-		});
-
-		it(`rejects a mismatched live worker without mixing ${benchmarkMode(measurements)} summaries`, async () => {
-			const h = harness();
-			h.dependencies.runWorker = async request => {
-				if (request.variant !== 'idle') return resizedBrowser(request.variant, request.measurements);
-				const raw = browser('idle', request.measurements);
-				raw.phase = 'chart-population';
-				raw.initProtocol = 'settled-work-v1';
-				return raw;
-			};
-			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
-			assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
-			assert.equal(report.failures.length, 1);
-			assert.match(report.failures[0].error, /resize protocols/);
-			assert.deepEqual(saved(benchmarkMode(measurements)).reports, report.reports);
-		});
-	}
-
-	it('uses resize polls for session peaks and the post-resize live checkpoint for retained memory', () => {
-		const measurements = {trace: false, memory: true, raf: false};
-		const idle = resizedBrowser('idle', measurements), raw = resizedBrowser('uplot', measurements);
-		for (const sample of raw.samples) {
-			const observations = sample.processObservations;
-			observations.splice(3, 0, {...observation('construct', 1000), operation: 'resize'});
-			observations[4] = {...observation('live', 200), operation: 'resize'};
-		}
-		const original = structuredClone(raw);
-		const summary = offline(savedReport([idle, raw], measurements));
-		assert.deepEqual(Object.keys(summary.tables[0][0]), ['variant', 'context', 'sampling', 'lossy', 'peak MB', 'retained MB']);
-		assert.equal(summary.tables[0][0]['peak MB'], 2925);
-		assert.equal(summary.tables[0][0]['retained MB'], 525);
-		assert.deepEqual(summary.result.reports[1], original);
-	});
 
 	for (const raf of [false, true]) it(`keeps library groups ordered by update rather than resize (${raf ? 'rAF' : 'trace'})`, () => {
 		const measurements = {trace: !raf, memory: false, raf};
@@ -628,18 +545,18 @@ describe('lifecycle timing columns', () => {
 				const raw = await worker(request);
 				raw.phase = 'chart-population';
 				raw.initProtocol = 'settled-work-v1';
-				raw.analysis.phaseGroups = [{...raw.analysis.groups[0], operation: 'small-init'}];
 				delete raw.analysis.groups[0].metrics.jsIntervalMs;
 				return raw;
 			};
 			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
 			const columns = ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'main ms', 'gpu ms', 'update ms',
-				...(measurements.memory ? ['peak MB', 'retained MB'] : [])];
+				...(measurements.memory ? ['peak MB', 'retained MB'] : []), 'resize ms', 'hover10 ms'];
 			assert.deepEqual(Object.keys(h.frames.at(-1).rows[0]), columns);
 			assert.deepEqual(h.frames.at(-1).warnings, []);
 			const summary = offline(report);
 			assert.deepEqual(Object.keys(summary.tables[0][0]), columns);
 			assert.ok(!summary.logs.some(([text]) => text.startsWith('Warning:')));
+			report.variantMetadata.chartjs = {...benchmarkMetadata.chartjs};
 			report.failures = [{variant: 'chartjs', error: 'synthetic failure'}];
 			const failed = offline(report).tables[0].find(row => row.variant === 'chartjs');
 			assert.deepEqual(Object.keys(failed), columns);
@@ -659,59 +576,10 @@ describe('lifecycle timing columns', () => {
 		assert.equal(row[raf ? 'init rAF ms' : 'init ms'], raf ? 16 : 12);
 		assert.equal(row['update ms'], raf ? 3 : 5);
 		assert.equal(row[raf ? 'next rAF ms' : 'main ms'], raf ? 16 : 3);
-		assert.equal(Object.hasOwn(row, 'total ms'), false);
 		assert.ok(!Object.hasOwn(row, raf ? 'init ms' : 'init rAF ms'));
 		assert.equal(Object.keys(row)[5], raf ? 'init rAF ms' : 'init ms');
 		delete analysis.phaseGroups[0].metrics[raf ? 'raf1Ms' : 'totalTrackedThreadWorkMs'];
 		assert.equal(offline(savedReport([raw], raw.measurements)).tables[0][0][raf ? 'init rAF ms' : 'init ms'], 'unavailable');
-	});
-
-	for (const measurements of [combined, {trace: false, memory: false, raf: true}, {trace: false, memory: true, raf: false}])
-		it(`rejects mixed initialization boundaries in ${benchmarkMode(measurements)}`, () => {
-			const old = browser('uplot', measurements), next = browser('chartjs', measurements);
-			old.phase = next.phase = 'chart-population';
-			next.initProtocol = 'settled-work-v1';
-			assert.throws(() => offline(savedReport([old, next], measurements)), /initialization boundaries/);
-		});
-
-	for (const raf of [false, true]) it(`shows small init and full-data update without first ms (${raf ? 'rAF' : 'trace'})`, () => {
-		const raw = browser('uplot', {trace: !raf, memory: false, raf});
-		raw.phase = 'chart-population';
-		const analysis = raf ? raw.rafAnalysis : raw.analysis;
-		analysis.phaseGroups = ['small-init', 'data-update'].map(operation => ({
-			...analysis.groups[0], operation,
-			metrics: {...analysis.groups[0].metrics, [raf ? 'jsMs' : 'jsIntervalMs']: {min: 10, max: 20, mean: 10, count: 3, missing: 0}},
-		}));
-		const row = offline(savedReport([raw], raw.measurements)).tables[0][0];
-		assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms',
-			...(raf ? ['update ms', 'next rAF ms'] : ['main ms', 'gpu ms', 'update ms'])]);
-		assert.equal(row['init ms'], 10);
-		assert.equal(row['update ms'], raf ? 3 : 5);
-		assert.equal(row[raf ? 'next rAF ms' : 'main ms'], raf ? 16 : 3);
-	});
-
-	for (const memory of [false, true]) it(`rejects mixed small-to-full and legacy lifecycle reports (${memory ? 'memory' : 'trace'})`, () => {
-		const old = browser('uplot', {trace: !memory, memory, raf: false});
-		old.phase = 'chart-lifecycle';
-		const next = browser('chartjs', old.measurements);
-		next.phase = 'chart-population';
-		assert.throws(() => offline(savedReport([old, next], old.measurements)), /different benchmark protocols/);
-	});
-
-	it('shows empty init, first data and update separately, keeping totals on the update', () => {
-		const raw = browser('uplot', {trace: true, memory: false, raf: false});
-		raw.phase = 'chart-lifecycle';
-		raw.analysis.phaseGroups = ['empty-init', 'first-data', 'data-update'].map((operation, index) => ({
-			...raw.analysis.groups[0], operation,
-			metrics: {...raw.analysis.groups[0].metrics, jsIntervalMs: {min: 1, max: 20, mean: 10 + index, count: 3, missing: 0}},
-		}));
-		const result = offline(savedReport([raw], raw.measurements));
-		const row = result.tables[0][0];
-		assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'first ms', 'main ms', 'gpu ms', 'update ms']);
-		assert.equal(row['init ms'], 10);
-		assert.equal(row['first ms'], 11);
-		assert.equal(Object.hasOwn(row, 'total ms'), false);
-		assert.equal(row['update ms'], 5);
 	});
 
 	it('ranks lifecycle reports by mean update work, not readiness or initialization work', () => {
@@ -734,12 +602,6 @@ describe('lifecycle timing columns', () => {
 		assert.deepEqual(rows.map(row => row['init ms']), [50, 5]);
 	});
 
-	it('rejects mixed legacy startup and lifecycle timing reports', () => {
-		const old = browser('uplot', {trace: true, memory: false, raf: false});
-		const next = browser('chartjs', old.measurements);
-		next.phase = 'chart-lifecycle';
-		assert.throws(() => offline(savedReport([old, next], old.measurements)), /different benchmark protocols/);
-	});
 });
 
 describe('benchmark execution order', () => {
@@ -805,7 +667,7 @@ describe('benchmark library grouping', () => {
 				const input = savedReport(reports, measurements);
 				input.failures = ['amcharts', 'plotly'].map(variant => ({variant, error: `${variant} failed`}));
 				input.timeouts = [{variant: 'highcharts-svg', error: 'highcharts-svg timed out'}];
-				input.variantMetadata = Object.fromEntries(['amcharts', 'plotly', 'highcharts-svg'].map(id => [id, {sampling: id}]));
+				input.variantMetadata = Object.fromEntries(['amcharts', 'plotly', 'highcharts-svg'].map(id => [id, {...benchmarkMetadata[id], sampling: id}]));
 				if (protocol)
 					input.protocol.variants = ['plotly', 'highcharts-svg', 'amcharts', 'apexcharts', 'uplot', 'd3',
 						'bokeh-canvas', 'custom-sampled', 'custom', 'custom-svg', 'bokeh', 'd3-svg', 'apexcharts-sampled', 'amcharts-sampled', 'plotly-svg'];
@@ -858,7 +720,7 @@ describe('benchmark library grouping', () => {
 				'bokeh-canvas', 'bokeh', 'uplot', 'd3-svg', 'd3',
 				'amcharts-sampled', 'amcharts', 'apexcharts', 'apexcharts-sampled', 'custom-webgl',
 			]);
-			const metric = measurements.trace ? 'total ms' : 'next rAF ms';
+			const metric = measurements.trace ? 'update ms' : 'next rAF ms';
 			assert.equal(rows[3][metric], 2);
 			assert.equal(rows[4][metric], 2);
 		});
@@ -930,13 +792,6 @@ describe('benchmark metadata snapshots', () => {
 		assert.equal(benchmarkMetadata.fusiontime.sampling, 'avg (1min)');
 	});
 
-	it('preserves the historical unknown SciChart classification after new accuracy evidence', () => {
-		const raw = browser('scichart');
-		raw.runner.benchmark.lossy = null;
-		assert.equal(offline(savedReport([raw])).tables[0][0].lossy, '?');
-		assert.equal(benchmarkMetadata.scichart.lossy, false);
-	});
-
 	for (const measurements of [combined, {trace: true, memory: false, raf: false},
 		{trace: false, memory: true, raf: false}, {trace: false, memory: false, raf: true}]) {
 		it(`preserves lossy markers and metadata order in live and saved ${benchmarkMode(measurements)} successes, failures, and timeouts`, async () => {
@@ -953,7 +808,7 @@ describe('benchmark metadata snapshots', () => {
 				if (request.variant === 'uplot')
 					raw.runner.benchmark.lossy = true;
 				if (request.variant === 'chartgpu')
-					delete raw.runner.benchmark.lossy;
+					raw.runner.benchmark.lossy = null;
 				return raw;
 			};
 			const report = await runBenchmarkSuite({...measurements, vulkan: false}, h.dependencies);
@@ -965,7 +820,7 @@ describe('benchmark metadata snapshots', () => {
 				assert.equal(row.lossy, expected, row.variant);
 				assert.deepEqual(Object.keys(row).slice(0, 4), ['variant', 'context', 'sampling', 'lossy']);
 				if ([...failed, ...timedOut].includes(row.variant))
-					assert.ok(Object.values(row).slice(4).every(value => value === '-'));
+					assert.ok(Object.entries(row).slice(4).every(([key, value]) => value === (key === 'hover10 ms' && !report.reports[0].hover.variants.includes(row.variant) ? '' : '-')));
 			}
 			const summary = offline(report);
 			assert.deepEqual(summary.tables[0], rows.map(renderedRow));
@@ -974,33 +829,6 @@ describe('benchmark metadata snapshots', () => {
 			assert.deepEqual(saved(benchmarkMode(measurements)), original);
 		});
 	}
-
-	it('keeps missing historical lossy fields unknown without inferring from sampling, current config, or suite snapshots', () => {
-		const reports = Object.keys(benchmarkMetadata).map(id => {
-			const raw = browser(id);
-			delete raw.runner.benchmark.lossy;
-			return raw;
-		});
-		const input = {...savedReport(reports), variantMetadata: structuredClone(benchmarkMetadata)};
-		const original = structuredClone(input);
-		const result = offline(input);
-		assert.ok(result.tables[0].every(row => row.lossy === '?'));
-		assert.deepEqual(result.result.reports, original.reports);
-		assert.deepEqual(result.result.variantMetadata, original.variantMetadata);
-		assert.deepEqual(input, original);
-		const persisted = JSON.parse(readFileSync(join(directory, 'offline.json'), 'utf8'));
-		assert.deepEqual(persisted.reports, original.reports);
-		assert.deepEqual(persisted.variantMetadata, original.variantMetadata);
-
-		const failures = {...savedReport([]),
-			variantMetadata: Object.fromEntries(reports.map(raw => [raw.runner.variant, raw.runner.benchmark])),
-			failures: [{variant: 'uplot', error: 'old failure'}, {variant: 'fusiontime', error: 'old failure'}],
-			timeouts: [{variant: 'agcharts', error: 'old timeout'}],
-		};
-		const failed = offline(failures);
-		assert.ok(failed.tables[0].every(row => row.lossy === '?'));
-		assert.deepEqual(failed.result.variantMetadata, failures.variantMetadata);
-	});
 
 	it('copies and persists metadata through the actual CLI runner and raw JSON write blocks', async () => {
 		const source = readFileSync(new URL('../../scripts/benchmarks.mjs', import.meta.url), 'utf8');
@@ -1038,19 +866,19 @@ describe('benchmark metadata snapshots', () => {
 		assert.deepEqual(saved('raf').variantMetadata, report.variantMetadata);
 		assert.deepEqual(h.frames.at(-1).rows[0], {
 			variant: 'scichart', context: 'webgl2', sampling: benchmarkMetadata.scichart.sampling, lossy: '',
-			'prep ms': '-', 'init ms': '-', 'next rAF ms': '-',
+			'prep ms': '-', 'init rAF ms': '-', 'update ms': '-', 'next rAF ms': '-', 'resize rAF ms': '-', 'hover10 ms': '',
 		});
 		assert.deepEqual(offline(report).tables[0], h.frames.at(-1).rows);
 	});
 
 	it('uses raw snapshots for successful rows and suite snapshots only for failed or timed-out rows', () => {
 		const raw = browser('uplot');
-		raw.runner.benchmark = {sampling: 'historical reducer', context: 'svg', lossy: true};
+		raw.runner.benchmark = {sampling: 'raw reducer', context: 'svg', lossy: true};
 		const input = {...savedReport([raw]),
 			variantMetadata: {
 				uplot: {sampling: 'not the raw snapshot', context: '2d', lossy: false},
-				chartjs: {sampling: 'historical failed reducer', context: 'svg', lossy: true},
-				chartgpu: {sampling: 'historical timeout reducer', context: 'webgpu', lossy: null},
+				chartjs: {sampling: 'failed reducer', context: 'svg', lossy: true},
+				chartgpu: {sampling: 'timeout reducer', context: 'webgpu', lossy: null},
 			},
 			failures: [{variant: 'chartjs', error: 'failed'}],
 			timeouts: [{variant: 'chartgpu', error: 'timed out'}],
@@ -1058,20 +886,18 @@ describe('benchmark metadata snapshots', () => {
 		const result = offline(input);
 		const metadata = Object.fromEntries(result.tables[0].map(({variant, sampling, context}) => [variant, {sampling, context}]));
 		assert.deepEqual(metadata, {
-			uplot: {sampling: 'historical reducer', context: 'svg'},
-						chartjs: {sampling: 'historical failed reducer', context: 'svg'},
-						chartgpu: {sampling: 'historical timeout reducer', context: 'webgpu'},
+			uplot: {sampling: 'raw reducer', context: 'svg'},
+			chartjs: {sampling: 'failed reducer', context: 'svg'},
+			chartgpu: {sampling: 'timeout reducer', context: 'webgpu'},
 		});
 		assert.deepEqual(result.tables[0].map(row => row.lossy), ['*', '?', '*']);
 		assert.deepEqual(result.result.reports[0].runner.benchmark, raw.runner.benchmark);
 		assert.deepEqual(result.result.variantMetadata, input.variantMetadata);
 	});
 
-	it('leaves no-sampling cells blank without losing stored metadata or hiding unknown sampling', () => {
+	it('leaves no-sampling cells blank without losing stored metadata', () => {
 		const raw = browser('apexcharts');
-		const legacy = browser('chartjs');
-		delete legacy.runner.benchmark;
-		const input = {...savedReport([raw, legacy]),
+		const input = {...savedReport([raw]),
 			variantMetadata: {chartgpu: benchmarkMetadata.chartgpu},
 			failures: [{variant: 'chartgpu', error: 'failed'}],
 		};
@@ -1079,53 +905,13 @@ describe('benchmark metadata snapshots', () => {
 		const rows = Object.fromEntries(result.tables[0].map(row => [row.variant, row]));
 		assert.equal(rows.apexcharts.sampling, '');
 		assert.equal(rows.chartgpu.sampling, '');
-		assert.equal(rows.chartjs.sampling, 'unavailable');
 		assert.equal(rows.apexcharts.lossy, '');
 		assert.equal(rows.chartgpu.lossy, '');
-		assert.equal(rows.chartjs.lossy, '?');
 		assert.equal(result.result.reports[0].runner.benchmark.sampling, 'none');
 		assert.equal(result.result.variantMetadata.chartgpu.sampling, 'none');
 		for (const id of ['uplot', 'chartjs', 'echarts', 'scichart'])
 			assert.equal(benchmarkMetadata[id].sampling, 'minmax');
 	});
-
-	it('never fills historical sampling or static contexts from the current manifest or suite fallback', () => {
-		const reports = ['uplot', 'apexcharts', 'amcharts', 'fusiontime', 'd3-svg', 'chartgpu'].map(id => {
-			const raw = browser(id);
-			delete raw.runner.benchmark;
-			for (const sample of raw.samples)
-				sample.webgl = {contexts: [{type: 'webgl2', status: 'complete'}]};
-			return raw;
-		});
-		const input = {...savedReport(reports), variantMetadata: {uplot: benchmarkMetadata.uplot},
-			failures: [{variant: 'chartjs', error: 'old failure'}], timeouts: [{variant: 'scichart', error: 'old timeout'}]};
-		const result = offline(input);
-		for (const row of result.tables[0]) {
-			assert.equal(row.sampling, 'unavailable', row.variant);
-			assert.equal(row.context, 'unavailable', row.variant);
-			assert.equal(row.lossy, '?', row.variant);
-		}
-		assert.ok(result.result.reports.every(raw => !Object.hasOwn(raw.runner, 'benchmark')));
-	});
-
-	for (const variant of ['d3fc', 'bokeh', 'plotly', 'highcharts', 'scichart', 'lightningchart', 'g2-webgl']) {
-		for (const [types, expected] of [
-			[[], 'unavailable'], [['webgl'], 'webgl'], [['experimental-webgl', 'webgl'], 'webgl'],
-			[['webgl2', 'webgl2'], 'webgl2'], [['webgl', 'webgl2'], 'unavailable'],
-			[['experimental-webgl', 'webgl2'], 'unavailable'], [[null], 'unavailable'],
-		]) {
-			it(`derives legacy ${variant} context ${expected} from ${JSON.stringify(types)} only`, () => {
-				const raw = browser(variant);
-				delete raw.runner.benchmark;
-				raw.samples[0].webgl = {contexts: [{type: 'webgl'}, {type: 'webgl2'}]};
-				types.forEach((type, i) => { raw.samples[i + 1].webgl = {contexts: [{type, status: 'complete'}]}; });
-				const row = offline(savedReport([raw])).tables[0][0];
-				assert.equal(row.context, expected);
-				assert.equal(row.sampling, 'unavailable');
-				assert.equal(row.lossy, '?');
-			});
-		}
-	}
 
 	for (const variant of ['scichart', 'lightningchart', 'g2-webgl']) {
 		for (const types of [[], ['webgl'], ['experimental-webgl'], ['webgl2'], ['webgl', 'webgl2']]) {
@@ -1155,7 +941,7 @@ describe('benchmark metadata snapshots', () => {
 	it('sorts by numeric totals rather than metadata labels', () => {
 		const reports = ['uplot', 'chartjs', 'd3'].map(id => browser(id));
 		for (const [i, raw] of reports.entries()) {
-			raw.runner.benchmark = {sampling: ['a', 'z', 'm'][i], context: ['2d', 'webgpu', 'svg'][i]};
+			raw.runner.benchmark = {sampling: ['a', 'z', 'm'][i], context: ['2d', 'webgpu', 'svg'][i], lossy: false};
 			raw.analysis.groups[0].metrics.totalTrackedThreadWorkMs.mean = [10, 2, null][i];
 		}
 		assert.deepEqual(offline(savedReport(reports)).tables[0].map(row => row.variant), ['chartjs', 'uplot', 'd3']);
@@ -1279,7 +1065,7 @@ describe('benchmark suite modes and workers', () => {
 					assert.equal(h.frames.at(-1).status, `Starting ${nextVariant} (${variants.indexOf(nextVariant) + 1}/${variants.length})...`);
 					const row = h.frames.at(-1).rows.find(row => row.variant === timedOut);
 					assert.ok(row);
-					assert.ok(Object.entries(row).every(([key, value]) => ['variant', 'context', 'sampling', 'lossy'].includes(key) || value === '-'));
+					assert.ok(Object.entries(row).every(([key, value]) => ['variant', 'context', 'sampling', 'lossy'].includes(key) || value === (key === 'hover10 ms' && !partial.reports[0].hover.variants.includes(row.variant) ? '' : '-')));
 				}
 				if (timedOutVariants.includes(request.variant)) {
 					h.requests.push(request);
@@ -1299,14 +1085,14 @@ describe('benchmark suite modes and workers', () => {
 			assert.equal(h.frames.at(-1).final, true, 'last-library timeout completes the suite');
 			assert.match(h.frames.at(-1).status, new RegExp(`${variants.length}/${variants.length}`));
 			const rows = h.frames.at(-1).rows;
-			const labels = mode === 'combined' ? ['prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms', 'peak MB', 'retained MB']
-				: mode === 'trace' ? ['prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms']
-				: mode === 'memory' ? ['peak MB', 'retained MB'] : ['prep ms', 'init ms', 'next rAF ms'];
+			const labels = mode === 'combined' ? ['prep ms', 'init ms', 'main ms', 'gpu ms', 'update ms', 'peak MB', 'retained MB', 'resize ms', 'hover10 ms']
+				: mode === 'trace' ? ['prep ms', 'init ms', 'main ms', 'gpu ms', 'update ms', 'resize ms', 'hover10 ms']
+				: mode === 'memory' ? ['peak MB', 'retained MB'] : ['prep ms', 'init rAF ms', 'update ms', 'next rAF ms', 'resize rAF ms', 'hover10 ms'];
 			for (const id of timedOutVariants) {
 				assert.deepEqual(rows.find(row => row.variant === id), {variant: id, ...benchmarkMetadata[id],
 									sampling: benchmarkMetadata[id].sampling === 'none' ? '' : benchmarkMetadata[id].sampling,
 									lossy: benchmarkMetadata[id].lossy ? '*' : '',
-									...Object.fromEntries(labels.map(label => [label, '-']))});
+									...Object.fromEntries(labels.map(label => [label, label === 'hover10 ms' && !report.reports[0].hover.variants.includes(id) ? '' : '-']))});
 				assert.equal(existsSync(join(directory, variantReportName(mode, id))), false);
 			}
 			assert.deepEqual(rows.map(row => row.variant), groupedVariants(variants.slice(1)));
@@ -1333,7 +1119,7 @@ describe('benchmark suite modes and workers', () => {
 		assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
 		assert.equal(report.timeouts.length, 1);
 		assert.equal(h.frames.at(-1).rows[0].lossy, '');
-				assert.ok(Object.values(h.frames.at(-1).rows[0]).slice(4).every(value => value === '-'));
+				assert.ok(Object.entries(h.frames.at(-1).rows[0]).slice(4).every(([key, value]) => value === (key === 'hover10 ms' ? '' : '-')));
 	});
 
 	for (let mask = 0; mask < 8; mask++) {
@@ -1598,7 +1384,7 @@ describe('benchmark suite modes and workers', () => {
 	}
 
 	for (const variant of [null, 'lightningchart']) {
-		it(`includes licensed LightningChart with variant=${variant} without a permission flag`, async () => {
+		it(`includes licensed LightningChart with variant=${variant}`, async () => {
 			const h = harness();
 			const lightningOptions = Object.freeze({license: 'test-license-not-a-vendor-key'});
 			const report = await runBenchmarkSuite({variant, lightningOptions, vulkan: false}, h.dependencies);
@@ -1625,22 +1411,22 @@ describe('benchmark suite modes and workers', () => {
 		writeFileSync(output, original);
 		const h = harness();
 		await assert.rejects(runBenchmarkSuite({variant: 'jscharting',
-			lightningOptions: {license: 'test', benchmarkPermission: true}}, h.dependencies), error =>
+			lightningOptions: {license: 'test'}}, h.dependencies), error =>
 			error.message === `jscharting: ${benchmarkRestrictions.jscharting}`);
 		assert.deepEqual(h.requests, []);
 		assert.deepEqual(h.frames, []);
 		assert.equal(readFileSync(output, 'utf8'), original);
 	});
 
-	it('keeps LightningChart skipped by default for missing or blank licenses', async () => {
-		for (const lightningOptions of [{}, {license: ''}, {license: ' \t ', benchmarkPermission: true}]) {
+	for (const [name, lightningOptions] of [['missing', {}], ['empty', {license: ''}], ['whitespace', {license: ' \t '}]]) {
+		it(`keeps LightningChart skipped by default for a ${name} license`, async () => {
 			const h = harness();
 			const report = await runBenchmarkSuite({lightningOptions}, h.dependencies);
 			assert.deepEqual(h.requests.map(request => request.variant), variants);
 			assert.deepEqual(report.skipped, skipped);
 			assert.deepEqual(h.frames.at(-1).warnings, []);
-		}
-	});
+		});
+	}
 
 	it('does not add licensed LightningChart to an explicitly selected unrelated variant', async () => {
 		const h = harness();
@@ -1700,7 +1486,7 @@ describe('benchmark suite modes and workers', () => {
 			assert.equal(frame.status, `Failed ${variants.at(-1)} (${variants.length}/${variants.length}).`);
 			for (const id of failedVariants) {
 				assert.ok(frame.warnings.includes(`${id}: synthetic worker failure`));
-				assert.ok(Object.entries(frame.rows.find(row => row.variant === id)).every(([key, value]) => ['variant', 'context', 'sampling', 'lossy'].includes(key) || value === '-'));
+				assert.ok(Object.entries(frame.rows.find(row => row.variant === id)).every(([key, value]) => ['variant', 'context', 'sampling', 'lossy'].includes(key) || value === (key === 'hover10 ms' && !result.reports[0].hover.variants.includes(id) ? '' : '-')));
 			}
 			assert.deepEqual(offline(result).tables[0], frame.rows.map(renderedRow));
 		});
@@ -1779,7 +1565,6 @@ describe('benchmark verbosity', () => {
 		assert.equal(child.status, 0, child.stderr);
 		assert.match(child.stdout, /--verbose to show main ms and gpu ms.*live tables and saved summaries/);
 		assert.match(child.stdout, /hover10 ms/);
-		assert.doesNotMatch(child.stdout, /hover\s10 ms/);
 		const invalid = spawnSync(process.execPath, [script, '--help', '--verbose=false'], {encoding: 'utf8', timeout: 10000});
 		assert.ifError(invalid.error);
 		assert.equal(invalid.status, 1, invalid.stderr);
@@ -1940,8 +1725,6 @@ describe('benchmark table and offline summary', () => {
 						const report = savedReport(['idle', 'chartgpu'].map(variant => browser(variant, measurements, 1, vulkan ? 'vulkan' : 'default')), measurements);
 						if (vulkan)
 							report.requestedBackend = 'vulkan';
-						else
-							for (const raw of report.reports) delete raw.runner.requestedBackend;
 						const bytes = JSON.stringify(report);
 						writeFileSync(join(directory, suiteReportName(mode, {vulkan})), bytes);
 						return bytes;
@@ -1949,7 +1732,7 @@ describe('benchmark table and offline summary', () => {
 					const selected = join(directory, suiteReportName(mode, {vulkan}));
 					const other = join(directory, suiteReportName(mode, {vulkan: !vulkan}));
 					const result = capture(() => summarizeSavedBenchmarks(options, undefined, dependencies)).result;
-					assert.equal(result.requestedBackend ?? 'default', vulkan ? 'vulkan' : 'default');
+					assert.equal(result.requestedBackend, vulkan ? 'vulkan' : 'default');
 					assert.deepEqual(result.reports, JSON.parse(inputs[Number(vulkan)]).reports);
 					assert.equal(readFileSync(other, 'utf8'), inputs[Number(!vulkan)]);
 					rmSync(selected);
@@ -1987,14 +1770,6 @@ describe('benchmark table and offline summary', () => {
 		assert.throws(() => summarizeSavedBenchmarks({...combined, vulkan: false}, output), /matching requested backend/);
 	});
 
-	it('preserves legacy default reports without backend metadata', () => {
-		const input = savedReport([browser('idle'), browser('uplot')]);
-		for (const raw of input.reports)
-			delete raw.runner.requestedBackend;
-		const result = offline(input).result;
-		assert.deepEqual(result.reports, input.reports);
-		assert.equal(Object.hasOwn(result, 'requestedBackend'), false);
-	});
 	for (const measurements of [combined, {trace: true, memory: false, raf: false},
 		{trace: false, memory: true, raf: false}, {trace: false, memory: false, raf: true}]) {
 		it(`${benchmarkMode(measurements)} summary uses the mode's speed metric or stable execution order`, () => {
@@ -2020,8 +1795,8 @@ describe('benchmark table and offline summary', () => {
 		const result = offline(input);
 		const row = result.tables[0][0];
 		assert.deepEqual(Object.keys(row),
-			['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'main ms', 'gpu ms', 'total ms', 'peak MB', 'retained MB']);
-		for (const [key, value] of Object.entries({'prep ms': 1.1, 'init ms': 2, 'main ms': 3, 'gpu ms': 4, 'total ms': 5, 'retained MB': 0, 'peak MB': 45}))
+			['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'main ms', 'gpu ms', 'update ms', 'peak MB', 'retained MB', 'resize ms', 'hover10 ms']);
+		for (const [key, value] of Object.entries({'prep ms': 1.1, 'init ms': 5, 'main ms': 3, 'gpu ms': 4, 'update ms': 5, 'retained MB': 0, 'peak MB': 45}))
 			assert.equal(row[key], value);
 		assert.deepEqual(input, original);
 		assert.deepEqual(result.events, [
@@ -2038,7 +1813,7 @@ describe('benchmark table and offline summary', () => {
 		raw.initProtocol = 'settled-work-v1';
 		raw.trace = {accountingProtocol: TRACE_ACCOUNTING};
 		raw.analysis.accountingProtocol = TRACE_ACCOUNTING;
-		raw.analysis.samples = raw.samples.flatMap((s, i) => ['small-init', 'data-update'].map(operation => ({
+		raw.analysis.samples = raw.samples.flatMap((s, i) => raw.operations.map(operation => ({
 			...s, id: `${s.id}-${operation}`, operation,
 			jsIntervalMs: i === 0 ? 1000 : i * 2,
 			totalTrackedThreadWorkMs: i === 0 ? 1000 : (operation === 'small-init' ? i * 10 : i * 20),
@@ -2049,7 +1824,6 @@ describe('benchmark table and offline summary', () => {
 		const result = offline(savedReport([raw], raw.measurements));
 		const updated = result.result.reports[0];
 		assert.equal(result.tables[0][0]['init ms'], 20);
-		assert.equal(Object.hasOwn(result.tables[0][0], 'total ms'), false);
 		assert.equal(updated.analysis.groups[0].metrics.jsIntervalMs.mean, 4);
 		assert.equal(result.tables[0][0]['update ms'], 40);
 		assert.equal(updated.analysis.phaseGroups[0].metrics.gcAddedThreadWorkMs.mean, 2);
@@ -2061,12 +1835,12 @@ describe('benchmark table and offline summary', () => {
 		assert.deepEqual(offline(result.result), result);
 	});
 
-	it('does not substitute legacy minima for unavailable means without recorded phase samples', () => {
+	it('does not substitute minima for unavailable means without recorded phase samples', () => {
 		const raw = browser('uplot', {trace: true, memory: false, raf: false});
 		delete raw.analysis.groups[0].metrics.totalTrackedThreadWorkMs.mean;
 		const result = offline(savedReport([raw], raw.measurements));
-		assert.equal(result.tables[0][0]['total ms'], 'unavailable');
-		assert.ok(result.logs.some(([text]) => text.includes('total ms (3/3 valid, 0 missing, unavailable)')));
+		assert.equal(result.tables[0][0]['update ms'], 'unavailable');
+		assert.ok(result.logs.some(([text]) => text.includes('update ms (3/3 valid, 0 missing, unavailable)')));
 	});
 
 	it('uses trace means in the live table and sorts by mean rather than minimum', async () => {
@@ -2075,13 +1849,14 @@ describe('benchmark table and offline summary', () => {
 		h.dependencies.runWorker = async request => {
 			const raw = await worker(request);
 			const values = request.variant === 'uplot' ? [1, 10, 10] : [5, 5, 5];
-			raw.analysis.samples = raw.samples.map((s, i) => ({...s, totalTrackedThreadWorkMs: s.warmup ? 999 : values[i - 1]}));
-			raw.analysis.groups = summarizeBenchmarkTraceSamples(raw.analysis.samples);
+			raw.analysis.samples = raw.samples.flatMap((s, i) => s.phases.map(phase => ({...phase, totalTrackedThreadWorkMs: s.warmup ? 999 : values[i - 1]})));
+			raw.analysis.phaseGroups = summarizeBenchmarkTraceSamples(raw.analysis.samples);
+			raw.analysis.groups = raw.analysis.phaseGroups.filter(group => group.operation === 'data-update');
 			return raw;
 		};
 		const report = await runBenchmarkSuite({trace: true, vulkan: false}, h.dependencies);
 		const rows = h.frames.at(-1).rows;
-		assert.equal(rows.find(row => row.variant === 'uplot')['total ms'], 7);
+		assert.equal(rows.find(row => row.variant === 'uplot')['update ms'], 7);
 		assert.ok(rows.findIndex(row => row.variant === 'chartjs') < rows.findIndex(row => row.variant === 'uplot'));
 		assert.deepEqual(offline(report).tables[0], rows.map(renderedRow));
 	});
@@ -2095,19 +1870,20 @@ describe('benchmark table and offline summary', () => {
 			const timings = [[0, 0, 0], [2, 90, 80], [50, 3, 90], [90, 70, 16]];
 			raw.samples.forEach((sample, i) => {
 				[sample.dataPrepMs, sample.jsMs, sample.raf1Ms] = timings[i];
+				Object.assign(sample.phases[1], {dataPrepMs: sample.dataPrepMs, jsMs: sample.jsMs, raf1Ms: sample.raf1Ms});
 			});
 			raw.rafAnalysis = summarizeBenchmarkRaf(raw);
 			return raw;
 		};
 		const report = await runBenchmarkSuite({...measurements, variant: 'uplot'}, h.dependencies);
-		assert.deepEqual(h.tables[0], [{variant: 'uplot', ...benchmarkMetadata.uplot, lossy: '', 'prep ms': 2, 'init ms': 3, 'next rAF ms': 16}]);
+		assert.deepEqual(h.tables[0], [{variant: 'uplot', ...benchmarkMetadata.uplot, lossy: '', 'prep ms': 2, 'init rAF ms': 16, 'update ms': 3, 'next rAF ms': 16, 'resize rAF ms': 16, 'hover10 ms': 16}]);
 		const result = offline(report);
 		assert.deepEqual(result.tables[0], h.tables[0]);
 		const row = result.tables[0][0];
 		assert.equal(row['prep ms'], 2);
-		assert.equal(row['init ms'], 3);
+		assert.equal(row['update ms'], 3);
 		assert.equal(row['next rAF ms'], 16);
-		assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'next rAF ms']);
+		assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init rAF ms', 'update ms', 'next rAF ms', 'resize rAF ms', 'hover10 ms']);
 		assert.equal(result.events[0].type, 'table');
 		assert.deepEqual(result.logs, [['Updated summary from saved samples. No browser was started.']]);
 	});
@@ -2134,11 +1910,11 @@ describe('benchmark table and offline summary', () => {
 		assert.equal('dpr' in row, false);
 		assert.equal(row['main ms'], 3);
 		assert.equal(row['gpu ms'], 4);
-		assert.equal(row['total ms'], 'unavailable');
+		assert.equal(row['update ms'], 'unavailable');
 		assert.equal(Object.keys(row).some(key => key.endsWith(' n') || key.endsWith(' missing')), false);
 		assert.deepEqual(result.logs.filter(([text]) => text.startsWith('Warning:')), [
 
-			['Warning: uplot (DPR 1): main ms (2/3 valid, 1 missing); gpu ms (4/3 valid, 0 missing); total ms (3/3 valid, 0 missing, unavailable).'],
+			['Warning: uplot (DPR 1): main ms (2/3 valid, 1 missing); gpu ms (4/3 valid, 0 missing); update ms (3/3 valid, 0 missing, unavailable).'],
 		]);
 		assert.deepEqual(result.events.map(event => event.type), ['table', 'log', 'log']);
 		assert.match(result.events[1].args[0], /^Warning:/);
@@ -2189,12 +1965,12 @@ describe('benchmark table and offline summary', () => {
 		assert.deepEqual(summary.result.reports, persisted.reports);
 	});
 
-	for (const missing of ['idle', 'blank', 'live', 'trace']) {
+	for (const missing of ['idle', 'blank', 'invalid live', 'trace']) {
 		it(`reports unavailable and missing counts for missing ${missing}`, () => {
 			const reports = [browser('idle'), browser('uplot')];
 			if (missing === 'idle') reports.shift();
 			if (missing === 'blank') reports[0].blank.processMemory.complete = false;
-			if (missing === 'live') reports[1].samples.forEach(sample => sample.processObservations = []);
+			if (missing === 'invalid live') reports[1].samples.forEach(sample => sample.processObservations.find(read => read.phase === 'live').processMemory.complete = false);
 			if (missing === 'trace') delete reports[1].analysis;
 			const result = offline(savedReport(reports));
 			const row = result.tables[0][0];

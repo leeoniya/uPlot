@@ -4,10 +4,6 @@ const updates = new WeakMap();
 
 // A state update beneath mountReact's existing error boundary preserves both
 // the React root and the native chart component. No root.render/unmount cycle.
-export function mountEmptyReact(host, build, ready, wait) {
-	return mountLifecycleReact([], host, build, ready, wait);
-}
-
 export function mountLifecycleReact(initialData, host, build, ready, wait, {width = 1920, height = 600} = {}) {
 	return mountReact(host, (React, chart) => {
 		function LifecycleChart() {

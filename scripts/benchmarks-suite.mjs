@@ -59,9 +59,17 @@ export function benchmarkVariantMetadata(variant, {dashboard = false} = {}) {
 // Canvas/SVG libraries may acquire GL contexts solely for support probes.
 const webglSeries = new Set(['d3fc', 'bokeh', 'plotly', 'highcharts', 'scichart', 'lightningchart', 'g2-webgl']);
 
+function assertVariantMetadata(snapshot) {
+	if (!snapshot || typeof snapshot.sampling !== 'string' || !snapshot.sampling.trim() ||
+		!(snapshot.context === null || (typeof snapshot.context === 'string' && snapshot.context.trim())) ||
+		![true, false, null].includes(snapshot.lossy))
+		throw new Error('Benchmark metadata requires sampling, context, and lossy snapshots.');
+}
+
 function metadataFor(variant, snapshot, samples = []) {
-	let context = snapshot?.context;
-	if (context == null && webglSeries.has(variant)) {
+	assertVariantMetadata(snapshot);
+	let context = snapshot.context;
+	if (context === null && webglSeries.has(variant)) {
 		const types = new Set(samples.filter(sample => !sample.warmup)
 			.flatMap(sample => sample.webgl?.contexts ?? [])
 			.map(({type}) => type === 'experimental-webgl' ? 'webgl' : type));
@@ -70,8 +78,8 @@ function metadataFor(variant, snapshot, samples = []) {
 	}
 	return {
 		context: context ?? 'unavailable',
-		sampling: snapshot?.sampling === 'none' ? '' : snapshot?.sampling ?? 'unavailable',
-		lossy: snapshot?.lossy === true ? '*' : snapshot?.lossy === false ? '' : '?',
+		sampling: snapshot.sampling === 'none' ? '' : snapshot.sampling,
+		lossy: snapshot.lossy === true ? '*' : snapshot.lossy === false ? '' : '?',
 	};
 }
 
@@ -81,40 +89,39 @@ function assertCompatibleDashboardPlotlyMetadata(metadata) {
 		throw new Error('Incompatible dashboard plotly virtualWebGL configuration. Rerun dashboard plotly with virtual-webgl 1.0.7 WebGL1 src/virtual-webgl.js.');
 }
 
-function assertCompatibleReports(reports, {trace}, suite) {
+function assertCompatibleReports(reports, {trace, memory}, suite) {
 	if (suite?.workload && suite.variantMetadata && Object.hasOwn(suite.variantMetadata, 'plotly'))
 		assertCompatibleDashboardPlotlyMetadata(suite.variantMetadata.plotly);
 	for (const raw of reports) {
 		if (raw.workload && raw.runner?.variant === 'plotly')
 			assertCompatibleDashboardPlotlyMetadata(raw.runner.benchmark);
 	}
-	assertCompatibleMemoryReports(reports);
 	for (const raw of reports) {
-		benchmarkOperations(raw);
-		if (raw.hoverProtocol || raw.workload)
-			benchmarkTimingSamples(raw);
+		if (raw.phase !== 'chart-population' || !benchmarkOperations(raw))
+			throw new Error('Suite reports require current chart-population lifecycle protocols.');
+		benchmarkTimingSamples(raw);
+		assertVariantMetadata(raw.runner?.benchmark);
 	}
-	if (reports.some(raw => benchmarkOperations(raw)) &&
-		new Set(reports.map(raw => JSON.stringify([raw.phase, raw.initProtocol ?? 'readiness', raw.resizeProtocol ?? null,
-			raw.hoverProtocol ?? null, raw.hover ? [...raw.hover.variants].sort() : null,
-			...(raw.hover && Object.hasOwn(raw.hover, 'intervalMs') ? [{intervalMs: raw.hover.intervalMs}] : [])]))).size > 1)
-		throw new Error('Cannot combine different benchmark protocols, initialization boundaries, resize protocols, or hover protocols/capabilities. Rerun all selected variants.');
-	if (trace && new Set(reports.map(traceAccountingProtocol)).size > 1)
-		throw new Error('Cannot combine different trace accounting protocols. Rerun all selected variants.');
+	for (const {variant} of [...(suite?.failures ?? []), ...(suite?.timeouts ?? [])])
+		assertVariantMetadata(suite.variantMetadata?.[variant]);
+	if (memory)
+		assertCompatibleMemoryReports(reports);
+	if (new Set(reports.map(raw => JSON.stringify(raw.hover ? [...raw.hover.variants].sort() : null))).size > 1)
+		throw new Error('Cannot combine different hover capabilities. Rerun all selected variants.');
+	if (trace)
+		for (const raw of reports)
+			traceAccountingProtocol(raw);
 }
 
 function benchmarkView(report) {
 	assertCompatibleWorkloads([report, ...report.reports]);
 	assertCompatibleReports(report.reports, report.measurements, report);
 	const {trace, memory, raf} = report.measurements;
-	const population = report.reports.some(raw => raw.phase === 'chart-population');
-	const lifecycle = population || report.reports.some(raw => raw.phase === 'chart-lifecycle');
-	const settledInit = population && report.reports.some(raw => raw.initProtocol === 'settled-work-v1');
 	const resize = report.reports.some(raw => raw.resizeProtocol === 'retained-resize-v1');
 	const hover = report.reports.find(raw => raw.hoverProtocol)?.hover;
 	const resizeLabel = raf ? 'resize rAF ms' : 'resize ms';
-	const initLabel = settledInit && raf ? 'init rAF ms' : 'init ms';
-	const workLabel = lifecycle ? 'update ms' : 'total ms';
+	const initLabel = raf ? 'init rAF ms' : 'init ms';
+	const workLabel = 'update ms';
 
 	const warnings = [
 		...(report.timeouts ?? []).map(({error}) => error),
@@ -138,7 +145,7 @@ function benchmarkView(report) {
 		if (trace) {
 			const metrics = group(raw.analysis)?.metrics;
 			for (const [label, key] of [
-				['prep ms', 'dataPrepMs'], ...(!lifecycle ? [['init ms', 'jsIntervalMs']] : []), ['main ms', 'rendererMainTaskMs'],
+				['prep ms', 'dataPrepMs'], ['main ms', 'rendererMainTaskMs'],
 				['gpu ms', 'gpuMainTaskMs'], [workLabel, 'totalTrackedThreadWorkMs'],
 			])
 				metric(label, metrics?.[key], 'mean');
@@ -146,13 +153,12 @@ function benchmarkView(report) {
 		if (raf) {
 			const metrics = group(raw.rafAnalysis)?.metrics;
 			metric('prep ms', metrics?.dataPrepMs);
-			metric(lifecycle ? 'update ms' : 'init ms', metrics?.jsMs);
+			metric('update ms', metrics?.jsMs);
 			metric('next rAF ms', metrics?.raf1Ms);
 		}
-		if (lifecycle && (trace || raf)) {
+		if (trace || raf) {
 			const analysis = trace ? raw.analysis : raw.rafAnalysis;
-			const phases = population ? [[initLabel, 'small-init'], ...(resize ? [[resizeLabel, 'resize']] : [])]
-				: [['init ms', 'empty-init'], ['first ms', 'first-data']];
+			const phases = [[initLabel, 'small-init'], ...(resize ? [[resizeLabel, 'resize']] : [])];
 			if (hover) {
 				if (raw.hover.variants.includes(variant))
 					phases.push(['hover10 ms', 'hover-10']);
@@ -161,7 +167,7 @@ function benchmarkView(report) {
 			}
 			for (const [label, operation] of phases) {
 				const metrics = analysis?.phaseGroups?.find(group => group.variant === variant && group.dpr === dpr && group.operation === operation)?.metrics;
-				const key = settledInit ? (trace ? 'totalTrackedThreadWorkMs' : 'raf1Ms') : (trace ? 'jsIntervalMs' : 'jsMs');
+				const key = trace ? 'totalTrackedThreadWorkMs' : 'raf1Ms';
 				metric(label, metrics?.[key], trace ? 'mean' : 'min');
 			}
 		}
@@ -176,7 +182,7 @@ function benchmarkView(report) {
 	});
 
 	const columns = [
-		...(trace || raf ? ['prep ms', initLabel, ...(lifecycle && !population ? ['first ms'] : []), ...(raf && lifecycle ? ['update ms'] : [])] : []),
+		...(trace || raf ? ['prep ms', initLabel, ...(raf ? ['update ms'] : [])] : []),
 		...(trace ? ['main ms', 'gpu ms', workLabel] : []),
 		...(raf ? ['next rAF ms'] : []),
 		...(memory ? ['peak MB', 'retained MB'] : []),
@@ -190,7 +196,7 @@ function benchmarkView(report) {
 					column === 'hover10 ms' && !hover.variants.includes(variant) ? '' : '-']))});
 	}
 
-	// Establish stable tie order before grouping; legacy reports use first-seen order.
+	// Establish stable tie order before grouping.
 	const order = new Map(report.protocol?.variants?.map((variant, index) => [variant, index]));
 	const compare = (left, right) => left === right ? 0 : left - right;
 	rows.sort((a, b) => compare(order.get(a.variant) ?? Infinity, order.get(b.variant) ?? Infinity));
@@ -230,9 +236,8 @@ export function summarizeSavedBenchmarks(options, output, {platform = process.pl
 	if (report.reports.some(raw => !raw?.runner || !Array.isArray(raw.samples)))
 		throw new TypeError('Each report requires runner metadata and a samples array.');
 	const requestedBackend = vulkan ? 'vulkan' : 'default';
-	// Reports saved before backend selection used Chrome's default backend.
-	if ((report.requestedBackend ?? 'default') !== requestedBackend ||
-		report.reports.some(raw => (raw.runner.requestedBackend ?? 'default') !== requestedBackend))
+	if (report.requestedBackend !== requestedBackend ||
+		report.reports.some(raw => raw.runner.requestedBackend !== requestedBackend))
 		throw new Error('Expected a benchmark suite report with matching requested backend.');
 	if ((report.workload !== undefined) !== dashboard)
 		throw new Error('Expected a benchmark suite report with matching dashboard workload selection.');
@@ -244,17 +249,16 @@ export function summarizeSavedBenchmarks(options, output, {platform = process.pl
 			if (!Array.isArray(analysis?.samples))
 				continue;
 			const groups = summarizeBenchmarkTraceSamples(analysis.samples);
-			analysis.groups = groups.filter(group => !group.operation || group.operation === 'data-update');
-			if (analysis.phaseGroups || benchmarkOperations(raw))
-				analysis.phaseGroups = groups;
+			analysis.groups = groups.filter(group => group.operation === 'data-update');
+			analysis.phaseGroups = groups;
 			analysis.statistic = 'mean';
 			analysis.definitions = {...analysis.definitions, aggregation: TRACE_AGGREGATION};
 		}
 	}
 	if (measurements.memory)
 		report.adjustedAnalysis = summarizeAdjustedProcessMemory(report.reports);
-	writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
 	const {rows, warnings} = benchmarkView(report);
+	writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
 	const {verbose = false} = options;
 	if (rows.length)
 		console.log(formatBenchmarkDisplay({rows}, {colorDepth: benchmarkDisplayColorDepth(), verbose}).trimEnd());
@@ -371,10 +375,10 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 			idleFirst: true, sameRunControlsOnly: true, coolingBetweenVariantsMs: 0,
 			tracing: measurements.trace, gpuSpecificMemory: false, sampleTimeoutMs: SAMPLE_TIMEOUT_MS,
 			blankAndLoaded: 'One cold checkpoint each per browser, not a round aggregate.',
-			lifecycle: dashboard ? 'Three warmup sessions and seven measured sessions. Each session initializes 20 charts with five series and two rows each, then updates the retained charts to 300 rows per series. The 4x5 grid uses 480x216 tiles in a 1920x1080 viewport. Reports use dashboard-v1, chart-population, and settled-work-v1. The only operations are small-init and data-update. No resize or hover occurs.' : 'Three warmup sessions and seven measured sessions. Each session initializes a two-point chart, updates it with the full dataset, then resizes the retained chart to 1200x400. New reports use chart-population, settled-work-v1 initialization, retained-resize-v1 resize, and hover-ten-v3. lifecycle.resizeSize records width and height. Supported variants, including idle, then perform hover-10. Unsupported variants have only three phases.',
-			hover: dashboard ? 'No hover operation occurs.' : 'hover.variants records supported variants, including idle. hover.count is 10 and hover.intervalMs is 50 for hover-ten-v2 and hover-ten-v3. One hover-10 window covers 10 mousemoves and the final settle/fence. Current hover-ten-v3 sends all ten coordinate targets through one browser binding. Node sends ten CDP dispatches with nine 50 ms waits, each after the preceding CDP acknowledgment. Node sends one browser Runtime.evaluate completion acknowledgment after the tenth dispatch acknowledgment. No catch-up, per-point renderer timer, renderer acknowledgment, or rAF occurs. No value verification or harness DOM/canvas reads occur in this window. Batching reduces input-bridge overhead but does not eliminate it. Node scheduling is outside measured browser threads. No CPU profiling is added. Idle spacing is not thread work, but rAF wall latency includes at least 450 ms of spacing. Target preparation and bounds validation occur outside the window. Diagnostic verification never runs during capture or preflight. Legacy hover-ten-v1 used frame-paced, verified displays. Legacy hover-ten-v2 used per-point browser bindings, renderer timers, and completion acknowledgments. Reports retain count and interval without verification evidence. The result is cumulative, not a per-point average. Unsupported variants have no hover marker or sample and show a blank cell.',
+			lifecycle: dashboard ? 'Three warmup sessions and seven measured sessions. Each session initializes 20 charts with five series and two rows each, then updates the retained charts to 300 rows per series. The 4x5 grid uses 480x216 tiles in a 1920x1080 viewport. Reports use dashboard-v1, chart-population, and settled-work-v1. The only operations are small-init and data-update. No resize or hover occurs.' : 'Three warmup sessions and seven measured sessions. Each session initializes a two-point chart, updates it with the full dataset, then resizes the retained chart to 1200x400. Reports use chart-population, settled-work-v1 initialization, retained-resize-v1 resize, and hover-ten-v3. lifecycle.resizeSize records width and height. Supported variants, including idle, then perform hover-10. Unsupported variants have only three phases.',
+			hover: dashboard ? 'No hover operation occurs.' : 'hover.variants records supported variants, including idle. hover.count is 10 and hover.intervalMs is 50. One hover-10 window covers 10 mousemoves and the final settle/fence. Hover-ten-v3 sends all ten coordinate targets through one browser binding. Node sends ten CDP dispatches with nine 50 ms waits, each after the preceding CDP acknowledgment. Node sends one browser Runtime.evaluate completion acknowledgment after the tenth dispatch acknowledgment. No catch-up, per-point renderer timer, renderer acknowledgment, or rAF occurs. No value verification or harness DOM/canvas reads occur in this window. Batching reduces input-bridge overhead but does not eliminate it. Node scheduling is outside measured browser threads. Idle spacing is not thread work, but rAF wall latency includes at least 450 ms of spacing. Target preparation and bounds validation occur outside the window. Diagnostic verification never runs during capture or preflight. Reports retain count and interval without verification evidence. The result is cumulative, not a per-point average. Unsupported variants have no hover marker or sample and show a blank cell.',
 			timingColumns: dashboard ? 'Trace init ms and update ms use total tracked thread work from each complete dashboard operation window, including settling and completion checks. Init includes all 20 hosts and charts. Main/gpu and prep describe data-update only. In rAF-only mode, init rAF ms uses initialization raf1Ms, update ms shows update readiness, and next rAF shows update callback latency. These are whole-dashboard measurements, not per-chart averages. Primary groups describe data-update. phaseGroups contains small-init and data-update only.' : 'Trace init ms, update ms, resize ms, and hover10 ms use total tracked thread work from each complete operation window. Each window includes settling and completion checks. Init includes chart-specific host setup. Main/gpu and prep describe data-update only. rAF-only init rAF ms and resize rAF ms use each operation\'s raf1Ms, not thread work. rAF-only update ms shows update readiness. Next rAF shows update callback latency. Primary groups and library ordering still describe data-update. phaseGroups contains all recorded operations. Untraced rAF hover10 ms uses the minimum hover raf1Ms, not the full-work equivalent.',
-			memoryColumns: dashboard ? 'Dashboard process-memory reports use memoryProtocol through-update-v1. After baseline GC, peak covers initialization, preparation, and data-update through the live checkpoint. Forced GC and live follow settled data-update with all 20 charts and their full prepared inputs alive. No process reads or forced GC occur after live. No cleanup snapshot occurs, but all charts are destroyed. Memory controls must have the same dashboard workload and dimensions.' : 'Lifecycle process-memory reports use memoryProtocol through-update-v1. After baseline GC, peak covers small-init, full-data preparation, and data-update through the live checkpoint. Forced GC and the live checkpoint follow settled data-update immediately, before resize preparation, with the chart and full prepared input alive. No process reads or forced GC occur after this checkpoint. Resize and hover are timing-only. No cleanup snapshot occurs, but chart destruction still runs. Saved summaries cannot mix memory protocols, including idle controls. Legacy reports without memoryProtocol retain whole-session memory accounting.',
+			memoryColumns: dashboard ? 'Dashboard process-memory reports use memoryProtocol through-update-v1. After baseline GC, peak covers initialization, preparation, and data-update through the live checkpoint. Forced GC and live follow settled data-update with all 20 charts and their full prepared inputs alive. No process reads or forced GC occur after live. No cleanup snapshot occurs, but all charts are destroyed. Memory controls must have the same dashboard workload and dimensions.' : 'Lifecycle process-memory reports use memoryProtocol through-update-v1. After baseline GC, peak covers small-init, full-data preparation, and data-update through the live checkpoint. Forced GC and the live checkpoint follow settled data-update immediately, before resize preparation, with the chart and full prepared input alive. No process reads or forced GC occur after this checkpoint. Resize and hover are timing-only. No cleanup snapshot occurs, but chart destruction still runs.',
 			timeoutScope: 'Five seconds per operation, including preparation and settling. Setup/baseline belongs to the first operation. Post-update GC/live and final destruction each have a separate five-second budget.',
 			aggregation: 'Trace timing columns use arithmetic means after warmups. Total work averages deduplicated per-sample totals, including observed GC. rAF timings and memory columns retain minima.',
 			warmSamples: 'Warmups are excluded. Each browser reuses its selected library between samples; allocator reuse affects process deltas.',

@@ -98,8 +98,8 @@ describe('grammar benchmark adapters', () => {
 	for (const [id, adapter] of Object.entries(adapters)) {
 		it(`${id}: preserves every value in all 55,550 rows and three series`, () => {
 			assert.deepEqual(Object.keys(adapter), id === 'g2'
-				? ['destroyChart', 'makeChart', 'makeChartWithOptions', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']
-				: ['destroyChart', 'getHoverPlan', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
+				? ['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData', 'resizeChart', 'updateChart']
+				: ['destroyChart', 'getHoverPlan', 'makeChart', 'prepData', 'resizeChart', 'updateChart']);
 			const data = adapter.prepData(packed);
 			const again = adapter.prepData(packed);
 			assert.equal(rowsOf(id, data).length, 55550);

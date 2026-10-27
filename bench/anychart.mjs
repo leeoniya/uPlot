@@ -84,10 +84,6 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {sampled =
 	}
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart([], host, wait);
-}
-
 async function updateChart(handle, input, host, wait) {
 	const {chart, table} = handle;
 	let drawn, timer;
@@ -199,4 +195,4 @@ function destroyChart(handle) {
 	}
 }
 
-export {prepData, makeChart, makeEmptyChart, updateChart, resizeChart, destroyChart, makeChartWithOptions};
+export {prepData, makeChart, updateChart, resizeChart, destroyChart, makeChartWithOptions};

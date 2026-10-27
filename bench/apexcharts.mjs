@@ -79,10 +79,6 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {sampling 
 	}
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart([[], [], []], host, wait);
-}
-
 async function updateChart(chart, input, host, wait) {
 	// Native 8.4.1 full updates retain the chart, but can replace its Canvas surface.
 	await chart.updateSeries(input.map((data, i) => ({name: ['CPU', 'RAM', 'TCP Out'][i], data})), false);
@@ -144,4 +140,4 @@ function destroyChart(chart) {
 	chart.destroy();
 }
 
-export {prepData, makeChart, makeEmptyChart, updateChart, makeChartWithOptions, destroyChart};
+export {prepData, makeChart, updateChart, makeChartWithOptions, destroyChart};

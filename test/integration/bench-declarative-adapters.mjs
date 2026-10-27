@@ -86,7 +86,7 @@ describe('declarative benchmark adapters', () => {
 
 	for (const [id, adapter] of Object.entries(adapters)) {
 		it(`${id}: preserves all 55,550 rows and three series without source mutation`, () => {
-			assert.deepEqual(Object.keys(adapter), ['destroyChart', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
+			assert.deepEqual(Object.keys(adapter), ['destroyChart', 'makeChart', 'prepData', 'resizeChart', 'updateChart']);
 			const data = adapter.prepData(packed);
 			const again = adapter.prepData(packed);
 			assert.equal(data.length, 55550);

@@ -20,6 +20,7 @@ const ids = ['uplot', 'plotly', 'plotly-svg', 'scichart', 'deckgl', 'chartjs', '
 async function sample(id) {
 	const check = (ok, message) => { if (!ok) throw new Error(`${id}: ${message}`); };
 	const adapter = await import(`/bench/${id}.mjs`);
+	const {smallLifecycleData} = await import('/bench/lifecycle-data.mjs');
 	const packed = await (await fetch('/bench/data.json')).json();
 	const fields = packed[0];
 	const contexts = new Set();
@@ -57,16 +58,16 @@ async function sample(id) {
 		});
 	};
 	try {
-		for (const empty of [true, false]) {
+		for (const small of [true, false]) {
 			const host = document.createElement('div');
 			host.style.cssText = 'width:1920px;height:600px;position:relative';
 			if (id === 'chartjs') host.innerHTML = '<canvas id="chart1"></canvas>';
 			document.body.append(host);
 			let chart;
 			try {
-				const input = adapter.prepData(packed);
-				chart = await (empty ? adapter.makeEmptyChart(host, {textContent: ''}) : adapter.makeChart(input, host, {textContent: ''}));
-				check(native(chart).every(([x, y]) => x.length === (empty ? 0 : 55550) && y.length === x.length), 'initial native counts');
+				const input = adapter.prepData(small ? smallLifecycleData(packed) : packed);
+				chart = await (small ? adapter.makeLifecycleChart ?? adapter.makeChart : adapter.makeChart)(input, host, {textContent: ''});
+				check(native(chart).every(([x, y]) => x.length === (small ? 2 : 55550) && y.length === x.length), 'initial native counts');
 				const instance = chart.deck ?? chart;
 				const series = id === 'scichart' ? chart.renderableSeries.asArray().slice() : id.startsWith('highcharts') || id === 'uplot' ? chart.series.slice() : null;
 				const dataSeries = id === 'scichart' ? series.map(s => s.dataSeries) : null;
@@ -134,6 +135,7 @@ async function sample(id) {
 	};
 	before(async () => {
 		assets.set('/bench/data.json', await readFile(new URL('bench/data.json', root)));
+		assets.set('/bench/lifecycle-data.mjs', await readFile(new URL('bench/lifecycle-data.mjs', root)));
 		server = createServer((request, response) => {
 			if (!assets.has(request.url)) { response.writeHead(404).end(); return; }
 			response.setHeader('Content-Type', request.url === '/' ? 'text/html' : request.url.endsWith('.wasm') ? 'application/wasm' : request.url.endsWith('.css') ? 'text/css' : 'text/javascript');
@@ -165,7 +167,7 @@ async function sample(id) {
 		if (server) await new Promise(resolve => server.close(resolve));
 		if (profile) await rm(profile, {recursive: true, force: true});
 	}, {timeout: 120000});
-	for (const id of ids) it(`${id}: empty/populated starts and repeated full replacements`, {timeout: 120000}, async () => {
+	for (const id of ids) it(`${id}: two-row/full-data starts and repeated full replacements`, {timeout: 120000}, async () => {
 		const {files, dependencies, localScripts, localStyles} = loadBenchDemoSources(root, id);
 		for (const [route, data] of files) assets.set(route, data);
 		for (const dependency of dependencies) {

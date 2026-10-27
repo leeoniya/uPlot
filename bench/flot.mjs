@@ -70,10 +70,6 @@ async function overlayReady(chart, draw, wait) {
 	}
 }
 
-function makeEmptyChart(host, wait) {
-	return makeLifecycleChart([[], [], []], host, wait);
-}
-
 export function makeLifecycleChart(data, host, wait) {
 	const chart = createChart(data, host, wait, true);
 	return overlayReady(chart, () => chart.triggerRedrawOverlay(), wait);
@@ -98,4 +94,4 @@ export function resizeChart(chart, size, host, wait) {
 	}, wait);
 }
 
-export {makeChart, prepData, makeEmptyChart, updateChart};
+export {makeChart, prepData, updateChart};

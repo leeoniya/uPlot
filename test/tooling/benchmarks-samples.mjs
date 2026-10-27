@@ -49,7 +49,8 @@ async function waitFor(promise) {
 
 function fixture(options = {}) {
 	const events = [];
-	const config = {variants: ['uplot'], dpr: 1, warmups: 0, rounds: 1, hoverVariants, ...options.config};
+	const config = {variants: ['uplot'], dpr: 1, warmups: 0, rounds: 1, lifecycle: true,
+		operations: ['small-init', 'data-update', 'resize', 'hover-10'], hoverVariants, ...options.config};
 	let activeReads = 0;
 	let activeOperation = null;
 	let reads = 0;
@@ -66,12 +67,12 @@ function fixture(options = {}) {
 				assert.equal(activeReads, 0, 'process reads must drain before destroy');
 			if (method === 'setup')
 				current = timing(variant, id, config.dpr);
-			if (method === 'prepare' && config.lifecycle)
+			if (method === 'prepare')
 				current = {...current, id, operation: variant};
 			events.push({method, variant, id});
 			activeOperation = method;
 			try {
-				await options.operation?.(method);
+				await options.operation?.(method, current?.operation);
 				return method === 'construct' ? current : undefined;
 			}
 			finally {
@@ -102,7 +103,7 @@ function fixture(options = {}) {
 		activeReads++;
 		events.push({method: 'read', activeOperation, at: performance.now()});
 		try {
-			return await options.read?.(++reads, activeOperation) ?? memory();
+			return await options.read?.(++reads, activeOperation, current?.operation) ?? memory();
 		}
 		finally {
 			activeReads--;
@@ -391,8 +392,6 @@ describe('shared browser sample lifecycle', () => {
 			assert.equal(report.hoverProtocol, 'hover-ten-v3');
 			assert.equal(report.hover.count, 10);
 			assert.equal(report.hover.intervalMs, 50);
-			assert.equal(report.hover.moves, undefined);
-			assert.doesNotMatch(JSON.stringify(report), /ten verified|ten successful hovers|per-point hover verification is inside|per-point verification, input acknowledgments and frames are inside/i);
 			assert.equal(report.expectedInstances.operationWindows, 110);
 			let id = 0;
 			for (const sample of report.samples) {
@@ -683,7 +682,6 @@ describe('shared browser sample lifecycle', () => {
 		assert.equal(api.prepFor('idle')(), null);
 		api.construct({variant: 'idle'});
 		assert.equal(calls.length, demoVariants.length * 2);
-		assert.doesNotMatch(browserSource, /function options\(/);
 	});
 
 	it('waits for async chart construction, stores the resolved instance, then flushes a microtask', async () => {
@@ -1669,15 +1667,12 @@ describe('shared browser sample lifecycle', () => {
 		for (const variant of ['unknown', 'toString', '__proto__'])
 			assert.throws(() => select(variant), /Unknown variant/);
 		assert.match(browserSource, /source\.makeLifecycleChart \?\? source\.makeChart/);
-
-		for (const source of [browserSource, collectorSource]) {
-			assert.doesNotMatch(source, /Runtime\.getHeapUsage|HeapProfiler\.enable|usedSize|backingStorageSize|heapMetrics|benchmarkMemory/);
-		}
 	});
 });
 
 describe('shared sample capture', () => {
 	const operations = ['small-init', 'data-update', 'resize', 'hover-10'];
+	const expectedPhases = () => operations.map((operation, index) => ({...timing('uplot', `sample-${index}`, 1), operation, round: 0, warmup: false}));
 	it('gives each lifecycle operation its own budget and ends memory after update, before resize', async () => {
 		const clock = collectorClock();
 		const fake = fixture({memory: true, collector: clock.capture,
@@ -1708,14 +1703,14 @@ describe('shared sample capture', () => {
 		assert.equal(clock.timers.size, 0);
 	});
 
-	it('gives post-update GC its own budget and does not poll timing-only operations', async () => {
+	it('gives post-update GC and destruction separate budgets and does not poll timing-only operations', async () => {
 		const clock = collectorClock();
 		let collections = 0;
 		let timingOnly = false;
 		const fake = fixture({memory: true, collector: clock.capture,
 			config: {lifecycle: true, operations},
 			operation(method) {
-				if (method === 'construct') clock.advance(4000);
+				if (method === 'construct' || method === 'destroy') clock.advance(4000);
 				if (collections === 2) timingOnly = true;
 			},
 			gc() { if (++collections === 2) clock.advance(4000); },
@@ -1755,14 +1750,15 @@ describe('shared sample capture', () => {
 		}
 	});
 
-	for (const legacy of [['small-init', 'data-update'], ['small-init', 'data-update', 'resize']]) it(`accepts the legacy ${legacy.length}-operation parent config and keeps data-update as the sample`, async () => {
-		const fake = fixture({memory: true, config: {lifecycle: true, operations: legacy, warmups: 1, rounds: 1}});
+	it('accepts the two-operation dashboard config and keeps data-update as the sample', async () => {
+		const dashboardOperations = ['small-init', 'data-update'];
+		const fake = fixture({memory: true, config: {lifecycle: true, operations: dashboardOperations, warmups: 1, rounds: 1}});
 		const report = await fake.capture();
-		assert.deepEqual(report.operations, legacy);
+		assert.deepEqual(report.operations, dashboardOperations);
 		assert.equal(report.samples.length, 2);
 		for (const [index, sample] of report.samples.entries()) {
-			assert.deepEqual(sample.phases.map(phase => phase.operation), legacy);
-			assert.equal(sample.id, `sample-${index * legacy.length + 1}`);
+			assert.deepEqual(sample.phases.map(phase => phase.operation), dashboardOperations);
+			assert.equal(sample.id, `sample-${index * dashboardOperations.length + 1}`);
 			assert.equal(sample.operation, 'data-update');
 			assert.equal(sample.warmup, index === 0);
 		}
@@ -1808,8 +1804,8 @@ describe('shared sample capture', () => {
 			}
 		});
 
-		it('rejects missing, reordered, repeated and extended lifecycle operation sequences before setup', async () => {
-		for (const invalid of [undefined, [], ['small-init'], ['resize'], ['small-init', 'resize'],
+		it('rejects missing, incomplete, reordered, repeated and extended lifecycle operation sequences before setup', async () => {
+		for (const invalid of [undefined, [], ['small-init'], ['resize'], ['small-init', 'resize'], operations.slice(0, 3),
 			['data-update', 'small-init'], ['small-init', 'resize', 'data-update'],
 			['small-init', 'data-update', 'data-update'], [...operations, 'resize'], [...operations, 'unknown']]) {
 			const fake = fixture({config: {lifecycle: true, operations: invalid}});
@@ -1856,47 +1852,54 @@ describe('shared sample capture', () => {
 	it('starts with begin and preserves browser timings and metadata in trace-only mode, without GC', async () => {
 		const fake = fixture();
 		const report = await fake.capture();
-		assert.deepEqual(report.samples, [{...timing('uplot', 'sample-0', 1), round: 0, warmup: false}]);
+		const phases = expectedPhases();
+		assert.deepEqual(report.samples, [{...phases[1], phases}]);
 		assert.equal(report.captureId, 'capture-id');
 		assert.deepEqual(report.env, {actualDPR: 1});
-		assert.equal(report.phase, 'initial-chart-creation');
+		assert.equal(report.phase, 'chart-population');
 		assert.equal(report.sampleTimeoutMs, 5000);
 		assert.equal(report.markerPattern, 'benchmark:<id>:start|js-end|end');
 		assert.ok(report.limitations.includes('fixture limitation'));
 		assert.equal(report.processProtocol, undefined);
 		assert.deepEqual(fake.events.map(event => event.method), [
-			'begin', 'setup', 'setup:end', 'prepare', 'prepare:end', 'construct', 'construct:end', 'destroy', 'destroy:end',
+			'begin', 'setup', 'setup:end', ...operations.flatMap(() => ['prepare', 'prepare:end', 'construct', 'construct:end']), 'destroy', 'destroy:end',
 		]);
 	});
 
-	it('records process-only checkpoints/endpoints with exactly three GCs and none between prep and init', async () => {
+	it('records process-only checkpoints/endpoints with exactly two GCs and none between initialization and update', async () => {
 		const fake = fixture({memory: true});
 		const report = await fake.capture();
 		const sample = report.samples[0];
-		assert.deepEqual({...sample, processObservations: undefined}, {...timing('uplot', 'sample-0', 1), round: 0, warmup: false, processObservations: undefined});
-		assert.deepEqual(sample.processObservations.map(({phase, kind}) => [phase, kind]), [
-			['baseline', 'gc'], ['prepare', 'start'], ['prepare', 'end'], ['prepared', 'snapshot'],
-			['construct', 'start'], ['construct', 'end'], ['live', 'gc'], ['cleanup', 'gc'],
+		const phases = expectedPhases();
+		assert.deepEqual({...sample, processObservations: undefined}, {...phases[1], phases, processObservations: undefined});
+		assert.deepEqual(sample.processObservations.map(({phase, kind, operation}) => [phase, kind, operation]), [
+			['baseline', 'gc', undefined],
+			['prepare', 'start', 'small-init'], ['prepare', 'end', 'small-init'],
+			['construct', 'start', 'small-init'], ['construct', 'end', 'small-init'],
+			['prepare', 'start', 'data-update'], ['prepare', 'end', 'data-update'], ['prepared', 'snapshot', 'data-update'],
+			['construct', 'start', 'data-update'], ['construct', 'end', 'data-update'], ['live', 'gc', 'data-update'],
 		]);
 		let previous = 0;
 		for (const read of sample.processObservations) {
-			assert.deepEqual(Object.keys(read), ['phase', 'kind', 'processMemory', 'processRequestedAtMs', 'processTimestampMs']);
+			assert.deepEqual(Object.keys(read), ['phase', 'kind', ...(read.phase === 'baseline' ? [] : ['operation']), 'processMemory', 'processRequestedAtMs', 'processTimestampMs']);
 			assert.deepEqual(read.processMemory, memory());
 			assert.ok(read.processRequestedAtMs >= previous);
 			assert.ok(read.processTimestampMs >= read.processRequestedAtMs);
 			previous = read.processTimestampMs;
 		}
 		assert.deepEqual(fake.events.map(event => event.method).filter(method => !method.endsWith(':end')), [
-			'begin', 'setup', gc, 'read', 'read', 'prepare', 'read', 'read', 'read', 'construct', 'read', gc, 'read', 'destroy', gc, 'read',
+			'begin', 'setup', gc, 'read',
+			'read', 'prepare', 'read', 'read', 'construct', 'read',
+			'read', 'prepare', 'read', 'read', 'read', 'construct', 'read', gc, 'read',
+			'prepare', 'construct', 'prepare', 'construct', 'destroy',
 		]);
 		assert.equal(report.processProtocol.requestedProcessPollIntervalMs, 50);
 		assert.equal(report.processProtocol.sampleTimeoutMs, 5000);
-		assert.equal(report.processProtocol.phaseTimeoutMs, undefined);
 		assert.equal(report.processProtocol.separatePass, false);
 		assert.match(report.processProtocol.prepared, /without GC/);
 		// The existing raw summary accepts process observations via its observations field.
-		const summary = summarizeProcessMemory({samples: [{...sample, observations: sample.processObservations}]});
-		assert.equal(summary.groups[0].validObservationCount, 8);
+		const summary = summarizeProcessMemory({...report, samples: [{...sample, observations: sample.processObservations}]});
+		assert.equal(summary.groups[0].validObservationCount, 11);
 		assert.equal(summary.groups[0].missingCheckpointCount, 0);
 	});
 
@@ -1930,10 +1933,10 @@ describe('shared sample capture', () => {
 		const report = await fake.capture();
 		assert.equal(report.samples.length, 10);
 		assert.equal(report.samples.filter(sample => sample.warmup).length, 3);
-		assert.equal(fake.events.filter(event => event.method === gc).length, 30);
+		assert.equal(fake.events.filter(event => event.method === gc).length, 20);
 		assert.equal(fake.events.filter(event => event.method === 'destroy').length, 10);
 		for (const sample of report.samples)
-			assert.equal(sample.processObservations.length, 8);
+			assert.equal(sample.processObservations.length, 11);
 	});
 
 	it('allows explicit null processRead, even with a custom process interval', async () => {
@@ -1959,30 +1962,31 @@ describe('shared sample capture', () => {
 			assert.equal(samples.filter(sample => !sample.warmup).length, 7);
 		}
 		report.samples.forEach((sample, index) => {
-			assert.equal(sample.id, `sample-${index}`);
+			assert.equal(sample.id, `sample-${index * operations.length + 1}`);
+			assert.deepEqual(sample.phases.map(phase => phase.id), operations.map((_, offset) => `sample-${index * operations.length + offset}`));
 			assert.equal(sample.dpr, 2);
 			assert.equal(sample.warmup, sample.round < 0);
 		});
 	});
 
 	it('polls independently while each renderer evaluation is blocked, waiting the requested interval after responses', async () => {
-		const signals = {prepare: signal(), construct: signal()};
-		const polls = {prepare: 0, construct: 0};
+		const signals = Object.fromEntries(operations.slice(0, 2).map(operation => [operation, {prepare: signal(), construct: signal()}]));
+		const polls = Object.fromEntries(operations.slice(0, 2).map(operation => [operation, {prepare: 0, construct: 0}]));
 		const fake = fixture({
 			memory: true,
-			operation: method => signals[method] && waitFor(signals[method].promise),
-			read: async (count, phase) => {
-				if (signals[phase]) {
+			operation: (method, operation) => signals[operation]?.[method] && waitFor(signals[operation][method].promise),
+			read: async (count, phase, operation) => {
+				if (signals[operation]?.[phase]) {
 					await delay(8);
-					if (++polls[phase] === 3)
-						signals[phase].resolve();
+					if (++polls[operation][phase] === 3)
+						signals[operation][phase].resolve();
 				}
 			},
 		});
 		const report = await fake.capture({processPollIntervalMs: 10});
 		assert.equal(report.processProtocol.requestedProcessPollIntervalMs, 10);
-		for (const phase of ['prepare', 'construct']) {
-			const observations = report.samples[0].processObservations.filter(read => read.phase === phase && read.kind === 'poll');
+		for (const operation of operations.slice(0, 2)) for (const phase of ['prepare', 'construct']) {
+			const observations = report.samples[0].processObservations.filter(read => read.operation === operation && read.phase === phase && read.kind === 'poll');
 			assert.equal(observations.length, 3);
 			for (let i = 1; i < observations.length; i++)
 				assert.ok(observations[i].processRequestedAtMs - observations[i - 1].processTimestampMs >= 8);
@@ -1990,22 +1994,25 @@ describe('shared sample capture', () => {
 	});
 
 	it('drains an in-flight read before phase endpoints, GC, and destruction', async () => {
-		const started = {prepare: signal(), construct: signal()};
+		const started = Object.fromEntries(operations.slice(0, 2).map(operation => [operation, {prepare: signal(), construct: signal()}]));
 		const fake = fixture({
 			memory: true,
-			operation: method => started[method] && waitFor(started[method].promise),
-			read: async (count, phase) => {
-				if (started[phase]) {
-					started[phase].resolve();
+			operation: (method, operation) => started[operation]?.[method] && waitFor(started[operation][method].promise),
+			read: async (count, phase, operation) => {
+				if (started[operation]?.[phase]) {
+					started[operation][phase].resolve();
 					await delay(15);
 				}
 			},
 		});
 		await assertSettled(fake, () => fake.capture({processPollIntervalMs: 1}));
 		for (const phase of ['prepare', 'construct']) {
-			const end = fake.events.findIndex(event => event.method === `${phase}:end`);
-			assert.equal(fake.events[end + 1].method, 'read:end');
-			assert.equal(fake.events[end + 2].method, 'read');
+			const ends = fake.events.flatMap((event, index) => event.method === `${phase}:end` ? [index] : []);
+			assert.equal(ends.length, operations.length);
+			for (const end of ends.slice(0, 2)) {
+				assert.equal(fake.events[end + 1].method, 'read:end');
+				assert.equal(fake.events[end + 2].method, 'read');
+			}
 		}
 	});
 
@@ -2022,7 +2029,7 @@ describe('shared sample capture', () => {
 		});
 	}
 
-	for (const readNumber of [1, 2, 3, 4, 5, 6, 7, 8]) {
+	for (const readNumber of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) {
 		it(`propagates process read ${readNumber} failure and still destroys exactly once`, async () => {
 			const primary = new Error(`read ${readNumber}`);
 			const fake = fixture({memory: true, read: count => { if (count === readNumber) throw primary; }});
@@ -2076,8 +2083,8 @@ describe('shared sample capture', () => {
 		assert.equal(fake.events.at(-1).method, 'destroy:end');
 	});
 
-	for (const blocked of ['setup', 'prepare', 'construct', 'destroy', 'baseline GC', 'live GC', 'cleanup GC', ...Array.from({length: 8}, (_, i) => `read ${i + 1}`)]) {
-		it(`uses the sample deadline for stalled ${blocked} without starting more work`, async () => {
+	for (const blocked of ['setup', 'prepare', 'construct', 'destroy', 'baseline GC', 'live GC', ...Array.from({length: 11}, (_, i) => `read ${i + 1}`)]) {
+		it(`uses the active budget for stalled ${blocked} without starting more work`, async () => {
 			const clock = collectorClock();
 			const entered = signal();
 			let rejectPending;
@@ -2092,7 +2099,7 @@ describe('shared sample capture', () => {
 			const fake = fixture({
 				collector: clock.capture, memory: true,
 				operation: stall,
-				gc: () => stall(['baseline GC', 'live GC', 'cleanup GC'][gcCount++]),
+				gc: () => stall(['baseline GC', 'live GC'][gcCount++]),
 				read: count => stall(`read ${count}`),
 			});
 			const timeouts = [];
@@ -2127,7 +2134,7 @@ describe('shared sample capture', () => {
 				assert.equal(timeouts.length, 1);
 				assert.equal(clock.timers.size, 0);
 				assert.deepEqual(unhandled, []);
-				const destroyed = ['destroy', 'cleanup GC', 'read 8'].includes(blocked);
+				const destroyed = blocked === 'destroy';
 				assert.equal(fake.events.filter(event => event.method === 'destroy').length, destroyed ? 1 : 0);
 			}
 			finally {
@@ -2178,19 +2185,21 @@ describe('shared sample capture', () => {
 		});
 	}
 
-	it('uses one cumulative deadline across phases rather than resetting each phase', async () => {
+	it('shares the first operation budget across setup, baseline, preparation and construction', async () => {
 		const clock = collectorClock();
 		const timeouts = [];
 		const fake = fixture({
 			collector: clock.capture, memory: true,
-			operation: () => clock.advance(700),
+			operation: () => clock.advance(1500),
 			gc: () => clock.advance(700),
 			read: () => clock.advance(100),
 		});
 		await assert.rejects(fake.capture({processPollIntervalMs: 10000, onSampleTimeout: error => timeouts.push(error)}), error => error === timeouts[0]);
 		assert.equal(timeouts.length, 1);
-		assert.equal(fake.events.filter(event => event.method === gc).length, 3, 'budget lasts through destruction, but expires in cleanup GC');
-		assert.equal(fake.events.filter(event => event.method === 'read').length, 7, 'no cleanup read after timeout');
+		assert.equal(fake.events.filter(event => event.method === gc).length, 1, 'budget expires in small-init construction, before live GC');
+		assert.equal(fake.events.filter(event => event.method === 'read').length, 4, 'no construction endpoint read after timeout');
+		assert.deepEqual(fake.events.filter(event => event.method === 'prepare').map(event => event.variant), ['small-init']);
+		assert.equal(fake.events.filter(event => event.method === 'destroy').length, 0);
 		assert.equal(clock.timers.size, 0);
 	});
 
@@ -2270,7 +2279,9 @@ describe('shared sample capture', () => {
 			await assert.rejects(fake.capture({processRead}), /function or null/);
 			assert.deepEqual(fake.events, []);
 		}
-		for (const config of [{variants: []}, {variants: ['a', 'a']}, {variants: [1]}, {dpr: 0}, {warmups: -1}, {rounds: 1.5}]) {
+		for (const config of [
+			...[undefined, null, false, 0, 1, 'true', {}].map(lifecycle => ({lifecycle})),
+			{variants: []}, {variants: ['a', 'a']}, {variants: [1]}, {dpr: 0}, {warmups: -1}, {rounds: 1.5}]) {
 			const fake = fixture({config});
 			await assert.rejects(fake.capture(), /Invalid benchmarkLifecycle config/);
 			assert.deepEqual(fake.events, [{method: 'begin'}]);

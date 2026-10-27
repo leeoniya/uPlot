@@ -32,6 +32,7 @@ scripts['bokeh-canvas'] = scripts.bokeh;
 // Chrome's temporary profile goes to tmpfs on the benchmark machine, not the vendor cache.
 async function exercise(id) {
 	const adapter = await import(`/bench/${id}.mjs`);
+	const {smallLifecycleData} = await import('/bench/lifecycle-data.mjs');
 	if (['visx', 'financialcharts', 'muicharts', 'recharts'].includes(id))
 		Object.assign(globalThis, await import(`/vendor/${id}.mjs`));
 	const packed = await (await fetch('/packed.json')).json();
@@ -112,20 +113,21 @@ async function exercise(id) {
 	}
 	fixture();
 	const wait = {textContent: ''};
-	const chart = await adapter.makeEmptyChart(host, wait);
+	const small = adapter.prepData(smallLifecycleData(packed));
+	const chart = await (adapter.makeLifecycleChart ?? adapter.makeChart)(small, host, wait);
 	try {
-		check(wait.textContent === 'Done!', 'empty readiness');
+		check(wait.textContent === 'Done!', 'initial readiness');
 		const root = chart.root, instance = chart.instance, model = chart.model;
 		const series = chart.series?.slice();
 		const gl = chart.getWebGLContexts?.();
 		const surfaces = elements().filter(node => ['canvas', 'svg'].includes(node.localName) && Number(node.getAttribute('width')) > 100);
 		const paths = id === 'd3-svg' ? [...host.querySelectorAll('.series path')] : [];
-		check(surfaces.length > 0, 'empty chart has no surface');
-		if (id.startsWith('bokeh')) check(chart.model.renderers.filter(r => r.data_source).every(r => r.data_source.data.x.length === 0), 'empty Bokeh source');
-		if (id === 'financialcharts') check(chart.instance.state.plotData.length === 0, 'empty financial data');
-		if (id === 'vega') check(chart.data('table').length === 0, 'empty Vega data');
-		if (id === 'g2') check(chart.options().data.length === 0, 'empty G2 data');
-		if (id === 'billboard') check(chart.data().length === 3 && chart.data().every(s => s.values.length === 0), 'empty Billboard series');
+		check(surfaces.length > 0, 'initial chart has no surface');
+		if (id.startsWith('bokeh')) check(chart.model.renderers.filter(r => r.data_source).every(r => r.data_source.data.x.length === 2), 'two-row Bokeh source');
+		if (id === 'financialcharts') check(chart.instance.state.plotData.length === 2, 'two-row financial data');
+		if (id === 'vega') check(chart.data('table').length === 2, 'two-row Vega data');
+		if (id === 'g2') check(chart.options().data.length === 2, 'two-row G2 data');
+		if (id === 'billboard') check(chart.data().length === 3 && chart.data().every(s => s.values.length === 2), 'two-row Billboard series');
 		for (const [index, data] of [data1, data2].entries()) {
 			wait.textContent = 'Updating';
 			check(await adapter.updateChart(chart, data, host, wait) === undefined, 'update returned a replacement handle');
@@ -152,7 +154,7 @@ async function exercise(id) {
 	before(async () => {
 		const binary = process.env.CHROME_BIN || fileURLToPath(new URL('node_modules/.cache/uplot-bench/chrome-headless-shell-156.0.8078.47-linux64/chrome-headless-shell', root));
 		assert.ok(existsSync(binary), 'Cached Chrome required; this test never downloads it.');
-		for (const name of [...ids, 'framework-runtime', 'lifecycle-frameworks'])
+		for (const name of [...ids, 'framework-runtime', 'lifecycle-frameworks', 'lifecycle-data'])
 			assets.set(`/bench/${name}.mjs`, readFileSync(new URL(`bench/${name}.mjs`, root)));
 		for (const name of new Set(Object.values(scripts).flat())) assets.set('/vendor/' + name, readFileSync(new URL(name, cache)));
 		const moduleCache = new URL('modules/', cache);
@@ -205,7 +207,7 @@ async function exercise(id) {
 		if (server?.listening) await new Promise(resolve => server.close(resolve));
 		if (profile) await rm(profile, {recursive: true, force: true});
 	}, {timeout: 90000});
-	for (const id of ids) it(`${id}: empty -> full -> fresh full, native identity, direct-render parity`, {timeout: 90000}, async () => {
+	for (const id of ids) it(`${id}: two-row init -> full -> fresh full, native identity, direct-render parity`, {timeout: 90000}, async () => {
 		errors.length = 0;
 		const loaded = client.wait('Page.loadEventFired');
 		await client.send('Page.navigate', {url: `http://127.0.0.1:${server.address().port}/${id}`});

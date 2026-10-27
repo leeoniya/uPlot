@@ -79,7 +79,7 @@ const root = new URL('../../', import.meta.url);
 	}, {timeout: 90000});
 
 	for (const id of ids) {
-		it(`${id}: empty, full replacement, native readiness, retained identity, and teardown`, {timeout: 90000}, async () => {
+		it(`${id}: two-row init, full replacement, native readiness, retained identity, and teardown`, {timeout: 90000}, async () => {
 			const loaded = client.wait('Page.loadEventFired');
 			await client.send('Page.navigate', {url: `http://127.0.0.1:${server.address().port}/`});
 			await loaded;
@@ -94,6 +94,7 @@ const root = new URL('../../', import.meta.url);
 						document.head.append(script);
 					});
 					const adapter = await import('/bench/' + id + '.mjs');
+					const {smallLifecycleData} = await import('/bench/lifecycle-data.mjs');
 					const packed = await (await fetch('/bench/data.json')).json();
 					const host = document.getElementById('chart');
 					const wait = {textContent: 'Rendering...'};
@@ -108,10 +109,11 @@ const root = new URL('../../', import.meta.url);
 					};
 					let chart;
 					try {
-						chart = await bounded(adapter.makeEmptyChart(host, wait), 'empty');
+						const small = adapter.prepData(smallLifecycleData(packed));
+						chart = await bounded((adapter.makeLifecycleChart ?? adapter.makeChart)(small, host, wait), 'small-init');
 						const native = chart.chart ?? chart;
 						const canvases = [...host.querySelectorAll('canvas')];
-						const report = {empty: true, canvases: canvases.length, updates: []};
+						const report = {initialRows: 2, canvases: canvases.length, updates: []};
 						const rows = () => {
 							if (id.startsWith('apexcharts')) return chart.getState().series.map(s => s.length);
 							if (id.startsWith('amcharts')) return chart.container.children.getIndex(0).series.values.map(s => s.data.length);
@@ -124,7 +126,8 @@ const root = new URL('../../', import.meta.url);
 							});
 							return [chart.store.getDataTable().count()];
 						};
-						check(rows().every(count => count === 0), 'empty contains points: ' + rows());
+						check(rows().every(count => count === 2), 'initial row counts: ' + rows());
+						check(wait.textContent === 'Done!', 'initial readiness not reported');
 						const settings = () => {
 							if (id.startsWith('apexcharts')) return chart.getState().config.chart.dataReducer;
 							if (id.startsWith('amcharts')) {

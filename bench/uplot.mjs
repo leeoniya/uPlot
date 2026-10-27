@@ -115,10 +115,6 @@ function makeChart(data, host, wait, UPlot = uPlot) {
 	return uplot;
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart([[], [], [], []], host, wait ?? {textContent: ''});
-}
-
 async function updateChart(chart, input, host, wait) {
 	chart.setData(input, true);
 	// uPlot batches its commit in a microtask, as in makeChart.
@@ -160,5 +156,5 @@ function getHoverPlan(chart, input, host) {
 	};
 }
 
-export {makeEmptyChart, updateChart, resizeChart, getHoverPlan};
+export {updateChart, resizeChart, getHoverPlan};
 export {makeChart, prepData};

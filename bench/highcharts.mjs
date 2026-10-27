@@ -105,10 +105,6 @@ function makeChartWithOptions(data, host, wait, runtimeOptions, {boost = {}} = {
 	});
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart(Array.from({length: 3}, () => ({columns: {x: [], y: []}})), host, wait);
-}
-
 function renderChart(chart, action, wait) {
 	return new Promise((resolve, reject) => {
 		const rendered = new Set();
@@ -193,5 +189,5 @@ function destroyChart(chart) {
 	chart.destroy();
 }
 
-export {makeEmptyChart, updateChart};
+export {updateChart};
 export {prepData, makeChart, destroyChart, makeChartWithOptions};

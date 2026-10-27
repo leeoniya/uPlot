@@ -34,7 +34,7 @@ function traceStartup(variant, {fetch, prepareDemoRuntime, adapter, globals = {}
 			if (url === '/bench/demo-runtime.mjs') return {prepareDemoRuntime: (...args) => prepareDemoRuntime(...args, context)};
 			assert.equal(url, `/bench/${variant}.mjs`);
 			return {
-				makeEmptyChart() { assert.fail('startup must not construct'); },
+
 				updateChart() { assert.fail('startup must not update'); },
 				resizeChart() { assert.fail('startup must not resize'); },
 				getHoverPlan() { assert.fail('startup must not prepare hover'); },
@@ -311,14 +311,13 @@ describe('benchmark trace availability checks', () => {
 		});
 	}
 
-	it('rejects JSCharting before fixture/runtime setup even with credentials', async () => {
-		for (const options of [undefined, {license: 'test', benchmarkPermission: true}])
-			await assert.rejects(check('jscharting', options), error =>
-				error.message === `jscharting: ${benchmarkRestrictions.jscharting}`);
+	it('rejects JSCharting before fixture/runtime setup', async () => {
+		await assert.rejects(check('jscharting'), error =>
+			error.message === `jscharting: ${benchmarkRestrictions.jscharting}`);
 	});
 
-	it('retains LightningChart credential checks and permits an explicitly licensed run', async () => {
-		for (const options of [undefined, {}, {license: ''}, {license: '  ', benchmarkPermission: true}])
+	it('requires a nonblank LightningChart license and permits an explicitly licensed run', async () => {
+		for (const options of [undefined, {}, {license: ''}, {license: '  '}])
 			await assert.rejects(check('lightningchart', options), /LIGHTNINGCHART_LICENSE/);
 		assert.deepEqual([...await check('lightningchart', {license: 'test'})], ['lightningchart']);
 	});

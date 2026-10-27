@@ -87,10 +87,6 @@ function destroyChart(chart) {
 	zingchart.exec(chart.id, 'destroy');
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart([[], [], []], host, wait);
-}
-
 async function updateChart(chart, input, host, wait) {
 	const id = chart.id;
 	let complete, failed;
@@ -135,4 +131,4 @@ async function resizeChart(chart, {width, height}, host, wait) {
 	}
 }
 
-export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart, resizeChart};
+export {prepData, makeChart, destroyChart, updateChart, resizeChart};

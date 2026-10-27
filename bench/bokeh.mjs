@@ -86,10 +86,6 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {outputBac
 	}
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart(Object.fromEntries(['x', 'cpu', 'ram', 'tcp'].map(key => [key, new Float64Array(0)])), host, wait);
-}
-
 async function updateChart(view, input, host, wait) {
 	if (view.is_destroyed) throw new Error('Bokeh chart is not live.');
 	const renderer = view.model.renderers.find(renderer => renderer.data_source);
@@ -191,4 +187,4 @@ export function getHoverPlan(chart, input, host) {
 	};
 }
 
-export {prepData, makeChart, destroyChart, makeChartWithOptions, makeEmptyChart, updateChart, resizeChart};
+export {prepData, makeChart, destroyChart, makeChartWithOptions, updateChart, resizeChart};

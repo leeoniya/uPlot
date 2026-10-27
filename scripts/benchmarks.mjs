@@ -56,7 +56,7 @@ rAF-only init rAF ms and next rAF ms measure callback latency, not presentation 
 rAF-only update ms measures update readiness. prep ms measures full-data preparation.
 Memory uses through-update-v1: polling covers initialization, preparation, and update through the live checkpoint.
 Forced GC precedes baseline and post-update live. All charts and full prepared inputs remain alive at live.
-No memory polling or forced GC occurs after live. Chart teardown still runs.
+Memory collection ends at live. Chart teardown runs after the timing phases.
 Memory columns show minimum baseline-adjusted browser-tree PSS, with matching dashboard idle controls.
 There is no JS-heap sampling or GPU device-memory measurement.
 
@@ -72,6 +72,9 @@ Dashboard plotly explicitly uses pinned virtual-webgl 1.0.7 WebGL1; single-chart
 --dpr defaults to 1. --verbose adds main ms and gpu ms to tables without changing measurements.
 --summarize-only refreshes the saved dashboard suite without a browser, using its saved DPR.
 It rejects --dpr, --variant, --worker, and --install-only. Workload dimensions must match across all reports and controls.
+Saved reports require the current lifecycle protocols. Trace reports require accountingProtocol: thread-work-gc-v2. Memory reports require memoryProtocol: through-update-v1.
+Saved summaries require explicit matching requestedBackend metadata and sampling, context, and lossy snapshots.
+
 --install-only prepares the browser without a benchmark. --browser supports chrome only.
 Each operation has a five-second budget. Library errors or timeouts leave unavailable metrics and continue the suite.
 Cancellation, idle failures, and infrastructure failures stop the suite.
@@ -105,7 +108,8 @@ Each variant gets a fresh browser with only its own library and demo dependencie
 Each library has 3 warmup sessions and 7 measured sessions. There is no inter-library cooling pause.
 A session creates a two-point chart, updates it with the full dataset, then resizes the retained chart to 1200x400.
 Supported variants then hover ten distinct datapoints, cycling through the three series.
-New reports use chart-population, settled-work-v1, retained-resize-v1, and hoverProtocol: hover-ten-v3, with hover.count: 10 and hover.intervalMs: 50.
+Single-chart reports require phase: chart-population, initProtocol: settled-work-v1, resizeProtocol: retained-resize-v1, and hoverProtocol: hover-ten-v3.
+The hover snapshot requires hover.count: 10 and hover.intervalMs: 50.
 The hover.variants snapshot records supported variants. Unimplemented variants omit the hover phase and leave hover10 ms blank.
 The lifecycle.resizeSize metadata records width: 1200 and height: 400. Top-level session timings still describe data-update.
 Each operation has a hard 5s budget, including preparation and completion checks. Final cleanup has its own 5s budget.
@@ -153,18 +157,15 @@ Node sends ten CDP dispatches with nine 50 ms waits, each after the preceding CD
 Node sends one browser Runtime.evaluate completion acknowledgment after the tenth dispatch acknowledgment.
 There is no catch-up, per-point renderer timer, renderer acknowledgment, or rAF.
 The measured window contains no value verification or harness DOM/canvas reads.
-The final two rAF callbacks, 200 ms settling wait, and graphics-completion checks remain unchanged.
-Batching reduces input-bridge overhead but does not eliminate it. Node scheduling is outside measured browser threads. No CPU profiling is added.
+The window ends after two rAF callbacks, a 200 ms settling wait, and graphics-completion checks.
+Batching reduces input-bridge overhead but does not eliminate it. Node scheduling is outside measured browser threads.
 Target preparation and bounds validation occur outside the window. Diagnostic value verification never runs during capture or preflight.
 Hover phases retain count: 10 and intervalMs: 50 without verification evidence.
 rAF-only hover10 ms uses sequence-to-post-readiness callback latency, including at least 450 ms of spacing but excluding final settling/fences.
-Idle spacing is not thread work. Legacy hover-ten-v1 used frame-paced, verified displays.
-Legacy hover-ten-v2 used per-point browser bindings, renderer timers, and completion acknowledgments. Both legacy protocols remain readable separately from v3.
-V2 and v3 require intervalMs: 50. Summaries reject mixed hover protocols, including v2 with v3, even in memory-only mode.
+Idle spacing is not thread work. Only hover-ten-v3 reports are accepted, including in memory-only mode.
 Update readiness remains in JSON. rAF-only update ms still measures small-to-full update readiness, not thread work.
 main, gpu, and prep remain data-update columns. next rAF describes update callback latency.
 Primary groups contain data-update only. phaseGroups contains all captured operations, with distinct IDs and full trace metric details.
-Legacy startup-only reports retain total ms because they contain no separate data update.
 The update includes full-size allocation costs; it is not a steady-state full-to-full replacement measurement.
 HTML demos still construct directly with the full dataset.
 Trace chart windows include settling and deferred rendering, but exclude prep, forced GC, and teardown.
@@ -172,7 +173,9 @@ After settling, trace/memory runs check WebGL2 fences or call WebGL1 finish. Thi
 ChartGPU also checks its actual WebGPU device queues after settling. Its initial queue wait remains inside init in every mode.
 GPU thread work is host-thread wall time, not hardware GPU execution time. Completion checks add overhead.
 Trace totals include allowlisted background V8/CppGC work, with per-thread overlap removal. Unpark/wait scopes are not added.
-JSON records backgroundGcMs, gcAddedThreadWorkMs, and accountingProtocol. Saved summaries reject mixed accounting protocols.
+JSON records backgroundGcMs and gcAddedThreadWorkMs. Trace reports require accountingProtocol: thread-work-gc-v2.
+Missing relevant GC scopes produce null metrics. Available scopes with no window overlap produce zero backgroundGcMs.
+Zero gcAddedThreadWorkMs means no added duration after overlap removal, not proof of no collection.
 Trace and rAF timings are not idle-subtracted; idle subtraction applies only to memory.
 
 Memory requires Linux /proc access. Memory-enabled lifecycle reports use memoryProtocol: 'through-update-v1'.
@@ -181,7 +184,7 @@ After data-update settles and graphics completion checks finish, forced JS GC pr
 Retained memory includes the live chart and full prepared input at the original 1920x600 size, before resize or tooltip interaction.
 Peaks include baseline, initialization, preparation, update, and the post-update live checkpoint, not resize, hover, or teardown.
 Within each session, forced GC occurs only at baseline and after the settled data update. No forced GC separates initialization and update.
-No process polling, memory observations, or cleanup GC occur after live. Normal chart destruction still runs.
+Memory collection ends at live. Chart teardown runs after the timing phases.
 Post-update GC precedes resize outside timing windows, but can affect later combined timings. All timing phases retain their full settling intervals and fences.
 The headline shows baseline-adjusted browser-tree PSS in decimal MB. Renderer measurements stay in JSON.
 Each sample subtracts its blank-page checkpoint and the minimum measured idle retained-minus-blank footprint.
@@ -201,9 +204,10 @@ Use --summarize-only with any command to summarize its saved suite report withou
 Summary-only uses the default-suite backend: Vulkan on Linux, Chrome's default elsewhere.
 Use --no-vulkan to select the saved default report, or --vulkan to select the saved Vulkan report.
 Summary-only mode uses the saved DPR and rejects --dpr, --variant, --worker, and --install-only.
-Legacy reports remain readable without resize or hover columns when those phases were absent.
-Suite summaries reject mixed resize/hover protocols and hover capability lists in every mode, including memory-only.
-Legacy memory reports remain readable under their original boundaries. Summaries reject mixed memory boundaries, including legacy reports combined with through-update-v1.
+Saved summaries require the current lifecycle protocols and matching hover capability lists in every mode, including memory-only.
+Memory reports require memoryProtocol: through-update-v1.
+Saved summaries require explicit matching requestedBackend metadata and sampling, context, and lossy snapshots.
+
 
 Direct runner: node scripts/benchmarks.mjs [--trace] [--memory] [--raf] [--gpu] [--vulkan | --no-vulkan] [--dpr NUMBER] [--verbose]
 No measurement flags means trace + memory. rAF cannot be combined with tracing or memory.`);

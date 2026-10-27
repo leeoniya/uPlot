@@ -481,10 +481,6 @@ function resizeChart(chart, {width, height}, host, wait) {
 	if (wait) wait.textContent = 'Done!';
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart([[], [], [], []], host, wait);
-}
-
 function updateChart(chart, input, host, wait) {
 	const update = updates.get(chart);
 	if (!update) throw new Error('D3 chart is not live.');
@@ -497,4 +493,4 @@ function makeChart(data, host, wait, runtimeOptions) {
 }
 
 export {makeChartWithOptions};
-export {makeChart, prepData, makeEmptyChart, updateChart, resizeChart, getHoverPlan};
+export {makeChart, prepData, updateChart, resizeChart, getHoverPlan};

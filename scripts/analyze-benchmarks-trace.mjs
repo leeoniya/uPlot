@@ -1,6 +1,6 @@
 import { readTraceFile } from './bench-trace-stream.mjs';
 import { benchmarkTimingSamples, benchmarkOperations } from './benchmarks-phases.mjs';
-import { BACKGROUND_GC_EVENTS, TRACE_ACCOUNTING, traceAccountingProtocol } from './bench-trace-policy.mjs';
+import { BACKGROUND_GC_EVENTS, traceAccountingProtocol } from './bench-trace-policy.mjs';
 
 const TASK = 'RunTask';
 const FALLBACK_TASK = 'ThreadControllerImpl::RunTask';
@@ -115,7 +115,6 @@ function createTraceAnalyzer(report) {
 	if (!Array.isArray(report?.samples))
 		throw new Error('Expected traceEvents and report.samples arrays');
 	const accountingProtocol = traceAccountingProtocol(report);
-	const includeGc = accountingProtocol === TRACE_ACCOUNTING;
 	let captureCount = 0;
 	let captureName;
 	const processes = new Map();
@@ -234,7 +233,7 @@ function createTraceAnalyzer(report) {
 				throw new Error(`Markers must use the same thread: ${sample.id}`);
 			if (!(start.ts <= marks['js-end'].ts && marks['js-end'].ts <= marks.end.ts && start.ts < marks.end.ts))
 				throw new Error(`Invalid marker order: ${sample.id}`);
-			// Legacy captures lack an ID. Check spans too, allowing timer quantization.
+			// Check spans even when capture IDs are absent, allowing timer quantization.
 			for (const [metric, end] of [['jsMs', marks['js-end']], ['windowMs', marks.end]]) {
 				if (!validTime(sample[metric]) || Math.abs(sample[metric] - (end.ts - start.ts) / 1000) > 1)
 					throw new Error(`Trace/report duration mismatch: ${sample.id} ${metric}`);
@@ -282,7 +281,7 @@ function createTraceAnalyzer(report) {
 						metric = 'rasterWorkerMs';
 					else if ((gpu || renderer) && event.name === 'GPUTask')
 						metric = 'GPUTaskMs';
-					else if (includeGc && (renderer || gpu) && !main && !['CrRendererMain', 'Compositor', 'CrGpuMain', 'VizCompositorThread'].includes(thread.name) && BACKGROUND_GC_EVENTS.has(event.name))
+					else if ((renderer || gpu) && !main && !['CrRendererMain', 'Compositor', 'CrGpuMain', 'VizCompositorThread'].includes(thread.name) && BACKGROUND_GC_EVENTS.has(event.name))
 						metric = 'backgroundGcMs';
 					if (metric) {
 						buckets[metric].push(event);
@@ -379,7 +378,7 @@ function createTraceAnalyzer(report) {
 			diagnostics: {
 				eventTypes,
 				missingEventTypes: EVENT_NAMES.filter(name => !eventTypes[name].available),
-				backgroundGc: {enabled: includeGc, allowedEvents: [...BACKGROUND_GC_EVENTS]},
+				backgroundGc: {enabled: true, allowedEvents: [...BACKGROUND_GC_EVENTS]},
 				availabilityBySample,
 				webglCompletion,
 				selectedThreads: [...selectedThreads.values()],
@@ -391,11 +390,11 @@ function createTraceAnalyzer(report) {
 			definitions: {
 				units: 'All durations are milliseconds. Marker timestamps ending in Us are trace microseconds.',
 				dataPrepMs: 'Reported duration of actual demo prepData conversion from already-parsed packed JSON. Excludes network transfer, JSON parsing, and synthetic-data cloning. Data preparation occurs before chart start, outside the start/js-end/end markers.',
-				prepAndInitMs: 'Legacy field name for dataPrepMs + jsMs. In lifecycle reports it combines preparation and operation readiness, not necessarily initialization. Excludes the gap between preparation and operation start, rAF waits, and settling. Validation is also excluded. This is not end-to-end wall latency.',
+				prepAndInitMs: 'The dataPrepMs + jsMs sum combines preparation and operation readiness, not necessarily initialization. Excludes the gap between preparation and operation start, rAF waits, and settling. Validation is also excluded. This is not end-to-end wall latency.',
 				jsMs: 'Unmodified report JS interval span, not exclusive JavaScript CPU time.',
 				windowMs: 'Unmodified report sample window duration.',
 				jsIntervalMs: 'Trace start to js-end elapsed span, including synchronous JS/DOM and other work or waits in that interval.',
-				traceWindowMs: 'Trace start to end elapsed span, including the settling interval. Initialization, data-update, resize, and optional hover-10 each use their complete marked window.',
+				traceWindowMs: 'Trace start to end elapsed span, including the settling interval. Reports require chart-population and settled-work-v1. Single-chart reports also require retained-resize-v1 and hover-ten-v3. Each operation uses its complete marked window. The dashboard-v1 workload uses only small-init and data-update.',
 				rendererMainTaskMs: 'Union of selected task intervals on the marker thread, clipped to [start, end].',
 				styleLayoutPaintMs: 'Union of UpdateLayoutTree, Layout, PrePaint, Paint, and Layerize on the marker thread. A main-work breakdown, not added to totals.',
 				rasterWorkerMs: 'Sum of per-thread RasterTask unions in the marker renderer and GPU processes, excluding known main and compositor threads. RasterTask identifies worker work; generic worker task wrappers are not added.',
@@ -403,15 +402,15 @@ function createTraceAnalyzer(report) {
 				gpuMainTaskMs: 'Sum of selected task unions on CrGpuMain threads in GPU Process; not hardware GPU time.',
 				vizCompositorMs: 'Sum of selected task unions on VizCompositorThread threads in GPU Process.',
 				GPUTaskMs: 'Sum of per-thread GPUTask unions in the marker renderer and GPU processes. Separate diagnostic, not hardware execution time.',
-				backgroundGcMs: 'Sum of per-thread unions of allowlisted background V8 and CppGC collector scopes in the marker renderer and GPU processes, excluding known main/compositor threads. Nested scopes count once. Wait/unpark scopes are not selected; enclosing collector wall durations can still include preemption or waits. Main-thread GC remains inside task totals. Null for legacy accounting or absent relevant events.',
+				backgroundGcMs: 'Sum of per-thread unions of allowlisted background V8 and CppGC collector scopes in the marker renderer and GPU processes. Known main/compositor threads are excluded. The report requires accountingProtocol: thread-work-gc-v2. Nested scopes count once. Wait/unpark scopes are not selected. Enclosing collector wall durations can still include preemption or waits. Main-thread GC remains inside task totals. Null when no valid relevant intervals are observed.',
 				gcAddedThreadWorkMs: 'Increase in totalTrackedThreadWorkMs from background GC after removing overlap with selected task, raster, and GPU intervals. Null when background GC is unavailable; otherwise zero means no added duration in this window.',
-				totalTrackedThreadWorkMs: 'Sum of per-thread unions of selected task, RasterTask, GPUTask, and (under thread-work-gc-v2) background GC intervals within each round. Cross-metric overlaps on one thread count once. The headline mean averages these own-round totals, with main-thread and selected background GC already included. Trace init ms, update ms, resize ms, and hover10 ms use this metric for their respective complete windows. Not latency or CPU time.',
+				totalTrackedThreadWorkMs: 'Sum of per-thread unions of selected task, RasterTask, GPUTask, and background GC intervals within each round. Cross-metric overlaps on one thread count once. The headline mean averages these own-round totals, with main-thread and selected background GC already included. Trace init ms, update ms, resize ms, and hover10 ms use this metric for their respective complete windows. Not latency or CPU time.',
 				trackedBusyElapsedMs: 'Global union of the same selected intervals across threads. Concurrent thread intervals count once; not end-to-end rendering latency.',
 				hardwareGpuMs: 'Null: no supported hardware GPU execution measurement is available from these event types.',
 				webglCompletion: 'Browser-reported completion status, not inferred from trace tasks. Complete covers preceding commands on observed contexts: asynchronous fences for WebGL2, blocking finish for WebGL1. Not-observed is not proof of no WebGL. Polling, flush, finish waits, and metadata queries belong to the instrumented window, after js-end. Wait duration is elapsed validation latency, not device busy time.',
 				taskSelection: 'Use RunTask if valid intervals exist anywhere on that thread; otherwise use ThreadControllerImpl::RunTask. Never combine both wrappers.',
 				availability: 'A metric is null when no matching valid intervals exist anywhere in the trace for its relevant threads. Zero means available but no overlap in this sample, not proven absence of work.',
-				hover: 'hover10 ms is the mean totalTrackedThreadWorkMs for one complete hover-10 window. It includes 10 mousemoves and the final settle/fence. Legacy hover-ten-v1 used frame-paced, verified displays. Legacy hover-ten-v2 used nine 50 ms waits with per-point browser bindings, renderer timers, and completion acknowledgments. Current hover-ten-v3 sends all ten coordinate targets through one browser binding. Node sends ten CDP dispatches with nine 50 ms waits, each after the preceding CDP acknowledgment. Node sends one browser Runtime.evaluate completion acknowledgment after the tenth dispatch acknowledgment. No catch-up, per-point renderer timer, renderer acknowledgment, or rAF occurs. No value verification or harness DOM/canvas reads occur in the v2 or v3 window. Batching reduces input-bridge overhead but does not eliminate it. Node scheduling is outside measured browser threads. No CPU profiling is added. Idle spacing does not count as thread work. Target preparation is outside measurement. Diagnostic verification never runs during capture or preflight. This is cumulative work, not a per-point average. Unsupported variants have no hover sample or phase group. Primary groups remain data-update.',
+				hover: 'hover10 ms is the mean totalTrackedThreadWorkMs for one complete hover-10 window. It includes 10 mousemoves and the final settle/fence. The required hover-ten-v3 protocol uses count: 10 and intervalMs: 50. It sends all ten coordinate targets through one browser binding. Node sends ten CDP dispatches with nine 50 ms waits, each after the preceding CDP acknowledgment. Node sends one browser Runtime.evaluate completion acknowledgment after the tenth dispatch acknowledgment. No catch-up, per-point renderer timer, renderer acknowledgment, or rAF occurs. No value verification or harness DOM/canvas reads occur in the measured window. Batching reduces input-bridge overhead but does not eliminate it. Node scheduling is outside measured browser threads. Idle spacing does not count as thread work. Target preparation is outside measurement. Diagnostic verification never runs during capture or preflight. This is cumulative work, not a per-point average. Unsupported variants have no hover sample or phase group. Primary groups remain data-update.',
 				aggregation: TRACE_AGGREGATION,
 				boundaries: 'Crossing counts use selected raw intervals, not unions. Tail spans end to the next sample start, or trace end for the last sample. Tail work is unassigned.',
 				attribution: 'Renderer work is scoped to the marker process. GPU processes are shared: temporal overlap does not establish causality or chart ownership.',

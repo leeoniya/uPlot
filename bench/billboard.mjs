@@ -75,10 +75,6 @@ async function makeChart(data, host, wait) {
 	}
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart(['time', 'cpu', 'ram', 'tcp'].map(key => [key]), host, wait);
-}
-
 async function updateChart(chart, input, host, wait) {
 	if (renders.has(chart)) throw new Error('Billboard update is already pending.');
 	try {
@@ -143,4 +139,4 @@ function destroyChart(chart) {
 	chart.destroy();
 }
 
-export {prepData, makeChart, destroyChart, makeEmptyChart, updateChart, resizeChart};
+export {prepData, makeChart, destroyChart, updateChart, resizeChart};

@@ -7,7 +7,3 @@ export function makeChart(data, host, wait) {
 	// Preserve release behavior, including native path caching when cache.paths is unsupported.
 	return makeUPlotChart(data, host, wait, globalThis.uPlotRelease);
 }
-
-export function makeEmptyChart(host, wait) {
-	return makeChart([[], [], [], []], host, wait ?? {textContent: ''});
-}

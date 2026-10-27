@@ -68,10 +68,6 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {type = 's
 	}
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChartWithOptions([[], [], [], []], host, wait);
-}
-
 async function updateChart(chart, input, host, wait) {
 	// Keep the original renderer (scattergl or scatter) and replace every column.
 	await Plotly.react(chart, chartTraces(input, chart.data[0].type), chartLayout(input));
@@ -129,5 +125,5 @@ function destroyChart(chart) {
 	Plotly.purge(chart);
 }
 
-export {makeEmptyChart, updateChart};
+export {updateChart};
 export {prepData, makeChart, destroyChart, makeChartWithOptions};

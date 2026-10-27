@@ -79,10 +79,6 @@ async function makeChartWithOptions(data, host, wait, runtimeOptions, {sampled =
 	}
 }
 
-function makeEmptyChart(host, wait) {
-	return makeChart([], host, wait);
-}
-
 async function updateChart(chart, input, host, wait) {
 	let done, incident;
 	try {
@@ -173,4 +169,4 @@ function getHoverPlan(chart, input, host) {
 	};
 }
 
-export {prepData, makeChart, makeEmptyChart, updateChart, resizeChart, destroyChart, makeChartWithOptions, getHoverPlan};
+export {prepData, makeChart, updateChart, resizeChart, destroyChart, makeChartWithOptions, getHoverPlan};

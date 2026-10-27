@@ -92,7 +92,7 @@ describe('framework benchmark adapters', () => {
 		it(`${id}: preserves all 55,550 rows and all three series`, () => {
 			assert.deepEqual(Object.keys(adapter), [
 				'destroyChart', ...(id === 'recharts' ? ['getHoverPlan'] : []), 'makeChart',
-				'makeEmptyChart', 'makeLifecycleChart', 'prepData', 'resizeChart', 'updateChart',
+				'makeLifecycleChart', 'prepData', 'resizeChart', 'updateChart',
 			]);
 			const data = adapter.prepData(packed);
 			assert.equal(data.length, 55550);

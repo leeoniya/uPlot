@@ -192,7 +192,7 @@ describe('native benchmark resize hooks', () => {
 
 	for (const [id, adapter] of Object.entries(adapters)) {
 		it(`${id}: exports resize without removing existing entry points`, () => {
-			for (const name of ['makeChart', 'makeEmptyChart', 'updateChart', 'prepData', 'resizeChart'])
+			for (const name of ['makeChart', 'updateChart', 'prepData', 'resizeChart'])
 				assert.equal(typeof adapter[name], 'function', name);
 		});
 	}

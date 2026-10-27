@@ -64,8 +64,8 @@ describe('additional benchmark adapters C', () => {
 	for (const [variant, module] of Object.entries(modules)) {
 		it(`${variant}: exports the shared contract and preserves all 55,550 × 3 values`, () => {
 			assert.deepEqual(Object.keys(module), variant === 'amcharts'
-				? ['destroyChart', 'makeChart', 'makeChartWithOptions', 'makeEmptyChart', 'prepData', 'resizeChart', 'staticBranding', 'updateChart']
-				: ['destroyChart', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
+				? ['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData', 'resizeChart', 'staticBranding', 'updateChart']
+				: ['destroyChart', 'makeChart', 'prepData', 'resizeChart', 'updateChart']);
 			const before = packed.slice();
 			const data = module.prepData(packed);
 			const count = (packed.length - packed[0] - 1) / packed[0];
@@ -342,7 +342,7 @@ describe('additional benchmark adapters C', () => {
 		try {
 			const element = host('lightningchart');
 			for (const license of [undefined, null, '', '  ', 123, true]) {
-				globalThis.benchmarkLightningChartOptions = {license, benchmarkPermission: true};
+				globalThis.benchmarkLightningChartOptions = {license};
 				await assert.rejects(lightningchart.makeChart({}, element), /requires a user-supplied license/);
 			}
 			delete globalThis.benchmarkLightningChartOptions;
@@ -356,7 +356,7 @@ describe('additional benchmark adapters C', () => {
 		}
 	});
 
-	it('LightningChart: forwards license and metadata to the vendor without a permission gate or option mutation', async () => {
+	it('LightningChart: forwards license and metadata to the vendor without option mutation', async () => {
 		const keys = ['lcjs', 'benchmarkLightningChartOptions'];
 		const saved = keys.map(key => Object.getOwnPropertyDescriptor(globalThis, key));
 		const vendorError = new Error('vendor license validation');
@@ -364,15 +364,13 @@ describe('additional benchmark adapters C', () => {
 		const calls = [];
 		globalThis.lcjs = {lightningChart(options) { calls.push(options); throw vendorError; }};
 		try {
-			for (const extra of [{}, {benchmarkPermission: false}]) {
-				const options = Object.freeze({license: 'test-not-a-vendor-key', licenseInformation, timeoutMs: 100, ...extra});
-				globalThis.benchmarkLightningChartOptions = options;
-				await assert.rejects(lightningchart.makeChart({}, host('lightningchart')), error => error === vendorError);
-				assert.equal(globalThis.benchmarkLightningChartOptions, options);
-				assert.deepEqual(calls.at(-1), {license: options.license, licenseInformation});
-				assert.equal(calls.at(-1).licenseInformation, licenseInformation);
-			}
-			assert.equal(calls.length, 2);
+			const options = Object.freeze({license: 'test-not-a-vendor-key', licenseInformation, timeoutMs: 100});
+			globalThis.benchmarkLightningChartOptions = options;
+			await assert.rejects(lightningchart.makeChart({}, host('lightningchart')), error => error === vendorError);
+			assert.equal(globalThis.benchmarkLightningChartOptions, options);
+			assert.deepEqual(calls[0], {license: options.license, licenseInformation});
+			assert.equal(calls[0].licenseInformation, licenseInformation);
+			assert.equal(calls.length, 1);
 		}
 		finally {
 			keys.forEach((key, i) => {

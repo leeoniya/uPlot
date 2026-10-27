@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {smallLifecycleData} from '../../bench/lifecycle-data.mjs';
 import {Window} from 'happy-dom';
 import * as master from '../../bench/uplot.mjs';
 import * as release from '../../bench/uplot-release.mjs';
@@ -77,15 +78,16 @@ describe('uPlot release adapter', () => {
 		await Promise.resolve();
 	});
 
-	it('creates empty release charts with four columns and an optional wait handle', async () => {
+	it('creates two-row release charts with four independent prepared columns', async () => {
+		const packed = JSON.parse(readFileSync(new URL('../../bench/data.json', import.meta.url)));
+		const input = release.prepData(smallLifecycleData(packed));
 		const host = {}, wait = {textContent: ''};
-		for (const status of [wait, undefined]) {
-			const chart = release.makeEmptyChart(host, status);
-			assert.ok(chart instanceof globalThis.uPlotRelease);
-			assert.deepEqual(chart.data, [[], [], [], []]);
-			assert.equal(new Set(chart.data).size, 4);
-			assert.equal(chart.host, host);
-		}
+		const chart = release.makeChart(input, host, wait);
+		assert.ok(chart instanceof globalThis.uPlotRelease);
+		assert.equal(chart.data, input);
+		assert.deepEqual(chart.data.map(column => column.length), [2, 2, 2, 2]);
+		assert.equal(new Set(chart.data).size, 4);
+		assert.equal(chart.host, host);
 		await Promise.resolve();
 		assert.equal(wait.textContent, 'Done!');
 	});
@@ -95,10 +97,11 @@ describe('uPlot release adapter', () => {
 		assert.equal(release.updateChart, master.updateChart);
 		const packed = Object.freeze([7, 'epoch', 'idl', 'recv', 'send', 'writ', 'used', 'free',
 			10, 80, 0, 3, 0, 25, 75, 11, 50, 0, 4, 0, 60, 40]);
-		const input = release.prepData(packed);
-		assert.deepEqual(input, [[600, 660], [20, 50], [25, 60], [3, 4]]);
+		assert.deepEqual(release.prepData(packed), [[600, 660], [20, 50], [25, 60], [3, 4]]);
 		const host = {}, wait = {textContent: ''};
-		const chart = release.makeEmptyChart(host, wait);
+		const full = JSON.parse(readFileSync(new URL('../../bench/data.json', import.meta.url)));
+		const input = release.prepData(full);
+		const chart = release.makeChart(release.prepData(smallLifecycleData(full)), host, wait);
 		const series = chart.series;
 		const paths = series.map(series => [series._paths, series.points._paths]);
 		await Promise.resolve();

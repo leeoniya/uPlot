@@ -145,7 +145,7 @@ describe('benchmark WebGL adapters', () => {
 
 	for (const [name, adapter] of Object.entries(adapters)) {
 		it(`${name}: retains every exact benchmark value in independent Float64 columns`, () => {
-			assert.deepEqual(Object.keys(adapter), ['destroyChart', 'getHoverPlan', 'makeChart', 'makeChartWithOptions', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
+			assert.deepEqual(Object.keys(adapter), ['destroyChart', 'getHoverPlan', 'makeChart', 'makeChartWithOptions', 'prepData', 'resizeChart', 'updateChart']);
 			assert.equal(packed[0], 7);
 			const before = packed.slice();
 			const data = adapter.prepData(packed);

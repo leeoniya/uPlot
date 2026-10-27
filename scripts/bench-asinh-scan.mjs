@@ -12,7 +12,6 @@ const baselineSHA = '3ab577c266d9890401be1f875fcc190e1afd5bbd';
 const archiveSHA256 = 'b321e924c74e60bee03a2bc0f533f01d781608b8a0043759ac15ac1fd5736eba';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const args = new Set(process.argv.slice(2));
-assert(!args.has('--inline') && !args.has('--reverse'), '--inline and --reverse are retired: core no longer has a scanAsinh helper. Use the default baseline/current comparison.');
 for (const arg of args)
 	assert(['--baseline', '--expect-fused', '--min', '--worker', '--help'].includes(arg), `Unknown argument: ${arg}`);
 if (args.has('--help')) {
@@ -20,7 +19,6 @@ if (args.has('--help')) {
 		'--baseline: frozen-source A/A calibration, never imports working-tree src.\n' +
 		'Default: paired pinned baseline / working-tree comparison.\n' +
 		'--expect-fused: also require a 3-element asinh scan, fewer setData reads, and zero cached callback reads.\n' +
-		'--inline and --reverse are retired because core no longer has a scanAsinh helper.\n' +
 		'--min: report minimum batch us/update and the ratio of baseline/candidate minima; retain all samples.\n' +
 		'Each run retains source snapshots, hashes, checksums, read probes, and raw samples in test/output/asinh-scan/.\n' +
 		'Hard timeout: 115 seconds per engine. No browsers or test runner.');

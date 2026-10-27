@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {smallLifecycleData} from '../../bench/lifecycle-data.mjs';
 import * as flot from '../../bench/flot.mjs';
 import * as dygraphs from '../../bench/dygraphs.mjs';
 import * as canvasjs from '../../bench/canvasjs.mjs';
@@ -44,7 +45,7 @@ describe('bench-lifecycle-native contracts', () => {
 
 	for (const [id, adapter] of Object.entries(adapters)) {
 		it(`${id}: adds lifecycle exports without removing the direct entry point`, () => {
-			for (const name of ['prepData', 'makeChart', 'makeEmptyChart', 'updateChart']) assert.equal(typeof adapter[name], 'function');
+			for (const name of ['prepData', 'makeChart', 'updateChart']) assert.equal(typeof adapter[name], 'function');
 			const first = adapter.prepData(packed), second = adapter.prepData(packed);
 			assert.notEqual(first, second);
 			assert.deepEqual(first, second);
@@ -65,8 +66,8 @@ describe('bench-lifecycle-native contracts', () => {
 			return chart;
 		}});
 		const wait = {textContent: 'waiting'};
-		const initial = flot.makeEmptyChart({querySelector() { return {}; }}, wait);
-		assert.ok(chart.data.every(s => s.data.length === 0));
+		const initial = flot.makeLifecycleChart(flot.prepData(smallLifecycleData(packed)), {querySelector() { return {}; }}, wait);
+		assert.ok(chart.data.every(s => s.data.length === 2));
 		await pending(initial, wait);
 		chart.hooks.drawOverlay.forEach(fn => fn(chart));
 		assert.equal(await initial, chart);
@@ -89,15 +90,17 @@ describe('bench-lifecycle-native contracts', () => {
 		assert.equal(chart.hooks.drawOverlay.length, 0);
 	});
 
-	it('Dygraphs: blank CSV has no dummy point; updates use the original row arrays', () => {
+	it('Dygraphs: starts with two rows; updates use the original row arrays', () => {
 		let created = 0;
 		globalThis.fmtDate = () => () => '';
 		globalThis.Dygraph = class {
 			constructor(host, data, options) { created++; this.data = data; this.options = options; }
 			updateOptions(options) { this.data = options.file; }
 		};
-		const chart = dygraphs.makeEmptyChart({});
-		assert.equal(chart.data, '\n');
+		const small = dygraphs.prepData(smallLifecycleData(packed));
+		const chart = dygraphs.makeChart(small, {}, {textContent: ''});
+		assert.equal(chart.data, small);
+		assert.equal(chart.data.length, 2);
 		assert.equal(chart.options.labels.length, 4);
 		assert.equal(chart.options.series['TCP Out'].axis, 'y2');
 		for (let pass = 0; pass < 2; pass++) {
@@ -115,9 +118,9 @@ describe('bench-lifecycle-native contracts', () => {
 			render() { renders++; }
 			destroy() { this.destroyed = true; }
 		}};
-		const chart = canvasjs.makeEmptyChart({});
+		const chart = canvasjs.makeChart(canvasjs.prepData(smallLifecycleData(packed)), {}, {textContent: ''});
 		const series = chart.options.data.slice();
-		assert.ok(series.every(s => s.dataPoints.length === 0));
+		assert.ok(series.every(s => s.dataPoints.length === 2));
 		for (let pass = 0; pass < 2; pass++) {
 			const input = canvasjs.prepData(packed), wait = {textContent: 'waiting'};
 			assert.equal(canvasjs.updateChart(chart, input, {}, wait), chart);
@@ -141,9 +144,9 @@ describe('bench-lifecycle-native contracts', () => {
 		};
 		globalThis.LightweightCharts = {createChart() { created++; return chart; }, LineSeries: {}, LastPriceAnimationMode: {Disabled: 0}};
 		globalThis.requestAnimationFrame = fn => frames.push(fn);
-		const wait = {textContent: 'waiting'}, initial = lightweight.makeEmptyChart(host, wait);
+		const wait = {textContent: 'waiting'}, initial = lightweight.makeLifecycleChart(lightweight.prepData(smallLifecycleData(packed)), host, wait);
 		await pending(initial, wait);
-		assert.equal(lines.length, 3); assert.ok(lines.every(line => line.data.length === 0));
+		assert.equal(lines.length, 3); assert.ok(lines.every(line => line.data.length === 2));
 		frames.shift()(); assert.equal(await initial, chart);
 		for (let pass = 0; pass < 2; pass++) {
 			const input = lightweight.prepData(packed);
@@ -184,9 +187,9 @@ describe('bench-lifecycle-native contracts', () => {
 				constructor(host, config) { created++; options = chart.options = config; return chart; }
 			}}}};
 			const wait = {textContent: 'waiting'};
-			const initial = adapter.makeEmptyChart(host, wait);
+			const initial = adapter.makeChart(adapter.prepData(smallLifecycleData(packed)), host, wait);
 			await pending(initial, wait);
-			assert.ok(options.series.every(s => (s.values ?? s.data).length === 0));
+			assert.ok(options.series.every(s => (s.values ?? s.data).length === 2));
 			if (id === 'kendo') options.render({sender: chart}); else emitter.emit(event);
 			assert.equal(await initial, chart);
 			for (let pass = 0; pass < 2; pass++) {

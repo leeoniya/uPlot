@@ -1,6 +1,6 @@
 import {prepRows, requireFramework, destroyReact, waitForLines, calendarLabel} from './framework-runtime.mjs';
 
-import {mountEmptyReact, mountLifecycleReact, updateReact as updateChart, resizeReact as resizeChart} from './lifecycle-frameworks.mjs';
+import {mountLifecycleReact, updateReact as updateChart, resizeReact as resizeChart} from './lifecycle-frameworks.mjs';
 
 function buildChart(data, React, chart, {width, height}) {
 	const {LinePath} = requireFramework('benchmarkVisxShape');
@@ -48,8 +48,4 @@ export function makeLifecycleChart(data, host, wait) {
 	return mountLifecycleReact(data, host, buildChart, ready, wait);
 }
 
-function makeEmptyChart(host, wait) {
-	return mountEmptyReact(host, buildChart, ready, wait);
-}
-
-export {prepRows as prepData, makeChart, destroyReact as destroyChart, makeEmptyChart, updateChart, resizeChart};
+export {prepRows as prepData, makeChart, destroyReact as destroyChart, updateChart, resizeChart};

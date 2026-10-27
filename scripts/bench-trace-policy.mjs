@@ -1,4 +1,3 @@
-export const LEGACY_TRACE_ACCOUNTING = 'thread-work-v1';
 export const TRACE_ACCOUNTING = 'thread-work-gc-v2';
 export const GC_CATEGORIES = ['disabled-by-default-v8.gc', 'cppgc'];
 
@@ -44,8 +43,8 @@ export function traceAccountingProtocol(report) {
 	const analyzed = report.analysis?.accountingProtocol;
 	if (captured != null && analyzed != null && captured !== analyzed)
 		throw new Error('Trace capture and analysis accounting protocols differ. Reanalyze the capture.');
-	const protocol = analyzed ?? captured ?? LEGACY_TRACE_ACCOUNTING;
-	if (![LEGACY_TRACE_ACCOUNTING, TRACE_ACCOUNTING].includes(protocol))
+	const protocol = analyzed ?? captured;
+	if (protocol !== TRACE_ACCOUNTING)
 		throw new Error(`Unsupported trace accounting protocol: ${protocol}`);
 	return protocol;
 }

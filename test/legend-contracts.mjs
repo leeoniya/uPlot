@@ -438,92 +438,6 @@ for (const table of [false, true]) {
 			}
 		}
 
-		// Historical guarantee: destruction inside marker callbacks is unsupported.
-		it.skip('does not mount or retain a table when an initial marker callback destroys the renderer', () => {
-			const host = document.createElement('div');
-			document.body.appendChild(host);
-			let markerCalls = 0;
-			const { renderer, parent, work, valuesAt } = rendererFixture({
-				markers: {
-					show: true,
-					width: () => 0,
-					fill() {
-						if (markerCalls++ == 0)
-							renderer.destroy();
-						return null;
-					},
-				},
-				mount: (self, element) => host.appendChild(element),
-			});
-			renderer.render(valuesAt(1), null);
-			assert.ok(markerCalls > 0);
-			assert.equal(work.mounts, 0);
-			assert.equal(parent.querySelector('table') === null, true);
-			assert.equal(host.querySelector('table') === null, true);
-		});
-
-		// Historical guarantee: destruction inside marker callbacks is unsupported.
-		it.skip('removes the mounted table when a new row marker callback destroys the renderer', () => {
-			let markerCalls = 0;
-			const { renderer, parent, series, work, valuesAt } = rendererFixture({ markers: {
-				show: true,
-				width: () => 0,
-				fill(self, i) {
-					markerCalls++;
-					if (self.series[i].label == 'Added')
-						renderer.destroy();
-					return 'red';
-				},
-			} });
-			renderer.render(valuesAt(0), null);
-			const element = parent.querySelector('table');
-			assert.equal(element.isConnected, true);
-			assert.equal(markerCalls, 2);
-			series.push({ label: 'Added', show: true });
-			renderer.render(valuesAt(1), null);
-			assert.equal(markerCalls, 3);
-			assert.equal(work.mounts, 1);
-			assert.equal(element.isConnected, false);
-			assert.equal(parent.querySelector('table') === null, true);
-			const before = { ...work, markerCalls };
-			renderer.render(valuesAt(2), series[1]);
-			assert.deepEqual({ ...work, markerCalls }, before);
-			assert.equal(parent.querySelector('table') === null, true);
-		});
-
-		// Historical contract: markers.show is now captured at creation, so toggles cannot trigger callbacks.
-		it.skip('discards a mounted-row update when a marker mode refresh callback destroys the renderer', () => {
-			let destroyOnRefresh = false;
-			let markerCalls = 0;
-			const { renderer, parent, series, work, valuesAt, legend } = rendererFixture({ markers: {
-				show: true,
-				width: () => 0,
-				fill() {
-					markerCalls++;
-					if (destroyOnRefresh)
-						renderer.destroy();
-					return 'red';
-				},
-			} });
-			renderer.render(valuesAt(0), null);
-			const element = parent.querySelector('table');
-			const alpha = element.querySelectorAll('tbody tr')[table ? 0 : 1];
-			assert.equal(markerCalls, 2);
-			assert.equal(element.isConnected, true);
-			destroyOnRefresh = true;
-			legend.markers.show = false;
-			renderer.render(valuesAt(1), null);
-			assert.equal(markerCalls > 2, true);
-			assert.equal(work.mounts, 1);
-			assert.equal(element.isConnected, false);
-			assert.equal(parent.querySelector('table') === null, true);
-			assertValues(alpha, 10);
-			const before = { ...work, markerCalls };
-			renderer.render(valuesAt(2), series[1]);
-			assert.deepEqual({ ...work, markerCalls }, before);
-			assert.equal(parent.querySelector('table') === null, true);
-		});
-
 		it('cancels a pending chart commit when the plot is destroyed', async () => {
 			const work = { draws: 0, legends: 0, mounts: 0 };
 			const u = await plot({ mount: () => work.mounts++ });
@@ -1192,77 +1106,17 @@ for (const table of [false, true]) {
 			}
 		});
 
-		// Historical guarantee: nested setters no longer suppress outer focus notifications or publication.
-		it.skip('skips superseded cursor focus notifications after a setLegend hook publishes replacement focus', async () => {
-			const events = { source: [], peer: [], pub: [] };
-			const key = `legend-reentrant-focus-${table}`;
-			const source = await plot({ cursor: { sync: { key, setSeries: true, filters: {
-				pub(type, self, si, opts) {
-					if (type == 'setSeries')
-						events.pub.push([si, opts.focus]);
-					return true;
-				},
-			} } } });
-			const peer = await plot({ cursor: { sync: { key, setSeries: true } } });
-			source.hooks.setSeries = [(self, si, opts) => events.source.push([si, opts.focus])];
-			peer.hooks.setSeries = [(self, si, opts) => events.peer.push([si, opts.focus])];
-			let replaced = false;
-			source.hooks.setLegend = [self => {
-				if (replaced)
-					return;
-				replaced = true;
-				assert.deepEqual(self.cursor.idxs, [1, 1, 1]);
-				assert.deepEqual(values(self), ['v=20', 'v=50']);
-				assert.deepEqual(self.series.slice(1).map(s => s._focus), [true, false]);
-				self.setSeries(2, { focus: true }, true, true);
-			}];
-			source.over.dispatchEvent(new MouseEvent('mousemove', {
-				clientX: source.rect.left + source.valToPos(1, 'x'),
-				clientY: source.rect.top + source.valToPos(20, 'y'),
-			}));
-			assert.equal(replaced, true);
-			assert.deepEqual(events, { source: [[2, true]], peer: [[2, true]], pub: [[2, true]] });
-			for (const u of [source, peer]) {
-				assert.deepEqual(u.series.slice(1).map(s => s._focus), [false, true]);
-				assert.deepEqual(values(u), ['v=20', 'v=50']);
-			}
+		it('keeps live legend data synchronous with a hidden cursor and visible legend', async () => {
+			const snapshots = [];
+			const u = await plot({ cursor: { show: false }, legend: { show: true }, hooks: {
+				setLegend: [self => snapshots.push([self.cursor.idxs.slice(), values(self)])],
+			} });
+			snapshots.length = 0;
+			u.setLegend({ idx: 2 });
+			assert.deepEqual(snapshots, [[[2, 2, 2], ['v=30', 'v=60']]]);
 			await commit();
-			for (const u of [source, peer]) {
-				assert.deepEqual(u.series.slice(1).map(s => s._focus), [false, true]);
-				assert.equal(row(u, 1).style.opacity, '0.25');
-				assert.equal(row(u, 2).style.opacity, '1');
-			}
+			assertValues(row(u, 1), 30);
 		});
-
-		// Hidden legend values were an expanded contract, not master behavior.
-		it.skip('updates hidden legend values during cursor focus changes', async () => {
-			const u = await plot({ legend: { show: false }, cursor: { points: { one: true } } });
-			for (const si of [1, 2, null]) {
-				u.setCursor(si == null ? { left: -10, top: -10 } : {
-					left: u.valToPos(1, 'x'), top: u.valToPos(data[si][1], 'y'),
-				});
-				assert.deepEqual(values(u), si == null ? ['--', '--'] : ['v=20', 'v=50']);
-			}
-		});
-
-		for (const show of [true, false]) {
-			// Keep hidden-value expectations as a reference, not an active requirement.
-			const test = show ? it : it.skip;
-			test(`keeps live legend data synchronous with a hidden cursor and legend.show=${show}`, async () => {
-				const snapshots = [];
-				const u = await plot({ cursor: { show: false }, legend: { show }, hooks: {
-					setLegend: [self => snapshots.push([self.cursor.idxs.slice(), values(self)])],
-				} });
-				snapshots.length = 0;
-				u.setLegend({ idx: 2 });
-				assert.deepEqual(snapshots, [[[2, 2, 2], ['v=30', 'v=60']]]);
-				await commit();
-				if (show)
-					assertValues(row(u, 1), 30);
-				else
-					assert.equal(u.root.querySelector('.u-legend') === null, true);
-			});
-		}
 
 		for (const mode of [1, 2]) {
 			for (const showCursor of [true, false]) {
@@ -1608,163 +1462,6 @@ for (const table of [false, true]) {
 				}
 			});
 		}
-
-		// Historical contract: each series now retains its first marker VNode regardless of later indices.
-		it.skip('refreshes index-dependent markers only for new or shifted rows after insertion, deletion, and Y reorder', () => {
-			const calls = { width: [], dash: [], stroke: [], fill: [] };
-			const colors = [null, 'red', 'green', 'blue', 'purple'];
-			const { renderer, parent, series } = rendererFixture({ markers: {
-				show: true,
-				...Object.fromEntries(Object.keys(calls).map(key => [key, (self, i) => {
-					calls[key].push(`${self.series[i].label}:${i}`);
-					return key == 'width' ? i : key == 'dash' ? 'solid' : colors[i];
-				}])),
-			} });
-			series.push({ label: 'Gamma', show: true });
-			renderer.render([], null);
-			for (const log of Object.values(calls))
-				assert.deepEqual([...log].sort(), ['Alpha:1', 'Beta:2', 'Gamma:3'].sort());
-			const nodes = new Map(series.slice(1).map((s, i) => [s, parent.querySelectorAll('tbody tr')[i + (table ? 0 : 1)]]));
-			const added = { label: 'Added', show: true };
-			for (const [change, expected] of [
-				[() => series.splice(2, 0, added), ['Added:2', 'Beta:3', 'Gamma:4']],
-				[() => series.splice(2, 1), ['Beta:2', 'Gamma:3']],
-				[() => { [series[1], series[2]] = [series[2], series[1]]; }, ['Beta:1', 'Alpha:2']],
-			]) {
-				for (const log of Object.values(calls))
-					log.length = 0;
-				change();
-				renderer.render([], null);
-				for (const log of Object.values(calls))
-					assert.deepEqual([...log].sort(), [...expected].sort());
-				const rows = [...parent.querySelectorAll('tbody tr')].slice(table ? 0 : 1);
-				series.slice(1).forEach((s, offset) => {
-					const tr = rows[offset];
-					if (nodes.has(s))
-						assert.equal(tr === nodes.get(s), true);
-					else
-						nodes.set(s, tr);
-					const marker = tr.querySelector('.u-marker');
-					assert.equal(marker.style.border, `${offset + 1}px solid ${colors[offset + 1]}`);
-					assert.equal(marker.style.background, colors[offset + 1]);
-				});
-				if (!series.includes(added))
-					assert.equal(nodes.get(added).isConnected, false);
-			}
-		});
-
-		// Historical contract: neither index changes nor marker-mode toggles refresh cached presentation.
-		it.skip('derives markers only from the final coalesced index and marker mode', async () => {
-			const calls = [];
-			const u = await plot({ legend: { markers: {
-				show: true,
-				width: (self, i) => (calls.push(`width:${self.series[i].label}:${i}`), i),
-				dash: () => 'solid',
-				stroke: () => 'black',
-				fill: (self, i) => (calls.push(`fill:${self.series[i].label}:${i}`), i == 1 ? 'red' : 'blue'),
-			} } });
-			u.setLegend({ idx: 0 });
-			u.legend.markers.show = false;
-			u.setLegend({ idx: 1 });
-			u.legend.markers.show = true;
-			assert.equal(calls.length, 0);
-			await commit();
-			assert.deepEqual([...calls].sort(), ['width:Alpha:1', 'fill:Alpha:1', 'width:Beta:2', 'fill:Beta:2'].sort());
-			const rows = [...u.root.querySelectorAll('tbody tr')].slice(-2);
-			for (const changed of [true, false]) {
-				calls.length = 0;
-				u.addSeries({ label: 'Transient', stroke: 'red' }, 1);
-				u.legend.markers.show = false;
-				u.delSeries(1);
-				[u.series[1], u.series[2]] = [u.series[2], u.series[1]];
-				u.setLegend({ idx: 1 });
-				if (!changed)
-					[u.series[1], u.series[2]] = [u.series[2], u.series[1]];
-				u.legend.markers.show = true;
-				u.setLegend({ idx: 2 });
-				assert.equal(calls.length, 0);
-				await commit();
-				assert.deepEqual([...calls].sort(), changed ? ['width:Beta:1', 'fill:Beta:1', 'width:Alpha:2', 'fill:Alpha:2'].sort() : []);
-				assertNodes([...u.root.querySelectorAll('tbody tr')].slice(-2), [rows[1], rows[0]]);
-				for (const [i, tr] of [rows[1], rows[0]].entries()) {
-					assert.equal(tr.querySelector('.u-marker').style.border, `${i + 1}px solid black`);
-					assert.equal(tr.querySelector('.u-marker').style.background, i == 0 ? 'red' : 'blue');
-				}
-			}
-		});
-
-		// Historical contract: marker styles are immutable and markers.show is chart configuration.
-		it.skip('clears obsolete marker styles and preserves rows, headers, and lazy bindings across marker modes', () => {
-			let width = 2;
-			let fill = 'blue';
-			const calls = { width: 0, dash: 0, stroke: 0, fill: 0 };
-			const bindings = [];
-			const events = [];
-			const { renderer, parent, series, legend } = rendererFixture({
-				markers: {
-					show: true,
-					width: () => (calls.width++, width),
-					dash: () => (calls.dash++, 'solid'),
-					stroke: () => (calls.stroke++, 'red'),
-					fill: () => (calls.fill++, fill),
-				},
-				bind: Object.fromEntries(['click', 'mouseenter', 'mouseleave'].map(type => [type, (self, target, handle) => {
-					bindings.push(type);
-					return handle;
-				}])),
-				emit: (type, s) => events.push([type, s == null ? null : s.label]),
-			});
-			series[1].width = series[2].width = 1;
-			renderer.render([], null);
-			const rows = [...parent.querySelectorAll('tbody tr')].slice(-2);
-			const headers = rows.map(tr => tr.firstChild);
-			const markers = rows.map(tr => tr.querySelector('.u-marker'));
-			const root = parent.querySelector('.u-legend');
-			assert.deepEqual(calls, { width: 2, dash: 2, stroke: 2, fill: 2 });
-			assert.equal(bindings.length, 0);
-			for (const marker of markers) {
-				assert.equal(marker.style.border, '2px solid red');
-				assert.equal(marker.style.background, 'blue');
-			}
-			mouse('click', headers[0]);
-			mouse('mouseenter', headers[0]);
-			mouse('mouseleave', root);
-			assert.deepEqual(bindings, ['click', 'mouseenter', 'mouseleave']);
-			width = 0;
-			fill = null;
-			renderer.render([], null);
-			assert.deepEqual(calls, { width: 2, dash: 2, stroke: 2, fill: 2 });
-			for (const marker of markers) {
-				assert.equal(marker.style.border, '2px solid red');
-				assert.equal(marker.style.background, 'blue');
-			}
-			[series[1], series[2]] = [series[2], series[1]];
-			renderer.render([], null);
-			assert.deepEqual(calls, { width: 4, dash: 2, stroke: 2, fill: 4 });
-			assertNodes(rows.map(tr => tr.querySelector('.u-marker')), markers);
-			for (const marker of markers) {
-				assert.equal(marker.style.border, '');
-				assert.equal(marker.style.background, '');
-			}
-			for (const show of [false, true, false, true]) {
-				Object.keys(calls).forEach(key => calls[key] = 0);
-				events.length = 0;
-				legend.markers.show = show;
-				renderer.render([], null);
-				assert.deepEqual(calls, show ? { width: 2, dash: 0, stroke: 0, fill: 2 } : { width: 0, dash: 0, stroke: 2, fill: 0 });
-				assertNodes([...parent.querySelectorAll('tbody tr')].slice(-2), [rows[1], rows[0]]);
-				assertNodes(rows.map(tr => tr.firstChild), headers);
-				for (const tr of rows) {
-					assert.equal(tr.querySelector('.u-marker') !== null, show);
-					assert.equal(tr.querySelector('.u-label').style.color, show ? '' : 'red');
-				}
-				mouse('click', headers[0]);
-				mouse('mouseenter', headers[0]);
-				mouse('mouseleave', root);
-				assert.deepEqual(bindings, ['click', 'mouseenter', 'mouseleave']);
-				assert.deepEqual(events, [['click', 'Alpha'], ['focus', 'Alpha'], ['leave', null]]);
-			}
-		});
 
 		it('registers eligible headers and the table before events and before legend.mount', () => {
 			const bindings = [];
@@ -2118,65 +1815,6 @@ for (const table of [false, true]) {
 			assertValues(remounted, 40);
 		});
 
-		// Historical contract: replacing series.label after first render no longer replaces its cached VNode.
-		it.skip('replaces element and text labels without refreshing markers or disturbing current element state', () => {
-			let markerCalls = 0;
-			const { renderer, parent, series, valuesAt } = rendererFixture({ markers: {
-				show: true,
-				...Object.fromEntries(Object.entries({ width: 1, dash: 'solid', stroke: 'red', fill: 'blue' })
-					.map(([key, value]) => [key, () => (markerCalls++, value)])),
-			} });
-			const labels = [0, 1].map(i => {
-				const element = document.createElement('span');
-				const input = document.createElement('input');
-				const state = { element, input, value: `edited-${i}`, clicks: 0 };
-				input.value = state.value;
-				input.addEventListener('click', () => state.clicks++);
-				element.appendChild(input);
-				return state;
-			});
-			series[1].label = labels[0].element;
-			renderer.render(valuesAt(0), null);
-			const alpha = parent.querySelectorAll('tbody tr')[table ? 0 : 1];
-			const th = alpha.firstChild;
-			let previous = null;
-			for (const current of [labels[0], labels[1], null, labels[0]]) {
-				series[1].label = current == null ? 'Text' : current.element;
-				renderer.render(valuesAt(1), null);
-				assert.equal(parent.querySelectorAll('tbody tr')[table ? 0 : 1] === alpha, true);
-				assert.equal(alpha.firstChild === th, true);
-				if (previous != null && previous !== current)
-					assert.equal(previous.element.isConnected, false);
-				const container = th.querySelector('.u-label');
-				assert.equal(markerCalls, 8);
-				if (current == null) {
-					assert.equal(container.textContent, 'Text');
-					assert.equal(container.querySelector('input') === null, true);
-				}
-				else {
-					const { element, input } = current;
-					assert.equal(input.value, current.value);
-					input.focus();
-					input.value = current.value += '!';
-					for (const idx of [0, 2]) {
-						series[1].show = !series[1].show;
-						renderer.render(valuesAt(idx), series[idx == 0 ? 2 : 1]);
-						assert.equal(th.querySelector('.u-label') === container, true);
-						assert.equal(container.firstChild === element, true);
-						assert.equal(element.firstChild === input, true);
-						assert.equal(input.value, current.value);
-						assert.equal(document.activeElement === input, true);
-						assert.equal(markerCalls, 8);
-					}
-					const clicks = current.clicks;
-					mouse('click', input);
-					assert.equal(current.clicks, clicks + 1);
-				}
-				previous = current;
-			}
-			assert.equal(labels[1].element.isConnected, false);
-		});
-
 		it('exposes initial series data in lifecycle hooks without requiring legend DOM', async () => {
 			const added = [];
 			const lifecycle = [];
@@ -2464,44 +2102,6 @@ for (const table of [false, true]) {
 				table ? ['Alpha', 'Beta'] : ['Time', 'Alpha', 'Beta']);
 		});
 
-		// Historical two-phase isolation contract, not required by sequential setters.
-		it.skip('skips superseded isolate visibility notifications after a hook restores the other series', async () => {
-			const events = { source: [], peer: [], pub: [] };
-			const key = `legend-reentrant-isolate-${table}`;
-			const source = await plot({ cursor: { sync: { key, setSeries: true, filters: {
-				pub(type, self, si, opts) {
-					if (type == 'setSeries')
-						events.pub.push([si, opts.show]);
-					return true;
-				},
-			} } } });
-			const peer = await plot({ cursor: { sync: { key, setSeries: true } } });
-			peer.hooks.setSeries = [(self, si, opts) => events.peer.push([si, opts.show])];
-			let restored = false;
-			source.hooks.setSeries = [(self, si, opts) => {
-				events.source.push([si, opts.show, self.series.slice(1).map(s => s.show)]);
-				if (!restored && si == 1) {
-					restored = true;
-					self.setSeries(2, { show: true }, true, true);
-				}
-			}];
-			row(source, 1).querySelector('.u-label').dispatchEvent(new MouseEvent('click', {
-				bubbles: true, cancelable: true, button: 0, ctrlKey: true,
-			}));
-			assert.equal(restored, true);
-			assert.deepEqual(events, {
-				source: [[1, true, [true, false]], [2, true, [true, true]]],
-				peer: [[2, true], [1, true]], pub: [[2, true], [1, true]],
-			});
-			for (const u of [source, peer])
-				assert.deepEqual(u.series.slice(1).map(s => s.show), [true, true]);
-			await commit();
-			for (const u of [source, peer]) {
-				assert.deepEqual(u.series.slice(1).map(s => s.show), [true, true]);
-				assert.deepEqual([1, 2].map(si => row(u, si).classList.contains('u-off')), [false, false]);
-			}
-		});
-
 		for (const mode of [1, 2]) {
 			it(`notifies each isolation setter with intermediate visibility and synchronous fixed-membership DOM in mode ${mode}`, async () => {
 				const events = { source: [], peer: [], pub: [] };
@@ -2541,34 +2141,6 @@ for (const table of [false, true]) {
 				}
 			});
 
-			// Retain the stronger complete-state contract for future reference.
-			it.skip(`exposes isolate and restore state in hooks and renders once per frame in mode ${mode}`, async () => {
-				const snapshots = [];
-				const u = await plot({ mode, hooks: { setSeries: [(u, i, opts) => snapshots.push({
-					i,
-					show: opts.show,
-					state: u.series.slice(1).map(s => s.show),
-				})] } });
-				let rowReads = 0;
-				Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
-				const label = u.root.querySelectorAll('tbody .u-label')[mode == 1 && !table ? 1 : 0];
-
-				for (const expected of [[true, false], [true, true]]) {
-					snapshots.length = 0;
-					rowReads = 0;
-					label.dispatchEvent(new MouseEvent('click', {
-						bubbles: true,
-						cancelable: true,
-						button: 0,
-						ctrlKey: true,
-					}));
-					assert.equal(rowReads, 0);
-					assert.deepEqual(snapshots, expected.map((show, i) => ({ i: i + 1, show, state: expected })));
-					await commit();
-					assert.equal(rowReads, 1);
-					assert.deepEqual([...u.root.querySelectorAll('tbody tr')].slice(-2).map(tr => !tr.classList.contains('u-off')), expected);
-				}
-			});
 		}
 
 		for (const suppress of [true, false]) {
