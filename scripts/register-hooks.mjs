@@ -20,13 +20,13 @@ if (cacheDir == null) {
 	process.once('exit', () => { rmSync(cacheDir, { recursive: true, force: true }); });
 }
 
-const instrument = createSourceInstrumenter(config, cacheDir, process.env.UPLOT_INSTRUMENTER ?? 'istanbul');
+const instrument = createSourceInstrumenter(config, cacheDir);
 
 if (process.versions.bun) {
 	const { plugin } = await import('bun');
 
 	plugin({
-		name: 'istanbul-coverage',
+		name: 'estree-coverage',
 		setup(build) {
 			// Bun's runtime onLoad hook cannot fall through for excluded files.
 			const files = selection.files().map(path => path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));

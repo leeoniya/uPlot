@@ -1,13 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createContext, runInContext } from 'node:vm';
 import { parseSource, generateSource } from '../../scripts/vendor/istanbul/backend.mjs';
 import { createInstrumenter } from '../../scripts/vendor/istanbul/index.mjs';
 
-const require = createRequire(import.meta.url);
-const { createInstrumenter: createOracle } = require('istanbul-lib-instrument');
 const filename = fileURLToPath(new URL('./estree-chains-fixture.js', import.meta.url));
 
 function execute(code) {
@@ -28,11 +25,7 @@ function execute(code) {
 	};
 }
 
-// Upstream's Babel generator also drops chain boundaries in template tags.
-// Record its SyntaxError, but require the local output to match the original.
-const upstreamTagFailure = { result: null, events: [], error: 'SyntaxError' };
-
-// Explicit expectations keep the original program and both instrumenters honest.
+// Check the original program against explicit expectations before transforming it.
 const fixtures = [
 	['outer member throws', 'globalThis.result = (null?.x).y;', null, [], 'TypeError'],
 	['outer computed member evaluates its key, then throws', 'globalThis.result = (null?.x)[events.push("key")];', null, ['key'], 'TypeError'],
@@ -44,9 +37,9 @@ const fixtures = [
 	['outer constructor evaluates arguments, then throws', 'globalThis.result = new (null?.C)(events.push("argument"));', null, ['argument'], 'TypeError'],
 	['constructor with a member of a completed chain', 'const ns = { inner: { C: class {} } }; globalThis.result = new (ns?.inner).C() instanceof ns.inner.C;', true],
 	['constructor from an optional call', 'const factory = () => class {}; globalThis.result = typeof new (factory?.())();', 'object'],
-	['outer tag evaluates substitutions, then throws', 'globalThis.result = (null?.tag)`value:${events.push("substitution")}`;', null, ['substitution'], 'TypeError', upstreamTagFailure],
-	['outer tag preserves its receiver', '"use strict"; const obj = { value: 7, tag(strings, n) { return [this.value, strings[0], n]; } }; globalThis.result = (obj?.tag)`value:${3}`;', [7, 'value:', 3], [], null, upstreamTagFailure],
-	['tag from an optional call', 'const factory = () => (strings => strings[0]); globalThis.result = (factory?.())`ok`;', 'ok', [], null, upstreamTagFailure],
+	['outer tag evaluates substitutions, then throws', 'globalThis.result = (null?.tag)`value:${events.push("substitution")}`;', null, ['substitution'], 'TypeError'],
+	['outer tag preserves its receiver', '"use strict"; const obj = { value: 7, tag(strings, n) { return [this.value, strings[0], n]; } }; globalThis.result = (obj?.tag)`value:${3}`;', [7, 'value:', 3]],
+	['tag from an optional call', 'const factory = () => (strings => strings[0]); globalThis.result = (factory?.())`ok`;', 'ok'],
 	['outer member succeeds', 'const obj = { x: { y: 7 } }; globalThis.result = (obj?.x).y;', 7],
 	['outer call preserves its receiver', '"use strict"; const obj = { value: 7, method() { return this.value; } }; globalThis.result = (obj?.method)();', 7],
 	['outer optional call preserves its receiver', '"use strict"; const obj = { value: 7, method() { return this.value; } }; globalThis.result = (obj?.method)?.();', 7],
@@ -75,22 +68,20 @@ const fixtures = [
 
 describe('ESTree optional-chain boundaries', () => {
 	for (const compact of [false, true]) {
-		for (const [name, source, result, events = [], error = null, upstreamFailure] of fixtures) {
+		for (const [name, source, result, events = [], error = null] of fixtures) {
 			it(`${name} (compact: ${compact})`, () => {
 				const expected = { result, events, error };
 				const original = execute(source);
 				assert.deepEqual(original, expected, 'original program');
 
 				const options = { compact, produceSourceMap: false };
-				const oracle = createOracle(options).instrumentSync(source, filename);
-				assert.deepEqual(execute(oracle), upstreamFailure ?? original, 'upstream Istanbul');
 
 				const { ast } = parseSource(source, options);
 				const generated = generateSource(ast, source, filename, options).code;
-				assert.deepEqual(execute(generated), original, 'backend round trip');
+				assert.deepEqual(execute(generated), original, 'ESTree round trip');
 
 				const local = createInstrumenter(options).instrumentSync(source, filename);
-				assert.deepEqual(execute(local), original, 'local Istanbul');
+				assert.deepEqual(execute(local), original, 'ESTree instrumentation');
 			});
 		}
 	}

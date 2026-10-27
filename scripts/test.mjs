@@ -83,15 +83,10 @@ function main() {
 		return;
 	}
 
-	const backend = env.UPLOT_INSTRUMENTER ?? 'istanbul';
-	const namespace = getInstrumentCacheNamespace(root, undefined, backend);
-	if (backend === 'estree')
-		console.log('Instrumenter: vendored ESTree (experimental)');
+	const namespace = getInstrumentCacheNamespace(root);
 	env.UPLOT_INSTRUMENT_CACHE_DIR ??= resolve(root, '.cache/test-instrument', namespace);
 	mkdirSync(resolve(env.UPLOT_INSTRUMENT_CACHE_DIR), { recursive: true });
-	const coverageDir = resolve(root, backend === 'estree'
-		? '.cache/coverage-estree/' + (bun ? 'bun' : 'node')
-		: bun ? '.nyc_output/bun' : '.nyc_output');
+	const coverageDir = resolve(root, bun ? '.nyc_output/bun' : '.nyc_output');
 	const testEnv = { ...env, UPLOT_COVERAGE_DIR: coverageDir };
 	if (bun)
 		command.args.splice(1, 0, '--preload', hooks);

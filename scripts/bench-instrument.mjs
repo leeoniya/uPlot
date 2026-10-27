@@ -11,8 +11,8 @@ import { fileURLToPath } from 'node:url';
 
 const project = fileURLToPath(new URL('../', import.meta.url));
 const script = fileURLToPath(import.meta.url);
-const require = createRequire(import.meta.url);
-const backends = ['istanbul', 'estree'];
+const require = createRequire(new URL('./vendor/istanbul/index.mjs', import.meta.url));
+
 // Bound Node heap growth in both the coordinator and its sequential workers.
 // Bun's --smol mode is the lower-memory alternative, not a hard heap limit.
 const runtimeFlags = process.versions.bun ? ['--smol'] : ['--max-old-space-size=384'];
@@ -46,9 +46,34 @@ function unchanged(manifest) {
 		'Source or corpus changed during the benchmark; discard these timings and rerun.');
 }
 
-async function loadBackend(backend) {
-	const module = await import(backend === 'istanbul' ? 'istanbul-lib-instrument' : './vendor/istanbul/index.mjs');
-	return module.createInstrumenter ?? module.default.createInstrumenter;
+async function loadInstrumenter() {
+	return (await import('./vendor/istanbul/index.mjs')).createInstrumenter;
+}
+
+function dependencyPaths() {
+	const directories = new Set();
+	function visit(name, from) {
+		let directory = dirname(from.resolve(name));
+		let pkg;
+		for (;;) {
+			try { pkg = JSON.parse(readFileSync(resolve(directory, 'package.json'), 'utf8')); }
+			catch (error) {
+				if (error.code !== 'ENOENT') throw error;
+			}
+			if (pkg?.name === name) break;
+			const parent = dirname(directory);
+			assert.notEqual(parent, directory, 'Cannot locate dependency package: ' + name);
+			directory = parent;
+		}
+		if (directories.has(directory)) return;
+		directories.add(directory);
+		const localRequire = createRequire(resolve(directory, 'package.json'));
+		for (const dependency of Object.keys(pkg.dependencies ?? {}))
+			visit(dependency, localRequire);
+	}
+	for (const name of ['meriyah', 'astring', '@jridgewell/gen-mapping', '@jridgewell/remapping', 'istanbul-lib-coverage'])
+		visit(name, require);
+	return [...directories].flatMap(tree);
 }
 
 function corpus(manifest) {
@@ -60,8 +85,7 @@ function summary(samples, passes = 1) {
 	return { medianMs: sorted[Math.floor(sorted.length / 2)], minMs: sorted[0], maxMs: sorted.at(-1), samplesMs: samples, corporaPerSample: passes };
 }
 
-async function worker(mode, backend, manifestPath) {
-	assert(backends.includes(backend));
+async function worker(mode, manifestPath) {
 	const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 	unchanged(manifest);
 	const files = corpus(manifest);
@@ -70,14 +94,14 @@ async function worker(mode, backend, manifestPath) {
 	if (mode === 'cold') {
 		// Corpus reads and fingerprint checks are excluded here, but included in parent wall time.
 		const start = performance.now();
-		const create = await loadBackend(backend);
+		const create = await loadInstrumenter();
 		const instrumenter = create(manifest.options);
 		for (const { filename, source } of files)
 			consumed += instrumenter.instrumentSync(source, filename).length;
 		result = { importAndInstrumentMs: performance.now() - start };
 	}
 	else if (mode === 'reused' || mode === 'new') {
-		const create = await loadBackend(backend);
+		const create = await loadInstrumenter();
 		const reused = create(manifest.options);
 		const batch = () => {
 			const start = performance.now();
@@ -92,13 +116,13 @@ async function worker(mode, backend, manifestPath) {
 	}
 	else if (mode === 'cache') {
 		const { createSourceInstrumenter } = await import('./instrument-source.mjs');
-		const cacheDir = resolve(dirname(manifestPath), 'cache-' + backend);
+		const cacheDir = resolve(dirname(manifestPath), 'cache');
 		mkdirSync(cacheDir);
-		const prime = createSourceInstrumenter(manifest.options, cacheDir, backend);
+		const prime = createSourceInstrumenter(manifest.options, cacheDir);
 		const start = performance.now();
 		const outputs = files.map(({ filename, source }) => prime(source, filename));
 		const primeMs = performance.now() - start;
-		outputs.forEach((code, index) => assert.equal(hash(code), manifest.outputHashes[backend][index],
+		outputs.forEach((code, index) => assert.equal(hash(code), manifest.outputHashes[index],
 			'Cache miss output differs from direct instrumentation: ' + files[index].filename));
 		const entries = tree(cacheDir);
 		assert.equal(entries.length, files.length, 'Expected one disk entry per corpus file');
@@ -107,8 +131,8 @@ async function worker(mode, backend, manifestPath) {
 			return [path, stat.size, stat.mtimeMs, stat.ctimeMs, hash(readFileSync(path))];
 		});
 		const before = cacheState();
-		// A fresh closure cannot reuse the priming instrumenter or its module state.
-		const cached = createSourceInstrumenter(manifest.options, cacheDir, backend);
+		// A fresh closure cannot reuse the priming instrumenter instance.
+		const cached = createSourceInstrumenter(manifest.options, cacheDir);
 		files.forEach(({ filename, source }, index) => assert.equal(cached(source, filename), outputs[index]));
 		const samples = [];
 		for (let repeat = 0; repeat < repeats; repeat++) {
@@ -138,23 +162,23 @@ async function main() {
 	const report = {
 		valid: false,
 		startedAt: new Date().toISOString(),
+		instrumenter: 'estree',
 		runtime: { name: runtime, execPath: process.execPath, execArgv: process.execArgv, versions: process.versions,
 			NODE_OPTIONS: process.env.NODE_OPTIONS ?? null, BUN_OPTIONS: process.env.BUN_OPTIONS ?? null },
 		host: { platform: platform(), arch: arch(), cpu: cpus()[0]?.model, logicalCpus: cpus().length },
 		method: {
 			repeats, uncachedCorporaPerBatch: 1, cacheCorporaPerBatch: cachePasses, warmupCorpora: 1,
 			cold: 'Fresh runtime per sample; import+instrument excludes corpus reads. Wall time includes startup, reads, fingerprints, and exit. OS page cache is not flushed.',
-			warm: 'Separate worker per backend/mode; inputs in memory; no output cache; new means one instrumenter per file. No forced GC.',
+			warm: 'Separate sequential worker per mode; inputs in memory; no output cache; new means one instrumenter per file. No forced GC.',
 			cache: 'Separate worker; prime misses and verify outputs before timing. Fresh closure, disk reads/hash/UTF-8 decode included; warm OS page cache. Prime time is not a median.',
-			correctness: 'Full JSON-round-tripped lastFileCoverage deep equality, reused and new instrumenters; no fields removed. This is not a runtime semantics or source-map accuracy test.',
+			correctness: 'Reused/new code, complete JSON-round-tripped coverage metadata, and source maps must match. Cache output must match direct output. Internal consistency only, not independent upstream parity, runtime semantics, or source-map accuracy.',
 		},
 	};
 	let manifest;
 	try {
-		const installed = dirname(require.resolve('istanbul-lib-instrument/package.json'));
 		const sourcePaths = [script, ...['package.json', 'package-lock.json', 'bun.lock', 'scripts/instrument-source.mjs',
 			'scripts/register-hooks.mjs', 'scripts/coverage-files.mjs'].map(path => resolve(project, path)),
-			...tree(resolve(project, 'scripts/vendor/istanbul')), ...tree(installed)].sort();
+			...tree(resolve(project, 'scripts/vendor/istanbul')), ...dependencyPaths()].sort();
 		const sourceSnapshot = snapshot(sourcePaths);
 		const config = { ...JSON.parse(readFileSync(resolve(project, 'package.json'), 'utf8')).nyc, cwd: project };
 		const { coverageFiles } = await import('./coverage-files.mjs');
@@ -162,82 +186,69 @@ async function main() {
 		assert.equal(files.length, 30, 'Expected the actual 30-file coverage corpus; do not silently benchmark a different selection');
 		const options = { ...config, esModules: true, produceSourceMap: true, compact: true };
 		const paths = [...new Set([...sourcePaths, ...files])].sort();
-		manifest = { files, options, paths, snapshot: snapshot(paths), outputHashes: { istanbul: [], estree: [] } };
+		manifest = { files, options, paths, snapshot: snapshot(paths), outputHashes: [] };
 		assert.deepStrictEqual(snapshot(sourcePaths), sourceSnapshot, 'Sources changed while selecting the corpus');
 		report.sourceSnapshot = sourceSnapshot;
 		report.snapshot = manifest.snapshot;
 		report.options = options;
-		report.istanbulVersion = JSON.parse(readFileSync(resolve(installed, 'package.json'), 'utf8')).version;
+
 		const inputs = corpus(manifest);
 		report.corpus = { files: files.map(path => relative(project, path)), count: files.length,
 			bytes: inputs.reduce((sum, file) => sum + bytes(file.source), 0) };
-		console.log(`${runtime}: checking complete coverage metadata on ${files.length} files before timings...`);
-		const factories = Object.fromEntries(await Promise.all(backends.map(async backend => [backend, await loadBackend(backend)])));
-		const reused = Object.fromEntries(backends.map(backend => [backend, factories[backend](options)]));
+		console.log(`${runtime}: checking ESTree output consistency on ${files.length} files before timings...`);
+		const create = await loadInstrumenter();
+		const reused = create(options);
 		const sizes = [];
 		for (const { filename, source } of inputs) {
-			const row = { file: relative(project, filename), inputBytes: bytes(source) };
-			let expected;
-			for (const backend of backends) {
-				const instrumenter = reused[backend];
-				const code = instrumenter.instrumentSync(source, filename);
-				const coverage = json(instrumenter.lastFileCoverage());
-				assert(coverage && coverage.path === filename, 'Missing coverage: ' + filename);
-				if (backend === 'istanbul') expected = coverage;
-				else assert.deepStrictEqual(coverage, expected, 'Full coverage metadata mismatch: ' + filename);
-				const map = instrumenter.lastSourceMap();
-				assert(map && map.version === 3, 'Missing source map: ' + filename);
-				const output = code + inlineMap(map);
-				row[backend] = { codeBytes: bytes(code), sourceMapJsonBytes: bytes(JSON.stringify(map)), inlineOutputBytes: bytes(output) };
-				manifest.outputHashes[backend].push(hash(output));
-				const fresh = factories[backend](options);
-				assert.equal(fresh.instrumentSync(source, filename), code, 'New/reused code mismatch: ' + filename);
-				assert.deepStrictEqual(json(fresh.lastFileCoverage()), expected, 'New instrumenter metadata mismatch: ' + filename);
-				assert.deepStrictEqual(json(fresh.lastSourceMap()), json(map), 'New/reused source map mismatch: ' + filename);
-			}
-			sizes.push(row);
+			const code = reused.instrumentSync(source, filename);
+			const coverage = json(reused.lastFileCoverage());
+			assert(coverage && coverage.path === filename, 'Missing coverage: ' + filename);
+			const map = reused.lastSourceMap();
+			assert(map && map.version === 3, 'Missing source map: ' + filename);
+			const output = code + inlineMap(map);
+			manifest.outputHashes.push(hash(output));
+			const fresh = create(options);
+			assert.equal(fresh.instrumentSync(source, filename), code, 'New/reused code mismatch: ' + filename);
+			assert.deepStrictEqual(json(fresh.lastFileCoverage()), coverage, 'New/reused coverage metadata mismatch: ' + filename);
+			assert.deepStrictEqual(json(fresh.lastSourceMap()), json(map), 'New/reused source map mismatch: ' + filename);
+			sizes.push({ file: relative(project, filename), inputBytes: bytes(source),
+				codeBytes: bytes(code), sourceMapJsonBytes: bytes(JSON.stringify(map)), inlineOutputBytes: bytes(output) });
 		}
 		unchanged(manifest);
 		report.correctness = { passed: true, files: files.length, instrumenterModes: ['reused', 'new'] };
-		report.sizes = { files: sizes, totals: Object.fromEntries(backends.map(backend => [backend,
-			Object.fromEntries(['codeBytes', 'sourceMapJsonBytes', 'inlineOutputBytes'].map(key =>
-				[key, sizes.reduce((sum, row) => sum + row[backend][key], 0)]))])) };
+		report.sizes = { files: sizes, totals: Object.fromEntries(['codeBytes', 'sourceMapJsonBytes', 'inlineOutputBytes'].map(key =>
+			[key, sizes.reduce((sum, row) => sum + row[key], 0)])) };
 		const manifestPath = resolve(directory, 'manifest.json');
 		writeFileSync(manifestPath, JSON.stringify(manifest));
-		console.log('Metadata parity passed. Running separate cold, warm uncached, and warm disk-cache phases...');
+		console.log('Output consistency passed. Running sequential cold, warm uncached, and warm disk-cache phases...');
 		let sequence = 0;
-		function run(mode, backend) {
+		function run(mode) {
 			unchanged(manifest);
 			const start = performance.now();
-			const child = spawnSync(process.execPath, [...process.execArgv, ...runtimeFlags, script, '--worker', mode, backend, manifestPath], {
+			const child = spawnSync(process.execPath, [...process.execArgv, ...runtimeFlags, script, '--worker', mode, manifestPath], {
 				cwd: project, encoding: 'utf8', timeout: 30000, maxBuffer: 4 * 1024 * 1024,
 			});
 			const wallMs = performance.now() - start;
-			writeFileSync(resolve(directory, `${sequence++}-${mode}-${backend}.log`), child.stdout + child.stderr);
+			writeFileSync(resolve(directory, `${sequence++}-${mode}.log`), child.stdout + child.stderr);
 			if (child.error) throw child.error;
-			assert.equal(child.status, 0, `${mode}/${backend} worker failed (${child.signal}): ${child.stderr}`);
+			assert.equal(child.status, 0, `${mode} worker failed (${child.signal}): ${child.stderr}`);
 			unchanged(manifest);
 			return { ...JSON.parse(child.stdout), wallMs };
 		}
-		report.timings = Object.fromEntries(backends.map(backend => [backend, {}]));
-		const cold = { istanbul: [], estree: [] };
+		const cold = [];
 		for (let repeat = 0; repeat < repeats; repeat++)
-			for (const backend of repeat % 2 ? [...backends].reverse() : backends)
-				cold[backend].push(run('cold', backend));
-		for (const backend of backends) {
-			report.timings[backend].coldImportAndInstrument = summary(cold[backend].map(sample => sample.importAndInstrumentMs));
-			report.timings[backend].coldProcessWall = summary(cold[backend].map(sample => sample.wallMs));
-		}
-		for (const [index, mode] of ['reused', 'new', 'cache'].entries())
-			for (const backend of index % 2 ? [...backends].reverse() : backends)
-				report.timings[backend][mode] = run(mode, backend);
+			cold.push(run('cold'));
+		report.timings = {
+			coldImportAndInstrument: summary(cold.map(sample => sample.importAndInstrumentMs)),
+			coldProcessWall: summary(cold.map(sample => sample.wallMs)),
+		};
+		for (const mode of ['reused', 'new', 'cache'])
+			report.timings[mode] = run(mode);
+		report.correctness.cachePassed = true;
 		unchanged(manifest);
 		report.valid = true;
-		console.table(Object.fromEntries(['coldImportAndInstrument', 'coldProcessWall', 'reused', 'new', 'cache'].map(mode => {
-			const a = report.timings.istanbul[mode].medianMs;
-			const b = report.timings.estree[mode].medianMs;
-			return [mode, { 'Istanbul ms/corpus': a.toFixed(2), 'ESTree ms/corpus': b.toFixed(2), 'Istanbul/ESTree': (a / b).toFixed(2) + 'x' }];
-		})));
+		console.table(Object.fromEntries(Object.entries(report.timings).map(([mode, timing]) =>
+			[mode, { 'ESTree ms/corpus': timing.medianMs.toFixed(2) }])));
 		console.table(report.sizes.totals);
 		console.log('Stable source SHA-256: ' + sourceSnapshot.sha256);
 	}

@@ -347,7 +347,7 @@ class Instrumenter {
 			ignoreClassMethods: [], esModules: false, autoWrap: false, produceSourceMap: false, compact: true,
 			...options,
 		};
-		if (this.opts.reportLogic) throw new Error('reportLogic is not supported by the ESTree prototype');
+		if (this.opts.reportLogic) throw new Error('reportLogic is not supported by the ESTree instrumenter');
 		this.fileCoverage = null;
 		this.sourceMap = null;
 	}

@@ -64,7 +64,7 @@ It accepts `--reporter`, `-R`, and `--test-reporter` with these mappings:
 
 ## Coverage tables
 
-The wrapper retains Istanbul instrumentation and the existing reporter, with separate coverage tables for core and plugin code.
+The wrapper uses the vendored ESTree instrumenter and the existing Istanbul reporter, with separate coverage tables for core and plugin code.
 It does not use the built-in coverage reports from Node or Bun.
 
 The tables cover:
@@ -91,29 +91,21 @@ Use `npm test` for combined coverage. Separate invocations replace the previous 
 The plugin tests remain in the default suite.
 No additional test suite or browser run is necessary to collect plugin coverage.
 
-### Experimental ESTree instrumentation
+### ESTree instrumentation
 
-The vendored instrumenter retains Istanbul counters but replaces Babel with Meriyah parsing and Astring code generation.
-Upstream Istanbul remains the default and the differential-test reference.
-
-Run the experimental backend:
-
-```sh
-UPLOT_INSTRUMENTER=estree npm test
-UPLOT_INSTRUMENTER=estree bun run test
-```
-
+The vendored ESTree instrumenter is the default and only source instrumenter.
+It retains Istanbul counters and uses Meriyah for parsing and Astring for code generation.
+Normal test commands use this instrumenter without additional configuration.
 Both runtimes retain the existing test and coverage reporters.
-ESTree coverage goes to `.cache/coverage-estree/node/` or `.cache/coverage-estree/bun/`, separate from `.nyc_output/`.
-The backend has separate cache entries and fingerprints its vendored implementation.
-Normal commands remain unchanged. `UPLOT_INSTRUMENTER=istanbul` explicitly selects the default backend.
+Node writes coverage to `.nyc_output`. Bun writes coverage to `.nyc_output/bun`.
 
-This prototype targets the JavaScript and instrumentation configuration used by this project.
-It rejects `reportLogic: true`, custom parser/generator options, and `preserveComments: true`.
-It is not a general Babel replacement, and its generated formatting differs from Babel.
-The upstream package remains installed, so the prototype does not yet reduce the installed dependency tree.
+The instrumenter supports the project's JavaScript coverage requirements, not the complete upstream package API.
+It rejects `reportLogic: true`, nonempty `parserPlugins` or `generatorOpts`, and `preserveComments: true`.
+It does not support TypeScript, JSX, Babel plugin transforms, or the Babel-specific `programVisitor()` API.
+Ordinary comments are absent from generated code. Input source maps require explicit `inputSourceMap` configuration.
 
 See [the vendored instrumenter notes](../scripts/vendor/istanbul/README.md) for provenance, limits, validation commands, and benchmarks.
+The benchmark measures only ESTree and verifies internal output consistency, not independent upstream parity.
 
 ## Demo regression tests
 
@@ -468,8 +460,8 @@ With coverage enabled, each Bun run clears `.nyc_output/bun`.
 With coverage enabled, each Node run clears `.nyc_output`, including the Bun results.
 
 The runner caches instrumented source in `.cache/test-instrument/<namespace>` across runs.
-A cold run loads Babel to instrument source files. A warm run reuses unchanged source and does not load Babel for those files.
-The namespace changes with either lockfile, the instrumentation implementation, the loader, or the installed Istanbul instrumenter version.
+A cold run loads the vendored ESTree instrumenter. A warm run reuses cached output without an instrumenter instance for unchanged files.
+The namespace changes with either lockfile, the vendored implementation, the instrumentation cache code, the loader, or the coverage selector.
 Each entry also depends on the filename, source contents, and instrumentation configuration.
 
 The cache contains no test results or coverage counters.

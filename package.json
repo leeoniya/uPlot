@@ -62,7 +62,6 @@
     "astring": "^1.9.0",
     "happy-dom": "^21.0.4",
     "istanbul-lib-coverage": "^3.2.2",
-    "istanbul-lib-instrument": "^6.0.3",
     "istanbul-lib-report": "^3.0.1",
     "istanbul-smart-text-reporter": "^1.1.5",
     "json-stringify-pretty-compact": "^4.0.0",
