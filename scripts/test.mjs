@@ -15,6 +15,7 @@ export function testCommand(args, { bun = !!process.versions.bun, cwd = process.
 		allowPositionals: true,
 		options: {
 			'no-coverage': { type: 'boolean' },
+			'coverage-provider': { type: 'string' },
 			'test-name-pattern': { type: 'string' },
 			grep: { type: 'string', short: 'g' },
 			reporter: { type: 'string', short: 'R' },
@@ -51,7 +52,13 @@ export function testCommand(args, { bun = !!process.versions.bun, cwd = process.
 	if (pattern != null)
 		command.push('--test-name-pattern', pattern);
 
-	return { args: [...command, ...files], coverage: !values['no-coverage'] };
+	const coverageProvider = values['coverage-provider'] ?? 'istanbul';
+	if (!['istanbul', 'v8'].includes(coverageProvider))
+		throw new Error('Unsupported coverage provider: ' + coverageProvider + '. Use istanbul or v8.');
+	if (bun && coverageProvider === 'v8' && !values['no-coverage'])
+		throw new Error('The V8 coverage prototype requires Node. Bun inspector offsets refer to transformed source without usable source maps. Use npm test -- --coverage-provider=v8, or keep Istanbul under Bun.');
+
+	return { args: [...command, ...files], coverage: !values['no-coverage'], coverageProvider };
 }
 
 function run(args, env, cwd = process.cwd()) {
@@ -80,6 +87,24 @@ function main() {
 
 	if (!command.coverage) {
 		process.exitCode = run(command.args, env);
+		return;
+	}
+
+	if (command.coverageProvider === 'v8') {
+		const directory = resolve(root, '.cache/test-v8');
+		const rawDir = resolve(directory, 'raw');
+		const outputDir = resolve(directory, 'istanbul');
+		rmSync(directory, { recursive: true, force: true });
+		mkdirSync(rawDir, { recursive: true });
+		const testEnv = { ...env, NODE_V8_COVERAGE: rawDir };
+		delete testEnv.UPLOT_COVERAGE_DIR;
+		console.log('Coverage provider: v8 (experimental, Node only)');
+		const testStatus = run(command.args, testEnv);
+		const converter = fileURLToPath(new URL('./v8-coverage.mjs', import.meta.url));
+		delete env.NODE_V8_COVERAGE;
+		const convertStatus = run([converter, rawDir, outputDir], env, root);
+		const reportStatus = convertStatus === 0 ? run([coverageReporter, outputDir], env, root) : convertStatus;
+		process.exitCode = testStatus || reportStatus;
 		return;
 	}
 

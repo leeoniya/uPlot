@@ -108,7 +108,8 @@ describe('coverage file selection', () => {
 		const selection = coverageFiles({ ...config, cwd: project });
 		const files = selection.files();
 		assert.ok(files.includes(join(project, 'src/uPlot.js')));
-		assert.ok(files.includes(join(project, 'dist/uPlot.esm.js')));
+		assert.equal(files.some(file => file.startsWith(join(project, 'dist') + sep)), false);
+		assert.equal(selection.shouldInstrument(join(project, 'dist/uPlot.esm.js')), false);
 		assert.equal(files.includes(join(project, 'src/paths/catmullRomCentrip.js')), false);
 		assert.equal(files.includes(join(project, 'demos/lib/flatbush.js')), false);
 		assert.deepEqual(files.filter(file => file.startsWith(join(project, 'demos') + sep)),

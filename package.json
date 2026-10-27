@@ -55,6 +55,7 @@
   },
   "homepage": "https://github.com/leeoniya/uPlot#readme",
   "devDependencies": {
+    "@bcoe/v8-coverage": "^1.0.2",
     "@happy-dom/global-registrator": "^21.0.4",
     "happy-dom": "^21.0.4",
     "istanbul-lib-coverage": "^3.2.2",
@@ -63,11 +64,12 @@
     "istanbul-smart-text-reporter": "^1.1.5",
     "json-stringify-pretty-compact": "^4.0.0",
 
-    "rolldown": "^1.2.15"
+    "rolldown": "^1.2.15",
+    "v8-to-istanbul": "^9.3.0"
   },
   "nyc": {
     "include": [
-      "dist/**/*.esm.js",
+
       "src/**/*.js",
       "demos/lib/barChartPlugin.js",
       "demos/lib/barHover.js",

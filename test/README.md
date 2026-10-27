@@ -69,9 +69,10 @@ It does not use the built-in coverage reports from Node or Bun.
 
 The tables cover:
 
-- **uPlot core**: the existing `src` and distribution coverage.
+- **uPlot core**: source files under `src/`.
 - **Plugins**: `barChartPlugin.js`, `barHover.js`, `barValues.js`, `distr.js`, `heatmapPlugin.js`, and `scatterPlugin.js` under `demos/lib/`.
 
+Distribution bundles remain outside coverage reports for both providers. Their smoke tests still run.
 The plugin list includes the local dependencies of the three plugins, except Flatbush.
 Other demo modules, controls, data generators, and third-party libraries remain outside coverage instrumentation.
 The `nyc.include` list in `package.json` defines the instrumented files.
@@ -90,6 +91,50 @@ Use `npm test` for combined coverage. Separate invocations replace the previous 
 
 The plugin tests remain in the default suite.
 No additional test suite or browser run is necessary to collect plugin coverage.
+
+### Experimental V8 coverage
+
+Istanbul remains the default coverage provider for Node and Bun.
+The V8 prototype requires Node and retains the same terminal reporters and core/plugin tables.
+
+Run the prototype:
+
+```sh
+npm test -- --coverage-provider=v8
+npm run test:core -- --coverage-provider=v8
+node scripts/test.mjs --coverage-provider=v8 'test/*.mjs' 'test/plugins/*.mjs'
+```
+
+`--coverage-provider=istanbul` selects the existing provider explicitly. `--no-coverage` disables either provider.
+Normal `bun run test` commands remain unchanged.
+Bun rejects `--coverage-provider=v8` rather than silently changing runtimes or producing incorrect coverage.
+
+Node collects raw coverage through `NODE_V8_COVERAGE`, including child processes and workers that inherit this environment variable.
+The converter merges V8 ranges before conversion, uses cached source maps, and applies the existing file selection.
+It retains loaded-files-only reporting. It does not add files that no process imports.
+The V8 provider does not load the Istanbul instrumentation hook or create an instrumentation cache.
+
+Each V8 run replaces `.cache/test-v8/` without changing `.nyc_output/`.
+Raw coverage remains in `.cache/test-v8/raw/` for inspection. Converted Istanbul JSON appears in `.cache/test-v8/istanbul/coverage.json`.
+Raw coverage includes dependencies and test infrastructure before filtering, so these temporary files can exceed the dependency savings.
+The runner reports coverage after test failures and returns nonzero if tests, conversion, or reporting fails.
+
+Coverage percentages are not interchangeable between providers:
+
+- V8 reports executed ranges rather than Istanbul AST counters. `v8-to-istanbul` represents source lines as statements.
+- V8 branch and function totals can differ from Istanbul totals, even with the same tests.
+- The converter supports `v8`/`c8` ignore directives, not Istanbul ignore directives.
+- Children that clear `NODE_OPTIONS` can still contribute V8 coverage for selected source files.
+
+Bun 1.4.4-canary.1 exposes precise coverage through `node:inspector`, but its module offsets refer to transformed source.
+Its in-process session does not support `Debugger.getScriptSource`, and the module records in our probe omit function names.
+An eval fixture gives matching Node/Bun offsets, but that result does not establish module compatibility.
+Bun needs a verified source-map collection path before this prototype can replace instrumentation for both runtimes.
+
+Both providers remain installed for comparison. No Babel dependencies were removed.
+A complete replacement can reduce this checkout from 64 to 29 installed package instances, including the V8 range merger.
+The estimated reduction is 10.5 MiB of package contents and all 16 Babel packages.
+These figures exclude generated caches and filesystem allocation overhead.
 
 ## Demo regression tests
 

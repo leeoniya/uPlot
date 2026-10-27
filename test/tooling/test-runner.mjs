@@ -1,7 +1,7 @@
 import { describe, it, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,7 +34,7 @@ describe('native test runner arguments', () => {
 			it('expands recursive globs in sorted order without selecting other extensions', () => {
 				assert.deepEqual(command(['**/*.mjs']), {
 					args: [...prefix, ...paths(['a.mjs', 'nested/b.mjs', 'nested/c.mjs', 'z.mjs'])],
-					coverage: true,
+					coverage: true, coverageProvider: 'istanbul',
 				});
 			});
 
@@ -66,7 +66,7 @@ describe('native test runner arguments', () => {
 
 			it('disables coverage without adding instrumentation or reporting arguments', () => {
 				assert.deepEqual(command(['--no-coverage', 'a.mjs']), {
-					args: [...prefix, ...paths(['a.mjs'])], coverage: false,
+					args: [...prefix, ...paths(['a.mjs'])], coverage: false, coverageProvider: 'istanbul',
 				});
 				assert.deepEqual(command(['a.mjs', '--no-coverage']), command(['--no-coverage', 'a.mjs']));
 			});
@@ -75,7 +75,7 @@ describe('native test runner arguments', () => {
 				it(`forwards ${flag} as a literal test-name pattern`, () => {
 					const pattern = '^(area-fill 0-0|multi-bars 0-variable-colors)$';
 					assert.deepEqual(command(['a.mjs', flag, pattern]), {
-						args: [...prefix, '--test-name-pattern', pattern, ...paths(['a.mjs'])], coverage: true,
+						args: [...prefix, '--test-name-pattern', pattern, ...paths(['a.mjs'])], coverage: true, coverageProvider: 'istanbul',
 					});
 				});
 			}
@@ -121,7 +121,28 @@ describe('native test runner arguments', () => {
 				});
 			}
 
-			for (const flag of ['--grep', '-g', '--test-name-pattern', '--reporter', '--test-reporter']) {
+			it('selects the explicit Istanbul provider without changing runner arguments', () => {
+				assert.deepEqual(command(['--coverage-provider=istanbul', 'a.mjs']), command(['a.mjs']));
+			});
+
+			it('allows the V8 prototype only under Node when coverage is enabled', () => {
+				const args = ['--coverage-provider=v8', 'a.mjs'];
+				if (bun)
+					assert.throws(() => command(args), /V8 coverage prototype requires Node/);
+				else
+					assert.deepEqual(command(args), {
+						args: [...prefix, ...paths(['a.mjs'])], coverage: true, coverageProvider: 'v8',
+					});
+				assert.deepEqual(command([...args, '--no-coverage']), {
+					args: [...prefix, ...paths(['a.mjs'])], coverage: false, coverageProvider: 'v8',
+				});
+			});
+
+			it('rejects an unknown coverage provider', () => {
+				assert.throws(() => command(['--coverage-provider=unknown', 'a.mjs']), /Unsupported coverage provider/);
+			});
+
+			for (const flag of ['--grep', '-g', '--test-name-pattern', '--reporter', '--test-reporter', '--coverage-provider']) {
 				it(`rejects a missing value for ${flag}`, () => {
 					assert.throws(() => command(['a.mjs', flag]), /argument missing|requires an argument/i);
 				});
@@ -285,4 +306,142 @@ describe('native test runner subprocesses', () => {
 		assert.notEqual(result.status, 0, result.stdout + result.stderr);
 		assert.match(result.stdout + result.stderr, /runner failure sentinel/);
 	});
+});
+
+describe('V8 test runner pipeline', () => {
+	let cwd, env;
+
+	function write(name, text) {
+		const filename = join(cwd, name);
+		mkdirSync(dirname(filename), { recursive: true });
+		writeFileSync(filename, text);
+	}
+
+	const read = name => JSON.parse(readFileSync(join(cwd, name), 'utf8'));
+
+	beforeEach(() => {
+		cwd = mkdtempSync(join(tmpdir(), 'uplot v8 runner-'));
+		env = { ...process.env };
+		for (const key of ['NODE_OPTIONS', 'NODE_V8_COVERAGE', 'NYC_CONFIG', 'NYC_CWD', 'UPLOT_COVERAGE_DIR', 'UPLOT_INSTRUMENT_CACHE_DIR'])
+			delete env[key];
+		Object.assign(env, { FIXTURE_FAIL: '0', CONVERT_STATUS: '0', REPORT_STATUS: '0' });
+		mkdirSync(join(cwd, 'scripts'));
+		copyFileSync(runner, join(cwd, 'scripts/test.mjs'));
+		write('scripts/instrument-source.mjs', `
+			export function getInstrumentCacheNamespace() { throw new Error('Unexpected source instrumentation'); }
+		`);
+		write('scripts/register-hooks.mjs', `throw new Error('Unexpected instrumentation hooks');`);
+		write('fixture.mjs', `
+			import { it } from 'node:test';
+			import assert from 'node:assert/strict';
+			import { existsSync, writeFileSync } from 'node:fs';
+			import { resolve } from 'node:path';
+			it('V8 pipeline fixture', () => {
+				assert.equal(globalThis.__coverage__, undefined);
+				assert.equal(process.env.NODE_V8_COVERAGE, resolve('.cache/test-v8/raw'));
+				assert.equal(process.env.UPLOT_COVERAGE_DIR, undefined);
+				assert.equal(process.env.UPLOT_INSTRUMENT_CACHE_DIR, undefined);
+				assert.equal(process.env.NODE_OPTIONS, undefined);
+				for (const name of ['stale.txt', 'raw/stale.json', 'istanbul/coverage.json'])
+					assert.equal(existsSync(resolve('.cache/test-v8', name)), false, name);
+				writeFileSync('fixture-observed.json', JSON.stringify({ rawDir: process.env.NODE_V8_COVERAGE }));
+				assert.equal(process.env.FIXTURE_FAIL, '0', 'intentional V8 fixture failure');
+			});
+		`);
+		write('scripts/v8-coverage.mjs', `
+			import assert from 'node:assert/strict';
+			import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+			import { resolve } from 'node:path';
+			import { pathToFileURL } from 'node:url';
+			const [rawDir, outputDir] = process.argv.slice(2);
+			assert.equal(process.env.NODE_V8_COVERAGE, undefined);
+			assert.equal(process.env.NODE_OPTIONS, undefined);
+			assert.deepEqual([rawDir, outputDir], [resolve('.cache/test-v8/raw'), resolve('.cache/test-v8/istanbul')]);
+			assert.ok(existsSync('fixture-observed.json'), 'tests must run before conversion');
+			assert.equal(existsSync(resolve(outputDir, 'coverage.json')), false, 'stale converted output');
+			const raw = readdirSync(rawDir).filter(name => name.endsWith('.json')).map(name => JSON.parse(readFileSync(resolve(rawDir, name), 'utf8')));
+			assert.ok(raw.some(entry => entry.result.some(script => script.url === pathToFileURL(resolve('fixture.mjs')).href)), 'Node must flush fixture coverage before conversion');
+			writeFileSync('conversion-observed.json', JSON.stringify({ rawDir, outputDir }));
+			if (process.env.CONVERT_STATUS !== '0')
+				process.exit(Number(process.env.CONVERT_STATUS));
+			mkdirSync(outputDir, { recursive: true });
+			writeFileSync(resolve(outputDir, 'coverage.json'), JSON.stringify({ converted: true }));
+		`);
+		write('scripts/report-coverage.mjs', `
+			import assert from 'node:assert/strict';
+			import { readFileSync, writeFileSync } from 'node:fs';
+			import { resolve } from 'node:path';
+			const [outputDir] = process.argv.slice(2);
+			assert.equal(process.env.NODE_V8_COVERAGE, undefined);
+			assert.equal(process.env.NODE_OPTIONS, undefined);
+			assert.equal(outputDir, resolve('.cache/test-v8/istanbul'));
+			assert.deepEqual(JSON.parse(readFileSync(resolve(outputDir, 'coverage.json'), 'utf8')), { converted: true });
+			writeFileSync('report-observed.json', JSON.stringify({ outputDir }));
+			process.exitCode = Number(process.env.REPORT_STATUS);
+		`);
+		write('.cache/test-v8/stale.txt', 'stale');
+		write('.cache/test-v8/raw/stale.json', 'stale raw JSON');
+		write('.cache/test-v8/istanbul/coverage.json', 'stale Istanbul JSON');
+		write('.nyc_output/node.json', '{"sentinel":"node"}');
+		write('.nyc_output/bun/bun.json', '{"sentinel":"bun"}');
+		write('.cache/unrelated/sentinel.txt', 'keep');
+	});
+
+	afterEach(() => {
+		if (cwd != null)
+			rmSync(cwd, { recursive: true, force: true });
+	});
+
+	function run(overrides = {}) {
+		// Exercise the Node-only pipeline even when Bun runs this test file.
+		const result = spawnSync('node', ['scripts/test.mjs', '--coverage-provider=v8', 'fixture.mjs'], {
+			cwd, env: { ...env, ...overrides }, encoding: 'utf8', timeout: 10000,
+		});
+		assert.ifError(result.error);
+		assert.equal(result.signal, null, result.stdout + result.stderr);
+		return result;
+	}
+
+	function assertStages(reported = true) {
+		const rawDir = join(cwd, '.cache/test-v8/raw');
+		const outputDir = join(cwd, '.cache/test-v8/istanbul');
+		assert.deepEqual(read('fixture-observed.json'), { rawDir });
+		assert.deepEqual(read('conversion-observed.json'), { rawDir, outputDir });
+		if (reported)
+			assert.deepEqual(read('report-observed.json'), { outputDir });
+		else {
+			assert.equal(existsSync(join(cwd, 'report-observed.json')), false);
+			assert.equal(existsSync(join(outputDir, 'coverage.json')), false);
+		}
+	}
+
+	it('collects without instrumentation, cleans only its own output and reports converted coverage', { timeout: 15000 }, () => {
+		const snapshot = () => readdirSync(join(cwd, '.nyc_output'), { recursive: true }).sort().map(name => {
+			const filename = join(cwd, '.nyc_output', name), stat = statSync(filename);
+			return [name, stat.mtimeMs, stat.isFile() ? readFileSync(filename, 'utf8') : null];
+		});
+		const before = snapshot();
+		const result = run();
+		assert.equal(result.status, 0, result.stdout + result.stderr);
+		assertStages();
+		assert.deepEqual(snapshot(), before);
+		assert.equal(readFileSync(join(cwd, '.cache/unrelated/sentinel.txt'), 'utf8'), 'keep');
+		assert.equal(existsSync(join(cwd, '.cache/test-instrument')), false);
+	});
+
+	for (const [name, overrides, status, reported] of [
+		['reports after test failure and preserves the test status', { FIXTURE_FAIL: '1' }, 1, true],
+		['propagates conversion failure and skips reporting', { CONVERT_STATUS: '23' }, 23, false],
+		['propagates reporting failure', { REPORT_STATUS: '24' }, 24, true],
+		['preserves test failure when reporting also fails', { FIXTURE_FAIL: '1', REPORT_STATUS: '24' }, 1, true],
+		['preserves test failure when conversion also fails', { FIXTURE_FAIL: '1', CONVERT_STATUS: '23' }, 1, false],
+	]) {
+		it(name, { timeout: 15000 }, () => {
+			const result = run(overrides);
+			assert.equal(result.status, status, result.stdout + result.stderr);
+			assertStages(reported);
+			if (overrides.FIXTURE_FAIL === '1')
+				assert.match(result.stdout + result.stderr, /intentional V8 fixture failure/);
+		});
+	}
 });
