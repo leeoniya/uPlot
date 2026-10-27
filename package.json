@@ -63,8 +63,7 @@
     "istanbul-smart-text-reporter": "^1.1.5",
     "json-stringify-pretty-compact": "^4.0.0",
 
-    "rolldown": "^1.2.15",
-    "test-exclude": "^8.0.0"
+    "rolldown": "^1.2.15"
   },
   "nyc": {
     "include": [

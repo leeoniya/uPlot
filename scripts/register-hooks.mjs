@@ -4,13 +4,13 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { createSourceInstrumenter } from './instrument-source.mjs';
-import TestExclude from 'test-exclude';
+import { coverageFiles } from './coverage-files.mjs';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 const config = process.env.NYC_CONFIG == null
 	? { ...JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).nyc, cwd }
 	: JSON.parse(process.env.NYC_CONFIG);
-const exclude = new TestExclude(config);
+const selection = coverageFiles(config);
 
 // Share transformed source across the run, not module state or coverage counters.
 // The process that creates the cache outlives its children and owns cleanup.
@@ -29,7 +29,7 @@ if (process.versions.bun) {
 		name: 'istanbul-coverage',
 		setup(build) {
 			// Bun's runtime onLoad hook cannot fall through for excluded files.
-			const files = exclude.globSync().map(path => resolve(exclude.cwd, path).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+			const files = selection.files().map(path => path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 			const filter = new RegExp('^(?:' + files.join('|') + ')$');
 
 			build.onLoad({ filter }, ({ path }) => ({
@@ -51,7 +51,7 @@ else {
 
 			const filename = fileURLToPath(url);
 
-			if (!exclude.shouldInstrument(filename))
+			if (!selection.shouldInstrument(filename))
 				return result;
 
 			const source = typeof result.source === 'string'

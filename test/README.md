@@ -75,6 +75,11 @@ The tables cover:
 The plugin list includes the local dependencies of the three plugins, except Flatbush.
 Other demo modules, controls, data generators, and third-party libraries remain outside coverage instrumentation.
 The `nyc.include` list in `package.json` defines the instrumented files.
+`scripts/coverage-files.mjs` selects files with native filesystem globs and path matching, without `test-exclude`.
+It supports string or array patterns, directory patterns, negated include/exclude patterns, and extension filters.
+It rejects paths outside `cwd` and excludes `node_modules` unless `excludeNodeModules` is false.
+`NYC_CONFIG` can override the selection configuration. Paths remain relative to `cwd`. The selector does not support `relativePath: false`.
+Native glob rules replace minimatch rules. Explicit dotfile paths work, but implicit dotfile matching and advanced globs can differ between runtimes.
 
 Each table has its own totals and uncovered lines.
 Plugin coverage does not change the core percentages.

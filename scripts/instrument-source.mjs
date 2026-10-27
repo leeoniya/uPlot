@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 const require = createRequire(import.meta.url);
 
 export function getInstrumentCacheNamespace(cwd, instrumentVersion = require('istanbul-lib-instrument/package.json').version) {
-	const files = ['package-lock.json', 'bun.lock', 'scripts/instrument-source.mjs', 'scripts/register-hooks.mjs'];
+	const files = ['package-lock.json', 'bun.lock', 'scripts/instrument-source.mjs', 'scripts/register-hooks.mjs', 'scripts/coverage-files.mjs'];
 	const contents = files.map(file => {
 		try { return [file, readFileSync(resolve(cwd, file), 'utf8')]; }
 		catch (error) {

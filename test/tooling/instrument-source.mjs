@@ -23,7 +23,7 @@ function execute(code) {
 
 describe('instrumentation cache namespace', () => {
 	let root;
-	const files = ['package-lock.json', 'bun.lock', 'scripts/instrument-source.mjs', 'scripts/register-hooks.mjs'];
+	const files = ['package-lock.json', 'bun.lock', 'scripts/instrument-source.mjs', 'scripts/register-hooks.mjs', 'scripts/coverage-files.mjs'];
 
 	beforeEach(() => {
 		root = mkdtempSync(join(tmpdir(), 'uplot-cache-namespace-'));
