@@ -36,8 +36,58 @@ export function parseSource(source, options = {}) {
 	return {ast, comments};
 }
 
+const identifierPattern = /^[$A-Z_a-z][$\w]*$/;
+
+// Match Astring's object/array formatting without creating or visiting AST nodes.
+// JSON-escaped strings contain no literal LF; only object formatting adds lines.
+function writeMetadata(value, output, indent) {
+	if (Array.isArray(value)) {
+		output.code += '[';
+		for (let i = 0; i < value.length; i++) {
+			if (i > 0) output.code += ', ';
+			if (i in value) writeMetadata(value[i], output, indent);
+		}
+		if (value.length > 0 && !(value.length - 1 in value)) output.code += ', ';
+		output.code += ']';
+	}
+	else if (value != null && typeof value === 'object') {
+		output.code += '{';
+		const propertyIndent = indent + output.indent;
+		let count = 0;
+		for (const name of Object.keys(value)) {
+			const item = value[name];
+			if (item === undefined) continue;
+			output.code += (count++ === 0 ? '\n' : ',\n') + propertyIndent +
+				(identifierPattern.test(name) ? name : JSON.stringify(name)) + ': ';
+			writeMetadata(item, output, propertyIndent);
+		}
+		if (count > 0) {
+			output.code += '\n' + indent;
+			output.lines += count + 1;
+		}
+		output.code += '}';
+	}
+	else if (typeof value === 'number')
+		output.code += Number.isFinite(value) ? String(value) : 'null';
+	else
+		output.code += value === undefined ? 'undefined' : JSON.stringify(value);
+}
+
 const generator = {
 	...GENERATOR,
+
+	CoverageData(node, state) {
+		const output = { code: '', lines: 0, indent: state.indent };
+		writeMetadata(node.value, output, state.indent.repeat(state.indentLevel));
+		const line = state.line;
+		state.write(output.code);
+		// Astring's unmapped write only handles a trailing newline. This block
+		// has internal newlines, so advance the generated position explicitly.
+		if (state.sourceMap != null && output.lines > 0) {
+			state.line = line + output.lines;
+			state.column = output.code.length - output.code.lastIndexOf('\n') - 1;
+		}
+	},
 
 	ChainExpression(node, state) {
 		// Keep the complete chain separate from outer calls, members, and tags.
@@ -67,6 +117,7 @@ const generator = {
 const expressionsPrecedence = {
 	...EXPRESSIONS_PRECEDENCE,
 	ParenthesizedExpression: 20,
+	CoverageData: 20,
 };
 
 export function generateSource(ast, source, filename, options = {}, inputSourceMap) {

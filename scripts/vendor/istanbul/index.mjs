@@ -19,7 +19,7 @@ const visitorTypes = new Set([...statementTypes, ...functionTypes, 'AssignmentPa
 const hoistedTypes = new Set(['FunctionExpression', 'ArrowFunctionExpression', 'ClassExpression']);
 const loopTypes = new Set(['ForStatement', 'ForInStatement', 'ForOfStatement', 'WhileStatement', 'DoWhileStatement']);
 const conditionalBranches = ['consequent', 'alternate'];
-const identifierPattern = /^[$A-Z_a-z][$\w]*$/;
+
 const hintPattern = /^\s*istanbul\s+ignore\s+(if|else|next)(?=\W|$)/;
 const sourceMapPattern = /[#@]\s*sourceMappingURL=(.*)\s*$/m;
 const noChildren = [];
@@ -96,21 +96,6 @@ function attachHints(ast, comments, source) {
 	}
 }
 
-function valueNode(value) {
-	if (Array.isArray(value)) return { type: 'ArrayExpression', elements: value.map(valueNode) };
-	if (value != null && typeof value === 'object') {
-		const properties = [];
-		for (const name of Object.keys(value)) {
-			const item = value[name];
-			if (item !== undefined) properties.push({
-				type: 'Property', key: identifierPattern.test(name) ? identifier(name) : literal(name),
-				value: valueNode(item), kind: 'init', computed: false, method: false, shorthand: false,
-			});
-		}
-		return { type: 'ObjectExpression', properties };
-	}
-	return value === undefined ? identifier('undefined') : literal(value);
-}
 
 function staticValue(node) {
 	if (node.type === 'Literal') return node.value;
@@ -411,9 +396,8 @@ class Instrumenter {
 			delete item.loc;
 			if (item.type === 'VariableDeclarator' && item.id.name === 'coverageData') metadata = item;
 		});
-		// Metadata nodes have no locations. Attach them after scanning the preamble
-		// so we do not traverse the entire generated coverage map just to clear loc.
-		metadata.init = valueNode(data);
+		// Emit metadata directly instead of allocating an AST for the coverage map.
+		metadata.init = { type: 'CoverageData', value: data };
 		const first = ast.body.findIndex(node => node.directive == null);
 		ast.body.splice(first < 0 ? ast.body.length : first, 0, ...injected);
 		const result = generateSource(ast, source, filename, this.opts, inputSourceMap);
