@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import '../scripts/instrument.mjs';
 import { timeAxisSplitsMs, timeAxisSplitsS } from '../src/opts.js';

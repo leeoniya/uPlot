@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { summarizeProcessMemory, summarizeAdjustedProcessMemory } from '../../scripts/analyze-benchmarks-process-memory.mjs';
 

@@ -1,3 +1,4 @@
+import {describe, it, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as plotly from '../../bench/plotly.mjs';
@@ -18,7 +19,7 @@ describe('additional benchmark adapters B', () => {
 	beforeEach(() => {
 		for (const key of ['Plotly', 'CanvasJS', 'zingchart', 'devicePixelRatio'])
 			saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
-		globalThis.devicePixelRatio = 2;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 	});
 	afterEach(() => {
 		for (const [key, descriptor] of saved) {
@@ -31,8 +32,11 @@ describe('additional benchmark adapters B', () => {
 
 	for (const [name, source] of Object.entries(modules)) {
 		it(`${name}: preserves all 55,550 rows and prepares independent data without mutation`, () => {
-			assert.deepEqual(Object.keys(source).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart').sort(), name === 'plotly' ?
-				['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData'] : ['destroyChart', 'makeChart', 'prepData']);
+			assert.deepEqual(Object.keys(source), [
+				'destroyChart', ...(name !== 'zingchart' ? ['getHoverPlan'] : []), 'makeChart',
+				...(name === 'plotly' ? ['makeChartWithOptions'] : []),
+				'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart',
+			]);
 			const first = source.prepData(packed);
 			const second = source.prepData(packed);
 			assert.equal(first[0].length, 55550);

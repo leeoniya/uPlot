@@ -1,5 +1,9 @@
+import {describe, it, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
-import {existsSync, readFileSync} from 'node:fs';
+import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {spawnSync} from 'node:child_process';
 import {runInNewContext} from 'node:vm';
 import {Window} from 'happy-dom';
 import * as bokeh from '../../bench/bokeh.mjs';
@@ -95,24 +99,62 @@ function context2d() {
 	};
 }
 
+it('adapter DPR mocks preserve the instrumented window accessor', {timeout: 15000}, () => {
+	const directory = mkdtempSync(join(tmpdir(), 'uplot-adapter-dpr-'));
+	try {
+		const fixture = join(directory, 'dpr.test.mjs');
+		// Load instrumentation before the adapter suite in the current runtime's shared process.
+		writeFileSync(fixture, `
+			import ${JSON.stringify(new URL('../../scripts/instrument.mjs', import.meta.url).href)};
+			import assert from 'node:assert/strict';
+			import {it} from 'node:test';
+			import * as dom from ${JSON.stringify(new URL('../../src/dom.js', import.meta.url).href)};
+			const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'devicePixelRatio');
+			const initial = globalThis.devicePixelRatio;
+			assert.equal(typeof descriptor.get, 'function');
+			assert.equal(window.devicePixelRatio, initial);
+			assert.equal(dom.pxRatio, initial);
+			await import(${JSON.stringify(import.meta.url)});
+			it('DPR restoration probe', () => {
+				assert.deepEqual(Object.getOwnPropertyDescriptor(globalThis, 'devicePixelRatio'), descriptor);
+				assert.equal(globalThis.devicePixelRatio, initial);
+				assert.equal(window.devicePixelRatio, initial);
+				assert.equal(dom.pxRatio, initial);
+			});
+		`);
+		const result = spawnSync(process.execPath, [
+			...(process.versions.bun ? ['test'] : ['--test', '--test-isolation=none']),
+			'--test-name-pattern=Bokeh: shares prep and destroy|DPR restoration probe', fixture,
+		], {cwd: new URL('../../', import.meta.url), encoding: 'utf8', timeout: 10000,
+			env: {...process.env, NODE_OPTIONS: ''}});
+		assert.ifError(result.error);
+		const output = result.stdout + result.stderr;
+		assert.equal(result.status, 0, output);
+		assert.match(output, /Bokeh: shares prep and destroy/);
+		assert.match(output, /DPR restoration probe/);
+	}
+	finally {
+		rmSync(directory, {recursive: true, force: true});
+	}
+});
+
 describe('Canvas benchmark variants', function() {
-	this.timeout(10000);
 	let saved;
 	beforeEach(() => {
 		saved = Object.fromEntries(['Bokeh', 'd3', 'fc', 'devicePixelRatio'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
-		globalThis.devicePixelRatio = 2;
-	});
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
+	}, {timeout: 10000});
 	afterEach(() => {
 		for (const [key, descriptor] of Object.entries(saved)) {
 			if (descriptor) Object.defineProperty(globalThis, key, descriptor);
 			else delete globalThis[key];
 		}
-	});
+	}, {timeout: 10000});
 
 	for (const [name, original, canvas] of [['Bokeh', bokeh, bokehCanvas], ['d3fc', d3fc, d3fcCanvas]]) {
-		it(`${name}: shares prep and destroy, and retains every input value`, () => {
-			assert.deepEqual(Object.keys(original).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), ['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData']);
-			assert.deepEqual(Object.keys(canvas).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), ['destroyChart', 'makeChart', 'prepData']);
+		it(`${name}: shares prep and destroy, and retains every input value`, {timeout: 10000}, () => {
+			assert.deepEqual(Object.keys(original), ['destroyChart', 'getHoverPlan', 'makeChart', 'makeChartWithOptions', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
+			assert.deepEqual(Object.keys(canvas), ['destroyChart', 'getHoverPlan', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
 			assert.equal(canvas.prepData, original.prepData);
 			assert.equal(canvas.destroyChart, original.destroyChart);
 			const data = canvas.prepData(packed), second = canvas.prepData(packed);
@@ -135,7 +177,7 @@ describe('Canvas benchmark variants', function() {
 	}
 
 	for (const [backend, adapter] of [['canvas', bokehCanvas], ['webgl', bokeh]]) {
-		it(`Bokeh: ${backend} retains shared configuration, awaits readiness, and destroys without losing shared GL`, async () => {
+		it(`Bokeh: ${backend} retains shared configuration, awaits readiness, and destroys without losing shared GL`, {timeout: 10000}, async () => {
 			const mock = bokehMock(backend);
 			globalThis.Bokeh = mock.api;
 			const data = adapter.prepData(packed), before = structuredClone(data);
@@ -182,7 +224,7 @@ describe('Canvas benchmark variants', function() {
 		});
 	}
 
-	it('Bokeh Canvas: cleans the document after show rejects without reporting readiness', async () => {
+	it('Bokeh Canvas: cleans the document after show rejects without reporting readiness', {timeout: 10000}, async () => {
 		const mock = bokehMock('canvas');
 		globalThis.Bokeh = mock.api;
 		const wait = {textContent: 'Rendering...'};
@@ -195,7 +237,7 @@ describe('Canvas benchmark variants', function() {
 		assert.deepEqual(mock.api.documents, []);
 	});
 
-	it('Bokeh default: still rejects Canvas fallback', async () => {
+	it('Bokeh default: still rejects Canvas fallback', {timeout: 10000}, async () => {
 		const mock = bokehMock('webgl');
 		globalThis.Bokeh = mock.api;
 		const pending = bokeh.makeChart(bokeh.prepData(packed), {});
@@ -205,7 +247,7 @@ describe('Canvas benchmark variants', function() {
 		assert.deepEqual(mock.api.documents, []);
 	});
 
-	it('standalone Canvas pages delegate to the shared runner', () => {
+	it('standalone Canvas pages delegate to the shared runner', {timeout: 10000}, () => {
 		for (const [page, id] of [['Bokeh-Canvas', 'bokeh-canvas'], ['d3fc-Canvas', 'd3fc-canvas']]) {
 			const html = readFileSync(new URL(`../../bench/${page}.html`, import.meta.url), 'utf8');
 			assert.ok(html.includes("import {runDemo} from './demo.mjs'"));
@@ -214,18 +256,15 @@ describe('Canvas benchmark variants', function() {
 		}
 	});
 
-	describe('d3fc with cached vendors (offline, no browser)', function() {
-		let window, host, wait, vendor, chart, ctx, requests;
-		const paths = ['d3-7.9.0-dist-d3.min.js', 'd3fc-15.2.13-build-d3fc.min.js']
-			.map(name => new URL(`../../.cache/benchmarks/${name}`, import.meta.url));
-		before(function() {
-			if (!paths.every(existsSync)) {
-				console.warn('d3fc Canvas vendor tests need cached D3 7.9.0 and d3fc 15.2.13; no downloads are attempted.');
-				this.skip();
-			}
-		});
+	const paths = ['d3-7.9.0-dist-d3.min.js', 'd3fc-15.2.13-build-d3fc.min.js']
+		.map(name => new URL(`../../.cache/benchmarks/${name}`, import.meta.url));
+	describe('d3fc with cached vendors (offline, no browser)', {
+		skip: !paths.every(existsSync) && 'd3fc Canvas vendor tests need cached D3 7.9.0 and d3fc 15.2.13; no downloads are attempted.',
+	}, function() {
+		let window, host, wait, vendor, chart, ctx, requests, originalGetContext;
 		beforeEach(() => {
 			window = new Window();
+			originalGetContext = window.HTMLCanvasElement.prototype.getContext;
 			vendor = {
 				document: window.document, HTMLElement: window.HTMLElement, CustomEvent: window.CustomEvent,
 				customElements: window.customElements,
@@ -243,15 +282,21 @@ describe('Canvas benchmark variants', function() {
 				assert.equal(type, '2d');
 				return ctx;
 			};
-		});
+		}, {timeout: 10000});
 		afterEach(async () => {
-			if (chart) d3fc.destroyChart(chart);
-			chart = null;
-			await window?.happyDOM.close();
-		});
+			try {
+				if (chart) d3fc.destroyChart(chart);
+			}
+			finally {
+				chart = null;
+				// Happy DOM windows share this prototype with the instrumented demos.
+				window.HTMLCanvasElement.prototype.getContext = originalGetContext;
+				await window.happyDOM.close();
+			}
+		}, {timeout: 10000});
 
 		for (const ratio of [1, 1.5, 2]) {
-			it(`draws all 55,550 points through native Canvas lines at DPR ${ratio}, with shared axes and cursor`, async () => {
+			it(`draws all 55,550 points through native Canvas lines at DPR ${ratio}, with shared axes and cursor`, {timeout: 10000}, async () => {
 				globalThis.devicePixelRatio = ratio;
 				const data = d3fcCanvas.prepData(packed), before = structuredClone(data);
 				// Any accidental use of a WebGL factory must fail, including context capture.
@@ -323,7 +368,7 @@ describe('Canvas benchmark variants', function() {
 			});
 		}
 
-		it('passes the original columns to the native Canvas series without copies', async () => {
+		it('passes the original columns to the native Canvas series without copies', {timeout: 10000}, async () => {
 			const mock = fcMock(), data = d3fcCanvas.prepData(packed);
 			globalThis.fc = mock;
 			chart = await d3fcCanvas.makeChart(data, host, wait);
@@ -337,7 +382,7 @@ describe('Canvas benchmark variants', function() {
 			}
 		});
 
-		it('keeps original d3fc WebGL, full columns, precision mapping, DPR, and context loss on teardown', async () => {
+		it('keeps original d3fc WebGL, full columns, precision mapping, DPR, and context loss on teardown', {timeout: 10000}, async () => {
 			const mock = fcMock(), data = d3fc.prepData(packed), calls = [];
 			const gl = {
 				NO_ERROR: 0, COLOR_BUFFER_BIT: 16384, drawingBufferWidth: 3540, drawingBufferHeight: 1000,
@@ -369,7 +414,7 @@ describe('Canvas benchmark variants', function() {
 		});
 
 		for (const failure of ['context', 'draw']) {
-			it(`Canvas ${failure} failure cleans up without readiness or GL calls`, async () => {
+			it(`Canvas ${failure} failure cleans up without readiness or GL calls`, {timeout: 10000}, async () => {
 				const series = [];
 				if (failure === 'context') window.HTMLCanvasElement.prototype.getContext = type => { assert.equal(type, '2d'); return null; };
 				else {

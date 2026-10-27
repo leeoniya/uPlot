@@ -1,5 +1,5 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getEventListeners } from 'node:events';
 import { setImmediate as nextTurn } from 'node:timers/promises';
 import { SAMPLE_TIMEOUT_MS, createSampleWatchdog, abortable } from '../../scripts/bench-sample-timeout.mjs';
 
@@ -116,18 +116,39 @@ describe('sample timeout helper', () => {
 	});
 });
 
+// Observe explicit cleanup without relying on Node's EventTarget internals: the
+// shared tooling process can install HappyDOM's AbortController.
+function observableController() {
+	const controller = new AbortController();
+	const {signal} = controller;
+	const listeners = new Set();
+	const add = signal.addEventListener.bind(signal);
+	const remove = signal.removeEventListener.bind(signal);
+	signal.addEventListener = (type, listener, options) => {
+		assert.equal(type, 'abort');
+		add(type, listener, options);
+		listeners.add(listener);
+	};
+	signal.removeEventListener = (type, listener, options) => {
+		assert.equal(type, 'abort');
+		remove(type, listener, options);
+		listeners.delete(listener);
+	};
+	return {signal, listeners, abort: reason => controller.abort(reason)};
+}
+
 describe('abortable', () => {
 	it('does not call the operation when the signal is already aborted', async () => {
-		const controller = new AbortController();
+		const controller = observableController();
 		const reason = new Error('aborted');
 		controller.abort(reason);
 		await assert.rejects(abortable(() => assert.fail('must not run'), controller.signal), error => error === reason);
-		assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
+		assert.equal(controller.listeners.size, 0);
 	});
 
 	for (const outcome of ['value', 'resolve', 'reject', 'throw']) {
 		it(`preserves operation ${outcome} and removes its listener`, async () => {
-			const controller = new AbortController();
+			const controller = observableController();
 			const error = new Error('operation');
 			const result = abortable(() => {
 				if (outcome === 'throw') throw error;
@@ -138,13 +159,13 @@ describe('abortable', () => {
 				await assert.rejects(result, value => value === error);
 			else
 				assert.equal(await result, 42);
-			assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
+			assert.equal(controller.listeners.size, 0);
 		});
 	}
 
 	for (const late of ['resolve', 'reject']) {
 		it(`rejects a stalled operation on abort and handles its late ${late}`, async () => {
-			const controller = new AbortController();
+			const controller = observableController();
 			const pending = deferred();
 			const error = new Error('timeout');
 			const unhandled = [];
@@ -152,10 +173,10 @@ describe('abortable', () => {
 			process.on('unhandledRejection', listener);
 			try {
 				const result = abortable(() => pending.promise, controller.signal);
-				assert.equal(getEventListeners(controller.signal, 'abort').length, 1);
+				assert.equal(controller.listeners.size, 1);
 				controller.abort(error);
 				await assert.rejects(result, value => value === error);
-				assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
+				assert.equal(controller.listeners.size, 0);
 				pending[late](new Error('late'));
 				await nextTurn();
 				assert.deepEqual(unhandled, []);
@@ -167,12 +188,12 @@ describe('abortable', () => {
 	}
 
 	it('preserves an abort triggered inside an operation that then throws', async () => {
-		const controller = new AbortController();
+		const controller = observableController();
 		const error = new Error('timeout');
 		await assert.rejects(abortable(() => {
 			controller.abort(error);
 			throw new Error('secondary');
 		}, controller.signal), value => value === error);
-		assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
+		assert.equal(controller.listeners.size, 0);
 	});
 });

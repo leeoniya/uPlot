@@ -1,3 +1,4 @@
+import {describe, it, before, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {mkdtemp, readFile, rm} from 'node:fs/promises';
@@ -12,7 +13,7 @@ import {loadBenchDemoSources} from '../../scripts/bench-demo-sources.mjs';
 
 // Cache-only, no downloads, screenshots, traces or reports. Use TMPDIR=/dev/shm
 // when disk space is limited. ChartGPU's separate module bundle is not required.
-// TEST_BENCH_LIFECYCLE_CORE=1 node node_modules/mocha/bin/mocha.js test/integration/bench-lifecycle-core.mjs
+// TEST_BENCH_LIFECYCLE_CORE=1 node --test --test-isolation=none test/integration/bench-lifecycle-core.mjs
 const root = new URL('../../', import.meta.url);
 const ids = ['uplot', 'plotly', 'plotly-svg', 'scichart', 'deckgl', 'chartjs', 'echarts', 'highcharts', 'highcharts-svg'];
 
@@ -124,7 +125,6 @@ async function sample(id) {
 }
 
 (process.env.TEST_BENCH_LIFECYCLE_CORE === '1' ? describe : describe.skip)('cached native lifecycle core', function() {
-	this.timeout(120000);
 	let browser, client, server, profile;
 	const assets = new Map([['/', '<!doctype html><meta charset="utf-8"><style>body{margin:0}</style>']]);
 	const evaluate = async expression => {
@@ -158,14 +158,14 @@ async function sample(id) {
 		client = new CDP(socket, 60000);
 		await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, {once: true}); socket.addEventListener('error', reject, {once: true}); });
 		await client.send('Page.enable');
-	});
+	}, {timeout: 120000});
 	after(async () => {
 		client?.close();
 		if (browser) await killBenchmarkBrowser(browser);
 		if (server) await new Promise(resolve => server.close(resolve));
 		if (profile) await rm(profile, {recursive: true, force: true});
-	});
-	for (const id of ids) it(`${id}: empty/populated starts and repeated full replacements`, async () => {
+	}, {timeout: 120000});
+	for (const id of ids) it(`${id}: empty/populated starts and repeated full replacements`, {timeout: 120000}, async () => {
 		const {files, dependencies, localScripts, localStyles} = loadBenchDemoSources(root, id);
 		for (const [route, data] of files) assets.set(route, data);
 		for (const dependency of dependencies) {

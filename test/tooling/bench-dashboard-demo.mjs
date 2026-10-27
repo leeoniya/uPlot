@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {access, readFile, readdir} from 'node:fs/promises';
 import {checkModuleSyntax} from '../helpers/bench-demo-evaluator.mjs';
@@ -97,7 +98,8 @@ describe('dashboard manual demo', () => {
 		}
 	});
 
-	it('provides a matched HTML entry and index link for every dashboard adapter', async () => {
+	// Each of the 45 adapters launches a separate Node process for its module syntax check.
+	it('provides a matched HTML entry and index link for every dashboard adapter', {timeout: 10000}, async () => {
 		const directory = new URL('../../bench/dashboard/', import.meta.url);
 		const variants = [...benchmarkVariants, 'lightningchart'];
 		const index = await readFile(new URL('index.html', directory), 'utf8');

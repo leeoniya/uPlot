@@ -4,16 +4,17 @@
 
 | Command | Scope | Source coverage |
 | --- | --- | --- |
-| `npm test` | Core and plugin suites together in one Mocha run | Yes |
+| `npm test` | Core and plugin suites together in one shared test process | Yes |
 | `npm run test:core` | Core behavior and core-owned demo regressions in `test/*.mjs` | Yes |
 | `npm run test:plugins` | Plugin behavior, helpers, and plugin-owned demo regressions in `test/plugins/*.mjs` | Yes |
 | `npm run test:tooling` | Tooling in `test/tooling/*.mjs` and the demo HTTP server in `test/server/*.mjs` | No suite-wide report |
 | `npm run test:integration` | Demo support, adapters, and asset integration in `test/integration/*.mjs` | No suite-wide report |
-| `npm run test:all` | Core, plugins, integration, and tooling in one Mocha run | Yes |
+| `npm run test:all` | Core, plugins, integration, and tooling in one shared test process | Yes |
 | `npm run test:server` | Only the demo HTTP server | No |
 | `npm run test:update` | Default suite, with snapshot updates | Yes |
 
-Use `bun run` instead of `npm run` to select Bun for each command.
+Script names are unchanged. Use `bun run test` for the default suite under Bun.
+For the other commands, use `bun run` instead of `npm run` to select Bun.
 The default command selects `test/*.mjs` and `test/plugins/*.mjs` explicitly, without recursive discovery.
 Helpers, fixtures, and manual browser tests are not part of test discovery.
 
@@ -22,9 +23,11 @@ The plugin suite covers bar-chart, heatmap, and scatter implementations, their h
 Plugin tests also exercise core code through normal chart construction.
 
 `npm test` runs the union of the two suites, not two npm subprocesses.
-Unless `--bail` is supplied, Mocha continues after test failures and lists failures from both suites in one report.
+The runner continues after test failures and reports failures from both suites.
+Node's test runner has no equivalent to Mocha's `--bail`.
 The command returns zero when tests and coverage reporting succeed, or nonzero if either fails.
 The shared recorder collects snapshot failures from both suites in one `test/output/index.html` report.
+The recorder finalizes this combined report synchronously at process exit.
 Coverage merges once after the combined run, including when tests fail.
 
 The tooling suite covers benchmark measurement and reports, profiling, patch utilities, canvas recording and replay, snapshot capture, worker protocols, and coverage infrastructure.
@@ -42,20 +45,29 @@ The plugin group retains the larger rotation and heatmap integration regressions
 The tooling suite retains extractor validation, patch transformations, installation, rollback, and CLI checks.
 No browser benchmark runs as part of any suite.
 
-Mocha arguments work with each command:
+Use `--test-name-pattern` to select tests by name:
 
 ```sh
-npm test -- --grep '^demo migrations'
-npm run test:core -- --grep '^cursor'
-npm run test:plugins -- --grep '^barChartPlugin'
-npm run test:tooling -- --grep '^sequential probe worker'
-npm run test:integration -- --grep '^demo migrations'
+npm test -- --test-name-pattern '^demo migrations'
+npm run test:core -- --test-name-pattern '^cursor'
+npm run test:plugins -- --test-name-pattern '^barChartPlugin'
+npm run test:tooling -- --test-name-pattern '^sequential probe worker'
+npm run test:integration -- --test-name-pattern '^demo migrations'
 npm run test:all -- --reporter dot
 ```
 
+The wrapper retains `--grep` and `-g` as aliases for `--test-name-pattern`.
+It accepts `--reporter`, `-R`, and `--test-reporter` with these mappings:
+
+- `spec`: Node's `spec` reporter or Bun's default reporter.
+- `dot` or `dots`: Node's `dot` reporter or Bun's `dots` reporter.
+
 ## Coverage tables
 
-The shared runner reports separate coverage tables for core and plugin code:
+The wrapper retains Istanbul instrumentation and the existing reporter, with separate coverage tables for core and plugin code.
+It does not use the built-in coverage reports from Node or Bun.
+
+The tables cover:
 
 - **uPlot core**: the existing `src` and distribution coverage.
 - **Plugins**: `barChartPlugin.js`, `barHover.js`, `barValues.js`, `distr.js`, `heatmapPlugin.js`, and `scatterPlugin.js` under `demos/lib/`.
@@ -128,13 +140,13 @@ The recorder normalizes signed-zero drawing arguments because JSON stores `-0` a
 Run the chart migration regressions:
 
 ```sh
-npm test -- --grep '^demo migrations'
+npm test -- --test-name-pattern '^demo migrations'
 ```
 
 Run the repeatability checks:
 
 ```sh
-npm run test:integration -- --grep '^demo migrations'
+npm run test:integration -- --test-name-pattern '^demo migrations'
 ```
 
 ## Points demo snapshots
@@ -155,7 +167,7 @@ These snapshots cover the initial DOM and canvas commands, not hovered markers.
 Run the points snapshots and extraction tests:
 
 ```sh
-node --max-old-space-size=256 --import ./scripts/register-hooks.mjs node_modules/mocha/bin/mocha.js --no-config --no-package --reporter spec test/demo-extractions.mjs test/test.mjs --grep 'demo extraction support|^points '
+NODE_OPTIONS='--max-old-space-size=256' node scripts/test.mjs test/demo-extractions.mjs test/test.mjs --reporter spec --test-name-pattern 'demo extraction support|^points '
 ```
 
 ## Mouse-driven selection regressions
@@ -183,7 +195,7 @@ These tests do not verify browser hit testing, native CSS layout, or rasterized 
 Run the selection and layout tests sequentially in one process:
 
 ```sh
-node --max-old-space-size=256 node_modules/mocha/bin/mocha.js --no-config --no-package --reporter dot test/cursor-drag.mjs test/layout.mjs
+NODE_OPTIONS='--max-old-space-size=256' node scripts/test.mjs --no-coverage test/cursor-drag.mjs test/layout.mjs --reporter dot
 ```
 
 ## Cursor marker alignment regressions
@@ -206,7 +218,7 @@ These tests verify geometric centers. They do not compare browser antialiasing o
 Run the alignment tests:
 
 ```sh
-node --max-old-space-size=256 node_modules/mocha/bin/mocha.js --no-config --no-package --reporter dot test/cursor-points.mjs
+NODE_OPTIONS='--max-old-space-size=256' node scripts/test.mjs --no-coverage test/cursor-points.mjs --reporter dot
 ```
 
 ### Native hover performance benchmark
@@ -246,7 +258,7 @@ These tests verify state, inline styles, and hooks. They do not verify native br
 Run the legend, selection, and layout tests sequentially in one process:
 
 ```sh
-node --max-old-space-size=256 node_modules/mocha/bin/mocha.js --no-config --no-package --reporter dot test/legend.mjs test/cursor-drag.mjs test/layout.mjs
+NODE_OPTIONS='--max-old-space-size=256' node scripts/test.mjs --no-coverage test/legend.mjs test/cursor-drag.mjs test/layout.mjs --reporter dot
 ```
 
 ## Decimal precision regressions
@@ -259,7 +271,7 @@ Sources and expected behavior are documented in
 Run the historical regression cases:
 
 ```sh
-npx mocha 'test/precision-*.mjs'
+node scripts/test.mjs --no-coverage 'test/precision-*.mjs'
 ```
 
 The previously pending #827, #620, and #1084 cases now run by default.
@@ -270,7 +282,7 @@ Low-level termination tests do not promise valid rendering for equal custom boun
 
 All 24 chart and tick probes run sequentially in one child process.
 The worker registers Happy DOM and imports chart modules once before it reports readiness.
-Each probe remains a separate Mocha test. Each chart has fresh data and options, with cleanup in `finally`.
+Each probe remains a separate `node:test` test. Each chart has fresh data and options, with cleanup in `finally`.
 
 The parent starts an execution timer before each request and clears it after the result.
 The three degenerate-range probes retain their 100 ms execution limit. Other probes retain their five-second execution limit.
@@ -290,6 +302,7 @@ It also verifies normal exit hooks and rejects concurrent requests. The watchdog
 
 ### Runtime investigation
 
+These historical measurements used Mocha, before the migration to `node:test`.
 Sequential measurements on Node 26.8.2 identified subprocess startup as the main cost.
 One baseline run spent 16.1 seconds in the 24 precision tests and 1.2 seconds in all 237 demo snapshot tests.
 A separate precision run spent 14.6 of its 16.0 seconds on child startup.
@@ -383,9 +396,10 @@ use the recorded commands, not pixels.
 
 ## Node and Bun runtimes
 
-The core, plugin, default, and all-tests commands use `scripts/test.mjs` under both runtimes.
-The runner detects `process.versions.bun` and prints the selected runtime before the tests start.
-The tooling and integration suites run Mocha directly under the selected runtime, without suite-wide source instrumentation.
+All test commands use the `scripts/test.mjs` wrapper under both runtimes.
+The wrapper detects `process.versions.bun` and prints the selected runtime before the tests start.
+The tooling, integration, and server commands use `scripts/test.mjs --no-coverage`, without suite-wide source instrumentation.
+This flag skips the wrapper's coverage instrumentation and report. It leaves existing source coverage output unchanged.
 There is no separate Bun test implementation.
 The project's `bunfig.toml` sets `[run] bun = true`, so `bun run` uses Bun even when a script specifies `node`.
 This configuration applies to all `bun run` scripts. It does not affect npm.
@@ -397,38 +411,54 @@ This configuration applies to all `bun run` scripts. It does not affect npm.
 | `node scripts/test.mjs "test/*.mjs" "test/plugins/*.mjs"` | Node |
 | `bun scripts/test.mjs "test/*.mjs" "test/plugins/*.mjs"` | Bun |
 
-The shared runner detects the actual runtime.
-Bare `bun test` invokes Bun's built-in test runner, not this Mocha harness.
-Both modes use the same Mocha tests, snapshots, Istanbul instrumentation, and file-selection rules.
-Mocha and the coverage reporter run under the selected runtime.
+The wrapper runs `node --test --test-isolation=none` under Node, or `bun test` under Bun.
+Both runtimes use the same tests with imports from `node:test`.
+The selected files run in one shared test process, not an isolated process for each file.
+This preserves shared DOM state and snapshot reporting across suites. Probe workers remain separate child processes.
+
+Both runtimes have a common per-test default timeout of 2000 ms.
+The wrapper sets Node's `--test-timeout=2000` or Bun's `--timeout=2000`.
+Longer tests and hooks use explicit `timeout` options.
+
+The wrapper preserves the caller's timezone under Bun. Without this, `bun test` defaults to UTC.
+
+The wrapper explicitly expands file globs before it starts either runner.
+Bun receives explicit file paths instead of quoted globs or its default test discovery patterns.
+Both runtimes therefore use the same file selection, including suite files without `.test` or `.spec` names.
+
+Bare `bun test` bypasses the wrapper's file selection, instrumentation, and coverage report.
+Use `bun run test` for the default suite and its Istanbul report.
+The tests and coverage reporter run under the selected runtime.
 
 Both runtimes use the instrumentation preload to write one coverage file per process on normal exit.
 Node writes to `.nyc_output`. Bun writes to `.nyc_output/bun`. The harness merges these files and generates the final Istanbul report without wrapping the test processes.
 Node children inherit the preload through `NODE_OPTIONS`, unless a fixture explicitly clears it.
 The Bun precision worker receives an explicit preload because child processes do not inherit the parent's `--preload` flag.
 The worker-coverage regression verifies instrumentation and the coverage file after normal shutdown under both runtimes.
-Each Bun run clears `.nyc_output/bun`. A Node test run clears `.nyc_output`, including the Bun results.
+With coverage enabled, each Bun run clears `.nyc_output/bun`.
+With coverage enabled, each Node run clears `.nyc_output`, including the Bun results.
 
 The runner caches instrumented source in `.cache/test-instrument/<namespace>` across runs.
 A cold run loads Babel to instrument source files. A warm run reuses unchanged source and does not load Babel for those files.
 The namespace changes with either lockfile, the instrumentation implementation, the loader, or the installed Istanbul instrumenter version.
 Each entry also depends on the filename, source contents, and instrumentation configuration.
 
-The cache contains no test results or coverage counters. Each run collects fresh coverage and clears its previous coverage output.
+The cache contains no test results or coverage counters.
+With coverage enabled, each run collects fresh coverage and clears its previous coverage output.
 
 To remove the default cache, run `rm -rf .cache/test-instrument`.
 To use another directory, set `UPLOT_INSTRUMENT_CACHE_DIR`. The runner creates that directory and preserves the explicit path without adding a namespace.
 After dependency or instrumentation changes, remove the contents of that explicit directory.
 
-Full validation passed 554 tests under Node 26.8.2 and Bun 1.4.3, with identical Istanbul statement, function, and branch hit sets.
-Both launcher paths returned status 1 for Mocha's `--fail-zero` check and status 2 for a fixture with two failing tests.
-The two-failure runs also generated coverage reports.
+Before the migration, full validation passed 554 tests under Node 26.8.2 and Bun 1.4.3.
+Those runs produced identical Istanbul statement, function, and branch hit sets.
+These historical results do not validate the `node:test` migration.
 
-Mocha arguments pass through to the shared runner:
+Pass test-name filters through the wrapper:
 
 ```sh
-npm test -- --grep '^area-fill '
-bun run test --grep '^area-fill '
+npm test -- --test-name-pattern '^area-fill '
+bun run test --test-name-pattern '^area-fill '
 ```
 
 The Bun loader selects source files at startup. Files created later in the run
@@ -500,8 +530,8 @@ Update mode does not remove obsolete snapshots.
 The following commands skip coverage and limit the JavaScript heap to 256 MiB.
 
 ```sh
-UPDATE=1 node --max-old-space-size=256 --import ./scripts/register-hooks.mjs ./node_modules/mocha/bin/mocha.js test/plugins/test.mjs --grep '^multi-bars '
-node --max-old-space-size=256 --import ./scripts/register-hooks.mjs ./node_modules/mocha/bin/mocha.js test/plugins/test.mjs --grep '^multi-bars '
+UPDATE=1 NODE_OPTIONS='--max-old-space-size=256' node scripts/test.mjs --no-coverage test/plugins/test.mjs --test-name-pattern '^multi-bars '
+NODE_OPTIONS='--max-old-space-size=256' node scripts/test.mjs --no-coverage test/plugins/test.mjs --test-name-pattern '^multi-bars '
 ```
 
 For multiple demos, run one process at a time.

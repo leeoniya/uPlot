@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {smallLifecycleData} from '../../bench/lifecycle-data.mjs';
@@ -20,7 +21,7 @@ function vendors() {
 	state.host = document.createElement();
 	state.host.querySelector = () => ({getContext: () => state.context});
 	state.context = {isContextLost: () => false, flush() {}, getError: () => 0, getExtension: () => null, NO_ERROR: 0};
-	globalThis.devicePixelRatio = 1;
+	Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 1});
 	globalThis.uPlot = class {
 		constructor(options, data) { state.created++; this.series = options.series; this.axes = options.axes; this.data = data; }
 		setData(data, reset) { assert.equal(reset, true); queueMicrotask(() => { this.data = data; }); }

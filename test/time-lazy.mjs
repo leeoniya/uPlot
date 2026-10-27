@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -93,8 +94,7 @@ async function checkLazyTime(firstRemote) {
 describe('lazy timezone detection', () => {
 	for (const zone of ['UTC', 'America/New_York', 'Asia/Kathmandu']) {
 		for (const firstRemote of [false, true]) {
-			it(`defers Intl and preserves the local fast path in ${zone}, remote first: ${firstRemote}`, function() {
-				this.timeout(6000);
+			it(`defers Intl and preserves the local fast path in ${zone}, remote first: ${firstRemote}`, { timeout: 6000 }, function() {
 				const output = execFileSync(process.execPath, [
 					'--input-type=module', '-e', `await (${checkLazyTime.toString()})(${firstRemote});`,
 				], {

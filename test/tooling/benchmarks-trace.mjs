@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -899,7 +900,7 @@ describe('compressed benchmark trace capture', () => {
 				assert.equal(report.trace.compressedBytes, (await stat(report.trace.path)).size);
 				assert.equal(report.trace.dataLoss, false);
 				assert.deepEqual(await readFile(report.trace.path), compressed);
-				assert.deepEqual(await readdir(dir), ['DevToolsActivePort', name].sort());
+				assert.deepEqual((await readdir(dir)).sort(), ['DevToolsActivePort', name].sort());
 				assert.deepEqual(await analyzeBenchmarkTraceFile(report.trace.path, report), analyzeBenchmarkTrace(JSON.parse(raw), report));
 				await rm(report.trace.path);
 			}

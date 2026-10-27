@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {describe, it} from 'mocha';
+import {describe, it} from 'node:test';
 import {Window} from 'happy-dom';
 import {hoverVariants, hoverTargets, visibleText, nearHoverIndex, validateHoverPlan, runHover, verifyHover} from '../../bench/hover.mjs';
 

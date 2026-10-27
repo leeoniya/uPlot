@@ -1,3 +1,4 @@
+import {describe, it, before, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -26,7 +27,7 @@ scripts['d3-svg'] = scripts.d3;
 scripts['d3fc-canvas'] = scripts.d3fc;
 scripts['bokeh-canvas'] = scripts.bokeh;
 
-// Run explicitly: BENCH_LIFECYCLE_FRAMEWORKS=1 node node_modules/mocha/bin/mocha.js test/integration/bench-lifecycle-frameworks.mjs
+// Run explicitly: BENCH_LIFECYCLE_FRAMEWORKS=1 node --test --test-isolation=none test/integration/bench-lifecycle-frameworks.mjs
 // Reads existing pinned bundles only. No downloads, bundles, screenshots or reports.
 // Chrome's temporary profile goes to tmpfs on the benchmark machine, not the vendor cache.
 async function exercise(id) {
@@ -145,7 +146,6 @@ async function exercise(id) {
 }
 
 (process.env.BENCH_LIFECYCLE_FRAMEWORKS === '1' ? describe : describe.skip)('cached native framework lifecycle', function() {
-	this.timeout(90000);
 	let server, browser, client, profile;
 	const assets = new Map();
 	const errors = [];
@@ -194,7 +194,7 @@ async function exercise(id) {
 			if (message.method === 'Runtime.exceptionThrown') errors.push(message.params.exceptionDetails.exception?.description);
 		});
 		await client.send('Page.enable'); await client.send('Runtime.enable');
-	});
+	}, {timeout: 90000});
 	after(async () => {
 		client?.close();
 		if (browser && browser.exitCode === null) {
@@ -204,8 +204,8 @@ async function exercise(id) {
 		server?.closeAllConnections();
 		if (server?.listening) await new Promise(resolve => server.close(resolve));
 		if (profile) await rm(profile, {recursive: true, force: true});
-	});
-	for (const id of ids) it(`${id}: empty -> full -> fresh full, native identity, direct-render parity`, async () => {
+	}, {timeout: 90000});
+	for (const id of ids) it(`${id}: empty -> full -> fresh full, native identity, direct-render parity`, {timeout: 90000}, async () => {
 		errors.length = 0;
 		const loaded = client.wait('Page.loadEventFired');
 		await client.send('Page.navigate', {url: `http://127.0.0.1:${server.address().port}/${id}`});

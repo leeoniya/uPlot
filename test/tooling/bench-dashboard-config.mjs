@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {WIDTH, HEIGHT, CHARTS, ROWS, SERIES, dashboardData} from '../../bench/dashboard/common.mjs';
 
@@ -218,7 +219,7 @@ describe('dashboard: native configuration and lifecycle contracts', () => {
 	let saved, canvasPrototype, contextDescriptor;
 	beforeEach(() => {
 		saved = globals.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
-		globalThis.devicePixelRatio = 2;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 		// Use a fresh prototype so ownership wrappers never modify an existing runtime.
 		globalThis.HTMLCanvasElement = class {
 			getContext(type) {

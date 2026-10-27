@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -310,7 +311,6 @@ describe('manual profiler', () => {
 	});
 
 	describe('CLI', function() {
-		this.timeout(10000);
 		const script = fileURLToPath(new URL('../../scripts/profile-manual.mjs', import.meta.url));
 
 		function run(args) {
@@ -323,7 +323,7 @@ describe('manual profiler', () => {
 		}
 
 		for (const flag of ['--help', '-h']) {
-			it(`prints ${flag} without a browser or interactive input`, () => {
+			it(`prints ${flag} without a browser or interactive input`, { timeout: 10000 }, () => {
 				const result = run([flag]);
 				assert.equal(result.status, 0, result.stderr);
 				assert.equal(result.stderr, '');
@@ -334,7 +334,7 @@ describe('manual profiler', () => {
 		}
 
 		for (const args of [[], ['--stacks']]) {
-			it(`rejects non-TTY input${args.length ? ' with --stacks' : ''} before connecting`, () => {
+			it(`rejects non-TTY input${args.length ? ' with --stacks' : ''} before connecting`, { timeout: 10000 }, () => {
 				const result = run(args);
 				assert.equal(result.status, 1);
 				assert.match(result.stderr, /interactive terminal/i);
@@ -350,7 +350,7 @@ describe('manual profiler', () => {
 			[['--stacks=false'], /does not take an argument/],
 			[['unexpected'], /Unexpected argument/],
 		]) {
-			it(`rejects invalid arguments: ${args.join(' ')}`, () => {
+			it(`rejects invalid arguments: ${args.join(' ')}`, { timeout: 10000 }, () => {
 				const result = run(args);
 				assert.equal(result.status, 1);
 				assert.match(result.stderr, expected);

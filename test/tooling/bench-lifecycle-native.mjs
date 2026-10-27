@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as flot from '../../bench/flot.mjs';
@@ -34,7 +35,7 @@ describe('bench-lifecycle-native contracts', () => {
 	let saved;
 	beforeEach(() => {
 		saved = globals.map(key => Object.getOwnPropertyDescriptor(globalThis, key));
-		globalThis.devicePixelRatio = 1;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 1});
 	});
 	afterEach(() => globals.forEach((key, i) => {
 		if (saved[i]) Object.defineProperty(globalThis, key, saved[i]);

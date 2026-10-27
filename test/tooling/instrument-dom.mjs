@@ -1,5 +1,7 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import '../../scripts/instrument.mjs';
+import { autoAxisSize } from '../../src/axis.js';
 
 describe('instrumented DOM', () => {
 	it('supports the cached Node textContent setter on elements, including zero and empty text', () => {
@@ -13,6 +15,64 @@ describe('instrumented DOM', () => {
 				assert.equal(element.children.length, 0);
 				assert.equal(element.childNodes.length, expected == '' ? 0 : 1);
 			}
+		}
+	});
+});
+
+describe('offscreen canvas measurement', () => {
+	it('observes the current hook on an existing context without changing text metrics', () => {
+		const key = Symbol.for('uplot.test.axisMeasure');
+		const saved = Object.getOwnPropertyDescriptor(globalThis, key);
+		try {
+			delete globalThis[key];
+			const ctx = new OffscreenCanvas(1, 1).getContext('2d');
+			ctx.font = '20px sans-serif';
+			const expected = ctx.measureText(123);
+			const first = [], second = [];
+			globalThis[key] = event => first.push(event);
+			assert.deepEqual(ctx.measureText(123), expected);
+			globalThis[key] = event => second.push(event);
+			assert.deepEqual(ctx.measureText(123), expected);
+			delete globalThis[key];
+			assert.deepEqual(ctx.measureText(123), expected);
+			assert.deepEqual(first, [{ text: '123', font: ctx.font, ctx }]);
+			assert.deepEqual(second, first);
+			assert.deepEqual(expected, { width: 30, actualBoundingBoxAscent: 16, actualBoundingBoxDescent: 4 });
+		}
+		finally {
+			if (saved) Object.defineProperty(globalThis, key, saved);
+			else delete globalThis[key];
+		}
+	});
+
+	it('observes axis contexts cached before a later test installs its hook', () => {
+		const key = Symbol.for('uplot.test.axisMeasure');
+		const saved = Object.getOwnPropertyDescriptor(globalThis, key);
+		try {
+			delete globalThis[key];
+			const axis = {
+				side: 3, _rotate: 0, font: ['12px instrument-cache-regression', 12],
+				ticks: { show: false }, gap: 0, _values: ['cached'],
+			};
+			const plot = { pxRatio: 1, axes: [axis] };
+			assert.equal(autoAxisSize(plot, null, 0), 36);
+			const first = [], second = [];
+			globalThis[key] = event => first.push(event);
+			axis._values = ['new'];
+			assert.equal(autoAxisSize(plot, null, 0), 18);
+			globalThis[key] = event => second.push(event);
+			axis._values = ['next'];
+			assert.equal(autoAxisSize(plot, null, 0), 24);
+			assert.equal(first.length, 1);
+			assert.equal(second.length, 1);
+			assert.equal(first[0].text, 'new');
+			assert.equal(second[0].text, 'next');
+			assert.equal(first[0].ctx, second[0].ctx);
+			assert.equal(first[0].font, axis.font[0]);
+		}
+		finally {
+			if (saved) Object.defineProperty(globalThis, key, saved);
+			else delete globalThis[key];
 		}
 	});
 });

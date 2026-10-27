@@ -1,3 +1,4 @@
+import {describe, it, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as syncfusion from '../../bench/syncfusion.mjs';
@@ -94,7 +95,7 @@ describe('enterprise benchmark adapters', () => {
 	beforeEach(() => {
 		saved = Object.fromEntries(['ej', 'DevExpress', 'JSC', 'kendo', 'devicePixelRatio', 'requestAnimationFrame']
 			.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
-		globalThis.devicePixelRatio = 2;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 		frames = [];
 		globalThis.requestAnimationFrame = callback => { frames.push(callback); };
 	});
@@ -115,9 +116,10 @@ describe('enterprise benchmark adapters', () => {
 
 	for (const [id, adapter] of Object.entries(adapters)) {
 		it(`${id}: preserves every value of all 55,550 rows without source mutation`, () => {
-			assert.deepEqual(Object.keys(adapter).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), id === 'devextreme'
-				? ['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData']
-				: ['destroyChart', 'makeChart', 'prepData']);
+			assert.deepEqual(Object.keys(adapter), id === 'devextreme'
+				? ['destroyChart', 'getHoverPlan', 'makeChart', 'makeChartWithOptions', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']
+				: id === 'jscharting' ? ['destroyChart', 'makeChart', 'prepData']
+				: ['destroyChart', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
 			const data = freeze(adapter.prepData(packed));
 			const again = adapter.prepData(packed);
 			assert.notEqual(data, again);

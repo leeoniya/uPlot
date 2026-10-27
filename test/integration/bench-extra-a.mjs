@@ -1,3 +1,4 @@
+import {describe, it, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as apex from '../../bench/apexcharts.mjs';
@@ -61,8 +62,8 @@ describe('extra benchmark adapters A', () => {
 	});
 
 	it('ApexCharts sampled shares prep and cleanup and exposes a thin demo entry point', () => {
-		assert.deepEqual(Object.keys(apex).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), ['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData']);
-		assert.deepEqual(Object.keys(apexSampled).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), ['destroyChart', 'makeChart', 'prepData']);
+		assert.deepEqual(Object.keys(apex), ['destroyChart', 'getHoverPlan', 'makeChart', 'makeChartWithOptions', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
+		assert.deepEqual(Object.keys(apexSampled), ['destroyChart', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
 		assert.equal(apexSampled.prepData, apex.prepData);
 		assert.equal(apexSampled.destroyChart, apex.destroyChart);
 		const base = readFileSync(new URL('../../bench/ApexCharts.html', import.meta.url), 'utf8');
@@ -100,7 +101,8 @@ describe('extra benchmark adapters A', () => {
 				dataReducer: sampling ? {enabled: true, targetPoints: 1920, threshold: 3840} : {enabled: false},
 				zoom: {type: 'x', enabled: true},
 			});
-			assert.equal(options.tooltip.shared, false);
+			assert.equal(options.tooltip.shared, !sampling);
+			assert.equal(options.tooltip.intersect, false);
 			assert.equal(options.tooltip.y.formatter(25, {seriesIndex: 0}), '25 %');
 			assert.equal(options.tooltip.y.formatter(25, {seriesIndex: 2}), '25 MB');
 			assert.ok(options.series.every((series, i) => series.data === data[i] && series.data.length === 55550));
@@ -185,7 +187,7 @@ describe('extra benchmark adapters A', () => {
 		});
 	}
 
-	it('Highcharts SVG shares prep and cleanup, disables only boost, and awaits load', async () => {
+	it('Highcharts SVG shares prep and cleanup, configures native hover, and awaits load', async () => {
 		assert.equal(highchartsSvg.prepData, highcharts.prepData);
 		assert.equal(highchartsSvg.destroyChart, highcharts.destroyChart);
 		const data = highcharts.prepData(packed);
@@ -228,6 +230,10 @@ describe('extra benchmark adapters A', () => {
 		});
 		assert.deepEqual(config(calls[1]), {
 			...config(calls[0]), boost: {...calls[0].boost, enabled: false},
+			plotOptions: {
+				series: {...config(calls[0]).plotOptions.series, kdNow: true},
+				line: {...calls[0].plotOptions.line, marker: {enabled: false, states: {hover: {enabled: false}}}},
+			},
 		});
 	});
 

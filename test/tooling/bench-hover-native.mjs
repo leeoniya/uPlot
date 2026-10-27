@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as chartjs from '../../bench/chartjs.mjs';
@@ -172,7 +173,7 @@ describe('native benchmark hover plans', () => {
 		saved = globals.map(key => Object.getOwnPropertyDescriptor(globalThis, key));
 		globalThis.getComputedStyle = style;
 		globalThis.requestAnimationFrame = fn => fn();
-		globalThis.devicePixelRatio = 3;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 3});
 	});
 	afterEach(() => globals.forEach((key, i) => {
 		if (saved[i]) Object.defineProperty(globalThis, key, saved[i]);

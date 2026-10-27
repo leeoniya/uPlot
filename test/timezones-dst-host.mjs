@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -36,8 +37,7 @@ async function capture(zone) {
 }
 
 describe('timezone/DST demo host independence', () => {
-	it('preserves all 51 pinned charts under ' + zones.join(', '), async function() {
-		this.timeout(20000);
+	it('preserves all 51 pinned charts under ' + zones.join(', '), { timeout: 20000 }, async function() {
 		let expected;
 		// Each child renders all 51 charts. Run one at a time to limit peak memory.
 		for (const zone of zones) {

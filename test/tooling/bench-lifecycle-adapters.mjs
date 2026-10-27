@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createLifecycleAdapter, prepareLifecycleInput, lifecycleRows} from '../../scripts/bench-lifecycle-adapters.mjs';
@@ -51,7 +52,7 @@ function vendors() {
 		};
 	}};
 	state.host = document.createElement('div');
-	globalThis.devicePixelRatio = 1;
+	Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 1});
 	globalThis.uPlot = class {
 		constructor(options, data) {
 			this.options = options;

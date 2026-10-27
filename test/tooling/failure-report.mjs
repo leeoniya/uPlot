@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -9,9 +10,8 @@ import demos, { coreDemos, pluginDemos } from '../demos.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
 describe('consolidated failure report', function() {
-	this.timeout(30000);
 
-	it('collects every mismatched plot and removes the report after a passing run', async () => {
+	it('collects every mismatched plot and removes the report after a passing run', { timeout: 30000 }, async () => {
 		const combined = [...coreDemos, ...pluginDemos];
 		assert.equal(new Set(combined).size, combined.length);
 		assert.deepEqual(combined.sort(), [...demos].sort());
@@ -40,15 +40,11 @@ describe('consolidated failure report', function() {
 			});
 
 			const args = [
-				...(process.versions.bun ? [] : ['--max-old-space-size=512', '--throw-deprecation', '--input-type=module']),
-				'-e', `
-					const { default: Mocha } = await import(${JSON.stringify(import.meta.resolve('mocha'))});
-					const mocha = new Mocha({ reporter: 'dot', grep: /^(area-fill 0-0|multi-bars 0-variable-colors)$/ });
-					mocha.addFile(${JSON.stringify(path.join(root, 'test/test.mjs'))});
-					mocha.addFile(${JSON.stringify(path.join(root, 'test/plugins/test.mjs'))});
-					await mocha.loadFilesAsync();
-					mocha.run(failures => { process.exitCode = failures; });
-				`,
+				...(process.versions.bun ? [] : ['--max-old-space-size=512', '--throw-deprecation']),
+				path.join(root, 'scripts/test.mjs'), '--no-coverage',
+				path.join(root, 'test/test.mjs'),
+				path.join(root, 'test/plugins/test.mjs'),
+				'--test-name-pattern', '^(area-fill 0-0|multi-bars 0-variable-colors)$',
 			];
 			const run = () => spawnSync(process.execPath, args, {
 				cwd, env: { ...process.env, NODE_OPTIONS: '' },
@@ -56,15 +52,17 @@ describe('consolidated failure report', function() {
 			});
 			const failed = run();
 			assert.ifError(failed.error);
-			assert.equal(failed.status, 2, failed.stdout + failed.stderr);
-			assert.match(failed.stdout, /2 failing/);
-			assert.equal((failed.stdout.match(/Visual comparisons: test\/output\/index\.html \(3 failed snapshots\)/g) ?? []).length, 1);
+			const failedOutput = failed.stdout + failed.stderr;
+			assert.equal(failed.status, 1, failedOutput);
+			assert.match(failedOutput, /(?:fail 2\b|\b2 fail\b)/);
+			assert.equal((failedOutput.match(/Visual comparisons: test\/output\/index\.html \(3 failed snapshots\)/g) ?? []).length, 1, failedOutput);
 			const reportDir = path.join(cwd, 'test/output');
 			assert.deepStrictEqual(fs.readdirSync(reportDir), ['index.html']);
 			const report = path.join(reportDir, 'index.html');
 			window = new Window({ settings: { disableJavaScriptEvaluation: true } });
 			window.document.write(fs.readFileSync(report, 'utf8'));
-			assert.deepStrictEqual(Array.from(window.document.querySelectorAll('h2'), heading => heading.textContent), [
+			// Native runners can load the selected files in a different order.
+			assert.deepStrictEqual(Array.from(window.document.querySelectorAll('h2'), heading => heading.textContent).sort(), [
 				'area-fill 0-0',
 				'multi-bars 0-variable-colors/0',
 				'multi-bars 0-variable-colors/1',
@@ -77,7 +75,7 @@ describe('consolidated failure report', function() {
 			const passed = run();
 			assert.ifError(passed.error);
 			assert.equal(passed.status, 0, passed.stdout + passed.stderr);
-			assert.match(passed.stdout, /2 passing/);
+			assert.match(passed.stdout + passed.stderr, /(?:pass 2\b|\b2 pass\b)/);
 			assert.equal(fs.existsSync(report), false);
 		}
 		finally {

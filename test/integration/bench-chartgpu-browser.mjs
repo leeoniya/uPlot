@@ -1,3 +1,4 @@
+import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {constants} from 'node:fs';
@@ -11,7 +12,7 @@ import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 import {bundleModuleDependencies} from '../../scripts/bench-module-bundle.mjs';
 import {demoDependencies} from '../../bench/demo-dependencies.mjs';
 
-// TEST_CHARTGPU_BROWSER=1 node node_modules/mocha/bin/mocha.js test/integration/bench-chartgpu-browser.mjs
+// TEST_CHARTGPU_BROWSER=1 node --test --test-isolation=none test/integration/bench-chartgpu-browser.mjs
 // Optional TEST_CHARTGPU_VULKAN=1 enables Chromium Vulkan for the Linux headless probe.
 // Probe hardware first. Vendor modules must already be in the shared bundle cache.
 const root = new URL('../../', import.meta.url);
@@ -217,8 +218,7 @@ async function chartSample(rows) {
 }
 
 (process.env.TEST_CHARTGPU_BROWSER === '1' ? describe : describe.skip)('ChartGPU cached hardware-browser smoke', function() {
-	this.timeout(55000);
-	it('probes hardware, then renders fresh 200-row and 55,550-row charts within 5s each', async function() {
+	it('probes hardware, then renders fresh 200-row and 55,550-row charts within 5s each', {timeout: 55000}, async function(t) {
 		let browser, client, server, profile, totalTimer, sampleTimer;
 		let log = '', phase = 'checking cached Chrome';
 		const report = {package: 'chartgpu', version: '0.4.0', started: new Date().toISOString(),
@@ -364,6 +364,6 @@ async function chartSample(rows) {
 			await writeFile(join(cache, reportName), JSON.stringify(report, null, 2) + '\n');
 			console.log(`ChartGPU result: ${report.status}; report: .cache/benchmarks/${reportName}`);
 		}
-		if (report.status === 'hardware-unavailable') this.skip();
+		if (report.status === 'hardware-unavailable') return t.skip();
 	});
 });

@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import '../../scripts/instrument.mjs';
 import uPlot from '../../src/uPlot.js';
@@ -1619,9 +1620,9 @@ describe('barChartPlugin', () => {
 		}
 	});
 
-	it('releases stack groups and custom bar options when the destroyed plugin is retained', async function() {
+	it('releases stack groups and custom bar options when the destroyed plugin is retained', async function(t) {
 		if (!globalThis.gc)
-			this.skip();
+			return t.skip();
 		const { plugin, refs } = (() => {
 			const groups = Object.freeze([Object.freeze({ series: Object.freeze([1, 2]), dir: 0 })]);
 			const radius = () => [0, 0];

@@ -1,3 +1,4 @@
+import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import '../../scripts/instrument.mjs';

@@ -1,3 +1,4 @@
+import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import '../../scripts/instrument.mjs';
@@ -130,8 +131,7 @@ describe('ECharts heatmap cells demo', () => {
 		assert.equal(prepared.maxCount, 29);
 	});
 
-	it('prepares and passes every generated source cell to native ECharts without changing the source', function() {
-		this.timeout(15000);
+	it('prepares and passes every generated source cell to native ECharts without changing the source', {timeout: 15000}, function() {
 		const frames = generateHeatmapCells({ seed: 1, columns: 64, interval: 12 * 60 * 60 * 1000, xGapProbability: .1 });
 		const snapshot = structuredClone(frames);
 		const prepared = prepareData(frames);

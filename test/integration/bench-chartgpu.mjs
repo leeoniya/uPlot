@@ -1,3 +1,4 @@
+import {describe, it, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {prepData, makeChart, destroyChart} from '../../bench/chartgpu.mjs';
@@ -109,7 +110,7 @@ describe('ChartGPU benchmark adapter (no browser)', () => {
 	let saved;
 	beforeEach(() => {
 		saved = Object.fromEntries(['navigator', 'benchmarkChartGPU', 'devicePixelRatio'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
-		globalThis.devicePixelRatio = 2;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 	});
 	afterEach(() => {
 		for (const [key, descriptor] of Object.entries(saved)) {

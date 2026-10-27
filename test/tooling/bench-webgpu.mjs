@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {runInNewContext} from 'node:vm';
 import {readFileSync} from 'node:fs';
@@ -97,7 +98,8 @@ describe('actual-device WebGPU completion', () => {
 			assert.equal(first.listeners.size + second.listeners.size, 0);
 			assert.equal(time.active, false);
 			const saved = JSON.stringify(report);
-			work.reject(new Error('late queue failure'));
+			if (kind !== 'thrown-queue')
+				work.reject(new Error('late queue failure'));
 			second.loss.resolve({message: 'late loss'});
 			await Promise.resolve();
 			assert.equal(JSON.stringify(report), saved);

@@ -1,3 +1,4 @@
+import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as amcharts from '../../bench/amcharts.mjs';
@@ -62,9 +63,9 @@ function amchartsMock() {
 describe('additional benchmark adapters C', () => {
 	for (const [variant, module] of Object.entries(modules)) {
 		it(`${variant}: exports the shared contract and preserves all 55,550 × 3 values`, () => {
-			assert.deepEqual(Object.keys(module).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), variant === 'amcharts'
-				? ['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData']
-				: ['destroyChart', 'makeChart', 'prepData']);
+			assert.deepEqual(Object.keys(module), variant === 'amcharts'
+				? ['destroyChart', 'makeChart', 'makeChartWithOptions', 'makeEmptyChart', 'prepData', 'resizeChart', 'staticBranding', 'updateChart']
+				: ['destroyChart', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
 			const before = packed.slice();
 			const data = module.prepData(packed);
 			const count = (packed.length - packed[0] - 1) / packed[0];

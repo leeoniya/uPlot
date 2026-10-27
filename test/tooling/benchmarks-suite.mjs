@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
@@ -908,8 +909,9 @@ describe('benchmark metadata snapshots', () => {
 			assert.ok(metadata.sampling.length, id);
 			assert.ok(['svg', '2d', 'webgl', 'webgl2', 'webgpu', null].includes(metadata.context), id);
 		}
-		for (const id of ['scichart', 'lightningchart', 'g2-webgl'])
+		for (const id of ['lightningchart', 'g2-webgl'])
 			assert.equal(benchmarkMetadata[id].context, null);
+		assert.equal(benchmarkMetadata.scichart.context, 'webgl2');
 		assert.equal(benchmarkMetadata.chartgpu.context, 'webgpu');
 		assert.deepEqual(benchmarkMetadata.deckgl, {sampling: 'none', context: 'webgl2', lossy: false});
 	});
@@ -923,7 +925,7 @@ describe('benchmark metadata snapshots', () => {
 		for (const id of ['uplot', 'uplot-release', 'chartjs', 'echarts'])
 			assert.deepEqual(benchmarkMetadata[id], {sampling: 'minmax', context: '2d', lossy: false});
 		assert.deepEqual(benchmarkMetadata.agcharts, {sampling: 'aggregation', context: '2d', lossy: false});
-		assert.deepEqual(benchmarkMetadata.scichart, {sampling: 'minmax', context: null, lossy: false});
+		assert.deepEqual(benchmarkMetadata.scichart, {sampling: 'minmax', context: 'webgl2', lossy: false});
 		assert.equal(benchmarkMetadata.lightningchart.sampling, 'grouping');
 		assert.equal(benchmarkMetadata.fusiontime.sampling, 'avg (1min)');
 	});
@@ -1035,7 +1037,7 @@ describe('benchmark metadata snapshots', () => {
 		assert.notEqual(report.variantMetadata.scichart, benchmarkMetadata.scichart);
 		assert.deepEqual(saved('raf').variantMetadata, report.variantMetadata);
 		assert.deepEqual(h.frames.at(-1).rows[0], {
-			variant: 'scichart', context: 'unavailable', sampling: benchmarkMetadata.scichart.sampling, lossy: '',
+			variant: 'scichart', context: 'webgl2', sampling: benchmarkMetadata.scichart.sampling, lossy: '',
 			'prep ms': '-', 'init ms': '-', 'next rAF ms': '-',
 		});
 		assert.deepEqual(offline(report).tables[0], h.frames.at(-1).rows);
@@ -1129,6 +1131,7 @@ describe('benchmark metadata snapshots', () => {
 		for (const types of [[], ['webgl'], ['experimental-webgl'], ['webgl2'], ['webgl', 'webgl2']]) {
 			it(`resolves null ${variant} snapshot with measured contexts ${JSON.stringify(types)}`, () => {
 				const raw = browser(variant);
+				raw.runner.benchmark.context = null;
 				raw.samples[0].webgl = {contexts: [{type: 'webgl'}, {type: 'webgl2'}]};
 				raw.samples[1].webgl = {contexts: types.map(type => ({type, status: 'complete'}))};
 				const result = offline(savedReport([raw]));
@@ -1140,13 +1143,13 @@ describe('benchmark metadata snapshots', () => {
 		}
 	}
 
-	it('honors static primary renderers despite GL probes and leaves unobserved rAF GL versions unavailable', () => {
+	it('honors configured primary renderers without requiring rAF context acquisition', () => {
 		const measurements = {trace: false, memory: false, raf: true};
 		const reports = ['uplot', 'd3-svg', 'chartgpu', 'highcharts', 'scichart', 'lightningchart', 'g2-webgl'].map(id => browser(id, measurements));
 		for (const raw of reports.slice(0, 4))
 			raw.samples[1].webgl = {contexts: [{type: 'webgl'}, {type: 'webgl2'}]};
 		const rows = offline(savedReport(reports, measurements)).tables[0];
-		assert.deepEqual(rows.map(row => row.context), ['2d', 'svg', 'webgpu', 'webgl', 'unavailable', 'unavailable', 'unavailable']);
+		assert.deepEqual(rows.map(row => row.context), ['2d', 'svg', 'webgpu', 'webgl', 'webgl2', 'unavailable', 'unavailable']);
 	});
 
 	it('sorts by numeric totals rather than metadata labels', () => {
@@ -1768,14 +1771,17 @@ describe('benchmark suite modes and workers', () => {
 });
 
 describe('benchmark verbosity', () => {
-	it('accepts the boolean CLI flag and documents live and saved summaries', () => {
+	// Two CLI processes each have a 10-second startup and execution budget.
+		it('accepts the boolean CLI flag and documents live and saved summaries', {timeout: 25000}, () => {
 		const script = fileURLToPath(new URL('../../scripts/benchmarks.mjs', import.meta.url));
 		const child = spawnSync(process.execPath, [script, '--help', '--verbose'], {encoding: 'utf8', timeout: 10000});
+		assert.ifError(child.error);
 		assert.equal(child.status, 0, child.stderr);
 		assert.match(child.stdout, /--verbose to show main ms and gpu ms.*live tables and saved summaries/);
 		assert.match(child.stdout, /hover10 ms/);
 		assert.doesNotMatch(child.stdout, /hover\s10 ms/);
 		const invalid = spawnSync(process.execPath, [script, '--help', '--verbose=false'], {encoding: 'utf8', timeout: 10000});
+		assert.ifError(invalid.error);
 		assert.equal(invalid.status, 1, invalid.stderr);
 		assert.match(invalid.stderr, /does not take an argument/);
 	});

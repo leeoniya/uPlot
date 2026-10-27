@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { logApproxLut } from '../../demos/lib/heatmapColorLut.js';
 import { generateHeatmapCells } from '../../demos/lib/heatmapCellsData.js';

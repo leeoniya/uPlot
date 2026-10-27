@@ -1,3 +1,4 @@
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -11,7 +12,7 @@ const cwd = fileURLToPath(new URL('../', import.meta.url));
 const helper = fileURLToPath(new URL('../scripts/precision-probe.mjs', import.meta.url));
 
 describe('precision: source scale ranging and axis splits', function() {
-	this.timeout(15000); // Parent enforces separate startup, execution, and shutdown limits.
+	// Parent enforces separate startup, execution, and shutdown limits.
 	let worker;
 	let instrumentCacheDir;
 	let ownsCache = false;
@@ -26,14 +27,14 @@ describe('precision: source scale ranging and axis splits', function() {
 			cwd, helper,
 			env: { ...process.env, UPLOT_INSTRUMENT_CACHE_DIR: instrumentCacheDir },
 		});
-	});
+	}, { timeout: 15000 });
 	after(async () => {
 		try { await worker?.close(); }
 		finally {
 			if (ownsCache)
 				rmSync(instrumentCacheDir, { recursive: true, force: true });
 		}
-	});
+	}, { timeout: 15000 });
 
 	// Source URLs, exact versus derived parameters, and numerical assertions are
 	// next to the cases in scripts/precision-probe.mjs. No canvas snapshots.
@@ -60,7 +61,7 @@ describe('precision: source scale ranging and axis splits', function() {
 		['1135-explicit-y', '#1135 terminates when a custom ranger returns the near-2.7 extrema'],
 		['1135-explicit-x', '#1135 terminates for the attached explicit X zoom near 1e18'],
 	])
-		it(title, () => worker.run(name));
+		it(title, { timeout: 15000 }, () => worker.run(name));
 
 	// Low-level termination checks, not promises of valid rendering for custom equal bounds.
 	for (const [name, title] of [
@@ -68,7 +69,7 @@ describe('precision: source scale ranging and axis splits', function() {
 		['620-equal-range', '#620 terminates for a custom [1, 1] range'],
 		['1084-custom-flat', '#1084 terminates for the single-point custom padding ranger'],
 	])
-		it(title, () => worker.run(name, 100));
+		it(title, { timeout: 15000 }, () => worker.run(name, 100));
 });
 
 describe('precision: numeric axis increment selection', () => {

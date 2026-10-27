@@ -1,3 +1,4 @@
+import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import '../../scripts/instrument.mjs';
@@ -164,8 +165,7 @@ function sizeUpdate(mock, start, expected) {
 }
 
 describe('ECharts GL heatmap cells demo', () => {
-	it('reuses native preparation for all generated cells without changing or densifying the source', function() {
-		this.timeout(15000);
+	it('reuses native preparation for all generated cells without changing or densifying the source', {timeout: 15000}, function() {
 		const frames = generateHeatmapCells({ seed: 1, columns: 64, interval: 12 * 60 * 60 * 1000, xGapProbability: .1 });
 		const snapshot = structuredClone(frames), prepared = prepareData(frames);
 		const xs = source(frames, 'xMax'), lo = source(frames, 'yMin');

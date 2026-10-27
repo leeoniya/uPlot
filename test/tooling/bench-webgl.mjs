@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { createWebGLCapture } from '../../scripts/bench-webgl.mjs';
 import { spawn } from 'node:child_process';
@@ -121,8 +122,7 @@ describe('retained lifecycle GL contexts', () => {
 
 // Opt-in only: use an existing Chrome Headless Shell, never download a browser.
 (process.env.BENCH_WEBGL_CHROME ? describe : describe.skip)('WebGL real-browser validation', function() {
-	this.timeout(30000);
-	it('validates WebGL2 fences and opt-in WebGL1 finish under the existing trace categories', async () => {
+	it('validates WebGL2 fences and opt-in WebGL1 finish under the existing trace categories', { timeout: 30000 }, async () => {
 		const profile = await mkdtemp(join(tmpdir(), 'uplot-webgl-test-'));
 		const child = spawn(process.env.BENCH_WEBGL_CHROME, [
 			'--user-data-dir=' + profile, '--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1',

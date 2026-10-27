@@ -1,3 +1,4 @@
+import {describe, it, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
@@ -110,7 +111,7 @@ describe('G2 WebGL benchmark adapter (no browser)', () => {
 	let saved;
 	beforeEach(() => {
 		saved = Object.fromEntries(['G', 'G2', 'devicePixelRatio'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
-		globalThis.devicePixelRatio = 2;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 	});
 	afterEach(() => {
 		for (const [key, descriptor] of Object.entries(saved)) {
@@ -240,11 +241,12 @@ describe('G2 WebGL benchmark adapter (no browser)', () => {
 	it('keeps the legacy export declaration and exposes the shared factory on a separate line', () => {
 		const source = readFileSync(new URL('../../bench/g2.mjs', import.meta.url), 'utf8');
 		assert.match(source, /^export \{makeChartWithOptions\};$/m);
-		assert.match(source, /export \{prepData, makeChart, destroyChart, makeEmptyChart, updateChart\};\s*$/);
+		assert.match(source, /export \{prepData, makeChart, destroyChart, makeEmptyChart, updateChart, resizeChart\};\s*$/);
 		const legacy = runInNewContext(source.replace(/^export \{[^\n]+\};\s*$/gm, '') +
-			'\n({prepData, makeChart, destroyChart, makeChartWithOptions})');
-		assert.equal(typeof legacy.makeChart, 'function');
-		assert.equal(typeof legacy.makeChartWithOptions, 'function');
+			'\n({prepData, makeChart, destroyChart, makeChartWithOptions, makeEmptyChart, updateChart, resizeChart})');
+		assert.deepEqual(Object.keys(legacy).sort(), Object.keys(canvas));
+		for (const value of Object.values(legacy)) assert.equal(typeof value, 'function');
+		assert.deepEqual(Object.keys(webgl), ['destroyChart', 'makeChart', 'prepData', 'resizeChart']);
 	});
 
 	it('uses only the shared runner in the HTML entry point', () => {

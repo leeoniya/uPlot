@@ -1,15 +1,15 @@
+import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { bundlePath } from '../../scripts/patch-echarts-heatmap.mjs';
 
 describe('ECharts heatmap patch script', () => {
-	it('disables rectangle incremental flags in the generated library without breaking progressive rendering', async function() {
-		this.timeout(10000);
+	it('disables rectangle incremental flags in the generated library without breaking progressive rendering', {timeout: 10000}, async function(t) {
 		let bundle;
 		try { bundle = await readFile(new URL(`../../${bundlePath}`, import.meta.url), 'utf8'); }
 		catch (error) {
-			if (error.code == 'ENOENT') return this.skip(); // Run the download script to enable this integration check.
+			if (error.code == 'ENOENT') return t.skip(); // Run the download script to enable this integration check.
 			throw error;
 		}
 		const exports = {};

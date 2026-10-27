@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import '../../scripts/instrument.mjs';
@@ -2330,8 +2331,7 @@ describe('heatmap cells demo integration', () => {
 		finally { demo?.destroy(); root.remove(); }
 	});
 
-	it('loads 250k cells without spreading data arrays into function arguments', async function() {
-		this.timeout(10000);
+	it('loads 250k cells without spreading data arrays into function arguments', { timeout: 10000 }, async function() {
 		const length = 250000, start = 1698437760000;
 		const xs = Array.from({ length }, (_, i) => start + Math.floor(i / 250) * 60000);
 		const lo = xs.map((_, i) => 2 ** (-16 + (i % 250) / 25));

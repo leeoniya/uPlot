@@ -1,3 +1,4 @@
+import {describe, it, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as billboard from '../../bench/billboard.mjs';
@@ -85,7 +86,7 @@ describe('grammar benchmark adapters', () => {
 	let saved;
 	beforeEach(() => {
 		saved = Object.fromEntries(['bb', 'G2', 'devicePixelRatio'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
-		globalThis.devicePixelRatio = 2;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 	});
 	afterEach(() => {
 		for (const [key, descriptor] of Object.entries(saved)) {
@@ -96,9 +97,9 @@ describe('grammar benchmark adapters', () => {
 
 	for (const [id, adapter] of Object.entries(adapters)) {
 		it(`${id}: preserves every value in all 55,550 rows and three series`, () => {
-			assert.deepEqual(Object.keys(adapter).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), id === 'g2'
-								? ['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData']
-								: ['destroyChart', 'makeChart', 'prepData']);
+			assert.deepEqual(Object.keys(adapter), id === 'g2'
+				? ['destroyChart', 'makeChart', 'makeChartWithOptions', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']
+				: ['destroyChart', 'getHoverPlan', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
 			const data = adapter.prepData(packed);
 			const again = adapter.prepData(packed);
 			assert.equal(rowsOf(id, data).length, 55550);

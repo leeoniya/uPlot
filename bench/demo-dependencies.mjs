@@ -286,7 +286,7 @@ export const benchmarkMetadata = {
 	highcharts: {sampling: 'pixel-distance', context: 'webgl', lossy: true},
 	'highcharts-svg': {sampling: 'none', context: 'svg', lossy: false},
 	// Auto matched explicit MinMax in the pinned native-output accuracy matrix.
-		scichart: {sampling: 'minmax', context: null, lossy: false},
+	scichart: {sampling: 'minmax', context: 'webgl2', lossy: false},
 	billboard: {sampling: 'none', context: '2d', lossy: false},
 	g2: {sampling: 'none', context: '2d', lossy: false},
 	'g2-webgl': {sampling: 'none', context: null, lossy: false},

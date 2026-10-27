@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -6,8 +7,7 @@ const root = new URL('../', import.meta.url);
 
 
 describe('legend build artifacts', function() {
-	it('loads source and every distribution without a DOM or Intl formatters and exposes public utilities', function() {
-		this.timeout(6000);
+	it('loads source and every distribution without a DOM or Intl formatters and exposes public utilities', { timeout: 6000 }, function() {
 
 		const output = execFileSync(process.execPath, [
 			'--max-old-space-size=128', '--input-type=module', '-e', `

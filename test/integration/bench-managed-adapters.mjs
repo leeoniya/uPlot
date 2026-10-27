@@ -1,3 +1,4 @@
+import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as anychart from '../../bench/anychart.mjs';
@@ -130,7 +131,7 @@ describe('managed benchmark adapters', () => {
 	let saved;
 	beforeEach(() => {
 		saved = Object.fromEntries(['anychart', 'FusionCharts', 'google', 'devicePixelRatio', 'setTimeout', 'clearTimeout'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
-		globalThis.devicePixelRatio = 2;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 	});
 	afterEach(() => {
 		for (const [key, descriptor] of Object.entries(saved)) {
@@ -336,7 +337,7 @@ describe('managed benchmark adapters', () => {
 
 	for (const [id, sampled] of [['anychart', anychartSampled], ['fusiontime', fusiontimeSampled]]) {
 		it(`${id}: sampled wrapper shares preparation and cleanup with the base`, () => {
-			assert.deepEqual(Object.keys(sampled).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), ['destroyChart', 'makeChart', 'prepData']);
+			assert.deepEqual(Object.keys(sampled), ['destroyChart', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
 			assert.equal(sampled.prepData, adapters[id].prepData);
 			assert.equal(sampled.destroyChart, adapters[id].destroyChart);
 		});
@@ -386,7 +387,6 @@ describe('managed benchmark adapters', () => {
 // Fetch only the four pinned JS assets and Google's live loader/packages; no installs.
 // This bypasses central registration so adapter ownership stays independent.
 (process.env.BENCH_MANAGED_BROWSER ? describe : describe.skip)('managed adapters: real browser', function() {
-	this.timeout(120000);
 	let server, browser, client, profile;
 	before(async () => {
 		const {createServer} = await import('node:http');
@@ -439,7 +439,7 @@ describe('managed benchmark adapters', () => {
 		const socket = new WebSocket(targets.find(target => target.type === 'page').webSocketDebuggerUrl);
 		client = new CDP(socket, 90000);
 		await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, {once: true}); socket.addEventListener('error', reject, {once: true}); });
-	});
+	}, {timeout: 120000});
 	after(async () => {
 		client?.close();
 		if (browser && browser.exitCode === null) {
@@ -449,10 +449,10 @@ describe('managed benchmark adapters', () => {
 		}
 		if (server) await new Promise(resolve => server.close(resolve));
 		if (profile) await (await import('node:fs/promises')).rm(profile, {recursive: true, force: true});
-	});
+	}, {timeout: 120000});
 
 	for (const id of Object.keys(adapters)) {
-		it(`${id}: full data, native rendering, and repeated teardown`, async () => {
+		it(`${id}: full data, native rendering, and repeated teardown`, {timeout: 120000}, async () => {
 			await client.send('Page.navigate', {url: `http://127.0.0.1:${server.address().port}/`});
 			const {setTimeout: delay} = await import('node:timers/promises');
 			for (let i = 0; i < 100; i++) {

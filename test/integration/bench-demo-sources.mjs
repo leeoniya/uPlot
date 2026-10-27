@@ -1,10 +1,12 @@
+import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
-import { checkModuleSyntax, demos, evaluate } from '../helpers/bench-demo-evaluator.mjs';
+import { checkModuleSyntax, demos } from '../helpers/bench-demo-evaluator.mjs';
 import { demoDependencies } from '../../bench/demo-dependencies.mjs';
+import * as hover from '../../bench/hover.mjs';
 
 const root = new URL('../../', import.meta.url);
 const variants = Object.keys(demoDependencies).filter(id => id !== 'idle');
@@ -15,13 +17,55 @@ const packed = [7, 'epoch', 'idl', 'recv', 'send', 'writ', 'used', 'free',
 	10, 75, 2, 3, 4, 25, 75,
 	11, 50, 2, 6, 4, 50, 50];
 
+// Evaluate the original six adapters with isolated vendor globals. Actual ESM
+// imports below separately verify the complete public export contracts.
+function evaluate(files, id, extra = {}) {
+	const wait = {textContent: 'not started'}, calls = [];
+	const sandbox = {
+		console: {time() {}, timeEnd() {}}, devicePixelRatio: 2, hover,
+		document: {getElementById(name) {
+			calls.push(name);
+			assert.fail('demo modules must use the explicit host and wait, not document lookup');
+		}},
+		fetch() { assert.fail('module must not fetch'); },
+		setTimeout() { assert.fail('module must not schedule chart creation'); },
+		requestAnimationFrame() { assert.fail('module must not schedule animation'); },
+		...extra,
+	};
+	const source = files.get(`/bench/${id}.mjs`)
+		.replace(/^import \{([^}]+)\} from '([^']+)';$/gm, (_, names, path) => {
+			assert.equal(path, './hover.mjs', 'unexpected adapter dependency');
+			return `const {${names}} = hover;`;
+		})
+		.replace(/^export \{[^\n]+\};\s*$/gm, '')
+		.replace(/^export (?=(?:async )?function )/gm, '');
+	const exports = runInNewContext(source + '\n({makeChart, prepData, setupCanvas: typeof setupCanvas === "function" ? setupCanvas : null})', sandbox);
+	return {exports, sandbox, wait, calls};
+}
+
+function expectedExports(id) {
+	const names = ['makeChart', 'prepData'];
+	if (!oldVariants.includes(id) && id !== 'uplot-release') names.push('destroyChart');
+	if (!['jscharting', 'googlecharts', 'g2-webgl'].includes(id)) names.push('makeEmptyChart', 'updateChart');
+	if (!['jscharting', 'googlecharts'].includes(id)) names.push('resizeChart');
+	if (['uplot', 'uplot-release', 'd3', 'chartjs', 'dygraphs', 'apexcharts', 'highcharts', 'lightweight', 'plotly',
+		'canvasjs', 'bokeh', 'd3fc', 'deckgl', 'billboard', 'devextreme', 'anychart', 'recharts', 'd3-svg',
+		'd3-minmax', 'd3-svg-minmax', 'plotly-svg', 'highcharts-svg', 'bokeh-canvas', 'd3fc-canvas'].includes(id))
+		names.push('getHoverPlan');
+	if (['d3', 'plotly', 'highcharts', 'bokeh', 'd3fc', 'g2', 'apexcharts', 'amcharts', 'devextreme', 'anychart', 'fusiontime'].includes(id))
+		names.push('makeChartWithOptions');
+	if (['flot', 'lightweight', 'recharts', 'muicharts', 'financialcharts', 'visx'].includes(id)) names.push('makeLifecycleChart');
+	if (id === 'googlecharts') names.push('prepareRuntime');
+	if (id === 'scichart') names.push('configureRuntime', 'licenseReady');
+	if (id === 'amcharts') names.push('staticBranding');
+	return names.sort();
+}
+
 describe('benchmark demo sources', () => {
 	for (const id of variants) {
-		it(`${id}: parses its ES module and preserves the original export contract`, () => {
+		it(`${id}: parses its ES module`, () => {
 			const source = files.get(`/bench/${id}.mjs`);
 
-			if (oldVariants.includes(id))
-				assert.match(source, /export \{makeChart, prepData(?:, makeEmptyChart, updateChart)?\};\s*$/);
 			checkModuleSyntax(source);
 		});
 	}
@@ -47,13 +91,9 @@ describe('benchmark demo sources', () => {
 			for (const url of ${JSON.stringify(urls)}) {
 				const demo = await import(url);
 				const id = new URL(url).pathname.split('/').at(-1).replace('.mjs', '');
-				const old = ${JSON.stringify(oldVariants)}.includes(id);
-				assert.deepEqual(Object.keys(demo).filter(key => !['makeEmptyChart', 'updateChart'].includes(key)), old ? ['makeChart', ...(id === 'd3' ? ['makeChartWithOptions'] : []), 'prepData'] :
-									['destroyChart', 'makeChart', ...(['plotly', 'highcharts', 'bokeh', 'd3fc', 'g2', 'apexcharts', 'amcharts', 'devextreme', 'anychart', 'fusiontime'].includes(id) ? ['makeChartWithOptions'] : []), 'prepData', ...(id === 'googlecharts' ? ['prepareRuntime'] : [])]);
-								if (id === 'googlecharts') assert.equal(typeof demo.prepareRuntime, 'function');
-				if (!old) assert.equal(typeof demo.destroyChart, 'function');
-				assert.equal(typeof demo.makeChart, 'function');
-				assert.equal(typeof demo.prepData, 'function');
+				const expected = ${JSON.stringify(Object.fromEntries(variants.map(id => [id, expectedExports(id)])))}[id];
+				assert.deepEqual(Object.keys(demo), expected, id);
+				for (const name of expected) assert.equal(typeof demo[name], 'function', id + ': ' + name);
 			}
 			assert.equal(wait.textContent, 'not started');
 		`], {timeout: 10000, stdio: 'pipe'});
@@ -132,10 +172,11 @@ describe('benchmark demo sources', () => {
 			sandbox.devicePixelRatio = 3;
 			const scales = [];
 			const ctx = {scale: (...args) => scales.push(args)};
-			const canvas = {getContext: kind => { assert.equal(kind, '2d'); return ctx; }};
-			assert.equal(exports.setupCanvas(canvas), ctx);
+			const canvas = {style: {}, getContext: kind => { assert.equal(kind, '2d'); return ctx; }};
+			assert.equal(exports.setupCanvas(canvas, {width: 1920, height: 600}), ctx);
 			assert.equal(canvas.width, 1920 * dpr);
 			assert.equal(canvas.height, 600 * dpr);
+			assert.deepEqual(canvas.style, {width: '1920px', height: '600px'});
 			assert.deepEqual(scales, [[dpr, dpr]]);
 		}
 	});

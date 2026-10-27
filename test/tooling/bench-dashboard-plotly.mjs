@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as plotly from '../../bench/dashboard/plotly.mjs';
 import * as svg from '../../bench/dashboard/plotly-svg.mjs';
@@ -24,7 +25,7 @@ function fixture() {
 	}
 	globalThis.HTMLCanvasElement = Canvas;
 	globalThis.virtualWebGL = {};
-	globalThis.devicePixelRatio = 2;
+	Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 	delete globalThis.benchmarkWebGL;
 	env.host = () => {
 		const host = {index: env.hosts.length, parentNode: null, fallback: false,
@@ -101,6 +102,29 @@ describe('dashboard Plotly virtual WebGL ownership', () => {
 		if (saved[i]) Object.defineProperty(globalThis, key, saved[i]);
 		else delete globalThis[key];
 	}));
+
+	it('shadows DPR without changing accessor-backed state', () => {
+		let ratio = 1, writes = 0;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {
+			configurable: true,
+			get: () => ratio,
+			set: value => { ratio = value; writes++; },
+		});
+		const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'devicePixelRatio');
+		try {
+			fixture();
+			assert.equal(globalThis.devicePixelRatio, 2);
+			globalThis.devicePixelRatio = 3;
+			assert.equal(globalThis.devicePixelRatio, 3);
+			assert.equal(ratio, 1);
+			assert.equal(writes, 0);
+		}
+		finally {
+			Object.defineProperty(globalThis, 'devicePixelRatio', descriptor);
+		}
+		assert.equal(globalThis.devicePixelRatio, 1);
+		assert.deepEqual(Object.getOwnPropertyDescriptor(globalThis, 'devicePixelRatio'), descriptor);
+	});
 
 	it('requires preparation and the loaded WebGL1 runtime, without acquiring a probe context', async () => {
 		await assert.rejects(plotly.makeChart(input, env.host()), /prepareRuntime/);

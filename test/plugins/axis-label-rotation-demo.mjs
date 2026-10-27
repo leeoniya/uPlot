@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import '../../scripts/instrument.mjs';
@@ -23,7 +24,8 @@ describe('random label rotation demo', () => {
 	const measureHook = Symbol.for('uplot.test.axisMeasure');
 	const markupTests = new Set();
 	function markupIt(title, run) {
-		markupTests.add(it(title, run));
+		markupTests.add(title);
+		it(title, run);
 	}
 	let root, demo, u, measurements, originalOffscreenCanvas, originalResizeObserver, observers;
 	// Controls survive plot rebuilds. Weak keys also let the teardown test collect its root.
@@ -56,9 +58,9 @@ describe('random label rotation demo', () => {
 		assertStackingMode(mode);
 	}
 
-	beforeEach(async function() {
+	beforeEach(async function(t) {
 		root = document.createElement('div');
-		root.appendChild((markupTests.has(this.currentTest) ? template : controlsTemplate).content.cloneNode(true));
+		root.appendChild((markupTests.has(t.name) ? template : controlsTemplate).content.cloneNode(true));
 		inputs.set(root, new Map());
 		document.body.appendChild(root);
 		measurements = { x: [], y: [] };
@@ -1991,9 +1993,9 @@ describe('random label rotation demo', () => {
 		assert.equal(observer.disconnectCount, 1, 'repeated destroy does not disconnect again');
 	});
 
-	it('releases the detached root when the destroyed demo is retained', async function() {
+	it('releases the detached root when the destroyed demo is retained', async function(t) {
 		if (!globalThis.gc)
-			this.skip();
+			return t.skip();
 		await toggle('show-totals', true);
 		const ref = new WeakRef(root);
 		demo.destroy();

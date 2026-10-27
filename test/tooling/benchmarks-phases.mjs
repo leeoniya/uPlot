@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {smallLifecycleData} from '../../bench/lifecycle-data.mjs';
 import {benchmarkTimingSamples, benchmarkOperations, lifecycleOperations} from '../../scripts/benchmarks-phases.mjs';
@@ -365,10 +366,10 @@ describe('small lifecycle input', () => {
 	});
 
 	for (const id of benchmarkVariants) it(`${id}: prepares small and full inputs without changing the fixture`, async () => {
-		const oldDpr = globalThis.devicePixelRatio;
+		const oldDpr = Object.getOwnPropertyDescriptor(globalThis, 'devicePixelRatio');
 		const {time, timeEnd} = console;
 		try {
-			globalThis.devicePixelRatio = 1;
+			Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 1});
 			console.time = console.timeEnd = () => {};
 			const source = await import(`../../bench/${id}.mjs`);
 			assert.equal(typeof (source.makeLifecycleChart ?? source.makeChart), 'function');
@@ -383,7 +384,7 @@ describe('small lifecycle input', () => {
 			console.time = time;
 			console.timeEnd = timeEnd;
 			if (oldDpr === undefined) delete globalThis.devicePixelRatio;
-			else globalThis.devicePixelRatio = oldDpr;
+			else Object.defineProperty(globalThis, 'devicePixelRatio', oldDpr);
 		}
 	});
 });

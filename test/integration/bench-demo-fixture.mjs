@@ -1,3 +1,4 @@
+import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -6,6 +7,7 @@ import { demoDependencies, benchmarkVariants, demoRestrictions, benchmarkRestric
 
 const root = new URL('../../', import.meta.url);
 const extraHtml = {
+	'uplot-release': 'uplot-release.html',
 	chartgpu: 'ChartGPU.html', deckgl: 'deckgl.html',
 	'apexcharts-sampled': 'ApexCharts-Sampled.html', 'amcharts-sampled': 'amCharts-Sampled.html',
 	'devextreme-sampled': 'DevExtreme-Sampled.html', 'anychart-sampled': 'AnyChart-Sampled.html',
@@ -28,12 +30,20 @@ const allDemos = [...demos, ...Object.keys(demoDependencies)
 function inBrowserStub(source) {
 	execFileSync(process.execPath, ['--input-type=module', '-e', `
 		import assert from 'node:assert/strict';
+		import {setTimeout as delay} from 'node:timers/promises';
 		import {Window} from 'happy-dom';
 		const window = new Window();
 		globalThis.document = window.document;
 		globalThis.devicePixelRatio = 1.5;
 		const root = new URL(${JSON.stringify(root.href)});
 		const loaded = [];
+		async function waitFor(ready, label) {
+			const deadline = Date.now() + 2000;
+			while (!ready()) {
+				assert.ok(Date.now() < deadline, 'Timed out waiting for ' + label);
+				await delay(1);
+			}
+		}
 		document.head.append = element => { loaded.push(element); };
 		globalThis.fetch = () => assert.fail('unexpected fetch');
 		globalThis.requestAnimationFrame = () => assert.fail('unexpected animation');
@@ -97,8 +107,8 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 					assert.equal(host.firstElementChild.className, 'demo-placeholder');
 				}
 				if (id === 'dygraphs') assert.equal(host.id, 'graphdiv');
-				if (id === 'uplot' || id === 'idle') assert.equal(host.children.length, 0);
-				if (id !== 'd3-svg' && id !== 'd3-minmax' && id !== 'd3-svg-minmax' && ${JSON.stringify(Object.keys(extraHtml))}.includes(id)) {
+				if (id === 'uplot' || id === 'uplot-release' || id === 'idle') assert.equal(host.children.length, 0);
+				if (id !== 'uplot-release' && id !== 'd3-svg' && id !== 'd3-minmax' && id !== 'd3-svg-minmax' && ${JSON.stringify(Object.keys(extraHtml))}.includes(id)) {
 					assert.equal(host.id, 'benchmark-' + id);
 					assert.equal(host.style.width, '1920px');
 					assert.equal(host.style.height, '600px');
@@ -127,14 +137,16 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 
 	it('keeps default runnable variants ordered, including ChartGPU, and excludes restricted adapters and idle', () => {
 		assert.deepEqual(benchmarkVariants, [
-			'uplot', 'chartjs', 'apexcharts', 'apexcharts-sampled', 'echarts', 'd3', 'd3-minmax', 'd3-svg', 'd3-svg-minmax', 'flot', 'd3fc', 'd3fc-canvas', 'deckgl', 'financialcharts',
-			'agcharts', 'dygraphs', 'anychart', 'anychart-sampled', 'visx', 'bokeh', 'bokeh-canvas', 'canvasjs', 'plotly', 'plotly-svg', 'lightweight',
-			'muicharts', 'fusiontime', 'fusiontime-sampled', 'devextreme', 'devextreme-sampled', 'vega', 'highcharts', 'highcharts-svg', 'scichart', 'billboard',
-			'g2', 'syncfusion', 'zingchart', 'amcharts', 'amcharts-sampled', 'recharts', 'kendo', 'chartgpu',
+			'uplot', 'uplot-release', 'd3-minmax', 'scichart', 'chartjs', 'echarts', 'd3-svg-minmax', 'd3',
+			'apexcharts-sampled', 'd3fc', 'chartgpu', 'flot', 'apexcharts', 'financialcharts', 'deckgl', 'agcharts',
+			'd3fc-canvas', 'bokeh', 'bokeh-canvas', 'visx', 'dygraphs', 'd3-svg', 'anychart-sampled', 'plotly',
+			'canvasjs', 'fusiontime-sampled', 'plotly-svg', 'devextreme-sampled', 'highcharts', 'muicharts', 'vega',
+			'lightweight', 'billboard', 'g2', 'recharts', 'zingchart', 'anychart', 'highcharts-svg', 'syncfusion',
+			'amcharts-sampled', 'amcharts', 'kendo', 'fusiontime', 'devextreme',
 		]);
-		assert.equal(benchmarkVariants.length, 43);
-		assert.equal(new Set(benchmarkVariants.map(id => id.replace(/(?:-(?:sampled|svg|canvas|minmax))+$/, ''))).size, 31);
-		assert.equal(Object.keys(demoDependencies).length, 48);
+		assert.equal(benchmarkVariants.length, 44);
+		assert.equal(new Set(benchmarkVariants.map(id => id.replace(/(?:-(?:sampled|svg|canvas|minmax|release))+$/, ''))).size, 31);
+		assert.equal(Object.keys(demoDependencies).length, 49);
 		assert.deepEqual(Object.keys(demoRestrictions), ['lightningchart']);
 		assert.deepEqual(Object.keys(benchmarkRestrictions), ['g2-webgl', 'googlecharts', 'jscharting']);
 
@@ -163,7 +175,7 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 			{name: 'deck.gl', version: '9.4.0', path: 'dist.min.js'},
 		]);
 		assert.deepEqual(demoDependencies.deckgl[0], demoDependencies.d3[0]);
-		assert.equal(benchmarkVariants[benchmarkVariants.indexOf('d3fc-canvas') + 1], 'deckgl');
+		assert.equal(benchmarkVariants[benchmarkVariants.indexOf('financialcharts') + 1], 'deckgl');
 		assert.doesNotThrow(() => assertDemoAvailable('deckgl'));
 		assert.doesNotThrow(() => assertBenchmarkAvailable('deckgl'));
 	});
@@ -318,7 +330,7 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 			const {promise, resolve} = Promise.withResolvers();
 			globalThis.moduleGate = promise;
 			globalThis.moduleStarted = false;
-			const url = 'data:text/javascript,' + encodeURIComponent('globalThis.moduleStarted = true; await globalThis.moduleGate; export const ready = true;');
+			const url = 'data:text/javascript;base64,' + Buffer.from('globalThis.moduleStarted = true; await globalThis.moduleGate; export const ready = true;').toString('base64');
 			demoDependencies.recharts = [{type: 'module', global: 'benchmarkReact', url}];
 			document.head.append = element => { loaded.push(element); queueMicrotask(() => element.onload()); };
 			let fetches = 0;
@@ -331,7 +343,7 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 			};
 			const pending = runDemo('recharts');
 			const rejected = assert.rejects(pending, /Failed to load data.json: 503 test stop/);
-			for (let i = 0; !globalThis.moduleStarted && i < 100; i++) await new Promise(setImmediate);
+			await waitFor(() => globalThis.moduleStarted, 'module evaluation');
 			assert.equal(globalThis.moduleStarted, true);
 			assert.equal(document.body.children.length, 1);
 			assert.equal(document.getElementById('wait').textContent, 'Loading lib....');
@@ -351,7 +363,7 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 			const {demoDependencies} = await import(new URL('bench/demo-dependencies.mjs', root));
 			globalThis.moduleError = new Error('module failed');
 			demoDependencies.recharts = [{type: 'module', global: 'benchmarkReact',
-				url: 'data:text/javascript,' + encodeURIComponent('throw globalThis.moduleError;')}];
+				url: 'data:text/javascript;base64,' + Buffer.from('throw globalThis.moduleError; export {};').toString('base64')}];
 			await assert.rejects(runDemo('recharts'), error => error === globalThis.moduleError);
 			assert.equal(loaded.length, 0);
 			assert.equal(document.body.children.length, 1);
@@ -395,7 +407,7 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 				}};
 			};
 			const pending = runDemo('googlecharts');
-			for (let i = 0; order.length === 0 && i < 100; i++) await new Promise(setImmediate);
+			await waitFor(() => order.length > 0, 'Google runtime preparation');
 			assert.deepEqual(order, ['runtime-load']);
 			assert.equal(document.body.children.length, 1);
 			assert.equal(renders.length, 0);
@@ -419,7 +431,7 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 			};
 			order.push('runtime-resolved');
 			resolve();
-			for (let i = 0; renders.length === 0 && i < 100; i++) await new Promise(setImmediate);
+			await waitFor(() => renders.length > 0, 'Google render scheduling');
 			assert.deepEqual(order, ['runtime-load', 'runtime-resolved', 'data-fetch', 'data-json', 'render-scheduled']);
 			assert.deepEqual(cleared, [deadlines[0]]);
 			renders.shift()();
@@ -499,8 +511,7 @@ describe('shared benchmark demo fixture and standalone boot', () => {
 				assert.equal(fetches, 0);
 				loaded[index].onload();
 			}
-			// File imports can require an event-loop turn, not just a microtask.
-			for (let i = 0; timers.length === 0 && i < 100; i++) await new Promise(setImmediate);
+			await waitFor(() => timers.length > 0, 'uPlot render scheduling');
 			assert.equal(timers.length, 1);
 			assert.equal(creates, 0);
 			timers.shift()();

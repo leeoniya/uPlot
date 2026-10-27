@@ -1,3 +1,4 @@
+import {describe, it, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync, existsSync} from 'node:fs';
 import * as recharts from '../../bench/recharts.mjs';
@@ -20,6 +21,7 @@ function walk(node, type) {
 function mockRuntime() {
 	const state = {unmounted: 0, removed: 0, roots: 0, scales: [], tickDomains: [], tickCounts: [],
 			calendarTicks: [new Date(900000), new Date(1800000)]};
+	let useState;
 	const paths = Array.from({length: 3}, () => ({getAttribute: () => 'M0,0L1,1'}));
 	state.element = {style: {}, querySelectorAll: () => paths, remove() { state.removed++; }};
 	state.host = {ownerDocument: {createElement: () => state.element}, append(element) { assert.equal(element, state.element); }};
@@ -28,19 +30,33 @@ function mockRuntime() {
 		return value => value;
 	};
 	return Object.assign(state, {globals: {
-		benchmarkReact: {Component: class {}, Fragment: 'Fragment', createElement(type, props, ...children) { return {type, props: {...props, children}}; }},
+		benchmarkReact: {Component: class {}, Fragment: 'Fragment', useState: initial => useState(initial),
+			createElement(type, props, ...children) { return {type, props: {...props, children}}; }},
 		benchmarkReactDOM: {flushSync(fn) { return fn(); }},
 		benchmarkReactDOMClient: {createRoot() {
 			state.roots++;
-			return {
+			let currentTree, hookState;
+			const commit = node => {
+				if (!node || typeof node !== 'object') return node;
+				if (typeof node.type === 'function' && !node.type.prototype?.render)
+					return commit(node.type(node.props));
+				return {...node, props: {...node.props, children: (node.props.children ?? []).map(commit)}};
+			};
+			const root = {
 				render(tree) {
-				state.tree = tree;
-				if (state.error) throw state.error;
-				const canvas = walk(tree, 'ChartCanvas')[0];
-				if (canvas) canvas.props.ref({state: {plotData: canvas.props.data, chartConfigs: [{}, {}]}, getCanvasContexts: () => ({axes: {}})});
-			},
+					if (state.error) throw state.error;
+					currentTree = tree;
+					useState = initial => {
+						hookState ??= initial;
+						return [hookState, next => { hookState = next; root.render(currentTree); }];
+					};
+					state.tree = commit(tree);
+					const canvas = walk(state.tree, 'ChartCanvas')[0];
+					if (canvas) canvas.props.ref({props: canvas.props, state: {plotData: canvas.props.data, chartConfigs: [{}, {}]}, getCanvasContexts: () => ({axes: {}})});
+				},
 				unmount() { state.unmounted++; if (state.cleanupError) throw state.cleanupError; },
 			};
+			return root;
 		}},
 		benchmarkRecharts: Object.fromEntries(['LineChart', 'Line', 'XAxis', 'YAxis', 'CartesianGrid', 'Legend', 'Tooltip'].map(name => [name, name])),
 		benchmarkMuiCharts: {LineChart: 'MuiLineChart'},
@@ -74,7 +90,10 @@ describe('framework benchmark adapters', () => {
 
 	for (const [id, adapter] of Object.entries(adapters)) {
 		it(`${id}: preserves all 55,550 rows and all three series`, () => {
-			assert.deepEqual(Object.keys(adapter).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), ['destroyChart', 'makeChart', 'prepData']);
+			assert.deepEqual(Object.keys(adapter), [
+				'destroyChart', ...(id === 'recharts' ? ['getHoverPlan'] : []), 'makeChart',
+				'makeEmptyChart', 'makeLifecycleChart', 'prepData', 'resizeChart', 'updateChart',
+			]);
 			const data = adapter.prepData(packed);
 			assert.equal(data.length, 55550);
 			assert.notEqual(data, adapter.prepData(packed));
@@ -260,8 +279,7 @@ describe('framework benchmark adapters', () => {
 // Opt-in real browser validation: no npm installs, no browser download. The cache
 // bundler downloads only JS sources and serves a single local module per variant.
 (process.env.BENCH_FRAMEWORK_BROWSER === '1' ? describe : describe.skip)('framework adapters in Chrome', function() {
-	this.timeout(240000);
-	for (const id of Object.keys(adapters)) it(`${id}: draws every sample and unmounts twice`, async () => {
+	for (const id of Object.keys(adapters)) it(`${id}: draws every sample and unmounts twice`, {timeout: 240000}, async () => {
 		const {bundleModuleDependencies} = await import('../../scripts/bench-module-bundle.mjs');
 		const {createServer} = await import('node:http');
 		const {spawn} = await import('node:child_process');

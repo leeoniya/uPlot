@@ -19,10 +19,10 @@
     "test": "node ./scripts/test.mjs \"test/*.mjs\" \"test/plugins/*.mjs\"",
     "test:core": "node ./scripts/test.mjs \"test/*.mjs\"",
     "test:plugins": "node ./scripts/test.mjs \"test/plugins/*.mjs\"",
-    "test:tooling": "node ./node_modules/mocha/bin/mocha.js \"test/tooling/*.mjs\" \"test/server/*.mjs\"",
-    "test:integration": "node ./node_modules/mocha/bin/mocha.js \"test/integration/*.mjs\"",
+    "test:tooling": "node ./scripts/test.mjs --no-coverage \"test/tooling/*.mjs\" \"test/server/*.mjs\"",
+    "test:integration": "node ./scripts/test.mjs --no-coverage \"test/integration/*.mjs\"",
     "test:all": "node ./scripts/test.mjs \"test/*.mjs\" \"test/plugins/*.mjs\" \"test/integration/*.mjs\" \"test/tooling/*.mjs\" \"test/server/*.mjs\"",
-    "test:server": "mocha test/server/*.mjs",
+    "test:server": "node ./scripts/test.mjs --no-coverage \"test/server/*.mjs\"",
     "test:update": "UPDATE=1 node ./scripts/test.mjs \"test/*.mjs\" \"test/plugins/*.mjs\""
   },
   "repository": {
@@ -62,7 +62,7 @@
     "istanbul-lib-report": "^3.0.1",
     "istanbul-smart-text-reporter": "^1.1.5",
     "json-stringify-pretty-compact": "^4.0.0",
-    "mocha": "^12.0.3",
+
     "rolldown": "^1.2.15",
     "test-exclude": "^8.0.0"
   },

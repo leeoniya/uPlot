@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import fs from 'fs';
 import path from 'node:path';
 
@@ -8,6 +9,7 @@ import stringify from "json-stringify-pretty-compact";
 import './instrument.mjs';
 import { withSeededRandom } from './withSeededRandom.mjs';
 import { getDemoSteps, captureStep } from './demoSteps.mjs';
+import { writeFailureReport } from './replay.mjs';
 
 // console.time('import uPlot');
 const { default: uPlot } = await import('../src/uPlot.js');
@@ -38,9 +40,9 @@ if (process.env.UPDATE != null && !update)
 if (!update)
 	fs.rmSync(outputDir, { recursive: true, force: true });
 
-after(async () => {
+// Bun scopes top-level after hooks to one file; finalize after all files instead.
+process.once('exit', () => {
 	if (failures.length > 0) {
-		const { writeFailureReport } = await import('./replay.mjs');
 		writeFailureReport(failures, report);
 		console.log(`Visual comparisons: ${path.relative('.', report)} (${failures.length} failed snapshots)`);
 	}

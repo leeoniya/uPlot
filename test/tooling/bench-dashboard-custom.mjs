@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {Window} from 'happy-dom';
 import {dashboardData, SERIES} from '../../bench/dashboard/common.mjs';

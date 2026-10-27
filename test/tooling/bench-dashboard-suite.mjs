@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -174,6 +175,30 @@ describe('dashboard benchmark suite', () => {
 			assert.ok(summary.logs.some(text => text.includes('No browser was started')));
 			assert.ok(!summary.logs.some(text => /resize ms|hover10 ms/.test(text)));
 			for (const name of single) assert.equal(readFileSync(join(directory, name), 'utf8'), 'single-chart sentinel');
+		});
+	}
+
+	for (const measurements of modes) for (const outcome of ['success', 'failure', 'timeout']) {
+		it(`${benchmarkMode(measurements)}: keeps the configured SciChart context after ${outcome}`, async () => {
+			const options = {...measurements, dashboard: true, variant: 'scichart', vulkan: false};
+			const h = harness(request => {
+				if (request.variant === 'scichart' && outcome !== 'success')
+					throw Object.assign(new Error('synthetic ' + outcome), outcome === 'timeout' ? {code: 'BENCHMARK_SAMPLE_TIMEOUT'} : {});
+				const raw = browser(request);
+				// No acquired contexts are necessary to identify the configured backend.
+				assert.ok(raw.samples.every(sample => sample.webgl === undefined));
+				return raw;
+			});
+			const report = await runBenchmarkSuite(options, h.dependencies);
+			assert.equal(report.variantMetadata.scichart.context, 'webgl2');
+			assert.deepEqual(report.variantMetadata.scichart, benchmarkVariantMetadata('scichart'));
+			const row = h.frames.at(-1).rows[0];
+			assert.equal(row.context, 'webgl2');
+			assert.equal(row.sampling, 'minmax');
+			if (outcome !== 'success') assert.equal(row['update ms'] ?? row['peak MB'], '-');
+			const summary = quiet(() => summarizeSavedBenchmarks({...measurements, dashboard: true, vulkan: false}, undefined, {outputDirectory: directory}));
+			assert.equal(summary.result.variantMetadata.scichart.context, 'webgl2');
+			assert.ok(summary.logs.some(text => /scichart[^\n]*webgl2/.test(text)));
 		});
 	}
 

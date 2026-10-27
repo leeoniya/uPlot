@@ -78,6 +78,8 @@ const namedColors = {
 	orchid: '#da70d6', crimson: '#dc143c', lightgray: '#d3d3d3', lightgrey: '#d3d3d3',
 };
 
+const axisMeasureHook = Symbol.for('uplot.test.axisMeasure');
+
 globalThis.OffscreenCanvas = class {
 	constructor(width, height) {
 		this.width = width;
@@ -89,6 +91,8 @@ globalThis.OffscreenCanvas = class {
 			font: '10px sans-serif',
 			fillStyle: '#000000',
 			measureText(text) {
+				// Cached contexts must observe the current test's hook, not their creator's.
+				globalThis[axisMeasureHook]?.({ text: String(text), font: this.font, ctx: this });
 				const size = parseFloat(this.font.match(/([\d.]+)px\b/)?.[1] ?? '10');
 				return { width: String(text).length * size / 2, actualBoundingBoxAscent: size * .8, actualBoundingBoxDescent: size * .2 };
 			},

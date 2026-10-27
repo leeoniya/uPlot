@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Window} from 'happy-dom';
@@ -33,7 +34,7 @@ describe('uPlot release adapter', () => {
 			.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
 		globalThis.uPlot = constructor();
 		globalThis.uPlotRelease = constructor();
-		globalThis.devicePixelRatio = 2;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 	});
 	afterEach(() => {
 		for (const [key, descriptor] of Object.entries(globals)) {

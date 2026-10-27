@@ -1,7 +1,9 @@
+import {describe, it, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {runInNewContext} from 'node:vm';
-import {prepData, makeChart, destroyChart} from '../../bench/deckgl.mjs';
+import * as adapter from '../../bench/deckgl.mjs';
+
+const {prepData, makeChart, destroyChart} = adapter;
 
 const packed = Object.freeze(JSON.parse(readFileSync(new URL('../../bench/data.json', import.meta.url))));
 const data = Object.freeze(prepData(packed));
@@ -159,7 +161,7 @@ describe('deck.gl benchmark adapter (no browser)', () => {
 	let saved;
 	beforeEach(() => {
 		saved = Object.fromEntries(['d3', 'deck', 'devicePixelRatio'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
-		globalThis.devicePixelRatio = 2;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 	});
 	afterEach(() => {
 		for (const [key, descriptor] of Object.entries(saved)) {
@@ -417,7 +419,7 @@ describe('deck.gl benchmark adapter (no browser)', () => {
 		assertClean(state);
 	});
 
-	it('uses the shared HTML runner and retains a legacy-compatible export declaration', () => {
+	it('uses the shared HTML runner and exports the complete adapter contract', () => {
 		const html = readFileSync(new URL('../../bench/deckgl.html', import.meta.url), 'utf8');
 		const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
 		assert.equal(scripts.length, 1);
@@ -426,7 +428,7 @@ describe('deck.gl benchmark adapter (no browser)', () => {
 		assert.doesNotMatch(html, /<style\b|<link\b|<canvas\b|fetch\(|https?:|style=/);
 		const source = readFileSync(new URL('../../bench/deckgl.mjs', import.meta.url), 'utf8');
 		assert.match(source, /export \{prepData, makeChart, destroyChart\};\s*$/);
-		const legacy = runInNewContext(source.replace(/^export \{[^\n]+\};\s*$/gm, '') + '\n({prepData, makeChart, destroyChart})');
-		assert.deepEqual(Object.keys(legacy), ['prepData', 'makeChart', 'destroyChart']);
+		assert.deepEqual(Object.keys(adapter), ['destroyChart', 'getHoverPlan', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
+		for (const value of Object.values(adapter)) assert.equal(typeof value, 'function');
 	});
 });

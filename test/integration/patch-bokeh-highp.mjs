@@ -1,3 +1,4 @@
+import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { Script } from 'node:vm';
@@ -15,12 +16,11 @@ function withoutGeneratedComment(patched) {
 }
 
 describe('Bokeh WebGL highp patch script', () => {
-	it('matches an available generated GL bundle and preserves every other byte of upstream source', async function() {
-		this.timeout(10000);
+	it('matches an available generated GL bundle and preserves every other byte of upstream source', {timeout: 10000}, async function(t) {
 		let generated;
 		try { generated = await readFile(new URL(`../../${expectedBundlePath}`, import.meta.url), 'utf8'); }
 		catch (error) {
-			if (error.code == 'ENOENT') return this.skip(); // Run the patch script to enable this integration check.
+			if (error.code == 'ENOENT') return t.skip(); // Run the patch script to enable this integration check.
 			throw error;
 		}
 		const original = await readFile(new URL(`../../${expectedOriginalBundlePath}`, import.meta.url), 'utf8');

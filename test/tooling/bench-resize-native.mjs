@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as scichart from '../../bench/scichart.mjs';
 import * as chartjs from '../../bench/chartjs.mjs';
@@ -176,7 +177,7 @@ describe('native benchmark resize hooks', () => {
 	let saved;
 	beforeEach(() => {
 		saved = globals.map(key => Object.getOwnPropertyDescriptor(globalThis, key));
-		globalThis.devicePixelRatio = 2;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 		for (const key of ['Chart', 'ApexCharts', 'Dygraph']) globalThis[key] = forbidden;
 		globalThis.SciChart = {SciChartSurface: {createSingle: forbidden}};
 		globalThis.echarts = {init: forbidden};

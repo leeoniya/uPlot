@@ -1,14 +1,21 @@
+import {describe, it, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import { demoDependencies, benchmarkVariants, benchmarkRestrictions, assertBenchmarkAvailable, dependencyUrl } from '../../bench/demo-dependencies.mjs';
+import * as hover from '../../bench/hover.mjs';
 
 let moduleId = 0;
 const runtimeUrl = new URL('../../bench/demo-runtime.mjs', import.meta.url);
+const runtimeSource = readFileSync(runtimeUrl, 'utf8')
+	.replace("'./demo-dependencies.mjs'", JSON.stringify(new URL('../../bench/demo-dependencies.mjs', import.meta.url).href))
+	.replaceAll('import.meta.url', JSON.stringify(runtimeUrl.href));
+const moduleUrl = source => 'data:text/javascript;base64,' + Buffer.from(`// test=${++moduleId}\n${source}\nexport {};`).toString('base64');
 const binary = (path, option = 'wasmBinary') => ({path, type: 'wasm', option});
 const moduleDependency = (source, extra = {}) => Object.freeze({
 	type: 'module', global: 'benchmarkTestModule',
-	url: `data:text/javascript,${encodeURIComponent(source)}#test=${++moduleId}`,
+	// Keep cache-busting inside the payload: Bun parses data-URL fragments as source.
+	url: moduleUrl(source),
 	...extra,
 });
 
@@ -23,9 +30,16 @@ function traceStartup(variant, {fetch, prepareDemoRuntime, adapter, globals = {}
 		async importModule(url) {
 			if (url === '/bench/demo-fixture.mjs') return {setupDemo() { assert.fail('startup must not create chart hosts'); }};
 			if (url === '/bench/lifecycle-data.mjs') return {};
+			if (url === '/bench/hover.mjs') return hover;
 			if (url === '/bench/demo-runtime.mjs') return {prepareDemoRuntime: (...args) => prepareDemoRuntime(...args, context)};
 			assert.equal(url, `/bench/${variant}.mjs`);
-			return {makeEmptyChart() { assert.fail('startup must not construct'); }, updateChart() { assert.fail('startup must not update'); }, ...adapter};
+			return {
+				makeEmptyChart() { assert.fail('startup must not construct'); },
+				updateChart() { assert.fail('startup must not update'); },
+				resizeChart() { assert.fail('startup must not resize'); },
+				getHoverPlan() { assert.fail('startup must not prepare hover'); },
+				...adapter,
+			};
 		},
 	};
 	return runInNewContext(`(async () => {\n${source.slice(start, end).replace(/\bimport\(/g, 'importModule(')}\n})()`, context);
@@ -41,8 +55,9 @@ describe('shared benchmark binary and module runtime', () => {
 		delete globalThis.benchmarkSciChartOptions;
 		globalThis.fetch = () => assert.fail('unexpected download');
 		globalThis.WebAssembly = new Proxy({}, {get() { assert.fail('prefetch must not compile or instantiate WASM'); }});
-		// Each test gets an empty module cache; calls within a test share it.
-		({prepareDemoRuntime} = await import(`${runtimeUrl.href}?test=${++moduleId}`));
+		// Bun reuses query-only cache keys at a dynamic import call site. Unique
+		// payloads isolate the runtime cache while retaining its original URL base.
+		({prepareDemoRuntime} = await import(moduleUrl(runtimeSource)));
 	});
 
 	afterEach(() => {
@@ -136,7 +151,13 @@ describe('shared benchmark binary and module runtime', () => {
 		assert.equal(globalThis.benchmarkTestSecond.ready, true);
 		assert.equal(globalThis.benchmarkTestModule, original);
 		assert.equal(Object.hasOwn(globalThis, 'benchmarkSciChartOptions'), false);
-		await assert.rejects(prepareDemoRuntime('recharts', [moduleDependency('export const = ;')]), SyntaxError);
+		const invalid = moduleDependency('export const = ;');
+		const parseError = await import(invalid.url).catch(error => error);
+		assert.ok(parseError instanceof Error);
+		// Node reports SyntaxError; Bun can aggregate multiple parser diagnostics.
+		await assert.rejects(prepareDemoRuntime('recharts', [invalid]), {
+			name: parseError.name, message: parseError.message,
+		});
 	});
 
 	it('downloads both manifest WASM files as buffers and preserves existing SciChart options', async () => {
@@ -337,12 +358,12 @@ describe('benchmark trace availability checks', () => {
 				error.message === `${variant}: ${benchmarkRestrictions[variant]}`);
 	});
 
-	it('defaults to the 41 runnable variants plus idle, without restricted adapters', async () => {
+	it('defaults to the 44 runnable variants plus idle, without restricted adapters', async () => {
 		const selected = [...await check(null)];
 		assert.deepEqual(selected, [...benchmarkVariants, 'idle']);
-		assert.equal(selected.length, 42);
-				assert.equal(selected.includes('g2-webgl'), false);
-				assert.equal(selected.includes('googlecharts'), false);
+		assert.equal(selected.length, 45);
+		assert.equal(selected.includes('g2-webgl'), false);
+		assert.equal(selected.includes('googlecharts'), false);
 		assert.equal(selected.includes('jscharting'), false);
 		assert.equal(selected.includes('lightningchart'), false);
 		assert.equal(selected.includes('chartgpu'), true);

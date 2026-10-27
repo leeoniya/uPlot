@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {describe, it} from 'mocha';
+import {describe, it} from 'node:test';
 
 const source = name => readFileSync(new URL(`../../bench/${name}.mjs`, import.meta.url), 'utf8');
 const plain = value => JSON.parse(JSON.stringify(value));

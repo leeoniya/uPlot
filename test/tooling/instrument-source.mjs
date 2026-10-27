@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
@@ -99,8 +100,7 @@ describe('source instrumentation cache', () => {
 		}
 	});
 
-	it('publishes complete entries when processes share a cold cache', async function() {
-		this.timeout(15000);
+	it('publishes complete entries when processes share a cold cache', { timeout: 15000 }, async function() {
 		const script = `
 			const { createSourceInstrumenter } = await import(${JSON.stringify(instrumentURL)});
 			console.log(JSON.stringify(createSourceInstrumenter({}, ${JSON.stringify(cacheDir)})(${JSON.stringify(source)}, ${JSON.stringify(filename)})));
@@ -115,8 +115,7 @@ describe('source instrumentation cache', () => {
 		assert.equal(execute(readFileSync(join(cacheDir, entry), 'utf8')).result, 1);
 	});
 
-	it('reuses source across loader processes but writes fresh coverage without loading Babel', function() {
-		this.timeout(15000);
+	it('reuses source across loader processes but writes fresh coverage without loading Babel', { timeout: 15000 }, function() {
 		const shared = join(cacheDir, 'source');
 		mkdirSync(shared);
 		const target = join(cwd, 'src/dom.js');

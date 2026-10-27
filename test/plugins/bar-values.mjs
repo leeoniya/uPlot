@@ -1,7 +1,8 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createBarValues } from '../../demos/lib/barValues.js';
 
-// Run independently: node --expose-gc node_modules/mocha/bin/mocha.js test/plugins/bar-values.mjs
+// Run independently: node --expose-gc --test --test-isolation=none test/plugins/bar-values.mjs
 const stateKeys = ['font', 'fillStyle', 'textAlign', 'textBaseline', 'globalAlpha'];
 const snapshot = ctx => Object.fromEntries(stateKeys.map(key => [key, ctx[key]]));
 const close = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-9, `${message}: ${actual} != ${expected}`);
@@ -1033,9 +1034,9 @@ describe('barValues standalone', () => {
 		assert.equal(u.ctx.saves, u.ctx.restores);
 	});
 
-	it('releases native percent baselines and groups when the destroyed helper is retained', async function() {
+	it('releases native percent baselines and groups when the destroyed helper is retained', async function(t) {
 		if (!globalThis.gc)
-			this.skip();
+			return t.skip();
 		const { values, refs } = (() => {
 			const groups = Object.freeze([Object.freeze({ series: Object.freeze([1, 2]), dir: 0 })]);
 			const values = helper(false, groups, true);

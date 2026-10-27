@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
@@ -268,9 +269,9 @@ function browserFixture(options = {}) {
 		},
 	};
 	context.smallPacked = smallLifecycleData(context.packed);
-	runInNewContext(browserSource.slice(browserSource.indexOf('let invoked = null;')), context);
+	const sampleState = runInNewContext(browserSource.slice(browserSource.indexOf('let invoked = null;')) + '\n(() => state)', context);
 	return {api: context.benchmarkLifecycle, runTrace: context.runBenchmarkTrace, context, events, marks,
-			sampleState: () => runInNewContext('state', context), advance: ms => { clock += ms; }};
+			sampleState, advance: ms => { clock += ms; }};
 }
 
 function deckGLFixture(dpr = 2) {

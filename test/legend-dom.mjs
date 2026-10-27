@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import '../scripts/instrument.mjs';
 import { createLegend } from '../src/legend-dom.js';

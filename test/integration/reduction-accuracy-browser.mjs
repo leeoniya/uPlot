@@ -1,3 +1,4 @@
+import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {constants} from 'node:fs';
@@ -10,7 +11,7 @@ import {CDP} from '../../scripts/profile-manual.mjs';
 import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 import {loadBenchDemoSources} from '../../scripts/bench-demo-sources.mjs';
 
-// TEST_REDUCTION_BROWSER=1 node node_modules/mocha/bin/mocha.js test/integration/reduction-accuracy-browser.mjs
+// TEST_REDUCTION_BROWSER=1 node --test --test-isolation=none test/integration/reduction-accuracy-browser.mjs
 // Cache-only: never call chromeBinary(), which can download a missing browser.
 const rootURL = new URL('../../', import.meta.url);
 const root = fileURLToPath(rootURL);
@@ -285,9 +286,8 @@ async function readyUI(selector = null, value = null) {
 }
 
 (process.env.TEST_REDUCTION_BROWSER === '1' ? describe : describe.skip)('reduction accuracy: cached Headless Shell 156', function() {
-	this.timeout(120000);
 
-	it('renders all six fixtures in every mode and exercises the mounted dropdowns', async () => {
+	it('renders all six fixtures in every mode and exercises the mounted dropdowns', {timeout: 120000}, async () => {
 		let server, browser, client, profile, watchdog;
 		let log = '', phase = 'checking prerequisites', runError = null;
 		const failures = [], blocked = new Set(), rows = [];

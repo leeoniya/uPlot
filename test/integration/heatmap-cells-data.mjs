@@ -1,3 +1,4 @@
+import {describe, it, before} from 'node:test';
 import assert from 'node:assert/strict';
 import { generateHeatmapCells } from '../../demos/lib/heatmapCellsData.js';
 import { readCells, gridShape } from '../../demos/heatmap-cells-compare.js';
@@ -165,16 +166,15 @@ function aggregate(cells) {
 }
 
 describe('procedural heatmap cells data', function() {
-	this.timeout(15000);
 	let frames, cells, stats;
 
 	before(() => {
 		frames = generateHeatmapCells();
 		cells = readCells(frames);
 		stats = aggregate(cells);
-	});
+	}, {timeout: 15000});
 
-	it('repeats a seed independently of intervening calls and does not mutate options', () => {
+	it('repeats a seed independently of intervening calls and does not mutate options', {timeout: 15000}, () => {
 		const options = Object.freeze({seed: 42, columns: 64, interval: 60000, start: -60000});
 		const first = generateHeatmapCells(options);
 		generateHeatmapCells({seed: 7, columns: 13});
@@ -183,7 +183,7 @@ describe('procedural heatmap cells data', function() {
 		assert.deepEqual(generateHeatmapCells({columns: 8}), generateHeatmapCells({...defaults, columns: 8}));
 	});
 
-	it('returns fresh nested objects and arrays on every call', () => {
+	it('returns fresh nested objects and arrays on every call', {timeout: 15000}, () => {
 		const options = {seed: 42, columns: 24};
 		const first = generateHeatmapCells(options);
 		const second = generateHeatmapCells(options);
@@ -200,7 +200,7 @@ describe('procedural heatmap cells data', function() {
 		assert.deepEqual(generateHeatmapCells(options), snapshot);
 	});
 
-	it('changes generated values, not just metadata, for different seeds', () => {
+	it('changes generated values, not just metadata, for different seeds', {timeout: 15000}, () => {
 		const first = generateHeatmapCells({seed: 0, columns: 64});
 		const second = generateHeatmapCells({seed: 0xffffffff, columns: 64});
 		assert.notDeepEqual(first[0].data.values, second[0].data.values);
@@ -208,7 +208,7 @@ describe('procedural heatmap cells data', function() {
 		validate(second, {seed: 0xffffffff, columns: 64});
 	});
 
-	it('emits the default frame schema, positive quantized rates, sorted unique cells, and a uniform fine grid', () => {
+	it('emits the default frame schema, positive quantized rates, sorted unique cells, and a uniform fine grid', {timeout: 15000}, () => {
 		validate(frames);
 	});
 
@@ -220,12 +220,12 @@ describe('procedural heatmap cells data', function() {
 		{columns: 1, interval: 1, start: Number.MAX_SAFE_INTEGER - 1},
 		{columns: 1, interval: 1, start: Number.MIN_SAFE_INTEGER},
 	]) {
-		it(`supports small and boundary options ${JSON.stringify(options)}`, () => {
+		it(`supports small and boundary options ${JSON.stringify(options)}`, {timeout: 15000}, () => {
 			validate(generateHeatmapCells(options), options);
 		});
 	}
 
-	it('changes only timestamps and interval metadata when the time origin or step changes', () => {
+	it('changes only timestamps and interval metadata when the time origin or step changes', {timeout: 15000}, () => {
 		const original = generateHeatmapCells({seed: 9, columns: 32});
 		const options = {seed: 9, columns: 32, start: -1000, interval: 137};
 		const shifted = generateHeatmapCells(options);
@@ -237,7 +237,7 @@ describe('procedural heatmap cells data', function() {
 		}));
 	});
 
-	it('omits whole columns deterministically without changing surviving cells', () => {
+	it('omits whole columns deterministically without changing surviving cells', {timeout: 15000}, () => {
 		const options = Object.freeze({seed: 42, columns: 64, xGapProbability: 0.25});
 		const sparse = generateHeatmapCells(options);
 		validate(sparse, options);
@@ -258,7 +258,7 @@ describe('procedural heatmap cells data', function() {
 	});
 
 	for (const columns of [1, 2, 3, 32]) {
-		it(`retains endpoint columns with xGapProbability=1 and ${columns} columns`, () => {
+		it(`retains endpoint columns with xGapProbability=1 and ${columns} columns`, {timeout: 15000}, () => {
 			const options = {columns, xGapProbability: 1};
 			const sparse = generateHeatmapCells(options);
 			validate(sparse, options);
@@ -267,7 +267,7 @@ describe('procedural heatmap cells data', function() {
 		});
 	}
 
-	it('keeps the sparse-X demo near 250k cells while omitting whole time columns', () => {
+	it('keeps the sparse-X demo near 250k cells while omitting whole time columns', {timeout: 15000}, () => {
 		const options = {xGapProbability: 0.02};
 		const sparse = validate(generateHeatmapCells(options), options);
 		between(sparse.counts.length, 225000, 275000, 'Sparse demo cell count');
@@ -281,7 +281,7 @@ describe('procedural heatmap cells data', function() {
 		['interval', [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity, -Infinity, '1000', null, true]],
 		['start', [0.5, Number.MAX_SAFE_INTEGER + 1, Number.MIN_SAFE_INTEGER - 1, NaN, Infinity, -Infinity, '0', null, true]],
 	]) {
-		it(`rejects invalid ${name} values`, () => {
+		it(`rejects invalid ${name} values`, {timeout: 15000}, () => {
 			for (const value of invalid) {
 				assert.throws(() => generateHeatmapCells({columns: 2, [name]: value}),
 					{ name: 'RangeError', message: new RegExp(name) }, `${name}=${String(value)}`);
@@ -289,7 +289,7 @@ describe('procedural heatmap cells data', function() {
 		});
 	}
 
-	it('rejects an unsafe final timestamp before allocating or generating cells', () => {
+	it('rejects an unsafe final timestamp before allocating or generating cells', {timeout: 15000}, () => {
 		for (const options of [
 			{columns: 1, interval: 1, start: Number.MAX_SAFE_INTEGER},
 			{columns: 2, interval: Number.MAX_SAFE_INTEGER, start: 0},
@@ -300,7 +300,7 @@ describe('procedural heatmap cells data', function() {
 	});
 
 	// Broad envelopes protect the visual character, not a particular mixture fit or seed snapshot.
-	it('keeps the default size near 250k cells with a sparse, low-rate distribution', () => {
+	it('keeps the default size near 250k cells with a sparse, low-rate distribution', {timeout: 15000}, () => {
 		between(cells.counts.length, 225000, 275000, 'Default cell count');
 		between(cells.counts.length / (defaults.columns * 169), 0.5, 0.65, 'Grid occupancy');
 		const counts = Float64Array.from(cells.counts).sort();
@@ -317,7 +317,7 @@ describe('procedural heatmap cells data', function() {
 		between(stats.weightedQuantile(0.99), 1.8, 5, 'Weighted latency p99');
 	});
 
-	it('keeps the quiet latency region and upper tail sparse rather than filling the grid', () => {
+	it('keeps the quiet latency region and upper tail sparse rather than filling the grid', {timeout: 15000}, () => {
 		const all = stats.window(0, 1.001);
 		between(stats.bandRows.quiet / cells.counts.length, 0, 0.005, 'Quiet-region cell fraction');
 		between(all.quiet / all.total, 0, 0.002, 'Quiet-region weight fraction');
@@ -327,7 +327,7 @@ describe('procedural heatmap cells data', function() {
 		between(all.high / all.total, 0, 0.003, 'Weight fraction beyond six seconds');
 	});
 
-	it('retains all five major latency bands across early, middle, and late windows', () => {
+	it('retains all five major latency bands across early, middle, and late windows', {timeout: 15000}, () => {
 		for (const [from, to] of [[0.02, 0.18], [0.3, 0.7], [0.81, 0.92], [0.93, 0.965], [0.98, 1.001]]) {
 			const window = stats.window(from, to);
 			const presence = Object.fromEntries(persistent.map(name => [name, 0]));
@@ -347,7 +347,7 @@ describe('procedural heatmap cells data', function() {
 		}
 	});
 
-	it('adds substantial fast traffic at the late breakpoint without removing the original bands', () => {
+	it('adds substantial fast traffic at the late breakpoint without removing the original bands', {timeout: 15000}, () => {
 		const before = stats.window(0.785, 0.795);
 		const onset = stats.window(0.797, 0.807);
 		const late = stats.window(0.81, 0.92);
@@ -361,7 +361,7 @@ describe('procedural heatmap cells data', function() {
 		}
 	});
 
-	it('has a brief partial outage at the structural breakpoint, with recovery and no missing columns', () => {
+	it('has a brief partial outage at the structural breakpoint, with recovery and no missing columns', {timeout: 15000}, () => {
 		const before = stats.window(0.25, 0.26);
 		const outage = stats.window(0.263, 0.268);
 		const after = stats.window(0.27, 0.28);
@@ -378,7 +378,7 @@ describe('procedural heatmap cells data', function() {
 		assert.ok(stats.perColumn.every(c => c.rows > 0 && c.total > 0));
 	});
 
-	it('suppresses the sub-millisecond band during the fast gap, then restores it', () => {
+	it('suppresses the sub-millisecond band during the fast gap, then restores it', {timeout: 15000}, () => {
 		const before = stats.window(0.90, 0.923);
 		const gap = stats.window(0.925, 0.970);
 		const after = stats.window(0.973, 1.001);
@@ -487,9 +487,9 @@ describe('procedural heatmap cells data', function() {
 					// Complete mature days exclude both the outage and the late traffic regimes.
 					baseline = columns.filter(c => c.day >= 11 && c.day < 26);
 					profile = Array.from({length: 36}, (_, bin) => phaseWindow(baseline, bin / 36, (bin + 1) / 36));
-				});
+				}, {timeout: 15000});
 
-				it('brightens the millisecond-to-subsecond bands together each day without pulsing the microband', () => {
+				it('brightens the millisecond-to-subsecond bands together each day without pulsing the microband', {timeout: 15000}, () => {
 					const pulse = phaseWindow(baseline, 0.67, 0.72, false);
 					const quiet = phaseWindow(baseline, 0.85, 0.95, false);
 					for (const name of pulsed) {
@@ -509,7 +509,7 @@ describe('procedural heatmap cells data', function() {
 					between(coherent / 15, 0.85, 1, 'Days with simultaneous increases in all three bands');
 				});
 
-				it('raises the upper-tail quantiles and occupied height before the count pulse, then contracts rapidly', () => {
+				it('raises the upper-tail quantiles and occupied height before the count pulse, then contracts rapidly', {timeout: 15000}, () => {
 					const quiet = phaseWindow(baseline, 0.85, 0.95);
 					const peak = phaseWindow(baseline, 0.62, 0.66);
 					const post = phaseWindow(baseline, 0.73, 0.78);
@@ -523,7 +523,7 @@ describe('procedural heatmap cells data', function() {
 					between(countPhase - tailPhase, 0.015, 0.14, 'Tail lead in normalized days');
 				});
 
-				it('elevates phase-matched populations above three milliseconds throughout the late heat streak', () => {
+				it('elevates phase-matched populations above three milliseconds throughout the late heat streak', {timeout: 15000}, () => {
 					const before = columns.filter(c => c.t >= 0.6 && c.t < 0.79);
 					// Match the phase distribution of each window, including its partial days.
 					const phaseRates = Array.from({length: 72}, (_, bin) => phaseWindow(before, bin / 72, (bin + 1) / 72, false));

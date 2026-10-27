@@ -1,3 +1,4 @@
+import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync, existsSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
@@ -66,21 +67,19 @@ function checkAxes(host, d3, data) {
 		node.getAttribute('y1') === node.getAttribute('y2')));
 }
 
-describe('D3 SVG and Canvas benchmarks (real D3, offline)', function() {
-	this.timeout(10000);
+const d3 = await loadD3();
+
+describe('D3 SVG and Canvas benchmarks (real D3, offline)', {
+	skip: !d3 && 'D3 SVG tests need cached D3 7.9.0 or an installed d3 package.',
+}, function() {
 	const originals = new Map();
-	let d3, canvas, minmax, svg, svgMinmax, data, window, host, wait, chart, frames, nextFrame, originalGetContext;
+	let canvas, minmax, svg, svgMinmax, data, window, host, wait, chart, frames, nextFrame, originalGetContext;
 
 	before(async function() {
-		d3 = await loadD3();
-		if (!d3) {
-			console.warn('D3 SVG tests need cached D3 7.9.0 or an installed d3 package.');
-			this.skip();
-		}
 		for (const name of ['d3', 'devicePixelRatio', 'requestAnimationFrame', 'cancelAnimationFrame', 'document'])
 			originals.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
 		globalThis.d3 = d3;
-		globalThis.devicePixelRatio = ratio;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: ratio});
 		const documentDescriptor = originals.get('document');
 		Object.defineProperty(globalThis, 'document', {configurable: true, value: new Proxy({}, {
 			get() { assert.fail('module import must not construct DOM'); },
@@ -96,14 +95,14 @@ describe('D3 SVG and Canvas benchmarks (real D3, offline)', function() {
 			else delete globalThis.document;
 		}
 		data = Object.freeze(svg.prepData(packed).map(Object.freeze));
-	});
+	}, {timeout: 10000});
 
 	after(() => {
 		for (const [name, descriptor] of originals) {
 			if (descriptor) Object.defineProperty(globalThis, name, descriptor);
 			else delete globalThis[name];
 		}
-	});
+	}, {timeout: 10000});
 
 	beforeEach(() => {
 		window = new Window();
@@ -120,7 +119,7 @@ describe('D3 SVG and Canvas benchmarks (real D3, offline)', function() {
 		nextFrame = 0;
 		globalThis.requestAnimationFrame = callback => { frames.set(++nextFrame, callback); return nextFrame; };
 		globalThis.cancelAnimationFrame = id => { assert.ok(frames.delete(id)); };
-	});
+	}, {timeout: 10000});
 
 	afterEach(async () => {
 		chart?.destroy();
@@ -128,7 +127,7 @@ describe('D3 SVG and Canvas benchmarks (real D3, offline)', function() {
 		assert.equal(frames.size, 0);
 		window.HTMLCanvasElement.prototype.getContext = originalGetContext;
 		await window.happyDOM.close();
-	});
+	}, {timeout: 10000});
 
 	function flush() {
 		const pending = [...frames.values()];
@@ -149,7 +148,7 @@ describe('D3 SVG and Canvas benchmarks (real D3, offline)', function() {
 		overlay.dispatchEvent(event);
 	}
 
-	it('shares prep and preserves every input field and all 55,550 rows', () => {
+	it('shares prep and preserves every input field and all 55,550 rows', {timeout: 10000}, () => {
 		assert.equal(svg.prepData, canvas.prepData);
 		assert.equal(data.length, 4);
 		assert.ok(data.every(column => column.length === 55550));
@@ -165,7 +164,7 @@ describe('D3 SVG and Canvas benchmarks (real D3, offline)', function() {
 		assert.deepEqual(svg.prepData(irregular), [[600000, 1020000], [12.346, 50], [33.33, 25], [3, 6]]);
 	});
 
-	it('draws three full connected native paths, automatic dual axes and calendar ticks without Canvas', async () => {
+	it('draws three full connected native paths, automatic dual axes and calendar ticks without Canvas', {timeout: 10000}, async () => {
 		const runtime = Object.freeze({renderer: 'canvas'});
 		chart = svg.makeChart(data, host, wait, runtime);
 		assert.equal(wait.textContent, 'Rendering...');
@@ -192,7 +191,7 @@ describe('D3 SVG and Canvas benchmarks (real D3, offline)', function() {
 		assert.equal(host.querySelector('.d3-svg-chart').lastElementChild, host.querySelector('.overlay'));
 	});
 
-	for (const variant of ['svg', 'svg-minmax']) it(`${variant} uses the same automatic scales for non-percentage ranges and preserves null gaps`, async () => {
+	for (const variant of ['svg', 'svg-minmax']) it(`${variant} uses the same automatic scales for non-percentage ranges and preserves null gaps`, {timeout: 10000}, async () => {
 		const input = Object.freeze([[0, 60000, 900000, 1800000], [125, null, 160, 180],
 			[220, 230, 240, 250], [1500, 2000, null, 3500]].map(Object.freeze));
 		chart = (variant === 'svg' ? svg : svgMinmax).makeChart(input, host, wait);
@@ -208,7 +207,7 @@ describe('D3 SVG and Canvas benchmarks (real D3, offline)', function() {
 		assert.equal(host.querySelector('.cursor circle').getAttribute('display'), 'none');
 	});
 
-	for (const variant of ['svg', 'svg-minmax']) it(`${variant} uses SVG-local pointer coordinates, coalesces frames, draws SVG markers, and cleans up`, async () => {
+	for (const variant of ['svg', 'svg-minmax']) it(`${variant} uses SVG-local pointer coordinates, coalesces frames, draws SVG markers, and cleans up`, {timeout: 10000}, async () => {
 		const adapter = variant === 'svg' ? svg : svgMinmax;
 		chart = adapter.makeChart(data, host, wait);
 		await Promise.resolve();
@@ -251,7 +250,7 @@ describe('D3 SVG and Canvas benchmarks (real D3, offline)', function() {
 		adapter.destroyChart(chart);
 	});
 
-	it('shares min/max path commands between SVG and Canvas on initialization and dense, sparse, gapped, and empty updates', async () => {
+	it('shares min/max path commands between SVG and Canvas on initialization and dense, sparse, gapped, and empty updates', {timeout: 10000}, async () => {
 		assert.equal(svgMinmax.prepData, canvas.prepData);
 		assert.equal(svgMinmax.updateChart, canvas.updateChart);
 		function canvasPaths(input) {
@@ -305,7 +304,7 @@ describe('D3 SVG and Canvas benchmarks (real D3, offline)', function() {
 		check(data);
 	});
 
-	it('uses distinct clip IDs and does not report readiness after immediate destruction', async () => {
+	it('uses distinct clip IDs and does not report readiness after immediate destruction', {timeout: 10000}, async () => {
 		const input = [[0, 60000], [10, 20], [30, 40], [1, 2]];
 		chart = svg.makeChart(input, host, wait);
 		await Promise.resolve();
@@ -322,7 +321,7 @@ describe('D3 SVG and Canvas benchmarks (real D3, offline)', function() {
 		assert.equal(host.querySelector('clipPath').id, id);
 	});
 
-	for (const variant of ['canvas', 'minmax']) it(`keeps ${variant} Canvas setup, sparse coordinates, colors, and pointer legend behavior`, async () => {
+	for (const variant of ['canvas', 'minmax']) it(`keeps ${variant} Canvas setup, sparse coordinates, colors, and pointer legend behavior`, {timeout: 10000}, async () => {
 		host.querySelector('.chart').innerHTML = '<canvas id="plot"></canvas><canvas id="overlay"></canvas>';
 		const input = [[0, 60000, 180000], [10, 20, 30], [40, 50, 60], [1, 2, 3]];
 		const contexts = [];
@@ -362,7 +361,7 @@ describe('D3 SVG and Canvas benchmarks (real D3, offline)', function() {
 		assert.equal(contexts[1].calls.filter(call => call[0] === 'arc').length, 3);
 	});
 
-	it('reduces full-data Canvas paths on initialization and updates without changing source data or cursor lookup', async () => {
+	it('reduces full-data Canvas paths on initialization and updates without changing source data or cursor lookup', {timeout: 10000}, async () => {
 		assert.equal(minmax.prepData, canvas.prepData);
 		assert.equal(minmax.updateChart, canvas.updateChart);
 		host.querySelector('.chart').innerHTML = '<canvas id="plot"></canvas><canvas id="overlay"></canvas>';

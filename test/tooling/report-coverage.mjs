@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -42,16 +43,15 @@ function row(output, name) {
 }
 
 describe('coverage text report', function() {
-	this.timeout(15000);
 	let cwd;
 
 	beforeEach(() => {
 		cwd = mkdtempSync(join(tmpdir(), 'uplot-report-coverage-'));
-	});
+	}, { timeout: 15000 });
 
 	afterEach(() => {
 		rmSync(cwd, { recursive: true, force: true });
-	});
+	}, { timeout: 15000 });
 
 	function run(args = []) {
 		const result = spawnSync(process.execPath, [script, ...args], {
@@ -64,7 +64,7 @@ describe('coverage text report', function() {
 		return stripVTControlCharacters(result.stdout);
 	}
 
-	it('merges root and nested JSON coverage, including repeated and distinct source files', () => {
+	it('merges root and nested JSON coverage, including repeated and distinct source files', { timeout: 15000 }, () => {
 		const input = join(cwd, 'coverage');
 		const a = join(cwd, 'a.js');
 		const b = join(cwd, 'b.js');
@@ -83,7 +83,7 @@ describe('coverage text report', function() {
 		assert.deepEqual(row(output, 'b.js'), ['100', '100', '100', '100', '']);
 	});
 
-	it('defaults to .nyc_output in the working directory and reports uncovered line ranges', () => {
+	it('defaults to .nyc_output in the working directory and reports uncovered line ranges', { timeout: 15000 }, () => {
 		writeCoverage(join(cwd, '.nyc_output/part.json'),
 			coverage(join(cwd, 'a.js'), [1, 0, 0, 1], [1, 0], [1, 0, 0, 0]),
 		);
@@ -93,7 +93,7 @@ describe('coverage text report', function() {
 		assert.deepEqual(row(output, 'a.js'), ['50', '25', '50', '50', '2-3']);
 	});
 
-	it('reports branch-only gaps when every statement and line is covered', () => {
+	it('reports branch-only gaps when every statement and line is covered', { timeout: 15000 }, () => {
 		writeCoverage(join(cwd, 'coverage/part.json'),
 			coverage(join(cwd, 'a.js'), [1, 1, 1, 1], [1, 1], [1, 0, 1, 1]),
 		);
@@ -102,7 +102,7 @@ describe('coverage text report', function() {
 		assert.deepEqual(row(output, 'a.js'), ['100', '75', '100', '100', '2']);
 	});
 
-	it('reports core and plugin coverage separately after merging worker output', () => {
+	it('reports core and plugin coverage separately after merging worker output', { timeout: 15000 }, () => {
 		const input = join(cwd, 'coverage');
 		const core = join(cwd, 'src/uPlot.js');
 		const plugin = join(cwd, 'demos/lib/barChartPlugin.js');
@@ -127,7 +127,7 @@ describe('coverage text report', function() {
 		assert.doesNotMatch(pluginTable, /uPlot\.js/);
 	});
 
-	it('reports a plugin-only run without an empty core table', () => {
+	it('reports a plugin-only run without an empty core table', { timeout: 15000 }, () => {
 		writeCoverage(join(cwd, 'coverage/part.json'),
 			coverage(join(cwd, 'demos/lib/scatterPlugin.js'), [1, 1, 1, 1], [1, 1], [1, 1, 1, 1]),
 		);
@@ -138,7 +138,7 @@ describe('coverage text report', function() {
 	});
 
 	for (const emptyMaps of [false, true]) {
-		it(`exits successfully without a table for ${emptyMaps ? 'empty coverage maps' : 'an empty input directory'}`, () => {
+		it(`exits successfully without a table for ${emptyMaps ? 'empty coverage maps' : 'an empty input directory'}`, { timeout: 15000 }, () => {
 			const input = join(cwd, '.nyc_output');
 			mkdirSync(input);
 			if (emptyMaps) {

@@ -1,3 +1,4 @@
+import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as bokeh from '../../bench/bokeh.mjs';
@@ -133,7 +134,7 @@ describe('benchmark WebGL adapters', () => {
 	const saved = new Map();
 	beforeEach(() => {
 		for (const key of ['Bokeh', 'd3', 'fc', 'devicePixelRatio']) saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
-		globalThis.devicePixelRatio = 2;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 	});
 	afterEach(() => {
 		for (const [key, descriptor] of saved) {
@@ -144,7 +145,7 @@ describe('benchmark WebGL adapters', () => {
 
 	for (const [name, adapter] of Object.entries(adapters)) {
 		it(`${name}: retains every exact benchmark value in independent Float64 columns`, () => {
-			assert.deepEqual(Object.keys(adapter).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), ['destroyChart', 'makeChart', 'makeChartWithOptions', 'prepData']);
+			assert.deepEqual(Object.keys(adapter), ['destroyChart', 'getHoverPlan', 'makeChart', 'makeChartWithOptions', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
 			assert.equal(packed[0], 7);
 			const before = packed.slice();
 			const data = adapter.prepData(packed);
@@ -312,11 +313,10 @@ describe('benchmark WebGL adapters', () => {
 	});
 });
 
-// Opt-in: BENCH_WEBGL_BROWSER=1 node node_modules/mocha/bin/mocha.js test/integration/bench-webgl-adapters.mjs
+// Opt-in: BENCH_WEBGL_BROWSER=1 node --test --test-isolation=none test/integration/bench-webgl-adapters.mjs
 // Uses the existing Chrome 156 binary, temporary profiles, and in-memory assets/manifest entries.
 // Readbacks and draw instrumentation are smoke assertions, not benchmark measurements.
 (process.env.BENCH_WEBGL_BROWSER === '1' ? describe : describe.skip)('Chrome 156 WebGL adapter smoke', function() {
-	this.timeout(90000);
 	let browser, page, child, server, profile, base, fs, delay;
 	let browserLog = '';
 
@@ -431,7 +431,7 @@ describe('benchmark WebGL adapters', () => {
 			};
 		}
 		await page.send('Page.addScriptToEvaluateOnNewDocument', {source: '(' + instrument.toString() + ')()'});
-	});
+	}, {timeout: 90000});
 
 	after(async () => {
 		page?.close();
@@ -446,7 +446,7 @@ describe('benchmark WebGL adapters', () => {
 		}
 		if (server) await new Promise(resolve => server.close(resolve));
 		if (profile) await fs.rm(profile, {recursive: true, force: true});
-	});
+	}, {timeout: 90000});
 
 	async function navigate(path, dpr) {
 		await page.send('Emulation.setDeviceMetricsOverride', {width: 1920, height: 900, deviceScaleFactor: dpr, mobile: false});
@@ -460,7 +460,7 @@ describe('benchmark WebGL adapters', () => {
 	}
 
 	for (const dpr of [1, 2]) for (const variant of ['bokeh', 'd3fc']) {
-		it(`${variant} DPR ${dpr}: three real GL samples with full data, axes, readiness, and cleanup`, async () => {
+		it(`${variant} DPR ${dpr}: three real GL samples with full data, axes, readiness, and cleanup`, {timeout: 90000}, async () => {
 			await navigate('/?variant=' + variant + '&dpr=' + dpr, dpr);
 			async function run(variant) {
 				const {runDemo} = await import('/bench/demo.mjs');
@@ -575,7 +575,7 @@ describe('benchmark WebGL adapters', () => {
 			for (const result of results) console.log('WebGL smoke:', JSON.stringify(result));
 		});
 
-		it(`${variant} DPR ${dpr}: minimal HTML wrapper reaches Done with real draws`, async () => {
+		it(`${variant} DPR ${dpr}: minimal HTML wrapper reaches Done with real draws`, {timeout: 90000}, async () => {
 			await navigate('/bench/' + (variant === 'bokeh' ? 'Bokeh.html' : 'd3fc.html') + '?dpr=' + dpr, dpr);
 			let status;
 			for (let i = 0; i < 1000; i++) {
@@ -588,7 +588,7 @@ describe('benchmark WebGL adapters', () => {
 			assert.deepEqual(await evaluate('smoke.errors'), []);
 		});
 
-		it(`${variant} DPR ${dpr}: unavailable WebGL rejects rather than reporting a fallback as Done`, async () => {
+		it(`${variant} DPR ${dpr}: unavailable WebGL rejects rather than reporting a fallback as Done`, {timeout: 90000}, async () => {
 			await navigate('/?no-webgl=' + variant + '&dpr=' + dpr, dpr);
 			async function run(variant) {
 				const original = HTMLCanvasElement.prototype.getContext;

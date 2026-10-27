@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
@@ -157,7 +158,7 @@ describe('bench-lifecycle-managed: native API contracts', () => {
 	let saved;
 	beforeEach(() => {
 		saved = globals.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
-		globalThis.devicePixelRatio = 1;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 1});
 	});
 	afterEach(() => {
 		for (const [key, descriptor] of saved) {

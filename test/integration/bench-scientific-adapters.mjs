@@ -1,5 +1,7 @@
+import {describe, it, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {resolveObjectURL} from 'node:buffer';
 import * as scichart from '../../bench/scichart.mjs';
 import * as lightningchart from '../../bench/lightningchart.mjs';
 
@@ -135,7 +137,9 @@ describe('scientific benchmark adapters', () => {
 
 	for (const [name, adapter, factor] of [['SciChart', scichart, 60], ['LightningChart', lightningchart, 60000]]) {
 		it(`${name}: retains every timestamp and all 55,550 × 3 values in independent Float64 columns`, () => {
-			assert.deepEqual(Object.keys(adapter).filter(key => key !== 'makeEmptyChart' && key !== 'updateChart'), ['destroyChart', 'makeChart', 'prepData']);
+			assert.deepEqual(Object.keys(adapter), name === 'SciChart'
+				? ['configureRuntime', 'destroyChart', 'licenseReady', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']
+				: ['destroyChart', 'makeChart', 'makeEmptyChart', 'prepData', 'resizeChart', 'updateChart']);
 			const data = adapter.prepData(packed), second = adapter.prepData(packed);
 			for (const [key, values] of Object.entries(data)) {
 				assert.ok(values instanceof Float64Array);
@@ -165,7 +169,7 @@ describe('scientific benchmark adapters', () => {
 		const config = mock.configs[0];
 		assert.match(config.wasmUrl, /^blob:/);
 		assert.match(config.wasmNoSimdUrl, /^blob:/);
-		assert.equal((await (await fetch(config.wasmUrl)).arrayBuffer()).byteLength, 8);
+		assert.equal((await resolveObjectURL(config.wasmUrl).arrayBuffer()).byteLength, 8);
 		const axes = [...mock.chart.xAxes.items, ...mock.chart.yAxes.items].map(axis => axis.options);
 		assert.deepEqual(axes.map(axis => axis.autoRange), ['Always', 'Always', 'Always']);
 		assert.deepEqual(axes.slice(1).map(axis => axis.axisAlignment), ['Left', 'Right']);
@@ -198,8 +202,8 @@ describe('scientific benchmark adapters', () => {
 		scichart.destroyChart(mock.chart);
 		scichart.destroyChart(mock.chart);
 		assert.equal(mock.chart.deletions, 1);
-		assert.equal((await (await fetch(config.wasmUrl)).arrayBuffer()).byteLength, 8);
-		assert.equal((await (await fetch(config.wasmNoSimdUrl)).arrayBuffer()).byteLength, 8);
+		assert.equal((await resolveObjectURL(config.wasmUrl).arrayBuffer()).byteLength, 8);
+		assert.equal((await resolveObjectURL(config.wasmNoSimdUrl).arrayBuffer()).byteLength, 8);
 	});
 
 	for (const name of ['NO_LICENSE', 'FULL_EXPIRED', 'TRIAL_EXPIRED', 'SUBSCRIPTION_EXPIRED', 'INVALID_DEVELOPER_LICENSE', 'INVALID_LICENSE', 'UNKNOWN']) {
@@ -312,8 +316,8 @@ describe('scientific benchmark adapters', () => {
 		assert.notEqual(series[0], series[1]);
 		assert.notEqual(configs[1].wasmUrl, configs[2].wasmUrl);
 		assert.equal(configs[1].wasmNoSimdUrl, configs[2].wasmNoSimdUrl);
-		assert.equal((await (await fetch(configs[2].wasmUrl)).arrayBuffer()).byteLength, 8);
-		assert.equal((await (await fetch(configs[2].wasmNoSimdUrl)).arrayBuffer()).byteLength, 8);
+		assert.equal((await resolveObjectURL(configs[2].wasmUrl).arrayBuffer()).byteLength, 8);
+		assert.equal((await resolveObjectURL(configs[2].wasmNoSimdUrl).arrayBuffer()).byteLength, 8);
 	});
 
 	it('SciChart: prefers stable loader URLs, supports URL-only options, and does not create fallback blobs', async () => {

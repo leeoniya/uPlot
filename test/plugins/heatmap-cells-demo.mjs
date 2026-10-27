@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import '../../scripts/instrument.mjs';
@@ -671,8 +672,7 @@ describe('heatmap cells demo', () => {
 	});
 
 	for (const xGapProbability of [.5, 1]) {
-		it(`keeps generated column gaps empty through zoom and setData (p=${xGapProbability})`, async function() {
-			this.timeout(15000);
+		it(`keeps generated column gaps empty through zoom and setData (p=${xGapProbability})`, { timeout: 15000 }, async function() {
 			const options = { seed: 1, columns: 16, start: 0, interval: 60000 };
 			// Keep adjacent dense buckets and sparse fast buckets without a quadratic full-Y oracle.
 			const buckets = new Set([-84, -83, -60, -59, -58, -57].map(exponent => 2 ** (exponent / 8)));
@@ -763,8 +763,7 @@ describe('heatmap cells demo', () => {
 		});
 	}
 
-	it('renders all generated source cells with the existing controls', async function() {
-		this.timeout(15000);
+	it('renders all generated source cells with the existing controls', { timeout: 15000 }, async function() {
 		// Keep a month-long date range; the plugin suite covers the 250k-cell smoke test.
 		const frames = generateHeatmapCells({ columns: 64, interval: 12 * 60 * 60 * 1000 });
 		const frame = frames.find(f => f.schema.meta?.type == 'heatmap-cells');

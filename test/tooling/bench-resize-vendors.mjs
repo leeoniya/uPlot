@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {describe, it, beforeEach, afterEach} from 'mocha';
+import {describe, it, beforeEach, afterEach} from 'node:test';
 import {benchmarkVariants} from '../../bench/demo-dependencies.mjs';
 
 const variants = [

@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as recharts from '../../bench/dashboard/recharts.mjs';
 import * as muicharts from '../../bench/dashboard/muicharts.mjs';
@@ -155,7 +156,7 @@ describe('dashboard React adapters', () => {
 	let saved;
 	beforeEach(() => {
 		saved = globals.map(key => Object.getOwnPropertyDescriptor(globalThis, key));
-		globalThis.devicePixelRatio = 2;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 	});
 	afterEach(() => globals.forEach((key, i) => {
 		if (saved[i]) Object.defineProperty(globalThis, key, saved[i]); else delete globalThis[key];

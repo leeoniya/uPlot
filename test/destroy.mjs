@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../scripts/instrument.mjs';
@@ -338,9 +339,9 @@ describe('destroy cache disposal', () => {
 
 
 	for (const typed of [false, true]) {
-		it(`releases raw, cumulative, baseline, and options data with the chart retained (typed=${typed})`, async function() {
+		it(`releases raw, cumulative, baseline, and options data with the chart retained (typed=${typed})`, async function(t) {
 			if (!globalThis.gc)
-				this.skip();
+				return t.skip();
 			const { u, refs } = await gcFixture(typed);
 			for (let i = 0; i < 5; i++) {
 				await new Promise(setImmediate);

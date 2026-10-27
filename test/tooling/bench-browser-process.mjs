@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -198,11 +199,10 @@ function isRunning(expected) {
 }
 
 describe('benchmark browser process cleanup on Linux', function() {
-	this.timeout(10000);
 
-	it('kills a real root, child, and grandchild without killing an unrelated sibling', async function() {
+	it('kills a real root, child, and grandchild without killing an unrelated sibling', { timeout: 10000 }, async t => {
 		if (process.platform !== 'linux')
-			this.skip();
+			return t.skip('Requires Linux /proc');
 		const handles = [];
 		const records = [];
 		const errors = [];

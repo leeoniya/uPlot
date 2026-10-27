@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {runInNewContext} from 'node:vm';
 import {setImmediate, setTimeout as nativeSetTimeout} from 'node:timers';
-import {describe, it} from 'mocha';
+import {describe, it} from 'node:test';
 import {browserMouseInput, installBenchmarkMouseInput} from '../../scripts/benchmarks-mouse.mjs';
 
 function deferred() {

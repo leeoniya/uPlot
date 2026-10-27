@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,7 +10,6 @@ const cwd = fileURLToPath(new URL('../../', import.meta.url));
 const helper = fileURLToPath(new URL('../fixtures/probe-worker.mjs', import.meta.url));
 
 describe('sequential probe worker', function() {
-	this.timeout(15000);
 	let worker;
 	let directory;
 	let env;
@@ -19,17 +19,17 @@ describe('sequential probe worker', function() {
 		env = { ...process.env, NODE_OPTIONS: '', UPLOT_WORKER_EXIT_FILE: join(directory, 'exit.txt') };
 		// Lifecycle fixtures do not import covered chart code. Coverage is tested separately.
 		delete env.UPLOT_COVERAGE_DIR;
-	});
+	}, { timeout: 15000 });
 	afterEach(async () => {
 		try { await worker?.close(); }
 		finally { rmSync(directory, { recursive: true, force: true }); }
-	});
+	}, { timeout: 15000 });
 
 	function start(options = {}) {
 		return worker = createProbeWorker({ cwd, helper, env, ...options });
 	}
 
-	it('reuses one process and exits normally so exit-time coverage can flush', async () => {
+	it('reuses one process and exits normally so exit-time coverage can flush', { timeout: 15000 }, async () => {
 		start();
 		const pid = await worker.run('pid');
 		assert.deepEqual(await worker.run('environment'), { nodeOptions: '', coverageDir: null });
@@ -42,7 +42,7 @@ describe('sequential probe worker', function() {
 		await assert.rejects(worker.run('count'), /worker is closed/);
 	});
 
-	it('instruments worker source and writes coverage on exit', async () => {
+	it('instruments worker source and writes coverage on exit', { timeout: 15000 }, async () => {
 		env.UPLOT_COVERAGE_DIR = join(directory, 'coverage');
 		if (!process.versions.bun)
 			env.NODE_OPTIONS = '--import ./scripts/register-hooks.mjs';
@@ -56,7 +56,7 @@ describe('sequential probe worker', function() {
 		assert.ok(Object.values(coverage[filename].f).some(count => count > 0));
 	});
 
-	it('reports a named failure and restarts with fresh state', async () => {
+	it('reports a named failure and restarts with fresh state', { timeout: 15000 }, async () => {
 		start();
 		await worker.run('count');
 		await worker.run('flushOnExit');
@@ -65,7 +65,7 @@ describe('sequential probe worker', function() {
 		assert.equal(await worker.run('count'), 1);
 	});
 
-	it('reports crash status and stderr, then restarts', async () => {
+	it('reports crash status and stderr, then restarts', { timeout: 15000 }, async () => {
 		start();
 		await assert.rejects(worker.run('crash'), error => {
 			assert.match(error.message, /crash.*status=23/);
@@ -75,7 +75,7 @@ describe('sequential probe worker', function() {
 		assert.equal(await worker.run('count'), 1);
 	});
 
-	it('kills synchronous infinite loops, rejects overlapping requests, and restarts', async () => {
+	it('kills synchronous infinite loops, rejects overlapping requests, and restarts', { timeout: 15000 }, async () => {
 		start();
 		const timedOut = assert.rejects(worker.run('hang', 100), error => {
 			assert.equal(error.code, 'ETIMEDOUT');
@@ -87,13 +87,13 @@ describe('sequential probe worker', function() {
 		assert.equal(await worker.run('count'), 1);
 	});
 
-	it('enforces a separate startup deadline', async () => {
+	it('enforces a separate startup deadline', { timeout: 15000 }, async () => {
 		env.UPLOT_WORKER_TEST_MODE = 'startup-hang';
 		start({ startupTimeout: 100 });
 		await assert.rejects(worker.run('count'), /startup timeout/);
 	});
 
-	it('reports a crash before readiness and can restart', async () => {
+	it('reports a crash before readiness and can restart', { timeout: 15000 }, async () => {
 		env.UPLOT_WORKER_TEST_MODE = 'startup-crash';
 		start();
 		await assert.rejects(worker.run('count'), /startup.*status=17/);
@@ -101,7 +101,7 @@ describe('sequential probe worker', function() {
 		assert.equal(await worker.run('count'), 1);
 	});
 
-	it('rejects results for the wrong case instead of treating them as a pass', async () => {
+	it('rejects results for the wrong case instead of treating them as a pass', { timeout: 15000 }, async () => {
 		env.UPLOT_WORKER_TEST_MODE = 'wrong-result';
 		start();
 		await assert.rejects(worker.run('count'), /unexpected worker message/);
@@ -109,27 +109,27 @@ describe('sequential probe worker', function() {
 		assert.equal(await worker.run('count'), 1);
 	});
 
-	it('rejects unknown probes rather than executing inherited properties', async () => {
+	it('rejects unknown probes rather than executing inherited properties', { timeout: 15000 }, async () => {
 		start();
 		await assert.rejects(worker.run('toString'), /Unknown probe: toString/);
 		assert.equal(await worker.run('count'), 1);
 	});
 
-	it('does not ignore a bad exit after a successful result', async () => {
+	it('does not ignore a bad exit after a successful result', { timeout: 15000 }, async () => {
 		env.UPLOT_WORKER_TEST_MODE = 'bad-exit';
 		start();
 		await worker.run('count');
 		await assert.rejects(worker.close(), /shutdown failed/);
 	});
 
-	it('kills a worker that hangs during shutdown', async () => {
+	it('kills a worker that hangs during shutdown', { timeout: 15000 }, async () => {
 		env.UPLOT_WORKER_TEST_MODE = 'shutdown-hang';
 		start({ shutdownTimeout: 100 });
 		await worker.run('count');
 		await assert.rejects(worker.close(), /shutdown timeout/);
 	});
 
-	it('can close an active worker without leaving its request pending', async () => {
+	it('can close an active worker without leaving its request pending', { timeout: 15000 }, async () => {
 		start();
 		await worker.run('pid');
 		const interrupted = assert.rejects(worker.run('hang'), /worker exited/);

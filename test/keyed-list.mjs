@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import '../scripts/instrument.mjs';
@@ -221,10 +222,10 @@ describe('keyed list', () => {
 		}
 	});
 
-	it('preserves input focus, value, and selection with native moveBefore', function() {
+	it('preserves input focus, value, and selection with native moveBefore', function(t) {
 		const parent = document.createElement('div');
 		if (typeof parent.moveBefore !== 'function')
-			this.skip();
+			return t.skip();
 
 		const f = fixture({
 			parent,

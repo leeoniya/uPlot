@@ -1,3 +1,4 @@
+import {describe, it, before, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile, mkdtemp, rm, access} from 'node:fs/promises';
 import {createServer} from 'node:http';
@@ -15,7 +16,6 @@ const root = new URL('../../', import.meta.url);
 
 // Opt in; use only existing pinned bundles and an existing browser. Never download.
 (process.env.BENCH_LIFECYCLE_MANAGED_BROWSER ? describe : describe.skip)('bench-lifecycle-managed: cached browser', function() {
-	this.timeout(90000);
 	let server, browser, client, profile;
 	const assets = new Map();
 	const scripts = {};
@@ -66,7 +66,7 @@ const root = new URL('../../', import.meta.url);
 			socket.addEventListener('error', reject, {once: true});
 		});
 		await client.send('Page.enable');
-	});
+	}, {timeout: 90000});
 	after(async () => {
 		client?.close();
 		if (browser && browser.exitCode === null) {
@@ -76,10 +76,10 @@ const root = new URL('../../', import.meta.url);
 		}
 		if (server) await new Promise(resolve => server.close(resolve));
 		if (profile) await rm(profile, {recursive: true, force: true});
-	});
+	}, {timeout: 90000});
 
 	for (const id of ids) {
-		it(`${id}: empty, full replacement, native readiness, retained identity, and teardown`, async () => {
+		it(`${id}: empty, full replacement, native readiness, retained identity, and teardown`, {timeout: 90000}, async () => {
 			const loaded = client.wait('Page.loadEventFired');
 			await client.send('Page.navigate', {url: `http://127.0.0.1:${server.address().port}/`});
 			await loaded;

@@ -1,3 +1,4 @@
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -17,7 +18,6 @@ async function load(url, method = 'GET') {
 }
 
 describe('demos HTTP server', function() {
-	this.timeout(10000);
 	let child, origin;
 
 	before(async () => {
@@ -35,7 +35,7 @@ describe('demos HTTP server', function() {
 				if (match) finish(null, match[0]);
 			});
 		});
-	});
+	}, { timeout: 10000 });
 
 	after(async () => {
 		if (child?.exitCode == null && child?.pid) {
@@ -43,9 +43,9 @@ describe('demos HTTP server', function() {
 			child.kill();
 			await exited;
 		}
-	});
+	}, { timeout: 10000 });
 
-	it('redirects the root and bare demos directory to the index directory', async () => {
+	it('redirects the root and bare demos directory to the index directory', { timeout: 10000 }, async () => {
 		for (const path of ['/', '/demos']) {
 			const response = await load(origin + path);
 			assert.equal(response.status, 302);
@@ -63,7 +63,7 @@ describe('demos HTTP server', function() {
 		['/dist/uPlot.min.css', 'text/css'],
 		['/uPlot.png', 'image/png'],
 	]) {
-		it(`serves ${path} with its MIME type`, async () => {
+		it(`serves ${path} with its MIME type`, { timeout: 10000 }, async () => {
 			const response = await load(origin + path + '?test=1');
 			assert.equal(response.status, 200);
 			assert.equal(response.headers['content-type'].split(';')[0], type);
@@ -71,14 +71,14 @@ describe('demos HTTP server', function() {
 		});
 	}
 
-	it('supports HEAD without a response body', async () => {
+	it('supports HEAD without a response body', { timeout: 10000 }, async () => {
 		const response = await load(origin + '/demos/index.html', 'HEAD');
 		assert.equal(response.status, 200);
 		assert.ok(Number(response.headers['content-length']) > 0);
 		assert.equal(response.body.length, 0);
 	});
 
-	it('rejects missing files, malformed URLs, traversal, and unsupported methods', async () => {
+	it('rejects missing files, malformed URLs, traversal, and unsupported methods', { timeout: 10000 }, async () => {
 		for (const [path, status, method] of [['/missing-file', 404], ['/%ZZ', 400], ['/..%2fpackage.json', 403], ['/demos/', 405, 'POST']])
 			assert.equal((await load(origin + path, method)).status, status);
 	});

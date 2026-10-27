@@ -1,3 +1,4 @@
+import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import '../../scripts/instrument.mjs';
@@ -199,8 +200,7 @@ describe('native-library heatmap comparisons', () => {
 		}
 	});
 
-	it('maps every generated cell to the correct matrix pixel and sparse hover entry', function() {
-		this.timeout(15000);
+	it('maps every generated cell to the correct matrix pixel and sparse hover entry', {timeout: 15000}, function() {
 		const f = generateHeatmapCells({ seed: 1, columns: 64, interval: 12 * 60 * 60 * 1000, xGapProbability: .1 });
 		const frame = f.find(f => f.schema.meta?.type == 'heatmap-cells');
 		const values = name => frame.data.values[frame.schema.fields.findIndex(f => f.name == name)];

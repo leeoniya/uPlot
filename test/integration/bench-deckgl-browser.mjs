@@ -1,3 +1,4 @@
+import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {constants} from 'node:fs';
@@ -10,7 +11,7 @@ import {CDP} from '../../scripts/profile-manual.mjs';
 import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 import {loadBenchDemoSources} from '../../scripts/bench-demo-sources.mjs';
 
-// TEST_DECKGL_BROWSER=1 node node_modules/mocha/bin/mocha.js test/integration/bench-deckgl-browser.mjs
+// TEST_DECKGL_BROWSER=1 node --test --test-isolation=none test/integration/bench-deckgl-browser.mjs
 // Cache only: no downloads or traces. Timings include test instrumentation.
 // TEST_DECKGL_SCREENSHOT=1 adds a separate, untimed full-data render and a PNG below 1 MB.
 const root = new URL('../../', import.meta.url);
@@ -225,8 +226,7 @@ async function chartSample(rows, ratio) {
 }
 
 (process.env.TEST_DECKGL_BROWSER === '1' ? describe : describe.skip)('deck.gl cached hardware-browser smoke', function() {
-	this.timeout(55000);
-	it('checks native readiness, full paths, axes, fences and teardown at DPR 1 and 2 within 5s per sample', async function() {
+	it('checks native readiness, full paths, axes, fences and teardown at DPR 1 and 2 within 5s per sample', {timeout: 55000}, async function(t) {
 		let browser, client, server, profile, totalTimer, sampleTimer;
 		let phase = 'loading cache', log = '';
 		const report = {package: 'deck.gl', version: '9.4.0', status: 'running', sampleMs, samples: [], exceptions: []};
@@ -426,6 +426,6 @@ async function chartSample(rows, ratio) {
 			console.log('deck.gl browser:', JSON.stringify(report));
 		}
 		assert.equal(report.killError, undefined, 'Browser process cleanup failed');
-		if (report.status === 'hardware-unavailable') this.skip();
+		if (report.status === 'hardware-unavailable') return t.skip();
 	});
 });

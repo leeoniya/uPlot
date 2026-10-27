@@ -1,3 +1,4 @@
+import {describe, it, before, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {access, mkdtemp, readFile, rm} from 'node:fs/promises';
@@ -11,7 +12,7 @@ import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 import {loadBenchDemoSources} from '../../scripts/bench-demo-sources.mjs';
 import * as lightningchart from '../../bench/lightningchart.mjs';
 
-// TEST_BENCH_LIFECYCLE_NATIVE=1 node node_modules/mocha/bin/mocha.js test/integration/bench-lifecycle-native.mjs
+// TEST_BENCH_LIFECYCLE_NATIVE=1 node --test --test-isolation=none test/integration/bench-lifecycle-native.mjs
 // Cache-only browser checks: no downloads, screenshots, traces, or saved reports.
 const root = new URL('../../', import.meta.url);
 const cache = fileURLToPath(new URL('.cache/benchmarks/', root));
@@ -150,7 +151,6 @@ describe('bench-lifecycle-native license boundary', () => {
 });
 
 (process.env.TEST_BENCH_LIFECYCLE_NATIVE === '1' ? describe : describe.skip)('bench-lifecycle-native cached browser', function() {
-	this.timeout(45000);
 	let browser, client, server, profile;
 	const sources = new Map();
 	const assets = new Map([['/', '<!doctype html><meta charset="utf-8"><style>body{margin:0}</style>']]);
@@ -190,15 +190,15 @@ describe('bench-lifecycle-native license boundary', () => {
 		await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, {once: true}); socket.addEventListener('error', reject, {once: true}); });
 		await client.send('Page.enable');
 		await client.send('Runtime.enable');
-	});
+	}, {timeout: 45000});
 	after(async () => {
 		client?.close();
 		if (browser) { killBenchmarkBrowser(browser); await new Promise(resolve => browser.exitCode !== null || browser.signalCode !== null ? resolve() : browser.once('exit', resolve)); }
 		if (server) await new Promise(resolve => server.close(resolve));
 		if (profile) await rm(profile, {recursive: true, force: true});
-	});
+	}, {timeout: 45000});
 	for (const id of variants) {
-		it(`${id}: zero rows, two full replacements, retained contexts, teardown, and direct init`, async () => {
+		it(`${id}: zero rows, two full replacements, retained contexts, teardown, and direct init`, {timeout: 45000}, async () => {
 			const loaded = client.wait('Page.loadEventFired');
 			await client.send('Page.navigate', {url: `http://127.0.0.1:${server.address().port}/?variant=${id}`});
 			await loaded;

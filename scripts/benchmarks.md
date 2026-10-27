@@ -229,7 +229,7 @@ These focused runs had no fresh idle control and do not establish adjusted memor
 ```sh
 bun run bench --variant deckgl
 # Cache-only browser validation after the dependencies are available:
-TEST_DECKGL_BROWSER=1 node node_modules/mocha/bin/mocha.js test/integration/bench-deckgl-browser.mjs
+TEST_DECKGL_BROWSER=1 node scripts/test.mjs --no-coverage test/integration/bench-deckgl-browser.mjs
 ```
 
 An explicit deck.gl-only run uses Chrome's default backend unless `--vulkan` is supplied.
@@ -809,13 +809,13 @@ node --input-type=module -e 'import {bundleModuleDependencies} from "./scripts/b
 Then run the opt-in test:
 
 ```sh
-TEST_CHARTGPU_BROWSER=1 node node_modules/mocha/bin/mocha.js test/integration/bench-chartgpu-browser.mjs
+TEST_CHARTGPU_BROWSER=1 node scripts/test.mjs --no-coverage test/integration/bench-chartgpu-browser.mjs
 ```
 
 For the verified Linux headless Vulkan configuration, run:
 
 ```sh
-TEST_CHARTGPU_BROWSER=1 TEST_CHARTGPU_VULKAN=1 node node_modules/mocha/bin/mocha.js test/integration/bench-chartgpu-browser.mjs
+TEST_CHARTGPU_BROWSER=1 TEST_CHARTGPU_VULKAN=1 node scripts/test.mjs --no-coverage test/integration/bench-chartgpu-browser.mjs
 ```
 
 This smoke-test opt-in adds only `--enable-features=Vulkan`. The separate benchmark harness now selects Vulkan automatically for Linux runs that include ChartGPU.
@@ -1240,10 +1240,11 @@ Reports store `lossy` as `true`, `false`, or `null`. Saved summaries preserve th
 
 `context` means the primary-series backend, not axes, support probes, or export canvases.
 `webgl` means WebGL1 exactly. `webgl2` is a distinct value, not an alias.
-Static `svg`, `2d`, `webgl`, and `webgpu` labels describe configured backends, not measured hardware acceleration.
+Static `svg`, `2d`, `webgl`, `webgl2`, and `webgpu` labels describe configured backends, not measured hardware acceleration.
+SciChart records `webgl2` for both workloads, including failures, timeouts, and rAF runs without context capture.
 A support GL context cannot turn a Canvas or SVG series into a WebGL series.
 
-SciChart, LightningChart, and G2 WebGL have conditional context labels from measured GL evidence, excluding warmups.
+LightningChart and G2 WebGL have conditional context labels from measured GL evidence, excluding warmups.
 Missing or ambiguous evidence produces `unavailable`. This rule also applies to rAF reports, which do not capture GL contexts.
 Legacy reports can use unambiguous measured context evidence for known WebGL series, but cannot infer historical sampling configuration.
 

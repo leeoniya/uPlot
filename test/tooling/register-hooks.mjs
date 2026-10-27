@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -41,9 +42,8 @@ function coverage(config, cacheDir, runCwd = cwd, modules = []) {
 }
 
 describe('coverage loader', function() {
-	this.timeout(15000);
 
-	it('loads project config and instruments ESM without a DOM or deprecated APIs', () => {
+	it('loads project config and instruments ESM without a DOM or deprecated APIs', { timeout: 15000 }, () => {
 		const result = coverage();
 		const filename = fileURLToPath(new URL('../../src/dom.js', import.meta.url));
 		assert.ok(result[filename]);
@@ -52,7 +52,7 @@ describe('coverage loader', function() {
 		assert.ok(Object.keys(result).every(path => !path.includes('/demos/')));
 	});
 
-	it('loads project config when launched outside the project', () => {
+	it('loads project config when launched outside the project', { timeout: 15000 }, () => {
 		const runCwd = mkdtempSync(join(tmpdir(), 'uplot-coverage-cwd-'));
 		try {
 			const result = coverage(undefined, undefined, runCwd);
@@ -63,7 +63,7 @@ describe('coverage loader', function() {
 		finally { rmSync(runCwd, { recursive: true, force: true }); }
 	});
 
-	it('instruments the selected plugins and their dependencies but not Flatbush or demo scaffolding', () => {
+	it('instruments the selected plugins and their dependencies but not Flatbush or demo scaffolding', { timeout: 15000 }, () => {
 		const result = coverage(undefined, undefined, cwd, [
 			'demos/lib/barChartPlugin.js', 'demos/lib/heatmapPlugin.js', 'demos/lib/scatterPlugin.js',
 		]);
@@ -75,7 +75,7 @@ describe('coverage loader', function() {
 			assert.ok(Object.keys(result[filename].fnMap).length > 0, filename);
 	});
 
-	it('honors NYC_CONFIG include and exclude rules', () => {
+	it('honors NYC_CONFIG include and exclude rules', { timeout: 15000 }, () => {
 		const cacheDir = mkdtempSync(join(tmpdir(), 'uplot-shared-cache-test-'));
 		try {
 			const result = coverage({ cwd, include: ['src/dom.js'], exclude: ['src/dom.js'] }, cacheDir);

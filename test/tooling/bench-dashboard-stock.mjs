@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {WIDTH, HEIGHT, SERIES, CHARTS, dashboardData} from '../../bench/dashboard/common.mjs';
 
@@ -346,7 +347,7 @@ describe('dashboard stock/native adapters', () => {
 	let saved;
 	beforeEach(() => {
 		saved = globals.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
-		globalThis.devicePixelRatio = 2;
+		Object.defineProperty(globalThis, 'devicePixelRatio', {configurable: true, writable: true, value: 2});
 	});
 	afterEach(() => {
 		for (const [key, descriptor] of saved) {

@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, readdir, link, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -317,8 +318,7 @@ describe('Bokeh WebGL highp patch script', () => {
 		});
 	});
 
-	it('supports CLI default, --original, --revert, and --help from another working directory', async function() {
-		this.timeout(20000);
+	it('supports CLI default, --original, --revert, and --help from another working directory', { timeout: 20000 }, async function() {
 		await fixture(async root => {
 			await mkdir(new URL('scripts/', root));
 			const script = new URL('scripts/patch-bokeh-highp.mjs', root);

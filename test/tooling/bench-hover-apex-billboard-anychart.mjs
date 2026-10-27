@@ -1,3 +1,4 @@
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import * as apexcharts from '../../bench/apexcharts.mjs';
 import * as billboard from '../../bench/billboard.mjs';

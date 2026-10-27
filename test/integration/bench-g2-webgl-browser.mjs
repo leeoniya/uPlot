@@ -1,3 +1,4 @@
+import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {constants} from 'node:fs';
@@ -9,7 +10,7 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {CDP} from '../../scripts/profile-manual.mjs';
 import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 
-// TEST_G2_WEBGL_BROWSER=1 node node_modules/mocha/bin/mocha.js test/integration/bench-g2-webgl-browser.mjs
+// TEST_G2_WEBGL_BROWSER=1 node --test --test-isolation=none test/integration/bench-g2-webgl-browser.mjs
 // Cache-only, one 200-row sample, no full-data retry and no browser/vendor downloads.
 const root = new URL('../../', import.meta.url);
 const cache = fileURLToPath(new URL('.cache/benchmarks/', root));
@@ -135,8 +136,7 @@ async function smokeSample() {
 }
 
 (process.env.TEST_G2_WEBGL_BROWSER === '1' ? describe : describe.skip)('G2 WebGL cached-browser smoke', function() {
-	this.timeout(55000);
-	it('renders 200 rows natively, fences reused contexts, and destroys the chart within 5s', async () => {
+	it('renders 200 rows natively, fences reused contexts, and destroys the chart within 5s', {timeout: 55000}, async () => {
 		let browser, client, server, profile, totalTimer, sampleTimer;
 		let log = '', phase = 'loading cached files';
 		const exceptions = [];

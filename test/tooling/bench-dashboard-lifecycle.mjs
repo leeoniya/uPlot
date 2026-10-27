@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {runInNewContext} from 'node:vm';
 import {createDashboardLifecycle} from '../../bench/dashboard/lifecycle.mjs';

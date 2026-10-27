@@ -1,3 +1,4 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -99,8 +100,7 @@ describe('local time period flooring', () => {
 		['Asia/Kathmandu', [[1, 15], [7, 15]]],
 		['Australia/Lord_Howe', [[1, 15], [2, 15]]],
 	]) {
-		it(`uses native dates in ${zone} and preserves remote-zone conversion`, function() {
-			this.timeout(6000);
+		it(`uses native dates in ${zone} and preserves remote-zone conversion`, { timeout: 6000 }, function() {
 			// Each process resolves localTz independently, without changing other tests' timezone.
 			const output = execFileSync(process.execPath, [
 				'--input-type=module', '-e', `await (${checkLocalTime.toString()})(${JSON.stringify(dates)});`,

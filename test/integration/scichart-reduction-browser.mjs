@@ -1,3 +1,4 @@
+import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -10,7 +11,7 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {CDP} from '../../scripts/profile-manual.mjs';
 import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 
-// TEST_SCICHART_REDUCTION_BROWSER=1 node node_modules/mocha/bin/mocha.js test/integration/scichart-reduction-browser.mjs
+// TEST_SCICHART_REDUCTION_BROWSER=1 node --test --test-isolation=none test/integration/scichart-reduction-browser.mjs
 // Cache only. No downloads, screenshots, traces, license patches, or benchmark budget changes.
 const root = new URL('../../', import.meta.url);
 const cache = fileURLToPath(new URL('.cache/benchmarks/', root));
@@ -285,14 +286,13 @@ describe('SciChart reduction diagnostic analysis', () => {
 });
 
 (process.env.TEST_SCICHART_REDUCTION_BROWSER === '1' ? describe : describe.skip)('SciChart cached-browser reduction diagnostic', function() {
-	this.timeout(totalMs + 10000);
-	it('compares native Auto, MinMax and None without changing native budgets', async function() {
+	it('compares native Auto, MinMax and None without changing native budgets', {timeout: totalMs + 10000}, async function(t) {
 		const binary = fileURLToPath(new URL(`node_modules/.cache/uplot-bench/chrome-headless-shell-${version}-linux64/chrome-headless-shell`, root));
 		try {
 			await access(binary, constants.X_OK);
 			for (const name of vendorFiles) await access(join(cache, name), constants.R_OK);
 		}
-		catch (error) { console.log(`SciChart diagnostic skipped: cached Chrome/assets unavailable (${error.code}); nothing will be installed.`); this.skip(); }
+		catch (error) { console.log(`SciChart diagnostic skipped: cached Chrome/assets unavailable (${error.code}); nothing will be installed.`); return t.skip(); }
 		let browser, client, server, profile, watchdog, stepTimer;
 		let phase = 'setup', log = '', runError;
 		const started = Date.now();
