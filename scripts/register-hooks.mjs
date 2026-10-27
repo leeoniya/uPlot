@@ -20,7 +20,7 @@ if (cacheDir == null) {
 	process.once('exit', () => { rmSync(cacheDir, { recursive: true, force: true }); });
 }
 
-const instrument = createSourceInstrumenter(config, cacheDir);
+const instrument = createSourceInstrumenter(config, cacheDir, process.env.UPLOT_INSTRUMENTER ?? 'istanbul');
 
 if (process.versions.bun) {
 	const { plugin } = await import('bun');

@@ -8,11 +8,12 @@ import { join } from 'node:path';
 
 const cwd = fileURLToPath(new URL('../../', import.meta.url));
 
-function coverage(config, cacheDir, runCwd = cwd, modules = []) {
-	const env = { ...process.env, NODE_OPTIONS: '' };
+function coverage(backend, config, cacheDir, runCwd = cwd, modules = []) {
+	const env = { ...process.env, NODE_OPTIONS: '', UPLOT_INSTRUMENTER: backend };
 	delete env.NYC_CONFIG;
 	delete env.NYC_CWD;
 	delete env.UPLOT_INSTRUMENT_CACHE_DIR;
+	delete env.UPLOT_COVERAGE_DIR;
 	if (cacheDir != null)
 		env.UPLOT_INSTRUMENT_CACHE_DIR = cacheDir;
 	if (config != null)
@@ -41,10 +42,11 @@ function coverage(config, cacheDir, runCwd = cwd, modules = []) {
 	return result.coverage;
 }
 
-describe('coverage loader', function() {
+for (const backend of ['istanbul', 'estree'])
+describe('coverage loader (' + backend + ')', function() {
 
 	it('loads project config and instruments ESM without a DOM or deprecated APIs', { timeout: 15000 }, () => {
-		const result = coverage();
+		const result = coverage(backend);
 		const filename = fileURLToPath(new URL('../../src/dom.js', import.meta.url));
 		assert.ok(result[filename]);
 		assert.ok(Object.values(result[filename].s).some(count => count > 0));
@@ -55,7 +57,7 @@ describe('coverage loader', function() {
 	it('loads project config when launched outside the project', { timeout: 15000 }, () => {
 		const runCwd = mkdtempSync(join(tmpdir(), 'uplot-coverage-cwd-'));
 		try {
-			const result = coverage(undefined, undefined, runCwd);
+			const result = coverage(backend, undefined, undefined, runCwd);
 			const filename = fileURLToPath(new URL('../../src/dom.js', import.meta.url));
 			assert.ok(result[filename]);
 			assert.ok(Object.keys(result).every(path => !path.includes('/demos/')));
@@ -64,7 +66,7 @@ describe('coverage loader', function() {
 	});
 
 	it('instruments the selected plugins and their dependencies but not Flatbush or demo scaffolding', { timeout: 15000 }, () => {
-		const result = coverage(undefined, undefined, cwd, [
+		const result = coverage(backend, undefined, undefined, cwd, [
 			'demos/lib/barChartPlugin.js', 'demos/lib/heatmapPlugin.js', 'demos/lib/scatterPlugin.js',
 		]);
 		const pluginFiles = Object.keys(result).filter(path => path.includes('/demos/')).sort();
@@ -78,7 +80,7 @@ describe('coverage loader', function() {
 	it('honors NYC_CONFIG include and exclude rules', { timeout: 15000 }, () => {
 		const cacheDir = mkdtempSync(join(tmpdir(), 'uplot-shared-cache-test-'));
 		try {
-			const result = coverage({ cwd, include: ['src/dom.js'], exclude: ['src/dom.js'] }, cacheDir);
+			const result = coverage(backend, { cwd, include: ['src/dom.js'], exclude: ['src/dom.js'] }, cacheDir);
 			assert.deepStrictEqual(result, {});
 		}
 		finally { rmSync(cacheDir, { recursive: true, force: true }); }

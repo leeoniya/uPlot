@@ -5,8 +5,17 @@ import { resolve } from 'node:path';
 
 const require = createRequire(import.meta.url);
 
-export function getInstrumentCacheNamespace(cwd, instrumentVersion = require('istanbul-lib-instrument/package.json').version) {
+function checkBackend(backend) {
+	if (!['istanbul', 'estree'].includes(backend))
+		throw new Error('Unsupported UPLOT_INSTRUMENTER: ' + backend + '. Use istanbul or estree.');
+}
+
+export function getInstrumentCacheNamespace(cwd, instrumentVersion, backend = 'istanbul') {
+	checkBackend(backend);
+	instrumentVersion ??= backend === 'istanbul' ? require('istanbul-lib-instrument/package.json').version : 'estree-1';
 	const files = ['package-lock.json', 'bun.lock', 'scripts/instrument-source.mjs', 'scripts/register-hooks.mjs', 'scripts/coverage-files.mjs'];
+	if (backend === 'estree')
+		files.push(...['index.mjs', 'backend.mjs', 'source-coverage.cjs'].map(file => 'scripts/vendor/istanbul/' + file));
 	const contents = files.map(file => {
 		try { return [file, readFileSync(resolve(cwd, file), 'utf8')]; }
 		catch (error) {
@@ -16,11 +25,12 @@ export function getInstrumentCacheNamespace(cwd, instrumentVersion = require('is
 		}
 	});
 
-	return createHash('sha256').update(JSON.stringify([instrumentVersion, contents])).digest('hex');
+	return createHash('sha256').update(JSON.stringify([backend, instrumentVersion, contents])).digest('hex');
 }
 
-export function createSourceInstrumenter(config, cacheDir) {
-	const cacheConfig = JSON.stringify(config);
+export function createSourceInstrumenter(config, cacheDir, backend = 'istanbul') {
+	checkBackend(backend);
+	const cacheConfig = JSON.stringify([backend, config]);
 	let instrumenter;
 
 	return (source, filename) => {
@@ -34,7 +44,7 @@ export function createSourceInstrumenter(config, cacheDir) {
 		}
 
 		// Cache hits do not need Babel or an instrumenter instance.
-		instrumenter ??= require('istanbul-lib-instrument').createInstrumenter({
+		instrumenter ??= require(backend === 'istanbul' ? 'istanbul-lib-instrument' : './vendor/istanbul/index.mjs').createInstrumenter({
 			...config,
 			esModules: true,
 			produceSourceMap: config.produceSourceMap ?? true,

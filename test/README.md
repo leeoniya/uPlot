@@ -91,6 +91,30 @@ Use `npm test` for combined coverage. Separate invocations replace the previous 
 The plugin tests remain in the default suite.
 No additional test suite or browser run is necessary to collect plugin coverage.
 
+### Experimental ESTree instrumentation
+
+The vendored instrumenter retains Istanbul counters but replaces Babel with Meriyah parsing and Astring code generation.
+Upstream Istanbul remains the default and the differential-test reference.
+
+Run the experimental backend:
+
+```sh
+UPLOT_INSTRUMENTER=estree npm test
+UPLOT_INSTRUMENTER=estree bun run test
+```
+
+Both runtimes retain the existing test and coverage reporters.
+ESTree coverage goes to `.cache/coverage-estree/node/` or `.cache/coverage-estree/bun/`, separate from `.nyc_output/`.
+The backend has separate cache entries and fingerprints its vendored implementation.
+Normal commands remain unchanged. `UPLOT_INSTRUMENTER=istanbul` explicitly selects the default backend.
+
+This prototype targets the JavaScript and instrumentation configuration used by this project.
+It rejects `reportLogic: true`, custom parser/generator options, and `preserveComments: true`.
+It is not a general Babel replacement, and its generated formatting differs from Babel.
+The upstream package remains installed, so the prototype does not yet reduce the installed dependency tree.
+
+See [the vendored instrumenter notes](../scripts/vendor/istanbul/README.md) for provenance, limits, validation commands, and benchmarks.
+
 ## Demo regression tests
 
 The demo tests render uPlot with a deterministic random-number generator. Each
