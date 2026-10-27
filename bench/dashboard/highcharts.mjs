@@ -31,10 +31,10 @@ export function makeChartWithOptions(input, host, wait, {boost = {}} = {}) {
 				boost: {useGPUTranslations: false, ...boost},
 				title: {text: null}, credits: {enabled: false},
 				xAxis: {type: 'datetime'}, yAxis: {title: {text: null}},
-				legend: {enabled: true, itemStyle: {fontSize: '10px'}},
+				legend: {verticalAlign: 'top'},
 				tooltip: {shared: true, animation: false},
 				plotOptions: {series: {
-					animation: false, lineWidth: 1,
+					animation: false,
 					marker: {enabled: false, states: {hover: {enabled: false}}},
 					events: {renderedCanvas() { rendered.add(this); complete(); }},
 				}},

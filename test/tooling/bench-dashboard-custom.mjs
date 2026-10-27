@@ -98,7 +98,7 @@ function lightweightMock() {
 	return control;
 }
 function sciMock(document) {
-	const list = () => ({items: [], add(item) { this.items.push(item); }, asArray() { return this.items; }});
+	const list = () => ({items: [], add(...items) { this.items.push(...items); }, asArray() { return this.items; }});
 	const control = {surfaces: [], auto: true, license: 1, configs: [], community: 0};
 	class Data {
 		constructor(wasm, options) { this.options = options; }
@@ -110,16 +110,19 @@ function sciMock(document) {
 		delete() { this.deleted = true; }
 	}
 	const api = {SciChartDefaults: {}, EUseWasm64: {Never: 0}, EUseWasmSimd: {Auto: 1}, EAutoRange: {Always: 1}, EAxisAlignment: {Left: 0}, EResamplingMode: {Auto: 1},
+		ELegendOrientation: {Horizontal: 'Horizontal'}, ELegendPlacement: {TopLeft: 'TopLeft'},
+		LegendModifier: class { constructor(options) { this.options = options; } delete() { this.deleted = true; } },
+		CursorModifier: class { constructor(options) { this.options = options; } delete() { this.deleted = true; } },
 		SciChartJSLightTheme: class {}, DateTimeNumericAxis: class { constructor(w, options) { this.options = options; } }, NumericAxis: class { constructor(w, options) { this.options = options; } },
 		XyDataSeries: Data, FastLineRenderableSeries: class { constructor(w, options) { Object.assign(this, options); } delete() { this.dataSeries.delete(); } },
 		SciChartSurface: {
 			configure(config) { control.configs.push(config); }, UseCommunityLicense() { control.community++; }, setRuntimeLicenseKey(key) { control.key = key; },
 			async createSingle(host, options) {
 				const canvas = document.createElement('canvas'); host.append(canvas); canvas.getContext('webgl2');
-				const surface = {options, domCanvasWebGL: canvas, xAxes: list(), yAxes: list(), renderableSeries: list(), renderInstructionsCompleted: signal(), renderError: signal(),
+				const surface = {options, domCanvasWebGL: canvas, xAxes: list(), yAxes: list(), renderableSeries: list(), chartModifiers: list(), renderInstructionsCompleted: signal(), renderError: signal(),
 					getLicenseContext: () => ({SCRTCredentials: {GetLicenseType: () => control.license}, SCRTLicenseType: {LICENSE_TYPE_COMMUNITY: 1, LICENSE_TYPE_REQUIRES_VALIDATION: 2}}),
 					suspendUpdates() {}, resumeUpdates() { if (control.auto) queueMicrotask(() => this.renderInstructionsCompleted.emit(false)); },
-					delete() { this.isDeleted = true; this.renderableSeries.items.forEach(line => line.delete()); },
+					delete() { this.isDeleted = true; this.renderableSeries.items.forEach(line => line.delete()); this.chartModifiers.items.forEach(modifier => modifier.delete()); },
 				};
 				control.surfaces.push(surface);
 				return {sciChartSurface: surface, wasmContext: {}};
@@ -129,27 +132,43 @@ function sciMock(document) {
 	return Object.assign(control, {api});
 }
 function gpuMock() {
-	const control = {autoFence: true, submit: true, lost: deferred(), submitError: null};
-	const queue = {submit() { if (control.submitError) throw control.submitError; control.submitted = true; }, onSubmittedWorkDone() { control.fence = deferred(); return control.autoFence ? Promise.resolve() : control.fence.promise; }};
+	const control = {autoFence: true, submit: true, lost: deferred(), submitError: null, submissions: 0, pendingFrame: null};
+	const queue = {submit() { if (control.submitError) throw control.submitError; control.submitted = true; control.submissions++; }, onSubmittedWorkDone() { control.fence = deferred(); return control.autoFence ? Promise.resolve() : control.fence.promise; }};
 	const device = Object.assign(events(), {queue, lost: control.lost.promise, destroy() { this.destroyed = true; }});
 	const adapter = {info: {}, requestDevice: async () => device};
 	return Object.assign(control, {device, adapter, navigator: {gpu: {requestAdapter: async () => adapter}}, api: {ChartGPU: {async create(host, options) {
-		const instance = {options, dirty: true, setOption(next) { this.options = next; this.dirty = true; }, needsRender() { return this.dirty; },
-			renderFrame() { this.dirty = false; if (control.submit) queueMicrotask(() => queue.submit([{}])); return true; }, dispose() { this.disposed = true; },
+		let mode = options.renderMode ?? 'auto';
+		const requestRender = () => {
+			instance.dirty = true;
+			if (mode === 'auto') control.pendingFrame ??= render;
 		};
+		const render = () => {
+			instance.dirty = !!control.stillDirty;
+			if (control.submit) queueMicrotask(() => queue.submit([{}]));
+		};
+		const instance = {options, dirty: true, setOption(next) { this.options = next; requestRender(); }, needsRender() { return this.dirty; },
+			getRenderMode() { return mode; },
+			setRenderMode(next) { if (mode === next || this.disposed) return; mode = next; if (mode === 'external') control.pendingFrame = null; else if (this.dirty) requestRender(); },
+			renderFrame() { if (mode === 'auto' || !this.dirty || control.noFrame) return false; render(); return true; },
+			dispose() { this.disposed = true; control.pendingFrame = null; },
+		};
+		control.hover = requestRender;
+		control.flushFrame = () => { const frame = control.pendingFrame; control.pendingFrame = null; frame?.(); };
+		requestRender();
 		control.instance = instance; return instance;
 	}}}});
 }
 function lightningMock() {
 	const control = {auto: true};
 	const axis = () => { const a = {}; for (const key of ['setTickStrategy', 'setScrollStrategy', 'setAnimationsEnabled']) a[key] = () => a; return a; };
-	const api = {Themes: {light: {}}, disableThemeEffects: t => t, AxisTickStrategies: {DateTime: 1}, AxisScrollStrategies: {fitting: 1},
+	const api = {Themes: {light: {}}, disableThemeEffects: t => t, LegendPosition: {TopCenter: 7}, AxisTickStrategies: {DateTime: 1}, AxisScrollStrategies: {fitting: 1},
 		SolidLine: class { constructor(options) { this.options = options; } }, SolidFill: class {}, ColorHEX: c => c,
 		lightningChart(options) {
 			control.options = options; options.sharedContextOptions.canvas.getContext('webgl2');
 			return control.owner = {dispose() { this.disposed = true; control.instance?.emit('dispose'); }, ChartXY(options) {
 				const chart = control.instance = Object.assign(events(), {options, engine: events(), series: [], getDefaultAxisX: axis, getDefaultAxisY: axis,
-					setAnimationsEnabled() { return this; }, setTitle() { return this; }, getSeries() { return this.series; },
+					setAnimationsEnabled(value) { this.animationsEnabled = value; return this; }, setTitle() { return this; }, getSeries() { return this.series; },
+					setCursorMode(mode) { this.cursorMode = mode; return this; },
 					addLineSeries(options) {
 						const line = {options, setName(name) { this.name = name; return this; }, setStrokeStyle() { return this; }, setMaxSampleCount(n) { this.max = n; return this; },
 							appendSamples(data) { this.x = Array.from(data.x); this.y = Array.from(data.y); if (control.auto) queueMicrotask(() => chart.engine.emit('renderframe', {asyncRenderingPending: false})); return this; },
@@ -216,6 +235,55 @@ describe('dashboard custom adapters (native API mocks; no browser)', () => {
 		assert.throws(() => adapter.validateChart(chart, next, {rows: 300}), /disposed/);
 	});
 
+	for (const name of ['lightweight', 'scichart', 'chartgpu', 'lightningchart']) it(`${name}: retains native hover configuration through data replacement`, async () => {
+		const adapter = adapters[name], inputs = [small, large].map(adapter.prepData);
+		const chart = await adapter.makeChart(inputs[0], host);
+		const modifiers = chart.instance.chartModifiers?.asArray().slice();
+		try {
+			for (const [i, input] of inputs.entries()) {
+				if (i) await adapter.updateChart(chart, input, host);
+				const native = chart.instance;
+				if (name === 'lightweight') {
+					assert.equal(native.options.crosshair, undefined, 'retain the native crosshair defaults');
+					for (const series of chart.series) {
+						assert.notEqual(series.options.crosshairMarkerVisible, false);
+						assert.equal(series.options.pointMarkersVisible, false);
+						assert.equal(series.options.lastPriceAnimation, LightweightCharts.LastPriceAnimationMode.Disabled);
+					}
+				}
+				else if (name === 'scichart') {
+					assert.deepEqual(native.chartModifiers.asArray(), modifiers);
+					assert.equal(modifiers.length, 2);
+					const legend = modifiers.find(modifier => modifier instanceof SciChart.LegendModifier);
+					const cursor = modifiers.find(modifier => modifier instanceof SciChart.CursorModifier);
+					assert.equal(legend.options.orientation, SciChart.ELegendOrientation.Horizontal);
+					assert.equal(legend.options.placement, SciChart.ELegendPlacement.TopLeft);
+					assert.notEqual(legend.options.showLegend, false);
+					assert.equal(cursor.options.showTooltip, true);
+					assert.equal(chart.plot.style.height, '216px');
+				}
+				else if (name === 'chartgpu') {
+					assert.equal(native.options.tooltip.show, true);
+					assert.equal(native.options.legend.show, true);
+					assert.equal(native.options.legend.position, 'top');
+					assert.equal(native.options.animation, false);
+					assert.equal(native.options.renderMode, 'external', 'initial frame uses checked manual submission');
+					assert.equal(native.getRenderMode(), 'auto', 'native hover frames resume after checked submission');
+				}
+				else {
+					assert.equal(native.options.legend.position, lcjs.LegendPosition.TopCenter);
+					assert.notEqual(native.options.legend.visible, false);
+					assert.equal(native.cursorMode, 'show-all');
+					assert.equal(native.animationsEnabled, false);
+					assert.equal(chart.plot.style.height, '216px');
+					assert.equal(chart.canvas.style.height, '216px');
+				}
+			}
+		}
+		finally { adapter.destroyChart(chart); }
+		if (modifiers) assert.ok(modifiers.every(modifier => modifier.deleted));
+	});
+
 	it('uses distinct plot/clip IDs for simultaneous tiles', async () => {
 		const adapter = adapters['d3-svg-minmax'], input = adapter.prepData(small);
 		const a = adapter.makeChart(input, host), b = adapter.makeChart(input, host);
@@ -252,6 +320,37 @@ describe('dashboard custom adapters (native API mocks; no browser)', () => {
 		assert.equal(chart.instance.finalized, true); assert.equal(chart.context.released, 1);
 	});
 
+	it('ChartGPU uses native hover scheduling between checked manual frames', async () => {
+		const adapter = adapters.chartgpu, chart = await adapter.makeChart(adapter.prepData(small), host);
+		try {
+			assert.equal(chart.instance.getRenderMode(), 'auto');
+			assert.equal(gpu.pendingFrame, null, 'a clean chart does not start a render loop');
+			assert.equal(chart.instance.renderFrame(), false, 'native renderFrame is a no-op in auto mode');
+			assert.equal(gpu.submissions, 1);
+			gpu.hover();
+			assert.equal(typeof gpu.pendingFrame, 'function');
+			gpu.flushFrame(); await turns();
+			assert.equal(gpu.submissions, 2, 'native hover submits without an adapter update');
+			assert.equal(gpu.pendingFrame, null);
+
+			gpu.hover();
+			gpu.autoFence = false;
+			const updating = adapter.updateChart(chart, adapter.prepData(large), host);
+			assert.equal(chart.instance.getRenderMode(), 'external');
+			assert.equal(gpu.pendingFrame, null, 'manual update cancels a pending native hover frame');
+			await turns();
+			assert.equal(gpu.submissions, 3);
+			assert.equal(chart.instance.getRenderMode(), 'external', 'keep checked frame ownership until the queue completes');
+			gpu.fence.resolve(); await updating;
+			assert.equal(chart.instance.getRenderMode(), 'auto');
+			assert.equal(adapter.validateChart(chart, adapter.prepData(large), {rows: 300}), true);
+			gpu.hover(); gpu.flushFrame(); await turns();
+			assert.equal(gpu.submissions, 4, 'native hover remains live after data replacement');
+			assert.equal(gpu.pendingFrame, null);
+		}
+		finally { adapter.destroyChart(chart); }
+	});
+
 	it('ChartGPU observes deferred submission, waits for GPU queue, and exposes its owned device', async () => {
 		const adapter = adapters.chartgpu, chart = await adapter.makeChart(adapter.prepData(small), host);
 		assert.deepEqual(chart.getWebGPUDevices(), [gpu.device]);
@@ -263,7 +362,9 @@ describe('dashboard custom adapters (native API mocks; no browser)', () => {
 		adapter.destroyChart(chart); assert.equal(gpu.device.destroyed, true); assert.equal(gpu.instance.disposed, true);
 	});
 
-	for (const fault of ['missing submit', 'submit exception', 'device lost', 'uncaptured error']) it(`ChartGPU rejects ${fault} and releases partial initialization`, async () => {
+	for (const fault of ['missing frame', 'dirty frame', 'missing submit', 'submit exception', 'device lost', 'uncaptured error']) it(`ChartGPU rejects ${fault} and releases partial initialization`, async () => {
+		if (fault === 'missing frame') gpu.noFrame = true;
+		if (fault === 'dirty frame') gpu.stillDirty = true;
 		if (fault === 'missing submit') gpu.submit = false;
 		if (fault === 'submit exception') gpu.submitError = new Error('mock submit exception');
 		if (fault === 'device lost') gpu.lost.resolve({reason: 'unknown', message: 'mock lost'});

@@ -18,10 +18,10 @@ function buildChart(data, React, chart, {width, height}) {
 	const y = scaleLinear({domain: [ymin, ymax], range: [hgt, 0], nice: true});
 	return h('svg', {width, height, role: 'img', 'aria-label': 'Dashboard metrics'},
 		...SERIES.map(({id, label, color}, i) => h('text', {
-			key: id, x: 12 + i * 94, y: 18, fill: color, fontSize: 11,
+			key: id, x: 12 + i * 94, y: 18, fill: color,
 		}, label)),
 		h('g', {transform: `translate(${margin.left},${margin.top})`},
-			h(GridRows, {scale: y, width: w, numTicks: 4, stroke: 'rgba(0,0,0,0.1)'}),
+			h(GridRows, {scale: y, width: w, numTicks: 4}),
 			h(AxisBottom, {scale: x, top: hgt, numTicks: 4, tickFormat: calendarLabel}),
 			h(AxisLeft, {scale: y, numTicks: 4}),
 			...SERIES.map(({id, color}) => h(LinePath, {

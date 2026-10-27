@@ -17,6 +17,7 @@ export async function makeChartWithOptions(input, host, wait, {sampling = false}
 		staticBranding(root, am5.registry.version);
 		// No Animated theme, appear(), or bullets: the default series is static.
 		const chart = root.container.children.push(am5xy.XYChart.new(root, {layout: root.verticalLayout}));
+		chart.set('cursor', am5xy.XYCursor.new(root, {}));
 		const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
 			baseInterval: {timeUnit: 'minute', count: 1}, groupData: sampling,
 			...(sampling ? {groupCount: WIDTH, groupIntervals: [
@@ -28,15 +29,15 @@ export async function makeChartWithOptions(input, host, wait, {sampling = false}
 			interpolationDuration: 0, renderer: am5xy.AxisRendererY.new(root, {}),
 		}));
 		for (const {id, label, color} of SERIES) {
-			const series = chart.series.push(am5xy.LineSeries.new(root, {
+			chart.series.push(am5xy.LineSeries.new(root, {
 				name: label, xAxis, yAxis, valueXField: 'time', valueYField: id,
 				stroke: am5.color(color), fill: am5.color(color),
+				tooltip: am5.Tooltip.new(root, {labelText: '{name}: {valueY}'}),
 				interpolationDuration: 0, stateAnimationDuration: 0,
 				...(sampling ? {valueYGrouped: 'average', minDistance: 1} : {minDistance: 0, exactLocationX: true}),
 			}));
-			series.strokes.template.setAll({strokeWidth: 1});
 		}
-		const legend = chart.children.push(am5.Legend.new(root, {}));
+		const legend = chart.children.unshift(am5.Legend.new(root, {}));
 		legend.data.setAll(chart.series.values);
 		// The existing updater subscribes before ingestion and waits for an idle native frame.
 		await updateChart(root, input, host, wait);

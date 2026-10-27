@@ -19,12 +19,9 @@ export async function makeChart(input, host, wait) {
 				x: 'time', columns: input, type: 'line', xSort: false, order: null,
 				names: Object.fromEntries(SERIES.map(({id, label}) => [id, label])),
 				colors: Object.fromEntries(SERIES.map(({id, color}) => [id, color])),
-				labels: false,
 			},
-			axis: {x: {type: 'timeseries', tick: {fit: false}}, y: {show: true}},
-			point: {show: false, focus: {only: false, expand: {enabled: false}}},
-			canvas: {theme: {selectors: {'.bb-line': {'stroke-width': 1 / devicePixelRatio}}}},
-			legend: {show: true, position: 'bottom'},
+			axis: {x: {type: 'timeseries'}},
+			point: {show: false},
 			onbeforeinit() { chart = this; },
 			onrendered() {
 				rendered();

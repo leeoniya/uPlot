@@ -51,14 +51,15 @@ function install(id) {
 			constructor(options, input, container) {
 				const r = record(this, container, options);
 				this.series = [...options.series]; this.data = input;
-				r.legend = null;
-				this.root = {querySelector(selector) { assert.equal(selector, '.u-legend'); return r.legend; }};
+				r.ready = false;
 				const ready = () => {
-					r.legend = {style: {}};
+					r.ready = true;
 					for (const fn of options.hooks.ready) fn(this);
 				};
 				if (id === 'uplot') queueMicrotask(ready); else ready();
 			}
+			get root() { assert.fail('the adapter must not access native DOM for layout'); }
+			setSize() { assert.fail('the adapter must retain its static constructor size'); }
 			setData(input, reset) { assert.equal(reset, true); this.data = input; }
 		}
 		globalThis[id === 'uplot-release' ? 'uPlotRelease' : 'uPlot'] = UPlot;
@@ -187,38 +188,55 @@ function checkOptions(id, r) {
 	if (id === 'flot') { width = parseInt(r.host.style.width); height = parseInt(r.host.style.height); }
 	if (id === 'kendo') ({width, height} = o.chartArea);
 	if (family(id) === 'devextreme') ({width, height} = o.size);
-	assert.equal(+width, WIDTH); assert.equal(+height, HEIGHT);
+	assert.equal(+width, WIDTH); assert.equal(+height, family(id) === 'uplot' ? HEIGHT - 48 : HEIGHT);
 	switch (family(id)) {
 		case 'uplot':
-			assert.equal(o.cache.paths, false); assert.equal(o.cursor.show, false); assert.equal(o.legend.live, false);
-			assert.ok(o.series.slice(1).every(s => s.points.show === false && !s.scale));
-			assert.equal(o.axes.length, 2); assert.equal(r.legend.style.position, 'absolute'); break;
+			assert.deepEqual(o.legend, {side: 0});
+			assert.deepEqual(o.series, [{}, ...SERIES.map(({label, color}) => ({label, stroke: color}))]);
+			for (const key of ['cursor', 'select', 'cache', 'padding', 'axes', 'scales'])
+				assert.equal(o[key], undefined, `keep native uPlot ${key} defaults`);
+			break;
 		case 'echarts':
 			assert.equal(o.renderer, 'canvas'); assert.equal(o.animation, false); assert.equal(o.yAxis.type, 'value');
-			assert.deepEqual(o.legend.data, SERIES.map(s => s.label));
-			assert.ok(o.series.every(s => s.sampling === 'minmax' && !s.showSymbol && s.silent)); break;
+			assert.deepEqual(o.legend, {}); assert.deepEqual(o.tooltip, {trigger: 'axis', confine: true});
+			assert.equal(o.xAxis.type, 'time');
+			assert.deepEqual(o.series.map(s => s.name), SERIES.map(s => s.label));
+			assert.ok(o.series.every(s => s.sampling === 'minmax' && s.showSymbol === false &&
+				s.silent === undefined && s.emphasis === undefined)); break;
 		case 'flot':
 			assert.equal(o.yaxes.length, 1); assert.equal(o.legend.noColumns, 5);
-			assert.equal(o.grid.hoverable, false); assert.equal(o.series.points.show, false); break;
+			assert.equal(o.grid.hoverable, true); assert.equal(o.grid.autoHighlight, undefined);
+			assert.equal(o.xaxis.mode, 'time'); assert.equal(o.series.points.show, false); break;
 		case 'dygraphs':
 			assert.equal(o.legend, 'always'); assert.equal(o.drawPoints, false);
-			assert.deepEqual(o.interactionModel, {}); assert.equal(o.animatedZooms, false); break;
+			assert.equal(o.interactionModel, undefined, 'keep native mouse interactions and live legend');
+			assert.equal(o.axes.x.ticker, Dygraph.dateTicker); assert.equal(o.animatedZooms, false); break;
 		case 'agcharts':
-			assert.deepEqual(Object.keys(o.axes), ['x', 'y']); assert.equal(o.legend.enabled, true);
+			assert.deepEqual(Object.keys(o.axes), ['x', 'y']); assert.deepEqual(o.legend, {position: 'top'});
+			assert.equal(o.axes.x.type, 'time');
+			assert.equal(o.tooltip, undefined, 'keep native tooltips enabled');
 			assert.ok(o.series.every(s => s.yKeyAxis === 'y' && !s.marker.enabled)); break;
 		case 'canvasjs':
-			assert.equal(o.animationEnabled, false); assert.equal(o.zoomEnabled, false); assert.equal(o.axisY2, undefined);
+			assert.equal(o.animationEnabled, false); assert.equal(o.zoomEnabled, undefined); assert.equal(o.axisY2, undefined);
+			assert.deepEqual(o.legend, {verticalAlign: 'top'});
+			assert.equal(o.toolTip, undefined, 'keep native tooltips enabled');
 			assert.ok(o.data.every(s => s.showInLegend && s.markerSize === 0 && s.type === 'line')); break;
 		case 'kendo':
-			assert.equal(o.renderAs, 'canvas'); assert.equal(o.transitions, false); assert.equal(o.legend.visible, true);
+			assert.equal(o.renderAs, 'canvas'); assert.equal(o.transitions, false); assert.deepEqual(o.legend, {position: 'top'});
+			assert.deepEqual(o.tooltip, {visible: true});
+			assert.equal(o.seriesDefaults.highlight, undefined, 'keep native hover highlighting');
 			assert.equal(o.seriesDefaults.type, 'scatterLine'); assert.equal(o.seriesDefaults.markers.visible, false);
-			assert.deepEqual(o.yAxis, {}); break;
+			assert.equal(o.xAxis.type, 'date'); assert.equal(o.yAxis, undefined); break;
 		case 'syncfusion':
-			assert.equal(o.enableCanvas, true); assert.equal(o.axes, undefined); assert.equal(o.legendSettings.visible, true);
+			assert.equal(o.enableCanvas, true); assert.equal(o.axes, undefined); assert.deepEqual(o.legendSettings, {position: 'Top'});
+			assert.equal(o.primaryXAxis.valueType, 'DateTime'); assert.deepEqual(o.tooltip, {enable: true});
 			assert.ok(o.series.every(s => !s.animation.enable && !s.marker.visible && s.type === 'Line')); break;
 		case 'devextreme':
 			assert.equal(o.animation.enabled, false); assert.equal(o.commonSeriesSettings.point.visible, false);
-			assert.equal(o.valueAxis.length, 1); assert.equal(o.legend.visible, true);
+			assert.equal(o.valueAxis, undefined, 'use the native single value axis');
+			assert.deepEqual(o.legend, {verticalAlignment: 'top', horizontalAlignment: 'center'});
+			assert.equal(o.argumentAxis.argumentType, 'datetime'); assert.deepEqual(o.tooltip, {enabled: true});
+			assert.equal(o.commonSeriesSettings.hoverMode, undefined, 'keep native series hover');
 			assert.equal(o.commonSeriesSettings.aggregation.enabled, id.endsWith('-sampled'));
 			if (id.endsWith('-sampled')) {
 				assert.equal(o.commonSeriesSettings.aggregation.method, 'avg'); assert.equal(o.argumentAxis.aggregationGroupWidth, 1);
@@ -315,64 +333,72 @@ describe('dashboard native adapters', () => {
 		});
 	}
 
-	it('uplot: does not query the legend until the native ready hook fires', async () => {
-		let chart, signalReady, legend = null, queries = 0;
-		class DelayedUPlot {
-			constructor(options) {
-				chart = this;
-				this.root = {querySelector() { queries++; return legend; }};
-				signalReady = () => {
-					legend = {style: {}};
-					options.hooks.ready.forEach(fn => fn(this));
-				};
-			}
-			destroy() { this.destroyed = true; }
-		}
-		const wait = {textContent: 'waiting'};
-		const creation = uplot.makeChart(uplot.prepData(dashboardData(2)[0]), host(), wait, DelayedUPlot);
-		await pending(creation, wait);
-		assert.equal(queries, 0);
-		signalReady();
-		assert.equal(await creation, chart);
-		assert.equal(queries, 1);
-		assert.equal(legend.style.position, 'absolute');
-		assert.equal(wait.textContent, 'Done!');
-		uplot.destroyChart(chart);
-		assert.equal(chart.destroyed, true);
-	});
-
 	for (const id of ['uplot', 'uplot-release']) {
-		it(`${id}: waits for native readiness before placing legends in a 20-chart small init`, async () => {
+		it(`${id}: waits for the native ready hook without DOM manipulation or resizing`, async () => {
+			let chart, signalReady;
+			class DelayedUPlot {
+				constructor(options) {
+					chart = this;
+					checkOptions(id, {options});
+					signalReady = () => options.hooks.ready.forEach(fn => fn(this));
+				}
+				get root() { assert.fail('the adapter must not access native DOM for layout'); }
+				setSize() { assert.fail('the adapter must retain its static constructor size'); }
+				destroy() { this.destroyed = true; }
+			}
+			globalThis[id === 'uplot-release' ? 'uPlotRelease' : 'uPlot'] = DelayedUPlot;
+			const adapter = adapters[id], wait = {textContent: 'waiting'};
+			const creation = adapter.makeChart(adapter.prepData(dashboardData(2)[0]), host(), wait);
+			await pending(creation, wait);
+			signalReady();
+			assert.equal(await creation, chart);
+			assert.equal(wait.textContent, 'Done!');
+			adapter.destroyChart(chart);
+			assert.equal(chart.destroyed, true);
+		});
+
+		it(`${id}: waits for native readiness in a 20-chart small init at static size`, async () => {
 			const records = install(id), adapter = adapters[id];
 			const waits = Array.from({length: CHARTS}, () => ({textContent: 'waiting'}));
 			const inputs = dashboardData(2).map(adapter.prepData);
 			const creations = inputs.map((input, i) => adapter.makeChart(input, host(i), waits[i]));
 			assert.equal(records.length, CHARTS);
 			assert.ok(waits.every(wait => wait.textContent === 'waiting'));
-			if (id === 'uplot') assert.ok(records.every(r => r.legend === null));
+			assert.ok(records.every(r => r.ready === (id === 'uplot-release')));
 			const charts = await Promise.all(creations);
 			charts.forEach((chart, i) => {
 				assert.equal(chart, records[i].chart);
-				assert.equal(records[i].legend.style.position, 'absolute');
+				assert.equal(records[i].ready, true);
+				checkOptions(id, records[i]);
 				assert.equal(waits[i].textContent, 'Done!');
 				assert.equal(adapter.validateChart(chart, inputs[i], {rows: 2}), true);
 				adapter.destroyChart(chart);
+				assert.equal(chart.destroyed, true);
 			});
 		});
 
-		for (const failure of ['missing legend', 'style failure']) {
-			it(`${id}: destroys its retained handle after ${failure}`, async () => {
-				const records = install(id), adapter = adapters[id], wait = {textContent: 'waiting'};
-				const creation = adapter.makeChart(adapter.prepData(dashboardData(2)[0]), host(), wait);
-				const chart = records[0].chart, error = new Error('legend style failed');
-				let destroyed = 0;
-				chart.destroy = () => { destroyed++; };
-				chart.root.querySelector = () => failure === 'missing legend' ? null : {get style() { throw error; }};
-				await assert.rejects(creation, failure === 'missing legend' ? /legend is missing after native readiness/ : error);
-				assert.equal(destroyed, 1);
-				assert.equal(wait.textContent, 'waiting');
+		it(`${id}: retains static sizing and native defaults without measuring or styling the host`, async () => {
+			const records = install(id), adapter = adapters[id], wait = {textContent: 'waiting'};
+			const container = new Proxy(host(), {
+				get() { assert.fail('the adapter must not query, measure, or style the host'); },
+				set() { assert.fail('the adapter must not modify the host'); },
 			});
-		}
+			const input = adapter.prepData(dashboardData(2)[0]);
+			const chart = await adapter.makeChart(input, container, wait);
+			assert.equal(records[0].host, container, 'pass the host directly to the native constructor');
+			checkOptions(id, records[0]);
+			assert.equal(adapter.validateChart(chart, input, {rows: 2}), true);
+			const replacement = adapter.prepData(dashboardData()[0]);
+			wait.textContent = 'waiting';
+			await adapter.updateChart(chart, replacement, container, wait);
+			assert.equal(records.length, 1);
+			assert.equal(chart, records[0].chart);
+			checkOptions(id, records[0]);
+			assert.equal(adapter.validateChart(chart, replacement, {rows: ROWS}), true);
+			assert.equal(wait.textContent, 'Done!');
+			adapter.destroyChart(chart);
+			assert.equal(chart.destroyed, true);
+		});
 	}
 
 	for (const id of ['flot', 'kendo', 'syncfusion', 'devextreme']) {

@@ -8,15 +8,15 @@ export async function makeChart(input, host, wait) {
 	try {
 		chart = agCharts.AgCharts.create({
 			container: host, width: WIDTH, height: HEIGHT,
-			data: input, tooltip: {enabled: false},
+			data: input,
 			// Community has no animation module; retain native line aggregation.
 			series: SERIES.map(({id, label, color}) => ({
 				type: 'line', xKey: 'time', xKeyAxis: 'x', yKey: id, yKeyAxis: 'y',
-				yName: label, stroke: color, strokeWidth: 1 / devicePixelRatio,
-				marker: {enabled: false}, label: {enabled: false},
+				yName: label, stroke: color,
+				marker: {enabled: false},
 			})),
-			axes: {x: {type: 'time', position: 'bottom', nice: false}, y: {type: 'number', position: 'left'}},
-			legend: {enabled: true, position: 'bottom', item: {label: {fontSize: 10}, paddingX: 8}},
+			axes: {x: {type: 'time', position: 'bottom'}, y: {type: 'number', position: 'left'}},
+			legend: {position: 'top'},
 		});
 		await chart.waitForUpdate();
 		if (wait) wait.textContent = 'Done!';

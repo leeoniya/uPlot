@@ -54,7 +54,8 @@ Pages reuse the benchmark adapters and grid layout. They initialize 20 charts wi
 The charts remain mounted for visual inspection. These pages do not record benchmark measurements or run warmup loops.
 
 The grid retains its 1920×1080 CSS size. Smaller windows scroll rather than scale the charts.
-Pointer interaction is enabled, but each adapter retains its benchmark configuration. For example, uPlot keeps its cursor disabled.
+Pages use the same chart configuration as the benchmark, with pointer interaction enabled.
+Adapters retain native hover behavior and enable native tooltips or live legends where available.
 Loading and error messages appear on the page. The loading message disappears after a successful update.
 
 The pages use the existing demo dependency loader, including pinned CDN assets, ESM modules, and WASM assets where applicable.
@@ -99,9 +100,15 @@ Each chart has five same-unit signals on one Y axis, with time on the X axis.
 The source timestamps use milliseconds at one-minute intervals. Adapters convert timestamps to their native input formats.
 This workload does not use the original packed data in `bench/data.json`.
 
-Charts have no point markers or animation. Adapters use native legends where the library supplies them.
+Charts use native defaults except for the shared data, dimensions, colors, and necessary layout adjustments.
+Adapters disable animation and persistent point markers where needed. uPlot retains its default point visibility.
+Adapters use native legends where the library supplies them.
 Custom drawing adapters and some framework adapters supply a small legend where necessary.
 Each tile contains its axes and legend within the fixed tile size.
+
+Native tooltips or live legends provide hover values where supported. D3, d3fc, deck.gl, and visx do not add custom hover implementations.
+Flot provides native hover highlighting. Lightweight Charts provides native crosshair labels.
+Local uPlot uses a native top legend. The pinned release lacks `legend.side` and retains its native bottom legend.
 
 Each session has only two operations:
 

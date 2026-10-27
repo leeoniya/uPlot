@@ -18,17 +18,16 @@ export async function makeChartWithOptions(input, host, wait, {sampled = false} 
 		ready.catch(() => {});
 		chart = new DevExpress.viz.dxChart(host, {
 			size: {width: WIDTH, height: HEIGHT}, dataSource: input,
-			animation: {enabled: false}, tooltip: {enabled: false},
+			animation: {enabled: false}, tooltip: {enabled: true},
 			dataPrepareSettings: {sortingMethod: false},
 			commonSeriesSettings: {
-				type: 'line', argumentField: 'time', width: 1 / devicePixelRatio,
-				point: {visible: false}, label: {visible: false}, hoverMode: 'none',
+				type: 'line', argumentField: 'time',
+				point: {visible: false},
 				aggregation: sampled ? {enabled: true, method: 'avg'} : {enabled: false},
 			},
 			series: SERIES.map(({id, label, color}) => ({valueField: id, name: label, color})),
 			argumentAxis: {argumentType: 'datetime', type: 'continuous', ...(sampled ? {aggregationGroupWidth: 1} : {})},
-			valueAxis: [{}],
-			legend: {visible: true, verticalAlignment: 'bottom', horizontalAlignment: 'center', font: {size: 10}, hoverMode: 'none'},
+			legend: {verticalAlignment: 'top', horizontalAlignment: 'center'},
 			onInitialized: e => { chart = e.component; },
 			onDone: () => complete(),
 			onDrawn: () => { if (input.length === 0) complete(); },

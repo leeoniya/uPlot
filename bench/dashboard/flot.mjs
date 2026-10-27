@@ -9,9 +9,9 @@ export async function makeChart(input, host, wait) {
 	const chart = $.plot($(host), SERIES.map(({label, color}, i) => ({label, color, data: input[i]})), {
 		xaxis: {mode: 'time', timeBase: 'milliseconds'},
 		yaxes: [{position: 'left'}],
-		series: {lines: {show: true, lineWidth: 1}, points: {show: false}, shadowSize: 0},
-		grid: {hoverable: false, clickable: false},
-		legend: {show: true, noColumns: 5, position: 'nw', labelBoxBorderColor: 'transparent'},
+		series: {lines: {show: true}, points: {show: false}},
+		grid: {hoverable: true},
+		legend: {noColumns: 5, position: 'nw'},
 		hooks: {drawOverlay: [complete]},
 	});
 	try {

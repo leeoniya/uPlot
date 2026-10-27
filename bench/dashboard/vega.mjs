@@ -7,7 +7,7 @@ export async function makeChart(input, host, wait) {
 	let view;
 	try {
 		const spec = {
-			width: WIDTH, height: HEIGHT, autosize: {type: 'fit', contains: 'padding'}, padding: 5,
+			width: WIDTH, height: HEIGHT, autosize: {type: 'fit', contains: 'padding'},
 			// Vega owns tuple IDs; do not mutate reusable prepared rows.
 			data: [{name: 'table', values: input.map(row => ({...row}))}],
 			scales: [
@@ -15,13 +15,14 @@ export async function makeChart(input, host, wait) {
 				{name: 'y', type: 'linear', domain: {data: 'table', fields: SERIES.map(s => s.id)}, range: 'height', zero: false, nice: true},
 				{name: 'color', type: 'ordinal', domain: SERIES.map(s => s.label), range: SERIES.map(s => s.color)},
 			],
-			axes: [{scale: 'x', orient: 'bottom', tickCount: 4}, {scale: 'y', orient: 'left', grid: true, tickCount: 4}],
-			legends: [{stroke: 'color', orient: 'bottom', direction: 'horizontal', symbolType: 'stroke'}],
+			axes: [{scale: 'x', orient: 'bottom', tickCount: 4}, {scale: 'y', orient: 'left', tickCount: 4}],
+			legends: [{stroke: 'color', orient: 'top', direction: 'horizontal', symbolType: 'stroke'}],
 			marks: SERIES.map(({id, label}) => ({
 				name: id, type: 'line', from: {data: 'table'},
 				encode: {update: {
 					x: {scale: 'x', field: 'time'}, y: {scale: 'y', field: id},
 					stroke: {scale: 'color', value: label}, strokeWidth: {value: 1 / (globalThis.devicePixelRatio || 1)},
+					tooltip: {signal: `{Time: timeFormat(datum.time, '%Y-%m-%d %H:%M'), '${label}': datum.${id}}`},
 				}},
 			})),
 		};

@@ -7,14 +7,15 @@ function buildChart(data, React, chart, {width, height}) {
 	const {scaleTime} = requireFramework('benchmarkD3Scale');
 	const h = React.createElement;
 	const ticks = scaleTime().domain([data[0].time, data[data.length - 1].time]).ticks(4).map(Number);
-	return h(C.LineChart, {width, height, data, margin: {top: 4, right: 12, bottom: 4, left: 0}},
-		h(C.CartesianGrid, {stroke: 'rgba(0,0,0,0.1)', vertical: false}),
+	return h(C.LineChart, {width, height, data},
+		h(C.CartesianGrid),
 		h(C.XAxis, {dataKey: 'time', type: 'number', scale: 'time', domain: ['dataMin', 'dataMax'], ticks, tickFormatter: calendarLabel}),
-		h(C.YAxis, {yAxisId: 'value', domain: ['auto', 'auto'], width: 40}),
-		h(C.Legend, {verticalAlign: 'top', height: 28, iconSize: 10, wrapperStyle: {fontSize: 11}}),
+		h(C.YAxis, {yAxisId: 'value', domain: ['auto', 'auto']}),
+		h(C.Legend, {verticalAlign: 'top'}),
+		h(C.Tooltip, {isAnimationActive: false, labelFormatter: calendarLabel}),
 		...SERIES.map(({id, label, color}) => h(C.Line, {
 			key: id, dataKey: id, name: label, yAxisId: 'value', type: 'linear',
-			stroke: color, strokeWidth: 1, dot: false, activeDot: false, isAnimationActive: false,
+			stroke: color, strokeWidth: 1, dot: false, isAnimationActive: false,
 		})),
 	);
 }

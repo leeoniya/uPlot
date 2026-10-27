@@ -12,6 +12,7 @@ export function createDashboardLayout(document, {interactive = false} = {}) {
 			display: grid; grid-template-columns: repeat(4, ${WIDTH}px);
 			grid-template-rows: repeat(5, ${HEIGHT}px); gap: 0; pointer-events: ${interactive ? 'auto' : 'none'};
 		}
+		#benchmark-fixture .u-legend { font-size: 10px; }
 		#benchmark-fixture > .dashboard-chart {
 			position: relative; box-sizing: border-box; width: ${WIDTH}px; height: ${HEIGHT}px;
 			min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0; overflow: hidden;

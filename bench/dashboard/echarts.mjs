@@ -8,14 +8,13 @@ export function makeChart(input, host, wait) {
 		chart.setOption({
 			animation: false,
 			dataset: {source: input, dimensions: ['time', ...SERIES.map(s => s.id)]},
-			tooltip: {show: false},
-			legend: {data: SERIES.map(s => s.label), textStyle: {fontSize: 10}, itemWidth: 12, itemGap: 8},
-			grid: {containLabel: true, left: 4, right: 8, top: 32, bottom: 4},
+			tooltip: {trigger: 'axis', confine: true},
+			legend: {},
 			xAxis: {type: 'time'}, yAxis: {type: 'value'},
 			series: SERIES.map(({id, label, color}) => ({
-				id, name: label, type: 'line', showSymbol: false, silent: true,
-				sampling: 'minmax', lineStyle: {width: 1, color}, itemStyle: {color},
-				emphasis: {disabled: true}, encode: {x: 'time', y: id},
+				id, name: label, type: 'line', showSymbol: false,
+				sampling: 'minmax', lineStyle: {color}, itemStyle: {color},
+				encode: {x: 'time', y: id},
 			})),
 		}, {notMerge: true});
 		if (wait) wait.textContent = 'Done!';

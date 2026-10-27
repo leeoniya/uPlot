@@ -23,6 +23,8 @@ async function render(chart, change) {
 			catch (error) { submitError = error; }
 		}});
 		try {
+			// renderFrame() is external-only in 0.4.0; pause native hover scheduling.
+			instance.setRenderMode('external');
 			change();
 			const rendered = instance.renderFrame();
 			await Promise.resolve();
@@ -35,6 +37,7 @@ async function render(chart, change) {
 		}
 		await Promise.race([queue.onSubmittedWorkDone(), chart.failure]);
 		live(chart);
+		instance.setRenderMode('auto');
 	}
 	catch (error) { chart.fail(error); throw error; }
 }
@@ -59,9 +62,9 @@ export async function makeChart(input, host, wait) {
 			await Promise.race([
 				Promise.resolve(benchmarkChartGPU.ChartGPU.create(chart.plot, {
 					theme: 'light', animation: false, renderMode: 'external', performance: {lod: 'strict'},
-					grid: {left: 40, right: 12, top: 28, bottom: 26}, xAxis: {type: 'time'},
+					xAxis: {type: 'time'},
 					axes: {y: [{id: 'value', type: 'value', position: 'left'}]},
-					legend: {show: true, position: 'top'}, tooltip: {show: false}, series: series(input),
+					legend: {show: true, position: 'top'}, tooltip: {show: true}, series: series(input),
 				}, {adapter, device})).then(instance => {
 					if (chart.destroyed) instance.dispose();
 					else chart.instance = instance;

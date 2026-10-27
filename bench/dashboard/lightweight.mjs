@@ -9,7 +9,6 @@ export async function makeChart(input, host, wait) {
 	try {
 		chart.instance = LightweightCharts.createChart(chart.plot, {
 			width: WIDTH, height: HEIGHT - 24,
-			layout: {attributionLogo: true, fontSize: 10},
 			leftPriceScale: {visible: true, autoScale: true}, rightPriceScale: {visible: false},
 			timeScale: {timeVisible: true, secondsVisible: false, minBarSpacing: 0.0001, enableConflation: true},
 		});

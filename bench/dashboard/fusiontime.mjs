@@ -29,12 +29,11 @@ export async function makeChartWithOptions(input, host, wait, {sampled = false} 
 				})},
 				yAxis: [{plot: SERIES.map(({label}) => ({value: label, type: 'line', aggregation: 'average'})), orientation: 'left'}],
 				plotConfig: {line: {style: {
-					line: {'stroke-width': 1 / (globalThis.devicePixelRatio || 1)},
 					anchor: {opacity: 0}, 'anchor:hover': {opacity: 0}, 'anchor:highlight': {opacity: 0},
 				}}},
 				navigator: {enabled: false},
 				extensions: {standardRangeSelector: {enabled: false}, customRangeSelector: {enabled: false}},
-				legend: {enabled: true, position: 'bottom'},
+				legend: {enabled: true, position: 'top'},
 			},
 		});
 		await new Promise((resolve, reject) => {

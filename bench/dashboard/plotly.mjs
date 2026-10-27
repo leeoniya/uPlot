@@ -17,10 +17,11 @@ function traces(input, type) {
 function layout(input) {
 	return {
 		width: WIDTH, height: HEIGHT, autosize: false,
+		// Default margins leave almost no plot area in a 216px-high tile.
 		margin: {l: 40, r: 10, b: 40, t: 40}, transition: {duration: 0},
 		xaxis: input.x.length ? {type: 'date', range: [input.x[0], input.x.at(-1)]} : {type: 'date', autorange: true},
 		yaxis: {autorange: true},
-		showlegend: true, legend: {orientation: 'h', y: 1.25, font: {size: 10}},
+		showlegend: true, legend: {orientation: 'h', y: 1.02, yanchor: 'bottom'},
 	};
 }
 
@@ -33,7 +34,7 @@ export async function makeChartWithOptions(input, host, wait, {type = 'scattergl
 	if (webgl) register(host);
 	try {
 		const create = () => Plotly.newPlot(host, traces(input, type), layout(input), {
-			responsive: false, displayModeBar: false, plotGlPixelRatio: devicePixelRatio,
+			responsive: false, plotGlPixelRatio: devicePixelRatio,
 		});
 		const chart = await (webgl ? render(host, create) : create());
 		if (webgl) requireWebGL(chart);

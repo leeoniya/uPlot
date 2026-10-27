@@ -24,7 +24,7 @@ export async function makeChartWithOptions(input, host, wait, {outputBackend = '
 	const source = new Bokeh.ColumnDataSource({data: input});
 	const plot = Bokeh.Plotting.figure({
 		width: WIDTH, height: HEIGHT, sizing_mode: 'fixed', output_backend: outputBackend,
-		x_axis_type: 'datetime', tools: '', toolbar_location: null, lod_threshold: null,
+		x_axis_type: 'datetime', lod_threshold: null,
 	});
 	let view;
 	try {
@@ -32,14 +32,18 @@ export async function makeChartWithOptions(input, host, wait, {outputBackend = '
 			x: {field: 'x'}, y: {field: id}, source, legend_label: label,
 			line_color: color, line_width: 1 / (globalThis.devicePixelRatio || 1),
 		}));
+		plot.add_tools(new Bokeh.HoverTool({
+			renderers: [renderers[0]], mode: 'vline',
+			tooltips: [['Time', '@x{%F %T}'], ...SERIES.map(({id, label}) => [label, `@${id}`])],
+			formatters: {'@x': 'datetime'},
+		}));
 		plot.legend.orientation = 'horizontal';
-		plot.legend.label_text_font_size = '9px';
-		plot.legend.spacing = 2;
-		plot.legend.margin = 0;
+		// Default-size labels need two rows at this tile width.
+		plot.legend.ncols = 3;
 		// Move the automatically created native legend out of the plot area.
 		const legend = plot.legend;
 		plot.center = plot.center.filter(item => item !== legend);
-		plot.add_layout(legend, 'below');
+		plot.add_layout(legend, 'above');
 		view = await Bokeh.Plotting.show(plot, host);
 		if (outputBackend === 'webgl') requireWebGL(view, renderers);
 		view.getWebGLContexts = () => outputBackend !== 'webgl' || view.is_destroyed ? [] : [view.canvas_view.webgl.canvas.getContext('webgl')];

@@ -10,17 +10,16 @@ export function makeChart(input, host, wait) {
 export async function makeChartWithOptions(input, host, wait, {sampling = false} = {}) {
 	const chart = new ApexCharts(host, {
 		chart: {
-			type: 'line', width: WIDTH, height: HEIGHT, parentHeightOffset: 0,
+			type: 'line', width: WIDTH, height: HEIGHT,
 			animations: {enabled: false}, renderer: 'canvas',
 			// Retain the original adapter's LTTB budget and activation threshold.
 			dataReducer: sampling ? {enabled: true, targetPoints: 1920, threshold: 3840} : {enabled: false},
-			zoom: {type: 'x', enabled: true}, toolbar: {show: false},
 		},
 		series: seriesData(input), colors: SERIES.map(series => series.color),
-		dataLabels: {enabled: false}, stroke: {curve: 'straight', width: 1},
+		dataLabels: {enabled: false}, stroke: {curve: 'straight'},
 		markers: {size: 0, hover: {size: 0}},
-		xaxis: {type: 'datetime'}, yaxis: {},
-		legend: {show: true, fontSize: '10px'},
+		xaxis: {type: 'datetime'},
+		legend: {position: 'top'},
 		tooltip: {shared: !sampling, intersect: false},
 	});
 	try {

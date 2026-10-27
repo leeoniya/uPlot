@@ -6,12 +6,11 @@ export const prepData = prepPoints;
 export function makeChart(input, host, wait) {
 	const chart = new CanvasJS.Chart(host, {
 		width: WIDTH, height: HEIGHT,
-		animationEnabled: false, zoomEnabled: false,
-		toolTip: {enabled: false}, legend: {fontSize: 10},
-		axisY: {includeZero: false},
+		animationEnabled: false,
+		legend: {verticalAlign: 'top'},
 		data: SERIES.map(({label, color}, i) => ({
 			name: label, color, showInLegend: true, type: 'line', xValueType: 'dateTime',
-			lineThickness: 1 / devicePixelRatio, markerSize: 0, dataPoints: input[i],
+			markerSize: 0, dataPoints: input[i],
 		})),
 	});
 	try {

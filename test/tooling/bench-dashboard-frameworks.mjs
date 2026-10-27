@@ -5,7 +5,7 @@ import * as muicharts from '../../bench/dashboard/muicharts.mjs';
 import * as financialcharts from '../../bench/dashboard/financialcharts.mjs';
 import * as visx from '../../bench/dashboard/visx.mjs';
 import {WIDTH, HEIGHT, CHARTS, ROWS, SERIES, dashboardData} from '../../bench/dashboard/common.mjs';
-import {mountReact, destroyReact, waitForLines, committedReactProps} from '../../bench/framework-runtime.mjs';
+import {mountReact, destroyReact, waitForLines, calendarLabel, committedReactProps} from '../../bench/framework-runtime.mjs';
 import {mountLifecycleReact} from '../../bench/lifecycle-frameworks.mjs';
 
 const adapters = {recharts, muicharts, financialcharts, visx};
@@ -24,9 +24,12 @@ function fixture() {
 	const roots = [], dirty = new Set(), observers = new Map();
 	let active;
 	const components = (prefix, names) => Object.fromEntries(names.split(' ').map(name => [name, prefix + name]));
-	globalThis.benchmarkRecharts = components('recharts:', 'LineChart CartesianGrid XAxis YAxis Legend Line');
+	globalThis.benchmarkRecharts = components('recharts:', 'LineChart CartesianGrid XAxis YAxis Legend Line Tooltip');
 	globalThis.benchmarkMuiCharts = components('mui:', 'LineChart');
-	globalThis.benchmarkFinancialCharts = components('financial:', 'ChartCanvas Chart XAxis YAxis LineSeries');
+	globalThis.benchmarkFinancialCharts = components('financial:', 'ChartCanvas Chart XAxis YAxis LineSeries HoverTooltip');
+	globalThis.benchmarkFinancialCharts.HoverTooltip = Object.assign(function HoverTooltip() {}, {
+		defaultProps: {origin: (_props, {mouseXY}) => mouseXY},
+	});
 	globalThis.benchmarkVisxShape = components('visx:', 'LinePath');
 	globalThis.benchmarkVisxAxis = components('visx:', 'AxisBottom AxisLeft');
 	globalThis.benchmarkVisxGrid = components('visx:', 'GridRows');
@@ -41,6 +44,7 @@ function fixture() {
 	globalThis.benchmarkReact = {
 		Component: class {}, Fragment: 'Fragment',
 		createElement(type, props, ...children) {
+			assert.ok(type, 'React elements must use a defined component');
 			return {type, props: {...props, ...(children.length ? {children: children.length === 1 ? children[0] : children} : {})}};
 		},
 		useState(initial) {
@@ -246,6 +250,60 @@ describe('dashboard React adapters', () => {
 			adapter.destroyChart(chart);
 		});
 	}
+
+	for (const id of ['recharts', 'muicharts', 'financialcharts']) it(`${id}: retains native hover configuration through data replacement`, async () => {
+		const f = fixture(), adapter = adapters[id], host = f.host();
+		const inputs = [dashboardData(2)[0], dashboardData()[0]].map(adapter.prepData);
+		const chart = await adapter.makeChart(inputs[0], host);
+		try {
+			for (const [i, input] of inputs.entries()) {
+				if (i) await adapter.updateChart(chart, input, host);
+				if (id === 'recharts') {
+					const C = globalThis.benchmarkRecharts;
+					const tooltips = committedReactProps(chart, C.Tooltip);
+					assert.equal(tooltips.length, 1);
+					assert.equal(tooltips[0].isAnimationActive, false);
+					assert.notEqual(tooltips[0].cursor, false);
+					assert.equal(tooltips[0].labelFormatter(input[0].time), calendarLabel(input[0].time));
+					assert.equal(committedReactProps(chart, C.Legend)[0].verticalAlign, 'top');
+					for (const line of committedReactProps(chart, C.Line)) {
+						assert.equal(line.dot, false);
+						assert.equal(line.isAnimationActive, false);
+						assert.notEqual(line.activeDot, false);
+					}
+				}
+				else if (id === 'muicharts') {
+					const props = committedReactProps(chart, globalThis.benchmarkMuiCharts.LineChart)[0];
+					assert.equal(props.skipAnimation, true);
+					assert.notEqual(props.slotProps.tooltip?.trigger, 'none');
+					assert.equal(props.slots?.tooltip, undefined, 'use the native tooltip');
+					assert.equal(props.slotProps.legend.position.vertical, 'top');
+					assert.equal(props.xAxis[0].height, 35);
+					for (const series of props.series) {
+						assert.equal(series.showMark, false);
+						assert.notEqual(series.disableHighlight, true);
+					}
+				}
+				else {
+					const tooltips = committedReactProps(chart, globalThis.benchmarkFinancialCharts.HoverTooltip);
+					assert.equal(tooltips.length, 1);
+					const size = {width: 125, height: 124};
+					for (const [nativeY, expectedY] of [[-20, 0], [10, 10], [120, 30]]) {
+						assert.deepEqual(tooltips[0].origin(tooltips[0], {height: 154, mouseXY: [75, nativeY]}, size, 1),
+							[75, expectedY], 'clamp vertically without changing native horizontal placement');
+					}
+					for (const index of new Set([0, Math.floor(input.length / 2), input.length - 1])) {
+						const currentItem = input[index];
+						assert.deepEqual(tooltips[0].tooltip.content({currentItem}), {
+							x: calendarLabel(currentItem.time),
+							y: SERIES.map(({id, label, color}) => ({label, value: String(currentItem[id]), stroke: color})),
+						});
+					}
+				}
+			}
+		}
+		finally { adapter.destroyChart(chart); }
+	});
 
 	it('visx: validates the root plot dimensions independently of nested axis-label SVGs', async () => {
 		const f = fixture(), input = visx.prepData(dashboardData()[0]);

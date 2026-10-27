@@ -13,12 +13,11 @@ export async function makeChart(input, host, wait) {
 		const ready = new Promise(resolve => { complete = resolve; });
 		chart = new kendo.dataviz.ui.Chart(host, {
 			chartArea: {width: WIDTH, height: HEIGHT}, renderAs: 'canvas', transitions: false,
-			tooltip: {visible: false}, pannable: false, zoomable: false,
-			seriesDefaults: {type: 'scatterLine', width: 1 / devicePixelRatio,
-				markers: {visible: false}, labels: {visible: false}, highlight: {visible: false}},
+			tooltip: {visible: true},
+			seriesDefaults: {type: 'scatterLine', markers: {visible: false}},
 			series: SERIES.map(({label, color}, i) => ({name: label, color, data: input[i]})),
-			xAxis: {type: 'date'}, yAxis: {},
-			legend: {visible: true, position: 'bottom', labels: {font: '10px sans-serif'}},
+			xAxis: {type: 'date'},
+			legend: {position: 'top'},
 			render: e => { chart = e.sender; complete(); },
 		});
 		await ready;

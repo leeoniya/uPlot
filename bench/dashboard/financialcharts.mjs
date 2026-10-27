@@ -10,7 +10,7 @@ function buildChart(data, React, chart, {width, height}) {
 	const h = React.createElement;
 	const xAccessor = row => new Date(row.time);
 	return h(React.Fragment, null,
-		h('div', {style: {height: legendHeight, display: 'flex', justifyContent: 'space-evenly', alignItems: 'center', fontSize: 11}},
+		h('div', {style: {height: legendHeight, display: 'flex', justifyContent: 'space-evenly', alignItems: 'center'}},
 			...SERIES.map(({id, label, color}) => h('span', {key: id, style: {color}}, label))),
 		h(C.ChartCanvas, {
 			ref: instance => { chart.instance = instance; }, width, height: height - legendHeight,
@@ -20,10 +20,20 @@ function buildChart(data, React, chart, {width, height}) {
 		},
 			h(C.Chart, {id: 1, yExtents: row => SERIES.map(({id}) => row[id])},
 				h(C.XAxis, {axisAt: 'bottom', orient: 'bottom', ticks: 4, tickFormat: calendarLabel}),
-				h(C.YAxis, {axisAt: 'left', orient: 'left', ticks: 4, showGridLines: true}),
+				h(C.YAxis, {axisAt: 'left', orient: 'left', ticks: 4}),
 				...SERIES.map(({id, color}) => h(C.LineSeries, {
-					key: id, yAccessor: row => row[id], strokeStyle: color, strokeWidth: 1, highlightOnHover: false,
+					key: id, yAccessor: row => row[id], strokeStyle: color, strokeWidth: 1,
 				})),
+				h(C.HoverTooltip, {
+					origin: (props, moreProps, size, pointWidth) => {
+						const [x, y] = C.HoverTooltip.defaultProps.origin(props, moreProps, size, pointWidth);
+						return [x, Math.max(0, Math.min(y, moreProps.height - size.height))];
+					},
+					tooltip: {content: ({currentItem}) => ({
+						x: calendarLabel(currentItem.time),
+						y: SERIES.map(({id, label, color}) => ({label, value: String(currentItem[id]), stroke: color})),
+					})},
+				}),
 			),
 		),
 	);

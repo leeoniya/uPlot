@@ -26,10 +26,11 @@ function render(chart, action) {
 
 export async function makeChart(input, host, wait) {
 	const {timeoutMs} = prepareRuntime();
-	const chart = handle(host, 'SciChart');
+	const chart = handle(host, 'SciChart', false);
 	chart.timeoutMs = timeoutMs;
 	const {SciChartSurface, SciChartJSLightTheme, DateTimeNumericAxis, NumericAxis, EAutoRange,
-		EAxisAlignment, XyDataSeries, FastLineRenderableSeries, EResamplingMode} = globalThis.SciChart;
+		EAxisAlignment, XyDataSeries, FastLineRenderableSeries, EResamplingMode,
+		LegendModifier, ELegendOrientation, ELegendPlacement, CursorModifier} = globalThis.SciChart;
 	try {
 		let timer, expired = false;
 		const creation = Promise.resolve().then(() => SciChartSurface.createSingle(chart.plot, {
@@ -76,6 +77,10 @@ export async function makeChart(input, host, wait) {
 			catch (error) { if (line) line.delete(); else dataSeries.delete(); throw error; }
 			dataSeries.appendRange(input.x, input.ys[i]);
 		});
+		surface.chartModifiers.add(
+			new LegendModifier({orientation: ELegendOrientation.Horizontal, placement: ELegendPlacement.TopLeft}),
+			new CursorModifier({showTooltip: true}),
+		);
 		await render(chart, () => surface.resumeUpdates({invalidateOnResume: true}));
 		done(wait);
 		return chart;

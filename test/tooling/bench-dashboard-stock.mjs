@@ -14,7 +14,8 @@ function freeze(value) {
 }
 function list() {
 	return {values: [], get length() { return this.values.length; },
-		push(value) { this.values.push(value); return value; }, getIndex(i) { return this.values[i]; }, each(fn) { this.values.forEach(fn); }};
+		push(value) { this.values.push(value); return value; }, unshift(value) { this.values.unshift(value); return value; },
+		getIndex(i) { return this.values[i]; }, each(fn) { this.values.forEach(fn); }};
 }
 function emitter() {
 	const listeners = new Map();
@@ -123,7 +124,7 @@ function vendor(id) {
 		};
 	}
 	else if (base === 'amcharts') {
-		const entity = {new(root, options) { return {options, get(key) { return options[key]; }}; }};
+		const entity = {new(root, options) { return {options, get(key) { return options[key]; }, set(key, value) { options[key] = value; return value; }}; }};
 		globalThis.am5 = {
 			registry: {version: '5.21.4'}, color: value => value,
 			Root: {new(host) {
@@ -134,11 +135,12 @@ function vendor(id) {
 				s.corruptRows = () => { s.series[0].data.values = s.series[0].data.values.slice(1); };
 				return root;
 			}},
+			Tooltip: entity,
 			Legend: {new() { return {data: {setAll(values) { this.values = values; }}}; }},
 		};
 		globalThis.am5xy = {
-			XYChart: {new() { return {xAxes: list(), yAxes: list(), series: list(), children: list()}; }},
-			DateAxis: entity, ValueAxis: entity, AxisRendererX: entity, AxisRendererY: entity,
+			XYChart: {new(root, options) { return {...entity.new(root, options), xAxes: list(), yAxes: list(), series: list(), children: list()}; }},
+			XYCursor: entity, DateAxis: entity, ValueAxis: entity, AxisRendererX: entity, AxisRendererY: entity,
 			LineSeries: {new(root, options) {
 				const s = root._state;
 				const series = {...entity.new(root, options), strokes: {template: {setAll() {}}},
@@ -205,6 +207,7 @@ function vendor(id) {
 			return sharedWebGL = regl.has_webgl ? {canvas: {getContext: () => gl}} : null;
 		}
 		globalThis.Bokeh = {documents: [],
+			HoverTool: class { constructor(options) { Object.assign(this, options); } },
 			ColumnDataSource: class {
 				constructor({data}) { this.data = data; }
 				set data(value) { this._data = value; if (this.state) this.state.chart.ready = this.state.promise(); }
@@ -213,12 +216,13 @@ function vendor(id) {
 			Plotting: {
 				figure(config) {
 					const legend = {items: []};
-					return {...config, renderers: [], legend, center: [legend], below: [],
+					return {...config, renderers: [], legend, center: [legend], below: [], above: [], addedTools: [],
 						line(options) {
 							const renderer = {data_source: options.source, glyph: {type: 'Line', x: options.x, y: options.y}, options};
 							this.renderers.push(renderer); legend.items.push({label: options.legend_label}); return renderer;
 						},
 						add_layout(item, position) { assert.ok(item); this[position].push(item); },
+						add_tools(...tools) { this.addedTools.push(...tools); },
 					};
 				},
 				show(plot, host) {
@@ -277,7 +281,7 @@ function configuration(id, s) {
 		assert.equal(s.config.axes.length, 1);
 		assert.equal(s.config.grouping.enabled(), sampled ? undefined : false);
 		assert.equal(s.config.scrollerGrouping.enabled(), sampled ? undefined : false);
-		assert.equal(s.config.legend.enabled(), true);
+		assert.notEqual(s.config.legend.enabled(), false, 'retain the native live legend default');
 		assert.deepEqual(s.series.map(line => line.label), SERIES.map(s => s.label));
 		for (const line of s.series) {
 			assert.equal(line.scale, s.config.plot.scale);
@@ -289,6 +293,8 @@ function configuration(id, s) {
 		assert.equal(source.chart.animation, 0); assert.equal(source.yAxis.length, 1);
 		assert.equal(source.xAxis.binning === undefined, sampled);
 		assert.equal(source.legend.enabled, true);
+		assert.equal(source.legend.position, 'top');
+		assert.notEqual(source.tooltip?.enabled, false);
 		assert.equal(s.store.schema.length, 6);
 		assert.deepEqual(source.yAxis[0].plot.map(p => p.value), SERIES.map(s => s.label));
 		assert.ok(source.yAxis[0].plot.every(p => p.type === 'line'));
@@ -300,7 +306,9 @@ function configuration(id, s) {
 		assert.equal(chart.xAxes.getIndex(0).get('groupData'), sampled);
 		assert.equal(s.chart.autoResize, false);
 		assert.deepEqual(chart.children.getIndex(0).data.values, chart.series.values);
+		assert.ok(chart.get('cursor'));
 		for (const series of chart.series.values) {
+			assert.equal(series.get('tooltip').get('labelText'), '{name}: {valueY}');
 			assert.equal(series.get('yAxis'), chart.yAxes.getIndex(0));
 			assert.equal(series.get('minDistance'), sampled ? 1 : 0);
 			assert.equal(series.get('interpolationDuration'), 0);
@@ -312,6 +320,12 @@ function configuration(id, s) {
 		assert.ok(s.config.marks.every(mark => mark.type === 'line' && mark.encode.update.y.scale === 'y'));
 		assert.equal(s.config.axes.filter(axis => axis.orient === 'left').length, 1);
 		assert.equal(s.config.legends.length, 1);
+		assert.equal(s.config.legends[0].orient, 'top');
+		SERIES.forEach(({id, label}, i) => {
+			const signal = s.config.marks[i].encode.update.tooltip.signal;
+			assert.ok(signal.includes('timeFormat(datum.time,'));
+			assert.ok(signal.includes(`'${label}': datum.${id}`));
+		});
 	}
 	else if (id === 'g2') {
 		assert.equal(s.config.renderer, undefined);
@@ -319,14 +333,31 @@ function configuration(id, s) {
 		assert.equal(s.chart.spec.children.length, 5);
 		assert.ok(s.chart.spec.children.every(mark => mark.type === 'line' && mark.scale.y.key === 'y' && mark.animate === false));
 		assert.equal(s.chart.spec.scale.color.domain.length, 5);
+		assert.equal(s.chart.spec.legend.color.position, 'top');
+		for (const options of [s.chart.spec, ...s.chart.spec.children]) {
+			assert.notEqual(options.tooltip, false);
+			assert.notEqual(options.interaction?.tooltip, false);
+		}
 	}
 	else if (id.startsWith('bokeh')) {
 		assert.equal(s.config.output_backend, id === 'bokeh' ? 'webgl' : 'canvas');
 		assert.equal(s.config.lod_threshold, null);
 		assert.equal(s.config.extra_y_ranges, undefined);
 		assert.equal(s.config.legend.items.length, 5);
-		assert.ok(s.config.below.includes(s.config.legend));
+		assert.ok(s.config.above.includes(s.config.legend));
+		assert.ok(!s.config.below.includes(s.config.legend));
 		assert.ok(!s.config.center.includes(s.config.legend));
+		assert.equal(s.config.legend.orientation, 'horizontal');
+		assert.equal(s.config.legend.ncols, 3);
+		assert.notEqual(s.config.tools, '');
+		assert.notEqual(s.config.toolbar_location, null);
+		assert.equal(s.config.addedTools.length, 1);
+		const hover = s.config.addedTools[0];
+		assert.ok(hover instanceof Bokeh.HoverTool);
+		assert.deepEqual(hover.renderers, [s.config.renderers[0]]);
+		assert.equal(hover.mode, 'vline');
+		assert.deepEqual(hover.tooltips, [['Time', '@x{%F %T}'], ...SERIES.map(({id, label}) => [label, `@${id}`])]);
+		assert.deepEqual(hover.formatters, {'@x': 'datetime'});
 		assert.equal(s.config.renderers.length, 5);
 		assert.ok(s.config.renderers.every(r => r.glyph.type === 'Line'));
 	}
@@ -337,6 +368,10 @@ function configuration(id, s) {
 		assert.equal(s.config.data.plot.animation.speed, 0);
 		assert.equal(s.config.data['scale-y-2'], undefined);
 		assert.equal(s.config.data.legend.layout, '1x5');
+		assert.equal(s.config.data.legend['vertical-align'], 'top');
+		assert.notEqual(s.config.data.tooltip?.visible, false);
+		assert.notEqual(s.config.data.plot.tooltip?.visible, false);
+		assert.notEqual(s.config.data.plot['hover-state']?.visible, false);
 		assert.deepEqual(s.series.map(line => line.text), SERIES.map(s => s.label));
 	}
 }

@@ -164,7 +164,11 @@ function checkConfig(id, r) {
 		assert.equal(r.chart.canvas.id, undefined);
 		assert.equal(o.options.responsive, false); assert.equal(o.options.animation, false);
 		assert.deepEqual(Object.keys(o.options.scales), ['x', 'y']);
-		assert.equal(o.options.plugins.legend.display, true);
+		assert.equal(o.options.scales.x.type, 'time');
+		assert.equal(o.options.plugins.legend, undefined, 'use the native top legend');
+		assert.equal(o.options.plugins.tooltip, undefined, 'keep native tooltips enabled');
+		assert.equal(o.options.events, undefined, 'keep native pointer events');
+		assert.deepEqual(o.options.interaction, {intersect: false});
 		assert.deepEqual(o.options.plugins.decimation, {enabled: true, algorithm: 'min-max'});
 		assert.deepEqual(o.data.datasets.map(s => [s.label, s.borderColor, s.pointRadius]), SERIES.map(s => [s.label, s.color, 0]));
 	}
@@ -172,12 +176,19 @@ function checkConfig(id, r) {
 		assert.equal(o.chart.width, WIDTH); assert.equal(o.chart.height, HEIGHT);
 		assert.equal(o.chart.renderer, 'canvas'); assert.equal(o.chart.animations.enabled, false);
 		assert.deepEqual(o.chart.dataReducer, id.endsWith('-sampled') ? {enabled: true, targetPoints: 1920, threshold: 3840} : {enabled: false});
-		assert.deepEqual(o.yaxis, {}); assert.equal(o.legend.show, true); assert.equal(o.markers.size, 0);
+		assert.equal(o.yaxis, undefined); assert.deepEqual(o.legend, {position: 'top'}); assert.equal(o.markers.size, 0);
+		assert.equal(o.xaxis.type, 'datetime');
+		assert.deepEqual(o.tooltip, {shared: !id.endsWith('-sampled'), intersect: false});
+		assert.equal(o.chart.toolbar, undefined, 'keep native toolbar interactions');
 		assert.deepEqual(o.colors, SERIES.map(s => s.color));
 	}
 	else if (id.startsWith('highcharts')) {
 		assert.equal(o.chart.width, WIDTH); assert.equal(o.chart.height, HEIGHT);
-		assert.equal(o.chart.animation, false); assert.equal(o.legend.enabled, true);
+		assert.equal(o.chart.animation, false); assert.deepEqual(o.legend, {verticalAlign: 'top'});
+		assert.equal(o.xAxis.type, 'datetime');
+		assert.deepEqual(o.tooltip, {shared: true, animation: false});
+		assert.equal(o.plotOptions.series.enableMouseTracking, undefined, 'keep native mouse tracking');
+		assert.equal(o.plotOptions.series.states, undefined, 'keep native series hover states');
 		assert.equal(Array.isArray(o.yAxis), false); assert.equal(o.plotOptions.series.marker.enabled, false);
 		assert.deepEqual(o.boost, id.endsWith('-svg') ? {useGPUTranslations: false, enabled: false} : {useGPUTranslations: false});
 		assert.equal(o.plotOptions.series.boostThreshold, undefined);
@@ -189,6 +200,9 @@ function checkConfig(id, r) {
 		assert.equal(o.layout.width, WIDTH); assert.equal(o.layout.height, HEIGHT);
 		assert.equal(o.layout.yaxis2, undefined); assert.equal(o.layout.showlegend, true);
 		assert.equal(o.layout.transition.duration, 0); assert.equal(o.config.responsive, false);
+		assert.equal(o.layout.hovermode, undefined, 'keep native hover mode');
+		assert.equal(o.config.staticPlot, undefined, 'keep native pointer interactions');
+		assert.ok(r.chart.data.every(s => s.hoverinfo === undefined && s.hovertemplate === undefined));
 		assert.deepEqual(r.chart.data.map(s => [s.name, s.line.color, s.mode, s.type, s.yaxis]),
 			SERIES.map(s => [s.label, s.color, 'lines', id.endsWith('-svg') ? 'scatter' : 'scattergl', 'y']));
 		assert.equal(r.chart.data[0].line.simplify, undefined, 'keep native SVG simplification');
@@ -197,7 +211,10 @@ function checkConfig(id, r) {
 		assert.deepEqual(o.size, {width: WIDTH, height: HEIGHT});
 		assert.deepEqual(o.render, {mode: 'canvas', lazy: false, observe: false});
 		assert.equal(o.boost.useWorker, false); assert.equal(o.transition.duration, 0);
-		assert.equal(o.axis.y2, undefined); assert.equal(o.legend.show, true); assert.equal(o.point.show, false);
+		assert.equal(o.axis.y2, undefined); assert.equal(o.legend, undefined); assert.equal(o.point.show, false);
+		assert.equal(o.axis.x.type, 'timeseries');
+		assert.equal(o.tooltip, undefined, 'keep native tooltips enabled');
+		assert.equal(o.interaction, undefined, 'keep native pointer interactions');
 		assert.deepEqual(o.data.names, Object.fromEntries(SERIES.map(s => [s.id, s.label])));
 		assert.deepEqual(o.data.colors, Object.fromEntries(SERIES.map(s => [s.id, s.color])));
 	}

@@ -9,8 +9,8 @@ export function makeChart(input, host, wait) {
 	const chart = new Dygraph(host, input, {
 		width: WIDTH, height: HEIGHT,
 		labels: ['Time', ...SERIES.map(s => s.label)], colors: SERIES.map(s => s.color),
-		strokeWidth: 1, drawPoints: false, highlightCircleSize: 0,
-		animatedZooms: false, interactionModel: {},
+		drawPoints: false, highlightCircleSize: 0,
+		animatedZooms: false,
 		legend: 'always', labelsDivWidth: WIDTH,
 		axes: {x: {ticker: Dygraph.dateTicker, axisLabelFormatter: value => new Date(value).toISOString().slice(11, 16)}},
 	});

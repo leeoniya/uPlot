@@ -25,8 +25,6 @@ export async function makeChartWithOptions(input, host, wait, {sampled = false} 
 		handle.scales.push(scale);
 		plot.yScale(scale);
 		plot.yAxis(0).orientation('left').scale(scale);
-		plot.legend().enabled(true);
-		plot.legend().position('bottom');
 		const table = handle.table = anychart.data.table(0);
 		table.addData(input);
 		SERIES.forEach(({label, color}, i) => {
@@ -34,7 +32,7 @@ export async function makeChartWithOptions(input, host, wait, {sampled = false} 
 			handle.mappings.push(mapping);
 			const series = plot.line(mapping);
 			series.name(label);
-			series.stroke({color, thickness: 1 / (globalThis.devicePixelRatio || 1)});
+			series.stroke(color);
 			series.yScale(scale);
 			for (const state of ['normal', 'hovered', 'selected']) series[state]().markers().enabled(false);
 		});

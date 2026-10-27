@@ -23,12 +23,12 @@ export async function makeChart(input, host, wait) {
 	if (!globalThis.lcjs) throw new Error('Load @lightningchart/lcjs@9.0.0 before dashboard initialization.');
 	const timeoutMs = options.timeoutMs ?? 30000;
 	if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error('LightningChart timeoutMs must be positive and finite.');
-	const chart = handle(host, 'LightningChart');
+	const chart = handle(host, 'LightningChart', false);
 	chart.timeoutMs = timeoutMs;
-	const {lightningChart, Themes, disableThemeEffects, AxisTickStrategies, AxisScrollStrategies, SolidLine, SolidFill, ColorHEX} = lcjs;
+	const {lightningChart, Themes, LegendPosition, AxisTickStrategies, AxisScrollStrategies, SolidLine, SolidFill, ColorHEX} = lcjs;
 	try {
 		const canvas = chart.canvas = host.ownerDocument.createElement('canvas');
-		Object.assign(canvas.style, {position: 'absolute', left: '0px', top: '0px', width: `${WIDTH}px`, height: `${HEIGHT - 24}px`});
+		Object.assign(canvas.style, {position: 'absolute', left: '0px', top: '0px', width: `${WIDTH}px`, height: `${HEIGHT}px`});
 		chart.plot.append(canvas);
 		// Observe only the supplied native canvas. Do not probe canvases by creating
 		// unused contexts, patch global prototypes, or raise the browser context limit.
@@ -43,9 +43,9 @@ export async function makeChart(input, host, wait) {
 			webgl: {version: 'webgl2'},
 			sharedContextOptions: {canvas, noCanvasStyles: true, noCanvasTransform: true, useIndividualCanvas: false},
 		});
-		chart.instance = chart.owner.ChartXY({container: chart.plot, theme: disableThemeEffects(Themes.light),
-			defaultAxisX: {type: 'linear-highPrecision'}, legend: {visible: false}});
-		chart.instance.setAnimationsEnabled(false).setTitle('');
+		chart.instance = chart.owner.ChartXY({container: chart.plot, theme: Themes.light,
+			defaultAxisX: {type: 'linear-highPrecision'}, legend: {position: LegendPosition.TopCenter}});
+		chart.instance.setAnimationsEnabled(false).setTitle('').setCursorMode('show-all');
 		const xAxis = chart.instance.getDefaultAxisX().setTickStrategy(AxisTickStrategies.DateTime).setScrollStrategy(AxisScrollStrategies.fitting);
 		const yAxis = chart.instance.getDefaultAxisY().setScrollStrategy(AxisScrollStrategies.fitting);
 		for (const axis of [xAxis, yAxis]) axis.setAnimationsEnabled(false);

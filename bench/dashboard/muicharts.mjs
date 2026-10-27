@@ -6,15 +6,13 @@ function buildChart(data, React, chart, {width, height}) {
 	const {LineChart} = requireFramework('benchmarkMuiCharts');
 	return React.createElement(LineChart, {
 		width, height, dataset: data, skipAnimation: true,
-		margin: {top: 32, right: 12, bottom: 4, left: 4},
-		xAxis: [{id: 'time', dataKey: 'time', scaleType: 'time', valueFormatter: calendarLabel, tickNumber: 4}],
-		yAxis: [{id: 'value', position: 'left', scaleType: 'linear', width: 36}],
+		xAxis: [{id: 'time', dataKey: 'time', scaleType: 'time', valueFormatter: calendarLabel, tickNumber: 4, height: 35}],
+		yAxis: [{id: 'value', position: 'left', scaleType: 'linear'}],
 		series: SERIES.map(({id, label, color}) => ({
-			id, dataKey: id, label, color, yAxisId: 'value', curve: 'linear', showMark: false, disableHighlight: true,
+			id, dataKey: id, label, color, yAxisId: 'value', curve: 'linear', showMark: false,
 		})),
-		grid: {horizontal: true},
 		slotProps: {
-			legend: {direction: 'horizontal', position: {vertical: 'top', horizontal: 'center'}, sx: {fontSize: 11, gap: 1}},
+			legend: {direction: 'horizontal', position: {vertical: 'top', horizontal: 'center'}},
 			line: {className: 'dashboard-line', style: {strokeWidth: 1}},
 		},
 	});

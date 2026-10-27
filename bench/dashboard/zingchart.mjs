@@ -15,14 +15,12 @@ export async function makeChart(input, host, wait) {
 			zingchart.render({
 				id, width: WIDTH, height: HEIGHT, output: 'canvas',
 				data: {
-					type: 'line', plotarea: {margin: '15 15 65 40'},
-					legend: {layout: '1x5', align: 'center', 'vertical-align': 'bottom', item: {'font-size': 9}},
+					type: 'line',
+					legend: {layout: '1x5', align: 'center', 'vertical-align': 'top'},
 					plot: {
-						mode: 'fast', 'sampling-step': 1, 'max-trackers': 0,
-						'line-width': 1 / (globalThis.devicePixelRatio || 1), shadow: false,
+						mode: 'fast', 'sampling-step': 1,
 						marker: {visible: false}, animation: {effect: 0, speed: 0},
 					},
-					tooltip: {visible: false},
 					'scale-x': {transform: {type: 'date', all: '%H:%i'}},
 					'scale-y': {placement: 'default'},
 					series: SERIES.map(({label, color}, i) => ({

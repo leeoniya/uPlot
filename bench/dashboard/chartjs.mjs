@@ -15,17 +15,17 @@ export function makeChart(input, host, wait) {
 			type: 'line',
 			data: {datasets: SERIES.map(({label, color}, i) => ({
 				label, data: input[i], yAxisID: 'y', borderColor: color,
-				borderWidth: 1, pointRadius: 0, pointHoverRadius: 0, fill: false,
+				pointRadius: 0, pointHoverRadius: 0, fill: false,
 			}))},
 			options: {
 				responsive: false, maintainAspectRatio: false, animation: false,
 				parsing: false, normalized: true, spanGaps: true,
+				interaction: {intersect: false},
 				scales: {
-					x: {type: 'time', ticks: {maxRotation: 0, autoSkip: true}},
+					x: {type: 'time'},
 					y: {type: 'linear', position: 'left'},
 				},
 				plugins: {
-					legend: {display: true, labels: {boxWidth: 12, font: {size: 10}}},
 					decimation: {enabled: true, algorithm: 'min-max'},
 				},
 			},

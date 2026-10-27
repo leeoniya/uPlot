@@ -13,14 +13,14 @@ export async function makeChart(input, host, wait) {
 		const ready = new Promise(resolve => { complete = resolve; });
 		chart = new ej.charts.Chart({
 			width: String(WIDTH), height: String(HEIGHT), enableCanvas: true,
-			primaryXAxis: {valueType: 'DateTime', rangePadding: 'None'}, primaryYAxis: {},
-			tooltip: {enable: false}, crosshair: {enable: false},
+			primaryXAxis: {valueType: 'DateTime'},
+			tooltip: {enable: true},
 			series: SERIES.map(({id, label, color}) => ({
 				dataSource: input, xName: 'time', yName: id, name: label,
-				type: 'Line', fill: color, width: 1 / devicePixelRatio,
-				animation: {enable: false}, marker: {visible: false, dataLabel: {visible: false}},
+				type: 'Line', fill: color,
+				animation: {enable: false}, marker: {visible: false},
 			})),
-			legendSettings: {visible: true, position: 'Bottom', textStyle: {size: '10px'}},
+			legendSettings: {position: 'Top'},
 			loaded: () => complete(),
 		});
 		chart.appendTo(host);

@@ -14,7 +14,7 @@ export async function makeChart(input, host, wait) {
 				x: {type: 'time', nice: false},
 				color: {type: 'ordinal', domain: SERIES.map(s => s.label), range: SERIES.map(s => s.color)},
 			},
-			legend: {color: {position: 'bottom'}},
+			legend: {color: {position: 'top'}},
 			children: SERIES.map(({id, label}) => ({
 				type: 'line',
 				encode: {x: 'time', y: id, color: {type: 'constant', value: label}},
