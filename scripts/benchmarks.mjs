@@ -68,6 +68,7 @@ Each variant uses a fresh browser and shared cached vendor assets. CHROME_BIN ov
 --gpu enables GPU. --vulkan requests Vulkan. --no-vulkan disables automatic Vulkan selection.
 On Linux, the default suite and explicit ChartGPU select Vulkan automatically. Overrides cannot be combined.
 Twenty independent WebGL contexts can exceed browser limits. No fallback renderer or context-limit override is implied.
+Dashboard plotly explicitly uses pinned virtual-webgl 1.0.7 WebGL1; single-chart Plotly and dashboard plotly-svg do not.
 --dpr defaults to 1. --verbose adds main ms and gpu ms to tables without changing measurements.
 --summarize-only refreshes the saved dashboard suite without a browser, using its saved DPR.
 It rejects --dpr, --variant, --worker, and --install-only. Workload dimensions must match across all reports and controls.

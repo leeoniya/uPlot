@@ -204,6 +204,31 @@ The harness does not hide or dismiss these banners.
 Vendor license checks and publication requirements remain separate from technical validation.
 The [benchmark guide](../../scripts/benchmarks.md#license-and-availability-limits) describes license configuration and restrictions.
 
+### Plotly virtual WebGL
+
+The existing `plotly` dashboard loads `virtual-webgl@1.0.7/src/virtual-webgl.js` before Plotly.
+Both automated capture and `plotly.html` use this pinned WebGL1 build. Single-chart Plotly and dashboard `plotly-svg` remain unchanged.
+The package default is a different WebGL2 build, so the dependency specifies the full path.
+
+The 20 charts use 40 virtual contexts over one shared native WebGL context.
+The adapter retains `scattergl`. It rejects missing, lost, or nonvirtual contexts and the Plotly no-WebGL fallback.
+Chrome retains its normal context limit. Virtualization adds context-switch and canvas-compositing costs, and its antialiasing behavior differs from native WebGL.
+These costs belong to the dashboard result, not to a separate variant.
+
+The WebGL observer reinstalls after virtualization, before capture starts. It observes virtual acquisitions and retains its integrity checks.
+Completion uses the existing WebGL1 `finish()` checks and settling interval. These checks do not prove compositor presentation.
+The vendor creates its shared native context during library loading, before the loaded-library checkpoint and session baselines.
+That initial allocation belongs to loaded-library memory, not the per-session chart delta.
+
+Cleanup calls `Plotly.purge()`, destroys retained regl instances, and disposes acquired virtual contexts, including contexts from partial construction failures.
+Cleanup never acquires new contexts. The shared native context and compositor remain until the page closes.
+Version 1.0.7 does not explicitly delete each virtual context's default VAO in `dispose()`.
+Separate diagnostics found increasing VAO creation counts without explicit deletion. This does not prove permanent driver leaks, but cleanup is not proven leak-free.
+The benchmark does not patch vendor internals or measure GPU device memory.
+
+Reports retain the case name `plotly` and record `virtualWebGL` version, path, and context type in the benchmark metadata.
+Saved summaries reject old native-dashboard Plotly reports or mismatched virtual-WebGL metadata. A new capture is necessary for those reports.
+
 ## Saved results
 
 Reports and compressed traces reside in `.cache/benchmarks/`.
@@ -250,12 +275,13 @@ After seven adapter fixes, rechecks passed seven more variants.
 The resulting coverage is 39 of 44 default chart variants, plus idle.
 LightningChart is license-gated and is outside that default count.
 
-Five variants remain unsuccessful: `bokeh`, `d3fc`, `deckgl`, `plotly`, and `scichart`.
-The errors concern Chrome WebGL context capacity during 20 concurrent cold chart constructions.
+The initial failures included `bokeh`, `d3fc`, `deckgl`, `plotly`, and `scichart`.
+Four still have unresolved context-capacity errors: `bokeh`, `d3fc`, `deckgl`, and `scichart`.
+The virtualized Plotly dashboard no longer has the observed context-capacity error, but full capture remains unverified as described below.
 Bokeh also has an asynchronous cache race: its shared initializer caches the result after module loading, not the pending promise.
 Concurrent first use can therefore allocate extra contexts.
 
-The benchmark does not bypass these errors with context-limit overrides, renderer fallback, or prewarming.
+The benchmark uses no context-limit overrides, renderer fallback, or prewarming. Only dashboard Plotly explicitly uses virtual WebGL.
 ChartGPU passed with 20 WebGPU devices. That result does not establish WebGL capacity for another adapter.
 
 Full three-warmup, seven-measured-session runs passed for idle, uPlot, and Chart.js in combined and memory-only modes.
@@ -266,3 +292,27 @@ These checks do not establish equivalent coverage for every variant, DPR, backen
 Final captures passed after the validation-boundary correction and supersede the earlier measurement artifacts.
 Separate guarded captures completed with throwing validators and zero validation calls during measurement.
 The diagnostic runs were separate. This coverage record contains no comparative timing or memory numbers and establishes no performance ranking.
+
+### Plotly follow-up
+
+The actual manual HTML page passed separate DPR 1 and DPR 2 diagnostics with all 20 charts visible.
+All charts passed native-data validation, tile-geometry checks, canvas-backing-size checks, and nonblank-pixel checks.
+Completion reported 40 complete virtual contexts with an intact observer. Cleanup disposed all 40 contexts exactly once.
+Three repeated diagnostic sessions created and disposed 120 virtual contexts. The vendor registry returned to empty after each session.
+Native context acquisitions stayed at one. The VAO caveat described above still applies.
+
+Combined capture exceeded the unchanged five-second watchdog during the first warmup's `small-init` on this machine.
+A separate timing diagnostic observed approximately 5.8 seconds from budget start through construction completion.
+Both the default backend and Vulkan-requested combined runs timed out. A default-backend memory-only run also timed out.
+The default-backend trace-only run reached trace export but exceeded the external 180-second timeout without a usable trace or report.
+No complete Plotly timing/memory result or DPR 2 capture is available. The idle combined control completed all three warmups and seven measured sessions.
+No deep validation, screenshots, or pixel readbacks occurred during measured capture.
+
+Follow-up artifacts reside under `/tmp/dashboard-validation/`:
+
+- `plotly-validation-summary.json`: manual-page and cleanup diagnostics.
+- `plotly-timeout-evidence.json`: first-warmup timing evidence.
+- `plotly-default-summary.json`: default-backend capture results.
+- `plotly-retry-combined-idle-dpr1.json`: completed idle control.
+
+These follow-up artifacts supersede the earlier Plotly context-failure classification, not the successful captures for other variants.

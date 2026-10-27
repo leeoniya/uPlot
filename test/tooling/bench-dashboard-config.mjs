@@ -3,7 +3,8 @@ import {WIDTH, HEIGHT, CHARTS, ROWS, SERIES, dashboardData} from '../../bench/da
 
 const ids = ['chartjs', 'apexcharts', 'apexcharts-sampled', 'highcharts', 'highcharts-svg', 'plotly', 'plotly-svg', 'billboard'];
 const adapters = Object.fromEntries(await Promise.all(ids.map(async id => [id, await import(`../../bench/dashboard/${id}.mjs`)])));
-const globals = ['Chart', 'ApexCharts', 'Highcharts', 'Plotly', 'bb', 'devicePixelRatio'];
+const globals = ['Chart', 'ApexCharts', 'Highcharts', 'Plotly', 'bb', 'devicePixelRatio',
+	'HTMLCanvasElement', 'virtualWebGL', 'benchmarkWebGL'];
 const turn = () => new Promise(resolve => setImmediate(resolve));
 const clone = value => structuredClone(value);
 const freeze = value => {
@@ -106,8 +107,17 @@ function vendor(id, {boosted = false, sync = false} = {}) {
 	};
 	else if (id.startsWith('plotly')) globalThis.Plotly = {
 		async newPlot(host, data, layout, config) {
-			const r = record(host, {data, layout, config}), chart = r.chart;
+			const r = record(host, {data, layout, config}), chart = r.chart = host;
 			chart.data = clone(data);
+			if (data[0].type === 'scattergl') {
+				r.regls = Array.from({length: 2}, () => {
+					const canvas = new HTMLCanvasElement();
+					host.appendChild(canvas);
+					canvas.parentNode = host;
+					return {_gl: canvas.getContext('webgl'), destroyed: 0, destroy() { this.destroyed++; }};
+				});
+				chart._fullLayout = {_glcanvas: {data: () => [...r.regls.map(regl => ({regl})), {pick: true}]}};
+			}
 			r.values = () => chart.data.map(s => s.y.map((y, i) => [s.x[i], y]));
 			r.corrupt = key => { chart.data[4][key][0]++; };
 			r.drop = () => chart.data.pop();
@@ -119,7 +129,13 @@ function vendor(id, {boosted = false, sync = false} = {}) {
 			chart.data = clone(data); r.options.layout = layout;
 			return r.ready();
 		},
-		purge(chart) { state.records.find(r => r.chart === chart || r.host === chart).destroyed++; },
+		purge(chart) {
+			state.records.find(r => r.chart === chart).destroyed++;
+			for (const canvas of chart.children) canvas.parentNode = canvas.parent = null;
+			chart.children.length = 0;
+			delete chart._fullLayout;
+			delete chart.data;
+		},
 	};
 	else globalThis.bb = {generate(options) {
 		const r = record(options.bindto, options), chart = r.chart;
@@ -167,6 +183,8 @@ function checkConfig(id, r) {
 		assert.deepEqual(o.series.map(s => [s.name, s.color, s.yAxis]), SERIES.map(s => [s.label, s.color, 0]));
 	}
 	else if (id.startsWith('plotly')) {
+		assert.equal(r.chart, r.host, 'the native Plotly handle is its host');
+		if (id === 'plotly') assert.deepEqual(r.chart.getWebGLContexts(), r.regls.map(regl => regl._gl));
 		assert.equal(o.layout.width, WIDTH); assert.equal(o.layout.height, HEIGHT);
 		assert.equal(o.layout.yaxis2, undefined); assert.equal(o.layout.showlegend, true);
 		assert.equal(o.layout.transition.duration, 0); assert.equal(o.config.responsive, false);
@@ -197,12 +215,24 @@ async function unsettled(promise, wait) {
 }
 
 describe('dashboard: native configuration and lifecycle contracts', () => {
-	let saved;
+	let saved, canvasPrototype, contextDescriptor;
 	beforeEach(() => {
 		saved = globals.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
 		globalThis.devicePixelRatio = 2;
+		// Use a fresh prototype so ownership wrappers never modify an existing runtime.
+		globalThis.HTMLCanvasElement = class {
+			getContext(type) {
+				assert.equal(type, 'webgl');
+				return this.context ??= {disposed: 0, isContextLost: () => false, dispose() { this.disposed++; }};
+			}
+		};
+		canvasPrototype = HTMLCanvasElement.prototype;
+		contextDescriptor = Object.getOwnPropertyDescriptor(canvasPrototype, 'getContext');
+		globalThis.virtualWebGL = {};
+		delete globalThis.benchmarkWebGL;
 	});
 	afterEach(() => {
+		Object.defineProperty(canvasPrototype, 'getContext', contextDescriptor);
 		for (const [key, descriptor] of saved) {
 			if (descriptor) Object.defineProperty(globalThis, key, descriptor);
 			else delete globalThis[key];
@@ -212,6 +242,7 @@ describe('dashboard: native configuration and lifecycle contracts', () => {
 	for (const [id, adapter] of Object.entries(adapters)) {
 		it(`${id}: batches 20 independent charts at final size, replaces all five series, and destroys`, async () => {
 			const state = vendor(id), hosts = Array.from({length: CHARTS}, host);
+			await adapter.prepareRuntime?.();
 			const frames = freeze(dashboardData(2)), inputs = frames.map(frame => freeze(adapter.prepData(frame)));
 			const waits = hosts.map(() => ({textContent: 'waiting'}));
 			const pending = Promise.all(hosts.map((host, i) => adapter.makeChart(inputs[i], host, waits[i])));
@@ -246,10 +277,15 @@ describe('dashboard: native configuration and lifecycle contracts', () => {
 			handles.forEach(handle => adapter.destroyChart(handle));
 			assert.ok(state.records.every(r => r.destroyed === 1));
 			assert.ok(hosts.every(host => host.children.length === 0));
+			if (id === 'plotly') {
+				assert.ok(state.records.every(r => r.regls.every(regl => regl.destroyed === 1 && regl._gl.disposed === 1)));
+				assert.ok(handles.every(handle => handle.getWebGLContexts().length === 0));
+			}
 		});
 
 		it(`${id}: validates native x/y data and rejects a missing fifth series`, async () => {
 			const state = vendor(id, {sync: true});
+			await adapter.prepareRuntime?.();
 			const input = freeze(adapter.prepData(freeze(dashboardData()[0])));
 			const handle = await adapter.makeChart(input, host());
 			const r = state.records[0];
@@ -265,6 +301,7 @@ describe('dashboard: native configuration and lifecycle contracts', () => {
 
 		it(`${id}: rejects native update failures without signaling readiness`, async () => {
 			const state = vendor(id, {sync: true}), input = adapter.prepData(dashboardData(2)[0]);
+			await adapter.prepareRuntime?.();
 			const handle = await adapter.makeChart(input, host());
 			state.error = new Error('native update failed');
 			const wait = {textContent: 'waiting'};

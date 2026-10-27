@@ -54,6 +54,48 @@ function fixture() {
 	return {realm, context, calls, timers, drain, advance: ms => { now += ms; }};
 }
 
+describe('WebGL observer reinstallation', () => {
+	it('wraps a vendor context layer without weakening integrity checks', async () => {
+		const f = fixture(), original = f.realm.HTMLCanvasElement.prototype.getContext;
+		const first = createWebGLCapture(f.realm);
+		const before = f.realm.HTMLCanvasElement.prototype.getContext;
+		const virtual = f.context([], false);
+		virtual.finish = () => f.calls.push(['virtual-finish']);
+		function vendor(type) { return type === 'webgl' ? virtual : before.call(this, type); }
+		f.realm.HTMLCanvasElement.prototype.getContext = vendor;
+		const capture = first.reinstall();
+		assert.throws(() => first.begin(), /inactive, installed/);
+		capture.begin();
+		new f.realm.HTMLCanvasElement().getContext('webgl');
+		const result = await capture.complete({webgl1Finish: true});
+		assert.equal(result.status, 'complete');
+		assert.equal(result.contexts.length, 1);
+		assert.equal(result.coverage.observerIntact, true);
+		assert.equal(f.calls.filter(call => call[0] === 'virtual-finish').length, 1);
+		capture.begin();
+		f.realm.HTMLCanvasElement.prototype.getContext = vendor;
+		assert.equal((await capture.complete()).coverage.observerIntact, false);
+		capture.dispose();
+		assert.equal(f.realm.HTMLCanvasElement.prototype.getContext, vendor);
+		assert.equal(f.realm.OffscreenCanvas.prototype.getContext, original);
+	});
+
+	it('rejects active, retained, pending, and disposed captures', async () => {
+		const f = fixture(), capture = createWebGLCapture(f.realm);
+		capture.begin();
+		assert.throws(() => capture.reinstall(), /inactive, empty/);
+		capture.track(f.context());
+		const pending = capture.complete({retainContexts: true});
+		assert.throws(() => capture.reinstall(), /inactive, empty/);
+		await f.drain(pending);
+		assert.throws(() => capture.reinstall(), /inactive, empty/);
+		capture.reset();
+		const replacement = capture.reinstall();
+		assert.throws(() => capture.reinstall(), /inactive, empty/);
+		replacement.dispose();
+	});
+});
+
 describe('retained lifecycle GL contexts', () => {
 	it('fences reused contexts without reacquisition until session reset', async () => {
 		const f = fixture();

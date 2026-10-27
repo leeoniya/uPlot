@@ -177,6 +177,89 @@ describe('dashboard benchmark suite', () => {
 		});
 	}
 
+	it('adds independent virtualWebGL metadata only to dashboard plotly', () => {
+		const expected = {version: '1.0.7', path: 'src/virtual-webgl.js', context: 'webgl'};
+		const metadata = benchmarkVariantMetadata('plotly', {dashboard: true});
+		assert.deepEqual(metadata, {...benchmarkMetadata.plotly, virtualWebGL: expected});
+		metadata.virtualWebGL.version = 'changed';
+		assert.deepEqual(benchmarkVariantMetadata('plotly', {dashboard: true}).virtualWebGL, expected);
+		assert.deepEqual(benchmarkVariantMetadata('plotly'), benchmarkMetadata.plotly);
+		assert.deepEqual(benchmarkVariantMetadata('plotly-svg', {dashboard: true}), benchmarkMetadata['plotly-svg']);
+		assert.equal(dashboardWorkload.protocol, 'dashboard-v1');
+	});
+
+	for (const measurements of modes) {
+		const mode = benchmarkMode(measurements);
+		it(`${mode}: persists dashboard plotly config before workers and preserves it in saved summaries`, async () => {
+			const options = {...measurements, dashboard: true, variant: 'plotly', vulkan: false};
+			const output = join(directory, suiteReportName(mode, options));
+			const expected = benchmarkVariantMetadata('plotly', {dashboard: true});
+			const h = harness(request => {
+				const partial = JSON.parse(readFileSync(output, 'utf8'));
+				assert.deepEqual(partial.variantMetadata.plotly, expected);
+				return browser(request);
+			});
+			const report = await runBenchmarkSuite(options, h.dependencies);
+			assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'plotly']);
+			assert.deepEqual(report.failures, []);
+			assert.deepEqual(report.reports[1].runner.benchmark, expected);
+			assert.notEqual(report.variantMetadata.plotly.virtualWebGL, report.reports[1].runner.benchmark.virtualWebGL);
+			const summary = quiet(() => summarizeSavedBenchmarks(options, output)).result;
+			assert.deepEqual(summary.variantMetadata, report.variantMetadata);
+			assert.deepEqual(summary.reports.map(raw => raw.runner), report.reports.map(raw => raw.runner));
+			assert.deepEqual(summary.reports.map(raw => raw.samples), report.reports.map(raw => raw.samples));
+			assert.deepEqual(summary.workload, dashboardWorkload);
+		});
+
+		it(`${mode}: rejects native or mismatched dashboard plotly snapshots before rewriting`, () => {
+			for (const change of [
+				metadata => delete metadata.virtualWebGL,
+				metadata => { metadata.virtualWebGL = null; },
+				metadata => { metadata.virtualWebGL.version = '1.0.6'; },
+				metadata => { metadata.virtualWebGL.path = 'src/virtual-webgl2.js'; },
+				metadata => { metadata.virtualWebGL.context = 'webgl2'; },
+			]) for (const target of ['raw', 'suite']) {
+				const reports = ['idle', 'plotly'].map(variant => browser({variant, measurements}));
+				const output = save(reports, measurements);
+				const suite = JSON.parse(readFileSync(output, 'utf8'));
+				suite.variantMetadata = {plotly: benchmarkVariantMetadata('plotly', {dashboard: true})};
+				change(target === 'raw' ? suite.reports[1].runner.benchmark : suite.variantMetadata.plotly);
+				writeFileSync(output, JSON.stringify(suite));
+				const bytes = readFileSync(output, 'utf8');
+				assert.throws(() => summarizeSavedBenchmarks({...measurements, dashboard: true, vulkan: false}, output), /dashboard plotly virtualWebGL.*Rerun/);
+				assert.equal(readFileSync(output, 'utf8'), bytes);
+			}
+			const raw = browser({variant: 'plotly', measurements});
+			delete raw.runner.benchmark;
+			const output = save([raw], measurements), bytes = readFileSync(output, 'utf8');
+			assert.throws(() => summarizeSavedBenchmarks({...measurements, dashboard: true, vulkan: false}, output), /dashboard plotly virtualWebGL/);
+			assert.equal(readFileSync(output, 'utf8'), bytes);
+		});
+
+		it(`${mode}: rejects native live dashboard plotly without rejecting idle controls`, async () => {
+			const h = harness(request => {
+				const raw = browser(request);
+				delete raw.runner.benchmark.virtualWebGL;
+				return raw;
+			});
+			const report = await runBenchmarkSuite({...measurements, dashboard: true, variant: 'plotly', vulkan: false}, h.dependencies);
+			assert.deepEqual(report.progress.completed, ['idle']);
+			assert.equal(report.failures[0].variant, 'plotly');
+			assert.match(report.failures[0].error, /dashboard plotly virtualWebGL/);
+		});
+	}
+
+	it('summarizes native single-chart plotly and dashboard SVG without virtualWebGL metadata', async () => {
+		for (const [variant, dashboard] of [['plotly', false], ['plotly-svg', true]]) {
+			const options = {raf: true, variant, dashboard, vulkan: false};
+			const report = await runBenchmarkSuite(options, harness().dependencies);
+			assert.deepEqual(report.failures, []);
+			const summary = quiet(() => summarizeSavedBenchmarks(options, undefined, {outputDirectory: directory})).result;
+			assert.deepEqual(summary.variantMetadata[variant], benchmarkMetadata[variant]);
+			assert.deepEqual(summary.reports[1].runner.benchmark, benchmarkMetadata[variant]);
+		}
+	});
+
 	it('runs all 44 defaults plus idle, adding only licensed LightningChart', async () => {
 		for (const licensed of [false, true]) {
 			const h = harness();
@@ -284,8 +367,8 @@ describe('dashboard benchmark suite', () => {
 	it('executes the real worker setup with mocked Chrome, selecting fixture, viewport, assets, capture and output', async () => {
 		const source = readFileSync(new URL('scripts/benchmarks.mjs', root), 'utf8');
 		const block = source.slice(source.indexOf('const binary = await chromeBinary('));
-		for (const dashboard of [false, true]) {
-			const values = {variant: 'highcharts', dashboard, gpu: true};
+		for (const dashboard of [false, true]) for (const variant of ['highcharts', 'plotly', 'plotly-svg']) {
+			const values = {variant, dashboard, gpu: true};
 			const measurements = modes[3], mode = 'raf', vulkan = false;
 			let capture, launch, loaded, profile;
 			const reads = [];
@@ -310,18 +393,18 @@ describe('dashboard benchmark suite', () => {
 				process: {version: process.version, once() {}, removeListener() {}}, cpus: () => [], platform: () => 'linux', release: () => 'test',
 				console: {log() {}},
 			});
-			assert.equal(loaded.variant, 'highcharts');
+			assert.equal(loaded.variant, variant);
 			assert.equal(loaded.options.dashboard, dashboard);
 			assert.equal(capture.dashboard, dashboard);
 			assert.ok(launch.args.includes(`--window-size=1920,${dashboard ? 1080 : 900}`));
 			assert.equal(capture.traceName, traceReportName(mode, values.variant, {dashboard}));
-			assert.equal(capture.url, 'http://127.0.0.1:12345/?variant=highcharts');
+			assert.equal(capture.url, `http://127.0.0.1:12345/?variant=${variant}`);
 			assert.ok(profile.startsWith(join(tmpdir(), 'uplot-bench-chrome-')));
 			assert.equal(existsSync(profile), false);
 			assert.equal(reads.some(path => path.endsWith('/bench/data.json')), !dashboard);
 			assert.ok(reads.some(path => path.endsWith(dashboard ? '/bench/dashboard/browser.mjs' : '/scripts/benchmarks-trace-browser.mjs')));
 			const raw = JSON.parse(readFileSync(join(directory, variantReportName(mode, values.variant, {dashboard})), 'utf8'));
-			assert.equal(raw.runner.benchmark.context, dashboard ? 'svg' : 'webgl');
+			assert.deepEqual(raw.runner.benchmark, benchmarkVariantMetadata(variant, {dashboard}));
 			assert.equal(Object.hasOwn(raw.runner.sourceSha256, '/bench/data.json'), !dashboard);
 		}
 	});

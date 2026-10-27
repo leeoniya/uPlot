@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { demoDependencies, demoModuleDependencies, dependencyUrl } from '../bench/demo-dependencies.mjs';
+import { dashboardDependencies } from '../bench/dashboard/dependencies.mjs';
 
 // Serve the same modules and styles as the standalone demos, without parsing HTML.
 export function loadBenchDemoSources(root, variant = null, {dashboard = false} = {}) {
@@ -37,7 +38,7 @@ export function loadBenchDemoSources(root, variant = null, {dashboard = false} =
 			for (const module of [id, ...(demoModuleDependencies[id] ?? [])])
 				read(`/bench/${module}.mjs`);
 		}
-		for (const dependency of demoDependencies[id]) {
+		for (const dependency of dashboard ? dashboardDependencies(id) : demoDependencies[id]) {
 			const {name, version, path, type, option, global, alias} = dependency;
 			if (name) {
 				const cacheName = `${name.replace(/^@/, '').replaceAll('/', '-')}-${version}-${path.replaceAll('/', '-')}${type === 'module' ? '-' + id : ''}`;

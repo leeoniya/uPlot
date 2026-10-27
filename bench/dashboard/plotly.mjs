@@ -1,4 +1,9 @@
 import {WIDTH, HEIGHT, SERIES, prepColumns, assertSeries} from './common.mjs';
+import {prepareOwnership, register, collect, render, requireWebGL, destroyWebGL} from './plotly-webgl.mjs';
+
+export function prepareRuntime() {
+	prepareOwnership();
+}
 
 export const prepData = prepColumns;
 
@@ -24,29 +29,41 @@ export function makeChart(input, host, wait) {
 }
 
 export async function makeChartWithOptions(input, host, wait, {type = 'scattergl'} = {}) {
+	const webgl = type === 'scattergl';
+	if (webgl) register(host);
 	try {
-		const chart = await Plotly.newPlot(host, traces(input, type), layout(input), {
+		const create = () => Plotly.newPlot(host, traces(input, type), layout(input), {
 			responsive: false, displayModeBar: false, plotGlPixelRatio: devicePixelRatio,
 		});
+		const chart = await (webgl ? render(host, create) : create());
+		if (webgl) requireWebGL(chart);
 		if (wait) wait.textContent = 'Done!';
 		return chart;
 	}
 	catch (error) {
-		try { Plotly.purge(host); }
+		try { destroyChart(host); }
 		finally { throw error; }
 	}
 }
 
 export async function updateChart(chart, input, host, wait) {
-	await Plotly.react(chart, traces(input, chart.data[0].type), layout(input));
+	const type = chart.data[0].type;
+	const update = () => Plotly.react(chart, traces(input, type), layout(input));
+	if (type === 'scattergl') {
+		collect(chart);
+		await render(chart, update);
+		requireWebGL(chart);
+	}
+	else await update();
 	if (wait) wait.textContent = 'Done!';
 }
 
 export function destroyChart(chart) {
-	Plotly.purge(chart);
+	if (!destroyWebGL(chart)) Plotly.purge(chart);
 }
 
 export function validateChart(chart, input, {rows}) {
+	if (chart.data[0]?.type === 'scattergl') requireWebGL(chart);
 	assertSeries(chart.data.map(trace => trace.y), rows);
 	assertSeries(chart.data.map(trace => trace.x), rows);
 	for (let s = 0; s < SERIES.length; s++) {

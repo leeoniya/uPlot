@@ -1,4 +1,5 @@
-import {demoDependencies, assertDemoAvailable} from '../demo-dependencies.mjs';
+import {assertDemoAvailable} from '../demo-dependencies.mjs';
+import {dashboardDependencies} from './dependencies.mjs';
 import {loadDependency} from '../demo.mjs';
 import {prepareDemoRuntime} from '../demo-runtime.mjs';
 import {dashboardData, ROWS} from './common.mjs';
@@ -58,7 +59,7 @@ export async function createDashboardDemo(source, {
 		if (typeof variant !== 'string' || !/^[a-z0-9-]+$/.test(variant) || variant === 'idle')
 			throw new Error(`Unknown dashboard demo variant: ${variant}`);
 		assertDemoAvailable(variant, realm.benchmarkLightningChartOptions);
-		for (const dependency of demoDependencies[variant]) {
+		for (const dependency of dashboardDependencies(variant)) {
 			if (dependency.type !== 'wasm' && dependency.type !== 'module')
 				await load(dependency);
 		}

@@ -99,7 +99,14 @@ describe('benchmark demo asset loader', () => {
 	for (const variant of ['idle', ...benchmarkVariants, 'lightningchart']) {
 		it(`${variant}: serves the dashboard module graph without single-chart layout styles`, () => {
 			const result = loadBenchDemoSources(root, variant, {dashboard: true});
-			assert.deepEqual(result.dependencies, loadBenchDemoSources(root, variant).dependencies);
+			const native = loadBenchDemoSources(root, variant).dependencies;
+			assert.deepEqual(result.dependencies, variant === 'plotly' ? [{
+				name: 'virtual-webgl', version: '1.0.7',
+				url: 'https://cdn.jsdelivr.net/npm/virtual-webgl@1.0.7/src/virtual-webgl.js',
+				route: '/bench/vendor/virtual-webgl-1.0.7-src-virtual-webgl.js',
+				cacheName: 'virtual-webgl-1.0.7-src-virtual-webgl.js',
+			}, ...native] : native);
+			assert.equal(native.some(dep => dep.name === 'virtual-webgl'), false);
 			assert.ok(!result.localStyles.includes('/bench/demo.css'));
 			const visited = new Set();
 			function visit(route) {

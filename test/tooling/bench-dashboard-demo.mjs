@@ -171,6 +171,20 @@ describe('dashboard manual demo', () => {
 		});
 	}
 
+	it('loads virtual-webgl before Plotly only for the WebGL dashboard', async () => {
+		for (const variant of ['plotly', 'plotly-svg']) {
+			const h = harness({variant});
+			const demo = await h.run();
+			const loaded = h.events.filter(([event]) => event === 'load').map(([, dependency]) => dependency);
+			assert.deepEqual(loaded, variant === 'plotly' ? [
+				{name: 'virtual-webgl', version: '1.0.7', path: 'src/virtual-webgl.js'},
+				...demoDependencies.plotly,
+			] : demoDependencies['plotly-svg']);
+			assert.equal(demoDependencies.plotly.some(dep => dep.name === 'virtual-webgl'), false);
+			await demo.destroy();
+		}
+	});
+
 	it('waits for source runtime and fonts before constructing any charts', async () => {
 		const h = harness(), runtime = deferred(), fonts = deferred();
 		h.source.prepareRuntime = () => runtime.promise;

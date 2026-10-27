@@ -45,11 +45,14 @@ export function traceReportName(mode, variant, {vulkan = false, dashboard = fals
 	return `trace-chrome-${dashboard ? 'dashboard-' : ''}${mode}${vulkan ? '-vulkan' : ''}-${variant}.json`;
 }
 
+const dashboardPlotlyVirtualWebGL = Object.freeze({version: '1.0.7', path: 'src/virtual-webgl.js', context: 'webgl'});
+
 export function benchmarkVariantMetadata(variant, {dashboard = false} = {}) {
 	// Pinned Boost defaults: 5,000 points per series or 50 series per chart.
 	// The dashboard leaves those thresholds unchanged (300 points, five series).
 	return {...benchmarkMetadata[variant], ...(dashboard && variant === 'highcharts'
-		? {context: 'svg', sampling: 'none', lossy: false} : {})};
+		? {context: 'svg', sampling: 'none', lossy: false} : {}),
+		...(dashboard && variant === 'plotly' ? {virtualWebGL: {...dashboardPlotlyVirtualWebGL}} : {})};
 }
 
 // Only these known GPU series can use captured GL contexts as renderer evidence.
@@ -72,7 +75,19 @@ function metadataFor(variant, snapshot, samples = []) {
 	};
 }
 
-function assertCompatibleReports(reports, {trace}) {
+function assertCompatibleDashboardPlotlyMetadata(metadata) {
+	// Native dashboard captures must not inherit the current virtual-context config.
+	if (Object.entries(dashboardPlotlyVirtualWebGL).some(([key, value]) => metadata?.virtualWebGL?.[key] !== value))
+		throw new Error('Incompatible dashboard plotly virtualWebGL configuration. Rerun dashboard plotly with virtual-webgl 1.0.7 WebGL1 src/virtual-webgl.js.');
+}
+
+function assertCompatibleReports(reports, {trace}, suite) {
+	if (suite?.workload && suite.variantMetadata && Object.hasOwn(suite.variantMetadata, 'plotly'))
+		assertCompatibleDashboardPlotlyMetadata(suite.variantMetadata.plotly);
+	for (const raw of reports) {
+		if (raw.workload && raw.runner?.variant === 'plotly')
+			assertCompatibleDashboardPlotlyMetadata(raw.runner.benchmark);
+	}
 	assertCompatibleMemoryReports(reports);
 	for (const raw of reports) {
 		benchmarkOperations(raw);
@@ -90,7 +105,7 @@ function assertCompatibleReports(reports, {trace}) {
 
 function benchmarkView(report) {
 	assertCompatibleWorkloads([report, ...report.reports]);
-	assertCompatibleReports(report.reports, report.measurements);
+	assertCompatibleReports(report.reports, report.measurements, report);
 	const {trace, memory, raf} = report.measurements;
 	const population = report.reports.some(raw => raw.phase === 'chart-population');
 	const lifecycle = population || report.reports.some(raw => raw.phase === 'chart-lifecycle');
@@ -222,7 +237,7 @@ export function summarizeSavedBenchmarks(options, output, {platform = process.pl
 	if ((report.workload !== undefined) !== dashboard)
 		throw new Error('Expected a benchmark suite report with matching dashboard workload selection.');
 	assertCompatibleWorkloads([report, ...report.reports]);
-	assertCompatibleReports(report.reports, measurements);
+	assertCompatibleReports(report.reports, measurements, report);
 	if (measurements.trace) {
 		for (const raw of report.reports) {
 			const analysis = raw.analysis;
@@ -397,7 +412,7 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 					throw new Error(`Unexpected benchmark report for ${name}`);
 				assertCompatibleWorkloads([report, raw]);
 				reports = [...report.reports, raw];
-				assertCompatibleReports(reports, measurements);
+				assertCompatibleReports(reports, measurements, report);
 				adjustedAnalysis = measurements.memory ? summarizeAdjustedProcessMemory(reports) : null;
 			}
 			catch (error) {

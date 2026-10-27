@@ -75,6 +75,14 @@ export function createWebGLCapture(realm = globalThis) {
 			active = true;
 		},
 		track,
+		reinstall() {
+			if (disposed || active || pending || contexts.size)
+				throw new Error('WebGL observer reinstallation requires an inactive, empty capture.');
+			// A vendor can wrap getContext during runtime setup. Keep its wrapper,
+			// retire this observer, and observe the contexts returned by that wrapper.
+			this.dispose();
+			return createWebGLCapture(realm);
+		},
 		reset() {
 			if (pending)
 				throw new Error('Cannot reset WebGL capture while fences are pending.');

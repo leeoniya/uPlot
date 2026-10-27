@@ -501,10 +501,15 @@ Dashboard reports use separate filenames, as described under [Saved results](#sa
 
 Browser validation first passed 32 chart variants plus idle. Seven adapter fixes and rechecks brought coverage to 39 of 44 default variants.
 
-The remaining five are `bokeh`, `d3fc`, `deckgl`, `plotly`, and `scichart`.
-Their errors concern Chrome WebGL context capacity during 20 concurrent cold constructions. Bokeh also has an asynchronous shared-cache initialization race.
-The benchmark uses no context-limit overrides, renderer fallback, or prewarming to bypass these errors.
-ChartGPU passed with 20 WebGPU devices.
+Four variants retain context-capacity errors: `bokeh`, `d3fc`, `deckgl`, and `scichart`. Bokeh also has an asynchronous shared-cache initialization race.
+Dashboard `plotly` now loads pinned `virtual-webgl@1.0.7/src/virtual-webgl.js` before Plotly, in both capture and its manual HTML page.
+Single-chart Plotly and dashboard `plotly-svg` remain unchanged. Saved summaries reject old native-dashboard Plotly metadata.
+The benchmark uses no context-limit overrides, renderer fallback, or prewarming. ChartGPU passed with 20 WebGPU devices.
+
+The virtualized Plotly manual page passed DPR 1 and DPR 2 diagnostics: 20 visible charts, valid data, and 40 complete virtual contexts.
+Cleanup disposed all virtual contexts, but the vendor does not explicitly delete their default VAOs. Leak-free GPU cleanup is not proven.
+Combined and memory-only captures exceeded the unchanged five-second watchdog on this machine. Trace-only capture did not finish trace export within 180 seconds.
+No usable full Plotly capture is available. The dashboard README records these limitations and the separate diagnostic artifacts.
 
 Full three-warmup, seven-measured-session runs passed for idle, uPlot, and Chart.js in combined and memory-only modes.
 DPR 2 checks passed for uPlot and Chart.js geometry and canvas backing dimensions.
