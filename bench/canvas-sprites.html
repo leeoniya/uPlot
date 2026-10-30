@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Canvas sprites: atlas vs separate canvases</title>
+	<style>
+		body { margin: 24px; font: 15px/1.5 system-ui, sans-serif; color: #222; }
+		main { max-width: 1000px; margin: auto; }
+		h1 { font-size: 24px; }
+		.controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 16px 0; }
+		button, select { font: inherit; padding: 4px 8px; }
+		canvas { display: block; width: 100%; height: 400px; outline: 2px solid #333; background: #f5f5f5; }
+		table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+		th, td { text-align: right; padding: 6px; border-bottom: 1px solid #ccc; }
+		th:first-child, td:first-child { text-align: left; }
+		#status { min-height: 1.5em; }
+		.table-wrap { overflow-x: auto; }
+	</style>
+</head>
+<body>
+	<main>
+		<h1>Canvas sprites: atlas vs separate canvases</h1>
+		<p>Both methods draw the same translucent circles in the same order. Each cache contains five colors, not one canvas per dot.</p>
+		<div class="controls">
+			<label>Preview <select id="method"><option value="atlas">Atlas (9 arguments)</option><option value="sprites">Separate canvases (3 arguments)</option></select></label>
+			<label><input id="snap" type="checkbox"> Snap to device pixels</label>
+			<button id="run" type="button">Run benchmark</button>
+		</div>
+		<p id="dimensions"></p>
+		<canvas aria-label="Sprite preview"></canvas>
+		<p>Move the pointer over the canvas to reposition 100 dots. DPR is cached and refreshed after a zoom or display change.</p>
+		<p>The benchmark uses 100, 1,000, and 10,000 dots at DPR 1, 1.25, and 2. Keep this tab visible.</p>
+		<p>Each method gets 30 warmup frames and 120 measured frames. Test order alternates across six pairs of trials.</p>
+		<p>CPU time includes the clear and draw calls. It excludes position generation, cache creation, and readback. It does not measure completed GPU work.</p>
+		<p>Frame intervals include browser scheduling and display refresh limits. These intervals are not GPU timings. Pixel comparisons use separate, untimed canvases.</p>
+		<p id="status" role="status">Ready.</p>
+		<div class="table-wrap">
+			<table>
+				<thead><tr><th>DPR / dots</th><th>Atlas CPU median / p95 (ms)</th><th>Separate CPU median / p95 (ms)</th><th>CPU change</th><th>Atlas frame median / p95 (ms)</th><th>Separate frame median / p95 (ms)</th><th>Pixel differences</th></tr></thead>
+				<tbody id="results"></tbody>
+			</table>
+		</div>
+		<p>A negative CPU change means that separate canvases took less time. Small differences can be measurement noise.</p>
+	</main>
+	<script type="module" src="./canvas-sprites.mjs"></script>
+</body>
+</html>

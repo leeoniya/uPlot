@@ -200,9 +200,14 @@ legend: {
 The default is `null`, which preserves the existing inference from multi-value formatting.
 Scalar legends use inline layout by default. Multi-value legends use table layout by default.
 Explicit layout does not change value formatting, column keys, X-row eligibility, or selection.
+`legend.valueSrc` selects `'value'` or `'values'` independently of `tooltip.valueSrc`.
+An omitted source prefers `series[1].values` when present, as before.
 A scalar table uses `series.value` and has no column header for the internal `_` key.
 Multi-value legends retain their named column headers.
-With `live: false`, both layouts show labels without value cells or the X row.
+With `live: false`, both layouts show null-index stats without the X row.
+Non-live legends apply their own selection callbacks after stats refreshes, or on explicit `setLegend` calls.
+Their selection does not restrict hover points.
+An enabled tooltip becomes the live selection owner. See [Tooltip and Stats Legend](../tooltip.md).
 
 `legend.side` uses the same order as axes and padding:
 
@@ -579,7 +584,7 @@ Top-server tests cover idle fallback, hover transitions, timestamps, limits, mis
 Behavior-switch tests cover the initial limit, callback replacement, preserved cursor position, and chart reuse.
 Control tests cover limit changes, both layouts, all four positions, state preservation during chart recreation, and listener cleanup.
 The extracted history exactly matches the original log-scale dataset.
-Layout tests cover explicit modes, all four sides, label-only legends, custom mounting, resize, and deferred overlay-rectangle refresh.
+Layout tests cover explicit modes, all four sides, stats legends, custom mounting, resize, and deferred overlay-rectangle refresh.
 These tests use mocked geometry, not browser layout.
 The full suite also covers existing legend contracts, cursor behavior, layout, and keyed row interactions.
 

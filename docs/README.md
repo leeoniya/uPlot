@@ -7,6 +7,7 @@
 - [Numeric Formatting](#numeric-formatting)
 - [Optional DOM](#optional-dom)
 - [Live Legend Selection](investigations/legend-selection.md)
+- [Tooltip and Stats Legend](tooltip.md)
 - [High/Low Bands](#highlow-bands)
 - [Series, Scales, Axes, Grid](#series-scales-axes-grid)
 - [Multiple Scales & Axes](#multiple-scales--axes)

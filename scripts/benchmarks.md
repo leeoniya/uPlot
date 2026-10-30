@@ -8,7 +8,12 @@ Unless a section explicitly describes the dashboard, chart configuration and lif
 
 The HTML demos and benchmark import the same `bench/<variant>.mjs` modules.
 The [dependency manifest](../bench/demo-dependencies.mjs) defines the variants, dependency pins, execution order, metadata, and restrictions.
-The default suite contains 44 chart variants, including local uPlot and the pinned `uplot-release`. The idle control is separate.
+
+The default suite contains 44 chart variants, including local uPlot and the pinned `uplot-release`.
+A runtime license key adds the optional LightningChart variant.
+No mode runs `idle` automatically. `--variant NAME` selects only that variant.
+Explicit `--variant idle` runs a diagnostic. No timing or memory result subtracts idle measurements.
+
 Sampled and renderer variants share their base adapters.
 G2 WebGL and Google Charts are disabled for benchmarks because of timeouts.
 JSCharting is standalone-only because vendor cleanup retains charts and listeners across samples.
@@ -374,7 +379,7 @@ Supply these environment variables through your local environment or secret mana
 With `LIGHTNINGCHART_LICENSE`, the default suite includes LightningChart after the default chart variants.
 Without a key, the suite reports an explicit LightningChart skip. Explicit selection without a key fails the availability check.
 
-To select LightningChart plus idle, use:
+To select only LightningChart, use:
 
 ```sh
 npm run bench -- --variant lightningchart
@@ -404,8 +409,9 @@ Bun forwards arguments directly, without an extra `--` separator.
 | `bun run bench:dash --trace` | Trace only |
 | `bun run bench:dash --memory` | Process memory only |
 | `bun run bench:dash --raf` | Untraced rAF latency only |
-| `bun run bench:dash --variant uplot` | Idle control and local uPlot |
-| `bun run bench:dash --variant chartjs --dpr 2` | Idle control and Chart.js at DPR 2 |
+| `bun run bench:dash --variant uplot` | Local uPlot only |
+| `bun run bench:dash --variant chartjs --dpr 2` | Chart.js only, at DPR 2 |
+| `bun run bench:dash --variant idle` | Explicit idle diagnostic only |
 | `bun run bench:dash --verbose` | Include trace thread columns in the table |
 | `bun run bench:dash --summarize-only` | Recompute the saved combined summary without Chrome |
 | `bun run bench:dash --no-vulkan` | Disable automatic Vulkan selection, but retain `--gpu` |
@@ -414,7 +420,7 @@ Bun forwards arguments directly, without an extra `--` separator.
 `--summarize-only` also accepts the measurement flags and `--verbose`. It uses the saved DPR and rejects `--dpr` and `--variant`.
 
 Combined and memory-only modes require Linux `/proc`.
-The existing backend policy applies: Linux suites with ChartGPU automatically request Vulkan, including for idle.
+The existing backend policy applies: Linux suites with ChartGPU automatically request Vulkan for every selected variant.
 Focused runs without ChartGPU use the default Chrome backend unless `--vulkan` selects Vulkan explicitly.
 
 The dashboard contains 20 independent charts in four columns and five rows, without gaps.
@@ -422,7 +428,8 @@ Each tile measures 480 × 216 CSS pixels. The grid fills the 1920 × 1080 CSS vi
 Each chart has five same-unit signals on one Y axis and 300 rows per series: 30,000 points across the dashboard.
 
 `bench/dashboard/common.mjs` generates deterministic, independent inputs. It does not use the original packed data.
-The lifecycle validates and freezes the canonical frames at fixture load, before capture and the memory baseline.
+The lifecycle validates and freezes the canonical frames at fixture load, before session capture and baselines.
+In memory modes, the blank checkpoint precedes fixture load.
 Charts have no point markers or animation. Adapters use native legends where available and small custom legends where necessary.
 
 Every mode uses three warmup sessions and seven measured sessions per variant.
@@ -444,7 +451,11 @@ Neither capture nor preflight calls this method. This separation prevents valida
 Capture retains page/grid geometry checks, checks for 20 distinct chart handles, and graphics-health checks.
 Trace and memory modes also retain graphics completion checks.
 
-Memory uses the existing `through-update-v1` methodology and a same-run idle control with 20 empty hosts.
+Memory uses the existing `through-update-v1` lifecycle.
+Each fresh browser supplies its own settled, post-GC `/blank` checkpoint before library or fixture load.
+The blank checkpoint uses the same viewport, DPR, and trace mode as the chart samples.
+Adjusted retained and peak memory subtract only this blank checkpoint. Library and fixture overhead remain included.
+
 Peak covers initialization, preparation, and update through the post-update GC/live checkpoint.
 All 20 charts and their full prepared inputs remain alive at `live`.
 There is no post-update polling phase, cleanup snapshot, or cleanup GC. Normal chart destruction still occurs.
@@ -459,7 +470,7 @@ Highcharts retains native Boost thresholds and uses SVG at 300 rows. Its dashboa
 DevExtreme, Syncfusion, and Kendo license banners can obscure charts. The harness does not hide or dismiss these banners.
 
 Reports contain the `dashboard-v1` workload snapshot, including chart count, series count, row count, grid dimensions, and tile size.
-All modes reject mixed single-chart/dashboard reports and different dashboard dimensions, including idle controls and saved summaries.
+All modes reject mixed single-chart/dashboard reports and different dashboard dimensions. Saved summaries use the same checks.
 Dashboard reports use separate filenames, as described under [Saved results](#saved-results).
 
 The [dashboard README](../bench/dashboard/README.md) describes adapter constraints, virtual WebGL, and the dashboard protocol.
@@ -513,12 +524,12 @@ bun run bench
 ```
 
 ChartGPU is part of the default suite. On Linux, runs that include ChartGPU automatically request Vulkan.
-The harness adds `--enable-gpu` and `--enable-features=Vulkan` to every worker, including idle.
+The harness adds `--enable-gpu` and `--enable-features=Vulkan` to every selected worker.
 Vulkan reports and traces use separate filenames from default-backend results.
 Other platforms and single-variant runs without ChartGPU retain Chrome's default backend unless explicitly overridden.
 ChartGPU still requires hardware WebGPU. Automatic Vulkan selection cannot supply missing GPU access or driver support.
 
-To run only ChartGPU and idle, use:
+To run only ChartGPU, use:
 
 ```sh
 bun run bench --variant chartgpu
@@ -530,7 +541,7 @@ These flags cannot be combined. A focused run of another library needs `--vulkan
 ### Compare sampled and base variants
 
 For a comparison with the full Linux suite, use `--vulkan` for both variants.
-Each command includes the idle control. These commands do not change the five-second sample budget.
+Each command selects only the named variant. These commands do not change the five-second sample budget.
 
 ```sh
 npm run bench -- --variant apexcharts --vulkan
@@ -550,13 +561,14 @@ Focused runs without ChartGPU do not automatically select Vulkan. Reports from d
 
 ## Library scope and progress
 
-The default suite runs idle first, then the chart variants in `benchmarkVariants` from `bench/demo-dependencies.mjs`.
+The default suite runs the 44 chart variants in `benchmarkVariants` from `bench/demo-dependencies.mjs`.
+No mode adds an automatic idle run.
 
 LightningChart follows these libraries when `LIGHTNINGCHART_LICENSE` supplies a runtime key.
 Without that key, the suite records an explicit skip rather than an empty benchmark row.
 Each variant uses a fresh browser with only its library and required demo dependencies.
-The idle control runs first so the first completed library can show adjusted memory values.
-The main table omits the idle row.
+Adjusted memory uses each browser's own blank checkpoint and requires no separate idle report.
+The main table omits the explicit idle diagnostic.
 
 Each library has 3 warmup sessions and 7 measured sessions.
 Each session creates a two-point chart, updates it with the full dataset, then resizes it to 1200×400.
@@ -576,10 +588,10 @@ Redirected output contains plain-text progress and one final table, without curs
 Interactive terminals always receive the incremental table, regardless of their reported width or height.
 Oversized tables can leave earlier rows in scrollback because cursor movement cannot erase that region.
 After a terminal resize, the display starts a fresh block to avoid erasing unrelated output.
-The suite saves partial results after each variant, including the idle control.
+The suite saves partial results after each selected variant.
 A failed run keeps its completed results and marks the suite report incomplete.
 
-To select one library plus the idle control, use:
+To select only Chart.js, use:
 
 ```sh
 npm run bench -- --variant chartjs
@@ -588,7 +600,16 @@ npm run bench -- --variant chartjs
 `benchmarkVariants` in `bench/demo-dependencies.mjs` controls execution order.
 `benchmarkRestrictions` excludes G2 WebGL, Google Charts, and JSCharting without disabling their standalone demos.
 Explicit benchmark selection also rejects these variants and reports the reason.
-`idle` and `chartgpu` are also selectable. `lightningchart` requires a runtime key.
+`chartgpu` is also selectable. `lightningchart` requires a runtime key.
+
+To run the idle diagnostic without a chart variant, use:
+
+```sh
+npm run bench -- --variant idle
+```
+
+The diagnostic is optional in every mode. It does not supply an offset for memory subtraction.
+
 Default suite reports include the skipped variants and their reasons.
 
 ### ChartGPU demo and default-suite benchmark
@@ -767,7 +788,7 @@ The supported set contains 23 chart variants:
 | Recharts | `recharts` | Native axis tooltip |
 | DevExtreme | `devextreme` | Native shared tooltip |
 
-The idle control uses ten mouse moves and the same nine 50 ms waits, but requires no chart values.
+The explicit idle diagnostic uses ten mouse moves and the same nine 50 ms waits, but requires no chart values.
 Unimplemented variants omit the hover phase and leave the column blank, rather than report zero.
 Production target-preparation or input errors fail the session. Diagnostic value failures belong to separate harness-development checks.
 
@@ -798,7 +819,9 @@ Timing tables place timed-out implementations last within their library group. G
 Memory-only tables retain execution order, with library groups together.
 Library errors also produce `-` rows without stopping later libraries. These include crashes, dependency errors, and missing or invalid worker reports.
 The suite exits successfully after every library produces measurements, times out, or fails.
-User cancellation, idle-control failures, worker-launch failures, unsafe process cleanup, and suite-report write failures still stop the suite.
+An ordinary error or timeout in an explicit idle diagnostic does not stop the suite.
+User cancellation and infrastructure failures still stop the suite.
+Infrastructure failures include worker-launch failures, unsafe process cleanup, and suite-report write failures.
 The suite does not save the timed-out library's incomplete trace or replace its previous successful trace.
 
 The suite JSON stores timeout details in `timeouts` and other library errors in `failures`.
@@ -904,8 +927,17 @@ Collector wall durations can include preemption and internal waits. They do not 
 Capture and analysis metadata record `accountingProtocol` separately from `initProtocol`.
 Trace analysis and saved summaries require `accountingProtocol: 'thread-work-gc-v2'` metadata.
 
-Memory modes record blank-page and loaded-library/raw-data checkpoints before warmups.
+Memory modes already record a settled, post-GC `/blank` checkpoint in each fresh browser, before library or fixture load.
+The checkpoint uses the same viewport, DPR, and trace mode as that browser's chart samples.
+Combined mode starts tracing before this checkpoint. Memory-only mode leaves tracing off.
+The loaded-library/raw-data checkpoint follows fixture load, before warmups.
 These checkpoints are single observations, not round aggregates.
+If a blank read is incomplete, the runner retries it before library load, with at most five total attempts.
+Each attempt includes two animation frames, a 200 ms wait, and forced GC.
+The first complete read supplies the baseline, not the smallest value. `blank.attempts` retains all attempts and their diagnostics.
+If every attempt fails, adjusted memory remains unavailable. The table warning includes the final failure reason.
+Loaded checkpoints and measured observations do not retry. A retry at those boundaries could change the measured workload.
+
 Each memory sample then has this sequence:
 
 1. Establish session state without a chart host and allow previous rendering to settle.
@@ -1005,8 +1037,8 @@ By default, the combined table shows these measurements in this order:
 - `prep ms`: Preparation of the full dataset.
 - `init ms`: Total tracked thread work for host setup and two-point chart initialization, including deferred rendering and graphics completion checks.
 - `update ms`: Total tracked thread work for the full-data update and rendering, including deferred work and graphics completion checks.
-- `peak MB`: Baseline-adjusted sampled peak browser-tree PSS through the post-update `live` checkpoint.
-- `retained MB`: Baseline-adjusted retained browser-tree PSS at that checkpoint, before resize or tooltip interaction.
+- `peak MB`: Blank-adjusted sampled peak browser-tree PSS through the post-update `live` checkpoint.
+- `retained MB`: Blank-adjusted retained browser-tree PSS at that checkpoint, before resize or tooltip interaction.
 - `resize ms`: Total tracked thread work for resize, including host sizing, deferred work, and graphics completion checks.
 - `hover10 ms`: Cumulative tracked thread work for ten mouse moves, including deferred work and graphics completion checks.
 
@@ -1031,7 +1063,7 @@ JSON retains `min`, `max`, `mean`, valid counts, missing counts, and individual 
 Main-thread GC and selected background GC already contribute to those totals. The analyzer does not add averaged GC again.
 The JSON GC breakdowns also include arithmetic means, with zero-GC windows included.
 These means account for observed work within the phase windows, not collection between windows or full amortized application cost.
-The update total excludes small initialization and preparation. The sorting and color thresholds apply to mean full-data update work.
+The update total excludes small initialization and preparation. Sorting and colors for `update ms` use mean full-data update work.
 `init ms`, `resize ms`, and `hover10 ms` use the same thread-work metric as `update ms`, but for their separate windows.
 It includes captured main-thread work, raster tasks, compositor work, GPU-process work, and selected background GC.
 Idle gaps in the fixed settling wait do not count as work. Actual harness work within that window still counts.
@@ -1058,45 +1090,44 @@ The table omits the index, sample-count, and DPR columns. Sample counts and DPR 
 Variant names and the `context`, `sampling`, and `lossy` columns align left without quotes. Numeric columns align right and show one decimal place.
 The JSON retains full measurement precision.
 
-Interactive terminals color `init ms`, `update ms`, `resize ms`, and `hover10 ms` in trace tables.
-These columns use the same shades. Initialization reaches red at 100 ms, while the other three reach red at more than 100 ms.
-The display leaves `main ms`, `gpu ms`, and rAF-only timings uncolored.
-Fixed bands use unrounded values. Extreme outliers do not change the colors of other rows.
-The frame reference is `F = 1000/60 ms` (about 16.67 ms), so green ends at `2F` (about 33.33 ms).
+Interactive terminals use one smooth color-scale algorithm independently for each eligible column in the current displayed rows:
 
-The graded columns use these ranges. Context colors are categorical and appear separately below.
+- `init ms`, `update ms`, `resize ms`, and `hover10 ms` in trace and combined tables.
+- `peak MB` and `retained MB` in memory-only and combined tables.
 
-| Column | Green shades | Orange shades | Red shades |
-| --- | --- | --- | --- |
-| `init ms` | `0–2F` (about 33.33 ms) | `2F < ms < 100` | `≥100 ms` |
-| `update ms`, `resize ms`, `hover10 ms` | `0–2F` (about 33.33 ms) | `>2F–100 ms` | `>100 ms` |
-| `peak MB` | `0–35 MB` | `35 < MB < 50` | `≥50 MB` |
-| `retained MB` | `0–35 MB` | `35 < MB < 50` | `≥50 MB` |
+The presence of the `main ms` field in full rows identifies trace timings, even when the table hides that column.
+The display leaves `prep ms`, `main ms`, `gpu ms`, and all rAF-only timing columns uncolored.
+The scale uses raw values before rounding, not rounded table text or absolute frame/ms thresholds.
 
-The following table gives each shade's upper limit. Limits are inclusive unless marked `<`.
-Each shade starts after the previous used range. Darkest green starts at zero.
-An excluded boundary belongs to the next shade: exactly 50 MB is light red in both memory columns.
-The final row gives the lower boundary for darkest red.
-Fractions are exact thresholds. Decimal approximations are for reference only.
+For each eligible column, the display sorts finite, nonnegative raw values in ascending order.
+Negative, missing, and nonfinite values remain uncolored and do not affect the scale.
+If no eligible values exist or the minimum is zero, the entire column remains uncolored. This rule applies to timings and memory.
+Otherwise, the first color stop is green (`#22c55e`) at the positive column minimum.
 
-| Shade | `init ms` | `update ms` / `resize ms` / `hover10 ms` | `peak MB` | `retained MB` |
-| --- | ---: | ---: | ---: | ---: |
-| Darkest green | `F ≈ 16.67` | `F ≈ 16.67` | 20 | 20 |
-| Medium green (yellow-green) | 25 | 25 | 27.5 | 27.5 |
-| Light green (pale lime) | `2F ≈ 33.33` | `2F ≈ 33.33` | 35 | 35 |
-| Light orange | 50 | 50 | 40 | 40 |
-| Medium orange | 75 | 75 | 45 | 45 |
-| Strong orange | `<100` | 100 | `<50` | `<50` |
-| Light red | 500 | 500 | 100 | 100 |
-| Strong red | 1000 | 1000 | 200 | 200 |
-| Deep red | 2000 | 2000 | 400 | 400 |
-| Darkest red | `>2000` | `>2000` | `>400` | `>400` |
+Each group cap is its group minimum multiplied by the next multiplier in this table.
+The first group minimum is the column minimum.
+Each later group minimum is the lowest observed value greater than the previous cap.
+Values equal to a cap belong to that group, not the next group.
+When no observed values remain beyond the previous cap, that cap becomes the next group minimum.
+This rule extends the stops through all five caps.
 
-Memory colors apply in combined and memory-only tables.
-Peak and retained memory use the same ranges and shades, so equal values have equal colors.
-Both columns use darkest green through 20 MB, then lighter greens through 35 MB.
-The orange range has three equal-width bands.
-Negative baseline-adjusted estimates and unavailable values remain uncolored.
+| Group | Multiplier of group minimum | Color at cap |
+| --- | ---: | --- |
+| 1 | 1.5 | Lime `#84cc16` |
+| 2 | 2 | Gold `#facc15` |
+| 3 | 4 | Orange `#f97316` |
+| 4 | 8 | Red `#ef2929` |
+| 5 | 16 | Deep red `#b91c1c` |
+
+Between adjacent stops at values `a` and `b`, the display uses the log-space fraction `t = (log(value) - log(a)) / (log(b) - log(a))`.
+Each RGB channel interpolates continuously as `channel(a) + t * (channel(b) - channel(a))`.
+There are no shade resets at group boundaries.
+Values greater than the last cap stay deep red. They do not cause an error.
+The scale does not normalize to the maximum or stretch unused hues across the observed values.
+
+Colors recompute as rows arrive. New smaller or intermediate values can change later stops and existing colors.
+New values greater than the existing maximum leave existing colors unchanged.
+Independent columns or tables can give the same raw value different colors.
 Color changes do not change measurements or aggregation: trace timings use arithmetic means, while memory columns use minima.
 
 The `context` column uses categorical colors, not performance ratings:
@@ -1111,9 +1142,10 @@ The `context` column uses categorical colors, not performance ratings:
 
 Unknown or unavailable contexts remain uncolored.
 
-The display uses truecolor or distinct 256-color approximations, according to terminal support.
+Truecolor terminals show the continuous RGB scale.
+For 256-color terminals, each interpolated RGB color maps to the nearest color in the fixed xterm color cube or grayscale palette.
+This approximation does not use separate, manually selected bands.
 Redirected output, basic-color terminals, `TERM=dumb`, and any `NO_COLOR` value disable colors. JSON remains uncolored.
-The frame thresholds are references, not frame-latency claims.
 Trace `update ms` sums selected host-thread wall work, not elapsed frame latency.
 
 Terminal dimensions and line wrapping affect cursor erasure, not whether an interactive table is shown.
@@ -1133,18 +1165,18 @@ Memory uses decimal MB: 1 MB = 1,000,000 bytes.
 Each measured library sample uses this adjustment:
 
 ```text
-idle overhead = min(idle retained memory - idle browser blank memory)
-adjusted retained = library retained memory - library browser blank memory - idle overhead
-adjusted peak = library sampled peak - library browser blank memory - idle overhead
+adjusted retained = raw live memory - own browser blank memory
+adjusted peak = raw sampled peak - own browser blank memory
 ```
 
-The idle control has the same DPR, measurement mode, memory boundary, and requested backend as the library.
-The suite rejects worker reports with a different requested backend.
-Controls come only from the current run.
-Both memory columns subtract the minimum measured settled idle overhead, not the idle peak.
-The table then selects the minimum adjusted value for each column.
-Negative estimates remain negative.
-Missing observations produce unavailable values, not zero.
+Each subtraction uses the same memory scope and metric from the sample and its own browser's blank checkpoint.
+There is no extra idle offset, even if a saved report contains idle measurements.
+The calculation does not subtract loaded-library checkpoints or warm session baselines. Library and fixture overhead therefore remain included.
+The table selects the minimum adjusted value for each column after subtraction.
+
+Process churn and changes to shared mappings can still produce negative deltas. Negative estimates remain negative.
+Missing or invalid blank observations make adjusted values unavailable, not zero. No other checkpoint or browser supplies a replacement.
+The suite still rejects worker reports with a different requested backend.
 
 The JSON retains renderer measurements, RSS, private memory, swap, absolute checkpoints, and raw observations.
 The `live` JSON field represents retained memory.
@@ -1163,8 +1195,8 @@ Restricted `/proc` access can also hide processes or prevent measurements.
 
 Peaks are sampled lower bounds for this measurement protocol, not exact peaks of an uninterrupted run.
 Warmup can leave allocator pages resident, and shared-page accounting can change without a local allocation.
-Adjusted statistics hold the chosen blank and idle baselines fixed.
-Their ranges do not include baseline uncertainty or establish exclusive library ownership.
+Adjusted statistics hold each browser's observed blank checkpoint fixed.
+Their ranges do not include blank uncertainty or establish exclusive library ownership.
 
 
 Tracked totals cover selected renderer-main, compositor, raster, GPU-process, and background-GC scopes, not all host threads or uninstrumented work.
@@ -1191,7 +1223,7 @@ Dashboard filenames include `dashboard-` before the mode, as defined by the nami
 
 `MODE` is `combined`, `trace`, `memory`, or `raf`. Only modes with tracing produce trace archives.
 `bun run bench:dash --summarize-only` selects the saved dashboard report for the requested measurements and backend.
-Dashboard compatibility checks reject mixed workloads and different dashboard dimensions in all modes, including idle controls.
+Dashboard compatibility checks reject mixed workloads and different dashboard dimensions in all modes.
 The separate filenames leave single-chart reports untouched.
 
 With Chrome's default backend, each single-chart mode has its own suite report:
@@ -1246,7 +1278,10 @@ npm run bench -- --summarize-only --no-vulkan
 Saved tables use the same aggregation as live tables: arithmetic means for trace timings and minima for rAF timings and memory.
 Summary-only mode recomputes trace statistics from saved analyzed phase samples, without another browser run or trace read.
 It requires `thread-work-gc-v2` accounting metadata. Missing GC scopes remain unavailable, not zero.
-Memory summaries require `through-update-v1`.
+Memory summaries require `through-update-v1`. The raw capture lifecycle and this protocol remain unchanged.
+Older saved memory reports already contain each browser's blank checkpoint.
+`--summarize-only` recalculates adjusted memory from saved raw observations with the new formula: raw live or peak minus its own browser blank.
+It requires no new browser run and subtracts no idle offset.
 The same option applies to each separate command and selects its matching saved report.
 It uses the saved DPR and rejects `--dpr`, `--variant`, `--worker`, and `--install-only`.
 The internal `--worker` option captures one variant for the suite runner.

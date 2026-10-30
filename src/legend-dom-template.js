@@ -1,6 +1,6 @@
 import { h } from './h.js';
 import { on, off } from './dom.js';
-import { LEGEND, LEGEND_LIVE, LEGEND_INLINE, LEGEND_SERIES, LEGEND_MARKER, LEGEND_LABEL, LEGEND_VALUE, LEGEND_SIDES, OFF } from './domClasses.js';
+import { LEGEND, LEGEND_LIVE, LEGEND_INLINE, LEGEND_SERIES, LEGEND_MARKER, LEGEND_LABEL, LEGEND_VALUE, LEGEND_SIDES, OFF, FOCUS } from './domClasses.js';
 import { mouseenter, mouseleave, LEGEND_DISP } from './strings.js';
 
 function textValue(value) {
@@ -36,20 +36,31 @@ function createValueCells(keys) {
 // The adapter owns selection, table placement, legend.mount, and removal.
 // Rows prepare their metadata on creation and own only their contents.
 export function createLegendTemplate(self, opts, keys, markersShow) {
-	const {legend, multi, focusAlpha, cursorFocus, bind, emit} = opts;
-	const inline = legend.mode == null ? !multi : legend.mode == 'inline';
+	const {legend, cursorFocus, bind, emit, interactive = true} = opts;
+	let multi = opts.multi;
+	let inline;
 	const sideClass = LEGEND_SIDES[opts.side ?? legend.side ?? 2];
 	const rowMeta = new WeakMap();
-	let body;
-	const node = h('table', null,
-		multi && h('thead', null,
+	const body = h('tbody');
+	const node = h('table', null, body);
+	let head;
+
+	function setColumns(nextKeys, nextMulti) {
+		keys = nextKeys;
+		multi = nextMulti;
+		inline = legend.mode == null ? !multi : legend.mode == 'inline';
+		head?.remove();
+		head = multi ? h('thead', null,
 			h('tr', null,
 				h('th'),
 				keys.map(key => h('th', {className: LEGEND_LABEL}, key)),
 			),
-		),
-		body = h('tbody'),
-	);
+		) : null;
+		if (head)
+			node.insertBefore(head, body);
+	}
+
+	setColumns(keys, multi);
 	let values = [];
 	let focused = null;
 	let tableClass;
@@ -93,7 +104,7 @@ export function createLegendTemplate(self, opts, keys, markersShow) {
 		};
 	}
 
-	let leave = cursorFocus ? bindEvent(node, 'leave', null, true) : null;
+	let leave = interactive && cursorFocus ? bindEvent(node, 'leave', null, true) : null;
 
 	function prepare({series, index}) {
 		let state = rowMeta.get(series);
@@ -111,7 +122,7 @@ export function createLegendTemplate(self, opts, keys, markersShow) {
 					color = series.width > 0 ? markers.stroke(self, index) : markers.fill(self, index);
 			}
 			const label = series.label;
-			state = { label: label instanceof HTMLElement ? label : textValue(label), border, background, color };
+			state = { label: label instanceof HTMLElement ? (interactive ? label : label.cloneNode(true)) : textValue(label), border, background, color };
 			rowMeta.set(series, state);
 		}
 		return state;
@@ -133,29 +144,22 @@ export function createLegendTemplate(self, opts, keys, markersShow) {
 			),
 			cells.nodes,
 		);
-		const events = createRowEvents(header, entry.series);
+		const events = interactive ? createRowEvents(header, entry.series) : null;
 		let className;
-		let opacity = null;
 
 		return {
 			node: row,
 			update({series, index}) {
-				const nextClass = LEGEND_SERIES + (series.class ? ' ' + series.class : '') + (series.show ? '' : ' ' + OFF);
+				const nextClass = LEGEND_SERIES + (series.class ? ' ' + series.class : '') + (series.show ? '' : ' ' + OFF) + (index > 0 && series == focused ? ' ' + FOCUS : '');
 				if (nextClass !== className) {
 					row.className = className = nextClass;
 				}
 
-				const nextOpacity = focusAlpha != 1 && focused != null && index > 0 && series != focused ? focusAlpha : null;
-				if (nextOpacity !== opacity) {
-					row.style.opacity = nextOpacity == null ? '' : nextOpacity;
-					opacity = nextOpacity;
-				}
-
-				events.update(index > 0);
+				events?.update(index > 0);
 				cells.update(values[index]);
 			},
 			destroy() {
-				events.destroy();
+				events?.destroy();
 				// Keep the supplied label, not its discarded row and value cells.
 				if (state.label instanceof HTMLElement && state.label.parentNode === label)
 					label.removeChild(state.label);
@@ -167,12 +171,17 @@ export function createLegendTemplate(self, opts, keys, markersShow) {
 		node,
 		body,
 		createRow,
+		setColumns,
 		update(data, focusedSeries) {
 			values = data;
 			focused = focusedSeries;
-			const className = LEGEND + ' ' + sideClass + (inline ? ' ' + LEGEND_INLINE + (legend.live ? ' ' + LEGEND_LIVE : '') : '');
-			if (className !== tableClass)
-				node.className = tableClass = className;
+			const className = LEGEND + ' ' + sideClass + (inline ? ' ' + LEGEND_INLINE + (legend.live || keys.length > 0 ? ' ' + LEGEND_LIVE : '') : '');
+			if (className !== tableClass) {
+				if (tableClass != null)
+					node.classList.remove(...tableClass.split(' '));
+				node.classList.add(...className.split(' '));
+				tableClass = className;
+			}
 		},
 		destroy() {
 			if (leave)

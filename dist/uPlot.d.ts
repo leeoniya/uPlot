@@ -41,6 +41,9 @@ declare class uPlot {
 
 	readonly legend: uPlot.Legend;
 
+		/** tooltip options and live values. Disabled by default. */
+		readonly tooltip: uPlot.Tooltip;
+
 //	/** focus opts */
 //	readonly focus: uPlot.Focus;
 
@@ -88,7 +91,7 @@ declare class uPlot {
 	/** sets the cursor position (relative to plotting area) */
 	setCursor(opts: {left: number, top: number}, fireHook?: boolean): void;
 
-	/** refreshes legend values and selection; {} refreshes callback closure state without changing indices */
+	/** Refreshes the live component and reselects the stats legend from cached values. {} leaves indices unchanged. */
 	setLegend(opts: {idx?: number | null, idxs?: (number | null)[]}, fireHook?: boolean): void;
 
 	// TODO: include other series style opts which are dynamically pulled?
@@ -325,19 +328,24 @@ declare namespace uPlot {
 
 	export interface Legend {
 		show?: boolean;	// true
-		/** show series values at current cursor.idx */
+		/** Live values follow the cursor. false shows null-index stats after data, series, and scale changes.
+		 * An enabled tooltip forces this to false. */
 		live?: boolean;	// true
-		/** initial layout; null or omitted infers table from series.values, otherwise inline */
+		/** Initial layout. null or omitted infers table for multi-value output, otherwise inline. */
 		mode?: 'inline' | 'table' | null;
+		/** Formatter source. Omitted prefers series[1].values when present, otherwise series.value.
+		 * 'values' requires a values callback on each Y series. */
+		valueSrc?: 'value' | 'values';
 		/** initial position outside chart width/height: 0 top, 1 right, 2 bottom (default), 3 left */
 		side?: 0 | 1 | 2 | 3;
 		/** switches primary interaction mode to toggle-one/toggle-all */
 		isolate?: boolean; // false
-		/** retains Y series before sorting; indices refer to u.series, not display positions */
+		/** Retains Y series before sorting. Non-live legends run this after stats refresh, not on cursor moves.
+				 * Indices refer to u.series, not display positions. Only live selection controls hover points. */
 		filter?: (self: uPlot, seriesIdx: number) => boolean;
-		/** compares filtered Y series; ties retain original series order */
+		/** Compares filtered Y series. Stats callbacks can read self.legend.values. Ties retain original series order. */
 		sort?: (self: uPlot, seriesIdxA: number, seriesIdxB: number) => number;
-		/** selects a half-open range from the filtered, sorted Y indices; X stays pinned outside this range */
+		/** Selects a half-open range from sorted Y indices. An eligible X row stays outside this range. */
 		limit?: (self: uPlot, seriesIdxs: readonly number[]) => readonly [start: number, end: number];
 		/** selected Y indices in display order (readback-only, borrowed core-owned buffer).
 		 * Mutations can leave selection pending; setLegend({}) refreshes it synchronously. */
@@ -358,6 +366,14 @@ declare namespace uPlot {
 		idxs?: (number | null)[];
 		/** current values (readback-only, not for init) */
 		values?: Legend.Values;
+	}
+
+	/** The tooltip is the sole live component when enabled. It has no focus or toggle listeners. */
+	export interface Tooltip extends Pick<Legend, 'mode' | 'valueSrc' | 'markers' | 'filter' | 'sort' | 'limit' | 'mount' | 'idx' | 'idxs' | 'values' | 'order' | 'count' | 'range'> {
+		/** Requires overlay DOM and cursor.show. false by default. */
+		show?: boolean;
+		/** Cursor gap in CSS pixels. 5 by default. */
+		gap?: number;
 	}
 
 	export namespace Legend {
@@ -498,6 +514,8 @@ declare namespace uPlot {
 		select?: Select;
 
 		legend?: Legend;
+
+		tooltip?: Tooltip;
 
 		cursor?: Cursor;
 
@@ -1128,9 +1146,9 @@ declare namespace uPlot {
 
 		export type MinMaxIdxs = [minIdx: number, maxIdx: number];
 
-		export type Value = string | ((self: uPlot, rawValue: number, seriesIdx: number, idx: number | null) => string | number);
+		export type Value = string | ((self: uPlot, rawValue: number | null, seriesIdx: number, idx: number | null) => string | number | false | null | undefined);
 
-		export type Values = (self: uPlot, seriesIdx: number, idx: number | null) => object;
+		export type Values = (self: uPlot, seriesIdx: number, idx: number | null) => object | null | undefined;
 
 		export type FillTo = number | ((self: uPlot, seriesIdx: number, dataMin: number, dataMax: number) => number);
 
@@ -1172,7 +1190,7 @@ declare namespace uPlot {
 		/** whether path and point drawing should offset canvas to try drawing crisp lines */
 		pxAlign?: number | boolean; // 1
 
-		/** legend label */
+		/** Legend label. The tooltip deep-clones HTMLElement labels without their event listeners. */
 		label?: string | HTMLElement;
 
 		/** inline-legend value formatter. can be an fmtDate formatting string when scale.time: true */
@@ -1448,7 +1466,7 @@ declare namespace uPlot {
 			/** fires after the cursor is moved */
 			setCursor?:  (self: uPlot) => void;
 
-			/** fires when cursor changes idx and legend updates (or should update) */
+			/** Fires when the live legend or tooltip updates, or needs an update. */
 			setLegend?:  (self: uPlot) => void;
 
 			/** fires after a selection is completed */

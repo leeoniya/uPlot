@@ -57,11 +57,22 @@ rAF-only update ms measures update readiness. prep ms measures full-data prepara
 Memory uses through-update-v1: polling covers initialization, preparation, and update through the live checkpoint.
 Forced GC precedes baseline and post-update live. All charts and full prepared inputs remain alive at live.
 Memory collection ends at live. Chart teardown runs after the timing phases.
-Memory columns show minimum baseline-adjusted browser-tree PSS, with matching dashboard idle controls.
+Memory columns show minimum blank-adjusted browser-tree PSS.
+Incomplete blank reads retry before library load, with at most five settled post-GC attempts. The first complete read supplies the baseline.
+JSON retains blank.attempts. If every attempt fails, adjusted memory stays unavailable and the warning includes the final failure reason.
+Loaded and measured observations do not retry.
+Capture already records a settled, post-GC /blank checkpoint in each fresh browser before library or fixture load.
+The blank checkpoint uses the same viewport, DPR, and trace mode as the chart samples.
+Adjusted retained = raw live - own browser blank. Adjusted peak = raw sampled peak - own browser blank.
+There is no extra idle offset. The calculation does not subtract loaded-library checkpoints or warm session baselines.
+Library and fixture overhead therefore remain included.
+Process churn and shared mappings can still produce negative deltas. Negative values remain negative.
 There is no JS-heap sampling or GPU device-memory measurement.
 
 No measurement flags means trace + memory. --trace and --memory can be combined. --raf requires a separate pass.
---variant NAME selects one variant plus idle. Defaults: ${benchmarkVariants.join(', ')}.
+--variant NAME selects only that variant. No mode runs idle automatically.
+Use --variant idle for an explicit diagnostic, not a memory subtraction offset.
+Default chart variants (44): ${benchmarkVariants.join(', ')}.
 LIGHTNINGCHART_LICENSE adds licensed LightningChart. LIGHTNINGCHART_LICENSE_INFORMATION accepts vendor metadata as JSON.
 SCICHART_LICENSE optionally supplies a SciChart runtime key. Existing benchmark restrictions still apply.
 Each variant uses a fresh browser and shared cached vendor assets. CHROME_BIN overrides the pinned browser.
@@ -71,13 +82,15 @@ Twenty independent WebGL contexts can exceed browser limits. No fallback rendere
 Dashboard plotly explicitly uses pinned virtual-webgl 1.0.7 WebGL1; single-chart Plotly and dashboard plotly-svg do not.
 --dpr defaults to 1. --verbose adds main ms and gpu ms to tables without changing measurements.
 --summarize-only refreshes the saved dashboard suite without a browser, using its saved DPR.
-It rejects --dpr, --variant, --worker, and --install-only. Workload dimensions must match across all reports and controls.
+It rejects --dpr, --variant, --worker, and --install-only. Workload dimensions must match across all reports.
+Older saved memory reports already contain blank checkpoints. --summarize-only recalculates memory with the new formula, without an idle offset.
+The raw through-update-v1 capture lifecycle remains unchanged.
 Saved reports require the current lifecycle protocols. Trace reports require accountingProtocol: thread-work-gc-v2. Memory reports require memoryProtocol: through-update-v1.
 Saved summaries require explicit matching requestedBackend metadata and sampling, context, and lossy snapshots.
 
 --install-only prepares the browser without a benchmark. --browser supports chrome only.
 Each operation has a five-second budget. Library errors or timeouts leave unavailable metrics and continue the suite.
-Cancellation, idle failures, and infrastructure failures stop the suite.
+Ordinary errors or timeouts in explicit idle diagnostics also continue the suite. Cancellation and infrastructure failures stop the suite.
 Reports use results-chrome-dashboard-<mode>[-vulkan][-variant].json in .cache/benchmarks.
 Traces use trace-chrome-dashboard-<mode>[-vulkan]-<variant>.json with the capture compression suffix.
 Single-chart reports use separate paths. Temporary Chrome profiles use the system temporary directory.`);
@@ -96,13 +109,14 @@ There is no JS-heap benchmark or heap-usage sampling.
 Use bun run bench:dash or --dashboard for 20 five-series charts at 1920x1080, with no resize or hover.
 Use --dashboard --help for that workload. The lifecycle details below describe the single-chart benchmark.
 
-Defaults: ${benchmarkVariants.join(', ')}, plus an idle control measured first.
+Default chart variants (44): ${benchmarkVariants.join(', ')}.
+No mode runs idle automatically. Explicit --variant idle runs a diagnostic, not a memory subtraction offset.
 uplot uses the local IIFE build. uplot-release uses pinned uPlot ${demoDependencies['uplot-release'][0].version} IIFE/CSS from jsDelivr and runs immediately after it.
 The release keeps its native behavior, including path caching when cache.paths:false is unsupported.
 LightningChart runs when LIGHTNINGCHART_LICENSE supplies a runtime key.
 JSCharting is demo-only: version 3.4.0 retains destroyed charts across repeated samples.
 ChartGPU runs in the default suite and requires hardware WebGPU.
-On Linux, runs that include ChartGPU automatically request Vulkan for every worker, including idle.
+On Linux, runs that include ChartGPU automatically request Vulkan for every selected worker.
 Other explicit variants and other platforms keep Chrome's default backend unless overridden.
 Each variant gets a fresh browser with only its own library and demo dependencies.
 Each library has 3 warmup sessions and 7 measured sessions. There is no inter-library cooling pause.
@@ -115,7 +129,8 @@ The lifecycle.resizeSize metadata records width: 1200 and height: 400. Top-level
 Each operation has a hard 5s budget, including preparation and completion checks. Final cleanup has its own 5s budget.
 A library timeout kills Chrome, discards the incomplete trace, shows '-' for all metrics, and continues the suite.
 Library errors also show '-' and continue; details remain in the suite JSON.
-Cancellation, idle-control failures, and suite infrastructure failures still stop the suite.
+Ordinary errors or timeouts in explicit idle diagnostics also continue the suite.
+Cancellation and suite infrastructure failures still stop the suite.
 Trace/combined timing columns show arithmetic means across the seven measured runs, excluding warmups.
 Total work averages per-run deduplicated totals, including observed main-thread and background GC. GC is not added again.
 JSON retains minima, maxima, means, and raw samples. rAF-only timings and memory columns still use minima.
@@ -129,16 +144,31 @@ Default combined measurement columns: prep ms, init ms, update ms, peak MB, reta
 Use --verbose to show main ms and gpu ms before update ms in live tables and saved summaries.
 --verbose defaults to false and changes only the table. Full rows, metrics, and JSON remain unchanged.
 A one-space gap between separate borders follows retained MB only before resize ms, resize rAF ms, or hover10 ms.
-Trace init ms, update ms, resize ms, and hover10 ms use frame-based green bands. Darkest green includes one frame (1000/60 ms).
-Green ends at two frames (2000/60 ms). Orange shades split at 50 and 75 ms.
-Init is red at 100 ms and above. Update, resize, and hover retain orange at exactly 100 ms and are red above that.
-Peak MB and retained MB share the same ranges and shades: darkest green through 20 MB, then lighter greens through 35 MB.
-Both memory columns use orange for more than 35 MB but less than 50 MB, then red at 50 MB and greater.
-Memory colors use unrounded values. Negative adjusted values and unavailable values remain plain.
+Trace/combined init ms, update ms, resize ms, and hover10 ms use the same smooth color-scale algorithm as memory/combined peak MB and retained MB.
+Each column uses an independent scale from the current displayed rows, with raw values before rounding.
+The main ms field in full rows identifies trace timings, even when the table hides that column.
+The display leaves prep ms, main ms, gpu ms, and all rAF-only timing columns uncolored.
+Each scale sorts finite, nonnegative raw values in ascending order. Negative, missing, and nonfinite values remain uncolored and do not affect the scale.
+If no eligible values exist or the minimum is zero, the entire column remains uncolored. This rule applies to timings and memory.
+Otherwise, the first stop is green #22c55e at the positive column minimum.
+Group caps use multipliers [1.5, 2, 4, 8, 16], each relative to its own group minimum.
+The first group minimum is the column minimum. Each later group minimum is the lowest observed value greater than the previous cap.
+Values equal to a cap belong to that group, not the next group.
+When no observed values remain beyond the previous cap, that cap becomes the next group minimum.
+The five caps mark lime #84cc16, gold #facc15, orange #f97316, red #ef2929, and deep red #b91c1c, respectively.
+RGB channels interpolate continuously between adjacent stops, using the log-space value fraction. There are no shade resets at group boundaries.
+Values greater than the last cap stay deep red, without an error.
+The scale does not normalize to the maximum or stretch unused hues. It does not use absolute frame/ms thresholds.
+Colors recompute as rows arrive. New smaller or intermediate values can change later stops and existing colors.
+New values greater than the existing maximum leave existing colors unchanged. Independent columns or tables can give the same raw value different colors.
+Colors do not change measurements or aggregation: trace timings use arithmetic means, while memory columns use minima.
 Context colors: 2d blue, svg orange, webgl yellow, webgl2 pink, webgpu purple. Unknown contexts remain plain.
-Colors use unrounded totals, not table-relative scaling. Trace update ms measures selected host-thread work, not elapsed frame latency.
-Live tables and saved summaries use truecolor or 256 colors. Redirected output and JSON stay plain. NO_COLOR disables colors.
-Use --variant NAME to run one library plus idle. Registered: ${Object.keys(demoDependencies).join(', ')}.
+Trace update ms measures selected host-thread work, not elapsed frame latency.
+Truecolor terminals show the continuous RGB scale in live tables and saved summaries.
+For 256-color terminals, each interpolated RGB color maps to the nearest color in the fixed xterm color cube or grayscale palette.
+This approximation does not use separate, manually selected bands.
+Redirected output, basic-color terminals, TERM=dumb, and any NO_COLOR value disable colors. JSON stays plain.
+Use --variant NAME to run only that variant. Registered: ${Object.keys(demoDependencies).join(', ')}.
 LightningChart requires LIGHTNINGCHART_LICENSE. SCICHART_LICENSE optionally supplies a SciChart runtime key.
 LIGHTNINGCHART_LICENSE_INFORMATION can supply vendor-required metadata as JSON.
 DPR defaults to 1. --dpr selects one browser and canvas DPR.
@@ -176,7 +206,7 @@ Trace totals include allowlisted background V8/CppGC work, with per-thread overl
 JSON records backgroundGcMs and gcAddedThreadWorkMs. Trace reports require accountingProtocol: thread-work-gc-v2.
 Missing relevant GC scopes produce null metrics. Available scopes with no window overlap produce zero backgroundGcMs.
 Zero gcAddedThreadWorkMs means no added duration after overlap removal, not proof of no collection.
-Trace and rAF timings are not idle-subtracted; idle subtraction applies only to memory.
+No timing or memory result subtracts idle measurements.
 
 Memory requires Linux /proc access. Memory-enabled lifecycle reports use memoryProtocol: 'through-update-v1'.
 Process polling covers only preparation, small-init, and data-update, with a requested 50 ms delay after each read.
@@ -186,10 +216,17 @@ Peaks include baseline, initialization, preparation, update, and the post-update
 Within each session, forced GC occurs only at baseline and after the settled data update. No forced GC separates initialization and update.
 Memory collection ends at live. Chart teardown runs after the timing phases.
 Post-update GC precedes resize outside timing windows, but can affect later combined timings. All timing phases retain their full settling intervals and fences.
-The headline shows baseline-adjusted browser-tree PSS in decimal MB. Renderer measurements stay in JSON.
-Each sample subtracts its blank-page checkpoint and the minimum measured idle retained-minus-blank footprint.
+The headline shows blank-adjusted browser-tree PSS in decimal MB. Renderer measurements stay in JSON.
+Incomplete blank reads retry before library load, with at most five settled post-GC attempts. The first complete read supplies the baseline.
+JSON retains blank.attempts. If every attempt fails, adjusted memory stays unavailable and the warning includes the final failure reason.
+Loaded and measured observations do not retry.
+Capture already records a settled, post-GC /blank checkpoint in each fresh browser before library or fixture load.
+The blank checkpoint uses the same viewport, DPR, and trace mode as the chart samples.
+Adjusted retained = raw live - own browser blank. Adjusted peak = raw sampled peak - own browser blank.
+There is no extra idle offset. The calculation does not subtract loaded-library checkpoints or warm session baselines.
+Library and fixture overhead therefore remain included.
 Memory columns show minimum adjusted retained memory and the minimum of the per-round sampled peaks.
-Peaks subtract settled idle memory, not the idle peak. Peaks are sampled, and negative estimates remain negative.
+Peaks are sampled. Process churn and shared mappings can still produce negative deltas. Negative estimates remain negative.
 Combined trace and process polling affect both timing and memory, including trace-buffer allocations.
 Use bench:memory for an untraced footprint. Native allocators need not release pages after GC.
 GPU-specific memory is not measured. No heap snapshots, canvas readbacks, or screenshots are used.
@@ -205,7 +242,8 @@ Summary-only uses the default-suite backend: Vulkan on Linux, Chrome's default e
 Use --no-vulkan to select the saved default report, or --vulkan to select the saved Vulkan report.
 Summary-only mode uses the saved DPR and rejects --dpr, --variant, --worker, and --install-only.
 Saved summaries require the current lifecycle protocols and matching hover capability lists in every mode, including memory-only.
-Memory reports require memoryProtocol: through-update-v1.
+Memory reports require memoryProtocol: through-update-v1. The raw capture lifecycle remains unchanged.
+Older saved memory reports already contain blank checkpoints. --summarize-only recalculates memory with the new formula, without an idle offset.
 Saved summaries require explicit matching requestedBackend metadata and sampling, context, and lossy snapshots.
 
 

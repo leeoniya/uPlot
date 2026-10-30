@@ -20,12 +20,17 @@ Bun forwards script arguments directly. No extra `--` separator is necessary.
 | `bun run bench:dash --trace` | Trace only, without process polling or forced GC |
 | `bun run bench:dash --memory` | Process memory only, without tracing |
 | `bun run bench:dash --raf` | Untraced rAF latency, without process polling or forced GC |
-| `bun run bench:dash --variant uplot` | Idle control and local uPlot |
-| `bun run bench:dash --variant chartjs --dpr 2` | Idle control and Chart.js at DPR 2 |
+| `bun run bench:dash --variant uplot` | Local uPlot only |
+| `bun run bench:dash --variant chartjs --dpr 2` | Chart.js only, at DPR 2 |
+| `bun run bench:dash --variant idle` | Explicit idle diagnostic only |
 | `bun run bench:dash --verbose` | Include `main ms` and `gpu ms` in the trace table |
 | `bun run bench:dash --summarize-only` | Recompute the saved combined summary without Chrome |
 | `bun run bench:dash --memory --summarize-only` | Recompute the saved memory-only summary |
 | `bun run bench:dash --no-vulkan` | Disable automatic Vulkan selection, but retain `--gpu` |
+
+The default suite runs 44 chart variants, plus optional LightningChart with a runtime license key.
+No mode runs `idle` automatically. `--variant NAME` selects only that variant.
+Explicit `--variant idle` runs a diagnostic. No timing or memory result subtracts idle measurements.
 
 `--trace --memory` explicitly selects combined mode. `--raf` cannot combine with either flag.
 `--verbose` changes the table, not the measurements or saved metrics.
@@ -34,7 +39,7 @@ Bun forwards script arguments directly. No extra `--` separator is necessary.
 Combined and memory-only modes require Linux `/proc`. The runner uses Chrome Headless Shell and local production uPlot assets.
 If the uPlot assets are absent or stale, run `bun run build` first.
 
-On Linux, the default suite includes ChartGPU and automatically requests Vulkan for every worker, including idle.
+On Linux, the default suite includes ChartGPU and automatically requests Vulkan for every selected worker.
 A focused run without ChartGPU uses the default Chrome backend unless `--vulkan` selects Vulkan explicitly.
 `--vulkan` and `--no-vulkan` cannot combine. ChartGPU still requires hardware WebGPU support.
 Saved summaries select the same backend policy and never substitute a report from another backend.
@@ -95,7 +100,8 @@ Reload the page to create another dashboard.
 | Sessions per variant, in every mode | 3 warmups, then 7 measured sessions |
 
 [`common.mjs`](common.mjs) generates deterministic signals with independent arrays for each chart.
-The lifecycle validates and freezes the canonical frames at fixture load, before capture and the memory baseline.
+The lifecycle validates and freezes the canonical frames at fixture load, before session capture and baselines.
+In memory modes, the blank checkpoint precedes fixture load.
 Each chart has five same-unit signals on one Y axis, with time on the X axis.
 The source timestamps use milliseconds at one-minute intervals. Adapters convert timestamps to their native input formats.
 This workload does not use the original packed data in `bench/data.json`.
@@ -116,7 +122,7 @@ Each session has only two operations:
 2. `data-update` updates the same chart instances to all 300 rows per series.
 
 The two-row input retains the full time range. No resize or hover operation occurs.
-The idle control creates the same 20 empty hosts and uses the same operation schedule, without charts or data preparation.
+The explicit idle diagnostic creates the same 20 empty hosts and uses the same operation schedule, without charts or data preparation.
 
 ## Timing and watchdog
 
@@ -131,6 +137,9 @@ The first budget also includes session setup and the baseline checkpoint.
 
 Post-update GC and the `live` checkpoint share a separate five-second budget. Final destruction has another five-second budget.
 If synchronous renderer work blocks the page, the Node watchdog can still terminate Chrome.
+
+Ordinary variant errors and timeouts leave unavailable metrics and do not stop the suite. This policy also applies to explicit idle diagnostics.
+Cancellation and infrastructure failures still stop the suite.
 
 Markers use `benchmark:<id>:start|js-end|end` for the whole dashboard operation.
 Host creation belongs to `small-init`. Aggregate input preparation has a separate timer outside the chart markers.
@@ -161,8 +170,19 @@ The rAF mode does not perform graphics completion checks or measure presentation
 
 ## Memory
 
-Memory capture uses `through-update-v1`, as in the single-chart benchmark.
-The runner records one blank-page checkpoint and one loaded-library checkpoint before warmups.
+Memory capture still uses `through-update-v1`, as in the single-chart benchmark. The raw capture lifecycle is unchanged.
+
+The runner already records a settled, post-GC `/blank` checkpoint in each fresh browser, before library or fixture load.
+The blank checkpoint uses the same viewport, DPR, and trace mode as that browser's chart samples.
+Combined mode starts tracing before this checkpoint. Memory-only mode leaves tracing off.
+The runner records the loaded-library checkpoint after fixture load, before warmups.
+
+If a blank read is incomplete, the runner retries it before library load, with at most five total attempts.
+Each attempt includes two animation frames, a 200 ms wait, and forced GC.
+The first complete read supplies the baseline, not the smallest value. `blank.attempts` retains all attempts and their diagnostics.
+If every attempt fails, adjusted memory remains unavailable. The table warning includes the final failure reason.
+Loaded checkpoints and measured observations do not retry.
+
 Each session then uses this sequence:
 
 1. The runner establishes session state, requests GC, and records the baseline before host creation.
@@ -177,7 +197,20 @@ No process reads or forced GC occur after `live`.
 Peak memory covers the baseline through `live`, including initialization and preparation.
 The `dataDelta` field includes small initialization. It does not isolate input preparation.
 
-Idle adjustment uses the same-run dashboard control with 20 empty hosts and matching dimensions.
+Each measured session uses only its own browser's blank checkpoint for adjustment:
+
+```text
+adjusted retained = raw live memory - own browser blank memory
+adjusted peak = raw sampled peak - own browser blank memory
+```
+
+Each subtraction uses the same memory scope and metric. The table selects the minimum adjusted value for each column.
+There is no extra idle offset, even if a saved report contains idle measurements.
+The calculation does not subtract loaded-library checkpoints or warm session baselines. Library and fixture overhead therefore remain included.
+
+Process churn and changes to shared mappings can still produce negative deltas. Negative estimates remain negative.
+Missing or invalid blank observations make adjusted values unavailable, not zero. No other checkpoint or browser supplies a replacement.
+
 Process measurements describe Linux process memory, not JS heap size or GPU device memory.
 Sampled peaks are lower bounds. GC does not force native allocators or graphics caches to release memory.
 Combined-mode tracing and process polling can affect the measured workload.
@@ -231,6 +264,7 @@ The WebGL observer reinstalls after virtualization, before capture starts. It ob
 Completion uses the existing WebGL1 `finish()` checks and settling interval. These checks do not prove compositor presentation.
 The vendor creates its shared native context during library loading, before the loaded-library checkpoint and session baselines.
 That initial allocation belongs to loaded-library memory, not the per-session chart delta.
+Blank-adjusted retained and peak memory include this allocation because they do not subtract the loaded-library checkpoint.
 
 Cleanup calls `Plotly.purge()`, destroys retained regl instances, and disposes acquired virtual contexts, including contexts from partial construction failures.
 Cleanup never acquires new contexts. The shared native context and compositor remain until the page closes.
@@ -270,6 +304,10 @@ Suite and variant reports contain this workload snapshot:
 ```
 
 Compatibility checks reject mixed single-chart and dashboard reports, or different dashboard dimensions, in every mode.
-These checks also cover idle controls and saved summaries.
+Saved summaries use the same checks.
 Separate filenames prevent dashboard runs from replacing single-chart outputs.
 They do not make different backends, DPRs, or diagnostic runs equivalent comparisons.
+
+Older saved memory reports already contain each browser's blank checkpoint.
+`--summarize-only` recalculates adjusted memory from saved raw observations with the new formula: raw live or peak minus its own browser blank.
+It requires no new browser run or idle report. The raw `through-update-v1` lifecycle remains unchanged.

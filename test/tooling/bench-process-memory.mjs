@@ -452,6 +452,23 @@ describe('readProcessMemory', () => {
 		assert.equal(result.processes.find(p => p.pid === 20).type, null);
 	});
 
+	it('recovers on a fresh read after a process exits between directory listing and stat', async () => {
+		for (const ppid of [1, 10]) {
+			const fake = fixture();
+			fake.add(30, ppid);
+			fake.onRead = key => {
+				if (key === '30/stat') fake.remove(30);
+			};
+			const first = await fake.read();
+			assertIncomplete(first, 'ENOENT', 30);
+			assert.equal(first.issues[0].stage, 'discover');
+			const second = await fake.read();
+			assert.equal(second.complete, true);
+			assert.deepEqual(second.issues, []);
+			assert.deepEqual(second.processes.map(process => process.pid), [10, 20]);
+		}
+	});
+
 	it('fails closed if an unreadable stat could conceal an undiscovered descendant', async () => {
 		const fake = fixture();
 		fake.add(90, 1);

@@ -198,7 +198,8 @@ for (const mode of [1, 2]) {
 				assert.deepEqual(publications, hooks);
 				await frame();
 				assert.equal(f.legendRenders, 1);
-				assert.deepEqual([...u.root.querySelectorAll('tbody tr')].slice(-3).map(tr => tr.style.opacity), ['0.25', '', '0.25']);
+				assert.deepEqual([...u.root.querySelectorAll('tbody tr')].slice(-3).map(tr => tr.style.opacity), ['', '', '']);
+								assert.deepEqual([...u.root.querySelectorAll('tbody tr')].slice(-3).map(tr => tr.classList.contains('u-focus')), [false, true, false]);
 				u.setSeries(2, { focus: true, show: true });
 				await frame();
 				assert.equal(f.legendRenders, 1);

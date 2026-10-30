@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Live tooltip and stats legend</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../src/uPlot.css">
+	<style>
+		body { margin: 16px; font: 14px system-ui, sans-serif; color: #222; }
+		h1 { font-size: 22px; }
+		h2 { font-size: 16px; }
+		.charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+		.charts > section { min-width: 0; }
+		#chart-inline .u-legend:not(.u-tooltip) thead { display: none; }
+		footer { min-height: 50vh; }
+		@media (max-width: 800px) {
+			.charts { grid-template-columns: minmax(0, 1fr); }
+		}
+
+		.u-legend.u-tooltip {
+			z-index: 100;
+			background: rgba(255, 255, 255, 0.95);
+			border: 1px solid #ccc;
+			border-radius: 4px;
+			box-shadow: 0 2px 8px #0003;
+		}
+
+	</style>
+</head>
+<body>
+	<h1>Live tooltip and stats legend</h1>
+	<p>Move the cursor near the viewport edges. The tooltip flips horizontally and vertically, with a 5px cursor gap.</p>
+	<p>Scroll to move the plot near the top edge. The tooltip ignores pointer events, so cursor tracking and drag-to-zoom still work.</p>
+
+	<div class="charts">
+		<section>
+			<h2>Stats legend</h2>
+			<div id="chart"></div>
+		</section>
+		<section>
+			<h2>Inline series legend</h2>
+			<div id="chart-inline"></div>
+		</section>
+	</div>
+	<footer><p>The first legend shows Min and Max for the visible X range, plus the final value of each series as Last. Drag to zoom and update Min and Max.</p><p>The second legend shows only series labels and markers. Both charts show cursor values in their tooltips.</p><p>Hover a legend label to focus its series. Click a label to toggle it. Cursor movement updates only the tooltip values.</p><p><a href="../docs/tooltip.md">Tooltip options and callback behavior</a></p></footer>
+	<script type="module">
+		import { createDemo } from './legend-tooltip.js';
+		createDemo(document.querySelector('#chart'));
+		createDemo(document.querySelector('#chart-inline'), {stats: false});
+	</script>
+</body>
+</html>

@@ -50,9 +50,20 @@
 }
 
 .u-legend {
-	font-size: 14px;
+	font-size: 12px;
+	border-spacing: 0;
 	margin: auto;
 	text-align: center;
+}
+
+.u-tooltip {
+	position: fixed;
+	top: 0;
+	left: 0;
+	margin: 0;
+	width: max-content;
+	z-index: 100;
+	pointer-events: none;
 }
 
 .uplot > .u-title {
@@ -93,7 +104,7 @@
 }
 
 .u-inline tr {
-	margin-right: 16px;
+	margin-right: 8px;
 }
 
 .u-legend th {
@@ -114,11 +125,11 @@
 }
 
 .u-legend th > * {
-	vertical-align: middle;
 	display: inline-block;
 }
 
 .u-legend .u-marker {
+	vertical-align: middle;
 	width: 1em;
 	height: 1em;
 	margin-right: 4px;
@@ -127,15 +138,11 @@
 
 .u-inline.u-live th::after {
 	content: ":";
-	vertical-align: middle;
 }
 
-.u-inline:not(.u-live) .u-value {
-	display: none;
-}
-
-.u-series > * {
-	padding: 4px;
+.u-legend th,
+.u-legend td {
+	padding: 0 4px;
 }
 
 .u-series th {
@@ -144,6 +151,10 @@
 
 .u-legend .u-off > * {
 	opacity: 0.3;
+}
+
+.u-legend .u-focus {
+	background: color-mix(in srgb, currentColor 12%, transparent);
 }
 
 .u-select {

@@ -15,7 +15,7 @@ import { benchmarkMode, resolveBenchmarkVulkan, variantReportName, suiteReportNa
 import { lifecycleOperations } from '../../scripts/benchmarks-phases.mjs';
 import { demoDependencies, benchmarkMetadata, benchmarkVariants, benchmarkLibraryName, demoRestrictions, benchmarkRestrictions } from '../../bench/demo-dependencies.mjs';
 
-const variants = ['idle', ...benchmarkVariants];
+const variants = [...benchmarkVariants];
 const skipped = Object.entries({...demoRestrictions, ...benchmarkRestrictions}).map(([variant, reason]) => ({variant, reason}));
 
 const combined = {trace: true, memory: true, raf: false};
@@ -371,14 +371,14 @@ describe('optional hover reports', () => {
 			const h = harness();
 			h.dependencies.runWorker = async request => {
 				const raw = hoveredBrowser(request.variant, request.measurements);
-				if (request.variant !== 'idle') delete raw.hoverProtocol;
+				delete raw.hoverProtocol;
 				return raw;
 			};
 			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
-			assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
+			assert.deepEqual(report.reports, []);
 			assert.equal(report.failures.length, 1);
 			assert.match(report.failures[0].error, /hover protocol/);
-			if (measurements.trace || measurements.raf) assert.equal(h.frames.at(-1).rows[0]['hover10 ms'], '-');
+			assert.equal('hover10 ms' in h.frames.at(-1).rows[0], false);
 		});
 	}
 
@@ -458,7 +458,7 @@ describe('retained resize reports', () => {
 				return resizedBrowser(request.variant, request.measurements, request.dpr, request.requestedBackend);
 			};
 			const report = await runBenchmarkSuite({...measurements, variant: 'uplot', vulkan: false}, h.dependencies);
-			assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'uplot']);
+			assert.deepEqual(h.requests.map(request => request.variant), ['uplot']);
 			const row = h.frames.at(-1).rows[0];
 			const label = measurements.raf ? 'resize rAF ms' : 'resize ms';
 			assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'prep ms',
@@ -605,7 +605,7 @@ describe('lifecycle timing columns', () => {
 });
 
 describe('benchmark execution order', () => {
-	it('runs idle, master and release first, then variants by ascending reference update time without library grouping', async () => {
+	it('runs master and release first, then variants by ascending reference update time without library grouping', async () => {
 		const updateMs = {
 			uplot: 9.4, 'd3-minmax': 15.4, 'd3-svg-minmax': 26.6, d3: 26.6, 'd3-svg': 170.3,
 			scichart: 17.4, chartjs: 19.9, echarts: 23.6, 'apexcharts-sampled': 32.6, apexcharts: 61.2,
@@ -624,8 +624,8 @@ describe('benchmark execution order', () => {
 		assert.deepEqual(benchmarkVariants, expected);
 		const h = harness();
 		const report = await runBenchmarkSuite({trace: true, vulkan: false}, h.dependencies);
-		assert.deepEqual(h.requests.map(request => request.variant), ['idle', ...expected]);
-		assert.deepEqual(report.protocol.variants, ['idle', ...expected]);
+		assert.deepEqual(h.requests.map(request => request.variant), expected);
+		assert.deepEqual(report.protocol.variants, expected);
 	});
 });
 
@@ -749,11 +749,12 @@ describe('benchmark library grouping', () => {
 });
 
 describe('benchmark metadata snapshots', () => {
-	it('covers all 49 demo IDs and 44 default variants plus idle', () => {
+	it('covers all 49 demo IDs and 44 default variants without idle', () => {
 		assert.equal(Object.keys(benchmarkMetadata).length, 49);
 		assert.deepEqual(Object.keys(benchmarkMetadata).sort(), Object.keys(demoDependencies).sort());
-		assert.equal(variants.length, 45);
-		assert.equal(new Set(variants).size, 45);
+		assert.equal(variants.length, 44);
+		assert.equal(new Set(variants).size, 44);
+		assert.equal(variants.includes('idle'), false);
 		assert.equal(new Set(benchmarkVariants.map(benchmarkLibraryName)).size, 32);
 		assert.deepEqual(Object.keys(demoDependencies).slice(0, 2), ['uplot', 'uplot-release']);
 		assert.equal(benchmarkLibraryName('uplot'), 'uplot');
@@ -855,7 +856,7 @@ describe('benchmark metadata snapshots', () => {
 		const worker = h.dependencies.runWorker;
 		h.dependencies.runWorker = request => {
 			const partial = saved('raf');
-			assert.deepEqual(Object.keys(partial.variantMetadata), ['idle', 'scichart']);
+			assert.deepEqual(Object.keys(partial.variantMetadata), ['scichart']);
 			assert.deepEqual(partial.variantMetadata.scichart, benchmarkMetadata.scichart);
 			if (request.variant === 'scichart')
 				throw new Error('synthetic failure');
@@ -866,7 +867,7 @@ describe('benchmark metadata snapshots', () => {
 		assert.deepEqual(saved('raf').variantMetadata, report.variantMetadata);
 		assert.deepEqual(h.frames.at(-1).rows[0], {
 			variant: 'scichart', context: 'webgl2', sampling: benchmarkMetadata.scichart.sampling, lossy: '',
-			'prep ms': '-', 'init rAF ms': '-', 'update ms': '-', 'next rAF ms': '-', 'resize rAF ms': '-', 'hover10 ms': '',
+			'prep ms': '-', 'init rAF ms': '-', 'update ms': '-', 'next rAF ms': '-',
 		});
 		assert.deepEqual(offline(report).tables[0], h.frames.at(-1).rows);
 	});
@@ -980,7 +981,7 @@ describe('benchmark backend selection', () => {
 					const h = harness({platform});
 					const report = await runBenchmarkSuite(options, h.dependencies);
 					const expected = selection.variant === undefined ? variants
-						: selection.variant === 'idle' ? ['idle'] : ['idle', selection.variant];
+						: [selection.variant];
 					assert.deepEqual(h.requests.map(request => request.variant), expected);
 					assert.deepEqual(options, original);
 					assert.equal(report.complete, true);
@@ -1013,7 +1014,7 @@ describe('benchmark backend selection', () => {
 		assert.equal(report.complete, true);
 		assert.equal(report.gpu, true);
 		assert.equal(report.requestedBackend, 'default');
-		assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'chartgpu']);
+		assert.deepEqual(h.requests.map(request => request.variant), ['chartgpu']);
 		for (const request of h.requests) {
 			assert.equal(request.vulkan, false);
 			assert.equal(request.gpu, true);
@@ -1037,7 +1038,7 @@ describe('benchmark backend selection', () => {
 		for (const flag of [[], ['--vulkan'], ['--no-vulkan']]) {
 			const child = spawnSync(process.execPath, [script, '--help', ...flag], {encoding: 'utf8', timeout: 10000});
 			assert.equal(child.status, 0, child.stderr);
-			assert.match(child.stdout, /automatically request Vulkan for every worker, including idle/);
+			assert.match(child.stdout, /automatically request Vulkan for every selected worker/);
 			assert.match(child.stdout, /--no-vulkan to select the saved default report/);
 		}
 		for (const flags of [['--vulkan', '--no-vulkan'], ['--no-vulkan', '--vulkan']]) {
@@ -1095,7 +1096,7 @@ describe('benchmark suite modes and workers', () => {
 									...Object.fromEntries(labels.map(label => [label, label === 'hover10 ms' && !report.reports[0].hover.variants.includes(id) ? '' : '-']))});
 				assert.equal(existsSync(join(directory, variantReportName(mode, id))), false);
 			}
-			assert.deepEqual(rows.map(row => row.variant), groupedVariants(variants.slice(1)));
+			assert.deepEqual(rows.map(row => row.variant), groupedVariants(variants));
 			for (const id of timedOutVariants)
 				assert.equal(rows[rows.findIndex(row => row.variant === id) - 1].variant, id + '-sampled');
 			assert.deepEqual(offline(report).tables[0], rows.map(renderedRow));
@@ -1116,7 +1117,7 @@ describe('benchmark suite modes and workers', () => {
 		const report = await runBenchmarkSuite({variant: 'g2'}, h.dependencies);
 		assert.equal(report.complete, true);
 		assert.equal(existsSync(stale), false);
-		assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
+		assert.deepEqual(report.reports, []);
 		assert.equal(report.timeouts.length, 1);
 		assert.equal(h.frames.at(-1).rows[0].lossy, '');
 				assert.ok(Object.entries(h.frames.at(-1).rows[0]).slice(4).every(([key, value]) => value === (key === 'hover10 ms' ? '' : '-')));
@@ -1150,7 +1151,7 @@ describe('benchmark suite modes and workers', () => {
 			assert.equal(suiteReportName(mode), `results-chrome-${mode}.json`);
 			const h = harness();
 			const report = await runBenchmarkSuite({...flags, variant: 'd3', dpr: 2, gpu: true}, h.dependencies);
-			assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'd3']);
+			assert.deepEqual(h.requests.map(request => request.variant), ['d3']);
 			for (const request of h.requests) {
 				assert.equal(request.command, process.execPath);
 				assert.match(request.args[1], /scripts\/benchmarks\.mjs$/);
@@ -1195,7 +1196,7 @@ describe('benchmark suite modes and workers', () => {
 					writeFileSync(path, 'unrelated saved report');
 				const h = harness();
 				const report = await runBenchmarkSuite({...flags, variant: 'chartgpu', vulkan}, h.dependencies);
-				assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'chartgpu']);
+				assert.deepEqual(h.requests.map(request => request.variant), ['chartgpu']);
 				assert.equal(report.gpu, vulkan);
 				assert.equal(report.requestedBackend, vulkan ? 'vulkan' : 'default');
 				assert.equal(report.complete, true);
@@ -1227,14 +1228,11 @@ describe('benchmark suite modes and workers', () => {
 						raw.runner.requestedBackend = backend;
 					return raw;
 				};
-				const run = runBenchmarkSuite({variant: 'chartgpu', vulkan: true}, h.dependencies);
-				if (variant === 'idle')
-					await assert.rejects(run, /Unexpected benchmark report for idle/);
-				else {
-					const report = await run;
-					assert.deepEqual(report.reports.map(raw => raw.runner.variant), ['idle']);
-					assert.match(report.failures[0].error, /Unexpected benchmark report for chartgpu/);
-				}
+				const report = await runBenchmarkSuite({variant, vulkan: true}, h.dependencies);
+				assert.deepEqual(report.reports, []);
+				assert.equal(report.complete, true);
+				assert.equal(report.failures[0].variant, variant);
+				assert.match(report.failures[0].error, /Unexpected benchmark report/);
 			});
 		}
 	}
@@ -1251,7 +1249,7 @@ describe('benchmark suite modes and workers', () => {
 		assert.ok(result.reports.every(raw => raw.runner.requestedBackend === 'vulkan'));
 	});
 
-	it('runs idle and all default runnable libraries and saves/displays each before the next starts', async () => {
+	it('runs all default runnable libraries without idle and saves/displays each before the next starts', async () => {
 		const h = harness();
 		const worker = h.dependencies.runWorker;
 		h.dependencies.runWorker = async request => {
@@ -1263,10 +1261,10 @@ describe('benchmark suite modes and workers', () => {
 			const frame = h.frames.at(-1);
 			assert.equal(frame.status, `Starting ${request.variant} (${partial.progress.completed.length + 1}/${variants.length})...`);
 			assert.notEqual(frame.final, true);
-			assert.deepEqual(frame.rows.map(row => row.variant), groupedVariants(partial.progress.completed.filter(variant => variant !== 'idle')));
+			assert.deepEqual(frame.rows.map(row => row.variant), groupedVariants(partial.progress.completed));
 			assert.deepEqual(frame.warnings, []);
 			assert.deepEqual(partial.skipped, skipped);
-			if (request.variant === 'idle')
+			if (request.variant === variants[0])
 				assert.deepEqual(partial.adjustedAnalysis.groups, []);
 			if (request.variant === 'chartjs') {
 				assert.deepEqual(h.tables[0].map(row => row.variant), ['uplot']);
@@ -1279,7 +1277,10 @@ describe('benchmark suite modes and workers', () => {
 		assert.deepEqual(result.progress.completed, variants);
 		assert.deepEqual(result.protocol.variants.slice(-12), variants.slice(-12));
 		assert.deepEqual(result.skipped.map(entry => entry.variant), ['lightningchart', 'g2-webgl', 'googlecharts', 'jscharting']);
-		assert.equal(result.protocol.variants.length, 45, 'idle plus 44 runnable variants');
+		assert.equal(result.protocol.variants.length, 44, '44 runnable variants without idle');
+		assert.equal('idleFirst' in result.protocol, false);
+		assert.equal('sameRunControlsOnly' in result.protocol, false);
+		assert.match(result.protocol.perBrowserBaseline, /same browser report's blank checkpoint/);
 		assert.deepEqual(result.variantMetadata, Object.fromEntries(variants.map(id => [id, benchmarkMetadata[id]])));
 		assert.deepEqual(saved().variantMetadata, result.variantMetadata);
 				assert.equal(h.requests.filter(request => request.variant === 'chartgpu').length, 1);
@@ -1287,7 +1288,7 @@ describe('benchmark suite modes and workers', () => {
 		assert.equal(result.progress.total, variants.length);
 		assert.deepEqual(result.protocol.variants, variants);
 		assert.deepEqual(result.skipped, skipped);
-		assert.deepEqual(h.tables.map(rows => rows.map(row => row.variant)), variants.slice(1).map((_, i) => groupedVariants(variants.slice(1, i + 2))));
+		assert.deepEqual(h.tables.map(rows => rows.map(row => row.variant)), variants.map((_, i) => groupedVariants(variants.slice(0, i + 1))));
 		assert.equal(h.events.filter(event => event.startsWith('Starting')).length, variants.length);
 		assert.equal(h.events.filter(event => event.startsWith('Completed')).length, variants.length);
 		assert.equal(h.frames.length, variants.length * 2);
@@ -1361,10 +1362,10 @@ describe('benchmark suite modes and workers', () => {
 	}
 
 	for (const variant of benchmarkVariants.filter(variant => !['uplot', 'chartjs', 'd3', 'echarts', 'flot', 'dygraphs'].includes(variant))) {
-		it(`runs explicitly selected ${variant} with idle and no skipped warnings`, async () => {
+		it(`runs explicitly selected ${variant} alone with no skipped warnings`, async () => {
 			const h = harness();
 			const report = await runBenchmarkSuite({variant, vulkan: false}, h.dependencies);
-			assert.deepEqual(h.requests.map(request => request.variant), ['idle', variant]);
+			assert.deepEqual(h.requests.map(request => request.variant), [variant]);
 			assert.deepEqual(report.skipped, []);
 			assert.deepEqual(saved().skipped, []);
 			assert.ok(h.frames.every(frame => frame.warnings.length === 0));
@@ -1388,7 +1389,7 @@ describe('benchmark suite modes and workers', () => {
 			const h = harness();
 			const lightningOptions = Object.freeze({license: 'test-license-not-a-vendor-key'});
 			const report = await runBenchmarkSuite({variant, lightningOptions, vulkan: false}, h.dependencies);
-			const expected = variant === null ? [...variants, 'lightningchart'] : ['idle', 'lightningchart'];
+			const expected = variant === null ? [...variants, 'lightningchart'] : ['lightningchart'];
 			assert.deepEqual(h.requests.map(request => request.variant), expected);
 			assert.deepEqual(report.protocol.variants, expected);
 			assert.deepEqual(report.progress.completed, expected);
@@ -1431,8 +1432,8 @@ describe('benchmark suite modes and workers', () => {
 	it('does not add licensed LightningChart to an explicitly selected unrelated variant', async () => {
 		const h = harness();
 		const report = await runBenchmarkSuite({variant: 'scichart', lightningOptions: {license: 'test'}}, h.dependencies);
-		assert.deepEqual(report.protocol.variants, ['idle', 'scichart']);
-		assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'scichart']);
+		assert.deepEqual(report.protocol.variants, ['scichart']);
+		assert.deepEqual(h.requests.map(request => request.variant), ['scichart']);
 		assert.deepEqual(report.skipped, []);
 	});
 
@@ -1456,8 +1457,8 @@ describe('benchmark suite modes and workers', () => {
 
 	for (const measurements of [combined, {trace: true}, {memory: true}, {raf: true}]) {
 		it(`continues after library errors and preserves failure rows in ${benchmarkMode(measurements)}`, async () => {
-			const failedVariants = [variants[2], variants.at(-1)];
-			const nextVariant = variants[3];
+			const failedVariants = [variants[0], variants.at(-1)];
+			const nextVariant = variants[1];
 			const h = harness();
 			const worker = h.dependencies.runWorker;
 			h.dependencies.runWorker = request => {
@@ -1465,7 +1466,7 @@ describe('benchmark suite modes and workers', () => {
 					const partial = saved(benchmarkMode(measurements));
 					assert.equal(partial.failures[0].variant, failedVariants[0]);
 					assert.equal(partial.progress.current, nextVariant);
-					assert.deepEqual(partial.progress.completed, variants.slice(0, 2));
+					assert.deepEqual(partial.progress.completed, []);
 				}
 				if (failedVariants.includes(request.variant)) {
 					h.requests.push(request);
@@ -1529,14 +1530,20 @@ describe('benchmark suite modes and workers', () => {
 			assert.equal(h.frames.at(-1).final, true);
 		});
 
-		it('removes stale variant files and never blends a prior suite or idle', async () => {
+	it('removes stale selected files without loading or deleting a prior idle report', async () => {
 		writeFileSync(join(directory, suiteReportName('combined')), JSON.stringify(savedReport([browser('idle'), browser('d3')])));
-		const stale = join(directory, variantReportName('combined', 'idle'));
-		writeFileSync(stale, JSON.stringify(browser('idle')));
+		const idlePath = join(directory, variantReportName('combined', 'idle'));
+		const idle = JSON.stringify(browser('idle'));
+		writeFileSync(idlePath, idle);
+		const stale = join(directory, variantReportName('combined', 'uplot'));
+		writeFileSync(stale, JSON.stringify(browser('uplot')));
 		const h = harness({runWorker: async request => { assert.equal(existsSync(request.output), false); }});
-		await assert.rejects(runBenchmarkSuite({vulkan: false}, h.dependencies), /ENOENT/);
+		const report = await runBenchmarkSuite({variant: 'uplot', vulkan: false}, h.dependencies);
+		assert.equal(report.complete, true);
+		assert.match(report.failures[0].error, /ENOENT/);
 		assert.deepEqual(saved().reports, []);
-		assert.deepEqual(saved().adjustedAnalysis.controls, []);
+		assert.deepEqual(saved().adjustedAnalysis.groups, []);
+		assert.equal(readFileSync(idlePath, 'utf8'), idle);
 	});
 
 	it('accepts fresh worker files and rejects mismatched report metadata', async () => {
@@ -1550,7 +1557,9 @@ describe('benchmark suite modes and workers', () => {
 				corrupt(raw);
 				return raw;
 			};
-			await assert.rejects(runBenchmarkSuite({vulkan: false}, h.dependencies), /Unexpected benchmark report/);
+			const report = await runBenchmarkSuite({variant: 'idle', vulkan: false}, h.dependencies);
+			assert.equal(report.complete, true);
+			assert.match(report.failures[0].error, /Unexpected benchmark report/);
 			assert.deepEqual(saved().reports, []);
 		}
 	});
@@ -1658,6 +1667,138 @@ describe('benchmark verbosity', () => {
 });
 
 describe('benchmark table and offline summary', () => {
+	const colorCases = [
+		[10, '34;197;94', 41], [15, '132;204;22', 112], [16, '142;204;22', 112],
+		[32, '250;204;21', 220], [33, '250;202;21', 220], [132, '249;115;22', 202],
+		[133, '249;115;22', 202], [1064, '239;41;41', 196], [1065, '239;41;41', 196],
+		[17040, '185;28;28', 124], [20000, '185;28;28', 124],
+	];
+	const colorVariants = variants.filter((variant, i) => variants.findIndex(id => benchmarkLibraryName(id) === benchmarkLibraryName(variant)) === i)
+		.slice(0, colorCases.length);
+	const colorColumns = ['init ms', 'update ms', 'peak MB', 'retained MB', 'resize ms', 'hover10 ms'];
+	const tableCells = text => text.split('\n').filter(line => line.startsWith('│'))
+		.map(line => line.split(/│ │|│/).slice(1, -1).map(cell => cell.trim()));
+	const colorBrowser = (variant, value, measurements = combined, dpr = 1, backend = 'default') => {
+		const raw = browser(variant, measurements, dpr, backend);
+		raw.hover.variants = ['idle', ...variants];
+		for (const sample of raw.samples) {
+			if (!sample.phases.some(phase => phase.operation === 'hover-10')) {
+				const {phases, ...phase} = sample;
+				phases.push({...phase, id: `${sample.id}-hover-10`, operation: 'hover-10'});
+			}
+			for (const observation of sample.processObservations)
+				observation.processMemory.tree.pssMB = raw.blank.processMemory.tree.pssMB + value;
+		}
+		if (!raw.analysis.phaseGroups.some(group => group.operation === 'hover-10'))
+			raw.analysis.phaseGroups.push({...structuredClone(raw.analysis.groups[0]), operation: 'hover-10'});
+		for (const group of [...raw.analysis.groups, ...raw.analysis.phaseGroups])
+			group.metrics.totalTrackedThreadWorkMs = {min: value, max: value, mean: value, count: 3, missing: 0};
+		return raw;
+	};
+
+	it('renders exact smooth stop and intermediate colors from saved samples in every eligible column', () => {
+		const output = join(directory, 'offline-smooth-colors.json');
+		const input = savedReport(colorCases.map(([value], i) => colorBrowser(colorVariants[i], value)));
+		const original = structuredClone(input);
+		writeFileSync(output, JSON.stringify(input));
+		const {log} = console;
+		const env = process.env;
+		const descriptors = Object.fromEntries(['isTTY', 'getColorDepth'].map(key => [key, Object.getOwnPropertyDescriptor(process.stdout, key)]));
+		const logs = [];
+		try {
+			console.log = (...args) => logs.push(args.join(' '));
+			process.env = {};
+			Object.defineProperty(process.stdout, 'isTTY', {configurable: true, value: true});
+			let savedBytes;
+			for (const depth of [24, 8]) for (const verbose of [false, true]) {
+				Object.defineProperty(process.stdout, 'getColorDepth', {configurable: true, value: () => depth});
+				logs.length = 0;
+				const result = summarizeSavedBenchmarks({...combined, vulkan: false, verbose}, output);
+				const [headers, ...rows] = tableCells(logs[0]);
+				assert.equal(rows.length, colorCases.length);
+				for (const cells of rows) {
+					const index = colorVariants.findIndex(variant => benchmarkLibraryName(variant) === cells[headers.indexOf('variant')]);
+					assert.ok(index >= 0 && index < colorCases.length);
+					const [value, rgb, palette] = colorCases[index];
+					const prefix = depth === 24 ? `\x1b[38;2;${rgb}m` : `\x1b[38;5;${palette}m`;
+					for (const column of colorColumns)
+						assert.equal(cells[headers.indexOf(column)], `${prefix}${value.toFixed(1)}\x1b[39m`, `${cells[0]} ${column}`);
+					for (const column of ['prep ms', 'main ms', 'gpu ms']) {
+						if (headers.includes(column)) assert.doesNotMatch(cells[headers.indexOf(column)], /\x1b/);
+					}
+				}
+				assert.equal(headers.includes('main ms'), verbose);
+				assert.equal(headers.includes('gpu ms'), verbose);
+				assert.deepEqual(result.reports, input.reports);
+				const bytes = readFileSync(output, 'utf8');
+				savedBytes ??= bytes;
+				assert.equal(bytes, savedBytes);
+				assert.doesNotMatch(bytes, /\x1b|\\u001b/i);
+				assert.deepEqual(logs.slice(1), ['Updated summary from saved samples. No browser was started.']);
+			}
+			assert.deepEqual(input, original);
+		}
+		finally {
+			console.log = log;
+			process.env = env;
+			for (const [key, descriptor] of Object.entries(descriptors)) {
+				if (descriptor) Object.defineProperty(process.stdout, key, descriptor);
+				else delete process.stdout[key];
+			}
+		}
+	});
+
+	it('recolors completed live rows when a lower reference arrives and reproduces final colors offline', async () => {
+		const h = harness();
+		const worker = h.dependencies.runWorker;
+		const order = [32, 10, 15, 16, 33, 132, 133, 1064, 1065, 17040, 20000];
+		h.dependencies.runWorker = async request => {
+			await worker(request);
+			return colorBrowser(request.variant, order[h.requests.length - 1] ?? 20000, request.measurements, request.dpr, request.requestedBackend);
+		};
+		const write = process.stdout.write;
+		const {log} = console;
+		const env = process.env;
+		const descriptors = Object.fromEntries(['isTTY', 'getColorDepth'].map(key => [key, Object.getOwnPropertyDescriptor(process.stdout, key)]));
+		const writes = [], logs = [];
+		try {
+			process.env = {};
+			Object.defineProperty(process.stdout, 'isTTY', {configurable: true, value: true});
+			Object.defineProperty(process.stdout, 'getColorDepth', {configurable: true, value: () => 24});
+			process.stdout.write = chunk => { writes.push(String(chunk)); return true; };
+			console.log = (...args) => logs.push(args.join(' '));
+			const result = await runBenchmarkSuite({vulkan: false}, {...h.dependencies, display: undefined});
+			const completed = writes.filter(text => /Completed [^\n]+\(\d+\/\d+\)/.test(text));
+			assert.equal(completed.length, variants.length);
+			const first = tableCells(completed[0]);
+			const second = tableCells(completed[1]);
+			for (const column of colorColumns) {
+				assert.equal(first[1][first[0].indexOf(column)], '\x1b[38;2;34;197;94m32.0\x1b[39m');
+				const cell = second.slice(1).map(row => row[second[0].indexOf(column)]).find(cell => cell.includes('m32.0'));
+				assert.equal(cell, '\x1b[38;2;194;204;21m32.0\x1b[39m');
+			}
+			const original = structuredClone(result);
+			const output = join(directory, suiteReportName('combined'));
+			const bytes = readFileSync(output, 'utf8');
+			logs.length = 0;
+			const summary = summarizeSavedBenchmarks({...combined, vulkan: false}, output);
+			assert.deepEqual(tableCells(logs[0]), tableCells(completed.at(-1)));
+			assert.deepEqual(result, original);
+			assert.deepEqual(summary.reports, result.reports);
+			assert.equal(readFileSync(output, 'utf8'), bytes);
+			assert.doesNotMatch(bytes, /\x1b|\\u001b/i);
+		}
+		finally {
+			process.stdout.write = write;
+			console.log = log;
+			process.env = env;
+			for (const [key, descriptor] of Object.entries(descriptors)) {
+				if (descriptor) Object.defineProperty(process.stdout, key, descriptor);
+				else delete process.stdout[key];
+			}
+		}
+	});
+
 	it('uses the live TTY color policy offline without coloring saved reports or metrics', () => {
 		const output = join(directory, 'offline-colors.json');
 		const input = savedReport([browser('idle'), browser('uplot')]);
@@ -1689,10 +1830,8 @@ describe('benchmark table and offline summary', () => {
 				const result = summarizeSavedBenchmarks({...combined, vulkan: false}, output);
 				plain ??= logs[0];
 				const contextPrefix = depth === 24 ? '\x1b[38;2;96;165;250m' : '\x1b[38;5;75m';
-				const peakPrefix = depth === 24 ? '\x1b[38;2;251;146;60m' : '\x1b[38;5;209m';
 				assert.equal(logs[0], prefix ? plain
-					.replace(/(?<= )(?:0|2|5)\.0(?= │)/g, value => `${prefix}${value}\x1b[39m`)
-					.replace('45.0', `${peakPrefix}45.0\x1b[39m`)
+					.replace(/(?<= )(?:2|5|15|60)\.0(?= │)/g, value => `${prefix}${value}\x1b[39m`)
 					.replace('2d', `${contextPrefix}2d\x1b[39m`) : plain);
 				assert.deepEqual(logs.slice(1), ['Updated summary from saved samples. No browser was started.']);
 				assert.deepEqual(result.reports, input.reports);
@@ -1789,14 +1928,29 @@ describe('benchmark table and offline summary', () => {
 		});
 	}
 
-	it('projects requested trace means and minimum adjusted tree PSS, preserving raw reports', () => {
+	for (const measurements of [combined, {trace: false, memory: true, raf: false}]) {
+			it(`uses each report's own blank without idle controls in saved ${benchmarkMode(measurements)} summaries`, () => {
+				const reports = ['uplot', 'chartjs'].map(variant => browser(variant, measurements));
+				reports[1].blank = observation('blank', 30);
+				const summary = offline(savedReport(reports, measurements));
+				assert.deepEqual(summary.tables[0].map(row => [row['retained MB'], row['peak MB']]), [[15, 60], [-15, 30]]);
+				assert.deepEqual(summary.logs, [['Updated summary from saved samples. No browser was started.']]);
+				const idle = browser('idle', measurements);
+				idle.blank = observation('blank', 1e9);
+				const diagnostic = offline(savedReport([idle, ...reports], measurements));
+				assert.deepEqual(diagnostic.tables, summary.tables);
+				assert.deepEqual(diagnostic.result.reports, [idle, ...reports]);
+			});
+		}
+
+		it('projects requested trace means and minimum adjusted tree PSS, preserving raw reports', () => {
 		const input = savedReport([browser('idle'), browser('uplot')]);
 		const original = structuredClone(input);
 		const result = offline(input);
 		const row = result.tables[0][0];
 		assert.deepEqual(Object.keys(row),
 			['variant', 'context', 'sampling', 'lossy', 'prep ms', 'init ms', 'main ms', 'gpu ms', 'update ms', 'peak MB', 'retained MB', 'resize ms', 'hover10 ms']);
-		for (const [key, value] of Object.entries({'prep ms': 1.1, 'init ms': 5, 'main ms': 3, 'gpu ms': 4, 'update ms': 5, 'retained MB': 0, 'peak MB': 45}))
+		for (const [key, value] of Object.entries({'prep ms': 1.1, 'init ms': 5, 'main ms': 3, 'gpu ms': 4, 'update ms': 5, 'retained MB': 15, 'peak MB': 60}))
 			assert.equal(row[key], value);
 		assert.deepEqual(input, original);
 		assert.deepEqual(result.events, [
@@ -1923,18 +2077,18 @@ describe('benchmark table and offline summary', () => {
 		assert.deepEqual(persisted.skipped, skipped);
 		assert.deepEqual(persisted.reports[1].analysis.groups[0].metrics, metrics);
 		assert.deepEqual(persisted.adjustedAnalysis.groups[0].scopes.tree.pssMB.live,
-			{min: 0, max: 225, count: 3, missing: 0});
+			{min: 15, max: 240, count: 3, missing: 0});
 	});
 
 	it('shows memory only, excludes warmups, and preserves negative adjustments', () => {
 		const measurements = {trace: false, memory: true, raf: false};
 		const raw = browser('uplot', measurements);
 		raw.samples = [raw.samples[0], raw.samples[3]];
-		raw.samples[1].processObservations[3] = observation('live', 24);
+		raw.samples[1].processObservations[3] = observation('live', 19);
 		const result = offline(savedReport([browser('idle', measurements), raw], measurements));
 		const row = result.tables[0][0];
 		assert.equal(row['retained MB'], -3);
-		assert.equal(row['peak MB'], 45);
+		assert.equal(row['peak MB'], 60);
 		assert.deepEqual(Object.keys(row), ['variant', 'context', 'sampling', 'lossy', 'peak MB', 'retained MB']);
 		assert.equal(result.events[0].type, 'table');
 		assert.deepEqual(result.logs, [['Updated summary from saved samples. No browser was started.']]);
@@ -1965,11 +2119,78 @@ describe('benchmark table and offline summary', () => {
 		assert.deepEqual(summary.result.reports, persisted.reports);
 	});
 
-	for (const missing of ['idle', 'blank', 'invalid live', 'trace']) {
+	for (const diagnostic of [
+		{code: 'ENOENT', stage: 'read', pid: 4321},
+		{message: 'Renderer process exited before the checkpoint'},
+	]) {
+		it(`explains exhausted blank baseline retries in live and saved warnings (${diagnostic.code ?? 'message'})`, async () => {
+			const raw = browser('uplot');
+			const attempts = Array.from({length: 5}, (_, index) => ({
+				...observation('blank', 20),
+				processMemory: {complete: false, processes: [], renderer: null, tree: null,
+					issues: [index === 4 ? diagnostic : {code: 'EARLIER_FAILURE'}]},
+			}));
+			raw.blank = {...attempts.at(-1), attempts};
+			const original = structuredClone(raw);
+			const h = harness({runWorker: async () => raw});
+			const report = await runBenchmarkSuite({variant: 'uplot', vulkan: false}, h.dependencies);
+			const {warnings, rows} = h.frames.at(-1);
+			assert.equal(warnings.length, 1);
+			assert.match(warnings[0], /^uplot \(DPR 1\):/);
+			assert.match(warnings[0], /peak MB \(0\/3 valid, 3 missing, unavailable\)/);
+			assert.match(warnings[0], /retained MB \(0\/3 valid, 3 missing, unavailable\)/);
+			assert.match(warnings[0], /blank-page baseline unavailable after 5 attempts/);
+			assert.ok(warnings[0].includes(diagnostic.message ?? 'ENOENT stage=read pid=4321'));
+			assert.doesNotMatch(warnings[0], /EARLIER_FAILURE/);
+			assert.equal(rows[0]['peak MB'], 'unavailable');
+			assert.equal(rows[0]['retained MB'], 'unavailable');
+			const summary = offline(report);
+			assert.deepEqual(summary.logs.filter(([text]) => text.startsWith('Warning:')), [[`Warning: ${warnings[0]}`]]);
+			assert.deepEqual(summary.result.reports, [original]);
+		});
+	}
+
+	for (const missing of ['absent', 'incomplete']) {
+		it(`explains a missing legacy blank baseline without retry metadata (${missing})`, async () => {
+			const raw = browser('uplot');
+			if (missing === 'absent') delete raw.blank;
+			else raw.blank.processMemory.complete = false;
+			const h = harness({runWorker: async () => raw});
+			const report = await runBenchmarkSuite({variant: 'uplot', vulkan: false}, h.dependencies);
+			const {warnings} = h.frames.at(-1);
+			assert.equal(warnings.length, 1);
+			assert.match(warnings[0], /blank-page baseline unavailable: no valid blank-page process-memory checkpoint/);
+			assert.doesNotMatch(warnings[0], /attempts/);
+			assert.deepEqual(offline(report).logs.filter(([text]) => text.startsWith('Warning:')), [[`Warning: ${warnings[0]}`]]);
+		});
+	}
+
+	for (const count of [2, 5]) {
+		it(`does not warn about earlier blank baseline failures after success on attempt ${count}`, async () => {
+			const raw = browser('uplot');
+			const attempts = Array.from({length: count - 1}, () => ({
+				...observation('blank', 20),
+				processMemory: {complete: false, processes: [], renderer: null, tree: null,
+					issues: [{code: 'ENOENT', stage: 'read', pid: 4321}]},
+			}));
+			attempts.push(structuredClone(raw.blank));
+			raw.blank.attempts = attempts;
+			const original = structuredClone(raw);
+			const h = harness({runWorker: async () => raw});
+			const report = await runBenchmarkSuite({variant: 'uplot', vulkan: false}, h.dependencies);
+			assert.ok(h.frames.every(frame => frame.warnings.length === 0));
+			assert.equal(h.frames.at(-1).rows[0]['retained MB'], 15);
+			assert.equal(h.frames.at(-1).rows[0]['peak MB'], 60);
+			const summary = offline(report);
+			assert.ok(summary.logs.every(([text]) => !text.startsWith('Warning:')));
+			assert.deepEqual(summary.result.reports, [original]);
+		});
+	}
+
+	for (const missing of ['blank', 'invalid live', 'trace']) {
 		it(`reports unavailable and missing counts for missing ${missing}`, () => {
 			const reports = [browser('idle'), browser('uplot')];
-			if (missing === 'idle') reports.shift();
-			if (missing === 'blank') reports[0].blank.processMemory.complete = false;
+			if (missing === 'blank') reports[1].blank.processMemory.complete = false;
 			if (missing === 'invalid live') reports[1].samples.forEach(sample => sample.processObservations.find(read => read.phase === 'live').processMemory.complete = false);
 			if (missing === 'trace') delete reports[1].analysis;
 			const result = offline(savedReport(reports));
@@ -1984,6 +2205,7 @@ describe('benchmark table and offline summary', () => {
 			const warnings = result.logs.filter(([text]) => text.startsWith('Warning:'));
 			assert.equal(warnings.length, 1);
 			assert.ok(warnings[0][0].includes(`${label} (0/3 valid, 3 missing, unavailable)`));
+			if (missing !== 'blank') assert.doesNotMatch(warnings[0][0], /blank-page baseline unavailable/);
 
 		});
 	}
@@ -1998,7 +2220,7 @@ describe('benchmark table and offline summary', () => {
 		const {adjustedAnalysis, ...preserved} = first.result;
 		const {adjustedAnalysis: stale, ...expected} = input;
 		assert.deepEqual(preserved, expected);
-		assert.equal(adjustedAnalysis.groups[0].scopes.tree.pssMB.live.min, 0);
+		assert.equal(adjustedAnalysis.groups[0].scopes.tree.pssMB.live.min, 15);
 		const bytes = readFileSync(output, 'utf8');
 		assert.deepEqual(capture(() => summarizeSavedBenchmarks({...combined, vulkan: false}, output)), first);
 		assert.equal(readFileSync(output, 'utf8'), bytes);
@@ -2090,6 +2312,12 @@ describe('worker subprocess cleanup', () => {
 					await run;
 					assert.equal('error' in saved(), false);
 				}
+				else if (event === 'failure') {
+					const report = await run;
+					assert.equal(report.complete, true);
+					assert.ok(report.failures[0].error.endsWith((stdout + stderr).trim()));
+					assert.deepEqual(saved().failures, report.failures);
+				}
 				else {
 					await assert.rejects(run, error => {
 						assert.match(error.message, /worker stream failed|interrupted|exited/);
@@ -2099,14 +2327,14 @@ describe('worker subprocess cleanup', () => {
 					});
 				}
 			});
-			assert.doesNotMatch(JSON.stringify(h.frames), /worker stdout detail|worker stderr detail/);
+			assert.doesNotMatch(JSON.stringify(h.frames.map(frame => frame.status)), /worker stdout detail|worker stderr detail/);
 			assert.equal(h.frames.at(-1).final, true);
 			assert.equal(signalSource.listenerCount('SIGINT'), 0);
 			assert.equal(signalSource.listenerCount('SIGTERM'), 0);
 		});
 	}
 
-	it('keeps an idle-control timeout fatal without a stack or worker log dump', async () => {
+	it('records an explicit idle timeout without a stack or worker log dump', async () => {
 		const h = harness({
 			runWorker: undefined, signalSource: new EventEmitter(), kill: () => {},
 			spawnWorker: () => {
@@ -2121,13 +2349,12 @@ describe('worker subprocess cleanup', () => {
 				return child;
 			},
 		});
-		await assert.rejects(runBenchmarkSuite({variant: 'idle'}, h.dependencies), {
-			code: 'BENCHMARK_SAMPLE_TIMEOUT', message: 'idle: timed out after 5s',
-		});
-		assert.equal(saved().error, 'idle: timed out after 5s');
+		await runBenchmarkSuite({variant: 'idle'}, h.dependencies);
+		assert.deepEqual(saved().timeouts, [{variant: 'idle', dpr: 1, timeoutMs: 5000, error: 'idle: timed out after 5s'}]);
+		assert.equal('error' in saved(), false);
 		assert.equal(saved().protocol.sampleTimeoutMs, 5000);
-		assert.equal(saved().complete, false);
-		assert.equal(saved().progress.failed, 'idle');
+		assert.equal(saved().complete, true);
+		assert.equal(saved().progress.failed, null);
 		assert.deepEqual(saved().reports, []);
 		assert.equal(h.frames.at(-1).final, true);
 	});
@@ -2148,15 +2375,14 @@ describe('worker subprocess cleanup', () => {
 			},
 		});
 		await captureWorkerOutput(async () => {
-			await assert.rejects(runBenchmarkSuite({variant: 'idle'}, h.dependencies), error => {
-				assert.equal(error.message, 'Benchmark idle exited with 1\n' + chunks.join('').slice(-16000).trim());
-				assert.doesNotMatch(error.message, /discarded/);
-				assert.equal(saved().error, error.message);
-				return true;
-			});
+			const report = await runBenchmarkSuite({variant: 'idle'}, h.dependencies);
+			assert.equal(report.failures[0].error, 'Benchmark idle exited with 1\n' + chunks.join('').slice(-16000).trim());
+			assert.doesNotMatch(report.failures[0].error, /discarded/);
+			assert.deepEqual(saved().failures, report.failures);
 		});
 		assert.deepEqual(saved().reports, []);
-		assert.equal(saved().progress.failed, 'idle');
+		assert.equal(saved().progress.failed, null);
+		assert.equal(saved().complete, true);
 		assert.equal(h.frames.at(-1).final, true);
 	});
 
@@ -2187,17 +2413,15 @@ describe('worker subprocess cleanup', () => {
 		assert.deepEqual(kills, [[-12345, 'SIGTERM']]);
 		assert.equal(saved().complete, false);
 		timers.get(2000)();
-		await assert.rejects(run, error => {
-					assert.equal(error.message, 'Benchmark idle timed out after 270000ms\nstdout before timeout\nstderr before timeout');
-					assert.equal(saved().error, error.message);
-					return true;
-				});
+		const report = await run;
+		assert.equal(report.failures[0].error, 'Benchmark idle timed out after 270000ms\nstdout before timeout\nstderr before timeout');
+		assert.deepEqual(saved().failures, report.failures);
 		assert.deepEqual(kills[1], [-12345, 'SIGKILL']);
 		assert.equal(timers.size, 0);
 		assert.equal(signalSource.listenerCount('SIGINT'), 0);
 		assert.equal(signalSource.listenerCount('SIGTERM'), 0);
-		assert.equal(saved().progress.failed, 'idle');
-		assert.equal(saved().complete, false);
+		assert.equal(saved().progress.failed, null);
+		assert.equal(saved().complete, true);
 		assert.deepEqual(saved().reports, []);
 		assert.equal(h.frames.at(-1).final, true);
 	});
@@ -2226,13 +2450,13 @@ describe('worker subprocess cleanup', () => {
 				},
 			});
 			const run = runBenchmarkSuite({variant: 'idle'}, h.dependencies);
-			if (event === 'success') await run;
-			else await assert.rejects(run, /spawn failed|interrupted|exited/);
+			if (event === 'success' || event === 'failure') await run;
+			else await assert.rejects(run, /spawn failed|interrupted/);
 			assert.equal(signalSource.listenerCount('SIGINT'), 0);
 			assert.equal(signalSource.listenerCount('SIGTERM'), 0);
 			assert.deepEqual(kills.at(-1), [-12345, 'SIGKILL']);
 			if (event.startsWith('SIG')) assert.deepEqual(kills[0], [-12345, event]);
-			assert.equal(saved().complete, event === 'success');
+			assert.equal(saved().complete, event === 'success' || event === 'failure');
 							assert.equal(h.frames.at(-1).final, true);
 							assert.ok(h.frames.slice(0, -1).every(frame => !frame.final));
 		});

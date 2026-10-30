@@ -18,6 +18,11 @@ function assertNodes(actual, expected) {
 	expected.forEach((node, i) => assert.equal(actual[i] === node, true, `node ${i} retains identity`));
 }
 
+function assertRowFocus(tr, focused) {
+	assert.equal(tr.classList.contains('u-focus'), focused);
+	assert.equal(tr.style.opacity, '');
+}
+
 function trackFrames() {
 	const request = globalThis.requestAnimationFrame;
 	const cancel = globalThis.cancelAnimationFrame;
@@ -132,7 +137,7 @@ for (const table of [false, true]) {
 				},
 			};
 			const renderer = createLegend({ series }, parent, {
-				series, mode: 1, multi: table, focusAlpha: 0.25, cursorFocus,
+				series, mode: 1, multi: table, cursorFocus,
 				columns: table ? { Value: null, Double: null } : { _: null },
 				legend,
 				bind: { ...Object.fromEntries(['click', 'mouseenter', 'mouseleave'].map(type => [type, (self, target, handle) => handle])), ...bind },
@@ -193,21 +198,22 @@ for (const table of [false, true]) {
 				const rows = [...parent.querySelectorAll('tbody tr')];
 				const alpha = rows[table ? 0 : 1];
 				assertValues(alpha, 30);
-				assert.equal(alpha.style.opacity, '0.25');
+				assertRowFocus(alpha, false);
+				assertRowFocus(rows[table ? 1 : 2], true);
 				assert.equal(alpha.classList.contains('u-off'), true);
 
 				series[1].show = true;
 				renderer.render(valuesAt(0), series[1]);
 				assert.deepEqual(work, { rows: 2, mounts: 1 });
 				assertValues(alpha, 10);
-				assert.equal(alpha.style.opacity, '');
-				assert.equal(rows[table ? 1 : 2].style.opacity, '0.25');
+				assertRowFocus(alpha, true);
+				assertRowFocus(rows[table ? 1 : 2], false);
 				renderer.render(valuesAt(1), null);
 				assert.deepEqual(work, { rows: 3, mounts: 1 });
 				assertNodes([...parent.querySelectorAll('tbody tr')], rows);
 				assertValues(alpha, 20);
-				assert.equal(alpha.style.opacity, '');
-				assert.equal(rows[table ? 1 : 2].style.opacity, '');
+				assertRowFocus(alpha, false);
+				assertRowFocus(rows[table ? 1 : 2], false);
 				assert.equal(alpha.classList.contains('u-off'), false);
 				assert.equal(frames.queued.length, 0);
 			}
@@ -227,7 +233,8 @@ for (const table of [false, true]) {
 				u.setLegend({ idx: 0 });
 				assertValues(row(u, 1), 10);
 				u.setSeries(1, { focus: true });
-				assert.equal(row(u, 2).style.opacity, '0.25');
+				assertRowFocus(row(u, 1), true);
+				assertRowFocus(row(u, 2), false);
 				u.setLegend({ idx: 1 });
 				assertValues(row(u, 1), 20);
 				u.setSeries(2, { focus: true });
@@ -239,7 +246,7 @@ for (const table of [false, true]) {
 				const rows = [...u.root.querySelectorAll('tbody tr')];
 				const alpha = row(u, 1);
 				assertValues(alpha, 30);
-				assert.equal(alpha.style.opacity, '0.25');
+				assertRowFocus(alpha, false);
 				assert.equal(alpha.classList.contains('u-off'), true);
 
 				u.setSeries(1, { show: true });
@@ -254,7 +261,7 @@ for (const table of [false, true]) {
 				assert.equal(frames.pending.size, 0);
 				assertNodes([...u.root.querySelectorAll('tbody tr')], rows);
 				assertValues(alpha, 20);
-				assert.equal(alpha.style.opacity, '');
+				assertRowFocus(alpha, false);
 				assert.equal(alpha.classList.contains('u-off'), false);
 			}
 			finally {
@@ -319,7 +326,8 @@ for (const table of [false, true]) {
 					self.setLegend({ idx: 1 });
 					assertValues(row(self, 1), 20);
 					self.setSeries(2, { focus: true });
-					assert.equal(row(self, 1).style.opacity, '0.25');
+					assertRowFocus(row(self, 1), false);
+					assertRowFocus(row(self, 2), true);
 					self.setLegend({ idx: 2 });
 					assertValues(row(self, 1), 30);
 					self.setSize({ width: 620, height: 420 });
@@ -358,7 +366,7 @@ for (const table of [false, true]) {
 						const rows = [...legendElement.querySelectorAll('tbody tr')];
 						assert.deepEqual(rows.map(tr => tr.querySelector('.u-label').textContent), table ? ['Beta'] : ['Time', 'Beta']);
 						const beta = rows.at(-1);
-						assert.equal(beta.style.opacity, '');
+						assertRowFocus(beta, true);
 						assert.equal(beta.classList.contains('u-off'), false);
 						if (mounted)
 							assertValues(beta, 51);
@@ -484,10 +492,11 @@ for (const table of [false, true]) {
 			mouse('mouseenter', alpha.firstChild);
 			await commit();
 			assert.equal(row(u, 2) === beta, true);
-			assert.equal(Number(beta.style.opacity), 0.25);
+			assertRowFocus(alpha, true);
+			assertRowFocus(beta, false);
 			mouse('mouseleave', legend);
 			await commit();
-			assert.ok(rows.every(tr => tr.style.opacity == ''), 'cleared focus removes inline opacity');
+			rows.forEach(tr => assertRowFocus(tr, false));
 		});
 
 		it('skips reconciliation while streaming outside the cursor but still formats and notifies', async () => {
@@ -722,22 +731,29 @@ for (const table of [false, true]) {
 			}
 		});
 
-		it('skips legend scheduling and reconciliation for focus changes when alpha is one', async () => {
+		it('reconciles focus classes synchronously without frames when alpha is one', async () => {
 			const u = await plot({ focusAlpha: 1 });
 			let rowReads = 0;
 			Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
 			const frames = trackFrames();
 			try {
 				for (const si of [1, 2, null]) {
+					rowReads = 0;
 					u.setSeries(si, { focus: true });
 					assert.equal(u.series[1]._focus, si == null ? null : si == 1);
+					assert.equal(rowReads, 1);
+					[1, 2].forEach(i => assertRowFocus(row(u, i), i == si));
+					if (!table)
+						assertRowFocus(row(u, 0), false);
+					assert.deepEqual(u.series.slice(1).map(s => s.alpha), [1, 1]);
 					await Promise.resolve();
 					assert.equal(frames.queued.length, 0);
 					assert.equal(frames.pending.size, 0);
-					assert.equal(row(u, 1).style.opacity, '');
-					assert.equal(row(u, 2).style.opacity, '');
+					assert.equal(rowReads, 1);
+					rowReads = 0;
+					u.setSeries(si, { focus: true });
+					assert.equal(rowReads, 0, 'unchanged focus does not reconcile');
 				}
-				assert.equal(rowReads, 0);
 				u.setLegend({ idx: 1 });
 				assert.equal(frames.queued.length, 0);
 				assert.equal(frames.pending.size, 0);
@@ -774,6 +790,7 @@ for (const table of [false, true]) {
 					rowReads, formats,
 					text: [1, 2].map(i => row(self, i).querySelector('td').textContent),
 					opacity: [1, 2].map(i => row(self, i).style.opacity),
+					rowFocus: [1, 2].map(i => row(self, i).classList.contains('u-focus')),
 				})];
 			}
 
@@ -806,7 +823,7 @@ for (const table of [false, true]) {
 						focus: [1, 2].map(i => si == null ? null : si == i),
 						alpha: opacity, values: text, show: [true, true],
 						rowReads: renders, formats,
-						text, opacity: opacity.map(alpha => alpha == 1 ? '' : String(alpha)),
+						text, opacity: ['', ''], rowFocus: [1, 2].map(i => i == si),
 					}, name);
 				}
 				const formatted = formats;
@@ -816,7 +833,7 @@ for (const table of [false, true]) {
 				assert.equal(rowReads, renders);
 				assert.equal(formats, formatted, 'rendering does not format values again');
 				assert.deepEqual([1, 2].map(i => row(u, i).querySelector('td').textContent), text);
-				assert.deepEqual([1, 2].map(i => row(u, i).style.opacity), opacity.map(alpha => alpha == 1 ? '' : String(alpha)));
+				[1, 2].forEach(i => assertRowFocus(row(u, i), i == si));
 			}
 		});
 
@@ -837,7 +854,7 @@ for (const table of [false, true]) {
 					assert.equal(rows.length, table ? 1 : 2);
 					assert.equal(rows.at(-1).querySelector('.u-label').textContent, 'Beta');
 					assertValues(rows.at(-1), 50);
-					assert.equal(rows.at(-1).style.opacity, '');
+					assertRowFocus(rows.at(-1), true);
 				}];
 			}
 			u.setCursor({ left: u.valToPos(1, 'x'), top: u.valToPos(50, 'y') });
@@ -870,8 +887,11 @@ for (const table of [false, true]) {
 					if (legend.show === false)
 						assert.equal(u.root.querySelector('.u-legend') === null, true);
 					else {
-						assert.deepEqual([...u.root.querySelectorAll('tbody tr')].map(tr => tr.style.opacity), opacity.map(alpha => alpha == 1 ? '' : String(alpha)));
-						assert.equal(u.root.querySelectorAll('td').length, 0);
+						[...u.root.querySelectorAll('tbody tr')].forEach((tr, i) => assertRowFocus(tr, i + 1 == si));
+						assert.deepEqual([...u.root.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent)),
+							[1, 2].map(() => table ? ['--', '--'] : ['--']));
+						assert.equal(u.legend.idx, null);
+						assert.deepEqual(u.legend.idxs, [null, null, null]);
 					}
 				}
 				u.setCursor({ left: -10, top: -10 });
@@ -890,7 +910,8 @@ for (const table of [false, true]) {
 			Object.defineProperty(u.series[1], 'class', { get() { rowReads++; return ''; } });
 			const snapshots = [];
 			u.hooks.setSeries = [self => {
-				assert.equal(row(self, 1).style.opacity, '0.25');
+				assertRowFocus(row(self, 1), false);
+				assertRowFocus(row(self, 2), true);
 				assert.equal(row(self, 2).classList.contains('u-off'), !self.series[2].show);
 				snapshots.push([self.series[2]._focus, self.series[2].show, self.series[1].alpha]);
 			}];
@@ -911,7 +932,7 @@ for (const table of [false, true]) {
 			await commit();
 			assert.equal(rowReads, 4);
 			assertValues(row(u, 1), 30);
-			assert.equal(row(u, 1).style.opacity, '0.25');
+			assertRowFocus(row(u, 1), false);
 			assert.equal(row(u, 2).classList.contains('u-off'), false);
 		});
 
@@ -933,8 +954,8 @@ for (const table of [false, true]) {
 				assert.deepEqual(self.series.slice(1).map(s => s.show), [true, show]);
 				assertValues(row(self, 1), data[1][idx]);
 				assertValues(row(self, 2), data[2][idx]);
-				assert.equal(row(self, 1).style.opacity, focus == 1 ? '' : '0.25');
-				assert.equal(row(self, 2).style.opacity, focus == 2 ? '' : '0.25');
+				assertRowFocus(row(self, 1), focus == 1);
+				assertRowFocus(row(self, 2), focus == 2);
 				assert.equal(row(self, 2).classList.contains('u-off'), !show);
 			};
 			for (const name of ['setLegend', 'setCursor']) {
@@ -965,8 +986,8 @@ for (const table of [false, true]) {
 			await commit();
 			assert.equal(rowReads, 3);
 			assertValues(row(u, 1), 30);
-			assert.equal(row(u, 1).style.opacity, '0.25');
-			assert.equal(row(u, 2).style.opacity, '');
+			assertRowFocus(row(u, 1), false);
+			assertRowFocus(row(u, 2), true);
 			assert.equal(row(u, 2).classList.contains('u-off'), true);
 		});
 
@@ -1014,7 +1035,8 @@ for (const table of [false, true]) {
 			await commit();
 			assert.equal(rowReads, 1);
 			assertValues(row(source, 1), 20);
-			assert.equal(row(source, 2).style.opacity, '0.25');
+			assertRowFocus(row(source, 1), true);
+			assertRowFocus(row(source, 2), false);
 
 			let receivedPublications = 0;
 			const peer = await plot({ cursor: { sync: { setSeries: true, filters: {
@@ -1031,7 +1053,8 @@ for (const table of [false, true]) {
 			assert.deepEqual(peer.series.slice(1).map(s => s._focus), [false, true]);
 			await commit();
 			assertValues(row(peer, 1), 20);
-			assert.equal(row(peer, 1).style.opacity, '0.25');
+			assertRowFocus(row(peer, 1), false);
+			assertRowFocus(row(peer, 2), true);
 			assert.deepEqual(focused, [], 'received visible moves do not select local focus');
 			for (let i = 0; i < 2; i++)
 				peer.pub('mousemove', source, -10, -10, source.bbox.width, source.bbox.height, null);
@@ -1039,8 +1062,8 @@ for (const table of [false, true]) {
 			assert.deepEqual(peer.series.slice(1).map(s => s._focus), [null, null]);
 			assert.deepEqual(values(peer), ['--', '--']);
 			await commit();
-			assert.equal(row(peer, 1).style.opacity, '');
-			assert.equal(row(peer, 2).style.opacity, '');
+			assertRowFocus(row(peer, 1), false);
+			assertRowFocus(row(peer, 2), false);
 			assert.equal(row(peer, 1).querySelector('td').textContent, '--');
 			assert.equal(receivedPublications, 0, 'received moves do not echo focus');
 		});
@@ -1059,7 +1082,7 @@ for (const table of [false, true]) {
 				for (const name of ['setLegend', 'setSeries', 'setCursor']) {
 					u.hooks[name] = [self => {
 						assert.deepEqual([1, 2].map(si => row(self, si).querySelector('td').textContent), values(self));
-						assert.deepEqual([1, 2].map(si => row(self, si).style.opacity), self.series.slice(1).map(s => s.alpha == 1 ? '' : String(s.alpha)));
+						[1, 2].forEach(si => assertRowFocus(row(self, si), self.series[si]._focus === true));
 						snapshots.push([i, name, self.cursor.idxs.slice(), values(self), self.series.slice(1).map(s => s._focus)]);
 					}];
 				}
@@ -1101,8 +1124,8 @@ for (const table of [false, true]) {
 			for (const u of [source, peer]) {
 				assertValues(row(u, 1), 30);
 				assertValues(row(u, 2), 60);
-				assert.equal(row(u, 1).style.opacity, '0.25');
-				assert.equal(row(u, 2).style.opacity, '');
+				assertRowFocus(row(u, 1), false);
+				assertRowFocus(row(u, 2), true);
 			}
 		});
 
@@ -1258,8 +1281,8 @@ for (const table of [false, true]) {
 			assert.equal(u.series[3] === beta, true);
 			await commit();
 			assert.equal(row(u, 3) === betaRow, true);
-			assert.equal(betaRow.style.opacity, '');
-			assert.equal(row(u, 2).style.opacity, '0.25');
+			assertRowFocus(betaRow, true);
+			assertRowFocus(row(u, 2), false);
 			assertValues(betaRow, 50);
 			u.setSeries(3, { focus: true });
 			assert.equal(u.series[1]._focus, false);
@@ -1272,8 +1295,8 @@ for (const table of [false, true]) {
 			assert.equal(u.series[2] === beta, true);
 			await commit();
 			assert.equal(row(u, 2) === betaRow, true);
-			assert.equal(betaRow.style.opacity, '');
-			assert.equal(row(u, 1).style.opacity, '0.25');
+			assertRowFocus(betaRow, true);
+			assertRowFocus(row(u, 1), false);
 			assertValues(betaRow, 60);
 		});
 
@@ -1710,6 +1733,70 @@ for (const table of [false, true]) {
 			});
 		}
 
+		for (const mode of [1, 2]) {
+			it(`refreshes nonlive stats on data, series, scale, and structural changes but not cursor moves in mode ${mode}`, async () => {
+				const calls = [];
+				const stats = (self, si, idx) => {
+					calls.push([si, idx]);
+					assert.equal(idx, null);
+					const values = mode == 1 ? self.data[si] : self.data[si]?.[1];
+					const sum = (values ?? []).reduce((sum, value) => sum + value, 0);
+					return `${sum}/${self.series[si].show}/${self.scales.y.max}`;
+				};
+				const format = table ? {
+					values: (self, si, idx) => ({ Value: stats(self, si, idx), Double: 'stats' }),
+				} : {
+					value(self, value, si, idx) {
+						assert.equal(value, null);
+						return stats(self, si, idx);
+					},
+				};
+				const u = await plot({ mode, legend: { live: false }, series: format, scales: { y: { range: [0, 100] } } });
+				const assertStats = () => {
+					assert.equal(u.legend.idx, null);
+					assert.deepEqual(u.legend.idxs, u.series.map(() => null));
+					const rows = [...u.root.querySelectorAll('tbody tr')];
+					assert.equal(rows.length, u.series.length - 1);
+					for (let si = 1; si < u.series.length; si++) {
+						const values = mode == 1 ? u.data[si] : u.data[si]?.[1];
+						const text = `${(values ?? []).reduce((sum, value) => sum + value, 0)}/${u.series[si].show}/${u.scales.y.max}`;
+						assert.deepEqual([...rows[si - 1].querySelectorAll('td')].map(td => td.textContent), table ? [text, 'stats'] : [text]);
+						assert.equal(u.legend.values[si][table ? 'Value' : '_'], text);
+					}
+				};
+				assert.ok(calls.length >= 2, 'initial commit formats stats');
+				assertStats();
+				const originalRows = [...u.root.querySelectorAll('tbody tr')];
+				for (const update of [
+					() => u.setData(mode == 1 ? [data[0], [1, 2, 3], data[2], [7, 8, 9]] :
+						[null, [data[0], [1, 2, 3]], [data[0], data[2]], [data[0], [7, 8, 9]]]),
+					() => u.setSeries(1, { show: false }),
+					() => u.setSeries(2, { focus: true }),
+					() => u.setScale('y', { min: 0, max: 200 }),
+					() => u.addSeries({ label: 'Added', stroke: 'blue', ...format }),
+					() => u.delSeries(3),
+				]) {
+					calls.length = 0;
+					update();
+					await commit();
+					assert.deepEqual(calls, u.series.slice(1).map((_, i) => [i + 1, null]));
+					assertStats();
+					assertNodes([...u.root.querySelectorAll('tbody tr')].slice(0, 2), originalRows);
+				}
+				calls.length = 0;
+				for (const position of [
+					{ left: u.valToPos(1, 'x'), top: u.valToPos(50, 'y') },
+					{ left: u.valToPos(2, 'x'), top: u.valToPos(60, 'y') },
+					{ left: -10, top: -10 },
+				]) {
+					u.setCursor(position);
+					await commit();
+					assert.deepEqual(calls, [], 'cursor movement does not refresh stats');
+					assertStats();
+				}
+			});
+		}
+
 		it('preserves hidden, nonlive, and mode 2 legend structure', async () => {
 			let mounts = 0;
 			const hidden = await plot({ legend: { show: false }, mount: () => mounts++ });
@@ -1718,17 +1805,20 @@ for (const table of [false, true]) {
 
 			const nonlive = await plot({ legend: { live: false } });
 			const nonliveLegend = nonlive.root.querySelector('.u-legend');
-			assert.deepEqual([...nonliveLegend.classList].sort(), ['u-btm', 'u-inline', 'u-legend']);
+			assert.deepEqual([...nonliveLegend.classList].sort(), table ? ['u-btm', 'u-legend'] : ['u-btm', 'u-inline', 'u-legend', 'u-live']);
 			assert.deepEqual([...nonliveLegend.querySelectorAll('tbody tr')].map(tr => tr.querySelector('.u-label').textContent), ['Alpha', 'Beta']);
-			assert.equal(nonliveLegend.querySelectorAll('.u-value').length, 0);
+			assert.equal(nonliveLegend.querySelectorAll('.u-value').length, table ? 4 : 2);
+			assert.deepEqual([...nonliveLegend.querySelectorAll('thead th')].map(th => th.textContent), table ? ['', 'Value', 'Double'] : []);
 			const nonliveRows = [...nonliveLegend.querySelectorAll('tbody tr')];
 			nonlive.setSeries(1, { show: false });
 			nonlive.setSeries(2, { focus: true });
 			await commit();
 			assertNodes([...nonliveLegend.querySelectorAll('tbody tr')], nonliveRows);
-			assert.equal(nonliveLegend.querySelectorAll('td').length, 0);
+			assert.deepEqual(nonliveRows.map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent)),
+				[1, 2].map(() => table ? ['--', '--'] : ['--']));
 			assert.equal(nonliveRows[0].classList.contains('u-off'), true);
-			assert.equal(nonliveRows[0].style.opacity, '0.25');
+			assertRowFocus(nonliveRows[0], false);
+			assertRowFocus(nonliveRows[1], true);
 
 			const mode2 = await plot({ mode: 2 });
 			const mode2Legend = mode2.root.querySelector('.u-legend');
@@ -1794,7 +1884,7 @@ for (const table of [false, true]) {
 				assert.equal(tr.classList.contains('before'), false);
 				assert.equal(tr.classList.contains(`after-${idx}`), true);
 				assert.equal(tr.classList.contains('u-off'), idx == 1);
-				assert.equal(tr.style.opacity, idx == 1 ? '0.25' : '');
+				assertRowFocus(tr, idx == 2);
 				assertValues(tr, data[2][idx]);
 				mouse('click', input);
 				assert.equal(clicks, idx);

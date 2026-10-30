@@ -3,14 +3,20 @@ import { createLegendTemplate } from './legend-dom-template.js';
 
 const seriesKey = entry => entry.series;
 
-// selectRows is an internal prototype seam, not a public uPlot option.
-// Entries retain their core index regardless of display order or visibility.
-export function createLegend(self, parent, opts, selectRows) {
-	const {series, legend, columns, multi, mode} = opts;
-	const markersShow = legend.markers.show;
+function columnKeys(columns) {
 	const keys = [];
 	for (const key in columns)
 		keys.push(key);
+	return keys;
+}
+
+// selectRows is an internal prototype seam, not a public uPlot option.
+// Entries retain their core index regardless of display order or visibility.
+export function createLegend(self, parent, opts, selectRows) {
+	const {series, legend, mode} = opts;
+	const markersShow = legend.markers.show;
+	let keys = columnKeys(opts.columns);
+	let multi = opts.multi;
 
 	const entriesBySeries = new WeakMap();
 	const entries = [];
@@ -39,13 +45,26 @@ export function createLegend(self, parent, opts, selectRows) {
 	}
 
 	return {
+		setColumns(columns, nextMulti) {
+			if (destroyed)
+				return;
+
+			const nextKeys = columnKeys(columns);
+			if (multi === nextMulti && keys.length === nextKeys.length && keys.every((key, i) => key === nextKeys[i]))
+				return;
+
+			keys = nextKeys;
+			multi = nextMulti;
+			rows?.destroy();
+			template?.setColumns(keys, multi);
+		},
 		render(data, focus) {
 			if (destroyed)
 				return;
 
 			const mount = template == null;
 			if (mount) {
-				template = createLegendTemplate(self, opts, keys, markersShow);
+				template = createLegendTemplate(self, {...opts, multi}, keys, markersShow);
 				rows = createKeyedList(template.body, seriesKey, template.createRow);
 			}
 

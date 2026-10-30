@@ -12,7 +12,7 @@ import { demoDependencies, benchmarkVariants, benchmarkMetadata, benchmarkLibrar
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const cache = fileURLToPath(new URL('../.cache/benchmarks/', import.meta.url));
-const VARIANTS = ['idle', ...benchmarkVariants];
+const VARIANTS = benchmarkVariants;
 const display = value => Number.isFinite(value) ? value : 'unavailable';
 
 function measurementsFor({trace = false, memory = false, raf = false}) {
@@ -175,6 +175,13 @@ function benchmarkView(report) {
 			const stats = group(report.adjustedAnalysis)?.scopes.tree.pssMB;
 			metric('peak MB', stats?.peak);
 			metric('retained MB', stats?.live);
+			if (stats?.baselines.blank === null) {
+				const attempts = raw.blank?.attempts;
+				const diagnostics = (raw.blank?.processMemory?.issues ?? []).map(({code, stage, pid, message}) =>
+					[code, stage && `stage=${stage}`, pid != null && `pid=${pid}`, message].filter(Boolean).join(' ')).filter(Boolean);
+				issues.push(`blank-page baseline unavailable${attempts?.length ? ` after ${attempts.length} attempts` : ''}` +
+					(diagnostics.length ? `: ${diagnostics.join(', ')}` : ': no valid blank-page process-memory checkpoint'));
+			}
 		}
 		if (issues.length)
 			warnings.push(`${variant} (DPR ${dpr}): ${issues.join('; ')}.`);
@@ -357,7 +364,7 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 	const requestedBackend = vulkan ? 'vulkan' : 'default';
 	gpu = gpu || vulkan;
 	const variants = variant === null ? [...VARIANTS, ...(lightningOptions?.license?.trim() ? ['lightningchart'] : [])]
-			: variant === 'idle' ? ['idle'] : ['idle', variant];
+			: [variant];
 	const {outputDirectory = cache} = dependencies;
 	const display = dependencies.display ?? createBenchmarkDisplay({verbose});
 	const worker = dependencies.runWorker ?? (request => runWorker(request, dependencies));
@@ -372,13 +379,14 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 		progress: {total: variants.length, completed: [], current: null, failed: null},
 		protocol: {
 			freshBrowserPerVariant: true, selectedDependenciesOnly: true, variants,
-			idleFirst: true, sameRunControlsOnly: true, coolingBetweenVariantsMs: 0,
+			perBrowserBaseline: 'Retained and peak process memory subtract the same browser report\'s blank checkpoint. No idle or cross-browser controls are used.',
+			coolingBetweenVariantsMs: 0,
 			tracing: measurements.trace, gpuSpecificMemory: false, sampleTimeoutMs: SAMPLE_TIMEOUT_MS,
 			blankAndLoaded: 'One cold checkpoint each per browser, not a round aggregate.',
 			lifecycle: dashboard ? 'Three warmup sessions and seven measured sessions. Each session initializes 20 charts with five series and two rows each, then updates the retained charts to 300 rows per series. The 4x5 grid uses 480x216 tiles in a 1920x1080 viewport. Reports use dashboard-v1, chart-population, and settled-work-v1. The only operations are small-init and data-update. No resize or hover occurs.' : 'Three warmup sessions and seven measured sessions. Each session initializes a two-point chart, updates it with the full dataset, then resizes the retained chart to 1200x400. Reports use chart-population, settled-work-v1 initialization, retained-resize-v1 resize, and hover-ten-v3. lifecycle.resizeSize records width and height. Supported variants, including idle, then perform hover-10. Unsupported variants have only three phases.',
 			hover: dashboard ? 'No hover operation occurs.' : 'hover.variants records supported variants, including idle. hover.count is 10 and hover.intervalMs is 50. One hover-10 window covers 10 mousemoves and the final settle/fence. Hover-ten-v3 sends all ten coordinate targets through one browser binding. Node sends ten CDP dispatches with nine 50 ms waits, each after the preceding CDP acknowledgment. Node sends one browser Runtime.evaluate completion acknowledgment after the tenth dispatch acknowledgment. No catch-up, per-point renderer timer, renderer acknowledgment, or rAF occurs. No value verification or harness DOM/canvas reads occur in this window. Batching reduces input-bridge overhead but does not eliminate it. Node scheduling is outside measured browser threads. Idle spacing is not thread work, but rAF wall latency includes at least 450 ms of spacing. Target preparation and bounds validation occur outside the window. Diagnostic verification never runs during capture or preflight. Reports retain count and interval without verification evidence. The result is cumulative, not a per-point average. Unsupported variants have no hover marker or sample and show a blank cell.',
 			timingColumns: dashboard ? 'Trace init ms and update ms use total tracked thread work from each complete dashboard operation window, including settling and completion checks. Init includes all 20 hosts and charts. Main/gpu and prep describe data-update only. In rAF-only mode, init rAF ms uses initialization raf1Ms, update ms shows update readiness, and next rAF shows update callback latency. These are whole-dashboard measurements, not per-chart averages. Primary groups describe data-update. phaseGroups contains small-init and data-update only.' : 'Trace init ms, update ms, resize ms, and hover10 ms use total tracked thread work from each complete operation window. Each window includes settling and completion checks. Init includes chart-specific host setup. Main/gpu and prep describe data-update only. rAF-only init rAF ms and resize rAF ms use each operation\'s raf1Ms, not thread work. rAF-only update ms shows update readiness. Next rAF shows update callback latency. Primary groups and library ordering still describe data-update. phaseGroups contains all recorded operations. Untraced rAF hover10 ms uses the minimum hover raf1Ms, not the full-work equivalent.',
-			memoryColumns: dashboard ? 'Dashboard process-memory reports use memoryProtocol through-update-v1. After baseline GC, peak covers initialization, preparation, and data-update through the live checkpoint. Forced GC and live follow settled data-update with all 20 charts and their full prepared inputs alive. No process reads or forced GC occur after live. No cleanup snapshot occurs, but all charts are destroyed. Memory controls must have the same dashboard workload and dimensions.' : 'Lifecycle process-memory reports use memoryProtocol through-update-v1. After baseline GC, peak covers small-init, full-data preparation, and data-update through the live checkpoint. Forced GC and the live checkpoint follow settled data-update immediately, before resize preparation, with the chart and full prepared input alive. No process reads or forced GC occur after this checkpoint. Resize and hover are timing-only. No cleanup snapshot occurs, but chart destruction still runs.',
+			memoryColumns: dashboard ? 'Dashboard process-memory reports use memoryProtocol through-update-v1. After baseline GC, peak covers initialization, preparation, and data-update through the live checkpoint. Forced GC and live follow settled data-update with all 20 charts and their full prepared inputs alive. No process reads or forced GC occur after live. No cleanup snapshot occurs, but all charts are destroyed. Each browser supplies its own blank memory baseline.' : 'Lifecycle process-memory reports use memoryProtocol through-update-v1. After baseline GC, peak covers small-init, full-data preparation, and data-update through the live checkpoint. Forced GC and the live checkpoint follow settled data-update immediately, before resize preparation, with the chart and full prepared input alive. No process reads or forced GC occur after this checkpoint. Resize and hover are timing-only. No cleanup snapshot occurs, but chart destruction still runs.',
 			timeoutScope: 'Five seconds per operation, including preparation and settling. Setup/baseline belongs to the first operation. Post-update GC/live and final destruction each have a separate five-second budget.',
 			aggregation: 'Trace timing columns use arithmetic means after warmups. Total work averages deduplicated per-sample totals, including observed GC. rAF timings and memory columns retain minima.',
 			warmSamples: 'Warmups are excluded. Each browser reuses its selected library between samples; allocator reuse affects process deltas.',
@@ -421,7 +429,7 @@ export async function runBenchmarkSuite({trace, memory, raf, dpr = 1, gpu = fals
 			}
 			catch (error) {
 				// Cancellation and suite infrastructure failures are not library results.
-				if (name === 'idle' || ['BENCHMARK_INTERRUPTED', 'BENCHMARK_WORKER_START_FAILED', 'BENCHMARK_CLEANUP_FAILED'].includes(error?.code))
+				if (['BENCHMARK_INTERRUPTED', 'BENCHMARK_WORKER_START_FAILED', 'BENCHMARK_CLEANUP_FAILED'].includes(error?.code))
 					throw error;
 				const message = error instanceof Error ? error.message : String(error);
 				const timedOut = error?.code === 'BENCHMARK_SAMPLE_TIMEOUT';

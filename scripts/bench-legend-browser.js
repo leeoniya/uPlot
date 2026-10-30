@@ -22,7 +22,7 @@ function fixture(n) {
 	let mounts = 0;
 	const self = {series};
 	const opts = {
-		series, columns: {_: 0}, multi: false, mode: 1, focusAlpha: 0.3, cursorFocus: true,
+		series, columns: {_: 0}, multi: false, mode: 1, cursorFocus: true,
 		legend: {live: true, mount: () => { mounts++; }, markers: {
 			show: true, width: () => 1, dash: () => 'solid',
 			stroke: () => 'rgb(10, 20, 30)', fill: () => 'rgb(40, 50, 60)',
@@ -45,7 +45,8 @@ function smoke(createLegend, n) {
 			assert(row.querySelector('.u-label').textContent === f.series[i].label, `label ${i}`);
 			assert(row.querySelector('.u-value').textContent === (values[i] == null ? '--' : values[i]._), `value ${i}`);
 			assert(row.classList.contains('u-off') === !f.series[i].show, `show ${i}`);
-			assert(row.style.opacity === (focus && i > 0 && f.series[i] !== focus ? '0.3' : ''), `opacity ${i}`);
+			assert(row.style.opacity === '', `opacity ${i}`);
+						assert(row.classList.contains('u-focus') === (i > 0 && f.series[i] === focus), `focus ${i}`);
 			assert(row.querySelector('.u-marker') != null, `marker ${i}`);
 		});
 		return rs;

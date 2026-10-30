@@ -406,16 +406,19 @@ describe('legend selection', () => {
 		it(`preserves existing X eligibility and table structure for ${config.name}`, async () => {
 			const { u } = await plot({ ...config, legend: { ...config.legend, sort: (u, a, b) => b - a, limit: () => [1, 3] } });
 			u.setLegend({ idxs: [0, 2, 0, 1, 2] });
+			const live = config.legend?.live !== false;
 			expectSelection(u, [3, 2], 4, [1, 3]);
-			assert.deepEqual(u.legend.idxs, [0, 2, 0, 1, 2]);
+			assert.deepEqual(u.legend.idxs, live ? [0, 2, 0, 1, 2] : [null, null, null, null, null]);
+			if (!live)
+				assert.equal(u.legend.idx, null);
 			await frame();
 			const table = u.root.querySelector('.u-legend');
 			assert.deepEqual(rowLabels(u), [...(config.pinned ? ['Time'] : []), 'Gamma', 'Beta']);
-			assert.equal(table.className, config.multi ? 'u-legend u-btm' : `u-legend u-btm u-inline${config.legend?.live === false ? '' : ' u-live'}`);
+			assert.equal(table.className, config.multi ? 'u-legend u-btm' : 'u-legend u-btm u-inline u-live');
 			assert.deepEqual([...table.querySelectorAll('thead th')].map(cell => cell.textContent), config.multi ? ['', 'Value', 'Double'] : []);
 			assert.equal(table.querySelectorAll('input, button, select').length, 0);
 			if (config.legend?.live === false)
-				assert.ok(rows(u).every(row => cells(row).length == 0));
+				assert.deepEqual(rows(u).map(cells), [['--'], ['--']]);
 			else {
 				assert.deepEqual(cells(rows(u).at(-2)), config.multi ? ['80', '160'] : ['80']);
 				assert.deepEqual(cells(rows(u).at(-1)), config.multi ? ['40', '80'] : ['40']);
@@ -424,7 +427,7 @@ describe('legend selection', () => {
 	}
 
 	for (const live of [true, false]) {
-		it(`publishes headless selection and distances before callbacks/hooks with live=${live}`, async () => {
+		it(`publishes headless distances and ${live ? 'selected' : 'unfiltered'} rows before hooks with live=${live}`, async () => {
 			let armed = false, expected, observed = [];
 			const check = (u, stage) => {
 				if (armed) {
@@ -435,9 +438,10 @@ describe('legend selection', () => {
 			const { u } = await plot({
 				legend: {
 					show: false, live,
-					filter(u, si) { check(u, 'filter'); return Number.isFinite(u.cursor.dists?.[si]); },
-					sort(u, a, b) { check(u, 'sort'); return u.cursor.dists[a] - u.cursor.dists[b]; },
+					filter(u, si) { assert.ok(live, 'nonlive filter is not called'); check(u, 'filter'); return Number.isFinite(u.cursor.dists?.[si]); },
+					sort(u, a, b) { assert.ok(live, 'nonlive sort is not called'); check(u, 'sort'); return u.cursor.dists[a] - u.cursor.dists[b]; },
 					limit(u, indices) {
+						assert.ok(live, 'nonlive limit is not called');
 						check(u, 'limit');
 						if (armed) assert.deepEqual(indices, expected.sorted);
 						return [0, 1];
@@ -448,7 +452,7 @@ describe('legend selection', () => {
 			for (const hook of ['setLegend', 'setCursor', 'setSeries']) {
 				u.hooks[hook] = [self => {
 					check(self, hook);
-					expectSelection(self, expected.sorted.slice(0, 1), 4, [0, 1]);
+					expectSelection(self, live ? expected.sorted.slice(0, 1) : [1, 2, 3, 4], 4, live ? [0, 1] : [0, 4]);
 				}];
 			}
 			armed = true;
@@ -456,10 +460,12 @@ describe('legend selection', () => {
 				expected = { sorted, dists: distancesAt(u, y, [10, 40, 70, 25]) };
 				observed = [];
 				move(u, y);
-				expectSelection(u, sorted.slice(0, 1), 4, [0, 1]);
-				for (const stage of ['filter', 'sort', 'limit', 'setCursor', 'setSeries'])
+				expectSelection(u, live ? sorted.slice(0, 1) : [1, 2, 3, 4], 4, live ? [0, 1] : [0, 4]);
+				for (const stage of [...(live ? ['filter', 'sort', 'limit'] : []), 'setCursor', 'setSeries'])
 					assert.ok(observed.includes(stage), `${stage} observes current state`);
-				assert.deepEqual(u.legend.idxs, [0, 0, 0, 0, 0]);
+				assert.deepEqual(u.legend.idxs, live ? [0, 0, 0, 0, 0] : []);
+				if (!live)
+					assert.equal(u.legend.idx, null);
 				observed = [];
 				u.setLegend({});
 				assert.ok(observed.includes('setLegend'), 'explicit headless refresh publishes selection');
@@ -1067,14 +1073,52 @@ describe('legend selection', () => {
 		assert.equal(cursorUpdates, 0);
 	});
 
+	for (const one of [false, true]) {
+		it(`selects nonlive rows without restricting ${one ? 'shared' : 'ordinary'} hover points`, async () => {
+			let selections = 0;
+			const { u, formats } = await plot({
+				legend: {
+					live: false,
+					filter(u, si) { selections++; return si != 2; },
+					sort: (u, a, b) => b - a,
+					limit: () => [1, 2],
+				},
+				cursor: { points: { one }, focus: { prox: Infinity } },
+			});
+			const selected = selections;
+			for (const si of [1, 2, 3, 4]) {
+				move(u, data[si][2], 2);
+				await frame();
+				expectSelection(u, [3], 3, [1, 2]);
+				assert.equal(selections, selected, 'hover does not reselect stats');
+				assert.deepEqual(rowLabels(u), ['Gamma']);
+				assert.equal(u.legend.idx, null);
+				assert.deepEqual(u.legend.idxs, Array(5).fill(null));
+				assert.deepEqual(u.cursor.idxs, Array(5).fill(2));
+				assert.equal(u.series[si]._focus, true);
+				const points = [...u.over.querySelectorAll('.u-cursor-pt')];
+				assert.equal(points.length, one ? 1 : 4);
+				for (const [i, point] of points.entries()) {
+					assert.equal(point.classList.contains('u-off'), false);
+					const position = point.style.transform.match(/-?[\d.]+(?:e[+-]?\d+)?/gi).map(Number);
+					const expected = [u.valToPos(2, 'x'), u.valToPos(data[one ? si : i + 1][2], 'y')];
+					position.forEach((value, axis) => assert.ok(Math.abs(value - expected[axis]) <= 1));
+				}
+				assert.deepEqual(formats, [], 'hover does not refresh stats');
+			}
+		});
+	}
+
 	for (const tracking of [true, false]) {
-		it(`clears nonlive active indices on exit with ${tracking ? 'tracking only' : 'selection only'}`, async () => {
+		it(`keeps nonlive indices null during cursor movement and exit with ${tracking ? 'tracking' : 'stats selection'}`, async () => {
 			const { u } = await plot({ cursor: { trackDists: tracking }, legend: {
 				live: false,
-				...(!tracking && { filter: (u, si) => u.legend.idxs[si] != null }),
+				...(!tracking && { filter: () => true }),
 			} });
 			move(u, 12);
-			assert.deepEqual(u.legend.idxs, [0, 0, 0, 0, 0]);
+			assert.equal(u.legend.idx, null);
+			assert.deepEqual(u.legend.idxs, [null, null, null, null, null]);
+			assert.deepEqual(u.cursor.idxs, [0, 0, 0, 0, 0]);
 			expectSelection(u, [1, 2, 3, 4]);
 			mouse(u.over, 'mouseleave');
 			assert.equal(u.cursor.idx, null);
@@ -1083,8 +1127,7 @@ describe('legend selection', () => {
 			assert.deepEqual(u.legend.idxs, [null, null, null, null, null]);
 			if (tracking)
 				expectDists(u, Array(5).fill(Infinity));
-			else
-				expectSelection(u, [], 0, [0, 0]);
+			expectSelection(u, [1, 2, 3, 4]);
 		});
 	}
 

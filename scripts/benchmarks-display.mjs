@@ -47,29 +47,50 @@ export function countTerminalLines(text, columns) {
 	return count;
 }
 
-// Absolute bands use raw values, before display rounding. The xterm-256
-// approximations keep every band distinct, including the lighter reds.
-const workBands = [
-	[1000 / 60, '34;197;94', 41],
-	[25, '163;230;53', 154],
-	[2000 / 60, '217;249;157', 193],
-	[50, '253;186;116', 216],
-	[75, '251;146;60', 209],
-	[100, '249;115;22', 202],
-	[500, '248;113;113', 210],
-	[1000, '239;68;68', 203],
-	[2000, '220;38;38', 160],
-	[Infinity, '185;28;28', 124],
+const spreadLimits = [1.5, 2, 4, 8, 16];
+const scaleColors = [
+	[34, 197, 94], [132, 204, 22], [250, 204, 21],
+	[249, 115, 22], [239, 41, 41], [185, 28, 28],
 ];
 
-// Initialization reaches red at 100 ms; update work keeps its inclusive orange limit.
-const initBands = workBands.map(band => [...band, band[0] === 100]);
+// The first 16 terminal colors are configurable; use only the fixed xterm palette.
+const xtermLevels = [0, 95, 135, 175, 215, 255];
+const xtermColors = Array.from({length: 240}, (_, i) => i < 216
+	? [xtermLevels[Math.floor(i / 36)], xtermLevels[Math.floor(i / 6) % 6], xtermLevels[i % 6]]
+	: Array(3).fill(8 + 10 * (i - 216)));
 
-// Both memory columns share MB limits and shades.
-// An exclusive upper limit puts exactly 50 MB in the red band.
-const memoryScale = [[20, 0], [27.5, 1], [35, 2], [40, 3], [45, 4], [50, 5, true], [100, 6], [200, 7], [400, 8], [Infinity, 9]]
-	.map(([limit, shade, exclusive = false]) => [limit, ...workBands[shade].slice(1), exclusive]);
-const memoryBands = new Map(['peak MB', 'retained MB'].map(column => [column, memoryScale]));
+function nearestXterm(rgb) {
+	let nearest = 16;
+	let distance = Infinity;
+	for (const [i, color] of xtermColors.entries()) {
+		const squared = color.reduce((sum, channel, j) => sum + (channel - rgb[j]) ** 2, 0);
+		if (squared < distance) {
+			nearest = i + 16;
+			distance = squared;
+		}
+	}
+	return nearest;
+}
+
+function metricStops(rows, column) {
+	const values = rows.map(row => row[column]).filter(value => Number.isFinite(value) && value >= 0).sort((a, b) => a - b);
+	if (!values.length || values[0] === 0)
+		return null;
+	const stops = [{value: values[0], log: Math.log(values[0])}];
+	let start = 0;
+	for (const multiplier of spreadLimits) {
+		const previous = stops.at(-1);
+		const minimum = values[start] ?? previous.value;
+		const limit = minimum * multiplier;
+		// Keep the log finite even if a cap exceeds Number.MAX_VALUE.
+		const log = Number.isFinite(limit) ? Math.log(limit)
+			: (Number.isFinite(minimum) ? Math.log(minimum) : previous.log) + Math.log(multiplier);
+		stops.push({value: limit, log});
+		while (start < values.length && values[start] <= limit)
+			start++;
+	}
+	return stops;
+}
 
 const contextColors = new Map([
 	['2d', ['96;165;250', 75]],
@@ -95,11 +116,20 @@ function colorText(text, color, colorDepth) {
 	return `\x1b[${colorDepth >= 24 ? `38;2;${rgb}` : `38;5;${palette}`}m${text}\x1b[39m`;
 }
 
-function colorMetric(text, value, bands, colorDepth) {
-	if (!Number.isFinite(value) || value < 0 || !(colorDepth >= 8))
+function colorMetric(text, value, stops, colorDepth) {
+	if (!Number.isFinite(value) || value <= 0 || !(colorDepth >= 8))
 		return text;
-	const [, rgb, palette] = bands.find(([limit, , , exclusive]) => exclusive ? value < limit : value <= limit);
-	return colorText(text, [rgb, palette], colorDepth);
+	let rgb = scaleColors.at(-1);
+	for (let i = 1; i < stops.length; i++) {
+		if (value <= stops[i].value) {
+			// Subtract logs rather than divide values: extreme ratios can overflow.
+			const position = Math.max(0, Math.min(1,
+				(Math.log(value) - stops[i - 1].log) / (stops[i].log - stops[i - 1].log)));
+			rgb = scaleColors[i - 1].map((channel, j) => Math.round(channel * (1 - position) + scaleColors[i][j] * position));
+			break;
+		}
+	}
+	return colorText(text, [rgb.join(';'), colorDepth >= 24 ? null : nearestXterm(rgb)], colorDepth);
 }
 
 function formatTable(rows, colorDepth, verbose) {
@@ -110,7 +140,15 @@ function formatTable(rows, colorDepth, verbose) {
 	const split = columns.indexOf('retained MB') + 1;
 	const divided = split > 0 && ['resize ms', 'resize rAF ms', 'hover10 ms'].includes(columns[split]);
 	// rAF readiness and latency are not thread work.
-	const workColumn = keys.includes('main ms') ? 'update ms' : null;
+	const metrics = ['peak MB', 'retained MB', ...(keys.includes('main ms') ? ['init ms', 'update ms', 'resize ms', 'hover10 ms'] : [])];
+	const scales = new Map();
+	if (colorDepth >= 8) {
+		for (const column of metrics) {
+			const stops = metricStops(rows, column);
+			if (stops)
+				scales.set(column, stops);
+		}
+	}
 	const width = text => [...cellWidths(text)].reduce((sum, size) => sum + size, 0);
 	const cell = value => clean(value).replace(/\n/g, ' ');
 	const cells = rows.map(row => columns.map(key => key === 'variant' ? cell(benchmarkLibraryName(row[key] ?? ''))
@@ -127,10 +165,8 @@ function formatTable(rows, colorDepth, verbose) {
 		const padding = ' '.repeat(widths[i] - width(value));
 		if (row && columns[i] === 'context')
 			value = colorText(value, contextColors.get(row.context), colorDepth);
-		else if (row && memoryBands.has(columns[i]))
-			value = colorMetric(value, row[columns[i]], memoryBands.get(columns[i]), colorDepth);
-		else if (row && workColumn && (columns[i] === workColumn || columns[i] === 'init ms' || columns[i] === 'resize ms' || columns[i] === 'hover10 ms'))
-			value = colorMetric(value, row[columns[i]], columns[i] === 'init ms' ? initBands : workBands, colorDepth);
+		else if (row && scales.has(columns[i]))
+			value = colorMetric(value, row[columns[i]], scales.get(columns[i]), colorDepth);
 		return metadata.includes(columns[i]) ? value + padding : padding + value;
 	}), ' │ ', ' │ │ ') + ' │\n';
 	return border('┌', '┬', '┐ ┌', '┐') + line(headers) + border('├', '┼', '┤ ├', '┤') + cells.map((values, i) => line(values, rows[i])).join('') + border('└', '┴', '┘ └', '┘');

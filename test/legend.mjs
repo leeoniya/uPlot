@@ -102,7 +102,8 @@ async function plot(table, { isolate = false, prox = -1, lock = false } = {}) {
 		assert.equal(points.length, 3);
 		for (let i = 1; i < u.series.length; i++) {
 			const focused = index == null || i == index;
-			assert.equal(row(i).style.opacity, focused ? '' : '0.25');
+			assert.equal(row(i).style.opacity, '');
+			assert.equal(row(i).classList.contains('u-focus'), i == index);
 			assert.equal(Number(points[i - 1].style.opacity), focused ? 1 : 0.25);
 		}
 	}
@@ -342,7 +343,7 @@ for (const table of [false, true]) {
 			finally { f.destroy(); }
 		});
 
-		it('focuses hovered series and restores opacity when the mouse leaves the legend', async () => {
+		it('marks hovered series and restores plot opacity when the mouse leaves the legend', async () => {
 			const f = await plot(table, { prox: 1 });
 			const { u } = f;
 			try {

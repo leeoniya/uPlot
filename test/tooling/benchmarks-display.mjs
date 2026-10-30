@@ -61,89 +61,207 @@ function screenAfter(writes, columns = 100, height = 40) {
 }
 
 describe('benchmark display colors', () => {
-	const rgbs = ['34;197;94', '163;230;53', '217;249;157', '253;186;116', '251;146;60',
-		'249;115;22', '248;113;113', '239;68;68', '220;38;38', '185;28;28'];
-	const palette = [41, 154, 193, 216, 209, 202, 210, 203, 160, 124];
-	const updateRows = values => values.map(value => ({variant: 'custom', 'main ms': 0, 'update ms': value}));
+	const rgbs = [[34, 197, 94], [132, 204, 22], [250, 204, 21], [249, 115, 22], [239, 41, 41], [185, 28, 28]];
+	const values = [10, 15, 16, 32, 33, 132, 133, 1064, 1065, 17040, 20000];
+	const stops = [10, 15, 32, 132, 1064, 17040];
+	const columns = ['init ms', 'update ms', 'resize ms', 'hover10 ms', 'peak MB', 'retained MB'];
+	const metricRows = (values, column) => values.map(value => ({variant: 'custom', 'main ms': 0, [column]: value}));
+	const updateRows = values => metricRows(values, 'update ms');
 	const coloredValues = text => [...text.matchAll(/\x1b\[(38;[25];[\d;]+)m([^\x1b]*)\x1b\[39m/g)].map(match => match.slice(1));
+	// This oracle takes explicit fixture stops, not observations or implementation helpers.
+	const rgbAt = (value, logs = stops.map(Math.log)) => {
+		const log = Math.log(value);
+		if (log <= logs[0]) return rgbs[0];
+		const upper = logs.findIndex(stop => log <= stop);
+		if (upper < 0) return rgbs.at(-1);
+		const t = (log - logs[upper - 1]) / (logs[upper] - logs[upper - 1]);
+		return rgbs[upper - 1].map((channel, i) => Math.round(channel + t * (rgbs[upper][i] - channel)));
+	};
+	const levels = [0, 95, 135, 175, 215, 255];
+	const xterm = [...levels.flatMap(r => levels.flatMap(g => levels.map(b => [r, g, b]))),
+		...Array.from({length: 24}, (_, n) => [8 + 10 * n, 8 + 10 * n, 8 + 10 * n])];
+	const nearest = rgb => {
+		const distances = xterm.map(candidate => candidate.reduce((sum, channel, i) => sum + (channel - rgb[i]) ** 2, 0));
+		return 16 + distances.indexOf(Math.min(...distances));
+	};
+	const color = (rgb, depth) => depth === 24 ? `38;2;${rgb.join(';')}` : `38;5;${nearest(rgb)}`;
+	const expected = (values, depth, logs) => values.map(value => [color(rgbAt(value, logs), depth), value.toFixed(1)]);
 
-	it('distinguishes low, middle, and upper green timings in both terminal palettes', () => {
-		const values = [4.3, 23.5, 32.4];
-		const rows = values.map(value => ({variant: 'custom', 'init ms': value, 'main ms': 0, 'update ms': '-'}));
-		for (const colorDepth of [8, 24]) {
-			const text = formatBenchmarkDisplay({rows}, {colorDepth});
-			assert.deepEqual(coloredValues(text), values.map((value, band) =>
-				[colorDepth === 24 ? `38;2;${rgbs[band]}` : `38;5;${palette[band]}`, value.toFixed(1)]));
-			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
-		}
-	});
-
-	it('uses exact frame boundaries and starts init red at 100 ms without changing update bands', () => {
-		const limits = [1000 / 60, 25, 2000 / 60, 50, 75, 100, 500, 1000, 2000];
-		const cases = [[0, 0], [-0, 0], [16.6666, 0], ...limits.flatMap((limit, band) => [
-			[limit - 0.0001, band], [limit, band], [limit + 0.0001, band + 1],
-		]), [1e12, 9]];
-		for (const colorDepth of [8, 24]) {
-			const rows = updateRows(cases.map(([value]) => value));
-			const text = formatBenchmarkDisplay({rows}, {colorDepth});
-			assert.deepEqual(coloredValues(text), cases.map(([value, band]) =>
-				[colorDepth === 24 ? `38;2;${rgbs[band]}` : `38;5;${palette[band]}`, value.toFixed(1)]));
-			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
-			const workRows = cases.map(([value]) => ({variant: 'custom', 'init ms': value, 'main ms': 1, 'gpu ms': 2, 'update ms': value, 'resize ms': value}));
-			const workText = formatBenchmarkDisplay({rows: workRows}, {colorDepth});
-			assert.deepEqual(coloredValues(workText), cases.flatMap(([value, band]) =>
-								[value === 100 ? 6 : band, band, band].map(shade =>
-									[colorDepth === 24 ? `38;2;${rgbs[shade]}` : `38;5;${palette[shade]}`, value.toFixed(1)])));
-			assert.equal(stripVTControlCharacters(workText), formatBenchmarkDisplay({rows: workRows}));
-		}
-	});
-
-	for (const column of ['peak MB', 'retained MB']) {
-		const limits = [20, 27.5, 35, 40, 45, 50, 100, 200, 400];
-		it(`colors ${column} at exact raw-value boundaries in memory-only and combined tables`, () => {
-			const cases = [[0, 0], ...limits.flatMap((limit, band) => [
-				[limit - 0.0001, band],
-				[limit, limit === 50 ? band + 1 : band],
-				[limit + 0.0001, band + 1],
-			]), [1e12, 9]];
-			for (const colorDepth of [8, 24]) for (const combined of [false, true]) {
-				const rows = cases.map(([value]) => ({variant: 'custom',
-					...(combined ? {'main ms': 1, 'gpu ms': 2, 'update ms': null} : {}), [column]: value,
-				}));
+	for (const column of columns) {
+		it(`uses observed groups, inclusive caps, and exact smooth stops for ${column}`, () => {
+			for (const colorDepth of [8, 24]) {
+				const rows = metricRows(values, column);
 				const original = structuredClone(rows);
 				const text = formatBenchmarkDisplay({rows}, {colorDepth});
-				assert.deepEqual(coloredValues(text), cases.map(([value, band]) =>
-					[colorDepth === 24 ? `38;2;${rgbs[band]}` : `38;5;${palette[band]}`, value.toFixed(1)]));
+				const colors = coloredValues(text);
+				assert.deepEqual(colors, expected(values, colorDepth));
+				assert.deepEqual([0, 1, 3, 5, 7, 9].map(i => colors[i][0]), rgbs.map(rgb => color(rgb, colorDepth)));
+				assert.deepEqual(colors.at(-1), [color(rgbs.at(-1), colorDepth), '20000.0']);
 				assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
 				assert.deepEqual(rows, original);
 			}
 		});
+
+		it(`excludes invalid ${column} observations and leaves zero or absent references plain`, () => {
+			const invalid = [-1, -Number.MIN_VALUE, NaN, Infinity, -Infinity, null, undefined, '-', '', '10', true, false];
+			for (const colorDepth of [8, 24]) {
+				const rows = [...metricRows(invalid, column), {variant: 'missing', 'main ms': 1}, ...metricRows(values, column)];
+				const original = structuredClone(rows);
+				const text = formatBenchmarkDisplay({rows}, {colorDepth});
+				assert.deepEqual(coloredValues(text), expected(values, colorDepth));
+				assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
+				assert.deepEqual(rows, original);
+				for (const zero of [0, -0]) {
+					const zeroRows = [...rows, ...metricRows([zero], column)];
+					assert.deepEqual(coloredValues(formatBenchmarkDisplay({rows: zeroRows}, {colorDepth})), []);
+				}
+				assert.deepEqual(coloredValues(formatBenchmarkDisplay({rows: metricRows(invalid, column)}, {colorDepth})), []);
+			}
+		});
+
+		it(`handles ${column} singletons, ties, and exhausted observed groups`, () => {
+			for (const colorDepth of [8, 24]) {
+				for (const value of [Number.MIN_VALUE, 0.014, 10, 100, Number.MAX_VALUE]) {
+					for (const repeated of [[value], [value, value, value]])
+						assert.deepEqual(coloredValues(formatBenchmarkDisplay({rows: metricRows(repeated, column)}, {colorDepth})),
+							repeated.map(value => [color(rgbs[0], colorDepth), value.toFixed(1)]));
+				}
+				for (const subset of [[10, 15], [10, 15, 16, 32], values.flatMap(value => [value, value])])
+					assert.deepEqual(coloredValues(formatBenchmarkDisplay({rows: metricRows(subset, column)}, {colorDepth})), expected(subset, colorDepth));
+			}
+		});
+
+		it(`uses raw ${column} measurements rather than rounded cells`, () => {
+			const raw = [0.0101, 0.0149, 0.01515, 0.016, 0.032];
+			const logs = [0.0101, 0.01515, 0.032, 0.128, 1.024, 16.384].map(Math.log);
+			for (const colorDepth of [8, 24]) {
+				const colors = coloredValues(formatBenchmarkDisplay({rows: metricRows(raw, column)}, {colorDepth}));
+				assert.deepEqual(colors, expected(raw, colorDepth, logs));
+				assert.ok(colors.every(([, text]) => text === '0.0'));
+				assert.ok(new Set(colors.map(([shade]) => shade)).size >= 3);
+			}
+		});
+
+		it(`keeps ${column} finite across subnormal values, overflowing ratios, and overflowing caps`, () => {
+			// MIN_VALUE * 1.5 rounds to 2 * MIN_VALUE, including both observations at the first cap.
+			// With no observations left, subsequent caps extend from that rounded cap.
+			const subnormal = [Number.MIN_VALUE, Number.MIN_VALUE * 2];
+			const subnormalLogs = [1, 2, 4, 16, 128, 2048].map(factor => Math.log(Number.MIN_VALUE * factor));
+			for (const colorDepth of [8, 24]) {
+				const colors = coloredValues(formatBenchmarkDisplay({rows: metricRows(subnormal, column)}, {colorDepth}));
+				assert.deepEqual(colors, expected(subnormal, colorDepth, subnormalLogs));
+				assert.deepEqual(colors.map(([shade]) => shade), [color(rgbs[0], colorDepth), color(rgbs[1], colorDepth)]);
+			}
+			for (const [minimum, next] of [[Number.MIN_VALUE, Number.MAX_VALUE], [Number.MAX_VALUE / 2, Number.MAX_VALUE]]) {
+				const logs = [Math.log(minimum), Math.log(minimum * 1.5), Math.log(next) + Math.log(2)];
+				for (const factor of [4, 8, 16]) logs.push(logs.at(-1) + Math.log(factor));
+				for (const colorDepth of [8, 24])
+					assert.deepEqual(coloredValues(formatBenchmarkDisplay({rows: metricRows([minimum, next], column)}, {colorDepth})),
+						expected([minimum, next], colorDepth, logs));
+			}
+		});
 	}
 
-	it('uses a shared memory scale and leaves negative adjustments and missing memory plain', () => {
-		const rows = [{variant: 'custom', 'peak MB': 25, 'retained MB': 25},
-			...[-1, NaN, Infinity, -Infinity, null, undefined, '-', '25', true].map(value =>
-				({variant: 'custom', 'peak MB': value, 'retained MB': value})),
-		];
-		for (const colorDepth of [8, 24]) {
-			const text = formatBenchmarkDisplay({rows}, {colorDepth});
-			assert.deepEqual(coloredValues(text), [1, 1].map(band =>
-				[colorDepth === 24 ? `38;2;${rgbs[band]}` : `38;5;${palette[band]}`, '25.0']));
-			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
-			assert.match(text, /25\.0\x1b\[39m │/);
+	it('interpolates geometric midpoints and interior points in log space, not linearly', () => {
+		for (let i = 1; i < stops.length; i++) {
+			const probes = [0.2, 0.5, 0.8].map(t => Math.exp(Math.log(stops[i - 1]) * (1 - t) + Math.log(stops[i]) * t));
+			const rows = updateRows([...values, ...probes]);
+			for (const colorDepth of [8, 24]) {
+				const colors = coloredValues(formatBenchmarkDisplay({rows}, {colorDepth}));
+				assert.deepEqual(colors.slice(0, values.length), expected(values, colorDepth));
+				for (const [j, value] of probes.entries()) {
+					const actual = colors[values.length + j];
+					if (colorDepth === 24 && j === 1) {
+						const channels = actual[0].split(';').slice(2).map(Number);
+						assert.equal(actual[1], value.toFixed(1));
+						// Equivalent log expressions can straddle an exact half-channel by one ulp.
+						for (const [k, channel] of channels.entries()) {
+							const midpoint = (rgbs[i - 1][k] + rgbs[i][k]) / 2;
+							assert.ok(channel === Math.floor(midpoint) || channel === Math.ceil(midpoint));
+						}
+					}
+					else assert.deepEqual(actual, expected([value], colorDepth)[0]);
+				}
+			}
+			const midpoint = rgbAt(probes[1]);
+			const linearT = (probes[1] - stops[i - 1]) / (stops[i] - stops[i - 1]);
+			const linear = rgbs[i - 1].map((channel, j) => Math.round(channel + linearT * (rgbs[i][j] - channel)));
+			assert.notDeepEqual(midpoint, linear);
 		}
 	});
 
-	it('colors init, update, resize and hover work without coloring main/gpu or rAF readiness and latency', () => {
-		const values = [0, 16.6666, 34, 99.9999, 100.0001, 500, 1000, 2000, -1, NaN, Infinity, null, '-', '10'];
-		const rows = values.map(value => ({variant: 'custom', 'init ms': value, 'main ms': 1000, 'gpu ms': 1000, 'update ms': value, 'resize ms': value, 'hover10 ms': value}));
-		for (const colorDepth of [8, 24]) {
-			const text = formatBenchmarkDisplay({rows}, {colorDepth});
-			assert.deepEqual(coloredValues(text), coloredValues(formatBenchmarkDisplay({rows: updateRows(values)}, {colorDepth})).flatMap(pair => [pair, pair, pair, pair]));
-			assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
-			const raf = [{variant: 'custom', 'init rAF ms': 16, 'update ms': 10, 'next rAF ms': 16, 'resize rAF ms': 20, 'hover10 ms': 470}];
-			assert.deepEqual(coloredValues(formatBenchmarkDisplay({rows: raf}, {colorDepth})), []);
+	it('has no shade jumps at stops or within segments with stable observed group anchors', () => {
+		const anchors = [10], caps = [10];
+		for (const factor of [1.5, 2, 4, 8, 16]) {
+			caps.push(anchors.at(-1) * factor);
+			anchors.push(caps.at(-1) * (1 + 1e-10));
 		}
+		const logs = caps.map(Math.log);
+		const boundaries = caps.slice(1).flatMap(cap => [cap * (1 - 1e-7), cap, cap * (1 + 1e-7)]);
+		const probes = caps.slice(1).flatMap((cap, i) => Array.from({length: 102}, (_, n) =>
+			n === 0 ? caps[i] : n === 101 ? cap : Math.exp(logs[i] + (Math.log(cap) - logs[i]) * n / 101)));
+		const rows = updateRows([...anchors, ...boundaries, ...probes]);
+		const colors = coloredValues(formatBenchmarkDisplay({rows}, {colorDepth: 24}));
+		assert.deepEqual(colors, expected([...anchors, ...boundaries, ...probes], 24, logs));
+		assert.deepEqual(colors.slice(anchors.length, anchors.length + boundaries.length).map(([shade]) => shade),
+			rgbs.slice(1).flatMap(rgb => Array(3).fill(color(rgb, 24))));
+		const shades = colors.slice(anchors.length + boundaries.length).map(([shade]) => shade.split(';').slice(2).map(Number));
+		for (let i = 1; i < shades.length; i++)
+			assert.ok(shades[i].every((channel, j) => Math.abs(channel - shades[i - 1][j]) <= 2), `shade jump at ${i}`);
+	});
+
+	it('uses independent column references without sorting or mutating rows, regardless of verbosity', () => {
+		const rows = values.map((_, i) => ({variant: `custom-${i}`, 'main ms': 1, 'gpu ms': 2,
+			...Object.fromEntries(columns.map((column, j) => [column, values[(i + j) % values.length] * (j + 1)])),
+		}));
+		const original = structuredClone(rows);
+		for (const colorDepth of [8, 24]) for (const verbose of [false, true]) {
+			for (const ordered of [rows, [...rows].reverse(), [...rows.slice(4), ...rows.slice(0, 4)]]) {
+				const text = formatBenchmarkDisplay({rows: ordered}, {colorDepth, verbose});
+				assert.deepEqual(coloredValues(text), ordered.flatMap(row => columns.map((column, j) =>
+					[color(rgbAt(row[column] / (j + 1)), colorDepth), row[column].toFixed(1)])));
+				assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows: ordered}, {verbose}));
+			}
+		}
+		assert.deepEqual(rows, original);
+	});
+
+	it('gates only work columns on main ms presence and leaves prep, main, gpu, and rAF metrics plain', () => {
+		for (const main of [{}, {'main ms': undefined}, {'main ms': 0}]) {
+			const rows = values.map((value, i) => ({variant: 'custom', ...(i === 0 ? main : {}), 'prep ms': value, 'gpu ms': value,
+				'init rAF ms': value, 'next rAF ms': value, 'resize rAF ms': value,
+				...Object.fromEntries(columns.map(column => [column, value])),
+			}));
+			for (const colorDepth of [8, 24]) for (const verbose of [false, true]) {
+				const text = formatBenchmarkDisplay({rows}, {colorDepth, verbose});
+				assert.deepEqual(coloredValues(text), expected(values, colorDepth).flatMap(pair =>
+					Array(Object.hasOwn(main, 'main ms') ? 6 : 2).fill(pair)));
+				assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}, {verbose}));
+			}
+		}
+	});
+
+	it('does not let a zero reference disable other eligible columns', () => {
+		for (const zeroColumn of columns) for (const zero of [0, -0]) {
+			const rows = values.map((value, i) => ({variant: 'custom', 'main ms': 1,
+				...Object.fromEntries(columns.map(column => [column, column === zeroColumn && i === 0 ? zero : value])),
+			}));
+			assert.deepEqual(coloredValues(formatBenchmarkDisplay({rows}, {colorDepth: 24})),
+				expected(values, 24).flatMap(pair => Array(5).fill(pair)));
+		}
+	});
+
+	it('uses the nearest fixed xterm color with lower-index ties instead of categorical palette approximations', () => {
+		const probes = Array.from({length: 401}, (_, n) => 10 * 1.5 ** (n / 400));
+		// Red 115 is exactly between cube levels 95 and 135; both candidates have equal distance.
+		const tie = 10 * 1.5 ** (81 / 98);
+		assert.deepEqual(rgbAt(tie), [115, 203, 34]);
+		assert.equal(nearest(rgbAt(tie)), 76);
+		assert.deepEqual(rgbs.map(nearest), [41, 112, 220, 202, 196, 124]);
+		const rows = updateRows([...values, ...probes, tie]);
+		const colors = coloredValues(formatBenchmarkDisplay({rows}, {colorDepth: 8}));
+		assert.deepEqual(colors, expected([...values, ...probes, tie], 8));
+		assert.equal(colors.at(-1)[0], '38;5;76');
 	});
 
 	it('shows cumulative paced hover latency without dividing by ten or subtracting spacing', () => {
@@ -167,7 +285,7 @@ describe('benchmark display colors', () => {
 			const cells = stripVTControlCharacters(text).split('\n').filter(line => line.startsWith('│'))
 				.map(line => line.split('│').at(-2).trim());
 			assert.deepEqual(cells, ['hover10 ms', '', '0.0', '-', 'unavailable']);
-			assert.deepEqual(coloredValues(text), colorDepth ? [[colorDepth === 24 ? `38;2;${rgbs[0]}` : `38;5;${palette[0]}`, '0.0']] : []);
+			assert.deepEqual(coloredValues(text), []);
 		}
 		assert.deepEqual(rows, original);
 	});
@@ -191,16 +309,33 @@ describe('benchmark display colors', () => {
 		assert.deepEqual(rows, original);
 	});
 
-	it('never normalizes colors to the fastest or slowest row', () => {
-		const rows = updateRows([5, 45, 175, 750, 1000]);
-		const original = structuredClone(rows);
-		for (const colorDepth of [8, 24]) {
-			const base = coloredValues(formatBenchmarkDisplay({rows}, {colorDepth}));
-			const outlier = coloredValues(formatBenchmarkDisplay({rows: [...updateRows([0]), ...rows, ...updateRows([1e15])]}, {colorDepth}));
-			assert.deepEqual(outlier.slice(1, -1), base);
-		}
-		assert.deepEqual(rows, original);
-	});
+	for (const column of columns) {
+		it(`recomputes live ${column} colors for new minima and intermediate groups, but not upper outliers`, () => {
+			for (const colorDepth of [8, 24]) {
+				const {display, writes} = capture({getColorDepth: () => colorDepth, rows: 100}, {});
+				const cases = [
+					[values, stops],
+					[[...values, Number.MAX_VALUE], stops],
+					[[...values, 5], [5, 7.5, 20, 128, 1056, 17024]],
+					[[...values, 15.5], [10, 15, 31, 128, 1056, 17024]],
+					[[...values, 0], null],
+					[values, stops],
+				];
+				for (const [i, [observed, caps]] of cases.entries()) {
+					const rows = metricRows(observed, column);
+					const original = structuredClone(rows);
+					display.update({rows, status: `Frame ${i}`, final: i === cases.length - 1});
+					assert.deepEqual(coloredValues(writes.at(-1)), caps ? expected(observed, colorDepth, caps.map(Math.log)) : []);
+					assert.deepEqual(rows, original);
+				}
+				const base = coloredValues(writes[0]);
+				assert.deepEqual(coloredValues(writes[1]).slice(0, -1), base);
+				assert.notDeepEqual(coloredValues(writes[2]).slice(0, -1), base);
+				if (colorDepth === 24) assert.notDeepEqual(coloredValues(writes[3]).slice(0, -1), base);
+				assert.deepEqual(coloredValues(writes.at(-1)), base);
+			}
+		});
+	}
 
 	it('colors only finite nonnegative numeric update work and resets foreground before padding or borders', () => {
 		const rows = updateRows([10, -1, NaN, Infinity, -Infinity, '10', '-', null, undefined, true, '\x1b[41m10\x1b[0m']);

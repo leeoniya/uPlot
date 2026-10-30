@@ -6,6 +6,7 @@ let offset = 0;
 
 const legend: uPlot.Legend = {
 	mode: 'table',
+	valueSrc: 'values',
 	side: 1,
 	filter: (self, si) => self.series[si].show !== false && (self.cursor.dists?.[si] ?? Infinity) <= 5,
 	sort: (self, a, b) => (self.cursor.dists?.[a] ?? Infinity) - (self.cursor.dists?.[b] ?? Infinity),
@@ -22,6 +23,16 @@ const opts: uPlot.Options = {
 	height: 300,
 	series: [{}, {}],
 	legend,
+	tooltip: {
+		show: true,
+		gap: 5,
+		mode: 'table',
+		valueSrc: 'value',
+		filter: (self, si) => self.tooltip.idxs?.[si] != null,
+		sort: (self, a, b) => b - a,
+		limit: (self, indices) => [0, Math.min(5, indices.length)],
+		mount: (self, el) => el.classList.add('tooltip'),
+	},
 	cursor: { trackDists: true },
 };
 
@@ -45,6 +56,10 @@ if (distances) {
 
 // @ts-expect-error Layout mode must be inline, table, or null.
 const invalidMode: uPlot.Legend = { mode: 'grid' };
+// @ts-expect-error Formatter source must be value or values.
+const invalidValueSrc: uPlot.Legend = { valueSrc: 'auto' };
+// @ts-expect-error Tooltip uses the same formatter sources as Legend.
+const invalidTooltipValueSrc: uPlot.Tooltip = { valueSrc: 'stats' };
 // @ts-expect-error Side uses the four numeric axis sides.
 const invalidSide: uPlot.Legend = { side: 4 };
 
@@ -56,6 +71,13 @@ const invalidSort: uPlot.Legend = { sort: () => true };
 const invalidLimit: uPlot.Legend = { limit: () => 10 };
 // @ts-expect-error A limit returns two numeric boundaries.
 const invalidBounds: uPlot.Legend = { limit: () => ['0', '10'] };
+
+const tooltip: uPlot.Tooltip = u.tooltip;
+const tooltipOrder: readonly number[] | undefined = tooltip.order;
+// @ts-expect-error The tooltip is always live and has no independent live option.
+const invalidTooltipLive: uPlot.Tooltip = { live: false };
+// @ts-expect-error The tooltip has no outside-plot side.
+const invalidTooltipSide: uPlot.Tooltip = { side: 2 };
 
 u.setLegend({});
 u.setLegend({ idx: null }, false);

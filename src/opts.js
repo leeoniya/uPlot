@@ -418,6 +418,20 @@ export const legendOpts = {
 	values: [],
 };
 
+export const tooltipOpts = {
+	show: false,
+	mode: 'table',
+	gap: 5,
+	markers: legendOpts.markers,
+	mount: legendOpts.mount,
+	filter: null,
+	sort: null,
+	limit: null,
+	idx: null,
+	idxs: null,
+	values: [],
+};
+
 function cursorPointShow(self, si) {
 	let o = self.cursor.points;
 

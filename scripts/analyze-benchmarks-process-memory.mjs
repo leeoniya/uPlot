@@ -150,22 +150,6 @@ export function summarizeAdjustedProcessMemory(reports) {
 		}
 	}
 
-	const controls = [...browsers.values()].filter(browser => browser.variant === 'idle').map(browser => {
-		const {variant, dpr, samples, warmupCount, fixture} = browser;
-		return {
-			variant, dpr, sampleCount: samples.length, warmupCount,
-			validBlankCount: fixture.scopes.renderer.pssMB.blank === null ? 0 : 1,
-			validLiveCount: samples.filter(sample => sample.scopes.renderer.pssMB.live !== null).length,
-			scopes: byScope((scope, metric) => {
-				const blank = fixture.scopes[scope][metric].blank;
-				return {
-					blank: statistics([blank]),
-					liveAboveBlank: statistics(samples.map(sample => difference(sample.scopes[scope][metric].live, blank))),
-				};
-			}),
-		};
-	});
-	const controlsByDpr = new Map(controls.map(control => [control.dpr, control]));
 	return {
 		...(workload ? {workload: {...workload}} : {}),
 		groups: [...browsers.values()].filter(browser => browser.variant !== 'idle').map(browser => {
@@ -174,25 +158,22 @@ export function summarizeAdjustedProcessMemory(reports) {
 				variant, dpr, sampleCount: samples.length, warmupCount,
 				scopes: byScope((scope, metric) => {
 					const blank = fixture.scopes[scope][metric].blank;
-					const idleLiveAboveBlank = controlsByDpr.get(dpr)?.scopes[scope][metric].liveAboveBlank.min ?? null;
 					return {
-						live: statistics(samples.map(sample => difference(difference(sample.scopes[scope][metric].live, blank), idleLiveAboveBlank))),
-						peak: statistics(samples.map(sample => difference(difference(sample.scopes[scope][metric].peak, blank), idleLiveAboveBlank))),
-						baselines: {blank, idleLiveAboveBlank},
+						live: statistics(samples.map(sample => difference(sample.scopes[scope][metric].live, blank))),
+						peak: statistics(samples.map(sample => difference(sample.scopes[scope][metric].peak, blank))),
+						baselines: {blank},
 					};
 				}),
 			};
 		}),
-		controls,
 		definitions: {
 			units: 'All memory values use decimal MB (1,000,000 bytes). No unit conversion occurs.',
-			formula: 'Each adjusted sample equals (raw live or peak minus its browser blank) minus min(idle measured live minus idle browser blank). Controls match DPR, scope, and metric. Idle peak, warm baseline, and loaded baseline never enter the subtraction.',
+			formula: 'Each adjusted sample equals raw live or peak minus its own browser blank, for the same scope and metric. No separate idle report enters the subtraction. Loaded and warm baselines never enter the subtraction.',
 			aggregation: 'Statistics derive from raw observations, not cached summaries. Each measured sample contributes one adjusted value before aggregation. Warmups contribute no values. Statistics contain min, max, count, and missing. The minimum represents the best measured case. Negative values remain negative.',
-			validity: 'A missing or duplicate live boundary, or a misplaced checkpoint, causes an error. Valid observations require complete === true and finite nonnegative values for every metric in both scopes. Sample observations also require a recognized lifecycle phase. Invalid memory reads yield null. Missing metric values yield null, not zero. Absent controls or controls without valid liveAboveBlank values make all adjusted values null. No cached control fallback exists.',
+			validity: 'A missing or duplicate live boundary, or a misplaced checkpoint, causes an error. Valid observations require complete === true and finite nonnegative values for every metric in both scopes. Sample observations also require a recognized lifecycle phase. Invalid memory reads yield null. Missing metric values yield null, not zero. A missing or invalid browser blank makes all adjusted values for that browser null. No loaded, warm, cached, or other-browser fallback exists.',
 			inputs: 'Every report requires memoryProtocol through-update-v1. Each nonempty browser report contains one variant and DPR, including warmups. Duplicate variant/DPR reports and duplicate measured rounds cause errors. Empty reports contribute nothing. Samples use processObservations only. The input remains unchanged.',
-			baselines: 'Each group metric exposes scalar blank and idleLiveAboveBlank offsets, or null. Blank comes from that library browser. idleLiveAboveBlank is the minimum measured live-minus-blank value from the matched control.',
-			controls: 'Controls contain idle reports only. Each metric exposes blank statistics for one checkpoint and liveAboveBlank statistics for measured samples. validBlankCount is zero or one. validLiveCount counts valid, unambiguous measured live checkpoints, regardless of blank validity. liveAboveBlank.count counts valid paired differences. sampleCount and warmupCount count measured samples and warmups separately.',
-			variability: 'Adjusted statistics describe conditional variability with the observed blank and idle minimum held fixed. They do not include idle or blank uncertainty.',
+			baselines: 'Each group metric exposes its own browser blank as a scalar offset, or null. Capture records this settled, post-GC blank-page checkpoint before library and fixture loading. Library loading and fixture overhead remain in the adjusted values.',
+			variability: 'Adjusted statistics describe conditional variability with the observed browser blank held fixed. They do not include blank uncertainty. Process churn and shared mappings can still produce negative deltas.',
 			peak: 'Each metric peak is its maximum across valid observations through the unique live checkpoint after settled data-update. Later observations never contribute. ' + (workload ? 'The dashboard has no resize or hover operation. ' : 'Resize and hover are timing-only. ') + 'These sampled peaks are lower bounds for a GC-intervened pass, not exact peaks for normal runs. Invalid reads can hide peaks. Metrics can peak at different observations. The best-case peak is the minimum of these per-sample maxima, not the minimum observation.',
 			ownership: 'Adjusted process memory is not isolated library ownership. Allocator reuse, process churn, and shared mappings affect differences. Forced GC does not guarantee native memory release.',
 			scopes: 'Renderer sums renderer processes. Tree includes the browser root and discovered descendants. These scopes overlap and are not additive. Metrics are not added together.',

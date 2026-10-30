@@ -69,7 +69,7 @@ describe('through-update process memory', () => {
 		assert.deepEqual(summarizeProcessMemory(freezeDeep(raw)), expected);
 	});
 
-	it('uses the same boundary for direct adjusted peaks and idle retention', () => {
+	it('uses the same live boundary for direct adjusted peaks with explicit idle reports', () => {
 		const reports = [report(), report('idle')];
 		const expected = summarizeAdjustedProcessMemory(reports);
 		for (const raw of reports) {
@@ -78,8 +78,8 @@ describe('through-update process memory', () => {
 			raw.samples[0].observations = [observation('live', 9e9)];
 		}
 		assert.deepEqual(summarizeAdjustedProcessMemory(freezeDeep(reports)), expected);
-		assert.deepEqual(expected.groups[0].scopes.renderer.pssMB.peak, stats(22));
-		assert.deepEqual(expected.groups[0].scopes.renderer.pssMB.live, stats(0));
+		assert.deepEqual(expected.groups[0].scopes.renderer.pssMB.peak, stats(29));
+		assert.deepEqual(expected.groups[0].scopes.renderer.pssMB.live, stats(7));
 	});
 
 	it('rejects missing, duplicate, and misplaced live boundaries without requiring valid memory reads', () => {
@@ -106,7 +106,7 @@ describe('through-update process memory', () => {
 		assert.deepEqual(metric.peak, stats(30));
 	});
 
-	it('rejects unversioned reports in either order, including idle and warmup-only controls', () => {
+	it('rejects unversioned reports in either order, including idle and warmup-only reports', () => {
 		for (const reverse of [false, true]) for (const warmup of [false, true]) {
 			const raw = report(), idle = report('idle');
 			delete idle.memoryProtocol;
@@ -139,14 +139,12 @@ describe('baseline-adjusted process memory', () => {
 	const idle = () => browser('idle', 1, 10, [[15, 1000], [19, 3000], [17, 2000]]);
 	const metricOf = result => result.groups[0].scopes.renderer.pssMB;
 
-	it('adjusts raw per-sample live and peak with the browser blank and idle live minimum only', () => {
+	it('subtracts only the own browser blank from raw per-sample live and peak without idle reports', () => {
 		const library = browser('uplot', 1, 20, [[50, 70, 40], [100, 120, 90], [25, 40, 30]]);
-		const control = idle();
 		// Cached summaries deliberately disagree with the raw observations.
 		library.processAnalysis = summarizeCaptured(browser('uplot', 1, 900, [[9000, 9999]]));
-		control.processAnalysis = summarizeCaptured(browser('idle', 1, 800, [[8000, 9999]]));
-		const result = summarizeAdjustedProcessMemory([library, control]);
-		assert.deepEqual(Object.keys(result), ['groups', 'controls', 'definitions']);
+		const result = summarizeAdjustedProcessMemory([library]);
+		assert.deepEqual(Object.keys(result), ['groups', 'definitions']);
 		assert.equal(result.groups.length, 1);
 		const group = result.groups[0];
 		assert.deepEqual(Object.keys(group), ['variant', 'dpr', 'sampleCount', 'warmupCount', 'scopes']);
@@ -155,47 +153,35 @@ describe('baseline-adjusted process memory', () => {
 		assert.equal(group.sampleCount, 3);
 		assert.equal(group.warmupCount, 0);
 		assert.deepEqual(Object.keys(group.scopes), SCOPES);
-		assert.deepEqual(Object.keys(result.controls[0]), ['variant', 'dpr', 'sampleCount', 'warmupCount', 'validBlankCount', 'validLiveCount', 'scopes']);
-		assert.equal(result.controls[0].variant, 'idle');
-		assert.equal(result.controls[0].dpr, 1);
-		assert.equal(result.controls[0].sampleCount, 3);
-		assert.equal(result.controls[0].validBlankCount, 1);
-		assert.equal(result.controls[0].validLiveCount, 3);
+
 		for (const scope of SCOPES) {
 			const factor = scope === 'tree' ? 2 : 1;
 			assert.deepEqual(Object.keys(group.scopes[scope]), METRICS);
 			for (const metric of METRICS) {
 				assert.deepEqual(group.scopes[scope][metric], {
-					live: stats(0, 75 * factor, 3),
-					peak: stats(15 * factor, 95 * factor, 3),
-					baselines: {blank: 20 * factor, idleLiveAboveBlank: 5 * factor},
-				});
-				assert.deepEqual(result.controls[0].scopes[scope][metric], {
-					blank: stats(10 * factor), liveAboveBlank: stats(5 * factor, 9 * factor, 3),
+					live: stats(5 * factor, 80 * factor, 3),
+					peak: stats(20 * factor, 100 * factor, 3),
+					baselines: {blank: 20 * factor},
 				});
 			}
 		}
 	});
 
-	it('uses asymmetric minima for idle retention, adjusted live, and per-sample peak maxima', () => {
+	it('aggregates adjusted live and per-sample peak maxima independently', () => {
 		const library = browser('uplot', 1, 20, [[70, 90, 5], [40, 130, 7], [100, 120, 9]]);
-		const control = browser('idle', 1, 10, [[19, 80], [13, 900], [42, 60]]);
-		for (const report of [library, control]) {
-			report.samples.unshift(processSample(-1, {variant: report.samples[0].variant, warmup: true, processObservations: [observation('live', 0)]}));
-			report.samples.push(processSample(3, {variant: report.samples[0].variant, processObservations: [observation('live', 0, {processMemory: {complete: false}})]}));
-		}
+		library.samples.unshift(processSample(-1, {warmup: true, processObservations: [observation('live', 0)]}));
+		library.samples.push(processSample(3, {processObservations: [observation('live', 0, {processMemory: {complete: false}})]}));
 		const raw = summarizeCaptured(library).groups[0];
-		const result = summarizeAdjustedProcessMemory([library, control]);
+		const result = summarizeAdjustedProcessMemory([library]);
 		for (const scope of SCOPES) {
 			const factor = scope === 'tree' ? 2 : 1;
 			for (const metric of METRICS) {
-				assert.deepEqual(result.controls[0].scopes[scope][metric].liveAboveBlank, stats(3 * factor, 32 * factor, 3, 1));
 				assert.deepEqual(raw.scopes[scope][metric].live, stats(40 * factor, 100 * factor, 3, 1));
 				assert.deepEqual(raw.scopes[scope][metric].peak, stats(90 * factor, 130 * factor, 3, 1));
 				assert.deepEqual(result.groups[0].scopes[scope][metric], {
-					live: stats(17 * factor, 77 * factor, 3, 1),
-					peak: stats(67 * factor, 107 * factor, 3, 1),
-					baselines: {blank: 20 * factor, idleLiveAboveBlank: 3 * factor},
+					live: stats(20 * factor, 80 * factor, 3, 1),
+					peak: stats(70 * factor, 110 * factor, 3, 1),
+					baselines: {blank: 20 * factor},
 				});
 			}
 		}
@@ -204,36 +190,54 @@ describe('baseline-adjusted process memory', () => {
 	it('uses only processObservations for adjusted reports while preserving the raw observations API', () => {
 		const library = browser();
 		library.samples[0].observations = [observation('live', 9999)];
-		const control = idle();
-		assert.deepEqual(metricOf(summarizeAdjustedProcessMemory([library, control])).live, stats(25));
+		assert.deepEqual(metricOf(summarizeAdjustedProcessMemory([library])).live, stats(30));
 		assert.deepEqual(summarizeProcessMemory(library).groups[0].scopes.renderer.pssMB.live, stats(9999));
 		for (const observations of [null, {}, 'ignored']) {
 			library.samples[0].observations = observations;
-			assert.deepEqual(metricOf(summarizeAdjustedProcessMemory([library, control])).live, stats(25));
+			assert.deepEqual(metricOf(summarizeAdjustedProcessMemory([library])).live, stats(30));
 		}
 		library.samples[0].observations = [observation('live', 9999)];
 		for (const processObservations of [[], undefined]) {
 			library.samples[0].processObservations = processObservations;
-			assert.throws(() => summarizeAdjustedProcessMemory([library, control]), /exactly one live checkpoint/);
+			assert.throws(() => summarizeAdjustedProcessMemory([library]), /exactly one live checkpoint/);
 		}
 		delete library.samples[0].processObservations;
-		assert.throws(() => summarizeAdjustedProcessMemory([library, control]), /exactly one live checkpoint/);
+		assert.throws(() => summarizeAdjustedProcessMemory([library]), /exactly one live checkpoint/);
 	});
 
-	it('matches controls by DPR independently of report order and never reuses a previous control', () => {
-		const result = summarizeAdjustedProcessMemory([
-			browser('uplot', 2), idle(), browser('d3', 1, 30), browser('idle', 2, 100, [[120, 9000]]), browser(),
-		]);
-		assert.deepEqual(result.groups.map(group => [group.variant, group.dpr]), [['uplot', 2], ['d3', 1], ['uplot', 1]]);
-		assert.deepEqual(result.controls.map(control => control.dpr), [1, 2]);
-		assert.deepEqual(result.groups.map(group => group.scopes.renderer.pssMB.live.min), [10, 15, 25]);
-		const missing = summarizeAdjustedProcessMemory([browser('uplot', 3), idle()]);
-		assert.deepEqual(metricOf(missing).live, absent(1));
-		assert.deepEqual(metricOf(missing).peak, absent(1));
-		assert.equal(metricOf(missing).baselines.idleLiveAboveBlank, null);
-		const noControl = summarizeAdjustedProcessMemory([browser()]);
-		assert.deepEqual(noControl.controls, []);
-		assert.deepEqual(metricOf(noControl).live, absent(1));
+	it('uses independent blanks for each library and DPR regardless of report order', () => {
+		const reports = [browser('uplot', 2, 40), browser('d3', 1, 30), browser('uplot', 1, 20)];
+		for (const ordered of [reports, [...reports].reverse()]) {
+			const result = summarizeAdjustedProcessMemory(ordered);
+			assert.deepEqual(result.groups.map(group => [group.variant, group.dpr]),
+				ordered.map(report => [report.samples[0].variant, report.samples[0].dpr]));
+			result.groups.forEach((group, i) => {
+				const blank = ordered[i].blank.processMemory.renderer.pssMB;
+				for (const scope of SCOPES) for (const metric of METRICS) {
+					const factor = scope === 'tree' ? 2 : 1;
+					assert.deepEqual(group.scopes[scope][metric], {
+						live: stats((50 - blank) * factor), peak: stats((70 - blank) * factor),
+						baselines: {blank: blank * factor},
+					});
+				}
+			});
+		}
+		const independent = summarizeAdjustedProcessMemory([browser('uplot', 3, 5)]);
+		assert.deepEqual(metricOf(independent), {live: stats(45), peak: stats(65), baselines: {blank: 5}});
+	});
+
+	it('never subtracts huge idle memory or borrows another browser blank', () => {
+		const libraries = [browser(), browser('d3', 2, 30)];
+		const expected = summarizeAdjustedProcessMemory(libraries);
+		const hugeIdle = browser('idle', 1, 1, [[1e9, 2e9]]);
+		const otherIdle = browser('idle', 2, 1e8, [[3e9, 4e9]]);
+		hugeIdle.processAnalysis = summarizeCaptured(idle());
+		for (const reports of [[hugeIdle, ...libraries, otherIdle], [...libraries, otherIdle, hugeIdle]])
+			assert.deepEqual(summarizeAdjustedProcessMemory(reports), expected);
+		assert.deepEqual(metricOf(expected).live, stats(30));
+		assert.deepEqual(metricOf(expected).peak, stats(50));
+		assert.equal(Object.hasOwn(expected, 'controls'), false);
+		assert.deepEqual(summarizeAdjustedProcessMemory([hugeIdle]).groups, []);
 	});
 
 	it('excludes all warmup observations, permits round overlap, and reports warmup-only populations', () => {
@@ -242,17 +246,13 @@ describe('baseline-adjusted process memory', () => {
 		for (const report of [library, control])
 			report.samples.unshift({...report.samples[0], warmup: true, processObservations: [observation('live', 0)]});
 		const result = summarizeAdjustedProcessMemory([library, control]);
-		assert.deepEqual(metricOf(result).live, stats(25));
+		assert.deepEqual(metricOf(result).live, stats(30));
 		assert.equal(result.groups[0].sampleCount, 1);
 		assert.equal(result.groups[0].warmupCount, 1);
-		assert.equal(result.controls[0].sampleCount, 3);
-		assert.equal(result.controls[0].warmupCount, 1);
-		assert.equal(result.controls[0].validLiveCount, 3);
 		control.samples = control.samples.slice(0, 1);
 		const noMeasuredIdle = summarizeAdjustedProcessMemory([library, control]);
-		assert.deepEqual(metricOf(noMeasuredIdle).live, absent(1));
-		assert.deepEqual(noMeasuredIdle.controls[0].scopes.renderer.pssMB.liveAboveBlank, absent(0));
-		assert.equal(noMeasuredIdle.controls[0].validLiveCount, 0);
+		assert.deepEqual(noMeasuredIdle, result);
+		assert.deepEqual(summarizeAdjustedProcessMemory([library]), result);
 		library.samples = library.samples.slice(0, 1);
 		const noMeasuredLibrary = summarizeAdjustedProcessMemory([library, idle()]);
 		assert.equal(noMeasuredLibrary.groups[0].sampleCount, 0);
@@ -260,7 +260,7 @@ describe('baseline-adjusted process memory', () => {
 		assert.deepEqual(metricOf(noMeasuredLibrary).peak, absent(0));
 	});
 
-	it('requires valid blanks in both browsers, without a loaded, warm, or cached fallback', () => {
+	it('requires a valid own blank without a loaded, warm, cached, or other browser fallback', () => {
 		const invalidBlanks = [undefined, null, {}, observation('blank', 20, {processMemory: {complete: false}})];
 		for (const bad of [null, undefined, NaN, Infinity, -1, '20']) {
 			const read = observation('blank', 20);
@@ -268,28 +268,28 @@ describe('baseline-adjusted process memory', () => {
 			invalidBlanks.push(read);
 		}
 		for (const blank of invalidBlanks) {
-			for (const target of ['library', 'idle']) {
-				const library = browser();
-				const control = idle();
-				(target === 'library' ? library : control).blank = blank;
-				const result = summarizeAdjustedProcessMemory([library, control]);
-				for (const scope of SCOPES) {
-					for (const metric of METRICS) {
-						assert.deepEqual(result.groups[0].scopes[scope][metric].live, absent(1));
-						assert.deepEqual(result.groups[0].scopes[scope][metric].peak, absent(1));
-					}
-				}
-				if (target === 'idle') {
-					assert.equal(result.controls[0].validBlankCount, 0);
-					assert.equal(result.controls[0].validLiveCount, 3);
-					assert.deepEqual(result.controls[0].scopes.renderer.pssMB.blank, absent(1));
-					assert.deepEqual(result.controls[0].scopes.renderer.pssMB.liveAboveBlank, absent(3));
-				}
+			const library = browser();
+			library.processAnalysis = summarizeCaptured(library);
+			library.samples.unshift({...library.samples[0], warmup: true});
+			library.blank = blank;
+			const other = browser('d3', 1, 30);
+			for (const reports of [[library], [library, idle(), other]]) {
+				const result = summarizeAdjustedProcessMemory(reports);
+				for (const scope of SCOPES) for (const metric of METRICS)
+					assert.deepEqual(result.groups[0].scopes[scope][metric], {
+						live: absent(1), peak: absent(1), baselines: {blank: null},
+					});
+				assert.deepEqual(JSON.parse(JSON.stringify(result)), result);
+				if (result.groups.length > 1)
+					assert.deepEqual(result.groups[1], summarizeAdjustedProcessMemory([other]).groups[0]);
 			}
+			const invalidIdle = idle();
+			invalidIdle.blank = blank;
+			assert.deepEqual(summarizeAdjustedProcessMemory([other, invalidIdle]), summarizeAdjustedProcessMemory([other]));
 		}
 	});
 
-	it('uses only valid unambiguous idle live checkpoints, never valid idle peaks', () => {
+	it('validates explicit idle live boundaries but ignores idle read validity and peaks', () => {
 		const malformed = observation('live', 12);
 		malformed.processMemory.renderer.rssMB = -1;
 		for (const reads of [[], [null], [observation('unknown', 100)], [malformed],
@@ -303,17 +303,23 @@ describe('baseline-adjusted process memory', () => {
 				continue;
 			}
 			const result = summarizeAdjustedProcessMemory([browser(), control]);
-			assert.deepEqual(metricOf(result).live, absent(1));
-			assert.deepEqual(metricOf(result).peak, absent(1));
-			assert.equal(result.controls[0].validLiveCount, 0);
-			assert.deepEqual(result.controls[0].scopes.renderer.pssMB.liveAboveBlank, absent(1));
+			assert.deepEqual(result, summarizeAdjustedProcessMemory([browser()]));
+		}
+		for (const reads of [
+			[observation('live', 12), observation('baseline', 10)],
+			[observation('live', 12), observation('prepared', 10)],
+			[observation('cleanup', 10), observation('live', 12)],
+			[observation('construct', 10, {operation: 'resize'}), observation('live', 12)],
+			[observation('prepare', 10, {operation: 'hover-10'}), observation('live', 12)],
+		]) {
+			const idleReport = idle();
+			idleReport.samples[0].processObservations = reads;
+			assert.throws(() => summarizeAdjustedProcessMemory([browser(), idleReport]), /Invalid through-update-v1 checkpoint order/);
 		}
 		const control = idle();
 		control.samples[1].processObservations = [observation('construct', 10000), unavailableLive()];
 		const result = summarizeAdjustedProcessMemory([browser(), control]);
-		assert.equal(result.controls[0].validLiveCount, 2);
-		assert.deepEqual(result.controls[0].scopes.renderer.pssMB.liveAboveBlank, stats(5, 7, 2, 1));
-		assert.deepEqual(metricOf(result).live, stats(25));
+		assert.deepEqual(result, summarizeAdjustedProcessMemory([browser()]));
 	});
 
 	it('derives independent per-sample live and peak populations before aggregation', () => {
@@ -322,8 +328,8 @@ describe('baseline-adjusted process memory', () => {
 		library.samples[3].processObservations = [null, observation('unknown', 9999), unavailableLive()];
 		const result = summarizeAdjustedProcessMemory([library, idle()]);
 		assert.equal(result.groups[0].sampleCount, 4);
-		assert.deepEqual(metricOf(result).live, stats(0, 25, 2, 2));
-		assert.deepEqual(metricOf(result).peak, stats(15, 974, 3, 1));
+		assert.deepEqual(metricOf(result).live, stats(5, 30, 2, 2));
+		assert.deepEqual(metricOf(result).peak, stats(20, 979, 3, 1));
 	});
 
 	it('keeps invalid library live values missing while retaining independently valid peaks', () => {
@@ -333,20 +339,24 @@ describe('baseline-adjusted process memory', () => {
 		library.samples[2].processObservations = [observation('baseline', 60), unavailableLive()];
 		const result = summarizeAdjustedProcessMemory([library, idle()]);
 		assert.deepEqual(metricOf(result).live, absent(3));
-		assert.deepEqual(metricOf(result).peak, stats(35, 45, 2, 1));
+		assert.deepEqual(metricOf(result).peak, stats(40, 50, 2, 1));
 		assert.deepEqual(JSON.parse(JSON.stringify(result)), result);
 	});
 
-	it('preserves negative adjusted values, negative controls, and real zero values', () => {
-		const result = summarizeAdjustedProcessMemory([browser('uplot', 1, 20, [[5, 10]]), idle()]);
-		assert.deepEqual(metricOf(result).live, stats(-20));
-		assert.deepEqual(metricOf(result).peak, stats(-15));
-		const negativeControl = summarizeAdjustedProcessMemory([browser(), browser('idle', 1, 10, [[5, 9000]])]);
-		assert.deepEqual(metricOf(negativeControl).live, stats(35));
-		assert.deepEqual(negativeControl.controls[0].scopes.renderer.pssMB.liveAboveBlank, stats(-5));
-		const zero = summarizeAdjustedProcessMemory([browser('uplot', 1, 0, [[0, 0]]), browser('idle', 1, 0, [[0, 0]])]);
-		assert.deepEqual(metricOf(zero).live, stats(0));
-		assert.deepEqual(metricOf(zero).peak, stats(0));
+	it('preserves negative adjusted values and real zero values without idle reports', () => {
+		const result = summarizeAdjustedProcessMemory([browser('uplot', 1, 20, [[5, 10]])]);
+		for (const scope of SCOPES) for (const metric of METRICS) {
+			const factor = scope === 'tree' ? 2 : 1;
+			assert.deepEqual(result.groups[0].scopes[scope][metric].live, stats(-15 * factor));
+			assert.deepEqual(result.groups[0].scopes[scope][metric].peak, stats(-10 * factor));
+		}
+		const negativeIdle = summarizeAdjustedProcessMemory([browser(), browser('idle', 1, 10, [[5, 9000]])]);
+		assert.deepEqual(negativeIdle, summarizeAdjustedProcessMemory([browser()]));
+		for (const blank of [0, 20]) {
+			const zero = summarizeAdjustedProcessMemory([browser('uplot', 1, blank, [[blank, blank]])]);
+			assert.deepEqual(metricOf(zero).live, stats(0));
+			assert.deepEqual(metricOf(zero).peak, stats(0));
+		}
 	});
 
 	it('keeps scope and metric offsets independent and does not add JS memory', () => {
@@ -363,8 +373,9 @@ describe('baseline-adjusted process memory', () => {
 		for (const scope of SCOPES) {
 			METRICS.forEach((metric, i) => {
 				const factor = (i + 1) * (scope === 'tree' ? 2 : 1);
-				assert.deepEqual(result.groups[0].scopes[scope][metric].live, stats(25 * factor));
-				assert.deepEqual(result.groups[0].scopes[scope][metric].peak, stats(45 * factor));
+				assert.deepEqual(result.groups[0].scopes[scope][metric], {
+					live: stats(30 * factor), peak: stats(50 * factor), baselines: {blank: 20 * factor},
+				});
 			});
 		}
 	});
@@ -390,7 +401,7 @@ describe('baseline-adjusted process memory', () => {
 		assert.throws(() => summarizeAdjustedProcessMemory([duplicateRound]), /Duplicate measured round/);
 	});
 
-	it('rejects malformed input and ignores empty reports without inventing control identities', () => {
+	it('rejects malformed input and ignores empty reports without inventing browser identities', () => {
 		for (const reports of [undefined, null, {}])
 			assert.throws(() => summarizeAdjustedProcessMemory(reports), /reports must be an array/);
 		for (const report of [null, {}, {samples: null}])
@@ -402,7 +413,7 @@ describe('baseline-adjusted process memory', () => {
 		for (const reports of [[], [browser('idle', 1, 10, [])]]) {
 			const result = summarizeAdjustedProcessMemory(reports);
 			assert.deepEqual(result.groups, []);
-			assert.deepEqual(result.controls, []);
+			assert.deepEqual(Object.keys(result), ['groups', 'definitions']);
 		}
 	});
 
@@ -414,25 +425,30 @@ describe('baseline-adjusted process memory', () => {
 		assert.deepEqual(JSON.parse(JSON.stringify(result)), result);
 		result.groups[0].scopes.renderer.pssMB.live.min = 999;
 		result.groups[0].scopes.renderer.pssMB.baselines.blank = 999;
-		result.controls[0].scopes.renderer.pssMB.liveAboveBlank.min = 999;
+
 		assert.deepEqual(reports, original);
 		assert.deepEqual(reports.map(summarizeCaptured), raw);
-		assert.deepEqual(metricOf(summarizeAdjustedProcessMemory(reports)).live, stats(25));
+		assert.deepEqual(metricOf(summarizeAdjustedProcessMemory(reports)), {
+					live: stats(30), peak: stats(50), baselines: {blank: 20},
+				});
 	});
 
 	it('documents conditional uncertainty, sampled GC-intervened peaks, and attribution limits', () => {
 		const {definitions} = summarizeAdjustedProcessMemory([]);
 		assert.match(definitions.variability, /conditional variability.*held fixed/);
-		assert.match(definitions.variability, /do not include idle or blank uncertainty/);
+		assert.match(definitions.variability, /do not include blank uncertainty/);
 		assert.match(definitions.peak, /sampled peaks.*lower bounds.*GC-intervened/);
 		assert.match(definitions.ownership, /not isolated library ownership/);
 		assert.match(definitions.scopes, /overlap.*not additive/);
 		assert.match(definitions.jsMemory, /No scope or JS sums/);
-		assert.match(definitions.formula, /Idle peak, warm baseline, and loaded baseline never/);
-				assert.match(definitions.formula, /min\(idle measured live minus idle browser blank\)/);
-				assert.match(definitions.baselines, /minimum measured live-minus-blank/);
-				assert.match(definitions.aggregation, /min, max, count, and missing.*minimum represents the best measured case/);
-				assert.match(definitions.peak, /minimum of these per-sample maxima, not the minimum observation/);
+		assert.match(definitions.formula, /raw live or peak minus its own browser blank/);
+		assert.doesNotMatch(definitions.formula, /min\(idle/);
+		assert.match(definitions.baselines, /browser blank as a scalar offset/);
+		assert.doesNotMatch(definitions.baselines, /idleLiveAboveBlank/);
+		assert.equal(Object.hasOwn(definitions, 'controls'), false);
+		assert.match(definitions.validity, /blank.*null/i);
+		assert.match(definitions.aggregation, /min, max, count, and missing.*minimum represents the best measured case/);
+		assert.match(definitions.peak, /minimum of these per-sample maxima, not the minimum observation/);
 	});
 });
 

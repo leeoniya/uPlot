@@ -88,13 +88,16 @@ describe('legend mode and side layout', () => {
 				...(si > 0 && { stroke: ['red', 'green', 'blue'][si - 1], points: { show: false } }),
 				value(self, value, index, idx) {
 					formats.push(['value', index, idx]);
-					const scalar = mode == 1 ? value : valueAt(self, index, idx);
+					const scalar = legend.live === false && idx == null ?
+						self.data[index].reduce((sum, value) => sum + value, 0) :
+						mode == 1 ? value : valueAt(self, index, idx);
 					return scalar == null ? '--' : `${index == 0 ? 'x' : 'v'}=${scalar}`;
 				},
 				...(multi && si > 0 && {
 					values(self, index, idx) {
 						formats.push(['values', index, idx]);
-						const value = valueAt(self, index, idx);
+						const value = legend.live === false && idx == null ?
+							self.data[index].reduce((sum, value) => sum + value, 0) : valueAt(self, index, idx);
 						return {
 							Value: value == null ? '--' : `v=${value}`,
 							Double: value == null ? '--' : `d=${2 * value}`,
@@ -135,7 +138,12 @@ describe('legend mode and side layout', () => {
 			assert.equal(rules.some(rule => rule.selectorText?.includes('data-legend-side')), false);
 			assert.equal(declaration('.u-inline', 'display'), 'block');
 			assert.equal(declaration('.u-inline *', 'display'), 'inline-block');
-			assert.equal(declaration('.u-inline tr', 'margin-right'), '16px');
+			assert.equal(declaration('.u-inline tr', 'margin-right'), '8px');
+						assert.equal(declaration('.u-legend', 'font-size'), '12px');
+						assert.equal(declaration('.u-legend', 'border-spacing'), '0');
+						assert.equal(declaration('.u-legend th', 'font-weight'), '600');
+						assert.equal(declaration('.u-legend th', 'padding'), '0px 4px');
+						assert.equal(declaration('.u-legend td', 'padding'), '0px 4px');
 		}
 		finally {
 			style.remove();
@@ -233,18 +241,26 @@ describe('legend mode and side layout', () => {
 			assert.deepEqual(u.legend.order, [1, 2, 3]);
 		});
 
-		it(`keeps a nonlive table label-only with ${multi ? 'multi-value' : 'scalar'} formatters`, async () => {
+		it(`renders null-index stats in a nonlive table with ${multi ? 'multi-value' : 'scalar'} formatters`, async () => {
 			const { u, formats } = await plot({ multi, legend: { mode: 'table', live: false } });
 			const legend = legendNode(u);
 			assert.equal(legend.classList.contains('u-inline'), false);
 			assert.deepEqual(rowLabels(legend), labels.slice(1));
-			assert.equal(legend.querySelectorAll('thead, td').length, 0);
+			assert.deepEqual([...legend.querySelectorAll('thead th')].map(cell => cell.textContent),
+				multi ? ['', 'Value', 'Double'] : []);
+			const expected = multi ? [['v=60', 'd=120'], ['v=150', 'd=300'], ['v=240', 'd=480']] :
+				[['v=60'], ['v=150'], ['v=240']];
+			assert.deepEqual(rows(legend).map(cells), expected);
+			assert.equal(u.legend.idx, null);
+			assert.deepEqual(u.legend.idxs, [null, null, null, null]);
 			u.setLegend({ idx: 1 });
 			u.setSeries(2, { show: false });
 			await frame();
-			assert.equal(legend.querySelectorAll('thead, td').length, 0);
+			assert.deepEqual(rows(legend).map(cells), expected);
 			assert.ok(rows(legend)[1].classList.contains('u-off'));
-			assert.deepEqual(formats, []);
+			assert.deepEqual(formats, [1, 2, 3].map(si => [multi ? 'values' : 'value', si, null]));
+			assert.equal(u.legend.idx, null);
+			assert.deepEqual(u.legend.idxs, [null, null, null, null]);
 		});
 	}
 
@@ -289,8 +305,8 @@ describe('legend mode and side layout', () => {
 
 			assert.deepEqual(events.at(-1), [3, { focus: true }]);
 			await frame();
-			assert.equal(gamma.style.opacity, '');
-			assert.equal(rows(legend).find(row => row.querySelector('.u-label').textContent == 'Alpha').style.opacity, '0.25');
+			assert.ok(rows(legend).every(row => row.style.opacity == ''));
+			assert.deepEqual(rows(legend).map(row => row.classList.contains('u-focus')), multi ? [false, true] : [false, false, true]);
 			mouse(gamma.querySelector('th'), 'click');
 			assert.equal(u.series[3].show, false);
 			assert.deepEqual(events.at(-1), [3, { show: false }]);

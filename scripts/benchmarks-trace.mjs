@@ -56,7 +56,7 @@ async function evaluate(client, expression) {
 	return result.result.value;
 }
 
-export async function captureBenchmarkTrace({profile, url, cache, trace = true, raf = false, memory = false, dashboard = false, dpr = 1, processPid = null, traceName = 'trace-chrome.json', lightningOptions, sciChartOptions, sampleTimeoutMs = SAMPLE_TIMEOUT_MS, onSampleTimeout = () => {}}) {
+export async function captureBenchmarkTrace({profile, url, cache, trace = true, raf = false, memory = false, dashboard = false, dpr = 1, processPid = null, traceName = 'trace-chrome.json', lightningOptions, sciChartOptions, sampleTimeoutMs = SAMPLE_TIMEOUT_MS, onSampleTimeout = () => {}}, {readMemory = readProcessMemory} = {}) {
 	if (raf && (trace || memory))
 		throw new Error('rAF measurement requires a separate pass without tracing or memory polling.');
 	if (memory && (!Number.isSafeInteger(processPid) || processPid <= 0))
@@ -142,7 +142,7 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 		}
 		const processRead = memory ? async () => {
 			const {processInfo} = await browser.send('SystemInfo.getProcessInfo');
-			return readProcessMemory(processPid, {
+			return readMemory(processPid, {
 				processTypes: new Map(processInfo.map(process => [process.id, process.type])),
 				requireRenderer: true,
 			});
@@ -164,7 +164,14 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 					throw new Error('Blank fixture failed to initialize');
 				await delay(50);
 			}
-			blank = await checkpoint();
+			// A transient /proc race must not discard every round's adjusted memory.
+			// Keep the first complete read, not the smallest value across retries.
+			const attempts = [];
+			do {
+				blank = await checkpoint();
+				attempts.push(blank);
+			} while (blank.processMemory.complete !== true && attempts.length < 5);
+			blank = {...blank, attempts};
 		}
 		await page.send('Page.navigate', {url});
 		const readyDeadline = Date.now() + 15000;
@@ -185,7 +192,7 @@ export async function captureBenchmarkTrace({profile, url, cache, trace = true, 
 				rootPid: processPid, tracing: trace, heapSampling: false, gpuSpecificMemory: false,
 				roles: 'Browser CDP SystemInfo.getProcessInfo; /proc cmdline fallback for unmapped descendants.',
 				source: '/proc/<pid>/smaps_rollup for the browser root and discovered descendants.',
-				blankAndLoaded: 'Single post-GC checkpoints before warmups, not round aggregates.',
+				blankAndLoaded: 'Post-GC checkpoints before warmups, not round aggregates. Blank retries incomplete reads up to five attempts, with settling and GC before each attempt. The first complete read supplies the baseline. All attempts remain in blank.attempts. If none succeeds, blank remains invalid. Loaded and session observations do not retry.',
 			});
 			report.processAnalysis = summarizeProcessMemory({blank, loaded, memoryProtocol: report.memoryProtocol,
 				workload: report.workload, phase: report.phase, initProtocol: report.initProtocol, lifecycle: report.lifecycle,

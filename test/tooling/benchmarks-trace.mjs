@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { runInNewContext } from 'node:vm';
 import { dashboardWorkload, lifecycleOperations } from '../../scripts/benchmarks-phases.mjs';
-import { summarizeProcessMemory } from '../../scripts/analyze-benchmarks-process-memory.mjs';
+import { summarizeProcessMemory, summarizeAdjustedProcessMemory } from '../../scripts/analyze-benchmarks-process-memory.mjs';
+import { aggregateProcessMemory } from '../../scripts/bench-process-memory.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { SAMPLE_TIMEOUT_MS } from '../../scripts/bench-sample-timeout.mjs';
 import { analyzeBenchmarkTrace, analyzeBenchmarkTraceFile } from '../../scripts/analyze-benchmarks-trace.mjs';
@@ -656,7 +657,7 @@ function lifecycleMock(dashboard = false) {
 	};
 }
 
-async function withCaptureSocket(onEvaluate, test, {dashboard = false} = {}) {
+async function withCaptureSocket(onEvaluate, test, {dashboard = false, readMemory} = {}) {
 	const dir = await mkdtemp(join(tmpdir(), 'bench-trace-timeout-'));
 	const originalSocket = globalThis.WebSocket;
 	const originalFetch = globalThis.fetch;
@@ -691,6 +692,12 @@ async function withCaptureSocket(onEvaluate, test, {dashboard = false} = {}) {
 			const {id, method, params} = JSON.parse(text);
 			calls.push({method, params});
 			let result = {};
+			if (method === 'SystemInfo.getProcessInfo')
+				result = {processInfo: [{id: 123, type: 'browser'}, {id: 456, type: 'renderer'}]};
+			if (method === 'Tracing.end')
+				queueMicrotask(() => this.message({method: 'Tracing.tracingComplete', params: {stream: 'trace', dataLossOccurred: false}}));
+			if (method === 'IO.read')
+				result = {data: gzipSync('{"traceEvents":[]}').toString('base64'), base64Encoded: true, eof: true};
 			if (method === 'Runtime.evaluate') {
 				if (onEvaluate(this, id, params.expression))
 					return;
@@ -707,7 +714,7 @@ async function withCaptureSocket(onEvaluate, test, {dashboard = false} = {}) {
 		await writeFile(join(dir, 'DevToolsActivePort'), '1234\n/devtools/browser/test');
 		globalThis.WebSocket = Socket;
 		globalThis.fetch = async () => ({json: async () => [{type: 'page', webSocketDebuggerUrl: 'ws://127.0.0.1:1234/page'}]});
-		await test({dir, calls, sockets, capture: options => captureBenchmarkTrace({profile: dir, cache: dir, url: 'http://127.0.0.1:1234/bench', ...options})});
+		await test({dir, calls, sockets, capture: options => captureBenchmarkTrace({profile: dir, cache: dir, url: 'http://127.0.0.1:1234/bench', ...options}, {readMemory})});
 	}
 	finally {
 		globalThis.WebSocket = originalSocket;
@@ -715,6 +722,81 @@ async function withCaptureSocket(onEvaluate, test, {dashboard = false} = {}) {
 		await rm(dir, {recursive: true, force: true});
 	}
 }
+
+describe('benchmark blank baseline recovery', () => {
+	const memory = value => ({...aggregateProcessMemory([{type: 'renderer',
+		rssMB: value, pssMB: value, privateMB: value, swapMB: 0, swapPssMB: 0}]), issues: []});
+	const invalid = () => ({...aggregateProcessMemory([], false), issues: [
+		{pid: 789, stage: 'discover', code: 'ENOENT', message: 'Process exited during discovery'},
+	]});
+
+	for (const dashboard of [false, true]) for (const trace of [false, true]) {
+		for (const failures of [0, 1, 4, 5]) {
+			it(`uses the first complete blank, with ${failures} failures, dashboard=${dashboard}, trace=${trace}`, async () => {
+				let reads = 0;
+				const attempts = Math.min(failures + 1, 5);
+				await withCaptureSocket(() => false, async ({capture, calls}) => {
+					const report = await capture({dashboard, trace, memory: true, processPid: 123});
+					assert.equal(report.blank.attempts.length, attempts);
+					assert.equal(report.blank.processMemory.complete, failures < 5);
+					assert.equal(report.blank.processRequestedAtMs, report.blank.attempts.at(-1).processRequestedAtMs);
+					for (const attempt of report.blank.attempts.slice(0, failures)) {
+						assert.equal(attempt.processMemory.complete, false);
+						assert.equal(attempt.processMemory.issues[0].code, 'ENOENT');
+					}
+					const navigation = calls.findIndex(call => call.method === 'Page.navigate' && call.params.url.endsWith('/bench'));
+					const beforeLoad = calls.slice(0, navigation);
+					assert.equal(beforeLoad.filter(call => call.method === 'Tracing.start').length, Number(trace));
+					if (trace)
+						assert.ok(beforeLoad.findIndex(call => call.method === 'Tracing.start') < beforeLoad.findIndex(call => call.method === 'SystemInfo.getProcessInfo'));
+					assert.equal(beforeLoad.filter(call => call.method === 'HeapProfiler.collectGarbage').length, attempts);
+					assert.equal(beforeLoad.filter(call => call.method === 'SystemInfo.getProcessInfo').length, attempts);
+					assert.equal(beforeLoad.filter(call => call.params.expression?.includes('setTimeout(resolve, 200)')).length, attempts);
+					assert.equal(calls.filter(call => call.method === 'HeapProfiler.collectGarbage').length, attempts + 3);
+
+					assert.equal(report.loaded.processMemory.tree.pssMB, 100);
+					assert.equal(Object.hasOwn(report.loaded, 'attempts'), false);
+					const adjusted = summarizeAdjustedProcessMemory([report]).groups[0].scopes.tree.pssMB;
+					assert.equal(adjusted.baselines.blank, failures < 5 ? 20 : null);
+					assert.equal(adjusted.live.min, failures < 5 ? 80 : null);
+					assert.equal(adjusted.peak.min, failures < 5 ? 80 : null);
+					assert.doesNotThrow(() => JSON.stringify(report));
+				}, {dashboard, readMemory: async (pid, options) => {
+					assert.equal(pid, 123);
+					assert.equal(options.requireRenderer, true);
+					assert.deepEqual([...options.processTypes], [[123, 'browser'], [456, 'renderer']]);
+					reads++;
+					return reads <= failures ? invalid() : memory(reads <= attempts ? 20 : 100);
+				}});
+			});
+		}
+	}
+
+	it('does not retry loaded or measured observations or replace them with a valid blank', async () => {
+		let reads = 0;
+		await withCaptureSocket(() => false, async ({capture, calls}) => {
+			const report = await capture({trace: false, memory: true, processPid: 123});
+			assert.equal(report.blank.attempts.length, 1);
+			assert.equal(report.loaded.processMemory.complete, false);
+			assert.equal(calls.filter(call => call.method === 'HeapProfiler.collectGarbage').length, 4);
+			assert.equal(reads, 2 + report.samples[0].processObservations.length);
+			assert.ok(report.samples[0].processObservations.every(read => !read.processMemory.complete));
+			const adjusted = summarizeAdjustedProcessMemory([report]).groups[0].scopes.tree.pssMB;
+			assert.equal(adjusted.live.min, null);
+			assert.equal(adjusted.peak.min, null);
+		}, {readMemory: async () => ++reads === 1 ? memory(20) : invalid()});
+	});
+
+	it('does not retry thrown infrastructure errors or navigate to the library afterward', async () => {
+		let reads = 0;
+		await withCaptureSocket(() => false, async ({capture, calls, sockets}) => {
+			await assert.rejects(capture({trace: false, memory: true, processPid: 123}), /CDP disconnected/);
+			assert.equal(reads, 1);
+			assert.equal(calls.filter(call => call.method === 'Page.navigate').length, 1);
+			assert.ok(sockets.every(socket => socket.closed));
+		}, {readMemory: async () => { reads++; throw new Error('CDP disconnected'); }});
+	});
+});
 
 describe('benchmark trace sample timeout integration', () => {
 	for (const dashboard of [false, true]) {

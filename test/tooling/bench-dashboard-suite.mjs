@@ -153,7 +153,11 @@ describe('dashboard benchmark suite', () => {
 			});
 			writeFileSync(join(directory, variantReportName(mode, 'highcharts', options)), 'stale dashboard');
 			const report = await runBenchmarkSuite(options, h.dependencies);
-			assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'highcharts']);
+			assert.deepEqual(h.requests.map(request => request.variant), ['highcharts']);
+			assert.equal(report.progress.total, 1);
+			assert.equal('idleFirst' in report.protocol, false);
+			assert.equal('sameRunControlsOnly' in report.protocol, false);
+			assert.match(report.protocol.perBrowserBaseline, /same browser report's blank checkpoint/);
 			for (const request of h.requests) {
 				assert.equal(request.dashboard, true);
 				assert.equal(request.dpr, 2);
@@ -171,7 +175,7 @@ describe('dashboard benchmark suite', () => {
 			assert.ok(!Object.keys(row).some(key => /resize|hover/.test(key)));
 			if (measurements.trace) { assert.equal(row['init ms'], 12); assert.equal(row['update ms'], 25); }
 			if (measurements.raf) { assert.equal(row['init rAF ms'], 10); assert.equal(row['update ms'], 4); }
-			if (measurements.memory) { assert.equal(row['retained MB'], 20); assert.equal(row['peak MB'], 30); }
+			if (measurements.memory) { assert.equal(row['retained MB'], 30); assert.equal(row['peak MB'], 40); }
 			const output = join(directory, suiteReportName(mode, options));
 			const original = structuredClone(report.reports);
 			const summary = quiet(() => summarizeSavedBenchmarks({...measurements, dashboard: true, vulkan}, undefined, {outputDirectory: directory}));
@@ -232,10 +236,10 @@ describe('dashboard benchmark suite', () => {
 				return browser(request);
 			});
 			const report = await runBenchmarkSuite(options, h.dependencies);
-			assert.deepEqual(h.requests.map(request => request.variant), ['idle', 'plotly']);
+			assert.deepEqual(h.requests.map(request => request.variant), ['plotly']);
 			assert.deepEqual(report.failures, []);
-			assert.deepEqual(report.reports[1].runner.benchmark, expected);
-			assert.notEqual(report.variantMetadata.plotly.virtualWebGL, report.reports[1].runner.benchmark.virtualWebGL);
+			assert.deepEqual(report.reports[0].runner.benchmark, expected);
+			assert.notEqual(report.variantMetadata.plotly.virtualWebGL, report.reports[0].runner.benchmark.virtualWebGL);
 			const summary = quiet(() => summarizeSavedBenchmarks(options, output)).result;
 			assert.deepEqual(summary.variantMetadata, report.variantMetadata);
 			assert.deepEqual(summary.reports.map(raw => raw.runner), report.reports.map(raw => raw.runner));
@@ -268,14 +272,14 @@ describe('dashboard benchmark suite', () => {
 			assert.equal(readFileSync(output, 'utf8'), bytes);
 		});
 
-		it(`${mode}: rejects native live dashboard plotly without rejecting idle controls`, async () => {
+		it(`${mode}: records native live dashboard plotly as a failed variant`, async () => {
 			const h = harness(request => {
 				const raw = browser(request);
 				delete raw.runner.benchmark.virtualWebGL;
 				return raw;
 			});
 			const report = await runBenchmarkSuite({...measurements, dashboard: true, variant: 'plotly', vulkan: false}, h.dependencies);
-			assert.deepEqual(report.progress.completed, ['idle']);
+			assert.deepEqual(report.progress.completed, []);
 			assert.equal(report.failures[0].variant, 'plotly');
 			assert.match(report.failures[0].error, /dashboard plotly virtualWebGL/);
 		});
@@ -288,18 +292,19 @@ describe('dashboard benchmark suite', () => {
 			assert.deepEqual(report.failures, []);
 			const summary = quiet(() => summarizeSavedBenchmarks(options, undefined, {outputDirectory: directory})).result;
 			assert.deepEqual(summary.variantMetadata[variant], benchmarkMetadata[variant]);
-			assert.deepEqual(summary.reports[1].runner.benchmark, benchmarkMetadata[variant]);
+			assert.deepEqual(summary.reports[0].runner.benchmark, benchmarkMetadata[variant]);
 		}
 	});
 
-	it('runs all 44 defaults plus idle, adding only licensed LightningChart', async () => {
+	it('runs all 44 defaults without idle, adding only licensed LightningChart', async () => {
 		for (const licensed of [false, true]) {
 			const h = harness();
 			const report = await runBenchmarkSuite({raf: true, dashboard: true,
 				...(licensed ? {lightningOptions: {license: 'test-key'}} : {})}, h.dependencies);
-			assert.deepEqual(h.requests.map(request => request.variant), ['idle', ...benchmarkVariants, ...(licensed ? ['lightningchart'] : [])]);
+			assert.deepEqual(h.requests.map(request => request.variant), [...benchmarkVariants, ...(licensed ? ['lightningchart'] : [])]);
 			assert.ok(h.requests.every(request => request.args.includes('--dashboard') && request.args.includes('--vulkan')));
 			assert.deepEqual(report.workload, dashboardWorkload);
+			assert.equal(report.progress.total, licensed ? 45 : 44);
 			assert.equal(report.failures.length, 0);
 		}
 	});
@@ -343,19 +348,22 @@ describe('dashboard benchmark suite', () => {
 			assert.throws(() => summarizeSavedBenchmarks({...measurements, dashboard: true, vulkan: false}, output), /workload selection/);
 		});
 
-		it(`${mode}: rejects incompatible live workers, including the first idle report`, async () => {
+		it(`${mode}: records incompatible live workers as failures without an idle prerequisite`, async () => {
 			const h = harness(request => {
 				const raw = browser(request);
-				if (request.variant !== 'idle') raw.workload.width++;
+				raw.workload.width++;
 				return raw;
 			});
 			const report = await runBenchmarkSuite({...measurements, dashboard: true, variant: 'uplot', vulkan: false}, h.dependencies);
-			assert.equal(report.reports.length, 1);
+			assert.equal(report.reports.length, 0);
+			assert.equal(report.complete, true);
 			assert.match(report.failures[0].error, /workload|dimensions/);
 			assert.equal(h.frames.at(-1).rows[0][measurements.memory ? 'peak MB' : 'update ms'], '-');
-			const wrongIdle = harness(request => browser({...request, dashboard: false}));
-			await assert.rejects(runBenchmarkSuite({...measurements, dashboard: true, variant: 'uplot', vulkan: false}, wrongIdle.dependencies), /workload|dimensions/);
-			assert.equal(wrongIdle.requests.length, 1);
+			const wrongWorkload = harness(request => browser({...request, dashboard: false}));
+			const failed = await runBenchmarkSuite({...measurements, dashboard: true, variant: 'uplot', vulkan: false}, wrongWorkload.dependencies);
+			assert.equal(failed.complete, true);
+			assert.match(failed.failures[0].error, /workload|dimensions/);
+			assert.equal(wrongWorkload.requests.length, 1);
 		});
 	}
 

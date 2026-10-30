@@ -59,7 +59,7 @@ describe('DOM legend prototype', () => {
 			},
 		};
 		const opts = {
-			series, legend, columns, multi, mode, focusAlpha: 0.25, cursorFocus: true,
+			series, legend, columns, multi, mode, cursorFocus: true,
 			bind: Object.fromEntries(['click', 'mouseenter', 'mouseleave'].map(type => [type, (chart, target, handle, onlyTarget) => {
 				assert.equal(chart, self);
 				bindings.push({ type, target, onlyTarget });
@@ -99,7 +99,8 @@ describe('DOM legend prototype', () => {
 		assertMarkers(f, order.filter(index => index > 0));
 		for (const index of order) {
 			const row = roots.get(index);
-			assert.equal(row.style.opacity, index == 0 || index == 2 ? '' : '0.25');
+			assert.equal(row.style.opacity, '');
+			assert.equal(row.classList.contains('u-focus'), index == 2);
 			const header = row.firstChild;
 			assert.deepEqual(f.bindings.filter(binding => binding.target === header).map(binding => [binding.type, binding.onlyTarget]),
 				index == 0 ? [] : [['click', false], ['mouseenter', false]]);
@@ -115,7 +116,8 @@ describe('DOM legend prototype', () => {
 		f.renderer.render(current, f.series[4]);
 		assertNodes(f.rows(), [4, 3, 2, 1, 0].map(index => roots.get(index)));
 		assert.deepEqual(f.rows().map(cells), [4, 3, 2, 1, 0].map(index => [`next:${index}`]));
-		assert.deepEqual(f.rows().map(row => row.style.opacity), ['', '0.25', '0.25', '0.25', '']);
+		assert.ok(f.rows().every(row => row.style.opacity == ''));
+		assert.deepEqual(f.rows().map(row => row.classList.contains('u-focus')), [true, false, false, false, false]);
 		assertNodes(f.series, original);
 		assert.deepEqual(inputs, [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]]);
 		assert.equal(f.bindings.length, 9);
@@ -145,7 +147,8 @@ describe('DOM legend prototype', () => {
 			f.renderer.render(data, f.series[2]);
 			assert.deepEqual(selected.map(entry => entry.index), indices);
 			assert.deepEqual(f.rows().map(cells), indices.map(index => [String(index * 10)]));
-			assert.deepEqual(f.rows().map(row => row.style.opacity), indices.map(index => index == 2 ? '' : '0.25'));
+			assert.ok(f.rows().every(row => row.style.opacity == ''));
+			assert.deepEqual(f.rows().map(row => row.classList.contains('u-focus')), indices.map(index => index == 2));
 			assert.deepEqual(f.series.map(s => s.name), ['Time', 'Alpha', 'Beta', 'Gamma', 'Delta']);
 		};
 		render([3, 4]);
@@ -221,7 +224,8 @@ describe('DOM legend prototype', () => {
 		assert.deepEqual([input.selectionStart, input.selectionEnd], [1, 4]);
 		assert.equal(text.textContent, 'edited while absent');
 		assert.equal(row.className, 'u-series changed u-off');
-		assert.equal(row.style.opacity, '0.25');
+		assert.equal(row.style.opacity, '');
+		assert.equal(row.classList.contains('u-focus'), false);
 		assert.deepEqual(cells(row), ['Beta:2']);
 		const click = mouse(input, 'click');
 		assert.equal(clicks, 1);
@@ -249,6 +253,7 @@ describe('DOM legend prototype', () => {
 		assertNodes(f.rows(), [original]);
 		assert.deepEqual(cells(original), ['Beta:1']);
 		assert.equal(original.style.opacity, '');
+		assert.equal(original.classList.contains('u-focus'), true);
 		const click = mouse(original.firstChild, 'click');
 		assert.deepEqual(f.events, [['click', beta, 1, click]]);
 		f.series.splice(1, 1);
@@ -259,7 +264,8 @@ describe('DOM legend prototype', () => {
 		assert.equal(entry.index, 3);
 		assert.equal(f.rows()[0] === original, false);
 		assert.deepEqual(cells(f.rows()[0]), ['Beta:3']);
-		assert.equal(f.rows()[0].style.opacity, '0.25');
+		assert.equal(f.rows()[0].style.opacity, '');
+		assert.equal(f.rows()[0].classList.contains('u-focus'), false);
 		assert.equal(f.rows()[0].querySelector('.u-marker').style.borderWidth, '2px');
 		assert.deepEqual(f.reads, ['Beta']);
 		assertMarkers(f, [2]);
@@ -267,6 +273,8 @@ describe('DOM legend prototype', () => {
 
 	for (const config of [
 		{ name: 'nonlive zero-column', live: false, columns: {}, expected: [4, 3, 2, 1], keys: [] },
+		{ name: 'nonlive scalar stats', live: false, columns: { Own: null }, expected: [4, 3, 2, 1], keys: ['Own'] },
+		{ name: 'nonlive multi stats', live: false, multi: true, columns: { Own: null }, expected: [4, 3, 2, 1], keys: ['Own'] },
 		{ name: 'multi zero-column', multi: true, columns: {}, expected: [4, 3, 2, 1], keys: [] },
 		{ name: 'multi inherited keys', multi: true, columns: Object.assign(Object.create({ Inherited: null }), { Own: null }), expected: [4, 3, 2, 1], keys: ['Own', 'Inherited'] },
 		{ name: 'mode 2', mode: 2, columns: { Own: null }, expected: [4, 3, 2, 1], keys: ['Own'] },
@@ -281,7 +289,7 @@ describe('DOM legend prototype', () => {
 			f.renderer.render(data, null);
 			const table = f.parent.firstChild;
 			assert.deepEqual([...table.classList].sort(),
-				(config.multi ? ['u-legend', 'u-btm'] : ['u-legend', 'u-btm', 'u-inline', ...(config.live === false ? [] : ['u-live'])]).sort());
+				(config.multi ? ['u-legend', 'u-btm'] : ['u-legend', 'u-btm', 'u-inline', ...(config.live === false && config.keys.length == 0 ? [] : ['u-live'])]).sort());
 			assert.equal(table.querySelectorAll('thead').length, config.multi ? 1 : 0);
 			if (config.multi)
 				assert.deepEqual([...table.querySelectorAll('thead th')].map(cell => cell.textContent), ['', ...config.keys]);
@@ -321,6 +329,19 @@ describe('DOM legend prototype', () => {
 		});
 	}
 
+	it('marks only the focused Y series, including hidden rows, and never the X row', () => {
+		const f = fixture();
+		f.series[2].show = false;
+		for (const focused of [null, f.series[2], f.series[1], f.series[0], { ...f.series[1] }, null]) {
+			f.renderer.render(f.data(), focused);
+			f.rows().forEach((row, index) => {
+				assert.equal(row.classList.contains('u-focus'), index > 0 && f.series[index] === focused);
+				assert.equal(row.classList.contains('u-off'), index == 2);
+				assert.equal(row.style.opacity, '');
+			});
+		}
+	});
+
 	it('does no template work when destroyed before its first render', () => {
 		const f = fixture({ selectRows() { assert.fail('selection after destroy'); } });
 		f.renderer.destroy();
@@ -341,7 +362,8 @@ describe('DOM legend prototype', () => {
 			const head = template.node.firstChild;
 			assert.deepEqual([...head.querySelectorAll('th')].map(cell => cell.textContent), ['', 'Second', 'First']);
 			assert.deepEqual(roots.map(cells), [['second:3', 'first:3'], ['second:1', 'first:1']]);
-			assert.deepEqual(roots.map(row => row.style.opacity), ['0.25', '']);
+			assert.deepEqual(roots.map(row => row.style.opacity), ['', '']);
+			assert.deepEqual(roots.map(row => row.classList.contains('u-focus')), [false, true]);
 			assert.ok(roots.every(row => row.querySelector('.u-marker') != null));
 			list.update(entries.toReversed());
 			assertNodes(template.body.children, roots.toReversed());

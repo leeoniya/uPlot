@@ -572,6 +572,7 @@ const UNDER = "u-under";
 const OVER = "u-over";
 const AXIS = "u-axis";
 const OFF = "u-off";
+const FOCUS = "u-focus";
 const SELECT = "u-select";
 const CURSOR_X = "u-cursor-x";
 const CURSOR_Y = "u-cursor-y";
@@ -1152,6 +1153,19 @@ const legendOpts = {
 		fill: legendFill,
 		dash: "solid"
 	},
+	idx: null,
+	idxs: null,
+	values: []
+};
+const tooltipOpts = {
+	show: false,
+	mode: "table",
+	gap: 5,
+	markers: legendOpts.markers,
+	mount: legendOpts.mount,
+	filter: null,
+	sort: null,
+	limit: null,
 	idx: null,
 	idxs: null,
 	values: []
@@ -1747,12 +1761,23 @@ function createValueCells(keys) {
 	};
 }
 function createLegendTemplate(self, opts, keys, markersShow) {
-	const { legend, multi, focusAlpha, cursorFocus, bind, emit } = opts;
-	const inline = legend.mode == null ? !multi : legend.mode == "inline";
+	const { legend, cursorFocus, bind, emit, interactive = true } = opts;
+	let multi = opts.multi;
+	let inline;
 	const sideClass = LEGEND_SIDES[opts.side ?? legend.side ?? 2];
 	const rowMeta = /* @__PURE__ */ new WeakMap();
-	let body;
-	const node = h("table", null, multi && h("thead", null, h("tr", null, h("th"), keys.map((key) => h("th", { className: "u-label" }, key)))), body = h("tbody"));
+	const body = h("tbody");
+	const node = h("table", null, body);
+	let head;
+	function setColumns(nextKeys, nextMulti) {
+		keys = nextKeys;
+		multi = nextMulti;
+		inline = legend.mode == null ? !multi : legend.mode == "inline";
+		head?.remove();
+		head = multi ? h("thead", null, h("tr", null, h("th"), keys.map((key) => h("th", { className: LEGEND_LABEL }, key)))) : null;
+		if (head) node.insertBefore(head, body);
+	}
+	setColumns(keys, multi);
 	let values = [];
 	let focused = null;
 	let tableClass;
@@ -1784,7 +1809,7 @@ function createLegendTemplate(self, opts, keys, markersShow) {
 			destroy: unbind
 		};
 	}
-	let leave = cursorFocus ? bindEvent(node, "leave", null, true) : null;
+	let leave = interactive && cursorFocus ? bindEvent(node, "leave", null, true) : null;
 	function prepare({ series, index }) {
 		let state = rowMeta.get(series);
 		if (state == null) {
@@ -1799,7 +1824,7 @@ function createLegendTemplate(self, opts, keys, markersShow) {
 			}
 			const label = series.label;
 			state = {
-				label: label instanceof HTMLElement ? label : textValue(label),
+				label: label instanceof HTMLElement ? interactive ? label : label.cloneNode(true) : textValue(label),
 				border,
 				background,
 				color
@@ -1822,24 +1847,18 @@ function createLegendTemplate(self, opts, keys, markersShow) {
 			className: LEGEND_LABEL,
 			style: { color: state.color }
 		}, state.label)), cells.nodes);
-		const events = createRowEvents(header, entry.series);
+		const events = interactive ? createRowEvents(header, entry.series) : null;
 		let className;
-		let opacity = null;
 		return {
 			node: row,
 			update({ series, index }) {
-				const nextClass = LEGEND_SERIES + (series.class ? " " + series.class : "") + (series.show ? "" : " " + OFF);
+				const nextClass = LEGEND_SERIES + (series.class ? " " + series.class : "") + (series.show ? "" : " " + OFF) + (index > 0 && series == focused ? " " + FOCUS : "");
 				if (nextClass !== className) row.className = className = nextClass;
-				const nextOpacity = focusAlpha != 1 && focused != null && index > 0 && series != focused ? focusAlpha : null;
-				if (nextOpacity !== opacity) {
-					row.style.opacity = nextOpacity == null ? "" : nextOpacity;
-					opacity = nextOpacity;
-				}
-				events.update(index > 0);
+				events?.update(index > 0);
 				cells.update(values[index]);
 			},
 			destroy() {
-				events.destroy();
+				events?.destroy();
 				if (state.label instanceof HTMLElement && state.label.parentNode === label) label.removeChild(state.label);
 			}
 		};
@@ -1848,11 +1867,16 @@ function createLegendTemplate(self, opts, keys, markersShow) {
 		node,
 		body,
 		createRow,
+		setColumns,
 		update(data, focusedSeries) {
 			values = data;
 			focused = focusedSeries;
-			const className = LEGEND + " " + sideClass + (inline ? " " + LEGEND_INLINE + (legend.live ? " " + LEGEND_LIVE : "") : "");
-			if (className !== tableClass) node.className = tableClass = className;
+			const className = LEGEND + " " + sideClass + (inline ? " " + LEGEND_INLINE + (legend.live || keys.length > 0 ? " " + LEGEND_LIVE : "") : "");
+			if (className !== tableClass) {
+				if (tableClass != null) node.classList.remove(...tableClass.split(" "));
+				node.classList.add(...className.split(" "));
+				tableClass = className;
+			}
 		},
 		destroy() {
 			if (leave) off(mouseleave, node, leave);
@@ -1863,11 +1887,16 @@ function createLegendTemplate(self, opts, keys, markersShow) {
 
 // src/legend-dom.js
 const seriesKey = (entry) => entry.series;
-function createLegend(self, parent, opts, selectRows) {
-	const { series, legend, columns, multi, mode } = opts;
-	const markersShow = legend.markers.show;
+function columnKeys(columns) {
 	const keys = [];
 	for (const key in columns) keys.push(key);
+	return keys;
+}
+function createLegend(self, parent, opts, selectRows) {
+	const { series, legend, mode } = opts;
+	const markersShow = legend.markers.show;
+	let keys = columnKeys(opts.columns);
+	let multi = opts.multi;
 	const entriesBySeries = /* @__PURE__ */ new WeakMap();
 	const entries = [];
 	let template, rows;
@@ -1894,11 +1923,23 @@ function createLegend(self, parent, opts, selectRows) {
 		return selectRows ? selectRows(entries, data) : entries;
 	}
 	return {
+		setColumns(columns, nextMulti) {
+			if (destroyed) return;
+			const nextKeys = columnKeys(columns);
+			if (multi === nextMulti && keys.length === nextKeys.length && keys.every((key, i) => key === nextKeys[i])) return;
+			keys = nextKeys;
+			multi = nextMulti;
+			rows?.destroy();
+			template?.setColumns(keys, multi);
+		},
 		render(data, focus) {
 			if (destroyed) return;
 			const mount = template == null;
 			if (mount) {
-				template = createLegendTemplate(self, opts, keys, markersShow);
+				template = createLegendTemplate(self, {
+					...opts,
+					multi
+				}, keys, markersShow);
 				rows = createKeyedList(template.body, seriesKey, template.createRow);
 			}
 			const selected = select(data);
@@ -1918,6 +1959,56 @@ function createLegend(self, parent, opts, selectRows) {
 				rows = template = null;
 				entries.length = 0;
 			}
+		}
+	};
+}
+
+// src/tooltip.js
+function createTooltip(self, options) {
+	const { gap } = options;
+	let node, observer;
+	let width = 0, height = 0;
+	function update(rect) {
+		if (node == null) return;
+		rect ??= self.rect;
+		const { left, top } = self.cursor;
+		const x = rect.left + left;
+		const y = rect.top + top;
+		const viewportWidth = document.documentElement.clientWidth;
+		const viewportHeight = document.documentElement.clientHeight;
+		const visible = self.tooltip.order.length > 0 && self.tooltip.idxs.some((idx) => idx != null) && left >= 0 && top >= 0 && left <= rect.width && top <= rect.height && x >= 0 && y >= 0 && x <= viewportWidth && y <= viewportHeight;
+		node.style.display = visible ? "" : "none";
+		if (visible) {
+			const tx = x + width + gap > viewportWidth ? x - width - gap : x + gap;
+			const ty = y + height + gap > viewportHeight ? y - height - gap : y + gap;
+			node.style.transform = `translate(${tx}px, ${ty}px)`;
+		}
+	}
+	const syncRect = () => self.syncRect();
+	return {
+		mount(u, el) {
+			node = el;
+			node.classList.add("u-tooltip");
+			self.over.appendChild(node);
+			window.addEventListener("scroll", syncRect, true);
+			window.addEventListener("resize", syncRect);
+			observer = new ResizeObserver(([entry]) => {
+				const { inlineSize, blockSize } = entry.borderBoxSize[0];
+				if (inlineSize > 0 && blockSize > 0) {
+					width = inlineSize;
+					height = blockSize;
+					update();
+				}
+			});
+			observer.observe(node, { box: "border-box" });
+			update();
+		},
+		update,
+		destroy() {
+			observer?.disconnect();
+			window.removeEventListener("scroll", syncRect, true);
+			window.removeEventListener("resize", syncRect);
+			node = observer = null;
 		}
 	};
 }
@@ -3274,73 +3365,133 @@ function uPlot(opts, data, then) {
 	const _timeSeriesVal = true && timeSeriesVal(_tzDate, timeSeriesStamp("{YYYY}-{MM}-{DD} {h}:{mm}{aa}", _fmtDate));
 	const activeIdxs = [];
 	const legend = true && (self.legend = assign({}, legendOpts, opts.legend));
+	const tooltip = true && (self.tooltip = assign({}, tooltipOpts, opts.tooltip));
 	const cursor = self.cursor = assign({}, cursorOpts, { drag: { y: mode == 2 } }, opts.cursor);
 	const showLegend = true && (legend.show = domRoot && (legend.show ?? legendOpts.show));
 	const showCursor = cursor.show = over != null && cursor.show;
-	const markers = true && legend.markers;
-	if (true) {
-		legend.idxs = activeIdxs;
-		legend.order = [];
-		legend.count = 0;
-		legend.range = [0, 0];
+	const showTooltip = true && (tooltip.show = showCursor && tooltip.show);
+	if (showTooltip) legend.live = false;
+	const liveLegend = showTooltip ? tooltip : legend;
+	const live = true && (showTooltip || legend.live);
+	const showLive = live && liveLegend.show;
+	const showStats = showLegend && !legend.live;
+	if (true) for (let view of [legend, tooltip]) {
+		view.idxs = view == liveLegend && live ? activeIdxs : [];
+		view.order = [];
+		view.count = 0;
+		view.range = [0, 0];
+		let markers = view.markers;
 		markers.width = fnOrSelf(markers.width);
 		markers.dash = fnOrSelf(markers.dash);
 		markers.stroke = fnOrSelf(markers.stroke);
 		markers.fill = fnOrSelf(markers.fill);
 	}
-	let legendView;
-	let shouldRenderLegend = showLegend;
+	let legendView, tooltipView, tooltipPosition;
+	let shouldRenderLegend = showLegend || showTooltip;
+	let shouldRefreshStats = showStats;
+	let shouldRenderStats = showStats;
+	let shouldSetLegendColumns = false;
+	let statsCols;
+	let multiValStats = false;
 	let legendCols;
 	let multiValLegend = false;
 	const legendValuesPrev = [];
 	let legendCandidates = null;
+	let statsCandidates = null;
 	let shouldSelectLegend = true;
 	function hasLegendSelection() {
-		return true && (legend.filter != null || legend.sort != null || legend.limit != null);
+		return live && (liveLegend.filter != null || liveLegend.sort != null || liveLegend.limit != null);
 	}
 	function compareLegendSeries(a, b) {
+		return liveLegend.sort(self, a, b) || a - b;
+	}
+	function compareStatsSeries(a, b) {
 		return legend.sort(self, a, b) || a - b;
 	}
-	function selectLegend(force = false) {
-		if (!true || !force && !shouldSelectLegend) return false;
-		shouldSelectLegend = false;
+	function selectLegend(force = false, stats = false) {
+		if (!true || !stats && !force && !shouldSelectLegend) return false;
+		if (!stats) {
+			shouldSelectLegend = false;
+			if (showStats && !live) return false;
+		}
+		const view = stats ? legend : liveLegend;
+		let candidates = stats ? statsCandidates : legendCandidates;
 		let count = max(0, series.length - 1);
 		let start = 0, end = count;
-		if (hasLegendSelection()) {
-			legendCandidates ??= [];
+		if (stats ? view.filter != null || view.sort != null || view.limit != null : hasLegendSelection()) {
+			candidates ??= [];
 			count = 0;
-			for (let i = 1; i < series.length; i++) if (legend.filter == null || legend.filter(self, i)) legendCandidates[count++] = i;
-			legendCandidates.length = count;
-			if (legend.sort != null) legendCandidates.sort(compareLegendSeries);
+			for (let i = 1; i < series.length; i++) if (view.filter == null || view.filter(self, i)) candidates[count++] = i;
+			candidates.length = count;
+			if (view.sort != null) candidates.sort(stats ? compareStatsSeries : compareLegendSeries);
 			end = count;
-			if (legend.limit != null) {
-				const range = legend.limit(self, legendCandidates);
+			if (view.limit != null) {
+				const range = view.limit(self, candidates);
 				start = clamp(floor(range[0]) || 0, 0, count);
 				end = clamp(floor(range[1]) || 0, start, count);
 			}
-		} else legendCandidates = null;
-		const order = legend.order;
+		} else candidates = null;
+		if (stats) statsCandidates = candidates;
+		else legendCandidates = candidates;
+		const order = view.order;
 		let changed = order.length != end - start;
 		for (let i = start, j = 0; i < end; i++, j++) {
-			const index = legendCandidates == null ? i + 1 : legendCandidates[i];
+			const index = candidates == null ? i + 1 : candidates[i];
 			changed = order[j] != index || changed;
 			order[j] = index;
 		}
 		order.length = end - start;
-		if (changed && showLegend) shouldRenderLegend = true;
-		changed = changed || legend.count != count || legend.range[0] != start || legend.range[1] != end;
-		legend.count = count;
-		legend.range[0] = start;
-		legend.range[1] = end;
-		showCursor && syncCursorPointLegend(order);
+		if (changed && (showLegend || showTooltip)) {
+			shouldRenderLegend = true;
+			if (stats) shouldRenderStats = true;
+		}
+		changed = changed || view.count != count || view.range[0] != start || view.range[1] != end;
+		view.count = count;
+		view.range[0] = start;
+		view.range[1] = end;
+		!stats && live && showCursor && syncCursorPointLegend(order);
 		return changed;
 	}
 	let NULL_LEGEND_VALUES = {};
-	if (true && legend.live) {
-		const getMultiVals = series[1] ? series[1].values : null;
-		multiValLegend = getMultiVals != null;
-		legendCols = multiValLegend ? getMultiVals(self, 1, 0) : { _: 0 };
+	function usesMultiValues(view) {
+		return view.valueSrc == null ? series[1]?.values != null : view.valueSrc == "values";
+	}
+	function setLegendColumns() {
+		shouldSetLegendColumns = false;
+		const multi = usesMultiValues(liveLegend);
+		if (multiValLegend != multi) liveLegend.values.fill(null);
+		multiValLegend = multi;
+		legendCols = multi ? series[1]?.values(self, 1, 0) : { _: 0 };
+		if (showTooltip && multiValLegend) legendCols = assign({}, legendCols);
+		NULL_LEGEND_VALUES = {};
 		for (let k in legendCols) NULL_LEGEND_VALUES[k] = "--";
+		legendValuesPrev.length = 0;
+		(showTooltip ? tooltipView : legendView)?.setColumns(legendCols, multiValLegend);
+	}
+	if (live) setLegendColumns();
+	function refreshStats() {
+		shouldRefreshStats = false;
+		const multi = usesMultiValues(legend);
+		if (multiValStats != multi) legend.values.fill(null);
+		multiValStats = multi;
+		statsCols = multiValStats ? null : { _: 0 };
+		legend.idx = null;
+		legend.idxs.length = legend.values.length = series.length;
+		legend.idxs.fill(null);
+		for (let i = 1; i < series.length; i++) {
+			let s = series[i];
+			if (multiValStats) {
+				let vals = s.values(self, i, null);
+				if (i == 1) statsCols = assign({}, vals);
+				legend.values[i] = vals != null ? assign({}, vals) : vals;
+			} else {
+				let vals = legend.values[i] ??= {};
+				vals._ = s.value(self, null, i, null) ?? "--";
+			}
+		}
+		selectLegend(true, true);
+		legendView.setColumns(statsCols, multiValStats);
+		shouldRenderStats = shouldRenderLegend = true;
 	}
 	const son = { show: true };
 	const soff = { show: false };
@@ -3732,6 +3883,7 @@ function uPlot(opts, data, then) {
 		series.splice(si, 0, opts);
 		invalidateBandGroups();
 		true && legend.values.splice(si, 0, null);
+		showTooltip && tooltip.values.splice(si, 0, null);
 		multiValLegend && legendValuesPrev.splice(si, 0, null);
 		initSeries(series[si], si);
 		if (cursorPtSeries != null && cursorPtSeries >= si) {
@@ -3739,7 +3891,10 @@ function uPlot(opts, data, then) {
 			shouldSetCursor = true;
 		}
 		shouldSelectLegend = true;
-		shouldRenderLegend = showLegend;
+		shouldRenderLegend = showLegend || showTooltip;
+		shouldSetLegendColumns = live;
+		shouldRefreshStats = showStats;
+		(showStats || showTooltip) && commit();
 		fire("addSeries", si);
 	}
 	self.addSeries = addSeries;
@@ -3749,8 +3904,12 @@ function uPlot(opts, data, then) {
 		series.splice(i, 1);
 		invalidateBandGroups();
 		true && legend.values.splice(i, 1);
+		showTooltip && tooltip.values.splice(i, 1);
 		multiValLegend && legendValuesPrev.splice(i, 1);
-		shouldRenderLegend = showLegend;
+		shouldRenderLegend = showLegend || showTooltip;
+		shouldSetLegendColumns = live;
+		shouldRefreshStats = showStats;
+		(showStats || showTooltip) && commit();
 		activeIdxs.splice(i, 1);
 		cursorDists?.splice(i, 1);
 		shouldSelectLegend = true;
@@ -3927,6 +4086,13 @@ function uPlot(opts, data, then) {
 		if (cursorDists != null || hasLegendSelection()) {
 			shouldSetCursor = shouldSetCursor || cursor.left >= 0;
 			shouldSetLegend = shouldSelectLegend = true;
+		}
+		shouldRefreshStats = showStats;
+		showStats && commit();
+		if (showTooltip) {
+			shouldSetCursor = shouldSetCursor || cursor.left >= 0;
+			shouldSetLegend = true;
+			commit();
 		}
 		fire("setData");
 		if (xScaleDistr == 2) shouldLayout = true;
@@ -4491,8 +4657,13 @@ function uPlot(opts, data, then) {
 	function syncLegend() {
 		if (ready && !destroyed && shouldRenderLegend && !shouldSelectLegend) {
 			shouldRenderLegend = false;
-			legendView.render(legend.values, focusedSeries);
-			syncRect(true);
+			if (showLegend && (!showStats || shouldRenderStats)) {
+				shouldRenderStats = false;
+				legendView.render(legend.values, focusedSeries);
+				syncRect(true);
+			}
+			tooltipView?.render(tooltip.values, focusedSeries);
+			tooltipPosition?.update();
 		}
 	}
 	let deferHooks = false;
@@ -4599,6 +4770,7 @@ function uPlot(opts, data, then) {
 			shouldSetScales = true;
 		}
 		if (shouldSetScales) {
+			shouldRefreshStats = showStats;
 			setScales();
 			shouldSetScales = false;
 			viaAutoScaleX = false;
@@ -4607,7 +4779,13 @@ function uPlot(opts, data, then) {
 			let changedY = updateLayout();
 			shouldLayout = false;
 			for (let k of changedY) fire("setScale", k);
+			shouldRefreshStats = shouldRefreshStats || showStats && changedY.length > 0;
 		}
+		if (shouldSetLegendColumns) {
+			setLegendColumns();
+			shouldSetLegend = true;
+		}
+		if (shouldRefreshStats) refreshStats();
 		let didDraw = fullWidCss > 0 && fullHgtCss > 0;
 		if (didDraw) {
 			ctx.clearRect(0, 0, can.width, can.height);
@@ -4621,13 +4799,14 @@ function uPlot(opts, data, then) {
 		}
 		queuedCommit = false;
 		if ((showCursor || cursorDists != null || hasLegendSelection()) && shouldSetCursor) updateCursor(null, true, false);
-		else if (true && shouldSetLegend && (showLegend && legend.live || hasLegendSelection())) setLegend();
+		else if (true && shouldSetLegend && (showLive || hasLegendSelection())) setLegend();
 		else {
 			const selectionChanged = selectLegend() && hasLegendSelection();
 			syncLegend();
 			if (selectionChanged) fire("setLegend");
 		}
-		if (stackDirty.size > 0 || shouldSetScales || shouldLayout) commit();
+		tooltipPosition?.update();
+		if (stackDirty.size > 0 || shouldSetScales || shouldLayout || shouldRefreshStats || shouldSetLegendColumns) commit();
 		if (!usePathCache) clearPathCache();
 		if (!useDataCache && didDraw && !queuedCommit && stackDirty.size == 0 && !shouldSetScales && !shouldLayout) clearDataCache();
 		if (!ready && !queuedCommit) {
@@ -4762,7 +4941,10 @@ function uPlot(opts, data, then) {
 	function setSeriesShow(i, show) {
 		let s = series[i];
 		let showChanged = s.show != show;
-		if (showLegend && showChanged) shouldRenderLegend = true;
+		if ((showLegend || showTooltip) && showChanged) {
+			shouldRenderLegend = true;
+			shouldRenderStats = showStats;
+		}
 		s.show = show;
 		hideCursorPoint(i);
 		if (showChanged) {
@@ -4778,6 +4960,8 @@ function uPlot(opts, data, then) {
 		commit();
 	}
 	function setSeries(i, opts, _fire, _pub) {
+		shouldRefreshStats = showStats;
+		showStats && commit();
 		if (opts.focus != null) setFocus(i);
 		if (opts.show != null) {
 			if (i == null) series.forEach((s, si) => {
@@ -4831,7 +5015,8 @@ function uPlot(opts, data, then) {
 			focusedSeries = focused;
 			series.forEach(setSeriesFocus);
 			shouldSelectLegend = shouldSelectLegend || hasLegendSelection();
-			if (focus.alpha != 1 || hasLegendSelection()) shouldRenderLegend = showLegend;
+			shouldRenderLegend = showLegend || showTooltip;
+			shouldRenderStats = showStats;
 			commit();
 			return true;
 		}
@@ -4875,19 +5060,22 @@ function uPlot(opts, data, then) {
 	let setSelX = scaleX.ori == 0 ? setSelH : setSelV;
 	let setSelY = scaleX.ori == 1 ? setSelH : setSelV;
 	function setLegend(opts, _fire) {
+		if (shouldSetLegendColumns) setLegendColumns();
 		if (opts != null) {
 			if (opts.idxs) opts.idxs.forEach((idx, i) => activeIdxs[i] = idx);
 			else if (!isUndef(opts.idx)) activeIdxs.fill(opts.idx);
-			legend.idx = activeIdxs[0];
+			if (live) liveLegend.idx = activeIdxs[0];
 		}
-		if (showLegend && legend.live) {
+		if (showLive) {
 			let changed = false;
 			for (let sidx = 0; sidx < series.length; sidx++) if (sidx > 0 || mode == 1 && !multiValLegend) changed = setLegendValues(sidx, activeIdxs[sidx]) || changed;
 			shouldRenderLegend = shouldRenderLegend || changed;
 		}
 		selectLegend(hasLegendSelection() || opts != null && legendCandidates != null);
+		if (opts != null && showStats) selectLegend(true, true);
 		shouldSetLegend = false;
 		syncLegend();
+		tooltipPosition?.update();
 		_fire !== false && fire("setLegend");
 	}
 	self.setLegend = setLegend;
@@ -4895,7 +5083,8 @@ function uPlot(opts, data, then) {
 		let s = series[sidx];
 		let src = self.data[sidx];
 		if (multiValLegend) {
-			let vals = legend.values[sidx] = s.values(self, sidx, idx) ?? NULL_LEGEND_VALUES;
+			let vals = s.values(self, sidx, idx) ?? NULL_LEGEND_VALUES;
+			liveLegend.values[sidx] = showTooltip ? assign({}, vals) : vals;
 			let prev = legendValuesPrev[sidx] ??= [];
 			let changed = false;
 			let i = 0;
@@ -4907,7 +5096,7 @@ function uPlot(opts, data, then) {
 			return changed;
 		} else {
 			let val = s.value(self, idx == null ? null : src[idx], sidx, idx) ?? "--";
-			let vals = legend.values[sidx] ??= {};
+			let vals = liveLegend.values[sidx] ??= {};
 			let changed = val !== vals._;
 			vals._ = val;
 			return changed;
@@ -5000,7 +5189,7 @@ function uPlot(opts, data, then) {
 				pt != null && elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
 			}
 			if (cursorOnePt) cursorPtSeries = null;
-			if (true && legend.live || cursorDists != null || hasLegendSelection()) {
+			if (live || cursorDists != null || hasLegendSelection()) {
 				activeIdxs.fill(idx);
 				shouldSetLegend = true;
 			}
@@ -5214,7 +5403,7 @@ function uPlot(opts, data, then) {
 		let focusIdx = !cursorHidden && closestDist <= focus.prox ? closestSeries : null;
 		let focusChanged = cursorFocus && (src == null || cursorHidden) && setFocus(focusIdx);
 		if (shouldSetLegend) {
-			legend.idx = idx;
+			if (live) liveLegend.idx = idx;
 			setLegend();
 		} else {
 			const selectionChanged = selectLegend(hasLegendSelection());
@@ -5233,6 +5422,7 @@ function uPlot(opts, data, then) {
 			fire("setSeries", focusIdx, FOCUS_TRUE);
 			if (src == null && _pub && syncOpts.setSeries) pubSync("setSeries", self, focusIdx, FOCUS_TRUE);
 		}
+		tooltipPosition?.update();
 		_fire !== false && fire("setCursor");
 	}
 	let rect = null;
@@ -5245,6 +5435,7 @@ function uPlot(opts, data, then) {
 		if (defer) rect = null;
 		else {
 			rect = over.getBoundingClientRect();
+			tooltipPosition?.update(rect);
 			fire("syncRect", rect);
 		}
 	}
@@ -5492,6 +5683,8 @@ function uPlot(opts, data, then) {
 		off(dppxchange, win, onDppxChange);
 		root.remove();
 		true && legendView?.destroy();
+		tooltipPosition?.destroy();
+		tooltipView?.destroy();
 		clearPathCache();
 		clearDataCache();
 		fire("destroy");
@@ -5510,19 +5703,41 @@ function uPlot(opts, data, then) {
 	if (true) {
 		legend.values.length = series.length;
 		legend.values.fill(null);
+		if (showTooltip) {
+			tooltip.values.length = series.length;
+			tooltip.values.fill(null);
+		}
 	}
 	if (showLegend) legendView = createLegend(self, root, {
 		legend,
 		side: legend.side,
 		series,
-		columns: legendCols,
-		multi: multiValLegend,
+		columns: showStats ? statsCols : legendCols,
+		multi: showStats ? multiValStats : multiValLegend,
 		mode,
-		focusAlpha: focus.alpha,
 		cursorFocus,
 		bind: cursor.bind,
 		emit: handleLegendEvent
 	});
+	if (showTooltip) {
+		tooltipPosition = createTooltip(self, tooltip);
+		tooltipView = createLegend(self, over, {
+			side: 2,
+			legend: {
+				...tooltip,
+				live: true,
+				mount: (u, table) => {
+					tooltipPosition.mount(u, table);
+					tooltip.mount(u, table);
+				}
+			},
+			series,
+			columns: legendCols,
+			multi: multiValLegend,
+			mode,
+			interactive: false
+		});
+	}
 	series.forEach((s, i) => {
 		fire("addSeries", i);
 	});
