@@ -9,8 +9,6 @@ import { parseArgs } from 'node:util';
 import { chromeBinary } from './chrome-headless-shell.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const cache = join(root, 'node_modules/.cache/uplot-bench');
-// Pin the browser so repeat runs do not silently change the benchmark engine.
-const chromeVersion = '156.0.8078.47';
 
 const controller = new AbortController();
 const { signal } = controller;
@@ -154,10 +152,10 @@ Defaults: 300 Y series plus X, 300 iterations per workload.
 Reports the average of the fastest five calls. Excludes layout and paint.
 Limits each run to 120 seconds.
 
-The first run downloads Chrome Headless Shell ${chromeVersion} from Google.
-Later runs reuse node_modules/.cache/uplot-bench. No automation package is needed.
+Each run checks Chrome Stable and replaces outdated browsers in node_modules/.cache/uplot-bench.
+An unchanged release reuses the cached browser. Lookup errors stop the run. No automation package is needed.
 Automatic installation requires Linux x64 and unzip. Only the English locale is retained.
-Set CHROME_BIN to use an existing binary without a download.
+Set CHROME_BIN to use an existing binary without update checks or downloads.
 Use --install-only to prepare the browser without a benchmark.
 The default JSON output is in the cache directory. Use --output to keep a comparison.`);
 		return;
@@ -169,7 +167,7 @@ The default JSON output is in the cache directory. Use --output to keep a compar
 		throw Error('--iterations must be an integer from 5 to 1000.');
 	if (process.platform !== 'linux' && process.platform !== 'darwin')
 		throw Error('The benchmark runner requires Linux or macOS.');
-	const binary = await chromeBinary({ version: chromeVersion, signal });
+	const binary = await chromeBinary({ signal });
 	if (values['install-only'])
 		return;
 	const output = values.output ? resolve(values.output) : join(cache, `legend-dom-n${options.series}-i${options.iterations}.json`);

@@ -9,11 +9,11 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
 import {CDP} from './profile-manual.mjs';
+import {cachedChromeBinary} from './chrome-headless-shell.mjs';
 import {killBenchmarkBrowser} from './bench-browser-process.mjs';
 
 const root = new URL('../', import.meta.url);
 const cache = fileURLToPath(new URL('.cache/benchmarks/', root));
-const binary = fileURLToPath(new URL('node_modules/.cache/uplot-bench/chrome-headless-shell-156.0.8078.47-linux64/chrome-headless-shell', root));
 const configurations = {
 	baseline: [],
 	vulkan: ['--enable-features=Vulkan'],
@@ -105,6 +105,8 @@ async function connect(url) {
 	return client;
 }
 async function run() {
+	const binary = await cachedChromeBinary();
+	assert.ok(binary, 'No cached Chrome executable. Run npm run bench -- --install-only or set CHROME_BIN; this diagnostic never installs a browser.');
 	await access(binary, constants.X_OK);
 	server = createServer((request, response) => response.end('<!doctype html><title>WebGPU hardware probe</title>'));
 	await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));

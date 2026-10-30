@@ -511,6 +511,62 @@ There is no JS-heap benchmark or heap-usage sampling.
 The memory modes still use CDP to request GC and identify process roles.
 Process memory values come from Linux `/proc/<pid>/smaps_rollup`.
 
+### Browser updates
+
+Before each suite, the runner checks the [Chrome for Testing Stable metadata](https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json).
+An unchanged release reuses the cached executable.
+For a changed release, the runner removes obsolete browser directories, then downloads and extracts the new Chrome Headless Shell.
+The cache is `node_modules/.cache/uplot-bench`. Unrelated cache files remain unchanged.
+All workers inherit the same executable for that suite. The legend and Chrome canvas-sprite benchmarks use the same update policy.
+
+A failed Stable lookup stops the run without a stale-cache fallback.
+A failed replacement leaves no fallback browser after removal of the old release.
+`CHROME_BIN` selects an explicit executable and skips update checks and cache cleanup.
+Cache-only integration tests use this override or the newest installed shell. They never download a browser.
+Help and saved-summary commands do not check for updates.
+
+To update the browser without a benchmark, run:
+
+```sh
+npm run bench -- --install-only
+```
+
+Reports retain the actual browser version and launch arguments.
+Results from separate runs can use different browser versions. Browser updates can change timing, memory, or graphics behavior.
+Historical reproduction scripts under `docs/investigations` retain their original version requirements. Automatic cache cleanup can remove those versions.
+
+### Headless Shell and GPU rendering
+
+The harness retains Headless Shell rather than full Chrome for Testing with `--headless`.
+Both use Chromium's Blink, V8, Skia, Viz, ANGLE, and Dawn components. Shell replaces the Chrome browser layer, not these engines.
+The smaller shell is suitable for these chart workloads. Shared components do not guarantee identical timing or memory results.
+
+A source review of release `156.0.8078.80` found equivalent default graphics selection on Linux:
+
+- Without `--enable-gpu`, `--use-gl`, or `--use-angle`, both select ANGLE's `swiftshader-webgl` software configuration.
+- `--enable-gpu` bypasses that default in both. Hardware availability, drivers, blocklists, and backend selection still determine acceleration.
+- `--enable-features=Vulkan` alone does not bypass the software default. The harness also supplies `--enable-gpu` for Vulkan runs.
+- Shell creates a compositor without the forced-software setting. Both use Ozone's headless platform on Linux.
+- Shell's external frame control is disabled by default. This harness does not enable virtual time or manual frame control.
+
+Full Chrome and Shell differ in browser services, window integration, and field-trial initialization.
+Feature trials can change graphics decisions, including GPU rasterization. Matching versions and GPU flags alone does not guarantee matching feature configuration.
+Neither headless implementation measures physical display presentation.
+
+`--use-angle=vulkan` selects the ANGLE backend. It is not interchangeable with `--enable-features=Vulkan`.
+WebGPU uses Dawn and has its own adapter selection. A GPU process alone does not prove hardware Canvas, WebGL, or WebGPU acceleration.
+The reports retain Chrome system information for the observed configuration. Requested backend metadata describes only the request.
+No performance comparison supports these source-based conclusions. No browser benchmark ran for this review.
+
+Release sources: [Shell startup](https://github.com/chromium/chromium/blob/156.0.8078.80/headless/lib/headless_content_main_delegate.cc),
+[Chrome headless startup](https://github.com/chromium/chromium/blob/156.0.8078.80/chrome/browser/headless/headless_mode_init.cc),
+[GL selection](https://github.com/chromium/chromium/blob/156.0.8078.80/ui/gl/gl_implementation.cc),
+[Shell compositor](https://github.com/chromium/chromium/blob/156.0.8078.80/headless/lib/browser/headless_window_tree_host.cc),
+[Shell field trials](https://github.com/chromium/chromium/blob/156.0.8078.80/headless/lib/browser/headless_field_trials.cc),
+[Chrome field trials](https://github.com/chromium/chromium/blob/156.0.8078.80/chrome/browser/metrics/chrome_feature_list_creator.cc).
+
+### Device pixel ratio
+
 To select a different DPR, append `-- --dpr NUMBER`:
 
 ```sh
@@ -1149,6 +1205,10 @@ Redirected output, basic-color terminals, `TERM=dumb`, and any `NO_COLOR` value 
 Trace `update ms` sums selected host-thread wall work, not elapsed frame latency.
 
 Terminal dimensions and line wrapping affect cursor erasure, not whether an interactive table is shown.
+When at least one numeric column has a color scale, colored tables show a compact gradient above the table.
+The gradient has only the minimum and group-cap labels. Plain output and tables without numeric color scales omit the gradient.
+Live displays keep the first table's width for the gradient, even after new rows arrive or the terminal resizes.
+Saved summaries use their table width. The gradient has a minimum width of 61 cells to keep the labels separate.
 Explanatory notes do not appear above the table. Measurement warnings appear below it without a three-warning limit.
 Live tables and saved summaries omit warnings for libraries excluded before execution, even with `--verbose`.
 The manifest and suite JSON contain the exclusion reasons. Runtime failures, timeouts, and incomplete measurements still produce warnings.

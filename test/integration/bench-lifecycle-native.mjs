@@ -8,6 +8,7 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
 import {CDP} from '../../scripts/profile-manual.mjs';
+import {cachedChromeBinary} from '../../scripts/chrome-headless-shell.mjs';
 import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 import {loadBenchDemoSources} from '../../scripts/bench-demo-sources.mjs';
 import * as lightningchart from '../../bench/lightningchart.mjs';
@@ -160,7 +161,8 @@ describe('bench-lifecycle-native license boundary', () => {
 	const sources = new Map();
 	const assets = new Map([['/', '<!doctype html><meta charset="utf-8"><style>body{margin:0}</style>']]);
 	before(async () => {
-		const binary = fileURLToPath(new URL('node_modules/.cache/uplot-bench/chrome-headless-shell-156.0.8078.47-linux64/chrome-headless-shell', root));
+		const binary = await cachedChromeBinary();
+		assert.ok(binary, 'No cached Chrome executable. Run npm run bench -- --install-only or set CHROME_BIN; this test never installs a browser.');
 		await access(binary, constants.X_OK);
 		for (const id of variants) {
 			const source = loadBenchDemoSources(root, id);

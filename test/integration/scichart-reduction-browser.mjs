@@ -9,13 +9,13 @@ import {extname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
 import {CDP} from '../../scripts/profile-manual.mjs';
+import {cachedChromeBinary} from '../../scripts/chrome-headless-shell.mjs';
 import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 
 // TEST_SCICHART_REDUCTION_BROWSER=1 node --test --test-isolation=none test/integration/scichart-reduction-browser.mjs
 // Cache only. No downloads, screenshots, traces, license patches, or benchmark budget changes.
 const root = new URL('../../', import.meta.url);
 const cache = fileURLToPath(new URL('.cache/benchmarks/', root));
-const version = '156.0.8078.47';
 const renderMs = 5000, totalMs = 120000;
 const vendorFiles = ['scichart-6.0.14-index.min.js', 'scichart-6.0.14-_wasm-scichart.wasm', 'scichart-6.0.14-_wasm-scichart-nosimd.wasm'];
 
@@ -287,7 +287,8 @@ describe('SciChart reduction diagnostic analysis', () => {
 
 (process.env.TEST_SCICHART_REDUCTION_BROWSER === '1' ? describe : describe.skip)('SciChart cached-browser reduction diagnostic', function() {
 	it('compares native Auto, MinMax and None without changing native budgets', {timeout: totalMs + 10000}, async function(t) {
-		const binary = fileURLToPath(new URL(`node_modules/.cache/uplot-bench/chrome-headless-shell-${version}-linux64/chrome-headless-shell`, root));
+		const binary = await cachedChromeBinary();
+		if (!binary) return t.skip('No cached Chrome executable. Run npm run bench -- --install-only or set CHROME_BIN; this test never installs a browser.');
 		try {
 			await access(binary, constants.X_OK);
 			for (const name of vendorFiles) await access(join(cache, name), constants.R_OK);
@@ -296,7 +297,7 @@ describe('SciChart reduction diagnostic analysis', () => {
 		let browser, client, server, profile, watchdog, stepTimer;
 		let phase = 'setup', log = '', runError;
 		const started = Date.now();
-		const report = {schema: 1, status: 'running', config: {vendor: 'SciChart 6.0.14', browserExpected: version,
+		const report = {schema: 1, status: 'running', config: {vendor: 'SciChart 6.0.14',
 			renderMs, totalMs, benchmarkRows: 55550, benchmarkSeries: 3, widths: [580, 1920], dprs: [1, 2],
 			modes: ['Auto', 'MinMax', 'None'], license: 'public community startup; adapter licenseReady unchanged',
 			budgets: 'native resampling defaults; no precision/threshold overrides',
@@ -369,7 +370,6 @@ describe('SciChart reduction diagnostic analysis', () => {
 			});
 			await client.send('Page.enable'); await client.send('Runtime.enable'); await client.send('Network.enable');
 			report.browser = await client.send('Browser.getVersion');
-			assert.ok(report.browser.product.endsWith('/' + version), 'Unexpected cached Chrome version');
 
 			const evaluate = async expression => {
 				const result = await client.send('Runtime.evaluate', {expression, awaitPromise: true, returnByValue: true});

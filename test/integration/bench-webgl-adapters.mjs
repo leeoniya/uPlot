@@ -1,6 +1,7 @@
 import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {cachedChromeBinary} from '../../scripts/chrome-headless-shell.mjs';
 import * as bokeh from '../../bench/bokeh.mjs';
 import * as d3fc from '../../bench/d3fc.mjs';
 
@@ -314,9 +315,9 @@ describe('benchmark WebGL adapters', () => {
 });
 
 // Opt-in: BENCH_WEBGL_BROWSER=1 node --test --test-isolation=none test/integration/bench-webgl-adapters.mjs
-// Uses the existing Chrome 156 binary, temporary profiles, and in-memory assets/manifest entries.
+// Uses CHROME_BIN or cached Chrome, temporary profiles, and in-memory assets/manifest entries.
 // Readbacks and draw instrumentation are smoke assertions, not benchmark measurements.
-(process.env.BENCH_WEBGL_BROWSER === '1' ? describe : describe.skip)('Chrome 156 WebGL adapter smoke', function() {
+(process.env.BENCH_WEBGL_BROWSER === '1' ? describe : describe.skip)('Chrome WebGL adapter smoke', function() {
 	let browser, page, child, server, profile, base, fs, delay;
 	let browserLog = '';
 
@@ -328,6 +329,8 @@ describe('benchmark WebGL adapters', () => {
 	}
 
 	before(async () => {
+		const binary = await cachedChromeBinary();
+		assert.ok(binary, 'No cached Chrome executable. Run npm run bench -- --install-only or set CHROME_BIN; this test never installs a browser.');
 		fs = await import('node:fs/promises');
 		const {createServer} = await import('node:http');
 		const {spawn} = await import('node:child_process');
@@ -368,7 +371,6 @@ describe('benchmark WebGL adapters', () => {
 		await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 		base = 'http://127.0.0.1:' + server.address().port;
 		profile = await fs.mkdtemp(resolve(tmpdir(), 'uplot-webgl-smoke-'));
-		const binary = process.env.CHROME_BIN || new URL('node_modules/.cache/uplot-bench/chrome-headless-shell-156.0.8078.47-linux64/chrome-headless-shell', root).pathname;
 		child = spawn(binary, ['--enable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-extensions', '--user-data-dir=' + profile, '--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1', '--window-size=1920,900', 'about:blank'], {stdio: ['ignore', 'ignore', 'pipe']});
 		child.stderr.on('data', chunk => { browserLog = (browserLog + chunk).slice(-4000); });
 		let spawnError;
@@ -392,7 +394,6 @@ describe('benchmark WebGL adapters', () => {
 		const [port, path] = portData.trim().split('\n');
 		browser = await connect('ws://127.0.0.1:' + port + path);
 		const version = await browser.send('Browser.getVersion');
-		assert.match(version.product, /Chrome\/156\./);
 		const {gpu} = await browser.send('SystemInfo.getInfo');
 		console.log('Browser/GPU:', JSON.stringify({browser: version.product, devices: gpu.devices, webgl: gpu.featureStatus.webgl}));
 		const targets = await (await fetch('http://127.0.0.1:' + port + '/json/list')).json();

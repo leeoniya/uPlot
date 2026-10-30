@@ -113,17 +113,26 @@ describe('dashboard benchmark suite', () => {
 
 	it('forwards dashboard selection through live and saved CLI dispatch, preserving combined defaults', async () => {
 		const source = readFileSync(new URL('scripts/benchmarks.mjs', root), 'utf8');
-		const block = source.slice(source.indexOf('const chromeVersion ='), source.indexOf('const binary = await chromeBinary('));
+		const block = source.slice(source.indexOf('const {values, tokens} ='), source.indexOf('const binary = await chromeBinary('));
 		for (const dashboard of [false, true]) for (const saved of [false, true]) {
 			const calls = [], exited = new Error('exit');
+			const env = {};
+			let browserChecks = 0;
 			const args = ['--no-vulkan', ...(dashboard ? ['--dashboard'] : []), ...(saved ? ['--summarize-only'] : ['--variant', 'uplot'])];
 			await assert.rejects(runInNewContext(`(async () => {${block}})()`, {
 				parseArgs: options => parseArgs({...options, args}), resolveBenchmarkVulkan, benchmarkMode,
 				demoDependencies, assertBenchmarkAvailable, platform: () => 'linux',
-				process: {env: {}, exit: () => { throw exited; }},
-				runBenchmarkSuite: async options => calls.push(options), summarizeSavedBenchmarks: options => calls.push(options),
+				process: {env, exit: () => { throw exited; }},
+				chromeBinary: async () => { browserChecks++; return '/mock/chrome'; },
+				runBenchmarkSuite: async options => {
+					assert.equal(env.CHROME_BIN, '/mock/chrome', 'workers inherit the resolved browser');
+					calls.push(options);
+				},
+				summarizeSavedBenchmarks: options => calls.push(options),
 			}), error => error === exited);
 			assert.equal(calls.length, 1);
+			assert.equal(browserChecks, saved ? 0 : 1);
+			if (saved) assert.equal(env.CHROME_BIN, undefined);
 			assert.equal(calls[0].dashboard, dashboard);
 			assert.equal(calls[0].trace, true);
 			assert.equal(calls[0].memory, true);
@@ -418,7 +427,7 @@ describe('dashboard benchmark suite', () => {
 			Object.assign(server, {listen: (port, host, ready) => ready(), address: () => ({port: 12345}),
 				closeAllConnections() {}, close: done => done()});
 			await runInNewContext(`(async () => {${block}})()`, {
-				values, root, cache: directory, chromeVersion: 'mock', mode, measurements, vulkan, dpr: 1, lightningOptions: undefined, sciChartOptions: undefined,
+				values, root, cache: directory, mode, measurements, vulkan, dpr: 1, lightningOptions: undefined, sciChartOptions: undefined,
 				chromeBinary: async () => '/mock/chrome',
 				loadBenchDemoSources: (root, variant, options) => {
 					loaded = {root, variant, options};

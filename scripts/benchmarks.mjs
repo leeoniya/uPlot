@@ -1,4 +1,4 @@
-// Downloads pinned demo dependencies and Chrome Headless Shell once, then reuses the cache.
+// Caches pinned demo dependencies and updates Chrome Headless Shell to Stable before each suite.
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -21,8 +21,7 @@ import { demoDependencies, benchmarkVariants, assertBenchmarkAvailable } from '.
 
 const root = new URL('../', import.meta.url);
 const cache = fileURLToPath(new URL('.cache/benchmarks/', root));
-// Pin the version so later runs use the same browser.
-const chromeVersion = '156.0.8078.47';
+
 const {values, tokens} = parseArgs({tokens: true, options: {
 	browser: {type: 'string', default: 'chrome'},
 	trace: {type: 'boolean', default: false},
@@ -75,7 +74,9 @@ Use --variant idle for an explicit diagnostic, not a memory subtraction offset.
 Default chart variants (44): ${benchmarkVariants.join(', ')}.
 LIGHTNINGCHART_LICENSE adds licensed LightningChart. LIGHTNINGCHART_LICENSE_INFORMATION accepts vendor metadata as JSON.
 SCICHART_LICENSE optionally supplies a SciChart runtime key. Existing benchmark restrictions still apply.
-Each variant uses a fresh browser and shared cached vendor assets. CHROME_BIN overrides the pinned browser.
+Each variant uses a fresh browser and shared cached vendor assets.
+Each suite checks Chrome Stable once and replaces outdated cached browsers before its workers start.
+CHROME_BIN overrides the browser and skips update checks.
 --gpu enables GPU. --vulkan requests Vulkan. --no-vulkan disables automatic Vulkan selection.
 On Linux, the default suite and explicit ChartGPU select Vulkan automatically. Overrides cannot be combined.
 Twenty independent WebGL contexts can exceed browser limits. No fallback renderer or context-limit override is implied.
@@ -167,6 +168,8 @@ Trace update ms measures selected host-thread work, not elapsed frame latency.
 Truecolor terminals show the continuous RGB scale in live tables and saved summaries.
 For 256-color terminals, each interpolated RGB color maps to the nearest color in the fixed xterm color cube or grayscale palette.
 This approximation does not use separate, manually selected bands.
+Colored tables with a numeric color scale show a compact gradient above the table, with only minimum and group-cap labels.
+Plain output and tables without numeric color scales omit the gradient.
 Redirected output, basic-color terminals, TERM=dumb, and any NO_COLOR value disable colors. JSON stays plain.
 Use --variant NAME to run only that variant. Registered: ${Object.keys(demoDependencies).join(', ')}.
 LightningChart requires LIGHTNINGCHART_LICENSE. SCICHART_LICENSE optionally supplies a SciChart runtime key.
@@ -231,8 +234,9 @@ Combined trace and process polling affect both timing and memory, including trac
 Use bench:memory for an untraced footprint. Native allocators need not release pages after GC.
 GPU-specific memory is not measured. No heap snapshots, canvas readbacks, or screenshots are used.
 
-Chrome Headless Shell ${chromeVersion} and pinned demo dependencies are downloaded once and cached.
-CHROME_BIN overrides the browser. --install-only prepares the browser without a benchmark.
+Each suite checks Chrome Stable once and replaces outdated cached browsers before its workers start.
+Pinned demo dependencies remain cached. Stable lookup errors stop the run rather than use an outdated browser.
+CHROME_BIN overrides the browser and skips update checks. --install-only updates the browser without a benchmark.
 Automatic browser installation requires Linux x64 and unzip.
 Results and compressed traces go to .cache/benchmarks. Each mode has its own default report files.
 Use --vulkan to enable GPU and request Vulkan on any platform. Use --no-vulkan to disable automatic Vulkan selection.
@@ -281,6 +285,8 @@ if (values.variant)
 if (measurements.memory && platform() !== 'linux')
 	throw new Error('Process memory measurement requires Linux /proc.');
 if (!values.worker && !values['install-only']) {
+	// Workers inherit one resolved executable, even if Stable changes during the suite.
+	process.env.CHROME_BIN = await chromeBinary();
 	try {
 		await runBenchmarkSuite({...measurements, dpr, gpu: values.gpu, vulkan, variant: values.variant ?? null, lightningOptions, verbose: values.verbose, dashboard: values.dashboard});
 	}
@@ -292,7 +298,7 @@ if (!values.worker && !values['install-only']) {
 	}
 	process.exit(process.exitCode ?? 0);
 }
-const binary = await chromeBinary({version: chromeVersion});
+const binary = await chromeBinary();
 if (values['install-only'])
 	process.exit(0);
 mkdirSync(cache, {recursive: true});

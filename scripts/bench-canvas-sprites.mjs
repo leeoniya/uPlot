@@ -21,7 +21,7 @@ if (headed && browserName !== 'firefox')
 if (gpu && browserName !== 'chrome')
 	throw new Error('--gpu is only available for Chrome Headless Shell.');
 const binary = browserName === 'chrome'
-	? await chromeBinary({ version: '156.0.8078.47', signal: AbortSignal.timeout(240000) })
+	? await chromeBinary({ signal: AbortSignal.timeout(240000) })
 	: process.env.FIREFOX_BIN || '/usr/bin/firefox';
 const browserVersion = execFileSync(binary, ['--version'], { encoding: 'utf8', timeout: 10000 }).trim();
 const filename = `canvas-sprites-${browserName}${headed ? '-headed' : ''}${gpu ? '-gpu' : ''}.json`;

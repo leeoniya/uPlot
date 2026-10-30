@@ -8,6 +8,7 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
 import {CDP} from '../../scripts/profile-manual.mjs';
+import {cachedChromeBinary} from '../../scripts/chrome-headless-shell.mjs';
 import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 import {loadBenchDemoSources} from '../../scripts/bench-demo-sources.mjs';
 
@@ -16,7 +17,6 @@ import {loadBenchDemoSources} from '../../scripts/bench-demo-sources.mjs';
 // TEST_DECKGL_SCREENSHOT=1 adds a separate, untimed full-data render and a PNG below 1 MB.
 const root = new URL('../../', import.meta.url);
 const cache = fileURLToPath(new URL('.cache/benchmarks/', root));
-const version = '156.0.8078.47';
 const sampleMs = 5000;
 
 function probeHardware() {
@@ -242,7 +242,8 @@ async function chartSample(rows, ratio) {
 		process.once('SIGINT', interrupted);
 		process.once('SIGTERM', interrupted);
 		const run = async () => {
-			const binary = fileURLToPath(new URL(`node_modules/.cache/uplot-bench/chrome-headless-shell-${version}-linux64/chrome-headless-shell`, root));
+			const binary = await cachedChromeBinary();
+			assert.ok(binary, 'No cached Chrome executable. Run npm run bench -- --install-only or set CHROME_BIN; this test never installs a browser.');
 			await access(binary, constants.X_OK);
 			const {files, dependencies} = loadBenchDemoSources(root, 'deckgl');
 			assert.deepEqual(dependencies.map(({name, version, cacheName}) => [name, version, cacheName]), [

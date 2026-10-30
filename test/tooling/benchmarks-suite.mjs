@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
-import { parseArgs } from 'node:util';
+import { parseArgs, stripVTControlCharacters } from 'node:util';
 import { summarizeBenchmarkRaf } from '../../scripts/analyze-benchmarks-raf.mjs';
 import { summarizeBenchmarkTraceSamples } from '../../scripts/analyze-benchmarks-trace.mjs';
 import { TRACE_ACCOUNTING } from '../../scripts/bench-trace-policy.mjs';
@@ -1582,7 +1582,7 @@ describe('benchmark verbosity', () => {
 
 	it('forwards false by default and true with --verbose through both actual CLI dispatch paths', async () => {
 		const source = readFileSync(new URL('../../scripts/benchmarks.mjs', import.meta.url), 'utf8');
-		const start = source.indexOf('const chromeVersion =');
+		const start = source.indexOf('const {values, tokens} =');
 		const end = source.indexOf('const binary = await chromeBinary(');
 		assert.ok(start >= 0 && end > start);
 		for (const summarize of [false, true]) {
@@ -1595,6 +1595,7 @@ describe('benchmark verbosity', () => {
 					resolveBenchmarkVulkan, benchmarkMode,
 					platform: () => 'linux',
 					process: {env: {}, exit: code => { assert.equal(code, 0); throw exited; }},
+					chromeBinary: async () => '/mock/chrome',
 					runBenchmarkSuite: async options => calls.push(['live', options]),
 					summarizeSavedBenchmarks: options => calls.push(['saved', options]),
 				}), error => error === exited);
@@ -1676,7 +1677,26 @@ describe('benchmark table and offline summary', () => {
 	const colorVariants = variants.filter((variant, i) => variants.findIndex(id => benchmarkLibraryName(id) === benchmarkLibraryName(variant)) === i)
 		.slice(0, colorCases.length);
 	const colorColumns = ['init ms', 'update ms', 'peak MB', 'retained MB', 'resize ms', 'hover10 ms'];
-	const tableCells = text => text.split('\n').filter(line => line.startsWith('│'))
+	const tableText = text => text.slice(text.indexOf('┌'));
+	const tableWidth = text => stripVTControlCharacters(tableText(text)).split('\n')[0].length;
+	const assertLegend = (text, depth, width = Math.max(61, tableWidth(text))) => {
+		const [bar, labels, border] = text.split('\n');
+		assert.equal(stripVTControlCharacters(bar), '█'.repeat(width));
+		assert.equal(labels.length, width);
+		const positions = Array.from({length: 6}, (_, i) => Math.round(i * (width - 1) / 5));
+		const expectedLabels = Array(width).fill(' ');
+		for (const [i, name] of ['Minimum', '1.5× cap', '2× cap', '4× cap', '8× cap', '16× cap'].entries()) {
+			const start = Math.max(0, Math.min(width - name.length, positions[i] - Math.floor(name.length / 2)));
+			expectedLabels.splice(start, name.length, ...name);
+		}
+		assert.equal(labels, expectedLabels.join(''));
+		assert.ok(border.startsWith('┌'));
+		const blocks = [...bar.matchAll(/\x1b\[(38;[25];[\d;]+)m█/g)];
+		assert.equal(blocks.length, width);
+		assert.deepEqual(positions.map(i => blocks[i][1]),
+			[0, 1, 3, 5, 7, 9].map(i => depth === 24 ? `38;2;${colorCases[i][1]}` : `38;5;${colorCases[i][2]}`));
+	};
+	const tableCells = text => tableText(text).split('\n').filter(line => line.startsWith('│'))
 		.map(line => line.split(/│ │|│/).slice(1, -1).map(cell => cell.trim()));
 	const colorBrowser = (variant, value, measurements = combined, dpr = 1, backend = 'default') => {
 		const raw = browser(variant, measurements, dpr, backend);
@@ -1710,10 +1730,15 @@ describe('benchmark table and offline summary', () => {
 			process.env = {};
 			Object.defineProperty(process.stdout, 'isTTY', {configurable: true, value: true});
 			let savedBytes;
+			const widths = [];
 			for (const depth of [24, 8]) for (const verbose of [false, true]) {
 				Object.defineProperty(process.stdout, 'getColorDepth', {configurable: true, value: () => depth});
 				logs.length = 0;
 				const result = summarizeSavedBenchmarks({...combined, vulkan: false, verbose}, output);
+				assertLegend(logs[0], depth);
+				widths.push(tableWidth(logs[0]));
+				assert.ok(widths.at(-1) > 61);
+				assert.match(tableText(logs[0]).split('\n')[0], /┐ ┌/);
 				const [headers, ...rows] = tableCells(logs[0]);
 				assert.equal(rows.length, colorCases.length);
 				for (const cells of rows) {
@@ -1736,6 +1761,8 @@ describe('benchmark table and offline summary', () => {
 				assert.doesNotMatch(bytes, /\x1b|\\u001b/i);
 				assert.deepEqual(logs.slice(1), ['Updated summary from saved samples. No browser was started.']);
 			}
+			assert.ok(widths[1] > widths[0]);
+			assert.deepEqual(widths.slice(2), widths.slice(0, 2));
 			assert.deepEqual(input, original);
 		}
 		finally {
@@ -1770,6 +1797,9 @@ describe('benchmark table and offline summary', () => {
 			const result = await runBenchmarkSuite({vulkan: false}, {...h.dependencies, display: undefined});
 			const completed = writes.filter(text => /Completed [^\n]+\(\d+\/\d+\)/.test(text));
 			assert.equal(completed.length, variants.length);
+			const legendWidth = Math.max(61, tableWidth(writes.find(text => text.includes('┌'))));
+						for (const text of completed) assertLegend(text.replace(/^\x1b\[\d+A\r\x1b\[J/, ''), 24, legendWidth);
+						assert.ok(tableWidth(completed.at(-1)) > legendWidth);
 			const first = tableCells(completed[0]);
 			const second = tableCells(completed[1]);
 			for (const column of colorColumns) {
@@ -1782,6 +1812,9 @@ describe('benchmark table and offline summary', () => {
 			const bytes = readFileSync(output, 'utf8');
 			logs.length = 0;
 			const summary = summarizeSavedBenchmarks({...combined, vulkan: false}, output);
+			assertLegend(logs[0], 24);
+			assert.equal(stripVTControlCharacters(logs[0]).split('\n')[0].length, tableWidth(completed.at(-1)));
+			assert.ok(tableWidth(logs[0]) > legendWidth);
 			assert.deepEqual(tableCells(logs[0]), tableCells(completed.at(-1)));
 			assert.deepEqual(result, original);
 			assert.deepEqual(summary.reports, result.reports);
@@ -1790,6 +1823,44 @@ describe('benchmark table and offline summary', () => {
 		}
 		finally {
 			process.stdout.write = write;
+			console.log = log;
+			process.env = env;
+			for (const [key, descriptor] of Object.entries(descriptors)) {
+				if (descriptor) Object.defineProperty(process.stdout, key, descriptor);
+				else delete process.stdout[key];
+			}
+		}
+	});
+
+	it('omits the offline legend for rAF-only and failed reports even on a color TTY', () => {
+		const {log} = console;
+		const env = process.env;
+		const descriptors = Object.fromEntries(['isTTY', 'getColorDepth'].map(key => [key, Object.getOwnPropertyDescriptor(process.stdout, key)]));
+		const logs = [];
+		const raf = {trace: false, memory: false, raf: true};
+		try {
+			console.log = (...args) => logs.push(args.join(' '));
+			process.env = {};
+			Object.defineProperty(process.stdout, 'isTTY', {configurable: true, value: true});
+			for (const depth of [8, 24]) {
+				Object.defineProperty(process.stdout, 'getColorDepth', {configurable: true, value: () => depth});
+				for (const input of [
+					savedReport([browser('uplot', raf)], raf),
+					{...savedReport([]), failures: [{variant: 'uplot', error: 'worker failed'}]},
+				]) {
+					const output = join(directory, 'offline-no-legend.json');
+					writeFileSync(output, JSON.stringify(input));
+					logs.length = 0;
+					const result = summarizeSavedBenchmarks({...input.measurements, vulkan: false}, output);
+					assert.ok(logs[0].startsWith('┌'));
+					assert.match(logs[0], /\x1b\[38;/);
+					assert.doesNotMatch(logs.join('\n'), /█|Minimum|cap/);
+					assert.deepEqual(result.reports, input.reports);
+					assert.doesNotMatch(readFileSync(output, 'utf8'), /█|\x1b|\\u001b/i);
+				}
+			}
+		}
+		finally {
 			console.log = log;
 			process.env = env;
 			for (const [key, descriptor] of Object.entries(descriptors)) {
@@ -1830,7 +1901,9 @@ describe('benchmark table and offline summary', () => {
 				const result = summarizeSavedBenchmarks({...combined, vulkan: false}, output);
 				plain ??= logs[0];
 				const contextPrefix = depth === 24 ? '\x1b[38;2;96;165;250m' : '\x1b[38;5;75m';
-				assert.equal(logs[0], prefix ? plain
+				if (prefix) assertLegend(logs[0], depth);
+				else assert.doesNotMatch(logs[0], /█|Minimum|cap/);
+				assert.equal(tableText(logs[0]), prefix ? plain
 					.replace(/(?<= )(?:2|5|15|60)\.0(?= │)/g, value => `${prefix}${value}\x1b[39m`)
 					.replace('2d', `${contextPrefix}2d\x1b[39m`) : plain);
 				assert.deepEqual(logs.slice(1), ['Updated summary from saved samples. No browser was started.']);

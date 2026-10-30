@@ -8,6 +8,7 @@ import {extname, isAbsolute, join, relative, resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {fileURLToPath} from 'node:url';
 import {CDP} from '../../scripts/profile-manual.mjs';
+import {cachedChromeBinary} from '../../scripts/chrome-headless-shell.mjs';
 import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 import {loadBenchDemoSources} from '../../scripts/bench-demo-sources.mjs';
 
@@ -16,7 +17,6 @@ import {loadBenchDemoSources} from '../../scripts/bench-demo-sources.mjs';
 const rootURL = new URL('../../', import.meta.url);
 const root = fileURLToPath(rootURL);
 const cache = join(root, '.cache/benchmarks');
-const version = '156.0.8078.47';
 const ids = ['echarts', 'chartjs', 'apexcharts', 'amcharts', 'devextreme', 'anychart', 'fusiontime'];
 const totalMs = 110000;
 const renderMs = 15000;
@@ -285,7 +285,7 @@ async function readyUI(selector = null, value = null) {
 		libraries: [...library.options].map(option => option.value), datasets: [...dataset.options].map(option => option.value)};
 }
 
-(process.env.TEST_REDUCTION_BROWSER === '1' ? describe : describe.skip)('reduction accuracy: cached Headless Shell 156', function() {
+(process.env.TEST_REDUCTION_BROWSER === '1' ? describe : describe.skip)('reduction accuracy: cached Headless Shell', function() {
 
 	it('renders all six fixtures in every mode and exercises the mounted dropdowns', {timeout: 120000}, async () => {
 		let server, browser, client, profile, watchdog;
@@ -300,7 +300,8 @@ async function readyUI(selector = null, value = null) {
 		const run = async () => {
 			for (const path of ['demos/reduction-accuracy.html', 'demos/reduction-accuracy.js'])
 				await access(join(root, path));
-			const binary = process.env.CHROME_BIN ?? join(root, `node_modules/.cache/uplot-bench/chrome-headless-shell-${version}-linux64/chrome-headless-shell`);
+			const binary = await cachedChromeBinary();
+			assert.ok(binary, 'No cached Chrome executable. Run npm run bench -- --install-only or set CHROME_BIN; this test never installs a browser.');
 			await access(binary, constants.X_OK);
 			const assets = new Map();
 			const cacheRoot = await realpath(cache);
@@ -340,7 +341,6 @@ async function readyUI(selector = null, value = null) {
 				socket.addEventListener('error', () => { clearTimeout(timer); fail(new Error('CDP connection failed')); }, {once: true});
 			});
 			const actualVersion = await client.send('Browser.getVersion');
-			assert.match(actualVersion.product, /\/156\./, 'Expected cached Headless Shell 156');
 			console.log('Reduction browser:', actualVersion.product);
 			socket.addEventListener('message', event => {
 				const {method, params} = JSON.parse(event.data);

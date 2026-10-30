@@ -460,7 +460,7 @@ describe('benchmark demo asset loader', () => {
 					process: {env: {LIGHTNINGCHART_LICENSE: 'test', LIGHTNINGCHART_LICENSE_INFORMATION: '{invalid'}, exit: code => effects.push(['exit', code])},
 					console: {log: () => effects.push('log')},
 					runBenchmarkSuite: async () => effects.push('suite'),
-					chromeVersion: 'test', chromeBinary: async () => effects.push('browser'),
+					chromeBinary: async () => effects.push('browser'),
 				}), error => error.message === `${variant}: ${benchmarkRestrictions[variant]}`);
 				assert.deepEqual(effects, []);
 			}
@@ -482,8 +482,9 @@ describe('benchmark demo asset loader', () => {
 				values: {variant, gpu: false, vulkan}, vulkan: resolveBenchmarkVulkan({variant, vulkan}, 'linux'), dpr: 1,
 				measurements: {trace: true, memory: false, raf: false},
 				assertBenchmarkAvailable,
-				process: {env, exit: code => exits.push(code)},
+				process: {env: {...env}, exit: code => exits.push(code)},
 				console: {log: (...args) => logs.push(args)},
+				chromeBinary: async () => '/mock/chrome',
 				runBenchmarkSuite: async options => { requests.push(options); },
 			});
 			if (variant === 'uplot' || variant === 'chartgpu') {

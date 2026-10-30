@@ -1,6 +1,7 @@
 import {describe, it, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync, existsSync} from 'node:fs';
+import {readFileSync} from 'node:fs';
+import {cachedChromeBinary} from '../../scripts/chrome-headless-shell.mjs';
 import * as recharts from '../../bench/recharts.mjs';
 import * as muicharts from '../../bench/muicharts.mjs';
 import * as financialcharts from '../../bench/financialcharts.mjs';
@@ -287,8 +288,8 @@ describe('framework benchmark adapters', () => {
 		const {tmpdir} = await import('node:os');
 		const {join} = await import('node:path');
 		const {fileURLToPath} = await import('node:url');
-		const binary = process.env.CHROME_BIN || fileURLToPath(new URL('../../node_modules/.cache/uplot-bench/chrome-headless-shell-156.0.8078.47-linux64/chrome-headless-shell', import.meta.url));
-		assert.ok(existsSync(binary), 'Use CHROME_BIN or the existing cached Chrome; this test does not install a browser.');
+		const binary = await cachedChromeBinary();
+		assert.ok(binary, 'No cached Chrome executable. Run npm run bench -- --install-only or set CHROME_BIN; this test never installs a browser.');
 		const bundle = await bundleModuleDependencies(frameworkDependencies[id], {
 			cacheDir: fileURLToPath(new URL('../../.cache/benchmarks/modules', import.meta.url)),
 		});

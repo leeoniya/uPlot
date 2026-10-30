@@ -116,6 +116,26 @@ function colorText(text, color, colorDepth) {
 	return `\x1b[${colorDepth >= 24 ? `38;2;${rgb}` : `38;5;${palette}`}m${text}\x1b[39m`;
 }
 
+function blendColor(index, position) {
+	return scaleColors[index].map((channel, j) => Math.round(channel * (1 - position) + scaleColors[index + 1][j] * position));
+}
+
+function formatColorScale(colorDepth, length) {
+	const positions = scaleColors.map((_, i) => Math.round(i * (length - 1) / spreadLimits.length));
+	const labels = Array(length).fill(' ');
+	const names = ['Minimum', ...spreadLimits.map(limit => `${limit}× cap`)];
+	for (const [i, name] of names.entries()) {
+		const start = Math.max(0, Math.min(length - name.length, positions[i] - Math.floor(name.length / 2)));
+		labels.splice(start, name.length, ...name);
+	}
+	const bar = Array.from({length}, (_, i) => {
+		const index = Math.max(0, positions.findIndex(position => position >= i) - 1);
+		const rgb = blendColor(index, (i - positions[index]) / (positions[index + 1] - positions[index]));
+		return colorText('█', [rgb.join(';'), colorDepth >= 24 ? null : nearestXterm(rgb)], colorDepth);
+	}).join('');
+	return bar + '\n' + labels.join('') + '\n';
+}
+
 function colorMetric(text, value, stops, colorDepth) {
 	if (!Number.isFinite(value) || value <= 0 || !(colorDepth >= 8))
 		return text;
@@ -125,14 +145,14 @@ function colorMetric(text, value, stops, colorDepth) {
 			// Subtract logs rather than divide values: extreme ratios can overflow.
 			const position = Math.max(0, Math.min(1,
 				(Math.log(value) - stops[i - 1].log) / (stops[i].log - stops[i - 1].log)));
-			rgb = scaleColors[i - 1].map((channel, j) => Math.round(channel * (1 - position) + scaleColors[i][j] * position));
+			rgb = blendColor(i - 1, position);
 			break;
 		}
 	}
 	return colorText(text, [rgb.join(';'), colorDepth >= 24 ? null : nearestXterm(rgb)], colorDepth);
 }
 
-function formatTable(rows, colorDepth, verbose) {
+function formatTable(rows, colorDepth, verbose, legendWidth) {
 	const keys = [...new Set(rows.flatMap(row => Object.keys(row)))];
 	const metadata = ['variant', 'context', 'sampling', 'lossy'];
 	const columns = [...metadata.filter(key => keys.includes(key)),
@@ -169,11 +189,13 @@ function formatTable(rows, colorDepth, verbose) {
 			value = colorMetric(value, row[columns[i]], scales.get(columns[i]), colorDepth);
 		return metadata.includes(columns[i]) ? value + padding : padding + value;
 	}), ' │ ', ' │ │ ') + ' │\n';
-	return border('┌', '┬', '┐ ┌', '┐') + line(headers) + border('├', '┼', '┤ ├', '┤') + cells.map((values, i) => line(values, rows[i])).join('') + border('└', '┴', '┘ └', '┘');
+	const top = border('┌', '┬', '┐ ┌', '┐');
+	const scaleWidth = Math.max(61, dimension(legendWidth) || top.length - 1);
+	return (scales.size ? formatColorScale(colorDepth, scaleWidth) : '') + top + line(headers) + border('├', '┼', '┤ ├', '┤') + cells.map((values, i) => line(values, rows[i])).join('') + border('└', '┴', '┘ └', '┘');
 }
 
-export function formatBenchmarkDisplay({rows = [], status = '', warnings = []} = {}, {colorDepth = 0, verbose = false} = {}) {
-	let text = (rows.length ? formatTable(rows, colorDepth, verbose) : '') + terminated(clean(status));
+export function formatBenchmarkDisplay({rows = [], status = '', warnings = []} = {}, {colorDepth = 0, verbose = false, legendWidth} = {}) {
+	let text = (rows.length ? formatTable(rows, colorDepth, verbose, legendWidth) : '') + terminated(clean(status));
 	const unique = [...new Set(warnings.map(warning => clean(warning).replace(/\s+/g, ' ').trim()).filter(Boolean))];
 	for (const warning of unique) {
 		const chars = Array.from(warning);
@@ -186,6 +208,7 @@ export function formatBenchmarkDisplay({rows = [], status = '', warnings = []} =
 export function createBenchmarkDisplay({stream = process.stdout, env = process.env, verbose = false} = {}) {
 	let previous = null;
 	let finished = false;
+	let legendWidth;
 
 	return {
 		update({rows = [], status = '', warnings = [], final = false} = {}) {
@@ -196,8 +219,13 @@ export function createBenchmarkDisplay({stream = process.stdout, env = process.e
 			const columns = dimension(stream.columns);
 			const height = dimension(stream.rows);
 			const text = tty || final
-				? formatBenchmarkDisplay({rows, status, warnings}, {colorDepth: benchmarkDisplayColorDepth({stream, env}), verbose})
+				? formatBenchmarkDisplay({rows, status, warnings}, {colorDepth: benchmarkDisplayColorDepth({stream, env}), verbose, legendWidth})
 				: terminated(clean(status));
+			// Capture the first table's border once, even if no numeric scale is available yet.
+			if (legendWidth === undefined && rows.length && (tty || final)) {
+				const start = text.indexOf('┌');
+				legendWidth = Math.max(61, text.indexOf('\n', start) - start);
+			}
 			let erase = '';
 
 			// Resize/reflow behavior differs between terminals. Abandon the old

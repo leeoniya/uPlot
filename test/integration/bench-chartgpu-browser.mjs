@@ -8,6 +8,7 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
 import {CDP} from '../../scripts/profile-manual.mjs';
+import {cachedChromeBinary} from '../../scripts/chrome-headless-shell.mjs';
 import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 import {bundleModuleDependencies} from '../../scripts/bench-module-bundle.mjs';
 import {demoDependencies} from '../../bench/demo-dependencies.mjs';
@@ -17,7 +18,6 @@ import {demoDependencies} from '../../bench/demo-dependencies.mjs';
 // Probe hardware first. Vendor modules must already be in the shared bundle cache.
 const root = new URL('../../', import.meta.url);
 const cache = fileURLToPath(new URL('.cache/benchmarks/', root));
-const version = '156.0.8078.47';
 const sampleMs = 5000;
 const enableVulkan = process.env.TEST_CHARTGPU_VULKAN === '1';
 const reportName = enableVulkan ? 'chartgpu-browser-vulkan-report.json' : 'chartgpu-browser-report.json';
@@ -237,7 +237,8 @@ async function chartSample(rows) {
 		process.once('SIGINT', interrupted);
 		process.once('SIGTERM', interrupted);
 		const run = async () => {
-			const binary = fileURLToPath(new URL(`node_modules/.cache/uplot-bench/chrome-headless-shell-${version}-linux64/chrome-headless-shell`, root));
+			const binary = await cachedChromeBinary();
+			assert.ok(binary, 'No cached Chrome executable. Run npm run bench -- --install-only or set CHROME_BIN; this test never installs a browser.');
 			await access(binary, constants.X_OK);
 			await access(cache, constants.W_OK);
 			const assets = new Map([['/', '<!doctype html><meta charset="utf-8"><title>ChartGPU hardware smoke</title>']]);
@@ -281,7 +282,6 @@ async function chartSample(rows) {
 			await client.send('Page.enable');
 			await client.send('Runtime.enable');
 			report.browser = await client.send('Browser.getVersion');
-			assert.match(report.browser.product, /\/156\.0\.8078\.47$/);
 			const loaded = client.wait('Page.loadEventFired');
 			loaded.catch(() => {});
 			await client.send('Page.navigate', {url: `http://127.0.0.1:${server.address().port}/`});

@@ -2,14 +2,14 @@ import {describe, it, before, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {existsSync, readFileSync, readdirSync} from 'node:fs';
+import {readFileSync, readdirSync} from 'node:fs';
 import {mkdtemp, readFile, rm} from 'node:fs/promises';
 import {createServer} from 'node:http';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
 import {CDP} from '../../scripts/profile-manual.mjs';
+import {cachedChromeBinary} from '../../scripts/chrome-headless-shell.mjs';
 import {frameworkDependencies} from '../../bench/framework-runtime.mjs';
 
 const root = new URL('../../', import.meta.url);
@@ -152,8 +152,8 @@ async function exercise(id) {
 	const assets = new Map();
 	const errors = [];
 	before(async () => {
-		const binary = process.env.CHROME_BIN || fileURLToPath(new URL('node_modules/.cache/uplot-bench/chrome-headless-shell-156.0.8078.47-linux64/chrome-headless-shell', root));
-		assert.ok(existsSync(binary), 'Cached Chrome required; this test never downloads it.');
+		const binary = await cachedChromeBinary();
+		assert.ok(binary, 'No cached Chrome executable. Run npm run bench -- --install-only or set CHROME_BIN; this test never installs a browser.');
 		for (const name of [...ids, 'framework-runtime', 'lifecycle-frameworks', 'lifecycle-data'])
 			assets.set(`/bench/${name}.mjs`, readFileSync(new URL(`bench/${name}.mjs`, root)));
 		for (const name of new Set(Object.values(scripts).flat())) assets.set('/vendor/' + name, readFileSync(new URL(name, cache)));

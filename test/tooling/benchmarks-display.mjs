@@ -8,12 +8,26 @@ import { benchmarkLibraryName, benchmarkMetadata } from '../../bench/demo-depend
 const one = [{variant: 'uplot', ms: 1.25}];
 const two = [...one, {variant: 'chartjs', ms: 3.5}];
 const clear = lines => (lines ? `\x1b[${lines}A` : '') + '\r\x1b[J';
+const tableText = text => text.slice(text.indexOf('┌'));
+const tableWidth = text => stripVTControlCharacters(tableText(text)).split('\n')[0].length;
+const legendLabels = width => {
+	const labels = Array(width).fill(' ');
+	for (const [i, name] of ['Minimum', '1.5× cap', '2× cap', '4× cap', '8× cap', '16× cap'].entries()) {
+		const position = Math.round(i * (width - 1) / 5);
+		const start = Math.max(0, Math.min(width - name.length, position - Math.floor(name.length / 2)));
+		labels.splice(start, name.length, ...name);
+	}
+	return labels.join('');
+};
+const withoutSGR = text => text.replace(/\x1b\[[\d;]+m/g, '');
+const physicalLines = (text, columns) => withoutSGR(text).split('\n').slice(0, -1)
+	.reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / columns)), 0);
 
-function capture(options = {}, env = {NO_COLOR: ''}) {
+function capture(options = {}, env = {NO_COLOR: ''}, displayOptions = {}) {
 	const stream = Object.assign(new EventEmitter(), {isTTY: true, columns: 100, rows: 40}, options);
 	const writes = [];
 	stream.write = text => { writes.push(text); return true; };
-	return {stream, writes, display: createBenchmarkDisplay({stream, env})};
+	return {stream, writes, display: createBenchmarkDisplay({stream, env, ...displayOptions})};
 }
 
 // Small terminal model for ASCII/table borders, including delayed wrap and scroll.
@@ -67,7 +81,7 @@ describe('benchmark display colors', () => {
 	const columns = ['init ms', 'update ms', 'resize ms', 'hover10 ms', 'peak MB', 'retained MB'];
 	const metricRows = (values, column) => values.map(value => ({variant: 'custom', 'main ms': 0, [column]: value}));
 	const updateRows = values => metricRows(values, 'update ms');
-	const coloredValues = text => [...text.matchAll(/\x1b\[(38;[25];[\d;]+)m([^\x1b]*)\x1b\[39m/g)].map(match => match.slice(1));
+	const coloredValues = text => [...tableText(text).matchAll(/\x1b\[(38;[25];[\d;]+)m([^\x1b]*)\x1b\[39m/g)].map(match => match.slice(1));
 	// This oracle takes explicit fixture stops, not observations or implementation helpers.
 	const rgbAt = (value, logs = stops.map(Math.log)) => {
 		const log = Math.log(value);
@@ -87,6 +101,115 @@ describe('benchmark display colors', () => {
 	const color = (rgb, depth) => depth === 24 ? `38;2;${rgb.join(';')}` : `38;5;${nearest(rgb)}`;
 	const expected = (values, depth, logs) => values.map(value => [color(rgbAt(value, logs), depth), value.toFixed(1)]);
 
+	for (const colorDepth of [8, 24]) for (const width of [61, 62, 64, 80, 137]) {
+		it(`renders a ${width}-cell legend with exact stops, RGB intermediates, and aligned labels at depth ${colorDepth}`, () => {
+			const rows = updateRows(values);
+			const text = formatBenchmarkDisplay({rows, status: 'Running', warnings: ['partial']}, {colorDepth, legendWidth: width});
+			const [bar, labels, border] = text.split('\n');
+			assert.equal(stripVTControlCharacters(bar), '█'.repeat(width));
+			assert.equal(labels, legendLabels(width));
+			assert.equal(labels.length, width);
+			assert.ok(labels.startsWith('Minimum'));
+			assert.ok(labels.endsWith('16× cap'));
+			assert.ok(border.startsWith('┌'));
+			const blocks = [...bar.matchAll(/\x1b\[(38;[25];[\d;]+)m█(?:\x1b\[39m)?/g)];
+			assert.equal(blocks.length, width);
+			const positions = rgbs.map((_, i) => Math.round(i * (width - 1) / 5));
+			assert.deepEqual(positions.map(i => blocks[i][1]), rgbs.map(rgb => color(rgb, colorDepth)));
+			for (let i = 0; i < width; i++) {
+				const segment = Math.min(4, positions.findLastIndex(position => position <= i));
+				const step = i - positions[segment];
+				const span = positions[segment + 1] - positions[segment];
+				const channels = rgbs[segment].map((channel, j) => (channel * (span - step) + rgbs[segment + 1][j] * step) / span);
+				if (colorDepth === 24) {
+					const actual = blocks[i][1].split(';').slice(2).map(Number);
+					assert.equal(actual.length, 3);
+					for (const [j, channel] of channels.entries()) {
+						// Equivalent interpolation expressions can straddle an exact half-channel by one ulp.
+						if (channel % 1 === 0.5) assert.ok(actual[j] === Math.floor(channel) || actual[j] === Math.ceil(channel));
+						else assert.equal(actual[j], Math.round(channel), `legend cell ${i}, channel ${j}`);
+					}
+				}
+				else assert.equal(blocks[i][1], color(channels.map(Math.round), colorDepth), `legend cell ${i}`);
+			}
+			assert.match(bar, /\x1b\[39m$/);
+			assert.equal(stripVTControlCharacters(tableText(text)), formatBenchmarkDisplay({rows, status: 'Running', warnings: ['partial']}));
+		});
+	}
+
+	it('sizes standalone legends to the full visible table, including Unicode, panel gaps, and verbose columns', () => {
+		const rows = [{variant: '\x1b[31m' + '界'.repeat(24) + '\x1b[0m', context: 'webgpu', 'main ms': 3, 'gpu ms': 2,
+			'peak MB': 20, 'retained MB': 15, 'resize ms': 8, 'hover10 ms': 12}];
+		const widths = [];
+		for (const verbose of [false, true]) for (const colorDepth of [8, 24]) {
+			const frame = {rows, status: 's'.repeat(300), warnings: ['w'.repeat(150)]};
+			const text = formatBenchmarkDisplay(frame, {colorDepth, verbose});
+			const [bar, labels, border] = text.split('\n');
+			const width = tableWidth(text);
+			assert.ok(width > 61);
+			assert.match(border, /┐ ┌/);
+			assert.equal(stripVTControlCharacters(bar), '█'.repeat(width));
+			assert.equal(labels, legendLabels(width));
+			assert.equal(countTerminalLines(tableText(text).split('\n')[3] + '\n', width), 1);
+			assert.equal(countTerminalLines(tableText(text).split('\n')[3] + '\n', width - 1), 2);
+			assert.equal(stripVTControlCharacters(tableText(text)), formatBenchmarkDisplay(frame, {verbose}));
+			widths.push(width);
+		}
+		assert.equal(widths[2] - widths[0], 19);
+		const tiny = formatBenchmarkDisplay({rows: updateRows([10])}, {colorDepth: 24});
+		assert.ok(tableWidth(tiny) < 61);
+		assert.equal(stripVTControlCharacters(tiny).split('\n')[0], '█'.repeat(61));
+		assert.equal(tiny.split('\n')[1], 'Minimum 1.5× cap     2× cap      4× cap      8× cap   16× cap');
+	});
+
+	it('shows exactly one legend for any valid eligible scale, including tiny and extreme positive minima', () => {
+		for (const colorDepth of [8, 24]) for (const verbose of [false, true]) {
+			for (const column of columns) for (const value of [Number.MIN_VALUE, 0.014, 10, Number.MAX_VALUE]) {
+				const rows = metricRows([value, value], column);
+				const text = formatBenchmarkDisplay({rows}, {colorDepth, verbose});
+				assert.equal(stripVTControlCharacters(text).split('\n')[0], '█'.repeat(Math.max(61, tableWidth(text))));
+				assert.equal((text.match(/Minimum/g) ?? []).length, 1);
+			}
+			for (const rows of [
+				[{variant: 'custom', 'peak MB': 10}],
+				[{variant: 'custom', 'retained MB': 10}],
+				[{variant: 'custom', 'main ms': undefined, 'update ms': 10}],
+				[{variant: 'custom', 'main ms': 0, 'update ms': 0, 'peak MB': 10}],
+				[{variant: 'custom', 'main ms': 0, ...Object.fromEntries(columns.map(column => [column, 10]))}],
+			]) {
+				const text = formatBenchmarkDisplay({rows}, {colorDepth, verbose});
+				assert.equal(text.slice(0, text.indexOf('┌')).split('\n').length, 3);
+				assert.equal(stripVTControlCharacters(text).split('\n')[0], '█'.repeat(Math.max(61, tableWidth(text))));
+			}
+		}
+	});
+
+	it('omits the legend without a valid eligible scale or sufficient color depth', () => {
+		const invalid = [-1, NaN, Infinity, -Infinity, null, undefined, '', '-', '10', true, false];
+		const frames = [
+			{}, {rows: []}, {status: 'Starting', warnings: ['partial']},
+			{rows: [{variant: 'custom', context: 'webgpu', sampling: 'none', lossy: false}]},
+			{rows: [{variant: 'custom', 'prep ms': 10, 'main ms': 10, 'gpu ms': 10}]},
+			{rows: [{variant: 'custom', 'init rAF ms': 10, 'update ms': 10, 'next rAF ms': 10, 'resize rAF ms': 10, 'hover10 ms': 10}]},
+			...columns.flatMap(column => [
+				{rows: metricRows(invalid, column)},
+				{rows: metricRows([0, 10], column)},
+				{rows: metricRows([-0, 10], column)},
+			]),
+		];
+		for (const colorDepth of [8, 24]) for (const verbose of [false, true]) {
+			for (const frame of frames) {
+				const text = formatBenchmarkDisplay(frame, {colorDepth, verbose});
+				assert.doesNotMatch(text, /█|Minimum|cap/);
+				assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay(frame, {verbose}));
+			}
+		}
+		for (const colorDepth of [0, 1, 4]) {
+			const frame = {rows: updateRows(values)};
+			assert.equal(formatBenchmarkDisplay(frame, {colorDepth}), formatBenchmarkDisplay(frame));
+		}
+	});
+
 	for (const column of columns) {
 		it(`uses observed groups, inclusive caps, and exact smooth stops for ${column}`, () => {
 			for (const colorDepth of [8, 24]) {
@@ -97,7 +220,7 @@ describe('benchmark display colors', () => {
 				assert.deepEqual(colors, expected(values, colorDepth));
 				assert.deepEqual([0, 1, 3, 5, 7, 9].map(i => colors[i][0]), rgbs.map(rgb => color(rgb, colorDepth)));
 				assert.deepEqual(colors.at(-1), [color(rgbs.at(-1), colorDepth), '20000.0']);
-				assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
+				assert.equal(stripVTControlCharacters(tableText(text)), formatBenchmarkDisplay({rows}));
 				assert.deepEqual(rows, original);
 			}
 		});
@@ -109,7 +232,7 @@ describe('benchmark display colors', () => {
 				const original = structuredClone(rows);
 				const text = formatBenchmarkDisplay({rows}, {colorDepth});
 				assert.deepEqual(coloredValues(text), expected(values, colorDepth));
-				assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}));
+				assert.equal(stripVTControlCharacters(tableText(text)), formatBenchmarkDisplay({rows}));
 				assert.deepEqual(rows, original);
 				for (const zero of [0, -0]) {
 					const zeroRows = [...rows, ...metricRows([zero], column)];
@@ -220,7 +343,7 @@ describe('benchmark display colors', () => {
 				const text = formatBenchmarkDisplay({rows: ordered}, {colorDepth, verbose});
 				assert.deepEqual(coloredValues(text), ordered.flatMap(row => columns.map((column, j) =>
 					[color(rgbAt(row[column] / (j + 1)), colorDepth), row[column].toFixed(1)])));
-				assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows: ordered}, {verbose}));
+				assert.equal(stripVTControlCharacters(tableText(text)), formatBenchmarkDisplay({rows: ordered}, {verbose}));
 			}
 		}
 		assert.deepEqual(rows, original);
@@ -236,7 +359,7 @@ describe('benchmark display colors', () => {
 				const text = formatBenchmarkDisplay({rows}, {colorDepth, verbose});
 				assert.deepEqual(coloredValues(text), expected(values, colorDepth).flatMap(pair =>
 					Array(Object.hasOwn(main, 'main ms') ? 6 : 2).fill(pair)));
-				assert.equal(stripVTControlCharacters(text), formatBenchmarkDisplay({rows}, {verbose}));
+				assert.equal(stripVTControlCharacters(tableText(text)), formatBenchmarkDisplay({rows}, {verbose}));
 			}
 		}
 	});
@@ -346,9 +469,9 @@ describe('benchmark display colors', () => {
 		assert.doesNotMatch(plain, /\x1b/);
 		assert.equal(formatBenchmarkDisplay(frame, {colorDepth: 0}), plain);
 		const text = formatBenchmarkDisplay(frame, {colorDepth: 24});
-		assert.equal(text, plain.replace(/(│ custom[^\n]*?│ +)10\.0( │)/, '$1\x1b[38;2;34;197;94m10.0\x1b[39m$2'));
+		assert.equal(tableText(text), plain.replace(/(│ custom[^\n]*?│ +)10\.0( │)/, '$1\x1b[38;2;34;197;94m10.0\x1b[39m$2'));
 		assert.deepEqual(coloredValues(text), [['38;2;34;197;94', '10.0']]);
-		assert.equal((text.match(/\x1b/g) ?? []).length, 2);
+		assert.equal((tableText(text).match(/\x1b/g) ?? []).length, 2);
 		assert.deepEqual(frame, original);
 	});
 
@@ -373,31 +496,112 @@ describe('benchmark display colors', () => {
 			const frame = {rows: [{variant: 'custom', context: 'webgpu', 'init ms': 16, 'main ms': 5, 'update ms': 1000, 'peak MB': 25, 'retained MB': 15}], final: true};
 			display.update(frame);
 			assert.equal(writes[0], formatBenchmarkDisplay(frame, {colorDepth: expected}));
+			assert.equal(writes[0].includes('█'), expected >= 8);
+			if (!expected) assert.equal(writes[0], formatBenchmarkDisplay(frame));
 		});
 	}
 
-	for (const columns of [10, 25, 100]) {
-		for (const height of [6, 100]) {
-			it(`keeps colored wrapping and erasure equivalent to plain at ${columns}x${height}`, () => {
-				const plain = capture({columns, rows: height});
-				const colored = capture({columns, rows: height, getColorDepth: () => 24}, {});
+	for (const columns of [10, 25, 60, 61, 100]) {
+		for (const height of [6, 100]) for (const colorDepth of [8, 24]) {
+			it(`counts and erases the legend with wrapped tables at ${columns}x${height}, depth ${colorDepth}`, () => {
+				const {display, writes} = capture({columns, rows: height, getColorDepth: () => colorDepth}, {});
 				const frames = [
+					{status: 'Starting'},
 					{rows: updateRows([16.6, 1000]).map(row => ({...row, context: 'webgpu', 'init ms': 25, 'peak MB': 50, 'retained MB': 30})), status: 'Running\nPlease wait', warnings: ['partial results']},
 					{rows: updateRows([16.6, 1000, 2000]).map(row => ({...row, context: 'webgpu', 'init ms': 25, 'peak MB': 50, 'retained MB': 30})), status: 'Next'},
+					{rows: updateRows([0, 10]), status: 'Zero reference'},
+					{rows: updateRows([10]), status: 'Valid again'},
 					{status: 'Done', final: true},
 				];
-				for (const frame of frames) {
-					plain.display.update(frame);
-					colored.display.update(frame);
-					assert.equal(countTerminalLines(colored.writes.at(-1), columns), countTerminalLines(plain.writes.at(-1), columns));
+				const legendWidth = Math.max(61, tableWidth(formatBenchmarkDisplay(frames[1])));
+				let previousLines = 0;
+				for (const [i, frame] of frames.entries()) {
+					const text = formatBenchmarkDisplay(frame, {colorDepth, legendWidth});
+					display.update(frame);
+					assert.equal(writes[i], (i ? clear(Math.min(previousLines, height - 1)) : '') + text);
+					previousLines = physicalLines(text, columns);
+					assert.equal(countTerminalLines(text, columns), previousLines);
+					const legendLines = text.includes('█') ? 2 * Math.ceil(legendWidth / columns) : 0;
+					assert.equal(previousLines, physicalLines(formatBenchmarkDisplay(frame), columns) + legendLines);
 				}
-				// Remove only SGR, leaving cursor commands for exact comparison and simulation.
-				const withoutColor = colored.writes.map(text => text.replace(/\x1b\[[\d;]+m/g, ''));
-				assert.deepEqual(withoutColor, plain.writes);
-				assert.deepEqual(screenAfter(withoutColor, columns, height), screenAfter(plain.writes, columns, height));
+				// Keep cursor commands so the terminal model checks actual erasure, not just text.
+				const result = screenAfter(writes.map(withoutSGR), columns, height);
+				assert.equal(result.screen, height === 100 ? 'prior\nDone' : 'Done');
+				assert.equal(result.column, 0);
+				if (height === 100) assert.equal(result.scrollback, '');
+				else assert.match(result.scrollback, /█/);
 			});
 		}
 	}
+
+	for (const colorDepth of [8, 24]) for (const verbose of [false, true]) for (const eligible of [false, true]) {
+		it(`caches the first table width across live changes (depth ${colorDepth}, verbose ${verbose}, initial scale ${eligible})`, () => {
+			const {stream, display, writes} = capture({rows: 200, getColorDepth: () => colorDepth}, {}, {verbose});
+			const initial = {rows: [{variant: 'custom', context: 'webgpu', sampling: 'custom sampling method with extra metadata',
+				'main ms': 3, 'gpu ms': 2, 'update ms': eligible ? 10 : '-'}], status: 'First row'};
+			const legendWidth = Math.max(61, tableWidth(formatBenchmarkDisplay(initial, {verbose})));
+			assert.ok(legendWidth > 61);
+			let previous;
+			const render = frame => {
+				const text = formatBenchmarkDisplay(frame, {colorDepth, verbose, legendWidth});
+				const erase = previous && previous.columns === stream.columns && previous.height === stream.rows
+					? clear(Math.min(physicalLines(previous.text, stream.columns), stream.rows - 1)) : '';
+				display.update(frame);
+				assert.equal(writes.at(-1), erase + text);
+				if (text.includes('█')) {
+					assert.equal(stripVTControlCharacters(text).split('\n')[0], '█'.repeat(legendWidth));
+					assert.equal(text.split('\n')[1], legendLabels(legendWidth));
+				}
+				previous = {text, columns: stream.columns, height: stream.rows};
+			};
+			render({status: 'Starting ' + 's'.repeat(200), warnings: ['No rows yet']});
+			render(initial);
+			assert.equal(writes.at(-1).includes('█'), eligible);
+			const longer = {rows: [...initial.rows, {...initial.rows[0], variant: 'a much longer custom library name', 'update ms': 1234567890}], status: 'Longer values'};
+			render(longer);
+			assert.ok(tableWidth(formatBenchmarkDisplay(longer, {verbose})) > legendWidth);
+			const expanded = {rows: longer.rows.map(row => ({...row, 'peak MB': 20, 'retained MB': 15, 'resize ms': 8, 'hover10 ms': 12})), status: 'New columns'};
+			render(expanded);
+			render({...expanded, status: 'Status changed ' + 's'.repeat(200)});
+			for (const [columns, height] of [[40, 200], [240, 200], [240, 6]]) {
+				stream.columns = columns;
+				stream.rows = height;
+				render(expanded);
+			}
+			render({rows: expanded.rows.map(row => ({...row, 'update ms': 0, 'peak MB': 0, 'retained MB': 0, 'resize ms': 0, 'hover10 ms': 0})), status: 'No scale'});
+			assert.doesNotMatch(writes.at(-1), /█|Minimum/);
+			render({status: 'Temporarily no table'});
+			render({rows: updateRows([10]), status: 'Smaller table'});
+			render(expanded);
+
+			const independent = capture({columns: stream.columns, rows: stream.rows, getColorDepth: () => colorDepth}, {}, {verbose});
+			independent.display.update(expanded);
+			const standalone = formatBenchmarkDisplay(expanded, {colorDepth, verbose});
+			assert.equal(independent.writes[0], standalone);
+			assert.equal(stripVTControlCharacters(standalone).split('\n')[0].length, tableWidth(standalone));
+			assert.ok(tableWidth(standalone) > legendWidth);
+			render({...expanded, status: 'Done', final: true});
+		});
+	}
+
+	it('abandons the colored region after resize and counts the legend at the new dimensions', () => {
+		for (const colorDepth of [8, 24]) {
+			const {stream, display, writes} = capture({rows: 100, getColorDepth: () => colorDepth}, {});
+			const frame = {rows: updateRows([10, 20]), status: 'Running'};
+			display.update(frame);
+			for (const [columns, height] of [[60, 100], [61, 100], [61, 6], [100, 100]]) {
+				stream.columns = columns;
+				stream.rows = height;
+				display.update(frame);
+				const text = formatBenchmarkDisplay(frame, {colorDepth});
+				assert.equal(writes.at(-1), text);
+				display.update({status: 'Cleared'});
+				assert.equal(writes.at(-1), clear(Math.min(physicalLines(text, columns), height - 1)) + 'Cleared\n');
+				const result = screenAfter([text, writes.at(-1)].map(withoutSGR), columns, height);
+				assert.equal(result.screen, height === 100 ? 'prior\nCleared' : 'Cleared');
+			}
+		}
+	});
 });
 
 describe('benchmark display', () => {
@@ -410,7 +614,7 @@ describe('benchmark display', () => {
 			const verbose = formatBenchmarkDisplay({rows}, {colorDepth, verbose: true});
 			assert.doesNotMatch(plain, /main ms|gpu ms/);
 			assert.match(verbose, /init ms │ main ms │ gpu ms │ update ms/);
-			const colors = text => [...text.matchAll(/\x1b\[[\d;]+m[^\x1b]*\x1b\[39m/g)].map(match => match[0]);
+			const colors = text => [...tableText(text).matchAll(/\x1b\[[\d;]+m[^\x1b]*\x1b\[39m/g)].map(match => match[0]);
 			assert.deepEqual(colors(plain), colors(verbose));
 		}
 		assert.deepEqual(rows, original);

@@ -5,9 +5,9 @@ import {mkdtemp, readFile, rm} from 'node:fs/promises';
 import {createServer} from 'node:http';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
 import {CDP} from '../../scripts/profile-manual.mjs';
+import {cachedChromeBinary} from '../../scripts/chrome-headless-shell.mjs';
 import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 import {loadBenchDemoSources} from '../../scripts/bench-demo-sources.mjs';
 
@@ -134,6 +134,8 @@ async function sample(id) {
 		return result.result.value;
 	};
 	before(async () => {
+		const binary = await cachedChromeBinary();
+		assert.ok(binary, 'No cached Chrome executable. Run npm run bench -- --install-only or set CHROME_BIN; this test never installs a browser.');
 		assets.set('/bench/data.json', await readFile(new URL('bench/data.json', root)));
 		assets.set('/bench/lifecycle-data.mjs', await readFile(new URL('bench/lifecycle-data.mjs', root)));
 		server = createServer((request, response) => {
@@ -143,7 +145,6 @@ async function sample(id) {
 		});
 		await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 		profile = await mkdtemp(join(tmpdir(), 'bench-lifecycle-core-'));
-		const binary = fileURLToPath(new URL('node_modules/.cache/uplot-bench/chrome-headless-shell-156.0.8078.47-linux64/chrome-headless-shell', root));
 		browser = spawn(binary, ['--enable-gpu', '--disable-software-rasterizer', '--no-first-run', '--no-default-browser-check',
 			'--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-extensions',
 			'--disk-cache-size=1048576', '--media-cache-size=1048576', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1',

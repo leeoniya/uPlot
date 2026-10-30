@@ -8,13 +8,13 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
 import {CDP} from '../../scripts/profile-manual.mjs';
+import {cachedChromeBinary} from '../../scripts/chrome-headless-shell.mjs';
 import {killBenchmarkBrowser} from '../../scripts/bench-browser-process.mjs';
 
 // TEST_G2_WEBGL_BROWSER=1 node --test --test-isolation=none test/integration/bench-g2-webgl-browser.mjs
 // Cache-only, one 200-row sample, no full-data retry and no browser/vendor downloads.
 const root = new URL('../../', import.meta.url);
 const cache = fileURLToPath(new URL('.cache/benchmarks/', root));
-const version = '156.0.8078.47';
 const sampleMs = 5000;
 
 async function smokeSample() {
@@ -152,7 +152,8 @@ async function smokeSample() {
 		process.once('SIGINT', interrupted);
 		process.once('SIGTERM', interrupted);
 		const run = async () => {
-			const binary = fileURLToPath(new URL(`node_modules/.cache/uplot-bench/chrome-headless-shell-${version}-linux64/chrome-headless-shell`, root));
+			const binary = await cachedChromeBinary();
+			assert.ok(binary, 'No cached Chrome executable. Run npm run bench -- --install-only or set CHROME_BIN; this test never installs a browser.');
 			await access(binary, constants.X_OK);
 			const assets = new Map();
 			for (const name of ['antv-g2-5.4.8-dist-g2.min.js', 'antv-g-lite-2.7.2-dist-index.umd.min.js', 'antv-g-webgl-2.1.3-dist-index.umd.min.js'])
@@ -201,7 +202,6 @@ async function smokeSample() {
 			await client.send('Page.enable');
 			await client.send('Runtime.enable');
 			const browserVersion = await client.send('Browser.getVersion');
-			assert.match(browserVersion.product, /\/156\./);
 			console.log('G2 smoke browser:', browserVersion.product);
 			const loaded = client.wait('Page.loadEventFired');
 			loaded.catch(() => {});
