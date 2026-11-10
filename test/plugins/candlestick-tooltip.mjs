@@ -43,6 +43,7 @@ describe(`${name} legend tooltip mounting`, () => {
 		assert.equal(legend !== null, true);
 		assert.equal(u.root.querySelectorAll('.u-legend').length, 1);
 		assert.equal(legend.classList.contains('tooltip'), true);
+		assert.equal(legend.classList.contains('u-table'), true);
 		assert.equal(legend.classList.contains('u-inline'), false);
 		assert.equal(legend.style.display, 'none');
 		assert.equal(legend.style.pointerEvents, 'none');
@@ -57,6 +58,7 @@ describe(`${name} legend tooltip mounting`, () => {
 		assert.equal(legend.style.transform, `translate(${u.cursor.left}px, 40px)`);
 		assert.equal(legend.querySelectorAll('.u-value')[1].textContent, 'USD 20');
 		assert.equal(u.over.querySelector('.u-legend') === legend, true);
+		assert.equal(legend.classList.contains('u-table'), true);
 		assert.equal(legend.classList.contains('u-inline'), false);
 		assert.deepEqual([...legend.querySelectorAll('.u-marker')].map(el => el.style.display), ['none', 'none']);
 		u.over.dispatchEvent(new MouseEvent('mouseleave'));

@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { plotCss } from '../scripts/test-css.mjs';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 
@@ -118,32 +118,45 @@ describe('legend mode and side layout', () => {
 		return { u, formats };
 	}
 
-	it('declares a fixed grid on every root and assigns direct canvases to the plot area without changing inline styles', () => {
+	it('declares a fixed grid on every root and assigns canvases to the plot area without changing inline styles', () => {
 		const style = document.createElement('style');
-		style.textContent = readFileSync(new URL('../src/uPlot.css', import.meta.url), 'utf8');
+		style.textContent = plotCss;
 		document.head.appendChild(style);
 		try {
-			const rules = [...style.sheet.cssRules];
-			const declaration = (selector, property) => rules
-				.filter(rule => rule.selectorText?.split(',').some(part => part.trim().replace(/\s*>\s*/g, ' > ') == selector))
-				.map(rule => rule.style.getPropertyValue(property).trim()).filter(Boolean).at(-1);
-			assert.equal(declaration('.uplot', 'display'), 'grid');
-			assert.equal(declaration('.uplot', 'grid-template-columns'), 'max-content auto max-content');
-			assert.equal(declaration('.uplot', 'grid-template-areas').replace(/\s+/g, ' '), '"tit tit tit" ". top ." "lft plot rgt" ". btm ."');
-			for (const [i, area] of ['top', 'rgt', 'btm', 'lft'].entries())
-				assert.equal(declaration(`.uplot > .u-legend.${sideClasses[i]}`, 'grid-area'), area);
-			assert.equal(declaration('.uplot > .u-title', 'grid-area'), 'tit');
-			assert.equal(declaration('.uplot > .u-wrap', 'grid-area'), 'plot');
-			assert.equal(declaration('.uplot > canvas', 'grid-area'), 'plot');
-			assert.equal(rules.some(rule => rule.selectorText?.includes('data-legend-side')), false);
-			assert.equal(declaration('.u-inline', 'display'), 'block');
-			assert.equal(declaration('.u-inline *', 'display'), 'inline-block');
-			assert.equal(declaration('.u-inline tr', 'margin-right'), '8px');
-						assert.equal(declaration('.u-legend', 'font-size'), '12px');
-						assert.equal(declaration('.u-legend', 'border-spacing'), '0');
-						assert.equal(declaration('.u-legend th', 'font-weight'), '600');
-						assert.equal(declaration('.u-legend th', 'padding'), '0px 4px');
-						assert.equal(declaration('.u-legend td', 'padding'), '0px 4px');
+			const root = document.createElement('div');
+			root.className = 'uplot';
+			root.innerHTML = '<div class="u-title"></div><div class="u-wrap"><canvas></canvas></div><canvas></canvas>';
+			document.body.appendChild(root);
+			hosts.push(root);
+			const computed = getComputedStyle(root);
+			assert.equal(computed.display, 'grid');
+			assert.equal(computed.gridTemplateColumns, 'max-content auto max-content');
+			assert.equal(computed.gridTemplateAreas.replace(/\s+/g, ' '), '"tit tit tit" ". top ." "lft plot rgt" ". btm ."');
+			for (const [i, area] of ['top', 'rgt', 'btm', 'lft'].entries()) {
+				const legend = document.createElement('table');
+				legend.className = `u-detail u-legend ${sideClasses[i]} u-inline u-live`;
+				legend.innerHTML = '<tbody><tr><th><span class="u-label">Label</span></th><td class="u-value">1</td></tr></tbody>';
+				root.appendChild(legend);
+				assert.equal(getComputedStyle(legend).gridArea, area);
+				assert.equal(getComputedStyle(legend).display, 'block');
+				for (const child of legend.querySelectorAll('*'))
+					assert.equal(getComputedStyle(child).display, 'inline-block');
+				assert.equal(getComputedStyle(legend.querySelector('tr')).marginRight, '8px');
+			}
+			assert.equal(getComputedStyle(root.querySelector('.u-title')).gridArea, 'tit');
+			assert.equal(getComputedStyle(root.querySelector('.u-wrap')).gridArea, 'plot');
+			assert.equal(getComputedStyle(root.querySelector(':scope > canvas')).gridArea, 'plot');
+			assert.equal(getComputedStyle(root.querySelector('.u-wrap > canvas')).gridArea, 'plot');
+			const checkSelectors = rules => {
+				for (const rule of rules) {
+					assert.equal(rule.selectorText?.includes('data-legend-side') ?? false, false);
+					if (rule.cssRules)
+						checkSelectors(rule.cssRules);
+				}
+			};
+			checkSelectors(style.sheet.cssRules);
+			for (const element of [root, ...root.querySelectorAll('*')])
+				assert.equal(element.style.cssText, '');
 		}
 		finally {
 			style.remove();
@@ -152,20 +165,25 @@ describe('legend mode and side layout', () => {
 
 	it('aligns table labels left and values and column headers right without changing inline legends', async () => {
 		const style = document.createElement('style');
-		style.textContent = readFileSync(new URL('../src/uPlot.css', import.meta.url), 'utf8');
+		style.textContent = plotCss;
 		document.head.appendChild(style);
 		try {
 			for (const multi of [false, true]) {
 				for (const mode of ['table', 'inline']) {
 					const { u } = await plot({ multi, legend: { mode } });
 					const legend = legendNode(u);
-					for (const label of legend.querySelectorAll('tbody th'))
+					assert.equal(getComputedStyle(legend).fontSize, '12px');
+					assert.equal(getComputedStyle(legend).borderSpacing, '0');
+					for (const label of legend.querySelectorAll('tbody th')) {
+						assert.equal(getComputedStyle(label).fontWeight, '600');
 						assert.equal(getComputedStyle(label).textAlign, mode == 'table' ? 'left' : 'center');
+					}
 					for (const value of legend.querySelectorAll('.u-value, thead th'))
 						assert.equal(getComputedStyle(value).textAlign, mode == 'table' ? 'right' : 'center');
-					for (const cell of legend.querySelectorAll('th, td'))
-						assert.equal(getComputedStyle(cell).fontVariantNumeric == 'tabular-nums',
-							mode == 'table' && cell.classList.contains('u-value'));
+					for (const cell of legend.querySelectorAll('th, td')) {
+						assert.equal(getComputedStyle(cell).padding, '0px 4px');
+						assert.notEqual(getComputedStyle(cell).fontVariantNumeric, 'tabular-nums');
+					}
 				}
 			}
 		}
@@ -183,6 +201,8 @@ describe('legend mode and side layout', () => {
 				assert.equal(u.legend.mode, mode ?? null);
 				assert.equal(u.legend.side, 2);
 				assert.equal(legend.classList.contains('u-inline'), inline);
+				assert.equal(legend.classList.contains('u-table'), !inline);
+				assert.equal(legend.className, 'u-detail u-legend u-btm ' + (inline ? 'u-inline u-live' : 'u-table'));
 				assert.equal(legend.querySelectorAll('thead').length, multi ? 1 : 0);
 				assert.deepEqual([...legend.querySelectorAll('thead th')].map(cell => cell.textContent),
 					multi ? ['', 'Value', 'Double'] : []);
@@ -232,6 +252,7 @@ describe('legend mode and side layout', () => {
 		it(`omits X in mode 2 with an explicit ${multi ? 'inline multi-value' : 'scalar table'} legend`, async () => {
 			const { u } = await plot({ mode: 2, multi, legend: { mode: multi ? 'inline' : 'table' } });
 			assert.equal(legendNode(u).classList.contains('u-inline'), multi);
+			assert.equal(legendNode(u).classList.contains('u-table'), !multi);
 			u.setLegend({ idxs: [null, 2, 0, 1] });
 			await frame();
 			assert.deepEqual(rowLabels(legendNode(u)), labels.slice(1));
@@ -245,6 +266,7 @@ describe('legend mode and side layout', () => {
 			const { u, formats } = await plot({ multi, legend: { mode: 'table', live: false } });
 			const legend = legendNode(u);
 			assert.equal(legend.classList.contains('u-inline'), false);
+			assert.equal(legend.classList.contains('u-table'), true);
 			assert.deepEqual(rowLabels(legend), labels.slice(1));
 			assert.deepEqual([...legend.querySelectorAll('thead th')].map(cell => cell.textContent),
 				multi ? ['', 'Value', 'Double'] : []);
@@ -397,6 +419,7 @@ describe('legend mode and side layout', () => {
 				assertPosition(u, legend, side);
 				assert.equal(u.legend.side, side ?? 2);
 				assert.equal(legend.classList.contains('u-inline'), mode == 'inline');
+				assert.equal(legend.classList.contains('u-table'), mode == 'table');
 				assert.equal(wrap.parentElement === u.root, true);
 				assert.equal(legend.parentElement === u.root, true);
 				assert.equal(u.root.querySelectorAll('.u-title').length, title ? 1 : 0);
@@ -404,8 +427,8 @@ describe('legend mode and side layout', () => {
 					assert.equal(u.root.querySelector('.u-title').textContent, title);
 					assert.equal(u.root.querySelector('.u-title').parentElement === u.root, true);
 				}
-				assert.deepEqual([...u.root.children].map(node => node.classList[0]),
-					title ? ['u-title', 'u-wrap', 'u-legend'] : ['u-wrap', 'u-legend']);
+				assert.deepEqual([...u.root.children],
+					title ? [u.root.querySelector('.u-title'), wrap, legend] : [wrap, legend]);
 
 				const assertSize = (width, height) => {
 					assert.deepEqual([u.width, u.height], [width, height]);
@@ -454,6 +477,7 @@ describe('legend mode and side layout', () => {
 				mount(self, node) {
 					assertPosition(self, node, side);
 					assert.equal(node.classList.contains('u-inline'), false);
+					assert.equal(node.classList.contains('u-table'), true);
 					assert.equal(node.parentElement === self.root, true);
 					assert.deepEqual(rowLabels(node), labels);
 					mounts.push(node);

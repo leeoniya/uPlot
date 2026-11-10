@@ -67,10 +67,11 @@ export function legendTooltipPlugin() {
 	};
 }
 
-export function createDemo(host, {stats = true} = {}) {
+export function createDemo(host, {stats = true, time = false} = {}) {
 	const data = [[], [], [], []];
+	const start = Date.UTC(2026, 0, 1) / 1000;
 	for (let i = 0; i <= 100; i++) {
-		data[0].push(i);
+		data[0].push(time ? start + i * 60 : i);
 		data[1].push(50 + 20 * Math.sin(i / 8));
 		data[2].push(45 + 15 * Math.cos(i / 12));
 		data[3].push(30 + 10 * Math.sin(i / 5));
@@ -100,10 +101,10 @@ export function createDemo(host, {stats = true} = {}) {
 		...size(),
 		legend: {mode: stats ? 'table' : 'inline', valueSrc: 'values'},
 		tooltip: {show: true, mode: 'table', valueSrc: 'value', filter: (u, si) => u.series[si].show},
-		cursor: {focus: {prox: 30}},
-		scales: {x: {time: false}},
+		cursor: {lock: true, focus: {prox: 30}},
+		scales: {x: {time}},
 		series: [
-			{label: 'Sample'},
+			{label: time ? 'Time' : 'Sample'},
 			{label: 'North', stroke: '#e45858', value, values},
 			{label: 'South', stroke: '#3484d2', value, values},
 			{label: 'West', stroke: '#279965', value, values},

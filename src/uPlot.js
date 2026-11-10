@@ -4143,6 +4143,7 @@ export default function uPlot(opts, data, then) {
 		}
 		else if (cursor.lock) {
 			cursor._lock = !cursor._lock;
+			root.classList.toggle('u-locked', cursor._lock);
 			updateCursor(src, true, e != null);
 		}
 
@@ -4402,7 +4403,7 @@ export default function uPlot(opts, data, then) {
 	if (showTooltip) {
 		tooltipPosition = createTooltip(self, tooltip);
 		tooltipView = createLegend(self, over, {
-			side: 2,
+			tooltip: true,
 			legend: {...tooltip, live: true, mount: (u, table) => {
 				tooltipPosition.mount(u, table);
 				tooltip.mount(u, table);

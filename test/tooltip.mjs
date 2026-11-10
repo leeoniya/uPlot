@@ -1,5 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { plotCss } from '../scripts/test-css.mjs';
 import '../scripts/instrument.mjs';
 import uPlot from '../src/uPlot.js';
 import { createDemo } from '../demos/legend-tooltip.js';
@@ -11,7 +12,7 @@ const cells = table => rows(table).map(row => [...row.querySelectorAll('td')].ma
 const labels = table => rows(table).map(row => row.querySelector('.u-label').textContent);
 const headers = table => [...table.querySelectorAll('thead th')].map(cell => cell.textContent);
 const tooltip = u => u.root.querySelector('.u-tooltip');
-const stats = u => u.root.querySelector('.u-legend:not(.u-tooltip)');
+const stats = u => u.root.querySelector('.u-legend');
 const scalar = (u, value, si, idx) => idx == null ? `sum:${u.data[si]?.reduce((a, b) => a + b, 0)}` : `v:${value}`;
 const values = (u, si, idx) => idx == null ? { Sum: u.data?.[si]?.reduce((a, b) => a + b, 0) } : { Value: u.data?.[si]?.[idx], Double: 2 * u.data?.[si]?.[idx] };
 
@@ -91,6 +92,224 @@ describe('tooltip', () => {
 	function hover(u, idx = 1, si = 1) {
 		u.setCursor({ left: u.valToPos(idx, 'x'), top: u.valToPos(data[si][idx], 'y') });
 	}
+
+	it('allows interaction inside a locked tooltip and unlocks only on a plot click', async () => {
+		const style = document.createElement('style');
+		style.textContent = plotCss;
+		document.head.appendChild(style);
+		try {
+			const { u } = await plot({
+				cursor: {lock: true},
+				scales: {x: {time: true, range: [0, 2]}, y: {range: [0, 100]}},
+				hooks: {setCursor: [self => {
+					assert.equal(self.root.classList.contains('u-locked'), self.cursor._lock);
+				}]},
+			});
+			const table = tooltip(u);
+			const mouse = (target, type, clientX = 220, clientY = 180) => target.dispatchEvent(new MouseEvent(type, {
+				bubbles: type != 'mouseleave', button: 0, clientX, clientY, movementX: 1,
+			}));
+			const click = target => {
+				mouse(target, 'mousedown');
+				mouse(target, 'mouseup');
+				mouse(target, 'click');
+			};
+			assert.equal(u.root.classList.contains('u-locked'), false);
+			assert.equal(getComputedStyle(table).pointerEvents, 'none');
+			mouse(u.over, 'mousemove');
+			click(u.over);
+			assert.equal(u.cursor._lock, true);
+			assert.equal(u.root.classList.contains('u-locked'), true);
+			assert.equal(getComputedStyle(table).pointerEvents, 'auto');
+			assert.equal(getComputedStyle(table).userSelect, 'text');
+			const tooltipLabels = table.querySelectorAll('tbody th');
+			assert.ok(tooltipLabels.length > 0);
+			for (const label of tooltipLabels)
+				assert.notEqual(getComputedStyle(label).cursor, 'pointer');
+			const legendLabels = stats(u).querySelectorAll('tbody th');
+			assert.ok(legendLabels.length > 0);
+			for (const label of legendLabels)
+				assert.equal(getComputedStyle(label).cursor, 'pointer');
+			const position = [u.cursor.left, u.cursor.top, u.cursor.idx];
+			const transform = table.style.transform;
+			const contents = table.textContent;
+			for (const target of [table, ...table.querySelectorAll('thead th, tbody th, td, .u-marker')]) {
+				click(target);
+				// A text-selection drag can end outside the tooltip.
+				mouse(target, 'mousedown');
+				mouse(document, 'mousemove', 250, 200);
+				mouse(document, 'mouseup', 250, 200);
+				assert.equal(u.cursor._lock, true);
+			}
+			const button = document.createElement('button');
+			let clicks = 0;
+			button.addEventListener('click', () => clicks++);
+			table.querySelector('td').appendChild(button);
+			click(button);
+			assert.equal(clicks, 1);
+			button.remove();
+			mouse(u.over, 'mousemove', 250, 200);
+			mouse(u.over, 'mouseleave');
+			await commit();
+			assert.equal(u.cursor._lock, true);
+			assert.deepEqual([u.cursor.left, u.cursor.top, u.cursor.idx], position);
+			assert.equal(table.style.transform, transform);
+			assert.equal(table.textContent, contents);
+			assert.equal(table.style.display, '');
+			assert.equal(u.select.width, 0);
+			assert.equal(u.select.height, 0);
+			click(u.over);
+			assert.equal(u.cursor._lock, false);
+			assert.equal(u.root.classList.contains('u-locked'), false);
+			assert.equal(getComputedStyle(table).pointerEvents, 'none');
+			assert.notEqual(getComputedStyle(table).userSelect, 'text');
+			mouse(u.over, 'mousemove', 250, 200);
+			assert.notDeepEqual([u.cursor.left, u.cursor.top], position.slice(0, 2));
+		}
+		finally {
+			style.remove();
+		}
+	});
+
+	for (const mode of ['table', 'inline']) {
+		for (const multi of [false, true]) {
+			it(`styles tooltips without legend or side classes, mode=${mode}, multi=${multi}`, async () => {
+				const style = document.createElement('style');
+				style.textContent = plotCss;
+				document.head.appendChild(style);
+				try {
+					const { u } = await plot({
+						legend: {mode: 'table', side: 3},
+						tooltip: {mode},
+						...(multi && {series: multiSeries()}),
+					});
+					const table = tooltip(u);
+					const expectedClass = mode == 'table' ? 'u-detail u-tooltip u-table' : 'u-detail u-tooltip u-inline u-live';
+					assert.equal(table.className, expectedClass);
+					assert.equal(table.classList.contains('u-table'), mode == 'table');
+					assert.equal(table.classList.contains('u-inline'), mode == 'inline');
+					assert.equal(stats(u).className, 'u-detail u-legend u-lft u-table');
+					assert.equal(getComputedStyle(table).fontSize, '12px');
+					assert.equal(getComputedStyle(table).position, 'fixed');
+					assert.equal(getComputedStyle(table).pointerEvents, 'none');
+					for (const cell of table.querySelectorAll('th, td'))
+						assert.equal(getComputedStyle(cell).padding, cell.closest('thead') ? '0px 4px 2px' : '0px 4px');
+					for (const label of table.querySelectorAll('tbody th')) {
+						assert.equal(getComputedStyle(label).fontWeight, '600');
+						assert.equal(getComputedStyle(label).textAlign, mode == 'table' ? 'left' : 'center');
+					}
+					for (const cell of table.querySelectorAll('.u-value, thead th'))
+						assert.equal(getComputedStyle(cell).textAlign, mode == 'table' ? 'right' : 'center');
+					for (const cell of table.querySelectorAll('.u-value'))
+						assert.notEqual(getComputedStyle(cell).fontVariantNumeric, 'tabular-nums');
+					assert.equal(getComputedStyle(table.querySelector('.u-marker')).verticalAlign, 'middle');
+					u.setLegend({idx: 1});
+					u.setSeries(2, {show: false});
+					await commit();
+					assert.equal(table.className, expectedClass);
+					assert.equal(Number(getComputedStyle(table.querySelector('.u-off td')).opacity), 0.3);
+				}
+				finally {
+					style.remove();
+				}
+			});
+		}
+	}
+
+	for (const showTooltip of [false, true]) {
+		for (const mode of ['inline', 'table']) {
+			for (const time of [false, true]) {
+				it(`spans only table time values, tooltip=${showTooltip}, mode=${mode}, time=${time}`, async () => {
+					const { u } = await plot({
+						scales: { x: { time, range: [0, 2] }, y: { range: [0, 100] } },
+						legend: { mode },
+						tooltip: { show: showTooltip, mode },
+					});
+					const table = showTooltip ? tooltip(u) : stats(u);
+					const spanTime = time && mode == 'table';
+					const timeHeader = showTooltip && spanTime;
+					const row = table.querySelector('tr');
+					const value = row.querySelector(timeHeader ? 'th' : 'td');
+					assert.equal(table.querySelector('thead') != null, timeHeader);
+					assert.equal(row.parentNode.tagName, timeHeader ? 'THEAD' : 'TBODY');
+					assert.equal(rows(table).length, timeHeader ? 2 : 3);
+					assert.equal(row.children.length, spanTime ? 1 : 2);
+					assert.equal(row.querySelector('th') == null, spanTime && !timeHeader);
+					assert.equal(value.classList.contains('u-value'), !timeHeader);
+					assert.equal(value.colSpan, spanTime ? 2 : 1);
+					if (!spanTime)
+						assert.equal(row.querySelector('.u-label').textContent, 'Time');
+					for (const idx of [1, 2, null]) {
+						u.setLegend({ idx });
+						assert.equal(table.querySelector('tr') === row, true);
+						assert.equal(value.textContent, (showTooltip ? u.tooltip : u.legend).values[0]._);
+					}
+					for (const row of rows(table).slice(timeHeader ? 0 : 1)) {
+						assert.equal(row.children.length, 2);
+						assert.equal(row.querySelector('td').colSpan, 1);
+					}
+				});
+			}
+		}
+	}
+
+	it('updates a dedicated time header without applying tabular numbers', async () => {
+		const style = document.createElement('style');
+		style.textContent = plotCss;
+		document.head.appendChild(style);
+		try {
+			const { u } = await plot({
+				scales: {x: {time: true, range: [0, 2]}, y: {range: [0, 100]}},
+			});
+			const table = tooltip(u);
+			const header = table.querySelector('thead > tr > th');
+			assert.equal(header.colSpan, 2);
+			assert.equal(header.className, '');
+			assert.notEqual(getComputedStyle(header).fontVariantNumeric, 'tabular-nums');
+			assert.notEqual(getComputedStyle(table.querySelector('tbody .u-value')).fontVariantNumeric, 'tabular-nums');
+			assert.deepEqual(labels(table), ['Alpha', 'Beta']);
+			const text = header.firstChild;
+			for (const idx of [1, 2, null]) {
+				u.setLegend({idx});
+				assert.equal(table.querySelector('thead > tr > th'), header);
+				assert.equal(header.firstChild, text);
+				assert.equal(header.textContent, u.tooltip.values[0]._);
+			}
+		}
+		finally {
+			style.remove();
+		}
+	});
+
+	it('replaces the time header with column headers when switching to values and back', async () => {
+		const { u } = await plot({
+			scales: {x: {time: true, range: [0, 2]}, y: {range: [0, 100]}},
+			series: [{}, {label: 'Alpha', stroke: 'red', value: scalar}, {label: 'Beta', stroke: 'blue', values}],
+		});
+		const table = tooltip(u);
+		assert.equal(table.querySelector('thead th').colSpan, 2);
+		u.batch(() => {
+			u.delSeries(1);
+			u.setData([data[0], data[2]], false);
+		});
+		await commit();
+		u.setLegend({idx: 1});
+		assert.equal(tooltip(u), table);
+		assert.deepEqual(headers(table), ['', 'Value', 'Double']);
+		assert.deepEqual(labels(table), ['Beta']);
+		assert.equal(table.querySelectorAll('thead').length, 1);
+		u.batch(() => {
+			u.addSeries({label: 'Alpha', stroke: 'red', value: scalar}, 1);
+			u.setData(data, false);
+		});
+		await commit();
+		u.setLegend({idx: 2});
+		assert.equal(tooltip(u), table);
+		assert.deepEqual(headers(table), [u.tooltip.values[0]._]);
+		assert.equal(table.querySelector('thead th').colSpan, 2);
+		assert.equal(table.querySelectorAll('thead').length, 1);
+		assert.deepEqual(labels(table), ['Alpha', 'Beta']);
+	});
 
 	for (const alpha of [0.25, 1]) {
 		for (const multi of [false, true]) {
@@ -179,24 +398,32 @@ describe('tooltip', () => {
 		const host = document.createElement('div');
 		replace(host, 'clientWidth', {get: () => 400});
 		document.body.appendChild(host);
-		const u = createDemo(host, {stats: false});
+		const u = createDemo(host, {stats: false, time: true});
 		plots.push(u);
 		await commit();
 		const legend = stats(u);
 		assert.equal(legend.classList.contains('u-inline'), true);
+		assert.equal(legend.classList.contains('u-table'), false);
 		assert.equal(legend.classList.contains('u-live'), false);
 		assert.deepEqual(labels(legend), ['North', 'South', 'West']);
 		assert.equal(legend.querySelectorAll('.u-value').length, 0);
 		assert.equal(legend.querySelectorAll('.u-marker').length, 3);
-		u.setCursor({left: u.valToPos(30, 'x'), top: 100});
-		assert.deepEqual(cells(tooltip(u)), [['30'], ...u.data.slice(1).map(column => [column[30].toFixed(2)])]);
+		assert.equal(u.scales.x.time, true);
+		assert.equal(u.data[0][1] - u.data[0][0], 60);
+		u.setCursor({left: u.valToPos(u.data[0][30], 'x'), top: 100});
+		const timeHeader = tooltip(u).querySelector('thead > tr > th');
+		assert.equal(timeHeader.colSpan, 2);
+		assert.equal(timeHeader.classList.contains('u-value'), false);
+		const timestamp = u.series[0].value(u, u.data[0][30], 0, 30);
+		assert.equal(timeHeader.textContent, timestamp);
+		assert.deepEqual(cells(tooltip(u)), u.data.slice(1).map(column => [column[30].toFixed(2)]));
 
 		const label = legend.querySelector('tbody th');
 		label.dispatchEvent(new MouseEvent('mouseenter'));
 		await commit();
 		assert.ok(rows(legend).every(row => row.style.opacity == ''));
 		assert.deepEqual(rows(legend).map(row => row.classList.contains('u-focus')), [true, false, false]);
-		assert.deepEqual(rows(tooltip(u)).map(row => row.classList.contains('u-focus')), [false, true, false, false]);
+		assert.deepEqual(rows(tooltip(u)).map(row => row.classList.contains('u-focus')), [true, false, false]);
 		legend.dispatchEvent(new MouseEvent('mouseleave'));
 		await commit();
 		for (const table of [legend, tooltip(u)])
@@ -291,7 +518,7 @@ describe('tooltip', () => {
 			},
 		});
 		assert.equal(u.tooltip.show, true);
-		assert.equal(u.tooltip.gap, 5);
+		assert.equal(u.tooltip.gap, 12);
 		assert.equal(u.tooltip.mode, 'table');
 		assert.equal(u.legend.live, false);
 		assert.notEqual(u.legend.values, u.tooltip.values);
@@ -434,7 +661,7 @@ describe('tooltip', () => {
 				markers: { show: true, width: 3, dash: 'solid', stroke: 'blue', fill: (self, si) => { markerCalls.push([self, si]); return 'orange'; } },
 				mount(self, table) {
 					assert.equal(table.parentNode, self.over);
-					assert.equal(table.classList.contains('u-tooltip'), true);
+					assert.equal(table.className, 'u-detail u-tooltip u-table');
 					assert.deepEqual(headers(table), ['', 'Value', 'Double']);
 					mounts.live.push([self, table]);
 				},
@@ -448,6 +675,7 @@ describe('tooltip', () => {
 		assert.equal(a.querySelectorAll('.u-marker').length, 0);
 		assert.equal(b.querySelectorAll('.u-marker').length, 2);
 		assert.equal(b.classList.contains('u-inline'), false);
+				assert.equal(b.classList.contains('u-table'), true);
 		assert.deepEqual(headers(a), ['', 'Sum']);
 		for (const marker of b.querySelectorAll('.u-marker')) {
 			assert.equal(marker.style.borderWidth, '3px');
@@ -769,11 +997,11 @@ describe('tooltip', () => {
 		assert.deepEqual(observers[0].targets, [[node, { box: 'border-box' }]]);
 		observers[0].deliver(100, 80);
 		for (const [left, top, transform] of [
-			[40, 50, 'translate(65px, 85px)'],
-			[400, 50, 'translate(315px, 85px)'],
-			[40, 300, 'translate(65px, 245px)'],
-			[400, 300, 'translate(315px, 245px)'],
-			[40, 50, 'translate(65px, 85px)'],
+			[40, 50, 'translate(72px, 92px)'],
+			[400, 50, 'translate(308px, 92px)'],
+			[40, 300, 'translate(72px, 238px)'],
+			[400, 300, 'translate(308px, 238px)'],
+			[40, 50, 'translate(72px, 92px)'],
 		]) {
 			u.setCursor({ left, top });
 			assert.equal(node.style.display, '');
@@ -783,9 +1011,9 @@ describe('tooltip', () => {
 		assert.equal(node.style.display, 'none');
 		observers[0].deliver(0, 0);
 		u.setCursor({ left: 400, top: 300 });
-		assert.equal(node.style.transform, 'translate(315px, 245px)');
+		assert.equal(node.style.transform, 'translate(308px, 238px)');
 		observers[0].deliver(50, 40);
-		assert.equal(node.style.transform, 'translate(425px, 335px)');
+		assert.equal(node.style.transform, 'translate(432px, 342px)');
 	});
 
 	it('repositions on captured scroll and resize with refreshed overlay geometry and viewport', async () => {
@@ -793,21 +1021,21 @@ describe('tooltip', () => {
 		const node = tooltip(u);
 		observers[0].deliver(100, 80);
 		u.setCursor({ left: 100, top: 100 });
-		assert.equal(node.style.transform, 'translate(125px, 135px)');
+		assert.equal(node.style.transform, 'translate(132px, 142px)');
 		rect.left = 300;
 		rect.top = 200;
 		// Non-bubbling descendant scroll still reaches the window capture listener.
 		u.over.dispatchEvent(new Event('scroll'));
-		assert.equal(node.style.transform, 'translate(295px, 305px)');
+		assert.equal(node.style.transform, 'translate(288px, 312px)');
 		viewport.width = 800;
 		viewport.height = 350;
 		window.dispatchEvent(new Event('resize'));
-		assert.equal(node.style.transform, 'translate(405px, 215px)');
+		assert.equal(node.style.transform, 'translate(412px, 208px)');
 		rect.left = 20;
 		rect.top = 30;
 		viewport.height = 400;
 		window.dispatchEvent(new Event('scroll'));
-		assert.equal(node.style.transform, 'translate(125px, 135px)');
+		assert.equal(node.style.transform, 'translate(132px, 142px)');
 	});
 
 	it('hides for empty selection, absent indices, out-of-plot or out-of-viewport anchors, and recovers', async () => {

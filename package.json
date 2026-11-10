@@ -65,9 +65,9 @@
     "istanbul-lib-report": "^3.0.1",
     "istanbul-smart-text-reporter": "^1.1.5",
     "json-stringify-pretty-compact": "^4.0.0",
-    "meriyah": "^7.4.1",
+    "meriyah": "^7.4.2",
 
-    "rolldown": "^1.2.15"
+    "rolldown": "^1.3.1"
   },
   "nyc": {
     "include": [

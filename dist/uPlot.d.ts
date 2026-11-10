@@ -372,7 +372,7 @@ declare namespace uPlot {
 	export interface Tooltip extends Pick<Legend, 'mode' | 'valueSrc' | 'markers' | 'filter' | 'sort' | 'limit' | 'mount' | 'idx' | 'idxs' | 'values' | 'order' | 'count' | 'range'> {
 		/** Requires overlay DOM and cursor.show. false by default. */
 		show?: boolean;
-		/** Cursor gap in CSS pixels. 5 by default. */
+		/** Cursor gap in CSS pixels. 12 by default. */
 		gap?: number;
 	}
 

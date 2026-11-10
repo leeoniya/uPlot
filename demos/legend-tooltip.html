@@ -11,13 +11,13 @@
 		h2 { font-size: 16px; }
 		.charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 		.charts > section { min-width: 0; }
-		#chart-inline .u-legend:not(.u-tooltip) thead { display: none; }
+		#chart-inline .u-legend thead { display: none; }
 		footer { min-height: 50vh; }
 		@media (max-width: 800px) {
 			.charts { grid-template-columns: minmax(0, 1fr); }
 		}
 
-		.u-legend.u-tooltip {
+		.u-tooltip {
 			z-index: 100;
 			background: rgba(255, 255, 255, 0.95);
 			border: 1px solid #ccc;
@@ -29,8 +29,9 @@
 </head>
 <body>
 	<h1>Live tooltip and stats legend</h1>
-	<p>Move the cursor near the viewport edges. The tooltip flips horizontally and vertically, with a 5px cursor gap.</p>
-	<p>Scroll to move the plot near the top edge. The tooltip ignores pointer events, so cursor tracking and drag-to-zoom still work.</p>
+	<p>Move the cursor near the viewport edges. The tooltip flips horizontally and vertically, with a 12px cursor gap.</p>
+	<p>Scroll to move the plot near the top edge. The unlocked tooltip ignores pointer events, so cursor tracking and drag-to-zoom still work.</p>
+	<p>Click the plot to lock the cursor and select text inside the tooltip. Click the plot outside the tooltip to unlock it.</p>
 
 	<div class="charts">
 		<section>
@@ -46,7 +47,7 @@
 	<script type="module">
 		import { createDemo } from './legend-tooltip.js';
 		createDemo(document.querySelector('#chart'));
-		createDemo(document.querySelector('#chart-inline'), {stats: false});
+		createDemo(document.querySelector('#chart-inline'), {stats: false, time: true});
 	</script>
 </body>
 </html>

@@ -58,8 +58,13 @@ function assertReadback(root, demo) {
 		const rows = [...u.root.querySelectorAll('.u-legend tbody tr')];
 		assert.equal(rows.length, result.order.length + 1);
 		assert.ok(rows.length <= 13);
-		assert.deepEqual(rows.map(row => row.querySelector('.u-label').textContent),
-			['Time', ...result.order.map(si => u.series[si].label)]);
+		assert.deepEqual(rows.slice(1).map(row => row.querySelector('.u-label').textContent),
+			result.order.map(si => u.series[si].label));
+		const timeRow = rows[0];
+		const inline = u.legend.mode == 'inline';
+		assert.equal(timeRow.querySelector('.u-label')?.textContent, inline ? 'Time' : undefined);
+		assert.equal(timeRow.querySelector('td').colSpan, inline ? 1 : 2);
+		assert.equal(timeRow.querySelector('td').textContent, u.legend.values[0]._);
 		assert.equal(root.querySelectorAll('output')[i].value,
 			`count ${u.legend.count} | range [${u.legend.range.join(', ')}) | order [${u.legend.order.join(', ')}]`);
 		assert.equal(u.root.querySelectorAll('.u-legend input, .u-legend button, .u-legend select').length, 0);

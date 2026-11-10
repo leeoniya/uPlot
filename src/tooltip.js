@@ -32,7 +32,6 @@ export function createTooltip(self, options) {
 	return {
 		mount(u, el) {
 			node = el;
-			node.classList.add('u-tooltip');
 			self.over.appendChild(node);
 			window.addEventListener('scroll', syncRect, true);
 			window.addEventListener('resize', syncRect);

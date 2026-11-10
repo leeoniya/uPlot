@@ -414,7 +414,7 @@ describe('legend selection', () => {
 			await frame();
 			const table = u.root.querySelector('.u-legend');
 			assert.deepEqual(rowLabels(u), [...(config.pinned ? ['Time'] : []), 'Gamma', 'Beta']);
-			assert.equal(table.className, config.multi ? 'u-legend u-btm' : 'u-legend u-btm u-inline u-live');
+			assert.equal(table.className, config.multi ? 'u-detail u-legend u-btm u-table' : 'u-detail u-legend u-btm u-inline u-live');
 			assert.deepEqual([...table.querySelectorAll('thead th')].map(cell => cell.textContent), config.multi ? ['', 'Value', 'Double'] : []);
 			assert.equal(table.querySelectorAll('input, button, select').length, 0);
 			if (config.legend?.live === false)

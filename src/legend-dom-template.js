@@ -1,6 +1,6 @@
 import { h } from './h.js';
 import { on, off } from './dom.js';
-import { LEGEND, LEGEND_LIVE, LEGEND_INLINE, LEGEND_SERIES, LEGEND_MARKER, LEGEND_LABEL, LEGEND_VALUE, LEGEND_SIDES, OFF, FOCUS } from './domClasses.js';
+import { DETAIL, LEGEND, LEGEND_LIVE, LEGEND_INLINE, LEGEND_TABLE, LEGEND_SERIES, LEGEND_MARKER, LEGEND_LABEL, LEGEND_VALUE, LEGEND_SIDES, OFF, FOCUS } from './domClasses.js';
 import { mouseenter, mouseleave, LEGEND_DISP } from './strings.js';
 
 function textValue(value) {
@@ -15,8 +15,8 @@ function setText(node, text) {
 		node.textContent = text;
 }
 
-function createValueCells(keys) {
-	const nodes = keys.map(() => h('td', {className: LEGEND_VALUE}));
+function createValueCells(keys, timeHeader = false) {
+	const nodes = keys.map(() => timeHeader ? h('th', {colSpan: 2}) : h('td', {className: LEGEND_VALUE}));
 	const previous = Array(keys.length).fill('');
 
 	return {
@@ -39,18 +39,19 @@ export function createLegendTemplate(self, opts, keys, markersShow) {
 	const {legend, cursorFocus, bind, emit, interactive = true} = opts;
 	let multi = opts.multi;
 	let inline;
-	const sideClass = LEGEND_SIDES[opts.side ?? legend.side ?? 2];
+	const baseClass = opts.tooltip ? 'u-tooltip' : LEGEND + ' ' + LEGEND_SIDES[opts.side ?? legend.side ?? 2];
 	const rowMeta = new WeakMap();
 	const body = h('tbody');
-	const node = h('table', null, body);
-	let head;
+	const node = h('table', {className: DETAIL}, body);
+	let head, timeCells;
 
 	function setColumns(nextKeys, nextMulti) {
 		keys = nextKeys;
 		multi = nextMulti;
 		inline = legend.mode == null ? !multi : legend.mode == 'inline';
 		head?.remove();
-		head = multi ? h('thead', null,
+		timeCells = opts.tooltip && !inline && !multi && opts.mode == 1 && self.scales[opts.series[0].scale].time ? createValueCells(keys, true) : null;
+		head = timeCells ? h('thead', null, h('tr', null, timeCells.nodes)) : multi ? h('thead', null,
 			h('tr', null,
 				h('th'),
 				keys.map(key => h('th', {className: LEGEND_LABEL}, key)),
@@ -131,9 +132,12 @@ export function createLegendTemplate(self, opts, keys, markersShow) {
 	function createRow(entry) {
 		const state = prepare(entry);
 		const cells = createValueCells(keys);
+		const spanTime = !inline && !multi && entry.index == 0 && self.scales[entry.series.scale].time;
+		if (spanTime)
+			cells.nodes[0].colSpan = 2;
 		let header, label;
 		const row = h('tr', null,
-			header = h('th', null,
+			!spanTime && (header = h('th', null,
 				markersShow && h('div', {
 					className: LEGEND_MARKER,
 					style: {border: state.border, background: state.background},
@@ -141,10 +145,10 @@ export function createLegendTemplate(self, opts, keys, markersShow) {
 				label = h('div', {className: LEGEND_LABEL, style: {color: state.color}},
 					state.label,
 				),
-			),
+			)),
 			cells.nodes,
 		);
-		const events = interactive ? createRowEvents(header, entry.series) : null;
+		const events = interactive && header ? createRowEvents(header, entry.series) : null;
 		let className;
 
 		return {
@@ -170,12 +174,14 @@ export function createLegendTemplate(self, opts, keys, markersShow) {
 	return {
 		node,
 		body,
+		get timeHeader() { return timeCells != null; },
 		createRow,
 		setColumns,
 		update(data, focusedSeries) {
 			values = data;
+			timeCells?.update(data[0]);
 			focused = focusedSeries;
-			const className = LEGEND + ' ' + sideClass + (inline ? ' ' + LEGEND_INLINE + (legend.live || keys.length > 0 ? ' ' + LEGEND_LIVE : '') : '');
+			const className = baseClass + ' ' + (inline ? LEGEND_INLINE + (legend.live || keys.length > 0 ? ' ' + LEGEND_LIVE : '') : LEGEND_TABLE);
 			if (className !== tableClass) {
 				if (tableClass != null)
 					node.classList.remove(...tableClass.split(' '));

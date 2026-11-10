@@ -288,8 +288,8 @@ describe('DOM legend prototype', () => {
 			const data = f.series.map((_, index) => Object.assign(Object.create({ Inherited: `inherited:${index}` }), { Own: `own:${index}` }));
 			f.renderer.render(data, null);
 			const table = f.parent.firstChild;
-			assert.deepEqual([...table.classList].sort(),
-				(config.multi ? ['u-legend', 'u-btm'] : ['u-legend', 'u-btm', 'u-inline', ...(config.live === false && config.keys.length == 0 ? [] : ['u-live'])]).sort());
+			assert.equal(table.className, config.multi ? 'u-detail u-legend u-btm u-table' :
+				'u-detail u-legend u-btm u-inline' + (config.live === false && config.keys.length == 0 ? '' : ' u-live'));
 			assert.equal(table.querySelectorAll('thead').length, config.multi ? 1 : 0);
 			if (config.multi)
 				assert.deepEqual([...table.querySelectorAll('thead th')].map(cell => cell.textContent), ['', ...config.keys]);
@@ -348,6 +348,23 @@ describe('DOM legend prototype', () => {
 		f.renderer.render(f.data(), null);
 		assert.equal(f.parent.childNodes.length, 0);
 		assert.deepEqual([f.reads.length, f.markers.length, f.bindings.length, f.mounts.length], [0, 0, 0, 0]);
+	});
+
+	it('replaces mutually exclusive layout classes when automatic mode changes with columns', () => {
+		const f = fixture({ multi: true });
+		const template = createLegendTemplate(f.self, f.opts, ['Value'], true);
+		try {
+			for (const multi of [true, false, true, false]) {
+				template.setColumns(multi ? ['Value'] : ['_'], multi);
+				template.update([], null);
+				assert.equal(template.node.className, 'u-detail u-legend u-btm ' + (multi ? 'u-table' : 'u-inline u-live'));
+				assert.equal(template.node.classList.contains('u-table'), multi);
+				assert.equal(template.node.classList.contains('u-inline'), !multi);
+			}
+		}
+		finally {
+			template.destroy();
+		}
 	});
 
 	it('composes the template with the unchanged generic list using explicit keys and marker mode', () => {

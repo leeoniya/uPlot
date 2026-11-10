@@ -27,7 +27,7 @@ export function createLegend(self, parent, opts, selectRows) {
 		let count = 0;
 		const order = legend.order;
 		const length = order == null ? series.length - 1 : order.length;
-		const start = multi || !legend.live || mode == 2 ? 0 : -1;
+		const start = multi || !legend.live || mode == 2 || template.timeHeader ? 0 : -1;
 		for (let i = start; i < length; i++) {
 			const index = i == -1 ? 0 : order == null ? i + 1 : order[i];
 			const s = series[index];

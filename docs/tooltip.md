@@ -9,7 +9,7 @@ const opts = {
   height: 400,
   scales: {x: {time: false}},
   legend: {mode: 'table', valueSrc: 'values'},
-  tooltip: {show: true, mode: 'table', valueSrc: 'value', gap: 5},
+  tooltip: {show: true, mode: 'table', valueSrc: 'value', gap: 12},
   series: [
     {label: 'Sample'},
     {
@@ -100,7 +100,7 @@ The existing `setLegend` hook runs after this refresh.
 | Option | Default | Behavior |
 | --- | --- | --- |
 | `show` | `false` | Enables the tooltip when overlay DOM and the cursor are enabled. |
-| `gap` | `5` | Cursor gap in CSS pixels. |
+| `gap` | `12` | Cursor gap in CSS pixels. |
 | `mode` | `'table'` | Table or inline layout. |
 | `valueSrc` | Inferred from `series[1].values` | `'value'` for scalar values or `'values'` for named columns. |
 | `markers` | Legend marker defaults | Independent marker options. |
@@ -114,6 +114,10 @@ It returns to below-right as soon as that placement fits. Scroll and resize even
 A tooltip larger than the available space on both sides can still overflow. No scrolling or size-constraining wrapper is added.
 
 The `.u-tooltip` rule supplies positioning and pointer-event behavior.
+Unlocked tooltips ignore pointer events. With `cursor.lock: true`, a plot click locks the cursor and adds `u-locked` to the chart root.
+Tooltips within that root then accept pointer events and text selection. Interactions inside the tooltip do not unlock the cursor.
+A click on the plot outside the tooltip unlocks the cursor and removes the class.
+
 Applications can supply background, border, shadow, and stacking styles.
 A transformed ancestor can change the containing block for fixed positioning.
 

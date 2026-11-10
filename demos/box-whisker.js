@@ -67,7 +67,7 @@ export function legendAsTooltipPlugin({ className, style = { backgroundColor:"rg
 	function mount(u, el) {
 		legendEl = el;
 
-		legendEl.classList.remove("u-inline");
+		legendEl.classList.replace("u-inline", "u-table");
 		className && legendEl.classList.add(className);
 
 		uPlot.assign(legendEl.style, {

@@ -421,7 +421,7 @@ export const legendOpts = {
 export const tooltipOpts = {
 	show: false,
 	mode: 'table',
-	gap: 5,
+	gap: 12,
 	markers: legendOpts.markers,
 	mount: legendOpts.mount,
 	filter: null,

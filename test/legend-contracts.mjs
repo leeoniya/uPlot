@@ -1805,7 +1805,7 @@ for (const table of [false, true]) {
 
 			const nonlive = await plot({ legend: { live: false } });
 			const nonliveLegend = nonlive.root.querySelector('.u-legend');
-			assert.deepEqual([...nonliveLegend.classList].sort(), table ? ['u-btm', 'u-legend'] : ['u-btm', 'u-inline', 'u-legend', 'u-live']);
+			assert.equal(nonliveLegend.className, table ? 'u-detail u-legend u-btm u-table' : 'u-detail u-legend u-btm u-inline u-live');
 			assert.deepEqual([...nonliveLegend.querySelectorAll('tbody tr')].map(tr => tr.querySelector('.u-label').textContent), ['Alpha', 'Beta']);
 			assert.equal(nonliveLegend.querySelectorAll('.u-value').length, table ? 4 : 2);
 			assert.deepEqual([...nonliveLegend.querySelectorAll('thead th')].map(th => th.textContent), table ? ['', 'Value', 'Double'] : []);
@@ -1942,8 +1942,8 @@ for (const table of [false, true]) {
 					legend = element;
 					body = element.firstElementChild;
 					assert.equal(element.parentNode === self.root, true);
-					assert.deepEqual([...element.classList].sort(),
-						table ? ['u-btm', 'u-legend'] : ['u-btm', 'u-inline', 'u-legend', 'u-live']);
+					assert.equal(element.className,
+						table ? 'u-detail u-legend u-btm u-table' : 'u-detail u-legend u-btm u-inline u-live');
 					assert.equal(body.tagName, table ? 'THEAD' : 'TBODY');
 					assert.equal(element.querySelector('tbody').children.length, table ? 2 : 3);
 					element.classList.add('mounted');
