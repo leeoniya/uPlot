@@ -577,6 +577,7 @@ const SELECT = "u-select";
 const CURSOR_X = "u-cursor-x";
 const CURSOR_Y = "u-cursor-y";
 const CURSOR_PT = "u-cursor-pt";
+const DETAIL = "u-detail";
 const LEGEND = "u-legend";
 const LEGEND_EXCLUDE = "u-excl";
 const LEGEND_SIDES = [
@@ -587,6 +588,7 @@ const LEGEND_SIDES = [
 ];
 const LEGEND_LIVE = "u-live";
 const LEGEND_INLINE = "u-inline";
+const LEGEND_TABLE = "u-table";
 const LEGEND_SERIES = "u-series";
 const LEGEND_MARKER = "u-marker";
 const LEGEND_LABEL = "u-label";
@@ -1160,7 +1162,7 @@ const legendOpts = {
 const tooltipOpts = {
 	show: false,
 	mode: "table",
-	gap: 5,
+	gap: 12,
 	markers: legendOpts.markers,
 	mount: legendOpts.mount,
 	filter: null,
@@ -1744,8 +1746,8 @@ function setText(node, text) {
 	if (node.firstChild != null) node.firstChild.nodeValue = text;
 	else node.textContent = text;
 }
-function createValueCells(keys) {
-	const nodes = keys.map(() => h("td", { className: LEGEND_VALUE }));
+function createValueCells(keys, timeHeader = false) {
+	const nodes = keys.map(() => timeHeader ? h("th", { colSpan: 2 }) : h("td", { className: LEGEND_VALUE }));
 	const previous = Array(keys.length).fill("");
 	return {
 		nodes,
@@ -1764,17 +1766,18 @@ function createLegendTemplate(self, opts, keys, markersShow) {
 	const { legend, cursorFocus, bind, emit, interactive = true } = opts;
 	let multi = opts.multi;
 	let inline;
-	const sideClass = LEGEND_SIDES[opts.side ?? legend.side ?? 2];
+	const baseClass = opts.tooltip ? "u-tooltip" : LEGEND + " " + LEGEND_SIDES[opts.side ?? legend.side ?? 2];
 	const rowMeta = /* @__PURE__ */ new WeakMap();
 	const body = h("tbody");
-	const node = h("table", null, body);
-	let head;
+	const node = h("table", { className: DETAIL }, body);
+	let head, timeCells;
 	function setColumns(nextKeys, nextMulti) {
 		keys = nextKeys;
 		multi = nextMulti;
 		inline = legend.mode == null ? !multi : legend.mode == "inline";
 		head?.remove();
-		head = multi ? h("thead", null, h("tr", null, h("th"), keys.map((key) => h("th", { className: LEGEND_LABEL }, key)))) : null;
+		timeCells = opts.tooltip && !inline && !multi && opts.mode == 1 && self.scales[opts.series[0].scale].time ? createValueCells(keys, true) : null;
+		head = timeCells ? h("thead", null, h("tr", null, timeCells.nodes)) : multi ? h("thead", null, h("tr", null, h("th"), keys.map((key) => h("th", { className: LEGEND_LABEL }, key)))) : null;
 		if (head) node.insertBefore(head, body);
 	}
 	setColumns(keys, multi);
@@ -1836,18 +1839,20 @@ function createLegendTemplate(self, opts, keys, markersShow) {
 	function createRow(entry) {
 		const state = prepare(entry);
 		const cells = createValueCells(keys);
+		const spanTime = !inline && !multi && entry.index == 0 && self.scales[entry.series.scale].time;
+		if (spanTime) cells.nodes[0].colSpan = 2;
 		let header, label;
-		const row = h("tr", null, header = h("th", null, markersShow && h("div", {
+		const row = h("tr", null, !spanTime && (header = h("th", null, markersShow && h("div", {
 			className: "u-marker",
 			style: {
 				border: state.border,
 				background: state.background
 			}
 		}), label = h("div", {
-			className: LEGEND_LABEL,
+			className: "u-label",
 			style: { color: state.color }
-		}, state.label)), cells.nodes);
-		const events = interactive ? createRowEvents(header, entry.series) : null;
+		}, state.label))), cells.nodes);
+		const events = interactive && header ? createRowEvents(header, entry.series) : null;
 		let className;
 		return {
 			node: row,
@@ -1866,12 +1871,16 @@ function createLegendTemplate(self, opts, keys, markersShow) {
 	return {
 		node,
 		body,
+		get timeHeader() {
+			return timeCells != null;
+		},
 		createRow,
 		setColumns,
 		update(data, focusedSeries) {
 			values = data;
+			timeCells?.update(data[0]);
 			focused = focusedSeries;
-			const className = LEGEND + " " + sideClass + (inline ? " " + LEGEND_INLINE + (legend.live || keys.length > 0 ? " " + LEGEND_LIVE : "") : "");
+			const className = baseClass + " " + (inline ? LEGEND_INLINE + (legend.live || keys.length > 0 ? " " + LEGEND_LIVE : "") : LEGEND_TABLE);
 			if (className !== tableClass) {
 				if (tableClass != null) node.classList.remove(...tableClass.split(" "));
 				node.classList.add(...className.split(" "));
@@ -1905,7 +1914,7 @@ function createLegend(self, parent, opts, selectRows) {
 		let count = 0;
 		const order = legend.order;
 		const length = order == null ? series.length - 1 : order.length;
-		const start = multi || !legend.live || mode == 2 ? 0 : -1;
+		const start = multi || !legend.live || mode == 2 || template.timeHeader ? 0 : -1;
 		for (let i = start; i < length; i++) {
 			const index = i == -1 ? 0 : order == null ? i + 1 : order[i];
 			const s = series[index];
@@ -1988,7 +1997,6 @@ function createTooltip(self, options) {
 	return {
 		mount(u, el) {
 			node = el;
-			node.classList.add("u-tooltip");
 			self.over.appendChild(node);
 			window.addEventListener("scroll", syncRect, true);
 			window.addEventListener("resize", syncRect);
@@ -5544,6 +5552,7 @@ function uPlot(opts, data, then) {
 			hideSelect();
 		} else if (cursor.lock) {
 			cursor._lock = !cursor._lock;
+			root.classList.toggle("u-locked", cursor._lock);
 			updateCursor(src, true, e != null);
 		}
 		if (e != null) {
@@ -5722,7 +5731,7 @@ function uPlot(opts, data, then) {
 	if (showTooltip) {
 		tooltipPosition = createTooltip(self, tooltip);
 		tooltipView = createLegend(self, over, {
-			side: 2,
+			tooltip: true,
 			legend: {
 				...tooltip,
 				live: true,
