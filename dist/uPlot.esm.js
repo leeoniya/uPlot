@@ -62,7 +62,7 @@ function getMinMax(data, _i0, _i1, sorted = 0, log = false) {
 			}
 		}
 	}
-	return [_min ?? Infinity, _max ?? -Infinity];
+	return [_min ?? 1e400, _max ?? -1e400];
 }
 function getMinMaxAsinh(data, i0, i1, sorted = 0, cutoff = 0) {
 	let _min = inf;
@@ -175,8 +175,8 @@ function _rangeNum(_min, _max, cfg) {
 	if (!isFinite$1(zeroIf) || zeroIf < 0) return [null, null];
 	let padMin = cmin.pad ?? .1;
 	let padMax = cmax.pad ?? .1;
-	let hardMin = cmin.hard ?? -Infinity;
-	let hardMax = cmax.hard ?? Infinity;
+	let hardMin = cmin.hard ?? -1e400;
+	let hardMax = cmax.hard ?? 1e400;
 	let [minAnchor, maxAnchor] = rangeAnchors(_min, _max, cmin.soft, cmax.soft, zeroIf);
 	let delta = _max - _min;
 	let scalarMax = max(abs(_min), abs(_max));
@@ -267,7 +267,7 @@ const log10 = M.log10;
 const log2 = M.log2;
 const sinh = (v, linthresh = 1) => M.sinh(v) * linthresh;
 const asinh = (v, linthresh = 1) => M.asinh(v / linthresh);
-const inf = Infinity;
+const inf = 1e400;
 const isFinite$1 = Number.isFinite;
 const decPows = Array.from({ length: 65 }, (_, i) => +`1e${i - 32}`);
 const pow10 = (exp) => decPows[exp + 32] ?? +`1e${exp}`;
@@ -1506,7 +1506,7 @@ const rangeYAuto = Object.freeze({
 });
 function limitPolicy(limit, side) {
 	limit ??= autoLimit;
-	let hardDefault = side == 0 ? -Infinity : Infinity;
+	let hardDefault = side == 0 ? -inf : inf;
 	let softDefault = -hardDefault;
 	let hard = limit.hard ?? hardDefault;
 	let soft = limit.soft ?? softDefault;
@@ -2718,7 +2718,7 @@ function percentToPos(pct, scale, dim, off) {
 function findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid = inf, xValue = dispReader()) {
 	if (dataY.length > 1) {
 		let prevIdx = null;
-		for (let i = 0, minDelta = Infinity; i < dataY.length; i++) if (dataY[i] !== void 0) {
+		for (let i = 0, minDelta = inf; i < dataY.length; i++) if (dataY[i] !== void 0) {
 			if (prevIdx != null) {
 				let delta = abs(xValue(dataX, i) - xValue(dataX, prevIdx));
 				if (delta < minDelta) {
@@ -2735,7 +2735,7 @@ function bars(opts) {
 	opts = opts || EMPTY_OBJ;
 	const size = opts.size ?? [
 		.6,
-		Infinity,
+		1e400,
 		1
 	];
 	const align = opts.align || 0;
@@ -2746,7 +2746,7 @@ function bars(opts) {
 	ro = ro == null ? [0, 0] : typeof ro == "number" ? [ro, 0] : ro;
 	const radiusFn = fnOrSelf(ro);
 	const gapFactor = 1 - size[0];
-	const _maxWidth = size[1] ?? Infinity;
+	const _maxWidth = size[1] ?? 1e400;
 	const _minWidth = size[2] ?? 1;
 	const disp = opts.disp ?? EMPTY_OBJ;
 	const _each = opts.each ?? ((_) => {});
@@ -2949,71 +2949,6 @@ function _monotoneCubic(xs, ys, moveTo, lineTo, bezierCurveTo, pxRound) {
 	return path;
 }
 
-// src/paths/catmullRomCentrip.js
-function catmullRomCentrip(opts) {
-	return splineInterp(catmullRomFitting, opts);
-}
-/**
-* Interpolates a Catmull-Rom Spline through a series of x/y points
-* Converts the CR Spline to Cubic Beziers for use with SVG items
-*
-* If 'alpha' is 0.5 then the 'Centripetal' variant is used
-* If 'alpha' is 1 then the 'Chordal' variant is used
-*
-*/
-function catmullRomFitting(xCoords, yCoords, moveTo, lineTo, bezierCurveTo, pxRound) {
-	const alpha = .5;
-	const path = new Path2D();
-	const dataLen = xCoords.length;
-	let p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, bp1x, bp1y, bp2x, bp2y, d1, d2, d3, A, B, N, M, d3powA, d2powA, d3pow2A, d2pow2A, d1pow2A, d1powA;
-	moveTo(path, pxRound(xCoords[0]), pxRound(yCoords[0]));
-	for (let i = 0; i < dataLen - 1; i++) {
-		let p0i = i == 0 ? 0 : i - 1;
-		p0x = xCoords[p0i];
-		p0y = yCoords[p0i];
-		p1x = xCoords[i];
-		p1y = yCoords[i];
-		p2x = xCoords[i + 1];
-		p2y = yCoords[i + 1];
-		if (i + 2 < dataLen) {
-			p3x = xCoords[i + 2];
-			p3y = yCoords[i + 2];
-		} else {
-			p3x = p2x;
-			p3y = p2y;
-		}
-		d1 = sqrt(pow(p0x - p1x, 2) + pow(p0y - p1y, 2));
-		d2 = sqrt(pow(p1x - p2x, 2) + pow(p1y - p2y, 2));
-		d3 = sqrt(pow(p2x - p3x, 2) + pow(p2y - p3y, 2));
-		d3powA = pow(d3, alpha);
-		d3pow2A = pow(d3, alpha * 2);
-		d2powA = pow(d2, alpha);
-		d2pow2A = pow(d2, alpha * 2);
-		d1powA = pow(d1, alpha);
-		d1pow2A = pow(d1, alpha * 2);
-		A = 2 * d1pow2A + 3 * d1powA * d2powA + d2pow2A;
-		B = 2 * d3pow2A + 3 * d3powA * d2powA + d2pow2A;
-		N = 3 * d1powA * (d1powA + d2powA);
-		if (N > 0) N = 1 / N;
-		M = 3 * d3powA * (d3powA + d2powA);
-		if (M > 0) M = 1 / M;
-		bp1x = (-d2pow2A * p0x + A * p1x + d1pow2A * p2x) * N;
-		bp1y = (-d2pow2A * p0y + A * p1y + d1pow2A * p2y) * N;
-		bp2x = (d3pow2A * p1x + B * p2x - d2pow2A * p3x) * M;
-		bp2y = (d3pow2A * p1y + B * p2y - d2pow2A * p3y) * M;
-		if (bp1x == 0 && bp1y == 0) {
-			bp1x = p1x;
-			bp1y = p1y;
-		}
-		if (bp2x == 0 && bp2y == 0) {
-			bp2x = p2x;
-			bp2y = p2y;
-		}
-		bezierCurveTo(path, bp1x, bp1y, bp2x, bp2y, p2x, p2y);
-	}
-	return path;
-}
-
 // src/uPlot.js
 const cursorPlots = /* @__PURE__ */ new Set();
 let mouseOwner = null;
@@ -3027,8 +2962,8 @@ if (domEnv) {
 		uPlot.pxRatio = pxRatio;
 	});
 }
-const linearPath = true && true ? linear() : null;
-const pointsPath = true ? points() : null;
+const linearPath = (true && true, linear());
+const pointsPath = (true, points());
 function setDefaults(d, xo, yo, initY) {
 	return (initY ? [d[0], d[1]].concat(d.slice(2)) : [d[0]].concat(d.slice(1))).map((o, i) => setDefault(o, i, xo, yo));
 }
@@ -3103,7 +3038,7 @@ function scanScaleInternal(self, scaleKey, i0, i1, cache, allValues) {
 				let _i1 = min(data.length - 1, floor(i1 ?? data.length - 1));
 				if (scanAbs) [facetMin, facetMax, facetMinAbs] = getMinMaxAsinh(data, _i0, _i1, sorted, scale._minAbs);
 				else if (_i0 <= _i1) [facetMin, facetMax] = getMinMax(data, _i0, _i1, sorted, log);
-				if (facetMinAbs == Infinity) facetMinAbs = null;
+				if (facetMinAbs == 1e400) facetMinAbs = null;
 				if (facetMin > facetMax) facetMin = facetMax = null;
 				if (cache) {
 					facet.min = facetMin;
@@ -3134,8 +3069,8 @@ function scanScaleInternal(self, scaleKey, i0, i1, cache, allValues) {
 			if (facet.scan && facet.scale == scaleKey) acc(i, data[i][fi], facet, facet.sorted, fi == 1);
 		}
 	}
-	let result = [scaleMin == Infinity ? null : scaleMin, scaleMax == -Infinity ? null : scaleMax];
-	if (asinh) result.push(minAbs == Infinity ? null : minAbs);
+	let result = [scaleMin == 1e400 ? null : scaleMin, scaleMax == -1e400 ? null : scaleMax];
+	if (asinh) result.push(minAbs == 1e400 ? null : minAbs);
 	return result;
 }
 function scanScale(self, scaleKey, i0, i1, cache = false) {
@@ -3383,16 +3318,18 @@ function uPlot(opts, data, then) {
 	const live = true && (showTooltip || legend.live);
 	const showLive = live && liveLegend.show;
 	const showStats = showLegend && !legend.live;
-	if (true) for (let view of [legend, tooltip]) {
-		view.idxs = view == liveLegend && live ? activeIdxs : [];
-		view.order = [];
-		view.count = 0;
-		view.range = [0, 0];
-		let markers = view.markers;
-		markers.width = fnOrSelf(markers.width);
-		markers.dash = fnOrSelf(markers.dash);
-		markers.stroke = fnOrSelf(markers.stroke);
-		markers.fill = fnOrSelf(markers.fill);
+	{
+		for (let view of [legend, tooltip]) {
+			view.idxs = view == liveLegend && live ? activeIdxs : [];
+			view.order = [];
+			view.count = 0;
+			view.range = [0, 0];
+			let markers = view.markers;
+			markers.width = fnOrSelf(markers.width);
+			markers.dash = fnOrSelf(markers.dash);
+			markers.stroke = fnOrSelf(markers.stroke);
+			markers.fill = fnOrSelf(markers.fill);
+		}
 	}
 	let legendView, tooltipView, tooltipPosition;
 	let shouldRenderLegend = showLegend || showTooltip;
@@ -3749,8 +3686,8 @@ function uPlot(opts, data, then) {
 		cursor.dataIdx = (self, seriesIdx, cursorIdx, valAtPosX) => {
 			if (seriesIdx == 0) return cursorIdx;
 			let idx2 = cursorIdx;
-			let _prox = prox(self, seriesIdx, cursorIdx, valAtPosX) ?? Infinity;
-			let withProx = _prox >= 0 && _prox < Infinity;
+			let _prox = prox(self, seriesIdx, cursorIdx, valAtPosX) ?? 1e400;
+			let withProx = _prox >= 0 && _prox < 1e400;
 			let xDim = scaleX.ori == 0 ? plotWidCss : plotHgtCss;
 			let cursorLft = cursor.left;
 			let xValues = data[0];
@@ -3768,8 +3705,8 @@ function uPlot(opts, data, then) {
 				}
 				if (nonNullLft != null || nonNullRgt != null) {
 					if (withProx) {
-						let lftPos = nonNullLft == null ? -Infinity : valToPosX(xValues[nonNullLft], scaleX, xDim, 0);
-						let rgtPos = nonNullRgt == null ? Infinity : valToPosX(xValues[nonNullRgt], scaleX, xDim, 0);
+						let lftPos = nonNullLft == null ? -inf : valToPosX(xValues[nonNullLft], scaleX, xDim, 0);
+						let rgtPos = nonNullRgt == null ? inf : valToPosX(xValues[nonNullRgt], scaleX, xDim, 0);
 						let lftDelta = cursorLft - lftPos;
 						let rgtDelta = rgtPos - cursorLft;
 						if (lftDelta <= rgtDelta) {
@@ -5547,7 +5484,7 @@ function uPlot(opts, data, then) {
 			if (dragX) setDragRange(xScaleKey, posToVal(xOff, xScaleKey), posToVal(xOff + xDim, xScaleKey));
 			if (dragY) for (let k in scales) {
 				let sc = scales[k];
-				if (k != xScaleKey && sc.from == null && sc.min != Infinity) setDragRange(k, posToVal(yOff + yDim, k), posToVal(yOff, k));
+				if (k != xScaleKey && sc.from == null && sc.min != 1e400) setDragRange(k, posToVal(yOff + yDim, k), posToVal(yOff, k));
 			}
 			hideSelect();
 		} else if (cursor.lock) {
@@ -5709,12 +5646,14 @@ function uPlot(opts, data, then) {
 		setSize(opts);
 	}
 	series.forEach(initSeries);
-	if (true) {
-		legend.values.length = series.length;
-		legend.values.fill(null);
-		if (showTooltip) {
-			tooltip.values.length = series.length;
-			tooltip.values.fill(null);
+	{
+		{
+			legend.values.length = series.length;
+			legend.values.fill(null);
+			if (showTooltip) {
+				tooltip.values.length = series.length;
+				tooltip.values.fill(null);
+			}
 		}
 	}
 	if (showLegend) legendView = createLegend(self, root, {
@@ -5768,21 +5707,27 @@ uPlot.rangeAsinh = rangeAsinh;
 uPlot.scan = scanScale;
 uPlot.orient = orient;
 uPlot.pxRatio = pxRatio;
-if (true) uPlot.join = join;
-if (true) {
-	uPlot.fmtDate = fmtDate;
-	uPlot.tzDate = tzDate;
+{
+	uPlot.join = join;
+}
+{
+	{
+		uPlot.fmtDate = fmtDate;
+		uPlot.tzDate = tzDate;
+	}
 }
 uPlot.sync = _sync;
-if (true) {
-	uPlot.addGap = addGap;
-	uPlot.clipGaps = clipGaps;
-	let paths = uPlot.paths = { points };
-	true && (paths.linear = linear);
-	true && (paths.stepped = stepped);
-	true && (paths.bars = bars);
-	true && (paths.spline = monotoneCubic);
-	false && (paths.spline2 = catmullRomCentrip);
+{
+	{
+		uPlot.addGap = addGap;
+		uPlot.clipGaps = clipGaps;
+		let paths = uPlot.paths = { points };
+		true && (paths.linear = linear);
+		true && (paths.stepped = stepped);
+		true && (paths.bars = bars);
+		true && (paths.spline = monotoneCubic);
+		0, false;
+	}
 }
 
 export { uPlot as default };
