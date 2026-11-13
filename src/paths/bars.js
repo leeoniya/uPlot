@@ -13,7 +13,7 @@ function findColWidth(dataX, dataY, valToPosX, scaleX, xDim, xOff, colWid = inf,
 
 		// scan full dataset for smallest adjacent delta
 		// will not work properly for non-linear x scales, since does not do expensive valToPosX calcs till end
-		for (let i = 0, minDelta = Infinity; i < dataY.length; i++) {
+		for (let i = 0, minDelta = inf; i < dataY.length; i++) {
 			if (dataY[i] !== undefined) {
 				if (prevIdx != null) {
 					let delta = abs(xValue(dataX, i) - xValue(dataX, prevIdx));

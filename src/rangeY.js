@@ -1,4 +1,4 @@
-import { abs, floor, max, min, round, roundDec, incrRound, incrRoundDn, incrRoundUp, fixedDec, isFinite, rangePad, rangeZeroIf, rangeAnchors } from './utils.js';
+import { abs, floor, max, min, round, roundDec, incrRound, incrRoundDn, incrRoundUp, fixedDec, inf, isFinite, rangePad, rangeZeroIf, rangeAnchors } from './utils.js';
 import { numIncrs } from './opts.js';
 
 export function rangeYCount(dim, ramp = 1, space = 50) {
@@ -19,7 +19,7 @@ export const rangeYAuto = Object.freeze({ zeroIf: rangeZeroIf, min: autoLimit, m
 function limitPolicy(limit, side) {
 	limit ??= autoLimit;
 
-	let hardDefault = side == 0 ? -Infinity : Infinity;
+	let hardDefault = side == 0 ? -inf : inf;
 	let softDefault = -hardDefault;
 	let hard = limit.hard ?? hardDefault;
 	let soft = limit.soft ?? softDefault;

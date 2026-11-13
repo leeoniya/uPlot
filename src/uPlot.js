@@ -1293,8 +1293,8 @@ export default function uPlot(opts, data, then) {
 
 				if (nonNullLft != null || nonNullRgt != null) {
 					if (withProx) {
-						let lftPos = nonNullLft == null ? -Infinity : valToPosX(xValues[nonNullLft], scaleX, xDim, 0);
-						let rgtPos = nonNullRgt == null ?  Infinity : valToPosX(xValues[nonNullRgt], scaleX, xDim, 0);
+						let lftPos = nonNullLft == null ? -inf : valToPosX(xValues[nonNullLft], scaleX, xDim, 0);
+						let rgtPos = nonNullRgt == null ?  inf : valToPosX(xValues[nonNullRgt], scaleX, xDim, 0);
 
 						let lftDelta = cursorLft - lftPos;
 						let rgtDelta = rgtPos - cursorLft;
