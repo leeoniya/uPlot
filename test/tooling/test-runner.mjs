@@ -2,7 +2,7 @@ import { describe, it, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { availableParallelism, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testCommand } from '../../scripts/test.mjs';
@@ -28,7 +28,7 @@ describe('native test runner arguments', () => {
 	for (const bun of [false, true]) {
 		describe(bun ? 'Bun' : 'Node', () => {
 			const prefix = bun ? ['test', '--timeout=2000'] : ['--test', '--test-isolation=none', '--test-timeout=2000', '--test-reporter=spec'];
-			const command = args => testCommand(args, { bun, cwd });
+			const command = args => testCommand(args, { bun, cwd, parallelism: 1 });
 			const paths = names => names.map(name => join(cwd, name));
 
 			it('expands recursive globs in sorted order without selecting other extensions', () => {
@@ -123,6 +123,22 @@ describe('native test runner arguments', () => {
 					assert.throws(() => command(['a.mjs', flag]), /Unknown option/);
 				});
 			}
+
+			for (const [parallelism, workers] of [[1, 1], [2, 1], [3, 1], [4, 2], [5, 2], [7, 2], [8, 4], [16, 4]]) {
+				it(`defaults to ${workers} workers with available parallelism ${parallelism}`, () => {
+					assert.equal(testCommand(['a.mjs'], { bun, cwd, parallelism }).workers, workers);
+				});
+
+				it(`honors explicit worker counts with available parallelism ${parallelism}`, () => {
+					for (const workers of [1, 2, 3, 4, 8])
+						assert.equal(testCommand(['--workers=' + workers, 'a.mjs'], { bun, cwd, parallelism }).workers, workers);
+				});
+			}
+
+			it('uses the host available parallelism when it is not supplied', () => {
+				const parallelism = availableParallelism();
+				assert.equal(testCommand(['a.mjs'], { bun, cwd }).workers, parallelism < 4 ? 1 : parallelism < 8 ? 2 : 4);
+			});
 
 			for (const workers of ['1', '2', String(Number.MAX_SAFE_INTEGER)]) {
 				for (const flags of [['--workers', workers], ['--workers=' + workers]]) {

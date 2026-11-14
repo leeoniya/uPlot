@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { globSync, mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { availableParallelism, tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -10,13 +10,13 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const hooks = fileURLToPath(new URL('./register-hooks.mjs', import.meta.url));
 const coverageReporter = fileURLToPath(new URL('./report-coverage.mjs', import.meta.url));
 
-export function testCommand(args, { bun = !!process.versions.bun, cwd = process.cwd() } = {}) {
+export function testCommand(args, { bun = !!process.versions.bun, cwd = process.cwd(), parallelism = availableParallelism() } = {}) {
 	const { values, positionals } = parseArgs({
 		args,
 		allowPositionals: true,
 		options: {
 			'no-coverage': { type: 'boolean' },
-			workers: { type: 'string', default: '1' },
+			workers: { type: 'string', default: String(parallelism < 4 ? 1 : parallelism < 8 ? 2 : 4) },
 			'test-name-pattern': { type: 'string' },
 			grep: { type: 'string', short: 'g' },
 			reporter: { type: 'string', short: 'R' },

@@ -64,7 +64,15 @@ It accepts `--reporter`, `-R`, and `--test-reporter` with these mappings:
 
 ## Test workers
 
-The runner uses one worker by default. Use `--workers=N` to select a positive integer worker count:
+When `--workers` is absent, the runner chooses a worker count from `node:os.availableParallelism()`:
+
+| Available parallelism | Default workers |
+| --- | --- |
+| Less than 4 | 1 |
+| 4–7 | 2 |
+| 8 or more | 4 |
+
+Use `--workers=N` to override this default with a positive integer worker count:
 
 ```sh
 bun run test --workers=4
@@ -421,8 +429,8 @@ This configuration applies to all `bun run` scripts. It does not affect npm.
 
 The wrapper runs `node --test --test-isolation=none` under Node, or `bun test` under Bun.
 Both runtimes use the same tests with imports from `node:test`.
-By default, the selected files run in one shared test process, not an isolated process for each file.
-With `--workers=N`, each worker shares DOM state across its assigned files. Probe workers remain separate child processes.
+The worker count follows the available-parallelism thresholds unless `--workers=N` overrides it.
+Each worker shares DOM state across its assigned files. Probe workers remain separate child processes.
 
 Both runtimes have a common per-test default timeout of 2000 ms.
 The wrapper sets Node's `--test-timeout=2000` or Bun's `--timeout=2000`.
