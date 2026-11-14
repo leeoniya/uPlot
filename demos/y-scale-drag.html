@@ -37,14 +37,20 @@
 								let { min, max } = scale;
 								let dim = i == 0 ? u.bbox.width : u.bbox.height;
 								let unitsPerPx = (max - min) / (dim / uPlot.pxRatio);
+								let anchorPct = 0.5;
+
+								if (i != 0) {
+									let anchor = u.posToVal(y0 - u.over.getBoundingClientRect().top, scaleKey);
+									anchorPct = (anchor - min) / (max - min);
+								}
 
 								let mousemove = e => {
 									let d = i == 0 ?  x0 - e.clientX : e.clientY - y0
 									let shiftyBy = d * unitsPerPx;
 
 									u.setScale(scaleKey, {
-										min: e.shiftKey ? (min - shiftyBy) : min + shiftyBy,
-										max: max + shiftyBy,
+										min: e.shiftKey ? min - 2 * shiftyBy * anchorPct : min + shiftyBy,
+										max: e.shiftKey ? max + 2 * shiftyBy * (1 - anchorPct) : max + shiftyBy,
 									});
 								};
 
