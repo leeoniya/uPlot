@@ -6,6 +6,15 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
+		<style>
+			.u-tooltip {
+				background: rgba(255, 255, 255, 0.95);
+				border: 1px solid #ccc;
+				border-radius: 4px;
+				padding: 4px;
+				box-shadow: 0 2px 8px #0003;
+			}
+		</style>
 	</head>
 	<body>
 
@@ -95,17 +104,33 @@
 			data2[1][1] = data2[1][1].map(v => v == 0 ? v : v * -1);
 
 			const legendValues = (u, seriesIdx, dataIdx) => {
-				// when data null, it's initial schema probe (also u.status == 0)
-				if (u.data == null || dataIdx == null) {
+				// The initial tooltip schema probe precedes data assignment.
+				if (u.data == null) {
 					return {
-						"Country":    '<NUM COUNTRIES>',
-						"Population": '<TOTAL POP>',
-						"GDP":        '<TOTAL GDP>',
-						"Income":     '<AVG INCOME>'
+						"Country":    '--',
+						"Population": '--',
+						"GDP":        '--',
+						"Income":     '--'
 					};
 				}
 
 				let [x, y, size, label] = u.data[seriesIdx];
+
+				if (dataIdx == null) {
+					let population = 0, gdp = 0, income = 0;
+					for (let i = 0; i < x.length; i++) {
+						population += size[i];
+						gdp += x[i];
+						income += y[i];
+					}
+
+					return {
+						"Countries":        label.length,
+						"Total Population": uPlot.fmtNum(population),
+						"Total GDP":        '$' + uPlot.fmtNum(gdp),
+						"Avg Income":       y.length ? '$' + uPlot.fmtNum(income / y.length) : '--',
+					};
+				}
 
 				return {
 					"Country":    label[dataIdx],
@@ -121,6 +146,15 @@
 				mode: 2,
 				width: 1920,
 				height: 600,
+				legend: {mode: 'table', valueSrc: 'values'},
+				cursor: {lock: true},
+				tooltip: {
+					show: true,
+					mode: 'table',
+					transpose: true,
+					valueSrc: 'values',
+					filter: (u, seriesIdx) => u.series[seriesIdx].show && u.tooltip.idxs[seriesIdx] != null,
+				},
 
 				plugins: [scatterPlugin({
 					hover: true,

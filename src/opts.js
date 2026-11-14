@@ -400,6 +400,7 @@ export const legendOpts = {
 	show: true,
 	live: true,
 	mode: null,
+	transpose: false,
 	side: 2,
 	isolate: false,
 	filter: null,
@@ -421,6 +422,7 @@ export const legendOpts = {
 export const tooltipOpts = {
 	show: false,
 	mode: 'table',
+	transpose: false,
 	gap: 12,
 	markers: legendOpts.markers,
 	mount: legendOpts.mount,

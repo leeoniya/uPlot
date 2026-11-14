@@ -1126,6 +1126,7 @@ var uPlot = (function() {
 		show: true,
 		live: true,
 		mode: null,
+		transpose: false,
 		side: 2,
 		isolate: false,
 		filter: null,
@@ -1146,6 +1147,7 @@ var uPlot = (function() {
 	const tooltipOpts = {
 		show: false,
 		mode: "table",
+		transpose: false,
 		gap: 12,
 		markers: legendOpts.markers,
 		mount: legendOpts.mount,
@@ -1736,7 +1738,7 @@ var uPlot = (function() {
 	function createLegendTemplate(self, opts, keys, markersShow) {
 		const { legend, cursorFocus, bind, emit, interactive = true } = opts;
 		let multi = opts.multi;
-		let inline;
+		let inline, transpose;
 		const baseClass = opts.tooltip ? "u-tooltip" : "u-legend " + LEGEND_SIDES[opts.side ?? legend.side ?? 2];
 		const rowMeta = /* @__PURE__ */ new WeakMap();
 		const body = h("tbody");
@@ -1746,10 +1748,12 @@ var uPlot = (function() {
 			keys = nextKeys;
 			multi = nextMulti;
 			inline = legend.mode == null ? !multi : legend.mode == "inline";
+			transpose = !inline && legend.transpose;
 			head?.remove();
-			timeCells = opts.tooltip && !inline && !multi && opts.mode == 1 && self.scales[opts.series[0].scale].time ? createValueCells(keys, true) : null;
+			timeCells = (opts.tooltip || transpose && legend.live) && !inline && !multi && opts.mode == 1 && self.scales[opts.series[0].scale].time ? createValueCells(keys, true) : null;
 			head = timeCells ? h("thead", null, h("tr", null, timeCells.nodes)) : multi ? h("thead", null, h("tr", null, h("th"), keys.map((key) => h("th", { className: LEGEND_LABEL }, key)))) : null;
 			if (head) node.insertBefore(head, body);
+			node.style.gridTemplateRows = transpose ? `repeat(${keys.length + 1 + (timeCells != null)}, auto)` : "";
 		}
 		setColumns(keys, multi);
 		let values = [];
@@ -1851,7 +1855,7 @@ var uPlot = (function() {
 				values = data;
 				timeCells?.update(data[0]);
 				focused = focusedSeries;
-				const className = baseClass + " " + (inline ? LEGEND_INLINE + (legend.live || keys.length > 0 ? " u-live" : "") : LEGEND_TABLE);
+				const className = baseClass + " " + (inline ? LEGEND_INLINE + (legend.live || keys.length > 0 ? " u-live" : "") : LEGEND_TABLE + (transpose ? " u-transpose" + (timeCells ? " u-time" : "") : ""));
 				if (className !== tableClass) {
 					if (tableClass != null) node.classList.remove(...tableClass.split(" "));
 					node.classList.add(...className.split(" "));

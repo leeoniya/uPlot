@@ -93,83 +93,87 @@ describe('tooltip', () => {
 		u.setCursor({ left: u.valToPos(idx, 'x'), top: u.valToPos(data[si][idx], 'y') });
 	}
 
-	it('allows interaction inside a locked tooltip and unlocks only on a plot click', async () => {
-		const style = document.createElement('style');
-		style.textContent = plotCss;
-		document.head.appendChild(style);
-		try {
-			const { u } = await plot({
-				cursor: {lock: true},
-				scales: {x: {time: true, range: [0, 2]}, y: {range: [0, 100]}},
-				hooks: {setCursor: [self => {
-					assert.equal(self.root.classList.contains('u-locked'), self.cursor._lock);
-				}]},
-			});
-			const table = tooltip(u);
-			const mouse = (target, type, clientX = 220, clientY = 180) => target.dispatchEvent(new MouseEvent(type, {
-				bubbles: type != 'mouseleave', button: 0, clientX, clientY, movementX: 1,
-			}));
-			const click = target => {
-				mouse(target, 'mousedown');
-				mouse(target, 'mouseup');
-				mouse(target, 'click');
-			};
-			assert.equal(u.root.classList.contains('u-locked'), false);
-			assert.equal(getComputedStyle(table).pointerEvents, 'none');
-			mouse(u.over, 'mousemove');
-			click(u.over);
-			assert.equal(u.cursor._lock, true);
-			assert.equal(u.root.classList.contains('u-locked'), true);
-			assert.equal(getComputedStyle(table).pointerEvents, 'auto');
-			assert.equal(getComputedStyle(table).userSelect, 'text');
-			const tooltipLabels = table.querySelectorAll('tbody th');
-			assert.ok(tooltipLabels.length > 0);
-			for (const label of tooltipLabels)
-				assert.notEqual(getComputedStyle(label).cursor, 'pointer');
-			const legendLabels = stats(u).querySelectorAll('tbody th');
-			assert.ok(legendLabels.length > 0);
-			for (const label of legendLabels)
-				assert.equal(getComputedStyle(label).cursor, 'pointer');
-			const position = [u.cursor.left, u.cursor.top, u.cursor.idx];
-			const transform = table.style.transform;
-			const contents = table.textContent;
-			for (const target of [table, ...table.querySelectorAll('thead th, tbody th, td, .u-marker')]) {
-				click(target);
-				// A text-selection drag can end outside the tooltip.
-				mouse(target, 'mousedown');
-				mouse(document, 'mousemove', 250, 200);
-				mouse(document, 'mouseup', 250, 200);
+	for (const transpose of [false, true]) {
+		it(`allows interaction inside a locked tooltip and unlocks only on a plot click, transpose=${transpose}`, async () => {
+			const style = document.createElement('style');
+			style.textContent = plotCss;
+			document.head.appendChild(style);
+			try {
+				const { u } = await plot({
+					cursor: {lock: true},
+					tooltip: {mode: 'table', transpose},
+					scales: {x: {time: true, range: [0, 2]}, y: {range: [0, 100]}},
+					hooks: {setCursor: [self => {
+						assert.equal(self.root.classList.contains('u-locked'), self.cursor._lock);
+					}]},
+				});
+				const table = tooltip(u);
+				assert.equal(table.classList.contains('u-transpose'), transpose);
+				const mouse = (target, type, clientX = 220, clientY = 180) => target.dispatchEvent(new MouseEvent(type, {
+					bubbles: type != 'mouseleave', button: 0, clientX, clientY, movementX: 1,
+				}));
+				const click = target => {
+					mouse(target, 'mousedown');
+					mouse(target, 'mouseup');
+					mouse(target, 'click');
+				};
+				assert.equal(u.root.classList.contains('u-locked'), false);
+				assert.equal(getComputedStyle(table).pointerEvents, 'none');
+				mouse(u.over, 'mousemove');
+				click(u.over);
 				assert.equal(u.cursor._lock, true);
+				assert.equal(u.root.classList.contains('u-locked'), true);
+				assert.equal(getComputedStyle(table).pointerEvents, 'auto');
+				assert.equal(getComputedStyle(table).userSelect, 'text');
+				const tooltipLabels = table.querySelectorAll('tbody th');
+				assert.ok(tooltipLabels.length > 0);
+				for (const label of tooltipLabels)
+					assert.notEqual(getComputedStyle(label).cursor, 'pointer');
+				const legendLabels = stats(u).querySelectorAll('tbody th');
+				assert.ok(legendLabels.length > 0);
+				for (const label of legendLabels)
+					assert.equal(getComputedStyle(label).cursor, 'pointer');
+				const position = [u.cursor.left, u.cursor.top, u.cursor.idx];
+				const transform = table.style.transform;
+				const contents = table.textContent;
+				for (const target of [table, ...table.querySelectorAll('thead th, tbody th, td, .u-marker')]) {
+					click(target);
+					// A text-selection drag can end outside the tooltip.
+					mouse(target, 'mousedown');
+					mouse(document, 'mousemove', 250, 200);
+					mouse(document, 'mouseup', 250, 200);
+					assert.equal(u.cursor._lock, true);
+				}
+				const button = document.createElement('button');
+				let clicks = 0;
+				button.addEventListener('click', () => clicks++);
+				table.querySelector('td').appendChild(button);
+				click(button);
+				assert.equal(clicks, 1);
+				button.remove();
+				mouse(u.over, 'mousemove', 250, 200);
+				mouse(u.over, 'mouseleave');
+				await commit();
+				assert.equal(u.cursor._lock, true);
+				assert.deepEqual([u.cursor.left, u.cursor.top, u.cursor.idx], position);
+				assert.equal(table.style.transform, transform);
+				assert.equal(table.textContent, contents);
+				assert.equal(table.style.display, '');
+				assert.equal(u.select.width, 0);
+				assert.equal(u.select.height, 0);
+				click(u.over);
+				assert.equal(u.cursor._lock, false);
+				assert.equal(u.root.classList.contains('u-locked'), false);
+				assert.equal(getComputedStyle(table).pointerEvents, 'none');
+				assert.notEqual(getComputedStyle(table).userSelect, 'text');
+				mouse(u.over, 'mousemove', 250, 200);
+				assert.notDeepEqual([u.cursor.left, u.cursor.top], position.slice(0, 2));
 			}
-			const button = document.createElement('button');
-			let clicks = 0;
-			button.addEventListener('click', () => clicks++);
-			table.querySelector('td').appendChild(button);
-			click(button);
-			assert.equal(clicks, 1);
-			button.remove();
-			mouse(u.over, 'mousemove', 250, 200);
-			mouse(u.over, 'mouseleave');
-			await commit();
-			assert.equal(u.cursor._lock, true);
-			assert.deepEqual([u.cursor.left, u.cursor.top, u.cursor.idx], position);
-			assert.equal(table.style.transform, transform);
-			assert.equal(table.textContent, contents);
-			assert.equal(table.style.display, '');
-			assert.equal(u.select.width, 0);
-			assert.equal(u.select.height, 0);
-			click(u.over);
-			assert.equal(u.cursor._lock, false);
-			assert.equal(u.root.classList.contains('u-locked'), false);
-			assert.equal(getComputedStyle(table).pointerEvents, 'none');
-			assert.notEqual(getComputedStyle(table).userSelect, 'text');
-			mouse(u.over, 'mousemove', 250, 200);
-			assert.notDeepEqual([u.cursor.left, u.cursor.top], position.slice(0, 2));
-		}
-		finally {
-			style.remove();
-		}
-	});
+			finally {
+				style.remove();
+			}
+		});
+	}
 
 	for (const mode of ['table', 'inline']) {
 		for (const multi of [false, true]) {
@@ -215,6 +219,119 @@ describe('tooltip', () => {
 			});
 		}
 	}
+
+	it('keeps transpose options independent and ignores them in inline mode', async () => {
+		for (const [mode, legend, live] of [
+			['table', {}, {}],
+			['table', {}, {transpose: true}],
+			['table', {transpose: true}, {}],
+			['table', {transpose: true}, {transpose: true}],
+			['inline', {transpose: true}, {transpose: true}],
+		]) {
+			const { u } = await plot({series: multiSeries(), legend: {mode, ...legend}, tooltip: {mode, ...live}});
+			const a = stats(u), b = tooltip(u);
+			assert.equal(u.legend.transpose, legend.transpose ?? false);
+			assert.equal(u.tooltip.transpose, live.transpose ?? false);
+			assert.equal(u.legend.live, false);
+			for (const [table, transpose, tracks] of [[a, u.legend.transpose, 2], [b, u.tooltip.transpose, 3]]) {
+				assert.equal(table.classList.contains('u-transpose'), mode == 'table' && transpose);
+				assert.equal(table.classList.contains('u-time'), false);
+				assert.equal(table.style.gridTemplateRows, mode == 'table' && transpose ? `repeat(${tracks}, auto)` : '');
+			}
+			u.setLegend({idx: 1});
+			assert.deepEqual(headers(a), ['', 'Sum']);
+			assert.deepEqual(headers(b), ['', 'Value', 'Double']);
+			assert.deepEqual(cells(a), [['60'], ['150']]);
+			assert.deepEqual(cells(b), [['20', '40'], ['50', '100']]);
+		}
+	});
+
+	it('configures nested subgrids and a spanning scalar time header for transposed live tables', async () => {
+		const style = document.createElement('style');
+		style.textContent = plotCss;
+		document.head.appendChild(style);
+		try {
+			for (const showTooltip of [false, true]) {
+				const { u } = await plot({
+					scales: {x: {time: true, range: [0, 2]}, y: {range: [0, 100]}},
+					legend: {mode: 'table', transpose: true},
+					tooltip: {show: showTooltip, transpose: true},
+				});
+				hover(u);
+				const table = showTooltip ? tooltip(u) : stats(u);
+				const head = table.querySelector('thead'), body = table.querySelector('tbody');
+				assert.equal(table.classList.contains('u-transpose'), true);
+				assert.equal(table.classList.contains('u-time'), true);
+				assert.equal(table.style.gridTemplateRows, 'repeat(3, auto)');
+				assert.equal(getComputedStyle(table).display, 'grid');
+				assert.equal(getComputedStyle(table).gridAutoFlow, 'column');
+				assert.equal(head.querySelectorAll('th').length, 1);
+				assert.equal(head.querySelector('th').colSpan, 2);
+				assert.deepEqual(headers(table), [(showTooltip ? u.tooltip : u.legend).values[0]._]);
+				assert.deepEqual(labels(table), ['Alpha', 'Beta']);
+				assert.deepEqual(cells(table), [['v:20'], ['v:50']]);
+				for (const node of table.querySelectorAll('thead, tbody, tr')) {
+					assert.equal(getComputedStyle(node).display, 'grid');
+					assert.equal(getComputedStyle(node).gridTemplateRows, 'subgrid');
+					assert.equal(getComputedStyle(node).gridAutoFlow, 'column');
+				}
+				assert.equal(getComputedStyle(head).gridRow, '1');
+				assert.equal(getComputedStyle(body).gridRow, '2 / -1');
+				assert.equal(getComputedStyle(head).gridColumn, '1');
+				assert.equal(getComputedStyle(body).gridColumn, '1');
+				assert.equal(getComputedStyle(head.querySelector('tr')).gridAutoColumns, 'auto');
+				for (const row of rows(table)) {
+					assert.equal(row.matches('tr.u-series'), true);
+					assert.equal(getComputedStyle(row).gridRow, '1 / -1');
+					assert.equal(getComputedStyle(row).gridAutoColumns, 'max-content');
+					assert.equal(row.querySelector('td').colSpan, 1);
+				}
+				if (showTooltip) {
+					assert.equal(stats(u).classList.contains('u-time'), false);
+					assert.equal(stats(u).style.gridTemplateRows, 'repeat(2, auto)');
+					assert.equal(stats(u).querySelector('thead'), null);
+				}
+			}
+		}
+		finally {
+			style.remove();
+		}
+	});
+
+	it('retains transposed series rows and cells through sorting and filtering', async () => {
+		const { u } = await plot({series: multiSeries(), legend: {mode: 'table'}, tooltip: {transpose: true}});
+		u.setLegend({idx: 1});
+		const table = tooltip(u), head = table.querySelector('thead'), body = table.querySelector('tbody');
+		const [alpha, beta] = rows(table);
+		const betaCells = [...beta.children];
+		u.tooltip.sort = (self, a, b) => b - a;
+		u.setLegend({idx: 2});
+		assert.equal(rows(table)[0], beta);
+		assert.equal(rows(table)[1], alpha);
+		assert.deepEqual(labels(table), ['Beta', 'Alpha']);
+		assert.deepEqual(cells(table), [['60', '120'], ['30', '60']]);
+		u.tooltip.filter = (self, si) => si == 2;
+		u.setLegend({idx: 0});
+		assert.equal(rows(table).length, 1);
+		assert.equal(rows(table)[0], beta);
+		assert.equal(alpha.isConnected, false);
+		assert.deepEqual(cells(table), [['40', '80']]);
+		assert.equal(table.style.gridTemplateRows, 'repeat(3, auto)');
+		u.tooltip.filter = u.tooltip.sort = null;
+		u.setLegend({idx: 1});
+		assert.deepEqual(labels(table), ['Alpha', 'Beta']);
+		assert.deepEqual(cells(table), [['20', '40'], ['50', '100']]);
+		assert.equal(rows(table)[1], beta);
+		for (let i = 0; i < betaCells.length; i++)
+			assert.equal(beta.children[i], betaCells[i]);
+		assert.equal(tooltip(u), table);
+		assert.equal(table.querySelector('thead'), head);
+		assert.equal(table.querySelector('tbody'), body);
+		assert.equal(table.classList.contains('u-transpose'), true);
+		assert.equal(table.style.gridTemplateRows, 'repeat(3, auto)');
+		assert.deepEqual(labels(stats(u)), ['Alpha', 'Beta']);
+		assert.deepEqual(cells(stats(u)), [['60'], ['150']]);
+	});
 
 	for (const showTooltip of [false, true]) {
 		for (const mode of ['inline', 'table']) {
@@ -692,42 +809,58 @@ describe('tooltip', () => {
 		assert.deepEqual(markerCalls, [[u, 1], [u, 2]]);
 	});
 
-	it('clones HTMLElement labels and registers no tooltip DOM listeners or binding factories', async () => {
-		const label = document.createElement('span');
-		label.appendChild(document.createElement('b')).textContent = 'Alpha';
-		const listeners = [], bindings = [];
-		const add = HTMLElement.prototype.addEventListener;
-		replace(HTMLElement.prototype, 'addEventListener', { value: function(type, listener, options) {
-			listeners.push([this, type]);
-			return add.call(this, type, listener, options);
-		} });
-		const { u } = await plot({
-			series: [{}, { label, stroke: 'red', values }],
-			cursor: { focus: { prox: 10 }, bind: Object.fromEntries(['click', 'mouseenter', 'mouseleave'].map(type => [type, (self, target, handler) => {
-				bindings.push([target, type]);
-				return handler;
-			}])) },
-		}, data.slice(0, 2));
-		const a = stats(u), b = tooltip(u);
-		const original = a.querySelector('tbody .u-label').firstChild;
-		const clone = b.querySelector('tbody .u-label').firstChild;
-		assert.equal(original === label, true);
-		assert.equal(clone === label, false);
-		assert.equal(clone.firstChild === label.firstChild, false);
-		assert.equal(clone.outerHTML, label.outerHTML);
-		assert.ok(bindings.some(([target]) => a.contains(target)));
-		assert.ok(listeners.some(([target]) => a.contains(target)));
-		assert.equal(bindings.filter(([target]) => b.contains(target)).length, 0);
-		assert.equal(listeners.filter(([target]) => b.contains(target)).length, 0);
-		b.querySelector('th').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-		b.querySelector('th').dispatchEvent(new MouseEvent('mouseenter'));
-		assert.equal(u.series[1].show, true);
-		assert.notEqual(u.series[1]._focus, true);
-		label.firstChild.textContent = 'edited';
-		u.setLegend({ idx: 1 });
-		assert.equal(clone.textContent, 'Alpha');
-		assert.equal(original.textContent, 'edited');
-	});
+	for (const transpose of [false, true]) {
+		it(`keeps series-oriented rows, clones labels, and binds only legend events, transpose=${transpose}`, async () => {
+			const label = document.createElement('span');
+			label.appendChild(document.createElement('b')).textContent = 'Alpha';
+			const listeners = [], bindings = [];
+			const add = HTMLElement.prototype.addEventListener;
+			replace(HTMLElement.prototype, 'addEventListener', { value: function(type, listener, options) {
+				listeners.push([this, type]);
+				return add.call(this, type, listener, options);
+			} });
+			const { u } = await plot({
+				series: [{}, { label, stroke: 'red', values }],
+				legend: {mode: 'table', transpose},
+				tooltip: {transpose},
+				cursor: { focus: { prox: 10 }, bind: Object.fromEntries(['click', 'mouseenter', 'mouseleave'].map(type => [type, (self, target, handler) => {
+					bindings.push([target, type]);
+					return handler;
+				}])) },
+			}, data.slice(0, 2));
+			const a = stats(u), b = tooltip(u);
+			for (const table of [a, b]) {
+				assert.equal(table.classList.contains('u-transpose'), transpose);
+				assert.equal(rows(table).length, 1);
+				assert.equal(rows(table)[0].matches('tbody > tr.u-series'), true);
+				assert.equal(rows(table)[0].querySelectorAll('th > .u-marker').length, 1);
+			}
+			assert.deepEqual([...rows(a)[0].children].map(cell => cell.tagName), ['TH', 'TD']);
+			assert.deepEqual([...rows(b)[0].children].map(cell => cell.tagName), ['TH', 'TD', 'TD']);
+			const original = a.querySelector('tbody th > .u-label').firstChild;
+			const clone = b.querySelector('tbody th > .u-label').firstChild;
+			assert.equal(original === label, true);
+			assert.equal(clone === label, false);
+			assert.equal(clone.firstChild === label.firstChild, false);
+			assert.equal(clone.outerHTML, label.outerHTML);
+			assert.ok(bindings.some(([target]) => a.contains(target)));
+			assert.ok(listeners.some(([target]) => a.contains(target)));
+			assert.equal(bindings.filter(([target]) => b.contains(target)).length, 0);
+			assert.equal(listeners.filter(([target]) => b.contains(target)).length, 0);
+			b.querySelector('tbody th').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			b.querySelector('tbody th').dispatchEvent(new MouseEvent('mouseenter'));
+			assert.equal(u.series[1].show, true);
+			assert.notEqual(u.series[1]._focus, true);
+			label.firstChild.textContent = 'edited';
+			u.setLegend({ idx: 1 });
+			assert.equal(clone.textContent, 'Alpha');
+			assert.equal(original.textContent, 'edited');
+			a.querySelector('tbody th').dispatchEvent(new MouseEvent('mouseenter'));
+			assert.equal(u.series[1]._focus, true);
+			a.querySelector('tbody th').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			assert.equal(u.series[1].show, false);
+		});
+	}
 
 	it('formats scalar stats with null arguments on initialization and both setData reset modes', async () => {
 		const calls = [];

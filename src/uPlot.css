@@ -127,7 +127,8 @@
 	z-index: 100;
 	pointer-events: none;
 
-	thead th {
+	&:not(.u-transpose) thead th,
+	&.u-transpose tr > th:first-child {
 		padding-bottom: 2px;
 		border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
 	}
@@ -151,6 +152,47 @@
 
 	&.u-live th::after {
 		content: ":";
+	}
+}
+
+.u-transpose {
+	width: max-content;
+
+	&, > thead, > tbody, > thead > tr, > tbody > tr {
+		display: grid;
+		grid-auto-flow: column;
+		grid-auto-columns: max-content;
+	}
+
+	> thead, > tbody, > thead > tr, > tbody > tr {
+		grid-template-rows: subgrid;
+		grid-row: 1 / -1;
+	}
+
+	thead th:not([colspan]) {
+		text-align: left;
+	}
+
+	tbody th {
+		text-align: right;
+	}
+
+	&.u-time {
+		> thead, > thead > tr {
+			grid-auto-columns: auto;
+		}
+
+		> thead, > tbody {
+			grid-column: 1;
+		}
+
+		> thead {
+			grid-row: 1;
+		}
+
+		> tbody {
+			grid-row: 2 / -1;
+		}
 	}
 }
 

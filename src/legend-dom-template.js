@@ -38,7 +38,7 @@ function createValueCells(keys, timeHeader = false) {
 export function createLegendTemplate(self, opts, keys, markersShow) {
 	const {legend, cursorFocus, bind, emit, interactive = true} = opts;
 	let multi = opts.multi;
-	let inline;
+	let inline, transpose;
 	const baseClass = opts.tooltip ? 'u-tooltip' : LEGEND + ' ' + LEGEND_SIDES[opts.side ?? legend.side ?? 2];
 	const rowMeta = new WeakMap();
 	const body = h('tbody');
@@ -49,8 +49,9 @@ export function createLegendTemplate(self, opts, keys, markersShow) {
 		keys = nextKeys;
 		multi = nextMulti;
 		inline = legend.mode == null ? !multi : legend.mode == 'inline';
+		transpose = !inline && legend.transpose;
 		head?.remove();
-		timeCells = opts.tooltip && !inline && !multi && opts.mode == 1 && self.scales[opts.series[0].scale].time ? createValueCells(keys, true) : null;
+		timeCells = (opts.tooltip || transpose && legend.live) && !inline && !multi && opts.mode == 1 && self.scales[opts.series[0].scale].time ? createValueCells(keys, true) : null;
 		head = timeCells ? h('thead', null, h('tr', null, timeCells.nodes)) : multi ? h('thead', null,
 			h('tr', null,
 				h('th'),
@@ -59,6 +60,8 @@ export function createLegendTemplate(self, opts, keys, markersShow) {
 		) : null;
 		if (head)
 			node.insertBefore(head, body);
+		// Subgrids share field heights; series order and column placement follow the DOM.
+		node.style.gridTemplateRows = transpose ? `repeat(${keys.length + 1 + (timeCells != null)}, auto)` : '';
 	}
 
 	setColumns(keys, multi);
@@ -181,7 +184,7 @@ export function createLegendTemplate(self, opts, keys, markersShow) {
 			values = data;
 			timeCells?.update(data[0]);
 			focused = focusedSeries;
-			const className = baseClass + ' ' + (inline ? LEGEND_INLINE + (legend.live || keys.length > 0 ? ' ' + LEGEND_LIVE : '') : LEGEND_TABLE);
+			const className = baseClass + ' ' + (inline ? LEGEND_INLINE + (legend.live || keys.length > 0 ? ' ' + LEGEND_LIVE : '') : LEGEND_TABLE + (transpose ? ' u-transpose' + (timeCells ? ' u-time' : '') : ''));
 			if (className !== tableClass) {
 				if (tableClass != null)
 					node.classList.remove(...tableClass.split(' '));

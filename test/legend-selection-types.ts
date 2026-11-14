@@ -6,6 +6,7 @@ let offset = 0;
 
 const legend: uPlot.Legend = {
 	mode: 'table',
+	transpose: true,
 	valueSrc: 'values',
 	side: 1,
 	filter: (self, si) => self.series[si].show !== false && (self.cursor.dists?.[si] ?? Infinity) <= 5,
@@ -27,6 +28,7 @@ const opts: uPlot.Options = {
 		show: true,
 		gap: 5,
 		mode: 'table',
+		transpose: true,
 		valueSrc: 'value',
 		filter: (self, si) => self.tooltip.idxs?.[si] != null,
 		sort: (self, a, b) => b - a,
@@ -56,6 +58,10 @@ if (distances) {
 
 // @ts-expect-error Layout mode must be inline, table, or null.
 const invalidMode: uPlot.Legend = { mode: 'grid' };
+// @ts-expect-error Legend transpose must be a boolean.
+const invalidTranspose: uPlot.Legend = { transpose: 'yes' };
+// @ts-expect-error Tooltip transpose must be a boolean.
+const invalidTooltipTranspose: uPlot.Tooltip = { transpose: 1 };
 // @ts-expect-error Formatter source must be value or values.
 const invalidValueSrc: uPlot.Legend = { valueSrc: 'auto' };
 // @ts-expect-error Tooltip uses the same formatter sources as Legend.

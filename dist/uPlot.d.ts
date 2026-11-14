@@ -333,6 +333,8 @@ declare namespace uPlot {
 		live?: boolean;	// true
 		/** Initial layout. null or omitted infers table for multi-value output, otherwise inline. */
 		mode?: 'inline' | 'table' | null;
+		/** Visually transposes table layout with CSS subgrid. DOM rows remain grouped by series. false by default. */
+		transpose?: boolean;
 		/** Formatter source. Omitted prefers series[1].values when present, otherwise series.value.
 		 * 'values' requires a values callback on each Y series. */
 		valueSrc?: 'value' | 'values';
@@ -369,7 +371,7 @@ declare namespace uPlot {
 	}
 
 	/** The tooltip is the sole live component when enabled. It has no focus or toggle listeners. */
-	export interface Tooltip extends Pick<Legend, 'mode' | 'valueSrc' | 'markers' | 'filter' | 'sort' | 'limit' | 'mount' | 'idx' | 'idxs' | 'values' | 'order' | 'count' | 'range'> {
+	export interface Tooltip extends Pick<Legend, 'mode' | 'transpose' | 'valueSrc' | 'markers' | 'filter' | 'sort' | 'limit' | 'mount' | 'idx' | 'idxs' | 'values' | 'order' | 'count' | 'range'> {
 		/** Requires overlay DOM and cursor.show. false by default. */
 		show?: boolean;
 		/** Cursor gap in CSS pixels. 12 by default. */

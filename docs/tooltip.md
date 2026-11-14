@@ -37,6 +37,32 @@ const opts = {
 In mode 1, a live scalar view also includes the X-series row. Multi-value views and non-live legends omit this row.
 The example shows stats columns in the legend and scalar cursor values in the tooltip.
 
+### Transposed tables
+
+`legend.transpose: true` or `tooltip.transpose: true` shows series as columns and named values as rows.
+The default is `false`. Each component uses its own setting. Inline layouts ignore this setting.
+
+```js
+legend: {mode: 'table', transpose: true, valueSrc: 'values'},
+tooltip: {show: true, mode: 'table', transpose: true, valueSrc: 'values'},
+```
+
+Series headers retain their markers. Legend headers retain click and focus interactions.
+The `filter`, `sort`, and `limit` callbacks select series columns instead of series rows.
+Scalar tables omit field labels. Live scalar time tables keep the timestamp above all series columns.
+
+CSS Grid and nested subgrids change the visual layout. Each series retains one `tr.u-series` container and all its cells.
+The table sections and series rows retain layout boxes. This layout does not use `display: contents`.
+
+Both orientations share value formatting, cached text updates, and keyed series identity.
+CSS places series columns in DOM order, without separate JavaScript placement or copied values.
+Subgrid keeps field heights aligned across series, including multiline labels.
+
+This layout requires [CSS subgrid](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_grid_layout/Subgrid): Chrome/Edge 117+, Firefox 71+, or Safari/iOS 16+.
+DOM order and table-header relationships remain series-oriented, rather than visually transposed.
+Changing a table to CSS Grid can affect [accessibility in some browsers](https://developer.mozilla.org/en-US/docs/Web/CSS/display#accessibility). Browser and screen-reader combinations still require verification.
+The `mode` and `transpose` settings select the initial layout, not a runtime layout switch.
+
 ## Live values and stats
 
 The live component uses the existing per-series cursor indices and value callbacks.
@@ -102,6 +128,7 @@ The existing `setLegend` hook runs after this refresh.
 | `show` | `false` | Enables the tooltip when overlay DOM and the cursor are enabled. |
 | `gap` | `12` | Cursor gap in CSS pixels. |
 | `mode` | `'table'` | Table or inline layout. |
+| `transpose` | `false` | Shows series as columns and values as rows in table layout. |
 | `valueSrc` | Inferred from `series[1].values` | `'value'` for scalar values or `'values'` for named columns. |
 | `markers` | Legend marker defaults | Independent marker options. |
 | `filter`, `sort`, `limit` | `null` | Existing live legend selection callbacks. |
