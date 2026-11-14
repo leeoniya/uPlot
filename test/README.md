@@ -4,12 +4,12 @@
 
 | Command | Scope | Source coverage |
 | --- | --- | --- |
-| `npm test` | Core and plugin suites together in one shared test process | Yes |
+| `npm test` | Core and plugin suites | Yes |
 | `npm run test:core` | Core behavior and core-owned demo regressions in `test/*.mjs` | Yes |
 | `npm run test:plugins` | Plugin behavior, helpers, and plugin-owned demo regressions in `test/plugins/*.mjs` | Yes |
 | `npm run test:tooling` | Tooling in `test/tooling/*.mjs` and the demo HTTP server in `test/server/*.mjs` | No suite-wide report |
 | `npm run test:integration` | Demo support, adapters, and asset integration in `test/integration/*.mjs` | No suite-wide report |
-| `npm run test:all` | Core, plugins, integration, and tooling in one shared test process | Yes |
+| `npm run test:all` | Core, plugins, integration, and tooling | Yes |
 | `npm run test:server` | Only the demo HTTP server | No |
 | `npm run test:update` | Default suite, with snapshot updates | Yes |
 
@@ -26,8 +26,8 @@ Plugin tests also exercise core code through normal chart construction.
 The runner continues after test failures and reports failures from both suites.
 
 The command returns zero when tests and coverage reporting succeed, or nonzero if either fails.
-The shared recorder collects snapshot failures from both suites in one `test/output/index.html` report.
-The recorder finalizes this combined report synchronously at process exit.
+Snapshot failures from both suites appear in one `test/output/index.html` report.
+Serial runs write this report at process exit. Parallel runs write it after all workers finish.
 Coverage merges once after the combined run, including when tests fail.
 
 The tooling suite covers benchmark measurement and reports, profiling, patch utilities, canvas recording and replay, snapshot capture, worker protocols, and coverage infrastructure.
@@ -61,6 +61,42 @@ It accepts `--reporter`, `-R`, and `--test-reporter` with these mappings:
 
 - `spec`: Node's `spec` reporter or Bun's default reporter.
 - `dot` or `dots`: Node's `dot` reporter or Bun's `dots` reporter.
+
+## Test workers
+
+The runner uses one worker by default. Use `--workers=N` to select a positive integer worker count:
+
+```sh
+bun run test --workers=4
+npm test -- --workers=4
+bun run test:core --workers=2 --no-coverage
+```
+
+Bun parallel execution requires a version that supports `--parallel`, `--no-isolate`, and `--timings`.
+The smoke tests passed with Bun 1.4.4.
+
+The runner caps the worker count at the number of selected files. Each worker retains its DOM and module cache across files.
+Tests within each worker remain serial. Worker processes run concurrently.
+
+- **Bun:** its native worker pool distributes files automatically. Unfiltered runs retain file durations in `.cache/test-timings/bun-coverage.json` or `bun-plain.json`.
+  Later parallel runs use those durations to schedule slow files first. Name-filtered runs do not read or update this timing cache.
+- **Node:** the runner distributes files into persistent batches, with file size as the cost estimate.
+  It assigns larger files first and preserves the original selection order within each batch. Node does not use a timing cache.
+
+Workers share the existing instrumentation cache, but each worker retains separate coverage counters.
+The parent clears coverage output once and merges worker coverage after the tests finish.
+With `--no-coverage`, the runner leaves existing coverage output unchanged.
+
+For parallel runs, the parent clears `test/output` once before tests start.
+Workers write separate temporary snapshot failure records. The parent combines those records into `test/output/index.html`, then removes the temporary directory.
+The runner waits for all workers after a test failure and returns a nonzero status.
+
+Use `--workers=1` to reproduce a failure with the original serial order.
+With `UPDATE=1`, the runner forces one worker to prevent concurrent snapshot updates.
+
+More workers require more memory. Some tests also start child processes, so the total process count can exceed the worker count.
+Parallel runs can also reveal tests that depend on shared state or fixed output paths. Use serial execution for such selections until those conflicts are resolved.
+Do not run separate harness invocations concurrently in the same checkout. They share coverage, snapshot output, and timing-cache paths.
 
 ## Coverage tables
 
@@ -385,8 +421,8 @@ This configuration applies to all `bun run` scripts. It does not affect npm.
 
 The wrapper runs `node --test --test-isolation=none` under Node, or `bun test` under Bun.
 Both runtimes use the same tests with imports from `node:test`.
-The selected files run in one shared test process, not an isolated process for each file.
-This preserves shared DOM state and snapshot reporting across suites. Probe workers remain separate child processes.
+By default, the selected files run in one shared test process, not an isolated process for each file.
+With `--workers=N`, each worker shares DOM state across its assigned files. Probe workers remain separate child processes.
 
 Both runtimes have a common per-test default timeout of 2000 ms.
 The wrapper sets Node's `--test-timeout=2000` or Bun's `--timeout=2000`.

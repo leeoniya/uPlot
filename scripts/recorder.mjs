@@ -30,6 +30,7 @@ global.uPlot = uPlot;
 // console.log('go!');
 
 const update = process.env.UPDATE === '1';
+const reportDir = process.env.UPLOT_TEST_REPORT_DIR;
 const outputDir = path.resolve('test/output');
 const report = path.join(outputDir, 'index.html');
 const failures = [];
@@ -37,14 +38,18 @@ const failures = [];
 if (process.env.UPDATE != null && !update)
 	throw new Error('UPDATE must be "1" when set.');
 
-if (!update)
+if (!update && reportDir == null)
 	fs.rmSync(outputDir, { recursive: true, force: true });
 
 // Bun scopes top-level after hooks to one file; finalize after all files instead.
 process.once('exit', () => {
 	if (failures.length > 0) {
-		writeFailureReport(failures, report);
-		console.log(`Visual comparisons: ${path.relative('.', report)} (${failures.length} failed snapshots)`);
+		if (reportDir != null)
+			fs.writeFileSync(path.join(reportDir, process.pid + '.json'), JSON.stringify(failures));
+		else {
+			writeFailureReport(failures, report);
+			console.log(`Visual comparisons: ${path.relative('.', report)} (${failures.length} failed snapshots)`);
+		}
 	}
 });
 

@@ -35,13 +35,16 @@ describe('native test runner arguments', () => {
 				assert.deepEqual(command(['**/*.mjs']), {
 					args: [...prefix, ...paths(['a.mjs', 'nested/b.mjs', 'nested/c.mjs', 'z.mjs'])],
 					coverage: true,
+					workers: 1,
+					files: paths(['a.mjs', 'nested/b.mjs', 'nested/c.mjs', 'z.mjs']),
 				});
 			});
 
 			it('preserves pattern order and deduplicates overlapping, relative and absolute paths', () => {
 				const args = ['z.mjs', 'nested/*.mjs', '*.mjs', './a.mjs', join(cwd, 'z.mjs'), '**/*.mjs'];
 				const original = [...args];
-				assert.deepEqual(command(args).args, [...prefix, ...paths(['z.mjs', 'nested/b.mjs', 'nested/c.mjs', 'a.mjs'])]);
+				const selected = paths(['z.mjs', 'nested/b.mjs', 'nested/c.mjs', 'a.mjs']);
+				assert.deepEqual(command(args), { args: [...prefix, ...selected], coverage: true, workers: 1, files: selected });
 				assert.deepEqual(args, original);
 			});
 
@@ -66,7 +69,7 @@ describe('native test runner arguments', () => {
 
 			it('disables coverage without adding instrumentation or reporting arguments', () => {
 				assert.deepEqual(command(['--no-coverage', 'a.mjs']), {
-					args: [...prefix, ...paths(['a.mjs'])], coverage: false,
+					args: [...prefix, ...paths(['a.mjs'])], coverage: false, workers: 1, files: paths(['a.mjs']),
 				});
 				assert.deepEqual(command(['a.mjs', '--no-coverage']), command(['--no-coverage', 'a.mjs']));
 			});
@@ -75,7 +78,7 @@ describe('native test runner arguments', () => {
 				it(`forwards ${flag} as a literal test-name pattern`, () => {
 					const pattern = '^(area-fill 0-0|multi-bars 0-variable-colors)$';
 					assert.deepEqual(command(['a.mjs', flag, pattern]), {
-						args: [...prefix, '--test-name-pattern', pattern, ...paths(['a.mjs'])], coverage: true,
+						args: [...prefix, '--test-name-pattern', pattern, ...paths(['a.mjs'])], coverage: true, workers: 1, files: paths(['a.mjs']),
 					});
 				});
 			}
@@ -121,7 +124,29 @@ describe('native test runner arguments', () => {
 				});
 			}
 
-			for (const flag of ['--grep', '-g', '--test-name-pattern', '--reporter', '--test-reporter']) {
+			for (const workers of ['1', '2', String(Number.MAX_SAFE_INTEGER)]) {
+				for (const flags of [['--workers', workers], ['--workers=' + workers]]) {
+					it(`accepts ${flags.join(' ')} as metadata without changing serial runtime arguments`, () => {
+						const args = ['z.mjs', ...flags, '--no-coverage', '--grep', '^selected$', '-R', 'dots', 'nested/*.mjs'];
+						const original = [...args];
+						const serial = command(['z.mjs', '--no-coverage', '--grep', '^selected$', '-R', 'dots', 'nested/*.mjs']);
+						assert.deepEqual(command(args), {
+							...serial,
+							workers: Number(workers),
+							files: paths(['z.mjs', 'nested/b.mjs', 'nested/c.mjs']),
+						});
+						assert.deepEqual(args, original);
+					});
+				}
+			}
+
+			for (const workers of ['', '0', '-1', '1.5', 'NaN', 'Infinity', '1e2', '0x10', '+2', ' 2', '2 ', '2workers', '9007199254740992']) {
+				it(`rejects an invalid worker count: ${JSON.stringify(workers)}`, () => {
+					assert.throws(() => command(['a.mjs', '--workers=' + workers]), /workers|positive.*integer/i);
+				});
+			}
+
+			for (const flag of ['--grep', '-g', '--test-name-pattern', '--reporter', '--test-reporter', '--workers']) {
 				it(`rejects a missing value for ${flag}`, () => {
 					assert.throws(() => command(['a.mjs', flag]), /argument missing|requires an argument/i);
 				});
@@ -142,7 +167,7 @@ describe('native test runner subprocesses', () => {
 	beforeEach(() => {
 		cwd = mkdtempSync(join(tmpdir(), 'uplot test runner process-'));
 		env = { ...process.env, NODE_OPTIONS: '' };
-		for (const key of ['NODE_V8_COVERAGE', 'NYC_CONFIG', 'NYC_CWD', 'UPLOT_COVERAGE_DIR', 'UPLOT_INSTRUMENT_CACHE_DIR'])
+		for (const key of ['NODE_V8_COVERAGE', 'NYC_CONFIG', 'NYC_CWD', 'UPLOT_COVERAGE_DIR', 'UPLOT_INSTRUMENT_CACHE_DIR', 'UPLOT_TEST_REPORT_DIR', 'UPDATE'])
 			delete env[key];
 
 		// Keep the runner unchanged, but isolate its root-relative coverage paths from other test processes.
