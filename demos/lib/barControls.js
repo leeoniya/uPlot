@@ -31,19 +31,19 @@ export function createBarControls(root, { getPlot, getControls, rebuild, regener
 	const ellipsis = Array.from(root.querySelectorAll('input[name="ellipsis"]'));
 	const middle = root.querySelector('#middle-ellipsis');
 	let active = true;
+	let legendHeight = 0;
 	const resizeObserver = new ResizeObserver(entries => {
 		if (!active)
 			return;
 		const rect = entries.find(entry => entry.target == plotSlot)?.contentRect;
 		if (rect == null)
 			return;
-		const width = Math.floor(rect.width), height = Math.floor(rect.height);
+		const width = Math.floor(rect.width), height = Math.floor(rect.height) - legendHeight;
 		const u = getPlot();
 		if (u != null && Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0 &&
 			(width != u.width || height != u.height))
 			u.setSize({ width, height });
 	});
-	// The grid slot excludes the legend and cannot grow with the canvas it contains.
 	resizeObserver.observe(plotSlot);
 
 	function syncOrientation() {
@@ -175,6 +175,12 @@ export function createBarControls(root, { getPlot, getControls, rebuild, regener
 		},
 		initialSize() {
 			return { width: plotSlot.clientWidth || 1200, height: plotSlot.clientHeight || 500 };
+		},
+		ready(u) {
+			// Rebuilds pass the previous canvas size; preserve the total height.
+			const height = u.height + legendHeight;
+			legendHeight = u.root.querySelector('.u-legend').offsetHeight;
+			u.setSize({ width: u.width, height: Math.max(1, height - legendHeight) });
 		},
 		readout(u) {
 			const { label, width } = getControls().getLabelMetrics();

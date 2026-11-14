@@ -80,9 +80,6 @@ export function createDemo(host, {stats = true, time = false} = {}) {
 	const size = () => ({width: host.clientWidth, height: Math.max(240, window.innerHeight - host.getBoundingClientRect().top - 24)});
 	const value = (u, value) => value?.toFixed(2);
 	const values = (u, si) => {
-		if (!stats)
-			return {};
-
 		const {min, max} = u.scales.x;
 		let low = Infinity, high = -Infinity, count = 0;
 		for (let i = 0; i < u.data[0].length; i++) {
@@ -99,7 +96,7 @@ export function createDemo(host, {stats = true, time = false} = {}) {
 	const resize = () => u.setSize(size());
 	const u = new uPlot({
 		...size(),
-		legend: {mode: stats ? 'table' : 'inline', valueSrc: 'values'},
+		legend: {valueSrc: stats ? 'values' : undefined},
 		tooltip: {show: true, mode: 'table', valueSrc: 'value', filter: (u, si) => u.series[si].show},
 		cursor: {lock: true, focus: {prox: 30}},
 		scales: {x: {time}},

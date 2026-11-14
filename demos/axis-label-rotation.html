@@ -24,11 +24,12 @@
 			}
 			#rotation-value { min-width: 5ch; }
 			#stats { display: block; margin: 16px 0; font: 13px monospace; }
-			#chart-resize { display: grid; grid-template-rows: minmax(0, 1fr) auto; box-sizing: border-box; width: min(1200px, 100%); height: 540px; min-width: min(300px, 100%); min-height: 240px; max-width: 100%; resize: both; overflow: hidden; border: 1px solid #ccc; }
-			#plot { min-width: 0; min-height: 0; overflow: hidden; }
-			#chart-legend { min-width: 0; overflow: auto; line-height: 1.5; }
+			#chart-resize { box-sizing: border-box; width: min(1200px, 100%); height: 540px; min-width: min(300px, 100%); min-height: 240px; max-width: 100%; resize: both; overflow: hidden; border: 1px solid #ccc; }
+			#plot { height: 100%; overflow: hidden; }
+			.u-legend { width: 100%; }
 			.uplot { background: #f4f4f4; }
 			.u-under { background: white; }
+			.u-tooltip { background: rgba(255, 255, 255, 0.95); border: 1px solid #ccc; border-radius: 4px; padding: 4px; box-shadow: 0 2px 8px #0003; }
 			details { margin-top: 20px; max-width: 1200px; }
 			summary { cursor: pointer; }
 		</style>
@@ -154,7 +155,6 @@
 			</div>
 			<div id="chart-resize">
 				<div id="plot"></div>
-				<div id="chart-legend"></div>
 			</div>
 			<output id="stats" aria-live="polite"></output>
 			<p>Drag the chart’s lower-right corner to resize it.</p>
@@ -166,12 +166,13 @@
 				<p>Orientation changes preserve the chart dimensions and data.
 				Horizontal category labels stay unrotated on the left. Their measured width determines the space available for the numeric axis.</p>
 				<p>Stacking is Off by default, so the series appear side by side. Normal adds their values within each category.
-				Percent shows each series as a share of the positive or negative total. The legend keeps the original values.</p>
+				Percent shows each series as a share of the positive or negative total. The tooltip keeps the original values.</p>
 				<p>Show values draws compact values outside grouped bars and inside stacked segments, with font sizes from 10px to 25px.
 				Value stacks also show positive and negative totals outside their ends. Percent stacks show segment percentages without totals.
 				Labels that do not fit are omitted.</p>
-				<p>Bar hover selects one bar. Group hover highlights the full category behind the bars, including gaps.
-				The legend shows all visible series for that category.</p>
+				<p>Bar hover shows the selected bar and its category in the tooltip.
+				Group hover highlights the full category behind the bars, including gaps, and shows all visible series for that category.
+				The legend does not change on hover.</p>
 				<p>Randomize data generates 3–15 items with one-to-three-word labels made from adjectives, nouns, and verbs.
 				Y values use random offsets and spreads across different magnitudes.
 				For vertical bars, the Y axis measures its formatted labels to set its width.

@@ -248,6 +248,49 @@ describe('legend mode and side layout', () => {
 		}
 	}
 
+	it('keeps labels-only selection and toggles through series additions and removals', async () => {
+		for (const mode of [1, 2]) {
+			const { u, formats } = await plot({ mode, multi: true, legend: {
+				live: false,
+				filter: (u, si) => u.series[si].label != 'Beta',
+				sort: (u, a, b) => b - a,
+			} });
+			const legend = legendNode(u);
+			const originalRows = rows(legend);
+			const originalData = u.data.slice();
+			assert.deepEqual(rowLabels(legend), ['Gamma', 'Alpha']);
+			assert.equal(legend.classList.contains('u-inline'), true);
+			assert.equal(legend.classList.contains('u-live'), false);
+			u.addSeries({ label: 'Delta', stroke: 'orange',
+				value: () => assert.fail('labels-only legends do not call value'),
+				values: () => assert.fail('labels-only legends do not call values'),
+			}, 1);
+			const added = mode == 1 ? [7, 8, 9] : [data[0].slice(), [7, 8, 9]];
+			u.setData([originalData[0], added, ...originalData.slice(1)], false);
+			u.setScale('x', { min: 0, max: 1 });
+			await frame();
+			assert.deepEqual(rowLabels(legend), ['Gamma', 'Alpha', 'Delta']);
+			assert.equal(rows(legend)[0], originalRows[0]);
+			assert.equal(rows(legend)[1], originalRows[1]);
+			mouse(rows(legend)[0].querySelector('th'), 'click');
+			await frame();
+			assert.equal(u.series[4].show, false);
+			assert.ok(rows(legend)[0].classList.contains('u-off'));
+			u.delSeries(1);
+			u.setData(originalData, false);
+			await frame();
+			assert.deepEqual(rows(legend), originalRows);
+			u.legend.filter = u.legend.sort = null;
+			u.setLegend({ idx: 1 });
+			assert.deepEqual(rowLabels(legend), labels.slice(1));
+			assert.equal(legend.querySelector('.u-value, thead'), null);
+			assert.deepEqual(u.legend.values, [null, null, null, null]);
+			assert.deepEqual(u.legend.idxs, [null, null, null, null]);
+			assert.equal(u.legend.idx, null);
+			assert.deepEqual(formats, []);
+		}
+	});
+
 	for (const multi of [false, true]) {
 		it(`omits X in mode 2 with an explicit ${multi ? 'inline multi-value' : 'scalar table'} legend`, async () => {
 			const { u } = await plot({ mode: 2, multi, legend: { mode: multi ? 'inline' : 'table' } });
@@ -263,7 +306,7 @@ describe('legend mode and side layout', () => {
 		});
 
 		it(`renders null-index stats in a nonlive table with ${multi ? 'multi-value' : 'scalar'} formatters`, async () => {
-			const { u, formats } = await plot({ multi, legend: { mode: 'table', live: false } });
+			const { u, formats } = await plot({ multi, legend: { mode: 'table', live: false, valueSrc: multi ? 'values' : 'value' } });
 			const legend = legendNode(u);
 			assert.equal(legend.classList.contains('u-inline'), false);
 			assert.equal(legend.classList.contains('u-table'), true);

@@ -78,6 +78,7 @@ describe('random label rotation demo', () => {
 				observers.push(this);
 			}
 			observe(target) {
+				this.plotSlot = target === input('plot');
 				this.target = target;
 				this.observeCount++;
 			}
@@ -128,6 +129,10 @@ describe('random label rotation demo', () => {
 		try {
 			demo?.destroy();
 			root?.remove();
+			for (const observer of observers) {
+				assert.equal(observer.disconnectCount, 1, 'every plot-slot and tooltip observer disconnects exactly once');
+				assert.equal(observer.target, null);
+			}
 		}
 		finally {
 			delete globalThis[measureHook];
@@ -310,25 +315,51 @@ describe('random label rotation demo', () => {
 		await Promise.resolve();
 	}
 
-	async function resize(width, height, observer = observers.at(-1)) {
+	// Identify disconnected controllers without retaining their DOM targets.
+	const plotObservers = () => observers.filter(observer => observer.plotSlot);
+	const tooltipObserver = () => observers.find(observer => observer.target === u.over.querySelector('.u-tooltip'));
+
+	async function resize(width, height, observer = plotObservers().at(-1)) {
 		clearDrawLog();
 		// Deliver even after disconnect to exercise the production callback's guard.
 		observer.callback([{ target: input('plot'), contentRect: { width, height } }], observer);
 		await Promise.resolve();
 	}
 
-	async function assertLegendMount() {
-		await new Promise(requestAnimationFrame);
-		const legend = input('chart-legend').querySelector('table.u-legend');
-		assert.ok(legend, 'the native legend table is mounted outside the chart slot');
-		assert.equal(legend.parentElement, input('chart-legend'));
-		assert.equal(root.querySelectorAll('table.u-legend').length, 1, 'one live legend after rebuild');
-		assert.equal(input('plot').querySelector('.u-legend'), null);
-		assert.equal(legend.querySelectorAll('.u-series').length, u.series.length);
+	const tableRows = table => Array.from(table.querySelectorAll('tbody tr'), row => [
+		row.querySelector('.u-label').textContent,
+		...Array.from(row.querySelectorAll('td'), cell => cell.textContent),
+	]);
+
+	function assertStaticLegend() {
+		assert.equal(u.legend.live, false);
+		assert.equal(u.legend.side, 0);
+		assert.equal(u.legend.idx, null);
+		assert.deepEqual(u.legend.idxs, u.series.map(() => null));
+		assert.deepEqual(u.legend.values, u.series.map(() => null));
+		const legend = u.root.querySelector('table.u-legend');
+		assert.equal(legend.classList.contains('u-inline'), true);
+		assert.equal(legend.classList.contains('u-top'), true);
+		assert.equal(legend.classList.contains('u-live'), false);
+		assert.equal(legend.querySelectorAll('.u-value').length, 0);
+		assert.deepEqual(tableRows(legend), u.series.slice(1).map(series => [series.label]),
+			'the nonlive legend keeps every Y series label without X, value cells, or placeholders');
 	}
 
-	function hoverBar() {
-		const [x, y, width, height] = rects(1)[1];
+	async function assertLegendMount() {
+		await new Promise(requestAnimationFrame);
+		const legend = u.root.querySelector('table.u-legend');
+		assert.ok(legend, 'the native legend table uses its normal chart-root mount');
+		assert.equal(legend.parentElement, u.root);
+		assert.equal(u.root.parentElement, input('plot'));
+		assert.equal(root.querySelectorAll('table.u-legend').length, 1, 'one mounted legend after rebuild');
+		assert.equal(input('plot').querySelector('.u-legend'), legend);
+		assert.equal(legend.querySelectorAll('.u-series').length, u.series.length - 1);
+		assertStaticLegend();
+	}
+
+	function hoverBar(si = 1, di = 1) {
+		const [x, y, width, height] = rects(si)[di];
 		u.over.dispatchEvent(new MouseEvent('mouseenter'));
 		u.setCursor({
 			left: (x + width / 2 - u.bbox.left) / u.pxRatio,
@@ -339,7 +370,13 @@ describe('random label rotation demo', () => {
 	function assertHoverMode(mode) {
 		const group = mode == 'group';
 		assert.deepEqual(u.cursor.idxs, [1, 1, group ? 1 : null]);
-		assert.deepEqual(u.legend.values.map(value => value._), ['B', '13', group ? '26' : '--']);
+		assert.equal(u.tooltip.idxs, u.cursor.idxs);
+		assert.deepEqual(u.tooltip.values.map(value => value._), ['B', '13', group ? '26' : '--']);
+		assert.deepEqual(u.tooltip.order, group ? [1, 2] : [1]);
+		assert.deepEqual(tableRows(u.over.querySelector('table.u-tooltip')), [
+			['Item', 'B'], ['Value', '13'], ...(group ? [['Other value', '26']] : []),
+		]);
+		assertStaticLegend();
 		const band = u.under.querySelector('.u-bar-group-hover');
 		if (group) {
 			assert.ok(band, 'group highlight is behind the canvas in u.under');
@@ -520,13 +557,155 @@ describe('random label rotation demo', () => {
 		assert.deepEqual(u.axes[0]._values, fullLabels());
 	});
 
-	it('keeps the native legend in a separate row of the resizable chart', async () => {
-		assert.deepEqual(Array.from(input('chart-resize').children, el => el.id), ['plot', 'chart-legend']);
+	it('keeps the native legend in the chart root inside the resizable container', async () => {
+		assert.deepEqual(Array.from(input('chart-resize').children, el => el.id), ['plot']);
+		assert.equal(root.querySelector('#chart-legend'), null, 'no custom legend container');
 		await assertLegendMount();
-		assert.equal(observers.length, 1);
-		assert.equal(observers[0].target, input('plot'), 'observe the chart slot, not the wrapper or legend');
-		assert.equal(observers[0].observeCount, 1);
-		assert.equal(observers[0].disconnectCount, 0);
+		assert.equal(observers.length, 2, 'one controller observer and one tooltip observer');
+		assert.equal(plotObservers().length, 1);
+		const observer = plotObservers()[0];
+		assert.equal(observer.target, input('plot'), 'observe the container holding both chart and legend');
+		assert.equal(observer.observeCount, 1);
+		assert.equal(observer.disconnectCount, 0);
+		assert.equal(tooltipObserver().observeCount, 1);
+		assert.equal(tooltipObserver().disconnectCount, 0);
+	});
+
+	it('caches the root-mounted legend height once per chart and preserves total height across rebuilds', async t => {
+		demo.destroy();
+		t.mock.getter(input('plot'), 'clientWidth', () => 936);
+		t.mock.getter(input('plot'), 'clientHeight', () => 412);
+		let legendHeight = 28;
+		const reads = [];
+		// Happy DOM has no layout; model legend wrapping without changing other element heights.
+		t.mock.getter(HTMLElement.prototype, 'offsetHeight', function() {
+			if (!this.classList.contains('u-legend'))
+				return 0;
+			assert.equal(this.isConnected, true, 'measure the legend after mounting');
+			reads.push(this);
+			return legendHeight;
+		});
+		await withSeededRandom(() => {
+			demo = createDemo(root);
+			u = demo.plot;
+		});
+		await Promise.resolve();
+		await assertLegendMount();
+		assert.deepEqual([u.width, u.height], [936, 384], 'initial chart height excludes the legend');
+		assert.equal(reads.length, 1);
+		assert.equal(reads[0], u.root.querySelector('table.u-legend'));
+		const observer = plotObservers().at(-1);
+		const calls = [];
+		const setSize = u.setSize;
+		u.setSize = size => { calls.push(size); return setSize(size); };
+
+		legendHeight = 72;
+		await resize(936, 412);
+		assert.deepEqual(calls, [], 'the first notification already matches the adjusted chart size');
+		await resize(800.9, 600.8);
+		assert.deepEqual(calls, [{ width: 800, height: 572 }], 'subtract the cached height from floored container dimensions');
+		await resize(800, 600);
+		for (const height of [-1, 0, 27.9, 28, 28.9])
+			await resize(900, height);
+		assert.equal(calls.length, 1, 'zero or negative remaining height cannot resize either dimension');
+		assert.deepEqual([u.width, u.height], [800, 572]);
+		await resize(801, 29);
+		assert.deepEqual(calls.at(-1), { width: 801, height: 1 }, 'one remaining pixel is a valid height');
+		await resize(800, 600);
+		assert.deepEqual([u.width, u.height], [800, 572]);
+		assert.equal(reads.length, 1, 'resizes never remeasure the legend even if its layout height changes');
+
+		for (const [height, rebuild] of [
+			[28, () => toggle('horizontal', true)],
+			[28, () => selectStacking('value')],
+			[28, () => selectStacking('percent')],
+			[28, () => selectStacking('grouped')],
+			[28, () => selectCount(5)],
+			[28, () => toggle('show-totals', true)],
+			[56, () => selectCount(3)],
+			[16, () => toggle('show-totals', false)],
+		]) {
+			legendHeight = height;
+			const previous = u;
+			const previousTooltipObserver = tooltipObserver();
+			const count = reads.length;
+			await rebuild();
+			assert.notEqual(u, previous);
+			assert.equal(previous.root.isConnected, false);
+			assert.equal(previousTooltipObserver.disconnectCount, 1);
+			assert.equal(previousTooltipObserver.target, null);
+			assert.equal(reads.length, count + 1, 'each rebuilt chart measures its own legend exactly once');
+			assert.equal(reads.at(-1), u.root.querySelector('table.u-legend'));
+			assert.notEqual(reads.at(-1), reads.at(-2));
+			assert.deepEqual([u.width, u.height], [800, 600 - height], 'rebuilds preserve total height instead of subtracting the legend twice');
+			assert.equal(plotObservers().at(-1), observer);
+			assert.equal(observer.observeCount, 1);
+			assert.equal(observer.disconnectCount, 0);
+			await assertLegendMount();
+			await resize(800.9, 600.8);
+			assert.deepEqual([u.width, u.height], [800, 600 - height]);
+			assert.equal(reads.length, count + 1, 'the rebuilt chart reuses its new cached legend height');
+		}
+
+		const count = reads.length;
+		legendHeight = 100;
+		await resize(720.9, 480.9);
+		assert.deepEqual([u.width, u.height], [720, 464], 'later resizes use the latest initialization measurement');
+		assert.equal(reads.length, count);
+		const current = u;
+		const legend = reads.at(-1);
+		const tooltip = u.over.querySelector('.u-tooltip');
+		let destroyed = 0;
+		u.hooks.destroy.push(() => destroyed++);
+		demo.destroy();
+		assert.equal(current.root.isConnected, false);
+		assert.equal(legend.isConnected, false);
+		assert.equal(tooltip.isConnected, false);
+		assert.equal(root.querySelector('table.u-legend'), null);
+		current.setSize = () => assert.fail('a disposed observer must not resize the chart');
+		await resize(900, 700, observer);
+		demo.destroy();
+		assert.equal(demo.plot, null);
+		assert.equal(destroyed, 1);
+		assert.equal(reads.length, count, 'teardown and retained callbacks do not measure the legend');
+		assert.deepEqual([current.width, current.height], [720, 464]);
+		assert.ok(observers.every(observer => observer.disconnectCount == 1 && observer.target == null));
+	});
+
+	it('clamps initial chart height when the root-mounted legend fills or exceeds the container', async t => {
+		t.mock.getter(input('plot'), 'clientWidth', () => 936);
+		t.mock.getter(input('plot'), 'clientHeight', () => 32);
+		let legendHeight;
+		const reads = [];
+		t.mock.getter(HTMLElement.prototype, 'offsetHeight', function() {
+			if (!this.classList.contains('u-legend'))
+				return 0;
+			reads.push(this);
+			return legendHeight;
+		});
+		for (const height of [32, 48]) {
+			demo.destroy();
+			legendHeight = height;
+			const count = reads.length;
+			await withSeededRandom(() => {
+				demo = createDemo(root);
+				u = demo.plot;
+			});
+			await Promise.resolve();
+			assert.deepEqual([u.width, u.height], [936, 1]);
+			assert.equal(reads.length, count + 1);
+			assert.equal(reads.at(-1), u.root.querySelector('table.u-legend'));
+			const calls = [];
+			const setSize = u.setSize;
+			u.setSize = size => { calls.push(size); return setSize(size); };
+			await resize(800, 32);
+			await resize(800, height + .9);
+			assert.deepEqual(calls, [], 'nonpositive remaining height leaves the clamped chart unchanged');
+			assert.deepEqual([u.width, u.height], [936, 1]);
+			await resize(800, height + 20.9);
+			assert.deepEqual(calls, [{ width: 800, height: 20 }], 'the chart can recover from a too-small container');
+			assert.equal(reads.length, count + 1);
+		}
 	});
 
 	it('floors observed CSS sizes and ignores nonpositive, nonfinite, and unchanged dimensions', async () => {
@@ -557,13 +736,15 @@ describe('random label rotation demo', () => {
 		assert.deepEqual(calls.slice(1), [{ width: 801, height: 600 }, { width: 801, height: 601 }], 'either dimension can change independently');
 	});
 
-	it('reads initial chart-slot dimensions in either orientation and falls back when not laid out', async () => {
+	it('reads initial chart-container dimensions in either orientation and falls back when not laid out', async () => {
 		const data = structuredClone(u.data);
 		for (const horizontal of [false, true]) {
 			for (const [width, height, expected] of [[936, 412, [936, 412]], [0, 0, [1200, 500]]]) {
-				const previousObserver = observers.at(-1);
+				const previousObserver = plotObservers().at(-1);
+				const previousTooltipObserver = tooltipObserver();
 				demo.destroy();
 				assert.equal(previousObserver.disconnectCount, 1);
+				assert.equal(previousTooltipObserver.disconnectCount, 1);
 				input(horizontal ? 'horizontal' : 'vertical').checked = true;
 				Object.defineProperties(input('plot'), {
 					clientWidth: { configurable: true, value: width },
@@ -577,8 +758,10 @@ describe('random label rotation demo', () => {
 				assert.deepEqual([u.width, u.height], expected);
 				assert.equal(u.scales.x.ori, horizontal ? 1 : 0);
 				assert.deepEqual(u.data, data);
-				assert.equal(observers.at(-1).target, input('plot'));
-				assert.equal(observers.at(-1).observeCount, 1);
+				assert.equal(plotObservers().at(-1).target, input('plot'));
+				assert.equal(plotObservers().at(-1).observeCount, 1);
+				assert.equal(tooltipObserver().observeCount, 1);
+				assert.equal(observers.filter(observer => observer.target != null).length, 2);
 				await resize(777, 333, previousObserver);
 				assert.deepEqual([u.width, u.height], expected, 'a destroyed controller cannot resize a new demo on the same root');
 			}
@@ -586,17 +769,24 @@ describe('random label rotation demo', () => {
 	});
 
 	it('resizes only the current plot after orientation, stacking, and totals rebuilds', async () => {
-		const observer = observers[0];
+		const observer = plotObservers()[0];
 		for (const [id, checked] of [
 			['horizontal', true], ['stacking-normal', true], ['stacking-percent', true],
 			['stacking-off', true], ['show-totals', true], ['horizontal', false], ['show-totals', false],
 		]) {
 			const previous = u;
+			const previousTooltipObserver = tooltipObserver();
+			const observerCount = observers.length;
 			const dimensions = [u.width, u.height];
 			await toggle(id, checked);
 			assert.notEqual(u, previous);
 			assert.deepEqual([u.width, u.height], dimensions);
-			assert.equal(observers.length, 1, 'rebuilds reuse the controller observer');
+			assert.equal(plotObservers().length, 1, 'rebuilds reuse the controller observer');
+			assert.equal(observers.length, observerCount + 1, 'each rebuilt chart creates one tooltip observer');
+			assert.equal(previousTooltipObserver.disconnectCount, 1);
+			assert.equal(previousTooltipObserver.target, null);
+			assert.equal(tooltipObserver().observeCount, 1);
+			assert.equal(tooltipObserver().disconnectCount, 0);
 			assert.equal(observer.observeCount, 1);
 			assert.equal(observer.disconnectCount, 0);
 			previous.setSize = () => assert.fail('observer must not resize a replaced plot');
@@ -670,8 +860,9 @@ describe('random label rotation demo', () => {
 			assert.equal(u.data, data);
 			assert.deepEqual(data, original);
 			assertComponents(count);
-			assert.equal(observers.length, 1);
-			assert.equal(observers[0].observeCount, 1);
+			assert.equal(plotObservers().length, 1);
+			assert.equal(plotObservers()[0].observeCount, 1);
+			assert.equal(observers.filter(observer => observer.target != null).length, 2);
 			const custom = [['Custom A', 'Custom B', 'Custom C'], ...Array.from({ length: count }, (_, i) => [i + 1, i + 2, i + 3])];
 			u.setData(custom);
 			await Promise.resolve();
@@ -1071,7 +1262,7 @@ describe('random label rotation demo', () => {
 		assert.equal(measurements.x.length, u.data[0].length);
 	});
 
-	it('resizes the chart slot without replacing the plot, data, or label measurements', async () => {
+	it('resizes the chart container without replacing the plot, data, or label measurements', async () => {
 		const data = u.data;
 		const width = u.width;
 		const counts = new Set();
@@ -1381,6 +1572,92 @@ describe('random label rotation demo', () => {
 		}
 	});
 
+	it('shows and filters scalar bar and group tooltips in both orientations', async t => {
+		// Happy DOM has no layout. These mocks restore the viewport and overlay geometry after the test.
+		t.mock.getter(document.documentElement, 'clientWidth', () => 1920);
+		t.mock.getter(document.documentElement, 'clientHeight', () => 1080);
+		u.setData([['A', 'B', 'C'], [11, 13, 17], [23, 26, 29]]);
+		await change('bar-width', 50, 'input');
+
+		for (const horizontal of [false, true]) {
+			if (horizontal)
+				await toggle('horizontal', true);
+			const plot = u;
+			t.mock.method(plot.over, 'getBoundingClientRect', () => new DOMRect(0, 0, plot.bbox.width / plot.pxRatio, plot.bbox.height / plot.pxRatio));
+			plot.syncRect();
+			const tooltip = u.over.querySelector('table.u-tooltip');
+			const legend = u.root.querySelector('table.u-legend');
+			const legendText = legend.textContent;
+			const legendValues = structuredClone(u.legend.values);
+			assert.equal(u.tooltip.show, true);
+			assert.equal(u.tooltip.mode, 'table');
+			assert.equal(u.tooltip.transpose, false);
+			assert.equal(tooltip.classList.contains('u-table'), true);
+			assert.equal(tooltip.classList.contains('u-transpose'), false);
+			assert.equal(tooltip.style.display, 'none');
+
+			hoverBar();
+			assertHoverMode('bar');
+			assert.equal(tooltip.style.display, '');
+			hoverBar(2, 2);
+			assert.deepEqual(u.tooltip.idxs, [2, null, 2], 'bar hover selects the exact series and category');
+			assert.deepEqual(u.tooltip.values.map(value => value._), ['C', '--', '29']);
+			assert.deepEqual(u.tooltip.order, [2]);
+			assert.deepEqual(tableRows(tooltip), [['Item', 'C'], ['Other value', '29']]);
+			assert.equal(tooltip.style.display, '');
+			hoverBar();
+			await toggle('hover-group', true);
+			assertHoverMode('group');
+			assert.equal(tooltip.style.display, '');
+
+			const category = u.valToPos(1, 'x');
+			const numeric = u.valToPos(6, 'y');
+			u.setCursor(horizontal ? { left: numeric, top: category } : { left: category, top: numeric });
+			assertHoverMode('group');
+			await toggle('hover-bar', true);
+			assert.deepEqual(u.tooltip.idxs, [null, null, null]);
+			assert.deepEqual(u.tooltip.order, []);
+			assert.equal(tooltip.style.display, 'none', 'bar gaps hide the tooltip');
+			await toggle('hover-group', true);
+			assertHoverMode('group');
+			assert.equal(tooltip.style.display, '', 'group hover includes the gap within the category');
+
+			u.setSeries(1, { show: false });
+			await Promise.resolve();
+			hoverBar(2);
+			assert.deepEqual(u.tooltip.idxs, [1, null, 1]);
+			assert.deepEqual(u.tooltip.order, [2]);
+			assert.deepEqual(tableRows(tooltip), [['Item', 'B'], ['Other value', '26']]);
+			assert.equal(tooltip.style.display, '');
+			assertStaticLegend();
+			u.setLegend({ idx: 1 });
+			assert.deepEqual(u.tooltip.idxs, [1, 1, 1]);
+			assert.deepEqual(u.tooltip.order, [2], 'hidden series remain filtered even with an explicit nonnull index');
+			assert.deepEqual(tableRows(tooltip), [['Item', 'B'], ['Other value', '26']]);
+			u.setSeries(2, { show: false });
+			await Promise.resolve();
+			u.setLegend({ idx: 1 });
+			assert.deepEqual(u.tooltip.order, []);
+			assert.equal(tooltip.style.display, 'none', 'X alone does not keep a tooltip visible');
+			assertStaticLegend();
+
+			u.setSeries(1, { show: true });
+			u.setSeries(2, { show: true });
+			await Promise.resolve();
+			hoverBar();
+			assertHoverMode('group');
+			assert.equal(tooltip.style.display, '');
+			u.over.dispatchEvent(new MouseEvent('mouseleave'));
+			assert.deepEqual(u.tooltip.idxs, [null, null, null]);
+			assert.deepEqual(u.tooltip.order, []);
+			assert.equal(tooltip.style.display, 'none', 'leaving the plot hides the tooltip');
+			assertStaticLegend();
+			assert.equal(legend.textContent, legendText);
+			assert.deepEqual(u.legend.values, legendValues, 'hover, gaps, and visibility changes leave nonlive values unchanged');
+			await toggle('hover-bar', true);
+		}
+	});
+
 	it('preserves hover mode through orientation, stack, and percent rebuilds', async () => {
 		u.setData([['A', 'B', 'C'], [13, 13, 13], [26, 26, 26]]);
 		await Promise.resolve();
@@ -1598,7 +1875,9 @@ describe('random label rotation demo', () => {
 				assert.equal(u._data[1][i], mode == 'percent' ? data[1][i] / total : data[1][i]);
 				assert.equal(u._data[2][i], mode == 'percent' ? 1 : mode == 'value' ? total : data[2][i]);
 				u.setLegend({ idx: i });
-				assert.deepEqual(u.legend.values.map(value => value._), data.map(column => String(column[i])), 'legend shows full labels and raw values');
+				assert.deepEqual(u.tooltip.values.map(value => value._), data.map(column => String(column[i])), 'tooltip shows full labels and raw values, including percent stacks');
+				assert.deepEqual(tableRows(u.over.querySelector('table.u-tooltip')), data.map((column, si) => [u.series[si].label, String(column[i])]));
+				assertStaticLegend();
 			}
 			if (mode == 'percent') {
 				assert.deepEqual([u.scales.y.min, u.scales.y.max], [0, 1]);
@@ -1942,10 +2221,12 @@ describe('random label rotation demo', () => {
 				return remove(type, handler, options);
 			};
 		}
-		const observer = observers[0];
+		const observer = plotObservers()[0];
+		const tooltip = u.over.querySelector('.u-tooltip');
 		demo.destroy();
 		assert.deepEqual(removed.sort(), listenerTypes.slice().sort());
-		assert.equal(observer.disconnectCount, 1);
+		assert.ok(observers.every(observer => observer.disconnectCount == 1 && observer.target == null), 'destroy disconnects the controller and every tooltip observer');
+		assert.equal(tooltip.isConnected, false);
 		assert.equal(destroyed, 1);
 		assert.equal(current.root.isConnected, false);
 		assert.equal(input('plot').querySelectorAll('.uplot').length, 0);
@@ -1976,7 +2257,7 @@ describe('random label rotation demo', () => {
 		}
 		await new Promise(requestAnimationFrame);
 		assert.deepEqual(calls, [], 'controls and retained observer callbacks never call into the destroyed plot');
-		assert.equal(input('chart-legend').querySelector('table'), null, 'destroy removes the externally mounted legend');
+		assert.equal(root.querySelector('table.u-legend'), null, 'destroy removes the chart-root legend with the chart');
 		assert.equal(input('plot').querySelectorAll('.uplot').length, 0, 'orientation and stacking cannot recreate a chart after teardown');
 		assert.equal(demo.plot, null);
 		assert.deepEqual(current.data, data.map(() => []));
@@ -1990,7 +2271,7 @@ describe('random label rotation demo', () => {
 		assert.deepEqual(disabledIds.map(id => input(id).disabled), disabled);
 		assert.equal(destroyed, 1, 'control actions do not destroy the chart again');
 		assert.deepEqual(removed.sort(), listenerTypes.slice().sort(), 'repeated destroy does not remove listeners again');
-		assert.equal(observer.disconnectCount, 1, 'repeated destroy does not disconnect again');
+		assert.ok(observers.every(observer => observer.disconnectCount == 1), 'repeated destroy does not disconnect any observer again');
 	});
 
 	it('releases the detached root when the destroyed demo is retained', async function(t) {
@@ -2000,6 +2281,7 @@ describe('random label rotation demo', () => {
 		const ref = new WeakRef(root);
 		demo.destroy();
 		root.remove();
+		assert.ok(observers.every(observer => observer.disconnectCount == 1 && observer.target == null));
 		// A disconnected native observer is not retained by the browser; release the test registry too.
 		observers = [];
 		root = u = null;

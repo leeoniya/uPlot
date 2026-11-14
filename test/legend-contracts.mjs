@@ -888,8 +888,8 @@ for (const table of [false, true]) {
 						assert.equal(u.root.querySelector('.u-legend') === null, true);
 					else {
 						[...u.root.querySelectorAll('tbody tr')].forEach((tr, i) => assertRowFocus(tr, i + 1 == si));
-						assert.deepEqual([...u.root.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent)),
-							[1, 2].map(() => table ? ['--', '--'] : ['--']));
+						assert.deepEqual([...u.root.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent)), [[], []]);
+						assert.deepEqual(u.legend.values, [null, null, null]);
 						assert.equal(u.legend.idx, null);
 						assert.deepEqual(u.legend.idxs, [null, null, null]);
 					}
@@ -1751,7 +1751,7 @@ for (const table of [false, true]) {
 						return stats(self, si, idx);
 					},
 				};
-				const u = await plot({ mode, legend: { live: false }, series: format, scales: { y: { range: [0, 100] } } });
+				const u = await plot({ mode, legend: { live: false, valueSrc: table ? 'values' : 'value' }, series: format, scales: { y: { range: [0, 100] } } });
 				const assertStats = () => {
 					assert.equal(u.legend.idx, null);
 					assert.deepEqual(u.legend.idxs, u.series.map(() => null));
@@ -1805,17 +1805,20 @@ for (const table of [false, true]) {
 
 			const nonlive = await plot({ legend: { live: false } });
 			const nonliveLegend = nonlive.root.querySelector('.u-legend');
-			assert.equal(nonliveLegend.className, table ? 'u-detail u-legend u-btm u-table' : 'u-detail u-legend u-btm u-inline u-live');
+			assert.equal(nonliveLegend.className, 'u-detail u-legend u-btm u-inline');
 			assert.deepEqual([...nonliveLegend.querySelectorAll('tbody tr')].map(tr => tr.querySelector('.u-label').textContent), ['Alpha', 'Beta']);
-			assert.equal(nonliveLegend.querySelectorAll('.u-value').length, table ? 4 : 2);
-			assert.deepEqual([...nonliveLegend.querySelectorAll('thead th')].map(th => th.textContent), table ? ['', 'Value', 'Double'] : []);
+			assert.equal(nonliveLegend.querySelectorAll('.u-value').length, 0);
+			assert.equal(nonliveLegend.querySelector('thead'), null);
+			assert.deepEqual(nonlive.legend.values, [null, null, null]);
+			assert.equal(nonlive.legend.idx, null);
+			assert.deepEqual(nonlive.legend.idxs, [null, null, null]);
 			const nonliveRows = [...nonliveLegend.querySelectorAll('tbody tr')];
 			nonlive.setSeries(1, { show: false });
 			nonlive.setSeries(2, { focus: true });
 			await commit();
 			assertNodes([...nonliveLegend.querySelectorAll('tbody tr')], nonliveRows);
-			assert.deepEqual(nonliveRows.map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent)),
-				[1, 2].map(() => table ? ['--', '--'] : ['--']));
+			assert.deepEqual(nonliveRows.map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent)), [[], []]);
+			assert.deepEqual(nonlive.legend.values, [null, null, null]);
 			assert.equal(nonliveRows[0].classList.contains('u-off'), true);
 			assertRowFocus(nonliveRows[0], false);
 			assertRowFocus(nonliveRows[1], true);

@@ -328,14 +328,15 @@ declare namespace uPlot {
 
 	export interface Legend {
 		show?: boolean;	// true
-		/** Live values follow the cursor. false shows null-index stats after data, series, and scale changes.
+		/** Live values follow the cursor. false shows labels only unless valueSrc selects stats.
 		 * An enabled tooltip forces this to false. */
 		live?: boolean;	// true
 		/** Initial layout. null or omitted infers table for multi-value output, otherwise inline. */
 		mode?: 'inline' | 'table' | null;
 		/** Visually transposes table layout with CSS subgrid. DOM rows remain grouped by series. false by default. */
 		transpose?: boolean;
-		/** Formatter source. Omitted prefers series[1].values when present, otherwise series.value.
+		/** Formatter source. Non-live legends show labels only when omitted.
+		 * Live legends and tooltips infer series[1].values or fall back to series.value.
 		 * 'values' requires a values callback on each Y series. */
 		valueSrc?: 'value' | 'values';
 		/** initial position outside chart width/height: 0 top, 1 right, 2 bottom (default), 3 left */

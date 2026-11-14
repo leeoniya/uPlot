@@ -201,10 +201,11 @@ The default is `null`, which preserves the existing inference from multi-value f
 Scalar legends use inline layout by default. Multi-value legends use table layout by default.
 Explicit layout does not change value formatting, column keys, X-row eligibility, or selection.
 `legend.valueSrc` selects `'value'` or `'values'` independently of `tooltip.valueSrc`.
-An omitted source prefers `series[1].values` when present, as before.
+For live legends and tooltips, an omitted source prefers `series[1].values` when present, as before.
 A scalar table uses `series.value` and has no column header for the internal `_` key.
 Multi-value legends retain their named column headers.
-With `live: false`, both layouts show null-index stats without the X row.
+With `live: false`, an explicit `valueSrc` selects null-index stats without the X row.
+Without `valueSrc`, non-live legends show labels and markers only. They use inline layout by default and skip value callbacks.
 Non-live legends apply their own selection callbacks after stats refreshes, or on explicit `setLegend` calls.
 Their selection does not restrict hover points.
 An enabled tooltip becomes the live selection owner. See [Tooltip and Stats Legend](../tooltip.md).

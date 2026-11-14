@@ -228,7 +228,7 @@ describe('tooltip', () => {
 			['table', {transpose: true}, {transpose: true}],
 			['inline', {transpose: true}, {transpose: true}],
 		]) {
-			const { u } = await plot({series: multiSeries(), legend: {mode, ...legend}, tooltip: {mode, ...live}});
+			const { u } = await plot({series: multiSeries(), legend: {mode, valueSrc: 'values', ...legend}, tooltip: {mode, ...live}});
 			const a = stats(u), b = tooltip(u);
 			assert.equal(u.legend.transpose, legend.transpose ?? false);
 			assert.equal(u.tooltip.transpose, live.transpose ?? false);
@@ -288,7 +288,7 @@ describe('tooltip', () => {
 				}
 				if (showTooltip) {
 					assert.equal(stats(u).classList.contains('u-time'), false);
-					assert.equal(stats(u).style.gridTemplateRows, 'repeat(2, auto)');
+					assert.equal(stats(u).style.gridTemplateRows, 'repeat(1, auto)');
 					assert.equal(stats(u).querySelector('thead'), null);
 				}
 			}
@@ -330,7 +330,7 @@ describe('tooltip', () => {
 		assert.equal(table.classList.contains('u-transpose'), true);
 		assert.equal(table.style.gridTemplateRows, 'repeat(3, auto)');
 		assert.deepEqual(labels(stats(u)), ['Alpha', 'Beta']);
-		assert.deepEqual(cells(stats(u)), [['60'], ['150']]);
+		assert.deepEqual(cells(stats(u)), [[], []]);
 	});
 
 	for (const showTooltip of [false, true]) {
@@ -438,6 +438,8 @@ describe('tooltip', () => {
 					tooltip: { filter: () => true },
 				});
 				const tables = [stats(u), tooltip(u)];
+				assert.equal(stats(u).className, 'u-detail u-legend u-btm u-inline');
+				assert.deepEqual(cells(stats(u)), [[], []]);
 				const original = tables.map(rows);
 				function assertFocus(si) {
 					for (const [i, table] of tables.entries()) {
@@ -556,38 +558,68 @@ describe('tooltip', () => {
 		}
 	});
 
-	for (const legendSrc of [undefined, 'value', 'values']) {
-		for (const tooltipSrc of [undefined, 'value', 'values']) {
+	for (const legendSrc of [undefined, null, 'value', 'values']) {
+		for (const tooltipSrc of [undefined, null, 'value', 'values']) {
 			it(`selects independent formatter sources: legend=${legendSrc}, tooltip=${tooltipSrc}`, async () => {
 				const { u } = await plot({
 					series: multiSeries().map(s => ({...s, value: scalar})),
-					legend: {mode: 'table', valueSrc: legendSrc},
-					tooltip: {mode: 'table', valueSrc: tooltipSrc},
+					legend: {live: true, mode: 'table', ...(legendSrc === undefined ? {} : {valueSrc: legendSrc})},
+					tooltip: {mode: 'table', ...(tooltipSrc === undefined ? {} : {valueSrc: tooltipSrc})},
 				});
-				assert.deepEqual(headers(stats(u)), legendSrc == 'value' ? [] : ['', 'Sum']);
-				assert.deepEqual(cells(stats(u)), legendSrc == 'value' ? [['sum:60'], ['sum:150']] : [['60'], ['150']]);
+				const expectedStats = legendSrc == null ? [[], []] : legendSrc == 'value' ? [['sum:60'], ['sum:150']] : [['60'], ['150']];
+				assert.equal(u.legend.live, false);
+				assert.deepEqual(headers(stats(u)), legendSrc == 'values' ? ['', 'Sum'] : []);
+				assert.deepEqual(cells(stats(u)), expectedStats);
 				u.setLegend({idx: 1});
 				assert.deepEqual(headers(tooltip(u)), tooltipSrc == 'value' ? [] : ['', 'Value', 'Double']);
 				assert.deepEqual(labels(tooltip(u)), tooltipSrc == 'value' ? ['Time', 'Alpha', 'Beta'] : ['Alpha', 'Beta']);
 				assert.deepEqual(cells(tooltip(u)), tooltipSrc == 'value' ? [['v:1'], ['v:20'], ['v:50']] : [['20', '40'], ['50', '100']]);
-				assert.deepEqual(cells(stats(u)), legendSrc == 'value' ? [['sum:60'], ['sum:150']] : [['60'], ['150']]);
+				assert.deepEqual(cells(stats(u)), expectedStats);
+				assert.equal(u.legend.idx, null);
+				assert.deepEqual(u.legend.idxs, [null, null, null]);
+				if (legendSrc == null)
+					assert.deepEqual(u.legend.values, [null, null, null]);
 			});
 		}
 	}
 
 	for (const live of [false, true]) {
-		for (const valueSrc of [undefined, 'value', 'values']) {
+		for (const valueSrc of [undefined, null, 'value', 'values']) {
 			it(`selects the standalone legend formatter: live=${live}, valueSrc=${valueSrc}`, async () => {
+				const formats = [];
+				const labelsOnly = !live && valueSrc == null;
 				const { u } = await plot({
-					series: multiSeries().map(s => ({...s, value: scalar})),
-					legend: {live, valueSrc},
+					series: multiSeries((self, si, idx) => {
+						formats.push(['values', si, idx]);
+						return values(self, si, idx);
+					}).map(s => ({...s, value(self, value, si, idx) {
+						formats.push(['value', si, idx]);
+						return scalar(self, value, si, idx);
+					}})),
+					legend: {live, ...(valueSrc === undefined ? {} : {valueSrc})},
 					tooltip: {show: false},
 				});
 				u.setLegend({idx: 1});
-				assert.deepEqual(headers(stats(u)), valueSrc == 'value' ? [] : live ? ['', 'Value', 'Double'] : ['', 'Sum']);
-				assert.deepEqual(cells(stats(u)), valueSrc == 'value'
+				assert.equal(stats(u).classList.contains('u-inline'), labelsOnly || valueSrc == 'value');
+				assert.deepEqual(headers(stats(u)), labelsOnly || valueSrc == 'value' ? [] : live ? ['', 'Value', 'Double'] : ['', 'Sum']);
+				assert.deepEqual(cells(stats(u)), labelsOnly ? [[], []] : valueSrc == 'value'
 					? live ? [['v:1'], ['v:20'], ['v:50']] : [['sum:60'], ['sum:150']]
 					: live ? [['20', '40'], ['50', '100']] : [['60'], ['150']]);
+				if (labelsOnly) {
+					assert.deepEqual(formats, [], 'initialization and setLegend do not call either formatter');
+					u.setData(data, false);
+					u.setSeries(1, {show: false});
+					await commit();
+					u.setLegend({idxs: [0, 1, 2]});
+					assert.deepEqual(formats, [], 'data and series updates do not call either formatter');
+					assert.deepEqual(cells(stats(u)), [[], []]);
+					assert.equal(stats(u).classList.contains('u-live'), false);
+					assert.equal(u.legend.idx, null);
+					assert.deepEqual(u.legend.idxs, [null, null, null]);
+					assert.deepEqual(u.legend.values, [null, null, null]);
+				}
+				else
+					assert.ok(formats.some(([kind]) => kind == (valueSrc == 'value' ? 'value' : 'values')));
 			});
 		}
 	}
@@ -627,7 +659,7 @@ describe('tooltip', () => {
 	it('makes tooltip the live selection owner and targets it with setLegend', async () => {
 		const selected = [];
 		const { u } = await plot({
-			legend: { live: true, filter: (self, si) => self.legend.values[si]._ != null },
+			legend: { live: true, valueSrc: 'value', filter: (self, si) => self.legend.values[si]._ != null },
 			tooltip: {
 				filter: (self, si) => { assert.equal(self.tooltip.idxs, self.cursor.idxs); return self.series[si].show; },
 				sort: (self, a, b) => self.data[b][self.tooltip.idx] - self.data[a][self.tooltip.idx],
@@ -698,7 +730,7 @@ describe('tooltip', () => {
 					},
 				}))],
 				legend: {
-					live: false,
+					live: false, valueSrc: 'values',
 					filter(self, si) {
 						selections++;
 						assert.ok(self.legend.values.slice(1).every(value => value?.Sum != null), 'all stats precede selection');
@@ -756,7 +788,7 @@ describe('tooltip', () => {
 	it('limits a 1000-series stats legend without limiting hover points', async () => {
 		const count = 1000;
 		const { u } = await plot({
-			legend: {live: false, sort: (self, a, b) => b - a, limit: () => [0, 10]},
+			legend: {live: false, valueSrc: 'value', sort: (self, a, b) => b - a, limit: () => [0, 10]},
 			tooltip: {show: false},
 			cursor: {points: {show: false}},
 			series: [{}, ...Array.from({length: count}, (_, i) => ({label: `Series ${i}`, stroke: 'red', points: {show: false}, value: () => i}))],
@@ -772,7 +804,7 @@ describe('tooltip', () => {
 		const markerCalls = [];
 		const { u } = await plot({
 			series: multiSeries(),
-			legend: { mode: 'table', markers: { show: false }, mount: (self, table) => mounts.stats.push([self, table]) },
+			legend: { mode: 'table', valueSrc: 'values', markers: { show: false }, mount: (self, table) => mounts.stats.push([self, table]) },
 			tooltip: {
 				show: true, gap: 5, mode: 'table',
 				markers: { show: true, width: 3, dash: 'solid', stroke: 'blue', fill: (self, si) => { markerCalls.push([self, si]); return 'orange'; } },
@@ -835,7 +867,7 @@ describe('tooltip', () => {
 				assert.equal(rows(table)[0].matches('tbody > tr.u-series'), true);
 				assert.equal(rows(table)[0].querySelectorAll('th > .u-marker').length, 1);
 			}
-			assert.deepEqual([...rows(a)[0].children].map(cell => cell.tagName), ['TH', 'TD']);
+			assert.deepEqual([...rows(a)[0].children].map(cell => cell.tagName), ['TH']);
 			assert.deepEqual([...rows(b)[0].children].map(cell => cell.tagName), ['TH', 'TD', 'TD']);
 			const original = a.querySelector('tbody th > .u-label').firstChild;
 			const clone = b.querySelector('tbody th > .u-label').firstChild;
@@ -864,7 +896,7 @@ describe('tooltip', () => {
 
 	it('formats scalar stats with null arguments on initialization and both setData reset modes', async () => {
 		const calls = [];
-		const { u } = await plot({ series: [{}, ...['Alpha', 'Beta'].map(label => ({ label, stroke: 'red', value(self, value, si, idx) {
+		const { u } = await plot({ legend: {valueSrc: 'value'}, series: [{}, ...['Alpha', 'Beta'].map(label => ({ label, stroke: 'red', value(self, value, si, idx) {
 			calls.push([si, value, idx]);
 			return scalar(self, value, si, idx);
 		} }))] });
@@ -888,6 +920,7 @@ describe('tooltip', () => {
 		const calls = [];
 		const { u } = await plot({
 			cursor: { focus: { prox: 1 } },
+			legend: {valueSrc: 'values'},
 			series: multiSeries((self, si, idx) => { calls.push([si, idx]); return values(self, si, idx); }),
 		});
 		hover(u);
@@ -910,7 +943,7 @@ describe('tooltip', () => {
 
 	it('refreshes stats from committed scale bounds, not pending setScale bounds', async () => {
 		const calls = [];
-		const { u } = await plot({ series: multiSeries((self, si, idx) => {
+		const { u } = await plot({ legend: {valueSrc: 'values'}, series: multiSeries((self, si, idx) => {
 			if (idx === null) {
 				calls.push([si, self.scales.x.min, self.scales.x.max]);
 				return { Range: `${self.scales.x.min}:${self.scales.x.max}` };
@@ -928,7 +961,7 @@ describe('tooltip', () => {
 	});
 
 	it('refreshes stats and reconciles both tables by series identity after add/delete', async () => {
-		const { u } = await plot({ series: multiSeries() });
+		const { u } = await plot({ legend: {valueSrc: 'values'}, series: multiSeries() });
 		u.setLegend({ idx: 1 });
 		const a = rows(stats(u)), b = rows(tooltip(u));
 		u.addSeries({ label: 'Gamma', stroke: 'blue', values: (self, si, idx) => idx == null ? { Sum: 99 } : { Value: 33, Double: 66 } });
@@ -954,7 +987,7 @@ describe('tooltip', () => {
 
 	it('owns separate snapshots when every values callback reuses one mutable record', async () => {
 		const record = {};
-		const { u } = await plot({ series: multiSeries((self, si, idx) => {
+		const { u } = await plot({ legend: {valueSrc: 'values'}, series: multiSeries((self, si, idx) => {
 			for (const key of Object.keys(record)) delete record[key];
 			Object.assign(record, idx == null ? { Sum: si * 100 } : { Value: self.data?.[si]?.[idx], Double: si + idx });
 			return record;
@@ -983,7 +1016,7 @@ describe('tooltip', () => {
 		const mounts = [];
 		const { u } = await plot({
 			series: multiSeries((self, si, idx) => idx == null ? (extended ? { Min: si, Max: si + 10 } : { Sum: si }) : { Value: si + idx }),
-			legend: { mount: (self, table) => mounts.push(table) },
+			legend: { valueSrc: 'values', mount: (self, table) => mounts.push(table) },
 			tooltip: { mount: (self, table) => mounts.push(table) },
 		});
 		const a = stats(u), b = tooltip(u);
@@ -1017,6 +1050,7 @@ describe('tooltip', () => {
 	it('uses mode 2 per-series indices even when cursor.idx is undefined or null', async () => {
 		const { u } = await plot({
 			mode: 2,
+			legend: {valueSrc: 'values'},
 			cursor: { dataIdx: (self, si) => si == 1 ? 0 : 2 },
 			series: multiSeries((self, si, idx) => idx == null ? { Sum: si * 100 } : { Value: self.data?.[si]?.[1]?.[idx] }),
 		}, [null, [[0, 1, 2], [10, 20, 30]], [[0, 0.5, 2], [40, 50, 60]]]);
@@ -1043,7 +1077,7 @@ describe('tooltip', () => {
 			calls.push([value, idx]);
 			return idx == null ? null : result;
 		} }] }, data.slice(0, 2));
-		assert.deepEqual(cells(stats(u)), [['--']]);
+		assert.deepEqual(cells(stats(u)), [[]]);
 		for (const [value, text] of [[0, '0'], [false, ''], ['', ''], [null, '--'], [undefined, '--']]) {
 			result = value;
 			u.setLegend({ idx: 1 });
@@ -1053,7 +1087,7 @@ describe('tooltip', () => {
 		u.setLegend({ idx: null });
 		assert.deepEqual(calls.at(-1), [null, null]);
 		assert.equal(u.tooltip.values[1]._, '--');
-		assert.equal(u.legend.values[1]._, '--');
+		assert.deepEqual(u.legend.values, [null, null]);
 	});
 
 	it('calls multi-value formatters with null indices and distinguishes null records from null cells', async () => {
@@ -1094,7 +1128,7 @@ describe('tooltip', () => {
 
 	it('commits batched data, scale, and series changes and keeps setLegend on the live owner', async () => {
 		const calls = [];
-		const { u } = await plot({ series: multiSeries((self, si, idx) => {
+		const { u } = await plot({ legend: {valueSrc: 'values'}, series: multiSeries((self, si, idx) => {
 			if (idx === null) calls.push(si);
 			return values(self, si, idx);
 		}) });

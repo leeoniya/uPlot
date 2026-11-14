@@ -914,17 +914,20 @@ export default function uPlot(opts, data, then) {
 
 	function refreshStats() {
 		shouldRefreshStats = false;
-		const multi = usesMultiValues(legend);
+		const hasValues = legend.valueSrc != null;
+		const multi = legend.valueSrc == 'values';
 		if (multiValStats != multi)
 			legend.values.fill(null);
 		multiValStats = multi;
-		statsCols = multiValStats ? null : {_: 0};
+		statsCols = hasValues && !multi ? {_: 0} : null;
 		legend.idx = null;
 		legend.idxs.length = legend.values.length = series.length;
 		legend.idxs.fill(null);
 		for (let i = 1; i < series.length; i++) {
 			let s = series[i];
-			if (multiValStats) {
+			if (!hasValues)
+				legend.values[i] = null;
+			else if (multiValStats) {
 				let vals = s.values(self, i, null);
 				if (i == 1)
 					statsCols = assign({}, vals);

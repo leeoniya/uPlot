@@ -134,9 +134,14 @@ export function createDemo(root) {
 				axes: [{}, { values: (u, splits) => splits.map(value => `${Math.round(value * 100)}%`) }],
 			} : {}),
 			series,
-			legend: { mount: (u, table) => root.querySelector('#chart-legend').appendChild(table) },
+			legend: { live: false, side: 0 },
+			tooltip: {
+				show: true,
+				filter: (u, seriesIdx) => u.series[seriesIdx].show && u.tooltip.idxs[seriesIdx] != null,
+			},
 			plugins: [bars],
 			hooks: {
+				ready: [controls.ready],
 				draw: [controls.readout],
 				setSeries: [(plot, i, opts) => {
 					if (plot !== u || !totals || opts.show == null || (i != null && i < 3))

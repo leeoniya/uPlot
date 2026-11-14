@@ -414,11 +414,13 @@ describe('legend selection', () => {
 			await frame();
 			const table = u.root.querySelector('.u-legend');
 			assert.deepEqual(rowLabels(u), [...(config.pinned ? ['Time'] : []), 'Gamma', 'Beta']);
-			assert.equal(table.className, config.multi ? 'u-detail u-legend u-btm u-table' : 'u-detail u-legend u-btm u-inline u-live');
+			assert.equal(table.className, config.multi ? 'u-detail u-legend u-btm u-table' : 'u-detail u-legend u-btm u-inline' + (live ? ' u-live' : ''));
 			assert.deepEqual([...table.querySelectorAll('thead th')].map(cell => cell.textContent), config.multi ? ['', 'Value', 'Double'] : []);
 			assert.equal(table.querySelectorAll('input, button, select').length, 0);
-			if (config.legend?.live === false)
-				assert.deepEqual(rows(u).map(cells), [['--'], ['--']]);
+			if (!live) {
+				assert.deepEqual(rows(u).map(cells), [[], []]);
+				assert.deepEqual(u.legend.values, Array(5).fill(null));
+			}
 			else {
 				assert.deepEqual(cells(rows(u).at(-2)), config.multi ? ['80', '160'] : ['80']);
 				assert.deepEqual(cells(rows(u).at(-1)), config.multi ? ['40', '80'] : ['40']);
@@ -1078,7 +1080,7 @@ describe('legend selection', () => {
 			let selections = 0;
 			const { u, formats } = await plot({
 				legend: {
-					live: false,
+					live: false, valueSrc: 'value',
 					filter(u, si) { selections++; return si != 2; },
 					sort: (u, a, b) => b - a,
 					limit: () => [1, 2],
@@ -1112,7 +1114,7 @@ describe('legend selection', () => {
 	for (const tracking of [true, false]) {
 		it(`keeps nonlive indices null during cursor movement and exit with ${tracking ? 'tracking' : 'stats selection'}`, async () => {
 			const { u } = await plot({ cursor: { trackDists: tracking }, legend: {
-				live: false,
+				live: false, valueSrc: 'value',
 				...(!tracking && { filter: () => true }),
 			} });
 			move(u, 12);

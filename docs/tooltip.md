@@ -31,11 +31,19 @@ const opts = {
 
 - `'value'` uses `series.value`, including its default formatter, for one scalar value per row.
 - `'values'` uses `series.values` for named columns. Each Y series must supply this callback.
-- An omitted option uses `series.values` when `series[1].values` exists. Otherwise, it uses `series.value`.
+- For non-live legends, an omitted option shows labels and markers only. It does not call either value callback.
+- For live legends and tooltips, an omitted option uses `series.values` when `series[1].values` exists. Otherwise, it uses `series.value`.
 
 `mode` selects the layout, not the formatter. A table can show scalar values without a column header.
 In mode 1, a live scalar view also includes the X-series row. Multi-value views and non-live legends omit this row.
 The example shows stats columns in the legend and scalar cursor values in the tooltip.
+A labels-only legend uses inline layout by default, even when the series supply `values` callbacks.
+
+| Legend configuration | Output |
+| --- | --- |
+| `{live: false}` | Labels and markers only |
+| `{live: false, valueSrc: 'value'}` | Scalar stats |
+| `{live: false, valueSrc: 'values'}` | Named stats columns |
 
 ### Transposed tables
 
@@ -69,7 +77,7 @@ The live component uses the existing per-series cursor indices and value callbac
 A numeric index can identify a null-valued datum. A null index means that the series has no selected datum.
 Both cursor exit and a missing scatter hit produce null indices. The callbacks retain this existing behavior.
 
-The non-live legend calls `series.value(u, null, seriesIdx, null)` or `series.values(u, seriesIdx, null)`.
+With an explicit `valueSrc`, the non-live legend calls `series.value(u, null, seriesIdx, null)` or `series.values(u, seriesIdx, null)`.
 It refreshes after initialization, `setData`, `setSeries`, `setScale`, `addSeries`, and `delSeries`.
 These refreshes run during the next commit, after scale resolution. Batches combine pending refreshes.
 Ordinary cursor movement and internal cursor-focus changes do not recalculate stats.
@@ -89,9 +97,10 @@ The legend and tooltip each use their own `filter`, `sort`, and `limit` callback
 Only the live component's selection controls hover-point visibility.
 Stats selection never restricts hover points, with or without a tooltip.
 
-The non-live legend calculates all Y-series stats before it applies its selection callbacks.
+With an explicit `valueSrc`, the non-live legend calculates all Y-series stats before it applies its selection callbacks.
 Its callbacks can read `u.legend.values`, series labels, or other series metadata.
 Stats refreshes also refresh selection. Cursor movement does neither.
+Labels-only legends use the same selection refreshes but skip value callbacks. Their `u.legend.values` entries remain null.
 Without selection callbacks, the stats legend includes all Y series, including hidden series for toggle access.
 A custom filter can exclude hidden series, but those rows are then unavailable for legend toggles.
 
@@ -154,7 +163,9 @@ Applications must avoid duplicate IDs in labels that appear in both components.
 
 ## Compatibility change
 
-`legend.live: false` now shows null-index callback values instead of a labels-only legend.
-Non-live selection callbacks now run after stats refreshes or explicit `setLegend` calls, not cursor movement.
+A non-live legend without `valueSrc` shows labels only, including when a tooltip makes it non-live.
+To retain static stats, set `legend.valueSrc` to `'value'` or `'values'`.
+Live legends and tooltip formatter inference do not change.
+Non-live selection callbacks run after data, series, and scale changes or explicit `setLegend` calls, not cursor movement.
 The tooltip does not activate without `.u-over` or with `cursor.show: false`.
 Component ownership is fixed at initialization. Runtime changes to `show` or `live` do not switch that ownership.
