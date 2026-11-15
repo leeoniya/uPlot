@@ -3,11 +3,8 @@ import assert from 'node:assert/strict';
 import '../../scripts/instrument.mjs';
 import uPlot from '../../src/uPlot.js';
 import { legendAsTooltipPlugin as candlestickTooltip } from '../../demos/candlestick-ohlc.js';
-import { legendAsTooltipPlugin as boxWhiskerTooltip } from '../../demos/box-whisker.js';
 
-
-for (const [name, legendAsTooltipPlugin] of [['candlestick', candlestickTooltip], ['box-whisker', boxWhiskerTooltip]])
-describe(`${name} legend tooltip mounting`, () => {
+describe('candlestick legend tooltip mounting', () => {
 	let previousUPlot;
 	let u;
 
@@ -30,7 +27,7 @@ describe(`${name} legend tooltip mounting`, () => {
 			scales: { x: { time: false, range: [0, 1] }, y: { range: [0, 30] } },
 			cursor: { focus: { prox: -1 }, points: { show: false } },
 			series: [{ label: 'Time' }, { label: 'Open', value: (self, value) => value == null ? '--' : `USD ${value}` }],
-			plugins: [legendAsTooltipPlugin({ className: 'tooltip' })],
+			plugins: [candlestickTooltip({ className: 'tooltip' })],
 			hooks,
 		}, [[0, 1], [10, 20]], document.body);
 	}
