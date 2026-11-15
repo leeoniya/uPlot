@@ -30,17 +30,9 @@
 			font-size: 12px;
 		}
 
-		.u-tooltip {
-			font-size: 10pt;
-			position: absolute;
-			background: #fff;
-			display: none;
-			border: 2px solid black;
-			padding: 4px;
-			pointer-events: none;
-			z-index: 100;
-			white-space: pre;
-			font-family: monospace;
+		.u-tooltip .u-focus,
+		.u-legend .u-focus {
+			background: none;
 		}
 	</style>
 </head>
@@ -50,63 +42,48 @@
 		const seriesColors = ["#7cb5ec", "#434348", "#90ed7d", "#f7a35c", "#8085e9", "#f15c80", "#e4d354", "#2b908f", "#f45b5b", "#91e8e1"];
 		const interpolatedColor = "#fcb0f1";
 
-		function tooltipPlugin({onclick, commits, isInterpolated, shiftX = 10, shiftY = 10}) {
-			let tooltipLeftOffset = 0;
-			let tooltipTopOffset = 0;
-
-			const tooltip = document.createElement("div");
-			tooltip.className = "u-tooltip";
-
-			let seriesIdx = null;
-			let dataIdx = null;
-
+		function commitPlugin({onclick, commits, isInterpolated}) {
+			let tooltip;
 			const fmtDate = uPlot.fmtDate("{M}/{D}/{YY} {h}:{mm}:{ss} {AA}");
 
-			let over;
-
-			let tooltipVisible = false;
-
-			function showTooltip() {
-				if (!tooltipVisible) {
-					tooltip.style.display = "block";
-					over.style.cursor = "pointer";
-					tooltipVisible = true;
-				}
-			}
-
-			function hideTooltip() {
-				if (tooltipVisible) {
-					tooltip.style.display = "none";
-					over.style.cursor = null;
-					tooltipVisible = false;
-				}
-			}
-
-			function setTooltip(u) {
-				showTooltip();
-
-				let top = u.valToPos(u.data[seriesIdx][dataIdx], 'y');
-				let lft = u.valToPos(u.data[        0][dataIdx], 'x');
-
-				tooltip.style.top  = (tooltipTopOffset  + top + shiftX) + "px";
-				tooltip.style.left = (tooltipLeftOffset + lft + shiftY) + "px";
-
-				tooltip.style.borderColor = isInterpolated(dataIdx) ? interpolatedColor : seriesColors[seriesIdx - 1];
-				let pctSinceStart = (((u.data[seriesIdx][dataIdx] - u.data[seriesIdx][0]) / u.data[seriesIdx][0]) * 100).toFixed(2);
-				tooltip.textContent = (
-					fmtDate(new Date(u.data[0][dataIdx] * 1e3)) + " - " + commits[dataIdx][1].slice(0,10) + "\n" +
-					uPlot.fmtNum(u.data[seriesIdx][dataIdx]) + " (" + pctSinceStart + "% since start)"
-				);
+			function update(u) {
+				const seriesIdx = u.tooltip.order[0];
+				const dataIdx = u.tooltip.idxs[seriesIdx];
+				u.over.style.cursor = dataIdx == null ? "" : "pointer";
+				if (tooltip != null && dataIdx != null)
+					tooltip.style.borderColor = isInterpolated(dataIdx) ? interpolatedColor : seriesColors[seriesIdx - 1];
 			}
 
 			return {
+				opts: (u, opts) => {
+					opts.tooltip = {
+						show: true,
+						transpose: true,
+						filter: (u, si) => u.series[si].show && u.series[si]._focus === true && u.tooltip.idxs[si] != null,
+						mount(u, el) {
+							tooltip = el;
+							update(u);
+						},
+					};
+					for (let si = 1; si < opts.series.length; si++) {
+						opts.series[si].values = (u, si, idx) => {
+							const value = u.data?.[si][idx];
+							if (idx == null || value == null)
+								return {Time: "", Commit: "", Value: "", "Since start": ""};
+							const pctSinceStart = ((value - u.data[si][0]) / u.data[si][0] * 100).toFixed(2);
+							return {
+								Time: fmtDate(new Date(u.data[0][idx] * 1e3)),
+								Commit: commits[idx][1].slice(0,10),
+								Value: uPlot.fmtNum(value),
+								"Since start": pctSinceStart + "%",
+							};
+						};
+					}
+				},
 				hooks: {
 					ready: [
 						u => {
-							over = u.over;
-							tooltipLeftOffset = parseFloat(over.style.left);
-							tooltipTopOffset = parseFloat(over.style.top);
-							u.root.querySelector(".u-wrap").appendChild(tooltip);
+							const over = u.over;
 
 							let clientX;
 							let clientY;
@@ -117,39 +94,17 @@
 							});
 
 							over.addEventListener("mouseup", e => {
-								// clicked in-place
-								if (e.clientX == clientX && e.clientY == clientY) {
-									if (seriesIdx != null && dataIdx != null) {
+								// Only an in-place primary click opens the comparison, not a zoom drag.
+								if (e.button == 0 && e.clientX == clientX && e.clientY == clientY) {
+									const seriesIdx = u.tooltip.order[0];
+									const dataIdx = u.tooltip.idxs[seriesIdx];
+									if (dataIdx != null)
 										onclick(u, seriesIdx, dataIdx);
-									}
 								}
 							});
 						}
 					],
-					setCursor: [
-						u => {
-							let c = u.cursor;
-
-							if (dataIdx != c.idx) {
-								dataIdx = c.idx;
-
-								if (seriesIdx != null)
-									setTooltip(u);
-							}
-						}
-					],
-					setSeries: [
-						(u, sidx) => {
-							if (seriesIdx != sidx) {
-								seriesIdx = sidx;
-
-								if (sidx == null)
-									hideTooltip();
-								else if (dataIdx != null)
-									setTooltip(u);
-							}
-						}
-					],
+					setLegend: [update],
 					drawAxes: [
 						u => {
 							let { ctx } = u;
@@ -232,7 +187,7 @@
 					},
 				],
 				plugins: [
-					tooltipPlugin({
+					commitPlugin({
 						onclick(u, seriesIdx, dataIdx) {
 							let thisCommit = commits[dataIdx][1];
 							let prevCommit = (commits[dataIdx-1] || [null,null])[1];
