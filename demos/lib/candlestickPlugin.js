@@ -76,8 +76,12 @@ export function candlestickPlugin({
 		if (!Number.isFinite(colWidth))
 			return;
 
-		const barWidth = Math.max(1, Math.round(0.6 * colWidth));
-		const stickWidth = barWidth <= 12 ? 1 : 2;
+		const pxRatio = u.pxRatio;
+		const minSize = Math.max(1, Math.round(pxRatio));
+		const barWidth = Math.max(minSize, Math.round(0.7 * colWidth));
+		// Use the unsnapped body width so DPR rounding does not move the thickness threshold.
+		const stickWidth = Math.max(1, Math.round((0.7 * colWidth < 8 * pxRatio ? 1 : 2) * pxRatio));
+		const stickOffset = asCandles ? 0 : Math.floor(stickWidth / 2);
 		const outlineWidth = stickWidth;
 		const halfWidth = Math.floor(barWidth / 2);
 		const pricePaths = drawPrice ? colors.map(() => new Path2D()) : null;
@@ -113,7 +117,7 @@ export function candlestickPlugin({
 				const hPx = position(u, hScale, hData?.[i]);
 				const lPx = position(u, lScale, lData?.[i]);
 				const bodyTop = Math.min(oPx, cPx);
-				const bodyHeight = Math.max(1, Math.abs(cPx - oPx));
+				const bodyHeight = Math.max(minSize, Math.abs(cPx - oPx));
 				const stickHeight = lPx - hPx;
 
 				if (
@@ -131,7 +135,7 @@ export function candlestickPlugin({
 					outerPath.rect(stickLeft, bodyTop + bodyHeight, stickWidth, lPx - bodyTop - bodyHeight);
 				}
 				else
-					outerPath.rect(stickLeft, hPx, stickWidth, stickHeight);
+					outerPath.rect(stickLeft, hPx - stickOffset, stickWidth, stickHeight + (asCandles ? 0 : stickWidth));
 
 				if (asCandles) {
 					outerPath.rect(barLeft, bodyTop, barWidth, bodyHeight);
@@ -140,8 +144,8 @@ export function candlestickPlugin({
 						outerPath.rect(barLeft + outlineWidth, bodyTop + bodyHeight - outlineWidth, barWidth - 2 * outlineWidth, 2 * outlineWidth - bodyHeight);
 				}
 				else {
-					outerPath.rect(barLeft, oPx, halfWidth, stickWidth);
-					outerPath.rect(tPx, cPx, halfWidth, stickWidth);
+					outerPath.rect(barLeft, oPx - stickOffset, halfWidth, stickWidth);
+					outerPath.rect(tPx, cPx - stickOffset, barWidth - halfWidth, stickWidth);
 				}
 			}
 		}

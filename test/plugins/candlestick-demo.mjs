@@ -17,14 +17,36 @@ function fixture(factor = 1) {
 	return {data, fields};
 }
 const texts = (root, selector) => [...root.querySelectorAll(selector)].map(el => el.textContent);
+const xRange = u => [u.scales.x.min, u.scales.x.max];
+const initialBounds = [start - 15, start + 1395];
 const band = u => u.under.firstElementChild;
-function assertBand(u) {
+function assertBand(u, interval = 30) {
 	const time = u.data[0][u.cursor.idx];
 	assert.ok(Number.isFinite(time));
-	const left = u.valToPos(time - 15, 'x'), right = u.valToPos(time + 15, 'x');
+	const left = u.valToPos(time - interval / 2, 'x'), right = u.valToPos(time + interval / 2, 'x');
 	assert.equal(band(u).style.display, '');
 	assert.equal(band(u).style.transform, `translateX(${Math.round(left)}px)`);
 	assert.equal(band(u).style.width, Math.max(1, Math.round(right - left)) + 'px');
+}
+
+function mouseFor(u) {
+	let previous;
+	return (type, left, top = 80, target = u.over) => {
+		const event = new MouseEvent(type, {
+			bubbles: true, cancelable: true, button: 0,
+			buttons: type === 'mouseup' || type === 'dblclick' ? 0 : 1,
+			detail: type === 'dblclick' ? 2 : 0,
+			clientX: left, clientY: top,
+		});
+		// mount() supplies a zero-origin overlay; Happy DOM needs explicit movement.
+		Object.defineProperties(event, {
+			movementX: {value: previous == null ? 0 : left - previous[0]},
+			movementY: {value: previous == null ? 0 : top - previous[1]},
+		});
+		previous = [left, top];
+		target.dispatchEvent(event);
+		return event;
+	};
 }
 
 describe('candlestick demo behavior', () => {
@@ -88,14 +110,191 @@ describe('candlestick demo behavior', () => {
 		assert.deepEqual(data.map(column => column[0]), [1626195600, .19986, .20009, .19983, .20004, 286630.4, .1999668, .2002845, .1996492]);
 		assert.ok(data[0].slice(1).every((time, i) => time - data[0][i] === 30));
 		assert.equal(root.querySelector('#status').textContent, `${(2101).toLocaleString()} samples, 30 seconds apart.`);
-		for (const [id, range] of [['all', [data[0][0], data[0].at(-1)]], ['reset', initialRange]]) {
+		assert.deepEqual(initialRange, [start - 1.58, start + 1394.094], 'exported timestamps stay unsnapped');
+		for (const u of plots) assert.deepEqual(xRange(u), initialBounds);
+		const requests = plots.map(u => {
+			const calls = [], setRange = u.setRange;
+			u.setRange = (...args) => { calls.push(args); return setRange(...args); };
+			return calls;
+		});
+		for (const [id, range] of [['all', [data[0][0] - 15, data[0].at(-1) + 15]], ['reset', initialBounds]]) {
 			const button = root.querySelector('#' + id);
 			assert.equal(button.disabled, false);
 			button.click();
 			await Promise.resolve();
-			for (const u of plots) assert.deepEqual([u.scales.x.min, u.scales.x.max], range);
+			for (const [i, u] of plots.entries()) {
+				assert.deepEqual(xRange(u), range);
+				assert.deepEqual(requests[i].at(-1), ['x', ...(id === 'all' ? [null, null] : range)]);
+			}
 		}
 	});
+
+	it('snaps X callbacks outward without clamping, drifting or changing explicit ranges', async () => {
+		mount();
+		await Promise.resolve();
+		for (const u of plots) {
+			assert.deepEqual(xRange(u), initialBounds, 'the short fixture retains the broad initial range');
+			for (const [request, expected] of [
+				[[-5, 65], [-15, 75]], [[29, 31], [15, 45]], [[15, 75], [15, 75]],
+				[[-46, 196], [-75, 225]], [[210, 240], [195, 255]], [[-90, -60], [-105, -45]],
+				[[30, 30], [15, 45]], [[null, 60], [null, null]], [[0, null], [null, null]], [[null, null], [null, null]],
+			]) {
+				const bounds = request.map(value => value == null ? null : start + value);
+				const snapped = expected.map(value => value == null ? null : start + value);
+				assert.deepEqual(u.scales.x.range(u, ...bounds), snapped);
+				assert.deepEqual(u.cursor.drag.setRange(u, 'x', ...bounds), snapped);
+				assert.deepEqual(u.scales.x.range(u, ...snapped), snapped, 'snapping is idempotent');
+			}
+			for (const key of ['y', 'volume'])
+				assert.deepEqual(u.cursor.drag.setRange(u, key, 10.125, 14.875), [10.125, 14.875]);
+
+			u.setScale('x', {min: start - 4.25, max: start + 136.75});
+			await Promise.resolve();
+			assert.deepEqual(xRange(u), [start - 4.25, start + 136.75]);
+			u.setRange('x', start + 7.25, start + 122.75);
+			await Promise.resolve();
+			assert.deepEqual(xRange(u), [start + 7.25, start + 122.75]);
+			for (let i = 0; i < 2; i++) {
+				u.setRange('x', ...u.scales.x.range(u, start + 29, start + 31));
+				await Promise.resolve();
+				assert.deepEqual(xRange(u), [start + 15, start + 45]);
+			}
+		}
+	});
+
+	it('infers the full-array minimum gap and handles irregular edges, duplicates, single and empty data', async () => {
+		mount();
+		await Promise.resolve();
+		for (const [offsets, interval, expected, all] of [
+			[[0, 60, 150], 60, [-30, 90], [-30, 180]],
+			[[7, 37, 67], 30, [22, 52], [-8, 82]],
+			[[0, 60, 120, 180, 185], 5, [22.5, 37.5], [-2.5, 187.5]],
+			[[0, 60, 67, 127], 7, [24.5, 35.5], [-3.5, 130.5]],
+			[[0, 0, 60, 65], 5, [22.5, 37.5], [-2.5, 67.5]],
+			[[7, 7, 7], 1, [25.5, 34.5], [6.5, 7.5]],
+			[[7], 1, [25.5, 34.5], [6.5, 7.5]],
+			[[], 1, [null, null], [null, null]],
+		]) {
+			const data = fixture().data.map((column, si) => si === 0 ? offsets.map(value => start + value) : column.slice(0, offsets.length));
+			const snapped = expected.map(value => value == null ? null : start + value);
+			const full = all.map(value => value == null ? null : start + value);
+			for (const u of plots) {
+				u.setData(data, false);
+				assert.deepEqual(u.scales.x.range(u, start + 26, start + 34), snapped);
+				assert.deepEqual(u.cursor.drag.setRange(u, 'x', start + 26, start + 34), snapped);
+				assert.deepEqual(u.scales.x.range(u, data[0][0] ?? null, data[0].at(-1) ?? null), full);
+				u.setRange('x', null, null);
+			}
+			await Promise.resolve();
+			for (const u of plots) {
+				assert.deepEqual(xRange(u), full);
+				if (offsets.length > 0) {
+					for (const time of data[0])
+						assert.deepEqual(u.scales.x.range(u, time, time), [time - interval / 2, time + interval / 2]);
+					u.setCursor({left: u.valToPos(data[0].at(-1), 'x'), top: 80});
+					assertBand(u, interval);
+				}
+				else
+					assert.equal(band(u).style.display, 'none');
+				assert.doesNotMatch(band(u).style.cssText, /NaN|Infinity/);
+			}
+		}
+	});
+
+	for (const [interval, bounds] of [[60, [-30, 1410]], [5, [-2.5, 1397.5]]]) {
+		it(`infers an initial ${interval}-unit interval for bounds and highlight without hover repaint`, async () => {
+			const parsed = fixture();
+			parsed.data[0] = parsed.data[0].map((_, i) => start + i * interval);
+			mount(parsed);
+			await Promise.resolve();
+			for (const u of plots) {
+				assert.deepEqual(xRange(u), bounds.map(value => start + value));
+				const painted = structuredClone(u.ctx.log);
+				for (const idx of [1, 3, 4]) {
+					u.setCursor({left: u.valToPos(parsed.data[0][idx], 'x'), top: 80});
+					assert.equal(u.cursor.idx, idx);
+					assertBand(u, interval);
+				}
+				assert.deepEqual(u.ctx.log, painted, 'hover does not paint');
+			}
+		});
+	}
+
+	for (const resetScales of [false, true]) {
+		it(`refreshes 30→60→5 intervals after replacement and in-place setData, resetScales=${resetScales}`, async () => {
+			mount();
+			await Promise.resolve();
+			let data = plots[0].data;
+			for (const interval of [30, 60, 5]) {
+				for (const u of plots) u.setCursor({left: 0, top: 80});
+				const previous = plots.map(u => ({range: xRange(u), width: band(u).style.width}));
+				const full = [start - interval / 2, start + 5.5 * interval];
+				if (interval !== 30) {
+					if (interval === 60) data = fixture().data;
+					for (let i = 0; i < data[0].length; i++) data[0][i] = start + i * interval;
+					for (const u of plots) {
+						assert.equal(u.data === data, interval === 5, '5-unit update reuses both data and timestamp arrays');
+						u.setData(data, resetScales);
+					}
+					await Promise.resolve();
+					for (const [i, u] of plots.entries()) {
+						assert.deepEqual(xRange(u), resetScales ? full : previous[i].range);
+						assert.equal(u.cursor.idx, 0, 'stationary cursor keeps the same index');
+						assertBand(u, interval);
+						if (!resetScales) assert.notEqual(band(u).style.width, previous[i].width);
+					}
+				}
+				for (const u of plots) u.setRange('x', null, null);
+				await Promise.resolve();
+				for (const u of plots) assert.deepEqual(xRange(u), full);
+
+				const source = plots[0], mouse = mouseFor(source);
+				const left = source.valToPos(start + .9 * interval, 'x'), right = source.valToPos(start + 1.1 * interval, 'x');
+				mouse('mousedown', left);
+				mouse('mousemove', right);
+				mouse('mouseup', right, 80, document);
+				await Promise.resolve();
+				for (const u of plots) assert.deepEqual(xRange(u), [start + .5 * interval, start + 1.5 * interval]);
+				mouse('dblclick', source.bbox.width / source.pxRatio / 2);
+				await Promise.resolve();
+				for (const u of plots) assert.deepEqual(xRange(u), full);
+			}
+		});
+	}
+
+	for (const ratio of [1, 1.5, 2, 3, 4]) {
+		it(`synchronizes snapped mouse drags and native double-click reset at DPR ${ratio}`, async () => {
+			mount();
+			for (const u of plots) u.setPxRatio(ratio);
+			for (const width of [450, 900]) {
+				for (const u of plots) {
+					u.setSize({width, height: 420});
+					u.setRange('x', null, null);
+				}
+				await Promise.resolve();
+				for (const u of plots) u.syncRect();
+				for (const [i, [from, to, expected]] of [
+					[4, 94, [-15, 105]], [94, 4, [-15, 105]],
+					[29, 31, [15, 45]], [31, 29, [15, 45]],
+				].entries()) {
+					const source = plots[i], mouse = mouseFor(source);
+					const left = source.valToPos(start + from, 'x'), right = source.valToPos(start + to, 'x');
+					mouse('mousedown', left);
+					mouse('mousemove', right);
+					assert.ok(source.select.width > 0, 'even a tiny within-column drag creates a selection');
+					mouse('mouseup', right, 80, document);
+					await Promise.resolve();
+					for (const u of plots)
+						assert.deepEqual(xRange(u), expected.map(value => start + value), `width ${width}, source ${i}`);
+					for (let repeat = 0; repeat < 2; repeat++) {
+						mouse('dblclick', source.bbox.width / source.pxRatio / 2);
+						await Promise.resolve();
+						for (const u of plots) assert.deepEqual(xRange(u), [start - 15, start + 165]);
+					}
+				}
+			}
+		});
+	}
 
 	it('parses fresh chart data from cached CSV text on each render', async () => {
 		const first = await load();
@@ -120,6 +319,18 @@ describe('candlestick demo behavior', () => {
 			const selected = i === 0 ? [0, 1, 2, 3, 4, 5, 6, 7] : i === 3 ? [4] : [0, 1, 2, 3];
 			assert.deepEqual(u.series.slice(1).filter(s => s.show).map(s => s.label), selected.map(si => labels[si]));
 			assert.deepEqual(u.bands.map(b => b.series), i === 0 ? [[fields.bolup, fields.boldn]] : []);
+			for (const [si, stroke, width, dash, cap] of [
+				[fields.sma, '#ff780a', 5, [0, 20], 'round'],
+				[fields.bolup, '#3274d9', 1, [10, 10], 'butt'],
+				[fields.boldn, '#e0b400', 1, [10, 10], 'butt'],
+			]) {
+				const s = u.series[si];
+				assert.deepEqual([s.stroke(u, si), s.width, s.dash, s.cap ?? 'butt'], [stroke, width, dash, cap]);
+			}
+			if (i === 0) {
+				assert.ok(u.ctx.log.some(([op, ...calls]) => op === 'setLineDash' && calls.some(args => args[0]?.join() === '10,10')));
+				assert.ok(u.ctx.log.some(([op, ...values]) => op === 'fillStyle' && values.includes('rgba(50,116,217,0.08)')));
+			}
 			const legend = u.root.querySelector('.u-legend');
 			if (i === 0) assert.deepEqual(texts(legend, '.u-label'), labels.slice(5));
 			else assert.equal(legend, null);

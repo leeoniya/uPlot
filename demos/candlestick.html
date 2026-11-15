@@ -14,9 +14,9 @@
 </head>
 <body>
 	<h1>Dogecoin: Candlesticks, Hollow Candles &amp; OHLC</h1>
-	<p>Same data and renderer as the <a href="https://play.grafana.org/d/candlestick/candlestick?from=2021-07-14T01:07:58.420Z&amp;to=2021-07-14T01:31:14.094Z&amp;timezone=utc">Grafana candlestick demo</a>, with native uPlot axes, tooltips, and overlays.</p>
+	<p>This demo adapts the data and renderer from the <a href="https://play.grafana.org/d/candlestick/candlestick?from=2021-07-14T01:07:58.420Z&amp;to=2021-07-14T01:31:14.094Z&amp;timezone=utc">Grafana candlestick demo</a>. It uses native uPlot axes, tooltips, and overlays.</p>
 	<p>Filled candles compare close to open. Hollow candles compare close to the previous close for color, and leave the body hollow when close is at least open.</p>
-	<p>Hover to compare values. Drag horizontally to zoom all charts; double-click to show all data. Times are UTC.</p>
+	<p>Hover to compare values. Drag horizontally to zoom all charts to whole columns. Double-click to show all data. Times are UTC.</p>
 	<p>
 		<button id="reset" disabled>Reset to initial range</button>
 		<button id="all" disabled>Show all data</button>
@@ -32,8 +32,8 @@
 			const data = charts[0].data;
 			const reset = document.querySelector('#reset');
 			const all = document.querySelector('#all');
-			reset.onclick = () => charts.forEach(u => u.setScale('x', {min: initialRange[0], max: initialRange[1]}));
-			all.onclick = () => charts.forEach(u => u.setScale('x', {min: data[0][0], max: data[0].at(-1)}));
+			reset.onclick = () => charts.forEach(u => u.setRange('x', ...u.scales.x.range(u, ...initialRange)));
+			all.onclick = () => charts.forEach(u => u.setRange('x', null, null));
 			reset.disabled = all.disabled = false;
 			status.textContent = `${data[0].length.toLocaleString()} samples, 30 seconds apart.`;
 		}

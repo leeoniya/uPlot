@@ -1,4 +1,5 @@
 import uPlot from '../src/uPlot.js';
+import { closestIdx } from '../src/utils.js';
 import { candlestickPlugin } from './lib/candlestickPlugin.js';
 import { readText } from './demoResources.js';
 import { plotStep } from './renderDemo.js';
@@ -25,13 +26,46 @@ export function parseCsv(csv) {
 	return {data, fields: Object.fromEntries(names.map((name, i) => [name, i]))};
 }
 
-function columnHighlightPlugin(interval) {
+function columnInterval(times) {
+	let interval = Infinity;
+	for (let i = 1; i < times.length; i++) {
+		const delta = times[i] - times[i - 1];
+		if (delta > 0 && delta < interval)
+			interval = delta;
+	}
+	// A single timestamp cannot supply a sampling interval.
+	return Number.isFinite(interval) ? interval : 1;
+}
+
+function columnRange(times, min, max) {
+	if (times.length == 0 || min == null || max == null)
+		return [null, null];
+
+	const interval = columnInterval(times);
+	const half = interval / 2;
+	let i0 = closestIdx(min + half, times);
+	let i1 = closestIdx(max - half, times);
+	if (times[i0] - half > min && i0 > 0)
+		i0--;
+	if (times[i1] + half < max && i1 < times.length - 1)
+		i1++;
+
+	// Anchor each edge to nearby data, including when gaps are not interval multiples.
+	const left = times[i0] - half;
+	const right = times[i1] + half;
+	return [
+		left + Math.floor((min - left) / interval) * interval,
+		right + Math.ceil((max - right) / interval) * interval,
+	];
+}
+
+function columnHighlightPlugin() {
 	const highlight = document.createElement('div');
 	Object.assign(highlight.style, {
 		pointerEvents: 'none', display: 'none', position: 'absolute',
 		left: 0, top: 0, height: '100%', background: 'rgba(128,128,128,0.2)',
 	});
-	let prevIdx;
+	let prevIdx, interval;
 
 	function update(u, force = false) {
 		const idx = u.cursor.left < 0 || u.cursor.top < 0 ? null : u.cursor.idx;
@@ -53,6 +87,7 @@ function columnHighlightPlugin(interval) {
 	return {
 		hooks: {
 			init: u => u.under.appendChild(highlight),
+			setData: u => { interval = columnInterval(u.data[0]); },
 			setCursor: update,
 			draw: u => update(u, true),
 		},
@@ -60,6 +95,8 @@ function columnHighlightPlugin(interval) {
 }
 
 export function createCharts({data, fields}, target) {
+	const xRange = (u, min, max) => columnRange(u.data[0], min, max);
+	const [xMin, xMax] = columnRange(data[0], ...initialRange);
 	const fmtPrice = new Intl.NumberFormat('en-US', {
 		style: 'currency', currency: 'USD', minimumFractionDigits: 3, maximumFractionDigits: 7,
 	}).format;
@@ -97,10 +134,10 @@ export function createCharts({data, fields}, target) {
 			value: (u, value) => value == null ? '' : uPlot.fmtNum(value),
 		});
 		for (const si of overlays)
-			Object.assign(series[si], {show: !!variant.overlays, stroke: '#3274d9', width: 1});
+			Object.assign(series[si], {show: !!variant.overlays, stroke: '#3274d9', width: 1, dash: [10, 10]});
 		Object.assign(series[fields.sma], {label: 'SMA', stroke: '#ff780a', width: 5, dash: [0, 20], cap: 'round'});
 		series[fields.bolup].label = 'Bollinger upper';
-		series[fields.boldn].label = 'Bollinger lower';
+		Object.assign(series[fields.boldn], {label: 'Bollinger lower', stroke: '#e0b400'});
 
 		function volumeTicks(u, splits) {
 			const last = splits.findIndex(value => value > u.series[fields.volume].max);
@@ -118,12 +155,16 @@ export function createCharts({data, fields}, target) {
 			height: 420,
 			tzDate,
 			series,
-			plugins: [candlestickPlugin({fields, ...variant}), columnHighlightPlugin(30)],
+			plugins: [candlestickPlugin({fields, ...variant}), columnHighlightPlugin()],
 			legend: {show: !!variant.overlays, live: false, filter: (u, si) => overlays.includes(si)},
 			tooltip: {show: true, markers: {show: false}, filter: (u, si) => u.series[si].show},
-			cursor: {x: false, y: false, points: {show: false}, drag: {x: true, y: false}, sync: {key: 'dogecoin', scales: ['x', null]}},
+			cursor: {
+				x: false, y: false, points: {show: false},
+				drag: {x: true, y: false, setRange: (u, key, min, max) => key == 'x' ? xRange(u, min, max) : [min, max]},
+				sync: {key: 'dogecoin', scales: ['x', null]},
+			},
 			scales: {
-				x: {min: initialRange[0], max: initialRange[1]},
+				x: {min: xMin, max: xMax, range: xRange},
 				y: {axis: 1},
 				volume: {
 					axis: 2,
