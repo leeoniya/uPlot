@@ -25,7 +25,7 @@ const demos = [
 	'months-ru',
 	'grid-over-series',
 	'bars-grouped-stacked',
-	'candlestick-ohlc',
+	'candlestick',
 	'annotations',
 	'soft-minmax',
 	'nearest-non-null',
@@ -37,7 +37,7 @@ export const pluginDemos = [
 	'multi-bars',
 	'box-whisker',
 	'bars-grouped-stacked',
-	'candlestick-ohlc',
+	'candlestick',
 	'annotations',
 ];
 

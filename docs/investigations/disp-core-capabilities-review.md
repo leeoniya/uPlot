@@ -203,7 +203,7 @@ Those policies are separate from point-size projection.
 These are not additional `disp` consumers, but they reveal capabilities that a replacement must not accidentally exclude.
 
 - [Box-and-whisker](../../demos/box-whisker.js), lines 123–254: several interval endpoints, a median, nested outlier observations, and multiple primitives per datum.
-- [Candlestick/OHLC](../../demos/candlestick-ohlc.js), lines 134–295: wick/body intervals, direction-derived colors, and volume on another scale.
+- [Candlestick/OHLC](../../demos/lib/candlestickPlugin.js): wick/body intervals, direction-derived colors, and volume on another scale.
 - [High/low bands](../../demos/high-low-bands.js), lines 599–699: existing band-backed bar geometry that can express some floating intervals today.
 
 These examples support reusable channel and interval primitives.

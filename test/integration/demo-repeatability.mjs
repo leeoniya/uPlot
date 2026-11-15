@@ -8,7 +8,7 @@ import months from '../../demos/months.js';
 import monthsRu from '../../demos/months-ru.js';
 import gridOverSeries from '../../demos/grid-over-series.js';
 import barsGroupedStacked from '../../demos/bars-grouped-stacked.js';
-import candlestick from '../../demos/candlestick-ohlc.js';
+import candlestick from '../../demos/candlestick.js';
 import annotations from '../../demos/annotations.js';
 import softMinmax from '../../demos/soft-minmax.js';
 import nearestNonNull from '../../demos/nearest-non-null.js';
@@ -20,7 +20,7 @@ const demos = [
 	['months-ru', monthsRu, 1],
 	['grid-over-series', gridOverSeries, 1],
 	['bars-grouped-stacked', barsGroupedStacked, 10],
-	['candlestick-ohlc', candlestick, 1],
+	['candlestick', candlestick, 4],
 	['annotations', annotations, 1],
 	['soft-minmax', softMinmax, 8],
 	['nearest-non-null', nearestNonNull, 5],

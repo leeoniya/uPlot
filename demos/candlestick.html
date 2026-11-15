@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Candlesticks, Hollow Candles &amp; OHLC</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="color-scheme" content="light">
+	<link rel="stylesheet" href="../src/uPlot.css">
+	<style>
+		#charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+		#charts > div { min-width: 0; }
+		@media (max-width: 900px) { #charts { grid-template-columns: minmax(0, 1fr); } }
+	</style>
+</head>
+<body>
+	<h1>Dogecoin: Candlesticks, Hollow Candles &amp; OHLC</h1>
+	<p>Same data and renderer as the <a href="https://play.grafana.org/d/candlestick/candlestick?from=2021-07-14T01:07:58.420Z&amp;to=2021-07-14T01:31:14.094Z&amp;timezone=utc">Grafana candlestick demo</a>, with native uPlot axes, tooltips, and overlays.</p>
+	<p>Filled candles compare close to open. Hollow candles compare close to the previous close for color, and leave the body hollow when close is at least open.</p>
+	<p>Hover to compare values. Drag horizontally to zoom all charts; double-click to show all data. Times are UTC.</p>
+	<p>
+		<button id="reset" disabled>Reset to initial range</button>
+		<button id="all" disabled>Show all data</button>
+		<span id="status" role="status">Loading CSV…</span>
+	</p>
+	<main id="charts"></main>
+	<script type="module">
+		import { initialRange, createDemo } from './candlestick.js';
+
+		const status = document.querySelector('#status');
+		try {
+			const charts = await createDemo(document.querySelector('#charts'));
+			const data = charts[0].data;
+			const reset = document.querySelector('#reset');
+			const all = document.querySelector('#all');
+			reset.onclick = () => charts.forEach(u => u.setScale('x', {min: initialRange[0], max: initialRange[1]}));
+			all.onclick = () => charts.forEach(u => u.setScale('x', {min: data[0][0], max: data[0].at(-1)}));
+			reset.disabled = all.disabled = false;
+			status.textContent = `${data[0].length.toLocaleString()} samples, 30 seconds apart.`;
+		}
+		catch (error) {
+			status.textContent = `Could not load the demo: ${error.message}`;
+			console.error(error);
+		}
+	</script>
+</body>
+</html>

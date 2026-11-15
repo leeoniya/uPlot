@@ -19,7 +19,7 @@ The default command selects `test/*.mjs` and `test/plugins/*.mjs` explicitly, wi
 Helpers, fixtures, and manual browser tests are not part of test discovery.
 
 The core suite covers native paths, stacking, scales, axes, cursor behavior, legends, and the plugin extension API.
-The plugin suite covers bar-chart, heatmap, and scatter implementations, their helpers, and the grouped-bars, candlestick, box-whisker, and annotation demos.
+The plugin suite covers bar-chart, candlestick, heatmap, and scatter implementations, their helpers, and the grouped-bars, box-whisker, and annotation demos.
 Plugin tests also exercise core code through normal chart construction.
 
 `npm test` runs the union of the two suites, not two npm subprocesses.
@@ -182,18 +182,17 @@ The command can download the pinned compiler into the npm cache.
 
 ## Additional demo snapshots
 
-Ten extracted demos add 54 plot snapshots across 42 steps:
+Nine extracted demos add 56 plot snapshots across 42 steps:
 
 - `months` and `months-ru`
 - `grid-over-series`
 - `bars-grouped-stacked` and `stacked-series`
-- `candlestick-ohlc`
 - `annotations`
 - `soft-minmax`
 - `nearest-non-null`
 - `log-scales2`
 
-The snapshots retain the original datasets. They total approximately 812 KiB, with no individual snapshot larger than 57 KiB.
+The snapshots retain the original datasets. They total approximately 797 KiB, with no individual snapshot larger than 57 KiB.
 Each render creates fresh mutable state. The harness resets the random seed for each step.
 `log-scales2` uses a fixed timestamp by default. Its HTML page supplies the current timestamp through `createGroups(now)`.
 
@@ -213,6 +212,31 @@ Run the repeatability checks:
 ```sh
 npm run test:integration -- --test-name-pattern '^demo migrations'
 ```
+
+## Candlestick demo tests
+
+`test/plugins/candlestick-plugin.mjs` checks color rules, hollow winding, OHLC geometry, missing data, batching, clipping, and canvas state.
+`test/plugins/candlestick-demo.mjs` checks local CSV loading, range controls, native tooltips, synchronized highlights, axes, resizing, and cleanup.
+
+Four snapshots in `test/demos/candlestick/0-0/` cover the price/volume, hollow-candle, OHLC, and volume-only charts.
+The demo exports asynchronous render groups that load the full local Dogecoin CSV through `readText()` in `demos/demoResources.js`.
+The loader uses `fetch()` in the browser and filesystem reads under Node/Bun. Snapshots cover the initial visible range.
+Each render parses fresh data from cached text. The repeatability suite checks that both renders match.
+
+Run the renderer and demo tests:
+
+```sh
+node scripts/test.mjs --no-coverage --workers=1 test/plugins/candlestick-plugin.mjs test/plugins/candlestick-demo.mjs
+```
+
+Run only the candlestick snapshots:
+
+```sh
+node scripts/test.mjs --no-coverage --workers=1 test/plugins/test.mjs --test-name-pattern '^candlestick'
+```
+
+To update only these four snapshots, prefix that command with `UPDATE=1`.
+Use `bun` instead of `node` to run the same checks under Bun.
 
 ## Points demo snapshots
 

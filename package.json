@@ -76,6 +76,7 @@
       "demos/lib/barChartPlugin.js",
       "demos/lib/barHover.js",
       "demos/lib/barValues.js",
+      "demos/lib/candlestickPlugin.js",
       "demos/lib/distr.js",
       "demos/lib/heatmapPlugin.js",
       "demos/lib/scatterPlugin.js"

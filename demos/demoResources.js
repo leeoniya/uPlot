@@ -1,8 +1,8 @@
-// Cache immutable text; callers receive fresh JSON before sorting or chart mutation.
+// Cache immutable text; callers parse fresh data before sorting or chart mutation.
 const texts = new Map();
 const isNode = typeof process !== 'undefined' && process.versions?.node != null;
 
-async function readText(path) {
+export async function readText(path) {
 	const url = new URL(path, import.meta.url);
 
 	if (!texts.has(url.href)) {
