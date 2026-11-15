@@ -108,6 +108,7 @@ function createDemo(data = fixture(), {pxRatio = 1, nodeSize, scatterData, level
 		}, ...(opts.hooks.init ?? [])];
 		return new uPlot(opts, data, target);
 	}
+	Object.assign(DemoPlot, uPlot);
 	// Exercise the plugin source with a tracked index, without adding a test-only plugin option.
 	const pluginSource = readFileSync(new URL('../../demos/lib/scatterPlugin.js', import.meta.url), 'utf8')
 		.replace(/^import[^\n]+;\s*$/gm, '').replace('export function scatterPlugin', 'function scatterPlugin');
@@ -142,8 +143,10 @@ function center(u, seriesIdx, dataIdx = 0) {
 
 function selected(u, seriesIdx = null, dataIdx = 0) {
 	assert.deepEqual(u.cursor.idxs.slice(1), [1, 2, 3, 4].map(si => si == seriesIdx ? dataIdx : null));
+	assert.equal(u.tooltip.idxs, u.cursor.idxs);
+	assert.deepEqual(u.tooltip.order, seriesIdx == null ? [] : [seriesIdx]);
 	if (seriesIdx != null)
-		assert.equal(u.legend.values[seriesIdx].Country, u.data[seriesIdx][3][dataIdx]);
+		assert.equal(u.tooltip.values[seriesIdx].Country, u.data[seriesIdx][3][dataIdx]);
 }
 
 describe('scatter plugin', () => {
@@ -284,8 +287,22 @@ describe('scatter demo bubbles', () => {
 		return demo.u;
 	}
 
-	it('updates bubble hover across series without dimming, painting or index rebuilds', async () => {
+	it('updates bubble hover across series without dimming, painting or index rebuilds', async t => {
+		t.mock.getter(document.documentElement, 'clientWidth', () => 1024);
+		t.mock.getter(document.documentElement, 'clientHeight', () => 768);
 		const u = await plot();
+		// Happy DOM does not lay out the overlay or viewport.
+		t.mock.method(u.over, 'getBoundingClientRect', () => new DOMRect(0, 0, u.bbox.width, u.bbox.height));
+		u.syncRect();
+		const legend = u.root.querySelector('.u-legend');
+		const tooltip = u.over.querySelector('.u-tooltip');
+		const stats = structuredClone(u.legend.values);
+		const legendHTML = legend.innerHTML;
+		assert.equal(u.legend.live, false);
+		assert.equal(legend.classList.contains('u-transpose'), false);
+		assert.equal(tooltip.classList.contains('u-transpose'), true);
+		assert.equal(tooltip.style.display, 'none');
+		assert.equal(u.cursor.lock, true);
 		assert.equal(u.focus.prox, -1);
 		const index = demo.latest(4);
 		const indexCount = demo.indexes.length;
@@ -299,12 +316,20 @@ describe('scatter demo bubbles', () => {
 			u.setCursor(center(u, si));
 			await tick();
 			selected(u, si);
+			assert.equal(tooltip.style.display, '');
+			assert.equal(tooltip.querySelector('tbody .u-label').textContent, u.series[si].label);
+			assert.equal(tooltip.querySelector('.u-value').textContent, u.data[si][3][0]);
+			assert.deepEqual(u.legend.values, stats);
+			assert.equal(legend.innerHTML, legendHTML);
 			assert.ok(u.cursor.points.size(u, si) > 0);
 			assert.ok(u.series.slice(1).every(s => s._focus == null && s.alpha == 1));
 		}
 		u.setCursor({left: -10, top: -10});
 		await tick();
 		selected(u);
+		assert.equal(tooltip.style.display, 'none');
+		assert.deepEqual(u.legend.values, stats);
+		assert.equal(legend.innerHTML, legendHTML);
 		assert.equal(builds, 0);
 		assert.equal(u.ctx.log.length, start);
 		assert.equal(demo.indexes.length, indexCount);
@@ -498,7 +523,7 @@ describe('scatter demo bubbles', () => {
 		});
 	}
 
-	it('formats bubble legend values from the supplied index without a hovered bubble', async () => {
+	it('formats bubble tooltip values by index and legend totals with a null index', async () => {
 		const u = await plot();
 		assert.deepEqual(u.series[2].values(u, 2, 0), {
 			Country: 'B', Population: 25, GDP: '$40', Income: '$60',
@@ -506,7 +531,11 @@ describe('scatter demo bubbles', () => {
 		u.setCursor(center(u, 1));
 		selected(u, 1);
 		assert.equal(u.series[2].values(u, 2, 0).Country, 'B');
-		assert.equal(u.series[2].values(u, 2, null).Country, '<NUM COUNTRIES>');
+		const totals = {Countries: 1, 'Total Population': '25', 'Total GDP': '$40', 'Avg Income': '$60'};
+		assert.deepEqual(u.series[2].values(u, 2, null), totals);
+		assert.deepEqual(u.legend.values[2], totals);
+		assert.equal(u.legend.idx, null);
+		assert.deepEqual(u.legend.idxs, [null, null, null, null, null]);
 	});
 
 	it('allocates data slots but defers finish until entry, once per index', async () => {
