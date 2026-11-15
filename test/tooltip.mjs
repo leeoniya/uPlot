@@ -42,7 +42,7 @@ describe('tooltip', () => {
 		replace(globalThis, 'ResizeObserver', { value: class {
 			constructor(callback) { this.callback = callback; this.targets = []; this.disconnected = false; observers.push(this); }
 			observe(target, options) { this.targets.push([target, options]); }
-			disconnect() { this.disconnected = true; }
+			disconnect() { assert.equal(this.disconnected, false, 'tooltip observer disconnects only once'); this.disconnected = true; }
 			deliver(width, height) { this.callback([{ target: this.targets[0][0], borderBoxSize: [{ inlineSize: width, blockSize: height }] }]); }
 		} });
 	});
@@ -72,7 +72,17 @@ describe('tooltip', () => {
 			series: [{ label: 'Time' }, ...['Alpha', 'Beta'].map(label => ({ label, stroke: 'red', points: { show: false }, value: scalar }))],
 			scales: { x: { time: false, range: [0, 2] }, y: { range: [0, 100] } },
 			...options,
-			tooltip: { show: true, ...options.tooltip },
+			tooltip: {
+				show: true, ...options.tooltip,
+				mount(self, node) {
+					const geometryRead = () => assert.fail('tooltip geometry must come from ResizeObserver');
+					for (const key of ['offsetWidth', 'offsetHeight', 'clientWidth', 'clientHeight', 'scrollWidth', 'scrollHeight'])
+						replace(node, key, { get: geometryRead });
+					for (const key of ['getBoundingClientRect', 'getClientRects'])
+						replace(node, key, { value: geometryRead });
+					options.tooltip?.mount?.(self, node);
+				},
+			},
 		}, source.map(column => Array.isArray(column) ? column.slice() : column), (self, init) => {
 			plots.push(self);
 			self.ctx.measureText = text => ({ width: String(text).length * 8 });
@@ -174,6 +184,15 @@ describe('tooltip', () => {
 			}
 		});
 	}
+
+	it('uses system colors with a subtle tooltip border and shadow', () => {
+		// Happy DOM drops system colors, so inspect the declarations rather than computed styles.
+		const rule = plotCss.match(/\.u-tooltip\s*\{([^}]+)\}/)[1];
+		assert.match(rule, /background:\s*Canvas\s*;/);
+		assert.match(rule, /color:\s*CanvasText\s*;/);
+		assert.match(rule, /border:\s*1px solid color-mix\(in srgb, currentColor 20%, transparent\)\s*;/);
+		assert.match(rule, /box-shadow:\s*0 2px 8px #0003\s*;/);
+	});
 
 	for (const mode of ['table', 'inline']) {
 		for (const multi of [false, true]) {
@@ -1153,34 +1172,84 @@ describe('tooltip', () => {
 		assert.deepEqual(calls, [1, 2], 'no redundant stats pass after the batch');
 	});
 
-	it('positions all four flip combinations, returns to default, and retains RO size across hidden zero reports', async () => {
-		const { u } = await plot();
+	it('uses independent tooltip sizes and cursor state for two charts', async () => {
+		const { u: a } = await plot({ tooltip: { gap: 5 } });
+		const { u: b } = await plot({ tooltip: { gap: 5 } });
+		const nodeA = tooltip(a), nodeB = tooltip(b);
+		assert.equal(observers.length, 2);
+		assert.deepEqual(observers.map(observer => observer.targets), [
+			[[nodeA, { box: 'border-box' }]],
+			[[nodeB, { box: 'border-box' }]],
+		]);
+		observers[0].deliver(101, 81);
+		observers[1].deliver(50, 40);
+
+		a.setCursor({ left: 375, top: 285 });
+		assert.equal(nodeA.style.display, '');
+		assert.equal(nodeB.style.display, 'none');
+		b.setCursor({ left: 380, top: 240 });
+		assert.equal(nodeA.style.transform, 'translate(289px, 229px)');
+		assert.equal(nodeB.style.transform, 'translate(405px, 275px)');
+		observers[0].deliver(100, 80);
+		assert.equal(nodeA.style.transform, 'translate(400px, 320px)');
+		assert.equal(nodeB.style.transform, 'translate(405px, 275px)');
+		a.setCursor({ left: -10, top: -10 });
+		assert.equal(nodeA.style.display, 'none');
+		assert.equal(nodeB.style.display, '');
+	});
+
+	it('positions all four flip combinations at exact 5px-fit thresholds and returns to default', async () => {
+		const { u } = await plot({ tooltip: { gap: 5 } });
 		const node = tooltip(u);
-		const geometryRead = () => assert.fail('tooltip geometry must come from ResizeObserver');
-		for (const key of ['offsetWidth', 'offsetHeight', 'clientWidth', 'clientHeight'])
-			replace(node, key, { get: geometryRead });
-		node.getBoundingClientRect = node.getClientRects = geometryRead;
 		assert.equal(observers.length, 1);
 		assert.deepEqual(observers[0].targets, [[node, { box: 'border-box' }]]);
 		observers[0].deliver(100, 80);
 		for (const [left, top, transform] of [
-			[40, 50, 'translate(72px, 92px)'],
-			[400, 50, 'translate(308px, 92px)'],
-			[40, 300, 'translate(72px, 238px)'],
-			[400, 300, 'translate(308px, 238px)'],
-			[40, 50, 'translate(72px, 92px)'],
+			[40, 50, 'translate(65px, 85px)'],
+			[400, 50, 'translate(315px, 85px)'],
+			[40, 300, 'translate(65px, 245px)'],
+			[400, 300, 'translate(315px, 245px)'],
+			[40, 50, 'translate(65px, 85px)'],
+			// Viewport coordinates (395, 315) fit exactly with one 5px gap.
+			[375, 285, 'translate(400px, 320px)'],
+			[376, 285, 'translate(291px, 320px)'],
+			[376, 286, 'translate(291px, 231px)'],
+			[375, 286, 'translate(400px, 231px)'],
+			[374, 284, 'translate(399px, 319px)'],
+			[375, 285, 'translate(400px, 320px)'],
 		]) {
 			u.setCursor({ left, top });
 			assert.equal(node.style.display, '');
 			assert.equal(node.style.transform, transform);
 		}
-		u.setCursor({ left: -10, top: -10 });
-		assert.equal(node.style.display, 'none');
-		observers[0].deliver(0, 0);
-		u.setCursor({ left: 400, top: 300 });
-		assert.equal(node.style.transform, 'translate(308px, 238px)');
-		observers[0].deliver(50, 40);
-		assert.equal(node.style.transform, 'translate(432px, 342px)');
+	});
+
+	it('repositions on size growth and shrink with a stationary cursor and retains size across hidden zero reports', async () => {
+		const { u } = await plot({ tooltip: { gap: 5 } });
+		const node = tooltip(u), observer = observers[0];
+		u.setCursor({ left: 375, top: 285 });
+		for (const [width, height, transform] of [
+			[100, 80, 'translate(400px, 320px)'],
+			[101, 80, 'translate(289px, 320px)'],
+			[101, 81, 'translate(289px, 229px)'],
+			[100, 81, 'translate(400px, 229px)'],
+			[100, 80, 'translate(400px, 320px)'],
+			[101, 81, 'translate(289px, 229px)'],
+		]) {
+			observer.deliver(width, height);
+			assert.equal(node.style.transform, transform);
+		}
+		for (const [width, height] of [[0, 0], [0, 80], [100, 0]]) {
+			u.setCursor({ left: -10, top: -10 });
+			assert.equal(node.style.display, 'none');
+			observer.deliver(width, height);
+			assert.equal(node.style.display, 'none');
+			u.setCursor({ left: 375, top: 285 });
+			assert.equal(node.style.display, '');
+			assert.equal(node.style.transform, 'translate(289px, 229px)');
+		}
+		observer.deliver(100, 80);
+		assert.equal(node.style.transform, 'translate(400px, 320px)');
 	});
 
 	it('repositions on captured scroll and resize with refreshed overlay geometry and viewport', async () => {
@@ -1193,15 +1262,20 @@ describe('tooltip', () => {
 		rect.top = 200;
 		// Non-bubbling descendant scroll still reaches the window capture listener.
 		u.over.dispatchEvent(new Event('scroll'));
+		assert.equal(node.style.display, '');
 		assert.equal(node.style.transform, 'translate(288px, 312px)');
 		viewport.width = 800;
 		viewport.height = 350;
 		window.dispatchEvent(new Event('resize'));
 		assert.equal(node.style.transform, 'translate(412px, 208px)');
+		rect.left = -101;
+		window.dispatchEvent(new Event('scroll'));
+		assert.equal(node.style.display, 'none');
 		rect.left = 20;
 		rect.top = 30;
 		viewport.height = 400;
-		window.dispatchEvent(new Event('scroll'));
+		window.dispatchEvent(new Event('resize'));
+		assert.equal(node.style.display, '');
 		assert.equal(node.style.transform, 'translate(132px, 142px)');
 	});
 

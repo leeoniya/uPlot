@@ -1,95 +1,46 @@
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { it } from 'node:test';
 import assert from 'node:assert/strict';
 import '../../scripts/instrument.mjs';
 import uPlot from '../../src/uPlot.js';
-import { legendAsTooltipPlugin as candlestickTooltip } from '../../demos/candlestick-ohlc.js';
+import groups from '../../demos/candlestick-ohlc.js';
 
-describe('candlestick legend tooltip mounting', () => {
-	let previousUPlot;
+it('candlestick demo shows formatted values and moves the column highlight without repainting', async () => {
+	const previousUPlot = globalThis.uPlot;
+	globalThis.uPlot = uPlot;
 	let u;
+	try {
+		[u] = await groups[0].steps[0].render();
+		const table = u.over.querySelector('.u-tooltip');
+		assert.ok(table);
+		assert.equal(u.root.querySelector('.u-legend'), null);
+		assert.equal(table.querySelector('.u-marker'), null);
+		assert.deepEqual([...table.querySelectorAll('tbody .u-label')].map(el => el.textContent), ['Open', 'High', 'Low', 'Close', 'Volume']);
 
-	beforeEach(() => {
-		previousUPlot = globalThis.uPlot;
-		globalThis.uPlot = uPlot;
-	});
-
-	afterEach(() => {
-		u?.destroy();
-		u = null;
-		globalThis.uPlot = previousUPlot;
-	});
-
-	function plot(hooks = {}) {
-		u = new uPlot({
-			width: 240, height: 160, pxRatio: 1,
-			padding: [0, 0, 0, 0],
-			axes: [{ show: false }, { show: false }],
-			scales: { x: { time: false, range: [0, 1] }, y: { range: [0, 30] } },
-			cursor: { focus: { prox: -1 }, points: { show: false } },
-			series: [{ label: 'Time' }, { label: 'Open', value: (self, value) => value == null ? '--' : `USD ${value}` }],
-			plugins: [candlestickTooltip({ className: 'tooltip' })],
-			hooks,
-		}, [[0, 1], [10, 20]], document.body);
-	}
-
-	it('mounts the complete legend as a tooltip and updates values synchronously', async () => {
-		plot();
-		assert.equal(u.root.querySelector('.u-legend') === null, true);
-		await Promise.resolve();
-		const legend = u.over.querySelector('.u-legend');
-		assert.equal(legend !== null, true);
-		assert.equal(u.root.querySelectorAll('.u-legend').length, 1);
-		assert.equal(legend.classList.contains('tooltip'), true);
-		assert.equal(legend.classList.contains('u-table'), true);
-		assert.equal(legend.classList.contains('u-inline'), false);
-		assert.equal(legend.style.display, 'none');
-		assert.equal(legend.style.pointerEvents, 'none');
-		assert.equal(u.over.style.overflow, 'visible');
-		assert.equal(legend.querySelectorAll('.u-marker').length, 2);
-		assert.deepEqual([...legend.querySelectorAll('.u-marker')].map(el => el.style.display), ['none', 'none']);
-
+		const highlight = u.under.firstElementChild;
+		const painted = structuredClone(u.ctx.log);
+		assert.equal(highlight.style.display, 'none');
 		u.over.dispatchEvent(new MouseEvent('mouseenter'));
-		assert.equal(legend.style.display, '');
-		u.setCursor({ left: u.valToPos(1, 'x'), top: 40 });
-		assert.equal(u.legend.values[1]._, 'USD 20');
-		assert.equal(legend.style.transform, `translate(${u.cursor.left}px, 40px)`);
-		assert.equal(legend.querySelectorAll('.u-value')[1].textContent, 'USD 20');
-		assert.equal(u.over.querySelector('.u-legend') === legend, true);
-		assert.equal(legend.classList.contains('u-table'), true);
-		assert.equal(legend.classList.contains('u-inline'), false);
-		assert.deepEqual([...legend.querySelectorAll('.u-marker')].map(el => el.style.display), ['none', 'none']);
+		assert.equal(highlight.style.display, '');
+		let previousColumn;
+		for (const idx of [0, 1, 20]) {
+			u.setCursor({ left: u.valToPos(idx, 'x'), top: 40 });
+			assert.equal(u.cursor.idx, idx);
+			assert.equal(table.querySelector('thead th').textContent, new Date(u.data[0][idx] * 1e3).toISOString().slice(0, 10));
+			assert.deepEqual([...table.querySelectorAll('tbody .u-value')].map(el => el.textContent), [
+				...u.data.slice(1, 5).map(column => '$' + column[idx].toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+				uPlot.fmtNum(u.data[5][idx]),
+			]);
+			assert.notEqual(highlight.style.transform, previousColumn);
+			assert.ok(parseFloat(highlight.style.width) > 0);
+			previousColumn = highlight.style.transform;
+		}
 		u.over.dispatchEvent(new MouseEvent('mouseleave'));
-		assert.equal(legend.style.display, 'none');
-	});
-
-	it('accepts cursor updates before mounting and initializes from current hover and position', async () => {
-		let hoverReads = 0;
-		let moved = false;
-		plot({ draw: [self => {
-			if (moved)
-				return;
-			moved = true;
-			// Happy DOM does not reproduce native pointer hover state.
-			self.over.matches = selector => {
-				assert.equal(selector, ':hover');
-				hoverReads++;
-				return true;
-			};
-			assert.equal(self.root.querySelector('.u-legend'), null);
-			self.setCursor({ left: self.valToPos(0, 'x'), top: 20 });
-			self.setCursor({ left: self.valToPos(1, 'x'), top: 60 });
-			assert.equal(self.root.querySelector('.u-legend'), null, 'initial mount waits for the commit to finish');
-		}] });
+		assert.equal(highlight.style.display, 'none');
 		await Promise.resolve();
-		assert.equal(moved, true);
-		const legend = u.over.querySelector('.u-legend');
-		assert.equal(legend !== null, true);
-		assert.equal(legend.style.display, '');
-		assert.equal(legend.style.transform, `translate(${u.cursor.left}px, 60px)`);
-		assert.equal(legend.querySelectorAll('.u-value')[1].textContent, 'USD 20');
-		assert.equal(hoverReads, 1);
-		u.setCursor({ left: u.valToPos(0, 'x'), top: 30 });
-		assert.equal(legend.querySelectorAll('.u-value')[1].textContent, 'USD 10');
-		assert.equal(hoverReads, 1, 'hover detection runs only at mount');
-	});
+		assert.deepEqual(u.ctx.log, painted);
+	}
+	finally {
+		u?.destroy();
+		globalThis.uPlot = previousUPlot;
+	}
 });

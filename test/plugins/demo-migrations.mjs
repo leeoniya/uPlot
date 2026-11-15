@@ -6,7 +6,6 @@ import uPlot from '../../src/uPlot.js';
 import { captureStep, getDemoSteps } from '../../scripts/demoSteps.mjs';
 import { withSeededRandom } from '../../scripts/withSeededRandom.mjs';
 import barsGroupedStacked from '../../demos/bars-grouped-stacked.js';
-import candlestick from '../../demos/candlestick-ohlc.js';
 import annotations from '../../demos/annotations.js';
 import multiBars from '../../demos/multi-bars.js';
 
@@ -141,31 +140,5 @@ describe('demo migrations', () => {
 			await Promise.resolve();
 			assert.deepStrictEqual(labels(), expected);
 		}
-	});
-
-	it('updates the candlestick tooltip and column highlight on hover', async () => {
-		const [plot] = await render(candlestick);
-		const legend = plot.over.querySelector('.u-legend');
-		const highlight = plot.under.firstElementChild;
-		assert.equal(legend.style.display, 'none');
-		assert.equal(highlight.style.display, 'none');
-		plot.over.dispatchEvent(new MouseEvent('mouseenter'));
-		assert.notEqual(legend.style.display, 'none');
-		assert.notEqual(highlight.style.display, 'none');
-		const left = plot.valToPos(10, 'x');
-		plot.setCursor({ left, top: 50 });
-		assert.equal(plot.cursor.idx, 10);
-		await new Promise(requestAnimationFrame);
-		assert.equal(legend.style.transform, `translate(${plot.cursor.left}px, 50px)`);
-		assert.ok(parseFloat(highlight.style.width) > 0);
-		const transform = highlight.style.transform;
-		const value = legend.querySelectorAll('.u-value')[1].textContent;
-		assert.equal(value, plot.data[1][10].toLocaleString('en-US', { style: 'currency', currency: 'USD' }));
-		plot.setCursor({ left: plot.valToPos(11, 'x'), top: 60 });
-		assert.equal(plot.cursor.idx, 11);
-		assert.notEqual(highlight.style.transform, transform);
-		plot.over.dispatchEvent(new MouseEvent('mouseleave'));
-		assert.equal(legend.style.display, 'none');
-		assert.equal(highlight.style.display, 'none');
 	});
 });

@@ -71,65 +71,6 @@ function columnHighlightPlugin({ className, style = {backgroundColor: "rgba(51,2
 	};
 }
 
-// converts the legend into a simple tooltip
-export function legendAsTooltipPlugin({ className, style = { backgroundColor:"rgba(255, 249, 196, 0.92)", color: "black" } } = {}) {
-	let legendEl;
-
-	function mount(u, el) {
-		legendEl = el;
-
-		legendEl.classList.replace("u-inline", "u-table");
-		className && legendEl.classList.add(className);
-
-		uPlot.assign(legendEl.style, {
-			textAlign: "left",
-			pointerEvents: "none",
-			display: "none",
-			position: "absolute",
-			left: 0,
-			top: 0,
-			zIndex: 100,
-			boxShadow: "2px 2px 10px rgba(0,0,0,0.5)",
-			...style
-		});
-
-		// hide series color markers
-		const idents = legendEl.querySelectorAll(".u-marker");
-
-		for (let i = 0; i < idents.length; i++)
-			idents[i].style.display = "none";
-
-		const overEl = u.over;
-		overEl.style.overflow = "visible";
-
-		// move legend into plot bounds
-		overEl.appendChild(legendEl);
-
-		// show/hide tooltip on enter/exit
-		overEl.addEventListener("mouseenter", () => {legendEl.style.display = "";});
-		overEl.addEventListener("mouseleave", () => {legendEl.style.display = "none";});
-
-		if (overEl.matches(":hover"))
-			legendEl.style.display = "";
-		update(u);
-	}
-
-	function update(u) {
-		if (legendEl != null) {
-			const { left, top } = u.cursor;
-			legendEl.style.transform = "translate(" + left + "px, " + top + "px)";
-		}
-	}
-
-	return {
-		opts: (u, opts) => {
-			uPlot.assign(opts, { legend: { mount } });
-		},
-		hooks: {
-			setCursor: update,
-		}
-	};
-}
 
 // draws candlestick symbols (expects data in OHLC order)
 function candlestickPlugin({ gap = 2, shadowColor = "#000000", bearishColor = "#e54245", bullishColor = "#4ab650", bodyMaxWidth = 20, shadowWidth = 2, bodyOutline = 1 } = {}) {
@@ -255,9 +196,10 @@ function candlestickOHLC() {
 		height: 600,
 		title: "Gold",
 		tzDate,
+		legend: {show: false},
+		tooltip: {show: true, markers: {show: false}},
 		plugins: [
 			columnHighlightPlugin(),
-			legendAsTooltipPlugin(),
 			candlestickPlugin()
 		],
 		scales: {

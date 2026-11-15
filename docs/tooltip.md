@@ -154,7 +154,8 @@ Unlocked tooltips ignore pointer events. With `cursor.lock: true`, a plot click 
 Tooltips within that root then accept pointer events and text selection. Interactions inside the tooltip do not unlock the cursor.
 A click on the plot outside the tooltip unlocks the cursor and removes the class.
 
-Applications can supply background, border, shadow, and stacking styles.
+Tooltips use `Canvas` for the background and `CanvasText` for text. These system colors follow the page's `color-scheme`.
+A 1px border and a small shadow separate the tooltip from the plot. Applications can override these styles.
 A transformed ancestor can change the containing block for fixed positioning.
 
 The tooltip deep-clones HTMLElement series labels. The regular legend retains the original nodes.
