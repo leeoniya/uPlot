@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>ASAP Smoothing</title>
+		<title>Data Smoothing and Outliers</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
 		<link rel="stylesheet" href="../dist/uPlot.min.css">
@@ -33,6 +33,9 @@
 		<script src="./lib/sgg.js"></script>
 		<script src="./lib/dbscan1d.js"></script>
 		<script src="./lib/double-mad.js"></script>
+		<script src="./lib/loess.js"></script>
+		<script src="./lib/mean-gam.js"></script>
+		<script src="./lib/quantile-gam.js"></script>
 		<script src="../dist/uPlot.iife.js"></script>
 
 		<script>
@@ -258,6 +261,155 @@
 					rolled.map((v, i) => i),
 					rolled,
 				]);
+
+				const loessControls = document.createElement("form");
+				loessControls.id = "loess-controls";
+				loessControls.innerHTML = `
+					<p>LOESS fits a local line with tricube weights. The span sets the fraction of samples in each neighborhood.
+					Larger spans give smoother curves. Robustness iterations reduce the influence of samples with large residuals.</p>
+					<p>The fit budget limits local regressions on large series. Other samples use linear interpolation in x.
+					Neighborhoods of 16 samples or fewer use exact fits. LOESS and both GAM modes accept ordered, nonuniform x coordinates.</p>
+					<label>Span (logarithmic): <input name="logSpan" type="range" min="-5" max="3" step="0.01" value="0"><span class="slider-value"></span></label>
+					<label>Robustness iterations: <input name="robustnessIters" type="range" min="0" max="5" step="1" value="2"><span class="slider-value"></span></label>
+					<label>Local fit budget: <input name="maxFits" type="range" min="128" max="2048" step="128" value="512"><span class="slider-value"></span></label>
+				`;
+				document.body.appendChild(loessControls);
+				const loessData = [outlierData[0], data];
+				const loessFitter = createLoess();
+				const loessOptions = {x: loessData[0], span: 0.05, robustnessIters: 2, maxFits: 512};
+				const loessSliders = loessControls.querySelectorAll('input[type="range"]');
+				let loessChart;
+
+				function fitLoess() {
+					for (const slider of loessSliders)
+						slider.nextElementSibling.textContent = slider.value;
+					const spanSlider = loessControls.elements.logSpan;
+					loessOptions.span = 0.05 * 2 ** spanSlider.valueAsNumber;
+					const spanText = String(Number(loessOptions.span.toPrecision(4)));
+					spanSlider.nextElementSibling.textContent = spanText;
+					spanSlider.setAttribute("aria-valuetext", spanText);
+					loessOptions.robustnessIters = loessControls.elements.robustnessIters.valueAsNumber;
+					loessOptions.maxFits = loessControls.elements.maxFits.valueAsNumber;
+					console.time("loess");
+					loessData[2] = loessFitter(data, loessOptions);
+					console.timeEnd("loess");
+					loessChart?.setData(loessData);
+				}
+
+				loessControls.addEventListener("input", fitLoess);
+				loessControls.addEventListener("submit", event => {
+					event.preventDefault();
+					fitLoess();
+				});
+				fitLoess();
+				loessChart = makeChart("Taxi Trips (LOESS)", [0, 4e4], loessData, [{
+					label: "LOESS",
+					stroke: "blue",
+					width: 2,
+					points: {show: false},
+				}]);
+
+				const gamControls = document.createElement("form");
+				gamControls.id = "gam-controls";
+				gamControls.innerHTML = `
+					<p>The default generalized additive model (GAM) fits the conditional mean by penalized least squares.
+					It uses cubic B-splines and one banded solve, with linear work in the sample count and basis size.</p>
+					<p>The checkbox replaces the mean with quantile fits using the same basis and second-difference penalty.
+					Higher λ gives smoother curves. λ is manual, not automatically selected, and its effect differs between the two losses.</p>
+					<p data-quantile-details hidden>Quantile fits use iterative optimization, with a limit of 10,000 iterations per quantile.
+					The curves fit independently and can cross. They describe conditional quantiles, not a confidence interval.</p>
+					<label><input name="quantile" type="checkbox">Quantile fits (slower)</label>
+					<label>Spline basis size: <input name="knots" type="range" min="8" max="60" step="1" value="30"><span class="slider-value"></span></label>
+					<label>Smoothness (λ, logarithmic): <input name="logLambda" type="range" min="-2" max="4" step="0.25" value="1"><span class="slider-value"></span></label>
+					<label>Lower-tail probability: <input name="tail" type="range" min="0.05" max="0.45" step="0.05" value="0.1" disabled><span class="slider-value"></span></label>
+					<button type="submit">Fit GAM</button>
+					<output aria-live="polite"></output>
+				`;
+				document.body.appendChild(gamControls);
+				const gamData = [outlierData[0], data];
+				const gamFitter = createMeanGAM();
+				const gamOptions = {x: gamData[0], quantiles: [0.1, 0.5, 0.9], knots: 30, lambda: 10};
+				const meanSeries = [{label: "Mean", stroke: "blue", width: 2, points: {show: false}}];
+				const quantileSeries = [
+					{label: "Lower quantile", stroke: "green", width: 2, points: {show: false}},
+					{label: "Median", stroke: "blue", width: 2, points: {show: false}},
+					{label: "Upper quantile", stroke: "purple", width: 2, points: {show: false}},
+				];
+				const gamOutput = gamControls.querySelector("output");
+				const quantileDetails = gamControls.querySelector("[data-quantile-details]");
+				let quantileFitter;
+				let quantileMode = false;
+				let gamChart;
+				let gamTimer = null;
+
+				function gamReadouts() {
+					const quantile = gamControls.elements.quantile.checked;
+					gamControls.elements.tail.disabled = !quantile;
+					quantileDetails.hidden = !quantile;
+					gamControls.elements.knots.nextElementSibling.textContent = gamControls.elements.knots.value;
+					gamControls.elements.logLambda.nextElementSibling.textContent = Number((10 ** gamControls.elements.logLambda.valueAsNumber).toPrecision(3));
+					gamControls.elements.tail.nextElementSibling.textContent = gamControls.elements.tail.value;
+				}
+
+				function fitGam() {
+					if (gamTimer !== null) clearTimeout(gamTimer);
+					gamTimer = null;
+					gamReadouts();
+					const tail = gamControls.elements.tail.valueAsNumber;
+					gamOptions.quantiles[0] = tail;
+					gamOptions.quantiles[2] = 1 - tail;
+					gamOptions.knots = gamControls.elements.knots.valueAsNumber;
+					gamOptions.lambda = 10 ** gamControls.elements.logLambda.valueAsNumber;
+					const quantile = gamControls.elements.quantile.checked;
+					if (quantile) {
+						quantileFitter ??= createQuantileGAM();
+						console.time("quantile GAM");
+						const fit = quantileFitter(data, gamOptions);
+						console.timeEnd("quantile GAM");
+						let labels = "";
+						let unfinished = "";
+						let iterations = 0;
+						for (let q = 0; q < fit.curves.length; q++) {
+							gamData[q + 2] = fit.curves[q];
+							const label = `p${Math.round(gamOptions.quantiles[q] * 100)}`;
+							labels += (q ? " / " : "") + label;
+							if (!fit.converged[q]) unfinished += (unfinished ? ", " : "") + label;
+							iterations = Math.max(iterations, fit.iterations[q]);
+						}
+						gamOutput.textContent = ` ${labels} · ` +
+							(unfinished ? `Iteration limit reached for ${unfinished}. These fits are approximate.` :
+								`Converged in up to ${iterations} iterations.`);
+					}
+					else {
+						console.time("mean GAM");
+						gamData[2] = gamFitter(data, gamOptions);
+						console.timeEnd("mean GAM");
+						gamData.length = 3;
+						gamOutput.textContent = " Mean · Penalized least squares.";
+					}
+					if (gamChart && quantile !== quantileMode) {
+						for (let i = quantileMode ? 3 : 1; i > 0; i--) gamChart.delSeries(2);
+						const series = quantile ? quantileSeries : meanSeries;
+						for (let i = 0; i < series.length; i++) gamChart.addSeries(series[i], i + 2);
+					}
+					quantileMode = quantile;
+					gamChart?.setData(gamData);
+				}
+
+				gamControls.elements.quantile.addEventListener("change", fitGam);
+				gamControls.addEventListener("input", event => {
+					if (event.target === gamControls.elements.quantile) return;
+					gamReadouts();
+					gamOutput.textContent = " Waiting to refit…";
+					if (gamTimer !== null) clearTimeout(gamTimer);
+					gamTimer = setTimeout(fitGam, 200);
+				});
+				gamControls.addEventListener("submit", event => {
+					event.preventDefault();
+					fitGam();
+				});
+				fitGam();
+				gamChart = makeChart("Taxi Trips (GAM)", [0, 4e4], gamData, meanSeries);
 			});
 		</script>
 	</body>

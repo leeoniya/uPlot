@@ -163,6 +163,22 @@ Group and step IDs default to their zero-based indexes. An optional `id` field
 provides a stable name when cases change order. IDs accept letters, digits,
 underscores, and hyphens. The recorder rejects duplicate group IDs and snapshot paths.
 
+### Data smoothing
+
+Normal runs include the LOESS and mean GAM numerical tests in `test/loess.mjs` and `test/mean-gam.mjs`.
+The controls tests in `test/data-smoothing.mjs` use real mean fits and fast quantile stubs for mode changes.
+The real-uPlot smoke test also covers these mode changes.
+
+The iterative quantile solver tests are skipped by default because they are slow.
+This includes `test/quantile-gam.mjs` and the real quantile integration suite in `test/data-smoothing.mjs`.
+The tests remain available through `TEST_QUANTILE_GAM=1`.
+
+Run all quantile numerical and integration tests explicitly:
+
+```sh
+TEST_QUANTILE_GAM=1 node scripts/test.mjs --no-coverage --workers=1 test/quantile-gam.mjs test/data-smoothing.mjs
+```
+
 ## Scan API declarations
 
 `test/scale-scan-types.ts` is a compile-only regression fixture, separate from the runtime suite.

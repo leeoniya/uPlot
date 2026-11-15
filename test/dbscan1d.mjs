@@ -198,6 +198,9 @@ describe('1D DBSCAN demo', () => {
 			dbscan1d,
 			prepareDbscan1d,
 			prepareDoubleMad: vm.runInNewContext(readFileSync(new URL('../demos/lib/double-mad.js', import.meta.url), 'utf8') + '\nprepareDoubleMad;'),
+			createLoess: vm.runInNewContext(readFileSync(new URL('../demos/lib/loess.js', import.meta.url), 'utf8') + '\ncreateLoess;'),
+			createMeanGAM: vm.runInNewContext(readFileSync(new URL('../demos/lib/mean-gam.js', import.meta.url), 'utf8') + '\ncreateMeanGAM;'),
+			createQuantileGAM: vm.runInNewContext(readFileSync(new URL('../demos/lib/quantile-gam.js', import.meta.url), 'utf8') + '\ncreateQuantileGAM;'),
 			sgg: data => data,
 			smooth: data => data,
 			fetch: () => ({then: () => ({then: callback => { loaded = Promise.resolve().then(() => callback(data)); }})}),
@@ -349,7 +352,7 @@ describe('1D DBSCAN demo', () => {
 			submit(madForm, 2);
 			assert.deepEqual(Array.from(madBuffer), data);
 			assert.equal(madForm.querySelector('output').textContent.trim(), '4 outliers');
-			assert.equal(charts.length, 6);
+			assert.equal(charts.length, 8);
 		}
 		finally {
 			await window.happyDOM.close();
