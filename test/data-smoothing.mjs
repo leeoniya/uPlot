@@ -54,6 +54,11 @@ function createQuantileStub() {
 	};
 }
 
+function setContextGlobal(context, name, value) {
+	// Bun does not sync host-side sandbox writes to existing global var bindings.
+	vm.runInContext(`value => { ${name} = value; }`, context)(value);
+}
+
 async function loadDemo(t, {data = synthetic(), window: hostWindow, Plot, realQuantiles = false} = {}) {
 	if (realQuantiles) assert.equal(process.env.TEST_QUANTILE_GAM, '1', 'real quantile fits require explicit opt-in');
 	const window = hostWindow ?? new Window({settings: {errorCapture: 'disabled'}});
@@ -137,11 +142,11 @@ async function loadDemo(t, {data = synthetic(), window: hostWindow, Plot, realQu
 			]) {
 				if (!src.endsWith(file)) continue;
 				const create = context[factory];
-				context[name] = () => {
+				setContextGlobal(context, name, () => {
 					oneShotCalls[kind]++;
 					assert.fail(`the demo must retain ${factory}(), not call ${name}()`);
-				};
-				context[factory] = () => {
+				});
+				setContextGlobal(context, factory, () => {
 					factoryCreations[kind]++;
 					const fit = create();
 					return (data, options) => {
@@ -152,15 +157,15 @@ async function loadDemo(t, {data = synthetic(), window: hostWindow, Plot, realQu
 						});
 						return result;
 					};
-				};
+				});
 			}
 			if (src.endsWith('/quantile-gam.js')) {
 				const create = realQuantiles ? context.createQuantileGAM : createQuantileStub;
-				context.quantileGAM = () => {
+				setContextGlobal(context, 'quantileGAM', () => {
 					oneShotCalls.gam++;
 					assert.fail('the demo must retain createQuantileGAM(), not call quantileGAM()');
-				};
-				context.createQuantileGAM = () => {
+				});
+				setContextGlobal(context, 'createQuantileGAM', () => {
 					factoryCreations.gam++;
 					const fit = create();
 					return (data, options) => {
@@ -178,7 +183,7 @@ async function loadDemo(t, {data = synthetic(), window: hostWindow, Plot, realQu
 						});
 						return result;
 					};
-				};
+				});
 			}
 		}
 		else
