@@ -187,9 +187,10 @@ function genTimeStuffs(ms) {
 					let date = tzDate(split);
 					// adjust for DST misses
 					let hour = date.getHours();
-					if (hour != 0) {
-						split += hour > 12 ? h : -h;
-						date = tzDate(split);
+					if (hour != 0 || date.getMinutes() != 0) {
+						// snap to the start of the day; when DST skips midnight, the day starts at 1am
+						date = floorSOP(hour > 12 ? tzDate(split + 12 * h) : date, PERIOD_DAY);
+						split = date.getTime() * ms;
 					}
 
 					// rolled over into next month onto non-divisible incr, reset baseline

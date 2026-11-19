@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import '../scripts/instrument.mjs';
 import { timeAxisSplitsMs, timeAxisSplitsS } from '../src/opts.js';
 import { DateZoned, fmtDate } from '../src/fmtDate.js';
@@ -28,6 +30,16 @@ const monthCases = [
 const transitions = [
 	{ name: 'spring', min: '2024-03-10T00:00:00-06:00', max: '2024-03-11T00:00:00-05:00', hours: 23, gap: 5 },
 	{ name: 'fall', min: '2024-11-03T00:00:00-05:00', max: '2024-11-04T00:00:00-06:00', hours: 25, gap: 7 },
+];
+// Days whose first instant is not midnight: Sao Paulo skipped 00:00-01:00 on 2018-11-04,
+// Lord Howe sets clocks back from 02:00 to 01:30, after which 00:00 is 30 minutes off the UTC hour grid.
+const skippedMidnights = [
+	{ zone: 'America/Sao_Paulo', min: '2018-11-01T00:00:00-03:00', max: '2018-11-07T00:00:00-02:00',
+		dates: ['2018-11-01', '2018-11-02', '2018-11-03', '2018-11-04', '2018-11-05', '2018-11-06', '2018-11-07'],
+		clocks: ['00:00:00', '00:00:00', '00:00:00', '01:00:00', '00:00:00', '00:00:00', '00:00:00'] },
+	{ zone: 'Australia/Lord_Howe', min: '2024-04-05T00:00:00+11:00', max: '2024-04-09T00:00:00+10:30',
+		dates: ['2024-04-05', '2024-04-06', '2024-04-07', '2024-04-08', '2024-04-09'],
+		clocks: Array(5).fill('00:00:00') },
 ];
 const monthDay = fmtDate('{MMM}{D}');
 const clock = fmtDate('{HH}:{mm}:{ss}');
@@ -136,6 +148,17 @@ for (const ms of [1, 1e-3]) {
 			}
 		}
 
+		for (const example of skippedMidnights) {
+			const tz = zoned(example.zone);
+			for (const nice of flags) {
+				it(`${example.zone}, daily ticks stay on the first instant of each day: ${JSON.stringify(nice)}`, () => {
+					const ticks = splits(tz, timestamp(example.min), timestamp(example.max), day, nice);
+					assert.deepEqual(ticks.map(ts => calendarDate(tz(ts))), example.dates);
+					assert.deepEqual(ticks.map(ts => clock(tz(ts))), example.clocks);
+				});
+			}
+		}
+
 		for (const example of [
 			{ name: 'month', min: '2023-12-15', max: '2024-04-01', incr: 30 * day, dates: ['2024-01-01', '2024-02-01', '2024-03-01', '2024-04-01'] },
 			{ name: 'year', min: '2023-07-01', max: '2026-01-01', incr: 365 * day, dates: ['2024-01-01', '2025-01-01', '2026-01-01'] },
@@ -150,3 +173,28 @@ for (const ms of [1, 1e-3]) {
 		}
 	});
 }
+
+describe('time axis daily ticks with native local dates', () => {
+	it('keep the day that starts at 01:00 when DST skips midnight (TZ=America/Sao_Paulo)', { timeout: 6000 }, () => {
+		const output = execFileSync(process.execPath, ['--input-type=module', '-e', `
+			const { timeAxisSplitsMs, timeAxisSplitsS } = await import('./src/opts.js');
+			const { fmtDate } = await import('./src/fmtDate.js');
+			const stamp = fmtDate('{YYYY}-{MM}-{DD} {HH}:{mm}');
+			const plot = { axes: [{ nice: { dst: true, first: false } }] };
+			const out = [];
+			for (const ms of [1, 1e-3]) {
+				const splits = (ms == 1 ? timeAxisSplitsMs : timeAxisSplitsS)(ts => new Date(ts / ms));
+				const min = new Date(2018, 10, 2).getTime(), max = new Date(2018, 10, 6).getTime();
+				out.push(splits(plot, 0, min * ms, max * ms, 864e5 * ms, 50).map(ts => stamp(new Date(ts / ms))));
+			}
+			console.log(JSON.stringify(out));
+		`], {
+			cwd: fileURLToPath(new URL('../', import.meta.url)),
+			env: { ...process.env, TZ: 'America/Sao_Paulo', NODE_OPTIONS: '' },
+			encoding: 'utf8',
+			timeout: 5000,
+		});
+		const expected = ['2018-11-02 00:00', '2018-11-03 00:00', '2018-11-04 01:00', '2018-11-05 00:00', '2018-11-06 00:00'];
+		assert.deepEqual(JSON.parse(output), [expected, expected]);
+	});
+});
