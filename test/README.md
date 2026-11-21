@@ -450,6 +450,24 @@ No server or network access is required. Rendering uses the browser's fonts and
 rasterization rather than pre-rendered PNG images. Snapshot comparisons still
 use the recorded commands, not pixels.
 
+## Time-axis DST regressions
+
+`test/time-axis-dst.mjs` checks exact timestamps across midnight gaps, fractional-hour changes, month resets, and date-line shifts.
+The tests cover native `Date`, `DateZoned`, both timestamp units, and the relevant `nice` flags.
+`test/time-period-floor.mjs` checks day, month, and year boundaries directly.
+
+Run the focused tests:
+
+```sh
+node scripts/test.mjs --no-coverage test/time-axis-dst.mjs test/time-period-floor.mjs
+```
+
+The accepted-limitations group contains executable TODO tests for repeated midnight, gaps that span midnight, and multi-day cadence after date-line shifts.
+Node runs these assertions and reports their expected failures as TODOs without a nonzero exit status.
+Bun skips the TODO bodies by default.
+Separate passing tests check termination and finite, increasing timestamps within the visible range.
+If a month reset moves backward, the generator stops and returns the partial or empty tick array.
+
 ## Node and Bun runtimes
 
 All test commands use the `scripts/test.mjs` wrapper under both runtimes.

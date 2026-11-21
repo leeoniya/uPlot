@@ -182,14 +182,20 @@ function genTimeStuffs(ms) {
 				// incrs to add to month baseline
 				let skip = floor((minDate.getDate() - 1) / incrDays);
 				let split = minMinTs + (foundIncr * skip);
+				let prev = -inf;
 
 				do {
 					let date = tzDate(split);
 					// adjust for DST misses
-					let hour = date.getHours();
-					if (hour != 0) {
-						split += hour > 12 ? h : -h;
-						date = tzDate(split);
+					let mins = date.getHours() * 60 + date.getMinutes();
+					if (mins != 0) {
+						let adjust = ((mins >= 720 ? 1440 : 0) - mins) * m;
+						let next = tzDate(split + adjust);
+						// Do not move into the previous date when midnight is skipped.
+						if (adjust > 0 || next.getDate() == date.getDate()) {
+							split += adjust;
+							date = next;
+						}
 					}
 
 					// rolled over into next month onto non-divisible incr, reset baseline
@@ -198,13 +204,15 @@ function genTimeStuffs(ms) {
 						split = date.getTime() * ms;
 
 						// make sure we're not rendering a collision between 31 and 1
-						if (split - splits[splits.length - 1] < foundIncr * 0.7)
+						if (split > prev && split - prev < foundIncr * 0.7)
 							splits.pop();
 					}
 
-					if (split > scaleMax)
+					// A date-line shift can make the month reset rewind instead of advance.
+					if (!(split > prev) || split > scaleMax)
 						break;
 
+					prev = split;
 					if (split >= scaleMin)
 						splits.push(split);
 

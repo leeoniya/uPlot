@@ -329,12 +329,12 @@ export function floorSOP(dz, per) {
 
 	let dz2 = tzDate(ts2, dz.tz);
 
-	let h2 = dz2.getHours();
+	let m2 = dz2.getHours() * 60 + dz2.getMinutes();
 
-	// we want hours to be 0
-	if (h2 > 0) {
-		let dstAdj = h2 > 12 ? 24 - h2 : -h2;
-		dz2 = tzDate(ts2 + dstAdj * 3600 * 1e3, dz.tz);
+	// align to midnight, including fractional-hour offsets
+	if (m2 > 0) {
+		let dstAdj = m2 >= 720 ? 1440 - m2 : -m2;
+		dz2 = tzDate(ts2 + dstAdj * 60 * 1e3, dz.tz);
 	}
 
 	return dz2;

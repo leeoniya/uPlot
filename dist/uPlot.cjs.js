@@ -847,8 +847,8 @@ const PERIOD_YEAR = 5;
 function floorSOP(dz, per) {
 	let ts2 = dz.getTime() - (dz.getMilliseconds() + dz.getSeconds() * 1e3 + dz.getMinutes() * 60 * 1e3 + dz.getHours() * 3600 * 1e3 + (per == 4 ? dz.getDate() - 1 : per == 5 ? getDayOfYear(dz) - 1 : 0) * 24 * 3600 * 1e3);
 	let dz2 = tzDate(ts2, dz.tz);
-	let h2 = dz2.getHours();
-	if (h2 > 0) dz2 = tzDate(ts2 + (h2 > 12 ? 24 - h2 : -h2) * 3600 * 1e3, dz.tz);
+	let m2 = dz2.getHours() * 60 + dz2.getMinutes();
+	if (m2 > 0) dz2 = tzDate(ts2 + (m2 >= 720 ? 1440 - m2 : -m2) * 60 * 1e3, dz.tz);
 	return dz2;
 }
 
@@ -1014,19 +1014,25 @@ function genTimeStuffs(ms) {
 				let incrDays = foundIncr / d;
 				let skip = floor((minDate.getDate() - 1) / incrDays);
 				let split = minMinTs + foundIncr * skip;
+				let prev = -inf;
 				do {
 					let date = tzDate(split);
-					let hour = date.getHours();
-					if (hour != 0) {
-						split += hour > 12 ? h : -h;
-						date = tzDate(split);
+					let mins = date.getHours() * 60 + date.getMinutes();
+					if (mins != 0) {
+						let adjust = ((mins >= 720 ? 1440 : 0) - mins) * m;
+						let next = tzDate(split + adjust);
+						if (adjust > 0 || next.getDate() == date.getDate()) {
+							split += adjust;
+							date = next;
+						}
 					}
 					if (nice.first && (date.getDate() - 1) % incrDays > 0) {
 						date = floorSOP(date, 4);
 						split = date.getTime() * ms;
-						if (split - splits[splits.length - 1] < foundIncr * .7) splits.pop();
+						if (split > prev && split - prev < foundIncr * .7) splits.pop();
 					}
-					if (split > scaleMax) break;
+					if (!(split > prev) || split > scaleMax) break;
+					prev = split;
 					if (split >= scaleMin) splits.push(split);
 					split += foundIncr;
 				} while (1);
