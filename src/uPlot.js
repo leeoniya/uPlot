@@ -1338,7 +1338,6 @@ export default function uPlot(opts, data, then) {
 
 	let points = cursor.points;
 
-	points.show   = fnOrSelf(points.show);
 	points.size   = fnOrSelf(points.size);
 	points.stroke = fnOrSelf(points.stroke);
 	points.width  = fnOrSelf(points.width);
@@ -1384,9 +1383,10 @@ export default function uPlot(opts, data, then) {
 	}
 
 	function initCursorPt(s, si) {
-		let pt = points.show(self, si);
+		let show = points.show;
+		let pt = isFn(show) ? show(self, si) : null;
 
-		if (pt instanceof HTMLElement) {
+		if (pt != null) {
 			addClass(pt, CURSOR_PT);
 			addClass(pt, s.class);
 			elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
@@ -4424,12 +4424,12 @@ export default function uPlot(opts, data, then) {
 	axes.forEach(initAxis);
 
 	if (then) {
-		if (then instanceof HTMLElement) {
+		if (isFn(then))
+			then(self, _init);
+		else {
 			then.appendChild(root);
 			_init();
 		}
-		else
-			then(self, _init);
 	}
 	else
 		_init();

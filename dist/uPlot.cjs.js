@@ -3739,7 +3739,6 @@ function uPlot(opts, data, then) {
 	const cursorDists = cursor.dists = cursor.trackDists ? [] : null;
 	cursor._lock = false;
 	let points = cursor.points;
-	points.show = fnOrSelf(points.show);
 	points.size = fnOrSelf(points.size);
 	points.stroke = fnOrSelf(points.stroke);
 	points.width = fnOrSelf(points.width);
@@ -3770,8 +3769,9 @@ function uPlot(opts, data, then) {
 		if (!restricted) cursorPtMembers.length = 0;
 	}
 	function initCursorPt(s, si) {
-		let pt = points.show(self, si);
-		if (pt instanceof HTMLElement) {
+		let show = points.show;
+		let pt = isFn(show) ? show(self, si) : null;
+		if (pt != null) {
 			addClass(pt, CURSOR_PT);
 			addClass(pt, s.class);
 			elTrans(pt, -10, -10, plotWidCss, plotHgtCss);
@@ -5703,10 +5703,11 @@ function uPlot(opts, data, then) {
 	});
 	axes.forEach(initAxis);
 	if (then) {
-		if (then instanceof HTMLElement) {
+		if (isFn(then)) then(self, _init);
+		else {
 			then.appendChild(root);
 			_init();
-		} else then(self, _init);
+		}
 	} else _init();
 	return self;
 }
