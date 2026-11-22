@@ -1,0 +1,34 @@
+{
+  "html": "<div class=\"uplot u-hz\"><div class=\"u-title\">Pacific/Kwajalein: no visible ticks</div><div class=\"u-wrap\" style=\"width: 600px; height: 200px;\"><div class=\"u-under\" style=\"left: 25px; top: 0px; width: 550px; height: 130px;\"></div><canvas width=\"600\" height=\"200\"></canvas><div class=\"u-over\" style=\"left: 25px; top: 0px; width: 550px; height: 130px;\"><div class=\"u-cursor-x u-off\" style=\"transform: translate(-10px,0px);\"></div><div class=\"u-cursor-y u-off\" style=\"transform: translate(0px,-10px);\"></div><div class=\"u-select\"></div><div style=\"width: 5px; height: 5px; margin-left: -2.5px; margin-top: -2.5px; transform: translate(-10px,-10px);\" class=\"u-cursor-pt u-off\"></div></div><div class=\"u-axis\" style=\"top: 130px; height: 70px; left: 25px; width: 550px;\"></div></div><p class=\"dst-note\">Known limitation: the same date-line shift stops the generator before any tick enters this range. The chart has no x-axis ticks.</p></div>",
+  "width": 600,
+  "height": 200,
+  "ctxlog": [
+    ["canvas.width", 600],
+    ["canvas.height", 200],
+    ["clearRect", [0, 0, 600, 200]],
+    ["fillStyle", "#000"],
+    [
+      "font",
+      "12px system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, \"Noto Sans\", sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\""
+    ],
+    ["textAlign", "center"],
+    ["textBaseline", "top"],
+    ["strokeStyle", "rgba(0,0,0,0.07)"],
+    ["lineWidth", 2],
+    ["lineJoin", "round"],
+    ["lineCap", "butt"],
+    ["setLineDash", [[]]],
+    ["beginPath", []],
+    ["stroke", []],
+    ["beginPath", []],
+    ["stroke", []],
+    ["translate", [0.5, 0.5]],
+    ["strokeStyle", "red"],
+    ["lineWidth", 1],
+    ["save", []],
+    ["clip", [{"log": [["rect", [24.5, -0.5, 551, 131]]]}]],
+    ["stroke", [{"log": [["lineTo", [25, 65], [575, 65]]]}]],
+    ["restore", []],
+    ["translate", [-0.5, -0.5]]
+  ]
+}

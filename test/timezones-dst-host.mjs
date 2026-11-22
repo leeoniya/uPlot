@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const zones = ['Europe/Paris', 'Europe/London', 'Asia/Tokyo', 'America/Chicago', 'UTC'];
+const chartCount = 73;
 const root = fileURLToPath(new URL('../', import.meta.url));
 
 const exec = promisify(execFile);
@@ -24,7 +25,7 @@ async function capture(zone) {
 		const { stdout } = await pending;
 		const result = JSON.parse(stdout);
 		assert.equal(result.hostZone, zone);
-		assert.equal(result.charts.length, 51);
+		assert.equal(result.charts.length, chartCount, 'exercise all 51 original and 22 calendar charts');
 		return result.charts;
 	}
 	catch (error) {
@@ -37,9 +38,9 @@ async function capture(zone) {
 }
 
 describe('timezone/DST demo host independence', () => {
-	it('preserves all 51 pinned charts under ' + zones.join(', '), { timeout: 20000 }, async function() {
+	it('preserves all ' + chartCount + ' pinned charts under ' + zones.join(', '), { timeout: 20000 }, async function() {
 		let expected;
-		// Each child renders all 51 charts. Run one at a time to limit peak memory.
+		// Each child renders the full demo. Run one at a time to limit peak memory.
 		for (const zone of zones) {
 			const charts = await capture(zone);
 			if (expected == null)

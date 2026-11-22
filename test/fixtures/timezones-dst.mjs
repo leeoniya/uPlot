@@ -15,11 +15,13 @@ const transitions = [
 	Date.parse('2024-11-03T07:00:00Z'),
 ].flatMap(ts => [ts / 1e3 - 3600, ts / 1e3, ts / 1e3 + 3600]);
 const charts = [];
+const steps = getDemoSteps(groups);
+assert.equal(steps.length, 73, 'include all 51 original and 22 calendar chart steps');
 
-for (const { id, step } of getDemoSteps(groups)) {
+for (const { id, step } of steps) {
 	let plots;
 	await captureStep({ render: async () => plots = await step.render() }, id, (actual, snapshotId) => {
-		assert.equal(plots.length, 1);
+		assert.equal(plots.length, 1, id + ': each timezone demo step must return one chart');
 		const expected = JSON.parse(readFileSync(new URL('../demos/timezones-dst/' + snapshotId + '.json', import.meta.url), 'utf8'));
 		assert.deepEqual(actual, expected, hostZone + ' snapshot ' + snapshotId);
 
@@ -44,5 +46,5 @@ for (const { id, step } of getDemoSteps(groups)) {
 	});
 }
 
-assert.equal(charts.length, 51, 'exercise every chart in the demo');
+assert.equal(charts.length, steps.length, 'capture every chart in the demo');
 console.log(JSON.stringify({ hostZone, charts }));

@@ -25,10 +25,31 @@
 			.uplot {
 				margin: 20px 0;
 			}
+
+			.dst-note {
+				grid-column: 2;
+				grid-row: -1;
+				margin: 12px;
+				font: 13px/1.5 sans-serif;
+			}
+
+			#calendar-limitations h3 {
+				background: #fff3cd;
+			}
 		</style>
 	</head>
 	<body>
 		<section id="london-spring-range"><h3>London's 2024 "spring forward" time range</h3></section><section id="london-fall-range"><h3>London's 2024 "fall back" time range</h3></section><section id="chicago-spring-range"><h3>Chicago's 2024 "spring forward" time range</h3></section><section id="chicago-fall-range"><h3>Chicago's 2024 "fall back" time range</h3></section><section id="london-spring-ticks"><h3>Europe/London (Mar 31, 2024: 1am -> 2am)</h3></section><section id="london-fall-ticks"><h3>Europe/London (Oct 27, 2024: 2am -> 1am)</h3></section><section id="chicago-spring-ticks"><h3>America/Chicago (Mar 10, 2024: 2am -> 3am)</h3></section><section id="chicago-fall-ticks"><h3>America/Chicago (Nov 3, 2024: 2am -> 1am)</h3></section><section id="days"><h3>Days</h3></section><section id="months"><h3>Months</h3></section><section id="start-offset"><h3>With start offset</h3></section>
+
+		<h2>Calendar boundaries and uncommon offset changes</h2>
+		<p>These ranges let uPlot choose tick intervals with its default spacing. Some historical offset changes are not seasonal DST.</p>
+		<p>Each tick shows the local date or period, local time, and UTC time (Z). UTC times distinguish the two occurrences of a repeated midnight.</p>
+		<section id="midnight-gaps"><h3>Skipped midnight: one-hour gaps</h3></section>
+		<section id="fractional-offsets"><h3>30-minute changes and multi-day ticks</h3></section>
+		<section id="two-hour-dst"><h3>Two-hour DST changes</h3></section>
+		<section id="kathmandu-gap"><h3>Kathmandu: a 15-minute midnight gap</h3></section>
+		<section id="large-rollback"><h3>A 12-hour rollback</h3></section>
+		<section id="calendar-limitations"><h3>Known limitations: incomplete or misplaced ticks</h3></section>
 
 		<script type="module">
 			import { renderDemo } from './renderDemo.js';
